@@ -209,6 +209,11 @@ typedef struct dap_ledger_cache_str_item {
     bool found;
 } dap_ledger_cache_str_item_t;
 
+typedef struct dap_chain_ledger_tx_notifier {
+    dap_chain_ledger_tx_add_notify_t callback;
+    void *arg;
+} dap_chain_ledger_tx_notifier_t;
+
 // dap_ledget_t private section
 typedef struct dap_ledger_private {
     dap_chain_net_t * net;
@@ -3540,6 +3545,11 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
     HASH_ADD_INORDER(hh, l_ledger_priv->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t),
                                  l_tx_item, s_sort_ledger_tx_item); // tx_hash_fast: name of key field
     pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
+    // Callable callback
+    for (dap_list_t *notifier = a_ledger->tx_add_notifiers; notifier != NULL; notifier = notifier->next) {
+        dap_chain_ledger_tx_notifier_t *l_notify = (dap_chain_ledger_tx_notifier_t *)notifier;
+        l_notify->callback(l_notify->arg, a_ledger, l_tx_item->tx);
+    }
     // Count TPS
     clock_gettime(CLOCK_REALTIME, &l_ledger_priv->tps_end_time);
     l_ledger_priv->tps_count++;
@@ -4487,5 +4497,24 @@ dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, si
         }
     }
     return l_list;
+}
+
+void dap_chain_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_chain_ledger_tx_add_notify_t *a_callback, void *a_arg) {
+    if (!a_ledger) {
+        log_it(L_ERROR, "NULL ledger passed to dap_chain_ledger_tx_add_notify()");
+        return;
+    }
+    if (!a_callback) {
+        log_it(L_ERROR, "NULL callback passed to dap_chain_ledger_tx_add_notify()");
+        return;
+    }
+    dap_chain_ledger_tx_notifier_t *l_notifier = DAP_NEW(dap_chain_ledger_tx_notifier_t);
+    if (!l_notifier){
+        log_it(L_ERROR, "Can't allocate memory for notifier in dap_chain_ledger_tx_add_notify()");
+        return;
+    }
+    l_notifier->callback = a_callback;
+    l_notifier->arg = a_arg;
+    a_ledger->tx_add_notifiers = dap_list_append(a_ledger->tx_add_notifiers, l_notifier);
 }
 
