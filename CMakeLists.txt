@@ -68,6 +68,7 @@ endif()
 
 if(BUILD_TESTS)
     include(cmake/OS_Detection.cmake)
+    add_subdirectory(dap-sdk)
 endif()
 
 if (BUILD_WITH_ZIP)
