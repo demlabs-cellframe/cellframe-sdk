@@ -60,6 +60,9 @@ if(BUILD_TESTS)
     include(cmake/OS_Detection.cmake)
 endif()
 
+    add_subdirectory(3rdparty/crc32c_adler)		# https://github.com/fonic/crc32c_adler
+
+
 if( DARWIN)
     add_subdirectory(3rdparty/json-c-darwin)
     add_subdirectory(3rdparty/libmagic-darwin)
