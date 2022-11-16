@@ -89,7 +89,7 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
 
     dap_chain_hash_fast_t l_key_hash;
 
-    dap_hash_fast(a_datum, dap_chain_datum_size(a_datum), &l_key_hash);
+    dap_hash_fast(a_datum->data, a_datum->header.data_size, &l_key_hash);
     char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
     char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
 
