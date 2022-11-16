@@ -699,7 +699,7 @@ static dap_chain_node_info_t *s_get_balancer_link_from_cfg(dap_chain_net_t *a_ne
         if (l_remote_addr){
             dap_chain_node_info_t *l_remote_node_info = dap_chain_node_info_read(a_net, l_remote_addr);
             if (l_remote_node_info) {
-                dap_chain_node_info_t *l_ret = l_remote_node_info->hdr.ext_addr_v4.S_un.S_addr ? l_remote_node_info : NULL;
+                dap_chain_node_info_t *l_ret = l_remote_node_info->hdr.ext_addr_v4.s_addr ? l_remote_node_info : NULL;
                 if (!l_ret)
                     DAP_DELETE(l_remote_node_info);
                 return l_ret;
