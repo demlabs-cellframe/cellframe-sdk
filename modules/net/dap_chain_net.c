@@ -272,6 +272,7 @@ static int s_cli_net(int argc, char ** argv, char **str_reply);
 static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
 static bool s_balancer_start_dns_request(dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_info, bool a_link_replace);
 static bool s_balancer_start_http_request(dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_info, bool a_link_replace);
+static void s_prepare_links_from_balancer(dap_chain_net_t *a_net);
 
 static bool s_seed_mode = false;
 
@@ -1001,6 +1002,14 @@ static void s_net_links_complete_and_start(dap_chain_net_t *a_net, dap_worker_t 
     dap_chain_net_pvt_t * l_net_pvt = PVT(a_net);
     pthread_rwlock_rdlock(&l_net_pvt->balancer_lock);
     if (--l_net_pvt->balancer_link_requests == 0){ // It was the last one
+        // No links obtained from DNS
+        if (HASH_COUNT(l_net_pvt->net_links) == 0 && !l_net_pvt->balancer_http) {
+            // Try to get links from HTTP balancer
+            l_net_pvt->balancer_http = true;
+            s_prepare_links_from_balancer(a_net);
+             pthread_rwlock_unlock(&l_net_pvt->balancer_lock);
+             return;
+        }
         if (HASH_COUNT(l_net_pvt->net_links) < l_net_pvt->max_links_count)
             s_fill_links_from_root_aliases(a_net);  // Comlete the sentence
         pthread_rwlock_wrlock(&l_net_pvt->states_lock);
@@ -1190,7 +1199,7 @@ static bool s_balancer_start_http_request(dap_chain_net_t *a_net, dap_chain_node
     return false;
 }
 
-static void s_prepare_links_from_balancer(dap_chain_net_t *a_net, bool a_over_http)
+static void s_prepare_links_from_balancer(dap_chain_net_t *a_net)
 {
     // Get list of the unique links for l_net
     size_t l_max_links_count = PVT(a_net)->max_links_count * 2;   // Not all will be success
@@ -1201,7 +1210,7 @@ static void s_prepare_links_from_balancer(dap_chain_net_t *a_net, bool a_over_ht
         if (!l_link_node_info)
             continue;
         // Start connect to link hubs
-        if (a_over_http)
+        if (PVT(a_net)->balancer_http)
             s_balancer_start_http_request(a_net, l_link_node_info, false);
         else
             s_balancer_start_dns_request(a_net, l_link_node_info, false);
@@ -1317,7 +1326,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
             }
             // Get DNS request result from root nodes as synchronization links
             if (!l_net_pvt->only_static_links)
-                s_prepare_links_from_balancer(l_net, false);
+                s_prepare_links_from_balancer(l_net);
             else {
                 log_it(L_ATT, "Not use bootstrap addresses, fill seed nodelist from root aliases");
                 // Add other root nodes as synchronization links

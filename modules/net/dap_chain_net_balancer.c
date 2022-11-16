@@ -94,14 +94,16 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
     l_net_str += sizeof(l_net_token) - 1;
     char l_net_name[128] = {};
     strncpy(l_net_name, l_net_str, 127);
-    log_it(L_DEBUG, "DNS parser retrieve netname %s", l_net_name);
+    log_it(L_DEBUG, "HTTP balancer parser retrieve netname %s", l_net_name);
     dap_chain_node_info_t *l_node_info = s_balancer_issue_link(l_net_name);
     if (!l_node_info) {
         log_it(L_WARNING, "Can't issue link for network %s, no acceptable links found", l_net_name);
         *l_return_code = Http_Status_NotFound;
         return;
     }
-
+    *l_return_code = Http_Status_OK;
+    dap_http_simple_reply(a_http_simple, l_node_info, sizeof(*l_node_info));
+    DAP_DELETE(l_node_info);
 }
 
 /**
@@ -111,6 +113,6 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
  */
 dap_chain_node_info_t *dap_chain_net_balancer_dns_issue_link(char *a_str)
 {
-    log_it(L_DEBUG, "DNS parser retrieve netname %s", a_str);
+    log_it(L_DEBUG, "DNS balancer parser retrieve netname %s", a_str);
     return s_balancer_issue_link(a_str);
 }
