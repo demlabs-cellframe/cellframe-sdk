@@ -38,12 +38,14 @@
 
 typedef struct dap_ledger {
     char *net_name;
+    dap_list_t *tx_add_notifiers;
     void *_internal;
 } dap_ledger_t;
 
 typedef bool (* dap_chain_ledger_verificator_callback_t)(dap_ledger_t * a_ledger, dap_hash_fast_t *a_tx_out_hash,  dap_chain_tx_out_cond_t *a_tx_out_cond,
                                                          dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 typedef bool (*dap_chain_ledger_verificator_callback_out_t)(dap_ledger_t* a_ledger, dap_chain_datum_tx_t* a_tx, dap_chain_tx_out_cond_t* a_cond);
+typedef void (* dap_chain_ledger_tx_add_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
 
 typedef struct dap_chain_net dap_chain_net_t;
 
@@ -248,3 +250,5 @@ int dap_chain_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, 
 dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, size_t a_page, bool a_reverse);
 
 //bool dap_chain_ledger_fee_verificator(dap_ledger_t* a_ledger, dap_chain_tx_out_cond_t* a_cond, dap_chain_datum_tx_t* a_tx, bool a_owner);
+
+void dap_chain_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_chain_ledger_tx_add_notify_t a_callback, void *a_arg);
