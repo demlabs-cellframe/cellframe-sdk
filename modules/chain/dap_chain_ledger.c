@@ -3547,7 +3547,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
     pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
     // Callable callback
     for (dap_list_t *notifier = a_ledger->tx_add_notifiers; notifier != NULL; notifier = notifier->next) {
-        dap_chain_ledger_tx_notifier_t *l_notify = (dap_chain_ledger_tx_notifier_t *)notifier;
+        dap_chain_ledger_tx_notifier_t *l_notify = (dap_chain_ledger_tx_notifier_t *)notifier->data;
         l_notify->callback(l_notify->arg, a_ledger, l_tx_item->tx);
     }
     // Count TPS
@@ -4499,7 +4499,7 @@ dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, si
     return l_list;
 }
 
-void dap_chain_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_chain_ledger_tx_add_notify_t *a_callback, void *a_arg) {
+void dap_chain_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_chain_ledger_tx_add_notify_t a_callback, void *a_arg) {
     if (!a_ledger) {
         log_it(L_ERROR, "NULL ledger passed to dap_chain_ledger_tx_add_notify()");
         return;
