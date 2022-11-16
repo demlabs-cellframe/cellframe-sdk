@@ -444,7 +444,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
             l_datums[0] = l_datum;
             for (size_t i = 0; i < l_datums_count; i++) {
                 dap_chain_hash_fast_t l_datum_hash = { };
-                dap_hash_fast(l_datums[i],dap_chain_datum_size(l_datums[i]),&l_datum_hash);
+                dap_hash_fast(l_datums[i]->data,l_datums[i]->header.data_size,&l_datum_hash);
                 char *l_datums_datum_hash_str = dap_chain_hash_fast_to_str_new(&l_datum_hash);
                 bool l_err = dap_chain_node_mempool_process(l_chain, l_datums[i]);
                 if (l_err) {

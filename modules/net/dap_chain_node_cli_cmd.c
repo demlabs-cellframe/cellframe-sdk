@@ -2178,7 +2178,7 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                 // Calc datum's hash
                 l_datum_size = dap_chain_datum_size(l_datum);
                 dap_chain_hash_fast_t l_key_hash={};
-                dap_hash_fast(l_datum, l_datum_size, &l_key_hash);
+                dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_key_hash);
                 char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
                 char * l_key_str_base58 = dap_enc_base58_encode_hash_to_str(&l_key_hash);
                 const char * l_key_out_str;
@@ -3073,7 +3073,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
 
     // Calc datum's hash
     dap_chain_hash_fast_t l_key_hash;
-    dap_hash_fast(l_datum, l_datum_size, &l_key_hash);
+    dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_key_hash);
     char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
     char * l_key_str_out = dap_strcmp(l_hash_out_type, "hex") ?
                 dap_enc_base58_encode_hash_to_str(&l_key_hash) : l_key_str;
@@ -3270,7 +3270,7 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
 
     // Calc datum's hash
     dap_chain_hash_fast_t l_key_hash;
-    dap_hash_fast(l_datum, l_datum_size, &l_key_hash);
+    dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_key_hash);
     char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
     char * l_key_str_out = dap_strcmp(l_hash_out_type, "hex") ?
                            dap_enc_base58_encode_hash_to_str(&l_key_hash) : l_key_str;
@@ -3499,7 +3499,8 @@ int com_token_emit(int a_argc, char ** a_argv, char ** a_str_reply)
     size_t l_datum_emission_size = sizeof(l_datum_emission->header) + l_datum_emission->header.data_size;
 
     // Calc datum emission's hash
-    dap_hash_fast(l_datum_emission, l_datum_emission_size, &l_datum_emission_hash);
+    dap_hash_fast(l_datum_emission->data, l_datum_emission->header.data_size,
+                  &l_datum_emission_hash);
     // return 0 (false) if strings are equivalent
     bool l_hex_format = dap_strcmp(l_hash_out_type, "hex") ? false
                                                            : true;
@@ -4403,7 +4404,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
     // Add transaction to mempool
     char *l_gdb_group_mempool_base_tx = dap_chain_net_get_gdb_group_mempool_new(l_chain);// get group name for mempool
     dap_chain_hash_fast_t *l_datum_tx_hash = DAP_NEW(dap_hash_fast_t);
-    dap_hash_fast(l_datum_tx, l_datum_tx_size, l_datum_tx_hash);// Calculate datum hash
+    dap_hash_fast(l_datum_tx->data, l_datum_tx->header.data_size, l_datum_tx_hash);// Calculate datum hash
     char *l_tx_hash_str = dap_chain_hash_fast_to_str_new(l_datum_tx_hash);
     bool l_placed = dap_global_db_set(l_gdb_group_mempool_base_tx,l_tx_hash_str, l_datum_tx, l_datum_tx_size, true, NULL,NULL );
 
