@@ -1325,10 +1325,9 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                break;
             }
             // Get DNS request result from root nodes as synchronization links
-            if (!l_net_pvt->only_static_links) {
-                PVT(l_net)->balancer_http = true;
+            if (!l_net_pvt->only_static_links)
                 s_prepare_links_from_balancer(l_net);
-            } else {
+            else {
                 log_it(L_ATT, "Not use bootstrap addresses, fill seed nodelist from root aliases");
                 // Add other root nodes as synchronization links
                 s_fill_links_from_root_aliases(l_net);
