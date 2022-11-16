@@ -30,7 +30,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_enc_key.h"
 #include "dap_stream_worker.h"
 #include "dap_chain_net_srv.h"
-#include "dap_chain_net_remote.h"
 #include "dap_chain_node_client.h"
 
 typedef struct dap_chain_net_srv_client dap_chain_net_srv_client_t;

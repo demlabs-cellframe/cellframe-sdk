@@ -33,7 +33,6 @@
 struct dns_client
 {
     dap_events_socket_t * parent;
-    dap_chain_node_info_t *result;
     struct in_addr addr;
     uint16_t port;
     char *name;
@@ -96,7 +95,7 @@ static void s_dns_client_esocket_read_callback(dap_events_socket_t * a_esocket, 
         l_result.hdr.address.uint64 = be64toh(*(uint64_t *)l_cur);
     }
 
-    l_dns_client->callback_success(a_esocket->context->worker,l_dns_client->result,l_dns_client->callbacks_arg);
+    l_dns_client->callback_success(a_esocket->context->worker ,&l_result, l_dns_client->callbacks_arg);
     l_dns_client->is_callbacks_called = true;
     a_esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
     a_esocket->buf_in_size = a_esocket->buf_out_size = 0;

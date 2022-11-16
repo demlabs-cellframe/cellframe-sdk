@@ -27,7 +27,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_net.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum_decree.h"
-#include "dap_chain_net_remote.h"
 #include "dap_chain_wallet.h"
 #include "dap_common.h"
 #include "dap_config.h"
@@ -195,7 +194,6 @@ typedef struct dap_chain_net_srv_client_remote
     time_t ts_created;
     dap_stream_worker_t * stream_worker;
     int session_id;
-    dap_chain_net_remote_t *net_remote; // For remotes
     uint64_t bytes_received;
     uint64_t bytes_sent;
     struct dap_chain_net_srv_client_remote *prev;
