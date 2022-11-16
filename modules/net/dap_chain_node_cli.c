@@ -71,14 +71,6 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
         return 0;
     }
 
-#ifdef __WIN32
-    WSADATA wsaData;
-    int ret = WSAStartup(MAKEWORD(2, 2), &wsaData);
-    if (ret != 0) {
-        log_it(L_CRITICAL, "Couldn't init Winsock DLL, error: %d", ret);
-        return 2;
-    }
-#endif
     uint16_t l_listen_port = dap_config_get_item_uint16_default( g_config, "conserver", "listen_port_tcp",0); // For backward compatibility
     if(l_listen_port == 0)
         l_listen_port = dap_config_get_item_uint16_default( g_config, "conserver", "listen_port",0);
