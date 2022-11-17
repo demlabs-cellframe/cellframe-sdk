@@ -363,7 +363,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
     };
     const size_t l_subcmd_str_count=sizeof(l_subcmd_strs)/sizeof(*l_subcmd_strs)-1;
     const char* l_subcmd_str_args[l_subcmd_str_count];
-    const char* l_subcmd_str_arg;
+    for(int i=0;i<l_subcmd_str_count;i++)
+        l_subcmd_str_args[i]=NULL;
+    const char* l_subcmd_str_arg=NULL;
     const char* l_subcmd_str = NULL;
 
 
@@ -443,7 +445,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
             l_datums[0] = l_datum;
             for (size_t i = 0; i < l_datums_count; i++) {
                 dap_chain_hash_fast_t l_datum_hash = { };
-                dap_hash_fast(l_datums[i],dap_chain_datum_size(l_datums[i]),&l_datum_hash);
+                dap_hash_fast(l_datums[i]->data,l_datums[i]->header.data_size,&l_datum_hash);
                 char *l_datums_datum_hash_str = dap_chain_hash_fast_to_str_new(&l_datum_hash);
                 bool l_err = dap_chain_node_mempool_process(l_chain, l_datums[i]);
                 if (l_err) {
@@ -474,98 +476,105 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
             dap_chain_block_t  * l_block;
             size_t l_block_size = 0;
             dap_chain_hash_fast_t l_block_hash={0};
-            dap_chain_hash_fast_from_str( l_subcmd_str_arg, &l_block_hash); // Convert argument to hash
-            l_block = (dap_chain_block_t*) dap_chain_get_atom_by_hash( l_chain, &l_block_hash, &l_block_size);
-            if ( l_block){
-                dap_chain_block_cache_t *l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_block_hash);
-                if ( l_block_cache ){
-                    dap_string_t * l_str_tmp = dap_string_new(NULL);
-                    char buf[50];
-                    time_t l_ts_reated = (time_t) l_block->hdr.ts_created;
-                     // Header
-                    dap_string_append_printf(l_str_tmp,"Block %s:\n", l_subcmd_str_arg);
-                    dap_string_append_printf(l_str_tmp,"\t\t\tversion: 0x%04X\n",l_block->hdr.version);
-                    dap_string_append_printf(l_str_tmp,"\t\t\tcell_id: 0x%016"DAP_UINT64_FORMAT_X"\n",l_block->hdr.cell_id.uint64);
-                    dap_string_append_printf(l_str_tmp,"\t\t\tchain_id: 0x%016"DAP_UINT64_FORMAT_X"\n",l_block->hdr.chain_id.uint64);
-                    ctime_r(&l_ts_reated, buf);
-                    dap_string_append_printf(l_str_tmp,"\t\t\tts_created: %s\n", buf);
+            if(l_subcmd_str_arg){
+                  dap_chain_hash_fast_from_str( l_subcmd_str_arg, &l_block_hash); // Convert argument to hash
+                  l_block = (dap_chain_block_t*) dap_chain_get_atom_by_hash( l_chain, &l_block_hash, &l_block_size);
+                  if ( l_block){
+                      dap_chain_block_cache_t *l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_block_hash);
+                      if ( l_block_cache ){
+                          dap_string_t * l_str_tmp = dap_string_new(NULL);
+                          char buf[50];
+                          time_t l_ts_reated = (time_t) l_block->hdr.ts_created;
+                           // Header
+                          dap_string_append_printf(l_str_tmp,"Block %s:\n", l_subcmd_str_arg);
+                          dap_string_append_printf(l_str_tmp,"\t\t\tversion: 0x%04X\n",l_block->hdr.version);
+                          dap_string_append_printf(l_str_tmp,"\t\t\tcell_id: 0x%016"DAP_UINT64_FORMAT_X"\n",l_block->hdr.cell_id.uint64);
+                          dap_string_append_printf(l_str_tmp,"\t\t\tchain_id: 0x%016"DAP_UINT64_FORMAT_X"\n",l_block->hdr.chain_id.uint64);
+                          ctime_r(&l_ts_reated, buf);
+                          dap_string_append_printf(l_str_tmp,"\t\t\tts_created: %s\n", buf);
 
-                    // Dump Metadata
-                    dap_string_append_printf(l_str_tmp,"\tMetadata. Count: %us\n",l_block->hdr.meta_count );
-                    for (uint32_t i=0; i < l_block_cache->meta_count; i++){
-                        dap_chain_block_meta_t * l_meta = l_block_cache->meta[i];
-                        switch (l_meta->hdr.type) {
-                            case DAP_CHAIN_BLOCK_META_GENESIS:{
-                                dap_string_append_printf(l_str_tmp, "\t\tGENESIS\n");
-                            }break;
-                            case DAP_CHAIN_BLOCK_META_PREV:{
-                                s_cli_meta_hash_print(l_str_tmp, "PREV", l_meta);
-                            }break;
-                            case DAP_CHAIN_BLOCK_META_ANCHOR:{
-                                s_cli_meta_hash_print(l_str_tmp, "ANCHOR", l_meta);
-                            }break;
-                            case DAP_CHAIN_BLOCK_META_LINK:{
-                                s_cli_meta_hash_print(l_str_tmp, "LINK", l_meta);
-                            }break;
-                            case DAP_CHAIN_BLOCK_META_NONCE:{
-                                s_cli_meta_hex_print(l_str_tmp,"NONCE", l_meta);
-                            }break;
-                            case DAP_CHAIN_BLOCK_META_NONCE2:{
-                                s_cli_meta_hex_print(l_str_tmp,"NONCE2", l_meta);
-                            }break;
-                            default:{
-                                char * l_data_hex = DAP_NEW_Z_SIZE(char,l_meta->hdr.data_size*2+3);
-                                dap_bin2hex(l_data_hex, l_meta->data, l_meta->hdr.data_size);
-                                dap_string_append_printf(l_str_tmp, "\t\t 0x%0X: 0x%s\n", i, l_data_hex );
-                                DAP_DELETE(l_data_hex);
-                            }
-                        }
-                    }
-                    dap_string_append_printf(l_str_tmp,"\t\tdatums:\tcount: %zu\n",l_block_cache->datum_count);
-                    for (uint32_t i=0; i < l_block_cache->datum_count ; i++){
-                        dap_chain_datum_t * l_datum = l_block_cache->datum[i];
-                        size_t l_datum_size =  dap_chain_datum_size(l_datum);
-                        dap_string_append_printf(l_str_tmp,"\t\t\tdatum:\tdatum_size: %zu\n",l_datum_size);
-                        if (l_datum_size < sizeof (l_datum->header) ){
-                            dap_string_append_printf(l_str_tmp,"\t\t\tERROR: datum size %zu is smaller than header size %zu \n",l_datum_size,
-                                                     sizeof (l_datum->header));
-                            break;
-                        }
-                        time_t l_datum_ts_create = (time_t) l_datum->header.ts_create;
-                        // Nested datums
-                        dap_string_append_printf(l_str_tmp,"\t\t\t\tversion:=0x%02X\n", l_datum->header.version_id);
-                        const char * l_datum_type_str="UNKNOWN";
-                        DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_datum_type_str);
-                        dap_string_append_printf(l_str_tmp,"\t\t\t\ttype_id:=%s\n", l_datum_type_str);
-                        ctime_r(&l_datum_ts_create, buf);
-                        dap_string_append_printf(l_str_tmp,"\t\t\t\tts_create=%s\n", buf);
-                        dap_string_append_printf(l_str_tmp,"\t\t\t\tdata_size=%u\n", l_datum->header.data_size);
-                        dap_chain_datum_dump(l_str_tmp, l_datum, "hex");
-                    }
-                    // Signatures
-                    dap_string_append_printf(l_str_tmp,"\t\tsignatures:\tcount: %zu\n",l_block_cache->sign_count );
-                    for (uint32_t i=0; i < l_block_cache->sign_count ; i++){
-                        //dap_sign_t * l_sign =l_block_cache->sign[i];
-                        dap_sign_t * l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, i);
-                        size_t l_sign_size = dap_sign_get_size(l_sign);
-                        dap_chain_addr_t l_addr = {0};
-                        dap_chain_hash_fast_t l_pkey_hash;
-                        dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
-                        dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, l_net->pub.id);
-                        char * l_pkey_hash_str = dap_chain_hash_fast_to_str_new(&l_pkey_hash);
-                        char * l_addr_str = dap_chain_addr_to_str(&l_addr);
-                        dap_string_append_printf(l_str_tmp,"\t\t\ttype:%s size: %zd pkey_hash: %s \n"
-                                                           "\t\t\t\taddr: %s \n", dap_sign_type_to_str( l_sign->header.type ),
-                                                                l_sign_size, l_pkey_hash_str, l_addr_str );
-                        DAP_DELETE( l_pkey_hash_str );
-                    }
-                    dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
-                    dap_string_free(l_str_tmp,false);
-                    ret=0;
-                }
-            }else {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Can't find block %s ", l_subcmd_str_arg);
-                ret=-10;
+                          // Dump Metadata
+                          dap_string_append_printf(l_str_tmp,"\tMetadata. Count: %us\n",l_block->hdr.meta_count );
+                          for (uint32_t i=0; i < l_block_cache->meta_count; i++){
+                              dap_chain_block_meta_t * l_meta = l_block_cache->meta[i];
+                              switch (l_meta->hdr.type) {
+                                  case DAP_CHAIN_BLOCK_META_GENESIS:{
+                                      dap_string_append_printf(l_str_tmp, "\t\tGENESIS\n");
+                                  }break;
+                                  case DAP_CHAIN_BLOCK_META_PREV:{
+                                      s_cli_meta_hash_print(l_str_tmp, "PREV", l_meta);
+                                  }break;
+                                  case DAP_CHAIN_BLOCK_META_ANCHOR:{
+                                      s_cli_meta_hash_print(l_str_tmp, "ANCHOR", l_meta);
+                                  }break;
+                                  case DAP_CHAIN_BLOCK_META_LINK:{
+                                      s_cli_meta_hash_print(l_str_tmp, "LINK", l_meta);
+                                  }break;
+                                  case DAP_CHAIN_BLOCK_META_NONCE:{
+                                      s_cli_meta_hex_print(l_str_tmp,"NONCE", l_meta);
+                                  }break;
+                                  case DAP_CHAIN_BLOCK_META_NONCE2:{
+                                      s_cli_meta_hex_print(l_str_tmp,"NONCE2", l_meta);
+                                  }break;
+                                  default:{
+                                      char * l_data_hex = DAP_NEW_Z_SIZE(char,l_meta->hdr.data_size*2+3);
+                                      dap_bin2hex(l_data_hex, l_meta->data, l_meta->hdr.data_size);
+                                      dap_string_append_printf(l_str_tmp, "\t\t 0x%0X: 0x%s\n", i, l_data_hex );
+                                      DAP_DELETE(l_data_hex);
+                                  }
+                              }
+                          }
+                          dap_string_append_printf(l_str_tmp,"\t\tdatums:\tcount: %zu\n",l_block_cache->datum_count);
+                          for (uint32_t i=0; i < l_block_cache->datum_count ; i++){
+                              dap_chain_datum_t * l_datum = l_block_cache->datum[i];
+                              size_t l_datum_size =  dap_chain_datum_size(l_datum);
+                              dap_string_append_printf(l_str_tmp,"\t\t\tdatum:\tdatum_size: %zu\n",l_datum_size);
+                              if (l_datum_size < sizeof (l_datum->header) ){
+                                  dap_string_append_printf(l_str_tmp,"\t\t\tERROR: datum size %zu is smaller than header size %zu \n",l_datum_size,
+                                                           sizeof (l_datum->header));
+                                  break;
+                              }
+                              time_t l_datum_ts_create = (time_t) l_datum->header.ts_create;
+                              // Nested datums
+                              dap_string_append_printf(l_str_tmp,"\t\t\t\tversion:=0x%02X\n", l_datum->header.version_id);
+                              const char * l_datum_type_str="UNKNOWN";
+                              DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_datum_type_str);
+                              dap_string_append_printf(l_str_tmp,"\t\t\t\ttype_id:=%s\n", l_datum_type_str);
+                              ctime_r(&l_datum_ts_create, buf);
+                              dap_string_append_printf(l_str_tmp,"\t\t\t\tts_create=%s\n", buf);
+                              dap_string_append_printf(l_str_tmp,"\t\t\t\tdata_size=%u\n", l_datum->header.data_size);
+                              dap_chain_datum_dump(l_str_tmp, l_datum, "hex");
+                          }
+                          // Signatures
+                          dap_string_append_printf(l_str_tmp,"\t\tsignatures:\tcount: %zu\n",l_block_cache->sign_count );
+                          for (uint32_t i=0; i < l_block_cache->sign_count ; i++){
+                              //dap_sign_t * l_sign =l_block_cache->sign[i];
+                              dap_sign_t * l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, i);
+                              size_t l_sign_size = dap_sign_get_size(l_sign);
+                              dap_chain_addr_t l_addr = {0};
+                              dap_chain_hash_fast_t l_pkey_hash;
+                              dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
+                              dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, l_net->pub.id);
+                              char * l_pkey_hash_str = dap_chain_hash_fast_to_str_new(&l_pkey_hash);
+                              char * l_addr_str = dap_chain_addr_to_str(&l_addr);
+                              dap_string_append_printf(l_str_tmp,"\t\t\ttype:%s size: %zd pkey_hash: %s \n"
+                                                                 "\t\t\t\taddr: %s \n", dap_sign_type_to_str( l_sign->header.type ),
+                                                                      l_sign_size, l_pkey_hash_str, l_addr_str );
+                              DAP_DELETE( l_pkey_hash_str );
+                          }
+                          dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
+                          dap_string_free(l_str_tmp,false);
+                          ret=0;
+                      }
+                  }else {
+                      dap_chain_node_cli_set_reply_text(a_str_reply, "Can't find block %s ", l_subcmd_str_arg);
+                      ret=-10;
+                  }
+            }
+            else
+            {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Enter block number ");
+                ret=-13;
             }
         }break;
         case SUBCMD_LIST:{
