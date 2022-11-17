@@ -312,8 +312,8 @@ static bool s_sync_out_chains_proc_callback(dap_proc_thread_t *a_thread, void *a
     //pthread_rwlock_rdlock(&l_chain->atoms_rwlock);
     l_sync_request->chain.request_atom_iter = l_chain->callback_atom_iter_create(l_chain, l_sync_request->request_hdr.cell_id, 1);
     size_t l_first_size = 0;
-    dap_chain_atom_ptr_t l_iter = l_chain->callback_atom_iter_get_first(l_sync_request->chain.request_atom_iter, &l_first_size);
-    if (l_iter && l_first_size) {
+    dap_chain_atom_ptr_t l_atom = l_chain->callback_atom_iter_get_first(l_sync_request->chain.request_atom_iter, &l_first_size);
+    if (l_atom && l_first_size) {
         // first packet
         dap_chain_hash_fast_t l_hash_from = l_sync_request->request.hash_from;
         if (!dap_hash_fast_is_blank(&l_hash_from)) {
@@ -321,7 +321,6 @@ static bool s_sync_out_chains_proc_callback(dap_proc_thread_t *a_thread, void *a
                                                           &l_hash_from, &l_first_size);
         }
         //pthread_rwlock_unlock(&l_chain->atoms_rwlock);
-        l_sync_request->chain.request_atom_iter = NULL;
         dap_proc_thread_worker_exec_callback_inter(a_thread, l_sync_request->worker->id, s_sync_out_chains_first_worker_callback, l_sync_request );
     } else {
         //pthread_rwlock_unlock(&l_chain->atoms_rwlock);
