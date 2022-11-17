@@ -661,8 +661,8 @@ enum {
 
 #ifdef DAP_OS_WINDOWS
     DWORD l_err = 0;
-    if ((l_fh = CreateFile(l_wallet_internal->file_name, GENERIC_WRITE, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, CREATE_NEW,
-                          FILE_FLAG_RANDOM_ACCESS | FILE_FLAG_OVERLAPPED | FILE_FLAG_NO_BUFFERING, NULL)) == INVALID_HANDLE_VALUE) {
+    if ((l_fh = CreateFile(l_wallet_internal->file_name, GENERIC_WRITE, /*FILE_SHARE_READ | FILE_SHARE_WRITE */ 0, NULL, CREATE_NEW,
+                          /*FILE_FLAG_RANDOM_ACCESS | FILE_FLAG_OVERLAPPED | FILE_FLAG_NO_BUFFERING*/ 0, NULL)) == INVALID_HANDLE_VALUE) {
         l_err = GetLastError();
         log_it(L_ERROR, "Cant open file %s for writing, err %d", l_wallet_internal->file_name, l_err);
         return -l_err;

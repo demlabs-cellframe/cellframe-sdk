@@ -1362,23 +1362,16 @@ size_t dap_readv(HANDLE a_hf, iovec_t const *a_bufs, int a_bufs_num, DWORD *a_er
 
 size_t dap_writev(HANDLE a_hf, const char* a_filename, iovec_t const *a_bufs, int a_bufs_num, DWORD *a_err) {
     if (!a_bufs || !a_bufs_num) {
+        log_it(L_ERROR, "Bad input data");
         return -1;
     }
     DWORD l_ret = 0;
-    /* bool l_is_aligned = false; */
+    bool l_is_aligned = false;
     /* For a buffer which is not aligned to the page size, we use regular I/O */
-    /* if (!l_is_aligned) {
-        LARGE_INTEGER l_offset = { };
-        l_offset.QuadPart = a_offset;
-        if (!SetFilePointerEx(a_hf, l_offset, &l_offset, FILE_BEGIN)) {
-            if (a_err)
-                *a_err = GetLastError();
-            return -2;
-        }
-
-        for (iovec_t const *i = a_bufs, *end = a_bufs + a_bufs_num; i < end; ++i) {
+    if (!l_is_aligned) {
+        for (iovec_t const *cur_buf = a_bufs, *end = a_bufs + a_bufs_num; cur_buf < end; ++cur_buf) {
             DWORD l_written = 0;
-            if (!WriteFile(a_hf, (char const*)i->iov_base, (DWORD)i->iov_len, &l_written, 0)) {
+            if (!WriteFile(a_hf, (char const*)cur_buf->iov_base, cur_buf->iov_len, &l_written, NULL)) {
                 if (a_err)
                     *a_err = GetLastError();
                 return -1;
@@ -1386,7 +1379,7 @@ size_t dap_writev(HANDLE a_hf, const char* a_filename, iovec_t const *a_bufs, in
             l_ret += l_written;
         }
         return l_ret;
-    } */
+    }
 
     size_t l_total_bufs_size = 0, l_file_size = 0;
     for (iovec_t const *i = a_bufs, *end = a_bufs + a_bufs_num; i < end; ++i)
@@ -1397,11 +1390,10 @@ size_t dap_writev(HANDLE a_hf, const char* a_filename, iovec_t const *a_bufs, in
     int l_pages_count = (l_total_bufs_size + l_page_size - 1) / l_page_size;
     PFILE_SEGMENT_ELEMENT l_seg_arr = DAP_PAGE_ALMALLOC(sizeof(FILE_SEGMENT_ELEMENT) * (l_pages_count + 1)),
             l_cur_seg = l_seg_arr;
-    /* FILE_SEGMENT_ELEMENT l_seg_arr[l_pages_count + 1], *l_cur_seg = l_seg_arr; */
-
-    for (iovec_t const *i = a_bufs, *end = a_bufs + a_bufs_num; i < end; ++i)
-        for (size_t j = 0; j < i->iov_len; j += l_page_size)
-            l_cur_seg++->Buffer = PtrToPtr64((((char*)i->iov_base) + j));
+    int l_idx = 0;
+    for (iovec_t const *cur_buf = a_bufs; l_idx++ < a_bufs_num; ++cur_buf)
+        for (size_t j = 0; j < cur_buf->iov_len; j += l_page_size)
+            l_cur_seg++->Buffer = PtrToPtr64((((char*)cur_buf->iov_base) + j));
     l_cur_seg->Buffer = 0;
 
     /* lol */
@@ -1417,13 +1409,15 @@ size_t dap_writev(HANDLE a_hf, const char* a_filename, iovec_t const *a_bufs, in
     }
 
     DWORD l_err;
-    if (!WriteFileGather(a_hf, l_seg_arr, l_total_bufs_size, 0, &l_ol)) {
+    l_err = GetLastError();
+    if (!WriteFileGather(a_hf, l_seg_arr, l_total_bufs_size * 3, 0, &l_ol)) {
         l_err = GetLastError();
         if (l_err != ERROR_IO_PENDING) {
             if (a_err)
                 *a_err = l_err;
             DAP_PAGE_ALFREE(l_seg_arr);
             CloseHandle(l_ol.hEvent);
+            log_it(L_ERROR, "Write file err: %d", l_err);
             return -1;
         }
         DWORD l_tmp;
@@ -1433,6 +1427,7 @@ size_t dap_writev(HANDLE a_hf, const char* a_filename, iovec_t const *a_bufs, in
                 *a_err = l_err;
             DAP_PAGE_ALFREE(l_seg_arr);
             CloseHandle(l_ol.hEvent);
+            log_it(L_ERROR, "Async writing failure, err %d", l_err);
             return -1;
         }
         if (l_tmp < l_ret)
@@ -1459,12 +1454,14 @@ size_t dap_writev(HANDLE a_hf, const char* a_filename, iovec_t const *a_bufs, in
             CloseHandle(l_hf);
             if (a_err)
                 *a_err = GetLastError();
+            log_it(L_ERROR, "File pointer setting err: %d", l_err);
             return -1;
         }
         if (!SetEndOfFile(l_hf)) {
             if (a_err)
                 *a_err = GetLastError();
             CloseHandle(l_hf);
+            log_it(L_ERROR, "EOF setting err: %d", l_err);
             return -1;
         }
         CloseHandle(l_hf);
