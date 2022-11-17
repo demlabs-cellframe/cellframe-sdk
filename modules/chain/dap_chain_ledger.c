@@ -2703,8 +2703,6 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
     if (a_list_tx_out)
         *a_list_tx_out = l_list_tx_out;
 
-    dap_list_t* l_list_tx_out_cond = NULL;
-
     // sum of values in 'out' items from the previous transactions
     dap_chain_ledger_tokenizer_t *l_values_from_prev_tx = NULL, *l_values_from_cur_tx = NULL,
                                  *l_value_cur = NULL, *l_tmp = NULL, *l_res = NULL;
@@ -2941,8 +2939,9 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS;
             break;
         }
-        if (s_debug_more && !a_from_threshold)
-            log_it(L_INFO,"Previous transaction was found for hash %s",l_tx_prev_hash_str);
+        bound_item->item_out = l_item_out;
+        l_token = l_item_out->cache_data.token_ticker;
+        debug_if(s_debug_more && !a_from_threshold, L_INFO, "Previous transaction was found for hash %s",l_tx_prev_hash_str);
         bound_item->tx_prev = l_tx_prev;
 
         // 2. Check if out in previous transaction has spent
