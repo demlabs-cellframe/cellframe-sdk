@@ -66,10 +66,18 @@ if (CELLFRAME_MODULES MATCHES "test-framework")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_test)
 endif()
 
+
+    add_subdirectory(3rdparty/crc32c_adler)             # https://github.com/fonic/crc32c_adler
+    include_directories(3rdparty/crc32c_adler)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} crc32c_adler)
+
+
+
 if(BUILD_TESTS)
     include(cmake/OS_Detection.cmake)
     add_subdirectory(dap-sdk)
 endif()
+
 
 if (BUILD_WITH_ZIP)
     add_subdirectory(3rdparty/libzip)
@@ -82,6 +90,7 @@ if(DAPSDK_MODULES MATCHES "ssl-support")
 endif()
 
 add_subdirectory(modules/)
+
 
 add_library(${PROJECT_NAME} STATIC cellframe-sdk.c)
 
@@ -207,6 +216,7 @@ if (CELLFRAME_MODULES MATCHES "srv-stake-pos-delegate")
     #add TARGET_FILE for proper symbols resolving
     #pos_delegate depends on symbols from this libs
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake_pos_delegate $<TARGET_FILE:dap_chain_cs_dag_poa> $<TARGET_FILE:dap_chain_cs_block_poa> $<TARGET_FILE:dap_chain_cs_dag> $<TARGET_FILE:dap_chain_cs_blocks>)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} crc32c_adler)
 endif()
 
 # Enable service for dynamic modules
@@ -217,7 +227,7 @@ endif()
 
 if (WIN32)
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} kernel32 user32 shell32 winmm gdi32 advapi32
-					 ole32 version imm32 oleaut32 ws2_32 ntdll psapi 
+					 ole32 version imm32 oleaut32 ws2_32 ntdll psapi
                                          shlwapi bcrypt crypt32 secur32 userenv) #mqrt)
 endif()
 
@@ -225,7 +235,11 @@ if (DARWIN)
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} bz2)
 endif()
 
-target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})
+set(CELLFRAME_LIBS ${CELLFRAME_LIBS} crc32c_adler)
+
+
+
+target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS} crc32c_adler)
 #if(BUILD_DAP_TESTS)
 #    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/test/main_test.py
 #            DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/)
