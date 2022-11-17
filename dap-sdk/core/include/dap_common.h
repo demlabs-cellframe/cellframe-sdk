@@ -47,6 +47,7 @@
 
 #include <time.h>
 #ifdef DAP_OS_WINDOWS
+#include <windows.h>
 #include <fcntl.h>
 #define pipe(pfds) _pipe(pfds, 4096, _O_BINARY)
 #define strerror_r(arg1, arg2, arg3) strerror_s(arg2, arg3, arg1)
@@ -128,6 +129,8 @@
   #define DAP_ALMALLOC(a, b)    _dap_aligned_alloc(a, b)
   #define DAP_ALREALLOC(a, b)   _dap_aligned_realloc(a, b)
   #define DAP_ALFREE(a)         _dap_aligned_free(a, b)
+  #define DAP_PAGE_ALMALLOC(a)  _dap_page_aligned_alloc(a)
+  #define DAP_PAGE_ALFREE(a)    _dap_page_aligned_free(a)
   #define DAP_NEW( a )          DAP_CAST_REINT(a, malloc(sizeof(a)) )
   #define DAP_NEW_SIZE(a, b)    DAP_CAST_REINT(a, malloc(b) )
   #define DAP_NEW_S( a )        DAP_CAST_REINT(a, alloca(sizeof(a)) )
@@ -141,6 +144,34 @@
 #endif
 
 #define DAP_DEL_Z(a)            if (a) { DAP_DELETE((void *)a); (a) = NULL; }
+
+DAP_STATIC_INLINE unsigned long dap_pagesize() {
+    static int s = 0;
+    if (s)
+        return s;
+#ifdef DAP_OS_WINDOWS
+    SYSTEM_INFO si;
+    GetSystemInfo(&si);
+    s = si.dwPageSize;
+#else
+    s = sysconf(_SC_PAGESIZE);
+#endif
+    return s ? s : 4096;
+}
+
+#ifdef DAP_OS_WINDOWS
+typedef struct iovec {
+    void    *iov_base; /* Data */
+    size_t  iov_len; /* ... and its' size */
+} iovec_t;
+
+size_t dap_readv    (HANDLE a_hf, iovec_t const *a_bufs, int a_bufs_num, DWORD *a_err);
+size_t dap_writev   (HANDLE a_hf, const char* a_filename, iovec_t const *a_bufs, int a_bufs_num, DWORD *a_err);
+
+#else
+#define dap_readv readv
+#define dap_writev writev
+#endif
 
 DAP_STATIC_INLINE void *_dap_aligned_alloc( uintptr_t alignment, uintptr_t size )
 {
@@ -175,6 +206,22 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
 
     void  *base_ptr = (void *)((uintptr_t *)ptr)[-1];
     DAP_FREE( base_ptr );
+}
+
+DAP_STATIC_INLINE void *_dap_page_aligned_alloc(size_t size) {
+#ifndef DAP_OS_WINDOWS
+    return valloc(size);
+#else
+    return VirtualAlloc(0, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+#endif
+}
+
+DAP_STATIC_INLINE void _dap_page_aligned_free(void *ptr) {
+#ifndef DAP_OS_WINDOWS
+    free(ptr);
+#else
+    VirtualFree(ptr, 0, MEM_RELEASE);
+#endif
 }
 
 /*
