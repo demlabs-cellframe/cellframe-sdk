@@ -1,25 +1,8 @@
 cmake_minimum_required(VERSION 3.1)
 project (dap_chain_global_db C)
 
-file(GLOB DAP_CHAIN_GLOBAL_DB_SRC
-    dap_global_db.c
-    dap_global_db_sync.c
-    dap_chain_global_db_driver_cdb.c
-    dap_chain_global_db_driver_sqlite.c
-    dap_chain_global_db_remote.c
-    dap_chain_global_db_driver.c
-    dap_chain_global_db_driver_pgsql.c
-)
-file(GLOB DAP_CHAIN_GLOBAL_DB_HDR
-    include/dap_global_db.h
-    include/dap_global_db_sync.h
-    include/dap_global_db.h
-    include/dap_chain_global_db_remote.h
-    include/dap_chain_global_db_driver.h
-    include/dap_chain_global_db_driver_pgsql.h
-    include/dap_chain_global_db_driver_cdb.h
-    include/dap_chain_global_db_driver_sqlite.h
-)
+file(GLOB DAP_CHAIN_GLOBAL_DB_SRC *.c)
+file(GLOB DAP_CHAIN_GLOBAL_DB_HDR include/*.h)
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../3rdparty/cuttdb ${CMAKE_CURRENT_BINARY_DIR}/../../3rdparty/cuttdb)
 if (BUILD_WITH_GDB_DRIVER_MDBX)

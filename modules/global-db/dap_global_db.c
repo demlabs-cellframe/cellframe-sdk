@@ -76,10 +76,13 @@ struct queue_io_msg{
     // Custom argument passed to the callback
     void *  callback_arg;
     union{
-        struct{ // Raw request
+        struct{ // Raw get request
+            uint64_t values_raw_last_id;
+            uint64_t values_page_size;
+        };
+        struct{ //Raw set request
             dap_store_obj_t * values_raw;
             uint64_t values_raw_total;
-            uint64_t values_raw_shift;
         };
         struct{ //deserialized requests
             // Different variant of message params
@@ -92,10 +95,8 @@ struct queue_io_msg{
 
                 // Values for get multiple request
                 struct{
-                    uint64_t values_shift; // For multiple records request here stores next request id
+                    uint64_t values_last_id; // For multiple records request here stores next request id
                     uint64_t values_total; // Total values
-                    size_t values_page_size; // Maximum size of results page request. 0 means unlimited
-                    // TODO implement processing of this value
                 };
 
                 // Value for singe request
@@ -112,8 +113,6 @@ struct queue_io_msg{
     };
 
 };
-
-
 
 static uint32_t s_global_db_version = 0; // Current GlobalDB version
 static pthread_cond_t s_check_db_cond = PTHREAD_COND_INITIALIZER; // Check version condition
@@ -570,14 +569,14 @@ int dap_global_db_get_all(const char * a_group,size_t a_results_page_size, dap_g
  */
 static bool s_msg_opcode_get_all(struct queue_io_msg * a_msg)
 {
-    size_t l_values_count = 0;
-    if(! a_msg->values_total){ // First msg process
-        a_msg->values_total = dap_chain_global_db_driver_count(a_msg->group,0);
-    }
-    dap_store_obj_t *l_store_objs = dap_chain_global_db_driver_cond_read(a_msg->group, a_msg->values_shift , &l_values_count);
+    size_t l_values_count = a_msg->values_page_size;
+    size_t l_values_remains = dap_chain_global_db_driver_count(a_msg->group, a_msg->values_raw_last_id + 1);
+    dap_store_obj_t *l_store_objs = dap_chain_global_db_driver_cond_read(a_msg->group, a_msg->values_raw_last_id + 1, &l_values_count);
+    if (l_store_objs && l_values_count)
+        a_msg->values_raw_last_id = l_store_objs[l_values_count - 1].id;
+    debug_if(g_dap_global_db_debug_more, L_DEBUG, "Get all request from group %s recieved %zu values from total %zu",
+                                                   a_msg->group, l_values_count, l_values_remains);
     dap_global_db_obj_t *l_objs = NULL;
-    debug_if(g_dap_global_db_debug_more, L_DEBUG,"Get all request from group %s recieved %zu values from total %zu",a_msg->group,
-             l_values_count, a_msg->value_length );
     // Form objs from store_objs
     if(l_store_objs){
         l_objs = DAP_NEW_Z_SIZE(dap_global_db_obj_t,sizeof(dap_global_db_obj_t)*l_values_count);
@@ -594,10 +593,11 @@ static bool s_msg_opcode_get_all(struct queue_io_msg * a_msg)
     bool l_delete_objs = true;
     // Call callback if present
     if(a_msg->callback_results)
-        l_delete_objs = a_msg->callback_results(s_context_global_db,  l_objs? DAP_GLOBAL_DB_RC_SUCCESS:DAP_GLOBAL_DB_RC_NO_RESULTS
-                                , a_msg->group, a_msg->key,
-                    a_msg->values_total,a_msg->values_shift, l_values_count,
-                                 l_objs, a_msg->callback_arg );
+        l_delete_objs = a_msg->callback_results(s_context_global_db,
+                                                l_objs ? DAP_GLOBAL_DB_RC_SUCCESS : DAP_GLOBAL_DB_RC_NO_RESULTS,
+                                                a_msg->group, a_msg->key,
+                                                a_msg->values_total, l_values_count,
+                                                l_objs, a_msg->callback_arg);
     // Clean memory
     if(l_store_objs)
         dap_store_obj_free(l_store_objs,l_values_count);
@@ -605,26 +605,13 @@ static bool s_msg_opcode_get_all(struct queue_io_msg * a_msg)
         dap_global_db_objs_delete(l_objs,l_values_count);
 
     // Here we also check if the reply was with zero values. To prevent endless loop we don't resend query request in such cases
-    if(a_msg->values_total && l_values_count){
-        // Check for values_shift overflow and update it
-        if( a_msg->values_shift < (UINT64_MAX - l_values_count) &&
-                l_values_count + a_msg->values_shift <= a_msg->values_total ){
-            a_msg->values_shift += l_values_count;
-
-        }else{
-            log_it(L_WARNING, "Values overflow, can't grow up, values_shift:%"DAP_UINT64_FORMAT_U"   values_total:%"DAP_UINT64_FORMAT_U"  values_current:%zu",  a_msg->values_shift, a_msg->values_total, l_values_count );
-            a_msg->values_shift += a_msg->values_total;
-        }
-
-        if(a_msg->values_shift < a_msg->values_total  ){ // Have to process callback again
-            int l_ret = dap_events_socket_queue_ptr_send(s_context_global_db->queue_io,a_msg);
-            debug_if(g_dap_global_db_debug_more, L_NOTICE, "Resending get all request values_shift:%"DAP_UINT64_FORMAT_U"   values_total:%"DAP_UINT64_FORMAT_U"  values_current:%zu",  a_msg->values_shift, a_msg->values_total, l_values_count );
-            if ( l_ret ){
-                log_it(L_ERROR,"Can't resend i/o message for opcode GET_ALL after value shift %"
-                       DAP_UINT64_FORMAT_U" (total values %" DAP_UINT64_FORMAT_U") error code %d", a_msg->values_shift, a_msg->values_total, l_ret);
-            }else
-                return false; // Don't delete it because it just sent again to the queue
-        }
+    if (l_values_count && l_values_count != l_values_remains) {
+        // Have to process callback again
+        int l_ret = dap_events_socket_queue_ptr_send(s_context_global_db->queue_io,a_msg);
+        debug_if(g_dap_global_db_debug_more, L_NOTICE, "Resending get all request values_remains:%zu", l_values_remains);
+        if (!l_ret)
+            return false; // Don't delete it because it just sent again to the queue{
+        log_it(L_ERROR, "Can't resend i/o message for opcode GET_ALL values_remains:%zu error code %d", l_values_remains, l_ret);
     }
     return true; // All values are sent
 }
@@ -638,7 +625,7 @@ static bool s_msg_opcode_get_all(struct queue_io_msg * a_msg)
  * @param a_arg
  * @return
  */
-int dap_global_db_get_all_raw(const char * a_group, uint64_t a_first_id,size_t a_results_page_size, dap_global_db_callback_results_raw_t a_callback, void * a_arg )
+int dap_global_db_get_all_raw(const char * a_group, uint64_t a_first_id, size_t a_results_page_size, dap_global_db_callback_results_raw_t a_callback, void * a_arg )
 {
     // TODO make usable a_results_page_size
 
@@ -649,7 +636,8 @@ int dap_global_db_get_all_raw(const char * a_group, uint64_t a_first_id,size_t a
     struct queue_io_msg * l_msg = DAP_NEW_Z(struct queue_io_msg);
     l_msg->opcode = MSG_OPCODE_GET_ALL_RAW ;
     l_msg->group = dap_strdup(a_group);
-    l_msg->values_raw_shift = a_first_id;
+    l_msg->values_raw_last_id = a_first_id;
+    l_msg->values_page_size = a_results_page_size;
     l_msg->callback_arg = a_arg;
     l_msg->callback_results_raw = a_callback;
 
@@ -669,52 +657,35 @@ int dap_global_db_get_all_raw(const char * a_group, uint64_t a_first_id,size_t a
  */
 static bool s_msg_opcode_get_all_raw(struct queue_io_msg * a_msg)
 {
-    size_t l_values_count = 0;
-    if(! a_msg->values_total){ // First msg process
-        a_msg->values_raw_total = dap_chain_global_db_driver_count(a_msg->group,0);
-    }
-    uint64_t l_values_raw_shift = a_msg->values_raw_shift;
-    dap_store_obj_t *l_store_objs = dap_chain_global_db_driver_cond_read(a_msg->group, l_values_raw_shift , &l_values_count);
+    size_t l_values_count = a_msg->values_page_size;
+    size_t l_values_remains = dap_chain_global_db_driver_count(a_msg->group, a_msg->values_raw_last_id + 1);
+    dap_store_obj_t *l_store_objs = dap_chain_global_db_driver_cond_read(a_msg->group, a_msg->values_raw_last_id + 1, &l_values_count);
+    if (l_store_objs && l_values_count)
+        a_msg->values_raw_last_id = l_store_objs[l_values_count - 1].id;
     bool l_store_objs_delete = true;
-    debug_if(g_dap_global_db_debug_more, L_DEBUG,"Get all raw request from group %s recieved %zu values from total %"DAP_UINT64_FORMAT_U,a_msg->group,
-             l_values_count, a_msg->values_raw_total );
+    debug_if(g_dap_global_db_debug_more, L_DEBUG, "Get all raw request from group %s recieved %zu values from total %zu",
+                                                   a_msg->group, l_values_count, l_values_remains);
     // Call callback if present
     if(a_msg->callback_results_raw)
-        l_store_objs_delete = a_msg->callback_results_raw(s_context_global_db,  l_store_objs? DAP_GLOBAL_DB_RC_SUCCESS:DAP_GLOBAL_DB_RC_NO_RESULTS
-                                , a_msg->group, a_msg->key,l_values_count, a_msg->values_raw_shift,
-                                 a_msg->values_raw_total,
-                                 l_store_objs, a_msg->callback_arg );
+        l_store_objs_delete = a_msg->callback_results_raw(s_context_global_db,
+                                                          l_store_objs ? DAP_GLOBAL_DB_RC_SUCCESS : DAP_GLOBAL_DB_RC_NO_RESULTS,
+                                                          a_msg->group, a_msg->key, l_values_count,
+                                                          l_values_remains,
+                                                          l_store_objs, a_msg->callback_arg);
     // Clean memory
     if(l_store_objs && l_store_objs_delete)
         dap_store_obj_free(l_store_objs,l_values_count);
 
     // Here we also check if the reply was with zero values. To prevent endless loop we don't resend query request in such cases
-
-    if( a_msg->values_raw_total && l_values_count){
-        // Check for values_shift overflow and update it
-        if( a_msg->values_raw_total && l_values_count && a_msg->values_raw_shift< UINT64_MAX - l_values_count &&
-                l_values_count + a_msg->values_raw_shift <= a_msg->values_raw_total ){
-            l_values_raw_shift =  (a_msg->values_raw_shift += l_values_count);
-
-        } else{
-            log_it(L_WARNING, "Values overflow, can't grow up, values_raw_shift:%"DAP_UINT64_FORMAT_U"   values_raw_total:%"DAP_UINT64_FORMAT_U"  values_raw_current:%zu",
-                   l_values_raw_shift, a_msg->values_raw_total, l_values_count );
-            l_values_raw_shift = (a_msg->values_raw_shift = a_msg->values_raw_total);
-        }
-
-        if( a_msg->values_raw_total && l_values_count && a_msg->values_raw_shift < a_msg->values_raw_total){ // Have to process callback again
-            int l_ret = dap_events_socket_queue_ptr_send(s_context_global_db->queue_io,a_msg);
-            debug_if(g_dap_global_db_debug_more, L_NOTICE, "Resending get all request values_raw_shift:%"DAP_UINT64_FORMAT_U"   values_raw_total:%"DAP_UINT64_FORMAT_U"  values_raw_current:%zu",  a_msg->values_raw_shift, a_msg->values_raw_total, l_values_count );
-
-            if ( l_ret ){
-                log_it(L_ERROR,"Can't resend i/o message for opcode GET_ALL_RAW after value shift %"
-                       DAP_UINT64_FORMAT_U" error code %d", a_msg->values_shift,l_ret);
-            }else
-                return false; // Don't delete it because it just sent again to the queue
-        }
+    if (l_values_count && l_values_count != l_values_remains) {
+        // Have to process callback again
+        int l_ret = dap_events_socket_queue_ptr_send(s_context_global_db->queue_io,a_msg);
+        debug_if(g_dap_global_db_debug_more, L_NOTICE, "Resending get all raw request values_remains:%zu", l_values_remains);
+        if (!l_ret)
+            return false; // Don't delete it because it just sent again to the queue{
+        log_it(L_ERROR, "Can't resend i/o message for opcode GET_ALL_RAW values_remains:%zu error code %d", l_values_remains, l_ret);
     }
     return true; // All values are sent
-
 }
 
 
@@ -885,7 +856,7 @@ static bool s_msg_opcode_set_raw(struct queue_io_msg * a_msg)
     if(a_msg->callback_results_raw){
         a_msg->callback_results_raw (s_context_global_db,  l_ret==0 ? DAP_GLOBAL_DB_RC_SUCCESS:
                                         DAP_GLOBAL_DB_RC_ERROR, a_msg->group, a_msg->key,
-                               a_msg->values_raw_total, 0, a_msg->values_raw_total, a_msg->values_raw ,
+                               a_msg->values_raw_total, a_msg->values_raw_total, a_msg->values_raw ,
                                 a_msg->callback_arg );
     }
     dap_store_obj_free(a_msg->values_raw, a_msg->values_raw_total);
@@ -955,7 +926,7 @@ static bool s_msg_opcode_set_multiple_zc(struct queue_io_msg * a_msg)
     if(a_msg->callback_results){
         l_delete_values = a_msg->callback_results(s_context_global_db,  l_ret==0 ? DAP_GLOBAL_DB_RC_SUCCESS:
                                         DAP_GLOBAL_DB_RC_ERROR, a_msg->group, a_msg->key,
-                               i, 0, a_msg->values_count, a_msg->values ,
+                               i, a_msg->values_count, a_msg->values ,
                                 a_msg->callback_arg );
     }
     dap_global_db_objs_delete( a_msg->values, a_msg->values_count);
