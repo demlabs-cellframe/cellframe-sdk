@@ -186,7 +186,7 @@ static void s_dns_client_esocket_worker_assign_callback(dap_events_socket_t * a_
  * @param a_callback_error
  * @param a_callbacks_arg
  */
-int dap_chain_node_info_dns_request(struct in_addr a_addr, uint16_t a_port, char *a_name,
+int dap_chain_node_info_dns_request(dap_worker_t *a_worker, struct in_addr a_addr, uint16_t a_port, char *a_name,
                            dap_dns_client_node_info_request_success_callback_t a_callback_success,
                            dap_dns_client_node_info_request_error_callback_t a_callback_error,void * a_callbacks_arg)
 {
@@ -238,8 +238,7 @@ int dap_chain_node_info_dns_request(struct in_addr a_addr, uint16_t a_port, char
     l_esocket->remote_addr.sin_addr = a_addr;
     l_esocket->_inheritor = l_dns_client;
 
-    dap_worker_t * l_worker = dap_events_worker_get_auto();
-    dap_events_socket_assign_on_worker_mt(l_esocket,l_worker);
+    dap_events_socket_assign_on_worker_mt(l_esocket, a_worker);
     return 0;
 }
 
