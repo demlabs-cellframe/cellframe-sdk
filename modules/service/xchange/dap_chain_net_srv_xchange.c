@@ -84,7 +84,7 @@ int dap_chain_net_srv_xchange_init()
     dap_chain_node_cli_cmd_item_create("srv_xchange", s_cli_srv_xchange, "eXchange service commands",
 
     "srv_xchange order create -net <net_name> -token_sell <token_ticker> -token_buy <token_ticker> -wallet <wallet_name>"
-                                            " -coins <value> -rate <value> -fee <value>\n"
+                                            " -value <value> -rate <value> -fee <value>\n"
         "\tCreate a new order and tx with specified amount of datoshi to exchange with specified rate (buy / sell)\n"
     "srv_xchange order remove -net <net_name> -order <order_hash> -wallet <wallet_name>\n"
          "\tRemove order with specified order hash in specified net name\n"
@@ -429,7 +429,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
         }
         // Validator's fee
         if (!IS_ZERO_256(a_price->fee)) {
-            if (dap_chain_datum_tx_add_fee_item(&l_tx, a_price->fee) == 1) {
+            if (dap_chain_datum_tx_add_fee_item(&l_tx, a_price->fee) != 1) {
                 dap_chain_datum_tx_delete(l_tx);
                 DAP_DELETE(l_seller_addr);
                 log_it(L_ERROR, "Cant add validator's fee output");
@@ -987,14 +987,14 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 return -6;
             }
             const char *l_val_sell_str = NULL, *l_val_rate_str = NULL;
-            dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-coins", &l_val_sell_str);
+            dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_val_sell_str);
             if (!l_val_sell_str) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'price create' required parameter -coins");
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'price create' required parameter -value");
                 return -8;
             }
             uint256_t l_datoshi_sell = dap_chain_balance_scan(l_val_sell_str);
             if (IS_ZERO_256(l_datoshi_sell)) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Format -coins <unsigned integer 256>");
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Format -value <unsigned integer 256>");
                 return -9;
             }
             dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-rate", &l_val_rate_str);
@@ -1003,7 +1003,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 return -8;
             }
             uint256_t l_rate = dap_chain_coins_to_balance(l_val_rate_str);
-            if (!IS_ZERO_256(l_rate)) {
+            if (IS_ZERO_256(l_rate)) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Format -rate n.n = buy / sell (eg: 1.0, 1.135)");
                 return -9;
             }
@@ -1013,8 +1013,8 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'price create' required parameter -fee");
                 return -20;
             }
-            uint256_t l_fee = dap_chain_coins_to_balance(l_fee_str);
-            if (!IS_ZERO_256(l_fee)) {
+            uint256_t l_fee = dap_chain_balance_scan(l_fee_str);
+            if (IS_ZERO_256(l_fee)) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Format -fee <unsigned integer 256>");
                 return -21;
             }
