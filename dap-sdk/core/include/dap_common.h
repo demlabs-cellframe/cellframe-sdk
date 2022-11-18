@@ -51,6 +51,8 @@
 #include <fcntl.h>
 #define pipe(pfds) _pipe(pfds, 4096, _O_BINARY)
 #define strerror_r(arg1, arg2, arg3) strerror_s(arg2, arg3, arg1)
+#else
+#include <unistd.h>
 #endif
 #ifdef __MACH__
 #include <dispatch/dispatch.h>

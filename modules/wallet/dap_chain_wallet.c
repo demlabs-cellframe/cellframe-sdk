@@ -576,7 +576,8 @@ DAP_CHAIN_WALLET_INTERNAL_LOCAL (a_wallet);                                 /* D
 #ifdef DAP_OS_WINDOWS
 HANDLE l_fh = INVALID_HANDLE_VALUE;
 #else
-int l_fd = -1
+int l_fd = -1;
+typedef struct iovec iovec_t;
 #endif
 size_t l_rc = 0;
 uint32_t l_len = 0;
