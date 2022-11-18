@@ -155,8 +155,8 @@ char *c_wallets_path;
 
     if ( !(l_wallet = dap_chain_wallet_open (a_name, c_wallets_path)) )
     {
-        memset(l_prec->pass, 0, l_prec->pass_len), l_prec->pass_len = 0;
-        return  log_it(L_ERROR, "Wallet's password is invalid"), -EINVAL;
+        memset(l_prec->pass, 0, l_prec->pass_len), l_prec->pass_len = 0;    /* Say <what> again ?! */
+        return  log_it(L_ERROR, "Wallet's password is invalid, say <password> again"), -EAGAIN;
     }
 
     dap_chain_wallet_close( l_wallet);

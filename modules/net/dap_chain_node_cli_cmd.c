@@ -1802,9 +1802,9 @@ char    l_buf[1024];
                     break;
 
                 case    -EINVAL:
+                case    -EAGAIN:
                     strcpy(l_buf, "wrong password");
                     break;
-
 
                 default:
                     strerror_r(l_rc, l_buf, sizeof(l_buf) - 1 );
