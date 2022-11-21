@@ -281,8 +281,10 @@ const char* dap_chain_gdb_get_group(dap_chain_t * a_chain)
  * @param a_values
  * @param a_arg
  */
-static bool s_ledger_load_callback(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
-                                                  const size_t a_values_count, dap_global_db_obj_t * a_values, void * a_arg)
+static bool s_ledger_load_callback(dap_global_db_context_t * a_global_db_context,int a_rc,
+                                   const char * a_group, const char * a_key,
+                                   const size_t a_values_total, const size_t a_values_count,
+                                   dap_global_db_obj_t *a_values, void *a_arg)
 {
     assert(a_arg);
     dap_chain_t * l_chain = (dap_chain_t *) a_arg;

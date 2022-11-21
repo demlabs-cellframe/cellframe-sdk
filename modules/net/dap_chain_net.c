@@ -1500,7 +1500,7 @@ static dap_chain_net_t *s_net_new(const char * a_id, const char * a_name ,
         return NULL;
     dap_chain_net_t *ret = DAP_NEW_Z_SIZE( dap_chain_net_t, sizeof(ret->pub) + sizeof(dap_chain_net_pvt_t) );
     ret->pub.name = strdup( a_name );
-    pthread_rwlock_init(&PVT(ret)->uplinks_lock, PTHREAD_RWLOCK_INITIALIZER);
+    pthread_rwlock_init(&PVT(ret)->uplinks_lock, NULL);
     pthread_rwlock_init(&PVT(ret)->downlinks_lock, NULL);
     pthread_rwlock_init(&PVT(ret)->balancer_lock, NULL);
     pthread_rwlock_init(&PVT(ret)->states_lock, NULL);
@@ -3123,7 +3123,7 @@ bool dap_chain_net_get_flag_sync_from_zero( dap_chain_net_t * a_net)
 }
 
 
-bool s_proc_mempool_callback_load(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
+bool s_proc_mempool_callback_load(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,
                                                   const size_t a_values_count, dap_global_db_obj_t * a_values, void * a_arg)
 {
     dap_chain_t * l_chain = (dap_chain_t*) a_arg;
