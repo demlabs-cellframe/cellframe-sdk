@@ -1317,6 +1317,20 @@ size_t dap_readv(HANDLE a_hf, iovec_t const *a_bufs, int a_bufs_num, DWORD *a_er
         return -1;
     }
     DWORD l_ret = 0;
+    bool l_is_aligned = false;
+    if (!l_is_aligned) {
+        for (iovec_t const *cur_buf = a_bufs, *end = a_bufs + a_bufs_num; cur_buf < end; ++cur_buf) {
+            DWORD l_read = 0;
+            if (ReadFile(a_hf, (char*)cur_buf->iov_base, cur_buf->iov_len, &l_read, 0) == FALSE) {
+                if (a_err)
+                    *a_err = GetLastError();
+                return -1;
+            }
+            l_ret += l_read;
+        }
+        return l_ret;
+    }
+
     size_t l_total_bufs_size = 0;
     for (iovec_t const *i = a_bufs, *end = a_bufs + a_bufs_num; i < end; ++i)
         l_total_bufs_size += i->iov_len;
