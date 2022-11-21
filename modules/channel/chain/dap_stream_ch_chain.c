@@ -57,7 +57,7 @@
 #include "dap_chain_cell.h"
 
 #include "dap_global_db.h"
-#include "dap_chain_global_db_remote.h"
+#include "dap_global_db_remote.h"
 
 #include "dap_stream.h"
 #include "dap_stream_pkt.h"
@@ -824,8 +824,8 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
 
             // Record is pinned or not
             bool l_is_pinned_cur = false;
-            if (dap_chain_global_db_driver_is(l_obj->group, l_obj->key)) {
-                dap_store_obj_t *l_read_obj = dap_chain_global_db_driver_read(l_obj->group, l_obj->key, NULL);
+            if (dap_global_db_driver_is(l_obj->group, l_obj->key)) {
+                dap_store_obj_t *l_read_obj = dap_global_db_driver_read(l_obj->group, l_obj->key, NULL);
                 if (l_read_obj) {
                     l_sync_request->timestamp_cur = l_read_obj->timestamp;
                     l_is_pinned_cur = l_read_obj->flags & RECORD_PINNED;

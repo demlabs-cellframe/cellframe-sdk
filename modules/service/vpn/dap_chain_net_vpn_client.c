@@ -268,7 +268,7 @@ static dap_chain_hash_fast_t* dap_chain_net_vpn_client_tx_cond_hash(dap_chain_ne
     if(l_tx_cond_hash)
         return l_tx_cond_hash;
 
-    //l_pkey_b64 = (char*) dap_chain_global_db_gr_get(dap_strdup("client_pkey"), &l_gdb_group_size, l_gdb_group);
+    //l_pkey_b64 = (char*) dap_global_db_gr_get(dap_strdup("client_pkey"), &l_gdb_group_size, l_gdb_group);
     dap_enc_key_t *l_enc_key = NULL;
     if(a_wallet) {
         l_enc_key = dap_chain_wallet_get_key(a_wallet, 0);
@@ -302,7 +302,7 @@ static dap_chain_hash_fast_t* dap_chain_net_vpn_client_tx_cond_hash(dap_chain_ne
      uint8_t *l_pub_key_data = dap_enc_key_serealize_pub_key(l_cert->enc_key, &l_pub_key_data_size);
      // save pub key
      if(l_pub_key_data && l_pub_key_data_size > 0){
-     if(dap_chain_global_db_gr_set(dap_strdup("client_pkey"), l_pub_key_data, l_pub_key_data_size,
+     if(dap_global_db_gr_set(dap_strdup("client_pkey"), l_pub_key_data, l_pub_key_data_size,
      l_gdb_group)){
      l_pkey_b64 = l_pub_key_data;
      l_pkey_b64_size = l_pub_key_data_size;

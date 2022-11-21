@@ -66,12 +66,9 @@ if (CELLFRAME_MODULES MATCHES "test-framework")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_test)
 endif()
 
-
-    add_subdirectory(3rdparty/crc32c_adler)             # https://github.com/fonic/crc32c_adler
-    include_directories(3rdparty/crc32c_adler)
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} crc32c_adler)
-
-
+add_subdirectory(3rdparty/crc32c_adler)             # https://github.com/fonic/crc32c_adler
+include_directories(3rdparty/crc32c_adler)
+set(CELLFRAME_LIBS ${CELLFRAME_LIBS} crc32c_adler)
 
 if(BUILD_TESTS)
     include(cmake/OS_Detection.cmake)
@@ -106,7 +103,7 @@ endif()
 # General chain libs
 if (CELLFRAME_MODULES MATCHES "chains")
     message("[+] Module 'chains'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_common dap_chain dap_chain_global_db dap_chain_wallet)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_common dap_chain dap_global_db dap_chain_wallet)
 endif()
 
 # Networking
@@ -237,12 +234,4 @@ endif()
 
 set(CELLFRAME_LIBS ${CELLFRAME_LIBS} crc32c_adler)
 
-
-
-target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS} crc32c_adler)
-#if(BUILD_DAP_TESTS)
-#    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/test/main_test.py
-#            DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/)
-#    enable_testing()
-    #add_subdirectory(test)
-#endif()
+target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})
