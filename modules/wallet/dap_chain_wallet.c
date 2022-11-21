@@ -65,8 +65,10 @@
 
 #define LOG_TAG "dap_chain_wallet"
 
+#ifndef DAP_OS_WINDOWS
                                                                             /* An argument for open()/create() */
 static const mode_t s_fileprot =  ( S_IREAD | S_IWRITE) | (S_IREAD >> 3) | (S_IREAD >> 6) ;
+#endif
 static char s_wallet_ext [] = ".dwallet";
 
 
@@ -295,15 +297,6 @@ dap_chain_wallet_n_pass_t   *l_prec;
     return  l_rc;
 }
 
-
-
-
-
-
-
-
-
-
 /**
  * @brief dap_chain_wallet_init
  * @return
@@ -334,9 +327,10 @@ size_t l_len;
      */
     while( (l_dir_entry = readdir(l_dir)))
     {
+#ifndef DAP_OS_WINDOWS
         if ( l_dir_entry->d_type !=  DT_REG )                           /* Skip unrelated entries */
             continue;
-
+#endif
         l_len = strlen(l_dir_entry->d_name);                            /* Check for *.dwallet */
 
         if ( (l_len > 8) && (strcmp(l_dir_entry->d_name + l_len - (sizeof(s_wallet_ext) - 1), s_wallet_ext) == 0) )
@@ -584,6 +578,7 @@ dap_enc_key_t* dap_chain_wallet_get_key( dap_chain_wallet_t * a_wallet,uint32_t 
 int dap_chain_wallet_save(dap_chain_wallet_t * a_wallet, const char *a_pass)
 {
 DAP_CHAIN_WALLET_INTERNAL_LOCAL (a_wallet);                                 /* Declare l_wallet_internal */
+#ifndef DAP_OS_WINDOWS
 int l_fd = -1, l_rc = 0, l_len = 0;
 dap_chain_wallet_file_hdr_t l_file_hdr = {0};
 dap_chain_wallet_cert_hdr_t l_wallet_cert_hdr = {0};
@@ -697,7 +692,7 @@ struct iovec l_iov [ WALLET$SZ_IOV_NR ];
 
     if ( l_enc_key )
         dap_enc_key_delete(l_enc_key);
-
+#endif
 
 
 #ifdef  DAP_SYS_DEBUG                                                       /* @RRL: For debug purpose only!!! */
