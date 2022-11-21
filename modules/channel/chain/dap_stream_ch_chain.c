@@ -57,7 +57,7 @@
 #include "dap_chain_cell.h"
 
 #include "dap_global_db.h"
-#include "dap_chain_global_db_remote.h"
+#include "dap_global_db_remote.h"
 
 #include "dap_stream.h"
 #include "dap_stream_pkt.h"
@@ -118,9 +118,10 @@ static bool s_sync_out_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_ar
 static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg);
 
 static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg);
-static bool s_gdb_in_pkt_proc_set_raw_callback(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_current,  const size_t a_values_shift,
-                                               const size_t a_values_count, dap_store_obj_t * a_values, void * a_arg);
-
+static bool s_gdb_in_pkt_proc_set_raw_callback(dap_global_db_context_t *a_global_db_context, int a_rc,
+                                               const char *a_group, const char *a_key,
+                                               const size_t a_values_total, const size_t a_values_count,
+                                               dap_store_obj_t *a_values, void *a_arg);
 static void s_gdb_in_pkt_error_worker_callback(dap_worker_t *a_thread, void *a_arg);
 static void s_free_log_list_gdb ( dap_stream_ch_chain_t * a_ch_chain);
 
@@ -312,8 +313,8 @@ static bool s_sync_out_chains_proc_callback(dap_proc_thread_t *a_thread, void *a
     //pthread_rwlock_rdlock(&l_chain->atoms_rwlock);
     l_sync_request->chain.request_atom_iter = l_chain->callback_atom_iter_create(l_chain, l_sync_request->request_hdr.cell_id, 1);
     size_t l_first_size = 0;
-    dap_chain_atom_ptr_t l_iter = l_chain->callback_atom_iter_get_first(l_sync_request->chain.request_atom_iter, &l_first_size);
-    if (l_iter && l_first_size) {
+    dap_chain_atom_ptr_t l_atom = l_chain->callback_atom_iter_get_first(l_sync_request->chain.request_atom_iter, &l_first_size);
+    if (l_atom && l_first_size) {
         // first packet
         dap_chain_hash_fast_t l_hash_from = l_sync_request->request.hash_from;
         if (!dap_hash_fast_is_blank(&l_hash_from)) {
@@ -321,7 +322,6 @@ static bool s_sync_out_chains_proc_callback(dap_proc_thread_t *a_thread, void *a
                                                           &l_hash_from, &l_first_size);
         }
         //pthread_rwlock_unlock(&l_chain->atoms_rwlock);
-        l_sync_request->chain.request_atom_iter = NULL;
         dap_proc_thread_worker_exec_callback_inter(a_thread, l_sync_request->worker->id, s_sync_out_chains_first_worker_callback, l_sync_request );
     } else {
         //pthread_rwlock_unlock(&l_chain->atoms_rwlock);
@@ -824,8 +824,8 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
 
             // Record is pinned or not
             bool l_is_pinned_cur = false;
-            if (dap_chain_global_db_driver_is(l_obj->group, l_obj->key)) {
-                dap_store_obj_t *l_read_obj = dap_chain_global_db_driver_read(l_obj->group, l_obj->key, NULL);
+            if (dap_global_db_driver_is(l_obj->group, l_obj->key)) {
+                dap_store_obj_t *l_read_obj = dap_global_db_driver_read(l_obj->group, l_obj->key, NULL);
                 if (l_read_obj) {
                     l_sync_request->timestamp_cur = l_read_obj->timestamp;
                     l_is_pinned_cur = l_read_obj->flags & RECORD_PINNED;
@@ -874,8 +874,10 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
  * @param a_values
  * @param a_arg
  */
-static bool s_gdb_in_pkt_proc_set_raw_callback(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_current,  const size_t a_values_shift,
-                                               const size_t a_values_count, dap_store_obj_t * a_values, void * a_arg)
+static bool s_gdb_in_pkt_proc_set_raw_callback(dap_global_db_context_t *a_global_db_context, int a_rc,
+                                               const char *a_group, const char *a_key,
+                                               const size_t a_values_total, const size_t a_values_count,
+                                               dap_store_obj_t *a_values, void *a_arg)
 {
 
     struct sync_request *l_sync_req = (struct sync_request*) a_arg;

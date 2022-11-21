@@ -24,7 +24,6 @@
 
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_stake_lock.h"
-#include "dap_chain_global_db.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_mempool.h"
 #include "dap_chain_wallet.h"

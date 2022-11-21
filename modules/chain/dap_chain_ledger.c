@@ -1539,10 +1539,9 @@ static void s_threshold_txs_proc( dap_ledger_t *a_ledger)
  * @param a_arg
  */
 static bool s_load_cache_gdb_loaded_balances_callback(dap_global_db_context_t * a_global_db_context,int a_rc,
-                                             const char * a_group, const char * a_key,
-                                             const size_t a_values_total,  const size_t a_values_shift,
-                                             const size_t a_values_count, dap_global_db_obj_t * a_values,
-                                             void * a_arg)
+                                                      const char * a_group, const char * a_key,
+                                                      const size_t a_values_total, const size_t a_values_count,
+                                                      dap_global_db_obj_t *a_values, void *a_arg)
 {
     dap_ledger_t * l_ledger = (dap_ledger_t*) a_arg;
     dap_ledger_private_t * l_ledger_pvt = PVT(l_ledger);
@@ -1580,11 +1579,10 @@ static bool s_load_cache_gdb_loaded_balances_callback(dap_global_db_context_t * 
  * @param a_values
  * @param a_arg
  */
-static bool s_load_cache_gdb_loaded_spent_txs_callback(dap_global_db_context_t * a_global_db_context,int a_rc,
-                                             const char * a_group, const char * a_key,
-                                             const size_t a_values_total,  const size_t a_values_shift,
-                                             const size_t a_values_count, dap_global_db_obj_t * a_values,
-                                             void * a_arg)
+static bool s_load_cache_gdb_loaded_spent_txs_callback(dap_global_db_context_t *a_global_db_context, int a_rc,
+                                                       const char *a_group, const char *a_key,
+                                                       const size_t a_values_total, const size_t a_values_count,
+                                                       dap_global_db_obj_t *a_values, void *a_arg)
 {
     dap_ledger_t * l_ledger = (dap_ledger_t*) a_arg;
     dap_ledger_private_t * l_ledger_pvt = PVT(l_ledger);
@@ -1614,11 +1612,10 @@ static bool s_load_cache_gdb_loaded_spent_txs_callback(dap_global_db_context_t *
  * @param a_values
  * @param a_arg
  */
-static bool s_load_cache_gdb_loaded_txs_callback(dap_global_db_context_t * a_global_db_context,int a_rc,
-                                             const char * a_group, const char * a_key,
-                                             const size_t a_values_total,  const size_t a_values_shift,
-                                             const size_t a_values_count, dap_global_db_obj_t * a_values,
-                                             void * a_arg)
+static bool s_load_cache_gdb_loaded_txs_callback(dap_global_db_context_t *a_global_db_context, int a_rc,
+                                                 const char *a_group, const char *a_key,
+                                                 const size_t a_values_total,  const size_t a_values_count,
+                                                 dap_global_db_obj_t *a_values, void *a_arg)
 {
     dap_ledger_t * l_ledger = (dap_ledger_t*) a_arg;
     dap_ledger_private_t * l_ledger_pvt = PVT(l_ledger);
@@ -1638,10 +1635,9 @@ static bool s_load_cache_gdb_loaded_txs_callback(dap_global_db_context_t * a_glo
 }
 
 static bool s_load_cache_gdb_loaded_stake_lock_callback(dap_global_db_context_t * a_global_db_context,int a_rc,
-                                             const char * a_group, const char * a_key,
-                                             const size_t a_values_total,  const size_t a_values_shift,
-                                             const size_t a_values_count, dap_global_db_obj_t * a_values,
-                                             void * a_arg)
+                                                        const char * a_group, const char * a_key,
+                                                        const size_t a_values_total, const size_t a_values_count,
+                                                        dap_global_db_obj_t *a_values, void *a_arg)
 {
     dap_ledger_t *l_ledger = (dap_ledger_t *) a_arg;
     dap_ledger_private_t *l_ledger_pvt = PVT(l_ledger);
@@ -1680,10 +1676,9 @@ static bool s_load_cache_gdb_loaded_stake_lock_callback(dap_global_db_context_t 
  * @return Always true thats means to clear up a_values
  */
 static bool s_load_cache_gdb_loaded_emissions_callback(dap_global_db_context_t * a_global_db_context,int a_rc,
-                                             const char * a_group, const char * a_key,
-                                             const size_t a_values_total,  const size_t a_values_shift,
-                                             const size_t a_values_count, dap_global_db_obj_t * a_values,
-                                             void * a_arg)
+                                                       const char * a_group, const char * a_key,
+                                                       const size_t a_values_total, const size_t a_values_count,
+                                                       dap_global_db_obj_t *a_values, void *a_arg)
 {
     dap_ledger_t * l_ledger = (dap_ledger_t*) a_arg;
     dap_ledger_private_t * l_ledger_pvt = PVT(l_ledger);
@@ -1710,7 +1705,7 @@ static bool s_load_cache_gdb_loaded_emissions_callback(dap_global_db_context_t *
     }
 
     char* l_gdb_group = dap_chain_ledger_get_gdb_group(l_ledger, DAP_CHAIN_LEDGER_STAKE_LOCK_STR);
-    dap_global_db_get_all(l_gdb_group,0, s_load_cache_gdb_loaded_txs_callback, l_ledger);
+    dap_global_db_get_all(l_gdb_group,0, s_load_cache_gdb_loaded_stake_lock_callback, l_ledger);
     DAP_DELETE(l_gdb_group);
     return true;
 
@@ -1730,10 +1725,9 @@ static bool s_load_cache_gdb_loaded_emissions_callback(dap_global_db_context_t *
  * @param a_arg
  */
 static bool s_load_cache_gdb_loaded_tokens_callback(dap_global_db_context_t * a_global_db_context,int a_rc,
-                                             const char * a_group, const char * a_key,
-                                             const size_t a_values_total,  const size_t a_values_shift,
-                                             const size_t a_values_count, dap_global_db_obj_t * a_values,
-                                             void * a_arg)
+                                                    const char * a_group, const char * a_key,
+                                                    const size_t a_values_total, const size_t a_values_count,
+                                                    dap_global_db_obj_t *a_values, void *a_arg)
 {
     dap_ledger_t * l_ledger = (dap_ledger_t*) a_arg;
     dap_ledger_private_t * l_ledger_pvt = PVT(l_ledger);
@@ -1776,9 +1770,7 @@ static bool s_load_cache_gdb_loaded_tokens_callback(dap_global_db_context_t * a_
 void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
-
     char *l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_TOKENS_STR);
-    size_t l_objs_count = 0;
 
     pthread_mutex_lock(& l_ledger_pvt->load_mutex);
     dap_global_db_get_all(l_gdb_group,0,s_load_cache_gdb_loaded_tokens_callback, a_ledger);
@@ -2703,8 +2695,6 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
     if (a_list_tx_out)
         *a_list_tx_out = l_list_tx_out;
 
-    dap_list_t* l_list_tx_out_cond = NULL;
-
     // sum of values in 'out' items from the previous transactions
     dap_chain_ledger_tokenizer_t *l_values_from_prev_tx = NULL, *l_values_from_cur_tx = NULL,
                                  *l_value_cur = NULL, *l_tmp = NULL, *l_res = NULL;
@@ -2941,8 +2931,9 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS;
             break;
         }
-        if (s_debug_more && !a_from_threshold)
-            log_it(L_INFO,"Previous transaction was found for hash %s",l_tx_prev_hash_str);
+        bound_item->item_out = l_item_out;
+        l_token = l_item_out->cache_data.token_ticker;
+        debug_if(s_debug_more && !a_from_threshold, L_INFO, "Previous transaction was found for hash %s",l_tx_prev_hash_str);
         bound_item->tx_prev = l_tx_prev;
 
         // 2. Check if out in previous transaction has spent

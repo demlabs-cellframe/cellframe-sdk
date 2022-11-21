@@ -65,8 +65,10 @@
 
 #define LOG_TAG "dap_chain_wallet"
 
+#ifndef DAP_OS_WINDOWS
                                                                             /* An argument for open()/create() */
 static const mode_t s_fileprot =  ( S_IREAD | S_IWRITE) | (S_IREAD >> 3) | (S_IREAD >> 6) ;
+#endif
 static char s_wallet_ext [] = ".dwallet";
 
 
@@ -113,10 +115,10 @@ char *c_wallets_path;
 
     /* Sanity checks ... */
     if ( a_name_len > DAP_WALLET$SZ_NAME )
-        return  log_it(L_ERROR, "Wallet's name is too long (%d > %d)",  a_name_len, DAP_WALLET$SZ_NAME), -EINVAL;
+        return  log_it(L_ERROR, "Wallet's name is too long (%zd > %d)",  a_name_len, DAP_WALLET$SZ_NAME), -EINVAL;
 
     if ( a_pass_len > DAP_WALLET$SZ_PASS )
-        return  log_it(L_ERROR, "Wallet's password is too long (%d > %d)",  a_pass_len, DAP_WALLET$SZ_PASS), -EINVAL;
+        return  log_it(L_ERROR, "Wallet's password is too long (%zd > %d)",  a_pass_len, DAP_WALLET$SZ_PASS), -EINVAL;
 
 
     memcpy(l_rec.name, a_name, l_rec.name_len = a_name_len);            /* Prefill local record fields */
@@ -206,10 +208,10 @@ struct timespec l_now;
 
     /* Sanity checks ... */
     if ( a_name_len > DAP_WALLET$SZ_NAME )
-        return  log_it(L_ERROR, "Wallet's name is too long (%d > %d)",  a_name_len, DAP_WALLET$SZ_NAME), -EINVAL;
+        return  log_it(L_ERROR, "Wallet's name is too long (%zd > %d)",  a_name_len, DAP_WALLET$SZ_NAME), -EINVAL;
 
     if ( *a_pass_len < DAP_WALLET$SZ_PASS )
-        return  log_it(L_ERROR, "Wallet's buffer for password is too small (%d < %d)",  *a_pass_len, DAP_WALLET$SZ_PASS), -EINVAL;
+        return  log_it(L_ERROR, "Wallet's buffer for password is too small (%zd < %d)",  *a_pass_len, DAP_WALLET$SZ_PASS), -EINVAL;
 
 
     clock_gettime(CLOCK_REALTIME, &l_now);
@@ -268,7 +270,7 @@ int     l_rc, l_rc2;
 dap_chain_wallet_n_pass_t   *l_prec;
 
     if ( a_name_len > DAP_WALLET$SZ_NAME )
-        return  log_it(L_ERROR, "Wallet's name is too long (%d > %d)",  a_name_len, DAP_WALLET$SZ_NAME), -EINVAL;
+        return  log_it(L_ERROR, "Wallet's name is too long (%zd > %d)",  a_name_len, DAP_WALLET$SZ_NAME), -EINVAL;
 
     if ( (l_rc = pthread_rwlock_wrlock(&s_wallet_n_pass_lock)) )        /* Lock for WR access */
         return  log_it(L_ERROR, "Error locking Wallet table, errno=%d", l_rc), -l_rc;
@@ -280,7 +282,7 @@ dap_chain_wallet_n_pass_t   *l_prec;
     if ( l_prec )
     {
         if ( !l_prec->pass_len )                                        /* Password is zero - has been reset probably */
-            log_it(L_WARNING, "The Wallet %.*s is not active", a_name_len, a_name);
+            log_it(L_WARNING, "The Wallet %.*s is not active", (int)a_name_len, a_name);
 
         else if ( (l_prec->pass_len != a_pass_len)                      /* Check that passwords is equivalent */
              || memcmp(l_prec->pass, a_pass, l_prec->pass_len) )
@@ -294,15 +296,6 @@ dap_chain_wallet_n_pass_t   *l_prec;
 
     return  l_rc;
 }
-
-
-
-
-
-
-
-
-
 
 /**
  * @brief dap_chain_wallet_init
@@ -334,15 +327,17 @@ size_t l_len;
      */
     while( (l_dir_entry = readdir(l_dir)))
     {
+#ifndef DAP_OS_WINDOWS
         if ( l_dir_entry->d_type !=  DT_REG )                           /* Skip unrelated entries */
             continue;
-
+#endif
         l_len = strlen(l_dir_entry->d_name);                            /* Check for *.dwallet */
 
         if ( (l_len > 8) && (strcmp(l_dir_entry->d_name + l_len - (sizeof(s_wallet_ext) - 1), s_wallet_ext) == 0) )
         {
-            dap_snprintf(l_fspec, sizeof(l_fspec) - 1, "%s/%s", c_wallets_path, l_dir_entry->d_name);
-
+            int ret = dap_snprintf(l_fspec, sizeof(l_fspec) - 1, "%s/%s", c_wallets_path, l_dir_entry->d_name);
+            if (ret < 0)
+                continue;
             if ( (l_wallet = dap_chain_wallet_open_file(l_fspec, NULL)) )
                 dap_chain_wallet_close(l_wallet);
         }
@@ -412,12 +407,10 @@ int l_rc, l_wallet_name_len, l_pass_len;
         return  log_it(L_ERROR, "Wallet's password is too long ( > %d)", DAP_WALLET$SZ_PASS), NULL;
 
     if ( !(l_wallet = DAP_NEW_Z(dap_chain_wallet_t)) )
-         return log_it(L_ERROR, "Memory allocation error, errno=&d", errno), NULL;
+         return log_it(L_ERROR, "Memory allocation error, errno=%d", errno), NULL;
 
     if ( !(l_wallet->_internal = l_wallet_internal = DAP_NEW_Z(dap_chain_wallet_internal_t)) )
-        return DAP_DELETE(l_wallet), log_it(L_ERROR, "Memory allocation error, errno=&d", errno), NULL;
-
-
+        return DAP_DELETE(l_wallet), log_it(L_ERROR, "Memory allocation error, errno=%d", errno), NULL;
 
     strncpy(l_wallet->name, a_wallet_name, DAP_WALLET$SZ_NAME);
     l_wallet_internal->certs_count = 1;
@@ -585,6 +578,7 @@ dap_enc_key_t* dap_chain_wallet_get_key( dap_chain_wallet_t * a_wallet,uint32_t 
 int dap_chain_wallet_save(dap_chain_wallet_t * a_wallet, const char *a_pass)
 {
 DAP_CHAIN_WALLET_INTERNAL_LOCAL (a_wallet);                                 /* Declare l_wallet_internal */
+#ifndef DAP_OS_WINDOWS
 int l_fd = -1, l_rc = 0, l_len = 0;
 dap_chain_wallet_file_hdr_t l_file_hdr = {0};
 dap_chain_wallet_cert_hdr_t l_wallet_cert_hdr = {0};
@@ -698,7 +692,7 @@ struct iovec l_iov [ WALLET$SZ_IOV_NR ];
 
     if ( l_enc_key )
         dap_enc_key_delete(l_enc_key);
-
+#endif
 
 
 #ifdef  DAP_SYS_DEBUG                                                       /* @RRL: For debug purpose only!!! */

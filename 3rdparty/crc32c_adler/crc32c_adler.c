@@ -499,7 +499,7 @@ uint32_t crc32c(uint32_t crc, const void *buf, size_t len)
 {
 #if defined(__x86_64__)                 /* @RRL: to compile for ARM */
     return crc32c_hw_support() ? crc32c_hw(crc, buf, len) : crc32c_sw(crc, buf, len);
-#elif
+#else
     return crc32c_sw(crc, buf, len);
 #endif
 }
