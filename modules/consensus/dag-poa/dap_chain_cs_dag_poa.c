@@ -42,7 +42,7 @@
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_global_db.h"
-#include "dap_chain_global_db_driver.h"
+#include "dap_global_db_driver.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_dag.h"
 #include "dap_chain_cs_dag_event.h"
@@ -393,8 +393,10 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
  * @param a_values
  * @param a_arg
  */
-static bool s_poa_round_check_callback_round_clean(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
-                                                  const size_t a_values_count, dap_global_db_obj_t * a_values, void * a_arg)
+static bool s_poa_round_check_callback_round_clean(dap_global_db_context_t * a_global_db_context,int a_rc,
+                                                   const char * a_group, const char * a_key,
+                                                   const size_t a_values_total, const size_t a_values_count,
+                                                   dap_global_db_obj_t *a_values, void *a_arg)
 {
     dap_chain_cs_dag_t *l_dag = (dap_chain_cs_dag_t *)a_arg;
     dap_chain_cs_dag_poa_t *l_poa = DAP_CHAIN_CS_DAG_POA(l_dag);
@@ -518,11 +520,10 @@ static dap_chain_cs_dag_event_round_item_t *s_round_event_choose_dup(dap_list_t 
  * @param a_is_pinned
  * @param a_arg
  */
-static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_db_context_t *a_global_db_context, int a_rc,
-                                                                    const char *a_group, const char *a_key,
-                                                                    const size_t a_values_total, const size_t a_values_shift,
-                                                                    const size_t a_values_count, dap_store_obj_t *a_values,
-                                                                    void *a_arg)
+static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_db_context_t * a_global_db_context,int a_rc,
+                                                                    const char * a_group, const char * a_key,
+                                                                    const size_t a_values_total, const size_t a_values_count,
+                                                                    dap_store_obj_t *a_values, void *a_arg)
 {
     if (a_rc != DAP_GLOBAL_DB_RC_SUCCESS)
         return true;

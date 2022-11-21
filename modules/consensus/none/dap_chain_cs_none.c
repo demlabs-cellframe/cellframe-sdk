@@ -2,7 +2,7 @@
  * Authors:
  * Alexander Lysikov <alexander.lysikov@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
- * Kelvin Project https://github.com/kelvindap_chain_global_dbblockchain
+ * Kelvin Project https://github.com/kelvindap_global_dbblockchain
  * Copyright  (c) 2019
  * All rights reserved.
 
@@ -36,7 +36,7 @@
 #include "dap_chain_cell.h"
 #include "dap_chain_ledger.h"
 #include "dap_global_db.h"
-#include "dap_chain_global_db_driver.h"
+#include "dap_global_db_driver.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_none.h"
 
@@ -184,7 +184,7 @@ int dap_chain_gdb_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     }
 
     // Add group prefix that will be tracking all changes
-    dap_chain_global_db_add_sync_group(l_net->pub.name, "chain-gdb", s_history_callback_notify, l_gdb);
+    dap_global_db_add_sync_group(l_net->pub.name, "chain-gdb", s_history_callback_notify, l_gdb);
 
     // load ledger
     l_gdb_priv->is_load_mode = true;
@@ -281,8 +281,10 @@ const char* dap_chain_gdb_get_group(dap_chain_t * a_chain)
  * @param a_values
  * @param a_arg
  */
-static bool s_ledger_load_callback(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,  const size_t a_values_shift,
-                                                  const size_t a_values_count, dap_global_db_obj_t * a_values, void * a_arg)
+static bool s_ledger_load_callback(dap_global_db_context_t * a_global_db_context,int a_rc,
+                                   const char * a_group, const char * a_key,
+                                   const size_t a_values_total, const size_t a_values_count,
+                                   dap_global_db_obj_t *a_values, void *a_arg)
 {
     assert(a_arg);
     dap_chain_t * l_chain = (dap_chain_t *) a_arg;

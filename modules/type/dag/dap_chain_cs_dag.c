@@ -48,7 +48,7 @@
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_dag.h"
 #include "dap_global_db.h"
-#include "dap_chain_global_db_driver.h"
+#include "dap_global_db_driver.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_cell.h"
@@ -279,7 +279,7 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_dag->gdb_group_events_round_new = dap_strdup_printf("%s.%s", l_gdb_group, l_round_new_str);
     DAP_DELETE(l_gdb_group);
     DAP_DELETE(l_round_new_str);
-    dap_chain_global_db_add_sync_extra_group(l_net->pub.name, l_dag->gdb_group_events_round_new, s_history_callback_round_notify, l_dag);
+    dap_global_db_add_sync_extra_group(l_net->pub.name, l_dag->gdb_group_events_round_new, s_history_callback_round_notify, l_dag);
     l_dag->broadcast_disable = false;
     byte_t *l_current_round = dap_global_db_get_sync(l_gdb_group, DAG_ROUND_CURRENT_KEY, NULL, NULL, NULL);
     l_dag->round_current = l_current_round? *(uint64_t *)l_current_round : 0;

@@ -69,6 +69,7 @@
 #include "dap_chain_wallet.h"
 #include "dap_chain_node.h"
 #include "dap_global_db.h"
+#include "dap_global_db_driver.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_node_cli_cmd_tx.h"
@@ -95,7 +96,7 @@
 #include "dap_chain_ledger.h"
 #include "dap_chain_mempool.h"
 #include "dap_global_db.h"
-#include "dap_chain_global_db_remote.h"
+#include "dap_global_db_remote.h"
 
 #include "dap_stream_ch_chain_net.h"
 #include "dap_stream_ch_chain.h"
@@ -257,13 +258,13 @@ static bool node_info_save_and_reply(dap_chain_net_t * a_net, dap_chain_node_inf
     //memcpy(l_node_info, a_node_info, l_node_info_size );
 
     //size_t data_len_out = 0;
-    //dap_chain_node_info_t *a_node_info1 = dap_chain_global_db_gr_get(a_key, &data_len_out, a_net->pub.gdb_nodes);
+    //dap_chain_node_info_t *a_node_info1 = dap_global_db_gr_get(a_key, &data_len_out, a_net->pub.gdb_nodes);
 
     bool res = dap_global_db_set_sync(a_net->pub.gdb_nodes, a_key, (uint8_t *) a_node_info, l_node_info_size,
                                  true) == 0;
 
     //data_len_out = 0;
-    //dap_chain_node_info_t *a_node_info2 = dap_chain_global_db_gr_get(a_key, &data_len_out, a_net->pub.gdb_nodes);
+    //dap_chain_node_info_t *a_node_info2 = dap_global_db_gr_get(a_key, &data_len_out, a_net->pub.gdb_nodes);
     //DAP_DELETE(a_key);
     //DAP_DELETE(a_value);
     return res;
@@ -5295,7 +5296,7 @@ int cmd_gdb_export(int argc, char ** argv, char ** a_str_reply)
     struct json_object *l_json = json_object_new_array();
     dap_list_t *l_groups_list = l_parsed_groups_list
             ? l_parsed_groups_list
-            : dap_chain_global_db_driver_get_groups_by_mask("*");
+            : dap_global_db_driver_get_groups_by_mask("*");
     for (dap_list_t *l_list = l_groups_list; l_list; l_list = dap_list_next(l_list)) {
         size_t l_store_obj_count = 0;
         char *l_group_name = (char *)l_list->data;
@@ -5410,7 +5411,7 @@ int cmd_gdb_import(int argc, char ** argv, char ** a_str_reply)
             dap_enc_base64_decode(l_value_str, strlen(l_value_str), l_val, DAP_ENC_DATA_TYPE_B64);
             l_group_store[j].value  = (uint8_t*)l_val;
         }
-        if (dap_chain_global_db_driver_apply(l_group_store, l_records_count)) {
+        if (dap_global_db_driver_apply(l_group_store, l_records_count)) {
             log_it(L_CRITICAL, "An error occured on importing group %s...", l_group_name);
         } else {
             log_it(L_INFO, "Imported %zu records of group %s", l_records_count, l_group_name);
