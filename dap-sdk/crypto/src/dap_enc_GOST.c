@@ -16,7 +16,7 @@ void dap_enc_gost_key_generate(struct dap_enc_key * a_key, const void *kex_buf,
 {
     if(key_size < 32)
     {
-        log_it(L_ERROR, "GOST key cannot be less than 32 bytes.");
+        log_it(L_WARNING, "GOST key cannot be less than 32 bytes.");    /* #6131 ERROR -> WRNING */
     }
     a_key->last_used_timestamp = time(NULL);
 
