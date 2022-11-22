@@ -37,7 +37,8 @@
   3. This notice may not be removed or altered from any source distribution.
 */
 #include <stdio.h>
-#include <stdlib.h>#include <unistd.h>
+#include <stdlib.h>
+#include <unistd.h>
 
 #include "crc32c_adler.h"
 
