@@ -272,11 +272,6 @@ bool dap_chain_node_mempool_autoproc_init()
                 l_net_list[i]->pub.mempool_autoproc = false;
                 continue;
         }
-        dap_chain_t *l_chain;
-        DL_FOREACH(l_net_list[i]->pub.chains, l_chain) {
-            if (l_chain)
-                dap_chain_node_mempool_process_all(l_chain);
-        }
     }
     DAP_DELETE(l_net_list);
     return true;

@@ -60,8 +60,10 @@
 #include "crc32c_adler.h"
 
 #define LOG_TAG "dap_chain_wallet"
-                                                                       /* An argument for open()/create() */
-static const mode_t s_fileprot = ( S_IREAD | S_IWRITE) | (S_IREAD >> 3) | (S_IREAD >> 6);
+
+#ifndef DAP_OS_WINDOWS                                    /* An argument for open()/create() */
+static const mode_t s_fileprot =  ( S_IREAD | S_IWRITE) | (S_IREAD >> 3) | (S_IREAD >> 6) ;
+#endif
 static char s_wallet_ext [] = ".dwallet";
 
 static  pthread_rwlock_t s_wallet_n_pass_lock = PTHREAD_RWLOCK_INITIALIZER; /* Coordinate access to the hash-table */
@@ -395,12 +397,10 @@ int l_rc, l_wallet_name_len, l_pass_len;
         return  log_it(L_ERROR, "Wallet's password is too long ( > %d)", DAP_WALLET$SZ_PASS), NULL;
 
     if ( !(l_wallet = DAP_NEW_Z(dap_chain_wallet_t)) )
-         return log_it(L_ERROR, "Memory allocation error, errno=&d", errno), NULL;
+         return log_it(L_ERROR, "Memory allocation error, errno=%d", errno), NULL;
 
     if ( !(l_wallet->_internal = l_wallet_internal = DAP_NEW_Z(dap_chain_wallet_internal_t)) )
-        return DAP_DELETE(l_wallet), log_it(L_ERROR, "Memory allocation error, errno=&d", errno), NULL;
-
-
+        return DAP_DELETE(l_wallet), log_it(L_ERROR, "Memory allocation error, errno=%d", errno), NULL;
 
     strncpy(l_wallet->name, a_wallet_name, DAP_WALLET$SZ_NAME);
     l_wallet_internal->certs_count = 1;
@@ -725,6 +725,7 @@ enum {
 #endif
     if ( l_enc_key )
         dap_enc_key_delete(l_enc_key);
+
 #ifdef  DAP_SYS_DEBUG                                                       /* @RRL: For debug purpose only!!! */
     {
     dap_chain_wallet_t  *l_wallet;

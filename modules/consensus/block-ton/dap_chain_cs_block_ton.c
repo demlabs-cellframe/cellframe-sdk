@@ -418,6 +418,7 @@ static bool s_session_round_start_callback_load_session_store_coordinator_state_
                                                                                      dap_global_db_obj_t *a_values, void *a_arg)
 {
     dap_chain_cs_block_ton_session_t * l_session = (dap_chain_cs_block_ton_session_t *) a_arg;
+    pthread_rwlock_wrlock(&l_session->rwlock);
     dap_list_t *l_list_candidate = NULL;
     // I am a coordinator :-) select candidate
 
@@ -475,87 +476,76 @@ static bool s_session_round_start_callback_load_session_store_coordinator_state_
 static void s_session_proc_state( dap_chain_cs_block_ton_session_t * a_session)
 {
     dap_time_t l_time = dap_time_now();
-
-    if(pthread_rwlock_tryrdlock(&a_session->rwlock) != 0 ){ // Session is busy
+    // Mostly we're writting in session on the next operations, at least we do it with state
+    if (pthread_rwlock_trywrlock(&a_session->rwlock) != 0) // Session is busy
         return;
-    }
-    if ( a_session->time_proc_lock ) { // Already in timer processing
-        pthread_rwlock_unlock (&a_session->rwlock);
-        return;
-    }
-    pthread_rwlock_unlock (&a_session->rwlock); // Mostly we're writting in session on the next operations, at least we do it with state
-
-    pthread_rwlock_wrlock( &a_session->rwlock);
-    a_session->time_proc_lock = true; // lock - skip check by reasons: prev check is not finish
-
     switch (a_session->state) {
-            case DAP_STREAM_CH_CHAIN_SESSION_STATE_IDLE: {
-                if ( (((l_time/10)*10) % PVT(a_session->ton)->round_start_multiple_of) == 0
-                            && (l_time - ((l_time/10)*10)) <= 3
-                            && l_time > a_session->ts_round_finish
-                            && (l_time-a_session->ts_round_finish) >= PVT(a_session->ton)->session_idle_min) {
+        case DAP_STREAM_CH_CHAIN_SESSION_STATE_IDLE: {
+            if ( (((l_time/10)*10) % PVT(a_session->ton)->round_start_multiple_of) == 0
+                        && (l_time - ((l_time/10)*10)) <= 3
+                        && l_time > a_session->ts_round_finish
+                        && (l_time-a_session->ts_round_finish) >= PVT(a_session->ton)->session_idle_min) {
 
-                // round start
-                a_session->state = DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_START;
-                s_session_round_start(a_session);
-                dap_list_free_full(a_session->cur_round.validators_list, free);
-                a_session->cur_round.validators_list = s_get_validators_addr_list(a_session);
-                a_session->cur_round.validators_count = dap_list_length(a_session->cur_round.validators_list);
-                dap_timerfd_start(PVT(a_session->ton)->first_message_delay*1000,
-                    (dap_timerfd_callback_t)s_session_send_startsync, a_session);
+            // round start
+            a_session->state = DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_START;
+            s_session_round_start(a_session);
+            dap_chain_node_mempool_process_all(a_session->chain);
+            dap_list_free_full(a_session->cur_round.validators_list, free);
+            a_session->cur_round.validators_list = s_get_validators_addr_list(a_session);
+            a_session->cur_round.validators_count = dap_list_length(a_session->cur_round.validators_list);
+            dap_timerfd_start(PVT(a_session->ton)->first_message_delay*1000,
+                (dap_timerfd_callback_t)s_session_send_startsync, a_session);
+            if (PVT(a_session->ton)->debug)
+                log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Start syncing validators ",
+                        a_session->chain->net_name, a_session->chain->name,
+                            a_session->cur_round.id.uint64, a_session->attempt_current_number);
+            } else
+                break;
+        }
+        case DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_START: {
+            if ( (l_time-a_session->ts_round_sync_start) < PVT(a_session->ton)->round_start_sync_timeout )
+                break; // timeout start sync
+            uint16_t l_startsync_count = a_session->cur_round.validators_start_count;
+            if (l_startsync_count * 3 >= a_session->cur_round.validators_count * 2) {
+                // if sync more 2/3 validators then start round and submit candidate
                 if (PVT(a_session->ton)->debug)
-                    log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Start syncing validators ",
+                    log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu More than 2/3 of the validators are synchronized, so starting the round and send the candidate",
                             a_session->chain->net_name, a_session->chain->name,
                                 a_session->cur_round.id.uint64, a_session->attempt_current_number);
-                goto session_processed; // Unlock happens after round start in its callbacks
-            }
-            goto session_unlock;
-        } //break;
-        case DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_START: {
-            if ( (l_time-a_session->ts_round_sync_start) >= PVT(a_session->ton)->round_start_sync_timeout ) { // timeout start sync
-                uint16_t l_startsync_count = a_session->cur_round.validators_start_count;
-                if (l_startsync_count * 3 >= a_session->cur_round.validators_count * 2) {
-                    // if sync more 2/3 validators then start round and submit candidate
-                    if (PVT(a_session->ton)->debug)
-                        log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu More than 2/3 of the validators are synchronized, so starting the round and send the candidate",
-                                a_session->chain->net_name, a_session->chain->name,
-                                    a_session->cur_round.id.uint64, a_session->attempt_current_number);
 
-                    a_session->ts_round_start = l_time;
-                    a_session->state = DAP_STREAM_CH_CHAIN_SESSION_STATE_CS_PROC;
+                a_session->ts_round_start = l_time;
+                a_session->state = DAP_STREAM_CH_CHAIN_SESSION_STATE_CS_PROC;
 
-                    // sort validators list
-                    dap_list_t *l_validators_start = a_session->cur_round.validators_start;
-                    a_session->cur_round.validators_start = NULL;
-                    dap_list_t *l_validators_list_temp = dap_list_first(a_session->cur_round.validators_list);
-                    while (l_validators_list_temp) {
-                        dap_chain_node_addr_t *l_validator_1 = (dap_chain_node_addr_t *)l_validators_list_temp->data;
-                        l_validators_list_temp = l_validators_list_temp->next;
-                        dap_list_t *l_validators_start_temp = dap_list_first(l_validators_start);
-                        while (l_validators_start_temp) {
-                            dap_chain_node_addr_t *l_validator_2 = (dap_chain_node_addr_t *)l_validators_start_temp->data;
-                            l_validators_start_temp = l_validators_start_temp->next;
-                            if ( l_validator_1->uint64 == l_validator_2->uint64 ) {
-                                a_session->cur_round.validators_start =
-                                        dap_list_append(a_session->cur_round.validators_start, l_validator_1);
-                            }
+                // sort validators list
+                dap_list_t *l_validators_start = a_session->cur_round.validators_start;
+                a_session->cur_round.validators_start = NULL;
+                dap_list_t *l_validators_list_temp = dap_list_first(a_session->cur_round.validators_list);
+                while (l_validators_list_temp) {
+                    dap_chain_node_addr_t *l_validator_1 = (dap_chain_node_addr_t *)l_validators_list_temp->data;
+                    l_validators_list_temp = l_validators_list_temp->next;
+                    dap_list_t *l_validators_start_temp = dap_list_first(l_validators_start);
+                    while (l_validators_start_temp) {
+                        dap_chain_node_addr_t *l_validator_2 = (dap_chain_node_addr_t *)l_validators_start_temp->data;
+                        l_validators_start_temp = l_validators_start_temp->next;
+                        if ( l_validator_1->uint64 == l_validator_2->uint64 ) {
+                            a_session->cur_round.validators_start =
+                                    dap_list_append(a_session->cur_round.validators_start, l_validator_1);
                         }
                     }
-
-                    // first coordinator
-                    a_session->attempt_coordinator =
-                            (dap_chain_node_addr_t *)(dap_list_first(a_session->cur_round.validators_start)->data);
-                } else {
-                    s_session_round_finish(a_session, true);
-                    if (PVT(a_session->ton)->debug)
-                        log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Round finish by reason: can't synchronized 2/3 of the validators",
-                                a_session->chain->net_name, a_session->chain->name,
-                                    a_session->cur_round.id.uint64, a_session->attempt_current_number);
-                    goto session_processed;
                 }
+
+                // first coordinator
+                a_session->attempt_coordinator =
+                        (dap_chain_node_addr_t *)(dap_list_first(a_session->cur_round.validators_start)->data);
+            } else {
+                s_session_round_finish(a_session, true);
+                if (PVT(a_session->ton)->debug)
+                    log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Round finish by reason: can't synchronized 2/3 of the validators",
+                            a_session->chain->net_name, a_session->chain->name,
+                                a_session->cur_round.id.uint64, a_session->attempt_current_number);
+                break;
             }
-            goto session_unlock;
-        } //break;
+        }
         case DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_SIGNS:
         case DAP_STREAM_CH_CHAIN_SESSION_STATE_CS_PROC: {
             if ( !a_session->cur_round.submit && a_session->attempt_current_number == 1 ) {
@@ -576,11 +566,9 @@ static void s_session_proc_state( dap_chain_cs_block_ton_session_t * a_session)
                                 (dap_time_t)((PVT(a_session->ton)->next_candidate_delay*l_my_number)+PVT(a_session->ton)->first_message_delay) ) {
                         a_session->cur_round.submit = true;
                         s_session_candidate_submit(a_session);
-                        goto session_processed;
                     }
                 }
             }
-        case DAP_STREAM_CH_CHAIN_SESSION_STATE_CS_PROC_AFTER_SUBMIT:
 
             if ( (l_time-a_session->ts_round_start) >=
                         (dap_time_t)(PVT(a_session->ton)->round_attempt_duration*a_session->attempt_current_number) ) {
@@ -592,7 +580,7 @@ static void s_session_proc_state( dap_chain_cs_block_ton_session_t * a_session)
                         log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Round finish by reason: attempts is out",
                                 a_session->chain->net_name, a_session->chain->name,
                                     a_session->cur_round.id.uint64, a_session->attempt_current_number);
-                    goto session_processed;
+                    break;
                 }
                 if ( a_session->cur_round.candidates_count == 0 ) { // no candidates
                     s_session_round_finish(a_session,true);
@@ -600,10 +588,10 @@ static void s_session_proc_state( dap_chain_cs_block_ton_session_t * a_session)
                         log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Round finish by reason: no block candidates",
                                 a_session->chain->net_name, a_session->chain->name,
                                     a_session->cur_round.id.uint64, a_session->attempt_current_number);
-                    goto session_processed;
+                    break;
                 }
                 if ( a_session->state == DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_SIGNS ) {
-                    goto session_unlock;
+                    break;
                 }
 
                 uint16_t l_validators_count = a_session->cur_round.validators_start_count;
@@ -629,18 +617,12 @@ static void s_session_proc_state( dap_chain_cs_block_ton_session_t * a_session)
                 if ( a_session->my_addr->uint64 == a_session->attempt_coordinator->uint64 ) {
                     // I am coordinator :-) select candidate
                     dap_global_db_get_all(a_session->gdb_group_store,0,s_session_round_start_callback_load_session_store_coordinator_state_proc, a_session);
-                    goto session_processed; // Unlock in its callback
+                    break; // Unlock in its callback
                 }
             }
-            goto session_unlock;
         }
     }
-session_unlock:
-    a_session->time_proc_lock = false; // unlock
     pthread_rwlock_unlock(&a_session->rwlock);
-session_processed: // Stay locked
-    ;
-
 }
 
 /**
@@ -754,8 +736,6 @@ static void s_session_candidate_submit(dap_chain_cs_block_ton_session_t *a_sessi
 {
     dap_chain_t *l_chain = a_session->chain;
     s_session_my_candidate_delete(a_session);
-    a_session->worker = dap_worker_get_current();
-    assert (a_session->worker); // It must be called from worker's timer
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
     a_session->my_candidate = l_blocks->callback_new_block_move(l_blocks, &a_session->my_candidate_size);
     size_t l_submit_size = a_session->my_candidate ?
@@ -822,6 +802,8 @@ static void s_session_my_candidate_delete(dap_chain_cs_block_ton_session_t *a_se
 
 static void s_session_round_clear(dap_chain_cs_block_ton_session_t *a_session)
 {
+    a_session->state = DAP_STREAM_CH_CHAIN_SESSION_STATE_IDLE;
+    a_session->ts_round_finish = dap_time_now();
     // Truncate this group
     dap_global_db_del(a_session->gdb_group_store, NULL, NULL, NULL);
     dap_chain_cs_block_ton_message_item_t *l_message_item=NULL, *l_message_tmp=NULL;
@@ -836,7 +818,7 @@ static void s_session_round_clear(dap_chain_cs_block_ton_session_t *a_session)
         dap_list_free(a_session->cur_round.validators_start);
     if (a_session->cur_round.validators_list)
         // delete validators
-        dap_list_free_full(a_session->cur_round.validators_list, free);
+        dap_list_free_full(a_session->cur_round.validators_list, NULL);
 
     dap_chain_cs_block_ton_round_id_t l_round_id = a_session->cur_round.id;
     a_session->cur_round = (dap_chain_cs_block_ton_round_t){.id = l_round_id};
@@ -880,7 +862,7 @@ static bool s_session_round_finish_callback_load_store(dap_global_db_context_t *
         else if (dap_hash_fast_compare(&l_store->hdr.candidate_hash, &l_session->cur_round.my_candidate_hash)) {
             if (PVT(l_session->ton)->debug) {
                 char *l_hash_str = dap_chain_hash_fast_to_str_new(&l_store->hdr.candidate_hash);
-                log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu My candidate:%s %s Delete block_new.",
+                log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu My candidate:%s %s. Delete block_new.",
                         l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id.uint64,
                             l_session->attempt_current_number, l_hash_str,
                             (l_store->hdr.approve_collected ? "approved with consensus" : "didn't collect 2/3 approve."));
@@ -1100,7 +1082,7 @@ struct proc_msg_type_commit_sign{
  * @param a_is_pinned
  * @param a_arg
  */
-static void s_callback_get_candidate_block_and_commit_sign (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const void * a_value, const size_t a_value_size, dap_nanotime_t a_value_ts, bool a_is_pinned, void * a_arg)
+static void s_callback_get_candidate_block_and_commit_sign(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const void * a_value, const size_t a_value_size, dap_nanotime_t a_value_ts, bool a_is_pinned, void * a_arg)
 {
     struct proc_msg_type_commit_sign * l_args = (struct proc_msg_type_commit_sign *) a_arg;
     dap_chain_cs_block_ton_session_t *l_session = l_args->session;
@@ -1118,7 +1100,7 @@ static void s_callback_get_candidate_block_and_commit_sign (dap_global_db_contex
     size_t l_store_size = a_value_size;
     dap_chain_cs_block_ton_store_t *l_store = (dap_chain_cs_block_ton_store_t *) a_value;
 
-    pthread_rwlock_rdlock(&l_session->rwlock);
+    pthread_rwlock_wrlock(&l_session->rwlock);
 
     if (l_store) {
         size_t l_candidate_size = l_store->hdr.candidate_size;
@@ -1132,8 +1114,8 @@ static void s_callback_get_candidate_block_and_commit_sign (dap_global_db_contex
                                         l_candidate, l_offset+sizeof(l_candidate->hdr))) == 1 ) {
             l_message->hdr.is_verified = true;
             l_store->hdr.sign_collected = true;
-            if (dap_global_db_set(l_session->gdb_group_store, l_candidate_hash_str, l_store,
-                            l_store_size, true, NULL, NULL) == 0 ) {
+            if (dap_global_db_set_unsafe(a_global_db_context, l_session->gdb_group_store, l_candidate_hash_str, l_store,
+                            l_store_size, true) == 0 ) {
                 uint16_t l_commitsign_count = s_session_message_count(
                                 l_session, DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_COMMIT_SIGN,
                                 &l_candidate_hash, NULL);
@@ -1153,7 +1135,6 @@ static void s_callback_get_candidate_block_and_commit_sign (dap_global_db_contex
             log_it(L_WARNING, "Candidate:%s sign is incorrect: code %d", l_candidate_hash_str, l_sign_verified);
     }
     pthread_rwlock_unlock(&l_session->rwlock);
-    DAP_DELETE(l_store);
     DAP_DELETE(l_candidate_hash_str);
 }
 
@@ -1234,7 +1215,6 @@ static void s_callback_get_candidate_block_and_pre_commit (dap_global_db_context
         else {
             log_it(L_WARNING, "Can't sign block with blocks-sign-cert in [block-ton] section");
         }
-        DAP_DELETE(l_store);
     }
     pthread_rwlock_unlock(&l_session->rwlock);
 
@@ -1289,7 +1269,6 @@ static void s_callback_get_candidate_block_and_vote (dap_global_db_context_t * a
                         l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id.uint64,
                             l_session->attempt_current_number, l_candidate_hash_str);
         }
-        DAP_DELETE(l_store);
     }
     DAP_DELETE(l_candidate_hash_str);
 
@@ -1344,20 +1323,17 @@ static void s_callback_get_candidate_block_and_approve (dap_global_db_context_t 
                 log_it(L_MSG, "TON: APPROVE: can`t update candidate:%s", l_candidate_hash_str);
 
         // event Vote
-        dap_chain_cs_block_ton_message_vote_t *l_vote =
-                                            DAP_NEW_Z(dap_chain_cs_block_ton_message_vote_t);
-        l_vote->round_id.uint64 = l_session->cur_round.id.uint64;
+        dap_chain_cs_block_ton_message_vote_t l_vote = {};
+        l_vote.round_id.uint64 = l_session->cur_round.id.uint64;
 //        memcpy(&l_vote->candidate_hash, &l_candidate_hash, sizeof(dap_chain_hash_fast_t));
-        l_vote->candidate_hash = l_candidate_hash;
-        l_vote->attempt_number = l_session->attempt_current_number;
-        s_message_send(l_session, DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE, (uint8_t*)l_vote,
+        l_vote.candidate_hash = l_candidate_hash;
+        l_vote.attempt_number = l_session->attempt_current_number;
+        s_message_send(l_session, DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE, (uint8_t *)&l_vote,
             sizeof(dap_chain_cs_block_ton_message_vote_t), l_session->cur_round.validators_start);
-        DAP_DELETE(l_vote);
         if (PVT(l_session->ton)->debug)
             log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu This is first attempt, so to sent a VOTE for candidate:%s",
                     l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id.uint64,
-                        l_session->attempt_current_number, l_candidate_hash_str );
-        DAP_DELETE(l_store);
+                        l_session->attempt_current_number, l_candidate_hash_str);
     }
     pthread_rwlock_unlock(&l_session->rwlock);
     DAP_DELETE(l_candidate_hash_str);
@@ -1410,10 +1386,6 @@ static void s_callback_check_and_save_candidate_block  (dap_global_db_context_t 
     size_t l_store_size = sizeof(dap_chain_cs_block_ton_store_hdr_t) + l_candidate_size;
     dap_chain_cs_block_ton_store_t *l_store = DAP_NEW_Z_SIZE(dap_chain_cs_block_ton_store_t, l_store_size);
 
-    l_store->hdr.sign_collected = false;
-    l_store->hdr.approve_collected = false;
-    l_store->hdr.vote_collected = false;
-    l_store->hdr.precommit_collected = false;
     l_store->hdr.candidate_size = l_candidate_size;
     l_store->hdr.ts_candidate_submit = l_time;
     l_store->hdr.round_id.uint64 = l_session->cur_round.id.uint64;
@@ -1472,7 +1444,6 @@ static void s_callback_check_and_save_candidate_block  (dap_global_db_context_t 
     pthread_rwlock_unlock(&l_session->rwlock);
 
     DAP_DELETE(l_store);
-    DAP_DELETE(l_store_temp);
     DAP_DELETE(l_candidate_hash_str);
     DAP_DELETE(l_candidate);
 }
@@ -1897,7 +1868,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                         l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id.uint64,
                             l_session->attempt_current_number, l_candidate_hash_str);
 
-
+            pthread_rwlock_unlock(&l_session->rwlock);
             pthread_rwlock_wrlock(&l_session->rwlock);
 
             uint16_t l_reject_count = s_session_message_count(l_session, DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_REJECT,
@@ -2202,8 +2173,11 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
     }
 
 handler_finish_save:
-    if (l_session->state != DAP_STREAM_CH_CHAIN_SESSION_STATE_IDLE)
+    if (l_session->state != DAP_STREAM_CH_CHAIN_SESSION_STATE_IDLE) {
+        pthread_rwlock_wrlock(&l_session->rwlock);
         s_message_chain_add(l_session, a_sender_node_addr, l_message, a_data_size, NULL);
+        pthread_rwlock_unlock(&l_session->rwlock);
+    }
     return;
 handler_finish:
     DAP_DELETE(l_message);
@@ -2272,9 +2246,8 @@ static void s_message_send(dap_chain_cs_block_ton_session_t *a_session, uint8_t 
 
 static void s_message_chain_add(dap_chain_cs_block_ton_session_t *a_session, dap_chain_node_addr_t *a_sender_node_addr,
                                     dap_chain_cs_block_ton_message_t *a_message,
-                                    size_t a_message_size, dap_chain_hash_fast_t *a_message_hash) {
-
-    pthread_rwlock_wrlock(&a_session->rwlock);
+                                    size_t a_message_size, dap_chain_hash_fast_t *a_message_hash)
+{
     dap_chain_cs_block_ton_message_t *l_message = a_message;
     dap_chain_cs_block_ton_round_t *l_round = &a_session->cur_round;
     l_message->hdr.is_genesis = dap_hash_fast_is_blank(&l_round->last_message_hash);
@@ -2294,8 +2267,6 @@ static void s_message_chain_add(dap_chain_cs_block_ton_session_t *a_session, dap
     l_round->messages_count++;
     if (a_message_hash)
         *a_message_hash = l_message_hash;
-
-    pthread_rwlock_unlock(&a_session->rwlock);
 }
 
 static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t **a_block_ptr, size_t a_block_size)
