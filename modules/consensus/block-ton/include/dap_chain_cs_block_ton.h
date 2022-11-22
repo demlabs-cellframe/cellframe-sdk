@@ -7,7 +7,6 @@
 #define DAP_STREAM_CH_CHAIN_SESSION_STATE_IDLE                  0x04
 #define DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_START            0x08
 #define DAP_STREAM_CH_CHAIN_SESSION_STATE_CS_PROC               0x12
-#define DAP_STREAM_CH_CHAIN_SESSION_STATE_CS_PROC_AFTER_SUBMIT  0x13
 #define DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_SIGNS            0x16
 
 #define DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_START_SYNC		0x32
@@ -86,8 +85,6 @@ typedef struct dap_chain_cs_block_ton_session {
 
     struct dap_chain_cs_block_ton_session *next;
     struct dap_chain_cs_block_ton_session *prev;
-
-    bool time_proc_lock; // flag - skip check if prev check is not finish
 
     dap_worker_t * worker; // Worker where it was processed last time
     pthread_rwlock_t rwlock;

@@ -50,11 +50,11 @@ static void s_callback_send_all_unsafe(dap_client_t *a_client, void *a_arg);
 static void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg);
 static void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg);
 
-static bool s_packet_in_callback_handler(void * a_arg);
+static void s_packet_in_callback_handler(void * a_arg);
 static void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg);
 static void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg);
 
-static dap_timerfd_t * s_packet_in_callback_timer = NULL;
+static dap_interval_timer_t *s_packet_in_callback_timer = NULL;
 static bool s_is_inited = false;
 
 //static int s_cli_voting(int argc, char ** argv, char **a_str_reply);
@@ -80,16 +80,15 @@ int dap_stream_ch_chain_voting_init() {
                            s_stream_ch_packet_out);
 
     if (!s_packet_in_callback_timer) {
-        s_packet_in_callback_timer = dap_timerfd_start(1*1000,
-                                                       (dap_timerfd_callback_t)s_packet_in_callback_handler,
-                                                       NULL);
+        s_packet_in_callback_timer = dap_interval_timer_create(1000, s_packet_in_callback_handler, NULL);
     }
     s_is_inited = true;
     // s_packet_in_callback_handler();
     return 0;
 }
 
-void dap_stream_ch_chain_voting_in_callback_add(void* a_arg, voting_ch_callback_t packet_in_callback) {
+void dap_stream_ch_chain_voting_in_callback_add(void* a_arg, voting_ch_callback_t packet_in_callback)
+{
     size_t i = s_pkt_in_callback_count;
     s_pkt_in_callback[i].arg = a_arg;
     s_pkt_in_callback[i].packet_in_callback = packet_in_callback;
@@ -290,7 +289,7 @@ static void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg) {
     a_ch->internal = NULL; // To prevent its cleaning in worker
 }
 
-static bool s_packet_in_callback_handler(void *a_arg)
+static void s_packet_in_callback_handler(void *a_arg)
 {
     UNUSED(a_arg);
     pthread_rwlock_wrlock(&s_pkt_items->rwlock_in);
@@ -315,7 +314,6 @@ static bool s_packet_in_callback_handler(void *a_arg)
     } else {
         pthread_rwlock_unlock(&s_pkt_items->rwlock_in);
     }
-    return true;
 }
 
 
