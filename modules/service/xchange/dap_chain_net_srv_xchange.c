@@ -896,9 +896,10 @@ char *s_xchange_order_create(dap_chain_net_srv_xchange_price_t *a_price, dap_cha
  * @brief s_xchange_price_from_order
  * @param a_net
  * @param a_order
+ * @param a_ret_is_invalid
  * @return
  */
-dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a_net, dap_chain_net_srv_order_t *a_order)
+dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a_net, dap_chain_net_srv_order_t *a_order, bool a_ret_is_invalid)
 {
     dap_chain_net_srv_xchange_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_xchange_price_t);
     dap_srv_xchange_order_ext_t *l_ext = (dap_srv_xchange_order_ext_t *)a_order->ext_n_sign;
@@ -914,8 +915,14 @@ dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a
         if (l_final_hash) {
             l_price->tx_hash = *l_final_hash;
             return l_price;
-        } else
+        } else {
             log_it(L_WARNING, "This order have no active conditional transaction");
+            if (a_ret_is_invalid) {
+                dap_hash_fast_t l_tx_hash_zero = {0};
+                l_price->tx_hash = l_tx_hash_zero;
+                return l_price;
+            }
+        }
     } else
         log_it(L_WARNING, "Can't calculate price rate, because amount od datoshi sell is zero");
     DAP_DELETE(l_price);
@@ -1204,7 +1211,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Specified order not found");
                 return -13;
             }
-            dap_chain_net_srv_xchange_price_t *l_price = s_xchange_price_from_order(l_net, l_order);
+            dap_chain_net_srv_xchange_price_t *l_price = s_xchange_price_from_order(l_net, l_order, false);
             if (!l_order) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Can't create price object from order");
                 return -13;
@@ -1671,7 +1678,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                     continue;
 
                 // TODO add filters to list (tokens, network, etc.)
-                l_price = s_xchange_price_from_order(l_net, l_order);
+                l_price = s_xchange_price_from_order(l_net, l_order, true);
                 if( !l_price ){
                     log_it(L_WARNING,"Can't create price from order");
                     continue;
@@ -1679,11 +1686,17 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 
                 uint256_t l_datoshi_buy;
                 char *l_cp1, *l_cp2, *l_cp3;
+                char* l_status_order;
+                dap_hash_fast_t l_hash_fast_ref = {0};
+                if (dap_hash_fast_compare(&l_price->tx_hash, &l_hash_fast_ref))
+                    l_status_order  = "INVALID";
+                else
+                    l_status_order = "UNKNOWN";
 
                 MULT_256_COIN(l_price->datoshi_sell, l_price->rate, &l_datoshi_buy);  /* sell/buy computation */
 
-                dap_string_append_printf(l_reply_str, "orderHash: %s tokSel: %s, net: %s, tokBuy: %s, sell: %s, buy: %s buy/sell: %s\n", l_orders[i].key,
-                                         l_price->token_sell, l_price->net->pub.name,
+                dap_string_append_printf(l_reply_str, "orderHash: %s (%s) tokSel: %s, net: %s, tokBuy: %s, sell: %s, buy: %s buy/sell: %s\n", l_orders[i].key,
+                                         l_status_order, l_price->token_sell, l_price->net->pub.name,
                                          l_price->token_buy,
                                          l_cp1 = dap_chain_balance_print(l_price->datoshi_sell), l_cp2 = dap_chain_balance_print(l_datoshi_buy),
                                          l_cp3 = dap_chain_balance_to_coins(l_price->rate));
@@ -1742,7 +1755,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
             }
             dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_find_by_hash_str(l_net, l_order_hash_str);
             if (l_order) {
-                dap_chain_net_srv_xchange_price_t *l_price = s_xchange_price_from_order(l_net, l_order);
+                dap_chain_net_srv_xchange_price_t *l_price = s_xchange_price_from_order(l_net, l_order, false);
                 if(!l_price){
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Can't create price from order");
                     return -13;
