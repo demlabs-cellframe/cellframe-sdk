@@ -39,6 +39,12 @@
 #ifndef CRC32C_ADLER_H
 #define CRC32C_ADLER_H
 
+#include <stdint.h>
+
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 /* Compute CRC32C checksum using software algorithm (1). */
 uint32_t crc32c_sw(uint32_t crci, const void *buf, size_t len);
 
@@ -58,4 +64,7 @@ void crc32c_hw_disable();
    fall back on software algorithm otherwise. */
 uint32_t crc32c(uint32_t crc, const void *buf, size_t len);
 
+#if defined(__cplusplus)
+}
+#endif
 #endif // CRC32C_ADLER_H
