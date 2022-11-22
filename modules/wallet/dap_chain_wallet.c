@@ -53,8 +53,6 @@
 #include <pthread.h>
 
 #include "dap_common.h"
-#include "dap_strfuncs.h"
-#include "dap_string.h"
 #include "dap_cert_file.h"
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_internal.h"
@@ -105,10 +103,10 @@ char *c_wallets_path;
 
     /* Sanity checks ... */
     if ( a_name_len > DAP_WALLET$SZ_NAME )
-        return  log_it(L_ERROR, "Wallet's name is too long (%d > %d)",  a_name_len, DAP_WALLET$SZ_NAME), -EINVAL;
+        return  log_it(L_ERROR, "Wallet's name is too long (%d > %d)",  (int) a_name_len, DAP_WALLET$SZ_NAME), -EINVAL;
 
     if ( a_pass_len > DAP_WALLET$SZ_PASS )
-        return  log_it(L_ERROR, "Wallet's password is too long (%d > %d)",  a_pass_len, DAP_WALLET$SZ_PASS), -EINVAL;
+        return  log_it(L_ERROR, "Wallet's password is too long (%d > %d)",  (int) a_pass_len, DAP_WALLET$SZ_PASS), -EINVAL;
 
 
     memcpy(l_rec.name, a_name, l_rec.name_len = a_name_len);            /* Prefill local record fields */
@@ -198,10 +196,10 @@ struct timespec l_now;
 
     /* Sanity checks ... */
     if ( a_name_len > DAP_WALLET$SZ_NAME )
-        return  log_it(L_ERROR, "Wallet's name is too long (%d > %d)",  a_name_len, DAP_WALLET$SZ_NAME), -EINVAL;
+        return  log_it(L_ERROR, "Wallet's name is too long (%d > %d)",  (int) a_name_len, DAP_WALLET$SZ_NAME), -EINVAL;
 
     if ( *a_pass_len < DAP_WALLET$SZ_PASS )
-        return  log_it(L_ERROR, "Wallet's buffer for password is too small (%d < %d)",  *a_pass_len, DAP_WALLET$SZ_PASS), -EINVAL;
+        return  log_it(L_ERROR, "Wallet's buffer for password is too small (%d < %d)", (int) *a_pass_len, DAP_WALLET$SZ_PASS), -EINVAL;
 
 
     clock_gettime(CLOCK_REALTIME, &l_now);
@@ -260,7 +258,7 @@ int     l_rc, l_rc2;
 dap_chain_wallet_n_pass_t   *l_prec;
 
     if ( a_name_len > DAP_WALLET$SZ_NAME )
-        return  log_it(L_ERROR, "Wallet's name is too long (%d > %d)",  a_name_len, DAP_WALLET$SZ_NAME), -EINVAL;
+        return  log_it(L_ERROR, "Wallet's name is too long (%d > %d)",  (int) a_name_len, DAP_WALLET$SZ_NAME), -EINVAL;
 
     if ( (l_rc = pthread_rwlock_wrlock(&s_wallet_n_pass_lock)) )        /* Lock for WR access */
         return  log_it(L_ERROR, "Error locking Wallet table, errno=%d", l_rc), -l_rc;
@@ -272,7 +270,7 @@ dap_chain_wallet_n_pass_t   *l_prec;
     if ( l_prec )
     {
         if ( !l_prec->pass_len )                                        /* Password is zero - has been reset probably */
-            log_it(L_WARNING, "The Wallet %.*s is not active", a_name_len, a_name);
+            log_it(L_WARNING, "The Wallet %.*s is not active", (int) a_name_len, a_name);
 
         else if ( (l_prec->pass_len != a_pass_len)                      /* Check that passwords is equivalent */
              || memcmp(l_prec->pass, a_pass, l_prec->pass_len) )
@@ -797,7 +795,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
 #endif
 
     if ( l_file_hdr.signature != DAP_CHAIN_WALLETS_FILE_SIGNATURE )  {       /* Check signature of the file */
-        log_it(L_ERROR, "Wallet (%s) signature mismatch (%#llux != %#llux", a_file_name, l_file_hdr.signature, DAP_CHAIN_WALLETS_FILE_SIGNATURE);
+        log_it(L_ERROR, "Wallet (%s) signature mismatch (%llux != %ldx)", a_file_name, l_file_hdr.signature, DAP_CHAIN_WALLETS_FILE_SIGNATURE);
 #ifdef DAP_OS_WINDOWS
         CloseHandle(l_fh);
 #else
