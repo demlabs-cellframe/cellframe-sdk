@@ -30,6 +30,7 @@ endif()
 add_library(${PROJECT_NAME} STATIC ${CORE_SRCS} ${CORE_HEADERS})
 
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../3rdparty/uthash/src)
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../3rdparty/crc32c_adler)
 #if (WIN32)
 #    target_include_directories(${PROJECT_NAME} PRIVATE ../../3rdparty/wepoll)
 #endif()

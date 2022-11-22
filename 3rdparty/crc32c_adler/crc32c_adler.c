@@ -38,7 +38,6 @@
 */
 #include <stdio.h>
 #include <stdlib.h>
-#include <stdint.h>
 #include <unistd.h>
 
 #include "crc32c_adler.h"
@@ -497,5 +496,9 @@ void crc32c_hw_disable()
    fall back on software algorithm otherwise. */
 uint32_t crc32c(uint32_t crc, const void *buf, size_t len)
 {
+#if defined(__x86_64__)                 /* @RRL: to compile for ARM */
     return crc32c_hw_support() ? crc32c_hw(crc, buf, len) : crc32c_sw(crc, buf, len);
+#else
+    return crc32c_sw(crc, buf, len);
+#endif
 }
