@@ -119,11 +119,12 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                         "\tObtain help for <command> or get the total list of the commands\n"
                                         );
     dap_cli_server_cmd_add ("wallet", com_tx_wallet, "Wallet operations",
-                "wallet list\n"
-                "wallet new -w <wallet_name> [-sign <sign_type>] [-restore <hex_value>] [-net <net_name>] [-force] [-password <password>] [-restore <hash>]\n"
-                "wallet info {-addr <addr> | -w <wallet_name>} -net <net_name>\n"
-                "wallet activate -w <wallet_name> -password <password> [-ttl <password_ttl_in_minutes>]\n"
-                "wallet deactivate -w <wallet_name> -password <password>\n");
+                            "wallet list\n"
+                            "wallet new -w <wallet_name> [-sign <sign_type>] [-restore <hex_value>] [-net <net_name>] [-force] [-password <password>] [-restore <hash>]\n"
+                            "wallet info {-addr <addr> | -w <wallet_name>} -net <net_name>\n"
+                            "wallet activate -w <wallet_name> -password <password> [-ttl <password_ttl_in_minutes>]\n"
+                            "wallet deactivate -w <wallet_name> -password <password>\n");
+
 
     // Token commands
     dap_cli_server_cmd_add ("token_update", com_token_update, "Token update",
