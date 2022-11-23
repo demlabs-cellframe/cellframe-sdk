@@ -420,7 +420,7 @@ struct send_records_args{
  * @param a_store_obj
  * @param a_arg
  */
-static bool s_net_send_records_callback_get_raw (dap_global_db_context_t * a_global_db_context,int a_rc, dap_store_obj_t * a_store_obj, void * a_arg)
+static void s_net_send_records_callback_get_raw (dap_global_db_context_t * a_global_db_context,int a_rc, dap_store_obj_t * a_store_obj, void * a_arg)
 {
     struct send_records_args * l_args = (struct send_records_args*) a_arg;
     dap_chain_net_t * l_net = l_args->net;
@@ -430,12 +430,12 @@ static bool s_net_send_records_callback_get_raw (dap_global_db_context_t * a_glo
     if (a_rc != DAP_GLOBAL_DB_RC_SUCCESS ) {
         log_it(L_DEBUG, "Notified GDB event does not exist");
         dap_store_obj_free_one(l_arg_obj);
-        return true;
+        return;
     }
 
     if (!a_store_obj->group || !a_store_obj->key) {
         dap_store_obj_free_one(l_arg_obj);
-        return true;
+        return;
     }
 
     a_store_obj->type = l_arg_obj->type;
@@ -485,9 +485,7 @@ static bool s_net_send_records_callback_get_raw (dap_global_db_context_t * a_glo
         } while (it);
     } else
         //PVT(l_net)->records_queue = dap_list_append(PVT(l_net)->records_queue, l_obj);
-        dap_store_obj_free_one(a_store_obj);
     pthread_rwlock_unlock(&PVT(l_net)->gdbs_lock);
-    return false; // We've freed obj by our own before
 }
 
 /**
@@ -3123,8 +3121,10 @@ bool dap_chain_net_get_flag_sync_from_zero( dap_chain_net_t * a_net)
 }
 
 
-bool s_proc_mempool_callback_load(dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const size_t a_values_total,
-                                                  const size_t a_values_count, dap_global_db_obj_t * a_values, void * a_arg)
+void s_proc_mempool_callback_load(dap_global_db_context_t *a_global_db_context,
+                                  int a_rc, const char *a_group,
+                                  const size_t a_values_total, const size_t a_values_count,
+                                  dap_global_db_obj_t *a_values, void *a_arg)
 {
     dap_chain_t * l_chain = (dap_chain_t*) a_arg;
     dap_chain_net_t * l_net = dap_chain_net_by_id( l_chain->net_id );
@@ -3184,7 +3184,6 @@ bool s_proc_mempool_callback_load(dap_global_db_context_t * a_global_db_context,
     else {
         log_it(L_INFO, "%s.%s: No records in mempool", l_net->pub.name, l_chain ? l_chain->name : "[no chain]");
     }
-    return true;
 }
 
 

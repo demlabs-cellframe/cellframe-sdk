@@ -751,8 +751,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_
             if ( memcmp( &l_event_hash, &l_dag->static_genesis_event_hash, sizeof(l_event_hash) ) != 0 ){
                 char * l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_hash);
                 char * l_genesis_event_hash_str = dap_chain_hash_fast_to_str_new(&l_dag->static_genesis_event_hash);
-
-                log_it(L_WARNING, "Wrong genesis block %s (staticly predefined %s)",l_event_hash_str, l_genesis_event_hash_str);
+                log_it(L_WARNING, "Wrong genesis event %s (staticly predefined %s)",l_event_hash_str, l_genesis_event_hash_str);
                 DAP_DELETE(l_event_hash_str);
                 DAP_DELETE(l_genesis_event_hash_str);
                 return ATOM_REJECT;

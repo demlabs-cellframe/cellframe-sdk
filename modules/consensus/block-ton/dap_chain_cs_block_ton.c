@@ -412,8 +412,8 @@ static bool s_session_send_votefor(s_session_send_votefor_data_t *a_data){
  * @param a_values
  * @param a_arg
  */
-static bool s_session_round_start_callback_load_session_store_coordinator_state_proc(dap_global_db_context_t * a_global_db_context,int a_rc,
-                                                                                     const char * a_group, const char * a_key,
+static void s_session_round_start_callback_load_session_store_coordinator_state_proc(dap_global_db_context_t *a_global_db_context,
+                                                                                     int a_rc, const char *a_group,
                                                                                      const size_t a_values_total, const size_t a_values_count,
                                                                                      dap_global_db_obj_t *a_values, void *a_arg)
 {
@@ -466,7 +466,6 @@ static bool s_session_round_start_callback_load_session_store_coordinator_state_
         DAP_DELETE(l_hash_str);
     }
     pthread_rwlock_unlock(&l_session->rwlock);
-    return true;
 }
 
 /**
@@ -836,8 +835,8 @@ static void s_session_round_clear(dap_chain_cs_block_ton_session_t *a_session)
  * @param a_values
  * @param a_arg
  */
-static bool s_session_round_finish_callback_load_store(dap_global_db_context_t * a_global_db_context,int a_rc,
-                                                       const char * a_group, const char * a_key,
+static void s_session_round_finish_callback_load_store(dap_global_db_context_t *a_global_db_context,
+                                                       int a_rc, const char *a_group,
                                                        const size_t a_values_total, const size_t a_values_count,
                                                        dap_global_db_obj_t *a_values, void *a_arg)
 
@@ -875,7 +874,6 @@ static bool s_session_round_finish_callback_load_store(dap_global_db_context_t *
     }
     s_session_round_clear(l_session);
     pthread_rwlock_unlock(&l_session->rwlock); // then unlock anyway
-    return true;
 }
 /**
  * @brief Finish TON round (asyncroniusly)
@@ -966,8 +964,8 @@ struct vote_for_load_store_args
  * @param a_values
  * @param a_arg
  */
-static bool s_session_packet_in_callback_vote_for_load_store(dap_global_db_context_t * a_global_db_context,int a_rc,
-                                                             const char * a_group, const char * a_key,
+static void s_session_packet_in_callback_vote_for_load_store(dap_global_db_context_t *a_global_db_context,
+                                                             int a_rc, const char *a_group,
                                                              const size_t a_values_total, const size_t a_values_count,
                                                              dap_global_db_obj_t *a_values, void *a_arg)
 {
@@ -1050,7 +1048,6 @@ static bool s_session_packet_in_callback_vote_for_load_store(dap_global_db_conte
     }
     pthread_rwlock_unlock(&l_session->rwlock);
     DAP_DELETE(a_arg);
-    return true;
 }
 
 /**

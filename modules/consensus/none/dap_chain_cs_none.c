@@ -281,8 +281,8 @@ const char* dap_chain_gdb_get_group(dap_chain_t * a_chain)
  * @param a_values
  * @param a_arg
  */
-static bool s_ledger_load_callback(dap_global_db_context_t * a_global_db_context,int a_rc,
-                                   const char * a_group, const char * a_key,
+static void s_ledger_load_callback(dap_global_db_context_t *a_global_db_context,
+                                   int a_rc, const char *a_group,
                                    const size_t a_values_total, const size_t a_values_count,
                                    dap_global_db_obj_t *a_values, void *a_arg)
 {
@@ -302,7 +302,6 @@ static bool s_ledger_load_callback(dap_global_db_context_t * a_global_db_context
     pthread_mutex_lock(&l_gdb_pvt->load_mutex);
     pthread_cond_broadcast(&l_gdb_pvt->load_cond);
     pthread_mutex_unlock(&l_gdb_pvt->load_mutex);
-    return true;
 }
 
 /**

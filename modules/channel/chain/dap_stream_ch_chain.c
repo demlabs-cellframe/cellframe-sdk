@@ -118,8 +118,8 @@ static bool s_sync_out_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_ar
 static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg);
 
 static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg);
-static bool s_gdb_in_pkt_proc_set_raw_callback(dap_global_db_context_t *a_global_db_context, int a_rc,
-                                               const char *a_group, const char *a_key,
+static void s_gdb_in_pkt_proc_set_raw_callback(dap_global_db_context_t *a_global_db_context,
+                                               int a_rc, const char *a_group,
                                                const size_t a_values_total, const size_t a_values_count,
                                                dap_store_obj_t *a_values, void *a_arg);
 static void s_gdb_in_pkt_error_worker_callback(dap_worker_t *a_thread, void *a_arg);
@@ -589,9 +589,8 @@ static void s_gdb_in_pkt_error_worker_callback(dap_worker_t *a_worker, void *a_a
                                                    l_sync_request->request_hdr.cell_id.uint64,
                                                    "ERROR_GLOBAL_DB_INTERNAL_NOT_SAVED");
     }
-    DAP_DELETE(l_sync_request);
     dap_store_obj_free_one(l_sync_request->obj);
-
+    DAP_DELETE(l_sync_request);
 }
 
 /**
@@ -874,8 +873,8 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
  * @param a_values
  * @param a_arg
  */
-static bool s_gdb_in_pkt_proc_set_raw_callback(dap_global_db_context_t *a_global_db_context, int a_rc,
-                                               const char *a_group, const char *a_key,
+static void s_gdb_in_pkt_proc_set_raw_callback(dap_global_db_context_t *a_global_db_context,
+                                               int a_rc, const char *a_group,
                                                const size_t a_values_total, const size_t a_values_count,
                                                dap_store_obj_t *a_values, void *a_arg)
 {
@@ -891,7 +890,6 @@ static bool s_gdb_in_pkt_proc_set_raw_callback(dap_global_db_context_t *a_global
         dap_store_obj_free_one(l_sync_req->obj);
         DAP_DELETE(l_sync_req);
     }
-    return true;
 }
 
 
