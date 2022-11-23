@@ -1726,151 +1726,223 @@ int com_help(int argc, char ** argv, char **str_reply)
  */
 int com_tx_wallet(int argc, char ** argv, char **str_reply)
 {
-    const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
-    // Get address of wallet
-    enum {
-        CMD_NONE, CMD_WALLET_NEW, CMD_WALLET_LIST, CMD_WALLET_INFO
-    };
-    int arg_index = 1;
-    int cmd_num = CMD_NONE;
+const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
+enum { CMD_NONE, CMD_WALLET_NEW, CMD_WALLET_LIST, CMD_WALLET_INFO, CMD_WALLET_ACTIVATE, CMD_WALLET_DEACTIVATE };
+int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
+char    l_buf[1024];
+
+
     // find  add parameter ('alias' or 'handshake')
-    if(dap_chain_node_cli_find_option_val(argv, arg_index, min(argc, arg_index + 1), "new", NULL)) {
+    if(dap_chain_node_cli_find_option_val(argv, l_arg_index, min(argc, l_arg_index + 1), "new", NULL))
         cmd_num = CMD_WALLET_NEW;
-    }
-    else if(dap_chain_node_cli_find_option_val(argv, arg_index, min(argc, arg_index + 1), "list", NULL)) {
+    else if(dap_chain_node_cli_find_option_val(argv, l_arg_index, min(argc, l_arg_index + 1), "list", NULL))
         cmd_num = CMD_WALLET_LIST;
-    }
-    else if(dap_chain_node_cli_find_option_val(argv, arg_index, min(argc, arg_index + 1), "info", NULL)) {
+    else if(dap_chain_node_cli_find_option_val(argv, l_arg_index, min(argc, l_arg_index + 1), "info", NULL))
         cmd_num = CMD_WALLET_INFO;
-    }
-    arg_index++;
+    else if(dap_chain_node_cli_find_option_val(argv, l_arg_index, min(argc, l_arg_index + 1), "activate", NULL))
+        cmd_num = CMD_WALLET_ACTIVATE;
+    else if(dap_chain_node_cli_find_option_val(argv, l_arg_index, min(argc, l_arg_index + 1), "deactivate", NULL))
+        cmd_num = CMD_WALLET_DEACTIVATE;
+
+    l_arg_index++;
+
     if(cmd_num == CMD_NONE) {
         dap_chain_node_cli_set_reply_text(str_reply,
                 "Format of command: wallet {new -w <wallet_name> | list | info [-addr <addr>]|[-w <wallet_name> -net <net_name>]}");
         return -1;
     }
 
-    dap_chain_node_addr_t address;
-    memset(&address, 0, sizeof(dap_chain_node_addr_t));
-    const char *l_addr_str = NULL, *l_wallet_name = NULL, *l_net_name = NULL, *l_sign_type_str = NULL, *l_restore_str = NULL;
+    const char *l_addr_str = NULL, *l_wallet_name = NULL, *l_net_name = NULL, *l_sign_type_str = NULL, *l_restore_str = NULL,
+            *l_pass_str = NULL, *l_ttl_str = NULL;
+
     // find wallet addr
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-addr", &l_addr_str);
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-w", &l_wallet_name);
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-net", &l_net_name);
+    dap_chain_node_cli_find_option_val(argv, l_arg_index, argc, "-addr", &l_addr_str);
+    dap_chain_node_cli_find_option_val(argv, l_arg_index, argc, "-w", &l_wallet_name);
+    dap_chain_node_cli_find_option_val(argv, l_arg_index, argc, "-net", &l_net_name);
+
+
 
     dap_chain_net_t * l_net = l_net_name ? dap_chain_net_by_name( l_net_name) : NULL;
 
     dap_string_t *l_string_ret = dap_string_new(NULL);
-    switch (cmd_num) {
-    // new wallet
-    case CMD_WALLET_NEW: {
-        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-sign", &l_sign_type_str);
-        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-restore", &l_restore_str);
-        // rewrite existing wallet
-        int l_is_force = dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-force", NULL);
 
-        if(!l_wallet_name) {
-            dap_chain_node_cli_set_reply_text(str_reply, "Wallet name option <-w>  not defined");
-            return -1;
-        }
-        // Check if wallet name has only digits and English letter
-        if (!dap_isstralnum(l_wallet_name)){
-            dap_chain_node_cli_set_reply_text(str_reply, "Wallet name must contains digits and aplhabetical symbols");
-            return -1;
-        }
 
-        // check wallet existence
-        if (!l_is_force) {
-            char *l_file_name = dap_strdup_printf("%s/%s.dwallet", c_wallets_path, l_wallet_name);
-            FILE *l_exists = fopen(l_file_name, "rb");
-            DAP_DELETE(l_file_name);
-            if (l_exists) {
-                dap_chain_node_cli_set_reply_text(str_reply, "Wallet %s already exists", l_wallet_name);
-                fclose(l_exists);
-                return -1;
-            }
-        }
+    switch (cmd_num)
+    {
+    case CMD_WALLET_ACTIVATE:
+    case CMD_WALLET_DEACTIVATE:
+        dap_chain_node_cli_find_option_val(argv, l_arg_index, argc, "-password", &l_pass_str);
+        dap_chain_node_cli_find_option_val(argv, l_arg_index, argc, "-ttl", &l_ttl_str);
 
-        dap_sign_type_t l_sign_type;
-        if (!l_sign_type_str) {
-            l_sign_type.type = SIG_TYPE_DILITHIUM;
-            l_sign_type_str = dap_sign_type_to_str(l_sign_type);
-        } else {
-            l_sign_type = dap_sign_type_from_str(l_sign_type_str);
-            if (l_sign_type.type == SIG_TYPE_NULL){
-                dap_chain_node_cli_set_reply_text(str_reply, "Unknown signature type");
-                return -1;
-            }
-        }
 
-        //
-        // Check unsupported tesla algorithm
-        //
+        if( !l_wallet_name )
+            return  dap_chain_node_cli_set_reply_text(str_reply, "Wallet name option <-w>  not defined"), -EINVAL;
 
-        if (l_sign_type.type == SIG_TYPE_TESLA)
+        if( !l_pass_str )
+            return  dap_chain_node_cli_set_reply_text(str_reply, "Wallet password option <-password>  not defined"), -EINVAL;
+
+        if ( l_ttl_str )
+            l_rc = strtoul(l_ttl_str, NULL, 10);
+        else    l_rc = 60;
+            l_rc = l_rc ? l_rc : 60;
+
+        if ( cmd_num == CMD_WALLET_ACTIVATE )
+                l_rc = dap_chain_wallet_activate   (l_wallet_name, strlen(l_wallet_name), l_pass_str, strlen(l_pass_str), l_rc );
+        else    l_rc = dap_chain_wallet_deactivate (l_wallet_name, strlen(l_wallet_name), l_pass_str, strlen(l_pass_str) );
+
+        if ( !l_rc )
+                dap_string_append_printf(l_string_ret, "Wallet: %s is %sactivated\n",
+                    l_wallet_name, cmd_num == CMD_WALLET_ACTIVATE ? "" : "de");
+        else
         {
-                dap_chain_node_cli_set_reply_text(str_reply, "Tesla algorithm is no longer supported, please, use another variant");
-                return -1;
+            switch ( l_rc )
+            {
+                case    -EBUSY:
+                    strcpy(l_buf, "already activated");
+                    break;
+
+                case    -EINVAL:
+                case    -EAGAIN:
+                    strcpy(l_buf, "wrong password");
+                    break;
+
+                default:
+                    strerror_r(l_rc, l_buf, sizeof(l_buf) - 1 );
+                    break;
+            }
+
+            dap_string_append_printf(l_string_ret, "Wallet: %s  %sactivation error, errno=%d (%s)\n",
+                    l_wallet_name, cmd_num == CMD_WALLET_ACTIVATE ? "" : "de", l_rc, l_buf );
         }
 
-        uint8_t *l_seed = NULL;
-        size_t l_seed_size = 0;
-        size_t l_restore_str_size = dap_strlen(l_restore_str);
-        if(l_restore_str && l_restore_str_size > 2 && !dap_strncmp(l_restore_str, "0x", 2)) {
-            l_seed_size = (l_restore_str_size - 2) / 2;
-            l_seed = DAP_NEW_SIZE(uint8_t, l_seed_size);
-            if(!dap_hex2bin(l_seed, l_restore_str + 2, l_restore_str_size - 2)){
-                DAP_DELETE(l_seed);
-                l_seed = NULL;
-                l_seed_size = 0;
-                dap_chain_node_cli_set_reply_text(str_reply, "Resrote hash is invalid, wallet is not created");
+        break;
+
+
+        // new wallet
+        case CMD_WALLET_NEW: {
+            dap_chain_node_cli_find_option_val(argv, l_arg_index, argc, "-password", &l_pass_str);
+            dap_chain_node_cli_find_option_val(argv, l_arg_index, argc, "-sign", &l_sign_type_str);
+            dap_chain_node_cli_find_option_val(argv, l_arg_index, argc, "-restore", &l_restore_str);
+            // rewrite existing wallet
+            int l_is_force = dap_chain_node_cli_find_option_val(argv, l_arg_index, argc, "-force", NULL);
+
+            if(!l_wallet_name) {
+                dap_chain_node_cli_set_reply_text(str_reply, "Wallet name option <-w>  not defined");
                 return -1;
             }
-        }
-        // Creates new wallet
-        dap_chain_wallet_t *l_wallet = dap_chain_wallet_create_with_seed(l_wallet_name, c_wallets_path, l_sign_type,
-                l_seed, l_seed_size);
-        dap_chain_addr_t *l_addr = l_net? dap_chain_wallet_get_addr(l_wallet,l_net->pub.id ) : NULL;
-        if(!l_wallet) {
-            dap_chain_node_cli_set_reply_text(str_reply, "Wallet is not created besause of internal error");
-            return -1;
-        }
-        char *l_addr_str = l_addr? dap_chain_addr_to_str(l_addr) : NULL;
-        dap_string_append_printf(l_string_ret, "Wallet '%s' (type=%s) successfully created\n", l_wallet->name, l_sign_type_str);
-        if ( l_addr_str ) {
-            dap_string_append_printf(l_string_ret, "new address %s", l_addr_str);
-            DAP_DELETE(l_addr_str);
-        }
-        dap_chain_wallet_close(l_wallet);
-    }
-        break;
-        // wallet list
-    case CMD_WALLET_LIST: {
-        DIR * l_dir = opendir(c_wallets_path);
-        if(l_dir) {
-            struct dirent * l_dir_entry;
-            while((l_dir_entry = readdir(l_dir)) != NULL) {
-                const char *l_file_name = l_dir_entry->d_name;
-                size_t l_file_name_len = (l_file_name) ? strlen(l_file_name) : 0;
-                if((l_file_name_len > 8) && (strcmp(l_file_name + l_file_name_len - 8, ".dwallet") == 0)) {
-                    char *l_file_path_tmp = dap_strdup_printf("%s/%s", c_wallets_path, l_file_name);
-                    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open_file(l_file_path_tmp);
-                    if(l_wallet) {
-                        dap_chain_addr_t *l_addr = l_net? dap_chain_wallet_get_addr(l_wallet, l_net->pub.id) : NULL;
-                        char *l_addr_str = dap_chain_addr_to_str(l_addr);
-                        dap_string_append_printf(l_string_ret, "\nwallet: %s\n", l_wallet->name);
-                        if (l_addr_str){
-                            dap_string_append_printf(l_string_ret, "addr: %s\n", (l_addr_str) ? l_addr_str : "-");
-                            DAP_DELETE(l_addr_str);
-                        }
-                        dap_chain_wallet_close(l_wallet);
-                    }
-                    DAP_DELETE(l_file_path_tmp);
+            // Check if wallet name has only digits and English letter
+            if (!dap_isstralnum(l_wallet_name)){
+                dap_chain_node_cli_set_reply_text(str_reply, "Wallet name must contains digits and aplhabetical symbols");
+                return -1;
+            }
+
+            // check wallet existence
+            if (!l_is_force) {
+                char *l_file_name = dap_strdup_printf("%s/%s.dwallet", c_wallets_path, l_wallet_name);
+                FILE *l_exists = fopen(l_file_name, "rb");
+                DAP_DELETE(l_file_name);
+                if (l_exists) {
+                    dap_chain_node_cli_set_reply_text(str_reply, "Wallet %s already exists", l_wallet_name);
+                    fclose(l_exists);
+                    return -1;
                 }
             }
-            closedir(l_dir);
+
+            dap_sign_type_t l_sign_type;
+            if (!l_sign_type_str) {
+                l_sign_type.type = SIG_TYPE_DILITHIUM;
+                l_sign_type_str = dap_sign_type_to_str(l_sign_type);
+            } else {
+                l_sign_type = dap_sign_type_from_str(l_sign_type_str);
+                if (l_sign_type.type == SIG_TYPE_NULL){
+                    dap_chain_node_cli_set_reply_text(str_reply, "Unknown signature type");
+                    return -1;
+                }
+            }
+
+            //
+            // Check unsupported tesla algorithm
+            //
+
+            if (l_sign_type.type == SIG_TYPE_TESLA)
+                return  dap_chain_node_cli_set_reply_text(str_reply, "Tesla algorithm is no longer supported, please, use another variant"), -1;
+
+            uint8_t *l_seed = NULL;
+            size_t l_seed_size = 0, l_restore_str_size = dap_strlen(l_restore_str);
+
+            if(l_restore_str && l_restore_str_size > 2 && !dap_strncmp(l_restore_str, "0x", 2)) {
+                l_seed_size = (l_restore_str_size - 2) / 2;
+                l_seed = DAP_NEW_SIZE(uint8_t, l_seed_size);
+                if(!dap_hex2bin(l_seed, l_restore_str + 2, l_restore_str_size - 2)){
+                    DAP_DELETE(l_seed);
+                    l_seed = NULL;
+                    l_seed_size = 0;
+                    dap_chain_node_cli_set_reply_text(str_reply, "Restored hash is invalid, wallet is not created");
+                    return -1;
+                }
+            }
+            // Creates new wallet
+            dap_chain_wallet_t *l_wallet = dap_chain_wallet_create_with_seed(l_wallet_name, c_wallets_path, l_sign_type,
+                    l_seed, l_seed_size, l_pass_str);
+
+            if (!l_wallet)
+                return  dap_chain_node_cli_set_reply_text(str_reply, "Wallet is not created because of internal error"), -1;
+
+            dap_chain_addr_t *l_addr = l_net? dap_chain_wallet_get_addr(l_wallet,l_net->pub.id ) : NULL;
+
+            char *l_addr_str = l_addr? dap_chain_addr_to_str(l_addr) : NULL;
+            dap_string_append_printf(l_string_ret, "Wallet: %s (type=%s) successfully created\n", l_wallet->name, l_sign_type_str);
+            if ( l_addr_str ) {
+                dap_string_append_printf(l_string_ret, "new address %s", l_addr_str);
+                DAP_DELETE(l_addr_str);
+            }
+            dap_chain_wallet_close(l_wallet);
         }
-    }
+        break;
+
+
+        // wallet list
+        case CMD_WALLET_LIST:
+        {
+            DIR * l_dir = opendir(c_wallets_path);
+            if(l_dir) {
+                struct dirent * l_dir_entry;
+
+                while( (l_dir_entry = readdir(l_dir)) )
+                {
+                    const char *l_file_name = l_dir_entry->d_name;
+                    size_t l_file_name_len = (l_file_name) ? strlen(l_file_name) : 0;
+
+                    if ( (l_file_name_len > 8) && (!strcmp(l_file_name + l_file_name_len - 8, ".dwallet")) )
+                    {
+
+                        char l_file_path_tmp[MAX_PATH] = {0};
+                        dap_snprintf(l_file_path_tmp, sizeof(l_file_path_tmp) - 1, "%s/%s", c_wallets_path, l_file_name);
+
+                        dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_file_name, c_wallets_path);
+
+                        if (l_wallet)
+                        {
+                            dap_chain_addr_t *l_addr = l_net? dap_chain_wallet_get_addr(l_wallet, l_net->pub.id) : NULL;
+                            char *l_addr_str = dap_chain_addr_to_str(l_addr);
+
+                            dap_string_append_printf(l_string_ret, "Wallet: %s%s\n", l_wallet->name,
+                                (l_wallet->flags & DAP_WALLET$M_FL_ACTIVE) ? " (Active)" : "");
+
+                            if (l_addr_str)
+                            {
+                                dap_string_append_printf(l_string_ret, "addr: %s\n", (l_addr_str) ? l_addr_str : "-");
+                                DAP_DELETE(l_addr_str);
+                            }
+
+                            dap_chain_wallet_close(l_wallet);
+
+                        } else dap_string_append_printf(l_string_ret, "Wallet: %.*s (non-Active)\n", l_file_name_len - 8, l_file_name);
+                    }
+                }
+                closedir(l_dir);
+            }
+        }
         break;
 
         // wallet info
@@ -1947,6 +2019,7 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply)
         else {
             if(l_wallet)
                 dap_chain_wallet_close(l_wallet);
+
             dap_string_free(l_string_ret, true);
             dap_chain_node_cli_set_reply_text(str_reply, "Wallet not found");
             return -1;

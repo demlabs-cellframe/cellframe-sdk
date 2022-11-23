@@ -916,17 +916,17 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
             );
     dap_chain_node_cli_cmd_item_create("mempool", com_signer, "Sign operations",
-               "mempool sign -cert <priv_cert_name> -net <net_name> -chain <chain_name> -file <filename> [-mime {<SIGNER_FILENAME,SIGNER_FILENAME_SHORT,SIGNER_FILESIZE,SIGNER_DATE,SIGNER_MIME_MAGIC> | <SIGNER_ALL_FLAGS>}]\n"
-               "mempool check -cert <priv_cert_name> -net <net_name> {-file <filename> | -hash <hash>} [-mime {<SIGNER_FILENAME,SIGNER_FILENAME_SHORT,SIGNER_FILESIZE,SIGNER_DATE,SIGNER_MIME_MAGIC> | <SIGNER_ALL_FLAGS>}]\n"
+           "mempool sign -cert <priv_cert_name> -net <net_name> -chain <chain_name> -file <filename> [-mime {<SIGNER_FILENAME,SIGNER_FILENAME_SHORT,SIGNER_FILESIZE,SIGNER_DATE,SIGNER_MIME_MAGIC> | <SIGNER_ALL_FLAGS>}]\n"
+           "mempool check -cert <priv_cert_name> -net <net_name> {-file <filename> | -hash <hash>} [-mime {<SIGNER_FILENAME,SIGNER_FILENAME_SHORT,SIGNER_FILESIZE,SIGNER_DATE,SIGNER_MIME_MAGIC> | <SIGNER_ALL_FLAGS>}]\n"
                                           );
     dap_chain_node_cli_cmd_item_create("node", com_node, "Work with node",
             "node add -net <net_name> {-addr <node address> | -alias <node alias>} -port <port> -cell <cell id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n\n"
-                    "node del -net <net_name> {-addr <node address> | -alias <node alias>}\n\n"
-                    "node link {add | del}  -net <net_name> {-addr <node address> | -alias <node alias>} -link <node address>\n\n"
-                    "node alias -addr <node address> -alias <node alias>\n\n"
-                    "node connect -net <net_name> {-addr <node address> | -alias <node alias> | auto}\n\n"
-                    "node handshake -net <net_name> {-addr <node address> | -alias <node alias>}\n"
-                    "node dump -net <net_name> [ -addr <node address> | -alias <node alias>] [-full]\n\n"
+            "node del -net <net_name> {-addr <node address> | -alias <node alias>}\n\n"
+            "node link {add | del}  -net <net_name> {-addr <node address> | -alias <node alias>} -link <node address>\n\n"
+            "node alias -addr <node address> -alias <node alias>\n\n"
+            "node connect -net <net_name> {-addr <node address> | -alias <node alias> | auto}\n\n"
+            "node handshake -net <net_name> {-addr <node address> | -alias <node alias>}\n"
+            "node dump -net <net_name> [ -addr <node address> | -alias <node alias>] [-full]\n\n"
                                         );
     dap_chain_node_cli_cmd_item_create ("ping", com_ping, "Send ICMP ECHO_REQUEST to network hosts",
             "ping [-c <count>] host\n");
@@ -948,7 +948,12 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                         "\tObtain help for <command> or get the total list of the commands\n"
                                         );
     dap_chain_node_cli_cmd_item_create("wallet", com_tx_wallet, "Wallet operations",
-            "wallet {new -w <wallet_name> [-sign <sign_type>] [-restore <hex value>] [-net <net_name>] [-force] | list | info {-addr <addr> | -w <wallet_name>} -net <net_name>}\n");
+                "wallet list\n"
+                "wallet new -w <wallet_name> [-sign <sign_type>] [-restore <hex_value>] [-net <net_name>] [-force] [-password <password>] [-restore <hash>]\n"
+                "wallet info {-addr <addr> | -w <wallet_name>} -net <net_name>\n"
+                "wallet activate -w <wallet_name> -password <password> [-ttl <password_ttl_in_minutes>]\n"
+                "wallet deactivate -w <wallet_name> -password <password>\n");
+
 
     // Token commands
     dap_chain_node_cli_cmd_item_create ("token_update", com_token_update, "Token update",
