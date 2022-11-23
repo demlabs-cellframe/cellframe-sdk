@@ -853,7 +853,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
         if ( (l_file_hdr.version == DAP_WALLET$K_VER_2) && (l_cert_hdr.type == DAP_WALLET$K_MAGIC) )
             break;
 
-        if ( l_cert_hdr.cert_raw_size != (l_rc = read(l_fd, l_buf, l_cert_hdr.cert_raw_size)) ) {
+        if ( (int)l_cert_hdr.cert_raw_size != (l_rc = read(l_fd, l_buf, l_cert_hdr.cert_raw_size)) ) {
             log_it(L_ERROR, "Error read certificate's body (%d != %d), errno=%d", l_cert_hdr.cert_raw_size, l_rc, errno);
             break;
         }
@@ -922,7 +922,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
         if (!ReadFile(l_fh, l_buf, l_cert_hdr.cert_raw_size, &l_rc, NULL) || l_rc != l_cert_hdr.cert_raw_size) {
             log_it(L_ERROR, "Error reading certificate body (%lu != %lu), err %lu", l_cert_hdr.cert_raw_size, l_rc, GetLastError());
 #else
-        if ( l_cert_hdr.cert_raw_size != (l_rc = read(l_fd, l_buf, l_cert_hdr.cert_raw_size)) ) {
+        if ( (int)l_cert_hdr.cert_raw_size != (l_rc = read(l_fd, l_buf, l_cert_hdr.cert_raw_size)) ) {
             log_it(L_ERROR, "Error read certificate's body (%d != %d), errno=%d", l_cert_hdr.cert_raw_size, l_rc, errno);
 #endif
             break;
