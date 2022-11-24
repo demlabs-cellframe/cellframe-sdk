@@ -139,7 +139,7 @@ typedef struct __dap_memstat_rec__ {
                         fac_name[MEMSTAT$SZ_NAME + 1];                 /* A human readable facility name, ASCIC */
 
         ssize_t         alloc_sz;                                       /* A size of the single allocations */
-        uint64_t        alloc_nr,                                       /* A number of allocations */
+        int64_t         alloc_nr,                                       /* A number of allocations */
                         free_nr;                                        /* A number of deallocations */
 } dap_memstat_rec_t;
 
