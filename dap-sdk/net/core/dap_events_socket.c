@@ -107,6 +107,16 @@ bool s_remove_and_delete_unsafe_delayed_delete_callback(void * a_arg);
 
 static pthread_attr_t s_attr_detached;                                      /* Thread's creation attribute = DETACHED ! */
 
+enum    {MEMSTAT$K_EVSOCK, MEMSTAT$K_BUF_IN, MEMSTAT$K_BUF_OUT, MEMSTAT$K_NR};
+static  dap_memstat_rec_t   s_memstat [MEMSTAT$K_NR] = {
+    {.fac_len = sizeof(LOG_TAG) - 1, .fac_name = {LOG_TAG}, .alloc_sz = sizeof(dap_events_socket_t)},
+    {.fac_len = sizeof(LOG_TAG ".buf_in") - 1, .fac_name = {LOG_TAG ".buf_in"}, .alloc_sz = DAP_EVENTS_SOCKET_BUF},
+    {.fac_len = sizeof(LOG_TAG ".buf_out") - 1, .fac_name = {LOG_TAG ".buf_out"}, .alloc_sz = DAP_EVENTS_SOCKET_BUF},
+};
+
+
+
+
 typedef struct __dap__evsock_rec__ {
     dap_events_socket_t     *es;
     UT_hash_handle          hh;
@@ -215,6 +225,7 @@ dap_evsock_rec_t    *l_es_rec = NULL;
 }
 
 
+
 /**
  * @brief dap_events_socket_init Init clients module
  * @return Zero if ok others if no
@@ -224,6 +235,9 @@ int dap_events_socket_init( )
 int l_rc;
 
     log_it(L_NOTICE,"Initialized events socket module");
+
+    for (int i = 0; i < MEMSTAT$K_NR; i++)
+        dap_memstat_reg(&s_memstat[i]);
 
     /*
      * @RRL: #6157
@@ -308,7 +322,10 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
     l_es->buf_out_size_max = DAP_EVENTS_SOCKET_BUF;
 
     l_es->buf_in     = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, l_es->buf_in_size_max + 1);
+    s_memstat[MEMSTAT$K_BUF_IN].alloc_nr += (!!l_es->buf_in);
     l_es->buf_out    = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, l_es->buf_out_size_max + 1);
+    s_memstat[MEMSTAT$K_BUF_OUT].alloc_nr += (!!l_es->buf_out);
+
     l_es->buf_in_size = l_es->buf_out_size = 0;
     #if defined(DAP_EVENTS_CAPS_EPOLL)
     l_ret->ev_base_flags = EPOLLERR | EPOLLRDHUP | EPOLLHUP;
@@ -1245,8 +1262,8 @@ static pthread_rwlock_t s_bufout_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 static int wait_send_socket(SOCKET a_sockfd, long timeout_ms)
 {
     struct timeval l_tv;
-    l_tv.tv_sec = timeout_ms / 1000;
-    l_tv.tv_usec = (timeout_ms % 1000) * 1000;
+    l_tv.tv_sec = timeout_ms / 1024;
+    l_tv.tv_usec = (timeout_ms % 1024) * 1024;
 
     fd_set l_outfd;
     FD_ZERO(&l_outfd);
@@ -1285,12 +1302,14 @@ static int wait_send_socket(SOCKET a_sockfd, long timeout_ms)
 static void *dap_events_socket_buf_thread(void *arg)
 {
     dap_events_socket_t *l_es = (dap_events_socket_t *)arg;
+
     if (!l_es)
         pthread_exit(0);
-    int l_res = 0;
-    int l_count = 0;
+
+    int l_res = 0, l_count = 0;
     SOCKET l_sock = INVALID_SOCKET;
     bool l_lifecycle = true;
+
     while (l_lifecycle) {
         while (l_res < 1 && l_count++ < 3) {
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
@@ -1629,7 +1648,9 @@ dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct da
         l_es->callbacks = *a_callbacks;
     l_es->buf_out_size_max = l_es->buf_in_size_max = DAP_EVENTS_SOCKET_BUF;
     l_es->buf_in = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, l_es->buf_in_size_max+1);
+    s_memstat[MEMSTAT$K_BUF_IN].alloc_nr += (!!l_es->buf_in);
     l_es->buf_out = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, l_es->buf_out_size_max+1);
+    s_memstat[MEMSTAT$K_BUF_OUT].alloc_nr += (!!l_es->buf_out);
     l_es->buf_in_size = l_es->buf_out_size = 0;
     l_es->flags = DAP_SOCK_READY_TO_READ;
     l_es->last_time_active = l_es->last_ping_request = time( NULL );
@@ -1766,11 +1787,11 @@ void dap_events_socket_set_readable_unsafe( dap_events_socket_t *a_esocket, bool
 {
     if( a_is_ready == (bool)(a_esocket->flags & DAP_SOCK_READY_TO_READ))
         return;
-    if ( a_is_ready ){
+
+    if ( a_is_ready )
         a_esocket->flags |= DAP_SOCK_READY_TO_READ;
-    }else{
-        a_esocket->flags ^= DAP_SOCK_READY_TO_READ;
-    }
+    else a_esocket->flags &= ~DAP_SOCK_READY_TO_READ;
+
 #ifdef DAP_EVENTS_CAPS_EVENT_KEVENT
     if( a_esocket->type != DESCRIPTOR_TYPE_EVENT &&
         a_esocket->type != DESCRIPTOR_TYPE_QUEUE &&
@@ -1824,8 +1845,7 @@ void dap_events_socket_set_writable_unsafe( dap_events_socket_t *a_esocket, bool
 
     if ( a_is_ready )
         a_esocket->flags |= DAP_SOCK_READY_TO_WRITE;
-    else
-        a_esocket->flags ^= DAP_SOCK_READY_TO_WRITE;
+    else a_esocket->flags &= ~DAP_SOCK_READY_TO_WRITE;
 
 #ifdef DAP_EVENTS_CAPS_EVENT_KEVENT
     if( a_esocket->type != DESCRIPTOR_TYPE_EVENT &&
@@ -1969,7 +1989,9 @@ void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_p
 
     DAP_DEL_Z(a_esocket->_pvt)
     DAP_DEL_Z(a_esocket->buf_in)
+    s_memstat[MEMSTAT$K_BUF_IN].free_nr -= (a_esocket->buf_in_size_max == s_memstat[MEMSTAT$K_BUF_IN].alloc_sz);
     DAP_DEL_Z(a_esocket->buf_out)
+    s_memstat[MEMSTAT$K_BUF_OUT].free_nr -= (a_esocket->buf_out_size_max == s_memstat[MEMSTAT$K_BUF_OUT].alloc_sz);
     DAP_DEL_Z(a_esocket->hostaddr)
     DAP_DEL_Z(a_esocket->service)
 
@@ -2111,6 +2133,7 @@ void dap_events_socket_set_readable_mt(dap_worker_t * a_w, dap_events_socket_uui
 {
     dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t); if (! l_msg) return;
     l_msg->esocket_uuid = a_es_uuid;
+
     if (a_is_ready)
         l_msg->flags_set = DAP_SOCK_READY_TO_READ;
     else

@@ -1499,3 +1499,53 @@ size_t dap_writev(HANDLE a_hf, const char* a_filename, iovec_t const *a_bufs, in
     return l_ret;
 }
 #endif
+
+
+#ifdef  DAP_SYS_DEBUG
+dap_memstat_rec_t    *g_memstat [MEMSTAT$K_MAXNR];                      /* Array to keep pointers to module/facility specific memstat vecros */
+static pthread_rwlock_t     s_memstat_lock = PTHREAD_RWLOCK_INITIALIZER;
+static uint64_t             s_memstat_nr;                               /* A number of pointers in the <g_memstat> */
+
+int     dap_memstat_reg (
+                dap_memstat_rec_t   *a_memstat_rec
+                )
+{
+uint64_t    l_nr;
+int l_rc;
+
+        l_rc = pthread_rwlock_wrlock(&s_memstat_lock);
+
+        l_nr = s_memstat_nr;
+        if ( s_memstat_nr < MEMSTAT$K_MAXNR )
+            s_memstat_nr += 1;
+
+        l_rc = pthread_rwlock_unlock(&s_memstat_lock);
+
+        if ( !( l_nr < MEMSTAT$K_MAXNR) )
+            return  log_it(L_ERROR, "[<%.*s>, %zu octets] -- No free slot for memstat vector",
+                    a_memstat_rec->fac_len, a_memstat_rec->fac_name, a_memstat_rec->alloc_sz), -ENOMEM;
+
+        g_memstat[l_nr] = a_memstat_rec;
+
+        return  log_it(L_INFO, "[<%.*s>, %zu octets] has been registered",
+                    a_memstat_rec->fac_len, a_memstat_rec->fac_name, a_memstat_rec->alloc_sz), 0;
+}
+
+
+void    dap_memstat_show (void)
+{
+dap_memstat_rec_t   *l_memstat_rec = g_memstat;
+
+    for ( uint64_t i = s_memstat_nr; i; l_memstat_rec++)
+    {
+        log_it(L_INFO, "[<%.*s>, %zu octets] allocations/deallocations: %llu/%llu (%lld octets still is allocated)",
+            l_memstat_rec->fac_len, l_memstat_rec->fac_name, l_memstat_rec->alloc_sz,
+            (l_memstat_rec->alloc_nr - l_memstat_rec->free_nr) * l_memstat_rec->alloc_sz);
+
+    }
+}
+
+
+
+#endif  /* DAP_SYS_DEBUG */
+

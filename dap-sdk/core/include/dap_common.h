@@ -108,6 +108,10 @@
 #define DAP_CAST_REINT(t,v) ((t*) v)
 #endif
 
+
+
+
+
 #if DAP_USE_RPMALLOC
   #include "rpmalloc.h"
   #define DAP_MALLOC(a)         rpmalloc(a)
@@ -125,7 +129,25 @@
   #define DAP_DUP(a)            memcpy(rpmalloc(sizeof(*a)), a, sizeof(*a))
   #define DAP_DUP_SIZE(a, s)    memcpy(rpmalloc(s), a, s)
 #elif   DAP_SYS_DEBUG
-    static inline void s_free(const char *a_rtn_name, int a_rtn_line, void *a_ptr);
+
+#define     MEMSTAT$SZ_NAME   63
+
+#define     MEMSTAT$K_MAXNR   256
+typedef struct __dap_memstat_rec__ {
+
+        unsigned char   fac_len,                                        /* Length of the facility name */
+                        fac_name[MEMSTAT$SZ_NAME + 1];                 /* A human readable facility name, ASCIC */
+
+        ssize_t         alloc_sz;                                       /* A size of the single allocations */
+        uint64_t        alloc_nr,                                       /* A number of allocations */
+                        free_nr;                                        /* A number of deallocations */
+} dap_memstat_rec_t;
+
+int     dap_memstat_reg (dap_memstat_rec_t   *a_memstat_rec);
+void    dap_memstat_show (void);
+extern  dap_memstat_rec_t    *g_memstat [MEMSTAT$K_MAXNR];              /* Array to keep pointers to module/facility specific memstat vecros */
+
+static inline void s_free(const char *a_rtn_name, int a_rtn_line, void *a_ptr);
 
     #define DAP_FREE(a)         s_free(__func__, __LINE__, (void *) a)
     #define DAP_DELETE(a)       s_free(__func__, __LINE__, (void *) a)
