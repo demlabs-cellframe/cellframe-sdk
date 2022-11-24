@@ -561,7 +561,7 @@ static inline void s_free(
         if ( !a_ptr )
             return;
 
-        log_it(L_DEBUG, "Free .........: [%p] at %s:%d", a_ptr, a_rtn_name, a_rtn_line);
+        //log_it(L_DEBUG, "Free .........: [%p] at %s:%d", a_ptr, a_rtn_name, a_rtn_line);
         free(a_ptr);
 }
 
