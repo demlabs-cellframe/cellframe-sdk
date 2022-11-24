@@ -305,22 +305,6 @@ void dap_events_delete( dap_events_t *a_events )
     }
 }
 
-/**
- * @brief dap_events_remove_and_delete_socket_unsafe
- * calls dap_events_socket_remove_and_delete_unsafe
- * @param a_events
- * @param a_socket
- * @param a_preserve_inheritor
- */
-void dap_events_remove_and_delete_socket_unsafe(dap_events_t *a_events, dap_events_socket_t *a_socket, bool a_preserve_inheritor)
-{
-    (void) a_events;
-//    int l_sock = a_socket->socket;
-//    if( a_socket->type == DESCRIPTOR_TYPE_TIMER)
-//        log_it(L_DEBUG,"Remove timer %d", l_sock);
-
-    dap_events_socket_remove_and_delete_unsafe(a_socket, a_preserve_inheritor);
-}
 
 /**
  * @brief sa_server_loop Main server loop

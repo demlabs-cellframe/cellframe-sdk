@@ -859,7 +859,7 @@ void *dap_worker_thread(void *arg)
                         }
                     }
                     //dap_events_socket_remove_and_delete_unsafe( l_cur, false);
-                    dap_events_remove_and_delete_socket_unsafe(dap_events_get_default(), l_cur, false);
+                    dap_events_socket_remove_and_delete_unsafe(l_cur, false);
 #ifdef DAP_EVENTS_CAPS_KQUEUE
                     l_worker->kqueue_events_count--;
 #endif

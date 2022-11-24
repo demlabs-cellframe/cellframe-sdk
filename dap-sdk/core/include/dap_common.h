@@ -124,6 +124,26 @@
   #define DAP_DELETE(a)         rpfree(a)
   #define DAP_DUP(a)            memcpy(rpmalloc(sizeof(*a)), a, sizeof(*a))
   #define DAP_DUP_SIZE(a, s)    memcpy(rpmalloc(s), a, s)
+#elif   DAP_SYS_DEBUG
+    static inline void s_free(const char *a_rtn_name, int a_rtn_line, void *a_ptr);
+
+    #define DAP_MALLOC(a)         malloc(a)
+    #define DAP_FREE(a)             s_free(__func__, __LINE__, (void *) a)
+    #define DAP_CALLOC(a, b)      calloc(a, b)
+    #define DAP_ALMALLOC(a, b)    _dap_aligned_alloc(a, b)
+    #define DAP_ALREALLOC(a, b)   _dap_aligned_realloc(a, b)
+    #define DAP_ALFREE(a)         _dap_aligned_free(a, b)
+    #define DAP_NEW( a )          DAP_CAST_REINT(a, malloc(sizeof(a)) )
+    #define DAP_NEW_SIZE(a, b)    DAP_CAST_REINT(a, malloc(b) )
+    #define DAP_NEW_S( a )        DAP_CAST_REINT(a, alloca(sizeof(a)) )
+    #define DAP_NEW_S_SIZE(a, b)  DAP_CAST_REINT(a, alloca(b) )
+    #define DAP_NEW_Z( a )        DAP_CAST_REINT(a, calloc(1,sizeof(a)))
+    #define DAP_NEW_Z_SIZE(a, b)  DAP_CAST_REINT(a, calloc(1,b))
+    #define DAP_REALLOC(a, b)     realloc(a,b)
+    #define DAP_DELETE(a)         s_free(__func__, __LINE__, (void *) a)
+    #define DAP_DUP(a)            memcpy(malloc(sizeof(*a)), a, sizeof(*a))
+    #define DAP_DUP_SIZE(a, s)    memcpy(malloc(s), a, s)
+
 #else
   #define DAP_MALLOC(a)         malloc(a)
   #define DAP_FREE(a)           free(a)
@@ -506,6 +526,20 @@ void    _dump_it (const char *, unsigned , const char *a_var_name, const void *s
 #define debug_if(flg, _log_level, ...)  _log_it_ext( __func__, __LINE__, (flg) ? (_log_level) : -1 , ##__VA_ARGS__)
 
 #define dump_it(v,s,l)                  _dump_it( __func__, __LINE__, (v), (s), (l))
+
+
+static inline void s_free(
+            const char  *a_rtn_name,
+                int     a_rtn_line,
+                void    *a_ptr
+                )
+{
+        log_it(L_DEBUG, "Free .........: [%p] at %s:%d", a_ptr, a_rtn_name, a_rtn_line);
+        free(a_ptr);
+}
+
+
+
 #else
 #define dump_it(v,s,l)
 #endif

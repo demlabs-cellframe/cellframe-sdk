@@ -78,8 +78,6 @@ typedef cpuset_t cpu_set_t; // Adopt BSD CPU setstructure to POSIX variant
 #include <pthread.h>
 
 #include "dap_common.h"
-#include "dap_config.h"
-#include "dap_list.h"
 #include "dap_worker.h"
 #include "dap_uuid.h"
 #include "dap_events.h"
@@ -108,6 +106,113 @@ static uint64_t s_delayed_ops_timeout_ms = 5000;
 bool s_remove_and_delete_unsafe_delayed_delete_callback(void * a_arg);
 
 static pthread_attr_t s_attr_detached;                                      /* Thread's creation attribute = DETACHED ! */
+
+typedef struct __dap__evsock_rec__ {
+    dap_events_socket_t     *es;
+    UT_hash_handle          hh;
+} dap_evsock_rec_t;
+
+static dap_evsock_rec_t     *s_evsocks = NULL;                          /* @RRL:  A has table to track using of events sockets context */
+static pthread_rwlock_t     s_evsocks_lock = PTHREAD_RWLOCK_INITIALIZER;
+
+
+/*
+ *   DESCRIPTION: Allocate a new <dap_events_socket> context, add record into the hash table to track usage
+ *      of the contexts.
+ *
+ *   INPUTS:
+ *      NONE
+ *
+ *   IMPLICITE INPUTS:
+ *      s_evsocks;      A hash table
+ *
+ *   OUTPUTS:
+ *      NONE
+ *
+ *   IMPLICITE OUTPUTS:
+ *      s_evsocks
+ *
+ *   RETURNS:
+ *      non-NULL        A has been allocated <dap_events_socket> context
+ *      NULL:           See <errno>
+ */
+static inline dap_events_socket_t *s_dap_evsock_alloc (void)
+{
+int     l_rc;
+dap_events_socket_t *l_es;
+dap_evsock_rec_t    *l_es_rec;
+
+    if ( !(l_es = DAP_NEW_Z( dap_events_socket_t )) )                   /* Allocate memory for new dap_events_socket context and the record */
+        return  log_it(L_CRITICAL, "Cannot allocate memory for <dap_events_socket> context, errno=%d", errno), NULL;
+
+    if ( !(l_es_rec = DAP_NEW_Z( dap_evsock_rec_t )) )                  /* Allocate memory for new record */
+        return  log_it(L_CRITICAL, "Cannot allocate memory for record, errno=%d", errno),
+                DAP_DELETE(l_es), NULL;
+
+    l_es_rec->es = l_es;                                                /* Fill new track record */
+
+                                                                        /* Add new record into the hash table */
+    l_rc = pthread_rwlock_wrlock(&s_evsocks_lock);
+    assert(!l_rc);
+    HASH_ADD(hh, s_evsocks, es, sizeof(dap_events_socket_t *), l_es_rec );
+    l_rc = pthread_rwlock_unlock(&s_evsocks_lock);
+    assert(!l_rc);
+
+    debug_if(g_debug_reactor, L_NOTICE, "dap_events_socket:%p - is allocated", l_es);
+
+    return  l_es;
+}
+
+/*
+ *   DESCRIPTION: Release has been allocated dap_events_context. Check firstly against hash table.
+ *
+ *   INPUTS:
+ *      a_marker:       An comment for the record, ASCIZ
+ *
+ *   IMPLICITE INPUTS:
+ *      s_evsocks;      A hash table
+ *
+ *   OUTPUT:
+ *      NONE
+ *
+ *   IMPLICITE OUTPUTS:
+ *      s_evsocks
+ *
+ *   RETURNS:
+ *      0:          a_es contains valid pointer
+ *      <errno>
+ */
+static inline int s_dap_evsock_free (
+                dap_events_socket_t *a_es
+                        )
+{
+int     l_rc;
+dap_evsock_rec_t    *l_es_rec = NULL;
+
+    /*
+     * Add new record into the hash table
+     */
+    l_rc = pthread_rwlock_wrlock(&s_evsocks_lock);
+    assert(!l_rc);
+
+    HASH_FIND(hh, s_evsocks, &a_es, sizeof(dap_events_socket_t *), l_es_rec );
+    if ( l_es_rec && (l_es_rec->es == a_es) )
+        HASH_DELETE(hh, s_evsocks, l_es_rec);                           /* Remove record from the table */
+
+    l_rc = pthread_rwlock_unlock(&s_evsocks_lock);
+    assert(!l_rc);
+
+    if ( !l_es_rec )
+        log_it(L_ERROR, "dap_events_socket:%p - no record found!", a_es);
+    else {
+        DAP_DELETE(l_es_rec->es);
+        DAP_DELETE(l_es_rec);
+
+        debug_if(g_debug_reactor, L_NOTICE, "dap_events_socket:%p - is released", a_es);
+    }
+
+    return  0;  /* SS$_SUCCESS */
+}
 
 
 /**
@@ -187,36 +292,37 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
     assert(a_events);
     assert(a_callbacks);
 
-    dap_events_socket_t *l_ret = DAP_NEW_Z( dap_events_socket_t );
-    if (!l_ret)
+    //dap_events_socket_t *l_ret = DAP_NEW_Z( dap_events_socket_t );
+    dap_events_socket_t *l_es = s_dap_evsock_alloc(); /* @RRL: #6901 */
+    if (!l_es)
         return NULL;
 
-    l_ret->socket = a_sock;
-    l_ret->events = a_events;
-    l_ret->uuid = dap_uuid_generate_uint64();
+    l_es->socket = a_sock;
+    l_es->events = a_events;
+    l_es->uuid = dap_uuid_generate_uint64();
     if (a_callbacks)
-        l_ret->callbacks = *a_callbacks;
-    l_ret->flags = DAP_SOCK_READY_TO_READ;
+        l_es->callbacks = *a_callbacks;
+    l_es->flags = DAP_SOCK_READY_TO_READ;
 
-    l_ret->buf_in_size_max = DAP_EVENTS_SOCKET_BUF;
-    l_ret->buf_out_size_max = DAP_EVENTS_SOCKET_BUF;
+    l_es->buf_in_size_max = DAP_EVENTS_SOCKET_BUF;
+    l_es->buf_out_size_max = DAP_EVENTS_SOCKET_BUF;
 
-    l_ret->buf_in     = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, l_ret->buf_in_size_max + 1);
-    l_ret->buf_out    = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, l_ret->buf_out_size_max + 1);
-    l_ret->buf_in_size = l_ret->buf_out_size = 0;
+    l_es->buf_in     = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, l_es->buf_in_size_max + 1);
+    l_es->buf_out    = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, l_es->buf_out_size_max + 1);
+    l_es->buf_in_size = l_es->buf_out_size = 0;
     #if defined(DAP_EVENTS_CAPS_EPOLL)
     l_ret->ev_base_flags = EPOLLERR | EPOLLRDHUP | EPOLLHUP;
     #elif defined(DAP_EVENTS_CAPS_POLL)
     l_ret->poll_base_flags = POLLERR | POLLRDHUP | POLLHUP;
     #elif defined(DAP_EVENTS_CAPS_KQUEUE)
-        l_ret->kqueue_event_catched_data.esocket = l_ret;
-        l_ret->kqueue_base_flags = 0;
-        l_ret->kqueue_base_filter = 0;
+        l_es->kqueue_event_catched_data.esocket = l_es;
+        l_es->kqueue_base_flags = 0;
+        l_es->kqueue_base_filter = 0;
     #endif
 
     //log_it( L_DEBUG,"Dap event socket wrapped around %d sock a_events = %X", a_sock, a_events );
 
-    return l_ret;
+    return l_es;
 }
 
 /**
@@ -275,6 +381,7 @@ void dap_events_socket_reassign_between_workers_unsafe(dap_events_socket_t * a_e
 void dap_events_socket_reassign_between_workers_mt(dap_worker_t * a_worker_old, dap_events_socket_t * a_es, dap_worker_t * a_worker_new)
 {
     dap_worker_msg_reassign_t * l_msg = DAP_NEW_Z(dap_worker_msg_reassign_t);
+
     l_msg->esocket = a_es;
     l_msg->esocket_uuid = a_es->uuid;
     l_msg->worker_new = a_worker_new;
@@ -304,7 +411,8 @@ dap_events_socket_t * s_create_type_pipe(dap_worker_t * a_w, dap_events_socket_c
     return NULL;
 #else
     UNUSED(a_flags);
-    dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
+    //dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
+    dap_events_socket_t *l_es = s_dap_evsock_alloc(); /* @RRL: #6901 */
     l_es->type = DESCRIPTOR_TYPE_PIPE;
     l_es->worker = a_w;
     l_es->events = a_w->events;
@@ -335,7 +443,10 @@ dap_events_socket_t * s_create_type_pipe(dap_worker_t * a_w, dap_events_socket_c
         l_errno = errno;
         strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
         log_it( L_ERROR, "Error detected, can't create pipe(): '%s' (%d)", l_errbuf, l_errno);
-        DAP_DELETE(l_es);
+
+        //DAP_DELETE(l_es);
+        s_dap_evsock_free(l_es);
+
         return NULL;
     }//else
      //   log_it(L_DEBUG, "Created one-way unnamed bytestream pipe %d->%d", l_pipe[0], l_pipe[1]);
@@ -462,7 +573,8 @@ static void s_socket_type_queue_ptr_input_callback_delete(dap_events_socket_t * 
  */
 dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket_t* a_es)
 {
-    dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
+    //dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
+    dap_events_socket_t *l_es = s_dap_evsock_alloc(); /* @RRL: #6901 */
 
     l_es->type = DESCRIPTOR_TYPE_QUEUE;
     l_es->buf_out_size_max = DAP_QUEUE_MAX_BUFLEN * 0xFFF;
@@ -573,7 +685,8 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
  */
 dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_socket_callback_queue_ptr_t a_callback)
 {
-    dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
+    //dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
+    dap_events_socket_t *l_es = s_dap_evsock_alloc(); /* @RRL: #6901 */
     if(!l_es){
         log_it(L_ERROR,"Can't allocate esocket!");
         return NULL;
@@ -967,7 +1080,11 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
  */
 dap_events_socket_t * s_create_type_event(dap_worker_t * a_w, dap_events_socket_callback_event_t a_callback)
 {
-    dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t); if (!l_es) return NULL;
+    //dap_events_socket_t * l_es = DAP_NEW_Z(dap_events_socket_t);
+    dap_events_socket_t *l_es = s_dap_evsock_alloc(); /* @RRL: #6901 */
+    if (!l_es)
+        return NULL;
+
     l_es->buf_out_size_max = l_es->buf_in_size_max = 1;
     l_es->buf_out = DAP_NEW_Z_SIZE(byte_t, l_es->buf_out_size_max);
     l_es->type = DESCRIPTOR_TYPE_EVENT;
@@ -1120,7 +1237,7 @@ void dap_events_socket_event_proc_input_unsafe(dap_events_socket_t *a_esocket)
         log_it(L_ERROR, "Event socket %"DAP_FORMAT_SOCKET" accepted data but callback is NULL ", a_esocket->socket);
 }
 
-static pthread_rwlock_t *s_bufout_rwlock = NULL;
+static pthread_rwlock_t s_bufout_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 /**
  *  Waits on the socket
  *  return 0: timeout, 1: may send data, -1 error
@@ -1184,11 +1301,11 @@ static void *dap_events_socket_buf_thread(void *arg)
             // wait max 5 min
             l_res = wait_send_socket(l_sock, 300000);
             if (l_res == 0) {
-                pthread_rwlock_wrlock(s_bufout_rwlock);
+                pthread_rwlock_wrlock(&s_bufout_rwlock);
                 void *l_ptr = *((void **)l_es->buf_out + --l_es->buf_out_size);
                 if (!l_es->buf_out_size)
                     l_lifecycle = false;
-                pthread_rwlock_unlock(s_bufout_rwlock);
+                pthread_rwlock_unlock(&s_bufout_rwlock);
                 dap_events_socket_queue_ptr_send(l_es, l_ptr);
                 break;
             }
@@ -1209,11 +1326,7 @@ const size_t l_basic_buf_size = DAP_QUEUE_MAX_MSGS * sizeof(void *);
 
     atomic_fetch_add(&l_thd_count, 1);                                      /* Count an every call of this routine */
 
-    if (!s_bufout_rwlock) {
-        s_bufout_rwlock = DAP_NEW(pthread_rwlock_t);
-        pthread_rwlock_init(s_bufout_rwlock, NULL);
-    }
-    pthread_rwlock_wrlock(s_bufout_rwlock);
+    pthread_rwlock_wrlock(&s_bufout_rwlock);
     if (!a_es->buf_out) {
         a_es->buf_out = DAP_NEW_SIZE(byte_t, l_basic_buf_size);
         a_es->buf_out_size_max = l_basic_buf_size;
@@ -1223,6 +1336,7 @@ const size_t l_basic_buf_size = DAP_QUEUE_MAX_MSGS * sizeof(void *);
         {
             log_it(L_ERROR, "[#%"DAP_UINT64_FORMAT_U"] Cannot start thread, drop a_es: %p, a_arg: %p, rc: %d",
                      atomic_load(&l_thd_count), a_es, a_arg, l_rc);
+            s_dap_evsock_free(a_es);
             return;
         }
         debug_if(g_debug_reactor, L_DEBUG, "[#%"DAP_UINT64_FORMAT_U"] Created thread %"DAP_UINT64_FORMAT_x", a_es: %p, a_arg: %p",
@@ -1233,7 +1347,7 @@ const size_t l_basic_buf_size = DAP_QUEUE_MAX_MSGS * sizeof(void *);
         a_es->buf_out = DAP_REALLOC(a_es->buf_out, a_es->buf_out_size + l_basic_buf_size);
         a_es->buf_out_size_max += l_basic_buf_size;
     }
-    pthread_rwlock_unlock(s_bufout_rwlock);
+    pthread_rwlock_unlock(&s_bufout_rwlock);
 }
 
 /**
@@ -1766,7 +1880,7 @@ bool s_remove_and_delete_unsafe_delayed_delete_callback(void * a_arg)
     dap_events_socket_t * l_es;
     if( (l_es = dap_worker_esocket_find_uuid(l_worker, l_es_handler->esocket_uuid)) != NULL)
         //dap_events_socket_remove_and_delete_unsafe(l_es,l_es_handler->value == 1);
-        dap_events_remove_and_delete_socket_unsafe(dap_events_get_default(), l_es, l_es_handler->value == 1);
+        dap_events_socket_remove_and_delete_unsafe(l_es, l_es_handler->value == 1);
     DAP_DELETE(l_es_handler);
 
     return false;
@@ -1858,7 +1972,7 @@ void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_p
     DAP_DEL_Z(a_esocket->hostaddr)
     DAP_DEL_Z(a_esocket->service)
 
-    DAP_DEL_Z( a_esocket )
+    s_dap_evsock_free( a_esocket );
 }
 
 /**

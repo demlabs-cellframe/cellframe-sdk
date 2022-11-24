@@ -349,20 +349,35 @@ static void *s_log_thread_proc(void *arg) {
 }
 
 #ifdef DAP_SYS_DEBUG
-const	char spaces[74] = {"                                                                          "};
-#define PID_FMT "%6d"
+#ifdef __APPLE__
+#define PID_FMT "%08x"
+static inline uint64_t gettid(void)
+{
+uint64_t tid;
 
-void	_log_it_ext   (
-		const char *	a_rtn_name,
-            unsigned	a_line_no,
+    pthread_threadid_np(NULL, &tid);
+    return  tid;
+}
+#else
+#define PID_FMT "%6d"
+#endif
+
+#define     SPACES  74
+const   char spaces[SPACES] = {"                                                                          "};
+
+
+
+void    _log_it_ext   (
+                const char *    a_rtn_name,
+            unsigned    a_line_no,
     enum dap_log_level  a_ll,
-        const char *	a_fmt,
-			...
-			)
+        const char *    a_fmt,
+                        ...
+                        )
 {
 va_list arglist;
-const char	lfmt [] = {"%02u-%02u-%04u %02u:%02u:%02u.%03u  "  PID_FMT "  %s [%s:%u] "};
-char	out[1024] = {0};
+const char      lfmt [] = {"%02u-%02u-%04u %02u:%02u:%02u.%03u  "  PID_FMT "  %s [%s:%u] "};
+char    out[1024] = {0};
 int     olen, len;
 struct tm _tm;
 struct timespec now;
@@ -372,6 +387,7 @@ struct timespec now;
 
     if ( a_ll < s_dap_log_level )
         return;
+
 
 
 	clock_gettime(CLOCK_REALTIME, &now);
