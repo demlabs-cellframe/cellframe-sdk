@@ -1989,9 +1989,9 @@ void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_p
 
     DAP_DEL_Z(a_esocket->_pvt)
     DAP_DEL_Z(a_esocket->buf_in)
-    s_memstat[MEMSTAT$K_BUF_IN].free_nr -= (a_esocket->buf_in_size_max == s_memstat[MEMSTAT$K_BUF_IN].alloc_sz);
+    s_memstat[MEMSTAT$K_BUF_IN].free_nr += (a_esocket->buf_in_size_max == s_memstat[MEMSTAT$K_BUF_IN].alloc_sz);
     DAP_DEL_Z(a_esocket->buf_out)
-    s_memstat[MEMSTAT$K_BUF_OUT].free_nr -= (a_esocket->buf_out_size_max == s_memstat[MEMSTAT$K_BUF_OUT].alloc_sz);
+    s_memstat[MEMSTAT$K_BUF_OUT].free_nr += (a_esocket->buf_out_size_max == s_memstat[MEMSTAT$K_BUF_OUT].alloc_sz);
     DAP_DEL_Z(a_esocket->hostaddr)
     DAP_DEL_Z(a_esocket->service)
 
