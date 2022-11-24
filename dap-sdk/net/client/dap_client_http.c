@@ -565,7 +565,7 @@ int dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_uplink
             return -5;
         }
     }
-    l_ev_socket->remote_addr_str = dap_strdup(a_uplink_addr);
+    strncpy(l_ev_socket->remote_addr_str, a_uplink_addr, INET_ADDRSTRLEN);
     // connect
     l_ev_socket->remote_addr.sin_family = AF_INET;
     l_ev_socket->remote_addr.sin_port = htons(a_uplink_port);

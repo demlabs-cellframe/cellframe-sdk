@@ -502,7 +502,7 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
 
                     // connect
                     memset(&a_client_pvt->stream_es->remote_addr, 0, sizeof(a_client_pvt->stream_es->remote_addr));
-                    a_client_pvt->stream_es->remote_addr_str6   = NULL; //DAP_NEW_Z_SIZE(char, INET6_ADDRSTRLEN);
+                    memset(a_client_pvt->stream_es->remote_addr_str6, 0, sizeof(a_client_pvt->stream_es->remote_addr_str6));
                     a_client_pvt->stream_es->remote_addr.sin_family = AF_INET;
                     a_client_pvt->stream_es->remote_addr.sin_port = htons(a_client_pvt->uplink_port);
                     if(inet_pton(AF_INET, a_client_pvt->uplink_addr, &(a_client_pvt->stream_es->remote_addr.sin_addr)) < 0) {
@@ -513,7 +513,7 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     }
                     else {
                         int l_err = 0;
-                        a_client_pvt->stream_es->remote_addr_str = dap_strdup(a_client_pvt->uplink_addr);
+                        strncpy(a_client_pvt->stream_es->remote_addr_str, a_client_pvt->uplink_addr, INET_ADDRSTRLEN);
 
                         if((l_err = connect(a_client_pvt->stream_socket, (struct sockaddr *) &a_client_pvt->stream_es->remote_addr,
                                 sizeof(struct sockaddr_in))) ==0) {
@@ -1246,10 +1246,6 @@ static void s_stream_es_callback_delete(dap_events_socket_t *a_es, void *arg)
         log_it(L_DEBUG, "Delete stream socket for client_pvt=0x%p", l_client_pvt);
 
     dap_stream_delete(l_client_pvt->stream);
-    if (l_client_pvt->stream_es) {
-        DAP_DEL_Z(l_client_pvt->stream_es->remote_addr_str)
-        DAP_DEL_Z(l_client_pvt->stream_es->remote_addr_str6)
-    }
     l_client_pvt->stream = NULL;
     l_client_pvt->stream_es = NULL;
     //dap_client_delete_mt(l_client_pvt->client);    // TODO find a way to delete the client if it no closed yet
@@ -1348,7 +1344,7 @@ static void s_stream_es_callback_error(dap_events_socket_t * a_es, int a_error)
     else
         strncpy(l_errbuf,"Unknown Error",sizeof(l_errbuf)-1);
 
-    log_it(L_WARNING, "STREAM error \"%s\" (code %d)", l_errbuf, a_error);    
+    log_it(L_WARNING, "STREAM error \"%s\" (code %d)", l_errbuf, a_error);
 
     if (a_error == ETIMEDOUT) {
         l_client_pvt->last_error = ERROR_NETWORK_CONNECTION_TIMEOUT;

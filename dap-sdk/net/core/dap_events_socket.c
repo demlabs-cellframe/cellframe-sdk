@@ -313,7 +313,7 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
     #if defined(DAP_EVENTS_CAPS_EPOLL)
     l_ret->ev_base_flags = EPOLLERR | EPOLLRDHUP | EPOLLHUP;
     #elif defined(DAP_EVENTS_CAPS_POLL)
-    l_ret->poll_base_flags = POLLERR | POLLRDHUP | POLLHUP;
+    l_es->poll_base_flags = POLLERR | POLLRDHUP | POLLHUP;
     #elif defined(DAP_EVENTS_CAPS_KQUEUE)
         l_es->kqueue_event_catched_data.esocket = l_es;
         l_es->kqueue_base_flags = 0;
@@ -578,9 +578,9 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
 
     l_es->type = DESCRIPTOR_TYPE_QUEUE;
     l_es->buf_out_size_max = DAP_QUEUE_MAX_BUFLEN * 0xFFF;
-    l_es->buf_out       = DAP_NEW_Z_SIZE(byte_t,l_es->buf_out_size_max);
+    l_es->buf_out = DAP_NEW_Z_SIZE(byte_t,l_es->buf_out_size_max);
     l_es->buf_in_size_max = DAP_QUEUE_MAX_BUFLEN  * 0xFFF;
-    l_es->buf_in       = DAP_NEW_Z_SIZE(byte_t,l_es->buf_in_size_max);
+    l_es->buf_in = DAP_NEW_Z_SIZE(byte_t,l_es->buf_in_size_max);
     l_es->events = a_es->events;
     l_es->uuid = dap_uuid_generate_uint64();
 #if defined(DAP_EVENTS_CAPS_EPOLL)
@@ -1616,7 +1616,10 @@ dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct da
     assert( a_server );
 
     //log_it( L_DEBUG,"Dap event socket wrapped around %d sock", a_sock );
-    dap_events_socket_t * l_es = DAP_NEW_Z( dap_events_socket_t ); if (!l_es) return NULL;
+    //dap_events_socket_t * l_es = DAP_NEW_Z( dap_events_socket_t );
+    dap_events_socket_t *l_es = s_dap_evsock_alloc ();
+    if (!l_es)
+        return NULL;
 
     l_es->socket = a_sock;
     l_es->events = a_events;
@@ -1967,8 +1970,6 @@ void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_p
     DAP_DEL_Z(a_esocket->_pvt)
     DAP_DEL_Z(a_esocket->buf_in)
     DAP_DEL_Z(a_esocket->buf_out)
-    DAP_DEL_Z(a_esocket->remote_addr_str)
-    DAP_DEL_Z(a_esocket->remote_addr_str6)
     DAP_DEL_Z(a_esocket->hostaddr)
     DAP_DEL_Z(a_esocket->service)
 
@@ -2372,11 +2373,6 @@ void dap_events_socket_shrink_buf_in(dap_events_socket_t * cl, size_t shrink_siz
         return;
 
     if (cl->buf_in_size > shrink_size)
-    {
         memmove(cl->buf_in, cl->buf_in + shrink_size,  cl->buf_in_size -= shrink_size);
-    }else{
-        //log_it(WARNING,"Shrinking size of input buffer on amount bigger than actual buffer's size");
-        cl->buf_in_size=0;
-    }
-
+    else cl->buf_in_size = 0;
 }
