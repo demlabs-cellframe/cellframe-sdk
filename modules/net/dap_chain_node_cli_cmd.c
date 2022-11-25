@@ -2380,30 +2380,21 @@ void s_com_mempool_list_print_for_chain (
             dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_mempool);
             continue;
         }
+        if(a_add)
+        {
+            size_t l_emisssion_size = l_datum->header.data_size;
+            dap_chain_datum_token_emission_t *l_emission = dap_chain_datum_emission_read(l_datum->data, &l_emisssion_size);
+            dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
 
-        char buf[8 * sizeof(long long) + 1] = {'\0'};
-        dap_hash_fast_t l_data_hash;
-        char l_data_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {'\0'};
-        dap_hash_fast(l_datum->data,l_datum->header.data_size,&l_data_hash);
-        dap_hash_fast_to_str(&l_data_hash,l_data_hash_str,DAP_CHAIN_HASH_FAST_STR_SIZE);
-        const char *l_type = NULL;
-        DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type)
-        const char *l_token_ticker = NULL;
-        if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
-            dap_chain_tx_in_t *obj_in = (dap_chain_tx_in_t *)dap_chain_datum_tx_item_get((dap_chain_datum_tx_t*)l_datum->data, NULL, TX_ITEM_TYPE_IN, NULL);
-            l_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &obj_in->header.tx_prev_hash);
+            uint32_t l_tx_items_count = 0;
+            uint32_t l_tx_items_size = l_tx->header.tx_items_size;
+            bool l_f_found = false;
 
-            if(a_add)
-            {
-                dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
-
-                uint32_t l_tx_items_count = 0;
-                uint32_t l_tx_items_size = l_tx->header.tx_items_size;
-                bool l_f_found = false;
-                while (l_tx_items_count < l_tx_items_size) {
+            if(l_datum->header.type_id == DAP_CHAIN_DATUM_TX){
+                while (l_tx_items_count < l_tx_items_size)
+                {
                     uint8_t *item = l_tx->tx_items + l_tx_items_count;
                     size_t l_item_tx_size = dap_chain_datum_item_tx_get_size(item);
-
                     if(dap_strcmp(a_add,dap_chain_addr_to_str(&((dap_chain_tx_out_old_t*)item)->addr))&&
                        dap_strcmp(a_add,dap_chain_addr_to_str(&((dap_chain_tx_out_t*)item)->addr))&&
                        dap_strcmp(a_add,dap_chain_addr_to_str(&((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake.fee_addr))&&
@@ -2419,6 +2410,27 @@ void s_com_mempool_list_print_for_chain (
                 if(!l_f_found)
                     continue;
             }
+            if(l_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN_EMISSION)
+            {
+                if(dap_strcmp(a_add,dap_chain_addr_to_str(&(l_emission->hdr.address))))
+                    continue;
+                else
+                    l_objs_addr++;
+            }
+        }
+
+        char buf[8 * sizeof(long long) + 1] = {'\0'};
+        dap_hash_fast_t l_data_hash;
+        char l_data_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {'\0'};
+        dap_hash_fast(l_datum->data,l_datum->header.data_size,&l_data_hash);
+        dap_hash_fast_to_str(&l_data_hash,l_data_hash_str,DAP_CHAIN_HASH_FAST_STR_SIZE);
+        const char *l_type = NULL;
+        DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type)
+        const char *l_token_ticker = NULL;
+        if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
+            dap_chain_tx_in_t *obj_in = (dap_chain_tx_in_t *)dap_chain_datum_tx_item_get((dap_chain_datum_tx_t*)l_datum->data, NULL, TX_ITEM_TYPE_IN, NULL);
+            l_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &obj_in->header.tx_prev_hash);
+
         }
         if (l_token_ticker) {
             dap_string_append_printf(a_str_tmp,
