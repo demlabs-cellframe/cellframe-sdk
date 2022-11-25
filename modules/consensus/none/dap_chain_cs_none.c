@@ -297,9 +297,9 @@ static void s_ledger_load_callback(dap_global_db_context_t *a_global_db_context,
     for(size_t i = 0; i < a_values_count; i++) {
         s_chain_callback_atom_add(l_chain, a_values[i].value, a_values[i].value_len);
     }
-    l_gdb_pvt->is_load_mode = false;
 
     pthread_mutex_lock(&l_gdb_pvt->load_mutex);
+    l_gdb_pvt->is_load_mode = false;
     pthread_cond_broadcast(&l_gdb_pvt->load_cond);
     pthread_mutex_unlock(&l_gdb_pvt->load_mutex);
 }
@@ -315,11 +315,11 @@ int dap_chain_gdb_ledger_load(char *a_gdb_group, dap_chain_t *a_chain)
 {
     dap_chain_gdb_t * l_gdb = DAP_CHAIN_GDB(a_chain);
     dap_chain_gdb_private_t * l_gdb_pvt = PVT(l_gdb);
-    size_t l_data_size = 0;
     //  Read the entire database into an array of size bytes
     pthread_mutex_lock(&l_gdb_pvt->load_mutex);
     dap_global_db_get_all(a_gdb_group, 0, s_ledger_load_callback, a_chain);
-    pthread_cond_wait(&l_gdb_pvt->load_cond, &l_gdb_pvt->load_mutex);
+    while (l_gdb_pvt->is_load_mode)
+        pthread_cond_wait(&l_gdb_pvt->load_cond, &l_gdb_pvt->load_mutex);
     pthread_mutex_unlock(&l_gdb_pvt->load_mutex);
 
     return 0;

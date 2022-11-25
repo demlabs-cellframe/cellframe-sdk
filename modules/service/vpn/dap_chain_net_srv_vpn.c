@@ -163,9 +163,10 @@ typedef struct tun_socket_msg{
 
 dap_chain_net_srv_vpn_tun_socket_t ** s_tun_sockets = NULL;
 dap_events_socket_t ** s_tun_sockets_queue_msg = NULL;
-pthread_mutex_t * s_tun_sockets_mutex_started = NULL;
-pthread_cond_t * s_tun_sockets_cond_started = NULL;
 
+pthread_mutex_t s_tun_sockets_mutex_started;
+pthread_cond_t s_tun_sockets_cond_started;
+uint32_t s_tun_sockets_started = 0;
 
 uint32_t s_tun_sockets_count = 0;
 bool s_debug_more = false;
@@ -174,8 +175,6 @@ static usage_client_t * s_clients = NULL;
 static dap_chain_net_srv_ch_vpn_t * s_ch_vpn_addrs  = NULL;
 static pthread_rwlock_t s_clients_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
-static pthread_mutex_t s_sf_socks_mutex;
-static pthread_cond_t s_sf_socks_cond;
 static vpn_local_network_t *s_raw_server = NULL;
 static pthread_rwlock_t s_raw_server_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
@@ -651,8 +650,6 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     log_it(L_NOTICE,"%s: trying to initialize multiqueue for %u workers", __PRETTY_FUNCTION__, s_tun_sockets_count);
     s_tun_sockets = DAP_NEW_Z_SIZE(dap_chain_net_srv_vpn_tun_socket_t*,s_tun_sockets_count*sizeof(dap_chain_net_srv_vpn_tun_socket_t*));
     s_tun_sockets_queue_msg =  DAP_NEW_Z_SIZE(dap_events_socket_t*,s_tun_sockets_count*sizeof(dap_events_socket_t*));
-    s_tun_sockets_mutex_started = DAP_NEW_Z_SIZE(pthread_mutex_t,s_tun_sockets_count*sizeof(pthread_mutex_t));
-    s_tun_sockets_cond_started = DAP_NEW_Z_SIZE(pthread_cond_t,s_tun_sockets_count*sizeof(pthread_cond_t));
 
     int l_err = 0;
 #if defined (DAP_OS_DARWIN)
@@ -732,6 +729,8 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     s_raw_server->tun_device_name = strndup(l_utunname, l_utunname_len);
     log_it(L_NOTICE, "Utun device name \"%s\"", s_raw_server->tun_device_name);
 #endif
+
+    pthread_mutex_lock(&s_tun_sockets_mutex_started);
     for( uint8_t i =0; i< s_tun_sockets_count; i++){
         dap_worker_t * l_worker = dap_events_worker_get(i);
         assert( l_worker );
@@ -753,19 +752,15 @@ static int s_vpn_tun_create(dap_config_t * g_config)
 #elif !defined (DAP_OS_DARWIN)
 #error "Undefined tun interface attach for your platform"
 #endif
-        pthread_mutex_init(&s_tun_sockets_mutex_started[i],NULL);
-        pthread_cond_init(&s_tun_sockets_cond_started[i],NULL);
-        pthread_mutex_lock(&s_tun_sockets_mutex_started[i]);
         s_tun_event_stream_create(l_worker, l_tun_fd);
     }
     if (l_err)
         goto lb_err;
 
     // Waiting for all the tun sockets
-    for( uint8_t i =0; i< s_tun_sockets_count; i++){
-        pthread_cond_wait(&s_tun_sockets_cond_started[i], &s_tun_sockets_mutex_started[i]);
-        pthread_mutex_unlock(&s_tun_sockets_mutex_started[i]);
-    }
+    while (s_tun_sockets_started != s_tun_sockets_count)
+        pthread_cond_wait(&s_tun_sockets_cond_started, &s_tun_sockets_mutex_started);
+    pthread_mutex_unlock(&s_tun_sockets_mutex_started);
 
     // Fill inter tun qyueue
     // Create for all previous created sockets the input queue
@@ -811,8 +806,8 @@ static int s_vpn_tun_init()
     s_raw_server=DAP_NEW_Z(vpn_local_network_t);
     pthread_rwlock_init(&s_raw_server->rwlock, NULL);
     pthread_mutex_init(&s_raw_server->pkt_out_mutex,NULL);
-    pthread_mutex_init(&s_sf_socks_mutex, NULL);
-    pthread_cond_init(&s_sf_socks_cond, NULL);
+    pthread_mutex_init(&s_tun_sockets_mutex_started, NULL);
+    pthread_cond_init(&s_tun_sockets_cond_started, NULL);
 
     return 0;
 }
@@ -875,8 +870,8 @@ int dap_chain_net_srv_vpn_init(dap_config_t * g_config) {
  */
 void dap_chain_net_srv_vpn_deinit(void)
 {
-    pthread_mutex_destroy(&s_sf_socks_mutex);
-    pthread_cond_destroy(&s_sf_socks_cond);
+    pthread_mutex_destroy(&s_tun_sockets_mutex_started);
+    pthread_cond_destroy(&s_tun_sockets_cond_started);
     DAP_DELETE(s_srv_vpn_addr);
     DAP_DELETE(s_srv_vpn_mask);
     if(s_raw_server)
@@ -1763,9 +1758,10 @@ static void s_es_tun_new(dap_events_socket_t * a_es, void * arg)
         s_tun_attach_queue( a_es->fd );
 #endif
         // Signal thats its ready
-        pthread_mutex_lock(&s_tun_sockets_mutex_started[l_worker_id]);
-        pthread_mutex_unlock(&s_tun_sockets_mutex_started[l_worker_id]);
-        pthread_cond_broadcast(&s_tun_sockets_cond_started[l_worker_id]);
+        pthread_mutex_lock(&s_tun_sockets_mutex_started);
+        s_tun_sockets_started++;
+        pthread_cond_broadcast(&s_tun_sockets_cond_started);
+        pthread_mutex_unlock(&s_tun_sockets_mutex_started);
 
         log_it(L_NOTICE,"New TUN event socket initialized for worker %u" , l_tun_socket->worker_id);
 

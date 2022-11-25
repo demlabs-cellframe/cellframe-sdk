@@ -240,6 +240,7 @@ typedef struct dap_ledger_private {
     // Save/load operations condition
     pthread_mutex_t load_mutex;
     pthread_cond_t load_cond;
+    bool load_end;
 
     uint16_t check_flags;
     bool check_ds;
@@ -1562,6 +1563,7 @@ static void s_load_cache_gdb_loaded_balances_callback(dap_global_db_context_t *a
         json_object_put(l_json);*/ // TODO: unstable and spammy
     }
     pthread_mutex_lock( &l_ledger_pvt->load_mutex );
+    l_ledger_pvt->load_end = true;
     pthread_cond_broadcast( &l_ledger_pvt->load_cond );
     pthread_mutex_unlock( &l_ledger_pvt->load_mutex );
 }
@@ -1728,6 +1730,7 @@ static void s_load_cache_gdb_loaded_tokens_callback(dap_global_db_context_t *a_g
     if( a_rc != 0){
         log_it(L_NOTICE, "No ledger cache found");
         pthread_mutex_lock(&l_ledger_pvt->load_mutex);
+        l_ledger_pvt->load_end = true;
         pthread_cond_broadcast(&l_ledger_pvt->load_cond );
         pthread_mutex_unlock(&l_ledger_pvt->load_mutex);
 
@@ -1767,7 +1770,8 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
 
     pthread_mutex_lock(& l_ledger_pvt->load_mutex);
     dap_global_db_get_all(l_gdb_group,0,s_load_cache_gdb_loaded_tokens_callback, a_ledger);
-    pthread_cond_wait(& l_ledger_pvt->load_cond, &l_ledger_pvt->load_mutex);
+    while (!l_ledger_pvt->load_end)
+        pthread_cond_wait(& l_ledger_pvt->load_cond, &l_ledger_pvt->load_mutex);
     pthread_mutex_unlock(& l_ledger_pvt->load_mutex);
 
     DAP_DELETE(l_gdb_group);
@@ -4031,6 +4035,8 @@ void dap_chain_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
     pthread_rwlock_unlock(&l_ledger_priv->threshold_txs_rwlock);
     pthread_rwlock_unlock(&l_ledger_priv->balance_accounts_rwlock);
     pthread_rwlock_unlock(&l_ledger_priv->stake_lock_rwlock);
+
+    l_ledger_priv->load_end = false;
 }
 
 /**
