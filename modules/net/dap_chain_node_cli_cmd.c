@@ -2355,7 +2355,7 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
 void s_com_mempool_list_print_for_chain (
                     dap_chain_net_t * a_net,
                     dap_chain_t * a_chain,
-					const char * a_add,
+                    const char * a_add,
                     dap_string_t * a_str_tmp,
                     const char *a_hash_out_type
                 )
@@ -2367,7 +2367,7 @@ void s_com_mempool_list_print_for_chain (
 
 
     size_t l_objs_size = 0;
-	size_t l_objs_addr = 0;
+    size_t l_objs_addr = 0;
     dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool, &l_objs_size);
 
     for(size_t i = 0; i < l_objs_size; i++) {
@@ -2392,8 +2392,8 @@ void s_com_mempool_list_print_for_chain (
         if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
             dap_chain_tx_in_t *obj_in = (dap_chain_tx_in_t *)dap_chain_datum_tx_item_get((dap_chain_datum_tx_t*)l_datum->data, NULL, TX_ITEM_TYPE_IN, NULL);
             l_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &obj_in->header.tx_prev_hash);
-			
-			if(a_add)
+
+            if(a_add)
             {
                 dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
 
@@ -2459,12 +2459,12 @@ int com_mempool_list(int argc, char ** argv, char ** a_str_reply)
     dap_chain_t *l_chain = NULL;
     dap_chain_net_t *l_net = NULL;
     dap_string_t *l_str_tmp;
-	const char *l_addr_base58 = NULL;
+    const char *l_addr_base58 = NULL;
 
     const char * l_hash_out_type = "hex";
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-H", &l_hash_out_type);
     dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, argc, argv, a_str_reply, &l_chain, &l_net);
-	dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-addr", &l_addr_base58);
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-addr", &l_addr_base58);
     if(!l_net)
         return -1;
 
