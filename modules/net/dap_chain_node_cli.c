@@ -233,7 +233,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "[-chain_base_tx <chain_name> | use flag '-no_base_tx' if you need create emission has no base transaction] } "
                             "-net <net_name> -certs <cert list>\n");
 
-    dap_chain_node_cli_cmd_item_create ("mempool_list", com_mempool_list,
+    dap_cli_server_cmd_add ("mempool_list", com_mempool_list,
                                         "List mempool (entries or transaction) for (selected chain network or wallet)",
             "mempool_list -net <net_name> [-chain <chain_name>] [-addr <addr>] \n");
 
