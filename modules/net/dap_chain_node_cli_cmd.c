@@ -2666,7 +2666,7 @@ int com_mempool_list(int argc, char ** argv, char ** a_str_reply)
     const char * l_hash_out_type = "hex";
     dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-H", &l_hash_out_type);
     dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, argc, argv, a_str_reply, &l_chain, &l_net);
-    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-addr", &l_addr_base58);
+    dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-addr", &l_addr_base58);
     if(!l_net)
         return -1;
     else {
