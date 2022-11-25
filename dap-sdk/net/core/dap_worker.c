@@ -1146,25 +1146,17 @@ static bool s_socket_all_check_activity( void * a_arg)
  * @param a_events_socket
  * @param a_worker
  */
-void dap_worker_add_events_socket(dap_events_socket_t * a_events_socket, dap_worker_t * a_worker)
+void dap_worker_add_events_socket(dap_events_socket_t * a_es, dap_worker_t * a_worker)
 {
-/*
-#ifdef DAP_EVENTS_CAPS_KQUEUE
-    a_events_socket->worker = a_worker;
-    if(dap_worker_add_events_socket_unsafe(a_events_socket, a_worker)!=0)
-        a_events_socket->worker = NULL;
+char l_errbuf[128] = {0};
+int l_ret;
 
-#else*/
-    if(g_debug_reactor)
-        log_it(L_DEBUG,"Worker add esocket %"DAP_FORMAT_SOCKET, a_events_socket->socket);
-    int l_ret = dap_events_socket_queue_ptr_send( a_worker->queue_es_new, a_events_socket );
-    if(l_ret != 0 ){
-        char l_errbuf[128];
-        *l_errbuf = 0;
+    debug_if(g_debug_reactor, L_DEBUG,"[es:%p] Worker add socket %"DAP_FORMAT_SOCKET, a_es, a_es->socket);
+    if ( l_ret = dap_events_socket_queue_ptr_send( a_worker->queue_es_new, a_es ))
+    {
         strerror_r(l_ret, l_errbuf, sizeof(l_errbuf));
-        log_it(L_ERROR, "Can't send pointer in queue: \"%s\"(code %d)", l_errbuf, l_ret);
+        log_it(L_ERROR, "[es:%p] Can't send pointer in queue: \"%s\"(code %d)", a_es, l_errbuf, l_ret);
     }
-//#endif
 }
 
 /**

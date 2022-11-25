@@ -772,6 +772,10 @@ dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t 
  */
 static bool dap_chain_node_client_connect_internal(dap_chain_node_client_t *a_node_client, const char *a_active_channels)
 {
+
+    return  false;  /* @RRL */
+
+
     a_node_client->client = dap_client_new(a_node_client->events, s_stage_status_callback,
             s_stage_status_error_callback);
     dap_client_set_is_always_reconnect(a_node_client->client, false);

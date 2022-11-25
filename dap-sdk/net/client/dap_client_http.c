@@ -466,6 +466,10 @@ int dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_uplink
         dap_client_http_callback_data_t a_response_callback, dap_client_http_callback_error_t a_error_callback,
         void *a_callbacks_arg, char *a_custom_headers, bool a_over_ssl)
 {
+
+        return -EINVAL; /* @RRL */
+
+
     //log_it(L_DEBUG, "HTTP request on url '%s:%d'", a_uplink_addr, a_uplink_port);
     static dap_events_socket_callbacks_t l_s_callbacks = {
         .connected_callback = s_http_connected,

@@ -175,7 +175,7 @@ typedef struct dap_chain_net_pvt{
 
     struct downlink *downlinks;         // HT of links who sent SYNC REQ, it used for sync broadcasting
     dap_list_t *records_queue;
-    dap_list_t *atoms_queue; 
+    dap_list_t *atoms_queue;
 
     bool load_mode;
     char ** seed_aliases;
@@ -1160,7 +1160,7 @@ static bool s_balancer_start_dns_request(dap_chain_net_t *a_net, dap_chain_node_
         DAP_DELETE(l_balancer_request->link_info);
         DAP_DELETE(l_balancer_request);
         return false;
-    }    
+    }
     l_net_pvt->balancer_link_requests++;
     return true;
 }
@@ -1264,7 +1264,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
 
     switch (l_net_pvt->state) {
         // State OFFLINE where we don't do anything
-        case NET_STATE_OFFLINE: {    
+        case NET_STATE_OFFLINE: {
             // delete all links
             struct net_link *l_link, *l_link_tmp;
             HASH_ITER(hh, l_net_pvt->net_links, l_link, l_link_tmp) {
@@ -1344,7 +1344,10 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
             HASH_ITER(hh, l_net_pvt->net_links, l_link, l_link_tmp) {
                 dap_chain_node_info_t *l_link_info = l_link->link_info;
                 dap_chain_node_client_t *l_client = dap_chain_net_client_create_n_connect(l_net, l_link_info);
-                l_link->link = l_client;
+
+                if ( !(l_link->link = l_client) )       /* @RRL: #7022 */
+                    continue;
+
                 l_link->client_uuid = l_client->uuid;
                 if (++l_used_links == l_net_pvt->required_links_count)
                     break;
@@ -2457,7 +2460,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 inet_pton(AF_INET6, l_seed_nodes_ipv6[i], &l_node_info.hdr.ext_addr_v6);
             l_node_info.hdr.ext_port = l_seed_nodes_port_len && l_seed_nodes_port_len >= i ?
                 strtoul(l_seed_nodes_port[i], NULL, 10) : 8079;
-        
+
             if (l_seed_nodes_hostnames_len) {
                 struct sockaddr l_sa = {};
                 log_it(L_DEBUG, "Resolve %s addr", l_seed_nodes_hostnames[i]);
@@ -2470,7 +2473,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                     log_it(L_ERROR, "%s", gai_strerror(l_ret_code));
                 }
             }
-            
+
             l_seed_node_addr_gdb    = dap_chain_node_alias_find(l_net, l_net_pvt->seed_aliases[i]);
             l_node_info_gdb         = l_seed_node_addr_gdb ? dap_chain_node_info_read(l_net, l_seed_node_addr_gdb) : NULL;
 
@@ -2493,7 +2496,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                         if (dap_chain_node_alias_register(l_net,l_net_pvt->seed_aliases[i], &l_seed_node_addr))
                             log_it(L_NOTICE,"Seed node "NODE_ADDR_FP_STR" added to the curent list", NODE_ADDR_FP_ARGS_S(l_seed_node_addr));
                         else
-                            log_it(L_WARNING,"Cant register alias %s for address "NODE_ADDR_FP_STR, l_net_pvt->seed_aliases[i], NODE_ADDR_FP_ARGS_S(l_seed_node_addr)); 
+                            log_it(L_WARNING,"Cant register alias %s for address "NODE_ADDR_FP_STR, l_net_pvt->seed_aliases[i], NODE_ADDR_FP_ARGS_S(l_seed_node_addr));
                     } else {
                         log_it(L_WARNING,"Cant save node info for address "NODE_ADDR_FP_STR" return code %d", NODE_ADDR_FP_ARGS_S(l_seed_node_addr), l_ret);
                     }

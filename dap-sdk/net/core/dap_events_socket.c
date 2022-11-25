@@ -107,11 +107,12 @@ bool s_remove_and_delete_unsafe_delayed_delete_callback(void * a_arg);
 
 static pthread_attr_t s_attr_detached;                                      /* Thread's creation attribute = DETACHED ! */
 
-enum    {MEMSTAT$K_EVSOCK, MEMSTAT$K_BUF_IN, MEMSTAT$K_BUF_OUT, MEMSTAT$K_NR};
+enum    {MEMSTAT$K_EVSOCK, MEMSTAT$K_BUF_IN, MEMSTAT$K_BUF_OUT, MEMSTAT$K_BUF_OUT_EXT, MEMSTAT$K_NR};
 static  dap_memstat_rec_t   s_memstat [MEMSTAT$K_NR] = {
     {.fac_len = sizeof(LOG_TAG) - 1, .fac_name = {LOG_TAG}, .alloc_sz = sizeof(dap_events_socket_t)},
     {.fac_len = sizeof(LOG_TAG ".buf_in") - 1, .fac_name = {LOG_TAG ".buf_in"}, .alloc_sz = DAP_EVENTS_SOCKET_BUF},
     {.fac_len = sizeof(LOG_TAG ".buf_out") - 1, .fac_name = {LOG_TAG ".buf_out"}, .alloc_sz = DAP_EVENTS_SOCKET_BUF},
+    {.fac_len = sizeof(LOG_TAG ".buf_out_ext") - 1, .fac_name = {LOG_TAG ".buf_out_ext"}, .alloc_sz = DAP_EVENTS_SOCKET_BUF_LIMIT}
 };
 
 
@@ -1346,6 +1347,7 @@ const size_t l_basic_buf_size = DAP_QUEUE_MAX_MSGS * sizeof(void *);
     atomic_fetch_add(&l_thd_count, 1);                                      /* Count an every call of this routine */
 
     pthread_rwlock_wrlock(&s_bufout_rwlock);
+
     if (!a_es->buf_out) {
         a_es->buf_out = DAP_NEW_SIZE(byte_t, l_basic_buf_size);
         a_es->buf_out_size_max = l_basic_buf_size;
@@ -1426,7 +1428,9 @@ int dap_events_socket_queue_ptr_send_to_input(dap_events_socket_t * a_es_input, 
  */
 int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
 {
-    int l_ret = -1024, l_errno=0;
+int l_ret = -1024, l_errno = 0;
+char l_errbuf[128] = { 0 };
+
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
     if ((l_ret = write(a_es->fd2, &a_arg, sizeof(a_arg)) == sizeof(a_arg))) {
         debug_if(g_debug_reactor, L_NOTICE, "send %d bytes to pipe", l_ret);
@@ -1443,23 +1447,26 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
     //struct timespec tmo = {0};
     //tmo.tv_sec = 7 + time(NULL);
     if (!mq_send(a_es->mqd, (const char*)&a_arg, sizeof(a_arg), 0)) {
-        debug_if (g_debug_reactor, L_DEBUG,"Sent ptr %p to esocket queue %p (%d)", a_arg, a_es, a_es? a_es->fd : -1);
+        debug_if (g_debug_reactor, L_DEBUG,"[es:%p] Sent ptr %p to esocket queue (sd #%d)", a_es, a_arg, a_es? a_es->fd : -1);
         return 0;
     }
-    switch (l_errno = errno) {
-    case EINVAL:
-    case EINTR:
-    case EWOULDBLOCK:
-        log_it(L_ERROR, "Can't send ptr to queue (err %d), will be resent again in a while...", l_errno);
-        log_it(L_ERROR, "Number of pending messages: %ld", a_es->buf_out_size);
-        add_ptr_to_buf(a_es, a_arg);
-        return l_errno;
-    default: {
-        char l_errbuf[128] = { '\0' };
-        strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-        log_it(L_ERROR, "Can't send ptr to queue:\"%s\" code %d", l_errbuf, l_errno);
-        return l_errno;
-    }}
+
+    switch (l_errno = errno)
+    {
+        case EINVAL:
+        case EINTR:
+        case EWOULDBLOCK:
+            log_it(L_ERROR, "[%p] Can't send ptr to queue (err %d), will be resent again in a while...", a_es, l_errno);
+            log_it(L_ERROR, "[%p] Number of pending messages: %ld", a_es, a_es->buf_out_size);
+            add_ptr_to_buf(a_es, a_arg);
+            return l_errno;
+
+        default:
+            strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+            log_it(L_ERROR, "[es:%p] Can't send ptr to queue:\"%s\" code %d", a_es, l_errbuf, l_errno);
+            return l_errno;
+    }
+
 #elif defined (DAP_EVENTS_CAPS_QUEUE_POSIX)
     struct timespec l_timeout;
     clock_gettime(CLOCK_REALTIME, &l_timeout);
@@ -1992,8 +1999,6 @@ void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_p
     s_memstat[MEMSTAT$K_BUF_IN].free_nr += (a_esocket->buf_in_size_max == s_memstat[MEMSTAT$K_BUF_IN].alloc_sz);
     DAP_DEL_Z(a_esocket->buf_out)
     s_memstat[MEMSTAT$K_BUF_OUT].free_nr += (a_esocket->buf_out_size_max == s_memstat[MEMSTAT$K_BUF_OUT].alloc_sz);
-    DAP_DEL_Z(a_esocket->hostaddr)
-    DAP_DEL_Z(a_esocket->service)
 
     s_dap_evsock_free( a_esocket );
 }
@@ -2321,6 +2326,8 @@ size_t dap_events_socket_write_unsafe(dap_events_socket_t *a_es, const void * a_
                 l_new_size = DAP_EVENTS_SOCKET_BUF_LIMIT;
             a_es->buf_out = DAP_REALLOC(a_es->buf_out, l_new_size);
             a_es->buf_out_size_max = l_new_size;
+
+            s_memstat[MEMSTAT$K_BUF_OUT_EXT].alloc_nr;
         }
      }
      a_data_size = (a_es->buf_out_size + a_data_size < a_es->buf_out_size_max) ? a_data_size : (a_es->buf_out_size_max - a_es->buf_out_size);

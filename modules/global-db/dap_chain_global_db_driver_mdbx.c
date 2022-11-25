@@ -80,6 +80,17 @@ static pthread_rwlock_t s_db_ctxs_rwlock = PTHREAD_RWLOCK_INITIALIZER;      /* A
 
 static char s_db_path[MAX_PATH];                                            /* A root directory for the MDBX files */
 
+
+enum    {MEMSTAT$K_OBJ, MEMSTAT$K_VALUE, MEMSTAT$K_MDBXREC, MEMSTAT$K_NR};
+static  dap_memstat_rec_t   s_memstat [MEMSTAT$K_NR] = {
+    {.fac_len = sizeof(LOG_TAG ".store_obj") - 1, .fac_name = {LOG_TAG ".store_obj"}, .alloc_sz = sizeof(dap_store_obj_t)},
+    {.fac_len = sizeof(LOG_TAG ".value") - 1, .fac_name = {LOG_TAG ".value"}, .alloc_sz = 0},
+    {.fac_len = sizeof(LOG_TAG ".record") - 1, .fac_name = {LOG_TAG ".record"}, .alloc_sz = 0}
+};
+
+
+
+
 /* Forward declarations of action routines */
 static int              s_db_mdbx_deinit();
 static int              s_db_mdbx_flush(void);
@@ -508,6 +519,9 @@ dap_store_obj_t *l_obj;
     mdbx_txn_commit(l_db_ctx->txn);
     pthread_mutex_unlock(&l_db_ctx->dbi_mutex);
 
+    s_memstat[MEMSTAT$K_OBJ].alloc_nr++;
+    s_memstat[MEMSTAT$K_VALUE].alloc_nr++;
+
     return  l_obj;
 }
 
@@ -657,6 +671,9 @@ size_t  l_cnt = 0, l_count_out = 0;
 
                 }
             else l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object value, errno=%d", errno);
+
+            s_memstat[MEMSTAT$K_OBJ].alloc_nr++;
+            s_memstat[MEMSTAT$K_VALUE].alloc_nr++;
         }
 
         if ( (MDBX_SUCCESS != l_rc) && (l_rc != MDBX_NOTFOUND) ) {
@@ -826,6 +843,8 @@ struct  __record_suffix__   *l_suff;
             pthread_mutex_unlock(&l_db_ctx->dbi_mutex);
             return  log_it(L_ERROR, "Cannot allocate memory for new records, %d octets, errno=%d", l_rc, errno), -errno;
         }
+
+        s_memstat[MEMSTAT$K_MDBXREC].alloc_nr++;
 
         l_data.iov_base = l_val;                                            /* Fill IOV for MDBX data */
         l_data.iov_len = l_rc;
@@ -1005,10 +1024,17 @@ struct  __record_suffix__   *l_suff;
 
                     if ( a_count_out )
                         *a_count_out = 1;
+
+                    s_memstat[MEMSTAT$K_OBJ].alloc_nr++;
+                    s_memstat[MEMSTAT$K_VALUE].alloc_nr++;
                 }
                 else l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object value, errno=%d", errno);
             }
             else l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object, errno=%d", errno);
+
+
+
+
         } else if ( l_rc != MDBX_NOTFOUND)
             log_it (L_ERROR, "mdbx_get: (%d) %s", l_rc, mdbx_strerror(l_rc));
 
@@ -1092,8 +1118,14 @@ struct  __record_suffix__   *l_suff;
 
                 if ( a_count_out )
                     *a_count_out += 1;
+
+
+                s_memstat[MEMSTAT$K_OBJ].alloc_nr++;
+                s_memstat[MEMSTAT$K_VALUE].alloc_nr++;
+
                 }
             else l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object value, errno=%d", errno);
+
         }
 
 
