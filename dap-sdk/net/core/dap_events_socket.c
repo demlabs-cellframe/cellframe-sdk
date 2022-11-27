@@ -118,7 +118,7 @@ static  dap_memstat_rec_t   s_memstat [MEMSTAT$K_NR] = {
 
 
 
-typedef struct __dap__evsock_rec__ {
+typedef struct __dap_stream_ch_rec__ {
     dap_events_socket_t     *es;
     UT_hash_handle          hh;
 } dap_evsock_rec_t;

@@ -347,22 +347,19 @@ void s_http_client_headers_read(dap_http_client_t * a_http_client, void * a_arg)
 {
     (void) a_arg;
 
-   // char * raw=0;
-   // int raw_size;
     unsigned int id=0;
 
-    //log_it(L_DEBUG,"Prepare data stream");
     if(a_http_client->in_query_string[0]){
-        log_it(L_INFO,"Query string [%s]",a_http_client->in_query_string);
-//        if(sscanf(cl_ht->in_query_string,"fj913htmdgaq-d9hf=%u",&id)==1){
+        log_it(L_INFO, "[es:%p] Query string [%s]", a_http_client->esocket, a_http_client->in_query_string);
+
         if(sscanf(a_http_client->in_query_string,"session_id=%u",&id) == 1 ||
                 sscanf(a_http_client->in_query_string,"fj913htmdgaq-d9hf=%u",&id) == 1) {
-            dap_stream_session_t * ss=NULL;
-            ss=dap_stream_session_id_mt(id);
-            if(ss==NULL){
-                log_it(L_ERROR,"No session id %u was found",id);
-                a_http_client->reply_status_code=404;
-                strcpy(a_http_client->reply_reason_phrase,"Not found");
+
+            dap_stream_session_t * ss = NULL;
+            if ( !(ss = dap_stream_session_id_mt(id)) ) {
+                log_it(L_ERROR,"No session id %u was found", id);
+                a_http_client->reply_status_code = 404;
+                strcpy(a_http_client->reply_reason_phrase, "Not found");
             }else{
                 log_it(L_INFO,"Session id %u was found with channels = %s",id,ss->active_channels);
                 if(dap_stream_session_open(ss)==0){ // Create new stream
@@ -375,26 +372,25 @@ void s_http_client_headers_read(dap_http_client_t * a_http_client, void * a_arg)
                     for(size_t i = 0; i < count_channels; i++) {
                         dap_stream_ch_t * l_ch = dap_stream_ch_new(sid, ss->active_channels[i]);
                         l_ch->ready_to_read = true;
-                        //sid->channel[i]->ready_to_write = true;
                     }
 
-                    a_http_client->reply_status_code=200;
-                    strcpy(a_http_client->reply_reason_phrase,"OK");
+                    a_http_client->reply_status_code = 200;
+                    strcpy(a_http_client->reply_reason_phrase, "OK");
                     stream_states_update(sid);
-                    a_http_client->state_read=DAP_HTTP_CLIENT_STATE_DATA;
-                    a_http_client->state_write=DAP_HTTP_CLIENT_STATE_START;
-                    dap_events_socket_set_readable_unsafe(a_http_client->esocket,true);
-                    dap_events_socket_set_writable_unsafe(a_http_client->esocket,true); // Dirty hack, because previous function shouldn't
+                    a_http_client->state_read = DAP_HTTP_CLIENT_STATE_DATA;
+                    a_http_client->state_write = DAP_HTTP_CLIENT_STATE_START;
+                    dap_events_socket_set_readable_unsafe(a_http_client->esocket, true);
+                    dap_events_socket_set_writable_unsafe(a_http_client->esocket, true); // Dirty hack, because previous function shouldn't
                     //                                                                    // set write flag off but it does!
                 }else{
-                    log_it(L_ERROR,"Can't open session id %u",id);
-                    a_http_client->reply_status_code=404;
-                    strcpy(a_http_client->reply_reason_phrase,"Not found");
+                    log_it(L_ERROR, "[es:%p] Can't open session id %u", a_http_client->esocket, id);
+                    a_http_client->reply_status_code = 404;
+                    strcpy(a_http_client->reply_reason_phrase, "Not found");
                 }
             }
         }
     }else{
-        log_it(L_ERROR,"No query string");
+        log_it(L_ERROR, "No query string");
     }
 }
 

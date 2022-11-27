@@ -130,13 +130,15 @@
   #define DAP_DUP_SIZE(a, s)    memcpy(rpmalloc(s), a, s)
 #elif   DAP_SYS_DEBUG
 
+#include    <assert.h>
+
 #define     MEMSTAT$SZ_NAME   63
 
-#define     MEMSTAT$K_MAXNR   256
+#define     MEMSTAT$K_MAXNR   8192
 typedef struct __dap_memstat_rec__ {
 
         unsigned char   fac_len,                                        /* Length of the facility name */
-                        fac_name[MEMSTAT$SZ_NAME + 1];                 /* A human readable facility name, ASCIC */
+                        fac_name[MEMSTAT$SZ_NAME + 1];                  /* A human readable facility name, ASCIC */
 
         ssize_t         alloc_sz;                                       /* A size of the single allocations */
         uint64_t        alloc_nr,                                       /* A number of allocations */
@@ -147,26 +149,30 @@ int     dap_memstat_reg (dap_memstat_rec_t   *a_memstat_rec);
 void    dap_memstat_show (void);
 extern  dap_memstat_rec_t    *g_memstat [MEMSTAT$K_MAXNR];              /* Array to keep pointers to module/facility specific memstat vecros */
 
-static inline void s_free(const char *a_rtn_name, int a_rtn_line, void *a_ptr);
+static inline void s_vm_free(const char *a_rtn_name, int a_rtn_line, void *a_ptr);
+static inline void *s_vm_get(const char *a_rtn_name, int a_rtn_line, ssize_t a_size);
+static inline void *s_vm_get_z(const char *a_rtn_name, int a_rtn_line, ssize_t a_nr, ssize_t a_size);
+static inline void *s_vm_extend(const char *a_rtn_name, int a_rtn_line, ssize_t a_nr, ssize_t a_size);
 
-    #define DAP_FREE(a)         s_free(__func__, __LINE__, (void *) a)
-    #define DAP_DELETE(a)       s_free(__func__, __LINE__, (void *) a)
 
-    #define DAP_MALLOC(a)         malloc(a)
-    #define DAP_CALLOC(a, b)      calloc(a, b)
+    #define DAP_FREE(a)         s_vm_free(__func__, __LINE__, (void *) a)
+    #define DAP_DELETE(a)       s_vm_free(__func__, __LINE__, (void *) a)
+
+    #define DAP_MALLOC(a)       s_vm_get(__func__, __LINE__, a)
+    #define DAP_CALLOC(a, b)    s_vm_get_z(__func__, __LINE__, a, b)
     #define DAP_ALMALLOC(a, b)    _dap_aligned_alloc(a, b)
     #define DAP_ALREALLOC(a, b)   _dap_aligned_realloc(a, b)
     #define DAP_ALFREE(a)         _dap_aligned_free(a, b)
-    #define DAP_NEW( a )          DAP_CAST_REINT(a, malloc(sizeof(a)) )
-    #define DAP_NEW_SIZE(a, b)    DAP_CAST_REINT(a, malloc(b) )
+    #define DAP_NEW( a )          DAP_CAST_REINT(a, s_vm_get(__func__, __LINE__, sizeof(a)) )
+    #define DAP_NEW_SIZE(a, b)    DAP_CAST_REINT(a, s_vm_get(__func__, __LINE__, b) )
     #define DAP_NEW_S( a )        DAP_CAST_REINT(a, alloca(sizeof(a)) )
     #define DAP_NEW_S_SIZE(a, b)  DAP_CAST_REINT(a, alloca(b) )
-    #define DAP_NEW_Z( a )        DAP_CAST_REINT(a, calloc(1,sizeof(a)))
-    #define DAP_NEW_Z_SIZE(a, b)  DAP_CAST_REINT(a, calloc(1,b))
+    #define DAP_NEW_Z( a )        DAP_CAST_REINT(a, s_vm_get_z(__func__, __LINE__, 1,sizeof(a)))
+    #define DAP_NEW_Z_SIZE(a, b)  DAP_CAST_REINT(a, s_vm_get_z(__func__, __LINE__, 1,b))
     #define DAP_REALLOC(a, b)     realloc(a,b)
 
-    #define DAP_DUP(a)            memcpy(malloc(sizeof(*a)), a, sizeof(*a))
-    #define DAP_DUP_SIZE(a, s)    memcpy(malloc(s), a, s)
+    #define DAP_DUP(a)            memcpy(s_vm_get(__func__, __LINE__, sizeof(*a)), a, sizeof(*a))
+    #define DAP_DUP_SIZE(a, s)    memcpy(s_vm_get(__func__, __LINE__, s), a, s)
 
 #else
   #define DAP_MALLOC(a)         malloc(a)
@@ -552,7 +558,7 @@ void    _dump_it (const char *, unsigned , const char *a_var_name, const void *s
 #define dump_it(v,s,l)                  _dump_it( __func__, __LINE__, (v), (s), (l))
 
 
-static inline void s_free(
+static inline void s_vm_free(
             const char  *a_rtn_name,
                 int     a_rtn_line,
                 void    *a_ptr
@@ -561,10 +567,58 @@ static inline void s_free(
         if ( !a_ptr )
             return;
 
-        //log_it(L_DEBUG, "Free .........: [%p] at %s:%d", a_ptr, a_rtn_name, a_rtn_line);
+
+        log_it(L_DEBUG, "Free .........: [%p] at %s:%d", a_ptr, a_rtn_name, a_rtn_line);
         free(a_ptr);
 }
 
+
+static inline void *s_vm_get (
+            const char  *a_rtn_name,
+                int     a_rtn_line,
+                ssize_t a_size
+                )
+{
+void    *l_ptr;
+
+        if ( !a_size )
+            return  NULL;
+
+        if ( !(l_ptr = malloc(a_size)) )
+        {
+            assert ( l_ptr );
+            return  NULL;
+        }
+
+        if ( a_size > 64 )
+            log_it(L_DEBUG, "Allocated ....: [%p] %zd octets, at %s:%d", l_ptr, a_size, a_rtn_name, a_rtn_line);
+
+        return  l_ptr;
+}
+
+static inline void *s_vm_get_z(
+        const char *a_rtn_name,
+                int a_rtn_line,
+            ssize_t a_nr,
+            ssize_t a_size
+        )
+{
+void    *l_ptr;
+
+        if ( !a_size || !a_nr )
+            return  NULL;
+
+        if ( !(l_ptr = calloc(a_nr, a_size)) )
+        {
+            assert ( l_ptr );
+            return  NULL;
+        }
+
+        if ( a_size > 64 )
+            log_it(L_DEBUG, "Allocated ....: [%p] %zd octets, nr: %zd (total:%zd), at %s:%d", l_ptr, a_size, a_nr, a_nr * a_size, a_rtn_name, a_rtn_line);
+
+        return  l_ptr;
+}
 
 
 #else

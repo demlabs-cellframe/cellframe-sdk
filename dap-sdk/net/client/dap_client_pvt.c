@@ -529,8 +529,8 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                                                         s_stream_timer_timeout_check,l_stream_es_uuid_ptr);
                         }
                         else if (l_err != EINPROGRESS && l_err != -1){
-                            char l_errbuf[128];
-                            l_errbuf[0]='\0';
+                            char l_errbuf[128] = {0};
+
                             if (l_err)
                                 strerror_r(l_err,l_errbuf,sizeof (l_errbuf));
                             else
@@ -571,19 +571,13 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     size_t count_channels = a_client_pvt->active_channels? strlen(a_client_pvt->active_channels) : 0;
                     for(size_t i = 0; i < count_channels; i++) {
                         dap_stream_ch_new(a_client_pvt->stream, (uint8_t) a_client_pvt->active_channels[i]);
-                        //sid->channel[i]->ready_to_write = true;
                     }
 
-                    char* l_full_path = NULL;
-                    const char * l_path = "stream";
+                    char l_full_path[2048];
                     const char *l_suburl = "globaldb";
-                    int l_full_path_size = snprintf(l_full_path, 0, "%s/%s?session_id=%s", DAP_UPLINK_PATH_STREAM, l_suburl,
-                            dap_client_get_stream_id(a_client_pvt->client));
-                    l_full_path = DAP_NEW_Z_SIZE(char, l_full_path_size + 1);
-                    snprintf(l_full_path, l_full_path_size + 1, "%s/%s?session_id=%s", DAP_UPLINK_PATH_STREAM, l_suburl,
-                            dap_client_get_stream_id(a_client_pvt->client));
 
-                    //dap_client_request(a_client_pvt->client, l_full_path, "12345", 0, m_stream_response, m_stream_error);
+                    snprintf(l_full_path, sizeof(l_full_path) - 1, "%s/%s?session_id=%s", DAP_UPLINK_PATH_STREAM, l_suburl,
+                            dap_client_get_stream_id(a_client_pvt->client));
 
                     const char *l_add_str = "";
 
@@ -591,8 +585,6 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                                                                         "Host: %s:%d%s\r\n"
                                                                         "\r\n",
                                                l_full_path, a_client_pvt->uplink_addr, a_client_pvt->uplink_port, l_add_str);
-                    DAP_DELETE(l_full_path);
-
 
 
                     a_client_pvt->stage_status = STAGE_STATUS_DONE;
