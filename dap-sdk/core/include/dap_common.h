@@ -152,7 +152,7 @@ extern  dap_memstat_rec_t    *g_memstat [MEMSTAT$K_MAXNR];              /* Array
 static inline void s_vm_free(const char *a_rtn_name, int a_rtn_line, void *a_ptr);
 static inline void *s_vm_get(const char *a_rtn_name, int a_rtn_line, ssize_t a_size);
 static inline void *s_vm_get_z(const char *a_rtn_name, int a_rtn_line, ssize_t a_nr, ssize_t a_size);
-static inline void *s_vm_extend(const char *a_rtn_name, int a_rtn_line, ssize_t a_nr, ssize_t a_size);
+static inline void *s_vm_extend(const char *a_rtn_name, int a_rtn_line, void *a_ptr, ssize_t a_size);
 
 
     #define DAP_FREE(a)         s_vm_free(__func__, __LINE__, (void *) a)
@@ -619,6 +619,34 @@ void    *l_ptr;
 
         return  l_ptr;
 }
+
+
+
+static inline void *s_vm_extend (
+        const char *a_rtn_name,
+                int a_rtn_line,
+            void *a_ptr,
+            ssize_t a_size
+            )
+{
+void    *l_ptr;
+
+        if ( !a_size || !a_ptr )
+            return  NULL;
+
+        if ( !(l_ptr = realloc(a_ptr, a_size)) )
+        {
+            assert ( l_ptr );
+            return  NULL;
+        }
+
+        if ( a_size > 64 )
+            log_it(L_DEBUG, "Extended .....: [%p] %zd octets, nr: %zd (total:%zd), at %s:%d", l_ptr, a_size, a_ptr, a_size, a_rtn_name, a_rtn_line);
+
+        return  l_ptr;
+}
+
+
 
 
 #else
