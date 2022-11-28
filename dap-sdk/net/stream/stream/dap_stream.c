@@ -86,6 +86,16 @@ static bool s_callback_client_keepalive(void *a_arg);
 static bool s_dump_packet_headers = false;
 static bool s_debug = false;
 
+
+
+enum    {MEMSTAT$K_STM, MEMSTAT$K_NR};
+static  dap_memstat_rec_t   s_memstat [MEMSTAT$K_NR] = {
+    {.fac_len = sizeof(LOG_TAG) - 1, .fac_name = {LOG_TAG}, .alloc_sz = sizeof(dap_stream_t)},
+};
+
+
+
+
 bool dap_stream_get_dump_packet_headers(){ return  s_dump_packet_headers; }
 
 static bool s_detect_loose_packet(dap_stream_t * a_stream);
@@ -126,6 +136,11 @@ int dap_stream_init(dap_config_t * a_config)
     s_dump_packet_headers = dap_config_get_item_bool_default(g_config,"general","debug_dump_stream_headers",false);
     s_debug = dap_config_get_item_bool_default(g_config,"stream","debug",false);
     log_it(L_NOTICE,"Init streaming module");
+
+    for (int i = 0; i < MEMSTAT$K_NR; i++)
+        dap_memstat_reg(&s_memstat[i]);
+
+
 
     return 0;
 }
@@ -196,14 +211,16 @@ void stream_states_update(struct dap_stream *a_stream)
  */
 dap_stream_t * stream_new_udp(dap_events_socket_t * a_esocket)
 {
-    dap_stream_t * ret=(dap_stream_t*) calloc(1,sizeof(dap_stream_t));
+    dap_stream_t * l_stm = DAP_NEW_Z(dap_stream_t);
+    assert(l_stm);
 
-    ret->esocket = a_esocket;
+    s_memstat[MEMSTAT$K_STM].alloc_nr += 1;
 
-    a_esocket->_inheritor = ret;
+    l_stm ->esocket = a_esocket;
+    a_esocket->_inheritor = l_stm ;
 
     log_it(L_NOTICE,"New stream instance udp");
-    return ret;
+    return l_stm ;
 }
 
 /**
@@ -261,25 +278,28 @@ void check_session( unsigned int a_id, dap_events_socket_t *a_esocket )
  */
 dap_stream_t *s_stream_new(dap_http_client_t *a_http_client)
 {
-    dap_stream_t *l_ret = DAP_NEW_Z(dap_stream_t);
+    dap_stream_t *l_stm = DAP_NEW_Z(dap_stream_t);
+    assert(l_stm);
 
-    l_ret->esocket = a_http_client->esocket;
-    l_ret->stream_worker = (dap_stream_worker_t *)a_http_client->esocket->worker->_inheritor;
-    l_ret->conn_http = a_http_client;
-    l_ret->seq_id = 0;
-    l_ret->client_last_seq_id_packet = (size_t)-1;
+    s_memstat[MEMSTAT$K_STM].alloc_nr += 1;
+
+    l_stm->esocket = a_http_client->esocket;
+    l_stm->stream_worker = (dap_stream_worker_t *)a_http_client->esocket->worker->_inheritor;
+    l_stm->conn_http = a_http_client;
+    l_stm->seq_id = 0;
+    l_stm->client_last_seq_id_packet = (size_t)-1;
     // Start server keep-alive timer
     dap_events_socket_uuid_t *l_es_uuid = DAP_NEW_Z(dap_events_socket_uuid_t);
-    *l_es_uuid = l_ret->esocket->uuid;
-    l_ret->keepalive_timer = dap_timerfd_start_on_worker(l_ret->esocket->worker,
+    *l_es_uuid = l_stm->esocket->uuid;
+    l_stm->keepalive_timer = dap_timerfd_start_on_worker(l_stm->esocket->worker,
                                                          STREAM_KEEPALIVE_TIMEOUT * 1000,
                                                          (dap_timerfd_callback_t)s_callback_server_keepalive,
                                                          l_es_uuid);
-    l_ret->esocket->callbacks.worker_assign_callback = s_esocket_callback_worker_assign;
-    l_ret->esocket->callbacks.worker_unassign_callback = s_esocket_callback_worker_unassign;
-    a_http_client->_inheritor = l_ret;
+    l_stm->esocket->callbacks.worker_assign_callback = s_esocket_callback_worker_assign;
+    l_stm->esocket->callbacks.worker_unassign_callback = s_esocket_callback_worker_unassign;
+    a_http_client->_inheritor = l_stm;
     log_it(L_NOTICE,"New stream instance");
-    return l_ret;
+    return l_stm;
 }
 
 /**
@@ -289,13 +309,17 @@ dap_stream_t *s_stream_new(dap_http_client_t *a_http_client)
  */
 dap_stream_t* dap_stream_new_es_client(dap_events_socket_t * a_esocket)
 {
-    dap_stream_t *l_ret = DAP_NEW_Z(dap_stream_t);
-    l_ret->esocket = a_esocket;
-    l_ret->esocket_uuid = a_esocket->uuid;
-    l_ret->is_client_to_uplink = true;
-    l_ret->esocket->callbacks.worker_assign_callback = s_client_callback_worker_assign;
-    l_ret->esocket->callbacks.worker_unassign_callback = s_client_callback_worker_unassign;
-    return l_ret;
+    dap_stream_t *l_stm = DAP_NEW_Z(dap_stream_t);
+    assert(l_stm);
+
+    s_memstat[MEMSTAT$K_STM].alloc_nr += 1;
+
+    l_stm->esocket = a_esocket;
+    l_stm->esocket_uuid = a_esocket->uuid;
+    l_stm->is_client_to_uplink = true;
+    l_stm->esocket->callbacks.worker_assign_callback = s_client_callback_worker_assign;
+    l_stm->esocket->callbacks.worker_unassign_callback = s_client_callback_worker_unassign;
+    return l_stm;
 }
 
 /**
@@ -315,10 +339,13 @@ void dap_stream_delete(dap_stream_t *a_stream)
 
     if(a_stream->session)
         dap_stream_session_close_mt(a_stream->session->id); // TODO make stream close after timeout, not momentaly
-    a_stream->session = NULL;
-    a_stream->esocket = NULL;
+
+
     DAP_DELETE(a_stream->buf_fragments);
     DAP_DELETE(a_stream);
+
+    s_memstat[MEMSTAT$K_STM].free_nr += 1;
+
     log_it(L_NOTICE,"Stream connection is over");
 }
 
@@ -333,9 +360,12 @@ static void s_esocket_callback_delete(dap_events_socket_t* a_esocket, void * a_a
     assert (a_esocket);
 
     dap_http_client_t *l_http_client = DAP_HTTP_CLIENT(a_esocket);
-    dap_stream_t *l_stream = DAP_STREAM(l_http_client);
+    dap_stream_t *l_stm = DAP_STREAM(l_http_client);
+    assert(l_stm);
+
+
     l_http_client->_inheritor = NULL; // To prevent double free
-    dap_stream_delete(l_stream);
+    dap_stream_delete(l_stm);
 }
 
 /**
