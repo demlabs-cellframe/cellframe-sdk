@@ -590,7 +590,7 @@ void    *l_ptr;
             return  NULL;
         }
 
-        if ( a_size > 64 )
+        if ( a_size > 2048 )
             log_it(L_DEBUG, "Allocated ....: [%p] %zd octets, at %s:%d", l_ptr, a_size, a_rtn_name, a_rtn_line);
 
         return  l_ptr;
@@ -614,7 +614,7 @@ void    *l_ptr;
             return  NULL;
         }
 
-        if ( a_size > 64 )
+        if ( a_size > 2048 )
             log_it(L_DEBUG, "Allocated ....: [%p] %zd octets, nr: %zd (total:%zd), at %s:%d", l_ptr, a_size, a_nr, a_nr * a_size, a_rtn_name, a_rtn_line);
 
         return  l_ptr;
@@ -640,7 +640,7 @@ void    *l_ptr;
             return  NULL;
         }
 
-        if ( a_size > 64 )
+        if ( a_size > 2048 )
             log_it(L_DEBUG, "Extended .....: [%p] %zd octets, nr: %zd (total:%zd), at %s:%d", l_ptr, a_size, a_ptr, a_size, a_rtn_name, a_rtn_line);
 
         return  l_ptr;
