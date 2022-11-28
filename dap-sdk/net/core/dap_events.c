@@ -398,10 +398,11 @@ int dap_events_wait( dap_events_t *a_events )
     struct timespec l_tmo;
     int     l_rc;
 
-    for ( l_rc = 0; !l_rc; )
+    while (1)
     {
         clock_gettime(CLOCK_REALTIME, &l_tmo);
         l_tmo.tv_sec += 5;
+        l_rc = 0;
 
         for( uint32_t i = 0; i < s_threads_count; i ++ )
             l_rc |= pthread_timedjoin_np (s_threads[i].tid, &l_ret, &l_tmo );
