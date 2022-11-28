@@ -2390,7 +2390,8 @@ void s_com_mempool_list_print_for_chain (
             uint32_t l_tx_items_size = l_tx->header.tx_items_size;
             bool l_f_found = false;
 
-            if(l_datum->header.type_id == DAP_CHAIN_DATUM_TX){
+            switch (l_datum->header.type_id) {
+            case DAP_CHAIN_DATUM_TX:
                 while (l_tx_items_count < l_tx_items_size)
                 {
                     uint8_t *item = l_tx->tx_items + l_tx_items_count;
@@ -2409,13 +2410,16 @@ void s_com_mempool_list_print_for_chain (
                 }
                 if(!l_f_found)
                     continue;
-            }
-            if(l_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN_EMISSION)
-            {
+                break;
+            case DAP_CHAIN_DATUM_TOKEN_EMISSION:
                 if(dap_strcmp(a_add,dap_chain_addr_to_str(&(l_emission->hdr.address))))
                     continue;
                 else
                     l_objs_addr++;
+                break;
+            default:
+                continue;
+                break;
             }
         }
 
