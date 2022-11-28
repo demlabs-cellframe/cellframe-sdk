@@ -281,8 +281,8 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     DAP_DELETE(l_round_new_str);
     dap_global_db_add_sync_extra_group(l_net->pub.name, l_dag->gdb_group_events_round_new, s_history_callback_round_notify, l_dag);
     l_dag->broadcast_disable = false;
-    byte_t *l_current_round = dap_global_db_get_sync(l_gdb_group, DAG_ROUND_CURRENT_KEY, NULL, NULL, NULL);
-    l_dag->round_current = l_current_round? *(uint64_t *)l_current_round : 0;
+    byte_t *l_current_round = dap_global_db_get_sync(l_dag->gdb_group_events_round_new, DAG_ROUND_CURRENT_KEY, NULL, NULL, NULL);
+    l_dag->round_current = l_current_round ? *(uint64_t *)l_current_round : 0;
     DAP_DELETE(l_current_round);
     PVT(l_dag)->mempool_timer = dap_interval_timer_create(5000, (dap_timer_callback_t)dap_chain_node_mempool_process_all, a_chain);
     if (l_dag->is_single_line)

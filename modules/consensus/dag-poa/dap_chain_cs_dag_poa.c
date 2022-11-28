@@ -406,6 +406,10 @@ static void s_poa_round_check_callback_round_clean(dap_global_db_context_t *a_gl
         for (size_t i = 0; i < a_values_count; i++) {
             if (!strcmp(DAG_ROUND_CURRENT_KEY, a_values[i].key))
                 continue;
+            if (a_values[i].value_len <= sizeof(dap_chain_cs_dag_event_round_item_t) + sizeof(dap_chain_cs_dag_event_t)) {
+                log_it(L_WARNING, "Too small round item in DAG PoA rounds GDB group");
+                continue;
+            }
             dap_chain_cs_dag_event_round_item_t *l_event_round_item = (dap_chain_cs_dag_event_round_item_t *)a_values[i].value;
             uint64_t l_time_diff = dap_nanotime_now() - l_event_round_item->round_info.ts_update;
             uint64_t l_timeuot = dap_nanotime_from_sec(l_poa_pvt->confirmations_timeout + l_poa_pvt->wait_sync_before_complete + 10);

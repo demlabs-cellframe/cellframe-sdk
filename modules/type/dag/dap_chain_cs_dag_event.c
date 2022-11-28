@@ -289,7 +289,7 @@ bool dap_chain_cs_dag_event_gdb_set(dap_chain_cs_dag_t *a_dag, char *a_event_has
 
     l_round_item->round_info.ts_update = dap_nanotime_now();
 
-    size_t l_round_item_size = dap_chain_cs_dag_event_round_item_get_size(a_round_item);
+    size_t l_round_item_size = dap_chain_cs_dag_event_round_item_get_size(l_round_item);
     bool ret = dap_global_db_set(a_dag->gdb_group_events_round_new, a_event_hash_str, l_round_item,
                                  l_round_item_size,true, NULL, NULL) == 0;
     DAP_DELETE(l_round_item);
