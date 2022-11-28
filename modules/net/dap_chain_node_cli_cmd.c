@@ -2452,9 +2452,14 @@ void s_com_mempool_list_print_for_chain (
         dap_chain_datum_dump(a_str_tmp, l_datum, a_hash_out_type);
     }
 
-    dap_string_append_printf(a_str_tmp, l_objs_size
+    if(a_add)
+        dap_string_append_printf(a_str_tmp, l_objs_addr
+                                 ? "%s.%s: Total %zu records\n"
+                                 : "%s.%s: No records\n", a_net->pub.name, a_chain->name, l_objs_addr);
+    else
+        dap_string_append_printf(a_str_tmp, l_objs_size
                              ? "%s.%s: Total %zu records\n"
-                             : "%s.%s: No records\n", a_net->pub.name, a_chain->name, l_objs_addr ? l_objs_addr : l_objs_size);
+                             : "%s.%s: No records\n", a_net->pub.name, a_chain->name, l_objs_size);
 
     dap_chain_global_db_objs_delete(l_objs, l_objs_size);
 
