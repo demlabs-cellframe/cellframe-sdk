@@ -264,9 +264,7 @@ static void s_net_states_notify(dap_chain_net_t * l_net);
 int s_net_load(const char * a_net_name, uint16_t a_acl_idx);
 
 // Notify callback for GlobalDB changes
-static void s_gbd_history_callback_notify (void * a_arg, const char a_op_code, const char * a_group,
-                                                     const char * a_key, const void * a_value,
-                                                     const size_t a_value_len);
+static void s_gbd_history_callback_notify(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg);
 static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, void *a_atom, size_t a_atom_size);
 static int s_cli_net(int argc, char ** argv, char **str_reply);
 static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
@@ -376,7 +374,7 @@ dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net)
  *
  * @param a_callback dap_global_db_obj_callback_notify_t callback function
  */
-void dap_chain_net_add_gdb_notify_callback(dap_chain_net_t *a_net, dap_global_db_obj_callback_notify_t a_callback, void *a_cb_arg)
+void dap_chain_net_add_gdb_notify_callback(dap_chain_net_t *a_net, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg)
 {
     dap_chain_gdb_notifier_t *l_notifier = DAP_NEW(dap_chain_gdb_notifier_t);
     l_notifier->callback = a_callback;
@@ -406,123 +404,6 @@ int dap_chain_net_add_downlink(dap_chain_net_t *a_net, dap_stream_worker_t *a_wo
     pthread_rwlock_unlock(&l_net_pvt->downlinks_lock);
     return 0;
 }
-
-struct send_records_args{
-    dap_chain_net_t * net;
-    dap_proc_thread_t * proc_thread;
-    dap_store_obj_t * arg_obj;
-};
-
-/**
- * @brief s_net_send_records_callback_get
- * @param a_global_db_context
- * @param a_rc
- * @param a_store_obj
- * @param a_arg
- */
-static void s_net_send_records_callback_get_raw (dap_global_db_context_t * a_global_db_context,int a_rc, dap_store_obj_t * a_store_obj, void * a_arg)
-{
-    struct send_records_args * l_args = (struct send_records_args*) a_arg;
-    dap_chain_net_t * l_net = l_args->net;
-    dap_store_obj_t * l_arg_obj = l_args->arg_obj;
-    DAP_DEL_Z(l_args);
-
-    if (a_rc != DAP_GLOBAL_DB_RC_SUCCESS ) {
-        log_it(L_DEBUG, "Notified GDB event does not exist");
-        dap_store_obj_free_one(l_arg_obj);
-        return;
-    }
-
-    if (!a_store_obj->group || !a_store_obj->key) {
-        dap_store_obj_free_one(l_arg_obj);
-        return;
-    }
-
-    a_store_obj->type = l_arg_obj->type;
-
-    if (a_store_obj->type == DAP_DB$K_OPTYPE_DEL) {
-        DAP_DELETE(a_store_obj->group);
-        a_store_obj->group = l_arg_obj->group;
-    } else
-        DAP_DELETE(l_arg_obj->group);
-
-    DAP_DELETE(l_arg_obj->key);
-    DAP_DELETE(l_arg_obj);
-
-    pthread_rwlock_wrlock(&PVT(l_net)->gdbs_lock);
-    if (PVT(l_net)->state != NET_STATE_OFFLINE) {
-        dap_list_t *it = NULL;
-        do {
-            dap_store_obj_t *l_obj_cur = it ? (dap_store_obj_t *)it->data : a_store_obj;
-            dap_chain_t *l_chain = NULL;
-            if (l_obj_cur->type == DAP_DB$K_OPTYPE_ADD)
-                l_chain = dap_chain_get_chain_from_group_name(l_net->pub.id, a_store_obj->group);
-            dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
-            dap_chain_cell_id_t l_cell_id = l_chain ? l_chain->cells->id : (dap_chain_cell_id_t){};
-            dap_global_db_pkt_t *l_data_out = dap_store_packet_single(l_obj_cur);
-            dap_store_obj_free_one(l_obj_cur);
-            struct downlink *l_link, *l_tmp;
-            pthread_rwlock_rdlock(&PVT(l_net)->downlinks_lock);
-            HASH_ITER(hh, PVT(l_net)->downlinks, l_link, l_tmp) {
-                bool l_ch_alive = dap_stream_ch_check_uuid_mt(l_link->worker, l_link->ch_uuid);
-                if (!l_ch_alive) {
-                    HASH_DEL(PVT(l_net)->downlinks, l_link);
-                    DAP_DELETE(l_link);
-                    continue;
-                }
-                if (!dap_stream_ch_chain_pkt_write_inter( a_global_db_context->queue_worker_ch_io_input[l_link->worker->worker->id],
-                                                     l_link->ch_uuid,
-                                                     DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id.uint64,
-                                                     l_chain_id.uint64, l_cell_id.uint64, l_data_out,
-                                                     sizeof(dap_global_db_pkt_t) + l_data_out->data_size))
-                    debug_if(g_debug_reactor, L_ERROR, "Can't send pkt to worker (%d) for writing", l_link->worker->worker->id);
-            }
-            pthread_rwlock_unlock(&PVT(l_net)->downlinks_lock);
-            DAP_DELETE(l_data_out);
-            if (it)
-                PVT(l_net)->records_queue = dap_list_delete_link(PVT(l_net)->records_queue, it);
-            it = PVT(l_net)->records_queue;
-        } while (it);
-    } else
-        //PVT(l_net)->records_queue = dap_list_append(PVT(l_net)->records_queue, l_obj);
-    pthread_rwlock_unlock(&PVT(l_net)->gdbs_lock);
-}
-
-/**
- * @brief s_net_send_records
- * @param a_thread
- * @param a_arg
- * @return
- */
-static bool s_net_send_records(dap_proc_thread_t *a_thread, void *a_arg)
-{
-    UNUSED(a_thread);
-    dap_store_obj_t *l_arg_obj = (dap_store_obj_t *)a_arg;
-    dap_chain_net_t *l_net = (dap_chain_net_t *)l_arg_obj->callback_proc_thread_arg;
-
-    struct send_records_args * l_args = DAP_NEW_Z(struct send_records_args);
-    l_args->arg_obj = l_arg_obj;
-    l_args->net = l_net;
-    l_args->proc_thread = a_thread;
-
-    if (l_arg_obj->type == DAP_DB$K_OPTYPE_DEL) {
-        char *l_group = dap_strdup_printf("%s.del", l_arg_obj->group);
-        if( dap_global_db_get_raw( l_group, l_arg_obj->key, s_net_send_records_callback_get_raw,
-                           l_args) != 0 ){
-            log_it(L_ERROR, "Can't execute get request for s_net_send_records() function");
-            DAP_DELETE(l_args);
-        }
-        DAP_DELETE(l_group);
-    } else if(dap_global_db_get_raw( l_arg_obj->key, l_arg_obj->key,s_net_send_records_callback_get_raw,
-                           l_args) != 0){
-            log_it(L_ERROR, "Can't execute get request for s_net_send_records() function");
-            DAP_DELETE(l_args);
-    }
-    return true;
-}
-
-static void s_record_obj_free(void *a_obj) { return dap_store_obj_free_one((dap_store_obj_t *)a_obj); }
-
 /**
  * @brief executes, when you add data to gdb and sends it to current network connected nodes
  * @param a_arg arguments. Can be network object (dap_chain_net_t)
@@ -532,33 +413,36 @@ static void s_record_obj_free(void *a_obj) { return dap_store_obj_free_one((dap_
  * @param a_value buffer with data
  * @param a_value_size buffer size
  */
-void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const char *a_group,
-                                      const char *a_key, const void *a_value, const size_t a_value_size)
+void dap_chain_net_sync_gdb_broadcast(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg)
 {
-    UNUSED(a_value);
-    UNUSED(a_value_size);
-    if (!a_arg || !a_group || !a_key){
+    if (!a_arg || !a_obj || !a_obj->group || !a_obj->key)
         return;
-    }
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
-    if (!HASH_COUNT(PVT(l_net)->downlinks)) {
-        if (PVT(l_net)->records_queue) {
-            pthread_rwlock_wrlock(&PVT(l_net)->gdbs_lock);
-            dap_list_free_full(PVT(l_net)->records_queue, s_record_obj_free);
-            PVT(l_net)->records_queue = NULL;
-            pthread_rwlock_unlock(&PVT(l_net)->gdbs_lock);
+    if (PVT(l_net)->state != NET_STATE_SYNC_GDB) {
+        dap_chain_t *l_chain = NULL;
+        if (a_obj->type == DAP_DB$K_OPTYPE_ADD)
+            l_chain = dap_chain_get_chain_from_group_name(l_net->pub.id, a_obj->group);
+        dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
+        dap_chain_cell_id_t l_cell_id = l_chain ? l_chain->cells->id : (dap_chain_cell_id_t){};
+        dap_global_db_pkt_t *l_data_out = dap_store_packet_single(a_obj);
+        struct downlink *l_link, *l_tmp;
+        pthread_rwlock_rdlock(&PVT(l_net)->downlinks_lock);
+        HASH_ITER(hh, PVT(l_net)->downlinks, l_link, l_tmp) {
+            bool l_ch_alive = dap_stream_ch_check_uuid_mt(l_link->worker, l_link->ch_uuid);
+            if (!l_ch_alive) {
+                HASH_DEL(PVT(l_net)->downlinks, l_link);
+                DAP_DELETE(l_link);
+                continue;
+            }
+            if (!dap_stream_ch_chain_pkt_write_inter(a_context->queue_worker_ch_io_input[l_link->worker->worker->id],
+                                                 l_link->ch_uuid,
+                                                 DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id.uint64,
+                                                 l_chain_id.uint64, l_cell_id.uint64, l_data_out,
+                                                 sizeof(dap_global_db_pkt_t) + l_data_out->data_size))
+                debug_if(g_debug_reactor, L_ERROR, "Can't send pkt to worker (%d) for writing", l_link->worker->worker->id);
         }
-        return;
+        pthread_rwlock_unlock(&PVT(l_net)->downlinks_lock);
     }
-    // Use it instead of new type definition to pack params in one callback arg
-    dap_store_obj_t *l_obj = DAP_NEW(dap_store_obj_t);
-    l_obj->type = a_op_code;
-    l_obj->key = dap_strdup(a_key);
-    l_obj->key_len = dap_strlen(l_obj->key)+1;
-    l_obj->group = dap_strdup(a_group);
-    l_obj->callback_proc_thread_arg = a_arg;
-
-    dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_net_send_records, l_obj);
 }
 
 static void s_atom_obj_free(void *a_atom_obj)
@@ -647,20 +531,17 @@ static void s_chain_callback_notify(void *a_arg, dap_chain_t *a_chain, dap_chain
  * @param a_value buffer with data
  * @param a_value_len buffer size
  */
-static void s_gbd_history_callback_notify(void *a_arg, const char a_op_code, const char *a_group,
-                                          const char *a_key, const void *a_value, const size_t a_value_len)
+static void s_gbd_history_callback_notify(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg)
 {
-    if (!a_arg) {
+    if (!a_obj || !a_arg)
         return;
-    }
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     for (dap_list_t *it = PVT(l_net)->gdb_notifiers; it; it = it->next) {
         dap_chain_gdb_notifier_t *el = (dap_chain_gdb_notifier_t *)it->data;
         if (!el)
             continue;
-        dap_global_db_obj_callback_notify_t l_callback = el->callback;
-        if (l_callback)
-            l_callback(el->cb_arg, a_op_code, a_group, a_key, a_value, a_value_len);
+        if (el->callback)
+            el->callback(a_context, a_obj, el->cb_arg);
     }
     dap_chain_t *l_chain;
     DL_FOREACH(l_net->pub.chains, l_chain) {
@@ -668,14 +549,13 @@ static void s_gbd_history_callback_notify(void *a_arg, const char a_op_code, con
             continue;
         }
         char *l_gdb_group_str = dap_chain_net_get_gdb_group_mempool_new(l_chain);
-        if (!strcmp(a_group, l_gdb_group_str)) {
+        if (!strcmp(a_obj->group, l_gdb_group_str)) {
             for (dap_list_t *it = DAP_CHAIN_PVT(l_chain)->mempool_notifires; it; it = it->next) {
                 dap_chain_gdb_notifier_t *el = (dap_chain_gdb_notifier_t *)it->data;
                 if (!el)
                     continue;
-                dap_global_db_obj_callback_notify_t l_callback = el->callback;
-                if (l_callback)
-                    l_callback(el->cb_arg, a_op_code, a_group, a_key, a_value, a_value_len);
+                if (el->callback)
+                    el->callback(a_context, a_obj, el->cb_arg);
             }
         }
         DAP_DELETE(l_gdb_group_str);

@@ -132,15 +132,14 @@ int dap_chain_gdb_init(void)
  * @param a_value buffer with data
  * @param a_value_len buffer size
  */
-static void s_history_callback_notify(void * a_arg, const char a_op_code, const char * a_group,
-        const char * a_key, const void * a_value, const size_t a_value_size)
+static void s_history_callback_notify(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg)
 {
     if (a_arg){
         dap_chain_gdb_t * l_gdb = (dap_chain_gdb_t *) a_arg;
         dap_chain_net_t *l_net = dap_chain_net_by_id( l_gdb->chain->net_id);
         log_it(L_DEBUG,"%s.%s: op_code='%c' group=\"%s\" key=\"%s\" value_size=%zu",l_net->pub.name,
-               l_gdb->chain->name, a_op_code, a_group, a_key, a_value_size);
-        dap_chain_net_sync_gdb_broadcast((void *)l_net, a_op_code, a_group, a_key, a_value, a_value_size);
+               l_gdb->chain->name, a_obj->type, a_obj->group, a_obj->key, a_obj->value_len);
+        dap_chain_net_sync_gdb_broadcast(a_context, a_obj, l_net);
     }
 }
 

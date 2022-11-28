@@ -58,13 +58,12 @@ char *s_server_continents[]={
 
 struct dap_order_notify {
     dap_chain_net_t *net;
-    dap_global_db_obj_callback_notify_t callback;
+    dap_store_obj_callback_notify_t callback;
     void *cb_arg;
 };
 
 static dap_list_t *s_order_notify_callbacks = NULL;
-static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const char *a_group,
-                                   const char *a_key, const void *a_value, const size_t a_value_len);
+static void s_srv_order_callback_notify(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg);
 
 /**
  * @brief dap_chain_net_srv_order_init
@@ -586,10 +585,9 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
     }
 }
 
-static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const char *a_group,
-                                   const char *a_key, const void *a_value, const size_t a_value_len)
+static void s_srv_order_callback_notify(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg)
 {
-    if (!a_arg || !a_key)
+    if (!a_arg || !a_obj || !a_obj->key)
         return;
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     dap_global_db_context_t * l_gdb_context = dap_global_db_context_current();
@@ -598,27 +596,26 @@ static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const
 
     char *l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(l_net);
 
-    if (!dap_strcmp(a_group, l_gdb_group_str)) {
+    if (!dap_strcmp(a_obj->group, l_gdb_group_str)) {
         for (dap_list_t *it = s_order_notify_callbacks; it; it = it->next) {
             struct dap_order_notify *l_notifier = (struct dap_order_notify *)it->data;
             if ((l_notifier->net == NULL || l_notifier->net == l_net) &&
                         l_notifier->callback) {
-                l_notifier->callback(l_notifier->cb_arg, a_op_code, a_group,
-                                     a_key, a_value, a_value_len);
+                l_notifier->callback(a_context, a_obj, l_notifier->cb_arg);
             }
         }
-        if (a_value && a_op_code == DAP_DB$K_OPTYPE_ADD &&
+        if (a_obj->value && a_obj->type == DAP_DB$K_OPTYPE_ADD &&
                 dap_config_get_item_bool_default(g_config, "srv", "order_signed_only", true)) {
-            dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)a_value;
+            dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)a_obj->value;
             if (l_order->version != 2) {
-                dap_global_db_del_unsafe(l_gdb_context, a_group, a_key);
+                dap_global_db_del_unsafe(l_gdb_context, a_obj->group, a_obj->key);
             } else {
                 dap_sign_t *l_sign = (dap_sign_t *)(l_order->ext_n_sign + l_order->ext_size);
-                size_t l_max_size = a_value_len - sizeof(dap_chain_net_srv_order_t) - l_order->ext_size;
+                size_t l_max_size = a_obj->value_len - sizeof(dap_chain_net_srv_order_t) - l_order->ext_size;
                 int l_verify = dap_sign_verify_all(l_sign, l_max_size, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size);
                 if (l_verify) {
                     log_it(L_ERROR, "Order unverified, err %d", l_verify);
-                    dap_global_db_del_unsafe(l_gdb_context, a_group, a_key);
+                    dap_global_db_del_unsafe(l_gdb_context, a_obj->group, a_obj->key);
                 }
                 /*dap_chain_hash_fast_t l_pkey_hash;
                 if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash)) {
@@ -639,7 +636,7 @@ static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const
     DAP_DELETE(l_gdb_group_str);
 }
 
-void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_global_db_obj_callback_notify_t a_callback, void *a_cb_arg)
+void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg)
 {
     struct dap_order_notify *l_notifier = DAP_NEW(struct dap_order_notify);
     l_notifier->net = a_net;

@@ -169,20 +169,19 @@ void dap_chain_cs_dag_deinit(void)
 
 }
 
-static void s_history_callback_round_notify(void *a_arg, const char a_op_code, const char *a_group,
-                                        const char *a_key, const void *a_value, const size_t a_value_size)
+static void s_history_callback_round_notify(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg)
 {
     dap_chain_cs_dag_t *l_dag = (dap_chain_cs_dag_t *)a_arg;
     assert(l_dag);
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_dag->chain->net_id);
     debug_if(s_debug_more, L_DEBUG, "%s.%s: op_code='%c' group=\"%s\" key=\"%s\" value_size=%zu",
-        l_net->pub.name, l_dag->chain->name, a_op_code, a_group, a_key, a_value_size);
-    if (a_op_code == DAP_DB$K_OPTYPE_ADD &&
+        l_net->pub.name, l_dag->chain->name, a_obj->type, a_obj->group, a_obj->key, a_obj->value_len);
+    if (a_obj->type == DAP_DB$K_OPTYPE_ADD &&
                         l_dag->callback_cs_event_round_sync) {
         if (!l_dag->broadcast_disable)
-            dap_chain_cs_dag_event_broadcast(l_dag, a_op_code, a_group, a_key, a_value, a_value_size);
-        if (dap_strcmp(a_key, DAG_ROUND_CURRENT_KEY))   // check key for round increment, if no than process event
-            l_dag->callback_cs_event_round_sync(l_dag, a_op_code, a_group, a_key, a_value, a_value_size);
+            dap_chain_cs_dag_event_broadcast(l_dag, a_obj, a_context);
+        if (dap_strcmp(a_obj->key, DAG_ROUND_CURRENT_KEY))   // check key for round increment, if no than process event
+            l_dag->callback_cs_event_round_sync(l_dag, a_obj->type, a_obj->group, a_obj->key, a_obj->value, a_obj->value_len);
     }
 }
 

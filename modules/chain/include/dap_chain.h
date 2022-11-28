@@ -27,7 +27,7 @@
 #include <stdbool.h>
 #include <pthread.h>
 #include "dap_global_db.h"
-#include "dap_global_db_sync.h"
+#include "dap_global_db_remote.h"
 #include "dap_config.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
@@ -178,7 +178,7 @@ typedef struct dap_chain {
 } dap_chain_t;
 
 typedef struct dap_chain_gdb_notifier {
-    dap_global_db_obj_callback_notify_t callback;
+    dap_store_obj_callback_notify_t callback;
     void *cb_arg;
 } dap_chain_gdb_notifier_t;
 
@@ -213,5 +213,5 @@ void dap_chain_add_callback_notify(dap_chain_t * a_chain, dap_chain_callback_not
 dap_chain_atom_ptr_t dap_chain_get_atom_by_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
 bool dap_chain_get_atom_last_hash(dap_chain_t *a_chain, dap_hash_fast_t *a_atom_hash, dap_chain_cell_id_t a_cel_id);
 ssize_t dap_chain_atom_save(dap_chain_t *a_chain, const uint8_t *a_atom, size_t a_atom_size, dap_chain_cell_id_t a_cell_id);
-void dap_chain_add_mempool_notify_callback(dap_chain_t *a_chain, dap_global_db_obj_callback_notify_t a_callback, void *a_cb_arg);
+void dap_chain_add_mempool_notify_callback(dap_chain_t *a_chain, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg);
 int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name);

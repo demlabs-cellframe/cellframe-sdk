@@ -62,11 +62,8 @@ typedef struct dap_chain_cs_dag_event_round_item {
 
 typedef struct dap_chain_cs_dag_event_round_broadcast {
     dap_chain_cs_dag_t *dag;
-    char op_code;
-    char *group;
-    char *key;
-    void *value;
-    size_t value_size;
+    dap_store_obj_t *obj;
+    dap_global_db_context_t *context;
     int attempts;
 } dap_chain_cs_dag_event_round_broadcast_t;
 
@@ -163,8 +160,7 @@ static inline size_t dap_chain_cs_dag_event_round_item_get_size(dap_chain_cs_dag
     return sizeof(dap_chain_cs_dag_event_round_item_t)+a_event_round_item->data_size;
 }
 
-void dap_chain_cs_dag_event_broadcast(dap_chain_cs_dag_t *a_dag, const char a_op_code, const char *a_group,
-        const char *a_key, const void *a_value, const size_t a_value_size);
+void dap_chain_cs_dag_event_broadcast(dap_chain_cs_dag_t *a_dag, dap_store_obj_t *a_obj, dap_global_db_context_t *a_context);
 
 bool dap_chain_cs_dag_event_gdb_set(dap_chain_cs_dag_t *a_dag, char *a_event_hash_str, dap_chain_cs_dag_event_t *a_event,
                                     size_t a_event_size, dap_chain_cs_dag_event_round_item_t *a_round_item);
