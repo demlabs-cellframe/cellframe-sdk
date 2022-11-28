@@ -2326,8 +2326,6 @@ size_t dap_events_socket_write_unsafe(dap_events_socket_t *a_es, const void * a_
                 l_new_size = DAP_EVENTS_SOCKET_BUF_LIMIT;
             a_es->buf_out = DAP_REALLOC(a_es->buf_out, l_new_size);
             a_es->buf_out_size_max = l_new_size;
-
-            s_memstat[MEMSTAT$K_BUF_OUT_EXT].alloc_nr;
         }
      }
      a_data_size = (a_es->buf_out_size + a_data_size < a_es->buf_out_size_max) ? a_data_size : (a_es->buf_out_size_max - a_es->buf_out_size);
