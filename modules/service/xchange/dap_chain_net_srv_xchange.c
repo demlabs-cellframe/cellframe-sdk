@@ -84,7 +84,7 @@ int dap_chain_net_srv_xchange_init()
     dap_chain_node_cli_cmd_item_create("srv_xchange", s_cli_srv_xchange, "eXchange service commands",
 
     "srv_xchange order create -net <net_name> -token_sell <token_ticker> -token_buy <token_ticker> -wallet <wallet_name>"
-                                            " -coins <value> -rate <value> -fee <value>\n"
+                                            " -value <value> -rate <value> -fee <value>\n"
         "\tCreate a new order and tx with specified amount of datoshi to exchange with specified rate (buy / sell)\n"
     "srv_xchange order remove -net <net_name> -order <order_hash> -wallet <wallet_name>\n"
          "\tRemove order with specified order hash in specified net name\n"
@@ -429,7 +429,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
         }
         // Validator's fee
         if (!IS_ZERO_256(a_price->fee)) {
-            if (dap_chain_datum_tx_add_fee_item(&l_tx, a_price->fee) == 1) {
+            if (dap_chain_datum_tx_add_fee_item(&l_tx, a_price->fee) != 1) {
                 dap_chain_datum_tx_delete(l_tx);
                 DAP_DELETE(l_seller_addr);
                 log_it(L_ERROR, "Cant add validator's fee output");
@@ -896,9 +896,10 @@ char *s_xchange_order_create(dap_chain_net_srv_xchange_price_t *a_price, dap_cha
  * @brief s_xchange_price_from_order
  * @param a_net
  * @param a_order
+ * @param a_ret_is_invalid
  * @return
  */
-dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a_net, dap_chain_net_srv_order_t *a_order)
+dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a_net, dap_chain_net_srv_order_t *a_order, bool a_ret_is_invalid)
 {
     dap_chain_net_srv_xchange_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_xchange_price_t);
     dap_srv_xchange_order_ext_t *l_ext = (dap_srv_xchange_order_ext_t *)a_order->ext_n_sign;
@@ -914,8 +915,14 @@ dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a
         if (l_final_hash) {
             l_price->tx_hash = *l_final_hash;
             return l_price;
-        } else
+        } else {
             log_it(L_WARNING, "This order have no active conditional transaction");
+            if (a_ret_is_invalid) {
+                dap_hash_fast_t l_tx_hash_zero = {0};
+                l_price->tx_hash = l_tx_hash_zero;
+                return l_price;
+            }
+        }
     } else
         log_it(L_WARNING, "Can't calculate price rate, because amount od datoshi sell is zero");
     DAP_DELETE(l_price);
@@ -987,14 +994,14 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 return -6;
             }
             const char *l_val_sell_str = NULL, *l_val_rate_str = NULL;
-            dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-coins", &l_val_sell_str);
+            dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_val_sell_str);
             if (!l_val_sell_str) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'price create' required parameter -coins");
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'price create' required parameter -value");
                 return -8;
             }
             uint256_t l_datoshi_sell = dap_chain_balance_scan(l_val_sell_str);
             if (IS_ZERO_256(l_datoshi_sell)) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Format -coins <unsigned integer 256>");
+                dap_chain_node_cli_set_reply_text(a_str_reply, "Format -value <unsigned integer 256>");
                 return -9;
             }
             dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-rate", &l_val_rate_str);
@@ -1003,7 +1010,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 return -8;
             }
             uint256_t l_rate = dap_chain_coins_to_balance(l_val_rate_str);
-            if (!IS_ZERO_256(l_rate)) {
+            if (IS_ZERO_256(l_rate)) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Format -rate n.n = buy / sell (eg: 1.0, 1.135)");
                 return -9;
             }
@@ -1013,8 +1020,8 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Command 'price create' required parameter -fee");
                 return -20;
             }
-            uint256_t l_fee = dap_chain_coins_to_balance(l_fee_str);
-            if (!IS_ZERO_256(l_fee)) {
+            uint256_t l_fee = dap_chain_balance_scan(l_fee_str);
+            if (IS_ZERO_256(l_fee)) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Format -fee <unsigned integer 256>");
                 return -21;
             }
@@ -1204,7 +1211,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Specified order not found");
                 return -13;
             }
-            dap_chain_net_srv_xchange_price_t *l_price = s_xchange_price_from_order(l_net, l_order);
+            dap_chain_net_srv_xchange_price_t *l_price = s_xchange_price_from_order(l_net, l_order, false);
             if (!l_order) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "Can't create price object from order");
                 return -13;
@@ -1671,7 +1678,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                     continue;
 
                 // TODO add filters to list (tokens, network, etc.)
-                l_price = s_xchange_price_from_order(l_net, l_order);
+                l_price = s_xchange_price_from_order(l_net, l_order, true);
                 if( !l_price ){
                     log_it(L_WARNING,"Can't create price from order");
                     continue;
@@ -1679,11 +1686,17 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 
                 uint256_t l_datoshi_buy;
                 char *l_cp1, *l_cp2, *l_cp3;
+                char* l_status_order;
+                dap_hash_fast_t l_hash_fast_ref = {0};
+                if (dap_hash_fast_compare(&l_price->tx_hash, &l_hash_fast_ref))
+                    l_status_order  = "INVALID";
+                else
+                    l_status_order = "UNKNOWN";
 
                 MULT_256_COIN(l_price->datoshi_sell, l_price->rate, &l_datoshi_buy);  /* sell/buy computation */
 
-                dap_string_append_printf(l_reply_str, "orderHash: %s tokSel: %s, net: %s, tokBuy: %s, sell: %s, buy: %s buy/sell: %s\n", l_orders[i].key,
-                                         l_price->token_sell, l_price->net->pub.name,
+                dap_string_append_printf(l_reply_str, "orderHash: %s (%s) tokSel: %s, net: %s, tokBuy: %s, sell: %s, buy: %s buy/sell: %s\n", l_orders[i].key,
+                                         l_status_order, l_price->token_sell, l_price->net->pub.name,
                                          l_price->token_buy,
                                          l_cp1 = dap_chain_balance_print(l_price->datoshi_sell), l_cp2 = dap_chain_balance_print(l_datoshi_buy),
                                          l_cp3 = dap_chain_balance_to_coins(l_price->rate));
@@ -1742,7 +1755,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
             }
             dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_find_by_hash_str(l_net, l_order_hash_str);
             if (l_order) {
-                dap_chain_net_srv_xchange_price_t *l_price = s_xchange_price_from_order(l_net, l_order);
+                dap_chain_net_srv_xchange_price_t *l_price = s_xchange_price_from_order(l_net, l_order, false);
                 if(!l_price){
                     dap_chain_node_cli_set_reply_text(a_str_reply, "Can't create price from order");
                     return -13;
