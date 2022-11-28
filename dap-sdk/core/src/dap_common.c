@@ -1538,13 +1538,11 @@ dap_memstat_rec_t   *l_memstat_rec;
 
     for ( uint64_t i = 0; i < s_memstat_nr; i++)
     {
-        l_memstat_rec = g_memstat[i];
-
-        log_it(L_INFO, "[<%.*s>, %zu octets] allocations/deallocations: %lld/%lld (%lld octets still is allocated)",
-            l_memstat_rec->fac_len, l_memstat_rec->fac_name, l_memstat_rec->alloc_sz,
-            l_memstat_rec->alloc_nr, l_memstat_rec->free_nr,
-            (l_memstat_rec->free_nr - l_memstat_rec->alloc_nr) * l_memstat_rec->alloc_sz);
-
+        if ( (l_memstat_rec = g_memstat[i]) )
+            log_it(L_INFO, "[<%.*s>, %zu octets] allocations/deallocations: %lld/%lld (%lld octets still is allocated)",
+                l_memstat_rec->fac_len, l_memstat_rec->fac_name, l_memstat_rec->alloc_sz,
+                l_memstat_rec->alloc_nr, l_memstat_rec->free_nr,
+                (l_memstat_rec->alloc_nr - l_memstat_rec->free_nr) * l_memstat_rec->alloc_sz);
     }
 }
 
