@@ -674,12 +674,6 @@ static void s_gdb_in_pkt_proc_callback_get_ts_callback(dap_global_db_context_t *
     struct sync_request *l_sync_request = (struct sync_request *) a_arg;
     assert(l_sync_request);
     dap_store_obj_t * l_obj = l_sync_request->obj;
-    if (a_rc != DAP_GLOBAL_DB_RC_SUCCESS){
-        log_it (L_ERROR, "Can't get delete timestamp for %s:%s", a_group, a_key);
-        dap_store_obj_free_one(l_sync_request->obj);
-        DAP_DELETE(l_sync_request);
-        return;
-    }
     //check whether to apply the received data into the database
     bool l_apply = false;
     // timestamp for exist obj
@@ -687,7 +681,7 @@ static void s_gdb_in_pkt_proc_callback_get_ts_callback(dap_global_db_context_t *
     // Limit time
     dap_nanotime_t l_limit_time = l_sync_request->limit_time;
     // Deleted time
-    dap_nanotime_t l_timestamp_del = a_value_ts;
+    dap_nanotime_t l_timestamp_del = (a_rc == DAP_GLOBAL_DB_RC_SUCCESS) ? a_value_ts : 0;
     // check the applied object newer that we have stored or erased
     if (l_obj->timestamp > (uint64_t)l_timestamp_del &&
             l_obj->timestamp > (uint64_t)l_timestamp_cur &&
