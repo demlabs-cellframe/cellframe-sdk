@@ -366,7 +366,7 @@ static int node_info_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
     if(a_key)
     {
         // delete node
-        bool res = dap_chain_global_db_gr_del(dap_strdup(a_key), a_net->pub.gdb_nodes);
+        bool res = dap_chain_global_db_gr_del(a_key, a_net->pub.gdb_nodes);
         if(res) {
             // delete all aliases for node address
             {
@@ -2278,7 +2278,7 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                 DAP_DELETE(l_datum_token);
                 // Calc datum's hash
                 dap_chain_hash_fast_t l_key_hash={};
-                dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_key_hash);
+                dap_hash_fast(l_datum->data, l_token_size, &l_key_hash);
                 char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
                 char * l_key_str_base58 = dap_enc_base58_encode_hash_to_str(&l_key_hash);
                 const char * l_key_out_str;
@@ -2288,11 +2288,11 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                     l_key_out_str = l_key_str_base58;
 
                 // Add datum to mempool with datum_token hash as a key
-                if(dap_chain_global_db_gr_set(dap_strdup(l_key_str), (uint8_t *) l_datum, l_datum_size, l_gdb_group_mempool)) {
+                if(dap_chain_global_db_gr_set(l_key_str, (uint8_t *) l_datum, l_datum_size, l_gdb_group_mempool)) {
 
                     char* l_hash_str = l_datum_hash_hex_str;
                     // Remove old datum from pool
-                    if( dap_chain_global_db_gr_del( dap_strdup(l_hash_str) , l_gdb_group_mempool)) {
+                    if( dap_chain_global_db_gr_del(l_hash_str, l_gdb_group_mempool)) {
                         dap_chain_node_cli_set_reply_text(a_str_reply,
                                 "datum %s is replacing the %s in datum pool",
                                 l_key_out_str, l_datum_hash_out_str);
@@ -2657,7 +2657,7 @@ int com_mempool_proc(int argc, char ** argv, char ** a_str_reply)
                             ret = -6;
                         }else{
                             dap_string_append_printf(l_str_tmp, "Datum processed well. ");
-                            if (!dap_chain_global_db_gr_del( dap_strdup(l_datum_hash_hex_str), l_gdb_group_mempool)){
+                            if (!dap_chain_global_db_gr_del(l_datum_hash_hex_str, l_gdb_group_mempool)){
                                 dap_string_append_printf(l_str_tmp, "Warning! Can't delete datum from mempool!");
                             }else
                                 dap_string_append_printf(l_str_tmp, "Removed datum from mempool.");
