@@ -84,7 +84,7 @@ char* dap_chain_addr_to_str(const dap_chain_addr_t *a_addr)
     if ( a_addr ==NULL)
         return  NULL;
 
-    if (dap_chain_addr_is_blank(a_addr)) return "null";
+    if (dap_chain_addr_is_blank(a_addr)) return dap_strdup("null");
 
     size_t l_ret_size = DAP_ENC_BASE58_ENCODE_SIZE(sizeof(dap_chain_addr_t));
     char * l_ret = DAP_NEW_SIZE(char, l_ret_size);
