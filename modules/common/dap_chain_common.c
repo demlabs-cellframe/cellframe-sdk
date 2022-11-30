@@ -107,10 +107,7 @@ dap_chain_addr_t* dap_chain_addr_from_str(const char *a_str)
     if(l_str_len <= 0)
         return NULL;
     if (dap_strcmp(a_str, "null") == 0) {
-        dap_chain_addr_t l_blank_addr = {0};
-        dap_chain_addr_t *l_addr = DAP_NEW(dap_chain_addr_t);
-        memcpy(l_addr, &l_blank_addr, sizeof(dap_chain_addr_t));
-        return l_addr;
+        return DAP_NEW_Z(dap_chain_addr_t);
     }
     size_t l_ret_size = DAP_ENC_BASE58_DECODE_SIZE(l_str_len);
     dap_chain_addr_t * l_addr = DAP_NEW_Z_SIZE(dap_chain_addr_t, l_ret_size);
@@ -124,7 +121,7 @@ dap_chain_addr_t* dap_chain_addr_from_str(const char *a_str)
 
 bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr){
     dap_chain_addr_t l_addr_blank = {0};
-    return memcmp(a_addr, &l_addr_blank, sizeof(dap_chain_addr_t)) ? false : true;
+    return !memcmp(a_addr, &l_addr_blank, sizeof(dap_chain_addr_t));
 }
 
 #if 0
