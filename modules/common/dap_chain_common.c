@@ -84,6 +84,8 @@ char* dap_chain_addr_to_str(const dap_chain_addr_t *a_addr)
     if ( a_addr ==NULL)
         return  NULL;
 
+    if (dap_chain_addr_is_blank(a_addr)) return dap_strdup("null");
+
     size_t l_ret_size = DAP_ENC_BASE58_ENCODE_SIZE(sizeof(dap_chain_addr_t));
     char * l_ret = DAP_NEW_SIZE(char, l_ret_size);
     if(dap_enc_base58_encode(a_addr, sizeof(dap_chain_addr_t), l_ret) > 0)
@@ -104,6 +106,9 @@ dap_chain_addr_t* dap_chain_addr_from_str(const char *a_str)
     size_t l_str_len = (a_str) ? strlen(a_str) : 0;
     if(l_str_len <= 0)
         return NULL;
+    if (dap_strcmp(a_str, "null") == 0) {
+        return DAP_NEW_Z(dap_chain_addr_t);
+    }
     size_t l_ret_size = DAP_ENC_BASE58_DECODE_SIZE(l_str_len);
     dap_chain_addr_t * l_addr = DAP_NEW_Z_SIZE(dap_chain_addr_t, l_ret_size);
     if(dap_enc_base58_decode(a_str, l_addr) == sizeof(dap_chain_addr_t) &&
@@ -112,6 +117,11 @@ dap_chain_addr_t* dap_chain_addr_from_str(const char *a_str)
     else
         DAP_DELETE(l_addr);
     return NULL;
+}
+
+bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr){
+    dap_chain_addr_t l_addr_blank = {0};
+    return !memcmp(a_addr, &l_addr_blank, sizeof(dap_chain_addr_t));
 }
 
 /**
@@ -207,6 +217,7 @@ int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr)
 {
     if(!a_addr)
         return -1;
+    if (dap_chain_addr_is_blank(a_addr)) return 1;
     dap_chain_hash_fast_t l_checksum;
     // calc checksum
     dap_hash_fast(a_addr, sizeof(dap_chain_addr_t) - sizeof(dap_chain_hash_fast_t), &l_checksum);
