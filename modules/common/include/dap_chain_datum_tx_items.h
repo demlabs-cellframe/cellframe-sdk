@@ -41,7 +41,7 @@
 #include "dap_chain_datum_tx_pkey.h"
 #include "dap_chain_datum_tx_token.h"
 #include "dap_chain_datum_tx_receipt.h"
-
+#include "dap_chain_datum_tx_tsd.h"
 /**
  * Get item type
  *
@@ -74,6 +74,7 @@ DAP_STATIC_INLINE const char * dap_chain_datum_tx_item_type_to_str(dap_chain_tx_
         case TX_ITEM_TYPE_IN_COND: return "TX_ITEM_TYPE_IN_COND";
         case TX_ITEM_TYPE_OUT_COND: return "TX_ITEM_TYPE_OUT_COND"; // 256
         case TX_ITEM_TYPE_RECEIPT: return "TX_ITEM_TYPE_RECEIPT";
+        case TX_ITEM_TYPE_TSD: return "TX_ITEM_TYPE_TSD";
         case TX_ITEM_TYPE_OUT_ALL: return "TX_ITEM_TYPE_OUT_OLDALL";
         case TX_ITEM_TYPE_ANY: return "TX_ITEM_TYPE_ANY";
         default: return "UNDEFINED";
@@ -115,6 +116,7 @@ dap_chain_tx_token_t *dap_chain_datum_tx_item_token_create(dap_chain_id_t a_id, 
  */
 dap_chain_tx_in_t* dap_chain_datum_tx_item_in_create(dap_chain_hash_fast_t *a_tx_prev_hash, uint32_t a_tx_out_prev_idx);
 
+dap_chain_tx_tsd_t *dap_chain_datum_tx_item_tsd_create(void *a_data, int a_type, size_t a_size);
 
 dap_chain_tx_in_cond_t* dap_chain_datum_tx_item_in_cond_create(dap_chain_hash_fast_t *a_tx_prev_hash, uint32_t a_tx_out_prev_idx,
                                                                uint32_t a_receipt_idx);
@@ -179,6 +181,8 @@ dap_chain_tx_sig_t *dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, co
  */
 dap_sign_t *dap_chain_datum_tx_item_sign_get_sig(dap_chain_tx_sig_t *a_tx_sig);
 
+byte_t *dap_chain_datum_tx_item_get_data(dap_chain_tx_tsd_t *a_tx_tsd, int *a_type, size_t *a_size);
+
 /**
  * Get item from transaction
  *
@@ -188,6 +192,7 @@ dap_sign_t *dap_chain_datum_tx_item_sign_get_sig(dap_chain_tx_sig_t *a_tx_sig);
  * a_item_out_size size[out] size of returned item
  * return item data, NULL Error index or bad format transaction
  */
+
 uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_idx_start,
         dap_chain_tx_item_type_t a_type, int *a_item_out_size);
 
