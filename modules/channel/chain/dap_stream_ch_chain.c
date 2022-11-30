@@ -918,6 +918,7 @@ static void s_chain_timer_reset(dap_stream_ch_chain_t *a_ch_chain)
     if (!a_ch_chain->activity_timer) {
         dap_stream_ch_chain_timer_start( a_ch_chain);
     }
+
     a_ch_chain->timer_shots = 0;
 }
 
@@ -940,12 +941,18 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         log_it(L_ERROR, "No chain in channel, returning");
         return;
     }
+
+    debug_if(s_debug_more, L_DEBUG, "[stm_ch:%p, stm_ch_chain:%p] --- entering ...", a_ch, l_ch_chain);
+
+
     dap_stream_ch_pkt_t * l_ch_pkt = (dap_stream_ch_pkt_t *) a_arg;
     dap_stream_ch_chain_pkt_t * l_chain_pkt = (dap_stream_ch_chain_pkt_t *) l_ch_pkt->data;
+
     if (!l_chain_pkt) {
         log_it(L_ERROR, "No chain packet in channel packet, returning");
         return;
     }
+
     if (l_ch_pkt->hdr.size < sizeof (l_chain_pkt->hdr)){
         log_it(L_ERROR, "Corrupted packet: too small size %u, smaller then header size %zu", l_ch_pkt->hdr.size,
                sizeof(l_chain_pkt->hdr));
@@ -953,6 +960,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     }
     size_t l_chain_pkt_data_size = l_ch_pkt->hdr.size-sizeof (l_chain_pkt->hdr);
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_chain_pkt->hdr.net_id);
+
     if (!l_net) {
         if (l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR) {
             if(l_ch_chain->callback_notify_packet_in) {
@@ -972,6 +980,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         }
         return;
     }
+
     /*if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
         s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
                                             l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
@@ -993,10 +1002,17 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         return;
     }
     s_chain_timer_reset(l_ch_chain);
-    switch (l_ch_pkt->hdr.type) {
+
+
+    debug_if(s_debug_more, L_DEBUG, "[stm_ch:%p, stm_ch_chain:%p, ch_pkt:%p] l_ch_pkt->hdr.type:%d ",
+             a_ch, l_ch_chain, l_ch_pkt, l_ch_pkt->hdr.type);
+
+    switch (l_ch_pkt->hdr.type)
+    {
         /// --- GDB update ---
         // Request for gdbs list update
-        case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_REQ:{
+        case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_REQ:
+        {
             if(l_ch_chain->state != CHAIN_STATE_IDLE){
                 log_it(L_WARNING, "Can't process UPDATE_GLOBAL_DB_REQ request because its already busy with syncronization");
                 dap_stream_ch_chain_pkt_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
@@ -1017,6 +1033,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             l_ch_chain->stats_request_gdb_processed = 0;
             dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_sync_update_gdb_proc_callback, l_sync_request);
         } break;
+
 
         // Response with metadata organized in TSD
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_TSD: {
