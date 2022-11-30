@@ -242,6 +242,7 @@ size_t dap_chain_hash_slow_to_str(dap_chain_hash_slow_t * a_hash, char * a_str, 
 
 char* dap_chain_addr_to_str(const dap_chain_addr_t *a_addr);
 dap_chain_addr_t* dap_chain_addr_from_str(const char *str);
+bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr);
 
 dap_chain_net_srv_uid_t dap_chain_net_srv_uid_from_str(const char* a_str);
 
