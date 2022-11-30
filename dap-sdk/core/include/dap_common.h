@@ -39,7 +39,7 @@
 #ifndef __cplusplus
 # include <stdatomic.h>
 #else
-# include <atomic>
+# include <stdatomic.h>
 # define _Atomic(X) std::atomic< X >
 #define atomic_bool _Atomic(bool)
 #define atomic_uint _Atomic(uint)
@@ -142,7 +142,7 @@ typedef struct __dap_memstat_rec__ {
                         fac_name[MEMSTAT$SZ_NAME + 1];                  /* A human readable facility name, ASCIC */
 
         ssize_t         alloc_sz;                                       /* A size of the single allocations */
-        uint64_t        alloc_nr,                                       /* A number of allocations */
+        atomic_ullong   alloc_nr,                                       /* A number of allocations */
                         free_nr;                                        /* A number of deallocations */
 } dap_memstat_rec_t;
 

@@ -344,7 +344,7 @@ void dap_stream_delete(dap_stream_t *a_stream)
     DAP_DELETE(a_stream->buf_fragments);
     DAP_DELETE(a_stream);
 
-    s_memstat[MEMSTAT$K_STM].free_nr += 1;
+    atomic_fetch_add(&s_memstat[MEMSTAT$K_STM].free_nr, 1);;
 
     log_it(L_NOTICE,"Stream connection is over");
 }
@@ -361,7 +361,6 @@ static void s_esocket_callback_delete(dap_events_socket_t* a_esocket, void * a_a
 
     dap_http_client_t *l_http_client = DAP_HTTP_CLIENT(a_esocket);
     dap_stream_t *l_stm = DAP_STREAM(l_http_client);
-    assert(l_stm);
 
 
     l_http_client->_inheritor = NULL; // To prevent double free

@@ -511,7 +511,7 @@ static bool s_net_send_records(dap_proc_thread_t *a_thread, void *a_arg)
             pthread_rwlock_rdlock(&PVT(l_net)->downlinks_lock);
             HASH_ITER(hh, PVT(l_net)->downlinks, l_link, l_tmp) {
                 struct send_records_link_send_args *l_args = DAP_NEW_Z(struct send_records_link_send_args);
-                l_args->data_out = dap_store_packet_single(l_obj_cur);
+                l_args->data_out = dap_put_store_obj2packet(l_obj_cur);
                 l_args->ch_uuid = l_link->uuid;
                 l_args->cell_id = l_cell_id;
                 l_args->chain_id = l_chain_id;
