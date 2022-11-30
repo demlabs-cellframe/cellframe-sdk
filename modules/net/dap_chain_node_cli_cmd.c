@@ -2636,7 +2636,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
             dap_hash_fast_to_str(&l_data_hash,l_data_hash_str,DAP_CHAIN_HASH_FAST_STR_SIZE);
             if (strcmp(l_data_hash_str, l_objs[i].key))
                             dap_string_append_printf(a_str_tmp,
-                                                     "WARNING: key field in DB %s do not match datums hash %s",
+                                                     "WARNING: key field in DB %s does not match datum's hash %s",
                                                      l_objs[i].key, l_data_hash_str);
             const char *l_type = NULL;
             DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type)
@@ -2650,7 +2650,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                                                  l_type,
                                                  l_datum->header.type_id == DAP_CHAIN_DATUM_TX ? " ticker=" : "",
                                                  l_token_ticker ? l_token_ticker :
-                                                                  (l_datum->header.type_id == DAP_CHAIN_DATUM_TX ) ? "" : "UNKNOWN",
+                                                                  (l_datum->header.type_id == DAP_CHAIN_DATUM_TX ) ? "UNKNOWN" : "",
                                                  l_datum->header.data_size,
                                                  dap_ctime_r(&l_ts_create, buf));
 
