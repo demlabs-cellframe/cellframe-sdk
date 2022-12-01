@@ -170,8 +170,9 @@ typedef struct dap_chain_net_pvt{
     bool only_static_links;
     uint16_t required_links_count;
     uint16_t max_links_count;
+    uint16_t reconnect_delay;         // sec
 
-    struct downlink *downlinks;             // HT of links who sent SYNC REQ, it used for sync broadcasting
+    struct downlink *downlinks;         // HT of links who sent SYNC REQ, it used for sync broadcasting
     dap_list_t *records_queue;
     dap_list_t *atoms_queue;
 
@@ -245,12 +246,12 @@ static void s_node_link_callback_stage(dap_chain_node_client_t * a_node_client,d
 static void s_node_link_callback_error(dap_chain_node_client_t * a_node_client, int a_error, void * a_arg);
 static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client, void * a_arg);
 
-static const dap_chain_node_client_callbacks_t s_node_link_callbacks={
-    .connected=s_node_link_callback_connected,
-    .disconnected=s_node_link_callback_disconnected,
-    .stage=s_node_link_callback_stage,
-    .error=s_node_link_callback_error,
-    .delete=s_node_link_callback_delete
+static const dap_chain_node_client_callbacks_t s_node_link_callbacks = {
+    .connected      = s_node_link_callback_connected,
+    .disconnected   = s_node_link_callback_disconnected,
+    .stage          = s_node_link_callback_stage,
+    .error          = s_node_link_callback_error,
+    .delete         = s_node_link_callback_delete
 };
 
 // State machine switchs here
@@ -679,6 +680,43 @@ static size_t s_net_get_active_links_count(dap_chain_net_t * a_net)
     return l_ret;
 }
 
+static struct net_link *s_get_free_link(dap_chain_net_t *a_net)
+{
+    struct net_link *l_link, *l_link_tmp;
+    HASH_ITER(hh,  PVT(a_net)->net_links, l_link, l_link_tmp) {
+        if (l_link->link == NULL)  // We have a free prepared link
+            return l_link;
+    }
+    return NULL;
+}
+
+static bool s_net_link_callback_connect_delayed(void *a_arg)
+{
+    dap_chain_node_client_t *l_client = a_arg;
+    debug_if(s_debug_more, L_DEBUG, "Link "NODE_ADDR_FP_STR" started", NODE_ADDR_FP_ARGS_S(l_client->info->hdr.address));
+    dap_chain_node_client_connect(l_client, "CN");
+    return false;
+}
+
+static bool s_net_link_start(dap_chain_net_t *a_net, struct net_link *a_link, uint16_t a_delay)
+{
+    assert(a_net && a_link);
+    dap_chain_node_info_t *l_link_info = a_link->link_info;
+    dap_chain_node_client_t *l_client = dap_chain_node_client_create(a_net, l_link_info, &s_node_link_callbacks, a_net);
+    if (l_client)
+        l_client->keep_connection = true;
+    else
+        return false;
+    a_link->link = l_client;
+    a_link->client_uuid = l_client->uuid;
+    if (a_delay) {
+        dap_timerfd_start(a_delay * 1000, s_net_link_callback_connect_delayed, l_client);
+        return true;
+    }
+    debug_if(s_debug_more, L_DEBUG, "Link "NODE_ADDR_FP_STR" started", NODE_ADDR_FP_ARGS_S(l_link_info->hdr.address));
+    return dap_chain_node_client_connect(l_client, "CN");
+}
+
 /**
  * @brief s_fill_links_from_root_aliases
  * @param a_net
@@ -744,21 +782,6 @@ static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_clie
 
 }
 
-static bool s_start_free_link(dap_chain_net_t *a_net)
-{
-    struct net_link *l_link, *l_link_tmp;
-    HASH_ITER(hh,  PVT(a_net)->net_links, l_link, l_link_tmp) {
-        if (l_link->link == NULL) {  // We have a free prepared link
-            dap_chain_node_client_t *l_client_new = dap_chain_net_client_create_n_connect(
-                                                              a_net, l_link->link_info);
-            l_link->link = l_client_new;
-            l_link->client_uuid = l_client_new->uuid;
-            return true;
-        }
-    }
-    return false;
-}
-
 /**
  * @brief s_node_link_callback_disconnected
  * @param a_node_client
@@ -779,7 +802,9 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
         pthread_rwlock_wrlock(&l_net_pvt->uplinks_lock);
         s_net_link_remove(l_net_pvt, a_node_client->uuid, l_net_pvt->only_static_links);
         a_node_client->keep_connection = false;
-        if (s_start_free_link(l_net)) {
+        struct net_link *l_free_link = s_get_free_link(l_net);
+        if (l_free_link) {
+            s_net_link_start(l_net, l_free_link, l_net_pvt->reconnect_delay);
             pthread_rwlock_unlock(&l_net_pvt->uplinks_lock);
             return;
         }
@@ -863,10 +888,8 @@ static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client,
     struct net_link *l_link, *l_link_tmp;
     HASH_ITER(hh, l_net_pvt->net_links, l_link, l_link_tmp) {
         if (l_link->link == a_node_client) {
-            log_it(L_DEBUG,"Replace node client with new one");
-            dap_chain_node_client_t *l_client = dap_chain_net_client_create_n_connect(l_net, a_node_client->info);
-            l_link->link = l_client;
-            l_link->client_uuid = l_client->uuid;
+            log_it(L_DEBUG, "Replace node client with new one with %d sec", l_net_pvt->reconnect_delay);
+            s_net_link_start(l_net, l_link, l_net_pvt->reconnect_delay);
         }
     }
     pthread_rwlock_unlock(&l_net_pvt->uplinks_lock);
@@ -941,12 +964,11 @@ static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_cha
             // Auto-start new link
             pthread_rwlock_rdlock(&PVT(l_net)->states_lock);
             if (PVT(l_net)->state_target != NET_STATE_OFFLINE) {
-                debug_if(s_debug_more, L_DEBUG, "Link "NODE_ADDR_FP_STR" started",
-                                                       NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address));
-                dap_chain_node_client_t *l_client = dap_chain_net_client_create_n_connect(l_net, a_node_info);
                 struct net_link *l_new_link = s_net_link_find(l_net, a_node_info);
-                l_new_link->link = l_client;
-                l_new_link->client_uuid = l_client->uuid;
+                if (l_new_link)
+                    s_net_link_start(l_net, l_new_link, PVT(l_net)->reconnect_delay);
+                else
+                    s_new_balancer_link_request(l_net, l_balancer_request->link_replace_tries);
             }
             pthread_rwlock_unlock(&PVT(l_net)->states_lock);
         }
@@ -1031,7 +1053,8 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
         // network problems, make static links
         s_fill_links_from_root_aliases(a_net);
         pthread_rwlock_wrlock(&l_net_pvt->uplinks_lock);
-        s_start_free_link(a_net);
+        struct net_link *l_free_link = s_get_free_link(a_net);
+        s_net_link_start(a_net, l_free_link, 0);
         pthread_rwlock_unlock(&l_net_pvt->uplinks_lock);
         return false;
     }
@@ -1228,10 +1251,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
             size_t l_used_links = 0;
             struct net_link *l_link, *l_link_tmp;
             HASH_ITER(hh, l_net_pvt->net_links, l_link, l_link_tmp) {
-                dap_chain_node_info_t *l_link_info = l_link->link_info;
-                dap_chain_node_client_t *l_client = dap_chain_net_client_create_n_connect(l_net, l_link_info);
-                l_link->link = l_client;
-                l_link->client_uuid = l_client->uuid;
+                s_net_link_start(l_net, l_link, 0);
                 if (++l_used_links == l_net_pvt->required_links_count)
                     break;
             }
@@ -1322,36 +1342,6 @@ bool dap_chain_net_sync_unlock(dap_chain_net_t *a_net, dap_chain_node_client_t *
     pthread_rwlock_unlock(&l_net_pvt->uplinks_lock);
     return l_ret;
 }
-/**
- * @brief dap_chain_net_client_create_n_connect
- * @param a_net
- * @param a_link_info
- * @return
- */
-struct dap_chain_node_client * dap_chain_net_client_create_n_connect( dap_chain_net_t * a_net,struct dap_chain_node_info* a_link_info)
-{
-    dap_chain_node_client_t *l_ret = dap_chain_node_client_create_n_connect(a_net,
-                                                                            a_link_info,
-                                                                            "CN",
-                                                                            (dap_chain_node_client_callbacks_t *)&s_node_link_callbacks,
-                                                                            a_net);
-    if (l_ret)
-        l_ret->keep_connection = true;
-    return l_ret;
-}
-
-/**
- * @brief dap_chain_net_client_create_n_connect_channels
- * @param a_net
- * @param a_link_info
- * @param a_channels
- * @return
- */
-struct dap_chain_node_client * dap_chain_net_client_create_n_connect_channels( dap_chain_net_t * a_net,struct dap_chain_node_info* a_link_info,const char * a_channels )
-{
-    return dap_chain_node_client_create_n_connect(a_net, a_link_info,a_channels,(dap_chain_node_client_callbacks_t *)&s_node_link_callbacks,a_net);
-}
-
 
 /**
  * @brief dap_chain_net_get_role
@@ -2255,6 +2245,8 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         l_net_pvt->max_links_count = dap_config_get_item_int16_default(l_cfg, "general", "max_links", 5);
         // required number of active connections to other nodes
         l_net_pvt->required_links_count = dap_config_get_item_int16_default(l_cfg, "general", "require_links", 3);
+        // wait time before reconnect attempt with same link
+        l_net_pvt->reconnect_delay = dap_config_get_item_int16_default(l_cfg, "general", "reconnect_delay", 10);
 
         const char * l_node_addr_type = dap_config_get_item_str_default(l_cfg , "general" ,"node_addr_type","auto");
 

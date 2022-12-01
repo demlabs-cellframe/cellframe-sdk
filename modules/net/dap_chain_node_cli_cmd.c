@@ -1147,7 +1147,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
                 return -1;
             }
             // start connect
-            l_node_client = dap_chain_node_client_connect(l_net,l_remote_node_info);
+            l_node_client = dap_chain_node_client_connect_default_channels(l_net,l_remote_node_info);
             if(!l_node_client) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "can't connect");
                 DAP_DELETE(l_remote_node_info);
@@ -1210,8 +1210,6 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             uint8_t l_ch_id = dap_stream_ch_chain_net_get_id();
             dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, l_ch_id);
 
-            int l_res = dap_chain_node_client_set_callbacks( l_node_client->client, l_ch_id);
-
             size_t res = dap_stream_ch_chain_net_pkt_write(l_ch_chain,
             DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_LEASE_REQUEST,
             //DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST,
@@ -1224,7 +1222,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
                 return -1;
             }
             int timeout_ms = 15000; // 15 sec = 15 000 ms
-            l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_NODE_ADDR_LEASED, timeout_ms);
+            int l_res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_NODE_ADDR_LEASED, timeout_ms);
             switch (l_res) {
             case 0:
                 if(l_node_client->cur_node_addr.uint64 != 0) {
@@ -1358,7 +1356,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             return -6;
         int timeout_ms = 5000; //5 sec = 5000 ms
         // start handshake
-        dap_chain_node_client_t *client = dap_chain_node_client_connect(l_net,node_info);
+        dap_chain_node_client_t *client = dap_chain_node_client_connect_default_channels(l_net,node_info);
         if(!client) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't connect");
             DAP_DELETE(node_info);

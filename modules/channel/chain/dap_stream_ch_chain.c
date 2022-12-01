@@ -788,7 +788,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
         const char *l_last_group = l_store_obj->group;
         uint32_t l_last_type = l_store_obj->type;
         bool l_group_changed = false;
-        uint32_t l_time_store_lim_hours = dap_config_get_item_uint32_default(g_config, "resources", "dap_global_db_time_store_limit", 72);
+        uint32_t l_time_store_lim_hours = dap_config_get_item_uint32_default(g_config, "global_db", "time_store_limit", 72);
         dap_nanotime_t l_time_now = dap_nanotime_now() + dap_nanotime_from_sec(120);    // time differnece consideration
         dap_nanotime_t l_limit_time = l_time_store_lim_hours ? l_time_now - dap_nanotime_from_sec(l_time_store_lim_hours * 3600) : 0;
         for (size_t i = 0; i < l_data_obj_count; i++) {
@@ -950,12 +950,9 @@ static bool s_chain_timer_callback(void *a_arg)
 
 static void s_chain_timer_reset(dap_stream_ch_chain_t *a_ch_chain)
 {
-    if (s_ch_chain_get_idle(a_ch_chain))
-        return;
-    if (!a_ch_chain->activity_timer) {
-        dap_stream_ch_chain_timer_start(a_ch_chain);
-    }
     a_ch_chain->timer_shots = 0;
+    if (!a_ch_chain->activity_timer)
+        dap_stream_ch_chain_timer_start(a_ch_chain);
 }
 
 void dap_stream_ch_chain_timer_start(dap_stream_ch_chain_t *a_ch_chain)
@@ -1585,6 +1582,7 @@ static void s_ch_chain_go_idle(dap_stream_ch_chain_t *a_ch_chain)
         DAP_DELETE(l_hash_item);
     }
     a_ch_chain->remote_atoms = NULL;
+    a_ch_chain->sent_breaks = 0;
 }
 
 struct chain_io_complete {
@@ -1870,9 +1868,10 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
     }
     if (l_go_idle)
         s_ch_chain_go_idle(l_ch_chain);
+    else
+        s_chain_timer_reset(l_ch_chain);
     if (l_was_sent_smth)
         l_ch_chain->sent_breaks = 0;
     else
         l_ch_chain->sent_breaks++;
-    s_chain_timer_reset(l_ch_chain);
 }

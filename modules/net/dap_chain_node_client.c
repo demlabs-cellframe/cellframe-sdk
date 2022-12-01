@@ -85,14 +85,13 @@ static dap_chain_node_client_handle_t * s_clients = NULL;
 
 static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg);
 static bool s_timer_update_states_callback(void *a_arg);
-
+static int s_node_client_set_notify_callbacks(dap_client_t *a_client, uint8_t a_ch_id);
 static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t*, uint8_t a_pkt_type,
         dap_stream_ch_chain_pkt_t *a_pkt, size_t a_pkt_data_size,
         void * a_arg);
 static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_chain, uint8_t a_pkt_type,
         dap_stream_ch_chain_pkt_t *a_pkt, size_t a_pkt_data_size,
         void * a_arg);
-static bool dap_chain_node_client_connect_internal(dap_chain_node_client_t *a_node_client, const char *a_active_channels);
 
 bool s_stream_ch_chain_debug_more = false;
 uint32_t s_timer_update_states = 600;
@@ -342,7 +341,7 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
         if(l_client_internal && l_client_internal->active_channels) {
             size_t l_channels_count = dap_strlen(l_client_internal->active_channels);
             for(size_t i = 0; i < l_channels_count; i++) {
-                if(dap_chain_node_client_set_callbacks(a_client, l_client_internal->active_channels[i]) == -1) {
+                if(s_node_client_set_notify_callbacks(a_client, l_client_internal->active_channels[i]) == -1) {
                     log_it(L_WARNING, "No ch_chain channel, can't init notify callback for pkt type CH_CHAIN");
                     return;
                 }
@@ -729,20 +728,6 @@ static void s_ch_chain_callback_notify_packet_R(dap_stream_ch_chain_net_srv_t* a
     }
 }
 
-
-/**
- * @brief dap_chain_node_client_connect_channels
- * Create connection to server
- * @param l_net
- * @param a_node_info
- * @param a_active_channels
- * @return dap_chain_node_client_t* return a connection handle, or NULL, if an error
- */
-dap_chain_node_client_t* dap_chain_node_client_connect_channels(dap_chain_net_t * l_net, dap_chain_node_info_t *a_node_info, const char *a_active_channels)
-{
-    return dap_chain_net_client_create_n_connect_channels(l_net,a_node_info,a_active_channels);
-}
-
 /**
  * @brief dap_chain_node_client_create_n_connect
  * @param a_net
@@ -752,8 +737,22 @@ dap_chain_node_client_t* dap_chain_node_client_connect_channels(dap_chain_net_t 
  * @param a_callback_arg
  * @return
  */
-dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t * a_net, dap_chain_node_info_t *a_node_info,
-        const char *a_active_channels,dap_chain_node_client_callbacks_t *a_callbacks, void * a_callback_arg )
+dap_chain_node_client_t *dap_chain_node_client_create_n_connect(dap_chain_net_t *a_net,
+                                                                dap_chain_node_info_t *a_node_info,
+                                                                const char *a_active_channels,
+                                                                const dap_chain_node_client_callbacks_t *a_callbacks,
+                                                                void *a_callback_arg)
+{
+    dap_chain_node_client_t *l_node_client = dap_chain_node_client_create(a_net, a_node_info, a_callbacks, a_callback_arg);
+    if (dap_chain_node_client_connect(l_node_client, a_active_channels))
+        return l_node_client;
+    return NULL;
+}
+
+dap_chain_node_client_t *dap_chain_node_client_create(dap_chain_net_t *a_net,
+                                                      dap_chain_node_info_t *a_node_info,
+                                                      const dap_chain_node_client_callbacks_t *a_callbacks,
+                                                      void *a_callback_arg)
 {
     if(!a_node_info) {
         log_it(L_ERROR, "Can't connect to the node: null object node_info");
@@ -763,7 +762,7 @@ dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t 
 
     l_node_client->state = NODE_CLIENT_STATE_DISCONNECTED;
     l_node_client->callbacks_arg = a_callback_arg;
-    if(a_callbacks)
+    if (a_callbacks)
         l_node_client->callbacks = *a_callbacks;
     l_node_client->info = DAP_DUP(a_node_info);
     l_node_client->uuid = dap_uuid_generate_uint64();
@@ -786,21 +785,21 @@ dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t 
 
     pthread_mutex_init(&l_node_client->wait_mutex, NULL);
     l_node_client->remote_node_addr.uint64 = a_node_info->hdr.address.uint64;
-    if (dap_chain_node_client_connect_internal(l_node_client, a_active_channels))
-        return l_node_client;
-    return NULL;
+    return l_node_client;
 }
 
 /**
- * @brief dap_chain_node_client_connect_internal
+ * @brief dap_chain_node_client_connect
  * Create new dap_client, setup it, and send it in adventure trip
  * @param a_node_client dap_chain_node_client_t
  * @param a_active_channels a_active_channels
  * @return true
  * @return false
  */
-static bool dap_chain_node_client_connect_internal(dap_chain_node_client_t *a_node_client, const char *a_active_channels)
+bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const char *a_active_channels)
 {
+    if (!a_node_client)
+        return false;
     a_node_client->client = dap_client_new( s_stage_status_callback,
             s_stage_status_error_callback);
     dap_client_set_is_always_reconnect(a_node_client->client, false);
@@ -814,15 +813,14 @@ static bool dap_chain_node_client_connect_internal(dap_chain_node_client_t *a_no
     if(a_node_client->info->hdr.ext_addr_v4.s_addr){
         struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = a_node_client->info->hdr.ext_addr_v4 };
         inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), host, hostlen);
-        log_it(L_INFO, "Connecting to %s address",host);
     } else {
         struct sockaddr_in6 sa6 = { .sin6_family = AF_INET6, .sin6_addr = a_node_client->info->hdr.ext_addr_v6 };
         inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) &sa6)->sin6_addr), host, hostlen);
-        log_it(L_INFO, "Connecting to %s address",host);
     }
+    log_it(L_INFO, "Connecting to %s address", host);
     // address not defined
     if(!strcmp(host, "::")) {
-        dap_chain_node_client_close(a_node_client->uuid);
+        log_it(L_WARNING, "Undefined address with node client connect to");
         return false;
     }
     dap_client_set_uplink_unsafe(a_node_client->client, host, a_node_client->info->hdr.ext_port);
@@ -830,19 +828,6 @@ static bool dap_chain_node_client_connect_internal(dap_chain_node_client_t *a_no
     // Handshake & connect
     dap_client_go_stage(a_node_client->client, STAGE_STREAM_STREAMING, s_stage_connected_callback);
     return true;
-}
-
-/**
- * @brief dap_chain_node_client_connect
- * Create connection to server
- * @param a_net
- * @param a_node_info
- * @return dap_chain_node_client_t* return a connection handle, or NULL, if an error
- */
-dap_chain_node_client_t* dap_chain_node_client_connect(dap_chain_net_t * a_net,dap_chain_node_info_t *a_node_info)
-{
-    const char *l_active_channels = "CN";
-    return dap_chain_node_client_connect_channels(a_net,a_node_info, l_active_channels);
 }
 
 /**
@@ -1021,14 +1006,16 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
 }
 
 /**
- * @brief dap_chain_node_client_set_callbacks
+ * @brief s_node_client_set_notify_callbacks
  *
  * @param a_client dap_client_t
  * @param a_ch_id uint8_t
  * @return int
  */
-int dap_chain_node_client_set_callbacks(dap_client_t *a_client, uint8_t a_ch_id)
+static int s_node_client_set_notify_callbacks(dap_client_t *a_client, uint8_t a_ch_id)
 {
+    //TODO pass callbacks through stream creation to internal ch structures
+
     int l_ret = -1;
     dap_chain_node_client_t *l_node_client = a_client->_inheritor;
     if(l_node_client) {
@@ -1059,9 +1046,9 @@ int dap_chain_node_client_set_callbacks(dap_client_t *a_client, uint8_t a_ch_id)
             // R
             if(a_ch_id == dap_stream_ch_chain_net_srv_get_id()) {
                 dap_stream_ch_chain_net_srv_t *l_ch_chain = DAP_STREAM_CH_CHAIN_NET_SRV(l_ch);
-                if (l_node_client->callbacks.srv_pkt_in) {
+                if (l_node_client->notify_callbacks.srv_pkt_in) {
                     l_ch_chain->notify_callback = (dap_stream_ch_chain_net_srv_callback_packet_t)
-                                                             l_node_client->callbacks.srv_pkt_in;
+                                                             l_node_client->notify_callbacks.srv_pkt_in;
                     l_ch_chain->notify_callback_arg = l_node_client->callbacks_arg;
                 } else {
                     l_ch_chain->notify_callback = s_ch_chain_callback_notify_packet_R;
@@ -1085,15 +1072,6 @@ int dap_chain_node_client_set_callbacks(dap_client_t *a_client, uint8_t a_ch_id)
     }
     return l_ret;
 }
-
-/*static void nodelist_response_callback(dap_client_t *a_client, void *data, size_t data_len)
-{
-}
-
-static void nodelist_response_error_callback(dap_client_t *a_client, int a_err)
-{
-}*/
-
 
 /**
  * @brief dap_chain_node_client_send_nodelist_req
