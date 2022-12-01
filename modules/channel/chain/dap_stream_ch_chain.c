@@ -689,15 +689,32 @@ dap_chain_t *dap_chain_get_chain_from_group_name(dap_chain_net_id_t a_net_id, co
  */
 static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
 {
+
+
+
     struct sync_request *l_sync_request = (struct sync_request *) a_arg;
     dap_chain_pkt_item_t *l_pkt_item = &l_sync_request->pkt;
 
-    if(l_pkt_item->pkt_data_size >= sizeof(dap_store_obj_pkt_t)) {
+
+    {/* @RRL: 6901 */
+
+    DAP_DEL_Z(l_pkt_item->pkt_data);
+    DAP_DELETE(l_sync_request);
+    return  true;
+    }
+
+
+
+
+    if(l_pkt_item->pkt_data_size >= sizeof(dap_store_obj_pkt_t))
+    {
 
         // Validate size of received packet
         dap_store_obj_pkt_t *l_obj_pkt = (dap_store_obj_pkt_t*)l_pkt_item->pkt_data;
         size_t l_obj_pkt_size = l_obj_pkt ? l_obj_pkt->data_size + sizeof(dap_store_obj_pkt_t) : 0;
-        if(l_pkt_item->pkt_data_size != l_obj_pkt_size) {
+
+        if(l_pkt_item->pkt_data_size != l_obj_pkt_size)
+        {
             log_it(L_WARNING, "In: s_gdb_in_pkt_proc_callback: received size=%zu is not equal to obj_pkt_size=%zu",
                     l_pkt_item->pkt_data_size, l_obj_pkt_size);
             DAP_DEL_Z(l_pkt_item->pkt_data);
@@ -853,12 +870,14 @@ struct sync_request *dap_stream_ch_chain_create_sync_request(dap_stream_ch_chain
 {
     dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
     struct sync_request *l_sync_request = DAP_NEW_Z(struct sync_request);
+
     l_sync_request->ch_uuid = a_ch->uuid;
     l_sync_request->worker = a_ch->stream_worker->worker;
     l_sync_request->remote_gdbs = l_ch_chain->remote_gdbs;
     l_sync_request->remote_atoms = l_ch_chain->remote_atoms;
     l_sync_request->request_hdr = l_ch_chain->request_hdr = a_chain_pkt->hdr;
     l_sync_request->request = l_ch_chain->request;
+
     return l_sync_request;
 }
 
@@ -936,6 +955,13 @@ void dap_stream_ch_chain_timer_start(dap_stream_ch_chain_t *a_ch_chain)
  */
 void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 {
+
+    { /* @RRL: 6901 */
+    a_ch->stream->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+    return;
+    }
+
+
     dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
     if (!l_ch_chain) {
         log_it(L_ERROR, "No chain in channel, returning");
