@@ -4922,7 +4922,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
             break;
         case TX_ITEM_TYPE_TSD: {
             int64_t l_tsd_type;
-            if(!s_json_get_int64(l_json_item_obj, "type", &l_tsd_type)) {
+            if(!s_json_get_int64(l_json_item_obj, "type_tsd", &l_tsd_type)) {
                 break;
             }
             const char *l_tsd_data = s_json_get_text(l_json_item_obj, "data");
@@ -5187,6 +5187,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
     l_list = l_tsd_list;
     while(l_list) {
         dap_chain_datum_tx_add_item(&l_tx, l_list->data);
+        l_items_ready++;
         l_list = dap_list_next(l_list);
     }
     dap_list_free(l_tsd_list);
