@@ -5214,15 +5214,16 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
     char *l_tx_hash_str = dap_chain_hash_fast_to_str_new(l_datum_tx_hash);
     bool l_placed = dap_chain_global_db_gr_set(l_tx_hash_str, l_datum_tx, l_datum_tx_size, l_gdb_group_mempool_base_tx);
 
-    DAP_DELETE(l_tx_hash_str);
     DAP_DELETE(l_datum_tx);
     DAP_DELETE(l_gdb_group_mempool_base_tx);
     if(!l_placed) {
         dap_chain_node_cli_set_reply_text(a_str_reply, "Can't add transaction to mempool");
+        DAP_DELETE(l_tx_hash_str);
         return -90;
     }
     // Completed successfully
-    dap_chain_node_cli_set_reply_text(a_str_reply, "Transaction with %d items created and added to mempool successfully", l_items_ready);
+    dap_chain_node_cli_set_reply_text(a_str_reply, "Transaction %s with %d items created and added to mempool successfully", l_tx_hash_str, l_items_ready);
+    DAP_DELETE(l_tx_hash_str);
     return l_err_code;
 }
 
