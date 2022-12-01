@@ -5152,6 +5152,15 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
     }
     dap_list_free(l_in_cond_list);
 
+    // Add TSD section
+    l_list = l_tsd_list;
+    while(l_list) {
+        dap_chain_datum_tx_add_item(&l_tx, l_list->data);
+        l_items_ready++;
+        l_list = dap_list_next(l_list);
+    }
+    dap_list_free(l_tsd_list);
+
     // Add signs
     l_list = l_sign_list;
     while(l_list){
@@ -5183,14 +5192,6 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
         l_list = dap_list_next(l_list);
     }
     dap_list_free(l_sign_list);
-    // Add TSD section
-    l_list = l_tsd_list;
-    while(l_list) {
-        dap_chain_datum_tx_add_item(&l_tx, l_list->data);
-        l_items_ready++;
-        l_list = dap_list_next(l_list);
-    }
-    dap_list_free(l_tsd_list);
     json_object_put(l_json);
 
     if(l_items_ready<l_items_count) {
