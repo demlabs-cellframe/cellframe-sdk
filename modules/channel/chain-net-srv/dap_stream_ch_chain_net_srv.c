@@ -120,6 +120,7 @@ void s_stream_ch_delete(dap_stream_ch_t* a_ch , void* a_arg)
     (void) a_arg;
     log_it(L_DEBUG, "Stream ch chain net srv delete");
     dap_chain_net_srv_call_closed_all( a_ch);
+    DAP_DEL_Z(a_ch->internal);
 }
 
 static bool s_unban_client(dap_chain_net_srv_banlist_item_t *a_item)

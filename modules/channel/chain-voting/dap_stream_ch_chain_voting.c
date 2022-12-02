@@ -285,8 +285,9 @@ static void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg) {
     l_ch_chain_voting->ch = a_ch;
 }
 
-static void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg) {
-    a_ch->internal = NULL; // To prevent its cleaning in worker
+static void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg)
+{
+    DAP_DEL_Z(a_ch->internal);
 }
 
 static void s_packet_in_callback_handler(void *a_arg)
