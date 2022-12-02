@@ -992,8 +992,8 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_hash_f
 	dap_chain_datum_token_t									*delegate_token;
 	char 													delegated_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
 
-	/*if (!a_owner) TODO: ???
-	return false;*/
+    if (!a_owner) //TODO: ???
+        return false;
 
     if (a_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME) {
         if (a_cond->subtype.srv_stake_lock.time_unlock > dap_time_now())
