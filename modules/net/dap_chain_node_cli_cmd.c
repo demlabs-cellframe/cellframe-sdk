@@ -4718,6 +4718,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
     dap_list_t *l_sign_list = NULL;// list 'sing' items
     dap_list_t *l_in_list = NULL;// list 'in' items
     dap_list_t *l_in_cond_list = NULL;// list 'in_cond' items
+    dap_list_t *l_tsd_list = NULL;// list tsd sections
     uint256_t l_value_need = { };// how many tokens are needed in the 'out' item
     const char *l_token_out = NULL;// what token is used in the 'out' item
     // Creating and adding items to the transaction
@@ -4957,6 +4958,20 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
                 l_receipt_count++;
         }
             break;
+        case TX_ITEM_TYPE_TSD: {
+            int64_t l_tsd_type;
+            if(!s_json_get_int64(l_json_item_obj, "type_tsd", &l_tsd_type)) {
+                break;
+            }
+            const char *l_tsd_data = s_json_get_text(l_json_item_obj, "data");
+            if (!l_tsd_data) {
+                break;
+            }
+            size_t l_data_size = dap_strlen(l_tsd_data);
+            dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create((void*)l_tsd_data, (int)l_tsd_type, l_data_size);
+            l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+        }
+            break;
             //case TX_ITEM_TYPE_PKEY:
             //break;
             //case TX_ITEM_TYPE_TOKEN:
@@ -5175,6 +5190,15 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
     }
     dap_list_free(l_in_cond_list);
 
+    // Add TSD section
+    l_list = l_tsd_list;
+    while(l_list) {
+        dap_chain_datum_tx_add_item(&l_tx, l_list->data);
+        l_items_ready++;
+        l_list = dap_list_next(l_list);
+    }
+    dap_list_free(l_tsd_list);
+
     // Add signs
     l_list = l_sign_list;
     while(l_list){
@@ -5229,15 +5253,16 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
     char *l_tx_hash_str = dap_chain_hash_fast_to_str_new(l_datum_tx_hash);
     bool l_placed = dap_chain_global_db_gr_set(l_tx_hash_str, l_datum_tx, l_datum_tx_size, l_gdb_group_mempool_base_tx);
 
-    DAP_DELETE(l_tx_hash_str);
     DAP_DELETE(l_datum_tx);
     DAP_DELETE(l_gdb_group_mempool_base_tx);
     if(!l_placed) {
         dap_chain_node_cli_set_reply_text(a_str_reply, "Can't add transaction to mempool");
+        DAP_DELETE(l_tx_hash_str);
         return -90;
     }
     // Completed successfully
-    dap_chain_node_cli_set_reply_text(a_str_reply, "Transaction with %d items created and added to mempool successfully", l_items_ready);
+    dap_chain_node_cli_set_reply_text(a_str_reply, "Transaction %s with %d items created and added to mempool successfully", l_tx_hash_str, l_items_ready);
+    DAP_DELETE(l_tx_hash_str);
     return l_err_code;
 }
 
