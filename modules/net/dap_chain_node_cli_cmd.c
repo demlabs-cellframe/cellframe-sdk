@@ -2288,7 +2288,7 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                     l_key_out_str = l_key_str_base58;
 
                 // Add datum to mempool with datum_token hash as a key
-                if(dap_chain_global_db_gr_set(l_key_str, (uint8_t *) l_datum, l_datum_size, l_gdb_group_mempool)) {
+                if(dap_chain_global_db_gr_set(l_key_str, (uint8_t *) l_datum, dap_chain_datum_size(l_datum), l_gdb_group_mempool)) {
 
                     char* l_hash_str = l_datum_hash_hex_str;
                     // Remove old datum from pool
