@@ -547,7 +547,8 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 
 	//add burning tx
     if (l_tx_out_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX) {
-		if (NULL == (l_datum_burning_tx = dap_chain_burning_tx_create(l_chain, l_owner_key, l_owner_addr, NULL,
+        dap_chain_addr_t l_addr_blank = {0};
+		if (NULL == (l_datum_burning_tx = dap_chain_burning_tx_create(l_chain, l_owner_key, l_owner_addr, &l_addr_blank,
 																  delegate_ticker_str, l_value_delegated))) {//malloc
 			dap_chain_wallet_close(l_wallet);
 			DAP_DEL_Z(l_owner_addr);
@@ -1005,8 +1006,8 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_hash_f
 	dap_chain_datum_token_t									*delegate_token;
 	char 													delegated_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
 
-	/*if (!a_owner) TODO: ???
-	return false;*/
+    if (!a_owner) //TODO: ???
+        return false;
 
     if (a_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME) {
         if (a_cond->subtype.srv_stake_lock.time_unlock > dap_time_now())
@@ -1304,7 +1305,7 @@ dap_chain_datum_t *dap_chain_burning_tx_create(dap_chain_t *a_chain, dap_enc_key
 {
 	// check valid param
 	if(!a_chain | !a_key_from || ! a_addr_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
-	   !dap_chain_addr_check_sum(a_addr_from) || (a_addr_to && !dap_chain_addr_check_sum(a_addr_to)) || IS_ZERO_256(a_value))
+	   !dap_chain_addr_check_sum(a_addr_from) || !a_addr_to || !dap_chain_addr_check_sum(a_addr_to) || IS_ZERO_256(a_value))
 		return NULL;
 
 	// find the transactions from which to take away coins
