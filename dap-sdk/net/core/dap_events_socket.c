@@ -107,6 +107,7 @@ bool s_remove_and_delete_unsafe_delayed_delete_callback(void * a_arg);
 
 static pthread_attr_t s_attr_detached;                                      /* Thread's creation attribute = DETACHED ! */
 
+#ifdef   DAP_SYS_DEBUG
 enum    {MEMSTAT$K_EVSOCK, MEMSTAT$K_BUF_IN, MEMSTAT$K_BUF_OUT, MEMSTAT$K_BUF_OUT_EXT, MEMSTAT$K_NR};
 static  dap_memstat_rec_t   s_memstat [MEMSTAT$K_NR] = {
     {.fac_len = sizeof(LOG_TAG) - 1, .fac_name = {LOG_TAG}, .alloc_sz = sizeof(dap_events_socket_t)},
@@ -114,7 +115,7 @@ static  dap_memstat_rec_t   s_memstat [MEMSTAT$K_NR] = {
     {.fac_len = sizeof(LOG_TAG ".buf_out") - 1, .fac_name = {LOG_TAG ".buf_out"}, .alloc_sz = DAP_EVENTS_SOCKET_BUF},
     {.fac_len = sizeof(LOG_TAG ".buf_out_ext") - 1, .fac_name = {LOG_TAG ".buf_out_ext"}, .alloc_sz = DAP_EVENTS_SOCKET_BUF_LIMIT}
 };
-
+#endif  /* DAP_SYS_DEBUG */
 
 
 
@@ -237,8 +238,10 @@ int l_rc;
 
     log_it(L_NOTICE,"Initialized events socket module");
 
+#if   DAP_SYS_DEBUG
     for (int i = 0; i < MEMSTAT$K_NR; i++)
         dap_memstat_reg(&s_memstat[i]);
+#endif
 
     /*
      * @RRL: #6157
@@ -323,9 +326,12 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
     l_es->buf_out_size_max = DAP_EVENTS_SOCKET_BUF;
 
     l_es->buf_in     = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, l_es->buf_in_size_max + 1);
-    atomic_fetch_add(&s_memstat[MEMSTAT$K_BUF_IN].alloc_nr, 1);
     l_es->buf_out    = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, l_es->buf_out_size_max + 1);
+
+#ifdef   DAP_SYS_DEBUG
     atomic_fetch_add(&s_memstat[MEMSTAT$K_BUF_OUT].alloc_nr, 1);
+    atomic_fetch_add(&s_memstat[MEMSTAT$K_BUF_IN].alloc_nr, 1);
+#endif
 
     l_es->buf_in_size = l_es->buf_out_size = 0;
 
@@ -1656,9 +1662,13 @@ dap_events_socket_t * dap_events_socket_wrap2( dap_server_t *a_server, struct da
         l_es->callbacks = *a_callbacks;
     l_es->buf_out_size_max = l_es->buf_in_size_max = DAP_EVENTS_SOCKET_BUF;
     l_es->buf_in = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, l_es->buf_in_size_max+1);
-    s_memstat[MEMSTAT$K_BUF_IN].alloc_nr += (!!l_es->buf_in);
     l_es->buf_out = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, l_es->buf_out_size_max+1);
-    s_memstat[MEMSTAT$K_BUF_OUT].alloc_nr += (!!l_es->buf_out);
+
+#ifdef  DAP_SYS_DEBUG
+    atomic_fetch_add(&s_memstat[MEMSTAT$K_BUF_IN].alloc_nr, 1);
+    atomic_fetch_add(&s_memstat[MEMSTAT$K_BUF_OUT].alloc_nr, 1);
+#endif
+
     l_es->buf_in_size = l_es->buf_out_size = 0;
     l_es->flags = DAP_SOCK_READY_TO_READ;
     l_es->last_time_active = l_es->last_ping_request = time( NULL );
@@ -1993,13 +2003,16 @@ void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_p
 {
     dap_events_socket_descriptor_close(a_esocket);
     if (!a_preserve_inheritor )
-        DAP_DEL_Z(a_esocket->_inheritor)
+        DAP_DEL_Z(a_esocket->_inheritor);
 
-    DAP_DEL_Z(a_esocket->_pvt)
-    DAP_DEL_Z(a_esocket->buf_in)
-    atomic_fetch_add(&s_memstat[MEMSTAT$K_BUF_IN].free_nr, 1);
-    DAP_DEL_Z(a_esocket->buf_out)
+    DAP_DEL_Z(a_esocket->_pvt);
+    DAP_DEL_Z(a_esocket->buf_in);
+    DAP_DEL_Z(a_esocket->buf_out);
+
+#ifdef  DAP_SYS_DEBUG
     atomic_fetch_add(&s_memstat[MEMSTAT$K_BUF_OUT].free_nr , 1);
+    atomic_fetch_add(&s_memstat[MEMSTAT$K_BUF_IN].free_nr, 1);
+#endif
 
     s_dap_evsock_free( a_esocket );
 }

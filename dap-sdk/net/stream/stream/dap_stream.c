@@ -87,12 +87,12 @@ static bool s_dump_packet_headers = false;
 static bool s_debug = false;
 
 
-
+#ifdef  DAP_SYS_DEBUG
 enum    {MEMSTAT$K_STM, MEMSTAT$K_NR};
 static  dap_memstat_rec_t   s_memstat [MEMSTAT$K_NR] = {
     {.fac_len = sizeof(LOG_TAG) - 1, .fac_name = {LOG_TAG}, .alloc_sz = sizeof(dap_stream_t)},
 };
-
+#endif
 
 
 
@@ -137,8 +137,10 @@ int dap_stream_init(dap_config_t * a_config)
     s_debug = dap_config_get_item_bool_default(g_config,"stream","debug",false);
     log_it(L_NOTICE,"Init streaming module");
 
+#ifdef  DAP_SYS_DEBUG
     for (int i = 0; i < MEMSTAT$K_NR; i++)
         dap_memstat_reg(&s_memstat[i]);
+#endif
 
 
 
@@ -214,7 +216,9 @@ dap_stream_t * stream_new_udp(dap_events_socket_t * a_esocket)
     dap_stream_t * l_stm = DAP_NEW_Z(dap_stream_t);
     assert(l_stm);
 
+#ifdef  DAP_SYS_DEBUG
     s_memstat[MEMSTAT$K_STM].alloc_nr += 1;
+#endif
 
     l_stm ->esocket = a_esocket;
     a_esocket->_inheritor = l_stm ;
@@ -281,7 +285,9 @@ dap_stream_t *s_stream_new(dap_http_client_t *a_http_client)
     dap_stream_t *l_stm = DAP_NEW_Z(dap_stream_t);
     assert(l_stm);
 
-    s_memstat[MEMSTAT$K_STM].alloc_nr += 1;
+#ifdef  DAP_SYS_DEBUG
+    atomic_fetch_add(&s_memstat[MEMSTAT$K_STM].alloc_nr, 1);
+#endif
 
     l_stm->esocket = a_http_client->esocket;
     l_stm->stream_worker = (dap_stream_worker_t *)a_http_client->esocket->worker->_inheritor;
@@ -312,7 +318,10 @@ dap_stream_t* dap_stream_new_es_client(dap_events_socket_t * a_esocket)
     dap_stream_t *l_stm = DAP_NEW_Z(dap_stream_t);
     assert(l_stm);
 
-    s_memstat[MEMSTAT$K_STM].alloc_nr += 1;
+#ifdef  DAP_SYS_DEBUG
+    atomic_fetch_add(&s_memstat[MEMSTAT$K_STM].alloc_nr, 1);
+#endif
+
 
     l_stm->esocket = a_esocket;
     l_stm->esocket_uuid = a_esocket->uuid;
@@ -344,7 +353,9 @@ void dap_stream_delete(dap_stream_t *a_stream)
     DAP_DELETE(a_stream->buf_fragments);
     DAP_DELETE(a_stream);
 
+#ifdef  DAP_SYS_DEBUG
     atomic_fetch_add(&s_memstat[MEMSTAT$K_STM].free_nr, 1);
+#endif
 
     log_it(L_NOTICE, "[stm:%p] Stream connection is over", a_stream);
 

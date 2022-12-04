@@ -48,11 +48,12 @@
 
 #define LOG_TAG "dap_stream_ch"
 
+#ifdef  DAP_SYS_DEBUG
 enum    {MEMSTAT$K_STM_CH, MEMSTAT$K_NR};
 static  dap_memstat_rec_t   s_memstat [MEMSTAT$K_NR] = {
     {.fac_len = sizeof(LOG_TAG) - 1, .fac_name = {LOG_TAG}, .alloc_sz = sizeof(dap_stream_ch_t)},
 };
-
+#endif
 
 
 /**
@@ -71,8 +72,10 @@ int dap_stream_ch_init()
     }
 
 
+#ifdef  DAP_SYS_DEBUG
     for (int i = 0; i < MEMSTAT$K_NR; i++)
         dap_memstat_reg(&s_memstat[i]);
+#endif
 
     log_it(L_NOTICE,"Module stream channel initialized");
     return 0;
@@ -135,8 +138,10 @@ dap_stm_ch_rec_t    *l_rec;
     l_rc = pthread_rwlock_wrlock(&s_stm_ch_lock);
     assert(!l_rc);
     HASH_ADD(hh, s_stm_chs, stm_ch, sizeof(dap_events_socket_t *), l_rec );
-    s_memstat[MEMSTAT$K_STM_CH].alloc_nr += 1;
 
+#ifdef  DAP_SYS_DEBUG
+    s_memstat[MEMSTAT$K_STM_CH].alloc_nr += 1;
+#endif
     l_rc = pthread_rwlock_unlock(&s_stm_ch_lock);
     assert(!l_rc);
 
@@ -178,7 +183,9 @@ dap_stm_ch_rec_t    *l_rec = NULL;
     if ( l_rec && (l_rec->stm_ch == a_stm_ch) )
         HASH_DELETE(hh, s_stm_chs, l_rec);                           /* Remove record from the table */
 
+#ifdef  DAP_SYS_DEBUG
     atomic_fetch_add(&s_memstat[MEMSTAT$K_STM_CH].free_nr, 1);
+#endif
 
     l_rc = pthread_rwlock_unlock(&s_stm_ch_lock);
     assert(!l_rc);

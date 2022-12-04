@@ -1501,7 +1501,7 @@ size_t dap_writev(HANDLE a_hf, const char* a_filename, iovec_t const *a_bufs, in
 #endif
 
 
-//#ifdef  DAP_SYS_DEBUG
+#ifdef  DAP_SYS_DEBUG
 dap_memstat_rec_t    *g_memstat [MEMSTAT$K_MAXNR];                      /* Array to keep pointers to module/facility specific memstat vecros */
 static pthread_rwlock_t     s_memstat_lock = PTHREAD_RWLOCK_INITIALIZER;
 static uint64_t             s_memstat_nr;                               /* A number of pointers in the <g_memstat> */
@@ -1548,5 +1548,5 @@ dap_memstat_rec_t   *l_memstat_rec;
 
 
 
-//#endif  /* DAP_SYS_DEBUG */
+#endif  /* DAP_SYS_DEBUG */
 

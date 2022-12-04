@@ -128,12 +128,14 @@ static char **s_list_white_groups = NULL;
 static uint16_t s_size_ban_groups = 0;
 static uint16_t s_size_white_groups = 0;
 
+#ifdef  DAP_SYS_DEBUG
 
 enum    {MEMSTAT$K_STM_CH_CHAIN, MEMSTAT$K_NR};
 static  dap_memstat_rec_t   s_memstat [MEMSTAT$K_NR] = {
     {.fac_len = sizeof(LOG_TAG) - 1, .fac_name = {LOG_TAG}, .alloc_sz = sizeof(dap_stream_ch_chain_t)},
 };
 
+#endif
 
 
 
@@ -151,8 +153,10 @@ int dap_stream_ch_chain_init()
     s_list_ban_groups = dap_config_get_array_str(g_config, "stream_ch_chain", "ban_list_sync_groups", &s_size_ban_groups);
     s_list_white_groups = dap_config_get_array_str(g_config, "stream_ch_chain", "white_list_sync_groups", &s_size_white_groups);
 
+#ifdef  DAP_SYS_DEBUG
     for (int i = 0; i < MEMSTAT$K_NR; i++)
         dap_memstat_reg(&s_memstat[i]);
+#endif
 
     return 0;
 }
@@ -176,7 +180,9 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
     dap_stream_ch_chain_t * l_ch_chain;
     l_ch_chain = a_ch->internal = DAP_NEW_Z(dap_stream_ch_chain_t);
 
+#ifdef  DAP_SYS_DEBUG
     atomic_fetch_add(&s_memstat[MEMSTAT$K_STM_CH_CHAIN].alloc_nr, 1);
+#endif
 
     debug_if(s_debug_more, L_DEBUG, "[stm_ch_chain:%p] --- created chain:%p", a_ch, l_ch_chain);
 
@@ -206,7 +212,9 @@ static void s_stream_ch_delete_in_proc(dap_worker_t *a_worker, void *a_arg)
                                                    l_stm_ch_chain->callback_notify_arg);
         DAP_DELETE(l_stm_ch_chain);
 
+#ifdef  DAP_SYS_DEBUG
         atomic_fetch_add(&s_memstat[MEMSTAT$K_STM_CH_CHAIN].free_nr, 1);
+#endif
     }
 }
 
