@@ -740,8 +740,8 @@ const struct sched_param l_shed_params = {0};
                                     struct kevent* l_event=&l_es->kqueue_event;
                                     dap_events_socket_w_data_t * l_es_w_data = DAP_NEW_Z(dap_events_socket_w_data_t);
                                     l_es_w_data->esocket = l_es;
-                                    memcpy(&l_es_w_data->ptr, l_es->buf_out,sizeof(l_cur));
-                                    EV_SET(l_event,l_cur->socket, l_es->kqueue_base_filter,l_es->kqueue_base_flags, l_es->kqueue_base_fflags,l_es->kqueue_data, l_es_w_data);
+                                    memcpy(&l_es_w_data->ptr, l_es->buf_out,sizeof(l_es));
+                                    EV_SET(l_event,l_es->socket, l_es->kqueue_base_filter,l_es->kqueue_base_flags, l_es->kqueue_base_fflags,l_es->kqueue_data, l_es_w_data);
                                     int l_n = kevent(l_worker->kqueue_fd,l_event,1,NULL,0,NULL);
                                     if (l_n == 1){
                                         l_bytes_sent = sizeof(l_es);
