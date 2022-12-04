@@ -363,7 +363,7 @@ static void s_http_client_headers_read( dap_http_client_t *a_http_client, void *
 //    This is necessary in order to be able to request information using JavaScript obtained from another source.
     dap_http_header_t* l_header_origin = dap_http_header_find(a_http_client->in_headers, "Origin");
     if (l_header_origin){
-        dap_http_header_add(a_http_client, "Access-Control-Allow-Origin", -1, "*", -1);
+        dap_http_header_add(&a_http_client->out_headers, "Access-Control-Allow-Origin", -1, "*", -1);
     }
 
 

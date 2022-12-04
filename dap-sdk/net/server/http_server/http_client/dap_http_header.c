@@ -108,7 +108,7 @@ size_t  l_len, l_name_len, l_value_len;
     }
     else if ( !strcmp(l_name,"Content-Type") )
     {
-        l_len = MIN(l_value, sizeof(a_cl_ht->in_content_type) - 1);
+        l_len = MIN(l_value_len, sizeof(a_cl_ht->in_content_type) - 1);
         memcpy( a_cl_ht->in_content_type, l_value, l_len );
         a_cl_ht->in_content_type[ l_len] = '\0';
     }
@@ -116,7 +116,7 @@ size_t  l_len, l_name_len, l_value_len;
         a_cl_ht->in_content_length = atoi( l_value );
     }
     else  if( !strcmp(l_name,"Cookie") ) {
-        l_len = MIN(l_value, sizeof(a_cl_ht->in_cookie) - 1);
+        l_len = MIN(l_value_len, sizeof(a_cl_ht->in_cookie) - 1);
         memcpy(a_cl_ht->in_cookie,l_value, l_len);
         a_cl_ht->in_cookie[l_len] = '\0';
     }
@@ -181,7 +181,7 @@ size_t  l_len;
 
     va_start(ap,a_format);
     l_len = dap_vsnprintf(l_buf, sizeof(l_buf) - 1, a_format, ap);
-    ret = dap_http_header_add(ht, a_name, -1, l_buf, l_len);
+    ret = dap_http_header_add(&ht->out_headers, a_name, -1, l_buf, l_len);
     va_end(ap);
 
     return ret;
