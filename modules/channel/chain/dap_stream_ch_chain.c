@@ -695,17 +695,6 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
     struct sync_request *l_sync_request = (struct sync_request *) a_arg;
     dap_chain_pkt_item_t *l_pkt_item = &l_sync_request->pkt;
 
-
-    {/* @RRL: 6901 */
-
-    DAP_DEL_Z(l_pkt_item->pkt_data);
-    DAP_DELETE(l_sync_request);
-    return  true;
-    }
-
-
-
-
     if(l_pkt_item->pkt_data_size >= sizeof(dap_store_obj_pkt_t))
     {
 
@@ -955,11 +944,6 @@ void dap_stream_ch_chain_timer_start(dap_stream_ch_chain_t *a_ch_chain)
  */
 void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 {
-
-    { /* @RRL: 6901 */
-    a_ch->stream->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
-    return;
-    }
 
 
     dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);

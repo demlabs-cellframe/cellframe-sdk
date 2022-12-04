@@ -155,19 +155,12 @@ static void *s_list_thread_proc(void *arg)
  * @param a_flags flags
  * @return Returns a pointer to the log list structure if successful, otherwise NULL pointer.
  */
-static  atomic_ullong   s_nomore_session_flag;
 
 dap_db_log_list_t* dap_db_log_list_start(dap_chain_net_t *a_net, dap_chain_node_addr_t a_addr, int a_flags)
 {
 #ifdef GDB_SYNC_ALWAYS_FROM_ZERO
     a_flags |= F_DB_LOG_SYNC_FROM_ZERO;
 #endif
-
-    if ( atomic_fetch_add(&s_nomore_session_flag, 1) )
-        return  atomic_fetch_sub(&s_nomore_session_flag, 1), NULL;
-
-
-    return  NULL;
 
 
     log_it(L_DEBUG, "[chain_net:%p] name:%s ...", a_net, a_net->pub.name);

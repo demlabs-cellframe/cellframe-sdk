@@ -344,9 +344,10 @@ void dap_stream_delete(dap_stream_t *a_stream)
     DAP_DELETE(a_stream->buf_fragments);
     DAP_DELETE(a_stream);
 
-    atomic_fetch_add(&s_memstat[MEMSTAT$K_STM].free_nr, 1);;
+    atomic_fetch_add(&s_memstat[MEMSTAT$K_STM].free_nr, 1);
 
-    log_it(L_NOTICE,"Stream connection is over");
+    log_it(L_NOTICE, "[stm:%p] Stream connection is over", a_stream);
+
 }
 
 /**
@@ -430,19 +431,19 @@ void s_http_client_headers_read(dap_http_client_t * a_http_client, void * a_arg)
  */
 static void s_http_client_headers_write(dap_http_client_t * a_http_client, void *a_arg)
 {
-    (void) a_arg;
-    //log_it(L_DEBUG,"s_http_client_headers_write()");
+UNUSED(a_arg);
+
     if(a_http_client->reply_status_code==200){
-        dap_stream_t *l_stream=DAP_STREAM(a_http_client);
+        dap_stream_t *l_stream = DAP_STREAM(a_http_client);
 
-        dap_http_out_header_add(a_http_client,"Content-Type","application/octet-stream");
-        dap_http_out_header_add(a_http_client,"Connection","keep-alive");
-        dap_http_out_header_add(a_http_client,"Cache-Control","no-cache");
+        dap_http_header_add(&a_http_client->out_headers, "Content-Type",-1, "application/octet-stream", -1);
+        dap_http_header_add(&a_http_client->out_headers, "Connection", -1, "keep-alive", -1);
+        dap_http_header_add(&a_http_client->out_headers, "Cache-Control", -1, "no-cache", -1);
 
-        if(l_stream->stream_size>0)
-            dap_http_out_header_add_f(a_http_client,"Content-Length","%u", (unsigned int) l_stream->stream_size );
+        if(l_stream->stream_size > 0)
+            dap_http_out_header_add_f(a_http_client, "Content-Length", "%u", (unsigned int) l_stream->stream_size );
 
-        a_http_client->state_read=DAP_HTTP_CLIENT_STATE_DATA;
+        a_http_client->state_read  = DAP_HTTP_CLIENT_STATE_DATA;
         dap_events_socket_set_readable_unsafe(a_http_client->esocket,true);
     }
 }

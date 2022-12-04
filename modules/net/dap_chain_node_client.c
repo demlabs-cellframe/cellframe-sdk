@@ -772,9 +772,7 @@ dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t 
  */
 static bool dap_chain_node_client_connect_internal(dap_chain_node_client_t *a_node_client, const char *a_active_channels)
 {
-
-    return  false;  /* @RRL */
-
+char l_host[INET6_ADDRSTRLEN + 1] = {0};
 
     a_node_client->client = dap_client_new(a_node_client->events, s_stage_status_callback,
             s_stage_status_error_callback);
@@ -784,23 +782,22 @@ static bool dap_chain_node_client_connect_internal(dap_chain_node_client_t *a_no
 
     dap_client_set_auth_cert(a_node_client->client, a_node_client->net->pub.name);
 
-    int hostlen = 128;
-    char host[hostlen];
+
     if(a_node_client->info->hdr.ext_addr_v4.s_addr){
         struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = a_node_client->info->hdr.ext_addr_v4 };
-        inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), host, hostlen);
-        log_it(L_INFO, "Connecting to %s address",host);
+        inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), l_host, INET_ADDRSTRLEN);
+        log_it(L_INFO, "Connecting to %s address",l_host);
     } else {
         struct sockaddr_in6 sa6 = { .sin6_family = AF_INET6, .sin6_addr = a_node_client->info->hdr.ext_addr_v6 };
-        inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) &sa6)->sin6_addr), host, hostlen);
-        log_it(L_INFO, "Connecting to %s address",host);
+        inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) &sa6)->sin6_addr), l_host, INET6_ADDRSTRLEN);
+        log_it(L_INFO, "Connecting to %s address",l_host);
     }
     // address not defined
-    if(!strcmp(host, "::")) {
+    if(!strcmp(l_host, "::")) {
         dap_chain_node_client_close(a_node_client->uuid);
         return false;
     }
-    dap_client_set_uplink_unsafe(a_node_client->client, host, a_node_client->info->hdr.ext_port);
+    dap_client_set_uplink_unsafe(a_node_client->client, l_host, a_node_client->info->hdr.ext_port);
     a_node_client->state = NODE_CLIENT_STATE_CONNECTING ;
     // Handshake & connect
     dap_client_go_stage(a_node_client->client, STAGE_STREAM_STREAMING, s_stage_connected_callback);

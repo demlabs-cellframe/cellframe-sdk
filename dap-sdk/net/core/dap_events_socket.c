@@ -323,11 +323,12 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
     l_es->buf_out_size_max = DAP_EVENTS_SOCKET_BUF;
 
     l_es->buf_in     = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, l_es->buf_in_size_max + 1);
-    s_memstat[MEMSTAT$K_BUF_IN].alloc_nr += (!!l_es->buf_in);
+    atomic_fetch_add(&s_memstat[MEMSTAT$K_BUF_IN].alloc_nr, 1);
     l_es->buf_out    = a_callbacks->timer_callback ? NULL : DAP_NEW_Z_SIZE(byte_t, l_es->buf_out_size_max + 1);
-    s_memstat[MEMSTAT$K_BUF_OUT].alloc_nr += (!!l_es->buf_out);
+    atomic_fetch_add(&s_memstat[MEMSTAT$K_BUF_OUT].alloc_nr, 1);
 
     l_es->buf_in_size = l_es->buf_out_size = 0;
+
     #if defined(DAP_EVENTS_CAPS_EPOLL)
     l_ret->ev_base_flags = EPOLLERR | EPOLLRDHUP | EPOLLHUP;
     #elif defined(DAP_EVENTS_CAPS_POLL)
