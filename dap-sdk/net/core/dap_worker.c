@@ -255,8 +255,8 @@ const struct sched_param l_shed_params = {0};
             //    log_it(L_DEBUG,"EVFILT_USER: udata=%p", l_es_w_data);
 
                 l_es = l_es_w_data->esocket;
-                assert(l_cur);
-                memcpy(&l_cur->kqueue_event_catched_data, l_es_w_data, sizeof (*l_es_w_data)); // Copy event info for further processing
+                assert(l_es);
+                memcpy(&l_es->kqueue_event_catched_data, l_es_w_data, sizeof (*l_es_w_data)); // Copy event info for further processing
 
                 if ( l_es->pipe_out == NULL){ // If we're not the input for pipe or queue
                                                // we must drop write flag and set read flag
@@ -264,14 +264,14 @@ const struct sched_param l_shed_params = {0};
                 }else{
                     l_flag_write = true;
                 }
-                void * l_ptr = &l_cur->kqueue_event_catched_data;
+                void * l_ptr = &l_es->kqueue_event_catched_data;
                 if(l_es_w_data != l_ptr){
                     DAP_DELETE(l_es_w_data);
                 }else if (g_debug_reactor){
                     log_it(L_DEBUG,"Own event signal without actual event data");
                 }
             }else
-                l_cur = NULL;
+                l_es = NULL;
         }else{
             switch (l_kevent_selected->filter) {
                 case EVFILT_TIMER:
@@ -737,14 +737,14 @@ const struct sched_param l_shed_params = {0};
                                         log_it(L_ERROR, "[es:%p] Msg size %lu > permitted size %lu", l_es, l_es->buf_out_size, l_attr.mq_msgsize);
                                     }
 #elif defined (DAP_EVENTS_CAPS_KQUEUE)
-                                    struct kevent* l_event=&l_cur->kqueue_event;
+                                    struct kevent* l_event=&l_es->kqueue_event;
                                     dap_events_socket_w_data_t * l_es_w_data = DAP_NEW_Z(dap_events_socket_w_data_t);
-                                    l_es_w_data->esocket = l_cur;
-                                    memcpy(&l_es_w_data->ptr, l_cur->buf_out,sizeof(l_cur));
-                                    EV_SET(l_event,l_cur->socket, l_cur->kqueue_base_filter,l_cur->kqueue_base_flags, l_cur->kqueue_base_fflags,l_cur->kqueue_data, l_es_w_data);
+                                    l_es_w_data->esocket = l_es;
+                                    memcpy(&l_es_w_data->ptr, l_es->buf_out,sizeof(l_cur));
+                                    EV_SET(l_event,l_cur->socket, l_es->kqueue_base_filter,l_es->kqueue_base_flags, l_es->kqueue_base_fflags,l_es->kqueue_data, l_es_w_data);
                                     int l_n = kevent(l_worker->kqueue_fd,l_event,1,NULL,0,NULL);
                                     if (l_n == 1){
-                                        l_bytes_sent = sizeof(l_cur);
+                                        l_bytes_sent = sizeof(l_es);
                                     }else{
                                         l_errno = errno;
                                         log_it(L_WARNING,"queue ptr send error: kevent %p errno: %d", l_es_w_data, l_errno);
@@ -863,7 +863,7 @@ const struct sched_param l_shed_params = {0};
 #endif
                 } else {
                     debug_if(g_debug_reactor, L_INFO, "[%es] Got signal to close %s sock %"DAP_FORMAT_SOCKET" [thread %u] type %d but buffer is not empty(%zu)",
-                           l_es, l_es->remote_addr_str ? l_es->remote_addr_str : "", l_es->socket, l_es->type, l_tn,
+                           l_es, l_es->remote_addr_str, l_es->socket, l_es->type, l_tn,
                            l_es->buf_out_size);
                 }
             }
