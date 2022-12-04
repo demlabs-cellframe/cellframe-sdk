@@ -359,7 +359,7 @@ const struct sched_param l_shed_params = {0};
                     l_es->callbacks.error_callback(l_es, l_sock_err); // Call callback to process error event
                 if (l_es->fd == 0 || l_es->fd == -1) {
 #ifdef DAP_OS_WINDOWS
-                    log_it(L_ERROR, "Wrong fd: %d", l_cur->fd);
+                    log_it(L_ERROR, "Wrong fd: %d", l_es->fd);
 #else
                     assert(errno);
 #endif
