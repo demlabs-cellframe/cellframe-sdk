@@ -336,7 +336,7 @@ dap_events_socket_t *dap_events_socket_wrap_no_add( dap_events_t *a_events,
     l_es->buf_in_size = l_es->buf_out_size = 0;
 
     #if defined(DAP_EVENTS_CAPS_EPOLL)
-    l_ret->ev_base_flags = EPOLLERR | EPOLLRDHUP | EPOLLHUP;
+    l_es->ev_base_flags = EPOLLERR | EPOLLRDHUP | EPOLLHUP;
     #elif defined(DAP_EVENTS_CAPS_POLL)
     l_es->poll_base_flags = POLLERR | POLLRDHUP | POLLHUP;
     #elif defined(DAP_EVENTS_CAPS_KQUEUE)

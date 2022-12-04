@@ -330,7 +330,7 @@ const struct sched_param l_shed_params = {0};
                     if (l_sock_err) {
                          log_it(L_DEBUG, "Socket %d error %d", l_es->socket, l_sock_err);
 #else
-                    log_it(L_DEBUG, "Socket %"DAP_FORMAT_SOCKET" will be shutdown (EPOLLHUP), error %d", l_cur->socket, WSAGetLastError());
+                    log_it(L_DEBUG, "Socket %"DAP_FORMAT_SOCKET" will be shutdown (EPOLLHUP), error %d", l_es->socket, WSAGetLastError());
 #endif
                     dap_events_socket_set_readable_unsafe(l_es, false);
                     dap_events_socket_set_writable_unsafe(l_es, false);
