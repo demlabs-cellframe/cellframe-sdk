@@ -722,7 +722,7 @@ const struct sched_param l_shed_params = {0};
                                     }
 
                                     */
-                                    l_bytes_sent = dap_sendto(l_cur->socket, l_cur->port, l_cur->buf_out, l_cur->buf_out_size);
+                                    l_bytes_sent = dap_sendto(l_es->socket, l_es->port, l_es->buf_out, l_es->buf_out_size);
                                     if (l_bytes_sent == SOCKET_ERROR) {
                                         log_it(L_ERROR, "Write to socket error: %d", WSAGetLastError());
                                     }
