@@ -216,7 +216,7 @@ const struct sched_param l_shed_params = {0};
             int l_flag_hup, l_flag_rdhup, l_flag_read, l_flag_write, l_flag_error, l_flag_nval, l_flag_msg, l_flag_pri;
             l_worker->esocket_current = n;
 #ifdef DAP_EVENTS_CAPS_EPOLL
-            l_cur = (dap_events_socket_t *) l_epoll_events[n].data.ptr;
+            l_es = (dap_events_socket_t *) l_epoll_events[n].data.ptr;
             uint32_t l_cur_flags = l_epoll_events[n].events;
             l_flag_hup      = l_cur_flags & EPOLLHUP;
             l_flag_rdhup    = l_cur_flags & EPOLLRDHUP;
@@ -254,11 +254,11 @@ const struct sched_param l_shed_params = {0};
             //if(g_debug_reactor)
             //    log_it(L_DEBUG,"EVFILT_USER: udata=%p", l_es_w_data);
 
-                l_cur = l_es_w_data->esocket;
+                l_es = l_es_w_data->esocket;
                 assert(l_cur);
                 memcpy(&l_cur->kqueue_event_catched_data, l_es_w_data, sizeof (*l_es_w_data)); // Copy event info for further processing
 
-                if ( l_cur->pipe_out == NULL){ // If we're not the input for pipe or queue
+                if ( l_es->pipe_out == NULL){ // If we're not the input for pipe or queue
                                                // we must drop write flag and set read flag
                     l_flag_read  = true;
                 }else{
@@ -282,20 +282,20 @@ const struct sched_param l_shed_params = {0};
             }
             if (l_kevent_selected->flags & EV_EOF)
                 l_flag_rdhup = true;
-            l_cur = (dap_events_socket_t*) l_kevent_selected->udata;
+            l_es = (dap_events_socket_t*) l_kevent_selected->udata;
         }
 
-        if( !l_cur) {
+        if( !l_es) {
             log_it(L_WARNING, "dap_events_socket was destroyed earlier");
             continue;
         }
         // Previously deleted socket, its really bad when it appears
-        if(l_cur->socket == 0 && l_cur->type == 0 ){
+        if(l_es->socket == 0 && l_es->type == 0 ){
 
         }
 
 
-        l_cur->kqueue_event_catched = l_kevent_selected;
+        l_es->kqueue_event_catched = l_kevent_selected;
 #ifndef DAP_OS_DARWIN
             u_int l_cur_flags = l_kevent_selected->flags;
 #else
