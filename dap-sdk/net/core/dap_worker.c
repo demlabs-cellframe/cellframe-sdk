@@ -666,7 +666,7 @@ const struct sched_param l_shed_params = {0};
                                                       l_es->buf_out_size, MSG_DONTWAIT | MSG_NOSIGNAL,
                                                       (struct sockaddr *)&l_es->remote_addr, sizeof(l_es->remote_addr));
 #ifdef DAP_OS_WINDOWS
-                                dap_events_socket_set_writable_unsafe(l_cur,false);
+                                dap_events_socket_set_writable_unsafe(l_es,false);
                                 l_errno = WSAGetLastError();
 #else
                                 l_errno = errno;
