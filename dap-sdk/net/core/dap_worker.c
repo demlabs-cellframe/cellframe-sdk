@@ -402,7 +402,7 @@ const struct sched_param l_shed_params = {0};
                     case DESCRIPTOR_TYPE_FILE:
                         l_must_read_smth = true;
 #ifdef DAP_OS_WINDOWS
-                        l_bytes_read = dap_recvfrom(l_cur->socket, l_cur->buf_in + l_cur->buf_in_size, l_cur->buf_in_size_max - l_cur->buf_in_size);
+                        l_bytes_read = dap_recvfrom(l_es->socket, l_es->buf_in + l_es->buf_in_size, l_es->buf_in_size_max - l_es->buf_in_size);
 #else
                         l_bytes_read = read(l_es->socket, (char *) (l_es->buf_in + l_es->buf_in_size),
                                             l_es->buf_in_size_max - l_es->buf_in_size);
@@ -438,11 +438,11 @@ const struct sched_param l_shed_params = {0};
                         l_must_read_smth = true;
 #ifndef DAP_NET_CLIENT_NO_SSL
                         WOLFSSL *l_ssl = SSL(l_cur);
-                        l_bytes_read =  wolfSSL_read(l_ssl, (char *) (l_cur->buf_in + l_cur->buf_in_size),
-                                                     l_cur->buf_in_size_max - l_cur->buf_in_size);
+                        l_bytes_read =  wolfSSL_read(l_ssl, (char *) (l_es->buf_in + l_es->buf_in_size),
+                                                     l_es->buf_in_size_max - l_es->buf_in_size);
                         l_errno = wolfSSL_get_error(l_ssl, 0);
                         if (l_bytes_read > 0 && g_debug_reactor)
-                            log_it(L_DEBUG, "SSL read: %s", (char *)(l_cur->buf_in + l_cur->buf_in_size));
+                            log_it(L_DEBUG, "SSL read: %s", (char *)(l_es->buf_in + l_es->buf_in_size));
 #endif
                     }
                     break;
@@ -462,7 +462,7 @@ const struct sched_param l_shed_params = {0};
                                 if (l_errno == WSAEWOULDBLOCK)
                                     continue;
                                 else {
-                                    log_it(L_WARNING,"Can't accept on socket %"DAP_FORMAT_SOCKET", WSA errno: %d", l_cur->socket, l_errno);
+                                    log_it(L_WARNING,"Can't accept on socket %"DAP_FORMAT_SOCKET", WSA errno: %d", l_es->socket, l_errno);
                                     break;
                                 }
                             }
@@ -488,7 +488,7 @@ const struct sched_param l_shed_params = {0};
                     case DESCRIPTOR_TYPE_TIMER:{
                         /* if we not reading data from socket, he triggered again */
 #ifdef DAP_OS_WINDOWS
-                        l_bytes_read = dap_recvfrom(l_cur->socket, NULL, 0);
+                        l_bytes_read = dap_recvfrom(l_es->socket, NULL, 0);
 #elif defined(DAP_OS_LINUX)
                         uint64_t val;
                         read( l_es->fd, &val, 8);
@@ -530,8 +530,8 @@ const struct sched_param l_shed_params = {0};
                     }
                     else if(l_bytes_read < 0) {
 #ifdef DAP_OS_WINDOWS
-                        if (l_cur->type != DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL && l_errno != WSAEWOULDBLOCK) {
-                            log_it(L_ERROR, "Can't recv on socket %zu, WSA error: %d", l_cur->socket, l_errno);
+                        if (l_es->type != DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL && l_errno != WSAEWOULDBLOCK) {
+                            log_it(L_ERROR, "Can't recv on socket %zu, WSA error: %d", l_es->socket, l_errno);
 #else
                         if (l_es->type != DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL && l_errno != EAGAIN && l_errno != EWOULDBLOCK)
                         { // If we have non-blocking socket
@@ -543,14 +543,14 @@ const struct sched_param l_shed_params = {0};
                             l_es->buf_out_size = 0;
                         }
 #ifndef DAP_NET_CLIENT_NO_SSL
-                        if (l_cur->type == DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL && l_errno != SSL_ERROR_WANT_READ && l_errno != SSL_ERROR_WANT_WRITE) {
+                        if (l_es->type == DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL && l_errno != SSL_ERROR_WANT_READ && l_errno != SSL_ERROR_WANT_WRITE) {
                             char l_err_str[80];
                             wolfSSL_ERR_error_string(l_errno, l_err_str);
                             log_it(L_ERROR, "Some error occured in SSL read(): %s (code %d)", l_err_str, l_errno);
-                            dap_events_socket_set_readable_unsafe(l_cur, false);
-                            if (!l_cur->no_close)
-                                l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
-                            l_cur->buf_out_size = 0;
+                            dap_events_socket_set_readable_unsafe(l_es, false);
+                            if (!l_es->no_close)
+                                l_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                            l_es->buf_out_size = 0;
                         }
 #endif
                     }
@@ -584,7 +584,7 @@ const struct sched_param l_shed_params = {0};
                   (l_es->type == DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL && l_es->flags & DAP_SOCK_CONNECTING)) {
                 if (l_es->type == DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL) {
 #ifndef DAP_NET_CLIENT_NO_SSL
-                    WOLFSSL *l_ssl = SSL(l_cur);
+                    WOLFSSL *l_ssl = SSL(l_es);
                     int l_res = wolfSSL_negotiate(l_ssl);
                     if (l_res != WOLFSSL_SUCCESS) {
                         char l_err_str[80];
@@ -592,16 +592,16 @@ const struct sched_param l_shed_params = {0};
                         if (l_err != WOLFSSL_ERROR_WANT_READ && l_err != WOLFSSL_ERROR_WANT_WRITE) {
                             wolfSSL_ERR_error_string(l_err, l_err_str);
                             log_it(L_ERROR, "SSL handshake error \"%s\" with code %d", l_err_str, l_err);
-                            if ( l_cur->callbacks.error_callback )
-                                l_cur->callbacks.error_callback(l_cur, l_error);
+                            if ( l_es->callbacks.error_callback )
+                                l_es->callbacks.error_callback(l_es, l_error);
                         }
                     } else {
                         if(g_debug_reactor)
-                            log_it(L_NOTICE, "SSL handshake done with %s", l_cur->remote_addr_str ? l_cur->remote_addr_str: "(NULL)");
-                        l_cur->flags ^= DAP_SOCK_CONNECTING;
-                        if (l_cur->callbacks.connected_callback)
-                            l_cur->callbacks.connected_callback(l_cur);
-                        dap_events_socket_worker_poll_update_unsafe(l_cur);
+                            log_it(L_NOTICE, "SSL handshake done with %s", l_es->remote_addr_str ? l_es->remote_addr_str: "(NULL)");
+                        l_es->flags ^= DAP_SOCK_CONNECTING;
+                        if (l_es->callbacks.connected_callback)
+                            l_es->callbacks.connected_callback(l_es);
+                        dap_events_socket_worker_poll_update_unsafe(l_es);
                     }
 #endif
                 } else {
@@ -675,9 +675,9 @@ const struct sched_param l_shed_params = {0};
                             case DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL: {
 #ifndef DAP_NET_CLIENT_NO_SSL
                                 WOLFSSL *l_ssl = SSL(l_cur);
-                                l_bytes_sent = wolfSSL_write(l_ssl, (char *)(l_cur->buf_out), l_cur->buf_out_size);
+                                l_bytes_sent = wolfSSL_write(l_ssl, (char *)(l_es->buf_out), l_es->buf_out_size);
                                 if (l_bytes_sent > 0)
-                                    log_it(L_DEBUG, "SSL write: %s", (char *)(l_cur->buf_out));
+                                    log_it(L_DEBUG, "SSL write: %s", (char *)(l_es->buf_out));
                                 l_errno = wolfSSL_get_error(l_ssl, 0);
 #endif
                             }
@@ -685,7 +685,7 @@ const struct sched_param l_shed_params = {0};
                             case DESCRIPTOR_TYPE_QUEUE:
                                 if (l_es->flags & DAP_SOCK_QUEUE_PTR && l_es->buf_out_size>= sizeof (void*)){
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
-                                   l_bytes_sent = write(l_cur->socket, l_cur->buf_out, /*sizeof(void*)*/ l_cur->buf_out_size);
+                                   l_bytes_sent = write(l_es->socket, l_es->buf_out, /*sizeof(void*)*/ l_es->buf_out_size);
                                    debug_if(g_debug_reactor, L_NOTICE, "send %ld bytes to pipe", l_bytes_sent);
                                    l_errno = errno;
 #elif defined (DAP_EVENTS_CAPS_QUEUE_POSIX)
@@ -771,8 +771,8 @@ const struct sched_param l_shed_params = {0};
 
                     if(l_bytes_sent < 0) {
 #ifdef DAP_OS_WINDOWS
-                        if (l_cur->type != DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL && l_errno != WSAEWOULDBLOCK) {
-                            log_it(L_ERROR, "Can't send to socket %zu, WSA error: %d", l_cur->socket, l_errno);
+                        if (l_es->type != DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL && l_errno != WSAEWOULDBLOCK) {
+                            log_it(L_ERROR, "Can't send to socket %zu, WSA error: %d", l_es->socket, l_errno);
 #else
                         if (l_es->type != DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL && l_errno != EAGAIN && l_errno != EWOULDBLOCK)
                         { // If we have non-blocking socket
@@ -783,13 +783,13 @@ const struct sched_param l_shed_params = {0};
                             l_es->buf_out_size = 0;
                         }
 #ifndef DAP_NET_CLIENT_NO_SSL
-                        if (l_cur->type == DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL && l_errno != SSL_ERROR_WANT_READ && l_errno != SSL_ERROR_WANT_WRITE) {
+                        if (l_es->type == DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL && l_errno != SSL_ERROR_WANT_READ && l_errno != SSL_ERROR_WANT_WRITE) {
                             char l_err_str[80];
                             wolfSSL_ERR_error_string(l_errno, l_err_str);
                             log_it(L_ERROR, "Some error occured in SSL write(): %s (code %d)", l_err_str, l_errno);
-                            if (!l_cur->no_close)
-                                l_cur->flags |= DAP_SOCK_SIGNAL_CLOSE;
-                            l_cur->buf_out_size = 0;
+                            if (!l_es->no_close)
+                                l_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
+                            l_es->buf_out_size = 0;
                         }
 #endif
                     }else{
