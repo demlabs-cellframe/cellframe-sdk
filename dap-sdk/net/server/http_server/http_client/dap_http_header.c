@@ -72,6 +72,11 @@ void dap_http_header_deinit()
  * @param str String to parse
  * @return Zero if parsed well -1 if it wasn't HTTP header 1 if its "\r\n" string
  */
+#define	CRLF    "\r\n"
+#define	CR    '\r'
+#define	LF    '\n'
+
+
 int dap_http_header_parse(
             struct dap_http_client *a_cl_ht,
                         const char *a_str,
@@ -81,7 +86,10 @@ int dap_http_header_parse(
 char    l_name[DAP_HTTP$SZ_FIELD_NAME], l_value[DAP_HTTP$SZ_FIELD_VALUE], *l_cp;
 size_t  l_len, l_name_len, l_value_len;
 
-    if( a_str_len )
+    if ( !a_str_len )
+        return 1;
+
+    if ( (a_str_len > 2) && (*a_str == CR) && (*(a_str + 1) == LF) )
         return 1;
 
     /* We expect to see: <field_name>':'<white_space><field_value>CRLF */

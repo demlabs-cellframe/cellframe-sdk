@@ -374,8 +374,7 @@ int     l_rc;
                 memcpy( l_buf_line, a_esocket->buf_in, l_len);          /* Store start linet to work buffer */
                 l_buf_line[ l_len] = '\0';                              /* ASCIZ */
 
-                dap_events_socket_shrink_buf_in( a_esocket, l_len + 1); /* Shrink start line from input buffer
-                                                                        over LF !!! */
+                dap_events_socket_shrink_buf_in( a_esocket, l_len + 1); /* Shrink start line from input buffer over LF !!! */
 
 
                 // parse http_request_line
@@ -466,7 +465,7 @@ int     l_rc;
                 }
 
                 if ( !(l_str_eol = memchr(a_esocket->buf_in, CR, a_esocket->buf_in_size)) ) { /* search for CR */
-                    log_it( L_WARNING, "DAP_HTTP_CLIENT_STATE_HEADERS: no LF" );
+                    log_it( L_WARNING, "DAP_HTTP_CLIENT_STATE_HEADERS: no CR" );
                     s_report_error_and_restart( a_esocket, l_http_client );
                     break;
                 }
@@ -495,7 +494,7 @@ int     l_rc;
                 l_rc = dap_http_header_parse( l_http_client, (char *) a_esocket->buf_in, l_len );
 
                 if( l_rc < 0 ){
-                    log_it( L_WARNING, "Input: not a valid header '%s'", l_len, a_esocket->buf_in );
+                    log_it( L_WARNING, "Input: not a valid header '%.s'", l_len, a_esocket->buf_in );
                 }else if ( l_rc == 1 ) {
                     log_it( L_INFO, "Input: HTTP headers are over" );
                     if ( l_http_client->proc->access_callback ) {

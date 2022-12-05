@@ -1040,7 +1040,7 @@ static void s_queue_callback_callback( dap_events_socket_t * a_es, void * a_arg)
 {
     dap_worker_msg_callback_t * l_msg = (dap_worker_msg_callback_t *) a_arg;
     assert(l_msg);
-    assert(l_msg->callback);
+     assert(l_msg->callback);
     l_msg->callback(a_es->worker, l_msg->arg);
     DAP_DELETE(l_msg);
 }
