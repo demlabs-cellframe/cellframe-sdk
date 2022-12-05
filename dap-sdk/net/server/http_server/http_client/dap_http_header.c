@@ -101,8 +101,9 @@ size_t  l_len, l_name_len, l_value_len;
     l_name[l_name_len] = '\0';
 
     l_cp += 2;                                                          /* Skip ':'<white_space>' ??? */
-    l_value_len  = a_str_len - (l_cp - a_str);                            /* <value_len> - rest of input buffer */
+    l_value_len  = a_str_len - (l_cp - a_str);                          /* <value_len> - rest of input buffer */
     l_value_len = MIN(l_value_len, sizeof(l_value)  - 1);
+    l_value_len += 2;                                                   /* Minus CRLF */
     memcpy(l_value, l_cp, l_value_len);
     l_value[l_value_len] = '\0';
 
