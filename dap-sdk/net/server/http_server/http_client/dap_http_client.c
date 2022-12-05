@@ -324,8 +324,7 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
 {
 UNUSED(a_arg);
 dap_http_client_t *l_http_client = DAP_HTTP_CLIENT( a_esocket );
-
-char l_buf_line[4096], *l_str_eol;
+char    *l_cp;
 size_t  l_len;
 int     l_rc;
 
@@ -341,10 +340,10 @@ int     l_rc;
                 if ( !(a_esocket->buf_in_size > 3) )                    /* Too short to be true ... */
                     break;
                                                                         /* CR ? */
-                if ( !(l_str_eol = memchr(a_esocket->buf_in, CR, a_esocket->buf_in_size)) )
+                if ( !(l_cp = memchr(a_esocket->buf_in, CR, a_esocket->buf_in_size)) )
                     break;
 
-                if ( !(l_len = (l_str_eol - (char *)a_esocket->buf_in)) )/* First char in the buffer ? */
+                if ( !(l_len = (l_cp - (char *)a_esocket->buf_in)) )/* First char in the buffer ? */
                 {
                     log_it( L_ERROR, "LF at begin of the start line - garbage ?");
                     s_report_error_and_restart( a_esocket, l_http_client );
@@ -355,34 +354,23 @@ int     l_rc;
                     break;                                              /* Wee need to get LF !!! */
 
 
-                if ( *(l_str_eol + 1) != LF )                           /* LF ? */
+                if ( *(l_cp + 1) != LF )                           /* LF ? */
                 {
                     log_it( L_ERROR, "Start line is not terminated by CRLF, drop and restart input scanner");
                     s_report_error_and_restart( a_esocket, l_http_client );
                     break;
                 }
 
-                l_len++;                                                /* Count LF */
-                if ( l_len > sizeof(l_buf_line) - 1 )                   /* Check the start line for size */
-                {
-                    log_it( L_ERROR, "Start line is too long (%d > %d) to be processed", l_len, sizeof(l_buf_line) );
-                    s_report_error_and_restart( a_esocket, l_http_client );
-                    break;
-                }
-
-
-                memcpy( l_buf_line, a_esocket->buf_in, l_len);          /* Store start linet to work buffer */
-                l_buf_line[ l_len] = '\0';                              /* ASCIZ */
-
-                dap_events_socket_shrink_buf_in( a_esocket, l_len + 1); /* Shrink start line from input buffer over LF !!! */
-
+                l_len += 2;                                             /* Count CRLF */
 
                 // parse http_request_line
-                if ( !s_request_line_parse(l_http_client, l_buf_line, l_len) ) {
-                    log_it( L_WARNING, "Input: Wrong request line '%s'", l_buf_line );
+                if ( !s_request_line_parse(l_http_client, (char *) a_esocket->buf_in, l_len) ) {
+                    log_it( L_WARNING, "Input: Wrong request line '%.*s'", l_len, a_esocket->buf_in);
                     s_report_error_and_restart( a_esocket, l_http_client );
                     break;
                 }
+
+                dap_events_socket_shrink_buf_in( a_esocket, l_len);     /* Shrink start line from input buffer over CRLF !!! */
 
                 char *l_query_string = strchr(l_http_client->url_path, '?');
                 if (l_query_string++) {
@@ -464,19 +452,19 @@ int     l_rc;
                     break;
                 }
 
-                if ( !(l_str_eol = memchr(a_esocket->buf_in, CR, a_esocket->buf_in_size)) ) { /* search for CR */
+                if ( !(l_cp = memchr(a_esocket->buf_in, CR, a_esocket->buf_in_size)) ) { /* search for CR */
                     log_it( L_WARNING, "DAP_HTTP_CLIENT_STATE_HEADERS: no CR" );
                     s_report_error_and_restart( a_esocket, l_http_client );
                     break;
                 }
 
-                if ( *(l_str_eol + 1) != LF ) {
+                if ( *(l_cp + 1) != LF ) {
                     log_it( L_WARNING, "DAP_HTTP_CLIENT_STATE_HEADERS: no LF" );
                     s_report_error_and_restart( a_esocket, l_http_client );
                     break;
                 }
 
-                l_len = l_str_eol - (char*) a_esocket->buf_in;          /* Length of the HTTP header lien with the CRLF terminator */
+                l_len = l_cp - (char*) a_esocket->buf_in;          /* Length of the HTTP header lien with the CRLF terminator */
                 l_len += 2;                                             /* Count CRLF */
 
                 l_rc = dap_http_header_parse( l_http_client, (char *) a_esocket->buf_in, l_len );
