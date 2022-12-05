@@ -465,12 +465,11 @@ int     l_rc;
                 }
 
                 l_len = l_cp - (char*) a_esocket->buf_in;          /* Length of the HTTP header lien with the CRLF terminator */
-                l_len += 2;                                             /* Count CRLF */
 
                 l_rc = dap_http_header_parse( l_http_client, (char *) a_esocket->buf_in, l_len );
 
                 if( l_rc < 0 ){
-                    log_it( L_WARNING, "Input: not a valid header '%.s'", l_len, a_esocket->buf_in );
+                    log_it( L_WARNING, "Input: not a valid header '%.*s'", l_len, a_esocket->buf_in );
                 }else if ( l_rc == 1 ) {
                     log_it( L_INFO, "Input: HTTP headers are over" );
                     if ( l_http_client->proc->access_callback ) {
@@ -501,6 +500,7 @@ int     l_rc;
                     }
                 }
 
+                l_len += 2;                                             /* Count CRLF */
                 dap_events_socket_shrink_buf_in( a_esocket, l_len  );
             } break;
 
