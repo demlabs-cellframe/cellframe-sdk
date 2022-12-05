@@ -170,7 +170,7 @@ static inline void *s_vm_extend(const char *a_rtn_name, int a_rtn_line, void *a_
     #define DAP_NEW_S_SIZE(a, b)  DAP_CAST_REINT(a, alloca(b) )
     #define DAP_NEW_Z( a )        DAP_CAST_REINT(a, s_vm_get_z(__func__, __LINE__, 1,sizeof(a)))
     #define DAP_NEW_Z_SIZE(a, b)  DAP_CAST_REINT(a, s_vm_get_z(__func__, __LINE__, 1,b))
-    #define DAP_REALLOC(a, b)     realloc(a,b)
+    #define DAP_REALLOC(a, b)     s_vm_extend(__func__, __LINE__, a,b)
 
     #define DAP_DUP(a)            memcpy(s_vm_get(__func__, __LINE__, sizeof(*a)), a, sizeof(*a))
     #define DAP_DUP_SIZE(a, s)    memcpy(s_vm_get(__func__, __LINE__, s), a, s)
@@ -632,7 +632,7 @@ static inline void *s_vm_extend (
 {
 void    *l_ptr;
 
-        if ( !a_size || !a_ptr )
+        if ( !a_size )
             return  NULL;
 
         if ( !(l_ptr = realloc(a_ptr, a_size)) )
@@ -642,7 +642,7 @@ void    *l_ptr;
         }
 
         if ( a_size > MEMSTAT$K_MINTOLOG )
-            log_it(L_DEBUG, "Extended .....: [%p] %zd octets, nr: %zd (total:%zd), at %s:%d", l_ptr, a_size, a_ptr, a_size, a_rtn_name, a_rtn_line);
+            log_it(L_DEBUG, "Extended .....: [%p] -> [%p %zd octets], at %s:%d", a_ptr, l_ptr, a_size, a_rtn_name, a_rtn_line);
 
         return  l_ptr;
 }

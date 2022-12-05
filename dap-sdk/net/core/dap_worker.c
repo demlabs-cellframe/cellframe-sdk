@@ -328,7 +328,7 @@ const struct sched_param l_shed_params = {0};
                     getsockopt(l_es->socket, SOL_SOCKET, SO_ERROR, (void *)&l_sock_err, (socklen_t *)&l_sock_err_size);
 #ifndef DAP_OS_WINDOWS
                     if (l_sock_err) {
-                         log_it(L_DEBUG, "Socket %d error %d", l_es->socket, l_sock_err);
+                         log_it(L_DEBUG, "[es:%p] Socket #%d, errno=%d", l_es, l_es->socket, l_sock_err);
 #else
                     log_it(L_DEBUG, "Socket %"DAP_FORMAT_SOCKET" will be shutdown (EPOLLHUP), error %d", l_es->socket, WSAGetLastError());
 #endif
@@ -340,18 +340,18 @@ const struct sched_param l_shed_params = {0};
                     if (l_es->callbacks.error_callback)
                         l_es->callbacks.error_callback(l_es, l_sock_err); // Call callback to process error event
 #ifndef DAP_OS_WINDOWS
-                        log_it(L_INFO, "Socket shutdown (EPOLLHUP): %s", strerror(l_sock_err));
+                        log_it(L_INFO, "[es:%p] Socket #%d shutdown (EPOLLHUP): %s", l_es, l_es->socket, strerror(l_sock_err));
                     }
 #endif
                     break;
                 }
                 default:
-                    debug_if(g_debug_reactor, L_WARNING, "HUP event on esocket %p (%"DAP_FORMAT_SOCKET") type %d", l_es, l_es->socket, l_es->type );
+                    debug_if(g_debug_reactor, L_WARNING, "[es:%p] HUP event on Socket #%"DAP_FORMAT_SOCKET" type %d", l_es, l_es->socket, l_es->type );
                 }
             }
 
             if(l_flag_nval ){
-                log_it(L_WARNING, "[es:%p] NVAL flag armed for socket %"DAP_FORMAT_SOCKET"", l_es, l_es->socket);
+                log_it(L_WARNING, "[es:%p] NVAL flag armed for Socket #%"DAP_FORMAT_SOCKET"", l_es, l_es->socket);
                 l_es->buf_out_size = 0;
                 l_es->buf_in_size = 0;
                 l_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
@@ -392,7 +392,7 @@ const struct sched_param l_shed_params = {0};
 
                 //log_it(L_DEBUG, "Comes connection with type %d", l_cur->type);
                 if(l_es->buf_in_size_max && l_es->buf_in_size >= l_es->buf_in_size_max ) {
-                    log_it(L_WARNING, "[es:%p] Buffer is full when there is smth to read. Its dropped! (sd #%"DAP_FORMAT_SOCKET")", l_es, l_es->socket);
+                    log_it(L_WARNING, "[es:%p] Buffer is full when there is smth to read. Its dropped! (Socket #%"DAP_FORMAT_SOCKET")", l_es, l_es->socket);
                     l_es->buf_in_size = 0;
                 }
 
@@ -475,7 +475,7 @@ const struct sched_param l_shed_params = {0};
                                 }else{
                                     char l_errbuf[128];
                                     strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-                                    log_it(L_WARNING,"[es:%p] accept() on socket %d error:\"%s\"(%d)",l_es, l_es->socket, l_errbuf,l_errno);
+                                    log_it(L_WARNING,"[es:%p] accept() on Socket #%d error:\"%s\"(%d)",l_es, l_es->socket, l_errbuf,l_errno);
                                     break;
                                 }
                             }
@@ -535,7 +535,7 @@ const struct sched_param l_shed_params = {0};
 #else
                         if (l_es->type != DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL && l_errno != EAGAIN && l_errno != EWOULDBLOCK)
                         { // If we have non-blocking socket
-                            log_it(L_ERROR, "[es:%p] Some error occured in recv() function: %s", l_es, strerror(errno));
+                            log_it(L_ERROR, "[es:%p] Some error occured in recv(Socket #%d), errno=%d", l_es, l_es->socket, l_errno);
 #endif
                             dap_events_socket_set_readable_unsafe(l_es, false);
                             if (!l_es->no_close)
@@ -555,7 +555,7 @@ const struct sched_param l_shed_params = {0};
 #endif
                     }
                     else if (!l_flag_rdhup && !l_flag_error && !(l_es->flags & DAP_SOCK_CONNECTING )) {
-                        log_it(L_DEBUG, "[es:%p] EPOLLIN triggered but nothing to read", l_es);
+                        log_it(L_DEBUG, "[es:%p] EPOLLIN triggered but nothing to read on Socket #%d", l_es, l_es->socket);
                         //dap_events_socket_set_readable_unsafe(l_cur,false);
                     }
                 }

@@ -97,7 +97,7 @@ void dap_enc_http_set_acl_callback(dap_enc_acl_callback_t a_callback)
  */
 void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
 {
-    log_it(L_DEBUG,"Proc enc http request");
+    log_it(L_DEBUG, "[cl_st:%p] Proc enc http request", cl_st);
 
     http_status_code_t * return_code = (http_status_code_t *) arg;
 
@@ -135,7 +135,7 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         }
     } else if (l_decode_len != l_pkey_exchange_size) {
         /* No sign inside */
-        log_it(L_WARNING, "Wrong message size, without a valid sign must be = %zu", l_pkey_exchange_size);
+        log_it(L_WARNING, "Wrong message size %zu, without a valid sign must be = %zu", l_decode_len, l_pkey_exchange_size);
         *return_code = Http_Status_BadRequest;
         return;
     }
@@ -187,7 +187,7 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
  */
 void enc_http_add_proc(struct dap_http * sh, const char * url)
 {
-    dap_http_simple_proc_add(sh,url,140000,enc_http_proc);
+    dap_http_simple_proc_add(sh,url,140000, enc_http_proc);
 }
 
 /**

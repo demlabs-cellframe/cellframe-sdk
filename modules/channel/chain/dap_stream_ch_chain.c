@@ -331,6 +331,7 @@ static void s_sync_out_chains_last_worker_callback(dap_worker_t *a_worker, void 
  * @param a_arg
  * @return
  */
+
 static bool s_sync_out_chains_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
 {
     struct sync_request * l_sync_request = (struct sync_request *) a_arg;
