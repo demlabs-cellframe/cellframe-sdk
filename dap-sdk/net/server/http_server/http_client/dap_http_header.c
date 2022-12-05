@@ -89,7 +89,7 @@ size_t  l_len, l_name_len, l_value_len;
     if ( !a_str_len )
         return 1;
 
-    if ( (a_str_len > 2) && (*a_str == CR) && (*(a_str + 1) == LF) )
+    if ( (a_str_len >= 2) && (*a_str == CR) && (*(a_str + 1) == LF) )
         return 1;
 
     /* We expect to see: <field_name>':'<white_space><field_value>CRLF */

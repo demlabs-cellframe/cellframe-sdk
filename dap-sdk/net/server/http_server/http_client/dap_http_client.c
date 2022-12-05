@@ -476,21 +476,9 @@ int     l_rc;
                     break;
                 }
 
-                l_len = l_str_eol - (char*) a_esocket->buf_in;      /* Length of the HTTP header lien with the CRLF terminator */
+                l_len = l_str_eol - (char*) a_esocket->buf_in;          /* Length of the HTTP header lien with the CRLF terminator */
+                l_len += 2;                                             /* Count CRLF */
 
-                l_len++;                                            /* Count LF */
-
-#if 0
-                if ( l_len > sizeof(l_buf_line) - 1 )               /* Check the start line for size */
-                {
-                    log_it( L_ERROR, "Start line is too long (%d > %d) to be processed", l_len, sizeof(l_buf_line) );
-                    s_report_error_and_restart( a_esocket, l_http_client );
-                    break;
-                }
-
-                memcpy( l_buf_line, a_esocket->buf_in, l_len);      /* Store start line to work buffer */
-                l_buf_line[ l_len] = '\0';                          /* ASCIZ */
-#endif
                 l_rc = dap_http_header_parse( l_http_client, (char *) a_esocket->buf_in, l_len );
 
                 if( l_rc < 0 ){
@@ -525,7 +513,7 @@ int     l_rc;
                     }
                 }
 
-                dap_events_socket_shrink_buf_in( a_esocket, l_len + 1 );
+                dap_events_socket_shrink_buf_in( a_esocket, l_len  );
             } break;
 
             case DAP_HTTP_CLIENT_STATE_DATA:{
