@@ -132,7 +132,7 @@
 #define HAVE_USELOCALE
 
 /* Define to 1 if you have the `vasprintf' function. */
-//#define HAVE_VASPRINTF
+#define HAVE_VASPRINTF
 
 /* Define to 1 if you have the `vprintf' function. */
 #define HAVE_VPRINTF
