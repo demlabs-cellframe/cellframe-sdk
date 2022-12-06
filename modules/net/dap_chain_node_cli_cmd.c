@@ -2759,7 +2759,7 @@ int com_mempool_delete(int argc, char ** argv, char ** a_str_reply)
  */
 bool s_com_mempool_check_datum_in_chain(dap_chain_t *a_chain, const char *a_datum_hash_str){
     char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
-    uint8_t *l_data_tmp = dap_global_db_get_sync(a_datum_hash_str, NULL, l_gdb_group_mempool);
+    uint8_t *l_data_tmp = dap_global_db_get_sync(l_gdb_group_mempool, a_datum_hash_str, NULL, NULL, NULL);
     DAP_DELETE(l_gdb_group_mempool);
     if (l_data_tmp){
         DAP_DELETE(l_data_tmp);
