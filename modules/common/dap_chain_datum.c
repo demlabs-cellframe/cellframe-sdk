@@ -381,6 +381,13 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                      l_hash_str);
             DAP_DELETE(l_hash_str);
         } break;
+        case TX_ITEM_TYPE_TSD: {
+            dap_string_append_printf(a_str_out, "\t TSD data: \n"
+                                                "\t\t type: %d\n"
+                                                "\t\t size: %lu\n",
+                                     ((dap_chain_tx_tsd_t*)item)->header.type,
+                                     ((dap_chain_tx_tsd_t*)item)->header.size);
+        } break;
         case TX_ITEM_TYPE_IN_COND:
             l_hash_tmp = &((dap_chain_tx_in_cond_t*)item)->header.tx_prev_hash;
             if (!dap_strcmp(a_hash_out_type, "hex"))
