@@ -371,7 +371,7 @@ dap_sign_t *dap_chain_datum_emission_get_signs(dap_chain_datum_token_emission_t 
         l_sign = (dap_sign_t *)((byte_t *)l_sign + l_sign_size);
     }
     if ((l_expected_size != l_actual_size) || (l_count < a_emission->data.type_auth.signs_count)) {
-        log_it(L_CRITICAL, "Malformed signs, only %lu of %lu are present (%lu != %lu)", l_count, a_emission->data.type_auth.signs_count,
+        log_it(L_CRITICAL, "Malformed signs, only %lu of %hu are present (%lu != %lu)", l_count, a_emission->data.type_auth.signs_count,
                l_actual_size, l_expected_size);
     }
     dap_sign_t *l_ret = DAP_NEW_Z_SIZE(dap_sign_t, l_actual_size);

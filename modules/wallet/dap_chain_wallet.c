@@ -459,13 +459,7 @@ dap_chain_wallet_internal_t * l_wallet_internal;
     if(!a_wallet)
         return;
 
-    // TODO Make clean struct dap_chain_wallet_internal_t (certs, addr)
-    if(l_wallet_internal){
-        if(l_wallet_internal->addr)
-            DAP_DELETE(l_wallet_internal->addr);
-
-        if(l_wallet_internal->file_name)
-            DAP_DELETE(l_wallet_internal->file_name);
+    if ( (l_wallet_internal = a_wallet->_internal) ) {
 
         if ( l_wallet_internal->certs )                                                 /* Prevent crash on empty certificates's array */
         {
