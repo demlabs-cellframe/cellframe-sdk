@@ -459,7 +459,7 @@ dap_chain_wallet_internal_t * l_wallet_internal;
     if(!a_wallet)
         return;
 
-    if(l_wallet_internal)
+    if( (l_wallet_internal = a_wallet->_internal) )
     {
         if ( l_wallet_internal->certs )                                                 /* Prevent crash on empty certificates's array */
         {
