@@ -461,16 +461,14 @@ dap_chain_wallet_internal_t * l_wallet_internal;
 
     if(l_wallet_internal)
     {
-        if(l_wallet_internal->file_name)
-            DAP_DELETE(l_wallet_internal->file_name);
-
         if ( l_wallet_internal->certs )                                                 /* Prevent crash on empty certificates's array */
         {
             for(size_t i = 0; i < l_wallet_internal->certs_count; i++)
                 dap_cert_delete( l_wallet_internal->certs[i]);
+
+            DAP_DELETE(l_wallet_internal->certs);
         }
 
-        DAP_DELETE(l_wallet_internal->certs);
         DAP_DELETE(l_wallet_internal);
     }
 

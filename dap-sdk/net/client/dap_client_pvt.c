@@ -117,7 +117,6 @@ static bool s_stream_timer_timeout_after_connected_check(void * a_arg);
 static bool s_stream_timer_timeout_check(void * a_arg);
 
 
-
 /**
  * @brief dap_client_internal_init
  * @return
@@ -642,17 +641,17 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                     a_client_pvt->stage = STAGE_ENC_INIT;
                     // Trying the step again
                     a_client_pvt->stage_status = STAGE_STATUS_IN_PROGRESS;
-                    log_it(L_INFO, "Reconnect attempt %d in 0.3 seconds with %s:%u", a_client_pvt->stage_errors,
+                    log_it(L_INFO, "Reconnect attempt %d in %d seconds with %s:%u", a_client_pvt->stage_errors, s_timeout,
                            a_client_pvt->uplink_addr,a_client_pvt->uplink_port);
                     // small delay before next request
 
-                    if(dap_timerfd_start_on_worker(a_client_pvt->worker,  300,(dap_timerfd_callback_t) s_stage_status_after,
+                    if(dap_timerfd_start_on_worker(a_client_pvt->worker,  s_timeout * 1024, (dap_timerfd_callback_t) s_stage_status_after,
                                                    a_client_pvt) == NULL){
                         log_it(L_ERROR,"Can't run timer for small delay before the next enc_init request");
                     }
                 } else {
                     if (a_client_pvt->is_always_reconnect) {
-                        log_it(L_INFO, "Too many attempts, reconnect attempt in %d seconds with %s:%u",s_timeout*3,
+                        log_it(L_INFO, "Too many attempts, reconnect attempt in %d seconds with %s:%u", s_timeout*3,
                                a_client_pvt->uplink_addr,a_client_pvt->uplink_port);                    // Trying the step again
                         a_client_pvt->stage_status = STAGE_STATUS_IN_PROGRESS;
                         a_client_pvt->stage_errors = 0;
