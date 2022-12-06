@@ -2972,7 +2972,6 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         case TX_ITEM_TYPE_OUT_OLD: {
             dap_chain_tx_out_old_t *l_tx_out = (dap_chain_tx_out_old_t *)l_list_tmp->data;
             if (l_multichannel) { // token ticker is mandatory for multichannel transactions
-                debug_if(s_debug_more, L_ERROR, "No token ticker for type TX_ITEM_TYPE_OUT_OLD");
                 l_err_num = -16;
                 break;
             }
@@ -2986,7 +2985,6 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 if (l_main_ticker)
                     l_token = l_main_ticker;
                 else {
-                    debug_if(s_debug_more, L_ERROR, "No main ticker found");
                     l_err_num = -16;
                     break;
                 }
@@ -2997,8 +2995,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         } break;
         case TX_ITEM_TYPE_OUT_EXT: { // 256
             dap_chain_tx_out_ext_t *l_tx_out = (dap_chain_tx_out_ext_t *)l_list_tmp->data;
-            if (!l_multichannel) {
-                debug_if(s_debug_more, L_ERROR, "Token ticker is deprecated for single-channel transactions");
+            if (!l_multichannel) { // token ticker is depricated for single-channel transactions
                 l_err_num = -16;
                 break;
             }
@@ -3023,13 +3020,8 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             l_value = l_tx_out->header.value;
             l_list_tx_out = dap_list_append(l_list_tx_out, l_tx_out);
         } break;
-        default: { }
+        default: {}
         }
-
-        if (l_err_num) {
-            break;
-        }
-
         if (l_multichannel) {
             HASH_FIND_STR(l_values_from_cur_tx, l_token, l_value_cur);
             if (!l_value_cur) {
