@@ -2335,7 +2335,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
         size_t l_objs_size = 0;
         size_t l_objs_addr = 0;
         dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_size);
-
+        bool l_printed_smth = false;
         for(size_t i = 0; i < l_objs_size; i++) {
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
             dap_time_t l_ts_create = (dap_time_t) l_datum->header.ts_create;
@@ -2387,6 +2387,9 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                     break;
                 }
             }
+            if (l_printed_smth)
+                dap_string_append_printf(a_str_tmp, "=========================================================\n");
+            l_printed_smth = true;
             char buf[50] = {[0]='\0'};
             dap_hash_fast_t l_data_hash;
             char l_data_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {[0]='\0'};
@@ -2394,7 +2397,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
             dap_hash_fast_to_str(&l_data_hash,l_data_hash_str,DAP_CHAIN_HASH_FAST_STR_SIZE);
             if (strcmp(l_data_hash_str, l_objs[i].key))
                             dap_string_append_printf(a_str_tmp,
-                                                     "WARNING: key field in DB %s does not match datum's hash %s",
+                                                     "WARNING: key field in DB %s does not match datum's hash %s\n",
                                                      l_objs[i].key, l_data_hash_str);
             const char *l_type = NULL;
             DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type)
@@ -2487,10 +2490,10 @@ int com_mempool_delete(int a_argc, char **a_argv, char **a_str_reply)
     const char * l_datum_hash_str = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-datum", &l_datum_hash_str);
     if (l_datum_hash_str) {
-        char *l_datum_hash_hex_str = NULL;
+        char *l_datum_hash_hex_str = (char *)l_datum_hash_str;
         // datum hash may be in hex or base58 format
         if(dap_strncmp(l_datum_hash_str, "0x", 2) && dap_strncmp(l_datum_hash_str, "0X", 2))
-                        l_datum_hash_hex_str = dap_enc_base58_to_hex_str_from_str(l_datum_hash_str);
+            l_datum_hash_hex_str = dap_enc_base58_to_hex_str_from_str(l_datum_hash_str);
 
         char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
         uint8_t *l_data_tmp = dap_global_db_get_sync(l_gdb_group_mempool, l_datum_hash_hex_str ? l_datum_hash_hex_str : l_datum_hash_str,
@@ -2504,7 +2507,8 @@ int com_mempool_delete(int a_argc, char **a_argv, char **a_str_reply)
         }
         DAP_DELETE(l_gdb_group_mempool);
         DAP_DELETE(l_data_tmp);
-        DAP_DEL_Z(l_datum_hash_hex_str);
+        if (l_datum_hash_hex_str != l_datum_hash_str)
+            DAP_DELETE(l_datum_hash_hex_str);
     } else {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! %s requires -datum <datum hash> option", a_argv[0]);
         return -3;
@@ -2531,7 +2535,7 @@ int com_mempool_check(int a_argc, char **a_argv, char ** a_str_reply)
     const char * l_datum_hash_str = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-datum", &l_datum_hash_str);
     if(l_datum_hash_str) {
-        char *l_datum_hash_hex_str = NULL;
+        char *l_datum_hash_hex_str = (char *)l_datum_hash_str;
         // datum hash may be in hex or base58 format
         if(dap_strncmp(l_datum_hash_str, "0x", 2) && dap_strncmp(l_datum_hash_str, "0X", 2))
             l_datum_hash_hex_str = dap_enc_base58_to_hex_str_from_str(l_datum_hash_str);
@@ -2547,7 +2551,8 @@ int com_mempool_check(int a_argc, char **a_argv, char ** a_str_reply)
         }
         DAP_DELETE(l_gdb_group_mempool);
         DAP_DELETE(l_data_tmp);
-        DAP_DEL_Z(l_datum_hash_hex_str);
+        if (l_datum_hash_hex_str != l_datum_hash_str)
+            DAP_DELETE(l_datum_hash_hex_str);
     } else {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! %s requires -datum <datum hash> option", a_argv[0]);
         return -3;
