@@ -131,16 +131,16 @@ unsigned int session_id = 0, session_id_new = 0;
         HASH_FIND_INT(s_sessions, &session_id_new, l_stm_tmp);
     } while(l_stm_tmp);
 
+    l_stm_sess->id = session_id;
     HASH_ADD_INT(s_sessions, id, l_stm_sess);
     pthread_mutex_unlock(&s_sessions_mutex);                            /* Unlock ASAP ! */
 
     /* Prefill session context with data ... */
     pthread_mutex_init(&l_stm_sess->mutex, NULL);
-    l_stm_sess->id = session_id;
     l_stm_sess->time_created = time(NULL);
     l_stm_sess->create_empty = true;
 
-    log_it(L_INFO, "Created session context [stm_sess:%p, id:%u, ts:%d]",  l_stm_sess, session_id, l_stm_sess->time_created);
+    log_it(L_INFO, "Created session context [stm_sess:%p, id:%u, ts:%d]",  l_stm_sess, l_stm_sess->id, l_stm_sess->time_created);
 
     return l_stm_sess;
 }

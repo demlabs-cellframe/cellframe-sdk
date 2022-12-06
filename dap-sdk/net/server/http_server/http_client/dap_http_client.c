@@ -446,7 +446,7 @@ int     l_rc;
             } break;
 
             case DAP_HTTP_CLIENT_STATE_HEADERS: { // Parse input headers
-                if ( a_esocket->buf_in_size < 3 ) {
+                if ( a_esocket->buf_in_size < 2 ) {
                     log_it( L_WARNING, "DAP_HTTP_CLIENT_STATE_HEADERS: not enough data to be processed" );
                     s_report_error_and_restart( a_esocket, l_http_client );
                     break;
