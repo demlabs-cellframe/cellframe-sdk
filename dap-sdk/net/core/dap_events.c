@@ -382,6 +382,7 @@ int dap_events_start( dap_events_t *a_events )
  * @param dap_events_t *a_events
  * @return
  */
+#ifdef  DAP_SYS_DEBUG
 void    *s_th_memstat_show  (void *a_arg)
 {
 (void) a_arg;
@@ -393,6 +394,8 @@ void    *s_th_memstat_show  (void *a_arg)
     }
 
 }
+#endif
+
 
 int dap_events_wait( dap_events_t *a_events )
 {
