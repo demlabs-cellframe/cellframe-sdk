@@ -1967,7 +1967,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                     l_ret = dap_global_db_set_sync(l_gdb_group_str, l_hash_hex_str, &c, sizeof(c), false );
                     DAP_DELETE(l_gdb_group_str);
                     DAP_DELETE(l_hash_hex_str);
-                    if (!l_ret) {
+                    if (l_ret) {
                         dap_cli_server_cmd_set_reply_text(a_str_reply,
                                                           "Can't save public key hash %s in database", l_hash_hex_str);
                         return -10;

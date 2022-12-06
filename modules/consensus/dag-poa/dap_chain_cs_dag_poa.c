@@ -415,10 +415,10 @@ static void s_poa_round_check_callback_round_clean(dap_global_db_context_t *a_gl
             uint64_t l_time_diff = dap_nanotime_now() - l_event_round_item->round_info.ts_update;
             uint64_t l_timeuot = dap_nanotime_from_sec(l_poa_pvt->confirmations_timeout + l_poa_pvt->wait_sync_before_complete + 10);
             uint64_t l_round_id = ((dap_chain_cs_dag_event_t *)l_event_round_item->event_n_signs)->header.round_id;
-            if (l_time_diff > l_timeuot && l_round_id <= l_dag->round_completed) {
+            if (l_time_diff > l_timeuot || l_round_id <= l_dag->round_completed) {
                 dap_global_db_del_unsafe(a_global_db_context, a_group, a_values[i].key);
-                log_it(L_DEBUG, "DAG-PoA: Remove event %s from round %"DAP_UINT64_FORMAT_U" by timer.",
-                                a_values[i].key, l_round_id);
+                log_it(L_DEBUG, "DAG-PoA: Remove event %s from round %"DAP_UINT64_FORMAT_U" %s.",
+                                a_values[i].key, l_round_id, l_time_diff > l_timeuot ? "by timer" : "owing to round completion");
             }
         }
     }
@@ -552,7 +552,7 @@ static void s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
     dap_chain_cs_dag_event_t *l_new_atom = NULL;
     if (l_chosen_item) {
         size_t l_event_size = l_chosen_item->event_size;
-        l_new_atom = dap_chain_cs_dag_event_copy((dap_chain_cs_dag_event_t *)l_chosen_item->event_n_signs, l_event_size);
+        l_new_atom = DAP_DUP_SIZE(l_chosen_item->event_n_signs, l_event_size);
         dap_hash_fast_t l_event_hash = {};
         dap_hash_fast(l_new_atom, l_event_size, &l_event_hash);
         char l_event_hash_hex_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
@@ -560,22 +560,21 @@ static void s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
         dap_chain_atom_verify_res_t l_res = l_dag->chain->callback_atom_add(l_dag->chain, l_new_atom, l_event_size);
         if (l_res == ATOM_PASS || l_res == ATOM_REJECT) { // Add new atom in chain
             DAP_DEL_Z(l_new_atom);
-            log_it(L_NOTICE, "Event %s from round %"DAP_UINT64_FORMAT_U" not added in chain", l_event_hash_hex_str, l_arg->round_id);
+            log_it(L_DEBUG, "Event %s from round %"DAP_UINT64_FORMAT_U" not added in chain", l_event_hash_hex_str, l_arg->round_id);
         } else {
             log_it(L_NOTICE, "Event %s from round %"DAP_UINT64_FORMAT_U" added in %s successfully", l_event_hash_hex_str, l_arg->round_id,
                                                                   l_res == ATOM_ACCEPT ? "chain" : "threshold");
-            if (l_res == ATOM_ACCEPT)
+            if (l_res == ATOM_ACCEPT) {
                 dap_chain_atom_save(l_dag->chain, (dap_chain_atom_ptr_t)l_new_atom, l_event_size, l_dag->chain->cells->id);
+                pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
+                HASH_DEL(l_poa_pvt->active_rounds, l_arg);
+                pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
+                s_poa_round_clean(l_dag->chain);
+            }
         }
     } else
         log_it(L_WARNING, "No round candidates for round ID %"DAP_UINT64_FORMAT_U, l_arg->round_id);
-    pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
-    HASH_DEL(l_poa_pvt->active_rounds, l_arg);
-    if (!l_new_atom || !l_new_atom->header.round_id)
-        l_dag->round_completed++;
-    pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
     dap_list_free(l_dups_list);
-    dap_store_obj_free(l_events_round, l_events_round_size);
     DAP_DELETE(a_arg);
 }
 

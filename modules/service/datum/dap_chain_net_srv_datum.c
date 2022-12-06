@@ -96,7 +96,7 @@ char* dap_chain_net_srv_datum_custom_add(dap_chain_t * a_chain, const uint8_t *a
     }
 
     // Finaly add datum to mempool
-    char *l_hash_str = dap_chain_mempool_datum_add(l_datum, a_chain);
+    char *l_hash_str = dap_chain_mempool_datum_add(l_datum, a_chain, "hex");
     return l_hash_str;
 }
 

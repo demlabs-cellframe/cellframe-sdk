@@ -185,6 +185,22 @@ static void s_history_callback_round_notify(dap_global_db_context_t *a_context, 
     }
 }
 
+static void s_dag_rounds_events_iter(dap_global_db_context_t *a_context,
+                                     int a_rc, const char *a_group,
+                                     const size_t a_values_current, const size_t a_values_count,
+                                     dap_store_obj_t *a_values, void *a_arg)
+{
+    UNUSED(a_group);
+    UNUSED(a_values_current);
+    if (a_rc != DAP_GLOBAL_DB_RC_SUCCESS)
+        return;
+    for (size_t i = 0; i < a_values_count; i++) {
+        dap_store_obj_t *l_obj_cur = a_values + i;
+        l_obj_cur->type = DAP_DB$K_OPTYPE_ADD;
+        s_history_callback_round_notify(a_context, a_values + i, a_arg);
+    }
+}
+
 /**
  * @brief dap_chain_cs_dag_new
  * @param a_chain
@@ -283,7 +299,8 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     byte_t *l_current_round = dap_global_db_get_sync(l_dag->gdb_group_events_round_new, DAG_ROUND_CURRENT_KEY, NULL, NULL, NULL);
     l_dag->round_current = l_current_round ? *(uint64_t *)l_current_round : 0;
     DAP_DELETE(l_current_round);
-    PVT(l_dag)->mempool_timer = dap_interval_timer_create(5000, (dap_timer_callback_t)dap_chain_node_mempool_process_all, a_chain);
+    dap_global_db_get_all_raw(l_dag->gdb_group_events_round_new, 0, 0, s_dag_rounds_events_iter, l_dag);
+    PVT(l_dag)->mempool_timer = dap_interval_timer_create(15000, (dap_timer_callback_t)dap_chain_node_mempool_process_all, a_chain);
     if (l_dag->is_single_line)
         log_it (L_NOTICE, "DAG chain initialized (single line)");
     else
@@ -1335,7 +1352,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     dap_string_append_printf( l_str_ret_tmp, "Event %s verification passed\n", l_objs[i].key);
                     // If not verify only mode we add
                     if ( ! l_verify_only ){
-                        dap_chain_atom_ptr_t l_new_atom = (dap_chain_atom_ptr_t)dap_chain_cs_dag_event_copy(l_event, l_event_size); // produce deep copy of event;
+                        dap_chain_atom_ptr_t l_new_atom = DAP_DUP_SIZE(l_event, l_event_size); // produce deep copy of event;
                         memcpy(l_new_atom, l_event, l_event_size);
                         if(s_chain_callback_atom_add(l_chain, l_new_atom,l_event_size) < 0) { // Add new atom in chain
                             DAP_DELETE(l_new_atom);

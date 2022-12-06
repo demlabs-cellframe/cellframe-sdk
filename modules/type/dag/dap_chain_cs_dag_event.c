@@ -93,20 +93,6 @@ dap_chain_cs_dag_event_t *dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id, 
 }
 
 /**
- * @brief dap_chain_cs_dag_event_deep_copy
- * @param a_event_src
- * @return
- */
-dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy(dap_chain_cs_dag_event_t *a_event_src,size_t a_event_size)
-{
-    if(!a_event_src)
-        return NULL;
-    dap_chain_cs_dag_event_t *l_event_new = DAP_NEW_Z_SIZE(dap_chain_cs_dag_event_t, a_event_size);
-    memcpy(l_event_new, a_event_src, a_event_size);
-    return l_event_new;
-}
-
-/**
  * @brief dap_chain_cs_dag_event_sign_add
  * @param a_event
  * @param l_key

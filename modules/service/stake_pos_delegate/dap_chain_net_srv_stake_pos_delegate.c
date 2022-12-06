@@ -449,7 +449,7 @@ static bool s_stake_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net)
     }
     // Processing will be made according to autoprocess policy
     char *l_ret = NULL;
-    if ((l_ret = dap_chain_mempool_datum_add(l_datum, l_chain)) == NULL) {
+    if ((l_ret = dap_chain_mempool_datum_add(l_datum, l_chain, "hex")) == NULL) {
         DAP_DELETE(l_datum);
         return false;
     }

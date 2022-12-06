@@ -38,63 +38,63 @@
 dap_chain_node_addr_t* dap_chain_node_addr_get_by_alias(dap_chain_net_t * a_net, const char *alias);
 
 
-int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index,int argc, char ** argv, char ** a_str_reply,
+int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index,int a_argc, char **a_argv, char ** a_str_reply,
                              dap_chain_t ** a_chain, dap_chain_net_t ** a_net);
 
 /**
  * global_db command
  */
-int com_global_db(int argc,  char ** argv, char **str_reply);
+int com_global_db(int a_argc,  char **a_argv, char **a_str_reply);
 
 /**
  * Node command
  */
-int com_node(int argc,  char ** argv, char **str_reply);
+int com_node(int a_argc,  char **a_argv, char **a_str_reply);
 
 /**
  * Traceroute command
  *
  * return 0 OK, -1 Err
  */
-int com_traceroute(int argc,  char** argv, char **str_reply);
+int com_traceroute(int a_argc,  char** argv, char **a_str_reply);
 
 /**
  * Tracepath command
  *
  * return 0 OK, -1 Err
  */
-int com_tracepath(int argc,  char** argv, char **str_reply);
+int com_tracepath(int a_argc,  char** argv, char **a_str_reply);
 
 /**
  * Ping command
  *
  * return 0 OK, -1 Err
  */
-int com_ping(int argc,  char** argv, char **str_reply);
+int com_ping(int a_argc,  char** argv, char **a_str_reply);
 
 /**
  * Help command
  */
-int com_help(int argc,  char ** argv, char **str_reply);
+int com_help(int a_argc,  char **a_argv, char **a_str_reply);
 
-int com_version(int argc, char ** argv, char **str_reply);
+int com_version(int a_argc, char **a_argv, char **a_str_reply);
 
 /**
  * Token declaration
  */
-int com_token_decl ( int argc,  char ** argv, char ** str_reply);
+int com_token_decl(int a_argc,  char **a_argv, char ** str_reply);
 
-int com_token_update(int argc, char ** argv, char ** a_str_reply);
+int com_token_update(int a_argc, char **a_argv, char ** a_str_reply);
 
 /**
  * Token declaration add sign
  */
-int com_token_decl_sign ( int argc,  char ** argv, char ** str_reply);
+int com_token_decl_sign ( int a_argc,  char **a_argv, char ** str_reply);
 
 /**
  * Token emission
  */
-int com_token_emit (int argc,  char ** argv, char ** str_reply);
+int com_token_emit (int a_argc,  char **a_argv, char ** str_reply);
 
 
 /**
@@ -102,16 +102,16 @@ int com_token_emit (int argc,  char ** argv, char ** str_reply);
  *
  * Wallet info
  */
-int com_tx_wallet(int argc, char ** argv, char **str_reply);
+int com_tx_wallet(int a_argc, char **a_argv, char **a_str_reply);
 
 /**
  * com_tx_create command
  *
  * Create transaction
  */
-int com_tx_create(int argc, char ** argv, char **str_reply);
-int com_tx_create_json(int argc, char ** argv, char **str_reply);
-int com_tx_cond_create(int argc, char ** argv, char **str_reply);
+int com_tx_create(int a_argc, char **a_argv, char **a_str_reply);
+int com_tx_create_json(int a_argc, char **a_argv, char **a_str_reply);
+int com_tx_cond_create(int a_argc, char **a_argv, char **a_str_reply);
 
 /**
  * tx_verify command
@@ -125,29 +125,29 @@ int com_tx_verify(int a_argc, char ** a_argv, char **a_str_reply);
  *
  * Transaction history for an address
  */
-int com_tx_history(int argc, char ** argv, char **str_reply);
+int com_tx_history(int a_argc, char **a_argv, char **a_str_reply);
 
 // Print log info
-int com_print_log(int argc, char ** argv, char **str_reply);
+int com_print_log(int a_argc, char **a_argv, char **a_str_reply);
 
 // Print statistics
-int com_stats(int argc, char ** argv, char **str_reply);
+int com_stats(int a_argc, char **a_argv, char **a_str_reply);
 
-int com_exit(int argc, char ** argv, char **str_reply);
+int com_exit(int a_argc, char **a_argv, char **a_str_reply);
 
-int cmd_gdb_import(int argc, char ** argv, char ** a_str_reply);
-int cmd_gdb_export(int argc, char ** argv, char ** a_str_reply);
+int cmd_gdb_import(int a_argc, char **a_argv, char **a_str_reply);
+int cmd_gdb_export(int a_argc, char **a_argv, char **a_str_reply);
 
-int com_mempool_delete(int argc, char ** argv, char ** a_str_reply);
-int com_mempool_list(int argc, char ** argv, char ** a_str_reply);
-int com_mempool_proc(int argc, char ** argv, char ** a_str_reply);
-int com_mempool_check(int argc, char ** argv, char ** a_str_reply);
+int com_mempool_delete(int a_argc, char **a_argv, char **a_str_reply);
+int com_mempool_list(int a_argc, char **a_argv, char **a_str_reply);
+int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply);
+int com_mempool_check(int a_argc, char **a_argv, char **a_str_reply);
 /**
  * Place public CA into the mempool
  */
-int com_mempool_add_ca( int a_argc,  char ** a_argv, char ** a_str_reply);
-int com_chain_ca_pub( int a_argc,  char ** a_argv, char ** a_str_reply);
-int com_chain_ca_copy( int a_argc,  char ** a_argv, char ** a_str_reply);
+int com_mempool_add_ca( int a_argc,  char **a_argv, char **a_str_reply);
+int com_chain_ca_pub( int a_argc,  char **a_argv, char **a_str_reply);
+int com_chain_ca_copy( int a_argc,  char **a_argv, char **a_str_reply);
 int com_signer(int a_argc, char **a_argv, char **a_str_reply);
 //remove func
-int cmd_remove(int argc, char ** argv, char ** a_str_reply);
+int cmd_remove(int a_argc, char **a_argv, char ** a_str_reply);

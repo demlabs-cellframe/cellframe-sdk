@@ -712,20 +712,19 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
 
 
 
-// Put the transaction to mempool or directly to chains & write transaction's hash to the price
+// Put the transaction to mempool
 static bool s_xchange_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net)
 {
-    // Put the transaction to mempool or directly to chains
     size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
     dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, a_tx, l_tx_size);
     DAP_DELETE(a_tx);
-    dap_chain_t *l_chain = dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
+    dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
     if (!l_chain) {
         DAP_DELETE(l_datum);
         return false;
     }
     // Processing will be made according to autoprocess policy
-    char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain);
+    char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain, "hex");
 
     DAP_DELETE(l_datum);
 

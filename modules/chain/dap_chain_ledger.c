@@ -570,7 +570,7 @@ void s_ledger_token_cache_update(dap_ledger_t *a_ledger, dap_chain_ledger_token_
     uint8_t *l_cache = DAP_NEW_STACK_SIZE(uint8_t, l_cache_size);
     memcpy(l_cache, &l_token_item->current_supply, sizeof(uint256_t));
     memcpy(l_cache + sizeof(uint256_t), l_token_item->datum_token, l_token_item->datum_token_size);
-    if (!dap_global_db_set(l_gdb_group, l_token_item->ticker, l_cache, l_cache_size, false, NULL, NULL)) {
+    if (dap_global_db_set(l_gdb_group, l_token_item->ticker, l_cache, l_cache_size, false, NULL, NULL)) {
         char *l_supply = dap_chain_balance_print(l_token_item->current_supply);
         log_it(L_WARNING, "Ledger cache mismatch, can't add token [%s] with supply %s", l_token_item->ticker, l_supply);
         DAP_FREE(l_supply);
@@ -2006,7 +2006,7 @@ static void s_ledger_emission_cache_update(dap_ledger_t *a_ledger, dap_chain_led
     memcpy(l_cache, &a_emission_item->tx_used_out, sizeof(dap_hash_fast_t));
     memcpy(l_cache + sizeof(dap_hash_fast_t), a_emission_item->datum_token_emission, a_emission_item->datum_token_emission_size);
     char *l_hash_str = dap_hash_fast_to_str_new(&a_emission_item->datum_token_emission_hash);
-    if (!dap_global_db_set(l_gdb_group, l_hash_str, l_cache, l_cache_size, false, NULL, NULL)) {
+    if (dap_global_db_set(l_gdb_group, l_hash_str, l_cache, l_cache_size, false, NULL, NULL)) {
         log_it(L_WARNING, "Ledger cache mismatch");
     }
     DAP_DELETE(l_gdb_group);
@@ -2173,7 +2173,7 @@ void s_ledger_stake_lock_cache_update(dap_ledger_t *a_ledger, dap_chain_ledger_s
 {
     char *l_hash_str = dap_chain_hash_fast_to_str_new(&a_stake_lock_item->tx_for_stake_lock_hash);
     char *l_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_STAKE_LOCK_STR);
-    if (!dap_global_db_set(l_group, l_hash_str, &a_stake_lock_item->tx_used_out, sizeof(dap_hash_fast_t), false, NULL, NULL))
+    if (dap_global_db_set(l_group, l_hash_str, &a_stake_lock_item->tx_used_out, sizeof(dap_hash_fast_t), false, NULL, NULL))
         log_it(L_WARNING, "Ledger cache mismatch");
     DAP_DEL_Z(l_hash_str);
     DAP_DEL_Z(l_group);
@@ -3359,7 +3359,7 @@ static int s_balance_cache_update(dap_ledger_t *a_ledger, dap_ledger_wallet_bala
 {
     if (PVT(a_ledger)->cached) {
         char *l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_BALANCES_STR);
-        if (!dap_global_db_set(l_gdb_group, a_balance->key, &a_balance->balance, sizeof(uint256_t), false, NULL, NULL)) {
+        if (dap_global_db_set(l_gdb_group, a_balance->key, &a_balance->balance, sizeof(uint256_t), false, NULL, NULL)) {
             debug_if(s_debug_more, L_WARNING, "Ledger cache mismatch");
             return -1;
         }

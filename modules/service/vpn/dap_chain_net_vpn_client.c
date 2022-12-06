@@ -328,14 +328,17 @@ static dap_chain_hash_fast_t* dap_chain_net_vpn_client_tx_cond_hash(dap_chain_ne
         dap_chain_net_srv_uid_t l_srv_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
         uint256_t l_value = dap_chain_uint256_from(a_value_datoshi);
         uint256_t l_zero = {};
-        l_tx_cond_hash = dap_chain_mempool_tx_create_cond(a_net, l_enc_key, l_client_key, a_token_ticker,
-                                                          l_value, l_zero, l_price_unit, l_srv_uid, l_zero, NULL, 0);
+        char *l_tx_cond_hash_str = dap_chain_mempool_tx_create_cond(a_net, l_enc_key, l_client_key, a_token_ticker,
+                                                          l_value, l_zero, l_price_unit, l_srv_uid, l_zero, NULL, 0, "hex");
         DAP_DELETE(l_addr_from);
-        if(!l_tx_cond_hash) {
+        if(!l_tx_cond_hash_str) {
             log_it(L_ERROR, "Can't create condition for user");
         } else {
+            l_tx_cond_hash = DAP_NEW(dap_hash_fast_t);
+            dap_chain_hash_fast_from_str(l_tx_cond_hash_str, l_tx_cond_hash);
+            DAP_DELETE(l_tx_cond_hash_str);
             // save transaction for login
-            dap_global_db_set_sync( l_gdb_group,"client_tx_cond_hash", l_tx_cond_hash, sizeof(dap_chain_hash_fast_t), true);
+            dap_global_db_set_sync(l_gdb_group, "client_tx_cond_hash", l_tx_cond_hash, sizeof(dap_chain_hash_fast_t), true);
         }
         DAP_DELETE(l_client_key);
     }
@@ -359,11 +362,11 @@ int dap_chain_net_vpn_client_update(dap_chain_net_t *a_net, const char *a_wallet
     }
 
     char *l_gdb_group = dap_strdup_printf("local.%s", DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
-    if(!dap_global_db_set_sync(l_gdb_group, "wallet_name", a_wallet_name, -1,true))
+    if(dap_global_db_set_sync(l_gdb_group, "wallet_name", a_wallet_name, -1,true))
         return -2;
-    if(!dap_global_db_set_sync(l_gdb_group, "token_name", a_str_token, -1, true))
+    if(dap_global_db_set_sync(l_gdb_group, "token_name", a_str_token, -1, true))
         return -2;
-    if(!dap_global_db_set_sync(l_gdb_group, "value_datoshi", &a_value_datoshi, sizeof(a_value_datoshi), true))
+    if(dap_global_db_set_sync(l_gdb_group, "value_datoshi", &a_value_datoshi, sizeof(a_value_datoshi), true))
         return -2;
     DAP_DELETE(l_gdb_group);
     dap_chain_hash_fast_t *l_hash = dap_chain_net_vpn_client_tx_cond_hash(a_net, l_wallet, a_str_token,
