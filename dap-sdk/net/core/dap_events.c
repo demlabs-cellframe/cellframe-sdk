@@ -382,37 +382,36 @@ int dap_events_start( dap_events_t *a_events )
  * @param dap_events_t *a_events
  * @return
  */
+void    *s_th_memstat_show  (void *a_arg)
+{
+(void) a_arg;
+
+    while ( 1 )
+    {
+        for ( int j = 3; (j = sleep(j)); );                             /* Hibernate for 5 seconds ... */
+        dap_memstat_show ();
+    }
+
+}
+
 int dap_events_wait( dap_events_t *a_events )
 {
-    (void) a_events;
+(void) a_events;
 
+#ifdef DAP_SYS_DEBUG                                                    /* @RRL: 6901, 7202 Start of memstat show at interval basis */
+pthread_attr_t  l_tattr;
+pthread_t       l_tid;
 
-#ifndef DAP_SYS_DEBUG
-    (void) a_events;
+    pthread_attr_init(&l_tattr);
+    pthread_attr_setdetachstate(&l_tattr, PTHREAD_CREATE_DETACHED);
+    pthread_create(&l_tid, &l_tattr, s_th_memstat_show, NULL);
+
+#endif
+
     for( uint32_t i = 0; i < s_threads_count; i ++ ) {
         void *ret;
         pthread_join( s_threads[i].tid, &ret );
     }
-#else
-    void    *l_ret;
-    struct timespec l_tmo;
-    int     l_rc;
-
-    while (1)
-    {
-        clock_gettime(CLOCK_REALTIME, &l_tmo);
-        l_tmo.tv_sec += 5;
-        l_rc = 0;
-
-        for( uint32_t i = 0; i < s_threads_count; i ++ )
-            l_rc |= pthread_timedjoin_np (s_threads[i].tid, &l_ret, &l_tmo );
-
-
-        dap_memstat_show ();
-    }
-
-
-#endif
 
     return 0;
 }
