@@ -328,8 +328,9 @@ size_t l_len;
 
         if ( (l_len > 8) && (strcmp(l_dir_entry->d_name + l_len - (sizeof(s_wallet_ext) - 1), s_wallet_ext) == 0) )
         {
-            dap_snprintf(l_fspec, sizeof(l_fspec) - 1, "%s/%s", c_wallets_path, l_dir_entry->d_name);
-
+            int ret = dap_snprintf(l_fspec, sizeof(l_fspec) - 1, "%s/%s", c_wallets_path, l_dir_entry->d_name);
+            if (ret < 0)
+                continue;
             if ( (l_wallet = dap_chain_wallet_open_file(l_fspec, NULL)) )
                 dap_chain_wallet_close(l_wallet);
         }
@@ -399,10 +400,10 @@ int l_rc, l_wallet_name_len, l_pass_len;
         return  log_it(L_ERROR, "Wallet's password is too long ( > %d)", DAP_WALLET$SZ_PASS), NULL;
 
     if ( !(l_wallet = DAP_NEW_Z(dap_chain_wallet_t)) )
-         return log_it(L_ERROR, "Memory allocation error, errno=&d", errno), NULL;
+         return log_it(L_ERROR, "Memory allocation error, errno=%d", errno), NULL;
 
     if ( !(l_wallet->_internal = l_wallet_internal = DAP_NEW_Z(dap_chain_wallet_internal_t)) )
-        return DAP_DELETE(l_wallet), log_it(L_ERROR, "Memory allocation error, errno=&d", errno), NULL;
+        return DAP_DELETE(l_wallet), log_it(L_ERROR, "Memory allocation error, errno=%d", errno), NULL;
 
 
 
@@ -459,11 +460,20 @@ dap_chain_wallet_internal_t * l_wallet_internal;
         return;
 
     // TODO Make clean struct dap_chain_wallet_internal_t (certs, addr)
-    if ( (l_wallet_internal = a_wallet->_internal) )
-    {
-        if ( l_wallet_internal->certs )
-            for(size_t i = 0; i < l_wallet_internal->certs_count; i++)
+    if(l_wallet_internal){
+        if(l_wallet_internal->addr)
+            DAP_DELETE(l_wallet_internal->addr);
+
+        if(l_wallet_internal->file_name)
+            DAP_DELETE(l_wallet_internal->file_name);
+
+        if ( l_wallet_internal->certs )                                                 /* Prevent crash on empty certificates's array */
+        {
+            for(size_t i = 0; i<l_wallet_internal->certs_count;i++)
                 dap_cert_delete( l_wallet_internal->certs[i]);
+        }
+
+        DAP_DELETE(l_wallet_internal->certs);
 
         DAP_DELETE(l_wallet_internal->certs);
         DAP_DELETE(l_wallet_internal);
@@ -795,7 +805,8 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
 #endif
 
     if ( l_file_hdr.signature != DAP_CHAIN_WALLETS_FILE_SIGNATURE )  {       /* Check signature of the file */
-        log_it(L_ERROR, "Wallet (%s) signature mismatch (%llux != %ldx)", a_file_name, l_file_hdr.signature, DAP_CHAIN_WALLETS_FILE_SIGNATURE);
+        log_it(L_ERROR, "Wallet (%s) signature mismatch (%"DAP_UINT64_FORMAT_x" != %"DAP_UINT64_FORMAT_x")",
+                                a_file_name, l_file_hdr.signature, DAP_CHAIN_WALLETS_FILE_SIGNATURE);
 #ifdef DAP_OS_WINDOWS
         CloseHandle(l_fh);
 #else

@@ -104,6 +104,11 @@ static size_t dap_chain_datum_tx_receipt_get_size(const dap_chain_datum_tx_recei
     return size;
 }
 
+static size_t dap_chain_tx_tsd_get_size(const dap_chain_tx_tsd_t *a_item)
+{
+    return sizeof(dap_chain_tx_tsd_t) + a_item->header.size;
+}
+
 /**
  * Get item type by item name
  *
@@ -117,19 +122,21 @@ dap_chain_tx_item_type_t dap_chain_datum_tx_item_str_to_type(const char *a_datum
     else if(!dap_strcmp(a_datum_name, "out"))
         return TX_ITEM_TYPE_OUT;
     else if(!dap_strcmp(a_datum_name, "out_ext"))
-            return TX_ITEM_TYPE_OUT_EXT;
+        return TX_ITEM_TYPE_OUT_EXT;
     else if(!dap_strcmp(a_datum_name, "pkey"))
-            return TX_ITEM_TYPE_PKEY;
+        return TX_ITEM_TYPE_PKEY;
     else if(!dap_strcmp(a_datum_name, "sign"))
-            return TX_ITEM_TYPE_SIG;
+        return TX_ITEM_TYPE_SIG;
     else if(!dap_strcmp(a_datum_name, "token"))
-            return TX_ITEM_TYPE_TOKEN;
+        return TX_ITEM_TYPE_TOKEN;
     else if(!dap_strcmp(a_datum_name, "in_cond"))
-            return TX_ITEM_TYPE_IN_COND;
+        return TX_ITEM_TYPE_IN_COND;
     else if(!dap_strcmp(a_datum_name, "out_cond"))
-            return TX_ITEM_TYPE_OUT_COND;
+        return TX_ITEM_TYPE_OUT_COND;
     else if(!dap_strcmp(a_datum_name, "receipt"))
-            return TX_ITEM_TYPE_RECEIPT;
+        return TX_ITEM_TYPE_RECEIPT;
+    else if(!dap_strcmp(a_datum_name, "data"))
+        return TX_ITEM_TYPE_TSD;
     return TX_ITEM_TYPE_UNKNOWN;
 }
 
@@ -208,6 +215,9 @@ size_t dap_chain_datum_item_tx_get_size(const void *a_item)
     case TX_ITEM_TYPE_TOKEN: // token item
         size = dap_chain_tx_token_get_size((const dap_chain_tx_token_t*) a_item);
         break;
+    case TX_ITEM_TYPE_TSD:
+        size = dap_chain_tx_tsd_get_size((const dap_chain_tx_tsd_t*)a_item);
+        break;
     default:
         return 0;
     }
@@ -247,6 +257,21 @@ dap_chain_tx_in_t* dap_chain_datum_tx_item_in_create(dap_chain_hash_fast_t *a_tx
     return l_item;
 }
 
+dap_chain_tx_tsd_t *dap_chain_datum_tx_item_tsd_create(void *a_data, int a_type, size_t a_size) {
+    if (!a_data || !a_size) {
+        return NULL;
+    }
+    dap_tsd_t *l_tsd = dap_tsd_create(a_type, a_data, a_size);
+    size_t l_tsd_sz = dap_tsd_size(l_tsd);
+    dap_chain_tx_tsd_t *l_item = DAP_NEW_Z_SIZE(dap_chain_tx_tsd_t,
+                                                sizeof(dap_chain_tx_tsd_t) + l_tsd_sz);
+    memcpy(l_item->tsd, l_tsd, l_tsd_sz);
+    DAP_DELETE(l_tsd);
+    l_item->header.type = TX_ITEM_TYPE_TSD;
+    l_item->header.size = l_tsd_sz;
+    return l_item;
+}
+
 /**
  * @brief dap_chain_datum_tx_item_in_cond_create
  * @param a_pkey_serialized
@@ -274,10 +299,10 @@ dap_chain_tx_in_cond_t* dap_chain_datum_tx_item_in_cond_create(dap_chain_hash_fa
  */
 dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(const dap_chain_addr_t *a_addr, uint256_t a_value)
 {
-    if (IS_ZERO_256(a_value))
+    if (!a_addr || IS_ZERO_256(a_value))
         return NULL;
     dap_chain_tx_out_t *l_item = DAP_NEW_Z(dap_chain_tx_out_t);
-    l_item->addr = a_addr ? *a_addr : (dap_chain_addr_t) { 0 };
+    l_item->addr = *a_addr;
     l_item->header.type = TX_ITEM_TYPE_OUT;
     l_item->header.value = a_value;
     return l_item;
@@ -318,7 +343,7 @@ dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_pke
                                                                              dap_chain_net_srv_price_unit_uid_t a_unit,
                                                                              const void *a_params, size_t a_params_size)
 {
-    if (!a_key || !a_key->pkey)
+    if (!a_key || !a_key->pkey[0])
         return NULL;
     if (IS_ZERO_256(a_value))
         return NULL;
@@ -419,6 +444,15 @@ dap_sign_t* dap_chain_datum_tx_item_sign_get_sig(dap_chain_tx_sig_t *a_tx_sig)
     if(!a_tx_sig || !a_tx_sig->header.sig_size)
         return NULL;
     return (dap_sign_t*) a_tx_sig->sig;
+}
+
+byte_t *dap_chain_datum_tx_item_get_data(dap_chain_tx_tsd_t *a_tx_tsd, int *a_type, size_t *a_size) {
+    if (!a_tx_tsd || !a_type || !a_size)
+        return NULL;
+
+    *a_size = a_tx_tsd->header.size;
+    *a_type = ((dap_tsd_t*)(a_tx_tsd->tsd))->type;
+    return ((dap_tsd_t*)(a_tx_tsd->tsd))->data;
 }
 
 /**

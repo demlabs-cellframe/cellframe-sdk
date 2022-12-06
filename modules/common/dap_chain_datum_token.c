@@ -290,6 +290,9 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_add_tsd(dap_chain_dat
     size_t l_tsd_size = sizeof(dap_tsd_t) + a_size;
     size_t l_emission_size = dap_chain_datum_emission_get_size((uint8_t *)a_emission);
     dap_chain_datum_token_emission_t *l_emission = DAP_REALLOC(a_emission, l_emission_size + l_tsd_size);
+    memmove(l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size + l_tsd_size,
+            l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size,
+            l_emission->data.type_auth.size - l_emission->data.type_auth.tsd_total_size);
     memcpy(l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size, l_tsd, l_tsd_size);
     DAP_DELETE(l_tsd);
     l_emission->data.type_auth.tsd_total_size += l_tsd_size;
