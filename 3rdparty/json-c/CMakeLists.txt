@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.10)
 project (json-c)
-  
+
+add_definitions("-D_GNU_SOURCE")
+
 file(GLOB JSON_C_SRCS FILES *.c)
 file(GLOB JSON_C_HEADERS FILES *.h)
 
