@@ -468,8 +468,6 @@ dap_chain_wallet_internal_t * l_wallet_internal;
         }
 
         DAP_DELETE(l_wallet_internal->certs);
-
-        DAP_DELETE(l_wallet_internal->certs);
         DAP_DELETE(l_wallet_internal);
     }
 
