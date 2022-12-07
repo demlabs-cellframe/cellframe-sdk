@@ -697,7 +697,6 @@ char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast
                                        dap_chain_addr_t *a_addr_to, dap_cert_t **a_certs, size_t a_certs_count,
                                        const char *a_hash_out_type)
 {
-    char *l_gdb_group_mempool_base_tx = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     // create first transaction (with tx_token)
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
     l_tx->header.ts_created = time(NULL);
@@ -782,7 +781,7 @@ dap_chain_datum_token_emission_t *dap_chain_mempool_datum_emission_extract(dap_c
         return NULL;
     if (l_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL)
         return NULL;
-    int l_signs_valid = 0;
+    /*int l_signs_valid = 0;
     dap_sign_t *l_ems_sign = (dap_sign_t *)(l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size);
     for (int i = 0; i < l_emission->data.type_auth.signs_count; i++) {
         uint32_t l_ems_pkey_size = l_ems_sign->header.sign_pkey_size;
@@ -798,7 +797,7 @@ dap_chain_datum_token_emission_t *dap_chain_mempool_datum_emission_extract(dap_c
         l_ems_sign = (dap_sign_t *)((byte_t *)l_ems_sign + dap_sign_get_size(l_ems_sign));
     }
     if (l_signs_valid != l_emission->data.type_auth.signs_count)
-        return NULL;
+        return NULL;*/
     return DAP_DUP_SIZE(l_emission, l_datum->header.data_size);
 }
 
