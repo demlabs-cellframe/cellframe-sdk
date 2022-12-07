@@ -1460,7 +1460,7 @@ int com_traceroute(int argc, char** argv, char **a_str_reply)
     return res;
 #else
     UNUSED(argc);
-    UNUSED(a_argv);
+    UNUSED(argv);
     dap_cli_server_cmd_set_reply_text(a_str_reply, "Not realized for your platform");
     return -1;
 #endif
@@ -1544,7 +1544,7 @@ int com_tracepath(int argc, char** argv, char **a_str_reply)
     return res;
 #else
     UNUSED(argc);
-    UNUSED(a_argv);
+    UNUSED(argv);
     dap_cli_server_cmd_set_reply_text(a_str_reply, "Not realized for your platform");
     return -1;
 #endif
@@ -1616,7 +1616,7 @@ int com_ping(int a_argc, char**a_argv, char **a_str_reply)
     }
     return res;
 #else
-    UNUSED(argc);
+    UNUSED(a_argc);
     UNUSED(a_argv);
     dap_cli_server_cmd_set_reply_text(a_str_reply, "Not realized for your platform");
     return -1;
