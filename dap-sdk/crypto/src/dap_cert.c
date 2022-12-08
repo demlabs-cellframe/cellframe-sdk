@@ -359,9 +359,8 @@ void dap_cert_delete(dap_cert_t * a_cert)
 {
     dap_cert_item_t * l_cert_item = NULL;
 
-    if ( !a_cert )
+    if ( !a_cert )                                                                      /* Prevent crash on NULL argument */
         return;
-
 
     HASH_FIND_STR(s_certs, a_cert->name, l_cert_item);
     if ( l_cert_item ){

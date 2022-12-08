@@ -469,11 +469,6 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 		return IS_USED_OUT_ERROR;
 	}
 
-    if (l_tx_out_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME) {
-        if (l_tx_out_cond->subtype.srv_stake_lock.time_unlock > dap_time_now())
-			return NOT_ENOUGH_TIME;
-	}
-
 	if (NULL == (l_ticker_str = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_hash)))
 		return TX_TICKER_ERROR;
 
@@ -508,17 +503,35 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 	if (NULL == (l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallets_path)))
 		return WALLET_OPEN_ERROR;
 
-	if (NULL == (l_owner_addr = (dap_chain_addr_t *)dap_chain_wallet_get_addr(l_wallet, l_net->pub.id))) {
-		dap_chain_wallet_close(l_wallet);
-		return WALLET_ADDR_ERROR;
-		}
-
 	if (NULL == (l_owner_key = dap_chain_wallet_get_key(l_wallet, 0))) {
 		dap_chain_wallet_close(l_wallet);
-		DAP_DEL_Z(l_owner_addr);
 		return OWNER_KEY_ERROR;
 	}
 
+    size_t l_owner_pkey_size;
+    uint8_t *l_owner_pkey = dap_enc_key_serealize_pub_key(l_owner_key, &l_owner_pkey_size);
+    dap_sign_t *l_owner_sign = NULL;
+    dap_chain_tx_sig_t *l_tx_sign = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(
+                                                            l_cond_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
+    if (l_tx_sign)
+        l_owner_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sign);
+    if (!l_owner_sign || l_owner_pkey_size != l_owner_sign->header.sign_pkey_size ||
+            memcmp(l_owner_sign->pkey_n_sign, l_owner_pkey, l_owner_pkey_size)) {
+        dap_chain_wallet_close(l_wallet);
+        return OWNER_KEY_ERROR;
+    }
+
+    if (NULL == (l_owner_addr = (dap_chain_addr_t *)dap_chain_wallet_get_addr(l_wallet, l_net->pub.id))) {
+        dap_chain_wallet_close(l_wallet);
+        return WALLET_ADDR_ERROR;
+    }
+
+    if (l_tx_out_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME &&
+            l_tx_out_cond->subtype.srv_stake_lock.time_unlock > dap_time_now()) {
+        dap_chain_wallet_close(l_wallet);
+        DAP_DEL_Z(l_owner_addr);
+        return NOT_ENOUGH_TIME;
+    }
 /*________________________________________________________________________________________________________________*/
 
 	//add tx
@@ -727,7 +740,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
 			} break;
 
 		case OWNER_KEY_ERROR: {
-			dap_string_append_printf(output_line, "key retrieval error");
+            dap_string_append_printf(output_line, "wallet key is not equal tx owner key");
 			} break;
 
 		case CREATE_TX_ERROR: {
@@ -993,7 +1006,7 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_hash_f
 	dap_chain_datum_token_t									*delegate_token;
 	char 													delegated_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
 
-    if (!a_owner) //TODO: ???
+    if (!a_owner)
         return false;
 
     if (a_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME) {
