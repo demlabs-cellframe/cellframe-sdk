@@ -933,7 +933,8 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
                 else {
                     l_str_out = l_tx_hash_str ?
                                                 dap_db_history_tx(&l_tx_hash, l_chain_cur, l_hash_out_type) :
-                                                dap_db_history_addr(l_addr, l_chain_cur, l_hash_out_type);
+                                                dap_ledger_token_tx_item_list(l_ledger,l_addr,l_hash_out_type);
+                                                //dap_db_history_addr(l_addr, l_chain_cur, l_hash_out_type);
                     if(l_tx_hash_str) {
                         dap_string_append_printf(l_str_ret, "history for tx hash %s:\n%s\n", l_tx_hash_str,
                                 l_str_out ? l_str_out : " empty");
