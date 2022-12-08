@@ -169,7 +169,7 @@ dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str(const cha
  */
 dap_chain_tx_item_type_t dap_chain_datum_tx_item_get_type(const void *a_item)
 {
-    dap_chain_tx_item_type_t type = a_item ? *(dap_chain_tx_item_type_t *)a_item : TX_ITEM_TYPE_ANY;
+    dap_chain_tx_item_type_t type = a_item ? *(dap_chain_tx_item_type_t *)a_item : TX_ITEM_TYPE_UNKNOWN;
     return type;
 }
 
