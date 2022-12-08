@@ -257,6 +257,17 @@ dap_chain_tx_in_t* dap_chain_datum_tx_item_in_create(dap_chain_hash_fast_t *a_tx
     return l_item;
 }
 
+json_object* dap_chain_datum_tx_item_in_to_json(dap_chain_tx_in_t *a_in){
+    json_object *l_obj_in = json_object_new_object();
+    json_object *l_obj_prev_idx = json_object_new_uint64(a_in->header.tx_out_prev_idx);
+    char *l_hash = dap_chain_hash_fast_to_str_new(&a_in->header.tx_prev_hash);
+    json_object *l_obj_hash = json_object_new_string(l_hash);
+    DAP_DELETE(l_hash);
+    json_object_object_add(l_obj_in, "prev_idx", l_obj_prev_idx);
+    json_object_object_add(l_obj_in, "prev_hash", l_obj_hash);
+    return l_obj_in;
+}
+
 dap_chain_tx_tsd_t *dap_chain_datum_tx_item_tsd_create(void *a_data, int a_type, size_t a_size) {
     if (!a_data || !a_size) {
         return NULL;
