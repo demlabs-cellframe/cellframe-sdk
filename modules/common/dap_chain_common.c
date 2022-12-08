@@ -97,6 +97,18 @@ char* dap_chain_addr_to_str(const dap_chain_addr_t *a_addr)
 }
 
 /**
+ * @brief dap_chain_addr_to_json
+ * @param a_addr
+ * @return
+ */
+json_object *dap_chain_addr_to_json(const dap_chain_addr_t *a_addr){
+    char *l_addr_str = dap_chain_addr_to_str(a_addr);
+    json_object *l_obj = json_object_new_string(l_addr_str);
+    DAP_DELETE(l_addr_str);
+    return l_obj;
+}
+
+/**
  * @brief dap_chain_str_to_addr
  * @param a_addr
  * @return
