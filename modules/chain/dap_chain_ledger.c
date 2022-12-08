@@ -572,7 +572,7 @@ static void s_tx_header_print(dap_string_t *a_str_out, dap_chain_datum_tx_t *a_t
     } else {
         l_tx_hash_str = dap_enc_base58_encode_hash_to_str(a_tx_hash);
     }
-    dap_string_append_printf(a_str_out, "TX hash %s \n\t%s",l_tx_hash_str, l_time_str);
+    dap_string_append_printf(a_str_out, "TX hash %s  \n\t%s",l_tx_hash_str, l_time_str);
     DAP_DELETE(l_tx_hash_str);
 }
 
