@@ -1002,7 +1002,7 @@ void dap_stream_ch_chain_timer_start(dap_stream_ch_chain_t *a_ch_chain)
 void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 {
     dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
-    if (!l_ch_chain) {
+    if (!l_ch_chain || l_ch_chain->_inheritor != a_ch) {
         log_it(L_ERROR, "No chain in channel, returning");
         return;
     }
@@ -1900,10 +1900,9 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
     }
     if (l_go_idle)
         s_ch_chain_go_idle(l_ch_chain);
-    else
+    if (l_was_sent_smth) {
         s_chain_timer_reset(l_ch_chain);
-    if (l_was_sent_smth)
         l_ch_chain->sent_breaks = 0;
-    else
+    } else
         l_ch_chain->sent_breaks++;
 }

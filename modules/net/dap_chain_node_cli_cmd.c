@@ -2698,10 +2698,10 @@ int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply)
                             ret = -6;
                         }else{
                             dap_string_append_printf(l_str_tmp, "Datum processed well. ");
-                            if ( dap_global_db_del_sync( l_gdb_group_mempool, l_datum_hash_hex_str) != 0){
+                            /*if ( dap_global_db_del_sync( l_gdb_group_mempool, l_datum_hash_hex_str) != 0){
                                 dap_string_append_printf(l_str_tmp, "Warning! Can't delete datum from mempool!");
                             }else
-                                dap_string_append_printf(l_str_tmp, "Removed datum from mempool.");
+                                dap_string_append_printf(l_str_tmp, "Removed datum from mempool.");*/
                         }
                     }else{
                         dap_string_append_printf(l_str_tmp, "Error! Can't move to no-concensus chains from mempool");
@@ -3677,7 +3677,6 @@ int com_token_emit(int a_argc, char **a_argv, char **a_str_reply)
         l_str_reply_tmp = dap_strdup("Can't place emission datum in mempool, examine log files");
     DAP_DEL_Z(l_emission_hash_str);
     DAP_DEL_Z(l_datum_emission);
-    DAP_DEL_Z(l_certs);
 
     //remove previous emission datum from mempool if have new signed emission datum
     if (l_emission_hash_str_remove) {
@@ -3700,6 +3699,7 @@ int com_token_emit(int a_argc, char **a_argv, char **a_str_reply)
     } else{ // if transaction was not specified when emission was added we need output only emission result
         dap_cli_server_cmd_set_reply_text(a_str_reply, l_str_reply_tmp);
     }
+    DAP_DEL_Z(l_certs);
     DAP_DEL_Z(l_str_reply_tmp);
     DAP_DEL_Z(l_addr);
     return 0;

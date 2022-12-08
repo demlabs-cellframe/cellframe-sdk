@@ -234,12 +234,12 @@ void dap_chain_cs_dag_event_broadcast(dap_chain_cs_dag_t *a_dag, dap_store_obj_t
     l_arg->obj = dap_store_obj_copy(a_obj, 1);
     l_arg->context = a_context;
     l_arg->attempts = 0;
-
-    if (dap_timerfd_start(3*1000,
+    if (!s_event_broadcast_send(l_arg))
+        return;
+    if (dap_timerfd_start(3 * 1000,
                         (dap_timerfd_callback_t)s_event_broadcast_send,
-                        l_arg) == NULL) {
+                        l_arg) == NULL)
         log_it(L_ERROR, "Can't run timer for broadcast Event %s", a_obj->key);
-    }
 }
 
 /**

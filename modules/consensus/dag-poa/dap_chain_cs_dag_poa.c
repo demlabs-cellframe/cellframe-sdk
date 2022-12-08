@@ -415,7 +415,8 @@ static void s_poa_round_check_callback_round_clean(dap_global_db_context_t *a_gl
             uint64_t l_time_diff = dap_nanotime_now() - l_event_round_item->round_info.ts_update;
             uint64_t l_timeuot = dap_nanotime_from_sec(l_poa_pvt->confirmations_timeout + l_poa_pvt->wait_sync_before_complete + 10);
             uint64_t l_round_id = ((dap_chain_cs_dag_event_t *)l_event_round_item->event_n_signs)->header.round_id;
-            if (l_time_diff > l_timeuot || l_round_id <= l_dag->round_completed) {
+            if (((int64_t)l_time_diff > 0 && l_time_diff > l_timeuot) ||
+                    l_round_id <= l_dag->round_completed) {
                 dap_global_db_del_unsafe(a_global_db_context, a_group, a_values[i].key);
                 log_it(L_DEBUG, "DAG-PoA: Remove event %s from round %"DAP_UINT64_FORMAT_U" %s.",
                                 a_values[i].key, l_round_id, l_time_diff > l_timeuot ? "by timer" : "owing to round completion");
