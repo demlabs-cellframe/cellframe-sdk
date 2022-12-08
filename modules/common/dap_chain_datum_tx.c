@@ -268,3 +268,97 @@ int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *tx)
     return ret;
 }
 
+json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx){
+    json_object *l_obj = json_object_new_object();
+    json_object *l_obj_ts_created = json_object_new_uint64(a_tx->header.ts_created);
+    json_object *l_obj_items = json_object_new_array();
+    uint32_t l_tx_items_count = 0;
+    uint32_t l_tx_items_size = a_tx->header.tx_items_size;
+    while(l_tx_items_count < l_tx_items_size) {
+        uint8_t *item = a_tx->tx_items + l_tx_items_count;
+        size_t l_tx_item_size = dap_chain_datum_item_tx_get_size(item);
+        if (l_tx_item_size == 0) {
+            json_object_put(l_obj_items);
+            l_obj_items = json_object_new_null();
+            break;
+        }
+        dap_chain_tx_item_type_t l_item_type = dap_chain_datum_tx_item_get_type(item);
+        json_object *l_obj_item_type = NULL;
+        json_object *l_obj_item_data = NULL;
+        dap_hash_fast_t a_tx_hash = {0};
+        char *l_hash_str = NULL;
+        switch (l_item_type) {
+            case TX_ITEM_TYPE_IN:
+                l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_IN");
+                l_obj_item_data = dap_chain_datum_tx_item_in_to_json((dap_chain_tx_in_t*)item);
+                break;
+            case TX_ITEM_TYPE_OUT:
+                l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_OUT");
+                l_obj_item_data = dap_chain_datum_tx_item_out_to_json((dap_chain_tx_out_t*)item);
+                break;
+            case TX_ITEM_TYPE_TOKEN:
+                l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_TOKEN");
+                break;
+            case TX_ITEM_TYPE_TOKEN_EXT:
+                l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_TOKEN_EXT");
+                break;
+            case TX_ITEM_TYPE_SIG:
+                l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_SIG");
+                break;
+            case TX_ITEM_TYPE_RECEIPT:
+                l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_RECEIPT");
+                break;
+            case TX_ITEM_TYPE_PKEY:
+                l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_PKEY");
+                break;
+            case TX_ITEM_TYPE_IN_COND:
+                l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_IN_COND");
+                break;
+            case TX_ITEM_TYPE_OUT_COND:
+                l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_OUT_COND");
+                switch (((dap_chain_tx_out_cond_t*)item)->header.subtype) {
+                    case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY:
+                        l_obj_item_type = json_object_new_string("DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY");
+                        break;
+                    case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK:
+                        l_obj_item_type = json_object_new_string("DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
+                        break;
+                    case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE:
+                        l_obj_item_type = json_object_new_string("DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
+                        break;
+                    case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE:
+                        l_obj_item_type = json_object_new_string("DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE");
+                        break;
+//                    default:
+                }
+                break;
+            case TX_ITEM_TYPE_OUT_EXT:
+                l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_OUT_EXT");
+                break;
+            case TX_ITEM_TYPE_TSD:
+                l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_TSD");
+                break;
+            default:
+                dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &a_tx_hash);
+                l_hash_str = dap_chain_hash_fast_to_str_new(&a_tx_hash);
+                log_it(L_NOTICE, "Transaction %s has an item whose type cannot be handled by the dap_chain_datum_tx_to_json function.", a_tx_hash);
+                DAP_DELETE(l_hash_str);
+                break;
+        }
+        if (!l_obj_item_type){
+            json_object_array_add(l_obj_items, json_object_new_null());
+        } else {
+            if (!l_obj_item_data)
+                l_obj_item_data = json_object_new_null();
+            json_object *l_obj_item = json_object_new_object();
+            json_object_object_add(l_obj_item, "type", l_obj_item_type);
+            json_object_object_add(l_obj_item, "data", l_obj_item_data);
+            json_object_array_add(l_obj_items, l_obj_item);
+        }
+
+//        if (l_obj_item_type)
+        l_tx_items_count += l_tx_item_size;
+    }
+    json_object_object_add(l_obj, "items", l_obj_items);
+    return l_obj;
+}
