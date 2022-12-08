@@ -46,9 +46,15 @@ void dap_chain_mempool_rpc_handler_list(dap_json_rpc_params_t *a_params,
 //        json_object_put(l_obj_datum);
     }
     json_object_object_add(l_object, "datums", l_object_array);
-    a_response->result_string = dap_strdup(json_object_to_json_string(l_object));
-    json_object_put(l_object);
-    json_object_put(l_object_array);
+    a_response->type_result = TYPE_RESPONSE_JSON;
+    a_response->result_json_object = l_object;
+//    const char *l_ret_str = json_object_to_json_string(l_object);
+//    size_t l_ret_str_size = dap_strlen(l_ret_str) + 1;
+//    char * l_ret = DAP_NEW_Z_SIZE(char, l_ret_str_size);
+//    strcpy(l_ret, l_ret_str);
+//    a_response->result_string = l_ret;
+//    json_object_put(l_object);
+//    json_object_put(l_object_array);
     //TODO: Free memory.
 
     DAP_DELETE(l_gdb_group_mempool);
