@@ -159,6 +159,7 @@ static dap_db_ctx_t *s_cre_db_ctx_for_group(const char *a_group, int a_flags)
 {
 int l_rc;
 dap_db_ctx_t *l_db_ctx, *l_db_ctx2;
+size_t l_namelen;
 uint64_t l_seq;
 MDBX_val    l_key_iov, l_data_iov;
 
@@ -177,13 +178,13 @@ MDBX_val    l_key_iov, l_data_iov;
 
     /* So , at this point we are going to create (if not exist)  'table' for new group */
 
-    if ( (l_db_ctx->namelen = strlen(a_group)) > DAP_DB$SZ_MAXGROUPNAME )                /* Check length of the group name */
-        return  log_it(L_ERROR, "Group name '%s' is too long (%zu>%lu)", a_group, l_db_ctx->namelen, DAP_DB$SZ_MAXGROUPNAME), NULL;
+    if ( (l_namelen = strlen(a_group)) > DAP_DB$SZ_MAXGROUPNAME )           /* Check length of the group name */
+        return  log_it(L_ERROR, "Group name '%s' is too long (%zu>%lu)", a_group, l_namelen, DAP_DB$SZ_MAXGROUPNAME), NULL;
 
     if ( !(l_db_ctx = DAP_NEW_Z(dap_db_ctx_t)) )                            /* Allocate zeroed memory for new DB context */
         return  log_it(L_ERROR, "Cannot allocate DB context for '%s', errno=%d", a_group, errno), NULL;
 
-    memcpy(l_db_ctx->name,  a_group, l_db_ctx->namelen);                    /* Store group name in the DB context */
+    memcpy(l_db_ctx->name,  a_group, l_db_ctx->namelen = l_namelen);        /* Store group name in the DB context */
     pthread_mutex_init(&l_db_ctx->dbi_mutex, NULL);
 
     /*
@@ -454,14 +455,16 @@ struct  __record_suffix__   *l_suff;
         return log_it(L_ERROR, "Cannot allocate a memory for store object key, errno=%d", errno), -5;
     }
 
+    if (!a_data->iov_len)
+        return log_it(L_ERROR, "Zero length of global DB record internal value"), -6;
     a_obj->value_len = a_data->iov_len - sizeof(struct __record_suffix__);
     if (a_obj->value_len) {
-        if ( (a_obj->value = DAP_CALLOC(1, (a_data->iov_len + 1)  - sizeof(struct __record_suffix__))) )
+        if ( (a_obj->value = DAP_CALLOC(1, a_obj->value_len)) )
             memcpy(a_obj->value, a_data->iov_base, a_obj->value_len);
         else {
             DAP_DELETE(a_obj->group);
             DAP_DELETE(a_obj->key);
-            return log_it (L_ERROR, "Cannot allocate a memory for store object value, errno=%d", errno), -6;
+            return log_it (L_ERROR, "Cannot allocate a memory for store object value, errno=%d", errno), -7;
         }
     }
 
@@ -656,7 +659,7 @@ size_t  l_cnt = 0, l_count_out = 0;
                 break;
             }
             l_obj = l_obj_arr + (l_cnt - 1);                                /* Point <l_obj> to last array's element */
-
+            memset(l_obj, 0, sizeof(dap_store_obj_t));
             if (s_fill_store_obj(a_group, &l_key, &l_data, l_obj))
                 l_rc = MDBX_PROBLEM;
         }
@@ -831,7 +834,7 @@ struct  __record_suffix__   *l_suff;
         }
 
         l_data.iov_base = l_val;                                            /* Fill IOV for MDBX data */
-        l_data.iov_len = l_rc;
+        l_data.iov_len = l_summary_len;
 
         /*
          * Fill suffix's fields
@@ -947,8 +950,6 @@ dap_store_obj_t *l_obj, *l_obj_arr;
 MDBX_val    l_key, l_data;
 MDBX_cursor *l_cursor;
 MDBX_stat   l_stat;
-struct  __record_suffix__   *l_suff;
-
 
     if (!a_group)                                                           /* Sanity check */
         return NULL;
