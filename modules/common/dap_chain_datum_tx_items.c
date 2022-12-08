@@ -241,6 +241,19 @@ dap_chain_tx_token_t *dap_chain_datum_tx_item_token_create(dap_chain_id_t a_id, 
     return l_item;
 }
 
+json_object *dap_chain_datum_tx_item_token_to_json(const dap_chain_tx_token_t *a_token){
+    json_object *l_object = json_object_new_object();
+    json_object *l_obj_ticker = json_object_new_string(a_token->header.ticker);
+    json_object *l_obj_chain_id = json_object_new_uint64(a_token->header.token_emission_chain_id.uint64);
+    char *l_ehf = dap_chain_hash_fast_to_str_new(&a_token->header.token_emission_hash);
+    json_object *l_obj_ehf = json_object_new_string(l_ehf);
+    DAP_DELETE(l_ehf);
+    json_object_object_add(l_object, "ticker", l_obj_ticker);
+    json_object_object_add(l_object, "chainId", l_obj_chain_id);
+    json_object_object_add(l_object, "emissionHash", l_obj_ehf);
+    return l_object;
+}
+
 /**
  * Create item dap_chain_tx_out_old_t
  *
