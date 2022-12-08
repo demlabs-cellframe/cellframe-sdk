@@ -129,6 +129,8 @@ dap_chain_tx_in_cond_t* dap_chain_datum_tx_item_in_cond_create(dap_chain_hash_fa
  */
 dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(const dap_chain_addr_t *a_addr, uint256_t a_value);
 
+json_object* dap_chain_datum_tx_item_out_to_json(const dap_chain_tx_out_t *a_out);
+
 /**
  * Create item dap_chain_tx_out_ext_t
  *

@@ -319,6 +319,15 @@ dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(const dap_chain_addr_t *a
     return l_item;
 }
 
+json_object* dap_chain_datum_tx_item_out_to_json(const dap_chain_tx_out_t *a_out) {
+    json_object *l_object = json_object_new_object();
+    json_object *l_value = json_object_new_string(dap_chain_balance_print(a_out->header.value));
+    json_object *l_addr = dap_chain_addr_to_json(&a_out->addr);
+    json_object_object_add(l_object, "value", l_value);
+    json_object_object_add(l_object, "addr", l_addr);
+    return l_object;
+}
+
 dap_chain_tx_out_ext_t* dap_chain_datum_tx_item_out_ext_create(const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token)
 {
     if (!a_addr || !a_token)
