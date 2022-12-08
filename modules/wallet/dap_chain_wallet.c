@@ -697,7 +697,7 @@ enum {
     {
     dap_chain_wallet_t  *l_wallet;
 
-    if ( l_wallet = dap_chain_wallet_open_file (l_wallet_internal->file_name, a_pass) )
+    if ( (l_wallet = dap_chain_wallet_open_file (l_wallet_internal->file_name, a_pass)) )
         dap_chain_wallet_close(l_wallet);
 
     }
