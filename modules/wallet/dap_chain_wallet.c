@@ -165,7 +165,7 @@ char *c_wallets_path;
 }
 
 /*
- *  DESCRIPTIOB: Lookup and retrieve password for a given wallet. A buffer for a_pass should be enough
+ *  DESCRIPTION: Lookup and retrieve password for a given wallet. A buffer for a_pass should be enough
  *      to accept password string up to DAP_WALLET$SZ_PASS octets
  *
  *  INPUTS:
