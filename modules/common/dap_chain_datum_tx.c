@@ -315,6 +315,7 @@ json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx){
                 break;
             case TX_ITEM_TYPE_IN_COND:
                 l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_IN_COND");
+                l_obj_item_data = dap_chain_datum_tx_item_in_cond_to_json((dap_chain_tx_in_cond_t*)item);
                 break;
             case TX_ITEM_TYPE_OUT_COND:
                 switch (((dap_chain_tx_out_cond_t*)item)->header.subtype) {
@@ -339,6 +340,7 @@ json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx){
                 break;
             case TX_ITEM_TYPE_TSD:
                 l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_TSD");
+                l_obj_item_data = dap_chain_datum_tx_item_tsd_to_json((dap_chain_tx_tsd_t*)item);
                 break;
             default:
                 dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &a_tx_hash);
