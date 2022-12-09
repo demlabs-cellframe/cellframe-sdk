@@ -390,6 +390,18 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_fee(uint256_t a
     return l_item;
 }
 
+json_object *dap_chain_datum_tx_item_out_cond_fee_to_json(dap_chain_tx_out_cond_t *a_fee){
+    if (a_fee->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
+        json_object *l_obj = json_object_new_object();
+        char *l_balance = dap_chain_balance_print(a_fee->header.value);
+        json_object *l_obj_balance = json_object_new_string(l_balance);
+        DAP_DELETE(l_balance);
+        json_object_object_add(l_obj, "balance", l_obj_balance);
+        return l_obj;
+    }
+    return NULL;
+}
+
 /**
  * Create item dap_chain_tx_out_cond_t
  *
@@ -420,6 +432,33 @@ dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_pke
         memcpy(l_item->tsd, a_params, a_params_size);
     }
     return l_item;
+}
+
+json_object *dap_chain_datum_tx_item_out_cond_srv_pay_to_json(dap_chain_tx_out_cond_t *a_srv_pay) {
+    if (a_srv_pay->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY) {
+        json_object *l_obj = json_object_new_object();
+        char *l_balance = dap_chain_balance_print(a_srv_pay->header.value);
+        json_object *l_obj_value = json_object_new_string(l_balance);
+        DAP_DELETE(l_balance);
+        json_object_object_add(l_obj, "value", l_obj_value);
+        json_object *l_obj_srv_uid = json_object_new_uint64(a_srv_pay->header.srv_uid.uint64);
+        json_object_object_add(l_obj, "srvUid", l_obj_value);
+        json_object *l_obj_units_type = json_object_new_string(serv_unit_enum_to_str(&a_srv_pay->subtype.srv_pay.unit.enm));
+        json_object_object_add(l_obj, "srvUnit", l_obj_units_type);
+        char *l_price_max_datoshi = dap_chain_balance_print(a_srv_pay->subtype.srv_pay.unit_price_max_datoshi);
+        json_object *l_obj_price_max_datoshi = json_object_new_string(l_price_max_datoshi);
+        DAP_DELETE(l_price_max_datoshi);
+        json_object_object_add(l_obj, "price", l_obj_price_max_datoshi);
+        char *l_pkeyHash = dap_hash_fast_to_str_new(&a_srv_pay->subtype.srv_pay.pkey_hash);
+        json_object *l_obj_pkey_hash = json_object_new_string(l_pkeyHash);
+        DAP_DELETE(l_pkeyHash);
+        json_object_object_add(l_obj, "pKeyHash", l_obj_units_type);
+        //TODO: Parsing a_srv_pay->tsd
+//        json_object *l_obj_tsd = json_object_new_string_len(a_srv_pay->tsd, a_srv_pay->tsd_size);
+//        json_object_object_add(l_obj, "TSD", l_obj_tsd);
+        return l_obj;
+    }
+    return NULL;
 }
 
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap_chain_net_srv_uid_t a_srv_uid, dap_chain_net_id_t a_sell_net_id,
