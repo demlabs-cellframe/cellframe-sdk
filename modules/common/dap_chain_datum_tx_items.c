@@ -467,6 +467,15 @@ dap_chain_tx_sig_t* dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, co
     return l_tx_sig;
 }
 
+json_object* dap_chain_datum_tx_item_sig_to_json(const dap_chain_tx_sig_t *a_sig){
+    json_object *l_object = json_object_new_object();
+    json_object *l_sign_size = json_object_new_uint64(a_sig->header.sig_size);
+    json_object *l_sign = dap_sign_to_json((dap_sign_t*)a_sig->sig);
+    json_object_object_add(l_object, "signSize", l_sign_size);
+    json_object_object_add(l_object, "sign", l_sign);
+    return l_object;
+}
+
 /**
  * Get sign from sign item
  *

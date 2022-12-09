@@ -180,6 +180,8 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
  */
 dap_chain_tx_sig_t *dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, const void *a_data, size_t a_data_size);
 
+json_object* dap_chain_datum_tx_item_sig_to_json(const dap_chain_tx_sig_t *a_sig);
+
 /**
  * Get sign from sign item
  *
