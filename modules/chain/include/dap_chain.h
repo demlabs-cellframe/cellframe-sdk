@@ -40,7 +40,7 @@ typedef struct dap_chain_cell dap_chain_cell_t;
 typedef struct dap_ledger dap_ledger_t;
 
 // Atomic element
-typedef void * dap_chain_atom_ptr_t;
+typedef const void * dap_chain_atom_ptr_t;
 
 // Atomic element iterator
 typedef struct dap_chain_atom_iter{
