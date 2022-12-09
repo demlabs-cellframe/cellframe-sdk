@@ -298,12 +298,14 @@ json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx){
                 break;
             case TX_ITEM_TYPE_TOKEN:
                 l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_TOKEN");
+                l_obj_item_data = dap_chain_datum_tx_item_token_to_json((dap_chain_tx_token_t*)item);
                 break;
             case TX_ITEM_TYPE_TOKEN_EXT:
                 l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_TOKEN_EXT");
                 break;
             case TX_ITEM_TYPE_SIG:
                 l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_SIG");
+                l_obj_item_data = dap_chain_datum_tx_item_sig_to_json((dap_chain_tx_sig_t*)item);
                 break;
             case TX_ITEM_TYPE_RECEIPT:
                 l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_RECEIPT");
@@ -315,7 +317,6 @@ json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx){
                 l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_IN_COND");
                 break;
             case TX_ITEM_TYPE_OUT_COND:
-                l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_OUT_COND");
                 switch (((dap_chain_tx_out_cond_t*)item)->header.subtype) {
                     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY:
                         l_obj_item_type = json_object_new_string("DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY");
@@ -331,6 +332,7 @@ json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx){
                         break;
 //                    default:
                 }
+                l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_OUT_COND");
                 break;
             case TX_ITEM_TYPE_OUT_EXT:
                 l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_OUT_EXT");
