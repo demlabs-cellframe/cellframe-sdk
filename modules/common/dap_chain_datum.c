@@ -708,7 +708,15 @@ json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum){
     json_object *l_obj_size = json_object_new_int(a_datum->header.data_size);
     json_object *l_obj_ts_created = json_object_new_uint64(a_datum->header.ts_create);
     json_object *l_obj_type = json_object_new_string(dap_chain_datum_type_id_to_str(a_datum->header.type_id));
-    json_object *l_obj_data = json_object_new_null();
+    json_object *l_obj_data;
+    switch (a_datum->header.type_id) {
+        case DAP_CHAIN_DATUM_TX:
+            l_obj_data = dap_chain_datum_tx_to_json((dap_chain_datum_tx_t*)a_datum->data);
+            break;
+        default:
+            l_obj_data = json_object_new_null();
+            break;
+    }
     json_object_object_add(l_object, "version", l_obj_version);
     json_object_object_add(l_object, "hash", l_obj_data_hash);
     json_object_object_add(l_object, "data_size", l_obj_size);

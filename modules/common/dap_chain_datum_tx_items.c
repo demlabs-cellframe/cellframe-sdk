@@ -296,6 +296,17 @@ dap_chain_tx_tsd_t *dap_chain_datum_tx_item_tsd_create(void *a_data, int a_type,
     return l_item;
 }
 
+json_object* dap_chain_datum_tx_item_tsd_to_json(dap_chain_tx_tsd_t *a_tsd){
+    json_object *l_object = json_object_new_object();
+    json_object *l_obj_tsd_type = json_object_new_int(a_tsd->header.type);
+    json_object *l_obj_tsd_size = json_object_new_uint64(a_tsd->header.size);
+    json_object *l_obj_data = json_object_new_string_len(a_tsd->tsd, a_tsd->header.size);
+    json_object_object_add(l_object, "type", l_obj_tsd_type);
+    json_object_object_add(l_object, "size", l_obj_tsd_size);
+    json_object_object_add(l_object, "data", l_obj_data);
+    return l_object;
+}
+
 /**
  * @brief dap_chain_datum_tx_item_in_cond_create
  * @param a_pkey_serialized
