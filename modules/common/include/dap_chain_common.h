@@ -236,6 +236,8 @@ typedef struct dap_chain_receipt_info {
 extern "C" {
 #endif
 
+json_object* dap_chain_receipt_info_to_json(dap_chain_receipt_info_t *a_info);
+
 size_t dap_chain_hash_slow_to_str(dap_chain_hash_slow_t * a_hash, char * a_str, size_t a_str_max);
 
 char* dap_chain_addr_to_str(const dap_chain_addr_t *a_addr);
