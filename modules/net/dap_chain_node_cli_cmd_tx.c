@@ -802,7 +802,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
  */
 int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
 {
-    enum { CMD_NONE, CMD_LIST, CMD_TX_HISTORY, CMD_TX_INFO };
+    enum { CMD_NONE, CMD_LIST, CMD_LEDGER_HISTORY, CMD_TX_INFO };
     int arg_index = 1;
     const char *l_addr_base58 = NULL;
     const char *l_wallet_name = NULL;
@@ -827,7 +827,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
     if (dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "list", NULL)){
         l_cmd = CMD_LIST;
     } else if (dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "tx", NULL)){
-        l_cmd = CMD_TX_HISTORY;
+        l_cmd = CMD_LEDGER_HISTORY;
     } else if (dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "info", NULL))
         l_cmd = CMD_TX_INFO;
 
@@ -836,11 +836,11 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
     arg_index++;
 
     // command tx_history
-    if(l_cmd == CMD_TX_HISTORY) {
+    if(l_cmd == CMD_LEDGER_HISTORY) {
         dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-addr", &l_addr_base58);
         dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-w", &l_wallet_name);
         dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-net", &l_net_str);
-        dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-chain", &l_chain_str);
+        //dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-chain", &l_chain_str);
         dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-tx", &l_tx_hash_str);
         dap_chain_tx_hash_processed_ht_t *l_list_tx_hash_processd = NULL;
 
@@ -859,20 +859,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
                 return -3;
             }
         }
-        //Select chain emission
-        if(!l_chain_str) { // chain may be null -> then all chain use
-            //dap_chain_node_cli_set_reply_text(a_str_reply, "command requires parameter '-chain'");
-            //return -4;
-        } else {
-            if((l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str)) == NULL) { // Can't find such chain
-                dap_chain_node_cli_set_reply_text(a_str_reply,
-                        "command requires parameter '-chain' to be valid chain name in chain net %s",
-                        l_net_str);
-                return -5;
-            }
-        }
-        //char *l_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
-        //const char *l_chain_group = dap_chain_gdb_get_group(l_chain);
+
         dap_chain_hash_fast_t l_tx_hash;
         if(l_tx_hash_str) {
             if (dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash)) {
@@ -907,53 +894,35 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
             }
         }
         dap_string_t *l_str_ret = dap_string_new(NULL); //char *l_str_ret = NULL;
-        dap_chain_t *l_chain_cur;
-        int l_num = 0;
-        // only one chain
-        if (l_chain)
-            l_chain_cur = l_chain;
-        // all chain
-        else
-            l_chain_cur = l_net->pub.chains;
-        while (l_chain_cur) {
-            // only selected net
-            if(l_net->pub.id.uint64 == l_chain_cur->net_id.uint64) {
-                // separator between chains
-                if(l_num>0 && !l_chain)
-                    dap_string_append(l_str_ret, "---------------\n");
 
-                char *l_str_out = NULL;
-                dap_string_append_printf(l_str_ret, "chain: %s\n", l_chain_cur->name);
-                dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(l_net_str);
-                if(l_is_all) {
-                    // without filters
-                    l_str_out = dap_db_history_filter(l_chain_cur, l_ledger, NULL, NULL, l_hash_out_type, -1, 0, NULL, l_list_tx_hash_processd);
-                    dap_string_append_printf(l_str_ret, "all history:\n%s\n", l_str_out ? l_str_out : " empty");
-                }
-                else {
-                    l_str_out = l_tx_hash_str ?
-                                                dap_db_history_tx(&l_tx_hash, l_chain_cur, l_hash_out_type) :
-                                                dap_ledger_token_tx_item_list(l_ledger,l_addr,l_hash_out_type);
-                                                //dap_db_history_addr(l_addr, l_chain_cur, l_hash_out_type);
-                    if(l_tx_hash_str) {
-                        dap_string_append_printf(l_str_ret, "history for tx hash %s:\n%s\n", l_tx_hash_str,
-                                l_str_out ? l_str_out : " empty");
-                    }
-                    else if(l_addr) {
-                        char *l_addr_str = dap_chain_addr_to_str(l_addr);
-                        dap_string_append_printf(l_str_ret, "history for addr %s:\n%s\n", l_addr_str,
-                                l_str_out ? l_str_out : " empty");
-                        DAP_DELETE(l_addr_str);
-                    }
-                }
-                DAP_DELETE(l_str_out);
-                l_num++;
-            }
-            // only one chain use
-            if(l_chain)
-                break;
-            l_chain_cur = l_chain_cur->next;
+        char *l_str_out = NULL;
+        dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(l_net_str);
+        if(l_is_all) {
+            // without filters
+            //l_str_out = dap_db_history_filter(l_chain_cur, l_ledger, NULL, NULL, l_hash_out_type, -1, 0, NULL, l_list_tx_hash_processd);
+            dap_string_append_printf(l_str_ret, "all history:\n%s\n", l_str_out ? l_str_out : " empty");
         }
+        else {/*
+            l_str_out = l_tx_hash_str ?
+                                        dap_db_history_tx(&l_tx_hash, l_chain_cur, l_hash_out_type) :
+                                        dap_ledger_token_tx_item_list(l_ledger,l_addr,l_hash_out_type);
+                                        //dap_db_history_addr(l_addr, l_chain_cur, l_hash_out_type);
+            */
+            l_str_out = dap_ledger_token_tx_item_list(l_ledger,l_addr,l_hash_out_type);
+            if(l_tx_hash_str) {
+                dap_string_append_printf(l_str_ret, "history for tx hash %s:\n%s\n", l_tx_hash_str,
+                        l_str_out ? l_str_out : " empty");
+            }
+            else if(l_addr) {
+                char *l_addr_str = dap_chain_addr_to_str(l_addr);
+                dap_string_append_printf(l_str_ret, "history for addr %s:\n%s\n", l_addr_str,
+                        l_str_out ? l_str_out : " empty");
+                DAP_DELETE(l_addr_str);
+            }
+        }
+        DAP_DELETE(l_str_out);
+
+
         DAP_DELETE(l_addr);
         s_dap_chain_tx_hash_processed_ht_free(l_list_tx_hash_processd);
         // all chain

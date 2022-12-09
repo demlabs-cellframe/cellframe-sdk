@@ -639,6 +639,10 @@ char * dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_addr_t *
                         break;
                     }
                 }
+                else
+                {
+                    continue; //temporary stub
+                }
                 if (!l_src_token){
                     l_src_token = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, l_tx_prev_hash);
                     l_src_token = l_tx_item->cache_data.token_ticker;
@@ -663,11 +667,11 @@ char * dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_addr_t *
                     l_value = ((dap_chain_tx_out_t *)l_list_out->data)->header.value;
                     break;
                 case TX_ITEM_TYPE_OUT_EXT:
-                    l_dst_addr = &((dap_chain_tx_out_t *)l_list_out->data)->addr;
-                    l_value = ((dap_chain_tx_out_t *)l_list_out->data)->header.value;
+                    l_dst_addr = &((dap_chain_tx_out_ext_t *)l_list_out->data)->addr;
+                    l_value = ((dap_chain_tx_out_ext_t *)l_list_out->data)->header.value;
                     break;
                 case TX_ITEM_TYPE_OUT_COND:
-                    l_value = ((dap_chain_tx_out_t *)l_list_out->data)->header.value;
+                    l_value = ((dap_chain_tx_out_cond_t *)l_list_out->data)->header.value;
                 default:
                     break;
                 }
