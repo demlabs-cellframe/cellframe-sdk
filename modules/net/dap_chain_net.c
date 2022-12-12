@@ -486,7 +486,7 @@ static bool s_net_send_records(dap_proc_thread_t *a_thread, void *a_arg)
         return true;
     }
     // Check object lifetime for broadcasting decision
-    dap_gdb_time_t l_time_diff = l_obj->timestamp - dap_gdb_time_now();
+    dap_gdb_time_t l_time_diff = l_obj->timestamp ? l_obj->timestamp - dap_gdb_time_now() : (dap_gdb_time_t)-1;
     if (dap_gdb_time_to_sec(l_time_diff) > DAP_BROADCAST_LIFETIME * 60) {
         dap_store_obj_free_one(l_obj);
         return true;
@@ -521,8 +521,6 @@ static bool s_net_send_records(dap_proc_thread_t *a_thread, void *a_arg)
     dap_store_obj_free_one(l_obj);
     return true;
 }
-
-static void s_record_obj_free(void *a_obj) { return dap_store_obj_free_one((dap_store_obj_t *)a_obj); }
 
 /**
  * @brief executes, when you add data to gdb and sends it to current network connected nodes
@@ -598,12 +596,12 @@ static void s_chain_callback_notify(void *a_arg, dap_chain_t *a_chain, dap_chain
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     if (!HASH_COUNT(PVT(l_net)->downlinks))
         return;
+
     // Check object lifetime for broadcasting decision
-    dap_gdb_time_t l_time_diff = l_obj->timestamp - dap_gdb_time_now();
-    if (dap_gdb_time_to_sec(l_time_diff) > DAP_BROADCAST_LIFETIME * 60) {
-        dap_store_obj_free_one(l_obj);
-        return true;
-    }
+    dap_time_t l_timestamp = a_chain->callback_atom_get_timestamp(a_atom);
+    dap_time_t l_time_diff = l_timestamp ? l_timestamp - dap_time_now() : (dap_time_t)-1;
+    if (l_time_diff > DAP_BROADCAST_LIFETIME * 60)
+        return;
 
     struct net_broadcast_atoms_args *l_args = DAP_NEW(struct net_broadcast_atoms_args);
     l_args->net = l_net;
