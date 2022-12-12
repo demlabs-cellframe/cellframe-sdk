@@ -534,6 +534,36 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
     return l_item;
 }
 
+json_object *dap_chain_datum_tx_item_out_cond_srv_stake_to_json(dap_chain_tx_out_cond_t* a_srv_stake) {
+    if (a_srv_stake->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE) {
+        json_object *l_object = json_object_new_object();
+        char *l_value = dap_chain_balance_print(a_srv_stake->header.value);
+        json_object *l_obj_value = json_object_new_string(l_value);
+        DAP_DELETE(l_value);
+        json_object *l_obj_srv_uid = json_object_new_uint64(a_srv_stake->header.srv_uid.uint64);
+        char *l_value_fee = dap_chain_balance_print(a_srv_stake->subtype.srv_stake.fee_value);
+        json_object *l_obj_value_fee = json_object_new_string(l_value_fee);
+        DAP_DELETE(l_value_fee);
+        json_object *l_obj_fee_addr = dap_chain_addr_to_json(&a_srv_stake->subtype.srv_stake.fee_addr);
+        json_object *l_obj_hldr_addr = dap_chain_addr_to_json(&a_srv_stake->subtype.srv_stake.hldr_addr);
+        json_object *l_obj_signing_addr = dap_chain_addr_to_json(&a_srv_stake->subtype.srv_stake.signing_addr);
+        char *l_signer_node_addr = dap_strdup_printf(
+                NODE_ADDR_FP_STR,
+                NODE_ADDR_FP_ARGS_S(a_srv_stake->subtype.srv_stake.signer_node_addr));
+        json_object *l_obj_signer_node_addr = json_object_new_string(l_signer_node_addr);
+        DAP_DELETE(l_signer_node_addr);
+        json_object_object_add(l_object, "value", l_obj_value);
+        json_object_object_add(l_object, "srvUID", l_obj_srv_uid);
+        json_object_object_add(l_object, "valueFee", l_obj_value_fee);
+        json_object_object_add(l_object, "feeAddr", l_obj_fee_addr);
+        json_object_object_add(l_object, "hldrAddr", l_obj_hldr_addr);
+        json_object_object_add(l_object, "signindAddr", l_obj_signing_addr);
+        json_object_object_add(l_object, "signerNodeAddr", l_obj_signer_node_addr);
+        return l_object;
+    }
+    return NULL;
+}
+
 /**
  * Create item dap_chain_tx_sig_t
  *
