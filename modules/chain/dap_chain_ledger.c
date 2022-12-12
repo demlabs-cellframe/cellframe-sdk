@@ -1189,7 +1189,7 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
                                        l_addr_str);
                                 DAP_DELETE(l_addr_str);
                                 DAP_DELETE(l_addrs);
-                                DAP_DEL_Z(a_token_item->tx_recv_allow)
+                                DAP_DEL_Z(a_token_item->tx_recv_allow);
                                 return -11;
                             }
                         }

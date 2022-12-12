@@ -623,8 +623,8 @@ static void s_callback_delete(dap_chain_t * a_chain)
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     pthread_rwlock_destroy(&PVT(l_blocks)->rwlock);
     pthread_rwlock_destroy(&PVT(l_blocks)->datums_lock);
-    DAP_DEL_Z(l_blocks->_inheritor)
-    DAP_DEL_Z(l_blocks->_pvt)
+    DAP_DEL_Z(l_blocks->_inheritor);
+    DAP_DEL_Z(l_blocks->_pvt);
     log_it(L_INFO, "Block destructed");
 }
 
@@ -1029,7 +1029,7 @@ static dap_chain_datum_tx_t* s_callback_atom_iter_find_by_tx_hash(dap_chain_t * 
 static dap_chain_datum_t** s_callback_atom_get_datums(dap_chain_atom_ptr_t a_atom, size_t a_atom_size, size_t * a_datums_count)
 {
     assert(a_datums_count);
-    dap_chain_datum_t ** l_ret = dap_chain_block_get_datums(a_atom, a_atom_size,a_datums_count);
+    dap_chain_datum_t ** l_ret = dap_chain_block_get_datums((dap_chain_block_t *)a_atom, a_atom_size,a_datums_count);
     return l_ret;
 }
 

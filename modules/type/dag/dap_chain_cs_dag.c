@@ -1353,7 +1353,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     // If not verify only mode we add
                     if ( ! l_verify_only ){
                         dap_chain_atom_ptr_t l_new_atom = DAP_DUP_SIZE(l_event, l_event_size); // produce deep copy of event;
-                        memcpy(l_new_atom, l_event, l_event_size);
+                        memcpy((void *)l_new_atom, l_event, l_event_size);
                         if(s_chain_callback_atom_add(l_chain, l_new_atom,l_event_size) < 0) { // Add new atom in chain
                             DAP_DELETE(l_new_atom);
                             dap_string_append_printf(l_str_ret_tmp, "Event %s not added in chain\n", l_objs[i].key);
