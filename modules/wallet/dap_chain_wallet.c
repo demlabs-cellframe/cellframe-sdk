@@ -165,7 +165,7 @@ char *c_wallets_path;
 }
 
 /*
- *  DESCRIPTIOB: Lookup and retrieve password for a given wallet. A buffer for a_pass should be enough
+ *  DESCRIPTION: Lookup and retrieve password for a given wallet. A buffer for a_pass should be enough
  *      to accept password string up to DAP_WALLET$SZ_PASS octets
  *
  *  INPUTS:
@@ -454,14 +454,16 @@ dap_chain_wallet_internal_t * l_wallet_internal;
     if(!a_wallet)
         return;
 
-    // TODO Make clean struct dap_chain_wallet_internal_t (certs, addr)
     if ( (l_wallet_internal = a_wallet->_internal) )
     {
         if ( l_wallet_internal->certs )
+        {
             for(size_t i = 0; i < l_wallet_internal->certs_count; i++)
                 dap_cert_delete( l_wallet_internal->certs[i]);
 
-        DAP_DELETE(l_wallet_internal->certs);
+            DAP_DELETE(l_wallet_internal->certs);
+        }
+
         DAP_DELETE(l_wallet_internal);
     }
 
@@ -550,7 +552,7 @@ dap_enc_key_t* dap_chain_wallet_get_key( dap_chain_wallet_t * a_wallet,uint32_t 
 }
 
 /*
- *  DESCRIPTION: Save memory wallet's context into the protected by given password.
+ *  DESCRIPTION: Save memory wallet's context into ta file  protected by given password.
  *
  *  INPUTS:
  *      a_wallet:   Wallet's context structure
@@ -620,22 +622,22 @@ enum {
         dap_fileclose(l_fh);
         return -l_err;
     }
-                                                                            /* CRC for file header part */
+                                                                        /* CRC for file header part */
     l_csum = crc32c(l_csum, l_iov[WALLET$K_IOV_HEADER].iov_base, l_iov[WALLET$K_IOV_HEADER].iov_len);
-                                                                            /* CRC for file body part */
+                                                                        /* CRC for file body part */
     l_csum = crc32c(l_csum, l_iov[WALLET$K_IOV_BODY].iov_base, l_iov[WALLET$K_IOV_BODY].iov_len);
 
     /* Write certs */
     for ( size_t i = 0; i < l_wallet_internal->certs_count ; i++)
     {
-                                                                            /* Get ceritificate body */
+                                                                        /* Get ceritificate body */
         if ( !(l_cert_raw  = (char *) dap_cert_mem_save(l_wallet_internal->certs[i], &l_len)) )
         {
             log_it(L_WARNING, "Certificate #%zu cannot be obtained, go next ...", i);
             continue;
         }
 
-        l_csum = crc32c (l_csum, l_cert_raw, l_len);                          /* CRC for every certificate */
+        l_csum = crc32c (l_csum, l_cert_raw, l_len);                        /* CRC for every certificate */
 
         if ( l_enc_key )
         {
@@ -695,7 +697,7 @@ enum {
     {
     dap_chain_wallet_t  *l_wallet;
 
-    if ( l_wallet = dap_chain_wallet_open_file (l_wallet_internal->file_name, a_pass) )
+    if ( (l_wallet = dap_chain_wallet_open_file (l_wallet_internal->file_name, a_pass)) )
         dap_chain_wallet_close(l_wallet);
 
     }
