@@ -560,7 +560,7 @@ static dap_chain_datum_t **s_chain_callback_atom_get_datum(dap_chain_atom_ptr_t 
 {
     UNUSED(a_atom_size);
     if (a_atom){
-        dap_chain_datum_t * l_datum = a_atom;
+        dap_chain_datum_t *l_datum = (dap_chain_datum_t *)a_atom;
         if (l_datum){
             dap_chain_datum_t **l_datums = DAP_NEW(dap_chain_datum_t *);
             if (a_datums_count)
