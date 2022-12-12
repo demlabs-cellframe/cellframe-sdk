@@ -332,6 +332,7 @@ json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx){
                         break;
                     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE:
                         l_obj_item_type = json_object_new_string("DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE");
+                        l_obj_item_data = dap_chain_datum_tx_item_out_cond_srv_xchange_to_json((dap_chain_tx_out_cond_t*)item);
                         break;
                     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE:
                         l_obj_item_type = json_object_new_string("DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE");
