@@ -1168,39 +1168,39 @@ static int wait_send_socket(SOCKET a_sockfd, long timeout_ms)
 static void *dap_events_socket_buf_thread(void *arg)
 {
     dap_events_socket_t *l_es = (dap_events_socket_t *)arg;
-    if (!l_es)
+    if (!l_es) {
+        log_it(L_ERROR, "NULL esocket in queue service thread");
         pthread_exit(0);
+    }
     int l_res = 0;
-    int l_count = 0;
     SOCKET l_sock = INVALID_SOCKET;
     bool l_lifecycle = true;
     while (l_lifecycle) {
-        while (l_res < 1 && l_count++ < 3) {
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
-            l_sock = l_item->es->fd2;
+        l_sock = l_item->es->fd2;
 #elif defined(DAP_EVENTS_CAPS_QUEUE_MQUEUE)
-            l_sock = l_es->mqd;
+        l_sock = l_es->mqd;
 #endif
-            // wait max 5 min
-            l_res = wait_send_socket(l_sock, 300000);
-            if (l_res == 0) {
-                pthread_rwlock_wrlock(s_bufout_rwlock);
-                void *l_ptr = *((void **)l_es->buf_out + --l_es->buf_out_size);
-                if (!l_es->buf_out_size)
-                    l_lifecycle = false;
-                pthread_rwlock_unlock(s_bufout_rwlock);
-                dap_events_socket_queue_ptr_send(l_es, l_ptr);
-                break;
-            }
+        // wait max 1 min
+        l_res = wait_send_socket(l_sock, 60000);
+        if (l_res == 0) {
+            pthread_rwlock_wrlock(s_bufout_rwlock);
+            void *l_ptr = *((void **)l_es->buf_out);
+            memmove(l_es->buf_out, l_es->buf_out + sizeof(void *), (--l_es->buf_out_size) * sizeof(void *));
+            pthread_rwlock_unlock(s_bufout_rwlock);
+            dap_events_socket_queue_ptr_send(l_es, l_ptr);
+            break;
         }
-        if (l_res != 0)
-            log_it(L_WARNING, "Lost data bulk in events socket buf thread");
+        pthread_rwlock_rdlock(s_bufout_rwlock);
+        if (!l_es->buf_out_size)
+            l_lifecycle = false;
+        pthread_rwlock_unlock(s_bufout_rwlock);
     }
     pthread_exit(0);
     return NULL;
 }
 
-static void add_ptr_to_buf(dap_events_socket_t * a_es, void* a_arg)
+static void s_add_ptr_to_buf(dap_events_socket_t * a_es, void* a_arg)
 {
 static atomic_uint_fast64_t l_thd_count;
 int     l_rc;
@@ -1319,8 +1319,8 @@ int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
     case EWOULDBLOCK:
         log_it(L_ERROR, "Can't send ptr to queue (err %d), will be resent again in a while...", l_errno);
         log_it(L_ERROR, "Number of pending messages: %ld", a_es->buf_out_size);
-        add_ptr_to_buf(a_es, a_arg);
-        return l_errno;
+        s_add_ptr_to_buf(a_es, a_arg);
+        return 0;
     default: {
         char l_errbuf[128] = { '\0' };
         strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
@@ -2043,15 +2043,14 @@ size_t dap_events_socket_write_inter(dap_events_socket_t * a_es_input, dap_event
 {
     dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t); if( !l_msg) return 0;
     l_msg->esocket_uuid = a_es_uuid;
-    l_msg->data = DAP_NEW_SIZE(void,a_data_size);
+    if (a_data && a_data_size)
+        l_msg->data = DAP_DUP_SIZE(a_data ,a_data_size);
     l_msg->data_size = a_data_size;
     l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
-    if( a_data)
-        memcpy( l_msg->data, a_data, a_data_size);
-
     int l_ret= dap_events_socket_queue_ptr_send_to_input( a_es_input, l_msg );
     if (l_ret!=0){
         log_it(L_ERROR, "write inter: wasn't send pointer to queue: code %d", l_ret);
+        DAP_DEL_Z(l_msg->data);
         DAP_DELETE(l_msg);
         return 0;
     }
@@ -2089,6 +2088,7 @@ size_t dap_events_socket_write_f_inter(dap_events_socket_t * a_es_input, dap_eve
     int l_ret= dap_events_socket_queue_ptr_send_to_input(a_es_input, l_msg );
     if (l_ret!=0){
         log_it(L_ERROR, "wite f inter: wasn't send pointer to queue input: code %d", l_ret);
+        DAP_DELETE(l_msg->data);
         DAP_DELETE(l_msg);
         return 0;
     }
@@ -2103,22 +2103,23 @@ size_t dap_events_socket_write_f_inter(dap_events_socket_t * a_es_input, dap_eve
  * @param l_data_size
  * @return
  */
-size_t dap_events_socket_write_mt(dap_worker_t * a_w,dap_events_socket_uuid_t a_es_uuid, const void * data, size_t l_data_size)
+size_t dap_events_socket_write_mt(dap_worker_t * a_w,dap_events_socket_uuid_t a_es_uuid, const void * a_data, size_t a_data_size)
 {
     dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t); if (!l_msg) return 0;
     l_msg->esocket_uuid = a_es_uuid;
-    l_msg->data = DAP_NEW_SIZE(void,l_data_size);
-    l_msg->data_size = l_data_size;
+    if (a_data && a_data_size)
+        l_msg->data = DAP_DUP_SIZE(a_data, a_data_size);
+    l_msg->data_size = a_data_size;
     l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
-    memcpy( l_msg->data, data, l_data_size);
 
     int l_ret= dap_events_socket_queue_ptr_send(a_w->queue_es_io, l_msg );
     if (l_ret!=0){
         log_it(L_ERROR, "wite mt: wasn't send pointer to queue input: code %d", l_ret);
+        DAP_DEL_Z(l_msg->data);
         DAP_DELETE(l_msg);
         return 0;
     }
-    return  l_data_size;
+    return a_data_size;
 }
 
 /**
@@ -2135,23 +2136,18 @@ size_t dap_events_socket_write_f_mt(dap_worker_t * a_w,dap_events_socket_uuid_t 
     int l_data_size = dap_vsnprintf(NULL,0,a_format,ap);
     va_end(ap);
     if (l_data_size <0 ){
-        log_it(L_ERROR,"Can't write out formatted data '%s' with values",a_format);
+        log_it(L_ERROR, "Write f mt: can't write out formatted data '%s' with values", a_format);
         va_end(ap_copy);
         return 0;
     }
     dap_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_worker_msg_io_t);
     l_msg->esocket_uuid = a_es_uuid;
-    l_msg->data = DAP_NEW_SIZE(void,l_data_size + 1);
+    l_msg->data_size = l_data_size;
+    l_msg->data = DAP_NEW_SIZE(void,l_data_size);
     l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
     l_data_size = dap_vsprintf(l_msg->data,a_format,ap_copy);
     va_end(ap_copy);
-    if (l_data_size <0 ){
-        log_it(L_ERROR,"Write f mt: can't write out formatted data '%s' with values",a_format);
-        DAP_DELETE(l_msg->data);
-        DAP_DELETE(l_msg);
-        return 0;
-    }
-    l_msg->data_size = l_data_size;
+
     int l_ret= dap_events_socket_queue_ptr_send(a_w->queue_es_io, l_msg );
     if (l_ret!=0){
         log_it(L_ERROR, "Wrrite f mt: wasn't send pointer to queue: code %d", l_ret);
@@ -2175,7 +2171,7 @@ size_t dap_events_socket_write_unsafe(dap_events_socket_t *a_es, const void * a_
         return 0;
     if (a_es->buf_out_size + a_data_size > a_es->buf_out_size_max) {
         if (a_es->buf_out_size_max + a_data_size > DAP_EVENTS_SOCKET_BUF_LIMIT) {
-            log_it(L_ERROR, "Write esocket (%p) buffer overflow size=%zu/max=%zu", a_es, a_es->buf_out_size_max, (size_t)DAP_EVENTS_SOCKET_BUF_LIMIT);
+            log_it(L_ERROR, "Write esocket (%p) buffer overflow data_size=%zu/max=%zu", a_es, a_data_size, a_es->buf_out_size_max);
             return 0;
         } else {
             size_t l_new_size = a_es->buf_out_size_max * 2;

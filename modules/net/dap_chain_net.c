@@ -174,8 +174,6 @@ typedef struct dap_chain_net_pvt{
     uint16_t max_links_count;
 
     struct downlink *downlinks;         // HT of links who sent SYNC REQ, it used for sync broadcasting
-    dap_list_t *records_queue;
-    dap_list_t *atoms_queue; 
 
     bool load_mode;
     char ** seed_aliases;
@@ -205,8 +203,6 @@ typedef struct dap_chain_net_pvt{
     pthread_rwlock_t downlinks_lock;
     pthread_rwlock_t balancer_lock;
     pthread_rwlock_t states_lock;
-    pthread_rwlock_t gdbs_lock;
-    pthread_rwlock_t atoms_lock;
 
     dap_list_t *gdb_notifiers;
 } dap_chain_net_pvt_t;
@@ -489,6 +485,12 @@ static bool s_net_send_records(dap_proc_thread_t *a_thread, void *a_arg)
         dap_store_obj_free_one(l_obj);
         return true;
     }
+    // Check object lifetime for broadcasting decision
+    dap_gdb_time_t l_time_diff = l_obj->timestamp - dap_gdb_time_now();
+    if (dap_gdb_time_to_sec(l_time_diff) > DAP_BROADCAST_LIFETIME * 60) {
+        dap_store_obj_free_one(l_obj);
+        return true;
+    }
     l_obj->type = l_arg->type;
     if (l_obj->type == DAP_DB$K_OPTYPE_DEL) {
         DAP_DELETE(l_obj->group);
@@ -497,38 +499,26 @@ static bool s_net_send_records(dap_proc_thread_t *a_thread, void *a_arg)
         DAP_DELETE(l_arg->group);
     DAP_DELETE(l_arg->key);
     DAP_DELETE(l_arg);
-    pthread_rwlock_wrlock(&PVT(l_net)->gdbs_lock);
-    if (PVT(l_net)->state) {
-        dap_list_t *it = NULL;
-        do {
-            dap_store_obj_t *l_obj_cur = it ? (dap_store_obj_t *)it->data : l_obj;
-            dap_chain_t *l_chain = NULL;
-            if (l_obj_cur->type == DAP_DB$K_OPTYPE_ADD)
-                l_chain = dap_chain_get_chain_from_group_name(l_net->pub.id, l_obj->group);
-            dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
-            dap_chain_cell_id_t l_cell_id = l_chain ? l_chain->cells->id : (dap_chain_cell_id_t){};
-            struct downlink *l_link, *l_tmp;
-            pthread_rwlock_rdlock(&PVT(l_net)->downlinks_lock);
-            HASH_ITER(hh, PVT(l_net)->downlinks, l_link, l_tmp) {
-                struct send_records_link_send_args *l_args = DAP_NEW_Z(struct send_records_link_send_args);
-                l_args->data_out = dap_store_packet_single(l_obj_cur);
-                l_args->ch_uuid = l_link->uuid;
-                l_args->cell_id = l_cell_id;
-                l_args->chain_id = l_chain_id;
-                l_args->net = l_net;
-                l_args->link = l_link;
-                dap_proc_thread_worker_exec_callback(a_thread, l_link->worker->worker->id, s_net_send_records_link_send_callback, l_args);
-            }
-            pthread_rwlock_unlock(&PVT(l_net)->downlinks_lock);
-            dap_store_obj_free_one(l_obj_cur);
-            if (it)
-                PVT(l_net)->records_queue = dap_list_delete_link(PVT(l_net)->records_queue, it);
-            it = PVT(l_net)->records_queue;
-        } while (it);
-    } else
-        //PVT(l_net)->records_queue = dap_list_append(PVT(l_net)->records_queue, l_obj);
-        dap_store_obj_free_one(l_obj);
-    pthread_rwlock_unlock(&PVT(l_net)->gdbs_lock);
+
+    dap_chain_t *l_chain = NULL;
+    if (l_obj->type == DAP_DB$K_OPTYPE_ADD)
+        l_chain = dap_chain_get_chain_from_group_name(l_net->pub.id, l_obj->group);
+    dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
+    dap_chain_cell_id_t l_cell_id = l_chain ? l_chain->cells->id : (dap_chain_cell_id_t){};
+    struct downlink *l_link, *l_tmp;
+    pthread_rwlock_rdlock(&PVT(l_net)->downlinks_lock);
+    HASH_ITER(hh, PVT(l_net)->downlinks, l_link, l_tmp) {
+        struct send_records_link_send_args *l_args = DAP_NEW_Z(struct send_records_link_send_args);
+        l_args->data_out = dap_store_packet_single(l_obj);
+        l_args->ch_uuid = l_link->uuid;
+        l_args->cell_id = l_cell_id;
+        l_args->chain_id = l_chain_id;
+        l_args->net = l_net;
+        l_args->link = l_link;
+        dap_proc_thread_worker_exec_callback(a_thread, l_link->worker->worker->id, s_net_send_records_link_send_callback, l_args);
+    }
+    pthread_rwlock_unlock(&PVT(l_net)->downlinks_lock);
+    dap_store_obj_free_one(l_obj);
     return true;
 }
 
@@ -551,15 +541,8 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
     if (!a_arg || !a_group || !a_key)
         return;
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
-    if (!HASH_COUNT(PVT(l_net)->downlinks)) {
-        if (PVT(l_net)->records_queue) {
-            pthread_rwlock_wrlock(&PVT(l_net)->gdbs_lock);
-            dap_list_free_full(PVT(l_net)->records_queue, s_record_obj_free);
-            PVT(l_net)->records_queue = NULL;
-            pthread_rwlock_unlock(&PVT(l_net)->gdbs_lock);
-        }
+    if (!HASH_COUNT(PVT(l_net)->downlinks))
         return;
-    }
     // Use it instead of new type definition to pack params in one callback arg
     dap_store_obj_t *l_obj = DAP_NEW(dap_store_obj_t);
     l_obj->type = a_op_code;
@@ -569,49 +552,36 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
     dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_net_send_records, l_obj);
 }
 
-static void s_atom_obj_free(void *a_atom_obj)
-{
-    dap_store_obj_t *l_obj = (dap_store_obj_t *)a_atom_obj;
-    DAP_DELETE(l_obj->value);
-    DAP_DELETE(l_obj);
-}
+struct net_broadcast_atoms_args {
+    dap_chain_atom_ptr_t atom;
+    size_t atom_size;
+    dap_chain_net_t *net;
+    uint64_t chain_id;
+    uint64_t cell_id;
+};
 
 static bool s_net_send_atoms(dap_proc_thread_t *a_thread, void *a_arg)
 {
     UNUSED(a_thread);
-    dap_store_obj_t *l_arg = (dap_store_obj_t *)a_arg;
-    dap_chain_net_t *l_net = (dap_chain_net_t *)l_arg->cb_arg;
-    pthread_rwlock_wrlock(&PVT(l_net)->atoms_lock);
-    if (PVT(l_net)->state != NET_STATE_SYNC_CHAINS) {
-        dap_list_t *it = NULL;
-        do {
-            dap_store_obj_t *l_obj_cur = it ? (dap_store_obj_t *)it->data : l_arg;
-            dap_chain_t *l_chain = (dap_chain_t *)l_obj_cur->group;
-            uint64_t l_cell_id = l_obj_cur->timestamp;
-            struct downlink *l_link, *l_tmp;
-            pthread_rwlock_wrlock(&PVT(l_net)->downlinks_lock);
-            HASH_ITER(hh, PVT(l_net)->downlinks, l_link, l_tmp) {
-                bool l_ch_alive = dap_stream_ch_check_by_uuid_mt(l_link->worker, l_link->uuid);
-                if (!l_ch_alive) {
-                    HASH_DEL(PVT(l_net)->downlinks, l_link);
-                    DAP_DELETE(l_link);
-                    continue;
-                }
-                if(!dap_stream_ch_chain_pkt_write_mt(l_link->worker, l_link->uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN,
-                                                 l_net->pub.id.uint64, l_chain->id.uint64, l_cell_id,
-                                                 l_obj_cur->value, l_obj_cur->value_len))
-                    debug_if(g_debug_reactor, L_ERROR, "Can't send atom to worker (%d) for writing", l_link->worker->worker->id);
-            }
-            pthread_rwlock_unlock(&PVT(l_net)->downlinks_lock);
-            s_atom_obj_free(l_obj_cur);
-            if (it)
-                PVT(l_net)->atoms_queue = dap_list_delete_link(PVT(l_net)->atoms_queue, it);
-            it = PVT(l_net)->atoms_queue;
-        } while (it);
-    } else
-        //PVT(l_net)->atoms_queue = dap_list_append(PVT(l_net)->atoms_queue, l_arg);
-        s_atom_obj_free(a_arg);
-    pthread_rwlock_unlock(&PVT(l_net)->atoms_lock);
+    struct net_broadcast_atoms_args *l_args = a_arg;
+    dap_chain_net_t *l_net = l_args->net;
+    struct downlink *l_link, *l_tmp;
+    pthread_rwlock_wrlock(&PVT(l_net)->downlinks_lock);
+    HASH_ITER(hh, PVT(l_net)->downlinks, l_link, l_tmp) {
+        bool l_ch_alive = dap_stream_ch_check_by_uuid_mt(l_link->worker, l_link->uuid);
+        if (!l_ch_alive) {
+            HASH_DEL(PVT(l_net)->downlinks, l_link);
+            DAP_DELETE(l_link);
+            continue;
+        }
+        if(!dap_stream_ch_chain_pkt_write_mt(l_link->worker, l_link->uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN,
+                                         l_net->pub.id.uint64, l_args->chain_id, l_args->cell_id,
+                                         l_args->atom, l_args->atom_size))
+            debug_if(g_debug_reactor, L_ERROR, "Can't send atom to worker (%d) for writing", l_link->worker->worker->id);
+    }
+    pthread_rwlock_unlock(&PVT(l_net)->downlinks_lock);
+    DAP_DELETE(l_args->atom);
+    DAP_DELETE(l_args);
     return true;
 }
 
@@ -626,23 +596,22 @@ static void s_chain_callback_notify(void *a_arg, dap_chain_t *a_chain, dap_chain
     if (!a_arg)
         return;
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
-    if (!HASH_COUNT(PVT(l_net)->downlinks)) {
-        if (PVT(l_net)->atoms_queue) {
-            pthread_rwlock_wrlock(&PVT(l_net)->atoms_lock);
-            dap_list_free_full(PVT(l_net)->atoms_queue, s_atom_obj_free);
-            PVT(l_net)->atoms_queue = NULL;
-            pthread_rwlock_unlock(&PVT(l_net)->atoms_lock);
-        }
+    if (!HASH_COUNT(PVT(l_net)->downlinks))
         return;
+    // Check object lifetime for broadcasting decision
+    dap_gdb_time_t l_time_diff = l_obj->timestamp - dap_gdb_time_now();
+    if (dap_gdb_time_to_sec(l_time_diff) > DAP_BROADCAST_LIFETIME * 60) {
+        dap_store_obj_free_one(l_obj);
+        return true;
     }
-    // Use it instead of new type definition to pack params in one callback arg
-    dap_store_obj_t *l_obj = DAP_NEW(dap_store_obj_t);
-    l_obj->timestamp = a_id.uint64;
-    l_obj->value = DAP_DUP_SIZE(a_atom, a_atom_size);
-    l_obj->value_len = a_atom_size;
-    l_obj->group = (char *)a_chain;
-    l_obj->cb_arg = a_arg;
-    dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_net_send_atoms, l_obj);
+
+    struct net_broadcast_atoms_args *l_args = DAP_NEW(struct net_broadcast_atoms_args);
+    l_args->net = l_net;
+    l_args->atom = DAP_DUP_SIZE(a_atom, a_atom_size);
+    l_args->atom_size = a_atom_size;
+    l_args->chain_id = a_chain->id.uint64;
+    l_args->cell_id = a_id.uint64;
+    dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_net_send_atoms, l_args);
 }
 
 /**
@@ -1282,8 +1251,6 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
             l_net_pvt->balancer_link_requests = 0;
             l_net_pvt->active_link = NULL;
             dap_list_free_full(l_net_pvt->links_queue, NULL);
-            dap_list_free_full(l_net_pvt->atoms_queue, NULL);
-            dap_list_free_full(l_net_pvt->records_queue, NULL);
             if ( l_net_pvt->state_target != NET_STATE_OFFLINE ){
                 l_net_pvt->state = NET_STATE_LINKS_PREPARE;
                 l_repeat_after_exit = true;
@@ -1502,8 +1469,6 @@ static dap_chain_net_t *s_net_new(const char * a_id, const char * a_name ,
     pthread_rwlock_init(&PVT(ret)->downlinks_lock, NULL);
     pthread_rwlock_init(&PVT(ret)->balancer_lock, NULL);
     pthread_rwlock_init(&PVT(ret)->states_lock, NULL);
-    pthread_rwlock_init(&PVT(ret)->gdbs_lock, NULL);
-    pthread_rwlock_init(&PVT(ret)->atoms_lock, NULL);
     if (dap_sscanf(a_id, "0x%016"DAP_UINT64_FORMAT_X, &ret->pub.id.uint64) != 1) {
         log_it (L_ERROR, "Wrong id format (\"%s\"). Must be like \"0x0123456789ABCDE\"" , a_id );
         DAP_DELETE(ret);
@@ -1543,8 +1508,6 @@ void dap_chain_net_delete( dap_chain_net_t * a_net )
     pthread_rwlock_destroy(&PVT(a_net)->downlinks_lock);
     pthread_rwlock_destroy(&PVT(a_net)->balancer_lock);
     pthread_rwlock_destroy(&PVT(a_net)->states_lock);
-    pthread_rwlock_destroy(&PVT(a_net)->gdbs_lock);
-    pthread_rwlock_destroy(&PVT(a_net)->atoms_lock);
     if(PVT(a_net)->seed_aliases) {
         DAP_DELETE(PVT(a_net)->seed_aliases);
         PVT(a_net)->seed_aliases = NULL;
