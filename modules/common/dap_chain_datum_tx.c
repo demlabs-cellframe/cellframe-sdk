@@ -326,6 +326,7 @@ json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx){
                         break;
                     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK:
                         l_obj_item_type = json_object_new_string("DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK");
+                        l_obj_item_data = dap_chain_net_srv_stake_lock_cond_out_to_json((dap_chain_tx_out_cond_t*)item);
                         break;
                     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE:
                         l_obj_item_type = json_object_new_string("DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
@@ -337,7 +338,7 @@ json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx){
                         break;
                     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE:
                         l_obj_item_type = json_object_new_string("DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE");
-//                      l_obj_item_data = dap_chain_datum_tx_item_out_cond_fee_to_json((dap_chain_tx_out_cond_t*)item);
+                        l_obj_item_data = dap_chain_datum_tx_item_out_cond_fee_to_json((dap_chain_tx_out_cond_t*)item);
                         break;
 //                    default:
                 }
@@ -353,7 +354,7 @@ json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx){
             default:
                 dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &a_tx_hash);
                 l_hash_str = dap_chain_hash_fast_to_str_new(&a_tx_hash);
-                log_it(L_NOTICE, "Transaction %s has an item whose type cannot be handled by the dap_chain_datum_tx_to_json function.", a_tx_hash);
+                log_it(L_NOTICE, "Transaction %s has an item whose type cannot be handled by the dap_chain_datum_tx_to_json function.", l_hash_str);
                 DAP_DELETE(l_hash_str);
                 break;
         }
