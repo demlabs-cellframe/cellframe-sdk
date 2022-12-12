@@ -5277,6 +5277,8 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
  */
 int com_tx_create(int argc, char ** argv, char **str_reply)
 {
+
+
     int arg_index = 1;
 //    int cmd_num = 1;
 //    const char *value_str = NULL;
@@ -5474,7 +5476,6 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
     dap_chain_wallet_close(l_wallet);
     return res;
 }
-
 
 /**
  * @brief com_tx_verify
