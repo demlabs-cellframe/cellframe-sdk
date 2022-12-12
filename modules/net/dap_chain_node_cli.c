@@ -274,7 +274,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "tx_history  {-addr <addr> | -w <wallet_name> | -tx <tx_hash>} -net <net_name> -chain <chain_name>\n");
 
 	// Ledger info
-    dap_chain_node_cli_cmd_item_create("ledger", com_ledger, "Ledger information",
+    dap_cli_server_cmd_add("ledger", com_ledger, "Ledger information",
             "ledger list coins -net <net_name>\n"
             "ledger list threshold [-hash <tx_treshold_hash>] -net <net_name>\n"
             "ledger list balance -net <net_name>\n"
