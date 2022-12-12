@@ -6248,14 +6248,12 @@ static int s_check_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str_
     dap_chain_atom_iter_t *l_iter = NULL;
     dap_chain_cell_t *l_cell_tmp = NULL;
     dap_chain_cell_t *l_cell = NULL;
-    size_t l_atom_size = 0, l_datums_count = 0;
+    size_t l_size = 0;
 
     HASH_ITER(hh, l_chain->cells, l_cell, l_cell_tmp) {
         l_iter = l_cell->chain->callback_atom_iter_create(l_cell->chain, l_cell->id, 0);
-        dap_chain_atom_ptr_t l_atom = l_cell->chain->callback_atom_find_by_hash(l_iter, &l_hash_tmp, &l_atom_size);
-        dap_chain_datum_t **l_datums = l_cell->chain->callback_atom_get_datums(l_atom, l_atom_size, &l_datums_count);
-        for (size_t i = 0; i < l_datums_count; i++) {
-            dap_chain_datum_t *l_datum = l_datums[i];
+        dap_chain_datum_t *l_datum = l_cell->chain->callback_atom_find_by_hash(l_iter, &l_hash_tmp, &l_size);
+        if (l_datum) {
             dap_hash_fast_t l_hash;
             dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_hash);
             if (!memcmp(l_hash_tmp.raw, l_hash.raw, DAP_CHAIN_HASH_FAST_SIZE)) {
@@ -6264,8 +6262,6 @@ static int s_check_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str_
                 break;
             }
         }
-        DAP_DEL_Z(l_datums);
-        l_cell->chain->callback_atom_iter_delete(l_iter);
     }
 
 end:
