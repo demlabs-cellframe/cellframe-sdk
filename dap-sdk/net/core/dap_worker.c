@@ -135,12 +135,12 @@ void *dap_worker_thread(void *arg)
     l_worker->kqueue_fd = kqueue();
 
     if (l_worker->kqueue_fd == -1 ){
-    int l_errno = errno;
-    char l_errbuf[255];
-    strerror_r(l_errno,l_errbuf,sizeof(l_errbuf));
-    log_it (L_CRITICAL,"Can't create kqueue(): '%s' code %d",l_errbuf,l_errno);
-    pthread_cond_broadcast(&l_worker->started_cond);
-    return NULL;
+        int l_errno = errno;
+        char l_errbuf[255];
+        strerror_r(l_errno,l_errbuf,sizeof(l_errbuf));
+        log_it (L_CRITICAL,"Can't create kqueue(): '%s' code %d",l_errbuf,l_errno);
+        pthread_cond_broadcast(&l_worker->started_cond);
+        return NULL;
     }
 
     l_worker->kqueue_events_selected_count_max = 100;
@@ -535,7 +535,7 @@ void *dap_worker_thread(void *arg)
 #else
                         if (l_cur->type != DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL && l_errno != EAGAIN && l_errno != EWOULDBLOCK)
                         { // If we have non-blocking socket
-                            log_it(L_ERROR, "Some error occured in recv() function: %s", strerror(errno));
+                            log_it(L_ERROR, "Some error occured in recv() function: %s (socket %d)", strerror(errno), l_cur->socket);
 #endif
                             dap_events_socket_set_readable_unsafe(l_cur, false);
                             if (!l_cur->no_close)

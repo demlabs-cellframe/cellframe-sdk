@@ -1350,7 +1350,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     // If not verify only mode we add
                     if ( ! l_verify_only ){
                         dap_chain_atom_ptr_t l_new_atom = (dap_chain_atom_ptr_t)dap_chain_cs_dag_event_copy(l_event, l_event_size); // produce deep copy of event;
-                        memcpy(l_new_atom, l_event, l_event_size);
+                        memcpy((void *)l_new_atom, l_event, l_event_size);
                         if(s_chain_callback_atom_add(l_chain, l_new_atom,l_event_size) < 0) { // Add new atom in chain
                             DAP_DELETE(l_new_atom);
                             dap_string_append_printf(l_str_ret_tmp, "Event %s not added in chain\n", l_objs[i].key);
@@ -1453,7 +1453,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                 if (s_callback_add_datums(l_chain, l_datums, l_datums_count) == l_datums_count) {
                     for ( size_t i = 0; i <l_datums_count; i++){
                        dap_chain_hash_fast_t l_datum_hash;
-                       dap_hash_fast(l_datums[i],dap_chain_datum_size(l_datums[i]),&l_datum_hash);
+                       dap_hash_fast(l_datums[i]->data,l_datums[i]->header.data_size, &l_datum_hash);
                        char * l_datums_datum_hash_str = dap_chain_hash_fast_to_str_new(&l_datum_hash);
                        if ( dap_chain_global_db_gr_del( dap_strdup(l_datums_datum_hash_str),l_gdb_group_mempool ) ){
                            dap_chain_node_cli_set_reply_text(a_str_reply,

@@ -90,6 +90,7 @@ typedef void (*dap_client_callback_data_size_t) (dap_client_t *, void *, size_t)
 #define DAP_UPLINK_PATH_STREAM           "stream"
 #define DAP_UPLINK_PATH_LICENSE          "license"
 //#define DAP_UPLINK_PATH_NODE_LIST        "nodelist"
+#define DAP_UPLINK_PATH_BALANCER         "balancer"
 
 #ifdef __cplusplus
 extern "C" {

@@ -1850,17 +1850,17 @@ void dap_events_socket_delete_unsafe( dap_events_socket_t * a_esocket , bool a_p
 {
     dap_events_socket_descriptor_close(a_esocket);
     if (!a_preserve_inheritor )
-        DAP_DEL_Z(a_esocket->_inheritor)
+        DAP_DEL_Z(a_esocket->_inheritor);
 
-    DAP_DEL_Z(a_esocket->_pvt)
-    DAP_DEL_Z(a_esocket->buf_in)
-    DAP_DEL_Z(a_esocket->buf_out)
-    DAP_DEL_Z(a_esocket->remote_addr_str)
-    DAP_DEL_Z(a_esocket->remote_addr_str6)
-    DAP_DEL_Z(a_esocket->hostaddr)
-    DAP_DEL_Z(a_esocket->service)
+    DAP_DEL_Z(a_esocket->_pvt);
+    DAP_DEL_Z(a_esocket->buf_in);
+    DAP_DEL_Z(a_esocket->buf_out);
+    DAP_DEL_Z(a_esocket->remote_addr_str);
+    DAP_DEL_Z(a_esocket->remote_addr_str6);
+    DAP_DEL_Z(a_esocket->hostaddr);
+    DAP_DEL_Z(a_esocket->service);
 
-    DAP_DEL_Z( a_esocket )
+    DAP_DEL_Z( a_esocket );
 }
 
 /**
@@ -1932,31 +1932,24 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
             }
         }else{
             EV_SET(l_event, a_es->socket, EVFILT_EXCEPT ,EV_DELETE, 0,0,a_es);
-            kevent( a_worker->kqueue_fd,l_event,1,NULL,0,NULL); // If this filter is not set up - no warnings
-
-
-            if(a_es->flags & DAP_SOCK_READY_TO_WRITE){
-                EV_SET(l_event, a_es->socket, EVFILT_WRITE ,EV_DELETE, 0,0,a_es);
-                if ( kevent( a_worker->kqueue_fd,l_event,1,NULL,0,NULL) == -1 ) {
-                    int l_errno = errno;
-                    char l_errbuf[128];
-                    strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-                    log_it( L_ERROR,"Can't remove event socket's handler %d from the kqueue %d filter EVFILT_WRITE \"%s\" (%d)", a_es->socket,
-                        a_worker->kqueue_fd, l_errbuf, l_errno);
-                }
-            }
-            if(a_es->flags & DAP_SOCK_READY_TO_READ){
-                EV_SET(l_event, a_es->socket, EVFILT_READ ,EV_DELETE, 0,0,a_es);
-                if ( kevent( a_worker->kqueue_fd,l_event,1,NULL,0,NULL) == -1 ) {
-                    int l_errno = errno;
-                    char l_errbuf[128];
-                    strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-                    log_it( L_ERROR,"Can't remove event socket's handler %d from the kqueue %d filter EVFILT_READ \"%s\" (%d)", a_es->socket,
-                        a_worker->kqueue_fd, l_errbuf, l_errno);
-                }
-            }
-
         }
+
+        // Delete from flags ready
+        if(a_es->flags & DAP_SOCK_READY_TO_WRITE){
+            l_event->filter |= EVFILT_WRITE;
+        }
+        if(a_es->flags & DAP_SOCK_READY_TO_READ){
+            l_event->filter |= EVFILT_READ;
+        }
+
+        if ( kevent( a_worker->kqueue_fd,l_event,1,NULL,0,NULL) == -1 ) {
+            int l_errno = errno;
+            char l_errbuf[128];
+            strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+            log_it( L_ERROR,"Can't remove event socket's handler %d from the kqueue %d flags 0x%04X filter 0x%04X \"%s\" (%d)", a_es->socket,
+                a_worker->kqueue_fd, l_event->flags, l_event->filter, l_errbuf, l_errno);
+        }
+
     }
 #elif defined (DAP_EVENTS_CAPS_POLL)
     if (a_es->poll_index < a_worker->poll_count ){

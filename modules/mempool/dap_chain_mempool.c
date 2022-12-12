@@ -86,7 +86,7 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
 
     dap_chain_hash_fast_t l_key_hash;
 
-    dap_hash_fast(a_datum, dap_chain_datum_size(a_datum), &l_key_hash);
+    dap_hash_fast(a_datum->data, a_datum->header.data_size, &l_key_hash);
     char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
     char * l_gdb_group = dap_chain_net_get_gdb_group_mempool(a_chain);
 
@@ -703,7 +703,8 @@ dap_chain_hash_fast_t* dap_chain_mempool_tx_create_cond(dap_chain_net_t * a_net,
     //DAP_DELETE( l_tx );
 
     char * l_key_str = dap_chain_hash_fast_to_str_new( l_key_hash );
-    char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_by_chain_type( a_net ,CHAIN_TYPE_TX);
+    dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
+    char *l_gdb_group = dap_chain_net_get_gdb_group_mempool(l_chain);
 
     if( dap_chain_global_db_gr_set( l_key_str, l_datum, dap_chain_datum_size(l_datum), l_gdb_group ) ) {
                 log_it(L_NOTICE, "Transaction %s placed in mempool group %s", l_key_str, l_gdb_group);
@@ -815,7 +816,7 @@ dap_chain_datum_token_emission_t *dap_chain_mempool_datum_emission_extract(dap_c
         return NULL;
     if (l_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL)
         return NULL;
-    int l_signs_valid = 0;
+    /*int l_signs_valid = 0;
     dap_sign_t *l_ems_sign = (dap_sign_t *)(l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size);
     for (int i = 0; i < l_emission->data.type_auth.signs_count; i++) {
         uint32_t l_ems_pkey_size = l_ems_sign->header.sign_pkey_size;
@@ -831,7 +832,7 @@ dap_chain_datum_token_emission_t *dap_chain_mempool_datum_emission_extract(dap_c
         l_ems_sign = (dap_sign_t *)((byte_t *)l_ems_sign + dap_sign_get_size(l_ems_sign));
     }
     if (l_signs_valid != l_emission->data.type_auth.signs_count)
-        return NULL;
+        return NULL;*/
     return DAP_DUP_SIZE(l_emission, l_datum->header.data_size);
 }
 

@@ -48,6 +48,7 @@
 #include "dap_math_ops.h"
 #include "dap_list.h"
 #include "dap_hash.h"
+#include "dap_enc_base58.h"
 #include "dap_string.h"
 #include "dap_strfuncs.h"
 #include "dap_config.h"
@@ -208,6 +209,11 @@ typedef struct dap_ledger_cache_str_item {
     char *key;
     bool found;
 } dap_ledger_cache_str_item_t;
+
+typedef struct dap_chain_ledger_tx_notifier {
+    dap_chain_ledger_tx_add_notify_t callback;
+    void *arg;
+} dap_chain_ledger_tx_notifier_t;
 
 // dap_ledget_t private section
 typedef struct dap_ledger_private {
@@ -538,6 +544,188 @@ dap_chain_datum_token_t *dap_chain_ledger_token_ticker_check(dap_ledger_t * a_le
     HASH_FIND_STR(PVT(a_ledger)->tokens, a_token_ticker, l_token_item);
     pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
     return l_token_item ? l_token_item->datum_token : NULL;
+}
+
+/**
+ * @brief s_tx_header_print
+ * prepare data for print, add time
+ *
+ * return history string
+ * @param a_tx
+ * @param a_tx_hash
+ * @param a_hash_out_type
+ * @return a_str_out
+ */
+
+static void s_tx_header_print(dap_string_t *a_str_out, dap_chain_datum_tx_t *a_tx,
+                              const char *a_hash_out_type, dap_chain_hash_fast_t *a_tx_hash)
+{
+    // transaction time
+    char l_time_str[32] = "unknown";
+    if (a_tx->header.ts_created) {
+        uint64_t l_ts = a_tx->header.ts_created;
+        dap_ctime_r(&l_ts, l_time_str);
+    }
+    char *l_tx_hash_str;
+    if (!dap_strcmp(a_hash_out_type, "hex")) {
+        l_tx_hash_str = dap_chain_hash_fast_to_str_new(a_tx_hash);
+    } else {
+        l_tx_hash_str = dap_enc_base58_encode_hash_to_str(a_tx_hash);
+    }
+    dap_string_append_printf(a_str_out, "TX hash %s  \n\t%s",l_tx_hash_str, l_time_str);
+    DAP_DELETE(l_tx_hash_str);
+}
+
+char * dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_addr_t *a_addr, const char *a_hash_out_type)
+{
+        dap_string_t *l_str_out =dap_string_new(NULL);
+
+        //dap_chain_tx_hash_processed_ht_t *l_tx_data_ht = NULL;
+        dap_chain_ledger_tx_item_t *l_tx_item, *l_tx_tmp;
+        dap_ledger_private_t * l_ledger_pvt = PVT(a_ledger);
+
+        pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
+        //unsigned test = dap_chain_ledger_count(a_ledger);
+        HASH_ITER(hh, l_ledger_pvt->ledger_items, l_tx_item, l_tx_tmp) {
+
+            dap_chain_datum_tx_t *l_tx = l_tx_item->tx;
+            dap_chain_hash_fast_t *l_tx_hash = &l_tx_item->tx_hash_fast;
+            dap_list_t *l_list_in_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_ALL, NULL);
+            if (!l_list_in_items) { // a bad tx
+                continue;
+            }
+            dap_chain_addr_t *l_src_addr = NULL;
+            bool l_base_tx = false;
+            const char *l_src_token = NULL;
+            int l_src_subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
+            for (dap_list_t *it = l_list_in_items; it; it = it->next) {
+                assert(it->data);
+                dap_chain_hash_fast_t *l_tx_prev_hash;
+                int l_tx_prev_out_idx;
+                dap_chain_datum_tx_t *l_tx_prev = NULL;
+                if (*(byte_t *)l_list_in_items->data == TX_ITEM_TYPE_IN) {
+                    dap_chain_tx_in_t *l_tx_in = (dap_chain_tx_in_t *)l_list_in_items->data;
+                    l_tx_prev_hash = &l_tx_in->header.tx_prev_hash;
+                    l_tx_prev_out_idx = l_tx_in->header.tx_out_prev_idx;
+                } else { // TX_ITEM_TYPE_IN_COND
+                    dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t *)l_list_in_items->data;
+                    l_tx_prev_hash = &l_tx_in_cond->header.tx_prev_hash;
+                    l_tx_prev_out_idx = l_tx_in_cond->header.tx_out_prev_idx;
+                }
+                if (dap_hash_fast_is_blank(l_tx_prev_hash)) {
+                    l_base_tx = true;
+                    dap_chain_tx_token_t *l_token = (dap_chain_tx_token_t *)dap_chain_datum_tx_item_get(
+                                                                            l_tx, NULL, TX_ITEM_TYPE_TOKEN, NULL);
+                    if (l_token)
+                        l_src_token = l_token->header.ticker;
+                    break;
+                }
+                l_tx_prev = dap_chain_ledger_tx_find_by_hash (a_ledger,l_tx_prev_hash);
+                if (l_tx_prev) {
+                    uint8_t *l_prev_out_union = dap_chain_datum_tx_item_get_nth(l_tx_prev, TX_ITEM_TYPE_OUT_ALL, l_tx_prev_out_idx);
+                    if (!l_prev_out_union)
+                        continue;
+                    switch (*l_prev_out_union) {
+                    case TX_ITEM_TYPE_OUT:
+                        l_src_addr = &((dap_chain_tx_out_t *)l_prev_out_union)->addr;
+                        break;
+                    case TX_ITEM_TYPE_OUT_EXT:
+                        l_src_addr = &((dap_chain_tx_out_ext_t *)l_prev_out_union)->addr;
+                        l_src_token = (const char *)(((dap_chain_tx_out_ext_t *)l_prev_out_union)->token);
+                        break;
+                    case TX_ITEM_TYPE_OUT_COND:
+                        l_src_subtype = ((dap_chain_tx_out_cond_t *)l_prev_out_union)->header.subtype;
+                    default:
+                        break;
+                    }
+                }
+                else
+                {
+                    continue; //temporary stub
+                }
+                if (!l_src_token){
+                    l_src_token = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, l_tx_prev_hash);
+                    l_src_token = l_tx_item->cache_data.token_ticker;
+                }
+                if (l_src_addr && memcmp(l_src_addr, a_addr, sizeof(dap_chain_addr_t)))
+                    break;  //it's not our addr
+            }
+            dap_list_free(l_list_in_items);
+
+            bool l_header_printed = false;
+            dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
+            if(!l_list_out_items)
+                continue;
+            for(dap_list_t *l_list_out = l_list_out_items; l_list_out; l_list_out = dap_list_next(l_list_out)) {
+                assert(l_list_out->data);
+                dap_chain_addr_t *l_dst_addr = NULL;
+                dap_chain_tx_item_type_t l_type = *(uint8_t *)l_list_out->data;
+                uint256_t l_value;
+                switch (l_type) {
+                case TX_ITEM_TYPE_OUT:
+                    l_dst_addr = &((dap_chain_tx_out_t *)l_list_out->data)->addr;
+                    l_value = ((dap_chain_tx_out_t *)l_list_out->data)->header.value;
+                    break;
+                case TX_ITEM_TYPE_OUT_EXT:
+                    l_dst_addr = &((dap_chain_tx_out_ext_t *)l_list_out->data)->addr;
+                    l_value = ((dap_chain_tx_out_ext_t *)l_list_out->data)->header.value;
+                    break;
+                case TX_ITEM_TYPE_OUT_COND:
+                    l_value = ((dap_chain_tx_out_cond_t *)l_list_out->data)->header.value;
+                default:
+                    break;
+                }
+                if (l_src_addr && l_dst_addr && !memcmp(l_dst_addr, l_src_addr, sizeof(dap_chain_addr_t)))
+                    continue;   // send to self
+                if (l_src_addr && !memcmp(l_src_addr, a_addr, sizeof(dap_chain_addr_t))) {
+                    if (!l_header_printed) {
+                        s_tx_header_print(l_str_out, l_tx, a_hash_out_type, l_tx_hash);
+                        l_header_printed = true;
+                    }
+                    //const char *l_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_hash);
+                    const char *l_dst_addr_str = l_dst_addr ? dap_chain_addr_to_str(l_dst_addr)
+                                                            : dap_chain_tx_out_cond_subtype_to_str(
+                                                                  ((dap_chain_tx_out_cond_t *)l_list_out->data)->header.subtype);
+                    char *l_value_str = dap_chain_balance_print(l_value);
+                    dap_string_append_printf(l_str_out, "\tsend %s %s to %s\n",
+                                             l_value_str,
+                                             l_src_token ? l_src_token : "UNKNOWN",
+                                             l_dst_addr_str);
+                    if (l_dst_addr)
+                        DAP_DELETE(l_dst_addr_str);
+                    DAP_DELETE(l_value_str);
+                }
+                if (l_dst_addr && !memcmp(l_dst_addr, a_addr, sizeof(dap_chain_addr_t))) {
+                    if (!l_header_printed) {
+                       s_tx_header_print(l_str_out, l_tx, a_hash_out_type, l_tx_hash);
+                       l_header_printed = true;
+                    }
+                    const char *l_dst_token = (l_type == TX_ITEM_TYPE_OUT_EXT) ?
+                                (const char *)(((dap_chain_tx_out_ext_t *)l_list_out->data)->token) : NULL;
+                    const char *l_src_addr_str = l_base_tx ? "emission"
+                                                           : (l_src_addr ? dap_chain_addr_to_str(l_src_addr)
+                                                                         : dap_chain_tx_out_cond_subtype_to_str(
+                                                                               l_src_subtype));
+                    char *l_value_str = dap_chain_balance_print(l_value);
+                    dap_string_append_printf(l_str_out, "\trecv %s %s from %s\n",
+                                             l_value_str,
+                                             l_dst_token ? l_dst_token :
+                                                           (l_src_token ? l_src_token : "UNKNOWN"),
+                                             l_src_addr_str);
+                    if (l_src_addr)
+                        DAP_DELETE(l_src_addr_str);
+                    DAP_DELETE(l_value_str);
+                }
+            }
+            dap_list_free(l_list_out_items);
+        }
+        pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+
+        // if no history
+        if(!l_str_out->len)
+            dap_string_append(l_str_out, "\tempty");
+        char *l_ret_str = l_str_out ? dap_string_free(l_str_out, false) : NULL;
+        return l_ret_str;
 }
 
 /**
@@ -2967,6 +3155,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         case TX_ITEM_TYPE_OUT_OLD: {
             dap_chain_tx_out_old_t *l_tx_out = (dap_chain_tx_out_old_t *)l_list_tmp->data;
             if (l_multichannel) { // token ticker is mandatory for multichannel transactions
+                debug_if(s_debug_more, L_ERROR, "No token ticker for type TX_ITEM_TYPE_OUT_OLD");
                 l_err_num = -16;
                 break;
             }
@@ -2980,6 +3169,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 if (l_main_ticker)
                     l_token = l_main_ticker;
                 else {
+                    debug_if(s_debug_more, L_ERROR, "No main ticker found");
                     l_err_num = -16;
                     break;
                 }
@@ -2990,7 +3180,8 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         } break;
         case TX_ITEM_TYPE_OUT_EXT: { // 256
             dap_chain_tx_out_ext_t *l_tx_out = (dap_chain_tx_out_ext_t *)l_list_tmp->data;
-            if (!l_multichannel) { // token ticker is depricated for single-channel transactions
+            if (!l_multichannel) {
+                debug_if(s_debug_more, L_ERROR, "Token ticker is deprecated for single-channel transactions");
                 l_err_num = -16;
                 break;
             }
@@ -3015,8 +3206,13 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             l_value = l_tx_out->header.value;
             l_list_tx_out = dap_list_append(l_list_tx_out, l_tx_out);
         } break;
-        default: {}
+        default: { }
         }
+
+        if (l_err_num) {
+            break;
+        }
+
         if (l_multichannel) {
             HASH_FIND_STR(l_values_from_cur_tx, l_token, l_value_cur);
             if (!l_value_cur) {
@@ -3540,6 +3736,11 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
     HASH_ADD_INORDER(hh, l_ledger_priv->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t),
                                  l_tx_item, s_sort_ledger_tx_item); // tx_hash_fast: name of key field
     pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
+    // Callable callback
+    for (dap_list_t *notifier = a_ledger->tx_add_notifiers; notifier != NULL; notifier = notifier->next) {
+        dap_chain_ledger_tx_notifier_t *l_notify = (dap_chain_ledger_tx_notifier_t *)notifier->data;
+        l_notify->callback(l_notify->arg, a_ledger, l_tx_item->tx);
+    }
     // Count TPS
     clock_gettime(CLOCK_REALTIME, &l_ledger_priv->tps_end_time);
     l_ledger_priv->tps_count++;
@@ -4487,5 +4688,24 @@ dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, si
         }
     }
     return l_list;
+}
+
+void dap_chain_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_chain_ledger_tx_add_notify_t a_callback, void *a_arg) {
+    if (!a_ledger) {
+        log_it(L_ERROR, "NULL ledger passed to dap_chain_ledger_tx_add_notify()");
+        return;
+    }
+    if (!a_callback) {
+        log_it(L_ERROR, "NULL callback passed to dap_chain_ledger_tx_add_notify()");
+        return;
+    }
+    dap_chain_ledger_tx_notifier_t *l_notifier = DAP_NEW(dap_chain_ledger_tx_notifier_t);
+    if (!l_notifier){
+        log_it(L_ERROR, "Can't allocate memory for notifier in dap_chain_ledger_tx_add_notify()");
+        return;
+    }
+    l_notifier->callback = a_callback;
+    l_notifier->arg = a_arg;
+    a_ledger->tx_add_notifiers = dap_list_append(a_ledger->tx_add_notifiers, l_notifier);
 }
 

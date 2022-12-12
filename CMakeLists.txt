@@ -60,15 +60,20 @@ if(BUILD_TESTS)
     include(cmake/OS_Detection.cmake)
 endif()
 
+    add_subdirectory(3rdparty/crc32c_adler)		# https://github.com/fonic/crc32c_adler
+
+
 if( DARWIN)
     add_subdirectory(3rdparty/json-c-darwin)
     add_subdirectory(3rdparty/libmagic-darwin)
     include_directories(3rdparty/json-c-darwin)
-endif()
-if (ANDROID)
+elseif(ANDROID)
     add_subdirectory(3rdparty/libmagic)
     add_subdirectory(3rdparty/json-c)
     include_directories(cellframe-sdk/3rdparty/)
+elseif(LINUX)
+    add_subdirectory(3rdparty/json-c)
+    
 endif()
 
 if (BUILD_WITH_ZIP)
@@ -80,7 +85,7 @@ add_subdirectory(dap-sdk)
 add_subdirectory(3rdparty/monero_crypto)
 add_subdirectory(3rdparty/cuttdb)
 if (BUILD_WITH_GDB_DRIVER_MDBX)
-add_subdirectory(3rdparty/libmdbx)
+add_subdirectory(3rdparty/libmdbx EXCLUDE_FROM_ALL)
 endif()
 if(DAPSDK_MODULES MATCHES "ssl-support")
     add_subdirectory(3rdparty/wolfssl)
@@ -223,9 +228,10 @@ if (CELLFRAME_MODULES MATCHES "srv-stake-pos-delegate")
 endif()
 
 if (WIN32)
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} KERNEL32 USER32 SHELL32 WINMM GDI32 ADVAPI32
-					 Ole32 Version Imm32 OleAut32 ws2_32 ntdll psapi 
-					 Shlwapi Bcrypt Crypt32 Secur32 userenv) #mqrt)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} kernel32 user32 shell32 winmm gdi32 advapi32
+					 ole32 version imm32 oleaut32 ws2_32 ntdll psapi 
+					 shlwapi bcrypt crypt32 secur32 userenv #mqrt
+					 )
 endif()
 
 if (DARWIN)
