@@ -171,6 +171,7 @@ static dap_db_ctx_t *s_cre_db_ctx_for_group(const char *a_group, int a_flags)
 {
 int l_rc;
 dap_db_ctx_t *l_db_ctx, *l_db_ctx2;
+size_t l_namelen;
 uint64_t l_seq;
 MDBX_val    l_key_iov, l_data_iov;
 
@@ -189,13 +190,13 @@ MDBX_val    l_key_iov, l_data_iov;
 
     /* So , at this point we are going to create (if not exist)  'table' for new group */
 
-    if ( (l_rc = strlen(a_group)) > DAP_DB$SZ_MAXGROUPNAME )                /* Check length of the group name */
-        return  log_it(L_ERROR, "Group name '%s' is too long (%d>%lu)", a_group, l_rc, DAP_DB$SZ_MAXGROUPNAME), NULL;
+    if ( (l_namelen = strlen(a_group)) > DAP_DB$SZ_MAXGROUPNAME )           /* Check length of the group name */
+        return  log_it(L_ERROR, "Group name '%s' is too long (%zu>%lu)", a_group, l_namelen, DAP_DB$SZ_MAXGROUPNAME), NULL;
 
     if ( !(l_db_ctx = DAP_NEW_Z(dap_db_ctx_t)) )                            /* Allocate zeroed memory for new DB context */
         return  log_it(L_ERROR, "Cannot allocate DB context for '%s', errno=%d", a_group, errno), NULL;
 
-    memcpy(l_db_ctx->name,  a_group, l_db_ctx->namelen = l_rc);             /* Store group name in the DB context */
+    memcpy(l_db_ctx->name,  a_group, l_db_ctx->namelen = l_namelen);        /* Store group name in the DB context */
     pthread_mutex_init(&l_db_ctx->dbi_mutex, NULL);
 
     /*
@@ -420,7 +421,72 @@ static  int s_db_mdbx_flush(void)
     return  log_it(L_DEBUG, "Flushing resident part of the MDBX to disk"), 0;
 }
 
+/*
+ *  DESCRIPTION: Action routine to read record with a give <id > from the table
+ *
+ *  INPUTS:
+ *      a_group:    A group/table name to be looked in
+ *      a_id:       An id of record to be looked for
+ *      a_obj:      An address to the <store object> with the record
+ *
+ *  OUTPUTS:
+ *      NONE
+ *
+ *  RETURNS:
+ *      error code
+ */
+int s_fill_store_obj (const char        *a_group,
+                      MDBX_val          *a_key,
+                      MDBX_val          *a_data,
+                      dap_store_obj_t   *a_obj
+                      )
+{
+size_t  l_len;
+struct  __record_suffix__   *l_suff;
 
+    if (!a_group || !a_key || !a_data || !a_obj)
+        return -1;
+
+    /* Fill the <store obj> by data from the retrieved record */
+    l_len = dap_strlen(a_group);
+    if (!l_len)
+        return log_it(L_ERROR, "Zero length of global DB group name"), -2;
+    a_obj->group_len = l_len;
+    if ( (a_obj->group = DAP_CALLOC(1, l_len + 1)) )
+        memcpy(a_obj->group, a_group, a_obj->group_len);
+    else
+        return log_it(L_ERROR, "Cannot allocate a memory for store object group, errno=%d", errno), -3;
+
+    a_obj->key_len = a_key->iov_len;
+    if (!a_obj->key_len)
+        return log_it(L_ERROR, "Zero length of global DB record key"), -4;
+    if ( (a_obj->key = DAP_CALLOC(1, a_obj->key_len + 1)) )
+        memcpy((char *) a_obj->key, a_key->iov_base, a_obj->key_len);
+    else {
+        DAP_DELETE(a_obj->group);
+        return log_it(L_ERROR, "Cannot allocate a memory for store object key, errno=%d", errno), -5;
+    }
+
+    if (!a_data->iov_len)
+        return log_it(L_ERROR, "Zero length of global DB record internal value"), -6;
+    a_obj->value_len = a_data->iov_len - sizeof(struct __record_suffix__);
+    if (a_obj->value_len) {
+        if ( (a_obj->value = DAP_CALLOC(1, a_obj->value_len)) )
+            memcpy(a_obj->value, a_data->iov_base, a_obj->value_len);
+        else {
+            DAP_DELETE(a_obj->group);
+            DAP_DELETE(a_obj->key);
+            return log_it (L_ERROR, "Cannot allocate a memory for store object value, errno=%d", errno), -7;
+        }
+    }
+
+    l_suff = (struct __record_suffix__ *) (a_data->iov_base + a_obj->value_len);
+    a_obj->id = l_suff->id;
+    a_obj->timestamp = l_suff->ts;
+    a_obj->flags = l_suff->flags;
+
+    return 0;
+}
 
 /**
  * @brief Read last store item from CDB.
@@ -489,43 +555,29 @@ dap_store_obj_t *l_obj;
         return  NULL;
     }
 
-    l_obj = DAP_NEW_Z(dap_store_obj_t);
-    /* Found ! Allocate memory for  <store object>  and <value> */
-    if ( !(l_obj->key = DAP_CALLOC(1, l_last_key.iov_len + 1)) )
-        l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object key, errno=%d", errno);
-
-    else if ( (l_obj->value = DAP_CALLOC(1, (l_last_data.iov_len + 1)  - sizeof(struct __record_suffix__))) )
-        {
-        /* Fill the <store obj> by data from the retrieved record */
-        l_obj->key_len = l_last_key.iov_len;
-        memcpy((char *) l_obj->key, l_last_key.iov_base, l_obj->key_len);
-
-        l_obj->value_len = l_last_data.iov_len - sizeof(struct __record_suffix__);
-        if(l_last_data.iov_base)
-            memcpy(l_obj->value, l_last_data.iov_base, l_obj->value_len);
-
-        l_suff = (struct __record_suffix__ *) (l_last_data.iov_base + l_obj->value_len);
-        if(l_suff){
-            l_obj->id = l_suff->id;
-            l_obj->timestamp = l_suff->ts;
-            l_obj->flags = l_suff->flags;
+    /* Found ! Allocate memory for <store object>, <key> and <value> */
+    if ( (l_obj = DAP_CALLOC(1, sizeof( dap_store_obj_t ))) ) {
+        if (s_fill_store_obj(a_group, &l_key, &l_data, l_obj)) {
+            l_rc = MDBX_PROBLEM;
+            DAP_DEL_Z(l_obj);
         }
-
-        l_obj->group = dap_strdup(a_group);
-        l_obj->group_len = strlen(l_obj->group);
-        }
-    else l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object value, errno=%d", errno);
-
+    } else
+        l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object, errno=%d", errno);
 
     mdbx_txn_commit(l_db_ctx->txn);
     pthread_mutex_unlock(&l_db_ctx->dbi_mutex);
 
+
 #ifdef  DAP_SYS_DEBUG
-    atomic_fetch_add(&s_memstat[MEMSTAT$K_OBJ].alloc_nr, 1);
-    atomic_fetch_add(&s_memstat[MEMSTAT$K_VALUE].alloc_nr, 1);
+    if ( l_rc == MDBX_SUCCESS )
+    {
+        atomic_fetch_add(&s_memstat[MEMSTAT$K_OBJ].alloc_nr, 1);
+	atomic_fetch_add(&s_memstat[MEMSTAT$K_VALUE].alloc_nr, 1);
+    }
 #endif
 
-    return  l_obj;
+    return l_rc == MDBX_SUCCESS ? l_obj : NULL;
+
 }
 
 /**
@@ -577,16 +629,6 @@ MDBX_val    l_key, l_data;
  * @param a_count[out] a count of items were got
  * @return If successful, pointer to items, otherwise NULL.
  */
-
-/*
-    if (l_count_out) {
-        l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' WHERE id>='%lld' ORDER BY id ASC LIMIT %d",
-                l_table_name, a_id, l_count_out);
-    } else {
-        l_str_query = sqlite3_mprintf("SELECT id,ts,key,value FROM '%s' WHERE id>='%lld' ORDER BY id ASC",
-                l_table_name, a_id);
-    }
-*/
 static dap_store_obj_t  *s_db_mdbx_read_cond_store_obj(const char *a_group, uint64_t a_id, size_t *a_count_out)
 {
 int l_rc = 0;
@@ -611,27 +653,19 @@ size_t  l_cnt = 0, l_count_out = 0;
         return  log_it (L_ERROR, "mdbx_txn_begin: (%d) %s", l_rc, mdbx_strerror(l_rc)), NULL;
     }
 
-
     /* Limit a number of objects to be returned */
     l_count_out = (a_count_out && *a_count_out) ? *a_count_out : DAP_DB$K_MAXOBJS;
     l_count_out = MIN(l_count_out, DAP_DB$K_MAXOBJS);
-
     l_cursor = NULL;
-    l_obj = l_obj_arr = NULL;
-
 
     do  {
         /* Initialize MDBX cursor context area */
         if ( MDBX_SUCCESS != (l_rc = mdbx_cursor_open(l_db_ctx->txn, l_db_ctx->dbi, &l_cursor)) ) {
-          log_it (L_ERROR, "mdbx_cursor_open: (%d) %s", l_rc, mdbx_strerror(l_rc));
-          break;
+            log_it (L_ERROR, "mdbx_cursor_open: (%d) %s", l_rc, mdbx_strerror(l_rc));
+            break;
         }
 
-
         /* Iterate cursor to retrieve records from DB */
-        l_cnt = 0;
-        if(a_count_out)
-            *a_count_out = l_cnt;
         for (int i = l_count_out; i && (MDBX_SUCCESS == (l_rc = mdbx_cursor_get(l_cursor, &l_key, &l_data, MDBX_NEXT))); i--)
         {
             l_suff = (struct __record_suffix__ *) (l_data.iov_base + l_data.iov_len - sizeof(struct __record_suffix__));
@@ -640,50 +674,27 @@ size_t  l_cnt = 0, l_count_out = 0;
             /*
              * Expand a memory for new <store object> structure
              */
-            if ( !(l_obj = DAP_REALLOC(l_obj_arr, (1 + l_cnt) * sizeof(dap_store_obj_t))) )
+            if ( !(l_obj_arr = DAP_REALLOC(l_obj_arr, ++l_cnt * sizeof(dap_store_obj_t))) )
             {
                 log_it(L_ERROR, "Cannot expand area to keep %zu <store objects>", l_cnt);
+                l_rc = MDBX_PROBLEM;
                 break;
             }
-
-            l_cnt++;
-
-            l_obj_arr = l_obj;
-            l_obj = l_obj_arr + (l_cnt - 1);                                /* Point <l_obj> to last array's element */
-
-            if ( !(l_obj->key = DAP_CALLOC(1, l_key.iov_len + 1)) )
-                l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object key, errno=%d", errno);
-
-            else if ( (l_obj->value = DAP_CALLOC(1, (l_data.iov_len + 1)  - sizeof(struct __record_suffix__))) )
-                {
-                /* Fill the <store obj> by data from the retreived record */
-                l_obj->key_len = l_key.iov_len;
-                memcpy((char *) l_obj->key, l_key.iov_base, l_obj->key_len);
-
-                l_obj->value_len = l_data.iov_len - sizeof(struct __record_suffix__);
-                memcpy(l_obj->value, l_data.iov_base, l_obj->value_len);
-
-                l_obj->id = l_suff->id;
-                l_obj->timestamp = l_suff->ts;
-                l_obj->flags = l_suff->flags;
-
-                l_obj->group = dap_strdup(a_group);
-                l_obj->group_len = strlen(l_obj->group);
-
-                l_obj->cb = l_obj->cb_arg = NULL;
-
-                }
-            else l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object value, errno=%d", errno);
 
 #ifdef  DAP_SYS_DEBUG
             atomic_fetch_add(&s_memstat[MEMSTAT$K_OBJ].alloc_nr, 1);
             atomic_fetch_add(&s_memstat[MEMSTAT$K_VALUE].alloc_nr, 1);
 #endif
+
+            l_obj = l_obj_arr + (l_cnt - 1);                                /* Point <l_obj> to last array's element */
+            memset(l_obj, 0, sizeof(dap_store_obj_t));
+            if (s_fill_store_obj(a_group, &l_key, &l_data, l_obj))
+                l_rc = MDBX_PROBLEM;
         }
 
         if ( (MDBX_SUCCESS != l_rc) && (l_rc != MDBX_NOTFOUND) ) {
-          log_it (L_ERROR, "mdbx_cursor_get: (%d) %s", l_rc, mdbx_strerror(l_rc)), l_rc = MDBX_SUCCESS;
-          break;
+            log_it (L_ERROR, "mdbx_cursor_get: (%d) %s", l_rc, mdbx_strerror(l_rc));
+            break;
         }
 
     } while (0);
@@ -798,6 +809,7 @@ dap_db_ctx_t *l_db_ctx, *l_db_ctx2;
 static  int s_db_mdbx_apply_store_obj (dap_store_obj_t *a_store_obj)
 {
 int     l_rc = 0, l_rc2;
+size_t l_summary_len;
 dap_db_ctx_t *l_db_ctx;
 MDBX_val    l_key, l_data;
 char    *l_val;
@@ -841,12 +853,12 @@ struct  __record_suffix__   *l_suff;
          * Now we are ready  to form a record in next format:
          * <value> + <suffix>
          */
-        l_rc = a_store_obj->value_len + sizeof(struct  __record_suffix__); /* Compute a length of the area to keep value+suffix */
+        l_summary_len = a_store_obj->value_len + sizeof(struct  __record_suffix__); /* Compute a length of the area to keep value+suffix */
 
-        if ( !(l_val = DAP_NEW_Z_SIZE(char, l_rc)) )
+        if ( !(l_val = DAP_NEW_Z_SIZE(char, l_summary_len)) )
         {
             pthread_mutex_unlock(&l_db_ctx->dbi_mutex);
-            return  log_it(L_ERROR, "Cannot allocate memory for new records, %d octets, errno=%d", l_rc, errno), -errno;
+            return  log_it(L_ERROR, "Cannot allocate memory for new records, %zu octets, errno=%d", l_summary_len, errno), -errno;
         }
 
 #ifdef  DAP_SYS_DEBUG
@@ -854,7 +866,7 @@ struct  __record_suffix__   *l_suff;
 #endif
 
         l_data.iov_base = l_val;                                            /* Fill IOV for MDBX data */
-        l_data.iov_len = l_rc;
+        l_data.iov_len = l_summary_len;
 
         /*
          * Fill suffix's fields
@@ -954,12 +966,6 @@ struct  __record_suffix__   *l_suff;
     return  -EIO;
 }
 
-
-
-
-
-
-
 /**
  * @brief Gets items from CDB by a_group and a_key. If a_key=NULL then gets a_count_out items.
  * @param a_group the group name
@@ -969,14 +975,13 @@ struct  __record_suffix__   *l_suff;
  */
 static dap_store_obj_t *s_db_mdbx_read_store_obj(const char *a_group, const char *a_key, size_t *a_count_out)
 {
-int l_rc, l_rc2, l_count_out;
+int l_rc, l_rc2;
+size_t l_count_out;
 dap_db_ctx_t *l_db_ctx;
 dap_store_obj_t *l_obj, *l_obj_arr;
 MDBX_val    l_key, l_data;
 MDBX_cursor *l_cursor;
 MDBX_stat   l_stat;
-struct  __record_suffix__   *l_suff;
-
 
     if (!a_group)                                                           /* Sanity check */
         return NULL;
@@ -1008,42 +1013,21 @@ struct  __record_suffix__   *l_suff;
 
         if ( MDBX_SUCCESS == (l_rc = mdbx_get(l_db_ctx->txn, l_db_ctx->dbi, &l_key, &l_data)) )
         {
-            /* Found ! Allocate memory to <store object> < and <value> */
-            if ( (l_obj = DAP_CALLOC(1, sizeof( dap_store_obj_t ))) )
-            {
-                if ( !(l_obj->key = DAP_CALLOC(1, l_key.iov_len + 1)) )
-                    l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object key, errno=%d", errno);
-                else if ( (l_obj->value = DAP_CALLOC(1, (l_data.iov_len + 1)  - sizeof(struct __record_suffix__))) )
-                    {
-                    /* Fill the <store obj> by data from the retreived record */
-                    l_obj->key_len = l_key.iov_len;
-                    memcpy((char *) l_obj->key, l_key.iov_base, l_obj->key_len);
-
-                    l_obj->value_len = l_data.iov_len - sizeof(struct __record_suffix__);
-                    memcpy(l_obj->value, l_data.iov_base, l_obj->value_len);
-
-                    l_suff = (struct __record_suffix__ *) (l_data.iov_base + l_obj->value_len);
-                    l_obj->id = l_suff->id;
-                    l_obj->timestamp = l_suff->ts;
-                    l_obj->flags = l_suff->flags;
-                    l_obj->group = dap_strdup(a_group);
-                    l_obj->group_len = strlen(l_obj->group);
-
-                    if ( a_count_out )
-                        *a_count_out = 1;
+            /* Found ! Make new <store_obj> */
+            if ( !(l_obj = DAP_CALLOC(1, sizeof(dap_store_obj_t))) ) {
+                log_it (L_ERROR, "Cannot allocate a memory for store object key, errno=%d", errno);
+                l_rc = MDBX_PROBLEM;
+            } else if ( !s_fill_store_obj(a_group, &l_key, &l_data, l_obj) ) {
 
 #ifdef  DAP_SYS_DEBUG
-                    atomic_fetch_add(&s_memstat[MEMSTAT$K_OBJ].alloc_nr, 1);
-                    atomic_fetch_add(&s_memstat[MEMSTAT$K_VALUE].alloc_nr, 1);
+            atomic_fetch_add(&s_memstat[MEMSTAT$K_OBJ].alloc_nr, 1);
+            atomic_fetch_add(&s_memstat[MEMSTAT$K_VALUE].alloc_nr, 1);
 #endif
-                }
-                else l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object value, errno=%d", errno);
-            }
-            else l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object, errno=%d", errno);
 
-
-
-
+                if ( a_count_out )
+                    *a_count_out = 1;
+            } else
+                l_rc = MDBX_PROBLEM;
         } else if ( l_rc != MDBX_NOTFOUND)
             log_it (L_ERROR, "mdbx_get: (%d) %s", l_rc, mdbx_strerror(l_rc));
 
@@ -1088,9 +1072,8 @@ struct  __record_suffix__   *l_suff;
         /*
          * Allocate memory for array[l_count_out] of returned objects
         */
-        l_rc2 = l_count_out * sizeof(dap_store_obj_t);
-        if ( !(l_obj_arr = (dap_store_obj_t *) DAP_NEW_Z_SIZE(char, l_rc2)) ) {
-            log_it(L_ERROR, "Cannot allocate %zu octets for %d store objects", l_count_out * sizeof(dap_store_obj_t), l_count_out);
+        if ( !(l_obj_arr = (dap_store_obj_t *) DAP_NEW_Z_SIZE(char, l_count_out * sizeof(dap_store_obj_t))) ) {
+            log_it(L_ERROR, "Cannot allocate %zu octets for %zu store objects", l_count_out * sizeof(dap_store_obj_t), l_count_out);
             break;
         }
 
@@ -1105,39 +1088,17 @@ struct  __record_suffix__   *l_suff;
         for (int i = l_count_out;
              i && (MDBX_SUCCESS == (l_rc = mdbx_cursor_get(l_cursor, &l_key, &l_data, MDBX_NEXT))); i--,  l_obj++)
         {
-            if ( !(l_obj->key = DAP_CALLOC(1, l_key.iov_len + 1)) )
-                l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object key, errno=%d", errno);
-
-            else if ( (l_obj->value = DAP_CALLOC(1, (l_data.iov_len + 1)  - sizeof(struct __record_suffix__))) )
-                {
-                /* Fill the <store obj> by data from the retrieved record */
-                l_obj->key_len = l_key.iov_len;
-                memcpy((char *) l_obj->key, l_key.iov_base, l_obj->key_len);
-
-                l_obj->value_len = l_data.iov_len - sizeof(struct __record_suffix__);
-                memcpy(l_obj->value, l_data.iov_base, l_obj->value_len);
-
-                l_suff = (struct __record_suffix__ *) (l_data.iov_base + l_obj->value_len);
-                l_obj->id = l_suff->id;
-                l_obj->timestamp = l_suff->ts;
-                l_obj->flags = l_suff->flags;
-
-                l_obj->group = dap_strdup(a_group);
-                l_obj->group_len = strlen(l_obj->group);
-
-                if ( a_count_out )
-                    *a_count_out += 1;
-
+            if (s_fill_store_obj(a_group, &l_key, &l_data, l_obj))
+                l_rc = MDBX_PROBLEM;
+            else if ( a_count_out )
+            {
 #ifdef  DAP_SYS_DEBUG
                 atomic_fetch_add(&s_memstat[MEMSTAT$K_OBJ].alloc_nr, 1);
                 atomic_fetch_add(&s_memstat[MEMSTAT$K_VALUE].alloc_nr, 1);
 #endif
-
-                }
-            else l_rc = MDBX_PROBLEM, log_it (L_ERROR, "Cannot allocate a memory for store object value, errno=%d", errno);
-
+                *a_count_out += 1;
+             }
         }
-
 
         if ( (MDBX_SUCCESS != l_rc) && (l_rc != MDBX_NOTFOUND) ) {
           log_it (L_ERROR, "mdbx_cursor_get: (%d) %s", l_rc, mdbx_strerror(l_rc)), l_rc = MDBX_SUCCESS;
@@ -1145,7 +1106,6 @@ struct  __record_suffix__   *l_suff;
         }
 
     } while (0);
-
 
     if (l_cursor)
         mdbx_cursor_close(l_cursor);

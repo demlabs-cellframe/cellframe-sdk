@@ -2755,7 +2755,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
 
         }
         if (!l_net_pvt->only_static_links)
-            l_net_pvt->only_static_links = dap_config_get_item_bool_default(l_cfg, "general", "links_static_only", false);
+            l_net_pvt->only_static_links = dap_config_get_item_bool_default(l_cfg, "general", "links_static_only", true);
         if (s_seed_mode || !dap_config_get_item_bool_default(g_config ,"general", "auto_online",false ) ) { // If we seed we do everything manual. First think - prefil list of node_addrs and its aliases
             l_target_state = NET_STATE_OFFLINE;
         }
