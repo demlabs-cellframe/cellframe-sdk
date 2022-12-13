@@ -296,21 +296,6 @@ json_object* dap_chain_datum_tx_item_in_to_json(dap_chain_tx_in_t *a_in){
     return l_obj_in;
 }
 
-dap_chain_tx_tsd_t *dap_chain_datum_tx_item_tsd_create(void *a_data, int a_type, size_t a_size) {
-    if (!a_data || !a_size) {
-        return NULL;
-    }
-    dap_tsd_t *l_tsd = dap_tsd_create(a_type, a_data, a_size);
-    size_t l_tsd_sz = dap_tsd_size(l_tsd);
-    dap_chain_tx_tsd_t *l_item = DAP_NEW_Z_SIZE(dap_chain_tx_tsd_t,
-                                                sizeof(dap_chain_tx_tsd_t) + l_tsd_sz);
-    memcpy(l_item->tsd, l_tsd, l_tsd_sz);
-    DAP_DELETE(l_tsd);
-    l_item->header.type = TX_ITEM_TYPE_TSD;
-    l_item->header.size = l_tsd_sz;
-    return l_item;
-}
-
 json_object* dap_chain_datum_tx_item_tsd_to_json(dap_chain_tx_tsd_t *a_tsd){
     json_object *l_object = json_object_new_object();
     json_object *l_obj_tsd_type = json_object_new_int(a_tsd->header.type);

@@ -118,7 +118,6 @@ json_object *dap_chain_datum_tx_item_token_to_json(const dap_chain_tx_token_t *a
  */
 dap_chain_tx_in_t* dap_chain_datum_tx_item_in_create(dap_chain_hash_fast_t *a_tx_prev_hash, uint32_t a_tx_out_prev_idx);
 
-dap_chain_tx_tsd_t *dap_chain_datum_tx_item_tsd_create(void *a_data, int a_type, size_t a_size);
 json_object* dap_chain_datum_tx_item_in_to_json(dap_chain_tx_in_t *a_in);
 
 dap_chain_tx_tsd_t *dap_chain_datum_tx_item_tsd_create(void *a_data, int a_type, size_t a_size);
