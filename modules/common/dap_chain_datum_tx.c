@@ -28,6 +28,7 @@
 #include "dap_sign.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_tx.h"
+#include "dap_chain_net_srv_stake_lock.h"
 
 #define LOG_TAG "dap_chain_datum_tx"
 
