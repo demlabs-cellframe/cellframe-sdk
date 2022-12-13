@@ -245,10 +245,13 @@ static void s_sync_out_chains_first_worker_callback(dap_worker_t *a_worker, void
     }
 
     dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
-    l_ch_chain->state = CHAIN_STATE_SYNC_CHAINS;
-    l_ch_chain->request_atom_iter = l_sync_request->chain.request_atom_iter;
-    l_ch_chain->remote_atoms = l_sync_request->remote_atoms; /// TODO check if they were present here before
+    if (l_ch_chain->state != CHAIN_STATE_UPDATE_CHAINS_REMOTE) {
+        log_it(L_INFO, "Timeout fired before we sent the reply");
+        s_sync_request_delete(l_sync_request);
+        return;
+    }
 
+    l_ch_chain->state = CHAIN_STATE_SYNC_CHAINS;
     dap_chain_node_addr_t l_node_addr = {};
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_sync_request->request_hdr.net_id);
     l_node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
@@ -345,10 +348,14 @@ static void s_sync_out_gdb_first_worker_callback(dap_worker_t *a_worker, void *a
     }
 
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN( l_ch );
-    dap_chain_net_t *l_net = dap_chain_net_by_id(l_ch_chain->request_hdr.net_id);
+    if (l_ch_chain->state != CHAIN_STATE_UPDATE_GLOBAL_DB_REMOTE) {
+        log_it(L_INFO, "Timeout fired before we sent the reply");
+        s_sync_request_delete(l_sync_request);
+        return;
+    }
 
+    dap_chain_net_t *l_net = dap_chain_net_by_id(l_ch_chain->request_hdr.net_id);
     // Add it to outgoing list
-    if (l_ch_chain->request_db_log == NULL) l_ch_chain->request_db_log = l_sync_request->gdb.db_log;
     l_ch_chain->state = CHAIN_STATE_SYNC_GLOBAL_DB;
     dap_chain_node_addr_t l_node_addr = { 0 };
     l_node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
@@ -846,7 +853,7 @@ static bool s_chain_timer_callback(void *a_arg)
         return false;
     }
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
-    if (l_ch_chain->timer_shots++ >= 500) {  // 500 * 20 = 10 sec
+    if (l_ch_chain->timer_shots++ >= DAP_SYNC_TICKS_PER_SECOND * DAP_CHAIN_NODE_SYNC_TIMEOUT) {
         if (!s_ch_chain_get_idle(l_ch_chain)) {
             s_ch_chain_go_idle(l_ch_chain);
             if (l_ch_chain->callback_notify_packet_out)
@@ -862,13 +869,13 @@ static bool s_chain_timer_callback(void *a_arg)
     if (l_ch_chain->state != CHAIN_STATE_WAITING && l_ch_chain->sent_breaks)
         s_stream_ch_packet_out(l_ch, NULL);
     // Sending dumb packet with nothing to inform remote thats we're just skiping atoms of GDB's, nothing freezed
-    if (l_ch_chain->state == CHAIN_STATE_SYNC_CHAINS && l_ch_chain->sent_breaks >= 150) {    // 150 * 20 = 3 sec
+    if (l_ch_chain->state == CHAIN_STATE_SYNC_CHAINS && l_ch_chain->sent_breaks >= 3 * DAP_SYNC_TICKS_PER_SECOND) {
         dap_stream_ch_chain_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_TSD,
                                              l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64,
                                              l_ch_chain->request_hdr.cell_id.uint64, NULL, 0);
         l_ch_chain->sent_breaks = 0;
     }
-    if (l_ch_chain->state == CHAIN_STATE_SYNC_GLOBAL_DB && l_ch_chain->sent_breaks >= 150) { // 150 * 20 = 3 sec
+    if (l_ch_chain->state == CHAIN_STATE_SYNC_GLOBAL_DB && l_ch_chain->sent_breaks >= 3 * DAP_SYNC_TICKS_PER_SECOND) {
         if (s_debug_more)
             log_it(L_INFO, "Send one global_db TSD packet (rest=%zu/%zu items)",
                             dap_db_log_list_get_count_rest(l_ch_chain->request_db_log),
@@ -892,7 +899,7 @@ void dap_stream_ch_chain_timer_start(dap_stream_ch_chain_t *a_ch_chain)
 {
     dap_worker_t * l_worker = DAP_STREAM_CH(a_ch_chain)->stream_worker->worker;
     dap_stream_ch_uuid_t *l_uuid = DAP_DUP(&DAP_STREAM_CH(a_ch_chain)->uuid);
-    a_ch_chain->activity_timer = dap_timerfd_start_on_worker( l_worker, 20, s_chain_timer_callback, (void *)l_uuid);
+    a_ch_chain->activity_timer = dap_timerfd_start_on_worker( l_worker, 1000 / DAP_SYNC_TICKS_PER_SECOND, s_chain_timer_callback, (void *)l_uuid);
     a_ch_chain->sent_breaks = 0;
 }
 
