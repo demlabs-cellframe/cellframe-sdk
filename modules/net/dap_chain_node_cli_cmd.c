@@ -1697,7 +1697,7 @@ int com_help(int a_argc, char **a_argv, char **a_str_reply)
 int com_tx_wallet(int a_argc, char **a_argv, char **a_str_reply)
 {
 const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
-enum { CMD_NONE, CMD_WALLET_NEW, CMD_WALLET_LIST, CMD_WALLET_INFO, CMD_WALLET_ACTIVATE, CMD_WALLET_DEACTIVATE };
+enum { CMD_NONE, CMD_WALLET_NEW, CMD_WALLET_LIST, CMD_WALLET_INFO, CMD_WALLET_ACTIVATE, CMD_WALLET_DEACTIVATE, CMD_WALLET_CONVERT };
 int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 char    l_buf[1024];
 
@@ -1713,6 +1713,8 @@ char    l_buf[1024];
         cmd_num = CMD_WALLET_ACTIVATE;
     else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "deactivate", NULL))
         cmd_num = CMD_WALLET_DEACTIVATE;
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "convert", NULL))
+        cmd_num = CMD_WALLET_CONVERT;
 
     l_arg_index++;
 
@@ -1739,6 +1741,39 @@ char    l_buf[1024];
 
     switch (cmd_num)
     {
+    case CMD_WALLET_CONVERT:
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-password", &l_pass_str);
+
+        if( !l_wallet_name )
+            return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet name option <-w>  not defined"), -EINVAL;
+
+        if( !l_pass_str )
+            return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet password option <-password>  not defined"), -EINVAL;
+
+        l_rc = dap_chain_wallet_convert (l_wallet_name, strlen(l_wallet_name), l_pass_str, strlen(l_pass_str));
+
+        if ( !l_rc )
+                dap_string_append_printf(l_l_string_ret, "Wallet: %s is %sconverted\n", l_wallet_name);
+        else
+        {
+            switch ( l_rc )
+            {
+                case    -EINVAL:
+                    strcpy(l_buf, "wrong password");
+                    break;
+
+
+                default:
+                    strerror_r(l_rc, l_buf, sizeof(l_buf) - 1 );
+                    break;
+            }
+
+            dap_string_append_printf(l_l_string_ret, "Wallet: %s  conversion error, errno=%d (%s)\n",
+                    l_wallet_name, l_rc, l_buf );
+        }
+
+        break;
+
         case CMD_WALLET_ACTIVATE:
         case CMD_WALLET_DEACTIVATE:
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-password", &l_pass_str);

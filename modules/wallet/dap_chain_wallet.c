@@ -25,6 +25,8 @@
 
     27-APR-2021 RRL Added password protected wallet support
 
+    13-DEC-2022 RRL Added routine to convert wallet from V1 to V2.
+
 */
 
 #include <stdlib.h>
@@ -963,4 +965,80 @@ uint256_t dap_chain_wallet_get_balance (
     dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(a_wallet, a_net_id);
 
     return  (l_net)  ? dap_chain_ledger_calc_balance(l_net->pub.ledger, l_addr, a_token_ticker) : uint256_0;
+}
+
+
+/*
+ *   DESCRIPTION: Convert Wallet's file from V1 to V2 .
+ *      - Open/load Walet V1 into the memory resident structure,
+ *      - Save Wallet into a temporaru file
+ *      - Do rename Wallet V1 file into the .dwallet-backup[-<version>]
+ *      - Do rename Wallet V2 file to the original Wallet V1 file name
+ *
+ *   INPUTS:
+ *
+ *   OUTPUTS:
+ *      NONE
+ *
+ *   RETURNS:
+ *      0   - SUCCESS
+ *      !0  - error code, <errno>
+ */
+
+int dap_chain_wallet_convert    (
+        const char *a_wallet_name,
+        const char *a_wallets_path,
+        const char *a_pass
+        )
+{
+char l_file_name_v1 [MAX_PATH] = {0}, l_file_name_v2 [MAX_PATH] = {0}, *l_cp, l_wallet_name[DAP_WALLET$SZ_PASS + 3] = {0};
+dap_chain_wallet_t  *l_wallet;
+dap_chain_wallet_internal_t *l_wallet_internal;
+int     l_fver, l_rc;
+
+    /* Sanity checks */
+    if(!a_wallet_name || !a_wallets_path || !a_pass)
+        return  log_it(L_ERROR, "Missing input arguments"), -EINVAL;
+
+    if ( (l_cp = strstr(a_wallet_name, s_wallet_ext)) )                 /* Check and add file extension if need */
+        strncpy(l_wallet_name, a_wallet_name, l_cp - a_wallet_name);
+    else strcpy(l_wallet_name, a_wallet_name);
+
+    log_it(L_DEBUG, "Wallet V1: %s ...", l_wallet_name);
+
+                                                                        /* Make full file spec */
+    dap_snprintf(l_file_name_v1, sizeof(l_file_name_v1) - 1, "%s/%s%s", a_wallets_path, l_wallet_name, s_wallet_ext);
+
+    log_it(L_DEBUG, "Wallet V1 file spec: %s ...", l_file_name_v1);
+
+                                                                        /* Try to open & load  Wallet file as V1  */
+    if ( !(l_wallet = dap_chain_wallet_open_file(l_file_name_v1, NULL)) )
+        return  log_it(L_ERROR, "Conversion error, dap_chain_wallet_open_file(%s) failed", l_file_name_v1), -ENOENT;
+
+                                                                        /* Generate a random file name is supposed to be used as the BACKUP of the Wallet V1 file */
+    for (int i = (0xFFF & time(0)); i; i--)
+            l_fver = rand();
+
+    dap_snprintf(l_file_name_v2, sizeof(l_file_name_v2) - 1, "%s/%s-%#x", a_wallets_path, l_wallet_name, rand());
+
+    log_it(L_DEBUG, "Renaming Wallet V1 file: %s to the '%s' ...", l_file_name_v1, l_file_name_v2);
+
+    if ( (l_rc = rename(l_file_name_v1, l_file_name_v2)) )
+        return  dap_chain_wallet_close(l_wallet),
+                log_it(L_ERROR, "Conversion error, rename '%s' to '%s' failed, errno=%d", l_file_name_v1, l_file_name_v2, errno), -errno;
+
+    log_it(L_DEBUG, "Save Wallet V1 to file with V2 format ...");
+
+    l_rc = dap_chain_wallet_save (l_wallet, a_pass);
+    dap_chain_wallet_close(l_wallet);
+
+    if ( l_rc )
+        return  log_it(L_INFO, "Wallet V1 '%s' has been converted, backup file is '%s' ", l_file_name_v1, l_file_name_v2), 0;
+
+    /* In error case - don't try to do something automaticaly,
+     * just print out to user a "recomendation" only !!!
+     */
+    log_it(L_CRITICAL, "Conversion was unsuccessfull, do manualy restore of Wallet V1 from file '%s'", l_file_name_v2) ;
+
+    return  -EIO;
 }
