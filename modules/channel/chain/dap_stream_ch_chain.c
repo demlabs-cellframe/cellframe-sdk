@@ -737,7 +737,7 @@ static void s_gdb_in_pkt_proc_callback_apply(dap_global_db_context_t *a_global_d
     }
     if (s_debug_more){
         char l_ts_str[50];
-        dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), dap_gdb_time_to_sec(l_obj->timestamp));
+        dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), dap_nanotime_to_sec(l_obj->timestamp));
         log_it(L_DEBUG, "Unpacked log history: type='%c' (0x%02hhX) group=\"%s\" key=\"%s\""
                 " timestamp=\"%s\" value_len=%" DAP_UINT64_FORMAT_U,
                 (char )l_obj->type, (char)l_obj->type, l_obj->group,
