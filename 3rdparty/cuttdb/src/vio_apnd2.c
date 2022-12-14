@@ -729,7 +729,7 @@ static int _vio_apnd2_flushbuf(CDBVIO *vio, int dtype)
 
     /* write out if buffered */
     if (iobuf->pos > 0) {
-        if (pwrite(iobuf->fd, iobuf->buf, iobuf->pos, iobuf->off) != iobuf->pos) {
+        if (pwrite(iobuf->fd, iobuf->buf, iobuf->pos, iobuf->off) != (ssize_t) iobuf->pos) {
             if (ftruncate(iobuf->fd, iobuf->off) < 0)
                 cdb_seterrno(vio->db, CDB_WRITEERR, __FILE__, __LINE__);
             return -1;
