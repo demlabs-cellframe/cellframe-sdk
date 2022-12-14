@@ -943,7 +943,7 @@ static int _vio_apnd2_write(CDBVIO *vio, int fd, void *buf, uint32_t size, bool 
     off = lseek(fd, 0, SEEK_END);
     if (aligned)
         off = OFFALIGNED(off);
-    if (pwrite(fd, buf, size, off) != size) {
+    if (pwrite(fd, buf, size, off) != (ssize_t) size) {
         /* to avoid compile warning */
         if (ftruncate(myio->ibuf.fd, off) < 0)
             cdb_seterrno(vio->db, CDB_WRITEERR, __FILE__, __LINE__);
