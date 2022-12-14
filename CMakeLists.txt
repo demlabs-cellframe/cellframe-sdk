@@ -17,6 +17,8 @@ if(NOT DEFINED CELLFRAME_MODULES)
         set(CELLFRAME_MODULES "${CELLFRAME_MODULES} srv-vpn")
     endif()
 
+    add_subdirectory(dap-sdk)
+
 endif()
 
 message("Cellframe modules: ${CELLFRAME_MODULES}")
@@ -69,11 +71,6 @@ endif()
 add_subdirectory(3rdparty/crc32c_adler)             # https://github.com/fonic/crc32c_adler
 include_directories(3rdparty/crc32c_adler)
 set(CELLFRAME_LIBS ${CELLFRAME_LIBS} crc32c_adler)
-
-if(BUILD_TESTS)
-    include(cmake/OS_Detection.cmake)
-    add_subdirectory(dap-sdk)
-endif()
 
 
 if (BUILD_WITH_ZIP)
