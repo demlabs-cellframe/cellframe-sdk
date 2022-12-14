@@ -97,7 +97,7 @@ void dap_chain_block_chunks_add(dap_chain_block_chunks_t * a_chunks,dap_chain_bl
         return;
     }
     // Save to GDB
-    dap_chain_global_db_gr_set(a_block_cache->block_hash_str, a_block_cache->block, a_block_cache->block_size, a_chunks->gdb_group);
+    //dap_chain_global_db_gr_set(a_block_cache->block_hash_str, a_block_cache->block, a_block_cache->block_size, a_chunks->gdb_group);
 
     // And here we select chunk for the new block cache
     bool l_is_chunk_found = false;
