@@ -86,9 +86,11 @@ typedef struct dap_chain_block_cache{
 int dap_chain_block_cache_init();
 void dap_chain_block_cache_deinit();
 
-dap_chain_block_cache_t * dap_chain_block_cache_new(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t * a_block, size_t a_block_size);
-dap_chain_block_cache_t * dap_chain_block_cache_dup(dap_chain_block_cache_t * a_block);
-int dap_chain_block_cache_update(dap_chain_block_cache_t * a_block_cache);
-void dap_chain_block_cache_delete(dap_chain_block_cache_t * a_block_cache);
-dap_chain_datum_tx_t* dap_chain_block_cache_get_tx_by_hash (dap_chain_block_cache_t * a_block_cache, dap_chain_hash_fast_t * a_tx_hash);
+
+dap_chain_block_cache_t *dap_chain_block_cache_new(dap_chain_cs_blocks_t *a_blocks, dap_hash_fast_t *a_block_hash,
+                                                   dap_chain_block_t *a_block, size_t a_block_size);
+dap_chain_block_cache_t *dap_chain_block_cache_dup(dap_chain_block_cache_t *a_block);
+int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_hash_fast_t *a_block_hash);
+void dap_chain_block_cache_delete(dap_chain_block_cache_t *a_block_cache);
+dap_chain_datum_tx_t *dap_chain_block_cache_get_tx_by_hash(dap_chain_block_cache_t *a_block_cache, dap_chain_hash_fast_t *a_tx_hash);
 
