@@ -23,7 +23,7 @@
 */
 #include <sys/types.h>
 #include <dirent.h>
-#ifdef DAP_OS_LINUX
+#if defined(DAP_OS_LINUX) && !defined(DAP_OS_ANDROID)
 #include <stdc-predef.h>
 #endif
 #include <unistd.h>

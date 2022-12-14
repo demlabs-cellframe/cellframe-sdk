@@ -26,6 +26,7 @@
     27-APR-2021 RRL Added password protected wallet support
 
 */
+#define __USE_GNU
 
 #include <stdlib.h>
 #include <stdio.h>
@@ -62,7 +63,9 @@
 #define LOG_TAG "dap_chain_wallet"
 
 #ifndef DAP_OS_WINDOWS                                    /* An argument for open()/create() */
+
 static const mode_t s_fileprot =  ( S_IREAD | S_IWRITE) | (S_IREAD >> 3) | (S_IREAD >> 6) ;
+
 #endif
 static char s_wallet_ext [] = ".dwallet";
 
