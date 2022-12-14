@@ -220,7 +220,7 @@ static void* node_ping_background_proc(void *a_arg)
             continue;
         }
         int hops = 0, time_usec = 0;
-#ifdef DAP_OS_LINUX
+#if defined(DAP_OS_LINUX) && ! defined(DAP_OS_ANDROID)
         int res = traceroute_util(str_ip4, &hops, &time_usec);
 #endif
         if(l_min_hops>hops) {

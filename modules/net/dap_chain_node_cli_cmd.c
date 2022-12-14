@@ -1382,7 +1382,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     return 0;
 }
 
-
+#ifndef DAP_OS_ANDROID
 /**
  * @brief Traceroute command
  * return 0 OK, -1 Err
@@ -1626,6 +1626,8 @@ int com_ping(int a_argc, char**a_argv, char **a_str_reply)
     return -1;
 #endif
 }
+#endif
+
 
 /**
  * @brief com_version
