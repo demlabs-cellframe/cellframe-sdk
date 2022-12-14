@@ -486,8 +486,8 @@ static bool s_net_send_records(dap_proc_thread_t *a_thread, void *a_arg)
         return true;
     }
     // Check object lifetime for broadcasting decision
-    dap_gdb_time_t l_time_diff = l_obj->timestamp ? l_obj->timestamp - dap_gdb_time_now() : (dap_gdb_time_t)-1;
-    if (dap_gdb_time_to_sec(l_time_diff) > DAP_BROADCAST_LIFETIME * 60) {
+    dap_time_t l_time_diff = dap_gdb_time_to_sec(dap_gdb_time_now() - l_obj->timestamp);
+    if (l_time_diff > DAP_BROADCAST_LIFETIME * 60) {
         dap_store_obj_free_one(l_obj);
         return true;
     }
@@ -598,8 +598,7 @@ static void s_chain_callback_notify(void *a_arg, dap_chain_t *a_chain, dap_chain
         return;
 
     // Check object lifetime for broadcasting decision
-    dap_time_t l_timestamp = a_chain->callback_atom_get_timestamp(a_atom);
-    dap_time_t l_time_diff = l_timestamp ? l_timestamp - dap_time_now() : (dap_time_t)-1;
+    dap_time_t l_time_diff = dap_time_now() - a_chain->callback_atom_get_timestamp(a_atom);
     if (l_time_diff > DAP_BROADCAST_LIFETIME * 60)
         return;
 
