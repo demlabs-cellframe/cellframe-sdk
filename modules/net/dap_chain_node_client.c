@@ -56,7 +56,7 @@
 #include "dap_uuid.h"
 #include "dap_client.h"
 #include "dap_client_pvt.h"
-#include "dap_chain_global_db_remote.h"
+#include "dap_global_db_remote.h"
 #include "dap_chain.h"
 #include "dap_chain_cell.h"
 #include "dap_chain_net_srv.h"
@@ -85,17 +85,22 @@ static dap_chain_node_client_handle_t * s_clients = NULL;
 
 static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg);
 static bool s_timer_update_states_callback(void *a_arg);
-
+static int s_node_client_set_notify_callbacks(dap_client_t *a_client, uint8_t a_ch_id);
 static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t*, uint8_t a_pkt_type,
         dap_stream_ch_chain_pkt_t *a_pkt, size_t a_pkt_data_size,
         void * a_arg);
 static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_chain, uint8_t a_pkt_type,
         dap_stream_ch_chain_pkt_t *a_pkt, size_t a_pkt_data_size,
         void * a_arg);
-static bool dap_chain_node_client_connect_internal(dap_chain_node_client_t *a_node_client, const char *a_active_channels);
 
 bool s_stream_ch_chain_debug_more = false;
 uint32_t s_timer_update_states = 600;
+
+#ifdef DAP_OS_WINDOWS
+#define dap_cond_signal(x) SetEvent(x)
+#else
+#define dap_cond_signal(x) pthread_cond_broadcast(&x)
+#endif
 
 /**
  * @brief dap_chain_node_client_init
@@ -136,6 +141,31 @@ static void s_stage_status_callback(dap_client_t *a_client, void *a_arg)
     //printf("* stage_status_callback client=%x data=%x\n", a_client, a_arg);
 }
 
+static bool s_timer_node_reconnect(void *a_arg)
+{
+    dap_events_socket_uuid_t *l_uuid = (dap_events_socket_uuid_t *)a_arg;
+    assert(l_uuid);
+    dap_chain_node_client_handle_t *l_client_found = NULL;
+    HASH_FIND(hh, s_clients, l_uuid, sizeof(*l_uuid), l_client_found);
+    if(l_client_found) {
+        dap_chain_node_client_t *l_me = l_client_found->client;
+        if (l_me->keep_connection && l_me->state == NODE_CLIENT_STATE_DISCONNECTED) {
+            if (dap_client_pvt_find(l_me->client->pvt_uuid)) {
+                if (dap_client_get_stage(l_me->client) == STAGE_BEGIN) {
+                    log_it(L_INFO, "Reconnecting node client with peer "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_me->remote_node_addr));
+                    l_me->state = NODE_CLIENT_STATE_CONNECTING ;
+                    dap_client_go_stage(l_me->client, STAGE_STREAM_STREAMING, s_stage_connected_callback);
+                } else {
+                    dap_chain_node_client_close(*l_uuid);
+                }
+            } else
+                dap_chain_node_client_close(*l_uuid);
+        }
+    }
+    DAP_DELETE(l_uuid);
+    return false;
+}
+
 /**
  * @brief s_stage_status_error_callback
  * @param a_client
@@ -153,13 +183,10 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
     bool l_is_last_attempt = a_arg ? true : false;
     if (l_is_last_attempt) {
         pthread_mutex_lock(&l_node_client->wait_mutex);
-        pthread_mutex_unlock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_DISCONNECTED;
-#ifndef _WIN32
-        pthread_cond_broadcast(&l_node_client->wait_cond);
-#else
-        SetEvent( l_node_client->wait_cond );
-#endif
+        dap_cond_signal(l_node_client->wait_cond);
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
+
         l_node_client->esocket_uuid = 0;
 
         dap_chain_net_sync_unlock(l_node_client->net, l_node_client);
@@ -167,20 +194,13 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
             l_node_client->callbacks.disconnected(l_node_client, l_node_client->callbacks_arg);
         }
         if (l_node_client->keep_connection) {
-            dap_events_socket_uuid_t *l_uuid = DAP_DUP(&l_node_client->uuid);
-            if(l_node_client->stream_worker){
-                l_node_client->sync_timer = dap_timerfd_start_on_worker(  l_node_client->stream_worker->worker
-                                                                      ,  s_timer_update_states * 1000,
-                                                                    s_timer_update_states_callback,
-                                                                    l_uuid);
-            }else{
-                log_it(L_ERROR,"After NODE_CLIENT_STATE_DISCONNECTED: Node client has no worker, too dangerous to run update states in alien context");
-            }
-        }
-        return;
-    }
-    // TODO make different error codes
-    if(l_node_client->callbacks.error)
+            if (dap_client_get_stage(l_node_client->client) != STAGE_BEGIN)
+                dap_client_go_stage(l_node_client->client, STAGE_BEGIN, NULL);
+            dap_timerfd_start(45 * 1000, s_timer_node_reconnect, DAP_DUP(&l_node_client->uuid));
+        } else
+            dap_chain_node_client_close(l_node_client->uuid);
+
+    } else if(l_node_client->callbacks.error) // TODO make different error codes
         l_node_client->callbacks.error(l_node_client, EINVAL, l_node_client->callbacks_arg);
 }
 
@@ -203,7 +223,7 @@ static void s_node_client_connected_synchro_start_callback(dap_worker_t *a_worke
  * @param a_wrlock
  * @return
  */
-dap_chain_node_sync_status_t dap_chain_node_client_start_sync(dap_events_socket_uuid_t *a_uuid, bool a_wrlock)
+dap_chain_node_sync_status_t dap_chain_node_client_start_sync(dap_events_socket_uuid_t *a_uuid)
 {
     dap_chain_node_client_handle_t *l_client_found = NULL;
     HASH_FIND(hh, s_clients, a_uuid, sizeof(*a_uuid), l_client_found);
@@ -235,8 +255,7 @@ dap_chain_node_sync_status_t dap_chain_node_client_start_sync(dap_events_socket_
                     // If we do nothing - init sync process
 
                     if (l_ch_chain->state == CHAIN_STATE_IDLE) {
-                        bool l_trylocked = a_wrlock ? dap_chain_net_sync_trylock(l_net, l_node_client)
-                                                    : dap_chain_net_sync_trylock_nolock(l_net, l_node_client);
+                        bool l_trylocked = dap_chain_net_sync_trylock(l_net, l_node_client);
                         if (l_trylocked) {
                             log_it(L_INFO, "Start synchronization process with "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr));
                             dap_stream_ch_chain_sync_request_t l_sync_gdb = {};
@@ -267,7 +286,7 @@ static bool s_timer_update_states_callback(void *a_arg)
 {
     dap_events_socket_uuid_t *l_uuid = (dap_events_socket_uuid_t *)a_arg;
     assert(l_uuid);
-    dap_chain_node_sync_status_t l_status = dap_chain_node_client_start_sync(l_uuid, true);
+    dap_chain_node_sync_status_t l_status = dap_chain_node_client_start_sync(l_uuid);
     if (l_status == NODE_SYNC_STATUS_MISSING) {
         DAP_DELETE(l_uuid);
         return false;
@@ -284,19 +303,18 @@ static bool s_timer_update_states_callback(void *a_arg)
                         dap_client_go_stage(l_me->client, STAGE_BEGIN, NULL);
                         return true;
                     }
-                    if (l_me->callbacks.disconnected) {
+                    if (l_me->is_connected && l_me->callbacks.disconnected)
                         l_me->callbacks.disconnected(l_me, l_me->callbacks_arg);
-                    }
                     if (l_me->keep_connection) {
                         log_it(L_INFO, "Reconnecting node client with peer "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_me->remote_node_addr));
                         l_me->state = NODE_CLIENT_STATE_CONNECTING ;
                         dap_client_go_stage(l_me->client, STAGE_STREAM_STREAMING, s_stage_connected_callback);
                         return true;
                     } else {
-                        dap_chain_node_client_close(l_me);
+                        dap_chain_node_client_close(*l_uuid);
                     }
                 } else
-                    dap_chain_node_client_close(l_me);
+                    dap_chain_node_client_close(*l_uuid);
             }
         }
         DAP_DELETE(l_uuid);
@@ -323,7 +341,7 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
         if(l_client_internal && l_client_internal->active_channels) {
             size_t l_channels_count = dap_strlen(l_client_internal->active_channels);
             for(size_t i = 0; i < l_channels_count; i++) {
-                if(dap_chain_node_client_set_callbacks(a_client, l_client_internal->active_channels[i]) == -1) {
+                if(s_node_client_set_notify_callbacks(a_client, l_client_internal->active_channels[i]) == -1) {
                     log_it(L_WARNING, "No ch_chain channel, can't init notify callback for pkt type CH_CHAIN");
                     return;
                 }
@@ -331,9 +349,13 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
         }
         if(l_node_client->callbacks.connected)
             l_node_client->callbacks.connected(l_node_client, l_node_client->callbacks_arg);
-        if(s_stream_ch_chain_debug_more)
-            log_it(L_DEBUG, "Wakeup all who waits");
+
+        pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_ESTABLISHED;
+        if (s_stream_ch_chain_debug_more)
+            log_it(L_DEBUG, "Wakeup all who waits");
+        dap_cond_signal(l_node_client->wait_cond);
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
 
         dap_stream_t * l_stream  = dap_client_get_stream(a_client);
         if (l_stream) {
@@ -353,13 +375,6 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
                 }
             }
         }
-        pthread_mutex_lock(&l_node_client->wait_mutex);
-        pthread_mutex_unlock(&l_node_client->wait_mutex);
-#ifndef _WIN32
-        pthread_cond_broadcast(&l_node_client->wait_cond);
-#else
-        SetEvent( l_node_client->wait_cond );
-#endif
     }
 }
 
@@ -381,12 +396,10 @@ static void s_ch_chain_callback_notify_packet_in2(dap_stream_ch_chain_net_t* a_c
         if(a_pkt_net_data_size == sizeof(dap_chain_node_addr_t)) {
             l_node_client->cur_node_addr = *(dap_chain_node_addr_t*)a_pkt_net->data;
         }
+        pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_NODE_ADDR_LEASED;
-#ifndef _WIN32
-        pthread_cond_broadcast(&l_node_client->wait_cond);
-#else
-        SetEvent( l_node_client->wait_cond );
-#endif
+        dap_cond_signal(l_node_client->wait_cond);
+        pthread_mutex_lock(&l_node_client->wait_mutex);
         break;
     }
     // get remote node address
@@ -395,14 +408,13 @@ static void s_ch_chain_callback_notify_packet_in2(dap_stream_ch_chain_net_t* a_c
         if(a_pkt_net_data_size == sizeof(dap_chain_node_addr_t)) {
             l_node_client->remote_node_addr = *(dap_chain_node_addr_t*)a_pkt_net->data;
         }
+        pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_GET_NODE_ADDR;
-#ifndef _WIN32
-        pthread_cond_broadcast(&l_node_client->wait_cond);
-#else
-            SetEvent( l_node_client->wait_cond );
-#endif
-            break;
+        dap_cond_signal(l_node_client->wait_cond);
+        pthread_mutex_lock(&l_node_client->wait_mutex);
+        break;
     }
+    default:;
     }
 }
 
@@ -519,13 +531,11 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
         default: break;
     }
     if (l_finished) {
-#ifndef _WIN32
-        pthread_cond_broadcast(&l_node_client->wait_cond);
-#else
-        SetEvent( l_node_client->wait_cond);
-#endif
-        bool l_have_waiting = dap_chain_net_sync_unlock(l_net, l_node_client);
+        pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_SYNCED;
+        dap_cond_signal(l_node_client->wait_cond);
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
+        bool l_have_waiting = dap_chain_net_sync_unlock(l_net, l_node_client);
         if (dap_chain_net_get_target_state(l_net) == NET_STATE_ONLINE) {
             dap_timerfd_reset(l_node_client->sync_timer);
             dap_chain_net_set_state(l_net, NET_STATE_ONLINE);
@@ -582,7 +592,7 @@ static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_ch
             }
         } break;
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_DELETE: {
-            dap_chain_node_client_close(l_node_client);
+            dap_chain_node_client_close(l_node_client->uuid);
         } break;
         default: {
         }
@@ -703,12 +713,10 @@ static void s_ch_chain_callback_notify_packet_R(dap_stream_ch_chain_net_srv_t* a
                 break;
             }
             s_save_stat_to_database(l_request, l_node_client);
+            pthread_mutex_lock(&l_node_client->wait_mutex);
             l_node_client->state = NODE_CLIENT_STATE_CHECKED;
-#ifndef _WIN32
-            pthread_cond_broadcast(&l_node_client->wait_cond);
-#else
-            SetEvent( l_node_client->wait_cond );
-#endif
+            dap_cond_signal(l_node_client->wait_cond);
+            pthread_mutex_lock(&l_node_client->wait_mutex);
             break;
         }
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_RESPONSE:
@@ -720,20 +728,6 @@ static void s_ch_chain_callback_notify_packet_R(dap_stream_ch_chain_net_srv_t* a
     }
 }
 
-
-/**
- * @brief dap_chain_node_client_connect_channels
- * Create connection to server
- * @param l_net
- * @param a_node_info
- * @param a_active_channels
- * @return dap_chain_node_client_t* return a connection handle, or NULL, if an error
- */
-dap_chain_node_client_t* dap_chain_node_client_connect_channels(dap_chain_net_t * l_net, dap_chain_node_info_t *a_node_info, const char *a_active_channels)
-{
-    return dap_chain_net_client_create_n_connect_channels(l_net,a_node_info,a_active_channels);
-}
-
 /**
  * @brief dap_chain_node_client_create_n_connect
  * @param a_net
@@ -743,8 +737,22 @@ dap_chain_node_client_t* dap_chain_node_client_connect_channels(dap_chain_net_t 
  * @param a_callback_arg
  * @return
  */
-dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t * a_net, dap_chain_node_info_t *a_node_info,
-        const char *a_active_channels,dap_chain_node_client_callbacks_t *a_callbacks, void * a_callback_arg )
+dap_chain_node_client_t *dap_chain_node_client_create_n_connect(dap_chain_net_t *a_net,
+                                                                dap_chain_node_info_t *a_node_info,
+                                                                const char *a_active_channels,
+                                                                const dap_chain_node_client_callbacks_t *a_callbacks,
+                                                                void *a_callback_arg)
+{
+    dap_chain_node_client_t *l_node_client = dap_chain_node_client_create(a_net, a_node_info, a_callbacks, a_callback_arg);
+    if (dap_chain_node_client_connect(l_node_client, a_active_channels))
+        return l_node_client;
+    return NULL;
+}
+
+dap_chain_node_client_t *dap_chain_node_client_create(dap_chain_net_t *a_net,
+                                                      dap_chain_node_info_t *a_node_info,
+                                                      const dap_chain_node_client_callbacks_t *a_callbacks,
+                                                      void *a_callback_arg)
 {
     if(!a_node_info) {
         log_it(L_ERROR, "Can't connect to the node: null object node_info");
@@ -754,7 +762,7 @@ dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t 
 
     l_node_client->state = NODE_CLIENT_STATE_DISCONNECTED;
     l_node_client->callbacks_arg = a_callback_arg;
-    if(a_callbacks)
+    if (a_callbacks)
         l_node_client->callbacks = *a_callbacks;
     l_node_client->info = DAP_DUP(a_node_info);
     l_node_client->uuid = dap_uuid_generate_uint64();
@@ -777,21 +785,21 @@ dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t 
 
     pthread_mutex_init(&l_node_client->wait_mutex, NULL);
     l_node_client->remote_node_addr.uint64 = a_node_info->hdr.address.uint64;
-    if (dap_chain_node_client_connect_internal(l_node_client, a_active_channels))
-        return l_node_client;
-    return NULL;
+    return l_node_client;
 }
 
 /**
- * @brief dap_chain_node_client_connect_internal
+ * @brief dap_chain_node_client_connect
  * Create new dap_client, setup it, and send it in adventure trip
  * @param a_node_client dap_chain_node_client_t
  * @param a_active_channels a_active_channels
  * @return true
  * @return false
  */
-static bool dap_chain_node_client_connect_internal(dap_chain_node_client_t *a_node_client, const char *a_active_channels)
+bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const char *a_active_channels)
 {
+    if (!a_node_client)
+        return false;
     a_node_client->client = dap_client_new( s_stage_status_callback,
             s_stage_status_error_callback);
     dap_client_set_is_always_reconnect(a_node_client->client, false);
@@ -805,15 +813,14 @@ static bool dap_chain_node_client_connect_internal(dap_chain_node_client_t *a_no
     if(a_node_client->info->hdr.ext_addr_v4.s_addr){
         struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = a_node_client->info->hdr.ext_addr_v4 };
         inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), host, hostlen);
-        log_it(L_INFO, "Connecting to %s address",host);
     } else {
         struct sockaddr_in6 sa6 = { .sin6_family = AF_INET6, .sin6_addr = a_node_client->info->hdr.ext_addr_v6 };
         inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) &sa6)->sin6_addr), host, hostlen);
-        log_it(L_INFO, "Connecting to %s address",host);
     }
+    log_it(L_INFO, "Connecting to %s address", host);
     // address not defined
     if(!strcmp(host, "::")) {
-        dap_chain_node_client_close(a_node_client);
+        log_it(L_WARNING, "Undefined address with node client connect to");
         return false;
     }
     dap_client_set_uplink_unsafe(a_node_client->client, host, a_node_client->info->hdr.ext_port);
@@ -821,19 +828,6 @@ static bool dap_chain_node_client_connect_internal(dap_chain_node_client_t *a_no
     // Handshake & connect
     dap_client_go_stage(a_node_client->client, STAGE_STREAM_STREAMING, s_stage_connected_callback);
     return true;
-}
-
-/**
- * @brief dap_chain_node_client_connect
- * Create connection to server
- * @param a_net
- * @param a_node_info
- * @return dap_chain_node_client_t* return a connection handle, or NULL, if an error
- */
-dap_chain_node_client_t* dap_chain_node_client_connect(dap_chain_net_t * a_net,dap_chain_node_info_t *a_node_info)
-{
-    const char *l_active_channels = "CN";
-    return dap_chain_node_client_connect_channels(a_net,a_node_info, l_active_channels);
 }
 
 /**
@@ -848,62 +842,64 @@ void dap_chain_node_client_reset(dap_chain_node_client_t *a_client)
     }
 }
 
+dap_chain_node_client_t *dap_chain_node_client_find(dap_events_socket_uuid_t a_uuid)
+{
+    dap_chain_node_client_handle_t * l_client_found = NULL;
+    HASH_FIND(hh,s_clients, &a_uuid, sizeof(a_uuid), l_client_found);
+    return l_client_found ? l_client_found->client : NULL;
+}
 
 /**
  * @brief dap_chain_node_client_close
  * Close connection to server, delete chain_node_client_t *client
  * @param a_client dap_chain_node_client_t
  */
-void dap_chain_node_client_close(dap_chain_node_client_t *a_client)
+void dap_chain_node_client_close(dap_events_socket_uuid_t a_uuid)
 {
-    if (!a_client)
-        return;
     dap_chain_node_client_handle_t * l_client_found = NULL;
-    HASH_FIND(hh,s_clients,&a_client->uuid,sizeof(a_client->uuid),l_client_found);
+    HASH_FIND(hh, s_clients, &a_uuid, sizeof(a_uuid), l_client_found);
     if (l_client_found) {
-
-        if (l_client_found->client->sync_timer) {
-            // Free memory callback_arg=uuid
-            DAP_DELETE(l_client_found->client->sync_timer->callback_arg);
-            dap_timerfd_delete(l_client_found->client->sync_timer);
+        dap_chain_node_client_t *l_client = l_client_found->client;
+        if (l_client->sync_timer) {
+            DAP_DELETE(l_client->sync_timer->callback_arg);
+            dap_timerfd_delete(l_client->sync_timer);
         }
-
         HASH_DEL(s_clients,l_client_found);
         DAP_DELETE(l_client_found);
-        if (a_client->callbacks.delete)
-            a_client->callbacks.delete(a_client, a_client->net);
+        if (l_client->callbacks.delete)
+            l_client->callbacks.delete(l_client, l_client->net);
         char l_node_addr_str[INET_ADDRSTRLEN] = {};
-        inet_ntop(AF_INET, &a_client->info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
-        log_it(L_INFO, "Closing node client to uplink %s:%d", l_node_addr_str, a_client->info->hdr.ext_port);
-        if (a_client->stream_worker) {
-            dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(a_client->stream_worker, a_client->ch_chain_uuid);
+        inet_ntop(AF_INET, &l_client->info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
+        log_it(L_INFO, "Closing node client to uplink %s:%d", l_node_addr_str, l_client->info->hdr.ext_port);
+        if (l_client->stream_worker) {
+            dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(l_client->stream_worker, l_client->ch_chain_uuid);
             if (l_ch) {
                 dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
                 l_ch_chain->callback_notify_packet_in = NULL;
                 l_ch_chain->callback_notify_packet_out = NULL;
             }
-            l_ch = dap_stream_ch_find_by_uuid_unsafe(a_client->stream_worker, a_client->ch_chain_net_uuid);
+            l_ch = dap_stream_ch_find_by_uuid_unsafe(l_client->stream_worker, l_client->ch_chain_net_uuid);
             if (l_ch) {
                 dap_stream_ch_chain_net_t *l_ch_chain_net = DAP_STREAM_CH_CHAIN_NET(l_ch);
                 l_ch_chain_net->notify_callback = NULL;
             }
         }
         // clean client
-        dap_client_pvt_t *l_client_pvt = dap_client_pvt_find(a_client->client->pvt_uuid);
+        dap_client_pvt_t *l_client_pvt = dap_client_pvt_find(l_client->client->pvt_uuid);
         if (l_client_pvt) {
-            dap_client_delete_mt(a_client->client);
-            a_client->client->_inheritor = NULL;
+            dap_client_delete_mt(l_client->client);
+            l_client->client->_inheritor = NULL;
         }
 #ifndef _WIN32
-        pthread_cond_destroy(&a_client->wait_cond);
+        pthread_cond_destroy(&l_client->wait_cond);
 #else
-        CloseHandle( a_client->wait_cond );
+        CloseHandle( l_client->wait_cond );
 #endif
-        pthread_mutex_destroy(&a_client->wait_mutex);
-        a_client->client = NULL;
-        if (a_client->info)
-            DAP_DELETE(a_client->info);
-        DAP_DELETE(a_client);
+        pthread_mutex_destroy(&l_client->wait_mutex);
+        l_client->client = NULL;
+        if (l_client->info)
+            DAP_DELETE(l_client->info);
+        DAP_DELETE(l_client);
     } else {
         log_it(L_WARNING, "Chain node client was removed from hash table before for some reasons");
     }
@@ -970,15 +966,9 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
     struct timespec l_cond_timeout;
     clock_gettime( CLOCK_MONOTONIC, &l_cond_timeout);
     l_cond_timeout.tv_sec += a_timeout_ms/1000;
-#else
-    pthread_mutex_unlock( &a_client->wait_mutex );
-#endif
-
     // signal waiting
-
-
-#ifndef DAP_OS_WINDOWS
-    do {
+    dap_chain_node_client_state_t l_clinet_state = a_client->state;
+    while (a_client->state == l_clinet_state) {
         int l_ret_wait = pthread_cond_timedwait(&a_client->wait_cond, &a_client->wait_mutex, &l_cond_timeout);
         if(l_ret_wait == 0 && (
                 a_client->state == a_waited_state ||
@@ -997,8 +987,10 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
             strerror_r(l_ret_wait,l_errbuf,sizeof (l_errbuf));
             log_it(L_ERROR, "Pthread condition timed wait returned \"%s\"(code %d)", l_errbuf, l_ret_wait);
         }
-    } while(1);
+    }
+    pthread_mutex_unlock(&a_client->wait_mutex);
 #else
+    pthread_mutex_unlock( &a_client->wait_mutex );
     DWORD wait = WaitForSingleObject( a_client->wait_cond, (uint32_t)a_timeout_ms);
     if ( wait == WAIT_OBJECT_0 && (
              a_client->state == a_waited_state ||
@@ -1010,22 +1002,20 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
         return -1;
     }
 #endif
-
-#ifndef DAP_OS_WINDOWS
-    pthread_mutex_unlock(&a_client->wait_mutex);
-#endif
     return ret;
 }
 
 /**
- * @brief dap_chain_node_client_set_callbacks
+ * @brief s_node_client_set_notify_callbacks
  *
  * @param a_client dap_client_t
  * @param a_ch_id uint8_t
  * @return int
  */
-int dap_chain_node_client_set_callbacks(dap_client_t *a_client, uint8_t a_ch_id)
+static int s_node_client_set_notify_callbacks(dap_client_t *a_client, uint8_t a_ch_id)
 {
+    //TODO pass callbacks through stream creation to internal ch structures
+
     int l_ret = -1;
     dap_chain_node_client_t *l_node_client = a_client->_inheritor;
     if(l_node_client) {
@@ -1056,9 +1046,9 @@ int dap_chain_node_client_set_callbacks(dap_client_t *a_client, uint8_t a_ch_id)
             // R
             if(a_ch_id == dap_stream_ch_chain_net_srv_get_id()) {
                 dap_stream_ch_chain_net_srv_t *l_ch_chain = DAP_STREAM_CH_CHAIN_NET_SRV(l_ch);
-                if (l_node_client->callbacks.srv_pkt_in) {
+                if (l_node_client->notify_callbacks.srv_pkt_in) {
                     l_ch_chain->notify_callback = (dap_stream_ch_chain_net_srv_callback_packet_t)
-                                                             l_node_client->callbacks.srv_pkt_in;
+                                                             l_node_client->notify_callbacks.srv_pkt_in;
                     l_ch_chain->notify_callback_arg = l_node_client->callbacks_arg;
                 } else {
                     l_ch_chain->notify_callback = s_ch_chain_callback_notify_packet_R;
@@ -1082,15 +1072,6 @@ int dap_chain_node_client_set_callbacks(dap_client_t *a_client, uint8_t a_ch_id)
     }
     return l_ret;
 }
-
-/*static void nodelist_response_callback(dap_client_t *a_client, void *data, size_t data_len)
-{
-}
-
-static void nodelist_response_error_callback(dap_client_t *a_client, int a_err)
-{
-}*/
-
 
 /**
  * @brief dap_chain_node_client_send_nodelist_req

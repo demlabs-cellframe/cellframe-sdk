@@ -58,6 +58,7 @@
 
 #include "dap_chain_common.h"
 #include "dap_chain_mempool.h"
+#include "dap_chain_net_tx.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_net_srv_order.h"
@@ -267,7 +268,7 @@ static dap_chain_hash_fast_t* dap_chain_net_vpn_client_tx_cond_hash(dap_chain_ne
     if(l_tx_cond_hash)
         return l_tx_cond_hash;
 
-    //l_pkey_b64 = (char*) dap_chain_global_db_gr_get(dap_strdup("client_pkey"), &l_gdb_group_size, l_gdb_group);
+    //l_pkey_b64 = (char*) dap_global_db_gr_get(dap_strdup("client_pkey"), &l_gdb_group_size, l_gdb_group);
     dap_enc_key_t *l_enc_key = NULL;
     if(a_wallet) {
         l_enc_key = dap_chain_wallet_get_key(a_wallet, 0);
@@ -301,7 +302,7 @@ static dap_chain_hash_fast_t* dap_chain_net_vpn_client_tx_cond_hash(dap_chain_ne
      uint8_t *l_pub_key_data = dap_enc_key_serealize_pub_key(l_cert->enc_key, &l_pub_key_data_size);
      // save pub key
      if(l_pub_key_data && l_pub_key_data_size > 0){
-     if(dap_chain_global_db_gr_set(dap_strdup("client_pkey"), l_pub_key_data, l_pub_key_data_size,
+     if(dap_global_db_gr_set(dap_strdup("client_pkey"), l_pub_key_data, l_pub_key_data_size,
      l_gdb_group)){
      l_pkey_b64 = l_pub_key_data;
      l_pkey_b64_size = l_pub_key_data_size;
@@ -327,14 +328,17 @@ static dap_chain_hash_fast_t* dap_chain_net_vpn_client_tx_cond_hash(dap_chain_ne
         dap_chain_net_srv_uid_t l_srv_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };
         uint256_t l_value = dap_chain_uint256_from(a_value_datoshi);
         uint256_t l_zero = {};
-        l_tx_cond_hash = dap_chain_mempool_tx_create_cond(a_net, l_enc_key, l_client_key, a_token_ticker,
-                                                          l_value, l_zero, l_price_unit, l_srv_uid, l_zero, NULL, 0);
+        char *l_tx_cond_hash_str = dap_chain_mempool_tx_create_cond(a_net, l_enc_key, l_client_key, a_token_ticker,
+                                                          l_value, l_zero, l_price_unit, l_srv_uid, l_zero, NULL, 0, "hex");
         DAP_DELETE(l_addr_from);
-        if(!l_tx_cond_hash) {
+        if(!l_tx_cond_hash_str) {
             log_it(L_ERROR, "Can't create condition for user");
         } else {
+            l_tx_cond_hash = DAP_NEW(dap_hash_fast_t);
+            dap_chain_hash_fast_from_str(l_tx_cond_hash_str, l_tx_cond_hash);
+            DAP_DELETE(l_tx_cond_hash_str);
             // save transaction for login
-            dap_global_db_set_sync( l_gdb_group,"client_tx_cond_hash", l_tx_cond_hash, sizeof(dap_chain_hash_fast_t), true);
+            dap_global_db_set_sync(l_gdb_group, "client_tx_cond_hash", l_tx_cond_hash, sizeof(dap_chain_hash_fast_t), true);
         }
         DAP_DELETE(l_client_key);
     }
@@ -358,11 +362,11 @@ int dap_chain_net_vpn_client_update(dap_chain_net_t *a_net, const char *a_wallet
     }
 
     char *l_gdb_group = dap_strdup_printf("local.%s", DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
-    if(!dap_global_db_set_sync(l_gdb_group, "wallet_name", a_wallet_name, -1,true))
+    if(dap_global_db_set_sync(l_gdb_group, "wallet_name", a_wallet_name, -1,true))
         return -2;
-    if(!dap_global_db_set_sync(l_gdb_group, "token_name", a_str_token, -1, true))
+    if(dap_global_db_set_sync(l_gdb_group, "token_name", a_str_token, -1, true))
         return -2;
-    if(!dap_global_db_set_sync(l_gdb_group, "value_datoshi", &a_value_datoshi, sizeof(a_value_datoshi), true))
+    if(dap_global_db_set_sync(l_gdb_group, "value_datoshi", &a_value_datoshi, sizeof(a_value_datoshi), true))
         return -2;
     DAP_DELETE(l_gdb_group);
     dap_chain_hash_fast_t *l_hash = dap_chain_net_vpn_client_tx_cond_hash(a_net, l_wallet, a_str_token,
@@ -487,9 +491,9 @@ char *dap_chain_net_vpn_client_check_result(dap_chain_net_t *a_net, const char* 
 int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_str, const char *a_ipv6_str, int a_port, size_t a_data_size_to_send, size_t a_data_size_to_recv, int a_timeout_test_ms)
 {
     // default 10k
-    if(a_data_size_to_send==-1)
+    if(a_data_size_to_send== (size_t) -1)
         a_data_size_to_send = 10240;
-    if(a_data_size_to_recv==-1)
+    if(a_data_size_to_recv== (size_t) -1)
         a_data_size_to_recv = 10240;
     // default 10 sec = 10000 ms
     if(a_timeout_test_ms==-1)
@@ -528,7 +532,7 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_st
     if(l_res) {
         log_it(L_ERROR, "No response from VPN server=%s:%d", a_ipv4_str, a_port);
         // clean client struct
-        dap_chain_node_client_close(s_vpn_client);
+        dap_chain_node_client_close(s_vpn_client->uuid);
         DAP_DELETE(s_node_info);
         s_node_info = NULL;
         return -3;
@@ -574,7 +578,7 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_st
         log_it(L_NOTICE, "Got response from VPN server=%s:%d", a_ipv4_str, a_port);
     }
     // clean client struct
-    dap_chain_node_client_close(s_vpn_client);
+    dap_chain_node_client_close(s_vpn_client->uuid);
     DAP_DELETE(s_node_info);
     s_node_info = NULL;
     if(l_res)
@@ -607,7 +611,7 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
     if(!s_vpn_client) {
         log_it(L_ERROR, "Can't connect to VPN server=%s:%d", a_ipv4_str, a_port);
         // clean client struct
-        dap_chain_node_client_close(s_vpn_client);
+        dap_chain_node_client_close(s_vpn_client->uuid);
         DAP_DELETE(s_node_info);
         s_node_info = NULL;
         return -2;
@@ -618,7 +622,7 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
     if(res) {
         log_it(L_ERROR, "No response from VPN server=%s:%d", a_ipv4_str, a_port);
         // clean client struct
-        dap_chain_node_client_close(s_vpn_client);
+        dap_chain_node_client_close(s_vpn_client->uuid);
         DAP_DELETE(s_node_info);
         s_node_info = NULL;
         return -3;
@@ -657,7 +661,7 @@ int dap_chain_net_vpn_client_stop(void)
 {
     // delete connection with VPN server
     if(s_vpn_client) {
-        dap_chain_node_client_close(s_vpn_client);
+        dap_chain_node_client_close(s_vpn_client->uuid);
         s_vpn_client = NULL;
     }
     DAP_DELETE(s_node_info);

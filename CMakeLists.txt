@@ -54,6 +54,7 @@ endif()
 
 if (BUILD_CELLFRAME_SDK_TESTS)
     enable_testing()
+    add_definitions("-DDAP_CHAIN_LEDGER_TEST")
     set(CELLFRAME_MODULES ${CELLFRAME_MODULES} "test-framework")
     if (NOT OFF_CORE_CELLFRAME_SDK_TESTS_OFF MATCHES "all")
         set(BUILD_DAP_TESTS ON)
@@ -93,19 +94,13 @@ if (CELLFRAME_MODULES MATCHES "test-framework")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_test)
 endif()
 
+add_subdirectory(3rdparty/crc32c_adler)             # https://github.com/fonic/crc32c_adler
+include_directories(3rdparty/crc32c_adler)
+set(CELLFRAME_LIBS ${CELLFRAME_LIBS} crc32c_adler)
+
 if(BUILD_TESTS)
     include(cmake/OS_Detection.cmake)
-endif()
-
-if( DARWIN)
-    add_subdirectory(3rdparty/json-c-darwin)
-    add_subdirectory(3rdparty/libmagic-darwin)
-    include_directories(3rdparty/json-c-darwin)
-endif()
-if (ANDROID)
-    add_subdirectory(3rdparty/libmagic)
-    add_subdirectory(3rdparty/json-c)
-    include_directories(cellframe-sdk/3rdparty/)
+    add_subdirectory(dap-sdk)
 endif()
 
 if (BUILD_WITH_ZIP)
@@ -113,17 +108,13 @@ if (BUILD_WITH_ZIP)
     include_directories(3rdparty/libzip/lib)
 endif()
 
-add_subdirectory(dap-sdk)
 add_subdirectory(3rdparty/monero_crypto)
-add_subdirectory(3rdparty/cuttdb)
-if (BUILD_WITH_GDB_DRIVER_MDBX)
-add_subdirectory(3rdparty/libmdbx)
-endif()
 if(DAPSDK_MODULES MATCHES "ssl-support")
     add_subdirectory(3rdparty/wolfssl)
 endif()
 
 add_subdirectory(modules/)
+
 
 add_library(${PROJECT_NAME} STATIC cellframe-sdk.c)
 
@@ -139,7 +130,7 @@ endif()
 # General chain libs
 if (CELLFRAME_MODULES MATCHES "chains")
     message("[+] Module 'chains'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_common dap_chain dap_chain_global_db dap_chain_wallet)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_common dap_chain dap_global_db dap_chain_wallet)
 endif()
 
 # Networking
@@ -249,6 +240,7 @@ if (CELLFRAME_MODULES MATCHES "srv-stake-pos-delegate")
     #add TARGET_FILE for proper symbols resolving
     #pos_delegate depends on symbols from this libs
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake_pos_delegate $<TARGET_FILE:dap_chain_cs_dag_poa> $<TARGET_FILE:dap_chain_cs_block_poa> $<TARGET_FILE:dap_chain_cs_dag> $<TARGET_FILE:dap_chain_cs_blocks>)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} crc32c_adler)
 endif()
 
 # Enable service for dynamic modules
@@ -259,18 +251,14 @@ endif()
 
 if (WIN32)
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} kernel32 user32 shell32 winmm gdi32 advapi32
-					 ole32 version imm32 oleaut32 ws2_32 ntdll psapi 
-                                         shlwapi bcrypt crypt32 secur32 userenv mqrt)
+					 ole32 version imm32 oleaut32 ws2_32 ntdll psapi
+                                         shlwapi bcrypt crypt32 secur32 userenv) #mqrt)
 endif()
 
 if (DARWIN)
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} bz2)
 endif()
 
+set(CELLFRAME_LIBS ${CELLFRAME_LIBS} crc32c_adler)
+
 target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})
-#if(BUILD_DAP_TESTS)
-#    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/test/main_test.py
-#            DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/)
-#    enable_testing()
-    #add_subdirectory(test)
-#endif()

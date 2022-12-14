@@ -41,8 +41,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_datum_tx.h"
 #include "uthash.h"
 
-
 #define DAP_CHAIN_NET_NAME_MAX 32
+#define DAP_BROADCAST_LIFETIME 15   // minutes
 
 struct dap_chain_node_info;
 typedef struct dap_chain_node_client dap_chain_node_client_t;
@@ -81,11 +81,13 @@ typedef struct dap_chain_net{
         bool mempool_autoproc;
 
         dap_chain_t * chains; // double-linked list of chains
-        dap_chain_t * default_chain;
+        const char *native_ticker;
         dap_ledger_t  *ledger;
     } pub;
     uint8_t pvt[];
 } dap_chain_net_t;
+
+typedef bool (dap_chain_datum_filter_func_t)(dap_chain_datum_t *a_datum, dap_chain_t * a_chain, void *a_filter_func_param);
 
 int dap_chain_net_init(void);
 void dap_chain_net_deinit(void);
@@ -94,15 +96,24 @@ void dap_chain_net_load_all();
 
 int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state);
 dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net);
+void dap_chain_net_set_state ( dap_chain_net_t * l_net, dap_chain_net_state_t a_state);
+dap_chain_net_state_t dap_chain_net_get_state ( dap_chain_net_t * l_net);
 
 inline static int dap_chain_net_start(dap_chain_net_t * a_net){ return dap_chain_net_state_go_to(a_net,NET_STATE_ONLINE); }
-inline static int dap_chain_net_stop(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_OFFLINE); }
+inline static int dap_chain_net_stop(dap_chain_net_t *a_net)
+{
+    if (dap_chain_net_get_target_state(a_net) == NET_STATE_ONLINE) {
+        dap_chain_net_state_go_to(a_net, NET_STATE_OFFLINE);
+        return true;
+    }
+    if (dap_chain_net_get_state(a_net) != NET_STATE_OFFLINE)
+        dap_chain_net_state_go_to(a_net, NET_STATE_OFFLINE);
+    return false;
+}
 inline static int dap_chain_net_links_establish(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_LINKS_ESTABLISHED); }
 inline static int dap_chain_net_sync_gdb(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_GDB); }
 inline static int dap_chain_net_sync_chains(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_CHAINS); }
 inline static int dap_chain_net_sync_all(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_CHAINS); }
-void dap_chain_net_set_state ( dap_chain_net_t * l_net, dap_chain_net_state_t a_state);
-dap_chain_net_state_t dap_chain_net_get_state ( dap_chain_net_t * l_net);
 
 /**
  * @brief dap_chain_net_state_to_str
@@ -123,11 +134,10 @@ bool dap_chain_net_get_flag_sync_from_zero( dap_chain_net_t * a_net);
 
 bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t *a_client);
 bool dap_chain_net_sync_unlock(dap_chain_net_t *a_net, dap_chain_node_client_t *a_client);
-bool dap_chain_net_sync_trylock_nolock(dap_chain_net_t* a_net, dap_chain_node_client_t* a_client);
 
 dap_chain_net_t * dap_chain_net_by_name( const char * a_name);
 dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id);
-uint16_t dap_chain_net_acl_idx_by_id(dap_chain_net_id_t a_id);
+uint16_t dap_chain_net_get_acl_idx(dap_chain_net_t *a_net);
 dap_chain_net_id_t dap_chain_net_id_by_name( const char * a_name);
 dap_ledger_t * dap_chain_ledger_by_net_name( const char * a_net_name);
 dap_string_t* dap_cli_list_net();
@@ -141,55 +151,6 @@ const char* dap_chain_net_get_type(dap_chain_t *l_chain);
 
 dap_list_t* dap_chain_net_get_link_node_list(dap_chain_net_t * l_net, bool a_is_only_cur_cell);
 dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * l_net);
-
-typedef enum dap_chain_net_tx_search_type {
-    /// Search local, in memory, possible load data from drive to memory
-    TX_SEARCH_TYPE_LOCAL,
-    /// Do the request to the network if its not full node, search inside shard
-    TX_SEARCH_TYPE_CELL,
-    /// Do the request for unspent txs in cell
-    TX_SEARCH_TYPE_CELL_UNSPENT,
-    /// Do the search in whole network and request tx from others cells if need
-    TX_SEARCH_TYPE_NET,
-    /// Do the search in whole network but search only unspent
-    TX_SEARCH_TYPE_NET_UNSPENT,
-    /// Do the request for spent txs in cell
-    TX_SEARCH_TYPE_CELL_SPENT,
-    /// Do the search in whole
-    TX_SEARCH_TYPE_NET_SPENT
-}dap_chain_net_tx_search_type_t;
-
-dap_chain_datum_tx_t * dap_chain_net_get_tx_by_hash(dap_chain_net_t * a_net, dap_chain_hash_fast_t * a_tx_hash,
-                                                     dap_chain_net_tx_search_type_t a_search_type);
-
-uint256_t dap_chain_net_get_tx_total_value(dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx);
-
-dap_list_t * dap_chain_net_get_tx_cond_all_by_srv_uid(dap_chain_net_t * a_net, const dap_chain_net_srv_uid_t a_srv_uid,
-                                                      const dap_time_t a_time_from, const dap_time_t a_time_to,
-                                                     const dap_chain_net_tx_search_type_t a_search_type);
-
-typedef struct dap_chain_datum_tx_spends_item {
-    dap_chain_datum_tx_t* tx;
-    dap_hash_fast_t tx_hash;
-
-    dap_chain_tx_out_cond_t* out_cond;
-    dap_chain_tx_in_cond_t* in_cond;
-
-    dap_chain_datum_tx_t* tx_next;
-    UT_hash_handle hh;
-}dap_chain_datum_tx_spends_item_t;
-
-typedef struct dap_chain_datum_tx_spends_items {
-    dap_chain_datum_tx_spends_item_t* tx_outs;
-    dap_chain_datum_tx_spends_item_t* tx_ins;
-} dap_chain_datum_tx_spends_items_t;
-
-dap_chain_datum_tx_spends_items_t* dap_chain_net_get_tx_cond_all_with_spends_by_srv_uid(dap_chain_net_t* a_net, const dap_chain_net_srv_uid_t a_srv_uid,
-    const dap_time_t a_time_from, const dap_time_t a_time_to,
-    const dap_chain_net_tx_search_type_t a_search_type);
-void dap_chain_datum_tx_spends_item_free(dap_chain_datum_tx_spends_item_t* a_items);
-void dap_chain_datum_tx_spends_items_free(dap_chain_datum_tx_spends_items_t* a_items);
-
 dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net);
 
 /**
@@ -197,43 +158,33 @@ dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net);
  * @param l_chain
  * @return
  */
-DAP_STATIC_INLINE char * dap_chain_net_get_gdb_group_mempool_new(dap_chain_t * l_chain)
+DAP_STATIC_INLINE char *dap_chain_net_get_gdb_group_mempool_new(dap_chain_t *a_chain)
 {
-    dap_chain_net_t * l_net = l_chain ? dap_chain_net_by_id(l_chain->net_id) : NULL;
-    if ( l_net ) {
-        const char c_mempool_group_str[]="mempool";
-		return dap_strdup_printf("%s.chain-%s.%s",l_net->pub.gdb_groups_prefix,l_chain->name,c_mempool_group_str);
-    }
-    return NULL;
-}
-
-DAP_STATIC_INLINE char * dap_chain_net_get_gdb_group_from_chain_new(dap_chain_t * l_chain)
-{
-    dap_chain_net_t * l_net = l_chain ? dap_chain_net_by_id(l_chain->net_id) : NULL;
+    dap_chain_net_t *l_net = a_chain ? dap_chain_net_by_id(a_chain->net_id) : NULL;
     if ( l_net )
-		return dap_strdup_printf( "chain-gdb.%s.chain-%016llX",l_net->pub.name, l_chain->id.uint64);
-
+        return dap_strdup_printf("%s.chain-%s.mempool", l_net->pub.gdb_groups_prefix,a_chain->name);
     return NULL;
 }
 
-dap_chain_t * dap_chain_net_get_chain_by_chain_type(dap_chain_net_t * l_net, dap_chain_type_t a_datum_type);
-dap_chain_t * dap_chain_net_get_default_chain_by_chain_type(dap_chain_net_t * l_net, dap_chain_type_t a_datum_type);
-char * dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t * l_net, dap_chain_type_t a_datum_type);
+DAP_STATIC_INLINE char *dap_chain_net_get_gdb_group_from_chain_new(dap_chain_t *a_chain)
+{
+    dap_chain_net_t *l_net = a_chain ? dap_chain_net_by_id(a_chain->net_id) : NULL;
+    if ( l_net )
+        return dap_strdup_printf("chain-gdb.%s.chain-%016llX",l_net->pub.name, a_chain->id.uint64);
+    return NULL;
+}
+
+dap_chain_t *dap_chain_net_get_chain_by_chain_type(dap_chain_net_t *a_net, dap_chain_type_t a_datum_type);
+dap_chain_t *dap_chain_net_get_default_chain_by_chain_type(dap_chain_net_t *a_net, dap_chain_type_t a_datum_type);
+char *dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t *a_net, dap_chain_type_t a_datum_type);
 dap_chain_net_t **dap_chain_net_list(uint16_t *a_size);
 bool dap_chain_net_get_extra_gdb_group(dap_chain_net_t *a_net, dap_chain_node_addr_t a_node_addr);
 
 int dap_chain_net_verify_datum_for_add(dap_chain_net_t *a_net, dap_chain_datum_t * a_datum );
-void dap_chain_net_dump_datum(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type);
-int dap_chain_net_add_downlink(dap_chain_net_t *a_net, dap_stream_worker_t *a_worker, dap_stream_ch_uuid_t a_ch_uuid);
-void dap_chain_net_add_gdb_notify_callback(dap_chain_net_t *a_net, dap_global_db_obj_callback_notify_t a_callback, void *a_cb_arg);
-void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const char *a_group,
-                                      const char *a_key, const void *a_value, const size_t a_value_len);
+int dap_chain_net_add_downlink(dap_chain_net_t *a_net, dap_stream_worker_t *a_worker, dap_stream_ch_uuid_t a_ch_uuid, dap_events_socket_uuid_t a_esocket_uuid);
+void dap_chain_net_add_gdb_notify_callback(dap_chain_net_t *a_net, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg);
+void dap_chain_net_sync_gdb_broadcast(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg);
 
-struct dap_chain_node_client * dap_chain_net_client_create_n_connect( dap_chain_net_t * a_net, struct dap_chain_node_info *a_link_info);
-struct dap_chain_node_client * dap_chain_net_client_create_n_connect_channels( dap_chain_net_t * a_net,struct dap_chain_node_info *a_link_info,
-                                                                               const char * a_channels);
-
-typedef bool (datum_filter_func_t)(dap_chain_datum_t *a_datum, dap_chain_t * a_chain, void *a_filter_func_param);
 /**
  * @brief dap_chain_datum_list
  * Get datum list by filter
@@ -242,6 +193,6 @@ typedef bool (datum_filter_func_t)(dap_chain_datum_t *a_datum, dap_chain_t * a_c
  * @param a_filter_func
  * @param a_filter_func_param
  */
-dap_list_t* dap_chain_datum_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, datum_filter_func_t *a_filter_func, void *a_filter_func_param);
+dap_list_t *dap_chain_datum_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_chain_datum_filter_func_t *a_filter_func, void *a_filter_func_param);
 
-int dap_chain_datum_add(dap_chain_t* a_chain, dap_chain_datum_t* a_datum, size_t a_datum_size);
+int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_tx_hash);

@@ -47,7 +47,7 @@
 #include "uthash.h"
 #include "dap_http_client.h"
 #include "dap_global_db.h"
-#include "dap_chain_global_db_remote.h"
+#include "dap_global_db_remote.h"
 #include "dap_stream.h"
 #include "dap_stream_ch_pkt.h"
 #include "dap_stream_ch_proc.h"
@@ -177,6 +177,7 @@ void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg)
         session_data_del(a_ch->stream->session->id);
         pthread_mutex_unlock(&l_ch_chain_net->mutex);
     }
+    DAP_DEL_Z(a_ch->internal);
 }
 
 /**
@@ -198,22 +199,30 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         pthread_mutex_lock(&l_ch_chain_net->mutex);
         dap_stream_ch_pkt_t *l_ch_pkt = (dap_stream_ch_pkt_t *) a_arg;
         dap_stream_ch_chain_net_pkt_t *l_ch_chain_net_pkt = (dap_stream_ch_chain_net_pkt_t *) l_ch_pkt->data;
-        uint16_t l_acl_idx = dap_chain_net_acl_idx_by_id(l_ch_chain_net_pkt->hdr.net_id);
+        dap_chain_net_t *l_net = dap_chain_net_by_id(l_ch_chain_net_pkt->hdr.net_id);
         bool l_error = false;
         char l_err_str[64];
-        if (l_acl_idx == (uint16_t)-1) {
+        if (!l_net) {
             log_it(L_ERROR, "Invalid net id in packet");
             strcpy(l_err_str, "ERROR_NET_INVALID_ID");
             l_error = true;
         }
-        uint8_t l_acl = a_ch->stream->session->acl ? a_ch->stream->session->acl[l_acl_idx] : 1;
-        if (!l_error && !l_acl) {
-            log_it(L_WARNING, "Unauthorized request attempt to network %s",
-                   dap_chain_net_by_id(l_ch_chain_net_pkt->hdr.net_id)->pub.name);
-            strcpy(l_err_str, "ERROR_NET_NOT_AUTHORIZED");
+        if (!l_error && dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
+            log_it(L_ERROR, "Invalid net id in packet");
+            strcpy(l_err_str, "ERROR_NET_IS_OFFLINE");
             l_error = true;
         }
-        if (l_error) {
+        if (!l_error) {
+            uint16_t l_acl_idx = dap_chain_net_get_acl_idx(l_net);
+            uint8_t l_acl = a_ch->stream->session->acl ? a_ch->stream->session->acl[l_acl_idx] : 1;
+            if (!l_acl) {
+                log_it(L_WARNING, "Unauthorized request attempt to network %s",
+                       dap_chain_net_by_id(l_ch_chain_net_pkt->hdr.net_id)->pub.name);
+                strcpy(l_err_str, "ERROR_NET_NOT_AUTHORIZED");
+                l_error = true;
+            }
+        } else {
+
             dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR ,
                                               l_ch_chain_net_pkt->hdr.net_id, l_err_str, strlen(l_err_str) + 1);
             dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);

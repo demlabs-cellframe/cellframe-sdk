@@ -26,9 +26,8 @@
 #pragma once
 #include <stdint.h>
 #include <stdbool.h>
-
-//#include "dap_enc_key.h"
 #include "dap_common.h"
+#include "dap_hash.h"
 #include "dap_list.h"
 #include "dap_math_ops.h"
 #include "dap_chain_common.h"
@@ -39,11 +38,14 @@
 
 typedef struct dap_ledger {
     char *net_name;
+    dap_list_t *tx_add_notifiers;
     void *_internal;
 } dap_ledger_t;
 
-typedef bool (*dap_chain_ledger_verificator_callback_t)(dap_ledger_t* a_ledger, dap_chain_tx_out_cond_t* a_cond, dap_chain_datum_tx_t* a_tx, bool a_owner);
+typedef bool (* dap_chain_ledger_verificator_callback_t)(dap_ledger_t * a_ledger, dap_hash_fast_t *a_tx_out_hash,  dap_chain_tx_out_cond_t *a_tx_out_cond,
+                                                         dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 typedef bool (*dap_chain_ledger_verificator_callback_out_t)(dap_ledger_t* a_ledger, dap_chain_datum_tx_t* a_tx, dap_chain_tx_out_cond_t* a_cond);
+typedef void (* dap_chain_ledger_tx_add_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
 
 typedef struct dap_chain_net dap_chain_net_t;
 
@@ -65,14 +67,13 @@ typedef struct dap_chain_net dap_chain_net_t;
 
 #define DAP_CHAIN_LEDGER_TOKENS_STR              "tokens"
 #define DAP_CHAIN_LEDGER_EMISSIONS_STR           "emissions"
+#define DAP_CHAIN_LEDGER_STAKE_LOCK_STR          "stake_lock"
 #define DAP_CHAIN_LEDGER_TXS_STR                 "txs"
 #define DAP_CHAIN_LEDGER_SPENT_TXS_STR           "spent_txs"
-#define DAP_CHAIN_LEDGER_SPENT_TXS_TIME_STR      "spent_txs_time"
 #define DAP_CHAIN_LEDGER_BALANCES_STR            "balances"
 
 int dap_chain_ledger_init();
 void dap_chain_ledger_deinit();
-bool dap_chain_global_rwlocks_and_verificators_init(void);
 
 dap_ledger_t* dap_chain_ledger_create(uint16_t a_check_flags, char *a_net_name);
 
@@ -117,6 +118,13 @@ int dap_chain_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
 int dap_chain_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
 
 /**
+ * Print list transaction from ledger
+ *
+ */
+
+char * dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_addr_t *a_addr, const char *a_hash_out_type);
+
+/**
  * Check token ticker existance
  *
  */
@@ -145,6 +153,9 @@ int dap_chain_ledger_token_emission_load(dap_ledger_t *a_ledger, byte_t *a_token
 // Check if it addable
 int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size);
 
+/* Add stake-lock item */
+int dap_chain_ledger_emission_for_stake_lock_item_add(dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_tx_hash);
+
 dap_chain_datum_token_emission_t *dap_chain_ledger_token_emission_find(dap_ledger_t *a_ledger,
         const char *a_token_ticker, const dap_chain_hash_fast_t *a_token_emission_hash);
 
@@ -157,16 +168,15 @@ void dap_chain_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chai
         char *** a_tickers, size_t * a_tickers_size);
 
 // Checking a new transaction before adding to the cache
-int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, bool a_from_threshold,
-        dap_list_t **a_list_bound_items, dap_list_t **a_list_tx_out);
-
+int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash,
+                                    bool a_from_threshold, dap_list_t **a_list_bound_items, dap_list_t **a_list_tx_out);
 
 /**
  * Delete transaction from the cache
  *
  * return 1 OK, -1 error, -2 tx_hash not found
  */
-int dap_chain_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash);
+int dap_chain_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash, dap_time_t a_spent_time);
 
 /**
  * Delete all transactions from the cache
@@ -208,6 +218,7 @@ uint256_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_c
  */
  dap_chain_datum_tx_t* dap_chain_ledger_tx_find_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash);
 bool dap_chain_ledger_tx_spent_find_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash);
+dap_hash_fast_t *dap_chain_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_cond_type, dap_chain_hash_fast_t *a_tx_hash);
 
  // Get the transaction in the cache by the addr in out item
 dap_chain_datum_tx_t* dap_chain_ledger_tx_find_by_addr(dap_ledger_t *a_ledger, const char * a_token,
@@ -218,28 +229,33 @@ const dap_chain_datum_tx_t* dap_chain_ledger_tx_find_by_pkey(dap_ledger_t *a_led
         char *a_public_key, size_t a_public_key_size, dap_chain_hash_fast_t *a_tx_first_hash);
 
 // Get the transaction in the cache with the out_cond item
-dap_chain_datum_tx_t* dap_chain_ledger_tx_cache_find_out_cond(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_first_hash,
-                                                              dap_chain_tx_out_cond_t **a_out_cond, int *a_out_cond_idx, char *a_token_ticker);
+dap_chain_datum_tx_t* dap_chain_ledger_tx_cache_find_out_cond(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_subtype_t a_cond_type,
+                                                              dap_chain_hash_fast_t *a_tx_first_hash, dap_chain_tx_out_cond_t **a_out_cond,
+                                                              int *a_out_cond_idx, char *a_token_ticker);
 
 // Get all transactions from the cache with the specified out_cond items
 dap_list_t* dap_chain_ledger_tx_cache_find_out_cond_all(dap_ledger_t *a_ledger, dap_chain_net_srv_uid_t a_srv_uid);
 
 // Get the value from all transactions in the cache with out_cond item
-uint256_t dap_chain_ledger_tx_cache_get_out_cond_value(dap_ledger_t *a_ledger, dap_chain_addr_t *a_addr,
-        dap_chain_tx_out_cond_t **tx_out_cond);
+uint256_t dap_chain_ledger_tx_cache_get_out_cond_value(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_subtype_t a_cond_type, dap_chain_addr_t *a_addr,
+                                                       dap_chain_tx_out_cond_t **tx_out_cond);
 
 // Get the list of 'out' items from previous transactions with summary value >= than a_value_need
 // Put this summary value to a_value_transfer
 dap_list_t *dap_chain_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
                                                        uint256_t a_value_need, uint256_t *a_value_transfer);
+
 // Get the list of 'out_cond' items with summary value >= than a_value_need
 dap_list_t *dap_chain_ledger_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledger, const char *a_token_ticker,  const dap_chain_addr_t *a_addr_from,
         dap_chain_tx_out_cond_subtype_t a_subtype, uint256_t a_value_need, uint256_t *a_value_transfer);
+
 // Add new verificator callback with associated subtype. Returns 1 if callback replaced, overwise returns 0
-int dap_chain_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_chain_ledger_verificator_callback_t a_callback, 
+int dap_chain_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_chain_ledger_verificator_callback_t a_callback,
                                      dap_chain_ledger_verificator_callback_out_t a_callback_added);
 
 // Getting a list of transactions from the ledger.
-dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, size_t a_page);
+dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, size_t a_page, bool a_reverse);
 
-bool dap_chain_ledger_fee_verificator(dap_ledger_t* a_ledger, dap_chain_tx_out_cond_t* a_cond, dap_chain_datum_tx_t* a_tx, bool a_owner);
+//bool dap_chain_ledger_fee_verificator(dap_ledger_t* a_ledger, dap_chain_tx_out_cond_t* a_cond, dap_chain_datum_tx_t* a_tx, bool a_owner);
+
+void dap_chain_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_chain_ledger_tx_add_notify_t a_callback, void *a_arg);

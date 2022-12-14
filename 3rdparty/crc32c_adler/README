@@ -1,0 +1,14 @@
+
+Extended version of CRC32C implementation by Mark Adler, providing both hardware (SSE 4.2) and software algorithms with auto-detection.
+
+Source:
+https://stackoverflow.com/a/17646775
+
+According to Ferry Toth, Adler's implementation is 'highly optimized':
+https://stackoverflow.com/a/39862799
+https://github.com/htot/crc32c
+
+Revised software algorithm by Robert Važan:
+https://stackoverflow.com/a/21915223
+https://crc32c.machinezoo.com/
+https://bitbucket.org/robertvazan/crc32c-hw/src

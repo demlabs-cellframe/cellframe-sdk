@@ -120,6 +120,7 @@ void s_stream_ch_delete(dap_stream_ch_t* a_ch , void* a_arg)
     (void) a_arg;
     log_it(L_DEBUG, "Stream ch chain net srv delete");
     dap_chain_net_srv_call_closed_all( a_ch);
+    DAP_DEL_Z(a_ch->internal);
 }
 
 static bool s_unban_client(dap_chain_net_srv_banlist_item_t *a_item)
@@ -540,16 +541,14 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         DAP_DELETE(l_receipt_hash_str);
 
         size_t l_success_size;
-        dap_chain_hash_fast_t *l_tx_in_hash  = NULL;
         if (!l_usage->is_grace) {
             // Form input transaction
             dap_chain_addr_t *l_wallet_addr = dap_chain_wallet_get_addr(l_usage->price->wallet, l_usage->net->pub.id);
-            l_tx_in_hash = dap_chain_mempool_tx_create_cond_input(l_usage->net, &l_usage->tx_cond_hash, l_wallet_addr,
-                                                                  dap_chain_wallet_get_key(l_usage->price->wallet, 0),
-                                                                  l_receipt);
-            if (l_tx_in_hash) {
-                l_usage->tx_cond_hash = *l_tx_in_hash;
-                char *l_tx_in_hash_str = dap_chain_hash_fast_to_str_new(l_tx_in_hash);
+            char *l_tx_in_hash_str = dap_chain_mempool_tx_create_cond_input(l_usage->net, &l_usage->tx_cond_hash, l_wallet_addr,
+                                                                            dap_chain_wallet_get_key(l_usage->price->wallet, 0),
+                                                                            l_receipt, "hex");
+            if (l_tx_in_hash_str) {
+                dap_chain_hash_fast_from_str(l_tx_in_hash_str, &l_usage->tx_cond_hash);
                 log_it(L_NOTICE, "Formed tx %s for input with active receipt", l_tx_in_hash_str);
                 DAP_DELETE(l_tx_in_hash_str);
             }else
@@ -567,16 +566,13 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         l_success->hdr.net_id.uint64    = l_usage->net->pub.id.uint64;
         l_success->hdr.srv_uid.uint64   = l_usage->service->uid.uint64;
 
-        if (l_tx_in_hash) {
-            memcpy(l_success->custom_data, l_tx_in_hash, sizeof(dap_chain_hash_fast_t));
-            DAP_DELETE(l_tx_in_hash);
-        }
-
         if (l_usage->is_grace)
             log_it(L_NOTICE, "Receipt is OK, but transaction can't be found. Start the grace period for %d seconds",
                    l_srv->grace_period);
-        else
+        else {
+            memcpy(l_success->custom_data, &l_usage->tx_cond_hash, sizeof(dap_chain_hash_fast_t));
             log_it(L_NOTICE, "Receipt with remote client sign is acceptible for. Now start the service's usage");
+        }
 
         dap_stream_ch_pkt_write_unsafe( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS ,
                                        l_success, l_success_size);

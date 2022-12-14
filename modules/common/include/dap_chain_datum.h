@@ -28,6 +28,7 @@
 #include "dap_math_ops.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
+#include "dap_chain_datum_token.h"
 
 #define DAP_CHAIN_DATUM_VERSION 0x00
 
@@ -68,7 +69,7 @@
 
 #define DAP_CHAIN_DATUM_CUSTOM               0xffff
 
-#define DAP_DATUM_TYPE_STR(t, s)                \
+#define DAP_DATUM_TYPE_STR(t, s)            \
     switch (t) {                            \
         case DAP_CHAIN_DATUM_TX:            \
             s = "DATUM_TX"; break;          \
@@ -84,7 +85,7 @@
             s = "DATUM_EVM_DATA"; break;    \
         case DAP_CHAIN_DATUM_CA:            \
             s = "DATUM_CA"; break;          \
-	case DAP_CHAIN_DATUM_SIGNER:        \
+        case DAP_CHAIN_DATUM_SIGNER:        \
             s = "DATUM_SIGNER"; break;      \
         case DAP_CHAIN_DATUM_CUSTOM:        \
             s = "DATUM_CUSTOM"; break;      \
@@ -145,7 +146,7 @@ typedef void (*dap_chain_datum_callback_iter_delete_t)(dap_chain_datum_iter_t * 
  * @param a_datum
  * @return
  */
-static inline size_t dap_chain_datum_size(const dap_chain_datum_t *a_datum)
+DAP_STATIC_INLINE size_t dap_chain_datum_size(const dap_chain_datum_t *a_datum)
 {
     if (!a_datum)
         return 0;
@@ -155,13 +156,14 @@ static inline size_t dap_chain_datum_size(const dap_chain_datum_t *a_datum)
 dap_chain_datum_t * dap_chain_datum_create(uint16_t a_type_id, const void * a_data, size_t a_data_size);
 
 
-static inline const char *dap_chain_datum_type_id_to_str(uint16_t a_type_id)
+DAP_STATIC_INLINE const char *dap_chain_datum_type_id_to_str(uint16_t a_type_id)
 {
     const char * l_ret;
     DAP_DATUM_TYPE_STR(a_type_id,l_ret);
     return l_ret;
 }
 
+void s_datum_token_dump_tsd(dap_string_t *a_str_out, dap_chain_datum_token_t *a_token, size_t a_token_size, const char *a_hash_out_type);
 void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type);
 bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                              const char *a_ticker,
