@@ -707,34 +707,23 @@ static int s_add_atom_to_ledger(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t *
  */
 static int s_add_atom_to_blocks(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t * a_ledger, dap_chain_block_cache_t * a_block_cache )
 {
-    pthread_rwlock_rdlock( &PVT(a_blocks)->rwlock );
-    int res = a_blocks->callback_block_verify ?
-                a_blocks->callback_block_verify(a_blocks,a_block_cache->block, a_block_cache->block_size)
-                : 0;
-    if (res == 0 || memcmp( &a_block_cache->block_hash, &PVT(a_blocks)->genesis_block_hash, sizeof(a_block_cache->block_hash) ) == 0) {
-        debug_if(s_debug_more, L_DEBUG, "Block %s checked, add it to ledger", a_block_cache->block_hash_str);
-        pthread_rwlock_unlock( &PVT(a_blocks)->rwlock );
-        res = s_add_atom_to_ledger(a_blocks, a_ledger, a_block_cache);
-        debug_if(s_debug_more, L_DEBUG, "Block %s checked, %s", a_block_cache->block_hash_str,
-                                                                res == (int)a_block_cache->datum_count
-                                                                ? "all correct" : "but ledger declined");
-
-        //All correct, no matter for result
-        pthread_rwlock_wrlock( &PVT(a_blocks)->rwlock );
-        HASH_ADD(hh, PVT(a_blocks)->blocks,block_hash,sizeof (a_block_cache->block_hash), a_block_cache);
-        PVT(a_blocks)->blocks_count++;
-        if (! (PVT(a_blocks)->block_cache_first ) )
-                PVT(a_blocks)->block_cache_first = a_block_cache;
-        if (PVT(a_blocks)->block_cache_last)
-            PVT(a_blocks)->block_cache_last->next = a_block_cache;
-        a_block_cache->prev = PVT(a_blocks)->block_cache_last;
-        PVT(a_blocks)->block_cache_last = a_block_cache;
-        res = 1;
-    } else {
-        log_it(L_WARNING,"Block %s check failed: code %d", a_block_cache->block_hash_str,  res );
-    }
+    int l_res = 0;
+    l_res = s_add_atom_to_ledger(a_blocks, a_ledger, a_block_cache);
+    debug_if(s_debug_more, L_DEBUG, "Block %s checked, %s", a_block_cache->block_hash_str,
+                                                            l_res == (int)a_block_cache->datum_count ?
+                                                            "all correct" : "but ledger declined");
+    //All correct, no matter for result
+    pthread_rwlock_wrlock( &PVT(a_blocks)->rwlock );
+    HASH_ADD(hh, PVT(a_blocks)->blocks,block_hash,sizeof (a_block_cache->block_hash), a_block_cache);
+    PVT(a_blocks)->blocks_count++;
+    if (! (PVT(a_blocks)->block_cache_first ) )
+            PVT(a_blocks)->block_cache_first = a_block_cache;
+    if (PVT(a_blocks)->block_cache_last)
+        PVT(a_blocks)->block_cache_last->next = a_block_cache;
+    a_block_cache->prev = PVT(a_blocks)->block_cache_last;
+    PVT(a_blocks)->block_cache_last = a_block_cache;
     pthread_rwlock_unlock( &PVT(a_blocks)->rwlock );
-    return res;
+    return 1;
 }
 
 
@@ -779,7 +768,11 @@ static void s_bft_consensus_setup(dap_chain_cs_blocks_t * a_blocks)
                 }
                 // Pass through all the chunk and add it to main chain
                 for(l_block_cache= l_chunk->block_cache_top ;l_block_cache; l_block_cache=l_block_cache->prev){
-                    int l_check_res = s_add_atom_to_blocks(a_blocks, a_blocks->chain->ledger, l_block_cache);
+                    int l_check_res = 0;
+                    if (a_blocks->callback_block_verify)
+                        l_check_res = a_blocks->callback_block_verify(a_blocks, l_block_cache->block, l_block_cache->block_size);
+                    if (!l_check_res)
+                        l_check_res = s_add_atom_to_blocks(a_blocks, a_blocks->chain->ledger, l_block_cache);
                     if ( l_check_res != 0 ){
                         log_it(L_WARNING,"Can't move block %s from chunk to main chain - data inside wasn't verified: code %d",
                                             l_block_cache->block_hash_str, l_check_res);
@@ -903,6 +896,11 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
                                         &l_is_genesis,
                                         &l_nonce,
                                         &l_nonce2 ) ;
+
+    // 2nd level consensus
+    if(l_blocks->callback_block_verify)
+        if (l_blocks->callback_block_verify(l_blocks, l_block, a_atom_size))
+            return ATOM_REJECT;
 
     // genesis or seed mode
     if (l_is_genesis) {
