@@ -205,7 +205,7 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
     }
     if (!a_grace->usage) {
         l_usage = dap_chain_net_srv_usage_add(l_srv_session, l_net, l_srv);
-        if ( !l_usage ){ // Usage can't add          
+        if ( !l_usage ){ // Usage can't add
             log_it( L_WARNING, "Can't add usage");
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_CANT_ADD_USAGE;
             goto free_exit;
@@ -268,7 +268,7 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
                 memcpy(l_price, l_srv->pricelist, sizeof(*l_price));
                 l_price->value_datoshi = uint256_0;
             }
-            l_usage->price = l_price;         
+            l_usage->price = l_price;
             l_usage->receipt = dap_chain_net_srv_issue_receipt(l_usage->service, l_usage->price, NULL, 0);
             dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
                                            l_usage->receipt, l_usage->receipt->size);
@@ -342,9 +342,12 @@ free_exit:
  */
 void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
 {
+
     dap_stream_ch_pkt_t *l_ch_pkt = (dap_stream_ch_pkt_t *)a_arg;
     if (!l_ch_pkt)
         return;
+
+
     dap_chain_net_srv_stream_session_t *l_srv_session = NULL;
     if (a_ch) {
         l_srv_session = a_ch->stream && a_ch->stream->session ? a_ch->stream->session->_inheritor : NULL;

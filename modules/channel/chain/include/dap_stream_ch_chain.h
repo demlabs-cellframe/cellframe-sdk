@@ -73,7 +73,6 @@ typedef struct dap_stream_ch_chain {
     dap_db_log_list_t *request_db_log; // list of global db records
     dap_stream_ch_chain_sync_request_t request;
     dap_stream_ch_chain_pkt_hdr_t request_hdr;
-    dap_list_t *request_db_iter;
 
     int timer_shots;
     dap_timerfd_t *activity_timer;
@@ -92,6 +91,7 @@ int dap_stream_ch_chain_init(void);
 void dap_stream_ch_chain_deinit(void);
 
 inline static uint8_t dap_stream_ch_chain_get_id(void) { return (uint8_t) 'C'; }
+
 dap_chain_t * dap_chain_get_chain_from_group_name(dap_chain_net_id_t a_net_id, const char *a_group_name);
 void dap_stream_ch_chain_create_sync_request_gdb(dap_stream_ch_chain_t * a_ch_chain, dap_chain_net_t * a_net);
 void dap_stream_ch_chain_timer_start(dap_stream_ch_chain_t *a_ch_chain);
