@@ -20,6 +20,7 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "dap_events_socket.h"
 #include "dap_time.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -194,7 +195,15 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         if (l_node_client->keep_connection) {
             if (dap_client_get_stage(l_node_client->client) != STAGE_BEGIN)
                 dap_client_go_stage(l_node_client->client, STAGE_BEGIN, NULL);
-            dap_timerfd_start(45 * 1000, s_timer_node_reconnect, DAP_DUP(&l_node_client->uuid));
+            dap_stream_worker_t * l_stream_worker = dap_client_get_stream_worker(l_node_client->client);
+            if(l_stream_worker){
+                log_it(L_DEBUG, "Arm reconnect timer on same worker #%u", l_stream_worker->worker->id);
+            }else{
+                l_stream_worker = DAP_STREAM_WORKER(dap_events_worker_get_auto());
+                log_it(L_DEBUG, "Arm reconnect timer on auto selected worker #%u", l_stream_worker->worker->id);
+            }
+            dap_timerfd_start_on_worker( l_stream_worker->worker,  45 * 1000,
+                                         s_timer_node_reconnect, DAP_DUP(&l_node_client->uuid));
         } else
             dap_chain_node_client_close(l_node_client->uuid);
 

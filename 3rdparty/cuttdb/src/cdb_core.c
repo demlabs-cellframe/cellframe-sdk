@@ -122,7 +122,7 @@ static void _cdb_flushdpagetask(void *arg)
 
     /* if there isn't too much dirty page and some time passed since last clean,
      write out all dirty pages to make a recovery point(oid) */
-    if (db->dpcache->num < 1024 && now > db->ndpltime + 120)
+    if (db->dpcache->num < 1024 && now > (time_t) db->ndpltime + 120)
         cleandcache = true;
         
     while(db->dpcache->num) {
@@ -138,7 +138,7 @@ static void _cdb_flushdpagetask(void *arg)
         /* bid = page->bid; also OK */
         bid = *(uint32_t*)cdb_ht_itemkey(db->dpcache, item);
         /* been dirty for too long? */
-        if (now > page->mtime + DPAGETIMEOUT || cleandcache) {
+        if (now >(time_t) page->mtime + DPAGETIMEOUT || cleandcache) {
             if (cdb_lock_trylock(db->mlock[page->bid % MLOCKNUM])) {
                 /* avoid dead lock, since dpclock is holding */
                 cdb_lock_unlock(db->dpclock);

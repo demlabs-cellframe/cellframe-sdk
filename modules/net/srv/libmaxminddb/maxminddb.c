@@ -113,7 +113,7 @@ char *type_num_to_name(uint8_t num)
  * makes the compiler complain if we do the check anyway. */
 #if SIZE_MAX == UINT32_MAX
 #define MAYBE_CHECK_SIZE_OVERFLOW(lhs, rhs, error) \
-    if ((lhs) > (rhs)) {                           \
+    if ((lhs) > (int) (rhs)) {                           \
         return error;                              \
     }
 #else
