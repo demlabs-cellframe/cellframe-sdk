@@ -47,13 +47,13 @@ int clock_gettime(clockid_t clock_id, struct timespec *spec)
 
 
 // Create time from second
-dap_gdb_time_t dap_gdb_time_from_sec(uint32_t a_time)
+dap_gdb_time_t dap_gdb_time_from_sec(dap_time_t a_time)
 {
     return (dap_gdb_time_t)a_time << 32;
 }
 
 // Get seconds from time
-long dap_gdb_time_to_sec(dap_gdb_time_t a_time)
+dap_time_t dap_gdb_time_to_sec(dap_gdb_time_t a_time)
 {
     return a_time >> 32;
 }
@@ -62,10 +62,10 @@ long dap_gdb_time_to_sec(dap_gdb_time_t a_time)
  * @brief dap_chain_time_now Get current time in seconds since January 1, 1970 (UTC)
  * @return Returns current UTC time in seconds.
  */
-dap_gdb_time_t dap_time_now(void)
+dap_time_t dap_time_now(void)
 {
     time_t l_time = time(NULL);
-    return (dap_gdb_time_t)l_time;
+    return (dap_time_t)l_time;
 }
 
 /**

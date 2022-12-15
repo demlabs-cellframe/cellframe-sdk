@@ -316,7 +316,7 @@ int dap_chain_cell_file_append(dap_chain_cell_t * a_cell, const void *a_atom, si
                         a_cell->id.uint64);
                 pthread_rwlock_unlock(&a_cell->storage_rwlock);
                 return -3;
-            } else if (s_file_write_header(a_cell)) {// fill the header
+            } else if (!s_file_write_header(a_cell)) {// fill the header
                 pthread_rwlock_unlock(&a_cell->storage_rwlock);
                 return -4;
             }
