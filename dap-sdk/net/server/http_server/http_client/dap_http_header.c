@@ -25,6 +25,8 @@
 #include <stdarg.h>
 #include <string.h>
 #include <stdlib.h>
+#include <errno.h>
+
 #ifdef _WIN32
 #include <winsock2.h>
 #include <windows.h>
@@ -70,63 +72,70 @@ void dap_http_header_deinit()
  * @param str String to parse
  * @return Zero if parsed well -1 if it wasn't HTTP header 1 if its "\r\n" string
  */
-int dap_http_header_parse(struct dap_http_client * cl_ht, const char * str)
-{
-    char name[256], value[1024];
+#define	CRLF    "\r\n"
+#define	CR    '\r'
+#define	LF    '\n'
 
-    size_t str_len=strlen(str);
-    //sn=sscanf(str,"%255s: %1023s\r\n",name,value);
-    size_t pos;
-    if( str_len==0 )
+
+int dap_http_header_parse(
+            struct dap_http_client *a_cl_ht,
+                        const char *a_str,
+                        size_t      a_str_len
+        )
+{
+char    l_name[DAP_HTTP$SZ_FIELD_NAME], l_value[DAP_HTTP$SZ_FIELD_VALUE], *l_cp;
+size_t  l_len, l_name_len, l_value_len;
+
+    if ( !a_str_len )
         return 1;
 
-    //log_it(L_DEBUG, "Parse header string '%s'",str);
-    for( pos = 1; pos < str_len; pos ++ )
+    if ( (a_str_len >= 2) && (*a_str == CR) && (*(a_str + 1) == LF) )
+        return 1;
 
-        if( str[pos] == ':' ) {
-            size_t name_len;
-            name_len=pos;
-            if(name_len>(sizeof(name)-1) )
-                name_len=(sizeof(name)-1);
-            strncpy(name,str,name_len);
-            name[name_len]='\0';
+    /* We expect to see: <field_name>':'<white_space><field_value>CRLF */
+    if ( !(l_cp = memchr(a_str, ':', a_str_len)) )
+        return  log_it(L_ERROR,"Input: Wasn't found ':' symbol in the header"), -EINVAL;
 
-       //     log_it(L_DEBUGUG, "Found name '%s'",name);
-            pos+=2;
-            size_t value_len=str_len-pos;
-            if(value_len>(sizeof(value)-1))
-                value_len=(sizeof(value)-1);
-            strncpy(value,str+pos,value_len);
-            value[value_len]='\0';
-           // log_it(L_DEBUGUG, "Found value '%s'",value);
+    l_name_len = MIN( (l_name_len = (l_cp - a_str)), sizeof(l_name) - 1);
+    memcpy(l_name, a_str, l_name_len);
+    l_name[l_name_len] = '\0';
 
-            if(strcmp(name,"Connection")==0){
-                if(strcmp(value,"Keep-Alive")==0){
-                    log_it(L_INFO, "Input: Keep-Alive connection detected");
-                    cl_ht->keep_alive=true;
-                }
-//                if(strcmp(value,"keep-alive")==0){
-//                    log_it(L_INFO, "Input: Keep-Alive connection detected");
-//                    cl_ht->keep_alive=true;
-//                }
-            }else if(strcmp(name,"Content-Type")==0){
-                strncpy( cl_ht->in_content_type, (char *)value, sizeof(cl_ht->in_content_type) );
-                cl_ht->in_content_type[sizeof(cl_ht->in_content_type) - 1] = '\0';
-            }else if(strcmp(name,"Content-Length")==0){
-                cl_ht->in_content_length = atoi( value );
-            }else  if(strcmp(name,"Cookie")==0){
-                strncpy(cl_ht->in_cookie,value,sizeof(cl_ht->in_cookie));
-            }
+    l_cp += 2;                                                          /* Skip ':'<white_space>' ??? */
+    l_value_len  = a_str_len - (l_cp - a_str);                          /* <value_len> - rest of input buffer */
+    l_value_len = MIN(l_value_len, sizeof(l_value)  - 1);
+    memcpy(l_value, l_cp, l_value_len);
+    l_value[l_value_len] = '\0';
 
-            //log_it(L_DEBUG, "Input: Header\t%s '%s'",name,value);
+#ifdef  DAP_SYS_DEBUG
+    log_it(L_DEBUG, "[0:%d]='%.*s', [0:%d]='%.*s'", l_name_len, l_name_len, l_name, l_value_len, l_value_len, l_value);
+#endif
 
-            dap_http_header_add(&cl_ht->in_headers,name,value);
-            return 0;
+
+    if( !strcmp(l_name, "Connection"))
+        {
+        if ( !strcmp(l_value, "Keep-Alive") )
+        {
+            log_it(L_INFO, "Input: Keep-Alive connection detected");
+            a_cl_ht->keep_alive = true;
         }
+    }
+    else if ( !strcmp(l_name,"Content-Type") )
+    {
+        l_len = MIN(l_value_len, sizeof(a_cl_ht->in_content_type) - 1);
+        memcpy( a_cl_ht->in_content_type, l_value, l_len );
+        a_cl_ht->in_content_type[ l_len] = '\0';
+    }
+    else if( !strcmp(l_name, "Content-Length") ) {
+        a_cl_ht->in_content_length = atoi( l_value );
+    }
+    else  if( !strcmp(l_name,"Cookie") ) {
+        l_len = MIN(l_value_len, sizeof(a_cl_ht->in_cookie) - 1);
+        memcpy(a_cl_ht->in_cookie,l_value, l_len);
+        a_cl_ht->in_cookie[l_len] = '\0';
+    }
 
-
-    log_it(L_ERROR,"Input: Wasn't found ':' symbol in the header");
-    return -1;
+    dap_http_header_add(&a_cl_ht->in_headers, l_name, l_name_len, l_value, l_value_len);
+    return 0;
 }
 
 
@@ -138,20 +147,32 @@ int dap_http_header_parse(struct dap_http_client * cl_ht, const char * str)
  * @param value Header's value
  * @return Pointer to the new HTTP header's structure
  */
-dap_http_header_t *dap_http_header_add(dap_http_header_t **a_top, const char *a_name, const char *a_value)
-{ 
+dap_http_header_t *dap_http_header_add(
+                    dap_http_header_t **a_top,
+                           const char *a_name,
+                            size_t      a_name_len,
+                            const char *a_value,
+                            size_t      a_value_len
+                                       )
+{
     dap_http_header_t *l_new_header = DAP_NEW_Z(dap_http_header_t);
-    l_new_header->name = dap_strdup(a_name);
-    l_new_header->value = dap_strdup(a_value);
+    assert(l_new_header);
+
+    if ( a_name_len == -1 )
+        l_new_header->name_len = strnlen(a_name, DAP_HTTP$SZ_FIELD_NAME);
+    else l_new_header->name_len = MIN(a_name_len, DAP_HTTP$SZ_FIELD_NAME);
+
+    memcpy(l_new_header->name, a_name, l_new_header->name_len);
+
+    if ( a_value_len == -1 )
+        l_new_header->value_len = strnlen(a_value, DAP_HTTP$SZ_FIELD_VALUE);
+    else  l_new_header->value_len = MIN(a_value_len, DAP_HTTP$SZ_FIELD_VALUE);
+
+    memcpy(l_new_header->value, a_value, l_new_header->value_len);
+
     DL_APPEND(*a_top, l_new_header);
     return l_new_header;
 
-}
-
-
-struct dap_http_header* dap_http_out_header_add(dap_http_client_t * ht, const char*name, const char * value)
-{
-    return dap_http_header_add(&ht->out_headers,name,value);
 }
 
 
@@ -163,15 +184,19 @@ struct dap_http_header* dap_http_out_header_add(dap_http_client_t * ht, const ch
  * @param ... Arguments for formatted string
  * @return
  */
-dap_http_header_t * dap_http_out_header_add_f(dap_http_client_t * ht, const char*name, const char * value,...)
+dap_http_header_t * dap_http_out_header_add_f(dap_http_client_t *ht, const char *a_name, const char *a_format,...)
 {
-    va_list ap;
-    dap_http_header_t * ret;
-    char buf[1024];
-    va_start(ap,value);
-    dap_vsnprintf(buf,sizeof(buf)-1,value,ap);
-    ret=dap_http_out_header_add(ht,name,buf);
+va_list ap;
+dap_http_header_t * ret;
+char l_buf[DAP_HTTP$SZ_FIELD_VALUE];
+size_t  l_len;
+
+
+    va_start(ap,a_format);
+    l_len = dap_vsnprintf(l_buf, sizeof(l_buf) - 1, a_format, ap);
+    ret = dap_http_header_add(&ht->out_headers, a_name, -1, l_buf, l_len);
     va_end(ap);
+
     return ret;
 }
 
@@ -182,8 +207,6 @@ dap_http_header_t * dap_http_out_header_add_f(dap_http_client_t * ht, const char
 void dap_http_header_remove(dap_http_header_t **a_top, dap_http_header_t *a_hdr)
 {
     DL_DELETE(*a_top, a_hdr);
-    DAP_DELETE(a_hdr->name);
-    DAP_DELETE(a_hdr->value);
     DAP_DELETE(a_hdr);
 
 }
@@ -224,8 +247,10 @@ dap_http_header_t * dap_http_headers_dup(dap_http_header_t * a_top)
     dap_http_header_t * l_hdr=NULL, * l_ret = NULL;
     DL_FOREACH(a_top,l_hdr){
         dap_http_header_t * l_hdr_copy = DAP_NEW_Z(dap_http_header_t);
-        l_hdr_copy->name = dap_strdup(l_hdr->name);
-        l_hdr_copy->value = dap_strdup(l_hdr->value);
+
+        memcpy(l_hdr_copy->name, l_hdr->name, l_hdr_copy->name_len = l_hdr->name_len);
+        memcpy(l_hdr_copy->value, l_hdr->value, l_hdr_copy->value_len = l_hdr->value_len);
+
         DL_APPEND(l_ret,l_hdr_copy);
     }
     return l_ret;

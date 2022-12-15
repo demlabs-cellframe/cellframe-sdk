@@ -188,8 +188,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 {
     dap_stream_ch_chain_net_t * l_ch_chain_net = DAP_STREAM_CH_CHAIN_NET(a_ch);
     dap_chain_net_session_data_t *l_session_data = session_data_find(a_ch->stream->session->id);
+
     if (l_session_data == NULL) {
-        log_it(L_ERROR, "Can't find chain net session for stream session %d", a_ch->stream->session->id);
+        log_it(L_ERROR, "[stm_ch:%p] Can't find chain net session for stream session %d", a_ch, a_ch->stream->session->id);
         dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
         return;
     }
@@ -199,8 +200,10 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         dap_stream_ch_pkt_t *l_ch_pkt = (dap_stream_ch_pkt_t *) a_arg;
         dap_stream_ch_chain_net_pkt_t *l_ch_chain_net_pkt = (dap_stream_ch_chain_net_pkt_t *) l_ch_pkt->data;
         dap_chain_net_t *l_net = dap_chain_net_by_id(l_ch_chain_net_pkt->hdr.net_id);
+
         bool l_error = false;
         char l_err_str[64];
+
         if (!l_net) {
             log_it(L_ERROR, "Invalid net id in packet");
             strcpy(l_err_str, "ERROR_NET_INVALID_ID");
@@ -211,6 +214,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             strcpy(l_err_str, "ERROR_NET_IS_OFFLINE");
             l_error = true;
         }
+
         if (!l_error) {
             uint16_t l_acl_idx = dap_chain_net_get_acl_idx(l_net);
             uint8_t l_acl = a_ch->stream->session->acl ? a_ch->stream->session->acl[l_acl_idx] : 1;
@@ -225,6 +229,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                               l_ch_chain_net_pkt->hdr.net_id, l_err_str, strlen(l_err_str) + 1);
             dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
         }
+
         //size_t l_ch_chain_net_pkt_data_size = (size_t) l_ch_pkt->hdr.size - sizeof (l_ch_chain_net_pkt->hdr);
         if (!l_error && l_ch_chain_net_pkt) {
             size_t l_ch_chain_net_pkt_data_size = l_ch_pkt->hdr.size - sizeof(dap_stream_ch_chain_net_pkt_hdr_t);
@@ -243,12 +248,14 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
                 }
                     break;
+
                     // receive pong request -> send nothing
                 case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PONG: {
                     //log_it(L_INFO, "Get STREAM_CH_CHAIN_NET_PKT_TYPE_PONG");
                     dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
                 }
                 break;
+
                 case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR: {
                     log_it(L_INFO, "Get CH_CHAIN_NET_PKT_TYPE_NODE_ADDR");
                     if ( l_ch_chain_net_pkt_data_size == sizeof (dap_chain_node_addr_t) ) {
@@ -261,6 +268,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     }
                     dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
                 }break;
+
                 case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_LEASE: {
                     log_it(L_INFO, "Get CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_LEASE");
                     if ( l_ch_chain_net_pkt_data_size == sizeof (dap_chain_node_addr_t) ) {
@@ -286,6 +294,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     }
                     dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
                 }break;
+
                 // get current node address
                 case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST: {
                     log_it(L_INFO, "Get CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST");
@@ -298,6 +307,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                                       l_ch_chain_net_pkt->hdr.net_id, &l_addr, l_send_data_len);
                     dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
                 } break;
+
                 case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_LEASE_REQUEST: {
                     log_it(L_INFO, "Get STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST");
                     // gen node addr

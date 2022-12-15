@@ -40,6 +40,8 @@ void    *l_str;
     l_len = nearest_power(1, a_string->len + a_len + 1);                    /* Compute a size of the new memory area */
     l_str = DAP_REALLOC(a_string->str, l_len );                             /* Try to realloc" */
 
+    assert(l_str);
+
     if ( !l_str )                                                           /* In case of error - don't touch an original descriptor */
         return;
 

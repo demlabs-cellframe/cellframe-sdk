@@ -170,7 +170,7 @@ dap_list_t* dap_chain_db_get_sync_extra_groups(const char *a_net_name)
  * @param obj a pointer to the structure
  * @return (none)
  */
-void dap_chain_global_db_obj_clean(dap_global_db_obj_t *a_obj)
+static inline void s_dap_chain_global_db_obj_clean(dap_global_db_obj_t *a_obj)
 {
     if(!a_obj)
         return;
@@ -186,7 +186,7 @@ void dap_chain_global_db_obj_clean(dap_global_db_obj_t *a_obj)
  */
 void dap_chain_global_db_obj_delete(dap_global_db_obj_t *a_obj)
 {
-    dap_chain_global_db_obj_clean(a_obj);
+    s_dap_chain_global_db_obj_clean(a_obj);
     DAP_DEL_Z(a_obj);
 }
 
@@ -205,7 +205,7 @@ size_t i;
         return;
 
     for(l_objs = a_objs, i = a_count; i--; l_objs++)        /* Run over array's elements */
-        dap_chain_global_db_obj_clean(l_objs);
+        s_dap_chain_global_db_obj_clean(l_objs);
 
     DAP_DELETE(a_objs);                                     /* Finaly kill the the array */
 }

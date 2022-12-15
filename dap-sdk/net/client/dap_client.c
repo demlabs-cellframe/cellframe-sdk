@@ -212,7 +212,7 @@ void dap_client_set_auth_cert(dap_client_t *a_client, const char *a_chain_net_na
         }
         dap_config_t *l_cfg = dap_config_open(l_path);
         l_config_read = true;
-        free(l_path);
+        DAP_DEL_Z(l_path);
         if (!l_cfg) {
             log_it(L_ERROR, "Can't allocate memory: file: %s line: %d", __FILE__, __LINE__);
             return;

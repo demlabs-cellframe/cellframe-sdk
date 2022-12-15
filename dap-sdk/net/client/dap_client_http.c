@@ -332,6 +332,7 @@ static void s_http_error(dap_events_socket_t * a_es, int a_errno)
 {
     char l_errbuf[128];
     l_errbuf[0] = '\0';
+
     if (a_errno == ETIMEDOUT){
         strncpy(l_errbuf,"Connection timeout", sizeof (l_errbuf)-1);
     }else if (a_errno == ECONNREFUSED){
@@ -461,11 +462,24 @@ static void s_client_http_delete(dap_client_http_pvt_t * a_http_pvt)
  * @param a_custom_headers
  * @param a_over_ssl
  */
-int dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_uplink_addr, uint16_t a_uplink_port, const char *a_method,
-        const char *a_request_content_type, const char * a_path, const void *a_request, size_t a_request_size, char *a_cookie,
-        dap_client_http_callback_data_t a_response_callback, dap_client_http_callback_error_t a_error_callback,
-        void *a_callbacks_arg, char *a_custom_headers, bool a_over_ssl)
+int dap_client_http_request_custom (
+                dap_worker_t * a_worker,
+                const char *a_uplink_addr,
+                uint16_t a_uplink_port,
+                const char *a_method,
+                const char *a_request_content_type,
+                const char * a_path,
+                const void *a_request,
+                size_t a_request_size,
+                char *a_cookie,
+        dap_client_http_callback_data_t a_response_callback,
+        dap_client_http_callback_error_t a_error_callback,
+                void *a_callbacks_arg,
+                char *a_custom_headers,
+                bool a_over_ssl
+            )
 {
+
     //log_it(L_DEBUG, "HTTP request on url '%s:%d'", a_uplink_addr, a_uplink_port);
     static dap_events_socket_callbacks_t l_s_callbacks = {
         .connected_callback = s_http_connected,
@@ -565,7 +579,7 @@ int dap_client_http_request_custom(dap_worker_t * a_worker, const char *a_uplink
             return -5;
         }
     }
-    l_ev_socket->remote_addr_str = dap_strdup(a_uplink_addr);
+    strncpy(l_ev_socket->remote_addr_str, a_uplink_addr, INET_ADDRSTRLEN);
     // connect
     l_ev_socket->remote_addr.sin_family = AF_INET;
     l_ev_socket->remote_addr.sin_port = htons(a_uplink_port);
