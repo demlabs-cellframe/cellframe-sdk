@@ -834,7 +834,7 @@ uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
         if (l_dot_len >= DATOSHI_POW256)
             return log_it(L_ERROR, "Too many digits in '%s'", a_256bit_num), uint256_0;
         int l_exp_len = l_eptr - a_256bit_num - l_dot_len - 1;
-        if (l_exp_len + l_dot_len + 1 >= DATOSHI_POW256)
+        if (l_exp_len + l_dot_len + 1 >= DAP_SZ_MAX256SCINOT)
             return log_it(L_ERROR, "Too many digits in '%s'", a_256bit_num), uint256_0;
         if (l_exp < l_exp_len) {
             //todo: we need to handle numbers like 1.23456789000000e9
