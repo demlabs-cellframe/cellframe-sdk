@@ -135,12 +135,12 @@ const struct sched_param l_shed_params = {0};
     l_worker->kqueue_fd = kqueue();
 
     if (l_worker->kqueue_fd == -1 ){
-    int l_errno = errno;
-    char l_errbuf[255];
-    strerror_r(l_errno,l_errbuf,sizeof(l_errbuf));
-    log_it (L_CRITICAL,"Can't create kqueue(): '%s' code %d",l_errbuf,l_errno);
-    pthread_cond_broadcast(&l_worker->started_cond);
-    return NULL;
+        int l_errno = errno;
+        char l_errbuf[255];
+        strerror_r(l_errno,l_errbuf,sizeof(l_errbuf));
+        log_it (L_CRITICAL,"Can't create kqueue(): '%s' code %d",l_errbuf,l_errno);
+        pthread_cond_broadcast(&l_worker->started_cond);
+        return NULL;
     }
 
     l_worker->kqueue_events_selected_count_max = 100;
@@ -1179,7 +1179,7 @@ void dap_worker_add_events_socket_inter(dap_events_socket_t * a_es_input, dap_ev
 int dap_worker_add_events_socket_unsafe( dap_events_socket_t * a_esocket, dap_worker_t * a_worker )
 {
     if(g_debug_reactor){
-        log_it(L_DEBUG,"Add event socket %p (socket %"DAP_FORMAT_SOCKET")", a_esocket, a_esocket->socket);
+        log_it(L_DEBUG,"Add event socket %p (socket %"DAP_FORMAT_SOCKET" type %d)", a_esocket, a_esocket->socket, a_esocket->type);
     }
 #ifdef DAP_EVENTS_CAPS_EPOLL
         // Init events for EPOLL
