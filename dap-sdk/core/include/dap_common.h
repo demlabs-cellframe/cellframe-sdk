@@ -39,7 +39,7 @@
 #ifndef __cplusplus
 # include <stdatomic.h>
 #else
-# include <stdatomic.h>
+# include <atomic>
 # define _Atomic(X) std::atomic< X >
 #define atomic_bool _Atomic(bool)
 #define atomic_uint _Atomic(uint)

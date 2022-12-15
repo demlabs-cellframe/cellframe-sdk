@@ -21,7 +21,6 @@
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #include <errno.h>
-#include <stdatomic.h>
 
 #include "dap_config.h"
 #include "dap_events.h"

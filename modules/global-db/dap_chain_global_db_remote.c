@@ -113,7 +113,7 @@ static void *s_list_thread_proc(void *arg)
                 uint64_t l_cur_id = l_obj_cur->id;
                 l_obj_cur->id = 0;
 
-                dap_store_obj_pkt_t *l_pkt = dap_put_store_obj2packet(l_obj_cur);
+                dap_store_obj_pkt_t *l_pkt = dap_store_packet_single(l_obj_cur);
 
                 dap_hash_fast(l_pkt->data, l_pkt->data_size, &l_list_obj->hash);
                 dap_store_packet_change_id(l_pkt, l_cur_id);
@@ -615,7 +615,7 @@ void dap_store_packet_change_id(dap_store_obj_pkt_t *a_pkt, uint64_t a_id)
  * @param a_store_obj a pointer to the object to be serialized
  * @return Returns a pointer to the packed sructure if successful, otherwise NULL.
  */
-dap_store_obj_pkt_t *dap_put_store_obj2packet(dap_store_obj_t *a_store_obj)
+dap_store_obj_pkt_t *dap_store_packet_single(dap_store_obj_t *a_store_obj)
 {
 int len;
 unsigned char *pdata;

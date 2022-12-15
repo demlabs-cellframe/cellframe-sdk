@@ -30,7 +30,6 @@
 #include <stdarg.h>
 #include <assert.h>
 #include <stdint.h>
-#include <stdatomic.h>
 #include <ctype.h>
 #include "utlist.h"
 #include "uthash.h"
