@@ -297,6 +297,8 @@ is_char_class (const wchar_t *wcs)
 
 int dap_fnmatch (const char *pattern, const char *string, int flags)
 {
+    if (!string || !pattern)
+        return -1;
 # if HANDLE_MULTIBYTE
   if (__builtin_expect (MB_CUR_MAX, 1) != 1)
     {

@@ -305,22 +305,6 @@ void dap_events_delete( dap_events_t *a_events )
     }
 }
 
-/**
- * @brief dap_events_remove_and_delete_socket_unsafe
- * calls dap_events_socket_remove_and_delete_unsafe
- * @param a_events
- * @param a_socket
- * @param a_preserve_inheritor
- */
-void dap_events_remove_and_delete_socket_unsafe(dap_events_t *a_events, dap_events_socket_t *a_socket, bool a_preserve_inheritor)
-{
-    (void) a_events;
-//    int l_sock = a_socket->socket;
-//    if( a_socket->type == DESCRIPTOR_TYPE_TIMER)
-//        log_it(L_DEBUG,"Remove timer %d", l_sock);
-
-    dap_events_socket_remove_and_delete_unsafe(a_socket, a_preserve_inheritor);
-}
 
 /**
  * @brief sa_server_loop Main server loop
@@ -398,13 +382,40 @@ int dap_events_start( dap_events_t *a_events )
  * @param dap_events_t *a_events
  * @return
  */
+#ifdef  DAP_SYS_DEBUG
+void    *s_th_memstat_show  (void *a_arg)
+{
+(void) a_arg;
+
+    while ( 1 )
+    {
+        for ( int j = 3; (j = sleep(j)); );                             /* Hibernate for 5 seconds ... */
+        dap_memstat_show ();
+    }
+
+}
+#endif
+
+
 int dap_events_wait( dap_events_t *a_events )
 {
-    (void) a_events;
+(void) a_events;
+
+#ifdef DAP_SYS_DEBUG                                                    /* @RRL: 6901, 7202 Start of memstat show at interval basis */
+pthread_attr_t  l_tattr;
+pthread_t       l_tid;
+
+    pthread_attr_init(&l_tattr);
+    pthread_attr_setdetachstate(&l_tattr, PTHREAD_CREATE_DETACHED);
+    pthread_create(&l_tid, &l_tattr, s_th_memstat_show, NULL);
+
+#endif
+
     for( uint32_t i = 0; i < s_threads_count; i ++ ) {
         void *ret;
         pthread_join( s_threads[i].tid, &ret );
     }
+
     return 0;
 }
 

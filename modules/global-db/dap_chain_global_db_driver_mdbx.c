@@ -80,12 +80,24 @@ static pthread_rwlock_t s_db_ctxs_rwlock = PTHREAD_RWLOCK_INITIALIZER;      /* A
 
 static char s_db_path[MAX_PATH];                                            /* A root directory for the MDBX files */
 
+
+#ifdef  DAP_SYS_DEBUG
+enum    {MEMSTAT$K_OBJ, MEMSTAT$K_VALUE, MEMSTAT$K_MDBXREC, MEMSTAT$K_NR};
+static  dap_memstat_rec_t   s_memstat [MEMSTAT$K_NR] = {
+    {.fac_len = sizeof(LOG_TAG ".store_obj") - 1, .fac_name = {LOG_TAG ".store_obj"}, .alloc_sz = sizeof(dap_store_obj_t)},
+    {.fac_len = sizeof(LOG_TAG ".value") - 1, .fac_name = {LOG_TAG ".value"}, .alloc_sz = 0},
+    {.fac_len = sizeof(LOG_TAG ".record") - 1, .fac_name = {LOG_TAG ".record"}, .alloc_sz = 0}
+};
+#endif
+
+
+
 /* Forward declarations of action routines */
 static int              s_db_mdbx_deinit();
 static int              s_db_mdbx_flush(void);
 static int              s_db_mdbx_apply_store_obj (dap_store_obj_t *a_store_obj);
 static dap_store_obj_t  *s_db_mdbx_read_last_store_obj(const char* a_group);
-static int              s_db_mdbx_is_obj(const char *a_group, const char *a_key);
+static bool             s_db_mdbx_is_obj(const char *a_group, const char *a_key);
 static dap_store_obj_t  *s_db_mdbx_read_store_obj(const char *a_group, const char *a_key, size_t *a_count_out);
 static dap_store_obj_t  *s_db_mdbx_read_cond_store_obj(const char *a_group, uint64_t a_id, size_t *a_count_out);
 static size_t           s_db_mdbx_read_count_store(const char *a_group, uint64_t a_id);
@@ -366,7 +378,7 @@ char        *l_cp;
     a_drv_callback->read_cond_store_obj = s_db_mdbx_read_cond_store_obj;
     a_drv_callback->read_count_store    = s_db_mdbx_read_count_store;
     a_drv_callback->get_groups_by_mask  = s_db_mdbx_get_groups_by_mask;
-    a_drv_callback->is_obj              = (dap_db_driver_is_obj_callback_t) s_db_mdbx_is_obj;
+    a_drv_callback->is_obj              = s_db_mdbx_is_obj;
     a_drv_callback->deinit              = s_db_mdbx_deinit;
     a_drv_callback->flush               = s_db_mdbx_flush;
 
@@ -555,7 +567,17 @@ dap_store_obj_t *l_obj;
     mdbx_txn_commit(l_db_ctx->txn);
     pthread_mutex_unlock(&l_db_ctx->dbi_mutex);
 
+
+#ifdef  DAP_SYS_DEBUG
+    if ( l_rc == MDBX_SUCCESS )
+    {
+        atomic_fetch_add(&s_memstat[MEMSTAT$K_OBJ].alloc_nr, 1);
+	atomic_fetch_add(&s_memstat[MEMSTAT$K_VALUE].alloc_nr, 1);
+    }
+#endif
+
     return l_rc == MDBX_SUCCESS ? l_obj : NULL;
+
 }
 
 /**
@@ -565,7 +587,7 @@ dap_store_obj_t *l_obj;
  * @return  0 - Record-Not-Found
  *          1 - Record is found
  */
-int     s_db_mdbx_is_obj(const char *a_group, const char *a_key)
+bool s_db_mdbx_is_obj(const char *a_group, const char *a_key)
 {
 int l_rc, l_rc2;
 dap_db_ctx_t *l_db_ctx;
@@ -659,6 +681,12 @@ size_t  l_cnt = 0, l_count_out = 0;
                 l_rc = MDBX_PROBLEM;
                 break;
             }
+
+#ifdef  DAP_SYS_DEBUG
+            atomic_fetch_add(&s_memstat[MEMSTAT$K_OBJ].alloc_nr, 1);
+            atomic_fetch_add(&s_memstat[MEMSTAT$K_VALUE].alloc_nr, 1);
+#endif
+
             l_obj = l_obj_arr + (l_cnt - 1);                                /* Point <l_obj> to last array's element */
             memset(l_obj, 0, sizeof(dap_store_obj_t));
             if (s_fill_store_obj(a_group, &l_key, &l_data, l_obj)) {
@@ -838,6 +866,10 @@ struct  __record_suffix__   *l_suff;
             return  log_it(L_ERROR, "Cannot allocate memory for new records, %zu octets, errno=%d", l_summary_len, errno), -errno;
         }
 
+#ifdef  DAP_SYS_DEBUG
+        atomic_fetch_add(&s_memstat[MEMSTAT$K_MDBXREC].alloc_nr, 1);
+#endif
+
         l_data.iov_base = l_val;                                            /* Fill IOV for MDBX data */
         l_data.iov_len = l_summary_len;
 
@@ -991,6 +1023,12 @@ MDBX_stat   l_stat;
                 log_it (L_ERROR, "Cannot allocate a memory for store object key, errno=%d", errno);
                 l_rc = MDBX_PROBLEM;
             } else if ( !s_fill_store_obj(a_group, &l_key, &l_data, l_obj) ) {
+
+#ifdef  DAP_SYS_DEBUG
+            atomic_fetch_add(&s_memstat[MEMSTAT$K_OBJ].alloc_nr, 1);
+            atomic_fetch_add(&s_memstat[MEMSTAT$K_VALUE].alloc_nr, 1);
+#endif
+
                 if ( a_count_out )
                     *a_count_out = 1;
             } else
@@ -1058,8 +1096,13 @@ MDBX_stat   l_stat;
             if (s_fill_store_obj(a_group, &l_key, &l_data, l_obj)) {
                 l_rc = MDBX_PROBLEM;
                 break;
-            } else if ( a_count_out )
-                *a_count_out += 1;
+            } else if ( a_count_out ) {
+#ifdef  DAP_SYS_DEBUG
+                atomic_fetch_add(&s_memstat[MEMSTAT$K_OBJ].alloc_nr, 1);
+                atomic_fetch_add(&s_memstat[MEMSTAT$K_VALUE].alloc_nr, 1);
+#endif
+                (*a_count_out)++;
+             }
         }
 
         if ( (MDBX_SUCCESS != l_rc) && (l_rc != MDBX_NOTFOUND) ) {

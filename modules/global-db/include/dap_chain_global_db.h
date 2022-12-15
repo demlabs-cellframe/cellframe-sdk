@@ -42,10 +42,7 @@ typedef struct dap_sync_group_item {
  */
 int dap_chain_global_db_flush(void);
 
-/**
- * Clean struct dap_global_db_obj_t
- */
-void dap_chain_global_db_obj_clean(dap_global_db_obj_t *obj);
+
 /**
  * Delete struct dap_global_db_obj_t
  */

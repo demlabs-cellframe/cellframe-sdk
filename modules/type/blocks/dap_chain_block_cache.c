@@ -53,7 +53,7 @@ void dap_chain_block_cache_deinit()
  * @param a_block_size
  * @return
  */
-dap_chain_block_cache_t * dap_chain_block_cache_new(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t * a_block, size_t a_block_size)
+dap_chain_block_cache_t *dap_chain_block_cache_new(dap_chain_cs_blocks_t *a_blocks, dap_hash_fast_t *a_block_hash, dap_chain_block_t *a_block, size_t a_block_size)
 {
     if (! a_block)
         return NULL;
@@ -64,7 +64,7 @@ dap_chain_block_cache_t * dap_chain_block_cache_new(dap_chain_cs_blocks_t *a_blo
     l_block_cache->_inheritor = a_blocks;
     l_block_cache->ts_created = a_block->hdr.ts_created;
     l_block_cache->sign_count = dap_chain_block_get_signs_count(a_block, a_block_size);
-    if (dap_chain_block_cache_update(l_block_cache)) {
+    if (dap_chain_block_cache_update(l_block_cache, a_block_hash)) {
         log_it(L_WARNING, "Block cache can't be created, possible cause corrupted block inside");
         DAP_DELETE(l_block_cache);
         return NULL;
@@ -89,12 +89,15 @@ dap_chain_block_cache_t * dap_chain_block_cache_dup(dap_chain_block_cache_t * a_
  * @brief dap_chain_block_cache_update
  * @param a_block_cache
  */
-int dap_chain_block_cache_update(dap_chain_block_cache_t * a_block_cache)
+int dap_chain_block_cache_update(dap_chain_block_cache_t * a_block_cache, dap_hash_fast_t *a_block_hash)
 {
     assert(a_block_cache);
     assert(a_block_cache->block);
     DAP_DEL_Z(a_block_cache->block_hash_str);
-    dap_hash_fast(a_block_cache->block, a_block_cache->block_size, &a_block_cache->block_hash);
+    if (a_block_hash)
+        a_block_cache->block_hash = *a_block_hash;
+    else
+        dap_hash_fast(a_block_cache->block, a_block_cache->block_size, &a_block_cache->block_hash);
     a_block_cache->block_hash_str = dap_hash_fast_to_str_new(&a_block_cache->block_hash);
     DAP_DEL_Z(a_block_cache->meta);
     a_block_cache->meta = dap_chain_block_get_meta(a_block_cache->block, a_block_cache->block_size, &a_block_cache->meta_count);
