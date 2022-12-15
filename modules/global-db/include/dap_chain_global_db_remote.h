@@ -49,14 +49,14 @@ bool dap_db_set_last_hash_remote(uint64_t a_node_addr, dap_chain_t *a_chain, dap
 // Get last hash for chain for remote node
 dap_chain_hash_fast_t *dap_db_get_last_hash_remote(uint64_t a_node_addr, dap_chain_t *a_chain);
 
-dap_store_obj_pkt_t *dap_store_packet_single(dap_store_obj_t *a_store_obj);
+dap_store_obj_pkt_t *dap_put_store_obj2packet(dap_store_obj_t *a_store_obj);
 dap_store_obj_pkt_t *dap_store_packet_multiple(dap_store_obj_pkt_t *a_old_pkt, dap_store_obj_pkt_t *a_new_pkt);
 dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *a_pkt, size_t *a_store_obj_count);
 char *dap_store_packet_get_group(dap_store_obj_pkt_t *a_pkt);
 uint64_t dap_store_packet_get_id(dap_store_obj_pkt_t *a_pkt);
 void dap_store_packet_change_id(dap_store_obj_pkt_t *a_pkt, uint64_t a_id);
 
-dap_db_log_list_t* dap_db_log_list_start(dap_chain_net_t *l_net, dap_chain_node_addr_t a_addr, int a_flags);
+dap_db_log_list_t* dap_db_log_list_start(dap_chain_net_t *a_net, dap_chain_node_addr_t a_addr, int a_flags);
 size_t dap_db_log_list_get_count(dap_db_log_list_t *a_db_log_list);
 size_t dap_db_log_list_get_count_rest(dap_db_log_list_t *a_db_log_list);
 dap_db_log_list_obj_t *dap_db_log_list_get(dap_db_log_list_t *a_db_log_list);
