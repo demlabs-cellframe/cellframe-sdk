@@ -2350,7 +2350,7 @@ typedef struct s_ticker_list{
     dap_chain_datum_tx_t *tx;
 }s_ticker_list_t;
 
-s_ticker_list_t *s_dap_chain_tx_main_ticker(dap_chain_datum_tx_t *a_tx) {
+s_ticker_list_t *s_dap_chain_tx_main_ticker(dap_chain_datum_tx_t *a_tx, const char *a_native_ticker) {
     s_ticker_list_t *l_ticker = DAP_NEW_Z(s_ticker_list_t);
     l_ticker->tx = a_tx;
     dap_chain_tx_out_ext_t *l_out_ext = (dap_chain_tx_out_ext_t*)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_OUT_EXT, NULL);
@@ -2361,8 +2361,8 @@ s_ticker_list_t *s_dap_chain_tx_main_ticker(dap_chain_datum_tx_t *a_tx) {
     }
     dap_chain_tx_out_cond_t *l_out_cond = (dap_chain_tx_out_cond_t*)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_OUT_COND, NULL);
     if (l_out_cond){
-        if (l_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) {
-            l_ticker->ticker = l_out_cond->subtype.srv_xchange.buy_token;
+        if (l_out_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
+            l_ticker->ticker = a_native_ticker;
             l_ticker->type = TX_ITEM_TYPE_OUT_COND;
             return l_ticker;
         }
@@ -2376,12 +2376,12 @@ char *s_ticker_list_get_main_ticker(dap_list_t *a_tickers, const char *l_native_
         s_ticker_list_t *tmp = (s_ticker_list_t*)a_tickers->data;
         if (dap_strcmp(mt, tmp->ticker) != 0) {
             if (tmp->type == TX_ITEM_TYPE_OUT_COND) {
-                mt = tmp->ticker;
+                continue; // tmp-> ticker is OUT_COND_SUBTYPE_FEE.
             }
             if (tmp->type == TX_ITEM_TYPE_OUT_EXT) {
                 mt = tmp->ticker;
             }
-            if (tmp->type == TX_ITEM_TYPE_OUT) {
+            if (tmp->type == TX_ITEM_TYPE_OUT) { // STANDART OUT AND OUT_COND
                 if (dap_strcmp(tmp->ticker, l_native_ticker))
                     continue;
             }
@@ -2509,7 +2509,7 @@ void s_com_mempool_list_print_for_chain (
                         l_is_unchained = true;
                         break;
                     }
-                    s_ticker_list_t *l_this_tx = s_dap_chain_tx_main_ticker(l_tx_parent);
+                    s_ticker_list_t *l_this_tx = s_dap_chain_tx_main_ticker(l_tx_parent, l_native_ticker);
                     if (!l_this_tx->ticker) {
                         l_this_tx->ticker = (char*)dap_chain_ledger_tx_get_token_ticker_by_hash(
                                 a_net->pub.ledger, &l_parent_hash);
