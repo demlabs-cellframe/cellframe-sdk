@@ -607,6 +607,8 @@ MDBX_val    l_key, l_data;
  * @param a_count[out] a count of items were got
  * @return If successful, pointer to items, otherwise NULL.
  */
+
+//! TODO rewrite driver architecture to use object ID as the primary key
 static dap_store_obj_t  *s_db_mdbx_read_cond_store_obj(const char *a_group, uint64_t a_id, size_t *a_count_out)
 {
 int l_rc = 0;
@@ -644,8 +646,7 @@ size_t  l_cnt = 0, l_count_out = 0;
         }
 
         /* Iterate cursor to retrieve records from DB */
-        for (int i = l_count_out; i && (MDBX_SUCCESS == (l_rc = mdbx_cursor_get(l_cursor, &l_key, &l_data, MDBX_NEXT))); i--)
-        {
+        while (MDBX_SUCCESS == (l_rc = mdbx_cursor_get(l_cursor, &l_key, &l_data, MDBX_NEXT))) {
             l_suff = (struct __record_suffix__ *) (l_data.iov_base + l_data.iov_len - sizeof(struct __record_suffix__));
             if ( l_suff->id < a_id )
                 continue;
@@ -660,8 +661,12 @@ size_t  l_cnt = 0, l_count_out = 0;
             }
             l_obj = l_obj_arr + (l_cnt - 1);                                /* Point <l_obj> to last array's element */
             memset(l_obj, 0, sizeof(dap_store_obj_t));
-            if (s_fill_store_obj(a_group, &l_key, &l_data, l_obj))
+            if (s_fill_store_obj(a_group, &l_key, &l_data, l_obj)) {
                 l_rc = MDBX_PROBLEM;
+                break;
+            }
+            if (l_count_out == l_cnt)
+                break;
         }
 
         if ( (MDBX_SUCCESS != l_rc) && (l_rc != MDBX_NOTFOUND) ) {
@@ -1050,9 +1055,10 @@ MDBX_stat   l_stat;
         for (int i = l_count_out;
              i && (MDBX_SUCCESS == (l_rc = mdbx_cursor_get(l_cursor, &l_key, &l_data, MDBX_NEXT))); i--,  l_obj++)
         {
-            if (s_fill_store_obj(a_group, &l_key, &l_data, l_obj))
+            if (s_fill_store_obj(a_group, &l_key, &l_data, l_obj)) {
                 l_rc = MDBX_PROBLEM;
-            else if ( a_count_out )
+                break;
+            } else if ( a_count_out )
                 *a_count_out += 1;
         }
 

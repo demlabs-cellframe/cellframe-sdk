@@ -695,7 +695,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
         uint32_t l_last_type = l_store_obj->type;
         bool l_group_changed = false;
         uint32_t l_time_store_lim_hours = dap_config_get_item_uint32_default(g_config, "resources", "dap_global_db_time_store_limit", 72);
-        dap_gdb_time_t l_time_now = dap_gdb_time_now() + dap_gdb_time_from_sec(120);    // time differnece consideration
+        dap_gdb_time_t l_time_now = dap_gdb_time_now() + dap_gdb_time_from_sec(3600 * 24); // to be sure the timestamp is invalid
         uint64_t l_limit_time = l_time_store_lim_hours ? l_time_now - dap_gdb_time_from_sec(l_time_store_lim_hours * 3600) : 0;
         for (size_t i = 0; i < l_data_obj_count; i++) {
             // obj to add

@@ -498,7 +498,6 @@ dap_store_obj_t* dap_chain_global_db_driver_read(const char *a_group, const char
  */
 bool dap_chain_global_db_driver_is(const char *a_group, const char *a_key)
 {
-    bool l_ret = NULL;
     // read records using the selected database engine
     if(s_drv_callback.is_obj && a_group && a_key)
         return s_drv_callback.is_obj(a_group, a_key);
