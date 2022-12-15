@@ -828,12 +828,14 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
         uint32_t l_last_type = l_store_obj->type;
         bool l_group_changed = false;
         uint32_t l_time_store_lim_hours = dap_config_get_item_uint32_default(g_config, "global_db", "time_store_limit", 72);
-        dap_nanotime_t l_time_now = dap_nanotime_now() + dap_nanotime_from_sec(120);    // time differnece consideration
+        dap_nanotime_t l_time_now = dap_nanotime_now() + dap_nanotime_from_sec(3600 *24);    // time differnece consideration
         dap_nanotime_t l_limit_time = l_time_store_lim_hours ? l_time_now - dap_nanotime_from_sec(l_time_store_lim_hours * 3600) : 0;
         for (size_t i = 0; i < l_data_obj_count; i++) {
             // obj to add
             dap_store_obj_t *l_obj = l_store_obj + i;
-            if (l_obj->timestamp >> 32 == 0 || l_obj->timestamp > l_time_now || l_obj->group == NULL)
+            if (l_obj->timestamp >> 32 == 0 ||
+                    //l_obj->timestamp > l_time_now ||
+                    l_obj->group == NULL)
                 continue;       // the object is broken
             if (s_list_white_groups) {
                 int l_ret = -1;

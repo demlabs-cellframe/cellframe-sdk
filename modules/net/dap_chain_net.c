@@ -415,8 +415,8 @@ void dap_chain_net_sync_gdb_broadcast(dap_global_db_context_t *a_context, dap_st
     if (!a_arg || !a_obj || !a_obj->group || !a_obj->key)
         return;
     // Check object lifetime for broadcasting decision
-    dap_nanotime_t l_time_diff = a_obj->timestamp ? a_obj->timestamp - dap_nanotime_now() : (dap_nanotime_t)-1;
-    if (dap_nanotime_to_sec(l_time_diff) > DAP_BROADCAST_LIFETIME * 60)
+    dap_time_t l_time_diff = dap_nanotime_to_sec(dap_nanotime_now() - a_obj->timestamp);
+    if (l_time_diff > DAP_BROADCAST_LIFETIME * 60)
         return;
 
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
@@ -493,8 +493,7 @@ static void s_chain_callback_notify(void *a_arg, dap_chain_t *a_chain, dap_chain
     if (!HASH_COUNT(PVT(l_net)->downlinks))
         return;
     // Check object lifetime for broadcasting decision
-    dap_time_t l_timestamp = a_chain->callback_atom_get_timestamp(a_atom);
-    dap_time_t l_time_diff = l_timestamp ? l_timestamp - dap_time_now() : (dap_time_t)-1;
+    dap_time_t l_time_diff = dap_time_now() - a_chain->callback_atom_get_timestamp(a_atom);
     if (l_time_diff > DAP_BROADCAST_LIFETIME * 60)
         return;
 
@@ -799,7 +798,7 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
                 dap_chain_node_info_t *l_link_node_info = s_get_balancer_link_from_cfg(l_net);
                 if (l_link_node_info) {
                     if (!s_new_balancer_link_request(l_net, 1))
-                        log_it(L_ERROR, "Can't process node info dns request");
+                        log_it(L_ERROR, "Can't process node info balancer request");
                     DAP_DELETE(l_link_node_info);
                 }
             }
@@ -1033,16 +1032,17 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
         return false;
     }
     pthread_rwlock_unlock(&l_net_pvt->states_lock);
-    dap_chain_node_info_t *l_link_node_info = s_get_balancer_link_from_cfg(a_net);
-    if (a_link_replace_tries >= 5) {
+    if (a_link_replace_tries >= 3) {
         // network problems, make static links
         s_fill_links_from_root_aliases(a_net);
         pthread_rwlock_wrlock(&l_net_pvt->uplinks_lock);
         struct net_link *l_free_link = s_get_free_link(a_net);
-        s_net_link_start(a_net, l_free_link, 0);
+        if (l_free_link)
+            s_net_link_start(a_net, l_free_link, l_net_pvt->reconnect_delay);
         pthread_rwlock_unlock(&l_net_pvt->uplinks_lock);
         return false;
     }
+    dap_chain_node_info_t *l_link_node_info = s_get_balancer_link_from_cfg(a_net);
     if (!l_link_node_info)
         return false;
     char l_node_addr_str[INET_ADDRSTRLEN] = {};
