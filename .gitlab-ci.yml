@@ -22,7 +22,7 @@ linux-amd64-tests:
     before_script: /opt/buildtools/prepare_environment.sh amd64-linux
     script:
       - mkdir build
-      - cd build && cmake .. -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="new-hope, multisign" && make -j$(nproc)
+      - cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="new-hope, multisign" && make -j$(nproc) && cd test && ctest
 
 linux-arm32v7-tests:
     extends: .tests
@@ -30,7 +30,7 @@ linux-arm32v7-tests:
     before_script: /opt/buildtools/prepare_environment.sh arm32v7-linux
     script:
       - mkdir build
-      - cd build && cmake .. -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="new-hope, multisign" && make -j$(nproc)
+      - cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="new-hope, multisign" && make -j$(nproc) && cd test && ctest
 
 linux-arm64v8-tests:
     extends: .tests
@@ -38,7 +38,7 @@ linux-arm64v8-tests:
     before_script: /opt/buildtools/prepare_environment.sh arm64-linux
     script:
       - mkdir build
-      - cd build && cmake .. -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="new-hope, multisign" && make -j$(nproc)
+      - cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="new-hope, multisign" && make -j$(nproc) && cd test && ctest
 
 windows-tests:
     extends: .tests
@@ -46,7 +46,7 @@ windows-tests:
     before_script: /opt/buildtools/prepare_environment.sh amd64-windows
     script:
       - mkdir build
-      - cd build && export PATH=${MXE_ROOT}/usr/bin:$PATH && x86_64-w64-mingw32.static-cmake .. -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="new-hope, multisign" && make -j$(nproc)
+      - cd build && export PATH=${MXE_ROOT}/usr/bin:$PATH && x86_64-w64-mingw32.static-cmake .. -DCMAKE_BUILD_TYPE=Release && make -j$(nproc)
     
 
 macos-tests:
@@ -55,4 +55,4 @@ macos-tests:
     before_script: /opt/buildtools/prepare_environment.sh amd64-windows
     script:
       - mkdir build
-      - cd build && $(${OSXCROSS_ROOT}/bin/osxcross-conf) && export OSXCROSS_NO_INCLUDE_PATH_WARNINGS=1 && export OSXCROSS_HOST=x86_64-apple-darwin20.4 && cmake -DCMAKE_TOOLCHAIN_FILE=${OSXCROSS_ROOT}/toolchain.cmake -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="new-hope, multisign" .. && make -j$(nproc)
+      - cd build && $(${OSXCROSS_ROOT}/bin/osxcross-conf) && export OSXCROSS_NO_INCLUDE_PATH_WARNINGS=1 && export OSXCROSS_HOST=x86_64-apple-darwin20.4 && cmake -DCMAKE_BUILD_TYPE=Release -DCMAKE_TOOLCHAIN_FILE=${OSXCROSS_ROOT}/toolchain.cmake -DBoost_INCLUDE_DIR=$BOOST_INCLUDE_DIR .. && make -j$(nproc)
