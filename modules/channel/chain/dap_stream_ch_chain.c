@@ -28,7 +28,6 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
-#include <stdatomic.h>
 
 #ifdef WIN32
 #include <winsock2.h>

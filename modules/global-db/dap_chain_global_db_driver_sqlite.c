@@ -30,7 +30,6 @@
 #include <string.h>
 #include <pthread.h>
 #include <errno.h>
-#include <stdatomic.h>
 
 #ifdef DAP_OS_UNIX
 #include <unistd.h>
