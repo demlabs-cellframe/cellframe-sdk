@@ -668,6 +668,10 @@ void dap_global_db_change_notify(dap_store_obj_t *a_store_data)
  */
 bool dap_chain_global_db_flags_gr_set(const char *a_key, const void *a_value, size_t a_value_len, uint8_t a_flags, const char *a_group)
 {
+    if (!a_group || !a_key) {
+        log_it(L_WARNING, "Trying to set GDB object with NULL group or key param");
+        return false;
+    }
     dap_store_obj_t store_data = {0};
 
     store_data.key = a_key;
