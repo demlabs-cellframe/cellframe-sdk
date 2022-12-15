@@ -71,6 +71,7 @@ if (BUILD_CELLFRAME_SDK_TESTS)
         endif()
         set(BUILD_TESTS ON)
     endif()
+    add_subdirectory(test)
 endif()
 
 if (CELLFRAME_MODULES MATCHES "test-framework")
