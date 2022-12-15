@@ -158,13 +158,13 @@ dap_http_header_t *dap_http_header_add(
     dap_http_header_t *l_new_header = DAP_NEW_Z(dap_http_header_t);
     assert(l_new_header);
 
-    if ( a_name_len == -1 )
+    if ( (long)a_name_len == -1 )
         l_new_header->name_len = strnlen(a_name, DAP_HTTP$SZ_FIELD_NAME);
     else l_new_header->name_len = MIN(a_name_len, DAP_HTTP$SZ_FIELD_NAME);
 
     memcpy(l_new_header->name, a_name, l_new_header->name_len);
 
-    if ( a_value_len == -1 )
+    if ( (long)a_value_len == -1 )
         l_new_header->value_len = strnlen(a_value, DAP_HTTP$SZ_FIELD_VALUE);
     else  l_new_header->value_len = MIN(a_value_len, DAP_HTTP$SZ_FIELD_VALUE);
 
