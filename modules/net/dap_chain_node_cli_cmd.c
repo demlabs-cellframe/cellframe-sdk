@@ -2351,6 +2351,8 @@ typedef struct s_ticker_list{
 }s_ticker_list_t;
 
 char *s_ticker_list_get_main_ticker(dap_list_t *a_tickers, const char *l_native_ticker) {
+    if (!a_tickers)
+        return NULL;
     char *mt = ((s_ticker_list_t*)a_tickers->data)->ticker;
     for (dap_list_t *i = a_tickers; i != NULL; i = i->next) {
         s_ticker_list_t *tmp = (s_ticker_list_t*)a_tickers->data;
@@ -2441,7 +2443,7 @@ void s_com_mempool_list_print_for_chain (
                 if(!l_f_found)
                     continue;
                 break;
-            case DAP_CHAIN_DATUM_TOKEN_EMISSION:
+            case DAP_CHAIN_DATUM_TOKEN_EMISSION://
                 if(dap_strcmp(a_add,dap_chain_addr_to_str(&(l_emission->hdr.address))))
                     continue;
                 else
@@ -2530,6 +2532,8 @@ void s_com_mempool_list_print_for_chain (
                 }
                 if (!l_is_unchained && !l_token_ticker) {
                     l_token_ticker = s_ticker_list_get_main_ticker(l_tickers, a_net->pub.native_ticker);
+                    if (!l_token_ticker)
+                        dap_string_append_printf(a_str_tmp, ": Can't find token ticker for transaction %s. \n", l_objs[i].key);
                 }
                 for (dap_list_t *i = l_tickers; i != NULL; i = i->next)
                     DAP_FREE(i->data);
