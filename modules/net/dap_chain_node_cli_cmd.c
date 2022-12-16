@@ -2416,6 +2416,7 @@ void s_com_mempool_list_print_for_chain (
             uint32_t l_tx_items_size = l_tx->header.tx_items_size;
             bool l_f_found = false;
 
+            char *l_emi_addr;
             switch (l_datum->header.type_id) {
             case DAP_CHAIN_DATUM_TX:
                 while (l_tx_items_count < l_tx_items_size)
@@ -2443,16 +2444,19 @@ void s_com_mempool_list_print_for_chain (
                 if(!l_f_found)
                     continue;
                 break;
-            case DAP_CHAIN_DATUM_TOKEN_EMISSION://
-                if(dap_strcmp(a_add,dap_chain_addr_to_str(&(l_emission->hdr.address))))
+            case DAP_CHAIN_DATUM_TOKEN_EMISSION:
+                l_emi_addr = dap_chain_addr_to_str(&(l_emission->hdr.address));
+                if(dap_strcmp(a_add, l_emi_addr))
                     continue;
                 else
                     l_objs_addr++;
+                DAP_DELETE(l_emi_addr);
                 break;
             default:
                 continue;
                 break;
             }
+            DAP_DELETE(l_emission);
         }
 
         char buf[8 * sizeof(long long) + 1] = {'\0'};
