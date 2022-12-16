@@ -136,7 +136,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg) {
     l_ton_pvt->round_candidates_max = dap_config_get_item_uint16_default(a_chain_cfg,"block-ton", "round_candidates_max", 3);
     l_ton_pvt->next_candidate_delay = dap_config_get_item_uint16_default(a_chain_cfg,"block-ton", "next_candidate_delay", 2);
     l_ton_pvt->round_attempts_max = dap_config_get_item_uint16_default(a_chain_cfg,"block-ton", "round_attempts_max", 4);
-    l_ton_pvt->round_attempt_duration = dap_config_get_item_uint16_default(a_chain_cfg,"block-ton", "round_attempt_duration", 10);
+    l_ton_pvt->round_attempt_duration = dap_config_get_item_uint16_default(a_chain_cfg,"block-ton", "round_attempt_duration", 60);
     l_ton_pvt->first_message_delay = dap_config_get_item_uint16_default(a_chain_cfg,"block-ton", "first_message_delay", 3);
     l_ton_pvt->my_candidate_attempts_max = dap_config_get_item_uint16_default(a_chain_cfg,"block-ton", "my_candidate_attempts_max", 2);
 
@@ -569,8 +569,8 @@ static void s_session_proc_state( dap_chain_cs_block_ton_session_t * a_session)
                 }
             }
 
-            if ( (l_time-a_session->ts_round_start) >=
-                        (dap_time_t)(PVT(a_session->ton)->round_attempt_duration*a_session->attempt_current_number) ) {
+            if ( (l_time - a_session->ts_round_start) >=
+                        (dap_time_t)(PVT(a_session->ton)->round_attempt_duration * a_session->attempt_current_number) ) {
 
                 a_session->attempt_current_number++;
                 if ( a_session->attempt_current_number > PVT(a_session->ton)->round_attempts_max ) {
@@ -2158,10 +2158,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                 log_it (L_ERROR, "Can't process get request for s_callback_get_candidate_block_and_commit_sign()");
                 DAP_DELETE(l_candidate_hash_str);
                 DAP_DELETE(l_args);
-            }else{
-                pthread_rwlock_unlock(&l_session->rwlock);
-                return; // Message we'll proc in callback later
-            }
+            } // Message we'll proc in callback later
             pthread_rwlock_unlock(&l_session->rwlock);
 
         } break;
@@ -2255,11 +2252,11 @@ static void s_message_chain_add(dap_chain_cs_block_ton_session_t *a_session, dap
     dap_chain_hash_fast_t l_message_hash;
     dap_hash_fast(a_message, a_message_size, &l_message_hash);
 
-    dap_chain_cs_block_ton_message_item_t *l_message_items = DAP_NEW_Z(dap_chain_cs_block_ton_message_item_t);
-    l_message_items->message = l_message;
+    dap_chain_cs_block_ton_message_item_t *l_message_item = DAP_NEW_Z(dap_chain_cs_block_ton_message_item_t);
+    l_message_item->message = l_message;
 
-    l_round->last_message_hash = l_message_items->message_hash = l_message_hash;
-    HASH_ADD(hh, l_round->messages_items, message_hash, sizeof(l_message_items->message_hash), l_message_items);
+    l_round->last_message_hash = l_message_item->message_hash = l_message_hash;
+    HASH_ADD(hh, l_round->messages_items, message_hash, sizeof(l_message_item->message_hash), l_message_item);
 
     l_round->messages_count++;
     if (a_message_hash)
