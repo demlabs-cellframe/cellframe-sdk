@@ -30,7 +30,6 @@
 #include <stdarg.h>
 #include <assert.h>
 #include <stdint.h>
-#include <stdatomic.h>
 #include <ctype.h>
 #include "utlist.h"
 #include "uthash.h"
@@ -349,20 +348,35 @@ static void *s_log_thread_proc(void *arg) {
 }
 
 #ifdef DAP_SYS_DEBUG
-const	char spaces[74] = {"                                                                          "};
-#define PID_FMT "%6d"
+#ifdef __APPLE__
+#define PID_FMT "%08x"
+static inline uint64_t gettid(void)
+{
+uint64_t tid;
 
-void	_log_it_ext   (
-		const char *	a_rtn_name,
-            unsigned	a_line_no,
+    pthread_threadid_np(NULL, &tid);
+    return  tid;
+}
+#else
+#define PID_FMT "%6d"
+#endif
+
+#define     SPACES  74
+const   char spaces[SPACES] = {"                                                                          "};
+
+
+
+void    _log_it_ext   (
+                const char *    a_rtn_name,
+            unsigned    a_line_no,
     enum dap_log_level  a_ll,
-        const char *	a_fmt,
-			...
-			)
+        const char *    a_fmt,
+                        ...
+                        )
 {
 va_list arglist;
-const char	lfmt [] = {"%02u-%02u-%04u %02u:%02u:%02u.%03u  "  PID_FMT "  %s [%s:%u] "};
-char	out[1024] = {0};
+const char      lfmt [] = {"%02u-%02u-%04u %02u:%02u:%02u.%03u  "  PID_FMT "  %s [%s:%u] "};
+char    out[1024] = {0};
 int     olen, len;
 struct tm _tm;
 struct timespec now;
@@ -372,6 +386,7 @@ struct timespec now;
 
     if ( a_ll < s_dap_log_level )
         return;
+
 
 
 	clock_gettime(CLOCK_REALTIME, &now);
@@ -1483,3 +1498,54 @@ size_t dap_writev(HANDLE a_hf, const char* a_filename, iovec_t const *a_bufs, in
     return l_ret;
 }
 #endif
+
+
+#ifdef  DAP_SYS_DEBUG
+dap_memstat_rec_t    *g_memstat [MEMSTAT$K_MAXNR];                      /* Array to keep pointers to module/facility specific memstat vecros */
+static pthread_rwlock_t     s_memstat_lock = PTHREAD_RWLOCK_INITIALIZER;
+static uint64_t             s_memstat_nr;                               /* A number of pointers in the <g_memstat> */
+
+int     dap_memstat_reg (
+                dap_memstat_rec_t   *a_memstat_rec
+                )
+{
+uint64_t    l_nr;
+int l_rc;
+
+        l_rc = pthread_rwlock_wrlock(&s_memstat_lock);
+
+        l_nr = s_memstat_nr;
+        if ( s_memstat_nr < MEMSTAT$K_MAXNR )
+            s_memstat_nr += 1;
+
+        l_rc = pthread_rwlock_unlock(&s_memstat_lock);
+
+        if ( !( l_nr < MEMSTAT$K_MAXNR) )
+            return  log_it(L_ERROR, "[<%.*s>, %zu octets] -- No free slot for memstat vector",
+                    a_memstat_rec->fac_len, a_memstat_rec->fac_name, a_memstat_rec->alloc_sz), -ENOMEM;
+
+        g_memstat[l_nr] = a_memstat_rec;
+
+        return  log_it(L_INFO, "[<%.*s>, %zu octets] has been registered",
+                    a_memstat_rec->fac_len, a_memstat_rec->fac_name, a_memstat_rec->alloc_sz), 0;
+}
+
+
+void    dap_memstat_show (void)
+{
+dap_memstat_rec_t   *l_memstat_rec;
+
+    for ( uint64_t i = 0; i < s_memstat_nr; i++)
+    {
+        if ( (l_memstat_rec = g_memstat[i]) )
+            log_it(L_INFO, "[<%.*s>, %zu octets] allocations/deallocations: %lld/%lld (%lld octets still is allocated)",
+                l_memstat_rec->fac_len, l_memstat_rec->fac_name, l_memstat_rec->alloc_sz,
+                l_memstat_rec->alloc_nr, l_memstat_rec->free_nr,
+                (l_memstat_rec->alloc_nr - l_memstat_rec->free_nr) * l_memstat_rec->alloc_sz);
+    }
+}
+
+
+
+#endif  /* DAP_SYS_DEBUG */
+

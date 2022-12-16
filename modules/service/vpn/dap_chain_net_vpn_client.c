@@ -487,9 +487,9 @@ char *dap_chain_net_vpn_client_check_result(dap_chain_net_t *a_net, const char* 
 int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_str, const char *a_ipv6_str, int a_port, size_t a_data_size_to_send, size_t a_data_size_to_recv, int a_timeout_test_ms)
 {
     // default 10k
-    if(a_data_size_to_send==-1)
+    if(a_data_size_to_send==(size_t) -1)
         a_data_size_to_send = 10240;
-    if(a_data_size_to_recv==-1)
+    if(a_data_size_to_recv==(size_t) -1)
         a_data_size_to_recv = 10240;
     // default 10 sec = 10000 ms
     if(a_timeout_test_ms==-1)
