@@ -1126,6 +1126,7 @@ static void s_callback_get_candidate_block_and_commit_sign(dap_global_db_context
             log_it(L_WARNING, "Candidate:%s sign is incorrect: code %d", l_candidate_hash_str, l_sign_verified);
     }
     pthread_rwlock_unlock(&l_session->rwlock);
+    DAP_DELETE(l_message);
     DAP_DELETE(l_candidate_hash_str);
 }
 
@@ -2152,7 +2153,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
             l_args->candidate_hash_str = l_candidate_hash_str;
             l_args->candidate_hash = *l_candidate_hash;
             l_args->candidate_sign = DAP_DUP_SIZE(l_candidate_sign, l_candidate_sign_size);
-            l_args->message = l_message;
+            l_args->message = DAP_DUP_SIZE(l_message, a_data_size);
             l_args->message_size = a_data_size;
             l_args->sender_node_addr = *a_sender_node_addr;
 
