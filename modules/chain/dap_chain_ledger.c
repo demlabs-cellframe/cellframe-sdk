@@ -1991,17 +1991,17 @@ dap_ledger_t* dap_chain_ledger_create(uint16_t a_check_flags, char *a_net_name)
     l_ledger_priv->tps_timer = NULL;
     l_ledger_priv->tps_count = 0;
 
+#ifndef DAP_CHAIN_LEDGER_TEST
+    l_ledger_priv->cached = true;
     if (dap_config_get_item_bool_default(g_config, "ledger", "cache_enabled", true)) {
         dap_chain_node_role_t l_role = dap_chain_net_get_role(l_ledger_priv->net);
         if (l_role.enums != NODE_ROLE_MASTER && l_role.enums != NODE_ROLE_ROOT) {
-#ifndef DAP_CHAIN_LEDGER_TEST
-            l_ledger_priv->cached = true;
             // load ledger cache from GDB
             dap_chain_ledger_load_cache(l_ledger);
-#endif
-        }
 
     }
+}
+#endif
 
     return l_ledger;
 }
@@ -3328,7 +3328,11 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
     dap_list_t *l_list_out = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
     uint256_t l_value = {}, l_fee_value = {}, l_fee_sum = {};
     dap_chain_addr_t l_fee_addr = {};
+#ifndef DAP_CHAIN_LEDGER_TEST
     bool l_fee_check = dap_chain_net_tx_get_fee(PVT(a_ledger)->net->pub.id, &l_fee_value, &l_fee_addr);
+#else
+    bool l_fee_check = false;
+#endif
     int l_item_idx = 0;
     for (l_list_tmp = l_list_out; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp), l_item_idx++) {
         dap_chain_tx_item_type_t l_type = *(uint8_t *)l_list_tmp->data;
