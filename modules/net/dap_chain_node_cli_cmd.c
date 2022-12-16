@@ -2437,6 +2437,7 @@ void s_com_mempool_list_print_for_chain (
                 break;
             }
             DAP_DELETE(l_emission);
+            DAP_DELETE(l_addr);
         }
 
         char buf[8 * sizeof(long long) + 1] = {'\0'};
