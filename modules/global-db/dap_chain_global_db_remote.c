@@ -63,7 +63,8 @@ static void *s_list_thread_proc(void *arg)
         dap_gdb_time_t l_time_valid = dap_gdb_time_now() + dap_gdb_time_from_sec(3600 * 24); // to be sure the timestamp is invalid
         while (l_group_cur->count && l_dap_db_log_list->is_process) { // Number of records to be synchronized
             size_t l_item_count = 0; //min(64, l_group_cur->count);
-            dap_store_obj_t *l_objs = dap_chain_global_db_cond_load(l_group_cur->name, l_item_start, &l_item_count);
+            dap_store_obj_t *l_objs = dap_chain_global_db_driver_read(l_group_cur->name, NULL, &l_item_count);
+            //dap_store_obj_t *l_objs = dap_chain_global_db_cond_load(l_group_cur->name, l_item_start, &l_item_count);
 
             if (!l_dap_db_log_list->is_process)
                 return NULL;
