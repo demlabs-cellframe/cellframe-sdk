@@ -115,7 +115,7 @@ static MDBX_dbi s_db_master_dbi;                                            /* A
  * Suffix structure is supposed to be added at end of MDBX record, so :
  * <value> + <suffix>
  */
-struct  __record_suffix__ {
+struct DAP_ALIGN_PACKED __record_suffix__ {
         uint64_t        mbz;                                                /* Must Be Zero ! */
         uint64_t        id;                                                 /* An uniqe-like Id of the record - internaly created and maintained */
         uint64_t        flags;                                              /* Flag of the record : see RECORD_FLAGS enums */
@@ -217,8 +217,7 @@ MDBX_val    l_key_iov, l_data_iov;
      * Save new subDB name into the master table
      */
     l_data_iov.iov_base =  l_key_iov.iov_base = l_db_ctx->name;
-    l_data_iov.iov_len = l_key_iov.iov_len = l_db_ctx->namelen;
-    l_data_iov.iov_len += 1;    /* Count '\0' */
+    l_data_iov.iov_len = l_key_iov.iov_len = l_db_ctx->namelen + 1;  /* Count '\0' */
 
     if ( MDBX_SUCCESS != (l_rc = mdbx_put(l_db_ctx->txn, s_db_master_dbi, &l_key_iov, &l_data_iov, MDBX_NOOVERWRITE ))
          && (l_rc != MDBX_KEYEXIST) )
@@ -241,7 +240,7 @@ MDBX_val    l_key_iov, l_data_iov;
     HASH_FIND_STR(s_db_ctxs, a_group, l_db_ctx2);                           /* Check for existence of group again!!! */
 
     if ( !l_db_ctx2)                                                        /* Still not exist - fine, add new record */
-        HASH_ADD_KEYPTR(hh, s_db_ctxs, l_db_ctx->name, l_db_ctx->namelen, l_db_ctx);
+        HASH_ADD_STR(s_db_ctxs, name, l_db_ctx);
 
     pthread_rwlock_unlock(&s_db_ctxs_rwlock);
 
@@ -833,7 +832,7 @@ struct  __record_suffix__   *l_suff;
         log_it(L_NOTICE, "DB context for the group '%s' has been created", a_store_obj->group);
 
         if ( a_store_obj->type == DAP_DB$K_OPTYPE_DEL )                     /* Nothing to do anymore */
-            return  0;
+            return 1;
     }
 
 
@@ -947,7 +946,7 @@ struct  __record_suffix__   *l_suff;
             }
 
 
-        l_rc = (l_rc == MDBX_NOTFOUND) ? MDBX_SUCCESS : l_rc;               /* Not found ?! It's Okay !!! */
+        l_rc = (l_rc == MDBX_NOTFOUND) ? 1 : l_rc;               /* Not found ?! It's Okay !!! */
 
 
 
