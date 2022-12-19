@@ -2520,7 +2520,7 @@ void s_com_mempool_list_print_for_chain (
                                      l_datum->header.data_size, l_data_hash_str,
                                      l_token_ticker, dap_ctime_r(&l_ts_create, buf));
         } else {
-            log_it(L_ERROR, "Can't find token ticker for transaction: %s", l_objs[i].key);
+            log_it(L_DEBUG, "Can't find token ticker for transaction: %s", l_objs[i].key);
             dap_string_append_printf(a_str_tmp,
                                      "hash %s : type_id=%s  data_size=%u data_hash=%s ts_create=%s", // \n included in timestamp
                                      l_objs[i].key, l_type,
