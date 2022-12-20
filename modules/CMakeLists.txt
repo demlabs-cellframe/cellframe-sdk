@@ -1,3 +1,9 @@
+# AVRestream
+if (CELLFRAME_MODULES MATCHES "avrestream")
+    add_subdirectory(avrestream)
+endif()
+
+
 # Core
 if (CELLFRAME_MODULES MATCHES "core")
     add_subdirectory(common)
