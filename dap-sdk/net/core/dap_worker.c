@@ -283,17 +283,11 @@ const struct sched_param l_shed_params = {0};
             if (l_kevent_selected->flags & EV_EOF)
                 l_flag_rdhup = true;
             l_es = (dap_events_socket_t*) l_kevent_selected->udata;
+            if (l_kevent_selected->filter == EVFILT_TIMER && l_es->type != DESCRIPTOR_TYPE_TIMER) {
+                log_it(L_WARNING, "Filer type and socket descriptor type missmatch");
+                continue;
+            }
         }
-
-        if( !l_es) {
-            log_it(L_WARNING, "dap_events_socket was destroyed earlier");
-            continue;
-        }
-        // Previously deleted socket, its really bad when it appears
-        if(l_es->socket == 0 && l_es->type == 0 ){
-
-        }
-
 
         l_es->kqueue_event_catched = l_kevent_selected;
 #ifndef DAP_OS_DARWIN
@@ -305,8 +299,10 @@ const struct sched_param l_shed_params = {0};
 #else
 #error "Unimplemented fetch esocket after poll"
 #endif
-            if(!l_es || (l_es->worker && l_es->worker != l_worker)) {
-                log_it(L_WARNING, "dap_events_socket was destroyed earlier");
+            // Previously deleted socket, its really bad when it appears
+            if(!l_es || !l_es->worker || (l_es->worker != l_worker) ||
+                    l_es->socket == INVALID_SOCKET || l_es->fd == -1 || l_es->fd2 == -1) {
+                log_it(L_ATT, "dap_events_socket was destroyed earlier");
                 continue;
             }
 

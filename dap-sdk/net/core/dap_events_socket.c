@@ -2030,7 +2030,6 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
     pthread_rwlock_unlock(&a_worker->esocket_rwlock);
 
 #if defined(DAP_EVENTS_CAPS_EPOLL)
-
     //Check if its present on current selection
     for (ssize_t n = a_worker->esocket_current + 1; n< a_worker->esockets_selected; n++ ){
         struct epoll_event * l_event = &a_worker->epoll_events[n];
@@ -2047,7 +2046,11 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
     } //else
       //  log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_worker->id );
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
-    if (a_es->socket != -1 && a_es->type != DESCRIPTOR_TYPE_EVENT && a_es->type != DESCRIPTOR_TYPE_QUEUE && a_es->type != DESCRIPTOR_TYPE_TIMER){
+    if (a_es->socket == -1) {
+        log_it(L_ERROR, "Trying to remove bad socket from kqueue, a_es=%p", a_es);
+    } else {
+        if (a_es->type == DESCRIPTOR_TYPE_EVENT && a_es->type == DESCRIPTOR_TYPE_QUEUE)
+            log_it(L_WARNING, "Removing basis type socket from worker %p", a_worker);
         for (ssize_t n = a_worker->esocket_current+1; n< a_worker->esockets_selected; n++ ){
             struct kevent * l_kevent_selected = &a_worker->kqueue_events_selected[n];
             dap_events_socket_t * l_cur = NULL;
