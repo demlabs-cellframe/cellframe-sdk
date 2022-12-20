@@ -6,9 +6,6 @@ void dap_json_rpc_request_JSON_free(dap_json_rpc_request_JSON_t *l_request_JSON)
 {
     if (l_request_JSON->struct_error)
         dap_json_rpc_error_JSON_free(l_request_JSON->struct_error);
-    json_object_put(l_request_JSON->obj_result);
-    json_object_put(l_request_JSON->obj_error);
-    json_object_put(l_request_JSON->obj_id);
     DAP_FREE(l_request_JSON);
 }
 
@@ -23,13 +20,13 @@ void dap_json_rpc_response_free(dap_json_rpc_response_t *a_response)
 
 void dap_json_rpc_response_send(dap_json_rpc_response_t *a_response, dap_http_simple_t *a_client)
 {
-    dap_json_rpc_request_JSON_t *l_JSON = DAP_NEW_Z(dap_json_rpc_request_JSON_t);
-    const json_object *l_jobj = json_object_new_object();
+    dap_json_rpc_request_JSON_t *l_JSON = DAP_NEW(dap_json_rpc_request_JSON_t);
+    json_object *l_jobj = json_object_new_object();
     l_JSON->obj_id = json_object_new_int64(a_response->id);
     l_JSON->obj_error = NULL;
     l_JSON->obj_result = NULL;
     l_JSON->struct_error = NULL;
-    const char *str_response = NULL;
+    char *str_response = NULL;
     if (a_response->error == NULL){
         switch (a_response->type_result) {
             case TYPE_RESPONSE_STRING:
@@ -44,9 +41,6 @@ void dap_json_rpc_response_send(dap_json_rpc_response_t *a_response, dap_http_si
             case TYPE_RESPONSE_INTEGER:
                 l_JSON->obj_result = json_object_new_int64(a_response->result_int);
                 break;
-            case TYPE_RESPONSE_JSON:
-                json_object_deep_copy(a_response->result_json_object, &l_JSON->obj_result, NULL);
-                break;
             default:{}
         }
     }else{
@@ -58,8 +52,9 @@ void dap_json_rpc_response_send(dap_json_rpc_response_t *a_response, dap_http_si
     json_object_object_add(l_jobj, "result", l_JSON->obj_result);
     json_object_object_add(l_jobj, "id", l_JSON->obj_id);
     json_object_object_add(l_jobj, "error", l_JSON->obj_error);
-    str_response = json_object_to_json_string(l_jobj);
+    str_response = dap_strdup(json_object_to_json_string(l_jobj));
     dap_http_simple_reply(a_client, str_response, strlen(str_response));
+    DAP_FREE(str_response);
     json_object_put(l_jobj);
     dap_json_rpc_request_JSON_free(l_JSON);
 }

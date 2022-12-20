@@ -52,8 +52,6 @@ dap_chain_datum_tx_receipt_t *dap_chain_datum_tx_receipt_sign_add(dap_chain_datu
 dap_sign_t* dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t * l_receipt, size_t l_receipt_size , uint16_t sign_position);
 uint16_t dap_chain_datum_tx_receipt_signs_count(dap_chain_datum_tx_receipt_t * l_receipt, size_t l_receipt_size);
 
-json_object *dap_chain_datum_tx_receipt_to_json(dap_chain_datum_tx_receipt_t *a_receipt);
-
 #ifdef __cplusplus
 }
 #endif

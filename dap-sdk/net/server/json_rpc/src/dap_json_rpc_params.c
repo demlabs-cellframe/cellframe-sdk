@@ -47,7 +47,7 @@ void dap_json_rpc_params_add_data(dap_json_rpc_params_t *a_params, const void *a
 void dap_json_rpc_params_add_param(dap_json_rpc_params_t *a_params, dap_json_rpc_param_t *a_param)
 {
     uint32_t l_len_new_params = a_params->lenght + 1;
-    dap_json_rpc_param_t **l_new_params = DAP_NEW_SIZE(dap_json_rpc_param_t*, l_len_new_params * sizeof(dap_json_rpc_param_t*));
+    dap_json_rpc_param_t **l_new_params = DAP_NEW_SIZE(dap_json_rpc_param_t*, l_len_new_params);
     if(a_params->lenght && a_params->params)
        memcpy(l_new_params, a_params->params, sizeof(dap_json_rpc_param_t*) * a_params->lenght);
     memcpy(l_new_params+a_params->lenght, &a_param, sizeof(dap_json_rpc_param_t*));
