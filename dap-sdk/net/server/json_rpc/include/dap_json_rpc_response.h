@@ -54,11 +54,13 @@ void dap_json_rpc_request_JSON_free(dap_json_rpc_request_JSON_t *l_request_JSON)
 typedef struct dap_json_rpc_response
 {
     dap_json_rpc_response_type_result_t type_result;
-    char* result_string;
-    int64_t result_int;
-    double result_double;
-    bool result_boolean;
-    json_object* result_json_object;
+    union {
+        char *result_string;
+        int64_t result_int;
+        double result_double;
+        bool result_boolean;
+        json_object *result_json_object;
+    };
     dap_json_rpc_error_t* error;
     int64_t id;
 }dap_json_rpc_response_t;

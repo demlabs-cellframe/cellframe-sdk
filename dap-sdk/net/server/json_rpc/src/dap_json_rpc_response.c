@@ -45,7 +45,8 @@ void dap_json_rpc_response_send(dap_json_rpc_response_t *a_response, dap_http_si
                 l_JSON->obj_result = json_object_new_int64(a_response->result_int);
                 break;
             case TYPE_RESPONSE_JSON:
-                json_object_deep_copy(a_response->result_json_object, &l_JSON->obj_result, NULL);
+                l_JSON->obj_result = json_object_get(a_response->result_json_object);
+//                json_object_deep_copy(a_response->result_json_object, &l_JSON->obj_result, NULL);
                 break;
             default:{}
         }
