@@ -207,7 +207,7 @@ void dap_client_pvt_delete_unsafe(dap_client_pvt_t * a_client_pvt)
  */
 static void s_stream_connected(dap_client_pvt_t * a_client_pvt)
 {
-    log_it(L_INFO, "[cl_pvt:%s] Remote address connected for streaming on (%s:%u) with Socket #%"DAP_FORMAT_SOCKET" (assign on worker #%u)",
+    log_it(L_INFO, "[cl_pvt:%p] Remote address connected for streaming on (%s:%u) with Socket #%"DAP_FORMAT_SOCKET" (assign on worker #%u)",
            a_client_pvt, a_client_pvt->uplink_addr, a_client_pvt->uplink_port, a_client_pvt->stream_socket, a_client_pvt->stream_worker->worker->id);
 
     a_client_pvt->stage_status = STAGE_STATUS_DONE;
@@ -1340,7 +1340,7 @@ char l_errbuf[128] = {0};
 
     if ( !(l_client_pvt = dap_client_pvt_find(l_client_pvt->uuid)) )
     {
-        log_it(L_ERROR, "[es:%p] no client with UUID:%016X", a_es, l_client_pvt->uuid);
+        log_it(L_ERROR, "[es:%p] no client with UUID:%016"DAP_UINT64_FORMAT_X, a_es, l_client_pvt->uuid);
         return;
     }
 

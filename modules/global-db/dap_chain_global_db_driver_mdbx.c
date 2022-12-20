@@ -97,7 +97,7 @@ static int              s_db_mdbx_deinit();
 static int              s_db_mdbx_flush(void);
 static int              s_db_mdbx_apply_store_obj (dap_store_obj_t *a_store_obj);
 static dap_store_obj_t  *s_db_mdbx_read_last_store_obj(const char* a_group);
-static int              s_db_mdbx_is_obj(const char *a_group, const char *a_key);
+static bool             s_db_mdbx_is_obj(const char *a_group, const char *a_key);
 static dap_store_obj_t  *s_db_mdbx_read_store_obj(const char *a_group, const char *a_key, size_t *a_count_out);
 static dap_store_obj_t  *s_db_mdbx_read_cond_store_obj(const char *a_group, uint64_t a_id, size_t *a_count_out);
 static size_t           s_db_mdbx_read_count_store(const char *a_group, uint64_t a_id);
@@ -115,7 +115,7 @@ static MDBX_dbi s_db_master_dbi;                                            /* A
  * Suffix structure is supposed to be added at end of MDBX record, so :
  * <value> + <suffix>
  */
-struct  __record_suffix__ {
+struct DAP_ALIGN_PACKED __record_suffix__ {
         uint64_t        mbz;                                                /* Must Be Zero ! */
         uint64_t        id;                                                 /* An uniqe-like Id of the record - internaly created and maintained */
         uint64_t        flags;                                              /* Flag of the record : see RECORD_FLAGS enums */
@@ -217,8 +217,7 @@ MDBX_val    l_key_iov, l_data_iov;
      * Save new subDB name into the master table
      */
     l_data_iov.iov_base =  l_key_iov.iov_base = l_db_ctx->name;
-    l_data_iov.iov_len = l_key_iov.iov_len = l_db_ctx->namelen;
-    l_data_iov.iov_len += 1;    /* Count '\0' */
+    l_data_iov.iov_len = l_key_iov.iov_len = l_db_ctx->namelen + 1;  /* Count '\0' */
 
     if ( MDBX_SUCCESS != (l_rc = mdbx_put(l_db_ctx->txn, s_db_master_dbi, &l_key_iov, &l_data_iov, MDBX_NOOVERWRITE ))
          && (l_rc != MDBX_KEYEXIST) )
@@ -241,7 +240,7 @@ MDBX_val    l_key_iov, l_data_iov;
     HASH_FIND_STR(s_db_ctxs, a_group, l_db_ctx2);                           /* Check for existence of group again!!! */
 
     if ( !l_db_ctx2)                                                        /* Still not exist - fine, add new record */
-        HASH_ADD_KEYPTR(hh, s_db_ctxs, l_db_ctx->name, l_db_ctx->namelen, l_db_ctx);
+        HASH_ADD_STR(s_db_ctxs, name, l_db_ctx);
 
     pthread_rwlock_unlock(&s_db_ctxs_rwlock);
 
@@ -378,7 +377,7 @@ char        *l_cp;
     a_drv_callback->read_cond_store_obj = s_db_mdbx_read_cond_store_obj;
     a_drv_callback->read_count_store    = s_db_mdbx_read_count_store;
     a_drv_callback->get_groups_by_mask  = s_db_mdbx_get_groups_by_mask;
-    a_drv_callback->is_obj              = (dap_db_driver_is_obj_callback_t) s_db_mdbx_is_obj;
+    a_drv_callback->is_obj              = s_db_mdbx_is_obj;
     a_drv_callback->deinit              = s_db_mdbx_deinit;
     a_drv_callback->flush               = s_db_mdbx_flush;
 
@@ -587,7 +586,7 @@ dap_store_obj_t *l_obj;
  * @return  0 - Record-Not-Found
  *          1 - Record is found
  */
-int     s_db_mdbx_is_obj(const char *a_group, const char *a_key)
+bool s_db_mdbx_is_obj(const char *a_group, const char *a_key)
 {
 int l_rc, l_rc2;
 dap_db_ctx_t *l_db_ctx;
@@ -629,6 +628,8 @@ MDBX_val    l_key, l_data;
  * @param a_count[out] a count of items were got
  * @return If successful, pointer to items, otherwise NULL.
  */
+
+//! TODO rewrite driver architecture to use object ID as the primary key
 static dap_store_obj_t  *s_db_mdbx_read_cond_store_obj(const char *a_group, uint64_t a_id, size_t *a_count_out)
 {
 int l_rc = 0;
@@ -666,8 +667,7 @@ size_t  l_cnt = 0, l_count_out = 0;
         }
 
         /* Iterate cursor to retrieve records from DB */
-        for (int i = l_count_out; i && (MDBX_SUCCESS == (l_rc = mdbx_cursor_get(l_cursor, &l_key, &l_data, MDBX_NEXT))); i--)
-        {
+        while (MDBX_SUCCESS == (l_rc = mdbx_cursor_get(l_cursor, &l_key, &l_data, MDBX_NEXT))) {
             l_suff = (struct __record_suffix__ *) (l_data.iov_base + l_data.iov_len - sizeof(struct __record_suffix__));
             if ( l_suff->id < a_id )
                 continue;
@@ -688,8 +688,12 @@ size_t  l_cnt = 0, l_count_out = 0;
 
             l_obj = l_obj_arr + (l_cnt - 1);                                /* Point <l_obj> to last array's element */
             memset(l_obj, 0, sizeof(dap_store_obj_t));
-            if (s_fill_store_obj(a_group, &l_key, &l_data, l_obj))
+            if (s_fill_store_obj(a_group, &l_key, &l_data, l_obj)) {
                 l_rc = MDBX_PROBLEM;
+                break;
+            }
+            if (l_count_out == l_cnt)
+                break;
         }
 
         if ( (MDBX_SUCCESS != l_rc) && (l_rc != MDBX_NOTFOUND) ) {
@@ -828,7 +832,7 @@ struct  __record_suffix__   *l_suff;
         log_it(L_NOTICE, "DB context for the group '%s' has been created", a_store_obj->group);
 
         if ( a_store_obj->type == DAP_DB$K_OPTYPE_DEL )                     /* Nothing to do anymore */
-            return  0;
+            return 1;
     }
 
 
@@ -942,7 +946,7 @@ struct  __record_suffix__   *l_suff;
             }
 
 
-        l_rc = (l_rc == MDBX_NOTFOUND) ? MDBX_SUCCESS : l_rc;               /* Not found ?! It's Okay !!! */
+        l_rc = (l_rc == MDBX_NOTFOUND) ? 1 : l_rc;               /* Not found ?! It's Okay !!! */
 
 
 
@@ -1088,15 +1092,15 @@ MDBX_stat   l_stat;
         for (int i = l_count_out;
              i && (MDBX_SUCCESS == (l_rc = mdbx_cursor_get(l_cursor, &l_key, &l_data, MDBX_NEXT))); i--,  l_obj++)
         {
-            if (s_fill_store_obj(a_group, &l_key, &l_data, l_obj))
+            if (s_fill_store_obj(a_group, &l_key, &l_data, l_obj)) {
                 l_rc = MDBX_PROBLEM;
-            else if ( a_count_out )
-            {
+                break;
+            } else if ( a_count_out ) {
 #ifdef  DAP_SYS_DEBUG
                 atomic_fetch_add(&s_memstat[MEMSTAT$K_OBJ].alloc_nr, 1);
                 atomic_fetch_add(&s_memstat[MEMSTAT$K_VALUE].alloc_nr, 1);
 #endif
-                *a_count_out += 1;
+                (*a_count_out)++;
              }
         }
 

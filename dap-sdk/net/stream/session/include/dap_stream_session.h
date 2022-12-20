@@ -32,6 +32,7 @@
 #include "dap_enc_key.h"
 #include "dap_hash.h"
 #include "dap_list.h"
+#include "dap_time.h"
 
 typedef enum stream_session_type {STREAM_SESSION_TYPE_MEDIA = 0, STREAM_SESSION_TYPE_VPN} stream_session_type_t;
 typedef enum stream_session_connection_type {STEAM_SESSION_HTTP = 0, STREAM_SESSION_UDP, STREAM_SESSION_END_TYPE} stream_session_connection_type_t;
@@ -49,7 +50,7 @@ typedef struct dap_stream_session {
     bool open_preview;
     pthread_mutex_t mutex;
     int opened;
-    time_t time_created;
+    dap_time_t time_created;
 
     int32_t enc_type;
     int32_t protocol_version;

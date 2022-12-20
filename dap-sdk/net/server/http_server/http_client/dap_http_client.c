@@ -365,7 +365,7 @@ int     l_rc;
 
                 // parse http_request_line
                 if ( !s_request_line_parse(l_http_client, (char *) a_esocket->buf_in, l_len) ) {
-                    log_it( L_WARNING, "Input: Wrong request line '%.*s'", l_len, a_esocket->buf_in);
+                    log_it( L_WARNING, "Input: Wrong request line '%.*s'", (int)l_len, a_esocket->buf_in);
                     s_report_error_and_restart( a_esocket, l_http_client );
                     break;
                 }
@@ -469,7 +469,7 @@ int     l_rc;
                 l_rc = dap_http_header_parse( l_http_client, (char *) a_esocket->buf_in, l_len );
 
                 if( l_rc < 0 ){
-                    log_it( L_WARNING, "Input: not a valid header '%.*s'", l_len, a_esocket->buf_in );
+                    log_it( L_WARNING, "Input: not a valid header '%.*s'", (int)l_len, a_esocket->buf_in );
                 }else if ( l_rc == 1 ) {
                     log_it( L_INFO, "Input: HTTP headers are over" );
                     if ( l_http_client->proc->access_callback ) {

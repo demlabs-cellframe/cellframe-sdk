@@ -96,7 +96,8 @@ size_t  l_len, l_name_len, l_value_len;
     if ( !(l_cp = memchr(a_str, ':', a_str_len)) )
         return  log_it(L_ERROR,"Input: Wasn't found ':' symbol in the header"), -EINVAL;
 
-    l_name_len = MIN( (l_name_len = (l_cp - a_str)), sizeof(l_name) - 1);
+    l_name_len = l_cp - a_str;
+    l_name_len = MIN(l_name_len, sizeof(l_name) - 1);
     memcpy(l_name, a_str, l_name_len);
     l_name[l_name_len] = '\0';
 
