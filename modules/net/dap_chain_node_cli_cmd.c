@@ -2466,11 +2466,11 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                         switch(dap_chain_datum_tx_item_get_type(l_out_unknown)) {
                             case TX_ITEM_TYPE_OUT:
                                 l_current_token = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_parent_hash);
-                                l_tickers = dap_list_append(l_tickers, l_current_token);
+                                l_tickers = dap_list_append(l_tickers, (void *)l_current_token);
                                 break;
                             case TX_ITEM_TYPE_OUT_EXT:
                                 l_current_token = ((dap_chain_tx_out_ext_t*)l_out_unknown)->token;
-                                l_tickers = dap_list_append(l_tickers, l_current_token);
+                                l_tickers = dap_list_append(l_tickers, (void *)l_current_token);
                                 break;
                             case TX_ITEM_TYPE_OUT_COND:
                                 if(((dap_chain_tx_out_cond_t*)l_out_unknown)->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
