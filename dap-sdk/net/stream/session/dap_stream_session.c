@@ -140,7 +140,7 @@ unsigned int session_id = 0, session_id_new = 0;
     l_stm_sess->time_created = time(NULL);
     l_stm_sess->create_empty = true;
 
-    log_it(L_INFO, "Created session context [stm_sess:%p, id:%u, ts:%d]",  l_stm_sess, l_stm_sess->id, l_stm_sess->time_created);
+    log_it(L_INFO, "Created session context [stm_sess:%p, id:%u, ts:%"DAP_UINT64_FORMAT_U"]",  l_stm_sess, l_stm_sess->id, l_stm_sess->time_created);
 
     return l_stm_sess;
 }
@@ -200,7 +200,7 @@ dap_stream_session_t *l_stm_sess;
     HASH_DEL(s_sessions, l_stm_sess);
     dap_stream_session_unlock();
 
-    log_it(L_INFO, "Delete session context [stm_sess:%p, id:%u, ts:%d]",  l_stm_sess, l_stm_sess->id, l_stm_sess->time_created);
+    log_it(L_INFO, "Delete session context [stm_sess:%p, id:%u, ts:%"DAP_UINT64_FORMAT_U"]",  l_stm_sess, l_stm_sess->id, l_stm_sess->time_created);
 
     if (l_stm_sess->callback_delete)
         l_stm_sess->callback_delete(l_stm_sess, NULL);

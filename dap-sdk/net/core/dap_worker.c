@@ -609,15 +609,15 @@ const struct sched_param l_shed_params = {0};
 
                     getsockopt(l_es->socket, SOL_SOCKET, SO_ERROR, (void *)&l_errno, &l_error_len);
                     if(l_errno == EINPROGRESS) {
-                        log_it(L_DEBUG, "[es:%p] Connecting with %s in progress...", l_es, l_es->remote_addr_str ? l_es->remote_addr_str: "(NULL)");
+                        log_it(L_DEBUG, "[es:%p] Connecting with %s in progress...", l_es, l_es->remote_addr_str);
                     }else if (l_errno){
                         strerror_r(l_errno, l_error_buf, sizeof (l_error_buf));
-                        log_it(L_ERROR, "[es:%p] Connecting error with %s: \"%s\" (code %d)", l_es, l_es->remote_addr_str ? l_es->remote_addr_str: "(NULL)",
+                        log_it(L_ERROR, "[es:%p] Connecting error with %s: \"%s\" (code %d)", l_es, l_es->remote_addr_str,
                                l_error_buf, l_errno);
                         if ( l_es->callbacks.error_callback )
                             l_es->callbacks.error_callback(l_es, l_errno);
                     }else{
-                        debug_if(g_debug_reactor, L_NOTICE, "[es:%p] Connected with %s",l_es->remote_addr_str ? l_es->remote_addr_str: "(NULL)");
+                        debug_if(g_debug_reactor, L_NOTICE, "[es:%p] Connected with %s", l_es, l_es->remote_addr_str);
                         l_es->flags &= ~DAP_SOCK_CONNECTING;
                         if (l_es->callbacks.connected_callback)
                             l_es->callbacks.connected_callback(l_es);
@@ -827,7 +827,7 @@ const struct sched_param l_shed_params = {0};
             {
                 if (l_es->buf_out_size == 0) {
                     debug_if(g_debug_reactor, L_INFO, "[es:%p] Process signal to close %s sock %"DAP_FORMAT_SOCKET" (ptr %p uuid 0x%016"DAP_UINT64_FORMAT_x") type %d [thread %u]",
-                           l_es, l_es->remote_addr_str ? l_es->remote_addr_str : "", l_es->socket, l_es, l_es->uuid,
+                           l_es, l_es->remote_addr_str, l_es->socket, l_es, l_es->uuid,
                                l_es->type, l_tn);
 
                     for (ssize_t nn = n + 1; nn < l_sockets_max; nn++) { // Check for current selection if it has event duplication
@@ -862,7 +862,7 @@ const struct sched_param l_shed_params = {0};
                     l_worker->kqueue_events_count--;
 #endif
                 } else {
-                    debug_if(g_debug_reactor, L_INFO, "[%es] Got signal to close %s sock %"DAP_FORMAT_SOCKET" [thread %u] type %d but buffer is not empty(%zu)",
+                    debug_if(g_debug_reactor, L_INFO, "[es:%p] Got signal to close %s sock %"DAP_FORMAT_SOCKET" [thread %u] type %d but buffer is not empty(%zu)",
                            l_es, l_es->remote_addr_str, l_es->socket, l_es->type, l_tn,
                            l_es->buf_out_size);
                 }
@@ -1148,8 +1148,7 @@ char l_errbuf[128] = {0};
 int l_ret;
 
     debug_if(g_debug_reactor, L_DEBUG,"[es:%p] Worker add socket %"DAP_FORMAT_SOCKET, a_es, a_es->socket);
-    if ( l_ret = dap_events_socket_queue_ptr_send( a_worker->queue_es_new, a_es ))
-    {
+    if ( (l_ret = dap_events_socket_queue_ptr_send( a_worker->queue_es_new, a_es))) {
         strerror_r(l_ret, l_errbuf, sizeof(l_errbuf));
         log_it(L_ERROR, "[es:%p] Can't send pointer in queue: \"%s\"(code %d)", a_es, l_errbuf, l_ret);
     }

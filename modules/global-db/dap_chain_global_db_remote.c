@@ -45,30 +45,26 @@ static void *s_list_thread_proc(void *arg)
     uint32_t l_time_store_lim_hours = dap_config_get_item_uint32_default(g_config, "resources", "dap_global_db_time_store_limit", 72);
     uint64_t l_limit_time = l_time_store_lim_hours ? dap_gdb_time_now() - dap_gdb_time_from_sec(l_time_store_lim_hours * 3600) : 0;
 
-    for (dap_list_t *l_groups = l_dap_db_log_list->groups; l_groups; l_groups = dap_list_next(l_groups))
-    {
+    for (dap_list_t *l_groups = l_dap_db_log_list->groups; l_groups; l_groups = dap_list_next(l_groups)) {
         dap_db_log_list_group_t *l_group_cur = (dap_db_log_list_group_t *)l_groups->data;
         char *l_del_group_name_replace = NULL;
         char l_obj_type;
 
-        if (!dap_fnmatch("*.del", l_group_cur->name, 0))
-        {
+        if (!dap_fnmatch("*.del", l_group_cur->name, 0)) {
             l_obj_type = DAP_DB$K_OPTYPE_DEL;
             size_t l_del_name_len = strlen(l_group_cur->name) - 4; //strlen(".del");
             l_del_group_name_replace = DAP_NEW_SIZE(char, l_del_name_len + 1);
             memcpy(l_del_group_name_replace, l_group_cur->name, l_del_name_len);
             l_del_group_name_replace[l_del_name_len] = '\0';
-        } else {
+        } else
             l_obj_type = DAP_DB$K_OPTYPE_ADD;
-        }
 
         uint64_t l_item_start = l_group_cur->last_id_synced + 1;
-        dap_gdb_time_t l_time_now = dap_gdb_time_now();
-
-        while (l_group_cur->count && l_dap_db_log_list->is_process)
-        { // Number of records to be synchronized
-            size_t l_item_count = min(64, l_group_cur->count);
-            dap_store_obj_t *l_objs = dap_chain_global_db_cond_load(l_group_cur->name, l_item_start, &l_item_count);
+        dap_gdb_time_t l_time_valid = dap_gdb_time_now() + dap_gdb_time_from_sec(3600 * 24); // to be sure the timestamp is invalid
+        while (l_group_cur->count && l_dap_db_log_list->is_process) { // Number of records to be synchronized
+            size_t l_item_count = 0; //min(64, l_group_cur->count);
+            dap_store_obj_t *l_objs = dap_chain_global_db_driver_read(l_group_cur->name, NULL, &l_item_count);
+            //dap_store_obj_t *l_objs = dap_chain_global_db_cond_load(l_group_cur->name, l_item_start, &l_item_count);
 
             if (!l_dap_db_log_list->is_process)
                 return NULL;
@@ -82,8 +78,7 @@ static void *s_list_thread_proc(void *arg)
             l_group_cur->count -= l_item_count;
             dap_list_t *l_list = NULL;
 
-            for (size_t i = 0; i < l_item_count; i++)
-            {
+            for (size_t i = 0; i < l_item_count; i++) {
                 dap_store_obj_t *l_obj_cur = l_objs + i;
 
                 if (!l_obj_cur)
@@ -92,14 +87,13 @@ static void *s_list_thread_proc(void *arg)
                 l_obj_cur->type = l_obj_type;
 
                 if (l_obj_cur->timestamp >> 32 == 0 ||
-                        l_obj_cur->timestamp > l_time_now ||
+                        l_obj_cur->timestamp > l_time_valid ||
                         l_obj_cur->group == NULL) {
                     dap_chain_global_db_driver_delete(l_obj_cur, 1);
                     continue;       // the object is broken
                 }
 
-                if (l_obj_type == DAP_DB$K_OPTYPE_DEL)
-                {
+                if (l_obj_type == DAP_DB$K_OPTYPE_DEL) {
                     if (l_limit_time && l_obj_cur->timestamp < l_limit_time) {
                         dap_chain_global_db_driver_delete(l_obj_cur, 1);
                         continue;

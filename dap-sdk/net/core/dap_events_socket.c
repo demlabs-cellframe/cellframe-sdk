@@ -1953,7 +1953,6 @@ void dap_events_socket_remove_and_delete_unsafe( dap_events_socket_t *a_es, bool
 
 #ifdef DAP_EVENTS_CAPS_POLL
     if(a_es->worker){
-        assert (a_es->poll_index>=0);
         a_es->worker->poll[a_es->poll_index].fd=-1;
         a_es->worker->poll_esocket[a_es->poll_index]=NULL;
     }
