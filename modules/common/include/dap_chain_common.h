@@ -32,6 +32,7 @@
 #include "dap_pkey.h"
 #include "dap_sign.h"
 #include "dap_hash.h"
+#include <json.h>
 
 #define DAP_CHAIN_ADDR_VERSION_CURRENT 1
 
@@ -235,15 +236,21 @@ typedef struct dap_chain_receipt_info {
 extern "C" {
 #endif
 
+json_object* dap_chain_receipt_info_to_json(dap_chain_receipt_info_t *a_info);
+
 size_t dap_chain_hash_slow_to_str(dap_chain_hash_slow_t * a_hash, char * a_str, size_t a_str_max);
 
 char* dap_chain_addr_to_str(const dap_chain_addr_t *a_addr);
+json_object *dap_chain_addr_to_json(const dap_chain_addr_t *a_addr);
 dap_chain_addr_t* dap_chain_addr_from_str(const char *str);
 bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr);
 
 #if 0
 dap_chain_net_id_t dap_chain_net_id_from_str(const char* a_str);
 #endif
+DAP_STATIC_INLINE json_object *dap_chain_net_id_to_json(dap_chain_net_id_t a_net_id) {
+    return json_object_new_uint64(a_net_id.uint64);
+}
 dap_chain_net_srv_uid_t dap_chain_net_srv_uid_from_str(const char* a_str);
 
 void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_sign_type_t a_type, dap_chain_hash_fast_t *a_pkey_hash, dap_chain_net_id_t a_net_id);
