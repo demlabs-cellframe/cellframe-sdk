@@ -2031,7 +2031,6 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
     pthread_rwlock_unlock(&a_worker->esocket_rwlock);
 
 #if defined(DAP_EVENTS_CAPS_EPOLL)
-
     //Check if its present on current selection
     for (ssize_t n = a_worker->esocket_current + 1; n< a_worker->esockets_selected; n++ ){
         struct epoll_event * l_event = &a_worker->epoll_events[n];
@@ -2048,7 +2047,11 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
     } //else
       //  log_it( L_DEBUG,"Removed epoll's event from dap_worker #%u", a_worker->id );
 #elif defined(DAP_EVENTS_CAPS_KQUEUE)
-    if (a_es->socket != -1 && a_es->type != DESCRIPTOR_TYPE_EVENT && a_es->type != DESCRIPTOR_TYPE_QUEUE && a_es->type != DESCRIPTOR_TYPE_TIMER){
+    if (a_es->socket == -1) {
+        log_it(L_ERROR, "Trying to remove bad socket from kqueue, a_es=%p", a_es);
+    } else {
+        if (a_es->type == DESCRIPTOR_TYPE_EVENT && a_es->type == DESCRIPTOR_TYPE_QUEUE)
+            log_it(L_WARNING, "Removing basis type socket from worker %p", a_worker);
         for (ssize_t n = a_worker->esocket_current+1; n< a_worker->esockets_selected; n++ ){
             struct kevent * l_kevent_selected = &a_worker->kqueue_events_selected[n];
             dap_events_socket_t * l_cur = NULL;
@@ -2073,6 +2076,13 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
         // Delete from kqueue
         struct kevent * l_event = &a_es->kqueue_event;
         if (a_es->kqueue_base_filter){
+            // Delete from flags ready
+            if(a_es->flags & DAP_SOCK_READY_TO_WRITE){
+                l_event->filter |= EVFILT_WRITE;
+            }
+            if(a_es->flags & DAP_SOCK_READY_TO_READ){
+                l_event->filter |= EVFILT_READ;
+            }
             EV_SET(l_event, a_es->socket, a_es->kqueue_base_filter ,EV_DELETE, 0,0,a_es);
             if ( kevent( a_worker->kqueue_fd,l_event,1,NULL,0,NULL) == -1 ) {
                 int l_errno = errno;
@@ -2084,23 +2094,6 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
         }else{
             EV_SET(l_event, a_es->socket, EVFILT_EXCEPT ,EV_DELETE, 0,0,a_es);
         }
-
-        // Delete from flags ready
-        if(a_es->flags & DAP_SOCK_READY_TO_WRITE){
-            l_event->filter |= EVFILT_WRITE;
-        }
-        if(a_es->flags & DAP_SOCK_READY_TO_READ){
-            l_event->filter |= EVFILT_READ;
-        }
-
-        if ( kevent( a_worker->kqueue_fd,l_event,1,NULL,0,NULL) == -1 ) {
-            int l_errno = errno;
-            char l_errbuf[128];
-            strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-            log_it( L_ERROR,"Can't remove event socket's handler %d from the kqueue %d flags 0x%04X filter 0x%04X \"%s\" (%d)", a_es->socket,
-                a_worker->kqueue_fd, l_event->flags, l_event->filter, l_errbuf, l_errno);
-        }
-
     }
 #elif defined (DAP_EVENTS_CAPS_POLL)
     if (a_es->poll_index < a_worker->poll_count ){
