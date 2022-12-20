@@ -283,6 +283,7 @@ static void s_sync_out_chains_first_worker_callback(dap_worker_t *a_worker, void
     }
 
     l_ch_chain->state = CHAIN_STATE_SYNC_CHAINS;
+    l_ch_chain->request_atom_iter = l_sync_request->chain.request_atom_iter;
     dap_chain_node_addr_t l_node_addr = {};
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_sync_request->request_hdr.net_id);
     l_node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
@@ -748,13 +749,14 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
         uint32_t l_last_type = l_store_obj->type;
         bool l_group_changed = false;
         uint32_t l_time_store_lim_hours = dap_config_get_item_uint32_default(g_config, "resources", "dap_global_db_time_store_limit", 72);
-        dap_gdb_time_t l_time_now = dap_gdb_time_now() + dap_gdb_time_from_sec(3600 * 24); // to be sure the timestamp is invalid
+        dap_gdb_time_t l_time_now = dap_gdb_time_now();
+        dap_gdb_time_t l_time_alowed = l_time_now + dap_gdb_time_from_sec(3600 * 24); // to be sure the timestamp is invalid
         uint64_t l_limit_time = l_time_store_lim_hours ? l_time_now - dap_gdb_time_from_sec(l_time_store_lim_hours * 3600) : 0;
         for (size_t i = 0; i < l_data_obj_count; i++) {
             // obj to add
             dap_store_obj_t *l_obj = l_store_obj + i;
             if (l_obj->key_len == 0 || l_obj->timestamp >> 32 == 0 || l_obj->key == NULL ||
-                    l_obj->timestamp > l_time_now || l_obj->group == NULL)
+                    l_obj->timestamp > l_time_alowed || l_obj->group == NULL)
                 continue;       // the object is broken
             if (s_list_white_groups) {
                 int l_ret = -1;
