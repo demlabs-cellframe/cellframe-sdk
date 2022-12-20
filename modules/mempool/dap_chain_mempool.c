@@ -54,7 +54,6 @@
 #include <dap_enc_key.h>
 #include <dap_enc_ks.h>
 #include "dap_chain_mempool.h"
-#include "dap_chain_mempool_rpc.h"
 
 #include "dap_common.h"
 #include "dap_list.h"
@@ -70,7 +69,6 @@
 
 int dap_datum_mempool_init(void)
 {
-    dap_chain_mempool_rpc_init();
     return 0;
 }
 

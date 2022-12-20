@@ -54,9 +54,5 @@ void dap_json_rpc_request_handler(dap_json_rpc_request_t *a_request,  dap_http_s
             log_it(L_NOTICE, "Calling handler request name: %s", a_request->method);
         }
         dap_json_rpc_response_send(l_response, a_client);
-//        if (l_response->type_result == TYPE_RESPONSE_JSON){
-//            json_object_put(l_response->result_json_object);
-//        }
-//      TODO: Think about how to properly clean up memory after using l_response.
     }
 }
