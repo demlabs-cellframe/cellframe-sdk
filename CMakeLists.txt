@@ -12,6 +12,8 @@ if(NOT DEFINED CELLFRAME_MODULES)
     include (cmake/OS_Detection.cmake)
 
     set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-block-ton cs-none srv-app srv-app-db srv-datum srv-stake-pos-delegate srv-stake-lock srv-xchange")
+    set(CELLFRAME_MODULES "${CELLFRAME_MODULES} avrestream")
+
 
     if(LINUX OR DARWIN)
         set(CELLFRAME_MODULES "${CELLFRAME_MODULES} srv-vpn")
@@ -218,6 +220,12 @@ if (CELLFRAME_MODULES MATCHES "modules-dynamic")
     message("[+] Module 'dap_modules_dynamic_cdb'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_modules_dynamic_cdb)
 endif()
+
+if (CELLFRAME_MODULES MATCHES "avrestream")
+    message("[+] Module 'avrestream'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_avrestream)
+endif()
+
 
 if (WIN32)
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} kernel32 user32 shell32 winmm gdi32 advapi32
