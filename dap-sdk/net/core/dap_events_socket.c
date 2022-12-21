@@ -2054,6 +2054,8 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
         log_it(L_ERROR, "Trying to remove bad socket from kqueue, a_es=%p", a_es);
     } else if (a_es->type == DESCRIPTOR_TYPE_EVENT && a_es->type == DESCRIPTOR_TYPE_QUEUE)
         log_it(L_WARNING, "Removing non-kqueue socket from worker %p", a_worker);
+    } else if (a_es->type == DESCRIPTOR_TYPE_TIMER && a_es->kqueue_base_filter == EVFILT_EMPTY) {
+        // Nothing to do, it was already removed from kqueue cause of one shit strategy
     } else {
 
         for (ssize_t n = a_worker->esocket_current+1; n< a_worker->esockets_selected; n++ ){

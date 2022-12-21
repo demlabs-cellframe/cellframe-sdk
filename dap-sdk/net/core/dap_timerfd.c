@@ -275,9 +275,11 @@ static void s_es_callback_timer(struct dap_events_socket *a_event_sock)
 #ifdef DAP_OS_WINDOWS
         DeleteTimerQueueTimer(hTimerQueue, l_timerfd->th, NULL);
 #endif
-#ifndef DAP_OS_BSD
-        l_timerfd->events_socket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+#ifdef DAP_OS_BSD
+        l_timerfd->events_socket->kqueue_base_filter = EVFILT_EMPTY;
 #endif
+        l_timerfd->events_socket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+        DAP_DELETE(l_timerfd);
     }
 }
 
@@ -312,4 +314,5 @@ void dap_timerfd_delete(dap_timerfd_t *a_timerfd)
 #endif
     if (a_timerfd->events_socket->worker)
         dap_events_socket_remove_and_delete_mt(a_timerfd->events_socket->worker, a_timerfd->esocket_uuid);
+    DAP_DELETE(a_timerfd);
 }
