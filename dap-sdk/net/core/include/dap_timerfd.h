@@ -35,7 +35,7 @@
 #elif defined DAP_OS_BSD
 #include <sys/event.h>
 #ifndef EVFILT_EMPTY
-#define EVFILT_EMPTY 0
+#define EVFILT_EMPTY -13
 #endif
 #elif defined DAP_OS_WINDOWS
 #define _MSEC -10000

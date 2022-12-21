@@ -1754,11 +1754,19 @@ void dap_events_socket_worker_poll_update_unsafe(dap_events_socket_t * a_esocket
             // Do nothing
         }else{
             EV_SET(l_event, a_esocket->socket, l_filter,l_flags| EV_ADD,l_fflags,a_esocket->kqueue_data,a_esocket);
-            if( a_esocket->flags & DAP_SOCK_READY_TO_READ ){
-                EV_SET(l_event, a_esocket->socket, EVFILT_READ,l_flags| EV_ADD,l_fflags,a_esocket->kqueue_data,a_esocket);
+            if (l_filter) {
                 if( kevent( l_kqueue_fd,l_event,1,NULL,0,NULL) == -1 ){
                     l_is_error = true;
                     l_errno = errno;
+                }
+            }
+            if (!l_is_error) {
+                if( a_esocket->flags & DAP_SOCK_READY_TO_READ ){
+                    EV_SET(l_event, a_esocket->socket, EVFILT_READ,l_flags| EV_ADD,l_fflags,a_esocket->kqueue_data,a_esocket);
+                    if( kevent( l_kqueue_fd,l_event,1,NULL,0,NULL) == -1 ){
+                        l_is_error = true;
+                        l_errno = errno;
+                    }
                 }
             }
             if( !l_is_error){
@@ -1772,7 +1780,7 @@ void dap_events_socket_worker_poll_update_unsafe(dap_events_socket_t * a_esocket
             }
         }
         if (l_is_error && l_errno == EBADF){
-            log_it(L_ATT,"Poll update: socket %d (%p ) disconnected, rise CLOSE flag to remove from queue, lost %"DAP_UINT64_FORMAT_U":%" DAP_UINT64_FORMAT_U
+            log_it(L_ATT,"Poll update: socket %d (%p ) disconnected, rise CLOSE flag to remove from queue, lost %zu:%zu"
                          " bytes",a_esocket->socket,a_esocket,a_esocket->buf_in_size,a_esocket->buf_out_size);
             a_esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
             a_esocket->buf_in_size = a_esocket->buf_out_size = 0; // Reset everything from buffer, we close it now all
@@ -2053,7 +2061,7 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
     if (a_es->socket == -1) {
         log_it(L_ERROR, "Trying to remove bad socket from kqueue, a_es=%p", a_es);
     } else if (a_es->type == DESCRIPTOR_TYPE_EVENT || a_es->type == DESCRIPTOR_TYPE_QUEUE) {
-        log_it(L_WARNING, "Removing non-kqueue socket from worker %p", a_worker);
+        log_it(L_ERROR, "Removing non-kqueue socket from worker %p is impossible", a_worker);
     } else if (a_es->type == DESCRIPTOR_TYPE_TIMER && a_es->kqueue_base_filter == EVFILT_EMPTY) {
         // Nothing to do, it was already removed from kqueue cause of one shit strategy
     } else {
@@ -2081,8 +2089,8 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
 
         // Delete from kqueue
         struct kevent * l_event = &a_es->kqueue_event;
+        EV_SET(l_event, a_es->socket, a_es->kqueue_base_filter, EV_DELETE, 0, 0, a_es);
         if (a_es->kqueue_base_filter){
-            EV_SET(l_event, a_es->socket, a_es->kqueue_base_filter, EV_DELETE, 0, 0, a_es);
             if ( kevent( a_worker->kqueue_fd,l_event,1,NULL,0,NULL) == -1 ) {
                 int l_errno = errno;
                 char l_errbuf[128];
@@ -2090,24 +2098,28 @@ void dap_events_socket_remove_from_worker_unsafe( dap_events_socket_t *a_es, dap
                 log_it( L_ERROR,"Can't remove event socket's handler %d from the kqueue %d filter %d \"%s\" (%d)", a_es->socket,
                     a_worker->kqueue_fd,a_es->kqueue_base_filter,  l_errbuf, l_errno);
             }
-        }else{
-            EV_SET(l_event, a_es->socket, EVFILT_EXCEPT ,EV_DELETE, 0,0,a_es);
         }
 
         // Delete from flags ready
-        if(a_es->flags & DAP_SOCK_READY_TO_WRITE){
-            l_event->filter |= EVFILT_WRITE;
+        if (a_es->flags & DAP_SOCK_READY_TO_WRITE) {
+            l_event->filter = EVFILT_WRITE;
+            if ( kevent( a_worker->kqueue_fd,l_event,1,NULL,0,NULL) == -1 ) {
+                int l_errno = errno;
+                char l_errbuf[128];
+                strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+                log_it( L_ERROR,"Can't remove event socket's handler %d from the kqueue %d flags 0x%04X filter 0x%04X \"%s\" (%d)", a_es->socket,
+                    a_worker->kqueue_fd, a_es->flags, l_event->filter, l_errbuf, l_errno);
+            }
         }
         if(a_es->flags & DAP_SOCK_READY_TO_READ){
-            l_event->filter |= EVFILT_READ;
-        }
-
-        if ( kevent( a_worker->kqueue_fd,l_event,1,NULL,0,NULL) == -1 ) {
-            int l_errno = errno;
-            char l_errbuf[128];
-            strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
-            log_it( L_ERROR,"Can't remove event socket's handler %d from the kqueue %d flags 0x%04X filter 0x%04X \"%s\" (%d)", a_es->socket,
-                a_worker->kqueue_fd, l_event->flags, l_event->filter, l_errbuf, l_errno);
+            l_event->filter = EVFILT_READ;
+            if ( kevent( a_worker->kqueue_fd,l_event,1,NULL,0,NULL) == -1 ) {
+                int l_errno = errno;
+                char l_errbuf[128];
+                strerror_r(l_errno, l_errbuf, sizeof (l_errbuf));
+                log_it( L_ERROR,"Can't remove event socket's handler %d from the kqueue %d flags 0x%04X filter 0x%04X \"%s\" (%d)", a_es->socket,
+                    a_worker->kqueue_fd, a_es->flags, l_event->filter, l_errbuf, l_errno);
+            }
         }
 
     }
