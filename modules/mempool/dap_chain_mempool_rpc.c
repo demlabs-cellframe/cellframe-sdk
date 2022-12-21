@@ -5,7 +5,54 @@
 
 int dap_chain_mempool_rpc_init(void) {
     dap_json_rpc_registration_request_handler("mempool_list", dap_chain_mempool_rpc_handler_list);
+    dap_json_rpc_registration_request_handler("memtest", dap_chain_mempool_rpc_handler_test);
 }
+
+void dap_chain_mempool_rpc_handler_test(dap_json_rpc_params_t *a_params,
+                                        dap_json_rpc_response_t *a_response, const char *a_method) {
+    UNUSED(a_method);
+    char *l_tn = NULL;
+//    char *l_chain_str = NULL;
+    for (int32_t i = 0; i < a_params->lenght; i++) {
+        dap_json_rpc_param_t *l_prm = a_params->params[i];
+        if (i == 0)
+            l_tn = l_prm->value_param;
+    }
+    if (dap_strcmp(l_tn, "NULL") == 0) {
+        a_response->type_result = TYPE_RESPONSE_NULL;
+    } else if (dap_strcmp(l_tn, "STRING") == 0) {
+        a_response->type_result = TYPE_RESPONSE_STRING;
+        a_response->result_string = dap_strdup("This test string");
+    } else if (dap_strcmp(l_tn, "INTEGER") == 0) {
+        a_response->type_result = TYPE_RESPONSE_INTEGER;
+        a_response->result_int = 4555745;
+    } else if (dap_strcmp(l_tn, "BOOLEAN") == 0) {
+        a_response->type_result = TYPE_RESPONSE_BOOLEAN;
+        a_response->result_boolean = true;
+    } else if (dap_strcmp(l_tn, "DOUBLE") == 0) {
+        a_response->type_result = TYPE_RESPONSE_DOUBLE;
+        a_response->result_double = 75.545;
+    } else if (dap_strcmp(l_tn, "JSON") == 0) {
+        a_response->type_result = TYPE_RESPONSE_JSON;
+        json_object *l_obj = json_object_new_object();
+        json_object *l_int = json_object_new_uint64(45577445);
+        json_object *l_boolean = json_object_new_boolean((json_bool)1);
+        json_object *l_double = json_object_new_double(457.74514);
+        json_object *l_arr = json_object_new_array();
+        for (int i = 1000; i < 1997; i++) {
+            json_object *l_cur = json_object_new_int(i);
+            json_object_array_add(l_arr, l_cur);
+        }
+        json_object_object_add(l_obj, "int", l_int);
+        json_object_object_add(l_obj, "boolean", l_boolean);
+        json_object_object_add(l_obj, "double", l_double);
+        json_object_object_add(l_obj, "array", l_arr);
+        a_response->result_json_object = l_obj;
+    } else {
+        //set ERR code
+    }
+}
+
 void dap_chain_mempool_rpc_handler_list(dap_json_rpc_params_t *a_params,
                                         dap_json_rpc_response_t *a_response, const char *a_method) {
     char *l_net_str = NULL;
@@ -41,21 +88,14 @@ void dap_chain_mempool_rpc_handler_list(dap_json_rpc_params_t *a_params,
             dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_mempool);
             continue;
         }
+
         json_object *l_obj_datum = dap_chain_datum_to_json(l_datum);
         json_object_array_add(l_object_array, l_obj_datum);
-//        json_object_put(l_obj_datum);
     }
     json_object_object_add(l_object, "datums", l_object_array);
-    a_response->type_result = TYPE_RESPONSE_STRING;
-    a_response->result_string = dap_strdup(json_object_new_string(l_object));
+    a_response->type_result = TYPE_RESPONSE_JSON;
+    a_response->result_json_object = json_object_get(l_object);
     json_object_put(l_object);
-//    const char *l_ret_str = json_object_to_json_string(l_object);
-//    size_t l_ret_str_size = dap_strlen(l_ret_str) + 1;
-//    char * l_ret = DAP_NEW_Z_SIZE(char, l_ret_str_size);
-//    strcpy(l_ret, l_ret_str);
-//    a_response->result_string = l_ret;
-//    json_object_put(l_object);
-//    json_object_put(l_object_array);
     //TODO: Free memory.
 
     DAP_DELETE(l_gdb_group_mempool);
