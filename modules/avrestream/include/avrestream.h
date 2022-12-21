@@ -24,5 +24,5 @@
 #include "dap_common.h"
 #include "dap_config.h"
 
-int plugin_init(dap_config_t * a_plugin_config, char ** a_error_str);
-void plugin_deinit();
+int avrs_plugin_init(dap_config_t * a_plugin_config, char ** a_error_str);
+void avrs_plugin_deinit();

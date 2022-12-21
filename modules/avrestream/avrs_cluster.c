@@ -53,7 +53,7 @@ pthread_rwlock_t s_clusters_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 #define PVT(a)  ( (avrs_cluster_pvt_t *) (a->pvt) )
 
-static avrs_cluster_t * s_new();
+static avrs_cluster_t * s_new(void);
 static int s_add(avrs_cluster_t * a_cluster);
 static inline int s_member_add(avrs_cluster_t * a_cluster, avrs_cluster_member_t * a_hh,  avrs_cluster_member_t* a_member);
 
@@ -78,6 +78,7 @@ avrs_cluster_t *avrs_cluster_new(avrs_cluster_options_t * a_options)
 avrs_cluster_t *avrs_cluster_new_from(dap_guuid_t a_guuid, avrs_cluster_options_t * a_options)
 {
     avrs_cluster_t * l_ret = s_new();
+
     if(a_options)
         memcpy(&l_ret->options, a_options, sizeof(l_ret->options));
 
@@ -106,7 +107,7 @@ avrs_cluster_t *avrs_cluster_find(dap_guuid_t a_cluster_id)
  * @brief s_new
  * @return
  */
-static avrs_cluster_t * s_new()
+static avrs_cluster_t * s_new(void)
 {
     avrs_cluster_t * l_ret = DAP_NEW_Z_SIZE(avrs_cluster_t, sizeof(avrs_cluster_t) + sizeof(avrs_cluster_pvt_t));
     pthread_rwlock_init( &l_ret->rwlock, NULL);

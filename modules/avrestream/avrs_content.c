@@ -126,9 +126,9 @@ static void s_app_sink_callback_queue_ptr_iter(dap_worker_t * a_worker,void * a_
 int avrs_content_init()
 {
     s_context = dap_context_new(DAP_CONTEXT_TYPE_AVRS_GST);
-    dap_context_run(s_context,-1,DAP_CONTEXT_POLICY_DEFAULT,0,
+    dap_context_run(s_context,-1, DAP_CONTEXT_POLICY_DEFAULT, 0,
                     DAP_CONTEXT_FLAG_WAIT_FOR_STARTED | DAP_CONTEXT_FLAG_EXIT_IF_ERROR,
-                    s_gst_context_callback_started,s_gst_context_callback_stopped, NULL);
+                    s_gst_context_callback_started, s_gst_context_callback_stopped, NULL);
 
     return 0;
 }
@@ -184,9 +184,15 @@ void avrs_content_deinit()
 avrs_content_t * avrs_content_new()
 {
     avrs_content_t * l_ret = DAP_NEW_Z_SIZE(avrs_content_t, sizeof(avrs_content_t) +sizeof(avrs_content_pvt_t));
+    assert(l_ret);
+
     pthread_rwlock_init(&l_ret->rwlock, NULL);
+
     PVT(l_ret)->in.content = l_ret;
     PVT(l_ret)->out.content = l_ret;
+
+    debug_if(g_avrs_debug_more, L_DEBUG, "[avrs_cnt:%p] --- created", l_ret);
+
     return l_ret;
 }
 
@@ -205,8 +211,6 @@ void avrs_content_delete(avrs_content_t * a_content)
     if(a_content->flow_codecs)
         DAP_DELETE(a_content->flow_codecs);
 
-
-    pthread_rwlock_destroy(&a_content->rwlock);
     DAP_DELETE(a_content);
 }
 
@@ -215,6 +219,7 @@ void avrs_content_set_flows(avrs_content_t * a_content, const char * a_flows)
     assert(a_flows);
     size_t l_flows_count = strlen(a_flows);
     assert(l_flows_count);
+
     if(a_content->flows_count){
         // Realloc codecs array
         a_content->flow_codecs = DAP_REALLOC(a_content->flow_codecs , sizeof(*a_content->flow_codecs)* l_flows_count);
@@ -257,6 +262,7 @@ void avrs_content_set_flows(avrs_content_t * a_content, const char * a_flows)
 static gboolean s_pipeline_bus_call (GstBus *a_bus, GstMessage *a_msg, gpointer a_data)
 {
     struct content_gst * l_content_gst = (struct content_gst *) a_data;
+
     switch (GST_MESSAGE_TYPE (a_msg)) {
         case GST_MESSAGE_ERROR: {
             GError *l_err = NULL;
@@ -272,11 +278,13 @@ static gboolean s_pipeline_bus_call (GstBus *a_bus, GstMessage *a_msg, gpointer 
             gst_element_set_state ( l_content_gst->pipe_element , GST_STATE_READY);
           break;
         } break;
+
         case GST_MESSAGE_CLOCK_LOST:
             /* Get a new clock */
             gst_element_set_state ( l_content_gst->pipe_element, GST_STATE_PAUSED);
             gst_element_set_state ( l_content_gst->pipe_element, GST_STATE_PLAYING);
         break;
+
         default: break;
     }
     return TRUE;
@@ -609,18 +617,24 @@ static void s_push_session_out_delete(struct push_session_out * a_args)
  */
 int avrs_content_data_push_sessions_out_mt( avrs_content_t * a_content, uint8_t a_flow_id, const void * a_data, size_t a_data_size)
 {
-    int l_ret = 0;
-    struct push_session_out * l_args = DAP_NEW_Z(struct push_session_out);
+int l_ret = 0;
+struct push_session_out * l_args = DAP_NEW_Z(struct push_session_out);
+
+    assert(l_args);
+
     l_args->data_size = a_data_size;
     l_args->data = DAP_DUP_SIZE(a_data,a_data_size);
+    assert(l_args->data);
+
     l_args->content = a_content;
     l_args->flow_id = a_flow_id;
-    int l_send_code = dap_events_socket_queue_ptr_send( s_queue_app_sink , l_args);
-    if( l_send_code  != 0 ){
-        log_it(L_ERROR,"Can't push data to app sink queue, code %d", l_send_code);
+
+    if ( (l_ret = dap_events_socket_queue_ptr_send( s_queue_app_sink , l_args)) )
+    {
+        log_it(L_ERROR,"Can't push data to app sink queue, code %d", l_ret);
         s_push_session_out_delete(l_args);
-        l_ret = l_send_code;
     }
+
     return l_ret;
 }
 
@@ -724,30 +738,28 @@ int avrs_content_data_push_pipeline( avrs_content_t * a_content, uint8_t a_flow_
  * @param a_session
  * @return 0 if success, error code if not
  */
-int avrs_content_add_session_out(avrs_content_t * a_content,uint32_t a_content_session_id, avrs_session_t * a_session)
+int avrs_content_add_session_out(avrs_content_t * a_content, uint32_t a_content_session_id, avrs_session_t * a_session)
 {
+avrs_content_session_t * l_content_session, *l_tmp;
+
     assert(a_content);
     assert(a_session);
-    avrs_content_session_t * l_content_session = NULL;
+
+    l_content_session = DAP_NEW_Z(avrs_content_session_t);              /* Preallocate memory for a new record */
+    assert(l_content_session);
 
     // Check if its already present
-    pthread_rwlock_rdlock( &a_content->rwlock);
-    HASH_FIND(hh, a_content->sessions_out, &a_session->id, sizeof(a_session->id), l_content_session );
-    if(! l_content_session ){
-        return -1;
-    }
+    pthread_rwlock_wrlock( &a_content->rwlock);
+    HASH_FIND(hh, a_content->sessions_out, &a_session->id, sizeof(a_session->id), l_tmp );
+    if( !l_tmp )
+        return  pthread_rwlock_unlock( &a_content->rwlock), DAP_DELETE(l_content_session), -ENOENT;
 
-    //Create the new one record for table
-    l_content_session = DAP_NEW_Z(avrs_content_session_t);
     l_content_session->content_session_id = a_content_session_id;
     l_content_session->session = a_session;
-    memcpy(&l_content_session->session_id,&a_session->id, sizeof(a_session->id));
+    l_content_session->session_id = a_session->id;
 
-    // Add to the sessions out table. Caution! Blocking call!
-    pthread_rwlock_wrlock( &a_content->rwlock);
     HASH_ADD(hh, a_content->sessions_out, session_id, sizeof(l_content_session->session_id), l_content_session);
     pthread_rwlock_unlock( &a_content->rwlock);
 
     return 0;
 }
-

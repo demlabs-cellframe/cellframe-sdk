@@ -33,21 +33,21 @@
 #include "avrs.h"
 
 typedef struct avrs_content avrs_content_t;
-
 typedef struct avrs_cluster avrs_cluster_t;
+
 typedef struct avrs_cluster_member_addr{
     dap_chain_net_id_t net_id;
     dap_chain_node_addr_t node_addr;
-} DAP_ALIGN_PACKED avrs_cluster_member_addr_t; // Member ID
+} DAP_ALIGN_PACKED avrs_cluster_member_addr_t;  // Member ID
 
-#define AVRS_CLUSTER_MEMBER_AVATAR_SIZE_MAX 1024*100
-#define AVRS_CLUSTER_MEMBER_INFO_STRING_SIZE_MAX 63
+#define AVRS_CLUSTER_MEMBER_AVATAR_SIZE_MAX         1024*100
+#define AVRS_CLUSTER_MEMBER_INFO_STRING_SIZE_MAX    63
 
 typedef struct avrs_cluster_member
 {
-    dap_hash_fast_t     id;             // Based on its pkey hash
-    avrs_cluster_t      *cluster;
-    avrs_cluster_member_addr_t addr;    // Member addr
+            dap_hash_fast_t     id;             // Based on its pkey hash
+            avrs_cluster_t      *cluster;
+    avrs_cluster_member_addr_t  addr;           // Member addr
     avrs_role_t role;
 
     struct {
@@ -69,8 +69,8 @@ typedef struct avrs_cluster_member
 
 typedef struct avrs_cluster_member_hh
 {
-    avrs_cluster_member_t * member;
-    UT_hash_handle hh;
+        avrs_cluster_member_t *member;
+        UT_hash_handle hh;
 } avrs_cluster_member_hh_t;
 
 
@@ -83,11 +83,11 @@ enum avrs_cluster_setup{
 
 typedef struct avrs_cluster_options
 {
-    bool encrypted;
-    char * title;
-    enum avrs_cluster_setup setup;
+        bool    encrypted;
+        char    title[AVRS_CLUSTER_MEMBER_INFO_STRING_SIZE_MAX + 1];
+        enum    avrs_cluster_setup setup;
     dap_hash_fast_t owner_id; // PKey hash and member id same time
-} avrs_cluster_options_t;
+}   avrs_cluster_options_t;
 
 typedef struct avrs_cluster
 {

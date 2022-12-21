@@ -90,7 +90,7 @@ void avrs_ch_deinit(void)
 int avrs_ch_pkt_in_content_add_callback(avrs_ch_pkt_content_callback_t a_callback)
 {
     if ( !(s_pkt_in_content_callbacks_size < DAP_AVRS$SZ_MAXCONTENT_CB) )
-        return  log_it(L_ERROR, "Table of content call back is full (%d entries), cb:%p cannot be added", s_pkt_in_content_callbacks_size, a_callback),
+        return  log_it(L_ERROR, "Table of content call back is full (%ld entries), cb:%p cannot be added", s_pkt_in_content_callbacks_size, a_callback),
                 -ENOMEM;
 
     debug_if(g_avrs_debug_more, L_DEBUG, "Added content call back:%p, index #%zd", a_callback, s_pkt_in_content_callbacks_size);

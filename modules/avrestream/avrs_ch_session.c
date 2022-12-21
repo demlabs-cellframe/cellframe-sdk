@@ -146,12 +146,14 @@ void avrs_ch_pkt_in_session(avrs_ch_t * a_avrs_ch,avrs_ch_pkt_session_t * a_pkt,
                     l_session->content = DAP_REALLOC(l_session->content, sizeof(avrs_content_t*) * l_session->content_size_max);
                 }
             }
-            char l_content_id_str[32];
-            l_content_id_str[0] = '\0';
-            snprintf(l_content_id_str,sizeof(l_content_id_str),"%u",l_content_session_id);
+            char l_content_id_str[48] = {0};
+
+
+            snprintf(l_content_id_str, sizeof(l_content_id_str) - 1, "%u", l_content_session_id);
             avrs_ch_pkt_send_retcode_unsafe(a_avrs_ch->ch, AVRS_SUCCESS , l_content_id_str);
 
         } break;
+
         case AVRS_CH_PKT_SESSION_TYPE_CONTENT_REMOVE:{
             uint32_t l_content_id = UINT32_MAX;
             if (s_parse_session_and_verify(a_avrs_ch, a_pkt, a_pkt_args_size, NULL, s_parse_callback_content_remove, &l_content_id) != 0 ){
@@ -181,6 +183,7 @@ void avrs_ch_pkt_in_session(avrs_ch_t * a_avrs_ch,avrs_ch_pkt_session_t * a_pkt,
             // TODO compress content array or add any other optimization
 
         } break;
+
         case AVRS_CH_PKT_SESSION_TYPE_CONTENT_UPDATE:{
         } break;
         case AVRS_CH_PKT_SESSION_TYPE_CLUSTER_ADD:{

@@ -53,7 +53,7 @@ static size_t s_pkt_in_cluster_callbacks_size = 0;
 
 
 // Parse callback helpers
-static int s_tsd_parse_callback_type_create(avrs_ch_t *a_avrs_ch,dap_tsd_t* a_tsd, size_t a_tsd_offset,avrs_ch_pkt_cluster_t * a_pkt, size_t a_pkt_args_size, dap_guuid_t a_guuid, bool a_is_guuid, void * a_arg);
+static int s_tsd_parse_callback_type_create(avrs_ch_t *a_avrs_ch, dap_tsd_t* a_tsd, size_t a_tsd_offset, avrs_ch_pkt_cluster_t * a_pkt, size_t a_pkt_args_size, dap_guuid_t a_guuid, bool a_is_guuid, void * a_arg);
 static int s_tsd_parse_callback_type_member_request_add(avrs_ch_t *a_avrs_ch,dap_tsd_t* a_tsd, avrs_cluster_t * a_cluster, dap_hash_fast_t * a_member_id, void * a_arg);
 static int s_tsd_parse_callback_type_member_approve(avrs_ch_t *a_avrs_ch,dap_tsd_t* l_tsd, avrs_cluster_t * a_cluster, avrs_cluster_member_t * a_member, avrs_cluster_member_t * a_member_to, dap_hash_fast_t * a_member_to_id, void * a_arg);
 static int s_tsd_parse_callback_type_content_add(avrs_ch_t *a_avrs_ch,dap_tsd_t* a_tsd, avrs_cluster_t * a_cluster, avrs_cluster_member_t * a_member, avrs_cluster_member_t * a_member_to, dap_hash_fast_t * a_member_to_id, void * a_arg);
@@ -315,15 +315,39 @@ void avrs_ch_pkt_in_cluster(avrs_ch_t * a_avrs_ch, avrs_ch_pkt_cluster_t *a_pkt,
  * @param a_guuid
  * @param a_arg
  */
-static int s_tsd_parse_callback_type_create(avrs_ch_t *a_avrs_ch,dap_tsd_t* l_tsd, size_t l_tsd_offset,avrs_ch_pkt_cluster_t * a_pkt, size_t a_pkt_args_size, dap_guuid_t a_guuid, bool a_is_guuid, void * a_arg)
+static int s_tsd_parse_callback_type_create(
+                    avrs_ch_t   *a_avrs_ch,
+                    dap_tsd_t   *l_tsd,
+                    size_t      l_tsd_offset,
+        avrs_ch_pkt_cluster_t   *a_pkt,
+                    size_t      a_pkt_args_size,
+                    dap_guuid_t a_guuid,
+                        bool    a_is_guuid,
+                        void    *a_arg)
 {
     assert(a_arg);
     avrs_cluster_options_t * l_cluster_opts=(avrs_cluster_options_t *) a_arg;
-    switch(l_tsd->type){
-        case AVRS_CH_PKT_CLUSTER_ARG_TITLE: l_cluster_opts->title = dap_strdup(dap_tsd_get_string(l_tsd)); break;
-        case AVRS_CH_PKT_CLUSTER_ARG_SETUP: l_cluster_opts->setup = dap_tsd_get_scalar(l_tsd,uint8_t); break;
-        case AVRS_CH_PKT_CLUSTER_ARG_ENCRYPTED: l_cluster_opts->encrypted = dap_tsd_get_scalar(l_tsd,uint8_t); break;
-        default: return 1; // Code of unknown TSD type
+    int     l_sz;
+
+    switch(l_tsd->type)
+    {
+        case AVRS_CH_PKT_CLUSTER_ARG_TITLE:
+            l_sz = MIN( l_tsd->size, AVRS_CLUSTER_MEMBER_INFO_STRING_SIZE_MAX);
+            memcpy(l_cluster_opts->title, dap_tsd_get_string_const(l_tsd), l_tsd->size );
+            l_cluster_opts->title[l_sz] = '\0';
+
+            break;
+
+        case AVRS_CH_PKT_CLUSTER_ARG_SETUP:
+            l_cluster_opts->setup = dap_tsd_get_scalar(l_tsd,uint8_t);
+            break;
+
+        case AVRS_CH_PKT_CLUSTER_ARG_ENCRYPTED:
+            l_cluster_opts->encrypted = dap_tsd_get_scalar(l_tsd,uint8_t);
+            break;
+
+        default:
+            return -EINVAL; // Code of unknown TSD type
     }
     return 0;
 }
@@ -341,7 +365,7 @@ static int s_tsd_parse_member_info(avrs_ch_t *a_avrs_ch, char *a_member_info_ptr
     {
         log_it(L_WARNING, "%s size %u is too big (should be not bigger than %u)", a_member_info_name, a_tsd->size, AVRS_CLUSTER_MEMBER_INFO_STRING_SIZE_MAX);
         avrs_ch_pkt_send_retcode_unsafe(a_avrs_ch->ch, AVRS_ERROR_MEMBER_INFO_PROBLEM , a_member_info_name_error );
-        return -101;
+        return -EINVAL;
     }
 
 
@@ -402,10 +426,14 @@ static int s_tsd_parse_callback_type_member_request_add(avrs_ch_t *a_avrs_ch,dap
                 avrs_ch_pkt_send_retcode_unsafe(a_avrs_ch->ch, AVRS_ERROR_MEMBER_INFO_PROBLEM , "MEMBER_AVATAR_SIZE_TOO_BIG");
                 return -110;
             }
+
+            l_member->info.avatar_sz = a_tsd->size;
             l_member->info.avatar = DAP_DUP_SIZE(a_tsd->data, a_tsd->size);
         break;
-        default: l_ret = 1; // Code of unknown TSD type
+
+        default: l_ret = -EINVAL; // Code of unknown TSD type
     }
+
     return l_ret;
 }
 
@@ -420,12 +448,23 @@ static int s_tsd_parse_callback_type_member_request_add(avrs_ch_t *a_avrs_ch,dap
  * @param a_arg
  * @return
  */
-static int s_tsd_parse_callback_type_content_add(avrs_ch_t *a_avrs_ch,dap_tsd_t* a_tsd, avrs_cluster_t * a_cluster, avrs_cluster_member_t * a_member, avrs_cluster_member_t * a_member_to, dap_hash_fast_t * a_member_to_id, void * a_arg)
+static int s_tsd_parse_callback_type_content_add(
+                    avrs_ch_t   *a_avrs_ch,
+                    dap_tsd_t   *a_tsd,
+                avrs_cluster_t  *a_cluster,
+        avrs_cluster_member_t   *a_member,
+        avrs_cluster_member_t   *a_member_to,
+            dap_hash_fast_t     *a_member_to_id,
+                        void    *a_arg)
 {
     assert(a_arg);
     avrs_content_t * l_content=(avrs_content_t *) a_arg;
+
     switch(a_tsd->type){
-        case AVRS_CH_PKT_CLUSTER_ARG_CONTENT_ID: l_content->guuid = dap_tsd_get_scalar(a_tsd,dap_guuid_t); break;
+        case AVRS_CH_PKT_CLUSTER_ARG_CONTENT_ID:
+            l_content->guuid = dap_tsd_get_scalar(a_tsd,dap_guuid_t);
+            break;
+
         case AVRS_CH_PKT_CLUSTER_ARG_CONTENT_FLOWS:{
             const char * l_tsd_string = dap_tsd_get_string_const(a_tsd);
             if (dap_strcmp(l_tsd_string, DAP_TSD_CORRUPTED_STRING) != 0 ){
@@ -438,6 +477,7 @@ static int s_tsd_parse_callback_type_content_add(avrs_ch_t *a_avrs_ch,dap_tsd_t*
                 return -102;
             }
         }break;
+
         case AVRS_CH_PKT_CLUSTER_ARG_CONTENT_FLOW_CODEC: {
             avrs_ch_pkt_tsd_flow_t * l_tsd_flow = (avrs_ch_pkt_tsd_flow_t *) a_tsd->data;
             if(a_tsd->size < sizeof(*l_tsd_flow)){
@@ -462,7 +502,8 @@ static int s_tsd_parse_callback_type_content_add(avrs_ch_t *a_avrs_ch,dap_tsd_t*
                 DAP_DEL_Z(l_content->flow_codecs[l_tsd_flow->id]);
             }
         } break;
-        default: return 1; // Code of unknown TSD type
+
+        default: return -EINVAL; // Code of unknown TSD type
     }
     return 0;
 }

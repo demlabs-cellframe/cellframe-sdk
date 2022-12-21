@@ -134,10 +134,9 @@ int avrs_session_content_in_data(avrs_session_t *a_session, avrs_session_content
 
     if (l_ret )
         return  log_it(L_ERROR, "[avrs:%p] Can't push data in GST pipeline, code %d", a_session, l_ret), l_ret;
-        return l_ret;
 
 
-    if ( l_ret = avrs_content_data_push_sessions_out_mt(a_session_content->content, a_flow_id, a_data, a_data_size) )
+    if ( (l_ret = avrs_content_data_push_sessions_out_mt(a_session_content->content, a_flow_id, a_data, a_data_size)) )
         log_it(L_ERROR, "[avrs:%p] Can't push data in GST pipeline, code %d", a_session, l_ret);
 
     return l_ret;

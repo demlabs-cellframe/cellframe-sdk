@@ -119,11 +119,19 @@ typedef struct avrs_content
  */
 static inline const char* avr_content_state_str(avrs_content_state_t a_state)
 {
-    switch(a_state){
-        case CONTENT_STATE_IDLE: return "IDLE";
-        case CONTENT_STATE_PLAYING: return "PLAYING";
-        case CONTENT_STATE_PAUSED: return "PAUSED";
-        default: return "UNDEFINED";
+    switch(a_state)
+    {
+        case CONTENT_STATE_IDLE:
+            return "IDLE";
+
+        case CONTENT_STATE_PLAYING:
+            return "PLAYING";
+
+        case CONTENT_STATE_PAUSED:
+            return "PAUSED";
+
+        default:
+            return "UNDEFINED";
     }
 }
 

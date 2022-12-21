@@ -37,6 +37,42 @@
     #endif
 #endif
 
+#ifdef  DAP_SYS_DEBUG
+#include    "dap_common.h"
+#include    "avrs_cluster.h"
+
+
+static  avrs_cluster_options_t  s_clu_opts = {                      /* Declare a statical part of a cluster */
+            .encrypted = 0,
+            .title = {"StarLet for ever!"},
+            .setup = CLUSTER_SETUP_ROUND_TABLE,
+            .owner_id = {"[SYS, SYSMAN]"} };
+
+static  avrs_cluster_member_t   s_member = {                        /* Me - are cluster's member ! Surpsize mothehakka ?!*/
+            .role = AVRS_ROLE_ALL,
+            .info.name = {"Rus"},
+            .info.name_display = {"SysMan"},
+            .info.name_second = {"La"},
+            .info.title = {"BMF"},
+            .info.status = {"Za Vovu!"}
+};
+
+static  int     avrs_test (void)
+{
+avrs_cluster_t  *l_clu;
+int     l_rc;
+
+        l_clu = avrs_cluster_new(&s_clu_opts);                      /* Create "Sozvon" cluster */
+        assert(l_clu);
+        debug_if(g_avrs_debug_more, L_DEBUG, "[avrs_clu:%p] --- created", l_clu);
+
+        l_rc = avrs_cluster_member_add(l_clu, &s_member);
+        debug_if(g_avrs_debug_more, L_DEBUG, "[avrs_clu:%p] added myself as a member", l_clu);
+
+        return  0;
+}
+
+#endif  /* DAP_SYS_DEBUG */
 
 
 int avrs_plugin_init(dap_config_t * a_plugin_config, char ** a_error_str)
@@ -47,6 +83,16 @@ int avrs_plugin_init(dap_config_t * a_plugin_config, char ** a_error_str)
     avrs_ch_init();
     avrs_srv_init();
     avrs_cli_init();
+
+#ifdef  DAP_SYS_DEBUG
+    {
+    pthread_t   l_tid;
+    int         l_rc;
+
+    l_rc = pthread_create(&l_tid, NULL, avrs_test, NULL);
+    assert(l_rc);
+    }
+#endif
 
     log_it(L_NOTICE, "AVReStream Plugin version %s loaded", DAP_VERSION );
     return 0;
