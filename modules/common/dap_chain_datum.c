@@ -723,11 +723,5 @@ json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum){
     json_object_object_add(l_object, "ts_created", l_obj_ts_created);
     json_object_object_add(l_object, "type", l_obj_type);
     json_object_object_add(l_object, "data", l_obj_data);
-//    json_object_put(l_obj_version);
-//    json_object_put(l_obj_data_hash);
-//    json_object_put(l_obj_size);
-//    json_object_put(l_obj_ts_created);
-//    json_object_put(l_obj_type);
-//    json_object_put(l_obj_data);
     return l_object;
 }

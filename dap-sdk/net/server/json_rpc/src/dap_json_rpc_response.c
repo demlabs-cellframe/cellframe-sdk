@@ -100,9 +100,9 @@ dap_json_rpc_response_t *dap_json_rpc_response_from_json(char *a_data_json)
         l_response->error = dap_json_rpc_create_from_json_object(l_jobj_error);
         l_response->type_result = TYPE_RESPONSE_NULL;
     }
-    json_object_put(l_jobj_id);
-    json_object_put(l_jobj_error);
-    json_object_put(l_jobj_result);
+//    json_object_put(l_jobj_id);
+//    json_object_put(l_jobj_error);
+//    json_object_put(l_jobj_result);
     json_object_put(l_jobj);
     return l_response;
 }
