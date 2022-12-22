@@ -384,6 +384,19 @@ dap_chain_tx_out_ext_t* dap_chain_datum_tx_item_out_ext_create(const dap_chain_a
     return l_item;
 }
 
+json_object* dap_chain_datum_tx_item_out_ext_to_json(const dap_chain_tx_out_ext_t *a_out_ext) {
+    json_object *l_obj = json_object_new_object();
+    char *l_value = dap_chain_balance_print(a_out_ext->header.value);
+    json_object *l_obj_value = json_object_new_string(l_value);
+    DAP_DELETE(l_value);
+    json_object *l_obj_addr = dap_chain_addr_to_json(&a_out_ext->addr);
+    json_object *l_obj_token = json_object_new_string(a_out_ext->token);
+    json_object_object_add(l_obj, "value", l_obj_value);
+    json_object_object_add(l_obj, "addr", l_obj_addr);
+    json_object_object_add(l_obj, "token", l_obj_token);
+    return l_obj;
+}
+
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_fee(uint256_t a_value)
 {
     if (IS_ZERO_256(a_value))

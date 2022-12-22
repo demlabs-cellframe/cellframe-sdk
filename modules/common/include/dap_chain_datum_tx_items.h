@@ -143,6 +143,8 @@ json_object* dap_chain_datum_tx_item_out_to_json(const dap_chain_tx_out_t *a_out
  */
 dap_chain_tx_out_ext_t* dap_chain_datum_tx_item_out_ext_create(const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token);
 
+json_object* dap_chain_datum_tx_item_out_ext_to_json(const dap_chain_tx_out_ext_t *a_out_ext);
+
 /**
  * Create item dap_chain_tx_out_cond_t with fee subtype
  *
