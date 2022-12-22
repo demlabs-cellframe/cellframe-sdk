@@ -301,9 +301,6 @@ json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx){
                 l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_TOKEN");
                 l_obj_item_data = dap_chain_datum_tx_item_token_to_json((dap_chain_tx_token_t*)item);
                 break;
-            case TX_ITEM_TYPE_TOKEN_EXT:
-                l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_TOKEN_EXT");
-                break;
             case TX_ITEM_TYPE_SIG:
                 l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_SIG");
                 l_obj_item_data = dap_chain_datum_tx_item_sig_to_json((dap_chain_tx_sig_t*)item);
@@ -311,9 +308,6 @@ json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx){
             case TX_ITEM_TYPE_RECEIPT:
                 l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_RECEIPT");
                 l_obj_item_data = dap_chain_datum_tx_receipt_to_json((dap_chain_datum_tx_receipt_t*)item);
-                break;
-            case TX_ITEM_TYPE_PKEY:
-                l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_PKEY");
                 break;
             case TX_ITEM_TYPE_IN_COND:
                 l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_IN_COND");
