@@ -2344,6 +2344,20 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
     return 0;
 }
 
+const char *s_ticker_list_get_main_ticker(dap_list_t *a_tickers, const char *l_native_ticker) {
+    if (!a_tickers)
+        return NULL;
+    const char *mt = (char*)a_tickers->data;
+    for (dap_list_t *i = a_tickers; i != NULL; i = i->next) {
+        char *tmp = (char*)i->data;
+        if (dap_strcmp(mt, tmp) != 0) {
+            if (dap_strcmp(tmp, l_native_ticker) != 0)
+                return tmp;
+        }
+    }
+    return mt;
+}
+
 /**
  * @brief s_com_mempool_list_print_for_chain
  *
@@ -2390,16 +2404,17 @@ void s_com_mempool_list_print_for_chain (
             uint32_t l_tx_items_size = l_tx->header.tx_items_size;
             bool l_f_found = false;
 
+            dap_chain_addr_t *l_addr = dap_chain_addr_from_str(a_add);
             switch (l_datum->header.type_id) {
             case DAP_CHAIN_DATUM_TX:
                 while (l_tx_items_count < l_tx_items_size)
                 {
                     uint8_t *item = l_tx->tx_items + l_tx_items_count;
                     size_t l_item_tx_size = dap_chain_datum_item_tx_get_size(item);
-                    if(dap_strcmp(a_add,dap_chain_addr_to_str(&((dap_chain_tx_out_old_t*)item)->addr))&&
-                       dap_strcmp(a_add,dap_chain_addr_to_str(&((dap_chain_tx_out_t*)item)->addr))&&
-                       dap_strcmp(a_add,dap_chain_addr_to_str(&((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake.fee_addr))&&
-                       dap_strcmp(a_add,dap_chain_addr_to_str(&((dap_chain_tx_out_ext_t*)item)->addr)))
+                    if(!memcmp(l_addr, &((dap_chain_tx_out_old_t*)item)->addr, sizeof(dap_chain_addr_t)) &&
+                        !memcmp(l_addr, &((dap_chain_tx_out_t*)item)->addr, sizeof(dap_chain_addr_t)) &&
+                        !memcmp(l_addr, &((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake.fee_addr, sizeof(dap_chain_addr_t)) &&
+                        !memcmp(l_addr, &((dap_chain_tx_out_ext_t*)item)->addr, sizeof(dap_chain_addr_t)))
                         l_tx_items_count += l_item_tx_size;
                     else
                     {
@@ -2412,7 +2427,7 @@ void s_com_mempool_list_print_for_chain (
                     continue;
                 break;
             case DAP_CHAIN_DATUM_TOKEN_EMISSION:
-                if(dap_strcmp(a_add,dap_chain_addr_to_str(&(l_emission->hdr.address))))
+                if(!memcmp(l_addr, &l_emission->hdr.address, sizeof(dap_chain_addr_t)))
                     continue;
                 else
                     l_objs_addr++;
@@ -2421,6 +2436,8 @@ void s_com_mempool_list_print_for_chain (
                 continue;
                 break;
             }
+            DAP_DELETE(l_emission);
+            DAP_DELETE(l_addr);
         }
 
         char buf[8 * sizeof(long long) + 1] = {'\0'};
@@ -2432,9 +2449,69 @@ void s_com_mempool_list_print_for_chain (
         DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type)
         const char *l_token_ticker = NULL;
         if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {    // TODO rewrite it for support of multivhannel & conditional transactions
-            dap_chain_tx_in_t *obj_in = (dap_chain_tx_in_t *)dap_chain_datum_tx_item_get((dap_chain_datum_tx_t*)l_datum->data, NULL, TX_ITEM_TYPE_IN, NULL);
-            if (obj_in)
-                l_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &obj_in->header.tx_prev_hash);
+            dap_chain_tx_token_t *obj_token = (dap_chain_tx_token_t*)dap_chain_datum_tx_item_get((dap_chain_datum_tx_t*)l_datum->data, NULL, TX_ITEM_TYPE_TOKEN, NULL);
+            if (obj_token) {
+                l_token_ticker = obj_token->header.ticker;
+            } else {
+                dap_list_t* l_tickers = NULL;
+                const char *l_native_ticker = a_net->pub.native_ticker;
+                dap_chain_datum_tx_t *l_tx_parent = NULL;
+                int l_item_in_size = 0;
+                void *l_item_in = dap_chain_datum_tx_item_get((dap_chain_datum_tx_t*)l_datum->data, NULL, TX_ITEM_TYPE_IN_ALL, &l_item_in_size);
+                bool l_is_unchained = false;
+                dap_hash_fast_t l_parent_hash = {0};
+                int l_parrent_tx_out_idx;
+                for (int l_item_in_size_current = 0; l_item_in_size_current < l_item_in_size && !l_token_ticker;) {
+                    size_t l_tmp_size = dap_chain_datum_item_tx_get_size(l_item_in);
+                    if (l_tmp_size == 0)
+                        break;
+                    l_item_in_size_current += l_tmp_size;
+                    switch (dap_chain_datum_tx_item_get_type(l_item_in)) {
+                        case TX_ITEM_TYPE_IN:
+                            l_parent_hash = ((dap_chain_tx_in_t*)l_item_in)->header.tx_prev_hash;
+                            l_parrent_tx_out_idx = ((dap_chain_tx_in_t*)l_item_in)->header.tx_out_prev_idx;
+                            l_tx_parent = dap_chain_ledger_tx_find_by_hash(a_net->pub.ledger, &((dap_chain_tx_in_t*)l_item_in)->header.tx_prev_hash);
+                            break;
+                        case TX_ITEM_TYPE_IN_COND:
+                            l_parent_hash = ((dap_chain_tx_in_cond_t*)l_item_in)->header.tx_prev_hash;
+                            l_parrent_tx_out_idx = ((dap_chain_tx_in_cond_t*)l_item_in)->header.tx_out_prev_idx;
+                            l_tx_parent = dap_chain_ledger_tx_find_by_hash(a_net->pub.ledger, &((dap_chain_tx_in_cond_t*)l_item_in)->header.tx_prev_hash);
+                            break;
+                    }
+                    if (!l_tx_parent) {
+                        l_is_unchained = true;
+                        break;
+                    }
+                    const char *l_current_token = NULL;
+                    void *l_out_unknown = (dap_chain_tx_out_cond_t*)dap_chain_datum_tx_item_get_nth(
+                            l_tx_parent, TX_ITEM_TYPE_OUT_ALL, l_parrent_tx_out_idx);
+                    switch(dap_chain_datum_tx_item_get_type(l_out_unknown)) {
+                        case TX_ITEM_TYPE_OUT:
+                            l_current_token = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_parent_hash);
+                            l_tickers = dap_list_append(l_tickers, l_current_token);
+                            break;
+                        case TX_ITEM_TYPE_OUT_EXT:
+                            l_current_token = ((dap_chain_tx_out_ext_t*)l_out_unknown)->token;
+                            l_tickers = dap_list_append(l_tickers, l_current_token);
+                            break;
+                        case TX_ITEM_TYPE_OUT_COND:
+                            if(((dap_chain_tx_out_cond_t*)l_out_unknown)->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE &&
+                                ((dap_chain_tx_out_cond_t*)l_out_unknown)->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STAKE) {
+                                l_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_parent_hash);
+                            }
+                                break;
+                    }
+                }
+                if (l_is_unchained) {
+                    dap_string_append_printf(a_str_tmp, ": Transaction %s unchained. \n", l_objs[i].key);
+                }
+                if (!l_is_unchained && !l_token_ticker) {
+                    l_token_ticker = s_ticker_list_get_main_ticker(l_tickers, a_net->pub.native_ticker);
+                    if (!l_token_ticker)
+                        dap_string_append_printf(a_str_tmp, ": Can't find token ticker for transaction %s. \n", l_objs[i].key);
+                }
+                dap_list_free(l_tickers);
+            }
         }
         if (l_token_ticker) {
             dap_string_append_printf(a_str_tmp,
@@ -2443,6 +2520,7 @@ void s_com_mempool_list_print_for_chain (
                                      l_datum->header.data_size, l_data_hash_str,
                                      l_token_ticker, dap_ctime_r(&l_ts_create, buf));
         } else {
+            log_it(L_DEBUG, "Can't find token ticker for transaction: %s", l_objs[i].key);
             dap_string_append_printf(a_str_tmp,
                                      "hash %s : type_id=%s  data_size=%u data_hash=%s ts_create=%s", // \n included in timestamp
                                      l_objs[i].key, l_type,

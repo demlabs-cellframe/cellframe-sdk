@@ -151,8 +151,8 @@ dap_list_t* dap_list_sort(dap_list_t *list, dap_callback_compare_data_t compare_
 dap_list_t* dap_list_sort_with_data(dap_list_t *list, dap_callback_compare_data_t compare_func, void* user_data);
 void* dap_list_nth_data(dap_list_t *list, unsigned int n);
 
-#define dap_list_previous(list)	        ((list) ? (((dap_list_t *)(list))->prev) : NULL)
-#define dap_list_next(list)	        ((list) ? (((dap_list_t *)(list))->next) : NULL)
+#define dap_list_previous(list)     ((list) ? (((dap_list_t *)(list))->prev) : NULL)
+#define dap_list_next(list)         ((list) ? (((dap_list_t *)(list))->next) : NULL)
 
 #ifdef __cplusplus
 }

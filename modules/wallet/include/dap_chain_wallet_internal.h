@@ -83,7 +83,6 @@ typedef struct dap_chain_wallet_file_hdr{
 typedef struct dap_chain_wallet_file                                        /* On-disk structure */
 {
     dap_chain_wallet_file_hdr_t header;
-    uint8_t data[];
 } DAP_ALIGN_PACKED dap_chain_wallet_file_t;
 
 typedef struct dap_chain_wallet_internal

@@ -30,7 +30,6 @@
 #include <uthash.h>
 #include <pthread.h>
 #include <errno.h>
-#include <stdatomic.h>
 
 #define _GNU_SOURCE
 
