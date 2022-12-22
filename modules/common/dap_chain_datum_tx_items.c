@@ -329,14 +329,19 @@ dap_chain_tx_in_cond_t* dap_chain_datum_tx_item_in_cond_create(dap_chain_hash_fa
 
 json_object* dap_chain_datum_tx_item_in_cond_to_json(dap_chain_tx_in_cond_t *a_in_cond){
     json_object *l_obj = json_object_new_object();
-    json_object *l_obj_receipt_tdx = json_object_new_uint64(a_in_cond->header.receipt_idx);
-    json_object *l_obj_out_prev_tdx = json_object_new_uint64(a_in_cond->header.tx_out_prev_idx);
-    char *l_prev_hash = dap_hash_fast_to_str_new(&a_in_cond->header.tx_prev_hash);
-    json_object *l_obj_prev_hash = json_object_new_string(l_prev_hash);
-    DAP_FREE(l_prev_hash);
-    json_object_object_add(l_obj, "receiptIdx", l_obj_receipt_tdx);
-    json_object_object_add(l_obj, "outPrevIdx", l_obj_out_prev_tdx);
-    json_object_object_add(l_obj, "txPrevHash", l_obj_out_prev_tdx);
+    json_object *l_obj_receipt_idx = json_object_new_uint64(a_in_cond->header.receipt_idx);
+    json_object *l_obj_out_prev_idx = json_object_new_uint64(a_in_cond->header.tx_out_prev_idx);
+    json_object *l_obj_prev_hash = NULL;
+    if (dap_hash_fast_is_blank(&a_in_cond->header.tx_prev_hash)){
+        l_obj_prev_hash = json_object_new_null();
+    } else {
+        char *l_prev_hash = dap_hash_fast_to_str_new(&a_in_cond->header.tx_prev_hash);
+        l_obj_prev_hash = json_object_new_string(dap_strdup(l_prev_hash));
+        DAP_DELETE(l_prev_hash);
+    }
+    json_object_object_add(l_obj, "receiptIdx", l_obj_receipt_idx);
+    json_object_object_add(l_obj, "outPrevIdx", l_obj_out_prev_idx);
+    json_object_object_add(l_obj, "txPrevHash", l_obj_prev_hash);
     return l_obj;
 }
 
