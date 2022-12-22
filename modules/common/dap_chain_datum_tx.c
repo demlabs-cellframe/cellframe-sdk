@@ -373,6 +373,7 @@ json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx){
 //        if (l_obj_item_type)
         l_tx_items_count += l_tx_item_size;
     }
+    json_object_object_add(l_obj, "tsCrated", l_obj_ts_created);
     json_object_object_add(l_obj, "items", l_obj_items);
     return l_obj;
 }
