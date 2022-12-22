@@ -300,10 +300,31 @@ const struct sched_param l_shed_params = {0};
 #error "Unimplemented fetch esocket after poll"
 #endif
             // Previously deleted socket, its really bad when it appears
-            if(!l_es || !l_es->worker || (l_es->worker != l_worker) ||
-                    l_es->socket == INVALID_SOCKET || l_es->fd == -1 || l_es->fd2 == -1) {
+            if (!l_es || (l_es->worker && l_es->worker != l_worker)) {
                 log_it(L_ATT, "dap_events_socket was destroyed earlier");
                 continue;
+            }
+            switch (l_es->type) {
+            case DESCRIPTOR_TYPE_SOCKET_CLIENT:
+            case DESCRIPTOR_TYPE_SOCKET_UDP:
+            case DESCRIPTOR_TYPE_SOCKET_LISTENING:
+            case DESCRIPTOR_TYPE_SOCKET_LOCAL_LISTENING:
+            case DESCRIPTOR_TYPE_SOCKET_LOCAL_CLIENT:
+                if (l_es->socket == INVALID_SOCKET) {
+                    log_it(L_ATT, "dap_events_socket have invalid socket number");
+                    continue;
+                } break;
+            // TODO define condition for invalid socket with other descriptor types
+            case DESCRIPTOR_TYPE_SOCKET_CLIENT_SSL:
+            case DESCRIPTOR_TYPE_QUEUE:
+            case DESCRIPTOR_TYPE_PIPE:
+            case DESCRIPTOR_TYPE_TIMER:
+            case DESCRIPTOR_TYPE_EVENT:
+            case DESCRIPTOR_TYPE_FILE:
+                if (l_es->fd == -1 || l_es->fd2 == -1) {
+
+                }
+            default: break;
             }
 
             if(g_debug_reactor) {
