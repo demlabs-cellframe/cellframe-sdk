@@ -447,7 +447,7 @@ json_object *dap_chain_datum_tx_item_out_cond_srv_pay_to_json(dap_chain_tx_out_c
         DAP_DELETE(l_balance);
         json_object_object_add(l_obj, "value", l_obj_value);
         json_object *l_obj_srv_uid = json_object_new_uint64(a_srv_pay->header.srv_uid.uint64);
-        json_object_object_add(l_obj, "srvUid", l_obj_value);
+        json_object_object_add(l_obj, "srvUid", l_obj_srv_uid);
         json_object *l_obj_units_type = json_object_new_string(serv_unit_enum_to_str(&a_srv_pay->subtype.srv_pay.unit.enm));
         json_object_object_add(l_obj, "srvUnit", l_obj_units_type);
         char *l_price_max_datoshi = dap_chain_balance_print(a_srv_pay->subtype.srv_pay.unit_price_max_datoshi);
@@ -457,7 +457,7 @@ json_object *dap_chain_datum_tx_item_out_cond_srv_pay_to_json(dap_chain_tx_out_c
         char *l_pkeyHash = dap_hash_fast_to_str_new(&a_srv_pay->subtype.srv_pay.pkey_hash);
         json_object *l_obj_pkey_hash = json_object_new_string(l_pkeyHash);
         DAP_DELETE(l_pkeyHash);
-        json_object_object_add(l_obj, "pKeyHash", l_obj_units_type);
+        json_object_object_add(l_obj, "pKeyHash", l_obj_pkey_hash);
         //TODO: Parsing a_srv_pay->tsd
 //        json_object *l_obj_tsd = json_object_new_string_len(a_srv_pay->tsd, a_srv_pay->tsd_size);
 //        json_object_object_add(l_obj, "TSD", l_obj_tsd);
