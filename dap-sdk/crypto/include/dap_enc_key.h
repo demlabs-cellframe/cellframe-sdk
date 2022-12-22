@@ -44,8 +44,8 @@ typedef enum dap_enc_data_type{DAP_ENC_DATA_TYPE_RAW,
 typedef enum dap_enc_key_type{
 
                            DAP_ENC_KEY_TYPE_INVALID = -1,
-                           DAP_ENC_KEY_TYPE_IAES, // Symmetric AES
-                           DAP_ENC_KEY_TYPE_OAES,// from https://github.com/monero-project/monero/tree/master/src/crypto
+                           DAP_ENC_KEY_TYPE_IAES = 0, // Symmetric AES
+                           DAP_ENC_KEY_TYPE_OAES = 1,// from https://github.com/monero-project/monero/tree/master/src/crypto
 
                            DAP_ENC_KEY_TYPE_BF_CBC,// BlowFish CBCmode
                            DAP_ENC_KEY_TYPE_BF_OFB,//BlowFish OFBmode
@@ -122,9 +122,9 @@ typedef enum dap_enc_key_type{
                            DAP_ENC_KEY_TYPE_SIG_DILITHIUM,
 
                            DAP_ENC_KEY_TYPE_SIG_RINGCT20,//ring signature for confidentional transaction
-                            DAP_ENC_KEY_TYPE_KEM_KYBER512, // NIST Kyber KEM implementation
+                           DAP_ENC_KEY_TYPE_KEM_KYBER512, // NIST Kyber KEM implementation
                            DAP_ENC_KEY_TYPE_LAST = DAP_ENC_KEY_TYPE_SIG_RINGCT20,
-                           DAP_ENC_KEY_TYPE_NULL = 0 // avoid using it: 0 is a DAP_ENC_KEY_TYPE_NULL and DAP_ENC_KEY_TYPE_IAES at the same time
+                           DAP_ENC_KEY_TYPE_NULL = 0    // avoid using it: 0 is a DAP_ENC_KEY_TYPE_NULL and DAP_ENC_KEY_TYPE_IAES at the same time
 
                          }  dap_enc_key_type_t;
 
