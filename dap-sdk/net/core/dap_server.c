@@ -381,20 +381,48 @@ static void s_es_server_accept(dap_events_socket_t *a_es, SOCKET a_remote_socket
     assert(l_server);
 
     dap_events_socket_t * l_es_new = NULL;
-    log_it(L_DEBUG, "Listening socket (binded on %s:%u) got new incomming connection",l_server->address,l_server->port);
-    log_it(L_DEBUG, "Accepted new connection (sock %"DAP_FORMAT_SOCKET" from %"DAP_FORMAT_SOCKET")", a_remote_socket, a_es->socket);
+    log_it(L_DEBUG, "[es:%p] Listening socket (binded on %s:%u) got new incomming connection", a_es, l_server->address,l_server->port);
+    log_it(L_DEBUG, "[es:%p] Accepted new connection (sock %"DAP_FORMAT_SOCKET" from %"DAP_FORMAT_SOCKET")", a_es, a_remote_socket, a_es->socket);
     l_es_new = s_es_server_create(a_es->events,a_remote_socket,&l_server->client_callbacks,l_server);
     //l_es_new->is_dont_reset_write_flag = true; // By default all income connection has this flag
     getnameinfo(a_remote_addr,a_remote_addr_size, l_es_new->hostaddr
-                ,256, l_es_new->service,sizeof(l_es_new->service),
+                ,DAP_EVSOCK$SZ_HOSTNAME, l_es_new->service, DAP_EVSOCK$SZ_SERVICE,
                 NI_NUMERICHOST | NI_NUMERICSERV);
     if (!l_es_new->hostaddr){
         struct in_addr l_addr_remote;
         l_addr_remote.s_addr = ((struct sockaddr_in *) a_remote_addr)->sin_addr.s_addr;
         inet_ntop(AF_INET,&l_addr_remote,l_es_new->hostaddr,sizeof (l_addr_remote) );
     }
-    log_it(L_INFO,"Connection accepted from %s (%s)", l_es_new->hostaddr, l_es_new->service );
-    dap_worker_add_events_socket_auto(l_es_new);
+    log_it(L_INFO,"[es:%p] Connection accepted from %s (%s)", a_es, l_es_new->hostaddr, l_es_new->service );
+    dap_worker_t *l_worker = dap_events_worker_get_auto();
+    if (l_worker->id == a_es->worker->id) {
+#ifdef DAP_OS_UNIX
+#if defined (SO_INCOMING_CPU)
+        int l_cpu = l_worker->id;
+        setsockopt(l_es_new->socket , SOL_SOCKET, SO_INCOMING_CPU, &l_cpu, sizeof(l_cpu));
+#endif
+#endif
+        l_es_new->worker = l_worker;
+        l_es_new->last_time_active = time(NULL);
+        if (l_es_new->callbacks.new_callback)
+            l_es_new->callbacks.new_callback(l_es_new, NULL);
+        l_es_new->is_initalized = true;
+        if (dap_worker_add_events_socket_unsafe(l_es_new,l_worker))
+            log_it(L_CRITICAL,"[es:%p] Can't add event socket's handler to worker i/o poll mechanism with error %d", l_es_new, errno);
+        else {
+            l_es_new->me = l_es_new;
+            pthread_rwlock_wrlock(&l_worker->esocket_rwlock);
+            HASH_ADD(hh_worker, l_worker->esockets, uuid, sizeof(l_es_new->uuid), l_es_new );
+            l_worker->event_sockets_count++;
+            pthread_rwlock_unlock(&l_worker->esocket_rwlock);
+            if (l_es_new->callbacks.worker_assign_callback)
+                l_es_new->callbacks.worker_assign_callback(l_es_new, l_worker);
+        }
+        debug_if(g_debug_reactor, L_INFO, "Direct addition of esocket %p uuid 0x%"DAP_UINT64_FORMAT_x" to worker %d",
+                 l_es_new, l_es_new->uuid, l_worker->id);
+    } else {
+        dap_worker_add_events_socket_auto(l_es_new);
+    }
 }
 
 
@@ -409,19 +437,14 @@ static void s_es_server_accept(dap_events_socket_t *a_es, SOCKET a_remote_socket
 static dap_events_socket_t * s_es_server_create(dap_events_t * a_events, int a_sock,
                                              dap_events_socket_callbacks_t * a_callbacks, dap_server_t * a_server)
 {
-    dap_events_socket_t * ret = NULL;
+    dap_events_socket_t * l_es = NULL;
     if (a_sock > 0)  {
-        // set it nonblock
-        //fcntl(a_sock, F_SETFL, O_NONBLOCK);
-
-        ret = dap_events_socket_wrap_no_add(a_events, a_sock, a_callbacks);
-        ret->type = DESCRIPTOR_TYPE_SOCKET_CLIENT;
-        ret->server = a_server;
-        ret->hostaddr   = DAP_NEW_Z_SIZE(char, 256);
-        ret->service    = DAP_NEW_Z_SIZE(char, 54);
+        l_es = dap_events_socket_wrap_no_add(a_events, a_sock, a_callbacks);
+        l_es->type = DESCRIPTOR_TYPE_SOCKET_CLIENT;
+        l_es->server = a_server;
 
     } else {
-        log_it(L_CRITICAL,"Accept error: %s",strerror(errno));
+        log_it(L_CRITICAL,"Accept error: %s", strerror(errno));
     }
-    return ret;
+    return l_es;
 }

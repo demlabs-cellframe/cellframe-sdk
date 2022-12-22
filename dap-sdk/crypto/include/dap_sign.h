@@ -44,6 +44,10 @@ enum dap_sign_type_enum {
 };
 typedef uint32_t dap_sign_type_enum_t;
 
+#define DAP_SIGN_HASH_TYPE_NONE      0x00
+#define DAP_SIGN_HASH_TYPE_SHA3      0x01
+#define DAP_SIGN_HASH_TYPE_STREEBOG  0x02
+
 typedef union dap_sign_type {
     dap_sign_type_enum_t type;
     uint32_t raw;
@@ -51,7 +55,8 @@ typedef union dap_sign_type {
 
 typedef struct dap_sign_hdr {
         dap_sign_type_t type; /// Signature type
-        uint16_t padding;
+        uint8_t hash_type;
+        uint8_t padding;
         uint32_t sign_size; /// Signature size
         uint32_t sign_pkey_size; /// Signature serialized public key size
 } DAP_ALIGN_PACKED dap_sign_hdr_t;
@@ -109,6 +114,38 @@ extern "C" {
 size_t dap_sign_get_size(dap_sign_t * a_chain_sign);
 
 int dap_sign_verify (dap_sign_t * a_chain_sign, const void * a_data, const size_t a_data_size);
+bool dap_sign_verify_size(dap_sign_t *a_sign, size_t a_max_sign_size);
+
+/**
+ * @brief dap_sign_verify_data
+ * @param a_chain_sign
+ * @param a_data
+ * @param a_data_size
+ * @return
+ */
+static inline bool dap_sign_verify_data (dap_sign_t * a_chain_sign, const void * a_data, const size_t a_data_size){
+    return dap_sign_verify(a_chain_sign, a_data, a_data_size) == 1;
+}
+
+/**
+ * @brief dap_sign_verify_all
+ * @param a_sign
+ * @param a_sign_size_max
+ * @param a_data
+ * @param a_data_size
+ * @return
+ */
+static inline int dap_sign_verify_all(dap_sign_t * a_sign, const size_t a_sign_size_max, const void * a_data, const size_t a_data_size)
+{
+    if( a_sign_size_max < sizeof(dap_sign_t)) {
+        return -3;
+    } else if ( ! dap_sign_verify_size(a_sign,a_sign_size_max) ) {
+        return -2;
+    } else if (dap_sign_verify(a_sign,a_data, a_data_size) != 1) {
+        return -1;
+    }
+    return 0;
+}
 
 dap_sign_t * dap_sign_create(dap_enc_key_t *a_key, const void * a_data, const size_t a_data_size
                                          ,  size_t a_output_wish_size );
@@ -129,7 +166,6 @@ uint8_t* dap_sign_get_pkey(dap_sign_t *a_sign, size_t *a_pub_key_out);
 bool dap_sign_get_pkey_hash(dap_sign_t *a_sign, dap_chain_hash_fast_t * a_sign_hash);
 bool dap_sign_match_pkey_signs(dap_sign_t *l_sign1, dap_sign_t *l_sign2);
 
-bool dap_sign_verify_size(dap_sign_t *a_sign, size_t a_max_key_size);
 dap_enc_key_t *dap_sign_to_enc_key(dap_sign_t * a_chain_sign);
 const char * dap_sign_type_to_str(dap_sign_type_t a_chain_sign_type);
 dap_sign_type_t dap_sign_type_from_str(const char * a_type_str);

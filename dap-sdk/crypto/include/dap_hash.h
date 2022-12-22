@@ -57,13 +57,13 @@ int dap_chain_hash_fast_from_str( const char * a_hash_str, dap_hash_fast_t *a_ha
 int dap_chain_hash_fast_from_hex_str( const char *a_hex_str, dap_chain_hash_fast_t *a_hash);
 int dap_chain_hash_fast_from_base58_str(const char *a_base58_str,  dap_chain_hash_fast_t *a_hash);
 /**
- * @brief 
+ * @brief
  * get SHA3_256 hash for specific data
  * @param a_data_in input data
  * @param a_data_in_size size of input data
  * @param a_hash_out returned hash
- * @return true 
- * @return false 
+ * @return true
+ * @return false
  */
 static inline bool dap_hash_fast( const void *a_data_in, size_t a_data_in_size, dap_hash_fast_t *a_hash_out )
 {
@@ -89,17 +89,16 @@ static inline bool dap_hash_fast_compare(dap_hash_fast_t *a_hash1, dap_hash_fast
 {
     if(!a_hash1 || !a_hash2)
         return false;
-    if(!memcmp(a_hash1, a_hash2, sizeof(dap_hash_fast_t)))
-        return true;
-    return false;
+
+    return  ( !memcmp(a_hash1, a_hash2, sizeof(dap_hash_fast_t)) ); /*0 - true, <> 0 - false */
 }
 
 /**
- * @brief 
+ * @brief
  * compare hash with blank hash
- * @param a_hash 
- * @return true 
- * @return false 
+ * @param a_hash
+ * @return true
+ * @return false
  */
 
 static inline bool dap_hash_fast_is_blank( dap_hash_fast_t *a_hash )
@@ -129,7 +128,7 @@ DAP_STATIC_INLINE int dap_chain_hash_fast_to_str( dap_hash_fast_t *a_hash, char 
 DAP_STATIC_INLINE char *dap_chain_hash_fast_to_str_new(dap_hash_fast_t * a_hash)
 {
     const size_t c_hash_str_size = DAP_CHAIN_HASH_FAST_STR_SIZE;
-    char * ret = DAP_NEW_Z_SIZE(char, c_hash_str_size);
+    char * ret = DAP_NEW_Z_SIZE(char, c_hash_str_size + 1);
     if(dap_chain_hash_fast_to_str( a_hash, ret, c_hash_str_size ) < 0 )
         DAP_DEL_Z(ret);
     return ret;

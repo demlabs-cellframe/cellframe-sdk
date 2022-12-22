@@ -69,7 +69,7 @@ size_t dap_chain_datum_tx_get_size(dap_chain_datum_tx_t *a_tx)
  *
  * return 1 Ok, -1 Error
  */
-int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const uint8_t *a_item)
+int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item)
 {
     size_t size = dap_chain_datum_item_tx_get_size(a_item);
     if(!size)
@@ -249,7 +249,7 @@ int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *tx)
                 log_it(L_WARNING,"Incorrect signature's header, possible corrupted data");
                 return -4;
             }
-            if (!dap_sign_verify_size(l_sign, tx_items_size) || dap_sign_verify(l_sign, tx->tx_items, tx_items_pos) != 1) {
+            if (dap_sign_verify_all(l_sign, tx_items_size, tx->tx_items, tx_items_pos)) {
                 // invalid signature
                 ret = 0;
                 tx_items_pos += l_item_tx_size;

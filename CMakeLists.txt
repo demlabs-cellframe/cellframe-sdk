@@ -2,28 +2,20 @@ project(cellframe-sdk C)
 cmake_minimum_required(VERSION 3.10)
 
 set(CMAKE_C_STANDARD 11)
-set(CELLFRAME_SDK_NATIVE_VERSION "3.1-1")
+set(CELLFRAME_SDK_NATIVE_VERSION "3.1-223")
 
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
 set(BUILD_CRYPTO_TESTS ON)
 
-message("Cellframe modules: ${CELLFRAME_MODULES}")
-
 set(DAPSDK_MODULES "")
 
 if(NOT DEFINED CELLFRAME_MODULES)
     include (cmake/OS_Detection.cmake)
-    if (WIN32)
-        set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-block-ton cs-none srv-app srv-app-db srv-datum srv-stake srv-xchange")
-    elseif(BSD)
-        set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-block-ton cs-none srv-app srv-app-db srv-datum srv-stake srv-xchange")
-    elseif(DARWIN)
-        set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-block-ton cs-none srv-app srv-app-db srv-datum srv-stake srv-xchange")
-    elseif(ANDROID)
-        set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-block-ton cs-none srv-app srv-app-db srv-datum srv-stake srv-xchange")
-    elseif(LINUX)
-        set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-block-ton cs-none srv-app srv-app-db srv-datum srv-stake srv-xchange modules-dynamic srv-vpn")
+    set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-block-ton cs-none srv-app srv-app-db srv-datum srv-stake-pos-delegate srv-stake-lock srv-xchange")
+
+    if(LINUX)
+        set(CELLFRAME_MODULES "${CELLFRAME_MODULES} modules-dynamic srv-vpn")
     endif()
 endif()
 
@@ -68,15 +60,20 @@ if(BUILD_TESTS)
     include(cmake/OS_Detection.cmake)
 endif()
 
+    add_subdirectory(3rdparty/crc32c_adler)		# https://github.com/fonic/crc32c_adler
+
+
 if( DARWIN)
     add_subdirectory(3rdparty/json-c-darwin)
     add_subdirectory(3rdparty/libmagic-darwin)
     include_directories(3rdparty/json-c-darwin)
-endif()
-if (ANDROID)
+elseif(ANDROID)
     add_subdirectory(3rdparty/libmagic)
     add_subdirectory(3rdparty/json-c)
     include_directories(cellframe-sdk/3rdparty/)
+elseif(LINUX)
+    add_subdirectory(3rdparty/json-c)
+    
 endif()
 
 if (BUILD_WITH_ZIP)
@@ -87,9 +84,14 @@ endif()
 add_subdirectory(dap-sdk)
 add_subdirectory(3rdparty/monero_crypto)
 add_subdirectory(3rdparty/cuttdb)
+
 if (BUILD_WITH_GDB_DRIVER_MDBX)
-add_subdirectory(3rdparty/libmdbx)
+    set(SAVED_CMAKE_MESSAGE_LOG_LEVEL ${CMAKE_MESSAGE_LOG_LEVEL})
+    set(CMAKE_MESSAGE_LOG_LEVEL WARNING)
+    add_subdirectory(3rdparty/libmdbx EXCLUDE_FROM_ALL)
+    set(CMAKE_MESSAGE_LOG_LEVEL ${SAVED_CMAKE_MESSAGE_LOG_LEVEL})
 endif()
+
 if(DAPSDK_MODULES MATCHES "ssl-support")
     add_subdirectory(3rdparty/wolfssl)
 endif()
@@ -208,10 +210,12 @@ if (CELLFRAME_MODULES MATCHES "srv-xchange")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_xchange)
 endif()
 
-# Enable service of delegated stake
-if (CELLFRAME_MODULES MATCHES "srv-stake")
-    message("[+] Module 'srv-stake'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake)
+
+
+# Enable service of stake token
+if (CELLFRAME_MODULES MATCHES "srv-stake-lock")
+    message("[+] Module 'srv-stake-lock'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake_lock)
 endif()
 
 # Enable service for dynamic modules
@@ -220,10 +224,19 @@ if (CELLFRAME_MODULES MATCHES "modules-dynamic")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_modules_dynamic_cdb)
 endif()
 
+# Enable service of delegated stake
+if (CELLFRAME_MODULES MATCHES "srv-stake-pos-delegate")
+    message("[+] Module 'srv-stake-pos-delegate'")
+    #add TARGET_FILE for proper symbols resolving 
+    #pos_delegate depends on symbols from this libs
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake_pos_delegate $<TARGET_FILE:dap_chain_cs_dag_poa> $<TARGET_FILE:dap_chain_cs_block_poa> $<TARGET_FILE:dap_chain_cs_dag> $<TARGET_FILE:dap_chain_cs_blocks>)
+endif()
+
 if (WIN32)
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} KERNEL32 USER32 SHELL32 WINMM GDI32 ADVAPI32
-					 Ole32 Version Imm32 OleAut32 ws2_32 ntdll psapi 
-                                         Shlwapi Bcrypt Crypt32 Secur32 userenv mqrt)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} kernel32 user32 shell32 winmm gdi32 advapi32
+					 ole32 version imm32 oleaut32 ws2_32 ntdll psapi 
+					 shlwapi bcrypt crypt32 secur32 userenv #mqrt
+					 )
 endif()
 
 if (DARWIN)
@@ -231,6 +244,7 @@ if (DARWIN)
 endif()
 
 target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})
+
 #if(BUILD_DAP_TESTS)
 #    file(COPY ${CMAKE_CURRENT_SOURCE_DIR}/test/main_test.py
 #            DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/)

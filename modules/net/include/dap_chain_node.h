@@ -44,12 +44,15 @@
 #include "dap_worker.h"
 #include "dap_events_socket.h"
 
+
 #include "dap_chain_common.h"
 #include "dap_chain_global_db.h"
 #include "dap_chain.h"
 #include "dap_chain_net.h"
 
 typedef struct dap_chain_net dap_chain_net_t;
+
+
 /**
   *  Node Declaration request
   *
@@ -100,11 +103,6 @@ typedef struct dap_chain_node_publ{
     dap_chain_hash_fast_t decl_hash;
     dap_chain_node_info_t node_info;
 } DAP_ALIGN_PACKED dap_chain_node_publ_t;
-
-
-typedef dap_list_t dap_chain_node_info_list_t;
-
-#define DAP_CHAIN_NODE_MEMPOOL_INTERVAL 1000    // milliseconds
 
 /**
  * Calculate size of struct dap_chain_node_info_t
@@ -161,25 +159,8 @@ inline static char* dap_chain_node_addr_to_hash_str(dap_chain_node_addr_t *addre
     return a_key;
 }
 
-int dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum);
+bool dap_chain_node_mempool_need_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum);
+bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum);
+void dap_chain_node_mempool_process_all(dap_chain_t *a_chain);
 bool dap_chain_node_mempool_autoproc_init();
 void dap_chain_node_mempool_autoproc_deinit();
-
-/**
- * @brief Find a_node_info in the a_node_list
- */
-bool dap_chain_node_info_list_is_added(dap_chain_node_info_list_t *a_node_list, dap_chain_node_info_t *a_node_info);
-
-/**
- * @brief Add a_node_info to the a_node_list
- */
-dap_chain_node_info_list_t* dap_chain_node_info_list_add(dap_chain_node_info_list_t *a_node_list, dap_chain_node_info_t *a_node_info);
-/**
- * @brief Remove a_node_info from the a_node_list
- */
-dap_chain_node_info_list_t* dap_chain_node_info_list_del(dap_chain_node_info_list_t *a_node_list, dap_chain_node_info_t *a_node_info);
-
-/**
- * @brief Free a_node_list
- */
-void dap_chain_node_info_list_free(dap_chain_node_info_list_t *a_node_list);

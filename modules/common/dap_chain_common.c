@@ -37,11 +37,14 @@
 
 #define LOG_TAG "dap_chain_common"
 
+const dap_chain_net_srv_uid_t c_dap_chain_net_srv_uid_null = {0};
+
 /*
  * Forward declarations
  */
 #define DAP_CHAIN$SZ_MAX128DEC DATOSHI_POW                                           /* "340282366920938463463374607431768211455" */
-#define DAP_CHAIN$SZ_MAX256DEC DATOSHI_POW256                                       /* 2 ^ "340282366920938463463374607431768211455" */
+#define DAP_CHAIN$SZ_MAX256DEC DATOSHI_POW256                                       /* 2 ^ 256 = 1.15792089237316195423570985008687907853269984665640564039457584007913129639935e77*/
+#define DAP_SZ_MAX256SCINOT (DATOSHI_POW256 + 5)
 
 char        *dap_cvt_uint256_to_str (uint256_t a_uint256);
 uint256_t   dap_cvt_str_to_uint256 (const char *a_256bit_num);
@@ -81,6 +84,8 @@ char* dap_chain_addr_to_str(const dap_chain_addr_t *a_addr)
     if ( a_addr ==NULL)
         return  NULL;
 
+    if (dap_chain_addr_is_blank(a_addr)) return dap_strdup("null");
+
     size_t l_ret_size = DAP_ENC_BASE58_ENCODE_SIZE(sizeof(dap_chain_addr_t));
     char * l_ret = DAP_NEW_SIZE(char, l_ret_size);
     if(dap_enc_base58_encode(a_addr, sizeof(dap_chain_addr_t), l_ret) > 0)
@@ -101,6 +106,9 @@ dap_chain_addr_t* dap_chain_addr_from_str(const char *a_str)
     size_t l_str_len = (a_str) ? strlen(a_str) : 0;
     if(l_str_len <= 0)
         return NULL;
+    if (dap_strcmp(a_str, "null") == 0) {
+        return DAP_NEW_Z(dap_chain_addr_t);
+    }
     size_t l_ret_size = DAP_ENC_BASE58_DECODE_SIZE(l_str_len);
     dap_chain_addr_t * l_addr = DAP_NEW_Z_SIZE(dap_chain_addr_t, l_ret_size);
     if(dap_enc_base58_decode(a_str, l_addr) == sizeof(dap_chain_addr_t) &&
@@ -111,6 +119,12 @@ dap_chain_addr_t* dap_chain_addr_from_str(const char *a_str)
     return NULL;
 }
 
+bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr){
+    dap_chain_addr_t l_addr_blank = {0};
+    return !memcmp(a_addr, &l_addr_blank, sizeof(dap_chain_addr_t));
+}
+
+#if 0
 /**
  * @brief dap_chain_net_id_from_str
  * @param a_net_str
@@ -121,13 +135,13 @@ dap_chain_net_id_t dap_chain_net_id_from_str(const char * a_net_str)
     dap_chain_net_id_t l_ret={ 0 };
     log_it(L_DEBUG, "net id: %s", a_net_str);
 
-    a_net_str += 2;
     if (!(l_ret.uint64 = strtoll(a_net_str, NULL, 0))) {
         log_it(L_ERROR, "Wrong input string \"%s\" not recognized as network id", a_net_str);
         return l_ret;
     }
     return l_ret;
 }
+#endif
 
 /**
  * @brief dap_chain_net_srv_uid_from_str
@@ -222,6 +236,7 @@ int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr)
 {
     if(!a_addr)
         return -1;
+    if (dap_chain_addr_is_blank(a_addr)) return 1;
     dap_chain_hash_fast_t l_checksum;
     // calc checksum
     dap_hash_fast(a_addr, sizeof(dap_chain_addr_t) - sizeof(dap_chain_hash_fast_t), &l_checksum);
@@ -272,7 +287,7 @@ uint128_t dap_chain_uint128_from_uint256(uint256_t a_from)
 
 char *dap_chain_balance_print128(uint128_t a_balance)
 {
-    char *l_buf = DAP_NEW_Z_SIZE(char, DATOSHI_POW + 3);
+    char *l_buf = DAP_NEW_Z_SIZE(char, DATOSHI_POW + 2);
     int l_pos = 0;
     uint128_t l_value = a_balance;
 #ifdef DAP_GLOBAL_IS_INT128
@@ -382,7 +397,7 @@ char *dap_chain_balance_to_coins256(uint256_t a_balance)
         l_strlen = l_len;                                                   /* Adjust string len in the buffer */
     }
 
-    for ( l_cp = l_buf + strlen(l_buf) - 1; *l_cp == '0'; l_cp--)
+    for ( l_cp = l_buf + strlen(l_buf) - 1; *l_cp == '0' && l_cp >= l_buf; l_cp--)
         if (*(l_cp - 1) != '.')
             *l_cp = '\0';
 
@@ -392,7 +407,7 @@ char *dap_chain_balance_to_coins256(uint256_t a_balance)
 const union __c_pow10__ {
     uint64_t u64[2];
     uint32_t u32[4];
-} DAP_ALIGN_PACKED c_pow10[DATOSHI_POW + 1] = {
+} DAP_ALIGN_PACKED c_pow10[DATOSHI_POW] = {
         { .u64 = {0,                         1ULL} },                          // 0
         { .u64 = {0,                         10ULL} },                         // 1
         { .u64 = {0,                         100ULL} },                        // 2
@@ -438,7 +453,7 @@ uint128_t dap_chain_balance_scan128(const char *a_balance)
 {
     int l_strlen = strlen(a_balance);
     uint128_t l_ret = uint128_0, l_nul = uint128_0;
-    if (l_strlen > DATOSHI_POW + 1)
+    if (l_strlen > DATOSHI_POW)
         return l_nul;
     for (int i = 0; i < l_strlen ; i++) {
         char c = a_balance[l_strlen - i - 1];
@@ -501,10 +516,10 @@ uint256_t dap_chain_balance_scan(const char *a_balance)
 
 uint128_t dap_chain_coins_to_balance128(const char *a_coins)
 {
-    char l_buf [DATOSHI_POW + 3] = {0};
+    char l_buf [DATOSHI_POW + 2] = {0};
     uint128_t l_ret = uint128_0, l_nul = uint128_0;
 
-    if (strlen(a_coins) > DATOSHI_POW + 2) {
+    if (strlen(a_coins) > DATOSHI_POW + 1) {
         log_it(L_WARNING, "Incorrect balance format - too long");
         return l_nul;
     }
@@ -526,7 +541,7 @@ uint128_t dap_chain_coins_to_balance128(const char *a_coins)
         }
         l_pos--;
     }
-    if (l_pos + DATOSHI_DEGREE - l_tail > DATOSHI_POW) {
+    if (l_pos + DATOSHI_DEGREE - l_tail > DATOSHI_POW-1) {
         log_it(L_WARNING, "Incorrect balance format - too long with point");
         return l_nul;
     }
@@ -567,13 +582,13 @@ uint256_t dap_chain_coins_to_balance256(const char *a_coins)
     uint256_t l_nul = {0};
 
     /* "12300000000.0000456" */
-    if ( (l_len = strnlen(a_coins, DATOSHI_POW256 + 3)) > DATOSHI_POW256 + 2)/* Check for legal length */ /* 1 symbol for \0, one for '.', if more, there is an error */
+    if ( (l_len = strnlen(a_coins, DATOSHI_POW256 + 2)) > DATOSHI_POW256 + 1)/* Check for legal length */ /* 1 symbol for \0, one for '.', if more, there is an error */
         return  log_it(L_WARNING, "Incorrect balance format of '%s' - too long (%d > %d)", a_coins,
-                       l_len, DATOSHI_POW256 + 2), l_nul;
+                       l_len, DATOSHI_POW256 + 1), l_nul;
 
     /* Find , check and remove 'precision' dot symbol */
-    memcpy (l_buf, a_coins, l_len);                                         /* Make local coy */
-    if ( !(l_point = memchr(l_buf, '.', l_len)) )                            /* Is there 'dot' ? */
+    memcpy (l_buf, a_coins, l_len);                                         /* Make local copy */
+    if ( !(l_point = memchr(l_buf, '.', l_len)) )                           /* Is there 'dot' ? */
         return  log_it(L_WARNING, "Incorrect balance format of '%s' - no precision mark", a_coins),
                 l_nul;
 
@@ -603,18 +618,25 @@ uint256_t dap_chain_coins_to_balance256(const char *a_coins)
 
 
 char *dap_cvt_uint256_to_str(uint256_t a_uint256) {
-    char *l_buf = DAP_NEW_Z_SIZE(char, DATOSHI_POW256 + 3);
+    char *l_buf = DAP_NEW_Z_SIZE(char, DATOSHI_POW256 + 2); // for decimal dot and trailing zero
+#ifdef DAP_GLOBAL_IS_INT128
     int l_pos = 0;
     uint256_t l_value = a_uint256;
-    uint256_t uint256_ten = {.hi = 0, .lo = 10};
+    uint256_t uint256_ten = GET_256_FROM_64(10);
     uint256_t rem;
-#ifdef DAP_GLOBAL_IS_INT128
     do {
         divmod_impl_256(l_value, uint256_ten, &l_value, &rem);
         l_buf[l_pos++] = rem.lo + '0';
     } while (!IS_ZERO_256(l_value));
 #else
-    log_it(L_WARNING, "256 to str not implemented yet for non-native 128-bit");
+    int l_pos = 0;
+    uint256_t l_value = a_uint256;
+    uint256_t uint256_ten = GET_256_FROM_64(10);
+    uint256_t rem;
+    do {
+        divmod_impl_256(l_value, uint256_ten, &l_value, &rem);
+        l_buf[l_pos++] = rem.lo.lo + (unsigned long long) '0';
+    } while (!IS_ZERO_256(l_value));
 #endif
     int l_strlen = strlen(l_buf) - 1;
     for (int i = 0; i < (l_strlen + 1) / 2; i++) {
@@ -629,7 +651,8 @@ char *dap_cvt_uint256_to_str(uint256_t a_uint256) {
 const union __c_pow10_double__ {
     uint64_t u64[4];
     uint32_t u32[8];
-} DAP_ALIGN_PACKED c_pow10_double[DATOSHI_POW * 2 + 1] = {
+} DAP_ALIGN_PACKED c_pow10_double[DATOSHI_POW256] = {
+#ifdef DAP_GLOBAL_IS_INT128
         { .u64 = {0,                            0,                           0,                         1ULL} },                          // 0
         { .u64 = {0,                            0,                           0,                         10ULL} },                         // 1
         { .u64 = {0,                            0,                           0,                         100ULL} },                        // 2
@@ -707,6 +730,87 @@ const union __c_pow10_double__ {
         { .u64 = {15930919111324522ULL,         14209320429820033867ULL,     8387114520361296896ULL,    0ULL} },                            // 74
         { .u64 = {159309191113245227ULL,        12965995782233477362ULL,     10084168908774762496ULL,   0ULL} },                            // 75
         { .u64 = {1593091911132452277ULL,       532749306367912313ULL,       8607968719199866880ULL,    0ULL} },                            // 76
+        { .u64 = {15930919111324522770ULL,       5327493063679123134ULL,       12292710897160462336ULL,    0ULL} },                         // 77
+#else
+        { .u32 = {0, 0, 0, 0, 0, 0, 0, 1, } },
+        { .u32 = {0, 0, 0, 0, 0, 0, 0, 10, } },
+        { .u32 = {0, 0, 0, 0, 0, 0, 0, 100, } },
+        { .u32 = {0, 0, 0, 0, 0, 0, 0, 1000, } },
+        { .u32 = {0, 0, 0, 0, 0, 0, 0, 10000, } },
+        { .u32 = {0, 0, 0, 0, 0, 0, 0, 100000, } },
+        { .u32 = {0, 0, 0, 0, 0, 0, 0, 1000000, } },
+        { .u32 = {0, 0, 0, 0, 0, 0, 0, 10000000, } },
+        { .u32 = {0, 0, 0, 0, 0, 0, 0, 100000000, } },
+        { .u32 = {0, 0, 0, 0, 0, 0, 0, 1000000000, } },
+        { .u32 = {0, 0, 0, 0, 0, 0, 2, 1410065408, } },
+        { .u32 = {0, 0, 0, 0, 0, 0, 23, 1215752192, } },
+        { .u32 = {0, 0, 0, 0, 0, 0, 232, 3567587328, } },
+        { .u32 = {0, 0, 0, 0, 0, 0, 2328, 1316134912, } },
+        { .u32 = {0, 0, 0, 0, 0, 0, 23283, 276447232, } },
+        { .u32 = {0, 0, 0, 0, 0, 0, 232830, 2764472320, } },
+        { .u32 = {0, 0, 0, 0, 0, 0, 2328306, 1874919424, } },
+        { .u32 = {0, 0, 0, 0, 0, 0, 23283064, 1569325056, } },
+        { .u32 = {0, 0, 0, 0, 0, 0, 232830643, 2808348672, } },
+        { .u32 = {0, 0, 0, 0, 0, 0, 2328306436, 2313682944, } },
+        { .u32 = {0, 0, 0, 0, 0, 5, 1808227885, 1661992960, } },
+        { .u32 = {0, 0, 0, 0, 0, 54, 902409669, 3735027712, } },
+        { .u32 = {0, 0, 0, 0, 0, 542, 434162106, 2990538752, } },
+        { .u32 = {0, 0, 0, 0, 0, 5421, 46653770, 4135583744, } },
+        { .u32 = {0, 0, 0, 0, 0, 54210, 466537709, 2701131776, } },
+        { .u32 = {0, 0, 0, 0, 0, 542101, 370409800, 1241513984, } },
+        { .u32 = {0, 0, 0, 0, 0, 5421010, 3704098002, 3825205248, } },
+        { .u32 = {0, 0, 0, 0, 0, 54210108, 2681241660, 3892314112, } },
+        { .u32 = {0, 0, 0, 0, 0, 542101086, 1042612833, 268435456, } },
+        { .u32 = {0, 0, 0, 0, 1, 1126043566, 1836193738, 2684354560, } },
+        { .u32 = {0, 0, 0, 0, 12, 2670501072, 1182068202, 1073741824, } },
+        { .u32 = {0, 0, 0, 0, 126, 935206946, 3230747430, 2147483648, } },
+        { .u32 = {0, 0, 0, 0, 1262, 762134875, 2242703233, 0, } },
+        { .u32 = {0, 0, 0, 0, 12621, 3326381459, 952195850, 0, } },
+        { .u32 = {0, 0, 0, 0, 126217, 3199043520, 932023908, 0, } },
+        { .u32 = {0, 0, 0, 0, 1262177, 1925664130, 730304488, 0, } },
+        { .u32 = {0, 0, 0, 0, 12621774, 2076772117, 3008077584, 0, } },
+        { .u32 = {0, 0, 0, 0, 126217744, 3587851993, 16004768, 0, } },
+        { .u32 = {0, 0, 0, 0, 1262177448, 1518781562, 160047680, 0, } },
+        { .u32 = {0, 0, 0, 2, 4031839891, 2302913732, 1600476800, 0, } },
+        { .u32 = {0, 0, 0, 29, 1663693251, 1554300843, 3119866112, 0, } },
+        { .u32 = {0, 0, 0, 293, 3752030625, 2658106549, 1133890048, 0, } },
+        { .u32 = {0, 0, 0, 2938, 3160567888, 811261716, 2748965888, 0, } },
+        { .u32 = {0, 0, 0, 29387, 1540907809, 3817649870, 1719855104, 0, } },
+        { .u32 = {0, 0, 0, 293873, 2524176210, 3816760336, 18681856, 0, } },
+        { .u32 = {0, 0, 0, 2938735, 3766925628, 3807864992, 186818560, 0, } },
+        { .u32 = {0, 0, 0, 29387358, 3309517920, 3718911552, 1868185600, 0, } },
+        { .u32 = {0, 0, 0, 293873587, 3030408136, 2829377156, 1501986816, 0, } },
+        { .u32 = {0, 0, 0, 2938735877, 239310294, 2523967787, 2134966272, 0, } },
+        { .u32 = {0, 0, 6, 3617554994, 2393102945, 3764841394, 4169793536, 0, } },
+        { .u32 = {0, 0, 68, 1815811577, 2456192978, 3288675581, 3043229696, 0, } },
+        { .u32 = {0, 0, 684, 978246591, 3087093307, 2821984745, 367525888, 0, } },
+        { .u32 = {0, 0, 6842, 1192531325, 806162004, 2450043674, 3675258880, 0, } },
+        { .u32 = {0, 0, 68422, 3335378659, 3766652749, 3025600268, 2392850432, 0, } },
+        { .u32 = {0, 0, 684227, 3289015526, 3306789129, 191231613, 2453667840, 0, } },
+        { .u32 = {0, 0, 6842277, 2825384195, 3003120218, 1912316135, 3061841920, 0, } },
+        { .u32 = {0, 0, 68422776, 2484038180, 4261398408, 1943292173, 553648128, 0, } },
+        { .u32 = {0, 0, 684227765, 3365545329, 3959278420, 2253052547, 1241513984, 0, } },
+        { .u32 = {0, 1, 2547310361, 3590682227, 938078541, 1055688992, 3825205248, 0, } },
+        { .u32 = {0, 15, 3998267138, 1547083904, 790850820, 1966955336, 3892314112, 0, } },
+        { .u32 = {0, 159, 1327965719, 2585937153, 3613540908, 2489684185, 268435456, 0, } },
+        { .u32 = {0, 1593, 394755308, 89567762, 1775670717, 3422005370, 2684354560, 0, } },
+        { .u32 = {0, 15930, 3947553080, 895677624, 576837993, 4155282634, 1073741824, 0, } },
+        { .u32 = {0, 159309, 820825138, 366841649, 1473412643, 2898120678, 2147483648, 0, } },
+        { .u32 = {0, 1593091, 3913284084, 3668416493, 1849224548, 3211403009, 0, 0, } },
+        { .u32 = {0, 15930919, 478135184, 2324426566, 1312376303, 2049259018, 0, 0, } },
+        { .u32 = {0, 159309191, 486384549, 1769429183, 238861146, 3312720996, 0, 0, } },
+        { .u32 = {0, 1593091911, 568878198, 514422646, 2388611467, 3062438888, 0, 0, } },
+        { .u32 = {3, 3046017223, 1393814685, 849259169, 2411278197, 559617808, 0, 0, } },
+        { .u32 = {37, 395401161, 1053244963, 4197624399, 2637945491, 1301210784, 0, 0, } },
+        { .u32 = {370, 3954011612, 1942515047, 3321538332, 609651137, 127205952, 0, 0, } },
+        { .u32 = {3709, 885410460, 2245281293, 3150612249, 1801544074, 1272059520, 0, 0, } },
+        { .u32 = {37092, 264170013, 977976457, 1441351422, 835571558, 4130660608, 0, 0, } },
+        { .u32 = {370920, 2641700132, 1189829981, 1528612333, 4060748293, 2651900416, 0, 0, } },
+        { .u32 = {3709206, 647197546, 3308365221, 2401221451, 1952777272, 749200384, 0, 0, } },
+        { .u32 = {37092061, 2177008171, 3018881143, 2537378034, 2347903537, 3197036544, 0, 0, } },
+        { .u32 = {370920615, 295245237, 124040363, 3898943865, 2004198897, 1905594368, 0, 0, } },
+        { .u32 = {3709206150, 2952452370, 1240403639, 334732990, 2862119790, 1876074496, 0, 0, } },
+#endif
 };
 
 
@@ -729,17 +833,21 @@ uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
 {
     uint256_t l_ret = uint256_0, l_nul = uint256_0;
     int  l_strlen;
-    char l_256bit_num[DAP_CHAIN$SZ_MAX256DEC];
+    char l_256bit_num[DAP_CHAIN$SZ_MAX256DEC + 1];
+    int overflow_flag = 0;
 
-    /* Compute & check length */
-    if ( (l_strlen = strnlen(a_256bit_num, DAP_CHAIN$SZ_MAX256DEC + 1) ) > DAP_CHAIN$SZ_MAX256DEC)
-        return  log_it(L_ERROR, "Too many digits in `%s` (%d > %d)", a_256bit_num, l_strlen, DAP_CHAIN$SZ_MAX256DEC), l_nul;
+    if (!a_256bit_num) {
+        return log_it(L_ERROR, "NULL as an argument"), l_nul;
+    }
 
     /* Convert number from xxx.yyyyE+zz to xxxyyyy0000... */
     char *l_eptr = strchr(a_256bit_num, 'e');
     if (!l_eptr)
         l_eptr = strchr(a_256bit_num, 'E');
     if (l_eptr) {
+        /* Compute & check length */
+        if ( (l_strlen = strnlen(a_256bit_num, DAP_SZ_MAX256SCINOT + 1) ) > DAP_SZ_MAX256SCINOT)
+            return  log_it(L_ERROR, "Too many digits in `%s` (%d > %d)", a_256bit_num, l_strlen, DAP_SZ_MAX256SCINOT), l_nul;
         char *l_exp_ptr = l_eptr + 1;
         if (*l_exp_ptr == '+')
             l_exp_ptr++;
@@ -750,22 +858,34 @@ uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
         if (!l_dot_ptr || l_dot_ptr > l_eptr)
             return  log_it(L_ERROR, "Invalid number format with exponent %d", l_exp), uint256_0;
         int l_dot_len = l_dot_ptr - a_256bit_num;
-        if (l_dot_len >= DAP_CHAIN$SZ_MAX256DEC)
+        if (l_dot_len >= DATOSHI_POW256)
             return log_it(L_ERROR, "Too many digits in '%s'", a_256bit_num), uint256_0;
         int l_exp_len = l_eptr - a_256bit_num - l_dot_len - 1;
-        if (l_exp_len + l_dot_len + 1 >= DAP_CHAIN$SZ_MAX256DEC)
+        if (l_exp_len + l_dot_len > DATOSHI_POW256)
             return log_it(L_ERROR, "Too many digits in '%s'", a_256bit_num), uint256_0;
-        if (l_exp < l_exp_len)
-            return  log_it(L_ERROR, "Invalid number format with exponent %d and nuber coun after dot %d", l_exp, l_exp_len), uint256_0;
+        if (l_exp < l_exp_len) {
+            //todo: we need to handle numbers like 1.23456789000000e9
+            return log_it(L_ERROR, "Invalid number format with exponent %d and number count after dot %d", l_exp,
+                          l_exp_len), uint256_0;
+        }
         memcpy(l_256bit_num, a_256bit_num, l_dot_len);
         memcpy(l_256bit_num + l_dot_len, a_256bit_num + l_dot_len + 1, l_exp_len);
         int l_zero_cnt = l_exp - l_exp_len;
+        if (l_zero_cnt > DATOSHI_POW256) {
+            //todo: need to handle leading zeroes, like 0.000...123e100
+            return log_it(L_ERROR, "Too long number for 256 bit: `%s` (%d > %d)", a_256bit_num, l_strlen, DAP_CHAIN$SZ_MAX256DEC), l_nul;
+        }
         size_t l_pos = l_dot_len + l_exp_len;
-        for (int i = l_zero_cnt; i && l_pos < DAP_CHAIN$SZ_MAX256DEC; i--)
+        for (int i = l_zero_cnt; i && l_pos < DATOSHI_POW256; i--)
             l_256bit_num[l_pos++] = '0';
         l_256bit_num[l_pos] = '\0';
         l_strlen = l_pos;
+
     } else {
+        //we have a decimal string, not sci notation
+        /* Compute & check length */
+        if ( (l_strlen = strnlen(a_256bit_num, DATOSHI_POW256 + 1) ) > DATOSHI_POW256)
+            return  log_it(L_ERROR, "Too many digits in `%s` (%d > %d)", a_256bit_num, l_strlen, DATOSHI_POW256), l_nul;
         memcpy(l_256bit_num, a_256bit_num, l_strlen);
         l_256bit_num[l_strlen] = '\0';
     }
@@ -783,14 +903,22 @@ uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
         uint256_t l_tmp;
         l_tmp.hi = 0;
         l_tmp.lo = (uint128_t)c_pow10_double[i].u64[3] * (uint128_t) l_digit;
-        SUM_256_256(l_ret, l_tmp, &l_ret);
-        if (l_ret.hi == 0 && l_ret.lo == 0) {
-            return l_nul;
+        overflow_flag = SUM_256_256(l_ret, l_tmp, &l_ret);
+        if (overflow_flag) {
+            //todo: change string to uint256_max after implementation
+            return log_it(L_ERROR, "Too big number '%s', max number is '%s'", a_256bit_num, "115792089237316195423570985008687907853269984665640564039457584007913129639935"), l_nul;
         }
+//        if (l_ret.hi == 0 && l_ret.lo == 0) {
+//            return l_nul;
+//        }
         uint128_t l_mul = (uint128_t) c_pow10_double[i].u64[2] * (uint128_t) l_digit;
         l_tmp.lo = l_mul << 64;
         l_tmp.hi = l_mul >> 64;
-        SUM_256_256(l_ret, l_tmp, &l_ret);
+        overflow_flag = SUM_256_256(l_ret, l_tmp, &l_ret);
+        if (overflow_flag) {
+            //todo: change string to uint256_max after implementation
+            return log_it(L_ERROR, "Too big number '%s', max number is '%s'", a_256bit_num, "115792089237316195423570985008687907853269984665640564039457584007913129639935"), l_nul;
+        }
 
         if (l_ret.hi == 0 && l_ret.lo == 0) {
             return l_nul;
@@ -798,30 +926,60 @@ uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num)
 
         l_tmp.lo = 0;
         l_tmp.hi = (uint128_t) c_pow10_double[i].u64[1] * (uint128_t) l_digit;
-        SUM_256_256(l_ret, l_tmp, &l_ret);
+        overflow_flag = SUM_256_256(l_ret, l_tmp, &l_ret);
+        if (overflow_flag) {
+            //todo: change string to uint256_max after implementation
+            return log_it(L_ERROR, "Too big number '%s', max number is '%s'", a_256bit_num, "115792089237316195423570985008687907853269984665640564039457584007913129639935"), l_nul;
+        }
         if (l_ret.hi == 0 && l_ret.lo == 0) {
             return l_nul;
         }
 
-        l_mul = (uint128_t) c_pow10_double->u64[0] * (uint128_t) l_digit;
+        l_mul = (uint128_t) c_pow10_double[i].u64[0] * (uint128_t) l_digit;
         if (l_mul >> 64) {
             log_it(L_WARNING, "Input number is too big");
             return l_nul;
         }
         l_tmp.hi = l_mul << 64;
-        SUM_256_256(l_ret, l_tmp, &l_ret);
+        overflow_flag = SUM_256_256(l_ret, l_tmp, &l_ret);
+        if (overflow_flag) {
+            //todo: change string to uint256_max after implementation
+            return log_it(L_ERROR, "Too big number '%s', max number is '%s'", a_256bit_num, "115792089237316195423570985008687907853269984665640564039457584007913129639935"), l_nul;
+        }
         if (l_ret.hi == 0 && l_ret.lo == 0) {
             return l_nul;
         }
 #else
-        log_it(L_WARNING, "str to 256 not implemented yet for non-native 128-bit");
+        uint256_t l_tmp;
+        for (int j = 7; j>=0; j--) {
+            l_tmp = GET_256_FROM_64((uint64_t) c_pow10_double[i].u32[j]);
+            if (IS_ZERO_256(l_tmp)) {
+                if (j < 6) { // in table, we have only 7 and 6 position with 0-es but 5..0 non-zeroes, so if we have zero on 5 or less, there is no significant position anymore
+                    break;
+                }
+                else {
+                    continue;
+                }
+            }
+            LEFT_SHIFT_256(l_tmp, &l_tmp, 32 * (7-j));
+            overflow_flag = MULT_256_256(l_tmp, GET_256_FROM_64(l_digit), &l_tmp);
+            if (overflow_flag) {
+                //todo: change string to uint256_max after implementation
+                return log_it(L_ERROR, "Too big number '%s', max number is '%s'", a_256bit_num, "115792089237316195423570985008687907853269984665640564039457584007913129639935"), l_nul;
+            }
+            overflow_flag = SUM_256_256(l_ret, l_tmp, &l_ret);
+            if (overflow_flag) {
+                //todo: change string to uint256_max after implementation
+                return log_it(L_ERROR, "Too big number '%s', max number is '%s'", a_256bit_num, "115792089237316195423570985008687907853269984665640564039457584007913129639935"), l_nul;
+            }
+        }
 #endif
     }
     return l_ret;
 }
 
 
-uint256_t dap_chain_coins_to_balance(const char *a_coins)
+inline uint256_t dap_chain_coins_to_balance(const char *a_coins)
 {
     return  dap_chain_coins_to_balance256(a_coins);
     // return GET_256_FROM_128(dap_chain_coins_to_balance128(a_coins));
@@ -829,14 +987,14 @@ uint256_t dap_chain_coins_to_balance(const char *a_coins)
 
 
 
-char *dap_chain_balance_to_coins(uint256_t a_balance)
+inline char *dap_chain_balance_to_coins(uint256_t a_balance)
 {
     return dap_chain_balance_to_coins256(a_balance); /* @RRL */
     //return dap_chain_balance_to_coins128(a_balance.lo);
 }
 
 
-#define __NEW_STARLET__ "BMF"
+//#define __NEW_STARLET__ "BMF"
 #ifdef  __NEW_STARLET__
 
 

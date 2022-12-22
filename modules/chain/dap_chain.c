@@ -27,7 +27,9 @@
 #include <stdc-predef.h>
 #endif
 #include <unistd.h>
-
+#include "dap_chain_common.h"
+#include "dap_chain_datum.h"
+#include "dap_chain_datum_decree.h"
 #include "dap_chain_pvt.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
@@ -38,6 +40,8 @@
 #include "dap_cert.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_cs.h"
+#include "dap_cert.h"
+#include "dap_cert_file.h"
 #include "dap_chain_vf.h"
 #include <uthash.h>
 #include <pthread.h>
@@ -92,6 +96,7 @@ void dap_chain_deinit(void)
     dap_chain_item_t * l_item = NULL, *l_tmp = NULL;
     HASH_ITER(hh, s_chain_items, l_item, l_tmp) {
           dap_chain_delete(l_item->chain);
+          DAP_DEL_Z(l_item->chain);
     }
     dap_chain_ledger_deinit();
 
@@ -162,7 +167,7 @@ dap_chain_t * dap_chain_create(dap_ledger_t* a_ledger, const char * a_chain_net_
  * delete dap chain object
  * @param a_chain dap_chain_t object
  */
-void dap_chain_delete(dap_chain_t * a_chain)
+void dap_chain_delete(dap_chain_t *a_chain)
 {
     dap_chain_item_t * l_item = NULL;
     dap_chain_item_id_t l_chain_item_id = {
@@ -172,28 +177,23 @@ void dap_chain_delete(dap_chain_t * a_chain)
     pthread_rwlock_wrlock(&s_chain_items_rwlock);
     HASH_FIND(hh,s_chain_items,&l_chain_item_id,sizeof(dap_chain_item_id_t),l_item);
 
-    if( l_item){
+    if(l_item) {
        HASH_DEL(s_chain_items, l_item);
        if (a_chain->callback_delete )
            a_chain->callback_delete(a_chain);
-       if ( a_chain->name)
-           DAP_DELETE (a_chain->name);
-       if ( a_chain->net_name)
-           DAP_DELETE (a_chain->net_name);
-       if (a_chain->_pvt ){
-           DAP_DELETE(DAP_CHAIN_PVT(a_chain)->file_storage_dir);
-           DAP_DELETE(a_chain->_pvt);
-       }
-       if (a_chain->_inheritor )
-           DAP_DELETE(a_chain->_inheritor);
-       DAP_DELETE(l_item);
-    }else
+       DAP_DEL_Z(a_chain->name);
+       DAP_DEL_Z(a_chain->net_name);
+       DAP_DEL_Z(DAP_CHAIN_PVT(a_chain)->file_storage_dir);
+       DAP_DEL_Z(a_chain->_pvt);
+       DAP_DEL_Z(a_chain->_inheritor);
+       DAP_DEL_Z(l_item);
+    } else
        log_it(L_WARNING,"Trying to remove non-existent 0x%16"DAP_UINT64_FORMAT_X":0x%16"DAP_UINT64_FORMAT_X" chain",a_chain->id.uint64,
               a_chain->net_id.uint64);
     a_chain->datum_types_count = 0;
-    DAP_DELETE(a_chain->datum_types);
+    DAP_DEL_Z(a_chain->datum_types);
     a_chain->autoproc_datum_types_count = 0;
-    DAP_DELETE(a_chain->autoproc_datum_types);
+    DAP_DEL_Z(a_chain->autoproc_datum_types);
     pthread_rwlock_destroy(&a_chain->rwlock);
     pthread_rwlock_destroy(&a_chain->atoms_rwlock);
     pthread_rwlock_destroy(&a_chain->cell_rwlock);
@@ -310,9 +310,44 @@ static uint16_t s_chain_type_convert(dap_chain_type_t a_type)
         return DAP_CHAIN_DATUM_TX;
     case CHAIN_TYPE_CA:
         return DAP_CHAIN_DATUM_CA;
+	case CHAIN_TYPE_SIGNER:
+		return DAP_CHAIN_DATUM_SIGNER;
+
     default:
         return DAP_CHAIN_DATUM_CUSTOM;
     }
+}
+
+/**
+ * @brief s_chain_in_chain_types
+ * looks for a type (chain_type) in an array of types (*chain_types)
+ * @param chain_type		- the type we are looking for
+ * @param *chain_types		- array of types in which we are looking for
+ * @param chain_types_count	- number of elements in the array *chain_types
+ * @return true or false
+ */
+static bool s_chain_in_chain_types(dap_chain_type_t chain_type, dap_chain_type_t *chain_types, uint16_t chain_types_count)
+{
+	for (uint16_t i = 0; i < chain_types_count; i++)
+		if (chain_types[i] == chain_type)
+			return (true);
+	return (false);
+}
+
+/**
+ * @brief s_datum_in_chain_types
+ * looks for a type (chain_type) in an array of types (*chain_types)
+ * @param datum_type		- the type we are looking for
+ * @param *chain_types		- array of types in which we are looking for
+ * @param chain_types_count	- number of elements in the array *chain_types
+ * @return true or false
+ */
+static bool s_datum_in_chain_types(uint16_t datum_type, dap_chain_type_t *chain_types, uint16_t chain_types_count)
+{
+	for (uint16_t i = 0; i < chain_types_count; i++)
+		if (s_chain_type_convert(chain_types[i]) == datum_type)
+			return (true);
+	return (false);
 }
 
 /**
@@ -327,20 +362,27 @@ static uint16_t s_chain_type_convert(dap_chain_type_t a_type)
 dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_chain_net_name,dap_chain_net_id_t a_chain_net_id, const char * a_chain_cfg_name)
 {
     log_it (L_DEBUG, "Loading chain from config \"%s\"", a_chain_cfg_name);
-    if ( a_chain_net_name){
-        dap_config_t * l_cfg = dap_config_open(a_chain_cfg_name);
-        if (l_cfg) {
-            dap_chain_t * l_chain = NULL;
-            dap_chain_id_t l_chain_id = {{0}};
-            uint64_t l_chain_id_u = 0;
-            const char * l_chain_id_str = NULL;
-            const char * l_chain_name = NULL;
+
+    if (a_chain_net_name)
+	{
+        dap_config_t *l_cfg = dap_config_open(a_chain_cfg_name);
+        if (l_cfg)
+		{
+            dap_chain_t		*l_chain		= NULL;
+            dap_chain_id_t	l_chain_id		= {{0}};
+            uint64_t		l_chain_id_u	= 0;
+            const char		*l_chain_id_str	= NULL;
+            const char 		*l_chain_name	= NULL;
 
             // Recognize chains id
-            if ( (l_chain_id_str = dap_config_get_item_str(l_cfg,"chain","id")) != NULL ){
-                if ( dap_sscanf(l_chain_id_str,"0x%"DAP_UINT64_FORMAT_X,& l_chain_id_u ) !=1 ){
-                    if ( dap_sscanf(l_chain_id_str,"0x%"DAP_UINT64_FORMAT_x,&l_chain_id_u) !=1 ) {
-                        if ( dap_sscanf(l_chain_id_str,"%"DAP_UINT64_FORMAT_U,&l_chain_id_u ) !=1 ){
+            if ( (l_chain_id_str = dap_config_get_item_str(l_cfg,"chain","id")) != NULL )
+			{
+                if (dap_sscanf(l_chain_id_str, "0x%"DAP_UINT64_FORMAT_X, & l_chain_id_u)		!=1)
+				{
+                    if (dap_sscanf(l_chain_id_str, "0x%"DAP_UINT64_FORMAT_x, &l_chain_id_u)		!=1)
+					{
+                        if (dap_sscanf(l_chain_id_str, "%"DAP_UINT64_FORMAT_U, &l_chain_id_u)	!=1)
+						{
                             log_it (L_ERROR,"Can't recognize '%s' string as chain net id, hex or dec",l_chain_id_str);
                             dap_config_close(l_cfg);
                             return NULL;
@@ -350,93 +392,145 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
             }
             l_chain_id.uint64 = l_chain_id_u;
 
-            if (l_chain_id_str ) {
-                log_it (L_NOTICE, "Chain id 0x%016"DAP_UINT64_FORMAT_x"  ( \"%s\" )",l_chain_id.uint64 , l_chain_id_str) ;
-            }else {
-                log_it (L_ERROR,"Wasn't recognized '%s' string as chain net id, hex or dec",l_chain_id_str);
+            if (l_chain_id_str)
+                log_it (L_NOTICE, "Chain id 0x%016"DAP_UINT64_FORMAT_x"  ( \"%s\" )", l_chain_id.uint64, l_chain_id_str);
+            else {
+                log_it (L_ERROR,"Wasn't recognized '%s' string as chain net id, hex or dec", l_chain_id_str);
                 dap_config_close(l_cfg);
                 return NULL;
 
             }
+
             // Read chain name
-            if ( ( l_chain_name = dap_config_get_item_str(l_cfg,"chain","name") ) == NULL ){
-                log_it (L_ERROR,"Can't read chain net name %s",l_chain_id_str);
+            if ( ( l_chain_name = dap_config_get_item_str(l_cfg,"chain","name") ) == NULL )
+			{
+                log_it (L_ERROR,"Can't read chain net name %s", l_chain_id_str);
                 dap_config_close(l_cfg);
                 return NULL;
             }
 
             l_chain =  dap_chain_create(a_ledger,a_chain_net_name,l_chain_name, a_chain_net_id,l_chain_id);
-            if ( dap_chain_cs_create(l_chain, l_cfg) == 0 ) {
-                log_it (L_NOTICE,"Consensus initialized for chain id 0x%016"DAP_UINT64_FORMAT_x,
-                        l_chain_id.uint64 );
+            if ( dap_chain_cs_create(l_chain, l_cfg) == 0 )
+			{
+                log_it (L_NOTICE, "Consensus initialized for chain id 0x%016"DAP_UINT64_FORMAT_x, l_chain_id.uint64);
 
-                if ( dap_config_get_item_str_default(l_cfg , "files","storage_dir",NULL ) ) {
-                    DAP_CHAIN_PVT ( l_chain)->file_storage_dir = strdup (
-                                dap_config_get_item_str( l_cfg , "files","storage_dir" ) ) ;
-                    if (dap_chain_load_all(l_chain) == 0) {
+                if ( dap_config_get_item_path_default(l_cfg , "files","storage_dir",NULL ) )
+				{
+                    DAP_CHAIN_PVT(l_chain)->file_storage_dir = dap_strdup( dap_config_get_item_path( l_cfg , "files","storage_dir" ) );
+                    if (dap_chain_load_all(l_chain) == 0)
                         log_it (L_NOTICE, "Loaded chain files");
-                    } else {
+                    else {
                         dap_chain_save_all( l_chain );
                         log_it (L_NOTICE, "Initialized chain files");
                     }
-                } else{
+                } else
                     log_it (L_INFO, "Not set file storage path, will not stored in files");
-                }
-                if (!l_chain->cells) {
+
+                if (!l_chain->cells)
+				{
                     dap_chain_cell_id_t l_cell_id = {.uint64 = 0};
                     dap_chain_cell_create_fill(l_chain, l_cell_id);
                 }
-            }else{
+            } else {
                 log_it (L_ERROR, "Can't init consensus \"%s\"",dap_config_get_item_str_default( l_cfg , "chain","consensus","NULL"));
                 dap_chain_delete(l_chain);
-                l_chain = NULL;
+                DAP_DEL_Z(l_chain);
             }
-            // Read chain datum types
-            char** l_datum_types = NULL;
-            uint16_t l_datum_types_count = 0;
-            if((l_datum_types = dap_config_get_array_str(l_cfg, "chain", "datum_types", &l_datum_types_count)) == NULL) {
-                log_it(L_WARNING, "Can't read chain datum types for chain %s", l_chain_id_str);
-                //dap_config_close(l_cfg);
-                //return NULL;
-            }
-            // add datum types
-            if(l_chain && l_datum_types && l_datum_types_count > 0) {
-                l_chain->datum_types = DAP_NEW_SIZE(dap_chain_type_t, l_datum_types_count * sizeof(dap_chain_type_t));
-                uint16_t l_count_recognized = 0;
-                for(uint16_t i = 0; i < l_datum_types_count; i++) {
-                    dap_chain_type_t l_chain_type = s_chain_type_from_str(l_datum_types[i]);
-                    if (l_chain_type != CHAIN_TYPE_LAST) {
-                        l_chain->datum_types[l_count_recognized] = l_chain_type;
-                        l_count_recognized++;
-                    }
-                }
-                l_chain->datum_types_count = l_count_recognized;
-            }
-            if((l_datum_types = dap_config_get_array_str(l_cfg, "chain", "mempool_auto_types", &l_datum_types_count)) == NULL) {
-                log_it(L_WARNING, "Can't read chain mempool auto types for chain %s", l_chain_id_str);
-            }
-            // add datum types
-            if(l_chain && l_datum_types && l_datum_types_count) {
-                l_chain->autoproc_datum_types = DAP_NEW_Z_SIZE(uint16_t, l_chain->datum_types_count * sizeof(uint16_t));
-                uint16_t l_count_recognized = 0;
-                for(uint16_t i = 0; i < l_datum_types_count; i++) {
-                    if (!strcmp(l_datum_types[i], "all") && l_chain->datum_types_count) {
-                        for (int j = 0; j < l_chain->datum_types_count; j++)
-                            l_chain->autoproc_datum_types[j] = s_chain_type_convert(l_chain->datum_types[j]);
-                        l_count_recognized = l_chain->datum_types_count;
-                        break;
-                    }
-                    uint16_t l_chain_type = s_datum_type_from_str(l_datum_types[i]);
-                    if (l_chain_type != DAP_CHAIN_DATUM_CUSTOM) {
-                        l_chain->autoproc_datum_types[l_count_recognized] = l_chain_type;
-                        l_count_recognized++;
-                    }
-                }
-                l_chain->autoproc_datum_types_count = l_count_recognized;
-            }
+
+			if (l_chain)
+			{
+				// load priority for chain
+				l_chain->load_priority = dap_config_get_item_uint16_default(l_cfg, "chain", "load_priority", 100);
+
+				char**		l_datum_types				= NULL;
+				char**		l_default_datum_types		= NULL;
+				uint16_t	l_datum_types_count			= 0;
+				uint16_t	l_default_datum_types_count = 0;
+				uint16_t	l_count_recognized			= 0;
+
+				//		l_datum_types			=	(read chain datum types)
+				//	||	l_default_datum_types	=	(read chain default datum types if datum types readed and if present default datum types)
+
+				if (	(l_datum_types			= dap_config_get_array_str(l_cfg, "chain", "datum_types", &l_datum_types_count)) 					== NULL
+				||		(l_default_datum_types	= dap_config_get_array_str(l_cfg, "chain", "default_datum_types", &l_default_datum_types_count))	== NULL )
+				{
+					if (!l_datum_types)
+						log_it(L_WARNING, "Can't read chain datum types for chain %s", l_chain_id_str);
+					else
+						log_it(L_WARNING, "Can't read chain DEFAULT datum types for chain %s", l_chain_id_str);
+					//dap_config_close(l_cfg);
+					//return NULL;
+				}
+
+				// add datum types
+				if (l_datum_types && l_datum_types_count > 0)
+				{
+					l_chain->datum_types = DAP_NEW_SIZE(dap_chain_type_t, l_datum_types_count * sizeof(dap_chain_type_t)); // TODO: pls check counter for recognized types before memory allocation!
+					l_count_recognized = 0;
+					for (uint16_t i = 0; i < l_datum_types_count; i++)
+					{
+						dap_chain_type_t l_chain_type = s_chain_type_from_str(l_datum_types[i]);
+						if (l_chain_type != CHAIN_TYPE_LAST)
+						{
+							l_chain->datum_types[l_count_recognized] = l_chain_type;
+							l_count_recognized++;
+						}
+					}
+					l_chain->datum_types_count = l_count_recognized;
+				} else
+					l_chain->datum_types_count = 0;
+
+				// add default datum types present
+				if (l_default_datum_types && l_default_datum_types_count > 0)
+				{
+					l_chain->default_datum_types = DAP_NEW_SIZE(dap_chain_type_t, l_default_datum_types_count * sizeof(dap_chain_type_t)); // TODO: pls check counter for recognized types before memory allocation!
+					l_count_recognized = 0;
+					for (uint16_t i = 0; i < l_default_datum_types_count; i++)
+					{
+						dap_chain_type_t l_chain_type = s_chain_type_from_str(l_default_datum_types[i]);
+						if (l_chain_type != CHAIN_TYPE_LAST
+						&& s_chain_in_chain_types(l_chain_type, l_chain->datum_types, l_chain->datum_types_count))// <<--- check this chain_type in readed datum_types
+						{
+							l_chain->default_datum_types[l_count_recognized] = l_chain_type;
+							l_count_recognized++;
+						}
+					}
+					l_chain->default_datum_types_count = l_count_recognized;
+				} else
+					l_chain->default_datum_types_count = 0;
+
+				if ((l_datum_types = dap_config_get_array_str(l_cfg, "chain", "mempool_auto_types", &l_datum_types_count)) == NULL)
+					log_it(L_WARNING, "Can't read chain mempool auto types for chain %s", l_chain_id_str);
+
+				// add datum types for autoproc
+				if (l_datum_types && l_datum_types_count)
+				{
+					l_chain->autoproc_datum_types = DAP_NEW_Z_SIZE(uint16_t, l_chain->datum_types_count * sizeof(uint16_t)); // TODO: pls check counter for recognized types before memory allocation!
+					l_count_recognized = 0;
+					for (uint16_t i = 0; i < l_datum_types_count; i++)
+					{
+						if (!dap_strcmp(l_datum_types[i], "all") && l_chain->datum_types_count)
+						{
+							for (int j = 0; j < l_chain->datum_types_count; j++)
+								l_chain->autoproc_datum_types[j] = s_chain_type_convert(l_chain->datum_types[j]);
+							l_count_recognized = l_chain->datum_types_count;
+							break;
+						}
+						uint16_t l_chain_type = s_datum_type_from_str(l_datum_types[i]);
+						if (l_chain_type != DAP_CHAIN_DATUM_CUSTOM
+						&&	s_datum_in_chain_types(l_chain_type, l_chain->datum_types, l_chain->datum_types_count))// <<--- check this chain_datum_type in readed datum_types
+						{
+							l_chain->autoproc_datum_types[l_count_recognized] = l_chain_type;
+							l_count_recognized++;
+						}
+					}
+					l_chain->autoproc_datum_types_count = l_count_recognized;
+				} else
+					l_chain->autoproc_datum_types_count = 0;
+			}
             dap_config_close(l_cfg);
             return l_chain;
-        }else
+        } else
             return NULL;
 
     } else {
@@ -613,6 +707,56 @@ ssize_t dap_chain_atom_save(dap_chain_t *a_chain, const uint8_t *a_atom, size_t 
             log_it(L_ERROR, "Can't create cell with id 0x%"DAP_UINT64_FORMAT_x" to save event...", a_cell_id.uint64);
             return -7;
         }
+    }  
+    ssize_t l_res =  dap_chain_cell_file_append(l_cell, a_atom, a_atom_size);
+    if (a_chain->callback_atom_add_from_treshold) {
+        dap_chain_atom_ptr_t l_atom_treshold;
+        do {
+            size_t l_atom_treshold_size;
+            l_atom_treshold = a_chain->callback_atom_add_from_treshold(a_chain, &l_atom_treshold_size);
+            if (l_atom_treshold) {
+                dap_chain_cell_file_append(l_cell, l_atom_treshold, l_atom_treshold_size);
+                log_it(L_INFO, "Added atom from treshold");
+            }
+        } while(l_atom_treshold);
     }
-    return dap_chain_cell_file_append(l_cell, a_atom, a_atom_size);
+    return l_res;
 }
+
+/**
+ * @brief dap_cert_chain_file_save
+ * @param datum
+ */
+int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name)
+{
+    const char *s_system_chain_ca_dir = dap_config_get_item_str(g_config, "resources", "chain_ca_folder");
+    if(dap_strlen(s_system_chain_ca_dir) == 0) {
+        log_it(L_ERROR, "Not found 'chain_ca_folder' in .cfg file");
+        return -1;
+    }
+    dap_cert_t *cert = dap_cert_mem_load(datum->data, datum->header.data_size);
+    if(!cert) {
+        log_it(L_ERROR, "Can't load cert, size: %d", datum->header.data_size);
+        return -1;
+    }
+    const char *cert_name = cert->name;
+    size_t cert_path_length = dap_strlen(net_name) + dap_strlen(cert_name) + 9 + dap_strlen(s_system_chain_ca_dir);
+    char *cert_path = DAP_NEW_Z_SIZE(char, cert_path_length);
+    snprintf(cert_path, cert_path_length, "%s/%s/%s.dcert", s_system_chain_ca_dir, net_name, cert_name);
+    // In cert_path resolve all `..` and `.`s
+    char *cert_path_c = dap_canonicalize_filename(cert_path, NULL);
+    DAP_DELETE(cert_path);
+    // Protect the ca folder from using "/.." in cert_name
+    if(dap_strncmp(s_system_chain_ca_dir, cert_path_c, dap_strlen(s_system_chain_ca_dir))) {
+        log_it(L_ERROR, "Cert path '%s' is not in ca dir: %s", cert_path_c, s_system_chain_ca_dir);
+        return -1;
+    }
+    int l_ret = dap_cert_file_save(cert, cert_path_c);
+    DAP_DELETE(cert_path_c);
+//  if ( access( l_cert_path, F_OK ) != -1 ) {
+//      log_it (L_ERROR, "File %s is already exists.", l_cert_path);
+//      return -1;
+//  } else
+    return l_ret;
+}
+

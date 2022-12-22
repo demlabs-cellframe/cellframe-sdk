@@ -56,7 +56,7 @@ char *dap_store_packet_get_group(dap_store_obj_pkt_t *a_pkt);
 uint64_t dap_store_packet_get_id(dap_store_obj_pkt_t *a_pkt);
 void dap_store_packet_change_id(dap_store_obj_pkt_t *a_pkt, uint64_t a_id);
 
-dap_db_log_list_t* dap_db_log_list_start(dap_chain_net_t *l_net, dap_chain_node_addr_t a_addr, int a_flags);
+dap_db_log_list_t* dap_db_log_list_start(dap_chain_net_t *a_net, dap_chain_node_addr_t a_addr, int a_flags);
 size_t dap_db_log_list_get_count(dap_db_log_list_t *a_db_log_list);
 size_t dap_db_log_list_get_count_rest(dap_db_log_list_t *a_db_log_list);
 dap_db_log_list_obj_t *dap_db_log_list_get(dap_db_log_list_t *a_db_log_list);

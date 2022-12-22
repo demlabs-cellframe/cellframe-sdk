@@ -114,12 +114,12 @@ static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg)
 
 
     if ( !(l_item = DAP_NEW_Z(dap_proc_queue_item_t)) ) {
-        log_it(L_CRITICAL,"Can't allocate memory, drop l_msg:%p, callback: %p/%p, pri: %d", l_msg, l_msg->callback, l_msg->callback_arg, l_msg->pri);
+        log_it(L_CRITICAL,"Can't allocate memory, drop l_msg: %p, callback: %p/%p, pri: %d", l_msg, l_msg->callback, l_msg->callback_arg, l_msg->pri);
 
         if ( l_msg->signal_kill )                                           /* Say to kill this object and delete its inherior dap_proc_queue_t */
             a_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
 
-        DAP_DELETE(l_msg);
+        DAP_DEL_Z(l_msg);
         return;
     }
 
@@ -130,50 +130,26 @@ static void s_queue_esocket_callback( dap_events_socket_t * a_es, void * a_msg)
     pri = MIN(pri, DAP_QUE$K_PRIMAX - 1);
     pri = MAX(pri, 0);
 
-        l_item->callback = l_msg->callback;
-        l_item->callback_arg = l_msg->callback_arg;
+    l_item->callback = l_msg->callback;
+    l_item->callback_arg = l_msg->callback_arg;
 
     pthread_mutex_lock(&l_queue->list[pri].lock);                           /* Protect list from other threads */
     l_rc = s_dap_insqtail (&l_queue->list[pri].items, l_item, 1);
     pthread_mutex_unlock(&l_queue->list[pri].lock);
 
     if ( l_rc )
-        log_it(L_CRITICAL, "Enqueue failed: %d, drop l_msg:%p, callback: %p/%p, pri: %d", l_rc, l_msg, l_msg->callback, l_msg->callback_arg, l_msg->pri);
+        log_it(L_CRITICAL, "Enqueue failed: %d, drop l_msg: %p, callback: %p/%p, pri: %d", l_rc, l_msg, l_msg->callback, l_msg->callback_arg, l_msg->pri);
     else
-        debug_if(g_debug_reactor, L_DEBUG, "Enqueued l_msg:%p, callback: %p/%p, pri: %d", l_msg, l_msg->callback, l_msg->callback_arg, l_msg->pri);
+        debug_if(g_debug_reactor, L_DEBUG, "Enqueued l_msg: %p, callback: %p/%p, pri: %d, l_item: %p",
+                 l_msg, l_msg->callback, l_msg->callback_arg, l_msg->pri, l_item);
 
     dap_events_socket_event_signal(l_queue->proc_thread->proc_event, 1);    /* Add on top so after call this callback will be executed first */
 
     if (l_msg->signal_kill)                                                 /* Say to kill this object and delete its inherior dap_proc_queue_t */
         a_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
 
-    DAP_DELETE(l_msg);
+    DAP_DEL_Z(l_msg);
 }
-
-/**
- * @brief dap_proc_queue_add_callback
- * @param a_worker
- * @param a_callback
- * @param a_callback_arg
- * @return:  -ENOMEM in case of memory allocation error
- *           other <errno> codes from the internaly called routine
- */
-int dap_proc_queue_add_callback(dap_worker_t * a_worker,dap_proc_queue_callback_t a_callback, void * a_callback_arg)
-{
-    dap_proc_queue_msg_t * l_msg = DAP_NEW_Z(dap_proc_queue_msg_t);
-
-    if (!l_msg)
-        return  -ENOMEM;
-
-    l_msg->callback = a_callback;
-    l_msg->callback_arg = a_callback_arg;
-    l_msg->pri = DAP_QUE$K_PRI_NORMAL;
-    /*
-     * Send message to queue with the DEFAULT priority
-     */
-    return  dap_events_socket_queue_ptr_send( a_worker->proc_queue->esocket , l_msg );
-}
-
 
 /**
  * @brief dap_proc_queue_add_callback
@@ -202,35 +178,12 @@ dap_proc_queue_msg_t *l_msg;
     l_msg->callback_arg = a_callback_arg;
     l_msg->pri = a_pri;
 
+    debug_if(g_debug_reactor, L_DEBUG, "Send l_msg: %p, callback: %p/%p, pri: %d", l_msg, l_msg->callback, l_msg->callback_arg, l_msg->pri);
     /*
-     * Send message to queueu with the given priority
+     * Send message to queue with the given priority
      */
     return  dap_events_socket_queue_ptr_send ( a_worker->proc_queue->esocket , l_msg);
 }
-
-
-/**
- * @brief dap_proc_queue_add_callback_inter
- * @param a_es_input
- * @param a_callback
- * @param a_callback_arg
- * @return:  -ENOMEM in case of memory allocation error
- *           other <errno> codes from the internaly called routine
- */
-int dap_proc_queue_add_callback_inter( dap_events_socket_t * a_es_input, dap_proc_queue_callback_t a_callback, void * a_callback_arg)
-{
-    dap_proc_queue_msg_t * l_msg = DAP_NEW_Z(dap_proc_queue_msg_t);
-
-    if (!l_msg)
-        return  -ENOMEM;
-
-    l_msg->callback = a_callback;
-    l_msg->callback_arg = a_callback_arg;
-    l_msg->pri = DAP_QUE$K_PRI_NORMAL;
-
-    return  dap_events_socket_queue_ptr_send_to_input( a_es_input , l_msg );
-}
-
 
 /**
  * @brief dap_proc_queue_add_callback_inter
@@ -257,6 +210,7 @@ dap_proc_queue_msg_t * l_msg;
     l_msg->callback = a_callback;
     l_msg->callback_arg = a_callback_arg;
     l_msg->pri = a_pri;
+    debug_if(g_debug_reactor, L_DEBUG, "Requested inter l_msg: %p, callback: %p/%p, pri: %d", l_msg, l_msg->callback, l_msg->callback_arg, l_msg->pri);
 
     return  dap_events_socket_queue_ptr_send_to_input( a_es_input , l_msg );
 }

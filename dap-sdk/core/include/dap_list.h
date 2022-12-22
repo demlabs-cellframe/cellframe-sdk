@@ -9,7 +9,6 @@
 #define __DAP_LIST_H__
 
 #include    <errno.h>                                                       /* <errno> codes */
-
 #include    "dap_common.h"                                                  /* DAP_ALLOC, DAP_FREE */
 
 
@@ -32,6 +31,30 @@ typedef struct __dap_slist__ {
 
 
 
+
+static inline int    s_dap_insqhead    ( dap_slist_t *q, void *data, int datasz)
+{
+dap_slist_elm_t *elm;
+
+    if ( !(elm = (dap_slist_elm_t*)DAP_MALLOC(sizeof(dap_slist_elm_t))) )   /* Allocate memory for new element */
+        return  -ENOMEM;
+
+    elm->flink = NULL;                                                      /* This element is terminal */
+    elm->data  = data;                                                      /* Store pointer to carried data */
+    elm->datasz= datasz;                                                    /* A size of data metric */
+
+    if ( q->head )                                                          /* Queue is not empty ? */
+        elm->flink = q->head;                                               /* Correct forward link of "previous last" element
+                                                                               to point to new element */
+
+    q->head = elm;
+
+    q->nr++;                                                                /* Adjust entries counter */
+    //log_it(L_DEBUG, "Put data: %p, size: %d (qlen: %d)", data, datasz, q->nr);
+    return  0;
+}
+
+
 static inline int    s_dap_insqtail    ( dap_slist_t *q, void *data, int datasz)
 {
 dap_slist_elm_t *elm;
@@ -41,7 +64,7 @@ dap_slist_elm_t *elm;
 
     elm->flink = NULL;                                                      /* This element is terminal */
     elm->data  = data;                                                      /* Store pointer to carried data */
-    elm->datasz= datasz;                                                    /* A size of daa metric */
+    elm->datasz= datasz;                                                    /* A size of data metric */
 
     if ( q->tail )                                                          /* Queue is not empty ? */
         (q->tail)->flink = elm;                                             /* Correct forward link of "previous last" element
@@ -50,7 +73,7 @@ dap_slist_elm_t *elm;
     q->tail = elm;                                                          /* Point list's tail to new element also */
 
     if ( !q->head )                                                         /* This is a first element in the list  ? */
-        q->head = elm;                                                     /* point head to the new element */
+        q->head = elm;                                                      /* point head to the new element */
 
     q->nr++;                                                                /* Adjust entries counter */
     //log_it(L_DEBUG, "Put data: %p, size: %d (qlen: %d)", data, datasz, q->nr);
@@ -84,14 +107,13 @@ typedef void* (*dap_callback_copy_t)(const void * src, void* data);
 typedef int (*dap_callback_compare_t)(const void * a, const void * b);
 typedef int (*dap_callback_compare_data_t)(const void * a, const void * b, void* user_data);
 
-typedef struct _dap_list dap_list_t;
+/* typedef struct _dap_list dap_list_t; */
 
-struct _dap_list
+typedef struct __dap_list__
 {
-    void* data;
-    dap_list_t *next;
-    dap_list_t *prev;
-};
+    void    *data;
+    struct __dap_list__    *next, *prev;
+} dap_list_t;
 
 /* Doubly linked lists
  */
@@ -129,8 +151,8 @@ dap_list_t* dap_list_sort(dap_list_t *list, dap_callback_compare_data_t compare_
 dap_list_t* dap_list_sort_with_data(dap_list_t *list, dap_callback_compare_data_t compare_func, void* user_data);
 void* dap_list_nth_data(dap_list_t *list, unsigned int n);
 
-#define dap_list_previous(list)	        ((list) ? (((dap_list_t *)(list))->prev) : NULL)
-#define dap_list_next(list)	        ((list) ? (((dap_list_t *)(list))->next) : NULL)
+#define dap_list_previous(list)     ((list) ? (((dap_list_t *)(list))->prev) : NULL)
+#define dap_list_next(list)         ((list) ? (((dap_list_t *)(list))->next) : NULL)
 
 #ifdef __cplusplus
 }

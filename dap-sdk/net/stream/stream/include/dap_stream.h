@@ -27,27 +27,18 @@
 #include <stdbool.h>
 #include <pthread.h>
 
+#include "dap_http.h"
 #include "dap_events_socket.h"
 #include "dap_config.h"
 #include "dap_stream_session.h"
-#include "dap_stream_ch.h"
 #include "dap_timerfd.h"
 
 #define CHUNK_SIZE_MAX (3 * 1024)
-
-typedef struct dap_client_remote dap_client_remote_t;
-typedef struct dap_udp_server dap_udp_server_t;
-
-
-typedef struct dap_http_client dap_http_client_t;
-typedef struct dap_http dap_http_t;
-typedef struct dap_stream dap_stream_t;
-typedef struct dap_stream_pkt dap_stream_pkt_t;
-typedef struct dap_events_socket dap_events_socket_t;
 #define STREAM_BUF_SIZE_MAX DAP_STREAM_PKT_SIZE_MAX * 4
 #define STREAM_KEEPALIVE_TIMEOUT 3   // How  often send keeplive messages (seconds)
 
-typedef void (*dap_stream_callback)( dap_stream_t *,void*);
+typedef struct dap_stream_ch dap_stream_ch_t;
+typedef struct dap_stream_worker dap_stream_worker_t;
 
 typedef struct dap_stream {
     int id;
@@ -66,10 +57,10 @@ typedef struct dap_stream {
     struct dap_stream_pkt * in_pkt;
     struct dap_stream_pkt *pkt_buf_in;
     size_t pkt_buf_in_data_size;
-    size_t pkt_buf_in_size_expected;
 
-    uint8_t buf_defrag[STREAM_BUF_SIZE_MAX];
-    uint64_t buf_defrag_size;
+    uint8_t *buf_fragments;
+    size_t buf_fragments_size_total;// Full size of all fragments
+    size_t buf_fragments_size_filled;// Received size
 
     uint8_t buf[STREAM_BUF_SIZE_MAX];
     uint8_t pkt_cache[STREAM_BUF_SIZE_MAX];
@@ -86,6 +77,8 @@ typedef struct dap_stream {
     struct dap_stream *prev, *next;
 
 } dap_stream_t;
+
+typedef void (*dap_stream_callback)(dap_stream_t *, void *);
 
 #define DAP_STREAM(a) ((dap_stream_t *) (a)->_inheritor )
 

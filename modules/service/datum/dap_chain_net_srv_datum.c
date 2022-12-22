@@ -41,9 +41,9 @@ void s_order_notficator(void *a_arg, const char a_op_code, const char *a_group, 
 int dap_chain_net_srv_datum_init()
 {
     dap_chain_node_cli_cmd_item_create("srv_datum", s_srv_datum_cli, "Service Datum commands", 
-        "srv_datum -net <chain net name> -chain <chain name> datum save -datum <datum hash>\n"
+        "srv_datum -net <net_name> -chain <chain_name> datum save -datum <datum hash>\n"
             "\tSaving datum from mempool to file.\n\n"
-        "srv_datum -net <chain net name> -chain <chain name> datum load -datum <datum hash>\n"
+        "srv_datum -net <net_name> -chain <chain_name> datum load -datum <datum hash>\n"
             "\tLoad datum custum from file to mempool.\n\n");
     s_srv_datum = DAP_NEW_Z(dap_chain_net_srv_t);
     s_srv_datum->uid.uint64 = DAP_CHAIN_NET_SRV_DATUM_ID;
@@ -206,8 +206,11 @@ void s_order_notficator(void *a_arg, const char a_op_code, const char *a_group, 
     if ((l_order->price_unit.uint32 != SERV_UNIT_PCS) || (l_order->direction != SERV_DIR_BUY) ||
             (strncmp(l_order->price_ticker, l_price->token, DAP_CHAIN_TICKER_SIZE_MAX)) ||
             (!compare256(l_order->price, l_price->value_datoshi))) {
-        log_it(L_DEBUG, "Price from order (%s) is not equal to price from service pricelist (%s)",
-               dap_chain_balance_to_coins(l_order->price), dap_chain_balance_to_coins(l_price->value_datoshi));
+        char *l_balance_order = dap_chain_balance_to_coins(l_order->price);
+        char *l_balance_service = dap_chain_balance_to_coins(l_price->value_datoshi);
+        log_it(L_DEBUG, "Price from order (%s) is not equal to price from service pricelist (%s)", l_balance_order, l_balance_service);
+        DAP_DELETE(l_balance_order);
+        DAP_DELETE(l_balance_service);
         return; // price from order is not equal with service price
     }
     char l_tx_cond_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
@@ -237,7 +240,7 @@ void s_order_notficator(void *a_arg, const char a_op_code, const char *a_group, 
         log_it(L_DEBUG, "Condition with required subtype SRV_PAY not found in requested tx");
     }
     dap_hash_fast_t l_sign_hash;
-    if (!dap_sign_get_pkey_hash((dap_sign_t *)&l_order->ext_n_sign[l_order->ext_size], &l_sign_hash)) {
+    if (!dap_sign_get_pkey_hash((dap_sign_t *)(l_order->ext_n_sign + l_order->ext_size), &l_sign_hash)) {
          log_it(L_DEBUG, "Wrong order sign");
          return;
     }

@@ -38,8 +38,10 @@ typedef struct dap_config_item{
 typedef struct dap_config_internal
 {
     dap_config_item_t * item_root;
+    char * path;
 } dap_config_internal_t;
 #define DAP_CONFIG_INTERNAL(a) ( (dap_config_internal_t* ) a->_internal )
+
 
 #define MAX_CONFIG_PATH 256
 static char s_configs_path[MAX_CONFIG_PATH] = "/opt/dap/etc";
@@ -117,9 +119,10 @@ dap_config_t * dap_config_open(const char * a_name)
             long buf_len = ftell(f);
             char buf[buf_len];
             fseek(f, 0L, SEEK_SET);
-            log_it(L_DEBUG,"Opened config %s",a_name);
+            log_it(L_DEBUG,"Opened config %s", l_config_path);
             ret = DAP_NEW_Z(dap_config_t);
             dap_config_internal_t * l_config_internal = DAP_NEW_Z(dap_config_internal_t);
+            l_config_internal->path = l_config_path;
             ret->_internal = l_config_internal;
             size_t l_global_offset=0;
             size_t l_buf_size=0;
@@ -222,6 +225,7 @@ dap_config_t * dap_config_open(const char * a_name)
                                             if (l_param_value[0] == '[') {
                                                 if(l_param_value[1] == ']') {
                                                     //log_it(L_WARNING, "Empty array!");
+                                                    DAP_DELETE(l_line);
                                                     continue;
                                                 }
 
@@ -287,7 +291,7 @@ dap_config_t * dap_config_open(const char * a_name)
         }else{
             log_it(L_ERROR,"Can't open config file '%s' (%s)",l_config_path,strerror(errno));
         }
-        DAP_DELETE(l_config_path);
+        
     }else{
         log_it(L_ERROR,"Config name is NULL");
     }
@@ -323,11 +327,11 @@ void dap_config_close(dap_config_t * a_config)
         }
         DAP_DELETE(l_item);
         l_item = DAP_CONFIG_INTERNAL(a_config)->item_root;
+        
     }
-
+    free(DAP_CONFIG_INTERNAL(a_config)->path);
     free(a_config->_internal);
     free(a_config);
-
 }
 
 /**
@@ -536,6 +540,35 @@ const char * dap_config_get_item_str(dap_config_t * a_config, const char * a_sec
     return  (!item) ?  NULL : item->data_str;
 }
 
+/**
+ * @brief dap_config_get_item_path Getting a configuration item as a filsystem path (may be relative to config location)
+ * @param[in] a_config Configuration
+ * @param[in] a_section_path Path
+ * @param[in] a_item_name setting
+ * @return
+ */
+const char * dap_config_get_item_path(dap_config_t * a_config, const char * a_section_path, const char * a_item_name)
+{
+    const char* raw_path = dap_config_get_item_str(a_config, a_section_path, a_item_name);
+    if (!raw_path) return NULL;
+    char * res = dap_canonicalize_filename(raw_path, dap_path_get_dirname(DAP_CONFIG_INTERNAL(a_config)->path));
+    log_it(L_DEBUG, "Config-path item: '%s': composed from '%s' and '%s'", res, raw_path, dap_path_get_dirname(DAP_CONFIG_INTERNAL(a_config)->path));
+    return res;
+}
+
+/**
+ * @brief dap_config_get_item_path_default Getting a configuration item as a filsystem path (may be relative to config location) (or default)
+ * @param[in] a_config Configuration
+ * @param[in] a_section_path Path
+ * @param[in] a_item_name setting
+ * @param[in] a_value_default Default value
+ * @return
+ */
+const char * dap_config_get_item_path_default(dap_config_t * a_config, const char * a_section_path, const char * a_item_name, const char * a_value_default)
+{
+    const char * res = dap_config_get_item_path(a_config, a_section_path, a_item_name);
+    return res ?  res : a_value_default;
+}
 
 /**
  * @brief dap_config_get_array_str Getting an array of configuration items as a string

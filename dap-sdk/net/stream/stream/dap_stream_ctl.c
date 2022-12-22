@@ -62,7 +62,7 @@ const char* connection_type_str[] =
 
 #define DAPMP_VERSION 13
 bool stream_check_proto_version(unsigned int ver);
-void s_proc(struct dap_http_simple *cl_st, void * arg);
+void s_dap_stream_ctl_proc(struct dap_http_simple *cl_st, void * arg);
 
 static struct {
     size_t size;
@@ -96,7 +96,7 @@ void dap_stream_ctl_deinit()
  */
 void dap_stream_ctl_add_proc(struct dap_http * sh, const char * url)
 {
-     dap_http_simple_proc_add(sh,url,14096,s_proc);
+     dap_http_simple_proc_add(sh,url,14096,s_dap_stream_ctl_proc);
 }
 
 
@@ -105,20 +105,20 @@ void dap_stream_ctl_add_proc(struct dap_http * sh, const char * url)
  * @param cl_st HTTP server instance
  * @param arg Not used
  */
-void s_proc(struct dap_http_simple *a_http_simple, void * a_arg)
+void s_dap_stream_ctl_proc(struct dap_http_simple *a_http_simple, void * a_arg)
 {
     http_status_code_t * return_code = (http_status_code_t*)a_arg;
 
    // unsigned int proto_version;
-    dap_stream_session_t * ss=NULL;
+    dap_stream_session_t * l_stm_sess = NULL;
    // unsigned int action_cmd=0;
     bool l_new_session = false;
 
     enc_http_delegate_t *l_dg = enc_http_request_decode(a_http_simple);
 
     if(l_dg){
-        size_t l_channels_str_size = sizeof(ss->active_channels);
-        char l_channels_str[sizeof(ss->active_channels)];
+        size_t l_channels_str_size = sizeof(l_stm_sess ->active_channels);
+        char l_channels_str[sizeof(l_stm_sess ->active_channels)];
         dap_enc_key_type_t l_enc_type = s_socket_forward_key.type;
         size_t l_enc_key_size = 32;
         int l_enc_headers = 0;
@@ -159,12 +159,19 @@ void s_proc(struct dap_http_simple *a_http_simple, void * a_arg)
         }else
             log_it(L_DEBUG,"Encryption type %s (enc headers %d)",dap_enc_get_type_name(l_enc_type), l_enc_headers);
 
-        if(l_new_session){
-            ss = dap_stream_session_pure_new();
-            strncpy(ss->active_channels, l_channels_str, l_channels_str_size);
-            char *key_str = calloc(1, KEX_KEY_STR_SIZE+1);
+        if(l_new_session) {
+            if ( !(l_stm_sess  = dap_stream_session_pure_new()) )       /* Allocate a context for new session */
+            {
+                log_it(L_ERROR, "Error processiong request: \"%s\", (may be session limit has been reached)", l_dg->in_query);
+                *return_code = Http_Status_ServiceUnavailable;
+                return;
+            }
+
+
+            strncpy(l_stm_sess ->active_channels, l_channels_str, l_channels_str_size);
+            char *key_str = calloc(1, KEX_KEY_STR_SIZE + 1);
             dap_random_string_fill(key_str, KEX_KEY_STR_SIZE);
-            ss->key = dap_enc_key_new_generate( l_enc_type, key_str, KEX_KEY_STR_SIZE,
+            l_stm_sess ->key = dap_enc_key_new_generate( l_enc_type, key_str, KEX_KEY_STR_SIZE,
                                                NULL, 0, s_socket_forward_key.size);
             dap_http_header_t *l_hdr_key_id = dap_http_header_find(a_http_simple->http_client->in_headers, "KeyID");
             if (l_hdr_key_id) {
@@ -174,15 +181,15 @@ void s_proc(struct dap_http_simple *a_http_simple, void * a_arg)
                     *return_code = Http_Status_BadRequest;
                     return;
                 }
-                ss->acl = l_ks_key->acl_list;
+                l_stm_sess ->acl = l_ks_key->acl_list;
             }
             if (l_is_legacy)
-                enc_http_reply_f(l_dg,"%u %s",ss->id, key_str);
+                enc_http_reply_f(l_dg,"%u %s",l_stm_sess ->id, key_str);
             else
-                enc_http_reply_f(l_dg,"%u %s %u %d %d",ss->id, key_str, DAP_PROTOCOL_VERSION, l_enc_type, l_enc_headers);
+                enc_http_reply_f(l_dg,"%u %s %u %d %d",l_stm_sess ->id, key_str, DAP_PROTOCOL_VERSION, l_enc_type, l_enc_headers);
             *return_code = Http_Status_OK;
 
-            log_it(L_INFO," New stream session %u initialized",ss->id);
+            log_it(L_INFO," New stream session %u initialized",l_stm_sess ->id);
 
             free(key_str);
         }else{

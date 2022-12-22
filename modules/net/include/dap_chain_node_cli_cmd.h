@@ -110,6 +110,7 @@ int com_tx_wallet(int argc, char ** argv, char **str_reply);
  * Create transaction
  */
 int com_tx_create(int argc, char ** argv, char **str_reply);
+int com_tx_create_json(int argc, char ** argv, char **str_reply);
 int com_tx_cond_create(int argc, char ** argv, char **str_reply);
 
 /**
@@ -140,6 +141,7 @@ int cmd_gdb_export(int argc, char ** argv, char ** a_str_reply);
 int com_mempool_delete(int argc, char ** argv, char ** a_str_reply);
 int com_mempool_list(int argc, char ** argv, char ** a_str_reply);
 int com_mempool_proc(int argc, char ** argv, char ** a_str_reply);
+int com_mempool_check(int argc, char ** argv, char ** a_str_reply);
 /**
  * Place public CA into the mempool
  */
@@ -147,3 +149,6 @@ int com_mempool_add_ca( int a_argc,  char ** a_argv, char ** a_str_reply);
 int com_chain_ca_pub( int a_argc,  char ** a_argv, char ** a_str_reply);
 int com_chain_ca_copy( int a_argc,  char ** a_argv, char ** a_str_reply);
 int com_signer(int a_argc, char **a_argv, char **a_str_reply);
+
+//remove func
+int cmd_remove(int argc, char ** argv, char ** a_str_reply);

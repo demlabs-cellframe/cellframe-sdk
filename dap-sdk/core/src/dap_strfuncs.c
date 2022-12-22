@@ -21,7 +21,7 @@
  * @return
  */
 bool dap_isstralnum(const char *c)
-{ 
+{
     size_t str_len = strlen(c);
 
     for (size_t i = 0; i < str_len; i++)
@@ -33,6 +33,39 @@ bool dap_isstralnum(const char *c)
     return true;
 }
 
+/**
+ * @brief strcat two strings with new char array in result
+ *
+ * @param s1 preallocated buffer with char string
+ * @param s2 char string
+ * @return char*
+ */
+char* dap_strcat2(const char* s1, const char* s2)
+{
+  size_t size1 = 0;
+  size_t size2 = 0;
+  if (!s1)
+    size1 = 0;
+  else
+    size1 = strlen(s1);
+  if (!s2)
+    size2 = 0;
+  else
+    size2 = strlen(s2);
+
+  char* result = malloc(size1 + size2 + 1);
+
+  if(result == NULL)
+  {
+    exit(EXIT_FAILURE);
+  }
+
+  memcpy(result, s1, size1);
+  memcpy(result+size1, s2, size2);
+  free((void*)s1);
+  result[size1 + size2] = '\0';
+  return result;
+}
 
 /**
  * @brief s_strdigit
@@ -156,7 +189,7 @@ int128_t dap_strtoi128(const char *p, char **endp, int base)
     }
 }
 /**
- * @brief dap_utoa128 convert unsigned integer to ASCII 
+ * @brief dap_utoa128 convert unsigned integer to ASCII
  * @param dest
  * @param v
  * @param base
@@ -181,11 +214,11 @@ char *dap_utoa128(char *dest, uint128_t v, int base)
 
 /**
  * @brief dap_itoa128
- * 
- * @param a_str 
- * @param a_value 
- * @param a_base 
- * @return char* 
+ *
+ * @param a_str
+ * @param a_value
+ * @param a_base
+ * @return char*
  */
 char *dap_itoa128(char *a_str, int128_t a_value, int a_base)
 {
@@ -217,27 +250,22 @@ char *dap_itoa128(char *a_str, int128_t a_value, int a_base)
 
 /**
  * @brief dap_strlen get length of the string
- * 
+ *
  * @param a_str pointer to string
- * @return size_t 
+ * @return size_t
  */
 
 size_t dap_strlen(const char *a_str)
 {
-    size_t l_length = 0;
-
-    if(a_str) {
-        l_length = strlen(a_str);
-    }
-    return l_length;
+    return  a_str ? strlen(a_str) : 0;
 }
 
 /**
  * @brief dap_strcmp a_str1 and a_str2
- * 
+ *
  * @param a_str1 (nullable): the string
  * @param a_str2 (nullable): the string
- * @return int 
+ * @return int
  */
 
 int dap_strcmp(const char *a_str1, const char *a_str2)
@@ -250,11 +278,11 @@ int dap_strcmp(const char *a_str1, const char *a_str2)
 
 /**
  * @brief dap_strcmp
- * 
+ *
  * @param a_str1  (nullable): the string
  * @param a_str2  (nullable): the string
  * @param a_n Compare a_n characters of a_str1 and a_str2
- * @return int 
+ * @return int
  */
 
 int dap_strncmp(const char *a_str1, const char *a_str2, size_t a_n)
@@ -297,18 +325,18 @@ char* dap_strdup(const char *a_str)
 
 /**
  * @brief dap_strdup_vprintf
- * 
+ *
  * Similar to the standard C vsprintf() function but safer, since it
  * calculates the maximum space required and allocates memory to hold
  * the result. The returned string should be freed with DAP_DELETE()
  * when no longer needed.
  *
  * Returns: a newly-allocated string holding the result
- * 
+ *
  * @param a_format  a standard printf() format string, but notice
  *     [string precision pitfalls][string-precision]
  * @param a_args the list of parameters to insert into the format string
- * @return char* 
+ * @return char*
  */
 
 char* dap_strdup_vprintf(const char *a_format, va_list a_args)
@@ -322,14 +350,14 @@ char* dap_strdup_vprintf(const char *a_format, va_list a_args)
 
 /**
  * @brief dap_strdup_printf:
- * 
+ *
  *  * Similar to the standard C sprintf() function but safer, since it
  * calculates the maximum space required and allocates memory to hold
  * the result. The returned string should be freed with DAP_DELETE()
  * when no longer needed.
- * 
+ *
  * @param a_format a standard printf() format string
- * @param ... 
+ * @param ...
  * @return char* a newly-allocated string holding the result
  */
 
@@ -678,9 +706,9 @@ char** dap_strsplit(const char *a_string, const char *a_delimiter, int a_max_tok
 
 /**
  * @brief  dap_str_countv
- * 
- * @param a_str_array 
- * @return size_t 
+ *
+ * @param a_str_array
+ * @return size_t
  */
 
 size_t dap_str_countv(char **a_str_array)
@@ -707,7 +735,7 @@ size_t dap_str_symbol_count(const char *a_str, char a_sym)
 
 /**
  * @brief  dap_strdupv:
- * 
+ *
  * @param a_str_array (nullable): a %NULL-terminated array of strings
  * Copies %NULL-terminated array of strings. The copy is a deep copy;
  * the new array should be freed by first freeing each string, then
@@ -716,7 +744,7 @@ size_t dap_str_symbol_count(const char *a_str, char a_sym)
  *
  * Returns: (nullable): a new %NULL-terminated array of strings.
  *
- * @return char** 
+ * @return char**
  */
 
 char** dap_strdupv(const char **a_str_array)
@@ -748,7 +776,7 @@ char** dap_strdupv(const char **a_str_array)
 
 /**
  * @brief dap_strfreev:
- * 
+ *
  * Frees a %NULL-terminated array of strings, as well as each
  * string it contains.
  *
@@ -771,7 +799,7 @@ void dap_strfreev(char **a_str_array)
 
 /**
  * @brief dap_strchug:
- * 
+ *
  * Removes leading whitespace from a string, by moving the rest
  * of the characters forward.
  *
@@ -781,9 +809,9 @@ void dap_strfreev(char **a_str_array)
  *
  * The pointer to @a_string is returned to allow the nesting of functions.
  * Returns: @a_string
- * 
+ *
  * @param a_string a string to remove the leading whitespace from
- * @return char* 
+ * @return char*
  */
 
 char* dap_strchug(char *a_string)
@@ -833,15 +861,15 @@ char* dap_strchomp(char *a_string)
 
 /**
  * @brief dap_strup
- * 
+ *
  * Converts all lower case ASCII letters to upper case ASCII letters.
  *
  * Returns: a newly allocated string, with all the lower case
  *     characters in @a_str converted to upper case
- * 
+ *
  * @param a_str a string
  * @param a_len  length of @a_str in bytes, or -1 if @a_str is nul-terminated
- * @return char* 
+ * @return char*
  */
 
 char* dap_strup(const char *a_str, ssize_t a_len)
@@ -866,10 +894,10 @@ char* dap_strup(const char *a_str, ssize_t a_len)
  *
  * Returns: a newly-allocated string, with all the upper case
  *     characters in @a_str converted to lower case
- * 
+ *
  * @param a_str a string
  * @param a_len length of @a_str in bytes, or -1 if @a_str is nul-terminated
- * @return char* 
+ * @return char*
  */
 
 char* dap_strdown(const char *a_str, ssize_t a_len)
@@ -900,7 +928,7 @@ char* dap_strdown(const char *a_str, ssize_t a_len)
  * Returns: the same pointer passed in as @a_string
  *
  * @param a_string  the string to reverse
- * @return char* 
+ * @return char*
  */
 
 char* dap_strreverse(char *a_string)
@@ -930,19 +958,21 @@ char* dap_strreverse(char *a_string)
 }
 
 #ifdef _WIN32
-char *strptime( char *buff, const char *fmt, struct tm *tm ) {
-  uint32_t len = strlen( buff );
-  dap_sscanf( buff,"%u.%u.%u_%u.%u.%u",&tm->tm_year, &tm->tm_mon, &tm->tm_mday, &tm->tm_hour, &tm->tm_min, &tm->tm_sec );
-  tm->tm_year += 2000;
-  return buff + len;
+char *strptime(const char *buff, const char *fmt, struct tm *tm)
+{
+    UNUSED(fmt);
+    uint32_t len = strlen(buff);
+    dap_sscanf(buff, "%u.%u.%u_%u.%u.%u", &tm->tm_year, &tm->tm_mon, &tm->tm_mday, &tm->tm_hour, &tm->tm_min, &tm->tm_sec);
+    tm->tm_year += 2000;
+    return (char *)buff + len;
 }
 
 /**
  * @brief _strndup
- * 
- * @param str 
- * @param len 
- * @return char* 
+ *
+ * @param str
+ * @param len
+ * @return char*
  */
 
 char *_strndup(const char *str, unsigned long len) {

@@ -31,7 +31,7 @@
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_dag.h"
 #include "dap_chain_cs_dag_pos.h"
-#include "dap_chain_net_srv_stake.h"
+#include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_ledger.h"
 
 #define LOG_TAG "dap_chain_cs_dag_pos"
@@ -198,7 +198,6 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
                                                           size_t *a_dag_event_size)
 {
     dap_return_val_if_fail(a_dag && a_dag->chain && DAP_CHAIN_CS_DAG_POS(a_dag) && a_datum, NULL);
-    dap_chain_net_t * l_net = dap_chain_net_by_name( a_dag->chain->net_name );
     dap_chain_cs_dag_pos_t * l_pos = DAP_CHAIN_CS_DAG_POS(a_dag);
 
     if( PVT(l_pos)->events_sign_key == NULL) {
@@ -206,7 +205,7 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
         return NULL;
     }
     if(a_datum || (a_hashes && a_hashes_count)) {
-        dap_chain_cs_dag_event_t * l_event = dap_chain_cs_dag_event_new(a_dag->chain->id, a_dag->chain->cells->id, a_datum,
+        dap_chain_cs_dag_event_t * l_event = dap_chain_cs_dag_event_new(a_dag->chain->id, a_dag->chain->cells->id, a_dag->round_current, a_datum,
                                                                         PVT(l_pos)->events_sign_key, a_hashes, a_hashes_count, a_dag_event_size);
         return l_event;
     } else
@@ -234,6 +233,7 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
         log_it(L_WARNING,"Incorrect size with event %p on chain %s", a_dag_event, a_dag->chain->name);
         return  -7;
     }
+    size_t l_offset_signs = dap_chain_cs_dag_event_calc_size_excl_signs(a_dag_event, a_dag_event_size);
     if ( a_dag_event->header.signs_count >= l_pos_pvt->confirmations_minimum ){
         uint16_t l_verified_num = 0;
 
@@ -244,7 +244,7 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
                 return -4;
             }
 
-            bool l_sign_size_correct = dap_sign_verify_size(l_sign, a_dag_event_size);
+            bool l_sign_size_correct = dap_sign_verify_size(l_sign, a_dag_event_size - l_offset_signs);
             if (!l_sign_size_correct) {
                 log_it(L_WARNING, "Event's sign size is incorrect");
                 return -41;

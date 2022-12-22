@@ -25,16 +25,15 @@
 #include <stdint.h>
 #include "uthash.h"
 #include "dap_math_ops.h"
-typedef struct dap_stream dap_stream_t;
+#include "dap_stream.h"
+
 typedef struct dap_stream_worker dap_stream_worker_t;
-typedef struct dap_stream_pkt dap_stream_pkt_t;
 typedef struct dap_stream_ch_proc dap_stream_ch_proc_t;
-typedef struct dap_stream_ch dap_stream_ch_t;
 typedef struct dap_events_socket dap_events_socket_t;
 
 #define TECHICAL_CHANNEL_ID 't'
 
-typedef void (*dap_stream_ch_callback_t) (dap_stream_ch_t*,void*);
+typedef void (*dap_stream_ch_callback_t)(dap_stream_ch_t *, void *);
 
 typedef uint64_t dap_stream_ch_uuid_t;
 typedef struct dap_stream_ch{
@@ -49,7 +48,7 @@ typedef struct dap_stream_ch{
         uint64_t bytes_read;
     } stat;
 
-    uint8_t buf[500000];
+    uint8_t buf[STREAM_BUF_SIZE_MAX];
 
     dap_stream_ch_proc_t * proc;
     void * internal;
@@ -66,6 +65,9 @@ void dap_stream_ch_set_ready_to_write_unsafe(dap_stream_ch_t * a_ch,bool a_is_re
 void dap_stream_ch_delete(dap_stream_ch_t *a_ch);
 
 dap_stream_ch_t * dap_stream_ch_find_by_uuid_unsafe(dap_stream_worker_t * a_worker, dap_stream_ch_uuid_t a_uuid);
-
+DAP_STATIC_INLINE bool dap_stream_ch_check_by_uuid_mt(dap_stream_worker_t * a_worker, dap_stream_ch_uuid_t a_ch_uuid)
+{
+    return dap_stream_ch_find_by_uuid_unsafe(a_worker, a_ch_uuid);
+}
 
 #endif

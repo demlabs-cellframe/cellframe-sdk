@@ -44,7 +44,9 @@ dap_chain_block_chunks_t * dap_chain_block_chunks_create(dap_chain_cs_blocks_t *
     size_t l_objs_count =0;
     dap_global_db_obj_t * l_objs= dap_chain_global_db_gr_load(l_ret->gdb_group, &l_objs_count);
     for(size_t n=0; n< l_objs_count; n++){
-        dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_new(a_blocks, (dap_chain_block_t*)l_objs[n].value, l_objs[n].value_len);
+        dap_hash_fast_t l_block_hash;
+        dap_chain_hash_fast_from_str(l_objs[n].key, &l_block_hash);
+        dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_new(a_blocks, &l_block_hash, (dap_chain_block_t*)l_objs[n].value, l_objs[n].value_len);
         dap_chain_block_chunks_add(l_ret, l_block_cache );
     }
     dap_chain_global_db_objs_delete(l_objs,l_objs_count);
@@ -57,19 +59,15 @@ dap_chain_block_chunks_t * dap_chain_block_chunks_create(dap_chain_cs_blocks_t *
  */
 void dap_chain_block_chunks_delete(dap_chain_block_chunks_t * a_chunks)
 {
-    dap_chain_block_chunk_t * l_chunk = a_chunks->chunks_last;
-
-    while(l_chunk){
-        dap_chain_block_cache_hash_t* l_block_cache_hash = NULL, *l_tmp = NULL;
-        HASH_ITER(hh, l_chunk->block_cache_hash , l_block_cache_hash, l_tmp){
-            // Clang bug at this, l_block_cache_hash should change at every loop cycle
+    dap_chain_block_cache_hash_t *l_block_cache_hash, *l_block_cache_hash_tmp;
+    for (dap_chain_block_chunk_t *l_chunk = a_chunks->chunks_last; l_chunk; l_chunk = l_chunk->prev) {
+        HASH_ITER(hh, l_chunk->block_cache_hash , l_block_cache_hash, l_block_cache_hash_tmp){
             HASH_DEL(l_chunk->block_cache_hash, l_block_cache_hash);
             DAP_DELETE(l_block_cache_hash);
         }
     }
-    dap_chain_block_cache_t* l_block_cache = NULL, *l_tmp = NULL;
-    HASH_ITER(hh, a_chunks->cache , l_block_cache, l_tmp){
-        // Clang bug at this, l_block_cache should change at every loop cycle
+    dap_chain_block_cache_t* l_block_cache, *l_block_cache_tmp = NULL;
+    HASH_ITER(hh, a_chunks->cache , l_block_cache, l_block_cache_tmp) {
         HASH_DEL(a_chunks->cache, l_block_cache);
         dap_chain_block_cache_delete(l_block_cache);
     }
@@ -94,13 +92,12 @@ void dap_chain_block_chunks_add(dap_chain_block_chunks_t * a_chunks,dap_chain_bl
     // Check if already present
     HASH_FIND(hh, a_chunks->cache, &a_block_cache->block_hash, sizeof(dap_chain_hash_fast_t), l_chunk_cache);
     if (l_chunk_cache){
-        log_it(L_WARNING, "Already present block %s in cache",a_block_cache->block_hash_str);
+        debug_if(g_debug_reactor, L_WARNING, "Already present block %s in cache",a_block_cache->block_hash_str);
         dap_chain_block_cache_delete(a_block_cache);
         return;
     }
     // Save to GDB
-    dap_chain_global_db_gr_set(a_block_cache->block_hash_str, a_block_cache->block, a_block_cache->block_size, a_chunks->gdb_group);
-
+    //dap_chain_global_db_gr_set(a_block_cache->block_hash_str, a_block_cache->block, a_block_cache->block_size, a_chunks->gdb_group);
 
     // And here we select chunk for the new block cache
     bool l_is_chunk_found = false;
@@ -110,7 +107,7 @@ void dap_chain_block_chunks_add(dap_chain_block_chunks_t * a_chunks,dap_chain_bl
             l_chunk_cache_hash = DAP_NEW_Z(dap_chain_block_cache_hash_t);
             l_chunk_cache_hash->block_cache=a_block_cache;
             l_chunk_cache_hash->ts_created = time(NULL);
-            memcpy(&l_chunk_cache_hash->block_hash, &a_block_cache->block_hash,sizeof (a_block_cache->block_hash));
+            l_chunk_cache_hash->block_hash = a_block_cache->block_hash;
             l_chunk_cache_hash->chunk = l_chunk;
 
             // Update first block cache from the head
@@ -132,7 +129,7 @@ void dap_chain_block_chunks_add(dap_chain_block_chunks_t * a_chunks,dap_chain_bl
         l_chunk_cache_hash = DAP_NEW_Z(dap_chain_block_cache_hash_t);
         l_chunk_cache_hash->block_cache=a_block_cache;
         l_chunk_cache_hash->ts_created = time(NULL);
-        memcpy(&l_chunk_cache_hash->block_hash, &a_block_cache->block_hash,sizeof (a_block_cache->block_hash));
+        l_chunk_cache_hash->block_hash = a_block_cache->block_hash;
         l_chunk_cache_hash->chunk = l_chunk;
 
         // Update first block cache from the head

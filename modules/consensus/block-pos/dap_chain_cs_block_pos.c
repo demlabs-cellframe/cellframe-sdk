@@ -31,7 +31,7 @@
 #include "dap_chain_cs_blocks.h"
 // #include "dap_chain_cs_blocks_session.h"
 #include "dap_chain_cs_block_pos.h"
-#include "dap_chain_net_srv_stake.h"
+#include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_ledger.h"
 
 #define LOG_TAG "dap_chain_cs_block_pos"
@@ -230,6 +230,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
     }
 
     uint16_t l_verified_num = 0;
+    size_t l_signs_section_size = a_block_size - dap_chain_block_get_sign_offset(a_block, a_block_size);
     for (size_t l_sig_pos = 0; l_sig_pos < l_signs_count; l_sig_pos++) {
         dap_sign_t *l_sign = dap_chain_block_sign_get(a_block, a_block_size, l_sig_pos);
         if (l_sign == NULL) {
@@ -237,7 +238,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
             return -4;
         }
 
-        bool l_sign_size_correct = dap_sign_verify_size(l_sign, a_block_size);
+        bool l_sign_size_correct = dap_sign_verify_size(l_sign, l_signs_section_size);
         if (!l_sign_size_correct) {
             log_it(L_WARNING, "Block's sign #%zu size is incorrect", l_sig_pos);
             return -44;

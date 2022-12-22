@@ -10,7 +10,7 @@
 #include "dap_list.h"
 #include "dap_chain_common.h"
 
-#define GDB_VERSION 1
+#define GDB_VERSION 2
 #define GROUP_LOCAL_NODE_LAST_ID "local.node.last_id"
 #define GROUP_LOCAL_GENERAL "local.general"
 #define GROUP_LOCAL_NODE_ADDR "local.node-addr"
@@ -23,7 +23,7 @@ typedef struct dap_global_db_obj {
     char *key;
     uint8_t *value;
     size_t value_len;
-} DAP_ALIGN_PACKED dap_global_db_obj_t, *pdap_global_db_obj_t;
+} dap_global_db_obj_t;
 
 
 typedef void (*dap_global_db_obj_callback_notify_t) (void * a_arg, const char a_op_code, const char * a_group,
@@ -42,10 +42,7 @@ typedef struct dap_sync_group_item {
  */
 int dap_chain_global_db_flush(void);
 
-/**
- * Clean struct dap_global_db_obj_t
- */
-void dap_chain_global_db_obj_clean(dap_global_db_obj_t *obj);
+
 /**
  * Delete struct dap_global_db_obj_t
  */
@@ -73,9 +70,9 @@ void dap_global_db_change_notify(dap_store_obj_t *a_store_data);
  */
 dap_store_obj_t *dap_chain_global_db_obj_get(const char *a_key, const char *a_group);
 dap_store_obj_t* dap_chain_global_db_obj_gr_get(const char *a_key, size_t *a_data_len_out, const char *a_group);
-uint8_t* dap_chain_global_db_flags_gr_get(const char *a_key, size_t *a_data_len_out, uint8_t *a_flags_out, const char *a_group);
-uint8_t * dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_len_out, const char *a_group);
-uint8_t * dap_chain_global_db_get(const char *a_key, size_t *a_data_len_out);
+uint8_t *dap_chain_global_db_flags_gr_get(const char *a_key, size_t *a_data_len_out, uint8_t *a_flags_out, const char *a_group);
+uint8_t *dap_chain_global_db_gr_get(const char *a_key, size_t *a_data_len_out, const char *a_group);
+uint8_t *dap_chain_global_db_get(const char *a_key, size_t *a_data_len_out);
 
 /**
  * Set one entry to base

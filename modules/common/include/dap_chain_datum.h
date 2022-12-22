@@ -28,6 +28,7 @@
 #include "dap_math_ops.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
+#include "dap_chain_datum_token.h"
 
 #define DAP_CHAIN_DATUM_VERSION 0x00
 
@@ -38,6 +39,9 @@
 
 /// Transaction header section
 #define DAP_CHAIN_DATUM_TX                  0x0100
+
+/// Network decree for governance
+#define DAP_CHAIN_DATUM_DECREE              0x0200
 
 /// Transaction request section
 #define DAP_CHAIN_DATUM_TX_REQUEST          0x0300
@@ -159,6 +163,7 @@ static inline const char *dap_chain_datum_type_id_to_str(uint16_t a_type_id)
     return l_ret;
 }
 
+void s_datum_token_dump_tsd(dap_string_t *a_str_out, dap_chain_datum_token_t *a_token, size_t a_token_size, const char *a_hash_out_type);
 void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type);
 bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                              const char *a_ticker,

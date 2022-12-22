@@ -45,7 +45,7 @@
 
 #define DATOSHI_LD 1000000000.0L    // Deprecated
 #define DATOSHI_DEGREE 18
-#define DATOSHI_POW 38
+#define DATOSHI_POW 39
 #define DATOSHI_POW256 (DATOSHI_POW * 2)
 
 // Chain ID of the whole system
@@ -153,6 +153,7 @@ typedef union {
     uint128_t uint128;
 #endif
 } dap_chain_net_srv_uid_t;
+extern const dap_chain_net_srv_uid_t c_dap_chain_net_srv_uid_null;
 
 typedef enum {
     SERV_UNIT_UNDEFINED = 0 ,
@@ -208,9 +209,13 @@ enum dap_chain_tx_item_type {
 
     TX_ITEM_TYPE_RECEIPT = 0x70,
 
+    TX_ITEM_TYPE_TSD = 0x80,
+
+    TX_ITEM_TYPE_IN_ALL = 0xfd,
     TX_ITEM_TYPE_OUT_ALL = 0xfe,
     TX_ITEM_TYPE_ANY = 0xff
 };
+#define TX_ITEM_TYPE_UNKNOWN TX_ITEM_TYPE_ANY
 typedef byte_t dap_chain_tx_item_type_t;
 
 typedef struct dap_chain_receipt_info {
@@ -234,8 +239,11 @@ size_t dap_chain_hash_slow_to_str(dap_chain_hash_slow_t * a_hash, char * a_str, 
 
 char* dap_chain_addr_to_str(const dap_chain_addr_t *a_addr);
 dap_chain_addr_t* dap_chain_addr_from_str(const char *str);
+bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr);
 
+#if 0
 dap_chain_net_id_t dap_chain_net_id_from_str(const char* a_str);
+#endif
 dap_chain_net_srv_uid_t dap_chain_net_srv_uid_from_str(const char* a_str);
 
 void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_sign_type_t a_type, dap_chain_hash_fast_t *a_pkey_hash, dap_chain_net_id_t a_net_id);
@@ -255,9 +263,7 @@ DAP_STATIC_INLINE uint64_t dap_chain_coins_to_datoshi(long double a_count)
 
 DAP_STATIC_INLINE uint128_t dap_chain_uint128_from(uint64_t a_from)
 {
-    uint128_t l_ret = uint128_0;
-    ADD_64_INTO_128(a_from, &l_ret );
-    return l_ret;
+    return GET_128_FROM_64(a_from);
 }
 
 // 256
@@ -266,18 +272,12 @@ uint128_t dap_chain_uint128_from_uint256(uint256_t a_from);
 // 256
 DAP_STATIC_INLINE uint256_t dap_chain_uint256_from(uint64_t a_from)
 {
-    uint128_t l_temp_128 = uint128_0;
-    uint256_t l_ret_256 = uint256_0;
-    ADD_64_INTO_128(a_from, &l_temp_128);
-    ADD_128_INTO_256(l_temp_128, &l_ret_256);
-    return l_ret_256;
+    return GET_256_FROM_64(a_from);
 }
 
 DAP_STATIC_INLINE uint256_t dap_chain_uint256_from_uint128(uint128_t a_from)
 {
-    uint256_t l_ret_256 = uint256_0;
-    ADD_128_INTO_256(a_from, &l_ret_256);
-    return l_ret_256;
+    return GET_256_FROM_128(a_from);
 }
 
 uint64_t dap_chain_uint128_to(uint128_t a_from);

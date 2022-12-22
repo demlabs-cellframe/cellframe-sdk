@@ -47,9 +47,12 @@
 
 #include <time.h>
 #ifdef DAP_OS_WINDOWS
+#include <windows.h>
 #include <fcntl.h>
 #define pipe(pfds) _pipe(pfds, 4096, _O_BINARY)
 #define strerror_r(arg1, arg2, arg3) strerror_s(arg2, arg3, arg1)
+#else
+#include <unistd.h>
 #endif
 #ifdef __MACH__
 #include <dispatch/dispatch.h>
@@ -105,6 +108,10 @@
 #define DAP_CAST_REINT(t,v) ((t*) v)
 #endif
 
+
+
+
+
 #if DAP_USE_RPMALLOC
   #include "rpmalloc.h"
   #define DAP_MALLOC(a)         rpmalloc(a)
@@ -121,6 +128,53 @@
   #define DAP_DELETE(a)         rpfree(a)
   #define DAP_DUP(a)            memcpy(rpmalloc(sizeof(*a)), a, sizeof(*a))
   #define DAP_DUP_SIZE(a, s)    memcpy(rpmalloc(s), a, s)
+#elif   DAP_SYS_DEBUG
+
+#include    <assert.h>
+
+#define     MEMSTAT$SZ_NAME     63
+#define     MEMSTAT$K_MAXNR     8192
+#define     MEMSTAT$K_MINTOLOG  (32*1024)
+
+typedef struct __dap_memstat_rec__ {
+
+        unsigned char   fac_len,                                        /* Length of the facility name */
+                        fac_name[MEMSTAT$SZ_NAME + 1];                  /* A human readable facility name, ASCIC */
+
+        ssize_t         alloc_sz;                                       /* A size of the single allocations */
+        atomic_ullong   alloc_nr,                                       /* A number of allocations */
+                        free_nr;                                        /* A number of deallocations */
+} dap_memstat_rec_t;
+
+int     dap_memstat_reg (dap_memstat_rec_t   *a_memstat_rec);
+void    dap_memstat_show (void);
+extern  dap_memstat_rec_t    *g_memstat [MEMSTAT$K_MAXNR];              /* Array to keep pointers to module/facility specific memstat vecros */
+
+static inline void s_vm_free(const char *a_rtn_name, int a_rtn_line, void *a_ptr);
+static inline void *s_vm_get(const char *a_rtn_name, int a_rtn_line, ssize_t a_size);
+static inline void *s_vm_get_z(const char *a_rtn_name, int a_rtn_line, ssize_t a_nr, ssize_t a_size);
+static inline void *s_vm_extend(const char *a_rtn_name, int a_rtn_line, void *a_ptr, ssize_t a_size);
+
+
+    #define DAP_FREE(a)         s_vm_free(__func__, __LINE__, (void *) a)
+    #define DAP_DELETE(a)       s_vm_free(__func__, __LINE__, (void *) a)
+
+    #define DAP_MALLOC(a)       s_vm_get(__func__, __LINE__, a)
+    #define DAP_CALLOC(a, b)    s_vm_get_z(__func__, __LINE__, a, b)
+    #define DAP_ALMALLOC(a, b)    _dap_aligned_alloc(a, b)
+    #define DAP_ALREALLOC(a, b)   _dap_aligned_realloc(a, b)
+    #define DAP_ALFREE(a)         _dap_aligned_free(a, b)
+    #define DAP_NEW( a )          DAP_CAST_REINT(a, s_vm_get(__func__, __LINE__, sizeof(a)) )
+    #define DAP_NEW_SIZE(a, b)    DAP_CAST_REINT(a, s_vm_get(__func__, __LINE__, b) )
+    #define DAP_NEW_S( a )        DAP_CAST_REINT(a, alloca(sizeof(a)) )
+    #define DAP_NEW_S_SIZE(a, b)  DAP_CAST_REINT(a, alloca(b) )
+    #define DAP_NEW_Z( a )        DAP_CAST_REINT(a, s_vm_get_z(__func__, __LINE__, 1,sizeof(a)))
+    #define DAP_NEW_Z_SIZE(a, b)  DAP_CAST_REINT(a, s_vm_get_z(__func__, __LINE__, 1,b))
+    #define DAP_REALLOC(a, b)     s_vm_extend(__func__, __LINE__, a,b)
+
+    #define DAP_DUP(a)            memcpy(s_vm_get(__func__, __LINE__, sizeof(*a)), a, sizeof(*a))
+    #define DAP_DUP_SIZE(a, s)    memcpy(s_vm_get(__func__, __LINE__, s), a, s)
+
 #else
   #define DAP_MALLOC(a)         malloc(a)
   #define DAP_FREE(a)           free(a)
@@ -128,6 +182,8 @@
   #define DAP_ALMALLOC(a, b)    _dap_aligned_alloc(a, b)
   #define DAP_ALREALLOC(a, b)   _dap_aligned_realloc(a, b)
   #define DAP_ALFREE(a)         _dap_aligned_free(a, b)
+  #define DAP_PAGE_ALMALLOC(a)  _dap_page_aligned_alloc(a)
+  #define DAP_PAGE_ALFREE(a)    _dap_page_aligned_free(a)
   #define DAP_NEW( a )          DAP_CAST_REINT(a, malloc(sizeof(a)) )
   #define DAP_NEW_SIZE(a, b)    DAP_CAST_REINT(a, malloc(b) )
   #define DAP_NEW_S( a )        DAP_CAST_REINT(a, alloca(sizeof(a)) )
@@ -141,6 +197,34 @@
 #endif
 
 #define DAP_DEL_Z(a)            if (a) { DAP_DELETE((void *)a); (a) = NULL; }
+
+DAP_STATIC_INLINE unsigned long dap_pagesize() {
+    static int s = 0;
+    if (s)
+        return s;
+#ifdef DAP_OS_WINDOWS
+    SYSTEM_INFO si;
+    GetSystemInfo(&si);
+    s = si.dwPageSize;
+#else
+    s = sysconf(_SC_PAGESIZE);
+#endif
+    return s ? s : 4096;
+}
+
+#ifdef DAP_OS_WINDOWS
+typedef struct iovec {
+    void    *iov_base; /* Data */
+    size_t  iov_len; /* ... and its' size */
+} iovec_t;
+
+size_t dap_readv    (HANDLE a_hf, iovec_t const *a_bufs, int a_bufs_num, DWORD *a_err);
+size_t dap_writev   (HANDLE a_hf, const char* a_filename, iovec_t const *a_bufs, int a_bufs_num, DWORD *a_err);
+
+#else
+#define dap_readv readv
+#define dap_writev writev
+#endif
 
 DAP_STATIC_INLINE void *_dap_aligned_alloc( uintptr_t alignment, uintptr_t size )
 {
@@ -175,6 +259,22 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
 
     void  *base_ptr = (void *)((uintptr_t *)ptr)[-1];
     DAP_FREE( base_ptr );
+}
+
+DAP_STATIC_INLINE void *_dap_page_aligned_alloc(size_t size) {
+#ifndef DAP_OS_WINDOWS
+    return valloc(size);
+#else
+    return VirtualAlloc(0, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+#endif
+}
+
+DAP_STATIC_INLINE void _dap_page_aligned_free(void *ptr) {
+#ifndef DAP_OS_WINDOWS
+    free(ptr);
+#else
+    VirtualFree(ptr, 0, MEM_RELEASE);
+#endif
 }
 
 /*
@@ -457,6 +557,99 @@ void    _dump_it (const char *, unsigned , const char *a_var_name, const void *s
 #define debug_if(flg, _log_level, ...)  _log_it_ext( __func__, __LINE__, (flg) ? (_log_level) : -1 , ##__VA_ARGS__)
 
 #define dump_it(v,s,l)                  _dump_it( __func__, __LINE__, (v), (s), (l))
+
+
+static inline void s_vm_free(
+            const char  *a_rtn_name,
+                int     a_rtn_line,
+                void    *a_ptr
+                )
+{
+        if ( !a_ptr )
+            return;
+
+
+        log_it(L_DEBUG, "Free .........: [%p] at %s:%d", a_ptr, a_rtn_name, a_rtn_line);
+        free(a_ptr);
+}
+
+
+static inline void *s_vm_get (
+            const char  *a_rtn_name,
+                int     a_rtn_line,
+                ssize_t a_size
+                )
+{
+void    *l_ptr;
+
+        if ( !a_size )
+            return  NULL;
+
+        if ( !(l_ptr = malloc(a_size)) )
+        {
+            assert ( l_ptr );
+            return  NULL;
+        }
+
+        if ( a_size > MEMSTAT$K_MINTOLOG )
+            log_it(L_DEBUG, "Allocated ....: [%p] %zd octets, at %s:%d", l_ptr, a_size, a_rtn_name, a_rtn_line);
+
+        return  l_ptr;
+}
+
+static inline void *s_vm_get_z(
+        const char *a_rtn_name,
+                int a_rtn_line,
+            ssize_t a_nr,
+            ssize_t a_size
+        )
+{
+void    *l_ptr;
+
+        if ( !a_size || !a_nr )
+            return  NULL;
+
+        if ( !(l_ptr = calloc(a_nr, a_size)) )
+        {
+            assert ( l_ptr );
+            return  NULL;
+        }
+
+        if ( a_size > MEMSTAT$K_MINTOLOG )
+            log_it(L_DEBUG, "Allocated ....: [%p] %zd octets, nr: %zd (total:%zd), at %s:%d", l_ptr, a_size, a_nr, a_nr * a_size, a_rtn_name, a_rtn_line);
+
+        return  l_ptr;
+}
+
+
+
+static inline void *s_vm_extend (
+        const char *a_rtn_name,
+                int a_rtn_line,
+            void *a_ptr,
+            ssize_t a_size
+            )
+{
+void    *l_ptr;
+
+        if ( !a_size )
+            return  NULL;
+
+        if ( !(l_ptr = realloc(a_ptr, a_size)) )
+        {
+            assert ( l_ptr );
+            return  NULL;
+        }
+
+        if ( a_size > MEMSTAT$K_MINTOLOG )
+            log_it(L_DEBUG, "Extended .....: [%p] -> [%p %zd octets], at %s:%d", a_ptr, l_ptr, a_size, a_rtn_name, a_rtn_line);
+
+        return  l_ptr;
+}
+
+
+
+
 #else
 #define dump_it(v,s,l)
 #endif
@@ -484,7 +677,7 @@ size_t dap_bin2hex(char *a_out, const void *a_in, size_t a_len);
 void dap_digit_from_string(const char *num_str, void *raw, size_t raw_len);
 void dap_digit_from_string2(const char *num_str, void *raw, size_t raw_len);
 
-dap_interval_timer_t *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_callback, void *a_param);
+dap_interval_timer_t dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_callback, void *a_param);
 void dap_interval_timer_delete(dap_interval_timer_t a_timer);
 int dap_interval_timer_disable(dap_interval_timer_t a_timer);
 void dap_interval_timer_init();
@@ -507,21 +700,6 @@ int dap_is_alpha_and_(char e);
 int dap_is_alpha(char e);
 int dap_is_digit(char e);
 char **dap_parse_items(const char *a_str, char a_delimiter, int *a_count, const int a_only_digit);
-
-#define CRC32_POLY      (0xEDB88320)
-extern const unsigned int g_crc32c_table[];
-
-static inline unsigned int	dap_crc32c (unsigned int crc, const void *buf, size_t buflen)
-{
-const unsigned char  *p = (unsigned char *) buf;
-
-    crc = crc ^ ~0U;
-
-    while (buflen--)
-        crc = g_crc32c_table[(crc ^ *p++) & 0xFF] ^ (crc >> 8);
-
-    return crc ^ ~0U;
-}
 
 #ifdef __MINGW32__
 int exec_silent(const char *a_cmd);

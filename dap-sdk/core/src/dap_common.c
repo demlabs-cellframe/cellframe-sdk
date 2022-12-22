@@ -47,7 +47,6 @@
 #else // WIN32
 
   #include <stdlib.h>
-  #include <windows.h>
   #include <process.h>
   #include <pthread.h>
 
@@ -348,69 +347,36 @@ static void *s_log_thread_proc(void *arg) {
     return NULL;
 }
 
-/*	CRC32-C	*/
-const  unsigned int g_crc32c_table[] = {
-    0x00000000, 0x77073096, 0xee0e612c, 0x990951ba, 0x076dc419, 0x706af48f,
-    0xe963a535, 0x9e6495a3, 0x0edb8832, 0x79dcb8a4, 0xe0d5e91e, 0x97d2d988,
-    0x09b64c2b, 0x7eb17cbd, 0xe7b82d07, 0x90bf1d91, 0x1db71064, 0x6ab020f2,
-    0xf3b97148, 0x84be41de, 0x1adad47d, 0x6ddde4eb, 0xf4d4b551, 0x83d385c7,
-    0x136c9856, 0x646ba8c0, 0xfd62f97a, 0x8a65c9ec, 0x14015c4f, 0x63066cd9,
-    0xfa0f3d63, 0x8d080df5, 0x3b6e20c8, 0x4c69105e, 0xd56041e4, 0xa2677172,
-    0x3c03e4d1, 0x4b04d447, 0xd20d85fd, 0xa50ab56b, 0x35b5a8fa, 0x42b2986c,
-    0xdbbbc9d6, 0xacbcf940, 0x32d86ce3, 0x45df5c75, 0xdcd60dcf, 0xabd13d59,
-    0x26d930ac, 0x51de003a, 0xc8d75180, 0xbfd06116, 0x21b4f4b5, 0x56b3c423,
-    0xcfba9599, 0xb8bda50f, 0x2802b89e, 0x5f058808, 0xc60cd9b2, 0xb10be924,
-    0x2f6f7c87, 0x58684c11, 0xc1611dab, 0xb6662d3d, 0x76dc4190, 0x01db7106,
-    0x98d220bc, 0xefd5102a, 0x71b18589, 0x06b6b51f, 0x9fbfe4a5, 0xe8b8d433,
-    0x7807c9a2, 0x0f00f934, 0x9609a88e, 0xe10e9818, 0x7f6a0dbb, 0x086d3d2d,
-    0x91646c97, 0xe6635c01, 0x6b6b51f4, 0x1c6c6162, 0x856530d8, 0xf262004e,
-    0x6c0695ed, 0x1b01a57b, 0x8208f4c1, 0xf50fc457, 0x65b0d9c6, 0x12b7e950,
-    0x8bbeb8ea, 0xfcb9887c, 0x62dd1ddf, 0x15da2d49, 0x8cd37cf3, 0xfbd44c65,
-    0x4db26158, 0x3ab551ce, 0xa3bc0074, 0xd4bb30e2, 0x4adfa541, 0x3dd895d7,
-    0xa4d1c46d, 0xd3d6f4fb, 0x4369e96a, 0x346ed9fc, 0xad678846, 0xda60b8d0,
-    0x44042d73, 0x33031de5, 0xaa0a4c5f, 0xdd0d7cc9, 0x5005713c, 0x270241aa,
-    0xbe0b1010, 0xc90c2086, 0x5768b525, 0x206f85b3, 0xb966d409, 0xce61e49f,
-    0x5edef90e, 0x29d9c998, 0xb0d09822, 0xc7d7a8b4, 0x59b33d17, 0x2eb40d81,
-    0xb7bd5c3b, 0xc0ba6cad, 0xedb88320, 0x9abfb3b6, 0x03b6e20c, 0x74b1d29a,
-    0xead54739, 0x9dd277af, 0x04db2615, 0x73dc1683, 0xe3630b12, 0x94643b84,
-    0x0d6d6a3e, 0x7a6a5aa8, 0xe40ecf0b, 0x9309ff9d, 0x0a00ae27, 0x7d079eb1,
-    0xf00f9344, 0x8708a3d2, 0x1e01f268, 0x6906c2fe, 0xf762575d, 0x806567cb,
-    0x196c3671, 0x6e6b06e7, 0xfed41b76, 0x89d32be0, 0x10da7a5a, 0x67dd4acc,
-    0xf9b9df6f, 0x8ebeeff9, 0x17b7be43, 0x60b08ed5, 0xd6d6a3e8, 0xa1d1937e,
-    0x38d8c2c4, 0x4fdff252, 0xd1bb67f1, 0xa6bc5767, 0x3fb506dd, 0x48b2364b,
-    0xd80d2bda, 0xaf0a1b4c, 0x36034af6, 0x41047a60, 0xdf60efc3, 0xa867df55,
-    0x316e8eef, 0x4669be79, 0xcb61b38c, 0xbc66831a, 0x256fd2a0, 0x5268e236,
-    0xcc0c7795, 0xbb0b4703, 0x220216b9, 0x5505262f, 0xc5ba3bbe, 0xb2bd0b28,
-    0x2bb45a92, 0x5cb36a04, 0xc2d7ffa7, 0xb5d0cf31, 0x2cd99e8b, 0x5bdeae1d,
-    0x9b64c2b0, 0xec63f226, 0x756aa39c, 0x026d930a, 0x9c0906a9, 0xeb0e363f,
-    0x72076785, 0x05005713, 0x95bf4a82, 0xe2b87a14, 0x7bb12bae, 0x0cb61b38,
-    0x92d28e9b, 0xe5d5be0d, 0x7cdcefb7, 0x0bdbdf21, 0x86d3d2d4, 0xf1d4e242,
-    0x68ddb3f8, 0x1fda836e, 0x81be16cd, 0xf6b9265b, 0x6fb077e1, 0x18b74777,
-    0x88085ae6, 0xff0f6a70, 0x66063bca, 0x11010b5c, 0x8f659eff, 0xf862ae69,
-    0x616bffd3, 0x166ccf45, 0xa00ae278, 0xd70dd2ee, 0x4e048354, 0x3903b3c2,
-    0xa7672661, 0xd06016f7, 0x4969474d, 0x3e6e77db, 0xaed16a4a, 0xd9d65adc,
-    0x40df0b66, 0x37d83bf0, 0xa9bcae53, 0xdebb9ec5, 0x47b2cf7f, 0x30b5ffe9,
-    0xbdbdf21c, 0xcabac28a, 0x53b39330, 0x24b4a3a6, 0xbad03605, 0xcdd70693,
-    0x54de5729, 0x23d967bf, 0xb3667a2e, 0xc4614ab8, 0x5d681b02, 0x2a6f2b94,
-    0xb40bbe37, 0xc30c8ea1, 0x5a05df1b, 0x2d02ef8d
-};
-
-
 #ifdef DAP_SYS_DEBUG
-const	char spaces[74] = {"                                                                          "};
-#define PID_FMT "%6d"
+#ifdef __APPLE__
+#define PID_FMT "%08x"
+static inline uint64_t gettid(void)
+{
+uint64_t tid;
 
-void	_log_it_ext   (
-		const char *	a_rtn_name,
-            unsigned	a_line_no,
+    pthread_threadid_np(NULL, &tid);
+    return  tid;
+}
+#else
+#define PID_FMT "%6d"
+#endif
+
+#define     SPACES  74
+const   char spaces[SPACES] = {"                                                                          "};
+
+
+
+void    _log_it_ext   (
+                const char *    a_rtn_name,
+            unsigned    a_line_no,
     enum dap_log_level  a_ll,
-        const char *	a_fmt,
-			...
-			)
+        const char *    a_fmt,
+                        ...
+                        )
 {
 va_list arglist;
-const char	lfmt [] = {"%02u-%02u-%04u %02u:%02u:%02u.%03u  "  PID_FMT "  %s [%s:%u] "};
-char	out[1024] = {0};
+const char      lfmt [] = {"%02u-%02u-%04u %02u:%02u:%02u.%03u  "  PID_FMT "  %s [%s:%u] "};
+char    out[1024] = {0};
 int     olen, len;
 struct tm _tm;
 struct timespec now;
@@ -420,6 +386,7 @@ struct timespec now;
 
     if ( a_ll < s_dap_log_level )
         return;
+
 
 
 	clock_gettime(CLOCK_REALTIME, &now);
@@ -1095,7 +1062,9 @@ typedef struct dap_timer_interface {
 static dap_timer_interface_t *s_timers_map;
 static pthread_rwlock_t s_timers_rwlock;
 
-void dap_interval_timer_init() {
+void dap_interval_timer_init()
+{
+    s_timers_map = NULL;
     pthread_rwlock_init(&s_timers_rwlock, NULL);
 }
 
@@ -1112,33 +1081,35 @@ void dap_interval_timer_deinit() {
 }
 
 #ifdef DAP_OS_LINUX
-static void s_posix_callback(union sigval a_arg) {
-    pthread_rwlock_rdlock(&s_timers_rwlock);
-    dap_timer_interface_t *l_timer = NULL;
-    HASH_FIND_PTR(s_timers_map, &a_arg.sival_ptr, l_timer);
-    pthread_rwlock_unlock(&s_timers_rwlock);
-    if (l_timer && l_timer->callback) {
-        l_timer->callback(l_timer->param);
-    } else {
-        log_it(L_WARNING, "Timer '%p' is not initialized", a_arg.sival_ptr);
-    }
-#else
-#ifdef _WIN32
-static void CALLBACK s_win_callback(PVOID a_arg, BOOLEAN a_always_true) {
+static void s_posix_callback(union sigval a_arg)
+{
+    void *l_timer_ptr = a_arg.sival_ptr;
+#elif defined (DAP_OS_WINDOWS)
+static void CALLBACK s_win_callback(PVOID a_arg, BOOLEAN a_always_true)
+{
     UNUSED(a_always_true);
+    void *l_timer_ptr = a_arg;
 #elif defined (DAP_OS_DARWIN)
-static void s_bsd_callback(void *a_arg) {
+static void s_bsd_callback(void *a_arg)
+{
+    void *l_timer_ptr = &a_arg;
+#else
+#error "Timaer callback is undefined for your platform"
 #endif
+    if (!l_timer_ptr) {
+        log_it(L_ERROR, "Timer cb arg is NULL");
+        return;
+    }
     pthread_rwlock_rdlock(&s_timers_rwlock);
     dap_timer_interface_t *l_timer = NULL;
-    HASH_FIND_PTR(s_timers_map, &a_arg, l_timer);
+    HASH_FIND_PTR(s_timers_map, l_timer_ptr, l_timer);
     pthread_rwlock_unlock(&s_timers_rwlock);
     if (l_timer && l_timer->callback) {
+        //log_it(L_INFO, "Fire %p", l_timer_ptr);
         l_timer->callback(l_timer->param);
     } else {
-        log_it(L_WARNING, "Timer '%p' is not initialized", a_arg);
+        log_it(L_WARNING, "Timer '%p' is not initialized", l_timer_ptr);
     }
-#endif
 }
 
 /*!
@@ -1147,12 +1118,12 @@ static void s_bsd_callback(void *a_arg) {
  * \param a_callback Function to be called with timer period
  * \return pointer to timer object if success, otherwise return NULL
  */
-dap_interval_timer_t *dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_callback, void *a_param) {
+dap_interval_timer_t dap_interval_timer_create(unsigned int a_msec, dap_timer_callback_t a_callback, void *a_param) {
     dap_timer_interface_t *l_timer_obj = DAP_NEW_Z(dap_timer_interface_t);
     l_timer_obj->callback   = a_callback;
     l_timer_obj->param      = a_param;
 #if (defined _WIN32)
-    if (!CreateTimerQueueTimer(&(l_timer_obj->timer) , NULL, (WAITORTIMERCALLBACK)s_win_callback, (PVOID)(l_timer_obj->timer), a_msec, a_msec, 0)) {
+    if (!CreateTimerQueueTimer(&l_timer_obj->timer , NULL, (WAITORTIMERCALLBACK)s_win_callback, &l_timer_obj->timer, a_msec, a_msec, 0)) {
         return NULL;
     }
 #elif (defined DAP_OS_DARWIN)
@@ -1163,10 +1134,9 @@ dap_interval_timer_t *dap_interval_timer_create(unsigned int a_msec, dap_timer_c
     dispatch_source_set_timer(l_timer_obj->timer, start, a_msec * 1000000, 0);
     dispatch_resume(l_timer_obj->timer);
 #else
-    timer_t l_timer = NULL;
     struct sigevent l_sig_event = { };
     l_sig_event.sigev_notify = SIGEV_THREAD;
-    l_sig_event.sigev_value.sival_ptr = l_timer_obj->timer;
+    l_sig_event.sigev_value.sival_ptr = &l_timer_obj->timer;
     l_sig_event.sigev_notify_function = s_posix_callback;
     if (timer_create(CLOCK_MONOTONIC, &l_sig_event, &(l_timer_obj->timer))) {
         return NULL;
@@ -1179,8 +1149,8 @@ dap_interval_timer_t *dap_interval_timer_create(unsigned int a_msec, dap_timer_c
     pthread_rwlock_wrlock(&s_timers_rwlock);
     HASH_ADD_PTR(s_timers_map, timer, l_timer_obj);
     pthread_rwlock_unlock(&s_timers_rwlock);
-    log_it(L_DEBUG, "Interval timer %p created", l_timer_obj->timer);
-    return (dap_interval_timer_t*)l_timer_obj->timer;
+    log_it(L_DEBUG, "Interval timer %p created", &l_timer_obj->timer);
+    return (dap_interval_timer_t)l_timer_obj->timer;
 }
 
 int dap_interval_timer_disable(dap_interval_timer_t a_timer) {
@@ -1355,3 +1325,227 @@ char **dap_parse_items(const char *a_str, char a_delimiter, int *a_count, const 
     *a_count = l_count_temp;
     return lines;
 }
+
+#ifdef DAP_OS_WINDOWS
+size_t dap_readv(HANDLE a_hf, iovec_t const *a_bufs, int a_bufs_num, DWORD *a_err) {
+    if (!a_bufs || !a_bufs_num) {
+        return -1;
+    }
+    DWORD l_ret = 0;
+    bool l_is_aligned = false;
+    if (!l_is_aligned) {
+        for (iovec_t const *cur_buf = a_bufs, *end = a_bufs + a_bufs_num; cur_buf < end; ++cur_buf) {
+            DWORD l_read = 0;
+            if (ReadFile(a_hf, (char*)cur_buf->iov_base, cur_buf->iov_len, &l_read, 0) == FALSE) {
+                if (a_err)
+                    *a_err = GetLastError();
+                return -1;
+            }
+            l_ret += l_read;
+        }
+        return l_ret;
+    }
+
+    size_t l_total_bufs_size = 0;
+    for (iovec_t const *i = a_bufs, *end = a_bufs + a_bufs_num; i < end; ++i)
+        l_total_bufs_size += i->iov_len;
+    l_ret += l_total_bufs_size;
+
+    size_t l_page_size = dap_pagesize();
+    int l_pages_count = (l_total_bufs_size + l_page_size - 1) / l_page_size;
+    PFILE_SEGMENT_ELEMENT l_seg_arr = DAP_PAGE_ALMALLOC(sizeof(FILE_SEGMENT_ELEMENT) * (l_pages_count + 1)),
+            l_cur_seg = l_seg_arr;
+    /* FILE_SEGMENT_ELEMENT l_seg_arr[l_pages_count + 1], *l_cur_seg = l_seg_arr; */
+    for (iovec_t const *i = a_bufs, *end = a_bufs + a_bufs_num; i < end; ++i)
+        for (size_t j = 0; j < i->iov_len; j += l_page_size, ++l_cur_seg)
+            l_cur_seg->Buffer = PtrToPtr64((((char*)i->iov_base) + j));
+    l_cur_seg->Buffer = 0;
+
+    /* lol */
+    OVERLAPPED l_ol = {
+        .hEvent = CreateEvent(0, TRUE, FALSE, 0)
+    };
+
+    l_total_bufs_size = l_pages_count * l_page_size;
+    if (!ReadFileScatter(a_hf, l_seg_arr, l_total_bufs_size, 0, &l_ol)) {
+        DWORD l_err = GetLastError();
+        if (l_err != ERROR_IO_PENDING) {
+            if (a_err)
+                *a_err = GetLastError();
+            CloseHandle(l_ol.hEvent);
+            DAP_PAGE_ALFREE(l_seg_arr);
+            return -1;
+        }
+        if (!GetOverlappedResult(a_hf, &l_ol, &l_ret, TRUE)) {
+            if (a_err)
+                *a_err = GetLastError();
+            CloseHandle(l_ol.hEvent);
+            DAP_PAGE_ALFREE(l_seg_arr);
+            return -1;
+        }
+    }
+    CloseHandle(l_ol.hEvent);
+    DAP_PAGE_ALFREE(l_seg_arr);
+    return l_ret;
+}
+
+size_t dap_writev(HANDLE a_hf, const char* a_filename, iovec_t const *a_bufs, int a_bufs_num, DWORD *a_err) {
+    if (!a_bufs || !a_bufs_num) {
+        log_it(L_ERROR, "Bad input data");
+        return -1;
+    }
+    DWORD l_ret = 0;
+    bool l_is_aligned = false;
+    /* For a buffer which is not aligned to the page size, we use regular I/O */
+    if (!l_is_aligned) {
+        for (iovec_t const *cur_buf = a_bufs, *end = a_bufs + a_bufs_num; cur_buf < end; ++cur_buf) {
+            DWORD l_written = 0;
+            if (!WriteFile(a_hf, (char const*)cur_buf->iov_base, cur_buf->iov_len, &l_written, NULL)) {
+                if (a_err)
+                    *a_err = GetLastError();
+                return -1;
+            }
+            l_ret += l_written;
+        }
+        return l_ret;
+    }
+
+    size_t l_total_bufs_size = 0, l_file_size = 0;
+    for (iovec_t const *i = a_bufs, *end = a_bufs + a_bufs_num; i < end; ++i)
+        l_total_bufs_size += i->iov_len;
+    l_ret += l_total_bufs_size;
+
+    size_t l_page_size = dap_pagesize();
+    int l_pages_count = (l_total_bufs_size + l_page_size - 1) / l_page_size;
+    PFILE_SEGMENT_ELEMENT l_seg_arr = DAP_PAGE_ALMALLOC(sizeof(FILE_SEGMENT_ELEMENT) * (l_pages_count + 1)),
+            l_cur_seg = l_seg_arr;
+    int l_idx = 0;
+    for (iovec_t const *cur_buf = a_bufs; l_idx++ < a_bufs_num; ++cur_buf)
+        for (size_t j = 0; j < cur_buf->iov_len; j += l_page_size)
+            l_cur_seg++->Buffer = PtrToPtr64((((char*)cur_buf->iov_base) + j));
+    l_cur_seg->Buffer = 0;
+
+    /* lol */
+    OVERLAPPED l_ol = {
+        .Offset = 0xFFFFFFFF, .OffsetHigh = 0xFFFFFFFF,
+        .hEvent = CreateEvent(0, TRUE, FALSE, 0)
+    };
+
+    /* Let's check whether it's file tail */
+    if (l_total_bufs_size & (l_page_size - 1)) {
+        l_file_size = l_total_bufs_size;
+        l_total_bufs_size = l_pages_count * l_page_size;
+    }
+
+    DWORD l_err;
+    l_err = GetLastError();
+    if (!WriteFileGather(a_hf, l_seg_arr, l_total_bufs_size * 3, 0, &l_ol)) {
+        l_err = GetLastError();
+        if (l_err != ERROR_IO_PENDING) {
+            if (a_err)
+                *a_err = l_err;
+            DAP_PAGE_ALFREE(l_seg_arr);
+            CloseHandle(l_ol.hEvent);
+            log_it(L_ERROR, "Write file err: %d", l_err);
+            return -1;
+        }
+        DWORD l_tmp;
+        if (!GetOverlappedResult(a_hf, &l_ol, &l_tmp, TRUE)) {
+            l_err = GetLastError();
+            if (a_err)
+                *a_err = l_err;
+            DAP_PAGE_ALFREE(l_seg_arr);
+            CloseHandle(l_ol.hEvent);
+            log_it(L_ERROR, "Async writing failure, err %d", l_err);
+            return -1;
+        }
+        if (l_tmp < l_ret)
+            l_ret = l_tmp;
+    }
+    CloseHandle(l_ol.hEvent);
+    DAP_PAGE_ALFREE(l_seg_arr);
+    /* Set the proper file size if needed */
+    if (l_file_size) {
+        HANDLE l_hf = CreateFile(a_filename, GENERIC_WRITE,
+                                 FILE_SHARE_READ | FILE_SHARE_WRITE,
+                                 0, OPEN_EXISTING,
+                                 FILE_ATTRIBUTE_NORMAL | FILE_FLAG_RANDOM_ACCESS,
+                                 0);
+        if (l_hf == INVALID_HANDLE_VALUE) {
+            if (a_err)
+                *a_err = GetLastError();
+            return -1;
+        }
+
+        LARGE_INTEGER l_offs = { };
+        l_offs.QuadPart = l_file_size;
+        if (!SetFilePointerEx(l_hf, l_offs, &l_offs, FILE_BEGIN)) {
+            CloseHandle(l_hf);
+            if (a_err)
+                *a_err = GetLastError();
+            log_it(L_ERROR, "File pointer setting err: %d", l_err);
+            return -1;
+        }
+        if (!SetEndOfFile(l_hf)) {
+            if (a_err)
+                *a_err = GetLastError();
+            CloseHandle(l_hf);
+            log_it(L_ERROR, "EOF setting err: %d", l_err);
+            return -1;
+        }
+        CloseHandle(l_hf);
+    }
+    return l_ret;
+}
+#endif
+
+
+#ifdef  DAP_SYS_DEBUG
+dap_memstat_rec_t    *g_memstat [MEMSTAT$K_MAXNR];                      /* Array to keep pointers to module/facility specific memstat vecros */
+static pthread_rwlock_t     s_memstat_lock = PTHREAD_RWLOCK_INITIALIZER;
+static uint64_t             s_memstat_nr;                               /* A number of pointers in the <g_memstat> */
+
+int     dap_memstat_reg (
+                dap_memstat_rec_t   *a_memstat_rec
+                )
+{
+uint64_t    l_nr;
+int l_rc;
+
+        l_rc = pthread_rwlock_wrlock(&s_memstat_lock);
+
+        l_nr = s_memstat_nr;
+        if ( s_memstat_nr < MEMSTAT$K_MAXNR )
+            s_memstat_nr += 1;
+
+        l_rc = pthread_rwlock_unlock(&s_memstat_lock);
+
+        if ( !( l_nr < MEMSTAT$K_MAXNR) )
+            return  log_it(L_ERROR, "[<%.*s>, %zu octets] -- No free slot for memstat vector",
+                    a_memstat_rec->fac_len, a_memstat_rec->fac_name, a_memstat_rec->alloc_sz), -ENOMEM;
+
+        g_memstat[l_nr] = a_memstat_rec;
+
+        return  log_it(L_INFO, "[<%.*s>, %zu octets] has been registered",
+                    a_memstat_rec->fac_len, a_memstat_rec->fac_name, a_memstat_rec->alloc_sz), 0;
+}
+
+
+void    dap_memstat_show (void)
+{
+dap_memstat_rec_t   *l_memstat_rec;
+
+    for ( uint64_t i = 0; i < s_memstat_nr; i++)
+    {
+        if ( (l_memstat_rec = g_memstat[i]) )
+            log_it(L_INFO, "[<%.*s>, %zu octets] allocations/deallocations: %lld/%lld (%lld octets still is allocated)",
+                l_memstat_rec->fac_len, l_memstat_rec->fac_name, l_memstat_rec->alloc_sz,
+                l_memstat_rec->alloc_nr, l_memstat_rec->free_nr,
+                (l_memstat_rec->alloc_nr - l_memstat_rec->free_nr) * l_memstat_rec->alloc_sz);
+    }
+}
+
+
+
+#endif  /* DAP_SYS_DEBUG */
+

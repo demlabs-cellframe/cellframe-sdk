@@ -35,32 +35,22 @@ struct dap_http_simple;
 typedef void ( *dap_http_simple_callback_t )( struct dap_http_simple *, void * );
 
 typedef struct dap_http_simple {
-    dap_events_socket_t * esocket;
-    dap_worker_t * worker;
-    dap_http_client_t * http_client;
-    uint128_t http_client_uuid;
-    union {
-        void *request;
-        char *request_str;
-        uint8_t * request_byte;
-    };
+    dap_events_socket_t     *esocket;
+    dap_worker_t            *worker;
+    dap_http_client_t       *http_client;
 
-    union {
-        void *reply;
-        uint8_t *reply_byte;
-        char *reply_str;
-    };
-    size_t content_length;
+    dap_events_socket_uuid_t http_client_uuid;
 
-    size_t request_size;
-    size_t request_size_max;
-    size_t reply_size;
-    size_t reply_size_max;
-    size_t reply_sent;
+    char    *request;
+    size_t  request_size;
+    size_t  request_size_max;
+
+    uint8_t *reply;
+    size_t  reply_size;
+    size_t  reply_size_max;
+    size_t  reply_sent;
 
     char reply_mime[256];
-
-   // dap_http_simple_callback_t reply_proc_post_callback;
 } dap_http_simple_t;
 
 #define DAP_HTTP_SIMPLE(a) ((dap_http_simple_t*) (a)->_inheritor )

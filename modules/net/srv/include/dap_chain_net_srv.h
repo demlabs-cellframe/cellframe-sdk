@@ -25,11 +25,14 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #pragma once
 
 #include "dap_chain_net.h"
+#include "dap_chain_common.h"
+#include "dap_chain_datum_decree.h"
 #include "dap_chain_net_remote.h"
 #include "dap_chain_wallet.h"
 #include "dap_common.h"
 #include "dap_config.h"
 #include "dap_stream_ch.h"
+#include "dap_time.h"
 
 //Service direction
 enum dap_chain_net_srv_order_direction{
@@ -163,20 +166,14 @@ typedef struct dap_stream_ch_chain_net_srv_pkt_error{
 
 // data packet for connectiont test
 typedef struct dap_stream_ch_chain_net_srv_pkt_test{
-    uint32_t usage_id;
-    dap_chain_net_id_t net_id;
+    uint32_t                usage_id;
+    dap_chain_net_id_t      net_id;
     dap_chain_net_srv_uid_t srv_uid;
-    int32_t  time_connect_ms;
-    struct timeval recv_time1;
-    struct timeval recv_time2;
-    struct timeval send_time1;
-    struct timeval send_time2;
-    char ip_send[16];
-    char ip_recv[16];
+    int32_t                 time_connect_ms;
+    dap_gdb_time_t recv_time1, recv_time2, send_time1, send_time2;
+    char ip_send[INET_ADDRSTRLEN], ip_recv[INET_ADDRSTRLEN];
     int32_t err_code;
-    size_t data_size_send;
-    size_t data_size_recv;
-    size_t data_size;
+    size_t data_size_send, data_size_recv, data_size;
     dap_chain_hash_fast_t data_hash;
     uint8_t data[];
 } DAP_ALIGN_PACKED dap_stream_ch_chain_net_srv_pkt_test_t;
@@ -209,12 +206,39 @@ typedef int  (*dap_chain_net_srv_callback_data_t)(dap_chain_net_srv_t *, uint32_
 typedef void* (*dap_chain_net_srv_callback_custom_data_t)(dap_chain_net_srv_t *, dap_chain_net_srv_usage_t *, const void *, size_t, size_t *);
 typedef void (*dap_chain_net_srv_callback_ch_t)(dap_chain_net_srv_t *, dap_stream_ch_t *);
 
+// Process service decree
+typedef void (*dap_chain_net_srv_callback_decree_t)(dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_net, dap_chain_t * a_chain, dap_chain_datum_decree_t * a_decree, size_t a_decree_size);
+
+
 typedef struct dap_chain_net_srv_banlist_item {
     dap_chain_hash_fast_t client_pkey_hash;
     pthread_mutex_t *ht_mutex;
     struct dap_chain_net_srv_banlist_item **ht_head;
     UT_hash_handle hh;
 } dap_chain_net_srv_banlist_item_t;
+
+typedef struct dap_chain_net_srv_callbacks{
+    // For traffic control
+    dap_chain_callback_trafic_t traffic;
+    // Request for usage
+    dap_chain_net_srv_callback_data_t requested;
+    // Receipt first sign successfull
+    dap_chain_net_srv_callback_data_t response_success;
+    // Response error
+    dap_chain_net_srv_callback_data_t response_error;
+    // Receipt next sign succesfull
+    dap_chain_net_srv_callback_data_t receipt_next_success;
+    // Custom data processing
+    dap_chain_net_srv_callback_custom_data_t custom_data;
+
+    // Decree processing
+    dap_chain_net_srv_callback_decree_t decree;
+
+    // Stream CH callbacks - channel opened, closed and write
+    dap_chain_net_srv_callback_ch_t stream_ch_opened;
+    dap_chain_net_srv_callback_ch_t stream_ch_closed;
+    dap_chain_net_srv_callback_ch_t stream_ch_write;
+} dap_chain_net_srv_callbacks_t;
 
 typedef struct dap_chain_net_srv
 {
@@ -226,50 +250,44 @@ typedef struct dap_chain_net_srv
     pthread_mutex_t banlist_mutex;
     dap_chain_net_srv_banlist_item_t *ban_list;
 
-    dap_chain_callback_trafic_t callback_trafic;
+    dap_chain_net_srv_callbacks_t callbacks;
 
-    // Request for usage
-    dap_chain_net_srv_callback_data_t callback_requested;
-
-    // Receipt first sign successfull
-    dap_chain_net_srv_callback_data_t callback_response_success;
-
-    // Response error
-    dap_chain_net_srv_callback_data_t callback_response_error;
-
-    // Receipt next sign succesfull
-    dap_chain_net_srv_callback_data_t callback_receipt_next_success;
-
-    // Custom data processing
-    dap_chain_net_srv_callback_custom_data_t callback_custom_data;
-
-    // Stream CH callbacks - channel opened, closed and write
-    dap_chain_net_srv_callback_ch_t callback_stream_ch_opened;
-    dap_chain_net_srv_callback_ch_t callback_stream_ch_closed;
-    dap_chain_net_srv_callback_ch_t callback_stream_ch_write;
     // Pointer to inheritor object
     void *_inheritor;
     // Pointer to internal server structure
     void *_internal;
 } dap_chain_net_srv_t;
 
+// Fees section
+typedef enum dap_chain_net_srv_fee_tsd_type {
+    TSD_FEE = 0x0001,
+    TSD_FEE_TYPE,
+    TSD_FEE_ADDR
+} dap_chain_net_srv_fee_tsd_type_t;
+
+typedef enum dap_chain_net_srv_fee_type {
+    SERVICE_FEE_OWN_FIXED = 0x1,
+    SERVICE_FEE_OWN_PERCENT,
+    SERVICE_FEE_NATIVE_FIXED,
+    SERIVCE_FEE_NATIVE_PERCENT
+} dap_chain_net_srv_fee_type_t;
+
+typedef struct dap_chain_net_srv_fee_item {
+    dap_chain_net_id_t net_id;
+    // Sevice fee
+    uint16_t fee_type;
+    uint256_t fee;
+    dap_chain_addr_t fee_addr; // Addr collector
+
+    UT_hash_handle hh;
+} dap_chain_net_srv_fee_item_t;
+
+
 int dap_chain_net_srv_init();
 void dap_chain_net_srv_deinit(void);
-bool dap_chain_net_srv_pay_verificator(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t *a_tx, bool a_owner);
 dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
                                            const char *a_config_section,
-                                           dap_chain_net_srv_callback_data_t a_callback_requested,
-                                           dap_chain_net_srv_callback_data_t a_callback_response_success,
-                                           dap_chain_net_srv_callback_data_t a_callback_response_error,
-                                           dap_chain_net_srv_callback_data_t a_callback_receipt_next_success,
-                                           dap_chain_net_srv_callback_custom_data_t a_callback_custom_data
-                                           );
-
-int dap_chain_net_srv_set_ch_callbacks(dap_chain_net_srv_uid_t a_uid,
-                                       dap_chain_net_srv_callback_ch_t a_callback_stream_ch_opened,
-                                       dap_chain_net_srv_callback_ch_t a_callback_stream_ch_closed,
-                                       dap_chain_net_srv_callback_ch_t a_callback_stream_ch_write
-                                       );
+                                           dap_chain_net_srv_callbacks_t *a_callbacks );
 
 void dap_chain_net_srv_del(dap_chain_net_srv_t * a_srv);
 void dap_chain_net_srv_del_all(void);
@@ -279,6 +297,7 @@ void dap_chain_net_srv_call_closed_all(dap_stream_ch_t * a_client);
 void dap_chain_net_srv_call_opened_all(dap_stream_ch_t * a_client);
 
 dap_chain_net_srv_t * dap_chain_net_srv_get(dap_chain_net_srv_uid_t a_uid);
+dap_chain_net_srv_t* dap_chain_net_srv_get_by_name(const char *a_name);
 size_t dap_chain_net_srv_count(void);
 const dap_chain_net_srv_uid_t * dap_chain_net_srv_list(void);
 dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv_t *a_srv,
@@ -298,6 +317,24 @@ DAP_STATIC_INLINE const char * dap_chain_net_srv_price_unit_uid_to_str( dap_chai
         case SERV_UNIT_PCS: return "PIECES";
         default: return "UNKNOWN";
     }
+}
+
+DAP_STATIC_INLINE dap_chain_net_srv_price_unit_uid_t dap_chain_net_srv_price_unit_uid_from_str( const char  *a_unit_str )
+{
+    dap_chain_net_srv_price_unit_uid_t l_price_unit = { .enm = SERV_UNIT_UNDEFINED };
+    if(!dap_strcmp(a_unit_str, "mb"))
+        l_price_unit.enm = SERV_UNIT_MB;
+    else if(!dap_strcmp(a_unit_str, "sec"))
+        l_price_unit.enm = SERV_UNIT_SEC;
+    else if(!dap_strcmp(a_unit_str, "day"))
+        l_price_unit.enm = SERV_UNIT_DAY;
+    else if(!dap_strcmp(a_unit_str, "kb"))
+        l_price_unit.enm = SERV_UNIT_KB;
+    else if(!dap_strcmp(a_unit_str, "b") || !dap_strcmp(a_unit_str, "bytes"))
+        l_price_unit.enm = SERV_UNIT_B;
+    else if(!dap_strcmp(a_unit_str, "pcs") || !dap_strcmp(a_unit_str, "pieces"))
+        l_price_unit.enm = SERV_UNIT_PCS;
+    return l_price_unit;
 }
 
 DAP_STATIC_INLINE bool dap_chain_net_srv_uid_compare(dap_chain_net_srv_uid_t a, dap_chain_net_srv_uid_t b)

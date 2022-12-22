@@ -40,6 +40,8 @@ void    *l_str;
     l_len = nearest_power(1, a_string->len + a_len + 1);                    /* Compute a size of the new memory area */
     l_str = DAP_REALLOC(a_string->str, l_len );                             /* Try to realloc" */
 
+    assert(l_str);
+
     if ( !l_str )                                                           /* In case of error - don't touch an original descriptor */
         return;
 
@@ -69,7 +71,8 @@ dap_string_t * dap_string_sized_new(size_t a_dfl_size)
     l_string->str = NULL;
 
     dap_string_maybe_expand(l_string, max(a_dfl_size, 2));
-    l_string->str[0] = 0;
+    if(l_string->str)
+        l_string->str[0] = 0;
 
     return l_string;
 }
@@ -155,13 +158,13 @@ char* dap_string_free(dap_string_t *a_string, bool a_free_segment)
 
     if(a_free_segment)
     {
-        DAP_DELETE(a_string->str);
+        DAP_DEL_Z(a_string->str);
         l_segment = NULL;
     }
     else
         l_segment = a_string->str;
 
-    DAP_DELETE(a_string);
+    DAP_DEL_Z(a_string);
 
     return l_segment;
 }
@@ -862,6 +865,35 @@ void dap_string_append_vprintf(dap_string_t *string, const char *format, va_list
 }
 
 /**
+ * dap_string_prepend_vprintf:
+ * @a_string: a #dap_string_t
+ * @a_format: the string format. See the printf() documentation
+ * @a_args: the list of arguments to insert in the output
+ *
+ * Prepaeds a formatted string onto the beginning of a #dap_string_t.
+ * This function is similar to dap_string_prepend_printf()
+ * except that the arguments to the format string are passed
+ * as a va_list.
+ */
+void dap_string_prepend_vprintf(dap_string_t *a_string, const char *a_format, va_list a_args)
+{
+    const char l_oom [] = { "Out of memory@%s!" };
+    char *buf, l_buf[128];
+    size_t len;
+
+    dap_return_if_fail(a_string != NULL);
+    dap_return_if_fail(a_format != NULL);
+
+    len = dap_vasprintf(&buf, a_format, a_args);
+    if ( (ssize_t)len < 0 )                    /* Got negative/error ? Return to caller */
+        return;
+
+    dap_string_prepend(a_string,buf);
+
+    DAP_DELETE(buf);
+}
+
+/**
  * dap_string_vprintf:
  * @a_string: a #dap_string_t
  * @a_format: the string format. See the printf() documentation
@@ -931,5 +963,24 @@ void dap_string_append_printf(dap_string_t *string, const char *format, ...)
 
     va_start(args, format);
     dap_string_append_vprintf(string, format, args);
+    va_end(args);
+}
+
+/**
+ * dap_string_prepend_printf:
+ * @a_string: a #dap_string_t
+ * @a_format: the string format. See the printf() documentation
+ * @...: the parameters to insert into the format string
+ *
+ * Prepand a formatted string onto the end of a #dap_string_t.
+ * This function is similar to dap_string_printf() except
+ * that the text is prepanded to the #dap_string_t.
+ */
+void dap_string_prepend_printf(dap_string_t *string, const char *format, ...)
+{
+    va_list args;
+
+    va_start(args, format);
+    dap_string_prepend_vprintf(string, format, args);
     va_end(args);
 }

@@ -34,7 +34,6 @@
 #include <sys/select.h>
 #include <sys/ioctl.h>
 #include <sys/time.h>
-#include <sys/epoll.h>
 #include <sys/types.h>
 #include <sys/socket.h>
 #include <arpa/inet.h>
@@ -45,6 +44,7 @@
 
 #ifdef DAP_OS_LINUX
 #include <dlfcn.h>
+#include <sys/epoll.h>
 #endif
 
 #include "dap_client.h"
@@ -56,6 +56,7 @@
 
 #include "dap_chain_common.h"
 #include "dap_chain_mempool.h"
+#include "dap_chain_net_tx.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_net_srv_order.h"
@@ -64,7 +65,8 @@
 #include "dap_chain_net_srv_stream_session.h"
 #include "dap_chain_net_vpn_client_tun.h"
 #include "dap_chain_net_srv_vpn_cmd.h"
-#include "dap_modules_dynamic_cdb.h"
+#include "dap_time.h"
+//#include "dap_modules_dynamic_cdb.h"
 
 /*
  #if !defined( dap_http_client_state_t )
@@ -79,8 +81,9 @@
 
 #define LOG_TAG "vpn_client"
 
+#ifdef DAP_OS_LINUX
 static EPOLL_HANDLE sf_socks_epoll_fd;
-
+#endif
 
 static pthread_mutex_t sf_socks_mutex;
 
@@ -89,17 +92,12 @@ static dap_chain_node_client_t *s_vpn_client = NULL;
 
 dap_stream_worker_t* dap_chain_net_vpn_client_get_stream_worker(void)
 {
-    if(!s_vpn_client)
-        return NULL;
-    return dap_client_get_stream_worker( s_vpn_client->client );
+    return s_vpn_client ? dap_client_get_stream_worker(s_vpn_client->client) : NULL;
 }
 
 dap_stream_ch_t* dap_chain_net_vpn_client_get_stream_ch(void)
 {
-    if(!s_vpn_client)
-        return NULL;
-    dap_stream_ch_t *l_stream = dap_client_get_stream_ch_unsafe(s_vpn_client->client, DAP_STREAM_CH_ID_NET_SRV_VPN);
-    return l_stream;
+    return s_vpn_client ? dap_client_get_stream_ch_unsafe(s_vpn_client->client, DAP_STREAM_CH_ID_NET_SRV_VPN) : NULL;
 }
 
 /// TODO convert below callback to processor of stage
@@ -489,9 +487,9 @@ char *dap_chain_net_vpn_client_check_result(dap_chain_net_t *a_net, const char* 
 int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_str, const char *a_ipv6_str, int a_port, size_t a_data_size_to_send, size_t a_data_size_to_recv, int a_timeout_test_ms)
 {
     // default 10k
-    if(a_data_size_to_send==-1)
+    if(a_data_size_to_send==(size_t) -1)
         a_data_size_to_send = 10240;
-    if(a_data_size_to_recv==-1)
+    if(a_data_size_to_recv==(size_t) -1)
         a_data_size_to_recv = 10240;
     // default 10 sec = 10000 ms
     if(a_timeout_test_ms==-1)
@@ -507,9 +505,8 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_st
 
 
     // measuring connection time
-    struct timeval l_t;
-    gettimeofday(&l_t, NULL);//get_cur_time_msec
-    long l_t1 = (long) l_t.tv_sec * 1000 + l_t.tv_usec / 1000;
+    dap_gdb_time_t l_t = dap_gdb_time_now();
+    long l_t1 = l_t / 1e6;
 
     const char l_active_channels[] = { dap_stream_ch_chain_net_srv_get_id(), 0 }; //only R, without S
     if(a_ipv4_str)
@@ -530,24 +527,22 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_st
     if(l_res) {
         log_it(L_ERROR, "No response from VPN server=%s:%d", a_ipv4_str, a_port);
         // clean client struct
-        dap_chain_node_client_close(s_vpn_client);
+        dap_chain_node_client_close(s_vpn_client->uuid);
         DAP_DELETE(s_node_info);
         s_node_info = NULL;
         return -3;
     }
 
-    gettimeofday(&l_t, NULL);
-    long l_t2 = (long) l_t.tv_sec * 1000 + l_t.tv_usec / 1000;
-    int l_dtime_connect_ms = l_t2-l_t1;
+    l_t = dap_gdb_time_now();
+    long l_t2 = l_t / 1e6;
+    int l_dtime_connect_ms = l_t2 - l_t1;
 
-    //l_ret = dap_chain_net_vpn_client_tun_init(a_ipv4_str);
-
-    // send first packet to server
     {
         uint8_t l_ch_id = dap_stream_ch_chain_net_srv_get_id(); // Channel id for chain net request = 'R'
         dap_stream_ch_t *l_ch = dap_client_get_stream_ch_unsafe(s_vpn_client->client, l_ch_id);
         if(l_ch) {
-            dap_stream_ch_chain_net_srv_pkt_test_t *l_request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_test_t, sizeof(dap_stream_ch_chain_net_srv_pkt_test_t) + a_data_size_to_send);
+            typedef dap_stream_ch_chain_net_srv_pkt_test_t pkt_t;
+            pkt_t *l_request = DAP_NEW_S_SIZE(pkt_t, sizeof(pkt_t) + a_data_size_to_send);
             l_request->net_id.uint64 = a_net->pub.id.uint64;
             l_request->srv_uid.uint64 = DAP_CHAIN_NET_SRV_VPN_ID;
             l_request->data_size_send = a_data_size_to_send;
@@ -558,12 +553,11 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_st
             if(a_ipv4_str)
                 memcpy(l_request->ip_recv, a_ipv4_str, min(sizeof(l_request->ip_recv), strlen(a_ipv4_str)));
             l_request->time_connect_ms = l_dtime_connect_ms;
-            gettimeofday(&l_t, NULL);
-            l_t = l_request->send_time1;
-            size_t l_request_size = l_request->data_size + sizeof(dap_stream_ch_chain_net_srv_pkt_test_t);
+            l_t = dap_gdb_time_now();
+            l_request->send_time1 = l_t;
+            size_t l_request_size = l_request->data_size + sizeof(pkt_t);
             dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_REQUEST, l_request, l_request_size);
             dap_stream_ch_set_ready_to_write_unsafe(l_ch, true);
-            DAP_DELETE(l_request);
         }
     }
     // wait testing
@@ -580,7 +574,7 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_st
         log_it(L_NOTICE, "Got response from VPN server=%s:%d", a_ipv4_str, a_port);
     }
     // clean client struct
-    dap_chain_node_client_close(s_vpn_client);
+    dap_chain_node_client_close(s_vpn_client->uuid);
     DAP_DELETE(s_node_info);
     s_node_info = NULL;
     if(l_res)
@@ -613,7 +607,7 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
     if(!s_vpn_client) {
         log_it(L_ERROR, "Can't connect to VPN server=%s:%d", a_ipv4_str, a_port);
         // clean client struct
-        dap_chain_node_client_close(s_vpn_client);
+        dap_chain_node_client_close(s_vpn_client->uuid);
         DAP_DELETE(s_node_info);
         s_node_info = NULL;
         return -2;
@@ -624,7 +618,7 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
     if(res) {
         log_it(L_ERROR, "No response from VPN server=%s:%d", a_ipv4_str, a_port);
         // clean client struct
-        dap_chain_node_client_close(s_vpn_client);
+        dap_chain_node_client_close(s_vpn_client->uuid);
         DAP_DELETE(s_node_info);
         s_node_info = NULL;
         return -3;
@@ -643,7 +637,7 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
             l_request.hdr.srv_uid.uint64 = DAP_CHAIN_NET_SRV_VPN_ID;
             dap_chain_hash_fast_t *l_tx_cond = dap_chain_net_vpn_client_tx_cond_hash(a_net, NULL, NULL, 0);
             if(l_tx_cond) {
-                memcpy(&l_request.hdr.tx_cond, l_tx_cond, sizeof(dap_chain_hash_fast_t));
+                l_request.hdr.tx_cond = *l_tx_cond;
                 DAP_DELETE(l_tx_cond);
             }
             // set srv id
@@ -663,7 +657,7 @@ int dap_chain_net_vpn_client_stop(void)
 {
     // delete connection with VPN server
     if(s_vpn_client) {
-        dap_chain_node_client_close(s_vpn_client);
+        dap_chain_node_client_close(s_vpn_client->uuid);
         s_vpn_client = NULL;
     }
     DAP_DELETE(s_node_info);
@@ -766,12 +760,12 @@ int dap_chain_net_vpn_client_init(dap_config_t * g_config)
 
     // vpn client command
     dap_chain_node_cli_cmd_item_create ("vpn_client", com_vpn_client, "VPN client control",
-    "vpn_client [start -addr <server address> -port <server port>| stop | status] -net <net name>\n"
-    "vpn_client init -w <wallet name> -token <token name> -value <value> -net <net name>\n"
-            "vpn_client stop -net <net name>\n"
-            "vpn_client status -net <net name>\n"
-            "vpn_client check -addr <ip addr> -port <port> -net <net name>\n"
-            "vpn_client check result -net <net name> [-H hex|base58(default)]\n"
+    "vpn_client [start -addr <server address> -port <server port>| stop | status] -net <net_name>\n"
+    "vpn_client init -w <wallet_name> -token <token_ticker> -value <value> -net <net_name>\n"
+            "vpn_client stop -net <net_name>\n"
+            "vpn_client status -net <net_name>\n"
+            "vpn_client check -addr <ip addr> -port <port> -net <net_name>\n"
+            "vpn_client check result -net <net_name> [-H hex|base58(default)]\n"
             );
 
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_VPN_ID };

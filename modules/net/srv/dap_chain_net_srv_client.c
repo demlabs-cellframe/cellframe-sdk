@@ -27,6 +27,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_client.h"
 #include "dap_common.h"
+#include "dap_time.h"
 
 #define LOG_TAG "dap_chain_net_srv_client"
 
@@ -41,7 +42,7 @@ dap_chain_net_srv_client_t *dap_chain_net_srv_client_create_n_connect(dap_chain_
 {
     dap_chain_net_srv_client_t *l_ret = DAP_NEW_Z(dap_chain_net_srv_client_t);
     if (a_callbacks)
-        memcpy(&l_ret->callbacks, a_callbacks, sizeof(*a_callbacks));
+        l_ret->callbacks = *a_callbacks;
     l_ret->callbacks_arg = a_callbacks_arg;
     dap_chain_node_client_callbacks_t l_callbacks = {
         .connected = s_srv_client_callback_connected,
@@ -79,7 +80,7 @@ static void s_srv_client_callback_connected(dap_chain_node_client_t *a_node_clie
 {
     log_it(L_INFO, "Service client connected well");
     dap_chain_net_srv_client_t *l_srv_client = (dap_chain_net_srv_client_t *)a_arg;
-    memcpy(&l_srv_client->ch_uuid, &a_node_client->ch_chain_net_srv_uuid, sizeof(l_srv_client->ch_uuid));
+    l_srv_client->ch_uuid = a_node_client->ch_chain_net_srv_uuid;
     l_srv_client->net_client = a_node_client->client;
     if (l_srv_client->callbacks.connected)
         l_srv_client->callbacks.connected(l_srv_client, l_srv_client->callbacks_arg);
@@ -119,9 +120,7 @@ static void s_srv_client_pkt_in(dap_stream_ch_chain_net_srv_t *a_ch_chain, uint8
                                               l_srv_client->callbacks_arg);
             break;
         }
-        struct timeval l_recv_time;
-        gettimeofday(&l_recv_time, NULL);
-        l_response->recv_time1 = l_recv_time;
+        l_response->recv_time1 = dap_gdb_time_now();
         dap_chain_hash_fast_t l_data_hash;
         dap_hash_fast(l_response->data, l_response->data_size, &l_data_hash);
         if (!dap_hash_fast_compare(&l_data_hash, &l_response->data_hash)) {

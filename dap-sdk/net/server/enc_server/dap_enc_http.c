@@ -64,21 +64,26 @@ void enc_http_deinit()
 
 }
 
-static void _enc_http_write_reply(struct dap_http_simple *cl_st,
+static void s_enc_http_write_reply(struct dap_http_simple *cl_st,
                                   const char* encrypt_id,
                                   const char* encrypt_msg)
 {
-    struct json_object *jobj = json_object_new_object();
+struct json_object *jobj;
+size_t  l_len;
+char *json_str;
+
+    jobj = json_object_new_object();
+
     json_object_object_add(jobj, "encrypt_id", json_object_new_string(encrypt_id));
     json_object_object_add(jobj, "encrypt_msg", json_object_new_string(encrypt_msg));
     json_object_object_add(jobj, "dap_protocol_version", json_object_new_int(DAP_PROTOCOL_VERSION));
-    const char* json_str = json_object_to_json_string(jobj);
-    dap_http_simple_reply(cl_st, (void*) json_str,
-                          (size_t) strlen(json_str));
+
+    json_str = (char *) json_object_to_json_string_length(jobj, JSON_C_TO_STRING_PRETTY, &l_len);
+
+    dap_http_simple_reply(cl_st, (void*) json_str, l_len);
+
     json_object_put(jobj);
 }
-
-void dap_enc_http_json_response_format_enable(bool);
 
 void dap_enc_http_set_acl_callback(dap_enc_acl_callback_t a_callback)
 {
@@ -92,87 +97,87 @@ void dap_enc_http_set_acl_callback(dap_enc_acl_callback_t a_callback)
  */
 void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
 {
-    log_it(L_DEBUG,"Proc enc http request");
-    http_status_code_t * return_code = (http_status_code_t*)arg;
+    log_it(L_DEBUG, "[cl_st:%p] Proc enc http request", cl_st);
 
-    if(strcmp(cl_st->http_client->url_path,"gd4y5yh78w42aaagh") == 0 ) {
-        dap_enc_key_type_t l_pkey_exchange_type =DAP_ENC_KEY_TYPE_MSRLN ;
-        dap_enc_key_type_t l_enc_block_type = DAP_ENC_KEY_TYPE_IAES;
-        size_t l_pkey_exchange_size=MSRLN_PKA_BYTES;
-        size_t l_block_key_size=32;
-        dap_sscanf(cl_st->http_client->in_query_string, "enc_type=%d,pkey_exchange_type=%d,pkey_exchange_size=%zu,block_key_size=%zu",
-                                      &l_enc_block_type,&l_pkey_exchange_type,&l_pkey_exchange_size,&l_block_key_size);
+    http_status_code_t * return_code = (http_status_code_t *) arg;
 
-        log_it(L_DEBUG, "Stream encryption: %s\t public key exchange: %s",dap_enc_get_type_name(l_enc_block_type),
-               dap_enc_get_type_name(l_pkey_exchange_type));
-        uint8_t alice_msg[cl_st->request_size];
-        size_t l_decode_len = dap_enc_base64_decode(cl_st->request, cl_st->request_size, alice_msg, DAP_ENC_DATA_TYPE_B64);
-        dap_chain_hash_fast_t l_sign_hash = {};
-        if (l_decode_len < l_pkey_exchange_size) {
-            log_it(L_WARNING, "Wrong http_enc request. Key not equal pkey exchange size %zd", l_pkey_exchange_size);
-            *return_code = Http_Status_BadRequest;
-            return;
-        } else if (l_decode_len > l_pkey_exchange_size+ sizeof (dap_sign_hdr_t)) {
-            dap_sign_t *l_sign = (dap_sign_t *)&alice_msg[l_pkey_exchange_size];
-            if(!dap_sign_verify_size(l_sign, l_decode_len - l_pkey_exchange_size)) {
-                log_it(L_WARNING,"Wrong signature size %u (decoded length %zu)",l_sign->header.sign_size, l_decode_len);
-                *return_code = Http_Status_BadRequest;
-                return;
-            }
-            if (dap_sign_verify(l_sign, alice_msg, l_pkey_exchange_size) != 1) {
-                *return_code = Http_Status_Unauthorized;
-                return;
-            }
-            dap_sign_get_pkey_hash(l_sign, &l_sign_hash);
-        }else if( l_decode_len != l_pkey_exchange_size){
-            log_it(L_WARNING, "Wrong http_enc request. Data after pkey exchange is lesser or equal then signature's header");
-            *return_code = Http_Status_BadRequest;
-            return;
-        }
-
-        dap_enc_key_t* l_pkey_exchange_key = dap_enc_key_new(l_pkey_exchange_type);
-        if(! l_pkey_exchange_key){
-            log_it(L_WARNING, "Wrong http_enc request. Can't init PKey exchange with type %s", dap_enc_get_type_name(l_pkey_exchange_type) );
-            *return_code = Http_Status_BadRequest;
-            return;
-        }
-        if(l_pkey_exchange_key->gen_bob_shared_key) {
-            l_pkey_exchange_key->gen_bob_shared_key(l_pkey_exchange_key, alice_msg, l_pkey_exchange_size,
-                    (void**) &l_pkey_exchange_key->pub_key_data);
-        }
-
-        dap_enc_ks_key_t * l_enc_key_ks = dap_enc_ks_new();
-        if (s_acl_callback) {
-            l_enc_key_ks->acl_list = s_acl_callback(&l_sign_hash);
-        } else {
-            log_it(L_DEBUG, "Callback for ACL is not set, pass anauthorized");
-        }
-
-        char encrypt_msg[DAP_ENC_BASE64_ENCODE_SIZE(l_pkey_exchange_key->pub_key_data_size) + 1];
-        size_t encrypt_msg_size = dap_enc_base64_encode(l_pkey_exchange_key->pub_key_data, l_pkey_exchange_key->pub_key_data_size, encrypt_msg, DAP_ENC_DATA_TYPE_B64);
-        encrypt_msg[encrypt_msg_size] = '\0';
-
-        l_enc_key_ks->key = dap_enc_key_new_generate(l_enc_block_type,
-                                               l_pkey_exchange_key->priv_key_data, // shared key
-                                               l_pkey_exchange_key->priv_key_data_size,
-                                               l_enc_key_ks->id, DAP_ENC_KS_KEY_ID_SIZE, l_block_key_size);
-        dap_enc_ks_save_in_storage(l_enc_key_ks);
-
-        char encrypt_id[DAP_ENC_BASE64_ENCODE_SIZE(DAP_ENC_KS_KEY_ID_SIZE) + 1];
-
-        size_t encrypt_id_size = dap_enc_base64_encode(l_enc_key_ks->id, sizeof (l_enc_key_ks->id), encrypt_id, DAP_ENC_DATA_TYPE_B64);
-        encrypt_id[encrypt_id_size] = '\0';
-
-        _enc_http_write_reply(cl_st, encrypt_id, encrypt_msg);
-
-        dap_enc_key_delete(l_pkey_exchange_key);
-
-        *return_code = Http_Status_OK;
-
-    } else{
-        log_it(L_ERROR,"Wrong path '%s' in the request to enc_http module",cl_st->http_client->url_path);
+    if ( strcmp(cl_st->http_client->url_path, "gd4y5yh78w42aaagh") ) {
+        log_it(L_ERROR,"Wrong path '%s' in the request to enc_http module", cl_st->http_client->url_path);
         *return_code = Http_Status_NotFound;
+        return;
     }
+
+    dap_enc_key_type_t  l_pkey_exchange_type = DAP_ENC_KEY_TYPE_MSRLN,
+                        l_enc_block_type = DAP_ENC_KEY_TYPE_IAES;
+
+    size_t l_pkey_exchange_size = MSRLN_PKA_BYTES;
+    size_t l_block_key_size = 32;
+
+    dap_sscanf(cl_st->http_client->in_query_string, "enc_type=%d,pkey_exchange_type=%d,pkey_exchange_size=%zu,block_key_size=%zu",
+                                  &l_enc_block_type,&l_pkey_exchange_type,&l_pkey_exchange_size,&l_block_key_size);
+
+    log_it(L_DEBUG, "Stream encryption: %s\t public key exchange: %s",dap_enc_get_type_name(l_enc_block_type),
+           dap_enc_get_type_name(l_pkey_exchange_type));
+
+    uint8_t alice_msg[cl_st->request_size];
+    size_t l_decode_len = dap_enc_base64_decode(cl_st->request, cl_st->request_size, alice_msg, DAP_ENC_DATA_TYPE_B64);
+    dap_chain_hash_fast_t l_sign_hash = { };
+
+    if (l_decode_len > l_pkey_exchange_size + sizeof(dap_sign_hdr_t)) {
+        /* Message contains pubkey and serialized sign */
+        dap_sign_t *l_sign = (dap_sign_t *)&alice_msg[l_pkey_exchange_size];
+        size_t l_sign_size = l_decode_len - l_pkey_exchange_size;
+        int l_verify_ret = dap_sign_verify_all(l_sign, l_sign_size, alice_msg, l_pkey_exchange_size);
+        if (l_verify_ret) {
+            log_it(L_ERROR, "Can't authorize, sign verification didn't pass (err %d)", l_verify_ret);
+            *return_code = Http_Status_Unauthorized;
+            return;
+        }
+    } else if (l_decode_len != l_pkey_exchange_size) {
+        /* No sign inside */
+        log_it(L_ERROR, "Wrong message size %zu, without a valid sign must be = %zu", l_decode_len, l_pkey_exchange_size);
+        *return_code = Http_Status_BadRequest;
+        return;
+    }
+
+    dap_enc_key_t* l_pkey_exchange_key = dap_enc_key_new(l_pkey_exchange_type);
+    if(! l_pkey_exchange_key){
+        log_it(L_WARNING, "Wrong http_enc request. Can't init PKey exchange with type %s", dap_enc_get_type_name(l_pkey_exchange_type) );
+        *return_code = Http_Status_BadRequest;
+        return;
+    }
+    if(l_pkey_exchange_key->gen_bob_shared_key) {
+        l_pkey_exchange_key->gen_bob_shared_key(l_pkey_exchange_key, alice_msg, l_pkey_exchange_size,
+                (void**) &l_pkey_exchange_key->pub_key_data);
+    }
+
+    dap_enc_ks_key_t * l_enc_key_ks = dap_enc_ks_new();
+    if (s_acl_callback) {
+        l_enc_key_ks->acl_list = s_acl_callback(&l_sign_hash);
+    } else {
+        log_it(L_DEBUG, "Callback for ACL is not set, pass anauthorized");
+    }
+
+    char encrypt_msg[DAP_ENC_BASE64_ENCODE_SIZE(l_pkey_exchange_key->pub_key_data_size) + 1];
+    size_t encrypt_msg_size = dap_enc_base64_encode(l_pkey_exchange_key->pub_key_data, l_pkey_exchange_key->pub_key_data_size, encrypt_msg, DAP_ENC_DATA_TYPE_B64);
+    encrypt_msg[encrypt_msg_size] = '\0';
+
+    l_enc_key_ks->key = dap_enc_key_new_generate(l_enc_block_type,
+                                           l_pkey_exchange_key->priv_key_data, // shared key
+                                           l_pkey_exchange_key->priv_key_data_size,
+                                           l_enc_key_ks->id, DAP_ENC_KS_KEY_ID_SIZE, l_block_key_size);
+    dap_enc_ks_save_in_storage(l_enc_key_ks);
+
+    char encrypt_id[DAP_ENC_BASE64_ENCODE_SIZE(DAP_ENC_KS_KEY_ID_SIZE) + 1];
+
+    size_t encrypt_id_size = dap_enc_base64_encode(l_enc_key_ks->id, sizeof (l_enc_key_ks->id), encrypt_id, DAP_ENC_DATA_TYPE_B64);
+    encrypt_id[encrypt_id_size] = '\0';
+
+    s_enc_http_write_reply(cl_st, encrypt_id, encrypt_msg);
+
+    dap_enc_key_delete(l_pkey_exchange_key);
+
+    *return_code = Http_Status_OK;
 }
 
 /**
@@ -182,7 +187,7 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
  */
 void enc_http_add_proc(struct dap_http * sh, const char * url)
 {
-    dap_http_simple_proc_add(sh,url,140000,enc_http_proc);
+    dap_http_simple_proc_add(sh,url,140000, enc_http_proc);
 }
 
 /**
@@ -264,13 +269,14 @@ void enc_http_reply_encode(struct dap_http_simple *a_http_simple,enc_http_delega
     if(a_http_delegate->response){
 
         if(a_http_simple->reply)
-            free(a_http_simple->reply);
+            DAP_DEL_Z(a_http_simple->reply);
 
         size_t l_reply_size_max = dap_enc_code_out_size(a_http_delegate->key,
                                                           a_http_delegate->response_size,
                                                           DAP_ENC_DATA_TYPE_RAW);
 
         a_http_simple->reply = DAP_NEW_SIZE(void,l_reply_size_max);
+
         a_http_simple->reply_size = dap_enc_code( a_http_delegate->key,
                                                   a_http_delegate->response, a_http_delegate->response_size,
                                                   a_http_simple->reply, l_reply_size_max,

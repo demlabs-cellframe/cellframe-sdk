@@ -55,9 +55,8 @@
 #include "dap_client_pvt.h"
 
 #define LOG_TAG "dap_stream"
-#define HEADER_WITH_SIZE_FIELD 12  //This count of bytes enough for allocate memory for stream packet
 
-static void s_stream_proc_pkt_in(dap_stream_t * a_stream);
+static bool s_stream_proc_pkt_in(dap_stream_t * a_stream, dap_stream_pkt_t * l_pkt, size_t l_pkt_size);
 
 // Callbacks for HTTP client
 static void s_http_client_headers_read(dap_http_client_t * a_http_client, void * a_arg); // Prepare stream when all headers are read
@@ -86,6 +85,16 @@ static bool s_callback_client_keepalive(void *a_arg);
 
 static bool s_dump_packet_headers = false;
 static bool s_debug = false;
+
+
+#ifdef  DAP_SYS_DEBUG
+enum    {MEMSTAT$K_STM, MEMSTAT$K_NR};
+static  dap_memstat_rec_t   s_memstat [MEMSTAT$K_NR] = {
+    {.fac_len = sizeof(LOG_TAG) - 1, .fac_name = {LOG_TAG}, .alloc_sz = sizeof(dap_stream_t)},
+};
+#endif
+
+
 
 bool dap_stream_get_dump_packet_headers(){ return  s_dump_packet_headers; }
 
@@ -127,6 +136,13 @@ int dap_stream_init(dap_config_t * a_config)
     s_dump_packet_headers = dap_config_get_item_bool_default(g_config,"general","debug_dump_stream_headers",false);
     s_debug = dap_config_get_item_bool_default(g_config,"stream","debug",false);
     log_it(L_NOTICE,"Init streaming module");
+
+#ifdef  DAP_SYS_DEBUG
+    for (int i = 0; i < MEMSTAT$K_NR; i++)
+        dap_memstat_reg(&s_memstat[i]);
+#endif
+
+
 
     return 0;
 }
@@ -197,15 +213,18 @@ void stream_states_update(struct dap_stream *a_stream)
  */
 dap_stream_t * stream_new_udp(dap_events_socket_t * a_esocket)
 {
-    dap_stream_t * ret=(dap_stream_t*) calloc(1,sizeof(dap_stream_t));
+    dap_stream_t * l_stm = DAP_NEW_Z(dap_stream_t);
+    assert(l_stm);
 
-    ret->esocket = a_esocket;
-    ret->buf_defrag_size = 0;
+#ifdef  DAP_SYS_DEBUG
+    s_memstat[MEMSTAT$K_STM].alloc_nr += 1;
+#endif
 
-    a_esocket->_inheritor = ret;
+    l_stm ->esocket = a_esocket;
+    a_esocket->_inheritor = l_stm ;
 
     log_it(L_NOTICE,"New stream instance udp");
-    return ret;
+    return l_stm ;
 }
 
 /**
@@ -263,26 +282,30 @@ void check_session( unsigned int a_id, dap_events_socket_t *a_esocket )
  */
 dap_stream_t *s_stream_new(dap_http_client_t *a_http_client)
 {
-    dap_stream_t *l_ret = DAP_NEW_Z(dap_stream_t);
+    dap_stream_t *l_stm = DAP_NEW_Z(dap_stream_t);
+    assert(l_stm);
 
-    l_ret->esocket = a_http_client->esocket;
-    l_ret->stream_worker = (dap_stream_worker_t *)a_http_client->esocket->worker->_inheritor;
-    l_ret->conn_http = a_http_client;
-    l_ret->buf_defrag_size = 0;
-    l_ret->seq_id = 0;
-    l_ret->client_last_seq_id_packet = (size_t)-1;
+#ifdef  DAP_SYS_DEBUG
+    atomic_fetch_add(&s_memstat[MEMSTAT$K_STM].alloc_nr, 1);
+#endif
+
+    l_stm->esocket = a_http_client->esocket;
+    l_stm->stream_worker = (dap_stream_worker_t *)a_http_client->esocket->worker->_inheritor;
+    l_stm->conn_http = a_http_client;
+    l_stm->seq_id = 0;
+    l_stm->client_last_seq_id_packet = (size_t)-1;
     // Start server keep-alive timer
     dap_events_socket_uuid_t *l_es_uuid = DAP_NEW_Z(dap_events_socket_uuid_t);
-    *l_es_uuid = l_ret->esocket->uuid;
-    l_ret->keepalive_timer = dap_timerfd_start_on_worker(l_ret->esocket->worker,
+    *l_es_uuid = l_stm->esocket->uuid;
+    l_stm->keepalive_timer = dap_timerfd_start_on_worker(l_stm->esocket->worker,
                                                          STREAM_KEEPALIVE_TIMEOUT * 1000,
                                                          (dap_timerfd_callback_t)s_callback_server_keepalive,
                                                          l_es_uuid);
-    l_ret->esocket->callbacks.worker_assign_callback = s_esocket_callback_worker_assign;
-    l_ret->esocket->callbacks.worker_unassign_callback = s_esocket_callback_worker_unassign;
-    a_http_client->_inheritor = l_ret;
+    l_stm->esocket->callbacks.worker_assign_callback = s_esocket_callback_worker_assign;
+    l_stm->esocket->callbacks.worker_unassign_callback = s_esocket_callback_worker_unassign;
+    a_http_client->_inheritor = l_stm;
     log_it(L_NOTICE,"New stream instance");
-    return l_ret;
+    return l_stm;
 }
 
 /**
@@ -292,13 +315,20 @@ dap_stream_t *s_stream_new(dap_http_client_t *a_http_client)
  */
 dap_stream_t* dap_stream_new_es_client(dap_events_socket_t * a_esocket)
 {
-    dap_stream_t *l_ret = DAP_NEW_Z(dap_stream_t);
-    l_ret->esocket = a_esocket;
-    l_ret->esocket_uuid = a_esocket->uuid;
-    l_ret->is_client_to_uplink = true;
-    l_ret->esocket->callbacks.worker_assign_callback = s_client_callback_worker_assign;
-    l_ret->esocket->callbacks.worker_unassign_callback = s_client_callback_worker_unassign;
-    return l_ret;
+    dap_stream_t *l_stm = DAP_NEW_Z(dap_stream_t);
+    assert(l_stm);
+
+#ifdef  DAP_SYS_DEBUG
+    atomic_fetch_add(&s_memstat[MEMSTAT$K_STM].alloc_nr, 1);
+#endif
+
+
+    l_stm->esocket = a_esocket;
+    l_stm->esocket_uuid = a_esocket->uuid;
+    l_stm->is_client_to_uplink = true;
+    l_stm->esocket->callbacks.worker_assign_callback = s_client_callback_worker_assign;
+    l_stm->esocket->callbacks.worker_unassign_callback = s_client_callback_worker_unassign;
+    return l_stm;
 }
 
 /**
@@ -318,10 +348,17 @@ void dap_stream_delete(dap_stream_t *a_stream)
 
     if(a_stream->session)
         dap_stream_session_close_mt(a_stream->session->id); // TODO make stream close after timeout, not momentaly
-    a_stream->session = NULL;
-    a_stream->esocket = NULL;
+
+
+    DAP_DELETE(a_stream->buf_fragments);
     DAP_DELETE(a_stream);
-    log_it(L_NOTICE,"Stream connection is over");
+
+#ifdef  DAP_SYS_DEBUG
+    atomic_fetch_add(&s_memstat[MEMSTAT$K_STM].free_nr, 1);
+#endif
+
+    log_it(L_NOTICE, "[stm:%p] Stream connection is over", a_stream);
+
 }
 
 /**
@@ -335,9 +372,11 @@ static void s_esocket_callback_delete(dap_events_socket_t* a_esocket, void * a_a
     assert (a_esocket);
 
     dap_http_client_t *l_http_client = DAP_HTTP_CLIENT(a_esocket);
-    dap_stream_t *l_stream = DAP_STREAM(l_http_client);
+    dap_stream_t *l_stm = DAP_STREAM(l_http_client);
+
+
     l_http_client->_inheritor = NULL; // To prevent double free
-    dap_stream_delete(l_stream);
+    dap_stream_delete(l_stm);
 }
 
 /**
@@ -349,22 +388,19 @@ void s_http_client_headers_read(dap_http_client_t * a_http_client, void * a_arg)
 {
     (void) a_arg;
 
-   // char * raw=0;
-   // int raw_size;
     unsigned int id=0;
 
-    //log_it(L_DEBUG,"Prepare data stream");
     if(a_http_client->in_query_string[0]){
-        log_it(L_INFO,"Query string [%s]",a_http_client->in_query_string);
-//        if(sscanf(cl_ht->in_query_string,"fj913htmdgaq-d9hf=%u",&id)==1){
+        log_it(L_INFO, "[es:%p] Query string [%s]", a_http_client->esocket, a_http_client->in_query_string);
+
         if(sscanf(a_http_client->in_query_string,"session_id=%u",&id) == 1 ||
                 sscanf(a_http_client->in_query_string,"fj913htmdgaq-d9hf=%u",&id) == 1) {
-            dap_stream_session_t * ss=NULL;
-            ss=dap_stream_session_id_mt(id);
-            if(ss==NULL){
-                log_it(L_ERROR,"No session id %u was found",id);
-                a_http_client->reply_status_code=404;
-                strcpy(a_http_client->reply_reason_phrase,"Not found");
+
+            dap_stream_session_t * ss = NULL;
+            if ( !(ss = dap_stream_session_id_mt(id)) ) {
+                log_it(L_ERROR,"No session id %u was found", id);
+                a_http_client->reply_status_code = 404;
+                strcpy(a_http_client->reply_reason_phrase, "Not found");
             }else{
                 log_it(L_INFO,"Session id %u was found with channels = %s",id,ss->active_channels);
                 if(dap_stream_session_open(ss)==0){ // Create new stream
@@ -377,26 +413,25 @@ void s_http_client_headers_read(dap_http_client_t * a_http_client, void * a_arg)
                     for(size_t i = 0; i < count_channels; i++) {
                         dap_stream_ch_t * l_ch = dap_stream_ch_new(sid, ss->active_channels[i]);
                         l_ch->ready_to_read = true;
-                        //sid->channel[i]->ready_to_write = true;
                     }
 
-                    a_http_client->reply_status_code=200;
-                    strcpy(a_http_client->reply_reason_phrase,"OK");
+                    a_http_client->reply_status_code = 200;
+                    strcpy(a_http_client->reply_reason_phrase, "OK");
                     stream_states_update(sid);
-                    a_http_client->state_read=DAP_HTTP_CLIENT_STATE_DATA;
-                    a_http_client->state_write=DAP_HTTP_CLIENT_STATE_START;
-                    dap_events_socket_set_readable_unsafe(a_http_client->esocket,true);
-                    dap_events_socket_set_writable_unsafe(a_http_client->esocket,true); // Dirty hack, because previous function shouldn't
+                    a_http_client->state_read = DAP_HTTP_CLIENT_STATE_DATA;
+                    a_http_client->state_write = DAP_HTTP_CLIENT_STATE_START;
+                    dap_events_socket_set_readable_unsafe(a_http_client->esocket, true);
+                    dap_events_socket_set_writable_unsafe(a_http_client->esocket, true); // Dirty hack, because previous function shouldn't
                     //                                                                    // set write flag off but it does!
                 }else{
-                    log_it(L_ERROR,"Can't open session id %u",id);
-                    a_http_client->reply_status_code=404;
-                    strcpy(a_http_client->reply_reason_phrase,"Not found");
+                    log_it(L_ERROR, "[es:%p] Can't open session id %u", a_http_client->esocket, id);
+                    a_http_client->reply_status_code = 404;
+                    strcpy(a_http_client->reply_reason_phrase, "Not found");
                 }
             }
         }
     }else{
-        log_it(L_ERROR,"No query string");
+        log_it(L_ERROR, "No query string");
     }
 }
 
@@ -407,19 +442,19 @@ void s_http_client_headers_read(dap_http_client_t * a_http_client, void * a_arg)
  */
 static void s_http_client_headers_write(dap_http_client_t * a_http_client, void *a_arg)
 {
-    (void) a_arg;
-    //log_it(L_DEBUG,"s_http_client_headers_write()");
+UNUSED(a_arg);
+
     if(a_http_client->reply_status_code==200){
-        dap_stream_t *l_stream=DAP_STREAM(a_http_client);
+        dap_stream_t *l_stream = DAP_STREAM(a_http_client);
 
-        dap_http_out_header_add(a_http_client,"Content-Type","application/octet-stream");
-        dap_http_out_header_add(a_http_client,"Connection","keep-alive");
-        dap_http_out_header_add(a_http_client,"Cache-Control","no-cache");
+        dap_http_header_add(&a_http_client->out_headers, "Content-Type",-1, "application/octet-stream", -1);
+        dap_http_header_add(&a_http_client->out_headers, "Connection", -1, "keep-alive", -1);
+        dap_http_header_add(&a_http_client->out_headers, "Cache-Control", -1, "no-cache", -1);
 
-        if(l_stream->stream_size>0)
-            dap_http_out_header_add_f(a_http_client,"Content-Length","%u", (unsigned int) l_stream->stream_size );
+        if(l_stream->stream_size > 0)
+            dap_http_out_header_add_f(a_http_client, "Content-Length", "%u", (unsigned int) l_stream->stream_size );
 
-        a_http_client->state_read=DAP_HTTP_CLIENT_STATE_DATA;
+        a_http_client->state_read  = DAP_HTTP_CLIENT_STATE_DATA;
         dap_events_socket_set_readable_unsafe(a_http_client->esocket,true);
     }
 }
@@ -518,11 +553,8 @@ static void s_esocket_data_read(dap_events_socket_t* a_client, void * a_arg)
     dap_http_client_t *l_http_client = DAP_HTTP_CLIENT(a_client);
     dap_stream_t * l_stream =DAP_STREAM(l_http_client);
     int * l_ret = (int *) a_arg;
-
-    if (s_dump_packet_headers ) {
-        log_it(L_DEBUG,"dap_stream_data_read: ready_to_write=%s, client->buf_in_size=%zu" ,
-               (a_client->flags & DAP_SOCK_READY_TO_WRITE)?"true":"false", a_client->buf_in_size );
-    }
+    debug_if(s_dump_packet_headers, L_DEBUG,"dap_stream_data_read: ready_to_write=%s, client->buf_in_size=%zu" ,
+             (a_client->flags & DAP_SOCK_READY_TO_WRITE)?"true":"false", a_client->buf_in_size );
     *l_ret = dap_stream_data_proc_read( l_stream);
 }
 
@@ -547,10 +579,8 @@ static void s_esocket_write(dap_events_socket_t* a_esocket , void * a_arg){
             l_ready_to_write|=ch->ready_to_write;
         }
     }
-    if (s_dump_packet_headers ) {
-        log_it(L_DEBUG,"dap_stream_data_write: ready_to_write=%s client->buf_out_size=%zu" ,
-               l_ready_to_write?"true":"false", a_esocket->buf_out_size );
-    }
+    debug_if(s_dump_packet_headers, L_DEBUG,"dap_stream_data_write: ready_to_write=%s client->buf_out_size=%zu" ,
+             l_ready_to_write?"true":"false", a_esocket->buf_out_size );
     dap_events_socket_set_writable_unsafe(a_esocket, l_ready_to_write);
     //log_it(L_DEBUG,"stream_dap_data_write ok");
 }
@@ -604,220 +634,183 @@ void dap_stream_set_ready_to_write(dap_stream_t * a_stream,bool a_is_ready)
  */
 size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
 {
-    bool found_sig=false;
-    dap_stream_pkt_t * pkt=NULL;
-
-    if (!a_stream || !a_stream->esocket)
+    dap_stream_pkt_t *l_pkt = NULL;
+    if(!a_stream || !a_stream->esocket)
         return 0;
 
-    char *l_buf_in = (char*)a_stream->esocket->buf_in ;
-    size_t buf_in_size = a_stream->esocket->buf_in_size ;
-    byte_t *proc_data = (byte_t *)l_buf_in;//a_stream->conn->buf_in;
-    bool proc_data_defrag=false; // We are or not in defrag buffer
-    size_t read_bytes_to=0;
-    size_t bytes_left_to_read = buf_in_size;//a_stream->conn->buf_in_size;
-    // Process prebuffered packets or glue defragmented data with the current input
+    byte_t *l_buf_in = a_stream->esocket->buf_in;
+    size_t l_buf_in_size = a_stream->esocket->buf_in_size;
 
-    pkt = a_stream->pkt_buf_in;
+    // Save the received data to stream memory
+    if(!a_stream->pkt_buf_in)
+    {
+        a_stream->pkt_buf_in = DAP_NEW_SIZE(struct dap_stream_pkt, l_buf_in_size);
+        a_stream->pkt_buf_in_data_size = l_buf_in_size;
+        memcpy(a_stream->pkt_buf_in, l_buf_in, l_buf_in_size);
+    }
+    else {
+        debug_if(s_dump_packet_headers, L_DEBUG, "dap_stream_data_proc_read() Receive previously unprocessed data %zu bytes + new %zu bytes", a_stream->pkt_buf_in_data_size, l_buf_in_size);
+        // The current data is added to rest of the previous package
+        byte_t *l_tmp = DAP_NEW_SIZE(byte_t, a_stream->pkt_buf_in_data_size + l_buf_in_size);
+        memcpy(l_tmp, a_stream->pkt_buf_in, a_stream->pkt_buf_in_data_size);
+        memcpy(l_tmp + a_stream->pkt_buf_in_data_size, l_buf_in, l_buf_in_size);
+        DAP_DELETE(a_stream->pkt_buf_in);
+        a_stream->pkt_buf_in = (dap_stream_pkt_t*) l_tmp;
+        // Increase the size of pkt_buf_in
+        a_stream->pkt_buf_in_data_size += l_buf_in_size;
+    }
+    // Switch to stream memory
+    l_buf_in = (byte_t*) a_stream->pkt_buf_in;
+    l_buf_in_size = a_stream->pkt_buf_in_data_size;
+    size_t l_buf_in_left = l_buf_in_size;
 
-    if ( pkt ) { // Packet signature detected
-        if(a_stream->pkt_buf_in_data_size < sizeof(dap_stream_pkt_hdr_t))
-        {
-            //At first read header
-            dap_stream_pkt_t* check_pkt = dap_stream_pkt_detect( proc_data , sizeof(dap_stream_pkt_hdr_t) - a_stream->pkt_buf_in_data_size);
-            if(check_pkt){
-                // Got duplication of packet header several times
-                log_it(L_DEBUG, "Drop incorrect header part");
-                a_stream->pkt_buf_in = NULL;
-                a_stream->pkt_buf_in_data_size=0;
-                return 0;
+    if(l_buf_in_left >= sizeof(dap_stream_pkt_hdr_t)) {
+        // Now lets see how many packets we have in buffer now
+        while(l_buf_in_left > 0 && (l_pkt = dap_stream_pkt_detect(l_buf_in, l_buf_in_left))) { // Packet signature detected
+            if(l_pkt->hdr.size > DAP_STREAM_PKT_SIZE_MAX) {
+                log_it(L_ERROR, "dap_stream_data_proc_read() Too big packet size %u, drop %zu bytes", l_pkt->hdr.size, l_buf_in_left);
+                // Skip this packet
+                l_buf_in_left = 0;
+                break;
             }
-            if(sizeof(dap_stream_pkt_hdr_t) - a_stream->pkt_buf_in_data_size > bytes_left_to_read)
-                read_bytes_to = bytes_left_to_read;
-            else
-                read_bytes_to = sizeof(dap_stream_pkt_hdr_t) - a_stream->pkt_buf_in_data_size;
-            memcpy((uint8_t*)a_stream->pkt_buf_in+a_stream->pkt_buf_in_data_size,proc_data,read_bytes_to);
-            bytes_left_to_read-=read_bytes_to;
-            a_stream->pkt_buf_in_data_size += read_bytes_to;
-            proc_data += read_bytes_to;
-            read_bytes_to = 0;
-        }
 
-        if  ((pkt->hdr.size + sizeof(dap_stream_pkt_hdr_t) -a_stream->pkt_buf_in_data_size) < bytes_left_to_read ) { // Looks the all packet is present in buffer
-            read_bytes_to=(a_stream->pkt_buf_in->hdr.size + sizeof(dap_stream_pkt_hdr_t) -a_stream->pkt_buf_in_data_size);
-        }else{
-            read_bytes_to=bytes_left_to_read;
-        }
-        if (a_stream->pkt_buf_in_data_size + read_bytes_to > a_stream->pkt_buf_in_size_expected) {
-            a_stream->pkt_buf_in_size_expected = a_stream->pkt_buf_in_data_size + read_bytes_to;
-            a_stream->pkt_buf_in = (dap_stream_pkt_t *)DAP_REALLOC(a_stream->pkt_buf_in, a_stream->pkt_buf_in_size_expected);
-        }
-        memcpy((uint8_t*)a_stream->pkt_buf_in+a_stream->pkt_buf_in_data_size,proc_data,read_bytes_to);
-        a_stream->pkt_buf_in_data_size+=read_bytes_to;
-        bytes_left_to_read-=read_bytes_to;
-        //log_it(L_DEBUG, "Prefilled packet buffer on %u bytes", read_bytes_to);
-        read_bytes_to=0;
-        if(a_stream->pkt_buf_in_data_size>=(a_stream->pkt_buf_in->hdr.size + sizeof(dap_stream_pkt_hdr_t)) ){ // If we have all the packet in packet buffer
-            if(a_stream->pkt_buf_in_data_size > a_stream->pkt_buf_in->hdr.size + sizeof(dap_stream_pkt_hdr_t)){ // If we have little more data then we need for packet buffer
-                log_it(L_WARNING,"Prefilled packet buffer has %zu bytes more than we need, it's lost",a_stream->pkt_buf_in_data_size-a_stream->pkt_buf_in->hdr.size);
-                DAP_DEL_Z(a_stream->pkt_buf_in);
-                a_stream->pkt_buf_in_data_size = 0;
-            }
-            else{
-                s_stream_proc_pkt_in(a_stream);
-            }
-        }
-        proc_data = (uint8_t *)(l_buf_in + buf_in_size - bytes_left_to_read);//proc_data=(a_stream->conn->buf_in + a_stream->conn->buf_in_size - bytes_left_to_read);
+            size_t l_pkt_offset = (((uint8_t*) l_pkt) - l_buf_in);
+            l_buf_in += l_pkt_offset;
+            l_buf_in_left -= l_pkt_offset;
 
-    }else if( a_stream->buf_defrag_size>0){ // If smth is present in defrag buffer - we glue everything together in it
-        if( bytes_left_to_read  > 0){ // If there is smth to process in input buffer
-            read_bytes_to=bytes_left_to_read;
-            if( (read_bytes_to + a_stream->buf_defrag_size) > sizeof(a_stream->buf_defrag)   ){
-                //log_it(L_WARNING,"Defrag buffer is overfilled, drop that" );
-                if(read_bytes_to>sizeof(a_stream->buf_defrag))
-                    read_bytes_to=sizeof(a_stream->buf_defrag);
-                a_stream->buf_defrag_size=0;
-            }
-            //log_it(L_DEBUG,"Glue together defrag %u bytes and current %u bytes", a_stream->buf_defrag_size, read_bytes_to);
-            memcpy(a_stream->buf_defrag+a_stream->buf_defrag_size,proc_data,read_bytes_to );
-            bytes_left_to_read=a_stream->buf_defrag_size+read_bytes_to; // Then we have to read em all
-            read_bytes_to=0;
-        }else{
-            bytes_left_to_read=a_stream->buf_defrag_size;
-            //log_it(L_DEBUG,"Nothing to glue with defrag buffer, going to process just that (%u bytes)", bytes_left_to_read);
-        }
-        //log_it(L_WARNING,"Switch to defrag buffer");
-        proc_data=a_stream->buf_defrag;
-        proc_data_defrag=true;
-    }//else
-     //   log_it(DEBUG,"No prefill or defrag buffer, process directly buf_in");
-    // Now lets see how many packets we have in buffer now
-    while ( (pkt = dap_stream_pkt_detect( proc_data , bytes_left_to_read)) ){
-        if(pkt->hdr.size > DAP_STREAM_PKT_SIZE_MAX ){
-            //log_it(L_ERROR, "stream_pkt_detect() Too big packet size %u",
-            //       pkt->hdr.size);
-            bytes_left_to_read=0;
-            break;
-        }
+            size_t l_pkt_size = l_pkt->hdr.size + sizeof(dap_stream_pkt_hdr_t);
 
-        size_t pkt_offset=( ((uint8_t*)pkt)- proc_data );
-        bytes_left_to_read -= pkt_offset ;
-        found_sig=true;
+            //log_it(L_DEBUG, "read packet offset=%zu size=%zu buf_in_left=%zu)",l_pkt_offset, l_pkt_size, l_buf_in_left);
 
-        //dap_stream_pkt_t *temp_pkt = dap_stream_pkt_detect( (uint8_t*)pkt + 1 ,pkt->hdr.size+sizeof(stream_pkt_hdr_t) );
-        size_t l_pkt_size = pkt->hdr.size + sizeof(dap_stream_pkt_hdr_t);
-        if(bytes_left_to_read >= sizeof (dap_stream_pkt_t)){
-            if (bytes_left_to_read < l_pkt_size) { // Is all the packet in da buf?
-                read_bytes_to=bytes_left_to_read;
-            }else{
-                read_bytes_to = l_pkt_size;
+            // Got the whole package
+            if(l_buf_in_left >= l_pkt_size) {
+                // Process data
+                s_stream_proc_pkt_in(a_stream, (dap_stream_pkt_t*) l_pkt, l_pkt_size);
+                // Go to the next data
+                l_buf_in += l_pkt_size;
+                l_buf_in_left -= l_pkt_size;
+            } else {
+                debug_if(s_dump_packet_headers,L_DEBUG, "Input: Not all stream packet in input (pkt_size=%zu buf_in_left=%zu)", l_pkt_size, l_buf_in_left);
+                break;
             }
-        }
-
-        //log_it(L_DEBUG, "Detected packet signature pkt->hdr.size=%u read_bytes_to=%u bytes_left_to_read=%u pkt_offset=%u"
-        //      ,pkt->hdr.size, read_bytes_to, bytes_left_to_read,pkt_offset);
-        if(read_bytes_to > HEADER_WITH_SIZE_FIELD){ // If we have size field, we can allocate memory
-            a_stream->pkt_buf_in_size_expected = l_pkt_size;
-            a_stream->pkt_buf_in = DAP_NEW_SIZE(struct dap_stream_pkt, l_pkt_size);
-            if (read_bytes_to > l_pkt_size) {
-                //log_it(L_WARNING,"For some strange reasons we have read_bytes_to=%u is bigger than expected pkt length(%u bytes). Dropped %u bytes",
-                //       pkt->hdr.size+sizeof(stream_pkt_hdr_t),read_bytes_to- pkt->hdr.size+sizeof(stream_pkt_hdr_t));
-                read_bytes_to = l_pkt_size;
-            }
-            if(read_bytes_to>bytes_left_to_read){
-                //log_it(L_WARNING,"For some strange reasons we have read_bytes_to=%u is bigger that's left in input buffer (%u bytes). Dropped %u bytes",
-                //       read_bytes_to,bytes_left_to_read);
-                read_bytes_to=bytes_left_to_read;
-            }
-            memcpy(a_stream->pkt_buf_in,pkt,read_bytes_to);
-            proc_data+=(read_bytes_to + pkt_offset);
-            bytes_left_to_read-=read_bytes_to;
-            a_stream->pkt_buf_in_data_size=(read_bytes_to);
-            if(a_stream->pkt_buf_in_data_size==l_pkt_size){
-            //    log_it(INFO,"All the packet is present in da buffer (hdr.size=%u read_bytes_to=%u buf_in_size=%u)"
-            //           ,sid->pkt_buf_in->hdr.size,read_bytes_to,sid->conn->buf_in_size);
-                s_stream_proc_pkt_in(a_stream);
-            }else if(a_stream->pkt_buf_in_data_size>l_pkt_size){
-                //log_it(L_WARNING,"Input: packet buffer has %u bytes more than we need, they're lost",a_stream->pkt_buf_in_data_size-pkt->hdr.size);
-            }else{
-                //log_it(L_DEBUG,"Input: Not all stream packet in input (hdr.size=%u read_bytes_to=%u)",a_stream->pkt_buf_in->hdr.size,read_bytes_to);
-            }
-        }else{
-            break;
         }
     }
-    /*if(!found_sig){
-        log_it(L_DEBUG,"Input: Not found signature in the incomming data ( client->buf_in_size = %u   *ret = %u )",
-               sh->client->buf_in_size, *ret);
-    }*/
-    if(bytes_left_to_read>0){
-        if(proc_data_defrag){
-            memmove(a_stream->buf_defrag, proc_data, bytes_left_to_read);
-            a_stream->buf_defrag_size=bytes_left_to_read;
-            //log_it(L_INFO,"Fragment of %u bytes shifted in the begining the defrag buffer",bytes_left_to_read);
-        }else{
-            memcpy(a_stream->buf_defrag, proc_data, bytes_left_to_read);
-            a_stream->buf_defrag_size=bytes_left_to_read;
-            //log_it(L_INFO,"Fragment of %u bytes stored in defrag buffer",bytes_left_to_read);
+
+    if(l_buf_in_left > 0) {
+        // Save the received data to stream memory for the next piece of data
+        if(!l_pkt) {
+            // pkt header not found, maybe l_buf_in_left is too small to detect pkt header, will do that next time
+            l_pkt = (dap_stream_pkt_t*) l_buf_in;
+            debug_if(s_dump_packet_headers, L_DEBUG, "dap_stream_data_proc_read() left unprocessed data %zu bytes, l_pkt=0", l_buf_in_left);
         }
-    }else if(proc_data_defrag){
-        a_stream->buf_defrag_size=0;
+        if(l_pkt) {
+            a_stream->pkt_buf_in_data_size = l_buf_in_left;
+            if(l_pkt != a_stream->pkt_buf_in){
+                memmove(a_stream->pkt_buf_in, l_pkt, a_stream->pkt_buf_in_data_size);
+                //log_it(L_DEBUG, "dap_stream_data_proc_read() l_pkt=%zu != a_stream->pkt_buf_in=%zu", l_pkt, a_stream->pkt_buf_in);
+            }
+
+            debug_if(s_dump_packet_headers,L_DEBUG, "dap_stream_data_proc_read() left unprocessed data %zu bytes", l_buf_in_left);
+        }
+        else {
+            log_it(L_ERROR, "dap_stream_data_proc_read() pkt header not found, drop %zu bytes", l_buf_in_left);
+            DAP_DEL_Z(a_stream->pkt_buf_in);
+            a_stream->pkt_buf_in_data_size = 0;
+        }
+    }
+    else {
+        DAP_DEL_Z(a_stream->pkt_buf_in);
+        a_stream->pkt_buf_in_data_size = 0;
     }
 
-    return buf_in_size;//a_stream->conn->buf_in_size;
+    return a_stream->esocket->buf_in_size; //a_stream->conn->buf_in_size;
 }
 
 /**
  * @brief stream_proc_pkt_in
  * @param sid
  */
-static void s_stream_proc_pkt_in(dap_stream_t * a_stream)
+static bool s_stream_proc_pkt_in(dap_stream_t *a_stream, dap_stream_pkt_t *l_pkt, size_t l_pkt_size)
 {
+    bool l_is_clean_fragments = false;
     a_stream->is_active = true;
-    dap_stream_pkt_t * l_pkt = a_stream->pkt_buf_in;
-    size_t l_pkt_size = a_stream->pkt_buf_in_data_size;
-    a_stream->pkt_buf_in=NULL;
-    a_stream->pkt_buf_in_data_size=0;
+    //dap_stream_pkt_t * l_pkt = a_stream->pkt_buf_in;
+    //size_t l_pkt_size = a_stream->pkt_buf_in_data_size;
 
     switch (l_pkt->hdr.type) {
+    case STREAM_PKT_TYPE_FRAGMENT_PACKET: {
+        dap_stream_fragment_pkt_t *l_fragm_pkt = (dap_stream_fragment_pkt_t*) a_stream->pkt_cache;
+        size_t l_dec_pkt_size = dap_stream_pkt_read_unsafe(a_stream, l_pkt, l_fragm_pkt, sizeof(a_stream->pkt_cache));
+
+        if(l_dec_pkt_size == 0) {
+            debug_if(s_dump_packet_headers, L_WARNING, "Input: can't decode packet size = %zu", l_pkt_size);
+            l_is_clean_fragments = true;
+            break;
+        }
+        if(l_dec_pkt_size != l_fragm_pkt->size + sizeof(dap_stream_fragment_pkt_t)) {
+            debug_if(s_dump_packet_headers, L_WARNING, "Input: decoded packet has bad size = %zu, decoded size = %zu", l_fragm_pkt->size + sizeof(dap_stream_fragment_pkt_t), l_dec_pkt_size);
+            l_is_clean_fragments = true;
+            break;
+        }
+
+        if(a_stream->buf_fragments_size_filled != l_fragm_pkt->mem_shift) {
+            debug_if(s_dump_packet_headers, L_WARNING, "Input: wrong fragment position %u, have to be %zu. Drop packet", l_fragm_pkt->mem_shift, a_stream->buf_fragments_size_filled);
+            l_is_clean_fragments = true;
+            break;
+        } else {
+            if(!a_stream->buf_fragments || a_stream->buf_fragments_size_total < l_fragm_pkt->full_size) {
+                DAP_DELETE(a_stream->buf_fragments);
+                a_stream->buf_fragments = DAP_NEW_SIZE(uint8_t, l_fragm_pkt->full_size);
+                a_stream->buf_fragments_size_total = l_fragm_pkt->full_size;
+            }
+            memcpy(a_stream->buf_fragments + l_fragm_pkt->mem_shift, l_fragm_pkt->data, l_fragm_pkt->size);
+            a_stream->buf_fragments_size_filled += l_fragm_pkt->size;
+        }
+
+        // Not last fragment, otherwise go to parsing STREAM_PKT_TYPE_DATA_PACKET
+        if(a_stream->buf_fragments_size_filled < l_fragm_pkt->full_size) {
+            break;
+        }
+        // All fragments collected, move forward
+    }
     case STREAM_PKT_TYPE_DATA_PACKET: {
-        dap_stream_ch_pkt_t * l_ch_pkt = (dap_stream_ch_pkt_t *) a_stream->pkt_cache;
+        dap_stream_ch_pkt_t *l_ch_pkt = l_pkt->hdr.type == STREAM_PKT_TYPE_FRAGMENT_PACKET
+                ? (dap_stream_ch_pkt_t*)a_stream->buf_fragments
+                : (dap_stream_ch_pkt_t*)a_stream->pkt_cache;
+        size_t l_dec_pkt_size = l_pkt->hdr.type == STREAM_PKT_TYPE_FRAGMENT_PACKET
+                ? a_stream->buf_fragments_size_total
+                : dap_stream_pkt_read_unsafe(a_stream, l_pkt, l_ch_pkt, sizeof(a_stream->pkt_cache));
 
-        size_t l_dec_pkt_size = dap_stream_pkt_read_unsafe(a_stream, l_pkt, l_ch_pkt, sizeof(a_stream->pkt_cache));
-        if (l_dec_pkt_size == 0) {
-            log_it(L_WARNING, "Input: can't decode packet size = %zu", l_pkt_size);
-            DAP_DELETE(l_pkt);
-            return;
-        }
         if (l_dec_pkt_size != l_ch_pkt->hdr.size + sizeof(l_ch_pkt->hdr)) {
-            log_it(L_WARNING, "Input: decoded packet has bad size = %u, decoded size = %zu", l_ch_pkt->hdr.size, l_dec_pkt_size);
-            DAP_DELETE(l_pkt);
-            return;
+            log_it(L_WARNING, "Input: decoded packet has bad size = %zu, decoded size = %zu", l_ch_pkt->hdr.size + sizeof(l_ch_pkt->hdr), l_dec_pkt_size);
+            l_is_clean_fragments = true;
+            break;
         }
 
-        s_detect_loose_packet(a_stream);
-
-        // Find channel
-        dap_stream_ch_t * l_ch = NULL;
-        for(size_t i=0;i<a_stream->channel_count;i++){
-            if(a_stream->channel[i]->proc){
-                if(a_stream->channel[i]->proc->id == l_ch_pkt->hdr.id ){
-                    l_ch=a_stream->channel[i];
+        // If seq_id is less than previous - doomp eet
+        if (!s_detect_loose_packet(a_stream)) {
+            dap_stream_ch_t * l_ch = NULL;
+            for(size_t i=0;i<a_stream->channel_count;i++){
+                if(a_stream->channel[i]->proc){
+                    if(a_stream->channel[i]->proc->id == l_ch_pkt->hdr.id ){
+                        l_ch=a_stream->channel[i];
+                    }
                 }
+            }
+            if(l_ch) {
+                l_ch->stat.bytes_read += l_ch_pkt->hdr.size;
+                if(l_ch->proc && l_ch->proc->packet_in_callback) {
+                    debug_if(s_dump_packet_headers, L_INFO, "Income channel packet: id='%c' size=%u type=0x%02X seq_id=0x%016"DAP_UINT64_FORMAT_X" enc_type=0x%02X", (char ) l_ch_pkt->hdr.id,
+                             l_ch_pkt->hdr.size, l_ch_pkt->hdr.type, l_ch_pkt->hdr.seq_id, l_ch_pkt->hdr.enc_type);
+                    l_ch->proc->packet_in_callback(l_ch, l_ch_pkt);
+                }
+            } else{
+                log_it(L_WARNING, "Input: unprocessed channel packet id '%c'",(char) l_ch_pkt->hdr.id );
             }
         }
-
-        if(l_ch){
-            l_ch->stat.bytes_read+=l_ch_pkt->hdr.size;
-            if(l_ch->proc && l_ch->proc->packet_in_callback){
-                if ( s_dump_packet_headers ){
-                    log_it(L_INFO,"Income channel packet: id='%c' size=%u type=0x%02X seq_id=0x%016"DAP_UINT64_FORMAT_X" enc_type=0x%02X",(char) l_ch_pkt->hdr.id,
-                        l_ch_pkt->hdr.size, l_ch_pkt->hdr.type, l_ch_pkt->hdr.seq_id , l_ch_pkt->hdr.enc_type);
-                }
-                l_ch->proc->packet_in_callback(l_ch,l_ch_pkt);
-            }
-        } else{
-            log_it(L_WARNING, "Input: unprocessed channel packet id '%c'",(char) l_ch_pkt->hdr.id );
+        // packet already defragmented
+        if(l_pkt->hdr.type == STREAM_PKT_TYPE_FRAGMENT_PACKET) {
+            l_is_clean_fragments = true;
         }
     } break;
     case STREAM_PKT_TYPE_SERVICE_PACKET: {
@@ -845,8 +838,13 @@ static void s_stream_proc_pkt_in(dap_stream_t * a_stream)
     default:
         log_it(L_WARNING, "Unknown header type");
     }
-
-    DAP_DELETE(l_pkt);
+    // Clean memory
+    if(l_is_clean_fragments) {
+        DAP_DEL_Z(a_stream->buf_fragments);
+        a_stream->buf_fragments_size_total = 0;
+        a_stream->buf_fragments_size_filled = 0;
+    }
+    return true;
 }
 
 /**
@@ -854,28 +852,25 @@ static void s_stream_proc_pkt_in(dap_stream_t * a_stream)
  * @param a_stream
  * @return
  */
-static bool s_detect_loose_packet(dap_stream_t * a_stream)
-{
-    dap_stream_ch_pkt_t * l_ch_pkt = (dap_stream_ch_pkt_t *) a_stream->pkt_cache;
+static bool s_detect_loose_packet(dap_stream_t * a_stream) {
+    dap_stream_ch_pkt_t *l_ch_pkt = a_stream->buf_fragments_size_filled
+            ? (dap_stream_ch_pkt_t*)a_stream->buf_fragments
+            : (dap_stream_ch_pkt_t*)a_stream->pkt_cache;
 
-    int l_count_loosed_packets = l_ch_pkt->hdr.seq_id - (a_stream->client_last_seq_id_packet + 1);
-    if(l_count_loosed_packets > 0)
-    {
-        log_it(L_WARNING, "Detected loosed %d packets. "
-                          "Last read seq_id packet: %zu Current: %"DAP_UINT64_FORMAT_U, l_count_loosed_packets,
-               a_stream->client_last_seq_id_packet, l_ch_pkt->hdr.seq_id);
-    } else if(l_count_loosed_packets < 0) {
-        if(a_stream->client_last_seq_id_packet != 0 && l_ch_pkt->hdr.seq_id != 0) {
-        log_it(L_WARNING, "Something wrong. count_loosed packets %d can't less than zero. "
-                          "Last read seq_id packet: %zu Current: %"DAP_UINT64_FORMAT_U, l_count_loosed_packets,
-               a_stream->client_last_seq_id_packet, l_ch_pkt->hdr.seq_id);
-        } // else client don't support seqid functionality
+    long long l_count_lost_packets =
+            l_ch_pkt->hdr.seq_id || a_stream->client_last_seq_id_packet
+            ? (long long) l_ch_pkt->hdr.seq_id - (long long) (a_stream->client_last_seq_id_packet + 1)
+            : 0;
+
+    if (l_count_lost_packets) {
+        log_it(L_WARNING, l_count_lost_packets > 0
+               ? "Packet loss detected. Current seq_id: %"DAP_UINT64_FORMAT_U", last seq_id: %"DAP_UINT64_FORMAT_U
+               : "Packet replay detected, seq_id: %"DAP_UINT64_FORMAT_U, l_ch_pkt->hdr.seq_id, a_stream->client_last_seq_id_packet);
     }
-//    log_it(L_DEBUG, "Packet seq id: %d", ch_pkt->hdr.seq_id);
-//    log_it(L_DEBUG, "Last seq id: %d", sid->last_seq_id_packet);
+    debug_if(s_debug, L_DEBUG, "Current seq_id: %"DAP_UINT64_FORMAT_U", last: %"DAP_UINT64_FORMAT_U,
+                                l_ch_pkt->hdr.seq_id, a_stream->client_last_seq_id_packet);
     a_stream->client_last_seq_id_packet = l_ch_pkt->hdr.seq_id;
-
-    return false;
+    return l_count_lost_packets < 0;
 }
 
 /**

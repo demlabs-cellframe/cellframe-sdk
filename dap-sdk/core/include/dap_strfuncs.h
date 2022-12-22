@@ -41,10 +41,11 @@ extern "C" {
 #endif
 
 #ifdef _WIN32
-char *strptime( char *buff, const char *fmt, struct tm *tm );
+char *strptime(const char *buff, const char *fmt, struct tm *tm);
 #endif
 
 bool dap_isstralnum(const char *c);
+char* dap_strcat2(const char* s1, const char* s2);
 size_t dap_strlen(const char *a_str);
 // compare a_str1 and a_str2
 int dap_strcmp(const char *a_str1, const char *a_str2);

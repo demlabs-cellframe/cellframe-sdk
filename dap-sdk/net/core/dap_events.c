@@ -178,7 +178,11 @@ void dap_cpu_assign_thread_on(uint32_t a_cpu_id)
 #else
     l_retcode = pthread_setaffinity_np(pthread_self(), sizeof(cpu_set_t), &mask);
 #endif
+#ifdef DAP_OS_DARWIN
+    if(l_retcode != 0 && l_retcode != EPFNOSUPPORT)
+#else
     if(l_retcode != 0)
+#endif
     {
         char l_errbuf[128]={0};
         switch (l_retcode) {
@@ -188,6 +192,7 @@ void dap_cpu_assign_thread_on(uint32_t a_cpu_id)
             case EPFNOSUPPORT: strncpy(l_errbuf,"System doesn't support thread affinity set",sizeof (l_errbuf)-1); break;
             default:     strncpy(l_errbuf,"Unknown error",sizeof (l_errbuf)-1);
         }
+
         log_it(L_ERROR, "Worker #%u: error in set affinity thread call: %s (%d)",a_cpu_id, l_errbuf , l_retcode);
         //abort();
     }
@@ -215,7 +220,7 @@ int dap_events_init( uint32_t a_threads_count, size_t a_conn_timeout )
     uint32_t l_cpu_count = dap_get_cpu_count();
     if (a_threads_count > l_cpu_count)
         a_threads_count = l_cpu_count;
-    
+
     s_threads_count = a_threads_count ? a_threads_count : l_cpu_count;
 
     s_workers =  DAP_NEW_Z_SIZE(dap_worker_t*,s_threads_count*sizeof (dap_worker_t*) );
@@ -300,22 +305,6 @@ void dap_events_delete( dap_events_t *a_events )
     }
 }
 
-/**
- * @brief dap_events_remove_and_delete_socket_unsafe
- * calls dap_events_socket_remove_and_delete_unsafe
- * @param a_events
- * @param a_socket
- * @param a_preserve_inheritor
- */
-void dap_events_remove_and_delete_socket_unsafe(dap_events_t *a_events, dap_events_socket_t *a_socket, bool a_preserve_inheritor)
-{
-    (void) a_events;
-//    int l_sock = a_socket->socket;
-//    if( a_socket->type == DESCRIPTOR_TYPE_TIMER)
-//        log_it(L_DEBUG,"Remove timer %d", l_sock);
-
-    dap_events_socket_remove_and_delete_unsafe(a_socket, a_preserve_inheritor);
-}
 
 /**
  * @brief sa_server_loop Main server loop
@@ -379,25 +368,6 @@ int dap_events_start( dap_events_t *a_events )
         }
     }
 
-#if 0 // @RRL: Bugfix-5434
-    // Link queues between
-    for( uint32_t i = 0; i < s_threads_count; i++) {
-        dap_worker_t * l_worker = s_workers[i];
-
-        l_worker->queue_es_new_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)* s_threads_count);
-        l_worker->queue_es_delete_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)* s_threads_count);
-        l_worker->queue_es_reassign_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)* s_threads_count);
-        l_worker->queue_es_io_input = DAP_NEW_Z_SIZE(dap_events_socket_t*, sizeof (dap_events_socket_t*)* s_threads_count);
-
-        for( uint32_t n = 0; n < s_threads_count; n++) {
-            l_worker->queue_es_new_input[n] = dap_events_socket_queue_ptr_create_input(s_workers[n]->queue_es_new);
-            l_worker->queue_es_delete_input[n] = dap_events_socket_queue_ptr_create_input(s_workers[n]->queue_es_delete);
-            l_worker->queue_es_reassign_input[n] = dap_events_socket_queue_ptr_create_input(s_workers[n]->queue_es_reassign);
-            l_worker->queue_es_io_input[n] = dap_events_socket_queue_ptr_create_input(s_workers[n]->queue_es_io);
-        }
-    }
-#endif
-
     // Init callback processor
     if (dap_proc_thread_init(s_threads_count) != 0 ){
         log_it( L_CRITICAL, "Can't init proc threads" );
@@ -412,13 +382,40 @@ int dap_events_start( dap_events_t *a_events )
  * @param dap_events_t *a_events
  * @return
  */
+#ifdef  DAP_SYS_DEBUG
+void    *s_th_memstat_show  (void *a_arg)
+{
+(void) a_arg;
+
+    while ( 1 )
+    {
+        for ( int j = 3; (j = sleep(j)); );                             /* Hibernate for 5 seconds ... */
+        dap_memstat_show ();
+    }
+
+}
+#endif
+
+
 int dap_events_wait( dap_events_t *a_events )
 {
-    (void) a_events;
+(void) a_events;
+
+#ifdef DAP_SYS_DEBUG                                                    /* @RRL: 6901, 7202 Start of memstat show at interval basis */
+pthread_attr_t  l_tattr;
+pthread_t       l_tid;
+
+    pthread_attr_init(&l_tattr);
+    pthread_attr_setdetachstate(&l_tattr, PTHREAD_CREATE_DETACHED);
+    pthread_create(&l_tid, &l_tattr, s_th_memstat_show, NULL);
+
+#endif
+
     for( uint32_t i = 0; i < s_threads_count; i ++ ) {
         void *ret;
         pthread_join( s_threads[i].tid, &ret );
     }
+
     return 0;
 }
 
@@ -442,18 +439,16 @@ void dap_events_stop_all( )
  * @brief dap_worker_get_index_min
  * @return
  */
-uint32_t dap_events_worker_get_index_min( )
-{
+uint32_t dap_events_worker_get_index_min( ) {
     uint32_t min = 0;
-
-    if ( !s_workers_init )
+    if (!s_workers_init) {
         log_it(L_CRITICAL, "Event socket reactor has not been fired, use dap_events_init() first");
-
-    for( uint32_t i = 1; i < s_threads_count; i++ ) {
-        if ( s_workers[min]->event_sockets_count > s_workers[i]->event_sockets_count )
+        return -1;
+    }
+    for(uint32_t i = 1; i < s_threads_count; i++) {
+        if (s_workers[min]->event_sockets_count > s_workers[i]->event_sockets_count)
             min = i;
     }
-
     return min;
 }
 

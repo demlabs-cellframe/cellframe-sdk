@@ -36,7 +36,7 @@ typedef struct dap_client_pvt_hh {
 // List of active connections
 static dap_client_pvt_hh_t *s_client_pvt_list = NULL;
 // for separate access to s_conn_list
-static pthread_mutex_t s_client_pvt_list_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_rwlock_t s_client_pvt_list_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 
 /**
@@ -47,10 +47,10 @@ static pthread_mutex_t s_client_pvt_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 dap_client_pvt_t *dap_client_pvt_find(uint64_t a_client_pvt_uuid)
 {
     bool l_ret = false;
-    pthread_mutex_lock(&s_client_pvt_list_mutex);
+    pthread_rwlock_rdlock(&s_client_pvt_list_rwlock);
     dap_client_pvt_hh_t *l_cur_item = NULL;
     HASH_FIND_PTR(s_client_pvt_list, &a_client_pvt_uuid, l_cur_item);
-    pthread_mutex_unlock(&s_client_pvt_list_mutex);
+    pthread_rwlock_unlock(&s_client_pvt_list_rwlock);
     return l_cur_item? l_cur_item->client_pvt : NULL;
 }
 
@@ -63,7 +63,7 @@ int dap_client_pvt_hh_add_unsafe(dap_client_pvt_t* a_client_pvt)
 {
     int l_ret = 0;
     assert(a_client_pvt);
-    pthread_mutex_lock(&s_client_pvt_list_mutex);
+    pthread_rwlock_wrlock(&s_client_pvt_list_rwlock);
     dap_client_pvt_hh_t *l_cur_item = NULL;
     HASH_FIND_PTR(s_client_pvt_list, &a_client_pvt->uuid, l_cur_item);
     if(l_cur_item == NULL) {
@@ -77,7 +77,7 @@ int dap_client_pvt_hh_add_unsafe(dap_client_pvt_t* a_client_pvt)
     else
         l_ret = -2;
     //connect_list = g_list_append(connect_list, client);
-    pthread_mutex_unlock(&s_client_pvt_list_mutex);
+    pthread_rwlock_unlock(&s_client_pvt_list_rwlock);
     return l_ret;
 }
 
@@ -90,7 +90,7 @@ int dap_client_pvt_hh_del_unsafe(dap_client_pvt_t *a_client_pvt)
 {
     int ret = -1;
     assert(a_client_pvt);
-    pthread_mutex_lock(&s_client_pvt_list_mutex);
+    pthread_rwlock_wrlock(&s_client_pvt_list_rwlock);
     dap_client_pvt_hh_t *l_cur_item = NULL;
     HASH_FIND_PTR(s_client_pvt_list, &a_client_pvt->uuid, l_cur_item);
     if(l_cur_item != NULL) {
@@ -102,6 +102,6 @@ int dap_client_pvt_hh_del_unsafe(dap_client_pvt_t *a_client_pvt)
     else {
         ret = -2;
     }
-    pthread_mutex_unlock(&s_client_pvt_list_mutex);
+    pthread_rwlock_unlock(&s_client_pvt_list_rwlock);
     return ret;
 }

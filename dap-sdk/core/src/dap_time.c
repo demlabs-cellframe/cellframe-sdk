@@ -1,5 +1,6 @@
 #ifdef _WIN32
 #include <windows.h>
+#include <sys/time.h>
 #endif
 #include <errno.h>
 #include <string.h>
@@ -7,6 +8,7 @@
 
 #include "dap_common.h"
 #include "dap_time.h"
+#include "dap_strfuncs.h"
 
 #define LOG_TAG "dap_common"
 
@@ -45,13 +47,13 @@ int clock_gettime(clockid_t clock_id, struct timespec *spec)
 
 
 // Create time from second
-dap_gdb_time_t dap_gdb_time_from_sec(uint32_t a_time)
+dap_gdb_time_t dap_gdb_time_from_sec(dap_time_t a_time)
 {
     return (dap_gdb_time_t)a_time << 32;
 }
 
 // Get seconds from time
-long dap_gdb_time_to_sec(dap_gdb_time_t a_time)
+dap_time_t dap_gdb_time_to_sec(dap_gdb_time_t a_time)
 {
     return a_time >> 32;
 }
@@ -60,10 +62,10 @@ long dap_gdb_time_to_sec(dap_gdb_time_t a_time)
  * @brief dap_chain_time_now Get current time in seconds since January 1, 1970 (UTC)
  * @return Returns current UTC time in seconds.
  */
-dap_gdb_time_t dap_time_now(void)
+dap_time_t dap_time_now(void)
 {
     time_t l_time = time(NULL);
-    return l_time;
+    return (dap_time_t)l_time;
 }
 
 /**
@@ -144,7 +146,7 @@ int dap_time_to_str_rfc822(char * a_out, size_t a_out_size_max, dap_time_t a_t)
 
   int l_ret;
   #ifndef _WIN32
-    l_ret = strftime( a_out, a_out_size_max, "%a, %d %b %y %T %z", l_tmp);
+	l_ret = strftime( a_out, a_out_size_max, "%a, %d %b %y %T %z", l_tmp);
   #else
     l_ret = strftime( a_out, a_out_size_max, "%a, %d %b %y %H:%M:%S", l_tmp );
   #endif
@@ -155,6 +157,95 @@ int dap_time_to_str_rfc822(char * a_out, size_t a_out_size_max, dap_time_t a_t)
   }
 
   return l_ret;
+}
+
+/**
+ * @brief Get time_t from string with RFC822 formatted
+ * @brief (not WIN32) "%a, %d %b %y %T %z" == "Tue, 02 Aug 22 19:50:41 +0300"
+ * @brief (WIN32) !DOES NOT WORK! please, use dap_time_from_str_simplified()
+ * @param[out] a_time_str
+ * @return time from string or 0 if bad time format
+ */
+dap_time_t dap_time_from_str_rfc822(const char *a_time_str)
+{
+	dap_time_t l_time = 0;
+    if(!a_time_str) {
+        return l_time;
+    }
+    struct tm l_tm;
+    memset(&l_tm, 0, sizeof(struct tm));
+	
+#ifndef _WIN32
+	strptime(a_time_str, "%a, %d %b %y %T %z", &l_tm);
+#else
+	strptime(a_time_str, "%y%m%d%H%M%S", &l_tm);// <<--- TODO: _!-DOES NOT WORK-!_ { need rework strptime() in dap_strfuncs.c } | in the meantime please use --> dap_time_from_str_simplified()
+#endif
+
+    time_t tmp = mktime(&l_tm);
+    l_time = (tmp <= 0) ? 0 : tmp;
+    return l_time;
+}
+
+#ifdef _WIN32
+static void tmp_strptime(const char *buff, struct tm *tm)
+{
+	char tbuff[15];
+	uint8_t year;
+	uint8_t mon;
+	uint8_t day;
+	uint8_t len = dap_strlen(buff);
+
+	if (len > 12)
+		return;
+
+	memcpy(tbuff, buff, len);
+
+	day = atoi(&tbuff[4]);
+	tbuff[4] = '\0';
+    if (day > 0)
+        day--;
+
+	mon = atoi(&tbuff[2]);
+	if (mon > 0)
+		mon--;
+	tbuff[2] = '\0';
+
+	year = atoi(tbuff);
+    if (year < 69)
+		year += 100;
+
+	tm->tm_year = year;
+	tm->tm_mon = mon;
+	tm->tm_mday = day;
+	tm->tm_hour = 0;
+	tm->tm_min = 0;
+	tm->tm_sec = 0;
+}
+#endif
+
+/**
+ * @brief Get time_t from string simplified formatted [%y%m%d = 220610 = 10 june 2022 00:00]
+ * @param[out] a_time_str
+ * @return time from string or 0 if bad time format
+ */
+dap_time_t dap_time_from_str_simplified(const char *a_time_str)
+{
+    dap_time_t l_time = 0;
+    if(!a_time_str) {
+        return l_time;
+    }
+    struct tm l_tm;
+    memset(&l_tm, 0, sizeof(struct tm));
+
+#ifndef _WIN32
+	strptime(a_time_str, "%y%m%d", &l_tm);
+#else
+	tmp_strptime(a_time_str, &l_tm);
+#endif
+    l_tm.tm_sec++;
+    time_t tmp = mktime(&l_tm);
+    l_time = (tmp <= 0) ? 0 : tmp;
+    return l_time;
 }
 
 /**

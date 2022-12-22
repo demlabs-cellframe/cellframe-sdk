@@ -97,7 +97,7 @@ static dap_chain_node_cmd_item_t * s_commands = NULL;
  * @param timeout
  * @return int
  */
-static int s_poll( int sd, int timeout )
+static inline int s_poll( int sd, int timeout )
 {
 struct pollfd fds = {.fd = sd, .events = POLLIN};
 int res;
@@ -347,7 +347,7 @@ char    *str_header;
                     dap_strfreev(l_argv);
                 } else {
                     str_reply = dap_strdup_printf("can't recognize command=%s", str_cmd);
-                    log_it(L_ERROR, str_reply);
+                    log_it(L_ERROR, "%s", str_reply);
                 }
                 char *reply_body;
                 if(l_verbose)
@@ -916,17 +916,17 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
             );
     dap_chain_node_cli_cmd_item_create("mempool", com_signer, "Sign operations",
-               "mempool sign -cert <cert name> -net <net name> -chain <chain name> -file <filename> [-mime {<SIGNER_FILENAME,SIGNER_FILENAME_SHORT,SIGNER_FILESIZE,SIGNER_DATE,SIGNER_MIME_MAGIC> | <SIGNER_ALL_FLAGS>}]\n"
-               "mempool check -cert <cert name> -net <net name> {-file <filename> | -hash <hash>} [-mime {<SIGNER_FILENAME,SIGNER_FILENAME_SHORT,SIGNER_FILESIZE,SIGNER_DATE,SIGNER_MIME_MAGIC> | <SIGNER_ALL_FLAGS>}]\n"
+           "mempool sign -cert <priv_cert_name> -net <net_name> -chain <chain_name> -file <filename> [-mime {<SIGNER_FILENAME,SIGNER_FILENAME_SHORT,SIGNER_FILESIZE,SIGNER_DATE,SIGNER_MIME_MAGIC> | <SIGNER_ALL_FLAGS>}]\n"
+           "mempool check -cert <priv_cert_name> -net <net_name> {-file <filename> | -hash <hash>} [-mime {<SIGNER_FILENAME,SIGNER_FILENAME_SHORT,SIGNER_FILESIZE,SIGNER_DATE,SIGNER_MIME_MAGIC> | <SIGNER_ALL_FLAGS>}]\n"
                                           );
     dap_chain_node_cli_cmd_item_create("node", com_node, "Work with node",
-            "node add  -net <net name> -addr {<node address> | -alias <node alias>} -port <port> -cell <cell id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n\n"
-                    "node del -net <net name> {-addr <node address> | -alias <node alias>}\n\n"
-                    "node link {add | del}  -net <net name> {-addr <node address> | -alias <node alias>} -link <node address>\n\n"
-                    "node alias -addr <node address> -alias <node alias>\n\n"
-                    "node connect -net <net name> {-addr <node address> | -alias <node alias> | auto}\n\n"
-                    "node handshake -net <net name> {-addr <node address> | -alias <node alias>}\n"
-                    "node dump -net <net name> [ -addr <node address> | -alias <node alias>] [-full]\n\n"
+            "node add -net <net_name> {-addr <node address> | -alias <node alias>} -port <port> -cell <cell id>  {-ipv4 <ipv4 external address> | -ipv6 <ipv6 external address>}\n\n"
+            "node del -net <net_name> {-addr <node address> | -alias <node alias>}\n\n"
+            "node link {add | del}  -net <net_name> {-addr <node address> | -alias <node alias>} -link <node address>\n\n"
+            "node alias -addr <node address> -alias <node alias>\n\n"
+            "node connect -net <net_name> {-addr <node address> | -alias <node alias> | auto}\n\n"
+            "node handshake -net <net_name> {-addr <node address> | -alias <node alias>}\n"
+            "node dump -net <net_name> [ -addr <node address> | -alias <node alias>] [-full]\n\n"
                                         );
     dap_chain_node_cli_cmd_item_create ("ping", com_ping, "Send ICMP ECHO_REQUEST to network hosts",
             "ping [-c <count>] host\n");
@@ -948,12 +948,62 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                         "\tObtain help for <command> or get the total list of the commands\n"
                                         );
     dap_chain_node_cli_cmd_item_create("wallet", com_tx_wallet, "Wallet operations",
-            "wallet [new -w <wallet_name> [-sign <sign_type>] [-restore <hex value>] [-net <net_name>] [-force]| list | info -addr <addr> -w <wallet_name> -net <net_name>]\n");
+                "wallet list\n"
+                "wallet new -w <wallet_name> [-sign <sign_type>] [-restore <hex_value>] [-net <net_name>] [-force] [-password <password>] [-restore <hash>]\n"
+                "wallet info {-addr <addr> | -w <wallet_name>} -net <net_name>\n"
+                "wallet activate -w <wallet_name> -password <password> [-ttl <password_ttl_in_minutes>]\n"
+                "wallet deactivate -w <wallet_name> -password <password>\n");
+
 
     // Token commands
     dap_chain_node_cli_cmd_item_create ("token_update", com_token_update, "Token update",
-            "\nPrivate token update\n"
-            "\t token_update -net <net name> -chain <chain name> -token <token ticker> [-type private] [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
+            "\nPrivate or CF20 token update\n"
+/*			"token_update -net <net_name> -chain <chain_name> -token <token_ticker> -total_supply <total supply> -signs_total <sign total> -signs_emission <signs for emission> -certs <certs list>\n"
+			"\t  Declare new simple token for <netname>:<chain name> with ticker <token ticker>, maximum emission <total supply> and <signs for emission> from <signs total> signatures on valid emission\n"*/
+			"\nPrivate token update\n"
+			"token_update -net <net_name> -chain <chain_name> -token <existing token_ticker> -type private -total_supply <the same or more> -decimals <18>\n"
+			"-signs_total <the same total as the token you are updating> -signs_emission <the same total as the token you are updating> -certs <use the certificates of the token you are update>\n"
+			"-flags [<Flag 1>][,<Flag 2>]...[,<Flag N>]...\n"
+			"\t [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
+			"\t   Update token for <netname>:<chain name> with ticker <token ticker>, flags <Flag 1>,<Flag2>...<Flag N>\n"
+			"\t   and custom parameters list <Param 1>, <Param 2>...<Param N>.\n"
+			"\nCF20 token update\n"
+			"token_update -net <net_name> -chain <chain_name> -token <existing token_ticker> -type CF20 -total_supply <the same or more/if 0 = endless> -decimals <18>\n"
+			"-signs_total <the same total as the token you are updating> -signs_emission <the same total as the token you are updating> -certs <use the certificates of the token you are update>\n"
+			"\t -flags [<Flag 1>][,<Flag 2>]...[,<Flag N>]...\n"
+			"\t [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
+			"\t   Update token for <netname>:<chain name> with ticker <token ticker>, flags <Flag 1>,<Flag2>...<Flag N>\n"
+			"\t   and custom parameters list <Param 1>, <Param 2>...<Param N>.\n"
+			"\n"
+			"==Flags=="
+			"\t ALL_BLOCKED:\t Blocked all permissions, usefull add it first and then add allows what you want to allow\n"
+			"\t ALL_ALLOWED:\t Allowed all permissions if not blocked them. Be careful with this mode\n"
+			"\t ALL_FROZEN:\t All permissions are temprorary frozen\n"
+			"\t ALL_UNFROZEN:\t Unfrozen permissions\n"
+			"\t STATIC_ALL:\t No token manipulations after declarations at all. Token declares staticly and can't variabed after\n"
+			"\t STATIC_FLAGS:\t No token manipulations after declarations with flags\n"
+			"\t STATIC_PERMISSIONS_ALL:\t No all permissions lists manipulations after declarations\n"
+			"\t STATIC_PERMISSIONS_DATUM_TYPE:\t No datum type permissions lists manipulations after declarations\n"
+			"\t STATIC_PERMISSIONS_TX_SENDER:\t No tx sender permissions lists manipulations after declarations\n"
+			"\t STATIC_PERMISSIONS_TX_RECEIVER:\t No tx receiver permissions lists manipulations after declarations\n"
+			"\n"
+			"==Params==\n"
+			"General:\n"
+			"\t -flags <value>:\t List of flags from <value> to token declaration or update\n"
+			"\t -total_supply <value>:\t Set total supply - emission's maximum - to the <value>\n"
+			"\t -total_signs_valid <value>:\t Set valid signatures count's minimum\n"
+/*			"\t -signs <value>:\t Signature's fingerprint list\n"*/
+			"\nDatum type allowed/blocked:\n"
+			"\t -datum_type_allowed <value>:\t Set allowed datum type(s)\n"
+			"\t -datum_type_blocked <value>:\t Set blocked datum type(s)\n"
+			"\nTx receiver addresses allowed/blocked:\n"
+			"\t -tx_receiver_allowed <value>:\t Set allowed tx receiver(s)\n"
+			"\t -tx_receiver_blocked <value>:\t Set blocked tx receiver(s)\n"
+			"\nTx sender addresses allowed/blocked:\n"
+			"\t -tx_sender_allowed <value>:\t Set allowed tx sender(s)\n"
+			"\t -tx_sender_blocked <value>:\t Set allowed tx sender(s)\n"
+			"\n"
+/*            "token_update -net <net_name> -chain <chain_name> -token <token_ticker> [-type private] [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
             "\t   Update private token <token ticker> for <netname>:<chain name> with"
             "\t   custom parameters list <Param 1>, <Param 2>...<Param N>."
             "\n"
@@ -998,20 +1048,20 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "\t STATIC_PERMISSIONS_DATUM_TYPE:\t No datum type permissions lists manipulations after declarations\n"
             "\t STATIC_PERMISSIONS_TX_SENDER:\t No tx sender permissions lists manipulations after declarations\n"
             "\t STATIC_PERMISSIONS_TX_RECEIVER:\t No tx receiver permissions lists manipulations after declarations\n"
-            "\n"
+            "\n"*/
             );
     // Token commands
     dap_chain_node_cli_cmd_item_create ("token_decl", com_token_decl, "Token declaration",
             "Simple token declaration:\n"
-            "\t token_decl -net <net name> -chain <chain name> -token <token ticker> -total_supply <total supply> -signs_total <sign total> -signs_emission <signs for emission> -certs <certs list>\n"
+            "token_decl -net <net_name> -chain <chain_name> -token <token_ticker> -total_supply <total supply> -signs_total <sign total> -signs_emission <signs for emission> -certs <certs list>\n"
             "\t  Declare new simple token for <netname>:<chain name> with ticker <token ticker>, maximum emission <total supply> and <signs for emission> from <signs total> signatures on valid emission\n"
             "\nExtended private token declaration\n"
-            "\t token_decl -net <net name> -chain <chain name> -token <token ticker> -type private -flags [<Flag 1>][,<Flag 2>]...[,<Flag N>]...\n"
+            "token_decl -net <net_name> -chain <chain_name> -token <token_ticker> -type private -total_supply <total supply> -decimals <18> -signs_total <sign total> -signs_emission <signs for emission> -certs <certs list> -flags [<Flag 1>][,<Flag 2>]...[,<Flag N>]...\n"
             "\t [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
             "\t   Declare new token for <netname>:<chain name> with ticker <token ticker>, flags <Flag 1>,<Flag2>...<Flag N>\n"
             "\t   and custom parameters list <Param 1>, <Param 2>...<Param N>.\n"
             "\nExtended CF20 token declaration\n"
-            "\t token_decl -net <net name> -chain <chain name> -token <token ticker> -type CF20 -decimals <18> -signs_total <sign total> -signs_emission <signs for emission> -certs <certs list>"
+            "token_decl -net <net_name> -chain <chain_name> -token <token_ticker> -type CF20 -total_supply <total supply/if 0 = endless> -decimals <18> -signs_total <sign total> -signs_emission <signs for emission> -certs <certs list>\n"
             "\t -flags [<Flag 1>][,<Flag 2>]...[,<Flag N>]...\n"
             "\t [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
             "\t   Declare new token for <netname>:<chain name> with ticker <token ticker>, flags <Flag 1>,<Flag2>...<Flag N>\n"
@@ -1034,7 +1084,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "\t -flags <value>:\t List of flags from <value> to token declaration\n"
             "\t -total_supply <value>:\t Set total supply - emission's maximum - to the <value>\n"
             "\t -total_signs_valid <value>:\t Set valid signatures count's minimum\n"
-            "\t -signs <value>:\t Signature's fingerprint list\n"
+/*            "\t -signs <value>:\t Signature's fingerprint list\n"*/
             "\nDatum type allowed/blocked:\n"
             "\t -datum_type_allowed <value>:\t Set allowed datum type(s)\n"
             "\t -datum_type_blocked <value>:\t Set blocked datum type(s)\n"
@@ -1048,61 +1098,70 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             );
 
     dap_chain_node_cli_cmd_item_create ("token_decl_sign", com_token_decl_sign, "Token declaration add sign",
-            "token_decl_sign -net <net name> -chain <chain name> -datum <datum_hash> -certs <certs list>\n"
+            "token_decl_sign -net <net_name> -chain <chain_name> -datum <datum_hash> -certs <certs list>\n"
             "\t Sign existent <datum hash> in mempool with <certs list>\n"
             );
 
     dap_chain_node_cli_cmd_item_create ("token_emit", com_token_emit, "Token emission",
-            "token_emit {sign | -token <token ticker> -emission_value <val>} -net <net name> [-chain_emission <chain for emission>] [-chain_base_tx <chain for base tx> -addr <addr>] -certs <cert list>\n");
+            "token_emit { sign | -token <mempool_token_ticker> -emission_value <value>\n"
+			"-addr <addr> [-chain_emission <chain_name>]\n"
+			"[-chain_base_tx <chain_name> | use flag '-no_base_tx' if you need create emission has no base transaction] }\n"
+			"-net <net_name> -certs <cert list>\n");
 
-    dap_chain_node_cli_cmd_item_create ("mempool_list", com_mempool_list, "List mempool entries for selected chain network",
-            "mempool_list -net <net name>\n");
+    dap_chain_node_cli_cmd_item_create ("mempool_list", com_mempool_list,
+										"List mempool (entries or transaction) for (selected chain network or wallet)",
+            "mempool_list -net <net_name> [-chain <chain_name>] [-addr <addr>] \n");
+
+    dap_chain_node_cli_cmd_item_create ("mempool_check", com_mempool_check, "Check mempool entrie for presence in selected chain network",
+            "mempool_check -net <net_name> -datum <datum hash>\n");
 
     dap_chain_node_cli_cmd_item_create ("mempool_proc", com_mempool_proc, "Proc mempool entrie with specified hash for selected chain network",
-            "mempool_proc -net <net name> -datum <datum hash>\n");
+            "mempool_proc -net <net_name> -datum <datum hash>\n");
 
     dap_chain_node_cli_cmd_item_create ("mempool_delete", com_mempool_delete, "Delete datum with hash <datum hash> for selected chain network",
-            "mempool_delete -net <net name> -datum <datum hash>\n");
+            "mempool_delete -net <net_name> -datum <datum hash>\n");
 
     dap_chain_node_cli_cmd_item_create ("mempool_add_ca", com_mempool_add_ca,
                                         "Add pubic certificate into the mempool to prepare its way to chains",
-            "mempool_add_ca -net <net name> [-chain <chain name>] -ca_name <Certificate name>\n");
+            "mempool_add_ca -net <net_name> [-chain <chain_name>] -ca_name <priv_cert_name>\n");
 
     dap_chain_node_cli_cmd_item_create ("chain_ca_pub", com_chain_ca_pub,
                                         "Add pubic certificate into the mempool to prepare its way to chains",
-            "chain_ca_pub -net <net name> [-chain <chain name>] -ca_name <Certificate name>\n");
+            "chain_ca_pub -net <net_name> [-chain <chain_name>] -ca_name <priv_cert_name>\n");
 
     dap_chain_node_cli_cmd_item_create ("chain_ca_copy", com_chain_ca_copy,
                                         "Copy pubic certificate into the mempool to prepare its way to chains",
-            "chain_ca_copy -net <net name> [-chain <chain name>] -ca_name <Public certificate name>\n");
+            "chain_ca_copy -net <net_name> [-chain <chain_name>] -ca_name <pub_cert_name>\n");
 
     // Transaction commands
     dap_chain_node_cli_cmd_item_create ("tx_create", com_tx_create, "Make transaction",
-            "tx_create -net <net name> -chain <chain name> {-from_wallet <name> -token <token ticker> -value <value> -to_addr <addr> | -from_emission <emission_hash>}[-fee <addr> -value_fee <val>]\n" );
+            "tx_create -net <net_name> -chain <chain_name> {-from_wallet <wallet_name> -token <token_ticker> -value <value> -to_addr <addr> | -from_emission <emission_hash>} [-fee <addr> -value_fee <val>]\n" );
+    dap_chain_node_cli_cmd_item_create ("tx_create_json", com_tx_create_json, "Make transaction",
+                    "tx_create_json -net <net name> -chain <chain name> -json <json file path>\n" );
     dap_chain_node_cli_cmd_item_create ("tx_cond_create", com_tx_cond_create, "Make cond transaction",
-                                        "tx_cond_create -net <net name> -token <token ticker> -wallet <from wallet> -cert <public cert> -value <value datoshi> -unit {mb | kb | b | sec | day} -srv_uid <numeric uid>\n" );
+                                        "tx_cond_create -net <net_name> -token <token_ticker> -wallet <wallet_name> -cert <pub_cert_name> -value <value datoshi> -unit {mb | kb | b | sec | day} -srv_uid <numeric uid>\n" );
 
     dap_chain_node_cli_cmd_item_create ("tx_verify", com_tx_verify, "Verifing transaction in mempool",
-            "tx_verify -net <net name> -chain <chain name> -tx <tx_hash>\n" );
+            "tx_verify -net <net_name> -chain <chain_name> -tx <tx_hash>\n" );
 
     // Transaction history
     dap_chain_node_cli_cmd_item_create("tx_history", com_tx_history, "Transaction history (for address or by hash)",
-            "tx_history  [-addr <addr> | -w <wallet name> | -tx <tx_hash>] -net <net name> -chain <chain name>\n");
+            "tx_history {-addr <addr> | -w <wallet_name> | -tx <tx_hash>} -net <net_name> -chain <chain_name>\n");
 
     // Ledger info
     dap_chain_node_cli_cmd_item_create("ledger", com_ledger, "Ledger information",
-            "ledger list coins -net <network name>\n"
-            "ledger list threshold [-hash <tx_treshold_hash>] -net <network name>\n"
-            "ledger list balance -net <network name>\n"
-            "ledger info -hash <tx_hash> -net <network name> [-unspent]\n"
-            "ledger tx -all -net <network name>\n"
-            "ledger tx [-addr <addr> | -w <wallet name> | -tx <tx_hash>] [-chain <chain name>] -net <network name>\n");
+            "ledger list coins -net <net_name>\n"
+            "ledger list threshold [-hash <tx_treshold_hash>] -net <net_name>\n"
+            "ledger list balance -net <net_name>\n"
+            "ledger info -hash <tx_hash> -net <net_name> [-unspent]\n"
+            "ledger tx -all -net <net_name>\n"
+            "ledger tx {-addr <addr> | -w <wallet_name> | -tx <tx_hash>} -net <net_name>\n");
 
     // Token info
     dap_chain_node_cli_cmd_item_create("token", com_token, "Token info",
-            "token list -net <network name>\n"
-            "token info -net <network name> -name <token name>\n"
-            "token tx [all | -addr <wallet_addr> | -wallet <wallet_name>] -name <token name> -net <network name> [-page_start <page>] [-page <page>]\n");
+            "token list -net <net_name>\n"
+            "token info -net <net_name> -name <token_ticker>\n"
+            "token tx [all | -addr <wallet_addr> | -wallet <wallet_name>] -name <token_ticker> -net <net_name> [-page_start <page>] [-page <page>]\n");
 
     // Log
     dap_chain_node_cli_cmd_item_create ("print_log", com_print_log, "Print log info",
@@ -1120,11 +1179,17 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
      // Export GDB to JSON
      dap_chain_node_cli_cmd_item_create("gdb_export", cmd_gdb_export, "Export gdb to JSON",
-                                        "gdb_export filename <filename without extension>");
+                                        "gdb_export filename <filename without extension> [-groups <group names list>]");
 
      //Import GDB from JSON
      dap_chain_node_cli_cmd_item_create("gdb_import", cmd_gdb_import, "Import gdb from JSON",
                                         "gdb_import filename <filename without extension>");
+
+    dap_chain_node_cli_cmd_item_create("remove", cmd_remove, "Delete chain files or global database",
+                                       "remove -gdb\n"
+                                                "remove -chains [-net <net_name> | -all]\n"
+												"Be careful, the '-all' option for '-chains' will delete all chains and won't ask you for permission!");
+
 
     // create thread for waiting of clients
     pthread_t l_thread_id;
@@ -1203,8 +1268,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
         server_addr.sin_family = AF_INET;
 #ifdef _WIN32
-        struct in_addr _in_addr = { { .S_addr = htonl(INADDR_LOOPBACK) } };
-        server_addr.sin_addr = _in_addr;
+        server_addr.sin_addr = (struct in_addr){{ .S_addr = htonl(INADDR_LOOPBACK) }};
         server_addr.sin_port = l_listen_port;
 #else
         inet_pton( AF_INET, l_listen_addr_str, &server_addr.sin_addr );

@@ -77,6 +77,7 @@ int dap_chain_net_srv_order_init(void)
     for (uint16_t i = 0; i < l_net_count; i++) {
         dap_chain_net_add_gdb_notify_callback(l_net_list[i], s_srv_order_callback_notify, l_net_list[i]);
     }
+    DAP_DELETE(l_net_list);
     //geoip_info_t *l_ipinfo = chain_net_geoip_get_ip_info("8.8.8.8");
     return 0;
 }
@@ -95,7 +96,7 @@ size_t dap_chain_net_srv_order_get_size(dap_chain_net_srv_order_t *a_order)
         return 0;
     size_t l_sign_size = 0;
     if (a_order->version == 3) {
-        dap_sign_t *l_sign = (dap_sign_t *)&a_order->ext_n_sign[a_order->ext_size];
+        dap_sign_t *l_sign = (dap_sign_t *)(a_order->ext_n_sign + a_order->ext_size);
         if (l_sign->header.type.type == SIG_TYPE_NULL)
             l_sign_size = sizeof(dap_sign_type_t);
         else
@@ -247,7 +248,7 @@ char * dap_chain_net_srv_order_create(
         dap_chain_net_srv_uid_t a_srv_uid, // Service UID
         dap_chain_node_addr_t a_node_addr, // Node address that servs the order (if present)
         dap_chain_hash_fast_t a_tx_cond_hash, // Hash index of conditioned transaction attached with order
-        uint256_t a_price, //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
+        uint256_t *a_price, //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
         dap_chain_net_srv_price_unit_uid_t a_price_unit, // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
         const char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         dap_time_t a_expires, // TS when the service expires
@@ -268,13 +269,12 @@ char * dap_chain_net_srv_order_create(
     return l_ret;
 }
 
-dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(
-        dap_chain_net_t *a_net,
+dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(dap_chain_net_t *a_net,
         dap_chain_net_srv_order_direction_t a_direction,
         dap_chain_net_srv_uid_t a_srv_uid, // Service UID
         dap_chain_node_addr_t a_node_addr, // Node address that servs the order (if present)
         dap_chain_hash_fast_t a_tx_cond_hash, // Hash index of conditioned transaction attached with order
-        uint256_t a_price, //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
+        uint256_t *a_price, //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
         dap_chain_net_srv_price_unit_uid_t a_price_unit, // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
         const char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         dap_time_t a_expires, // TS when the service expires
@@ -314,19 +314,20 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(
     if ( a_node_addr.uint64)
         l_order->node_addr.uint64 = a_node_addr.uint64;
 
-    memcpy(&l_order->tx_cond_hash, &a_tx_cond_hash, DAP_CHAIN_HASH_FAST_SIZE);
-    l_order->price = a_price;
+    l_order->tx_cond_hash = a_tx_cond_hash;
+    l_order->price = *a_price;
     l_order->price_unit.uint32 = a_price_unit.uint32;
 
     if ( a_price_ticker)
-        strncpy(l_order->price_ticker, a_price_ticker,sizeof(l_order->price_ticker)-1);
+        strncpy(l_order->price_ticker, a_price_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
     dap_sign_t *l_sign = dap_sign_create(a_key, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size, 0);
     if (!l_sign) {
+        DAP_DELETE(l_order);
         return NULL;
     }
     size_t l_sign_size = dap_sign_get_size(l_sign); // sign data
     l_order = DAP_REALLOC(l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size + l_sign_size);
-    memcpy(&l_order->ext_n_sign[l_order->ext_size], l_sign, l_sign_size);
+    memcpy(l_order->ext_n_sign + l_order->ext_size, l_sign, l_sign_size);
     return l_order;
 }
 
@@ -375,20 +376,20 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_read(byte_t *a_order, size_t 
 #endif
     l_ret->direction = l_old->direction;
     l_ret->node_addr.uint64 = l_old->node_addr.uint64;
-    memcpy(&l_ret->tx_cond_hash, &l_old->tx_cond_hash, sizeof(dap_chain_hash_fast_t));
+    l_ret->tx_cond_hash = l_old->tx_cond_hash;
     l_ret->price_unit.uint32 = l_old->price_unit.uint32;
     l_ret->ts_created = l_old->ts_created;
     l_ret->ts_expires = l_old->ts_expires;
     l_ret->price = dap_chain_uint256_from(l_old->price);
     strncpy(l_ret->price_ticker, l_old->price_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
     l_ret->ext_size = l_old->ext_size;
-    memcpy(&l_ret->ext_n_sign, &l_old->ext, l_old->ext_size);
+    memcpy(l_ret->ext_n_sign, l_old->ext, l_old->ext_size);
     dap_sign_t *l_sign = (dap_sign_t *)&l_old->ext[l_old->ext_size];
     size_t l_sign_size = l_old->version == 1 ? 0 : dap_sign_get_size(l_sign);
     if (l_sign_size)
-        memcpy(&l_ret->ext_n_sign[l_ret->ext_size], l_sign, l_sign_size);
+        memcpy(l_ret->ext_n_sign + l_ret->ext_size, l_sign, l_sign_size);
     else
-        ((dap_sign_type_t *)&l_ret->ext_n_sign[l_ret->ext_size])->type = SIG_TYPE_NULL;
+        ((dap_sign_type_t *)(l_ret->ext_n_sign + l_ret->ext_size))->type = SIG_TYPE_NULL;
     return l_ret;
 }
 
@@ -536,7 +537,11 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         }
 
         dap_string_append_printf(a_str_out, "  srv_uid:          0x%016"DAP_UINT64_FORMAT_X"\n", a_order->srv_uid.uint64 );
-        dap_string_append_printf(a_str_out, "  price:            %s (%s)\n", dap_chain_balance_to_coins(a_order->price), dap_chain_balance_print(a_order->price));
+        char *l_balance_coins = dap_chain_balance_to_coins(a_order->price);
+        char *l_balance = dap_chain_balance_print(a_order->price);
+        dap_string_append_printf(a_str_out, "  price:            %s (%s)\n", l_balance_coins, l_balance);
+        DAP_DELETE(l_balance_coins);
+        DAP_DELETE(l_balance);
         if( a_order->price_unit.uint32 )
             dap_string_append_printf(a_str_out, "  price_unit:       %s\n", dap_chain_net_srv_price_unit_uid_to_str(a_order->price_unit) );
         if ( a_order->node_addr.uint64)
@@ -584,7 +589,6 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
 static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const char *a_group,
                                    const char *a_key, const void *a_value, const size_t a_value_len)
 {
-    UNUSED(a_value_len);
     if (!a_arg || !a_key) {
         return;
     }
@@ -605,10 +609,11 @@ static void s_srv_order_callback_notify(void *a_arg, const char a_op_code, const
             if (l_order->version != 2) {
                 dap_chain_global_db_gr_del( a_key, a_group);
             } else {
-                dap_sign_t *l_sign = (dap_sign_t *)&l_order->ext_n_sign[l_order->ext_size];
-                if (!dap_sign_verify_size(l_sign, a_value_len) ||
-                        dap_sign_verify(l_sign, l_order,
-                                        sizeof(dap_chain_net_srv_order_t) + l_order->ext_size) != 1) {
+                dap_sign_t *l_sign = (dap_sign_t *)(l_order->ext_n_sign + l_order->ext_size);
+                size_t l_max_size = a_value_len - /* offsetof(dap_chain_net_srv_order_t, ext_n_sign) */ sizeof(dap_chain_net_srv_order_t) - l_order->ext_size;
+                int l_verify = dap_sign_verify_all(l_sign, l_max_size, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size);
+                if (l_verify) {
+                    log_it(L_ERROR, "Order unverified, err %d", l_verify);
                     dap_chain_global_db_gr_del( a_key, a_group);
                     DAP_DELETE(l_gdb_group_str);
                     return;

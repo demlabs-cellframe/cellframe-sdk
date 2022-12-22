@@ -73,6 +73,18 @@ bool dap_valid_ascii_symbols(const char *a_string)
 }
 
 /**
+ * @brief dap_file_mv
+ * @param a_path_old
+ * @param a_path_new
+ * @return
+ */
+int dap_file_mv(const char* a_path_old, const char * a_path_new)
+{
+    return -1;
+}
+
+
+/**
  * Check the file for exists
  *
  * @a_file_path filename pathname
@@ -632,7 +644,7 @@ static bool dap_get_contents_regfile(const char *filename, struct stat *stat_buf
 
     bytes_read = 0;
     while(bytes_read < size) {
-        size_t rc;
+        ssize_t rc;
 
         rc = read(fd, buf + bytes_read, size - bytes_read);
 
@@ -1160,6 +1172,10 @@ char* dap_canonicalize_filename(const char *filename, const char *relative_to)
 
         /* Ignore repeated dir separators. */
         while(DAP_IS_DIR_SEPARATOR(input[0]))
+            input++;
+
+        /* Ignore % to prevent Unicode attacks*/
+        while(input[0] == '%' )
             input++;
 
         /* Ignore single dot directory components. */

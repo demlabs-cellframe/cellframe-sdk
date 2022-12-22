@@ -21,24 +21,30 @@
  You should have received a copy of the GNU General Public License
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
-
-#include <sys/epoll.h>
-#include <sys/un.h>
-#include <sys/ioctl.h>
-#include <sys/stat.h>
-#include <sys/socket.h>
-
 #include <arpa/inet.h>
-#include <net/ethernet.h>
-#include <netpacket/packet.h>
-#include <netinet/in.h>
-
-#include <time.h>
 #include <fcntl.h>
-#include <unistd.h>
-#include <errno.h>
-#include <stdio.h>
-#include <stdarg.h>
+#ifdef DAP_OS_LINUX
+#include <netpacket/packet.h>
+#include <linux/if_tun.h>
+#include <linux/if.h>
+#include <sys/ioctl.h>
+#include <netpacket/packet.h>
+#elif defined (DAP_OS_DARWIN)
+#include <net/if.h>
+#include <net/if_utun.h>
+#include <sys/kern_control.h>
+#include <sys/types.h>
+#include <sys/ioctl.h>
+#include <sys/socket.h>
+#include <sys/sys_domain.h>
+#include <netinet/in.h>
+#include <net/if.h>
+#endif
+
+
+#include <netinet/in.h>
+#include <netinet/ip.h>
+
 #include "utlist.h"
 
 #include "dap_common.h"
@@ -48,12 +54,7 @@
 #include "dap_stream_ch_pkt.h"
 #include "dap_client.h"
 
-#include <arpa/inet.h>
-#include <fcntl.h>
-#include <linux/if_tun.h>
-#include <net/if.h>
-#include <netinet/in.h>
-#include <netinet/ip.h>
+
 
 #include "dap_chain_net_srv_vpn.h"
 #include "dap_chain_net_vpn_client.h"
@@ -81,6 +82,7 @@ static dap_events_socket_t * s_tun_events_socket = NULL;
 
 int tun_device_create(char *dev)
 {
+#ifdef DAP_OS_LINUX
     struct ifreq ifr;
     int fd, err;
     char clonedev[] = "/dev/net/tun";
@@ -111,6 +113,81 @@ int tun_device_create(char *dev)
         strcpy(dev, ifr.ifr_name);
     log_it(L_INFO, "Created %s network interface", ifr.ifr_name);
     return fd;
+#elif defined DAP_OS_DARWIN
+    // Prepare structs
+    struct ctl_info l_ctl_info = {0};
+    int l_errno = 0;
+
+    // Copy utun control name
+    if (strlcpy(l_ctl_info.ctl_name, UTUN_CONTROL_NAME, sizeof(l_ctl_info.ctl_name))
+            >= sizeof(l_ctl_info.ctl_name)){
+        l_errno = -100; // How its possible to came into this part? Idk
+        log_it(L_ERROR,"UTUN_CONTROL_NAME \"%s\" too long", UTUN_CONTROL_NAME);
+        goto lb_err;
+    }
+
+    // Create utun socket
+    int l_tun_fd = socket(PF_SYSTEM, SOCK_DGRAM, SYSPROTO_CONTROL);
+    if( l_tun_fd < 0){
+        l_errno = errno;
+        char l_errbuf[256];
+        strerror_r(l_errno, l_errbuf,sizeof(l_errbuf));
+        log_it(L_ERROR,"Opening utun device control (SYSPROTO_CONTROL) error: '%s' (code %d)", l_errbuf, l_errno);
+        goto lb_err;
+    }
+    log_it(L_INFO, "Utun SYSPROTO_CONTROL descriptor obtained");
+
+    // Pass control structure to the utun socket
+    if( ioctl(l_tun_fd, CTLIOCGINFO, &l_ctl_info ) < 0 ){
+        l_errno = errno;
+        char l_errbuf[256];
+        strerror_r(l_errno, l_errbuf,sizeof(l_errbuf));
+        log_it(L_ERROR,"Can't execute ioctl(CTLIOCGINFO): '%s' (code %d)", l_errbuf, l_errno);
+        goto lb_err;
+
+    }
+    log_it(L_INFO, "Utun CTLIOCGINFO structure passed through ioctl");
+
+    // Trying to connect with one of utunX devices
+    int l_ret = -1;
+    for(int l_unit = 0; l_unit < 256; l_unit++){
+        struct sockaddr_ctl l_sa_ctl = {0};
+        l_sa_ctl.sc_id = l_ctl_info.ctl_id;
+        l_sa_ctl.sc_len = sizeof(l_sa_ctl);
+        l_sa_ctl.sc_family = AF_SYSTEM;
+        l_sa_ctl.ss_sysaddr = AF_SYS_CONTROL;
+        l_sa_ctl.sc_unit = l_unit + 1;
+
+        // If connect successful, new utunX device should be created
+        l_ret = connect(l_tun_fd, (struct sockaddr *)&l_sa_ctl, sizeof(l_sa_ctl));
+        if(l_ret == 0)
+            break;
+    }
+    if (l_ret < 0){
+        l_errno = errno;
+        char l_errbuf[256];
+        strerror_r(l_errno, l_errbuf,sizeof(l_errbuf));
+        log_it(L_ERROR,"Can't create utun device: '%s' (code %d)", l_errbuf, l_errno);
+        goto lb_err;
+
+    }
+
+    // Get iface name of newly created utun dev.
+    log_it(L_NOTICE, "Utun device created");
+    char l_utunname[20];
+    socklen_t l_utunname_len = sizeof(l_utunname);
+    if (getsockopt(l_tun_fd, SYSPROTO_CONTROL, UTUN_OPT_IFNAME, l_utunname, &l_utunname_len) ){
+        l_errno = errno;
+        char l_errbuf[256];
+        strerror_r(l_errno, l_errbuf,sizeof(l_errbuf));
+        log_it(L_ERROR,"Can't get utun device name: '%s' (code %d)", l_errbuf, l_errno);
+        goto lb_err;
+    }
+    log_it(L_NOTICE, "Utun device name \"%s\"", l_utunname);
+    return l_tun_fd;
+lb_err:
+    return l_errno;
+#endif
 }
 
 static char* run_bash_cmd(const char *a_cmd)
@@ -266,12 +343,14 @@ void m_client_tun_new(dap_events_socket_t * a_es, void * arg)
 
         a_es->_inheritor = l_tun_socket;
         //s_tun_attach_queue( a_es->fd );
+#ifdef DAP_OS_LINUX
         {
             struct ifreq ifr;
             memset(&ifr, 0, sizeof(ifr));
             ifr.ifr_flags = IFF_ATTACH_QUEUE;
             ioctl(a_es->fd, TUNSETQUEUE, (void *)&ifr);
         }
+#endif
         log_it(L_NOTICE,"New TUN event socket initialized for worker %u" , l_tun_socket->worker_id);
 
     }else{
@@ -281,47 +360,39 @@ void m_client_tun_new(dap_events_socket_t * a_es, void * arg)
 
 static void m_client_tun_read(dap_events_socket_t * a_es, void * arg)
 {
-    const static int tun_MTU = 100000; /// TODO Replace with detection of MTU size
-    uint8_t l_tmp_buf[tun_MTU];
+    dap_stream_ch_t *l_ch = dap_chain_net_vpn_client_get_stream_ch();
+    size_t l_read_bytes = 0, l_shift = 0;
 
-    size_t l_read_ret;
-    log_it(L_WARNING, __PRETTY_FUNCTION__);
 
-    do{
-        l_read_ret = dap_events_socket_pop_from_buf_in(a_es, l_tmp_buf, sizeof(l_tmp_buf));
-
-        if(l_read_ret > 0) {
-            struct iphdr *iph = (struct iphdr*) l_tmp_buf;
+    for (; (l_read_bytes = MIN(a_es->buf_in_size, TUN_MTU)); a_es->buf_in_size -= l_read_bytes, l_shift += l_read_bytes) {
+        if (!l_ch) {
             struct in_addr in_daddr, in_saddr;
+#ifdef DAP_OS_LINUX
+            struct iphdr *iph = (struct iphdr*) a_es->buf_in;
             in_daddr.s_addr = iph->daddr;
             in_saddr.s_addr = iph->saddr;
-            char str_daddr[42], str_saddr[42];
-            dap_snprintf(str_saddr, sizeof(str_saddr), "%s",inet_ntoa(in_saddr) );
-            dap_snprintf(str_daddr, sizeof(str_daddr), "%s",inet_ntoa(in_daddr) );
+#else
+            struct ip *iph = (struct ip*) a_es->buf_in;
+            in_daddr.s_addr = iph->ip_dst.s_addr;
+            in_saddr.s_addr = iph->ip_src.s_addr;
+#endif
 
-            dap_stream_ch_t *l_ch = dap_chain_net_vpn_client_get_stream_ch();
-            if(l_ch) {
-                // form packet to vpn-server
-                ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header) + l_read_ret);
-                pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_SEND; //VPN_PACKET_OP_CODE_VPN_RECV
-                pkt_out->header.sock_id = s_fd_tun;
-                pkt_out->header.op_data.data_size = l_read_ret;
-                memcpy(pkt_out->data, l_tmp_buf, l_read_ret);
-
-                pthread_mutex_lock(&s_clients_mutex);
-                // sent packet to vpn server
-                dap_stream_ch_pkt_write_mt(l_ch->stream_worker,l_ch->uuid, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
-                        pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
-                pthread_mutex_unlock(&s_clients_mutex);
-
-                DAP_DELETE(pkt_out);
-            }
-            else {
-                log_it(L_DEBUG, "No remote client for income IP packet with addr %s", inet_ntoa(in_daddr));
-            }
+            char l_str_daddr[INET_ADDRSTRLEN], l_str_saddr[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &in_daddr, l_str_daddr, sizeof(in_daddr));
+            inet_ntop(AF_INET, &in_saddr, l_str_saddr, sizeof(in_saddr));
+            log_it(L_ERROR, "No remote client for incoming ip packet %s -> %s", l_str_saddr, l_str_daddr);
+            break;
         }
-    }while(l_read_ret > 0);
-
+        ch_vpn_pkt_t *pkt_out               = DAP_NEW_S_SIZE(ch_vpn_pkt_t, sizeof(pkt_out->header) + l_read_bytes);
+        pkt_out->header.op_code             = VPN_PACKET_OP_CODE_VPN_SEND;
+        pkt_out->header.sock_id             = s_fd_tun;
+        pkt_out->header.op_data.data_size   = l_read_bytes;
+        memcpy(pkt_out->data, a_es->buf_in + l_shift, l_read_bytes);
+        // pthread_mutex_lock(&s_clients_mutex);
+        dap_stream_ch_pkt_write_mt(l_ch->stream_worker,l_ch->uuid, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, pkt_out,
+                pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
+        // pthread_mutex_unlock(&s_clients_mutex);
+    }
     dap_events_socket_set_readable_unsafe(a_es, true);
 }
 
@@ -442,11 +513,11 @@ int dap_chain_net_vpn_client_tun_create(const char *a_ipv4_addr_str, const char 
     pthread_mutex_init(&s_clients_mutex, NULL);
 
     static dap_events_socket_callbacks_t l_s_callbacks = {
-            .new_callback = m_client_tun_new,//m_es_tun_new;
-            .read_callback = m_client_tun_read,// for server
-            .write_callback = m_client_tun_write,// for client
-            .error_callback = m_client_tun_error,
-            .delete_callback = m_client_tun_delete
+            .new_callback       = m_client_tun_new,
+            .read_callback      = m_client_tun_read,    // for server
+            .write_callback     = m_client_tun_write,   // for client
+            .error_callback     = m_client_tun_error,
+            .delete_callback    = m_client_tun_delete
     };
 
     s_tun_events_socket = dap_events_socket_wrap_no_add(dap_events_get_default(), s_fd_tun, &l_s_callbacks);
@@ -571,8 +642,14 @@ void ch_sf_tun_client_send(dap_chain_net_srv_ch_vpn_t * ch_sf, void * pkt_data, 
     log_it(L_CRITICAL, "Unimplemented tun_client_send");
 
     struct in_addr in_saddr, in_daddr, in_daddr_net;
+#ifdef DAP_OS_LINUX
     in_saddr.s_addr = ((struct iphdr*) pkt_data)->saddr;
     in_daddr.s_addr = ((struct iphdr*) pkt_data)->daddr;
+#else
+    in_saddr.s_addr = ((struct ip*) pkt_data)->ip_src.s_addr;
+    in_daddr.s_addr = ((struct ip*) pkt_data)->ip_dst.s_addr;
+#endif
+
     in_daddr_net.s_addr = ch_sf->ch->stream->session->tun_client_addr.s_addr; //in_daddr_net.s_addr = in_daddr.s_addr & m_tun_server->int_network_mask.s_addr;
     char * in_daddr_str = strdup(inet_ntoa(in_daddr));
     char * in_saddr_str = strdup(inet_ntoa(in_saddr));
@@ -616,24 +693,15 @@ void ch_sf_tun_client_send(dap_chain_net_srv_ch_vpn_t * ch_sf, void * pkt_data, 
  */
 int ch_sf_tun_addr_leased(dap_chain_net_srv_ch_vpn_t * a_sf, ch_vpn_pkt_t * a_pkt, size_t a_pkt_data_size)
 {
-    // we'd receive address assigment from server
-    struct in_addr l_addr = { 0 };
-    struct in_addr l_netmask = { 0 };
-    struct in_addr l_netaddr = { 0 };
-    struct in_addr l_gw = { 0 };
-
-    size_t l_route_net_count = 0;
-
-    if(a_pkt_data_size < (sizeof(l_addr) + sizeof(l_gw))) {
-        log_it(L_ERROR, "Too small ADDR_REPLY packet (%zu bytes, need at least %zu", a_pkt_data_size, sizeof(l_addr));
+    if(a_pkt_data_size < (2 * sizeof(struct in_addr))) {
+        log_it(L_ERROR, "Too small ADDR_REPLY packet (%zu bytes, need at least %zu", a_pkt_data_size, 2 * sizeof(struct in_addr));
         return -1;
     }
 
-    l_route_net_count = (a_pkt_data_size - 3 * sizeof(struct in_addr)) / (2 * sizeof(struct in_addr));
-    memcpy(&l_addr, a_pkt->data, sizeof(l_addr));
-    memcpy(&l_gw, a_pkt->data + sizeof(l_addr), sizeof(l_gw));
-    memcpy(&l_netmask, a_pkt->data + sizeof(l_addr) + sizeof(l_gw), sizeof(l_netmask));
-    l_netaddr.s_addr = l_addr.s_addr & l_netmask.s_addr;
+    struct in_addr  l_addr      = *(struct in_addr*)a_pkt->data,
+                    l_gw        = *(struct in_addr*)(a_pkt->data + sizeof(struct in_addr)),
+                    l_netmask   = *(struct in_addr*)(a_pkt->data + sizeof(struct in_addr) * 2),
+                    l_netaddr   = { .s_addr = l_addr.s_addr & l_netmask.s_addr };
 
     char l_addr_buf[INET_ADDRSTRLEN];
     char l_gw_buf[INET_ADDRSTRLEN];
