@@ -13,7 +13,7 @@ void dap_chain_mempool_rpc_handler_test(dap_json_rpc_params_t *a_params,
     UNUSED(a_method);
     char *l_tn = NULL;
 //    char *l_chain_str = NULL;
-    for (int32_t i = 0; i < a_params->lenght; i++) {
+    for (uint32_t i = 0; i < a_params->lenght; i++) {
         dap_json_rpc_param_t *l_prm = a_params->params[i];
         if (i == 0)
             l_tn = l_prm->value_param;
@@ -58,7 +58,7 @@ void dap_chain_mempool_rpc_handler_list(dap_json_rpc_params_t *a_params,
                                         dap_json_rpc_response_t *a_response, const char *a_method) {
     char *l_net_str = NULL;
     char *l_chain_str = NULL;
-    for (int32_t i = 0; i < a_params->lenght; i++) {
+    for (uint32_t i = 0; i < a_params->lenght; i++) {
         dap_json_rpc_param_t *l_prm = a_params->params[i];
         if (i == 0)
             l_net_str = l_prm->value_param;
