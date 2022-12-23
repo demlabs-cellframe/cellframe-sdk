@@ -62,7 +62,7 @@ json_object *dap_chain_net_srv_stake_lock_cond_out_to_json(dap_chain_tx_out_cond
 dap_chain_datum_t *dap_chain_net_srv_stake_lock_datum_create(dap_chain_net_t *a_net,
                                                    dap_enc_key_t *a_key_from, dap_pkey_t *a_key_cond,
                                                    const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
-                                                   uint256_t a_value, dap_chain_net_srv_uid_t a_srv_uid,
+                                                   uint256_t a_value, uint256_t a_value_fee, dap_chain_net_srv_uid_t a_srv_uid,
                                                    dap_time_t a_time_staking, uint256_t a_reinvest_percent,
                                                    bool a_create_base_tx);
 // Burning_tx_create
