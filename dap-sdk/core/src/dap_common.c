@@ -377,15 +377,17 @@ void    _log_it_ext   (
 va_list arglist;
 const char      lfmt [] = {"%02u-%02u-%04u %02u:%02u:%02u.%03u  "  PID_FMT "  %s [%s:%u] "};
 char    out[1024] = {0};
-int     olen, len;
+ssize_t     olen, len;
 struct tm _tm;
 struct timespec now;
 
-    if ( (a_ll == -1) )
+    if ( ((int) a_ll == -1) )
         return;
 
-    if ( a_ll < s_dap_log_level )
+    if ( (a_ll < s_dap_log_level) )
+    {
         return;
+    }
 
 
 
@@ -415,7 +417,7 @@ struct timespec now;
 	olen += vsnprintf(out + olen, sizeof(out) - olen, a_fmt, arglist);
 	va_end (arglist);
 
-	olen = MIN(olen, sizeof(out) - 1);
+	olen = MIN(olen, (ssize_t) sizeof(out) - 1);
 
 	/* Add <LF> at end of record*/
 	out[olen++] = '\n';

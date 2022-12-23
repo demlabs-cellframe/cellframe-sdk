@@ -226,6 +226,16 @@ size_t dap_writev   (HANDLE a_hf, const char* a_filename, iovec_t const *a_bufs,
 #define dap_writev writev
 #endif
 
+
+static inline uint32_t dap_crc32c(unsigned int crc, const void *buf, size_t buflen)
+{
+    uint32_t crc32c(uint32_t crc, const void *buf, size_t len);
+
+    return  crc32c(crc, buf, buflen);
+}
+
+
+
 DAP_STATIC_INLINE void *_dap_aligned_alloc( uintptr_t alignment, uintptr_t size )
 {
     uintptr_t ptr = (uintptr_t) DAP_MALLOC( size + (alignment * 2) + sizeof(void *) );
