@@ -36,6 +36,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
+
 #ifndef __cplusplus
 # include <stdatomic.h>
 #else
@@ -226,10 +227,12 @@ size_t dap_writev   (HANDLE a_hf, const char* a_filename, iovec_t const *a_bufs,
 #define dap_writev writev
 #endif
 
+#include "crc32c_adler.h"
+
 
 static inline uint32_t dap_crc32c(unsigned int crc, const void *buf, size_t buflen)
 {
-    uint32_t crc32c(uint32_t crc, const void *buf, size_t len);
+//    uint32_t crc32c(uint32_t crc, const void *buf, size_t len);
 
     return  crc32c(crc, buf, buflen);
 }

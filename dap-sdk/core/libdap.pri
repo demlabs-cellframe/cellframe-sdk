@@ -51,7 +51,13 @@ win32 {
 
 # 3rd party
 HEADERS += $$PWD/../../3rdparty/uthash/src/utlist.h \
-           $$PWD/../../3rdparty/uthash/src/uthash.h
+           $$PWD/../../3rdparty/uthash/src/uthash.h \
+           $$PWD/../../3rdparty/crc32c_adler/crc32c_adler.h
+
+INCLUDEPATH += $$PWD/include \
+    $$PWD/../../3rdparty/uthash/src/ \
+    $$PWD/../../3rdparty/crc32c_adler/
+
 
 #if(DAPSDK_MODULES MATCHES "ssl-support")
 #    include($$PWD/../../3rdparty/wolfssl/wolfssl.pri)
@@ -73,6 +79,7 @@ HEADERS += $$PWD/include/dap_common.h \
     $$PWD/include/dap_tsd.h
 
 SOURCES += $$PWD/src/dap_common.c \
+    $$PWD/../../3rdparty/crc32c_adler/crc32c_adler.c \
     $$PWD/src/dap_binary_tree.c \
     $$PWD/src/dap_config.c \
     $$PWD/src/dap_file_utils.c \
@@ -82,7 +89,5 @@ SOURCES += $$PWD/src/dap_common.c \
     $$PWD/src/dap_strfuncs.c \
     $$PWD/src/dap_string.c \
     $$PWD/src/dap_time.c \
-    $$PWD/src/dap_tsd.c
+    $$PWD/src/dap_tsd.c \
 
-INCLUDEPATH += $$PWD/include \
-    $$PWD/../../3rdparty/uthash/src/
