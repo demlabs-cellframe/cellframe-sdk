@@ -280,14 +280,12 @@ if(UNIX)
   endif()
 endif()
 
-target_link_libraries(dap_crypto json-c)
-
 if(WIN32)
-  target_link_libraries(dap_crypto dap_core)
+  target_link_libraries(dap_crypto dap_core json-c)
 endif()
 
 if(UNIX)
-  target_link_libraries(dap_crypto dap_core m)
+  target_link_libraries(dap_crypto dap_core json-c m)
 endif()
 
 
