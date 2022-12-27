@@ -40,6 +40,9 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_ledger.h"
 #include "dap_chain_datum_tx.h"
 #include "uthash.h"
+#include "dap_json_rpc.h"
+#include "dap_json_rpc_request_handler.h"
+#include <json.h>
 
 #define DAP_CHAIN_NET_NAME_MAX 32
 #define DAP_BROADCAST_LIFETIME 15   // minutes
@@ -91,6 +94,17 @@ typedef bool (dap_chain_datum_filter_func_t)(dap_chain_datum_t *a_datum, dap_cha
 
 int dap_chain_net_init(void);
 void dap_chain_net_deinit(void);
+
+void dap_chain_net_rpc_init(void);
+
+void dap_chain_net_rpc_handler_list(dap_json_rpc_params_t *a_params,
+                                        dap_json_rpc_response_t *a_response, const char *a_method);
+
+void dap_chain_net_rpc_handler_go_status(dap_json_rpc_params_t *a_params,
+                                    dap_json_rpc_response_t *a_response, const char *a_method);
+
+void dap_chain_net_rpc_handler_get_status(dap_json_rpc_params_t *a_params,
+                                         dap_json_rpc_response_t *a_response, const char *a_method);
 
 void dap_chain_net_load_all();
 

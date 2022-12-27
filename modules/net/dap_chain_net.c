@@ -2628,6 +2628,142 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
     return 0;
 }
 
+void dap_chain_net_rpc_init(void) {
+    dap_json_rpc_registration_request_handler("getnetlist", dap_chain_net_rpc_handler_list);
+    dap_json_rpc_registration_request_handler("netgo", dap_chain_net_rpc_handler_go_status);
+    dap_json_rpc_registration_request_handler("getnetstatus", dap_chain_net_rpc_handler_get_status);
+}
+
+void dap_chain_net_rpc_handler_list(dap_json_rpc_params_t *a_params,
+                                    dap_json_rpc_response_t *a_response, const char *a_method) {
+    UNUSED(a_params);
+    UNUSED(a_method);
+    json_object *l_obj_response = json_object_new_object();
+    dap_chain_net_t *l_net = NULL;
+    dap_chain_net_item_t * l_net_item, *l_net_item_tmp;
+    json_object *l_obj_nets = json_object_new_array();
+    pthread_rwlock_rdlock(&s_net_items_rwlock);
+    HASH_ITER(hh, s_net_items, l_net_item, l_net_item_tmp){
+        l_net = l_net_item->chain_net;
+        json_object *l_obj_net = json_object_new_object();
+        json_object *l_obj_net_str = json_object_new_string(l_net_item->name);
+        json_object *l_obj_chains = json_object_new_array();
+        dap_chain_t * l_chain = l_net->pub.chains;
+        while (l_chain) {
+            json_object *l_obj_chain = json_object_new_object();
+            json_object *l_obj_chain_str = json_object_new_string(l_chain->name);
+            json_object *l_obj_chain_types;
+            if (l_chain->default_datum_types_count) {
+                l_obj_chain_types = json_object_new_array();
+                for (uint16_t i = 0; i < l_chain->default_datum_types_count; i++)
+                    json_object_array_add(l_obj_chain_types, json_object_new_string(s_chain_type_convert_to_string(
+                            l_chain->default_datum_types[i])));
+            } else {
+                l_obj_chain_types = json_object_new_null();
+            }
+            json_object_object_add(l_obj_chain, "name", l_obj_chain_str);
+            json_object_object_add(l_obj_chain, "types", l_obj_chain_types);
+            json_object_array_add(l_obj_chains, l_obj_chain);
+            l_chain = l_chain->next;
+        }
+        json_object_object_add(l_obj_net, "name", l_obj_net_str);
+        json_object_object_add(l_obj_net, "chains", l_obj_chains);
+        json_object_array_add(l_obj_nets, l_obj_net);
+    }
+    pthread_rwlock_unlock(&s_net_items_rwlock);
+//    a_response->
+
+    //    return l_obj_nets;
+}
+
+void dap_chain_net_rpc_handler_go_status(dap_json_rpc_params_t *a_params,
+                                         dap_json_rpc_response_t *a_response, const char *a_method) {
+    UNUSED(a_method);
+    char *l_net_str, *l_next_status = NULL;
+    for (uint32_t i = 0; i < a_params->lenght; i++) {
+        dap_json_rpc_param_t *l_param = a_params->params[i];
+        if (i == 0)
+            if (l_param->type == TYPE_PARAM_STRING)
+                l_net_str = (char*)l_param->value_param;
+        if (i == 1)
+            if (l_param->type == TYPE_PARAM_STRING)
+                l_next_status = (char*)l_param->value_param;
+    }
+    if (l_net_str) {
+        if (l_next_status) {
+            dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
+            if (l_net) {
+                //FROM_TO
+                json_object *l_res = NULL;
+                json_object *l_obj_net = json_object_new_string(l_net_str);
+                bool flag_check_valid_next_status = true;
+                json_object *l_next_new_status;
+                char *l_current_status = c_net_states[PVT(l_net)->state];
+                if (strcmp(l_next_status, "online") == 0) {
+//                dap_cli_server_cmd_set_reply_text(a_str_reply, "Network \"%s\" going from state %s to %s",
+//                                                  l_net->pub.name,c_net_states[PVT(l_net)->state],
+//                                                  c_net_states[NET_STATE_ONLINE]);
+                    dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE);
+                    l_next_new_status = json_object_new_string(c_net_states[NET_STATE_ONLINE]);
+                } else if (strcmp(l_next_status, "offline") == 0) {
+//                dap_cli_server_cmd_set_reply_text(a_str_reply, "Network \"%s\" going from state %s to %s",
+//                                                  l_net->pub.name,c_net_states[PVT(l_net)->state],
+//                                                  c_net_states[NET_STATE_OFFLINE]);
+                    dap_chain_net_state_go_to(l_net, NET_STATE_OFFLINE);
+                    l_next_new_status = json_object_new_string(c_net_states[NET_STATE_OFFLINE]);
+                } else if (strcmp(l_next_status, "sync") == 0) {
+//                dap_cli_server_cmd_set_reply_text(a_str_reply, "Network \"%s\" resynchronizing",
+//                                                  l_net->pub.name);
+                    if (PVT(l_net)->state_target == NET_STATE_ONLINE) {
+                        dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE);
+                        l_next_new_status = json_object_new_string(c_net_states[NET_STATE_ONLINE]);
+                    } else {
+                        dap_chain_net_state_go_to(l_net, NET_STATE_SYNC_CHAINS);
+                        l_next_new_status = json_object_new_string(c_net_states[NET_STATE_SYNC_CHAINS]);
+                    }
+                } else {
+                    flag_check_valid_next_status = false;
+                    // TODO: Set error can't find new status
+
+                }
+                json_object *l_result = json_object_new_object();
+                json_object *l_obj_current_status = json_object_new_string(l_current_status);
+                json_object_object_add(l_result, "net", l_obj_net);
+                json_object_object_add(l_result, "from", l_obj_current_status);
+                json_object_object_add(l_result, "to", l_next_new_status);
+            } else {
+                //TODO: Set Error can't find str
+            }
+        }
+    }
+}
+
+void dap_chain_net_rpc_handler_get_status(dap_json_rpc_params_t *a_params,
+                                          dap_json_rpc_response_t *a_response, const char *a_method) {
+    UNUSED(a_method);
+    char *l_net_str = NULL;
+    for (uint32_t i = 0; i < a_params->lenght; i++) {
+        dap_json_rpc_param_t *l_param = a_params->params[i];
+        if (i == 0)
+            if (l_param->type == TYPE_PARAM_STRING)
+                l_net_str = (char*)l_param->value_param;
+    }
+    if (l_net_str) {
+        dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
+        if (l_net) {
+            json_object *l_obj = json_object_new_object();
+            json_object *l_obj_net_str = json_object_new_string(l_net_str);
+            json_object *l_obj_net_states = json_object_new_string(c_net_states[PVT(l_net)->state]);
+            json_object_object_add(l_obj, "net", l_obj_net_str);
+            json_object_object_add(l_obj, "state", l_obj_net_states);
+        } else {
+            //TODO: Set Error can't find network with name
+        }
+    } else {
+        //TODO: Error can't net name in params
+    }
+}
+
 /**
  * @brief dap_chain_net_deinit
  */
