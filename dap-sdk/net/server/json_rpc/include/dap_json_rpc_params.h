@@ -36,7 +36,8 @@ typedef enum dap_json_rpc_type_param{
     TYPE_PARAM_STRING,
     TYPE_PARAM_INTEGER,
     TYPE_PARAM_DOUBLE,
-    TYPE_PARAM_BOOLEAN
+    TYPE_PARAM_BOOLEAN,
+    TYPE_PARAM_JSON
 }dap_json_rpc_type_param_t;
 
 typedef struct dap_json_rpc_param

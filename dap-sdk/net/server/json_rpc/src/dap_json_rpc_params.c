@@ -38,6 +38,9 @@ void dap_json_rpc_params_add_data(dap_json_rpc_params_t *a_params, const void *a
         l_param->value_param = DAP_NEW(double);
         memcpy(l_param->value_param, a_value, l_len_value);
         break;
+    case TYPE_PARAM_JSON:
+        l_param->value_param = a_value;
+        break;
     default:
         l_param->value_param = NULL;
         break;
@@ -124,7 +127,7 @@ dap_json_rpc_params_t * dap_json_rpc_params_create_from_array_list(json_object *
             dap_json_rpc_params_add_data(l_params, &l_double_tmp, TYPE_PARAM_DOUBLE);
             break;
         default:
-            dap_json_rpc_params_add_data(l_params, NULL, TYPE_PARAM_NULL);
+            dap_json_rpc_params_add_data(l_params, json_object_get(l_jobj), TYPE_PARAM_JSON);
         }
     }
     return  l_params;
