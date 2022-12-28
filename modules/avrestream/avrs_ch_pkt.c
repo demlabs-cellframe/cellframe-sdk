@@ -45,17 +45,18 @@
  */
 int avrs_ch_pkt_send_retcode_unsafe(dap_stream_ch_t * a_ch, int a_code, const char * a_text)
 {
-    size_t l_text_size = strlen(a_text)+1;
+    size_t l_text_size = strlen(a_text) + 1;
     avrs_ch_pkt_retcode_t * l_err = DAP_NEW_STACK_SIZE(avrs_ch_pkt_retcode_t, sizeof(avrs_ch_pkt_retcode_t)+l_text_size);
     l_err->code = a_code;
     memcpy(l_err->text, a_text, l_text_size);
     if (l_err->code != AVRS_SUCCESS)
         log_it(L_WARNING,"Reply with error %s (%d) ", a_text, a_code);
 
-    if (dap_stream_ch_pkt_write_unsafe(a_ch,'r',l_err,sizeof(avrs_ch_pkt_retcode_t)+l_text_size) == sizeof(avrs_ch_pkt_retcode_t)+l_text_size)
+    if ( dap_stream_ch_pkt_write_unsafe(a_ch, DAP_AVRS$K_CH_RETCODE,
+                        l_err, sizeof(avrs_ch_pkt_retcode_t) + l_text_size) == sizeof(avrs_ch_pkt_retcode_t)+l_text_size)
         return 0;
-    else
-        return -1;
+
+    return -1;
 }
 
 /**

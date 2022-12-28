@@ -395,7 +395,8 @@ size_t avrs_cluster_content_all_serialize_tsd(avrs_cluster_t * a_cluster, void *
     avrs_content_t * l_content , * l_tmp;
 
     pthread_rwlock_rdlock(&a_cluster->rwlock);
-    HASH_ITER(hh, PVT(a_cluster)->contents , l_content, l_tmp){
+    HASH_ITER(hh, PVT(a_cluster)->contents , l_content, l_tmp)
+    {
         // Calc new tsd section size
         size_t l_tsd_size = sizeof(dap_tsd_t) + sizeof (dap_guuid_t);
 
@@ -405,6 +406,7 @@ size_t avrs_cluster_content_all_serialize_tsd(avrs_cluster_t * a_cluster, void *
             log_it(L_CRITICAL, "Out of memory, stopped with cluster list forming on position %zd", l_clusters_count);
             return l_clusters_count;
         }
+
         // Fill new data chunk with values
         dap_tsd_t * l_tsd = (dap_tsd_t*) ((byte_t*)(*a_data) + l_offset);
         l_tsd->type = AVRS_CH_PKT_CLUSTER_ARG_CONTENT_ID;
@@ -412,6 +414,7 @@ size_t avrs_cluster_content_all_serialize_tsd(avrs_cluster_t * a_cluster, void *
         // Move data set and over the iteration
         l_offset += l_tsd_size;
     }
+
     pthread_rwlock_unlock(&a_cluster->rwlock);
     return l_clusters_count;
 }

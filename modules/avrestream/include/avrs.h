@@ -67,4 +67,11 @@ typedef uint16_t avrs_role_t;
 
 #define AVRS_ERROR                           0xffffffff
 
+enum    {
+        DAP_AVRS$K_CH_RETCODE = 'r',
+        DAP_AVRS$K_CH_CLUSTER = 'C',
+        DAP_AVRS$K_CH_CONTENT = 'c',
+};
+
+
 extern int g_avrs_debug_more;
