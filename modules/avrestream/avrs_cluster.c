@@ -48,15 +48,74 @@ typedef struct avrs_cluster_pvt
     avrs_content_t * contents;
 } avrs_cluster_pvt_t;
 
+
 avrs_cluster_t * s_clusters = NULL;
 pthread_rwlock_t s_clusters_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 #define PVT(a)  ( (avrs_cluster_pvt_t *) (a->pvt) )
 
-static avrs_cluster_t * s_new(void);
-static int s_add(avrs_cluster_t * a_cluster);
 static inline int s_member_add(avrs_cluster_t * a_cluster, avrs_cluster_member_t * a_hh,  avrs_cluster_member_t* a_member);
 
+
+
+inline avrs_cluster_t *avrs_cluster_find(dap_guuid_t a_cluster_id)
+{
+    avrs_cluster_t * l_ret = NULL;
+
+    pthread_rwlock_rdlock(&s_clusters_rwlock);
+    HASH_FIND_PTR(s_clusters,&a_cluster_id, l_ret);
+    pthread_rwlock_unlock(&s_clusters_rwlock);
+
+    return l_ret;
+}
+
+
+
+static inline avrs_cluster_t * s_new(void)
+{
+    avrs_cluster_t * l_ret = DAP_NEW_Z_SIZE(avrs_cluster_t, sizeof(avrs_cluster_t) + sizeof(avrs_cluster_pvt_t));
+    pthread_rwlock_init( &l_ret->rwlock, NULL);
+    return l_ret;
+}
+
+
+static inline int s_add(avrs_cluster_t * a_cluster)
+{
+    avrs_cluster_t * l_check = avrs_cluster_find(a_cluster->guuid);
+
+    if(l_check)
+        return -1;
+
+    pthread_rwlock_wrlock(&s_clusters_rwlock);
+    HASH_ADD_KEYPTR(hh, s_clusters, &a_cluster->guuid, sizeof(a_cluster->guuid), a_cluster);
+    pthread_rwlock_unlock(&s_clusters_rwlock);
+
+    return 0;
+}
+
+
+
+/**
+ * @brief avrs_cluster_new_from
+ * @param a_guuid
+ * @param a_options
+ * @return
+ */
+inline avrs_cluster_t *avrs_cluster_new_from(dap_guuid_t a_guuid, avrs_cluster_options_t * a_options)
+{
+    avrs_cluster_t * l_ret = s_new();
+
+    if (a_options)
+        l_ret->options = *a_options;
+
+    l_ret->guuid = a_guuid;
+
+    pthread_rwlock_wrlock(&s_clusters_rwlock);
+    HASH_ADD_KEYPTR(hh, s_clusters, &l_ret->guuid, sizeof(l_ret->guuid), l_ret);
+    pthread_rwlock_unlock(&s_clusters_rwlock);
+
+    return l_ret;
+}
 
 
 /**
@@ -69,67 +128,8 @@ avrs_cluster_t *avrs_cluster_new(avrs_cluster_options_t * a_options)
     return avrs_cluster_new_from(dap_guuid_new(), a_options);
 }
 
-/**
- * @brief avrs_cluster_new_from
- * @param a_guuid
- * @param a_options
- * @return
- */
-avrs_cluster_t *avrs_cluster_new_from(dap_guuid_t a_guuid, avrs_cluster_options_t * a_options)
-{
-    avrs_cluster_t * l_ret = s_new();
-
-    if(a_options)
-        memcpy(&l_ret->options, a_options, sizeof(l_ret->options));
-
-    l_ret->guuid = a_guuid;
-
-    pthread_rwlock_wrlock(&s_clusters_rwlock);
-    HASH_ADD_KEYPTR(hh, s_clusters, &l_ret->guuid, sizeof(l_ret->guuid), l_ret);
-    pthread_rwlock_unlock(&s_clusters_rwlock);
-
-    return l_ret;
-}
-
-avrs_cluster_t *avrs_cluster_find(dap_guuid_t a_cluster_id)
-{
-    avrs_cluster_t * l_ret = NULL;
-
-    pthread_rwlock_rdlock(&s_clusters_rwlock);
-    HASH_FIND_PTR(s_clusters,&a_cluster_id, l_ret);
-    pthread_rwlock_unlock(&s_clusters_rwlock);
-
-    return l_ret;
-}
 
 
-/**
- * @brief s_new
- * @return
- */
-static avrs_cluster_t * s_new(void)
-{
-    avrs_cluster_t * l_ret = DAP_NEW_Z_SIZE(avrs_cluster_t, sizeof(avrs_cluster_t) + sizeof(avrs_cluster_pvt_t));
-    pthread_rwlock_init( &l_ret->rwlock, NULL);
-    return l_ret;
-}
-
-/**
- * @brief s_add
- * @param a_cluster
- * @return
- */
-static int s_add(avrs_cluster_t * a_cluster)
-{
-    avrs_cluster_t * l_check = avrs_cluster_find(a_cluster->guuid);
-    if(l_check)
-        return -1;
-
-    pthread_rwlock_wrlock(&s_clusters_rwlock);
-    HASH_ADD_KEYPTR(hh, s_clusters, &a_cluster->guuid, sizeof(a_cluster->guuid), a_cluster);
-    pthread_rwlock_unlock(&s_clusters_rwlock);
-    return 0;
-}
 
 /**
  * @brief avrs_cluster_delete
@@ -137,15 +137,18 @@ static int s_add(avrs_cluster_t * a_cluster)
  */
 void avrs_cluster_delete(avrs_cluster_t * a_cluster)
 {
+avrs_content_t * l_content, * l_tmp;
+
     pthread_rwlock_wrlock(&s_clusters_rwlock);
-    // TODO s_cluster_by_id compression and optimization when delete
-    avrs_content_t * l_content, * l_tmp;
+
     HASH_ITER(hh, PVT(a_cluster)->contents, l_content, l_tmp){
         l_content->cluster = NULL;
         avrs_content_delete(l_content);
         HASH_DELETE(hh, PVT(a_cluster)->contents, l_content);
     }
+
     HASH_DELETE(hh, s_clusters, a_cluster);
+
     pthread_rwlock_unlock(&s_clusters_rwlock);
 }
 
@@ -159,16 +162,18 @@ void avrs_cluster_delete(avrs_cluster_t * a_cluster)
 static inline int s_member_add(avrs_cluster_t * a_cluster, avrs_cluster_member_t * a_hh,  avrs_cluster_member_t* a_member)
 {
     avrs_cluster_member_t * l_check = NULL;
+    char l_member_id_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
 
     pthread_rwlock_wrlock(&a_cluster->rwlock);
     HASH_FIND(hh,a_hh,&a_member->id, sizeof(a_member->id), l_check);
-    if(l_check){
-        char l_member_id_str[DAP_HASH_FAST_SIZE*2+3];
+    if(l_check)
+    {
+        pthread_rwlock_unlock(&a_cluster->rwlock);                      /* Unlock ASAP !!! */
+
         dap_hash_fast_to_str(&a_member->id, l_member_id_str, sizeof(l_member_id_str));
-        log_it(L_WARNING, "Trying to add member %s but its already present in cluster ",
-                l_member_id_str);
-        pthread_rwlock_unlock(&a_cluster->rwlock);
-        return -1;
+        log_it(L_WARNING, "Trying to add member %s but its already present in cluster ", l_member_id_str);
+
+        return -EEXIST;
     }
 
 
@@ -310,9 +315,12 @@ int avrs_cluster_content_remove(avrs_content_t * a_content)
         l_ret = -2;
         goto lb_ret;
     }
+
     pthread_rwlock_wrlock(&a_content->rwlock);
     pthread_rwlock_wrlock(&a_content->cluster->rwlock);
+
     HASH_DELETE(hh, PVT(a_content->cluster)->contents, a_content );
+
     pthread_rwlock_unlock(&a_content->cluster->rwlock);
     a_content->cluster = NULL;
 

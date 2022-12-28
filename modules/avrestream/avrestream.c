@@ -54,7 +54,7 @@ static  avrs_cluster_member_t   s_member = {                        /* Me - are 
             .info.name_display = {"SysMan"},
             .info.name_second = {"La"},
             .info.title = {"BMF"},
-            .info.status = {"Za Vovu!"}
+            .info.status = {"Za \/o\/u!"}
 };
 
 static  int     avrs_test (void)
@@ -90,7 +90,7 @@ int avrs_plugin_init(dap_config_t * a_plugin_config, char ** a_error_str)
     int         l_rc;
 
     l_rc = pthread_create(&l_tid, NULL, avrs_test, NULL);
-    assert(l_rc);
+    assert(!l_rc);
     }
 #endif
 

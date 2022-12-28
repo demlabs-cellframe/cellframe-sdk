@@ -30,4 +30,4 @@ typedef int (*avrs_ch_pkt_session_callback_t)(avrs_ch_t *a_avrs_ch, avrs_session
 
 
 void avrs_ch_pkt_in_session(avrs_ch_t * a_avrs_ch,avrs_ch_pkt_session_t * a_pkt, size_t a_pkt_args_size);
-void avrs_ch_pkt_in_session_add_callback(avrs_ch_pkt_session_callback_t a_callback);
+int avrs_ch_pkt_in_session_add_callback(avrs_ch_pkt_session_callback_t a_callback);
