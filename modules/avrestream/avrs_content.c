@@ -144,6 +144,7 @@ static void s_gst_context_callback_started(dap_context_t * a_context,void * a_ar
     GError * l_gerr = NULL;
     s_context_gst = g_main_context_new ();
     g_main_context_push_thread_default(s_context_gst);
+
     // GStreamer init
     if( gst_init_check (NULL, NULL, & l_gerr) == FALSE ){
         if (l_gerr){
@@ -183,7 +184,7 @@ void avrs_content_deinit()
  */
 avrs_content_t * avrs_content_new()
 {
-    avrs_content_t * l_ret = DAP_NEW_Z_SIZE(avrs_content_t, sizeof(avrs_content_t) +sizeof(avrs_content_pvt_t));
+    avrs_content_t * l_ret = DAP_NEW_Z_SIZE(avrs_content_t, sizeof(avrs_content_t) + sizeof(avrs_content_pvt_t));
     assert(l_ret);
 
     pthread_rwlock_init(&l_ret->rwlock, NULL);

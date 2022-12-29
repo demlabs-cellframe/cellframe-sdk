@@ -71,7 +71,7 @@ static inline void s_pkt_in_retcode(avrs_ch_t * a_avrs_ch, int32_t a_code, const
  */
 int avrs_ch_init(void)
 {
-    dap_stream_ch_proc_add('A', s_ch_callback_new, s_ch_callback_delete, s_ch_callback_pkt_in, NULL);
+    dap_stream_ch_proc_add(DAP_AVRS$K_CH_SIGNAL, s_ch_callback_new, s_ch_callback_delete, s_ch_callback_pkt_in, NULL);
     return 0;
 }
 
@@ -113,11 +113,10 @@ static void s_ch_callback_new(dap_stream_ch_t * a_ch, void * a_arg)
     avrs_ch_t * l_avrs_ch = DAP_NEW_Z_SIZE(avrs_ch_t, sizeof(avrs_ch_t) + sizeof(avrs_ch_pvt_t));
 
     assert(l_avrs_ch);
+
     debug_if(g_avrs_debug_more, L_DEBUG, "[stm_ch:%p] avrs_ch:%p --- is allocated", a_ch, l_avrs_ch);
 
-    avrs_ch_pvt_t * l_avrs_ch_pvt = PVT(l_avrs_ch);
-
-    debug_if(g_avrs_debug_more, L_DEBUG, "[stm_ch:%p, avrs_ch:%p] avrs_ch_pvt:%p", a_ch, l_avrs_ch, l_avrs_ch_pvt);
+    debug_if(g_avrs_debug_more, L_DEBUG, "[stm_ch:%p] avrs_ch:%p", a_ch, l_avrs_ch);
 
     a_ch->internal = l_avrs_ch;
 }
@@ -130,9 +129,9 @@ static void s_ch_callback_new(dap_stream_ch_t * a_ch, void * a_arg)
 static void s_ch_callback_delete(dap_stream_ch_t * a_ch, void * a_arg)
 {
     avrs_ch_t * l_avrs_ch = AVRS_CH(a_ch);
-    avrs_ch_pvt_t * l_avrs_ch_pvt = PVT(l_avrs_ch);
+    //avrs_ch_pvt_t * l_avrs_ch_pvt = PVT(l_avrs_ch);
 
-    debug_if(g_avrs_debug_more, L_DEBUG, "[stm_ch:%p, avrs_ch:%p] avrs_ch_pvt:%p --- deallocated", a_ch, l_avrs_ch, l_avrs_ch_pvt);
+    debug_if(g_avrs_debug_more, L_DEBUG, "[stm_ch:%p, avrs_ch:%p] avrs_ch_pvt:%p --- deallocated", a_ch, l_avrs_ch);
     DAP_FREE(l_avrs_ch);
 }
 
@@ -145,12 +144,17 @@ static void s_ch_callback_pkt_in(dap_stream_ch_t * a_ch, void * a_arg)
 {
     dap_stream_ch_pkt_t * l_ch_pkt = (dap_stream_ch_pkt_t *) a_arg;
     avrs_ch_t * l_avrs_ch = AVRS_CH(a_ch);
+
     if(l_ch_pkt){
         log_it(L_CRITICAL, "Received NULL packet in pkt_in callback");
         return;
     }
-    switch (l_ch_pkt->hdr.type ){
-        case 'C':{ // Cluster control packet
+
+
+    switch (l_ch_pkt->hdr.type )
+    {
+        case DAP_AVRS$K_CH_CLUSTER:                                     // Cluster control packet
+        {
             if(l_ch_pkt->hdr.size < sizeof(avrs_ch_pkt_cluster_t) ){
                 log_it(L_WARNING, "Too small ch packet data size %u thats smaller then minimal cluster packet size %zd",
                        l_ch_pkt->hdr.size, sizeof(avrs_ch_pkt_cluster_t));
@@ -159,10 +163,11 @@ static void s_ch_callback_pkt_in(dap_stream_ch_t * a_ch, void * a_arg)
             avrs_ch_pkt_cluster_t * l_pkt = (avrs_ch_pkt_cluster_t *) l_ch_pkt->data;
             size_t l_pkt_args_size = l_ch_pkt->hdr.size - sizeof(avrs_ch_pkt_cluster_t);
             avrs_ch_pkt_in_cluster(l_avrs_ch,l_pkt, l_pkt_args_size);
+        }
+        break;
 
-
-        };
-        case 'S':{ // Session control packet
+        case DAP_AVRS$K_CH_SESSION:                                     // Session control packet
+        {
             if(l_ch_pkt->hdr.size < sizeof(avrs_ch_pkt_session_t) ){
                 log_it(L_WARNING, "Too small ch packet data size %u thats smaller then minimal session packet size %zd",
                        l_ch_pkt->hdr.size, sizeof(avrs_ch_pkt_session_t));
@@ -171,13 +176,17 @@ static void s_ch_callback_pkt_in(dap_stream_ch_t * a_ch, void * a_arg)
             avrs_ch_pkt_session_t * l_pkt = (avrs_ch_pkt_session_t *) l_ch_pkt->data;
             size_t l_pkt_args_size = l_ch_pkt->hdr.size - sizeof(avrs_ch_pkt_session_t);
             avrs_ch_pkt_in_session(l_avrs_ch,l_pkt, l_pkt_args_size);
-        };
-        case 'c':{ // Content packet
-            if(!l_avrs_ch->session ){// No session, we do nothing
+        }
+        break;
+
+        case DAP_AVRS$K_CH_CONTENT:                                     // Content packet
+        {
+            if(!l_avrs_ch->session ){                                   // No session, we do nothing
                 debug_if( g_avrs_debug_more, L_WARNING, "Current stream channel connection has no active AVRS session");
                 break;
             }
-            if(l_ch_pkt->hdr.size < sizeof(avrs_ch_pkt_content_t) ){
+
+            if(l_ch_pkt->hdr.size < sizeof(avrs_ch_pkt_content_t) ) {
                 log_it(L_WARNING, "Too small ch packet data size %u thats smaller then minimal content packet size %zd",
                        l_ch_pkt->hdr.size, sizeof(avrs_ch_pkt_content_t));
                 break;
@@ -186,27 +195,37 @@ static void s_ch_callback_pkt_in(dap_stream_ch_t * a_ch, void * a_arg)
             avrs_ch_pkt_content_t * l_pkt = (avrs_ch_pkt_content_t *) l_ch_pkt->data;
             size_t l_pkt_data_size = l_ch_pkt->hdr.size - sizeof(avrs_ch_pkt_content_t);
             s_pkt_in_content(l_avrs_ch, l_pkt, l_pkt_data_size);
-        };
-        case 'r':{ // Ret code
-            if(l_ch_pkt->hdr.size < sizeof(avrs_ch_pkt_retcode_t) ){
+        }
+        break;
+
+        case DAP_AVRS$K_CH_RETCODE:                                     // Ret code
+        {
+            if(l_ch_pkt->hdr.size < sizeof(avrs_ch_pkt_retcode_t) ) {
                 log_it(L_WARNING, "Too small ch packet data size %u thats smaller then minimal retcode packet size %zd",
                        l_ch_pkt->hdr.size, sizeof(avrs_ch_pkt_retcode_t));
                 break;
             }
+
             avrs_ch_pkt_retcode_t * l_pkt = (avrs_ch_pkt_retcode_t *) l_ch_pkt->data;
             size_t l_pkt_text_size = l_ch_pkt->hdr.size - sizeof(avrs_ch_pkt_retcode_t);
-            if(l_pkt_text_size){
-                if(l_pkt->text[l_pkt_text_size] != '\0' ){
-                    log_it(L_WARNING, "Retcode %d has text that is not null terminated string", l_pkt->code);
+
+            if(l_pkt_text_size)
+            {
+                if(l_pkt->msg[l_pkt_text_size] != '\0' )
+                {
+                    log_it(L_WARNING, "Retcode %d has text that is not null terminated string", l_pkt->msgnum);
                     break;
 
                 }
-                s_pkt_in_retcode(l_avrs_ch, l_pkt->code, l_pkt->text);
-            }else
-                s_pkt_in_retcode(l_avrs_ch, l_pkt->code, "");
 
+            s_pkt_in_retcode(l_avrs_ch, l_pkt->msgnum, l_pkt->msg);
+
+            } else  s_pkt_in_retcode(l_avrs_ch, l_pkt->msgnum, "");
         }
-        default: debug_if(g_avrs_debug_more, L_WARNING, "Unknown packet with subtype %c", l_ch_pkt->hdr.type);
+        break;
+
+        default:
+            debug_if(g_avrs_debug_more, L_WARNING, "Unknown packet with subtype %c", l_ch_pkt->hdr.type);
     }
 }
 
@@ -239,28 +258,34 @@ static inline void s_pkt_in_retcode(avrs_ch_t * a_avrs_ch, int32_t a_code, const
 bool avrs_ch_tsd_sign_pkt_verify(avrs_ch_t * a_avrs_ch, dap_tsd_t * a_tsd_sign, size_t a_tsd_offset, const void * a_pkt, size_t a_pkt_hdr_size, size_t a_pkt_args_size)
 {
     dap_sign_t * l_pkt_sign = (dap_sign_t*) a_tsd_sign->data;
+
     if(a_tsd_sign->size +sizeof(*a_tsd_sign)> a_pkt_args_size - a_tsd_offset ){
         log_it(L_WARNING, "Corrupted TSD section SIGN in packet!");
         avrs_ch_pkt_send_retcode_unsafe(a_avrs_ch->ch, AVRS_ERROR_SIGN_INCORRECT, "PKT_ARG_SIGN_CORRUPTED");
         return false;
     }
+
     size_t l_pkt_sign_size_max = a_pkt_args_size - a_tsd_offset - sizeof(*a_tsd_sign);
 
     int l_ret;
-    if( (l_ret = dap_sign_verify_all (l_pkt_sign,l_pkt_sign_size_max, a_pkt, a_pkt_hdr_size + a_tsd_offset ) ) != 0 ){
+    if( (l_ret = dap_sign_verify_all (l_pkt_sign,l_pkt_sign_size_max, a_pkt, a_pkt_hdr_size + a_tsd_offset ) ) != 0 )
+    {
         switch(l_ret){
             case -3:
                 log_it(L_WARNING, "TSD section is smaller than signature's header, possible corrupted!");
                 avrs_ch_pkt_send_retcode_unsafe(a_avrs_ch->ch, AVRS_ERROR_SIGN_INCORRECT, "PKT_TSD_TOO_SMALL");
                 break;
+
             case -2:
                 log_it(L_WARNING, "Sign has too big size fields inside, bigger than space left for sign!");
                 avrs_ch_pkt_send_retcode_unsafe(a_avrs_ch->ch, AVRS_ERROR_SIGN_INCORRECT, "PKT_ARG_SIGN_CORRUPTED");
             break;
+
             case -1:
                 log_it(L_WARNING, "Packet doesn't pass signature verification, possible corrupted!");
                 avrs_ch_pkt_send_retcode_unsafe(a_avrs_ch->ch, AVRS_ERROR_SIGN_INCORRECT, "PKT_SIGN_DOESNT_PASS_VERIFICATION");
             break;
+
             default:
                 log_it(L_WARNING, "Packet doesn't pass signature verification by unknown reaseon");
                 avrs_ch_pkt_send_retcode_unsafe(a_avrs_ch->ch, AVRS_ERROR_SIGN_INCORRECT, "PKT_SIGN_PROBLEM_UNKNOWN");

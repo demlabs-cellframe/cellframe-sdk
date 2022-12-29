@@ -90,14 +90,15 @@ typedef struct avrs_ch_pkt_tsd_flow
 
 // Cluster packet signature, have to be in the end of arg list
 // and signs everythign before the packet
-#define AVRS_CH_PKT_CLUSTER_ARG_SIGN                 0xffff
+#define AVRS_CH_PKT_CLUSTER_ARG_SIGN                        0xffff
 
 
 // Cluster control packet
 typedef struct avrs_ch_pkt_cluster{
-    uint8_t type; // Operation code or packet type
-    byte_t padding[7];
-    byte_t args[]; // Operation args in TSD format
+
+    uint8_t     type;                                                   /* Operation code or packet type, see : AVRS_CH_PKT_CLUSTER_TYPE* constants */
+    uint8_t     padding[7];
+    uint8_t     args[];                                                 /* Operation args in TSD format, see AVRS_CH_PKT_CLUSTER_ARG* constant */
 } DAP_ALIGN_PACKED avrs_ch_pkt_cluster_t;
 
 #define AVRS_CH_PKT_SESSION_TYPE_OPEN                0x01
@@ -105,7 +106,7 @@ typedef struct avrs_ch_pkt_cluster{
 #define AVRS_CH_PKT_SESSION_TYPE_CLOSE               0x03
 
 #define AVRS_CH_PKT_SESSION_TYPE_CONTENT_ADD         0x10
-#define AVRS_CH_PKT_SESSION_TYPE_CONTENT_REMOVE         0x11
+#define AVRS_CH_PKT_SESSION_TYPE_CONTENT_REMOVE      0x11
 #define AVRS_CH_PKT_SESSION_TYPE_CONTENT_UPDATE      0x12
 
 #define AVRS_CH_PKT_SESSION_TYPE_CLUSTER_ADD         0x20
@@ -147,8 +148,9 @@ typedef struct avrs_ch_pkt_content{
 #define AVRS_CH_PKT_CONTENT_TYPE_VIDEO               0x11
 
 typedef struct avrs_ch_pkt_retcode{
-    int32_t code;
-    char text[];
+    int32_t msgnum,                                                       /* A numeric code of a retcode/message */
+            msglen;                                                     /* Length of the text representative of the message */
+    char    msg[];                                                      /* Text string of the message */
 } avrs_ch_pkt_retcode_t;
 
 

@@ -66,8 +66,7 @@ static int s_tsd_parse_member_info(avrs_ch_t *a_avrs_ch, char *a_member_info_ptr
 
 // Check and parse functions
 static inline int s_parse_cluster_pkt_and_verify(avrs_ch_t *a_avrs_ch, avrs_ch_pkt_cluster_t * a_pkt, size_t a_pkt_args_size, dap_hash_fast_t * a_member_id,
-                                                              dap_guuid_t * a_guuid, bool * a_is_guuid,
-                                                                    tsd_parse_callback_t a_parse_callback, void * a_arg);
+                    dap_guuid_t * a_guuid, bool *a_is_guuid, tsd_parse_callback_t a_parse_callback, void * a_arg);
 
 static inline int s_parse_cluster_pkt_get_member_id_and_verify_sign(avrs_ch_t *a_avrs_ch,avrs_cluster_t ** a_cluster, dap_hash_fast_t * a_member_id, avrs_ch_pkt_cluster_t * a_pkt, size_t a_pkt_args_size,
                                                                     tsd_parse_member_id_and_check_sign_callback_t a_parse_callback, void * a_arg);
@@ -107,14 +106,17 @@ void avrs_ch_pkt_in_cluster_add_callback(avrs_ch_pkt_cluster_callback_t a_callba
 void avrs_ch_pkt_in_cluster(avrs_ch_t * a_avrs_ch, avrs_ch_pkt_cluster_t *a_pkt, size_t a_pkt_args_size)
 {
     avrs_cluster_t * l_cluster = NULL;
+
     switch( a_pkt->type ){
         case AVRS_CH_PKT_CLUSTER_TYPE_CREATE:{
             dap_hash_fast_t l_member_id = {};
             dap_guuid_t l_cluster_guuid={0};
             bool l_is_guuid = false;
             avrs_cluster_options_t l_cluster_opts={};
-            int l_parse_ret = s_parse_cluster_pkt_and_verify(a_avrs_ch, a_pkt, a_pkt_args_size,&l_member_id, &l_cluster_guuid, &l_is_guuid,s_tsd_parse_callback_type_create, &l_cluster_opts);
-            if( l_parse_ret){
+
+            int l_parse_ret = s_parse_cluster_pkt_and_verify(a_avrs_ch, a_pkt, a_pkt_args_size,
+                                    &l_member_id, &l_cluster_guuid, &l_is_guuid, s_tsd_parse_callback_type_create, &l_cluster_opts);
+            if( l_parse_ret) {
                 log_it(L_WARNING, "Parse cluster pkt error, code %d", l_parse_ret);
                 break;
             }
@@ -125,6 +127,8 @@ void avrs_ch_pkt_in_cluster(avrs_ch_t * a_avrs_ch, avrs_ch_pkt_cluster_t *a_pkt,
             DAP_DELETE(l_tsd_id);
             avrs_ch_pkt_send_retcode_unsafe(a_avrs_ch->ch, AVRS_SUCCESS, "SUCCESS");
         } break;
+
+
         case AVRS_CH_PKT_CLUSTER_TYPE_DESTROY:{
             l_cluster = s_parse_cluster_pkt_and_verify_owner(a_avrs_ch, a_pkt, a_pkt_args_size,NULL, NULL);
             // No correct GUUID was present or no sign or smth else goes wrong
@@ -160,8 +164,10 @@ void avrs_ch_pkt_in_cluster(avrs_ch_t * a_avrs_ch, avrs_ch_pkt_cluster_t *a_pkt,
             }
 
         } break;
+
         case AVRS_CH_PKT_CLUSTER_TYPE_LIST_RESPONSE:{
         }break;
+
         case AVRS_CH_PKT_CLUSTER_TYPE_MEMBER_REQUEST_ADD:{
             dap_hash_fast_t l_member_id = {};
             avrs_cluster_member_t * l_member = DAP_NEW_Z(avrs_cluster_member_t);
@@ -204,6 +210,7 @@ void avrs_ch_pkt_in_cluster(avrs_ch_t * a_avrs_ch, avrs_ch_pkt_cluster_t *a_pkt,
 
             avrs_cluster_member_request_add(l_cluster, l_member_to_approve);
         } break;
+
         case AVRS_CH_PKT_CLUSTER_TYPE_MEMBER_REMOVE:{
             avrs_cluster_member_t * l_member_to_remove = NULL;
             avrs_cluster_member_t * l_member_op = NULL; // member that signs this packet
@@ -219,6 +226,7 @@ void avrs_ch_pkt_in_cluster(avrs_ch_t * a_avrs_ch, avrs_ch_pkt_cluster_t *a_pkt,
 
             avrs_cluster_member_delete(l_member_to_remove);
         } break;
+
         case AVRS_CH_PKT_CLUSTER_TYPE_CONTENT_ADD:{
             avrs_cluster_member_t * l_member_to = NULL;
             avrs_cluster_member_t * l_member_op = NULL; // member that signs this packet
@@ -520,15 +528,17 @@ static int s_tsd_parse_callback_type_content_add(
  * @param a_arg
  * @return
  */
-static inline int s_parse_cluster_pkt_and_verify(avrs_ch_t *a_avrs_ch, avrs_ch_pkt_cluster_t * a_pkt, size_t a_pkt_args_size, dap_hash_fast_t * a_member_id,
-                                                              dap_guuid_t * a_guuid, bool * a_is_guuid,
-                                                                    tsd_parse_callback_t a_parse_callback, void * a_arg)
+static inline int s_parse_cluster_pkt_and_verify(avrs_ch_t *a_avrs_ch, avrs_ch_pkt_cluster_t * a_pkt, size_t a_pkt_args_size,
+                                                 dap_hash_fast_t * a_member_id,
+                                                 dap_guuid_t * a_guuid, bool * a_is_guuid,
+                                                tsd_parse_callback_t a_parse_callback, void * a_arg)
 {
     dap_tsd_t * l_tsd = NULL;
     bool l_sign_correct = false;
     bool l_is_guuid = false;
     dap_guuid_t l_guuid = {0};
     int l_ret = 0;
+
     for( size_t l_tsd_offset = 0; l_tsd_offset <a_pkt_args_size ; l_tsd_offset += dap_tsd_size(l_tsd) ){
         l_tsd = (dap_tsd_t *) (a_pkt->args + l_tsd_offset);
         if ( !dap_tsd_size_check (l_tsd, l_tsd_offset, a_pkt_args_size) ){
@@ -541,6 +551,7 @@ static inline int s_parse_cluster_pkt_and_verify(avrs_ch_t *a_avrs_ch, avrs_ch_p
                 l_guuid = dap_tsd_get_scalar(l_tsd, dap_guuid_t);
                 l_is_guuid = true;
             break;
+
             case AVRS_CH_PKT_CLUSTER_ARG_SIGN:{
                 if( avrs_ch_tsd_sign_pkt_verify(a_avrs_ch, l_tsd, l_tsd_offset, a_pkt, sizeof(*a_pkt), a_pkt_args_size) ){
                     if(a_member_id){

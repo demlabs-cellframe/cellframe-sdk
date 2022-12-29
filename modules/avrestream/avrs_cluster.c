@@ -25,7 +25,6 @@
 #include <uthash.h>
 
 #include <dap_common.h>
-//#include <dap_guiid.h>
 #include <dap_list.h>
 #include <dap_chain_common.h>
 #include <dap_hash.h>

@@ -781,7 +781,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
 #if defined (DAP_OS_ANDROID) || defined (DAP_OS_LINUX)
     snprintf(buf,sizeof(buf),"ip link set %s up", s_raw_server->tun_device_name);
     system(buf);
-    snprintf(buf,sizeof(buf),"ip addr add %s/%s dev %s ", 
+    snprintf(buf,sizeof(buf),"ip addr add %s/%s dev %s ",
         l_str_ipv4_gw, l_str_ipv4_netmask, s_raw_server->tun_device_name);
     system(buf);
 #elif defined (DAP_OS_DARWIN)
@@ -1780,8 +1780,7 @@ static void s_es_tun_new(dap_events_socket_t * a_es, void * arg)
  */
 static int s_tun_attach_queue(int fd)
 {
-    struct ifreq ifr;
-    memset(&ifr, 0, sizeof(ifr));
+    struct ifreq ifr = {0};
     ifr.ifr_flags = IFF_ATTACH_QUEUE;
     return ioctl(fd, TUNSETQUEUE, (void *)&ifr);
 }
@@ -1793,8 +1792,7 @@ static int s_tun_attach_queue(int fd)
  */
 static int s_tun_deattach_queue(int fd)
 {
-    struct ifreq ifr;
-    memset(&ifr, 0, sizeof(ifr));
+    struct ifreq ifr ={0};
     ifr.ifr_flags = IFF_DETACH_QUEUE;
     return ioctl(fd, TUNSETQUEUE, (void *)&ifr);
 }

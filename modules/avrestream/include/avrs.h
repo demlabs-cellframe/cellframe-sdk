@@ -68,9 +68,12 @@ typedef uint16_t avrs_role_t;
 #define AVRS_ERROR                           0xffffffff
 
 enum    {
-        DAP_AVRS$K_CH_RETCODE = 'r',
-        DAP_AVRS$K_CH_CLUSTER = 'C',
-        DAP_AVRS$K_CH_CONTENT = 'c',
+        DAP_AVRS$K_CH_SIGNAL = 'A',                                     /* AVRS Signaling channnel */
+        DAP_AVRS$K_CH_RETCODE = 'r',                                    /* Channel to return a result of request processing */
+        DAP_AVRS$K_CH_CLUSTER = 'C',                                    /* Channel for AVRS's Cluster related requests */
+        DAP_AVRS$K_CH_CONTENT = 'c',                                    /* Channel for AVRS's Content related requests */
+        DAP_AVRS$K_CH_SESSION = 'S',                                    /* Channel for AVRS's Session related requests */
+
 };
 
 
