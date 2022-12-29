@@ -17,10 +17,7 @@ int dap_chain_mempool_rpc_init(void) {
 void dap_chain_mempool_rpc_handler_test(dap_json_rpc_params_t *a_params,
                                         dap_json_rpc_response_t *a_response, const char *a_method) {
     UNUSED(a_method);
-    char *l_rtl = "{\"code\": 5, \"message2\": \"Test error MSG\"}";
-    json_object *l_jobj = dap_json_rpc_error_from_json_str(l_rtl);
     char *l_tn = NULL;
-//    char *l_chain_str = NULL;
     for (uint32_t i = 0; i < a_params->lenght; i++) {
         dap_json_rpc_param_t *l_prm = a_params->params[i];
         if (i == 0)
@@ -672,8 +669,8 @@ void dap_chain_mempool_rpc_handler_tx_create(dap_json_rpc_params_t *a_params,
                     DAP_DELETE(l_gdb_group_mempool_base_tx);
                     if(!l_placed) {
                         DAP_DELETE(l_tx_hash_str);
-//                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't add transaction to mempool");
-                        return -90;
+                        a_response->error = dap_json_rpc_error_create(0x0F05, "Can't add transaction to mempool");
+                        return;
                     }
                     // Completed successfully
                     json_object *l_result = json_object_new_object();
@@ -681,20 +678,24 @@ void dap_chain_mempool_rpc_handler_tx_create(dap_json_rpc_params_t *a_params,
                     json_object_object_add(l_result, "hash", l_new_tx);
                     a_response->type_result = TYPE_RESPONSE_JSON;
                     a_response->result_json_object = l_result;
-//                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Transaction %s with %d items created and added to mempool successfully", l_tx_hash_str, l_items_ready);
                     DAP_DELETE(l_tx_hash_str);
-//                    return l_err_code;
-                } else {}
+                } else {
+                    a_response->error = dap_json_rpc_error_create(0x0F04, "Failed to parse the items "
+                                                                          "passed as the third parameter.");
+                }
 //                json_object_put(l_json);
             } else {
-                // TODO: ERROR JSON
+                a_response->error = dap_json_rpc_error_create(0x0F03, "The third parameter was passed "
+                                                                      "incorrectly, it must be an array of items.");
             }
         } else {
-            //TODO: ERROR can't net find.
+            char *l_tmp = dap_strdup_printf("Can't find %s network.", l_net_str);
+            a_response->error = dap_json_rpc_error_create(0x0F02, l_tmp);
+            DAP_DELETE(l_tmp);
         }
 //        json_object_object_foreach()
     } else  {
-        //TODO: ERROR net
+        a_response->error = dap_json_rpc_error_create(0x0F01, "Failed to parse JSON request input parameters.");
     }
 }
 
