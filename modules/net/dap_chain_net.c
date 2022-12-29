@@ -236,8 +236,6 @@ static const char * c_net_states[]={
     [NET_STATE_ONLINE]= "NET_STATE_ONLINE"
 };
 
-static dap_chain_net_t * s_net_new(const char * a_id, const char * a_name , const char * a_node_role);
-
 // Node link callbacks
 static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_client, void * a_arg);
 static void s_node_link_callback_disconnected(dap_chain_node_client_t * a_node_client, void * a_arg);
@@ -1460,13 +1458,14 @@ dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net)
  * @param a_node_role
  * @return dap_chain_net_t*
  */
-static dap_chain_net_t *s_net_new(const char * a_id, const char * a_name ,
-                                    const char * a_node_role)
+static dap_chain_net_t *s_net_new(const char *a_id, const char *a_name,
+                                  const char *a_native_ticker, const char *a_node_role)
 {
-    if (!a_id || !a_name || !a_node_role)
+    if (!a_id || !a_name || !a_native_ticker || !a_node_role)
         return NULL;
     dap_chain_net_t *ret = DAP_NEW_Z_SIZE( dap_chain_net_t, sizeof(ret->pub) + sizeof(dap_chain_net_pvt_t) );
     ret->pub.name = strdup( a_name );
+    ret->pub.native_ticker = strdup( a_native_ticker );
     pthread_rwlock_init(&PVT(ret)->uplinks_lock, NULL);
     pthread_rwlock_init(&PVT(ret)->downlinks_lock, NULL);
     pthread_rwlock_init(&PVT(ret)->balancer_lock, NULL);
@@ -2202,6 +2201,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         dap_chain_net_t * l_net = s_net_new(
                                             dap_config_get_item_str(l_cfg , "general" , "id" ),
                                             dap_config_get_item_str(l_cfg , "general" , "name" ),
+                                            dap_config_get_item_str(l_cfg , "general" , "native_ticker"),
                                             dap_config_get_item_str(l_cfg , "general" , "node-role" )
                                            );
         if(!l_net) {
@@ -2659,7 +2659,6 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                     }
                 }
             } while (l_processed);
-            l_net->pub.native_ticker = dap_strdup(dap_config_get_item_str(l_cfg , "general" , "native_ticker"));
         } else {
             log_it(L_ERROR, "Can't find any chains for network %s", l_net->pub.name);
             l_net_pvt->load_mode = false;
