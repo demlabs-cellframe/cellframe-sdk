@@ -2307,7 +2307,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         for(size_t i = 0; i < l_net_pvt->seed_aliases_count; i++)
             l_net_pvt->seed_aliases[i] = dap_strdup(l_seed_aliases[i]);
         // randomize seed nodes list
-        for (int j = l_net_pvt->seed_aliases_count - 1; j >= 0; j--) {
+        for (int j = l_net_pvt->seed_aliases_count - 1; j > 0; j--) {
             int n = rand() % j;
             char *tmp = l_net_pvt->seed_aliases[n];
             l_net_pvt->seed_aliases[n] = l_net_pvt->seed_aliases[j];
