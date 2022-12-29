@@ -178,7 +178,8 @@ typedef struct dap_chain_net_pvt{
     dap_list_t *atoms_queue;
 
     bool load_mode;
-    char ** seed_aliases;
+    char **seed_aliases;
+    uint16_t seed_aliases_count;
 
     uint16_t bootstrap_nodes_count;
     struct in_addr *bootstrap_nodes_addrs;
@@ -191,8 +192,6 @@ typedef struct dap_chain_net_pvt{
     dap_chain_node_addr_t *gdb_sync_nodes_addrs;
     uint32_t *gdb_sync_nodes_links_ips;
     uint16_t *gdb_sync_nodes_links_ports;
-
-    uint16_t seed_aliases_count;
 
     dap_chain_net_state_t state;
     dap_chain_net_state_t state_target;
@@ -2303,10 +2302,16 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         // Check if seed nodes are present in local db alias
         char **l_seed_aliases = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_aliases"
                                                              ,&l_net_pvt->seed_aliases_count);
-        l_net_pvt->seed_aliases = l_net_pvt->seed_aliases_count>0 ?
-                                   (char **)DAP_NEW_SIZE(char**, sizeof(char*)*PVT(l_net)->seed_aliases_count) : NULL;
-        for(size_t i = 0; i < PVT(l_net)->seed_aliases_count; i++) {
+        if (l_net_pvt->seed_aliases_count)
+            l_net_pvt->seed_aliases = (char **)DAP_NEW_SIZE(char **, sizeof(char *) * l_net_pvt->seed_aliases_count);
+        for(size_t i = 0; i < l_net_pvt->seed_aliases_count; i++)
             l_net_pvt->seed_aliases[i] = dap_strdup(l_seed_aliases[i]);
+        // randomize seed nodes list
+        for (int j = l_net_pvt->seed_aliases_count - 1; j >= 0; j--) {
+            int n = rand() % j;
+            char *tmp = l_net_pvt->seed_aliases[n];
+            l_net_pvt->seed_aliases[n] = l_net_pvt->seed_aliases[j];
+            l_net_pvt->seed_aliases[j] = tmp;
         }
 
         uint16_t l_seed_nodes_addrs_len =0;
