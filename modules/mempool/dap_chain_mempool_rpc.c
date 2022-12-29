@@ -17,6 +17,8 @@ int dap_chain_mempool_rpc_init(void) {
 void dap_chain_mempool_rpc_handler_test(dap_json_rpc_params_t *a_params,
                                         dap_json_rpc_response_t *a_response, const char *a_method) {
     UNUSED(a_method);
+    char *l_rtl = "{\"code\": 5, \"message2\": \"Test error MSG\"}";
+    json_object *l_jobj = dap_json_rpc_error_from_json_str(l_rtl);
     char *l_tn = NULL;
 //    char *l_chain_str = NULL;
     for (uint32_t i = 0; i < a_params->lenght; i++) {

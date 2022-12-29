@@ -35,35 +35,49 @@ extern "C"{
 
 typedef struct dap_json_rpc_error
 {
-    int code_error;
+    int32_t code_error;
     char *msg;
-    void *next;
 }dap_json_rpc_error_t;
 
-typedef struct dap_json_rpc_error_JSON
-{
-    json_object *obj_code;
-    json_object *obj_msg;
-}dap_json_rpc_error_JSON_t;
+dap_json_rpc_error_t *dap_json_rpc_error_create(int a_code, const char *a_message);
 
-int dap_json_rpc_error_init(void);
-void dap_json_rpc_error_deinit(void);
+void dap_json_rpc_error_delete(dap_json_rpc_error_t *a_error);
 
-dap_json_rpc_error_JSON_t * dap_json_rpc_error_JSON_create();
-void dap_json_rpc_error_JSON_free(dap_json_rpc_error_JSON_t *a_error_json);
-dap_json_rpc_error_JSON_t * dap_json_rpc_error_JSON_add_data(int code, const char *msg);
+json_object *dap_json_rpc_error_to_json(dap_json_rpc_error_t *a_error);
 
-int dap_json_rpc_error_add(int a_code_error, const char *a_msg);
+#define dap_json_rpc_error_from_json(a) _dap_json_rpc_error_from_json(a, LOG_TAG)
+dap_json_rpc_error_t *_dap_json_rpc_error_from_json(json_object *a_json, char *a_log_tag);
+//DAP_STATIC_INLINE dap_json_rpc_error_t *dap_json_rpc_error_from_json(json_object *a_json){
+//    _dap_json_rpc_error_from_json(a_json, LOG_TAG);
+//}
 
-dap_json_rpc_error_t *dap_json_rpc_error_search_by_code(int a_code_error);
+#define dap_json_rpc_error_from_json_str(a) _dap_json_rpc_error_from_json_str(a, LOG_TAG)
+dap_json_rpc_error_t *_dap_json_rpc_error_from_json_str(char *a_json, char *a_log_tag);
 
-char *dap_json_rpc_error_get_json(dap_json_rpc_error_t *a_error);
+//typedef struct dap_json_rpc_error_JSON
+//{
+//    json_object *obj_code;
+//    json_object *obj_msg;
+//}dap_json_rpc_error_JSON_t;
 
-dap_json_rpc_error_t *dap_json_rpc_create_from_json(const char *a_json);
+//int dap_json_rpc_error_init(void);
+//void dap_json_rpc_error_deinit(void);
 
-dap_json_rpc_error_t *dap_json_rpc_create_from_json_object(json_object *a_jobj);
+//dap_json_rpc_error_JSON_t * dap_json_rpc_error_JSON_create();
+//void dap_json_rpc_error_JSON_free(dap_json_rpc_error_JSON_t *a_error_json);
+//dap_json_rpc_error_JSON_t * dap_json_rpc_error_JSON_add_data(int code, const char *msg);
 
-void dap_json_rpc_add_standart_erros(void);
+//int dap_json_rpc_error_add(int a_code_error, const char *a_msg);
+
+//dap_json_rpc_error_t *dap_json_rpc_error_search_by_code(int a_code_error);
+
+//char *dap_json_rpc_error_get_json(dap_json_rpc_error_t *a_error);
+
+//dap_json_rpc_error_t *dap_json_rpc_create_from_json(const char *a_json);
+
+//dap_json_rpc_error_t *dap_json_rpc_create_from_json_object(json_object *a_jobj);
+
+//void dap_json_rpc_add_standart_erros(void);
 
 #ifdef __cplusplus
 }

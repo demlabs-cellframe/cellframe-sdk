@@ -4,8 +4,8 @@
 
 void dap_json_rpc_request_JSON_free(dap_json_rpc_request_JSON_t *l_request_JSON)
 {
-    if (l_request_JSON->struct_error)
-        dap_json_rpc_error_JSON_free(l_request_JSON->struct_error);
+//    if (l_request_JSON->struct_error)
+//        dap_json_rpc_error_JSON_free(l_request_JSON->struct_error);
     json_object_put(l_request_JSON->obj_result);
     json_object_put(l_request_JSON->obj_error);
     json_object_put(l_request_JSON->obj_id);
@@ -50,17 +50,14 @@ void dap_json_rpc_response_send(dap_json_rpc_response_t *a_response, dap_http_si
             default:{}
         }
     }else{
-        l_obj_error = json_object_new_object();
-        json_object *l_obj_err_code = json_object_new_int(a_response->error->code_error);
-        json_object *l_obj_err_msg = json_object_new_string(a_response->error->msg);
-        json_object_object_add(l_obj_error, "code", l_obj_err_code);
-        json_object_object_add(l_obj_error, "message", l_obj_err_msg);
+        l_obj_error = dap_json_rpc_error_to_json(a_response->error);
     }
     json_object_object_add(l_jobj, "result", l_obj_result);
     json_object_object_add(l_jobj, "id", l_obj_id);
     json_object_object_add(l_jobj, "error", l_obj_error);
     str_response = json_object_to_json_string(l_jobj);
     dap_http_simple_reply(a_client, str_response, strlen(str_response));
+    dap_json_rpc_error_delete(a_response->error);
     json_object_put(l_jobj);
 }
 
@@ -96,7 +93,7 @@ dap_json_rpc_response_t *dap_json_rpc_response_from_json(char *a_data_json)
             break;
         }
     } else {
-        l_response->error = dap_json_rpc_create_from_json_object(l_jobj_error);
+        l_response->error = dap_json_rpc_error_from_json(l_jobj_error);//dap_json_rpc_create_from_json_object(l_jobj_error);
         l_response->type_result = TYPE_RESPONSE_NULL;
     }
 //    json_object_put(l_jobj_id);

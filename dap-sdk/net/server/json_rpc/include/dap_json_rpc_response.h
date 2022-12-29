@@ -45,7 +45,7 @@ typedef struct dap_json_rpc_response_JSON
 {
     json_object *obj_result;
     json_object *obj_error;
-    dap_json_rpc_error_JSON_t *struct_error;
+//    dap_json_rpc_error_JSON_t *struct_error;
     json_object *obj_id;
 }dap_json_rpc_request_JSON_t;
 
