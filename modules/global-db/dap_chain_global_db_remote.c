@@ -305,15 +305,18 @@ dap_db_log_list_obj_t *dap_db_log_list_get(dap_db_log_list_t *a_db_log_list)
         return NULL;
     pthread_mutex_lock(&a_db_log_list->list_mutex);
     int l_is_process = a_db_log_list->is_process;
-    // check next item
+    // check first item
     dap_list_t *l_list = a_db_log_list->items_list;
+    dap_db_log_list_obj_t *l_ret = NULL;
     if (l_list) {
         a_db_log_list->items_list = dap_list_remove_link(a_db_log_list->items_list, l_list);
         a_db_log_list->items_rest--;
+        l_ret = l_list->data;
+        DAP_DELETE(l_list);
     }
     pthread_mutex_unlock(&a_db_log_list->list_mutex);
     //log_it(L_DEBUG, "get item n=%d", a_db_log_list->items_number - a_db_log_list->items_rest);
-    return l_list ? (dap_db_log_list_obj_t *)l_list->data : DAP_INT_TO_POINTER(l_is_process);
+    return l_ret ? l_ret : DAP_INT_TO_POINTER(l_is_process);
 }
 
 /**
