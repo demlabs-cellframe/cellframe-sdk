@@ -114,17 +114,11 @@ static void *s_list_thread_proc(void *arg)
                 l_list_obj->pkt = l_pkt;
                 l_list = dap_list_append(l_list, l_list_obj);
             }
-
             dap_store_obj_free(l_objs, l_item_count);
+
             pthread_mutex_lock(&l_dap_db_log_list->list_mutex);
-
-            // add l_list to list_write
-            l_dap_db_log_list->list_write = dap_list_concat(l_dap_db_log_list->list_write, l_list);
-
-            // init read list if it ended already
-            if(!l_dap_db_log_list->list_read)
-                l_dap_db_log_list->list_read = l_list;
-
+            // add l_list to items_list
+            l_dap_db_log_list->items_list = dap_list_concat(l_dap_db_log_list->items_list, l_list);
             pthread_mutex_unlock(&l_dap_db_log_list->list_mutex);
         }
 
@@ -312,22 +306,14 @@ dap_db_log_list_obj_t *dap_db_log_list_get(dap_db_log_list_t *a_db_log_list)
     pthread_mutex_lock(&a_db_log_list->list_mutex);
     int l_is_process = a_db_log_list->is_process;
     // check next item
-    dap_list_t *l_list = a_db_log_list->list_read;
-    if (l_list){
-        a_db_log_list->list_read = dap_list_next(a_db_log_list->list_read);
+    dap_list_t *l_list = a_db_log_list->items_list;
+    if (l_list) {
+        a_db_log_list->items_list = dap_list_remove_link(a_db_log_list->items_list, l_list);
         a_db_log_list->items_rest--;
     }
     pthread_mutex_unlock(&a_db_log_list->list_mutex);
     //log_it(L_DEBUG, "get item n=%d", a_db_log_list->items_number - a_db_log_list->items_rest);
     return l_list ? (dap_db_log_list_obj_t *)l_list->data : DAP_INT_TO_POINTER(l_is_process);
-}
-
-void dap_db_log_list_rewind(dap_db_log_list_t *a_db_log_list)
-{
-    if (!a_db_log_list)
-        return;
-    a_db_log_list->list_read = a_db_log_list->list_write;
-    a_db_log_list->items_rest = a_db_log_list->items_number;
 }
 
 /**
@@ -363,7 +349,7 @@ void dap_db_log_list_delete(dap_db_log_list_t *a_db_log_list)
     }
 
     dap_list_free_full(a_db_log_list->groups, free);
-    dap_list_free_full(a_db_log_list->list_write, (dap_callback_destroyed_t)s_dap_db_log_list_delete_item);
+    dap_list_free_full(a_db_log_list->items_list, (dap_callback_destroyed_t)s_dap_db_log_list_delete_item);
     pthread_mutex_destroy(&a_db_log_list->list_mutex);
     DAP_DELETE(a_db_log_list);
 }
