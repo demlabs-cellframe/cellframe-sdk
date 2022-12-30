@@ -1112,13 +1112,15 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
         char *l_hash_content_str = dap_hash_fast_to_str_new(&l_hash_content);
         if (dap_strcmp(l_hash_content_str, l_objs[i].key) != 0) {
             l_removed++;
+            DAP_DELETE(l_hash_content_str);
             log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s. The hash of the contents of the "
                              "datum does not match the key.", l_objs[i].key, l_gdb_group);
             dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group);
             continue;
         }
+        DAP_DELETE(l_hash_content_str);
         //Filter time
-        if (l_datum->header.ts_create < l_cut_off_time) {
+        if (dap_gdb_time_from_sec(l_datum->header.ts_create) < l_cut_off_time) {
             l_removed++;
             log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s. The datum in the mempool was "
                              "created after the %s.", l_objs[i].key, l_gdb_group, l_cut_off_time_str);
