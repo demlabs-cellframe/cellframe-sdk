@@ -34,7 +34,7 @@
 #include "dap_timerfd.h"
 
 #define CHUNK_SIZE_MAX (3 * 1024)
-#define STREAM_BUF_SIZE_MAX DAP_STREAM_PKT_SIZE_MAX * 4
+#define STREAM_BUF_SIZE_MAX DAP_STREAM_PKT_SIZE_MAX
 #define STREAM_KEEPALIVE_TIMEOUT 3   // How  often send keeplive messages (seconds)
 
 typedef struct dap_stream_ch dap_stream_ch_t;

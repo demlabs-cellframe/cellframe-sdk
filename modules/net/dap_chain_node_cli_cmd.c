@@ -2458,7 +2458,6 @@ void s_com_mempool_list_print_for_chain (
                 l_token_ticker = obj_token->header.ticker;
             } else {
                 dap_list_t* l_tickers = NULL;
-                const char *l_native_ticker = a_net->pub.native_ticker;
                 dap_chain_datum_tx_t *l_tx_parent = NULL;
                 int l_item_in_size = 0;
                 void *l_item_in = dap_chain_datum_tx_item_get((dap_chain_datum_tx_t*)l_datum->data, NULL, TX_ITEM_TYPE_IN_ALL, &l_item_in_size);
@@ -2492,11 +2491,11 @@ void s_com_mempool_list_print_for_chain (
                     switch(dap_chain_datum_tx_item_get_type(l_out_unknown)) {
                         case TX_ITEM_TYPE_OUT:
                             l_current_token = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_parent_hash);
-                            l_tickers = dap_list_append(l_tickers, l_current_token);
+                            l_tickers = dap_list_append(l_tickers, (void *)l_current_token);
                             break;
                         case TX_ITEM_TYPE_OUT_EXT:
                             l_current_token = ((dap_chain_tx_out_ext_t*)l_out_unknown)->token;
-                            l_tickers = dap_list_append(l_tickers, l_current_token);
+                            l_tickers = dap_list_append(l_tickers, (void *)l_current_token);
                             break;
                         case TX_ITEM_TYPE_OUT_COND:
                             if(((dap_chain_tx_out_cond_t*)l_out_unknown)->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE &&
