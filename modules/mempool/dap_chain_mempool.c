@@ -1127,6 +1127,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
             dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group);
         }
     }
+    dap_chain_global_db_objs_delete(l_objs, l_objs_size);
     log_it(L_NOTICE, "Filter removed: %i records.", l_removed);
     DAP_DELETE(l_gdb_group);
 }
