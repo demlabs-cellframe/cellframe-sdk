@@ -1091,9 +1091,9 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
     }
     char * l_gdb_group = dap_chain_net_get_gdb_group_mempool(a_chain);
     size_t l_objs_size = 0;
-    dap_gdb_time_t l_cut_off_time = dap_gdb_time_now() - dap_gdb_time_from_sec(2592000); // 2592000 sec = 30 days
+    dap_time_t l_cut_off_time = dap_time_now() - 2592000; // 2592000 sec = 30 days
     char l_cut_off_time_str[80] = {'\0'};
-    dap_gdb_ctime_r(&l_cut_off_time, &l_cut_off_time_str);
+    dap_time_to_str_rfc822(&l_cut_off_time_str, 80, l_cut_off_time);
     dap_global_db_obj_t * l_objs = dap_chain_global_db_gr_load(l_gdb_group, &l_objs_size);
     for (size_t i = 0; i < l_objs_size; i++) {
         dap_chain_datum_t *l_datum = (dap_chain_datum_t*)l_objs[i].value;
@@ -1120,7 +1120,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
         }
         DAP_DELETE(l_hash_content_str);
         //Filter time
-        if (dap_gdb_time_from_sec(l_datum->header.ts_create) < l_cut_off_time) {
+        if (l_datum->header.ts_create < l_cut_off_time) {
             l_removed++;
             log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s. The datum in the mempool was "
                              "created after the %s.", l_objs[i].key, l_gdb_group, l_cut_off_time_str);
