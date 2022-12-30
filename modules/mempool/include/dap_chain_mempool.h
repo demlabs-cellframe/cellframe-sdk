@@ -44,6 +44,8 @@ void dap_datum_mempool_free(dap_datum_mempool_t *datum);
 
 void dap_chain_mempool_add_proc(dap_http_t * a_http_server, const char * a_url);
 
+void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed);
+
 char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t *a_chain, const char *a_hash_out_type);
 
 char *dap_chain_mempool_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_from,
