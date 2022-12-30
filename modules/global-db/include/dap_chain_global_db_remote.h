@@ -25,11 +25,10 @@ typedef struct dap_db_log_list_obj {
 } dap_db_log_list_obj_t;
 
 typedef struct dap_db_log_list {
-    dap_list_t *list_write; // writed list
-    dap_list_t *list_read; // readed list (inside list_write)
+    dap_list_t *items_list;
     bool is_process;
-    size_t items_rest; // rest items to read from list_read
-    size_t items_number; // total items in list_write after reading from db
+    size_t items_rest; // rest items to read from items_list
+    size_t items_number; // total items after reading from db
     dap_list_t *groups;
     pthread_t thread;
     pthread_mutex_t list_mutex;
@@ -64,4 +63,3 @@ void dap_db_log_list_delete(dap_db_log_list_t *a_db_log_list);
 // Get last id in log
 uint64_t dap_db_log_get_group_last_id(const char *a_group_name);
 uint64_t dap_db_log_get_last_id(void);
-void dap_db_log_list_rewind(dap_db_log_list_t *a_db_log_list);

@@ -462,9 +462,9 @@ static bool s_sync_out_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_ar
     if (!l_sync_request->request.id_start)
         l_flags |= F_DB_LOG_SYNC_FROM_ZERO;
 
-    if (l_ch_chain->request_db_log == NULL)
-        l_ch_chain->request_db_log = dap_db_log_list_start(l_net, l_sync_request->request.node_addr, l_flags);
-    else dap_db_log_list_rewind(l_ch_chain->request_db_log);
+    if (l_ch_chain->request_db_log != NULL)
+        dap_db_log_list_delete(l_ch_chain->request_db_log);
+    l_ch_chain->request_db_log = dap_db_log_list_start(l_net, l_sync_request->request.node_addr, l_flags);
 
     debug_if(g_debug_reactor, L_INFO, "Arg %p -> worker %d", l_sync_request, l_sync_request->worker->id);
 
@@ -523,10 +523,9 @@ static bool s_sync_update_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a
         l_flags |= F_DB_LOG_ADD_EXTRA_GROUPS;
     if (!l_sync_request->request.id_start)
         l_flags |= F_DB_LOG_SYNC_FROM_ZERO;
-    if (l_ch_chain->request_db_log == NULL)
-        l_ch_chain->request_db_log = dap_db_log_list_start(l_net, l_sync_request->request.node_addr, l_flags);
-    else
-        dap_db_log_list_rewind(l_ch_chain->request_db_log);
+    if (l_ch_chain->request_db_log != NULL)
+        dap_db_log_list_delete(l_ch_chain->request_db_log);
+    l_ch_chain->request_db_log = dap_db_log_list_start(l_net, l_sync_request->request.node_addr, l_flags);
 
     l_ch_chain->state = CHAIN_STATE_UPDATE_GLOBAL_DB;
     l_sync_request->gdb.db_log = l_ch_chain->request_db_log;
@@ -705,9 +704,6 @@ dap_chain_t *dap_chain_get_chain_from_group_name(dap_chain_net_id_t a_net_id, co
  */
 static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
 {
-
-
-
     struct sync_request *l_sync_request = (struct sync_request *) a_arg;
     dap_chain_pkt_item_t *l_pkt_item = &l_sync_request->pkt;
 
@@ -779,7 +775,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             }
             l_group_changed = strcmp(l_last_group, l_obj->group) || l_last_type != l_obj->type;
             // Send remote side notification about received obj
-            if (l_sync_request->request.node_addr.uint64 &&
+            /*if (l_sync_request->request.node_addr.uint64 &&
                     (l_group_changed || i == l_data_obj_count - 1)) {
                 struct sync_request *l_sync_req_tsd = DAP_DUP(l_sync_request);
                 l_sync_req_tsd->request.id_end = l_last_id;
@@ -788,7 +784,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                 debug_if(g_debug_reactor, L_INFO, "Arg %p -> worker %d", l_sync_req_tsd, l_sync_request->worker->id);
                 dap_proc_thread_worker_exec_callback(a_thread, l_sync_request->worker->id,
                                                      s_gdb_sync_tsd_worker_callback, l_sync_req_tsd);
-            }
+            }*/
             l_last_id = l_obj->id;
             l_last_group = l_obj->group;
             l_last_type = l_obj->type;
@@ -1593,6 +1589,8 @@ static void s_ch_chain_go_idle(dap_stream_ch_chain_t *a_ch_chain)
         DAP_DELETE(l_hash_item);
     }
     a_ch_chain->remote_atoms = NULL;
+    if (a_ch_chain->request_db_log)
+        s_free_log_list_gdb(a_ch_chain);
 }
 
 static bool s_ch_chain_get_idle(dap_stream_ch_chain_t *a_ch_chain)
@@ -1694,6 +1692,8 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                     break;
                 l_data[i].hash = l_obj->hash;
                 l_data[i].size = l_obj->pkt->data_size;
+                DAP_DELETE(l_obj->pkt);
+                DAP_DELETE(l_obj);
             }
             if (i) {
                 l_was_sent_smth = true;
@@ -1753,9 +1753,11 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                     l_pkt = dap_store_packet_multiple(l_pkt, l_obj->pkt);
                     l_ch_chain->stats_request_gdb_processed++;
                     l_pkt_size = sizeof(dap_store_obj_pkt_t) + l_pkt->data_size;
-                    if (l_pkt_size >= DAP_CHAIN_PKT_EXPECT_SIZE)
-                        break;
                 }
+                DAP_DELETE(l_obj->pkt);
+                DAP_DELETE(l_obj);
+                if (l_pkt_size >= DAP_CHAIN_PKT_EXPECT_SIZE)
+                    break;
             }
             if (l_pkt_size) {
                 l_was_sent_smth = true;
