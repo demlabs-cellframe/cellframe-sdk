@@ -2349,6 +2349,10 @@ const char *s_ticker_list_get_main_ticker(dap_list_t *a_tickers, const char *a_n
  * @param a_hash_out_type
  */
 void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a_chain, const char * a_add, dap_string_t * a_str_tmp, const char *a_hash_out_type){
+    int l_removed = 0;
+    dap_chain_mempool_filter(a_chain, &l_removed);
+    dap_string_append_printf(a_str_tmp, "Removed %i records from the %s chain mempool in %s network. \n\n",
+                             l_removed, a_chain->name, a_net->pub.name);
     char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     if(!l_gdb_group_mempool){
         dap_string_append_printf(a_str_tmp, "%s.%s: chain not found\n", a_net->pub.name, a_chain->name);
