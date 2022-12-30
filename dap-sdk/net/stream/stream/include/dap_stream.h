@@ -63,7 +63,7 @@ typedef struct dap_stream {
     size_t buf_fragments_size_filled;// Received size
 
     uint8_t buf[STREAM_BUF_SIZE_MAX];
-    uint8_t pkt_cache[STREAM_BUF_SIZE_MAX];
+    uint8_t pkt_cache[DAP_EVENTS_SOCKET_BUF_SIZE];
 
     dap_stream_ch_t *channel[255]; // TODO reduce channels to 16 to economy memory
     size_t channel_count;

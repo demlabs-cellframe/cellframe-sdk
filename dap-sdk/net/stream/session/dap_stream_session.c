@@ -205,8 +205,10 @@ dap_stream_session_t *l_stm_sess;
     if (l_stm_sess->callback_delete)
         l_stm_sess->callback_delete(l_stm_sess, NULL);
 
-    if (l_stm_sess->_inheritor )
-        DAP_DELETE(l_stm_sess->_inheritor);
+    DAP_DEL_Z(l_stm_sess->_inheritor);
+    if (l_stm_sess->key)
+        dap_enc_key_delete(l_stm_sess->key);
+    DAP_DEL_Z(l_stm_sess->acl);
 
     DAP_DELETE(l_stm_sess);
 

@@ -159,6 +159,16 @@ void s_dap_stream_ctl_proc(struct dap_http_simple *a_http_simple, void * a_arg)
         }else
             log_it(L_DEBUG,"Encryption type %s (enc headers %d)",dap_enc_get_type_name(l_enc_type), l_enc_headers);
 
+        dap_http_header_t *l_hdr_key_id = dap_http_header_find(a_http_simple->http_client->in_headers, "KeyID");
+        dap_enc_ks_key_t *l_ks_key = NULL;
+        if (l_hdr_key_id) {
+            l_ks_key = dap_enc_ks_find(l_hdr_key_id->value);
+            if (!l_ks_key) {
+                log_it(L_WARNING, "Key with ID %s not found", l_hdr_key_id->value);
+                *return_code = Http_Status_BadRequest;
+                return;
+            }
+        }
         if(l_new_session) {
             if ( !(l_stm_sess  = dap_stream_session_pure_new()) )       /* Allocate a context for new session */
             {
@@ -166,32 +176,23 @@ void s_dap_stream_ctl_proc(struct dap_http_simple *a_http_simple, void * a_arg)
                 *return_code = Http_Status_ServiceUnavailable;
                 return;
             }
-
+            if (l_ks_key)
+                l_stm_sess->acl = l_ks_key->acl_list;
 
             strncpy(l_stm_sess ->active_channels, l_channels_str, l_channels_str_size);
-            char *key_str = calloc(1, KEX_KEY_STR_SIZE + 1);
+            char *key_str = DAP_NEW_Z_SIZE(char, KEX_KEY_STR_SIZE + 1);
             dap_random_string_fill(key_str, KEX_KEY_STR_SIZE);
-            l_stm_sess ->key = dap_enc_key_new_generate( l_enc_type, key_str, KEX_KEY_STR_SIZE,
+            l_stm_sess->key = dap_enc_key_new_generate( l_enc_type, key_str, KEX_KEY_STR_SIZE,
                                                NULL, 0, s_socket_forward_key.size);
-            dap_http_header_t *l_hdr_key_id = dap_http_header_find(a_http_simple->http_client->in_headers, "KeyID");
-            if (l_hdr_key_id) {
-                dap_enc_ks_key_t *l_ks_key = dap_enc_ks_find(l_hdr_key_id->value);
-                if (!l_ks_key) {
-                    log_it(L_WARNING, "Key with ID %s not found", l_hdr_key_id->value);
-                    *return_code = Http_Status_BadRequest;
-                    return;
-                }
-                l_stm_sess ->acl = l_ks_key->acl_list;
-            }
             if (l_is_legacy)
-                enc_http_reply_f(l_dg,"%u %s",l_stm_sess ->id, key_str);
+                enc_http_reply_f(l_dg,"%u %s",l_stm_sess->id, key_str);
             else
-                enc_http_reply_f(l_dg,"%u %s %u %d %d",l_stm_sess ->id, key_str, DAP_PROTOCOL_VERSION, l_enc_type, l_enc_headers);
+                enc_http_reply_f(l_dg,"%u %s %u %d %d",l_stm_sess->id, key_str, DAP_PROTOCOL_VERSION, l_enc_type, l_enc_headers);
             *return_code = Http_Status_OK;
 
-            log_it(L_INFO," New stream session %u initialized",l_stm_sess ->id);
+            log_it(L_INFO," New stream session %u initialized",l_stm_sess->id);
 
-            free(key_str);
+            DAP_DELETE(key_str);
         }else{
             log_it(L_ERROR,"Wrong request: \"%s\"",l_dg->in_query);
             *return_code = Http_Status_BadRequest;
@@ -199,6 +200,7 @@ void s_dap_stream_ctl_proc(struct dap_http_simple *a_http_simple, void * a_arg)
         }
 
         enc_http_reply_encode(a_http_simple,l_dg);
+        dap_enc_ks_delete(l_hdr_key_id->value);
         enc_http_delegate_delete(l_dg);
     }else{
         log_it(L_ERROR,"No encryption layer was initialized well");

@@ -1537,26 +1537,27 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
  * @brief s_ch_chain_go_idle_and_free_log_list
  * @param a_ch_chain
  */
-static void s_free_log_list_gdb ( dap_stream_ch_chain_t * a_ch_chain)
+static void s_free_log_list_gdb(dap_stream_ch_chain_t *a_ch_chain)
 {
 
     debug_if(s_debug_more, L_INFO, "[stm_ch_chain:%p] --- cleanuping ...", a_ch_chain);
 
-    // free log list
-    debug_if(s_debug_more, L_INFO, "[stm_ch_chain:%p] a_ch_chain->request_db_log:%p --- cleanuping ...", a_ch_chain, a_ch_chain->request_db_log);
-    dap_db_log_list_delete(a_ch_chain->request_db_log);
-    a_ch_chain->request_db_log = NULL;
-
-    dap_stream_ch_chain_hash_item_t *l_hash_item = NULL, *l_tmp = NULL;
-
-    HASH_ITER(hh, a_ch_chain->remote_gdbs, l_hash_item, l_tmp)
-    {
-        // Clang bug at this, l_hash_item should change at every loop cycle
-        HASH_DEL(a_ch_chain->remote_gdbs, l_hash_item);
-        DAP_DELETE(l_hash_item);
+    if (a_ch_chain->request_db_log) {
+        // free log list
+        debug_if(s_debug_more, L_INFO, "[stm_ch_chain:%p] a_ch_chain->request_db_log:%p --- cleanuping ...", a_ch_chain, a_ch_chain->request_db_log);
+        dap_db_log_list_delete(a_ch_chain->request_db_log);
+        a_ch_chain->request_db_log = NULL;
     }
 
-    a_ch_chain->remote_gdbs = NULL;
+    if (a_ch_chain->remote_gdbs) {
+        dap_stream_ch_chain_hash_item_t *l_hash_item = NULL, *l_tmp = NULL;
+        HASH_ITER(hh, a_ch_chain->remote_gdbs, l_hash_item, l_tmp) {
+            // Clang bug at this, l_hash_item should change at every loop cycle
+            HASH_DEL(a_ch_chain->remote_gdbs, l_hash_item);
+            DAP_DELETE(l_hash_item);
+        }
+        a_ch_chain->remote_gdbs = NULL;
+    }
 }
 /**
  * @brief s_ch_chain_go_idle
@@ -1589,8 +1590,7 @@ static void s_ch_chain_go_idle(dap_stream_ch_chain_t *a_ch_chain)
         DAP_DELETE(l_hash_item);
     }
     a_ch_chain->remote_atoms = NULL;
-    if (a_ch_chain->request_db_log)
-        s_free_log_list_gdb(a_ch_chain);
+    s_free_log_list_gdb(a_ch_chain);
 }
 
 static bool s_ch_chain_get_idle(dap_stream_ch_chain_t *a_ch_chain)
