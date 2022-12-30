@@ -249,7 +249,7 @@ dap_ile2_t  *l_item;
 
 
 
-#if 1
+#if     1   /* Examples of using of AVRS routines */
 
 dap_guuid_t     l_member;
 avrs_role_t     l_role = AVRS_ROLE_ALL;
