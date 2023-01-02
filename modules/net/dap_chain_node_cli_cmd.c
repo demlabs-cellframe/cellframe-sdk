@@ -2454,7 +2454,7 @@ void s_com_mempool_list_print_for_chain (
             if (obj_token) {
                 l_token_ticker = obj_token->header.ticker;
             } else {
-                if (!a_fast) {
+                if (a_fast) {
                     l_token_ticker = " -- Not calculated in fast mode. --";
                 } else {
                     dap_list_t* l_tickers = NULL;
