@@ -189,14 +189,14 @@ void dap_client_pvt_delete_unsafe(dap_client_pvt_t * a_client_pvt)
     if(a_client_pvt->active_channels)
         DAP_DELETE(a_client_pvt->active_channels);
 
-    if(a_client_pvt->session_key)
-        dap_enc_key_delete(a_client_pvt->session_key);
-
-    if(a_client_pvt->session_key_open)
+    if (a_client_pvt->session_key_open)
         dap_enc_key_delete(a_client_pvt->session_key_open);
 
-    if(a_client_pvt->stream_key)
-        dap_enc_key_delete(a_client_pvt->stream_key);
+    if (a_client_pvt->session_key)
+        dap_enc_key_delete(a_client_pvt->session_key);
+
+    if (a_client_pvt->stream)
+        dap_stream_delete(a_client_pvt->stream);
 
     DAP_DEL_Z(a_client_pvt)
 }
@@ -252,7 +252,7 @@ static bool s_stream_timer_timeout_check(void * a_arg)
                     l_es->callbacks.error_callback(l_es,ETIMEDOUT);
                 }
                 log_it(L_INFO, "Close %s sock %"DAP_FORMAT_SOCKET" type %d by timeout",
-                       l_es->remote_addr_str ? l_es->remote_addr_str : "", l_es->socket, l_es->type);
+                       l_es->remote_addr_str, l_es->socket, l_es->type);
                 dap_client_delete_unsafe(l_client_pvt->client);
             } else {
                 log_it(L_ERROR,"Connecting timeout for unexistent client");
@@ -294,7 +294,7 @@ static bool s_stream_timer_timeout_after_connected_check(void * a_arg)
                     l_es->callbacks.error_callback(l_es,ETIMEDOUT);
                 }
                 log_it(L_INFO, "Close streaming socket %s (%"DAP_FORMAT_SOCKET") by timeout",
-                       l_es->remote_addr_str ? l_es->remote_addr_str : "", l_es->socket);
+                       l_es->remote_addr_str, l_es->socket);
                 dap_client_delete_unsafe(l_client_pvt->client);
             }else
                 if(s_debug_more)
@@ -1048,6 +1048,8 @@ static void s_enc_init_response(dap_client_t * a_client, void * a_response, size
         DAP_DEL_Z(l_client_pvt->session_key_id);
         l_client_pvt->stage_status = STAGE_STATUS_ERROR;
     }
+    dap_enc_key_delete(l_client_pvt->session_key_open);
+    l_client_pvt->session_key_open = NULL;
     s_stage_status_after(l_client_pvt);
 }
 
@@ -1246,7 +1248,6 @@ static void s_stream_es_callback_delete(dap_events_socket_t *a_es, void *arg)
 
     dap_client_pvt_t *l_client_pvt = DAP_ESOCKET_CLIENT_PVT(a_es);
     a_es->_inheritor = NULL; // To prevent delete in reactor
-
     if(l_client_pvt == NULL) {
         log_it(L_ERROR, "dap_client_pvt_t is not initialized");
         return;
@@ -1256,14 +1257,12 @@ static void s_stream_es_callback_delete(dap_events_socket_t *a_es, void *arg)
         log_it(L_ERROR, "dap_client_pvt is corrupted");
         return;
     }
+    l_client_pvt->stream_es = NULL;
 
     if(s_debug_more)
         log_it(L_DEBUG, "Delete stream socket for client_pvt=0x%p", l_client_pvt);
 
-    dap_stream_delete(l_client_pvt->stream);
-    l_client_pvt->stream = NULL;
-    l_client_pvt->stream_es = NULL;
-    //dap_client_delete_mt(l_client_pvt->client);    // TODO find a way to delete the client if it no closed yet
+    dap_client_delete_unsafe(l_client_pvt->client);
 
 }
 

@@ -342,15 +342,14 @@ void dap_stream_delete(dap_stream_t *a_stream)
         return;
     }
 
-    while (a_stream->channel_count) {
+    while (a_stream->channel_count)
         dap_stream_ch_delete(a_stream->channel[a_stream->channel_count - 1]);
-    }
 
     if(a_stream->session)
         dap_stream_session_close_mt(a_stream->session->id); // TODO make stream close after timeout, not momentaly
 
-
-    DAP_DELETE(a_stream->buf_fragments);
+    DAP_DEL_Z(a_stream->buf_fragments);
+    DAP_DEL_Z(a_stream->pkt_buf_in);
     DAP_DELETE(a_stream);
 
 #ifdef  DAP_SYS_DEBUG
@@ -366,16 +365,13 @@ void dap_stream_delete(dap_stream_t *a_stream)
  * @param a_esocket DAP client instance
  * @param arg Not used
  */
-static void s_esocket_callback_delete(dap_events_socket_t* a_esocket, void * a_arg)
+static void s_esocket_callback_delete(dap_events_socket_t *a_esocket, void * a_arg)
 {
     UNUSED(a_arg);
     assert (a_esocket);
 
-    dap_http_client_t *l_http_client = DAP_HTTP_CLIENT(a_esocket);
-    dap_stream_t *l_stm = DAP_STREAM(l_http_client);
-
-
-    l_http_client->_inheritor = NULL; // To prevent double free
+    dap_stream_t *l_stm = DAP_STREAM(a_esocket);
+    a_esocket->_inheritor = NULL; // To prevent double free
     dap_stream_delete(l_stm);
 }
 
@@ -610,9 +606,12 @@ static void s_http_client_data_read(dap_http_client_t * a_http_client, void * ar
  * @brief stream_delete Delete stream and free its resources
  * @param sid Stream id
  */
-static void s_http_client_delete(dap_http_client_t * a_http_client, void * arg)
+static void s_http_client_delete(dap_http_client_t * a_http_client, void *a_arg)
 {
-    s_esocket_callback_delete(a_http_client->esocket,arg);
+    UNUSED(a_arg);
+    dap_stream_t *l_stm = DAP_STREAM(a_http_client);
+    a_http_client->_inheritor = NULL; // To prevent double free
+    dap_stream_delete(l_stm);
 }
 
 /**
@@ -759,7 +758,7 @@ static bool s_stream_proc_pkt_in(dap_stream_t *a_stream, dap_stream_pkt_t *l_pkt
             break;
         } else {
             if(!a_stream->buf_fragments || a_stream->buf_fragments_size_total < l_fragm_pkt->full_size) {
-                DAP_DELETE(a_stream->buf_fragments);
+                DAP_DEL_Z(a_stream->buf_fragments);
                 a_stream->buf_fragments = DAP_NEW_SIZE(uint8_t, l_fragm_pkt->full_size);
                 a_stream->buf_fragments_size_total = l_fragm_pkt->full_size;
             }

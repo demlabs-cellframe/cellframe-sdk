@@ -123,13 +123,13 @@ void s_dap_stream_ctl_proc(struct dap_http_simple *a_http_simple, void * a_arg)
         size_t l_enc_key_size = 32;
         int l_enc_headers = 0;
         bool l_is_legacy=true;
-        char * l_tok_tmp = l_dg->url_path;
-        char * l_tok = strtok_r(l_dg->url_path, ",",&l_tok_tmp)   ;
-        do {
-            char * l_subtok_tmp = NULL;
-            char * l_subtok_name = strtok_r(l_tok, "=",&l_subtok_tmp);
-            char * l_subtok_value = strtok_r(NULL, "=",&l_subtok_tmp);
-            if (l_subtok_value){
+        char *l_tok_tmp;
+        char *l_tok = strtok_r(l_dg->url_path, ",", &l_tok_tmp);
+        while (l_tok) {
+            char *l_subtok_name = l_tok;
+            char *l_subtok_value = strchr(l_tok, '=');
+            if (l_subtok_value && l_subtok_value != l_subtok_name) {
+                *l_subtok_value++ = '\0';
                 //log_it(L_DEBUG, "tok = %s value =%s",l_subtok_name,l_subtok_value);
                 if ( strcmp(l_subtok_name,"channels")==0 ){
                     strncpy(l_channels_str,l_subtok_value,sizeof (l_channels_str)-1);
@@ -139,10 +139,11 @@ void s_dap_stream_ctl_proc(struct dap_http_simple *a_http_simple, void * a_arg)
                     //log_it(L_DEBUG,"Param: enc_type=%s",dap_enc_get_type_name(l_enc_type));
                     l_is_legacy = false;
                 }else if(strcmp(l_subtok_name,"enc_key_size")==0){
+                    // TODO impliment enc_key_size influence
                     l_enc_key_size = (size_t) atoi(l_subtok_value);
                     if (l_enc_key_size > l_dg->request_size )
                         l_enc_key_size = 32;
-                    //log_it(L_DEBUG,"Param: enc_type=%s",dap_enc_get_type_name(l_enc_type));
+                    //log_it(L_DEBUG,"Param: enc_key_size=%d", l_enc_key_size);
                     l_is_legacy = false;
                 }else if(strcmp(l_subtok_name,"enc_headers")==0){
                     l_enc_headers = atoi(l_subtok_value);
@@ -150,7 +151,7 @@ void s_dap_stream_ctl_proc(struct dap_http_simple *a_http_simple, void * a_arg)
                 }
             }
             l_tok = strtok_r(NULL, ",",&l_tok_tmp)   ;
-        } while(l_tok);
+        }
         l_new_session = true;
         if(l_is_legacy){
             log_it(L_INFO, "legacy encryption mode used (OAES)");
@@ -179,7 +180,7 @@ void s_dap_stream_ctl_proc(struct dap_http_simple *a_http_simple, void * a_arg)
             if (l_ks_key)
                 l_stm_sess->acl = l_ks_key->acl_list;
 
-            strncpy(l_stm_sess ->active_channels, l_channels_str, l_channels_str_size);
+            strncpy(l_stm_sess->active_channels, l_channels_str, l_channels_str_size);
             char *key_str = DAP_NEW_Z_SIZE(char, KEX_KEY_STR_SIZE + 1);
             dap_random_string_fill(key_str, KEX_KEY_STR_SIZE);
             l_stm_sess->key = dap_enc_key_new_generate( l_enc_type, key_str, KEX_KEY_STR_SIZE,

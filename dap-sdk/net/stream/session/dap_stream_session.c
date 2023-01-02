@@ -209,7 +209,7 @@ dap_stream_session_t *l_stm_sess;
     if (l_stm_sess->key)
         dap_enc_key_delete(l_stm_sess->key);
     DAP_DEL_Z(l_stm_sess->acl);
-
+    DAP_DEL_Z(l_stm_sess->service_key);
     DAP_DELETE(l_stm_sess);
 
     return  0;
