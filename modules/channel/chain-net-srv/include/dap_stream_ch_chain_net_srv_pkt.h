@@ -38,5 +38,8 @@ size_t dap_stream_ch_chain_net_srv_pkt_data_write(dap_stream_ch_t *a_ch,
                                                   dap_chain_net_srv_uid_t a_srv_uid, uint32_t a_usage_id  ,
                                                   const void * a_data, size_t a_data_size);
 
-size_t dap_stream_ch_chain_net_srv_pkt_data_write_f(dap_stream_ch_t *a_ch, dap_chain_net_srv_uid_t a_srv_uid, uint32_t a_usage_id,
-                                                    const char *a_str, ...);
+DAP_PRINTF_ATTR(4, 5) size_t dap_stream_ch_chain_net_srv_pkt_data_write_f(dap_stream_ch_t *a_ch,
+                                                                          dap_chain_net_srv_uid_t a_srv_uid,
+                                                                          uint32_t a_usage_id,
+                                                                          const char *a_str,
+                                                                          ...);

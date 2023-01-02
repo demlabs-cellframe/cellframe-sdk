@@ -249,7 +249,7 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
                                                     l_event_hash_hex_str, &l_round_item_size, NULL, NULL );
             if ( l_round_item == NULL ) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "Can't find event in round.new - only place where could be signed the new event\n",
+                                                  "Can't find event %s in round.new - only place where could be signed the new event\n",
                                                   l_event_hash_str);
                 ret = -30;
             }else {
@@ -298,7 +298,7 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
                     DAP_DELETE(l_event_new_hash_base58_str);
                 } else {
                     dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "Can't sign event in round.new\n",
+                                                  "Can't sign event %s in round.new\n",
                                                   l_event_hash_str);
                     ret=-1;
                 }
