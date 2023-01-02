@@ -2371,7 +2371,8 @@ void s_com_mempool_list_print_for_chain (
                     dap_chain_t * a_chain,
                     const char * a_add,
                     dap_string_t * a_str_tmp,
-                    const char *a_hash_out_type
+                    const char *a_hash_out_type,
+                    bool a_fast
                 )
 {
     char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(a_chain);
@@ -2453,63 +2454,67 @@ void s_com_mempool_list_print_for_chain (
             if (obj_token) {
                 l_token_ticker = obj_token->header.ticker;
             } else {
-                dap_list_t* l_tickers = NULL;
-                dap_chain_datum_tx_t *l_tx_parent = NULL;
-                int l_item_in_size = 0;
-                void *l_item_in = dap_chain_datum_tx_item_get((dap_chain_datum_tx_t*)l_datum->data, NULL, TX_ITEM_TYPE_IN_ALL, &l_item_in_size);
-                bool l_is_unchained = false;
-                dap_hash_fast_t l_parent_hash = {0};
-                int l_parrent_tx_out_idx;
-                for (int l_item_in_size_current = 0; l_item_in_size_current < l_item_in_size && !l_token_ticker;) {
-                    size_t l_tmp_size = dap_chain_datum_item_tx_get_size(l_item_in);
-                    if (l_tmp_size == 0)
-                        break;
-                    l_item_in_size_current += l_tmp_size;
-                    switch (dap_chain_datum_tx_item_get_type(l_item_in)) {
-                        case TX_ITEM_TYPE_IN:
-                            l_parent_hash = ((dap_chain_tx_in_t*)l_item_in)->header.tx_prev_hash;
-                            l_parrent_tx_out_idx = ((dap_chain_tx_in_t*)l_item_in)->header.tx_out_prev_idx;
-                            l_tx_parent = dap_chain_ledger_tx_find_by_hash(a_net->pub.ledger, &((dap_chain_tx_in_t*)l_item_in)->header.tx_prev_hash);
+                if (!a_fast) {
+                    l_token_ticker = " -- Not calculated in fast mode. --";
+                } else {
+                    dap_list_t* l_tickers = NULL;
+                    dap_chain_datum_tx_t *l_tx_parent = NULL;
+                    int l_item_in_size = 0;
+                    void *l_item_in = dap_chain_datum_tx_item_get((dap_chain_datum_tx_t*)l_datum->data, NULL, TX_ITEM_TYPE_IN_ALL, &l_item_in_size);
+                    bool l_is_unchained = false;
+                    dap_hash_fast_t l_parent_hash = {0};
+                    int l_parrent_tx_out_idx;
+                    for (int l_item_in_size_current = 0; l_item_in_size_current < l_item_in_size && !l_token_ticker;) {
+                        size_t l_tmp_size = dap_chain_datum_item_tx_get_size(l_item_in);
+                        if (l_tmp_size == 0)
                             break;
-                        case TX_ITEM_TYPE_IN_COND:
-                            l_parent_hash = ((dap_chain_tx_in_cond_t*)l_item_in)->header.tx_prev_hash;
-                            l_parrent_tx_out_idx = ((dap_chain_tx_in_cond_t*)l_item_in)->header.tx_out_prev_idx;
-                            l_tx_parent = dap_chain_ledger_tx_find_by_hash(a_net->pub.ledger, &((dap_chain_tx_in_cond_t*)l_item_in)->header.tx_prev_hash);
-                            break;
-                    }
-                    if (!l_tx_parent) {
-                        l_is_unchained = true;
-                        break;
-                    }
-                    const char *l_current_token = NULL;
-                    void *l_out_unknown = (dap_chain_tx_out_cond_t*)dap_chain_datum_tx_item_get_nth(
-                            l_tx_parent, TX_ITEM_TYPE_OUT_ALL, l_parrent_tx_out_idx);
-                    switch(dap_chain_datum_tx_item_get_type(l_out_unknown)) {
-                        case TX_ITEM_TYPE_OUT:
-                            l_current_token = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_parent_hash);
-                            l_tickers = dap_list_append(l_tickers, (void *)l_current_token);
-                            break;
-                        case TX_ITEM_TYPE_OUT_EXT:
-                            l_current_token = ((dap_chain_tx_out_ext_t*)l_out_unknown)->token;
-                            l_tickers = dap_list_append(l_tickers, (void *)l_current_token);
-                            break;
-                        case TX_ITEM_TYPE_OUT_COND:
-                            if(((dap_chain_tx_out_cond_t*)l_out_unknown)->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE &&
-                                ((dap_chain_tx_out_cond_t*)l_out_unknown)->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STAKE) {
-                                l_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_parent_hash);
-                            }
+                        l_item_in_size_current += l_tmp_size;
+                        switch (dap_chain_datum_tx_item_get_type(l_item_in)) {
+                            case TX_ITEM_TYPE_IN:
+                                l_parent_hash = ((dap_chain_tx_in_t*)l_item_in)->header.tx_prev_hash;
+                                l_parrent_tx_out_idx = ((dap_chain_tx_in_t*)l_item_in)->header.tx_out_prev_idx;
+                                l_tx_parent = dap_chain_ledger_tx_find_by_hash(a_net->pub.ledger, &((dap_chain_tx_in_t*)l_item_in)->header.tx_prev_hash);
                                 break;
+                            case TX_ITEM_TYPE_IN_COND:
+                                l_parent_hash = ((dap_chain_tx_in_cond_t*)l_item_in)->header.tx_prev_hash;
+                                l_parrent_tx_out_idx = ((dap_chain_tx_in_cond_t*)l_item_in)->header.tx_out_prev_idx;
+                                l_tx_parent = dap_chain_ledger_tx_find_by_hash(a_net->pub.ledger, &((dap_chain_tx_in_cond_t*)l_item_in)->header.tx_prev_hash);
+                                break;
+                        }
+                        if (!l_tx_parent) {
+                            l_is_unchained = true;
+                            break;
+                        }
+                        const char *l_current_token = NULL;
+                        void *l_out_unknown = (dap_chain_tx_out_cond_t*)dap_chain_datum_tx_item_get_nth(
+                                l_tx_parent, TX_ITEM_TYPE_OUT_ALL, l_parrent_tx_out_idx);
+                        switch(dap_chain_datum_tx_item_get_type(l_out_unknown)) {
+                            case TX_ITEM_TYPE_OUT:
+                                l_current_token = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_parent_hash);
+                                l_tickers = dap_list_append(l_tickers, (void *)l_current_token);
+                                break;
+                            case TX_ITEM_TYPE_OUT_EXT:
+                                l_current_token = ((dap_chain_tx_out_ext_t*)l_out_unknown)->token;
+                                l_tickers = dap_list_append(l_tickers, (void *)l_current_token);
+                                break;
+                            case TX_ITEM_TYPE_OUT_COND:
+                                if(((dap_chain_tx_out_cond_t*)l_out_unknown)->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE &&
+                                    ((dap_chain_tx_out_cond_t*)l_out_unknown)->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STAKE) {
+                                    l_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_parent_hash);
+                                }
+                                    break;
+                        }
                     }
+                    if (l_is_unchained) {
+                        dap_string_append_printf(a_str_tmp, ": Transaction %s unchained. \n", l_objs[i].key);
+                    }
+                    if (!l_is_unchained && !l_token_ticker) {
+                        l_token_ticker = s_ticker_list_get_main_ticker(l_tickers, a_net->pub.native_ticker);
+                        if (!l_token_ticker)
+                            dap_string_append_printf(a_str_tmp, ": Can't find token ticker for transaction %s. \n", l_objs[i].key);
+                    }
+                    dap_list_free(l_tickers);
                 }
-                if (l_is_unchained) {
-                    dap_string_append_printf(a_str_tmp, ": Transaction %s unchained. \n", l_objs[i].key);
-                }
-                if (!l_is_unchained && !l_token_ticker) {
-                    l_token_ticker = s_ticker_list_get_main_ticker(l_tickers, a_net->pub.native_ticker);
-                    if (!l_token_ticker)
-                        dap_string_append_printf(a_str_tmp, ": Can't find token ticker for transaction %s. \n", l_objs[i].key);
-                }
-                dap_list_free(l_tickers);
             }
         }
         if (l_token_ticker) {
@@ -2558,11 +2563,13 @@ int com_mempool_list(int argc, char ** argv, char ** a_str_reply)
     dap_chain_net_t *l_net = NULL;
     dap_string_t *l_str_tmp;
     const char *l_addr_base58 = NULL;
+    bool l_fast = false;
 
     const char * l_hash_out_type = "hex";
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-H", &l_hash_out_type);
     dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, argc, argv, a_str_reply, &l_chain, &l_net);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-addr", &l_addr_base58);
+    l_fast = (dap_chain_node_cli_check_option(argv, arg_index, argc, "-fast") != -1) ? true : false;
     if(!l_net)
         return -1;
 
@@ -2579,10 +2586,10 @@ int com_mempool_list(int argc, char ** argv, char ** a_str_reply)
     l_str_tmp = dap_string_new(NULL);
 
     if(l_chain)
-        s_com_mempool_list_print_for_chain(l_net, l_chain, l_addr_base58, l_str_tmp, l_hash_out_type);
+        s_com_mempool_list_print_for_chain(l_net, l_chain, l_addr_base58, l_str_tmp, l_hash_out_type, l_fast);
     else
         DL_FOREACH(l_net->pub.chains, l_chain)
-                s_com_mempool_list_print_for_chain(l_net, l_chain, l_addr_base58, l_str_tmp, l_hash_out_type);
+                s_com_mempool_list_print_for_chain(l_net, l_chain, l_addr_base58, l_str_tmp, l_hash_out_type, l_fast);
 
     dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
     dap_string_free(l_str_tmp, true);
