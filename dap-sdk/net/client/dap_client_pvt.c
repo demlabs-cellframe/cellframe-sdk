@@ -173,6 +173,7 @@ void dap_client_pvt_delete_unsafe(dap_client_pvt_t * a_client_pvt)
     if(a_client_pvt->delete_callback)
         a_client_pvt->delete_callback(a_client_pvt->client, NULL);
     if (a_client_pvt->stream_es) {
+        a_client_pvt->stream_es->callbacks.delete_callback = NULL; // To preserve deleting twice
         dap_events_socket_remove_and_delete_unsafe(a_client_pvt->stream_es, true);
     }
     // delete from list

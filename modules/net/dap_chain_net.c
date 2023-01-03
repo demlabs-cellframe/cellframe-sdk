@@ -1234,7 +1234,8 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
             struct net_link *l_link, *l_link_tmp;
             HASH_ITER(hh, l_net_pvt->net_links, l_link, l_link_tmp) {
                 HASH_DEL(l_net_pvt->net_links, l_link);
-                dap_chain_node_client_close(l_link->client_uuid);
+                if (l_link->link)
+                    dap_chain_node_client_close(l_link->client_uuid);
                 DAP_DEL_Z(l_link->link_info);
             }
             struct downlink *l_downlink, *l_dltmp;
@@ -1874,7 +1875,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 dap_string_append_printf( l_ret_str, "\tSpeed:  %.3Lf TPS\n", l_tps );
                 dap_string_append_printf( l_ret_str, "\tTotal:  %"DAP_UINT64_FORMAT_U"\n", l_tx_count );
                 dap_chain_node_cli_set_reply_text( a_str_reply, l_ret_str->str );
-                dap_string_free( l_ret_str, false );
+                dap_string_free(l_ret_str, true);
             } else if (strcmp(l_stats_str, "tps") == 0) {
                 struct timespec l_from_time_acc = {}, l_to_time_acc = {};
                 dap_string_t * l_ret_str = dap_string_new("Transactions per second peak values:\n");
@@ -1892,7 +1893,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 }
                 dap_string_append_printf(l_ret_str, "\tTotal:  %zu\n", l_tx_num);
                 dap_chain_node_cli_set_reply_text(a_str_reply, l_ret_str->str);
-                dap_string_free(l_ret_str, false);
+                dap_string_free(l_ret_str, true);
             } else {
                 dap_chain_node_cli_set_reply_text(a_str_reply,
                                                   "Subcommand 'stats' requires one of parameter: tx, tps\n");
@@ -2081,7 +2082,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 }
                 dap_chain_global_db_objs_delete(l_objs, l_objs_count);
                 *a_str_reply = l_reply->len ? l_reply->str : dap_strdup("No entries found");
-                dap_string_free(l_reply, false);
+                dap_string_free(l_reply, true);
                 return 0;
             } else if (strcmp(l_ca_str, "del") == 0 ) {
                 const char *l_hash_string = NULL;
@@ -2750,12 +2751,10 @@ void dap_chain_net_deinit()
     pthread_rwlock_rdlock(&g_net_items_rwlock);
     dap_chain_net_item_t *l_current_item, *l_tmp;
     HASH_ITER(hh, s_net_items, l_current_item, l_tmp) {
-        dap_chain_net_t *l_net = l_current_item->chain_net;
-        dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
-        dap_interval_timer_delete(l_net_pvt->main_timer);
-        DAP_DEL_Z(l_net_pvt);
-        DAP_DEL_Z(l_net);
         HASH_DEL(s_net_items, l_current_item);
+        dap_chain_net_t *l_net = l_current_item->chain_net;
+        dap_interval_timer_delete(PVT(l_net)->main_timer);
+        DAP_DEL_Z(l_net);
         DAP_DEL_Z(l_current_item);
     }
     pthread_rwlock_unlock(&g_net_items_rwlock);

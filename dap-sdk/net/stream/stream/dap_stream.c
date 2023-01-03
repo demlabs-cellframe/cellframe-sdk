@@ -831,7 +831,6 @@ static bool s_stream_proc_pkt_in(dap_stream_t *a_stream, dap_stream_pkt_t *l_pkt
         }
     } break;
     case STREAM_PKT_TYPE_ALIVE:
-        a_stream->is_active = false; // To prevent keep-alive concurrency
         //log_it(L_DEBUG, "Keep alive response recieved");
         break;
     default:
@@ -887,9 +886,13 @@ static bool s_callback_keepalive(void *a_arg, bool a_server_side)
     if(l_es) {
         dap_stream_t *l_stream = NULL;
         if (a_server_side) {
-            dap_http_client_t *l_http_client = DAP_HTTP_CLIENT(l_es);
-            assert(l_http_client);
-            l_stream = DAP_STREAM(l_http_client);
+            if (l_es->type == DESCRIPTOR_TYPE_SOCKET_UDP)
+                l_stream = DAP_STREAM(l_es);
+            else {
+                dap_http_client_t *l_http_client = DAP_HTTP_CLIENT(l_es);
+                assert(l_http_client);
+                l_stream = DAP_STREAM(l_http_client);
+            }
         } else {
             dap_client_pvt_t *l_client_pvt = DAP_ESOCKET_CLIENT_PVT(l_es);
             assert(l_client_pvt);

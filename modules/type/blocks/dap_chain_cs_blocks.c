@@ -565,7 +565,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                               DAP_DELETE( l_pkey_hash_str );
                           }
                           dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
-                          dap_string_free(l_str_tmp,false);
+                          dap_string_free(l_str_tmp, true);
                           ret=0;
                       }
                   }else {
@@ -597,7 +597,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                 pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
 
                 dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
-                dap_string_free(l_str_tmp,false);
+                dap_string_free(l_str_tmp, true);
 
         }break;
 
@@ -896,6 +896,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
                                         &l_is_genesis,
                                         &l_nonce,
                                         &l_nonce2 ) ;
+    DAP_DELETE(l_meta);
 
     // 2nd level consensus
     if(l_blocks->callback_block_verify)

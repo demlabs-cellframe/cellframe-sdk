@@ -372,14 +372,13 @@ int     l_rc;
 
                 dap_events_socket_shrink_buf_in( a_esocket, l_len);     /* Shrink start line from input buffer over CRLF !!! */
 
-                char *l_query_string = strchr(l_http_client->url_path, '?');
+                char *l_query_string = memchr(l_http_client->url_path, '?', sizeof(l_http_client->url_path));
                 if (l_query_string++) {
-                    size_t len_after = MIN(strlen(l_query_string), sizeof(l_http_client->url_path) - 1);
+                    size_t len_after = MIN(strnlen(l_query_string, l_http_client->url_path - l_query_string),
+                                           sizeof(l_http_client->in_query_string) - 1);
 
                     if ( len_after ) {
-                        if( len_after > (sizeof(l_http_client->in_query_string) - 1) ){
-                            len_after = sizeof(l_http_client->in_query_string) - 1;
-                        }
+                        l_query_string[len_after] = '\0';
                         char *l_pos = strstr(l_query_string, "HTTP/1.1");
                         //Search for the first occurrence.
                         if (l_pos-- && *l_pos == ' ')
@@ -412,8 +411,6 @@ int     l_rc;
                     // Check if present cache
                     pthread_rwlock_rdlock(&l_http_client->proc->cache_rwlock);
                     dap_http_cache_t * l_http_cache = l_http_client->proc->cache;
-
-                    assert ( !l_http_cache );
 
                     if(l_http_cache){
                         if ( ! l_http_cache->ts_expire || l_http_cache->ts_expire >= time(NULL) ){
@@ -464,7 +461,7 @@ int     l_rc;
                     break;
                 }
 
-                l_len = l_cp - (char*) a_esocket->buf_in;          /* Length of the HTTP header lien with the CRLF terminator */
+                l_len = l_cp - (char*) a_esocket->buf_in;          /* Length of the HTTP header line without the CRLF terminator */
 
                 l_rc = dap_http_header_parse( l_http_client, (char *) a_esocket->buf_in, l_len );
 
