@@ -324,11 +324,11 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
 {
 UNUSED(a_arg);
 dap_http_client_t *l_http_client = DAP_HTTP_CLIENT( a_esocket );
-char    *l_cp;
+byte_t *l_cp;
 size_t  l_len;
 int     l_rc;
 
-
+    unsigned l_iter_count = 0;
     do {
         debug_if(s_debug_http, L_DEBUG, "l_http_client: %p, state %s, buf_in_size: %"DAP_UINT64_FORMAT_U,
                  l_http_client, dap_http_client_state_str[l_http_client->state_read], a_esocket->buf_in_size );
@@ -343,7 +343,7 @@ int     l_rc;
                 if ( !(l_cp = memchr(a_esocket->buf_in, CR, a_esocket->buf_in_size)) )
                     break;
 
-                if ( !(l_len = (l_cp - (char *)a_esocket->buf_in)) )/* First char in the buffer ? */
+                if ( !(l_len = (l_cp - a_esocket->buf_in)) )/* First char in the buffer ? */
                 {
                     log_it( L_ERROR, "LF at begin of the start line - garbage ?");
                     s_report_error_and_restart( a_esocket, l_http_client );
@@ -455,13 +455,14 @@ int     l_rc;
                     break;
                 }
 
-                if ( *(l_cp + 1) != LF ) {
+                if ( l_cp == a_esocket->buf_in + a_esocket->buf_in_size
+                            || *(l_cp + 1) != LF ) {
                     log_it( L_WARNING, "DAP_HTTP_CLIENT_STATE_HEADERS: no LF" );
                     s_report_error_and_restart( a_esocket, l_http_client );
                     break;
                 }
 
-                l_len = l_cp - (char*) a_esocket->buf_in;          /* Length of the HTTP header line without the CRLF terminator */
+                l_len = l_cp - a_esocket->buf_in;          /* Length of the HTTP header line without the CRLF terminator */
 
                 l_rc = dap_http_header_parse( l_http_client, (char *) a_esocket->buf_in, l_len );
 
@@ -475,6 +476,7 @@ int     l_rc;
                         if ( !isOk ) {
                             log_it( L_NOTICE, "Access restricted" );
                             s_report_error_and_restart( a_esocket, l_http_client );
+                            break;
                         }
                     }
 
@@ -522,6 +524,10 @@ int     l_rc;
                 a_esocket->buf_in_size = 0;
             } break;
         } // switch
+        if (l_iter_count++ > 1000) {
+            log_it(L_ERROR, "Indefinite loop in DAP HTTP client read");
+            break;
+        }
     } while (a_esocket->buf_in_size);
 
 //  log_it( L_DEBUG, "dap_http_client_read...exit" );
