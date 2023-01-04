@@ -2335,6 +2335,10 @@ size_t dap_events_socket_write_f_mt(dap_worker_t * a_w,dap_events_socket_uuid_t 
  */
 size_t dap_events_socket_write_unsafe(dap_events_socket_t *a_es, const void * a_data, size_t a_data_size)
 {
+    if (!a_es) {
+        log_it(L_ERROR, "NULL esocket with write unsafe opertion");
+        return 0;
+    }
     if (a_es->flags & DAP_SOCK_SIGNAL_CLOSE)
         return 0;
     if (a_es->buf_out_size + a_data_size > a_es->buf_out_size_max) {
