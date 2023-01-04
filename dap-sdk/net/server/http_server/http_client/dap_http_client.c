@@ -526,6 +526,7 @@ int     l_rc;
         } // switch
         if (l_iter_count++ > 1000) {
             log_it(L_ERROR, "Indefinite loop in DAP HTTP client read");
+            s_report_error_and_restart( a_esocket, l_http_client );
             break;
         }
     } while (a_esocket->buf_in_size);
