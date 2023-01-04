@@ -74,11 +74,13 @@ typedef struct dap_chain_cs_dag_pvt {
     dap_chain_cs_dag_event_item_t * events_treshold_conflicted;
     dap_chain_cs_dag_event_item_t * events_lasts_unlinked;
     dap_interval_timer_t mempool_timer;
+    dap_interval_timer_t treshold_fee_timer;
 } dap_chain_cs_dag_pvt_t;
 
 #define PVT(a) ((dap_chain_cs_dag_pvt_t *) a->_pvt )
 
 static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain);
+static void s_dap_chain_cs_dag_threshold_free(dap_chain_t *a_chain);
 dap_chain_cs_dag_event_item_t* dap_chain_cs_dag_proc_treshold(dap_chain_cs_dag_t * a_dag, dap_ledger_t * a_ledger);
 
 // Atomic element organization callbacks
@@ -286,12 +288,40 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_dag->round_current = l_current_round ? *(uint64_t *)l_current_round : 0;
     DAP_DELETE(l_current_round);
     PVT(l_dag)->mempool_timer = dap_interval_timer_create(5000, (dap_timer_callback_t)dap_chain_node_mempool_process_all, a_chain);
+    PVT(l_dag)->treshold_fee_timer = dap_interval_timer_create(10000, (dap_timer_callback_t)s_dap_chain_cs_dag_threshold_free, a_chain);
+    PVT(l_dag)->events_treshold = NULL;
+    PVT(l_dag)->events_treshold_conflicted = NULL;
     if (l_dag->is_single_line)
         log_it (L_NOTICE, "DAG chain initialized (single line)");
     else
         log_it (L_NOTICE, "DAG chain initialized (multichain)");
     
     return 0;
+}
+
+static void s_dap_chain_cs_dag_threshold_free(dap_chain_t *a_chain) {
+    dap_chain_cs_dag_pvt_t *l_pvt = PVT(a_chain);
+    dap_chain_cs_dag_event_item_t *l_current = NULL, *l_tmp = NULL;
+    dap_gdb_time_t l_time_cut_off = dap_gdb_time_now() - dap_gdb_time_from_sec(7200); //7200 sec = 2 hours.
+    pthread_rwlock_wrlock(&l_pvt->events_rwlock);
+    //Fee treshold
+    HASH_ITER(hh, l_pvt->events_treshold, l_current, l_tmp) {
+        if (l_current->ts_added < l_time_cut_off) {
+            DAP_DELETE(l_current->event);
+            HASH_DEL(l_pvt->events_treshold, l_current);
+            DAP_DELETE(l_current);
+            log_it(L_NOTICE, "Clean record from threshold");
+        }
+    }
+    //Fee treshold conflicted
+    HASH_ITER(hh, l_pvt->events_treshold_conflicted, l_current, l_tmp) {
+        if (l_current->ts_added < l_time_cut_off) {
+            DAP_DELETE(l_current->event);
+            HASH_DEL(l_pvt->events_treshold_conflicted, l_current);
+            DAP_DELETE(l_current);
+        }
+    }
+    pthread_rwlock_unlock(&l_pvt->events_rwlock);
 }
 
 static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
