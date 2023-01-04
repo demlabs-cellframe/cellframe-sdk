@@ -1123,7 +1123,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
         if (l_datum->header.ts_create < l_cut_off_time) {
             l_removed++;
             log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s. The datum in the mempool was "
-                             "created after the %s.", l_objs[i].key, l_gdb_group, l_cut_off_time_str);
+                             "created before the %s.", l_objs[i].key, l_gdb_group, l_cut_off_time_str);
             dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group);
         }
     }
