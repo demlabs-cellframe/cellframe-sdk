@@ -220,7 +220,8 @@ dap_stream_t * stream_new_udp(dap_events_socket_t * a_esocket)
     s_memstat[MEMSTAT$K_STM].alloc_nr += 1;
 #endif
 
-    l_stm ->esocket = a_esocket;
+    l_stm->esocket = a_esocket;
+    l_stm->esocket_uuid = a_esocket->uuid;
     a_esocket->_inheritor = l_stm ;
 
     log_it(L_NOTICE,"New stream instance udp");
@@ -290,6 +291,7 @@ dap_stream_t *s_stream_new(dap_http_client_t *a_http_client)
 #endif
 
     l_stm->esocket = a_http_client->esocket;
+    l_stm->esocket_uuid = a_http_client->esocket->uuid;
     l_stm->stream_worker = (dap_stream_worker_t *)a_http_client->esocket->worker->_inheritor;
     l_stm->conn_http = a_http_client;
     l_stm->seq_id = 0;
@@ -332,10 +334,10 @@ dap_stream_t* dap_stream_new_es_client(dap_events_socket_t * a_esocket)
 }
 
 /**
- * @brief dap_stream_delete
+ * @brief dap_stream_delete_unsafe
  * @param a_stream
  */
-void dap_stream_delete(dap_stream_t *a_stream)
+void dap_stream_delete_unsafe(dap_stream_t *a_stream)
 {
     if(a_stream == NULL) {
         log_it(L_ERROR,"stream delete NULL instance");
@@ -347,6 +349,11 @@ void dap_stream_delete(dap_stream_t *a_stream)
 
     if(a_stream->session)
         dap_stream_session_close_mt(a_stream->session->id); // TODO make stream close after timeout, not momentaly
+
+    if (a_stream->esocket) {
+        a_stream->esocket->callbacks.delete_callback = NULL; // Prevent to remove twice
+        dap_events_socket_remove_and_delete_unsafe(a_stream->esocket, true);
+    }
 
     DAP_DEL_Z(a_stream->buf_fragments);
     DAP_DEL_Z(a_stream->pkt_buf_in);
@@ -372,7 +379,9 @@ static void s_esocket_callback_delete(dap_events_socket_t *a_esocket, void * a_a
 
     dap_stream_t *l_stm = DAP_STREAM(a_esocket);
     a_esocket->_inheritor = NULL; // To prevent double free
-    dap_stream_delete(l_stm);
+    l_stm->esocket = NULL;
+    l_stm->esocket_uuid = 0;
+    dap_stream_delete_unsafe(l_stm);
 }
 
 /**
@@ -611,7 +620,9 @@ static void s_http_client_delete(dap_http_client_t * a_http_client, void *a_arg)
     UNUSED(a_arg);
     dap_stream_t *l_stm = DAP_STREAM(a_http_client);
     a_http_client->_inheritor = NULL; // To prevent double free
-    dap_stream_delete(l_stm);
+    l_stm->esocket = NULL;
+    l_stm->esocket_uuid = 0;
+    dap_stream_delete_unsafe(l_stm);
 }
 
 /**
@@ -806,11 +817,9 @@ static bool s_stream_proc_pkt_in(dap_stream_t *a_stream, dap_stream_pkt_t *l_pkt
         }
     } break;
     case STREAM_PKT_TYPE_SERVICE_PACKET: {
-        stream_srv_pkt_t * srv_pkt = DAP_NEW(stream_srv_pkt_t);
-        memcpy(srv_pkt, l_pkt->data,sizeof(stream_srv_pkt_t));
-        uint32_t session_id = srv_pkt->session_id;
-        check_session(session_id,a_stream->esocket);
-        DAP_DELETE(srv_pkt);
+        stream_srv_pkt_t *l_srv_pkt = (stream_srv_pkt_t *)l_pkt->data;
+        uint32_t l_session_id = l_srv_pkt->session_id;
+        check_session(l_session_id, a_stream->esocket);
     } break;
     case STREAM_PKT_TYPE_KEEPALIVE: {
         //log_it(L_DEBUG, "Keep alive check recieved");

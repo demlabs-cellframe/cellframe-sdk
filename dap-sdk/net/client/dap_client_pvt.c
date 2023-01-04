@@ -172,6 +172,7 @@ void dap_client_pvt_delete_unsafe(dap_client_pvt_t * a_client_pvt)
     }
     if(a_client_pvt->delete_callback)
         a_client_pvt->delete_callback(a_client_pvt->client, NULL);
+
     if (a_client_pvt->stream_es) {
         a_client_pvt->stream_es->callbacks.delete_callback = NULL; // To preserve deleting twice
         dap_events_socket_remove_and_delete_unsafe(a_client_pvt->stream_es, true);
@@ -196,8 +197,11 @@ void dap_client_pvt_delete_unsafe(dap_client_pvt_t * a_client_pvt)
     if (a_client_pvt->session_key)
         dap_enc_key_delete(a_client_pvt->session_key);
 
-    if (a_client_pvt->stream)
-        dap_stream_delete(a_client_pvt->stream);
+    if (a_client_pvt->stream) {
+        a_client_pvt->stream->esocket = NULL;
+        a_client_pvt->stream->esocket_uuid = 0;
+        dap_stream_delete_unsafe(a_client_pvt->stream);
+    }
 
     DAP_DEL_Z(a_client_pvt)
 }
@@ -354,7 +358,7 @@ static bool s_stage_status_after(dap_client_pvt_t * a_client_pvt)
                 switch(l_stage) {
                 case STAGE_STREAM_CONNECTED:
                 case STAGE_STREAM_STREAMING:
-                    dap_stream_delete(a_client_pvt->stream);
+                    dap_stream_delete_unsafe(a_client_pvt->stream);
                     if(a_client_pvt->stream_es)
                        a_client_pvt->stream_es->flags |= DAP_SOCK_SIGNAL_CLOSE;
                     //dap_events_socket_remove_and_delete_unsafe(a_client_pvt->stream_es, true);

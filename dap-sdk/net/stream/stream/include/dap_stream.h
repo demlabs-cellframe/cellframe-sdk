@@ -93,7 +93,7 @@ void dap_stream_add_proc_udp(dap_server_t *a_udp_server);
 dap_stream_t* dap_stream_new_es_client(dap_events_socket_t * a_es);
 size_t dap_stream_data_proc_read(dap_stream_t * a_stream);
 size_t dap_stream_data_proc_write(dap_stream_t * a_stream);
-void dap_stream_delete(dap_stream_t * a_stream);
+void dap_stream_delete_unsafe(dap_stream_t * a_stream);
 void dap_stream_proc_pkt_in(dap_stream_t * sid);
 
 void dap_stream_es_rw_states_update(struct dap_stream *a_stream);
