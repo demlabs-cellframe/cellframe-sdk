@@ -641,20 +641,15 @@ size_t dap_stream_data_proc_read (dap_stream_t *a_stream)
     size_t l_buf_in_size = a_stream->esocket->buf_in_size;
 
     // Save the received data to stream memory
-    if(!a_stream->pkt_buf_in)
-    {
-        a_stream->pkt_buf_in = DAP_NEW_SIZE(struct dap_stream_pkt, l_buf_in_size);
+    if(!a_stream->pkt_buf_in) {
+        a_stream->pkt_buf_in = DAP_DUP_SIZE(l_buf_in, l_buf_in_size);
         a_stream->pkt_buf_in_data_size = l_buf_in_size;
-        memcpy(a_stream->pkt_buf_in, l_buf_in, l_buf_in_size);
-    }
-    else {
-        debug_if(s_dump_packet_headers, L_DEBUG, "dap_stream_data_proc_read() Receive previously unprocessed data %zu bytes + new %zu bytes", a_stream->pkt_buf_in_data_size, l_buf_in_size);
+    } else {
+        debug_if(s_dump_packet_headers, L_DEBUG, "dap_stream_data_proc_read() Receive previously unprocessed data %zu bytes + new %zu bytes",
+                                                  a_stream->pkt_buf_in_data_size, l_buf_in_size);
         // The current data is added to rest of the previous package
-        byte_t *l_tmp = DAP_NEW_SIZE(byte_t, a_stream->pkt_buf_in_data_size + l_buf_in_size);
-        memcpy(l_tmp, a_stream->pkt_buf_in, a_stream->pkt_buf_in_data_size);
-        memcpy(l_tmp + a_stream->pkt_buf_in_data_size, l_buf_in, l_buf_in_size);
-        DAP_DELETE(a_stream->pkt_buf_in);
-        a_stream->pkt_buf_in = (dap_stream_pkt_t*) l_tmp;
+        a_stream->pkt_buf_in = DAP_REALLOC(a_stream->pkt_buf_in, a_stream->pkt_buf_in_data_size + l_buf_in_size);
+        memcpy((byte_t *)a_stream->pkt_buf_in + a_stream->pkt_buf_in_data_size, l_buf_in, l_buf_in_size);
         // Increase the size of pkt_buf_in
         a_stream->pkt_buf_in_data_size += l_buf_in_size;
     }
@@ -733,8 +728,6 @@ static bool s_stream_proc_pkt_in(dap_stream_t *a_stream, dap_stream_pkt_t *l_pkt
 {
     bool l_is_clean_fragments = false;
     a_stream->is_active = true;
-    //dap_stream_pkt_t * l_pkt = a_stream->pkt_buf_in;
-    //size_t l_pkt_size = a_stream->pkt_buf_in_data_size;
 
     switch (l_pkt->hdr.type) {
     case STREAM_PKT_TYPE_FRAGMENT_PACKET: {

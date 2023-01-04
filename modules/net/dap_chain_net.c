@@ -477,27 +477,29 @@ static bool s_net_send_records(dap_proc_thread_t *a_thread, void *a_arg)
 
     if (!l_obj) {
         debug_if(s_debug_more, L_DEBUG, "Notified GDB event does not exist");
+        dap_store_obj_free_one(l_arg);
         return true;
     }
     if (!l_obj->group || !l_obj->key) {
         debug_if(s_debug_more, L_DEBUG, "Notified GDB event is broken");
         dap_store_obj_free_one(l_obj);
+        dap_store_obj_free_one(l_arg);
         return true;
     }
     // Check object lifetime for broadcasting decision
     dap_time_t l_time_diff = dap_gdb_time_to_sec(dap_gdb_time_now() - l_obj->timestamp);
     if (l_time_diff > DAP_BROADCAST_LIFETIME * 60) {
         dap_store_obj_free_one(l_obj);
+        dap_store_obj_free_one(l_arg);
         return true;
     }
     l_obj->type = l_arg->type;
     if (l_obj->type == DAP_DB$K_OPTYPE_DEL) {
         DAP_DELETE(l_obj->group);
         l_obj->group = l_arg->group;
-    } else
-        DAP_DELETE(l_arg->group);
-    DAP_DELETE(l_arg->key);
-    DAP_DELETE(l_arg);
+        l_arg->group = NULL;
+    }
+    dap_store_obj_free_one(l_arg);
 
     dap_chain_t *l_chain = NULL;
     if (l_obj->type == DAP_DB$K_OPTYPE_ADD)
@@ -541,7 +543,7 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
     if (!HASH_COUNT(PVT(l_net)->downlinks))
         return;
     // Use it instead of new type definition to pack params in one callback arg
-    dap_store_obj_t *l_obj = DAP_NEW(dap_store_obj_t);
+    dap_store_obj_t *l_obj = DAP_NEW_Z(dap_store_obj_t);
     l_obj->type = a_op_code;
     l_obj->key = dap_strdup(a_key);
     l_obj->group = dap_strdup(a_group);

@@ -2088,8 +2088,12 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
 			||	(l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE)
 			||	(l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL)
 			||	(l_token_item->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)) {
-                    if (!s_chain_ledger_token_tsd_check(l_token_item, (dap_chain_datum_token_emission_t *)a_token_emission))
-                        return -114;
+                if (!s_chain_ledger_token_tsd_check(l_token_item, (dap_chain_datum_token_emission_t *)a_token_emission)) {
+                    DAP_DELETE(l_token_emission_item->datum_token_emission);
+                    DAP_DELETE(l_token_emission_item);
+                    DAP_DELETE(l_hash_str);
+                    return -114;
+                }
             }
             //Update value in ledger memory object
             if (!IS_ZERO_256(l_token_item->total_supply)) {
@@ -2106,6 +2110,9 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
                                         l_balance, l_value);
                     DAP_DELETE(l_balance);
                     DAP_DELETE(l_value);
+                    DAP_DELETE(l_token_emission_item->datum_token_emission);
+                    DAP_DELETE(l_token_emission_item);
+                    DAP_DELETE(l_hash_str);
                     return -4;
                 }
                 if (PVT(a_ledger)->cached)
@@ -2145,6 +2152,7 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
                 DAP_DELETE(l_token_emission_address_str);
             }
         } else {
+            DAP_DELETE(l_token_emission_item->datum_token_emission);
             DAP_DELETE(l_token_emission_item);
             if(s_debug_more)
                 log_it(L_WARNING,"threshold for emissions is overfulled (%zu max), dropping down new data, added nothing",
@@ -2154,7 +2162,7 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
     } else {
         if (l_token_item) {
             if(s_debug_more) {
-                if ( ((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.version == 1 ) { // && ((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.type_256 ) // 256
+                if ( ((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.version == 2 ) {
                     char *l_balance = dap_chain_balance_print(((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.value_256);
                     log_it(L_ERROR, "Duplicate token emission datum of %s %s ( %s )", l_balance, c_token_ticker, l_hash_str);
                     DAP_DELETE(l_balance);

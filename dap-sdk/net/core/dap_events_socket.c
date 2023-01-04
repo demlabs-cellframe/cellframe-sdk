@@ -1989,7 +1989,7 @@ void dap_events_socket_descriptor_close(dap_events_socket_t *a_esocket)
 #else
     if ( a_esocket->socket && (a_esocket->socket != -1)) {
 #ifdef DAP_OS_BSD
-        if(a_esocket->type == DESCRIPTOR_TYPE_TIMER)
+        if (a_esocket->type != DESCRIPTOR_TYPE_TIMER)
 #endif
             close( a_esocket->socket );
         if( a_esocket->fd2 > 0 ){

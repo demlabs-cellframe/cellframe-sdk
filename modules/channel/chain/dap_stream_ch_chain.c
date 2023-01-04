@@ -553,6 +553,7 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
     dap_chain_hash_fast_t l_atom_hash = {};
     if (l_pkt_item->pkt_data_size == 0 || !l_pkt_item->pkt_data) {
         log_it(L_CRITICAL, "In proc thread got CHAINS stream ch packet with zero data");
+        DAP_DEL_Z(l_pkt_item->pkt_data);
         DAP_DELETE(l_sync_request);
         return true;
     }

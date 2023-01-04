@@ -827,9 +827,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
 
     // verify hashes and consensus
     dap_chain_atom_verify_res_t ret = s_callback_atom_verify (a_chain, a_atom, a_atom_size);
-    debug_if(s_debug_more, L_DEBUG, "Verified atom %p: %s", a_atom, ret == ATOM_ACCEPT ? "accepted" :
-                                                   (ret == ATOM_REJECT ? "rejected" : "thresholded"));
-
+    if (ret == ATOM_MOVE_TO_THRESHOLD)
+        ret = ATOM_REJECT; // TODO remove it when threshlod will work
     if( ret == ATOM_ACCEPT){
         int l_consensus_check = s_add_atom_to_blocks(l_blocks, a_chain->ledger, l_block_cache);
         if(l_consensus_check == 1){
@@ -855,7 +854,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
     }else if (ret == ATOM_REJECT ){
         dap_chain_block_cache_delete(l_block_cache);
     }
-
+    debug_if(s_debug_more, L_DEBUG, "Verified atom %p: %s", a_atom, ret == ATOM_ACCEPT ? "accepted" :
+                                                   (ret == ATOM_REJECT ? "rejected" : "thresholded"));
     //s_bft_consensus_setup(l_blocks);      TODO move it to validators agreement
     return ret;
 }
