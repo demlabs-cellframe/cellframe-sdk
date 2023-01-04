@@ -580,11 +580,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
             }
         }break;
         case SUBCMD_LIST:{
-
                 pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
                 dap_string_t * l_str_tmp = dap_string_new(NULL);
-                dap_string_append_printf(l_str_tmp,"%s.%s: Have %"DAP_UINT64_FORMAT_U" blocks :\n",
-                                         l_net->pub.name,l_chain->name,PVT(l_blocks)->blocks_count);
                 dap_chain_block_cache_t * l_block_cache = NULL,*l_block_cache_tmp = NULL;
 
                 HASH_ITER(hh,PVT(l_blocks)->block_cache_first,l_block_cache, l_block_cache_tmp ) {
@@ -595,10 +592,10 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                                              l_block_cache->block_hash_str, l_buf);
                 }
                 pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
-
+                dap_string_append_printf(l_str_tmp,"%s.%s: Have %"DAP_UINT64_FORMAT_U" blocks :\n",
+                                         l_net->pub.name,l_chain->name,PVT(l_blocks)->blocks_count);
                 dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
                 dap_string_free(l_str_tmp, true);
-
         }break;
 
         case SUBCMD_UNDEFINED: {
