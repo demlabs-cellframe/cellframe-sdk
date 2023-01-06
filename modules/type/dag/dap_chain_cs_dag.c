@@ -65,6 +65,11 @@ typedef struct dap_chain_cs_dag_event_item {
     UT_hash_handle hh;
 } dap_chain_cs_dag_event_item_t;
 
+typedef struct dap_chain_cs_dag_blocked_list {
+    dap_chain_hash_fast_t hash;
+    struct dap_chain_cs_dag_blocked_list *next;
+}dap_chain_cs_dag_blocked_list_t;
+
 
 typedef struct dap_chain_cs_dag_pvt {
     pthread_rwlock_t events_rwlock;
@@ -73,6 +78,7 @@ typedef struct dap_chain_cs_dag_pvt {
     dap_chain_cs_dag_event_item_t * events_treshold;
     dap_chain_cs_dag_event_item_t * events_treshold_conflicted;
     dap_chain_cs_dag_event_item_t * events_lasts_unlinked;
+    dap_chain_cs_dag_blocked_list_t *list_removed_events_from_treshold;
     dap_interval_timer_t mempool_timer;
     dap_interval_timer_t treshold_fee_timer;
 } dap_chain_cs_dag_pvt_t;
@@ -307,6 +313,9 @@ static void s_dap_chain_cs_dag_threshold_free(dap_chain_cs_dag_t *a_dag) {
     //Fee treshold
     HASH_ITER(hh, l_pvt->events_treshold, l_current, l_tmp) {
         if (l_current->ts_added < l_time_cut_off) {
+            dap_chain_cs_dag_blocked_list_t *l_el = DAP_NEW(dap_chain_cs_dag_blocked_list_t);
+            l_el->hash = l_current->hash;
+            LL_APPEND(l_pvt->list_removed_events_from_treshold, l_el);
             char *l_hash_dag = dap_hash_fast_to_str_new(&l_current->hash);
             DAP_DELETE(l_current->event);
             HASH_DEL(l_pvt->events_treshold, l_current);
@@ -502,6 +511,14 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
 
     switch (ret) {
     case ATOM_MOVE_TO_THRESHOLD:
+        for (dap_chain_cs_dag_blocked_list_t *el = PVT(l_dag)->list_removed_events_from_treshold; el != NULL; el = el->next) {
+            if (!memcpy(&el->hash, &l_event_item->hash, sizeof(dap_hash_fast_t))) {
+                ret = ATOM_REJECT;
+                if (s_debug_more)
+                    log_it(L_DEBUG, "... rejected because the atom was removed from the threshold.");
+                break;
+            }
+        }
         pthread_rwlock_wrlock(l_events_rwlock);
         HASH_ADD(hh, PVT(l_dag)->events_treshold, hash, sizeof(l_event_item->hash), l_event_item);
         pthread_rwlock_unlock(l_events_rwlock);
