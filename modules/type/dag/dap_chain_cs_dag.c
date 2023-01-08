@@ -296,7 +296,7 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     PVT(l_dag)->mempool_timer = dap_interval_timer_create(5000, (dap_timer_callback_t)dap_chain_node_mempool_process_all, a_chain);
     PVT(l_dag)->events_treshold = NULL;
     PVT(l_dag)->events_treshold_conflicted = NULL;
-    PVT(l_dag)->treshold_fee_timer = dap_interval_timer_create(900000, (dap_timer_callback_t)s_dap_chain_cs_dag_threshold_free, l_dag);
+    PVT(l_dag)->treshold_fee_timer = dap_interval_timer_create(120000, (dap_timer_callback_t)s_dap_chain_cs_dag_threshold_free, l_dag);
     if (l_dag->is_single_line)
         log_it (L_NOTICE, "DAG chain initialized (single line)");
     else
@@ -315,6 +315,7 @@ static void s_dap_chain_cs_dag_threshold_free(dap_chain_cs_dag_t *a_dag) {
         if (l_current->ts_added < l_time_cut_off) {
             dap_chain_cs_dag_blocked_list_t *l_el = DAP_NEW(dap_chain_cs_dag_blocked_list_t);
             l_el->hash = l_current->hash;
+//            memcpy(&l_el->hash, &l_current->hash, sizeof(dap_chain_hash_fast_t));
             LL_APPEND(l_pvt->list_removed_events_from_treshold, l_el);
             char *l_hash_dag = dap_hash_fast_to_str_new(&l_current->hash);
             DAP_DELETE(l_current->event);
@@ -511,19 +512,23 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
 
     switch (ret) {
     case ATOM_MOVE_TO_THRESHOLD:
+        pthread_rwlock_wrlock(l_events_rwlock);
         for (dap_chain_cs_dag_blocked_list_t *el = PVT(l_dag)->list_removed_events_from_treshold; el != NULL; el = el->next) {
-            if (!memcpy(&el->hash, &l_event_item->hash, sizeof(dap_hash_fast_t))) {
+            if (!memcmp(&el->hash, &l_event_item->hash, sizeof(dap_hash_fast_t))) {
                 ret = ATOM_REJECT;
-                if (s_debug_more)
-                    log_it(L_DEBUG, "... rejected because the atom was removed from the threshold.");
                 break;
             }
         }
-        pthread_rwlock_wrlock(l_events_rwlock);
-        HASH_ADD(hh, PVT(l_dag)->events_treshold, hash, sizeof(l_event_item->hash), l_event_item);
+        if (ret != ATOM_REJECT) {
+            HASH_ADD(hh, PVT(l_dag)->events_treshold, hash, sizeof(l_event_item->hash), l_event_item);
+
+            if (s_debug_more)
+                log_it(L_DEBUG, "... added to threshold");
+        } else {
+            if (s_debug_more)
+                log_it(L_DEBUG, "... rejected because the atom was removed from the threshold.");
+        }
         pthread_rwlock_unlock(l_events_rwlock);
-        if(s_debug_more)
-            log_it(L_DEBUG, "... added to threshold");
         break;
     case ATOM_ACCEPT: {
         int l_consensus_check = s_dap_chain_add_atom_to_events_table(l_dag, a_chain->ledger, l_event_item);
