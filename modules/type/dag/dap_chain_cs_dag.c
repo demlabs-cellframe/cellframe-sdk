@@ -296,7 +296,7 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     PVT(l_dag)->mempool_timer = dap_interval_timer_create(5000, (dap_timer_callback_t)dap_chain_node_mempool_process_all, a_chain);
     PVT(l_dag)->events_treshold = NULL;
     PVT(l_dag)->events_treshold_conflicted = NULL;
-    PVT(l_dag)->treshold_fee_timer = dap_interval_timer_create(120000, (dap_timer_callback_t)s_dap_chain_cs_dag_threshold_free, l_dag);
+    PVT(l_dag)->treshold_fee_timer = dap_interval_timer_create(900000, (dap_timer_callback_t)s_dap_chain_cs_dag_threshold_free, l_dag);
     if (l_dag->is_single_line)
         log_it (L_NOTICE, "DAG chain initialized (single line)");
     else
