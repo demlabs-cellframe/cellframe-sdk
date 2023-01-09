@@ -45,7 +45,7 @@ static dap_enc_ks_key_t * _ks = NULL;
 static bool s_memcache_enable = false;
 static time_t s_memcache_expiration_key = 0;
 
-void _enc_key_free(dap_enc_ks_key_t **ptr);
+static void s_enc_key_free(dap_enc_ks_key_t **ptr);
 
 void dap_enc_ks_deinit()
 {
@@ -54,7 +54,7 @@ void dap_enc_ks_deinit()
         HASH_ITER(hh, _ks, cur_item, tmp) {
             // Clang bug at this, cur_item should change at every loop cycle
             HASH_DEL(_ks, cur_item);
-            _enc_key_free(&cur_item);
+            s_enc_key_free(&cur_item);
         }
     }
 }
@@ -82,9 +82,9 @@ dap_enc_ks_key_t * dap_enc_ks_find(const char * v_id)
     HASH_FIND_STR(_ks,v_id,ret);
     if(ret == NULL) {
         if(s_memcache_enable) {
-            void* l_key_buf;
+            /*void* l_key_buf;
             size_t l_val_length;
-            /*bool find = dap_memcache_get(v_id, &l_val_length, (void**)&l_key_buf);
+            bool find = dap_memcache_get(v_id, &l_val_length, (void**)&l_key_buf);
             if(find) {
                 if(l_val_length != sizeof (dap_enc_key_serealize_t)) {
                     log_it(L_WARNING, "Data can be broken");
@@ -156,13 +156,13 @@ void dap_enc_ks_delete(const char *id)
     if (delItem) {
         HASH_DEL (_ks, delItem);
         pthread_mutex_destroy(&delItem->mutex);
-        _enc_key_free(&delItem);
+        s_enc_key_free(&delItem);
         return;
     }
     log_it(L_WARNING, "Can't delete key by id: %s. Key not found", id);
 }
 
-void _enc_key_free(dap_enc_ks_key_t **ptr)
+static void s_enc_key_free(dap_enc_ks_key_t **ptr)
 {
     if (*ptr){
         if((*ptr)->key)

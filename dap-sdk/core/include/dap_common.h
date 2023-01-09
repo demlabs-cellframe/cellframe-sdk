@@ -47,7 +47,9 @@
 
 #include <time.h>
 #ifdef DAP_OS_WINDOWS
-#include <windows.h>
+#ifndef _WINSOCKAPI_
+#include <winsock2.h>
+#endif
 #include <fcntl.h>
 #define pipe(pfds) _pipe(pfds, 4096, _O_BINARY)
 #define strerror_r(arg1, arg2, arg3) strerror_s(arg2, arg3, arg1)

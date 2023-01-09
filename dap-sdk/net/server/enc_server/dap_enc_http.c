@@ -199,6 +199,7 @@ enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *a_http_simp
 {
 
     dap_enc_key_t * l_key= dap_enc_ks_find_http(a_http_simple->http_client);
+
     if(l_key){
         enc_http_delegate_t * dg = DAP_NEW_Z(enc_http_delegate_t);
         dg->key=l_key;
@@ -261,11 +262,6 @@ enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *a_http_simp
  */
 void enc_http_reply_encode(struct dap_http_simple *a_http_simple,enc_http_delegate_t * a_http_delegate)
 {
-    dap_enc_key_t * key = dap_enc_ks_find_http(a_http_simple->http_client);
-    if( key == NULL ) {
-        log_it(L_ERROR, "Can't find http key.");
-        return;
-    }
     if(a_http_delegate->response){
 
         if(a_http_simple->reply)
@@ -282,7 +278,6 @@ void enc_http_reply_encode(struct dap_http_simple *a_http_simple,enc_http_delega
                                                   a_http_simple->reply, l_reply_size_max,
                                                   DAP_ENC_DATA_TYPE_RAW);
     }
-
 }
 
 void enc_http_delegate_delete(enc_http_delegate_t * dg)
@@ -313,15 +308,17 @@ size_t enc_http_reply_f(enc_http_delegate_t * dg, const char * data, ...)
     va_list ap;
     va_start(ap, data);
     int mem_size = dap_vsnprintf(0, 0, data, ap);
-
     va_end(ap);
-    char *buf = (char*)malloc(sizeof(char) * mem_size + 1);
+
+    char *buf = DAP_NEW_SIZE(char, mem_size + 1);
     if(buf) {
         va_start(ap, data);
         dap_vsprintf(buf, data, ap);
         va_end(ap);
-        return enc_http_reply(dg,buf,mem_size);
-    }else
+        size_t ret = enc_http_reply(dg, buf, mem_size);
+        DAP_DELETE(buf);
+        return ret;
+    } else
         log_it(L_ERROR, "Can not memmory allocate");
     return 0;
 }

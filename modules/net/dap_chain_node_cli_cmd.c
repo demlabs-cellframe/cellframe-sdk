@@ -5499,7 +5499,7 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
             res = -15;
         }
         dap_chain_node_cli_set_reply_text(str_reply, string_ret->str);
-        dap_string_free(string_ret, false);
+        dap_string_free(string_ret, true);
         DAP_DELETE(l_addr_to);
         return res;
     }
@@ -5547,7 +5547,7 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
     }
 
     dap_chain_node_cli_set_reply_text(str_reply, string_ret->str);
-    dap_string_free(string_ret, false);
+    dap_string_free(string_ret, true);
 
     DAP_DELETE(l_addr_to);
     dap_chain_wallet_close(l_wallet);
