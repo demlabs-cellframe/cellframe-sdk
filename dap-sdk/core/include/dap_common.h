@@ -54,12 +54,15 @@
 #define strerror_r(arg1, arg2, arg3) strerror_s(arg2, arg3, arg1)
 #else
 #include <unistd.h>
-#include <malloc.h>
 #endif
 #ifdef __MACH__
 #include <dispatch/dispatch.h>
 #endif
 #include "portable_endian.h"
+
+#ifdef DAP_OS_LINUX
+#include <malloc.h>
+#endif
 
 #define BIT( x ) ( 1 << x )
 // Stuffs an integer into a pointer type
