@@ -2530,8 +2530,8 @@ void s_com_mempool_list_print_for_chain (
                                      l_objs[i].key, l_type,
                                      l_datum->header.data_size, l_data_hash_str, dap_ctime_r(&l_ts_create, buf));
         }
-
-        dap_chain_datum_dump(a_str_tmp, l_datum, a_hash_out_type);
+        if (!a_fast)
+            dap_chain_datum_dump(a_str_tmp, l_datum, a_hash_out_type);
     }
 
     if(a_add)
