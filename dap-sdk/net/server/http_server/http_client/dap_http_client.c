@@ -324,11 +324,11 @@ void dap_http_client_read( dap_events_socket_t *a_esocket, void *a_arg )
 {
 UNUSED(a_arg);
 dap_http_client_t *l_http_client = DAP_HTTP_CLIENT( a_esocket );
-char    *l_cp;
+byte_t *l_cp;
 size_t  l_len;
 int     l_rc;
 
-
+    unsigned l_iter_count = 0;
     do {
         debug_if(s_debug_http, L_DEBUG, "l_http_client: %p, state %s, buf_in_size: %"DAP_UINT64_FORMAT_U,
                  l_http_client, dap_http_client_state_str[l_http_client->state_read], a_esocket->buf_in_size );
@@ -343,7 +343,7 @@ int     l_rc;
                 if ( !(l_cp = memchr(a_esocket->buf_in, CR, a_esocket->buf_in_size)) )
                     break;
 
-                if ( !(l_len = (l_cp - (char *)a_esocket->buf_in)) )/* First char in the buffer ? */
+                if ( !(l_len = (l_cp - a_esocket->buf_in)) )/* First char in the buffer ? */
                 {
                     log_it( L_ERROR, "LF at begin of the start line - garbage ?");
                     s_report_error_and_restart( a_esocket, l_http_client );
@@ -372,14 +372,13 @@ int     l_rc;
 
                 dap_events_socket_shrink_buf_in( a_esocket, l_len);     /* Shrink start line from input buffer over CRLF !!! */
 
-                char *l_query_string = strchr(l_http_client->url_path, '?');
+                char *l_query_string = memchr(l_http_client->url_path, '?', sizeof(l_http_client->url_path));
                 if (l_query_string++) {
-                    size_t len_after = MIN(strlen(l_query_string), sizeof(l_http_client->url_path) - 1);
+                    size_t len_after = MIN(strnlen(l_query_string, l_http_client->url_path - l_query_string),
+                                           sizeof(l_http_client->in_query_string) - 1);
 
                     if ( len_after ) {
-                        if( len_after > (sizeof(l_http_client->in_query_string) - 1) ){
-                            len_after = sizeof(l_http_client->in_query_string) - 1;
-                        }
+                        l_query_string[len_after] = '\0';
                         char *l_pos = strstr(l_query_string, "HTTP/1.1");
                         //Search for the first occurrence.
                         if (l_pos-- && *l_pos == ' ')
@@ -412,8 +411,6 @@ int     l_rc;
                     // Check if present cache
                     pthread_rwlock_rdlock(&l_http_client->proc->cache_rwlock);
                     dap_http_cache_t * l_http_cache = l_http_client->proc->cache;
-
-                    assert ( !l_http_cache );
 
                     if(l_http_cache){
                         if ( ! l_http_cache->ts_expire || l_http_cache->ts_expire >= time(NULL) ){
@@ -458,13 +455,14 @@ int     l_rc;
                     break;
                 }
 
-                if ( *(l_cp + 1) != LF ) {
+                if ( l_cp == a_esocket->buf_in + a_esocket->buf_in_size
+                            || *(l_cp + 1) != LF ) {
                     log_it( L_WARNING, "DAP_HTTP_CLIENT_STATE_HEADERS: no LF" );
                     s_report_error_and_restart( a_esocket, l_http_client );
                     break;
                 }
 
-                l_len = l_cp - (char*) a_esocket->buf_in;          /* Length of the HTTP header lien with the CRLF terminator */
+                l_len = l_cp - a_esocket->buf_in;          /* Length of the HTTP header line without the CRLF terminator */
 
                 l_rc = dap_http_header_parse( l_http_client, (char *) a_esocket->buf_in, l_len );
 
@@ -478,6 +476,7 @@ int     l_rc;
                         if ( !isOk ) {
                             log_it( L_NOTICE, "Access restricted" );
                             s_report_error_and_restart( a_esocket, l_http_client );
+                            break;
                         }
                     }
 
@@ -525,6 +524,11 @@ int     l_rc;
                 a_esocket->buf_in_size = 0;
             } break;
         } // switch
+        if (l_iter_count++ > 1000) {
+            log_it(L_ERROR, "Indefinite loop in DAP HTTP client read");
+            s_report_error_and_restart( a_esocket, l_http_client );
+            break;
+        }
     } while (a_esocket->buf_in_size);
 
 //  log_it( L_DEBUG, "dap_http_client_read...exit" );

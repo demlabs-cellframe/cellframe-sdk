@@ -553,6 +553,7 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
     dap_chain_hash_fast_t l_atom_hash = {};
     if (l_pkt_item->pkt_data_size == 0 || !l_pkt_item->pkt_data) {
         log_it(L_CRITICAL, "In proc thread got CHAINS stream ch packet with zero data");
+        DAP_DEL_Z(l_pkt_item->pkt_data);
         DAP_DELETE(l_sync_request);
         return true;
     }
@@ -916,6 +917,7 @@ static bool s_chain_timer_callback(void *a_arg)
         s_stream_ch_packet_out(l_ch, NULL);
     // Sending dumb packet with nothing to inform remote thats we're just skiping atoms of GDB's, nothing freezed
     if (l_ch_chain->state == CHAIN_STATE_SYNC_CHAINS && l_ch_chain->sent_breaks >= 3 * DAP_SYNC_TICKS_PER_SECOND) {
+        debug_if(s_debug_more, L_INFO, "Send one chain TSD packet");
         dap_stream_ch_chain_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_TSD,
                                              l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64,
                                              l_ch_chain->request_hdr.cell_id.uint64, NULL, 0);
@@ -1537,26 +1539,27 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
  * @brief s_ch_chain_go_idle_and_free_log_list
  * @param a_ch_chain
  */
-static void s_free_log_list_gdb ( dap_stream_ch_chain_t * a_ch_chain)
+static void s_free_log_list_gdb(dap_stream_ch_chain_t *a_ch_chain)
 {
 
     debug_if(s_debug_more, L_INFO, "[stm_ch_chain:%p] --- cleanuping ...", a_ch_chain);
 
-    // free log list
-    debug_if(s_debug_more, L_INFO, "[stm_ch_chain:%p] a_ch_chain->request_db_log:%p --- cleanuping ...", a_ch_chain, a_ch_chain->request_db_log);
-    dap_db_log_list_delete(a_ch_chain->request_db_log);
-    a_ch_chain->request_db_log = NULL;
-
-    dap_stream_ch_chain_hash_item_t *l_hash_item = NULL, *l_tmp = NULL;
-
-    HASH_ITER(hh, a_ch_chain->remote_gdbs, l_hash_item, l_tmp)
-    {
-        // Clang bug at this, l_hash_item should change at every loop cycle
-        HASH_DEL(a_ch_chain->remote_gdbs, l_hash_item);
-        DAP_DELETE(l_hash_item);
+    if (a_ch_chain->request_db_log) {
+        // free log list
+        debug_if(s_debug_more, L_INFO, "[stm_ch_chain:%p] a_ch_chain->request_db_log:%p --- cleanuping ...", a_ch_chain, a_ch_chain->request_db_log);
+        dap_db_log_list_delete(a_ch_chain->request_db_log);
+        a_ch_chain->request_db_log = NULL;
     }
 
-    a_ch_chain->remote_gdbs = NULL;
+    if (a_ch_chain->remote_gdbs) {
+        dap_stream_ch_chain_hash_item_t *l_hash_item = NULL, *l_tmp = NULL;
+        HASH_ITER(hh, a_ch_chain->remote_gdbs, l_hash_item, l_tmp) {
+            // Clang bug at this, l_hash_item should change at every loop cycle
+            HASH_DEL(a_ch_chain->remote_gdbs, l_hash_item);
+            DAP_DELETE(l_hash_item);
+        }
+        a_ch_chain->remote_gdbs = NULL;
+    }
 }
 /**
  * @brief s_ch_chain_go_idle
@@ -1589,8 +1592,7 @@ static void s_ch_chain_go_idle(dap_stream_ch_chain_t *a_ch_chain)
         DAP_DELETE(l_hash_item);
     }
     a_ch_chain->remote_atoms = NULL;
-    if (a_ch_chain->request_db_log)
-        s_free_log_list_gdb(a_ch_chain);
+    s_free_log_list_gdb(a_ch_chain);
 }
 
 static bool s_ch_chain_get_idle(dap_stream_ch_chain_t *a_ch_chain)
