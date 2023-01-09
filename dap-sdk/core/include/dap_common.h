@@ -54,6 +54,7 @@
 #define strerror_r(arg1, arg2, arg3) strerror_s(arg2, arg3, arg1)
 #else
 #include <unistd.h>
+#include <malloc.h>
 #endif
 #ifdef __MACH__
 #include <dispatch/dispatch.h>
