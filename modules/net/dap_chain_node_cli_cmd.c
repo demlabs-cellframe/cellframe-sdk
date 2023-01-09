@@ -3574,9 +3574,10 @@ int com_token_emit(int a_argc, char **a_argv, char **a_str_reply)
 {
     int arg_index = 1;
     const char *str_tmp = NULL;
+    const char *str_fee = NULL;
     char *l_str_reply_tmp = NULL;
     uint256_t l_emission_value = {};
-
+    uint256_t l_fee_value = {};
     const char * l_ticker = NULL;
 
     const char * l_addr_str = NULL;
@@ -3615,6 +3616,15 @@ int com_token_emit(int a_argc, char **a_argv, char **a_str_reply)
     }
 
     int no_base_tx = dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-no_base_tx");
+
+    // Validator's fee
+    if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &str_fee))
+        l_fee_value = dap_chain_balance_scan(str_fee);
+    if (IS_ZERO_256(l_fee_value)) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply,
+                "tx_create requires parameter '-fee' to be valid uint256");
+        return -5;
+    }
 
     // Token emission
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-emission", &l_emission_hash_str);
@@ -3771,7 +3781,7 @@ int com_token_emit(int a_argc, char **a_argv, char **a_str_reply)
     if(l_chain_base_tx) {
         char *l_tx_hash_str = dap_chain_mempool_base_tx_create(l_chain_base_tx, &l_emission_hash,
                                                                l_chain_emission->id, l_emission_value, l_ticker,
-                                                               l_addr, l_certs, l_certs_size, l_hash_out_type);
+                                                               l_addr, l_certs, l_certs_size, l_hash_out_type, l_fee_value);
         if (l_tx_hash_str)
             dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nDatum %s with 256bit TX is placed in datum pool",
                                                     l_str_reply_tmp, l_tx_hash_str);
@@ -4809,7 +4819,7 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
     if (l_emission_hash_str) {
         char *l_tx_hash_str = dap_chain_mempool_base_tx_create(l_chain, &l_emission_hash, l_emission_chain->id,
                                                                l_value, l_token_ticker, l_addr_to, l_certs,
-                                                               l_certs_count, l_hash_out_type);
+                                                               l_certs_count, l_hash_out_type,l_value_fee);
         if (l_tx_hash_str) {
             dap_string_append_printf(l_string_ret, "transfer=Ok\ntx_hash=%s\n", l_tx_hash_str);
             DAP_DELETE(l_tx_hash_str);
