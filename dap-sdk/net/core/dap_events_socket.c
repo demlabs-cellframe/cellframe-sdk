@@ -1442,7 +1442,7 @@ char l_errbuf[128] = { 0 };
         return 0;
     }
     l_errno = errno;
-    char l_errbuf[128] = { '\0' };
+
     strerror_r(l_errno, l_errbuf, sizeof(l_errbuf));
     log_it(L_ERROR, "Can't send ptr to pipe:\"%s\" code %d", l_errbuf, l_errno);
     return l_errno;
