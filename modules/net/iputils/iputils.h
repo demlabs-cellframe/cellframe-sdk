@@ -22,6 +22,8 @@
 #include <setjmp.h>
 #include <sys/time.h>
 
+#include "dap_common.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -175,7 +177,7 @@ void iputils_reset_verbose(void);
 
 
 // analog printf()
-int log_printf(const char *format, ...);
+DAP_PRINTF_ATTR(1, 2) int log_printf(const char *format, ...);
 
 #define PACKAGE_NAME "iputils"
 #define PACKAGE_VERSION "0.1"
