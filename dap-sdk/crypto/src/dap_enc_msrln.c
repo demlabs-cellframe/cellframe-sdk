@@ -157,35 +157,24 @@ size_t dap_enc_msrln_gen_bob_shared_key(struct dap_enc_key* b_key, const void* a
  */
 size_t dap_enc_msrln_gen_alice_shared_key(struct dap_enc_key* a_key, const void* a_priv, const size_t b_key_len, unsigned char * b_pub)
 {
-    size_t ret = 1;
+    if (b_key_len != MSRLN_PKB_BYTES)
+        return 0;
 
-    if(a_key->priv_key_data_size == 0) { // need allocate mamory for priv key
-        a_key->priv_key_data = malloc(MSRLN_SHAREDKEY_BYTES);
-        a_key->priv_key_data_size = MSRLN_SHAREDKEY_BYTES;
-    }
+    if(a_key->priv_key_data_size == 0)// need allocate mamory for priv key
+        a_key->priv_key_data = DAP_NEW_SIZE(void, MSRLN_SHAREDKEY_BYTES);
 
-
-    if(a_key->priv_key_data == NULL || b_key_len != MSRLN_PKB_BYTES) {
-        ret = 0;
-        DAP_DELETE(b_pub);
-        b_pub = NULL;
-        a_priv = NULL;
-        DAP_DELETE(a_key->priv_key_data);
-        a_key->priv_key_data = NULL;
-    }
-
-    if (MSRLN_SecretAgreement_A((unsigned char *) b_pub, (int32_t *) a_priv, (unsigned char *) a_key->priv_key_data) != CRYPTO_MSRLN_SUCCESS) {
-        ret = 0;
-        DAP_DELETE(b_pub);
-        b_pub = NULL;
-        a_priv = NULL;
-        DAP_DELETE(a_key->priv_key_data);
-        a_key->priv_key_data = NULL;
-    }
+    if(a_key->priv_key_data == NULL)
+        return 0;
 
     a_key->priv_key_data_size = MSRLN_SHAREDKEY_BYTES;
 
-    return ret;
+    if (MSRLN_SecretAgreement_A((unsigned char *) b_pub, (int32_t *) a_priv, (unsigned char *) a_key->priv_key_data) != CRYPTO_MSRLN_SUCCESS) {
+        DAP_DEL_Z(a_key->priv_key_data);
+        a_key->priv_key_data_size = 0;
+        return 0;
+    }
+
+    return 1;
 }
 
 /**

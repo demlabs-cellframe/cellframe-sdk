@@ -89,7 +89,7 @@ size_t dap_stream_ch_pkt_write_f_mt(dap_stream_worker_t * a_worker , dap_stream_
     dap_stream_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_stream_worker_msg_io_t);
     l_msg->ch_uuid = a_ch_uuid;
     l_msg->ch_pkt_type = a_type;
-    l_msg->data = DAP_NEW_SIZE(void,l_data_size);
+    l_msg->data = DAP_NEW_SIZE(void, l_data_size + 1);
     l_msg->data_size = l_data_size;
     l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
     l_data_size = dap_vsnprintf(l_msg->data,0,a_format,ap);
@@ -126,7 +126,7 @@ size_t dap_stream_ch_pkt_write_f_inter(dap_events_socket_t * a_queue  , dap_stre
     dap_stream_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_stream_worker_msg_io_t);
     l_msg->ch_uuid = a_ch_uuid;
     l_msg->ch_pkt_type = a_type;
-    l_msg->data = DAP_NEW_SIZE(void,l_data_size);
+    l_msg->data = DAP_NEW_SIZE(void, l_data_size + 1);
     l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
     l_data_size = dap_vsnprintf(l_msg->data,0,a_format,ap);
     va_end(ap);
@@ -285,7 +285,7 @@ size_t dap_stream_ch_pkt_write_f_unsafe(dap_stream_ch_t * a_ch, uint8_t a_type, 
     char l_buf[4096];
     va_list ap;
     va_start(ap,a_str);
-    dap_vsnprintf(l_buf,sizeof(l_buf),a_str,ap);
+    dap_vsnprintf(l_buf, sizeof(l_buf) - 1, a_str, ap);
     va_end(ap);
     size_t ret=dap_stream_ch_pkt_write_unsafe(a_ch,a_type,l_buf,strlen(l_buf));
     return ret;
