@@ -697,7 +697,6 @@ char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast
                                        dap_chain_addr_t *a_addr_to, dap_cert_t **a_certs, size_t a_certs_count,
                                        const char *a_hash_out_type, uint256_t a_value_fee)
 {
-
     uint256_t l_net_fee = {};
     uint256_t l_value_need = a_emission_value;
     dap_chain_addr_t l_addr_fee = {};
