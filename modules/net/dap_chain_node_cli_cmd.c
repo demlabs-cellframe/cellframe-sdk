@@ -2374,6 +2374,10 @@ void s_com_mempool_list_print_for_chain (
                     const char *a_hash_out_type
                 )
 {
+    int l_removed = 0;
+    dap_chain_mempool_filter(a_chain, &l_removed);
+    dap_string_append_printf(a_str_tmp, "Removed %i records from the %s chain mempool in %s network. \n\n",
+                             l_removed, a_chain->name, a_net->pub.name);
     char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(a_chain);
 
     if(!l_gdb_group_mempool)
