@@ -1081,3 +1081,53 @@ void dap_chain_mempool_add_proc(dap_http_t * a_http_server, const char * a_url)
 {
     dap_http_simple_proc_add(a_http_server, a_url, 4096, chain_mempool_proc);
 }
+
+void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
+    int l_removed = 0;
+    if (!a_chain) {
+        if (!a_removed)
+            *a_removed = l_removed;
+        return;
+    }
+    char * l_gdb_group = dap_chain_net_get_gdb_group_mempool(a_chain);
+    size_t l_objs_size = 0;
+    dap_time_t l_cut_off_time = dap_time_now() - 2592000; // 2592000 sec = 30 days
+    char l_cut_off_time_str[80] = {'\0'};
+    dap_time_to_str_rfc822(&l_cut_off_time_str, 80, l_cut_off_time);
+    dap_global_db_obj_t * l_objs = dap_chain_global_db_gr_load(l_gdb_group, &l_objs_size);
+    for (size_t i = 0; i < l_objs_size; i++) {
+        dap_chain_datum_t *l_datum = (dap_chain_datum_t*)l_objs[i].value;
+        size_t l_datum_size = dap_chain_datum_size(l_datum);
+        //Filter data size
+        if (l_datum_size != l_objs[i].value_len) {
+            l_removed++;
+            log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s. The size of the datum defined by the "
+                             "function and the size specified in the record do not match.", l_objs[i].key, l_gdb_group);
+            dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group);
+            continue;
+        }
+        //Filter hash
+        dap_hash_fast_t l_hash_content = {0};
+        dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_hash_content);
+        char *l_hash_content_str = dap_hash_fast_to_str_new(&l_hash_content);
+        if (dap_strcmp(l_hash_content_str, l_objs[i].key) != 0) {
+            l_removed++;
+            DAP_DELETE(l_hash_content_str);
+            log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s. The hash of the contents of the "
+                             "datum does not match the key.", l_objs[i].key, l_gdb_group);
+            dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group);
+            continue;
+        }
+        DAP_DELETE(l_hash_content_str);
+        //Filter time
+        if (l_datum->header.ts_create < l_cut_off_time) {
+            l_removed++;
+            log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s. The datum in the mempool was "
+                             "created before the %s.", l_objs[i].key, l_gdb_group, l_cut_off_time_str);
+            dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group);
+        }
+    }
+    dap_chain_global_db_objs_delete(l_objs, l_objs_size);
+    log_it(L_NOTICE, "Filter removed: %i records.", l_removed);
+    DAP_DELETE(l_gdb_group);
+}
