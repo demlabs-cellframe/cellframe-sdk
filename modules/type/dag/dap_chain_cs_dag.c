@@ -67,7 +67,7 @@ typedef struct dap_chain_cs_dag_event_item {
 
 typedef struct dap_chain_cs_dag_blocked_list {
     dap_chain_hash_fast_t hash;
-    struct dap_chain_cs_dag_blocked_list *next;
+    UT_hash_handle hh;
 }dap_chain_cs_dag_blocked_list_t;
 
 
@@ -315,8 +315,11 @@ static void s_dap_chain_cs_dag_threshold_free(dap_chain_cs_dag_t *a_dag) {
         if (l_current->ts_added < l_time_cut_off) {
             dap_chain_cs_dag_blocked_list_t *l_el = DAP_NEW(dap_chain_cs_dag_blocked_list_t);
             l_el->hash = l_current->hash;
+            HASH_ADD(hh, l_pvt->list_removed_events_from_treshold, hash, sizeof(dap_chain_hash_fast_t), l_el);
+//            HASH_ADD_BYHASHVALUE(hh, PVT(a_dag)->, hash, sizeof(l_tx_event->hash),
+//                                 l_hash_item_hashv, l_tx_event);
 //            memcpy(&l_el->hash, &l_current->hash, sizeof(dap_chain_hash_fast_t));
-            LL_APPEND(l_pvt->list_removed_events_from_treshold, l_el);
+//LL_APPEND(l_pvt->list_removed_events_from_treshold, l_el);
             char *l_hash_dag = dap_hash_fast_to_str_new(&l_current->hash);
             DAP_DELETE(l_current->event);
             HASH_DEL(l_pvt->events_treshold, l_current);
@@ -513,18 +516,15 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     switch (ret) {
     case ATOM_MOVE_TO_THRESHOLD:
         pthread_rwlock_wrlock(l_events_rwlock);
-        for (dap_chain_cs_dag_blocked_list_t *el = PVT(l_dag)->list_removed_events_from_treshold; el != NULL; el = el->next) {
-            if (!memcmp(&el->hash, &l_event_item->hash, sizeof(dap_hash_fast_t))) {
-                ret = ATOM_REJECT;
-                break;
-            }
-        }
-        if (ret != ATOM_REJECT) {
+        dap_chain_cs_dag_blocked_list_t *el = NULL;
+        HASH_FIND(hh, PVT(l_dag)->list_removed_events_from_treshold, &l_event_item->hash, sizeof(dap_chain_hash_fast_t), el);
+        if (!el) {
             HASH_ADD(hh, PVT(l_dag)->events_treshold, hash, sizeof(l_event_item->hash), l_event_item);
 
             if (s_debug_more)
                 log_it(L_DEBUG, "... added to threshold");
         } else {
+            ret = ATOM_REJECT;
             if (s_debug_more)
                 log_it(L_DEBUG, "... rejected because the atom was removed from the threshold.");
         }
