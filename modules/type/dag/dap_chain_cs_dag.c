@@ -316,10 +316,6 @@ static void s_dap_chain_cs_dag_threshold_free(dap_chain_cs_dag_t *a_dag) {
             dap_chain_cs_dag_blocked_list_t *l_el = DAP_NEW(dap_chain_cs_dag_blocked_list_t);
             l_el->hash = l_current->hash;
             HASH_ADD(hh, l_pvt->list_removed_events_from_treshold, hash, sizeof(dap_chain_hash_fast_t), l_el);
-//            HASH_ADD_BYHASHVALUE(hh, PVT(a_dag)->, hash, sizeof(l_tx_event->hash),
-//                                 l_hash_item_hashv, l_tx_event);
-//            memcpy(&l_el->hash, &l_current->hash, sizeof(dap_chain_hash_fast_t));
-//LL_APPEND(l_pvt->list_removed_events_from_treshold, l_el);
             char *l_hash_dag = dap_hash_fast_to_str_new(&l_current->hash);
             DAP_DELETE(l_current->event);
             HASH_DEL(l_pvt->events_treshold, l_current);
@@ -1966,8 +1962,6 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
         if (l_counter >= l_offset){
             dap_chain_cs_dag_event_t *l_event = ptr->event;
             l_list = dap_list_append(l_list, l_event);
-//            void *l_size_event = DAP_NEW(size_t);
-            //memcpy(l_size_event, &ptr->event_size, sizeof(size_t));
             l_list = dap_list_append(l_list, &ptr->event_size);
         }
         l_counter++;
