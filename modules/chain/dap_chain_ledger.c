@@ -3112,7 +3112,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
 //                        l_err_num = -25;
 //                        break;
 //                    }
-                    uint256_t l_value_expected ={};
+//                    uint256_t l_value_expected ={};
 
 //                    if (MULT_256_COIN(l_tx_emi_out_cond->header.value, l_tsd_section.emission_rate, &l_value_expected)!=0){
 //                        if(s_debug_more){
