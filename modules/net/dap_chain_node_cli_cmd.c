@@ -3621,8 +3621,7 @@ int com_token_emit(int a_argc, char **a_argv, char **a_str_reply)
     int no_base_tx = dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-no_base_tx");
 
     // Validator's fee
-    str_fee = "2";
-    //if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &str_fee))
+    if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &str_fee))
         l_fee_value = dap_chain_balance_scan(str_fee);
     if (IS_ZERO_256(l_fee_value)) {
         dap_cli_server_cmd_set_reply_text(a_str_reply,
