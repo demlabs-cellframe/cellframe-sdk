@@ -3066,7 +3066,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             else
                 if(l_emission_item)
             {
-/*
+
                 dap_hash_fast_t cur_tx_hash;
                 dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &cur_tx_hash);
                 if (!dap_hash_fast_is_blank(&l_emission_item->tx_used_out)) {
@@ -3181,7 +3181,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                     debug_if(s_debug_more, L_WARNING, "tx_token [%s] not valid for emission transaction", l_token);
                     l_err_num = -31;
                     break;
-                } */
+                }
                     log_it(L_WARNING, "test message!");
             }//end else emission
             //-----------------------------------------------------------------------------------------
