@@ -1621,7 +1621,7 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
                                             "TSD and Signs:\n"
                                             "%s"
                                             "\tTotal emissions %u\n___\n",
-                                            &l_token_item->ticker, l_type_str, s_flag_str_from_code(l_token_item->datum_token->header_native_decl.flags),
+                                            l_token_item->ticker, l_type_str, s_flag_str_from_code(l_token_item->datum_token->header_native_decl.flags),
                                             l_balance_cur, l_balance_total,
                                             l_token_item->auth_signs_valid, l_token_item->auth_signs_total,
                                             l_str_tmp->str,
@@ -1640,7 +1640,7 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
                                                 "\tAuth signs (valid/total) %zu/%zu\n"
                                                 "%s"
                                                 "\tTotal emissions %u\n___\n",
-                                                &l_token_item->ticker, l_type_str, "SIMPLE token has no flags",
+                                                l_token_item->ticker, l_type_str, "SIMPLE token has no flags",
                                                 l_balance_cur, l_balance_total,
                                                 l_token_item->auth_signs_valid, l_token_item->auth_signs_total,
                                                 l_str_tmp->str,

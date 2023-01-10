@@ -290,8 +290,10 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     char *l_gdb_group;
     if (!l_dag->is_celled)
         l_gdb_group = dap_strdup_printf( "dag-%s-%s-round", l_net->pub.gdb_groups_prefix, a_chain->name);
-    else
-        l_gdb_group = dap_strdup_printf( "dag-%s-%s-%016llx-round", l_net->pub.gdb_groups_prefix, a_chain->name, 0);//a_chain->cells->id.uint64);
+    else {
+        uint64_t l_cell_id = 0; //a_chain->cells->id.uint64;
+        l_gdb_group = dap_strdup_printf( "dag-%s-%s-%016"DAP_UINT64_FORMAT_x"-round", l_net->pub.gdb_groups_prefix, a_chain->name, l_cell_id);
+    }
     l_dag->gdb_group_events_round_new = dap_strdup_printf("%s.%s", l_gdb_group, l_round_new_str);
     DAP_DELETE(l_gdb_group);
     DAP_DELETE(l_round_new_str);
@@ -1384,7 +1386,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
 
             // Cleaning up
             dap_global_db_objs_delete(l_objs, l_objs_size);
-            dap_cli_server_cmd_set_reply_text(a_str_reply,l_str_ret_tmp->str);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ret_tmp->str);
             dap_string_free(l_str_ret_tmp,false);
 
             // Spread new  mempool changes and  dag events in network - going to SYNC_ALL
@@ -1689,7 +1691,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     }
                     dap_chain_datum_dump(l_str_tmp, l_datum, l_hash_out_type);
 
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, l_str_tmp->str);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
                     dap_string_free(l_str_tmp,false);
                     ret=0;
                 }else {
@@ -1727,7 +1729,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                         ret = -2;
 
                     }
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, l_str_tmp->str);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
                     dap_string_free(l_str_tmp,false);
                 } else if (!l_from_events_str || (strcmp(l_from_events_str,"events") == 0)) {
                     dap_string_t * l_str_tmp = dap_string_new(NULL);
@@ -1745,7 +1747,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
                     dap_string_append_printf(l_str_tmp,"%s.%s have total %zu events :\n",
                                              l_net->pub.name, l_chain->name, l_events_count);
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, l_str_tmp->str);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
                     dap_string_free(l_str_tmp,false);
                  }else if (l_from_events_str && (strcmp(l_from_events_str,"threshold") == 0) ){
                     dap_string_t * l_str_tmp = dap_string_new(NULL);
@@ -1764,7 +1766,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
                     dap_string_append_printf(l_str_tmp,"%s.%s have total %zu events in threshold :\n",
                                              l_net->pub.name, l_chain->name, l_events_count);
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, l_str_tmp->str);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
                     dap_string_free(l_str_tmp,false);
 
                 }else {
@@ -1810,20 +1812,20 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                             DAP_DEL_Z(l_event_new_hash_base58_str);
                         } else {
                             dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                          "Can't sign event in round.new\n",
+                                                          "Can't sign event %s in round.new\n",
                                                           l_event_hash_str);
                             ret=-1;
                         }
                     } else {
                         dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                          "No valid certificate provided for event signing\n",
+                                                          "No valid certificate provided for event %s signing\n",
                                                           l_event_hash_str);
                         ret = -50;
                     }
                     DAP_DELETE(l_round_item);
                 } else {
                     dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                      "Can't find event in round.new - only place where could be signed the new event\n",
+                                                      "Can't find event %s in round.new - only place where could be signed the new event\n",
                                                       l_event_hash_str);
                     ret = -30;
                 }

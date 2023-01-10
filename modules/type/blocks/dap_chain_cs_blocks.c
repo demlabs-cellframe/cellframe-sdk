@@ -831,14 +831,14 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
     if( ret == ATOM_ACCEPT){
         int l_consensus_check = s_add_atom_to_blocks(l_blocks, a_chain->ledger, l_block_cache);
         if(l_consensus_check == 1){
-             log_it(L_DEBUG, "... added");
+             debug_if(s_debug_more, L_DEBUG, "... added");
         }else if (l_consensus_check == DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS){
             pthread_rwlock_wrlock( &PVT(l_blocks)->rwlock );
             HASH_ADD(hh, PVT(l_blocks)->blocks_tx_treshold, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
             pthread_rwlock_unlock( &PVT(l_blocks)->rwlock );
-            log_it(L_DEBUG, "... tresholded for tx ledger");
+            debug_if(s_debug_more, L_DEBUG, "... tresholded for tx ledger");
         }else{
-             log_it(L_DEBUG, "... error adding (code %d)", l_consensus_check);
+             debug_if(s_debug_more, L_WARNING, "... error adding (code %d)", l_consensus_check);
              ret = ATOM_REJECT;
         }
          // !TODO make chunks add to blocks

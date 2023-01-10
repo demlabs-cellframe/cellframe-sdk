@@ -826,7 +826,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
             }
             uint256_t l_fee = dap_chain_coins_to_balance(l_fee_str);
             if (IS_ZERO_256(l_fee)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -fee_percent <long double>(%)");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -fee_percent <long double>(%%)");
                 return -12;
             }
             // Create the stake item
@@ -902,7 +902,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
             }
             uint256_t l_fee = dap_chain_coins_to_balance(l_fee_str);
             if (IS_ZERO_256(l_fee)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -fee_percent <long double>(%)");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -fee_percent <long double>(%%)");
                 return -12;
             }
             uint256_t l_balance = dap_chain_wallet_get_balance(l_wallet, l_net->pub.id, l_token_str);
@@ -1036,7 +1036,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
             if (l_fee_str) {
                 long double l_fee = strtold(l_fee_str, NULL);
                 if (!l_fee) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -fee_percent <long double> %");
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -fee_percent <long double>(%%)");
                     DAP_DELETE(l_stake);
                     return -12;
                 }

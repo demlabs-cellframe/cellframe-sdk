@@ -634,12 +634,12 @@ static void s_save_stat_to_database_callback_set_stat (dap_global_db_context_t *
 static void s_save_stat_to_database_callback_get_last_stat (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const void * a_value, const size_t a_value_len, dap_nanotime_t a_value_ts, bool a_is_pinned, void * a_arg)
 {
     char * l_json_str = (char *) a_arg;
-    int64_t l_key = 0;
+    uint64_t l_key = 0;
     if(a_rc == DAP_GLOBAL_DB_RC_SUCCESS) {
         l_key = strtoll(a_key, NULL, 16);
     }
 
-    char *l_key_str = dap_strdup_printf("%06x", ++l_key);
+    char *l_key_str = dap_strdup_printf("%06"DAP_UINT64_FORMAT_x, ++l_key);
     dap_global_db_set(a_group, l_key_str, l_json_str, strlen(l_json_str) + 1,false, s_save_stat_to_database_callback_set_stat, l_json_str);
 
     DAP_DELETE(l_key_str);

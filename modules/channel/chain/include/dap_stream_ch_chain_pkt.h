@@ -160,8 +160,8 @@ size_t dap_stream_ch_chain_pkt_write_inter(dap_events_socket_t * a_es_input, dap
  * @param a_err_string_format
  * @return
  */
-inline static size_t dap_stream_ch_chain_pkt_write_error_unsafe(dap_stream_ch_t *a_ch, uint64_t a_net_id,
-                                                  uint64_t a_chain_id, uint64_t a_cell_id, const char * a_err_string_format,... )
+inline static DAP_PRINTF_ATTR(5, 6) size_t dap_stream_ch_chain_pkt_write_error_unsafe(dap_stream_ch_t *a_ch, uint64_t a_net_id,
+                                                  uint64_t a_chain_id, uint64_t a_cell_id, const char * a_err_string_format, ...)
 {
     va_list l_va;
     char * l_str;
