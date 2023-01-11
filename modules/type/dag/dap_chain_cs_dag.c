@@ -1387,7 +1387,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
             // Cleaning up
             dap_global_db_objs_delete(l_objs, l_objs_size);
             dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ret_tmp->str);
-            dap_string_free(l_str_ret_tmp,false);
+            dap_string_free(l_str_ret_tmp, true);
 
             // Spread new  mempool changes and  dag events in network - going to SYNC_ALL
             // dap_chain_net_sync_all(l_net);
@@ -1692,7 +1692,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     dap_chain_datum_dump(l_str_tmp, l_datum, l_hash_out_type);
 
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
-                    dap_string_free(l_str_tmp,false);
+                    dap_string_free(l_str_tmp, true);
                     ret=0;
                 }else {
                     dap_cli_server_cmd_set_reply_text(a_str_reply,
@@ -1730,7 +1730,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
 
                     }
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
-                    dap_string_free(l_str_tmp,false);
+                    dap_string_free(l_str_tmp, true);
                 } else if (!l_from_events_str || (strcmp(l_from_events_str,"events") == 0)) {
                     dap_string_t * l_str_tmp = dap_string_new(NULL);
                     pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
@@ -1748,7 +1748,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     dap_string_append_printf(l_str_tmp,"%s.%s have total %zu events :\n",
                                              l_net->pub.name, l_chain->name, l_events_count);
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
-                    dap_string_free(l_str_tmp,false);
+                    dap_string_free(l_str_tmp, true);
                  }else if (l_from_events_str && (strcmp(l_from_events_str,"threshold") == 0) ){
                     dap_string_t * l_str_tmp = dap_string_new(NULL);
                     pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
@@ -1767,7 +1767,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     dap_string_append_printf(l_str_tmp,"%s.%s have total %zu events in threshold :\n",
                                              l_net->pub.name, l_chain->name, l_events_count);
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
-                    dap_string_free(l_str_tmp,false);
+                    dap_string_free(l_str_tmp, true);
 
                 }else {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Undefined events source for listing ");
