@@ -285,8 +285,8 @@ int dap_chain_net_init()
         "net -net <chain net name> [-mode {update | all}] go {online | offline | sync}\n"
             "\tFind and establish links and stay online. \n"
             "\tMode \"update\" is by default when only new chains and gdb are updated. Mode \"all\" updates everything from zero\n"
-        "net -net <chain net name> get status\n"
-            "\tLook at current status\n"
+        "net -net <chain net name> get {status | fee}\n"
+            "\tDisplays the current current status or current fee.\n"
         "net -net <chain net name> stats {tx | tps} [-from <From time>] [-to <To time>] [-prev_sec <Seconds>] \n"
             "\tTransactions statistics. Time format is <Year>-<Month>-<Day>_<Hours>:<Minutes>:<Seconds> or just <Seconds> \n"
         "net -net <chain net name> [-mode {update | all}] sync {all | gdb | chains}\n"
@@ -1807,6 +1807,23 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
         } else if ( l_get_str){
             if ( strcmp(l_get_str,"status") == 0 ) {
                 s_set_reply_text_node_status(a_str_reply, l_net);
+                l_ret = 0;
+            }
+            if ( strcmp(l_get_str, "fee") == 0) {
+                uint256_t l_network_fee = {};
+                dap_chain_addr_t l_network_fee_addr = {};
+                dap_chain_net_tx_get_fee(l_net->pub.id, &l_network_fee, &l_network_fee_addr);
+                char *l_network_fee_balance_str = dap_chain_balance_print(l_network_fee);
+                char *l_network_fee_coins_str = dap_chain_balance_to_coins(l_network_fee);
+                char *l_network_fee_addr_str = dap_chain_addr_to_str(&l_network_fee_addr);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Fees on %s network:\n"
+                                                               "\t Network: %s (%s) %s Addr: %s",
+                                                  l_net->pub.name, l_network_fee_coins_str, l_network_fee_balance_str,
+                                                  l_net->pub.native_ticker, l_network_fee_addr_str);
+                DAP_DELETE(l_network_fee_coins_str);
+                DAP_DELETE(l_network_fee_balance_str);
+                DAP_DELETE(l_network_fee_addr_str);
+
                 l_ret = 0;
             }
         } else if ( l_links_str ){
