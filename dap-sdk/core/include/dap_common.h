@@ -279,7 +279,7 @@ DAP_STATIC_INLINE void *_dap_page_aligned_alloc(size_t size) {
     void *p;
     int r = posix_memalign(&p, getpagesize(), size);
     if (r != 0)
-        return nullptr;
+        return NULL;
     return p;
 #else
     return VirtualAlloc(0, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
