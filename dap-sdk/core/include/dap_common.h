@@ -60,10 +60,6 @@
 #endif
 #include "portable_endian.h"
 
-#ifdef DAP_OS_LINUX
-#include <malloc.h>
-#endif
-
 #define BIT( x ) ( 1 << x )
 // Stuffs an integer into a pointer type
 #define DAP_INT_TO_POINTER(i) ((void*) (size_t) (i))
@@ -280,7 +276,11 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
 
 DAP_STATIC_INLINE void *_dap_page_aligned_alloc(size_t size) {
 #ifndef DAP_OS_WINDOWS
-    return memalign(getpagesize(), size);
+    void *p;
+    int r = posix_memalign(&p, getpagesize(), size);
+    if (r != 0)
+        return nullptr;
+    return p;
 #else
     return VirtualAlloc(0, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 #endif
