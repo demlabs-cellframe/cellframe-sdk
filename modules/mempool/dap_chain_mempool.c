@@ -758,7 +758,7 @@ dap_chain_hash_fast_t *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, da
     DAP_DEL_Z(l_tx);
     // calc datum hash
     dap_chain_hash_fast_t *l_datum_tx_hash = DAP_NEW(dap_hash_fast_t);
-    dap_hash_fast(l_datum_tx->data, l_datum_tx_size, l_datum_tx_hash);
+    dap_hash_fast(l_datum_tx->data, l_tx_size, l_datum_tx_hash);
     char *l_tx_hash_str = dap_chain_hash_fast_to_str_new(l_datum_tx_hash);
     // Add to mempool tx token
     bool l_placed = dap_chain_global_db_gr_set(l_tx_hash_str, l_datum_tx,
