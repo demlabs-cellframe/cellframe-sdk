@@ -36,6 +36,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <time.h>
+#include <malloc.h>
 
 #ifndef __cplusplus
 # include <stdatomic.h>
@@ -135,7 +136,7 @@
 
 #define     MEMSTAT$SZ_NAME     63
 #define     MEMSTAT$K_MAXNR     8192
-#define     MEMSTAT$K_MINTOLOG  (32*1024)
+#define     MEMSTAT$K_MINTOLOG  (0)
 
 typedef struct __dap_memstat_rec__ {
 
