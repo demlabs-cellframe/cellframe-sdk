@@ -128,19 +128,6 @@ void dap_chain_node_client_deinit()
     dap_client_deinit();
 }
 
-/**
- * @brief stage_status_callback
- * @param a_client
- * @param a_arg
- */
-static void s_stage_status_callback(dap_client_t *a_client, void *a_arg)
-{
-    (void) a_client;
-    (void) a_arg;
-
-    //printf("* stage_status_callback client=%x data=%x\n", a_client, a_arg);
-}
-
 static bool s_timer_node_reconnect(void *a_arg)
 {
     dap_events_socket_uuid_t *l_uuid = (dap_events_socket_uuid_t *)a_arg;

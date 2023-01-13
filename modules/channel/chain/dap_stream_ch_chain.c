@@ -1656,10 +1656,12 @@ static void s_stream_ch_io_complete(dap_events_socket_t *a_es, void *a_arg, int 
     if (a_errno)
         return;
     dap_stream_t *l_stream = NULL;
-    dap_client_pvt_t *l_client_pvt = DAP_ESOCKET_CLIENT_PVT(a_es);
-    if (l_client_pvt && dap_client_pvt_find(l_client_pvt->uuid) == l_client_pvt)
+    if (!a_es->server) {
+        dap_client_t *l_client = DAP_ESOCKET_CLIENT(a_es);
+        assert(l_client);
+        dap_client_pvt_t *l_client_pvt = DAP_CLIENT_PVT(l_client);
         l_stream = l_client_pvt->stream;
-    else {
+    } else {
         dap_http_client_t *l_http_client = DAP_HTTP_CLIENT(a_es);
         if (l_http_client)
             l_stream = DAP_STREAM(l_http_client);

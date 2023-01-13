@@ -175,10 +175,6 @@ void dap_stream_ch_chain_voting_pkt_broadcast(dap_chain_net_t *a_net, dap_list_t
             if ( !l_node_item || !l_node_item->node_client ) {
                 continue;
             }
-            dap_client_pvt_t * l_client_pvt = dap_client_pvt_find(l_node_item->node_client->client->pvt_uuid);
-            if (NULL == l_client_pvt) {
-                continue;
-            }
             pthread_rwlock_wrlock(&s_pkt_items->rwlock_out);
             dap_list_t* l_pkts_list_temp = s_pkt_items->pkts_out;
             while(l_pkts_list_temp) {
