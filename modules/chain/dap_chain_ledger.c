@@ -2939,10 +2939,11 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             }
             dap_chain_tx_token_t *l_tx_token = (dap_chain_tx_token_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_TOKEN, NULL);
             if (!l_tx_token) {
-                log_it(L_WARNING, "tx token item is mandatory fot base TX");
+                log_it(L_WARNING, "tx token item is mandatory for base TX");
                 l_err_num = -4;
                 break;
             }
+            bool is_emission = false;
             l_token = l_tx_token->header.ticker;
             l_emission_hash = &l_tx_token->header.token_emission_hash;
             dap_chain_ledger_token_emission_item_t *l_emission_item = s_emission_item_find(a_ledger, l_token, l_emission_hash);
@@ -3066,155 +3067,58 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             else
                 if(l_emission_item)
             {
+                    if (!dap_hash_fast_is_blank(&l_emission_item->tx_used_out)) {
+                        debug_if(s_debug_more, L_WARNING, "Emission for tx_token [%s] is already used", l_tx_token->header.ticker);
+                        l_err_num = -22;
+                        break;
+                    }
+                    dap_chain_datum_token_emission_t * l_token_emission = l_emission_item->datum_token_emission;
+                    int l_outs_count = 0;
+                    dap_list_t *l_list_out = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_ALL, &l_outs_count);
+                    dap_chain_tx_out_t *l_out;
+                    dap_chain_tx_out_cond_t *l_out_cound;
+                    uint256_t sum_out_val = {};
+                    while(l_list_out)
+                    {
+                        l_out = (dap_chain_tx_out_t *)l_list_out->data;
+                        if(l_out->header.type == TX_ITEM_TYPE_OUT_COND)
+                        {
+                            l_out_cound = (dap_chain_tx_out_cond_t *)l_list_out->data;
+                            SUM_256_256(sum_out_val,l_out_cound->header.value,&sum_out_val);
+                        }
+                        else
+                        {
+                            SUM_256_256(sum_out_val,l_out->header.value,&sum_out_val);
+                        }
 
-                dap_hash_fast_t cur_tx_hash;
-                dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &cur_tx_hash);
-                if (!dap_hash_fast_is_blank(&l_emission_item->tx_used_out)) {
-                    if (!dap_hash_fast_compare(&cur_tx_hash, &l_emission_item->tx_used_out))
-                        debug_if(s_debug_more, L_WARNING, "emission already present in cache for tx_token [%s]", l_token);
-                    else
-                        debug_if(s_debug_more, L_WARNING, "emission is used out for tx_token [%s]", l_token);
-                    l_err_num = -22;
-                    break;
-                }
-                dap_tsd_t *l_tsd;
-                dap_chain_datum_token_t *l_datum_token = dap_chain_ledger_token_ticker_check(a_ledger, l_token);
-                if (l_datum_token
-                &&	(l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE))
-                {
-//                    dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section = dap_tsd_get_scalar(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
-//                    if (!dap_chain_ledger_token_ticker_check(a_ledger, l_tsd_section.ticker_token_from)) {
-//                        debug_if(s_debug_more, L_WARNING, "tx_token [%s] no found", l_tsd_section.ticker_token_from);
+                        l_list_out = dap_list_next(l_list_out);
+                    }
+
+//                    if (l_outs_count != 1) {
 //                        l_err_num = -23;
+//                        log_it(L_WARNING, "Only one OUT item allowed for base TX");
 //                        break;
 //                    }
-//				int item_count = 0;
-                    dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t*)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_OUT, 0);//TODO: ADD CHECK COUNT TX
-                    if (!l_tx_out) {
-                        debug_if(s_debug_more, L_WARNING, "Can't find OUT item for base TX with tx_token [%s]", l_tx_token->header.ticker);
-                        l_err_num = -24;
+
+                    if (!EQUAL_256(l_token_emission->hdr.value_256, sum_out_val)) {
+                        l_err_num = -10;
+                        log_it(L_WARNING, "Output value of base TX must be equal emission value");
                         break;
                     }
-//                    dap_chain_datum_tx_t *l_tx_emi = dap_chain_ledger_tx_find_by_hash(a_ledger, l_emission_hash);
-//                    if (!l_tx_emi) {
-//                        debug_if(s_debug_more, L_WARNING, "Not found base transaction");
-//                        l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
-//                        break;
-//                    }
-//                    dap_chain_tx_out_cond_t *l_tx_emi_out_cond = (dap_chain_tx_out_cond_t*)dap_chain_datum_tx_item_get(l_tx_emi, 0, TX_ITEM_TYPE_OUT_COND, 0);//TODO: ADD CHECK COUNT TX
-//                    if (!l_tx_emi_out_cond) {
-//                        debug_if(s_debug_more, L_WARNING, "No OUT_COND to for tx_token [%s]", l_tx_token->header.ticker);
-//                        l_err_num = -32;
-//                        break;
-//                    }
-//                    if (l_tx_emi_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK) {
-//                        debug_if(s_debug_more, L_WARNING, "OUT_COND is not emission subtype to for tx_token [%s]", l_tx_token->header.ticker);
-//                        l_err_num = -25;
-//                        break;
-//                    }
-//                    uint256_t l_value_expected ={};
-
-//                    if (MULT_256_COIN(l_tx_emi_out_cond->header.value, l_tsd_section.emission_rate, &l_value_expected)!=0){
-//                        if(s_debug_more){
-//                            char * l_emission_rate_str = dap_chain_balance_print(l_tsd_section.emission_rate);
-//                            char * l_locked_value_str = dap_chain_balance_print(l_tx_emi_out_cond->header.value);
-//                            log_it( L_WARNING, "Multiplication overflow for %s emission: locked value %s emission rate %s"
-//                            , l_tx_token->header.ticker, l_locked_value_str, l_emission_rate_str);
-//                            DAP_DEL_Z(l_emission_rate_str);
-//                            DAP_DEL_Z(l_locked_value_str);
-//                        }
-//                        l_err_num = -26;
-//                        break;
-//                    }
-                    l_token_item = NULL;
-                    pthread_rwlock_rdlock(&l_ledger_priv->tokens_rwlock);
-                    HASH_FIND_STR(l_ledger_priv->tokens, l_token, l_token_item);
-                    pthread_rwlock_unlock(&l_ledger_priv->tokens_rwlock);
-                    if (!l_token_item){
-                        if(s_debug_more)
-                            log_it(L_WARNING, "No token item found for token %s", l_token);
-                        l_err_num = -15;
-                        break;
-                    }
-//                    if (!IS_ZERO_256(l_token_item->total_supply) &&
-//                            compare256(l_token_item->current_supply, l_tx_out->header.value) < 0) {
-//                        char *l_balance = dap_chain_balance_print(l_token_item->current_supply);
-//                        char *l_value = dap_chain_balance_print(l_tx_out->header.value);
-//                        log_it(L_WARNING, "Token current supply %s lower, than emission value = %s",
-//                               l_balance, l_value);
-//                        DAP_DEL_Z(l_balance);
-//                        DAP_DEL_Z(l_value);
-//                        l_err_num = -30;
+//                    if (memcmp(&l_token_emission->hdr.address, &l_out->addr, sizeof(dap_chain_addr_t))) {
+//                        l_err_num = -24;
+//                        log_it(L_WARNING, "Output addr of base TX must be equal emission addr");
 //                        break;
 //                    }
 
-//                    if (!EQUAL_256(l_value_expected, l_tx_out->header.value)) {
-//                        char * l_value_expected_str = dap_chain_balance_print(l_value_expected);
-//                        char * l_locked_value_str = dap_chain_balance_print(l_tx_out->header.value);
-
-//                        debug_if(s_debug_more, L_WARNING, "Value %s not thats expected %s for [%s]",l_locked_value_str, l_value_expected_str,
-//                                 l_tx_token->header.ticker);
-
-//                        DAP_DEL_Z(l_value_expected_str);
-//                        DAP_DEL_Z(l_locked_value_str);
-//                        l_err_num = -34;
-//                        break;
-//                    }
-                    // check tiker
-//                    const char *tx_tiker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, l_emission_hash);
-//                    if (!tx_tiker) {
-//                        debug_if(s_debug_more, L_WARNING, "No ticker emission to for tx_token [%s]", l_tx_token->header.ticker);
-//                        l_err_num = -33;
-//                        break;
-//                    }
-//                    if (strcmp(tx_tiker, l_tsd_section.ticker_token_from)) {
-//                        debug_if(s_debug_more, L_WARNING, "Tickers not equal for [%s]", l_tx_token->header.ticker);
-//                        l_err_num = -35;
-//                        break;
-//                    }
-                    debug_if(s_debug_more, L_NOTICE, "Check emission passed for tx_token [%s]", l_tx_token->header.ticker);
-                    //bound_item->tx_prev = l_tx_emi;
-                    bound_item->item_emission = l_emission_item;
-                    l_list_bound_items = dap_list_append(l_list_bound_items, bound_item);
-                    break;
-                } else {
-                    debug_if(s_debug_more, L_WARNING, "tx_token [%s] not valid for emission transaction", l_token);
-                    l_err_num = -31;
-                    break;
-                }
-                    log_it(L_WARNING, "test message!");
             }//end else emission
             //-----------------------------------------------------------------------------------------
-            if (!l_emission_item) {
-                debug_if(s_debug_more && !a_from_threshold, L_WARNING, "Emission for tx_token [%s] wasn't found", l_tx_token->header.ticker);
-                l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
-                break;
-            }
-            if (!dap_hash_fast_is_blank(&l_emission_item->tx_used_out)) {
-                debug_if(s_debug_more, L_WARNING, "Emission for tx_token [%s] is already used", l_tx_token->header.ticker);
-                l_err_num = -22;
-                break;
-            }
-            dap_chain_datum_token_emission_t * l_token_emission = l_emission_item->datum_token_emission;
-            int l_outs_count;
-            dap_list_t *l_list_out = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT, &l_outs_count);
-            dap_chain_tx_out_t *l_out = l_list_out ? (dap_chain_tx_out_t *)l_list_out->data : NULL;
-            dap_list_free(l_list_out);
-            if (l_outs_count != 1) {
-                l_err_num = -23;
-                log_it(L_WARNING, "Only one OUT item allowed for base TX");
-                break;
-            }
-//            if (!EQUAL_256(l_token_emission->hdr.value_256, l_out->header.value)) {
-//                l_err_num = -10;
-//                log_it(L_WARNING, "Output value of base TX must be equal emission value");
+//            if (!l_emission_item) {
+//                debug_if(s_debug_more && !a_from_threshold, L_WARNING, "Emission for tx_token [%s] wasn't found", l_tx_token->header.ticker);
+//                l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
 //                break;
 //            }
-            if (memcmp(&l_token_emission->hdr.address, &l_out->addr, sizeof(dap_chain_addr_t))) {
-                l_err_num = -24;
-                log_it(L_WARNING, "Output addr of base TX must be equal emission addr");
-                break;
-            }
+
             // Match the signature of the emission with the transaction
 //            if(!s_tx_match_sign(l_token_emission, a_tx)) {
 //                log_it(L_WARNING, "Base TX is not signed by the same certificate as the emission");
