@@ -861,7 +861,7 @@ void dap_chain_node_client_close(dap_events_socket_uuid_t a_uuid)
     if (l_client_found) {
         dap_chain_node_client_t *l_client = l_client_found->client;
         if (l_client->sync_timer) {
-            DAP_DELETE(l_client->sync_timer->callback_arg);
+            DAP_DEL_Z(l_client->sync_timer->callback_arg);
             dap_timerfd_delete(l_client->sync_timer);
         }
         HASH_DEL(s_clients,l_client_found);
