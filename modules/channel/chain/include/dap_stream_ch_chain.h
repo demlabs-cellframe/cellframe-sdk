@@ -35,7 +35,7 @@
 #include "dap_chain_global_db_remote.h"
 
 #define DAP_CHAIN_NODE_SYNC_TIMEOUT 30  // sec
-#define DAP_SYNC_TICKS_PER_SECOND   50
+#define DAP_SYNC_TICKS_PER_SECOND   10
 
 typedef struct dap_stream_ch_chain dap_stream_ch_chain_t;
 typedef void (*dap_stream_ch_chain_callback_packet_t)(dap_stream_ch_chain_t*, uint8_t a_pkt_type,

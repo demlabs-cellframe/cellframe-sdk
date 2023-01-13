@@ -293,7 +293,8 @@ dap_chain_node_sync_status_t dap_chain_node_client_start_sync(dap_events_socket_
 static bool s_timer_update_states_callback(void *a_arg)
 {
     dap_events_socket_uuid_t *l_uuid = (dap_events_socket_uuid_t *)a_arg;
-    assert(l_uuid);
+    if (!l_uuid) // dap_chain_node_client was removed before
+        return false;
     dap_chain_node_sync_status_t l_status = dap_chain_node_client_start_sync(l_uuid, true);
     if (l_status == NODE_SYNC_STATUS_MISSING) {
         DAP_DELETE(l_uuid);
@@ -321,9 +322,12 @@ static bool s_timer_update_states_callback(void *a_arg)
                         return true;
                     } else {
                         dap_chain_node_client_close(*l_uuid);
+                        return false;
                     }
-                } else
+                } else {
                     dap_chain_node_client_close(*l_uuid);
+                    return false;
+                }
             }
         }
         DAP_DELETE(l_uuid);
@@ -858,7 +862,7 @@ void dap_chain_node_client_close(dap_events_socket_uuid_t a_uuid)
         dap_chain_node_client_t *l_client = l_client_found->client;
         if (l_client->sync_timer) {
             // Free memory callback_arg=uuid
-            DAP_DELETE(l_client->sync_timer->callback_arg);
+            DAP_DEL_Z(l_client->sync_timer->callback_arg);
             dap_timerfd_delete(l_client->sync_timer);
         }
 

@@ -70,7 +70,7 @@ size_t dap_stream_ch_chain_net_pkt_write_f(dap_stream_ch_t *a_ch, dap_chain_net_
     va_start(ap, a_str);
 
     size_t l_buf_size = dap_vsnprintf(NULL, 0, a_str, ap);
-    char* l_buf = DAP_NEW_Z_SIZE(char, l_buf_size);
+    char* l_buf = DAP_NEW_Z_SIZE(char, l_buf_size + 1);
     dap_vsnprintf(l_buf, l_buf_size, a_str, ap);
     va_end(ap);
     size_t ret = dap_stream_ch_chain_net_srv_pkt_data_write(a_ch, a_srv_uid, a_usage_id, l_buf, strlen(l_buf));

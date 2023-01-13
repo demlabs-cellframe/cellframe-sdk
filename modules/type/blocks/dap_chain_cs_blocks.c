@@ -565,7 +565,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                               DAP_DELETE( l_pkey_hash_str );
                           }
                           dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
-                          dap_string_free(l_str_tmp,false);
+                          dap_string_free(l_str_tmp, true);
                           ret=0;
                       }
                   }else {
@@ -580,11 +580,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
             }
         }break;
         case SUBCMD_LIST:{
-
                 pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
                 dap_string_t * l_str_tmp = dap_string_new(NULL);
-                dap_string_append_printf(l_str_tmp,"%s.%s: Have %"DAP_UINT64_FORMAT_U" blocks :\n",
-                                         l_net->pub.name,l_chain->name,PVT(l_blocks)->blocks_count);
                 dap_chain_block_cache_t * l_block_cache = NULL,*l_block_cache_tmp = NULL;
 
                 HASH_ITER(hh,PVT(l_blocks)->block_cache_first,l_block_cache, l_block_cache_tmp ) {
@@ -595,10 +592,10 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                                              l_block_cache->block_hash_str, l_buf);
                 }
                 pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
-
+                dap_string_append_printf(l_str_tmp,"%s.%s: Have %"DAP_UINT64_FORMAT_U" blocks :\n",
+                                         l_net->pub.name,l_chain->name,PVT(l_blocks)->blocks_count);
                 dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
-                dap_string_free(l_str_tmp,false);
-
+                dap_string_free(l_str_tmp, true);
         }break;
 
         case SUBCMD_UNDEFINED: {
@@ -827,9 +824,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
 
     // verify hashes and consensus
     dap_chain_atom_verify_res_t ret = s_callback_atom_verify (a_chain, a_atom, a_atom_size);
-    debug_if(s_debug_more, L_DEBUG, "Verified atom %p: %s", a_atom, ret == ATOM_ACCEPT ? "accepted" :
-                                                   (ret == ATOM_REJECT ? "rejected" : "thresholded"));
-
+    if (ret == ATOM_MOVE_TO_THRESHOLD)
+        ret = ATOM_REJECT; // TODO remove it when threshlod will work
     if( ret == ATOM_ACCEPT){
         int l_consensus_check = s_add_atom_to_blocks(l_blocks, a_chain->ledger, l_block_cache);
         if(l_consensus_check == 1){
@@ -855,7 +851,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
     }else if (ret == ATOM_REJECT ){
         dap_chain_block_cache_delete(l_block_cache);
     }
-
+    debug_if(s_debug_more, L_DEBUG, "Verified atom %p: %s", a_atom, ret == ATOM_ACCEPT ? "accepted" :
+                                                   (ret == ATOM_REJECT ? "rejected" : "thresholded"));
     //s_bft_consensus_setup(l_blocks);      TODO move it to validators agreement
     return ret;
 }
@@ -896,6 +893,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
                                         &l_is_genesis,
                                         &l_nonce,
                                         &l_nonce2 ) ;
+    DAP_DELETE(l_meta);
 
     // 2nd level consensus
     if(l_blocks->callback_block_verify)

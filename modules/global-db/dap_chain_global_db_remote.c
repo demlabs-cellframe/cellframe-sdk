@@ -66,8 +66,10 @@ static void *s_list_thread_proc(void *arg)
             dap_store_obj_t *l_objs = dap_chain_global_db_driver_read(l_group_cur->name, NULL, &l_item_count);
             //dap_store_obj_t *l_objs = dap_chain_global_db_cond_load(l_group_cur->name, l_item_start, &l_item_count);
 
-            if (!l_dap_db_log_list->is_process)
+            if (!l_dap_db_log_list->is_process) {
+                dap_store_obj_free(l_objs, l_item_count);
                 return NULL;
+            }
 
             // go to next group
             if (!l_objs)
