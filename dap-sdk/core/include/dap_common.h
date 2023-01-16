@@ -582,8 +582,9 @@ static inline void s_vm_free(
         if ( !a_ptr )
             return;
 
-
+#if 0
         log_it(L_DEBUG, "Free .........: [%p] at %s:%d", a_ptr, a_rtn_name, a_rtn_line);
+#endif
         free(a_ptr);
 }
 
@@ -605,8 +606,10 @@ void    *l_ptr;
             return  NULL;
         }
 
+#if 0
         if ( a_size > MEMSTAT$K_MINTOLOG )
             log_it(L_DEBUG, "Allocated ....: [%p] %zd octets, at %s:%d", l_ptr, a_size, a_rtn_name, a_rtn_line);
+#endif
 
         return  l_ptr;
 }
@@ -628,10 +631,10 @@ void    *l_ptr;
             assert ( l_ptr );
             return  NULL;
         }
-
+#if 0
         if ( a_size > MEMSTAT$K_MINTOLOG )
             log_it(L_DEBUG, "Allocated ....: [%p] %zd octets, nr: %zd (total:%zd), at %s:%d", l_ptr, a_size, a_nr, a_nr * a_size, a_rtn_name, a_rtn_line);
-
+#endif
         return  l_ptr;
 }
 
@@ -655,9 +658,10 @@ void    *l_ptr;
             return  NULL;
         }
 
+#if 0
         if ( a_size > MEMSTAT$K_MINTOLOG )
             log_it(L_DEBUG, "Extended .....: [%p] -> [%p %zd octets], at %s:%d", a_ptr, l_ptr, a_size, a_rtn_name, a_rtn_line);
-
+#endif
         return  l_ptr;
 }
 
