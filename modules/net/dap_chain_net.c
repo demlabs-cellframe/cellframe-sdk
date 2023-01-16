@@ -3358,6 +3358,7 @@ dap_chain_t *l_chain_cur;
                 // go to next transaction
                 l_atom = l_chain_cur->callback_atom_iter_get_next(l_atom_iter, &l_atom_size);
             }
+            l_chain_cur->callback_atom_iter_delete(l_atom_iter);
         }
 
         // Only for one chain
