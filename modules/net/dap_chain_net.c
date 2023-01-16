@@ -136,7 +136,6 @@ struct net_link {
     uint64_t uplink_ip;
     dap_chain_node_info_t *link_info;
     dap_chain_node_client_t *link;
-    dap_events_socket_uuid_t client_uuid;
     UT_hash_handle hh;
 };
 
@@ -627,23 +626,22 @@ static int s_net_link_add(dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_
     return 0;
 }
 
-static void s_net_link_remove(dap_chain_net_pvt_t *a_net_pvt, dap_events_socket_uuid_t a_client_uuid, bool a_rebase)
+static void s_net_link_remove(dap_chain_net_pvt_t *a_net_pvt, dap_chain_node_client_t *a_link, bool a_rebase)
 {
     struct net_link *l_link, *l_link_tmp, *l_link_found = NULL;
     HASH_ITER(hh, a_net_pvt->net_links, l_link, l_link_tmp) {
-        if (l_link->client_uuid == a_client_uuid) {
+        if (l_link->link == a_link) {
             l_link_found = l_link;
             break;
         }
     }
     if (!l_link_found) {
-        log_it(L_WARNING, "Can't find link UUID 0x%"DAP_UINT64_FORMAT_x" to remove it from links HT", a_client_uuid);
+        log_it(L_WARNING, "Can't find link %p to remove it from links HT", a_link);
         return;
     }
     HASH_DEL(a_net_pvt->net_links, l_link_found);
     if (a_rebase) {
         l_link_found->link = NULL;
-        l_link_found->client_uuid = 0;
         // Add it to the list end
         HASH_ADD(hh, a_net_pvt->net_links, uplink_ip, sizeof(l_link_found->uplink_ip), l_link_found);
     } else {
@@ -657,7 +655,7 @@ static size_t s_net_get_active_links_count(dap_chain_net_t * a_net)
     int l_ret = 0;
     struct net_link *l_link, *l_link_tmp;
     HASH_ITER(hh, PVT(a_net)->net_links, l_link, l_link_tmp)
-        if (l_link->client_uuid)
+        if (l_link->link)
             l_ret++;
     return l_ret;
 }
@@ -690,7 +688,6 @@ static bool s_net_link_start(dap_chain_net_t *a_net, struct net_link *a_link, ui
     else
         return false;
     a_link->link = l_client;
-    a_link->client_uuid = l_client->uuid;
     if (a_delay) {
         dap_timerfd_start(a_delay * 1000, s_net_link_callback_connect_delayed, l_client);
         return true;
@@ -782,7 +779,7 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
     }
     if (l_net_pvt->state_target != NET_STATE_OFFLINE) {
         pthread_rwlock_wrlock(&l_net_pvt->uplinks_lock);
-        s_net_link_remove(l_net_pvt, a_node_client->uuid, l_net_pvt->only_static_links);
+        s_net_link_remove(l_net_pvt, a_node_client, l_net_pvt->only_static_links);
         a_node_client->keep_connection = false;
         struct net_link *l_free_link = s_get_free_link(l_net);
         if (l_free_link) {
@@ -1162,7 +1159,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
             HASH_ITER(hh, l_net_pvt->net_links, l_link, l_link_tmp) {
                 HASH_DEL(l_net_pvt->net_links, l_link);
                 if (l_link->link)
-                    dap_chain_node_client_close(l_link->client_uuid);
+                    dap_chain_node_client_close_mt(l_link->link);
                 DAP_DEL_Z(l_link->link_info);
                 DAP_DELETE(l_link);
             }
@@ -1266,9 +1263,9 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
     return ! l_repeat_after_exit;
 }
 
-int s_net_list_compare_uuids(const void *a_uuid1, const void *a_uuid2)
+int s_net_list_compare_links(const void *a_link1, const void *a_link2)
 {
-    return memcmp(a_uuid1, a_uuid2, sizeof(dap_events_socket_uuid_t));
+    return a_link1 == a_link2;
 }
 
 bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t *a_client)
@@ -1292,10 +1289,8 @@ bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t 
     if (!l_found) {
         l_net_pvt->active_link = a_client;
     }
-    if (l_found && !dap_list_find_custom(l_net_pvt->links_queue, &a_client->uuid, s_net_list_compare_uuids)) {
-        dap_events_socket_uuid_t *l_uuid = DAP_DUP(&a_client->uuid);
-        l_net_pvt->links_queue = dap_list_append(l_net_pvt->links_queue, l_uuid);
-    }
+    if (l_found && !dap_list_find_custom(l_net_pvt->links_queue, a_client, s_net_list_compare_links))
+        l_net_pvt->links_queue = dap_list_append(l_net_pvt->links_queue, a_client);
     if (a_err != EDEADLK)
         pthread_rwlock_unlock(&l_net_pvt->uplinks_lock);
     return !l_found;
@@ -1311,8 +1306,8 @@ bool dap_chain_net_sync_unlock(dap_chain_net_t *a_net, dap_chain_node_client_t *
     if (!a_client || l_net_pvt->active_link == a_client)
         l_net_pvt->active_link = NULL;
     while (l_net_pvt->active_link == NULL && l_net_pvt->links_queue) {
-        dap_events_socket_uuid_t *l_uuid = l_net_pvt->links_queue->data;
-        dap_chain_node_sync_status_t l_status = dap_chain_node_client_start_sync(l_uuid);
+        dap_chain_node_client_t *l_link = l_net_pvt->links_queue->data;
+        dap_chain_node_sync_status_t l_status = dap_chain_node_client_start_sync(l_link);
         if (l_status != NODE_SYNC_STATUS_WAITING) {
             DAP_DELETE(l_net_pvt->links_queue->data);
             dap_list_t *l_to_remove = l_net_pvt->links_queue;

@@ -1167,7 +1167,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
                     l_node_addr.uint64 = l_remote_node_addr->uint64;
 
                     // clean client struct
-                    dap_chain_node_client_close(l_node_client->uuid);
+                    dap_chain_node_client_close_mt(l_node_client);
                     DAP_DELETE(l_remote_node_info);
                     //return -1;
                     continue;
@@ -1189,7 +1189,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             dap_cli_server_cmd_set_reply_text(a_str_reply, "no response from remote node(s)");
             log_it(L_WARNING, "No response from remote node(s): err code %d", res);
             // clean client struct
-            dap_chain_node_client_close(l_node_client->uuid);
+            dap_chain_node_client_close_mt(l_node_client);
             //DAP_DELETE(l_remote_node_info);
             return -1;
         }
@@ -1216,7 +1216,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             NULL, 0);
             if(res == 0) {
                 log_it(L_WARNING, "Can't send DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST packet");
-                dap_chain_node_client_close(l_node_client->uuid);
+                dap_chain_node_client_close_mt(l_node_client);
                 DAP_DELETE(l_remote_node_info);
                 return -1;
             }
@@ -1266,7 +1266,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
                 sizeof(l_sync_request))) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Error: Can't send sync chains request");
             // clean client struct
-            dap_chain_node_client_close(l_node_client->uuid);
+            dap_chain_node_client_close_mt(l_node_client);
             DAP_DELETE(l_remote_node_info);
             return -1;
         }
@@ -1278,7 +1278,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         if(res < 0) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Error: can't sync with node "NODE_ADDR_FP_STR,
                                             NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr));
-            dap_chain_node_client_close(l_node_client->uuid);
+            dap_chain_node_client_close_mt(l_node_client);
             DAP_DELETE(l_remote_node_info);
             log_it(L_WARNING, "Gdb synced err -2");
             return -2;
@@ -1306,7 +1306,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
                     sizeof(l_sync_request))) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Error: Can't send sync chains request");
                 // clean client struct
-                dap_chain_node_client_close(l_node_client->uuid);
+                dap_chain_node_client_close_mt(l_node_client);
                 DAP_DELETE(l_remote_node_info);
                 log_it(L_INFO, "Chain '%s' synced error: Can't send sync chains request", l_chain->name);
                 return -3;
@@ -1326,7 +1326,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         DAP_DELETE(l_remote_node_info);
         //dap_client_disconnect(l_node_client->client);
         //l_node_client->client = NULL;
-        dap_chain_node_client_close(l_node_client->uuid);
+        dap_chain_node_client_close_mt(l_node_client);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Node sync completed: Chains and gdb are synced");
         return 0;
 
@@ -1355,18 +1355,18 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             return -6;
         int timeout_ms = 5000; //5 sec = 5000 ms
         // start handshake
-        dap_chain_node_client_t *client = dap_chain_node_client_connect_default_channels(l_net,node_info);
-        if(!client) {
+        dap_chain_node_client_t *l_client = dap_chain_node_client_connect_default_channels(l_net,node_info);
+        if(!l_client) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't connect");
             DAP_DELETE(node_info);
             return -7;
         }
         // wait handshake
-        int res = dap_chain_node_client_wait(client, NODE_CLIENT_STATE_ESTABLISHED, timeout_ms);
+        int res = dap_chain_node_client_wait(l_client, NODE_CLIENT_STATE_ESTABLISHED, timeout_ms);
         if (res) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "No response from node");
             // clean client struct
-            dap_chain_node_client_close(client->uuid);
+            dap_chain_node_client_close_mt(l_client);
             DAP_DELETE(node_info);
             return -8;
         }
