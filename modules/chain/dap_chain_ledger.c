@@ -92,6 +92,7 @@ typedef struct dap_chain_ledger_token_emission_item {
     dap_chain_datum_token_emission_t *datum_token_emission;
     size_t datum_token_emission_size;
     dap_chain_hash_fast_t tx_used_out;
+    dap_gdb_time_t ts_added;
     UT_hash_handle hh;
 } dap_chain_ledger_token_emission_item_t;
 
@@ -140,6 +141,7 @@ typedef struct dap_chain_ledger_token_item {
 typedef struct dap_chain_ledger_tx_item {
     dap_chain_hash_fast_t tx_hash_fast;
     dap_chain_datum_tx_t *tx;
+    dap_gdb_time_t ts_added;
     struct {
         dap_time_t ts_created;
         uint32_t n_outs;
@@ -1772,6 +1774,7 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
         l_tx_item->tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, l_objs[i].value_len - sizeof(l_tx_item->cache_data));
         memcpy(&l_tx_item->cache_data, l_objs[i].value, sizeof(l_tx_item->cache_data));
         memcpy(l_tx_item->tx, l_objs[i].value + sizeof(l_tx_item->cache_data), l_objs[i].value_len - sizeof(l_tx_item->cache_data));
+        l_tx_item->ts_added = dap_gdb_time_now();
         HASH_ADD_INORDER(hh, l_ledger_pvt->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_tx_item, s_sort_ledger_tx_item);
     }
     dap_chain_global_db_objs_delete(l_objs, l_objs_count);
@@ -2139,6 +2142,7 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
         } else if (HASH_COUNT(l_ledger_priv->threshold_emissions) < s_threshold_emissions_max) {
             l_token_emission_item->datum_token_emission = DAP_DUP_SIZE(a_token_emission, a_token_emission_size);
             pthread_rwlock_wrlock(&l_ledger_priv->threshold_emissions_rwlock);
+            l_token_emission_item->ts_added = dap_gdb_time_now();
             HASH_ADD(hh, l_ledger_priv->threshold_emissions, datum_token_emission_hash,
                      sizeof(*a_emission_hash), l_token_emission_item);
             pthread_rwlock_unlock(&l_ledger_priv->threshold_emissions_rwlock);
@@ -3438,6 +3442,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
                         l_item_tmp = DAP_NEW_Z(dap_chain_ledger_tx_item_t);
                         l_item_tmp->tx_hash_fast = *a_tx_hash;
                         l_item_tmp->tx = DAP_DUP_SIZE(a_tx, dap_chain_datum_tx_get_size(a_tx));
+                        l_item_tmp->ts_added = dap_gdb_time_now();
                         HASH_ADD_BYHASHVALUE(hh, l_ledger_priv->threshold_txs, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_hash_value, l_item_tmp);
                         if(s_debug_more)
                             log_it (L_DEBUG, "Tx %s added to threshold", l_tx_hash_str);
@@ -3740,6 +3745,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
         debug_if(s_debug_more, L_ERROR, "No token ticker in previous txs");
     l_tx_item->cache_data.multichannel = l_multichannel;
     pthread_rwlock_wrlock(&l_ledger_priv->ledger_rwlock);
+    l_tx_item->ts_added = dap_gdb_time_now();
     HASH_ADD_INORDER(hh, l_ledger_priv->ledger_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t),
                                  l_tx_item, s_sort_ledger_tx_item); // tx_hash_fast: name of key field
     pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
