@@ -1911,6 +1911,8 @@ dap_ledger_t* dap_chain_ledger_create(uint16_t a_check_flags, char *a_net_name)
 
 int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size)
 {
+    if (!a_token_emission || !a_token_emission_size)
+        return -100;
     int l_ret = 0;
     dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
 
@@ -1924,7 +1926,7 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
 
     if (!l_token_item){
         log_it(L_WARNING,"Ledger_token_emission_add_check. Token ticker %s was not found",c_token_ticker);
-        return -5;
+        return DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN; // old return -5
     }
 
     // check if such emission is already present in table
@@ -2112,16 +2114,37 @@ static void s_ledger_emission_cache_update(dap_ledger_t *a_ledger, dap_chain_led
 int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size,
                                         dap_hash_fast_t *a_emission_hash, bool a_from_threshold)
 {
-    int l_ret = dap_chain_ledger_token_emission_add_check(a_ledger, a_token_emission, a_token_emission_size);
-    if (l_ret)
-        return l_ret;
     dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
+    dap_chain_ledger_token_emission_item_t * l_token_emission_item = NULL;
+    int l_ret = dap_chain_ledger_token_emission_add_check(a_ledger, a_token_emission, a_token_emission_size);
+    if (l_ret) {
+        if (l_ret == DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN) {
+            if (HASH_COUNT(l_ledger_priv->threshold_emissions) < s_threshold_emissions_max) {
+                l_token_emission_item = DAP_NEW_Z(dap_chain_ledger_token_emission_item_t);
+                l_token_emission_item->datum_token_emission = DAP_DUP_SIZE(a_token_emission, a_token_emission_size);
+                l_token_emission_item->datum_token_emission_size = a_token_emission_size;
+                dap_hash_fast_t l_emi_hash = {0};
+                dap_hash_fast(a_token_emission, a_token_emission_size, &l_emi_hash);
+                pthread_rwlock_wrlock(&l_ledger_priv->threshold_emissions_rwlock);
+                l_token_emission_item->datum_token_emission_hash = l_emi_hash;
+                l_token_emission_item->ts_added = dap_gdb_time_now();
+                HASH_ADD(hh, l_ledger_priv->threshold_emissions, datum_token_emission_hash,
+                         sizeof(*a_emission_hash), l_token_emission_item);
+                pthread_rwlock_unlock(&l_ledger_priv->threshold_emissions_rwlock);
+
+            } else {
+                if(s_debug_more)
+                    log_it(L_WARNING,"threshold for emissions is overfulled (%zu max), dropping down new data, added nothing",
+                           s_threshold_emissions_max);
+            }
+        }
+        return l_ret;
+    }
     const char * c_token_ticker = ((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.ticker;
     dap_chain_ledger_token_item_t * l_token_item = NULL;
     pthread_rwlock_rdlock(&l_ledger_priv->tokens_rwlock);
     HASH_FIND_STR(l_ledger_priv->tokens, c_token_ticker, l_token_item);
     pthread_rwlock_unlock(&l_ledger_priv->tokens_rwlock);
-    dap_chain_ledger_token_emission_item_t * l_token_emission_item = NULL;
     if (!l_token_item && a_from_threshold)
         return DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN;
 
@@ -2196,8 +2219,12 @@ int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_
             s_threshold_txs_proc(a_ledger);
         } else if (HASH_COUNT(l_ledger_priv->threshold_emissions) < s_threshold_emissions_max) {
             l_token_emission_item->datum_token_emission = DAP_DUP_SIZE(a_token_emission, a_token_emission_size);
+            l_token_emission_item->datum_token_emission_size = a_token_emission_size;
             pthread_rwlock_wrlock(&l_ledger_priv->threshold_emissions_rwlock);
             l_token_emission_item->ts_added = dap_gdb_time_now();
+            dap_chain_hash_fast_t l_emi_hash = {0};
+            dap_hash_fast(a_token_emission, a_token_emission_size, &l_emi_hash);
+            l_token_emission_item->datum_token_emission_hash = l_emi_hash;
             HASH_ADD(hh, l_ledger_priv->threshold_emissions, datum_token_emission_hash,
                      sizeof(*a_emission_hash), l_token_emission_item);
             pthread_rwlock_unlock(&l_ledger_priv->threshold_emissions_rwlock);
