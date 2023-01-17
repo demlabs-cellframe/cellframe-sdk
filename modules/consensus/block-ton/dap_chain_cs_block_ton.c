@@ -674,6 +674,7 @@ static void s_session_candidate_to_chain(
                     dap_hash_fast(l_candidate, a_candidate_size, &l_block_hash);
                     char *l_block_hash_str = dap_chain_hash_fast_to_str_new(&l_block_hash);
                     log_it(L_INFO, "TON: block %s added in chain successfully", l_block_hash_str);
+                    DAP_DELETE(l_block_hash_str);
 		        }
 		    } break;
 		    case ATOM_MOVE_TO_THRESHOLD: {
