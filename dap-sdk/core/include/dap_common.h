@@ -133,6 +133,8 @@
 
 #include    <assert.h>
 
+#define atomic_ullong uint64_t
+
 #define     MEMSTAT$SZ_NAME     63
 #define     MEMSTAT$K_MAXNR     8192
 #define     MEMSTAT$K_MINTOLOG  (32*1024)
@@ -151,11 +153,18 @@ int     dap_memstat_reg (dap_memstat_rec_t   *a_memstat_rec);
 void    dap_memstat_show (void);
 extern  dap_memstat_rec_t    *g_memstat [MEMSTAT$K_MAXNR];              /* Array to keep pointers to module/facility specific memstat vecros */
 
+#if defined(__cplusplus)
+extern "C" {
+#endif
+
 static inline void s_vm_free(const char *a_rtn_name, int a_rtn_line, void *a_ptr);
 static inline void *s_vm_get(const char *a_rtn_name, int a_rtn_line, ssize_t a_size);
 static inline void *s_vm_get_z(const char *a_rtn_name, int a_rtn_line, ssize_t a_nr, ssize_t a_size);
 static inline void *s_vm_extend(const char *a_rtn_name, int a_rtn_line, void *a_ptr, ssize_t a_size);
 
+#if defined(__cplusplus)
+}
+#endif
 
     #define DAP_FREE(a)         s_vm_free(__func__, __LINE__, (void *) a)
     #define DAP_DELETE(a)       s_vm_free(__func__, __LINE__, (void *) a)
