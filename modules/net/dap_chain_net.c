@@ -640,6 +640,10 @@ static void s_net_link_remove(dap_chain_net_pvt_t *a_net_pvt, dap_chain_node_cli
         return;
     }
     HASH_DEL(a_net_pvt->net_links, l_link_found);
+    dap_chain_node_client_t *l_client = l_link_found->link;
+    l_client->callbacks.delete = NULL;
+    a_net_pvt->links_queue = dap_list_remove_all(a_net_pvt->links_queue, l_client);
+    dap_chain_node_client_close_mt(l_client);
     if (a_rebase) {
         l_link_found->link = NULL;
         // Add it to the list end
@@ -1158,8 +1162,11 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
             struct net_link *l_link, *l_link_tmp;
             HASH_ITER(hh, l_net_pvt->net_links, l_link, l_link_tmp) {
                 HASH_DEL(l_net_pvt->net_links, l_link);
-                if (l_link->link)
-                    dap_chain_node_client_close_mt(l_link->link);
+                if (l_link->link) {
+                    dap_chain_node_client_t *l_client = l_link->link;
+                    l_client->callbacks.delete = NULL;
+                    dap_chain_node_client_close_mt(l_client);
+                }
                 DAP_DEL_Z(l_link->link_info);
                 DAP_DELETE(l_link);
             }
@@ -1263,15 +1270,10 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
     return ! l_repeat_after_exit;
 }
 
-int s_net_list_compare_links(const void *a_link1, const void *a_link2)
-{
-    return a_link1 == a_link2;
-}
-
 bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t *a_client)
 {
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
-    int a_err = pthread_rwlock_rdlock(&l_net_pvt->uplinks_lock);
+    int a_err = pthread_rwlock_wrlock(&l_net_pvt->uplinks_lock);
     bool l_found = false;
     if (l_net_pvt->active_link) {
         struct net_link *l_link, *l_link_tmp;
@@ -1289,7 +1291,7 @@ bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t 
     if (!l_found) {
         l_net_pvt->active_link = a_client;
     }
-    if (l_found && !dap_list_find_custom(l_net_pvt->links_queue, a_client, s_net_list_compare_links))
+    if (l_found && !dap_list_find(l_net_pvt->links_queue, a_client))
         l_net_pvt->links_queue = dap_list_append(l_net_pvt->links_queue, a_client);
     if (a_err != EDEADLK)
         pthread_rwlock_unlock(&l_net_pvt->uplinks_lock);

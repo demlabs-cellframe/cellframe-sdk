@@ -167,6 +167,12 @@ DAP_STATIC_INLINE dap_chain_node_client_t* dap_chain_node_client_connect_default
 { return dap_chain_node_client_connect_channels(a_net,a_node_info, "CN"); }
 
 
+DAP_STATIC_INLINE ssize_t dap_chain_node_client_write_unsafe(dap_chain_node_client_t *a_client, const char a_ch_id, uint8_t a_type, void *a_data, size_t a_data_size)
+{ return dap_client_write_unsafe(a_client->client, a_ch_id, a_type, a_data, a_data_size); }
+
+DAP_STATIC_INLINE int dap_chain_node_client_write_mt(dap_chain_node_client_t *a_client, const char a_ch_id, uint8_t a_type, void *a_data, size_t a_data_size)
+{ return dap_client_write_mt(a_client->client, a_ch_id, a_type, a_data, a_data_size); }
+
 dap_chain_node_client_t *dap_chain_node_client_find(dap_events_socket_uuid_t a_uuid);
 
 /**

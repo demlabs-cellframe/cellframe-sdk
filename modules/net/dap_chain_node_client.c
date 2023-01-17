@@ -931,10 +931,7 @@ static int s_node_client_set_notify_callbacks(dap_client_t *a_client, uint8_t a_
     if(l_node_client) {
         pthread_mutex_lock(&l_node_client->wait_mutex);
         // find current channel code
-        dap_client_pvt_t * l_client_internal = DAP_CLIENT_PVT(a_client);
-        dap_stream_ch_t * l_ch = NULL;
-        if(l_client_internal)
-            l_ch = dap_client_get_stream_ch_unsafe(a_client, a_ch_id);
+        dap_stream_ch_t *l_ch = dap_client_get_stream_ch_unsafe(a_client, a_ch_id);
         if(l_ch) {
             // C
             if(a_ch_id == dap_stream_ch_chain_get_id()) {
