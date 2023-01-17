@@ -725,22 +725,21 @@ bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const
 
     dap_client_set_auth_cert(a_node_client->client, a_node_client->net->pub.name);
 
-    int hostlen = 128;
-    char host[hostlen];
+    char l_host_addr[INET6_ADDRSTRLEN];
     if(a_node_client->info->hdr.ext_addr_v4.s_addr){
         struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = a_node_client->info->hdr.ext_addr_v4 };
-        inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), host, hostlen);
+        inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), l_host_addr, INET6_ADDRSTRLEN);
     } else {
         struct sockaddr_in6 sa6 = { .sin6_family = AF_INET6, .sin6_addr = a_node_client->info->hdr.ext_addr_v6 };
-        inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) &sa6)->sin6_addr), host, hostlen);
+        inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) &sa6)->sin6_addr), l_host_addr, INET6_ADDRSTRLEN);
     }
-    log_it(L_INFO, "Connecting to %s address", host);
+    log_it(L_INFO, "Connecting to %s address", l_host_addr);
     // address not defined
-    if(!strcmp(host, "::")) {
+    if(!strcmp(l_host_addr, "::")) {
         log_it(L_WARNING, "Undefined address with node client connect to");
         return false;
     }
-    dap_client_set_uplink_unsafe(a_node_client->client, host, a_node_client->info->hdr.ext_port);
+    dap_client_set_uplink_unsafe(a_node_client->client, l_host_addr, a_node_client->info->hdr.ext_port);
     a_node_client->state = NODE_CLIENT_STATE_CONNECTING ;
     // Handshake & connect
     dap_client_go_stage(a_node_client->client, STAGE_STREAM_STREAMING, s_stage_connected_callback);
@@ -789,7 +788,7 @@ void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client)
         }
     }
     // clean client
-    a_node_client->client->_inheritor = NULL;
+    a_node_client->client->delete_callback = NULL;
     dap_client_delete_unsafe(a_node_client->client);
 #ifndef _WIN32
     pthread_cond_destroy(&a_node_client->wait_cond);
