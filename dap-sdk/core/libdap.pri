@@ -20,6 +20,8 @@ unix: !android : ! darwin {
     LIBS += -lrt -lmagic
 }
 
+DEFINES += DAP_SYS_DEBUG
+
 contains(DAP_FEATURES, ssl){
     include($$PWD/../../3rdparty/wolfssl/wolfssl.pri)
 }else{

@@ -359,6 +359,12 @@ uint64_t tid;
 }
 #else
 #define PID_FMT "%6d"
+#ifdef DAP_OS_WINDOWS
+static inline uint64_t gettid(void)
+{
+    return  (uint64_t)GetCurrentThreadId();
+}
+#endif
 #endif
 
 #define     SPACES  74

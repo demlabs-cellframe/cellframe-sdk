@@ -178,6 +178,8 @@ static inline void *s_vm_extend(const char *a_rtn_name, int a_rtn_line, void *a_
     #define DAP_ALMALLOC(a, b)    _dap_aligned_alloc(a, b)
     #define DAP_ALREALLOC(a, b)   _dap_aligned_realloc(a, b)
     #define DAP_ALFREE(a)         _dap_aligned_free(a, b)
+    #define DAP_PAGE_ALMALLOC(a)  _dap_page_aligned_alloc(a)
+    #define DAP_PAGE_ALFREE(a)    _dap_page_aligned_free(a)
     #define DAP_NEW( a )          DAP_CAST_REINT(a, s_vm_get(__func__, __LINE__, sizeof(a)) )
     #define DAP_NEW_SIZE(a, b)    DAP_CAST_REINT(a, s_vm_get(__func__, __LINE__, b) )
     #define DAP_NEW_S( a )        DAP_CAST_REINT(a, alloca(sizeof(a)) )
@@ -595,7 +597,7 @@ static inline void s_vm_free(
             return;
 
 
-        log_it(L_DEBUG, "Free .........: [%p] at %s:%d", a_ptr, a_rtn_name, a_rtn_line);
+        //log_it(L_DEBUG, "Free .........: [%p] at %s:%d", a_ptr, a_rtn_name, a_rtn_line);
         free(a_ptr);
 }
 
