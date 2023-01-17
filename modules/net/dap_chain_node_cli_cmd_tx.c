@@ -557,6 +557,7 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
                     if (l_dst_addr)
                         DAP_DELETE(l_dst_addr_str);
                     DAP_DELETE(l_value_str);
+                    DAP_DELETE(l_coins_str);
                 }
                 if (l_dst_addr && !memcmp(l_dst_addr, a_addr, sizeof(dap_chain_addr_t))) {
                     if (!l_header_printed) {
@@ -580,6 +581,7 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
                     if (l_src_addr)
                         DAP_DELETE(l_src_addr_str);
                     DAP_DELETE(l_value_str);
+                    DAP_DELETE(l_coins_str);
                 }
             }
             dap_list_free(l_list_out_items);
