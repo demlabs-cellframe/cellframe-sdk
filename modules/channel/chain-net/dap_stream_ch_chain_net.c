@@ -170,7 +170,6 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
 void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg)
 {
     (void) a_arg;
-    //printf("* del session=%d\n", a_ch->stream->session->id);
     dap_stream_ch_chain_net_t * l_ch_chain_net = DAP_STREAM_CH_CHAIN_NET(a_ch);
     if(l_ch_chain_net) {
         pthread_mutex_lock(&l_ch_chain_net->mutex);
