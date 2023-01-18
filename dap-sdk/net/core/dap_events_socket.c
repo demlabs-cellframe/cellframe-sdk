@@ -1319,7 +1319,7 @@ static void *dap_events_socket_buf_thread(void *arg)
 
     while (l_lifecycle) {
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
-        l_sock = l_es->fd2;
+        l_sock = l_item->es->fd2;
 #elif defined(DAP_EVENTS_CAPS_QUEUE_MQUEUE)
         l_sock = l_es->mqd;
 #endif
@@ -1442,7 +1442,7 @@ char l_errbuf[128] = { 0 };
         return 0;
     }
     l_errno = errno;
-    //char l_errbuf[128] = { '\0' };
+    char l_errbuf[128] = { '\0' };
     strerror_r(l_errno, l_errbuf, sizeof(l_errbuf));
     log_it(L_ERROR, "Can't send ptr to pipe:\"%s\" code %d", l_errbuf, l_errno);
     return l_errno;
