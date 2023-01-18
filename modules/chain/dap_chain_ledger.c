@@ -265,8 +265,8 @@ static  dap_chain_ledger_tx_item_t* tx_item_find_by_addr(dap_ledger_t *a_ledger,
         const dap_chain_addr_t *a_addr, const char * a_token, dap_chain_hash_fast_t *a_tx_first_hash);
 static void s_threshold_emissions_proc( dap_ledger_t * a_ledger);
 static void s_threshold_txs_proc( dap_ledger_t * a_ledger);
-static void s_treshold_txs_free(dap_ledger_t *a_ledger);
-static void s_treshold_emission_free(dap_ledger_t *a_ledger);
+static void s_threshold_txs_free(dap_ledger_t *a_ledger);
+static void s_threshold_emission_free(dap_ledger_t *a_ledger);
 static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_item_t *a_token_item , dap_chain_datum_token_t * a_token, size_t a_token_size);
 static int s_ledger_permissions_check(dap_chain_ledger_token_item_t *  a_token_item, uint16_t a_permission_id, const void * a_data,size_t a_data_size );
 static bool s_ledger_tps_callback(void *a_arg);
@@ -275,7 +275,7 @@ static int s_sort_ledger_tx_item(dap_chain_ledger_tx_item_t* a, dap_chain_ledger
 static size_t s_threshold_emissions_max = 1000;
 static size_t s_threshold_txs_max = 10000;
 static bool s_debug_more = false;
-static uint s_treshold_free_timer_tick = 900000; // 900000 ms = 15 minutes.
+static size_t s_threshold_free_timer_tick = 900000; // 900000 ms = 15 minutes.
 
 struct json_object *wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_wallet_balance_t* a_bal);
 
@@ -324,10 +324,10 @@ static dap_ledger_t * dap_chain_ledger_handle_new(void)
     pthread_rwlock_init(&l_ledger_pvt->threshold_emissions_rwlock , NULL);
     pthread_rwlock_init(&l_ledger_pvt->balance_accounts_rwlock , NULL);
     pthread_rwlock_init(&l_ledger_pvt->stake_lock_rwlock, NULL);
-    l_ledger_pvt->threshold_txs_fee_timer = dap_interval_timer_create(s_treshold_free_timer_tick,
-                                                                     (dap_timer_callback_t)s_treshold_txs_free, l_ledger);
-    l_ledger_pvt->threshold_emissions_fee_timer = dap_interval_timer_create(s_treshold_free_timer_tick,
-                                                                  (dap_timer_callback_t) s_treshold_emission_free, l_ledger);
+    l_ledger_pvt->threshold_txs_fee_timer = dap_interval_timer_create(s_threshold_free_timer_tick,
+                                                                     (dap_timer_callback_t)s_threshold_txs_free, l_ledger);
+    l_ledger_pvt->threshold_emissions_fee_timer = dap_interval_timer_create(s_threshold_free_timer_tick,
+                                                                  (dap_timer_callback_t) s_threshold_emission_free, l_ledger);
     return l_ledger;
 }
 
@@ -1704,10 +1704,10 @@ static void s_threshold_txs_proc( dap_ledger_t *a_ledger)
 }
 
 /**
- * @breif s_treshold_txs_free
+ * @breif s_threshold_txs_free
  * @param a_ledger
  */
-static void s_treshold_txs_free(dap_ledger_t *a_ledger){
+static void s_threshold_txs_free(dap_ledger_t *a_ledger){
     log_it(L_DEBUG, "Start free treshold txs");
     dap_ledger_private_t *l_pvt = PVT(a_ledger);
     dap_chain_ledger_tx_item_t *l_current = NULL, *l_tmp = NULL;
@@ -1727,10 +1727,10 @@ static void s_treshold_txs_free(dap_ledger_t *a_ledger){
 }
 
 /**
- * @breif s_treshold_emission_free
+ * @breif s_threshold_emission_free
  * @param a_ledger
  */
-static void s_treshold_emission_free(dap_ledger_t *a_ledger){
+static void s_threshold_emission_free(dap_ledger_t *a_ledger){
     log_it(L_DEBUG, "Start free treshold emission");
     dap_ledger_private_t *l_pvt = PVT(a_ledger);
     dap_chain_ledger_token_emission_item_t *l_current = NULL, *l_tmp = NULL;
