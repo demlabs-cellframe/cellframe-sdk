@@ -1327,3 +1327,60 @@ static bool s_verificator_stake_updater_callback(dap_ledger_t *a_ledger, dap_cha
     }
     return s_stake_conditions_calc(a_cond, a_tx, true, true);
 }
+
+void dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net, dap_string_t *a_string_ret){
+    if (!a_net || !a_string_ret)
+        return;
+    char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(a_net);
+    size_t l_orders_count = 0;
+    dap_global_db_obj_t * l_orders = dap_global_db_get_all_sync(l_gdb_group_str, &l_orders_count);
+    uint256_t l_max = {0};
+    uint256_t l_min = {0};
+    uint256_t l_average = {0};
+//    bool setMinimal = false;
+    uint64_t l_order_fee_count = 0;
+    for (size_t i = 0; i < l_orders_count; i++) {
+        dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)l_orders[i].value;
+        if (l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID)
+            continue;
+        if (l_orders_count == 0) {
+            l_min = l_order->price;
+            l_max = l_order->price;
+        }
+        l_order_fee_count++;
+        uint256_t t = {0};
+        SUM_256_256(l_order->price, l_average, &t);
+        l_average = t;
+        int res = compare256(l_min, l_order->price);
+        if (res == 1) {
+            l_min = l_order->price;
+        }
+        res = compare256(l_max, l_order->price);
+        if (res == -1) {
+            l_max = l_order->price;
+        }
+    }
+    uint256_t t = {0};
+    if (!IS_ZERO_256(l_average)) DIV_256_COIN(l_average, dap_chain_uint256_from(l_order_fee_count), &t);
+    dap_global_db_objs_delete(l_orders, l_orders_count);
+    DAP_DELETE( l_gdb_group_str);
+    const char *l_native_token  =  a_net->pub.native_ticker;
+    char *l_min_balance = dap_chain_balance_print(l_min);
+    char *l_min_coins = dap_chain_balance_to_coins(l_min);
+    char *l_max_balance = dap_chain_balance_print(l_max);
+    char *l_max_coins = dap_chain_balance_to_coins(l_max);
+    char *l_average_balance = dap_chain_balance_print(t);
+    char *l_average_coins = dap_chain_balance_to_coins(t);
+    dap_string_append_printf(a_string_ret, "Validator fee: \n"
+                                           "\t MIN: %s (%s) %s\n"
+                                           "\t MAX: %s (%s) %s\n"
+                                           "\t Average: %s (%s) %s \n", l_min_coins, l_min_balance, l_native_token,
+                                           l_max_coins, l_max_balance, l_native_token,
+                                           l_average_coins, l_average_balance, l_native_token);
+    DAP_DELETE(l_min_balance);
+    DAP_DELETE(l_min_coins);
+    DAP_DELETE(l_max_balance);
+    DAP_DELETE(l_max_coins);
+    DAP_DELETE(l_average_balance);
+    DAP_DELETE(l_average_coins);
+}
