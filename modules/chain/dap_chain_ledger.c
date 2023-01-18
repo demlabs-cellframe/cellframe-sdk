@@ -288,7 +288,7 @@ static inline int s_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_e
 static size_t s_threshold_emissions_max = 1000;
 static size_t s_threshold_txs_max = 10000;
 static bool s_debug_more = false;
-static uint s_threshold_free_timer_tick = 900000; // 900000 ms = 15 minutes.
+static size_t s_threshold_free_timer_tick = 900000; // 900000 ms = 15 minutes.
 
 struct json_object *wallet_info_json_collect(dap_ledger_t *a_ledger, dap_ledger_wallet_balance_t* a_bal);
 
