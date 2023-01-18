@@ -63,7 +63,7 @@ int dap_chain_net_srv_stake_pos_delegate_init()
         "\tthe node agrees to conduct the transaction.\n"
     "srv_stake order remove -net <net_name> -order <order_hash> [-H {hex | base58(default)}]\n"
          "\tRemove order with specified hash\n"
-    "srv_stake order update -net <net_name> -order <order_hash> {-cert <priv_cert_name> | -wallet <wallet_name>} [-H {hex | base58(default)}] {[-addr_hldr <addr>] [-token <token_ticker>] [-coins <value>] [-fee_percent <value>] | [-token <token_ticker>] [-coins <value>] -fee_percent <value>]}\n"
+    "srv_stake order update -net <net_name> -order <order_hash> [-H {hex | base58(default)}] -cert <priv_cert_name>  -value <value>\n"
          "\tUpdate order with specified hash\n"
     "srv_stake order list -net <net_name>\n"
          "\tGet the stake orders list within specified net name\n"
