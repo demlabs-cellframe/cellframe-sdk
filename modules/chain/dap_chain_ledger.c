@@ -1726,7 +1726,7 @@ static void s_threshold_txs_proc( dap_ledger_t *a_ledger)
  * @breif s_treshold_txs_free
  * @param a_ledger
  */
-static void s_treshold_txs_free(dap_ledger_t *a_ledger){
+static void s_threshold_txs_free(dap_ledger_t *a_ledger){
     log_it(L_DEBUG, "Start free threshold txs");
     dap_ledger_private_t *l_pvt = PVT(a_ledger);
     dap_chain_ledger_tx_item_t *l_current = NULL, *l_tmp = NULL;
@@ -1749,7 +1749,7 @@ static void s_treshold_txs_free(dap_ledger_t *a_ledger){
  * @breif s_treshold_emission_free
  * @param a_ledger
  */
-static void s_treshold_emission_free(dap_ledger_t *a_ledger){
+static void s_threshold_emission_free(dap_ledger_t *a_ledger){
     log_it(L_DEBUG, "Start free threshold emission");
     dap_ledger_private_t *l_pvt = PVT(a_ledger);
     dap_chain_ledger_token_emission_item_t *l_current = NULL, *l_tmp = NULL;
