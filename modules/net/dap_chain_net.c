@@ -2706,7 +2706,7 @@ dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id)
     pthread_rwlock_rdlock(&s_net_ids_rwlock);
     HASH_FIND(hh,s_net_items_ids,&a_id,sizeof (a_id), l_net_item );
     pthread_rwlock_unlock(&s_net_ids_rwlock);
-    return l_net_item ? l_net_item->chain_net : NULL;
+    return l_net_item ? l_net_item->chain_net : NULL;    
 }
 
 /**

@@ -623,13 +623,15 @@ static pthread_rwlock_t s_net_fees_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 bool dap_chain_net_tx_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a_value, dap_chain_addr_t *a_addr)
 {
+    dap_chain_addr_t *l_a_tmp = dap_chain_addr_from_str("Rj7J7PBDdH1QhuoYbixBj33ZDUyr71DJg3DoBFUCkWvASEWL3BZ39EbauiETDfYGs3rPQ11ZUyCtDsYXQ9gbzcsANHqcPYc9jPNp8xaw"); //temporary;
+    /*
     struct net_fee *l_net_fee;
     HASH_FIND(hh, s_net_fees, &a_net_id, sizeof(a_net_id), l_net_fee);
     if (!l_net_fee || IS_ZERO_256(l_net_fee->value))
-        return false;
+        return false;*/
     if (a_value)
-        *a_value = l_net_fee->value;
+        *a_value = dap_chain_balance_scan("10");// l_net_fee->value;
     if (a_addr)
-        *a_addr = l_net_fee->fee_addr;
+        *a_addr =  *l_a_tmp;// *a_addr = l_net_fee->fee_addr;
     return true;
 }

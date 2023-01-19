@@ -355,12 +355,13 @@ static char s_wallets_path[MAX_PATH];
 const char* dap_chain_wallet_get_path(dap_config_t * a_config)
 {
 char *l_cp;
-
+    if (!a_config)
+        a_config = g_config;
     if ( s_wallets_path[0] )                                                /* Is the path to the wallet's store has been defined ? */
         return  s_wallets_path;                                             /* Fine, just return existen value */
 
                                                                             /* Retrieve Wallet's store path from config */
-    if ( !(l_cp = (char *) dap_config_get_item_str(g_config, "resources", "wallets_path")) )
+    if ( !(l_cp = (char *) dap_config_get_item_str(a_config, "resources", "wallets_path")) )
         return  log_it(L_WARNING, "No path to wallet's store has been defined"), s_wallets_path;
 
 

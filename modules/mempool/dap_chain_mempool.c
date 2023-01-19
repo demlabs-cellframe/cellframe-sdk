@@ -694,62 +694,143 @@ char *dap_chain_mempool_tx_create_cond(dap_chain_net_t *a_net,
 
 char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_emission_hash,
                                        dap_chain_id_t a_emission_chain_id, uint256_t a_emission_value, const char *a_ticker,
-                                       dap_chain_addr_t *a_addr_to, dap_cert_t **a_certs, size_t a_certs_count,
+                                       dap_enc_key_t *a_key_from, dap_chain_addr_t *a_addr_to, dap_cert_t **a_certs, size_t a_certs_count,
                                        const char *a_hash_out_type, uint256_t a_value_fee)
 {
     uint256_t l_net_fee = {};
     uint256_t l_value_need = a_emission_value;
+    uint256_t l_value_transfer = {};
     dap_chain_addr_t l_addr_fee = {};
-    dap_chain_tx_out_cond_t *l_tx_out_fee;
+    dap_chain_addr_t* l_addr_from = NULL;
+    dap_chain_tx_out_cond_t *l_tx_out_fee = NULL;
+    dap_chain_tx_out_ext_t * l_out_ext_fee_net;
     dap_chain_tx_out_t *l_out_fee_net;
+    dap_chain_tx_in_t *l_in;
+    dap_list_t *l_list_used_out;
+    const char *l_native_ticker = dap_chain_net_by_id(a_chain->net_id)->pub.native_ticker;
+    bool not_native = dap_strcmp(a_ticker, l_native_ticker);
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_chain->net_id, &l_net_fee, &l_addr_fee);
-    if(l_net_fee_used)
-        SUBTRACT_256_256(l_value_need, l_net_fee, &l_value_need);
     if (!IS_ZERO_256(a_value_fee))
         SUBTRACT_256_256(l_value_need, a_value_fee, &l_value_need);
-    //dap_ledger_t * l_ledger = a_chain->net_name ? dap_chain_ledger_by_net_name( a_chain->net_name ) : NULL;
-    // create first transaction (with tx_token)
+
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
     l_tx->header.ts_created = time(NULL);
-    dap_chain_hash_fast_t l_tx_prev_hash = { 0 };
+
     // list of transaction with 'out' items
-    //dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(l_ledger, a_ticker,
-    //                                                                         &l_addr_from, l_value_need, &l_value_transfer);
+
     // create items
-    dap_chain_tx_token_t *l_tx_token = dap_chain_datum_tx_item_token_create(a_emission_chain_id, a_emission_hash, a_ticker);
-    dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(&l_tx_prev_hash, 0);
-    dap_chain_tx_out_t *l_out = dap_chain_datum_tx_item_out_create(a_addr_to, l_value_need);
-    if (!IS_ZERO_256(a_value_fee))
-        l_tx_out_fee = dap_chain_datum_tx_item_out_cond_create_fee(a_value_fee);
-    if(l_net_fee_used)
+    dap_chain_tx_out_t      *l_out;
+    dap_chain_tx_out_ext_t  *l_out_ext;
+    dap_chain_tx_out_ext_t  *l_out_back;
+    if (not_native)
+    {
+        l_addr_from = DAP_NEW_Z(dap_chain_addr_t);
+        dap_chain_addr_fill_from_key(l_addr_from, a_key_from, a_chain->net_id);
+        if(!l_addr_from){
+            log_it(L_WARNING,"Can't fill address from transfer");
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+        l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(a_chain->ledger, l_native_ticker,
+                                                                                 l_addr_from, l_net_fee, &l_value_transfer);
+        if (!l_list_used_out) {
+            log_it(L_WARNING,"Not enough funds to transfer");
+            DAP_DEL_Z(l_addr_from);
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+        //add in
+        uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
+        assert(EQUAL_256(l_value_to_items, l_value_transfer));
+        dap_list_free_full(l_list_used_out, NULL);
+
+         //add out
+        l_out_ext = dap_chain_datum_tx_item_out_ext_create(a_addr_to, l_value_need, a_ticker);
+        if(l_net_fee_used){
+             // Network fee
+             l_out_ext_fee_net = dap_chain_datum_tx_item_out_ext_create(&l_addr_fee, l_net_fee,l_native_ticker);
+             uint256_t l_value_back = {}; // how much datoshi add to 'out' items
+
+             SUBTRACT_256_256(l_value_transfer, l_net_fee, &l_value_back);
+             // coin back
+             l_out_back = dap_chain_datum_tx_item_out_ext_create(l_addr_from, l_value_back, l_native_ticker);
+        }
+    }
+    else
+    {//nativ ticker
+        if(l_net_fee_used)
+            SUBTRACT_256_256(l_value_need, l_net_fee, &l_value_need);
+        l_out = dap_chain_datum_tx_item_out_create(a_addr_to, l_value_need);
         l_out_fee_net = dap_chain_datum_tx_item_out_create(&l_addr_fee, l_net_fee);
+    }
+    dap_chain_tx_in_ems_t    *l_tx_token = dap_chain_datum_tx_item_token_create(a_emission_chain_id, a_emission_hash, a_ticker);
+    if (!IS_ZERO_256(a_value_fee))
+        l_tx_out_fee = dap_chain_datum_tx_item_out_cond_create_fee(a_value_fee);// Validator's fee
 
     // pack items to transaction
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_tx_token);
-    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in);
-    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out);
     if (!IS_ZERO_256(a_value_fee))
         dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_tx_out_fee);
-    if(l_net_fee_used)
-        dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_fee_net);
+    if(not_native)
+    {
+        dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_ext);
+        if(l_net_fee_used)
+        {
+            dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_ext_fee_net);
+            dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_back);
+        }        
+    }
+    else
+        if(l_net_fee_used)
+        {
+            dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out);
+            dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_fee_net);
+        }
 
-    if (a_certs) {
-        // Sign all that we have with certs
-        for(size_t i = 0; i < a_certs_count; i++) {
-            if(dap_chain_datum_tx_add_sign_item(&l_tx, a_certs[i]->enc_key) < 0) {
-                log_it(L_WARNING, "No private key for certificate '%s'", a_certs[i]->name);
+    if (not_native)
+    {
+        if(a_key_from)
+            if(dap_chain_datum_tx_add_sign_item(&l_tx, a_key_from) < 0) {
+                log_it(L_WARNING, "No private key for sign");
                 return NULL;
             }
+    }
+    else{
+        if (a_certs) {
+            for(size_t i = 0; i < a_certs_count; i++) {
+                if(dap_chain_datum_tx_add_sign_item(&l_tx, a_certs[i]->enc_key) < 0) {
+                    log_it(L_WARNING, "No private key for certificate '%s'", a_certs[i]->name);
+                    return NULL;
+                }
+            }
         }
+        else
+            if(a_key_from)
+                if(dap_chain_datum_tx_add_sign_item(&l_tx, a_key_from) < 0) {
+                    log_it(L_WARNING, "No private key for sign");
+                    return NULL;
+                }
     }
 
-    DAP_DEL_Z(l_tx_token);
-    DAP_DEL_Z(l_in);
-    DAP_DEL_Z(l_out);
-    if (!IS_ZERO_256(a_value_fee))
+    DAP_DEL_Z(l_tx_token);    
+    if (l_tx_out_fee)
         DAP_DEL_Z(l_tx_out_fee);
-    if(l_net_fee_used)
-        DAP_DEL_Z(l_out_fee_net);
+    if(not_native)
+    {
+        DAP_DEL_Z(l_addr_from);
+        DAP_DEL_Z(l_out_ext);
+         if(l_net_fee_used)
+         {
+             DAP_DEL_Z(l_out_ext_fee_net);
+             DAP_DEL_Z(l_out_back);
+         }
+         else
+             if(l_net_fee_used)
+             {
+                 DAP_DEL_Z(l_out);
+                 DAP_DEL_Z(l_out_fee_net);
+             }
+    }
 
     size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
 
