@@ -33,6 +33,7 @@
 #include "dap_enc_tesla.h"
 #include "dap_enc_picnic.h"
 #include "dap_enc_dilithium.h"
+#include "dap_enc_falcon.h"
 #include "dap_list.h"
 
 #define LOG_TAG "dap_sign"
@@ -60,6 +61,7 @@ size_t dap_sign_create_output_unserialized_calc_size(dap_enc_key_t * a_key, size
         case DAP_ENC_KEY_TYPE_SIG_PICNIC: l_sign_size = dap_enc_picnic_calc_signature_size(a_key); break;
         case DAP_ENC_KEY_TYPE_SIG_TESLA: l_sign_size = dap_enc_tesla_calc_signature_size(); break;
         case DAP_ENC_KEY_TYPE_SIG_DILITHIUM: l_sign_size = dap_enc_dilithium_calc_signature_unserialized_size(); break;
+        case DAP_ENC_KEY_TYPE_SIG_FALCON: l_sign_size = dap_enc_falcon_calc_signature_unserialized_size(); break;
         default : return 0;
 
     }
@@ -82,6 +84,7 @@ dap_sign_type_t dap_sign_type_from_key_type( dap_enc_key_type_t a_key_type)
         case DAP_ENC_KEY_TYPE_SIG_PICNIC: l_sign_type.type = SIG_TYPE_PICNIC; break;
         case DAP_ENC_KEY_TYPE_SIG_TESLA: l_sign_type.type = SIG_TYPE_TESLA; break;
         case DAP_ENC_KEY_TYPE_SIG_DILITHIUM: l_sign_type.type = SIG_TYPE_DILITHIUM; break;
+        case DAP_ENC_KEY_TYPE_SIG_FALCON: l_sign_type.type = SIG_TYPE_FALCON; break;
         default: l_sign_type.raw = 0;
     }
     return l_sign_type;
@@ -99,6 +102,7 @@ dap_enc_key_type_t  dap_sign_type_to_key_type(dap_sign_type_t  a_chain_sign_type
         case SIG_TYPE_TESLA: return DAP_ENC_KEY_TYPE_SIG_TESLA;
         case SIG_TYPE_PICNIC: return DAP_ENC_KEY_TYPE_SIG_PICNIC;
         case SIG_TYPE_DILITHIUM: return DAP_ENC_KEY_TYPE_SIG_DILITHIUM;
+        case SIG_TYPE_FALCON: return DAP_ENC_KEY_TYPE_SIG_FALCON;
         default: return DAP_ENC_KEY_TYPE_INVALID;
     }
 }
@@ -118,6 +122,7 @@ const char * dap_sign_type_to_str(dap_sign_type_t a_chain_sign_type)
         case SIG_TYPE_TESLA: return "sig_tesla";
         case SIG_TYPE_PICNIC: return "sig_picnic";
         case SIG_TYPE_DILITHIUM: return "sig_dil";
+        case SIG_TYPE_FALCON: return "sig_falcon";
         case SIG_TYPE_MULTI_COMBINED: return "sig_multi2";
         case SIG_TYPE_MULTI_CHAINED: return "sig_multi";
         default: return "UNDEFINED";//DAP_ENC_KEY_TYPE_NULL;
@@ -163,6 +168,8 @@ dap_sign_type_t dap_sign_type_from_str(const char * a_type_str)
         l_sign_type.type = SIG_TYPE_PICNIC;
     }else if ( dap_strcmp (a_type_str,"sig_dil") == 0){
         l_sign_type.type = SIG_TYPE_DILITHIUM;
+    } else if (dap_strcmp(a_type_str, "sig_falcon") == 0) {
+        l_sign_type.type = SIG_TYPE_FALCON;
     }else if ( dap_strcmp (a_type_str,"sig_multi") == 0){
         l_sign_type.type = SIG_TYPE_MULTI_CHAINED;
     }else if ( dap_strcmp (a_type_str,"sig_multi2") == 0){
@@ -194,6 +201,7 @@ static int dap_sign_create_output(dap_enc_key_t *a_key, const void * a_data, con
         case DAP_ENC_KEY_TYPE_SIG_TESLA:
         case DAP_ENC_KEY_TYPE_SIG_PICNIC:
         case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
+        case DAP_ENC_KEY_TYPE_SIG_FALCON:
                 // For PICNIC a_output_size should decrease
             //*a_output_size = dap_enc_sig_dilithium_get_sign(a_key,a_data,a_data_size,a_output,sizeof(dilithium_signature_t));
             a_key->enc_na(a_key, a_data, a_data_size, a_output, *a_output_size);
@@ -465,6 +473,7 @@ int dap_sign_verify(dap_sign_t * a_chain_sign, const void * a_data, const size_t
         case DAP_ENC_KEY_TYPE_SIG_TESLA:
         case DAP_ENC_KEY_TYPE_SIG_PICNIC:
         case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
+        case DAP_ENC_KEY_TYPE_SIG_FALCON:
             if((ssize_t)l_key->dec_na(l_key, l_verify_data, l_verify_data_size, l_sign_data, l_sign_data_size) < 0)
                 l_ret = 0;
             else

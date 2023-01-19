@@ -39,6 +39,7 @@ enum dap_sign_type_enum {
     SIG_TYPE_TESLA = 0x0003, /// @brief
     SIG_TYPE_PICNIC = 0x0101, /// @brief
     SIG_TYPE_DILITHIUM = 0x0102, /// @brief
+    SIG_TYPE_FALCON = 0x0103, /// @brief Falcon signature
     SIG_TYPE_MULTI_CHAINED = 0x0f00, ///  @brief Has inside subset of different signatures and sign composed with all of them
     SIG_TYPE_MULTI_COMBINED = 0x0f01 ///  @brief Has inside subset of different public keys and sign composed with all of appropriate private keys
 };
