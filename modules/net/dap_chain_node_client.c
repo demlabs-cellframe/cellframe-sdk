@@ -113,6 +113,8 @@ void dap_chain_node_client_deinit()
 
 static bool s_timer_node_reconnect(void *a_arg)
 {
+    if (!a_arg)
+        return false;
     dap_chain_node_client_t *l_me = a_arg;
     if (l_me->keep_connection && l_me->state == NODE_CLIENT_STATE_DISCONNECTED) {
         if (dap_client_get_stage(l_me->client) == STAGE_BEGIN) {
@@ -181,9 +183,6 @@ static void s_node_client_connected_synchro_start_callback(dap_worker_t *a_worke
  */
 dap_chain_node_sync_status_t dap_chain_node_client_start_sync(dap_chain_node_client_t *a_node_client)
 {
-    dap_worker_t * l_worker = dap_worker_get_current();
-    if (!l_worker)
-        return NODE_SYNC_STATUS_FAILED;
     assert(a_node_client);
     // check if esocket still in worker
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(a_node_client->stream_worker, a_node_client->ch_chain_uuid);
@@ -221,8 +220,9 @@ dap_chain_node_sync_status_t dap_chain_node_client_start_sync(dap_chain_node_cli
  */
 static bool s_timer_update_states_callback(void *a_arg)
 {
+    if (!a_arg)
+        return false;
     dap_chain_node_client_t *l_me = a_arg;
-    assert(l_me);
     dap_chain_node_sync_status_t l_status = dap_chain_node_client_start_sync(l_me);
     if (l_status == NODE_SYNC_STATUS_FAILED) {
         l_me->state = NODE_CLIENT_STATE_DISCONNECTED;
@@ -494,11 +494,13 @@ static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_ch
             if(s_stream_ch_chain_debug_more)
                 log_it(L_INFO,"Out: chain %"DAP_UINT64_FORMAT_x" sent to uplink "NODE_ADDR_FP_STR,l_node_client->cur_chain ? l_node_client->cur_chain->id.uint64 : 0, NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr));
         } break;
-        case DAP_STREAM_CH_CHAIN_PKT_TYPE_TIMEOUT: {
+        case DAP_STREAM_CH_CHAIN_PKT_TYPE_TIMEOUT:
+        case DAP_STREAM_CH_CHAIN_PKT_TYPE_DELETE: {
             dap_chain_net_t *l_net = l_node_client->net;
             assert(l_net);
             dap_chain_node_addr_t *l_node_addr = dap_chain_net_get_cur_addr(l_net);
-            log_it(L_DEBUG, "In: State node %s."NODE_ADDR_FP_STR" is timeout for sync", l_net->pub.name, NODE_ADDR_FP_ARGS(l_node_addr));
+            log_it(L_DEBUG, "In: State node %s."NODE_ADDR_FP_STR" %s", l_net->pub.name, NODE_ADDR_FP_ARGS(l_node_addr),
+                            a_pkt_type == DAP_STREAM_CH_CHAIN_PKT_TYPE_TIMEOUT ? "is timeout for sync" : "stream closed");
             l_node_client->state = NODE_CLIENT_STATE_ERROR;
             dap_timerfd_reset(l_node_client->sync_timer);
             bool l_have_waiting = dap_chain_net_sync_unlock(l_net, l_node_client);
@@ -509,11 +511,7 @@ static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_ch
                     dap_chain_net_state_go_to(l_net, NET_STATE_OFFLINE);
             }
         } break;
-        case DAP_STREAM_CH_CHAIN_PKT_TYPE_DELETE: {
-            dap_chain_node_client_close_unsafe(l_node_client);
-        } break;
-        default: {
-        }
+        default:;
     }
 }
 
@@ -740,7 +738,7 @@ bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const
         return false;
     }
     dap_client_set_uplink_unsafe(a_node_client->client, l_host_addr, a_node_client->info->hdr.ext_port);
-    a_node_client->state = NODE_CLIENT_STATE_CONNECTING ;
+    a_node_client->state = NODE_CLIENT_STATE_CONNECTING;
     // Handshake & connect
     dap_client_go_stage(a_node_client->client, STAGE_STREAM_STREAMING, s_stage_connected_callback);
     return true;
@@ -766,7 +764,7 @@ void dap_chain_node_client_reset(dap_chain_node_client_t *a_client)
 void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client)
 {
     if (a_node_client->sync_timer) {
-        DAP_DEL_Z(a_node_client->sync_timer->callback_arg);
+        a_node_client->sync_timer->callback_arg = NULL;
         dap_timerfd_delete(a_node_client->sync_timer);
     }
     if (a_node_client->callbacks.delete)
