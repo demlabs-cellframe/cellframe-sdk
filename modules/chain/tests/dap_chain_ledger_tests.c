@@ -49,7 +49,7 @@ dap_chain_datum_tx_t *dap_chain_ledger_test_create_datum_base_tx(
     l_tx->header.ts_created = time(NULL);
     dap_chain_hash_fast_t l_tx_prev_hash = { 0 };
     dap_chain_datum_token_t *l_token = DAP_NEW_Z(dap_chain_datum_token_t);
-    l_token->header.type = TX_ITEM_TYPE_TOKEN;
+    l_token->header.type = TX_ITEM_TYPE_IN_EMS;
     l_token->header.token_emission_chain_id.uint64 = 0;
     l_token->header.token_emission_hash = *l_emi_hash;
     strcpy(l_token->header.ticker, a_emi->hdr.ticker);
