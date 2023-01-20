@@ -114,6 +114,7 @@
 #include "json-c/json.h"
 #include "json-c/json_object.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
+#include "dap_chain_net_srv_xchange.h"
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -1814,7 +1815,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 l_ret = 0;
             }
             if ( strcmp(l_get_str, "fee") == 0) {
-                dap_string_t *l_str = NULL;
+                dap_string_t *l_str = dap_string_new("\0");
                 // Network fee
                 uint256_t l_network_fee = {};
                 dap_chain_addr_t l_network_fee_addr = {};
@@ -1832,6 +1833,9 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
 
                 //Get validators fee
                 dap_chain_net_srv_stake_get_fee_validators(l_net, l_str);
+                //Get services fee
+                dap_string_append_printf(l_str, "Services fee: \n");
+                dap_chain_net_srv_xchange_print_fee(l_net, l_str); //Xchaneg fee
 
                 *a_str_reply = dap_string_free(l_str, false);
                 l_ret = 0;
