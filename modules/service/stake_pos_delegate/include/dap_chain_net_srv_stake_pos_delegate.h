@@ -27,6 +27,7 @@
 #include "dap_chain_ledger.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_order.h"
+#include "dap_math_ops.h"
 
 #define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID 0x13
 
@@ -60,3 +61,5 @@ void dap_chain_net_srv_stake_pos_delegate_deinit();
 bool dap_chain_net_srv_stake_validator(dap_chain_addr_t *a_addr, dap_chain_datum_t *a_datum);
 bool dap_chain_net_srv_stake_key_delegated(dap_chain_addr_t *a_addr);
 dap_list_t *dap_chain_net_srv_stake_get_validators();
+
+void dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net, dap_string_t *a_string);
