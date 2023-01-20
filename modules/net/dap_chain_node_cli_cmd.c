@@ -4745,7 +4745,7 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-from_wallet", &l_from_wallet_name);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-wallet_fee", &l_wallet_fee_name);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-from_emission", &l_emission_hash_str);
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-emission_chain", &l_emission_chain_name);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain_emission", &l_emission_chain_name);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-to_addr", &addr_base58_to);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-token", &l_token_ticker);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_name);
@@ -4816,16 +4816,6 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
                                                          "to be a valid chain name or set default datum type in chain configuration file");
             return -9;
         }
-        if(!l_certs_str) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_create requires parameter '-certs'");
-            return -4;
-        }
-        dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
-        if(!l_certs_count) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                    "tx_create requires at least one valid certificate to sign the basic transaction of emission");
-            return -5;
-        }
 
         const char *l_native_ticker = l_net->pub.native_ticker;
         bool not_native = dap_strcmp(l_token_ticker, l_native_ticker);
@@ -4834,6 +4824,19 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
         if((!l_wallet_fee)&&(not_native)) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "wallet %s does not exist", l_wallet_fee_name);
             return -9;
+        }
+
+        if(!l_wallet_fee){
+            if(!l_certs_str) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_create requires parameter '-certs'");
+                return -4;
+            }
+            dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
+            if(!l_certs_count) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply,
+                        "tx_create requires at least one valid certificate to sign the basic transaction of emission");
+                return -5;
+            }
         }
     }
 

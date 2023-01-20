@@ -703,25 +703,16 @@ char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast
     dap_chain_addr_t l_addr_fee = {};
     dap_chain_addr_t* l_addr_from = NULL;
     dap_chain_tx_out_cond_t *l_tx_out_fee = NULL;
-    dap_chain_tx_out_ext_t * l_out_ext_fee_net;
     dap_chain_tx_out_t *l_out_fee_net;
     dap_chain_tx_in_t *l_in;
     dap_list_t *l_list_used_out;
     const char *l_native_ticker = dap_chain_net_by_id(a_chain->net_id)->pub.native_ticker;
     bool not_native = dap_strcmp(a_ticker, l_native_ticker);
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_chain->net_id, &l_net_fee, &l_addr_fee);
-    if (!IS_ZERO_256(a_value_fee))
-        SUBTRACT_256_256(l_value_need, a_value_fee, &l_value_need);
 
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
     l_tx->header.ts_created = time(NULL);
 
-    // list of transaction with 'out' items
-
-    // create items
-    dap_chain_tx_out_t      *l_out;
-    dap_chain_tx_out_ext_t  *l_out_ext;
-    dap_chain_tx_out_ext_t  *l_out_back;
     if (not_native)
     {
         l_addr_from = DAP_NEW_Z(dap_chain_addr_t);
@@ -731,6 +722,7 @@ char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast
             dap_chain_datum_tx_delete(l_tx);
             return NULL;
         }
+            // list of transaction with 'out' items
         l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(a_chain->ledger, l_native_ticker,
                                                                                  l_addr_from, l_net_fee, &l_value_transfer);
         if (!l_list_used_out) {
@@ -745,48 +737,64 @@ char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast
         dap_list_free_full(l_list_used_out, NULL);
 
          //add out
-        l_out_ext = dap_chain_datum_tx_item_out_ext_create(a_addr_to, l_value_need, a_ticker);
+        uint256_t l_value_back = l_value_transfer; // how much datoshi add to 'out' items
+        if (!dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_to, l_value_need, a_ticker)){
+            dap_chain_datum_tx_delete(l_tx);
+            DAP_DEL_Z(l_addr_from);
+            return NULL;
+        }
         if(l_net_fee_used){
              // Network fee
-             l_out_ext_fee_net = dap_chain_datum_tx_item_out_ext_create(&l_addr_fee, l_net_fee,l_native_ticker);
-             uint256_t l_value_back = {}; // how much datoshi add to 'out' items
-
-             SUBTRACT_256_256(l_value_transfer, l_net_fee, &l_value_back);
-             // coin back
-             l_out_back = dap_chain_datum_tx_item_out_ext_create(l_addr_from, l_value_back, l_native_ticker);
+            if (!dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_fee, l_net_fee, l_native_ticker)){
+                dap_chain_datum_tx_delete(l_tx);
+                DAP_DEL_Z(l_addr_from);
+                return NULL;
+            }
+            SUBTRACT_256_256(l_value_back, l_net_fee, &l_value_back);
         }
+        if (!IS_ZERO_256(a_value_fee))
+            SUBTRACT_256_256(l_value_back, a_value_fee, &l_value_back);
+        // coin back
+        if (!dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_from, l_value_back, l_native_ticker)){
+            dap_chain_datum_tx_delete(l_tx);
+            DAP_DEL_Z(l_addr_from);
+            return NULL;
+        }
+        DAP_DEL_Z(l_addr_from);
     }
     else
     {//nativ ticker
+        if (!IS_ZERO_256(a_value_fee))
+            SUBTRACT_256_256(l_value_need, a_value_fee, &l_value_need);
         if(l_net_fee_used)
-            SUBTRACT_256_256(l_value_need, l_net_fee, &l_value_need);
-        l_out = dap_chain_datum_tx_item_out_create(a_addr_to, l_value_need);
-        l_out_fee_net = dap_chain_datum_tx_item_out_create(&l_addr_fee, l_net_fee);
+            SUBTRACT_256_256(l_value_need, l_net_fee, &l_value_need);        
+        if (!dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to, l_value_need)){
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
+        if (!dap_chain_datum_tx_add_out_item(&l_tx, &l_addr_fee, l_net_fee)){
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
+        }
     }
+    //in_ems
     dap_chain_tx_in_ems_t    *l_tx_token = dap_chain_datum_tx_item_token_create(a_emission_chain_id, a_emission_hash, a_ticker);
-    if (!IS_ZERO_256(a_value_fee))
-        l_tx_out_fee = dap_chain_datum_tx_item_out_cond_create_fee(a_value_fee);// Validator's fee
-
-    // pack items to transaction
-    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_tx_token);
-    if (!IS_ZERO_256(a_value_fee))
-        dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_tx_out_fee);
-    if(not_native)
-    {
-        dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_ext);
-        if(l_net_fee_used)
-        {
-            dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_ext_fee_net);
-            dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_back);
-        }        
+    if(l_tx_token){
+        dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_tx_token);
+        DAP_DEL_Z(l_tx_token);
     }
     else
-        if(l_net_fee_used)
-        {
-            dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out);
-            dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out_fee_net);
+    {
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    if (!IS_ZERO_256(a_value_fee)){
+        if (!dap_chain_datum_tx_add_fee_item(&l_tx, a_value_fee)){
+            dap_chain_datum_tx_delete(l_tx);
+            return NULL;
         }
-
+    }
+    //sign item
     if (not_native)
     {
         if(a_key_from)
@@ -810,26 +818,6 @@ char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast
                     log_it(L_WARNING, "No private key for sign");
                     return NULL;
                 }
-    }
-
-    DAP_DEL_Z(l_tx_token);    
-    if (l_tx_out_fee)
-        DAP_DEL_Z(l_tx_out_fee);
-    if(not_native)
-    {
-        DAP_DEL_Z(l_addr_from);
-        DAP_DEL_Z(l_out_ext);
-         if(l_net_fee_used)
-         {
-             DAP_DEL_Z(l_out_ext_fee_net);
-             DAP_DEL_Z(l_out_back);
-         }
-         else
-             if(l_net_fee_used)
-             {
-                 DAP_DEL_Z(l_out);
-                 DAP_DEL_Z(l_out_fee_net);
-             }
     }
 
     size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
