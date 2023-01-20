@@ -56,6 +56,7 @@ dap_chain_datum_tx_t *dap_chain_ledger_test_create_datum_base_tx(
     dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(&l_tx_prev_hash, 0);
     dap_chain_tx_out_t *l_out = dap_chain_datum_tx_item_out_create(&a_addr_to, a_emi->hdr.value_256);
 
+
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_token);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out);
