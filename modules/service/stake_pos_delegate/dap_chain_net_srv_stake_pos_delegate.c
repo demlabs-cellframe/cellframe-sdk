@@ -1361,7 +1361,7 @@ void dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net, dap_stri
         }
     }
     uint256_t t = {0};
-    if (!IS_ZERO_256(l_average)) DIV_256_COIN(l_average, dap_chain_uint256_from(l_order_fee_count), &t);
+    if (!IS_ZERO_256(l_average)) DIV_256(l_average, dap_chain_uint256_from(l_order_fee_count), &t);
     dap_global_db_objs_delete(l_orders, l_orders_count);
     DAP_DELETE( l_gdb_group_str);
     const char *l_native_token  =  a_net->pub.native_ticker;
