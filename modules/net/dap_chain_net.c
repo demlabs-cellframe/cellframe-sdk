@@ -3286,7 +3286,12 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
             }
 
 
+
             switch(l_decree->header.type){
+                case DAP_CHAIN_DATUM_DECREE_TYPE_COMMON:{
+
+                    break;
+                }
                 case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:{
                     dap_chain_net_srv_t * l_srv = dap_chain_net_srv_get(l_decree->header.srv_id);
                     if(l_srv){

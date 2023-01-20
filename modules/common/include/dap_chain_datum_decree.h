@@ -29,15 +29,18 @@
 
 // Governance decree
 typedef struct dap_chain_datum_decree {
+    uint16_t decree_version;
     struct {
         dap_time_t ts_created;
         uint16_t type;
+        uint16_t sub_type;
         union {
             dap_chain_net_srv_uid_t srv_id;
             dap_chain_net_id_t net_id;
             dap_chain_cell_id_t cell_id;
-        };
+        } DAP_ALIGN_PACKED;
         uint16_t action;
+        uint32_t decree_tsd_size;
     } DAP_ALIGN_PACKED header;
     byte_t tsd_sections[];
 } DAP_ALIGN_PACKED dap_chain_datum_decree_t;
@@ -51,5 +54,14 @@ typedef struct dap_chain_datum_decree {
 #define DAP_CHAIN_DATUM_DECREE_ACTION_UPDATE                0x0002
 #define DAP_CHAIN_DATUM_DECREE_ACTION_DELETE                0x0003
 
+// Common decree subtypes
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE              0x0001
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS           0x0002
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN       0x0003
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_TON_SIGNERS      0x0004
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_TON_SIGNERS_MIN  0x0005
 
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGN                0x0001
+
+
+int dap_chain_datum_decree_vify_sign(dap_chain_datum_decree_t *decree);
