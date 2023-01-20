@@ -8,10 +8,10 @@ static const uint64_t s_total_supply = 500;
 static const uint64_t s_standard_value_tx = 500;
 static const char* s_token_ticker = "TestCoins";
 
-dap_chain_datum_token_t  *dap_chain_ledger_test_create_datum_decl(dap_cert_t *a_cert, size_t *a_token_size,
+dap_chain_tx_in_ems_t  *dap_chain_ledger_test_create_datum_decl(dap_cert_t *a_cert, size_t *a_token_size,
                                                                   const char *a_token_ticker, uint256_t a_total_supply,
                                                                   byte_t *a_tsd_section, size_t a_size_tsd_section, uint16_t flags) {
-    dap_chain_datum_token_t *l_token = DAP_NEW_Z(dap_chain_datum_token_t);
+    dap_chain_tx_in_ems_t *l_token = DAP_NEW_Z(dap_chain_tx_in_ems_t);
     l_token->type = DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL;
     dap_snprintf(l_token->ticker, sizeof(l_token->ticker), "%s", a_token_ticker);
     l_token->signs_valid = 1;
@@ -21,17 +21,17 @@ dap_chain_datum_token_t  *dap_chain_ledger_test_create_datum_decl(dap_cert_t *a_
     l_token->header_native_decl.flags = flags;
     if (a_tsd_section && a_size_tsd_section != 0) {
         l_token->header_native_decl.tsd_total_size = a_size_tsd_section;
-        l_token = DAP_REALLOC(l_token, sizeof(dap_chain_datum_token_t) + a_size_tsd_section);
+        l_token = DAP_REALLOC(l_token, sizeof(dap_chain_tx_in_ems_t) + a_size_tsd_section);
         memcpy(l_token->data_n_tsd, a_tsd_section, a_size_tsd_section);
     }
     dap_sign_t * l_sign = dap_cert_sign(a_cert,l_token,
                                         sizeof(*l_token) - sizeof(uint16_t), 0);
     if (l_sign) {
         size_t l_sign_size = dap_sign_get_size(l_sign);
-        l_token = DAP_REALLOC(l_token, sizeof(dap_chain_datum_token_t) + a_size_tsd_section + l_sign_size);
+        l_token = DAP_REALLOC(l_token, sizeof(dap_chain_tx_in_ems_t) + a_size_tsd_section + l_sign_size);
         memcpy(l_token->data_n_tsd + a_size_tsd_section, l_sign, l_sign_size);
         DAP_DELETE(l_sign);
-        *a_token_size = sizeof(dap_chain_datum_token_t) + l_sign_size + a_size_tsd_section;
+        *a_token_size = sizeof(dap_chain_tx_in_ems_t) + l_sign_size + a_size_tsd_section;
         return l_token;
     } else {
         DAP_DEL_Z(l_token);
@@ -48,7 +48,7 @@ dap_chain_datum_tx_t *dap_chain_ledger_test_create_datum_base_tx(
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
     l_tx->header.ts_created = time(NULL);
     dap_chain_hash_fast_t l_tx_prev_hash = { 0 };
-    dap_chain_tx_token_t *l_token = DAP_NEW_Z(dap_chain_tx_token_t);
+    dap_chain_tx_in_ems_t *l_token = DAP_NEW_Z(dap_chain_tx_in_ems_t);
     l_token->header.type = TX_ITEM_TYPE_TOKEN;
     l_token->header.token_emission_chain_id.uint64 = 0;
     l_token->header.token_emission_hash = *l_emi_hash;
@@ -108,7 +108,7 @@ void dap_chain_ledger_test_excess_supply(dap_ledger_t *a_ledger, dap_cert_t *a_c
     uint256_t l_value_first_emi = dap_chain_uint256_from(s_total_supply / 2);
     uint256_t l_value_second_emi = dap_chain_uint256_from(s_total_supply);
     size_t l_decl_size = 0;
-    dap_chain_datum_token_t *l_decl = dap_chain_ledger_test_create_datum_decl(a_cert, &l_decl_size, l_token_ticker,
+    dap_chain_tx_in_ems_t *l_decl = dap_chain_ledger_test_create_datum_decl(a_cert, &l_decl_size, l_token_ticker,
                                                                               dap_chain_uint256_from(s_total_supply), NULL, 0, DAP_CHAIN_DATUM_TOKEN_FLAG_NONE);
     dap_assert_PIF(!dap_chain_ledger_token_add(a_ledger, l_decl, l_decl_size), "Adding token declaration to ledger.");
     dap_chain_datum_token_emission_t *l_femi = dap_chain_datum_emission_create(l_value_first_emi, l_token_ticker, a_addr);
@@ -195,7 +195,7 @@ void dap_chain_ledger_test_write_back_list(dap_ledger_t *a_ledger, dap_cert_t *a
         uint16_t l_flags_decl = 0;
         l_flags_decl |= DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_BLOCKED;
         l_flags_decl |= DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_BLOCKED;
-        dap_chain_datum_token_t *l_decl = dap_chain_ledger_test_create_datum_decl(a_cert, &l_decl_size,
+        dap_chain_tx_in_ems_t *l_decl = dap_chain_ledger_test_create_datum_decl(a_cert, &l_decl_size,
                                                                                   l_token_ticker,
                                                                                   dap_chain_uint256_from(
                                                                                           s_total_supply),
@@ -307,7 +307,7 @@ void dap_chain_ledger_test_write_back_list(dap_ledger_t *a_ledger, dap_cert_t *a
         l_flags_decl |= DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_ALLOWED;
         const char *l_token_ticker = "TestBL";
         size_t l_decl_size = 0;
-        dap_chain_datum_token_t *l_decl = dap_chain_ledger_test_create_datum_decl(a_cert, &l_decl_size,
+        dap_chain_tx_in_ems_t *l_decl = dap_chain_ledger_test_create_datum_decl(a_cert, &l_decl_size,
                                                                                   l_token_ticker,
                                                                                   dap_chain_uint256_from(
                                                                                           s_total_supply),
@@ -368,7 +368,7 @@ void dap_chain_ledger_test_run(void){
     size_t l_seed_ph_size = strlen(l_seed_ph);
     dap_cert_t *l_cert = dap_cert_generate_mem_with_seed("testCert", DAP_ENC_KEY_TYPE_SIG_PICNIC, l_seed_ph, l_seed_ph_size);
     size_t l_token_decl_size = 0;
-    dap_chain_datum_token_t *l_token_decl = dap_chain_ledger_test_create_datum_decl(l_cert,
+    dap_chain_tx_in_ems_t *l_token_decl = dap_chain_ledger_test_create_datum_decl(l_cert,
                                                                                     &l_token_decl_size, s_token_ticker,
                                                                                     dap_chain_uint256_from(s_total_supply), NULL, 0, DAP_CHAIN_DATUM_TOKEN_FLAG_NONE);
     dap_assert_PIF(l_token_decl || l_token_decl_size == 0, "Generate token declaration.");
