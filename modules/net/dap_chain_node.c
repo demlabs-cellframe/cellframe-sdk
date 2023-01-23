@@ -260,7 +260,7 @@ bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_d
             l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION &&
             l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN)
         return true;
-    if (!l_verify_datum)
+    if (!l_verify_datum || l_verify_datum == DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS)
         a_chain->callback_add_datums(a_chain, &a_datum, 1);
     return false;
 }

@@ -421,6 +421,7 @@ static void s_session_timer(void *a_arg) {
 					// round start
 					l_session->state = DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_START;
 					s_session_round_start(l_session);
+                    dap_chain_ledger_start_tps_count(l_session->chain->ledger);
 					dap_chain_node_mempool_process_all(l_session->chain);		/* Not a good idea to do it by timer... */
 					dap_list_free_full(l_session->cur_round.validators_list, free);
 					l_session->cur_round.validators_list = s_get_validators_addr_list(l_session);
