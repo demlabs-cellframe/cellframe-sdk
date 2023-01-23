@@ -233,8 +233,8 @@ typedef struct dap_chain_receipt_info {
     union {
         uint256_t value_datoshi; // Receipt value
         uint64_t value_64;       // Old receipts compliance
-    };
-} dap_chain_receipt_info_t;
+    } DAP_ALIGN_PACKED;
+} DAP_ALIGN_PACKED dap_chain_receipt_info_t;
 
 #ifdef __cplusplus
 extern "C" {
