@@ -298,6 +298,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         return -2;
     }
 
+    dap_chain_hash_fast_t l_tx_new_hash = {0};
     for (size_t i=0; i< a_tx_num ; i++){
         log_it(L_DEBUG, "Prepare tx %zu",i);
         // find the transactions from which to take away coins
@@ -389,13 +390,12 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         // now tx is formed - calc size and hash
         size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx_new);
 
-        dap_chain_hash_fast_t l_tx_new_hash;
         dap_hash_fast(l_tx_new, l_tx_size, &l_tx_new_hash);
         // If we have value back - update balance cache
         if (!IS_ZERO_256(l_value_back)) {
             //log_it(L_DEBUG,"We have value back %"DAP_UINT64_FORMAT_U" now lets see how many outputs we have", l_value_back);
             int l_item_count = 0;
-            dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get( l_tx_new, TX_ITEM_TYPE_OUT,
+            dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get( l_tx_new, TX_ITEM_TYPE_OUT_ALL,
                     &l_item_count);
             dap_list_t *l_list_tmp = l_list_out_items;
             int l_out_idx_tmp = 0; // current index of 'out' item
@@ -404,6 +404,11 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
                 dap_chain_tx_out_t *l_out = l_list_tmp->data;
                 if( ! l_out){
                     log_it(L_WARNING, "Output is NULL, continue check outputs...");
+                    l_out_idx_tmp++;
+                    continue;
+                }
+                if (l_out->header.type == TX_ITEM_TYPE_OUT_COND) {
+                    l_list_tmp = l_list_tmp->next;
                     l_out_idx_tmp++;
                     continue;
                 }
@@ -433,7 +438,8 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         l_objs[i].key = dap_chain_hash_fast_to_str_new(&l_tx_new_hash);
         //continue;
         l_objs[i].value = (uint8_t *)l_datum;
-        l_objs[i].value_len = l_tx_size + sizeof(l_datum->header);
+        l_objs[i].value_len = dap_chain_datum_size(l_datum);
+//        l_objs[i].value_len = l_tx_size + sizeof(l_datum->header);
         log_it(L_DEBUG, "Prepared obj with key %s (value_len = %"DAP_UINT64_FORMAT_U")",
                l_objs[i].key? l_objs[i].key :"NULL" , l_objs[i].value_len );
 
