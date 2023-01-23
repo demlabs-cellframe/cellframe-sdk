@@ -342,6 +342,10 @@ char *dap_chain_net_get_gdb_group_acl(dap_chain_net_t *a_net)
  */
 int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state)
 {
+    if (PVT(a_net)->load_mode) {
+        log_it(L_ERROR, "Can't chage state of loading network '%s'", a_net->pub.name);
+        return -1;
+    }
     pthread_rwlock_wrlock(&PVT(a_net)->states_lock);
     if (PVT(a_net)->state != NET_STATE_OFFLINE){
         PVT(a_net)->state = PVT(a_net)->state_target = NET_STATE_OFFLINE;
@@ -353,8 +357,7 @@ int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_n
     //PVT(a_net)->flags |= F_DAP_CHAIN_NET_SYNC_FROM_ZERO;  // TODO set this flag according to -mode argument from command line
     pthread_rwlock_unlock(&PVT(a_net)->states_lock);
 
-    dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_net_states_proc, a_net);
-    return 0;
+    return dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_net_states_proc, a_net);
 }
 
 dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net)
@@ -1074,7 +1077,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
                                                 s_net_http_link_prepare_success,
                                                 s_net_http_link_prepare_error,
                                                 l_balancer_request,
-                                                NULL);
+                                                NULL) == NULL;
     } else {
         l_link_node_info->hdr.ext_port = DNS_LISTEN_PORT;
         ret = dap_chain_node_info_dns_request(l_balancer_request->worker,
@@ -1313,7 +1316,6 @@ bool dap_chain_net_sync_unlock(dap_chain_net_t *a_net, dap_chain_node_client_t *
         dap_chain_node_client_t *l_link = l_net_pvt->links_queue->data;
         dap_chain_node_sync_status_t l_status = dap_chain_node_client_start_sync(l_link);
         if (l_status != NODE_SYNC_STATUS_WAITING) {
-            DAP_DELETE(l_net_pvt->links_queue->data);
             dap_list_t *l_to_remove = l_net_pvt->links_queue;
             l_net_pvt->links_queue = l_net_pvt->links_queue->next;
             DAP_DELETE(l_to_remove);
