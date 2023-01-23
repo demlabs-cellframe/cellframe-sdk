@@ -54,8 +54,7 @@ typedef enum dap_chain_node_sync_status {
     NODE_SYNC_STATUS_STARTED = 0,
     NODE_SYNC_STATUS_WAITING = 1,
     NODE_SYNC_STATUS_IN_PROGRESS = 2,
-    NODE_SYNC_STATUS_FAILED = -1,
-    NODE_SYNC_STATUS_MISSING = -2
+    NODE_SYNC_STATUS_FAILED = -1
 } dap_chain_node_sync_status_t;
 
 typedef struct dap_chain_node_client dap_chain_node_client_t;
@@ -83,9 +82,6 @@ typedef struct dap_chain_node_client_notify_callbacks {
 
 // state for a client connection
 typedef struct dap_chain_node_client {
-    // Sould be first with current architecture
-    dap_events_socket_uuid_t uuid;
-
     dap_chain_node_client_state_t state;
     bool resync_gdb;
     bool resync_chains;
@@ -171,6 +167,12 @@ DAP_STATIC_INLINE dap_chain_node_client_t* dap_chain_node_client_connect_default
 { return dap_chain_node_client_connect_channels(a_net,a_node_info, "CN"); }
 
 
+DAP_STATIC_INLINE ssize_t dap_chain_node_client_write_unsafe(dap_chain_node_client_t *a_client, const char a_ch_id, uint8_t a_type, void *a_data, size_t a_data_size)
+{ return dap_client_write_unsafe(a_client->client, a_ch_id, a_type, a_data, a_data_size); }
+
+DAP_STATIC_INLINE int dap_chain_node_client_write_mt(dap_chain_node_client_t *a_client, const char a_ch_id, uint8_t a_type, void *a_data, size_t a_data_size)
+{ return dap_client_write_mt(a_client->client, a_ch_id, a_type, a_data, a_data_size); }
+
 dap_chain_node_client_t *dap_chain_node_client_find(dap_events_socket_uuid_t a_uuid);
 
 /**
@@ -180,7 +182,8 @@ void dap_chain_node_client_reset(dap_chain_node_client_t *a_client);
 /**
  * Close connection to server, delete chain_node_client_t with specified UUID
  */
-void dap_chain_node_client_close(dap_events_socket_uuid_t a_uuid);
+void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client);
+void dap_chain_node_client_close_mt(dap_chain_node_client_t *a_node_client);
 
 /**
  * Send stream request to server
@@ -199,7 +202,7 @@ int dap_chain_node_client_wait(dap_chain_node_client_t *a_client, int a_waited_s
 
 int dap_chain_node_client_send_nodelist_req(dap_chain_node_client_t *a_client);
 
-dap_chain_node_sync_status_t dap_chain_node_client_start_sync(dap_events_socket_uuid_t *l_uuid);
+dap_chain_node_sync_status_t dap_chain_node_client_start_sync(dap_chain_node_client_t *a_node_client);
 
 static inline const char * dap_chain_node_client_state_to_str( dap_chain_node_client_state_t a_state)
 {
