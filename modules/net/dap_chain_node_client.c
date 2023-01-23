@@ -789,7 +789,7 @@ void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client)
 #ifndef _WIN32
     pthread_cond_destroy(&a_node_client->wait_cond);
 #else
-    CloseHandle( l_client->wait_cond );
+    CloseHandle( a_node_client->wait_cond );
 #endif
     pthread_mutex_destroy(&a_node_client->wait_mutex);
     a_node_client->client = NULL;
