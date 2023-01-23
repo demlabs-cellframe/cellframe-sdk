@@ -1496,7 +1496,7 @@ dap_string_t *dap_chain_ledger_threshold_hash_info(dap_ledger_t *a_ledger, dap_c
         if (!memcmp(l_threshold_hash,&l_tx_item->tx_hash_fast, sizeof(dap_chain_hash_fast_t))){
             char l_tx_hash_str[70]={0};
             dap_chain_hash_fast_to_str(l_threshold_hash,l_tx_hash_str,sizeof(l_tx_hash_str));
-            dap_string_append(l_str_ret, "Hash was found in ledger tx threshold:");
+            dap_string_append(l_str_ret, "Hash was found in ledger tx threshold: ");
             dap_string_append(l_str_ret, l_tx_hash_str);
             dap_string_append(l_str_ret, "\n");
             return l_str_ret;

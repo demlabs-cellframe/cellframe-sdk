@@ -551,13 +551,16 @@ char *dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
                                                             : dap_chain_tx_out_cond_subtype_to_str(
                                                                   ((dap_chain_tx_out_cond_t *)l_list_out->data)->header.subtype);
                     char *l_value_str = dap_chain_balance_print(l_value);
-                    dap_string_append_printf(l_str_out, "\tsend %s %s to %s\n",
+                    char *l_coins_str = dap_chain_balance_to_coins(l_value);
+                    dap_string_append_printf(l_str_out, "\tsend %s (%s) %s to %s\n",
+                                             l_coins_str,
                                              l_value_str,
                                              l_src_token ? l_src_token : "UNKNOWN",
                                              l_dst_addr_str);
                     if (l_dst_addr)
                         DAP_DELETE(l_dst_addr_str);
                     DAP_DELETE(l_value_str);
+                    DAP_DELETE(l_coins_str);
                 }
                 if (l_dst_addr && !memcmp(l_dst_addr, a_addr, sizeof(dap_chain_addr_t))) {
                     if (!l_header_printed) {
@@ -571,7 +574,9 @@ char *dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
                                                                          : dap_chain_tx_out_cond_subtype_to_str(
                                                                                l_src_subtype));
                     char *l_value_str = dap_chain_balance_print(l_value);
-                    dap_string_append_printf(l_str_out, "\trecv %s %s from %s\n",
+                    char *l_coins_str = dap_chain_balance_to_coins(l_value);
+                    dap_string_append_printf(l_str_out, "\trecv %s (%s) %s from %s\n",
+                                             l_coins_str,
                                              l_value_str,
                                              l_dst_token ? l_dst_token :
                                                            (l_src_token ? l_src_token : "UNKNOWN"),
@@ -579,6 +584,7 @@ char *dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
                     if (l_src_addr)
                         DAP_DELETE(l_src_addr_str);
                     DAP_DELETE(l_value_str);
+                    DAP_DELETE(l_coins_str);
                 }
             }
             dap_list_free(l_list_out_items);
@@ -982,6 +988,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
                 dap_chain_node_cli_set_reply_text(a_str_reply, l_str_ret->str);
                 dap_string_free(l_str_ret, true);
             }
+            return 0;
         }
         if (l_sub_cmd == SUB_CMD_LIST_LEDGER_BALANCE){
             dap_string_t *l_str_ret = dap_chain_ledger_balance_info(l_ledger);

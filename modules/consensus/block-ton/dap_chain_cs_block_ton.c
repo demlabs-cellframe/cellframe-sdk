@@ -669,7 +669,12 @@ static void s_session_candidate_to_chain(
 		            log_it(L_ERROR, "TON: Can't save atom %s to the file", l_candidate_hash_str);
 		        }
 		        else {
-					log_it(L_INFO, "TON: atom %s added in chain successfully", l_candidate_hash_str);
+					log_it(L_INFO, "TON: atom %s processed well", l_candidate_hash_str);
+                    dap_chain_hash_fast_t l_block_hash;
+                    dap_hash_fast(l_candidate, a_candidate_size, &l_block_hash);
+                    char *l_block_hash_str = dap_chain_hash_fast_to_str_new(&l_block_hash);
+                    log_it(L_INFO, "TON: block %s added in chain successfully", l_block_hash_str);
+                    DAP_DELETE(l_block_hash_str);
 		        }
 		    } break;
 		    case ATOM_MOVE_TO_THRESHOLD: {
