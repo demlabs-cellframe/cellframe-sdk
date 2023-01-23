@@ -34,6 +34,7 @@ enum dap_pkey_type_enum {
     PKEY_TYPE_SIGN_TESLA = 0x0902,
     PKEY_TYPE_SIGN_DILITHIUM =  0x0903,
     PKEY_TYPE_SIGN_PICNIC = 0x0102,
+    PKEY_TYPE_SIGN_FALCON = 0x0103,
     PKEY_TYPE_MULTI = 0xffff ///  @brief Has inside subset of different keys
 
 };
@@ -52,6 +53,7 @@ DAP_STATIC_INLINE const char *dap_pkey_type_to_str(dap_pkey_type_t a_type){
         case PKEY_TYPE_SIGN_TESLA: return "PKEY_TYPE_SIGN_TESLA";
         case PKEY_TYPE_SIGN_PICNIC: return "PKEY_TYPE_SIGN_PICNIC";
         case PKEY_TYPE_SIGN_DILITHIUM: return "PKEY_TYPE_SIGN_DILITHIUM";
+        case PKEY_TYPE_SIGN_FALCON: return "PKEY_TYPE_SIGN_FALCON";
         default: return "UNDEFINED";
     }
 }
