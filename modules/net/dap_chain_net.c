@@ -113,6 +113,8 @@
 
 #include "json-c/json.h"
 #include "json-c/json_object.h"
+#include "dap_chain_net_srv_stake_pos_delegate.h"
+#include "dap_chain_net_srv_xchange.h"
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -285,8 +287,8 @@ int dap_chain_net_init()
         "net -net <chain net name> [-mode {update | all}] go {online | offline | sync}\n"
             "\tFind and establish links and stay online. \n"
             "\tMode \"update\" is by default when only new chains and gdb are updated. Mode \"all\" updates everything from zero\n"
-        "net -net <chain net name> get status\n"
-            "\tLook at current status\n"
+        "net -net <chain net name> get {status | fee}\n"
+            "\tDisplays the current current status or current fee.\n"
         "net -net <chain net name> stats {tx | tps} [-from <From time>] [-to <To time>] [-prev_sec <Seconds>] \n"
             "\tTransactions statistics. Time format is <Year>-<Month>-<Day>_<Hours>:<Minutes>:<Seconds> or just <Seconds> \n"
         "net -net <chain net name> [-mode {update | all}] sync {all | gdb | chains}\n"
@@ -1161,13 +1163,16 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
             struct net_link *l_link, *l_link_tmp;
             HASH_ITER(hh, l_net_pvt->net_links, l_link, l_link_tmp) {
                 HASH_DEL(l_net_pvt->net_links, l_link);
-                dap_chain_node_client_close(l_link->client_uuid);
+                if (l_link->link)
+                    dap_chain_node_client_close(l_link->client_uuid);
                 DAP_DEL_Z(l_link->link_info);
+                DAP_DELETE(l_link);
             }
             struct downlink *l_downlink, *l_dltmp;
             HASH_ITER(hh, l_net_pvt->downlinks, l_downlink, l_dltmp) {
                 HASH_DEL(l_net_pvt->downlinks, l_downlink);
                 dap_events_socket_delete_mt(l_downlink->worker->worker, l_downlink->esocket_uuid);
+                DAP_DELETE(l_downlink);
             }
             l_net_pvt->balancer_link_requests = 0;
             l_net_pvt->active_link = NULL;
@@ -1687,7 +1692,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
             dap_string_append(l_string_ret, "\n");
         }
 
-        dap_cli_server_cmd_set_reply_text(a_str_reply, l_string_ret->str);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_ret->str);
         dap_string_free(l_string_ret, true);
         return 0;
     }
@@ -1758,7 +1763,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 dap_string_append_printf( l_ret_str, "\tSpeed:  %.3Lf TPS\n", l_tps );
                 dap_string_append_printf( l_ret_str, "\tTotal:  %"DAP_UINT64_FORMAT_U"\n", l_tx_count );
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_ret_str->str);
-                dap_string_free( l_ret_str, false );
+                dap_string_free(l_ret_str, true);
             } else if (strcmp(l_stats_str, "tps") == 0) {
                 struct timespec l_from_time_acc = {}, l_to_time_acc = {};
                 dap_string_t * l_ret_str = dap_string_new("Transactions per second peak values:\n");
@@ -1775,8 +1780,8 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                     dap_string_append_printf(l_ret_str, "\tSpeed:  %.3Lf TPS\n", l_tps);
                 }
                 dap_string_append_printf(l_ret_str, "\tTotal:  %zu\n", l_tx_num);
-                dap_cli_server_cmd_set_reply_text(a_str_reply, l_ret_str->str);
-                dap_string_free(l_ret_str, false);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_ret_str->str);
+                dap_string_free(l_ret_str, true);
             } else {
                 dap_cli_server_cmd_set_reply_text(a_str_reply,
                                                   "Subcommand 'stats' requires one of parameter: tx, tps\n");
@@ -1807,6 +1812,32 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
         } else if ( l_get_str){
             if ( strcmp(l_get_str,"status") == 0 ) {
                 s_set_reply_text_node_status(a_str_reply, l_net);
+                l_ret = 0;
+            }
+            if ( strcmp(l_get_str, "fee") == 0) {
+                dap_string_t *l_str = dap_string_new("\0");
+                // Network fee
+                uint256_t l_network_fee = {};
+                dap_chain_addr_t l_network_fee_addr = {};
+                dap_chain_net_tx_get_fee(l_net->pub.id, &l_network_fee, &l_network_fee_addr);
+                char *l_network_fee_balance_str = dap_chain_balance_print(l_network_fee);
+                char *l_network_fee_coins_str = dap_chain_balance_to_coins(l_network_fee);
+                char *l_network_fee_addr_str = dap_chain_addr_to_str(&l_network_fee_addr);
+                dap_string_append_printf(l_str, "Fees on %s network:\n"
+                                                "\t Network: %s (%s) %s Addr: %s\n",
+                                                  l_net->pub.name, l_network_fee_coins_str, l_network_fee_balance_str,
+                                                  l_net->pub.native_ticker, l_network_fee_addr_str);
+                DAP_DELETE(l_network_fee_coins_str);
+                DAP_DELETE(l_network_fee_balance_str);
+                DAP_DELETE(l_network_fee_addr_str);
+
+                //Get validators fee
+                dap_chain_net_srv_stake_get_fee_validators(l_net, l_str);
+                //Get services fee
+                dap_string_append_printf(l_str, "Services fee: \n");
+                dap_chain_net_srv_xchange_print_fee(l_net, l_str); //Xchaneg fee
+
+                *a_str_reply = dap_string_free(l_str, false);
                 l_ret = 0;
             }
         } else if ( l_links_str ){
@@ -2633,12 +2664,10 @@ void dap_chain_net_deinit()
     pthread_rwlock_rdlock(&s_net_items_rwlock);
     dap_chain_net_item_t *l_current_item, *l_tmp;
     HASH_ITER(hh, s_net_items, l_current_item, l_tmp) {
-        dap_chain_net_t *l_net = l_current_item->chain_net;
-        dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
-        dap_interval_timer_delete(l_net_pvt->main_timer);
-        DAP_DEL_Z(l_net_pvt);
-        DAP_DEL_Z(l_net);
         HASH_DEL(s_net_items, l_current_item);
+        dap_chain_net_t *l_net = l_current_item->chain_net;
+        dap_interval_timer_delete(PVT(l_net)->main_timer);
+        DAP_DEL_Z(l_net);
         DAP_DEL_Z(l_current_item);
     }
     pthread_rwlock_unlock(&s_net_items_rwlock);

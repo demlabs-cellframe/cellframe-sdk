@@ -545,6 +545,7 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
     dap_chain_hash_fast_t l_atom_hash = {};
     if (l_pkt_item->pkt_data_size == 0 || !l_pkt_item->pkt_data) {
         log_it(L_CRITICAL, "In proc thread got CHAINS stream ch packet with zero data");
+        DAP_DEL_Z(l_pkt_item->pkt_data);
         DAP_DELETE(l_sync_request);
         return true;
     }
@@ -970,14 +971,14 @@ static bool s_chain_timer_callback(void *a_arg)
         s_stream_ch_packet_out(l_ch, NULL);
     // Sending dumb packet with nothing to inform remote thats we're just skiping atoms of GDB's, nothing freezed
     if (l_ch_chain->state == CHAIN_STATE_SYNC_CHAINS && l_ch_chain->sent_breaks >= 3 * DAP_SYNC_TICKS_PER_SECOND) {
+        debug_if(s_debug_more, L_INFO, "Send one chain TSD packet");
         dap_stream_ch_chain_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_TSD,
                                              l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64,
                                              l_ch_chain->request_hdr.cell_id.uint64, NULL, 0);
         l_ch_chain->sent_breaks = 0;
     }
     if (l_ch_chain->state == CHAIN_STATE_SYNC_GLOBAL_DB && l_ch_chain->sent_breaks >= 3 * DAP_SYNC_TICKS_PER_SECOND) {
-        if (s_debug_more)
-            log_it(L_INFO, "Send one global_db TSD packet (rest=%zu/%zu items)",
+        debug_if(s_debug_more, L_INFO, "Send one global_db TSD packet (rest=%zu/%zu items)",
                             dap_db_log_list_get_count_rest(l_ch_chain->request_db_log),
                             dap_db_log_list_get_count(l_ch_chain->request_db_log));
         dap_stream_ch_chain_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_TSD,
