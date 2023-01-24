@@ -2227,11 +2227,7 @@ static void s_message_send(dap_chain_cs_block_ton_session_t *a_session, uint8_t 
     memcpy(l_message->sign_n_message+l_sign_size, a_data, a_data_size);
     l_message->hdr.message_size = a_data_size;
 
-    dap_chain_hash_fast_t l_message_hash;
-    dap_hash_fast(l_message, l_message_size, &l_message_hash);
-
-    dap_stream_ch_chain_voting_message_write(l_net, a_validators, //a_session->cur_round.validators_start,
-                                                &l_message_hash, l_message, l_message_size);
+    dap_stream_ch_chain_voting_message_write(l_net, a_validators, l_message, l_message_size);
     DAP_DELETE(l_message);
 }
 
