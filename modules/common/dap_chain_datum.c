@@ -291,7 +291,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
             DAP_DELETE(l_hash_str);
         } break;
         case TX_ITEM_TYPE_IN_EMS_EXT: {
-            l_hash_tmp = &((dap_chain_tx_token_ext_t*)item)->header.ext_tx_hash;
+            l_hash_tmp = &((dap_chain_tx_in_ems_ext_t*)item)->header.ext_tx_hash;
             if (!dap_strcmp(a_hash_out_type, "hex"))
                 l_hash_str = dap_chain_hash_fast_to_str_new(l_hash_tmp);
             else
@@ -303,12 +303,12 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                          "\t\t Ext net id: 0x%016"DAP_UINT64_FORMAT_x"\n"
                                          "\t\t Ext tx hash: %s\n"
                                          "\t\t Ext tx out idx: %u\n",
-                                     ((dap_chain_tx_token_ext_t*)item)->header.version,
-                                     ((dap_chain_tx_token_ext_t*)item)->header.ticker,
-                                     ((dap_chain_tx_token_ext_t*)item)->header.ext_chain_id.uint64,
-                                     ((dap_chain_tx_token_ext_t*)item)->header.ext_net_id.uint64,
+                                     ((dap_chain_tx_in_ems_ext_t*)item)->header.version,
+                                     ((dap_chain_tx_in_ems_ext_t*)item)->header.ticker,
+                                     ((dap_chain_tx_in_ems_ext_t*)item)->header.ext_chain_id.uint64,
+                                     ((dap_chain_tx_in_ems_ext_t*)item)->header.ext_net_id.uint64,
                                      l_hash_str,
-                                     ((dap_chain_tx_token_ext_t*)item)->header.ext_tx_out_idx);
+                                     ((dap_chain_tx_in_ems_ext_t*)item)->header.ext_tx_out_idx);
             DAP_DELETE(l_hash_str);
         } break;
         case TX_ITEM_TYPE_SIG: {
