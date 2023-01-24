@@ -2431,7 +2431,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
             DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type)
             const char *l_token_ticker = NULL;
             if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX) { // TODO rewrite it for support of multichannel & conditional transactions
-                dap_chain_tx_token_t *obj_token = (dap_chain_tx_token_t*)dap_chain_datum_tx_item_get((dap_chain_datum_tx_t*)l_datum->data, NULL, TX_ITEM_TYPE_TOKEN, NULL);
+                dap_chain_tx_in_ems_t *obj_token = (dap_chain_tx_in_ems_t*)dap_chain_datum_tx_item_get((dap_chain_datum_tx_t*)l_datum->data, NULL, TX_ITEM_TYPE_IN_EMS, NULL);
                 if (obj_token) {
                     l_token_ticker = obj_token->header.ticker;
                 } else {
@@ -3581,9 +3581,10 @@ int com_token_emit(int a_argc, char **a_argv, char **a_str_reply)
 {
     int arg_index = 1;
     const char *str_tmp = NULL;
+    //const char *str_fee = NULL;
     char *l_str_reply_tmp = NULL;
     uint256_t l_emission_value = {};
-
+    //uint256_t l_fee_value = {};
     const char * l_ticker = NULL;
 
     const char * l_addr_str = NULL;
@@ -3620,9 +3621,6 @@ int com_token_emit(int a_argc, char **a_argv, char **a_str_reply)
     if( ! l_net) { // Can't find such network
         return -43;
     }
-
-    int no_base_tx = dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-no_base_tx");
-
     // Token emission
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-emission", &l_emission_hash_str);
 
@@ -3646,9 +3644,9 @@ int com_token_emit(int a_argc, char **a_argv, char **a_str_reply)
                 "token_emit command requres at least one valid certificate to sign the basic transaction of emission");
         return -5;
     }
-
     const char *l_add_sign = NULL;
     dap_chain_addr_t *l_addr = NULL;
+    dap_chain_addr_t *l_addr_from = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, arg_index + 1, "sign", &l_add_sign);
     if (!l_add_sign) {      //Create the emission
         // Emission value
@@ -3707,25 +3705,6 @@ int com_token_emit(int a_argc, char **a_argv, char **a_str_reply)
         }
     }
 
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain_base_tx", &l_chain_base_tx_str);
-
-    if(l_chain_base_tx_str && no_base_tx < 0) {
-        if((l_chain_base_tx = dap_chain_net_get_chain_by_name(l_net, l_chain_base_tx_str)) == NULL) { // Can't find such chain
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                    "token_create requires parameter '-chain_base_tx' to be valid chain name in chain net %s or set default datum type in chain configuration file", l_net->pub.name);
-			DAP_DEL_Z(l_addr);
-            return -47;
-        }
-    } else if (no_base_tx < 0) {
-		if((l_chain_base_tx = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX)) == NULL) { // Can't find such chain
-			dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                      "token_emit requires parameter '-chain_base_tx' to be valid chain name in chain net %s or set default datum type in chain configuration file "
-                                      "but, if you need create emission has no base transaction, use flag '-no_base_tx'", l_net->pub.name);
-
-			DAP_DEL_Z(l_addr);
-			return -47;
-		}
-    }
     if(!l_ticker) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "token_emit requires parameter '-token'");
         DAP_DEL_Z(l_addr);
@@ -3741,13 +3720,10 @@ int com_token_emit(int a_argc, char **a_argv, char **a_str_reply)
 						 l_net->pub.name);
 				return -50;
 			}
-		}
-		// l_chain_emission = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_EMISSION);
+        }
         // Create emission datum
         l_emission = dap_chain_datum_emission_create(l_emission_value, l_ticker, l_addr);
     }
-    //
-    //l_emission->data.type_auth.signs_count += l_certs_size;
     // Then add signs
     for(size_t i = 0; i < l_certs_size; i++)
         l_emission = dap_chain_datum_emission_add_sign(l_certs[i]->enc_key, l_emission);
@@ -3774,21 +3750,8 @@ int com_token_emit(int a_argc, char **a_argv, char **a_str_reply)
         dap_global_db_del_sync(l_gdb_group_mempool_emission, l_emission_hash_str_remove);
         DAP_DEL_Z(l_gdb_group_mempool_emission);
     }
+    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_reply_tmp);
 
-    if(l_chain_base_tx) {
-        char *l_tx_hash_str = dap_chain_mempool_base_tx_create(l_chain_base_tx, &l_emission_hash,
-                                                               l_chain_emission->id, l_emission_value, l_ticker,
-                                                               l_addr, l_certs, l_certs_size, l_hash_out_type);
-        if (l_tx_hash_str)
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nDatum %s with 256bit TX is placed in datum pool",
-                                                    l_str_reply_tmp, l_tx_hash_str);
-        else
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nCan't place TX datum in mempool, examine log files",
-                                                    l_str_reply_tmp);
-        DAP_DEL_Z(l_tx_hash_str);
-    } else{ // if transaction was not specified when emission was added we need output only emission result
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_reply_tmp);
-    }
     DAP_DEL_Z(l_certs);
     DAP_DEL_Z(l_str_reply_tmp);
     DAP_DEL_Z(l_addr);
@@ -4591,9 +4554,9 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
             break;
             //case TX_ITEM_TYPE_PKEY:
                 //break;
-            //case TX_ITEM_TYPE_TOKEN:
+            //case TX_ITEM_TYPE_IN_EMS:
                 //break;
-            //case TX_ITEM_TYPE_TOKEN_EXT:
+            //case TX_ITEM_TYPE_IN_EMS_EXT:
                 //break;
         }
         // Add item to transaction
@@ -4687,6 +4650,7 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
     const char *addr_base58_to = NULL;
     const char *str_tmp = NULL;
     const char * l_from_wallet_name = NULL;
+    const char * l_wallet_fee_name = NULL;
     const char * l_token_ticker = NULL;
     const char * l_net_name = NULL;
     const char * l_chain_name = NULL;
@@ -4698,6 +4662,7 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
     size_t l_certs_count = 0;
     dap_chain_hash_fast_t l_emission_hash = {};
     size_t l_tx_num = 0;
+    dap_chain_wallet_t * l_wallet_fee = NULL;
 
     const char * l_hash_out_type = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
@@ -4711,8 +4676,9 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
     uint256_t l_value = {};
     uint256_t l_value_fee = {};
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-from_wallet", &l_from_wallet_name);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-wallet_fee", &l_wallet_fee_name);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-from_emission", &l_emission_hash_str);
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-emission_chain", &l_emission_chain_name);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain_emission", &l_emission_chain_name);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-to_addr", &addr_base58_to);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-token", &l_token_ticker);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_name);
@@ -4739,7 +4705,7 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
         return -5;
     }
 
-    if(!l_from_wallet_name && !l_emission_hash_str) {
+    if((!l_from_wallet_name && !l_emission_hash_str)||(l_from_wallet_name && l_emission_hash_str)) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_create requires one of parameters '-from_wallet' or '-from_emission'");
         return -1;
     }
@@ -4764,6 +4730,8 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
         return -7;
     }
 
+    const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
+
     dap_chain_t *l_emission_chain = NULL;
     if (l_emission_hash_str) {
         if (dap_chain_hash_fast_from_str(l_emission_hash_str, &l_emission_hash)) {
@@ -4781,15 +4749,27 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
                                                          "to be a valid chain name or set default datum type in chain configuration file");
             return -9;
         }
-        if(!l_certs_str) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_create requires parameter '-certs'");
-            return -4;
+
+        const char *l_native_ticker = l_net->pub.native_ticker;
+        bool not_native = dap_strcmp(l_token_ticker, l_native_ticker);
+
+        l_wallet_fee = dap_chain_wallet_open(l_wallet_fee_name, c_wallets_path);
+        if((!l_wallet_fee)&&(not_native)) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "wallet %s does not exist", l_wallet_fee_name);
+            return -9;
         }
-        dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
-        if(!l_certs_count) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                    "tx_create requires at least one valid certificate to sign the basic transaction of emission");
-            return -5;
+
+        if(!l_wallet_fee){
+            if(!l_certs_str) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_create requires parameter '-certs'");
+                return -4;
+            }
+            dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
+            if(!l_certs_count) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply,
+                        "tx_create requires at least one valid certificate to sign the basic transaction of emission");
+                return -5;
+            }
         }
     }
 
@@ -4816,22 +4796,22 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
     int res = 0;
     if (l_emission_hash_str) {
         char *l_tx_hash_str = dap_chain_mempool_base_tx_create(l_chain, &l_emission_hash, l_emission_chain->id,
-                                                               l_value, l_token_ticker, l_addr_to, l_certs,
-                                                               l_certs_count, l_hash_out_type);
+                                                               l_value, l_token_ticker,dap_chain_wallet_get_key(l_wallet_fee, 0), l_addr_to, l_certs,
+                                                               l_certs_count, l_hash_out_type,l_value_fee);
         if (l_tx_hash_str) {
-            dap_string_append_printf(l_string_ret, "transfer=Ok\ntx_hash=%s\n", l_tx_hash_str);
+            dap_string_append_printf(l_string_ret, "\nDatum %s with 256bit TX is placed in datum pool\n", l_tx_hash_str);
             DAP_DELETE(l_tx_hash_str);
         } else {
-            dap_string_append_printf(l_string_ret, "transfer=False\n");
+            dap_string_append_printf(l_string_ret, "\nCan't place TX datum in mempool, examine log files\n");
             res = -15;
         }
         dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_ret->str);
         dap_string_free(l_string_ret, true);
         DAP_DELETE(l_addr_to);
-        return res;
+        dap_chain_wallet_close(l_wallet_fee);
+        return res;        
     }
 
-    const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
     dap_chain_wallet_t * l_wallet = dap_chain_wallet_open(l_from_wallet_name, c_wallets_path);
 
     if(!l_wallet) {
