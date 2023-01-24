@@ -3027,8 +3027,6 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         }
 
         bound_item->tx_prev_hash = l_tx_prev_hash;
-
-        //bool l_is_blank = dap_hash_fast_is_blank(&l_tx_prev_hash);
         bool l_is_ems = (l_cond_type ==TX_ITEM_TYPE_IN_EMS) ? 1 : 0;
         char l_tx_prev_hash_str[70]={[0]='\0'};
         if (l_is_ems){
@@ -3185,22 +3183,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                         break;
                     }
             }//end else emission
-            //-----------------------------------------------------------------------------------------
-//            if (!l_emission_item) {
-//                debug_if(s_debug_more && !a_from_threshold, L_WARNING, "Emission for tx_token [%s] wasn't found", l_tx_token->header.ticker);
-//                l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION;
-//                break;
-//            }
-
-            // Match the signature of the emission with the transaction
-//            if(!s_tx_match_sign(l_token_emission, a_tx)) {
-//                log_it(L_WARNING, "Base TX is not signed by the same certificate as the emission");
-//                l_err_num = -25;
-//                break;
-//            } // Base TX can be unsigned so temporary disabled
             bound_item->item_emission = l_emission_item;
-            //l_list_bound_items = dap_list_append(l_list_bound_items, bound_item);
-            //break;
         }
         else //It's not the emission TX
         {

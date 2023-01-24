@@ -56,19 +56,14 @@ dap_chain_datum_tx_t *dap_chain_ledger_test_create_datum_base_tx(
     l_in_ems->header.token_emission_chain_id.uint64 = 0;
     l_in_ems->header.token_emission_hash = *l_emi_hash;
     strcpy(l_in_ems->header.ticker, a_emi->hdr.ticker);
-    //dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(&l_tx_prev_hash, 0);
 	SUBTRACT_256_256(l_value_need, l_value_fee, &l_value_need);
     dap_chain_tx_out_t *l_out = dap_chain_datum_tx_item_out_create(&a_addr_to, l_value_need);
-	//dap_chain_tx_out_ext_t *l_tx_out = dap_chain_datum_tx_item_out_ext_create(&a_addr_to, a_emi->hdr.value_256, a_emi->hdr.ticker);
 	dap_chain_tx_out_cond_t *l_tx_out_fee = dap_chain_datum_tx_item_out_cond_create_fee(l_value_fee);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in_ems);
-    //dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out);
-	//dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_tx_out);
 	dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_tx_out_fee);
     dap_chain_datum_tx_add_sign_item(&l_tx, a_cert->enc_key);
     DAP_DEL_Z(l_in_ems);
-    //DAP_DEL_Z(l_in);
     DAP_DEL_Z(l_out);
 	DAP_DEL_Z(l_tx_out_fee);
 

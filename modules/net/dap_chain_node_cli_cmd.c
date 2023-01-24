@@ -3621,20 +3621,6 @@ int com_token_emit(int a_argc, char **a_argv, char **a_str_reply)
     if( ! l_net) { // Can't find such network
         return -43;
     }
-
-    //int no_base_tx = dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-no_base_tx");
-
-    // Validator's fee
-    /*
-    if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &str_fee))
-        l_fee_value = dap_chain_balance_scan(str_fee);
-    if (IS_ZERO_256(l_fee_value)) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "tx_create requires parameter '-fee' to be valid uint256");
-        return -5;
-    }
-    */
-
     // Token emission
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-emission", &l_emission_hash_str);
 
@@ -3643,9 +3629,6 @@ int com_token_emit(int a_argc, char **a_argv, char **a_str_reply)
 
     // Wallet address that recieves the emission
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
-
-    // Wallet address from which the commission is taken for a non-native token
-    //dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr_from", &l_addr_str_f);
 
     // Token ticker
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-token", &l_ticker);
@@ -3661,7 +3644,6 @@ int com_token_emit(int a_argc, char **a_argv, char **a_str_reply)
                 "token_emit command requres at least one valid certificate to sign the basic transaction of emission");
         return -5;
     }
-
     const char *l_add_sign = NULL;
     dap_chain_addr_t *l_addr = NULL;
     dap_chain_addr_t *l_addr_from = NULL;
@@ -3681,11 +3663,6 @@ int com_token_emit(int a_argc, char **a_argv, char **a_str_reply)
             dap_cli_server_cmd_set_reply_text(a_str_reply, "token_emit requires parameter '-addr'");
             return -2;
         }
-/*
-        if(!l_addr_str_f) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "token_emit requires parameter '-addr_from'");
-            return -2;
-        }*/
 
         if(!l_ticker) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "token_emit requires parameter '-token'");
@@ -3698,14 +3675,7 @@ int com_token_emit(int a_argc, char **a_argv, char **a_str_reply)
             dap_cli_server_cmd_set_reply_text(a_str_reply, "address \"%s\" is invalid", l_addr_str);
             return -4;
         }
-/*
-        l_addr_from = dap_chain_addr_from_str(l_addr_str_f);
 
-        if(!l_addr_from) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "address \"%s\" is invalid", l_addr_str_f);
-            return -4;
-        }
-*/
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain_emission", &l_chain_emission_str);
         if(l_chain_emission_str) {
             if((l_chain_emission = dap_chain_net_get_chain_by_name(l_net, l_chain_emission_str)) == NULL) { // Can't find such chain
@@ -3734,26 +3704,7 @@ int com_token_emit(int a_argc, char **a_argv, char **a_str_reply)
             return -31;
         }
     }
-/*
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain_base_tx", &l_chain_base_tx_str);
 
-    if(l_chain_base_tx_str && no_base_tx < 0) {
-        if((l_chain_base_tx = dap_chain_net_get_chain_by_name(l_net, l_chain_base_tx_str)) == NULL) { // Can't find such chain
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                    "token_create requires parameter '-chain_base_tx' to be valid chain name in chain net %s or set default datum type in chain configuration file", l_net->pub.name);
-			DAP_DEL_Z(l_addr);
-            return -47;
-        }
-    } else if (no_base_tx < 0) {
-		if((l_chain_base_tx = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX)) == NULL) { // Can't find such chain
-			dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                      "token_emit requires parameter '-chain_base_tx' to be valid chain name in chain net %s or set default datum type in chain configuration file "
-                                      "but, if you need create emission has no base transaction, use flag '-no_base_tx'", l_net->pub.name);
-
-			DAP_DEL_Z(l_addr);
-			return -47;
-		}
-    }*/
     if(!l_ticker) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "token_emit requires parameter '-token'");
         DAP_DEL_Z(l_addr);
@@ -3769,13 +3720,10 @@ int com_token_emit(int a_argc, char **a_argv, char **a_str_reply)
 						 l_net->pub.name);
 				return -50;
 			}
-		}
-		// l_chain_emission = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_EMISSION);
+        }
         // Create emission datum
         l_emission = dap_chain_datum_emission_create(l_emission_value, l_ticker, l_addr);
     }
-    //
-    //l_emission->data.type_auth.signs_count += l_certs_size;
     // Then add signs
     for(size_t i = 0; i < l_certs_size; i++)
         l_emission = dap_chain_datum_emission_add_sign(l_certs[i]->enc_key, l_emission);
@@ -3803,22 +3751,7 @@ int com_token_emit(int a_argc, char **a_argv, char **a_str_reply)
         DAP_DEL_Z(l_gdb_group_mempool_emission);
     }
     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_reply_tmp);
-/*
-    if(l_chain_base_tx) {
-        char *l_tx_hash_str = dap_chain_mempool_base_tx_create(l_chain_base_tx, &l_emission_hash,
-                                                               l_chain_emission->id, l_emission_value, l_ticker,
-                                                               l_addr_from,l_addr, l_certs, l_certs_size, l_hash_out_type, l_fee_value);
-        if (l_tx_hash_str)
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nDatum %s with 256bit TX is placed in datum pool",
-                                                    l_str_reply_tmp, l_tx_hash_str);
-        else
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nCan't place TX datum in mempool, examine log files",
-                                                    l_str_reply_tmp);
-        DAP_DEL_Z(l_tx_hash_str);
 
-    } else{ // if transaction was not specified when emission was added we need output only emission result
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_reply_tmp);
-    }*/
     DAP_DEL_Z(l_certs);
     DAP_DEL_Z(l_str_reply_tmp);
     DAP_DEL_Z(l_addr);
