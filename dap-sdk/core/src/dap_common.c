@@ -43,6 +43,8 @@
   #include <pthread.h>
   #include <syslog.h>
   #include <signal.h>
+  #include <sys/syscall.h>
+
 
 #else // WIN32
 
@@ -347,6 +349,23 @@ static void *s_log_thread_proc(void *arg) {
     return NULL;
 }
 
+unsigned dap_gettid()
+{
+
+#ifdef DAP_OS_BSD
+    uint64_t l_tid = 0;
+    pthread_threadid_np(pthread_self(),&l_tid);
+    return (unsigned) l_tid;
+#elif defined (DAP_OS_WINDOWS)
+    return (unsigned) GetCurrentThreadId();
+#elif defined(DAP_OS_LINUX)
+    return syscall(SYS_gettid);;
+#else
+#error "Not defined dap_gettid() for your platform"
+#endif
+}
+
+
 #ifdef DAP_SYS_DEBUG
 #ifdef __APPLE__
 #define PID_FMT "%08x"
@@ -357,6 +376,7 @@ uint64_t tid;
     pthread_threadid_np(NULL, &tid);
     return  tid;
 }
+
 #else
 #define PID_FMT "%6d"
 #ifdef DAP_OS_WINDOWS
@@ -407,7 +427,7 @@ struct timespec now;
 
 	olen = snprintf (out, sizeof(out), lfmt, _tm.tm_mday, _tm.tm_mon + 1, 1900 + _tm.tm_year,
 			_tm.tm_hour, _tm.tm_min, _tm.tm_sec, (unsigned) now.tv_nsec/(1024*1024),
-			(unsigned) gettid(), s_log_level_tag[a_ll], a_rtn_name, a_line_no);
+            (unsigned) dap_gettid(), s_log_level_tag[a_ll], a_rtn_name, a_line_no);
 
 
 	if ( 0 < (len = (74 - olen)) )
@@ -466,7 +486,7 @@ struct timespec now;
 
     olen = snprintf (out, sizeof(out), lfmt, _tm.tm_mday, _tm.tm_mon + 1, 1900 + _tm.tm_year,
             _tm.tm_hour, _tm.tm_min, _tm.tm_sec, (unsigned) now.tv_nsec/(1024*1024),
-            (unsigned) gettid(), a_rtn_name, a_line_no, 48, a_var_name, srclen);
+            (unsigned) dap_gettid(), a_rtn_name, a_line_no, 48, a_var_name, srclen);
 
     if(s_log_file)
     {
