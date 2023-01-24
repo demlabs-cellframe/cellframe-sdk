@@ -40,7 +40,7 @@ typedef struct dap_chain_tx_token{
         dap_chain_id_t token_emission_chain_id;
         dap_chain_hash_fast_t token_emission_hash;
     } header; /// Only header's hash is used for verification
-} DAP_ALIGN_PACKED dap_chain_tx_token_t;
+} DAP_ALIGN_PACKED dap_chain_tx_in_ems_t;
 
 
 /**

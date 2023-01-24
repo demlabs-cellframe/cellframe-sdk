@@ -70,8 +70,8 @@ DAP_STATIC_INLINE const char * dap_chain_datum_tx_item_type_to_str(dap_chain_tx_
         case TX_ITEM_TYPE_OUT_EXT: return "TX_ITEM_TYPE_OUT_EXT"; // 256
         case TX_ITEM_TYPE_PKEY: return "TX_ITEM_TYPE_PKEY";
         case TX_ITEM_TYPE_SIG: return "TX_ITEM_TYPE_SIG";
-        case TX_ITEM_TYPE_TOKEN: return "TX_ITEM_TYPE_TOKEN";
-        case TX_ITEM_TYPE_TOKEN_EXT: return "TX_ITEM_TYPE_TOKEN_EXT";
+        case TX_ITEM_TYPE_IN_EMS: return "TX_ITEM_TYPE_IN_EMS";
+        case TX_ITEM_TYPE_IN_EMS_EXT: return "TX_ITEM_TYPE_IN_EMS_EXT";
         case TX_ITEM_TYPE_IN_COND: return "TX_ITEM_TYPE_IN_COND";
         case TX_ITEM_TYPE_OUT_COND: return "TX_ITEM_TYPE_OUT_COND"; // 256
         case TX_ITEM_TYPE_RECEIPT: return "TX_ITEM_TYPE_RECEIPT";
@@ -108,7 +108,7 @@ size_t dap_chain_datum_item_tx_get_size(const void *a_item);
  *
  * return item, NULL Error
  */
-dap_chain_tx_token_t *dap_chain_datum_tx_item_token_create(dap_chain_id_t a_id, dap_chain_hash_fast_t *a_datum_token_hash, const char *a_ticker);
+dap_chain_tx_in_ems_t *dap_chain_datum_tx_item_token_create(dap_chain_id_t a_id, dap_chain_hash_fast_t *a_datum_token_hash, const char *a_ticker);
 
 /**
  * Create item dap_chain_tx_out_old_t

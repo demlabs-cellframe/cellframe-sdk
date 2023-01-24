@@ -92,10 +92,10 @@ static size_t dap_chain_tx_sig_get_size(const dap_chain_tx_sig_t *a_item)
     return size;
 }
 
-static size_t dap_chain_tx_token_get_size(const dap_chain_tx_token_t *a_item)
+static size_t dap_chain_tx_token_get_size(const dap_chain_tx_in_ems_t *a_item)
 {
     (void) a_item;
-    size_t size = sizeof(dap_chain_tx_token_t);
+    size_t size = sizeof(dap_chain_tx_in_ems_t);
     return size;
 }
 
@@ -129,7 +129,7 @@ dap_chain_tx_item_type_t dap_chain_datum_tx_item_str_to_type(const char *a_datum
     else if(!dap_strcmp(a_datum_name, "sign"))
         return TX_ITEM_TYPE_SIG;
     else if(!dap_strcmp(a_datum_name, "token"))
-        return TX_ITEM_TYPE_TOKEN;
+        return TX_ITEM_TYPE_IN_EMS;
     else if(!dap_strcmp(a_datum_name, "in_cond"))
         return TX_ITEM_TYPE_IN_COND;
     else if(!dap_strcmp(a_datum_name, "out_cond"))
@@ -213,8 +213,8 @@ size_t dap_chain_datum_item_tx_get_size(const void *a_item)
     case TX_ITEM_TYPE_SIG: // Transaction signatures
         size = dap_chain_tx_sig_get_size((const dap_chain_tx_sig_t*) a_item);
         break;
-    case TX_ITEM_TYPE_TOKEN: // token item
-        size = dap_chain_tx_token_get_size((const dap_chain_tx_token_t*) a_item);
+    case TX_ITEM_TYPE_IN_EMS: // token item
+        size = dap_chain_tx_token_get_size((const dap_chain_tx_in_ems_t*) a_item);
         break;
     case TX_ITEM_TYPE_TSD:
         size = dap_chain_tx_tsd_get_size((const dap_chain_tx_tsd_t*)a_item);
@@ -230,12 +230,12 @@ size_t dap_chain_datum_item_tx_get_size(const void *a_item)
  *
  * return item, NULL Error
  */
-dap_chain_tx_token_t *dap_chain_datum_tx_item_token_create(dap_chain_id_t a_id, dap_chain_hash_fast_t *a_datum_token_hash, const char *a_ticker)
+dap_chain_tx_in_ems_t *dap_chain_datum_tx_item_token_create(dap_chain_id_t a_id, dap_chain_hash_fast_t *a_datum_token_hash, const char *a_ticker)
 {
     if(!a_ticker)
         return NULL;
-    dap_chain_tx_token_t *l_item = DAP_NEW_Z(dap_chain_tx_token_t);
-    l_item->header.type = TX_ITEM_TYPE_TOKEN;
+    dap_chain_tx_in_ems_t *l_item = DAP_NEW_Z(dap_chain_tx_in_ems_t);
+    l_item->header.type = TX_ITEM_TYPE_IN_EMS;
     l_item->header.token_emission_chain_id.uint64 = a_id.uint64;
     l_item->header.token_emission_hash = *a_datum_token_hash;;
     strncpy(l_item->header.ticker, a_ticker, sizeof(l_item->header.ticker) - 1);
@@ -497,7 +497,9 @@ uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_id
                     (a_type == TX_ITEM_TYPE_OUT_ALL && l_type == TX_ITEM_TYPE_OUT_COND) ||
                     (a_type == TX_ITEM_TYPE_OUT_ALL && l_type == TX_ITEM_TYPE_OUT_EXT) ||
                     (a_type == TX_ITEM_TYPE_IN_ALL && l_type == TX_ITEM_TYPE_IN) ||
-                    (a_type == TX_ITEM_TYPE_IN_ALL && l_type == TX_ITEM_TYPE_IN_COND)) {
+                    (a_type == TX_ITEM_TYPE_IN_ALL && l_type == TX_ITEM_TYPE_IN_COND) ||
+                    (a_type == TX_ITEM_TYPE_IN_ALL && l_type == TX_ITEM_TYPE_IN_EMS) ||
+                    (a_type == TX_ITEM_TYPE_IN_ALL && l_type == TX_ITEM_TYPE_IN_EMS_EXT)) {
                 if(a_item_idx)
                     *a_item_idx = l_item_idx;
                 if(a_item_out_size)

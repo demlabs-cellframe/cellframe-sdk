@@ -275,8 +275,8 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
             DAP_DELETE(l_coins_str);
             DAP_DELETE(l_addr_str);
         } break;
-        case TX_ITEM_TYPE_TOKEN: {
-            l_hash_tmp = &((dap_chain_tx_token_t*)item)->header.token_emission_hash;
+        case TX_ITEM_TYPE_IN_EMS: {
+            l_hash_tmp = &((dap_chain_tx_in_ems_t*)item)->header.token_emission_hash;
             if (!dap_strcmp(a_hash_out_type, "hex"))
                 l_hash_str = dap_chain_hash_fast_to_str_new(l_hash_tmp);
             else
@@ -285,12 +285,12 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                                 "\t\t ticker: %s \n"
                                                 "\t\t token_emission_hash: %s\n"
                                                 "\t\t token_emission_chain_id: 0x%016"DAP_UINT64_FORMAT_x"\n",
-                                                ((dap_chain_tx_token_t*)item)->header.ticker,
+                                                ((dap_chain_tx_in_ems_t*)item)->header.ticker,
                                                 l_hash_str,
-                                                ((dap_chain_tx_token_t*)item)->header.token_emission_chain_id.uint64);
+                                                ((dap_chain_tx_in_ems_t*)item)->header.token_emission_chain_id.uint64);
             DAP_DELETE(l_hash_str);
         } break;
-        case TX_ITEM_TYPE_TOKEN_EXT: {
+        case TX_ITEM_TYPE_IN_EMS_EXT: {
             l_hash_tmp = &((dap_chain_tx_token_ext_t*)item)->header.ext_tx_hash;
             if (!dap_strcmp(a_hash_out_type, "hex"))
                 l_hash_str = dap_chain_hash_fast_to_str_new(l_hash_tmp);
