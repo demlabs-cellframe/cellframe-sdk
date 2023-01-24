@@ -113,7 +113,7 @@ typedef struct dap_stream_ch_chain_pkt_hdr{
             uint8_t padding[7];
         } DAP_ALIGN_PACKED;
         uint64_t ext_id;
-    } DAP_ALIGN_PACKED;
+    }DAP_ALIGN_PACKED;
     dap_chain_net_id_t net_id;
     dap_chain_id_t chain_id;
     dap_chain_cell_id_t cell_id;

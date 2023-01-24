@@ -228,10 +228,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             );
 
     dap_cli_server_cmd_add ("token_emit", com_token_emit, "Token emission",
-                            "token_emit { sign | -token <mempool_token_ticker> -emission_value <value> "
-                            "-addr <addr> [-chain_emission <chain_name>] "
-                            "[-chain_base_tx <chain_name> | use flag '-no_base_tx' if you need create emission has no base transaction] } "
-                            "-net <net_name> -certs <cert list>\n");
+                            "token_emit { sign | -token <mempool_token_ticker> -emission_value <value>"
+                            "-addr <addr> [-chain_emission <chain_name>] -net <net_name> -certs <cert list>\n");
 
     dap_cli_server_cmd_add ("mempool_list", com_mempool_list,
                                         "List mempool (entries or transaction) for (selected chain network or wallet)",
@@ -260,7 +258,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Transaction commands
     dap_cli_server_cmd_add ("tx_create", com_tx_create, "Make transaction",
-            "tx_create -net <net_name> -chain <chain_name> {-from_wallet <wallet_name> -token <token_ticker> -value <value> -to_addr <addr> | -from_emission <emission_hash>} [-fee <addr> -value_fee <val>]\n" );
+            "tx_create -net <net_name> -chain <chain_name> -value <value> -token <token_ticker> -to_addr <addr>"
+            "{-from_wallet <wallet_name> | -from_emission <emission_hash> {-certs <cert list> | -wallet_fee <wallet_name>}} -fee <value>\n");
     dap_cli_server_cmd_add ("tx_create_json", com_tx_create_json, "Make transaction",
                 "tx_create_json -net <net_name> -chain <chain_name> -json <json_file_path>\n" );
     dap_cli_server_cmd_add ("tx_cond_create", com_tx_cond_create, "Make cond transaction",

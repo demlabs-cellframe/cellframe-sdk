@@ -1444,7 +1444,7 @@ static char *dap_chain_mempool_base_tx_for_stake_lock_create(dap_chain_t *a_chai
     dap_chain_hash_fast_t l_tx_prev_hash = { 0 };
     // create items
 
-    dap_chain_tx_token_t *l_tx_token = dap_chain_datum_tx_item_token_create(a_emission_chain_id, a_emission_hash, a_ticker);
+    dap_chain_tx_in_ems_t *l_tx_token = dap_chain_datum_tx_item_token_create(a_emission_chain_id, a_emission_hash, a_ticker);
     dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(&l_tx_prev_hash, 0);
     dap_chain_tx_out_t *l_out = dap_chain_datum_tx_item_out_create(a_addr_to, a_emission_value);
 
