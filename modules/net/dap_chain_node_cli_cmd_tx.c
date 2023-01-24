@@ -1165,11 +1165,9 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
             dap_cli_server_cmd_set_reply_text(a_str_reply, l_str_out->str);
             dap_string_free(l_str_out, true);
             return 0;
-
     }
     // command tx history
     else if(l_cmd == CMD_TX) {
-
         enum { SUBCMD_TX_NONE, SUBCMD_TX_ALL, SUBCMD_TX_ADDR };
         // find subcommand
         int l_subcmd = CMD_NONE;
@@ -1210,7 +1208,6 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
             if(l_page < 1)
                 l_page = 1;
         }
-
 
          // tx all
         if(l_subcmd == SUBCMD_TX_ALL) {
