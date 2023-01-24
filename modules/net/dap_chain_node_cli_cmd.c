@@ -2155,6 +2155,38 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
     return l_datum_token;
 }
 
+static void s_new_cert_signs_add_in_tsd_cycle(dap_cert_t ** a_certs, dap_chain_datum_token_t *a_datum_token,
+                                              size_t a_certs_count){
+
+    uint64_t *l_tsd_size = NULL;
+    if (a_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL)
+        l_tsd_size = &a_datum_token->header_private_update.tsd_total_size;
+    else if (a_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL)
+        l_tsd_size = &a_datum_token->header_native_update.tsd_total_size;
+
+    if (!l_tsd_size) {
+        log_it(L_DEBUG, "It is not possible to add new signatures to this datum, because to. no information about the "
+                        "size of TSD sections.");
+        return;
+    }
+
+
+
+    for (size_t i = 0; i < a_certs_count; i++) {
+        dap_sign_t * l_sign = dap_cert_sign(a_certs[i],  a_datum_token,
+                                            sizeof(*a_datum_token) - sizeof(uint16_t), 0);
+        if (l_sign) {
+            size_t l_sign_size = dap_sign_get_size(l_sign);
+            dap_tsd_t *l_sign_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SIGN_UPDATE, l_sign, l_sign_size);
+            size_t l_sign_tsd_size = dap_tsd_size(l_sign_tsd);
+            a_datum_token = DAP_REALLOC(a_datum_token, sizeof(dap_chain_datum_token_t) + *l_tsd_size + l_sign_tsd_size);
+            memcpy(a_datum_token->data_n_tsd + *l_tsd_size, l_sign_tsd, l_sign_tsd_size);
+            *l_tsd_size += l_sign_tsd_size;
+            log_it(L_DEBUG, "Added signature with new certificates to TSD section.");
+        }
+    }
+}
+
 /**
  * @brief com_token_decl_sign
  * @param argc
@@ -2947,6 +2979,7 @@ typedef struct _dap_sdk_cli_params {
     uint16_t l_signs_emission;
     uint256_t l_total_supply;
     const char* l_decimals_str;
+    const char* l_new_certs_str;
     dap_cli_token_additional_params ext;
 } dap_sdk_cli_params, *pdap_sdk_cli_params;
 
@@ -3060,6 +3093,8 @@ int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_str_repl
 
     // Total supply value
     dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-decimals", &l_params->l_decimals_str);
+    // New certs
+    dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-new_certs", &l_params->l_new_certs_str);
 
     return 0;
 }
@@ -3498,6 +3533,9 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
 	dap_chain_net_t * l_net = NULL;
 	const char * l_hash_out_type = NULL;
 
+    dap_cert_t **l_new_certs = NULL;
+    size_t l_new_certs_count = 0;
+
 	dap_sdk_cli_params* l_params = DAP_NEW_Z(dap_sdk_cli_params);
 
 	if (!l_params)
@@ -3519,6 +3557,9 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
 										  "com_token_update command requres at least one valid certificate to sign token");
 		return -10;
 	}
+
+    // Load new certs list
+    dap_cert_parse_str_list(l_params->l_new_certs_str, &l_new_certs, &l_new_certs_count);
 
 	l_signs_emission = l_params->l_signs_emission;
 	l_signs_total = l_params->l_signs_total;
@@ -3655,6 +3696,7 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
 			log_it(L_DEBUG, "%s token declaration update '%s' initialized", (	l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL
 																		  ||	l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE)	?
 																	 "Private" : "CF20", l_datum_token->ticker);
+            s_new_cert_signs_add_in_tsd_cycle(l_new_certs, l_datum_token, l_new_certs_count);
 		}break;//end
 		case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE: { // 256
 			l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t));
