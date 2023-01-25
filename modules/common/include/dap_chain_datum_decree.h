@@ -33,22 +33,26 @@ typedef struct dap_chain_datum_decree {
     struct {
         dap_time_t ts_created;
         uint16_t type;
-        uint16_t sub_type;
         union {
             dap_chain_net_srv_uid_t srv_id;
-            dap_chain_net_id_t net_id;
-            dap_chain_cell_id_t cell_id;
+            struct {
+                dap_chain_net_id_t net_id;
+                dap_chain_id_t chain_id;
+                dap_chain_cell_id_t cell_id;
+            } DAP_ALIGN_PACKED common_decree_params;
         } DAP_ALIGN_PACKED;
+        uint16_t sub_type;
         uint16_t action;
-        uint32_t decree_tsd_size;
+        uint32_t tsd_size;
     } DAP_ALIGN_PACKED header;
     byte_t tsd_sections[];
 } DAP_ALIGN_PACKED dap_chain_datum_decree_t;
 
+// Decree types
 #define DAP_CHAIN_DATUM_DECREE_TYPE_COMMON                  0x0001
 #define DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE                 0x0002
 
-
+// Action on the decree
 // Create from scratch, reset all previous values
 #define DAP_CHAIN_DATUM_DECREE_ACTION_CREATE                0x0001
 #define DAP_CHAIN_DATUM_DECREE_ACTION_UPDATE                0x0002
@@ -64,4 +68,4 @@ typedef struct dap_chain_datum_decree {
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGN                0x0001
 
 
-int dap_chain_datum_decree_vify_sign(dap_chain_datum_decree_t *decree);
+dap_sign_t* dap_chain_datum_decree_get_sign(dap_chain_datum_decree_t *decree, size_t *sign_max_size);

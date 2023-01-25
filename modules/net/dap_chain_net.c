@@ -3091,7 +3091,9 @@ int dap_chain_net_verify_datum_for_add(dap_chain_net_t *a_net, dap_chain_datum_t
             return dap_chain_ledger_token_decl_add_check( a_net->pub.ledger, (dap_chain_datum_token_t *)a_datum->data, a_datum->header.data_size);
         case DAP_CHAIN_DATUM_TOKEN_EMISSION:
             return dap_chain_ledger_token_emission_add_check( a_net->pub.ledger, a_datum->data, a_datum->header.data_size );
-        default: return 0;
+        case DAP_CHAIN_DATUM_DECREE:
+            return;
+    default: return 0;
     }
 }
 
@@ -3284,28 +3286,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
                 log_it(L_WARNING, "Corrupted decree, size %zd is smaller than ever decree header's size %zd", l_datum_data_size, sizeof(l_decree->header));
                 return -102;
             }
-
-
-
-            switch(l_decree->header.type){
-                case DAP_CHAIN_DATUM_DECREE_TYPE_COMMON:{
-
-                    break;
-                }
-                case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:{
-                    dap_chain_net_srv_t * l_srv = dap_chain_net_srv_get(l_decree->header.srv_id);
-                    if(l_srv){
-                        if(l_srv->callbacks.decree){
-                            dap_chain_net_t * l_net = dap_chain_net_by_id(a_chain->net_id);
-                            l_srv->callbacks.decree(l_srv,l_net,a_chain,l_decree,l_datum_data_size);
-                         }
-                    }else{
-                        log_it(L_WARNING,"Decree for unknown srv uid 0x%016"DAP_UINT64_FORMAT_X , l_decree->header.srv_id.uint64);
-                        return -103;
-                    }
-                }
-                default:;
-            }
+            return dap_chain_net_decree_load(l_decree, a_chain);
         } break;
 
         case DAP_CHAIN_DATUM_TOKEN_DECL:
