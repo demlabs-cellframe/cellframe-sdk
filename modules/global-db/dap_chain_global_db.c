@@ -824,6 +824,7 @@ bool dap_chain_global_db_gr_save(dap_global_db_obj_t* a_objs, size_t a_objs_coun
     for(int i = a_objs_count; i--; store_data_cur++, l_obj_cur++ ) {
         store_data_cur->type = DAP_DB$K_OPTYPE_ADD;
         store_data_cur->key = l_obj_cur->key;
+        store_data_cur->key_len = strlen(l_obj_cur->key);
         store_data_cur->group = (char*) a_group;
         store_data_cur->value = l_obj_cur->value;
         store_data_cur->value_len = l_obj_cur->value_len;
