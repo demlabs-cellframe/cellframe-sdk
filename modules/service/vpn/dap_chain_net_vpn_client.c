@@ -352,7 +352,7 @@ static dap_chain_hash_fast_t* dap_chain_net_vpn_client_tx_cond_hash(dap_chain_ne
  *
  * return: 0 Ok, 1 Ok, <0 Error
  */
-
+// TODO replace it with 256 bit value
 int dap_chain_net_vpn_client_update(dap_chain_net_t *a_net, const char *a_wallet_name, const char *a_str_token,
         uint64_t a_value_datoshi)
 {
@@ -383,11 +383,10 @@ int dap_chain_net_vpn_client_update(dap_chain_net_t *a_net, const char *a_wallet
  *
  * return: 0 Ok, 1 Ok, <0 Error
  */
-
+// TODO replace it with 256 bit value
 int dap_chain_net_vpn_client_get_wallet_info(dap_chain_net_t *a_net, char **a_wallet_name, char **a_str_token,
         uint64_t *a_value_datoshi)
 {
-    size_t l_gdb_group_size = 0;
     char *l_gdb_group = dap_strdup_printf("local.%s", DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
     if(a_wallet_name)
         *a_wallet_name = (char*) dap_global_db_get_sync(l_gdb_group, "wallet_name", NULL, NULL, NULL);
@@ -532,7 +531,7 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_st
     if(l_res) {
         log_it(L_ERROR, "No response from VPN server=%s:%d", a_ipv4_str, a_port);
         // clean client struct
-        dap_chain_node_client_close(s_vpn_client->uuid);
+        dap_chain_node_client_close_mt(s_vpn_client);
         DAP_DELETE(s_node_info);
         s_node_info = NULL;
         return -3;
@@ -578,7 +577,7 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_st
         log_it(L_NOTICE, "Got response from VPN server=%s:%d", a_ipv4_str, a_port);
     }
     // clean client struct
-    dap_chain_node_client_close(s_vpn_client->uuid);
+    dap_chain_node_client_close_mt(s_vpn_client);
     DAP_DELETE(s_node_info);
     s_node_info = NULL;
     if(l_res)
@@ -611,7 +610,7 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
     if(!s_vpn_client) {
         log_it(L_ERROR, "Can't connect to VPN server=%s:%d", a_ipv4_str, a_port);
         // clean client struct
-        dap_chain_node_client_close(s_vpn_client->uuid);
+        dap_chain_node_client_close_mt(s_vpn_client);
         DAP_DELETE(s_node_info);
         s_node_info = NULL;
         return -2;
@@ -622,7 +621,7 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
     if(res) {
         log_it(L_ERROR, "No response from VPN server=%s:%d", a_ipv4_str, a_port);
         // clean client struct
-        dap_chain_node_client_close(s_vpn_client->uuid);
+        dap_chain_node_client_close_mt(s_vpn_client);
         DAP_DELETE(s_node_info);
         s_node_info = NULL;
         return -3;
@@ -661,7 +660,7 @@ int dap_chain_net_vpn_client_stop(void)
 {
     // delete connection with VPN server
     if(s_vpn_client) {
-        dap_chain_node_client_close(s_vpn_client->uuid);
+        dap_chain_node_client_close_mt(s_vpn_client);
         s_vpn_client = NULL;
     }
     DAP_DELETE(s_node_info);

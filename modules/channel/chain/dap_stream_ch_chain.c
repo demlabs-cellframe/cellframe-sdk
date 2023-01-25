@@ -278,10 +278,14 @@ static void s_sync_out_chains_first_worker_callback(dap_worker_t *a_worker, void
     }
 
     dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
+    if (l_ch_chain->state != CHAIN_STATE_UPDATE_CHAINS_REMOTE) {
+        log_it(L_INFO, "Timeout fired before we sent the reply");
+        s_sync_request_delete(l_sync_request);
+        return;
+    }
+
     l_ch_chain->state = CHAIN_STATE_SYNC_CHAINS;
     l_ch_chain->request_atom_iter = l_sync_request->chain.request_atom_iter;
-    l_ch_chain->remote_atoms = l_sync_request->remote_atoms; /// TODO check if they were present here before
-
     dap_chain_node_addr_t l_node_addr = {};
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_sync_request->request_hdr.net_id);
     l_node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
@@ -376,10 +380,14 @@ static void s_sync_out_gdb_first_worker_callback(dap_worker_t *a_worker, void *a
     }
 
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN( l_ch );
-    dap_chain_net_t *l_net = dap_chain_net_by_id(l_ch_chain->request_hdr.net_id);
+    if (l_ch_chain->state != CHAIN_STATE_UPDATE_GLOBAL_DB_REMOTE) {
+        log_it(L_INFO, "Timeout fired before we sent the reply");
+        s_sync_request_delete(l_sync_request);
+        return;
+    }
 
+    dap_chain_net_t *l_net = dap_chain_net_by_id(l_ch_chain->request_hdr.net_id);
     // Add it to outgoing list
-    if (l_ch_chain->request_db_log == NULL) l_ch_chain->request_db_log = l_sync_request->gdb.db_log;
     l_ch_chain->state = CHAIN_STATE_SYNC_GLOBAL_DB;
     dap_chain_node_addr_t l_node_addr = { 0 };
     l_node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
@@ -450,10 +458,9 @@ static bool s_sync_out_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_ar
         l_flags |= F_DB_LOG_ADD_EXTRA_GROUPS;
     if (!l_sync_request->request.id_start)
         l_flags |= F_DB_LOG_SYNC_FROM_ZERO;
-    if (l_ch_chain->request_db_log == NULL)
-        l_ch_chain->request_db_log  = dap_db_log_list_start(l_net, l_sync_request->request.node_addr, l_flags);
-    else
-        dap_db_log_list_rewind(l_ch_chain->request_db_log);
+    if (l_ch_chain->request_db_log != NULL)
+        dap_db_log_list_delete(l_ch_chain->request_db_log);
+    l_ch_chain->request_db_log = dap_db_log_list_start(l_net, l_sync_request->request.node_addr, l_flags);
 
     if (l_ch_chain->request_db_log) {
         if (s_debug_more)
@@ -510,10 +517,9 @@ static bool s_sync_update_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a
         l_flags |= F_DB_LOG_ADD_EXTRA_GROUPS;
     if (!l_sync_request->request.id_start)
         l_flags |= F_DB_LOG_SYNC_FROM_ZERO;
-    if (l_ch_chain->request_db_log == NULL)
-        l_ch_chain->request_db_log = dap_db_log_list_start(l_net, l_sync_request->request.node_addr, l_flags);
-    else
-        dap_db_log_list_rewind(l_ch_chain->request_db_log);
+    if (l_ch_chain->request_db_log != NULL)
+        dap_db_log_list_delete(l_ch_chain->request_db_log);
+    l_ch_chain->request_db_log = dap_db_log_list_start(l_net, l_sync_request->request.node_addr, l_flags);
     l_ch_chain->state = CHAIN_STATE_UPDATE_GLOBAL_DB;
     l_sync_request->gdb.db_log = l_ch_chain->request_db_log;
     l_sync_request->request.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
@@ -539,6 +545,7 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
     dap_chain_hash_fast_t l_atom_hash = {};
     if (l_pkt_item->pkt_data_size == 0 || !l_pkt_item->pkt_data) {
         log_it(L_CRITICAL, "In proc thread got CHAINS stream ch packet with zero data");
+        DAP_DEL_Z(l_pkt_item->pkt_data);
         DAP_DELETE(l_sync_request);
         return true;
     }
@@ -737,7 +744,7 @@ static void s_gdb_in_pkt_proc_callback_apply(dap_global_db_context_t *a_global_d
     }
     if (s_debug_more){
         char l_ts_str[50];
-        dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), dap_gdb_time_to_sec(l_obj->timestamp));
+        dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), dap_nanotime_to_sec(l_obj->timestamp));
         log_it(L_DEBUG, "Unpacked log history: type='%c' (0x%02hhX) group=\"%s\" key=\"%s\""
                 " timestamp=\"%s\" value_len=%" DAP_UINT64_FORMAT_U,
                 (char )l_obj->type, (char)l_obj->type, l_obj->group,
@@ -821,12 +828,15 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
         uint32_t l_last_type = l_store_obj->type;
         bool l_group_changed = false;
         uint32_t l_time_store_lim_hours = dap_config_get_item_uint32_default(g_config, "global_db", "time_store_limit", 72);
-        dap_nanotime_t l_time_now = dap_nanotime_now() + dap_nanotime_from_sec(120);    // time differnece consideration
+        dap_nanotime_t l_time_now = dap_nanotime_now();
+        dap_nanotime_t l_time_alowed = l_time_now + dap_nanotime_from_sec(3600 * 24); // to be sure the timestamp is invalid
         dap_nanotime_t l_limit_time = l_time_store_lim_hours ? l_time_now - dap_nanotime_from_sec(l_time_store_lim_hours * 3600) : 0;
         for (size_t i = 0; i < l_data_obj_count; i++) {
             // obj to add
             dap_store_obj_t *l_obj = l_store_obj + i;
-            if (l_obj->timestamp >> 32 == 0 || l_obj->timestamp > l_time_now || l_obj->group == NULL)
+            if (l_obj->timestamp >> 32 == 0 ||
+                    l_obj->timestamp > l_time_alowed ||
+                    l_obj->group == NULL)
                 continue;       // the object is broken
             if (s_list_white_groups) {
                 int l_ret = -1;
@@ -849,7 +859,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             }
             l_group_changed = strcmp(l_last_group, l_obj->group) || l_last_type != l_obj->type;
             // Send remote side notification about received obj
-            if (l_sync_request->request.node_addr.uint64 &&
+            /*if (l_sync_request->request.node_addr.uint64 &&
                     (l_group_changed || i == l_data_obj_count - 1)) {
                 struct sync_request *l_sync_req_tsd = DAP_DUP(l_sync_request);
                 l_sync_req_tsd->request.id_end = l_last_id;
@@ -857,7 +867,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                                                                       dap_strdup_printf("%s.del", l_last_group);
                 dap_proc_thread_worker_exec_callback_inter(a_thread, l_sync_request->worker->id,
                                                      s_gdb_sync_tsd_worker_callback, l_sync_req_tsd);
-            }
+            }*/
             l_last_id = l_obj->id;
             l_last_group = l_obj->group;
             l_last_type = l_obj->type;
@@ -945,15 +955,14 @@ static bool s_chain_timer_callback(void *a_arg)
         return false;
     }
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
-    if (l_ch_chain->timer_shots++ >= 500) {  // 500 * 20 = 10 sec
+    if (l_ch_chain->timer_shots++ >= DAP_SYNC_TICKS_PER_SECOND * DAP_CHAIN_NODE_SYNC_TIMEOUT) {
         if (!s_ch_chain_get_idle(l_ch_chain)) {
             s_ch_chain_go_idle(l_ch_chain);
             if (l_ch_chain->callback_notify_packet_out)
                 l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_TIMEOUT, NULL, 0,
                                                       l_ch_chain->callback_notify_arg);
         }
-        if (l_ch_chain->request_db_log)
-            s_free_log_list_gdb(l_ch_chain);
+        s_free_log_list_gdb(l_ch_chain);
         DAP_DELETE(a_arg);
         l_ch_chain->activity_timer = NULL;
         return false;
@@ -961,15 +970,15 @@ static bool s_chain_timer_callback(void *a_arg)
     if (l_ch_chain->state != CHAIN_STATE_WAITING && l_ch_chain->sent_breaks)
         s_stream_ch_packet_out(l_ch, NULL);
     // Sending dumb packet with nothing to inform remote thats we're just skiping atoms of GDB's, nothing freezed
-    if (l_ch_chain->state == CHAIN_STATE_SYNC_CHAINS && l_ch_chain->sent_breaks >= 150) {    // 150 * 20 = 3 sec
+    if (l_ch_chain->state == CHAIN_STATE_SYNC_CHAINS && l_ch_chain->sent_breaks >= 3 * DAP_SYNC_TICKS_PER_SECOND) {
+        debug_if(s_debug_more, L_INFO, "Send one chain TSD packet");
         dap_stream_ch_chain_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_TSD,
                                              l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64,
                                              l_ch_chain->request_hdr.cell_id.uint64, NULL, 0);
         l_ch_chain->sent_breaks = 0;
     }
-    if (l_ch_chain->state == CHAIN_STATE_SYNC_GLOBAL_DB && l_ch_chain->sent_breaks >= 150) { // 150 * 20 = 3 sec
-        if (s_debug_more)
-            log_it(L_INFO, "Send one global_db TSD packet (rest=%zu/%zu items)",
+    if (l_ch_chain->state == CHAIN_STATE_SYNC_GLOBAL_DB && l_ch_chain->sent_breaks >= 3 * DAP_SYNC_TICKS_PER_SECOND) {
+        debug_if(s_debug_more, L_INFO, "Send one global_db TSD packet (rest=%zu/%zu items)",
                             dap_db_log_list_get_count_rest(l_ch_chain->request_db_log),
                             dap_db_log_list_get_count(l_ch_chain->request_db_log));
         dap_stream_ch_chain_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_TSD,
@@ -991,7 +1000,9 @@ void dap_stream_ch_chain_timer_start(dap_stream_ch_chain_t *a_ch_chain)
 {
     dap_stream_ch_uuid_t *l_uuid = DAP_DUP(&DAP_STREAM_CH(a_ch_chain)->uuid);
     a_ch_chain->activity_timer = dap_timerfd_start_on_worker(DAP_STREAM_CH(a_ch_chain)->stream_worker->worker,
-                                                             20, s_chain_timer_callback, (void *)l_uuid);
+                                                             1000 / DAP_SYNC_TICKS_PER_SECOND,
+                                                             s_chain_timer_callback, (void *)l_uuid);
+    a_ch_chain->sent_breaks = 0;
 }
 
 /**
@@ -1026,10 +1037,11 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                                       l_chain_pkt_data_size, l_ch_chain->callback_notify_arg);
             }
         } else {
-            log_it(L_ERROR, "Invalid request from %s with ext_id %016"DAP_UINT64_FORMAT_x" net id 0x%016"DAP_UINT64_FORMAT_x" chain id 0x%016"DAP_UINT64_FORMAT_x" cell_id 0x%016"DAP_UINT64_FORMAT_x" in packet", a_ch->stream->esocket->remote_addr_str?
-                       a_ch->stream->esocket->remote_addr_str: "<unknown>", l_chain_pkt->hdr.ext_id,
-                   l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64,
-                   l_chain_pkt->hdr.cell_id.uint64);
+            log_it(L_ERROR, "Invalid request from %s with ext_id %016"DAP_UINT64_FORMAT_x" net id 0x%016"DAP_UINT64_FORMAT_x
+                            " chain id 0x%016"DAP_UINT64_FORMAT_x" cell_id 0x%016"DAP_UINT64_FORMAT_x" in packet",
+                            a_ch->stream->esocket->remote_addr_str, l_chain_pkt->hdr.ext_id,
+                            l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64,
+                            l_chain_pkt->hdr.cell_id.uint64);
             s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
                                                 l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
                                                 "ERROR_NET_INVALID_ID");
@@ -1048,8 +1060,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     uint16_t l_acl_idx = dap_chain_net_get_acl_idx(l_net);
     uint8_t l_acl = a_ch->stream->session->acl ? a_ch->stream->session->acl[l_acl_idx] : 1;
     if (!l_acl) {
-        log_it(L_WARNING, "Unauthorized request attempt from %s to network %s", a_ch->stream->esocket->remote_addr_str?
-                   a_ch->stream->esocket->remote_addr_str: "<unknown>",
+        log_it(L_WARNING, "Unauthorized request attempt from %s to network %s", a_ch->stream->esocket->remote_addr_str,
                dap_chain_net_by_id(l_chain_pkt->hdr.net_id)->pub.name);
         s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
                                             l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
@@ -1308,10 +1319,11 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             }
             dap_chain_t * l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
             if (!l_chain) {
-                log_it(L_ERROR, "Invalid UPDATE_CHAINS_START request from %s with ext_id %016"DAP_UINT64_FORMAT_x" net id 0x%016"DAP_UINT64_FORMAT_x" chain id 0x%016"DAP_UINT64_FORMAT_x" cell_id 0x%016"DAP_UINT64_FORMAT_x" in packet", a_ch->stream->esocket->remote_addr_str?
-                           a_ch->stream->esocket->remote_addr_str: "<unknown>", l_chain_pkt->hdr.ext_id,
-                       l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64,
-                       l_chain_pkt->hdr.cell_id.uint64);
+                log_it(L_ERROR, "Invalid UPDATE_CHAINS_START request from %s with ext_id %016"DAP_UINT64_FORMAT_x" net id 0x%016"DAP_UINT64_FORMAT_x
+                                " chain id 0x%016"DAP_UINT64_FORMAT_x" cell_id 0x%016"DAP_UINT64_FORMAT_x" in packet",
+                                a_ch->stream->esocket->remote_addr_str, l_chain_pkt->hdr.ext_id,
+                                l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64,
+                                l_chain_pkt->hdr.cell_id.uint64);
                 s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
                                                     l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
                                                     "ERROR_NET_INVALID_ID");
@@ -1332,10 +1344,11 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
             dap_chain_t * l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
             if (! l_chain){
-                log_it(L_ERROR, "Invalid UPDATE_CHAINS packet from %s with ext_id %016"DAP_UINT64_FORMAT_x" net id 0x%016"DAP_UINT64_FORMAT_x" chain id 0x%016"DAP_UINT64_FORMAT_x" cell_id 0x%016"DAP_UINT64_FORMAT_x" in packet", a_ch->stream->esocket->remote_addr_str?
-                           a_ch->stream->esocket->remote_addr_str: "<unknown>", l_chain_pkt->hdr.ext_id,
-                       l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64,
-                       l_chain_pkt->hdr.cell_id.uint64);
+                log_it(L_ERROR, "Invalid UPDATE_CHAINS packet from %s with ext_id %016"DAP_UINT64_FORMAT_x" net id 0x%016"DAP_UINT64_FORMAT_x
+                                " chain id 0x%016"DAP_UINT64_FORMAT_x" cell_id 0x%016"DAP_UINT64_FORMAT_x" in packet",
+                                a_ch->stream->esocket->remote_addr_str, l_chain_pkt->hdr.ext_id,
+                                l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64,
+                                l_chain_pkt->hdr.cell_id.uint64);
                 s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
                                                     l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
                                                     "ERROR_NET_INVALID_ID");
@@ -1392,10 +1405,11 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 }
                 dap_chain_t * l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
                 if (!l_chain) {
-                    log_it(L_ERROR, "Invalid UPDATE_CHAINS packet from %s with ext_id %016"DAP_UINT64_FORMAT_x" net id 0x%016"DAP_UINT64_FORMAT_x" chain id 0x%016"DAP_UINT64_FORMAT_x" cell_id 0x%016"DAP_UINT64_FORMAT_x" in packet", a_ch->stream->esocket->remote_addr_str?
-                               a_ch->stream->esocket->remote_addr_str: "<unknown>", l_chain_pkt->hdr.ext_id,
-                           l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64,
-                           l_chain_pkt->hdr.cell_id.uint64);
+                    log_it(L_ERROR, "Invalid UPDATE_CHAINS packet from %s with ext_id %016"DAP_UINT64_FORMAT_x" net id 0x%016"DAP_UINT64_FORMAT_x
+                                    " chain id 0x%016"DAP_UINT64_FORMAT_x" cell_id 0x%016"DAP_UINT64_FORMAT_x" in packet",
+                                    a_ch->stream->esocket->remote_addr_str, l_chain_pkt->hdr.ext_id,
+                                    l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64,
+                                    l_chain_pkt->hdr.cell_id.uint64);
                     s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
                                                         l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
                                                         "ERROR_NET_INVALID_ID");
@@ -1494,10 +1508,11 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             if (!l_ch_chain->callback_notify_packet_in) { // we haven't node client waitng, so reply to other side
                 dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
                 if (!l_chain) {
-                    log_it(L_ERROR, "Invalid SYNCED_CHAINS packet from %s with ext_id %016"DAP_UINT64_FORMAT_x" net id 0x%016"DAP_UINT64_FORMAT_x" chain id 0x%016"DAP_UINT64_FORMAT_x" cell_id 0x%016"DAP_UINT64_FORMAT_x" in packet", a_ch->stream->esocket->remote_addr_str?
-                               a_ch->stream->esocket->remote_addr_str: "<unknown>", l_chain_pkt->hdr.ext_id,
-                           l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64,
-                           l_chain_pkt->hdr.cell_id.uint64);
+                    log_it(L_ERROR, "Invalid SYNCED_CHAINS packet from %s with ext_id %016"DAP_UINT64_FORMAT_x" net id 0x%016"DAP_UINT64_FORMAT_x
+                                    " chain id 0x%016"DAP_UINT64_FORMAT_x" cell_id 0x%016"DAP_UINT64_FORMAT_x" in packet",
+                                    a_ch->stream->esocket->remote_addr_str, l_chain_pkt->hdr.ext_id,
+                                    l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64,
+                                    l_chain_pkt->hdr.cell_id.uint64);
                     s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
                                                         l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
                                                         "ERROR_NET_INVALID_ID");
@@ -1544,8 +1559,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 l_error_str[l_chain_pkt_data_size-1]='\0'; // To be sure that nobody sends us garbage
                                                            // without trailing zero
             log_it(L_WARNING,"In from remote addr %s chain id 0x%016"DAP_UINT64_FORMAT_x" got error on his side: '%s'",
-                   DAP_STREAM_CH(l_ch_chain)->stream->esocket->remote_addr_str ? DAP_STREAM_CH(l_ch_chain)->stream->esocket->remote_addr_str: "<no addr>",
-                   l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt_data_size > 1 ? l_error_str:"<empty>");
+                                DAP_STREAM_CH(l_ch_chain)->stream->esocket->remote_addr_str,
+                                l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt_data_size ? l_error_str : "<empty>");
         } break;
 
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_ALL: {
@@ -1572,17 +1587,24 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
  */
 static void s_free_log_list_gdb ( dap_stream_ch_chain_t * a_ch_chain)
 {
-    // free log list
-    dap_db_log_list_delete(a_ch_chain->request_db_log);
-    a_ch_chain->request_db_log = NULL;
-    dap_stream_ch_chain_hash_item_t *l_hash_item = NULL, *l_tmp = NULL;
-    HASH_ITER(hh, a_ch_chain->remote_gdbs, l_hash_item, l_tmp) {
-        // Clang bug at this, l_hash_item should change at every loop cycle
-        HASH_DEL(a_ch_chain->remote_gdbs, l_hash_item);
-        DAP_DELETE(l_hash_item);
+    if (a_ch_chain->request_db_log) {
+        // free log list
+        debug_if(s_debug_more, L_INFO, "[stm_ch_chain:%p] a_ch_chain->request_db_log:%p --- cleanuping ...", a_ch_chain, a_ch_chain->request_db_log);
+        dap_db_log_list_delete(a_ch_chain->request_db_log);
+        a_ch_chain->request_db_log = NULL;
     }
-    a_ch_chain->remote_gdbs = NULL;
+
+    if (a_ch_chain->remote_gdbs) {
+        dap_stream_ch_chain_hash_item_t *l_hash_item = NULL, *l_tmp = NULL;
+        HASH_ITER(hh, a_ch_chain->remote_gdbs, l_hash_item, l_tmp) {
+            // Clang bug at this, l_hash_item should change at every loop cycle
+            HASH_DEL(a_ch_chain->remote_gdbs, l_hash_item);
+            DAP_DELETE(l_hash_item);
+        }
+        a_ch_chain->remote_gdbs = NULL;
+    }
 }
+
 /**
  * @brief s_ch_chain_go_idle
  * @param a_ch_chain
@@ -1615,6 +1637,7 @@ static void s_ch_chain_go_idle(dap_stream_ch_chain_t *a_ch_chain)
     }
     a_ch_chain->remote_atoms = NULL;
     a_ch_chain->sent_breaks = 0;
+    s_free_log_list_gdb(a_ch_chain);
 }
 
 struct chain_io_complete {
@@ -1633,10 +1656,12 @@ static void s_stream_ch_io_complete(dap_events_socket_t *a_es, void *a_arg, int 
     if (a_errno)
         return;
     dap_stream_t *l_stream = NULL;
-    dap_client_pvt_t *l_client_pvt = DAP_ESOCKET_CLIENT_PVT(a_es);
-    if (l_client_pvt && dap_client_pvt_find(l_client_pvt->uuid) == l_client_pvt)
+    if (!a_es->server) {
+        dap_client_t *l_client = DAP_ESOCKET_CLIENT(a_es);
+        assert(l_client);
+        dap_client_pvt_t *l_client_pvt = DAP_CLIENT_PVT(l_client);
         l_stream = l_client_pvt->stream;
-    else {
+    } else {
         dap_http_client_t *l_http_client = DAP_HTTP_CLIENT(a_es);
         if (l_http_client)
             l_stream = DAP_STREAM(l_http_client);
@@ -1709,6 +1734,8 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                     break;
                 l_data[i].hash = l_obj->hash;
                 l_data[i].size = l_obj->pkt->data_size;
+                DAP_DELETE(l_obj->pkt);
+                DAP_DELETE(l_obj);
             }
             if (i) {
                 l_was_sent_smth = true;
@@ -1759,7 +1786,6 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                                         l_request_atom_hash_str);
                     }*/
                     l_skip_count++;
-                    l_ch_chain->timer_shots = -1;
                 } else {
                     l_hash_item = DAP_NEW_Z(dap_stream_ch_chain_hash_item_t);
                     l_hash_item->hash = l_obj->hash;
@@ -1769,9 +1795,11 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                     l_pkt = dap_store_packet_multiple(l_pkt, l_obj->pkt);
                     l_ch_chain->stats_request_gdb_processed++;
                     l_pkt_size = sizeof(dap_global_db_pkt_t) + l_pkt->data_size;
-                    if (l_pkt_size >= DAP_CHAIN_PKT_EXPECT_SIZE)
-                        break;
                 }
+                DAP_DELETE(l_obj->pkt);
+                DAP_DELETE(l_obj);
+                if (l_pkt_size >= DAP_CHAIN_PKT_EXPECT_SIZE)
+                    break;
             }
             if (l_pkt_size) {
                 l_was_sent_smth = true;

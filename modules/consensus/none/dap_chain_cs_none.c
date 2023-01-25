@@ -91,7 +91,7 @@ static dap_chain_atom_ptr_t *s_chain_callback_atom_iter_get_links(dap_chain_atom
 static dap_chain_atom_ptr_t *s_chain_callback_atom_iter_get_lasts(dap_chain_atom_iter_t * a_atom_iter,
         size_t * a_lasts_size_ptr, size_t ** a_lasts_sizes_ptr); //    Get list of linked events
 static dap_chain_datum_t **s_chain_callback_atom_get_datum(dap_chain_atom_ptr_t a_atom, size_t a_atom_size, size_t *a_datums_count);
-
+static dap_time_t s_chain_callback_atom_get_timestamp(dap_chain_atom_ptr_t a_atom) { return ((dap_chain_datum_t *)a_atom)->header.ts_create; }
 static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums,
         size_t a_datums_size);
 
@@ -174,12 +174,12 @@ int dap_chain_gdb_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_gdb_priv->chain = a_chain;
 
     if(!l_gdb_priv->celled){
-        l_gdb_priv->group_datums = dap_strdup_printf( "chain-gdb.%s.chain-%016llX",l_net->pub.name,
+        l_gdb_priv->group_datums = dap_strdup_printf( "chain-gdb.%s.chain-%016"DAP_UINT64_FORMAT_X,l_net->pub.name,
                                                   a_chain->id.uint64);
     }else {
         // here is not work because dap_chain_net_load() not yet fully performed
-        l_gdb_priv->group_datums = dap_strdup_printf( "chain-gdb.%s.chain-%016llX.cell-%016llX",l_net->pub.name,
-                                                  a_chain->id.uint64, a_chain->cells->id.uint64);
+        l_gdb_priv->group_datums = dap_strdup_printf("chain-gdb.%s.chain-%016"DAP_UINT64_FORMAT_X".cell-%016"DAP_UINT64_FORMAT_X,
+                                                      l_net->pub.name, a_chain->id.uint64, a_chain->cells->id.uint64);
     }
 
     // Add group prefix that will be tracking all changes
@@ -214,6 +214,7 @@ int dap_chain_gdb_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     a_chain->callback_atom_iter_get_links = s_chain_callback_atom_iter_get_links; // Get the next element from chain from the current one
     a_chain->callback_atom_iter_get_lasts = s_chain_callback_atom_iter_get_lasts;
     a_chain->callback_atom_get_datums = s_chain_callback_atom_get_datum;
+    a_chain->callback_atom_get_timestamp = s_chain_callback_atom_get_timestamp;
 
     return 0;
 }

@@ -163,7 +163,7 @@ static inline bitmap_t rcvd_test(ping_handle_t *a_ping_handle, uint16_t seq)
 }
 
 #ifndef HAVE_ERROR_H
-static void error(int status, int errnum, const char *format, ...)
+static DAP_PRINTF_ATTR(3, 4) void error(int status, int errnum, const char *format, ...)
 {
   va_list ap;
 

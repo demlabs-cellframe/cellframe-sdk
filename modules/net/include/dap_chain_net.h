@@ -41,8 +41,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_datum_tx.h"
 #include "uthash.h"
 
-
 #define DAP_CHAIN_NET_NAME_MAX 32
+#define DAP_BROADCAST_LIFETIME 15   // minutes
 
 struct dap_chain_node_info;
 typedef struct dap_chain_node_client dap_chain_node_client_t;
@@ -170,7 +170,7 @@ DAP_STATIC_INLINE char *dap_chain_net_get_gdb_group_from_chain_new(dap_chain_t *
 {
     dap_chain_net_t *l_net = a_chain ? dap_chain_net_by_id(a_chain->net_id) : NULL;
     if ( l_net )
-        return dap_strdup_printf("chain-gdb.%s.chain-%016llX",l_net->pub.name, a_chain->id.uint64);
+        return dap_strdup_printf("chain-gdb.%s.chain-%016"DAP_UINT64_FORMAT_X,l_net->pub.name, a_chain->id.uint64);
     return NULL;
 }
 

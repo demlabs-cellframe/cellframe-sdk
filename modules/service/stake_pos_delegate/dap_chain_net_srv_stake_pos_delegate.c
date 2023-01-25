@@ -57,27 +57,27 @@ int dap_chain_net_srv_stake_pos_delegate_init()
 {
     dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, s_verificator_stake_callback, s_verificator_stake_updater_callback);
     dap_cli_server_cmd_add("srv_stake", s_cli_srv_stake, "Delegated stake service commands",
-    "srv_stake order create -net <net_name> -addr_hldr <addr> -token <token_ticker> -coins <value> -cert <priv_cert_name> -fee_percent <value>\n"
-        "\tCreate a new order with specified amount of datoshi to delegate specified cert from the specified address.\n"
-        "\tThe fee with specified percent with this delagation will be returned to the fee address pointed by delegator\n"
-    "srv_stake order declare -net <net_name> -wallet <wallet_name> -token <token_ticker> -coins <value> -fee_percent <value>"
-        "\tCreate a new order with specified amount of datoshi and fee which holder is ready to stake.\n"
+    "\t\t=== Commands for work with orders ===\n"
+    "srv_stake order create -net <net_name> -value <value> -cert <priv_cert_name> \n"
+        "\tCreates a new order signed with a delegated key, which declares the commission for which \n"
+        "\tthe node agrees to conduct the transaction.\n"
     "srv_stake order remove -net <net_name> -order <order_hash> [-H {hex | base58(default)}]\n"
          "\tRemove order with specified hash\n"
-    "srv_stake order update -net <net_name> -order <order_hash> {-cert <priv_cert_name> | -wallet <wallet_name>} [-H {hex | base58(default)}] {[-addr_hldr <addr>] [-token <token_ticker>] [-coins <value>] [-fee_percent <value>] | [-token <token_ticker>] [-coins <value>] -fee_percent <value>]}\n"
+    "srv_stake order update -net <net_name> -order <order_hash> [-H {hex | base58(default)}] -cert <priv_cert_name>  -value <value>\n"
          "\tUpdate order with specified hash\n"
     "srv_stake order list -net <net_name>\n"
          "\tGet the stake orders list within specified net name\n"
+     "\t\t === Commands for work with stake delegate ===\n"
     "srv_stake delegate -order <order_hash> -net <net_name> -wallet <wallet_name> -fee_addr <addr>\n"
-         "\tDelegate tokens with specified order within specified net name. Specify fee address\n"
+         "\tDelegate tokens with specified order within specified net name. Specify fee address.\n"
     "srv_stake approve -net <net_name> -tx <transaction_hash> -cert <priv_cert_name>\n"
          "\tApprove stake transaction by root node certificate within specified net name.\n"
     "srv_stake transactions -net <net_name> [-addr <addr_from>]\n"
-         "\tShow the list of requested, active and canceled stake transactions (optional delegated from addr)\n"
+         "\tShow the list of requested, active and canceled stake transactions (optional delegated from addr).\n"
     "srv_stake invalidate -net <net_name> -tx <transaction_hash> -wallet <wallet_name>\n"
-         "\tInvalidate requested stake transaction by hash within net name and return stake to specified wallet\n"
+         "\tInvalidate requested stake transaction by hash within net name and return stake to specified wallet.\n"
     "srv_stake commit -net <net_name> [-block <block_hash> | [-tx <transaction_hash>]\n"
-         "\tSend a staker fee from the block or transaction to the holder\n"
+         "\tSend a staker fee from the block or transaction to the holder.\n"
     );
 
     s_srv_stake = DAP_NEW_Z(dap_chain_net_srv_stake_t);
@@ -562,25 +562,17 @@ static bool s_stake_tx_invalidate(dap_chain_net_srv_stake_item_t *a_stake, dap_c
     return true;
 }
 
-char *s_stake_order_create(dap_chain_net_srv_stake_item_t *a_item, dap_enc_key_t *l_key)
+char *s_stake_order_create(dap_chain_net_t *a_net, uint256_t *a_fee, dap_enc_key_t *a_key)
 {
     dap_chain_hash_fast_t l_tx_hash = {};
-    dap_srv_stake_order_ext_t l_ext = {};
-    l_ext.addr_hldr = a_item->addr_hldr;
     dap_chain_net_srv_order_direction_t l_dir = SERV_DIR_SELL;
-    if (memcmp(&a_item->signing_addr, &l_ext.signing_addr, sizeof(dap_chain_addr_t))) {
-        // Signing addr is not empty
-        l_dir = SERV_DIR_BUY;
-        l_ext.signing_addr = a_item->signing_addr;
-    }
-    l_ext.fee_value = a_item->fee_value;
-    uint32_t l_ext_size = sizeof(dap_srv_stake_order_ext_t);
-    dap_chain_node_addr_t *l_node_addr = dap_chain_net_get_cur_addr(a_item->net);
-    dap_chain_net_srv_price_unit_uid_t l_unit = { .uint32 =  SERV_UNIT_UNDEFINED};
+    const char *l_native_ticker = a_net->pub.native_ticker;
+    dap_chain_node_addr_t *l_node_addr = dap_chain_net_get_cur_addr(a_net);
+    dap_chain_net_srv_price_unit_uid_t l_unit = { .uint32 =  SERV_UNIT_PCS};
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
-    char *l_order_hash_str = dap_chain_net_srv_order_create(a_item->net, l_dir, l_uid, *l_node_addr,
-                                                            l_tx_hash, &a_item->value, l_unit, a_item->token, 0,
-                                                            (uint8_t *)&l_ext, l_ext_size, NULL, 0, l_key);
+    char *l_order_hash_str = dap_chain_net_srv_order_create(a_net, l_dir, l_uid, *l_node_addr,
+                                                            l_tx_hash, a_fee, l_unit, l_native_ticker, 0,
+                                                            NULL, 0, NULL, 0, a_key);
     return l_order_hash_str;
 }
 
@@ -767,8 +759,8 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
     int l_arg_index = a_arg_index + 1;
     switch (l_cmd_num) {
         case CMD_CREATE: {
-            const char *l_net_str = NULL, *l_token_str = NULL, *l_coins_str = NULL;
-            const char *l_addr_hldr_str = NULL, *l_cert_str = NULL, *l_fee_str = NULL;
+            const char *l_net_str = NULL, *l_token_str = NULL, *l_value_str = NULL;
+            const char *l_cert_str = NULL, *l_fee_str = NULL;
             dap_chain_net_t *l_net = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
@@ -780,155 +772,34 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
                 return -4;
             }
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-token", &l_token_str);
-            if (!l_token_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' required parameter -token");
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_value_str);
+            if (!l_value_str) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' required parameter -coins");
                 return -5;
             }
-            if (!dap_chain_ledger_token_ticker_check(l_net->pub.ledger, l_token_str)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Token ticker %s not found", l_token_str);
-                return -6;
-            }
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-coins", &l_coins_str);
-            if (!l_coins_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' required parameter -coins");
-                return -7;
-            }
-            uint256_t l_value = dap_chain_balance_scan(l_coins_str);
+            uint256_t l_value = dap_chain_balance_scan(l_value_str);
             if (IS_ZERO_256(l_value)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -coins <256 bit integer>");
-                return -8;
-            }
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-addr_hldr", &l_addr_hldr_str);
-            if (!l_addr_hldr_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' required parameter -addr_hldr");
-                return -9;
-            }
-            dap_chain_addr_t *l_addr_hldr = dap_chain_addr_from_str(l_addr_hldr_str);
-            if (!l_addr_hldr) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong address format");
-                return -10;
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -value <256 bit integer>");
+                return -6;
             }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str);
             if (!l_cert_str) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' required parameter -cert");
-                return -9;
+                return -7;
             }
             dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_str);
             if (!l_cert) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't load cert %s", l_cert_str);
-                return -10;
-            }
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-fee_percent", &l_fee_str);
-            if (!l_fee_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' required parameter -fee_percent");
-                return -11;
-            }
-            uint256_t l_fee = dap_chain_coins_to_balance(l_fee_str);
-            if (IS_ZERO_256(l_fee)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -fee_percent <long double>(%)");
-                return -12;
-            }
-            // Create the stake item
-            dap_chain_net_srv_stake_item_t *l_stake = DAP_NEW_Z(dap_chain_net_srv_stake_item_t);
-            l_stake->net = l_net;
-            dap_stpcpy(l_stake->token, l_token_str);
-            l_stake->value = l_value;
-            l_stake->addr_hldr = *l_addr_hldr;
-            dap_chain_addr_t *l_signing_addr = dap_cert_to_addr(l_cert, l_net->pub.id);
-            l_stake->signing_addr = *l_signing_addr;
-            DAP_DELETE(l_addr_hldr);
-            DAP_DELETE(l_signing_addr);
-            l_stake->fee_value = l_fee;
-            // Create the order & put it in GDB
-            char *l_order_hash_str = s_stake_order_create(l_stake, l_cert->enc_key);
-            if (l_order_hash_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Successfully created order %s", l_order_hash_str);
-                DAP_DELETE(l_order_hash_str);
-                DAP_DELETE(l_stake);
-            } else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't compose the order");
-                DAP_DELETE(l_stake);
-                return -15;
-            }
-        } break;
-        case CMD_DECLARE: {
-            const char *l_net_str = NULL, *l_token_str = NULL, *l_coins_str = NULL;
-            const char *l_wallet_str = NULL, *l_fee_str = NULL;
-            dap_chain_net_t *l_net = NULL;
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
-            if (!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order declare' required parameter -net");
-                return -3;
-            }
-            l_net = dap_chain_net_by_name(l_net_str);
-            if (!l_net) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
-                return -4;
-            }
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-token", &l_token_str);
-            if (!l_token_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order declare' required parameter -token");
-                return -5;
-            }
-            if (!dap_chain_ledger_token_ticker_check(l_net->pub.ledger, l_token_str)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Token ticker %s not found", l_token_str);
-                return -6;
-            }
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-coins", &l_coins_str);
-            if (!l_coins_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order declare' required parameter -coins");
-                return -7;
-            }
-            uint256_t l_value = dap_chain_balance_scan(l_coins_str);
-            if (IS_ZERO_256(l_value)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -coins <256 bit integer>");
                 return -8;
             }
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-wallet", &l_wallet_str);
-            if (!l_wallet_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order declare' required parameter -wallet");
-                return -9;
-            }
-            dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config));
-            if (!l_wallet) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified wallet not found");
-                return -18;
-            }
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-fee_percent", &l_fee_str);
-            if (!l_fee_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order declare' required parameter -fee_percent");
-                return -11;
-            }
-            uint256_t l_fee = dap_chain_coins_to_balance(l_fee_str);
-            if (IS_ZERO_256(l_fee)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -fee_percent <long double>(%)");
-                return -12;
-            }
-            uint256_t l_balance = dap_chain_wallet_get_balance(l_wallet, l_net->pub.id, l_token_str);
-            if (compare256(l_balance, l_value) == -1) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Insufficient coins for token %s in wallet '%s'", l_token_str, l_wallet_str);
-                return -13;
-            }
-            // Create the stake item
-            dap_chain_net_srv_stake_item_t *l_stake = DAP_NEW_Z(dap_chain_net_srv_stake_item_t);
-            l_stake->net = l_net;
-            dap_stpcpy(l_stake->token, l_token_str);
-            l_stake->value = l_value;
-            dap_chain_addr_t *l_addr_hldr = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
-            l_stake->addr_hldr = *l_addr_hldr;
-            DAP_DELETE(l_addr_hldr);
-            l_stake->fee_value = l_fee;
-            // Create the order & put it to GDB
-            char *l_order_hash_str = s_stake_order_create(l_stake, dap_chain_wallet_get_key(l_wallet, 0));
+            // Create the order & put it in GDB
+            char *l_order_hash_str = s_stake_order_create(l_net, &l_value, l_cert->enc_key);
             if (l_order_hash_str) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Successfully created order %s", l_order_hash_str);
                 DAP_DELETE(l_order_hash_str);
-                DAP_DELETE(l_stake);
             } else {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't compose the order");
-                DAP_DELETE(l_stake);
-                return -15;
+                return -9;
             }
         } break;
         case CMD_REMOVE: {
@@ -958,10 +829,25 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                 l_order_hash_base58_str = dap_strdup(l_order_hash_str);
             }
 
-            if (!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order remove' requires parameter -order");
-                return -13;
+            dap_chain_net_srv_order_t *l_order =  dap_chain_net_srv_order_find_by_hash_str(l_net, l_order_hash_str);
+            if (!l_order) {
+                if(!dap_strcmp(a_hash_out_type,"hex"))
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find order %s\n", l_order_hash_hex_str);
+                else
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find order %s\n", l_order_hash_base58_str);
+                return -5;
             }
+
+            if (l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID) {
+                if(!dap_strcmp(a_hash_out_type,"hex"))
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Order %s is not a delegated stake order.\n",
+                                                      l_order_hash_hex_str);
+                else
+                    dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                                      "Order %s is not a delegated stake order.\n", l_order_hash_base58_str);
+                return -6;
+            }
+
             if (dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str)) {
                 if(!dap_strcmp(a_hash_out_type,"hex"))
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't remove order %s\n", l_order_hash_hex_str);
@@ -972,9 +858,8 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Stake order successfully removed");
         } break;
         case CMD_UPDATE: {
-            const char *l_net_str = NULL, *l_token_str = NULL, *l_coins_str = NULL;
-            const char *l_addr_hldr_str = NULL, *l_cert_str = NULL, *l_fee_str = NULL;
-            const char *l_order_hash_str = NULL, *l_wallet_str = NULL;
+            const char *l_net_str = NULL, *l_value_str = NULL;
+            const char *l_cert_str = NULL, *l_order_hash_str = NULL;
             dap_chain_net_t *l_net = NULL;
             dap_enc_key_t *l_key = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
@@ -989,7 +874,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
             }
             if (!l_net_str) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order update' requires parameter -order");
-                return -13;
+                return -5;
             }
             dap_chain_net_srv_order_t *l_order =  dap_chain_net_srv_order_find_by_hash_str(l_net, l_order_hash_str);
 
@@ -999,8 +884,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
             if(!dap_strncmp(l_order_hash_str, "0x", 2) || !dap_strncmp(l_order_hash_str, "0X", 2)) {
                 l_order_hash_hex_str = dap_strdup(l_order_hash_str);
                 l_order_hash_base58_str = dap_enc_base58_from_hex_str_to_str(l_order_hash_str);
-            }
-            else {
+            } else {
                 l_order_hash_hex_str = dap_enc_base58_to_hex_str_from_str(l_order_hash_str);
                 l_order_hash_base58_str = dap_strdup(l_order_hash_str);
             }
@@ -1010,98 +894,41 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find order %s\n", l_order_hash_hex_str);
                 else
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find order %s\n", l_order_hash_base58_str);
-                return -14;
+                return -6;
             }
-            dap_chain_net_srv_stake_item_t *l_stake = s_stake_item_from_order(l_net, l_order);
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-token", &l_token_str);
-            if (l_token_str) {
-                if (!dap_chain_ledger_token_ticker_check(l_net->pub.ledger, l_token_str)) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Token ticker %s not found", l_token_str);
-                    DAP_DELETE(l_stake);
-                    return -6;
-                }
-                strcpy(l_stake->token, l_token_str);
+
+            if (l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID) {
+                if(!dap_strcmp(a_hash_out_type,"hex"))
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Order %s is not a delegated stake order.\n",
+                                                      l_order_hash_hex_str);
+                else
+                    dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                                      "Order %s is not a delegated stake order.\n", l_order_hash_base58_str);
+                return -7;
             }
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-coins", &l_coins_str);
-            if (l_coins_str) {
-                uint256_t l_value = dap_chain_balance_scan(l_coins_str);
+
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_value_str);
+            uint256_t l_value = {0};
+            if (l_value_str) {
+                l_value = dap_chain_balance_scan(l_value_str);
                 if (IS_ZERO_256(l_value)) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -coins <unsigned long long>");
-                    DAP_DELETE(l_stake);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -value <uint256_t>");
                     return -8;
                 }
-                l_stake->value = l_value;
             }
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-fee_percent", &l_fee_str);
-            if (l_fee_str) {
-                long double l_fee = strtold(l_fee_str, NULL);
-                if (!l_fee) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -fee_percent <long double> %");
-                    DAP_DELETE(l_stake);
-                    return -12;
-                }
+            dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_str);
+            if (!l_cert) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't load cert %s", l_cert_str);
+                return -9;
             }
-            dap_chain_addr_t l_empty_addr = {};
-            if (memcmp(&l_stake->signing_addr, &l_empty_addr, sizeof(dap_chain_addr_t))) {
-                // It's a buying order
-                dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str);
-                if (!l_cert_str) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order update' requires parameter -cert for buying orders");
-                    DAP_DELETE(l_stake);
-                    return -9;
-                }
-                dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_str);
-                if (!l_cert) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't load cert %s", l_cert_str);
-                    DAP_DELETE(l_stake);
-                    return -10;
-                }
-                l_key = l_cert->enc_key;
-                dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-addr_hldr", &l_addr_hldr_str);
-                if (l_addr_hldr_str) {
-                    dap_chain_addr_t *l_addr_hldr = dap_chain_addr_from_str(l_addr_hldr_str);
-                    if (!l_addr_hldr) {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong address format");
-                        DAP_DELETE(l_stake);
-                        return -14;
-                    }
-                    l_stake->addr_hldr = *l_addr_hldr;
-                    DAP_DELETE(l_addr_hldr);
-                }
-            } else {    // It's a selling order
-                dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-wallet", &l_wallet_str);
-                if (!l_wallet_str) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order update' requires parameter -wallet for selling orders");
-                    DAP_DELETE(l_stake);
-                    return -7;
-                }
-                dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config));
-                if (!l_wallet) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified wallet not found");
-                    DAP_DELETE(l_stake);
-                    return -18;
-                }
-                uint256_t l_balance = dap_chain_wallet_get_balance(l_wallet, l_net->pub.id, l_stake->token);
-                if (compare256(l_balance, l_stake->value) == -1) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Insufficient coins for token %s in wallet '%s'", l_token_str, l_wallet_str);
-                    DAP_DELETE(l_stake);
-                    return -11;
-                }
-                l_key = dap_chain_wallet_get_key(l_wallet, 0);
-            }
-            if (!l_token_str && !l_coins_str && !l_addr_hldr_str && !l_fee_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "At least one of updating parameters is mandatory");
-                DAP_DELETE(l_stake);
-                return -16;
-            }
-            // Create the order & put it to GDB
+            l_key = l_cert->enc_key;
+            // Remove old order and create the order & put it to GDB
             dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str);
             DAP_DELETE(l_order_hash_hex_str);
             DAP_DELETE(l_order_hash_base58_str);
-            l_order_hash_hex_str = s_stake_order_create(l_stake, l_key);
-            DAP_DELETE(l_stake);
+            l_order_hash_hex_str = s_stake_order_create(l_net, &l_value, l_key);
             if(!l_order_hash_hex_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't compose the order");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create new order");
                 return -15;
             }
             if(!dap_strcmp(a_hash_out_type, "hex")) {
@@ -1128,22 +955,24 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
             char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(l_net);
             size_t l_orders_count = 0;
             dap_global_db_obj_t * l_orders = dap_global_db_get_all_sync(l_gdb_group_str, &l_orders_count);
-            dap_chain_net_srv_stake_item_t *l_stake;
             dap_string_t *l_reply_str = dap_string_new("");
             for (size_t i = 0; i < l_orders_count; i++) {
                 dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)l_orders[i].value;
                 if (l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID)
                     continue;
                 // TODO add filters to list (token, address, etc.)
-                l_stake = s_stake_item_from_order(l_net, l_order);
-                char *l_addr = dap_chain_addr_to_str(&l_stake->signing_addr);
-                char *l_balance = dap_chain_balance_print(l_stake->value);
-                char *l_fee = dap_chain_balance_to_coins(l_stake->fee_value);
-                dap_string_append_printf(l_reply_str, "%s %s %s %s %s\n", l_orders[i].key, l_balance, l_stake->token, l_addr, l_fee);
-                DAP_DELETE(l_balance);
-                DAP_DELETE(l_fee);
-                DAP_DELETE(l_addr);
-                DAP_DELETE(l_stake);
+                char *l_price = dap_chain_balance_print(l_order->price);
+                char *l_node_addr = dap_strdup_printf(NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_order->node_addr));
+                char l_created[80] = {'\0'};
+                dap_time_t l_ts_created = l_order->ts_created;
+                dap_ctime_r(&l_ts_created, l_created);
+                dap_string_append_printf(l_reply_str, "Order: %s\n"
+                                                      "\tCreated: %s"
+                                                      "\tPrice: %s %s\n"
+                                                      "\tNode addr: %s\n",
+                                                      l_orders[i].key, l_created, l_price, l_order->price_ticker, l_node_addr);
+                DAP_DELETE(l_price);
+                DAP_DELETE(l_node_addr);
             }
             dap_global_db_objs_delete(l_orders, l_orders_count);
             DAP_DELETE( l_gdb_group_str);
@@ -1461,7 +1290,6 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 return -23;
             }
         }
-        break;
 
         default: {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Command %s not recognized", a_argv[l_arg_index]);
@@ -1498,4 +1326,61 @@ static bool s_verificator_stake_updater_callback(dap_ledger_t *a_ledger, dap_cha
         return false;
     }
     return s_stake_conditions_calc(a_cond, a_tx, true, true);
+}
+
+void dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net, dap_string_t *a_string_ret){
+    if (!a_net || !a_string_ret)
+        return;
+    char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(a_net);
+    size_t l_orders_count = 0;
+    dap_global_db_obj_t * l_orders = dap_global_db_get_all_sync(l_gdb_group_str, &l_orders_count);
+    uint256_t l_max = {0};
+    uint256_t l_min = {0};
+    uint256_t l_average = {0};
+//    bool setMinimal = false;
+    uint64_t l_order_fee_count = 0;
+    for (size_t i = 0; i < l_orders_count; i++) {
+        dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)l_orders[i].value;
+        if (l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID)
+            continue;
+        if (l_orders_count == 0) {
+            l_min = l_order->price;
+            l_max = l_order->price;
+        }
+        l_order_fee_count++;
+        uint256_t t = {0};
+        SUM_256_256(l_order->price, l_average, &t);
+        l_average = t;
+        int res = compare256(l_min, l_order->price);
+        if (res == 1) {
+            l_min = l_order->price;
+        }
+        res = compare256(l_max, l_order->price);
+        if (res == -1) {
+            l_max = l_order->price;
+        }
+    }
+    uint256_t t = {0};
+    if (!IS_ZERO_256(l_average)) DIV_256(l_average, dap_chain_uint256_from(l_order_fee_count), &t);
+    dap_global_db_objs_delete(l_orders, l_orders_count);
+    DAP_DELETE( l_gdb_group_str);
+    const char *l_native_token  =  a_net->pub.native_ticker;
+    char *l_min_balance = dap_chain_balance_print(l_min);
+    char *l_min_coins = dap_chain_balance_to_coins(l_min);
+    char *l_max_balance = dap_chain_balance_print(l_max);
+    char *l_max_coins = dap_chain_balance_to_coins(l_max);
+    char *l_average_balance = dap_chain_balance_print(t);
+    char *l_average_coins = dap_chain_balance_to_coins(t);
+    dap_string_append_printf(a_string_ret, "Validator fee: \n"
+                                           "\t MIN: %s (%s) %s\n"
+                                           "\t MAX: %s (%s) %s\n"
+                                           "\t Average: %s (%s) %s \n", l_min_coins, l_min_balance, l_native_token,
+                                           l_max_coins, l_max_balance, l_native_token,
+                                           l_average_coins, l_average_balance, l_native_token);
+    DAP_DELETE(l_min_balance);
+    DAP_DELETE(l_min_coins);
+    DAP_DELETE(l_max_balance);
+    DAP_DELETE(l_max_coins);
+    DAP_DELETE(l_average_balance);
+    DAP_DELETE(l_average_coins);
 }

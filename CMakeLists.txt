@@ -17,6 +17,8 @@ if(NOT DEFINED CELLFRAME_MODULES)
         set(CELLFRAME_MODULES "${CELLFRAME_MODULES} srv-vpn")
     endif()
 
+    add_subdirectory(dap-sdk)
+
 endif()
 
 message("Cellframe modules: ${CELLFRAME_MODULES}")
@@ -24,6 +26,16 @@ message("Cellframe modules: ${CELLFRAME_MODULES}")
 if (CELLFRAME_MODULES MATCHES "srv-stake")
      add_definitions("-DDAP_SRV_STAKE_USED")
 endif()
+
+option(DAP_INT128_SUPPORT "Use 128-bit varaibles, if supported" ON) # Enabled by default
+
+if(NOT DAP_INT128_SUPPORT)
+    message("[!] INT128 DISABLED")
+    add_definitions(-DDAP_DISABLE_INT128)
+else()
+    #    message("[!] INT128 ENABLED")
+    #    add_definitions(-DDAP_DISABLE_INT128=FALSE)
+endif(NOT DAP_INT128_SUPPORT)
 
 if (BUILD_CELLFRAME_SDK_TESTS)
     enable_testing()
@@ -59,6 +71,7 @@ if (BUILD_CELLFRAME_SDK_TESTS)
         endif()
         set(BUILD_TESTS ON)
     endif()
+    add_subdirectory(test)
 endif()
 
 if (CELLFRAME_MODULES MATCHES "test-framework")
@@ -69,11 +82,6 @@ endif()
 add_subdirectory(3rdparty/crc32c_adler)             # https://github.com/fonic/crc32c_adler
 include_directories(3rdparty/crc32c_adler)
 set(CELLFRAME_LIBS ${CELLFRAME_LIBS} crc32c_adler)
-
-if(BUILD_TESTS)
-    include(cmake/OS_Detection.cmake)
-    add_subdirectory(dap-sdk)
-endif()
 
 
 if (BUILD_WITH_ZIP)

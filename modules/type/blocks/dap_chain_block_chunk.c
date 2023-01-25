@@ -44,7 +44,10 @@ dap_chain_block_chunks_t * dap_chain_block_chunks_create(dap_chain_cs_blocks_t *
     size_t l_objs_count =0;
     dap_global_db_obj_t * l_objs= dap_global_db_get_all_sync(l_ret->gdb_group, &l_objs_count);
     for(size_t n=0; n< l_objs_count; n++){
-        dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_new(a_blocks, (dap_chain_block_t*)l_objs[n].value, l_objs[n].value_len);
+        dap_hash_fast_t l_block_hash;
+        dap_chain_hash_fast_from_str(l_objs[n].key, &l_block_hash);
+        dap_chain_block_cache_t *l_block_cache = dap_chain_block_cache_new(a_blocks, &l_block_hash,
+                                                                           (dap_chain_block_t*)l_objs[n].value, l_objs[n].value_len);
         dap_chain_block_chunks_add(l_ret, l_block_cache );
     }
     dap_global_db_objs_delete(l_objs,l_objs_count);
@@ -95,8 +98,8 @@ void dap_chain_block_chunks_add(dap_chain_block_chunks_t * a_chunks,dap_chain_bl
         return;
     }
     // Save to GDB
-    dap_global_db_set(a_chunks->gdb_group, a_block_cache->block_hash_str, a_block_cache->block, a_block_cache->block_size,
-                               true, NULL, NULL );
+    //dap_global_db_set(a_chunks->gdb_group, a_block_cache->block_hash_str, a_block_cache->block, a_block_cache->block_size,
+    //                           true, NULL, NULL );
 
     // And here we select chunk for the new block cache
     bool l_is_chunk_found = false;
