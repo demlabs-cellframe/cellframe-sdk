@@ -50,8 +50,7 @@ static dap_list_t *s_get_validators_addr_list(dap_chain_cs_block_ton_session_t *
 static dap_chain_cs_block_ton_session_t * s_session_items;
 static dap_interval_timer_t s_session_cs_timer = NULL;
 
-typedef struct dap_chain_cs_block_ton_pvt
-{
+typedef struct dap_chain_cs_block_ton_pvt {
     dap_enc_key_t *blocks_sign_key;
     char **tokens_hold;
     uint64_t *tokens_hold_value;
@@ -647,7 +646,7 @@ static void s_session_candidate_to_chain(
         uint8_t l_message_type = l_message_item->message->hdr.type;
         if ( l_message_type == DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_COMMIT_SIGN ) {
             l_candidate_hash = &((dap_chain_cs_block_ton_message_commitsign_t *)
-                            (l_message_item->message->sign_n_message+l_message_item->message->hdr.sign_size))->candidate_hash;
+                            (l_message_item->message->msg_n_sign+l_message_item->message->hdr.sign_size))->candidate_hash;
             if ( memcmp(l_candidate_hash, a_candidate_hash, sizeof(dap_chain_hash_fast_t)) == 0) {
                 l_commitsign_list = dap_list_append(l_commitsign_list, (void*)l_message_item->message);
             }
@@ -670,7 +669,7 @@ static void s_session_candidate_to_chain(
             dap_chain_cs_block_ton_message_t *l_message = (dap_chain_cs_block_ton_message_t *)l_submit_temp->data;
             dap_chain_cs_block_ton_message_commitsign_t *l_commitsign =
                         (dap_chain_cs_block_ton_message_commitsign_t *)
-                                    (l_message->sign_n_message+l_message->hdr.sign_size);
+                                    (l_message->msg_n_sign+l_message->hdr.sign_size);
             if( l_message->hdr.is_verified
                     && l_message->hdr.sender_node_addr.uint64 == l_validator->uint64) {
                 dap_sign_t *l_candidate_sign = (dap_sign_t *)l_commitsign->candidate_sign;
@@ -921,7 +920,7 @@ static uint16_t s_session_message_count(dap_chain_cs_block_ton_session_t *a_sess
     dap_chain_cs_block_ton_message_item_t *l_chain_message=NULL, *l_chain_message_tmp=NULL;
     HASH_ITER(hh, l_messages_items, l_chain_message, l_chain_message_tmp) {
         dap_chain_cs_block_ton_message_getinfo_t *l_getinfo = (dap_chain_cs_block_ton_message_getinfo_t *)
-                            (l_chain_message->message->sign_n_message+l_chain_message->message->hdr.sign_size);
+                            (l_chain_message->message->msg_n_sign+l_chain_message->message->hdr.sign_size);
         if (l_chain_message->message->hdr.type == a_type &&
                 (!a_candidate_hash || memcmp(&l_getinfo->candidate_hash, a_candidate_hash,
                                             sizeof(dap_chain_hash_fast_t)) == 0)) {
@@ -1471,11 +1470,11 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         return;
     }
     size_t l_message_data_size = a_data_size - sizeof(*l_message) - l_message->hdr.sign_size ;
-    byte_t * l_message_data = l_message->sign_n_message + l_message->hdr.sign_size;
+    byte_t * l_message_data = l_message->msg_n_sign + l_message->hdr.sign_size;
 
     if ( !PVT(l_session->ton)->validators_list_by_stake ) {
         size_t l_data_size = 0;
-        dap_sign_t *l_sign = (dap_sign_t*)l_message->sign_n_message;
+        dap_sign_t *l_sign = (dap_sign_t*)l_message->msg_n_sign;
         uint8_t *l_data = s_message_data_sign(l_session, l_message, &l_data_size);
         bool l_verify_passed = false;
         for (uint16_t j = 0; j < PVT(l_session->ton)->auth_certs_count; j++) {
@@ -1515,7 +1514,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         // check time offset
         dap_chain_cs_block_ton_message_startsync_t *l_startsync =
                             (dap_chain_cs_block_ton_message_startsync_t *)
-                                    (l_message->sign_n_message+l_message->hdr.sign_size);
+                                    (l_message->msg_n_sign+l_message->hdr.sign_size);
 
         if (PVT(l_session->ton)->debug)
             log_it(L_MSG, "TON: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Receive START_SYNC: from addr:"NODE_ADDR_FP_STR"",
@@ -1574,7 +1573,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
     // validator check
     uint64_t l_round_id =
                 ((dap_chain_cs_block_ton_message_getinfo_t *)
-                        (l_message->sign_n_message+l_message->hdr.sign_size))->round_id.uint64;
+                        (l_message->msg_n_sign+l_message->hdr.sign_size))->round_id.uint64;
     dap_chain_node_addr_t *l_validator = NULL;
     if (l_round_id == l_session->cur_round.id.uint64)
         l_validator = s_session_get_validator(l_session, a_sender_node_addr, l_session->cur_round.validators_start);
@@ -1680,11 +1679,11 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         if (l_chain_message->message->hdr.sender_node_addr.uint64 == a_sender_node_addr->uint64) {
             dap_chain_hash_fast_t *l_candidate_hash_cur =
                     &((dap_chain_cs_block_ton_message_getinfo_t *)
-                            (l_message->sign_n_message+l_message->hdr.sign_size))->candidate_hash;
+                            (l_message->msg_n_sign+l_message->hdr.sign_size))->candidate_hash;
 
             dap_chain_hash_fast_t *l_candidate_hash =
                 &((dap_chain_cs_block_ton_message_getinfo_t *)
-                    (l_chain_message->message->sign_n_message+l_chain_message->message->hdr.sign_size))->candidate_hash;
+                    (l_chain_message->message->msg_n_sign+l_chain_message->message->hdr.sign_size))->candidate_hash;
 
             bool l_candidate_hash_match = (memcmp(l_candidate_hash_cur, l_candidate_hash,
                                                             sizeof(dap_chain_hash_fast_t)) == 0);
@@ -1712,10 +1711,10 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                 case DAP_STREAM_CH_CHAIN_MESSAGE_TYPE_VOTE: {
                     dap_chain_cs_block_ton_message_vote_t *l_vote =
                                     (dap_chain_cs_block_ton_message_vote_t *)
-                                        (l_message->sign_n_message+l_message->hdr.sign_size);
+                                        (l_message->msg_n_sign+l_message->hdr.sign_size);
                     dap_chain_cs_block_ton_message_vote_t *l_vote_item =
                                     (dap_chain_cs_block_ton_message_vote_t *)
-                                        (l_chain_message->message->sign_n_message+l_chain_message->message->hdr.sign_size);
+                                        (l_chain_message->message->msg_n_sign+l_chain_message->message->hdr.sign_size);
                     if ( l_chain_msg_type == l_message->hdr.type
                             && l_vote->attempt_number == l_vote_item->attempt_number ) {
                         if (PVT(l_session->ton)->debug)
@@ -2219,12 +2218,12 @@ static void s_message_send(dap_chain_cs_block_ton_session_t *a_session, uint8_t 
         l_sign_size = dap_sign_get_size(l_sign);
         l_message_size += l_sign_size;
         l_message = DAP_REALLOC(l_message, l_message_size);
-        memcpy(l_message->sign_n_message, l_sign, l_sign_size);
+        memcpy(l_message->msg_n_sign, l_sign, l_sign_size);
         DAP_DELETE(l_sign);
         DAP_DELETE(l_data);
     }
     l_message->hdr.sign_size = l_sign_size;
-    memcpy(l_message->sign_n_message+l_sign_size, a_data, a_data_size);
+    memcpy(l_message->msg_n_sign+l_sign_size, a_data, a_data_size);
     l_message->hdr.message_size = a_data_size;
 
     dap_stream_ch_chain_voting_message_write(l_net, a_validators, l_message, l_message_size);

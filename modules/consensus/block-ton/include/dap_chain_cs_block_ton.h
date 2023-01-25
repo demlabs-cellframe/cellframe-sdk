@@ -106,7 +106,7 @@ typedef struct dap_chain_cs_block_ton_message_hdr {
 
 typedef struct dap_chain_cs_block_ton_message {
     dap_chain_cs_block_ton_message_hdr_t hdr;
-    uint8_t sign_n_message[];
+    uint8_t msg_n_sign[];
 } DAP_ALIGN_PACKED dap_chain_cs_block_ton_message_t;
 
 typedef struct dap_chain_cs_block_ton_message_item {
@@ -126,6 +126,7 @@ typedef struct dap_chain_cs_block_ton_message_getinfo {
 typedef struct dap_chain_cs_block_ton_message_startsync {
     dap_time_t ts;
     dap_chain_cs_block_ton_round_id_t round_id;
+    dap_hash_fast_t last_block_hash;
 } DAP_ALIGN_PACKED dap_chain_cs_block_ton_message_startsync_t;
 
 /*
