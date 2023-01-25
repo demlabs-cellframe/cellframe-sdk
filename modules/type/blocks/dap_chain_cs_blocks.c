@@ -308,7 +308,7 @@ static void s_cli_meta_hash_print(  dap_string_t * a_str_tmp, const char * a_met
 {
     if(a_meta->hdr.data_size == sizeof (dap_chain_hash_fast_t) ){
         char * l_hash_str = dap_chain_hash_fast_to_str_new( (dap_chain_hash_fast_t *) a_meta->data);
-        dap_string_append_printf(a_str_tmp,"\t\tPREV: \"%s\": 0x%s\n", a_meta_title,l_hash_str);
+        dap_string_append_printf(a_str_tmp,"\t\tPREV: \"%s\": %s\n", a_meta_title,l_hash_str);
         DAP_DELETE(l_hash_str);
     }else{
         char * l_data_hex = DAP_NEW_Z_SIZE(char,a_meta->hdr.data_size*2+3);
