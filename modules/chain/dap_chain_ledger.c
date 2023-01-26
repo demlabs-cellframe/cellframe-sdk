@@ -1591,12 +1591,13 @@ dap_string_t *dap_chain_ledger_balance_info(dap_ledger_t *a_ledger)
 dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
 {
     dap_list_t *l_ret_list = NULL;
-    dap_string_t *l_str_tmp = dap_string_new("");
+    dap_string_t *l_str_tmp;// = dap_string_new("");
     dap_chain_ledger_token_item_t *l_token_item, *l_tmp_item;
     pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
     HASH_ITER(hh, PVT(a_ledger)->tokens, l_token_item, l_tmp_item) {
+        l_str_tmp = dap_string_new("");
         const char *l_type_str;
-        //const char *l_flags_str = s_flag_str_from_code(l_token_item->datum_token->header_private_decl.flags);;
+        const char *l_flags_str = s_flag_str_from_code(l_token_item->datum_token->header_private_decl.flags);;
         switch (l_token_item->type) {
             case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE: // 256
             case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE:
