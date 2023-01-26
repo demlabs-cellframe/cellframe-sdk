@@ -261,6 +261,7 @@ static  dap_chain_ledger_tx_item_t* tx_item_find_by_addr(dap_ledger_t *a_ledger,
 static void s_threshold_emissions_proc( dap_ledger_t * a_ledger);
 static void s_threshold_txs_proc( dap_ledger_t * a_ledger);
 static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_item_t *a_token_item , dap_chain_datum_token_t * a_token, size_t a_token_size);
+//static s_token_tsd_get_signs()
 static int s_ledger_permissions_check(dap_chain_ledger_token_item_t *  a_token_item, uint16_t a_permission_id, const void * a_data,size_t a_data_size );
 static bool s_ledger_tps_callback(void *a_arg);
 static int s_sort_ledger_tx_item(dap_chain_ledger_tx_item_t* a, dap_chain_ledger_tx_item_t* b);
@@ -413,7 +414,7 @@ static bool s_ledger_token_update_check(dap_chain_ledger_token_item_t *a_cur_tok
 		return false;
     }*/
 
-	l_signs_upd_token = dap_chain_datum_token_signs_parse(a_token_update, a_token_update_size,
+    l_signs_upd_token = dap_chain_datum_token_signs_parse(a_token_update, a_token_update_size,
 														  &auth_signs_total, &auth_signs_valid);
 	if (a_cur_token_item->auth_signs_total != auth_signs_total
 	||	a_cur_token_item->auth_signs_valid != auth_signs_valid) {
@@ -445,6 +446,65 @@ static bool s_ledger_token_update_check(dap_chain_ledger_token_item_t *a_cur_tok
 			return false;
 		}
 	}
+    // Updated auth_signs
+    dap_sign_t **l_new_signs = NULL;
+    size_t l_new_signs_count = 0;
+    size_t l_new_signs_size = 0;
+
+    dap_tsd_t * l_tsd = dap_chain_datum_token_tsd_get(a_token_update, a_token_update_size);
+    size_t l_tsd_size = 0;
+    size_t l_tsd_total_size = 0;
+    if (a_token_update->type  == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)
+        l_tsd_total_size = a_token_update->header_native_update.tsd_total_size;
+    else if (a_token_update->type  == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE)
+        l_tsd_total_size = a_token_update->header_native_update.tsd_total_size;
+
+    for( size_t l_offset=0; l_offset < l_tsd_total_size;  l_offset += l_tsd_size ) {
+        l_tsd = (dap_tsd_t *) (((byte_t *) l_tsd) + l_tsd_size);
+        l_tsd_size = l_tsd ? dap_tsd_size(l_tsd) : 0;
+        if( l_tsd_size==0 ){
+            if(s_debug_more)
+                log_it(L_ERROR,"Wrong zero TSD size, exiting TSD parse");
+            break;
+        }else if (l_tsd_size + l_offset > l_tsd_total_size ){
+            if(s_debug_more)
+                log_it(L_ERROR,"Wrong %zd TSD size, exiting TSD parse", l_tsd_size);
+            break;
+        }
+        if (l_tsd->type == DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SIGN_UPDATE) {
+            l_new_signs = DAP_REALLOC(l_new_signs, sizeof(dap_sign_t*) * l_new_signs_count + 1);
+            l_new_signs[l_new_signs_count] = (dap_sign_t*)l_tsd->data;
+            l_new_signs_count++;
+        }
+    }
+    if (l_new_signs_count != 0) {
+        if (a_token_update->signs_valid != l_new_signs_count) {
+            if (s_debug_more)
+                log_it(L_ERROR,
+                       "The number of signatures of the sections extracted from the TSD does not match the number "
+                       "of valid token signatures.");
+            return false;
+        }
+        // Check signs
+        for (size_t i = 0; i < l_new_signs_count; i++) {
+            dap_sign_t *l_sign = l_new_signs[i];
+            if (dap_sign_verify(l_sign, a_token_update, sizeof(*a_token_update) - sizeof(uint16_t)) != 1) {
+                DAP_DELETE(l_new_signs);
+                if (s_debug_more)
+                    log_it(L_ERROR, "In TSD sections, the signature of the current token is invalid.");
+                return false;
+            }
+            l_new_signs_size += dap_sign_get_size(l_sign);
+        }
+        // Replacing old signatures with new ones from TSD sections.
+        a_token_update = DAP_REALLOC(a_token_update, sizeof(dap_chain_datum_token_t) + l_tsd_total_size + l_new_signs_size);
+        size_t l_copy_signs_size = 0;
+        for (size_t i = 0; i < l_new_signs_count; i++) {
+            size_t l_sign_size = dap_sign_get_size(l_new_signs[i]);
+            memcpy(a_token_update->data_n_tsd + l_tsd_total_size + l_copy_signs_size, l_new_signs[i], l_sign_size);
+            l_copy_signs_size += l_sign_size;
+        }
+    }
 	return true;
 }
 
