@@ -1,4 +1,3 @@
-
 #include "dap_timerfd.h"
 #include "utlist.h"
 #include "dap_chain_net.h"
@@ -43,10 +42,6 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
 static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t **a_block_ptr, size_t a_block_size);
 static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t *a_block, size_t a_block_size);
 
-static int s_compare_validators_list_stake(const void * a_item1, const void * a_item2, void *a_unused);
-static int s_compare_validators_list_addr(const void * a_item1, const void * a_item2, void *a_unused);
-static dap_list_t *s_get_validators_addr_list(dap_chain_cs_block_ton_session_t *a_session); //(dap_chain_t *a_chain);
-
 static dap_chain_cs_block_ton_session_t * s_session_items;
 static dap_interval_timer_t s_session_cs_timer = NULL;
 
@@ -59,7 +54,7 @@ typedef struct dap_chain_cs_block_ton_pvt {
     // uint16_t confirmations_minimum;
     dap_chain_callback_new_cfg_t prev_callback_created;
 
-    uint16_t poa_validators_count;
+    uint16_t min_validators_count;
     bool flag_sign_verify;
 
     bool debug;
@@ -84,17 +79,19 @@ typedef struct dap_chain_cs_block_ton_pvt {
 
 #define PVT(a) ((dap_chain_cs_block_ton_pvt_t *)a->_pvt)
 
-int dap_chain_cs_block_ton_init() {
+int dap_chain_cs_block_ton_init()
+{
     dap_stream_ch_chain_voting_init();
     dap_chain_cs_add("block_ton", s_callback_new);
     return 0;
 }
 
-void dap_chain_cs_block_ton_deinit(void) {
-
+void dap_chain_cs_block_ton_deinit(void)
+{
 }
 
-static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg) {
+static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
+{
     dap_chain_cs_blocks_new(a_chain, a_chain_cfg);
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_cs_block_ton_t *l_ton = DAP_NEW_Z(dap_chain_cs_block_ton_t);
@@ -159,7 +156,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg) {
 
         uint16_t l_node_addrs_count;
         char **l_addrs = dap_config_get_array_str(a_chain_cfg, "block-ton", "ton_nodes_addrs", &l_node_addrs_count);
-        l_ton_pvt->poa_validators_count = l_node_addrs_count;
+        l_ton_pvt->min_validators_count = l_node_addrs_count * 2 / 3;
         for(size_t i = 0; i < l_node_addrs_count; i++) {
             dap_chain_node_addr_t *l_node_addr = DAP_NEW_Z(dap_chain_node_addr_t);
             if (dap_sscanf(l_addrs[i],NODE_ADDR_FP_STR, NODE_ADDR_FPS_ARGS(l_node_addr) ) != 4 ){
@@ -208,69 +205,51 @@ lb_err:
 
 }
 
-static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks) {
+static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
+{
     dap_interval_timer_delete(s_session_cs_timer);
     dap_chain_cs_block_ton_t *l_ton = DAP_CHAIN_CS_BLOCK_TON(a_blocks);
     if (l_ton->_pvt)
         DAP_DELETE(l_ton->_pvt);
 }
 
-
-static int s_compare_validators_list_stake(const void * a_item1, const void * a_item2, void *a_unused)
+static void *s_callback_list_copy(const void *a_data, UNUSED_ATTR void *a_arg)
 {
-    UNUSED(a_unused);
-    dap_chain_net_srv_stake_item_t *l_item1 = (dap_chain_net_srv_stake_item_t *)a_item1;
-    dap_chain_net_srv_stake_item_t *l_item2 = (dap_chain_net_srv_stake_item_t *)a_item2;
-    return compare256(l_item1->value, l_item2->value)*-1;
+    return DAP_DUP((dap_chain_node_addr_t *)a_data);
 }
 
-static int s_compare_validators_list_addr(const void * a_item1, const void * a_item2, void *a_unused)
+static dap_list_t *s_get_validators_addr_list(dap_chain_cs_block_ton_session_t *a_session, dap_chain_cs_block_ton_message_startsync_t *a_msg)
 {
-    UNUSED(a_unused);
-    dap_chain_node_addr_t *l_item1 = (dap_chain_node_addr_t *)a_item1;
-    dap_chain_node_addr_t *l_item2 = (dap_chain_node_addr_t *)a_item2;
-    if(!l_item1 || !l_item2 || l_item1->uint64 == l_item2->uint64)
-        return 0;
-    if(l_item1->uint64 > l_item2->uint64)
-        return 1;
-    return -1;
-}
-
-static dap_list_t *s_get_validators_addr_list(dap_chain_cs_block_ton_session_t *a_session) {//(dap_chain_t *a_chain) {
-
-    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_session->chain);
-    dap_chain_cs_block_ton_t *l_ton = DAP_CHAIN_CS_BLOCK_TON(l_blocks);
-    dap_chain_cs_block_ton_pvt_t *l_ton_pvt = PVT(l_ton);
+    dap_chain_cs_block_ton_pvt_t *l_ton_pvt = PVT(a_session->ton);
     dap_list_t *l_ret = NULL;
 
-    if ( l_ton_pvt->validators_list_by_stake) {
+    if (l_ton_pvt->validators_list_by_stake) {
         dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators();
-        l_validators = dap_list_sort(l_validators, s_compare_validators_list_stake);
-        dap_list_t *l_list = dap_list_first(l_validators);
-        while (l_list){
-            dap_list_t *l_next = l_list->next;
-            dap_chain_node_addr_t *l_addr =
-                    (dap_chain_node_addr_t *)DAP_DUP_SIZE(
-                        &((dap_chain_net_srv_stake_item_t * )l_list->data)->node_addr,
-                            sizeof(dap_chain_node_addr_t));
-            DAP_DELETE(l_list->data);
-            l_ret = dap_list_append(l_ret, l_addr);
-            l_list = l_next;
+        size_t l_validators_count = dap_list_length(l_validators);
+        if (l_validators_count < l_ton_pvt->min_validators_count) {
+            dap_list_free_full(l_validators, NULL);
+            return NULL;
         }
-        dap_list_free(l_list);
-    }
-    else {
-        // dap_chain_net_t *l_net = dap_chain_net_by_id(a_session->chain->net_id);
-        dap_list_t *l_list = dap_list_first(PVT(a_session->ton)->ton_nodes_addrs);
-        while (l_list) {
-            dap_chain_node_addr_t *l_addr =
-                    (dap_chain_node_addr_t *)DAP_DUP_SIZE(
-                            l_list->data, sizeof(dap_chain_node_addr_t));
-            l_ret = dap_list_append(l_ret, l_addr);
-            l_list = l_list->next;
+        dap_hash_fast_t *l_seed_hash = &a_msg->last_block_hash;
+        unsigned int l_seed = *(unsigned_int *)l_seed_hash;
+        int l_xor_iters = sizeof(dap_hash_fast_t) / sizeof(unsigned int);
+        for (int i = 1; i < l_xor_iters; i++)
+            l_seed ^= *((unsigned_int *)l_seed_hash + i);
+        srand(l_seed);
+        size_t l_need_vld_cnt = MIN(l_validators_count, l_ton_pvt->min_validators_count * 3 / 2);
+        for (size_t l_current_vld_cnt = 0; l_current_vld_cnt < l_need_vld_cnt; l_current_vld_cnt++) {
+            unsigned int l_chosen_pos = rand() % l_validators_count;
+            dap_list_t *l_chosen = dap_list_nth(l_validators, l_chosen_pos);
+            l_validators = dap_list_remove_link(l_validators, l_chosen);
+            dap_chain_node_addr_t *l_chosen_addr = ((dap_chain_net_srv_stake_item_t *)l_chosen->data)->node_addr;
+            l_ret = dap_list_append(l_ret, DAP_DUP(l_chosen_addr);
+            DAP_DELETE(l_chosen->data);
+            DAP_DELETE(l_chosen);
+            l_validators_count--;
         }
-        l_ret = dap_list_sort(l_ret, s_compare_validators_list_addr);
-    }
+    } else
+        l_ret = dap_list_copy_deep(l_ton_pvt->ton_nodes_addrs, s_callback_list_copy, NULL);
+
     return l_ret;
 }
 
@@ -304,7 +283,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     l_session->my_candidate_size = 0;
     l_session->my_candidate_attempts_count = 0;
 
-    l_session->cur_round.validators_list = s_get_validators_addr_list(l_session);
+    l_session->cur_round.validators_list = s_get_validators_addr_list(l_session, NULL);
     l_session->cur_round.validators_count = dap_list_length(l_session->cur_round.validators_list);
 
     l_session->my_addr = DAP_NEW(dap_chain_node_addr_t);
@@ -479,7 +458,7 @@ static void s_session_proc_state( dap_chain_cs_block_ton_session_t * a_session)
             a_session->ts_round_sync_start = dap_time_now();
             dap_chain_node_mempool_process_all(a_session->chain);
             dap_list_free_full(a_session->cur_round.validators_list, free);
-            a_session->cur_round.validators_list = s_get_validators_addr_list(a_session);
+            a_session->cur_round.validators_list = s_get_validators_addr_list(a_session, NULL);
             a_session->cur_round.validators_count = dap_list_length(a_session->cur_round.validators_list);
             dap_timerfd_start(PVT(a_session->ton)->first_message_delay*1000,
                 (dap_timerfd_callback_t)s_session_send_startsync, a_session);
@@ -2301,8 +2280,8 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
             return -2;
         }
 
-        if (l_signs_count * 3  < l_ton_pvt->poa_validators_count * 2) {
-            log_it(L_ERROR, "Corrupted block: not enough signs: %zu of %hu", l_signs_count, l_ton_pvt->poa_validators_count);
+        if (l_signs_count < l_ton_pvt->min_validators_count) {
+            log_it(L_ERROR, "Corrupted block: not enough signs: %zu of %hu", l_signs_count, l_ton_pvt->min_validators_count);
             DAP_DELETE(l_signs);
             return -1;
         }
@@ -2332,8 +2311,8 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         if ( l_ret != 0 ) {
             return l_ret;
         }
-        if (l_signs_verified_count * 3 < l_ton_pvt->poa_validators_count * 2) {
-            log_it(L_ERROR, "Corrupted block: not enough signs: %u of %u", l_signs_verified_count, l_ton_pvt->poa_validators_count);
+        if (l_signs_verified_count < l_ton_pvt->min_validators_count) {
+            log_it(L_ERROR, "Corrupted block: not enough signs: %u of %u", l_signs_verified_count, l_ton_pvt->min_validators_count);
             return -1;
         }
     }
