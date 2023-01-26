@@ -620,7 +620,7 @@ static void s_http_client_delete(dap_http_client_t * a_http_client, void *a_arg)
     UNUSED(a_arg);
     dap_stream_t *l_stm = DAP_STREAM(a_http_client);
     if (!l_stm) {
-        log_it(L_WARNING, "Stream for gttp client %p is already freed", a_http_client);
+        log_it(L_WARNING, "Stream for http client %p is already freed", a_http_client);
         return;
     }
     l_stm->esocket = NULL;
