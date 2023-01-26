@@ -98,8 +98,8 @@ typedef struct dap_chain_cs_block_ton_message_hdr {
     uint64_t message_size;
     dap_time_t ts_created;
     dap_chain_node_addr_t sender_node_addr;
-    uint16_t  is_genesis;
-    uint16_t  is_verified;
+    uint16_t is_genesis;
+    uint16_t is_verified;
     dap_chain_hash_fast_t prev_message_hash;
     dap_chain_id_t chain_id;
 } DAP_ALIGN_PACKED dap_chain_cs_block_ton_message_hdr_t;

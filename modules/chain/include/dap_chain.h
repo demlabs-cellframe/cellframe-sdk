@@ -45,15 +45,14 @@ typedef const void * dap_chain_atom_ptr_t;
 
 // Atomic element iterator
 typedef struct dap_chain_atom_iter{
-    dap_chain_t * chain;
+    dap_chain_t *chain;
     dap_chain_atom_ptr_t cur;
     dap_chain_hash_fast_t *cur_hash;
     dap_chain_cell_id_t cell_id;
     bool with_treshold;
     bool found_in_treshold;
     size_t cur_size;
-    void * cur_item;
-    void * _inheritor;
+    void *cur_item;
 } dap_chain_atom_iter_t;
 
 
@@ -89,7 +88,7 @@ typedef dap_chain_atom_ptr_t * (*dap_chain_callback_atom_iter_get_atoms_t)(dap_c
 typedef size_t (*dap_chain_callback_add_datums_t)(dap_chain_t * , dap_chain_datum_t **, size_t );
 
 typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_iter_get_next_t)(dap_chain_atom_iter_t *  ,size_t*);
-typedef void (*dap_chain_callback_atom_iter_delete_t)(dap_chain_atom_iter_t *  );
+typedef void (*dap_chain_callback_atom_iter_delete_t)(dap_chain_atom_iter_t *);
 
 typedef void (*dap_chain_callback_notify_t)(void * a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, void* a_atom, size_t a_atom_size); //change in chain happened
 

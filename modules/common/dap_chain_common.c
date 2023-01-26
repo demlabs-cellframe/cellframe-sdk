@@ -38,6 +38,7 @@
 #define LOG_TAG "dap_chain_common"
 
 const dap_chain_net_srv_uid_t c_dap_chain_net_srv_uid_null = {0};
+const dap_chain_cell_id_t c_dap_chain_cell_id_null = {0};
 
 /*
  * Forward declarations

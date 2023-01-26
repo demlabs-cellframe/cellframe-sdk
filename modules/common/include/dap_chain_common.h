@@ -83,7 +83,6 @@ typedef union dap_chain_node_addr {
 #define NODE_ADDR_FPS_ARGS(a)  &a->words[3],&a->words[2],&a->words[1],&a->words[0]
 #define NODE_ADDR_FP_ARGS_S(a)  a.words[3],a.words[2],a.words[1],a.words[0]
 #define NODE_ADDR_FPS_ARGS_S(a)  &a.words[3],&a.words[2],&a.words[1],&a.words[0]
-
 #endif
 
 inline static int dap_chain_node_addr_from_str( dap_chain_node_addr_t * a_addr, const char * a_addr_str){
@@ -159,8 +158,9 @@ typedef union {
 } dap_chain_net_srv_uid_t;
 
 extern const dap_chain_net_srv_uid_t c_dap_chain_net_srv_uid_null;
+extern const dap_chain_cell_id_t c_dap_chain_cell_id_null;
 
-typedef enum {
+enum serv_unit_enum {
     SERV_UNIT_UNDEFINED = 0 ,
     SERV_UNIT_MB = 0x00000001, // megabytes
     SERV_UNIT_SEC = 0x00000002, // seconds
@@ -168,7 +168,8 @@ typedef enum {
     SERV_UNIT_KB = 0x00000010,  // kilobytes
     SERV_UNIT_B = 0x00000011,   // bytes
     SERV_UNIT_PCS = 0x00000022  // pieces
-} serv_unit_enum_t;
+};
+typedef uint32_t serv_unit_enum_t;
 
 DAP_STATIC_INLINE const char *serv_unit_enum_to_str(serv_unit_enum_t *unit_enum){
     switch (*unit_enum) {
@@ -180,20 +181,14 @@ DAP_STATIC_INLINE const char *serv_unit_enum_to_str(serv_unit_enum_t *unit_enum)
     case SERV_UNIT_B: return "SERV_UNIT_B";
     case SERV_UNIT_PCS: return "SERV_UNIT_PCS";
     default: return "UNDEFINED";
-
     }
-//    switch (unit_enum){
-//    case SERV
-//    }
-//    return  "SERV_UNIT_UNDEFINED";
 }
 
 typedef union {
     uint8_t raw[4];
-    uint32_t raw_ui32[1];
     uint32_t uint32;
     serv_unit_enum_t enm;
-} dap_chain_net_srv_price_unit_uid_t;
+} DAP_ALIGN_PACKED dap_chain_net_srv_price_unit_uid_t;
 
 enum dap_chain_tx_item_type {
     TX_ITEM_TYPE_IN = 0x00, /// @brief  Transaction: inputs
