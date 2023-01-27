@@ -1118,6 +1118,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_chain_node_cli_cmd_item_create ("mempool_proc", com_mempool_proc, "Proc mempool entrie with specified hash for selected chain network",
             "mempool_proc -net <net_name> -datum <datum hash>\n");
 
+    dap_chain_node_cli_cmd_item_create ("mempool_proc_all", com_mempool_proc_all, "Proc mempool all entries for selected chain network",
+                                        "mempool_proc -net <net_name>\n");
+
     dap_chain_node_cli_cmd_item_create ("mempool_delete", com_mempool_delete, "Delete datum with hash <datum hash> for selected chain network",
             "mempool_delete -net <net_name> -datum <datum hash>\n");
 
