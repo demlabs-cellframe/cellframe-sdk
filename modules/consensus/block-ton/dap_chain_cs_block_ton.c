@@ -302,16 +302,13 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     log_it(L_INFO, "TON: init session for net:%s, chain:%s", a_chain->net_name, a_chain->name);
     DL_APPEND(s_session_items, l_session);
     dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
-    if (l_ton_pvt->validators_list_by_stake ||
-                    (l_role.enums == NODE_ROLE_MASTER || l_role.enums == NODE_ROLE_ROOT) ) {
-        if ( s_session_get_validator(l_session, l_session->my_addr, l_session->cur_round.validators_list) ) {
-            if (!s_session_cs_timer) {
-                s_session_cs_timer = dap_interval_timer_create(1000, s_session_timer, NULL);
-                if (l_ton_pvt->debug)
-                    log_it(L_MSG, "TON: Consensus main timer is started");
-            }
-            dap_stream_ch_chain_voting_in_callback_add(l_session, s_session_packet_in);
+    if ((l_role.enums == NODE_ROLE_MASTER || l_role.enums == NODE_ROLE_ROOT) &&
+        s_session_get_validator(l_session, l_session->my_addr, l_session->cur_round.validators_list)) {
+        if (!s_session_cs_timer) {
+            s_session_cs_timer = dap_interval_timer_create(1000, s_session_timer, NULL);
+            debug_if(l_ton_pvt->debug, L_MSG, "TON: Consensus main timer is started");
         }
+        dap_stream_ch_chain_voting_in_callback_add(l_session, s_session_packet_in);
     }
     return 0;
 }

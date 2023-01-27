@@ -5656,6 +5656,71 @@ end:
     return 0;
 }
 
+static char **s_parse_items(const char *a_str, char a_delimiter, int *a_count, const int a_only_digit)
+{
+    int l_count_temp = *a_count = 0;
+    int l_len_str = strlen(a_str);
+    if (l_len_str == 0) return NULL;
+    char *s, *l_temp_str;
+    s = l_temp_str = dap_strdup(a_str);
+
+    int l_buf = 0;
+    for (int i = 0; i < l_len_str; i++) {
+        if (s[i] == a_delimiter && !l_buf) {
+            s[i] = 0;
+            continue;
+        }
+        if (s[i] == a_delimiter && l_buf) {
+            s[i] = 0;
+            l_buf = 0;
+            continue;
+        }
+        if (!dap_is_alpha(s[i]) && l_buf) {
+            s[i] = 0;
+            l_buf = 0;
+            continue;
+        }
+        if (!dap_is_alpha(s[i]) && !l_buf) {
+            s[i] = 0;
+            continue;
+        }
+        if (a_only_digit) {
+            if (dap_is_digit(s[i])) {
+                l_buf++;
+                if (l_buf == 1) l_count_temp++;
+                continue;
+            }
+        } else if (dap_is_alpha(s[i])) {
+            l_buf++;
+            if (l_buf == 1) l_count_temp++;
+            continue;
+        }
+        if (!dap_is_alpha(s[i])) {
+            l_buf = 0;
+            s[i] = 0;
+            continue;
+        }
+    }
+
+    s = l_temp_str;
+    if (l_count_temp == 0) {
+        DAP_FREE(l_temp_str);
+        return NULL;
+    }
+
+    char **lines = DAP_CALLOC(l_count_temp, sizeof (void *));
+    for (int i = 0; i < l_count_temp; i++) {
+        while (*s == 0) s++;
+        lines[i] = strdup(s);
+        s = strchr(s, '\0');
+        s++;
+    }
+
+    DAP_FREE(l_temp_str);
+    *a_count = l_count_temp;
+    return lines;
+}
+
 static int s_get_key_from_file(const char *a_file, const char *a_mime, const char *a_cert_name, dap_sign_t **a_sign)
 {
     char **l_items_mime = NULL;
@@ -5665,7 +5730,7 @@ static int s_get_key_from_file(const char *a_file, const char *a_mime, const cha
 
 
     if (a_mime) {
-        l_items_mime = dap_parse_items(a_mime, ',', &l_items_mime_count, 0);
+        l_items_mime = s_parse_items(a_mime, ',', &l_items_mime_count, 0);
     }
 
     if (l_items_mime && l_items_mime_count > 0) {
