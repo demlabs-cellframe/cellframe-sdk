@@ -285,7 +285,7 @@ static void s_callback_decree (dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_n
     size_t l_tsd_offset = 0;
 //    TODO: move to ACTION_CREATE
     while(l_tsd_offset < (a_decree_size - sizeof(a_decree->header)) ){
-        dap_tsd_t *l_tsd = (dap_tsd_t*) (a_decree->tsd_sections + l_tsd_offset);
+        dap_tsd_t *l_tsd = (dap_tsd_t*) (a_decree->data_n_signs + l_tsd_offset);
         switch((dap_chain_net_srv_fee_tsd_type_t)l_tsd->type) {
         case TSD_FEE_TYPE:
             l_fee->fee_type = dap_tsd_get_scalar(l_tsd, uint16_t);

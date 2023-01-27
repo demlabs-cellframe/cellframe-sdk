@@ -22,9 +22,19 @@
 #pragma once
 
 #include "dap_chain_datum_decree.h"
+#include "dap_list.h"
+
+typedef struct decree_params {
+    dap_list_t *pkeys;
+    uint32_t   num_of_owners;
+    uint32_t   min_num_of_owners;
+}   dap_chain_net_decree_t;
+
+// Default values
 
 
-
+int dap_chain_net_decree_init(dap_chain_net_t *a_net);
+int dap_chain_net_decree_deinit(dap_chain_net_t *a_net);
 
 int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain);
 

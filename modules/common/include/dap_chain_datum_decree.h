@@ -25,6 +25,8 @@
 #include "dap_common.h"
 #include "dap_math_ops.h"
 #include "dap_time.h"
+#include "dap_list.h"
+#include "dap_tsd.h"
 #include <stdint.h>
 
 // Governance decree
@@ -43,9 +45,10 @@ typedef struct dap_chain_datum_decree {
         } DAP_ALIGN_PACKED;
         uint16_t sub_type;
         uint16_t action;
-        uint32_t tsd_size;
+        uint32_t data_size;
+        uint32_t signs_size;
     } DAP_ALIGN_PACKED header;
-    byte_t tsd_sections[];
+    byte_t data_n_signs[];
 } DAP_ALIGN_PACKED dap_chain_datum_decree_t;
 
 // Decree types
@@ -68,4 +71,4 @@ typedef struct dap_chain_datum_decree {
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGN                0x0001
 
 
-dap_sign_t* dap_chain_datum_decree_get_sign(dap_chain_datum_decree_t *decree, size_t *sign_max_size);
+dap_tsd_t *dap_chain_datum_decree_get_signs(dap_chain_datum_decree_t *decree, size_t *num_of_signs);

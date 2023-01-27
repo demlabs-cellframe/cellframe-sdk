@@ -195,6 +195,7 @@ typedef struct dap_chain_net_pvt{
     dap_chain_net_state_t state_target;
     uint16_t acl_idx;
 
+
     // Main loop timer
     dap_interval_timer_t main_timer;
 
@@ -2453,6 +2454,10 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
 
 
          }
+
+
+        dap_chain_net_decree_init(l_net);
+
         char * l_chains_path = dap_strdup_printf("%s/network/%s", dap_config_path(), l_net->pub.name);
         DIR * l_chains_dir = opendir(l_chains_path);
         DAP_DEL_Z(l_chains_path);
@@ -3092,7 +3097,7 @@ int dap_chain_net_verify_datum_for_add(dap_chain_net_t *a_net, dap_chain_datum_t
         case DAP_CHAIN_DATUM_TOKEN_EMISSION:
             return dap_chain_ledger_token_emission_add_check( a_net->pub.ledger, a_datum->data, a_datum->header.data_size );
         case DAP_CHAIN_DATUM_DECREE:
-            return;
+            return 0;
     default: return 0;
     }
 }
@@ -3274,7 +3279,7 @@ dap_list_t* dap_chain_datum_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, d
 int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_tx_hash)
 {
     size_t l_datum_data_size = a_datum->header.data_size;
-    if ( a_datum_size < l_datum_data_size+ sizeof (a_datum->header) ){
+    if (a_datum_size < l_datum_data_size+ sizeof (a_datum->header)){
         log_it(L_INFO,"Corrupted datum rejected: wrong size %zd not equel or less datum size %zd",a_datum->header.data_size+ sizeof (a_datum->header),
                a_datum_size );
         return -101;
@@ -3282,7 +3287,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
     switch (a_datum->header.type_id) {
         case DAP_CHAIN_DATUM_DECREE:{
             dap_chain_datum_decree_t * l_decree = (dap_chain_datum_decree_t *) a_datum->data;
-            if( sizeof(l_decree->header)> l_datum_data_size  ){
+            if(sizeof(l_decree->header) + l_decree->header.data_size + l_decree->header.signs_size > l_datum_data_size){
                 log_it(L_WARNING, "Corrupted decree, size %zd is smaller than ever decree header's size %zd", l_datum_data_size, sizeof(l_decree->header));
                 return -102;
             }
@@ -3315,4 +3320,3 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
     }
     return 0;
 }
-
