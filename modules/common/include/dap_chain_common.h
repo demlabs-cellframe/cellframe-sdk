@@ -204,8 +204,8 @@ enum dap_chain_tx_item_type {
 
     TX_ITEM_TYPE_PKEY = 0x20,
     TX_ITEM_TYPE_SIG = 0x30,
-    TX_ITEM_TYPE_TOKEN = 0x40,
-    TX_ITEM_TYPE_TOKEN_EXT = 0x41,
+    TX_ITEM_TYPE_IN_EMS = 0x40,
+    TX_ITEM_TYPE_IN_EMS_EXT = 0x41,
 
     TX_ITEM_TYPE_IN_COND = 0x50, /// @brief  Transaction: conditon inputs
 
@@ -233,8 +233,8 @@ typedef struct dap_chain_receipt_info {
     union {
         uint256_t value_datoshi; // Receipt value
         uint64_t value_64;       // Old receipts compliance
-    };
-} dap_chain_receipt_info_t;
+    } DAP_ALIGN_PACKED;
+} DAP_ALIGN_PACKED dap_chain_receipt_info_t;
 
 #ifdef __cplusplus
 extern "C" {

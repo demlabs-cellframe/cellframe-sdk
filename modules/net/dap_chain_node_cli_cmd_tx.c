@@ -151,7 +151,7 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
 
             // find Token items - present in emit transaction
             dap_list_t *l_list_tx_token;
-            l_list_tx_token = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_TOKEN, NULL);
+            l_list_tx_token = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_EMS, NULL);
 
             // find OUT items
             bool l_type_256 = false;
@@ -184,7 +184,7 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
                     memcpy(l_tx_data->datum, l_datum, l_atom_size);
                     // save token name
                     if(l_list_tx_token) {
-                        dap_chain_tx_token_t *tk = l_list_tx_token->data;
+                        dap_chain_tx_in_ems_t *tk = l_list_tx_token->data;
                         memcpy(l_tx_data->token_ticker, tk->header.ticker, sizeof(l_tx_data->token_ticker));
                     }
                     else {
@@ -483,8 +483,8 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
                 }
                 if (dap_hash_fast_is_blank(l_tx_prev_hash)) {
                     l_base_tx = true;
-                    dap_chain_tx_token_t *l_token = (dap_chain_tx_token_t *)dap_chain_datum_tx_item_get(
-                                                                            l_tx, NULL, TX_ITEM_TYPE_TOKEN, NULL);
+                    dap_chain_tx_in_ems_t *l_token = (dap_chain_tx_in_ems_t *)dap_chain_datum_tx_item_get(
+                                                                            l_tx, NULL, TX_ITEM_TYPE_IN_EMS, NULL);
                     if (l_token)
                         l_src_token = l_token->header.ticker;
                     break;
@@ -1165,11 +1165,9 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
             dap_cli_server_cmd_set_reply_text(a_str_reply, l_str_out->str);
             dap_string_free(l_str_out, true);
             return 0;
-
     }
     // command tx history
     else if(l_cmd == CMD_TX) {
-
         enum { SUBCMD_TX_NONE, SUBCMD_TX_ALL, SUBCMD_TX_ADDR };
         // find subcommand
         int l_subcmd = CMD_NONE;
@@ -1210,7 +1208,6 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
             if(l_page < 1)
                 l_page = 1;
         }
-
 
          // tx all
         if(l_subcmd == SUBCMD_TX_ALL) {

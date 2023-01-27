@@ -113,6 +113,8 @@
 
 #include "json-c/json.h"
 #include "json-c/json_object.h"
+#include "dap_chain_net_srv_stake_pos_delegate.h"
+#include "dap_chain_net_srv_xchange.h"
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -136,7 +138,6 @@ struct net_link {
     uint64_t uplink_ip;
     dap_chain_node_info_t *link_info;
     dap_chain_node_client_t *link;
-    dap_events_socket_uuid_t client_uuid;
     UT_hash_handle hh;
 };
 
@@ -286,8 +287,8 @@ int dap_chain_net_init()
         "net -net <chain net name> [-mode {update | all}] go {online | offline | sync}\n"
             "\tFind and establish links and stay online. \n"
             "\tMode \"update\" is by default when only new chains and gdb are updated. Mode \"all\" updates everything from zero\n"
-        "net -net <chain net name> get status\n"
-            "\tLook at current status\n"
+        "net -net <chain net name> get {status | fee}\n"
+            "\tDisplays the current current status or current fee.\n"
         "net -net <chain net name> stats {tx | tps} [-from <From time>] [-to <To time>] [-prev_sec <Seconds>] \n"
             "\tTransactions statistics. Time format is <Year>-<Month>-<Day>_<Hours>:<Minutes>:<Seconds> or just <Seconds> \n"
         "net -net <chain net name> [-mode {update | all}] sync {all | gdb | chains}\n"
@@ -342,6 +343,10 @@ char *dap_chain_net_get_gdb_group_acl(dap_chain_net_t *a_net)
  */
 int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state)
 {
+    if (PVT(a_net)->load_mode) {
+        log_it(L_ERROR, "Can't chage state of loading network '%s'", a_net->pub.name);
+        return -1;
+    }
     pthread_rwlock_wrlock(&PVT(a_net)->states_lock);
     if (PVT(a_net)->state != NET_STATE_OFFLINE){
         PVT(a_net)->state = PVT(a_net)->state_target = NET_STATE_OFFLINE;
@@ -353,8 +358,7 @@ int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_n
     //PVT(a_net)->flags |= F_DAP_CHAIN_NET_SYNC_FROM_ZERO;  // TODO set this flag according to -mode argument from command line
     pthread_rwlock_unlock(&PVT(a_net)->states_lock);
 
-    dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_net_states_proc, a_net);
-    return 0;
+    return dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_net_states_proc, a_net);
 }
 
 dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net)
@@ -628,23 +632,26 @@ static int s_net_link_add(dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_
     return 0;
 }
 
-static void s_net_link_remove(dap_chain_net_pvt_t *a_net_pvt, dap_events_socket_uuid_t a_client_uuid, bool a_rebase)
+static void s_net_link_remove(dap_chain_net_pvt_t *a_net_pvt, dap_chain_node_client_t *a_link, bool a_rebase)
 {
     struct net_link *l_link, *l_link_tmp, *l_link_found = NULL;
     HASH_ITER(hh, a_net_pvt->net_links, l_link, l_link_tmp) {
-        if (l_link->client_uuid == a_client_uuid) {
+        if (l_link->link == a_link) {
             l_link_found = l_link;
             break;
         }
     }
     if (!l_link_found) {
-        log_it(L_WARNING, "Can't find link UUID 0x%"DAP_UINT64_FORMAT_x" to remove it from links HT", a_client_uuid);
+        log_it(L_WARNING, "Can't find link %p to remove it from links HT", a_link);
         return;
     }
     HASH_DEL(a_net_pvt->net_links, l_link_found);
+    dap_chain_node_client_t *l_client = l_link_found->link;
+    l_client->callbacks.delete = NULL;
+    a_net_pvt->links_queue = dap_list_remove_all(a_net_pvt->links_queue, l_client);
+    dap_chain_node_client_close_mt(l_client);
     if (a_rebase) {
         l_link_found->link = NULL;
-        l_link_found->client_uuid = 0;
         // Add it to the list end
         HASH_ADD(hh, a_net_pvt->net_links, uplink_ip, sizeof(l_link_found->uplink_ip), l_link_found);
     } else {
@@ -658,7 +665,7 @@ static size_t s_net_get_active_links_count(dap_chain_net_t * a_net)
     int l_ret = 0;
     struct net_link *l_link, *l_link_tmp;
     HASH_ITER(hh, PVT(a_net)->net_links, l_link, l_link_tmp)
-        if (l_link->client_uuid)
+        if (l_link->link)
             l_ret++;
     return l_ret;
 }
@@ -691,7 +698,6 @@ static bool s_net_link_start(dap_chain_net_t *a_net, struct net_link *a_link, ui
     else
         return false;
     a_link->link = l_client;
-    a_link->client_uuid = l_client->uuid;
     if (a_delay) {
         dap_timerfd_start(a_delay * 1000, s_net_link_callback_connect_delayed, l_client);
         return true;
@@ -783,7 +789,7 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
     }
     if (l_net_pvt->state_target != NET_STATE_OFFLINE) {
         pthread_rwlock_wrlock(&l_net_pvt->uplinks_lock);
-        s_net_link_remove(l_net_pvt, a_node_client->uuid, l_net_pvt->only_static_links);
+        s_net_link_remove(l_net_pvt, a_node_client, l_net_pvt->only_static_links);
         a_node_client->keep_connection = false;
         struct net_link *l_free_link = s_get_free_link(l_net);
         if (l_free_link) {
@@ -1072,7 +1078,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
                                                 s_net_http_link_prepare_success,
                                                 s_net_http_link_prepare_error,
                                                 l_balancer_request,
-                                                NULL);
+                                                NULL) == NULL;
     } else {
         l_link_node_info->hdr.ext_port = DNS_LISTEN_PORT;
         ret = dap_chain_node_info_dns_request(l_balancer_request->worker,
@@ -1162,8 +1168,11 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
             struct net_link *l_link, *l_link_tmp;
             HASH_ITER(hh, l_net_pvt->net_links, l_link, l_link_tmp) {
                 HASH_DEL(l_net_pvt->net_links, l_link);
-                if (l_link->link)
-                    dap_chain_node_client_close(l_link->client_uuid);
+                if (l_link->link) {
+                    dap_chain_node_client_t *l_client = l_link->link;
+                    l_client->callbacks.delete = NULL;
+                    dap_chain_node_client_close_mt(l_client);
+                }
                 DAP_DEL_Z(l_link->link_info);
                 DAP_DELETE(l_link);
             }
@@ -1267,15 +1276,10 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
     return ! l_repeat_after_exit;
 }
 
-int s_net_list_compare_uuids(const void *a_uuid1, const void *a_uuid2)
-{
-    return memcmp(a_uuid1, a_uuid2, sizeof(dap_events_socket_uuid_t));
-}
-
 bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t *a_client)
 {
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
-    int a_err = pthread_rwlock_rdlock(&l_net_pvt->uplinks_lock);
+    int a_err = pthread_rwlock_wrlock(&l_net_pvt->uplinks_lock);
     bool l_found = false;
     if (l_net_pvt->active_link) {
         struct net_link *l_link, *l_link_tmp;
@@ -1293,10 +1297,8 @@ bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t 
     if (!l_found) {
         l_net_pvt->active_link = a_client;
     }
-    if (l_found && !dap_list_find_custom(l_net_pvt->links_queue, &a_client->uuid, s_net_list_compare_uuids)) {
-        dap_events_socket_uuid_t *l_uuid = DAP_DUP(&a_client->uuid);
-        l_net_pvt->links_queue = dap_list_append(l_net_pvt->links_queue, l_uuid);
-    }
+    if (l_found && !dap_list_find(l_net_pvt->links_queue, a_client))
+        l_net_pvt->links_queue = dap_list_append(l_net_pvt->links_queue, a_client);
     if (a_err != EDEADLK)
         pthread_rwlock_unlock(&l_net_pvt->uplinks_lock);
     return !l_found;
@@ -1312,10 +1314,9 @@ bool dap_chain_net_sync_unlock(dap_chain_net_t *a_net, dap_chain_node_client_t *
     if (!a_client || l_net_pvt->active_link == a_client)
         l_net_pvt->active_link = NULL;
     while (l_net_pvt->active_link == NULL && l_net_pvt->links_queue) {
-        dap_events_socket_uuid_t *l_uuid = l_net_pvt->links_queue->data;
-        dap_chain_node_sync_status_t l_status = dap_chain_node_client_start_sync(l_uuid);
+        dap_chain_node_client_t *l_link = l_net_pvt->links_queue->data;
+        dap_chain_node_sync_status_t l_status = dap_chain_node_client_start_sync(l_link);
         if (l_status != NODE_SYNC_STATUS_WAITING) {
-            DAP_DELETE(l_net_pvt->links_queue->data);
             dap_list_t *l_to_remove = l_net_pvt->links_queue;
             l_net_pvt->links_queue = l_net_pvt->links_queue->next;
             DAP_DELETE(l_to_remove);
@@ -1811,6 +1812,32 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
         } else if ( l_get_str){
             if ( strcmp(l_get_str,"status") == 0 ) {
                 s_set_reply_text_node_status(a_str_reply, l_net);
+                l_ret = 0;
+            }
+            if ( strcmp(l_get_str, "fee") == 0) {
+                dap_string_t *l_str = dap_string_new("\0");
+                // Network fee
+                uint256_t l_network_fee = {};
+                dap_chain_addr_t l_network_fee_addr = {};
+                dap_chain_net_tx_get_fee(l_net->pub.id, &l_network_fee, &l_network_fee_addr);
+                char *l_network_fee_balance_str = dap_chain_balance_print(l_network_fee);
+                char *l_network_fee_coins_str = dap_chain_balance_to_coins(l_network_fee);
+                char *l_network_fee_addr_str = dap_chain_addr_to_str(&l_network_fee_addr);
+                dap_string_append_printf(l_str, "Fees on %s network:\n"
+                                                "\t Network: %s (%s) %s Addr: %s\n",
+                                                  l_net->pub.name, l_network_fee_coins_str, l_network_fee_balance_str,
+                                                  l_net->pub.native_ticker, l_network_fee_addr_str);
+                DAP_DELETE(l_network_fee_coins_str);
+                DAP_DELETE(l_network_fee_balance_str);
+                DAP_DELETE(l_network_fee_addr_str);
+
+                //Get validators fee
+                dap_chain_net_srv_stake_get_fee_validators(l_net, l_str);
+                //Get services fee
+                dap_string_append_printf(l_str, "Services fee: \n");
+                dap_chain_net_srv_xchange_print_fee(l_net, l_str); //Xchaneg fee
+
+                *a_str_reply = dap_string_free(l_str, false);
                 l_ret = 0;
             }
         } else if ( l_links_str ){
@@ -2711,7 +2738,7 @@ dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id)
     pthread_rwlock_rdlock(&s_net_ids_rwlock);
     HASH_FIND(hh,s_net_items_ids,&a_id,sizeof (a_id), l_net_item );
     pthread_rwlock_unlock(&s_net_ids_rwlock);
-    return l_net_item ? l_net_item->chain_net : NULL;
+    return l_net_item ? l_net_item->chain_net : NULL;    
 }
 
 /**
