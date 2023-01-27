@@ -4056,7 +4056,7 @@ int com_token_update_sign(int a_argc, char **a_argv, char **a_str_reply) {
         dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
         return -1;
     }
-    if (!dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index,a_argc,a_argv,a_str_reply, &l_chain, &l_net)) {
+    if (dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index,a_argc,a_argv,a_str_reply, &l_chain, &l_net)) {
         return -2;
     }
     const char * l_datum_hash_str = NULL;
