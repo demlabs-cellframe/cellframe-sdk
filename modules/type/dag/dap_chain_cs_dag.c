@@ -991,7 +991,7 @@ static dap_chain_atom_iter_t *s_chain_callback_atom_iter_create(dap_chain_t *a_c
     l_atom_iter->with_treshold = a_with_treshold;
     pthread_rwlock_rdlock(&a_chain->atoms_rwlock);
 #ifdef WIN32
-    log_it(L_DEBUG, "! Create caller id %lu", GetThreadId(GetCurrentThread()));
+    log_it(L_DEBUG, "! %p create caller id %lu", l_atom_iter, GetThreadId(GetCurrentThread()));
 #endif
     return l_atom_iter;
 }
@@ -1245,7 +1245,7 @@ static void s_chain_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_ite
 {
     pthread_rwlock_unlock(&a_atom_iter->chain->atoms_rwlock);
 #ifdef WIN32
-    log_it(L_DEBUG, "! Delete caller id %lu", GetThreadId(GetCurrentThread()));
+    log_it(L_DEBUG, "! %p delete caller id %lu", a_atom_iter, GetThreadId(GetCurrentThread()));
 #endif
     DAP_DELETE(a_atom_iter);
 }
