@@ -505,34 +505,52 @@ static bool s_callback_round_event_to_chain(struct round_timer_arg *a_callback_a
         }
     }
     dap_chain_cs_dag_event_round_item_t *l_chosen_item = s_round_event_choose_dup(l_dups_list, l_max_signs_count);
-    dap_chain_cs_dag_event_t *l_new_atom = NULL;
     if (l_chosen_item) {
+        dap_chain_cs_dag_event_t *l_new_atom = (dap_chain_cs_dag_event_t *)l_chosen_item->event_n_signs;
         size_t l_event_size = l_chosen_item->event_size;
-        l_new_atom = dap_chain_cs_dag_event_copy((dap_chain_cs_dag_event_t *)l_chosen_item->event_n_signs, l_event_size);
-        dap_hash_fast_t l_event_hash = {};
-        dap_hash_fast(l_new_atom, l_event_size, &l_event_hash);
-        char l_event_hash_hex_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-        dap_hash_fast_to_str(&l_event_hash, l_event_hash_hex_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-        dap_chain_atom_verify_res_t l_res = l_dag->chain->callback_atom_add(l_dag->chain, l_new_atom, l_event_size);
-        if (l_res == ATOM_PASS || l_res == ATOM_REJECT) { // Add new atom in chain
-            DAP_DEL_Z(l_new_atom);
-            log_it(L_NOTICE, "Event %s from round %"DAP_UINT64_FORMAT_U" not added in chain", l_event_hash_hex_str, a_callback_arg->round_id);
-        } else {
-            log_it(L_NOTICE, "Event %s from round %"DAP_UINT64_FORMAT_U" added in %s successfully", l_event_hash_hex_str, a_callback_arg->round_id,
-                                                                  l_res == ATOM_ACCEPT ? "chain" : "threshold");
-            if (l_res == ATOM_ACCEPT)
+        dap_get_data_hash_str_static(l_new_atom, l_event_size, l_event_hash_hex_str);
+        dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(l_new_atom, l_event_size);
+        dap_get_data_hash_str_static(l_datum, dap_chain_datum_size(l_datum), l_datum_hash_str);
+        int l_verify_datum = dap_chain_net_verify_datum_for_add(dap_chain_net_by_id(l_dag->chain->net_id), l_datum);
+        if (!l_verify_datum) {
+            dap_chain_atom_verify_res_t l_res = l_dag->chain->callback_atom_add(l_dag->chain, l_new_atom, l_event_size);
+            switch (l_res) {
+            case ATOM_ACCEPT:
                 dap_chain_atom_save(l_dag->chain, (dap_chain_atom_ptr_t)l_new_atom, l_event_size, l_dag->chain->cells->id);
+                if (!l_new_atom->header.round_id)
+                    l_dag->round_completed++;
+                log_it(L_INFO, "Event %s from round %"DAP_UINT64_FORMAT_U" added to chain", l_event_hash_hex_str, a_callback_arg->round_id);
+                break;
+            case ATOM_PASS:
+                l_dag->round_completed++;
+                log_it(L_WARNING, "Event %s from round %"DAP_UINT64_FORMAT_U" skipped", l_event_hash_hex_str, a_callback_arg->round_id);
+                break;
+            case ATOM_REJECT:
+                l_dag->round_completed++;
+                log_it(L_WARNING, "Event %s from round %"DAP_UINT64_FORMAT_U" rejected", l_event_hash_hex_str, a_callback_arg->round_id);
+                break;
+            case ATOM_MOVE_TO_THRESHOLD:
+                if (!l_new_atom->header.round_id)
+                    l_dag->round_completed++;
+                log_it(L_WARNING, "Event %s from round %"DAP_UINT64_FORMAT_U" thresholded", l_event_hash_hex_str, a_callback_arg->round_id);
+                break;
+            default:
+                break;
+            }
+        } else {
+            log_it(L_INFO, "Event %s from round %"DAP_UINT64_FORMAT_U" not added in chain, because the inner datum %s doesn't pass verification (error %d)",
+                   l_event_hash_hex_str, a_callback_arg->round_id, l_datum_hash_str, l_verify_datum);
         }
-    } else
-        log_it(L_WARNING, "No round candidates for round ID %"DAP_UINT64_FORMAT_U, a_callback_arg->round_id);
+        DAP_DELETE(l_chosen_item);
+    } else { /* !l_chosen_item */
+        log_it(L_WARNING, "No candidates for round id %"DAP_UINT64_FORMAT_U, a_callback_arg->round_id);
+    }
     pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
     HASH_DEL(l_poa_pvt->active_rounds, a_callback_arg);
-    if (!l_new_atom || !l_new_atom->header.round_id)
-        l_dag->round_completed++;
+    DAP_DELETE(a_callback_arg);
     pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
     dap_list_free(l_dups_list);
     dap_store_obj_free(l_events_round, l_events_round_size);
-    DAP_DELETE(a_callback_arg);
     return false;
 }
 

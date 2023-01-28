@@ -270,12 +270,12 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     
     l_dag->broadcast_disable = true;
-    char *l_gdb_group = NULL;
-    if (!l_dag->is_celled)
-        l_gdb_group = dap_strdup_printf("dag-%s-%s-round", l_net->pub.gdb_groups_prefix, a_chain->name);
-    else
-        l_gdb_group = dap_strdup_printf("dag-%s-%s-%016llx-round", l_net->pub.gdb_groups_prefix, a_chain->name, 0);//a_chain->cells->id.uint64);
-    l_dag->gdb_group_events_round_new = dap_strdup_printf("%s.%s", l_gdb_group, dap_config_get_item_str_default(a_chain_cfg,"dag","gdb_group_events_round_new", "new"));
+
+    char *l_gdb_group = dap_strdup_printf(l_dag->is_celled ? "dag-%s-%s-%016llx-round" : "dag-%s-%s-round"
+                                                             , l_net->pub.gdb_groups_prefix, a_chain->name, 0);
+
+    l_dag->gdb_group_events_round_new = dap_strdup_printf("%s.%s", l_gdb_group
+                                                          , dap_config_get_item_str_default(a_chain_cfg,"dag","gdb_group_events_round_new", "new"));
     char *l_sync_groups_mask = dap_strdup_printf("%s.*", l_gdb_group);
     DAP_DEL_Z(l_gdb_group);
     dap_chain_global_db_add_sync_extra_group(l_net->pub.name, l_sync_groups_mask, s_history_callback_round_notify, l_dag);
@@ -582,7 +582,7 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
                 dap_hash_fast(*l_datums, dap_chain_datum_size(*l_datums), &l_datum_hash);
                 DAP_DEL_Z(l_datums);
                 if (!memcmp(&l_datum_hash, &l_datum_i_hash, DAP_CHAIN_HASH_FAST_SIZE)) {
-                    char l_datum_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE + 1] = { '\0' };
+                    char l_datum_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
                     dap_hash_fast_to_str(&l_datum_hash, l_datum_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
                     log_it(L_WARNING, "Datum %s is already present, skip it");
                     l_skip = true;
@@ -623,7 +623,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
         if (l_dup_found) {
             char l_datum_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_chain_hash_fast_to_str(&l_datum_hash, l_datum_hash_str, sizeof(l_datum_hash_str));
-            log_it(L_ERROR, "Datum %s was already added to rounds, skip it", l_datum_hash_str);
+            log_it(L_ERROR, "Datum %s was already added to round, skip it", l_datum_hash_str);
             return false;
         }
     }
@@ -644,7 +644,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
         }
         /* We'll use modification-safe iteration thru the additional hashtable thus the chosen events will not repeat */
         dap_chain_cs_dag_event_item_t *l_tmp = NULL, *l_cur_ev, *l_tmp_ev;
-        HASH_SELECT(th, l_tmp, hh, PVT(l_dag)->events_lasts_unlinked, true);
+        HASH_SELECT(th, l_tmp, hh, PVT(l_dag)->events_lasts_unlinked, (true)); /* Always true predicate */
         pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
         while ((l_hashes_linked < l_hashes_size) && (HASH_CNT(th, l_tmp) > 0)) {
             int l_random_id = rand() % HASH_CNT(th, l_tmp), l_hash_id = 0;
@@ -658,14 +658,15 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
         }
         HASH_CLEAR(th, l_tmp);
         if (l_hashes_linked < l_hashes_size) {
-            log_it(L_ERROR, "No enough unlinked events present, drop this round");
+            log_it(L_ERROR, "No enough unlinked events present, a dummy round?");
             return false;
         }
     }
 
     /*
      * Either we're in seed mode ==> the new event will be not linked to anything
-     * or we have successfully chosen the hash(es) to link with
+     * or we have successfully chosen the hash(es) to link with.
+     * No additional conditions required.
     */
     byte_t *l_current_round = dap_chain_global_db_gr_get(DAG_ROUND_CURRENT_KEY, NULL, l_dag->gdb_group_events_round_new);
     uint64_t l_round_current = MAX(l_current_round ? *(uint64_t*)l_current_round : 0, l_dag->round_completed);
@@ -1386,7 +1387,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     dap_string_append_printf( l_str_ret_tmp, "Event %s verification passed\n", l_objs[i].key);
                     // If not verify only mode we add
                     if ( ! l_verify_only ){
-                        dap_chain_atom_ptr_t l_new_atom = (dap_chain_atom_ptr_t)dap_chain_cs_dag_event_copy(l_event, l_event_size); // produce deep copy of event;
+                        dap_chain_atom_ptr_t l_new_atom = DAP_DUP_SIZE(l_event, l_event_size); // produce deep copy of event;
                         memcpy((void *)l_new_atom, l_event, l_event_size);
                         if(s_chain_callback_atom_add(l_chain, l_new_atom,l_event_size) < 0) { // Add new atom in chain
                             DAP_DELETE(l_new_atom);
