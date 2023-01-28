@@ -558,42 +558,6 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
             continue;
         } */
 
-#if 0
-        /* Iterative check if this datum is not yet in chain.
-         * This chunk is used only for datum types which do not appear ledger! */
-        bool l_skip = false;
-        switch (l_datum->header.type_id) {
-        case DAP_CHAIN_DATUM_TOKEN_DECL:
-        case DAP_CHAIN_DATUM_TOKEN_EMISSION:
-            break;
-        /* The types above are checked while adding to ledger, otherwise let's unfold the chains */
-        default: {
-            dap_chain_hash_fast_t l_datum_i_hash;
-            dap_hash_fast(l_datum, dap_chain_datum_size(l_datum), &l_datum_i_hash);
-            dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain, a_chain->cells->id, 0);
-            size_t l_atom_size = 0;
-            for (dap_chain_atom_ptr_t l_atom = a_chain->callback_atom_iter_get_first(l_atom_iter, &l_atom_size);
-                 l_atom && l_atom_size;
-                 l_atom = a_chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size))
-            {
-                size_t l_datums_count = 0; /* @PCn: in DAG, it's always == 1 */
-                dap_chain_datum_t **l_datums = s_chain_callback_atom_get_datum(l_atom, l_atom_size, &l_datums_count);
-                dap_chain_hash_fast_t l_datum_hash;
-                dap_hash_fast(*l_datums, dap_chain_datum_size(*l_datums), &l_datum_hash);
-                DAP_DEL_Z(l_datums);
-                if (!memcmp(&l_datum_hash, &l_datum_i_hash, DAP_CHAIN_HASH_FAST_SIZE)) {
-                    char l_datum_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
-                    dap_hash_fast_to_str(&l_datum_hash, l_datum_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-                    log_it(L_WARNING, "Datum %s is already present, skip it");
-                    l_skip = true;
-                    break;
-                }
-            }
-            a_chain->callback_atom_iter_delete(l_atom_iter);
-            break;
-        }
-        }
-#endif
         if (/*!l_skip && */s_chain_callback_datums_pool_proc(a_chain, l_datum))
             ++l_datum_processed;
     }

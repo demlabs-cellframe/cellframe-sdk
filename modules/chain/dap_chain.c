@@ -762,8 +762,7 @@ int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name)
 
 int dap_chain_datum_unledgered_search_iter(dap_chain_datum_t* a_datum, dap_chain_t* a_chain)
 {
-    /* Iterative check if this datum is not yet in chain.
-     * This chunk is used only for datum types which do not appear ledger! */
+    /* Only for datum types which do not appear in ledger */
     switch (a_datum->header.type_id) {
     case DAP_CHAIN_DATUM_TOKEN_DECL:
     case DAP_CHAIN_DATUM_TOKEN_EMISSION:
@@ -789,7 +788,7 @@ int dap_chain_datum_unledgered_search_iter(dap_chain_datum_t* a_datum, dap_chain
                 dap_chain_hash_fast_t l_datum_i_hash;
                 dap_hash_fast(*(l_datums + i), dap_chain_datum_size(*(l_datums + i)), &l_datum_i_hash);
                 if (!memcmp(&l_datum_i_hash, &l_datum_hash, DAP_CHAIN_HASH_FAST_SIZE)) {
-                    char l_datum_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
+                    char l_datum_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
                     dap_hash_fast_to_str(&l_datum_hash, l_datum_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
                     log_it(L_INFO, "Datum %s found in chain %llu", l_datum_hash_str, a_chain->id.uint64);
                     l_found = 1;

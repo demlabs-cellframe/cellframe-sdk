@@ -3091,9 +3091,17 @@ void dap_chain_net_proc_mempool (dap_chain_net_t * a_net)
             size_t l_objs_size_tmp = (l_objs_size > 15) ? min(l_objs_size, 10) : l_objs_size;
             for(size_t i = 0; i < l_objs_size; i++) {
                 dap_chain_datum_t * l_datum = (dap_chain_datum_t*) l_objs[i].value;
+                int l_dup_or_skip = dap_chain_datum_unledgered_search_iter(l_datum, l_chain);
+                if (l_dup_or_skip) {
+                    log_it(L_WARNING, "Datum unledgered search returned '%d', delete it from mempool",
+                                             l_dup_or_skip);
+                    dap_chain_global_db_gr_del( l_objs[i].key, l_gdb_group_mempool);
+                    l_datums[i] = NULL;
+                    continue;
+                }
                 int l_verify_datum= dap_chain_net_verify_datum_for_add( a_net, l_datum) ;
                 if (l_verify_datum != 0){
-                    log_it(L_WARNING, "Datum doesn't pass verifications (code %d), delete such datum from pool",
+                    log_it(L_WARNING, "Datum doesn't pass verifications (code %d), delete it from mempool",
                                              l_verify_datum);
                     dap_chain_global_db_gr_del( l_objs[i].key, l_gdb_group_mempool);
                     l_datums[i] = NULL;
