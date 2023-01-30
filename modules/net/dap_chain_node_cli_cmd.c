@@ -4094,16 +4094,17 @@ int com_token_update_sign(int a_argc, char **a_argv, char **a_str_reply) {
     if(!l_gdb_group_mempool) {
         l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_TOKEN);
     }
+
     // datum hash may be in hex or base58 format
     char *l_datum_hash_out_str = dap_strdup(l_datum_hash_str) ;
-    if(!dap_strncmp(l_datum_hash_str, "0x", 2) || !dap_strncmp(l_datum_hash_str, "0X", 2)) {
+    if(dap_strncmp(l_datum_hash_str, "0x", 2) != 0 && dap_strncmp(l_datum_hash_str, "0X", 2) != 0) {
         char *l_datum_hash_b58_str = dap_enc_base58_to_hex_str_from_str(l_datum_hash_str);
         DAP_DELETE(l_datum_hash_str);
         l_datum_hash_str = l_datum_hash_b58_str;
     }
-
     size_t l_datum_size = 0;
     size_t l_tsd_size = 0;
+
     dap_chain_datum_t * l_datum = (dap_chain_datum_t*)dap_chain_global_db_gr_get(l_datum_hash_str, &l_datum_size,
                                                                                  l_gdb_group_mempool);
     if (!l_datum) {
@@ -4204,6 +4205,7 @@ int com_token_update_sign(int a_argc, char **a_argv, char **a_str_reply) {
             return -2;
         }
     } else {
+        DAP_DELETE(l_datum);
         dap_chain_node_cli_set_reply_text(a_str_reply,
                                           "Error! Wrong datum type. token_update_sign sign only token declarations datum");
         return -61;
