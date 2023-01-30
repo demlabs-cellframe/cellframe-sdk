@@ -1442,9 +1442,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                             dap_chain_hash_fast_to_str(&l_atom_hash, l_atom_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
                             log_it(L_INFO, "In: CHAIN pkt: atom hash %s (size %zd)", l_atom_hash_str, l_chain_pkt_data_size);
                         }
-                        dap_proc_queue_add_callback(a_ch->stream_worker->worker, s_sync_in_chains_callback, l_sync_request);
-                        //dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_sync_in_chains_callback, l_sync_request);
-                        //s_sync_in_chains_callback(NULL, (void*)l_sync_request);
+                        //dap_proc_queue_add_callback(a_ch->stream_worker->worker, s_sync_in_chains_callback, l_sync_request);
+                        dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_sync_in_chains_callback, l_sync_request);
 
                     } else {
                         log_it(L_WARNING, "Empty chain packet");
