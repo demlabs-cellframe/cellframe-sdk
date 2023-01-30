@@ -41,7 +41,9 @@ uint64_t dap_db_log_get_group_last_id(const char *a_group_name)
 static void *s_list_thread_proc(void *arg)
 {
     dap_db_log_list_t *l_dap_db_log_list = (dap_db_log_list_t *)arg;
-    log_it(L_INFO, "!!! [%d] loglist %p thread created", gettid(), l_dap_db_log_list);
+    uint64_t tid;
+    pthread_threadid_np(NULL, &tid);
+    log_it(L_INFO, "!!! [%d] loglist %p thread created", tid, l_dap_db_log_list);
     uint32_t l_time_store_lim_hours = dap_config_get_item_uint32_default(g_config, "resources", "dap_global_db_time_store_limit", 72);
     uint64_t l_limit_time = l_time_store_lim_hours ? dap_gdb_time_now() - dap_gdb_time_from_sec(l_time_store_lim_hours * 3600) : 0;
 
@@ -122,7 +124,9 @@ static void *s_list_thread_proc(void *arg)
             // add l_list to items_list
             l_dap_db_log_list->items_list = dap_list_concat(l_dap_db_log_list->items_list, l_list);
             pthread_mutex_unlock(&l_dap_db_log_list->list_mutex);
-            log_it(L_INFO, "!!! [%d] loglist cur size = %llu", gettid(), dap_db_log_list_get_cur_size(l_dap_db_log_list));
+            uint64_t tid;
+            pthread_threadid_np(NULL, &tid);
+            log_it(L_INFO, "!!! [%d] loglist cur size = %llu", tid, dap_db_log_list_get_cur_size(l_dap_db_log_list));
         }
 
         DAP_DEL_Z(l_del_group_name_replace);
