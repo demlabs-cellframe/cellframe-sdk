@@ -613,7 +613,8 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
         log_it(L_CRITICAL, "Wtf is this ret code? %d", l_atom_add_res);
         break;
     }
-    DAP_DEL_Z(l_sync_request->pkt.pkt_data);
+    log_it(L_DEBUG, "!!! Free %d of atom copy [%p]", l_atom_copy_size, l_atom_copy);
+    DAP_DEL_Z(l_atom_copy); //l_sync_request->pkt.pkt_data
     DAP_DEL_Z(l_sync_request);
     return true;
 }
@@ -1433,6 +1434,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                             break;
                         }
                         l_pkt_item->pkt_data_size = l_chain_pkt_data_size;
+                        log_it(L_DEBUG, "!!! Alloc %d atom copy [%p]", l_chain_pkt_data_size, l_pkt_item->pkt_data);
                         if (s_debug_more){
                             dap_chain_hash_fast_t l_atom_hash={0};
                             dap_hash_fast(l_chain_pkt->data, l_chain_pkt_data_size ,&l_atom_hash);
