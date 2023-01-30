@@ -601,9 +601,9 @@ dap_events_socket_t * dap_events_socket_queue_ptr_create_input(dap_events_socket
     dap_events_socket_t *l_es = s_dap_evsock_alloc(); /* @RRL: #6901 */
 
     l_es->type = DESCRIPTOR_TYPE_QUEUE;
-    l_es->buf_out_size_max = DAP_QUEUE_MAX_BUFLEN * 0xFFF;
+    l_es->buf_out_size_max = DAP_QUEUE_MAX_BUFLEN;
     l_es->buf_out = DAP_NEW_Z_SIZE(byte_t,l_es->buf_out_size_max);
-    l_es->buf_in_size_max = DAP_QUEUE_MAX_BUFLEN  * 0xFFF;
+    l_es->buf_in_size_max = DAP_QUEUE_MAX_BUFLEN;
     l_es->buf_in = DAP_NEW_Z_SIZE(byte_t,l_es->buf_in_size_max);
     l_es->events = a_es->events;
     l_es->uuid = dap_uuid_generate_uint64();
@@ -725,7 +725,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     }
 
     l_es->callbacks.queue_ptr_callback = a_callback; // Arm event callback
-    l_es->buf_in_size_max = DAP_QUEUE_MAX_BUFLEN * 0xFFF;
+    l_es->buf_in_size_max = DAP_QUEUE_MAX_BUFLEN;
     l_es->buf_in = DAP_NEW_Z_SIZE(byte_t,l_es->buf_in_size_max);
     l_es->buf_out = NULL;
 
