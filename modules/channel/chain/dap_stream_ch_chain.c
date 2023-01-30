@@ -1534,7 +1534,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 static void s_free_log_list_gdb(dap_stream_ch_chain_t *a_ch_chain)
 {
 
-    debug_if(s_debug_more, L_INFO, "[stm_ch_chain:%p] --- cleanuping ...", a_ch_chain);
+    log_it(L_INFO, "[stm_ch_chain:%p] --- cleanuping ...", a_ch_chain);
 
     if (a_ch_chain->request_db_log) {
         // free log list

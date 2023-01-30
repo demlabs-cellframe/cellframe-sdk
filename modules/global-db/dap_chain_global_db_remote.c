@@ -356,7 +356,7 @@ void dap_db_log_list_delete(dap_db_log_list_t *a_db_log_list)
         pthread_mutex_unlock(&a_db_log_list->list_mutex);
         pthread_join(a_db_log_list->thread, NULL);
     }
-
+    log_it(L_INFO, "!!! Wipe %llu bytes", dap_db_log_list_get_cur_size(a_db_log_list));
     dap_list_free_full(a_db_log_list->groups, free);
     dap_list_free_full(a_db_log_list->items_list, (dap_callback_destroyed_t)s_dap_db_log_list_delete_item);
     pthread_mutex_destroy(&a_db_log_list->list_mutex);
@@ -374,6 +374,7 @@ size_t dap_db_log_list_get_cur_size(dap_db_log_list_t *a_db_log_list) {
         l_size += l_list_item->pkt->data_size;
     }
     pthread_mutex_unlock(&a_db_log_list->list_mutex);
+    return l_size;
 }
 
 
