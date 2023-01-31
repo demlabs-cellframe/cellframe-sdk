@@ -514,29 +514,12 @@ static bool s_callback_round_event_to_chain(struct round_timer_arg *a_callback_a
         int l_verify_datum = dap_chain_net_verify_datum_for_add(dap_chain_net_by_id(l_dag->chain->net_id), l_datum);
         if (!l_verify_datum) {
             dap_chain_atom_verify_res_t l_res = l_dag->chain->callback_atom_add(l_dag->chain, l_new_atom, l_event_size);
-            switch (l_res) {
-            case ATOM_ACCEPT:
+            if (l_res == ATOM_ACCEPT)
                 dap_chain_atom_save(l_dag->chain, (dap_chain_atom_ptr_t)l_new_atom, l_event_size, l_dag->chain->cells->id);
-                if (!l_new_atom->header.round_id)
-                    l_dag->round_completed++;
-                log_it(L_INFO, "Event %s from round %"DAP_UINT64_FORMAT_U" added to chain", l_event_hash_hex_str, a_callback_arg->round_id);
-                break;
-            case ATOM_PASS:
+            if (!l_new_atom->header.round_id)
                 l_dag->round_completed++;
-                log_it(L_WARNING, "Event %s from round %"DAP_UINT64_FORMAT_U" skipped", l_event_hash_hex_str, a_callback_arg->round_id);
-                break;
-            case ATOM_REJECT:
-                l_dag->round_completed++;
-                log_it(L_WARNING, "Event %s from round %"DAP_UINT64_FORMAT_U" rejected", l_event_hash_hex_str, a_callback_arg->round_id);
-                break;
-            case ATOM_MOVE_TO_THRESHOLD:
-                if (!l_new_atom->header.round_id)
-                    l_dag->round_completed++;
-                log_it(L_WARNING, "Event %s from round %"DAP_UINT64_FORMAT_U" thresholded", l_event_hash_hex_str, a_callback_arg->round_id);
-                break;
-            default:
-                break;
-            }
+            log_it(L_INFO, "Event %s from round %"DAP_UINT64_FORMAT_U" %s",
+                   l_event_hash_hex_str, a_callback_arg->round_id, dap_chain_atom_verify_res_str[l_res]);
         } else {
             log_it(L_INFO, "Event %s from round %"DAP_UINT64_FORMAT_U" not added in chain, because the inner datum %s doesn't pass verification (error %d)",
                    l_event_hash_hex_str, a_callback_arg->round_id, l_datum_hash_str, l_verify_datum);
@@ -547,8 +530,8 @@ static bool s_callback_round_event_to_chain(struct round_timer_arg *a_callback_a
     }
     pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
     HASH_DEL(l_poa_pvt->active_rounds, a_callback_arg);
-    DAP_DELETE(a_callback_arg);
     pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
+    DAP_DELETE(a_callback_arg);
     dap_list_free(l_dups_list);
     dap_store_obj_free(l_events_round, l_events_round_size);
     return false;

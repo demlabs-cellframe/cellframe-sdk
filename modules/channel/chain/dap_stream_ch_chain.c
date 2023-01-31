@@ -77,9 +77,7 @@ struct sync_request
     dap_stream_ch_chain_sync_request_t request;
     dap_stream_ch_chain_pkt_hdr_t request_hdr;
     dap_chain_pkt_item_t pkt;
-
-    dap_stream_ch_chain_hash_item_t *remote_atoms;
-    dap_stream_ch_chain_hash_item_t *remote_gdbs;
+    dap_stream_ch_chain_hash_item_t *remote_atoms, *remote_gdbs;
 
     struct {
         dap_db_log_list_t *db_log;
@@ -563,8 +561,8 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
     case ATOM_PASS:
         debug_if (s_debug_more, L_WARNING, "Atom with hash %s for %s:%s not accepted (code ATOM_PASS, already present)",
                   l_atom_hash_str, l_chain->net_name, l_chain->name);
-
         dap_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
+        DAP_DELETE(l_atom);
         break;
 
     case ATOM_MOVE_TO_THRESHOLD:
@@ -584,10 +582,12 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
 
     case ATOM_REJECT: {
         debug_if(s_debug_more, L_WARNING, "Atom with hash %s for %s:%s rejected", l_atom_hash_str, l_chain->net_name, l_chain->name);
+        DAP_DELETE(l_atom);
         break;
     }
     default:
         log_it(L_CRITICAL, "Wtf is this ret code? %d", l_atom_add_res);
+        DAP_DELETE(l_atom);
         break;
     }
     DAP_DEL_Z(l_sync_request);
@@ -1658,7 +1658,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                 if (!l_obj || DAP_POINTER_TO_SIZE(l_obj) == 1)
                     break;
                 l_data[i] = (dap_stream_ch_chain_update_element_t){ l_obj->hash, l_obj->pkt->data_size };
-                DAP_DELETE(l_obj->pkt);
+                DAP_DEL_Z(l_obj->pkt);
                 DAP_DELETE(l_obj);
             }
             if (i) {

@@ -253,8 +253,7 @@ bool dap_chain_node_mempool_need_process(dap_chain_t *a_chain, dap_chain_datum_t
 bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum) {
     if (!a_chain->callback_add_datums)
         return false;
-    int l_dup_or_skip = dap_chain_datum_unledgered_search_iter(a_datum, a_chain);
-    if (l_dup_or_skip)
+    if (dap_chain_datum_unledgered_search_iter(a_datum, a_chain))
         return true; /* Already chained, no need to keep duplicates */
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     int l_verify_datum = dap_chain_net_verify_datum_for_add(l_net, a_datum);
