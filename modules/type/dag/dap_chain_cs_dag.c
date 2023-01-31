@@ -660,8 +660,9 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
             return false;
         }
         /* We'll use modification-safe iteration thru the additional hashtable thus the chosen events will not repeat */
+#define always_true(ev) ({ (void*)ev, true; })
         dap_chain_cs_dag_event_item_t *l_tmp = NULL, *l_cur_ev, *l_tmp_ev;
-        HASH_SELECT(th, l_tmp, hh, PVT(l_dag)->events_lasts_unlinked, (true)); /* Always true predicate */
+        HASH_SELECT(th, l_tmp, hh, PVT(l_dag)->events_lasts_unlinked, always_true); /* Always true predicate */
         pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
         while ((l_hashes_linked < l_hashes_size) && (HASH_CNT(th, l_tmp) > 0)) {
             int l_random_id = rand() % HASH_CNT(th, l_tmp), l_hash_id = 0;
