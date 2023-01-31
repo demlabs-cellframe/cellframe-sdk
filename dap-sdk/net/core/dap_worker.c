@@ -540,7 +540,7 @@ const struct sched_param l_shed_params = {0};
                                 continue;
                             }
                         }else{
-                            log_it(L_WARNING, "[es:%p] We have incomming %zd data but no read callback on socket %"DAP_FORMAT_SOCKET", removing from read set",
+                            log_it(L_WARNING, "[es:%p] We have incoming %zd data but no read callback on socket %"DAP_FORMAT_SOCKET", removing from read set",
                                    l_es, l_bytes_read, l_es->socket);
                             dap_events_socket_set_readable_unsafe(l_es, false);
                         }
