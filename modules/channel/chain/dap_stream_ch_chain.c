@@ -579,7 +579,7 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
                   l_atom_hash_str, l_chain->net_name, l_chain->name);
 
         dap_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
-        //DAP_DELETE(l_atom_copy);
+        DAP_DELETE(l_atom_copy);
         break;
 
     case ATOM_MOVE_TO_THRESHOLD:
@@ -605,16 +605,15 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
             dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str,sizeof (l_atom_hash_str)-1 );
             log_it(L_WARNING,"Atom with hash %s for %s:%s rejected", l_atom_hash_str, l_chain->net_name, l_chain->name);
         }
-        //DAP_DELETE(l_atom_copy);
+        DAP_DELETE(l_atom_copy);
         break;
     }
     default:
-        //DAP_DELETE(l_atom_copy);
+        DAP_DELETE(l_atom_copy);
         log_it(L_CRITICAL, "Wtf is this ret code? %d", l_atom_add_res);
         break;
     }
     //log_it(L_DEBUG, "!!! Free %d of atom copy [%p]", l_atom_copy_size, l_atom_copy);
-    /* DAP_DEL_Z(l_atom_copy); */ /* hotfix-bufsize */ //l_sync_request->pkt.pkt_data
     DAP_DEL_Z(l_sync_request);
     return true;
 }
@@ -1427,7 +1426,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     if(l_chain_pkt_data_size > 0) {
                         struct sync_request *l_sync_request = dap_stream_ch_chain_create_sync_request(l_chain_pkt, a_ch);
                         dap_chain_pkt_item_t *l_pkt_item = &l_sync_request->pkt;
-                        l_pkt_item->pkt_data = l_chain_pkt->data; /* DAP_DUP_SIZE(l_chain_pkt->data, l_chain_pkt_data_size); */ /* hotfix-bufsize */
+                        l_pkt_item->pkt_data = /* l_chain_pkt->data; */ DAP_DUP_SIZE(l_chain_pkt->data, l_chain_pkt_data_size);
                         if (!l_pkt_item->pkt_data) {
                             log_it(L_ERROR, "Not enough memory!");
                             DAP_DELETE(l_sync_request);
