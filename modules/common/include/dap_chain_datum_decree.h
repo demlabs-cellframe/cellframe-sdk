@@ -52,23 +52,56 @@ typedef struct dap_chain_datum_decree {
 } DAP_ALIGN_PACKED dap_chain_datum_decree_t;
 
 // Decree types
-#define DAP_CHAIN_DATUM_DECREE_TYPE_COMMON                  0x0001
-#define DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE                 0x0002
+#define DAP_CHAIN_DATUM_DECREE_TYPE_COMMON                      0x0001
+#define DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE                     0x0002
 
 // Action on the decree
 // Create from scratch, reset all previous values
-#define DAP_CHAIN_DATUM_DECREE_ACTION_CREATE                0x0001
-#define DAP_CHAIN_DATUM_DECREE_ACTION_UPDATE                0x0002
-#define DAP_CHAIN_DATUM_DECREE_ACTION_DELETE                0x0003
+#define DAP_CHAIN_DATUM_DECREE_ACTION_CREATE                    0x0001
+#define DAP_CHAIN_DATUM_DECREE_ACTION_UPDATE                    0x0002
+#define DAP_CHAIN_DATUM_DECREE_ACTION_DELETE                    0x0003
 
 // Common decree subtypes
-#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE              0x0001
-#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS           0x0002
-#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN       0x0003
-#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_TON_SIGNERS      0x0004
-#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_TON_SIGNERS_MIN  0x0005
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE               0x0001
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS            0x0002
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN        0x0003
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_TON_SIGNERS       0x0004
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_TON_SIGNERS_MIN   0x0005
 
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGN                0x0001
-
-
+// DECREE TSD types
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGN                    0x0001
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE                     0x0002
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER                   0x0003
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER               0x0004
+/**
+ * @brief dap_chain_datum_decree_get_signs
+ * @param decree pointer to decree
+ * @param num_of_signs pointer to num of signs buffer. Total
+ *                      number of signs will be write to this buffer
+ * @return part of tsd section with signs
+ */
 dap_tsd_t *dap_chain_datum_decree_get_signs(dap_chain_datum_decree_t *decree, size_t *num_of_signs);
+
+/**
+ * @brief dap_chain_datum_decree_get_fee gets fee value from decree
+ * @param a_decree pointer to decree
+ * @param a_fee_value pointer to fee value buffer
+ * @return result code
+ */
+int dap_chain_datum_decree_get_fee(dap_chain_datum_decree_t *a_decree, uint256_t *a_fee_value);
+
+/**
+ * @brief dap_chain_datum_decree_get_owners get list of owners certificates
+ * @param a_decree pointer to decree
+ * @param a_owners_num pointer to total number of owners buffer
+ * @return dap_list_t with owners keys in dap_pkey_t format
+ */
+dap_list_t *dap_chain_datum_decree_get_owners(dap_chain_datum_decree_t *a_decree, uint256_t *a_owners_num);
+
+/**
+ * @brief dap_chain_datum_decree_get_min_owners get minimum number of owners
+ * @param a_decree pointer to decree
+ * @param a_owners_num pointer to minimum number of owners buffer
+ * @return result code. 0 - success
+ */
+int dap_chain_datum_decree_get_min_owners(dap_chain_datum_decree_t *a_decree, uint256_t *a_min_owners_num);

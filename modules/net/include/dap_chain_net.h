@@ -199,3 +199,4 @@ dap_list_t *dap_chain_datum_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, d
 
 int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_tx_hash);
 
+bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net);

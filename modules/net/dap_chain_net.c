@@ -1819,7 +1819,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 // Network fee
                 uint256_t l_network_fee = {};
                 dap_chain_addr_t l_network_fee_addr = {};
-                dap_chain_net_tx_get_fee(l_net->pub.id, &l_network_fee, &l_network_fee_addr);
+                dap_chain_net_tx_get_fee(l_net->pub.id, NULL, &l_network_fee, &l_network_fee_addr);
                 char *l_network_fee_balance_str = dap_chain_balance_print(l_network_fee);
                 char *l_network_fee_coins_str = dap_chain_balance_to_coins(l_network_fee);
                 char *l_network_fee_addr_str = dap_chain_addr_to_str(&l_network_fee_addr);
@@ -3346,4 +3346,10 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
             return -666;
     }
     return 0;
+}
+
+
+bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net)
+{
+    return PVT(a_net)->load_mode;
 }

@@ -561,7 +561,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 /*________________________________________________________________________________________________________________*/
 
 
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(l_chain->net_id, &l_net_fee, &l_addr_fee);
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(l_chain->net_id, NULL, &l_net_fee, &l_addr_fee);
     if(l_net_fee_used)
         SUM_256_256(l_value_need,l_net_fee,&l_value_need);
     SUM_256_256(l_value_need,l_value_fee,&l_value_need);
@@ -1256,7 +1256,7 @@ dap_chain_datum_t *dap_chain_net_srv_stake_lock_datum_create(dap_chain_net_t *a_
     // where to take coins for service
     dap_chain_addr_t l_addr_from;
     dap_chain_addr_t l_net_fee_addr = {};
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id,&l_net_fee,&l_net_fee_addr);
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, NULL, &l_net_fee, &l_net_fee_addr);
     if(l_net_fee_used)
         SUM_256_256(l_net_fee,a_value_fee,&l_total_fee);
     else
@@ -1437,7 +1437,7 @@ static char *dap_chain_mempool_base_tx_for_stake_lock_create(dap_chain_t *a_chai
 
     uint256_t l_net_fee = {};
     dap_chain_addr_t l_net_fee_addr = {};
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_chain->net_id, &l_net_fee, &l_net_fee_addr);
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_chain->net_id, NULL, &l_net_fee, &l_net_fee_addr);
     // create first transaction (with tx_token)
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
     l_tx->header.ts_created = time(NULL);
