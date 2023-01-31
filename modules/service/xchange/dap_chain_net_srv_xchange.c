@@ -738,6 +738,14 @@ static bool s_xchange_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net)
 
 static bool s_xchange_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price, dap_chain_wallet_t *a_wallet)
 {
+    if (!a_price) {
+        log_it(L_WARNING, "An a_price NULL argument was passed to the s_xchange_tx_invalidate() function.");
+        return false;
+    }
+    if (!a_wallet) {
+        log_it(L_WARNING, "An a_wallet NULL argument was passed to the s_xchange_tx_invalidate() function.");
+        return false;
+    }
     const char *l_native_ticker = a_price->net->pub.native_ticker;
     // create empty transaction
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
@@ -1220,14 +1228,19 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 bool l_ret = s_xchange_tx_invalidate(l_price, l_wallet);
                 dap_chain_wallet_close(l_wallet);
                 if (!l_ret) {
-                    char *l_tx_hash_str = dap_chain_hash_fast_to_str_new(&l_price->tx_hash);
-                    dap_string_append_printf(l_str_reply, "Can't invalidate transaction %s\n", l_tx_hash_str);
-                    DAP_DELETE(l_tx_hash_str);
+                    if (!l_price) {
+                        dap_string_append_printf(l_str_reply, "Can't get price for order %s\n", l_order_hash_str);
+                    } else {
+                        char *l_tx_hash_str = dap_chain_hash_fast_to_str_new(&l_price->tx_hash);
+                        dap_string_append_printf(l_str_reply, "Can't invalidate transaction %s\n", l_tx_hash_str);
+                        DAP_DELETE(l_tx_hash_str);
+                    }
                 }
-                if (dap_chain_net_srv_order_delete_by_hash_str_sync(l_price->net, l_order_hash_str)) {
+                if (dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_str)) {
                     dap_string_append_printf(l_str_reply, "Can't remove order %s\n", l_order_hash_str);
+                } else {
+                    dap_string_append_printf(l_str_reply, "Remove order %s\n", l_order_hash_str);
                 }
-                DAP_DELETE(l_order_hash_str);
                 DAP_DELETE(l_price);
                 if (!l_str_reply->len) {
                     dap_string_append(l_str_reply, "Price successfully removed");
