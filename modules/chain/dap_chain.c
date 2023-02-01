@@ -766,6 +766,7 @@ int dap_chain_datum_unledgered_search_iter(dap_chain_datum_t* a_datum, dap_chain
     switch (a_datum->header.type_id) {
     case DAP_CHAIN_DATUM_TOKEN_DECL:
     case DAP_CHAIN_DATUM_TOKEN_EMISSION:
+    case DAP_CHAIN_DATUM_TX:
         return -1;
     /* The types above are checked while adding to ledger, otherwise let's unfold the chains */
     default: {
@@ -785,6 +786,9 @@ int dap_chain_datum_unledgered_search_iter(dap_chain_datum_t* a_datum, dap_chain
             size_t l_datums_count = 0;
             dap_chain_datum_t **l_datums = a_chain->callback_atom_get_datums(l_atom, l_atom_size, &l_datums_count);
             for (size_t i = 0; i < l_datums_count; ++i) {
+                if ((*(l_datums + i))->header.type_id != a_datum->header.type_id) {
+                    break;
+                }
                 dap_chain_hash_fast_t l_datum_i_hash;
                 dap_hash_fast(*(l_datums + i), dap_chain_datum_size(*(l_datums + i)), &l_datum_i_hash);
                 if (!memcmp(&l_datum_i_hash, &l_datum_hash, DAP_CHAIN_HASH_FAST_SIZE)) {

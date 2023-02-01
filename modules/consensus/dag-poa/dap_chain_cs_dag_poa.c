@@ -524,7 +524,6 @@ static bool s_callback_round_event_to_chain(struct round_timer_arg *a_callback_a
             log_it(L_INFO, "Event %s from round %"DAP_UINT64_FORMAT_U" not added in chain, because the inner datum %s doesn't pass verification (error %d)",
                    l_event_hash_hex_str, a_callback_arg->round_id, l_datum_hash_str, l_verify_datum);
         }
-        DAP_DELETE(l_chosen_item);
     } else { /* !l_chosen_item */
         log_it(L_WARNING, "No candidates for round id %"DAP_UINT64_FORMAT_U, a_callback_arg->round_id);
     }

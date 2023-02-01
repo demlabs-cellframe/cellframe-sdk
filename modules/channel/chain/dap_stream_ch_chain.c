@@ -245,7 +245,6 @@ static void s_sync_request_delete(struct sync_request **a_sync_request)
 
     DAP_DEL_Z((*a_sync_request)->pkt.pkt_data);
     DAP_DEL_Z((*a_sync_request)->gdb.sync_group);
-    dap_db_log_list_delete((*a_sync_request)->gdb.db_log);
     if ((*a_sync_request)->chain.request_atom_iter) {
         dap_chain_t *l_chain = dap_chain_find_by_id((*a_sync_request)->request_hdr.net_id, (*a_sync_request)->request_hdr.chain_id);
         l_chain->callback_atom_iter_delete((*a_sync_request)->chain.request_atom_iter);
@@ -408,7 +407,7 @@ static void s_sync_out_gdb_last_worker_callback(dap_worker_t *a_worker, void *a_
     }
 
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
-    //s_sync_out_gdb_first_worker_callback(NULL, a_arg); /* WTF is this again?... */
+    s_sync_out_gdb_first_worker_callback(NULL, a_arg);
     l_ch_chain->request_db_log = l_sync_request->gdb.db_log;
     debug_if (s_debug_more, L_INFO,"[stm_ch_chain:%p] Out: DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB", l_ch_chain);
     dap_stream_ch_chain_pkt_write_unsafe(DAP_STREAM_CH(l_ch_chain), DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB,
