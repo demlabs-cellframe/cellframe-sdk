@@ -1668,7 +1668,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                                             l_data, i * sizeof(dap_stream_ch_chain_update_element_t));
                 l_ch_chain->stats_request_gdb_processed += i;
                 debug_if(s_debug_more, L_INFO, "Out: DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB");
-            } else {
+            } else if (!l_obj) {
                 l_was_sent_smth = true;
                 l_ch_chain->request.node_addr.uint64 = dap_chain_net_get_cur_addr_int(dap_chain_net_by_id(
                                                                                           l_ch_chain->request_hdr.net_id));
