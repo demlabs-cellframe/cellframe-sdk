@@ -25,37 +25,30 @@
 typedef struct dap_chain_cs_block_ton_message dap_chain_cs_block_ton_message_t;
 typedef struct dap_chain_cs_block_ton_message_item dap_chain_cs_block_ton_message_item_t;
 
-typedef struct dap_chain_cs_block_ton
-{
+typedef struct dap_chain_cs_block_ton {
     dap_chain_t *chain;
     dap_chain_cs_blocks_t *blocks;
     void *_pvt;
 } dap_chain_cs_block_ton_t;
 
-typedef union dap_chain_cs_block_ton_round_id {
-    uint8_t raw[DAP_CHAIN_BLOCKS_SESSION_ROUND_ID_SIZE];
-    uint64_t uint64;
-} DAP_ALIGN_PACKED dap_chain_cs_block_ton_round_id_t;
-
-typedef union dap_chain_cs_block_ton_msg_id {
-    uint8_t raw[DAP_CHAIN_BLOCKS_SESSION_MESSAGE_ID_SIZE];
-    uint64_t uint64;
-} DAP_ALIGN_PACKED dap_chain_cs_block_ton_msg_id_t;
-
 typedef struct dap_chain_cs_block_ton_round {
-    dap_chain_cs_block_ton_round_id_t id;
-    dap_list_t *validators_start; // dap_chain_node_addr_t
-    uint16_t validators_start_count;
-    dap_chain_hash_fast_t last_message_hash;
-    dap_chain_cs_block_ton_message_item_t *messages_items;
+    uint64_t id;
     pthread_rwlock_t messages_rwlock;
+    dap_chain_cs_block_ton_message_item_t *messages_items;
+    dap_chain_hash_fast_t last_message_hash;
     bool submit;
     uint16_t messages_count;
     dap_chain_hash_fast_t my_candidate_hash;
-    dap_list_t *validators_list; // dap_chain_node_addr_t
-    uint16_t validators_count;
     uint16_t candidates_count;
+    uint16_t validators_count;
+    dap_list_t *validators_list;
 } dap_chain_cs_block_ton_round_t;
+
+typedef struct dap_chain_cs_block_ton_validator {
+    dap_chain_node_addr_t node_addr;
+    dap_chain_addr_t signing_addr;
+    uint256_t weight;
+} dap_chain_cs_block_ton_validator_t;
 
 typedef struct dap_chain_cs_block_ton_session {
     dap_chain_t *chain;
@@ -78,7 +71,6 @@ typedef struct dap_chain_cs_block_ton_session {
     dap_time_t ts_round_state_commit;
     dap_time_t ts_round_finish;
 
-    char * gdb_group_setup;
     char * gdb_group_store;
     char * gdb_group_message;
 
@@ -93,7 +85,7 @@ typedef struct dap_chain_cs_block_ton_session {
 
 typedef struct dap_chain_cs_block_ton_message_hdr {
     uint8_t type;
-    dap_chain_cs_block_ton_msg_id_t id;
+    uint64_t id;
     uint64_t sign_size;
     uint64_t message_size;
     dap_time_t ts_created;
@@ -118,14 +110,14 @@ typedef struct dap_chain_cs_block_ton_message_item {
 // struct for get info from any messages
 typedef struct dap_chain_cs_block_ton_message_getinfo {
     dap_chain_hash_fast_t candidate_hash;
-    dap_chain_cs_block_ton_round_id_t round_id;
+    uint64_t round_id;
     uint16_t attempt_number;
 } DAP_ALIGN_PACKED dap_chain_cs_block_ton_message_getinfo_t;
 
 // technical messages
 typedef struct dap_chain_cs_block_ton_message_startsync {
     dap_time_t ts;
-    dap_chain_cs_block_ton_round_id_t round_id;
+    uint64_t round_id;
     dap_hash_fast_t last_block_hash;
 } DAP_ALIGN_PACKED dap_chain_cs_block_ton_message_startsync_t;
 
@@ -143,43 +135,43 @@ in this round (even if the current process has another opinion)
 
 typedef struct dap_chain_cs_block_ton_message_submit {
     dap_chain_hash_fast_t candidate_hash;
-    dap_chain_cs_block_ton_round_id_t round_id;
+    uint64_t round_id;
     size_t candidate_size;
     uint8_t candidate[];
 } DAP_ALIGN_PACKED dap_chain_cs_block_ton_message_submit_t;
 
 typedef struct dap_chain_cs_block_ton_message_approve {
     dap_chain_hash_fast_t candidate_hash;
-    dap_chain_cs_block_ton_round_id_t round_id;
+    uint64_t round_id;
     uint8_t candidate_hash_sign[];
 } DAP_ALIGN_PACKED dap_chain_cs_block_ton_message_approve_t;
 
 typedef struct dap_chain_cs_block_ton_message_reject {
     dap_chain_hash_fast_t candidate_hash;
-    dap_chain_cs_block_ton_round_id_t round_id;
+    uint64_t round_id;
 } DAP_ALIGN_PACKED dap_chain_cs_block_ton_message_reject_t;
 
 typedef struct dap_chain_cs_block_ton_message_votefor {
     dap_chain_hash_fast_t candidate_hash;
-    dap_chain_cs_block_ton_round_id_t round_id;
+    uint64_t round_id;
     uint16_t attempt_number;
 } DAP_ALIGN_PACKED dap_chain_cs_block_ton_message_votefor_t;
 
 typedef struct dap_chain_cs_block_ton_message_vote {
     dap_chain_hash_fast_t candidate_hash;
-    dap_chain_cs_block_ton_round_id_t round_id;
+    uint64_t round_id;
     uint16_t attempt_number;
 } DAP_ALIGN_PACKED dap_chain_cs_block_ton_message_vote_t;
 
 typedef struct dap_chain_cs_block_ton_message_precommit {
     dap_chain_hash_fast_t candidate_hash;
-    dap_chain_cs_block_ton_round_id_t round_id;
+    uint64_t round_id;
     uint16_t attempt_number;
 } DAP_ALIGN_PACKED dap_chain_cs_block_ton_message_precommit_t;
 
 typedef struct dap_chain_cs_block_ton_message_commitsign {
     dap_chain_hash_fast_t candidate_hash;
-    dap_chain_cs_block_ton_round_id_t round_id;
+    uint64_t round_id;
     uint8_t candidate_sign[];
 } DAP_ALIGN_PACKED dap_chain_cs_block_ton_message_commitsign_t;
 
@@ -190,7 +182,7 @@ typedef struct dap_chain_cs_block_ton_store_hdr {
     bool vote_collected;
     bool precommit_collected;
     size_t candidate_size;
-    dap_chain_cs_block_ton_round_id_t round_id;
+    uint64_t round_id;
     dap_chain_hash_fast_t candidate_hash;
     dap_time_t ts_candidate_submit;
 } DAP_ALIGN_PACKED dap_chain_cs_block_ton_store_hdr_t;

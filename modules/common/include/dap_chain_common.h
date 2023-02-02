@@ -248,11 +248,12 @@ void dap_chain_addr_fill_from_key(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key
 
 int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr);
 
+// Deprecated
 DAP_STATIC_INLINE long double dap_chain_datoshi_to_coins(uint64_t a_count)
 {
     return (double)a_count / DATOSHI_LD;
 }
-
+// Deprecated
 DAP_STATIC_INLINE uint64_t dap_chain_coins_to_datoshi(long double a_count)
 {
     return (uint64_t)(a_count * DATOSHI_LD);
