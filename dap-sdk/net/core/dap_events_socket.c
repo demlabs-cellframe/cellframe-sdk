@@ -1177,7 +1177,7 @@ static void *dap_events_socket_buf_thread(void *arg)
     while (l_lifecycle) {
         while (l_res < 1 && l_count++ < 3) {
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
-            l_sock = l_item->es->fd2;
+            l_sock = l_es->fd2;
 #elif defined(DAP_EVENTS_CAPS_QUEUE_MQUEUE)
             l_sock = l_es->mqd;
 #endif
