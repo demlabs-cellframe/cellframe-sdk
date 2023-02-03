@@ -1,6 +1,6 @@
 /*
  * Authors:
- * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
+ * Frolov Daniil <daniil.frolov@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
  * Copyright  (c) 2020, All rights reserved.
 
@@ -32,12 +32,12 @@
 
 
 
-dap_tsd_t *dap_chain_datum_decree_get_signs(dap_chain_datum_decree_t *a_decree, size_t* a_signs_size)
+dap_sign_t *dap_chain_datum_decree_get_signs(dap_chain_datum_decree_t *a_decree, size_t* a_signs_size)
 {
     if (!a_decree)
         return NULL;
 
-    dap_tsd_t *l_signs_section = (dap_tsd_t *)(a_decree->data_n_signs + a_decree->header.data_size);
+    dap_sign_t *l_signs_section = (dap_sign_t *)(a_decree->data_n_signs + a_decree->header.data_size);
 
     *a_signs_size = a_decree->header.signs_size;
 

@@ -1,6 +1,6 @@
 /*
  * Authors:
- * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
+ * Frolov Daniil <daniil.frolov@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
  * Copyright  (c) 2020, All rights reserved.
 
@@ -29,6 +29,8 @@
 #include "dap_tsd.h"
 #include <stdint.h>
 
+#define DAP_CHAIN_DATUM_DECREE_VERSION  0
+
 // Governance decree
 typedef struct dap_chain_datum_decree {
     uint16_t decree_version;
@@ -44,7 +46,6 @@ typedef struct dap_chain_datum_decree {
             } DAP_ALIGN_PACKED common_decree_params;
         } DAP_ALIGN_PACKED;
         uint16_t sub_type;
-        uint16_t action;
         uint32_t data_size;
         uint32_t signs_size;
     } DAP_ALIGN_PACKED header;
@@ -78,9 +79,9 @@ typedef struct dap_chain_datum_decree {
  * @param decree pointer to decree
  * @param num_of_signs pointer to num of signs buffer. Total
  *                      number of signs will be write to this buffer
- * @return part of tsd section with signs
+ * @return pointer to signs
  */
-dap_tsd_t *dap_chain_datum_decree_get_signs(dap_chain_datum_decree_t *decree, size_t *num_of_signs);
+dap_sign_t *dap_chain_datum_decree_get_signs(dap_chain_datum_decree_t *decree, size_t *num_of_signs);
 
 /**
  * @brief dap_chain_datum_decree_get_fee gets fee value from decree

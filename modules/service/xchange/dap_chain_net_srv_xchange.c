@@ -261,46 +261,46 @@ static void s_callback_decree (dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_n
 //    TODO: finish function
     pthread_rwlock_wrlock(&s_service_fees_rwlock);
     dap_chain_net_srv_fee_item_t *l_fee = NULL;
-    switch(a_decree->header.action){
-        case DAP_CHAIN_DATUM_DECREE_ACTION_UPDATE:{
-            HASH_FIND(hh,s_service_fees,&a_net->pub.id, sizeof(a_net->pub.id), l_fee);
-            if(l_fee == NULL){
-                log_it(L_WARNING,"Decree update for net id 0x%016" DAP_UINT64_FORMAT_X" when such id can't find in hash table", a_net->pub.id.uint64);
-                pthread_rwlock_unlock(&s_service_fees_rwlock);
-                return;
-            }
-        }break;
-        case DAP_CHAIN_DATUM_DECREE_ACTION_CREATE:{
-            HASH_FIND(hh,s_service_fees,&a_net->pub.id, sizeof(a_net->pub.id), l_fee);
-            if (l_fee) {
-                log_it(L_WARNING, "Decree create for net id 0x%016" DAP_UINT64_FORMAT_X" when such id already in hash table", a_net->pub.id.uint64);
-                pthread_rwlock_unlock(&s_service_fees_rwlock);
-                return;
-            }
-            l_fee = DAP_NEW_Z(dap_chain_net_srv_fee_item_t);
-            l_fee->net_id = a_net->pub.id;
-            HASH_ADD(hh, s_service_fees, net_id, sizeof(l_fee->net_id), l_fee);
-        } break;
-    }
-    size_t l_tsd_offset = 0;
+//    switch(a_decree->header.action){
+//        case DAP_CHAIN_DATUM_DECREE_ACTION_UPDATE:{
+//            HASH_FIND(hh,s_service_fees,&a_net->pub.id, sizeof(a_net->pub.id), l_fee);
+//            if(l_fee == NULL){
+//                log_it(L_WARNING,"Decree update for net id 0x%016" DAP_UINT64_FORMAT_X" when such id can't find in hash table", a_net->pub.id.uint64);
+//                pthread_rwlock_unlock(&s_service_fees_rwlock);
+//                return;
+//            }
+//        }break;
+//        case DAP_CHAIN_DATUM_DECREE_ACTION_CREATE:{
+//            HASH_FIND(hh,s_service_fees,&a_net->pub.id, sizeof(a_net->pub.id), l_fee);
+//            if (l_fee) {
+//                log_it(L_WARNING, "Decree create for net id 0x%016" DAP_UINT64_FORMAT_X" when such id already in hash table", a_net->pub.id.uint64);
+//                pthread_rwlock_unlock(&s_service_fees_rwlock);
+//                return;
+//            }
+//            l_fee = DAP_NEW_Z(dap_chain_net_srv_fee_item_t);
+//            l_fee->net_id = a_net->pub.id;
+//            HASH_ADD(hh, s_service_fees, net_id, sizeof(l_fee->net_id), l_fee);
+//        } break;
+//    }
+//    size_t l_tsd_offset = 0;
 //    TODO: move to ACTION_CREATE
-    while(l_tsd_offset < (a_decree_size - sizeof(a_decree->header)) ){
-        dap_tsd_t *l_tsd = (dap_tsd_t*) (a_decree->data_n_signs + l_tsd_offset);
-        switch((dap_chain_net_srv_fee_tsd_type_t)l_tsd->type) {
-        case TSD_FEE_TYPE:
-            l_fee->fee_type = dap_tsd_get_scalar(l_tsd, uint16_t);
-            break;
-        case TSD_FEE:
-            l_fee->fee = dap_tsd_get_scalar(l_tsd, uint256_t);
-            break;
-        case TSD_FEE_ADDR:
-            l_fee->fee_addr = dap_tsd_get_scalar(l_tsd, dap_chain_addr_t);
-        default:
-            break;
-        }
-        l_tsd_offset += dap_tsd_size(l_tsd);
-    }
-    pthread_rwlock_unlock(&s_service_fees_rwlock);
+//    while(l_tsd_offset < (a_decree_size - sizeof(a_decree->header)) ){
+//        dap_tsd_t *l_tsd = (dap_tsd_t*) (a_decree->data_n_signs + l_tsd_offset);
+//        switch((dap_chain_net_srv_fee_tsd_type_t)l_tsd->type) {
+//        case TSD_FEE_TYPE:
+//            l_fee->fee_type = dap_tsd_get_scalar(l_tsd, uint16_t);
+//            break;
+//        case TSD_FEE:
+//            l_fee->fee = dap_tsd_get_scalar(l_tsd, uint256_t);
+//            break;
+//        case TSD_FEE_ADDR:
+//            l_fee->fee_addr = dap_tsd_get_scalar(l_tsd, dap_chain_addr_t);
+//        default:
+//            break;
+//        }
+//        l_tsd_offset += dap_tsd_size(l_tsd);
+//    }
+//    pthread_rwlock_unlock(&s_service_fees_rwlock);
 }
 
 static bool s_srv_xchange_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a_fee, dap_chain_addr_t *a_addr, uint16_t *a_type)

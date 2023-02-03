@@ -1,7 +1,7 @@
 /*
  *
  * Authors:
- * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
+ * Frolov Daniil <daniil.frolov@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
  * Copyright  (c) 2020, All rights reserved.
 
@@ -99,23 +99,25 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
     // Get pkeys sign from decree datum
     size_t l_signs_size = 0;
     //multiple signs reading from datum
-    dap_tsd_t *l_signs_tsd = dap_chain_datum_decree_get_signs(l_decree, &l_signs_size);
-    if (!l_signs_size || !l_signs_tsd)
+    dap_sign_t *l_signs_block = dap_chain_datum_decree_get_signs(l_decree, &l_signs_size);
+    if (!l_signs_size || !l_signs_block)
     {
         log_it(L_WARNING,"Decree data sign not found");
         return -100;
     }
 
     // Concate all signs from tsd in array
-    size_t l_tsd_offset = 0;
-    dap_sign_t *l_signs_arr = DAP_NEW_Z_SIZE(dap_sign_t, l_signs_tsd->size);
+    size_t l_tsd_offset = sizeof(dap_sign_t) + l_signs_block->header.sign_pkey_size + l_signs_block->header.sign_size;
     size_t l_signs_arr_size = 0;
-    memcpy(l_signs_arr, l_signs_tsd->data, l_signs_tsd->size);
-    l_tsd_offset += l_signs_tsd->size;
-    l_signs_arr_size += l_signs_tsd->size;
+    dap_sign_t *l_signs_arr = DAP_NEW_Z_SIZE(dap_sign_t, l_tsd_offset);
+    memcpy(l_signs_arr, l_signs_block, l_tsd_offset);
+    l_signs_arr_size += l_tsd_offset;
     while (l_tsd_offset < l_signs_size)
     {
-        dap_sign_t *l_signs_arr_temp = DAP_REALLOC(l_signs_arr, l_tsd_offset + l_signs_tsd->size);
+        dap_sign_t *cur_sign = (dap_sign_t *)(l_signs_block + l_tsd_offset);
+        size_t l_sign_size = sizeof(dap_sign_t) + cur_sign->header.sign_pkey_size + cur_sign->header.sign_size;
+
+        dap_sign_t *l_signs_arr_temp = DAP_REALLOC(l_signs_arr, l_signs_arr_size + l_sign_size);
 
         if (!l_signs_arr_temp)
         {
@@ -125,10 +127,10 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
         }
 
         l_signs_arr = l_signs_arr_temp;
-        memcpy(l_signs_arr + l_tsd_offset, l_signs_tsd->data, l_signs_tsd->size);
+        memcpy(l_signs_arr + l_signs_arr_size, cur_sign, l_sign_size);
 
-        l_signs_arr_size += l_signs_tsd->size;
-        l_tsd_offset += l_signs_tsd->size;
+        l_signs_arr_size += l_sign_size;
+        l_tsd_offset += l_sign_size;
     }
 
     // Find unique pkeys in pkeys set from previous step and check that number of signs > min
@@ -145,8 +147,8 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
             // 3. verify sign
             size_t l_verify_data_size = l_decree->header.data_size + sizeof(l_decree->header);
             size_t l_sign_max_size = sizeof(dap_sign_t) + l_unique_signs[i]->header.sign_pkey_size + l_unique_signs[i]->header.sign_size;
-            // Each sign change the sign_size field by adding its size. So we need to change this field in header for each sign.
-            uint16_t l_signs_size_for_current_sign = sizeof(dap_sign_t) * (i+1);
+            // Each sign change the sign_size field by adding its size after signing. So we need to change this field in header for each sign.
+            uint16_t l_signs_size_for_current_sign = sizeof(dap_sign_t) * (i);
             l_decree->header.signs_size = l_signs_size_for_current_sign;
             if(!dap_sign_verify_all(l_unique_signs[i], l_sign_max_size, l_decree, l_verify_data_size))
             {
@@ -166,7 +168,7 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
     if (compare256(l_num_of_valid_signs256, l_min_signs) < 0)
     {
         log_it(L_WARNING,"Not enough valid signatures");
-        return -105;
+        return -106;
     }
 
     // Process decree
@@ -215,98 +217,41 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
     switch (a_decree->header.sub_type)
     {
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE:
-            if(a_decree->header.action == DAP_CHAIN_DATUM_DECREE_ACTION_CREATE){
                 if (dap_chain_datum_decree_get_fee(a_decree, &l_fee)){
-                    return -106;
+                    if(!dap_chain_net_tx_add_fee(a_chain->net_id, a_chain, &l_fee, &l_addr)){
+                        log_it(L_WARNING,"Can't add fee value.");
+                        return -102;
+                    }
+                }else{
+                    if(!dap_chain_net_tx_replace_fee(a_chain->net_id, a_chain, &l_fee, &l_addr)){
+                        log_it(L_WARNING,"Can't add fee value.");
+                        return -103;
+                    }
                 }
-                if(!dap_chain_net_tx_add_fee(a_chain->net_id, a_chain, &l_fee, &l_addr)){
-                    log_it(L_WARNING,"Can't add fee value.");
-                    return -106;
-                }
-            }else if(a_decree->header.action == DAP_CHAIN_DATUM_DECREE_ACTION_UPDATE) {
-                if (dap_chain_datum_decree_get_fee(a_decree, &l_fee)){
-                    return -106;
-                }
-                if(!dap_chain_net_tx_replace_fee(a_chain->net_id, a_chain, &l_fee, &l_addr)){
-                    log_it(L_WARNING,"Can't replace fee value.");
-                    return -106;
-                }
-            } else if(a_decree->header.action == DAP_CHAIN_DATUM_DECREE_ACTION_DELETE) {
-
-            }else{
-                return -1;
-            }
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS:
             l_net = dap_chain_net_by_id(a_chain->net_id);
-            if(a_decree->header.action == DAP_CHAIN_DATUM_DECREE_ACTION_CREATE){
-                if (l_net->pub.decree->pkeys != NULL){
-                    log_it(L_WARNING,"Can't create owners because its already exist.");
-                    return -106;
-                }
-                l_owners_list = dap_chain_datum_decree_get_owners(a_decree, &l_num_of_owners);
-                if (!l_owners_list){
-                    log_it(L_WARNING,"Can't get ownners from decree.");
-                    return -106;
-                }
-
-                l_net->pub.decree->num_of_owners = l_num_of_owners;
-                l_net->pub.decree->pkeys = l_owners_list;
-            }else if(a_decree->header.action == DAP_CHAIN_DATUM_DECREE_ACTION_UPDATE) {
-                if (l_net->pub.decree->pkeys == NULL){
-                    log_it(L_WARNING,"Can't update owners list because its not exist.");
-                    return -106;
-                }
-                l_owners_list = dap_chain_datum_decree_get_owners(a_decree, &l_num_of_owners);
-                if (!l_owners_list){
-                    log_it(L_WARNING,"Can't get ownners from decree.");
-                    return -106;
-                }
-                dap_list_free_full(l_net->pub.decree->pkeys, NULL);
-                l_net->pub.decree->num_of_owners = l_num_of_owners;
-                l_net->pub.decree->pkeys = l_owners_list;
-            } else if(a_decree->header.action == DAP_CHAIN_DATUM_DECREE_ACTION_DELETE) {
-
-            }else{
-                return -1;
+            l_owners_list = dap_chain_datum_decree_get_owners(a_decree, &l_num_of_owners);
+            if (!l_owners_list){
+                log_it(L_WARNING,"Can't get ownners from decree.");
+                return -104;
             }
+
+            l_net->pub.decree->num_of_owners = l_num_of_owners;
+            l_net->pub.decree->pkeys = l_owners_list;
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN:
-            if(a_decree->header.action == DAP_CHAIN_DATUM_DECREE_ACTION_CREATE){
-
-            }else if(a_decree->header.action == DAP_CHAIN_DATUM_DECREE_ACTION_UPDATE) {
-                if (dap_chain_datum_decree_get_min_owners(a_decree, &l_min_owners)){
-                    log_it(L_WARNING,"Can't get min number of ownners from decree.");
-                    return -106;
-                }
-                l_net->pub.decree->min_num_of_owners = l_min_owners;
-            } else if(a_decree->header.action == DAP_CHAIN_DATUM_DECREE_ACTION_DELETE) {
-
-            }else{
-                return -1;
+            if (dap_chain_datum_decree_get_min_owners(a_decree, &l_min_owners)){
+                log_it(L_WARNING,"Can't get min number of ownners from decree.");
+                return -105;
             }
+            l_net->pub.decree->min_num_of_owners = l_min_owners;
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_TON_SIGNERS:
-            if(a_decree->header.action == DAP_CHAIN_DATUM_DECREE_ACTION_CREATE){
 
-            }else if(a_decree->header.action == DAP_CHAIN_DATUM_DECREE_ACTION_UPDATE) {
-
-            } else if(a_decree->header.action == DAP_CHAIN_DATUM_DECREE_ACTION_DELETE) {
-
-            }else{
-                return -1;
-            }
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_TON_SIGNERS_MIN:
-            if(a_decree->header.action == DAP_CHAIN_DATUM_DECREE_ACTION_CREATE){
 
-            }else if(a_decree->header.action == DAP_CHAIN_DATUM_DECREE_ACTION_UPDATE) {
-
-            } else if(a_decree->header.action == DAP_CHAIN_DATUM_DECREE_ACTION_DELETE) {
-
-            }else{
-                return -1;
-            }
             break;
         default: return -1;
     }

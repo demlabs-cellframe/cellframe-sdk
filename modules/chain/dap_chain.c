@@ -287,6 +287,8 @@ static uint16_t s_datum_type_from_str(const char *a_type_str)
     if (!dap_strcmp(a_type_str, "signer")) {
         return DAP_CHAIN_DATUM_SIGNER;
     }
+    if (!dap_strcmp(a_type_str, "decree"))
+        return DAP_CHAIN_DATUM_DECREE;
     return DAP_CHAIN_DATUM_CUSTOM;
 }
 

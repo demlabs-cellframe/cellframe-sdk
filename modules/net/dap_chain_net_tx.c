@@ -649,8 +649,8 @@ bool dap_chain_net_tx_get_fee(dap_chain_net_id_t a_net_id, dap_chain_t *a_chain,
     }
 
     net_fee_key_t l_key = {0};
-    memcpy(&l_key.net_id, &a_net_id, sizeof(dap_chain_net_id_t));
-    memcpy(&l_key.chain_id, &a_chain->id, sizeof(dap_chain_net_id_t));
+    l_key.net_id = a_net_id;
+    l_key.chain_id = a_chain->id;
 
 
     HASH_FIND(hh, s_net_fees, &l_key, sizeof(a_net_id), l_net_fee);
@@ -686,10 +686,10 @@ bool dap_chain_net_tx_add_fee(dap_chain_net_id_t a_net_id, dap_chain_t *a_chain,
     }
 
     l_net_fee = DAP_NEW(struct net_fee);
-    memcpy(&(l_net_fee->key.net_id), &a_net_id, sizeof(dap_chain_net_id_t));
-    memcpy(&(l_net_fee->key.chain_id), &a_chain->id, sizeof(dap_chain_net_id_t));
-    memcpy(&(l_net_fee->value), a_value, sizeof(uint256_t));
-    memcpy(&(l_net_fee->fee_addr), a_addr, sizeof(dap_chain_addr_t));
+    l_net_fee->key.net_id = a_net_id;
+    l_net_fee->key.chain_id = a_chain->id;
+    l_net_fee->value = *a_value;
+    l_net_fee->fee_addr = *a_addr;
 
     HASH_ADD(hh, s_net_fees, key, sizeof(net_fee_key_t), l_net_fee);
 
@@ -719,8 +719,8 @@ bool dap_chain_net_tx_replace_fee(dap_chain_net_id_t a_net_id, dap_chain_t *a_ch
     }
 
     net_fee_key_t l_key = {0};
-    memcpy(&l_key.net_id, &a_net_id, sizeof(dap_chain_net_id_t));
-    memcpy(&l_key.chain_id, &a_chain->id, sizeof(dap_chain_net_id_t));
+    l_key.net_id = a_net_id;
+    l_key.chain_id = a_chain->id;
 
     HASH_FIND(hh, s_net_fees, &l_key, sizeof(a_net_id), l_net_fee);
     if (!l_net_fee)
@@ -729,10 +729,10 @@ bool dap_chain_net_tx_replace_fee(dap_chain_net_id_t a_net_id, dap_chain_t *a_ch
     DAP_FREE(l_net_fee);
 
     l_net_fee = DAP_NEW(struct net_fee);
-    memcpy(&(l_net_fee->key.net_id), &a_net_id, sizeof(dap_chain_net_id_t));
-    memcpy(&(l_net_fee->key.chain_id), &a_chain->id, sizeof(dap_chain_net_id_t));
-    memcpy(&(l_net_fee->value), a_value, sizeof(uint256_t));
-    memcpy(&(l_net_fee->fee_addr), a_addr, sizeof(dap_chain_addr_t));
+    l_net_fee->key.net_id = a_net_id;
+    l_net_fee->key.chain_id = a_chain->id;
+    l_net_fee->value = *a_value;
+    l_net_fee->fee_addr = *a_addr;;
 
     HASH_ADD(hh, s_net_fees, key, sizeof(net_fee_key_t), l_net_fee);
 

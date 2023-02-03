@@ -3370,7 +3370,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                 switch (l_tsd->type){
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID:
                         log_it(L_DEBUG,"== TOTAL_SIGNS_VALID: %u",
-                                dap_tsd_get_scalar(l_tsd,uint16_t) );
+                                dap_tsd_get_scalar(l_tsd, uint16_t) );
                     break;
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_ADD:
                         log_it(L_DEBUG,"== DATUM_TYPE_ALLOWED_ADD: %s",
