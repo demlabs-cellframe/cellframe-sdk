@@ -53,8 +53,9 @@ typedef struct dap_chain_cs_block_ton_validator {
 typedef struct dap_chain_cs_block_ton_session {
     dap_chain_t *chain;
     dap_chain_cs_block_ton_t *ton;
+    dap_interval_timer_t session_timer;
 
-    dap_chain_node_addr_t *my_addr;
+    dap_chain_node_addr_t my_addr;
 
     dap_chain_block_t *my_candidate;
     size_t my_candidate_size;
@@ -89,10 +90,6 @@ typedef struct dap_chain_cs_block_ton_message_hdr {
     uint64_t sign_size;
     uint64_t message_size;
     dap_time_t ts_created;
-    dap_chain_node_addr_t sender_node_addr;
-    uint16_t is_genesis;
-    uint16_t is_verified;
-    dap_chain_hash_fast_t prev_message_hash;
     dap_chain_id_t chain_id;
 } DAP_ALIGN_PACKED dap_chain_cs_block_ton_message_hdr_t;
 
@@ -104,6 +101,9 @@ typedef struct dap_chain_cs_block_ton_message {
 typedef struct dap_chain_cs_block_ton_message_item {
     dap_chain_cs_block_ton_message_t *message;
     dap_chain_hash_fast_t message_hash;
+    dap_chain_hash_fast_t prev_message_hash;
+    uint16_t is_genesis;
+    uint16_t is_verified;
     UT_hash_handle hh;
 } dap_chain_cs_block_ton_message_item_t;
 

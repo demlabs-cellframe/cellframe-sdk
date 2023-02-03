@@ -38,7 +38,7 @@
 #define DAP_CHAIN_ID_SIZE           8
 #define DAP_CHAIN_SHARD_ID_SIZE     8
 #define DAP_CHAIN_NET_ID_SIZE       8
-#define DAP_CHAIN_NODE_ROLE_SIZE    2
+#define DAP_CHAIN_NODE_ROLE_SIZE    4
 #define DAP_CHAIN_HASH_SLOW_SIZE    32
 #define DAP_CHAIN_TIMESTAMP_SIZE    8
 #define DAP_CHAIN_TICKER_SIZE_MAX   10
@@ -98,15 +98,17 @@ inline static bool dap_chain_node_addr_not_null(dap_chain_node_addr_t * a_addr){
   *
   *
   */
+enum {
+    NODE_ROLE_ROOT_MASTER=0x00,
+    NODE_ROLE_ROOT=0x01,
+    NODE_ROLE_ARCHIVE=0x02,
+    NODE_ROLE_CELL_MASTER=0x10,
+    NODE_ROLE_MASTER = 0x20,
+    NODE_ROLE_FULL=0xf0,
+    NODE_ROLE_LIGHT=0xff
+};
 typedef union dap_chain_node_role{
-    enum {
-        NODE_ROLE_ROOT_MASTER=0x00,
-        NODE_ROLE_ROOT=0x01,
-        NODE_ROLE_ARCHIVE=0x02,
-        NODE_ROLE_CELL_MASTER=0x10,
-        NODE_ROLE_MASTER = 0x20,
-        NODE_ROLE_FULL=0xf0,
-        NODE_ROLE_LIGHT=0xff } enums;
+    uint32_t enums;
     uint8_t raw[DAP_CHAIN_NODE_ROLE_SIZE];
 } DAP_ALIGN_PACKED dap_chain_node_role_t;
 
@@ -131,16 +133,16 @@ typedef struct dap_chain_addr{
     uint8_t addr_ver; // 0 for default
     dap_chain_net_id_t net_id;  // Testnet, mainnet or alternet
     dap_sign_type_t sig_type;
-    union{
+    union {
         //dap_chain_hash_fast_t hash;
         struct {
             uint8_t key_spend[sizeof(dap_chain_hash_fast_t)/2];
             uint8_t key_view[sizeof(dap_chain_hash_fast_t)/2];
-        } key_sv;
+        } DAP_ALIGN_PACKED key_sv;
         uint8_t key[sizeof(dap_chain_hash_fast_t)];
         uint8_t hash[sizeof(dap_chain_hash_fast_t)];
         dap_chain_hash_fast_t hash_fast;
-    } data;
+    } DAP_ALIGN_PACKED data;
     dap_chain_hash_fast_t checksum;
 }  DAP_ALIGN_PACKED dap_chain_addr_t;
 
@@ -247,6 +249,10 @@ void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_sign_type_t a_type, dap_c
 void dap_chain_addr_fill_from_key(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_chain_net_id_t a_net_id);
 
 int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr);
+DAP_STATIC_INLINE bool dap_chain_addr_compare(dap_chain_addr_t *a_addr1, dap_chain_addr_t *a_addr2)
+{
+    return !memcmp(a_addr1, a_addr2, sizeof(dap_chain_addr_t));
+}
 
 // Deprecated
 DAP_STATIC_INLINE long double dap_chain_datoshi_to_coins(uint64_t a_count)
