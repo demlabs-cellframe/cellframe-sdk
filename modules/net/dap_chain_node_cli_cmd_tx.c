@@ -1393,11 +1393,22 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
     else if (dap_cli_server_cmd_find_option_val(a_argv, 1, 2, "anchor", NULL))
             l_cmd = CMD_ANCHOR;
 
-
+    // Public certifiacte of condition owner
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-certs", &l_certs_str);
+    if (!l_certs_str) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "decree create requires parameter '-certs'");
+        return -106;
+    }
+    dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
 
     switch (l_cmd)
     {
     case CMD_CREATE:{
+        if(!l_certs_count) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply,
+                    "decree create command requres at least one valid certificate to sign the basic transaction of emission");
+            return -106;
+        }
         int l_type = TYPE_NONE;
         if (dap_cli_server_cmd_find_option_val(a_argv, 2, 3, "common", NULL))
             l_type = TYPE_COMMON;
@@ -1405,20 +1416,6 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
             l_type = TYPE_SERVICE;
 
         dap_chain_datum_decree_t *l_datum_decree = NULL;
-
-        // Public certifiacte of condition owner
-        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-certs", &l_certs_str);
-        if (!l_certs_str) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "decree create requires parameter '-certs'");
-            return -106;
-        }
-        dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
-
-        if(!l_certs_count) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                    "decree create command requres at least one valid certificate to sign the basic transaction of emission");
-            return -106;
-        }
 
         if (l_type == TYPE_COMMON){
             // Common decree create
@@ -1516,11 +1513,11 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
         }
 
         // Sign decree
-        size_t l_total_signs_siccess = 0;
+        size_t l_total_signs_success = 0;
         if (l_certs_count)
-            l_datum_decree = s_sign_decree_in_cycle(l_certs, l_datum_decree, l_certs_count, &l_total_signs_siccess);
+            l_datum_decree = s_sign_decree_in_cycle(l_certs, l_datum_decree, l_certs_count, &l_total_signs_success);
 
-        if (!l_datum_decree || l_total_signs_siccess == 0){
+        if (!l_datum_decree || l_total_signs_success == 0){
             dap_cli_server_cmd_set_reply_text(a_str_reply,
                         "Decree creation failed. Successful count of certificate signing is 0");
                 return -108;
@@ -1555,7 +1552,6 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
             DAP_DELETE(l_datum);
             return -10;
         }
-        int l_ret = 0;
         bool l_placed = dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, l_datum, l_datum_size, true) == 0;
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s is%s placed in datum pool",
                                           l_key_str_out, l_placed ? "" : " not");
@@ -1568,7 +1564,184 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
         break;
     }
     case CMD_SIGN:{
+        if(!l_certs_count) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply,
+                    "decree sign command requres at least one valid certificate to sign the basic transaction of emission");
+            return -106;
+        }
 
+        const char * l_datum_hash_str = NULL;
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-datum", &l_datum_hash_str);
+        if(l_datum_hash_str) {
+            char * l_datum_hash_hex_str = NULL;
+            char * l_datum_hash_base58_str = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain", &l_chain_str);
+            // Search chain
+            if(l_chain_str) {
+                l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
+                if (l_chain == NULL) {
+                    char l_str_to_reply_chain[500] = {0};
+                    char *l_str_to_reply = NULL;
+                    dap_sprintf(l_str_to_reply_chain, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid\n",
+                                                    a_argv[0], l_net_str, l_chain_str);
+                    l_str_to_reply = dap_strcat2(l_str_to_reply,l_str_to_reply_chain);
+                    dap_chain_t * l_chain;
+                    l_str_to_reply = dap_strcat2(l_str_to_reply,"\nAvailable chain with decree support:\n");
+                    l_chain = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_DECREE);
+                    l_str_to_reply = dap_strcat2(l_str_to_reply,"\t");
+                    l_str_to_reply = dap_strcat2(l_str_to_reply,l_chain->name);
+                    l_str_to_reply = dap_strcat2(l_str_to_reply,"\n");
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_to_reply);
+                    return -103;
+                } else if (l_chain != dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_DECREE)){ // check chain to support decree
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Chain %s don't support decree", l_chain->name);
+                    return -104;
+                }
+            }else if((l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_DECREE)) == NULL) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find chain with decree support.");
+                return -105;
+            }
+
+            // Certificates thats will be used to sign currend datum decree
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-certs", &l_certs_str);
+
+            // Load certs lists
+            if (l_certs_str)
+                dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
+
+            if(!l_certs_count) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply,
+                        "decree sign command requres at least one valid certificate");
+                return -7;
+            }
+
+            char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
+            if(!l_gdb_group_mempool) {
+                l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_DECREE);
+            }
+            // datum hash may be in hex or base58 format
+            if(!dap_strncmp(l_datum_hash_str, "0x", 2) || !dap_strncmp(l_datum_hash_str, "0X", 2)) {
+                l_datum_hash_hex_str = dap_strdup(l_datum_hash_str);
+                l_datum_hash_base58_str = dap_enc_base58_from_hex_str_to_str(l_datum_hash_str);
+            } else {
+                l_datum_hash_hex_str = dap_enc_base58_to_hex_str_from_str(l_datum_hash_str);
+                l_datum_hash_base58_str = dap_strdup(l_datum_hash_str);
+            }
+
+            const char *l_datum_hash_out_str;
+            if(!dap_strcmp(l_hash_out_type,"hex"))
+                l_datum_hash_out_str = l_datum_hash_hex_str;
+            else
+                l_datum_hash_out_str = l_datum_hash_base58_str;
+
+            log_it(L_DEBUG, "Requested to sign decree creation %s in gdb://%s with certs %s",
+                    l_gdb_group_mempool, l_datum_hash_hex_str, l_certs_str);
+
+            dap_chain_datum_t * l_datum = NULL;
+            size_t l_datum_size = 0;
+            size_t l_tsd_size = 0;
+            if((l_datum = (dap_chain_datum_t*) dap_global_db_get_sync(l_gdb_group_mempool,
+                    l_datum_hash_hex_str, &l_datum_size, NULL, NULL )) != NULL) {
+                // Check if its decree creation
+                if(l_datum->header.type_id == DAP_CHAIN_DATUM_DECREE) {
+                    dap_chain_datum_decree_t *l_datum_decree = DAP_DUP_SIZE(l_datum->data, l_datum->header.data_size);    // for realloc
+                    DAP_DELETE(l_datum);
+
+                    uint32_t l_num_of_signs = 0, l_signs_verify = 0;
+                    if(dap_chain_net_decree_verify(l_datum_decree, l_net, &l_num_of_signs, &l_signs_verify)){
+                        log_it(L_WARNING, "Wrong signature for datum_decree with key %s in mempool!", l_datum_hash_out_str);
+                        dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                "Datum %s with datum decree has wrong signature, break process and exit",
+                                l_datum_hash_out_str);
+                        DAP_DELETE(l_datum_decree);
+                        DAP_DELETE(l_gdb_group_mempool);
+                        return -6;
+                    }
+                    log_it(L_DEBUG, "Datum %s with decree: %hu signatures are verified well",
+                                     l_datum_hash_out_str, l_signs_verify);
+
+                    // Sign decree
+                    size_t l_total_signs_success = 0;
+                    if (l_certs_count)
+                        l_datum_decree = s_sign_decree_in_cycle(l_certs, l_datum_decree, l_certs_count, &l_total_signs_success);
+
+                    if (!l_datum_decree || l_total_signs_success == 0){
+                        dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                    "Decree creation failed. Successful count of certificate signing is 0");
+                            return -108;
+                    }
+                    size_t l_decree_size = sizeof(*l_datum_decree) + l_datum_decree->header.data_size + l_datum_decree->header.signs_size;
+                    dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_DECREE,
+                                                                         l_datum_decree, l_decree_size);
+                    DAP_DELETE(l_datum_decree);
+
+                    // Calc datum's hash
+                    l_datum_size = dap_chain_datum_size(l_datum);
+                    dap_chain_hash_fast_t l_key_hash={};
+                    dap_hash_fast(l_datum->data, l_decree_size, &l_key_hash);
+                    char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
+                    char * l_key_str_base58 = dap_enc_base58_encode_hash_to_str(&l_key_hash);
+                    const char * l_key_out_str;
+                    if(!dap_strcmp(l_hash_out_type,"hex"))
+                        l_key_out_str = l_key_str;
+                    else
+                        l_key_out_str = l_key_str_base58;
+
+                    // Add datum to mempool with datum_token hash as a key
+                    if( dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, l_datum, dap_chain_datum_size(l_datum), true) == 0) {
+
+                        char* l_hash_str = l_datum_hash_hex_str;
+                        // Remove old datum from pool
+                        if( dap_global_db_del_sync(l_gdb_group_mempool, l_hash_str ) == 0) {
+                            dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                    "datum %s is replacing the %s in datum pool",
+                                    l_key_out_str, l_datum_hash_out_str);
+
+                            DAP_DELETE(l_datum);
+                            //DAP_DELETE(l_datum_token);
+                            DAP_DELETE(l_gdb_group_mempool);
+                            return 0;
+                        } else {
+                            dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                    "Warning! Can't remove old datum %s ( new datum %s added normaly in datum pool)",
+                                    l_datum_hash_out_str, l_key_out_str);
+                            DAP_DELETE(l_datum);
+                            //DAP_DELETE(l_datum_token);
+                            DAP_DELETE(l_gdb_group_mempool);
+                            return 1;
+                        }
+                        DAP_DELETE(l_hash_str);
+                        DAP_DELETE(l_key_str);
+                        DAP_DELETE(l_key_str_base58);
+                    } else {
+                        dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                "Error! datum %s produced from %s can't be placed in mempool",
+                                l_key_out_str, l_datum_hash_out_str);
+                        DAP_DELETE(l_datum);
+                        //DAP_DELETE(l_datum_token);
+                        DAP_DELETE(l_gdb_group_mempool);
+                        DAP_DELETE(l_key_str);
+                        DAP_DELETE(l_key_str_base58);
+                        return -2;
+                    }
+
+                }else{
+                    dap_cli_server_cmd_set_reply_text(a_str_reply,
+                            "Error! Wrong datum type. decree sign only decree datum");
+                    return -61;
+                }
+            }else{
+                dap_cli_server_cmd_set_reply_text(a_str_reply,
+                        "decree sign can't find datum with %s hash in the mempool of %s:%s",l_datum_hash_out_str,l_net? l_net->pub.name: "<undefined>",
+                        l_chain?l_chain->name:"<undefined>");
+                return -5;
+            }
+            DAP_DELETE(l_datum_hash_hex_str);
+            DAP_DELETE(l_datum_hash_base58_str);
+        } else {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "decree sign need -datum <datum hash> argument");
+            return -2;
+        }
         break;
     }
     case CMD_ANCHOR:{
@@ -1576,7 +1749,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
         break;
     }
     default:
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "not found decree action");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Not found decree action. Use create, sign or anchor parametr");
         return -1;
     }
 

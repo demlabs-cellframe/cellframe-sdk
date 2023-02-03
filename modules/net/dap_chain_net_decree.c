@@ -93,7 +93,7 @@ int dap_chain_net_decree_deinit(dap_chain_net_t *a_net)
     return 0;
 }
 
-int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain)
+int dap_chain_net_decree_verify(dap_chain_datum_decree_t * a_decree, dap_chain_net_t *a_net, uint32_t *a_signs_count, uint32_t *a_signs_verify)
 {
     dap_chain_datum_decree_t *l_decree = a_decree;
     // Get pkeys sign from decree datum
@@ -107,6 +107,7 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
     }
 
     // Concate all signs from tsd in array
+    uint32_t l_signs_count = 0;
     size_t l_tsd_offset = sizeof(dap_sign_t) + l_signs_block->header.sign_pkey_size + l_signs_block->header.sign_size;
     size_t l_signs_arr_size = 0;
     dap_sign_t *l_signs_arr = DAP_NEW_Z_SIZE(dap_sign_t, l_tsd_offset);
@@ -131,40 +132,54 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
 
         l_signs_arr_size += l_sign_size;
         l_tsd_offset += l_sign_size;
+        l_signs_count++;
     }
+
+    if (a_signs_count)
+        *a_signs_count = l_signs_count;
 
     // Find unique pkeys in pkeys set from previous step and check that number of signs > min
     size_t l_num_of_unique_signs = 0;
     dap_sign_t **l_unique_signs = dap_sign_get_unique_signs(l_signs_arr, l_signs_arr_size, &l_num_of_unique_signs);
 
     // Verify all keys and its signatures
-    uint16_t l_num_of_valid_signs = 0;
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    uint16_t l_signs_size_for_current_sign = 0;
     for(size_t i = 0; i < l_num_of_unique_signs; i++)
     {
-        if (s_verify_pkey(l_unique_signs[i], l_net))
+        if (s_verify_pkey(l_unique_signs[i], a_net))
         {
             // 3. verify sign
             size_t l_verify_data_size = l_decree->header.data_size + sizeof(l_decree->header);
             size_t l_sign_max_size = sizeof(dap_sign_t) + l_unique_signs[i]->header.sign_pkey_size + l_unique_signs[i]->header.sign_size;
-            // Each sign change the sign_size field by adding its size after signing. So we need to change this field in header for each sign.
-            uint16_t l_signs_size_for_current_sign = sizeof(dap_sign_t) * (i);
-            l_decree->header.signs_size = l_signs_size_for_current_sign;
             if(!dap_sign_verify_all(l_unique_signs[i], l_sign_max_size, l_decree, l_verify_data_size))
             {
-                l_num_of_valid_signs++;
+                if (a_signs_verify)
+                    *a_signs_verify++;
             }
+            // Each sign change the sign_size field by adding its size after signing. So we need to change this field in header for each sign.
+            l_signs_size_for_current_sign += l_sign_max_size;
+            l_decree->header.signs_size = l_signs_size_for_current_sign;
         }
     }
-
-    // Get minimum number of signs
-    dap_chain_net_t *a_net = dap_chain_net_by_id(a_chain->net_id);
-    uint256_t l_min_signs = a_net->pub.decree->min_num_of_owners;
-    uint256_t l_num_of_valid_signs256 = GET_256_FROM_64((uint64_t)l_num_of_valid_signs);
 
     DAP_DELETE(l_signs_arr);
     DAP_DELETE(l_unique_signs);
 
+    return 0;
+}
+
+int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain)
+{
+    int ret_val = 0;
+
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    uint256_t l_min_signs = l_net->pub.decree->min_num_of_owners;
+    uint32_t l_num_of_valid_signs = 0, l_num_of_signs = 0;
+
+    if ((ret_val = dap_chain_net_decree_verify(a_decree, l_net, &l_num_of_signs, &l_num_of_valid_signs)) != 0)
+        return ret_val;
+
+    uint256_t l_num_of_valid_signs256 = GET_256_FROM_64((uint64_t)l_num_of_valid_signs);
     if (compare256(l_num_of_valid_signs256, l_min_signs) < 0)
     {
         log_it(L_WARNING,"Not enough valid signatures");
@@ -172,7 +187,7 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
     }
 
     // Process decree
-    switch(l_decree->header.type){
+    switch(a_decree->header.type){
         case DAP_CHAIN_DATUM_DECREE_TYPE_COMMON:{
             return s_common_decree_handler(a_decree, a_chain);
             break;
@@ -183,7 +198,7 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
         default:;
     }
 
-    return 0;
+    return -100;
 }
 
 // Private functions

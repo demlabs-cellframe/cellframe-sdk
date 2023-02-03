@@ -3106,6 +3106,7 @@ bool dap_chain_net_get_extra_gdb_group(dap_chain_net_t *a_net, dap_chain_node_ad
  *   if DAP_CHAIN_DATUM_TX, called dap_chain_ledger_tx_add_check
  *   if DAP_CHAIN_DATUM_TOKEN_DECL, called dap_chain_ledger_token_decl_add_check
  *   if DAP_CHAIN_DATUM_TOKEN_EMISSION, called dap_chain_ledger_token_emission_add_check
+ *   if DAP_CHAIN_DATUM_DECREE
  * @param a_net
  * @param a_datum
  * @return
@@ -3124,7 +3125,7 @@ int dap_chain_net_verify_datum_for_add(dap_chain_net_t *a_net, dap_chain_datum_t
         case DAP_CHAIN_DATUM_TOKEN_EMISSION:
             return dap_chain_ledger_token_emission_add_check( a_net->pub.ledger, a_datum->data, a_datum->header.data_size );
         case DAP_CHAIN_DATUM_DECREE:
-            return 0;
+            return dap_chain_net_decree_verify((dap_chain_datum_decree_t*)a_datum->data, a_net, NULL, NULL);
     default: return 0;
     }
 }

@@ -37,4 +37,4 @@ int dap_chain_net_decree_init(dap_chain_net_t *a_net);
 int dap_chain_net_decree_deinit(dap_chain_net_t *a_net);
 
 int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain);
-
+int dap_chain_net_decree_verify(dap_chain_datum_decree_t * a_decree, dap_chain_net_t *a_net, uint32_t *a_signs_count, uint32_t *a_signs_verify);
