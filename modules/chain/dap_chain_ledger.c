@@ -3026,8 +3026,8 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         default:
             break;
         }
-
         bound_item->tx_prev_hash = l_tx_prev_hash;
+
         bool l_is_ems = (l_cond_type ==TX_ITEM_TYPE_IN_EMS) ? 1 : 0;
         char l_tx_prev_hash_str[70]={[0]='\0'};
         if (l_is_ems){
@@ -3083,9 +3083,9 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                         break;
                     }
 //				int item_count = 0;
-                    dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t*)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_OUT, 0);//TODO: ADD CHECK COUNT TX
+                    dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t*)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_OUT_EXT, 0);//TODO: ADD CHECK COUNT TX
                     if (!l_tx_out) {
-                        debug_if(s_debug_more, L_WARNING, "Can't find OUT item for base TX with tx_token [%s]", l_tx_token->header.ticker);
+                        debug_if(true, L_WARNING, "Can't find OUT item for base TX with tx_token [%s]", l_tx_token->header.ticker);
                         l_err_num = -24;
                         break;
                     }
@@ -3168,6 +3168,20 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                     bound_item->tx_prev = l_tx_stake_lock;
                     bound_item->stake_lock_item = stake_lock_emission;
                     l_list_bound_items = dap_list_append(l_list_bound_items, bound_item);
+
+                    HASH_FIND_STR(l_values_from_prev_tx, tx_tiker, l_value_cur);
+                    if (!l_value_cur) {
+                        l_value_cur = DAP_NEW_Z(dap_chain_ledger_tokenizer_t);
+                        strcpy(l_value_cur->token_ticker, tx_tiker);
+                        HASH_ADD_STR(l_values_from_prev_tx, token_ticker, l_value_cur);
+                    }
+                    HASH_FIND_STR(l_values_from_prev_tx, l_token, l_value_cur);
+                    if (!l_value_cur) {
+                        l_value_cur = DAP_NEW_Z(dap_chain_ledger_tokenizer_t);
+                        strcpy(l_value_cur->token_ticker, l_token);
+                        HASH_ADD_STR(l_values_from_prev_tx, token_ticker, l_value_cur);
+                    }
+
                     break;
                 } else {
                     debug_if(s_debug_more, L_WARNING, "tx_token [%s] not valid for stake_lock transaction", l_token);
