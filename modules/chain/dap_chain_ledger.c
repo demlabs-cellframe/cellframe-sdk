@@ -3169,18 +3169,47 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                     bound_item->stake_lock_item = stake_lock_emission;
                     l_list_bound_items = dap_list_append(l_list_bound_items, bound_item);
 
+                    dap_list_t* l_list_tx_out_tmp = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_ALL, &l_prev_tx_count);
+                    dap_list_t* l_tmp = l_list_tx_out_tmp;
+                    uint256_t l_vall_n_tkn ={};
+                    uint256_t l_vall_m_tkn ={};
+                    while (l_tmp) {
+                        dap_chain_tx_item_type_t l_type = *(uint8_t *)l_tmp->data;
+                        switch (l_type) {
+                        case TX_ITEM_TYPE_OUT_COND:{
+                            dap_chain_tx_out_cond_t *l_tx_out = (dap_chain_tx_out_cond_t *)l_tmp->data;
+                            SUM_256_256(l_vall_n_tkn,l_tx_out->header.value,&l_vall_n_tkn);
+                            l_list_tx_out = dap_list_append(l_list_tx_out, l_tx_out);
+                        }break;
+                        case TX_ITEM_TYPE_OUT_EXT:{  // 256
+                            dap_chain_tx_out_ext_t *l_tx_out = (dap_chain_tx_out_ext_t *)l_tmp->data;
+                            if(!dap_strcmp(l_tx_out->token, tx_tiker))
+                                SUM_256_256(l_vall_n_tkn,l_tx_out->header.value,&l_vall_n_tkn);
+                            if(!dap_strcmp(l_tx_out->token, l_token))
+                                SUM_256_256(l_vall_m_tkn,l_tx_out->header.value,&l_vall_m_tkn);
+                            l_list_tx_out = dap_list_append(l_list_tx_out, l_tx_out);
+                        }break;
+                        default:
+                            break;
+                        }
+                        l_tmp = dap_list_next(l_tmp);
+                    }
+
                     HASH_FIND_STR(l_values_from_prev_tx, tx_tiker, l_value_cur);
                     if (!l_value_cur) {
                         l_value_cur = DAP_NEW_Z(dap_chain_ledger_tokenizer_t);
                         strcpy(l_value_cur->token_ticker, tx_tiker);
                         HASH_ADD_STR(l_values_from_prev_tx, token_ticker, l_value_cur);
                     }
+                    SUM_256_256(l_value_cur->sum, l_vall_n_tkn, &l_value_cur->sum);
+
                     HASH_FIND_STR(l_values_from_prev_tx, l_token, l_value_cur);
                     if (!l_value_cur) {
                         l_value_cur = DAP_NEW_Z(dap_chain_ledger_tokenizer_t);
                         strcpy(l_value_cur->token_ticker, l_token);
                         HASH_ADD_STR(l_values_from_prev_tx, token_ticker, l_value_cur);
                     }
+                    SUM_256_256(l_value_cur->sum, l_vall_m_tkn, &l_value_cur->sum);
 
                     break;
                 } else {
