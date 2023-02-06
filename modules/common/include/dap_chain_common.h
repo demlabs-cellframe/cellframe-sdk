@@ -246,7 +246,8 @@ bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr);
 dap_chain_net_srv_uid_t dap_chain_net_srv_uid_from_str(const char* a_str);
 
 void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_sign_type_t a_type, dap_chain_hash_fast_t *a_pkey_hash, dap_chain_net_id_t a_net_id);
-void dap_chain_addr_fill_from_key(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_chain_net_id_t a_net_id);
+int dap_chain_addr_fill_from_key(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_chain_net_id_t a_net_id);
+int dap_chain_addr_fill_from_sign(dap_chain_addr_t *a_addr, dap_sign_t *a_sign, dap_chain_net_id_t a_net_id);
 
 int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr);
 DAP_STATIC_INLINE bool dap_chain_addr_compare(dap_chain_addr_t *a_addr1, dap_chain_addr_t *a_addr2)

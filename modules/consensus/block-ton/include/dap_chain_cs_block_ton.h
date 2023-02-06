@@ -37,7 +37,7 @@ typedef struct dap_chain_cs_block_ton_round {
     dap_chain_cs_block_ton_message_item_t *messages_items;
     dap_chain_hash_fast_t last_message_hash;
     bool submit;
-    uint16_t messages_count;
+    dap_chain_hash_fast_t last_block_hash;
     dap_chain_hash_fast_t my_candidate_hash;
     uint16_t candidates_count;
     uint16_t validators_count;
@@ -102,6 +102,7 @@ typedef struct dap_chain_cs_block_ton_message_item {
     dap_chain_cs_block_ton_message_t *message;
     dap_chain_hash_fast_t message_hash;
     dap_chain_hash_fast_t prev_message_hash;
+    dap_chain_addr_t signing_addr;
     uint16_t is_genesis;
     uint16_t is_verified;
     UT_hash_handle hh;
