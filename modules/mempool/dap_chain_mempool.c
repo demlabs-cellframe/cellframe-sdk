@@ -1097,6 +1097,12 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
     dap_global_db_obj_t * l_objs = dap_chain_global_db_gr_load(l_gdb_group, &l_objs_size);
     for (size_t i = 0; i < l_objs_size; i++) {
         dap_chain_datum_t *l_datum = (dap_chain_datum_t*)l_objs[i].value;
+        if (!l_datum) {
+            l_removed++;
+            log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s: empty (possibly trash) value", l_objs[i].key, l_gdb_group);
+            dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group);
+            continue;
+        }
         size_t l_datum_size = dap_chain_datum_size(l_datum);
         //Filter data size
         if (l_datum_size != l_objs[i].value_len) {
