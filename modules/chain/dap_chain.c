@@ -767,7 +767,7 @@ int dap_chain_datum_unledgered_search_iter(dap_chain_datum_t* a_datum, dap_chain
     case DAP_CHAIN_DATUM_TOKEN_DECL:
     case DAP_CHAIN_DATUM_TOKEN_EMISSION:
     case DAP_CHAIN_DATUM_TX:
-        return -1;
+        return 0;
     /* The types above are checked while adding to ledger, otherwise let's unfold the chains */
     default: {
         if (!a_chain->callback_atom_get_datums) {
