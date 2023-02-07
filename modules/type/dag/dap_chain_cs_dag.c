@@ -491,6 +491,8 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     switch (ret) {
     case ATOM_ACCEPT:
         ret = s_chain_callback_atom_verify(a_chain, a_atom, a_atom_size);
+        if (ret == ATOM_MOVE_TO_THRESHOLD)
+            ret = ATOM_REJECT; /* TODO: A temporary fix for memory consumption */
         if(s_debug_more)
             log_it(L_DEBUG, "Verified atom %p: %s", a_atom, ret == ATOM_ACCEPT ? "accepted" :
                                                            (ret == ATOM_REJECT ? "rejected" : "thresholded"));
