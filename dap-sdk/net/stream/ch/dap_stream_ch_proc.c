@@ -72,11 +72,13 @@ void dap_stream_ch_proc_add(uint8_t id,dap_stream_ch_callback_t new_callback,dap
                           dap_stream_ch_callback_t packet_out_callback
                           )
 {
-   s_proc[id].id=id;
-   s_proc[id].new_callback=new_callback;
-   s_proc[id].delete_callback=delete_callback;
-   s_proc[id].packet_in_callback=packet_in_callback;
-   s_proc[id].packet_out_callback=packet_out_callback;
+   *(s_proc + id) = (stream_ch_proc_t) {
+           .id = id,
+           .new_callback        = new_callback,
+           .delete_callback     = delete_callback,
+           .packet_in_callback  = packet_in_callback,
+           .packet_out_callback = packet_out_callback
+   };
 }
 
 /**
@@ -86,5 +88,5 @@ void dap_stream_ch_proc_add(uint8_t id,dap_stream_ch_callback_t new_callback,dap
  */
 stream_ch_proc_t* dap_stream_ch_proc_find(uint8_t id)
 {
-    return s_proc+id;
+    return s_proc + id;
 }
