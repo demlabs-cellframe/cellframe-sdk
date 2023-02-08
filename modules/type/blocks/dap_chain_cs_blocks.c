@@ -939,7 +939,9 @@ static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, 
     l_atom_iter->with_treshold = a_with_treshold;
     l_atom_iter->_inheritor = DAP_NEW_Z(dap_chain_cs_blocks_iter_t);
     ITER_PVT(l_atom_iter)->blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-
+#ifdef WIN32
+    log_it(L_DEBUG, "! %p create caller id %lu", l_atom_iter, GetThreadId(GetCurrentThread()));
+#endif
     return l_atom_iter;
 }
 
@@ -1154,6 +1156,9 @@ static dap_chain_atom_ptr_t *s_callback_atom_iter_get_lasts( dap_chain_atom_iter
  */
 static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter )
 {
+#ifdef WIN32
+    log_it(L_DEBUG, "! %p delete caller id %lu", a_atom_iter, GetThreadId(GetCurrentThread()));
+#endif
     DAP_DELETE( ITER_PVT(a_atom_iter));
     DAP_DELETE(a_atom_iter);
 }

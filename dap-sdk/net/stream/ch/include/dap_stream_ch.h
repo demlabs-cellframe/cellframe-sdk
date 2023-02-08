@@ -48,7 +48,7 @@ typedef struct dap_stream_ch{
         uint64_t bytes_read;
     } stat;
 
-    uint8_t buf[STREAM_BUF_SIZE_MAX];
+    /* uint8_t buf[STREAM_BUF_SIZE_MAX]; */
 
     dap_stream_ch_proc_t * proc;
     void * internal;
