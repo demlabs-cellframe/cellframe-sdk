@@ -460,38 +460,10 @@ static bool s_ledger_token_update_check(dap_chain_ledger_token_item_t *a_cur_tok
 	}
     // Updated signs token
 //    dap_sign_t **l_new_signs = NULL;
-    dap_tsd_t **l_tsd_signs = NULL;
     size_t l_new_signs_count = 0;
+    dap_tsd_t **l_tsd_signs = dap_chain_datum_token_get_tsd_signs(a_token_update, a_token_update_size, &l_new_signs_count);
     size_t l_new_signs_size = 0;
 
-    dap_tsd_t * l_tsd = dap_chain_datum_token_tsd_get(a_token_update, a_token_update_size);
-    size_t l_tsd_size = 0;
-    size_t l_tsd_total_size = 0;
-    if (a_token_update->type  == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)
-        l_tsd_total_size = a_token_update->header_native_update.tsd_total_size;
-    else if (a_token_update->type  == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE)
-        l_tsd_total_size = a_token_update->header_native_update.tsd_total_size;
-    size_t l_total_tsd_sign_size = 0;
-
-    for( size_t l_offset=0; l_offset < l_tsd_total_size;  l_offset += l_tsd_size ) {
-        l_tsd = (dap_tsd_t *) (((byte_t *) l_tsd) + l_tsd_size);
-        l_tsd_size = l_tsd ? dap_tsd_size(l_tsd) : 0;
-        if( l_tsd_size==0 ){
-            if(s_debug_more)
-                log_it(L_ERROR,"Wrong zero TSD size, exiting TSD parse");
-            break;
-        }else if (l_tsd_size + l_offset > l_tsd_total_size ){
-            if(s_debug_more)
-                log_it(L_ERROR,"Wrong %zd TSD size, exiting TSD parse", l_tsd_size);
-            break;
-        }
-        if (l_tsd->type == DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SIGN_UPDATE) {
-            l_tsd_signs = DAP_REALLOC(l_tsd_signs, sizeof(dap_tsd_t*) * l_new_signs_count + 1);
-            l_tsd_signs[l_new_signs_count] = l_tsd;
-            l_total_tsd_sign_size += dap_tsd_size(l_tsd_signs[l_new_signs_count]);
-            l_new_signs_count++;
-        }
-    }
     if (l_new_signs_count != 0) {
         if (a_token_update->signs_valid != l_new_signs_count) {
             if (s_debug_more)
@@ -501,6 +473,15 @@ static bool s_ledger_token_update_check(dap_chain_ledger_token_item_t *a_cur_tok
             return false;
         }
         // Check signs
+        size_t l_tsd_total_size = 0;
+        if (a_token_update->type  == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)
+            l_tsd_total_size = a_token_update->header_native_update.tsd_total_size;
+        else if (a_token_update->type  == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE)
+            l_tsd_total_size = a_token_update->header_native_update.tsd_total_size;
+        size_t l_total_tsd_sign_size = 0;
+        for (size_t i = 0; i < l_new_signs_count; i++) {
+            l_total_tsd_sign_size += dap_tsd_size(l_tsd_signs[i]);
+        }
         size_t l_in_tsd_size = l_tsd_total_size - l_total_tsd_sign_size;
         a_token_update->header_native_update.tsd_total_size = l_in_tsd_size;
         for (size_t i = 0; i < l_new_signs_count; i++) {
@@ -515,18 +496,7 @@ static bool s_ledger_token_update_check(dap_chain_ledger_token_item_t *a_cur_tok
             l_new_signs_size += dap_sign_get_size(l_sign);
             a_token_update->header_native_update.tsd_total_size += dap_tsd_size(l_tsd_signs[i]);
         }
-        // Replacing old signatures with new ones from TSD sections.
-        dap_chain_datum_token_t *l_token_update = DAP_DUP_SIZE(a_token_update, a_token_update_size);
-        l_token_update = DAP_REALLOC(l_token_update, sizeof(dap_chain_datum_token_t) + l_tsd_total_size + l_new_signs_size);
-        size_t l_copy_signs_size = 0;
-        for (size_t i = 0; i < l_new_signs_count; i++) {
-            dap_sign_t *l_sign = (dap_sign_t*) l_tsd_signs[i]->data;
-            size_t l_sign_size = dap_sign_get_size(l_sign);
-            memcpy(l_token_update->data_n_tsd + l_tsd_total_size + l_copy_signs_size, l_sign, l_sign_size);
-            l_copy_signs_size += l_sign_size;
-        }
         DAP_DELETE(l_tsd_signs);
-        a_token_update = l_token_update;
     }
 	return true;
 }
@@ -567,6 +537,9 @@ int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datu
 		log_it(L_WARNING,"Can't update token that doesn't exist for ticker '%s' ", a_token->ticker);
 		return -6;
 	}
+    // Update signs
+    size_t l_new_token_size = 0;
+    a_token = dap_chain_datum_token_update_signs(a_token, a_token_size, &l_new_token_size);
     // Check signs
     size_t l_signs_unique = 0;
     size_t l_size_tsd_section = 0;
@@ -584,7 +557,7 @@ int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datu
 			l_size_tsd_section = a_token->header_private_update.tsd_total_size;
 			break;
     }
-    size_t l_signs_size = a_token_size - sizeof(dap_chain_datum_token_t) - l_size_tsd_section;
+    size_t l_signs_size = ((!l_new_token_size) ? a_token_size : l_new_token_size) - sizeof(dap_chain_datum_token_t) - l_size_tsd_section;
     dap_sign_t **l_signs = dap_sign_get_unique_signs(a_token->data_n_tsd + l_size_tsd_section, l_signs_size, &l_signs_unique);
     if (l_signs_unique >= a_token->signs_total){
         size_t l_signs_approve = 0;
