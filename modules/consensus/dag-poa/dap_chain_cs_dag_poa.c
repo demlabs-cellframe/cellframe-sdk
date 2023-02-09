@@ -368,8 +368,10 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     log_it(L_NOTICE,"Initialized DAG-PoA consensus with %u/%u minimum consensus",l_poa_pvt->auth_certs_count,l_poa_pvt->auth_certs_count_verify);
     l_dag->chain->callback_created = s_callback_created;
 
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    dap_chain_net_decree_init(l_net);
+
     if (!l_dag->is_add_directly && l_poa_pvt->auto_round_complete) {
-        dap_chain_net_t *l_net = dap_chain_net_by_id(l_dag->chain->net_id);
         dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
         if (l_role.enums == NODE_ROLE_ROOT_MASTER || l_role.enums == NODE_ROLE_ROOT) {
             if (!s_poa_round_timer) {
@@ -879,7 +881,7 @@ dap_list_t *dap_chain_cs_dag_poa_get_auth_certs(dap_chain_t *a_chain, size_t *a_
         *a_count_verify = l_poa_pvt->auth_certs_count_verify;
 
 
-    dap_list_t *l_keys_list =  dap_list_alloc();
+    dap_list_t *l_keys_list = NULL;
     for(size_t i = 0; i < l_poa_pvt->auth_certs_count; i++)
     {
         dap_pkey_t *l_pkey = dap_cert_to_pkey(l_poa_pvt->auth_certs[i]);

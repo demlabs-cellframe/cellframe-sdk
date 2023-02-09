@@ -106,3 +106,11 @@ dap_list_t *dap_chain_datum_decree_get_owners(dap_chain_datum_decree_t *a_decree
  * @return result code. 0 - success
  */
 int dap_chain_datum_decree_get_min_owners(dap_chain_datum_decree_t *a_decree, uint256_t *a_min_owners_num);
+
+/**
+ * @brief dap_chain_datum_decree_certs_dump compose decree signatures output string
+ * @param a_str_out pointer to output text buffer
+ * @param a_data_n_tsd pointer to signs decree section
+ * @param a_certs_size size of decree signatures
+ */
+void dap_chain_datum_decree_certs_dump(dap_string_t * a_str_out, byte_t * a_signs, size_t a_certs_size, const char *a_hash_out_type);

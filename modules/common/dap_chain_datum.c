@@ -29,6 +29,7 @@
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_token.h"
 #include "dap_chain_datum_tx_items.h"
+#include "dap_chain_datum_decree.h"
 #include "dap_chain_datum_hashtree_roots.h"
 #include "dap_enc_base58.h"
 
@@ -695,6 +696,53 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)a_datum->data;
             dap_chain_datum_dump_tx(l_tx, NULL, a_str_out, a_hash_out_type, &l_datum_hash);
         } break;
-    }
+        case DAP_CHAIN_DATUM_DECREE:{
+            dap_chain_datum_decree_t *l_decree = (dap_chain_datum_decree_t *)a_datum->data;
+            size_t l_decree_size = sizeof(dap_chain_datum_decree_t) + l_decree->header.data_size + l_decree->header.signs_size;
+            dap_string_append_printf(a_str_out,"=== Datum decree ===\n");
+            dap_string_append_printf(a_str_out, "hash: %s\n", l_hash_str);
+            dap_string_append_printf(a_str_out, "size: %zd\n", l_decree_size);
+            char *l_type_str = "";
+            switch(l_decree->header.type)
+            {
+            case DAP_CHAIN_DATUM_DECREE_TYPE_COMMON:
+                l_type_str = "DECREE_TYPE_COMMON";
+                break;
+            case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:
+                l_type_str = "DECREE_TYPE_SERVICE";
+                break;
+            default:
+                l_type_str = "DECREE_TYPE_UNKNOWN";
+            }
+
+            dap_string_append_printf(a_str_out, "type: %s\n", l_type_str);
+
+            char *l_subtype_str = "";
+            switch(l_decree->header.type)
+            {
+            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE:
+                l_subtype_str = "DECREE_COMMON_SUBTYPE_FEE";
+                break;
+            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS:
+                l_subtype_str = "DECREE_COMMON_SUBTYPE_OWNERS";
+                break;
+            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN:
+                l_subtype_str = "DECREE_COMMON_SUBTYPE_OWNERS_MIN";
+                break;
+            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_TON_SIGNERS:
+                l_subtype_str = "DECREE_COMMON_SUBTYPE_TON_SIGNERS";
+                break;
+            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_TON_SIGNERS_MIN:
+                l_subtype_str = "DECREE_COMMON_SUBTYPE_TON_SIGNERS_MIN";
+                break;
+            default:
+                l_subtype_str = "DECREE_TYPE_UNKNOWN";
+            }
+
+            dap_string_append_printf(a_str_out, "subtype: %s\n", l_subtype_str);
+
+            dap_chain_datum_decree_certs_dump(a_str_out, l_decree->data_n_signs + l_decree->header.data_size, l_decree->header.signs_size, a_hash_out_type);
+        } break;
+    }    
     DAP_DELETE(l_hash_str);
 }

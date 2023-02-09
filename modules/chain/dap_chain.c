@@ -261,6 +261,8 @@ static dap_chain_type_t s_chain_type_from_str(const char *a_type_str)
     if(!dap_strcmp(a_type_str, "signer")) {
 	    return CHAIN_TYPE_SIGNER;
     }
+    if (!dap_strcmp(a_type_str, "decree"))
+        return CHAIN_TYPE_DECREE;
     return CHAIN_TYPE_LAST;
 }
 
@@ -462,7 +464,7 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
 				}
 
 				// add datum types
-				if (l_datum_types && l_datum_types_count > 0)
+                if (l_datum_types && l_datum_types_count > 0)
 				{
 					l_chain->datum_types = DAP_NEW_SIZE(dap_chain_type_t, l_datum_types_count * sizeof(dap_chain_type_t)); // TODO: pls check counter for recognized types before memory allocation!
 					l_count_recognized = 0;

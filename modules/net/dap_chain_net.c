@@ -2483,8 +2483,6 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
          }
 
 
-        dap_chain_net_decree_init(l_net);
-
         char * l_chains_path = dap_strdup_printf("%s/network/%s", dap_config_path(), l_net->pub.name);
         DIR * l_chains_dir = opendir(l_chains_path);
         DAP_DEL_Z(l_chains_path);
@@ -2536,6 +2534,18 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 if(l_chain) {//add minimum commission from to which the master node agrees. if present (default = 1.0)
                     l_chain->minimum_commission = dap_chain_coins_to_balance(dap_config_get_item_str_default(l_cfg , "general" ,"minimum_commission","1.0"));
                     DL_APPEND(l_net->pub.chains, l_chain);
+
+                    size_t l_datum_types_count = l_chain->datum_types_count;
+                    for (size_t i = 0; i < l_datum_types_count; i++)
+                    {
+                        if (l_chain->datum_types[i] == CHAIN_TYPE_DECREE &&
+                                l_net->pub.decree == NULL)
+                        {
+                            dap_chain_net_decree_init(l_net);
+                            break;
+                        }
+                    }
+
                     if(l_chain->callback_created)
                         l_chain->callback_created(l_chain, l_cfg);
                     // add a callback to monitor changes in the chain
@@ -2569,6 +2579,8 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                     }
                 }
             }
+
+            dap_chain_net_decree_init(l_net);
 
             bool l_processed;
             do {
@@ -2797,7 +2809,8 @@ dap_chain_t *dap_chain_net_get_chain_by_chain_type(dap_chain_net_t *a_net, dap_c
 
     DL_FOREACH(a_net->pub.chains, l_chain) {
         for(int i = 0; i < l_chain->datum_types_count; i++) {
-            if(l_chain->datum_types[i] == a_datum_type)
+            dap_chain_type_t l_datum_type = l_chain->datum_types[i];
+            if(l_datum_type == a_datum_type)
                 return l_chain;
         }
     }
