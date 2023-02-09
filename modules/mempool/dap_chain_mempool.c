@@ -199,7 +199,7 @@ dap_hash_fast_t* dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_
         uint256_t l_value_back;
         SUBTRACT_256_256(l_value_transfer, a_value, &l_value_back);
         if(!IS_ZERO_256(l_value_back)) {
-            if(dap_chain_datum_tx_add_out_item(&l_tx, a_addr_from, l_value_back) != 1) {
+            if(dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_from, l_value_back, a_token_ticker) != 1) {
                 dap_chain_datum_tx_delete(l_tx);
                 return NULL;
             }
