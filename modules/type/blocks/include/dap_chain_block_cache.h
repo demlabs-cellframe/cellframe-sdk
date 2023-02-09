@@ -21,6 +21,8 @@
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
+
+#include <pthread.h>
 #include "dap_chain_block.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_sign.h"
@@ -47,37 +49,34 @@ typedef struct dap_chain_block_cache{
 
     // Block's datums
     size_t datum_count;
-    dap_chain_datum_t ** datum;
-    dap_chain_block_cache_tx_index_t * tx_index;
+    dap_chain_datum_t **datum;
+    dap_chain_block_cache_tx_index_t *tx_index;
 
     // Block's metadatas
     size_t meta_count;
     dap_chain_block_meta_t** meta;
 
     // Extracted metadata
-    dap_chain_hash_fast_t prev_hash;
-    dap_chain_hash_fast_t anchor_hash;
-    dap_chain_hash_fast_t merkle_root;
-    dap_chain_hash_fast_t* links_hash;
+    dap_chain_hash_fast_t prev_hash, anchor_hash, merkle_root, *links_hash;
     size_t links_hash_count;
 
-    uint64_t nonce;
-    uint64_t nonce2;
+    uint64_t nonce, nonce2;
     bool is_genesis;
 
     // Block's signatures
     size_t sign_count; // Number of signatures in block's tail
-    dap_sign_t ** sign; // Pointer to signatures in block
+    dap_sign_t **sign; // Pointer to signatures in block
 
     // Pointer to block itself
-    dap_chain_block_t * block;
+    dap_chain_block_t *block;
 
     // Links to prev and next block
-    struct dap_chain_block_cache * prev;
-    struct dap_chain_block_cache * next;
+    struct dap_chain_block_cache *prev, *next;
+
+    pthread_rwlock_t tx_index_lock;
 
     // Inhertied nested data
-    void * _inheritor;
+    void *_inheritor;
 
     // uthash handle
     UT_hash_handle hh;
@@ -86,9 +85,8 @@ typedef struct dap_chain_block_cache{
 int dap_chain_block_cache_init();
 void dap_chain_block_cache_deinit();
 
-dap_chain_block_cache_t *dap_chain_block_cache_new(dap_chain_cs_blocks_t *a_blocks, dap_hash_fast_t *a_block_hash, dap_chain_block_t *a_block, size_t a_block_size);
-dap_chain_block_cache_t * dap_chain_block_cache_dup(dap_chain_block_cache_t * a_block);
-int dap_chain_block_cache_update(dap_chain_block_cache_t * a_block_cache, dap_hash_fast_t *a_block_hash);
-void dap_chain_block_cache_delete(dap_chain_block_cache_t * a_block_cache);
+dap_chain_block_cache_t *dap_chain_block_cache_create(dap_chain_cs_blocks_t *a_blocks, dap_hash_fast_t *a_block_hash, dap_chain_block_t *a_block, size_t a_block_size);
+dap_chain_block_cache_t *dap_chain_block_cache_dup(dap_chain_block_cache_t * a_block);
+void dap_chain_block_cache_delete(dap_chain_block_cache_t **a_block_cache);
 dap_chain_datum_tx_t* dap_chain_block_cache_get_tx_by_hash (dap_chain_block_cache_t * a_block_cache, dap_chain_hash_fast_t * a_tx_hash);
 
