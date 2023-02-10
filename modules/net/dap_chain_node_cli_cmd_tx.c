@@ -1460,7 +1460,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                 l_total_tsd_size = sizeof(dap_tsd_t) + sizeof(uint256_t);
                 l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
                 l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE;
-                l_tsd->size = l_total_tsd_size;
+                l_tsd->size = sizeof(uint256_t);
                 *(uint256_t*)(l_tsd->data) = dap_cvt_str_to_uint256(l_param_value_str);
                 l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
             }else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-new_certs", &l_param_value_str)){
@@ -1480,9 +1480,12 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                 l_total_tsd_size = sizeof(dap_tsd_t) + sizeof(uint256_t);
                 l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
                 l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER;
-                l_tsd->size = l_total_tsd_size;
+                l_tsd->size = sizeof(uint256_t);
                 *(uint256_t*)(l_tsd->data) = dap_cvt_str_to_uint256(l_param_value_str);
                 l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+            }else{
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Decree subtype fail.");
+                return -107;
             }
 
             l_datum_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, sizeof(dap_chain_datum_decree_t) + l_total_tsd_size);
@@ -1554,7 +1557,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
             return -10;
         }
         bool l_placed = dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, l_datum, l_datum_size, true) == 0;
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum 0x%s is%s placed in datum pool",
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s is%s placed in datum pool",
                                           l_key_str_out, l_placed ? "" : " not");
 
         //additional checking for incorrect key format

@@ -637,22 +637,22 @@ bool dap_chain_net_tx_get_fee(dap_chain_net_id_t a_net_id, dap_chain_t *a_chain,
         return false;
     }
 
-    if (dap_chain_net_get_load_mode(l_net) && a_chain){
-        l_chain = a_chain;
-    }else{
+//    if (dap_chain_net_get_load_mode(l_net) && a_chain){
+//        l_chain = a_chain;
+//    }else{
         l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
         if (!l_chain){
             log_it(L_WARNING, "Can't find default chain for net %s", l_net->pub.name);
             return false;
         }
-    }
+//    }
 
     net_fee_key_t l_key = {0};
     l_key.net_id = a_net_id;
     l_key.chain_id = l_chain->id;
 
 
-    HASH_FIND(hh, s_net_fees, &l_key, sizeof(a_net_id), l_net_fee);
+    HASH_FIND(hh, s_net_fees, &l_key, sizeof(net_fee_key_t), l_net_fee);
     if (!l_net_fee || IS_ZERO_256(l_net_fee->value))
         return false;
     if (a_value)
@@ -673,20 +673,20 @@ bool dap_chain_net_tx_add_fee(dap_chain_net_id_t a_net_id, dap_chain_t *a_chain,
         return false;
     }
 
-    if (dap_chain_net_get_load_mode(l_net) && a_chain){
-        l_chain = a_chain;
-    }else{
+//    if (dap_chain_net_get_load_mode(l_net) && a_chain){
+//        l_chain = a_chain;
+//    }else{
 
         l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
         if (!l_chain){
             log_it(L_WARNING, "Can't find default chain for net %s", l_net->pub.name);
             return false;
         }
-    }
+//    }
 
     l_net_fee = DAP_NEW(struct net_fee);
     l_net_fee->key.net_id = a_net_id;
-    l_net_fee->key.chain_id = a_chain->id;
+    l_net_fee->key.chain_id = l_chain->id;
     l_net_fee->value = *a_value;
     l_net_fee->fee_addr = *a_addr;
 
@@ -706,20 +706,20 @@ bool dap_chain_net_tx_replace_fee(dap_chain_net_id_t a_net_id, dap_chain_t *a_ch
         return false;
     }
 
-    if (dap_chain_net_get_load_mode(l_net) && a_chain){
-        l_chain = a_chain;
-    }else{
+//    if (dap_chain_net_get_load_mode(l_net) && a_chain){
+//        l_chain = a_chain;
+//    }else{
 
         l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
         if (!l_chain){
             log_it(L_WARNING, "Can't find default chain for net %s", l_net->pub.name);
             return false;
         }
-    }
+//    }
 
     net_fee_key_t l_key = {0};
     l_key.net_id = a_net_id;
-    l_key.chain_id = a_chain->id;
+    l_key.chain_id = l_chain->id;
 
     HASH_FIND(hh, s_net_fees, &l_key, sizeof(a_net_id), l_net_fee);
     if (!l_net_fee)
@@ -729,7 +729,7 @@ bool dap_chain_net_tx_replace_fee(dap_chain_net_id_t a_net_id, dap_chain_t *a_ch
 
     l_net_fee = DAP_NEW(struct net_fee);
     l_net_fee->key.net_id = a_net_id;
-    l_net_fee->key.chain_id = a_chain->id;
+    l_net_fee->key.chain_id = l_chain->id;
     l_net_fee->value = *a_value;
     l_net_fee->fee_addr = *a_addr;;
 

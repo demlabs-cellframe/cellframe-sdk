@@ -158,24 +158,36 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t * a_decree, dap_chain_n
     dap_sign_t **l_unique_signs = dap_sign_get_unique_signs(l_signs_arr, l_signs_arr_size, &l_num_of_unique_signs);
 
     // Verify all keys and its signatures
-    uint16_t l_signs_size_for_current_sign = 0;
+    uint16_t l_signs_size_for_current_sign = 0, l_signs_verify_counter = 0;
+
     for(size_t i = 0; i < l_num_of_unique_signs; i++)
     {
         if (s_verify_pkey(l_unique_signs[i], a_net))
         {
             // 3. verify sign
-            size_t l_verify_data_size = l_decree->header.data_size + sizeof(l_decree->header);
-            size_t l_sign_max_size = sizeof(dap_sign_t) + l_unique_signs[i]->header.sign_pkey_size + l_unique_signs[i]->header.sign_size;
+
+            size_t l_verify_data_size = l_decree->header.data_size + sizeof(dap_chain_datum_decree_t);
+            size_t l_sign_max_size = l_decree->header.signs_size;
+            l_decree->header.signs_size = l_signs_size_for_current_sign;
             if(!dap_sign_verify_all(l_unique_signs[i], l_sign_max_size, l_decree, l_verify_data_size))
             {
-                if (a_signs_verify)
-                    *a_signs_verify++;
+                l_signs_verify_counter++;
+            } else{
+                DAP_DELETE(l_signs_arr);
+                DAP_DELETE(l_unique_signs);
+
+                return -106;
             }
             // Each sign change the sign_size field by adding its size after signing. So we need to change this field in header for each sign.
             l_signs_size_for_current_sign += l_sign_max_size;
-            l_decree->header.signs_size = l_signs_size_for_current_sign;
+
         }
     }
+
+    if (a_signs_verify)
+        *a_signs_verify = l_signs_verify_counter;
+
+    l_decree->header.signs_size = l_signs_size_for_current_sign;
 
     DAP_DELETE(l_signs_arr);
     DAP_DELETE(l_unique_signs);
@@ -268,16 +280,21 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
     switch (a_decree->header.sub_type)
     {
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE:
-                if (dap_chain_datum_decree_get_fee(a_decree, &l_fee)){
-                    if(!dap_chain_net_tx_add_fee(a_chain->net_id, a_chain, &l_fee, &l_addr)){
-                        log_it(L_WARNING,"Can't add fee value.");
-                        return -102;
+                if (!dap_chain_datum_decree_get_fee(a_decree, &l_fee)){
+                    if (!dap_chain_net_tx_get_fee(a_chain->net_id, a_chain, &l_fee, &l_addr)){
+                        if(!dap_chain_net_tx_add_fee(a_chain->net_id, a_chain, &l_fee, &l_addr)){
+                            log_it(L_WARNING,"Can't add fee value.");
+                            return -102;
+                        }
+                    }else{
+                        if(!dap_chain_net_tx_replace_fee(a_chain->net_id, a_chain, &l_fee, &l_addr)){
+                            log_it(L_WARNING,"Can't replace fee value.");
+                            return -103;
+                        }
                     }
                 }else{
-                    if(!dap_chain_net_tx_replace_fee(a_chain->net_id, a_chain, &l_fee, &l_addr)){
-                        log_it(L_WARNING,"Can't add fee value.");
-                        return -103;
-                    }
+                    log_it(L_WARNING,"Can't get fee value from decree.");
+                    return -103;
                 }
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS:
@@ -292,6 +309,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
             l_net->pub.decree->pkeys = l_owners_list;
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN:
+            l_net = dap_chain_net_by_id(a_chain->net_id);
             if (dap_chain_datum_decree_get_min_owners(a_decree, &l_min_owners)){
                 log_it(L_WARNING,"Can't get min number of ownners from decree.");
                 return -105;

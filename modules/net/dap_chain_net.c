@@ -2523,7 +2523,8 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
 
             // sort list with chains names by priority
             l_prior_list = dap_list_sort(l_prior_list, callback_compare_prioritity_list);
-            // load chains by priority
+
+            // create and load chains params by priority
             dap_chain_t *l_chain;
             dap_list_t *l_list = l_prior_list;
             while(l_list){
@@ -2531,23 +2532,11 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 // Create chain object
                 l_chain = dap_chain_load_from_cfg(l_net->pub.ledger, l_net->pub.name,
                                                   l_net->pub.id, l_chain_prior->chains_path);
+
                 if(l_chain) {//add minimum commission from to which the master node agrees. if present (default = 1.0)
                     l_chain->minimum_commission = dap_chain_coins_to_balance(dap_config_get_item_str_default(l_cfg , "general" ,"minimum_commission","1.0"));
                     DL_APPEND(l_net->pub.chains, l_chain);
 
-                    size_t l_datum_types_count = l_chain->datum_types_count;
-                    for (size_t i = 0; i < l_datum_types_count; i++)
-                    {
-                        if (l_chain->datum_types[i] == CHAIN_TYPE_DECREE &&
-                                l_net->pub.decree == NULL)
-                        {
-                            dap_chain_net_decree_init(l_net);
-                            break;
-                        }
-                    }
-
-                    if(l_chain->callback_created)
-                        l_chain->callback_created(l_chain, l_cfg);
                     // add a callback to monitor changes in the chain
                     dap_chain_add_callback_notify(l_chain, s_chain_callback_notify, l_net);
                 }
@@ -2556,8 +2545,26 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
             }
             dap_list_free_full(l_prior_list, NULL);
 
-            dap_chain_t *l_chain02;
+            //load decree
+            dap_chain_net_decree_init(l_net);
 
+            // load chains
+            l_chain = l_net->pub.chains;
+            while(l_chain){
+                if (dap_chain_load_all(l_chain) == 0)
+                    log_it (L_NOTICE, "Loaded chain files");
+                else {
+                    dap_chain_save_all( l_chain );
+                    log_it (L_NOTICE, "Initialized chain files");
+                }
+
+                if(l_chain->callback_created)
+                    l_chain->callback_created(l_chain, l_cfg);
+
+                l_chain = l_chain->next;
+            }
+
+            dap_chain_t *l_chain02;
             DL_FOREACH(l_net->pub.chains, l_chain){
                 DL_FOREACH(l_net->pub.chains, l_chain02){
                     if (l_chain != l_chain02){
@@ -2579,8 +2586,6 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                     }
                 }
             }
-
-            dap_chain_net_decree_init(l_net);
 
             bool l_processed;
             do {

@@ -418,12 +418,6 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 if ( dap_config_get_item_path_default(l_cfg , "files","storage_dir",NULL ) )
 				{
                     DAP_CHAIN_PVT(l_chain)->file_storage_dir = dap_strdup( dap_config_get_item_path( l_cfg , "files","storage_dir" ) );
-                    if (dap_chain_load_all(l_chain) == 0)
-                        log_it (L_NOTICE, "Loaded chain files");
-                    else {
-                        dap_chain_save_all( l_chain );
-                        log_it (L_NOTICE, "Initialized chain files");
-                    }
                 } else
                     log_it (L_INFO, "Not set file storage path, will not stored in files");
 
