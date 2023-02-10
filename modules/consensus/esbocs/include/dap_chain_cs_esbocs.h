@@ -5,8 +5,9 @@
 #include "dap_cert.h"
 
 #define DAP_STREAM_CH_VOTE_SESSION_STATE_WAIT_START     0x08
-#define DAP_STREAM_CH_VOTE_SESSION_STATE_CS_PROC        0x12
+#define DAP_STREAM_CH_VOTE_SESSION_STATE_WAIT_PROC      0x12
 #define DAP_STREAM_CH_VOTE_SESSION_STATE_WAIT_SIGNS     0x16
+#define DAP_STREAM_CH_VOTE_SESSION_STATE_WAIT_FINISH    0x20
 
 #define DAP_STREAM_CH_VOTE_MESSAGE_TYPE_START_SYNC      0x32
 #define DAP_STREAM_CH_VOTE_MESSAGE_TYPE_SUBMIT          0x04
@@ -26,7 +27,7 @@
 • Reject(round, candidate) — a block candidate has failed local validation
 • CommitSign(round, candidate, signature) — a block candidate has been accepted and signed *** sign in data section
 • Vote(round, candidate) — a vote for a block candidate in this round (even if the current process has another opinion)
-• PreCommit(round, candidate) — a preliminary commitment to a block candidate (used in three-phase commit scheme)
+• PreCommit(round, candidate, final_hash) — a preliminary commitment to a block candidate *** candidate with signs hash in data section
 */
 typedef struct dap_chain_esbocs_message_hdr {
     uint8_t version;
@@ -40,7 +41,7 @@ typedef struct dap_chain_esbocs_message_hdr {
     dap_chain_net_id_t net_it;
     dap_chain_id_t chain_id;
     dap_chain_cell_id_t cell_id;
-    dap_chain_hash_fast_t candidate_hash;
+    dap_hash_fast_t candidate_hash;
 } DAP_ALIGN_PACKED dap_chain_esbocs_message_hdr_t;
 
 typedef struct dap_chain_esbocs_message {
@@ -49,7 +50,7 @@ typedef struct dap_chain_esbocs_message {
 } DAP_ALIGN_PACKED dap_chain_esbocs_message_t;
 
 typedef struct dap_chain_esbocs_message_item {
-    dap_chain_hash_fast_t message_hash;
+    dap_hash_fast_t message_hash;
     dap_chain_esbocs_message_t *message;
     dap_chain_addr_t signing_addr;
     bool is_verified;
@@ -57,19 +58,19 @@ typedef struct dap_chain_esbocs_message_item {
 } dap_chain_esbocs_message_item_t;
 
 typedef struct dap_chain_esbocs_sync_item {
-    dap_chain_hash_fast_t last_block_hash;
+    dap_hash_fast_t last_block_hash;
     dap_list_t *messages;
     UT_hash_handle hh;
 } dap_chain_esbocs_sync_item_t;
 
 typedef struct dap_chain_esbocs_store {
-    dap_chain_hash_fast_t candidate_hash;
+    dap_hash_fast_t candidate_hash;
+    dap_hash_fast_t precommit_candidate_hash;
     dap_chain_block_t *candidate;
-    dap_list_t *candidate_signs;
     size_t candidate_size;
+    dap_list_t *candidate_signs;
     uint16_t approve_count;
     uint16_t reject_count;
-    uint16_t vote_count;
     uint16_t precommit_count;
     UT_hash_handle hh;
 } dap_chain_esbocs_store_t;
@@ -85,9 +86,9 @@ typedef struct dap_chain_esbocs_round {
     uint8_t attempt_num;
     dap_chain_esbocs_store_t *store_items;
     dap_chain_esbocs_message_item_t *messages_items;
-    dap_chain_hash_fast_t last_block_hash;
-    dap_chain_hash_fast_t attempt_candidate_hash;
-    dap_chain_hash_fast_t precommit_candidate_hash;
+    dap_hash_fast_t last_block_hash;
+    dap_hash_fast_t attempt_candidate_hash;
+    dap_hash_fast_t precommit_candidate_hash;
     uint16_t validators_count;
     dap_list_t *validators_list;
 } dap_chain_esbocs_round_t;
