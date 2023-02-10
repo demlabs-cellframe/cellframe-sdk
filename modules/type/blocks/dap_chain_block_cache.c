@@ -109,17 +109,15 @@ dap_chain_block_cache_t *dap_chain_block_cache_create(dap_chain_cs_blocks_t *a_b
         dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_tx_hash);
 
         dap_chain_block_cache_tx_index_t *l_tx_index = NULL;
-        pthread_rwlock_rdlock(&l_block_cache->tx_index_lock);
+        pthread_rwlock_wrlock(&l_block_cache->tx_index_lock);
         HASH_FIND(hh, l_block_cache->tx_index, &l_tx_hash, sizeof (l_tx_hash), l_tx_index);
-        pthread_rwlock_unlock(&l_block_cache->tx_index_lock);
         if (!l_tx_index) {
             l_tx_index = DAP_NEW_Z(dap_chain_block_cache_tx_index_t);
             l_tx_index->tx_hash = l_tx_hash;
             l_tx_index->tx      = (dap_chain_datum_tx_t*)l_datum->data;
-            pthread_rwlock_wrlock(&l_block_cache->tx_index_lock);
             HASH_ADD(hh, l_block_cache->tx_index, tx_hash, sizeof(l_tx_hash), l_tx_index);
-            pthread_rwlock_unlock(&l_block_cache->tx_index_lock);
         }
+        pthread_rwlock_unlock(&l_block_cache->tx_index_lock);
     }
 
     debug_if(i != l_block_cache->datum_count, L_WARNING,
