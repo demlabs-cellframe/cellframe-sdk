@@ -4,22 +4,19 @@
 #include "dap_chain_cs_blocks.h"
 #include "dap_cert.h"
 
-#define DAP_STREAM_CH_VOTE_SESSION_STATE_WAIT_START     0x08
-#define DAP_STREAM_CH_VOTE_SESSION_STATE_WAIT_PROC      0x12
-#define DAP_STREAM_CH_VOTE_SESSION_STATE_WAIT_SIGNS     0x16
-#define DAP_STREAM_CH_VOTE_SESSION_STATE_WAIT_FINISH    0x20
-
-#define DAP_STREAM_CH_VOTE_MESSAGE_TYPE_START_SYNC      0x32
-#define DAP_STREAM_CH_VOTE_MESSAGE_TYPE_SUBMIT          0x04
-#define DAP_STREAM_CH_VOTE_MESSAGE_TYPE_APPROVE         0x08
-#define DAP_STREAM_CH_VOTE_MESSAGE_TYPE_REJECT          0x12
-#define DAP_STREAM_CH_VOTE_MESSAGE_TYPE_COMMIT_SIGN     0x16
-//#define DAP_STREAM_CH_VOTE_MESSAGE_TYPE_VOTE            0x20
-//#define DAP_STREAM_CH_VOTE_MESSAGE_TYPE_VOTE_FOR        0x24
-#define DAP_STREAM_CH_VOTE_MESSAGE_TYPE_PRE_COMMIT      0x28
+#define DAP_STREAM_CH_VOTING_MSG_TYPE_SUBMIT          0x04
+#define DAP_STREAM_CH_VOTING_MSG_TYPE_APPROVE         0x08
+#define DAP_STREAM_CH_VOTING_MSG_TYPE_REJECT          0x12
+#define DAP_STREAM_CH_VOTING_MSG_TYPE_COMMIT_SIGN     0x16
+//#define DAP_STREAM_CH_VOTING_MSG_TYPE_VOTE            0x20
+//#define DAP_STREAM_CH_VOTING_MSG_TYPE_VOTE_FOR        0x24
+#define DAP_STREAM_CH_VOTING_MSG_TYPE_PRE_COMMIT      0x28
+#define DAP_STREAM_CH_VOTING_MSG_TYPE_START_SYNC      0x32
 
 #define DAP_CHAIN_BLOCKS_SESSION_ROUND_ID_SIZE		8
 #define DAP_CHAIN_BLOCKS_SESSION_MESSAGE_ID_SIZE	8
+
+typedef struct dap_chain_esbocs_session dap_chain_esbocs_session_t;
 
 /* consensus messages
 • Submit(round, candidate, body) — suggest a new block candidate *** candiate body in data section
@@ -53,7 +50,6 @@ typedef struct dap_chain_esbocs_message_item {
     dap_hash_fast_t message_hash;
     dap_chain_esbocs_message_t *message;
     dap_chain_addr_t signing_addr;
-    bool is_verified;
     UT_hash_handle hh;
 } dap_chain_esbocs_message_item_t;
 
@@ -78,18 +74,24 @@ typedef struct dap_chain_esbocs_store {
 typedef struct dap_chain_esbocs {
     dap_chain_t *chain;
     dap_chain_cs_blocks_t *blocks;
+    dap_chain_esbocs_session_t *session;
     void *_pvt;
 } dap_chain_esbocs_t;
 
 typedef struct dap_chain_esbocs_round {
+    // Base fields
     uint64_t id;
     uint8_t attempt_num;
-    dap_chain_esbocs_store_t *store_items;
-    dap_chain_esbocs_message_item_t *messages_items;
     dap_hash_fast_t last_block_hash;
+    // Round ancillary
+    dap_chain_esbocs_store_t *store_items;
+    dap_chain_esbocs_message_item_t *message_items;
+    // Attempt dependent fields
+    dap_chain_addr_t attempt_submit_validator;
     dap_hash_fast_t attempt_candidate_hash;
     dap_hash_fast_t precommit_candidate_hash;
-    uint16_t validators_count;
+    // Validators section
+    uint16_t validators_synced_count;
     dap_list_t *validators_list;
 } dap_chain_esbocs_round_t;
 
@@ -97,6 +99,7 @@ typedef struct dap_chain_esbocs_validator {
     dap_chain_node_addr_t node_addr;
     dap_chain_addr_t signing_addr;
     uint256_t weight;
+    bool is_synced;
 } dap_chain_esbocs_validator_t;
 
 typedef struct dap_chain_esbocs_session {

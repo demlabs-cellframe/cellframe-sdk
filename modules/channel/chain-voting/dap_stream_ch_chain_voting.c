@@ -30,10 +30,9 @@ static struct voting_node_client_list *s_node_client_list = NULL;
 static size_t s_pkt_in_callback_count = 0;
 static struct voting_pkt_in_callback s_pkt_in_callback[16] = {};
 
-static void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg);
-static void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg);
+static void s_stream_ch_new(dap_stream_ch_t *a_ch, void *a_arg);
+static void s_stream_ch_delete(dap_stream_ch_t *a_ch, void *a_arg);
 static void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg);
-static void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg);
 
 int dap_stream_ch_chain_voting_init()
 {
@@ -123,14 +122,14 @@ void dap_stream_ch_chain_voting_deinit() {
     }
 }
 
-static void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg) {
+static void s_stream_ch_new(dap_stream_ch_t *a_ch, void *a_arg) {
     UNUSED(a_arg);
     a_ch->internal = DAP_NEW_Z(dap_stream_ch_chain_voting_t);
     dap_stream_ch_chain_voting_t *l_ch_chain_voting = DAP_STREAM_CH_CHAIN_VOTING(a_ch);
     l_ch_chain_voting->_inheritor = a_ch;
 }
 
-static void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg)
+static void s_stream_ch_delete(dap_stream_ch_t *a_ch, UNUSED_ATTR void *a_arg)
 {
     DAP_DEL_Z(a_ch->internal);
 }
@@ -169,7 +168,6 @@ dap_stream_ch_chain_voting_pkt_t *dap_stream_ch_chain_voting_pkt_new(uint64_t a_
 size_t dap_stream_ch_chain_voting_pkt_write_unsafe(dap_stream_ch_t *a_ch, uint8_t a_type, uint64_t a_net_id,
                                                    const void * a_data, size_t a_data_size)
 {
-
     dap_stream_ch_chain_voting_pkt_t *l_voting_pkt = dap_stream_ch_chain_voting_pkt_new(a_net_id, a_data, a_data_size);
     size_t l_ret  = dap_stream_ch_pkt_write_unsafe(a_ch, a_type, l_voting_pkt, sizeof(l_voting_pkt) + a_data_size);
     DAP_DELETE(l_voting_pkt);
