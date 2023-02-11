@@ -458,8 +458,7 @@ static bool s_ledger_token_update_check(dap_chain_ledger_token_item_t *a_cur_tok
 			return false;
 		}
 	}
-    // Updated signs token
-//    dap_sign_t **l_new_signs = NULL;
+    //Check new sign
     size_t l_new_signs_count = 0;
     dap_tsd_t **l_tsd_signs = dap_chain_datum_token_get_tsd_signs(a_token_update, a_token_update_size, &l_new_signs_count);
     size_t l_new_signs_size = 0;
@@ -537,9 +536,6 @@ int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datu
 		log_it(L_WARNING,"Can't update token that doesn't exist for ticker '%s' ", a_token->ticker);
 		return -6;
 	}
-    // Update signs
-    size_t l_new_token_size = 0;
-    a_token = dap_chain_datum_token_update_signs(a_token, a_token_size, &l_new_token_size);
     // Check signs
     size_t l_signs_unique = 0;
     size_t l_size_tsd_section = 0;
@@ -557,7 +553,7 @@ int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datu
 			l_size_tsd_section = a_token->header_private_update.tsd_total_size;
 			break;
     }
-    size_t l_signs_size = ((!l_new_token_size) ? a_token_size : l_new_token_size) - sizeof(dap_chain_datum_token_t) - l_size_tsd_section;
+    size_t l_signs_size = a_token_size - sizeof(dap_chain_datum_token_t) - l_size_tsd_section;
     dap_sign_t **l_signs = dap_sign_get_unique_signs(a_token->data_n_tsd + l_size_tsd_section, l_signs_size, &l_signs_unique);
     if (l_signs_unique >= a_token->signs_total){
         size_t l_signs_approve = 0;
@@ -891,11 +887,21 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
 			log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->ticker);
 			return -3;
 		} else if (s_ledger_token_update_check(l_token_item, a_token, a_token_size) == true) {
-			if (s_ledger_update_token_add_in_hash_table(l_token_item, a_token, a_token_size) == false) {
-				if (s_debug_more)
-					log_it(L_ERROR, "Failed to add ticker '%s' to hash-table", a_token->ticker);
-				return -5;
-			}
+            size_t l_new_token_size = 0;
+            dap_chain_datum_token_t *l_new_token = dap_chain_datum_token_update_signs(a_token, a_token_size, &l_new_token_size);
+            if (!l_new_token_size || !l_new_token) {
+                if (s_ledger_update_token_add_in_hash_table(l_token_item, a_token, a_token_size) == false) {
+                    if (s_debug_more)
+                        log_it(L_ERROR, "Failed to add ticker '%s' to hash-table", a_token->ticker);
+                    return -5;
+                }
+            } else {
+                if (s_ledger_update_token_add_in_hash_table(l_token_item, l_new_token, l_new_token_size) == false) {
+                    if (s_debug_more)
+                        log_it(L_ERROR, "Failed to add ticker '%s' to hash-table", a_token->ticker);
+                    return -5;
+                }
+            }
 			if (!IS_ZERO_256(a_token->total_supply)){
 				SUBTRACT_256_256(l_token_item->total_supply, l_token_item->current_supply, &l_token_item->current_supply);
 				SUBTRACT_256_256(a_token->total_supply, l_token_item->current_supply, &l_token_item->current_supply);
