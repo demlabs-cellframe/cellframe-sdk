@@ -4527,7 +4527,6 @@ uint256_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_c
     return balance;
 }
 
-
 /**
  * Get the transaction in the cache by the addr in out item
  *
