@@ -3329,7 +3329,6 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 l_token = bound_item->item_emission->datum_token_emission->hdr.ticker;
                 l_value = bound_item->item_emission->datum_token_emission->hdr.value_256;
             }
-
         }
         if (! l_token || !*l_token ) {
             log_it(L_WARNING, "No token ticker found in previous transaction");
