@@ -3848,8 +3848,9 @@ static inline int s_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, d
                     dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t*)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_OUT, 0);
 //                    dap_chain_tx_out_ext_t *l_tx_out_ext = (dap_chain_tx_out_ext_t*)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_OUT_EXT, 0);
 //                    uint256_t tmp = l_tx_out ? l_tx_out->header.value : l_tx_out_ext->header.value;
-
-                    SUBTRACT_256_256(l_token_item->current_supply, l_tx_out->header.value, &l_token_item->current_supply);
+                    uint256_t l_value_tmp = bound_item->stake_lock_item->ems_value;
+                    //SUBTRACT_256_256(l_token_item->current_supply, l_tx_out->header.value, &l_token_item->current_supply);
+                    SUBTRACT_256_256(l_token_item->current_supply, l_value_tmp, &l_token_item->current_supply);
                     char *l_balance = dap_chain_balance_print(l_token_item->current_supply);
                     log_it(L_DEBUG, "New current supply %s for token %s", l_balance, l_token_item->ticker);
                     DAP_DEL_Z(l_balance);
