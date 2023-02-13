@@ -68,6 +68,9 @@ typedef struct dap_chain_esbocs_store {
     uint16_t approve_count;
     uint16_t reject_count;
     uint16_t precommit_count;
+    bool decide_reject;
+    bool decide_approve;
+    bool decide_commit;
     UT_hash_handle hh;
 } dap_chain_esbocs_store_t;
 

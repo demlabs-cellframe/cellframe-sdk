@@ -148,9 +148,9 @@ typedef struct dap_chain_ledger_tx_item {
         uint32_t n_outs;
         uint32_t n_outs_used;
         char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-        char padding[6];
+        byte_t padding[6];
         byte_t multichannel;
-        char pad[15];
+        byte_t pad[15];
         // TODO dynamically allocates the memory in order not to limit the number of outputs in transaction
         dap_chain_hash_fast_t tx_hash_spent_fast[MAX_OUT_ITEMS]; // spent outs list
     } DAP_ALIGN_PACKED cache_data;
