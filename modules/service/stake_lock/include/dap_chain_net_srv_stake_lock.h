@@ -65,4 +65,4 @@ dap_chain_datum_t *dap_chain_net_srv_stake_lock_datum_create(dap_chain_net_t *a_
 dap_chain_datum_t *dap_chain_burning_tx_create(dap_chain_t* a_chain, dap_enc_key_t* a_key_from,
                                                     const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_to,
                                                     const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
-                                                    uint256_t a_value,uint256_t a_value_fee);
+                                                    uint256_t a_value,uint256_t a_value_fee,uint32_t *a_tx_out_prev_idx,uint256_t *a_value_change);
