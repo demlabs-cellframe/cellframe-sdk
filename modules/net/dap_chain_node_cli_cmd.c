@@ -3955,10 +3955,12 @@ int com_tx_cond_create(int a_argc, char ** a_argv, char **a_str_reply)
     const char * l_wallet_str = NULL;
     const char * l_cert_str = NULL;
     const char * l_value_datoshi_str = NULL;
+    const char * l_value_fee_str = NULL;
     const char * l_net_name = NULL;
     const char * l_unit_str = NULL;
     const char * l_srv_uid_str = NULL;
-    uint256_t l_value_datoshi = {};
+    uint256_t l_value_datoshi = {};    
+    uint256_t l_value_fee = {};
     const char * l_hash_out_type = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
     if(!l_hash_out_type)
@@ -3976,6 +3978,8 @@ int com_tx_cond_create(int a_argc, char ** a_argv, char **a_str_reply)
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cert", &l_cert_str);
     // value datoshi
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-value", &l_value_datoshi_str);
+    // fee
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &l_value_fee_str);
     // net
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_name);
     // unit
@@ -3999,7 +4003,10 @@ int com_tx_cond_create(int a_argc, char ** a_argv, char **a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_cond_create requires parameter '-value'");
         return -4;
     }
-
+    if(!l_value_fee_str){
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_cond_create requires parameter '-fee'");
+        return -15;
+    }
     if(!l_net_name) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_cond_create requires parameter '-net'");
         return -5;
@@ -4034,6 +4041,12 @@ int com_tx_cond_create(int a_argc, char ** a_argv, char **a_str_reply)
         return -10;
     }
 
+    l_value_fee = dap_chain_balance_scan(l_value_fee_str);
+    if(IS_ZERO_256(l_value_fee)) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't recognize value '%s' as a number", l_value_fee_str);
+        return -16;
+    }
+
     dap_chain_net_t * l_net = l_net_name ? dap_chain_net_by_name(l_net_name) : NULL;
     if(!l_net) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find net '%s'", l_net_name);
@@ -4061,7 +4074,6 @@ int com_tx_cond_create(int a_argc, char ** a_argv, char **a_str_reply)
     }
 
     uint256_t l_value_per_unit_max = {};
-    uint256_t l_value_fee = {};
     char *l_hash_str = dap_chain_mempool_tx_create_cond(l_net, l_key_from, l_key_cond, l_token_ticker,
                                                         l_value_datoshi, l_value_per_unit_max, l_price_unit,
                                                         l_srv_uid, l_value_fee, NULL, 0, l_hash_out_type);
