@@ -330,8 +330,8 @@ dap_db_log_list_obj_t *dap_db_log_list_get(dap_db_log_list_t *a_db_log_list)
 static inline void s_dap_db_log_list_delete_item(void *a_item)
 {
     dap_db_log_list_obj_t *l_list_item = (dap_db_log_list_obj_t *)a_item;
-    DAP_DELETE(l_list_item->pkt);
-    DAP_DELETE(l_list_item);
+    DAP_DEL_Z(l_list_item->pkt);
+    DAP_DEL_Z(l_list_item);
 }
 
 /**
@@ -356,7 +356,7 @@ void dap_db_log_list_delete(dap_db_log_list_t *a_db_log_list)
     dap_list_free_full(a_db_log_list->groups, free);
     dap_list_free_full(a_db_log_list->items_list, (dap_callback_destroyed_t)s_dap_db_log_list_delete_item);
     pthread_mutex_destroy(&a_db_log_list->list_mutex);
-    DAP_DELETE(a_db_log_list);
+    DAP_DEL_Z(a_db_log_list);
 }
 
 /**

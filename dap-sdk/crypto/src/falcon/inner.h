@@ -84,6 +84,10 @@
 #include <stdlib.h>
 #include <string.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 #if defined FALCON_AVX2 && FALCON_AVX2 // yyyAVX2+1
 /*
  * This implementation uses AVX2 and optionally FMA intrinsics.
@@ -400,6 +404,10 @@ set_fpu_cw(unsigned x)
 #ifndef restrict
 #define restrict   __restrict
 #endif
+#endif
+
+#ifdef __cplusplus
+#define restrict   __restrict
 #endif
 // yyyPQCLEAN-
 
@@ -1162,5 +1170,9 @@ TARGET_AVX2
 int Zf(gaussian0_sampler)(prng *p);
 
 /* ==================================================================== */
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

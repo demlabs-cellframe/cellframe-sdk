@@ -746,8 +746,10 @@ static bool s_stream_proc_pkt_in(dap_stream_t *a_stream, dap_stream_pkt_t *l_pkt
 
     switch (l_pkt->hdr.type) {
     case STREAM_PKT_TYPE_FRAGMENT_PACKET: {
-        dap_stream_fragment_pkt_t *l_fragm_pkt = (dap_stream_fragment_pkt_t*) a_stream->pkt_cache;
-        size_t l_dec_pkt_size = dap_stream_pkt_read_unsafe(a_stream, l_pkt, l_fragm_pkt, sizeof(a_stream->pkt_cache));
+        size_t l_fragm_dec_size = dap_enc_decode_out_size(a_stream->session->key, l_pkt->hdr.size, DAP_ENC_DATA_TYPE_RAW);
+        a_stream->pkt_cache = DAP_NEW_Z_SIZE(byte_t, l_fragm_dec_size);
+        dap_stream_fragment_pkt_t *l_fragm_pkt = (dap_stream_fragment_pkt_t*)a_stream->pkt_cache;
+        size_t l_dec_pkt_size = dap_stream_pkt_read_unsafe(a_stream, l_pkt, l_fragm_pkt, l_fragm_dec_size);
 
         if(l_dec_pkt_size == 0) {
             debug_if(s_dump_packet_headers, L_WARNING, "Input: can't decode packet size = %zu", l_pkt_size);
@@ -767,7 +769,7 @@ static bool s_stream_proc_pkt_in(dap_stream_t *a_stream, dap_stream_pkt_t *l_pkt
         } else {
             if(!a_stream->buf_fragments || a_stream->buf_fragments_size_total < l_fragm_pkt->full_size) {
                 DAP_DEL_Z(a_stream->buf_fragments);
-                a_stream->buf_fragments = DAP_NEW_SIZE(uint8_t, l_fragm_pkt->full_size);
+                a_stream->buf_fragments = DAP_NEW_Z_SIZE(uint8_t, l_fragm_pkt->full_size);
                 a_stream->buf_fragments_size_total = l_fragm_pkt->full_size;
             }
             memcpy(a_stream->buf_fragments + l_fragm_pkt->mem_shift, l_fragm_pkt->data, l_fragm_pkt->size);
@@ -781,12 +783,18 @@ static bool s_stream_proc_pkt_in(dap_stream_t *a_stream, dap_stream_pkt_t *l_pkt
         // All fragments collected, move forward
     }
     case STREAM_PKT_TYPE_DATA_PACKET: {
-        dap_stream_ch_pkt_t *l_ch_pkt = l_pkt->hdr.type == STREAM_PKT_TYPE_FRAGMENT_PACKET
-                ? (dap_stream_ch_pkt_t*)a_stream->buf_fragments
-                : (dap_stream_ch_pkt_t*)a_stream->pkt_cache;
-        size_t l_dec_pkt_size = l_pkt->hdr.type == STREAM_PKT_TYPE_FRAGMENT_PACKET
-                ? a_stream->buf_fragments_size_total
-                : dap_stream_pkt_read_unsafe(a_stream, l_pkt, l_ch_pkt, sizeof(a_stream->pkt_cache));
+        dap_stream_ch_pkt_t *l_ch_pkt;
+        size_t l_dec_pkt_size;
+
+        if (l_pkt->hdr.type == STREAM_PKT_TYPE_FRAGMENT_PACKET) {
+            l_ch_pkt = (dap_stream_ch_pkt_t*)a_stream->buf_fragments;
+            l_dec_pkt_size = a_stream->buf_fragments_size_total;
+        } else {
+            size_t l_pkt_dec_size = dap_enc_decode_out_size(a_stream->session->key, l_pkt->hdr.size, DAP_ENC_DATA_TYPE_RAW);
+            a_stream->pkt_cache = DAP_NEW_Z_SIZE(byte_t, l_pkt_dec_size);
+            l_ch_pkt = (dap_stream_ch_pkt_t*)a_stream->pkt_cache;
+            l_dec_pkt_size = dap_stream_pkt_read_unsafe(a_stream, l_pkt, l_ch_pkt, l_pkt_dec_size);
+        }
 
         if (l_dec_pkt_size != l_ch_pkt->hdr.size + sizeof(l_ch_pkt->hdr)) {
             log_it(L_WARNING, "Input: decoded packet has bad size = %zu, decoded size = %zu", l_ch_pkt->hdr.size + sizeof(l_ch_pkt->hdr), l_dec_pkt_size);
@@ -843,6 +851,7 @@ static bool s_stream_proc_pkt_in(dap_stream_t *a_stream, dap_stream_pkt_t *l_pkt
         log_it(L_WARNING, "Unknown header type");
     }
     // Clean memory
+    DAP_DEL_Z(a_stream->pkt_cache);
     if(l_is_clean_fragments) {
         DAP_DEL_Z(a_stream->buf_fragments);
         a_stream->buf_fragments_size_total = 0;
