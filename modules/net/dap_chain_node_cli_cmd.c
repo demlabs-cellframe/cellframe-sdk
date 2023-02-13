@@ -2954,6 +2954,7 @@ int com_mempool_proc_all(int argc, char ** argv, char ** a_str_reply) {
                                                    "Total items were %zu of which %zu accepted %zu rejected.",
                                                    l_net->pub.name, l_chain->name, l_objs_count, l_processed_datums,
                                                    l_skip_datums);
+    dap_chain_global_db_objs_delete(l_objs, l_objs_count);
 
     return 0;
 }
