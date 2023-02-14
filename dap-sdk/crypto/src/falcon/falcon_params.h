@@ -51,9 +51,16 @@ typedef struct {
     unsigned char* sig_data;
 } falcon_signature_t;
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 void falcon_private_key_delete(falcon_private_key_t* private_key);
 void falcon_public_key_delete(falcon_public_key_t* public_key);
 void falcon_private_and_public_keys_delete(falcon_private_key_t* private_key, falcon_public_key_t* public_key);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif //CELLFRAME_SDK_FALCON_PARAMS_H

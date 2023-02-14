@@ -199,7 +199,7 @@ dap_hash_fast_t* dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_
         uint256_t l_value_back;
         SUBTRACT_256_256(l_value_transfer, a_value, &l_value_back);
         if(!IS_ZERO_256(l_value_back)) {
-            if(dap_chain_datum_tx_add_out_item(&l_tx, a_addr_from, l_value_back) != 1) {
+            if(dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_from, l_value_back, a_token_ticker) != 1) {
                 dap_chain_datum_tx_delete(l_tx);
                 return NULL;
             }
@@ -1103,6 +1103,12 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
     dap_global_db_obj_t * l_objs = dap_chain_global_db_gr_load(l_gdb_group, &l_objs_size);
     for (size_t i = 0; i < l_objs_size; i++) {
         dap_chain_datum_t *l_datum = (dap_chain_datum_t*)l_objs[i].value;
+        if (!l_datum) {
+            l_removed++;
+            log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s: empty (possibly trash) value", l_objs[i].key, l_gdb_group);
+            dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group);
+            continue;
+        }
         size_t l_datum_size = dap_chain_datum_size(l_datum);
         //Filter data size
         if (l_datum_size != l_objs[i].value_len) {

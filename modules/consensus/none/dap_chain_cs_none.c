@@ -415,9 +415,8 @@ static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create_from(dap_chain_t
  */
 static void s_chain_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter)
 {
-    if (a_atom_iter->cur_item)
-        DAP_DELETE(a_atom_iter->cur_item);
-    DAP_DELETE(a_atom_iter->cur_hash);
+    DAP_DEL_Z(a_atom_iter->cur_item);
+    DAP_DEL_Z(a_atom_iter->cur_hash);
     DAP_DELETE(a_atom_iter);
 }
 
@@ -454,7 +453,7 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_
 {
     if (!a_atom_iter)
         return NULL;
-    if (a_atom_iter->cur_item) {// This iterator should clean up data for it because its allocate it
+    if (a_atom_iter->cur_item) { /* Iterator creates copies, free them at delete routine! */
         DAP_DEL_Z(a_atom_iter->cur);
         DAP_DEL_Z(a_atom_iter->cur_hash);
     }
