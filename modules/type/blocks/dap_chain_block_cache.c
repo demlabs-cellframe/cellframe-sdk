@@ -84,7 +84,9 @@ dap_chain_block_cache_t *dap_chain_block_cache_create(dap_chain_cs_blocks_t *a_b
                                 : ({dap_hash_fast_t l_h; dap_hash_fast(a_block, a_block_size, &l_h); l_h;});
     l_block_cache->block_hash_str = dap_hash_fast_to_str_new(&l_block_cache->block_hash);
     l_block_cache->datum        = l_datums;
+    l_block_cache->datum_count  = l_datums_count;
     l_block_cache->meta         = l_meta;
+    l_block_cache->meta_count   = l_meta_count;
 
     dap_chain_block_meta_extract(l_block_cache->meta,
                                  l_block_cache->meta_count,
