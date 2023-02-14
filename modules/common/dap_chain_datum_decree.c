@@ -37,7 +37,7 @@ dap_sign_t *dap_chain_datum_decree_get_signs(dap_chain_datum_decree_t *a_decree,
     if (!a_decree)
         return NULL;
 
-    dap_sign_t *l_signs_section = (dap_sign_t *)(a_decree->data_n_signs + a_decree->header.data_size);
+    dap_sign_t *l_signs_section = (dap_sign_t *)((byte_t*)a_decree->data_n_signs + a_decree->header.data_size);
 
     *a_signs_size = a_decree->header.signs_size;
 
@@ -83,37 +83,23 @@ dap_list_t *dap_chain_datum_decree_get_owners(dap_chain_datum_decree_t *a_decree
     }
 
     while(l_tsd_offset < tsd_data_size){
-        dap_tsd_t *l_tsd = (dap_tsd_t*)a_decree->data_n_signs + l_tsd_offset;
-        size_t l_tsd_size = l_tsd->size + sizeof(dap_tsd_t);
+        dap_tsd_t *l_tsd = (dap_tsd_t*)((byte_t*)a_decree->data_n_signs + l_tsd_offset);
+        size_t l_tsd_size = dap_tsd_size(l_tsd);
         if(l_tsd_size > tsd_data_size){
             log_it(L_WARNING,"TSD size is greater than all data size. It's possible corrupt data.");
+            if (l_key_list)
+                dap_list_free_full(l_key_list, NULL);
             return NULL;
         }
         if (l_tsd->type == DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER){
-            if(!l_key_list){
-                l_key_list = dap_list_alloc();
-                if (!l_key_list){
-                    log_it(L_WARNING,"Memory allocate failed.");
-                    dap_list_free_full(l_key_list, NULL);
-                    return NULL;
-                }
-            }
-
-            dap_pkey_t *l_owner_pkey = DAP_NEW_Z(dap_pkey_t);
+            dap_pkey_t *l_owner_pkey = DAP_NEW_Z_SIZE(dap_pkey_t, l_tsd->size);
             if (!l_owner_pkey){
                 log_it(L_WARNING,"Memory allocate failed.");
                 dap_list_free_full(l_key_list, NULL);
                 return NULL;
             }
 
-            if(dap_tsd_size(l_tsd) > sizeof(dap_pkey_t)){
-                log_it(L_WARNING,"TSD size not match the dap_pkey_t. Possible data corrupt.");
-                dap_list_free_full(l_key_list, NULL);
-                DAP_FREE(l_owner_pkey);
-                return NULL;
-            }
-
-            *l_owner_pkey = dap_tsd_get_scalar(l_tsd, dap_pkey_t);
+            memcpy(l_owner_pkey, l_tsd->data, l_tsd->size);
             l_key_list = dap_list_append(l_key_list, l_owner_pkey);
             l_owners_num++;
         }
@@ -133,7 +119,7 @@ int dap_chain_datum_decree_get_min_owners(dap_chain_datum_decree_t *a_decree, ui
     }
     while(l_tsd_offset < tsd_data_size){
         dap_tsd_t *l_tsd = (dap_tsd_t*)a_decree->data_n_signs + l_tsd_offset;
-        size_t l_tsd_size = l_tsd->size + sizeof(dap_tsd_t);
+        size_t l_tsd_size = dap_tsd_size(l_tsd);
         if(l_tsd_size > tsd_data_size){
             log_it(L_WARNING,"TSD size is greater than all data size. It's possible corrupt data.");
             return -1;

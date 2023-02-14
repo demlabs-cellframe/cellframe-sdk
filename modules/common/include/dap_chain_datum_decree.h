@@ -81,7 +81,7 @@ typedef struct dap_chain_datum_decree {
  *                      number of signs will be write to this buffer
  * @return pointer to signs
  */
-dap_sign_t *dap_chain_datum_decree_get_signs(dap_chain_datum_decree_t *decree, size_t *num_of_signs);
+dap_sign_t *dap_chain_datum_decree_get_signs(dap_chain_datum_decree_t *decree, size_t *size_of_signs);
 
 /**
  * @brief dap_chain_datum_decree_get_fee gets fee value from decree

@@ -103,6 +103,7 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t * a_decree, dap_chain_n
 {
     dap_chain_datum_decree_t *l_decree = a_decree;
     // Get pkeys sign from decree datum
+
     size_t l_signs_size = 0;
     //multiple signs reading from datum
     dap_sign_t *l_signs_block = dap_chain_datum_decree_get_signs(l_decree, &l_signs_size);
@@ -114,7 +115,7 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t * a_decree, dap_chain_n
 
     // Concate all signs in array
     uint32_t l_signs_count = 0;
-    size_t l_tsd_offset = sizeof(dap_sign_t) + l_signs_block->header.sign_pkey_size + l_signs_block->header.sign_size;
+    size_t l_tsd_offset = dap_sign_get_size(l_signs_block);
     size_t l_signs_arr_size = 0;
     dap_sign_t *l_signs_arr = DAP_NEW_Z_SIZE(dap_sign_t, l_tsd_offset);
     memcpy(l_signs_arr, l_signs_block, l_tsd_offset);
@@ -122,8 +123,8 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t * a_decree, dap_chain_n
     l_signs_count++;
     while (l_tsd_offset < l_signs_size)
     {
-        dap_sign_t *cur_sign = (dap_sign_t *)(l_signs_block + l_tsd_offset);
-        size_t l_sign_size = sizeof(dap_sign_t) + cur_sign->header.sign_pkey_size + cur_sign->header.sign_size;
+        dap_sign_t *cur_sign = (dap_sign_t *)((byte_t*)l_signs_block + l_tsd_offset);
+        size_t l_sign_size = dap_sign_get_size(cur_sign);
 
         if (l_sign_size > a_decree->header.signs_size)
         {
@@ -132,7 +133,7 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t * a_decree, dap_chain_n
             return -105;
         }
 
-        dap_sign_t *l_signs_arr_temp = DAP_REALLOC(l_signs_arr, l_signs_arr_size + l_sign_size);
+        dap_sign_t *l_signs_arr_temp = (dap_sign_t *)DAP_REALLOC(l_signs_arr, l_signs_arr_size + l_sign_size);
 
         if (!l_signs_arr_temp)
         {
@@ -142,7 +143,7 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t * a_decree, dap_chain_n
         }
 
         l_signs_arr = l_signs_arr_temp;
-        memcpy(l_signs_arr + l_signs_arr_size, cur_sign, l_sign_size);
+        memcpy((byte_t *)l_signs_arr + l_signs_arr_size, cur_sign, l_sign_size);
 
 
         l_signs_arr_size += l_sign_size;
@@ -153,44 +154,61 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t * a_decree, dap_chain_n
     if (a_signs_count)
         *a_signs_count = l_signs_count;
 
+    dap_sign_t *l_b_sign_in_arr = (dap_sign_t *)((byte_t *)l_signs_arr + dap_sign_get_size(l_signs_arr));
+
     // Find unique pkeys in pkeys set from previous step and check that number of signs > min
     size_t l_num_of_unique_signs = 0;
     dap_sign_t **l_unique_signs = dap_sign_get_unique_signs(l_signs_arr, l_signs_arr_size, &l_num_of_unique_signs);
+
+    if (l_num_of_unique_signs != l_signs_count)
+    {
+        log_it(L_WARNING,"Signatures contain duplicate signs.");
+        return -105;
+    }
+
+    uint256_t l_min_signs = a_net->pub.decree->min_num_of_owners;
+    uint256_t l_num_of_valid_signs256 = GET_256_FROM_64((uint64_t)l_num_of_unique_signs);
+    if (compare256(l_num_of_valid_signs256, l_min_signs) < 0)
+    {
+        log_it(L_WARNING,"Not enough unique signatures");
+        return -106;
+    }
 
     // Verify all keys and its signatures
     uint16_t l_signs_size_for_current_sign = 0, l_signs_verify_counter = 0;
 
     for(size_t i = 0; i < l_num_of_unique_signs; i++)
     {
+        size_t l_sign_max_size = dap_sign_get_size(l_unique_signs[i]);
         if (s_verify_pkey(l_unique_signs[i], a_net))
         {
             // 3. verify sign
-
             size_t l_verify_data_size = l_decree->header.data_size + sizeof(dap_chain_datum_decree_t);
-            size_t l_sign_max_size = l_decree->header.signs_size;
             l_decree->header.signs_size = l_signs_size_for_current_sign;
             if(!dap_sign_verify_all(l_unique_signs[i], l_sign_max_size, l_decree, l_verify_data_size))
             {
                 l_signs_verify_counter++;
-            } else{
-                DAP_DELETE(l_signs_arr);
-                DAP_DELETE(l_unique_signs);
-
-                return -106;
             }
+        }
             // Each sign change the sign_size field by adding its size after signing. So we need to change this field in header for each sign.
             l_signs_size_for_current_sign += l_sign_max_size;
-
-        }
     }
-
-    if (a_signs_verify)
-        *a_signs_verify = l_signs_verify_counter;
 
     l_decree->header.signs_size = l_signs_size_for_current_sign;
 
     DAP_DELETE(l_signs_arr);
     DAP_DELETE(l_unique_signs);
+
+    if (a_signs_verify)
+        *a_signs_verify = l_signs_verify_counter;
+
+    l_min_signs = a_net->pub.decree->min_num_of_owners;
+    l_num_of_valid_signs256 = GET_256_FROM_64((uint64_t)l_signs_verify_counter);
+    if (compare256(l_num_of_valid_signs256, l_min_signs) < 0)
+    {
+        log_it(L_WARNING,"Not enough valid signatures");
+        return -106;
+    }
 
     return 0;
 }
@@ -214,18 +232,10 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
     }
 
 
-    uint256_t l_min_signs = l_net->pub.decree->min_num_of_owners;
-    uint32_t l_num_of_valid_signs = 0, l_num_of_signs = 0;
 
+    uint32_t l_num_of_valid_signs = 0, l_num_of_signs = 0;
     if ((ret_val = dap_chain_net_decree_verify(a_decree, l_net, &l_num_of_signs, &l_num_of_valid_signs)) != 0)
         return ret_val;
-
-    uint256_t l_num_of_valid_signs256 = GET_256_FROM_64((uint64_t)l_num_of_valid_signs);
-    if (compare256(l_num_of_valid_signs256, l_min_signs) < 0)
-    {
-        log_it(L_WARNING,"Not enough valid signatures");
-        return -106;
-    }
 
     // Process decree
     switch(a_decree->header.type){
@@ -247,25 +257,17 @@ static bool s_verify_pkey (dap_sign_t *a_sign, dap_chain_net_t *a_net)
 {
     bool ret_val = false;
     dap_list_t *b_item = a_net->pub.decree->pkeys;
-    char *l_bytearr_pkey_datum_sign = NULL, *l_bytearr_pkey_sign = NULL;
-    l_bytearr_pkey_datum_sign = DAP_NEW_Z_SIZE(char, a_sign->header.sign_pkey_size + 1);
-    memcpy(l_bytearr_pkey_datum_sign, a_sign->pkey_n_sign, a_sign->header.sign_pkey_size);
-
-    while (b_item->next && !ret_val)
+    while (b_item && !ret_val)
     {
         dap_pkey_t *l_pkey = (dap_pkey_t*)(b_item->data);
-        l_bytearr_pkey_sign = DAP_NEW_Z_SIZE(char, l_pkey->header.size + 1);
-        memcpy(l_bytearr_pkey_sign, l_pkey->pkey, l_pkey->header.size);
 
-        if (!strcmp(l_bytearr_pkey_datum_sign, l_bytearr_pkey_sign))
+        if (!memcmp(a_sign->pkey_n_sign, l_pkey->pkey, a_sign->header.sign_pkey_size))
         {
             ret_val = true;
         }
 
         b_item = b_item->next;
-        DAP_DELETE(l_bytearr_pkey_sign);
     }
-    DAP_DELETE(l_bytearr_pkey_datum_sign);
     return ret_val;
 }
 
@@ -281,7 +283,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
     {
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE:
                 if (!dap_chain_datum_decree_get_fee(a_decree, &l_fee)){
-                    if (!dap_chain_net_tx_get_fee(a_chain->net_id, a_chain, &l_fee, &l_addr)){
+                    if (!dap_chain_net_tx_get_fee(a_chain->net_id, a_chain, NULL, &l_addr)){
                         if(!dap_chain_net_tx_add_fee(a_chain->net_id, a_chain, &l_fee, &l_addr)){
                             log_it(L_WARNING,"Can't add fee value.");
                             return -102;
@@ -306,6 +308,8 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
             }
 
             l_net->pub.decree->num_of_owners = l_num_of_owners;
+            dap_list_free_full(l_net->pub.decree->pkeys, NULL);
+
             l_net->pub.decree->pkeys = l_owners_list;
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN:

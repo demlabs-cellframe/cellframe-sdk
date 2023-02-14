@@ -721,7 +721,7 @@ bool dap_chain_net_tx_replace_fee(dap_chain_net_id_t a_net_id, dap_chain_t *a_ch
     l_key.net_id = a_net_id;
     l_key.chain_id = l_chain->id;
 
-    HASH_FIND(hh, s_net_fees, &l_key, sizeof(a_net_id), l_net_fee);
+    HASH_FIND(hh, s_net_fees, &l_key, sizeof(net_fee_key_t), l_net_fee);
     if (!l_net_fee)
         return false;
     HASH_DEL(s_net_fees, l_net_fee);
