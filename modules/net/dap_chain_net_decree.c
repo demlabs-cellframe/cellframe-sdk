@@ -154,8 +154,6 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t * a_decree, dap_chain_n
     if (a_signs_count)
         *a_signs_count = l_signs_count;
 
-    dap_sign_t *l_b_sign_in_arr = (dap_sign_t *)((byte_t *)l_signs_arr + dap_sign_get_size(l_signs_arr));
-
     // Find unique pkeys in pkeys set from previous step and check that number of signs > min
     size_t l_num_of_unique_signs = 0;
     dap_sign_t **l_unique_signs = dap_sign_get_unique_signs(l_signs_arr, l_signs_arr_size, &l_num_of_unique_signs);
@@ -319,9 +317,6 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
                 return -105;
             }
             l_net->pub.decree->min_num_of_owners = l_min_owners;
-            break;
-        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_TON_SIGNERS:
-
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_TON_SIGNERS_MIN:
 

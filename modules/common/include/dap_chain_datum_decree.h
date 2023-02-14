@@ -56,24 +56,18 @@ typedef struct dap_chain_datum_decree {
 #define DAP_CHAIN_DATUM_DECREE_TYPE_COMMON                      0x0001
 #define DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE                     0x0002
 
-// Action on the decree
-// Create from scratch, reset all previous values
-#define DAP_CHAIN_DATUM_DECREE_ACTION_CREATE                    0x0001
-#define DAP_CHAIN_DATUM_DECREE_ACTION_UPDATE                    0x0002
-#define DAP_CHAIN_DATUM_DECREE_ACTION_DELETE                    0x0003
-
 // Common decree subtypes
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE               0x0001
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS            0x0002
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN        0x0003
-#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_TON_SIGNERS       0x0004
-#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_TON_SIGNERS_MIN   0x0005
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_TON_SIGNERS_MIN   0x0004
 
 // DECREE TSD types
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGN                    0x0001
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE                     0x0002
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER                   0x0003
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER               0x0004
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_TON_SIGNERS_MIN         0x0005
 /**
  * @brief dap_chain_datum_decree_get_signs
  * @param decree pointer to decree

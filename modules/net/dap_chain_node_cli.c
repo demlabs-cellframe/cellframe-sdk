@@ -321,7 +321,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "==Subtype Params==\n"
             "\t -fee <value>: sets fee for tx in net\n"
             "\t -new_certs <certs list>: sets new owners set for net\n"
-            "\t -signs_verify <value1>: sets minimum number of owners needed to sign decree\n");
+            "\t -signs_verify <value>: sets minimum number of owners needed to sign decree\n"
+            "\t ton_signs_verify <value>: sets minimum number of TON signers");
 
 
     // Exit - always last!

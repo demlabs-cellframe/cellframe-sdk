@@ -1354,7 +1354,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
 {
     enum { CMD_NONE=0, CMD_CREATE, CMD_SIGN, CMD_ANCHOR };
     enum { TYPE_NONE=0, TYPE_COMMON, TYPE_SERVICE};
-    enum { SUBTYPE_NONE=0, SUBTYPE_FEE, SUBTYPE_OWNERS, SUBTYPE_MIN_OWNERS};
+    enum { SUBTYPE_NONE=0, SUBTYPE_FEE, SUBTYPE_OWNERS, SUBTYPE_MIN_OWNERS, SUBTYPE_TON_MIN_SIGNS};
     int arg_index = 1;
     const char *l_net_str = NULL;
     const char * l_chain_str = NULL;
@@ -1512,6 +1512,15 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                 l_total_tsd_size = sizeof(dap_tsd_t) + sizeof(uint256_t);
                 l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
                 l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER;
+                l_tsd->size = sizeof(uint256_t);
+                *(uint256_t*)(l_tsd->data) = l_new_num_of_owners;
+                l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+            }else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-ton_signs_verify", &l_param_value_str)){
+                l_subtype = SUBTYPE_TON_MIN_SIGNS;
+                uint256_t l_new_num_of_owners = dap_cvt_str_to_uint256(l_param_value_str);
+                l_total_tsd_size = sizeof(dap_tsd_t) + sizeof(uint256_t);
+                l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
+                l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_TON_SIGNERS_MIN;
                 l_tsd->size = sizeof(uint256_t);
                 *(uint256_t*)(l_tsd->data) = l_new_num_of_owners;
                 l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
@@ -1680,19 +1689,6 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                 if(l_datum->header.type_id == DAP_CHAIN_DATUM_DECREE) {
                     dap_chain_datum_decree_t *l_datum_decree = DAP_DUP_SIZE(l_datum->data, l_datum->header.data_size);    // for realloc
                     DAP_DELETE(l_datum);
-
-//                    uint32_t l_num_of_signs = 0, l_signs_verify = 0;
-//                    if(dap_chain_net_decree_verify(l_datum_decree, l_net, &l_num_of_signs, &l_signs_verify)){
-//                        log_it(L_WARNING, "Wrong signature for datum_decree with key %s in mempool!", l_datum_hash_out_str);
-//                        dap_cli_server_cmd_set_reply_text(a_str_reply,
-//                                "Datum %s with datum decree has wrong signature, break process and exit",
-//                                l_datum_hash_out_str);
-//                        DAP_DELETE(l_datum_decree);
-//                        DAP_DELETE(l_gdb_group_mempool);
-//                        return -6;
-//                    }
-//                    log_it(L_DEBUG, "Datum %s with decree: %hu signatures are verified well",
-//                                     l_datum_hash_out_str, l_signs_verify);
 
                     // Sign decree
                     size_t l_total_signs_success = 0;

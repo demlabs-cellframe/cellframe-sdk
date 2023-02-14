@@ -729,9 +729,6 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
             case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN:
                 l_subtype_str = "DECREE_COMMON_SUBTYPE_OWNERS_MIN";
                 break;
-            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_TON_SIGNERS:
-                l_subtype_str = "DECREE_COMMON_SUBTYPE_TON_SIGNERS";
-                break;
             case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_TON_SIGNERS_MIN:
                 l_subtype_str = "DECREE_COMMON_SUBTYPE_TON_SIGNERS_MIN";
                 break;
