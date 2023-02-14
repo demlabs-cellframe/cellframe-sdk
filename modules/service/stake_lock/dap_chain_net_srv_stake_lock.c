@@ -98,7 +98,8 @@ typedef struct dap_chain_ledger_token_emission_for_stake_lock_item {
 static int												s_cli_stake_lock(int a_argc, char **a_argv, char **a_str_reply);
 static char                                             *dap_chain_mempool_base_tx_for_stake_lock_create(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_emission_hash,
                                                                               dap_chain_id_t a_emission_chain_id, uint256_t a_emission_value, const char *a_ticker,
-                                                                              dap_chain_addr_t *a_addr_to, dap_enc_key_t *a_key_from, const char *a_hash_out_type, uint256_t a_value_fee);
+                                                                              dap_chain_addr_t *a_addr_to, dap_enc_key_t *a_key_from, const char *a_hash_out_type, uint256_t a_value_fee,
+                                                                              uint256_t a_value_change, uint32_t a_tx_out_prev_idx);
 // Callbacks
 static void												s_callback_decree (dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_net, dap_chain_t * a_chain,
                                                                               dap_chain_datum_decree_t * a_decree, size_t a_decree_size);
@@ -362,11 +363,13 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
         dap_string_append_printf(output_line, "'%s'", l_cert_str);
         return CERT_KEY_ERROR;
     }
+    uint256_t l_value_change = {};
+    uint32_t l_tx_out_prev_idx = 0;
 
     // Make transfer transaction
     dap_chain_datum_t *l_datum = dap_chain_net_srv_stake_lock_datum_create(l_net, l_key_from, l_key_cond,
                                                                  l_ticker_str,l_value,l_value_fee, l_uid,
-                                                                 l_time_staking, l_reinvest_percent, create_base_tx);
+                                                                 l_time_staking, l_reinvest_percent, create_base_tx,&l_value_change,&l_tx_out_prev_idx);
     DAP_DEL_Z(l_key_cond);
     if (create_base_tx)
         dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_tx_cond_hash);
@@ -386,7 +389,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
     if (create_base_tx)
         l_hash_str = dap_chain_mempool_base_tx_for_stake_lock_create(l_chain, &l_tx_cond_hash, l_chain->id,
                                                       l_value_delegated, delegate_ticker_str, l_addr_holder,
-                                                      l_key_from, l_hash_out_type, l_value_fee);
+                                                      l_key_from, l_hash_out_type, l_value_fee,l_value_change,l_tx_out_prev_idx);
 
     dap_chain_wallet_close(l_wallet);
 
@@ -566,13 +569,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
         SUM_256_256(l_value_need,l_net_fee,&l_value_need);
     SUM_256_256(l_value_need,l_value_fee,&l_value_need);
 
-    // list of transaction with 'out' items
-    dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(l_ledger, l_ticker_str,
-                                                                             l_owner_addr, l_value_need, &l_value_transfer);
-    if(!l_list_used_out) {
-        log_it( L_ERROR, "Nothing to transfer (not enough funds)");
-        return -1;
-    }
+
     //add tx
     if (NULL == (l_tx = dap_chain_datum_tx_create())) {//malloc
         dap_chain_wallet_close(l_wallet);
@@ -581,12 +578,8 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
     }
 
     dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_tx_hash, l_prev_cond_idx, 0);
-    {
-        uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
-        assert(EQUAL_256(l_value_to_items, l_value_transfer));
-        dap_list_free_full(l_list_used_out, free);
-    }
-    //dap_chain_datum_tx_add_out_item(&l_tx, l_owner_addr, l_tx_out_cond->header.value);
+
+    dap_chain_datum_tx_add_out_item(&l_tx, l_owner_addr, l_tx_out_cond->header.value);
 
     uint256_t l_value_back = {},l_value_pack = {};
     // Network fee
@@ -605,23 +598,14 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
         }
         SUM_256_256(l_value_pack, l_value_fee, &l_value_pack);
     }
-    // coin back
-
-    SUBTRACT_256_256(l_value_transfer, l_value_pack, &l_value_back);
-    SUM_256_256(l_value_back, l_tx_out_cond->header.value, &l_value_back);
-    if (!IS_ZERO_256(l_value_back)) {
-        if(dap_chain_datum_tx_add_out_item(&l_tx, l_owner_addr, l_value_back) != 1)
-        {
-            dap_chain_datum_tx_delete(l_tx);
-            return COIN_BACK_ERROR;
-        }
-    }
 
     //add burning tx
     if (l_tx_out_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX) {
         dap_chain_addr_t l_addr_blank = {0};
+        uint32_t l_tx_out_prev_idx = 0;
+        uint256_t l_value_change = {};
         if (NULL == (l_datum_burning_tx = dap_chain_burning_tx_create(l_chain, l_owner_key, l_owner_addr, &l_addr_blank,
-                                                                  delegate_ticker_str, l_value_delegated))) {//malloc
+                                                                  delegate_ticker_str, l_value_delegated, l_value_fee,&l_tx_out_prev_idx,&l_value_change))) {//malloc
             dap_chain_wallet_close(l_wallet);
             DAP_DEL_Z(l_owner_addr);
             dap_chain_datum_tx_delete(l_tx);
@@ -640,6 +624,36 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
         }
 
         dap_chain_datum_tx_add_item(&l_tx, (byte_t *)l_receipt);
+
+        dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(&l_tx_burning_hash, l_tx_out_prev_idx-1);
+        dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in);
+        l_value_transfer = l_value_change;
+    }
+    else
+    {
+            dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(l_ledger, l_ticker_str,
+                                                                                     l_owner_addr, l_value_need, &l_value_transfer);
+            if(!l_list_used_out) {
+                log_it( L_ERROR, "Nothing to transfer (not enough funds)");
+                return -1;
+            }
+
+            {
+                uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
+                assert(EQUAL_256(l_value_to_items, l_value_transfer));
+                dap_list_free_full(l_list_used_out, free);
+            }
+    }
+    // coin back
+
+    SUBTRACT_256_256(l_value_transfer, l_value_pack, &l_value_back);
+    //SUM_256_256(l_value_back, l_tx_out_cond->header.value, &l_value_back);
+    if (!IS_ZERO_256(l_value_back)) {
+        if(dap_chain_datum_tx_add_out_item(&l_tx, l_owner_addr, l_value_back) != 1)
+        {
+            dap_chain_datum_tx_delete(l_tx);
+            return COIN_BACK_ERROR;
+        }
     }
 
     if(dap_chain_datum_tx_add_sign_item(&l_tx, l_owner_key) != 1) {
@@ -1135,7 +1149,13 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_hash_f
         return false;
 
     if (!EQUAL_256(a_cond->header.value, l_tx_out->header.value))
+    {
+        char *l_balance_coins = dap_chain_balance_to_coins(a_cond->header.value);
+        log_it(L_ERROR, "a_cond->header.value - %s", l_balance_coins);
+        l_balance_coins = dap_chain_balance_to_coins(l_tx_out->header.value);
+        log_it(L_ERROR, "l_tx_out->header.value - %s", l_balance_coins);
         return false;
+    }
 
     if (a_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX) {
         if (NULL == (delegate_token = dap_chain_ledger_token_ticker_check(a_ledger, delegated_ticker))
@@ -1241,7 +1261,7 @@ dap_chain_datum_t *dap_chain_net_srv_stake_lock_datum_create(dap_chain_net_t *a_
                                                    const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
                                                    uint256_t a_value, uint256_t a_value_fee, dap_chain_net_srv_uid_t a_srv_uid,
                                                    dap_time_t a_time_staking, uint256_t a_reinvest_percent,
-                                                   bool a_create_base_tx)
+                                                   bool a_create_base_tx,uint256_t *a_value_change, uint32_t *a_tx_out_prev_idx)
 {
     dap_ledger_t * l_ledger = a_net ? dap_chain_ledger_by_net_name( a_net->pub.name ) : NULL;
     // check valid param
@@ -1251,17 +1271,14 @@ dap_chain_datum_t *dap_chain_net_srv_stake_lock_datum_create(dap_chain_net_t *a_
 
     // find the transactions from which to take away coins
     uint256_t l_value_transfer = {}; // how many coins to transfer
-    uint256_t l_value_need = a_value, l_net_fee = {}, l_total_fee = {};
-//	SUM_256_256(a_value, a_value_fee, &l_value_need);
+    uint256_t l_value_need = {}, l_net_fee = {}, l_total_fee = {};
+    SUM_256_256(a_value, a_value_fee, &l_value_need);
     // where to take coins for service
     dap_chain_addr_t l_addr_from;
     dap_chain_addr_t l_net_fee_addr = {};
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, NULL, &l_net_fee, &l_net_fee_addr);
     if(l_net_fee_used)
-        SUM_256_256(l_net_fee,a_value_fee,&l_total_fee);
-    else
-        SUM_256_256(l_total_fee,a_value_fee,&l_total_fee);
-    SUM_256_256(l_value_need,l_total_fee,&l_value_need);
+        SUM_256_256(l_value_need,l_net_fee,&l_value_need);
 
     dap_chain_addr_fill_from_key(&l_addr_from, a_key_from, a_net->pub.id);
     // list of transaction with 'out' items
@@ -1287,12 +1304,13 @@ dap_chain_datum_t *dap_chain_net_srv_stake_lock_datum_create(dap_chain_net_t *a_
         if(l_tx_out_cond) {
             SUM_256_256(l_value_pack, a_value, &l_value_pack);
             dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_tx_out_cond);
-//			DAP_DEL_Z(l_tx_out_cond);
+            DAP_DEL_Z(l_tx_out_cond);
             // transaction fee
 //			if (!IS_ZERO_256(a_value_fee)) {
                 // TODO add condition with fee for mempool-as-service
 //			}
         }//TODO: else return false;
+        (*a_tx_out_prev_idx)++;
 
         uint256_t l_value_back = {};
         // Network fee
@@ -1303,8 +1321,9 @@ dap_chain_datum_t *dap_chain_net_srv_stake_lock_datum_create(dap_chain_net_t *a_
                 return NULL;
             }
             SUM_256_256(l_value_pack, l_net_fee, &l_value_pack);
+            (*a_tx_out_prev_idx)++;
         }
-        // Validator's fee        
+        // Validator's fee
         if (!IS_ZERO_256(a_value_fee)) {
             if (dap_chain_datum_tx_add_fee_item(&l_tx, a_value_fee) != 1) {
                 dap_chain_datum_tx_delete(l_tx);
@@ -1312,10 +1331,9 @@ dap_chain_datum_t *dap_chain_net_srv_stake_lock_datum_create(dap_chain_net_t *a_
                 return NULL;
             }
             SUM_256_256(l_value_pack, a_value_fee, &l_value_pack);
+            (*a_tx_out_prev_idx)++;
         }
-
         // coin back
-
         SUBTRACT_256_256(l_value_transfer, l_value_pack, &l_value_back);
         if (!IS_ZERO_256(l_value_back)) {
             if(dap_chain_datum_tx_add_out_item(&l_tx, &l_addr_from, l_value_back) != 1) {
@@ -1323,6 +1341,8 @@ dap_chain_datum_t *dap_chain_net_srv_stake_lock_datum_create(dap_chain_net_t *a_
                 log_it( L_ERROR, "Cant add coin back output");
                 return NULL;
             }
+            (*a_tx_out_prev_idx)++;
+            *a_value_change = l_value_back;
         }
     }
 
@@ -1376,7 +1396,7 @@ dap_chain_tx_out_cond_t *dap_chain_net_srv_stake_lock_create_cond_out(dap_pkey_t
 dap_chain_datum_t *dap_chain_burning_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_from,
                                              const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_to,
                                              const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
-                                             uint256_t a_value)
+                                             uint256_t a_value, uint256_t a_value_fee, uint32_t *a_tx_out_prev_idx,uint256_t *a_value_change)
 {
     // check valid param
     if(!a_chain | !a_key_from || ! a_addr_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
@@ -1385,14 +1405,23 @@ dap_chain_datum_t *dap_chain_burning_tx_create(dap_chain_t *a_chain, dap_enc_key
 
     // find the transactions from which to take away coins
     uint256_t l_value_transfer = {}; // how many coins to transfer
+    uint256_t l_net_fee = {};
+    uint256_t l_total_fee = a_value_fee;
+    dap_chain_addr_t l_addr_fee = {};
+    const char *l_native_ticker = dap_chain_net_by_id(a_chain->net_id)->pub.native_ticker;
     dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(a_chain->ledger, a_token_ticker,
                                                                              a_addr_from, a_value, &l_value_transfer);
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_chain->net_id, &l_net_fee, &l_addr_fee);
+    if(l_net_fee_used)
+        SUM_256_256(l_total_fee,l_net_fee,&l_total_fee);
+
     if (!l_list_used_out) {
         log_it(L_WARNING,"Not enough funds to transfer");
         return NULL;
     }
-    // create empty transaction
+    // create empty transaction    
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+    //----------burning add transaction------------
     // add 'in' items
     {
         uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
@@ -1402,17 +1431,64 @@ dap_chain_datum_t *dap_chain_burning_tx_create(dap_chain_t *a_chain, dap_enc_key
     // add 'out' items
     {
         uint256_t l_value_pack = {}; // how much datoshi add to 'out' items
-        if(dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to, a_value) == 1) {
+        if (dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_to, a_value, a_token_ticker)==1){
             SUM_256_256(l_value_pack, a_value, &l_value_pack);
+            (*a_tx_out_prev_idx)++;
         }
         // coin back
         uint256_t l_value_back;
         SUBTRACT_256_256(l_value_transfer, l_value_pack, &l_value_back);
         if(!IS_ZERO_256(l_value_back)) {
-            if(dap_chain_datum_tx_add_out_item(&l_tx, a_addr_from, l_value_back) != 1) {
+            if (!dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_from, l_value_back, a_token_ticker)){
                 dap_chain_datum_tx_delete(l_tx);
                 return NULL;
             }
+            (*a_tx_out_prev_idx)++;
+        }        
+    }
+    //----------fee add transaction------------
+    l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(a_chain->ledger, l_native_ticker,
+                                                                                 a_addr_from, l_total_fee, &l_value_transfer);
+    // add 'in' items
+    {
+        uint256_t l_value_to_items_fee = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
+        assert(EQUAL_256(l_value_to_items_fee, l_value_transfer));
+        dap_list_free_full(l_list_used_out, free);
+    }
+    // add 'out fee' items
+    {
+        uint256_t l_value_pack = {};
+        // Network fee
+        if(l_net_fee_used){
+            if (!dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr_fee, l_net_fee, l_native_ticker)){
+                dap_chain_datum_tx_delete(l_tx);
+                return NULL;
+            }
+            SUM_256_256(l_value_pack, l_net_fee, &l_value_pack);
+            (*a_tx_out_prev_idx)++;
+        }
+        // Validator's fee
+        if (!IS_ZERO_256(a_value_fee)) {
+            if (dap_chain_datum_tx_add_fee_item(&l_tx, a_value_fee) == 1)
+            {
+                SUM_256_256(l_value_pack, a_value_fee, &l_value_pack);
+                (*a_tx_out_prev_idx)++;
+            }
+            else {
+                dap_chain_datum_tx_delete(l_tx);
+                return NULL;
+            }
+        }
+        // coin back
+        uint256_t l_value_back;
+        SUBTRACT_256_256(l_value_transfer, l_value_pack, &l_value_back);
+        if(!IS_ZERO_256(l_value_back)) {
+            if(dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_from, l_value_back,l_native_ticker) != 1) {
+                dap_chain_datum_tx_delete(l_tx);
+                return NULL;
+            }
+            (*a_tx_out_prev_idx)++;
+            *a_value_change = l_value_back;
         }
     }
 
@@ -1432,44 +1508,82 @@ dap_chain_datum_t *dap_chain_burning_tx_create(dap_chain_t *a_chain, dap_enc_key
 
 static char *dap_chain_mempool_base_tx_for_stake_lock_create(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_emission_hash,
                                                         dap_chain_id_t a_emission_chain_id, uint256_t a_emission_value, const char *a_ticker,
-                                                        dap_chain_addr_t *a_addr_to, dap_enc_key_t *a_key_from, const char *a_hash_out_type, uint256_t a_value_fee)
+                                                        dap_chain_addr_t *a_addr_to, dap_enc_key_t *a_key_from, const char *a_hash_out_type,
+                                                        uint256_t a_value_fee, uint256_t a_value_change, uint32_t a_tx_out_prev_idx)
 {
 
     uint256_t l_net_fee = {};
+    uint256_t l_value_transfer = {}; // how many coins to transfer
+    uint256_t l_value_need = a_value_fee;
     dap_chain_addr_t l_net_fee_addr = {};
+    dap_chain_addr_t *l_addr_from;
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+
+    const char *l_native_ticker = l_net->pub.native_ticker;
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_chain->net_id, NULL, &l_net_fee, &l_net_fee_addr);
+    if(l_net_fee_used)
+        SUM_256_256(l_value_need,l_net_fee,&l_value_need);
+
     // create first transaction (with tx_token)
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
     l_tx->header.ts_created = time(NULL);
-    dap_chain_hash_fast_t l_tx_prev_hash = { 0 };
+
+    l_addr_from = DAP_NEW_Z(dap_chain_addr_t);
+    dap_chain_addr_fill_from_key(l_addr_from, a_key_from, l_net->pub.id);
     // create items
 
     dap_chain_tx_in_ems_t *l_tx_token = dap_chain_datum_tx_item_token_create(a_emission_chain_id, a_emission_hash, a_ticker);
-    dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(&l_tx_prev_hash, 0);
-    dap_chain_tx_out_t *l_out = dap_chain_datum_tx_item_out_create(a_addr_to, a_emission_value);
 
+    dap_chain_tx_in_t *l_in = dap_chain_datum_tx_item_in_create(a_emission_hash, a_tx_out_prev_idx-1);
+    //dap_chain_tx_out_t *l_out = dap_chain_datum_tx_item_out_create(a_addr_to, a_emission_value);
 
     // pack items to transaction
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_tx_token);
     dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_in);
-    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out);
+    //dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_out);
+    if (!dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_to, a_emission_value, a_ticker)){
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
+//    dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(a_chain->ledger, l_native_ticker,
+//                                                                             l_addr_from, l_value_need, &l_value_transfer);
+    if(compare256(a_value_change,l_value_need)<0) {
+        log_it(L_WARNING,"Not enough funds to transfer");
+        DAP_DEL_Z(l_addr_from);
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    l_value_transfer = a_value_change;
+    uint256_t l_value_back = l_value_transfer;
+    //add in
+//    uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
+//    assert(EQUAL_256(l_value_to_items, l_value_transfer));
+//    dap_list_free_full(l_list_used_out, NULL);
     // Network fee
-/*    if (l_net_fee_used) {
-        if (dap_chain_datum_tx_add_out_item(&l_tx, &l_net_fee_addr, l_net_fee) != 1) {
+    if(l_net_fee_used){
+        if (!dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_net_fee_addr, l_net_fee, l_native_ticker)){
             dap_chain_datum_tx_delete(l_tx);
-            log_it(L_ERROR, "Cant add network fee output");
+            DAP_DEL_Z(l_addr_from);
             return NULL;
         }
+        SUBTRACT_256_256(l_value_back, l_net_fee, &l_value_back);
     }
     // Validator's fee
-    if (!IS_ZERO_256(a_value_fee)) {
-        if (dap_chain_datum_tx_add_fee_item(&l_tx, a_value_fee) != 1) {
-            dap_chain_datum_tx_delete(l_tx);
-            log_it(L_ERROR, "Cant add validator's fee output");
-            return NULL;
-        }
+    if (dap_chain_datum_tx_add_fee_item(&l_tx, a_value_fee) != 1) {
+        dap_chain_datum_tx_delete(l_tx);
+        log_it(L_ERROR, "Cant add validator's fee output");
+        return NULL;
     }
-    */
+    SUBTRACT_256_256(l_value_back, a_value_fee, &l_value_back);
+    // coin back
+    if (!dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_from, l_value_back, l_native_ticker)){
+        dap_chain_datum_tx_delete(l_tx);
+        DAP_DEL_Z(l_addr_from);
+        return NULL;
+    }
+    DAP_DEL_Z(l_addr_from);
+
     if (a_key_from) {
         if(dap_chain_datum_tx_add_sign_item(&l_tx, a_key_from) < 0) {
             log_it(L_WARNING, "Private key not valid");
@@ -1481,8 +1595,9 @@ static char *dap_chain_mempool_base_tx_for_stake_lock_create(dap_chain_t *a_chai
     }
 
     DAP_DEL_Z(l_tx_token);
-    DAP_DEL_Z(l_in);
-    DAP_DEL_Z(l_out);
+    DAP_DEL_Z(l_addr_from);
+    //DAP_DEL_Z(l_in);
+   // DAP_DEL_Z(l_out);
 
     size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
 

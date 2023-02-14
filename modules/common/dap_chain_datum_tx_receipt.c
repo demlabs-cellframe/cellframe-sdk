@@ -109,6 +109,32 @@ dap_sign_t* dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t * l
     return l_sign;
 }
 
+uint32_t dap_chain_datum_tx_receipt_type_get(dap_chain_datum_tx_receipt_t * l_receipt)
+{
+    if (!l_receipt)
+        return -1;
+    return l_receipt->receipt_info.units_type.enm;
+}
+uint64_t    dap_chain_datum_tx_receipt_srv_uid_get(dap_chain_datum_tx_receipt_t * l_receipt)
+{
+    if (!l_receipt)
+        return -1;
+    return l_receipt->receipt_info.srv_uid.uint64;
+}
+uint64_t    dap_chain_datum_tx_receipt_units_get(dap_chain_datum_tx_receipt_t * l_receipt)
+{
+    if (!l_receipt)
+        return -1;
+    return l_receipt->receipt_info.units;
+}
+uint256_t   dap_chain_datum_tx_receipt_value_get(dap_chain_datum_tx_receipt_t * l_receipt)
+{
+    uint256_t res = {};
+    if (!l_receipt)
+        return res;
+    return l_receipt->receipt_info.value_datoshi;
+}
+
 /**
  * @brief dap_chain_datum_tx_receipt_signs_count
  * @param a_receipt

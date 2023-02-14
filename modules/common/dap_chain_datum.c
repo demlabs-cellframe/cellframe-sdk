@@ -282,7 +282,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                 l_hash_str = dap_chain_hash_fast_to_str_new(l_hash_tmp);
             else
                 l_hash_str = dap_enc_base58_encode_hash_to_str(l_hash_tmp);
-            dap_string_append_printf(a_str_out, "\t TOKEN:\n"
+            dap_string_append_printf(a_str_out, "\t IN_EMS:\n"
                                                 "\t\t ticker: %s \n"
                                                 "\t\t token_emission_hash: %s\n"
                                                 "\t\t token_emission_chain_id: 0x%016"DAP_UINT64_FORMAT_x"\n",
@@ -297,7 +297,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                 l_hash_str = dap_chain_hash_fast_to_str_new(l_hash_tmp);
             else
                 l_hash_str = dap_enc_base58_encode_hash_to_str(l_hash_tmp);
-            dap_string_append_printf(a_str_out, "\t TOKEN EXT:\n"
+            dap_string_append_printf(a_str_out, "\t IN_EMS EXT:\n"
                                          "\t\t Version: %u\n"
                                          "\t\t Ticker: %s\n"
                                          "\t\t Ext chain id: 0x%016"DAP_UINT64_FORMAT_x"\n"
