@@ -92,7 +92,6 @@ typedef struct dap_chain_esbocs_round {
     // Attempt dependent fields
     dap_chain_addr_t attempt_submit_validator;
     dap_hash_fast_t attempt_candidate_hash;
-    dap_hash_fast_t precommit_candidate_hash;
     // Validators section
     uint16_t validators_synced_count;
     dap_list_t *validators_list;
@@ -103,6 +102,7 @@ typedef struct dap_chain_esbocs_validator {
     dap_chain_addr_t signing_addr;
     uint256_t weight;
     bool is_synced;
+    bool is_chosen;
 } dap_chain_esbocs_validator_t;
 
 typedef struct dap_chain_esbocs_session {
