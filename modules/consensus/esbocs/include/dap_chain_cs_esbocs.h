@@ -131,5 +131,5 @@ typedef struct dap_chain_esbocs_session {
 } dap_chain_esbocs_session_t;
 
 #define DAP_CHAIN_ESBOCS(a) ((dap_chain_esbocs_t *)(a)->_inheritor)
-int dap_chain_esbocs_init();
-void dap_chain_esbocs_deinit(void);
+int dap_chain_cs_esbocs_init();
+void dap_chain_cs_esbocs_deinit(void);

@@ -30,6 +30,8 @@ static void s_session_candidate_to_chain(
             dap_chain_esbocs_session_t *a_session, dap_chain_hash_fast_t *a_candidate_hash,
                             dap_chain_block_t *a_candidate, size_t a_candidate_size);
 static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session);
+static void s_session_candidate_verify(dap_chain_esbocs_session_t *a_session, dap_chain_block_t *a_candidate,
+                                       size_t a_candidate_size, dap_hash_fast_t *a_candidate_hash);
 static bool s_session_timer(void *a_arg);
 static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_message_type, dap_hash_fast_t *a_block_hash,
                                     const void *a_data, size_t a_data_size, dap_list_t *a_validators);
@@ -65,7 +67,7 @@ typedef struct dap_chain_esbocs_pvt {
     // Base params
     dap_enc_key_t *blocks_sign_key;
     // Validators section
-    bool validators_list_by_stake;
+    bool poa_mode;
     uint16_t min_validators_count;
     // Debug flag
     bool debug;
@@ -106,7 +108,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 
     l_esbocs_pvt->debug = dap_config_get_item_bool_default(a_chain_cfg, "esbocs", "consensus_debug", false);
 
-    l_esbocs_pvt->validators_list_by_stake = dap_config_get_item_bool_default(a_chain_cfg, "esbocs", "validators_list_by_stake", true);
+    l_esbocs_pvt->poa_mode = dap_config_get_item_bool_default(a_chain_cfg, "esbocs", "poa_mode", false);
     l_esbocs_pvt->round_start_sync_timeout = dap_config_get_item_uint16_default(a_chain_cfg, "esbocs", "round_start_sync_timeout", 15);
     l_esbocs_pvt->new_round_delay = dap_config_get_item_uint16(a_chain_cfg, "esbocs", "new_round_delay");
     l_esbocs_pvt->round_attempts_max = dap_config_get_item_uint16_default(a_chain_cfg, "esbocs", "round_attempts_max", 4);
@@ -118,7 +120,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         l_ret = -1;
         goto lb_err;
     }
-    if (!l_esbocs_pvt->validators_list_by_stake) { // auth by cert for PoA mode
+    if (l_esbocs_pvt->poa_mode) { // auth by certs in PoA mode
         const char *l_auth_certs_prefix = dap_config_get_item_str(a_chain_cfg, "esbocs", "auth_certs_prefix");
         uint16_t l_node_addrs_count;
         char **l_addrs = dap_config_get_array_str(a_chain_cfg, "esbocs", "validators_addrs", &l_node_addrs_count);
@@ -203,7 +205,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
 
     dap_chain_addr_t l_my_signing_addr;
     dap_chain_addr_fill_from_key(&l_my_signing_addr, l_esbocs_pvt->blocks_sign_key, a_chain->net_id);
-    if (l_esbocs_pvt->validators_list_by_stake) {
+    if (!l_esbocs_pvt->poa_mode) {
         if (!dap_chain_net_srv_stake_key_delegated(&l_my_signing_addr)) {
             log_it(L_WARNING, "Signing key is not delegated by stake service. Switch off validator mode");
             return 0;
@@ -241,6 +243,12 @@ static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
     if (!s_session_items)
         dap_timerfd_delete(s_session_cs_timer);
     s_session_round_clear(l_session);
+    dap_chain_esbocs_sync_item_t *l_item, *l_tmp;
+    HASH_ITER(hh, l_session->sync_items, l_item, l_tmp) {
+        HASH_DEL(l_session->sync_items, l_item);
+        dap_list_free_full(l_item->messages, NULL);
+        DAP_DELETE(l_item);
+    }
     pthread_rwlock_unlock(&l_session->rwlock);
     DAP_DELETE(l_session);
     if (l_esbocs->_pvt)
@@ -268,7 +276,7 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_session_t *a_session, 
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(a_session->esbocs);
     dap_list_t *l_ret = NULL;
 
-    if (l_esbocs_pvt->validators_list_by_stake) {
+    if (!l_esbocs_pvt->poa_mode) {
         dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators();
         size_t l_validators_count = dap_list_length(l_validators);
         if (l_validators_count < l_esbocs_pvt->min_validators_count) {
@@ -365,18 +373,31 @@ static void s_session_round_clear(dap_chain_esbocs_session_t *a_session)
         DAP_DELETE(l_message_item->message);
         DAP_DELETE(l_message_item);
     }
-    if (a_session->cur_round.validators_list)
-        dap_list_free_full(a_session->cur_round.validators_list, NULL);
+    dap_chain_esbocs_store_t *l_store_item, *l_store_tmp;
+    HASH_ITER(hh, a_session->cur_round.store_items, l_store_item, l_store_tmp) {
+        HASH_DEL(a_session->cur_round.store_items, l_store_item);
+        dap_list_free_full(l_store_item->candidate_signs, NULL);
+        DAP_DELETE(l_store_item);
+    }
+    dap_list_free_full(a_session->cur_round.validators_list, NULL);
 
-    a_session->cur_round = (dap_chain_esbocs_round_t){.id = ++a_session->cur_round.id};
+    a_session->cur_round = (dap_chain_esbocs_round_t){.id = a_session->cur_round.id};
 }
 
 static void s_session_round_new(dap_chain_esbocs_session_t *a_session)
 {
     s_session_round_clear(a_session);
+    a_session->cur_round.id++;
     a_session->state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START;
     s_get_last_block_hash(a_session->chain, &a_session->cur_round.last_block_hash);
     a_session->cur_round.validators_list = s_get_validators_list(a_session, &a_session->cur_round.last_block_hash);
+
+    dap_chain_esbocs_sync_item_t *l_item, *l_tmp;
+    HASH_ITER(hh, a_session->sync_items, l_item, l_tmp) {
+        HASH_DEL(a_session->sync_items, l_item);
+        dap_list_free_full(l_item->messages, NULL);
+        DAP_DELETE(l_item);
+    }
 
     if (PVT(a_session->esbocs)->new_round_delay)
         dap_timerfd_start(PVT(a_session->esbocs)->new_round_delay, s_session_send_startsync, a_session);
@@ -402,11 +423,11 @@ static void s_session_attempt_new(dap_chain_esbocs_session_t *a_session)
     for (dap_list_t *it = a_session->cur_round.validators_list; it; it = it->next) {
         dap_chain_esbocs_validator_t *l_validator = it->data;
         if (l_validator->is_synced && !l_validator->is_chosen) {
+            // We have synced validator with no submitted candidate
             debug_if(PVT(a_session->esbocs)->debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U". Attempt:%hu is started"                                                     " Round finish by reason: attempts is out",
                                                                 a_session->chain->net_name, a_session->chain->name,
                                                                     a_session->cur_round.id, a_session->cur_round.attempt_num);
             s_session_state_change(a_session, DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC, dap_time_now());
-            // TODO: process already submited canidate
         }
     }
     debug_if(PVT(a_session->esbocs)->debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U"."
@@ -455,8 +476,17 @@ static uint64_t s_session_calc_current_round_id(dap_chain_esbocs_session_t *a_se
 
 static int s_signs_sort_callback(const void *a_sign1, const void *a_sign2, UNUSED_ATTR void *a_user_data)
 {
-    size_t l_size_min = MIN(dap_sign_get_size((dap_sign_t *)a_sign1), dap_sign_get_size((dap_sign_t *)a_sign2));
-    return memcmp(a_sign1, a_sign2, l_size_min);
+    size_t l_size1 = dap_sign_get_size((dap_sign_t *)a_sign1);
+    size_t l_size2 = dap_sign_get_size((dap_sign_t *)a_sign2);
+    size_t l_size_min = MIN(l_size1, l_size2);
+    int l_ret = memcmp(a_sign1, a_sign2, l_size_min);
+    if (!l_ret) {
+        if (l_size1 < l_size2)
+            l_ret = -1;
+        else if (l_size1 > l_size2)
+            l_ret = 1;
+    }
+    return l_ret;
 }
 
 static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s_esbocs_session_state a_new_state, dap_time_t a_time)
@@ -487,6 +517,17 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
         a_session->cur_round.attempt_submit_validator = l_validator->signing_addr;
         if (dap_chain_addr_compare(&a_session->cur_round.attempt_submit_validator, &a_session->my_signing_addr))
             s_session_candidate_submit(a_session);
+        else {
+            dap_chain_esbocs_message_item_t *l_item, *l_tmp;
+            HASH_ITER(hh, a_session->cur_round.message_items, l_item, l_tmp) {
+                if (l_item->message->hdr.type == DAP_STREAM_CH_VOTING_MSG_TYPE_SUBMIT &&
+                        dap_chain_addr_compare(&l_item->signing_addr, &a_session->cur_round.attempt_submit_validator)) {
+                    // Verify and vote already submitted candidate
+                    s_session_candidate_verify(a_session, (dap_chain_block_t *)l_item->message->msg_n_sign,
+                                               l_item->message->hdr.message_size, &l_item->message->hdr.candidate_hash);
+                }
+            }
+        }
     } break;
     case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_FINISH: {
         dap_chain_esbocs_store_t *l_store;
@@ -1242,7 +1283,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
 
         dap_chain_addr_t l_signing_addr;
         dap_chain_addr_fill_from_sign(&l_signing_addr, l_sign, a_blocks->chain->net_id);
-        if (l_esbocs_pvt->validators_list_by_stake) {
+        if (!l_esbocs_pvt->poa_mode) {
              // Compare signature with delegated keys
             if (!dap_chain_net_srv_stake_key_delegated(&l_signing_addr))
                 continue;
