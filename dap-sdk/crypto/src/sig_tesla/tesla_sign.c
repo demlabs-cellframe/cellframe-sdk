@@ -802,7 +802,7 @@ int tesla_crypto_sign( tesla_signature_t *sig, const unsigned char *m, unsigned 
             sample_y(y, randomness, ++nonce, p);
             tesla_poly_mul(v, a, y, p);
             hash_vm(c, v, m, mlen, p);
-            tesla_encode_c(pos_list, sign_list, c, p);
+            encode_c(pos_list, sign_list, c, p);
             sparse_mul16(Sc, private_key->data, pos_list, sign_list, p);
             tesla_poly_add(z, y, Sc, p);
 
@@ -827,7 +827,7 @@ int tesla_crypto_sign( tesla_signature_t *sig, const unsigned char *m, unsigned 
                 tesla_poly_mul(&v[k * p->PARAM_N], &a[k * p->PARAM_N], y_ntt, p);
 
             hash_vm(c, v, m, mlen, p);
-            tesla_encode_c(pos_list, sign_list, c, p);
+            encode_c(pos_list, sign_list, c, p);
             sparse_mul8(Sc, private_key->data, pos_list, sign_list, p);
             tesla_poly_add(z, y, Sc, p);
 
@@ -929,7 +929,7 @@ int tesla_crypto_sign_open( tesla_signature_t *sig, const unsigned char *m, unsi
 
     decode_pk((uint32_t*)pk_t, seed, public_key->data, p);
     tesla_poly_uniform(a, seed, p);
-    tesla_encode_c(pos_list, sign_list, c, p);
+    encode_c(pos_list, sign_list, c, p);
 
     if(p->kind <= 2) {
         tesla_poly_mul(w, a, z, p);

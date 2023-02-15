@@ -107,7 +107,7 @@ void tesla_poly_uniform(poly_k *a, const unsigned char *seed, tesla_param_t *p);
 ///==========================================================================================
 void sample_y(int64_t *y, const unsigned char *seed, int nonce, tesla_param_t *p);
 void sample_gauss_poly(int64_t *x, const unsigned char *seed, int nonce, tesla_param_t *p);
-void tesla_encode_c(uint32_t *pos_list, int16_t *sign_list, unsigned char *c_bin, tesla_param_t *p);
+void encode_c(uint32_t *pos_list, int16_t *sign_list, unsigned char *c_bin, tesla_param_t *p);
 
 #ifdef __cplusplus
 }
