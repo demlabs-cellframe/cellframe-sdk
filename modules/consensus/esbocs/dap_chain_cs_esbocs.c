@@ -21,6 +21,7 @@ enum s_esbocs_session_state {
 };
 
 static dap_list_t *s_validator_check(dap_chain_addr_t *a_addr, dap_list_t *a_validators);
+static void s_get_last_block_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_last_hash_ptr);
 static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s_esbocs_session_state a_new_state, dap_time_t a_time);
 static void s_session_packet_in(void * a_arg, dap_chain_node_addr_t * a_sender_node_addr,
                                 dap_chain_hash_fast_t *a_data_hash, uint8_t *a_data, size_t a_data_size);
@@ -172,6 +173,18 @@ lb_err:
     return l_ret;
 }
 
+static  void s_atom_notifier(void *a_arg, UNUSED_ATTR dap_chain_t *a_chain, UNUSED_ATTR dap_chain_cell_id_t a_id,
+                             UNUSED_ATTR void* a_atom, UNUSED_ATTR size_t a_atom_size)
+{
+    dap_chain_esbocs_session_t *l_session = a_arg;
+    pthread_rwlock_wrlock(&l_session->rwlock);
+    dap_chain_hash_fast_t l_last_block_hash;
+    s_get_last_block_hash(l_session->chain, &l_last_block_hash);
+    if (!dap_hash_fast_compare(&l_last_block_hash, &l_session->cur_round.last_block_hash))
+        s_session_round_new(l_session);
+    pthread_rwlock_unlock(&l_session->rwlock);
+}
+
 static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cfg) {
 
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
@@ -223,6 +236,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     l_session->my_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
     pthread_rwlock_init(&l_session->rwlock, NULL);
     dap_stream_ch_chain_voting_in_callback_add(l_session, s_session_packet_in);
+    dap_chain_add_callback_notify(a_chain, s_atom_notifier, l_session);
     s_session_round_new(l_session);
 
     log_it(L_INFO, "ESBOCS: init session for net:%s, chain:%s", a_chain->net_name, a_chain->name);
@@ -354,16 +368,23 @@ static dap_list_t *s_validator_check(dap_chain_addr_t *a_addr, dap_list_t *a_val
     return dap_list_find_custom(a_validators, a_addr, s_addr_compare);
 }
 
-static bool s_session_send_startsync(void *a_arg)
+static void s_session_send_startsync(dap_chain_esbocs_session_t *a_session)
+{
+    a_session->ts_round_sync_start = dap_time_now();
+    dap_chain_hash_fast_t l_last_block_hash;
+    s_get_last_block_hash(a_session->chain, &l_last_block_hash);
+    s_message_send(a_session, DAP_STREAM_CH_VOTING_MSG_TYPE_START_SYNC, &l_last_block_hash,
+                   NULL, 0, a_session->cur_round.validators_list);
+    debug_if(PVT(a_session->esbocs)->debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U" Sent START_SYNC pkt",
+                    a_session->chain->net_name, a_session->chain->name, a_session->cur_round.id);
+}
+
+static bool s_session_send_startsync_on_timer(void *a_arg)
 {
     dap_chain_esbocs_session_t *l_session = a_arg;
-    l_session->ts_round_sync_start = dap_time_now();
-    dap_chain_hash_fast_t l_last_block_hash;
-    s_get_last_block_hash(l_session->chain, &l_last_block_hash);
-    s_message_send(l_session, DAP_STREAM_CH_VOTING_MSG_TYPE_START_SYNC, &l_last_block_hash,
-                   NULL, 0, l_session->cur_round.validators_list);
-    debug_if(PVT(l_session->esbocs)->debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U" Sent START_SYNC pkt",
-                    l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id);
+    pthread_rwlock_wrlock(&l_session->rwlock);
+    s_session_send_startsync(l_session);
+    pthread_rwlock_unlock(&l_session->rwlock);
     return false;
 }
 
@@ -387,6 +408,7 @@ static void s_session_round_clear(dap_chain_esbocs_session_t *a_session)
             .id = a_session->cur_round.id,
             .last_block_hash = a_session->cur_round.last_block_hash
     };
+    //TODO delete sync msg send timer
 }
 
 static void s_session_round_new(dap_chain_esbocs_session_t *a_session)
@@ -432,7 +454,7 @@ static void s_session_round_new(dap_chain_esbocs_session_t *a_session)
                                                         a_session->chain->net_name, a_session->chain->name,
                                                             a_session->cur_round.id, PVT(a_session->esbocs)->new_round_delay);
     if (PVT(a_session->esbocs)->new_round_delay && !l_round_already_started)
-        dap_timerfd_start(PVT(a_session->esbocs)->new_round_delay, s_session_send_startsync, a_session);
+        dap_timerfd_start(PVT(a_session->esbocs)->new_round_delay, s_session_send_startsync_on_timer, a_session);
     else
         s_session_send_startsync(a_session);
 }
