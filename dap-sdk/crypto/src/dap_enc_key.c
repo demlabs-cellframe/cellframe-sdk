@@ -39,6 +39,9 @@
 #include "dap_enc_newhope.h"
 #include "dap_enc_falcon.h"
 #include "dap_enc_ringct20.h"
+#include "dap_pqlr_dilithium.h"
+#include "dap_pqlr_falcon.h"
+#include "dap_pqlr_sphincs.h"
 
 #include "dap_enc_key.h"
 

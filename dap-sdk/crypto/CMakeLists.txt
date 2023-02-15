@@ -47,8 +47,6 @@ file( GLOB CRYPTO_HEADERS
       src/falcon/*.h
 )
 
-#option(DAP_PQLR "PQLR Intergration" ON)
-
 if (DAP_PQLR)
     message("[*] Building with QApp PQLR libraty from path ${DAP_PQLR}")
     if (POLICY CMP0074) # using PackageName_ROOT as prefix
@@ -59,9 +57,6 @@ if (DAP_PQLR)
     include_directories(${PQLR_INCLUDE_DIR})
     file(GLOB DAP_PQLR_SRC src/pqlr/*.c src/pqlr/*.h)
     include_directories(src/pqlr)
-    #add_compile_definitions("DAP_PQLR")
-    #add_definitions("-DDAP_PQLR")
-    #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DDAP_PQLR")
 endif()
 
 
