@@ -108,7 +108,6 @@ typedef struct dap_chain_esbocs_validator {
 typedef struct dap_chain_esbocs_session {
     dap_chain_t *chain;
     dap_chain_esbocs_t *esbocs;
-    dap_interval_timer_t session_timer;
 
     dap_chain_node_addr_t my_addr;
 
