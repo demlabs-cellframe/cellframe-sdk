@@ -677,6 +677,13 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
             }
         }
         HASH_CLEAR(th, l_tmp);
+        if (s_debug_more) {
+            for (size_t i = 0; i < l_hashes_linked; ++i) {
+                char l_hsh[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                dap_hash_fast_to_str(&l_hashes[i], l_hsh, DAP_CHAIN_HASH_FAST_STR_SIZE);
+                log_it(L_INFO, "### linked hash %lu : %s", i, l_hsh);
+            }
+        }
         if (l_hashes_linked < l_hashes_size) {
             log_it(L_ERROR, "No enough unlinked events present, a dummy round?");
             return false;
@@ -886,6 +893,11 @@ void s_dag_events_lasts_delete_linked_with_event(dap_chain_cs_dag_t * a_dag, dap
 {
     for (size_t i = 0; i< a_event->header.hash_count; i++) {
         dap_chain_hash_fast_t * l_hash =  ((dap_chain_hash_fast_t *) a_event->hashes_n_datum_n_signs) + i;
+        if (s_debug_more) {
+            char l_hsh[DAP_CHAIN_HASH_FAST_STR_SIZE];
+            dap_hash_fast_to_str(l_hash, l_hsh, DAP_CHAIN_HASH_FAST_STR_SIZE);
+            log_it(L_INFO, "### looking for hash %lu : %s", i, l_hsh);
+        }
         dap_chain_cs_dag_event_item_t * l_event_item = NULL;
         HASH_FIND(hh, PVT(a_dag)->events_lasts_unlinked ,l_hash ,sizeof (*l_hash),  l_event_item);
         if ( l_event_item ){
