@@ -53,7 +53,7 @@ dap_pkey_t *dap_pkey_from_enc_key(dap_enc_key_t *a_key)
                 return NULL;
         }
         size_t l_pub_key_size;
-        uint8_t *l_pkey = dap_enc_key_serealize_pub_key(a_key, &l_pub_key_size);
+        uint8_t *l_pkey = dap_enc_key_serialize_pub_key(a_key, &l_pub_key_size);
         if (!l_pkey) {
             log_it(L_WARNING,"Serialization failed");
             return NULL;

@@ -4544,7 +4544,7 @@ uint256_t dap_chain_ledger_tx_cache_get_out_cond_value(dap_ledger_t *a_ledger, d
     dap_chain_datum_tx_t *l_tx_tmp;
     dap_chain_hash_fast_t l_tx_first_hash = { 0 }; // start hash
     /* size_t l_pub_key_size = a_key_from->pub_key_data_size;
-     uint8_t *l_pub_key = dap_enc_key_serealize_pub_key(a_key_from, &l_pub_key_size);*/
+     uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(a_key_from, &l_pub_key_size);*/
     dap_chain_tx_out_cond_t *l_tx_out_cond;
     // Find all transactions
     do {
