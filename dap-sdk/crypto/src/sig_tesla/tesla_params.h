@@ -91,23 +91,23 @@ void tesla_private_and_public_keys_delete(tesla_private_key_t *private_key, tesl
 
 void tesla_signature_delete(tesla_signature_t *signature);
 
-int64_t init_mass_poly(poly *zeta, poly *zetainv, tesla_param_t *p);
-int64_t reduce(int64_t a, tesla_param_t *p);
+int64_t tesla_init_mass_poly(poly *zeta, poly *zetainv, tesla_param_t *p);
+int64_t tesla_reduce(int64_t a, tesla_param_t *p);
 int64_t barr_reduce(int64_t a, tesla_param_t *p);
-void ntt(poly *a, const poly *w, tesla_param_t *p);
-void nttinv(poly *a, const poly *w, tesla_param_t *p);
-void poly_pointwise(poly *result, const poly *x, const poly *y, tesla_param_t *p);
-void poly_ntt(poly *x_ntt, const poly *x, tesla_param_t *p);
-void poly_mul(poly *result, const poly *x, const poly *y, tesla_param_t *p);
-void poly_add(poly *result, const poly *x, const poly *y, tesla_param_t *p);
-void poly_sub(poly *result, const poly *x, const poly *y, tesla_param_t *p);
-void poly_uniform(poly_k *a, const unsigned char *seed, tesla_param_t *p);
+void tesla_ntt(poly *a, const poly *w, tesla_param_t *p);
+void tesla_nttinv(poly *a, const poly *w, tesla_param_t *p);
+void tesla_poly_pointwise(poly *result, const poly *x, const poly *y, tesla_param_t *p);
+void tesla_poly_ntt(poly *x_ntt, const poly *x, tesla_param_t *p);
+void tesla_poly_mul(poly *result, const poly *x, const poly *y, tesla_param_t *p);
+void tesla_poly_add(poly *result, const poly *x, const poly *y, tesla_param_t *p);
+void tesla_poly_sub(poly *result, const poly *x, const poly *y, tesla_param_t *p);
+void tesla_poly_uniform(poly_k *a, const unsigned char *seed, tesla_param_t *p);
 
 
 ///==========================================================================================
 void sample_y(int64_t *y, const unsigned char *seed, int nonce, tesla_param_t *p);
 void sample_gauss_poly(int64_t *x, const unsigned char *seed, int nonce, tesla_param_t *p);
-void encode_c(uint32_t *pos_list, int16_t *sign_list, unsigned char *c_bin, tesla_param_t *p);
+void tesla_encode_c(uint32_t *pos_list, int16_t *sign_list, unsigned char *c_bin, tesla_param_t *p);
 
 #ifdef __cplusplus
 }

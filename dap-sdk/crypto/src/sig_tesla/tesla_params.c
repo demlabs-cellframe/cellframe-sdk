@@ -158,7 +158,7 @@ bool tesla_params_init(tesla_param_t *params, tesla_kind_t kind){
   }
 }
 
-int64_t reduce(int64_t a, tesla_param_t *p) { // Montgomery reduction
+int64_t tesla_reduce(int64_t a, tesla_param_t *p) { // Montgomery reduction
 
     int64_t u;
 
@@ -174,7 +174,7 @@ int64_t barr_reduce(int64_t a, tesla_param_t *p) { // Barrett reduction
     return a - u;
 }
 
-void ntt(poly *a, const poly *w, tesla_param_t *p) { // Forward NTT transform
+void tesla_ntt(poly *a, const poly *w, tesla_param_t *p) { // Forward NTT transform
 
     int  Par_Q = (int)(p->PARAM_Q);
     int NumoProblems = p->PARAM_N >> 1, jTwiddle = 0;
@@ -185,12 +185,12 @@ void ntt(poly *a, const poly *w, tesla_param_t *p) { // Forward NTT transform
             int W = w[jTwiddle++];
             for (j = jFirst; j < jFirst + NumoProblems; j++) {
                 if(p->kind <= 3) {
-                    int temp = reduce(W * a[j + NumoProblems], p);
+                    int temp = tesla_reduce(W * a[j + NumoProblems], p);
                     a[j + NumoProblems] = a[j] + (Par_Q - temp);
                     a[j] = temp + a[j];
                 }
                 else {
-                    int temp = barr_reduce(reduce(W * a[j + NumoProblems], p), p);
+                    int temp = barr_reduce(tesla_reduce(W * a[j + NumoProblems], p), p);
                     a[j + NumoProblems] = barr_reduce(a[j] + (2LL * Par_Q - temp), p);
                     a[j] = barr_reduce(temp + a[j], p);
                 }
@@ -199,7 +199,7 @@ void ntt(poly *a, const poly *w, tesla_param_t *p) { // Forward NTT transform
     }
 }
 
-void nttinv(poly *a, const poly *w, tesla_param_t *p) { // Inverse NTT transform
+void tesla_nttinv(poly *a, const poly *w, tesla_param_t *p) { // Inverse NTT transform
 
     unsigned int NumoProblems = 1, jTwiddle = 0;
     for (NumoProblems = 1; NumoProblems < p->PARAM_N; NumoProblems *= 2) {
@@ -210,7 +210,7 @@ void nttinv(poly *a, const poly *w, tesla_param_t *p) { // Inverse NTT transform
                 for (j = jFirst; j < jFirst + NumoProblems; j++) {
                     int temp = a[j];
                     a[j] = barr_reduce(temp + a[j + NumoProblems], p);
-                    a[j + NumoProblems] = reduce(W * (temp + (2 * p->PARAM_Q - a[j + NumoProblems])), p);
+                    a[j + NumoProblems] = tesla_reduce(W * (temp + (2 * p->PARAM_Q - a[j + NumoProblems])), p);
                 }
             }
         }
@@ -221,7 +221,7 @@ void nttinv(poly *a, const poly *w, tesla_param_t *p) { // Inverse NTT transform
                 for (j = jFirst; j < jFirst + NumoProblems; j++) {
                     int temp = a[j];
                     a[j] = (temp + a[j + NumoProblems]);
-                    a[j + NumoProblems] = reduce(W * (temp + (2 * (int64_t)(p->PARAM_Q) - a[j + NumoProblems])), p);
+                    a[j + NumoProblems] = tesla_reduce(W * (temp + (2 * (int64_t)(p->PARAM_Q) - a[j + NumoProblems])), p);
                 }
             }
             NumoProblems *= 2;
@@ -230,7 +230,7 @@ void nttinv(poly *a, const poly *w, tesla_param_t *p) { // Inverse NTT transform
                 for (j = jFirst; j < jFirst + NumoProblems; j++) {
                     int temp = a[j];
                     a[j] = barr_reduce(temp + a[j + NumoProblems], p);
-                    a[j + NumoProblems] = reduce(W * (temp + (2 * (int64_t)(p->PARAM_Q) - a[j + NumoProblems])), p);
+                    a[j + NumoProblems] = tesla_reduce(W * (temp + (2 * (int64_t)(p->PARAM_Q) - a[j + NumoProblems])), p);
                 }
             }
         }
@@ -241,32 +241,32 @@ void nttinv(poly *a, const poly *w, tesla_param_t *p) { // Inverse NTT transform
                 for (j = jFirst; j < jFirst + NumoProblems; j++) {
                     int temp = a[j];
                     a[j] = barr_reduce((temp + a[j + NumoProblems]), p);
-                    a[j + NumoProblems] = barr_reduce(reduce(W * (temp + (2LL * p->PARAM_Q - a[j + NumoProblems])), p), p);
+                    a[j + NumoProblems] = barr_reduce(tesla_reduce(W * (temp + (2LL * p->PARAM_Q - a[j + NumoProblems])), p), p);
                 }
             }
         }
     }
 }
 
-void poly_pointwise(poly *result, const poly *x, const poly *y, tesla_param_t *p) { // Pointwise polynomial multiplication result = x.y
+void tesla_poly_pointwise(poly *result, const poly *x, const poly *y, tesla_param_t *p) { // Pointwise polynomial multiplication result = x.y
 
     unsigned int i;
 
     for (i = 0; i < p->PARAM_N; i++)
-        result[i] = reduce(x[i] * y[i], p);
+        result[i] = tesla_reduce(x[i] * y[i], p);
 }
 
-void poly_ntt(poly *x_ntt, const poly *x, tesla_param_t *p) { // Call to NTT function. Avoids input destruction
+void tesla_poly_ntt(poly *x_ntt, const poly *x, tesla_param_t *p) { // Call to NTT function. Avoids input destruction
 
     unsigned int i;
 
     poly *zeta = malloc(p->PARAM_N * sizeof(int64_t));
     poly *zetainv = malloc(p->PARAM_N * sizeof(int64_t));
-    init_mass_poly( zeta, zetainv, p);
+    tesla_init_mass_poly( zeta, zetainv, p);
 
     for (i = 0; i < p->PARAM_N; i++)
         x_ntt[i] = x[i];
-    ntt(x_ntt, zeta, p);
+    tesla_ntt(x_ntt, zeta, p);
 
     free(zeta);
     zeta = NULL;
@@ -274,12 +274,12 @@ void poly_ntt(poly *x_ntt, const poly *x, tesla_param_t *p) { // Call to NTT fun
     zetainv = NULL;
 }
 
-void poly_mul(poly *result, const poly *x, const poly *y, tesla_param_t *p) { // Polynomial multiplication result = x*y, with in place reduction for (X^N+1)
+void tesla_poly_mul(poly *result, const poly *x, const poly *y, tesla_param_t *p) { // Polynomial multiplication result = x*y, with in place reduction for (X^N+1)
     // The inputs x and y are assumed to be in NTT form
 
     poly *zeta = malloc(p->PARAM_N * sizeof(int64_t));
     poly *zetainv = malloc(p->PARAM_N * sizeof(int64_t));
-    init_mass_poly( zeta, zetainv, p);
+    tesla_init_mass_poly( zeta, zetainv, p);
 
     if(p->kind <= 2) {
         poly *y_ntt = malloc(p->PARAM_N * sizeof(int64_t));
@@ -287,17 +287,17 @@ void poly_mul(poly *result, const poly *x, const poly *y, tesla_param_t *p) { //
         for ( i = 0; i < p->PARAM_N; i++)
             y_ntt[i] = y[i];
 
-        ntt(y_ntt, zeta, p);
-        poly_pointwise(result, x, y_ntt, p);
+        tesla_ntt(y_ntt, zeta, p);
+        tesla_poly_pointwise(result, x, y_ntt, p);
 
         free(y_ntt);
         y_ntt = NULL;
     }
     else {
-        poly_pointwise(result, x, y, p);
+        tesla_poly_pointwise(result, x, y, p);
     }
 
-    nttinv(result, zetainv, p);
+    tesla_nttinv(result, zetainv, p);
 
     free(zeta);
     zeta = NULL;
@@ -305,7 +305,7 @@ void poly_mul(poly *result, const poly *x, const poly *y, tesla_param_t *p) { //
     zetainv = NULL;
 }
 
-void poly_add(poly *result, const poly *x, const poly *y, tesla_param_t *p) { // Polynomial addition result = x+y
+void tesla_poly_add(poly *result, const poly *x, const poly *y, tesla_param_t *p) { // Polynomial addition result = x+y
 
     unsigned int i;
 
@@ -313,7 +313,7 @@ void poly_add(poly *result, const poly *x, const poly *y, tesla_param_t *p) { //
         result[i] = x[i] + y[i];
 }
 
-void poly_sub(poly *result, const poly *x, const poly *y, tesla_param_t *p) { // Polynomial subtraction result = x-y
+void tesla_poly_sub(poly *result, const poly *x, const poly *y, tesla_param_t *p) { // Polynomial subtraction result = x-y
 
     unsigned int i;
 
@@ -325,7 +325,7 @@ void poly_sub(poly *result, const poly *x, const poly *y, tesla_param_t *p) { //
             result[i] = barr_reduce(x[i] - y[i], p);
 }
 
-void poly_uniform(poly_k *a, const unsigned char *seed, tesla_param_t *p) {
+void tesla_poly_uniform(poly_k *a, const unsigned char *seed, tesla_param_t *p) {
 
     // Generation of polynomials "a_i"
     unsigned int pos = 0, i = 0, nbytes = (p->PARAM_Q_LOG + 7) / 8;
@@ -354,13 +354,13 @@ void poly_uniform(poly_k *a, const unsigned char *seed, tesla_param_t *p) {
         val4 = (*(uint32_t *) (buf + pos)) & mask;
         pos += nbytes;
         if (val1 < p->PARAM_Q && i < p->PARAM_K * p->PARAM_N)
-            a[i++] = reduce((int64_t) val1 * p->PARAM_R2_INVN, p);
+            a[i++] = tesla_reduce((int64_t) val1 * p->PARAM_R2_INVN, p);
         if (val2 < p->PARAM_Q && i < p->PARAM_K * p->PARAM_N)
-            a[i++] = reduce((int64_t) val2 * p->PARAM_R2_INVN, p);
+            a[i++] = tesla_reduce((int64_t) val2 * p->PARAM_R2_INVN, p);
         if (val3 < p->PARAM_Q && i < p->PARAM_K * p->PARAM_N)
-            a[i++] = reduce((int64_t) val3 * p->PARAM_R2_INVN, p);
+            a[i++] = tesla_reduce((int64_t) val3 * p->PARAM_R2_INVN, p);
         if (val4 < p->PARAM_Q && i < p->PARAM_K * p->PARAM_N)
-            a[i++] = reduce((int64_t) val4 * p->PARAM_R2_INVN, p);
+            a[i++] = tesla_reduce((int64_t) val4 * p->PARAM_R2_INVN, p);
     }
     free(buf);
     buf = NULL;
