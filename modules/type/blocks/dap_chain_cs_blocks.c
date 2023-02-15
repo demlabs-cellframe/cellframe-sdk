@@ -637,7 +637,7 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
     HASH_ITER(hh, PVT(l_blocks)->blocks, l_block, l_block_tmp) {
         HASH_DEL(PVT(l_blocks)->blocks, l_block);
         DAP_DELETE(l_block->block);
-        dap_chain_block_cache_delete(l_block);
+        dap_chain_block_cache_delete(&l_block);
     }
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     dap_chain_block_chunks_delete(PVT(l_blocks)->chunks);
@@ -812,7 +812,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         pthread_rwlock_unlock(&PVT(l_blocks)->datums_lock);
         return ATOM_PASS;
     } else {
-        l_block_cache = dap_chain_block_cache_new(l_blocks, &l_block_hash, l_block, l_block_size);
+        l_block_cache = dap_chain_block_cache_create(l_blocks, &l_block_hash, l_block, l_block_size);
         if (!l_block_cache) {
             log_it(L_DEBUG, "... corrupted block");
             pthread_rwlock_unlock(&PVT(l_blocks)->datums_lock);
@@ -843,13 +843,13 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
     }else if(ret == ATOM_MOVE_TO_THRESHOLD){
         if (dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_block_hash)) {
             // if it was concurrent atom processed before
-            dap_chain_block_cache_delete(l_block_cache);
+            dap_chain_block_cache_delete(&l_block_cache);
             return ATOM_PASS;
         }
         dap_chain_block_chunks_add( PVT(l_blocks)->chunks,l_block_cache);
         //dap_chain_block_chunks_sort(PVT(l_blocks)->chunks);
     }else if (ret == ATOM_REJECT ){
-        dap_chain_block_cache_delete(l_block_cache);
+        dap_chain_block_cache_delete(&l_block_cache);
     }
     debug_if(s_debug_more, L_DEBUG, "Verified atom %p: %s", a_atom, ret == ATOM_ACCEPT ? "accepted" :
                                                    (ret == ATOM_REJECT ? "rejected" : "thresholded"));
@@ -1004,15 +1004,16 @@ static dap_chain_datum_tx_t* s_callback_atom_iter_find_by_tx_hash(dap_chain_t * 
 {
     dap_chain_cs_blocks_t * l_cs_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_tx_block_index_t * l_tx_block_index = NULL;
+    pthread_rwlock_rdlock( &PVT(l_cs_blocks)->rwlock );
     HASH_FIND(hh, PVT(l_cs_blocks)->tx_block_index,a_tx_hash, sizeof (*a_tx_hash), l_tx_block_index);
-    if (l_tx_block_index){
-        dap_chain_block_cache_t *l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_cs_blocks, &l_tx_block_index->block_hash);
-        if ( l_block_cache){
-            return dap_chain_block_cache_get_tx_by_hash(l_block_cache, a_tx_hash);
-        }else
-            return NULL;
-    }else
-        return NULL;
+    pthread_rwlock_unlock( &PVT(l_cs_blocks)->rwlock );
+
+    dap_chain_block_cache_t *l_block_cache;
+    return l_tx_block_index
+            ? (l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_cs_blocks, &l_tx_block_index->block_hash))
+                ? dap_chain_block_cache_get_tx_by_hash(l_block_cache, a_tx_hash)
+                : NULL
+            : NULL;
 }
 
 /**

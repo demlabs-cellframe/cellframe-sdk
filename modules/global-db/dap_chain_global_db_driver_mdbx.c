@@ -1076,7 +1076,7 @@ MDBX_stat   l_stat;
         /*
          * Allocate memory for array[l_count_out] of returned objects
         */
-        if ( !(l_obj_arr = (dap_store_obj_t *) DAP_NEW_Z_SIZE(char, l_count_out * sizeof(dap_store_obj_t))) ) {
+        if ( !(l_obj_arr = (dap_store_obj_t *) DAP_NEW_Z_SIZE(char, (l_count_out * sizeof(dap_store_obj_t)))) ) {
             log_it(L_ERROR, "Cannot allocate %zu octets for %zu store objects", l_count_out * sizeof(dap_store_obj_t), l_count_out);
             break;
         }

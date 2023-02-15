@@ -476,7 +476,8 @@ static int link_add_or_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_in
             }
             l_node_info_read->hdr.links_number--;
             res_successful = true;
-            l_node_info_read = DAP_REALLOC(l_node_info_read, l_node_info_read_size -= sizeof(*link));
+            l_node_info_read_size -= sizeof(*link);
+            l_node_info_read = DAP_REALLOC(l_node_info_read, l_node_info_read_size);
         }
     }
     // save edited node_info

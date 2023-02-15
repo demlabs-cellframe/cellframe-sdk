@@ -34,6 +34,13 @@
 #include "dap_enc_picnic.h"
 #include "dap_enc_dilithium.h"
 #include "dap_enc_falcon.h"
+
+#ifdef DAP_PQLR
+#include "dap_pqlr_dilithium.h"
+#include "dap_pqlr_falcon.h"
+#include "dap_pqlr_sphincs.h"
+#endif
+
 #include "dap_list.h"
 
 #define LOG_TAG "dap_sign"
@@ -49,24 +56,31 @@ static uint8_t s_sign_hash_type_default = DAP_SIGN_HASH_TYPE_SHA3;
  * @param a_output_wish_size size_t output size
  * @return size_t 
  */
-size_t dap_sign_create_output_unserialized_calc_size(dap_enc_key_t * a_key, size_t a_output_wish_size )
+size_t dap_sign_create_output_unserialized_calc_size(dap_enc_key_t * a_key, size_t a_output_wish_size)
 {
-    (void)a_output_wish_size;
+    UNUSED(a_output_wish_size);
 
-    if(!a_key)
+    if (!a_key)
         return 0;
-    size_t l_sign_size = 0;
-    switch (a_key->type){
-        case DAP_ENC_KEY_TYPE_SIG_BLISS: l_sign_size = sizeof(s_sign_bliss_null); break;
-        case DAP_ENC_KEY_TYPE_SIG_PICNIC: l_sign_size = dap_enc_picnic_calc_signature_size(a_key); break;
-        case DAP_ENC_KEY_TYPE_SIG_TESLA: l_sign_size = dap_enc_tesla_calc_signature_size(); break;
-        case DAP_ENC_KEY_TYPE_SIG_DILITHIUM: l_sign_size = dap_enc_dilithium_calc_signature_unserialized_size(); break;
-        case DAP_ENC_KEY_TYPE_SIG_FALCON: l_sign_size = dap_enc_falcon_calc_signature_unserialized_size(); break;
-        default : return 0;
 
+    switch (a_key->type) {
+    case DAP_ENC_KEY_TYPE_SIG_BLISS:
+        return sizeof(s_sign_bliss_null);
+    case DAP_ENC_KEY_TYPE_SIG_PICNIC:
+        return dap_enc_picnic_calc_signature_size(a_key);
+    case DAP_ENC_KEY_TYPE_SIG_TESLA:
+        return dap_enc_tesla_calc_signature_size();
+    case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
+        return dap_enc_dilithium_calc_signature_unserialized_size();
+#ifdef DAP_PQLR
+    case DAP_ENC_KEY_TYPE_PQLR_SIG_DILITHIUM:
+        return dap_pqlr_dilithium_calc_signature_size(a_key);
+#endif
+    case DAP_ENC_KEY_TYPE_SIG_FALCON:
+        return dap_enc_falcon_calc_signature_unserialized_size();
+    default:
+        return 0;
     }
-    return l_sign_size;
-    //return sizeof(s_sign_null->header)+ a_key->pub_key_data_size + l_sign_size;
 }
 
 
@@ -77,17 +91,20 @@ size_t dap_sign_create_output_unserialized_calc_size(dap_enc_key_t * a_key, size
  */
 dap_sign_type_t dap_sign_type_from_key_type( dap_enc_key_type_t a_key_type)
 {
-    dap_sign_type_t l_sign_type;
-    memset(&l_sign_type, 0, sizeof(l_sign_type));
-    switch (a_key_type){
-        case DAP_ENC_KEY_TYPE_SIG_BLISS: l_sign_type.type = SIG_TYPE_BLISS; break;
-        case DAP_ENC_KEY_TYPE_SIG_PICNIC: l_sign_type.type = SIG_TYPE_PICNIC; break;
-        case DAP_ENC_KEY_TYPE_SIG_TESLA: l_sign_type.type = SIG_TYPE_TESLA; break;
-        case DAP_ENC_KEY_TYPE_SIG_DILITHIUM: l_sign_type.type = SIG_TYPE_DILITHIUM; break;
-        case DAP_ENC_KEY_TYPE_SIG_FALCON: l_sign_type.type = SIG_TYPE_FALCON; break;
-        default: l_sign_type.raw = 0;
+    switch (a_key_type) {
+    case DAP_ENC_KEY_TYPE_SIG_BLISS:    return (dap_sign_type_t){ .type = SIG_TYPE_BLISS };
+    case DAP_ENC_KEY_TYPE_SIG_PICNIC:   return (dap_sign_type_t){ .type = SIG_TYPE_PICNIC };
+    case DAP_ENC_KEY_TYPE_SIG_TESLA:    return (dap_sign_type_t){ .type = SIG_TYPE_TESLA };
+    case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:return (dap_sign_type_t){ .type = SIG_TYPE_DILITHIUM };
+    case DAP_ENC_KEY_TYPE_SIG_FALCON:   return (dap_sign_type_t){ .type = SIG_TYPE_FALCON };
+#ifdef DAP_PQLR
+    case DAP_ENC_KEY_TYPE_PQLR_SIG_DILITHIUM:   return (dap_sign_type_t){ .type = SIG_TYPE_PQLR_DILITHIUM };
+    case DAP_ENC_KEY_TYPE_PQLR_SIG_FALCON:      return (dap_sign_type_t){ .type = SIG_TYPE_PQLR_FALCON };
+    case DAP_ENC_KEY_TYPE_PQLR_SIG_SPHINCS:     return (dap_sign_type_t){ .type = SIG_TYPE_PQLR_SPHINCS };
+
+#endif
+    default: return (dap_sign_type_t){ .raw = 0 };
     }
-    return l_sign_type;
 }
 
 /**
@@ -98,12 +115,17 @@ dap_sign_type_t dap_sign_type_from_key_type( dap_enc_key_type_t a_key_type)
 dap_enc_key_type_t  dap_sign_type_to_key_type(dap_sign_type_t  a_chain_sign_type)
 {
     switch (a_chain_sign_type.type) {
-        case SIG_TYPE_BLISS: return DAP_ENC_KEY_TYPE_SIG_BLISS;
-        case SIG_TYPE_TESLA: return DAP_ENC_KEY_TYPE_SIG_TESLA;
-        case SIG_TYPE_PICNIC: return DAP_ENC_KEY_TYPE_SIG_PICNIC;
-        case SIG_TYPE_DILITHIUM: return DAP_ENC_KEY_TYPE_SIG_DILITHIUM;
-        case SIG_TYPE_FALCON: return DAP_ENC_KEY_TYPE_SIG_FALCON;
-        default: return DAP_ENC_KEY_TYPE_INVALID;
+    case SIG_TYPE_BLISS:    return DAP_ENC_KEY_TYPE_SIG_BLISS;
+    case SIG_TYPE_TESLA:    return DAP_ENC_KEY_TYPE_SIG_TESLA;
+    case SIG_TYPE_PICNIC:   return DAP_ENC_KEY_TYPE_SIG_PICNIC;
+    case SIG_TYPE_DILITHIUM:return DAP_ENC_KEY_TYPE_SIG_DILITHIUM;
+    case SIG_TYPE_FALCON:   return DAP_ENC_KEY_TYPE_SIG_FALCON;
+#ifdef DAP_PQLR
+    case SIG_TYPE_PQLR_DILITHIUM:   return DAP_ENC_KEY_TYPE_PQLR_SIG_DILITHIUM;
+    case SIG_TYPE_PQLR_FALCON:      return DAP_ENC_KEY_TYPE_PQLR_SIG_FALCON;
+    case SIG_TYPE_PQLR_SPHINCS:     return DAP_ENC_KEY_TYPE_PQLR_SIG_SPHINCS;
+#endif
+    default: return DAP_ENC_KEY_TYPE_INVALID;
     }
 }
 
@@ -118,14 +140,19 @@ dap_enc_key_type_t  dap_sign_type_to_key_type(dap_sign_type_t  a_chain_sign_type
 const char * dap_sign_type_to_str(dap_sign_type_t a_chain_sign_type)
 {
     switch (a_chain_sign_type.type) {
-        case SIG_TYPE_BLISS: return "sig_bliss";
-        case SIG_TYPE_TESLA: return "sig_tesla";
-        case SIG_TYPE_PICNIC: return "sig_picnic";
-        case SIG_TYPE_DILITHIUM: return "sig_dil";
-        case SIG_TYPE_FALCON: return "sig_falcon";
-        case SIG_TYPE_MULTI_COMBINED: return "sig_multi2";
-        case SIG_TYPE_MULTI_CHAINED: return "sig_multi";
-        default: return "UNDEFINED";//DAP_ENC_KEY_TYPE_NULL;
+    case SIG_TYPE_BLISS:    return "sig_bliss";
+    case SIG_TYPE_TESLA:    return "sig_tesla";
+    case SIG_TYPE_PICNIC:   return "sig_picnic";
+    case SIG_TYPE_DILITHIUM:return "sig_dil";
+    case SIG_TYPE_FALCON:   return "sig_falcon";
+    case SIG_TYPE_MULTI_COMBINED:   return "sig_multi2";
+    case SIG_TYPE_MULTI_CHAINED:    return "sig_multi";
+#ifdef DAP_PQLR
+    case SIG_TYPE_PQLR_DILITHIUM:   return "sig_pqlr_dil";
+    case SIG_TYPE_PQLR_FALCON:      return "sig_pqlr_falcon";
+    case SIG_TYPE_PQLR_SPHINCS:     return "sig_pqrl_sphincs";
+#endif
+    default: return "UNDEFINED";
     }
 
 }
@@ -138,16 +165,20 @@ const char * dap_sign_type_to_str(dap_sign_type_t a_chain_sign_type)
  */
 dap_sign_type_t dap_pkey_type_from_sign( dap_pkey_type_t a_pkey_type)
 {
-    dap_sign_type_t l_sign_type={0};
     switch (a_pkey_type.type){
-        case PKEY_TYPE_SIGN_BLISS: l_sign_type.type = SIG_TYPE_BLISS; break;
-        case PKEY_TYPE_SIGN_PICNIC: l_sign_type.type = SIG_TYPE_PICNIC; break;
-        case PKEY_TYPE_SIGN_TESLA: l_sign_type.type = SIG_TYPE_TESLA; break;
-        case PKEY_TYPE_SIGN_DILITHIUM : l_sign_type.type = SIG_TYPE_DILITHIUM; break;
-        case PKEY_TYPE_MULTI: l_sign_type.type = SIG_TYPE_MULTI_CHAINED; break;
-        case PKEY_TYPE_NULL: l_sign_type.type = SIG_TYPE_NULL; break;
+    case PKEY_TYPE_SIGN_BLISS:  return (dap_sign_type_t){ .type = SIG_TYPE_BLISS };
+    case PKEY_TYPE_SIGN_PICNIC: return (dap_sign_type_t){ .type = SIG_TYPE_PICNIC };
+    case PKEY_TYPE_SIGN_TESLA:  return (dap_sign_type_t){ .type = SIG_TYPE_TESLA };
+    case PKEY_TYPE_SIGN_DILITHIUM: return (dap_sign_type_t){ .type =  SIG_TYPE_DILITHIUM };
+    case PKEY_TYPE_MULTI: return (dap_sign_type_t){ .type = SIG_TYPE_MULTI_CHAINED };
+    case PKEY_TYPE_NULL: return (dap_sign_type_t){ .type = SIG_TYPE_NULL };
+#ifdef DAP_PQLR
+    case PKEY_TYPE_SIGN_PQLR_DIL: return (dap_sign_type_t){ .type =  SIG_TYPE_PQLR_DILITHIUM };
+    case PKEY_TYPE_SIGN_PQLR_FALCON: return (dap_sign_type_t){ .type =  SIG_TYPE_PQLR_FALCON };
+    case PKEY_TYPE_SIGN_PQLR_SPHINCS: return (dap_sign_type_t){ .type =  SIG_TYPE_PQLR_SPHINCS };
+#endif
+    default: return (dap_sign_type_t){ .raw = 0 };
     }
-    return l_sign_type;
 }
 
 
@@ -170,6 +201,14 @@ dap_sign_type_t dap_sign_type_from_str(const char * a_type_str)
         l_sign_type.type = SIG_TYPE_DILITHIUM;
     } else if (dap_strcmp(a_type_str, "sig_falcon") == 0) {
         l_sign_type.type = SIG_TYPE_FALCON;
+#ifdef DAP_PQLR
+    } else if (dap_strcmp(a_type_str, "sig_pqlr_dil") == 0) {
+        l_sign_type.type = SIG_TYPE_PQLR_DILITHIUM;
+    } else if (dap_strcmp(a_type_str, "sig_pqlr_falcon") == 0) {
+        l_sign_type.type = SIG_TYPE_PQLR_FALCON;
+    } else if (dap_strcmp(a_type_str, "sig_pqlr_sphincs") == 0) {
+        l_sign_type.type = SIG_TYPE_PQLR_SPHINCS;
+#endif
     }else if ( dap_strcmp (a_type_str,"sig_multi") == 0){
         l_sign_type.type = SIG_TYPE_MULTI_CHAINED;
     }else if ( dap_strcmp (a_type_str,"sig_multi2") == 0){
@@ -202,6 +241,11 @@ static int dap_sign_create_output(dap_enc_key_t *a_key, const void * a_data, con
         case DAP_ENC_KEY_TYPE_SIG_PICNIC:
         case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
         case DAP_ENC_KEY_TYPE_SIG_FALCON:
+#ifdef DAP_PQLR
+    case DAP_ENC_KEY_TYPE_PQLR_SIG_DILITHIUM:
+    case DAP_ENC_KEY_TYPE_PQLR_SIG_FALCON:
+    case DAP_ENC_KEY_TYPE_PQLR_SIG_SPHINCS:
+#endif
                 // For PICNIC a_output_size should decrease
             //*a_output_size = dap_enc_sig_dilithium_get_sign(a_key,a_data,a_data_size,a_output,sizeof(dilithium_signature_t));
             a_key->enc_na(a_key, a_data, a_data_size, a_output, *a_output_size);
@@ -248,7 +292,7 @@ dap_sign_t * dap_sign_create(dap_enc_key_t *a_key, const void * a_data,
     size_t l_sign_unserialized_size = dap_sign_create_output_unserialized_calc_size(a_key, a_output_wish_size);
     if(l_sign_unserialized_size > 0) {
         size_t l_pub_key_size = 0;
-        uint8_t *l_pub_key = dap_enc_key_serealize_pub_key(a_key, &l_pub_key_size);
+        uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(a_key, &l_pub_key_size);
         if(!l_pub_key)
             return NULL;
         uint8_t* l_sign_unserialized = DAP_NEW_Z_SIZE(uint8_t, l_sign_unserialized_size);
@@ -260,7 +304,7 @@ dap_sign_t * dap_sign_create(dap_enc_key_t *a_key, const void * a_data,
             return NULL;
         } else {
             size_t l_sign_ser_size = l_sign_unserialized_size;
-            uint8_t *l_sign_ser = dap_enc_key_serealize_sign(a_key->type, l_sign_unserialized, &l_sign_ser_size);
+            uint8_t *l_sign_ser = dap_enc_key_serialize_sign(a_key->type, l_sign_unserialized, &l_sign_ser_size);
             if ( l_sign_ser ){
                 dap_sign_t * l_ret = DAP_NEW_Z_SIZE(dap_sign_t,
                         sizeof(dap_sign_hdr_t) + l_sign_ser_size + l_pub_key_size);
@@ -396,7 +440,7 @@ bool dap_sign_verify_size(dap_sign_t *a_sign, size_t a_max_sign_size) {
 }
 
 /**
- * @brief get deserealized pub key from dap_sign_t 
+ * @brief get deserialized pub key from dap_sign_t
  * 
  * @param a_chain_sign dap_sign_t object
  * @return dap_enc_key_t* 
@@ -410,7 +454,7 @@ dap_enc_key_t *dap_sign_to_enc_key(dap_sign_t * a_chain_sign)
     uint8_t *l_pkey = dap_sign_get_pkey(a_chain_sign, &l_pkey_size);
     dap_enc_key_t * l_ret =  dap_enc_key_new(l_type);
     // deserialize public key
-    dap_enc_key_deserealize_pub_key(l_ret, l_pkey, l_pkey_size);
+    dap_enc_key_deserialize_pub_key(l_ret, l_pkey, l_pkey_size);
     return l_ret;
 }
 
@@ -442,7 +486,7 @@ int dap_sign_verify(dap_sign_t * a_chain_sign, const void * a_data, const size_t
 
     size_t l_sign_data_size = a_chain_sign->header.sign_size;
     // deserialize signature
-    uint8_t * l_sign_data = dap_enc_key_deserealize_sign(l_key->type, l_sign_data_ser, &l_sign_data_size);
+    uint8_t * l_sign_data = dap_enc_key_deserialize_sign(l_key->type, l_sign_data_ser, &l_sign_data_size);
 
     if ( ! l_sign_data ){
         log_it(L_WARNING,"Incorrect signature, can't deserialize signature's data");

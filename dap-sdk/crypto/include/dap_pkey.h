@@ -35,6 +35,11 @@ enum dap_pkey_type_enum {
     PKEY_TYPE_SIGN_DILITHIUM =  0x0903,
     PKEY_TYPE_SIGN_PICNIC = 0x0102,
     PKEY_TYPE_SIGN_FALCON = 0x0103,
+#ifdef DAP_PQLR
+    PKEY_TYPE_SIGN_PQLR_DIL = 0x0200,
+    PKEY_TYPE_SIGN_PQLR_FALCON,
+    PKEY_TYPE_SIGN_PQLR_SPHINCS,
+#endif
     PKEY_TYPE_MULTI = 0xffff ///  @brief Has inside subset of different keys
 
 };
@@ -54,6 +59,11 @@ DAP_STATIC_INLINE const char *dap_pkey_type_to_str(dap_pkey_type_t a_type){
         case PKEY_TYPE_SIGN_PICNIC: return "PKEY_TYPE_SIGN_PICNIC";
         case PKEY_TYPE_SIGN_DILITHIUM: return "PKEY_TYPE_SIGN_DILITHIUM";
         case PKEY_TYPE_SIGN_FALCON: return "PKEY_TYPE_SIGN_FALCON";
+#ifdef DAP_PQLR
+    case PKEY_TYPE_SIGN_PQLR_DIL: return "PKEY_TYPE_SIGN_PQLR_DIL";
+    case PKEY_TYPE_SIGN_PQLR_FALCON: return "PKEY_TYPE_SIGN_PQLR_FALCON";
+    case PKEY_TYPE_SIGN_PQLR_SPHINCS: return "PKEY_TYPE_SIGN_PQLR_SPHINCS";
+#endif
         default: return "UNDEFINED";
     }
 }
