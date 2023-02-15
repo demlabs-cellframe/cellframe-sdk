@@ -22,7 +22,7 @@
 */
 #include "dap_common.h"
 #include "dap_enc_key.h"
-#define LOG_TAG "pqrl_mceliece"
+#define LOG_TAG "pqlr_mceliece"
 
 #include "dap_pqlr_mceliece.h"
 

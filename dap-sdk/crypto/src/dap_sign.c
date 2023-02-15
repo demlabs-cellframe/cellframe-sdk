@@ -36,9 +36,9 @@
 #include "dap_enc_falcon.h"
 
 #ifdef DAP_PQLR
-#include "dap_pqrl_dilithium.h"
-#include "dap_pqrl_falcon.h"
-#include "dap_pqrl_sphincs.h"
+#include "dap_pqlr_dilithium.h"
+#include "dap_pqlr_falcon.h"
+#include "dap_pqlr_sphincs.h"
 #endif
 
 #include "dap_list.h"
@@ -72,7 +72,7 @@ size_t dap_sign_create_output_unserialized_calc_size(dap_enc_key_t * a_key, size
         return dap_enc_tesla_calc_signature_size();
     case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
         return dap_enc_dilithium_calc_signature_unserialized_size();
-#ifdef DAP_PQRL
+#ifdef DAP_PQLR
     case DAP_ENC_KEY_TYPE_SIG_PQLR_DILITHIUM:
         return dap_pqlr_dilithium_calc_signature_size(a_key);
 #endif

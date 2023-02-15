@@ -41,11 +41,10 @@ enum dap_sign_type_enum {
     SIG_TYPE_DILITHIUM,
 #ifdef DAP_PQLR
     SIG_TYPE_PQLR_DILITHIUM = 0x0200,
-    SIG_TYPE_PQLR_FALCON
-    SIG_TYPE_PQLR_SPHINCS
-#else
-    SIG_TYPE_FALCON,
+    SIG_TYPE_PQLR_FALCON,
+    SIG_TYPE_PQLR_SPHINCS,
 #endif
+    SIG_TYPE_FALCON,
     SIG_TYPE_MULTI_CHAINED  = 0x0f00, ///  @brief Has inside subset of different signatures and sign composed with all of them
     SIG_TYPE_MULTI_COMBINED ///  @brief Has inside subset of different public keys and sign composed with all of appropriate private keys
 };

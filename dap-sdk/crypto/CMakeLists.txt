@@ -26,6 +26,7 @@ file( GLOB CRYPTO_SRCS
 )
 
 file( GLOB CRYPTO_HEADERS
+      include/*.h
       src/*.h
       src/rand/*.h
       src/iaes/*.h
@@ -44,10 +45,9 @@ file( GLOB CRYPTO_HEADERS
       src/sig_dilithium/*.h
       src/ringct20/*.h
       src/falcon/*.h
-      include/*.h
 )
 
-option(DAP_PQLR "PQRL Intergration" OFF)
+#option(DAP_PQLR "PQLR Intergration" ON)
 
 if (DAP_PQLR)
     message("[*] Building with QApp PQLR libraty from path ${DAP_PQLR}")
@@ -58,7 +58,10 @@ if (DAP_PQLR)
     message("[ ] Include dir: ${PQLR_INCLUDE_DIR}")
     include_directories(${PQLR_INCLUDE_DIR})
     file(GLOB DAP_PQLR_SRC src/pqlr/*.c src/pqlr/*.h)
-    add_definitions("-DDAP_PQLR")
+    include_directories(src/pqlr)
+    #add_compile_definitions("DAP_PQLR")
+    #add_definitions("-DDAP_PQLR")
+    #set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DDAP_PQLR")
 endif()
 
 
@@ -114,7 +117,7 @@ endif()
 
 add_library(${PROJECT_NAME} STATIC ${CRYPTO_SRCS} ${XKCP_SRCS} ${XKCP_SRCS2} ${CRYPTO_HEADERS} ${DAP_PQLR_SRC} )
 
-if (DAP_PQRL)
+if (DAP_PQLR)
     target_link_libraries(dap_crypto ${PQLR_DILITHIUM_LIBRARIES})
     if (WIN32)
 	add_custom_command(TARGET dap_crypto POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy "${PQLR_BINARY_DIR}/pqlr.dll"

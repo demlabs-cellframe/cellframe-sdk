@@ -243,6 +243,11 @@ if (DARWIN)
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} bz2)
 endif()
 
+set (DAP_PQLR ON)
+if (DAP_PQLR)
+    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DDAP_PQLR")
+endif()
+
 target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})
 
 #if(BUILD_DAP_TESTS)

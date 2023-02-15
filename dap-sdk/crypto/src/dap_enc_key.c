@@ -42,8 +42,8 @@
 
 #include "dap_enc_key.h"
 
-#ifdef DAP_PQRL
-#include "dap_pqrl.h"
+#ifdef DAP_PQLR
+#include "dap_pqlr.h"
 #endif
 
 
@@ -263,15 +263,15 @@ dap_enc_key_callbacks_t s_callbacks[]={
     },
 
     [DAP_ENC_KEY_TYPE_PQLR_KEM_SABER] = {
-        .name = "PQRL_SABER",
+        .name = "PQLR_SABER",
     },
 
     [DAP_ENC_KEY_TYPE_PQLR_KEM_MCELIECE] = {
-        .name = "PQRL_MCELIECE"
+        .name = "PQLR_MCELIECE"
     },
 
     [DAP_ENC_KEY_TYPE_PQLR_KEM_NEWHOPE] = {
-        .name = "PQRL_NEWHOPE"
+        .name = "PQLR_NEWHOPE"
     },
 #else
     [DAP_ENC_KEY_TYPE_SIG_FALCON]={
@@ -293,8 +293,8 @@ const size_t c_callbacks_size = sizeof(s_callbacks) / sizeof(s_callbacks[0]);
  */
 int dap_enc_key_init()
 {
-#ifdef DAP_PQRL
-    if (dap_pqrl_init(s_callbacks))
+#ifdef DAP_PQLR
+    if (dap_pqlr_init(s_callbacks))
         return -1;
 #endif
     return 0;
@@ -305,8 +305,8 @@ int dap_enc_key_init()
  */
 void dap_enc_key_deinit()
 {
-#ifdef DAP_PQRL
-    dap_pqrl_deinit();
+#ifdef DAP_PQLR
+    dap_pqlr_deinit();
 #endif
 }
 

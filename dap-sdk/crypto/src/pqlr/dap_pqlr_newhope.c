@@ -22,7 +22,7 @@
 */
 #include "dap_common.h"
 #include "dap_enc_key.h"
-#define LOG_TAG "pqrl_newhope"
+#define LOG_TAG "pqlr_newhope"
 
 #include "dap_pqlr_newhope.h"
 
