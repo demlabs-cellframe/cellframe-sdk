@@ -39,7 +39,7 @@
 #include "dap_enc_newhope.h"
 #include "dap_enc_falcon.h"
 #include "dap_enc_ringct20.h"
-
+#include "dap_enc_key.h"
 
 #include "dap_enc_key.h"
 

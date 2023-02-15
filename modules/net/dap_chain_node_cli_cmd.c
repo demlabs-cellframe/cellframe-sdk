@@ -2904,9 +2904,8 @@ int com_mempool_proc_all(int argc, char ** argv, char ** a_str_reply) {
                                                  l_chain->name);
     }
     dap_chain_ledger_start_tps_count(l_chain->ledger);
-    dap_chain_node_mempool_process_all(l_chain);
-    dap_chain_node_cli_set_reply_text(a_str_reply, "The entire mempool has been processed in %s.%s. "
-                                                   "Total items were %zu of which %zu accepted %zu rejected.",
+    dap_chain_node_mempool_process_all(l_chain, true);
+    dap_chain_node_cli_set_reply_text(a_str_reply, "The entire mempool has been processed in %s.%s.",
                                                    l_net->pub.name, l_chain->name);
     return 0;
 }
