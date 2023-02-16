@@ -236,7 +236,7 @@ dap_enc_key_callbacks_t s_callbacks[]={
         .new_generate_callback = dap_enc_sig_ringct20_key_new_generate
     },
 
-#ifdef DAP_PQLR
+/*#ifdef DAP_PQLR
     [DAP_ENC_KEY_TYPE_PQLR_SIG_DILITHIUM] = {
         .name = "SIG_PQLR_DILITHIUM",
         .enc_na = dap_pqlr_dilithium_create_sign,
@@ -275,7 +275,7 @@ dap_enc_key_callbacks_t s_callbacks[]={
     [DAP_ENC_KEY_TYPE_PQLR_KEM_NEWHOPE] = {
         .name = "PQLR_NEWHOPE"
     },
-#else
+#endif */
     [DAP_ENC_KEY_TYPE_SIG_FALCON]={
         .name = "SIG_FALCON",
         .enc_na = dap_enc_sig_falcon_get_sign,
@@ -284,7 +284,6 @@ dap_enc_key_callbacks_t s_callbacks[]={
         .delete_callback = dap_enc_sig_falcon_key_delete,
         .new_generate_callback = dap_enc_sig_falcon_key_new_generate
     }
-#endif
 };
 
 const size_t c_callbacks_size = sizeof(s_callbacks) / sizeof(s_callbacks[0]);
