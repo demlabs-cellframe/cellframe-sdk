@@ -349,21 +349,11 @@ struct dap_enc_key_callbacks{
     },
     [DAP_ENC_KEY_TYPE_SIG_FALCON]={
         .name = "SIG_FALCON",
-        .enc = NULL,
-        .dec = NULL,
         .enc_na = dap_enc_sig_falcon_get_sign,
         .dec_na = dap_enc_sig_falcon_verify_sign,
-        .gen_key_public = NULL,
-        .gen_key_public_size = NULL,
-        .gen_bob_shared_key = NULL,
-        .gen_alice_shared_key = NULL,
         .new_callback = dap_enc_sig_falcon_key_new,
         .delete_callback = dap_enc_sig_falcon_key_delete,
-        .new_generate_callback = dap_enc_sig_falcon_key_new_generate,
-        .enc_out_size = NULL,
-        .dec_out_size = NULL,
-        .sign_get = NULL,
-        .sign_verify = NULL
+        .new_generate_callback = dap_enc_sig_falcon_key_new_generate
     }
 };
 

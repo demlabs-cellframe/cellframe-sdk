@@ -53,7 +53,6 @@ size_t dap_sign_create_output_unserialized_calc_size(dap_enc_key_t * a_key, size
 {
     (void)a_output_wish_size;
 
-    if(!a_key)
         return 0;
     size_t l_sign_size = 0;
     switch (a_key->type){
@@ -61,7 +60,7 @@ size_t dap_sign_create_output_unserialized_calc_size(dap_enc_key_t * a_key, size
         case DAP_ENC_KEY_TYPE_SIG_PICNIC: l_sign_size = dap_enc_picnic_calc_signature_size(a_key); break;
         case DAP_ENC_KEY_TYPE_SIG_TESLA: l_sign_size = dap_enc_tesla_calc_signature_size(); break;
         case DAP_ENC_KEY_TYPE_SIG_DILITHIUM: l_sign_size = dap_enc_dilithium_calc_signature_unserialized_size(); break;
-        case DAP_ENC_KEY_TYPE_SIG_FALCON: l_sign_size = dap_enc_falcon_calc_signature_unserialized_size(); break;
+        case DAP_ENC_KEY_TYPE_SIG_FALCON: l_sign_size = dap_enc_falcon_calc_signature_unserialized_size(a_key); break;
         default : return 0;
 
     }
