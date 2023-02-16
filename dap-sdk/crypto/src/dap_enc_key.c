@@ -451,7 +451,7 @@ uint8_t* dap_enc_key_serialize_pub_key(dap_enc_key_t *a_key, size_t *a_buflen_ou
  */
 int dap_enc_key_deserialize_priv_key(dap_enc_key_t *a_key, const uint8_t *a_buf, size_t a_buflen)
 {
-    if(!a_key || !a_key->priv_key_data || !a_buf || !a_buflen) {
+    if(!a_key || !a_buf || !a_buflen) {
         log_it(L_ERROR, "Invalid params");
         return -2;
     }
@@ -566,7 +566,7 @@ int dap_enc_key_deserialize_pub_key_old(dap_enc_key_t *a_key, const uint8_t *a_b
  */
 int dap_enc_key_deserialize_pub_key(dap_enc_key_t *a_key, const uint8_t *a_buf, size_t a_buflen)
 {
-    if(!a_key || !a_key->pub_key_data || !a_buf)
+    if (!a_key || !a_buflen || !a_buf)
         return -2;
 
     switch (a_key->type) {
