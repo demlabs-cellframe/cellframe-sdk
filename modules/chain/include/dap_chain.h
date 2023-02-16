@@ -107,7 +107,8 @@ typedef enum dap_chain_type
     CHAIN_TYPE_CA,
     CHAIN_TYPE_SIGNER,
     CHAIN_TYPE_LAST,
-    CHAIN_TYPE_DECREE
+    CHAIN_TYPE_DECREE,
+    CHAIN_TYPE_ANCHOR
 } dap_chain_type_t;
 
 typedef struct dap_chain {

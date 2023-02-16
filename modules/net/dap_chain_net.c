@@ -3341,15 +3341,15 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
                 return -102;
             }
              return dap_chain_net_decree_load(l_decree, a_chain);
-        } break;
-        case DAP_CHAIN_DATUM_ANCHOR:
+        }
+        case DAP_CHAIN_DATUM_ANCHOR:{
             dap_chain_datum_anchor_t * l_anchor = (dap_chain_datum_anchor_t *)a_datum->data;
             if(sizeof(l_anchor->header) + l_anchor->header.data_size + l_anchor->header.signs_size > l_datum_data_size){
                 log_it(L_WARNING, "Corrupted anchor, size %zd is smaller than ever decree header's size %zd", l_datum_data_size, sizeof(l_anchor->header));
                 return -103;
             }
             return dap_chain_net_anchor_load(l_anchor, a_chain);
-
+        }
         case DAP_CHAIN_DATUM_TOKEN_DECL:
             return dap_chain_ledger_token_load(a_chain->ledger, (dap_chain_datum_token_t *)a_datum->data, a_datum->header.data_size);
 

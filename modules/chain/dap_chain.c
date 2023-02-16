@@ -263,6 +263,8 @@ static dap_chain_type_t s_chain_type_from_str(const char *a_type_str)
     }
     if (!dap_strcmp(a_type_str, "decree"))
         return CHAIN_TYPE_DECREE;
+    if (!dap_strcmp(a_type_str, "anchor"))
+        return CHAIN_TYPE_ANCHOR;
     return CHAIN_TYPE_LAST;
 }
 

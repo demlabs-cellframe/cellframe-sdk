@@ -247,22 +247,65 @@ int dap_chain_net_decree_apply(dap_chain_datum_decree_t * a_decree, dap_chain_t 
     return -100;
 }
 
+static struct decree_data {
+    dap_hash_fast_t key;
+    dap_chain_datum_decree_t decree;            // Network fee value
+    UT_hash_handle hh;
+} *s_decree_data = NULL; // Governance statements for networks
+
 int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain)
 {
-
-    // TODO: put decree into hash-table
     dap_hash_fast_t l_hash = {0};
-    dap_chain_datum_decree_t * l_decree = NULL;
-    size_t l_data_size = sizeof(dap_chain_datum_decree_t) + l_decree->header.data_size + l_decree->header.signs_size;
+    struct decree_data *l_decree_data = NULL;
+    int ret_val = 0;
+    if (!a_chain || !a_chain)
+    {
+        log_it(L_WARNING, "Bad arguments");
+        return -100;
+    }
 
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+
+    if (!l_net->pub.decree)
+    {
+        log_it(L_WARNING,"Decree is not inited!");
+        return -108;
+    }
+
+    if ((ret_val = dap_chain_net_decree_verify(a_decree, l_net, NULL, NULL)) != 0)
+        return ret_val;
+
+
+
+    dap_chain_datum_decree_t * l_decree = a_decree;
+    size_t l_data_size = sizeof(dap_chain_datum_decree_t) + l_decree->header.data_size + l_decree->header.signs_size;
     dap_hash_fast(l_decree, l_data_size, &l_hash);
+
+    l_decree_data =  DAP_NEW_Z_SIZE(struct decree_data, sizeof(struct decree_data) + l_decree->header.data_size + l_decree->header.signs_size);
+    memcpy(&l_decree_data->decree, l_decree, l_data_size);
+    l_decree_data->key = l_hash;
+
+    HASH_ADD(hh, s_decree_data, key, sizeof(dap_hash_fast_t), l_decree_data);
+
     return 0;
 }
 
-int dap_chain_net_decree_get_by_hash(dap_hash_fast_t *a_hash, dap_chain_datum_decree_t * a_decree)
+int dap_chain_net_decree_get_by_hash(dap_hash_fast_t a_hash, dap_chain_datum_decree_t **a_decree)
 {
 
-    // TODO: getting decree from hash-table by hash
+    if (!a_decree){
+        log_it(L_WARNING, "Bad argument");
+        return -100;
+    }
+
+    dap_hash_fast_t l_hash = a_hash;
+    struct decree_data* l_decree_data = NULL;
+
+    HASH_FIND(hh, s_decree_data, &l_hash, sizeof(dap_hash_fast_t), l_decree_data);
+    if (!l_decree_data)
+        return -101;
+
+    *a_decree = &l_decree_data->decree;
 
     return 0;
 }

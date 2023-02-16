@@ -28,8 +28,7 @@
 #include "dap_cert.h"
 #include "dap_pkey.h"
 #include "dap_chain_common.h"
-#include "dap_chain_net_decree.h"
-#include "dap_chain_net_anchor.h"
+#include "dap_chain_net.h"
 #include "dap_chain_datum_decree.h"
 
 #define LOG_TAG "chain_net_anchor"
@@ -175,14 +174,26 @@ int dap_chain_net_anchor_load(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *
     }
 
     dap_chain_datum_decree_t * l_decree = NULL;
-    dap_hash_fast_t l_hash = dap_chain_datum_anchor_get_hash_from_data(a_anchor);
-    if ((ret_val = dap_chain_net_decree_get_by_hash(l_hash, l_decree)) != 0)
+    dap_chain_hash_fast_t l_hash = {0};
+    if ((ret_val = dap_chain_datum_anchor_get_hash_from_data(a_anchor, &l_hash)) != 0)
     {
-        log_it(L_WARNING,"Decree is not found.");
+        log_it(L_WARNING,"Can not find datum hash in anchor data");
         return -109;
     }
+    if ((ret_val = dap_chain_net_decree_get_by_hash(l_hash, &l_decree)) != 0)
+    {
+        log_it(L_WARNING,"Decree is not found.");
+        return -110;
+    }
 
-    return dap_chain_net_decree_apply(l_decree, a_chain);
+    if((ret_val = dap_chain_net_decree_apply(l_decree, a_chain))!=0)
+    {
+        log_it(L_WARNING,"Decree applying failed");
+    }
+
+    DAP_DELETE(l_decree);
+
+    return ret_val;
 }
 
 // Private functions

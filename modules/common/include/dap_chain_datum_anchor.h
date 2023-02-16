@@ -44,4 +44,4 @@ typedef struct dap_chain_datum_anchor{
 #define DAP_CHAIN_DATUM_ANCHOR_TSD_TYPE_DECREE_HASH                0x0001
 
 
-dap_hash_fast_t dap_chain_datum_anchor_get_hash_from_data(dap_chain_datum_anchor_t* a_anchor);
+int dap_chain_datum_anchor_get_hash_from_data(dap_chain_datum_anchor_t* a_anchor, dap_hash_fast_t * l_out_hash);
