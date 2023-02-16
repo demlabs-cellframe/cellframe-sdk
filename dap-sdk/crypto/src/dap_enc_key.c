@@ -51,7 +51,10 @@
 
 #undef LOG_TAG
 #define LOG_TAG "dap_enc_key"
-dap_enc_key_callbacks_t s_callbacks[]={
+
+const size_t c_callbacks_size = DAP_ENC_KEY_TYPE_LAST + 1;
+
+dap_enc_key_callbacks_t s_callbacks[c_callbacks_size] = {
     /* Symmetric ciphers */
     [DAP_ENC_KEY_TYPE_IAES]={
         .name = "IAES",
@@ -286,8 +289,6 @@ dap_enc_key_callbacks_t s_callbacks[]={
     }
 };
 
-size_t c_callbacks_size = sizeof(s_callbacks) / sizeof(s_callbacks[0]);
-
 /**
  * @brief dap_enc_key_init empty stub
  * @return
@@ -295,7 +296,6 @@ size_t c_callbacks_size = sizeof(s_callbacks) / sizeof(s_callbacks[0]);
 int dap_enc_key_init()
 {
 #ifdef DAP_PQLR
-    c_callbacks_size += 6;
     if (dap_pqlr_init(s_callbacks))
         return -1;
 #endif
