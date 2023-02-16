@@ -196,6 +196,7 @@ typedef struct dap_chain_net_pvt{
     dap_chain_net_state_t state_target;
     uint16_t acl_idx;
 
+
     // Main loop timer
     dap_interval_timer_t main_timer;
 
@@ -1818,7 +1819,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 // Network fee
                 uint256_t l_network_fee = {};
                 dap_chain_addr_t l_network_fee_addr = {};
-                dap_chain_net_tx_get_fee(l_net->pub.id, &l_network_fee, &l_network_fee_addr);
+                dap_chain_net_tx_get_fee(l_net->pub.id, NULL, &l_network_fee, &l_network_fee_addr);
                 char *l_network_fee_balance_str = dap_chain_balance_print(l_network_fee);
                 char *l_network_fee_coins_str = dap_chain_balance_to_coins(l_network_fee);
                 char *l_network_fee_addr_str = dap_chain_addr_to_str(&l_network_fee_addr);
@@ -2480,6 +2481,8 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
 
 
          }
+
+
         char * l_chains_path = dap_strdup_printf("%s/network/%s", dap_config_path(), l_net->pub.name);
         DIR * l_chains_dir = opendir(l_chains_path);
         DAP_DEL_Z(l_chains_path);
@@ -2520,7 +2523,8 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
 
             // sort list with chains names by priority
             l_prior_list = dap_list_sort(l_prior_list, callback_compare_prioritity_list);
-            // load chains by priority
+
+            // create and load chains params by priority
             dap_chain_t *l_chain;
             dap_list_t *l_list = l_prior_list;
             while(l_list){
@@ -2528,11 +2532,11 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 // Create chain object
                 l_chain = dap_chain_load_from_cfg(l_net->pub.ledger, l_net->pub.name,
                                                   l_net->pub.id, l_chain_prior->chains_path);
+
                 if(l_chain) {//add minimum commission from to which the master node agrees. if present (default = 1.0)
                     l_chain->minimum_commission = dap_chain_coins_to_balance(dap_config_get_item_str_default(l_cfg , "general" ,"minimum_commission","1.0"));
                     DL_APPEND(l_net->pub.chains, l_chain);
-                    if(l_chain->callback_created)
-                        l_chain->callback_created(l_chain, l_cfg);
+
                     // add a callback to monitor changes in the chain
                     dap_chain_add_callback_notify(l_chain, s_chain_callback_notify, l_net);
                 }
@@ -2541,8 +2545,26 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
             }
             dap_list_free_full(l_prior_list, NULL);
 
-            dap_chain_t *l_chain02;
+            //load decree
+            dap_chain_net_decree_init(l_net);
 
+            // load chains
+            l_chain = l_net->pub.chains;
+            while(l_chain){
+                if (dap_chain_load_all(l_chain) == 0)
+                    log_it (L_NOTICE, "Loaded chain files");
+                else {
+                    dap_chain_save_all( l_chain );
+                    log_it (L_NOTICE, "Initialized chain files");
+                }
+
+                if(l_chain->callback_created)
+                    l_chain->callback_created(l_chain, l_cfg);
+
+                l_chain = l_chain->next;
+            }
+
+            dap_chain_t *l_chain02;
             DL_FOREACH(l_net->pub.chains, l_chain){
                 DL_FOREACH(l_net->pub.chains, l_chain02){
                     if (l_chain != l_chain02){
@@ -2792,7 +2814,8 @@ dap_chain_t *dap_chain_net_get_chain_by_chain_type(dap_chain_net_t *a_net, dap_c
 
     DL_FOREACH(a_net->pub.chains, l_chain) {
         for(int i = 0; i < l_chain->datum_types_count; i++) {
-            if(l_chain->datum_types[i] == a_datum_type)
+            dap_chain_type_t l_datum_type = l_chain->datum_types[i];
+            if(l_datum_type == a_datum_type)
                 return l_chain;
         }
     }
@@ -3101,6 +3124,7 @@ bool dap_chain_net_get_extra_gdb_group(dap_chain_net_t *a_net, dap_chain_node_ad
  *   if DAP_CHAIN_DATUM_TX, called dap_chain_ledger_tx_add_check
  *   if DAP_CHAIN_DATUM_TOKEN_DECL, called dap_chain_ledger_token_decl_add_check
  *   if DAP_CHAIN_DATUM_TOKEN_EMISSION, called dap_chain_ledger_token_emission_add_check
+ *   if DAP_CHAIN_DATUM_DECREE
  * @param a_net
  * @param a_datum
  * @return
@@ -3118,7 +3142,9 @@ int dap_chain_net_verify_datum_for_add(dap_chain_net_t *a_net, dap_chain_datum_t
             return dap_chain_ledger_token_decl_add_check( a_net->pub.ledger, (dap_chain_datum_token_t *)a_datum->data, a_datum->header.data_size);
         case DAP_CHAIN_DATUM_TOKEN_EMISSION:
             return dap_chain_ledger_token_emission_add_check( a_net->pub.ledger, a_datum->data, a_datum->header.data_size );
-        default: return 0;
+        case DAP_CHAIN_DATUM_DECREE:
+            return dap_chain_net_decree_verify((dap_chain_datum_decree_t*)a_datum->data, a_net, NULL, NULL);
+    default: return 0;
     }
 }
 
@@ -3299,7 +3325,7 @@ dap_list_t* dap_chain_datum_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, d
 int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_tx_hash)
 {
     size_t l_datum_data_size = a_datum->header.data_size;
-    if ( a_datum_size < l_datum_data_size+ sizeof (a_datum->header) ){
+    if (a_datum_size < l_datum_data_size+ sizeof (a_datum->header)){
         log_it(L_INFO,"Corrupted datum rejected: wrong size %zd not equel or less datum size %zd",a_datum->header.data_size+ sizeof (a_datum->header),
                a_datum_size );
         return -101;
@@ -3307,27 +3333,11 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
     switch (a_datum->header.type_id) {
         case DAP_CHAIN_DATUM_DECREE:{
             dap_chain_datum_decree_t * l_decree = (dap_chain_datum_decree_t *) a_datum->data;
-            if( sizeof(l_decree->header)> l_datum_data_size  ){
+            if(sizeof(l_decree->header) + l_decree->header.data_size + l_decree->header.signs_size > l_datum_data_size){
                 log_it(L_WARNING, "Corrupted decree, size %zd is smaller than ever decree header's size %zd", l_datum_data_size, sizeof(l_decree->header));
                 return -102;
             }
-
-
-            switch(l_decree->header.type){
-                case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:{
-                    dap_chain_net_srv_t * l_srv = dap_chain_net_srv_get(l_decree->header.srv_id);
-                    if(l_srv){
-                        if(l_srv->callbacks.decree){
-                            dap_chain_net_t * l_net = dap_chain_net_by_id(a_chain->net_id);
-                            l_srv->callbacks.decree(l_srv,l_net,a_chain,l_decree,l_datum_data_size);
-                         }
-                    }else{
-                        log_it(L_WARNING,"Decree for unknown srv uid 0x%016"DAP_UINT64_FORMAT_X , l_decree->header.srv_id.uint64);
-                        return -103;
-                    }
-                }
-                default:;
-            }
+            return dap_chain_net_decree_load(l_decree, a_chain);
         } break;
 
         case DAP_CHAIN_DATUM_TOKEN_DECL:
@@ -3357,3 +3367,8 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
     return 0;
 }
 
+
+bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net)
+{
+    return PVT(a_net)->load_mode;
+}

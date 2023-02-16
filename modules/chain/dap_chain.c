@@ -261,6 +261,8 @@ static dap_chain_type_t s_chain_type_from_str(const char *a_type_str)
     if(!dap_strcmp(a_type_str, "signer")) {
 	    return CHAIN_TYPE_SIGNER;
     }
+    if (!dap_strcmp(a_type_str, "decree"))
+        return CHAIN_TYPE_DECREE;
     return CHAIN_TYPE_LAST;
 }
 
@@ -287,6 +289,8 @@ static uint16_t s_datum_type_from_str(const char *a_type_str)
     if (!dap_strcmp(a_type_str, "signer")) {
         return DAP_CHAIN_DATUM_SIGNER;
     }
+    if (!dap_strcmp(a_type_str, "decree"))
+        return DAP_CHAIN_DATUM_DECREE;
     return DAP_CHAIN_DATUM_CUSTOM;
 }
 
@@ -414,12 +418,6 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 if ( dap_config_get_item_path_default(l_cfg , "files","storage_dir",NULL ) )
 				{
                     DAP_CHAIN_PVT(l_chain)->file_storage_dir = dap_strdup( dap_config_get_item_path( l_cfg , "files","storage_dir" ) );
-                    if (dap_chain_load_all(l_chain) == 0)
-                        log_it (L_NOTICE, "Loaded chain files");
-                    else {
-                        dap_chain_save_all( l_chain );
-                        log_it (L_NOTICE, "Initialized chain files");
-                    }
                 } else
                     log_it (L_INFO, "Not set file storage path, will not stored in files");
 
@@ -460,7 +458,7 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
 				}
 
 				// add datum types
-				if (l_datum_types && l_datum_types_count > 0)
+                if (l_datum_types && l_datum_types_count > 0)
 				{
 					l_chain->datum_types = DAP_NEW_SIZE(dap_chain_type_t, l_datum_types_count * sizeof(dap_chain_type_t)); // TODO: pls check counter for recognized types before memory allocation!
 					l_count_recognized = 0;

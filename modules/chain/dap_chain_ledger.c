@@ -3423,7 +3423,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
     uint256_t l_value = {}, l_fee_value = {}, l_fee_sum = {};
     dap_chain_addr_t l_fee_addr = {};
 #ifndef DAP_CHAIN_LEDGER_TEST
-    bool l_fee_check = dap_chain_net_tx_get_fee(PVT(a_ledger)->net->pub.id, &l_fee_value, &l_fee_addr);
+    bool l_fee_check = dap_chain_net_tx_get_fee(PVT(a_ledger)->net->pub.id, NULL, &l_fee_value, &l_fee_addr);
 #else
     bool l_fee_check = false;
 #endif
