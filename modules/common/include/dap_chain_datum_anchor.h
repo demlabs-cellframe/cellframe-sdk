@@ -21,24 +21,27 @@
 */
 #pragma once
 
-#include "dap_chain_datum_decree.h"
+#include "dap_chain_common.h"
+#include "dap_common.h"
+#include "dap_math_ops.h"
+#include "dap_time.h"
 #include "dap_list.h"
-#include "dap_chain_net.h"
-
-typedef struct decree_params {
-    dap_list_t *pkeys;
-    uint256_t   num_of_owners;
-    uint256_t   min_num_of_owners;
-}   dap_chain_net_decree_t;
-
-// Default values
+#include "dap_tsd.h"
+#include <stdint.h>
 
 
-int dap_chain_net_decree_init(dap_chain_net_t *a_net);
-int dap_chain_net_decree_deinit(dap_chain_net_t *a_net);
+typedef struct dap_chain_datum_anchor{
+    uint16_t anchor_version;
+    struct {
+        dap_time_t ts_created;
+        uint32_t data_size;
+        uint32_t signs_size;
+    } DAP_ALIGN_PACKED header;
+    byte_t data_n_sign[];
+} DAP_ALIGN_PACKED dap_chain_datum_anchor_t;
 
-int dap_chain_net_decree_apply(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain);
-int dap_chain_net_decree_verify(dap_chain_datum_decree_t * a_decree, dap_chain_net_t *a_net, uint32_t *a_signs_count, uint32_t *a_signs_verify);
-int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain);
+// DECREE TSD types
+#define DAP_CHAIN_DATUM_ANCHOR_TSD_TYPE_DECREE_HASH                0x0001
 
-int dap_chain_net_decree_get_by_hash(dap_hash_fast_t *a_hash, dap_chain_datum_decree_t * a_decree);
+
+dap_hash_fast_t dap_chain_datum_anchor_get_hash_from_data(dap_chain_datum_anchor_t* a_anchor);

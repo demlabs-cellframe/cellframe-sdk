@@ -21,24 +21,8 @@
 */
 #pragma once
 
-#include "dap_chain_datum_decree.h"
-#include "dap_list.h"
+#include "dap_chain_datum_anchor.h"
 #include "dap_chain_net.h"
 
-typedef struct decree_params {
-    dap_list_t *pkeys;
-    uint256_t   num_of_owners;
-    uint256_t   min_num_of_owners;
-}   dap_chain_net_decree_t;
-
-// Default values
-
-
-int dap_chain_net_decree_init(dap_chain_net_t *a_net);
-int dap_chain_net_decree_deinit(dap_chain_net_t *a_net);
-
-int dap_chain_net_decree_apply(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain);
-int dap_chain_net_decree_verify(dap_chain_datum_decree_t * a_decree, dap_chain_net_t *a_net, uint32_t *a_signs_count, uint32_t *a_signs_verify);
-int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain);
-
-int dap_chain_net_decree_get_by_hash(dap_hash_fast_t *a_hash, dap_chain_datum_decree_t * a_decree);
+int dap_chain_net_anchor_verify(dap_chain_datum_anchor_t * a_anchor, dap_chain_net_t *a_net, uint32_t *a_signs_count, uint32_t *a_signs_verify);
+int dap_chain_net_anchor_load(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a_chain);

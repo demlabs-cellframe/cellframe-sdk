@@ -211,7 +211,7 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t * a_decree, dap_chain_n
     return 0;
 }
 
-int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain)
+int dap_chain_net_decree_apply(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain)
 {
     int ret_val = 0;
 
@@ -229,10 +229,7 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
         return -108;
     }
 
-
-
-    uint32_t l_num_of_valid_signs = 0, l_num_of_signs = 0;
-    if ((ret_val = dap_chain_net_decree_verify(a_decree, l_net, &l_num_of_signs, &l_num_of_valid_signs)) != 0)
+    if ((ret_val = dap_chain_net_decree_verify(a_decree, l_net, NULL, NULL)) != 0)
         return ret_val;
 
     // Process decree
@@ -248,6 +245,26 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
     }
 
     return -100;
+}
+
+int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain)
+{
+
+    // TODO: put decree into hash-table
+    dap_hash_fast_t l_hash = {0};
+    dap_chain_datum_decree_t * l_decree = NULL;
+    size_t l_data_size = sizeof(dap_chain_datum_decree_t) + l_decree->header.data_size + l_decree->header.signs_size;
+
+    dap_hash_fast(l_decree, l_data_size, &l_hash);
+    return 0;
+}
+
+int dap_chain_net_decree_get_by_hash(dap_hash_fast_t *a_hash, dap_chain_datum_decree_t * a_decree)
+{
+
+    // TODO: getting decree from hash-table by hash
+
+    return 0;
 }
 
 // Private functions
