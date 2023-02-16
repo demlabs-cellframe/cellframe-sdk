@@ -56,12 +56,12 @@ int dap_pqlr_init(dap_enc_key_callbacks_t * a_callbacks)
     dap_enc_key_callbacks_t l_sig_falcon={
             .name = "PQLR_SIG_FALCON",
 
-            .new_callback = dap_pqlr_dilithium_key_new,
-            .new_generate_callback = dap_pqlr_dilithium_key_new_generate,
-            .delete_callback = dap_pqlr_dilithium_key_delete,
+            .new_callback = dap_pqlr_falcon_key_new,
+            .new_generate_callback = dap_pqlr_falcon_key_new_generate,
+            .delete_callback = dap_pqlr_falcon_key_delete,
 
-            .enc_na = dap_pqlr_dilithium_create_sign,
-            .dec_na = dap_pqlr_dilithium_verify_sign,
+            .enc_na = dap_pqlr_falcon_create_sign,
+            .dec_na = dap_pqlr_falcon_verify_sign,
         };
 
     dap_enc_key_callbacks_t l_kem_saber={
