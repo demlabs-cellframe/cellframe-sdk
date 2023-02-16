@@ -76,6 +76,7 @@
 #include "dap_chain_node_ping.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_tx.h"
+#include "dap_chain_block.h"
 
 #ifndef _WIN32
 #include "dap_chain_net_news.h"
@@ -5240,7 +5241,117 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
     return 0;
 }
 
+int com_comi_coll(int a_argc, char ** a_argv, char **a_str_reply)
+{
+    int arg_index = 1;
+    const char *str_tmp = NULL;
 
+    const char * l_cert_name = NULL;
+    const char * l_addr_str = NULL;
+    const char * l_hash_out_type = NULL;
+    const char * l_hash_str = NULL;
+    const char * l_hash_mas_str = NULL;
+
+    dap_chain_hash_fast_t l_datum_hash = {};
+    dap_chain_t * l_chain = NULL;
+    dap_chain_block_t  * l_block;
+
+    char *l_str_reply_tmp = NULL;
+    uint256_t l_emission_value = {};
+    //uint256_t l_fee_value = {};
+    const char * l_ticker = NULL;
+
+
+
+    const char * l_emission_hash_str = NULL;
+    const char * l_emission_hash_str_remove = NULL;
+    dap_chain_hash_fast_t l_emission_hash;
+    dap_chain_datum_token_emission_t *l_emission = NULL;
+    size_t l_emission_size;
+
+    const char * l_certs_str = NULL;
+
+
+    size_t l_certs_size = 0;
+
+    const char * l_chain_emission_str = NULL;
+    dap_chain_t * l_chain_emission = NULL;
+
+    const char * l_chain_base_tx_str = NULL;
+    dap_chain_t * l_chain_base_tx = NULL;
+
+    dap_chain_net_t * l_net = NULL;
+
+
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
+    if(!l_hash_out_type)
+        l_hash_out_type = "hex";
+    if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
+        return -1;
+    }
+
+    dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,a_argc,a_argv,a_str_reply,&l_chain, &l_net);
+    if( ! l_net) { // Can't find such network
+        return -2;
+    }
+
+    // Private certificate
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cert", &l_cert_name);
+    // The address of the wallet to which the commission is received
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash_one", &l_hash_str);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash.", &l_hash_mas_str);
+
+
+    if(!l_addr_str) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "commission_coll requires parameter '-addr'");
+        return -3;
+    }
+    if(!l_cert_name) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "commission_coll requires parameter '-cert'");
+        return -4;
+    }
+
+    dap_cert_t * l_cert = dap_cert_find_by_name( l_cert_name );
+    if( l_cert == NULL ){
+        dap_cli_server_cmd_set_reply_text(a_str_reply,
+                "Can't find \"%s\" certificate", l_cert_name );
+        return -5;
+    }
+
+    if( l_cert->enc_key == NULL ){
+        dap_cli_server_cmd_set_reply_text(a_str_reply,
+                "Corrupted certificate \"%s\" without keys certificate", l_cert_name );
+        return -5;
+    }
+    dap_pkey_t *l_pub_key = NULL;
+    if(l_cert) {
+        l_pub_key = dap_pkey_from_enc_key(l_cert->enc_key);
+    }
+
+    if(!l_hash_str && !l_hash_mas_str){
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "commission_coll requires parameter '-hash_one' or '-hash.'");
+        return -6;
+    }else if(l_hash_str && l_hash_mas_str){
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "commission_coll requires one of parameters '-hash_one' or '-hash.'");
+        return -7;
+    }else if(l_hash_str){
+        size_t l_block_size = 0;
+        int res =  dap_chain_hash_fast_from_hex_str( l_hash_str, &l_datum_hash);
+        l_block = (dap_chain_block_t*) dap_chain_get_atom_by_hash( l_chain, &l_datum_hash, &l_block_size);
+        l_block->hdr.
+        //l_chain
+        //l_datum_hash
+
+        return -8;
+    }else if(l_hash_mas_str){
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "for future use");
+        return -9;
+    }
+
+    return 0;
+}
 /**
  * @brief stats command
  *
