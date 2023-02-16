@@ -236,7 +236,16 @@ dap_enc_key_callbacks_t s_callbacks[]={
         .new_generate_callback = dap_enc_sig_ringct20_key_new_generate
     },
 
+    [DAP_ENC_KEY_TYPE_SIG_FALCON]={
+        .name = "SIG_FALCON",
+        .enc_na = dap_enc_sig_falcon_get_sign,
+        .dec_na = dap_enc_sig_falcon_verify_sign,
+        .new_callback = dap_enc_sig_falcon_key_new,
+        .delete_callback = dap_enc_sig_falcon_key_delete,
+        .new_generate_callback = dap_enc_sig_falcon_key_new_generate
+    }
 #ifdef DAP_PQLR
+    ,
     [DAP_ENC_KEY_TYPE_PQLR_SIG_DILITHIUM] = {
         .name = "SIG_PQLR_DILITHIUM",
         .enc_na = dap_pqlr_dilithium_create_sign,
@@ -274,15 +283,6 @@ dap_enc_key_callbacks_t s_callbacks[]={
 
     [DAP_ENC_KEY_TYPE_PQLR_KEM_NEWHOPE] = {
         .name = "PQLR_NEWHOPE"
-    },
-#else
-    [DAP_ENC_KEY_TYPE_SIG_FALCON]={
-        .name = "SIG_FALCON",
-        .enc_na = dap_enc_sig_falcon_get_sign,
-        .dec_na = dap_enc_sig_falcon_verify_sign,
-        .new_callback = dap_enc_sig_falcon_key_new,
-        .delete_callback = dap_enc_sig_falcon_key_delete,
-        .new_generate_callback = dap_enc_sig_falcon_key_new_generate
     }
 #endif
 };
@@ -382,19 +382,19 @@ uint8_t* dap_enc_key_serialize_priv_key(dap_enc_key_t *a_key, size_t *a_buflen_o
 
     switch (a_key->type) {
     case DAP_ENC_KEY_TYPE_SIG_BLISS:
-        return a_buflen_out && *a_buflen_out
+        return a_buflen_out
                 ? dap_enc_sig_bliss_write_private_key(a_key->priv_key_data, a_buflen_out)
                 : NULL;
     case DAP_ENC_KEY_TYPE_SIG_TESLA:
-        return a_buflen_out && *a_buflen_out
+        return a_buflen_out
                 ? dap_enc_tesla_write_private_key(a_key->priv_key_data, a_buflen_out)
                 : NULL;
     case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
-        return a_buflen_out && *a_buflen_out
+        return a_buflen_out
                 ? dap_enc_dilithium_write_private_key(a_key->priv_key_data, a_buflen_out)
                 : NULL;
     case DAP_ENC_KEY_TYPE_SIG_FALCON:
-        return a_buflen_out && *a_buflen_out
+        return a_buflen_out
                 ? dap_enc_falcon_write_private_key(a_key->priv_key_data, a_buflen_out)
                 : NULL;
     default:
@@ -420,19 +420,19 @@ uint8_t* dap_enc_key_serialize_pub_key(dap_enc_key_t *a_key, size_t *a_buflen_ou
 
     switch (a_key->type) {
     case DAP_ENC_KEY_TYPE_SIG_BLISS:
-        return a_buflen_out && *a_buflen_out
+        return a_buflen_out
                 ? dap_enc_sig_bliss_write_public_key(a_key->pub_key_data, a_buflen_out)
                 : NULL;
     case DAP_ENC_KEY_TYPE_SIG_TESLA:
-        return a_buflen_out && *a_buflen_out
+        return a_buflen_out
                 ? dap_enc_tesla_write_public_key(a_key->pub_key_data, a_buflen_out)
                 : NULL;
     case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
-        return a_buflen_out && *a_buflen_out
+        return a_buflen_out
                 ? dap_enc_dilithium_write_public_key(a_key->pub_key_data, a_buflen_out)
                 : NULL;
     case DAP_ENC_KEY_TYPE_SIG_FALCON:
-        return a_buflen_out && *a_buflen_out
+        return a_buflen_out
                 ? dap_enc_falcon_write_public_key(a_key->pub_key_data, a_buflen_out)
                 : NULL;
     default:

@@ -77,7 +77,7 @@ size_t dap_sign_create_output_unserialized_calc_size(dap_enc_key_t * a_key, size
         return dap_pqlr_dilithium_calc_signature_size(a_key);
 #endif
     case DAP_ENC_KEY_TYPE_SIG_FALCON:
-        return dap_enc_falcon_calc_signature_unserialized_size();
+        return dap_enc_falcon_calc_signature_unserialized_size(a_key);
     default:
         return 0;
     }
