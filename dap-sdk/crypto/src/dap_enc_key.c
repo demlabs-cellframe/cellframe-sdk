@@ -530,8 +530,10 @@ uint8_t* dap_enc_key_serealize_pub_key(dap_enc_key_t *a_key, size_t *a_buflen_ou
  */
 int dap_enc_key_deserealize_priv_key(dap_enc_key_t *a_key, const uint8_t *a_buf, size_t a_buflen)
 {
+
     if(!a_key || !a_buf)
         return -1;
+
     switch (a_key->type) {
     case DAP_ENC_KEY_TYPE_SIG_BLISS:
         if((a_key->priv_key_data)) {
