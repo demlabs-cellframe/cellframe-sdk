@@ -93,6 +93,8 @@
             s = "DATUM_TOKEN_DECL"; break;  \
         case DAP_CHAIN_DATUM_TOKEN_EMISSION:\
             s = "DATUM_TOKEN_EMISSION"; break;\
+        case DAP_CHAIN_DATUM_DECREE:\
+            s = "DATUM_DECREE"; break;\
         default:                            \
             s = "DATUM_UNKNOWN"; break;     \
 }

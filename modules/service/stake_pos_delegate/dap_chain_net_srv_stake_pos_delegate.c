@@ -100,7 +100,7 @@ int dap_chain_net_srv_stake_pos_delegate_init()
         size_t l_auth_certs_count = 0;
         dap_cert_t **l_auth_certs = NULL;
         for (dap_chain_t *l_chain = l_net_list[i]->pub.chains; l_chain; l_chain = l_chain->next) {
-            l_auth_certs = dap_chain_cs_dag_poa_get_auth_certs(l_chain, &l_auth_certs_count);
+            l_auth_certs = NULL;//dap_chain_cs_dag_poa_get_auth_certs(l_chain, &l_auth_certs_count);
             if (l_auth_certs)
                 break;
             l_auth_certs = dap_chain_cs_block_poa_get_auth_certs(l_chain, &l_auth_certs_count);
@@ -232,7 +232,7 @@ static bool s_stake_conditions_calc(dap_chain_tx_out_cond_t *a_cond, dap_chain_d
     size_t l_auth_certs_count = 0;
     dap_cert_t **l_auth_certs = NULL;
     for (dap_chain_t *l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
-        l_auth_certs = dap_chain_cs_dag_poa_get_auth_certs(l_chain, &l_auth_certs_count);
+        l_auth_certs = NULL;//dap_chain_cs_dag_poa_get_auth_certs(l_chain, &l_auth_certs_count);
         if (l_auth_certs)
             break;
         l_auth_certs = dap_chain_cs_block_poa_get_auth_certs(l_chain, &l_auth_certs_count);
@@ -624,7 +624,7 @@ static bool s_stake_block_commit(dap_chain_net_t *a_net, dap_list_t *a_tx_hash_l
     size_t l_auth_certs_count = 0;
     dap_cert_t **l_auth_certs = NULL;
     for(dap_chain_t *l_chain = a_net->pub.chains; l_chain; l_chain = l_chain->next) {
-        l_auth_certs = dap_chain_cs_dag_poa_get_auth_certs(l_chain, &l_auth_certs_count);
+        l_auth_certs = NULL;//dap_chain_cs_dag_poa_get_auth_certs(l_chain, &l_auth_certs_count);
         if(l_auth_certs)
             break;
         l_auth_certs = dap_chain_cs_block_poa_get_auth_certs(l_chain, &l_auth_certs_count);

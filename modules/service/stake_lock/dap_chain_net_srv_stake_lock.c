@@ -564,7 +564,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 /*________________________________________________________________________________________________________________*/
 
 
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(l_chain->net_id, &l_net_fee, &l_addr_fee);
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(l_chain->net_id, NULL, &l_net_fee, &l_addr_fee);
     if(l_net_fee_used)
         SUM_256_256(l_value_need,l_net_fee,&l_value_need);
     SUM_256_256(l_value_need,l_value_fee,&l_value_need);
@@ -1276,7 +1276,7 @@ dap_chain_datum_t *dap_chain_net_srv_stake_lock_datum_create(dap_chain_net_t *a_
     // where to take coins for service
     dap_chain_addr_t l_addr_from;
     dap_chain_addr_t l_net_fee_addr = {};
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id,&l_net_fee,&l_net_fee_addr);
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, NULL, &l_net_fee, &l_net_fee_addr);
     if(l_net_fee_used)
         SUM_256_256(l_value_need,l_net_fee,&l_value_need);
 
@@ -1411,7 +1411,7 @@ dap_chain_datum_t *dap_chain_burning_tx_create(dap_chain_t *a_chain, dap_enc_key
     const char *l_native_ticker = dap_chain_net_by_id(a_chain->net_id)->pub.native_ticker;
     dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(a_chain->ledger, a_token_ticker,
                                                                              a_addr_from, a_value, &l_value_transfer);
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_chain->net_id, &l_net_fee, &l_addr_fee);
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_chain->net_id, NULL, &l_net_fee, &l_addr_fee);
     if(l_net_fee_used)
         SUM_256_256(l_total_fee,l_net_fee,&l_total_fee);
 
@@ -1520,9 +1520,10 @@ static char *dap_chain_mempool_base_tx_for_stake_lock_create(dap_chain_t *a_chai
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
 
     const char *l_native_ticker = l_net->pub.native_ticker;
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_chain->net_id, &l_net_fee, &l_net_fee_addr);
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_chain->net_id, NULL, &l_net_fee, &l_net_fee_addr);
     if(l_net_fee_used)
         SUM_256_256(l_value_need,l_net_fee,&l_value_need);
+
     // create first transaction (with tx_token)
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
     l_tx->header.ts_created = time(NULL);
