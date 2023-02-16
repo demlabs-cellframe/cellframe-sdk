@@ -1,4 +1,4 @@
-
+#include "dap_timerfd.h"
 #include "dap_chain.h"
 #include "dap_chain_block.h"
 #include "dap_chain_cs_blocks.h"
@@ -106,11 +106,12 @@ typedef struct dap_chain_esbocs_validator {
 } dap_chain_esbocs_validator_t;
 
 typedef struct dap_chain_esbocs_session {
+    pthread_rwlock_t rwlock;
+
     dap_chain_t *chain;
     dap_chain_esbocs_t *esbocs;
 
     dap_chain_node_addr_t my_addr;
-
     uint8_t state; // session state
     dap_chain_esbocs_round_t cur_round;
 
@@ -118,15 +119,13 @@ typedef struct dap_chain_esbocs_session {
     dap_time_t ts_attempt_start; // time of current attempt start
 
     dap_chain_esbocs_sync_item_t *sync_items;
+    dap_timerfd_t *sync_timer;
 
     dap_enc_key_t *blocks_sign_key;
     dap_chain_addr_t my_signing_addr;
 
     struct dap_chain_esbocs_session *next;
     struct dap_chain_esbocs_session *prev;
-
-    dap_worker_t *worker; // Worker where it was processed last time
-    pthread_rwlock_t rwlock;
 } dap_chain_esbocs_session_t;
 
 #define DAP_CHAIN_ESBOCS(a) ((dap_chain_esbocs_t *)(a)->_inheritor)

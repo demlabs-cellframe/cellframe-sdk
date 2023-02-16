@@ -697,7 +697,7 @@ dap_chain_node_client_t *dap_chain_node_client_create(dap_chain_net_t *a_net,
 }
 
 
- void s_client_delete_callback(UNUSED_ATTR dap_client_t *a_client, void *a_arg)
+ void s_client_delete_callback(UNUSED_ARG dap_client_t *a_client, void *a_arg)
  {
      assert(a_arg);
      dap_chain_node_client_close_unsafe(a_arg);
@@ -797,7 +797,7 @@ void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client)
     DAP_DELETE(a_node_client);
 }
 
-void s_close_on_worker_callback(UNUSED_ATTR dap_worker_t *a_worker, void *a_arg)
+void s_close_on_worker_callback(UNUSED_ARG dap_worker_t *a_worker, void *a_arg)
 {
     assert(a_arg);
     dap_chain_node_client_close_unsafe(a_arg);

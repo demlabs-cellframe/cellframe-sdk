@@ -48,8 +48,8 @@ inline static uint8_t dap_stream_ch_chain_voting_get_id(void) { return (uint8_t)
 
 void dap_stream_ch_chain_voting_in_callback_add(void* a_arg, dap_chain_voting_ch_callback_t packet_in_callback);
 
-void dap_stream_ch_chain_voting_message_write(dap_chain_net_t * a_net, dap_list_t *a_sendto_nodes,
-                                              const void * a_data, size_t a_data_size);
+void dap_stream_ch_chain_voting_message_write(dap_chain_net_t * a_net, dap_chain_node_addr_t *a_remote_node_addr,
+                                              dap_stream_ch_chain_voting_pkt_t *a_voting_pkt);
 
 dap_stream_ch_chain_voting_pkt_t *dap_stream_ch_chain_voting_pkt_new(uint64_t a_net_id, const void *a_data, size_t a_data_size);
 
