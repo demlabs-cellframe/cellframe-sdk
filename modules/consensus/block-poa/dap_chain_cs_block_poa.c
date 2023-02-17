@@ -202,6 +202,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
             }
         }
     }
+
     log_it(L_NOTICE,"Initialized Block-PoA consensus with %u/%u minimum consensus",l_poa_pvt->auth_certs_count,l_poa_pvt->auth_certs_count_verify);
     // Save old callback if present and set the call of its own (chain callbacks)
     l_poa_pvt->prev_callback_created = l_blocks->chain->callback_created;

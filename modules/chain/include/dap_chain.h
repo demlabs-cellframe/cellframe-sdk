@@ -32,6 +32,7 @@
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_datum_tx.h"
+#include "dap_cert.h"
 
 
 typedef struct dap_chain dap_chain_t;
@@ -94,6 +95,7 @@ typedef void (*dap_chain_callback_notify_t)(void * a_arg, dap_chain_t *a_chain, 
 
 typedef size_t(*dap_chain_callback_get_count)(dap_chain_t *a_chain);
 typedef dap_list_t *(*dap_chain_callback_get_list)(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
+typedef dap_list_t *(*dap_chain_callback_get_poa_certs)(dap_chain_t *a_chain, size_t *a_auth_certs_count, uint16_t *count_verify);
 
 typedef enum dap_chain_type
 {
@@ -103,7 +105,8 @@ typedef enum dap_chain_type
     CHAIN_TYPE_TX,
     CHAIN_TYPE_CA,
     CHAIN_TYPE_SIGNER,
-    CHAIN_TYPE_LAST
+    CHAIN_TYPE_LAST,
+    CHAIN_TYPE_DECREE
 } dap_chain_type_t;
 
 typedef struct dap_chain {
@@ -167,6 +170,8 @@ typedef struct dap_chain {
     dap_chain_callback_get_list callback_get_txs;
     dap_chain_callback_get_count callback_count_atom;
     dap_chain_callback_get_list callback_get_atoms;
+
+    dap_chain_callback_get_poa_certs callback_get_poa_certs;
 
     dap_list_t * atom_notifiers;
 //    dap_chain_callback_notify_t callback_notify;

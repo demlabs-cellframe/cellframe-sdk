@@ -241,6 +241,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_cli_server_cmd_add ("mempool_proc", com_mempool_proc, "Proc mempool entrie with specified hash for selected chain network",
             "mempool_proc -net <net_name> -datum <datum hash>\n");
 
+    dap_cli_server_cmd_add ("mempool_proc_all", com_mempool_proc_all, "Proc mempool all entries for selected chain network",
+                            "mempool_proc_all -net <net_name> -chain <chain_name>\n");
+
     dap_cli_server_cmd_add ("mempool_delete", com_mempool_delete, "Delete datum with hash <datum hash> for selected chain network",
             "mempool_delete -net <net_name> -datum <datum hash>\n");
 
@@ -263,7 +266,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_cli_server_cmd_add ("tx_create_json", com_tx_create_json, "Make transaction",
                 "tx_create_json -net <net_name> -chain <chain_name> -json <json_file_path>\n" );
     dap_cli_server_cmd_add ("tx_cond_create", com_tx_cond_create, "Make cond transaction",
-                                        "tx_cond_create -net <net_name> -token <token_ticker> -wallet <wallet_name> -cert <pub_cert_name> -value <value_datoshi> -unit {mb | kb | b | sec | day} -srv_uid <numeric_uid>\n" );
+                                        "tx_cond_create -net <net_name> -token <token_ticker> -wallet <wallet_name>"
+                                        " -cert <pub_cert_name> -value <value_datoshi> -fee <value> -unit {mb | kb | b | sec | day} -srv_uid <numeric_uid>\n" );
 
     dap_cli_server_cmd_add ("tx_verify", com_tx_verify, "Verifing transaction in mempool",
             "tx_verify -net <net_name> -chain <chain_name> -tx <tx_hash>\n" );
@@ -307,6 +311,19 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
            "remove -gdb\n"
            "remove -chains [-net <net_name> | -all]\n"
                      "Be careful, the '-all' option for '-chains' will delete all chains and won't ask you for permission!");
+
+    // Decree create command
+    dap_cli_server_cmd_add ("decree", cmd_decree, "Work with decree",
+            "decree create common -net <net_name> [-chain <chain_name>]  -certs <certs list> -<Subtype param name> <Subtype param Value>\n"
+            "decree create service -net <net_name> [-chain <chain_name>] -srv_id <service_id> -certs <certs list> -<Subtype param name> <Subtype param Value>\n"
+            "decree sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs list>\n"
+            "decree anchor -net <net_name> -anchor_chain <chain_name> -decree?????\n"
+            "==Subtype Params==\n"
+            "\t -fee <value>: sets fee for tx in net\n"
+            "\t -new_certs <certs list>: sets new owners set for net\n"
+            "\t -signs_verify <value>: sets minimum number of owners needed to sign decree\n"
+            "\t ton_signs_verify <value>: sets minimum number of TON signers");
+
 
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",
