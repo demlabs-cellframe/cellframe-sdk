@@ -2841,65 +2841,9 @@ int com_mempool_proc_all(int argc, char ** argv, char ** a_str_reply) {
                                           l_chain->name);
     }
 
-    size_t l_objs_count = 0;
-    size_t l_objs_addr = 0;
-    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_count);
-    size_t l_processed_datums = 0;
-    size_t l_skip_datums = 0;
-    log_it(L_NOTICE, "Start massive processing");
-    for(size_t i = 0; i < l_objs_count; i++) {
-        dap_chain_datum_t *l_datum = (dap_chain_datum_t*)l_objs[i].value;
-        size_t l_datum_size = l_objs[i].value_len;
-        size_t l_datum_size2= l_datum? dap_chain_datum_size( l_datum): 0;
-        if (l_datum_size != l_datum_size2 ){
-            l_skip_datums++;
-            log_it(L_DEBUG, "It is not possible to process the datum, the size of the datum calculated using the "
-                            "function does not match the size of the data received from the GDB.");
-            break;
-        }else{
-            char buf[80] = {'\0'};
-            char buf_ctime[60] = {'\0'};
-            dap_hash_fast_t l_hf = {0};
-            dap_time_t l_ts_create = (dap_time_t)l_datum->header.ts_create;
-            const char *l_type = NULL;
-            DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type);
-            dap_hash_fast(l_datum, l_datum_size, &l_hf);
-            dap_chain_hash_fast_to_str(&l_hf, &buf, 80);
-            log_it(L_NOTICE, "\thash %s: type_id=%s ts_create=%s data_size=%u\n", &buf, l_type,
-                   dap_ctime_r(&l_ts_create, buf_ctime), l_datum->header.data_size);
-            int l_verify_datum = dap_chain_net_verify_datum_for_add(l_net, l_datum) ;
-            if (l_verify_datum != 0){
-                l_skip_datums++;
-                log_it(L_NOTICE, "\t\tError! Datum doesn't pass verifications (code %d) examine node log files.\n",
-                       l_verify_datum);
-                continue;
-            }else{
-                if (l_chain->callback_add_datums){
-                    if (l_chain->callback_add_datums(l_chain, &l_datum, 1) ==0 ){
-                        log_it(L_NOTICE, "\t\tError! Datum doesn't pass verifications, examine node log files.\n");
-                        l_skip_datums++;
-                        continue;
-                    }else{
-                        log_it(L_NOTICE, "\t\tDatum processed well. \n");
-                        l_processed_datums++;
-                        if (!dap_global_db_del_sync(&buf, l_gdb_group_mempool)){
-                            log_it(L_WARNING, "\t\tWarning! Can't delete datum from mempool! \n");
-                        }else
-                            log_it(L_NOTICE, "\t\t Removed datum from mempool.\n");
-                    }
-                }else{
-                    log_it(L_NOTICE, "\t\tError! Can't move to no-concensus chains from mempool.\n");
-                    l_skip_datums++;
-                    continue;
-                }
-            }
-        }
-    }
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "The entire mempool has been processed in %s.%s. "
-                                                   "Total items were %zu of which %zu accepted %zu rejected.",
-                                      l_net->pub.name, l_chain->name, l_objs_count, l_processed_datums,
-                                      l_skip_datums);
-
+    dap_chain_node_mempool_process_all(l_chain, true);
+    dap_cli_server_cmd_set_reply_text(a_str_reply, "The entire mempool has been processed in %s.%s.",
+                                                   l_net->pub.name, l_chain->name);
     return 0;
 }
 

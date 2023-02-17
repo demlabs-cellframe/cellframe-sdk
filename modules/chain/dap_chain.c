@@ -574,10 +574,13 @@ int dap_chain_load_all(dap_chain_t *l_chain)
     int l_ret = 0;
     if (!l_chain)
         return -2;
-    if(!dap_dir_test(DAP_CHAIN_PVT (l_chain)->file_storage_dir)) {
-        dap_mkdir_with_parents(DAP_CHAIN_PVT (l_chain)->file_storage_dir);
+    char *l_storage_dir = DAP_CHAIN_PVT(l_chain)->file_storage_dir;
+    if (!l_storage_dir)
+        return 0;
+    if (!dap_dir_test(l_storage_dir)) {
+        dap_mkdir_with_parents(l_storage_dir);
     }
-    DIR * l_dir = opendir(DAP_CHAIN_PVT(l_chain)->file_storage_dir);
+    DIR *l_dir = opendir(l_storage_dir);
     if (!l_dir) {
         log_it(L_ERROR, "Cannot open directory %s", DAP_CHAIN_PVT (l_chain)->file_storage_dir);
         return -3;

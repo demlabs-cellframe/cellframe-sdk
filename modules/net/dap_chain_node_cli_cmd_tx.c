@@ -1481,7 +1481,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                     dap_pkey_t *l_pkey = dap_cert_to_pkey(l_new_certs[i]);
                     if(!l_pkey)
                     {
-                        log_it(L_WARNING,"New cert [%d] have no public key.");
+                        log_it(L_WARNING,"New cert [%zu] have no public key.", i);
                         l_failed_certs++;
                         continue;
                     }
