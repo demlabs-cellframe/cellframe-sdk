@@ -100,7 +100,7 @@ int dap_chain_net_srv_stake_pos_delegate_init()
         size_t l_auth_certs_count = 0;
         dap_cert_t **l_auth_certs = NULL;
         for (dap_chain_t *l_chain = l_net_list[i]->pub.chains; l_chain; l_chain = l_chain->next) {
-            l_auth_certs = dap_chain_cs_dag_poa_get_auth_certs(l_chain, &l_auth_certs_count);
+            l_auth_certs = NULL;//dap_chain_cs_dag_poa_get_auth_certs(l_chain, &l_auth_certs_count);
             if (l_auth_certs)
                 break;
             l_auth_certs = dap_chain_cs_block_poa_get_auth_certs(l_chain, &l_auth_certs_count);
@@ -232,7 +232,7 @@ static bool s_stake_conditions_calc(dap_chain_tx_out_cond_t *a_cond, dap_chain_d
     size_t l_auth_certs_count = 0;
     dap_cert_t **l_auth_certs = NULL;
     for (dap_chain_t *l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
-        l_auth_certs = dap_chain_cs_dag_poa_get_auth_certs(l_chain, &l_auth_certs_count);
+        l_auth_certs = NULL;//dap_chain_cs_dag_poa_get_auth_certs(l_chain, &l_auth_certs_count);
         if (l_auth_certs)
             break;
         l_auth_certs = dap_chain_cs_block_poa_get_auth_certs(l_chain, &l_auth_certs_count);
@@ -291,6 +291,7 @@ dap_list_t *dap_chain_net_srv_stake_get_validators()
     }
     return l_ret;
 }
+
 
 bool dap_chain_net_srv_stake_validator(dap_chain_addr_t *a_addr, dap_chain_datum_t *a_datum)
 {
@@ -615,16 +616,11 @@ dap_chain_net_srv_stake_item_t *s_stake_item_from_order(dap_chain_net_t *a_net, 
 static bool s_stake_block_commit(dap_chain_net_t *a_net, dap_list_t *a_tx_hash_list)
 {
     size_t l_all_tx = 0, l_process_tx = 0;
-    // find all stake
-    dap_list_t *l_staker_list0 = dap_chain_net_srv_stake_get_validators();
-    if(!l_staker_list0){
-        return false;
-    }
     // find all certs
     size_t l_auth_certs_count = 0;
     dap_cert_t **l_auth_certs = NULL;
     for(dap_chain_t *l_chain = a_net->pub.chains; l_chain; l_chain = l_chain->next) {
-        l_auth_certs = dap_chain_cs_dag_poa_get_auth_certs(l_chain, &l_auth_certs_count);
+        l_auth_certs = NULL;//dap_chain_cs_dag_poa_get_auth_certs(l_chain, &l_auth_certs_count);
         if(l_auth_certs)
             break;
         l_auth_certs = dap_chain_cs_block_poa_get_auth_certs(l_chain, &l_auth_certs_count);
@@ -709,7 +705,7 @@ static bool s_stake_block_commit(dap_chain_net_t *a_net, dap_list_t *a_tx_hash_l
         l_process_tx++;
         a_tx_hash_list = dap_list_next(a_tx_hash_list);
     }
-    dap_list_free_full(l_staker_list0, free);
+
     log_it(L_INFO, "Processed %ld tx from %ld", l_process_tx, l_all_tx);
 
     if(!IS_ZERO_256(l_fee_sum_total)) {

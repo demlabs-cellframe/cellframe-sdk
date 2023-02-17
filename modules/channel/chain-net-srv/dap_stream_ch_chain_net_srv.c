@@ -370,8 +370,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         typedef dap_stream_ch_chain_net_srv_pkt_test_t pkt_test_t;
         pkt_test_t *l_request = (pkt_test_t*)l_ch_pkt->data;
         size_t l_request_size = l_request->data_size + sizeof(pkt_test_t);
-        if (l_ch_pkt->hdr.size != l_request_size) {
-            log_it(L_WARNING, "Wrong request size %u, must be %zu [pkt seq %"DAP_UINT64_FORMAT_U"]", l_ch_pkt->hdr.size, l_request_size, l_ch_pkt->hdr.seq_id);
+        if (l_ch_pkt->hdr.data_size != l_request_size) {
+            log_it(L_WARNING, "Wrong request size %u, must be %zu [pkt seq %"DAP_UINT64_FORMAT_U"]", l_ch_pkt->hdr.data_size, l_request_size, l_ch_pkt->hdr.seq_id);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_WRONG_SIZE;
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
             break;
@@ -406,29 +406,29 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
     } break; /* DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_REQUEST */
 
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST: {
-        if (l_ch_pkt->hdr.size < sizeof(dap_stream_ch_chain_net_srv_pkt_request_hdr_t) ){
+        if (l_ch_pkt->hdr.data_size < sizeof(dap_stream_ch_chain_net_srv_pkt_request_hdr_t) ){
             log_it( L_WARNING, "Wrong request size, less than minimum");
             break;
         }
         dap_chain_net_srv_grace_t *l_grace = DAP_NEW_Z(dap_chain_net_srv_grace_t);
         // Parse the request
-        l_grace->request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_request_t, l_ch_pkt->hdr.size);
-        memcpy(l_grace->request, l_ch_pkt->data, l_ch_pkt->hdr.size);
+        l_grace->request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_request_t, l_ch_pkt->hdr.data_size);
+        memcpy(l_grace->request, l_ch_pkt->data, l_ch_pkt->hdr.data_size);
         l_ch_chain_net_srv->srv_uid.uint64 = l_grace->request->hdr.srv_uid.uint64;
-        l_grace->request_size = l_ch_pkt->hdr.size;
+        l_grace->request_size = l_ch_pkt->hdr.data_size;
         l_grace->ch_uuid = a_ch->uuid;
         l_grace->stream_worker = a_ch->stream_worker;
         s_grace_period_control(l_grace);
     } break; /* DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST */
 
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_RESPONSE: {
-         if (l_ch_pkt->hdr.size < sizeof(dap_chain_receipt_info_t)) {
-            log_it(L_ERROR, "Wrong sign response size, %u when expected at least %zu with smth", l_ch_pkt->hdr.size,
+         if (l_ch_pkt->hdr.data_size < sizeof(dap_chain_receipt_info_t)) {
+            log_it(L_ERROR, "Wrong sign response size, %u when expected at least %zu with smth", l_ch_pkt->hdr.data_size,
                    sizeof(dap_chain_receipt_info_t));
             break;
         }
         dap_chain_datum_tx_receipt_t * l_receipt = (dap_chain_datum_tx_receipt_t *) l_ch_pkt->data;
-        size_t l_receipt_size = l_ch_pkt->hdr.size;
+        size_t l_receipt_size = l_ch_pkt->hdr.data_size;
         dap_chain_net_srv_usage_t * l_usage= NULL, *l_tmp= NULL;
         bool l_is_found = false;
         pthread_mutex_lock(& l_srv_session->parent->mutex );        // TODO rework it with packet usage_id
@@ -593,13 +593,13 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
     } break;
 
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_DATA: {
-        if (l_ch_pkt->hdr.size < sizeof(dap_stream_ch_chain_net_srv_pkt_data_hdr_t) ){
+        if (l_ch_pkt->hdr.data_size < sizeof(dap_stream_ch_chain_net_srv_pkt_data_hdr_t) ){
             log_it( L_WARNING, "Wrong request size, less than minimum");
             break;
         }
         typedef dap_stream_ch_chain_net_srv_pkt_data_t pkt_t;
         pkt_t * l_pkt =(pkt_t *) l_ch_pkt->data;
-        size_t l_pkt_size = l_ch_pkt->hdr.size - sizeof(pkt_t);
+        size_t l_pkt_size = l_ch_pkt->hdr.data_size - sizeof(pkt_t);
         dap_chain_net_srv_t * l_srv = dap_chain_net_srv_get( l_pkt->hdr.srv_uid);
         dap_chain_net_srv_usage_t * l_usage = dap_chain_net_srv_usage_find_unsafe( l_srv_session, l_pkt->hdr.usage_id );
         // If service not found
@@ -625,12 +625,12 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
     } break;
 
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR:{
-        if ( l_ch_pkt->hdr.size == sizeof (dap_stream_ch_chain_net_srv_pkt_error_t) ){
+        if ( l_ch_pkt->hdr.data_size == sizeof (dap_stream_ch_chain_net_srv_pkt_error_t) ){
             dap_stream_ch_chain_net_srv_pkt_error_t * l_err = (dap_stream_ch_chain_net_srv_pkt_error_t *) l_ch_pkt->data;
             log_it( L_NOTICE, "Remote responsed with error code 0x%08X", l_err->code );
             // TODO code for service client mode
         }else{
-            log_it(L_ERROR, "Wrong error response size, %u when expected %zu", l_ch_pkt->hdr.size,
+            log_it(L_ERROR, "Wrong error response size, %u when expected %zu", l_ch_pkt->hdr.data_size,
                    sizeof ( dap_stream_ch_chain_net_srv_pkt_error_t) );
         }
     } break;

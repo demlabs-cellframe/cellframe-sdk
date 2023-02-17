@@ -55,7 +55,7 @@
 #include "dap_config.h"
 #include "dap_cert.h"
 #include "dap_timerfd.h"
-#include "dap_chain_datum_tx_token.h"
+#include "dap_chain_datum_tx_in_ems.h"
 #include "dap_chain_datum_token.h"
 #include "dap_chain_mempool.h"
 #include "dap_global_db.h"
@@ -148,9 +148,9 @@ typedef struct dap_chain_ledger_tx_item {
         uint32_t n_outs;
         uint32_t n_outs_used;
         char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-        char padding[6];
+        byte_t padding[6];
         byte_t multichannel;
-        char pad[15];
+        byte_t pad[15];
         // TODO dynamically allocates the memory in order not to limit the number of outputs in transaction
         dap_chain_hash_fast_t tx_hash_spent_fast[MAX_OUT_ITEMS]; // spent outs list
     } DAP_ALIGN_PACKED cache_data;
@@ -3423,7 +3423,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
     uint256_t l_value = {}, l_fee_value = {}, l_fee_sum = {};
     dap_chain_addr_t l_fee_addr = {};
 #ifndef DAP_CHAIN_LEDGER_TEST
-    bool l_fee_check = dap_chain_net_tx_get_fee(PVT(a_ledger)->net->pub.id, &l_fee_value, &l_fee_addr);
+    bool l_fee_check = dap_chain_net_tx_get_fee(PVT(a_ledger)->net->pub.id, NULL, &l_fee_value, &l_fee_addr);
 #else
     bool l_fee_check = false;
 #endif
