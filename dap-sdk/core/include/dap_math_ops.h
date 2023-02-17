@@ -422,14 +422,14 @@ static inline int SUM_128_128(uint128_t a_128_bit,uint128_t b_128_bit,uint128_t*
 #else
     int overflow_flag_intermediate;
     uint64_t temp = 0;
-    overflow_flag=SUM_64_64(a_128_bit.lo,b_128_bit.lo,&temp);
-    c_128_bit->lo=temp;
+    overflow_flag = SUM_64_64(a_128_bit.lo, b_128_bit.lo, &temp);
+    c_128_bit->lo = temp;
     uint64_t carry_in_64=overflow_flag;
     uint64_t intermediate_value=0;
     overflow_flag=0;
     overflow_flag=SUM_64_64(carry_in_64,a_128_bit.hi,&intermediate_value);
-    overflow_flag_intermediate=SUM_64_64(intermediate_value,b_128_bit.hi,&temp);
-    c_128_bit->hi=temp;
+    overflow_flag_intermediate = SUM_64_64(intermediate_value, b_128_bit.hi, &temp);
+    c_128_bit->hi = temp;
     int return_overflow=overflow_flag|overflow_flag_intermediate;
     return return_overflow;
 #endif
@@ -618,8 +618,8 @@ static inline void MULT_128_256(uint128_t a_128_bit,uint128_t b_128_bit,uint256_
     //product of .lo terms - stored in .lo field of c_256_bit
     MULT_64_128(a_128_bit.lo,b_128_bit.lo, &c_256_bit->lo);
 
-    uint128_t cross_product_one= GET_128_FROM_64(0);
-    uint128_t cross_product_two=GET_128_FROM_64(0);
+    uint128_t cross_product_one = GET_128_FROM_64(0);
+    uint128_t cross_product_two = GET_128_FROM_64(0);
     MULT_64_128(a_128_bit.hi, b_128_bit.lo, &cross_product_one);
     c_256_bit->lo.hi += cross_product_one.lo;
     if(c_256_bit->lo.hi < cross_product_one.lo)  // if overflow
@@ -655,7 +655,7 @@ static inline int MULT_128_128(uint128_t a_128_bit, uint128_t b_128_bit, uint128
     overflow_flag=(a_128_bit>((uint128_t)-1)/b_128_bit);
 #else
     int equal_flag=0;
-    uint256_t full_product_256= GET_256_FROM_64(0);
+    uint256_t full_product_256 = GET_256_FROM_64(0);
     MULT_128_256(a_128_bit,b_128_bit,&full_product_256);
     *c_128_bit=full_product_256.lo;
     equal_flag=EQUAL_128(full_product_256.hi,uint128_0);
@@ -1022,8 +1022,6 @@ static inline void DIV_256(uint256_t a_256_bit, uint256_t b_256_bit, uint256_t* 
     *c_256_bit = l_ret;
 }
 
-
-
 /* Multiplicates 256-bit value to fixed-point value, represented as 256-bit value
  * @param a_val
  * @param a_mult
@@ -1056,7 +1054,6 @@ static inline int MULT_256_COIN(uint256_t a_val, uint256_t b_val, uint256_t* res
     return overflow;
 }
 
-
 /**
  * Divides two fixed-point values, represented as 256-bit values
  * @param a_val
@@ -1070,18 +1067,37 @@ static inline void DIV_256_COIN(uint256_t a, uint256_t b, uint256_t *res)
         *res = uint256_0;
         return;
     }
-    int counter = 0;
+    int counter_integer = 0;
+    int counter_fraction = 0;
     uint256_t a_copy = a;
     uint256_t ten18 = GET_256_FROM_64(1000000000000000000ULL);
-    uint256_t ten = GET_256_FROM_64(10l);
+    uint256_t ten = GET_256_FROM_64(10L);
+    uint256_t rem = uint256_0;
+    uint256_t loan = GET_256_FROM_64(1L);
     while (compare256(a_copy, b) < 0) {
-        counter++;
+        counter_integer++;
         MULT_256_256(a_copy, ten, &a_copy);
     }
-    DIV_256(a_copy, b, &a_copy);
+//    DIV_256(a_copy, b, &a_copy);
+
+    divmod_impl_256(a_copy, b, &a_copy, &rem);
+    uint256_t fraction = uint256_0;
+    uint256_t tmp = uint256_0;
+    while (compare256(rem, ten) >= 0 && counter_fraction < 18) {
+        counter_fraction++;
+        MULT_256_256(fraction, ten, &fraction);
+        MULT_256_256(rem, ten, &rem);
+        divmod_impl_256(rem, b, &tmp, &rem);
+        SUM_256_256(fraction, tmp, &fraction);
+    }
     MULT_256_256(a_copy, ten18, &a_copy);
-    uint256_t loan = GET_256_FROM_64(1l);
-    while(counter--) {
+    while (counter_fraction < 18) {
+        counter_fraction++;
+        MULT_256_256(fraction, ten, &fraction);
+    }
+    SUM_256_256(a_copy, fraction, &a_copy);
+
+    while(counter_integer--) {
         MULT_256_256(loan, ten, &loan); //maybe we should use same table as in dap_chain_common.c instead of cycle ?
     }
     DIV_256(a_copy, loan, &a_copy);
