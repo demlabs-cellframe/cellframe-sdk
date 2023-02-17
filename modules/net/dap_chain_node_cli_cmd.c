@@ -5208,8 +5208,6 @@ int com_comi_coll(int a_argc, char ** a_argv, char **a_str_reply)
     //uint256_t l_fee_value = {};
     const char * l_ticker = NULL;
 
-
-
     const char * l_emission_hash_str = NULL;
     const char * l_emission_hash_str_remove = NULL;
     dap_chain_hash_fast_t l_emission_hash;
