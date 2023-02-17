@@ -56,7 +56,7 @@ typedef struct dap_chain_cs_blocks
    void * _inheritor;
 } dap_chain_cs_blocks_t;
 
-#define DAP_CHAIN_CS_BLOCKS(a) ((dap_chain_cs_blocks_t*) a->_inheritor)
+#define DAP_CHAIN_CS_BLOCKS(a) ((dap_chain_cs_blocks_t *)(a)->_inheritor)
 typedef int (*dap_chain_blocks_block_callback_ptr_t)(dap_chain_cs_blocks_t *, dap_chain_block_t *);
 
 int dap_chain_cs_blocks_init();

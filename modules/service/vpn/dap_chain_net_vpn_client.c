@@ -694,9 +694,9 @@ dap_chain_net_vpn_client_status_t dap_chain_net_vpn_client_status(void)
 void dap_chain_net_vpn_client_pkt_in(dap_stream_ch_t* a_ch, dap_stream_ch_pkt_t* a_pkt)
 {
     ch_vpn_pkt_t * l_sf_pkt = (ch_vpn_pkt_t *) a_pkt->data;
-    size_t l_sf_pkt_data_size = a_pkt->hdr.size - sizeof(l_sf_pkt->header);
+    size_t l_sf_pkt_data_size = a_pkt->hdr.data_size - sizeof(l_sf_pkt->header);
 
-    if(!a_pkt->hdr.size) {
+    if(!a_pkt->hdr.data_size) {
         log_it(L_WARNING, "Bad input packet");
         return;
     }

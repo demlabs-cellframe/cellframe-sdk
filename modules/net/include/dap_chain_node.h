@@ -82,8 +82,7 @@ typedef struct dap_chain_node_decl{
     } accept_info;
 } DAP_ALIGN_PACKED dap_chain_node_decl_t;
 
-typedef struct dap_chain_node_info
-{
+typedef struct dap_chain_node_info {
     struct {
         dap_chain_node_addr_t address;
         dap_chain_cell_id_t cell_id;

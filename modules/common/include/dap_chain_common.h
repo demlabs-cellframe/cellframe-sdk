@@ -38,7 +38,7 @@
 #define DAP_CHAIN_ID_SIZE           8
 #define DAP_CHAIN_SHARD_ID_SIZE     8
 #define DAP_CHAIN_NET_ID_SIZE       8
-#define DAP_CHAIN_NODE_ROLE_SIZE    2
+#define DAP_CHAIN_NODE_ROLE_SIZE    4
 #define DAP_CHAIN_HASH_SLOW_SIZE    32
 #define DAP_CHAIN_TIMESTAMP_SIZE    8
 #define DAP_CHAIN_TICKER_SIZE_MAX   10
@@ -83,7 +83,6 @@ typedef union dap_chain_node_addr {
 #define NODE_ADDR_FPS_ARGS(a)  &a->words[3],&a->words[2],&a->words[1],&a->words[0]
 #define NODE_ADDR_FP_ARGS_S(a)  a.words[3],a.words[2],a.words[1],a.words[0]
 #define NODE_ADDR_FPS_ARGS_S(a)  &a.words[3],&a.words[2],&a.words[1],&a.words[0]
-
 #endif
 
 inline static int dap_chain_node_addr_from_str( dap_chain_node_addr_t * a_addr, const char * a_addr_str){
@@ -99,15 +98,17 @@ inline static bool dap_chain_node_addr_not_null(dap_chain_node_addr_t * a_addr){
   *
   *
   */
+enum {
+    NODE_ROLE_ROOT_MASTER=0x00,
+    NODE_ROLE_ROOT=0x01,
+    NODE_ROLE_ARCHIVE=0x02,
+    NODE_ROLE_CELL_MASTER=0x10,
+    NODE_ROLE_MASTER = 0x20,
+    NODE_ROLE_FULL=0xf0,
+    NODE_ROLE_LIGHT=0xff
+};
 typedef union dap_chain_node_role{
-    enum {
-        NODE_ROLE_ROOT_MASTER=0x00,
-        NODE_ROLE_ROOT=0x01,
-        NODE_ROLE_ARCHIVE=0x02,
-        NODE_ROLE_CELL_MASTER=0x10,
-        NODE_ROLE_MASTER = 0x20,
-        NODE_ROLE_FULL=0xf0,
-        NODE_ROLE_LIGHT=0xff } enums;
+    uint32_t enums;
     uint8_t raw[DAP_CHAIN_NODE_ROLE_SIZE];
 } DAP_ALIGN_PACKED dap_chain_node_role_t;
 
@@ -132,16 +133,16 @@ typedef struct dap_chain_addr{
     uint8_t addr_ver; // 0 for default
     dap_chain_net_id_t net_id;  // Testnet, mainnet or alternet
     dap_sign_type_t sig_type;
-    union{
+    union {
         //dap_chain_hash_fast_t hash;
         struct {
             uint8_t key_spend[sizeof(dap_chain_hash_fast_t)/2];
             uint8_t key_view[sizeof(dap_chain_hash_fast_t)/2];
-        } key_sv;
+        } DAP_ALIGN_PACKED key_sv;
         uint8_t key[sizeof(dap_chain_hash_fast_t)];
         uint8_t hash[sizeof(dap_chain_hash_fast_t)];
         dap_chain_hash_fast_t hash_fast;
-    } data;
+    } DAP_ALIGN_PACKED data;
     dap_chain_hash_fast_t checksum;
 }  DAP_ALIGN_PACKED dap_chain_addr_t;
 
@@ -159,8 +160,9 @@ typedef union {
 } dap_chain_net_srv_uid_t;
 
 extern const dap_chain_net_srv_uid_t c_dap_chain_net_srv_uid_null;
+extern const dap_chain_cell_id_t c_dap_chain_cell_id_null;
 
-typedef enum {
+enum serv_unit_enum {
     SERV_UNIT_UNDEFINED = 0 ,
     SERV_UNIT_MB = 0x00000001, // megabytes
     SERV_UNIT_SEC = 0x00000002, // seconds
@@ -168,7 +170,8 @@ typedef enum {
     SERV_UNIT_KB = 0x00000010,  // kilobytes
     SERV_UNIT_B = 0x00000011,   // bytes
     SERV_UNIT_PCS = 0x00000022  // pieces
-} serv_unit_enum_t;
+};
+typedef uint32_t serv_unit_enum_t;
 
 DAP_STATIC_INLINE const char *serv_unit_enum_to_str(serv_unit_enum_t *unit_enum){
     switch (*unit_enum) {
@@ -180,20 +183,14 @@ DAP_STATIC_INLINE const char *serv_unit_enum_to_str(serv_unit_enum_t *unit_enum)
     case SERV_UNIT_B: return "SERV_UNIT_B";
     case SERV_UNIT_PCS: return "SERV_UNIT_PCS";
     default: return "UNDEFINED";
-
     }
-//    switch (unit_enum){
-//    case SERV
-//    }
-//    return  "SERV_UNIT_UNDEFINED";
 }
 
 typedef union {
     uint8_t raw[4];
-    uint32_t raw_ui32[1];
     uint32_t uint32;
     serv_unit_enum_t enm;
-} dap_chain_net_srv_price_unit_uid_t;
+} DAP_ALIGN_PACKED dap_chain_net_srv_price_unit_uid_t;
 
 enum dap_chain_tx_item_type {
     TX_ITEM_TYPE_IN = 0x00, /// @brief  Transaction: inputs
@@ -249,15 +246,21 @@ bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr);
 dap_chain_net_srv_uid_t dap_chain_net_srv_uid_from_str(const char* a_str);
 
 void dap_chain_addr_fill(dap_chain_addr_t *a_addr, dap_sign_type_t a_type, dap_chain_hash_fast_t *a_pkey_hash, dap_chain_net_id_t a_net_id);
-void dap_chain_addr_fill_from_key(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_chain_net_id_t a_net_id);
+int dap_chain_addr_fill_from_key(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_chain_net_id_t a_net_id);
+int dap_chain_addr_fill_from_sign(dap_chain_addr_t *a_addr, dap_sign_t *a_sign, dap_chain_net_id_t a_net_id);
 
 int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr);
+DAP_STATIC_INLINE bool dap_chain_addr_compare(dap_chain_addr_t *a_addr1, dap_chain_addr_t *a_addr2)
+{
+    return !memcmp(a_addr1, a_addr2, sizeof(dap_chain_addr_t));
+}
 
+// Deprecated
 DAP_STATIC_INLINE long double dap_chain_datoshi_to_coins(uint64_t a_count)
 {
     return (double)a_count / DATOSHI_LD;
 }
-
+// Deprecated
 DAP_STATIC_INLINE uint64_t dap_chain_coins_to_datoshi(long double a_count)
 {
     return (uint64_t)(a_count * DATOSHI_LD);
