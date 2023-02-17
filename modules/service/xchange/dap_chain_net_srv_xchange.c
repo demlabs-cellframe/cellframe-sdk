@@ -392,7 +392,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
     if (!l_single_channel) {
         // add 'in' items to fee
         uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
-        dap_list_free_full(l_list_used_out, NULL);
+        dap_list_free_full(l_list_fee_out, NULL);
         if (!EQUAL_256(l_value_fee_items, l_fee_transfer) != 0) {
             dap_chain_datum_tx_delete(l_tx);
             DAP_DELETE(l_seller_addr);
@@ -1689,7 +1689,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                 if (dap_hash_fast_compare(&l_price->tx_hash, &l_hash_fast_ref))
                     l_status_order  = "INVALID";
                 else
-                    l_status_order = "UNKNOWN";
+                    l_status_order = "OPEN";
 
                 MULT_256_COIN(l_price->datoshi_sell, l_price->rate, &l_datoshi_buy);  /* sell/buy computation */
 
