@@ -67,8 +67,8 @@ if (CELLFRAME_MODULES MATCHES "cs-block-pos")
 endif()
 
 # Block TON
-if (CELLFRAME_MODULES MATCHES "cs-block-ton")
-    add_subdirectory(consensus/block-ton)
+if (CELLFRAME_MODULES MATCHES "cs-esbocs")
+    add_subdirectory(consensus/esbocs)
 endif()
 
 # Block PoW
