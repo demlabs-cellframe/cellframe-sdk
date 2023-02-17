@@ -112,8 +112,8 @@ static void s_srv_client_pkt_in(dap_stream_ch_chain_net_srv_t *a_ch_chain, uint8
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_RESPONSE: {
         dap_stream_ch_chain_net_srv_pkt_test_t *l_response = (dap_stream_ch_chain_net_srv_pkt_test_t *)a_pkt->data;
         size_t l_response_size = l_response->data_size + sizeof(dap_stream_ch_chain_net_srv_pkt_test_t);
-        if (a_pkt->hdr.size != l_response_size) {
-            log_it(L_WARNING, "Wrong response size %u, required %zu", a_pkt->hdr.size, l_response_size);
+        if (a_pkt->hdr.data_size != l_response_size) {
+            log_it(L_WARNING, "Wrong response size %u, required %zu", a_pkt->hdr.data_size, l_response_size);
             if (l_srv_client->callbacks.error)
                 l_srv_client->callbacks.error(l_srv_client,
                                               DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_WRONG_SIZE,
@@ -136,8 +136,8 @@ static void s_srv_client_pkt_in(dap_stream_ch_chain_net_srv_t *a_ch_chain, uint8
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST: {
         log_it(L_NOTICE, "Requested receipt to sign");
         dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)a_pkt->data;
-        if (a_pkt->hdr.size != l_receipt->size) {
-            log_it(L_WARNING, "Wrong response size %u, required %"DAP_UINT64_FORMAT_U, a_pkt->hdr.size, l_receipt->size);
+        if (a_pkt->hdr.data_size != l_receipt->size) {
+            log_it(L_WARNING, "Wrong response size %u, required %"DAP_UINT64_FORMAT_U, a_pkt->hdr.data_size, l_receipt->size);
             if (l_srv_client->callbacks.error)
                 l_srv_client->callbacks.error(l_srv_client,
                                               DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_WRONG_SIZE,
@@ -161,19 +161,19 @@ static void s_srv_client_pkt_in(dap_stream_ch_chain_net_srv_t *a_ch_chain, uint8
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS: {
         log_it( L_NOTICE, "Responsed with success");
         dap_stream_ch_chain_net_srv_pkt_success_t *l_success = (dap_stream_ch_chain_net_srv_pkt_success_t *)a_pkt->data;
-        size_t l_success_size = a_pkt->hdr.size;
+        size_t l_success_size = a_pkt->hdr.data_size;
         if (l_srv_client->callbacks.success) {
             l_srv_client->callbacks.success(l_srv_client, l_success, l_success_size, l_srv_client->callbacks_arg);
         }
     } break;
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR: {
-       if (a_pkt->hdr.size == sizeof (dap_stream_ch_chain_net_srv_pkt_error_t)) {
+       if (a_pkt->hdr.data_size == sizeof (dap_stream_ch_chain_net_srv_pkt_error_t)) {
             dap_stream_ch_chain_net_srv_pkt_error_t *l_err = (dap_stream_ch_chain_net_srv_pkt_error_t *)a_pkt->data;
             log_it(L_WARNING, "Remote responsed with error code 0x%08X", l_err->code);
             if (l_srv_client->callbacks.error)
                 l_srv_client->callbacks.error(l_srv_client, l_err->code, l_srv_client->callbacks_arg);
         } else {
-            log_it(L_ERROR, "Wrong error response size, %u when expected %zu", a_pkt->hdr.size,
+            log_it(L_ERROR, "Wrong error response size, %u when expected %zu", a_pkt->hdr.data_size,
                    sizeof ( dap_stream_ch_chain_net_srv_pkt_error_t) );
         }
     } break;

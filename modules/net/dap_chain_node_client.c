@@ -622,7 +622,7 @@ static void s_ch_chain_callback_notify_packet_R(dap_stream_ch_chain_net_srv_t* a
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_RESPONSE: {
             dap_stream_ch_chain_net_srv_pkt_test_t *l_request = (dap_stream_ch_chain_net_srv_pkt_test_t *) a_pkt->data;
             size_t l_request_size = l_request->data_size + sizeof(dap_stream_ch_chain_net_srv_pkt_test_t);
-            if(a_pkt->hdr.size != l_request_size) {
+            if(a_pkt->hdr.data_size != l_request_size) {
                 log_it(L_WARNING, "Wrong request size, less or more than required");
                 break;
             }
@@ -697,7 +697,7 @@ dap_chain_node_client_t *dap_chain_node_client_create(dap_chain_net_t *a_net,
 }
 
 
- void s_client_delete_callback(UNUSED_ATTR dap_client_t *a_client, void *a_arg)
+ void s_client_delete_callback(UNUSED_ARG dap_client_t *a_client, void *a_arg)
  {
      assert(a_arg);
      dap_chain_node_client_close_unsafe(a_arg);
@@ -797,7 +797,7 @@ void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client)
     DAP_DELETE(a_node_client);
 }
 
-void s_close_on_worker_callback(UNUSED_ATTR dap_worker_t *a_worker, void *a_arg)
+void s_close_on_worker_callback(UNUSED_ARG dap_worker_t *a_worker, void *a_arg)
 {
     assert(a_arg);
     dap_chain_node_client_close_unsafe(a_arg);
