@@ -372,9 +372,11 @@ static void s_session_send_startsync(dap_chain_esbocs_session_t *a_session)
 {
     dap_chain_hash_fast_t l_last_block_hash;
     s_get_last_block_hash(a_session->chain, &l_last_block_hash);
+    a_session->ts_round_sync_start = dap_time_now();    
     if (!dap_hash_fast_compare(&l_last_block_hash, &a_session->cur_round.last_block_hash))
-        return;
-    a_session->ts_round_sync_start = dap_time_now();
+        return;     // My last block hash is different, so skip this round
+    if (!s_validator_check(&a_session->my_signing_addr, a_session->cur_round.validators_list))
+        return;     // I'm not a selected validator, just skip sync message
     s_message_send(a_session, DAP_STREAM_CH_VOTING_MSG_TYPE_START_SYNC, &l_last_block_hash,
                    NULL, 0, a_session->cur_round.validators_list);
     debug_if(PVT(a_session->esbocs)->debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U" Sent START_SYNC pkt",
@@ -428,36 +430,39 @@ static void s_session_round_new(dap_chain_esbocs_session_t *a_session)
     }
     a_session->cur_round.validators_list = s_get_validators_list(a_session, l_seed_hash);
 
-    dap_chain_esbocs_sync_item_t *l_item, *l_tmp;
-    bool l_round_already_started = false;
-    HASH_FIND(hh, a_session->sync_items, &a_session->cur_round.last_block_hash, sizeof(dap_hash_fast_t), l_item);
-    if (l_item) {
-        debug_if(PVT(a_session->esbocs)->debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U" already started. Process sync messages",
-                                                            a_session->chain->net_name, a_session->chain->name,
-                                                                a_session->cur_round.id);
-        l_round_already_started = true;
-        for (dap_list_t *it = l_item->messages; it; it = it->next) {
-            dap_hash_fast_t l_msg_hash;
-            dap_chain_esbocs_message_t *l_msg = it->data;
-            size_t l_msg_size = sizeof(*l_msg) + l_msg->hdr.sign_size + l_msg->hdr.message_size;
-            dap_hash_fast(l_msg, l_msg_size, &l_msg_hash);
-            s_session_packet_in(a_session, NULL, &l_msg_hash, (uint8_t *)l_msg, l_msg_size);
+    if (s_validator_check(&a_session->my_signing_addr, a_session->cur_round.validators_list)) {
+        //I am a current round validator
+        dap_chain_esbocs_sync_item_t *l_item, *l_tmp;
+        bool l_round_already_started = false;
+        HASH_FIND(hh, a_session->sync_items, &a_session->cur_round.last_block_hash, sizeof(dap_hash_fast_t), l_item);
+        if (l_item) {
+            debug_if(PVT(a_session->esbocs)->debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U" already started. Process sync messages",
+                                                                a_session->chain->net_name, a_session->chain->name,
+                                                                    a_session->cur_round.id);
+            l_round_already_started = true;
+            for (dap_list_t *it = l_item->messages; it; it = it->next) {
+                dap_hash_fast_t l_msg_hash;
+                dap_chain_esbocs_message_t *l_msg = it->data;
+                size_t l_msg_size = sizeof(*l_msg) + l_msg->hdr.sign_size + l_msg->hdr.message_size;
+                dap_hash_fast(l_msg, l_msg_size, &l_msg_hash);
+                s_session_packet_in(a_session, NULL, &l_msg_hash, (uint8_t *)l_msg, l_msg_size);
+            }
         }
-    }
-    HASH_ITER(hh, a_session->sync_items, l_item, l_tmp) {
-        HASH_DEL(a_session->sync_items, l_item);
-        dap_list_free_full(l_item->messages, NULL);
-        DAP_DELETE(l_item);
-    }
-    if (l_round_already_started) {
-        s_session_send_startsync(a_session);
-        return;
-    }
+        HASH_ITER(hh, a_session->sync_items, l_item, l_tmp) {
+            HASH_DEL(a_session->sync_items, l_item);
+            dap_list_free_full(l_item->messages, NULL);
+            DAP_DELETE(l_item);
+        }
+        if (l_round_already_started) {
+            s_session_send_startsync(a_session);
+            return;
+        }
 
-    debug_if(PVT(a_session->esbocs)->debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U" start. Syncing validators in %u seconds",
-                                                        a_session->chain->net_name, a_session->chain->name,
-                                                            a_session->cur_round.id, PVT(a_session->esbocs)->new_round_delay);
-    if (PVT(a_session->esbocs)->new_round_delay && !l_round_already_started)
+        debug_if(PVT(a_session->esbocs)->debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U" start. Syncing validators in %u seconds",
+                                                            a_session->chain->net_name, a_session->chain->name,
+                                                                a_session->cur_round.id, PVT(a_session->esbocs)->new_round_delay);
+    }
+    if (PVT(a_session->esbocs)->new_round_delay)
         a_session->sync_timer = dap_timerfd_start(PVT(a_session->esbocs)->new_round_delay, s_session_send_startsync_on_timer, a_session);
     else
         s_session_send_startsync(a_session);
