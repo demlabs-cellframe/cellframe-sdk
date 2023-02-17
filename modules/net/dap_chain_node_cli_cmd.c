@@ -5340,11 +5340,11 @@ int com_comi_coll(int a_argc, char ** a_argv, char **a_str_reply)
         size_t l_block_size = 0;
         int res =  dap_chain_hash_fast_from_hex_str( l_hash_str, &l_datum_hash);
         l_block = (dap_chain_block_t*) dap_chain_get_atom_by_hash( l_chain, &l_datum_hash, &l_block_size);
-        l_block->hdr.
+       // l_block->hdr.
         //l_chain
         //l_datum_hash
 
-        return -8;
+        //return -8;
     }else if(l_hash_mas_str){
         dap_cli_server_cmd_set_reply_text(a_str_reply, "for future use");
         return -9;
