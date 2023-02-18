@@ -106,7 +106,8 @@ typedef struct dap_chain_esbocs_validator {
 } dap_chain_esbocs_validator_t;
 
 typedef struct dap_chain_esbocs_session {
-    pthread_rwlock_t rwlock;
+    pthread_mutex_t mutex;
+    dap_chain_block_t *processing_candidate;
 
     dap_chain_t *chain;
     dap_chain_esbocs_t *esbocs;
