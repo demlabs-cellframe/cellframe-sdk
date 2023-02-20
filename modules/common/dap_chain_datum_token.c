@@ -143,38 +143,6 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(byte_t *a_token_serial, size
 }
 
 /**
- * @brief Update signs token from TSD section
- * @param a_token
- * @param a_token_size
- * @param a_new_token_size
- * @return
- */
-dap_chain_datum_token_t *dap_chain_datum_token_update_signs(dap_chain_datum_token_t *a_token, size_t a_token_size, size_t *a_new_token_size) {
-    size_t l_new_signs_count = 0;
-    dap_tsd_t **l_tsd_signs = dap_chain_datum_token_get_tsd_signs(a_token, a_token_size, &l_new_signs_count);
-    size_t l_tsd_total_size = 0;
-    if (a_token->type  == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)
-        l_tsd_total_size = a_token->header_native_update.tsd_total_size;
-    else if (a_token->type  == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE)
-        l_tsd_total_size = a_token->header_native_update.tsd_total_size;
-    else
-        return a_token;
-    dap_chain_datum_token_t *l_token_update = DAP_DUP_SIZE(a_token, a_token_size);
-    size_t l_copy_signs_size = 0;
-    for (size_t i = 0; i < l_new_signs_count; i++) {
-        dap_sign_t *l_sign = (dap_sign_t*) l_tsd_signs[i]->data;
-        size_t l_sign_size = dap_sign_get_size(l_sign);
-        (*a_new_token_size) = sizeof(dap_chain_datum_token_t) + l_tsd_total_size + l_copy_signs_size + l_sign_size;
-        l_token_update = DAP_REALLOC(l_token_update, sizeof(dap_chain_datum_token_t) + l_tsd_total_size +
-            l_copy_signs_size + l_sign_size);
-        memcpy(l_token_update->data_n_tsd + l_tsd_total_size + l_copy_signs_size, l_sign, l_sign_size);
-        l_copy_signs_size += l_sign_size;
-    }
-    DAP_DELETE(l_tsd_signs);
-    return l_token_update;
-}
-
-/**
  * @brief dap_chain_datum_token_flags_dump
  * @param a_str_out
  * @param a_flags
