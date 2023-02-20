@@ -268,6 +268,37 @@ char *dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_fr
 }
 
 /**
+ * Make transfer transaction to collect a commission & insert to cache
+ *
+ * return 0 Ok, , -1 other Error
+ */
+char *dap_chain_mempool_tx_coll_fee_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_from,
+        const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_to,
+        const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
+        uint256_t a_value, uint256_t a_value_fee, const char *a_hash_out_type)
+{
+    int									l_prev_cond_idx		=	0;
+
+    dap_hash_fast_t						l_tx_hash;
+    dap_chain_datum_tx_t				*l_cond_tx;
+    dap_chain_tx_out_cond_t				*l_tx_out_cond;
+
+    if (NULL == (l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx, TX_ITEM_TYPE_OUT_COND,
+                                                                 &l_prev_cond_idx)))
+        return NO_TX_ERROR;
+
+    //add tx
+    if (NULL == (l_tx = dap_chain_datum_tx_create())) {//malloc
+        //dap_chain_wallet_close(l_wallet);
+        //DAP_DEL_Z(l_owner_addr);
+        return CREATE_TX_ERROR;
+    }
+
+    dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_tx_hash, l_prev_cond_idx, 0);
+
+}
+
+/**
  * Make transfer transaction & insert to cache
  *
  * return 0 Ok, -2 not enough funds to transfer, -1 other Error

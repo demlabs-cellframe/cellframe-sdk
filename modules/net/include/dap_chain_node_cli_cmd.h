@@ -128,7 +128,7 @@ int com_tx_verify(int a_argc, char ** a_argv, char **a_str_reply);
 int com_tx_history(int a_argc, char **a_argv, char **a_str_reply);
 
 //Collect commission
-int com_comi_coll(int a_argc, char ** a_argv, char **a_str_reply);
+int fee_coll(int a_argc, char ** a_argv, char **a_str_reply);
 
 // Print log info
 int com_print_log(int a_argc, char **a_argv, char **a_str_reply);

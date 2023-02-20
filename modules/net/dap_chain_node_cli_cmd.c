@@ -77,6 +77,7 @@
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_block.h"
+#include "dap_chain_cs_blocks.h"
 
 #ifndef _WIN32
 #include "dap_chain_net_news.h"
@@ -5188,7 +5189,7 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
     return 0;
 }
 
-int com_comi_coll(int a_argc, char ** a_argv, char **a_str_reply)
+int fee_coll(int a_argc, char ** a_argv, char **a_str_reply)
 {
     int arg_index = 1;
     const char *str_tmp = NULL;
@@ -5202,6 +5203,7 @@ int com_comi_coll(int a_argc, char ** a_argv, char **a_str_reply)
     dap_chain_hash_fast_t l_datum_hash = {};
     dap_chain_t * l_chain = NULL;
     dap_chain_block_t  * l_block;
+    dap_chain_cs_blocks_t * l_blocks = NULL;
 
     char *l_str_reply_tmp = NULL;
     uint256_t l_emission_value = {};
@@ -5285,7 +5287,38 @@ int com_comi_coll(int a_argc, char ** a_argv, char **a_str_reply)
         size_t l_block_size = 0;
         int res =  dap_chain_hash_fast_from_hex_str( l_hash_str, &l_datum_hash);
         l_block = (dap_chain_block_t*) dap_chain_get_atom_by_hash( l_chain, &l_datum_hash, &l_block_size);
-       // l_block->hdr.
+        l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
+        if(l_block){
+            dap_chain_block_cache_t *l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_datum_hash);
+            if(l_block_cache)
+            {
+                dap_string_t * l_str_tmp = dap_string_new(NULL);
+                char buf[50];
+                time_t l_ts_reated = (time_t) l_block->hdr.ts_created;
+                // Header
+                dap_string_append_printf(l_str_tmp,"Block %s:\n", l_hash_str);
+                dap_string_append_printf(l_str_tmp, "\t\t\tversion: 0x%04X\n", l_block->hdr.version);
+                dap_string_append_printf(l_str_tmp,"\t\t\tcell_id: 0x%016"DAP_UINT64_FORMAT_X"\n",l_block->hdr.cell_id.uint64);
+                dap_string_append_printf(l_str_tmp,"\t\t\tchain_id: 0x%016"DAP_UINT64_FORMAT_X"\n",l_block->hdr.chain_id.uint64);
+                ctime_r(&l_ts_reated, buf);
+                dap_string_append_printf(l_str_tmp,"\t\t\tts_created: %s\n", buf);                
+
+                //l_block_cache->
+                //dap_sign_t * l_sign =l_block_cache->sign[i];
+                dap_sign_t * l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
+                size_t l_sign_size = dap_sign_get_size(l_sign);
+                dap_chain_addr_t l_addr = {0};
+                dap_chain_hash_fast_t l_pkey_hash;
+                dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
+
+                if(dap_pkey_compare_with_sign(l_pub_key, l_sign)){
+
+                }
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
+                dap_string_free(l_str_tmp, true);
+            }
+        }
+        // l_block->hdr.
         //l_chain
         //l_datum_hash
 

@@ -276,7 +276,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_cli_server_cmd_add("tx_history", com_tx_history, "Transaction history (for address or by hash)",
             "tx_history  {-addr <addr> | -w <wallet_name> | -tx <tx_hash>} -net <net_name> -chain <chain_name>\n");
     //Collect commission
-    dap_cli_server_cmd_add("commission_coll",com_comi_coll, "Take the whole commission",
+    dap_cli_server_cmd_add("fee collect",fee_coll, "Take the whole commission",
             "commission_coll -cert <priv_cert_name> -addr <addr> {-hash_one <block_hash> | -hash.<bl_hs,bl_hs,...>}");
 
 	// Ledger info
