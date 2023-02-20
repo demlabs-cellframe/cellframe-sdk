@@ -386,8 +386,6 @@ static void s_session_send_startsync(dap_chain_esbocs_session_t *a_session)
     dap_chain_hash_fast_t l_last_block_hash;
     s_get_last_block_hash(a_session->chain, &l_last_block_hash);
     a_session->ts_round_sync_start = dap_time_now();
-    a_session->cur_round.id++;
-    a_session->cur_round.sync_attempt++;
     if (!dap_hash_fast_compare(&l_last_block_hash, &a_session->cur_round.last_block_hash))
         return;     // My last block hash is different, so skip this round
     if (!s_validator_check(&a_session->my_signing_addr, a_session->cur_round.validators_list))
@@ -441,6 +439,8 @@ static void s_session_round_new(dap_chain_esbocs_session_t *a_session)
     a_session->state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START;
     a_session->ts_round_sync_start = 0;
     a_session->ts_attempt_start = 0;
+    a_session->cur_round.id++;
+    a_session->cur_round.sync_attempt++;
     dap_hash_fast_t *l_seed_hash = NULL;
     dap_hash_fast_t l_last_block_hash;
     s_get_last_block_hash(a_session->chain, &l_last_block_hash);
@@ -448,7 +448,7 @@ static void s_session_round_new(dap_chain_esbocs_session_t *a_session)
             !dap_hash_fast_compare(&l_last_block_hash, &a_session->cur_round.last_block_hash)) {
         l_seed_hash = &l_last_block_hash;
         a_session->cur_round.last_block_hash = l_last_block_hash;
-        a_session->cur_round.sync_attempt = 0;
+        a_session->cur_round.sync_attempt = 1;
     }
     a_session->cur_round.validators_list = s_get_validators_list(a_session, l_seed_hash);
 
@@ -911,6 +911,17 @@ static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_ch
     s_session_candidate_to_chain(a_session, &l_store->precommit_candidate_hash, l_store->candidate, l_store->candidate_size);
 }
 
+void s_session_sync_queue_add(dap_chain_esbocs_session_t *a_session, dap_chain_esbocs_message_t *a_message)
+{
+    dap_chain_esbocs_sync_item_t *l_sync_item;
+    HASH_FIND(hh, a_session->sync_items, &a_message->hdr.candidate_hash, sizeof(dap_hash_fast_t), l_sync_item);
+    if (!l_sync_item) {
+        l_sync_item = DAP_NEW(dap_chain_esbocs_sync_item_t);
+        l_sync_item->last_block_hash = a_message->hdr.candidate_hash;
+    }
+    l_sync_item->messages = dap_list_append(l_sync_item->messages, DAP_DUP(a_message));
+}
+
 /**
  * @brief s_session_packet_in
  * @param a_arg
@@ -977,13 +988,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         // consensus round start sync
         if (l_message->hdr.type == DAP_STREAM_CH_VOTING_MSG_TYPE_START_SYNC) {
             if (!dap_hash_fast_compare(&l_message->hdr.candidate_hash, &l_session->cur_round.last_block_hash)) {
-                dap_chain_esbocs_sync_item_t *l_sync_item;
-                HASH_FIND(hh, l_session->sync_items, &l_message->hdr.candidate_hash, sizeof(dap_hash_fast_t), l_sync_item);
-                if (!l_sync_item) {
-                    l_sync_item = DAP_NEW(dap_chain_esbocs_sync_item_t);
-                    l_sync_item->last_block_hash = l_message->hdr.candidate_hash;
-                }
-                l_sync_item->messages = dap_list_append(l_sync_item->messages, DAP_DUP(l_message));
+                s_session_sync_queue_add(l_session, l_message);
                 goto session_unlock;
             }
         } else if (l_message->hdr.round_id != l_session->cur_round.id ||
@@ -1075,6 +1080,8 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                 for (uint64_t i = 0; i < l_attempts_miss - 1; i++)
                     // Fast-forward current sync attempt
                     s_get_validators_list(l_session, NULL);
+                // Process this message in new round
+                s_session_sync_queue_add(l_session, l_message);
                 l_session->round_fast_forward = true;
                 s_session_round_new(l_session);
                 break;
