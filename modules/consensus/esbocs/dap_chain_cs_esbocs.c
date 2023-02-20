@@ -483,13 +483,14 @@ static void s_session_round_new(dap_chain_esbocs_session_t *a_session)
         debug_if(PVT(a_session->esbocs)->debug, L_MSG,
                  "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U" start. Syncing validators in %u seconds",
                     a_session->chain->net_name, a_session->chain->name,
-                        a_session->cur_round.id, PVT(a_session->esbocs)->new_round_delay);
+                        a_session->cur_round.id, a_session->round_fast_forward ? 0 : PVT(a_session->esbocs)->new_round_delay);
     }
-    if (PVT(a_session->esbocs)->new_round_delay)
+    if (PVT(a_session->esbocs)->new_round_delay && !a_session->round_fast_forward)
         a_session->sync_timer = dap_timerfd_start(PVT(a_session->esbocs)->new_round_delay * 1000,
                                                   s_session_send_startsync_on_timer, a_session);
     else
         s_session_send_startsync(a_session);
+    a_session->round_fast_forward = false;
 }
 
 static void s_session_attempt_new(dap_chain_esbocs_session_t *a_session)
@@ -1058,15 +1059,23 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                                                     l_session->cur_round.sync_attempt, l_sync_attempt);
                  break;
             } else {
+                uint64_t l_attempts_miss = l_sync_attempt - l_session->cur_round.sync_attempt;
+                if (l_attempts_miss > UINT16_MAX) {
+                    debug_if(l_cs_debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U
+                                                " SYNC message is rejected - too much sync attempt difference %"DAP_UINT64_FORMAT_U,
+                                                   l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
+                                                       l_attempts_miss);
+                    break;
+                }
                 debug_if(l_cs_debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U
                                             " SYNC message sync attempt %"DAP_UINT64_FORMAT_U" is greater than"
-                                            " current round sync attempt%"DAP_UINT64_FORMAT_U" so fast-forward this round",
+                                            " current round sync attempt %"DAP_UINT64_FORMAT_U" so fast-forward this round",
                                                l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                                    l_sync_attempt, l_session->cur_round.sync_attempt);
-                uint64_t l_attempts_miss = l_sync_attempt - l_session->cur_round.sync_attempt;
                 for (uint64_t i = 0; i < l_attempts_miss - 1; i++)
-                    // Fast-forward current attempt
+                    // Fast-forward current sync attempt
                     s_get_validators_list(l_session, NULL);
+                l_session->round_fast_forward = true;
                 s_session_round_new(l_session);
                 break;
             }

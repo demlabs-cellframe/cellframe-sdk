@@ -117,6 +117,7 @@ typedef struct dap_chain_esbocs_session {
     dap_chain_node_addr_t my_addr;
     uint8_t state; // session state
     dap_chain_esbocs_round_t cur_round;
+    bool round_fast_forward;
 
     dap_time_t ts_round_sync_start; // time of start sync
     dap_time_t ts_attempt_start; // time of current attempt start
