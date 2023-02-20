@@ -249,7 +249,7 @@ int dap_chain_net_decree_apply(dap_chain_datum_decree_t * a_decree, dap_chain_t 
 
 static struct decree_data {
     dap_hash_fast_t key;
-    dap_chain_datum_decree_t decree;            // Network fee value
+    dap_chain_datum_decree_t *decree;            // Network fee value
     UT_hash_handle hh;
 } *s_decree_data = NULL; // Governance statements for networks
 
@@ -275,14 +275,14 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
     if ((ret_val = dap_chain_net_decree_verify(a_decree, l_net, NULL, NULL)) != 0)
         return ret_val;
 
-
-
-    dap_chain_datum_decree_t * l_decree = a_decree;
-    size_t l_data_size = sizeof(dap_chain_datum_decree_t) + l_decree->header.data_size + l_decree->header.signs_size;
+    dap_chain_datum_decree_t * l_decree = NULL;
+    size_t l_data_size = sizeof(dap_chain_datum_decree_t) + a_decree->header.data_size + a_decree->header.signs_size;
+    l_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, l_data_size);
+    memcpy(l_decree, a_decree, l_data_size);
     dap_hash_fast(l_decree, l_data_size, &l_hash);
 
     l_decree_data =  DAP_NEW_Z_SIZE(struct decree_data, sizeof(struct decree_data) + l_decree->header.data_size + l_decree->header.signs_size);
-    memcpy(&l_decree_data->decree, l_decree, l_data_size);
+    l_decree_data->decree = l_decree;
     l_decree_data->key = l_hash;
 
     HASH_ADD(hh, s_decree_data, key, sizeof(dap_hash_fast_t), l_decree_data);
@@ -290,24 +290,16 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
     return 0;
 }
 
-int dap_chain_net_decree_get_by_hash(dap_hash_fast_t a_hash, dap_chain_datum_decree_t **a_decree)
+dap_chain_datum_decree_t * dap_chain_net_decree_get_by_hash(dap_hash_fast_t a_hash)
 {
-
-    if (!a_decree){
-        log_it(L_WARNING, "Bad argument");
-        return -100;
-    }
-
     dap_hash_fast_t l_hash = a_hash;
     struct decree_data* l_decree_data = NULL;
 
     HASH_FIND(hh, s_decree_data, &l_hash, sizeof(dap_hash_fast_t), l_decree_data);
     if (!l_decree_data)
-        return -101;
+        return NULL;
 
-    *a_decree = &l_decree_data->decree;
-
-    return 0;
+    return l_decree_data->decree;
 }
 
 // Private functions

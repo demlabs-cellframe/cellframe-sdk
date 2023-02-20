@@ -317,7 +317,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "decree create common -net <net_name> [-chain <chain_name>]  -certs <certs list> -<Subtype param name> <Subtype param Value>\n"
             "decree create service -net <net_name> [-chain <chain_name>] -srv_id <service_id> -certs <certs list> -<Subtype param name> <Subtype param Value>\n"
             "decree sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs list>\n"
-            "decree anchor -net <net_name> -anchor_chain <chain_name> -datum <datum_hash>\n"
+            "decree anchor -net <net_name> -chain <chain_name> -datum <datum_hash>\n"
             "==Subtype Params==\n"
             "\t -fee <value>: sets fee for tx in net\n"
             "\t -new_certs <certs list>: sets new owners set for net\n"

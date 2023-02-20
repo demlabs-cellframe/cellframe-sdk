@@ -3147,6 +3147,8 @@ int dap_chain_net_verify_datum_for_add(dap_chain_net_t *a_net, dap_chain_datum_t
             return dap_chain_ledger_token_emission_add_check( a_net->pub.ledger, a_datum->data, a_datum->header.data_size );
         case DAP_CHAIN_DATUM_DECREE:
             return dap_chain_net_decree_verify((dap_chain_datum_decree_t*)a_datum->data, a_net, NULL, NULL);
+        case DAP_CHAIN_DATUM_ANCHOR:
+            return dap_chain_net_anchor_verify((dap_chain_datum_anchor_t*)a_datum->data, a_net, NULL, NULL);
     default: return 0;
     }
 }
@@ -3345,7 +3347,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
         case DAP_CHAIN_DATUM_ANCHOR:{
             dap_chain_datum_anchor_t * l_anchor = (dap_chain_datum_anchor_t *)a_datum->data;
             if(sizeof(l_anchor->header) + l_anchor->header.data_size + l_anchor->header.signs_size > l_datum_data_size){
-                log_it(L_WARNING, "Corrupted anchor, size %zd is smaller than ever decree header's size %zd", l_datum_data_size, sizeof(l_anchor->header));
+                log_it(L_WARNING, "Corrupted anchor, size %zd is smaller than ever anchor header's size %zd", l_datum_data_size, sizeof(l_anchor->header));
                 return -103;
             }
             return dap_chain_net_anchor_load(l_anchor, a_chain);

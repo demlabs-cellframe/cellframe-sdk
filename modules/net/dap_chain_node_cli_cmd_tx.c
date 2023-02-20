@@ -1349,6 +1349,45 @@ static dap_chain_datum_decree_t * s_sign_decree_in_cycle(dap_cert_t ** a_certs, 
     return a_datum_decree;
 }
 
+/**
+ * @brief
+ * sign data (datum_decree) by certificates (1 or more)
+ * successful count of signes return in l_sign_counter
+ * @param l_certs - array with certificates loaded from dcert file
+ * @param l_datum_token - updated pointer for l_datum_token variable after realloc
+ * @param l_certs_count - count of certificate
+ * @param l_datum_data_offset - offset of datum
+ * @param l_sign_counter - counter of successful data signing operation
+ * @return dap_chain_datum_token_t*
+ */
+static dap_chain_datum_anchor_t * s_sign_anchor_in_cycle(dap_cert_t ** a_certs, dap_chain_datum_anchor_t *a_datum_anchor,
+                    size_t a_certs_count, size_t *a_total_sign_count)
+{
+    size_t l_cur_sign_offset = a_datum_anchor->header.data_size + a_datum_anchor->header.signs_size;
+    size_t l_total_signs_size = a_datum_anchor->header.signs_size, l_total_sign_count = 0;
+
+    for(size_t i = 0; i < a_certs_count; i++)
+    {
+        dap_sign_t * l_sign = dap_cert_sign(a_certs[i],  a_datum_anchor,
+           sizeof(dap_chain_datum_anchor_t) + a_datum_anchor->header.data_size, 0);
+
+        if (l_sign) {
+            size_t l_sign_size = dap_sign_get_size(l_sign);
+            a_datum_anchor = DAP_REALLOC(a_datum_anchor, sizeof(dap_chain_datum_anchor_t) + l_cur_sign_offset + l_sign_size);
+            memcpy((byte_t*)a_datum_anchor->data_n_sign + l_cur_sign_offset, l_sign, l_sign_size);
+            l_total_signs_size += l_sign_size;
+            l_cur_sign_offset += l_sign_size;
+            a_datum_anchor->header.signs_size = l_total_signs_size;
+            DAP_DELETE(l_sign);
+            log_it(L_DEBUG,"<-- Signed with '%s'", a_certs[i]->name);
+            l_total_sign_count++;
+        }
+    }
+
+    *a_total_sign_count = l_total_sign_count;
+    return a_datum_anchor;
+}
+
 // Decree commands handlers
 int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
 {
@@ -1781,7 +1820,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                 l_str_to_reply = dap_strcat2(l_str_to_reply,"\n");
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_to_reply);
                 return -103;
-            } else if (l_chain != dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_AN)){ // check chain to support decree
+            } else if (l_chain != dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_ANCHOR)){ // check chain to support decree
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Chain %s don't support decree", l_chain->name);
                 return -104;
             }
@@ -1790,17 +1829,43 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
             return -105;
         }
 
-        //TODO: make anchor datum
         dap_chain_datum_anchor_t *l_datum_anchor = NULL;
+        dap_hash_fast_t l_hash = {};
+        const char * l_datum_hash_str = NULL;
+        if (!dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-datum", &l_datum_hash_str))
+        {
+            dap_cli_server_cmd_set_reply_text(a_str_reply,
+                        "Anchor creation failed. Cmd decree create anchor must contain -datum parameter.");
+                return -107;
+        }
+        if(l_datum_hash_str) {
+            dap_chain_hash_fast_from_str(l_datum_hash_str, &l_hash);
+        }
+
+        // Pack data into TSD
+        dap_tsd_t *l_tsd = NULL;
+        l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_ANCHOR_TSD_TYPE_DECREE_HASH, &l_hash, sizeof(dap_hash_fast_t));
+        if(!l_tsd)
+        {
+            dap_cli_server_cmd_set_reply_text(a_str_reply,
+                        "Anchor creation failed. Memory allocation fail.");
+                return -107;
+        }
+
+        // Create anchor datum
+        l_datum_anchor = DAP_NEW_Z_SIZE(dap_chain_datum_anchor_t, sizeof(dap_chain_datum_anchor_t) + dap_tsd_size(l_tsd));
+        l_datum_anchor->header.data_size = dap_tsd_size(l_tsd);
+        l_datum_anchor->header.ts_created = dap_time_now();
+        memcpy(l_datum_anchor->data_n_sign, l_tsd, dap_tsd_size(l_tsd));
 
         // Sign anchor
         size_t l_total_signs_success = 0;
         if (l_certs_count)
-            l_datum_decree = NULL// TODO : anchor sign func;
+            l_datum_anchor = s_sign_anchor_in_cycle(l_certs, l_datum_anchor, l_certs_count, &l_total_signs_success);
 
         if (!l_datum_anchor || l_total_signs_success == 0){
             dap_cli_server_cmd_set_reply_text(a_str_reply,
-                        "Decree creation failed. Successful count of certificate signing is 0");
+                        "Anchor creation failed. Successful count of certificate signing is 0");
                 return -108;
         }
 
@@ -1840,7 +1905,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
         //additional checking for incorrect key format
         DAP_DELETE(l_key_str);
         DAP_DELETE(l_datum);
-
+;
 
         break;
     }
