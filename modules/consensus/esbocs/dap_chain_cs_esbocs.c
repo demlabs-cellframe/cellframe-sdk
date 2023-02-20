@@ -916,7 +916,7 @@ void s_session_sync_queue_add(dap_chain_esbocs_session_t *a_session, dap_chain_e
     dap_chain_esbocs_sync_item_t *l_sync_item;
     HASH_FIND(hh, a_session->sync_items, &a_message->hdr.candidate_hash, sizeof(dap_hash_fast_t), l_sync_item);
     if (!l_sync_item) {
-        l_sync_item = DAP_NEW(dap_chain_esbocs_sync_item_t);
+        l_sync_item = DAP_NEW_Z(dap_chain_esbocs_sync_item_t);
         l_sync_item->last_block_hash = a_message->hdr.candidate_hash;
     }
     l_sync_item->messages = dap_list_append(l_sync_item->messages, DAP_DUP(a_message));
