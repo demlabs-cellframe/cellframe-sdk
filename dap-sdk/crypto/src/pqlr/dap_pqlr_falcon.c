@@ -77,6 +77,11 @@ void dap_pqlr_falcon_key_new_generate( dap_enc_key_t* a_key, const void* a_kex_b
 
 }
 
+size_t dap_pqlr_falcon_calc_signature_size(dap_enc_key_t* a_key)
+{
+    return falcon_get_signature_bytes_len(PVT(a_key));
+}
+
 /**
  * @brief dap_pqlr_falcon_create_sign
  * @param a_key

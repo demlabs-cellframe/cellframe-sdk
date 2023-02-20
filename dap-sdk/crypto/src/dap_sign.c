@@ -75,6 +75,11 @@ size_t dap_sign_create_output_unserialized_calc_size(dap_enc_key_t * a_key, size
 #ifdef DAP_PQLR
     case DAP_ENC_KEY_TYPE_PQLR_SIG_DILITHIUM:
         return dap_pqlr_dilithium_calc_signature_size(a_key);
+    case DAP_ENC_KEY_TYPE_PQLR_SIG_FALCON:
+        return dap_pqlr_falcon_calc_signature_size(a_key);
+    case DAP_ENC_KEY_TYPE_PQLR_SIG_SPHINCS:
+        return dap_pqlr_sphincs_calc_signature_size(a_key);
+
 #endif
     case DAP_ENC_KEY_TYPE_SIG_FALCON:
         return dap_enc_falcon_calc_signature_unserialized_size(a_key);
@@ -514,23 +519,25 @@ int dap_sign_verify(dap_sign_t * a_chain_sign, const void * a_data, const size_t
     }
 
     switch (l_key->type) {
-        case DAP_ENC_KEY_TYPE_SIG_TESLA:
-        case DAP_ENC_KEY_TYPE_SIG_PICNIC:
-        case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
-        case DAP_ENC_KEY_TYPE_SIG_FALCON:
-            if((ssize_t)l_key->dec_na(l_key, l_verify_data, l_verify_data_size, l_sign_data, l_sign_data_size) < 0)
-                l_ret = 0;
-            else
-                l_ret = 1;
-            break;
-        case DAP_ENC_KEY_TYPE_SIG_BLISS:
-            if(dap_enc_sig_bliss_verify_sign(l_key, l_verify_data, l_verify_data_size, l_sign_data, l_sign_data_size) != BLISS_B_NO_ERROR)
-                l_ret = 0;
-            else
-                l_ret = 1;
-            break;
-        default:
-            l_ret = -6;
+    case DAP_ENC_KEY_TYPE_SIG_TESLA:
+    case DAP_ENC_KEY_TYPE_SIG_PICNIC:
+    case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
+    case DAP_ENC_KEY_TYPE_SIG_FALCON:
+#ifdef DAP_PQLR
+    case DAP_ENC_KEY_TYPE_PQLR_SIG_DILITHIUM:
+    case DAP_ENC_KEY_TYPE_PQLR_SIG_FALCON:
+    case DAP_ENC_KEY_TYPE_PQLR_SIG_SPHINCS:
+#endif
+        l_ret = l_key->dec_na(l_key, l_verify_data, l_verify_data_size, l_sign_data, l_sign_data_size) < 0
+                ? 0 : 1;
+        break;
+    case DAP_ENC_KEY_TYPE_SIG_BLISS:
+        l_ret = dap_enc_sig_bliss_verify_sign(l_key, l_verify_data, l_verify_data_size, l_sign_data, l_sign_data_size) != BLISS_B_NO_ERROR
+                ? 0 : 1;
+        break;
+    default:
+        l_ret = -6;
+        break;
     }
     dap_enc_key_signature_delete(l_key->type, l_sign_data);
     dap_enc_key_delete(l_key);

@@ -34,3 +34,5 @@ void dap_pqlr_falcon_key_new (dap_enc_key_t *a_key);
 void dap_pqlr_falcon_key_delete(dap_enc_key_t* a_key);
 void dap_pqlr_falcon_key_new_generate( dap_enc_key_t* a_key, const void* a_kex_buf, size_t a_kex_size,
                                const void* a_seed, size_t a_seed_size, size_t a_key_size);
+
+size_t dap_pqlr_falcon_calc_signature_size(dap_enc_key_t* a_key);

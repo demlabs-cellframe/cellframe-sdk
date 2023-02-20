@@ -34,3 +34,5 @@ size_t dap_pqlr_sphincs_create_sign(dap_enc_key_t* a_key, const void * a_msg, co
                   void* a_signature, const size_t a_signature_size);
 size_t dap_pqlr_sphincs_verify_sign( dap_enc_key_t* a_key, const void* a_msg, const size_t a_msg_size, void* a_signature,
                      const size_t signature_size);
+
+size_t dap_pqlr_sphincs_calc_signature_size(dap_enc_key_t* a_key);

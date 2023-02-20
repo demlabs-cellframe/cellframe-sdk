@@ -74,6 +74,11 @@ void dap_pqlr_sphincs_key_new_generate( dap_enc_key_t* a_key, const void* a_kex_
 
 }
 
+size_t dap_pqlr_sphincs_calc_signature_size(dap_enc_key_t* a_key)
+{
+    return sphincs_plus_get_signature_bytes_len(PVT(a_key));
+}
+
 /**
  * @brief dap_pqlr_sphincs_create_sign
  * @param a_key
