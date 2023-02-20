@@ -727,6 +727,8 @@ dap_enc_key_t *dap_enc_key_new_generate(dap_enc_key_type_t a_key_type, const voi
     dap_enc_key_t *l_ret = dap_enc_key_new(a_key_type);
     if (l_ret) {
         s_callbacks[a_key_type].new_generate_callback(l_ret, kex_buf, kex_size, seed, seed_size, key_size);
+        l_ret->enc_na = s_callbacks[a_key_type].enc_na;
+        l_ret->enc_na = s_callbacks[a_key_type].dec_na;
     }
     return l_ret;
 }

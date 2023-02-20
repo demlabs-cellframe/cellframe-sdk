@@ -96,15 +96,16 @@ size_t dap_pqlr_dilithium_calc_signature_size(dap_enc_key_t* a_key)
 size_t dap_pqlr_dilithium_create_sign(dap_enc_key_t* a_key, const void * a_msg, const size_t a_msg_size,
                   void* a_signature, const size_t a_signature_size)
 {
+    UNUSED(a_signature_size);
     size_t l_sign_size = dilithium_get_signature_bytes_len(PVT(a_key));
-    if(a_signature_size< l_sign_size){
-        log_it(L_ERROR, "Need at least %zd for Crystal-Dilithium signature", l_sign_size);
-        return 0;
-    }
 
-    a_signature = DAP_NEW_SIZE(void, l_sign_size);
+    /* a_signature = DAP_NEW_SIZE(void, l_sign_size);
     if(! a_signature ){
         log_it(L_ERROR, "Out of memory, can't create signature");
+        return 0;
+    } */
+    if (!a_signature) {
+        log_it(L_ERROR, "Invalid signature parameter");
         return 0;
     }
     dilithium_sign(PVT(a_key), (byte_t*) a_key->priv_key_data, a_msg, a_msg_size, a_signature, &l_sign_size);
