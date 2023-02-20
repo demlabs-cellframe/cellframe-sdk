@@ -1586,7 +1586,6 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                 memcpy((byte_t*)l_datum_decree->data_n_signs + l_data_tsd_offset, l_b_tsd, l_tsd_size);
                 l_data_tsd_offset += l_tsd_size;
             }
-
             dap_list_free_full(l_tsd_list, NULL);
 
         }else if (l_type == TYPE_SERVICE) {
@@ -1905,7 +1904,6 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
         //additional checking for incorrect key format
         DAP_DELETE(l_key_str);
         DAP_DELETE(l_datum);
-;
 
         break;
     }

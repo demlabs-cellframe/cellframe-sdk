@@ -1452,7 +1452,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     //dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) l_usage->service->_internal;
 
     ch_vpn_pkt_t * l_vpn_pkt = (ch_vpn_pkt_t *) l_pkt->data;
-    size_t l_vpn_pkt_size = l_pkt->hdr.size - sizeof (l_vpn_pkt->header);
+    size_t l_vpn_pkt_size = l_pkt->hdr.data_size - sizeof (l_vpn_pkt->header);
 
     debug_if(s_debug_more, L_INFO, "Got srv_vpn packet with op_code=0x%02x", l_vpn_pkt->header.op_code);
 

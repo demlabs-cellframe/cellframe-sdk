@@ -61,6 +61,8 @@ int dap_chain_net_decree_init(dap_chain_net_t *a_net)
     dap_list_t *l_net_keys = NULL;
     uint16_t l_count_verify = 0;
     for (dap_chain_t *l_chain = a_net->pub.chains; l_chain; l_chain = l_chain->next) {
+        if (!l_chain->callback_get_poa_certs)
+            continue;
         l_net_keys = l_chain->callback_get_poa_certs(l_chain, &l_auth_certs_count, &l_count_verify);
         if (l_net_keys)
             break;

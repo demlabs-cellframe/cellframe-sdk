@@ -26,6 +26,7 @@
 #include "dap_sign.h"
 #include "dap_common.h"
 #include "dap_chain_datum_decree.h"
+#include "dap_enc_base58.h"
 
 
 #define LOG_TAG "dap_chain_datum_decree"

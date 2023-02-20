@@ -415,8 +415,8 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
             }
 
             l_chain =  dap_chain_create(a_ledger,a_chain_net_name,l_chain_name, a_chain_net_id,l_chain_id);
-            if ( dap_chain_cs_create(l_chain, l_cfg) == 0 )
-			{
+            if ( dap_chain_cs_create(l_chain, l_cfg) == 0 ) {
+
                 log_it (L_NOTICE, "Consensus initialized for chain id 0x%016"DAP_UINT64_FORMAT_x, l_chain_id.uint64);
 
                 if ( dap_config_get_item_path_default(l_cfg , "files","storage_dir",NULL ) )
@@ -578,10 +578,13 @@ int dap_chain_load_all(dap_chain_t *l_chain)
     int l_ret = 0;
     if (!l_chain)
         return -2;
-    if(!dap_dir_test(DAP_CHAIN_PVT (l_chain)->file_storage_dir)) {
-        dap_mkdir_with_parents(DAP_CHAIN_PVT (l_chain)->file_storage_dir);
+    char *l_storage_dir = DAP_CHAIN_PVT(l_chain)->file_storage_dir;
+    if (!l_storage_dir)
+        return 0;
+    if (!dap_dir_test(l_storage_dir)) {
+        dap_mkdir_with_parents(l_storage_dir);
     }
-    DIR * l_dir = opendir(DAP_CHAIN_PVT(l_chain)->file_storage_dir);
+    DIR *l_dir = opendir(l_storage_dir);
     if (!l_dir) {
         log_it(L_ERROR, "Cannot open directory %s", DAP_CHAIN_PVT (l_chain)->file_storage_dir);
         return -3;

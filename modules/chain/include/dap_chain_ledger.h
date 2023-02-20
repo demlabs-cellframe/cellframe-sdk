@@ -33,7 +33,7 @@
 #include "dap_chain_common.h"
 #include "dap_chain_datum_token.h"
 #include "dap_chain_datum_tx.h"
-#include "dap_chain_datum_tx_token.h"
+#include "dap_chain_datum_tx_in_ems.h"
 #include "dap_chain_datum_tx_items.h"
 
 typedef struct dap_ledger {

@@ -2550,6 +2550,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
 
             //load decree
             dap_chain_net_decree_init(l_net);
+<<<<<<< HEAD
 
             // load chains
             l_chain = l_net->pub.chains;
@@ -2564,6 +2565,22 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 if(l_chain->callback_created)
                     l_chain->callback_created(l_chain, l_cfg);
 
+=======
+
+            // load chains
+            l_chain = l_net->pub.chains;
+            while(l_chain){
+                if (dap_chain_load_all(l_chain) == 0)
+                    log_it (L_NOTICE, "Loaded chain files");
+                else {
+                    dap_chain_save_all( l_chain );
+                    log_it (L_NOTICE, "Initialized chain files");
+                }
+
+                if(l_chain->callback_created)
+                    l_chain->callback_created(l_chain, l_cfg);
+
+>>>>>>> f0f7c9ecb16f5faebc803a6b9a486055f286178b
                 l_chain = l_chain->next;
             }
 
@@ -3342,7 +3359,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
                 log_it(L_WARNING, "Corrupted decree, size %zd is smaller than ever decree header's size %zd", l_datum_data_size, sizeof(l_decree->header));
                 return -102;
             }
-             return dap_chain_net_decree_load(l_decree, a_chain);
+            return dap_chain_net_decree_load(l_decree, a_chain);
         }
         case DAP_CHAIN_DATUM_ANCHOR:{
             dap_chain_datum_anchor_t * l_anchor = (dap_chain_datum_anchor_t *)a_datum->data;

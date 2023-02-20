@@ -1023,12 +1023,12 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         log_it(L_ERROR, "No chain packet in channel packet, returning");
         return;
     }
-    if (l_ch_pkt->hdr.size < sizeof (l_chain_pkt->hdr)){
-        log_it(L_ERROR, "Corrupted packet: too small size %u, smaller then header size %zu", l_ch_pkt->hdr.size,
+    if (l_ch_pkt->hdr.data_size < sizeof (l_chain_pkt->hdr)){
+        log_it(L_ERROR, "Corrupted packet: too small size %u, smaller then header size %zu", l_ch_pkt->hdr.data_size,
                sizeof(l_chain_pkt->hdr));
         return;
     }
-    size_t l_chain_pkt_data_size = l_ch_pkt->hdr.size-sizeof (l_chain_pkt->hdr);
+    size_t l_chain_pkt_data_size = l_ch_pkt->hdr.data_size - sizeof(l_chain_pkt->hdr);
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_chain_pkt->hdr.net_id);
     if (!l_net) {
         if (l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR) {
