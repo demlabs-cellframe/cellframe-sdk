@@ -385,15 +385,19 @@ static void s_session_send_startsync(dap_chain_esbocs_session_t *a_session)
 {
     dap_chain_hash_fast_t l_last_block_hash;
     s_get_last_block_hash(a_session->chain, &l_last_block_hash);
-    a_session->ts_round_sync_start = dap_time_now();    
+    a_session->ts_round_sync_start = dap_time_now();
+    a_session->cur_round.id++;
+    a_session->cur_round.sync_attempt++;
     if (!dap_hash_fast_compare(&l_last_block_hash, &a_session->cur_round.last_block_hash))
         return;     // My last block hash is different, so skip this round
     if (!s_validator_check(&a_session->my_signing_addr, a_session->cur_round.validators_list))
         return;     // I'm not a selected validator, just skip sync message
-    debug_if(PVT(a_session->esbocs)->debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U" Sent START_SYNC pkt",
-                    a_session->chain->net_name, a_session->chain->name, a_session->cur_round.id);
+    debug_if(PVT(a_session->esbocs)->debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U"."
+                                                   " Sent START_SYNC pkt, attempt %"DAP_UINT64_FORMAT_U,
+                    a_session->chain->net_name, a_session->chain->name, a_session->cur_round.id, a_session->cur_round.sync_attempt);
     s_message_send(a_session, DAP_STREAM_CH_VOTING_MSG_TYPE_START_SYNC, &l_last_block_hash,
-                   NULL, 0, a_session->cur_round.validators_list);
+                   &a_session->cur_round.sync_attempt, sizeof(uint64_t),
+                   a_session->cur_round.validators_list);
 }
 
 static bool s_session_send_startsync_on_timer(void *a_arg)
@@ -424,7 +428,9 @@ static void s_session_round_clear(dap_chain_esbocs_session_t *a_session)
 
     a_session->cur_round = (dap_chain_esbocs_round_t){
             .id = a_session->cur_round.id,
-            .last_block_hash = a_session->cur_round.last_block_hash
+            .attempt_num = 1,
+            .last_block_hash = a_session->cur_round.last_block_hash,
+            .sync_attempt = a_session->cur_round.sync_attempt
     };
     dap_timerfd_delete(a_session->sync_timer);
 }
@@ -432,7 +438,6 @@ static void s_session_round_clear(dap_chain_esbocs_session_t *a_session)
 static void s_session_round_new(dap_chain_esbocs_session_t *a_session)
 {
     s_session_round_clear(a_session);
-    a_session->cur_round.id++;
     a_session->state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START;
     a_session->ts_round_sync_start = 0;
     a_session->ts_attempt_start = 0;
@@ -443,6 +448,7 @@ static void s_session_round_new(dap_chain_esbocs_session_t *a_session)
             !dap_hash_fast_compare(&l_last_block_hash, &a_session->cur_round.last_block_hash)) {
         l_seed_hash = &l_last_block_hash;
         a_session->cur_round.last_block_hash = l_last_block_hash;
+        a_session->cur_round.sync_attempt = 0;
     }
     a_session->cur_round.validators_list = s_get_validators_list(a_session, l_seed_hash);
 
@@ -488,9 +494,9 @@ static void s_session_round_new(dap_chain_esbocs_session_t *a_session)
 
 static void s_session_attempt_new(dap_chain_esbocs_session_t *a_session)
 {
-    if (++a_session->cur_round.attempt_num > PVT(a_session->esbocs)->round_attempts_max ) {
+    if (a_session->cur_round.attempt_num++ > PVT(a_session->esbocs)->round_attempts_max ) {
         debug_if(PVT(a_session->esbocs)->debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U"."
-                                                        " Round finish by reason: attempts is out",
+                                                        " Round finished by reason: attempts is out",
                                                             a_session->chain->net_name, a_session->chain->name,
                                                                 a_session->cur_round.id);
         s_session_round_new(a_session);
@@ -500,14 +506,15 @@ static void s_session_attempt_new(dap_chain_esbocs_session_t *a_session)
         dap_chain_esbocs_validator_t *l_validator = it->data;
         if (l_validator->is_synced && !l_validator->is_chosen) {
             // We have synced validator with no submitted candidate
-            debug_if(PVT(a_session->esbocs)->debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U". Attempt:%hu is started"                                                     " Round finish by reason: attempts is out",
+            debug_if(PVT(a_session->esbocs)->debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U". Attempt:%hu is started",
                                                                 a_session->chain->net_name, a_session->chain->name,
                                                                     a_session->cur_round.id, a_session->cur_round.attempt_num);
             s_session_state_change(a_session, DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC, dap_time_now());
+            return;
         }
     }
     debug_if(PVT(a_session->esbocs)->debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U"."
-                                                    " Round finish by reason: all synced validators already tryed its attempt",
+                                                    " Round finished by reason: all synced validators already tryed its attempt",
                                                         a_session->chain->net_name, a_session->chain->name,
                                                             a_session->cur_round.id);
     s_session_round_new(a_session);
@@ -1036,11 +1043,34 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 
     dap_chain_hash_fast_t *l_candidate_hash = &l_message->hdr.candidate_hash;
     switch (l_message->hdr.type) {
-    case DAP_STREAM_CH_VOTING_MSG_TYPE_START_SYNC:
-        debug_if(l_cs_debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
-                                    " Receive START_SYNC: from validator:%s",
+    case DAP_STREAM_CH_VOTING_MSG_TYPE_START_SYNC: {
+        uint64_t l_sync_attempt = *(uint64_t *)l_message_data;
+        debug_if(l_cs_debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U
+                                    " Receive START_SYNC: from validator:%s, sync attempt %"DAP_UINT64_FORMAT_U,
                                         l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
-                                            l_session->cur_round.attempt_num, l_validator_addr_str);
+                                            l_validator_addr_str, l_sync_attempt);
+        if (l_sync_attempt != l_session->cur_round.sync_attempt) {
+            if (l_sync_attempt < l_session->cur_round.sync_attempt) {
+                 debug_if(l_cs_debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U
+                                             " SYNC message is rejected because current sync attempt %"DAP_UINT64_FORMAT_U
+                                             " is greater than meassage sync attempt %"DAP_UINT64_FORMAT_U,
+                                                l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
+                                                    l_session->cur_round.sync_attempt, l_sync_attempt);
+                 break;
+            } else {
+                debug_if(l_cs_debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U
+                                            " SYNC message sync attempt %"DAP_UINT64_FORMAT_U" is greater than"
+                                            " current round sync attempt%"DAP_UINT64_FORMAT_U" so fast-forward this round",
+                                               l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
+                                                   l_sync_attempt, l_session->cur_round.sync_attempt);
+                uint64_t l_attempts_miss = l_sync_attempt - l_session->cur_round.sync_attempt;
+                for (uint64_t i = 0; i < l_attempts_miss - 1; i++)
+                    // Fast-forward current attempt
+                    s_get_validators_list(l_session, NULL);
+                s_session_round_new(l_session);
+                break;
+            }
+        }
         s_message_chain_add(l_session, l_message, a_data_size, a_data_hash, &l_signing_addr);
         for (dap_list_t *it = l_session->cur_round.validators_list; it; it = it->next) {
             dap_chain_esbocs_validator_t *l_validator = it->data;
@@ -1055,7 +1085,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                                                 l_session->cur_round.id, l_session->cur_round.attempt_num);
             s_session_state_change(l_session, DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC, dap_time_now());
         }
-        break;
+    } break;
     case DAP_STREAM_CH_VOTING_MSG_TYPE_SUBMIT: {
         uint8_t *l_candidate = l_message->msg_n_sign;
         size_t l_candidate_size = l_message->hdr.message_size;
