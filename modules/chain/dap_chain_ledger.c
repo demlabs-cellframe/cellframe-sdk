@@ -886,21 +886,11 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
 		if (update_token == false) {
 			log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->ticker);
 			return -3;
-		} else if (s_ledger_token_update_check(l_token_item, a_token, a_token_size) == true) {
-            size_t l_new_token_size = 0;
-            dap_chain_datum_token_t *l_new_token = dap_chain_datum_token_update_signs(a_token, a_token_size, &l_new_token_size);
-            if (!l_new_token_size || !l_new_token) {
-                if (s_ledger_update_token_add_in_hash_table(l_token_item, a_token, a_token_size) == false) {
-                    if (s_debug_more)
-                        log_it(L_ERROR, "Failed to add ticker '%s' to hash-table", a_token->ticker);
-                    return -5;
-                }
-            } else {
-                if (s_ledger_update_token_add_in_hash_table(l_token_item, l_new_token, l_new_token_size) == false) {
-                    if (s_debug_more)
-                        log_it(L_ERROR, "Failed to add ticker '%s' to hash-table", a_token->ticker);
-                    return -5;
-                }
+		} else if (s_ledger_token_update_check(l_token_item, a_token, a_token_size) == true) {            
+            if (s_ledger_update_token_add_in_hash_table(l_token_item, a_token, a_token_size) == false) {
+                if (s_debug_more)
+                    log_it(L_ERROR, "Failed to add ticker '%s' to hash-table", a_token->ticker);
+                return -5;
             }
 			if (!IS_ZERO_256(a_token->total_supply)){
 				SUBTRACT_256_256(l_token_item->total_supply, l_token_item->current_supply, &l_token_item->current_supply);
