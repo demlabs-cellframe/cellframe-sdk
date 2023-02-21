@@ -19,6 +19,7 @@
 typedef struct dap_chain_esbocs_session dap_chain_esbocs_session_t;
 
 /* consensus messages
+• Sync(round, last block, sync attempt) - try to synchronize validators before first round attempt start
 • Submit(round, candidate, body) — suggest a new block candidate *** candiate body in data section
 • Approve(round, candidate) — a block candidate has passed local validation
 • Reject(round, candidate) — a block candidate has failed local validation
@@ -95,6 +96,7 @@ typedef struct dap_chain_esbocs_round {
     // Validators section
     uint16_t validators_synced_count;
     dap_list_t *validators_list;
+    uint64_t sync_attempt;
 } dap_chain_esbocs_round_t;
 
 typedef struct dap_chain_esbocs_validator {
@@ -106,7 +108,8 @@ typedef struct dap_chain_esbocs_validator {
 } dap_chain_esbocs_validator_t;
 
 typedef struct dap_chain_esbocs_session {
-    pthread_rwlock_t rwlock;
+    pthread_mutex_t mutex;
+    dap_chain_block_t *processing_candidate;
 
     dap_chain_t *chain;
     dap_chain_esbocs_t *esbocs;
@@ -114,6 +117,7 @@ typedef struct dap_chain_esbocs_session {
     dap_chain_node_addr_t my_addr;
     uint8_t state; // session state
     dap_chain_esbocs_round_t cur_round;
+    bool round_fast_forward;
 
     dap_time_t ts_round_sync_start; // time of start sync
     dap_time_t ts_attempt_start; // time of current attempt start
