@@ -1704,7 +1704,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                 if (dap_hash_fast_compare(&l_price->tx_hash, &l_hash_fast_ref))
                     l_status_order  = "INVALID";
                 else
-                    l_status_order = "UNKNOWN";
+                    l_status_order = "OPEN";
 
                 MULT_256_COIN(l_price->datoshi_sell, l_price->rate, &l_datoshi_buy);  /* sell/buy computation */
 
