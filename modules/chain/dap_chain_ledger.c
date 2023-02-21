@@ -3686,6 +3686,11 @@ static int s_tx_add_unsafe(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, d
     return s_tx_add(a_ledger,a_tx,a_tx_hash,a_from_threshold,false);
 }
 
+void dap_chain_ledger_set_tps_start_time(dap_ledger_t *a_ledger)
+{
+    clock_gettime(CLOCK_REALTIME, &PVT(a_ledger)->tps_start_time);
+}
+
 /**
  * @brief Add new transaction to the cache list
  * @param a_ledger
@@ -3707,10 +3712,11 @@ static inline int s_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, d
     dap_list_t *l_list_bound_items = NULL;
     dap_list_t *l_list_tx_out = NULL;
     dap_chain_ledger_tx_item_t *l_item_tmp = NULL;
-    unsigned l_hash_value = 0;
 
     if (!l_ledger_priv->tps_timer) {
-        clock_gettime(CLOCK_REALTIME, &l_ledger_priv->tps_start_time);
+#ifndef DAP_TPS_TEST
+        dap_chain_ledger_set_tps_start_time(a_ledger);
+#endif
         l_ledger_priv->tps_current_time.tv_sec = l_ledger_priv->tps_start_time.tv_sec;
         l_ledger_priv->tps_current_time.tv_nsec = l_ledger_priv->tps_start_time.tv_nsec;
         l_ledger_priv->tps_count = 0;
