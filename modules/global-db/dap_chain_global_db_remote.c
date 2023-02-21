@@ -592,7 +592,7 @@ void dap_store_packet_change_id(dap_store_obj_pkt_t *a_pkt, uint64_t a_id)
 {
     uint16_t l_gr_len = *(uint16_t*)(a_pkt->data + sizeof(uint32_t));
     size_t l_id_offset = sizeof(uint32_t) + sizeof(uint16_t) + l_gr_len;
-    memcpy(a_pkt->data + l_id_offset, &a_id, sizeof(uint64_t));
+    *((uint64_t*)(a_pkt->data + l_id_offset)) = a_id;
 }
 
 /**
