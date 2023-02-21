@@ -282,10 +282,15 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_chain_t * a_chain, dap_enc_key_t 
     dap_hash_fast_t						l_tx_hash;
     dap_chain_datum_tx_t				*l_cond_tx;
     dap_chain_tx_out_cond_t				*l_tx_out_cond;
+    dap_chain_datum_tx_t                *l_tx;
 
     if (NULL == (l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx, TX_ITEM_TYPE_OUT_COND,
                                                                  &l_prev_cond_idx)))
         return NO_TX_ERROR;
+    //is the output spent
+    if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &l_tx_hash, l_prev_cond_idx)) {
+        return IS_USED_OUT_ERROR;
+    }
 
     //add tx
     if (NULL == (l_tx = dap_chain_datum_tx_create())) {//malloc
@@ -295,6 +300,8 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_chain_t * a_chain, dap_enc_key_t 
     }
 
     dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_tx_hash, l_prev_cond_idx, 0);
+
+    l_tx_out_cond->header.value
 
 }
 
