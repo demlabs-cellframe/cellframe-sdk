@@ -147,6 +147,7 @@ typedef enum dap_enc_key_type {
 
     /* Ring signature for confidentional transaction */
     DAP_ENC_KEY_TYPE_SIG_RINGCT20,
+    DAP_ENC_KEY_TYPE_SIG_FALCON,
 #ifdef DAP_PQLR
     /* QApp PQLR family */
     DAP_ENC_KEY_TYPE_PQLR_SIG_DILITHIUM,
@@ -156,10 +157,7 @@ typedef enum dap_enc_key_type {
     DAP_ENC_KEY_TYPE_PQLR_KEM_MCELIECE,
     DAP_ENC_KEY_TYPE_PQLR_KEM_NEWHOPE,
 #endif
-    DAP_ENC_KEY_TYPE_SIG_FALCON,
-
-    DAP_ENC_KEY_TYPE_LAST = DAP_ENC_KEY_TYPE_SIG_FALCON,
-
+    DAP_ENC_KEY_TYPE_SIZE,
     DAP_ENC_KEY_TYPE_NULL = 0 /* == DAP_ENC_KEY_TYPE_IAES */
 }  dap_enc_key_type_t;
 

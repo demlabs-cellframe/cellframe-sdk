@@ -72,6 +72,8 @@ size_t dap_sign_create_output_unserialized_calc_size(dap_enc_key_t * a_key, size
         return dap_enc_tesla_calc_signature_size();
     case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
         return dap_enc_dilithium_calc_signature_unserialized_size();
+    case DAP_ENC_KEY_TYPE_SIG_FALCON:
+        return dap_enc_falcon_calc_signature_unserialized_size(a_key);
 #ifdef DAP_PQLR
     case DAP_ENC_KEY_TYPE_PQLR_SIG_DILITHIUM:
         return dap_pqlr_dilithium_calc_signature_size(a_key);
@@ -81,8 +83,6 @@ size_t dap_sign_create_output_unserialized_calc_size(dap_enc_key_t * a_key, size
         return dap_pqlr_sphincs_calc_signature_size(a_key);
 
 #endif
-    case DAP_ENC_KEY_TYPE_SIG_FALCON:
-        return dap_enc_falcon_calc_signature_unserialized_size(a_key);
     default:
         return 0;
     }
@@ -242,25 +242,24 @@ static int dap_sign_create_output(dap_enc_key_t *a_key, const void * a_data, con
         return -1;
     }
     switch (a_key->type) {
-        case DAP_ENC_KEY_TYPE_SIG_TESLA:
-        case DAP_ENC_KEY_TYPE_SIG_PICNIC:
-        case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
-        case DAP_ENC_KEY_TYPE_SIG_FALCON:
+    case DAP_ENC_KEY_TYPE_SIG_TESLA:
+    case DAP_ENC_KEY_TYPE_SIG_PICNIC:
+    case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
+    case DAP_ENC_KEY_TYPE_SIG_FALCON:
 #ifdef DAP_PQLR
     case DAP_ENC_KEY_TYPE_PQLR_SIG_DILITHIUM:
     case DAP_ENC_KEY_TYPE_PQLR_SIG_FALCON:
     case DAP_ENC_KEY_TYPE_PQLR_SIG_SPHINCS:
 #endif
-                // For PICNIC a_output_size should decrease
-            //*a_output_size = dap_enc_sig_dilithium_get_sign(a_key,a_data,a_data_size,a_output,sizeof(dilithium_signature_t));
-            a_key->enc_na(a_key, a_data, a_data_size, a_output, *a_output_size);
-            return (*a_output_size > 0) ? 0 : -1;
-
-        case DAP_ENC_KEY_TYPE_SIG_BLISS:
-            return (dap_enc_sig_bliss_get_sign(a_key, a_data, a_data_size, a_output, *a_output_size) == BLISS_B_NO_ERROR)
-                   ? 0 : -1;
-        default:
-            return -1;
+            // For PICNIC a_output_size should decrease
+        //*a_output_size = dap_enc_sig_dilithium_get_sign(a_key,a_data,a_data_size,a_output,sizeof(dilithium_signature_t));
+        a_key->enc_na(a_key, a_data, a_data_size, a_output, *a_output_size);
+        return (*a_output_size > 0) ? 0 : -1;
+    case DAP_ENC_KEY_TYPE_SIG_BLISS:
+        return (dap_enc_sig_bliss_get_sign(a_key, a_data, a_data_size, a_output, *a_output_size) == BLISS_B_NO_ERROR)
+               ? 0 : -1;
+    default:
+        return -1;
     }
 }
 

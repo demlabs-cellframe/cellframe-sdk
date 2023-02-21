@@ -349,20 +349,24 @@ uint8_t* dap_enc_key_serialize_sign(dap_enc_key_type_t a_key_type, uint8_t *a_si
  */
 uint8_t* dap_enc_key_deserialize_sign(dap_enc_key_type_t a_key_type, uint8_t *a_sign, size_t *a_sign_len)
 {
-    if (!a_sign || !a_sign_len || !*a_sign_len) {
+    if (!a_sign || !a_sign_len) {
         return NULL;
     }
     switch (a_key_type) {
     case DAP_ENC_KEY_TYPE_SIG_BLISS:
-        return *a_sign_len = sizeof(bliss_signature_t),     (uint8_t*)dap_enc_sig_bliss_read_signature(a_sign, *a_sign_len);
+        *a_sign_len = sizeof(bliss_signature_t);
+        return (uint8_t*)dap_enc_sig_bliss_read_signature(a_sign, *a_sign_len);
     case DAP_ENC_KEY_TYPE_SIG_TESLA:
-        return *a_sign_len = sizeof(tesla_signature_t),     (uint8_t*)dap_enc_tesla_read_signature(a_sign, *a_sign_len);
+        *a_sign_len = sizeof(tesla_signature_t);
+        return (uint8_t*)dap_enc_tesla_read_signature(a_sign, *a_sign_len);
     case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
-        return *a_sign_len = sizeof(dilithium_signature_t), (uint8_t*)dap_enc_dilithium_read_signature(a_sign, *a_sign_len);
+        *a_sign_len = sizeof(dilithium_signature_t);
+        return (uint8_t*)dap_enc_dilithium_read_signature(a_sign, *a_sign_len);
     case DAP_ENC_KEY_TYPE_SIG_FALCON:
-        return *a_sign_len = sizeof(falcon_signature_t),    (uint8_t*)dap_enc_falcon_read_signature(a_sign, *a_sign_len);
+        *a_sign_len = sizeof(falcon_signature_t);
+        return (uint8_t*)dap_enc_falcon_read_signature(a_sign, *a_sign_len);
     default:
-        return DAP_DUP_SIZE(a_sign, *a_sign_len);
+        return *a_sign_len ? DAP_DUP_SIZE(a_sign, *a_sign_len) : NULL;
     }
 }
 
@@ -830,13 +834,13 @@ size_t dap_enc_key_get_dec_size(dap_enc_key_t * a_key, const size_t buf_in_size)
 
 const char *dap_enc_get_type_name(dap_enc_key_type_t a_key_type)
 {
-    return a_key_type >= DAP_ENC_KEY_TYPE_NULL && a_key_type <= DAP_ENC_KEY_TYPE_LAST && s_callbacks[a_key_type].name
+    return a_key_type >= DAP_ENC_KEY_TYPE_NULL && a_key_type < DAP_ENC_KEY_TYPE_SIZE && s_callbacks[a_key_type].name
             ? s_callbacks[a_key_type].name
             : ({ log_it(L_ERROR, "Can't define name of key type %d", a_key_type); NULL; });
 }
 
 dap_enc_key_type_t dap_enc_key_type_find_by_name(const char * a_name){
-    for (dap_enc_key_type_t i = 0; i <= DAP_ENC_KEY_TYPE_LAST; i++) {
+    for (dap_enc_key_type_t i = 0; i < DAP_ENC_KEY_TYPE_SIZE; i++) {
         const char * l_current_key_name = dap_enc_get_type_name(i);
         if(l_current_key_name && !strcmp(a_name, l_current_key_name))
             return i;

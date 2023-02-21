@@ -35,12 +35,12 @@ enum dap_pkey_type_enum {
     PKEY_TYPE_SIGN_TESLA,
     PKEY_TYPE_SIGN_PICNIC = 0x0101,
     PKEY_TYPE_SIGN_DILITHIUM,
+    PKEY_TYPE_SIGN_FALCON,
 #ifdef DAP_PQLR
     PKEY_TYPE_SIGN_PQLR_DIL = 0x0200,
     PKEY_TYPE_SIGN_PQLR_FALCON,
     PKEY_TYPE_SIGN_PQLR_SPHINCS,
 #endif
-    PKEY_TYPE_SIGN_FALCON,
     PKEY_TYPE_MULTI = 0x0f00 ///  @brief Has inside subset of different keys
 
 };

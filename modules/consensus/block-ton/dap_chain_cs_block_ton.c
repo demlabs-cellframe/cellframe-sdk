@@ -912,7 +912,6 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 	if ( !PVT(l_session->ton)->validators_list_by_stake ) {
 		size_t l_data_size = 0;
 		dap_sign_t *l_sign = (dap_sign_t*)l_message->sign_n_message;
-        log_it(L_INFO, "!!! sig type recv: %d", l_sign->header.type.type);
 		uint8_t *l_data = s_message_data_sign(l_session, l_message, &l_data_size);
 		bool l_verify_passed = false;
 		for (uint16_t j = 0; j < PVT(l_session->ton)->auth_certs_count; j++) {
@@ -1861,7 +1860,6 @@ static void s_message_send(dap_chain_cs_block_ton_items_t *a_session, uint8_t a_
 		size_t l_data_size = sizeof(l_message->hdr.sender_node_addr);
 		uint8_t *l_data = s_message_data_sign(a_session, l_message, &l_data_size);
 	    dap_sign_t *l_sign = dap_sign_create(PVT(a_session->ton)->blocks_sign_key, l_data, l_data_size, 0);
-        log_it(L_INFO, "!!! sig type send: %d", l_sign->header.type.type);
 	    l_sign_size = dap_sign_get_size(l_sign);
 	    l_message_size += l_sign_size;
 	    l_message = DAP_REALLOC(l_message, l_message_size);
