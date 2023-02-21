@@ -1089,17 +1089,26 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
 
             // Add owner signature's pkey fingerprint
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_ADD:{
-                if(l_tsd->size == sizeof (dap_hash_fast_t) ){
-                    a_token_item->auth_signs_total++;
-                    // Type sizeof's misunderstanding in realloc?
-                    a_token_item->auth_signs = DAP_REALLOC(a_token_item->auth_signs,a_token_item->auth_signs_total*sizeof (void*) );
-                    a_token_item->auth_signs_pkey_hash = DAP_REALLOC(a_token_item->auth_signs_pkey_hash,a_token_item->auth_signs_total*sizeof (void*) );
-                    a_token_item->auth_signs[a_token_item->auth_signs_total-1] = NULL;
-                    memcpy( &a_token_item->auth_signs_pkey_hash[a_token_item->auth_signs_total-1], l_tsd->data, l_tsd->size ) ;
-                }else{
-                    if(s_debug_more)
-                        log_it(L_ERROR,"TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_ADD expected to have %zd bytes data length, not %zd",
-                           sizeof (dap_hash_fast_t), l_tsd_size );
+                dap_sign_t *l_sign = (dap_sign_t*)l_tsd->data;
+                if (dap_sign_verify_size(l_sign, l_tsd->size)) {
+                    if(dap_sign_get_size(l_sign) == l_tsd->size ){
+                        a_token_item->auth_signs_total++;
+                        // Type sizeof's misunderstanding in realloc?
+                        a_token_item->auth_signs = DAP_REALLOC(a_token_item->auth_signs,a_token_item->auth_signs_total*sizeof (void*) );
+                        a_token_item->auth_signs_pkey_hash = DAP_REALLOC(a_token_item->auth_signs_pkey_hash,a_token_item->auth_signs_total*sizeof (void*) );
+                        a_token_item->auth_signs[a_token_item->auth_signs_total-1] = DAP_NEW_SIZE(dap_sign_t, dap_sign_get_size(l_sign));
+                        memcpy(a_token_item->auth_signs[a_token_item->auth_signs_total-1], l_sign, dap_sign_get_size(l_sign));
+                        dap_hash_fast_t l_pkey_fingerprint = {0};
+                        dap_sign_get_pkey_hash(l_sign, &l_pkey_fingerprint);
+                        memcpy( &a_token_item->auth_signs_pkey_hash[a_token_item->auth_signs_total-1], &l_pkey_fingerprint, sizeof(dap_hash_fast_t)) ;
+                    }else{
+                        if(s_debug_more)
+                            log_it(L_ERROR,"TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_ADD expected to have %zd bytes data length, not %zd",
+                               dap_sign_get_size(l_sign), l_tsd_size );
+                    }
+                } else {
+                    if (s_debug_more)
+                        log_it(L_ERROR, "The signature located in the TSD DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_ADD did not pass size validation.");
                 }
             }break;
 
