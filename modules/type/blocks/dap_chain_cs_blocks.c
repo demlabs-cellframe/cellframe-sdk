@@ -372,7 +372,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
 
     const char *l_chain_type = dap_chain_net_get_type(l_chain);
 
-    if (!strstr(l_chain_type, "block_")){
+    if (!strstr(l_chain_type, "block_") && strcmp(l_chain_type, "esbocs")){
             dap_cli_server_cmd_set_reply_text(a_str_reply,
                         "Type of chain %s is not block. This chain with type %s is not supported by this command",
                         l_chain->name, l_chain_type);
@@ -1189,7 +1189,7 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
             continue;
         }
         if (l_blocks->block_new_size + l_datum_size > DAP_CHAIN_CS_BLOCKS_MAX_BLOCK_SIZE) {
-            log_it(L_DEBUG, "Maximum size exeeded, %zu > %zu", l_blocks->block_new_size + l_datum_size, DAP_CHAIN_CS_BLOCKS_MAX_BLOCK_SIZE);
+            log_it(L_DEBUG, "Maximum size exeeded, %zu > %d", l_blocks->block_new_size + l_datum_size, DAP_CHAIN_CS_BLOCKS_MAX_BLOCK_SIZE);
             break;
         }
         if (!l_blocks->block_new) {
