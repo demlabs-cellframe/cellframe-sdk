@@ -352,22 +352,28 @@ uint8_t* dap_enc_key_deserialize_sign(dap_enc_key_type_t a_key_type, uint8_t *a_
     if (!a_sign || !a_sign_len) {
         return NULL;
     }
+    uint8_t *l_ret;
     switch (a_key_type) {
     case DAP_ENC_KEY_TYPE_SIG_BLISS:
+        l_ret = (uint8_t*)dap_enc_sig_bliss_read_signature(a_sign, *a_sign_len);
         *a_sign_len = sizeof(bliss_signature_t);
-        return (uint8_t*)dap_enc_sig_bliss_read_signature(a_sign, *a_sign_len);
+        break;
     case DAP_ENC_KEY_TYPE_SIG_TESLA:
+        l_ret = (uint8_t*)dap_enc_tesla_read_signature(a_sign, *a_sign_len);
         *a_sign_len = sizeof(tesla_signature_t);
-        return (uint8_t*)dap_enc_tesla_read_signature(a_sign, *a_sign_len);
+        break;
     case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
+        l_ret = (uint8_t*)dap_enc_dilithium_read_signature(a_sign, *a_sign_len);
         *a_sign_len = sizeof(dilithium_signature_t);
-        return (uint8_t*)dap_enc_dilithium_read_signature(a_sign, *a_sign_len);
+        break;
     case DAP_ENC_KEY_TYPE_SIG_FALCON:
+        l_ret = (uint8_t*)dap_enc_falcon_read_signature(a_sign, *a_sign_len);
         *a_sign_len = sizeof(falcon_signature_t);
-        return (uint8_t*)dap_enc_falcon_read_signature(a_sign, *a_sign_len);
+        break;
     default:
-        return *a_sign_len ? DAP_DUP_SIZE(a_sign, *a_sign_len) : NULL;
+        return DAP_DUP_SIZE(a_sign, *a_sign_len);
     }
+    return l_ret;
 }
 
 /**
