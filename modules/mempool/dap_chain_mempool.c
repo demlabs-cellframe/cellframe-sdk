@@ -278,19 +278,14 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_chain_t * a_chain, dap_enc_key_t 
         uint256_t a_value, uint256_t a_value_fee, const char *a_hash_out_type)
 {
     int									l_prev_cond_idx		=	0;
-
+    size_t                              l_datums_count      =   0;
+    uint256_t                           l_value_need = {},
     dap_hash_fast_t						l_tx_hash;
-    dap_chain_datum_tx_t				*l_cond_tx;
+    dap_chain_datum_tx_t				*l_datum_tx;
     dap_chain_tx_out_cond_t				*l_tx_out_cond;
     dap_chain_datum_tx_t                *l_tx;
-
-    if (NULL == (l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx, TX_ITEM_TYPE_OUT_COND,
-                                                                 &l_prev_cond_idx)))
-        return NO_TX_ERROR;
-    //is the output spent
-    if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &l_tx_hash, l_prev_cond_idx)) {
-        return IS_USED_OUT_ERROR;
-    }
+    dap_chain_datum_t                   **l_datums;
+    dap_chain_datum_t                   *l_datum;
 
     //add tx
     if (NULL == (l_tx = dap_chain_datum_tx_create())) {//malloc
@@ -299,10 +294,45 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_chain_t * a_chain, dap_enc_key_t 
         return CREATE_TX_ERROR;
     }
 
-    dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_tx_hash, l_prev_cond_idx, 0);
+    l_datums = dap_chain_block_get_datums(a_block, a_block_size, &l_datums_count);
+    //dap_chain_datum_tx_t *l_datum_tx = (dap_chain_datum_tx_t*)l_datum->data;
 
-    l_tx_out_cond->header.value
+    //add in
+    for(int i=0;i<l_datums_count;i++)
+    {
+        l_datum_tx = (dap_chain_datum_tx_t*)l_datums[i]->data;
+        if (NULL == (l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_datum_tx, TX_ITEM_TYPE_OUT_COND,
+                                                                     &l_prev_cond_idx)))
+            return NULL;
 
+        //is the output spent
+        if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &l_tx_hash, l_prev_cond_idx)) {
+            return NULL;
+        }
+        dap_chain_datum_tx_add_in_cond_item(&l_tx, &l_tx_hash, l_prev_cond_idx, 0);
+        SUM_256_256(l_value_need, l_tx_out_cond->header.value, &l_value_need);
+    }
+
+    //add out
+    if (dap_chain_datum_tx_add_out_item(&l_tx, &a_addr_to, l_value_need) != 1) {
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
+    // add 'sign' items
+    if(dap_chain_datum_tx_add_sign_item(&l_tx, a_key_from) != 1) {
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
+    size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+    //dap_hash_fast_t l_tx_hash;
+    dap_hash_fast(l_tx, l_tx_size, &l_tx_hash);
+    dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
+    DAP_DELETE(l_tx);
+    char *l_ret = dap_chain_mempool_datum_add(l_datum, a_chain, a_hash_out_type);
+    DAP_DELETE(l_datum);
+    return l_ret;
 }
 
 /**

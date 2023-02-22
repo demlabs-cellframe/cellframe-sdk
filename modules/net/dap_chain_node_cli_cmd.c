@@ -5200,7 +5200,7 @@ int fee_coll(int a_argc, char ** a_argv, char **a_str_reply)
     const char * l_hash_str = NULL;
     const char * l_hash_mas_str = NULL;
 
-    dap_chain_hash_fast_t l_datum_hash = {};
+    dap_chain_hash_fast_t l_block_hash = {};
     dap_chain_t * l_chain = NULL;
     dap_chain_block_t  * l_block;
     dap_chain_cs_blocks_t * l_blocks = NULL;
@@ -5285,11 +5285,11 @@ int fee_coll(int a_argc, char ** a_argv, char **a_str_reply)
         return -7;
     }else if(l_hash_str){
         size_t l_block_size = 0;
-        int res =  dap_chain_hash_fast_from_hex_str( l_hash_str, &l_datum_hash);
-        l_block = (dap_chain_block_t*) dap_chain_get_atom_by_hash( l_chain, &l_datum_hash, &l_block_size);
+        int res =  dap_chain_hash_fast_from_hex_str( l_hash_str, &l_block_hash);
+        l_block = (dap_chain_block_t*) dap_chain_get_atom_by_hash( l_chain, &l_block_hash, &l_block_size);
         l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
         if(l_block){
-            dap_chain_block_cache_t *l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_datum_hash);
+            dap_chain_block_cache_t *l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_block_hash);
             if(l_block_cache)
             {
                 dap_string_t * l_str_tmp = dap_string_new(NULL);
@@ -5312,6 +5312,9 @@ int fee_coll(int a_argc, char ** a_argv, char **a_str_reply)
                 dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
 
                 if(dap_pkey_compare_with_sign(l_pub_key, l_sign)){
+                    l_block_cache->block_size
+                            l_block_cache->
+
 
                 }
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
