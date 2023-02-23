@@ -24,7 +24,7 @@ cmake_policy(SET CMP0054 NEW)
 
 # set default build type if not specified by user
 if(NOT CMAKE_BUILD_TYPE)
-	set(CMAKE_BUILD_TYPE debug)
+    set(CMAKE_BUILD_TYPE debug)
 endif()
 
 set(CMAKE_C_FLAGS_RELEASE   "${CMAKE_C_FLAGS_RELEASE} -O2")
@@ -62,7 +62,7 @@ include(CPack)
 include(GNUInstallDirs)
 include(CMakePackageConfigHelpers)
 
-option(BUILD_SHARED_LIBS  "Default to building shared libraries" ON)
+option(BUILD_SHARED_LIBS  "Default to building shared libraries" OFF)
 option(BUILD_STATIC_LIBS  "Default to building static libraries" ON)
 
 if (BUILD_SHARED_LIBS)
@@ -85,7 +85,7 @@ option(DISABLE_BSYMBOLIC              "Avoid linking with -Bsymbolic-function." 
 option(DISABLE_THREAD_LOCAL_STORAGE   "Disable using Thread-Local Storage (HAVE___THREAD)."   OFF)
 option(DISABLE_WERROR                 "Avoid treating compiler warnings as fatal errors."     OFF)
 option(ENABLE_RDRAND                  "Enable RDRAND Hardware RNG Hash Seed."                 OFF)
-option(ENABLE_THREADING               "Enable partial threading support."                     OFF)
+option(ENABLE_THREADING               "Enable partial threading support."                     ON)
 option(OVERRIDE_GET_RANDOM_SEED       "Override json_c_get_random_seed() with custom code."   OFF)
 option(DISABLE_EXTRA_LIBS             "Avoid linking against extra libraries, such as libbsd." OFF)
 option(DISABLE_JSON_POINTER           "Disable JSON pointer (RFC6901) support."               OFF)

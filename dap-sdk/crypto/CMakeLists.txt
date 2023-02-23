@@ -285,10 +285,8 @@ endif()
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../3rdparty/json-c)
 
 if(WIN32)
-  target_link_libraries(dap_crypto dap_core dap_json-c)
-endif()
-
-if(UNIX)
+    target_link_libraries(dap_crypto dap_core dap_json-c)
+else()
     target_link_libraries(dap_crypto dap_core m dap_json-c)
 endif()
 
