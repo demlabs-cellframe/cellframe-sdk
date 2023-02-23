@@ -56,6 +56,8 @@ uint64_t    dap_chain_datum_tx_receipt_units_get(dap_chain_datum_tx_receipt_t * 
 uint256_t   dap_chain_datum_tx_receipt_value_get(dap_chain_datum_tx_receipt_t * l_receipt);
 uint16_t dap_chain_datum_tx_receipt_signs_count(dap_chain_datum_tx_receipt_t * l_receipt, size_t l_receipt_size);
 
+json_object *dap_chain_datum_tx_receipt_to_json(dap_chain_datum_tx_receipt_t *a_receipt);
+
 #ifdef __cplusplus
 }
 #endif
