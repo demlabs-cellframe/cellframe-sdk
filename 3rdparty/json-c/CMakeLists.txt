@@ -559,13 +559,13 @@ endif ()
 
 install(FILES ${JSON_C_PUBLIC_HEADERS} DESTINATION ${CMAKE_INSTALL_FULL_INCLUDEDIR}/json-c)
 
-if (CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME AND BUILD_TESTING AND
-   (NOT MSVC OR NOT (MSVC_VERSION LESS 1800)) # Tests need at least VS2013
-   )
-add_subdirectory(tests)
-endif()
+#if (CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME AND BUILD_TESTING AND
+#   (NOT MSVC OR NOT (MSVC_VERSION LESS 1800)) # Tests need at least VS2013
+#   )
+#add_subdirectory(tests)
+#endif()
 
-if (NOT MSVC)  # cmd line apps don't built on Windows currently.
-add_subdirectory(apps)
-endif()
+#if (NOT MSVC)  # cmd line apps don't built on Windows currently.
+#add_subdirectory(apps)
+#endif()
 
