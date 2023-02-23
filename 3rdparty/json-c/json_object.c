@@ -676,9 +676,9 @@ static int json_object_int_to_json_string(struct json_object *jso, struct printb
 	/* room for 19 digits, the sign char, and a null term */
 	char sbuf[21];
 	if (JC_INT(jso)->cint_type == json_object_int_type_int64)
-        snprintf(sbuf, sizeof(sbuf), "%ld", JC_INT(jso)->cint.c_int64);
+        snprintf(sbuf, sizeof(sbuf), "%" PRId64, JC_INT(jso)->cint.c_int64);
 	else
-        snprintf(sbuf, sizeof(sbuf), "%lu", JC_INT(jso)->cint.c_uint64);
+        snprintf(sbuf, sizeof(sbuf), "%" PRIu64, JC_INT(jso)->cint.c_uint64);
 	return printbuf_memappend(pb, sbuf, strlen(sbuf));
 }
 
