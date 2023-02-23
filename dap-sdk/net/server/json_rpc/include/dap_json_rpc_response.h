@@ -26,7 +26,7 @@
 
 #include "dap_http_simple.h"
 #include "dap_json_rpc_errors.h"
-#include "json-c/json.h"
+#include "json.h"
 
 #ifdef __cplusplus
 extern "C"{

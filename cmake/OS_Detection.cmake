@@ -168,5 +168,6 @@ if(WIN32)
 
     include_directories(3rdparty/uthash/src/)
     include_directories(3rdparty/wepoll/)
+    include_directories(3rdparty/json-c)
     #include_directories(libdap-chain-net-srv-vpn/)
 endif()

@@ -41,6 +41,6 @@ if(WIN32)
 endif()
 
 if(UNIX)
-  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_server_core dap_http_server json-c )
+  target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_server_core dap_http_server dap_json-c)
 endif()
 
