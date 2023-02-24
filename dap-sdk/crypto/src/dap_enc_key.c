@@ -367,8 +367,8 @@ uint8_t* dap_enc_key_deserialize_sign(dap_enc_key_type_t a_key_type, uint8_t *a_
         *a_sign_len = sizeof(dilithium_signature_t);
         break;
     case DAP_ENC_KEY_TYPE_SIG_FALCON:
-        l_ret = (uint8_t*)dap_enc_falcon_read_signature(a_sign, *a_sign_len);
         *a_sign_len = sizeof(falcon_signature_t);
+        l_ret = (uint8_t*)dap_enc_falcon_read_signature(a_sign, *a_sign_len);
         break;
     default:
         return DAP_DUP_SIZE(a_sign, *a_sign_len);
