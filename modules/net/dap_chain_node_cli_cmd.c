@@ -2170,7 +2170,7 @@ static dap_chain_datum_token_t* s_new_cert_signs_add_in_tsd_cycle(dap_cert_t ** 
                                             sizeof(*l_datum_token) - sizeof(uint16_t), 0);
         if (l_sign) {
             size_t l_sign_size = dap_sign_get_size(l_sign);
-            dap_tsd_t *l_sign_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SIGN_UPDATE, l_sign, l_sign_size);
+            dap_tsd_t *l_sign_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_ADD, l_sign, l_sign_size);
             size_t l_sign_tsd_size = dap_tsd_size(l_sign_tsd);
             l_datum_token = DAP_REALLOC(l_datum_token, sizeof(dap_chain_datum_token_t) + l_tsd_size + l_sign_tsd_size);
             memcpy(l_datum_token->data_n_tsd + l_tsd_size, l_sign_tsd, l_sign_tsd_size);
@@ -2987,6 +2987,7 @@ typedef struct _dap_sdk_cli_params {
     uint256_t l_total_supply;
     const char* l_decimals_str;
     const char* l_new_certs_str;
+    const char* l_remove_signs;
     dap_cli_token_additional_params ext;
 } dap_sdk_cli_params, *pdap_sdk_cli_params;
 
@@ -3102,6 +3103,9 @@ int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_str_repl
     dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-decimals", &l_params->l_decimals_str);
     // New certs
     dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-new_certs", &l_params->l_new_certs_str);
+    // Remove certs
+    char *l_remove_certs = NULL;
+    dap_chain_node_cli_find_option_val(a_argv, 0, a_argc, "-remove_certs", &l_params->l_remove_signs);
 
     return 0;
 }
@@ -3703,6 +3707,31 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
 			log_it(L_DEBUG, "%s token declaration update '%s' initialized", (	l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL
 																		  ||	l_params->l_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE)	?
 																	 "Private" : "CF20", l_datum_token->ticker);
+            // Added TSD remove signs
+            if (l_params->l_remove_signs) {
+                size_t l_added_tsd_size = 0;
+                char *l_remove_signs_ptrs = NULL;
+                char *l_remove_signs_dup = strdup(l_params->l_remove_signs);
+                char *l_remove_signs_str = strtok_r(l_remove_signs_dup, ",", &l_remove_signs_ptrs);
+                for (; l_remove_signs_str; l_remove_signs_str = strtok_r(NULL, ",", &l_remove_signs_ptrs)) {
+                    dap_hash_fast_t *l_hf = DAP_NEW(dap_hash_fast_t);
+                    char *l_tmp = strdup(l_remove_signs_str);
+                    if (dap_chain_hash_fast_from_str(l_tmp, l_hf) == 0) {
+                        dap_tsd_t *l_hf_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_REMOVE, l_hf, sizeof(dap_hash_fast_t));
+                        size_t l_hf_tsd_size = dap_tsd_size(l_hf_tsd);
+                        l_datum_token = DAP_REALLOC(l_datum_token, sizeof(dap_chain_datum_token_t) + l_datum_data_offset + l_hf_tsd_size);
+                        memcpy(l_datum_token->data_n_tsd + l_datum_data_offset, l_hf_tsd, l_hf_tsd_size);
+                        l_datum_data_offset += l_hf_tsd_size;
+                        l_added_tsd_size += l_hf_tsd_size;
+                    }
+                    DAP_DELETE(l_hf);
+                    DAP_DELETE(l_tmp);
+                }
+
+                DAP_DELETE(l_remove_signs_dup);
+                DAP_DELETE(l_remove_signs_str);
+                l_datum_token->header_native_update.tsd_total_size += l_added_tsd_size;
+            }
             l_datum_token = s_new_cert_signs_add_in_tsd_cycle(l_new_certs, l_datum_token, &l_datum_data_offset, l_new_certs_count);
 		}break;//end
 		case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE: { // 256
