@@ -77,7 +77,7 @@ endif()
 add_subdirectory(dap-sdk)
 add_subdirectory(3rdparty/monero_crypto)
 add_subdirectory(3rdparty/cuttdb)
-add_subdirectory(3rdparty/json-c)
+add_subdirectory(3rdparty/json-c EXCLUDE_FROM_ALL)
 
 if (BUILD_WITH_GDB_DRIVER_MDBX)
     set(SAVED_CMAKE_MESSAGE_LOG_LEVEL ${CMAKE_MESSAGE_LOG_LEVEL})
