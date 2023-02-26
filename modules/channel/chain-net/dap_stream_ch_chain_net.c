@@ -176,6 +176,7 @@ void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg)
         pthread_mutex_lock(&l_ch_chain_net->mutex);
         session_data_del(a_ch->stream->session->id);
         pthread_mutex_unlock(&l_ch_chain_net->mutex);
+        DAP_DELETE(l_ch_chain_net);
     }
 }
 

@@ -57,11 +57,15 @@ typedef struct dap_chain_atom_iter{
 
 
 typedef enum dap_chain_atom_verify_res{
-    ATOM_ACCEPT=0,
-    ATOM_PASS=1,
-    ATOM_REJECT=2,
-    ATOM_MOVE_TO_THRESHOLD=3
+    ATOM_ACCEPT = 0, ATOM_PASS, ATOM_REJECT, ATOM_MOVE_TO_THRESHOLD
 } dap_chain_atom_verify_res_t;
+
+static const char* const dap_chain_atom_verify_res_str[] = {
+    [ATOM_ACCEPT]   = "accepted",
+    [ATOM_PASS]     = "skipped",
+    [ATOM_REJECT]   = "rejected",
+    [ATOM_MOVE_TO_THRESHOLD] = "thresholded"
+};
 
 typedef dap_chain_t* (*dap_chain_callback_new_t)(void);
 
@@ -220,3 +224,4 @@ bool dap_chain_get_atom_last_hash(dap_chain_t *a_chain, dap_hash_fast_t *a_atom_
 ssize_t dap_chain_atom_save(dap_chain_t *a_chain, const uint8_t *a_atom, size_t a_atom_size, dap_chain_cell_id_t a_cell_id);
 void dap_chain_add_mempool_notify_callback(dap_chain_t *a_chain, dap_global_db_obj_callback_notify_t a_callback, void *a_cb_arg);
 int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name);
+int dap_chain_datum_unledgered_search_iter(dap_chain_datum_t*, dap_chain_t*);

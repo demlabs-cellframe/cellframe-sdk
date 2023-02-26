@@ -33,8 +33,9 @@
 #include "dap_stream_session.h"
 #include "dap_timerfd.h"
 
-#define CHUNK_SIZE_MAX (3 * 1024)
-#define STREAM_BUF_SIZE_MAX DAP_STREAM_PKT_SIZE_MAX * 4
+/*  #define CHUNK_SIZE_MAX (3 * 1024)
+    #define STREAM_BUF_SIZE_MAX DAP_STREAM_PKT_SIZE_MAX
+*/
 #define STREAM_KEEPALIVE_TIMEOUT 3   // How  often send keeplive messages (seconds)
 
 typedef struct dap_stream_ch dap_stream_ch_t;
@@ -51,19 +52,17 @@ typedef struct dap_stream {
     dap_timerfd_t *keepalive_timer;
     bool is_active;
 
-    char * service_key;
     bool is_client_to_uplink ;
 
-    struct dap_stream_pkt * in_pkt;
     struct dap_stream_pkt *pkt_buf_in;
     size_t pkt_buf_in_data_size;
 
-    uint8_t *buf_fragments;
+    uint8_t *buf_fragments, *pkt_cache;
     size_t buf_fragments_size_total;// Full size of all fragments
     size_t buf_fragments_size_filled;// Received size
 
-    uint8_t buf[STREAM_BUF_SIZE_MAX];
-    uint8_t pkt_cache[STREAM_BUF_SIZE_MAX];
+    /* uint8_t buf[STREAM_BUF_SIZE_MAX];
+    uint8_t pkt_cache[DAP_EVENTS_SOCKET_BUF_SIZE]; */
 
     dap_stream_ch_t *channel[255]; // TODO reduce channels to 16 to economy memory
     size_t channel_count;
@@ -95,7 +94,7 @@ void dap_stream_add_proc_udp(dap_server_t *a_udp_server);
 dap_stream_t* dap_stream_new_es_client(dap_events_socket_t * a_es);
 size_t dap_stream_data_proc_read(dap_stream_t * a_stream);
 size_t dap_stream_data_proc_write(dap_stream_t * a_stream);
-void dap_stream_delete(dap_stream_t * a_stream);
+void dap_stream_delete_unsafe(dap_stream_t * a_stream);
 void dap_stream_proc_pkt_in(dap_stream_t * sid);
 
 void dap_stream_es_rw_states_update(struct dap_stream *a_stream);

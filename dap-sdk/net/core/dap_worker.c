@@ -540,7 +540,7 @@ const struct sched_param l_shed_params = {0};
                                 continue;
                             }
                         }else{
-                            log_it(L_WARNING, "[es:%p] We have incomming %zd data but no read callback on socket %"DAP_FORMAT_SOCKET", removing from read set",
+                            log_it(L_WARNING, "[es:%p] We have incoming %zd data but no read callback on socket %"DAP_FORMAT_SOCKET", removing from read set",
                                    l_es, l_bytes_read, l_es->socket);
                             dap_events_socket_set_readable_unsafe(l_es, false);
                         }
@@ -704,7 +704,8 @@ const struct sched_param l_shed_params = {0};
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
                                    l_bytes_sent = write(l_es->socket, l_es->buf_out, /*sizeof(void*)*/ l_es->buf_out_size);
                                    debug_if(g_debug_reactor, L_NOTICE, "send %ld bytes to pipe", l_bytes_sent);
-                                   l_errno = errno;
+                                   l_errno = l_bytes_sent < (ssize_t)l_es->buf_out_size ? errno : 0;
+                                   debug_if(l_errno, L_ERROR, "Writing to pipe %d bytes failed, sent %d only...", l_es->buf_out_size, l_bytes_sent);
 #elif defined (DAP_EVENTS_CAPS_QUEUE_POSIX)
                                    l_bytes_sent = mq_send(a_es->mqd, (const char *)&a_arg,sizeof (a_arg),0);
 #elif defined DAP_EVENTS_CAPS_MSMQ

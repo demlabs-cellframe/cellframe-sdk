@@ -828,7 +828,7 @@ static int s_cli_stake_lock(int a_argc, char **a_argv, char **a_str_reply)
 
 		default: {
 			dap_chain_node_cli_set_reply_text(a_str_reply, "Command %s not recognized", a_argv[l_arg_index]);
-			dap_string_free(output_line, false);
+            dap_string_free(output_line, false);
 			} return 1;
 	}
 

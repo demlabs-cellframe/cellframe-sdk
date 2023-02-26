@@ -201,7 +201,7 @@ dap_hash_fast_t* dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_
         uint256_t l_value_back;
         SUBTRACT_256_256(l_value_transfer, a_value, &l_value_back);
         if(!IS_ZERO_256(l_value_back)) {
-            if(dap_chain_datum_tx_add_out_item(&l_tx, a_addr_from, l_value_back) != 1) {
+            if(dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_from, l_value_back, a_token_ticker) != 1) {
                 dap_chain_datum_tx_delete(l_tx);
                 return NULL;
             }
@@ -300,6 +300,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         return -2;
     }
 
+    dap_chain_hash_fast_t l_tx_new_hash = {0};
     for (size_t i=0; i< a_tx_num ; i++){
         log_it(L_DEBUG, "Prepare tx %zu",i);
         // find the transactions from which to take away coins
@@ -391,13 +392,12 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         // now tx is formed - calc size and hash
         size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx_new);
 
-        dap_chain_hash_fast_t l_tx_new_hash;
         dap_hash_fast(l_tx_new, l_tx_size, &l_tx_new_hash);
         // If we have value back - update balance cache
         if (!IS_ZERO_256(l_value_back)) {
             //log_it(L_DEBUG,"We have value back %"DAP_UINT64_FORMAT_U" now lets see how many outputs we have", l_value_back);
             int l_item_count = 0;
-            dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get( l_tx_new, TX_ITEM_TYPE_OUT,
+            dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get( l_tx_new, TX_ITEM_TYPE_OUT_ALL,
                     &l_item_count);
             dap_list_t *l_list_tmp = l_list_out_items;
             int l_out_idx_tmp = 0; // current index of 'out' item
@@ -406,6 +406,11 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
                 dap_chain_tx_out_t *l_out = l_list_tmp->data;
                 if( ! l_out){
                     log_it(L_WARNING, "Output is NULL, continue check outputs...");
+                    l_out_idx_tmp++;
+                    continue;
+                }
+                if (l_out->header.type == TX_ITEM_TYPE_OUT_COND) {
+                    l_list_tmp = l_list_tmp->next;
                     l_out_idx_tmp++;
                     continue;
                 }
@@ -435,7 +440,8 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         l_objs[i].key = dap_chain_hash_fast_to_str_new(&l_tx_new_hash);
         //continue;
         l_objs[i].value = (uint8_t *)l_datum;
-        l_objs[i].value_len = l_tx_size + sizeof(l_datum->header);
+        l_objs[i].value_len = dap_chain_datum_size(l_datum);
+//        l_objs[i].value_len = l_tx_size + sizeof(l_datum->header);
         log_it(L_DEBUG, "Prepared obj with key %s (value_len = %"DAP_UINT64_FORMAT_U")",
                l_objs[i].key? l_objs[i].key :"NULL" , l_objs[i].value_len );
 
@@ -760,7 +766,7 @@ dap_chain_hash_fast_t *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, da
     DAP_DEL_Z(l_tx);
     // calc datum hash
     dap_chain_hash_fast_t *l_datum_tx_hash = DAP_NEW(dap_hash_fast_t);
-    dap_hash_fast(l_datum_tx, l_datum_tx_size, l_datum_tx_hash);
+    dap_hash_fast(l_datum_tx->data, l_tx_size, l_datum_tx_hash);
     char *l_tx_hash_str = dap_chain_hash_fast_to_str_new(l_datum_tx_hash);
     // Add to mempool tx token
     bool l_placed = dap_chain_global_db_gr_set(l_tx_hash_str, l_datum_tx,
@@ -1082,4 +1088,60 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
 void dap_chain_mempool_add_proc(dap_http_t * a_http_server, const char * a_url)
 {
     dap_http_simple_proc_add(a_http_server, a_url, 4096, chain_mempool_proc);
+}
+
+void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
+    int l_removed = 0;
+    if (!a_chain) {
+        if (!a_removed)
+            *a_removed = l_removed;
+        return;
+    }
+    char * l_gdb_group = dap_chain_net_get_gdb_group_mempool(a_chain);
+    size_t l_objs_size = 0;
+    dap_time_t l_cut_off_time = dap_time_now() - 2592000; // 2592000 sec = 30 days
+    char l_cut_off_time_str[80] = {'\0'};
+    dap_time_to_str_rfc822(&l_cut_off_time_str, 80, l_cut_off_time);
+    dap_global_db_obj_t * l_objs = dap_chain_global_db_gr_load(l_gdb_group, &l_objs_size);
+    for (size_t i = 0; i < l_objs_size; i++) {
+        dap_chain_datum_t *l_datum = (dap_chain_datum_t*)l_objs[i].value;
+        if (!l_datum) {
+            l_removed++;
+            log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s: empty (possibly trash) value", l_objs[i].key, l_gdb_group);
+            dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group);
+            continue;
+        }
+        size_t l_datum_size = dap_chain_datum_size(l_datum);
+        //Filter data size
+        if (l_datum_size != l_objs[i].value_len) {
+            l_removed++;
+            log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s. The size of the datum defined by the "
+                             "function and the size specified in the record do not match.", l_objs[i].key, l_gdb_group);
+            dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group);
+            continue;
+        }
+        //Filter hash
+        dap_hash_fast_t l_hash_content = {0};
+        dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_hash_content);
+        char *l_hash_content_str = dap_hash_fast_to_str_new(&l_hash_content);
+        if (dap_strcmp(l_hash_content_str, l_objs[i].key) != 0) {
+            l_removed++;
+            DAP_DELETE(l_hash_content_str);
+            log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s. The hash of the contents of the "
+                             "datum does not match the key.", l_objs[i].key, l_gdb_group);
+            dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group);
+            continue;
+        }
+        DAP_DELETE(l_hash_content_str);
+        //Filter time
+        if (l_datum->header.ts_create < l_cut_off_time) {
+            l_removed++;
+            log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s. The datum in the mempool was "
+                             "created before the %s.", l_objs[i].key, l_gdb_group, l_cut_off_time_str);
+            dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group);
+        }
+    }
+    dap_chain_global_db_objs_delete(l_objs, l_objs_size);
+    log_it(L_NOTICE, "Filter removed: %i records.", l_removed);
+    DAP_DELETE(l_gdb_group);
 }

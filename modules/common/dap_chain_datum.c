@@ -544,6 +544,7 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
             if(l_token_size < sizeof(dap_chain_datum_token_t)){
                 dap_string_append_printf(a_str_out,"==Datum has incorrect size. Only %zu, while at least %zu is expected\n",
                                          l_token_size, sizeof(dap_chain_datum_token_t));
+                DAP_DEL_Z(l_token);
                 return;
             }
             dap_string_append_printf(a_str_out,"=== Datum Token Declaration ===\n");
@@ -626,6 +627,7 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
                 default:
                     dap_string_append(a_str_out,"type: UNKNOWN\n");
             }
+            DAP_DELETE(l_token);
         } break;
         case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
             size_t l_emisssion_size = a_datum->header.data_size;

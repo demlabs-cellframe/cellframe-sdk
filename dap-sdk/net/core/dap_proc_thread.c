@@ -756,8 +756,10 @@ static void * s_proc_thread_function(void * a_arg)
                         case DESCRIPTOR_TYPE_QUEUE:
                             if (l_cur->flags & DAP_SOCK_QUEUE_PTR) {
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
-                                l_bytes_sent = write(l_cur->socket, l_cur->buf_out, /*l_cur->buf_out_size */ sizeof (void*));
+                                l_bytes_sent = write(l_cur->socket, l_cur->buf_out, /*sizeof(void*)*/ l_cur->buf_out_size);
                                 debug_if(g_debug_reactor, L_NOTICE, "send %ld bytes to pipe", l_bytes_sent);
+                                l_errno = l_bytes_sent < (ssize_t)l_cur->buf_out_size ? errno : 0;
+                                debug_if(l_errno, L_ERROR, "Writing to pipe %d bytes failed, sent %d only...", l_cur->buf_out_size, l_bytes_sent);
 #elif defined DAP_EVENTS_CAPS_MSMQ
                                 /* TODO: Windows-way message waiting and handling
                                  *

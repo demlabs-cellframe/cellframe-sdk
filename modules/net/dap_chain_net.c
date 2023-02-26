@@ -178,7 +178,8 @@ typedef struct dap_chain_net_pvt{
     dap_list_t *atoms_queue;
 
     bool load_mode;
-    char ** seed_aliases;
+    char **seed_aliases;
+    uint16_t seed_aliases_count;
 
     uint16_t bootstrap_nodes_count;
     struct in_addr *bootstrap_nodes_addrs;
@@ -191,8 +192,6 @@ typedef struct dap_chain_net_pvt{
     dap_chain_node_addr_t *gdb_sync_nodes_addrs;
     uint32_t *gdb_sync_nodes_links_ips;
     uint16_t *gdb_sync_nodes_links_ports;
-
-    uint16_t seed_aliases_count;
 
     dap_chain_net_state_t state;
     dap_chain_net_state_t state_target;
@@ -235,8 +234,6 @@ static const char * c_net_states[]={
     [NET_STATE_ADDR_REQUEST]= "NET_STATE_ADDR_REQUEST",
     [NET_STATE_ONLINE]= "NET_STATE_ONLINE"
 };
-
-static dap_chain_net_t * s_net_new(const char * a_id, const char * a_name , const char * a_node_role);
 
 // Node link callbacks
 static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_client, void * a_arg);
@@ -480,27 +477,29 @@ static bool s_net_send_records(dap_proc_thread_t *a_thread, void *a_arg)
 
     if (!l_obj) {
         debug_if(s_debug_more, L_DEBUG, "Notified GDB event does not exist");
+        dap_store_obj_free_one(l_arg);
         return true;
     }
     if (!l_obj->group || !l_obj->key) {
         debug_if(s_debug_more, L_DEBUG, "Notified GDB event is broken");
         dap_store_obj_free_one(l_obj);
+        dap_store_obj_free_one(l_arg);
         return true;
     }
     // Check object lifetime for broadcasting decision
     dap_time_t l_time_diff = dap_gdb_time_to_sec(dap_gdb_time_now() - l_obj->timestamp);
     if (l_time_diff > DAP_BROADCAST_LIFETIME * 60) {
         dap_store_obj_free_one(l_obj);
+        dap_store_obj_free_one(l_arg);
         return true;
     }
     l_obj->type = l_arg->type;
     if (l_obj->type == DAP_DB$K_OPTYPE_DEL) {
         DAP_DELETE(l_obj->group);
         l_obj->group = l_arg->group;
-    } else
-        DAP_DELETE(l_arg->group);
-    DAP_DELETE(l_arg->key);
-    DAP_DELETE(l_arg);
+        l_arg->group = NULL;
+    }
+    dap_store_obj_free_one(l_arg);
 
     dap_chain_t *l_chain = NULL;
     if (l_obj->type == DAP_DB$K_OPTYPE_ADD)
@@ -544,7 +543,7 @@ void dap_chain_net_sync_gdb_broadcast(void *a_arg, const char a_op_code, const c
     if (!HASH_COUNT(PVT(l_net)->downlinks))
         return;
     // Use it instead of new type definition to pack params in one callback arg
-    dap_store_obj_t *l_obj = DAP_NEW(dap_store_obj_t);
+    dap_store_obj_t *l_obj = DAP_NEW_Z(dap_store_obj_t);
     l_obj->type = a_op_code;
     l_obj->key = dap_strdup(a_key);
     l_obj->group = dap_strdup(a_group);
@@ -1237,7 +1236,8 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
             struct net_link *l_link, *l_link_tmp;
             HASH_ITER(hh, l_net_pvt->net_links, l_link, l_link_tmp) {
                 HASH_DEL(l_net_pvt->net_links, l_link);
-                dap_chain_node_client_close(l_link->client_uuid);
+                if (l_link->link)
+                    dap_chain_node_client_close(l_link->client_uuid);
                 DAP_DEL_Z(l_link->link_info);
             }
             struct downlink *l_downlink, *l_dltmp;
@@ -1460,13 +1460,14 @@ dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net)
  * @param a_node_role
  * @return dap_chain_net_t*
  */
-static dap_chain_net_t *s_net_new(const char * a_id, const char * a_name ,
-                                    const char * a_node_role)
+static dap_chain_net_t *s_net_new(const char *a_id, const char *a_name,
+                                  const char *a_native_ticker, const char *a_node_role)
 {
-    if (!a_id || !a_name || !a_node_role)
+    if (!a_id || !a_name || !a_native_ticker || !a_node_role)
         return NULL;
     dap_chain_net_t *ret = DAP_NEW_Z_SIZE( dap_chain_net_t, sizeof(ret->pub) + sizeof(dap_chain_net_pvt_t) );
     ret->pub.name = strdup( a_name );
+    ret->pub.native_ticker = strdup( a_native_ticker );
     pthread_rwlock_init(&PVT(ret)->uplinks_lock, NULL);
     pthread_rwlock_init(&PVT(ret)->downlinks_lock, NULL);
     pthread_rwlock_init(&PVT(ret)->balancer_lock, NULL);
@@ -1876,7 +1877,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 dap_string_append_printf( l_ret_str, "\tSpeed:  %.3Lf TPS\n", l_tps );
                 dap_string_append_printf( l_ret_str, "\tTotal:  %"DAP_UINT64_FORMAT_U"\n", l_tx_count );
                 dap_chain_node_cli_set_reply_text( a_str_reply, l_ret_str->str );
-                dap_string_free( l_ret_str, false );
+                dap_string_free(l_ret_str, true);
             } else if (strcmp(l_stats_str, "tps") == 0) {
                 struct timespec l_from_time_acc = {}, l_to_time_acc = {};
                 dap_string_t * l_ret_str = dap_string_new("Transactions per second peak values:\n");
@@ -1894,7 +1895,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 }
                 dap_string_append_printf(l_ret_str, "\tTotal:  %zu\n", l_tx_num);
                 dap_chain_node_cli_set_reply_text(a_str_reply, l_ret_str->str);
-                dap_string_free(l_ret_str, false);
+                dap_string_free(l_ret_str, true);
             } else {
                 dap_chain_node_cli_set_reply_text(a_str_reply,
                                                   "Subcommand 'stats' requires one of parameter: tx, tps\n");
@@ -2083,7 +2084,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 }
                 dap_chain_global_db_objs_delete(l_objs, l_objs_count);
                 *a_str_reply = l_reply->len ? l_reply->str : dap_strdup("No entries found");
-                dap_string_free(l_reply, false);
+                dap_string_free(l_reply, true);
                 return 0;
             } else if (strcmp(l_ca_str, "del") == 0 ) {
                 const char *l_hash_string = NULL;
@@ -2202,6 +2203,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         dap_chain_net_t * l_net = s_net_new(
                                             dap_config_get_item_str(l_cfg , "general" , "id" ),
                                             dap_config_get_item_str(l_cfg , "general" , "name" ),
+                                            dap_config_get_item_str(l_cfg , "general" , "native_ticker"),
                                             dap_config_get_item_str(l_cfg , "general" , "node-role" )
                                            );
         if(!l_net) {
@@ -2303,10 +2305,16 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         // Check if seed nodes are present in local db alias
         char **l_seed_aliases = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_aliases"
                                                              ,&l_net_pvt->seed_aliases_count);
-        l_net_pvt->seed_aliases = l_net_pvt->seed_aliases_count>0 ?
-                                   (char **)DAP_NEW_SIZE(char**, sizeof(char*)*PVT(l_net)->seed_aliases_count) : NULL;
-        for(size_t i = 0; i < PVT(l_net)->seed_aliases_count; i++) {
+        if (l_net_pvt->seed_aliases_count)
+            l_net_pvt->seed_aliases = (char **)DAP_NEW_SIZE(char **, sizeof(char *) * l_net_pvt->seed_aliases_count);
+        for(size_t i = 0; i < l_net_pvt->seed_aliases_count; i++)
             l_net_pvt->seed_aliases[i] = dap_strdup(l_seed_aliases[i]);
+        // randomize seed nodes list
+        for (int j = l_net_pvt->seed_aliases_count - 1; j > 0; j--) {
+            int n = rand() % j;
+            char *tmp = l_net_pvt->seed_aliases[n];
+            l_net_pvt->seed_aliases[n] = l_net_pvt->seed_aliases[j];
+            l_net_pvt->seed_aliases[j] = tmp;
         }
 
         uint16_t l_seed_nodes_addrs_len =0;
@@ -2659,7 +2667,6 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                     }
                 }
             } while (l_processed);
-            l_net->pub.native_ticker = dap_strdup(dap_config_get_item_str(l_cfg , "general" , "native_ticker"));
         } else {
             log_it(L_ERROR, "Can't find any chains for network %s", l_net->pub.name);
             l_net_pvt->load_mode = false;
@@ -2746,12 +2753,10 @@ void dap_chain_net_deinit()
     pthread_rwlock_rdlock(&g_net_items_rwlock);
     dap_chain_net_item_t *l_current_item, *l_tmp;
     HASH_ITER(hh, s_net_items, l_current_item, l_tmp) {
-        dap_chain_net_t *l_net = l_current_item->chain_net;
-        dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
-        dap_interval_timer_delete(l_net_pvt->main_timer);
-        DAP_DEL_Z(l_net_pvt);
-        DAP_DEL_Z(l_net);
         HASH_DEL(s_net_items, l_current_item);
+        dap_chain_net_t *l_net = l_current_item->chain_net;
+        dap_interval_timer_delete(PVT(l_net)->main_timer);
+        DAP_DEL_Z(l_net);
         DAP_DEL_Z(l_current_item);
     }
     pthread_rwlock_unlock(&g_net_items_rwlock);
@@ -3086,9 +3091,17 @@ void dap_chain_net_proc_mempool (dap_chain_net_t * a_net)
             size_t l_objs_size_tmp = (l_objs_size > 15) ? min(l_objs_size, 10) : l_objs_size;
             for(size_t i = 0; i < l_objs_size; i++) {
                 dap_chain_datum_t * l_datum = (dap_chain_datum_t*) l_objs[i].value;
+                int l_dup_or_skip = dap_chain_datum_unledgered_search_iter(l_datum, l_chain);
+                if (l_dup_or_skip) {
+                    log_it(L_WARNING, "Datum unledgered search returned '%d', delete it from mempool",
+                                             l_dup_or_skip);
+                    dap_chain_global_db_gr_del( l_objs[i].key, l_gdb_group_mempool);
+                    l_datums[i] = NULL;
+                    continue;
+                }
                 int l_verify_datum= dap_chain_net_verify_datum_for_add( a_net, l_datum) ;
                 if (l_verify_datum != 0){
-                    log_it(L_WARNING, "Datum doesn't pass verifications (code %d), delete such datum from pool",
+                    log_it(L_WARNING, "Datum doesn't pass verifications (code %d), delete it from mempool",
                                              l_verify_datum);
                     dap_chain_global_db_gr_del( l_objs[i].key, l_gdb_group_mempool);
                     l_datums[i] = NULL;
@@ -3353,6 +3366,7 @@ dap_chain_t *l_chain_cur;
                 // go to next transaction
                 l_atom = l_chain_cur->callback_atom_iter_get_next(l_atom_iter, &l_atom_size);
             }
+            l_chain_cur->callback_atom_iter_delete(l_atom_iter);
         }
 
         // Only for one chain

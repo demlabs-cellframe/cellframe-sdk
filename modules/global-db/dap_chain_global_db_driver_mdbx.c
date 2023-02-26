@@ -888,9 +888,9 @@ struct  __record_suffix__   *l_suff;
             return  DAP_FREE(l_val), log_it (L_ERROR, "mdbx_txn_begin: (%d) %s", l_rc, mdbx_strerror(l_rc)), -EIO;
         }
 
-
+        uint64_t l_id = 0;
                                                                             /* Generate <sequence number> for new record */
-        if ( MDBX_SUCCESS != mdbx_dbi_sequence	(l_db_ctx->txn, l_db_ctx->dbi, &l_suff->id, 1) )
+        if ( MDBX_SUCCESS != mdbx_dbi_sequence	(l_db_ctx->txn, l_db_ctx->dbi, &l_id, 1) )
         {
             log_it (L_CRITICAL, "mdbx_dbi_sequence: (%d) %s", l_rc, mdbx_strerror(l_rc));
 
@@ -901,7 +901,7 @@ struct  __record_suffix__   *l_suff;
 
             return  DAP_FREE(l_val), -EIO;
         }
-
+        l_suff->id = l_id;
 
 
         if ( MDBX_SUCCESS != (l_rc = mdbx_put(l_db_ctx->txn, l_db_ctx->dbi, &l_key, &l_data, 0)) )

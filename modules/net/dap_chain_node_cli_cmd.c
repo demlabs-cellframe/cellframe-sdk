@@ -2371,9 +2371,14 @@ void s_com_mempool_list_print_for_chain (
                     dap_chain_t * a_chain,
                     const char * a_add,
                     dap_string_t * a_str_tmp,
-                    const char *a_hash_out_type
+                    const char *a_hash_out_type,
+                    bool a_fast
                 )
 {
+    int l_removed = 0;
+    dap_chain_mempool_filter(a_chain, &l_removed);
+    dap_string_append_printf(a_str_tmp, "Removed %i records from the %s chain mempool in %s network. \n\n",
+                             l_removed, a_chain->name, a_net->pub.name);
     char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(a_chain);
 
     if(!l_gdb_group_mempool)
@@ -2454,7 +2459,6 @@ void s_com_mempool_list_print_for_chain (
                 l_token_ticker = obj_token->header.ticker;
             } else {
                 dap_list_t* l_tickers = NULL;
-                const char *l_native_ticker = a_net->pub.native_ticker;
                 dap_chain_datum_tx_t *l_tx_parent = NULL;
                 int l_item_in_size = 0;
                 void *l_item_in = dap_chain_datum_tx_item_get((dap_chain_datum_tx_t*)l_datum->data, NULL, TX_ITEM_TYPE_IN_ALL, &l_item_in_size);
@@ -2472,15 +2476,45 @@ void s_com_mempool_list_print_for_chain (
                             l_parrent_tx_out_idx = ((dap_chain_tx_in_t*)l_item_in)->header.tx_out_prev_idx;
                             l_tx_parent = dap_chain_ledger_tx_find_by_hash(a_net->pub.ledger, &((dap_chain_tx_in_t*)l_item_in)->header.tx_prev_hash);
                             break;
-                        case TX_ITEM_TYPE_IN_COND:
-                            l_parent_hash = ((dap_chain_tx_in_cond_t*)l_item_in)->header.tx_prev_hash;
-                            l_parrent_tx_out_idx = ((dap_chain_tx_in_cond_t*)l_item_in)->header.tx_out_prev_idx;
-                            l_tx_parent = dap_chain_ledger_tx_find_by_hash(a_net->pub.ledger, &((dap_chain_tx_in_cond_t*)l_item_in)->header.tx_prev_hash);
+                        l_item_in_size_current += l_tmp_size;
+                        switch (dap_chain_datum_tx_item_get_type(l_item_in)) {
+                            case TX_ITEM_TYPE_IN:
+                                l_parent_hash = ((dap_chain_tx_in_t*)l_item_in)->header.tx_prev_hash;
+                                l_parrent_tx_out_idx = ((dap_chain_tx_in_t*)l_item_in)->header.tx_out_prev_idx;
+                                l_tx_parent = dap_chain_ledger_tx_find_by_hash(a_net->pub.ledger, &((dap_chain_tx_in_t*)l_item_in)->header.tx_prev_hash);
+                                break;
+                            case TX_ITEM_TYPE_IN_COND:
+                                l_parent_hash = ((dap_chain_tx_in_cond_t*)l_item_in)->header.tx_prev_hash;
+                                l_parrent_tx_out_idx = ((dap_chain_tx_in_cond_t*)l_item_in)->header.tx_out_prev_idx;
+                                l_tx_parent = dap_chain_ledger_tx_find_by_hash(a_net->pub.ledger, &((dap_chain_tx_in_cond_t*)l_item_in)->header.tx_prev_hash);
+                                break;
+                        }
+                        if (!l_tx_parent) {
+                            l_is_unchained = true;
                             break;
+                        }
+                        const char *l_current_token = NULL;
+                        void *l_out_unknown = (dap_chain_tx_out_cond_t*)dap_chain_datum_tx_item_get_nth(
+                                l_tx_parent, TX_ITEM_TYPE_OUT_ALL, l_parrent_tx_out_idx);
+                        switch(dap_chain_datum_tx_item_get_type(l_out_unknown)) {
+                            case TX_ITEM_TYPE_OUT:
+                                l_current_token = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_parent_hash);
+                                l_tickers = dap_list_append(l_tickers, (void *)l_current_token);
+                                break;
+                            case TX_ITEM_TYPE_OUT_EXT:
+                                l_current_token = ((dap_chain_tx_out_ext_t*)l_out_unknown)->token;
+                                l_tickers = dap_list_append(l_tickers, (void *)l_current_token);
+                                break;
+                            case TX_ITEM_TYPE_OUT_COND:
+                                if(((dap_chain_tx_out_cond_t*)l_out_unknown)->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE &&
+                                    ((dap_chain_tx_out_cond_t*)l_out_unknown)->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE_STAKE) {
+                                    l_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_parent_hash);
+                                }
+                                    break;
+                        }
                     }
-                    if (!l_tx_parent) {
-                        l_is_unchained = true;
-                        break;
+                    if (l_is_unchained) {
+                        dap_string_append_printf(a_str_tmp, ": Transaction %s unchained. \n", l_objs[i].key);
                     }
                     const char *l_current_token = NULL;
                     void *l_out_unknown = (dap_chain_tx_out_cond_t*)dap_chain_datum_tx_item_get_nth(
@@ -2488,11 +2522,11 @@ void s_com_mempool_list_print_for_chain (
                     switch(dap_chain_datum_tx_item_get_type(l_out_unknown)) {
                         case TX_ITEM_TYPE_OUT:
                             l_current_token = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_parent_hash);
-                            l_tickers = dap_list_append(l_tickers, l_current_token);
+                            l_tickers = dap_list_append(l_tickers, (void *)l_current_token);
                             break;
                         case TX_ITEM_TYPE_OUT_EXT:
                             l_current_token = ((dap_chain_tx_out_ext_t*)l_out_unknown)->token;
-                            l_tickers = dap_list_append(l_tickers, l_current_token);
+                            l_tickers = dap_list_append(l_tickers, (void *)l_current_token);
                             break;
                         case TX_ITEM_TYPE_OUT_COND:
                             if(((dap_chain_tx_out_cond_t*)l_out_unknown)->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE &&
@@ -2501,16 +2535,8 @@ void s_com_mempool_list_print_for_chain (
                             }
                                 break;
                     }
+                    dap_list_free(l_tickers);
                 }
-                if (l_is_unchained) {
-                    dap_string_append_printf(a_str_tmp, ": Transaction %s unchained. \n", l_objs[i].key);
-                }
-                if (!l_is_unchained && !l_token_ticker) {
-                    l_token_ticker = s_ticker_list_get_main_ticker(l_tickers, a_net->pub.native_ticker);
-                    if (!l_token_ticker)
-                        dap_string_append_printf(a_str_tmp, ": Can't find token ticker for transaction %s. \n", l_objs[i].key);
-                }
-                dap_list_free(l_tickers);
             }
         }
         if (l_token_ticker) {
@@ -2526,8 +2552,8 @@ void s_com_mempool_list_print_for_chain (
                                      l_objs[i].key, l_type,
                                      l_datum->header.data_size, l_data_hash_str, dap_ctime_r(&l_ts_create, buf));
         }
-
-        dap_chain_datum_dump(a_str_tmp, l_datum, a_hash_out_type);
+        if (!a_fast)
+            dap_chain_datum_dump(a_str_tmp, l_datum, a_hash_out_type);
     }
 
     if(a_add)
@@ -2559,11 +2585,13 @@ int com_mempool_list(int argc, char ** argv, char ** a_str_reply)
     dap_chain_net_t *l_net = NULL;
     dap_string_t *l_str_tmp;
     const char *l_addr_base58 = NULL;
+    bool l_fast = false;
 
     const char * l_hash_out_type = "hex";
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-H", &l_hash_out_type);
     dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, argc, argv, a_str_reply, &l_chain, &l_net);
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-addr", &l_addr_base58);
+    l_fast = (dap_chain_node_cli_check_option(argv, arg_index, argc, "-fast") != -1) ? true : false;
     if(!l_net)
         return -1;
 
@@ -2580,10 +2608,10 @@ int com_mempool_list(int argc, char ** argv, char ** a_str_reply)
     l_str_tmp = dap_string_new(NULL);
 
     if(l_chain)
-        s_com_mempool_list_print_for_chain(l_net, l_chain, l_addr_base58, l_str_tmp, l_hash_out_type);
+        s_com_mempool_list_print_for_chain(l_net, l_chain, l_addr_base58, l_str_tmp, l_hash_out_type, l_fast);
     else
         DL_FOREACH(l_net->pub.chains, l_chain)
-                s_com_mempool_list_print_for_chain(l_net, l_chain, l_addr_base58, l_str_tmp, l_hash_out_type);
+                s_com_mempool_list_print_for_chain(l_net, l_chain, l_addr_base58, l_str_tmp, l_hash_out_type, l_fast);
 
     dap_chain_node_cli_set_reply_text(a_str_reply, l_str_tmp->str);
     dap_string_free(l_str_tmp, true);
@@ -2813,26 +2841,34 @@ int com_mempool_proc(int argc, char ** argv, char ** a_str_reply)
                 dap_string_append_printf(l_str_tmp, "hash %s: type_id=%s ts_create=%s data_size=%u\n",
                         l_datum_hash_out_str, l_type,
                         dap_ctime_r(&l_ts_create, buf), l_datum->header.data_size);
-                int l_verify_datum= dap_chain_net_verify_datum_for_add( l_net, l_datum) ;
-                if (l_verify_datum != 0){
-                    dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications (code %d) examine node log files",
-                                             l_verify_datum);
-                    ret = -9;
-                }else{
-                    if (l_chain->callback_add_datums){
-                        if (l_chain->callback_add_datums(l_chain, &l_datum, 1) ==0 ){
-                            dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications, examine node log files");
-                            ret = -6;
-                        }else{
-                            dap_string_append_printf(l_str_tmp, "Datum processed well. ");
-                            if (!dap_chain_global_db_gr_del(l_datum_hash_hex_str, l_gdb_group_mempool)){
-                                dap_string_append_printf(l_str_tmp, "Warning! Can't delete datum from mempool!");
-                            }else
-                                dap_string_append_printf(l_str_tmp, "Removed datum from mempool.");
+                int l_dup_or_skip = dap_chain_datum_unledgered_search_iter(l_datum, l_chain);
+                if (l_dup_or_skip) {
+                    dap_string_append_printf(l_str_tmp, "Error! Datum unledgered search returned '%d'",
+                                             l_dup_or_skip);
+                    dap_chain_global_db_gr_del(l_datum_hash_hex_str, l_gdb_group_mempool);
+                    ret = -10;
+                } else {
+                    int l_verify_datum= dap_chain_net_verify_datum_for_add( l_net, l_datum) ;
+                    if (l_verify_datum != 0){
+                        dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications (code %d) examine node log files",
+                                                 l_verify_datum);
+                        ret = -9;
+                    } else {
+                        if (l_chain->callback_add_datums){
+                            if (l_chain->callback_add_datums(l_chain, &l_datum, 1) ==0 ){
+                                dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications, examine node log files");
+                                ret = -6;
+                            }else{
+                                dap_string_append_printf(l_str_tmp, "Datum processed well. ");
+                                if (!dap_chain_global_db_gr_del(l_datum_hash_hex_str, l_gdb_group_mempool)){
+                                    dap_string_append_printf(l_str_tmp, "Warning! Can't delete datum from mempool!");
+                                }else
+                                    dap_string_append_printf(l_str_tmp, "Removed datum from mempool.");
+                            }
+                        } else {
+                            dap_string_append_printf(l_str_tmp, "Error! Can't move to no-concensus chains from mempool");
+                            ret = -1;
                         }
-                    }else{
-                        dap_string_append_printf(l_str_tmp, "Error! Can't move to no-concensus chains from mempool");
-                        ret = -1;
                     }
                 }
                 dap_string_append_printf(l_str_tmp, "\n");
@@ -2851,6 +2887,84 @@ int com_mempool_proc(int argc, char ** argv, char ** a_str_reply)
         ret = -5;
     }
     return  ret;
+}
+
+int com_mempool_proc_all(int argc, char ** argv, char ** a_str_reply) {
+    dap_chain_net_t *l_net = NULL;
+    dap_chain_t *l_chain = NULL;
+    int arg_index = 1;
+
+    dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, argc, argv, a_str_reply, &l_chain, &l_net);
+    if (!l_net || !l_chain)
+        return -1;
+    char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
+
+    if(!l_gdb_group_mempool) {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "%s.%s: chain not found\n", l_net->pub.name,
+                                                 l_chain->name);
+    }
+
+    size_t l_objs_count = 0;
+    size_t l_objs_addr = 0;
+    dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_gdb_group_mempool, &l_objs_count);
+    size_t l_processed_datums = 0;
+    size_t l_skip_datums = 0;
+    log_it(L_NOTICE, "Start massive processing");
+    for(size_t i = 0; i < l_objs_count; i++) {
+        dap_chain_datum_t *l_datum = (dap_chain_datum_t*)l_objs[i].value;
+        size_t l_datum_size = l_objs[i].value_len;
+        size_t l_datum_size2= l_datum? dap_chain_datum_size( l_datum): 0;
+        if (l_datum_size != l_datum_size2 ){
+            l_skip_datums++;
+            log_it(L_DEBUG, "It is not possible to process the datum, the size of the datum calculated using the "
+                            "function does not match the size of the data received from the GDB.");
+            break;
+        }else{
+            char buf[80] = {'\0'};
+            char buf_ctime[60] = {'\0'};
+            dap_hash_fast_t l_hf = {0};
+            dap_time_t l_ts_create = (dap_time_t)l_datum->header.ts_create;
+            const char *l_type = NULL;
+            DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type);
+            dap_hash_fast(l_datum, l_datum_size, &l_hf);
+            dap_chain_hash_fast_to_str(&l_hf, &buf, 80);
+            log_it(L_NOTICE, "\thash %s: type_id=%s ts_create=%s data_size=%u\n", &buf, l_type,
+                   dap_ctime_r(&l_ts_create, buf_ctime), l_datum->header.data_size);
+            int l_verify_datum = dap_chain_net_verify_datum_for_add(l_net, l_datum) ;
+            if (l_verify_datum != 0){
+                l_skip_datums++;
+                log_it(L_NOTICE, "\t\tError! Datum doesn't pass verifications (code %d) examine node log files.\n",
+                                         l_verify_datum);
+                continue;
+            }else{
+                if (l_chain->callback_add_datums){
+                    if (l_chain->callback_add_datums(l_chain, &l_datum, 1) ==0 ){
+                        log_it(L_NOTICE, "\t\tError! Datum doesn't pass verifications, examine node log files.\n");
+                        l_skip_datums++;
+                        continue;
+                    }else{
+                        log_it(L_NOTICE, "\t\tDatum processed well. \n");
+                        l_processed_datums++;
+                        if (!dap_chain_global_db_gr_del(&buf, l_gdb_group_mempool)){
+                            log_it(L_WARNING, "\t\tWarning! Can't delete datum from mempool! \n");
+                        }else
+                            log_it(L_NOTICE, "\t\t Removed datum from mempool.\n");
+                    }
+                }else{
+                    log_it(L_NOTICE, "\t\tError! Can't move to no-concensus chains from mempool.\n");
+                    l_skip_datums++;
+                    continue;
+                }
+            }
+        }
+    }
+    dap_chain_node_cli_set_reply_text(a_str_reply, "The entire mempool has been processed in %s.%s. "
+                                                   "Total items were %zu of which %zu accepted %zu rejected.",
+                                                   l_net->pub.name, l_chain->name, l_objs_count, l_processed_datums,
+                                                   l_skip_datums);
+    dap_chain_global_db_objs_delete(l_objs, l_objs_count);
+
+    return 0;
 }
 
 /**
@@ -5500,7 +5614,7 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
             res = -15;
         }
         dap_chain_node_cli_set_reply_text(str_reply, string_ret->str);
-        dap_string_free(string_ret, false);
+        dap_string_free(string_ret, true);
         DAP_DELETE(l_addr_to);
         return res;
     }
@@ -5548,7 +5662,7 @@ int com_tx_create(int argc, char ** argv, char **str_reply)
     }
 
     dap_chain_node_cli_set_reply_text(str_reply, string_ret->str);
-    dap_string_free(string_ret, false);
+    dap_string_free(string_ret, true);
 
     DAP_DELETE(l_addr_to);
     dap_chain_wallet_close(l_wallet);

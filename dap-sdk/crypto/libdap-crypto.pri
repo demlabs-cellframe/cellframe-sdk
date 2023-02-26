@@ -14,6 +14,7 @@ include (src/sig_dilithium/sig_dilithium.pri)
 include (src/ringct20/ringct20.pri)
 include (src/seed/seed.pri)
 include (src/newhope/newhope.pri)
+include (src/falcon/falcon.pri)
 
 DEFINES += KeccakP1600timesN_excluded
 
@@ -32,6 +33,7 @@ HEADERS += $$PWD/src/XKCP/lib/common/config.h \
     $$PWD/include/dap_enc_tesla.h \
     $$PWD/include/dap_enc_base58.h \
     $$PWD/include/dap_enc_dilithium.h \
+    $$PWD/include/dap_enc_falcon.h \
     $$PWD/include/dap_enc_ringct20.h \
     $$PWD/include/dap_enc_salsa2012.h \
     $$PWD/include/dap_enc_SEED.h \
@@ -63,6 +65,7 @@ SOURCES += $$PWD/src/dap_enc.c \
     $$PWD/src/dap_enc_tesla.c \
     $$PWD/src/dap_enc_base58.c \
     $$PWD/src/dap_enc_dilithium.c \
+    $$PWD/src/dap_enc_falcon.c \
     $$PWD/src/dap_enc_ringct20.c \
     $$PWD/src/dap_enc_salsa2012.c \
     $$PWD/src/dap_enc_ca.c \

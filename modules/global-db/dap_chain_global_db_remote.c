@@ -66,8 +66,10 @@ static void *s_list_thread_proc(void *arg)
             dap_store_obj_t *l_objs = dap_chain_global_db_driver_read(l_group_cur->name, NULL, &l_item_count);
             //dap_store_obj_t *l_objs = dap_chain_global_db_cond_load(l_group_cur->name, l_item_start, &l_item_count);
 
-            if (!l_dap_db_log_list->is_process)
+            if (!l_dap_db_log_list->is_process) {
+                dap_store_obj_free(l_objs, l_item_count);
                 return NULL;
+            }
 
             // go to next group
             if (!l_objs)
@@ -114,17 +116,11 @@ static void *s_list_thread_proc(void *arg)
                 l_list_obj->pkt = l_pkt;
                 l_list = dap_list_append(l_list, l_list_obj);
             }
-
             dap_store_obj_free(l_objs, l_item_count);
+
             pthread_mutex_lock(&l_dap_db_log_list->list_mutex);
-
-            // add l_list to list_write
-            l_dap_db_log_list->list_write = dap_list_concat(l_dap_db_log_list->list_write, l_list);
-
-            // init read list if it ended already
-            if(!l_dap_db_log_list->list_read)
-                l_dap_db_log_list->list_read = l_list;
-
+            // add l_list to items_list
+            l_dap_db_log_list->items_list = dap_list_concat(l_dap_db_log_list->items_list, l_list);
             pthread_mutex_unlock(&l_dap_db_log_list->list_mutex);
         }
 
@@ -311,23 +307,18 @@ dap_db_log_list_obj_t *dap_db_log_list_get(dap_db_log_list_t *a_db_log_list)
         return NULL;
     pthread_mutex_lock(&a_db_log_list->list_mutex);
     int l_is_process = a_db_log_list->is_process;
-    // check next item
-    dap_list_t *l_list = a_db_log_list->list_read;
-    if (l_list){
-        a_db_log_list->list_read = dap_list_next(a_db_log_list->list_read);
+    // check first item
+    dap_list_t *l_list = a_db_log_list->items_list;
+    dap_db_log_list_obj_t *l_ret = NULL;
+    if (l_list) {
+        a_db_log_list->items_list = dap_list_remove_link(a_db_log_list->items_list, l_list);
         a_db_log_list->items_rest--;
+        l_ret = l_list->data;
+        DAP_DELETE(l_list);
     }
     pthread_mutex_unlock(&a_db_log_list->list_mutex);
     //log_it(L_DEBUG, "get item n=%d", a_db_log_list->items_number - a_db_log_list->items_rest);
-    return l_list ? (dap_db_log_list_obj_t *)l_list->data : DAP_INT_TO_POINTER(l_is_process);
-}
-
-void dap_db_log_list_rewind(dap_db_log_list_t *a_db_log_list)
-{
-    if (!a_db_log_list)
-        return;
-    a_db_log_list->list_read = a_db_log_list->list_write;
-    a_db_log_list->items_rest = a_db_log_list->items_number;
+    return l_ret ? l_ret : DAP_INT_TO_POINTER(l_is_process);
 }
 
 /**
@@ -339,8 +330,8 @@ void dap_db_log_list_rewind(dap_db_log_list_t *a_db_log_list)
 static inline void s_dap_db_log_list_delete_item(void *a_item)
 {
     dap_db_log_list_obj_t *l_list_item = (dap_db_log_list_obj_t *)a_item;
-    DAP_DELETE(l_list_item->pkt);
-    DAP_DELETE(l_list_item);
+    DAP_DEL_Z(l_list_item->pkt);
+    DAP_DEL_Z(l_list_item);
 }
 
 /**
@@ -363,9 +354,9 @@ void dap_db_log_list_delete(dap_db_log_list_t *a_db_log_list)
     }
 
     dap_list_free_full(a_db_log_list->groups, free);
-    dap_list_free_full(a_db_log_list->list_write, (dap_callback_destroyed_t)s_dap_db_log_list_delete_item);
+    dap_list_free_full(a_db_log_list->items_list, (dap_callback_destroyed_t)s_dap_db_log_list_delete_item);
     pthread_mutex_destroy(&a_db_log_list->list_mutex);
-    DAP_DELETE(a_db_log_list);
+    DAP_DEL_Z(a_db_log_list);
 }
 
 /**
@@ -601,7 +592,7 @@ void dap_store_packet_change_id(dap_store_obj_pkt_t *a_pkt, uint64_t a_id)
 {
     uint16_t l_gr_len = *(uint16_t*)(a_pkt->data + sizeof(uint32_t));
     size_t l_id_offset = sizeof(uint32_t) + sizeof(uint16_t) + l_gr_len;
-    memcpy(a_pkt->data + l_id_offset, &a_id, sizeof(uint64_t));
+    *((uint64_t*)(a_pkt->data + l_id_offset)) = a_id;
 }
 
 /**

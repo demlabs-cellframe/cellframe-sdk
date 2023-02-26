@@ -364,7 +364,7 @@ char    *str_header;
 
                 while(l_reply_rest) {
                     size_t l_send_bytes = min(l_reply_step, l_reply_rest);
-                    int ret = send(newsockfd, reply_str + l_reply_len - l_reply_rest, l_send_bytes, 0);
+                    int ret = send(newsockfd, reply_str + l_reply_len - l_reply_rest, l_send_bytes, MSG_NOSIGNAL);
                     if(ret<=0)
                         break;
                     l_reply_rest-=l_send_bytes;
@@ -1110,13 +1110,16 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     dap_chain_node_cli_cmd_item_create ("mempool_list", com_mempool_list,
 										"List mempool (entries or transaction) for (selected chain network or wallet)",
-            "mempool_list -net <net_name> [-chain <chain_name>] [-addr <addr>] \n");
+            "mempool_list -net <net_name> [-chain <chain_name>] [-addr <addr>] [-fast] \n");
 
     dap_chain_node_cli_cmd_item_create ("mempool_check", com_mempool_check, "Check mempool entrie for presence in selected chain network",
             "mempool_check -net <net_name> -datum <datum hash>\n");
 
     dap_chain_node_cli_cmd_item_create ("mempool_proc", com_mempool_proc, "Proc mempool entrie with specified hash for selected chain network",
             "mempool_proc -net <net_name> -datum <datum hash>\n");
+
+    dap_chain_node_cli_cmd_item_create ("mempool_proc_all", com_mempool_proc_all, "Proc mempool all entries for selected chain network",
+                                        "mempool_proc -net <net_name> -chain <chain_name>\n");
 
     dap_chain_node_cli_cmd_item_create ("mempool_delete", com_mempool_delete, "Delete datum with hash <datum hash> for selected chain network",
             "mempool_delete -net <net_name> -datum <datum hash>\n");
