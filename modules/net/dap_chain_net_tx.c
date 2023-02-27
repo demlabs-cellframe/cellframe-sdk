@@ -662,7 +662,7 @@ bool dap_chain_net_tx_get_fee(dap_chain_net_id_t a_net_id, dap_chain_t *a_chain,
     return true;
 }
 
-bool dap_chain_net_tx_add_fee(dap_chain_net_id_t a_net_id, dap_chain_t *a_chain, uint256_t *a_value, dap_chain_addr_t *a_addr)
+bool dap_chain_net_tx_add_fee(dap_chain_net_id_t a_net_id, dap_chain_t *a_chain, uint256_t *a_value, dap_chain_addr_t a_addr)
 {
     struct net_fee *l_net_fee;
     dap_chain_t *l_chain = NULL;
@@ -688,14 +688,14 @@ bool dap_chain_net_tx_add_fee(dap_chain_net_id_t a_net_id, dap_chain_t *a_chain,
     l_net_fee->key.net_id = a_net_id;
     l_net_fee->key.chain_id = l_chain->id;
     l_net_fee->value = *a_value;
-    l_net_fee->fee_addr = *a_addr;
+    l_net_fee->fee_addr = a_addr;
 
     HASH_ADD(hh, s_net_fees, key, sizeof(net_fee_key_t), l_net_fee);
 
     return true;
 }
 
-bool dap_chain_net_tx_replace_fee(dap_chain_net_id_t a_net_id, dap_chain_t *a_chain, uint256_t *a_value, dap_chain_addr_t *a_addr)
+bool dap_chain_net_tx_replace_fee(dap_chain_net_id_t a_net_id, dap_chain_t *a_chain, uint256_t *a_value, dap_chain_addr_t a_addr)
 {
     struct net_fee *l_net_fee;
     dap_chain_t *l_chain = NULL;
@@ -731,7 +731,7 @@ bool dap_chain_net_tx_replace_fee(dap_chain_net_id_t a_net_id, dap_chain_t *a_ch
     l_net_fee->key.net_id = a_net_id;
     l_net_fee->key.chain_id = l_chain->id;
     l_net_fee->value = *a_value;
-    l_net_fee->fee_addr = *a_addr;;
+    l_net_fee->fee_addr = a_addr;;
 
     HASH_ADD(hh, s_net_fees, key, sizeof(net_fee_key_t), l_net_fee);
 

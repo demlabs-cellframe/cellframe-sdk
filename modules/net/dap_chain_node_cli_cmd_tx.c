@@ -1496,7 +1496,22 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
             const char *l_param_value_str = NULL;
             if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &l_param_value_str)){
                 l_subtype = SUBTYPE_FEE;
-                l_total_tsd_size = sizeof(dap_tsd_t) + sizeof(uint256_t);
+                if (!dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_param_value_str)){
+                    if(!l_net->pub.decree->fee_addr)
+                    {
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Net fee add needed.");
+                        return -111;
+                    }
+                }else{
+                    l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(dap_chain_addr_t);
+                    l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
+                    l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE_WALLET;
+                    l_tsd->size = sizeof(dap_chain_addr_t);
+                    *(dap_chain_addr_t*)(l_tsd->data) = *dap_chain_addr_from_str(l_param_value_str);
+                    l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+                }
+
+                l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(uint256_t);
                 l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
                 l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE;
                 l_tsd->size = sizeof(uint256_t);

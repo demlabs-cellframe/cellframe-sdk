@@ -2563,19 +2563,6 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 if(l_chain->callback_created)
                     l_chain->callback_created(l_chain, l_cfg);
 
-            // load chains
-            l_chain = l_net->pub.chains;
-            while(l_chain){
-                if (dap_chain_load_all(l_chain) == 0)
-                    log_it (L_NOTICE, "Loaded chain files");
-                else {
-                    dap_chain_save_all( l_chain );
-                    log_it (L_NOTICE, "Initialized chain files");
-                }
-
-                if(l_chain->callback_created)
-                    l_chain->callback_created(l_chain, l_cfg);
-
                 l_chain = l_chain->next;
             }
 
