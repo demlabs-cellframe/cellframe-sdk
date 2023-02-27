@@ -661,9 +661,18 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
             log_it(L_INFO, "Nothing to link");
             return false;
         }
+
         /* We'll use modification-safe iteration thru the additional hashtable thus the chosen events will not repeat */
 #define always_true(ev) ({ (void*)ev, true; })
         dap_chain_cs_dag_event_item_t *l_tmp = NULL, *l_cur_ev, *l_tmp_ev;
+
+        HASH_ITER(hh, PVT(l_dag)->events_lasts_unlinked, l_cur_ev, l_tmp_ev) {
+            char l_hsh[DAP_CHAIN_HASH_FAST_STR_SIZE];
+            dap_hash_fast_to_str(&(l_cur_ev->hash), l_hsh, DAP_CHAIN_HASH_FAST_STR_SIZE);
+            log_it(L_INFO, "### hash from ev_lasts before select %s", l_hsh);
+        }
+
+        l_cur_ev = NULL; l_tmp_ev = NULL;
         HASH_SELECT(th, l_tmp, hh, PVT(l_dag)->events_lasts_unlinked, always_true); /* Always true predicate */
         pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
         while ((l_hashes_linked < l_hashes_size) && (HASH_CNT(th, l_tmp) > 0)) {
@@ -682,6 +691,12 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
                 char l_hsh[DAP_CHAIN_HASH_FAST_STR_SIZE];
                 dap_hash_fast_to_str(&l_hashes[i], l_hsh, DAP_CHAIN_HASH_FAST_STR_SIZE);
                 log_it(L_INFO, "### linked hash %lu : %s", i, l_hsh);
+            }
+            l_cur_ev = NULL; l_tmp_ev = NULL;
+            HASH_ITER(hh, PVT(l_dag)->events_lasts_unlinked, l_cur_ev, l_tmp_ev) {
+                char l_hsh[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                dap_hash_fast_to_str(&(l_cur_ev->hash), l_hsh, DAP_CHAIN_HASH_FAST_STR_SIZE);
+                log_it(L_INFO, "### hash from ev_lasts %s", l_hsh);
             }
         }
         if (l_hashes_linked < l_hashes_size) {
@@ -891,6 +906,12 @@ void dap_chain_cs_dag_proc_event_round_new(dap_chain_cs_dag_t *a_dag)
  */
 void s_dag_events_lasts_delete_linked_with_event(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_event)
 {
+    dap_chain_cs_dag_event_item_t *l_cur_ev = NULL, *l_tmp_ev = NULL;
+    HASH_ITER(hh, PVT(l_dag)->events_lasts_unlinked, l_cur_ev, l_tmp_ev) {
+        char l_hsh[DAP_CHAIN_HASH_FAST_STR_SIZE];
+        dap_hash_fast_to_str(&(l_cur_ev->hash), l_hsh, DAP_CHAIN_HASH_FAST_STR_SIZE);
+        log_it(L_INFO, "### hash from ev_lasts %s", l_hsh);
+    }
     for (size_t i = 0; i< a_event->header.hash_count; i++) {
         dap_chain_hash_fast_t * l_hash =  ((dap_chain_hash_fast_t *) a_event->hashes_n_datum_n_signs) + i;
         if (s_debug_more) {
