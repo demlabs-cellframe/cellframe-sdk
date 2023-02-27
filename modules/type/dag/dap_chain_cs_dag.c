@@ -907,7 +907,7 @@ void dap_chain_cs_dag_proc_event_round_new(dap_chain_cs_dag_t *a_dag)
 void s_dag_events_lasts_delete_linked_with_event(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_event)
 {
     dap_chain_cs_dag_event_item_t *l_cur_ev = NULL, *l_tmp_ev = NULL;
-    HASH_ITER(hh, PVT(l_dag)->events_lasts_unlinked, l_cur_ev, l_tmp_ev) {
+    HASH_ITER(hh, PVT(a_dag)->events_lasts_unlinked, l_cur_ev, l_tmp_ev) {
         char l_hsh[DAP_CHAIN_HASH_FAST_STR_SIZE];
         dap_hash_fast_to_str(&(l_cur_ev->hash), l_hsh, DAP_CHAIN_HASH_FAST_STR_SIZE);
         log_it(L_INFO, "### hash from ev_lasts %s", l_hsh);
