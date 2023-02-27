@@ -76,6 +76,47 @@ dap_chain_block_cache_t *dap_chain_block_cache_new(dap_chain_cs_blocks_t *a_bloc
 }
 
 /**
+ * @brief dap_chain_block_get_list_tx_outs_cond_with_val
+ * @param a_ledger
+ * @param a_block_cache
+ * @param a_value_out
+ * @return list of list_used_item_t
+ */
+dap_list_t * dap_chain_block_get_list_tx_outs_cond_with_val(dap_ledger_t *a_ledger,dap_chain_block_cache_t * a_block_cache,
+                                                            uint256_t *a_value_out)
+{
+    dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
+    dap_chain_block_cache_tx_index_t *l_tx_cur, *l_tmp;
+    uint256_t l_value_transfer = {};
+    uint32_t l_out_idx_tmp = 0;
+    HASH_ITER(hh, a_block_cache->tx_index, l_tx_cur, l_tmp) {
+        if (NULL == (l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_cur->tx, TX_ITEM_TYPE_OUT_COND,
+                                                                     &l_out_idx_tmp)))
+        {
+            dap_list_free_full(l_list_used_out, NULL);
+            return NULL;
+        }
+
+        // Check whether used 'out' items
+        if (!dap_chain_ledger_tx_hash_is_used_out_item (a_ledger, l_tx_cur->tx_hash, l_out_idx_tmp)) {
+            list_used_item_t *l_item = DAP_NEW_Z(list_used_item_t);
+            l_item->tx_hash_fast = l_tx_cur->tx_hash;
+            l_item->num_idx_out = l_out_idx_tmp;
+            l_item->value = l_tx_out_cond->header.value;
+            l_list_used_out = dap_list_append(l_list_used_out, l_item);
+            SUM_256_256(l_value_transfer, l_item->value, *l_value_transfer);
+        }
+    }
+    if (IS_ZERO_256(l_value_transfer) || !l_list_used_out) {
+        dap_list_free_full(l_list_used_out, NULL);
+        return NULL;
+    }
+    else
+        *a_value_out = l_value_transfer;
+    return l_list_used_out;
+}
+
+/**
  * @brief dap_chain_block_cache_dup
  * @param a_block
  * @return

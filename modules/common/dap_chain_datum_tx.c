@@ -142,6 +142,19 @@ int dap_chain_datum_tx_add_in_cond_item(dap_chain_datum_tx_t **a_tx, dap_chain_h
 
 }
 
+uint256_t dap_chain_datum_tx_add_in_cond_item_list(dap_chain_datum_tx_t **a_tx, dap_list_t *a_list_used_out_cound)
+{
+   dap_list_t *l_list_tmp = a_list_used_out_cound;
+   uint256_t l_value_to_items = {};
+   while (l_list_tmp) {
+       list_used_item_t *l_item = l_list_tmp->data;
+       if (dap_chain_datum_tx_add_in_cond_item(a_tx, &l_item->tx_hash_fast, l_item->num_idx_out,0) == 1) {
+           SUM_256_256(l_value_to_items, l_item->value, &l_value_to_items);
+       }
+       l_list_tmp = dap_list_next(l_list_tmp);
+   }
+   return l_value_to_items;
+}
 /**
  * Create 'out_cond' item with fee value and insert to transaction
  *

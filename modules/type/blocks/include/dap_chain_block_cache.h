@@ -93,4 +93,5 @@ dap_chain_block_cache_t *dap_chain_block_cache_dup(dap_chain_block_cache_t *a_bl
 int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_hash_fast_t *a_block_hash);
 void dap_chain_block_cache_delete(dap_chain_block_cache_t *a_block_cache);
 dap_chain_datum_tx_t *dap_chain_block_cache_get_tx_by_hash(dap_chain_block_cache_t *a_block_cache, dap_chain_hash_fast_t *a_tx_hash);
+dap_list_t * dap_chain_block_get_list_tx_outs_cond_with_val(dap_ledger_t *a_ledger,dap_chain_block_cache_t * a_block_cache,uint256_t *a_value_out);
 
