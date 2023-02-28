@@ -241,7 +241,7 @@ char* dap_chain_addr_to_str(const dap_chain_addr_t *a_addr);
 dap_chain_addr_t* dap_chain_addr_from_str(const char *str);
 bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr);
 
-#if 0
+#if 1
 dap_chain_net_id_t dap_chain_net_id_from_str(const char* a_str);
 #endif
 dap_chain_net_srv_uid_t dap_chain_net_srv_uid_from_str(const char* a_str);

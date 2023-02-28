@@ -124,7 +124,7 @@ bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr){
     return !memcmp(a_addr, &l_addr_blank, sizeof(dap_chain_addr_t));
 }
 
-#if 0
+#if 1
 /**
  * @brief dap_chain_net_id_from_str
  * @param a_net_str
