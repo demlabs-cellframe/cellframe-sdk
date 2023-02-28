@@ -2052,8 +2052,8 @@ dap_ledger_t* dap_chain_ledger_create(uint16_t a_check_flags, char *a_net_name)
     l_ledger_priv->tps_count = 0;
 
 #ifndef DAP_CHAIN_LEDGER_TEST
-    l_ledger_priv->cached = true;
-    if (dap_config_get_item_bool_default(g_config, "ledger", "cache_enabled", true)) {
+    l_ledger_priv->cached = dap_config_get_item_bool_default(g_config, "ledger", "cache_enabled", true);
+    if ( l_ledger_priv->cached ) {
         dap_chain_node_role_t l_role = dap_chain_net_get_role(l_ledger_priv->net);
         if (l_role.enums != NODE_ROLE_MASTER && l_role.enums != NODE_ROLE_ROOT) {
             // load ledger cache from GDB
