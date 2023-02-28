@@ -92,7 +92,7 @@ int dap_chain_datum_decree_get_fee(dap_chain_datum_decree_t *a_decree, uint256_t
  * @param a_fee_value pointer to fee wallet addr buffer
  * @return result code
  */
-int dap_chain_datum_decree_get_fee_addr(dap_chain_datum_decree_t *a_decree, dap_chain_addr_t **a_fee_wallet);
+int dap_chain_datum_decree_get_fee_addr(dap_chain_datum_decree_t *a_decree, dap_chain_addr_t *a_fee_wallet);
 
 /**
  * @brief dap_chain_datum_decree_get_owners get list of owners certificates

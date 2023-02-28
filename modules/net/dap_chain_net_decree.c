@@ -96,6 +96,7 @@ int dap_chain_net_decree_deinit(dap_chain_net_t *a_net)
 {
     dap_chain_net_decree_t *l_decree = a_net->pub.decree;
     dap_list_free_full(l_decree->pkeys, NULL);
+    DAP_DELETE(l_decree->fee_addr);
     DAP_DELETE(l_decree);
 
     return 0;
@@ -326,7 +327,7 @@ static bool s_verify_pkey (dap_sign_t *a_sign, dap_chain_net_t *a_net)
 static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain)
 {
     uint256_t l_fee, l_min_owners, l_num_of_owners;
-    dap_chain_addr_t *l_addr = NULL; //????????
+    dap_chain_addr_t l_addr = {}; //????????
     dap_chain_net_t *l_net = NULL;
     dap_list_t *l_owners_list = NULL;
 
@@ -338,22 +339,26 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
                 if(dap_chain_datum_decree_get_fee_addr(a_decree, &l_addr)){
                     if(l_net->pub.decree->fee_addr != NULL)
                     {
-                        l_addr = l_net->pub.decree->fee_addr;
+                        l_addr = *l_net->pub.decree->fee_addr;
                     } else
                     {
-                        log_it(L_WARNING, "Fee addr fail");
+                        log_it(L_WARNING, "Fee wallet address not set.");
                         return -111;
                     }
+                } else{
+                    dap_chain_addr_t *l_decree_addr = DAP_NEW_Z_SIZE(dap_chain_addr_t, sizeof(dap_chain_addr_t));
+                    memcpy(l_decree_addr, &l_addr, sizeof(dap_chain_addr_t));
+                    l_net->pub.decree->fee_addr = l_decree_addr;
                 }
 
                 if (!dap_chain_datum_decree_get_fee(a_decree, &l_fee)){
                     if (!dap_chain_net_tx_get_fee(a_chain->net_id, a_chain, NULL, &l_addr)){
-                        if(!dap_chain_net_tx_add_fee(a_chain->net_id, a_chain, &l_fee, *l_addr)){
+                        if(!dap_chain_net_tx_add_fee(a_chain->net_id, a_chain, &l_fee, l_addr)){
                             log_it(L_WARNING,"Can't add fee value.");
                             return -102;
                         }
                     }else{
-                        if(!dap_chain_net_tx_replace_fee(a_chain->net_id, a_chain, &l_fee, *l_addr)){
+                        if(!dap_chain_net_tx_replace_fee(a_chain->net_id, a_chain, &l_fee, l_addr)){
                             log_it(L_WARNING,"Can't replace fee value.");
                             return -103;
                         }
