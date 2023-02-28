@@ -70,13 +70,13 @@ void dap_enc_sig_falcon_key_new_generate(struct dap_enc_key *key, const void *ke
     falcon_private_key_t privateKey = {s_falcon_kind, s_falcon_sign_degree, s_falcon_type, privkey};
     falcon_public_key_t publicKey = {s_falcon_kind, s_falcon_sign_degree, s_falcon_type, pubkey};
 
-    shake256_context rng;
-    retcode = shake256_init_prng_from_system(&rng);
+    dap_shake256_context rng;
+    retcode = dap_shake256_init_prng_from_system(&rng);
     if (retcode != 0) {
         log_it(L_ERROR, "Failed to initialize PRNG");
         return;
     }
-    retcode = falcon_keygen_make(
+    retcode = dap_falcon_keygen_make(
             &rng,
             logn,
             privateKey.data, FALCON_PRIVKEY_SIZE(logn),
@@ -116,8 +116,8 @@ size_t dap_enc_sig_falcon_get_sign(struct dap_enc_key* key, const void* msg, con
     //todo: do we need to use shared shake256 context?
 
     int retcode;
-    shake256_context rng;
-    retcode = shake256_init_prng_from_system(&rng);
+    dap_shake256_context rng;
+    retcode = dap_shake256_init_prng_from_system(&rng);
     if (retcode != 0) {
         log_it(L_ERROR, "Failed to initialize PRNG");
         return retcode;
@@ -140,7 +140,7 @@ size_t dap_enc_sig_falcon_get_sign(struct dap_enc_key* key, const void* msg, con
     sig->type = privateKey->type;
     size_t sig_len = signature_size - sizeof(falcon_signature_t);
     sig->sig_data = DAP_NEW_SIZE(byte_t, sig_len);
-    retcode = falcon_sign_dyn(
+    retcode = dap_falcon_sign_dyn(
             &rng,
             sig->sig_data, &sig_len, privateKey->kind,
             privateKey->data, FALCON_PRIVKEY_SIZE(privateKey->degree),
@@ -169,7 +169,7 @@ size_t dap_enc_sig_falcon_verify_sign(struct dap_enc_key* key, const void* msg, 
             sig->kind != publicKey->kind ||
             sig->type != publicKey->type)
         return -1;
-    int retcode = falcon_verify(
+    int retcode = dap_falcon_verify(
             sig->sig_data, sig->sig_len, publicKey->kind,
             publicKey->data, FALCON_PUBKEY_SIZE(publicKey->degree),
             msg, msg_size,
