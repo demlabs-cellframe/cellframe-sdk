@@ -493,11 +493,11 @@ static bool s_ledger_token_update_check(dap_chain_ledger_token_item_t *a_cur_tok
                 break;
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_REMOVE:
                 l_quantity_tsd_remote_certs++;
-                dap_list_append(l_tsd_list_remote_certs, l_tsd);
+                l_tsd_list_remote_certs = dap_list_append(l_tsd_list_remote_certs, l_tsd);
                 break;
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_ADD:
                 l_quantity_tsd_add_certs++;
-                dap_list_append(l_tsd_list_added_certs, l_tsd);
+                l_tsd_list_added_certs = dap_list_append(l_tsd_list_added_certs, l_tsd);
                 break;
         }
         l_tsd_offset += l_tsd_size;
@@ -529,25 +529,31 @@ static bool s_ledger_token_update_check(dap_chain_ledger_token_item_t *a_cur_tok
     }
     //Check valid remove_signs
     bool isAccepted = false;
-    for (dap_list_t *l_ptr = l_tsd_list_remote_certs; l_ptr; l_ptr = dap_list_next(l_ptr)) {
-        dap_tsd_t *l_tsd = (dap_tsd_t*)l_ptr->data;
-        dap_hash_fast_t l_hash = dap_tsd_get_scalar(l_tsd, dap_hash_fast_t);
-        bool accepted = false;
-        for(size_t i=0; i < auth_signs_total; i++) {
-            if (dap_hash_fast_compare(&a_cur_token_item->auth_signs_pkey_hash[i], &l_hash)) {
-                accepted = true;
-                break;
+    if (!l_tsd_list_remote_certs)
+        isAccepted = true;
+    else {
+        for (dap_list_t *l_ptr = l_tsd_list_remote_certs; l_ptr; l_ptr = dap_list_next(l_ptr)) {
+            dap_tsd_t *l_tsd = (dap_tsd_t *) l_ptr->data;
+            dap_hash_fast_t l_hash = dap_tsd_get_scalar(l_tsd, dap_hash_fast_t);
+            bool accepted = false;
+            for (size_t i = 0; i < auth_signs_total; i++) {
+                if (dap_hash_fast_compare(&a_cur_token_item->auth_signs_pkey_hash[i], &l_hash)) {
+                    accepted = true;
+                    break;
+                }
             }
-        }
-        if (!accepted) {
-            if (s_debug_more) {
-                char *l_hash_str = dap_hash_fast_to_str_new(&l_hash);
-                log_it(L_ERROR, "It is expected that the TSD parameter DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_REMOVE will contain only "
-                                "the hashes of the public keys of the signatures with which the given token was previously signed. But not %s", l_hash_str);
-                DAP_DELETE(l_hash_str);
+            if (!accepted) {
+                if (s_debug_more) {
+                    char *l_hash_str = dap_hash_fast_to_str_new(&l_hash);
+                    log_it(L_ERROR,
+                           "It is expected that the TSD parameter DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_REMOVE will contain only "
+                           "the hashes of the public keys of the signatures with which the given token was previously signed. But not %s",
+                           l_hash_str);
+                    DAP_DELETE(l_hash_str);
+                }
             }
+            isAccepted = accepted;
         }
-        isAccepted = accepted;
     }
     if (!isAccepted) {
         dap_list_free1(l_tsd_list_added_certs);
