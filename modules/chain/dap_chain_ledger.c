@@ -1556,13 +1556,13 @@ static int s_tsd_sign_apply(dap_ledger_t *a_ledger, dap_chain_ledger_token_item_
                     memmove(a_token_item->auth_signs+i,a_token_item->auth_signs+i+1,
                            (a_token_item->auth_signs_total-i-1)*sizeof (void*));
                     memmove(a_token_item->auth_signs_pkey_hash+i,a_token_item->auth_signs_pkey_hash+i+1,
-                           (a_token_item->auth_signs_total-i-1)*sizeof (void*));
+                           (a_token_item->auth_signs_total-i-1)*sizeof(dap_chain_hash_fast_t));
                 }
                 a_token_item->auth_signs_total--;
                 if(a_token_item->auth_signs_total) {
                     // Type sizeof's misunderstanding in realloc?
                     a_token_item->auth_signs = DAP_REALLOC(a_token_item->auth_signs,a_token_item->auth_signs_total*sizeof (void*) );
-                    a_token_item->auth_signs_pkey_hash = DAP_REALLOC(a_token_item->auth_signs_pkey_hash,a_token_item->auth_signs_total*sizeof (void*) );
+                    a_token_item->auth_signs_pkey_hash = DAP_REALLOC(a_token_item->auth_signs_pkey_hash,a_token_item->auth_signs_total*sizeof(dap_chain_hash_fast_t));
                 } else {
                     DAP_DEL_Z(a_token_item->auth_signs);
                     DAP_DEL_Z(a_token_item->auth_signs_pkey_hash);
@@ -1572,16 +1572,14 @@ static int s_tsd_sign_apply(dap_ledger_t *a_ledger, dap_chain_ledger_token_item_
         }
     }
     for (dap_list_t *l_ptr = l_added_signs; l_ptr; l_ptr = dap_list_next(l_ptr)) {
-        dap_sign_t *l_sign = (dap_sign_t*)l_tsd->data;
+        dap_sign_t *l_sign = (dap_sign_t*)l_ptr->data;
         a_token_item->auth_signs_total++;
         // Type sizeof's misunderstanding in realloc?
         a_token_item->auth_signs = DAP_REALLOC(a_token_item->auth_signs,a_token_item->auth_signs_total*sizeof (void*) );
-        a_token_item->auth_signs_pkey_hash = DAP_REALLOC(a_token_item->auth_signs_pkey_hash,a_token_item->auth_signs_total*sizeof (void*) );
+        a_token_item->auth_signs_pkey_hash = DAP_REALLOC(a_token_item->auth_signs_pkey_hash,a_token_item->auth_signs_total*sizeof (dap_chain_hash_fast_t));
         a_token_item->auth_signs[a_token_item->auth_signs_total-1] = DAP_NEW_SIZE(dap_sign_t, dap_sign_get_size(l_sign));
         memcpy(a_token_item->auth_signs[a_token_item->auth_signs_total-1], l_sign, dap_sign_get_size(l_sign));
-        dap_hash_fast_t l_pkey_fingerprint = {0};
-        dap_sign_get_pkey_hash(l_sign, &l_pkey_fingerprint);
-        memcpy(&a_token_item->auth_signs_pkey_hash[a_token_item->auth_signs_total-1], &l_pkey_fingerprint, sizeof(dap_hash_fast_t));
+        dap_sign_get_pkey_hash(l_sign, &a_token_item->auth_signs_pkey_hash[a_token_item->auth_signs_total-1]);
     }
     if (l_new_signs_valid) {
         a_token_item->auth_signs_valid = dap_tsd_get_scalar(l_tsd,uint16_t);
