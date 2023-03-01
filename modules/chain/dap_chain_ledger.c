@@ -569,7 +569,7 @@ static bool s_ledger_token_update_check(dap_chain_ledger_token_item_t *a_cur_tok
         dap_sign_t *l_sign = (dap_sign_t*)l_tsd->data;
         if (dap_sign_verify_size(l_sign, l_tsd->size)) {
             if (dap_sign_get_size(l_sign) == l_tsd->size) {
-                if (!dap_sign_verify(l_sign, l_token_tmp, a_token_update_size)) {
+                if (!dap_sign_verify(l_sign, l_token_tmp, sizeof(*l_token_tmp) - sizeof(uint16_t))) {
                     if (s_debug_more)
                         log_it(L_ERROR, "The signature specified in the TSD parameter DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_ADD does not pass verification.");
                     isAccepted = false;
@@ -1540,10 +1540,10 @@ static int s_tsd_sign_apply(dap_ledger_t *a_ledger, dap_chain_ledger_token_item_
                 l_new_signs_valid = l_tsd;
                 break;
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_ADD:
-                dap_list_append(l_added_signs, l_tsd->data);
+                l_added_signs = dap_list_append(l_added_signs, l_tsd->data);
                 break;
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_REMOVE:
-                dap_list_append(l_remove_signs, l_tsd);
+                l_remove_signs = dap_list_append(l_remove_signs, l_tsd);
                 break;
         }
     }

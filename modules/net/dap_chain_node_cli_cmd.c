@@ -2155,11 +2155,13 @@ static dap_chain_datum_token_t* s_new_cert_signs_add_in_tsd_cycle(dap_cert_t ** 
 
     dap_chain_datum_token_t *l_datum_token = a_datum_token;
     uint64_t l_tsd_size = 0;
-    if (l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE)
+    if (l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE) {
         l_tsd_size = l_datum_token->header_private_update.tsd_total_size;
-    else if (l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)
+        l_datum_token->header_private_update.tsd_total_size = 0;
+    } else if (l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE) {
         l_tsd_size = l_datum_token->header_native_update.tsd_total_size;
-    else {
+        l_datum_token->header_native_update.tsd_total_size = 0;
+    } else {
         log_it(L_DEBUG, "It is not possible to add new signatures to this datum, because to. no information about the "
                         "size of TSD sections.");
         return l_datum_token;
