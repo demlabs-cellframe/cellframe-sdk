@@ -675,8 +675,9 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
         l_cur_ev = NULL; l_tmp_ev = NULL;
         HASH_SELECT(th, l_tmp, hh, PVT(l_dag)->events_lasts_unlinked, always_true); /* Always true predicate */
         pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
-        while ((l_hashes_linked < l_hashes_size) && (HASH_CNT(th, l_tmp) > 0)) {
-            int l_random_id = rand() % HASH_CNT(th, l_tmp), l_hash_id = 0;
+
+        for (size_t l_cnt = HASH_CNT(th, l_tmp); l_cnt > 0 && l_hashes_linked < l_hashes_size; l_cnt = HASH_CNT(th, l_tmp)) {
+            int l_random_id = rand() % l_cnt, l_hash_id = 0;
             HASH_ITER(th, l_tmp, l_cur_ev, l_tmp_ev) {
                 if (l_hash_id++ == l_random_id) {
                     l_hashes[l_hashes_linked++] = l_cur_ev->hash;
