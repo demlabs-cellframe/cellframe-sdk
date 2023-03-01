@@ -158,7 +158,7 @@ int dap_chain_cs_blocks_init()
                 "\t\tList block sections and show their datums hashes\n\n"
 
             "block -net <net_name> -chain <chain_name> new_datum\n\n"
-                "\t\tComplete the current new round, verify it and if everything is ok - publish new events in chain\n\n"
+                "\t\tComplete the current new round, verify it and if everything is ok - publish new blocks in chain\n\n"
 
         "Blockchain explorer:\n"
             "block -net <net_name> -chain <chain_name> dump <block_hash>\n"
