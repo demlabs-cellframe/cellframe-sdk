@@ -4817,7 +4817,7 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-from_wallet", &l_from_wallet_name);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-wallet_fee", &l_wallet_fee_name);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-from_emission", &l_emission_hash_str);
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-emission_chain", &l_emission_chain_name);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain_emission", &l_emission_chain_name);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-to_addr", &addr_base58_to);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-token", &l_token_ticker);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_name);
@@ -4884,7 +4884,7 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
             l_emission_chain = dap_chain_net_get_default_chain_by_chain_type(l_net,CHAIN_TYPE_EMISSION);
         }
         if (!l_emission_chain) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_create requires parameter '-emission_chain' "
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_create requires parameter '-chain_emission' "
                                                          "to be a valid chain name or set default datum type in chain configuration file");
             return -9;
         }
@@ -5192,18 +5192,22 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
 int fee_coll(int a_argc, char ** a_argv, char **a_str_reply)
 {
     int arg_index = 1;
-    const char *str_tmp = NULL;
 
+    const char * str_tmp = NULL;
     const char * l_cert_name = NULL;
     const char * l_addr_str = NULL;
     const char * l_hash_out_type = NULL;
     const char * l_hash_str = NULL;
     const char * l_hash_mas_str = NULL;
 
-    dap_chain_hash_fast_t l_block_hash = {};
-    dap_chain_t * l_chain = NULL;
-    dap_chain_block_t  * l_block;
-    dap_chain_cs_blocks_t * l_blocks = NULL;
+    uint256_t   l_fee_value = {};
+
+    dap_chain_hash_fast_t   l_block_hash = {};
+    dap_chain_t             *l_chain = NULL;
+    dap_chain_block_t       *l_block;
+    dap_chain_cs_blocks_t   *l_blocks = NULL;
+    dap_chain_net_t         *l_net = NULL;
+    dap_chain_addr_t        *l_addr = NULL;
 
     char *l_str_reply_tmp = NULL;
     uint256_t l_emission_value = {};
@@ -5225,9 +5229,7 @@ int fee_coll(int a_argc, char ** a_argv, char **a_str_reply)
     dap_chain_t * l_chain_emission = NULL;
 
     const char * l_chain_base_tx_str = NULL;
-    dap_chain_t * l_chain_base_tx = NULL;
-
-    dap_chain_net_t * l_net = NULL;
+    dap_chain_t * l_chain_base_tx = NULL;    
 
 
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
@@ -5249,22 +5251,31 @@ int fee_coll(int a_argc, char ** a_argv, char **a_str_reply)
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash_one", &l_hash_str);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash.", &l_hash_mas_str);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &str_tmp);
 
 
     if(!l_addr_str) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "commission_coll requires parameter '-addr'");
         return -3;
     }
+    l_addr = dap_chain_addr_from_str(l_addr_str);
+
     if(!l_cert_name) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "commission_coll requires parameter '-cert'");
         return -4;
     }
-
     dap_cert_t * l_cert = dap_cert_find_by_name( l_cert_name );
+
     if( l_cert == NULL ){
         dap_cli_server_cmd_set_reply_text(a_str_reply,
                 "Can't find \"%s\" certificate", l_cert_name );
         return -5;
+    }
+
+    l_fee_value = dap_chain_balance_scan(str_tmp);
+    if(!str_tmp||IS_ZERO_256(l_fee_value)) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_create requires parameter '-fee' to be valid uint256");
+        return -6;
     }
 
     if( l_cert->enc_key == NULL ){
@@ -5303,8 +5314,6 @@ int fee_coll(int a_argc, char ** a_argv, char **a_str_reply)
                 ctime_r(&l_ts_reated, buf);
                 dap_string_append_printf(l_str_tmp,"\t\t\tts_created: %s\n", buf);                
 
-                //l_block_cache->
-                //dap_sign_t * l_sign =l_block_cache->sign[i];
                 dap_sign_t * l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
                 size_t l_sign_size = dap_sign_get_size(l_sign);
                 dap_chain_addr_t l_addr = {0};
@@ -5312,8 +5321,7 @@ int fee_coll(int a_argc, char ** a_argv, char **a_str_reply)
                 dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
 
                 if(dap_pkey_compare_with_sign(l_pub_key, l_sign)){
-                    l_block_cache->block_size
-                            l_block_cache->
+                    dap_chain_mempool_tx_coll_fee_create(l_pub_key,&l_addr,l_block_cache,l_fee_value,l_hash_out_type);
 
 
                 }

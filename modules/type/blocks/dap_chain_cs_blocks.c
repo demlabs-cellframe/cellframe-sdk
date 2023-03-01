@@ -144,7 +144,7 @@ int dap_chain_cs_blocks_init()
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     s_debug_more = dap_config_get_item_bool_default(g_config, "blocks", "debug_more", false);
     dap_cli_server_cmd_add ("block", s_cli_blocks, "Create and explore blockchains",
-        "New block create, fill and complete commands:"
+        "New block create, fill and complete commands:\n"
             "block -net <net_name> -chain <chain_name> new\n"
                 "\t\tCreate new block and flush memory if was smth formed before\n\n"
 
@@ -160,12 +160,12 @@ int dap_chain_cs_blocks_init()
             "block -net <net_name> -chain <chain_name> new_datum\n\n"
                 "\t\tComplete the current new round, verify it and if everything is ok - publish new events in chain\n\n"
 
-        "Blockchain explorer:"
+        "Blockchain explorer:\n"
             "block -net <net_name> -chain <chain_name> dump <block_hash>\n"
                 "\t\tDump block info\n\n"
 
             "block -net <net_name> -chain <chain_name> list [-from_hash <block_hash>] [-to_hash <block_hash>]"
-            "[-from_dt <datetime>] [-to_dt <datetime>]"
+            "[-from_dt <datetime>] [-to_dt <datetime>]\n"
                 "\t\t List blocks"
 
                                         );

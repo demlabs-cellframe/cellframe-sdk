@@ -64,6 +64,8 @@
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_net_srv.h"
+#include "dap_chain_cs_blocks.h"
+
 
 #define LOG_TAG "dap_chain_mempool"
 
@@ -270,31 +272,27 @@ char *dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_fr
 /**
  * Make transfer transaction to collect a commission & insert to cache
  *
- * return 0 Ok, , -1 other Error
+ * return hash_tx Ok, , NULL other Error
  */
-char *dap_chain_mempool_tx_coll_fee_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_from,
-        const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_to,
-        const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
-        uint256_t a_value, uint256_t a_value_fee, const char *a_hash_out_type)
+char *dap_chain_mempool_tx_coll_fee_create(dap_enc_key_t *a_key_from,const dap_chain_addr_t* a_addr_to,dap_chain_block_cache_t *a_block_cache,
+                                           uint256_t a_value_fee, const char *a_hash_out_type)
 {
-    int									l_prev_cond_idx		=	0;
-    size_t                              l_datums_count      =   0;
-    uint256_t                           l_value_out = {},
-    dap_hash_fast_t						l_tx_hash;
-    dap_chain_datum_tx_t				*l_datum_tx;
-    dap_chain_tx_out_cond_t				*l_tx_out_cond;
-    dap_chain_datum_tx_t                *l_tx;
-    dap_chain_datum_t                   **l_datums;
-    dap_chain_datum_t                   *l_datum;
+    uint256_t                   l_value_to_items = {};
+    uint256_t                   l_value_out = {};
+    uint256_t                   l_net_fee = {};
+    dap_chain_datum_tx_t        *l_tx;
+    dap_chain_addr_t            l_addr_fee = {};
+    dap_chain_t                 *l_chain = NULL;
 
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_chain->net_id, a_chain, &l_net_fee, &l_addr_fee);
+    l_chain = DAP_CHAIN_CS_BLOCKS(a_block_cache)->chain;
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(l_chain->net_id, l_chain, &l_net_fee, &l_addr_fee);
     //add tx
     if (NULL == (l_tx = dap_chain_datum_tx_create())) {
 
         return NULL;
     }
 
-    dap_list_t *l_list_used_out = dap_chain_block_get_list_tx_outs_cond_with_val(a_chain->ledger,l_tx_hash,&l_value_out);
+    dap_list_t *l_list_used_out = dap_chain_block_get_list_tx_cond_outs_with_val(l_chain->ledger,a_block_cache,&l_value_out);
     if (!l_list_used_out) {
         log_it(L_WARNING, "Not enough funds to transfer");
         dap_chain_datum_tx_delete(l_tx);
@@ -303,7 +301,7 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_chain_t * a_chain, dap_enc_key_t 
 
     //add 'in' items
     {
-        uint256_t l_value_to_items = dap_chain_datum_tx_add_in_cond_item_list(&l_tx, l_list_used_out);
+        l_value_to_items = dap_chain_datum_tx_add_in_cond_item_list(&l_tx, l_list_used_out);
         assert(EQUAL_256(l_value_to_items, l_value_out));
         dap_list_free_full(l_list_used_out, NULL);
     }
@@ -345,10 +343,10 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_chain_t * a_chain, dap_enc_key_t 
 
     size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
     //dap_hash_fast_t l_tx_hash;
-    dap_hash_fast(l_tx, l_tx_size, &l_tx_hash);
+    //dap_hash_fast(l_tx, l_tx_size, &l_tx_hash);
     dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
     DAP_DELETE(l_tx);
-    char *l_ret = dap_chain_mempool_datum_add(l_datum, a_chain, a_hash_out_type);
+    char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain, a_hash_out_type);
     DAP_DELETE(l_datum);
     return l_ret;
 }
