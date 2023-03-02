@@ -1582,7 +1582,7 @@ static int s_tsd_sign_apply(dap_ledger_t *a_ledger, dap_chain_ledger_token_item_
         dap_sign_get_pkey_hash(l_sign, &a_token_item->auth_signs_pkey_hash[a_token_item->auth_signs_total-1]);
     }
     if (l_new_signs_valid) {
-        a_token_item->auth_signs_valid = dap_tsd_get_scalar(l_tsd,uint16_t);
+        a_token_item->auth_signs_valid = dap_tsd_get_scalar(l_new_signs_valid,uint16_t);
     }
     return 0;
 }
