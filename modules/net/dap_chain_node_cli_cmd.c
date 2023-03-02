@@ -5322,8 +5322,6 @@ int fee_coll(int a_argc, char ** a_argv, char **a_str_reply)
 
                 if(dap_pkey_compare_with_sign(l_pub_key, l_sign)){
                     dap_chain_mempool_tx_coll_fee_create(l_pub_key,&l_addr,l_block_cache,l_fee_value,l_hash_out_type);
-
-
                 }
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
                 dap_string_free(l_str_tmp, true);
