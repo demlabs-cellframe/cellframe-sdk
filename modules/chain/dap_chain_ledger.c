@@ -474,7 +474,7 @@ static bool s_ledger_token_update_check(dap_chain_ledger_token_item_t *a_cur_tok
     dap_list_t *l_tsd_list_added_certs = NULL;
     int l_quantity_tsd_add_certs = 0;
     for (size_t l_tsd_offset = 0; l_tsd_offset < l_tsd_total_size; ) {
-        dap_tsd_t *l_tsd = (dap_tsd_t*)a_token_update->data_n_tsd;
+        dap_tsd_t *l_tsd = (dap_tsd_t*)((byte_t*)a_token_update->data_n_tsd + l_tsd_offset);
         size_t l_tsd_size = dap_tsd_size(l_tsd);
         if (l_tsd_size == 0) {
             if (s_debug_more)
