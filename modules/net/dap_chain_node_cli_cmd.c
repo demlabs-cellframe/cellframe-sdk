@@ -1072,6 +1072,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
                 else {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "alias mapped successfully");
                 }
+
             }
             else {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "alias can't be mapped because -addr is not found");
