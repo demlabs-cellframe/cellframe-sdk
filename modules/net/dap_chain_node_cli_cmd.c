@@ -2843,6 +2843,9 @@ int com_mempool_proc_all(int argc, char ** argv, char ** a_str_reply) {
                                           l_chain->name);
     }
 
+#ifdef DAP_TPS_TEST
+    dap_chain_ledger_set_tps_start_time(l_net->pub.ledger);
+#endif
     dap_chain_node_mempool_process_all(l_chain, true);
     dap_cli_server_cmd_set_reply_text(a_str_reply, "The entire mempool has been processed in %s.%s.",
                                                    l_net->pub.name, l_chain->name);
