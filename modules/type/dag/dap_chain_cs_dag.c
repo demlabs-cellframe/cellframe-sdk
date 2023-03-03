@@ -665,19 +665,12 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
         /* We'll use modification-safe iteration thru the additional hashtable thus the chosen events will not repeat */
 #define always_true(ev) ({ (void*)ev, true; })
         dap_chain_cs_dag_event_item_t *l_tmp = NULL, *l_cur_ev, *l_tmp_ev;
-
-        HASH_ITER(hh, PVT(l_dag)->events_lasts_unlinked, l_cur_ev, l_tmp_ev) {
-            char l_hsh[DAP_CHAIN_HASH_FAST_STR_SIZE];
-            dap_hash_fast_to_str(&(l_cur_ev->hash), l_hsh, DAP_CHAIN_HASH_FAST_STR_SIZE);
-            log_it(L_INFO, "### hash from ev_lasts before select %s", l_hsh);
-        }
-
-        l_cur_ev = NULL; l_tmp_ev = NULL;
         HASH_SELECT(th, l_tmp, hh, PVT(l_dag)->events_lasts_unlinked, always_true); /* Always true predicate */
         pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
 
         for (size_t l_cnt = HASH_CNT(th, l_tmp); l_cnt > 0 && l_hashes_linked < l_hashes_size; l_cnt = HASH_CNT(th, l_tmp)) {
             int l_random_id = rand() % l_cnt, l_hash_id = 0;
+            l_cur_ev = NULL; l_tmp_ev = NULL;
             HASH_ITER(th, l_tmp, l_cur_ev, l_tmp_ev) {
                 if (l_hash_id++ == l_random_id) {
                     l_hashes[l_hashes_linked++] = l_cur_ev->hash;
@@ -687,19 +680,6 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
             }
         }
         HASH_CLEAR(th, l_tmp);
-        if (s_debug_more) {
-            for (size_t i = 0; i < l_hashes_linked; ++i) {
-                char l_hsh[DAP_CHAIN_HASH_FAST_STR_SIZE];
-                dap_hash_fast_to_str(&l_hashes[i], l_hsh, DAP_CHAIN_HASH_FAST_STR_SIZE);
-                log_it(L_INFO, "### linked hash %lu : %s", i, l_hsh);
-            }
-            l_cur_ev = NULL; l_tmp_ev = NULL;
-            HASH_ITER(hh, PVT(l_dag)->events_lasts_unlinked, l_cur_ev, l_tmp_ev) {
-                char l_hsh[DAP_CHAIN_HASH_FAST_STR_SIZE];
-                dap_hash_fast_to_str(&(l_cur_ev->hash), l_hsh, DAP_CHAIN_HASH_FAST_STR_SIZE);
-                log_it(L_INFO, "### hash from ev_lasts %s", l_hsh);
-            }
-        }
         if (l_hashes_linked < l_hashes_size) {
             log_it(L_ERROR, "No enough unlinked events present, a dummy round?");
             return false;
@@ -907,19 +887,8 @@ void dap_chain_cs_dag_proc_event_round_new(dap_chain_cs_dag_t *a_dag)
  */
 void s_dag_events_lasts_delete_linked_with_event(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_event)
 {
-    dap_chain_cs_dag_event_item_t *l_cur_ev = NULL, *l_tmp_ev = NULL;
-    HASH_ITER(hh, PVT(a_dag)->events_lasts_unlinked, l_cur_ev, l_tmp_ev) {
-        char l_hsh[DAP_CHAIN_HASH_FAST_STR_SIZE];
-        dap_hash_fast_to_str(&(l_cur_ev->hash), l_hsh, DAP_CHAIN_HASH_FAST_STR_SIZE);
-        log_it(L_INFO, "### hash from ev_lasts %s", l_hsh);
-    }
     for (size_t i = 0; i< a_event->header.hash_count; i++) {
         dap_chain_hash_fast_t * l_hash =  ((dap_chain_hash_fast_t *) a_event->hashes_n_datum_n_signs) + i;
-        if (s_debug_more) {
-            char l_hsh[DAP_CHAIN_HASH_FAST_STR_SIZE];
-            dap_hash_fast_to_str(l_hash, l_hsh, DAP_CHAIN_HASH_FAST_STR_SIZE);
-            log_it(L_INFO, "### looking for hash %lu : %s", i, l_hsh);
-        }
         dap_chain_cs_dag_event_item_t * l_event_item = NULL;
         HASH_FIND(hh, PVT(a_dag)->events_lasts_unlinked ,l_hash ,sizeof (*l_hash),  l_event_item);
         if ( l_event_item ){
