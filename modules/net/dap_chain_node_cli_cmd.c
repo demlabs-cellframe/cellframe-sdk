@@ -5231,6 +5231,15 @@ int fee_coll(int a_argc, char ** a_argv, char **a_str_reply)
     const char * l_chain_base_tx_str = NULL;
     dap_chain_t * l_chain_base_tx = NULL;    
 
+    if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "fee", &str_tmp))
+    {
+        arg_index++;
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "collect", &str_tmp);
+    }
+    if(!str_tmp) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block' requires parameter 'fee collect'");
+        return -3;
+    }
 
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
     if(!l_hash_out_type)
