@@ -726,7 +726,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
 int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
 {
     enum {
-        CMD_NONE, CMD_NAME_CELL, CMD_ADD, CMD_FLUSH, CMD_RECORD, CMD_WRITE, CMD_READ
+        CMD_NONE, CMD_NAME_CELL, CMD_ADD, CMD_FLUSH, CMD_RECORD, CMD_WRITE, CMD_READ, CMD_DELETE
     };
     int arg_index = 1;
     int cmd_name = CMD_NONE;
@@ -741,6 +741,8 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
                 cmd_name = CMD_WRITE;
     else if(dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "read", NULL))
                 cmd_name = CMD_READ;
+    else if(dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "delete", NULL))
+                cmd_name = CMD_DELETE;
     switch (cmd_name) {
     case CMD_NAME_CELL:
     {
@@ -977,7 +979,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
 
             if(!l_key_str) {
                 dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter 'key' to be valid", a_argv[0]);
-                return -121;
+                return -122;
             }
 
             size_t l_out_len = 0;
@@ -992,6 +994,33 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
             dap_chain_node_cli_set_reply_text(a_str_reply, "Group %s, key %s, data:\n %s", l_group_str, l_key_str, (char*)l_value_out);
             return 0;
         }
+        case CMD_DELETE:
+            {
+                char *l_group_str = NULL;
+                char *l_key_str = NULL;
+
+                dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-group", &l_group_str);
+                dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-key", &l_key_str);
+
+                if(!l_group_str) {
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter 'group' to be valid", a_argv[0]);
+                    return -120;
+                }
+
+                if(!l_key_str) {
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter 'key' to be valid", a_argv[0]);
+                    return -121;
+                }
+
+                if (dap_chain_global_db_gr_del(l_key_str, l_group_str))
+                {
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "Record with key %s in group %s was deleted successfuly", l_key_str, l_group_str);
+                    return 0;
+                }else{
+                    dap_chain_node_cli_set_reply_text(a_str_reply, "Record with key %s in group %s deleting failed", l_group_str, l_key_str);
+                    return -122;
+                }
+            }
     default:
         dap_cli_server_cmd_set_reply_text(a_str_reply, "parameters are not valid");
         return -1;
