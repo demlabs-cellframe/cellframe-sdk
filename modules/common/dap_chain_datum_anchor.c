@@ -25,12 +25,10 @@
 #include "dap_tsd.h"
 #include "dap_sign.h"
 #include "dap_common.h"
+#include "dap_enc_base58.h"
 #include "dap_chain_datum_anchor.h"
 
-
 #define LOG_TAG "dap_chain_datum_anchor"
-
-
 
 int dap_chain_datum_anchor_get_hash_from_data(dap_chain_datum_anchor_t* a_anchor, dap_hash_fast_t * l_out_hash)
 {

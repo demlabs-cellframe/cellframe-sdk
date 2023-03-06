@@ -1359,40 +1359,6 @@ dap_chain_datum_t *dap_chain_net_srv_stake_lock_datum_create(dap_chain_net_t *a_
     return l_datum;
 }
 
-/**
- * @brief dap_chain_net_srv_stake_lock_create_cond_out
- * @param a_key
- * @param a_srv_uid
- * @param a_value
- * @param a_time_staking
- * @param token
- * @return
- */
-dap_chain_tx_out_cond_t *dap_chain_net_srv_stake_lock_create_cond_out(dap_pkey_t *a_key, dap_chain_net_srv_uid_t a_srv_uid,
-                                                                      uint256_t a_value, uint64_t a_time_staking,
-                                                                      uint256_t a_reinvest_percent, bool create_base_tx)
-{
-    if (IS_ZERO_256(a_value))
-        return NULL;
-    dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z(dap_chain_tx_out_cond_t);
-    l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
-    l_item->header.value = a_value;
-    l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK;
-    l_item->header.srv_uid = a_srv_uid;
-    l_item->subtype.srv_stake_lock.reinvest_percent = a_reinvest_percent;
-    if (a_time_staking) {
-//		l_item->header.ts_expires = dap_time_now() + a_time_staking;
-        l_item->subtype.srv_stake_lock.time_unlock = dap_time_now() + a_time_staking;
-        l_item->subtype.srv_stake_lock.flags |= DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME;
-    }
-    if (create_base_tx)
-        l_item->subtype.srv_stake_lock.flags |= DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX;
-    if (a_key)
-        dap_hash_fast(a_key->pkey, a_key->header.size, &l_item->subtype.srv_stake_lock.pkey_delegated);
-
-    return l_item;
-}
-
 dap_chain_datum_t *dap_chain_burning_tx_create(dap_chain_t *a_chain, dap_enc_key_t *a_key_from,
                                              const dap_chain_addr_t* a_addr_from, const dap_chain_addr_t* a_addr_to,
                                              const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],

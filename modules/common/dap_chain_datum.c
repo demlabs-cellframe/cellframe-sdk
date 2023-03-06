@@ -322,7 +322,6 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                         ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.value_datoshi);
             char *l_coins_str = dap_chain_balance_to_coins(
                         ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.value_datoshi);
-            serv_unit_enum_t l_unit = ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.units_type.enm;
             dap_string_append_printf(a_str_out, "\t Receipt:\n"
                                                 "\t\t size: %"DAP_UINT64_FORMAT_U"\n"
                                                 "\t\t ext size: %"DAP_UINT64_FORMAT_U"\n"
@@ -335,7 +334,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                      ((dap_chain_datum_tx_receipt_t*)item)->exts_size,
                                      ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.units,
                                      ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.srv_uid.uint64,
-                                     serv_unit_enum_to_str(&l_unit),
+                                     dap_chain_srv_unit_enum_to_str(((dap_chain_datum_tx_receipt_t*)item)->receipt_info.units_type.enm),
                                      l_coins_str,
                                      l_value_str);
             if (((dap_chain_datum_tx_receipt_t*)item)->exts_size == sizeof(dap_sign_t) + sizeof(dap_sign_t)){
@@ -750,7 +749,7 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
             char l_decree_hash_str[40] = "";
             dap_hash_fast_t l_decree_hash ={0};
             dap_chain_datum_anchor_get_hash_from_data(l_anchor, &l_decree_hash);
-            dap_chain_hash_fast_to_str(&l_decree_hash, &l_decree_hash_str, 40);
+            dap_chain_hash_fast_to_str(&l_decree_hash, l_decree_hash_str, 40);
 
             dap_string_append_printf(a_str_out, "decree hash: %s\n", l_decree_hash_str);
 
@@ -758,4 +757,33 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
         } break;
     }    
     DAP_DELETE(l_hash_str);
+}
+
+json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum){
+    json_object *l_object = json_object_new_object();
+    dap_hash_fast_t l_hash_data = {0};
+    dap_hash_fast(a_datum->data, a_datum->header.data_size, &l_hash_data);
+    char *l_hash_data_str = dap_hash_fast_to_str_new(&l_hash_data);
+    json_object *l_obj_data_hash = json_object_new_string(l_hash_data_str);
+    DAP_DELETE(l_hash_data_str);
+    json_object *l_obj_version = json_object_new_int(a_datum->header.version_id);
+    json_object *l_obj_size = json_object_new_int(a_datum->header.data_size);
+    json_object *l_obj_ts_created = json_object_new_uint64(a_datum->header.ts_create);
+    json_object *l_obj_type = json_object_new_string(dap_chain_datum_type_id_to_str(a_datum->header.type_id));
+    json_object *l_obj_data;
+    switch (a_datum->header.type_id) {
+        case DAP_CHAIN_DATUM_TX:
+            l_obj_data = dap_chain_datum_tx_to_json((dap_chain_datum_tx_t*)a_datum->data);
+            break;
+        default:
+            l_obj_data = json_object_new_null();
+            break;
+    }
+    json_object_object_add(l_object, "version", l_obj_version);
+    json_object_object_add(l_object, "hash", l_obj_data_hash);
+    json_object_object_add(l_object, "data_size", l_obj_size);
+    json_object_object_add(l_object, "ts_created", l_obj_ts_created);
+    json_object_object_add(l_object, "type", l_obj_type);
+    json_object_object_add(l_object, "data", l_obj_data);
+    return l_object;
 }
