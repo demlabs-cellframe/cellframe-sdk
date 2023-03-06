@@ -32,7 +32,7 @@
 #include "dap_pkey.h"
 #include "dap_sign.h"
 #include "dap_hash.h"
-#include <json.h>
+#include <json-c/json.h>
 
 #define DAP_CHAIN_ADDR_VERSION_CURRENT 1
 
