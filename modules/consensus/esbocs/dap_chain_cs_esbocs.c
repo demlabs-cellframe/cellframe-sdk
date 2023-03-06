@@ -619,7 +619,7 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
             log_it(L_ERROR, "ESBOCS: No finish candidate found!");
             break;
         }
-        dap_list_sort(l_store->candidate_signs, s_signs_sort_callback);
+        l_store->candidate_signs = dap_list_sort(l_store->candidate_signs, s_signs_sort_callback);
         size_t l_candidate_size_exclude_signs = l_store->candidate_size;
         for (dap_list_t *it = l_store->candidate_signs; it; it = it->next) {
             dap_sign_t *l_candidate_sign = (dap_sign_t *)it->data;
@@ -711,7 +711,7 @@ static void s_session_proc_state(dap_chain_esbocs_session_t *a_session)
                 break;
             }
             debug_if(l_cs_debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
-                                        " Attempt finish by reason: cant't collect minimum number of validator's signs",
+                                        " Attempt finished by reason: cant't collect minimum number of validator's signs",
                                             a_session->chain->net_name, a_session->chain->name,
                                                 a_session->cur_round.id, a_session->cur_round.attempt_num);
             s_session_attempt_new(a_session);
@@ -720,7 +720,7 @@ static void s_session_proc_state(dap_chain_esbocs_session_t *a_session)
     case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_FINISH:
         if (l_time - a_session->ts_attempt_start >= PVT(a_session->esbocs)->round_attempt_timeout) {
             debug_if(l_cs_debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
-                                        " Attempt finisedh by reason: cant't collect minimum number of validator's precommits with same final hash",
+                                        " Attempt finished by reason: cant't collect minimum number of validator's precommits with same final hash",
                                             a_session->chain->net_name, a_session->chain->name,
                                                 a_session->cur_round.id, a_session->cur_round.attempt_num);
             s_session_attempt_new(a_session);

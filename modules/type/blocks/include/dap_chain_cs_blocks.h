@@ -26,6 +26,11 @@
 #include "dap_chain_block.h"
 #include "dap_chain_block_cache.h"
 
+#ifdef DAP_TPS_TEST
+#define DAP_CHAIN_CS_BLOCKS_MAX_BLOCK_SIZE (100 * 1024 * 1024)
+#else
+#define DAP_CHAIN_CS_BLOCKS_MAX_BLOCK_SIZE (1 * 1024 * 1024)    // 1 Mb
+#endif
 
 typedef struct dap_chain_cs_blocks dap_chain_cs_blocks_t;
 
