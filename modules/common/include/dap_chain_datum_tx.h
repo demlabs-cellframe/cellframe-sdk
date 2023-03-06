@@ -27,7 +27,7 @@
 #include "dap_enc_key.h"
 #include "dap_chain_common.h"
 #include "dap_time.h"
-#include <json.h>
+#include <json-c/json.h>
 
 typedef enum dap_chain_tx_cond_type {
     COND_SERVICE_PROVIDE = 0x20, //
