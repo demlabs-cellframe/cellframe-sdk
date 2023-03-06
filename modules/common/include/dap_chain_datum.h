@@ -67,6 +67,8 @@
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION       0xf100
 #define DAP_CHAIN_DATUM_TOKEN_DISMISSAL      0xf200
 
+#define DAP_CHAIN_DATUM_ANCHOR               0x0a00
+
 #define DAP_CHAIN_DATUM_CUSTOM               0xffff
 
 #define DAP_DATUM_TYPE_STR(t, s)            \
@@ -95,6 +97,8 @@
             s = "DATUM_TOKEN_EMISSION"; break;\
         case DAP_CHAIN_DATUM_DECREE:\
             s = "DATUM_DECREE"; break;\
+        case DAP_CHAIN_DATUM_ANCHOR:\
+            s = "DATUM_ANCHOR"; break;\
         default:                            \
             s = "DATUM_UNKNOWN"; break;     \
 }
