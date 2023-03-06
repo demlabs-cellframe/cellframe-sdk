@@ -330,7 +330,7 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_enc_key_t *a_key_from,const dap_c
     }
 
     //add 'out' items
-    if (dap_chain_datum_tx_add_out_item(&l_tx, &a_addr_to, l_value_out) != 1) {
+    if (dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to, l_value_out) != 1) {
         dap_chain_datum_tx_delete(l_tx);
         return NULL;
     }

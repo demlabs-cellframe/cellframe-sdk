@@ -190,7 +190,7 @@ dap_list_t * dap_chain_block_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledg
     uint256_t l_value_transfer = {};
     uint32_t l_out_idx_tmp = 0;
     HASH_ITER(hh, a_block_cache->tx_index, l_tx_cur, l_tmp) {
-        if (NULL == (l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_cur->tx, TX_ITEM_TYPE_OUT_COND,
+        if (NULL == (l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_cur->tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE,
                                                                      &l_out_idx_tmp)))
         {
             dap_list_free_full(l_list_used_out, NULL);
