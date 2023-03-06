@@ -39,7 +39,7 @@
 #include "dap_chain_datum_tx_out_cond.h"
 #include "dap_chain_datum_tx_sig.h"
 #include "dap_chain_datum_tx_pkey.h"
-#include "dap_chain_datum_tx_token.h"
+#include "dap_chain_datum_tx_in_ems.h"
 #include "dap_chain_datum_tx_receipt.h"
 #include "dap_chain_datum_tx_tsd.h"
 
@@ -70,8 +70,8 @@ DAP_STATIC_INLINE const char * dap_chain_datum_tx_item_type_to_str(dap_chain_tx_
         case TX_ITEM_TYPE_OUT_EXT: return "TX_ITEM_TYPE_OUT_EXT"; // 256
         case TX_ITEM_TYPE_PKEY: return "TX_ITEM_TYPE_PKEY";
         case TX_ITEM_TYPE_SIG: return "TX_ITEM_TYPE_SIG";
-        case TX_ITEM_TYPE_TOKEN: return "TX_ITEM_TYPE_TOKEN";
-        case TX_ITEM_TYPE_TOKEN_EXT: return "TX_ITEM_TYPE_TOKEN_EXT";
+        case TX_ITEM_TYPE_IN_EMS: return "TX_ITEM_TYPE_IN_EMS";
+        case TX_ITEM_TYPE_IN_EMS_EXT: return "TX_ITEM_TYPE_IN_EMS_EXT";
         case TX_ITEM_TYPE_IN_COND: return "TX_ITEM_TYPE_IN_COND";
         case TX_ITEM_TYPE_OUT_COND: return "TX_ITEM_TYPE_OUT_COND"; // 256
         case TX_ITEM_TYPE_RECEIPT: return "TX_ITEM_TYPE_RECEIPT";
@@ -104,13 +104,13 @@ dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str(const cha
 size_t dap_chain_datum_item_tx_get_size(const void *a_item);
 
 /**
- * Create item dap_chain_tx_token_t
+ * Create item dap_chain_tx_in_ems_t
  *
  * return item, NULL Error
  */
-dap_chain_tx_token_t *dap_chain_datum_tx_item_token_create(dap_chain_id_t a_id, dap_chain_hash_fast_t *a_datum_token_hash, const char *a_ticker);
+dap_chain_tx_in_ems_t *dap_chain_datum_tx_item_token_create(dap_chain_id_t a_id, dap_chain_hash_fast_t *a_datum_token_hash, const char *a_ticker);
 
-json_object *dap_chain_datum_tx_item_token_to_json(const dap_chain_tx_token_t *a_token);
+json_object *dap_chain_datum_tx_item_in_ems_to_json(const dap_chain_tx_in_ems_t *a_in_ems);
 
 /**
  * Create item dap_chain_tx_out_old_t
@@ -199,6 +199,14 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
                                                                                dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr);
 
 json_object *dap_chain_datum_tx_item_out_cond_srv_stake_to_json(dap_chain_tx_out_cond_t* a_srv_stake);
+
+// Create cond out
+dap_chain_tx_out_cond_t	*dap_chain_net_srv_stake_lock_create_cond_out(dap_pkey_t *a_key, dap_chain_net_srv_uid_t a_srv_uid,
+                                                                      uint256_t a_value, uint64_t a_time_staking,
+                                                                      uint256_t a_reinvest_percent, bool create_base_tx);
+
+json_object *dap_chain_net_srv_stake_lock_cond_out_to_json(dap_chain_tx_out_cond_t *a_stake_lock);
+
 
 /**
  * Create item dap_chain_tx_sig_t

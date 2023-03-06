@@ -32,6 +32,7 @@
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_datum_tx.h"
+#include "dap_cert.h"
 
 
 typedef struct dap_chain dap_chain_t;
@@ -45,15 +46,14 @@ typedef const void * dap_chain_atom_ptr_t;
 
 // Atomic element iterator
 typedef struct dap_chain_atom_iter{
-    dap_chain_t * chain;
+    dap_chain_t *chain;
     dap_chain_atom_ptr_t cur;
     dap_chain_hash_fast_t *cur_hash;
     dap_chain_cell_id_t cell_id;
     bool with_treshold;
     bool found_in_treshold;
     size_t cur_size;
-    void * cur_item;
-    void * _inheritor;
+    void *cur_item;
 } dap_chain_atom_iter_t;
 
 
@@ -89,12 +89,13 @@ typedef dap_chain_atom_ptr_t * (*dap_chain_callback_atom_iter_get_atoms_t)(dap_c
 typedef size_t (*dap_chain_callback_add_datums_t)(dap_chain_t * , dap_chain_datum_t **, size_t );
 
 typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_iter_get_next_t)(dap_chain_atom_iter_t *  ,size_t*);
-typedef void (*dap_chain_callback_atom_iter_delete_t)(dap_chain_atom_iter_t *  );
+typedef void (*dap_chain_callback_atom_iter_delete_t)(dap_chain_atom_iter_t *);
 
 typedef void (*dap_chain_callback_notify_t)(void * a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, void* a_atom, size_t a_atom_size); //change in chain happened
 
 typedef size_t(*dap_chain_callback_get_count)(dap_chain_t *a_chain);
 typedef dap_list_t *(*dap_chain_callback_get_list)(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
+typedef dap_list_t *(*dap_chain_callback_get_poa_certs)(dap_chain_t *a_chain, size_t *a_auth_certs_count, uint16_t *count_verify);
 
 typedef enum dap_chain_type
 {
@@ -104,7 +105,9 @@ typedef enum dap_chain_type
     CHAIN_TYPE_TX,
     CHAIN_TYPE_CA,
     CHAIN_TYPE_SIGNER,
-    CHAIN_TYPE_LAST
+    CHAIN_TYPE_LAST,
+    CHAIN_TYPE_DECREE,
+    CHAIN_TYPE_ANCHOR
 } dap_chain_type_t;
 
 typedef struct dap_chain {
@@ -168,6 +171,8 @@ typedef struct dap_chain {
     dap_chain_callback_get_list callback_get_txs;
     dap_chain_callback_get_count callback_count_atom;
     dap_chain_callback_get_list callback_get_atoms;
+
+    dap_chain_callback_get_poa_certs callback_get_poa_certs;
 
     dap_list_t * atom_notifiers;
 //    dap_chain_callback_notify_t callback_notify;

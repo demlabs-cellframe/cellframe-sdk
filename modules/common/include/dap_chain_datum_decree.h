@@ -1,6 +1,6 @@
 /*
  * Authors:
- * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
+ * Frolov Daniil <daniil.frolov@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
  * Copyright  (c) 2020, All rights reserved.
 
@@ -25,31 +25,95 @@
 #include "dap_common.h"
 #include "dap_math_ops.h"
 #include "dap_time.h"
+#include "dap_list.h"
+#include "dap_tsd.h"
 #include <stdint.h>
+
+#define DAP_CHAIN_DATUM_DECREE_VERSION  0
 
 // Governance decree
 typedef struct dap_chain_datum_decree {
+    uint16_t decree_version;
     struct {
         dap_time_t ts_created;
         uint16_t type;
         union {
             dap_chain_net_srv_uid_t srv_id;
-            dap_chain_net_id_t net_id;
-            dap_chain_cell_id_t cell_id;
-        };
-        uint16_t action;
+            struct {
+                dap_chain_net_id_t net_id;
+                dap_chain_id_t chain_id;
+                dap_chain_cell_id_t cell_id;
+            } DAP_ALIGN_PACKED common_decree_params;
+        } DAP_ALIGN_PACKED;
+        uint16_t sub_type;
+        uint32_t data_size;
+        uint32_t signs_size;
     } DAP_ALIGN_PACKED header;
-    byte_t tsd_sections[];
+    byte_t data_n_signs[];
 } DAP_ALIGN_PACKED dap_chain_datum_decree_t;
 
-#define DAP_CHAIN_DATUM_DECREE_TYPE_COMMON                  0x0001
-#define DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE                 0x0002
+// Decree types
+#define DAP_CHAIN_DATUM_DECREE_TYPE_COMMON                      0x0001
+#define DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE                     0x0002
 
+// Common decree subtypes
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE               0x0001
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS            0x0002
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN        0x0003
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_TON_SIGNERS_MIN   0x0004
 
-// Create from scratch, reset all previous values
-#define DAP_CHAIN_DATUM_DECREE_ACTION_CREATE                0x0001
-#define DAP_CHAIN_DATUM_DECREE_ACTION_UPDATE                0x0002
-#define DAP_CHAIN_DATUM_DECREE_ACTION_DELETE                0x0003
+// DECREE TSD types
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGN                    0x0001
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE                     0x0002
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER                   0x0003
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER               0x0004
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_TON_SIGNERS_MIN         0x0005
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE_WALLET              0x0006
+/**
+ * @brief dap_chain_datum_decree_get_signs
+ * @param decree pointer to decree
+ * @param num_of_signs pointer to num of signs buffer. Total
+ *                      number of signs will be write to this buffer
+ * @return pointer to signs
+ */
+dap_sign_t *dap_chain_datum_decree_get_signs(dap_chain_datum_decree_t *decree, size_t *size_of_signs);
 
+/**
+ * @brief dap_chain_datum_decree_get_fee gets fee value from decree
+ * @param a_decree pointer to decree
+ * @param a_fee_value pointer to fee value buffer
+ * @return result code
+ */
+int dap_chain_datum_decree_get_fee(dap_chain_datum_decree_t *a_decree, uint256_t *a_fee_value);
 
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGN                0x0001
+/**
+ * @brief dap_chain_datum_decree_get_fee gets fee wallet from decree
+ * @param a_decree pointer to decree
+ * @param a_fee_value pointer to fee wallet addr buffer
+ * @return result code
+ */
+int dap_chain_datum_decree_get_fee_addr(dap_chain_datum_decree_t *a_decree, dap_chain_addr_t *a_fee_wallet);
+
+/**
+ * @brief dap_chain_datum_decree_get_owners get list of owners certificates
+ * @param a_decree pointer to decree
+ * @param a_owners_num pointer to total number of owners buffer
+ * @return dap_list_t with owners keys in dap_pkey_t format
+ */
+dap_list_t *dap_chain_datum_decree_get_owners(dap_chain_datum_decree_t *a_decree, uint256_t *a_owners_num);
+
+/**
+ * @brief dap_chain_datum_decree_get_min_owners get minimum number of owners
+ * @param a_decree pointer to decree
+ * @param a_owners_num pointer to minimum number of owners buffer
+ * @return result code. 0 - success
+ */
+int dap_chain_datum_decree_get_min_owners(dap_chain_datum_decree_t *a_decree, uint256_t *a_min_owners_num);
+
+/**
+ * @brief dap_chain_datum_decree_certs_dump compose decree signatures output string
+ * @param a_str_out pointer to output text buffer
+ * @param a_data_n_tsd pointer to signs decree section
+ * @param a_certs_size size of decree signatures
+ */
+void dap_chain_datum_decree_certs_dump(dap_string_t * a_str_out, byte_t * a_signs, size_t a_certs_size, const char *a_hash_out_type);

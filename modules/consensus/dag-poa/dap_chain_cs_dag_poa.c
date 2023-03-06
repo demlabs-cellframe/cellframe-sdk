@@ -249,7 +249,7 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
                                                     l_event_hash_hex_str, &l_round_item_size, NULL, NULL );
             if ( l_round_item == NULL ) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "Can't find event in round.new - only place where could be signed the new event\n",
+                                                  "Can't find event %s in round.new - only place where could be signed the new event\n",
                                                   l_event_hash_str);
                 ret = -30;
             }else {
@@ -298,7 +298,7 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
                     DAP_DELETE(l_event_new_hash_base58_str);
                 } else {
                     dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "Can't sign event in round.new\n",
+                                                  "Can't sign event %s in round.new\n",
                                                   l_event_hash_str);
                     ret=-1;
                 }
@@ -336,6 +336,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_dag->callback_delete = s_callback_delete;
     l_dag->callback_cs_verify = s_callback_event_verify;
     l_dag->callback_cs_event_create = s_callback_event_create;
+    l_dag->chain->callback_get_poa_certs = dap_chain_cs_dag_poa_get_auth_certs;
     l_poa->_pvt = DAP_NEW_Z ( dap_chain_cs_dag_poa_pvt_t );
     dap_chain_cs_dag_poa_pvt_t *l_poa_pvt = PVT(l_poa);
     pthread_rwlock_init(&l_poa_pvt->rounds_rwlock, NULL);
@@ -368,7 +369,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_dag->chain->callback_created = s_callback_created;
 
     if (!l_dag->is_add_directly && l_poa_pvt->auto_round_complete) {
-        dap_chain_net_t *l_net = dap_chain_net_by_id(l_dag->chain->net_id);
+        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
         dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
         if (l_role.enums == NODE_ROLE_ROOT_MASTER || l_role.enums == NODE_ROLE_ROOT) {
             if (!s_poa_round_timer) {
@@ -864,13 +865,26 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
     }
 }
 
-dap_cert_t **dap_chain_cs_dag_poa_get_auth_certs(dap_chain_t *a_chain, size_t *a_auth_certs_count)
+dap_list_t *dap_chain_cs_dag_poa_get_auth_certs(dap_chain_t *a_chain, size_t *a_auth_certs_count, uint16_t *a_count_verify)
 {
     dap_chain_pvt_t *l_chain_pvt = DAP_CHAIN_PVT(a_chain);
     if (strcmp(l_chain_pvt->cs_name, "dag_poa"))
         return NULL;
+
     dap_chain_cs_dag_poa_pvt_t *l_poa_pvt = PVT(DAP_CHAIN_CS_DAG_POA(DAP_CHAIN_CS_DAG(a_chain)));
     if (a_auth_certs_count)
         *a_auth_certs_count = l_poa_pvt->auth_certs_count;
-    return l_poa_pvt->auth_certs;
+
+    if (a_count_verify)
+        *a_count_verify = l_poa_pvt->auth_certs_count_verify;
+
+
+    dap_list_t *l_keys_list = NULL;
+    for(size_t i = 0; i < l_poa_pvt->auth_certs_count; i++)
+    {
+        dap_pkey_t *l_pkey = dap_cert_to_pkey(l_poa_pvt->auth_certs[i]);
+        l_keys_list = dap_list_append(l_keys_list, l_pkey);
+    }
+
+    return l_keys_list;
 }

@@ -38,6 +38,9 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_node.h"
 #include "dap_chain.h"
 #include "dap_chain_ledger.h"
+#include "dap_chain_net_decree.h"
+#include "dap_chain_datum_decree.h"
+#include "dap_chain_datum_anchor.h"
 #include "dap_chain_datum_tx.h"
 #include "uthash.h"
 
@@ -83,6 +86,7 @@ typedef struct dap_chain_net{
         dap_chain_t * chains; // double-linked list of chains
         const char *native_ticker;
         dap_ledger_t  *ledger;
+        dap_chain_net_decree_t *decree;
     } pub;
     uint8_t pvt[];
 } dap_chain_net_t;
@@ -170,7 +174,7 @@ DAP_STATIC_INLINE char *dap_chain_net_get_gdb_group_from_chain_new(dap_chain_t *
 {
     dap_chain_net_t *l_net = a_chain ? dap_chain_net_by_id(a_chain->net_id) : NULL;
     if ( l_net )
-        return dap_strdup_printf("chain-gdb.%s.chain-%016llX",l_net->pub.name, a_chain->id.uint64);
+        return dap_strdup_printf("chain-gdb.%s.chain-%016"DAP_UINT64_FORMAT_X,l_net->pub.name, a_chain->id.uint64);
     return NULL;
 }
 
@@ -196,3 +200,5 @@ void dap_chain_net_sync_gdb_broadcast(dap_global_db_context_t *a_context, dap_st
 dap_list_t *dap_chain_datum_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_chain_datum_filter_func_t *a_filter_func, void *a_filter_func_param);
 
 int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_tx_hash);
+
+bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net);

@@ -32,22 +32,22 @@
   * @struct dap_chain_tx_token
   * @brief Token item
   */
-typedef struct dap_chain_tx_token{
+typedef struct dap_chain_tx_in_ems {
     struct {
         dap_chain_tx_item_type_t type;
         char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
         uint8_t padding; // Padding
         dap_chain_id_t token_emission_chain_id;
-        dap_chain_hash_fast_t token_emission_hash;
+        dap_hash_fast_t token_emission_hash;
     } header; /// Only header's hash is used for verification
-} DAP_ALIGN_PACKED dap_chain_tx_token_t;
+} DAP_ALIGN_PACKED dap_chain_tx_in_ems_t;
 
 
 /**
   * @struct dap_chain_tx_token_ext
   * @brief External token swap
   */
-typedef struct dap_chain_tx_token_ext{
+typedef struct dap_chain_tx_in_ems_ext{
     struct {
         dap_chain_tx_item_type_t type;
         uint8_t version;
@@ -59,4 +59,4 @@ typedef struct dap_chain_tx_token_ext{
         uint16_t padding2;
         uint16_t ext_tx_out_idx; // Output index
     } header; /// Only header's hash is used for verification
-} DAP_ALIGN_PACKED dap_chain_tx_token_ext_t;
+} DAP_ALIGN_PACKED dap_chain_tx_in_ems_ext_t;

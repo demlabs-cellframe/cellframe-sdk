@@ -9,7 +9,7 @@
 static char* get_value_text(uintmax_t a_value)
 {
     if(a_value < 2048)
-        return dap_strdup_printf("%d bytes", a_value);
+        return dap_strdup_printf("%d bytes", (int)a_value);
     else if(a_value < 2048 * 1024)
         return dap_strdup_printf("%.2lf Kb", (double) a_value / 1024);
     else if(a_value < 2048ll * 1024 * 1024)
@@ -33,9 +33,6 @@ static void add_value_text(dap_string_t *l_str, char *l_addstr, uintmax_t a_valu
  */
 int com_vpn_statistics(int a_argc, char ** a_argv, char **a_str_reply)
 {
-    dap_stream_ch_t* a_ch;
-    dap_stream_t * stream;
-    dap_stream_session_t * session;
     // get statistics for all actual sessions
     dap_list_t *l_list = dap_stream_session_get_list_sessions();
     dap_string_t *l_str = dap_string_new(NULL);
@@ -83,7 +80,7 @@ int com_vpn_statistics(int a_argc, char ** a_argv, char **a_str_reply)
     // unlock sessions list
     dap_stream_session_get_list_sessions_unlock();
     if(l_conn>0)
-        dap_cli_server_cmd_set_reply_text(a_str_reply, l_str->str);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str->str);
     else
         dap_cli_server_cmd_set_reply_text(a_str_reply, "No VPN connections");
     // free tmp memory
@@ -149,7 +146,7 @@ int com_vpn_client(int a_argc, char ** a_argv, char **a_str_reply)
     {
     case CMD_CHECK_RESULT: {
         char *l_str = dap_chain_net_vpn_client_check_result(l_net, l_hash_out_type);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, l_str);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str);
         DAP_DELETE(l_str);
     }
     break;
@@ -179,7 +176,7 @@ int com_vpn_client(int a_argc, char ** a_argv, char **a_str_reply)
             l_data_size_to_send = 0;// no send data, only recv
             size_t l_data_size_to_recv = 10240;
             int l_timeout_test_ms = -1;// default timeout
-            int l_res = dap_chain_net_vpn_client_check(l_net, l_str_addr, NULL, l_srv_port, l_data_size_to_send, l_data_size_to_recv, l_timeout_test_ms);
+            l_res = dap_chain_net_vpn_client_check(l_net, l_str_addr, NULL, l_srv_port, l_data_size_to_send, l_data_size_to_recv, l_timeout_test_ms);
         }
         switch (l_res) {
         case 0:
@@ -219,14 +216,12 @@ int com_vpn_client(int a_argc, char ** a_argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Value of datoshi not defined, use -value <value of datoshi> parameter");
                 break;
             }
-            uint64_t l_a_value_datoshi = strtoull(l_str_value_datoshi, NULL, 10);
-            if(!l_a_value_datoshi)
-                l_a_value_datoshi = strtoull(l_str_value_datoshi, NULL, 16);
-            if(!l_a_value_datoshi) {
+            uint256_t l_a_value_datoshi = dap_chain_balance_scan(l_str_value_datoshi);
+            if(IS_ZERO_256(l_a_value_datoshi)) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Value of datoshi have to be more then 0");
                 break;
             }
-            int l_res = dap_chain_net_vpn_client_update(l_net, l_str_wallet, l_str_token, l_a_value_datoshi);
+            int l_res = 0;//dap_chain_net_vpn_client_update(l_net, l_str_wallet, l_str_token, l_a_value_datoshi);
             if(!l_res)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "VPN client init successfully");
             else{
@@ -285,8 +280,8 @@ int com_vpn_client(int a_argc, char ** a_argv, char **a_str_reply)
     case CMD_STATUS:
         {
         char *l_wallet_name = NULL, *l_str_token = NULL;
-        uint64_t l_value_datoshi = 0;
-        dap_chain_net_vpn_client_get_wallet_info(l_net, &l_wallet_name, &l_str_token, &l_value_datoshi);
+        uint256_t l_value_datoshi = uint256_0;
+        //dap_chain_net_vpn_client_get_wallet_info(l_net, &l_wallet_name, &l_str_token, &l_value_datoshi);
 
         const char *l_status_txt = "";
         switch (dap_chain_net_vpn_client_status()) {
@@ -306,8 +301,10 @@ int com_vpn_client(int a_argc, char ** a_argv, char **a_str_reply)
             l_status_txt = "VPN client status unknown";
             break;
         }
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nused:\nwallet:%s\nreceipt:%u*1e-9 %s", l_status_txt,
-                l_wallet_name, l_value_datoshi, l_str_token);
+        char *l_value_str = dap_chain_balance_to_coins(l_value_datoshi);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nused:\nwallet:%s\nreceipt:%s %s", l_status_txt,
+                l_wallet_name, l_value_str, l_str_token);
+        DAP_DELETE(l_value_str);
         break;
     }
     }

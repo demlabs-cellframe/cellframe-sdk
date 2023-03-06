@@ -54,5 +54,5 @@ typedef struct dap_stream_ch_chain_net_pkt{
 } DAP_ALIGN_PACKED dap_stream_ch_chain_net_pkt_t;
 
 size_t dap_stream_ch_chain_net_pkt_write(dap_stream_ch_t *a_ch, uint8_t a_type, dap_chain_net_id_t a_net_id, const void * a_data, size_t a_data_size);
-size_t dap_stream_ch_chain_net_pkt_write_f(dap_stream_ch_t *a_ch, uint8_t a_type, dap_chain_net_id_t a_net_id, const char *a_str, ...);
+DAP_PRINTF_ATTR(4, 5) size_t dap_stream_ch_chain_net_pkt_write_f(dap_stream_ch_t *a_ch, uint8_t a_type, dap_chain_net_id_t a_net_id, const char *a_str, ...);
 

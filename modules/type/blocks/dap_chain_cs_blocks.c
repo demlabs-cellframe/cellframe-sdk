@@ -78,15 +78,7 @@ typedef struct dap_chain_cs_blocks_pvt
 
 } dap_chain_cs_blocks_pvt_t;
 
-typedef struct dap_chain_cs_blocks_iter
-{
-    dap_chain_cs_blocks_t * blocks;
-    dap_chain_block_cache_t * cache;
-} dap_chain_cs_blocks_iter_t;
-
 #define PVT(a) ((dap_chain_cs_blocks_pvt_t *)(a)->_pvt )
-
-#define ITER_PVT(a) ((dap_chain_cs_blocks_iter_t *) a->_inheritor )
 
 static int s_cli_parse_cmd_hash(char ** a_argv, int a_arg_index, int a_argc, char **a_str_reply,const char * a_param, dap_chain_hash_fast_t * a_datum_hash);
 static void s_cli_meta_hash_print(  dap_string_t * a_str_tmp, const char * a_meta_title, dap_chain_block_meta_t * a_meta);
@@ -166,7 +158,7 @@ int dap_chain_cs_blocks_init()
                 "\t\tList block sections and show their datums hashes\n\n"
 
             "block -net <net_name> -chain <chain_name> new_datum\n\n"
-                "\t\tComplete the current new round, verify it and if everything is ok - publish new events in chain\n\n"
+                "\t\tComplete the current new round, verify it and if everything is ok - publish new blocks in chain\n\n"
 
         "Blockchain explorer:"
             "block -net <net_name> -chain <chain_name> dump <block_hash>\n"
@@ -307,7 +299,7 @@ static void s_cli_meta_hash_print(  dap_string_t * a_str_tmp, const char * a_met
 {
     if(a_meta->hdr.data_size == sizeof (dap_chain_hash_fast_t) ){
         char * l_hash_str = dap_chain_hash_fast_to_str_new( (dap_chain_hash_fast_t *) a_meta->data);
-        dap_string_append_printf(a_str_tmp,"\t\tPREV: \"%s\": 0x%s\n", a_meta_title,l_hash_str);
+        dap_string_append_printf(a_str_tmp,"\t\tPREV: \"%s\": %s\n", a_meta_title,l_hash_str);
         DAP_DELETE(l_hash_str);
     }else{
         char * l_data_hex = DAP_NEW_Z_SIZE(char,a_meta->hdr.data_size*2+3);
@@ -561,8 +553,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
 																		l_sign_size, l_pkey_hash_str, l_addr_str );
 								DAP_DELETE( l_pkey_hash_str );
 							}
-							dap_cli_server_cmd_set_reply_text(a_str_reply, l_str_tmp->str);
-							dap_string_free(l_str_tmp,false);
+                            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
+                            dap_string_free(l_str_tmp, true);
 							ret=0;
 						}
 					}else {
@@ -577,13 +569,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
             }
         }break;
         case SUBCMD_LIST:{
-
                 pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
                 dap_string_t * l_str_tmp = dap_string_new(NULL);
-                dap_string_append_printf(l_str_tmp,"%s.%s: Have %"DAP_UINT64_FORMAT_U" blocks :\n",
-                                         l_net->pub.name,l_chain->name,PVT(l_blocks)->blocks_count);
                 dap_chain_block_cache_t * l_block_cache = NULL,*l_block_cache_tmp = NULL;
-
                 HASH_ITER(hh,PVT(l_blocks)->block_cache_first,l_block_cache, l_block_cache_tmp ) {
                     char l_buf[50];
                     time_t l_ts = l_block_cache->block->hdr.ts_created;
@@ -591,10 +579,11 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                     dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s",
                                              l_block_cache->block_hash_str, l_buf);
                 }
+                dap_string_append_printf(l_str_tmp,"%s.%s: Have %"DAP_UINT64_FORMAT_U" blocks :\n",
+                                         l_net->pub.name,l_chain->name,PVT(l_blocks)->blocks_count);
                 pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
-
-                dap_cli_server_cmd_set_reply_text(a_str_reply, l_str_tmp->str);
-                dap_string_free(l_str_tmp,false);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
+                dap_string_free(l_str_tmp, true);
 
         }break;
 
@@ -825,20 +814,21 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
 
     // verify hashes and consensus
     dap_chain_atom_verify_res_t ret = s_callback_atom_verify (a_chain, a_atom, a_atom_size);
-    debug_if(s_debug_more, L_DEBUG, "Verified atom %p: %s", a_atom, ret == ATOM_ACCEPT ? "accepted" :
-                                                   (ret == ATOM_REJECT ? "rejected" : "thresholded"));
+
+    if (ret == ATOM_MOVE_TO_THRESHOLD)
+        ret = ATOM_REJECT; // TODO remove it when threshold will work
 
     if( ret == ATOM_ACCEPT){
         int l_consensus_check = s_add_atom_to_blocks(l_blocks, a_chain->ledger, l_block_cache);
         if(l_consensus_check == 1){
-             log_it(L_DEBUG, "... added");
+             debug_if(s_debug_more, L_DEBUG, "... added");
         }else if (l_consensus_check == DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS){
             pthread_rwlock_wrlock( &PVT(l_blocks)->rwlock );
             HASH_ADD(hh, PVT(l_blocks)->blocks_tx_treshold, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
             pthread_rwlock_unlock( &PVT(l_blocks)->rwlock );
-            log_it(L_DEBUG, "... tresholded for tx ledger");
+            debug_if(s_debug_more, L_DEBUG, "... tresholded for tx ledger");
         }else{
-             log_it(L_DEBUG, "... error adding (code %d)", l_consensus_check);
+             debug_if(s_debug_more, L_WARNING, "... error adding (code %d)", l_consensus_check);
              ret = ATOM_REJECT;
         }
          // !TODO make chunks add to blocks
@@ -853,7 +843,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
     }else if (ret == ATOM_REJECT ){
         dap_chain_block_cache_delete(l_block_cache);
     }
-
+    debug_if(s_debug_more, L_DEBUG, "Verified atom %p: %s", a_atom, ret == ATOM_ACCEPT ? "accepted" :
+                                                   (ret == ATOM_REJECT ? "rejected" : "thresholded"));
     //s_bft_consensus_setup(l_blocks);
     return ret;
 }
@@ -894,6 +885,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
                                         &l_is_genesis,
                                         &l_nonce,
                                         &l_nonce2 ) ;
+    DAP_DELETE(l_meta);
 
     // 2nd level consensus
     if(l_blocks->callback_block_verify)
@@ -937,9 +929,6 @@ static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, 
     l_atom_iter->chain = a_chain;
     l_atom_iter->cell_id = a_cell_id;
     l_atom_iter->with_treshold = a_with_treshold;
-    l_atom_iter->_inheritor = DAP_NEW_Z(dap_chain_cs_blocks_iter_t);
-    ITER_PVT(l_atom_iter)->blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-
     return l_atom_iter;
 }
 
@@ -958,7 +947,7 @@ static dap_chain_atom_iter_t* s_callback_atom_iter_create_from(dap_chain_t * a_c
         dap_chain_atom_iter_t * l_atom_iter = s_callback_atom_iter_create(a_chain, a_chain->cells->id, 0);
         if (l_atom_iter){
             dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-            l_atom_iter->cur_item = ITER_PVT(l_atom_iter)->cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_atom_hash);
+            l_atom_iter->cur_item = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_atom_hash);
             l_atom_iter->cur = a_atom;
             l_atom_iter->cur_size = a_atom_size;
             return l_atom_iter;
@@ -979,17 +968,22 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_ite
                                                               size_t * a_atom_size)
 {
     assert(a_atom_iter);
-    dap_chain_atom_ptr_t l_ret = NULL;
-    pthread_rwlock_rdlock(& PVT(ITER_PVT(a_atom_iter)->blocks)->rwlock );
+    dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(DAP_CHAIN_CS_BLOCKS(a_atom_iter->chain));
+    pthread_rwlock_rdlock(&l_blocks_pvt->rwlock);
     dap_chain_block_cache_t * l_block_cache = NULL;
-    HASH_FIND(hh, PVT(ITER_PVT(a_atom_iter)->blocks)->blocks, a_atom_hash,sizeof (*a_atom_hash), l_block_cache);
+    HASH_FIND(hh, l_blocks_pvt->blocks, a_atom_hash, sizeof(*a_atom_hash), l_block_cache);
+    pthread_rwlock_unlock(&l_blocks_pvt->rwlock);
     a_atom_iter->cur_item = l_block_cache;
-    if (l_block_cache){
-        l_ret = a_atom_iter->cur = l_block_cache->block;
-        *a_atom_size = a_atom_iter->cur_size = l_block_cache->block_size;
+    if (l_block_cache) {
+        a_atom_iter->cur = l_block_cache->block;
+        a_atom_iter->cur_size = l_block_cache->block_size;
+    } else {
+        a_atom_iter->cur = NULL;
+        a_atom_iter->cur_size = 0;
     }
-    pthread_rwlock_unlock(& PVT(ITER_PVT(a_atom_iter)->blocks)->rwlock );
-    return l_ret;
+    if (a_atom_size)
+        *a_atom_size = a_atom_iter->cur_size;
+    return a_atom_iter->cur;
 }
 
 /**
@@ -1041,19 +1035,11 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get_first( dap_chain_atom_iter_
     dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS(a_atom_iter->chain);
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = l_blocks ? PVT(l_blocks) : NULL;
     assert(l_blocks_pvt);
-    // a_atom_iter->cur_item = l_blocks_pvt->block_cache_last ;
-    // a_atom_iter->cur = l_blocks_pvt->block_cache_last ?  l_blocks_pvt->block_cache_last->block : NULL  ;
-    // a_atom_iter->cur_size = l_blocks_pvt->block_cache_last ? l_blocks_pvt->block_cache_last->block_size : 0;
-    // a_atom_iter->cur_hash = l_blocks_pvt->block_cache_last ? &l_blocks_pvt->block_cache_last->block_hash : NULL;
-
     a_atom_iter->cur_item = l_blocks_pvt->block_cache_first;
     a_atom_iter->cur = l_blocks_pvt->block_cache_first ?  l_blocks_pvt->block_cache_first->block : NULL;
     a_atom_iter->cur_size = l_blocks_pvt->block_cache_first ? l_blocks_pvt->block_cache_first->block_size : 0;
     a_atom_iter->cur_hash = l_blocks_pvt->block_cache_first ? &l_blocks_pvt->block_cache_first->block_hash : NULL;
 
-//    a_atom_iter->cur =  a_atom_iter->cur ?
-//                (dap_chain_cs_dag_event_t*) PVT (DAP_CHAIN_CS_DAG( a_atom_iter->chain) )->events->event : NULL;
-//    a_atom_iter->cur_item = PVT (DAP_CHAIN_CS_DAG( a_atom_iter->chain) )->events;
     if (a_atom_size)
         *a_atom_size = a_atom_iter->cur_size;
     return a_atom_iter->cur;
@@ -1068,8 +1054,8 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_get_first( dap_chain_atom_iter_
 static dap_chain_atom_ptr_t s_callback_atom_iter_get_next( dap_chain_atom_iter_t * a_atom_iter,size_t *a_atom_size )
 {
     assert(a_atom_iter);
-    // assert(a_atom_size);
     assert(a_atom_iter->cur_item);
+
     dap_chain_block_cache_t * l_cur_cache =(dap_chain_block_cache_t *) a_atom_iter->cur_item;
     a_atom_iter->cur_item = l_cur_cache = l_cur_cache->next;
     if (l_cur_cache){
@@ -1127,23 +1113,33 @@ static dap_chain_atom_ptr_t *s_callback_atom_iter_get_links( dap_chain_atom_iter
  * @param a_lasts_size_ptr
  * @return
  */
-static dap_chain_atom_ptr_t *s_callback_atom_iter_get_lasts( dap_chain_atom_iter_t * a_atom_iter ,size_t *a_links_size, size_t ** a_lasts_size_ptr )
+static dap_chain_atom_ptr_t *s_callback_atom_iter_get_lasts( dap_chain_atom_iter_t *a_atom_iter, size_t *a_links_size, size_t **a_lasts_size_ptr)
 {
     assert(a_atom_iter);
-    assert(a_links_size);
-    assert(a_links_size);
 
-    dap_chain_block_cache_t * l_block_cache_last = PVT(ITER_PVT(a_atom_iter)->blocks)->block_cache_last;
-    if ( l_block_cache_last  ){
-        *a_links_size = 1;
-        *a_lasts_size_ptr = DAP_NEW_Z_SIZE(size_t,sizeof (size_t)*1  );
-        dap_chain_atom_ptr_t * l_ret = DAP_NEW_Z_SIZE(dap_chain_atom_ptr_t, sizeof (dap_chain_atom_ptr_t)*1);
-        (*a_lasts_size_ptr)[0] = l_block_cache_last->block_size;
+    dap_chain_block_cache_t *l_block_cache_last = PVT(DAP_CHAIN_CS_BLOCKS(a_atom_iter->chain))->block_cache_last;
+    if (l_block_cache_last) {
+        a_atom_iter->cur = l_block_cache_last->block;
+        a_atom_iter->cur_size = l_block_cache_last->block_size;
+        a_atom_iter->cur_hash = &l_block_cache_last->block_hash;
+        if (a_links_size)
+            *a_links_size = 1;
+        if (a_lasts_size_ptr) {
+            *a_lasts_size_ptr = DAP_NEW_Z(size_t);
+            (*a_lasts_size_ptr)[0] = l_block_cache_last->block_size;
+        }
+        dap_chain_atom_ptr_t *l_ret = DAP_NEW_Z(dap_chain_atom_ptr_t);
         l_ret[0] = l_block_cache_last->block;
         return l_ret;
-    }else{
-        return NULL;
     }
+    a_atom_iter->cur = NULL;
+    a_atom_iter->cur_size = 0;
+    a_atom_iter->cur_hash = NULL;
+    if (a_links_size)
+        *a_links_size = 0;
+    if (a_lasts_size_ptr)
+        *a_lasts_size_ptr = NULL;
+    return NULL;
 }
 
 /**
@@ -1152,7 +1148,6 @@ static dap_chain_atom_ptr_t *s_callback_atom_iter_get_lasts( dap_chain_atom_iter
  */
 static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter )
 {
-    DAP_DELETE( ITER_PVT(a_atom_iter));
     DAP_DELETE(a_atom_iter);
 }
 

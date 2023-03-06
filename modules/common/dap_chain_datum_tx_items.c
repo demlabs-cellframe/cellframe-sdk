@@ -92,10 +92,10 @@ static size_t dap_chain_tx_sig_get_size(const dap_chain_tx_sig_t *a_item)
     return size;
 }
 
-static size_t dap_chain_tx_token_get_size(const dap_chain_tx_token_t *a_item)
+static size_t dap_chain_tx_token_get_size(const dap_chain_tx_in_ems_t *a_item)
 {
     (void) a_item;
-    size_t size = sizeof(dap_chain_tx_token_t);
+    size_t size = sizeof(dap_chain_tx_in_ems_t);
     return size;
 }
 
@@ -129,7 +129,7 @@ dap_chain_tx_item_type_t dap_chain_datum_tx_item_str_to_type(const char *a_datum
     else if(!dap_strcmp(a_datum_name, "sign"))
         return TX_ITEM_TYPE_SIG;
     else if(!dap_strcmp(a_datum_name, "token"))
-        return TX_ITEM_TYPE_TOKEN;
+        return TX_ITEM_TYPE_IN_EMS;
     else if(!dap_strcmp(a_datum_name, "in_cond"))
         return TX_ITEM_TYPE_IN_COND;
     else if(!dap_strcmp(a_datum_name, "out_cond"))
@@ -213,8 +213,8 @@ size_t dap_chain_datum_item_tx_get_size(const void *a_item)
     case TX_ITEM_TYPE_SIG: // Transaction signatures
         size = dap_chain_tx_sig_get_size((const dap_chain_tx_sig_t*) a_item);
         break;
-    case TX_ITEM_TYPE_TOKEN: // token item
-        size = dap_chain_tx_token_get_size((const dap_chain_tx_token_t*) a_item);
+    case TX_ITEM_TYPE_IN_EMS: // token item
+        size = dap_chain_tx_token_get_size((const dap_chain_tx_in_ems_t*) a_item);
         break;
     case TX_ITEM_TYPE_TSD:
         size = dap_chain_tx_tsd_get_size((const dap_chain_tx_tsd_t*)a_item);
@@ -226,27 +226,28 @@ size_t dap_chain_datum_item_tx_get_size(const void *a_item)
 }
 
 /**
- * Create item dap_chain_tx_token_t
+ * Create item dap_chain_tx_in_ems_t
  *
  * return item, NULL Error
  */
-dap_chain_tx_token_t *dap_chain_datum_tx_item_token_create(dap_chain_id_t a_id, dap_chain_hash_fast_t *a_datum_token_hash, const char *a_ticker)
+dap_chain_tx_in_ems_t *dap_chain_datum_tx_item_token_create(dap_chain_id_t a_id, dap_chain_hash_fast_t *a_datum_token_hash, const char *a_ticker)
 {
     if(!a_ticker)
         return NULL;
-    dap_chain_tx_token_t *l_item = DAP_NEW_Z(dap_chain_tx_token_t);
-    l_item->header.type = TX_ITEM_TYPE_TOKEN;
+    dap_chain_tx_in_ems_t *l_item = DAP_NEW_Z(dap_chain_tx_in_ems_t);
+    l_item->header.type = TX_ITEM_TYPE_IN_EMS;
     l_item->header.token_emission_chain_id.uint64 = a_id.uint64;
     l_item->header.token_emission_hash = *a_datum_token_hash;;
     strncpy(l_item->header.ticker, a_ticker, sizeof(l_item->header.ticker) - 1);
     return l_item;
 }
 
-json_object *dap_chain_datum_tx_item_token_to_json(const dap_chain_tx_token_t *a_token){
+json_object *dap_chain_datum_tx_item_in_ems_to_json(const dap_chain_tx_in_ems_t *a_in_ems)
+{
     json_object *l_object = json_object_new_object();
-    json_object *l_obj_ticker = json_object_new_string(a_token->header.ticker);
-    json_object *l_obj_chain_id = json_object_new_uint64(a_token->header.token_emission_chain_id.uint64);
-    char *l_ehf = dap_chain_hash_fast_to_str_new(&a_token->header.token_emission_hash);
+    json_object *l_obj_ticker = json_object_new_string(a_in_ems->header.ticker);
+    json_object *l_obj_chain_id = json_object_new_uint64(a_in_ems->header.token_emission_chain_id.uint64);
+    char *l_ehf = dap_chain_hash_fast_to_str_new(&a_in_ems->header.token_emission_hash);
     json_object *l_obj_ehf = json_object_new_string(l_ehf);
     DAP_DELETE(l_ehf);
     json_object_object_add(l_object, "ticker", l_obj_ticker);
@@ -304,7 +305,7 @@ json_object* dap_chain_datum_tx_item_tsd_to_json(dap_chain_tx_tsd_t *a_tsd){
     json_object *l_object = json_object_new_object();
     json_object *l_obj_tsd_type = json_object_new_int(a_tsd->header.type);
     json_object *l_obj_tsd_size = json_object_new_uint64(a_tsd->header.size);
-    json_object *l_obj_data = json_object_new_string_len(a_tsd->tsd, a_tsd->header.size);
+    json_object *l_obj_data = json_object_new_string_len((char *)a_tsd->tsd, a_tsd->header.size);
     json_object_object_add(l_object, "type", l_obj_tsd_type);
     json_object_object_add(l_object, "size", l_obj_tsd_size);
     json_object_object_add(l_object, "data", l_obj_data);
@@ -465,7 +466,7 @@ json_object *dap_chain_datum_tx_item_out_cond_srv_pay_to_json(dap_chain_tx_out_c
         json_object_object_add(l_obj, "value", l_obj_value);
         json_object *l_obj_srv_uid = json_object_new_uint64(a_srv_pay->header.srv_uid.uint64);
         json_object_object_add(l_obj, "srvUid", l_obj_srv_uid);
-        json_object *l_obj_units_type = json_object_new_string(serv_unit_enum_to_str(&a_srv_pay->subtype.srv_pay.unit.enm));
+        json_object *l_obj_units_type = json_object_new_string(dap_chain_srv_unit_enum_to_str(a_srv_pay->subtype.srv_pay.unit.enm));
         json_object_object_add(l_obj, "srvUnit", l_obj_units_type);
         char *l_price_max_datoshi = dap_chain_balance_print(a_srv_pay->subtype.srv_pay.unit_price_max_datoshi);
         json_object *l_obj_price_max_datoshi = json_object_new_string(l_price_max_datoshi);
@@ -587,6 +588,67 @@ json_object *dap_chain_datum_tx_item_out_cond_srv_stake_to_json(dap_chain_tx_out
 }
 
 /**
+ * @brief dap_chain_net_srv_stake_lock_create_cond_out
+ * @param a_key
+ * @param a_srv_uid
+ * @param a_value
+ * @param a_time_staking
+ * @param token
+ * @return
+ */
+dap_chain_tx_out_cond_t *dap_chain_net_srv_stake_lock_create_cond_out(dap_pkey_t *a_key, dap_chain_net_srv_uid_t a_srv_uid,
+                                                                      uint256_t a_value, uint64_t a_time_staking,
+                                                                      uint256_t a_reinvest_percent, bool create_base_tx)
+{
+    if (IS_ZERO_256(a_value))
+        return NULL;
+    dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z(dap_chain_tx_out_cond_t);
+    l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
+    l_item->header.value = a_value;
+    l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK;
+    l_item->header.srv_uid = a_srv_uid;
+    l_item->subtype.srv_stake_lock.reinvest_percent = a_reinvest_percent;
+    if (a_time_staking) {
+//		l_item->header.ts_expires = dap_time_now() + a_time_staking;
+        l_item->subtype.srv_stake_lock.time_unlock = dap_time_now() + a_time_staking;
+        l_item->subtype.srv_stake_lock.flags |= DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME;
+    }
+    if (create_base_tx)
+        l_item->subtype.srv_stake_lock.flags |= DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX;
+    if (a_key)
+        dap_hash_fast(a_key->pkey, a_key->header.size, &l_item->subtype.srv_stake_lock.pkey_delegated);
+
+    return l_item;
+}
+
+json_object *dap_chain_net_srv_stake_lock_cond_out_to_json(dap_chain_tx_out_cond_t *a_stake_lock)
+{
+    if (a_stake_lock->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK) {
+        json_object *l_object = json_object_new_object();
+        char *l_value = dap_chain_balance_print(a_stake_lock->header.value);
+        json_object *l_obj_value = json_object_new_string(l_value);
+        DAP_DELETE(l_value);
+        json_object *l_obj_srv_uid = json_object_new_uint64(a_stake_lock->header.srv_uid.uint64);
+        char *l_reinvest_precent = dap_chain_balance_print(a_stake_lock->subtype.srv_stake_lock.reinvest_percent);
+        json_object *l_obj_reinvest_percent = json_object_new_string(l_reinvest_precent);
+        DAP_DELETE(l_reinvest_precent);
+        json_object *l_obj_time_unlock = json_object_new_uint64(a_stake_lock->subtype.srv_stake_lock.time_unlock);
+        json_object *l_obj_flags = json_object_new_uint64(a_stake_lock->subtype.srv_stake_lock.flags);
+        char *l_pkey_delegate_hash = dap_hash_fast_to_str_new(&a_stake_lock->subtype.srv_stake_lock.pkey_delegated);
+        json_object *l_obj_pkey_delegate_hash = json_object_new_string(l_pkey_delegate_hash);
+        DAP_DELETE(l_pkey_delegate_hash);
+        json_object_object_add(l_object, "value", l_obj_value);
+        json_object_object_add(l_object, "srvUID", l_obj_srv_uid);
+        json_object_object_add(l_object, "reinvestPercent", l_obj_reinvest_percent);
+        json_object_object_add(l_object, "timeUnlock", l_obj_time_unlock);
+        json_object_object_add(l_object, "flags", l_obj_flags);
+        json_object_object_add(l_object, "pkeyDelegateHash", l_obj_pkey_delegate_hash);
+        return l_object;
+    }
+    return NULL;
+}
+
+/**
  * Create item dap_chain_tx_sig_t
  *
  * return item, NULL Error
@@ -677,7 +739,9 @@ uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_id
                     (a_type == TX_ITEM_TYPE_OUT_ALL && l_type == TX_ITEM_TYPE_OUT_COND) ||
                     (a_type == TX_ITEM_TYPE_OUT_ALL && l_type == TX_ITEM_TYPE_OUT_EXT) ||
                     (a_type == TX_ITEM_TYPE_IN_ALL && l_type == TX_ITEM_TYPE_IN) ||
-                    (a_type == TX_ITEM_TYPE_IN_ALL && l_type == TX_ITEM_TYPE_IN_COND)) {
+                    (a_type == TX_ITEM_TYPE_IN_ALL && l_type == TX_ITEM_TYPE_IN_COND) ||
+                    (a_type == TX_ITEM_TYPE_IN_ALL && l_type == TX_ITEM_TYPE_IN_EMS) ||
+                    (a_type == TX_ITEM_TYPE_IN_ALL && l_type == TX_ITEM_TYPE_IN_EMS_EXT)) {
                 if(a_item_idx)
                     *a_item_idx = l_item_idx;
                 if(a_item_out_size)

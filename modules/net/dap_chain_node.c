@@ -222,9 +222,10 @@ bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_d
     return false;
 }
 
-void dap_chain_node_mempool_process_all(dap_chain_t *a_chain) {
+void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
+{
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-    if (!l_net->pub.mempool_autoproc)
+    if (!a_force && !l_net->pub.mempool_autoproc)
         return;
     char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     size_t l_objs_size = 0;

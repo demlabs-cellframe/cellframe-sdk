@@ -170,7 +170,6 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
 void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg)
 {
     (void) a_arg;
-    //printf("* del session=%d\n", a_ch->stream->session->id);
     dap_stream_ch_chain_net_t * l_ch_chain_net = DAP_STREAM_CH_CHAIN_NET(a_ch);
     if(l_ch_chain_net) {
         pthread_mutex_lock(&l_ch_chain_net->mutex);
@@ -227,9 +226,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                               l_ch_chain_net_pkt->hdr.net_id, l_err_str, strlen(l_err_str) + 1);
             dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
         }
-        //size_t l_ch_chain_net_pkt_data_size = (size_t) l_ch_pkt->hdr.size - sizeof (l_ch_chain_net_pkt->hdr);
         if (!l_error && l_ch_chain_net_pkt) {
-            size_t l_ch_chain_net_pkt_data_size = l_ch_pkt->hdr.size - sizeof(dap_stream_ch_chain_net_pkt_hdr_t);
+            size_t l_ch_chain_net_pkt_data_size = l_ch_pkt->hdr.data_size - sizeof(dap_stream_ch_chain_net_pkt_hdr_t);
             switch (l_ch_pkt->hdr.type) {
                 case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_DBG: {
                     dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PING,

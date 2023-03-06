@@ -38,6 +38,7 @@
 #define LOG_TAG "dap_chain_common"
 
 const dap_chain_net_srv_uid_t c_dap_chain_net_srv_uid_null = {0};
+const dap_chain_cell_id_t c_dap_chain_cell_id_null = {0};
 
 /*
  * Forward declarations
@@ -57,7 +58,7 @@ json_object* dap_chain_receipt_info_to_json(dap_chain_receipt_info_t *a_info){
     json_object *l_obj_addition = json_object_new_uint64(a_info->addition);
     json_object_object_add(l_obj, "addition", l_obj_addition);
 #endif
-    json_object *l_obj_units_type = json_object_new_string(serv_unit_enum_to_str(&a_info->units_type.enm));
+    json_object *l_obj_units_type = json_object_new_string(dap_chain_srv_unit_enum_to_str(a_info->units_type.enm));
     json_object_object_add(l_obj, "unitsType", l_obj_units_type);
     char *l_datoshi_value = dap_chain_balance_print(a_info->value_datoshi);
     json_object *l_obj_datoshi = json_object_new_string(l_datoshi_value);
@@ -89,6 +90,18 @@ size_t dap_chain_hash_slow_to_str( dap_chain_hash_slow_t *a_hash, char *a_str, s
     a_str[c_hash_str_size] = '\0';
 
     return strlen(a_str);
+}
+
+/**
+ * @brief dap_chain_addr_to_json
+ * @param a_addr
+ * @return
+ */
+json_object *dap_chain_addr_to_json(const dap_chain_addr_t *a_addr){
+    char *l_addr_str = dap_chain_addr_to_str(a_addr);
+    json_object *l_obj = json_object_new_string(l_addr_str);
+    DAP_DELETE(l_addr_str);
+    return l_obj;
 }
 
 /**
@@ -190,19 +203,30 @@ dap_chain_net_srv_uid_t dap_chain_net_srv_uid_from_str( const char * a_net_srv_u
  * @param a_net_id
  * @return
  */
-void dap_chain_addr_fill_from_key(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_chain_net_id_t a_net_id) {
+int dap_chain_addr_fill_from_key(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_chain_net_id_t a_net_id)
+{
     dap_sign_type_t l_type = dap_sign_type_from_key_type(a_key->type);
     size_t l_pub_key_data_size;
     uint8_t *l_pub_key_data = dap_enc_key_serealize_pub_key(a_key, &l_pub_key_data_size);
     if (!l_pub_key_data) {
         log_it(L_ERROR,"Can't fill address from key, its empty");
-        return;
+        return -1;
     }
     dap_chain_hash_fast_t l_hash_public_key;
     // serialized key -> key hash
     dap_hash_fast(l_pub_key_data, l_pub_key_data_size, &l_hash_public_key);
     dap_chain_addr_fill(a_addr, l_type, &l_hash_public_key, a_net_id);
     DAP_DELETE(l_pub_key_data);
+    return 0;
+}
+
+int dap_chain_addr_fill_from_sign(dap_chain_addr_t *a_addr, dap_sign_t *a_sign, dap_chain_net_id_t a_net_id)
+{
+    dap_hash_fast_t l_sign_pkey_hash;
+    if (!dap_sign_get_pkey_hash(a_sign, &l_sign_pkey_hash))
+        return -1;
+    dap_chain_addr_fill(a_addr, a_sign->header.type, &l_sign_pkey_hash, a_net_id);
+    return 0;
 }
 
 /**
@@ -242,6 +266,8 @@ int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr)
         return 1;
     return -1;
 }
+
+
 
 uint64_t dap_chain_uint128_to(uint128_t a_from)
 {

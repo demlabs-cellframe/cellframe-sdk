@@ -84,6 +84,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_cli_server_cmd_add("global_db", com_global_db, "Work with global database",
             "global_db cells add -cell <cell id> \n"
             "global_db flush \n\n"
+            "global_db write -group <group_name> -key <key_name> -value <value>"
+            "global_db read -group <group_name> -key <key_name>"
+            "global_db delete -group <group_name> -key <key_name>"
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
             );
     dap_cli_server_cmd_add("mempool", com_signer, "Sign operations",
@@ -228,20 +231,21 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             );
 
     dap_cli_server_cmd_add ("token_emit", com_token_emit, "Token emission",
-                            "token_emit { sign | -token <mempool_token_ticker> -emission_value <value> "
-                            "-addr <addr> [-chain_emission <chain_name>] "
-                            "[-chain_base_tx <chain_name> | use flag '-no_base_tx' if you need create emission has no base transaction] } "
-                            "-net <net_name> -certs <cert list>\n");
+                            "token_emit { sign | -token <mempool_token_ticker> -emission_value <value>"
+                            "-addr <addr> [-chain_emission <chain_name>] -net <net_name> -certs <cert list>\n");
 
     dap_cli_server_cmd_add ("mempool_list", com_mempool_list,
                                         "List mempool (entries or transaction) for (selected chain network or wallet)",
-            "mempool_list -net <net_name> [-chain <chain_name>] [-addr <addr>] \n");
+            "mempool_list -net <net_name> [-chain <chain_name>] [-addr <addr>] [-fast] \n");
 
     dap_cli_server_cmd_add ("mempool_check", com_mempool_check, "Check mempool entrie for presence in selected chain network",
             "mempool_check -net <net_name> -datum <datum hash>\n");
 
     dap_cli_server_cmd_add ("mempool_proc", com_mempool_proc, "Proc mempool entrie with specified hash for selected chain network",
             "mempool_proc -net <net_name> -datum <datum hash>\n");
+
+    dap_cli_server_cmd_add ("mempool_proc_all", com_mempool_proc_all, "Proc mempool all entries for selected chain network",
+                            "mempool_proc_all -net <net_name> -chain <chain_name>\n");
 
     dap_cli_server_cmd_add ("mempool_delete", com_mempool_delete, "Delete datum with hash <datum hash> for selected chain network",
             "mempool_delete -net <net_name> -datum <datum hash>\n");
@@ -260,11 +264,13 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Transaction commands
     dap_cli_server_cmd_add ("tx_create", com_tx_create, "Make transaction",
-            "tx_create -net <net_name> -chain <chain_name> {-from_wallet <wallet_name> -token <token_ticker> -value <value> -to_addr <addr> | -from_emission <emission_hash>} [-fee <addr> -value_fee <val>]\n" );
+            "tx_create -net <net_name> -chain <chain_name> -value <value> -token <token_ticker> -to_addr <addr>"
+            "{-from_wallet <wallet_name> | -from_emission <emission_hash> {-certs <cert list> | -wallet_fee <wallet_name>}} -fee <value>\n");
     dap_cli_server_cmd_add ("tx_create_json", com_tx_create_json, "Make transaction",
                 "tx_create_json -net <net_name> -chain <chain_name> -json <json_file_path>\n" );
     dap_cli_server_cmd_add ("tx_cond_create", com_tx_cond_create, "Make cond transaction",
-                                        "tx_cond_create -net <net_name> -token <token_ticker> -wallet <wallet_name> -cert <pub_cert_name> -value <value_datoshi> -unit {mb | kb | b | sec | day} -srv_uid <numeric_uid>\n" );
+                                        "tx_cond_create -net <net_name> -token <token_ticker> -wallet <wallet_name>"
+                                        " -cert <pub_cert_name> -value <value_datoshi> -fee <value> -unit {mb | kb | b | sec | day} -srv_uid <numeric_uid>\n" );
 
     dap_cli_server_cmd_add ("tx_verify", com_tx_verify, "Verifing transaction in mempool",
             "tx_verify -net <net_name> -chain <chain_name> -tx <tx_hash>\n" );
@@ -308,6 +314,20 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
            "remove -gdb\n"
            "remove -chains [-net <net_name> | -all]\n"
                      "Be careful, the '-all' option for '-chains' will delete all chains and won't ask you for permission!");
+
+    // Decree create command
+    dap_cli_server_cmd_add ("decree", cmd_decree, "Work with decree",
+            "decree create common -net <net_name> [-chain <chain_name>]  -certs <certs list> -<Subtype param name> <Subtype param Value>\n"
+            "decree create service -net <net_name> [-chain <chain_name>] -srv_id <service_id> -certs <certs list> -<Subtype param name> <Subtype param Value>\n"
+            "decree sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs list>\n"
+            "decree anchor -net <net_name> -chain <chain_name> -datum <datum_hash>\n"
+            "==Subtype Params==\n"
+            "\t -fee <value>: sets fee for tx in net\n"
+            "\t -to_addr <wallet_addr>: sets wallet addr for network fee"
+            "\t -new_certs <certs list>: sets new owners set for net\n"
+            "\t -signs_verify <value>: sets minimum number of owners needed to sign decree\n"
+            "\t -ton_signs_verify <value>: sets minimum number of TON signers");
+
 
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",

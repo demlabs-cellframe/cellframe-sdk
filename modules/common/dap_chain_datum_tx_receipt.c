@@ -109,6 +109,32 @@ dap_sign_t* dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t * l
     return l_sign;
 }
 
+uint32_t dap_chain_datum_tx_receipt_type_get(dap_chain_datum_tx_receipt_t * l_receipt)
+{
+    if (!l_receipt)
+        return -1;
+    return l_receipt->receipt_info.units_type.enm;
+}
+uint64_t    dap_chain_datum_tx_receipt_srv_uid_get(dap_chain_datum_tx_receipt_t * l_receipt)
+{
+    if (!l_receipt)
+        return -1;
+    return l_receipt->receipt_info.srv_uid.uint64;
+}
+uint64_t    dap_chain_datum_tx_receipt_units_get(dap_chain_datum_tx_receipt_t * l_receipt)
+{
+    if (!l_receipt)
+        return -1;
+    return l_receipt->receipt_info.units;
+}
+uint256_t   dap_chain_datum_tx_receipt_value_get(dap_chain_datum_tx_receipt_t * l_receipt)
+{
+    uint256_t res = {};
+    if (!l_receipt)
+        return res;
+    return l_receipt->receipt_info.value_datoshi;
+}
+
 /**
  * @brief dap_chain_datum_tx_receipt_signs_count
  * @param a_receipt
@@ -143,7 +169,7 @@ json_object *dap_chain_datum_tx_receipt_to_json(dap_chain_datum_tx_receipt_t *a_
     json_object *l_obj_client_sign = dap_sign_to_json(l_second_sign);
     json_object_object_add(l_obj_signs, "provider", l_obj_provider_sign);
     json_object_object_add(l_obj_signs, "client", l_obj_client_sign);
-    json_object *l_exts_data = json_object_new_string_len(a_receipt->exts_n_signs, a_receipt->exts_size);
+    json_object *l_exts_data = json_object_new_string_len((char *)a_receipt->exts_n_signs, a_receipt->exts_size);
     json_object_object_add(l_obj, "info", l_obj_info);
     json_object_object_add(l_obj, "size", l_obj_size);
     json_object_object_add(l_obj, "sings", l_obj_signs);

@@ -355,12 +355,13 @@ static char s_wallets_path[MAX_PATH];
 const char* dap_chain_wallet_get_path(dap_config_t * a_config)
 {
 char *l_cp;
-
+    if (!a_config)
+        a_config = g_config;
     if ( s_wallets_path[0] )                                                /* Is the path to the wallet's store has been defined ? */
         return  s_wallets_path;                                             /* Fine, just return existen value */
 
                                                                             /* Retrieve Wallet's store path from config */
-    if ( !(l_cp = (char *) dap_config_get_item_str(g_config, "resources", "wallets_path")) )
+    if ( !(l_cp = (char *) dap_config_get_item_str(a_config, "resources", "wallets_path")) )
         return  log_it(L_WARNING, "No path to wallet's store has been defined"), s_wallets_path;
 
 
@@ -583,12 +584,12 @@ enum {
     WALLET$SZ_IOV_NR
 };
 
-    if ( !a_wallet )
-        return  log_it(L_ERROR, "Wallet is null, can't save it to file!"), -EINVAL;
+if ( !a_wallet )
+    return  log_it(L_ERROR, "Wallet is null, can't save it to file!"), -EINVAL;
 
-    if ( a_pass )
-        if ( !(l_enc_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_GOST_OFB, NULL, 0, a_pass, strlen(a_pass), 0)) )
-            return  log_it(L_ERROR, "Error create key context"), -EINVAL;
+if ( a_pass )
+    if ( !(l_enc_key = dap_enc_key_new_generate(DAP_ENC_KEY_TYPE_GOST_OFB, NULL, 0, a_pass, strlen(a_pass), 0)) )
+        return  log_it(L_ERROR, "Error create key context"), -EINVAL;
 
 #ifdef DAP_OS_WINDOWS
     if ((l_fh = CreateFile(l_wallet_internal->file_name, GENERIC_WRITE, /*FILE_SHARE_READ | FILE_SHARE_WRITE */ 0, NULL, CREATE_NEW,
