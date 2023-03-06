@@ -38,7 +38,7 @@ typedef struct dap_chain_tx_in_ems {
         char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
         uint8_t padding; // Padding
         dap_chain_id_t token_emission_chain_id;
-        dap_chain_hash_fast_t token_emission_hash;
+        dap_hash_fast_t token_emission_hash;
     } header; /// Only header's hash is used for verification
 } DAP_ALIGN_PACKED dap_chain_tx_in_ems_t;
 
