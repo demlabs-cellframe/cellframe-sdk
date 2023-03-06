@@ -39,6 +39,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_net_decree.h"
+#include "dap_chain_datum_decree.h"
+#include "dap_chain_datum_anchor.h"
 #include "dap_chain_datum_tx.h"
 #include "uthash.h"
 
