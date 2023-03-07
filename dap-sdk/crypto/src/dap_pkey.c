@@ -78,3 +78,9 @@ bool dap_pkey_match(dap_pkey_t *a_pkey1, dap_pkey_t *a_pkey2) {
     }
     return false;
 }
+
+bool dap_pkey_get_hash(dap_pkey_t *a_pkey, dap_chain_hash_fast_t *a_out_hash){
+    if (!a_pkey || !a_out_hash)
+        return false;
+    return dap_hash_fast(a_pkey->pkey, a_pkey->header.size, a_out_hash);
+}
