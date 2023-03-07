@@ -47,6 +47,14 @@ static bool s_verificator_stake_updater_callback(dap_ledger_t *a_ledger, dap_cha
 
 static dap_chain_net_srv_stake_t *s_srv_stake = NULL;
 
+typedef struct dap_chain_net_srv_stake_cache_data
+{
+    uint256_t value;
+    dap_chain_addr_t signing_addr;
+    dap_chain_hash_fast_t tx_hash;
+    dap_chain_node_addr_t node_addr;
+} dap_chain_net_srv_stake_cache_data_t;
+
 /**
  * @brief dap_stream_ch_vpn_init Init actions for VPN stream channel
  * @param vpn_addr Zero if only client mode. Address if the node shares its local VPN
@@ -357,7 +365,17 @@ bool dap_chain_net_srv_stake_validator(dap_chain_addr_t *a_addr, dap_chain_datum
     if (compare256(l_fee_sum, l_fee) == -1) {
         return false;
     }
+
+
+
     return true;
+}
+
+bool dap_chain_net_srv_stake_check_tx_activator(dap_hash_fast_t a_tx_hash)
+{
+
+
+    return false;
 }
 
 // Freeze staker's funds when delegating an order
@@ -1095,6 +1113,23 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                     return -19;
                 }
                 HASH_ADD(hh, s_srv_stake->itemlist, signing_addr, sizeof(dap_chain_addr_t), l_stake);
+
+
+                // TODO: check leger cache is enabled
+                dap_store_obj_t *l_store_obj = DAP_NEW_SIZE(dap_store_obj_t, sizeof(dap_chain_net_srv_stake_cache_data_t));
+                uint8_t *l_cache_data = DAP_NEW_STACK_SIZE(uint8_t, sizeof(dap_chain_net_srv_stake_cache_data_t));
+                l_cache_data->node_addr = l_stake->node_addr;
+                l_cache_data->signing_addr = l_stake->signing_addr;
+                l_cache_data->tx_hash = l_stake->tx_hash;
+                l_cache_data->value = l_stake->value;
+
+
+                l_store_obj->key_byte = l_cache_data->signing_addr;
+                l_store_obj->key_len = sizeof(l_cache_data->signing_addr);
+                l_store_obj->value = (uint8_t*)l_cache_data;
+                l_store_obj->value_len = sizeof(dap_chain_net_srv_stake_cache_data_t);
+                if (dap_global_db_set_raw(l_cache_used_outs, l_outs_used + 1, NULL, NULL))
+                    debug_if(s_debug_more, L_WARNING, "Ledger cache mismatch");
             } else {
                 DAP_DELETE(l_addr_fee);
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified order not found");
