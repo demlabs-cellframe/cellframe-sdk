@@ -136,7 +136,7 @@ const char * dap_sign_type_to_str(dap_sign_type_t a_chain_sign_type)
  * @param a_pkey_type dap_pkey_type_t key type
  * @return dap_sign_type_t 
  */
-dap_sign_type_t dap_pkey_type_from_sign( dap_pkey_type_t a_pkey_type)
+dap_sign_type_t dap_sign_type_from_pkey_type( dap_pkey_type_t a_pkey_type)
 {
     dap_sign_type_t l_sign_type={0};
     switch (a_pkey_type.type){
@@ -380,6 +380,12 @@ bool dap_sign_match_pkey_signs(dap_sign_t *l_sign1, dap_sign_t *l_sign2)
             return true;
     }
     return false;
+}
+
+dap_pkey_t *dap_sign_get_pkey_deserialization(dap_sign_t *a_sign){
+    dap_pkey_t *l_pkey = DAP_DUP_SIZE(a_sign->pkey_n_sign, a_sign->header.sign_pkey_size);
+    l_pkey->header.type = dap_pkey_type_from_sign_type(a_sign->header.type);
+    return l_pkey;
 }
 
 /**
