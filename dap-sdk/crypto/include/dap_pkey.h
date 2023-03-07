@@ -71,3 +71,5 @@ typedef struct dap_pkey{
 } DAP_ALIGN_PACKED dap_pkey_t;
 
 dap_pkey_t *dap_pkey_from_enc_key(dap_enc_key_t *a_key);
+
+bool dap_pkey_match(dap_pkey_t *a_pkey1, dap_pkey_t *a_pkey2);

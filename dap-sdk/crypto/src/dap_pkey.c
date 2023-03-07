@@ -70,3 +70,11 @@ dap_pkey_t *dap_pkey_from_enc_key(dap_enc_key_t *a_key)
     }
     return NULL;
 }
+
+bool dap_pkey_match(dap_pkey_t *a_pkey1, dap_pkey_t *a_pkey2) {
+    if (a_pkey1->header.size == a_pkey2->header.size) {
+        if (!memcmp(a_pkey1->pkey, a_pkey2->pkey, a_pkey1->header.size))
+            return true;
+    }
+    return false;
+}
