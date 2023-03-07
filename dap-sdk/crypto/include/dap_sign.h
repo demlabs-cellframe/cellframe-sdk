@@ -151,7 +151,7 @@ static inline int dap_sign_verify_all(dap_sign_t * a_sign, const size_t a_sign_s
 /**
 * @brief convert dap_sign_type_t type to public key type (dap_pkey_type_t)
 *
-+* @param a_sign_type dap_sign_type_t key type
+* @param a_sign_type dap_sign_type_t key type
 * @return dap_pkey_type_t
 */
 DAP_STATIC_INLINE dap_pkey_type_t dap_pkey_type_from_sign_type(dap_sign_type_t a_sign_type)
