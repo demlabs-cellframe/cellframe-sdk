@@ -607,6 +607,32 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
 static bool s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_hash_fast_t *a_tx_out_hash,dap_chain_tx_out_cond_t *a_cond,
                                        dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
+    UNUSED(a_ledger);
+    UNUSED(a_tx_out_hash);
+    UNUSED(a_cond);
+    //UNUSED(a_tx_in);
+    //UNUSED(a_owner);
+    //if (!a_owner)
+        //return false;
+    dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)
+                                               dap_chain_datum_tx_item_get(a_tx_in, NULL, TX_ITEM_TYPE_RECEIPT, NULL);
+    dap_chain_tx_in_ems_t *l_token = (dap_chain_tx_in_ems_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, TX_ITEM_TYPE_IN_EMS, NULL);
+    dap_chain_tx_out_t *l_tx_out1 = (dap_chain_tx_out_t*)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_OUT_EXT, 0);
+    dap_chain_tx_out_cond_t *l_tx_stake_lock_out_cond = (dap_chain_tx_out_cond_t*)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_OUT_COND, 0);
+    dap_chain_tx_out_t *l_tx_out2 = (dap_chain_tx_out_t*)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_OUT_EXT, 0);
+    dap_chain_tx_sig_t *l_tx_prev_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, TX_ITEM_TYPE_SIG, NULL);
+    dap_chain_tx_out_t *l_tx_out3 = (dap_chain_tx_out_t*)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_OUT, 0);
+    dap_chain_tx_in_t *l_in_item = (dap_chain_tx_in_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, TX_ITEM_TYPE_IN, NULL);
+
+    if (!l_receipt)
+        return false;
+    dap_sign_t *l_sign = dap_chain_datum_tx_receipt_sign_get(l_receipt, l_receipt->size, 1);
+    if (!l_sign)
+        return false;
+    dap_hash_fast_t l_pkey_hash;
+    if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash))
+        return false;
+
     return false;
 }
 

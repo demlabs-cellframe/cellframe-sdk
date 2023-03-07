@@ -5326,23 +5326,19 @@ int fee_coll(int a_argc, char ** a_argv, char **a_str_reply)
                 dap_string_append_printf(l_str_tmp,"\t\t\tts_created: %s\n", buf);                
 
                 dap_sign_t * l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
-                size_t l_sign_size = dap_sign_get_size(l_sign);
-                dap_chain_addr_t l_addr = {0};
+                //size_t l_sign_size = dap_sign_get_size(l_sign);
+                //dap_chain_addr_t l_addr = {0};
                 dap_chain_hash_fast_t l_pkey_hash;
                 dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
 
                 if(dap_pkey_compare_with_sign(l_pub_key, l_sign)){
-                    dap_chain_mempool_tx_coll_fee_create(l_cert->enc_key,&l_addr,l_block_cache,l_fee_value,l_hash_out_type);
+                    dap_chain_mempool_tx_coll_fee_create(l_cert->enc_key,l_addr,l_block_cache,l_fee_value,l_hash_out_type);
                 }
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
                 dap_string_free(l_str_tmp, true);
             }
         }
-        // l_block->hdr.
-        //l_chain
-        //l_datum_hash
 
-        //return -8;
     }else if(l_hash_mas_str){
         dap_cli_server_cmd_set_reply_text(a_str_reply, "for future use");
         return -9;
