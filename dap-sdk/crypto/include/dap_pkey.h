@@ -26,6 +26,7 @@
 #include <stdint.h>
 #include "dap_common.h"
 #include "dap_enc_key.h"
+#include "dap_hash.h"
 
 
 enum dap_pkey_type_enum {
@@ -71,3 +72,7 @@ typedef struct dap_pkey{
 } DAP_ALIGN_PACKED dap_pkey_t;
 
 dap_pkey_t *dap_pkey_from_enc_key(dap_enc_key_t *a_key);
+
+bool dap_pkey_match(dap_pkey_t *a_pkey1, dap_pkey_t *a_pkey2);
+
+bool dap_pkey_get_hash(dap_pkey_t *a_pkey, dap_chain_hash_fast_t *a_out_hash);

@@ -70,3 +70,17 @@ dap_pkey_t *dap_pkey_from_enc_key(dap_enc_key_t *a_key)
     }
     return NULL;
 }
+
+bool dap_pkey_match(dap_pkey_t *a_pkey1, dap_pkey_t *a_pkey2) {
+    if (a_pkey1->header.size == a_pkey2->header.size) {
+        if (!memcmp(a_pkey1->pkey, a_pkey2->pkey, a_pkey1->header.size))
+            return true;
+    }
+    return false;
+}
+
+bool dap_pkey_get_hash(dap_pkey_t *a_pkey, dap_chain_hash_fast_t *a_out_hash){
+    if (!a_pkey || !a_out_hash)
+        return false;
+    return dap_hash_fast(a_pkey->pkey, a_pkey->header.size, a_out_hash);
+}
