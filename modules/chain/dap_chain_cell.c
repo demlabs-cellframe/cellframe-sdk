@@ -115,7 +115,7 @@ dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_c
 dap_chain_cell_t * dap_chain_cell_create_fill2(dap_chain_t * a_chain, const char *a_filename)
 {
     dap_chain_cell_id_t l_cell_id;
-    dap_sscanf(a_filename, "%"DAP_UINT64_FORMAT_x".dchaincell", &l_cell_id.uint64);
+    sscanf(a_filename, "%"DAP_UINT64_FORMAT_x".dchaincell", &l_cell_id.uint64);
     return dap_chain_cell_create_fill(a_chain, l_cell_id);
 }
 
@@ -172,7 +172,7 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
 {
     int ret = 0;
     char l_file_path[MAX_PATH] = {'\0'};
-    dap_snprintf(l_file_path, MAX_PATH, "%s/%s", DAP_CHAIN_PVT(a_chain)->file_storage_dir, a_cell_file_path);
+    snprintf(l_file_path, MAX_PATH, "%s/%s", DAP_CHAIN_PVT(a_chain)->file_storage_dir, a_cell_file_path);
     FILE *l_f = fopen(l_file_path, "rb");
     if (!l_f) {
         log_it(L_WARNING,"Can't read chain \"%s\"", l_file_path);
@@ -305,7 +305,7 @@ int dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom, siz
     pthread_rwlock_wrlock(&a_cell->storage_rwlock);
     if (!a_cell->file_storage) {
         char l_file_path[MAX_PATH] = {'\0'};
-        dap_snprintf(l_file_path, MAX_PATH, "%s/%s", DAP_CHAIN_PVT(a_cell->chain)->file_storage_dir,
+        snprintf(l_file_path, MAX_PATH, "%s/%s", DAP_CHAIN_PVT(a_cell->chain)->file_storage_dir,
                      a_cell->file_storage_path);
         a_cell->file_storage = fopen(l_file_path, "r+b");
         if (!a_cell->file_storage) {

@@ -142,7 +142,7 @@ bool dap_chain_net_srv_order_set_continent_region(dap_chain_net_srv_order_t **a_
         memcpy(l_order->ext_n_sign + 1 + sizeof(uint8_t), a_region, strlen(a_region) + 1);
     else if(l_region_prev)
         memcpy(l_order->ext_n_sign + 1 + sizeof(uint8_t), l_region_prev, strlen(l_region_prev) + 1);
-    //dap_sprintf(l_order->ext, "\52%d-%s", a_continent_num, a_region);
+    //sprintf(l_order->ext, "\52%d-%s", a_continent_num, a_region);
     l_order->ext_size = l_ext_size;
     *a_order = l_order;
     DAP_DELETE(l_region_prev);

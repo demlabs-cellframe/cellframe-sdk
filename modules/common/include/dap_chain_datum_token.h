@@ -109,10 +109,10 @@ typedef struct dap_chain_datum_token{
 } DAP_ALIGN_PACKED dap_chain_datum_token_t;
 
 typedef struct dap_chain_datum_token_tsd_delegate_from_stake_lock {
-    char			ticker_token_from[DAP_CHAIN_TICKER_SIZE_MAX];
+    byte_t			ticker_token_from[DAP_CHAIN_TICKER_SIZE_MAX];
     //	dap_hash_fast_t	hash_token_from;//TODO: ???
     uint256_t		emission_rate;	// In "coins", 1^18 == 1.0
-    int				flags;			// Some emission flags for future
+    uint32_t		flags;			// Some emission flags for future
     byte_t			padding[256];	// Some free space for future
 } DAP_ALIGN_PACKED dap_chain_datum_token_tsd_delegate_from_stake_lock_t;
 
@@ -298,7 +298,7 @@ static t_datum_token_flag_struct s_flags_table[] = {
 
 #define NKEYS (sizeof(s_flags_table)/sizeof(t_datum_token_flag_struct))
 
-static inline int s_flag_code_from_str(const char *key)
+DAP_STATIC_INLINE int s_flag_code_from_str(const char *key)
 {
     uint64_t i;
     for (i=0; i < NKEYS; i++) {
@@ -310,7 +310,7 @@ static inline int s_flag_code_from_str(const char *key)
     return DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED;
 }
 
-static inline char* s_flag_str_from_code(uint64_t code)
+DAP_STATIC_INLINE char* s_flag_str_from_code(uint64_t code)
 {
     uint64_t i;
     uint64_t flags_count = 0;
@@ -350,7 +350,7 @@ static inline char* s_flag_str_from_code(uint64_t code)
  * @param a_str
  * @return
  */
-static inline char* dap_chain_datum_str_token_flag_from_code(uint64_t code)
+DAP_STATIC_INLINE char *dap_chain_datum_str_token_flag_from_code(uint64_t code)
 {
     return s_flag_str_from_code(code);
 }
@@ -360,13 +360,32 @@ static inline char* dap_chain_datum_str_token_flag_from_code(uint64_t code)
  * @param a_str
  * @return
  */
-static inline uint16_t dap_chain_datum_token_flag_from_str(const char* a_str)
+DAP_STATIC_INLINE uint16_t dap_chain_datum_token_flag_from_str(const char* a_str)
 {
     if (a_str == NULL)
         return DAP_CHAIN_DATUM_TOKEN_FLAG_NONE;
 
     return s_flag_code_from_str(a_str);
 }
+
+// Get delegated ticker
+DAP_STATIC_INLINE int dap_chain_datum_token_get_delegated_ticker(char *a_buf, const char *a_ticker)
+{
+    if (!a_buf || !a_ticker)
+        return -1;
+    *a_buf = 'm';
+    strncpy(a_buf + 1, a_ticker, DAP_CHAIN_TICKER_SIZE_MAX - 2);
+    a_buf[DAP_CHAIN_TICKER_SIZE_MAX - 1] = '\0';
+    return 0;
+}
+
+DAP_STATIC_INLINE bool dap_chain_datum_token_is_old(uint8_t a_type)
+{
+    return a_type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE
+            || a_type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PUBLIC;
+}
+
+/*                              Token emission section                          */
 
 struct DAP_ALIGN_PACKED dap_chain_emission_header_v0 {
     uint8_t version;

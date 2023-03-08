@@ -1467,7 +1467,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                 if (l_chain == NULL) {
                     char l_str_to_reply_chain[500] = {0};
                     char *l_str_to_reply = NULL;
-                    dap_sprintf(l_str_to_reply_chain, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid\n",
+                    sprintf(l_str_to_reply_chain, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid\n",
                                                     a_argv[0], l_net_str, l_chain_str);
                     l_str_to_reply = dap_strcat2(l_str_to_reply,l_str_to_reply_chain);
                     dap_chain_t * l_chain;
@@ -1681,7 +1681,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                 if (l_chain == NULL) {
                     char l_str_to_reply_chain[500] = {0};
                     char *l_str_to_reply = NULL;
-                    dap_sprintf(l_str_to_reply_chain, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid\n",
+                    sprintf(l_str_to_reply_chain, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid\n",
                                                     a_argv[0], l_net_str, l_chain_str);
                     l_str_to_reply = dap_strcat2(l_str_to_reply,l_str_to_reply_chain);
                     dap_chain_t * l_chain;
@@ -1825,7 +1825,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
             if (l_chain == NULL) {
                 char l_str_to_reply_chain[500] = {0};
                 char *l_str_to_reply = NULL;
-                dap_sprintf(l_str_to_reply_chain, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid\n",
+                sprintf(l_str_to_reply_chain, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid\n",
                                                 a_argv[0], l_net_str, l_chain_str);
                 l_str_to_reply = dap_strcat2(l_str_to_reply,l_str_to_reply_chain);
                 dap_chain_t * l_chain;

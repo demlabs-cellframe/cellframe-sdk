@@ -887,7 +887,7 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
 
     if (update_token == false) {//create new token
         l_token_item = DAP_NEW_Z(dap_chain_ledger_token_item_t);
-        dap_snprintf(l_token_item->ticker,sizeof (l_token_item->ticker), "%s", l_token->ticker);
+        snprintf(l_token_item->ticker,sizeof (l_token_item->ticker), "%s", l_token->ticker);
         pthread_rwlock_init(&l_token_item->token_emissions_rwlock,NULL);
         pthread_rwlock_init(&l_token_item->token_ts_updated_rwlock,NULL);
         l_token_item->type = l_token->type;
@@ -1506,7 +1506,7 @@ dap_string_t *dap_chain_ledger_threshold_info(dap_ledger_t *a_ledger)
        //log_it(L_DEBUG,"Ledger thresholded datum_token_emission_hash %s, emission_item_size: %lld", l_emission_hash_str, l_emission_item->datum_token_emission_size);
         dap_string_append(l_str_ret, "Ledger thresholded datum_token_emission_hash: ");
         dap_string_append(l_str_ret, l_emission_hash_str);
-        dap_sprintf(l_item_size, ", tx_item_size: %zu\n", l_emission_item->datum_token_emission_size);
+        sprintf(l_item_size, ", tx_item_size: %zu\n", l_emission_item->datum_token_emission_size);
         dap_string_append(l_str_ret, l_item_size);
         l_counter +=1;
     }
@@ -3032,7 +3032,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         char l_tx_prev_hash_str[70]={[0]='\0'};
         if (l_is_ems){
             debug_if(s_debug_more && !a_from_threshold, L_DEBUG, "Tx check: blank prev hash");
-            dap_snprintf(l_tx_prev_hash_str,sizeof( l_tx_prev_hash_str),"BLANK");
+            snprintf(l_tx_prev_hash_str,sizeof( l_tx_prev_hash_str),"BLANK");
         }else{
             dap_chain_hash_fast_to_str(&l_tx_prev_hash,l_tx_prev_hash_str,sizeof(l_tx_prev_hash_str));
         }
