@@ -130,7 +130,7 @@ do_bench(bench_fun bf, void *ctx, double threshold)
 
 typedef struct {
 	unsigned logn;
-	shake256_context rng;
+	dap_shake256_context rng;
 	uint8_t *tmp;
 	size_t tmp_len;
 	uint8_t *pk;
@@ -162,7 +162,7 @@ bench_keygen(void *ctx, unsigned long num)
 
 	bc = ctx;
 	while (num -- > 0) {
-		CC(falcon_keygen_make(&bc->rng, bc->logn,
+		CC(dap_falcon_keygen_make(&bc->rng, bc->logn,
 			bc->sk, FALCON_PRIVKEY_SIZE(bc->logn),
 			bc->pk, FALCON_PUBKEY_SIZE(bc->logn),
 			bc->tmp, bc->tmp_len));
@@ -178,7 +178,7 @@ bench_sign_dyn(void *ctx, unsigned long num)
 	bc = ctx;
 	while (num -- > 0) {
 		bc->sig_len = FALCON_SIG_COMPRESSED_MAXSIZE(bc->logn);
-		CC(falcon_sign_dyn(&bc->rng,
+		CC(dap_falcon_sign_dyn(&bc->rng,
 			bc->sig, &bc->sig_len, FALCON_SIG_COMPRESSED,
 			bc->sk, FALCON_PRIVKEY_SIZE(bc->logn),
 			"data", 4, bc->tmp, bc->tmp_len));
@@ -194,7 +194,7 @@ bench_sign_dyn_ct(void *ctx, unsigned long num)
 	bc = ctx;
 	while (num -- > 0) {
 		bc->sigct_len = FALCON_SIG_CT_SIZE(bc->logn);
-		CC(falcon_sign_dyn(&bc->rng,
+		CC(dap_falcon_sign_dyn(&bc->rng,
 			bc->sigct, &bc->sigct_len, FALCON_SIG_CT,
 			bc->sk, FALCON_PRIVKEY_SIZE(bc->logn),
 			"data", 4, bc->tmp, bc->tmp_len));
@@ -209,7 +209,7 @@ bench_expand_privkey(void *ctx, unsigned long num)
 
 	bc = ctx;
 	while (num -- > 0) {
-		CC(falcon_expand_privkey(
+		CC(dap_falcon_expand_privkey(
 			bc->esk, FALCON_EXPANDEDKEY_SIZE(bc->logn),
 			bc->sk, FALCON_PRIVKEY_SIZE(bc->logn),
 			bc->tmp, bc->tmp_len));
@@ -225,7 +225,7 @@ bench_sign_tree(void *ctx, unsigned long num)
 	bc = ctx;
 	while (num -- > 0) {
 		bc->sig_len = FALCON_SIG_COMPRESSED_MAXSIZE(bc->logn);
-		CC(falcon_sign_tree(&bc->rng,
+		CC(dap_falcon_sign_tree(&bc->rng,
 			bc->sig, &bc->sig_len, FALCON_SIG_COMPRESSED,
 			bc->esk,
 			"data", 4, bc->tmp, bc->tmp_len));
@@ -241,7 +241,7 @@ bench_sign_tree_ct(void *ctx, unsigned long num)
 	bc = ctx;
 	while (num -- > 0) {
 		bc->sigct_len = FALCON_SIG_CT_SIZE(bc->logn);
-		CC(falcon_sign_tree(&bc->rng,
+		CC(dap_falcon_sign_tree(&bc->rng,
 			bc->sigct, &bc->sigct_len, FALCON_SIG_CT,
 			bc->esk,
 			"data", 4, bc->tmp, bc->tmp_len));
@@ -258,7 +258,7 @@ bench_verify(void *ctx, unsigned long num)
 	bc = ctx;
 	pk_len = FALCON_PUBKEY_SIZE(bc->logn);
 	while (num -- > 0) {
-		CC(falcon_verify(
+		CC(dap_falcon_verify(
 			bc->sig, bc->sig_len, FALCON_SIG_COMPRESSED,
 			bc->pk, pk_len,
 			"data", 4, bc->tmp, bc->tmp_len));
@@ -275,7 +275,7 @@ bench_verify_ct(void *ctx, unsigned long num)
 	bc = ctx;
 	pk_len = FALCON_PUBKEY_SIZE(bc->logn);
 	while (num -- > 0) {
-		CC(falcon_verify(
+		CC(dap_falcon_verify(
 			bc->sigct, bc->sigct_len, FALCON_SIG_CT,
 			bc->pk, pk_len,
 			"data", 4, bc->tmp, bc->tmp_len));
@@ -293,7 +293,7 @@ test_speed_falcon(unsigned logn, double threshold)
 	fflush(stdout);
 
 	bc.logn = logn;
-	if (shake256_init_prng_from_system(&bc.rng) != 0) {
+	if (dap_shake256_init_prng_from_system(&bc.rng) != 0) {
 		fprintf(stderr, "random seeding failed\n");
 		exit(EXIT_FAILURE);
 	}

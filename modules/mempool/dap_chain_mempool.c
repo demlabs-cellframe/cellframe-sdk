@@ -54,6 +54,7 @@
 #include <dap_enc_key.h>
 #include <dap_enc_ks.h>
 #include "dap_chain_mempool.h"
+#include "dap_chain_mempool_rpc.h"
 
 #include "dap_common.h"
 #include "dap_list.h"
@@ -69,6 +70,7 @@
 
 int dap_datum_mempool_init(void)
 {
+    dap_chain_mempool_rpc_init();
     return 0;
 }
 
@@ -972,8 +974,8 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
     http_status_code_t * return_code = (http_status_code_t*) arg;
     // save key while it alive, i.e. still exist
     dap_enc_key_t *key = dap_enc_ks_find_http(cl_st->http_client);
-    //dap_enc_key_serealize_t *key_ser = dap_enc_key_serealize(key_tmp);
-    //dap_enc_key_t *key = dap_enc_key_deserealize(key_ser, sizeof(dap_enc_key_serealize_t));
+    //dap_enc_key_serialize_t *key_ser = dap_enc_key_serialize(key_tmp);
+    //dap_enc_key_t *key = dap_enc_key_deserialize(key_ser, sizeof(dap_enc_key_serialize_t));
 
     // read header
     dap_http_header_t *hdr_session_close_id =

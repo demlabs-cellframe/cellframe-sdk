@@ -7,7 +7,7 @@
 #include <stdint.h>
 #include "tesla_params.h"
 
-int64_t init_mass_poly(poly *zeta, poly *zetainv, tesla_param_t *p)
+int64_t tesla_init_mass_poly(poly *zeta, poly *zetainv, tesla_param_t *p)
 {
     unsigned int i;
     if(p->kind == 0) {

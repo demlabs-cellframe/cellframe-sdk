@@ -456,7 +456,7 @@ int dap_cert_compare_with_sign (dap_cert_t * a_cert,const dap_sign_t * a_sign)
         int l_ret;
         size_t l_pub_key_size = 0;
         // serialize public key
-        uint8_t *l_pub_key = dap_enc_key_serealize_pub_key(a_cert->enc_key, &l_pub_key_size);
+        uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(a_cert->enc_key, &l_pub_key_size);
         if ( l_pub_key_size == a_sign->header.sign_pkey_size){
             l_ret = memcmp ( l_pub_key, a_sign->pkey_n_sign, a_sign->header.sign_pkey_size );
         }else

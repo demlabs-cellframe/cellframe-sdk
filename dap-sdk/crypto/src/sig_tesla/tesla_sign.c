@@ -698,11 +698,11 @@ int tesla_crypto_sign_keypair(tesla_public_key_t *public_key, tesla_private_key_
         } while(check_ES(s, (int)p->PARAM_KEYGEN_BOUND_S, p) != 0);
 
         // Generate uniform polynomial "a"
-        poly_uniform(a, &randomness_extended[2*CRYPTO_SEEDBYTES], p);
+        tesla_poly_uniform(a, &randomness_extended[2*CRYPTO_SEEDBYTES], p);
 
         // Compute the public key t = as+e
-        poly_mul(t, a, s, p);
-        poly_add(t, t, e, p);        
+        tesla_poly_mul(t, a, s, p);
+        tesla_poly_add(t, t, e, p);
   }
   else {
         unsigned int k;        
@@ -721,13 +721,13 @@ int tesla_crypto_sign_keypair(tesla_public_key_t *public_key, tesla_private_key_
         } while(check_ES(s, (int)(p->PARAM_KEYGEN_BOUND_S), p) != 0);
 
         // Generate uniform polynomial "a"
-        poly_uniform( a, &randomness_extended[((p->PARAM_K) + 1) * CRYPTO_SEEDBYTES], p);
-        poly_ntt(s_ntt, s, p);
+        tesla_poly_uniform( a, &randomness_extended[((p->PARAM_K) + 1) * CRYPTO_SEEDBYTES], p);
+        tesla_poly_ntt(s_ntt, s, p);
 
         // Compute the public key t = as+e
         for (k = 0; k < p->PARAM_K; k++) {
-            poly_mul(&t[k * p->PARAM_N], &a[k * p->PARAM_N], s_ntt, p);
-            poly_add(&t[k * p->PARAM_N], &t[k * p->PARAM_N], &e[k * p->PARAM_N], p);
+            tesla_poly_mul(&t[k * p->PARAM_N], &a[k * p->PARAM_N], s_ntt, p);
+            tesla_poly_add(&t[k * p->PARAM_N], &t[k * p->PARAM_N], &e[k * p->PARAM_N], p);
             unsigned int i;
             for ( i = 0; i < p->PARAM_N; i++) {  // Correction
                 mask = (p->PARAM_Q - t[k * p->PARAM_N + i]) >> 63;
@@ -795,22 +795,22 @@ int tesla_crypto_sign( tesla_signature_t *sig, const unsigned char *m, unsigned 
     unsigned int k;
     int rsp = 0, nonce = 0;
 
-    poly_uniform(a, &private_key->data[p->CRYPTO_SECRETKEYBYTES - 2 * CRYPTO_SEEDBYTES], p);
+    tesla_poly_uniform(a, &private_key->data[p->CRYPTO_SECRETKEYBYTES - 2 * CRYPTO_SEEDBYTES], p);
 
     if(p->kind <= 2) {
         while (1) {
             sample_y(y, randomness, ++nonce, p);
-            poly_mul(v, a, y, p);
+            tesla_poly_mul(v, a, y, p);
             hash_vm(c, v, m, mlen, p);
             encode_c(pos_list, sign_list, c, p);
             sparse_mul16(Sc, private_key->data, pos_list, sign_list, p);
-            poly_add(z, y, Sc, p);
+            tesla_poly_add(z, y, Sc, p);
 
             if (test_rejection(z, p) != 0)
                 continue;
 
             sparse_mul16(Ec, private_key->data + (sizeof(int16_t) * p->PARAM_N), pos_list, sign_list, p);
-            poly_sub(v, v, Ec, p);
+            tesla_poly_sub(v, v, Ec, p);
 
             if (test_v(v, p) != 0)
                 continue;
@@ -822,21 +822,21 @@ int tesla_crypto_sign( tesla_signature_t *sig, const unsigned char *m, unsigned 
         while (1) {
             sample_y(y, randomness, ++nonce, p);
 
-            poly_ntt (y_ntt, y, p);
+            tesla_poly_ntt (y_ntt, y, p);
             for (k = 0; k < p->PARAM_K; k++)
-                poly_mul(&v[k * p->PARAM_N], &a[k * p->PARAM_N], y_ntt, p);
+                tesla_poly_mul(&v[k * p->PARAM_N], &a[k * p->PARAM_N], y_ntt, p);
 
             hash_vm(c, v, m, mlen, p);
             encode_c(pos_list, sign_list, c, p);
             sparse_mul8(Sc, private_key->data, pos_list, sign_list, p);
-            poly_add(z, y, Sc, p);
+            tesla_poly_add(z, y, Sc, p);
 
             if (test_rejection(z, p) != 0)
                 continue;
 
             for (k = 0; k < p->PARAM_K; k++) {
                 sparse_mul8(&Ec[k * p->PARAM_N], private_key->data + (sizeof(int8_t) * p->PARAM_N * (k + 1)), pos_list, sign_list, p);
-                poly_sub(&v[k * p->PARAM_N], &v[k * p->PARAM_N], &Ec[k * p->PARAM_N], p);
+                tesla_poly_sub(&v[k * p->PARAM_N], &v[k * p->PARAM_N], &Ec[k * p->PARAM_N], p);
                 rsp = test_v(&v[k * p->PARAM_N], p);
                 if (rsp != 0)
                     break;
@@ -928,21 +928,21 @@ int tesla_crypto_sign_open( tesla_signature_t *sig, const unsigned char *m, unsi
     }
 
     decode_pk((uint32_t*)pk_t, seed, public_key->data, p);
-    poly_uniform(a, seed, p);
+    tesla_poly_uniform(a, seed, p);
     encode_c(pos_list, sign_list, c, p);
 
     if(p->kind <= 2) {
-        poly_mul(w, a, z, p);
+        tesla_poly_mul(w, a, z, p);
         sparse_mul32(Tc, pk_t, pos_list, sign_list, p);
-        poly_sub(w, w, Tc, p);
+        tesla_poly_sub(w, w, Tc, p);
     }
     else {
-        poly_ntt(z_ntt, z, p);
+        tesla_poly_ntt(z_ntt, z, p);
 
         for (k = 0; k < p->PARAM_K; k++) {
-            poly_mul(&w[k * p->PARAM_N], &a[k * p->PARAM_N], z_ntt, p);
+            tesla_poly_mul(&w[k * p->PARAM_N], &a[k * p->PARAM_N], z_ntt, p);
             sparse_mul32(&Tc[k * p->PARAM_N], pk_t + (k * p->PARAM_N), pos_list, sign_list, p);
-            poly_sub(&w[k * p->PARAM_N], &w[k * p->PARAM_N], &Tc[k * p->PARAM_N], p);
+            tesla_poly_sub(&w[k * p->PARAM_N], &w[k * p->PARAM_N], &Tc[k * p->PARAM_N], p);
         }        
     }
     hash_vm(c_sig, w, m, mlen, p);
