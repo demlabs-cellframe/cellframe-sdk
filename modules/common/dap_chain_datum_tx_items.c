@@ -547,7 +547,8 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a
     dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
     int l_prev_cond_idx = l_list_out_items ? (a_out_num ? *a_out_num : 0) : -1;
     dap_chain_tx_out_cond_t *l_res = NULL;
-    for (dap_list_t *l_list_tmp = l_list_out_items; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp), l_prev_cond_idx++) {
+    for (dap_list_t *l_list_tmp = l_list_out_items; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp)) {
+        l_prev_cond_idx++;
         if (*(uint8_t *)l_list_tmp->data == TX_ITEM_TYPE_OUT_COND &&
                 ((dap_chain_tx_out_cond_t *)l_list_tmp->data)->header.subtype == a_cond_type) {
             l_res = l_list_tmp->data;
