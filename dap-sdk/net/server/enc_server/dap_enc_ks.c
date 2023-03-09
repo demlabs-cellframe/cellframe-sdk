@@ -69,9 +69,9 @@ void s_save_key_in_storge(dap_enc_ks_key_t *a_key)
 {
     HASH_ADD_STR(_ks,id,a_key);
     if(s_memcache_enable) {
-        dap_enc_key_serealize_t* l_serealize_key = dap_enc_key_serealize(a_key->key);
-        //dap_memcache_put(a_key->id, l_serealize_key, sizeof (dap_enc_key_serealize_t), s_memcache_expiration_key);
-        free(l_serealize_key);
+        dap_enc_key_serialize_t* l_serialize_key = dap_enc_key_serialize(a_key->key);
+        //dap_memcache_put(a_key->id, l_serialize_key, sizeof (dap_enc_key_serialize_t), s_memcache_expiration_key);
+        free(l_serialize_key);
     }
 }
 
@@ -86,10 +86,10 @@ dap_enc_ks_key_t * dap_enc_ks_find(const char * v_id)
             size_t l_val_length;
             bool find = dap_memcache_get(v_id, &l_val_length, (void**)&l_key_buf);
             if(find) {
-                if(l_val_length != sizeof (dap_enc_key_serealize_t)) {
+                if(l_val_length != sizeof (dap_enc_key_serialize_t)) {
                     log_it(L_WARNING, "Data can be broken");
                 }
-                dap_enc_key_t* key = dap_enc_key_deserealize(l_key_buf, l_val_length);
+                dap_enc_key_t* key = dap_enc_key_deserialize(l_key_buf, l_val_length);
                 ret = DAP_NEW_Z(dap_enc_ks_key_t);
                 strncpy(ret->id, v_id, DAP_ENC_KS_KEY_ID_SIZE);
                 pthread_mutex_init(&ret->mutex,NULL);

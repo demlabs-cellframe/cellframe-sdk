@@ -195,7 +195,7 @@ dap_chain_net_srv_uid_t dap_chain_net_srv_uid_from_str( const char * a_net_srv_u
 void dap_chain_addr_fill_from_key(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key, dap_chain_net_id_t a_net_id) {
     dap_sign_type_t l_type = dap_sign_type_from_key_type(a_key->type);
     size_t l_pub_key_data_size;
-    uint8_t *l_pub_key_data = dap_enc_key_serealize_pub_key(a_key, &l_pub_key_data_size);
+    uint8_t *l_pub_key_data = dap_enc_key_serialize_pub_key(a_key, &l_pub_key_data_size);
     if (!l_pub_key_data) {
         log_it(L_ERROR,"Can't fill address from key, its empty");
         return;

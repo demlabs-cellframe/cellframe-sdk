@@ -10,7 +10,7 @@ static falcon_kind_t s_falcon_kind = FALCON_COMPRESSED;
 static falcon_sign_type_t s_falcon_type = FALCON_DYNAMIC;
 
 
-void dap_enc_sig_falcon_set_degree(enum DAP_FALCON_SIGN_DEGREE a_falcon_sign_degree)
+void dap_enc_sig_falcon_set_degree(falcon_sign_degree_t a_falcon_sign_degree)
 {
     if (a_falcon_sign_degree != FALCON_512 && a_falcon_sign_degree != FALCON_1024) {
         log_it(L_ERROR, "Wrong falcon degree");
@@ -70,13 +70,13 @@ void dap_enc_sig_falcon_key_new_generate(struct dap_enc_key *key, const void *ke
     falcon_private_key_t privateKey = {s_falcon_kind, s_falcon_sign_degree, s_falcon_type, privkey};
     falcon_public_key_t publicKey = {s_falcon_kind, s_falcon_sign_degree, s_falcon_type, pubkey};
 
-    shake256_context rng;
-    retcode = shake256_init_prng_from_system(&rng);
+    dap_shake256_context rng;
+    retcode = dap_shake256_init_prng_from_system(&rng);
     if (retcode != 0) {
         log_it(L_ERROR, "Failed to initialize PRNG");
         return;
     }
-    retcode = falcon_keygen_make(
+    retcode = dap_falcon_keygen_make(
             &rng,
             logn,
             privateKey.data, FALCON_PRIVKEY_SIZE(logn),
@@ -96,45 +96,82 @@ void dap_enc_sig_falcon_key_new_generate(struct dap_enc_key *key, const void *ke
 
 }
 
+size_t dap_enc_falcon_calc_signature_unserialized_size(dap_enc_key_t *key)
+{
+    falcon_private_key_t *privateKey = key->priv_key_data;
+    switch (privateKey->kind) {
+    case FALCON_COMPRESSED:
+        return FALCON_SIG_COMPRESSED_MAXSIZE(privateKey->degree) + sizeof(falcon_signature_t);
+    case FALCON_PADDED:
+        return FALCON_SIG_PADDED_SIZE(privateKey->degree) + sizeof(falcon_signature_t);
+    case FALCON_CT:
+        return FALCON_SIG_CT_SIZE(privateKey->degree) + sizeof(falcon_signature_t);
+    default:
+        break;
+    }
+    return 0;
+}
+
 size_t dap_enc_sig_falcon_get_sign(struct dap_enc_key* key, const void* msg, const size_t msg_size, void* signature, const size_t signature_size) {
     //todo: do we need to use shared shake256 context?
 
     int retcode;
-    int logn = s_falcon_sign_degree;
-
-    shake256_context rng;
-    retcode = shake256_init_prng_from_system(&rng);
+    dap_shake256_context rng;
+    retcode = dap_shake256_init_prng_from_system(&rng);
     if (retcode != 0) {
         log_it(L_ERROR, "Failed to initialize PRNG");
         return retcode;
     }
 
-    size_t tmpsize = (s_falcon_type == FALCON_DYNAMIC ? FALCON_TMPSIZE_SIGNDYN(logn) : FALCON_TMPSIZE_SIGNTREE(logn));
+    if (key->priv_key_data_size != sizeof(falcon_private_key_t)) {
+        log_it(L_ERROR, "Invalid falcon key");
+        return -11;
+    }
+    falcon_private_key_t *privateKey = key->priv_key_data;
+
+    size_t tmpsize = privateKey->type == FALCON_DYNAMIC ?
+                FALCON_TMPSIZE_SIGNDYN(privateKey->degree) :
+                FALCON_TMPSIZE_SIGNTREE(privateKey->degree);
     uint8_t tmp[tmpsize];
 
-    //TODO: get sig_type from anywhere
-    retcode = falcon_sign_dyn(
+    falcon_signature_t *sig = signature;
+    sig->degree = privateKey->degree;
+    sig->kind = privateKey->kind;
+    sig->type = privateKey->type;
+    size_t sig_len = signature_size - sizeof(falcon_signature_t);
+    sig->sig_data = DAP_NEW_SIZE(byte_t, sig_len);
+    retcode = dap_falcon_sign_dyn(
             &rng,
-            signature, (size_t *)&signature_size, s_falcon_kind,
-            key->priv_key_data, key->priv_key_data_size,
+            sig->sig_data, &sig_len, privateKey->kind,
+            privateKey->data, FALCON_PRIVKEY_SIZE(privateKey->degree),
             msg, msg_size,
             tmp, tmpsize
             );
+    sig->sig_len = sig_len;
     if (retcode != 0)
         log_it(L_ERROR, "Failed to sign message");
     return retcode;
 }
 
 size_t dap_enc_sig_falcon_verify_sign(struct dap_enc_key* key, const void* msg, const size_t msg_size, void* signature,
-                                      const size_t signature_size) {
-    int retcode;
-    int logn = s_falcon_sign_degree;
+                                      const size_t signature_size)
+{
+    if (key->pub_key_data_size != sizeof(falcon_private_key_t)) {
+        log_it(L_ERROR, "Invalid falcon key");
+        return -11;
+    }
+    falcon_private_key_t *publicKey = key->pub_key_data;
+    int logn = publicKey->degree;
 
     uint8_t tmp[FALCON_TMPSIZE_VERIFY(logn)];
-
-    retcode = falcon_verify(
-            signature, signature_size, s_falcon_kind,
-            key->pub_key_data, key->pub_key_data_size,
+    falcon_signature_t *sig = signature;
+    if (sig->degree != publicKey->degree ||
+            sig->kind != publicKey->kind ||
+            sig->type != publicKey->type)
+        return -1;
+    int retcode = dap_falcon_verify(
+            sig->sig_data, sig->sig_len, publicKey->kind,
+            publicKey->data, FALCON_PUBKEY_SIZE(publicKey->degree),
             msg, msg_size,
             tmp, FALCON_TMPSIZE_VERIFY(logn)
             );
@@ -340,8 +377,8 @@ uint8_t* dap_enc_falcon_write_signature(const falcon_signature_t* a_sign, size_t
         return NULL;
     }
 
-    size_t l_buflen = sizeof(uint64_t) * 2 + sizeof(uint32_t) * 3;
-    uint8_t* l_buf = DAP_NEW_Z_SIZE(uint8_t, l_buflen);
+    size_t l_buflen = sizeof(uint64_t) * 2 + sizeof(uint32_t) * 3 + a_sign->sig_len;
+    uint8_t *l_buf = DAP_NEW_Z_SIZE(uint8_t, l_buflen);
     if (!l_buf) {
         log_it(L_ERROR, "::write_signature() l_buf is NULL — memory allocation error");
         return NULL;
@@ -372,9 +409,9 @@ falcon_signature_t* dap_enc_falcon_read_signature(const uint8_t* a_buf, size_t a
         return NULL;
     }
 
-    if (a_buflen < sizeof(uint64_t) * 2 + sizeof(uint32_t) * 3) {
-        log_it(L_ERROR, "::read_signature() a_buflen %"DAP_UINT64_FORMAT_U" is smaller than first five fields(%zu)",
-                        a_buflen, sizeof(uint64_t) * 2 + sizeof(uint32_t) * 3);
+    if (a_buflen != sizeof(falcon_signature_t)) {
+        log_it(L_ERROR, "::read_signature() a_buflen %"DAP_UINT64_FORMAT_U" is not equal to sign struct size (%zu)",
+                        a_buflen, sizeof(falcon_signature_t));
         return NULL;
     }
 
@@ -386,10 +423,6 @@ falcon_signature_t* dap_enc_falcon_read_signature(const uint8_t* a_buf, size_t a
     uint8_t *l_ptr = (uint8_t *)a_buf;
 
     l_buflen = *(uint64_t *)l_ptr; l_ptr += sizeof(uint64_t);
-    if (a_buflen < l_buflen) {
-        log_it(L_ERROR, "::read_signature() a_buflen %"DAP_UINT64_FORMAT_U" is less than l_buflen %"DAP_UINT64_FORMAT_U, a_buflen, l_buflen);
-        return NULL;
-    }
 
     l_degree = *(uint32_t *)l_ptr; l_ptr += sizeof(uint32_t);
     if (l_degree != FALCON_512 && l_degree != FALCON_1024) { // we are now supporting only 512 and 1024 degrees
