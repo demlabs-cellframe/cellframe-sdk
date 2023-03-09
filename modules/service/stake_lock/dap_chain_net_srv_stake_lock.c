@@ -1251,6 +1251,32 @@ dap_chain_tx_out_cond_t *dap_chain_net_srv_stake_lock_create_cond_out(dap_pkey_t
     return l_item;
 }
 
+json_object *dap_chain_net_srv_stake_lock_cond_out_to_json(dap_chain_tx_out_cond_t *a_stake_lock) {
+    if (a_stake_lock->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK) {
+        json_object *l_object = json_object_new_object();
+        char *l_value = dap_chain_balance_print(a_stake_lock->header.value);
+        json_object *l_obj_value = json_object_new_string(l_value);
+        DAP_DELETE(l_value);
+        json_object *l_obj_srv_uid = json_object_new_uint64(a_stake_lock->header.srv_uid.uint64);
+        char *l_reinvest_precent = dap_chain_balance_print(a_stake_lock->subtype.srv_stake_lock.reinvest_percent);
+        json_object *l_obj_reinvest_percent = json_object_new_string(l_reinvest_precent);
+        DAP_DELETE(l_reinvest_precent);
+        json_object *l_obj_time_unlock = json_object_new_uint64(a_stake_lock->subtype.srv_stake_lock.time_unlock);
+        json_object *l_obj_flags = json_object_new_uint64(a_stake_lock->subtype.srv_stake_lock.flags);
+        char *l_pkey_delegate_hash = dap_hash_fast_to_str_new(&a_stake_lock->subtype.srv_stake_lock.pkey_delegated);
+        json_object *l_obj_pkey_delegate_hash = json_object_new_string(l_pkey_delegate_hash);
+        DAP_DELETE(l_pkey_delegate_hash);
+        json_object_object_add(l_object, "value", l_obj_value);
+        json_object_object_add(l_object, "srvUID", l_obj_srv_uid);
+        json_object_object_add(l_object, "reinvestPercent", l_obj_reinvest_percent);
+        json_object_object_add(l_object, "timeUnlock", l_obj_time_unlock);
+        json_object_object_add(l_object, "flags", l_obj_flags);
+        json_object_object_add(l_object, "pkeyDelegateHash", l_obj_pkey_delegate_hash);
+        return l_object;
+    }
+    return NULL;
+}
+
 
 /**
  * @brief dap_chain_net_srv_stake_lock_mempool_create
