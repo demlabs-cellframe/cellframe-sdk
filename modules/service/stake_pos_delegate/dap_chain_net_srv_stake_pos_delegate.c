@@ -24,6 +24,7 @@
 
 #include <math.h>
 #include "dap_chain_node_cli.h"
+#include "dap_config.h"
 #include "dap_string.h"
 #include "dap_list.h"
 #include "dap_enc_base58.h"
@@ -36,6 +37,8 @@
 
 #define LOG_TAG "dap_chain_net_srv_stake"
 
+#define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP "delegate_keys"
+
 static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply);
 static int s_callback_requested(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size);
 static int s_callback_response_success(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size);
@@ -44,9 +47,9 @@ static int s_callback_receipt_next_success(dap_chain_net_srv_t *a_srv, uint32_t 
 static bool s_verificator_stake_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond,
                                                       dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 static bool s_verificator_stake_updater_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_cond);
-
+static void s_cache_data();
 static dap_chain_net_srv_stake_t *s_srv_stake = NULL;
-
+static bool s_debug_more = false;
 typedef struct dap_chain_net_srv_stake_cache_data
 {
     uint256_t value;
@@ -88,6 +91,7 @@ int dap_chain_net_srv_stake_pos_delegate_init()
          "\tSend a staker fee from the block or transaction to the holder.\n"
     );
 
+    s_debug_more = dap_config_get_item_bool_default(g_config,"ledger","debug_more",false);
     s_srv_stake = DAP_NEW_Z(dap_chain_net_srv_stake_t);
 
 //    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRVDAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID _STAKE_ID };
@@ -96,7 +100,7 @@ int dap_chain_net_srv_stake_pos_delegate_init()
 //                                                       s_callback_receipt_next_success, NULL);
 //    l_srv->_internal = s_srv_stake;
 
-    uint16_t l_net_count;
+    /*uint16_t l_net_count;
     dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
     for (uint16_t i = 0; i < l_net_count; i++) {
         dap_ledger_t *l_ledger = l_net_list[i]->pub.ledger;
@@ -160,7 +164,7 @@ int dap_chain_net_srv_stake_pos_delegate_init()
         } while (l_tx_tmp);
     }
     DAP_DELETE(l_net_list);
-    s_srv_stake->initialized = true;
+    s_srv_stake->initialized = true;*/
 
     return 0;
 }
@@ -201,6 +205,7 @@ static void s_stake_update(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t
         // New stake transaction
         l_stake->signing_addr = l_out_cond->subtype.srv_stake.signing_addr;
         HASH_ADD(hh, s_srv_stake->itemlist, signing_addr, sizeof(dap_chain_addr_t), l_stake);
+        s_cache_data(l_stake->net->pub.name, l_stake);
     }
     else if (memcmp(&a_cond->subtype.srv_stake.signing_addr, &l_out_cond->subtype.srv_stake.signing_addr, sizeof(dap_chain_addr_t))) {
         HASH_DEL(s_srv_stake->itemlist, l_stake);
@@ -211,8 +216,10 @@ static void s_stake_update(dap_chain_tx_out_cond_t *a_cond, dap_chain_datum_tx_t
             l_stake = l_stake_cur;
         }
         l_stake->signing_addr = l_out_cond->subtype.srv_stake.signing_addr;
-        if (l_stake_cur)
+        if (l_stake_cur){
             HASH_ADD(hh, s_srv_stake->itemlist, signing_addr, sizeof(dap_chain_addr_t), l_stake);
+            s_cache_data(l_stake->net->pub.name, l_stake);
+        }
     }
     if (a_authorized) {
         l_stake->is_active = true;
@@ -365,17 +372,54 @@ bool dap_chain_net_srv_stake_validator(dap_chain_addr_t *a_addr, dap_chain_datum
     if (compare256(l_fee_sum, l_fee) == -1) {
         return false;
     }
-
-
-
     return true;
 }
 
-bool dap_chain_net_srv_stake_check_tx_activator(dap_hash_fast_t a_tx_hash)
-{
-
-
+bool dap_chain_net_srv_stake_check_tx_activator(dap_hash_fast_t a_tx_hash){
+    dap_chain_net_srv_stake_item_t *l_stake, *l_tmp;
+    HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp) {
+        if (!memcmp(&l_stake->tx_hash, &a_tx_hash, sizeof(dap_hash_fast_t))){
+            l_stake->is_active = true;
+            return true;
+        }
+    }
     return false;
+}
+
+int dap_chain_net_srv_stake_load_cache(dap_chain_net_t *a_net){
+    dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(a_net->pub.name);
+    char *l_gdb_group = dap_chain_ledger_get_gdb_group(l_ledger, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP);
+    size_t l_objs_count = 0;
+    dap_store_obj_t *l_store_obj = dap_global_db_get_all_raw_sync(l_gdb_group, 0, &l_objs_count);
+
+    if(!l_objs_count || !l_store_obj)
+    {
+        log_it(L_WARNING, "Stake cache data not found");
+        return -1;
+    }
+
+    dap_chain_net_srv_stake_item_t *l_stake;
+    bool l_is_new = false;
+    for(size_t i = 0; i < l_objs_count; i++){
+
+        dap_chain_net_srv_stake_item_t *l_srv_stake = (dap_chain_net_srv_stake_item_t *)l_store_obj[i].value;
+
+        HASH_FIND(hh, s_srv_stake->itemlist, &l_srv_stake[i].signing_addr, sizeof(dap_chain_addr_t), l_stake);
+        if (!l_stake) {
+            l_stake = DAP_NEW_Z(dap_chain_net_srv_stake_item_t);
+            l_is_new = true;
+        }
+
+        l_stake->node_addr      = l_srv_stake->node_addr;
+        l_stake->signing_addr   = l_srv_stake->signing_addr;
+        l_stake->value          = l_srv_stake->value;
+        l_stake->tx_hash        = l_srv_stake->tx_hash;
+        if (l_is_new)
+            HASH_ADD(hh, s_srv_stake->itemlist, signing_addr, sizeof(dap_chain_addr_t), l_stake);
+    }
+    dap_store_obj_free(l_store_obj, l_objs_count);
+
+    return 0;
 }
 
 // Freeze staker's funds when delegating an order
@@ -1113,23 +1157,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                     return -19;
                 }
                 HASH_ADD(hh, s_srv_stake->itemlist, signing_addr, sizeof(dap_chain_addr_t), l_stake);
-
-
-                // TODO: check leger cache is enabled
-                dap_store_obj_t *l_store_obj = DAP_NEW_SIZE(dap_store_obj_t, sizeof(dap_chain_net_srv_stake_cache_data_t));
-                uint8_t *l_cache_data = DAP_NEW_STACK_SIZE(uint8_t, sizeof(dap_chain_net_srv_stake_cache_data_t));
-                l_cache_data->node_addr = l_stake->node_addr;
-                l_cache_data->signing_addr = l_stake->signing_addr;
-                l_cache_data->tx_hash = l_stake->tx_hash;
-                l_cache_data->value = l_stake->value;
-
-
-                l_store_obj->key_byte = l_cache_data->signing_addr;
-                l_store_obj->key_len = sizeof(l_cache_data->signing_addr);
-                l_store_obj->value = (uint8_t*)l_cache_data;
-                l_store_obj->value_len = sizeof(dap_chain_net_srv_stake_cache_data_t);
-                if (dap_global_db_set_raw(l_cache_used_outs, l_outs_used + 1, NULL, NULL))
-                    debug_if(s_debug_more, L_WARNING, "Ledger cache mismatch");
+                s_cache_data(l_stake->net->pub.name, l_stake);
             } else {
                 DAP_DELETE(l_addr_fee);
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified order not found");
@@ -1414,4 +1442,37 @@ void dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net, dap_stri
     DAP_DELETE(l_max_coins);
     DAP_DELETE(l_average_balance);
     DAP_DELETE(l_average_coins);
+}
+
+static void s_cache_data(char* a_net_name, dap_chain_net_srv_stake_item_t *a_stake){
+    // TODO: check leger cache is enable
+    dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(a_net_name);
+    char *l_gdb_group = dap_chain_ledger_get_gdb_group(l_ledger, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP);
+
+    if (!dap_chain_ledger_cache_enabled(l_ledger)) {
+        DAP_DELETE(l_ledger);
+        return;
+    }
+
+    dap_store_obj_t *l_store_obj = DAP_NEW_SIZE(dap_store_obj_t, sizeof(dap_chain_net_srv_stake_cache_data_t));
+    dap_chain_net_srv_stake_cache_data_t *l_cache_data = DAP_NEW_STACK_SIZE(dap_chain_net_srv_stake_cache_data_t, sizeof(dap_chain_net_srv_stake_cache_data_t));
+    l_cache_data->node_addr = a_stake->node_addr;
+    l_cache_data->signing_addr = a_stake->signing_addr;
+    l_cache_data->tx_hash = a_stake->tx_hash;
+    l_cache_data->value = a_stake->value;
+
+    dap_chain_addr_t *l_key_byte_buf = DAP_NEW_SIZE(dap_chain_addr_t, sizeof(dap_chain_addr_t));
+    memcpy(l_key_byte_buf, &l_cache_data->signing_addr, sizeof(dap_chain_addr_t));
+    l_store_obj->key_byte = (byte_t*)l_key_byte_buf;
+    l_store_obj->key_len = sizeof(l_cache_data->signing_addr);
+    l_store_obj->value = (uint8_t*)l_cache_data;
+    l_store_obj->value_len = sizeof(dap_chain_net_srv_stake_cache_data_t);
+    l_store_obj->group = l_gdb_group;
+    if (dap_global_db_set_raw(l_store_obj, 1, NULL, NULL))
+        debug_if(s_debug_more, L_WARNING, "Ledger cache mismatch");
+
+    DAP_DELETE(l_store_obj);
+    DAP_DELETE(l_cache_data);
+    DAP_DELETE(l_key_byte_buf);
+    DAP_DELETE(l_ledger);
 }

@@ -75,3 +75,4 @@ dap_list_t *dap_chain_net_srv_stake_get_validators();
 void dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net, dap_string_t *a_string);
 
 bool dap_chain_net_srv_stake_check_tx_activator(dap_hash_fast_t a_tx_hash);
+int dap_chain_net_srv_stake_load_cache(dap_chain_net_t *a_net);

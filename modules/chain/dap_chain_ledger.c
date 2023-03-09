@@ -4142,6 +4142,8 @@ int dap_chain_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
         pthread_rwlock_unlock(&PVT(a_ledger)->ledger_rwlock);
         if (l_tx_spent_item)
             return 1;
+
+        dap_chain_net_srv_stake_check_tx_activator(l_tx_hash);
     }
     return dap_chain_ledger_tx_add(a_ledger, a_tx, &l_tx_hash, false);
 }
@@ -5029,4 +5031,8 @@ void dap_chain_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_chain_ledger_tx_
     l_notifier->callback = a_callback;
     l_notifier->arg = a_arg;
     a_ledger->tx_add_notifiers = dap_list_append(a_ledger->tx_add_notifiers, l_notifier);
+}
+
+bool dap_chain_ledger_cache_enabled(dap_ledger_t *a_ledger){
+    return PVT(a_ledger)->cached;
 }

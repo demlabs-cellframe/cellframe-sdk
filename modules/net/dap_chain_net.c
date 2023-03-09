@@ -2207,6 +2207,8 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         HASH_ADD(hh,s_net_items_ids,net_id,sizeof ( l_net_item2->net_id),l_net_item2);
         pthread_rwlock_unlock(&s_net_ids_rwlock);
 
+
+
         // LEDGER model
         uint16_t l_ledger_flags = 0;
         switch ( PVT( l_net )->node_role.enums ) {
@@ -2485,6 +2487,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
 
          }
 
+        dap_chain_net_srv_stake_load_cache(l_net);
 
         char * l_chains_path = dap_strdup_printf("%s/network/%s", dap_config_path(), l_net->pub.name);
         DIR * l_chains_dir = opendir(l_chains_path);
