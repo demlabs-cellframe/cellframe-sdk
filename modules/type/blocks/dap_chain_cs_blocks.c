@@ -39,6 +39,7 @@
 
 typedef struct dap_chain_tx_block_index
 {
+    int res;
     time_t ts_added;
     dap_chain_hash_fast_t tx_hash;
     dap_chain_hash_fast_t block_hash;
@@ -660,24 +661,25 @@ static int s_add_atom_to_ledger(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t *
         }
         dap_hash_fast_t l_tx_hash;
         int l_res = dap_chain_datum_add(a_blocks->chain, l_datum, l_datum_size, &l_tx_hash);
-        if (!l_res) {
-            l_ret++;
-            if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
-                // Save tx hash -> block_hash link in hash table
-                dap_chain_tx_block_index_t * l_tx_block= DAP_NEW_Z(dap_chain_tx_block_index_t);
-                l_tx_block->ts_added = time(NULL);
-                l_tx_block->block_hash = a_block_cache->block_hash;
-                l_tx_block->tx_hash = l_tx_hash;
-                pthread_rwlock_wrlock( &PVT(a_blocks)->rwlock );
-                HASH_ADD(hh, PVT(a_blocks)->tx_block_index, tx_hash, sizeof(l_tx_block->tx_hash), l_tx_block);
-                pthread_rwlock_unlock( &PVT(a_blocks)->rwlock );
-            }
-        } else {
+        //if (!l_res) {
+        l_ret++;
+        if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
+            // Save tx hash -> block_hash link in hash table
+            dap_chain_tx_block_index_t * l_tx_block= DAP_NEW_Z(dap_chain_tx_block_index_t);
+            l_tx_block->ts_added = time(NULL);
+            l_tx_block->block_hash = a_block_cache->block_hash;
+            l_tx_block->tx_hash = l_tx_hash;
+            l_tx_block->res = l_res;
+            pthread_rwlock_wrlock( &PVT(a_blocks)->rwlock );
+            HASH_ADD(hh, PVT(a_blocks)->tx_block_index, tx_hash, sizeof(l_tx_block->tx_hash), l_tx_block);
+            pthread_rwlock_unlock( &PVT(a_blocks)->rwlock );
+        }
+        //} else {
             /* @RRL: disabled due spaming ...
             debug_if(s_debug_more, L_ERROR, "Can't load datum #%zu (%s) from block %s to ledger: code %d", i,
                      dap_chain_datum_type_id_to_str(l_datum->header.type_id), a_block_cache->block_hash_str, l_res);
             */
-        }
+        //}
     }
     return l_ret;
 }

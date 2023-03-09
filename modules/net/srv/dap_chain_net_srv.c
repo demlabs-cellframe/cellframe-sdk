@@ -52,6 +52,7 @@
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_net_srv_stream_session.h"
 #include "dap_stream_ch_chain_net_srv.h"
+#include "dap_chain_cs_blocks.h"
 #ifdef DAP_MODULES_DYNAMIC
 #include "dap_modules_dynamic_cdb.h"
 #endif
@@ -607,22 +608,28 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
 static bool s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_hash_fast_t *a_tx_out_hash,dap_chain_tx_out_cond_t *a_cond,
                                        dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
-    UNUSED(a_ledger);
+    //UNUSED(a_ledger);
     UNUSED(a_tx_out_hash);
     UNUSED(a_cond);
-    //UNUSED(a_tx_in);
+    dap_chain_t * l_chain;
+    dap_chain_datum_tx_t * l_tx = NULL;
+    const char * l_net_name = a_ledger->net_name;
     //UNUSED(a_owner);
     //if (!a_owner)
         //return false;
-    dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)
-                                               dap_chain_datum_tx_item_get(a_tx_in, NULL, TX_ITEM_TYPE_RECEIPT, NULL);
-    dap_chain_tx_in_ems_t *l_token = (dap_chain_tx_in_ems_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, TX_ITEM_TYPE_IN_EMS, NULL);
-    dap_chain_tx_out_t *l_tx_out1 = (dap_chain_tx_out_t*)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_OUT_EXT, 0);
-    dap_chain_tx_out_cond_t *l_tx_stake_lock_out_cond = (dap_chain_tx_out_cond_t*)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_OUT_COND, 0);
-    dap_chain_tx_out_t *l_tx_out2 = (dap_chain_tx_out_t*)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_OUT_EXT, 0);
-    dap_chain_tx_sig_t *l_tx_prev_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, TX_ITEM_TYPE_SIG, NULL);
-    dap_chain_tx_out_t *l_tx_out3 = (dap_chain_tx_out_t*)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_OUT, 0);
-    dap_chain_tx_in_t *l_in_item = (dap_chain_tx_in_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, TX_ITEM_TYPE_IN, NULL);
+
+    dap_chain_net_t * l_net = l_net_name ? dap_chain_net_by_name(l_net_name) : NULL;
+
+    //dap_sign_t * l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, i);
+
+    //const char *l_chain_type = dap_chain_net_get_type(l_chain);
+    l_chain = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_CA );
+    dap_chain_cs_blocks_t * l_cs_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
+
+    l_tx = l_chain->callback_tx_find_by_hash(l_chain, a_tx_out_hash);
+
+    dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
+    dap_sign_t *l_sign1 = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
 
     if (!l_receipt)
         return false;
