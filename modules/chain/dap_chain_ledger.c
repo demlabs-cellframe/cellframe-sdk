@@ -2753,7 +2753,7 @@ bool dap_chain_ledger_tx_spent_find_by_hash(dap_ledger_t *a_ledger, dap_chain_ha
 
 dap_hash_fast_t *dap_chain_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_cond_type, dap_chain_hash_fast_t *a_tx_hash)
 {
-    if(!a_ledger || !a_tx_hash || dap_hash_fast_is_blank(a_tx_hash))
+    if (!a_ledger || !a_tx_hash || dap_hash_fast_is_blank(a_tx_hash))
         return NULL;
     dap_ledger_private_t *l_ledger_priv = PVT(a_ledger);
     dap_chain_ledger_tx_item_t *l_item;
@@ -2780,19 +2780,14 @@ dap_hash_fast_t *dap_chain_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger
         }
         dap_chain_ledger_tx_spent_item_t *l_spent_item;
         HASH_FIND_BYHASHVALUE(hh, l_ledger_priv->spent_items, l_tx_hash, sizeof(*l_tx_hash), l_hash_value, l_spent_item);
-        if (l_spent_item) {
-            l_tx_hash = &l_spent_item->cache_data.tx_hash_spent_fast;
-            if (dap_hash_fast_is_blank(l_tx_hash))
-                break;          // We have no condional outpul with spent item
-        } else {
-            l_tx_hash = NULL;   // We can't find pointed hash in the ledger
-            break;
-        }
+        if (l_spent_item && // We have condional output with spent item
+                !dap_hash_fast_is_blank(&l_spent_item->cache_data.tx_hash_spent_fast)) {
+            l_tx_hash = &l_spent_item->cache_data.tx_hash_spent_fast;        
+        } else
+            l_tx_hash = NULL;   // We can't find pointed hash in the ledger or it's a not conditional tx
     }
     pthread_rwlock_unlock(&l_ledger_priv->ledger_rwlock);
-    if (l_tx_hash && !dap_hash_fast_is_blank(l_tx_hash))
-        return l_tx_hash;
-    return NULL;
+    return l_tx_hash;
 }
 
 /**

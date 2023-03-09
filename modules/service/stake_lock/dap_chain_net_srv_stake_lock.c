@@ -472,9 +472,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
     ||	NULL == l_tx_str)
         return TX_ARG_ERROR;
 
-    dap_chain_hash_fast_from_hex_str(l_tx_str, &l_tx_hash);
-
-    if (dap_hash_fast_is_blank(&l_tx_hash))
+    if (dap_chain_hash_fast_from_str(l_tx_str, &l_tx_hash))
         return HASH_IS_BLANK_ERROR;
 
     l_ledger = l_net->pub.ledger;
