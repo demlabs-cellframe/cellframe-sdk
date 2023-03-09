@@ -26,6 +26,7 @@
 #include "dap_list.h"
 #include "dap_enc_key.h"
 #include "dap_chain_common.h"
+#include <json-c/json.h>
 
 typedef enum dap_chain_tx_cond_type {
     COND_SERVICE_PROVIDE = 0x20, //
@@ -139,3 +140,5 @@ int dap_chain_datum_tx_add_sign_item(dap_chain_datum_tx_t **a_tx, dap_enc_key_t 
  * return 1 Ok, 0 Invalid sign, -1 Not found sing or other Error
  */
 int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx);
+
+json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx);

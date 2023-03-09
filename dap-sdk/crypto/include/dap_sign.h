@@ -31,6 +31,7 @@
 #include "dap_pkey.h"
 #include "dap_hash.h"
 #include "dap_string.h"
+#include <json-c/json.h>
 
 enum dap_sign_type_enum {
     SIG_TYPE_NULL       = 0x0000,
@@ -186,6 +187,7 @@ int dap_multi_sign_verify(dap_multi_sign_t *a_sign, const void *a_data, const si
 void dap_multi_sign_delete(dap_multi_sign_t *a_sign);
 
 void dap_sign_get_information(dap_sign_t *a_sign, dap_string_t *a_str_out, const char *a_hash_out_type);
+json_object* dap_sign_to_json(const dap_sign_t *a_sign);
 
 #ifdef __cplusplus
 }

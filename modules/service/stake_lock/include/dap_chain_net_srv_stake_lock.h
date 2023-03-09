@@ -27,6 +27,7 @@
 #include "dap_chain_net.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx_out_cond.h"
+#include <json-c/json.h>
 
 #define DAP_CHAIN_NET_SRV_STAKE_LOCK_ID 0x12
 
@@ -51,6 +52,8 @@ void					dap_chain_net_srv_stake_lock_deinit(void);
 // Create cond out
 dap_chain_tx_out_cond_t	*dap_chain_net_srv_stake_lock_create_cond_out(dap_pkey_t *a_key, dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
                                                                                     uint64_t a_time_staking, uint256_t a_reinvest_percent, bool create_base_tx);
+
+json_object *dap_chain_net_srv_stake_lock_cond_out_to_json(dap_chain_tx_out_cond_t *a_stake_lock);
 
 // Create mempool
 dap_chain_hash_fast_t	*dap_chain_net_srv_stake_lock_mempool_create(dap_chain_net_t *a_net,

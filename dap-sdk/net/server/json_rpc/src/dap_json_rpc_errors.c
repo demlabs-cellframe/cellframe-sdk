@@ -31,8 +31,8 @@ dap_json_rpc_error_JSON_t * dap_json_rpc_error_JSON_create()
 }
 void dap_json_rpc_error_JSON_free(dap_json_rpc_error_JSON_t *a_error_json)
 {
-    json_object_put(a_error_json->obj_code);
-    json_object_put(a_error_json->obj_msg);
+    //json_object_put(a_error_json->obj_code);
+    //json_object_put(a_error_json->obj_msg);
     DAP_FREE(a_error_json);
 }
 dap_json_rpc_error_JSON_t * dap_json_rpc_error_JSON_add_data(int code, const char *msg)
@@ -85,9 +85,6 @@ char *dap_json_rpc_error_get_json(dap_json_rpc_error_t *a_error)
     json_object *l_jobj_err = json_object_new_object();
     json_object_object_add(l_jobj_err, "error", l_jobj);
     char *l_json_str = dap_strdup(json_object_to_json_string(l_jobj_err));
-    json_object_put(l_jobj_err);
-    json_object_put(l_jobj_code);
-    json_object_put(l_jobj_msg);
     json_object_put(l_jobj);
     return l_json_str;
 }
