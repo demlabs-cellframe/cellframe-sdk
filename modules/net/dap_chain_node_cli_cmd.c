@@ -2150,36 +2150,35 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
     return l_datum_token;
 }
 
-static dap_chain_datum_token_t* s_new_cert_signs_add_in_tsd_cycle(dap_cert_t ** a_certs, dap_chain_datum_token_t *a_datum_token,
-                                              size_t *a_datum_token_offset, size_t a_certs_count){
+static dap_chain_datum_token_t* s_datum_token_add_new_pkeys(dap_pkey_t ** a_pkeys, dap_chain_datum_token_t *a_datum_token,
+                                              size_t *a_datum_token_offset, size_t a_pkeys_count){
 
     dap_chain_datum_token_t *l_datum_token = a_datum_token;
     uint64_t l_tsd_size = 0;
     if (l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE) {
         l_tsd_size = l_datum_token->header_private_update.tsd_total_size;
-        l_datum_token->header_private_update.tsd_total_size = 0;
     } else if (l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE) {
         l_tsd_size = l_datum_token->header_native_update.tsd_total_size;
-        l_datum_token->header_native_update.tsd_total_size = 0;
     } else {
         log_it(L_DEBUG, "It is not possible to add new signatures to this datum, because to. no information about the "
                         "size of TSD sections.");
         return l_datum_token;
     }
 
-    for (size_t i = 0; i < a_certs_count; i++) {
-        dap_sign_t * l_sign = dap_cert_sign(a_certs[i],  l_datum_token,
-                                            sizeof(*l_datum_token) - sizeof(uint16_t), 0);
-        if (l_sign) {
-            size_t l_sign_size = dap_sign_get_size(l_sign);
-            dap_tsd_t *l_sign_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_ADD, l_sign, l_sign_size);
-            size_t l_sign_tsd_size = dap_tsd_size(l_sign_tsd);
-            l_datum_token = DAP_REALLOC(l_datum_token, sizeof(dap_chain_datum_token_t) + l_tsd_size + l_sign_tsd_size);
-            memcpy(l_datum_token->data_n_tsd + l_tsd_size, l_sign_tsd, l_sign_tsd_size);
-            l_tsd_size += l_sign_tsd_size;
-            *a_datum_token_offset += l_sign_tsd_size;
-            log_it(L_DEBUG, "Added signature with new certificates to TSD section.");
-        }
+    for (size_t i = 0; i < a_pkeys_count; i++) {
+        size_t l_pkey_size = sizeof(dap_pkey_t) + a_pkeys[i]->header.size;
+        dap_tsd_t *l_pkey_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD, a_pkeys[i], l_pkey_size);
+        size_t l_pkey_tsd_size = dap_tsd_size(l_pkey_tsd);
+        l_datum_token = DAP_REALLOC(l_datum_token, sizeof(dap_chain_datum_token_t) + l_tsd_size + l_pkey_tsd_size);
+        memcpy(l_datum_token->data_n_tsd + l_tsd_size, l_pkey_tsd, l_pkey_tsd_size);
+        l_tsd_size += l_pkey_tsd_size;
+        *a_datum_token_offset += l_pkey_tsd_size;
+        dap_hash_fast_t l_hf = {0};
+        dap_pkey_get_hash(a_pkeys[i], &l_hf);
+        char *l_hf_str = dap_hash_fast_to_str_new(&l_hf);
+        log_it(L_DEBUG, "A new TSD section of the DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD type with the public "
+                        "key %s has been added to the datum.", l_hf_str);
+        DAP_DELETE(l_hf_str);
     }
     if (l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE)
         l_datum_token->header_private_update.tsd_total_size = l_tsd_size;
@@ -2278,6 +2277,9 @@ int com_token_decl_sign(int argc, char ** argv, char ** a_str_reply)
                 if ((l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL)
 				||	(l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL))
                     l_tsd_size = l_datum_token->header_native_decl.tsd_total_size;
+                if ((l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE)
+                ||  (l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE))
+                    l_tsd_size = l_datum_token->header_native_update.tsd_total_size;
                 // Check for signatures, are they all in set and are good enought?
                 size_t l_signs_size = 0, i = 1;
                 for (i = 1; i <= l_datum_token->signs_total; i++){
@@ -3797,7 +3799,7 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
                     dap_hash_fast_t *l_hf = DAP_NEW(dap_hash_fast_t);
                     char *l_tmp = strdup(l_remove_signs_str);
                     if (dap_chain_hash_fast_from_str(l_tmp, l_hf) == 0) {
-                        dap_tsd_t *l_hf_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_REMOVE, l_hf, sizeof(dap_hash_fast_t));
+                        dap_tsd_t *l_hf_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE, l_hf, sizeof(dap_hash_fast_t));
                         size_t l_hf_tsd_size = dap_tsd_size(l_hf_tsd);
                         l_datum_token = DAP_REALLOC(l_datum_token, sizeof(dap_chain_datum_token_t) + l_datum_data_offset + l_hf_tsd_size);
                         memcpy(l_datum_token->data_n_tsd + l_datum_data_offset, l_hf_tsd, l_hf_tsd_size);
@@ -3812,7 +3814,16 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
                 DAP_DELETE(l_remove_signs_str);
                 l_datum_token->header_native_update.tsd_total_size += l_added_tsd_size;
             }
-            l_datum_token = s_new_cert_signs_add_in_tsd_cycle(l_new_certs, l_datum_token, &l_datum_data_offset, l_new_certs_count);
+            dap_pkey_t **l_pkeys = NULL;
+            for (size_t i=0; i < l_new_certs_count; i++){
+                l_pkeys = DAP_REALLOC(l_pkeys, sizeof(void*) * l_new_certs_count);
+                l_pkeys[i] = dap_cert_to_pkey(l_new_certs[i]);
+            }
+            l_datum_token = s_datum_token_add_new_pkeys(l_pkeys, l_datum_token, &l_datum_data_offset, l_new_certs_count);
+            for (size_t i=0; i < l_new_certs_count; i++){
+                DAP_DELETE(l_pkeys[i]);
+            }
+            DAP_DELETE(l_pkeys);
 		}break;//end
 		case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE: { // 256
 			l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t));
@@ -4155,193 +4166,6 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
 		return -2;
 	}
  */
-}
-
-
-int com_token_update_sign(int a_argc, char **a_argv, char **a_str_reply) {
-    dap_chain_net_t *l_net = NULL;
-    dap_chain_t *l_chain = NULL;
-    dap_hash_fast_t datum_hash = {0};
-    int l_arg_index = 1;
-
-    const char * l_hash_out_type = NULL;
-    dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-H", &l_hash_out_type);
-    if(!l_hash_out_type)
-        l_hash_out_type = "hex";
-    if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
-        return -1;
-    }
-    if (dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index,a_argc,a_argv,a_str_reply, &l_chain, &l_net)) {
-        return -2;
-    }
-    const char * l_datum_hash_str = NULL;
-    if (!dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-datum", &l_datum_hash_str)) {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "token_decl_sign need -datum <datum hash> argument");
-        return -3;
-    }
-
-    // Certificates thats will be used to sign currend datum token
-    const char *l_certs_str = NULL;
-    dap_cert_t **l_certs = NULL;
-    size_t l_certs_count = 0;
-    dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-certs", &l_certs_str);
-
-    // Load certs lists
-    if (l_certs_str)
-        dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
-
-    if(!l_certs_count) {
-        dap_chain_node_cli_set_reply_text(a_str_reply,
-                                          "token_sign command requres at least one valid certificate to sign the basic transaction of emission");
-        return -4;
-    }
-
-    // New certs
-    const char *l_new_certs_str = NULL;
-    dap_cert_t **l_new_certs = NULL;
-    size_t l_new_certs_count = 0;
-    dap_chain_node_cli_find_option_val(a_argv, l_arg_index, a_argc, "-certs", &l_certs_str);
-    if (l_new_certs_str) {
-        dap_cert_parse_str_list(l_new_certs_str, &l_new_certs, &l_new_certs_count);
-    }
-
-    char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
-    if(!l_gdb_group_mempool) {
-        l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_TOKEN);
-    }
-
-    // datum hash may be in hex or base58 format
-    char *l_datum_hash_out_str = dap_strdup(l_datum_hash_str) ;
-    if(dap_strncmp(l_datum_hash_str, "0x", 2) != 0 && dap_strncmp(l_datum_hash_str, "0X", 2) != 0) {
-        char *l_datum_hash_b58_str = dap_enc_base58_to_hex_str_from_str(l_datum_hash_str);
-        DAP_DELETE(l_datum_hash_str);
-        l_datum_hash_str = l_datum_hash_b58_str;
-    }
-    size_t l_datum_size = 0;
-    size_t l_tsd_size = 0;
-
-    dap_chain_datum_t * l_datum = (dap_chain_datum_t*)dap_chain_global_db_gr_get(l_datum_hash_str, &l_datum_size,
-                                                                                 l_gdb_group_mempool);
-    if (!l_datum) {
-        dap_chain_node_cli_set_reply_text(a_str_reply, "It is not possible to find a datum with the "
-                                                       "specified %s hash.", l_datum_hash_str);
-        return -5;
-    }
-
-    if(l_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN_DECL) {
-        dap_chain_datum_token_t *l_datum_token = DAP_DUP_SIZE(l_datum->data, l_datum->header.data_size);    // for realloc
-        DAP_DELETE(l_datum);
-        size_t l_tsd_size = 0;
-        if (l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)
-            l_tsd_size = l_datum_token->header_native_update.tsd_total_size;
-        else if (l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE)
-            l_tsd_size = l_datum_token->header_private_update.tsd_total_size;
-        // Check for signatures, are they all in set and are good enought?
-        size_t l_signs_size = 0, i = 1;
-        for (i = 1; i <= l_datum_token->signs_total; i++){
-            dap_sign_t *l_sign = (dap_sign_t *)(l_datum_token->data_n_tsd + l_tsd_size + l_signs_size);
-            if( dap_sign_verify(l_sign, l_datum_token, sizeof(*l_datum_token) - sizeof(uint16_t)) != 1) {
-                log_it(L_WARNING, "Wrong signature %zu for datum_token with key %s in mempool!", i, l_datum_hash_out_str);
-                dap_chain_node_cli_set_reply_text(a_str_reply,
-                                                  "Datum %s with datum token has wrong signature %zu, break process and exit",
-                                                  l_datum_hash_out_str, i);
-                DAP_DELETE(l_datum_token);
-                DAP_DELETE(l_gdb_group_mempool);
-                DAP_DELETE(l_datum_hash_out_str);
-                return -6;
-            }else{
-                log_it(L_DEBUG,"Sign %zu passed", i);
-            }
-            l_signs_size += dap_sign_get_size(l_sign);
-        }
-
-        log_it(L_DEBUG, "Datum %s with token declaration: %hu signatures are verified well (sign_size = %zu)",
-               l_datum_hash_out_str, l_datum_token->signs_total, l_signs_size);
-
-        size_t l_data_size = l_tsd_size + l_signs_size;
-        if (l_new_certs_str) {
-            // Cert new certs
-            if (l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE ||
-                l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE) {
-                l_datum_token = s_new_cert_signs_add_in_tsd_cycle(l_new_certs, l_datum_token, &l_tsd_size, l_new_certs_count);
-            }
-
-            // Sign header with all certificates in the list and add signs to the end of token update
-            uint16_t l_sign_counter = 0;
-
-            l_datum_token = s_sign_cert_in_cycle(l_certs, l_datum_token, l_certs_count, &l_data_size,
-                                                 &l_sign_counter);
-            l_datum_token->signs_total += l_sign_counter;
-
-        }
-        size_t l_token_size = sizeof(*l_datum_token) + l_data_size;
-        dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_DECL,
-                                                            l_datum_token, l_token_size);
-        DAP_DELETE(l_datum_token);
-        // Calc datum's hash
-        dap_chain_hash_fast_t l_key_hash = {0};
-        dap_hash_fast(l_datum->data, l_token_size, &l_key_hash);
-        char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
-        char * l_key_str_base58 = dap_enc_base58_encode_hash_to_str(&l_key_hash);
-        const char * l_key_out_str;
-        if(!dap_strcmp(l_hash_out_type,"hex"))
-            l_key_out_str = l_key_str;
-        else
-            l_key_out_str = l_key_str_base58;
-
-        // Add datum to mempool with datum_token hash as a key
-        if(dap_chain_global_db_gr_set(l_key_str, (uint8_t *) l_datum, dap_chain_datum_size(l_datum), l_gdb_group_mempool)) {
-            // Remove old datum from pool
-            if( dap_chain_global_db_gr_del(l_datum_hash_str, l_gdb_group_mempool)) {
-                dap_chain_node_cli_set_reply_text(a_str_reply,
-                                                  "datum %s is replacing the %s in datum pool",
-                                                  l_key_out_str, l_datum_hash_out_str);
-
-                DAP_DELETE(l_datum);
-                //DAP_DELETE(l_datum_token);
-                DAP_DELETE(l_gdb_group_mempool);
-                DAP_DELETE(l_datum_hash_out_str);
-                return 0;
-            } else {
-                dap_chain_node_cli_set_reply_text(a_str_reply,
-                                                  "Warning! Can't remove old datum %s ( new datum %s added normaly in datum pool)",
-                                                  l_datum_hash_out_str, l_key_out_str);
-                DAP_DELETE(l_datum);
-                //DAP_DELETE(l_datum_token);
-                DAP_DELETE(l_gdb_group_mempool);
-                return 1;
-            }
-            DAP_DELETE(l_key_str);
-            DAP_DELETE(l_key_str_base58);
-        } else {
-            dap_chain_node_cli_set_reply_text(a_str_reply,
-                                              "Error! datum %s produced from %s can't be placed in mempool",
-                                              l_key_out_str, l_datum_hash_out_str);
-            DAP_DELETE(l_datum);
-            //DAP_DELETE(l_datum_token);
-            DAP_DELETE(l_gdb_group_mempool);
-            DAP_DELETE(l_key_str);
-            DAP_DELETE(l_key_str_base58);
-            return -2;
-        }
-    } else {
-        DAP_DELETE(l_datum);
-        dap_chain_node_cli_set_reply_text(a_str_reply,
-                                          "Error! Wrong datum type. token_update_sign sign only token declarations datum");
-        return -61;
-    }
-
-//    } else {
-//        l_datum_hash_hex_str = dap_enc_base58_to_hex_str_from_str(l_datum_hash_str);
-//        l_datum_hash_base58_str = dap_strdup(l_datum_hash_str);
-//    }
-    //
-
-
-
-
-    return 0;
 }
 
 

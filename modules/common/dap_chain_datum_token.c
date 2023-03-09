@@ -106,12 +106,6 @@ dap_tsd_t **dap_chain_datum_token_get_tsd_signs(dap_chain_datum_token_t *a_token
                 log_it(L_ERROR,"Wrong %zd TSD size, exiting TSD parse", l_tsd_size);
             break;
         }
-        if (l_tsd->type == DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SIGN_UPDATE) {
-            l_tsd_signs = DAP_REALLOC(l_tsd_signs, sizeof(dap_tsd_t*) * l_tsd_count + 1);
-            l_tsd_signs[l_tsd_count] = l_tsd;
-            l_total_tsd_sign_size += dap_tsd_size(l_tsd_signs[l_tsd_count]);
-            l_tsd_count++;
-        }
     }
     (*a_tsd_count) = l_tsd_count;
     return l_tsd_signs;
