@@ -48,12 +48,20 @@ dap_pkey_t *dap_pkey_from_enc_key(dap_enc_key_t *a_key)
                 l_type.type = PKEY_TYPE_SIGN_PICNIC; break;
             case DAP_ENC_KEY_TYPE_SIG_DILITHIUM:
                 l_type.type = PKEY_TYPE_SIGN_DILITHIUM; break;
+#ifdef DAP_PQLR
+        case DAP_ENC_KEY_TYPE_PQLR_SIG_DILITHIUM:
+            l_type.type = PKEY_TYPE_SIGN_PQLR_DIL; break;
+        case DAP_ENC_KEY_TYPE_PQLR_SIG_FALCON:
+            l_type.type = PKEY_TYPE_SIGN_PQLR_FALCON; break;
+        case DAP_ENC_KEY_TYPE_PQLR_SIG_SPHINCS:
+            l_type.type = PKEY_TYPE_SIGN_PQLR_SPHINCS; break;
+#endif
             default:
                 log_it(L_WARNING,"No serialization preset");
                 return NULL;
         }
         size_t l_pub_key_size;
-        uint8_t *l_pkey = dap_enc_key_serealize_pub_key(a_key, &l_pub_key_size);
+        uint8_t *l_pkey = dap_enc_key_serialize_pub_key(a_key, &l_pub_key_size);
         if (!l_pkey) {
             log_it(L_WARNING,"Serialization failed");
             return NULL;

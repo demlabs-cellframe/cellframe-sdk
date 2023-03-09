@@ -193,6 +193,11 @@ static void s_history_callback_round_notify(void *a_arg, const char a_op_code, c
     }
 }
 
+static void s_timer_process_callback(void *a_arg)
+{
+    dap_chain_node_mempool_process_all((dap_chain_t *)a_arg, false);
+}
+
 /**
  * @brief dap_chain_cs_dag_new
  * @param a_chain
@@ -293,7 +298,7 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     byte_t *l_current_round = dap_chain_global_db_gr_get(DAG_ROUND_CURRENT_KEY, NULL, l_gdb_group);
     l_dag->round_current = l_current_round ? *(uint64_t *)l_current_round : 0;
     DAP_DELETE(l_current_round);
-    PVT(l_dag)->mempool_timer = dap_interval_timer_create(5000, (dap_timer_callback_t)dap_chain_node_mempool_process_all, a_chain);
+    PVT(l_dag)->mempool_timer = dap_interval_timer_create(5000, s_timer_process_callback, a_chain);
     PVT(l_dag)->events_treshold = NULL;
     PVT(l_dag)->events_treshold_conflicted = NULL;
     PVT(l_dag)->treshold_fee_timer = dap_interval_timer_create(900000, (dap_timer_callback_t)s_dap_chain_cs_dag_threshold_free, l_dag);

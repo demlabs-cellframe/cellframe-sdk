@@ -400,20 +400,20 @@ extern "C" {
  */
 typedef struct {
 	uint64_t opaque_contents[26];
-} shake256_context;
+} dap_shake256_context;
 
 /*
  * Initialize a SHAKE256 context to its initial state. The state is
  * then ready to receive data (with shake256_inject()).
  */
-void shake256_init(shake256_context *sc);
+void dap_shake256_init(dap_shake256_context *sc);
 
 /*
  * Inject some data bytes into the SHAKE256 context ("absorb" operation).
  * This function can be called several times, to inject several chunks
  * of data of arbitrary length.
  */
-void shake256_inject(shake256_context *sc, const void *data, size_t len);
+void dap_shake256_inject(dap_shake256_context *sc, const void *data, size_t len);
 
 /*
  * Flip the SHAKE256 state to output mode. After this call, shake256_inject()
@@ -424,7 +424,7 @@ void shake256_inject(shake256_context *sc, const void *data, size_t len);
  * mode only by initializing it again, which forgets all previously
  * injected data.
  */
-void shake256_flip(shake256_context *sc);
+void dap_shake256_flip(dap_shake256_context *sc);
 
 /*
  * Extract bytes from the SHAKE256 context ("squeeze" operation). The
@@ -432,14 +432,14 @@ void shake256_flip(shake256_context *sc);
  * Arbitrary amounts of data can be extracted, in one or several calls
  * to this function.
  */
-void shake256_extract(shake256_context *sc, void *out, size_t len);
+void dap_shake256_extract(dap_shake256_context *sc, void *out, size_t len);
 
 /*
  * Initialize a SHAKE256 context as a PRNG from the provided seed.
  * This initializes the context, injects the seed, then flips the context
  * to output mode to make it ready to produce bytes.
  */
-void shake256_init_prng_from_seed(shake256_context *sc,
+void dap_shake256_init_prng_from_seed(dap_shake256_context *sc,
 	const void *seed, size_t seed_len);
 
 /*
@@ -450,7 +450,7 @@ void shake256_init_prng_from_seed(shake256_context *sc,
  *
  * Returned value: 0 on success, or a negative error code.
  */
-int shake256_init_prng_from_system(shake256_context *sc);
+int dap_shake256_init_prng_from_system(dap_shake256_context *sc);
 
 /* ==================================================================== */
 /*
@@ -491,8 +491,8 @@ int shake256_init_prng_from_system(shake256_context *sc);
  *
  * Returned value: 0 on success, or a negative error code.
  */
-int falcon_keygen_make(
-	shake256_context *rng,
+int dap_falcon_keygen_make(
+    dap_shake256_context *rng,
 	unsigned logn,
 	void *privkey, size_t privkey_len,
 	void *pubkey, size_t pubkey_len,
@@ -517,7 +517,7 @@ int falcon_keygen_make(
  *
  * Returned value: 0 on success, or a negative error code.
  */
-int falcon_make_public(
+int dap_falcon_make_public(
 	void *pubkey, size_t pubkey_len,
 	const void *privkey, size_t privkey_len,
 	void *tmp, size_t tmp_len);
@@ -527,7 +527,7 @@ int falcon_make_public(
  * signature. Returned value is the logarithm of the degree (1 to 10),
  * or a negative error code.
  */
-int falcon_get_logn(void *obj, size_t len);
+int dap_falcon_get_logn(void *obj, size_t len);
 
 /* ==================================================================== */
 /*
@@ -562,7 +562,7 @@ int falcon_get_logn(void *obj, size_t len);
  *
  * Returned value: 0 on success, or a negative error code.
  */
-int falcon_sign_dyn(shake256_context *rng,
+int dap_falcon_sign_dyn(dap_shake256_context *rng,
 	void *sig, size_t *sig_len, int sig_type,
 	const void *privkey, size_t privkey_len,
 	const void *data, size_t data_len,
@@ -584,7 +584,7 @@ int falcon_sign_dyn(shake256_context *rng,
  *
  * Returned value: 0 on success, or a negative error code.
  */
-int falcon_expand_privkey(void *expanded_key, size_t expanded_key_len,
+int dap_falcon_expand_privkey(void *expanded_key, size_t expanded_key_len,
 	const void *privkey, size_t privkey_len,
 	void *tmp, size_t tmp_len);
 
@@ -617,7 +617,7 @@ int falcon_expand_privkey(void *expanded_key, size_t expanded_key_len,
  *
  * Returned value: 0 on success, or a negative error code.
  */
-int falcon_sign_tree(shake256_context *rng,
+int dap_falcon_sign_tree(dap_shake256_context *rng,
 	void *sig, size_t *sig_len, int sig_type,
 	const void *expanded_key,
 	const void *data, size_t data_len,
@@ -648,9 +648,9 @@ int falcon_sign_tree(shake256_context *rng,
  *
  * Returned value: 0 on success, or a negative error code.
  */
-int falcon_sign_start(shake256_context *rng,
+int dap_falcon_sign_start(dap_shake256_context *rng,
 	void *nonce,
-	shake256_context *hash_data);
+    dap_shake256_context *hash_data);
 
 /*
  * Finish a signature generation operation, using the private key held
@@ -687,10 +687,10 @@ int falcon_sign_start(shake256_context *rng,
  *
  * Returned value: 0 on success, or a negative error code.
  */
-int falcon_sign_dyn_finish(shake256_context *rng,
+int dap_falcon_sign_dyn_finish(dap_shake256_context *rng,
 	void *sig, size_t *sig_len, int sig_type,
 	const void *privkey, size_t privkey_len,
-	shake256_context *hash_data, const void *nonce,
+    dap_shake256_context *hash_data, const void *nonce,
 	void *tmp, size_t tmp_len);
 
 /*
@@ -729,10 +729,10 @@ int falcon_sign_dyn_finish(shake256_context *rng,
  *
  * Returned value: 0 on success, or a negative error code.
  */
-int falcon_sign_tree_finish(shake256_context *rng,
+int dap_falcon_sign_tree_finish(dap_shake256_context *rng,
 	void *sig, size_t *sig_len, int sig_type,
 	const void *expanded_key,
-	shake256_context *hash_data, const void *nonce,
+    dap_shake256_context *hash_data, const void *nonce,
 	void *tmp, size_t tmp_len);
 
 /* ==================================================================== */
@@ -757,7 +757,7 @@ int falcon_sign_tree_finish(shake256_context *rng,
  *
  * Returned value: 0 on success, or a negative error code.
  */
-int falcon_verify(const void *sig, size_t sig_len, int sig_type,
+int dap_falcon_verify(const void *sig, size_t sig_len, int sig_type,
 	const void *pubkey, size_t pubkey_len,
 	const void *data, size_t data_len,
 	void *tmp, size_t tmp_len);
@@ -771,7 +771,7 @@ int falcon_verify(const void *sig, size_t sig_len, int sig_type,
  *
  * Returned value: 0 on success, or a negative error code.
  */
-int falcon_verify_start(shake256_context *hash_data,
+int dap_falcon_verify_start(dap_shake256_context *hash_data,
 	const void *sig, size_t sig_len);
 
 /*
@@ -797,9 +797,9 @@ int falcon_verify_start(shake256_context *hash_data,
  *
  * Returned value: 0 on success, or a negative error code.
  */
-int falcon_verify_finish(const void *sig, size_t sig_len, int sig_type,
+int dap_falcon_verify_finish(const void *sig, size_t sig_len, int sig_type,
 	const void *pubkey, size_t pubkey_len,
-	shake256_context *hash_data,
+    dap_shake256_context *hash_data,
 	void *tmp, size_t tmp_len);
 
 /* ==================================================================== */

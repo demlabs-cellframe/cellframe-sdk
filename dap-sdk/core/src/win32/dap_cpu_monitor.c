@@ -74,7 +74,7 @@ void dap_cpu_monitor_deinit()
 
 }
 /*
-static void _deserealize_proc_stat(char *line, proc_stat_line_t *stat)
+static void _deserialize_proc_stat(char *line, proc_stat_line_t *stat)
 {
     sscanf(line,"%s %zu %zu %zu %zu %zu %zu %zu %zu %zu %zu",
            stat->cpu, &stat->user, &stat->nice, &stat->system, &stat->idle,
