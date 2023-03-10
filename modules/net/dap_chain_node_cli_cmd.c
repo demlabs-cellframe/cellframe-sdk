@@ -84,7 +84,7 @@
 
 
 #include "dap_enc_base64.h"
-#include <json-c/json.h>
+#include "json.h"
 #ifdef DAP_OS_UNIX
 #include <dirent.h>
 #endif

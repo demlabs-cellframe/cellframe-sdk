@@ -48,5 +48,5 @@ if(WIN32)
 endif()
 
 if(UNIX)
-  target_link_libraries(dap_http_server dap_core dap_server_core magic json-c)
+  target_link_libraries(dap_http_server dap_core dap_server_core magic dap_json-c)
 endif()

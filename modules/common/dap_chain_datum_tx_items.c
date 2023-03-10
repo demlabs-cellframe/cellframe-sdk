@@ -461,7 +461,8 @@ json_object *dap_chain_datum_tx_item_out_cond_srv_pay_to_json(dap_chain_tx_out_c
         json_object_object_add(l_obj, "value", l_obj_value);
         json_object *l_obj_srv_uid = json_object_new_uint64(a_srv_pay->header.srv_uid.uint64);
         json_object_object_add(l_obj, "srvUid", l_obj_srv_uid);
-        json_object *l_obj_units_type = json_object_new_string(serv_unit_enum_to_str(&a_srv_pay->subtype.srv_pay.unit.enm));
+        serv_unit_enum_t l_service_unit = a_srv_pay->subtype.srv_pay.unit.enm;
+        json_object *l_obj_units_type = json_object_new_string(serv_unit_enum_to_str(&l_service_unit));
         json_object_object_add(l_obj, "srvUnit", l_obj_units_type);
         char *l_price_max_datoshi = dap_chain_balance_print(a_srv_pay->subtype.srv_pay.unit_price_max_datoshi);
         json_object *l_obj_price_max_datoshi = json_object_new_string(l_price_max_datoshi);

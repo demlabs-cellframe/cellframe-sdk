@@ -10,13 +10,10 @@ set(DAPSDK_MODULES "core crypto network-core network-client network-server")
 # There is no need, as it was added in cellframe-sdk/CMakeLists.txt
 
 #if( DARWIN)
-#    add_subdirectory(cellframe-sdk/3rdparty/json-c-darwin)
 #    add_subdirectory(cellframe-sdk/3rdparty/libmagic-darwin)
-#    include_directories(cellframe-sdk/3rdparty/json-c-darwin)
 #endif()
 #if (ANDROID)
 #    add_subdirectory(cellframe-sdk/3rdparty/libmagic)
-#    add_subdirectory(cellframe-sdk/3rdparty/json-c)
 #    include_directories(cellframe-sdk/cellframe-sdk/3rdparty/)
 #endif()
 
