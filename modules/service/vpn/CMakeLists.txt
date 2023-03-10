@@ -9,7 +9,6 @@ if(WIN32)
   include_directories(../../../os/win32/)
   include_directories(../3rdparty/wepoll/include/)
   include_directories(../3rdparty/uthash/src/)
-  include_directories(../3rdparty/libjson-c/)
   include_directories(../3rdparty/libmagic/src/)
 endif()
 

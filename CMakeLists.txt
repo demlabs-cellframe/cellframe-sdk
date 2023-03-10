@@ -64,16 +64,9 @@ endif()
 
 
 if( DARWIN)
-    add_subdirectory(3rdparty/json-c-darwin)
     add_subdirectory(3rdparty/libmagic-darwin)
-    include_directories(3rdparty/json-c-darwin)
 elseif(ANDROID)
-    add_subdirectory(3rdparty/libmagic)
-    add_subdirectory(3rdparty/json-c)
     include_directories(cellframe-sdk/3rdparty/)
-elseif(LINUX)
-    add_subdirectory(3rdparty/json-c)
-
 endif()
 
 if (BUILD_WITH_ZIP)
@@ -84,6 +77,7 @@ endif()
 add_subdirectory(dap-sdk)
 add_subdirectory(3rdparty/monero_crypto)
 add_subdirectory(3rdparty/cuttdb)
+add_subdirectory(3rdparty/json-c EXCLUDE_FROM_ALL)
 
 if (BUILD_WITH_GDB_DRIVER_MDBX)
     set(SAVED_CMAKE_MESSAGE_LOG_LEVEL ${CMAKE_MESSAGE_LOG_LEVEL})

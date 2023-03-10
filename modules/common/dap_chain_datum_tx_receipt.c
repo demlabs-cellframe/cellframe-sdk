@@ -158,7 +158,8 @@ uint16_t dap_chain_datum_tx_receipt_signs_count(dap_chain_datum_tx_receipt_t * a
 
 json_object *dap_chain_datum_tx_receipt_to_json(dap_chain_datum_tx_receipt_t *a_receipt) {
     json_object *l_obj = json_object_new_object();
-    json_object *l_obj_info = dap_chain_receipt_info_to_json(&a_receipt->receipt_info);
+    dap_chain_receipt_info_t l_receipt_info = a_receipt->receipt_info;
+    json_object *l_obj_info = dap_chain_receipt_info_to_json(&l_receipt_info);
     json_object *l_obj_size = json_object_new_uint64(a_receipt->size);
     //Provider
     dap_sign_t *l_first_sign  = dap_chain_datum_tx_receipt_sign_get(a_receipt, a_receipt->size, 1);
@@ -169,7 +170,7 @@ json_object *dap_chain_datum_tx_receipt_to_json(dap_chain_datum_tx_receipt_t *a_
     json_object *l_obj_client_sign = dap_sign_to_json(l_second_sign);
     json_object_object_add(l_obj_signs, "provider", l_obj_provider_sign);
     json_object_object_add(l_obj_signs, "client", l_obj_client_sign);
-    json_object *l_exts_data = json_object_new_string_len(a_receipt->exts_n_signs, a_receipt->exts_size);
+    json_object *l_exts_data = json_object_new_string_len((const char*)a_receipt->exts_n_signs, a_receipt->exts_size);
     json_object_object_add(l_obj, "info", l_obj_info);
     json_object_object_add(l_obj, "size", l_obj_size);
     json_object_object_add(l_obj, "sings", l_obj_signs);

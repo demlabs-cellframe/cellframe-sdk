@@ -49,7 +49,7 @@
 
 #include <pthread.h>
 
-#include <json-c/json.h>
+#include "json.h"
 
 #include "dap_enc_key.h"
 #include "dap_enc_base64.h"
