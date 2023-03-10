@@ -2043,7 +2043,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                     }
                     // Get publivc key hash
                     size_t l_pub_key_size = 0;
-                    uint8_t *l_pub_key = dap_enc_key_serealize_pub_key(l_cert->enc_key, &l_pub_key_size);;
+                    uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(l_cert->enc_key, &l_pub_key_size);;
                     if (l_pub_key == NULL) {
                         dap_chain_node_cli_set_reply_text(a_str_reply, "Can't serialize public key of certificate \"%s\"", l_cert_string);
                         return -9;
@@ -2305,7 +2305,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         char **l_seed_aliases = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_aliases"
                                                              ,&l_net_pvt->seed_aliases_count);
         if (l_net_pvt->seed_aliases_count)
-            l_net_pvt->seed_aliases = (char **)DAP_NEW_SIZE(char **, sizeof(char *) * l_net_pvt->seed_aliases_count);
+            l_net_pvt->seed_aliases = DAP_NEW_SIZE(char*, sizeof(char*) * l_net_pvt->seed_aliases_count);
         for(size_t i = 0; i < l_net_pvt->seed_aliases_count; i++)
             l_net_pvt->seed_aliases[i] = dap_strdup(l_seed_aliases[i]);
         // randomize seed nodes list
@@ -2376,7 +2376,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 if(l_certs_size > 0)
                     l_cert = l_certs[0];
                 if(l_cert) {
-                    l_pub_key_data = dap_enc_key_serealize_pub_key(l_cert->enc_key, &l_pub_key_data_size);
+                    l_pub_key_data = dap_enc_key_serialize_pub_key(l_cert->enc_key, &l_pub_key_data_size);
                     // save pub key
                     if(l_pub_key_data && l_pub_key_data_size > 0)
                         dap_chain_global_db_gr_set(l_addr_key, l_pub_key_data, l_pub_key_data_size,
@@ -3248,7 +3248,7 @@ static bool s_net_check_acl(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pke
                 for (dap_list_t *l_tmp = l_certs; l_tmp; l_tmp = dap_list_next(l_tmp)) {
                     dap_cert_t *l_cert = (dap_cert_t *)l_tmp->data;
                     size_t l_pkey_size;
-                    uint8_t *l_pkey_ser = dap_enc_key_serealize_pub_key(l_cert->enc_key, &l_pkey_size);
+                    uint8_t *l_pkey_ser = dap_enc_key_serialize_pub_key(l_cert->enc_key, &l_pkey_size);
                     dap_chain_hash_fast_t l_cert_hash;
                     dap_hash_fast(l_pkey_ser, l_pkey_size, &l_cert_hash);
                     if (!memcmp(&l_cert_hash, a_pkey_hash, sizeof(dap_chain_hash_fast_t))) {

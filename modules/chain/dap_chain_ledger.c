@@ -3474,6 +3474,11 @@ static int s_sort_ledger_tx_item(dap_chain_ledger_tx_item_t* a, dap_chain_ledger
                 a->tx->header.ts_created < b->tx->header.ts_created ? -1 : 1;
 }
 
+void dap_chain_ledger_start_tps_count(dap_ledger_t *a_ledger)
+{
+    clock_gettime(CLOCK_REALTIME, &PVT(a_ledger)->tps_start_time);
+}
+
 /**
  * Add new transaction to the cache list
  *
@@ -3493,7 +3498,6 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
     dap_chain_ledger_tx_item_t *l_item_tmp = NULL;
 
     if (!l_ledger_priv->tps_timer) {
-        clock_gettime(CLOCK_REALTIME, &l_ledger_priv->tps_start_time);
         l_ledger_priv->tps_current_time.tv_sec = l_ledger_priv->tps_start_time.tv_sec;
         l_ledger_priv->tps_current_time.tv_nsec = l_ledger_priv->tps_start_time.tv_nsec;
         l_ledger_priv->tps_count = 0;
@@ -4543,7 +4547,7 @@ uint256_t dap_chain_ledger_tx_cache_get_out_cond_value(dap_ledger_t *a_ledger, d
     dap_chain_datum_tx_t *l_tx_tmp;
     dap_chain_hash_fast_t l_tx_first_hash = { 0 }; // start hash
     /* size_t l_pub_key_size = a_key_from->pub_key_data_size;
-     uint8_t *l_pub_key = dap_enc_key_serealize_pub_key(a_key_from, &l_pub_key_size);*/
+     uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(a_key_from, &l_pub_key_size);*/
     dap_chain_tx_out_cond_t *l_tx_out_cond;
     // Find all transactions
     do {

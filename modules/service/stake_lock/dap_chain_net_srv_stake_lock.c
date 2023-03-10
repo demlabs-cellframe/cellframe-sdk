@@ -509,7 +509,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 	}
 
     size_t l_owner_pkey_size;
-    uint8_t *l_owner_pkey = dap_enc_key_serealize_pub_key(l_owner_key, &l_owner_pkey_size);
+    uint8_t *l_owner_pkey = dap_enc_key_serialize_pub_key(l_owner_key, &l_owner_pkey_size);
     dap_sign_t *l_owner_sign = NULL;
     dap_chain_tx_sig_t *l_tx_sign = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(
                                                             l_cond_tx, NULL, TX_ITEM_TYPE_SIG, NULL);

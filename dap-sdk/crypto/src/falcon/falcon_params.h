@@ -6,49 +6,49 @@
 #define _FALCON_PARAMS_H
 
 #include "dap_crypto_common.h"
+#include "falcon.h"
 
-
-typedef enum {
-    FALCON_COMPRESSED,
-    FALCON_PADDED,
-    FALCON_CT
+typedef enum falcon_kind {
+    FALCON_COMPRESSED = FALCON_SIG_COMPRESSED,
+    FALCON_PADDED = FALCON_SIG_PADDED,
+    FALCON_CT = FALCON_SIG_CT
 } falcon_kind_t;
 
-typedef enum DAP_FALCON_SIGN_DEGREE {
+typedef enum falcon_sign_degree {
     FALCON_512 = 9, FALCON_1024 = 10
 } falcon_sign_degree_t;
 
-typedef enum DAP_FALCON_SIGN_TYPE {
+typedef enum falcon_sign_type {
     FALCON_DYNAMIC,
     FALCON_TREE
 } falcon_sign_type_t;
 
-typedef struct {
+typedef struct falcon_param {
     falcon_kind_t kind;
     falcon_sign_degree_t degree;
     falcon_sign_type_t type;
 } falcon_param_t;
 
-typedef struct {
+typedef struct falcon_private_key {
     falcon_kind_t kind;
     falcon_sign_degree_t degree;
     falcon_sign_type_t type;
-    unsigned char* data;
+    byte_t *data;
 } falcon_private_key_t;
 
-typedef struct {
+typedef struct falcon_public_key {
     falcon_kind_t kind;
     falcon_sign_degree_t degree;
     falcon_sign_type_t type;
-    unsigned char* data;
+    byte_t *data;
 } falcon_public_key_t;
 
-typedef struct {
+typedef struct falcon_signature {
     falcon_kind_t kind;
     falcon_sign_degree_t degree;
     falcon_sign_type_t type;
     uint64_t sig_len;
-    unsigned char* sig_data;
+    byte_t *sig_data;
 } falcon_signature_t;
 
 #ifdef __cplusplus

@@ -256,10 +256,10 @@ uint8_t* dap_cert_mem_save(dap_cert_t * a_cert, uint32_t *a_cert_size_out)
     size_t l_pub_key_data_size = a_cert->enc_key->pub_key_data_size;
     size_t l_metadata_size = l_key->_inheritor_size;
     uint8_t *l_pub_key_data = a_cert->enc_key->pub_key_data_size ?
-                dap_enc_key_serealize_pub_key(l_key, &l_pub_key_data_size) :
+                dap_enc_key_serialize_pub_key(l_key, &l_pub_key_data_size) :
                 NULL;
     uint8_t *l_priv_key_data = a_cert->enc_key->priv_key_data ?
-                dap_enc_key_serealize_priv_key(l_key, &l_priv_key_data_size) :
+                dap_enc_key_serialize_priv_key(l_key, &l_priv_key_data_size) :
                 NULL;
 
     uint8_t *l_metadata = dap_cert_serialize_meta(a_cert, &l_metadata_size);
@@ -408,11 +408,11 @@ dap_cert_t* dap_cert_mem_load(const void * a_data, size_t a_data_size)
         l_ret->enc_key->last_used_timestamp = l_hdr.ts_last_used;
 
         if ( l_hdr.data_size > 0 ){
-            dap_enc_key_deserealize_pub_key(l_ret->enc_key, l_data + l_data_offset, l_hdr.data_size);
+            dap_enc_key_deserialize_pub_key(l_ret->enc_key, l_data + l_data_offset, l_hdr.data_size);
             l_data_offset += l_hdr.data_size;
         }
         if ( l_hdr.data_pvt_size > 0 ){
-            dap_enc_key_deserealize_priv_key(l_ret->enc_key, l_data + l_data_offset, l_hdr.data_pvt_size);
+            dap_enc_key_deserialize_priv_key(l_ret->enc_key, l_data + l_data_offset, l_hdr.data_pvt_size);
             l_data_offset += l_hdr.data_pvt_size;
         }
         if ( l_hdr.metadata_size > 0 ){
