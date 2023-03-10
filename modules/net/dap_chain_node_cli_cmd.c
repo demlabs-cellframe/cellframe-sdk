@@ -5192,6 +5192,31 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
     return 0;
 }
 
+void print_sig(dap_pkey_t *a_pkey, dap_sign_t *a_sign)
+{
+    FILE *fp1;
+
+        fp1 = fopen("/home/demlabs/rrr", "r+");
+        if ((fp1 == NULL)) {
+            return ;
+        }
+        for (uint32_t i = 0; i < a_sign->header.sign_pkey_size; i++)
+        {
+            fprintf(fp1,"%x",a_sign->pkey_n_sign[i]);
+            //fputc(a_sign->pkey_n_sign[i],fp1);
+        }
+        fputs("\n", fp1);
+        for (uint32_t i = 0; i < a_sign->header.sign_pkey_size; i++)
+        {
+            fprintf(fp1,"%x",a_pkey->pkey[i]);
+            //fputc(a_pkey->pkey[i],fp1);
+        }
+        //fwrite()
+        fputs("\n", fp1);
+        fclose(fp1);
+        return ;
+}
+
 int fee_coll(int a_argc, char ** a_argv, char **a_str_reply)
 {
     int arg_index = 1;
@@ -5314,31 +5339,15 @@ int fee_coll(int a_argc, char ** a_argv, char **a_str_reply)
             dap_chain_block_cache_t *l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_block_hash);
             if(l_block_cache)
             {
-                dap_string_t * l_str_tmp = dap_string_new(NULL);
-                char buf[50];
-                time_t l_ts_reated = (time_t) l_block->hdr.ts_created;
-                // Header
-                dap_string_append_printf(l_str_tmp,"Block %s:\n", l_hash_str);
-                dap_string_append_printf(l_str_tmp, "\t\t\tversion: 0x%04X\n", l_block->hdr.version);
-                dap_string_append_printf(l_str_tmp,"\t\t\tcell_id: 0x%016"DAP_UINT64_FORMAT_X"\n",l_block->hdr.cell_id.uint64);
-                dap_string_append_printf(l_str_tmp,"\t\t\tchain_id: 0x%016"DAP_UINT64_FORMAT_X"\n",l_block->hdr.chain_id.uint64);
-                ctime_r(&l_ts_reated, buf);
-                dap_string_append_printf(l_str_tmp,"\t\t\tts_created: %s\n", buf);                
-
                 dap_sign_t * l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
-                //size_t l_sign_size = dap_sign_get_size(l_sign);
-                //dap_chain_addr_t l_addr = {0};
-                dap_chain_hash_fast_t l_pkey_hash;
-                dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
-
+                //dap_chain_hash_fast_t l_pkey_hash;
+                //dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
                 if(dap_pkey_compare_with_sign(l_pub_key, l_sign)){
+                    print_sig(l_pub_key, l_sign);
                     dap_chain_mempool_tx_coll_fee_create(l_cert->enc_key,l_addr,l_block_cache,l_fee_value,l_hash_out_type);
-                }
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
-                dap_string_free(l_str_tmp, true);
+                }                
             }
         }
-
     }else if(l_hash_mas_str){
         dap_cli_server_cmd_set_reply_text(a_str_reply, "for future use");
         return -9;

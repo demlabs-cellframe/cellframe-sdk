@@ -187,9 +187,9 @@ dap_list_t * dap_chain_block_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledg
     dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
     dap_chain_block_cache_tx_index_t *l_tx_cur, *l_tmp;
     dap_chain_tx_out_cond_t *l_tx_out_cond = NULL;
-    uint256_t l_value_transfer = {};
-    uint32_t l_out_idx_tmp = 0;
+    uint256_t l_value_transfer = {};    
     HASH_ITER(hh, a_block_cache->tx_index, l_tx_cur, l_tmp) {
+        uint32_t l_out_idx_tmp = 0;
         if (NULL == (l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_cur->tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE,
                                                                      &l_out_idx_tmp)))
         {
