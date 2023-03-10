@@ -32,8 +32,7 @@
 #ifdef DAP_OS_LINUX
 #include <dlfcn.h>
 #endif
-#include <json-c/json.h>
-#include <json-c/json_object.h>
+#include "json.h"
 #include <pthread.h>
 #include <dirent.h>
 

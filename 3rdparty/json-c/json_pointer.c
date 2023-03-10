@@ -10,7 +10,6 @@
 
 #include "strerror_override.h"
 
-#include <ctype.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -20,6 +19,9 @@
 #include "strdup_compat.h"
 #include "vasprintf_compat.h"
 
+/* Avoid ctype.h and locale overhead */
+#define is_plain_digit(c) ((c) >= '0' && (c) <= '9')
+
 /**
  * JavaScript Object Notation (JSON) Pointer
  *   RFC 6901 - https://tools.ietf.org/html/rfc6901
@@ -27,8 +29,8 @@
 
 static void string_replace_all_occurrences_with_char(char *s, const char *occur, char repl_char)
 {
-	int slen = strlen(s);
-	int skip = strlen(occur) - 1; /* length of the occurrence, minus the char we're replacing */
+	size_t slen = strlen(s);
+	size_t skip = strlen(occur) - 1; /* length of the occurrence, minus the char we're replacing */
 	char *p = s;
 	while ((p = strstr(p, occur)))
 	{
@@ -39,15 +41,16 @@ static void string_replace_all_occurrences_with_char(char *s, const char *occur,
 	}
 }
 
-static int is_valid_index(struct json_object *jo, const char *path, int32_t *idx)
+static int is_valid_index(struct json_object *jo, const char *path, size_t *idx)
 {
-	int i, len = strlen(path);
+	size_t i, len = strlen(path);
+	long int idx_val = -1;
 	/* this code-path optimizes a bit, for when we reference the 0-9 index range
 	 * in a JSON array and because leading zeros not allowed
 	 */
 	if (len == 1)
 	{
-		if (isdigit((unsigned char)path[0]))
+		if (is_plain_digit(path[0]))
 		{
 			*idx = (path[0] - '0');
 			goto check_oob;
@@ -64,19 +67,21 @@ static int is_valid_index(struct json_object *jo, const char *path, int32_t *idx
 	/* RFC states base-10 decimals */
 	for (i = 0; i < len; i++)
 	{
-		if (!isdigit((unsigned char)path[i]))
+		if (!is_plain_digit(path[i]))
 		{
 			errno = EINVAL;
 			return 0;
 		}
 	}
 
-	*idx = strtol(path, NULL, 10);
-	if (*idx < 0)
+	idx_val = strtol(path, NULL, 10);
+	if (idx_val < 0)
 	{
 		errno = EINVAL;
 		return 0;
 	}
+	*idx = idx_val;
+
 check_oob:
 	len = json_object_array_length(jo);
 	if (*idx >= len)
@@ -93,7 +98,7 @@ static int json_pointer_get_single_path(struct json_object *obj, char *path,
 {
 	if (json_object_is_type(obj, json_type_array))
 	{
-		int32_t idx;
+		size_t idx;
 		if (!is_valid_index(obj, path, &idx))
 			return -1;
 		obj = json_object_array_get_idx(obj, idx);
@@ -126,7 +131,7 @@ static int json_pointer_set_single_path(struct json_object *parent, const char *
 {
 	if (json_object_is_type(parent, json_type_array))
 	{
-		int32_t idx;
+		size_t idx;
 		/* RFC (Chapter 4) states that '-' may be used to add new elements to an array */
 		if (path[0] == '-' && path[1] == '\0')
 			return json_object_array_add(parent, value);
