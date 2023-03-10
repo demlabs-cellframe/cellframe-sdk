@@ -1742,7 +1742,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                                     "Decree creation failed. Successful count of certificate signing is 0");
                             return -108;
                     }
-                    size_t l_decree_size = sizeof(*l_datum_decree) + l_datum_decree->header.data_size + l_datum_decree->header.signs_size;
+                    size_t l_decree_size = dap_chain_datum_decree_get_size(l_datum_decree);
                     dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_DECREE,
                                                                          l_datum_decree, l_decree_size);
                     DAP_DELETE(l_datum_decree);

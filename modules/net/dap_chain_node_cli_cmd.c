@@ -2485,7 +2485,6 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                         size_t l_item_tx_size = dap_chain_datum_item_tx_get_size(item);
                         if(!memcmp(l_addr, &((dap_chain_tx_out_old_t*)item)->addr, sizeof(dap_chain_addr_t))&&
                             !memcmp(l_addr, &((dap_chain_tx_out_t*)item)->addr, sizeof(dap_chain_addr_t))&&
-                            !memcmp(l_addr, &((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake.fee_addr, sizeof(dap_chain_addr_t))&&
                             !memcmp(l_addr, &((dap_chain_tx_out_ext_t*)item)->addr, sizeof(dap_chain_addr_t)))
                             l_tx_items_count += l_item_tx_size;
                         else
@@ -4708,26 +4707,16 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
                 if(!s_json_get_uint256(l_json_item_obj, "value", &l_value) || IS_ZERO_256(l_value)) {
                     break;
                 }
-                uint256_t l_fee_value = { };
-                if(!s_json_get_uint256(l_json_item_obj, "fee", &l_fee_value) || IS_ZERO_256(l_fee_value)) {
-                    break;
-                }
-                const char *l_fee_addr_str = s_json_get_text(l_json_item_obj, "fee_addr");
-                const char *l_hldr_addr_str = s_json_get_text(l_json_item_obj, "hldr_addr");
                 const char *l_signing_addr_str = s_json_get_text(l_json_item_obj, "signing_addr");
-                dap_chain_addr_t *l_fee_addr = dap_chain_addr_from_str(l_fee_addr_str);
-                dap_chain_addr_t *l_hldr_addr = dap_chain_addr_from_str(l_hldr_addr_str);
                 dap_chain_addr_t *l_signing_addr = dap_chain_addr_from_str(l_signing_addr_str);
-                if(!l_fee_addr || !l_hldr_addr || !l_signing_addr) {
+                if (!l_signing_addr)
                     break;
-                }
                 dap_chain_node_addr_t l_signer_node_addr;
                 const char *l_node_addr_str = s_json_get_text(l_json_item_obj, "node_addr");
                 if(!l_node_addr_str || dap_chain_node_addr_from_str(&l_signer_node_addr, l_node_addr_str)) {
                     break;
                 }
-                dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_stake(l_srv_uid, l_value, l_fee_value,
-                        l_fee_addr, l_hldr_addr, l_signing_addr, &l_signer_node_addr);
+                dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_stake(l_srv_uid, l_value, l_signing_addr, &l_signer_node_addr);
                 l_item = (const uint8_t*) l_out_cond_item;
             }
                 break;

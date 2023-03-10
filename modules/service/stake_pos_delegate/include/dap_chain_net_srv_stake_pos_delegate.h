@@ -32,7 +32,6 @@
 #define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID 0x13
 
 typedef struct dap_chain_net_srv_stake_item {
-    bool is_active;
     dap_chain_net_t *net;
     uint256_t value;
     dap_chain_addr_t signing_addr;
@@ -50,7 +49,9 @@ typedef struct dap_chain_net_srv_stake {
 
 int dap_chain_net_srv_stake_pos_delegate_init();
 void dap_chain_net_srv_stake_pos_delegate_deinit();
+
+void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr_t *a_signing_addr, dap_hash_fast_t *a_stake_tx_hash,
+                                          uint256_t a_value, dap_chain_node_addr_t *a_node_addr);
 bool dap_chain_net_srv_stake_key_delegated(dap_chain_addr_t *a_addr);
 dap_list_t *dap_chain_net_srv_stake_get_validators();
-
 void dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net, dap_string_t *a_string);

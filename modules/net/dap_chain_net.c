@@ -1578,9 +1578,9 @@ static bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
     if(!s_cache_file) {
         s_cache_file = fopen(l_cache_file, "w");
         if (!s_cache_file) {
-            dap_fprintf(stderr, "Can't open cache file %s for one time ledger cache reloading.\
-                Please, do it manually using command\
-                cellframe-node-cli net -net <network_name>> ledger reload'\n", l_cache_file);
+            log_it(L_ERROR, "Can't open cache file %s for one time ledger cache reloading."
+                "Please, do it manually using command"
+                "'cellframe-node-cli net -net <network_name>> ledger reload'", l_cache_file);
             return -1;
         }
     }
