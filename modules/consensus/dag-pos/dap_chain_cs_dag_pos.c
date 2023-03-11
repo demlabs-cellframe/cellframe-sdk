@@ -259,17 +259,6 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
                 return -41;
             }
 
-            if (l_sig_pos == 0) {
-                dap_chain_addr_t l_addr = {};
-                dap_chain_hash_fast_t l_pkey_hash;
-                dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
-                dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, a_dag->chain->net_id);
-                dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_chain_cs_dag_event_get_datum(a_dag_event, a_dag_event_size);
-                if (!dap_chain_net_srv_stake_validator(&l_addr, l_datum)) {
-                    log_it(L_WARNING, "Not passed stake validator with event %p on chain %s", a_dag_event, a_dag->chain->name);
-                    return -6;
-                }
-            }
         }
         // Check number
         if ( l_verified_num >= l_pos_pvt->confirmations_minimum ){

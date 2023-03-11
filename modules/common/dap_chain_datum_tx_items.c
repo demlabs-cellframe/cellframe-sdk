@@ -538,8 +538,7 @@ json_object* dap_chain_datum_tx_item_out_cond_srv_xchange_to_json(dap_chain_tx_o
     return NULL;
 }
 
-dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value, uint256_t a_fee_value,
-                                                                           dap_chain_addr_t *a_fee_addr, dap_chain_addr_t *a_hldr_addr,
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
                                                                            dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr)
 {
     if (IS_ZERO_256(a_value))
@@ -549,11 +548,8 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
     l_item->header.value = a_value;
     l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE;
     l_item->header.srv_uid = a_srv_uid;
-    l_item->subtype.srv_stake.fee_value = a_fee_value;
-    l_item->subtype.srv_stake.fee_addr = *a_fee_addr;
-    l_item->subtype.srv_stake.hldr_addr = *a_hldr_addr;
-    l_item->subtype.srv_stake.signing_addr = *a_signing_addr;
-    l_item->subtype.srv_stake.signer_node_addr = *a_signer_node_addr;
+    l_item->subtype.srv_stake_pos_delegate.signing_addr = *a_signing_addr;
+    l_item->subtype.srv_stake_pos_delegate.signer_node_addr = *a_signer_node_addr;
     return l_item;
 }
 
@@ -564,22 +560,14 @@ json_object *dap_chain_datum_tx_item_out_cond_srv_stake_to_json(dap_chain_tx_out
         json_object *l_obj_value = json_object_new_string(l_value);
         DAP_DELETE(l_value);
         json_object *l_obj_srv_uid = json_object_new_uint64(a_srv_stake->header.srv_uid.uint64);
-        char *l_value_fee = dap_chain_balance_print(a_srv_stake->subtype.srv_stake.fee_value);
-        json_object *l_obj_value_fee = json_object_new_string(l_value_fee);
-        DAP_DELETE(l_value_fee);
-        json_object *l_obj_fee_addr = dap_chain_addr_to_json(&a_srv_stake->subtype.srv_stake.fee_addr);
-        json_object *l_obj_hldr_addr = dap_chain_addr_to_json(&a_srv_stake->subtype.srv_stake.hldr_addr);
-        json_object *l_obj_signing_addr = dap_chain_addr_to_json(&a_srv_stake->subtype.srv_stake.signing_addr);
+        json_object *l_obj_signing_addr = dap_chain_addr_to_json(&a_srv_stake->subtype.srv_stake_pos_delegate.signing_addr);
         char *l_signer_node_addr = dap_strdup_printf(
                 NODE_ADDR_FP_STR,
-                NODE_ADDR_FP_ARGS_S(a_srv_stake->subtype.srv_stake.signer_node_addr));
+                NODE_ADDR_FP_ARGS_S(a_srv_stake->subtype.srv_stake_pos_delegate.signer_node_addr));
         json_object *l_obj_signer_node_addr = json_object_new_string(l_signer_node_addr);
         DAP_DELETE(l_signer_node_addr);
         json_object_object_add(l_object, "value", l_obj_value);
         json_object_object_add(l_object, "srvUID", l_obj_srv_uid);
-        json_object_object_add(l_object, "valueFee", l_obj_value_fee);
-        json_object_object_add(l_object, "feeAddr", l_obj_fee_addr);
-        json_object_object_add(l_object, "hldrAddr", l_obj_hldr_addr);
         json_object_object_add(l_object, "signindAddr", l_obj_signing_addr);
         json_object_object_add(l_object, "signerNodeAddr", l_obj_signer_node_addr);
         return l_object;
