@@ -408,7 +408,7 @@ static int get_order_state_so(dap_chain_node_addr_t a_node_addr)
     char l_lib_path[MAX_PATH] = {'\0'};
 #if defined (DAP_OS_LINUX) && !defined (__ANDROID__)
     const char * l_cdb_so_name = "libcellframe-node-cdb.so";
-    dap_sprintf(l_lib_path, "%s/%s/%s", g_sys_dir_path, s_default_path_modules, l_cdb_so_name);
+    sprintf(l_lib_path, "%s/%s/%s", g_sys_dir_path, s_default_path_modules, l_cdb_so_name);
 
     void* l_cdb_handle = NULL;
     l_cdb_handle = dlopen(l_lib_path, RTLD_NOW);

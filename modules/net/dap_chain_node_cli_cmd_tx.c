@@ -1467,7 +1467,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                 if (l_chain == NULL) {
                     char l_str_to_reply_chain[500] = {0};
                     char *l_str_to_reply = NULL;
-                    dap_sprintf(l_str_to_reply_chain, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid\n",
+                    sprintf(l_str_to_reply_chain, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid\n",
                                                     a_argv[0], l_net_str, l_chain_str);
                     l_str_to_reply = dap_strcat2(l_str_to_reply,l_str_to_reply_chain);
                     dap_chain_t * l_chain;
@@ -1681,7 +1681,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                 if (l_chain == NULL) {
                     char l_str_to_reply_chain[500] = {0};
                     char *l_str_to_reply = NULL;
-                    dap_sprintf(l_str_to_reply_chain, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid\n",
+                    sprintf(l_str_to_reply_chain, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid\n",
                                                     a_argv[0], l_net_str, l_chain_str);
                     l_str_to_reply = dap_strcat2(l_str_to_reply,l_str_to_reply_chain);
                     dap_chain_t * l_chain;
@@ -1742,7 +1742,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                                     "Decree creation failed. Successful count of certificate signing is 0");
                             return -108;
                     }
-                    size_t l_decree_size = sizeof(*l_datum_decree) + l_datum_decree->header.data_size + l_datum_decree->header.signs_size;
+                    size_t l_decree_size = dap_chain_datum_decree_get_size(l_datum_decree);
                     dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_DECREE,
                                                                          l_datum_decree, l_decree_size);
                     DAP_DELETE(l_datum_decree);
@@ -1825,7 +1825,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
             if (l_chain == NULL) {
                 char l_str_to_reply_chain[500] = {0};
                 char *l_str_to_reply = NULL;
-                dap_sprintf(l_str_to_reply_chain, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid\n",
+                sprintf(l_str_to_reply_chain, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid\n",
                                                 a_argv[0], l_net_str, l_chain_str);
                 l_str_to_reply = dap_strcat2(l_str_to_reply,l_str_to_reply_chain);
                 dap_chain_t * l_chain;
