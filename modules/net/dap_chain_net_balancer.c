@@ -78,7 +78,7 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
     int l_protocol_version = 0;
     char l_issue_method = 0;
     const char l_net_token[] = "net=";
-    dap_sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,net=",
+    sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,net=",
                                                             &l_protocol_version, &l_issue_method);
     if (l_protocol_version != 1 || l_issue_method != 'r') {
         log_it(L_ERROR, "Unsupported prorocol version/method in the request to dap_chain_net_balancer module");

@@ -52,6 +52,11 @@ typedef struct dap_chain_datum_decree {
     byte_t data_n_signs[];
 } DAP_ALIGN_PACKED dap_chain_datum_decree_t;
 
+DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_t *a_datum_decree)
+{
+    return sizeof(*a_datum_decree) + a_datum_decree->header.data_size + a_datum_decree->header.signs_size;
+}
+
 // Decree types
 #define DAP_CHAIN_DATUM_DECREE_TYPE_COMMON                      0x0001
 #define DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE                     0x0002

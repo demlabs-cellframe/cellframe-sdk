@@ -411,11 +411,12 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                                 "\t Header:\n"
                                                 "\t\t ts_expires: %s"
                                                 "\t\t value: %s (%s)\n"
-                                                "\t\t subtype: %s\n",
+                                                "\t\t subtype: %s\n"
+                                                "\t\t uid: 0x%016"DAP_UINT64_FORMAT_x"\n",
                                      l_ts_exp ? dap_ctime_r(&l_ts_exp, l_tmp_buf) : "never\n",
-                                     l_coins_str,
-                                     l_value_str,
-                                     dap_chain_tx_out_cond_subtype_to_str(((dap_chain_tx_out_cond_t*)item)->header.subtype));
+                                     l_coins_str, l_value_str,
+                                     dap_chain_tx_out_cond_subtype_to_str(((dap_chain_tx_out_cond_t*)item)->header.subtype),
+                                     ((dap_chain_tx_out_cond_t*)item)->header.srv_uid.uint64);
             DAP_DELETE(l_value_str);
             DAP_DELETE(l_coins_str);
             switch (((dap_chain_tx_out_cond_t*)item)->header.subtype) {
@@ -428,11 +429,9 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                     else
                         l_hash_str = dap_enc_base58_encode_hash_to_str(l_hash_tmp);
                     dap_string_append_printf(a_str_out, "\t\t\t unit: 0x%08x\n"
-                                                        "\t\t\t uid: 0x%016"DAP_UINT64_FORMAT_x"\n"
                                                         "\t\t\t pkey: %s\n"
                                                         "\t\t\t max price: %s (%s) \n",
                                              ((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit.uint32,
-                                             ((dap_chain_tx_out_cond_t*)item)->header.srv_uid.uint64,
                                              l_hash_str,
                                              l_coins_str,
                                              l_value_str);
@@ -441,25 +440,20 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                     DAP_DELETE(l_coins_str);
                 } break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE: {
-                    char *l_coins_str = dap_chain_balance_to_coins(((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake.fee_value);
-                    char *l_addr_str = dap_chain_addr_to_str(&((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake.fee_addr);
-                    dap_string_append_printf(a_str_out, "\t\t\t uid: 0x%016"DAP_UINT64_FORMAT_x"\n"
-                                                        "\t\t\t addr: %s\n"
-                                                        "\t\t\t value: %s",
-                                            ((dap_chain_tx_out_cond_t*)item)->header.srv_uid.uint64,
-                                            l_addr_str,
-                                            l_coins_str);
+                    dap_chain_node_addr_t *l_signer_node_addr = &((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_pos_delegate.signer_node_addr;
+                    char *l_addr_str = dap_chain_addr_to_str(&((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_pos_delegate.signing_addr);
+                    dap_string_append_printf(a_str_out, "\t\t\t signing_addr: %s\n"
+                                                        "\t\t\t : signer_node_addr: "NODE_ADDR_FP_STR,
+                                                        l_addr_str,
+                                                        NODE_ADDR_FP_ARGS(l_signer_node_addr));
                     DAP_DELETE(l_addr_str);
-                    DAP_DELETE(l_coins_str);
                 } break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE: {
                     char *l_value_str = dap_chain_balance_print(((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_value);
                     char *l_coins_str = dap_chain_balance_to_coins(((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_value);
-                    dap_string_append_printf(a_str_out, "\t\t\t uid: 0x%016"DAP_UINT64_FORMAT_x"\n"
-                                                        "\t\t\t net id: 0x%016"DAP_UINT64_FORMAT_x"\n"
-                                                        "\t\t\t token: %s\n"
-                                                        "\t\t\t value: %s (%s)\n",
-                                             ((dap_chain_tx_out_cond_t*)item)->header.srv_uid.uint64,
+                    dap_string_append_printf(a_str_out, "\t\t\t net id: 0x%016"DAP_UINT64_FORMAT_x"\n"
+                                                        "\t\t\t buy_token: %s\n"
+                                                        "\t\t\t buy_value: %s (%s)\n",
                                              ((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_net_id.uint64,
                                              ((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_token,
                                              l_coins_str,
@@ -469,17 +463,8 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                 } break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK: {
                     dap_time_t l_ts_exp = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_lock.time_unlock;
-                    char *l_value_str = dap_chain_balance_print(((dap_chain_tx_out_cond_t*)item)->header.value);
-                    char *l_coins_str = dap_chain_balance_to_coins(((dap_chain_tx_out_cond_t*)item)->header.value);
-                    dap_string_append_printf(a_str_out, "\t\t\t uid: 0x%016"DAP_UINT64_FORMAT_x"\n"
-                                                        "\t\t\t value: %s (%s)\n"
-                                                        "\t\t\t time_unlock %s\n",
-                                             ((dap_chain_tx_out_cond_t*)item)->header.srv_uid.uint64,
-                                             l_coins_str,
-                                             l_value_str,
+                    dap_string_append_printf(a_str_out, "\t\t\t time_unlock %s\n",
                                              dap_ctime_r(&l_ts_exp, l_tmp_buf));
-                    DAP_DELETE(l_value_str);
-                    DAP_DELETE(l_coins_str);
                 } break;
                 default: break;
             }

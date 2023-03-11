@@ -585,7 +585,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
 
         dap_string_append_printf(l_string_reply, "\n");
         char l_port_str[10];
-        dap_sprintf(l_port_str,"%d",node_info_read->hdr.ext_port);
+        sprintf(l_port_str,"%d",node_info_read->hdr.ext_port);
 
         // set short reply with node param
         if(!a_is_full)
@@ -682,7 +682,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
                 if(i)
                     dap_string_append_printf(l_string_reply, "\n");
                 char l_port_str[10];
-                dap_sprintf(l_port_str,"%d", l_node_info->hdr.ext_port);
+                sprintf(l_port_str,"%d", l_node_info->hdr.ext_port);
                 // set short reply with node param
                 if(!a_is_full)
                     dap_string_append_printf(l_string_reply,
@@ -1983,7 +1983,7 @@ char    l_buf[1024];
                     {
 
                         char l_file_path_tmp[MAX_PATH] = {0};
-                        dap_snprintf(l_file_path_tmp, sizeof(l_file_path_tmp) - 1, "%s/%s", c_wallets_path, l_file_name);
+                        snprintf(l_file_path_tmp, sizeof(l_file_path_tmp) - 1, "%s/%s", c_wallets_path, l_file_name);
 
                         dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_file_name, c_wallets_path);
 
@@ -2133,7 +2133,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, 
         dap_cli_server_cmd_set_reply_text(a_str_reply, "%s can't find network \"%s\"", a_argv[0], l_net_str);
         char l_str_to_reply_chain[500] = {0};
         char *l_str_to_reply = NULL;
-        dap_sprintf(l_str_to_reply_chain, "%s can't find network \"%s\"\n", a_argv[0], l_net_str);
+        sprintf(l_str_to_reply_chain, "%s can't find network \"%s\"\n", a_argv[0], l_net_str);
         l_str_to_reply = dap_strcat2(l_str_to_reply,l_str_to_reply_chain);
         dap_string_t* l_net_str = dap_cli_list_net();
         l_str_to_reply = dap_strcat2(l_str_to_reply,l_net_str->str);
@@ -2150,7 +2150,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, 
             if ((*a_chain = dap_chain_net_get_chain_by_name(*a_net, l_chain_str)) == NULL) { // Can't find such chain
                 char l_str_to_reply_chain[500] = {0};
                 char *l_str_to_reply = NULL;
-                dap_sprintf(l_str_to_reply_chain, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid\n",
+                sprintf(l_str_to_reply_chain, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid\n",
                         a_argv[0], l_net_str, l_chain_str);
                 l_str_to_reply = dap_strcat2(l_str_to_reply,l_str_to_reply_chain);
                 dap_chain_t * l_chain;
@@ -2485,7 +2485,6 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                         size_t l_item_tx_size = dap_chain_datum_item_tx_get_size(item);
                         if(!memcmp(l_addr, &((dap_chain_tx_out_old_t*)item)->addr, sizeof(dap_chain_addr_t))&&
                             !memcmp(l_addr, &((dap_chain_tx_out_t*)item)->addr, sizeof(dap_chain_addr_t))&&
-                            !memcmp(l_addr, &((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake.fee_addr, sizeof(dap_chain_addr_t))&&
                             !memcmp(l_addr, &((dap_chain_tx_out_ext_t*)item)->addr, sizeof(dap_chain_addr_t)))
                             l_tx_items_count += l_item_tx_size;
                         else
@@ -3170,7 +3169,7 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, char **
             return -91;
         }
         dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section;
-        strcpy(l_tsd_section.ticker_token_from, a_params->ext.delegated_token_from);
+        strcpy((char *)l_tsd_section.ticker_token_from, a_params->ext.delegated_token_from);
         l_tsd_section.emission_rate = dap_chain_coins_to_balance("0.001");
         dap_tsd_t* l_tsd = dap_tsd_create_scalar(
             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK, l_tsd_section);
@@ -3429,7 +3428,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
 					return -91;
 				}
 				dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section;
-				strcpy(l_tsd_section.ticker_token_from, l_params->ext.delegated_token_from);
+                strcpy((char *)l_tsd_section.ticker_token_from, l_params->ext.delegated_token_from);
 //				l_tsd_section.token_from = dap_hash_fast();
 				l_tsd_section.emission_rate = dap_chain_coins_to_balance("0.001");//	TODO: 'm' 1:1000 tokens
 				dap_tsd_t * l_tsd = dap_tsd_create_scalar(
@@ -3475,7 +3474,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
             l_datum_token->type = l_params->type;
             if (l_params->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL) {
                 log_it(L_DEBUG,"Prepared TSD sections for private token on %zd total size", l_params->ext.tsd_total_size);
-                dap_snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
+                snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
                 l_datum_token->header_private_decl.flags = l_params->ext.parsed_flags;
                 l_datum_token->total_supply = l_total_supply;
                 l_datum_token->signs_valid = l_signs_emission;
@@ -3483,7 +3482,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                 l_datum_token->header_private_decl.decimals = atoi(l_params->decimals_str);
             } else { //DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL
                 log_it(L_DEBUG,"Prepared TSD sections for CF20 token on %zd total size", l_params->ext.tsd_total_size);
-                dap_snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
+                snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
                 l_datum_token->header_native_decl.flags = l_params->ext.parsed_flags;
                 l_datum_token->total_supply = l_total_supply;
                 l_datum_token->signs_valid = l_signs_emission;
@@ -3530,7 +3529,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
         case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE: { // 256
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t));
             l_datum_token->type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE; // 256
-            dap_snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
+            snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
             l_datum_token->total_supply = l_total_supply;
             l_datum_token->signs_valid = l_signs_emission;
             l_datum_token->header_simple.decimals = atoi(l_params->decimals_str);
@@ -3698,7 +3697,7 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
             l_datum_token->type = l_params->type;
             if (l_params->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE) {
                 log_it(L_DEBUG,"Prepared TSD sections for CF20 token on %zd total size", l_params->ext.tsd_total_size);
-                dap_snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
+                snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
                 l_datum_token->header_native_update.flags = l_params->ext.parsed_flags;
                 l_datum_token->total_supply = l_total_supply;
                 l_datum_token->signs_valid = l_signs_emission;
@@ -3706,7 +3705,7 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
                 l_datum_token->header_native_update.decimals = atoi(l_params->decimals_str);
             } else { // if (l_params->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE) {
                 log_it(L_DEBUG,"Prepared TSD sections for private token on %zd total size", l_params->ext.tsd_total_size);
-                dap_snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
+                snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
                 l_datum_token->header_private_update.flags = l_params->ext.parsed_flags;
                 l_datum_token->total_supply = l_total_supply;
                 l_datum_token->signs_valid = l_signs_emission;
@@ -3726,7 +3725,7 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
         case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE: { // 256
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t));
             l_datum_token->type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE; // 256
-            dap_snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
+            snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
             l_datum_token->total_supply = l_total_supply;
             l_datum_token->signs_valid = l_signs_emission;
             if (l_params->decimals_str)
@@ -4708,26 +4707,16 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
                 if(!s_json_get_uint256(l_json_item_obj, "value", &l_value) || IS_ZERO_256(l_value)) {
                     break;
                 }
-                uint256_t l_fee_value = { };
-                if(!s_json_get_uint256(l_json_item_obj, "fee", &l_fee_value) || IS_ZERO_256(l_fee_value)) {
-                    break;
-                }
-                const char *l_fee_addr_str = s_json_get_text(l_json_item_obj, "fee_addr");
-                const char *l_hldr_addr_str = s_json_get_text(l_json_item_obj, "hldr_addr");
                 const char *l_signing_addr_str = s_json_get_text(l_json_item_obj, "signing_addr");
-                dap_chain_addr_t *l_fee_addr = dap_chain_addr_from_str(l_fee_addr_str);
-                dap_chain_addr_t *l_hldr_addr = dap_chain_addr_from_str(l_hldr_addr_str);
                 dap_chain_addr_t *l_signing_addr = dap_chain_addr_from_str(l_signing_addr_str);
-                if(!l_fee_addr || !l_hldr_addr || !l_signing_addr) {
+                if (!l_signing_addr)
                     break;
-                }
                 dap_chain_node_addr_t l_signer_node_addr;
                 const char *l_node_addr_str = s_json_get_text(l_json_item_obj, "node_addr");
                 if(!l_node_addr_str || dap_chain_node_addr_from_str(&l_signer_node_addr, l_node_addr_str)) {
                     break;
                 }
-                dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_stake(l_srv_uid, l_value, l_fee_value,
-                        l_fee_addr, l_hldr_addr, l_signing_addr, &l_signer_node_addr);
+                dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_stake(l_srv_uid, l_value, l_signing_addr, &l_signer_node_addr);
                 l_item = (const uint8_t*) l_out_cond_item;
             }
                 break;
@@ -5434,7 +5423,7 @@ int cmd_gdb_export(int a_argc, char **a_argv, char **a_str_reply)
     }
     char l_path[MIN(strlen(l_db_path) + strlen(l_filename) + 12, MAX_PATH)];
     memset(l_path, '\0', sizeof(l_path));
-    dap_snprintf(l_path, sizeof(l_path), "%s/%s.json", l_db_path, l_filename);
+    snprintf(l_path, sizeof(l_path), "%s/%s.json", l_db_path, l_filename);
 
     const char *l_groups_str = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-groups", &l_groups_str);
@@ -5521,7 +5510,7 @@ int cmd_gdb_import(int a_argc, char **a_argv, char ** a_str_reply)
     const char *l_db_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
     char l_path[strlen(l_db_path) + strlen(l_filename) + 12];
     memset(l_path, '\0', sizeof(l_path));
-    dap_snprintf(l_path, sizeof(l_path), "%s/%s.json", l_db_path, l_filename);
+    snprintf(l_path, sizeof(l_path), "%s/%s.json", l_db_path, l_filename);
     struct json_object *l_json = json_object_from_file(l_path);
     if (!l_json) {
 #if JSON_C_MINOR_VERSION<15

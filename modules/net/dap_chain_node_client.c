@@ -354,7 +354,7 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
     bool l_finished = false;
     switch (a_pkt_type) {
         case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR:
-            dap_snprintf(l_node_client->last_error, sizeof(l_node_client->last_error),
+            snprintf(l_node_client->last_error, sizeof(l_node_client->last_error),
                     "%s", (char*) a_pkt->data);
             log_it(L_WARNING, "In: Received packet DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR with error \"%s\"",
                     l_node_client->last_error);

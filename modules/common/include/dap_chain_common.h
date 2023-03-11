@@ -86,19 +86,17 @@ typedef union dap_chain_node_addr {
 #define NODE_ADDR_FPS_ARGS_S(a)  &a.words[3],&a.words[2],&a.words[1],&a.words[0]
 #endif
 
-inline static int dap_chain_node_addr_from_str( dap_chain_node_addr_t * a_addr, const char * a_addr_str){
-    return (int) sscanf(a_addr_str,NODE_ADDR_FP_STR,NODE_ADDR_FPS_ARGS(a_addr) )-4;
+DAP_STATIC_INLINE int dap_chain_node_addr_from_str(dap_chain_node_addr_t *a_addr, const char *a_addr_str)
+{
+    if (sscanf(a_addr_str, NODE_ADDR_FP_STR, NODE_ADDR_FPS_ARGS(a_addr)) == 4)
+        return 0;
+    if (sscanf(a_addr_str, "0x%016"DAP_UINT64_FORMAT_x, &a_addr->uint64) == 1)
+        return 0;
+    return -1;
 }
 
-inline static bool dap_chain_node_addr_not_null(dap_chain_node_addr_t * a_addr){
-    return a_addr->uint64 != 0;
-}
-/**
-  *
-  *
-  *
-  *
-  */
+DAP_STATIC_INLINE bool dap_chain_node_addr_not_null(dap_chain_node_addr_t * a_addr) { return a_addr->uint64 != 0; }
+
 enum {
     NODE_ROLE_ROOT_MASTER=0x00,
     NODE_ROLE_ROOT=0x01,
@@ -123,12 +121,9 @@ typedef union dap_chain_hash_slow{
     uint8_t raw[DAP_CHAIN_HASH_SLOW_SIZE];
 }  dap_chain_hash_slow_t;
 
-
-
 typedef enum dap_chain_hash_slow_kind {
     HASH_GOLD = 0, HASH_SILVER, HASH_COPPER, HASH_USELESS = -1
 } dap_chain_hash_slow_kind_t;
-
 
 typedef struct dap_chain_addr{
     uint8_t addr_ver; // 0 for default
