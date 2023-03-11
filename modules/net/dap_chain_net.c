@@ -2795,6 +2795,21 @@ dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const ch
 }
 
 /**
+ * @brief dap_chain_net_get_chain_by_id
+ * @param l_net
+ * @param a_name
+ * @return
+ */
+dap_chain_t *dap_chain_net_get_chain_by_id(dap_chain_net_t *l_net, dap_chain_id_t a_chain_id)
+{
+   dap_chain_t *l_chain;
+   DL_FOREACH(l_net->pub.chains, l_chain)
+        if (l_chain->id.uint64 == a_chain_id.uint64)
+            return l_chain;
+   return NULL;
+}
+
+/**
  * @brief dap_chain_net_get_chain_by_chain_type
  * @param a_datum_type
  * @return

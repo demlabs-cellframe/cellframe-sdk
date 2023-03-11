@@ -298,6 +298,15 @@ static void *s_callback_list_form(const void *a_srv_validator, UNUSED_ARG void *
     return l_validator;
 }
 
+void dap_chain_esbocs_set_min_validators_count(dap_chain_net_id_t a_net_id, dap_chain_id_t a_chain_id, uint16_t a_new_value)
+{
+    dap_chain_t *l_chain = dap_chain_net_get_chain_by_id(dap_chain_net_by_id(a_net_id), a_chain_id);
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
+    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
+    l_esbocs_pvt->min_validators_count = a_new_value;
+}
+
 static dap_list_t *s_get_validators_list(dap_chain_esbocs_session_t *a_session, dap_chain_hash_fast_t *a_seed_hash)
 {
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(a_session->esbocs);
