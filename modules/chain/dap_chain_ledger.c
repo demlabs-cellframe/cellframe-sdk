@@ -3067,7 +3067,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 &&	l_datum_token->header_native_decl.tsd_total_size
                 &&	NULL != (l_tsd = dap_tsd_find(l_datum_token->data_n_tsd, l_datum_token->header_native_decl.tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK))) {
                     dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section = dap_tsd_get_scalar(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
-                    if (!dap_chain_ledger_token_ticker_check(a_ledger, l_tsd_section.ticker_token_from)) {
+                    if (!dap_chain_ledger_token_ticker_check(a_ledger, (char *)l_tsd_section.ticker_token_from)) {
                         debug_if(s_debug_more, L_WARNING, "tx_token [%s] no found", l_tsd_section.ticker_token_from);
                         l_err_num = -23;
                         break;
@@ -3149,7 +3149,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                         l_err_num = -33;
                         break;
                     }
-                    if (strcmp(tx_tiker, l_tsd_section.ticker_token_from)) {
+                    if (strcmp(tx_tiker, (char *)l_tsd_section.ticker_token_from)) {
                         debug_if(s_debug_more, L_WARNING, "Tickers not equal for [%s]", l_tx_token->header.ticker);
                         l_err_num = -35;
                         break;

@@ -103,7 +103,7 @@ static char                                             *dap_chain_mempool_base_
 // Callbacks
 static void												s_callback_decree (dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_net, dap_chain_t * a_chain,
                                                                               dap_chain_datum_decree_t * a_decree, size_t a_decree_size);
-static bool s_stake_lock_callback_verificator_added(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_tx_item);
+static void s_stake_lock_callback_verificator_added(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_tx_item);
 static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond,
                                    dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 /**
@@ -1227,20 +1227,18 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_hash_f
  * @param a_tx_item_idx
  * @return
  */
-static bool s_stake_lock_callback_verificator_added(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_tx_item)
+static void s_stake_lock_callback_verificator_added(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_tx_item)
 {
     if (a_tx_item)  // this is IN_COND tx
-        return true;
+        return;
     int l_out_num = 0;
     dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, &l_out_num);
     if (l_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX) {
         dap_chain_hash_fast_t l_tx_cond_hash;
         dap_hash_fast( a_tx, dap_chain_datum_tx_get_size(a_tx), &l_tx_cond_hash);
-        if (dap_hash_fast_is_blank(&l_tx_cond_hash))
-            return false;
-        dap_chain_ledger_emission_for_stake_lock_item_add(a_ledger, &l_tx_cond_hash);
+        if (!dap_hash_fast_is_blank(&l_tx_cond_hash))
+            dap_chain_ledger_emission_for_stake_lock_item_add(a_ledger, &l_tx_cond_hash);
     }
-    return true;
 }
 
 /**

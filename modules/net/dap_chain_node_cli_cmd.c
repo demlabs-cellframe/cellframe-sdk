@@ -3169,7 +3169,7 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, char **
             return -91;
         }
         dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section;
-        strcpy(l_tsd_section.ticker_token_from, a_params->ext.delegated_token_from);
+        strcpy((char *)l_tsd_section.ticker_token_from, a_params->ext.delegated_token_from);
         l_tsd_section.emission_rate = dap_chain_coins_to_balance("0.001");
         dap_tsd_t* l_tsd = dap_tsd_create_scalar(
             DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK, l_tsd_section);
@@ -3428,7 +3428,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
 					return -91;
 				}
 				dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section;
-				strcpy(l_tsd_section.ticker_token_from, l_params->ext.delegated_token_from);
+                strcpy((char *)l_tsd_section.ticker_token_from, l_params->ext.delegated_token_from);
 //				l_tsd_section.token_from = dap_hash_fast();
 				l_tsd_section.emission_rate = dap_chain_coins_to_balance("0.001");//	TODO: 'm' 1:1000 tokens
 				dap_tsd_t * l_tsd = dap_tsd_create_scalar(
