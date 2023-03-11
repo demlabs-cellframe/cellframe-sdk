@@ -210,12 +210,12 @@ dap_list_t *dap_chain_net_srv_stake_get_validators()
 
 bool dap_chain_net_srv_stake_check_tx_activator(dap_hash_fast_t a_tx_hash){
     dap_chain_net_srv_stake_item_t *l_stake, *l_tmp;
-    HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp) {
-        if (!memcmp(&l_stake->tx_hash, &a_tx_hash, sizeof(dap_hash_fast_t))){
-            l_stake->is_active = true;
-            return true;
-        }
-    }
+//    HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp) {
+//        if (!memcmp(&l_stake->tx_hash, &a_tx_hash, sizeof(dap_hash_fast_t))){
+//            l_stake->is_active = true;
+//            return true;
+//        }
+//    }
     return false;
 }
 
