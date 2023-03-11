@@ -599,7 +599,7 @@ void print_sig1(dap_sign_t *a_sign, dap_sign_t *a_sign2)
 {
     FILE *fp1;
 
-        fp1 = fopen("/home/demlabs/rrr2", "r+");
+        fp1 = fopen("/home/roman/rrr2", "r+");
         if ((fp1 == NULL)) {
             return ;
         }
@@ -655,7 +655,7 @@ static bool s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_hash_fast_t 
     dap_chain_hash_fast_t l_pkey_hash;
     dap_sign_get_pkey_hash(l_sign_block, &l_pkey_hash);
 
-    dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
+    dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, TX_ITEM_TYPE_SIG, NULL);
     l_sign_tx = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
 
     print_sig1(l_sign_block,l_sign_tx);

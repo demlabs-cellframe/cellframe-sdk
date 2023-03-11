@@ -5196,7 +5196,7 @@ void print_sig(dap_pkey_t *a_pkey, dap_sign_t *a_sign)
 {
     FILE *fp1;
 
-        fp1 = fopen("/home/demlabs/rrr", "r+");
+        fp1 = fopen("/home/roman/rrr", "r+");
         if ((fp1 == NULL)) {
             return ;
         }
