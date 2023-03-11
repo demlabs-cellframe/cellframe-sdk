@@ -48,6 +48,7 @@ static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks);
 static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cfg);
 static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t **a_block_ptr, size_t a_block_size);
 static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t *a_block, size_t a_block_size);
+void dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_new_value);
 
 DAP_STATIC_INLINE const char *s_voting_msg_type_to_str(uint8_t a_type)
 {
@@ -110,6 +111,8 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     dap_chain_esbocs_session_t *l_session = DAP_NEW_Z(dap_chain_esbocs_session_t);
     l_session->chain = a_chain;
     l_session->esbocs = l_esbocs;
+
+    l_esbocs->chain->callback_set_min_esbocs_validators_count = dap_chain_esbocs_set_min_validators_count;
 
     l_esbocs->session = l_session;
     l_blocks->_inheritor = l_esbocs;
@@ -298,10 +301,9 @@ static void *s_callback_list_form(const void *a_srv_validator, UNUSED_ARG void *
     return l_validator;
 }
 
-void dap_chain_esbocs_set_min_validators_count(dap_chain_net_id_t a_net_id, dap_chain_id_t a_chain_id, uint16_t a_new_value)
+void dap_chain_esbocs_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_new_value)
 {
-    dap_chain_t *l_chain = dap_chain_net_get_chain_by_id(dap_chain_net_by_id(a_net_id), a_chain_id);
-    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
     l_esbocs_pvt->min_validators_count = a_new_value;
