@@ -56,7 +56,7 @@ typedef struct dap_chain_net_srv_stake_cache_data
     dap_chain_addr_t signing_addr;
     dap_chain_hash_fast_t tx_hash;
     dap_chain_node_addr_t node_addr;
-} dap_chain_net_srv_stake_cache_data_t;
+} DAP_ALIGN_PACKED dap_chain_net_srv_stake_cache_data_t;
 
 /**
  * @brief dap_stream_ch_vpn_init Init actions for VPN stream channel
@@ -399,23 +399,14 @@ int dap_chain_net_srv_stake_load_cache(dap_chain_net_t *a_net){
     }
 
     dap_chain_net_srv_stake_item_t *l_stake;
-    bool l_is_new = false;
     for(size_t i = 0; i < l_objs_count; i++){
-
         dap_chain_net_srv_stake_item_t *l_srv_stake = (dap_chain_net_srv_stake_item_t *)l_store_obj[i].value;
-
-        HASH_FIND(hh, s_srv_stake->itemlist, &l_srv_stake[i].signing_addr, sizeof(dap_chain_addr_t), l_stake);
-        if (!l_stake) {
-            l_stake = DAP_NEW_Z(dap_chain_net_srv_stake_item_t);
-            l_is_new = true;
-        }
-
+        l_stake = DAP_NEW_Z(dap_chain_net_srv_stake_item_t);
         l_stake->node_addr      = l_srv_stake->node_addr;
         l_stake->signing_addr   = l_srv_stake->signing_addr;
         l_stake->value          = l_srv_stake->value;
         l_stake->tx_hash        = l_srv_stake->tx_hash;
-        if (l_is_new)
-            HASH_ADD(hh, s_srv_stake->itemlist, signing_addr, sizeof(dap_chain_addr_t), l_stake);
+        HASH_ADD(hh, s_srv_stake->itemlist, signing_addr, sizeof(dap_chain_addr_t), l_stake);
     }
     dap_store_obj_free(l_store_obj, l_objs_count);
 
@@ -1449,10 +1440,8 @@ static void s_cache_data(char* a_net_name, dap_chain_net_srv_stake_item_t *a_sta
     dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(a_net_name);
     char *l_gdb_group = dap_chain_ledger_get_gdb_group(l_ledger, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP);
 
-    if (!dap_chain_ledger_cache_enabled(l_ledger)) {
-        DAP_DELETE(l_ledger);
+    if (!dap_chain_ledger_cache_enabled(l_ledger))
         return;
-    }
 
     dap_store_obj_t *l_store_obj = DAP_NEW_SIZE(dap_store_obj_t, sizeof(dap_chain_net_srv_stake_cache_data_t));
     dap_chain_net_srv_stake_cache_data_t *l_cache_data = DAP_NEW_STACK_SIZE(dap_chain_net_srv_stake_cache_data_t, sizeof(dap_chain_net_srv_stake_cache_data_t));
@@ -1474,5 +1463,4 @@ static void s_cache_data(char* a_net_name, dap_chain_net_srv_stake_item_t *a_sta
     DAP_DELETE(l_store_obj);
     DAP_DELETE(l_cache_data);
     DAP_DELETE(l_key_byte_buf);
-    DAP_DELETE(l_ledger);
 }
