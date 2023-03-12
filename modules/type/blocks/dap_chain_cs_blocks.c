@@ -35,6 +35,7 @@
 #include "dap_timerfd.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
+#include "dap_chain_mempool.h"
 #define LOG_TAG "dap_chain_cs_blocks"
 
 typedef struct dap_chain_tx_block_index
@@ -167,7 +168,11 @@ int dap_chain_cs_blocks_init()
 
             "block -net <net_name> -chain <chain_name> list [-from_hash <block_hash>] [-to_hash <block_hash>]"
             "[-from_dt <datetime>] [-to_dt <datetime>]\n"
-                "\t\t List blocks"
+                "\t\t List blocks\n\n"
+        "Commission collect:\n"
+            "block -net <net_name> -chain <chain_name> fee collect"
+            "-cert <priv_cert_name> -addr <addr> {-hash_one <block_hash> | -hash.<bl_hs,bl_hs,...>} -fee <value>\n"
+                "\t\t Take the whole commission\n\n"
 
                                         );
     if (dap_chain_block_cache_init() != 0){
@@ -342,6 +347,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
         SUBCMD_NEW_COMPLETE,
         SUBCMD_DUMP,
         SUBCMD_LIST,
+        SUBCMD_FEE,
         SUBCMD_DROP
     } l_subcmd={0};
 
@@ -353,6 +359,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
         [SUBCMD_NEW_COMPLETE]="new_complete",
         [SUBCMD_DUMP]="dump",
         [SUBCMD_LIST]="list",
+        [SUBCMD_FEE]="fee",
         [SUBCMD_DROP]="drop",
         [SUBCMD_UNDEFINED]=NULL
     };
@@ -362,7 +369,6 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
         l_subcmd_str_args[i]=NULL;
     const char* l_subcmd_str_arg;
     const char* l_subcmd_str = NULL;
-
 
     int arg_index = 1;
 
@@ -587,6 +593,102 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
                 dap_string_free(l_str_tmp, true);
 
+        }break;
+        case SUBCMD_FEE:{
+            const char * str_tmp = NULL;
+            const char * l_cert_name = NULL;
+            const char * l_addr_str = NULL;
+            const char * l_hash_out_type = NULL;
+            const char * l_hash_str = NULL;
+            const char * l_hash_mas_str = NULL;
+
+            uint256_t   l_fee_value = {};
+
+            dap_chain_hash_fast_t   l_block_hash = {};
+            dap_chain_block_t       *l_block;
+            dap_chain_addr_t        *l_addr = NULL;
+
+            //arg_index++;
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "collect", &str_tmp);
+
+            if(!str_tmp) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block' requires parameter 'fee collect'");
+                return -3;
+            }
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
+            if(!l_hash_out_type)
+                l_hash_out_type = "hex";
+            if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
+                return -1;
+            }
+
+            // Private certificate
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cert", &l_cert_name);
+            // The address of the wallet to which the commission is received
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash_one", &l_hash_str);
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash.", &l_hash_mas_str);
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &str_tmp);
+
+            if(!l_addr_str) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "commission_coll requires parameter '-addr'");
+                return -3;
+            }
+            l_addr = dap_chain_addr_from_str(l_addr_str);
+
+            if(!l_cert_name) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "commission_coll requires parameter '-cert'");
+                return -4;
+            }
+            dap_cert_t * l_cert = dap_cert_find_by_name( l_cert_name );
+
+            if( l_cert == NULL ){
+                dap_cli_server_cmd_set_reply_text(a_str_reply,
+                        "Can't find \"%s\" certificate", l_cert_name );
+                return -5;
+            }
+
+            l_fee_value = dap_chain_balance_scan(str_tmp);
+            if(!str_tmp||IS_ZERO_256(l_fee_value)) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_create requires parameter '-fee' to be valid uint256");
+                return -6;
+            }
+
+            if( l_cert->enc_key == NULL ){
+                dap_cli_server_cmd_set_reply_text(a_str_reply,
+                        "Corrupted certificate \"%s\" without keys certificate", l_cert_name );
+                return -5;
+            }
+            dap_pkey_t *l_pub_key = NULL;
+            if(l_cert) {
+                l_pub_key = dap_pkey_from_enc_key(l_cert->enc_key);
+            }
+
+            if(!l_hash_str && !l_hash_mas_str){
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "commission_coll requires parameter '-hash_one' or '-hash.'");
+                return -6;
+            }else if(l_hash_str && l_hash_mas_str){
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "commission_coll requires one of parameters '-hash_one' or '-hash.'");
+                return -7;
+            }else if(l_hash_str){
+                size_t l_block_size = 0;
+                int res =  dap_chain_hash_fast_from_hex_str( l_hash_str, &l_block_hash);
+                l_block = (dap_chain_block_t*) dap_chain_get_atom_by_hash( l_chain, &l_block_hash, &l_block_size);
+                if(l_block){
+                    dap_chain_block_cache_t *l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_block_hash);
+                    if(l_block_cache)
+                    {
+                        dap_sign_t * l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
+                        if(dap_pkey_compare_with_sign(l_pub_key, l_sign)){
+                            dap_chain_mempool_tx_coll_fee_create(l_cert->enc_key,l_addr,l_block_cache,l_fee_value,l_hash_out_type);
+                        }
+                    }
+                }
+            }else if(l_hash_mas_str){
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "for future use");
+                return -9;
+            }
         }break;
 
         case SUBCMD_UNDEFINED: {

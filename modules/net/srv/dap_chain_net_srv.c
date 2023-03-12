@@ -595,30 +595,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
 
     return ret;
 }
-void print_sig1(dap_sign_t *a_sign, dap_sign_t *a_sign2)
-{
-    FILE *fp1;
 
-        fp1 = fopen("/home/roman/rrr2", "r+");
-        if ((fp1 == NULL)) {
-            return ;
-        }
-        for (uint32_t i = 0; i < a_sign->header.sign_pkey_size; i++)
-        {
-            fprintf(fp1,"%x",a_sign->pkey_n_sign[i]);
-            //fputc(a_sign->pkey_n_sign[i],fp1);
-        }
-        fputs("\n", fp1);
-        for (uint32_t i = 0; i < a_sign->header.sign_pkey_size; i++)
-        {
-            fprintf(fp1,"%x",a_sign2->pkey_n_sign[i]);
-            //fputc(a_pkey->pkey[i],fp1);
-        }
-        //fwrite()
-        fputs("\n", fp1);
-        fclose(fp1);
-        return ;
-}
 /**
  * @brief s_fee_verificator_callback
  * @param a_ledger
@@ -648,29 +625,16 @@ static bool s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_hash_fast_t 
 
     l_chain = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_CA );
 
-    l_tx = l_chain->callback_tx_find_by_hash(l_chain, a_tx_out_hash);
+    //l_tx = l_chain->callback_tx_find_by_hash(l_chain, a_tx_out_hash);
     l_block_cache = l_chain->callback_block_find_by_hash(l_chain,a_tx_out_hash);
-
     l_sign_block = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
-    dap_chain_hash_fast_t l_pkey_hash;
-    dap_sign_get_pkey_hash(l_sign_block, &l_pkey_hash);
+    //dap_chain_hash_fast_t l_pkey_hash;
+    //dap_sign_get_pkey_hash(l_sign_block, &l_pkey_hash);
 
     dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, TX_ITEM_TYPE_SIG, NULL);
     l_sign_tx = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
 
-    print_sig1(l_sign_block,l_sign_tx);
-
     return dap_sign_match_pkey_signs(l_sign_block,l_sign_tx);
-/*
-    if (!l_receipt)
-        return false;
-    dap_sign_t *l_sign = dap_chain_datum_tx_receipt_sign_get(l_receipt, l_receipt->size, 1);
-    if (!l_sign)
-        return false;
-    dap_hash_fast_t l_pkey_hash;
-    if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash))
-        return false;
-    */
 
 }
 
