@@ -144,7 +144,7 @@ typedef struct dap_chain_datum_token_tsd_delegate_from_stake_lock {
 // Token update
 //#define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_UPDATE   0x0003
 // Open token with now ownership
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PUBLIC           0x0004
+//#define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PUBLIC           0x0004
 
 // 256
 // Simple private token decl
@@ -174,7 +174,7 @@ typedef struct dap_chain_datum_token_tsd_delegate_from_stake_lock {
 // Native token
 #define DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE               0x0003
 // Open token with now ownership
-//#define DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC               0x0004
+#define DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC               0x0004
 
 
 // Macros for token flags
