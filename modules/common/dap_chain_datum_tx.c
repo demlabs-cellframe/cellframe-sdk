@@ -158,6 +158,21 @@ int dap_chain_datum_tx_add_fee_item(dap_chain_datum_tx_t **a_tx, uint256_t a_val
     return -1;
 }
 
+int dap_chain_datum_tx_get_fee_value (dap_chain_datum_tx_t *a_tx, uint256_t *a_value)
+{
+    dap_list_t *l_items_list = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_COND, NULL);
+
+    for(dap_list_t *l_item=l_items_list; l_item; l_item=l_item->next){
+        dap_chain_tx_out_cond_t *l_out_item = (dap_chain_tx_out_cond_t*)l_item->data;
+        if (l_out_item->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE){
+            *a_value = l_out_item->header.value;
+            return 0;
+        }
+    }
+
+    return -1;
+}
+
 /**
  * Create 'out' item and insert to transaction
  *
