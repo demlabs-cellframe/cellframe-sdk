@@ -88,18 +88,7 @@ int dap_chain_net_srv_stake_pos_delegate_init()
     );
 
     s_srv_stake = DAP_NEW_Z(dap_chain_net_srv_stake_t);
-
-    uint16_t l_net_count;
-    dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
-    for (uint16_t i = 0; i < l_net_count; i++) {
-        size_t l_auth_certs_count = 0;
-        for (dap_chain_t *l_chain = l_net_list[i]->pub.chains; l_chain; l_chain = l_chain->next)
-            if ( (s_srv_stake->auth_cert_pkeys = l_chain->callback_get_poa_certs(l_chain, &l_auth_certs_count, NULL)) )
-                break;
-    }
-    DAP_DELETE(l_net_list);
     s_srv_stake->delegate_allowed_min = dap_chain_coins_to_balance("1.0");
-    s_srv_stake->initialized = true;
 
     return 0;
 }
@@ -181,12 +170,17 @@ void dap_chain_net_srv_stake_set_allowed_min_value(uint256_t a_value)
     s_srv_stake->delegate_allowed_min = a_value;
 }
 
+uint256_t dap_chain_net_srv_stake_get_allowed_min_value()
+{
+    assert(s_srv_stake);
+    return s_srv_stake->delegate_allowed_min;
+}
+
 bool dap_chain_net_srv_stake_key_delegated(dap_chain_addr_t *a_signing_addr)
 {
     assert(s_srv_stake);
     if (!a_signing_addr)
         return false;
-    while (!s_srv_stake->initialized);
 
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
     HASH_FIND(hh, s_srv_stake->itemlist, a_signing_addr, sizeof(dap_chain_addr_t), l_stake);
