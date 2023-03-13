@@ -158,6 +158,13 @@ int dap_chain_datum_tx_add_fee_item(dap_chain_datum_tx_t **a_tx, uint256_t a_val
     return -1;
 }
 
+int dap_chain_datum_tx_get_fee_value (dap_chain_datum_tx_t *a_tx, uint256_t *a_value)
+{
+    dap_list_t *l_items_list = dap_chain_datum_tx_items_get();
+
+    return -1;
+}
+
 /**
  * Create 'out' item and insert to transaction
  *

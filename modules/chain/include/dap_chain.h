@@ -97,6 +97,8 @@ typedef size_t(*dap_chain_callback_get_count)(dap_chain_t *a_chain);
 typedef dap_list_t *(*dap_chain_callback_get_list)(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 typedef dap_list_t *(*dap_chain_callback_get_poa_certs)(dap_chain_t *a_chain, size_t *a_auth_certs_count, uint16_t *count_verify);
 
+typedef bool (*dap_chain_callback_check_tx_fee)(dap_chain_t *a_chain,  uint256_t fee_value);
+
 typedef enum dap_chain_type
 {
     CHAIN_TYPE_FIRST,

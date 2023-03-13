@@ -48,7 +48,7 @@ static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks);
 static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cfg);
 static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t **a_block_ptr, size_t a_block_size);
 static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t *a_block, size_t a_block_size);
-
+static bool s_callback_check_tx_fee(dap_chain_t *a_chain, uint256_t l_fee);
 DAP_STATIC_INLINE const char *s_voting_msg_type_to_str(uint8_t a_type)
 {
     switch (a_type) {
@@ -117,6 +117,8 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 
     l_esbocs->_pvt = DAP_NEW_Z(dap_chain_esbocs_pvt_t);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
+
+    a_chain->callback_check_tx_fee = s_callback_check_tx_fee;
 
     l_esbocs_pvt->debug = dap_config_get_item_bool_default(a_chain_cfg, "esbocs", "consensus_debug", false);
 
@@ -261,6 +263,18 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
         debug_if(l_esbocs_pvt->debug, L_MSG, "ESBOCS: Consensus main timer is started");
     }
     return 0;
+}
+
+static bool s_callback_check_tx_fee(dap_chain_t *a_chain, uint256_t l_fee)
+{
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
+
+    if (compare256(l_fee, l_esbocs_pvt->minimum_commission) < 0)
+        return false;
+
+    return true;
 }
 
 static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)

@@ -240,6 +240,12 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
                 continue;
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
             if (dap_chain_node_mempool_need_process(a_chain, l_datum)) {
+
+                if (){
+                    log_it(L_WARNING, "Fee is lower than minimum fee value");
+                    continue;
+                }
+
                 if (dap_chain_node_mempool_process(a_chain, l_datum)) {
                     // Delete processed objects
                     dap_global_db_del(l_gdb_group_mempool, l_objs[i].key, NULL, NULL);
