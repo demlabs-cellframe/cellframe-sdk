@@ -53,6 +53,18 @@ DAP_STATIC_INLINE const char *dap_chain_tx_out_cond_subtype_to_str(dap_chain_tx_
     return "UNDEFINED";
 }
 
+// Allow to spend stake by network
+// Need for service staking to enable network governance to fee the service provider
+#define DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_ENABLE_NET_FEE           0x00000001
+// Delegate token to prove thats stake is provided
+#define DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_DELEGATE_TOKEN           0x00000002
+// Delegate public key's hash
+#define DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_DELEGATE_PKEY            0x00000004
+// Lock by time
+#define DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME                  0x00000008
+// Create base tx for delegated token
+#define DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX           0x00000010
+
 /**
  * @struct dap_chain_tx_out
  * @brief Transaction item out_cond
@@ -97,17 +109,11 @@ typedef struct dap_chain_tx_out_cond {
             dap_chain_addr_t seller_addr;
         } DAP_ALIGN_PACKED srv_xchange;
         struct {
-            // Stake holder address
-            dap_chain_addr_t hldr_addr;
-            // Fee address
-            dap_chain_addr_t fee_addr;
-            // Fee value in percent (fixed point)
-            uint256_t fee_value;
             // Public key hash of signing certificate combined with net id
             dap_chain_addr_t signing_addr;
             // Node address of signer with this stake
             dap_chain_node_addr_t signer_node_addr;
-        } DAP_ALIGN_PACKED srv_stake;
+        } DAP_ALIGN_PACKED srv_stake_pos_delegate;
         struct {
             dap_time_t		time_unlock;
             dap_hash_fast_t	pkey_delegated;

@@ -28,6 +28,7 @@
 #include "dap_chain_datum_decree.h"
 #include "dap_enc_base58.h"
 
+
 #define LOG_TAG "dap_chain_datum_decree"
 
 
@@ -46,14 +47,15 @@ dap_sign_t *dap_chain_datum_decree_get_signs(dap_chain_datum_decree_t *a_decree,
 
 int dap_chain_datum_decree_get_fee(dap_chain_datum_decree_t *a_decree, uint256_t *a_fee_value)
 {
-    size_t l_tsd_offset = 0, tsd_data_size = a_decree->header.data_size;
-
     if(!a_decree || !a_fee_value){
         log_it(L_WARNING,"Wrong arguments");
         return -1;
     }
+
+    size_t l_tsd_offset = 0, tsd_data_size = a_decree->header.data_size;
+
     while(l_tsd_offset < tsd_data_size){
-        dap_tsd_t *l_tsd = (dap_tsd_t*)a_decree->data_n_signs + l_tsd_offset;
+        dap_tsd_t *l_tsd = (dap_tsd_t*)((byte_t*)a_decree->data_n_signs + l_tsd_offset);
         size_t l_tsd_size = l_tsd->size + sizeof(dap_tsd_t);
         if(l_tsd_size > tsd_data_size){
             log_it(L_WARNING,"TSD size is greater than all data size. It's possible corrupt data.");
@@ -72,15 +74,48 @@ int dap_chain_datum_decree_get_fee(dap_chain_datum_decree_t *a_decree, uint256_t
     return 1;
 }
 
+int dap_chain_datum_decree_get_fee_addr(dap_chain_datum_decree_t *a_decree, dap_chain_addr_t *a_fee_wallet)
+{
+    if(!a_decree || !a_fee_wallet){
+        log_it(L_WARNING,"Wrong arguments");
+        return -1;
+    }
+
+    size_t l_tsd_offset = 0, tsd_data_size = a_decree->header.data_size;
+
+    while(l_tsd_offset < tsd_data_size){
+        dap_tsd_t *l_tsd = (dap_tsd_t*)((byte_t*)a_decree->data_n_signs + l_tsd_offset);
+        size_t l_tsd_size = l_tsd->size + sizeof(dap_tsd_t);
+        if(l_tsd_size > tsd_data_size){
+            log_it(L_WARNING,"TSD size is greater than all data size. It's possible corrupt data.");
+            return -1;
+        }
+        if (l_tsd->type == DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE_WALLET){
+            if(l_tsd->size > sizeof(dap_chain_addr_t)){
+                log_it(L_WARNING,"Wrong fee tsd data size.");
+                return -1;
+            }
+            dap_chain_addr_t l_addr = {0};
+            l_addr = dap_tsd_get_scalar(l_tsd, dap_chain_addr_t);
+            *a_fee_wallet = l_addr;
+            return 0;
+        }
+        l_tsd_offset += l_tsd_size;
+    }
+    return 1;
+}
+
 dap_list_t *dap_chain_datum_decree_get_owners(dap_chain_datum_decree_t *a_decree, uint256_t *a_owners_num)
 {
-    size_t l_tsd_offset = 0, tsd_data_size = a_decree->header.data_size;
-    uint64_t l_owners_num = 0;
-    dap_list_t *l_key_list = NULL;
     if(!a_decree || !a_owners_num){
         log_it(L_WARNING,"Wrong arguments");
         return NULL;
     }
+
+    size_t l_tsd_offset = 0, tsd_data_size = a_decree->header.data_size;
+    uint64_t l_owners_num = 0;
+    dap_list_t *l_key_list = NULL;
+
 
     while(l_tsd_offset < tsd_data_size){
         dap_tsd_t *l_tsd = (dap_tsd_t*)((byte_t*)a_decree->data_n_signs + l_tsd_offset);
@@ -111,12 +146,13 @@ dap_list_t *dap_chain_datum_decree_get_owners(dap_chain_datum_decree_t *a_decree
 
 int dap_chain_datum_decree_get_min_owners(dap_chain_datum_decree_t *a_decree, uint256_t *a_min_owners_num)
 {
-    size_t l_tsd_offset = 0, tsd_data_size = a_decree->header.data_size;
-
     if(!a_decree || !a_min_owners_num){
         log_it(L_WARNING,"Wrong arguments");
         return -1;
     }
+
+    size_t l_tsd_offset = 0, tsd_data_size = a_decree->header.data_size;
+
     while(l_tsd_offset < tsd_data_size){
         dap_tsd_t *l_tsd = (dap_tsd_t*)a_decree->data_n_signs + l_tsd_offset;
         size_t l_tsd_size = dap_tsd_size(l_tsd);

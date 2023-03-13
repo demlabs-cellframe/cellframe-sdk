@@ -145,9 +145,9 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         for (size_t i = 0; i < l_auth_certs_count; i++) {
             dap_chain_esbocs_validator_t *l_validator = DAP_NEW(dap_chain_esbocs_validator_t);
 
-            dap_snprintf(l_cert_name, sizeof(l_cert_name), "%s.%zu", l_auth_certs_prefix, i);
+            snprintf(l_cert_name, sizeof(l_cert_name), "%s.%zu", l_auth_certs_prefix, i);
             if ((l_cert_cur = dap_cert_find_by_name(l_cert_name)) == NULL) {
-                dap_snprintf(l_cert_name, sizeof(l_cert_name), "%s.%zu.pub", l_auth_certs_prefix, i);
+                snprintf(l_cert_name, sizeof(l_cert_name), "%s.%zu.pub", l_auth_certs_prefix, i);
                 if ((l_cert_cur = dap_cert_find_by_name(l_cert_name)) == NULL) {
                     log_it(L_ERROR, "ESBOCS: Can't find cert \"%s\"", l_cert_name);
                     DAP_DELETE(l_validator);
@@ -158,7 +158,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
             log_it(L_NOTICE, "ESBOCS: Initialized auth cert \"%s\"", l_cert_name);
             dap_chain_addr_fill_from_key(&l_validator->signing_addr, l_cert_cur->enc_key, a_chain->net_id);
 
-            if (dap_sscanf(l_addrs[i], NODE_ADDR_FP_STR, NODE_ADDR_FPS_ARGS_S(l_validator->node_addr) ) != 4) {
+            if (dap_chain_node_addr_from_str(&l_validator->node_addr, l_addrs[i])) {
                 log_it(L_ERROR,"ESBOCS: Wrong address format, should be like 0123::4567::89AB::CDEF");
                 DAP_DELETE(l_validator);
                 l_ret = -4;
@@ -296,6 +296,15 @@ static void *s_callback_list_form(const void *a_srv_validator, UNUSED_ARG void *
     l_validator->weight = ((dap_chain_net_srv_stake_item_t *)a_srv_validator)->value;
     l_validator->is_synced = false;
     return l_validator;
+}
+
+void dap_chain_esbocs_set_min_validators_count(dap_chain_net_id_t a_net_id, dap_chain_id_t a_chain_id, uint16_t a_new_value)
+{
+    dap_chain_t *l_chain = dap_chain_net_get_chain_by_id(dap_chain_net_by_id(a_net_id), a_chain_id);
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
+    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
+    l_esbocs_pvt->min_validators_count = a_new_value;
 }
 
 static dap_list_t *s_get_validators_list(dap_chain_esbocs_session_t *a_session, dap_chain_hash_fast_t *a_seed_hash)

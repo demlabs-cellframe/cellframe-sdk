@@ -84,6 +84,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_cli_server_cmd_add("global_db", com_global_db, "Work with global database",
             "global_db cells add -cell <cell id> \n"
             "global_db flush \n\n"
+            "global_db write -group <group_name> -key <key_name> -value <value>"
+            "global_db read -group <group_name> -key <key_name>"
+            "global_db delete -group <group_name> -key <key_name>"
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
             );
     dap_cli_server_cmd_add("mempool", com_signer, "Sign operations",
@@ -317,12 +320,13 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "decree create common -net <net_name> [-chain <chain_name>]  -certs <certs list> -<Subtype param name> <Subtype param Value>\n"
             "decree create service -net <net_name> [-chain <chain_name>] -srv_id <service_id> -certs <certs list> -<Subtype param name> <Subtype param Value>\n"
             "decree sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs list>\n"
-            "decree anchor -net <net_name> -anchor_chain <chain_name> -decree?????\n"
+            "decree anchor -net <net_name> -chain <chain_name> -datum <datum_hash>\n"
             "==Subtype Params==\n"
             "\t -fee <value>: sets fee for tx in net\n"
+            "\t -to_addr <wallet_addr>: sets wallet addr for network fee"
             "\t -new_certs <certs list>: sets new owners set for net\n"
             "\t -signs_verify <value>: sets minimum number of owners needed to sign decree\n"
-            "\t ton_signs_verify <value>: sets minimum number of TON signers");
+            "\t -ton_signs_verify <value>: sets minimum number of TON signers");
 
 
     // Exit - always last!

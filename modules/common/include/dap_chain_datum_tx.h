@@ -27,12 +27,8 @@
 #include "dap_enc_key.h"
 #include "dap_chain_common.h"
 #include "dap_time.h"
+#include <json-c/json.h>
 
-typedef enum dap_chain_tx_cond_type {
-    COND_SERVICE_PROVIDE = 0x20, //
-    COND_SERVICE_BILL = 0x30, //
-
-} dap_chain_tx_cond_type_t;
 /**
   * @struct dap_chain_datum_tx
   * @brief Transaction section, consists from lot of tx_items
@@ -148,4 +144,4 @@ int dap_chain_datum_tx_add_sign_item(dap_chain_datum_tx_t **a_tx, dap_enc_key_t 
  */
 int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx);
 
-
+json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx);

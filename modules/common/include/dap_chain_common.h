@@ -32,6 +32,7 @@
 #include "dap_pkey.h"
 #include "dap_sign.h"
 #include "dap_hash.h"
+#include <json-c/json.h>
 
 #define DAP_CHAIN_ADDR_VERSION_CURRENT 1
 
@@ -85,19 +86,17 @@ typedef union dap_chain_node_addr {
 #define NODE_ADDR_FPS_ARGS_S(a)  &a.words[3],&a.words[2],&a.words[1],&a.words[0]
 #endif
 
-inline static int dap_chain_node_addr_from_str( dap_chain_node_addr_t * a_addr, const char * a_addr_str){
-    return (int) sscanf(a_addr_str,NODE_ADDR_FP_STR,NODE_ADDR_FPS_ARGS(a_addr) )-4;
+DAP_STATIC_INLINE int dap_chain_node_addr_from_str(dap_chain_node_addr_t *a_addr, const char *a_addr_str)
+{
+    if (sscanf(a_addr_str, NODE_ADDR_FP_STR, NODE_ADDR_FPS_ARGS(a_addr)) == 4)
+        return 0;
+    if (sscanf(a_addr_str, "0x%016"DAP_UINT64_FORMAT_x, &a_addr->uint64) == 1)
+        return 0;
+    return -1;
 }
 
-inline static bool dap_chain_node_addr_not_null(dap_chain_node_addr_t * a_addr){
-    return a_addr->uint64 != 0;
-}
-/**
-  *
-  *
-  *
-  *
-  */
+DAP_STATIC_INLINE bool dap_chain_node_addr_not_null(dap_chain_node_addr_t * a_addr) { return a_addr->uint64 != 0; }
+
 enum {
     NODE_ROLE_ROOT_MASTER=0x00,
     NODE_ROLE_ROOT=0x01,
@@ -122,12 +121,9 @@ typedef union dap_chain_hash_slow{
     uint8_t raw[DAP_CHAIN_HASH_SLOW_SIZE];
 }  dap_chain_hash_slow_t;
 
-
-
 typedef enum dap_chain_hash_slow_kind {
     HASH_GOLD = 0, HASH_SILVER, HASH_COPPER, HASH_USELESS = -1
 } dap_chain_hash_slow_kind_t;
-
 
 typedef struct dap_chain_addr{
     uint8_t addr_ver; // 0 for default
@@ -162,7 +158,7 @@ typedef union {
 extern const dap_chain_net_srv_uid_t c_dap_chain_net_srv_uid_null;
 extern const dap_chain_cell_id_t c_dap_chain_cell_id_null;
 
-enum serv_unit_enum {
+enum dap_chain_srv_unit_enum {
     SERV_UNIT_UNDEFINED = 0 ,
     SERV_UNIT_MB = 0x00000001, // megabytes
     SERV_UNIT_SEC = 0x00000002, // seconds
@@ -171,10 +167,11 @@ enum serv_unit_enum {
     SERV_UNIT_B = 0x00000011,   // bytes
     SERV_UNIT_PCS = 0x00000022  // pieces
 };
-typedef uint32_t serv_unit_enum_t;
+typedef uint32_t dap_chain_srv_unit_enum_t;
 
-DAP_STATIC_INLINE const char *serv_unit_enum_to_str(serv_unit_enum_t *unit_enum){
-    switch (*unit_enum) {
+DAP_STATIC_INLINE const char *dap_chain_srv_unit_enum_to_str(dap_chain_srv_unit_enum_t a_unit_enum)
+{
+    switch (a_unit_enum) {
     case SERV_UNIT_UNDEFINED: return "SERV_UNIT_UNDEFINED";
     case SERV_UNIT_MB: return "SERV_UNIT_MB";
     case SERV_UNIT_SEC: return "SERV_UNIT_SEC";
@@ -189,7 +186,7 @@ DAP_STATIC_INLINE const char *serv_unit_enum_to_str(serv_unit_enum_t *unit_enum)
 typedef union {
     uint8_t raw[4];
     uint32_t uint32;
-    serv_unit_enum_t enm;
+    dap_chain_srv_unit_enum_t enm;
 } DAP_ALIGN_PACKED dap_chain_net_srv_price_unit_uid_t;
 
 enum dap_chain_tx_item_type {
@@ -237,11 +234,18 @@ typedef struct dap_chain_receipt_info {
 extern "C" {
 #endif
 
+json_object* dap_chain_receipt_info_to_json(dap_chain_receipt_info_t *a_info);
+
 size_t dap_chain_hash_slow_to_str(dap_chain_hash_slow_t * a_hash, char * a_str, size_t a_str_max);
 
 char* dap_chain_addr_to_str(const dap_chain_addr_t *a_addr);
+json_object *dap_chain_addr_to_json(const dap_chain_addr_t *a_addr);
 dap_chain_addr_t* dap_chain_addr_from_str(const char *str);
 bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr);
+
+DAP_STATIC_INLINE json_object *dap_chain_net_id_to_json(dap_chain_net_id_t a_net_id) {
+    return json_object_new_uint64(a_net_id.uint64);
+}
 
 dap_chain_net_srv_uid_t dap_chain_net_srv_uid_from_str(const char* a_str);
 

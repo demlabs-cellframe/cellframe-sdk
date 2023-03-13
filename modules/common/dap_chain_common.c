@@ -50,6 +50,23 @@ const dap_chain_cell_id_t c_dap_chain_cell_id_null = {0};
 char        *dap_cvt_uint256_to_str (uint256_t a_uint256);
 uint256_t   dap_cvt_str_to_uint256 (const char *a_256bit_num);
 
+json_object* dap_chain_receipt_info_to_json(dap_chain_receipt_info_t *a_info){
+    json_object *l_obj = json_object_new_object();
+    json_object *l_obj_srv_uid = json_object_new_uint64(a_info->srv_uid.uint64);
+    json_object_object_add(l_obj, "srvUID", l_obj_srv_uid);
+#if DAP_CHAIN_NET_SRV_UID_SIZE == 8
+    json_object *l_obj_addition = json_object_new_uint64(a_info->addition);
+    json_object_object_add(l_obj, "addition", l_obj_addition);
+#endif
+    json_object *l_obj_units_type = json_object_new_string(dap_chain_srv_unit_enum_to_str(a_info->units_type.enm));
+    json_object_object_add(l_obj, "unitsType", l_obj_units_type);
+    char *l_datoshi_value = dap_chain_balance_print(a_info->value_datoshi);
+    json_object *l_obj_datoshi = json_object_new_string(l_datoshi_value);
+    DAP_DELETE(l_datoshi_value);
+    json_object_object_add(l_obj, "value", l_obj_datoshi);
+    return l_obj;
+}
+
 /**
  * @brief dap_chain_hash_to_str
  * @param a_hash
@@ -65,14 +82,26 @@ size_t dap_chain_hash_slow_to_str( dap_chain_hash_slow_t *a_hash, char *a_str, s
         log_it(L_ERROR, "String for hash too small, need %zu but have only %zu", c_hash_str_size, a_str_max);
     }
     size_t i;
-    dap_snprintf(a_str, 3, "0x");
+    snprintf(a_str, 3, "0x");
 
     for(i = 0; i < sizeof(a_hash->raw); ++i)
-        dap_snprintf( a_str + i * 2 + 2, 3, "%02x", a_hash->raw[i] );
+        snprintf( a_str + i * 2 + 2, 3, "%02x", a_hash->raw[i] );
 
     a_str[c_hash_str_size] = '\0';
 
     return strlen(a_str);
+}
+
+/**
+ * @brief dap_chain_addr_to_json
+ * @param a_addr
+ * @return
+ */
+json_object *dap_chain_addr_to_json(const dap_chain_addr_t *a_addr){
+    char *l_addr_str = dap_chain_addr_to_str(a_addr);
+    json_object *l_obj = json_object_new_string(l_addr_str);
+    DAP_DELETE(l_addr_str);
+    return l_obj;
 }
 
 /**
