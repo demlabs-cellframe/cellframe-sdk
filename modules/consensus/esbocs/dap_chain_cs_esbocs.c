@@ -55,7 +55,7 @@ static bool s_callback_check_tx_fee(dap_chain_t *a_chain, uint256_t l_fee);
 static void s_callback_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_new_value);
 
 static int s_cli_esbocs(int argc, char ** argv, char **str_reply);
-c
+
 DAP_STATIC_INLINE const char *s_voting_msg_type_to_str(uint8_t a_type)
 {
     switch (a_type) {
