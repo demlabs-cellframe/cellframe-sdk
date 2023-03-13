@@ -391,6 +391,10 @@ static void s_poa_round_clean(void *a_arg)
     dap_global_db_obj_t *l_objs = dap_chain_global_db_gr_load(l_gdb_group_round, &l_objs_size);
     if (l_objs_size) {
         for (size_t i = 0; i < l_objs_size; i++) {
+            if (!l_objs[i].value) {
+                log_it(L_CRITICAL, "DAG-PoA: broken record (key %s). Removing it from database", l_objs[i].key);
+                dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_round);
+            }
             if (!strcmp(DAG_ROUND_CURRENT_KEY, l_objs[i].key))
                 continue;
             dap_chain_cs_dag_event_round_item_t *l_event_round_item = (dap_chain_cs_dag_event_round_item_t *)l_objs[i].value;
