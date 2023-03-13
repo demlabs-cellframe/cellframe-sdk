@@ -355,7 +355,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
         [SUBCMD_NEW_FLUSH]="new",
         [SUBCMD_NEW_DATUM_ADD]="new_datum_add",
         [SUBCMD_NEW_DATUM_DEL]="new_datum_del",
-        [SUBCMD_NEW_DATUM_LIST]="new_datum_del",
+        [SUBCMD_NEW_DATUM_LIST]="new_datum_list",
         [SUBCMD_NEW_COMPLETE]="new_complete",
         [SUBCMD_DUMP]="dump",
         [SUBCMD_LIST]="list",
@@ -363,7 +363,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
         [SUBCMD_DROP]="drop",
         [SUBCMD_UNDEFINED]=NULL
     };
-    const size_t l_subcmd_str_count=sizeof(l_subcmd_strs)/sizeof(*l_subcmd_strs)-1;
+    const size_t l_subcmd_str_count=sizeof(l_subcmd_strs)/sizeof(*l_subcmd_strs);
     const char* l_subcmd_str_args[l_subcmd_str_count];
 	for(size_t i=0;i<l_subcmd_str_count;i++)
         l_subcmd_str_args[i]=NULL;

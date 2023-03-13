@@ -3276,13 +3276,9 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             }
             // 5a. Check for condition owner
             dap_chain_tx_sig_t *l_tx_prev_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_tx_prev, NULL, TX_ITEM_TYPE_SIG, NULL);
-            dap_sign_t *l_prev_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_prev_sig);
-            size_t l_prev_pkey_ser_size = 0;
-            const uint8_t *l_prev_pkey_ser = dap_sign_get_pkey(l_prev_sign, &l_prev_pkey_ser_size);
+            dap_sign_t *l_prev_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_prev_sig);            
             dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
             dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
-            size_t l_pkey_ser_size = 0;
-            const uint8_t *l_pkey_ser = dap_sign_get_pkey(l_sign, &l_pkey_ser_size);
 
             dap_chain_tx_out_cond_t *l_tx_prev_out_cond = NULL;
             l_tx_prev_out_cond = (dap_chain_tx_out_cond_t *)l_tx_prev_out;
@@ -3290,10 +3286,8 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 l_main_ticker = l_token;
 
             bool l_owner = false;
-            if (l_pkey_ser_size == l_prev_pkey_ser_size &&
-                    !memcmp(l_prev_pkey_ser, l_pkey_ser, l_prev_pkey_ser_size)) {
-                l_owner = true;
-            }
+            l_owner = dap_sign_match_pkey_signs(l_prev_sign,l_sign);
+
             // 5b. Call verificator for conditional output
             dap_chain_ledger_verificator_t *l_verificator;
             int l_sub_tmp = l_tx_prev_out_cond->header.subtype;
