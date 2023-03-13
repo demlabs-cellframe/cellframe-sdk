@@ -1549,7 +1549,13 @@ static dap_chain_datum_decree_t *s_esbocs_decree_set_min_validators_count(dap_ch
     l_decree->header.ts_created = dap_time_now();
     l_decree->header.type = DAP_CHAIN_DATUM_DECREE_TYPE_COMMON;
     l_decree->header.common_decree_params.net_id = a_net->pub.id;
-    l_decree->header.common_decree_params.chain_id = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_DECREE)->id;
+    dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_DECREE);
+    if(!l_chain){
+        log_it(L_ERROR, "Can't find chain with decree support.");
+        DAP_DELETE(l_decree);
+        return NULL;
+    }
+    l_decree->header.common_decree_params.chain_id = l_chain->id;
     l_decree->header.common_decree_params.cell_id = *dap_chain_net_get_cur_cell(a_net);
     l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT;
     l_decree->header.data_size = l_total_tsd_size;
