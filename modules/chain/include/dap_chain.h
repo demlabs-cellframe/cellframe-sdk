@@ -99,6 +99,8 @@ typedef dap_list_t *(*dap_chain_callback_get_poa_certs)(dap_chain_t *a_chain, si
 typedef void (*dap_chain_callback_set_min_validators_count)(dap_chain_t *a_chain,  uint16_t a_new_value);
 
 
+typedef bool (*dap_chain_callback_check_tx_fee)(dap_chain_t *a_chain,  uint256_t fee_value);
+
 typedef enum dap_chain_type
 {
     CHAIN_TYPE_FIRST,
@@ -132,8 +134,6 @@ typedef struct dap_chain {
     dap_chain_type_t *default_datum_types;
     uint16_t autoproc_datum_types_count;
     uint16_t *autoproc_datum_types;
-
-    uint256_t minimum_commission;
 
     // To hold it in double-linked lists
     struct dap_chain * next;
@@ -176,6 +176,8 @@ typedef struct dap_chain {
 
     dap_chain_callback_get_poa_certs callback_get_poa_certs;
     dap_chain_callback_set_min_validators_count callback_set_min_validators_count;
+
+    dap_chain_callback_check_tx_fee callback_check_tx_fee;
 
     dap_list_t * atom_notifiers;
 //    dap_chain_callback_notify_t callback_notify;

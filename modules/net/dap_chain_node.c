@@ -240,6 +240,23 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
                 continue;
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
             if (dap_chain_node_mempool_need_process(a_chain, l_datum)) {
+
+                if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX &&
+                        a_chain->callback_check_tx_fee){
+                    uint256_t l_tx_fee = {};
+
+                    if (dap_chain_datum_tx_get_fee_value ((dap_chain_datum_tx_t*)l_datum->data, &l_tx_fee))
+                    {
+                        log_it(L_WARNING, "Can't get fee value from tx");
+                        continue;
+                    }
+
+                    if(!a_chain->callback_check_tx_fee(a_chain, l_tx_fee)){
+                        log_it(L_WARNING, "Fee is lower than minimum fee value");
+                        continue;
+                    }
+                }
+
                 if (dap_chain_node_mempool_process(a_chain, l_datum)) {
                     // Delete processed objects
                     dap_global_db_del(l_gdb_group_mempool, l_objs[i].key, NULL, NULL);

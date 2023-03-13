@@ -51,6 +51,7 @@ static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks);
 static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cfg);
 static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t **a_block_ptr, size_t a_block_size);
 static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t *a_block, size_t a_block_size);
+static bool s_callback_check_tx_fee(dap_chain_t *a_chain, uint256_t l_fee);
 static void s_callback_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_new_value);
 
 static int s_cli_esbocs(int argc, char ** argv, char **str_reply);
@@ -88,6 +89,7 @@ typedef struct dap_chain_esbocs_pvt {
     uint16_t round_attempt_timeout;
     // PoA section
     dap_list_t *poa_validators;
+    uint256_t minimum_commission;
 } dap_chain_esbocs_pvt_t;
 
 #define PVT(a) ((dap_chain_esbocs_pvt_t *)a->_pvt)
@@ -128,12 +130,15 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_esbocs->_pvt = DAP_NEW_Z(dap_chain_esbocs_pvt_t);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
 
+    a_chain->callback_check_tx_fee = s_callback_check_tx_fee;
+
     l_esbocs_pvt->debug = dap_config_get_item_bool_default(a_chain_cfg, "esbocs", "consensus_debug", false);
     l_esbocs_pvt->poa_mode = dap_config_get_item_bool_default(a_chain_cfg, "esbocs", "poa_mode", false);
     l_esbocs_pvt->round_start_sync_timeout = dap_config_get_item_uint16_default(a_chain_cfg, "esbocs", "round_start_sync_timeout", 15);
     l_esbocs_pvt->new_round_delay = dap_config_get_item_uint16_default(a_chain_cfg, "esbocs", "new_round_delay", 10);
     l_esbocs_pvt->round_attempts_max = dap_config_get_item_uint16_default(a_chain_cfg, "esbocs", "round_attempts_max", 4);
     l_esbocs_pvt->round_attempt_timeout = dap_config_get_item_uint16_default(a_chain_cfg, "esbocs", "round_attempt_timeout", 10);
+    l_esbocs_pvt->minimum_commission = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_cfg, "esbocs", "minimum_commission", "1.0"));
 
     int l_ret = 0;
     l_esbocs_pvt->min_validators_count = dap_config_get_item_uint16(a_chain_cfg, "esbocs", "min_validators_count");
@@ -275,6 +280,18 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
         debug_if(l_esbocs_pvt->debug, L_MSG, "ESBOCS: Consensus main timer is started");
     }
     return 0;
+}
+
+static bool s_callback_check_tx_fee(dap_chain_t *a_chain, uint256_t l_fee)
+{
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
+
+    if (compare256(l_fee, l_esbocs_pvt->minimum_commission) < 0)
+        return false;
+
+    return true;
 }
 
 static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
