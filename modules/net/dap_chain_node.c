@@ -251,7 +251,7 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
                         continue;
                     }
 
-                    if(a_chain->callback_check_tx_fee(a_chain, l_tx_fee)){
+                    if(!a_chain->callback_check_tx_fee(a_chain, l_tx_fee)){
                         log_it(L_WARNING, "Fee is lower than minimum fee value");
                         continue;
                     }
