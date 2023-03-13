@@ -433,7 +433,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
                 log_it(L_WARNING,"Can't get min stake value from decree.");
                 return -105;
             }
-            a_chain->callback_set_min_esbocs_validators_count(a_chain, (uint16_t)l_uint256_buffer.lo);
+            a_chain->callback_set_min_esbocs_validators_count(a_chain, (uint16_t)l_uint256_buffer._lo.b);
             break;
         default: return -1;
     }
