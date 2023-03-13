@@ -2530,8 +2530,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 l_chain = dap_chain_load_from_cfg(l_net->pub.ledger, l_net->pub.name,
                                                   l_net->pub.id, l_chain_prior->chains_path);
 
-                if(l_chain) {//add minimum commission from to which the master node agrees. if present (default = 1.0)
-                    l_chain->minimum_commission = dap_chain_coins_to_balance(dap_config_get_item_str_default(l_cfg , "general" ,"minimum_commission","1.0"));
+                if(l_chain) {
                     DL_APPEND(l_net->pub.chains, l_chain);
 
                     // add a callback to monitor changes in the chain
