@@ -1167,7 +1167,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
     switch (l_net_pvt->state) {
         // State OFFLINE where we don't do anything
         case NET_STATE_OFFLINE: {
-            // delete all links       
+            // delete all links
             struct net_link *l_link, *l_link_tmp;
             HASH_ITER(hh, l_net_pvt->net_links, l_link, l_link_tmp) {
                 HASH_DEL(l_net_pvt->net_links, l_link);
@@ -1528,6 +1528,7 @@ const char* dap_chain_net_get_type(dap_chain_t *l_chain)
 static void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
 {
     dap_chain_ledger_purge(l_net->pub.ledger, false);
+    dap_chain_net_srv_stake_cache_purge(l_net);
     dap_chain_t *l_chain = NULL;
     DL_FOREACH(l_net->pub.chains, l_chain) {
         if (l_chain->callback_purge)
@@ -1847,7 +1848,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
             if ( strcmp(l_links_str,"list") == 0 ) {
                 size_t i =0;
                 dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
-                pthread_rwlock_rdlock(&l_net_pvt->uplinks_lock);      
+                pthread_rwlock_rdlock(&l_net_pvt->uplinks_lock);
                 size_t l_links_count = HASH_COUNT(l_net_pvt->net_links);
                 dap_string_t *l_reply = dap_string_new("");
                 dap_string_append_printf(l_reply,"Links %zu:\n", l_links_count);
@@ -2207,6 +2208,8 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         HASH_ADD(hh,s_net_items_ids,net_id,sizeof ( l_net_item2->net_id),l_net_item2);
         pthread_rwlock_unlock(&s_net_ids_rwlock);
 
+
+
         // LEDGER model
         uint16_t l_ledger_flags = 0;
         switch ( PVT( l_net )->node_role.enums ) {
@@ -2475,10 +2478,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
             else{
                 log_it(L_WARNING, "Not present our own address %s in database", (l_node_alias_str) ? l_node_alias_str: "");
             }
-
-
-         }
-
+        }
 
         char * l_chains_path = dap_strdup_printf("%s/network/%s", dap_config_path(), l_net->pub.name);
         DIR * l_chains_dir = opendir(l_chains_path);
@@ -2512,10 +2512,12 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
             }
             closedir(l_chains_dir);
 
+            dap_chain_net_srv_stake_load_cache(l_net);
             // reload ledger cache at once
             if (s_chain_net_reload_ledger_cache_once(l_net)) {
                 log_it(L_WARNING,"Start one time ledger cache reloading");
                 dap_chain_ledger_purge(l_net->pub.ledger, false);
+                dap_chain_net_srv_stake_cache_purge(l_net);
             }
 
             // sort list with chains names by priority
@@ -2750,7 +2752,7 @@ dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id)
     pthread_rwlock_rdlock(&s_net_ids_rwlock);
     HASH_FIND(hh,s_net_items_ids,&a_id,sizeof (a_id), l_net_item );
     pthread_rwlock_unlock(&s_net_ids_rwlock);
-    return l_net_item ? l_net_item->chain_net : NULL;    
+    return l_net_item ? l_net_item->chain_net : NULL;
 }
 
 /**
@@ -3382,7 +3384,6 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
     }
     return 0;
 }
-
 
 bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net)
 {
