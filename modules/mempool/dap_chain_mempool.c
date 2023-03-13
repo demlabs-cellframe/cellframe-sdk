@@ -883,7 +883,7 @@ dap_chain_datum_token_emission_t *dap_chain_mempool_datum_emission_extract(dap_c
     dap_chain_datum_token_t *l_token = dap_chain_ledger_token_ticker_check(l_net->pub.ledger, l_ticker);
     if (!l_token)
         return NULL;
-    if (l_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL)
+    if (l_token->subtype != DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE && l_token->type == DAP_CHAIN_DATUM_TOKEN_DECL)
         return NULL;
     /*int l_signs_valid = 0;
     dap_sign_t *l_ems_sign = (dap_sign_t *)(l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size);
