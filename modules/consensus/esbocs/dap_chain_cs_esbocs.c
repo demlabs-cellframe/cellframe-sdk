@@ -4,6 +4,7 @@
 #include "rand/dap_rand.h"
 #include "dap_chain_net.h"
 #include "dap_chain_common.h"
+#include "dap_chain_mempool.h"
 #include "dap_chain_cell.h"
 #include "dap_chain_cs.h"
 #include "dap_chain_cs_blocks.h"
@@ -11,6 +12,8 @@
 #include "dap_stream_ch_chain_voting.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_ledger.h"
+#include "dap_chain_node_cli.h"
+#include "dap_chain_node_cli_cmd.h"
 
 #define LOG_TAG "dap_chain_cs_esbocs"
 
@@ -48,6 +51,9 @@ static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks);
 static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cfg);
 static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t **a_block_ptr, size_t a_block_size);
 static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t *a_block, size_t a_block_size);
+static void s_callback_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_new_value);
+
+static int s_cli_esbocs(int argc, char ** argv, char **str_reply);
 
 DAP_STATIC_INLINE const char *s_voting_msg_type_to_str(uint8_t a_type)
 {
@@ -90,6 +96,9 @@ int dap_chain_cs_esbocs_init()
 {
     dap_stream_ch_chain_voting_init();
     dap_chain_cs_add("esbocs", s_callback_new);
+    dap_cli_server_cmd_add ("esbocs", s_cli_esbocs, "ESBOCS commands",
+        "esbocs min_validators_count -net <net_name> -chain <chain_name> -cert <poa_cert_name> -val_count <value>"
+            "\tSets minimum validators count for ESBOCS consensus\n\n");
     return 0;
 }
 
@@ -111,6 +120,8 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_session->chain = a_chain;
     l_session->esbocs = l_esbocs;
 
+    l_esbocs->chain->callback_set_min_validators_count = s_callback_set_min_validators_count;
+
     l_esbocs->session = l_session;
     l_blocks->_inheritor = l_esbocs;
 
@@ -118,7 +129,6 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
 
     l_esbocs_pvt->debug = dap_config_get_item_bool_default(a_chain_cfg, "esbocs", "consensus_debug", false);
-
     l_esbocs_pvt->poa_mode = dap_config_get_item_bool_default(a_chain_cfg, "esbocs", "poa_mode", false);
     l_esbocs_pvt->round_start_sync_timeout = dap_config_get_item_uint16_default(a_chain_cfg, "esbocs", "round_start_sync_timeout", 15);
     l_esbocs_pvt->new_round_delay = dap_config_get_item_uint16_default(a_chain_cfg, "esbocs", "new_round_delay", 10);
@@ -131,43 +141,49 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         l_ret = -1;
         goto lb_err;
     }
-    if (l_esbocs_pvt->poa_mode) { // auth by certs in PoA mode
-        const char *l_auth_certs_prefix = dap_config_get_item_str(a_chain_cfg, "esbocs", "auth_certs_prefix");
-        uint16_t l_node_addrs_count;
-        char **l_addrs = dap_config_get_array_str(a_chain_cfg, "esbocs", "validators_addrs", &l_node_addrs_count);
-        uint16_t l_auth_certs_count = l_node_addrs_count;
-        if (l_auth_certs_count < l_esbocs_pvt->min_validators_count) {
-            l_ret = -2;
-            goto lb_err;
-        }
-        char l_cert_name[512];
-        dap_cert_t *l_cert_cur;
-        for (size_t i = 0; i < l_auth_certs_count; i++) {
-            dap_chain_esbocs_validator_t *l_validator = DAP_NEW(dap_chain_esbocs_validator_t);
 
-            snprintf(l_cert_name, sizeof(l_cert_name), "%s.%zu", l_auth_certs_prefix, i);
+    const char *l_auth_certs_prefix = dap_config_get_item_str(a_chain_cfg, "esbocs", "auth_certs_prefix");
+    uint16_t l_node_addrs_count;
+    char **l_addrs = dap_config_get_array_str(a_chain_cfg, "esbocs", "validators_addrs", &l_node_addrs_count);
+    uint16_t l_auth_certs_count = l_node_addrs_count;
+    if (l_auth_certs_count < l_esbocs_pvt->min_validators_count) {
+        l_ret = -2;
+        goto lb_err;
+    }
+    char l_cert_name[512];
+    dap_cert_t *l_cert_cur;
+    for (size_t i = 0; i < l_auth_certs_count; i++) {
+        snprintf(l_cert_name, sizeof(l_cert_name), "%s.%zu", l_auth_certs_prefix, i);
+        if ((l_cert_cur = dap_cert_find_by_name(l_cert_name)) == NULL) {
+            snprintf(l_cert_name, sizeof(l_cert_name), "%s.%zu.pub", l_auth_certs_prefix, i);
             if ((l_cert_cur = dap_cert_find_by_name(l_cert_name)) == NULL) {
-                snprintf(l_cert_name, sizeof(l_cert_name), "%s.%zu.pub", l_auth_certs_prefix, i);
-                if ((l_cert_cur = dap_cert_find_by_name(l_cert_name)) == NULL) {
-                    log_it(L_ERROR, "ESBOCS: Can't find cert \"%s\"", l_cert_name);
-                    DAP_DELETE(l_validator);
-                    l_ret = -3;
-                    goto lb_err;
-                }
-            }
-            log_it(L_NOTICE, "ESBOCS: Initialized auth cert \"%s\"", l_cert_name);
-            dap_chain_addr_fill_from_key(&l_validator->signing_addr, l_cert_cur->enc_key, a_chain->net_id);
-
-            if (dap_chain_node_addr_from_str(&l_validator->node_addr, l_addrs[i])) {
-                log_it(L_ERROR,"ESBOCS: Wrong address format, should be like 0123::4567::89AB::CDEF");
-                DAP_DELETE(l_validator);
-                l_ret = -4;
+                log_it(L_ERROR, "ESBOCS: Can't find cert \"%s\"", l_cert_name);
+                l_ret = -3;
                 goto lb_err;
             }
-            log_it(L_MSG, "ESBOCS: add validator addr:"NODE_ADDR_FP_STR"", NODE_ADDR_FP_ARGS_S(l_validator->node_addr));
-
+        }
+        dap_chain_addr_t l_signing_addr;
+        log_it(L_NOTICE, "ESBOCS: Initialized auth cert \"%s\"", l_cert_name);
+        dap_chain_addr_fill_from_key(&l_signing_addr, l_cert_cur->enc_key, a_chain->net_id);
+        dap_chain_node_addr_t l_signer_node_addr;
+        if (dap_chain_node_addr_from_str(&l_signer_node_addr, l_addrs[i])) {
+            log_it(L_ERROR,"ESBOCS: Wrong address format, should be like 0123::4567::89AB::CDEF");
+            l_ret = -4;
+            goto lb_err;
+        }
+        log_it(L_MSG, "ESBOCS: add validator addr:"NODE_ADDR_FP_STR"", NODE_ADDR_FP_ARGS_S(l_signer_node_addr));
+        if (l_esbocs_pvt->poa_mode) { // auth by certs in PoA mode
+            dap_chain_esbocs_validator_t *l_validator = DAP_NEW(dap_chain_esbocs_validator_t);
+            l_validator->signing_addr = l_signing_addr;
+            l_validator->node_addr = l_signer_node_addr;
             l_validator->weight = uint256_1;
             l_esbocs_pvt->poa_validators = dap_list_append(l_esbocs_pvt->poa_validators, l_validator);
+        } else {
+            dap_hash_fast_t l_stake_tx_hash = {};
+            dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+            uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value();
+            dap_chain_net_srv_stake_key_delegate(l_net, &l_signing_addr, &l_stake_tx_hash,
+                                                 l_weight, &l_signer_node_addr);
         }
     }
     l_blocks->chain->callback_created = s_callback_created;
@@ -298,10 +314,9 @@ static void *s_callback_list_form(const void *a_srv_validator, UNUSED_ARG void *
     return l_validator;
 }
 
-void dap_chain_esbocs_set_min_validators_count(dap_chain_net_id_t a_net_id, dap_chain_id_t a_chain_id, uint16_t a_new_value)
+static void s_callback_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_new_value)
 {
-    dap_chain_t *l_chain = dap_chain_net_get_chain_by_id(dap_chain_net_by_id(a_net_id), a_chain_id);
-    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
     l_esbocs_pvt->min_validators_count = a_new_value;
@@ -1505,4 +1520,140 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         return -1;
     }
     return 0;
+}
+
+static char *s_esbocs_decree_put(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net)
+{
+    // Put the transaction to mempool or directly to chains
+    size_t l_decree_size = dap_chain_datum_decree_get_size(a_decree);
+    dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_DECREE, a_decree, l_decree_size);
+    dap_chain_t *l_chain = dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_DECREE);
+    if (!l_chain) {
+        return NULL;
+    }
+    // Processing will be made according to autoprocess policy
+    char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain, "hex");
+    DAP_DELETE(l_datum);
+    return l_ret;
+}
+
+static dap_chain_datum_decree_t *s_esbocs_decree_set_min_validators_count(dap_chain_net_t *a_net, uint256_t a_value, dap_cert_t *a_cert)
+{
+    size_t l_total_tsd_size = 0;
+    dap_chain_datum_decree_t *l_decree = NULL;
+    dap_list_t *l_tsd_list = NULL;
+    dap_tsd_t *l_tsd = NULL;
+
+    l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(uint256_t);
+    l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
+    l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT;
+    l_tsd->size = sizeof(uint256_t);
+    *(uint256_t*)(l_tsd->data) = a_value;
+    l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
+
+    l_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, sizeof(dap_chain_datum_decree_t) + l_total_tsd_size);
+    l_decree->decree_version = DAP_CHAIN_DATUM_DECREE_VERSION;
+    l_decree->header.ts_created = dap_time_now();
+    l_decree->header.type = DAP_CHAIN_DATUM_DECREE_TYPE_COMMON;
+    l_decree->header.common_decree_params.net_id = a_net->pub.id;
+    dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_DECREE);
+    if(!l_chain){
+        log_it(L_ERROR, "Can't find chain with decree support.");
+        DAP_DELETE(l_decree);
+        return NULL;
+    }
+    l_decree->header.common_decree_params.chain_id = l_chain->id;
+    l_decree->header.common_decree_params.cell_id = *dap_chain_net_get_cur_cell(a_net);
+    l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT;
+    l_decree->header.data_size = l_total_tsd_size;
+    l_decree->header.signs_size = 0;
+
+    size_t l_data_tsd_offset = 0;
+    for ( dap_list_t* l_iter=dap_list_first(l_tsd_list); l_iter; l_iter=l_iter->next){
+        dap_tsd_t * l_b_tsd = (dap_tsd_t *) l_iter->data;
+        size_t l_tsd_size = dap_tsd_size(l_b_tsd);
+        memcpy((byte_t*)l_decree->data_n_signs + l_data_tsd_offset, l_b_tsd, l_tsd_size);
+        l_data_tsd_offset += l_tsd_size;
+    }
+    dap_list_free_full(l_tsd_list, NULL);
+
+    size_t l_cur_sign_offset = l_decree->header.data_size + l_decree->header.signs_size;
+    size_t l_total_signs_size = l_decree->header.signs_size;
+
+    dap_sign_t * l_sign = dap_cert_sign(a_cert,  l_decree,
+       sizeof(dap_chain_datum_decree_t) + l_decree->header.data_size, 0);
+
+    if (l_sign) {
+        size_t l_sign_size = dap_sign_get_size(l_sign);
+        l_decree = DAP_REALLOC(l_decree, sizeof(dap_chain_datum_decree_t) + l_cur_sign_offset + l_sign_size);
+        memcpy((byte_t*)l_decree->data_n_signs + l_cur_sign_offset, l_sign, l_sign_size);
+        l_total_signs_size += l_sign_size;
+        l_cur_sign_offset += l_sign_size;
+        l_decree->header.signs_size = l_total_signs_size;
+        DAP_DELETE(l_sign);
+        log_it(L_DEBUG,"<-- Signed with '%s'", a_cert->name);
+    }else{
+        log_it(L_ERROR, "Decree signing failed");
+        DAP_DELETE(l_decree);
+        return NULL;
+    }
+
+    return l_decree;
+}
+
+/**
+ * @brief
+ * parse and execute cellframe-node-cli esbocs commands
+ * @param argc arguments count
+ * @param argv array with arguments
+ * @param arg_func
+ * @param str_reply
+ * @return
+ */
+static int s_cli_esbocs(int a_argc, char ** a_argv, char **a_str_reply)
+{
+    int ret = -666;
+    int l_arg_index = 1;
+    dap_chain_net_t * l_chain_net = NULL;
+    dap_chain_t * l_chain = NULL;
+    const char *l_cert_str = NULL,
+               *l_value_str = NULL;
+
+    if (dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index,a_argc,a_argv,a_str_reply,&l_chain,&l_chain_net)) {
+        return -3;
+    }
+
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str);
+    if (!l_cert_str) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_validators_count' required parameter -cert");
+        return -3;
+    }
+    dap_cert_t *l_poa_cert = dap_cert_find_by_name(l_cert_str);
+    if (!l_poa_cert) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified certificate not found");
+        return -25;
+    }
+
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-val_count", &l_value_str);
+    if (!l_value_str) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_validators_count' required parameter -val_count");
+        return -9;
+    }
+    uint256_t l_value = dap_chain_balance_scan(l_value_str);
+    if (IS_ZERO_256(l_value)) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized number in '-val_count' param");
+        return -10;
+    }
+
+    dap_chain_datum_decree_t *l_decree = s_esbocs_decree_set_min_validators_count(l_chain_net, l_value, l_poa_cert);
+    if (l_decree && s_esbocs_decree_put(l_decree, l_chain_net)) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Minimum validators count is setted");
+        DAP_DELETE(l_decree);
+    } else {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Minimum validators count setting failed");
+        DAP_DELETE(l_decree);
+        return -21;
+    }
+
+    return ret;
 }

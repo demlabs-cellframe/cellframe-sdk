@@ -46,7 +46,7 @@ typedef bool (* dap_chain_ledger_verificator_callback_t)(dap_ledger_t * a_ledger
                                                          dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 typedef void (*dap_chain_ledger_verificator_callback_out_t)(dap_ledger_t* a_ledger, dap_chain_datum_tx_t* a_tx, dap_chain_tx_out_cond_t* a_cond);
 typedef void (* dap_chain_ledger_tx_add_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
-
+typedef bool (*dap_chain_ledger_cache_tx_check_callback_t)(dap_hash_fast_t *a_tx_hash);
 typedef struct dap_chain_net dap_chain_net_t;
 
 // Checks the emission of the token, usualy on zero chain
@@ -262,3 +262,4 @@ dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, si
 void dap_chain_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_chain_ledger_tx_add_notify_t a_callback, void *a_arg);
 
 bool dap_chain_ledger_cache_enabled(dap_ledger_t *a_ledger);
+void dap_chain_ledger_set_cache_tx_check_callback(dap_ledger_t *a_ledger, dap_chain_ledger_cache_tx_check_callback_t a_callback);

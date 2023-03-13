@@ -32,6 +32,8 @@
 #include "dap_chain_net_decree.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_tx.h"
+#include "dap_chain_net_srv_stake_pos_delegate.h"
+
 
 
 #define LOG_TAG "chain_net_decree"
@@ -326,8 +328,11 @@ static bool s_verify_pkey (dap_sign_t *a_sign, dap_chain_net_t *a_net)
 
 static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain)
 {
-    uint256_t l_fee, l_min_owners, l_num_of_owners;
+    uint256_t l_uint256_buffer;
+
     dap_chain_addr_t l_addr = {}; //????????
+    dap_hash_fast_t l_hash = {};
+    dap_chain_node_addr_t l_node_addr = {};
     dap_chain_net_t *l_net = NULL;
     dap_list_t *l_owners_list = NULL;
 
@@ -351,14 +356,14 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
                     l_net->pub.decree->fee_addr = l_decree_addr;
                 }
 
-                if (!dap_chain_datum_decree_get_fee(a_decree, &l_fee)){
+                if (!dap_chain_datum_decree_get_fee(a_decree, &l_uint256_buffer)){
                     if (!dap_chain_net_tx_get_fee(a_chain->net_id, a_chain, NULL, &l_addr)){
-                        if(!dap_chain_net_tx_add_fee(a_chain->net_id, a_chain, &l_fee, l_addr)){
+                        if(!dap_chain_net_tx_add_fee(a_chain->net_id, a_chain, &l_uint256_buffer, l_addr)){
                             log_it(L_WARNING,"Can't add fee value.");
                             return -102;
                         }
                     }else{
-                        if(!dap_chain_net_tx_replace_fee(a_chain->net_id, a_chain, &l_fee, l_addr)){
+                        if(!dap_chain_net_tx_replace_fee(a_chain->net_id, a_chain, &l_uint256_buffer, l_addr)){
                             log_it(L_WARNING,"Can't replace fee value.");
                             return -103;
                         }
@@ -369,26 +374,66 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
                 }
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS:
-            l_owners_list = dap_chain_datum_decree_get_owners(a_decree, &l_num_of_owners);
+            l_owners_list = dap_chain_datum_decree_get_owners(a_decree, &l_uint256_buffer);
             if (!l_owners_list){
                 log_it(L_WARNING,"Can't get ownners from decree.");
                 return -104;
             }
 
-            l_net->pub.decree->num_of_owners = l_num_of_owners;
+            l_net->pub.decree->num_of_owners = l_uint256_buffer;
             dap_list_free_full(l_net->pub.decree->pkeys, NULL);
 
             l_net->pub.decree->pkeys = l_owners_list;
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN:
-            if (dap_chain_datum_decree_get_min_owners(a_decree, &l_min_owners)){
+            if (dap_chain_datum_decree_get_min_owners(a_decree, &l_uint256_buffer)){
                 log_it(L_WARNING,"Can't get min number of ownners from decree.");
                 return -105;
             }
-            l_net->pub.decree->min_num_of_owners = l_min_owners;
+            l_net->pub.decree->min_num_of_owners = l_uint256_buffer;
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_TON_SIGNERS_MIN:
 
+            break;
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE:
+            if (dap_chain_datum_decree_get_stake_tx_hash(a_decree, &l_hash)){
+                log_it(L_WARNING,"Can't get tx hash from decree.");
+                return -105;
+            }
+            if (dap_chain_datum_decree_get_stake_value(a_decree, &l_uint256_buffer)){
+                log_it(L_WARNING,"Can't get stake value from decree.");
+                return -105;
+            }
+            if (dap_chain_datum_decree_get_stake_signing_addr(a_decree, &l_addr)){
+                log_it(L_WARNING,"Can't get signing address from decree.");
+                return -105;
+            }
+            if (dap_chain_datum_decree_get_stake_signer_node_addr(a_decree, &l_node_addr)){
+                log_it(L_WARNING,"Can't get signer node address from decree.");
+                return -105;
+            }
+            dap_chain_net_srv_stake_key_delegate(l_net, &l_addr, &l_hash, l_uint256_buffer, &l_node_addr);
+            break;
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE:
+            if (dap_chain_datum_decree_get_stake_signing_addr(a_decree, &l_addr)){
+                log_it(L_WARNING,"Can't get signing address from decree.");
+                return -105;
+            }
+            dap_chain_net_srv_stake_key_invalidate(&l_addr);
+            break;
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALUE:
+            if (dap_chain_datum_decree_get_stake_min_value(a_decree, &l_uint256_buffer)){
+                log_it(L_WARNING,"Can't get min stake value from decree.");
+                return -105;
+            }
+            dap_chain_net_srv_stake_set_allowed_min_value(l_uint256_buffer);
+            break;
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT:
+            if (dap_chain_datum_decree_get_stake_min_value(a_decree, &l_uint256_buffer)){
+                log_it(L_WARNING,"Can't get min stake value from decree.");
+                return -105;
+            }
+            a_chain->callback_set_min_validators_count(a_chain, (uint16_t)dap_chain_uint256_to(l_uint256_buffer));
             break;
         default: return -1;
     }
