@@ -176,6 +176,8 @@ typedef struct dap_chain {
 
     dap_chain_callback_get_poa_certs callback_get_poa_certs;
 
+    dap_chain_callback_check_tx_fee callback_check_tx_fee;
+
     dap_list_t * atom_notifiers;
 //    dap_chain_callback_notify_t callback_notify;
 //    void *callback_notify_arg;
