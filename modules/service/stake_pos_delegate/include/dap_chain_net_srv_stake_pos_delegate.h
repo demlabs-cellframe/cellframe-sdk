@@ -40,9 +40,22 @@ typedef struct dap_chain_net_srv_stake_item {
     UT_hash_handle hh;
 } dap_chain_net_srv_stake_item_t;
 
+
+typedef struct dap_chain_net_srv_stake_cache_data {
+    dap_chain_hash_fast_t tx_hash;
+    dap_chain_addr_t signing_addr;
+} DAP_ALIGN_PACKED dap_chain_net_srv_stake_cache_data_t;
+
+typedef struct dap_chain_net_srv_stake_cache_item {
+    dap_chain_hash_fast_t tx_hash;
+    dap_chain_addr_t signing_addr;
+    UT_hash_handle hh;
+} dap_chain_net_srv_stake_cache_item_t;
+
 typedef struct dap_chain_net_srv_stake {
     uint256_t delegate_allowed_min;
     dap_chain_net_srv_stake_item_t *itemlist;
+    dap_chain_net_srv_stake_cache_item_t *cache;
 } dap_chain_net_srv_stake_t;
 
 int dap_chain_net_srv_stake_pos_delegate_init();
@@ -58,3 +71,6 @@ bool dap_chain_net_srv_stake_key_delegated(dap_chain_addr_t *a_addr);
 dap_list_t *dap_chain_net_srv_stake_get_validators();
 
 void dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net, dap_string_t *a_string);
+
+int dap_chain_net_srv_stake_load_cache(dap_chain_net_t *a_net);
+void dap_chain_net_srv_stake_cache_purge(dap_chain_net_t *a_net);
