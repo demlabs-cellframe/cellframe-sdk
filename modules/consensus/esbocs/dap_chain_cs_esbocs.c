@@ -78,7 +78,7 @@ typedef struct dap_chain_esbocs_pvt {
     // Base params
     dap_enc_key_t *blocks_sign_key;
     dap_hash_fast_t candidate_hash;
-    dap_chain_addr_t fee_addr;
+    dap_chain_addr_t *fee_addr;
     // Validators section
     bool poa_mode;
     uint16_t min_validators_count;
@@ -225,6 +225,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
 
     l_esbocs_pvt->minimum_fee = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "minimum_fee", "1.0"));
+    l_esbocs_pvt->fee_addr = dap_chain_addr_from_str(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "fee_addr", NULL));
 
     const char *l_sign_cert_str = NULL;
     if ((l_sign_cert_str = dap_config_get_item_str(a_chain_net_cfg, "esbocs", "blocks-sign-cert")) != NULL) {
@@ -969,9 +970,8 @@ static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_ch
     f_compare = dap_hash_fast_compare(&l_store->candidate_hash,&(PVT(a_session->esbocs)->candidate_hash));
    if(s_session_candidate_to_chain(a_session, &l_store->precommit_candidate_hash, l_store->candidate, l_store->candidate_size)&&f_compare)
    {
-
         l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_precommit_candidate_hash);
-        //dap_chain_mempool_tx_coll_fee_create(l_cert->enc_key,PVT(a_session->esbocs)->fee_addr,l_block_cache,PVT(a_session->esbocs)->minimum_commission,"hex");
+        dap_chain_mempool_tx_coll_fee_create(a_session->blocks_sign_key,(PVT(a_session->esbocs)->fee_addr),l_block_cache,PVT(a_session->esbocs)->minimum_fee,"hex");
    }
 }
 
