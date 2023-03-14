@@ -277,7 +277,7 @@ static void s_es_callback_timer(struct dap_events_socket *a_event_sock)
 #ifdef DAP_OS_BSD
         l_timerfd->events_socket->kqueue_base_filter = EVFILT_EMPTY;
 #endif
-        l_timerfd->events_socket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+        a_event_sock->flags |= DAP_SOCK_SIGNAL_CLOSE;
     }
 }
 

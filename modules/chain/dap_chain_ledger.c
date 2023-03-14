@@ -120,8 +120,8 @@ typedef struct dap_chain_ledger_token_item {
 	time_t last_update_token_time;
 
     // for auth operations
-    dap_sign_t ** auth_signs;
-    dap_chain_hash_fast_t * auth_signs_pkey_hash;
+    dap_pkey_t ** auth_pkeys;
+    dap_chain_hash_fast_t * auth_pkeys_hash;
     size_t auth_signs_total;
     size_t auth_signs_valid;
     uint16_t           flags;
@@ -267,6 +267,7 @@ static void s_threshold_txs_proc( dap_ledger_t * a_ledger);
 static void s_threshold_txs_free(dap_ledger_t *a_ledger);
 static void s_threshold_emission_free(dap_ledger_t *a_ledger);
 static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_item_t *a_token_item , dap_chain_datum_token_t * a_token, size_t a_token_size);
+static int s_tsd_sign_apply(dap_ledger_t *a_ledger, dap_chain_ledger_token_item_t *a_token_item , dap_chain_datum_token_t *a_token, size_t a_token_size);
 static int s_ledger_permissions_check(dap_chain_ledger_token_item_t *  a_token_item, uint16_t a_permission_id, const void * a_data,size_t a_data_size );
 static bool s_ledger_tps_callback(void *a_arg);
 static int s_sort_ledger_tx_item(dap_chain_ledger_tx_item_t* a, dap_chain_ledger_tx_item_t* b);
@@ -440,12 +441,15 @@ static bool s_ledger_token_update_check(dap_chain_ledger_token_item_t *a_cur_tok
 	}
 	if(auth_signs_total) {
 		for(uint16_t i = 0; i < auth_signs_total; i++){
-			if (!dap_sign_match_pkey_signs(a_cur_token_item->auth_signs[i], l_signs_upd_token[i])) {
+            dap_pkey_t *l_pkey_upd_token = dap_sign_get_pkey_deserialization(l_signs_upd_token[i]);
+			if (!dap_pkey_match(a_cur_token_item->auth_pkeys[i], l_pkey_upd_token)) {
 				DAP_DEL_Z(l_signs_upd_token);
+                DAP_DELETE(l_pkey_upd_token);
 				if(s_debug_more)
 					log_it(L_WARNING, "Can't update token with ticker '%s' because: Signs not compare", a_token_update->ticker);
 				return false;
 			}
+            DAP_DELETE(l_pkey_upd_token);
 		}
 	}
 	DAP_DEL_Z(l_signs_upd_token);
@@ -455,8 +459,150 @@ static bool s_ledger_token_update_check(dap_chain_ledger_token_item_t *a_cur_tok
 				log_it(L_WARNING, "Can't update token with ticker '%s' because: the new 'total_supply' cannot be smaller than the old one", a_token_update->ticker);
 			return false;
 		}
-	}
-	return true;
+    }
+    // Check edit auth signs
+    size_t l_tsd_total_size = 0;
+    if (a_token_update->type  == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)
+        l_tsd_total_size = a_token_update->header_native_update.tsd_total_size;
+    else if (a_token_update->type  == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE)
+        l_tsd_total_size = a_token_update->header_native_update.tsd_total_size;
+    // Checking that the TSD section with the threshold change is the only one.
+    //And getting lists of TSD sections with the removal and addition of certificates.
+    int l_quantity_tsd_section_edit_signs_emission = 0;
+    dap_tsd_t *l_tsd_signs_valid = NULL;
+    dap_list_t *l_tsd_list_remote_pkeys = NULL;
+    int l_quantity_tsd_remote_pkeys = 0;
+    dap_list_t *l_tsd_list_added_pkeys = NULL;
+    int l_quantity_tsd_add_pkeys = 0;
+    for (size_t l_tsd_offset = 0; l_tsd_offset < l_tsd_total_size; ) {
+        dap_tsd_t *l_tsd = (dap_tsd_t*)((byte_t*)a_token_update->data_n_tsd + l_tsd_offset);
+        size_t l_tsd_size = dap_tsd_size(l_tsd);
+        if (l_tsd_size == 0) {
+            if (s_debug_more)
+                log_it(L_ERROR, "Token refresh datum %s contains a non-valid TSD section. Size TSD section is 0.", a_token_update->ticker);
+            return false;
+        } else if (l_tsd_size + l_tsd_offset > l_tsd_total_size) {
+            if (s_debug_more)
+                log_it(L_ERROR, "Token refresh datum %s contains a non-valid TSD section. "
+                                "The size of the TSD section and the offset exceed the set size of the TSD sections.", a_token_update->ticker);
+            return false;
+        }
+        switch (l_tsd->type) {
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID:
+                l_quantity_tsd_section_edit_signs_emission++;
+                l_tsd_signs_valid = l_tsd;
+                break;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE:
+                l_quantity_tsd_remote_pkeys++;
+                l_tsd_list_remote_pkeys = dap_list_append(l_tsd_list_remote_pkeys, l_tsd);
+                break;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD:
+                l_quantity_tsd_add_pkeys++;
+                l_tsd_list_added_pkeys = dap_list_append(l_tsd_list_added_pkeys, l_tsd);
+                break;
+        }
+        l_tsd_offset += l_tsd_size;
+    }
+    if (l_quantity_tsd_section_edit_signs_emission > 1) {
+        if (s_debug_more) {
+            log_it(L_ERROR, "Datum contains %ud TSD sections of type DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID which is not true. "
+                            "There can be at most one such TSD section.", l_quantity_tsd_section_edit_signs_emission);
+        }
+        dap_list_free1(l_tsd_list_added_pkeys);
+        dap_list_free1(l_tsd_list_remote_pkeys);
+        return false;
+    }
+    //Check new count signs
+    size_t l_new_signs_total = auth_signs_total + l_quantity_tsd_add_pkeys - l_quantity_tsd_remote_pkeys;
+    if (l_tsd_signs_valid) {
+        size_t l_signs_valid_from_tsd = (size_t)(dap_tsd_get_scalar(l_tsd_signs_valid,uint16_t));
+        if (l_new_signs_total < l_signs_valid_from_tsd || l_signs_valid_from_tsd < 1) {
+            dap_list_free1(l_tsd_list_added_pkeys);
+            dap_list_free1(l_tsd_list_remote_pkeys);
+            return false;
+        }
+    } else {
+        if (l_new_signs_total < auth_signs_valid){
+            dap_list_free1(l_tsd_list_added_pkeys);
+            dap_list_free1(l_tsd_list_remote_pkeys);
+            return false;
+        }
+    }
+    //Check valid remove_signs
+    bool isAccepted = false;
+    if (!l_tsd_list_remote_pkeys)
+        isAccepted = true;
+    else {
+        for (dap_list_t *l_ptr = l_tsd_list_remote_pkeys; l_ptr; l_ptr = dap_list_next(l_ptr)) {
+            dap_tsd_t *l_tsd = (dap_tsd_t *) l_ptr->data;
+            dap_hash_fast_t l_hash = dap_tsd_get_scalar(l_tsd, dap_hash_fast_t);
+            bool accepted = false;
+            for (size_t i = 0; i < auth_signs_total; i++) {
+                if (dap_hash_fast_compare(&a_cur_token_item->auth_pkeys_hash[i], &l_hash)) {
+                    accepted = true;
+                    break;
+                }
+            }
+            if (!accepted) {
+                if (s_debug_more) {
+                    char *l_hash_str = dap_hash_fast_to_str_new(&l_hash);
+                    log_it(L_ERROR,
+                           "It is expected that the TSD parameter DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE will contain only "
+                           "the hashes of the public keys of the signatures with which the given token was previously signed. But not %s",
+                           l_hash_str);
+                    DAP_DELETE(l_hash_str);
+                }
+            }
+            isAccepted = accepted;
+        }
+    }
+    if (!isAccepted) {
+        dap_list_free1(l_tsd_list_added_pkeys);
+        dap_list_free1(l_tsd_list_remote_pkeys);
+        return false;
+    }
+    //Check added signs
+    dap_chain_datum_token_t *l_token_tmp = DAP_DUP_SIZE(a_token_update, a_token_update_size);
+    l_token_tmp->header_native_update.tsd_total_size = 0;
+    isAccepted = true;
+    for (dap_list_t *l_ptr = l_tsd_list_added_pkeys; l_ptr; l_ptr = dap_list_next(l_ptr)) {
+        dap_tsd_t *l_tsd = (dap_tsd_t*)l_ptr->data;
+        if (l_tsd->size >= sizeof(dap_pkey_t)) {
+            dap_pkey_t *l_pkey = (dap_pkey_t *) l_tsd->data;
+            dap_hash_fast_t l_hf_pkey = {0};
+            if (!dap_pkey_get_hash(l_pkey, &l_hf_pkey)) {
+                if (s_debug_more)
+                    log_it(L_ERROR, "Failed to calculate the hash for the public key located in the "
+                                    "DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD section of the TSD");
+                isAccepted = false;
+                break;
+            }
+            for (size_t i = 0; i < a_cur_token_item->auth_signs_total; i++) {
+                if (dap_hash_fast_compare(&l_hf_pkey, &a_cur_token_item->auth_pkeys_hash[i])) {
+                    if (s_debug_more) {
+                        char *l_hf_str = dap_hash_fast_to_str_new(&l_hf_pkey);
+                        log_it(L_ERROR, "The public key with hash %s from the TSD section of the type "
+                                        "DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD cannot be added, because such "
+                                        "a key already exists in the ledger.", l_hf_str);
+                        DAP_DELETE(l_hf_str);
+                    }
+                    isAccepted = false;
+                    break;
+                }
+            }
+        } else {
+            if (s_debug_more)
+                log_it(L_ERROR, "It is expected that the size %zu of information from the TSD section of type "
+                                "DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD will be greater than or equal to %zu.",
+                       dap_tsd_size(l_tsd), sizeof(dap_pkey_t));
+            isAccepted = false;
+            break;
+        }
+    }
+    dap_list_free1(l_tsd_list_added_pkeys);
+    dap_list_free1(l_tsd_list_remote_pkeys);
+    DAP_DELETE(l_token_tmp);
+    return isAccepted;
 }
 
 /**
@@ -881,12 +1027,14 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
         l_token_item->current_supply	= l_token_item->total_supply;
         l_token_item->auth_signs_total  = l_token->signs_total;
         l_token_item->auth_signs_valid  = l_token->signs_valid;
-        l_token_item->auth_signs		= dap_chain_datum_token_signs_parse(l_token, a_token_size,
+        dap_sign_t **l_signs		= dap_chain_datum_token_signs_parse(l_token, a_token_size,
                                                                      &l_token_item->auth_signs_total,&l_token_item->auth_signs_valid);
         if (l_token_item->auth_signs_total) {
-            l_token_item->auth_signs_pkey_hash = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t, sizeof(dap_chain_hash_fast_t) * l_token_item->auth_signs_total);
+            l_token_item->auth_pkeys = DAP_NEW_Z_SIZE(dap_pkey_t*, sizeof(dap_pkey_t*) * l_token_item->auth_signs_total);
+            l_token_item->auth_pkeys_hash = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t, sizeof(dap_chain_hash_fast_t) * l_token_item->auth_signs_total);
             for(uint16_t k=0; k<l_token_item->auth_signs_total;k++){
-                dap_sign_get_pkey_hash(l_token_item->auth_signs[k], &l_token_item->auth_signs_pkey_hash[k]);
+                l_token_item->auth_pkeys[k] = dap_sign_get_pkey_deserialization(l_signs[k]);
+                dap_pkey_get_hash(l_token_item->auth_pkeys[k], &l_token_item->auth_pkeys_hash[k]);
             }
         }
     }
@@ -943,6 +1091,7 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
 //      log_it( L_WARNING, "Private token %s type=DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE. Not processed, wait for software update", a_token->ticker);
 //		TODO: Check authorithy
         s_token_tsd_parse(a_ledger,l_token_item, a_token, a_token_size);
+        s_tsd_sign_apply(a_ledger, l_token_item, a_token, a_token_size);
         break;
 	case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE:
 		if(s_debug_more) {
@@ -955,6 +1104,7 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
 //      log_it( L_WARNING, "Private token %s type=DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE. Not processed, wait for software update", a_token->ticker);
 // 		TODO: Check authorithy
 		s_token_tsd_parse(a_ledger,l_token_item, a_token, a_token_size);
+        s_tsd_sign_apply(a_ledger, l_token_item, a_token, a_token_size);
 		break;
     default:
         if(s_debug_more)
@@ -1013,53 +1163,6 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
 
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_OLD:{ // 128
                 a_token_item->total_supply = GET_256_FROM_128(dap_tsd_get_scalar(l_tsd,uint128_t));
-            }break;
-
-            // Set total signs count value to set to be valid
-            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID:{
-                a_token_item->auth_signs_valid = dap_tsd_get_scalar(l_tsd,uint16_t);
-            }break;
-
-            // Remove owner signature by pkey fingerprint
-            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_REMOVE:{
-                dap_hash_fast_t l_hash = dap_tsd_get_scalar(l_tsd,dap_hash_fast_t);
-                for( size_t i=0; i<a_token_item->auth_signs_total; i++){
-                    if (dap_hash_fast_compare(&l_hash, &a_token_item->auth_signs_pkey_hash[i] )){
-                        if (i+1 != a_token_item->auth_signs_total){
-                            memmove(a_token_item->auth_signs+i,a_token_item->auth_signs+i+1,
-                                   (a_token_item->auth_signs_total-i-1)*sizeof (void*));
-                            memmove(a_token_item->auth_signs_pkey_hash+i,a_token_item->auth_signs_pkey_hash+i+1,
-                                   (a_token_item->auth_signs_total-i-1)*sizeof (void*));
-                        }
-                        a_token_item->auth_signs_total--;
-                        if(a_token_item->auth_signs_total){
-                            // Type sizeof's misunderstanding in realloc?
-                            a_token_item->auth_signs = DAP_REALLOC(a_token_item->auth_signs,a_token_item->auth_signs_total*sizeof (void*) );
-                            a_token_item->auth_signs_pkey_hash = DAP_REALLOC(a_token_item->auth_signs_pkey_hash,a_token_item->auth_signs_total*sizeof (void*) );
-                        }else{
-                            DAP_DEL_Z(a_token_item->auth_signs);
-                            DAP_DEL_Z(a_token_item->auth_signs_pkey_hash);
-                        }
-
-                        break;
-                    }
-                }
-            }break;
-
-            // Add owner signature's pkey fingerprint
-            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_ADD:{
-                if(l_tsd->size == sizeof (dap_hash_fast_t) ){
-                    a_token_item->auth_signs_total++;
-                    // Type sizeof's misunderstanding in realloc?
-                    a_token_item->auth_signs = DAP_REALLOC(a_token_item->auth_signs,a_token_item->auth_signs_total*sizeof (void*) );
-                    a_token_item->auth_signs_pkey_hash = DAP_REALLOC(a_token_item->auth_signs_pkey_hash,a_token_item->auth_signs_total*sizeof (void*) );
-                    a_token_item->auth_signs[a_token_item->auth_signs_total-1] = NULL;
-                    memcpy( &a_token_item->auth_signs_pkey_hash[a_token_item->auth_signs_total-1], l_tsd->data, l_tsd->size ) ;
-                }else{
-                    if(s_debug_more)
-                        log_it(L_ERROR,"TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_ADD expected to have %zd bytes data length, not %zd",
-                           sizeof (dap_hash_fast_t), l_tsd_size );
-                }
             }break;
 
             //Allowed tx receiver addres list add, remove or clear
@@ -1420,6 +1523,78 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
             }break;
             default:{}
         }
+    }
+    return 0;
+}
+
+static int s_tsd_sign_apply(dap_ledger_t *a_ledger, dap_chain_ledger_token_item_t *a_token_item , dap_chain_datum_token_t *a_token, size_t a_token_size){
+    dap_tsd_t * l_tsd= dap_chain_datum_token_tsd_get(a_token,a_token_size);
+    size_t l_tsd_size=0;
+    size_t l_tsd_total_size = a_token->header_native_decl.tsd_total_size;
+    dap_tsd_t *l_new_signs_valid = NULL;
+    dap_list_t *l_remove_pkeys = NULL;
+    dap_list_t *l_added_pkeys = NULL;
+
+    for( size_t l_offset=0; l_offset < l_tsd_total_size;  l_offset += l_tsd_size ){
+        l_tsd = (dap_tsd_t *) (((byte_t*)l_tsd) + l_tsd_size);
+        l_tsd_size =  l_tsd? dap_tsd_size(l_tsd): 0;
+        if( l_tsd_size==0 ){
+            if(s_debug_more)
+                log_it(L_ERROR,"Wrong zero TSD size, exiting TSD parse");
+            break;
+        }else if (l_tsd_size + l_offset > l_tsd_total_size ){
+            if(s_debug_more)
+                log_it(L_ERROR,"Wrong %zd TSD size, exiting TSD parse", l_tsd_size);
+            break;
+        }
+        switch (l_tsd->type) {
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID:
+                l_new_signs_valid = l_tsd;
+                break;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD:
+                l_added_pkeys = dap_list_append(l_added_pkeys, l_tsd->data);
+                break;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE:
+                l_remove_pkeys = dap_list_append(l_remove_pkeys, l_tsd);
+                break;
+        }
+    }
+    for (dap_list_t *l_ptr = l_remove_pkeys; l_ptr; l_ptr = dap_list_next(l_ptr)) {
+        dap_tsd_t *l_tsd = l_ptr->data;
+        dap_hash_fast_t l_hash = dap_tsd_get_scalar(l_tsd, dap_chain_hash_fast_t);
+        for( size_t i=0; i<a_token_item->auth_signs_total; i++){
+            if (dap_hash_fast_compare(&l_hash, &a_token_item->auth_pkeys_hash[i] )){
+                if (i+1 != a_token_item->auth_signs_total){
+                    memmove(a_token_item->auth_pkeys+i,a_token_item->auth_pkeys+i+1,
+                           (a_token_item->auth_signs_total-i-1)*sizeof (void*));
+                    memmove(a_token_item->auth_pkeys_hash+i,a_token_item->auth_pkeys_hash+i+1,
+                           (a_token_item->auth_signs_total-i-1)*sizeof(dap_chain_hash_fast_t));
+                }
+                a_token_item->auth_signs_total--;
+                if(a_token_item->auth_signs_total) {
+                    // Type sizeof's misunderstanding in realloc?
+                    a_token_item->auth_pkeys = DAP_REALLOC(a_token_item->auth_pkeys,a_token_item->auth_signs_total*sizeof (dap_pkey_t*) );
+                    a_token_item->auth_pkeys_hash = DAP_REALLOC(a_token_item->auth_pkeys_hash,a_token_item->auth_signs_total*sizeof(dap_chain_hash_fast_t));
+                } else {
+                    DAP_DEL_Z(a_token_item->auth_pkeys);
+                    DAP_DEL_Z(a_token_item->auth_pkeys_hash);
+                }
+                break;
+            }
+        }
+    }
+    for (dap_list_t *l_ptr = l_added_pkeys; l_ptr; l_ptr = dap_list_next(l_ptr)) {
+        dap_pkey_t *l_pkey = (dap_pkey_t*)l_ptr->data;
+        a_token_item->auth_signs_total++;
+        // Type sizeof's misunderstanding in realloc?
+        a_token_item->auth_pkeys = DAP_REALLOC(a_token_item->auth_pkeys,a_token_item->auth_signs_total*sizeof (dap_pkey_t*) );
+        a_token_item->auth_pkeys_hash = DAP_REALLOC(a_token_item->auth_pkeys_hash,a_token_item->auth_signs_total*sizeof (dap_chain_hash_fast_t));
+        a_token_item->auth_pkeys[a_token_item->auth_signs_total-1] = DAP_NEW_SIZE(dap_pkey_t, sizeof(dap_pkey_t)+l_pkey->header.size);
+        memcpy(a_token_item->auth_pkeys[a_token_item->auth_signs_total-1], l_pkey, sizeof(dap_pkey_t)+l_pkey->header.size);
+        dap_pkey_get_hash(l_pkey, &a_token_item->auth_pkeys_hash[a_token_item->auth_signs_total-1]);
+    }
+    if (l_new_signs_valid) {
+        a_token_item->auth_signs_valid = dap_tsd_get_scalar(l_new_signs_valid,uint16_t);
     }
     return 0;
 }
@@ -2005,7 +2180,7 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
                         dap_sign_get_pkey_hash(l_sign, &l_sign_pkey_hash);
                         // Find pkey in auth hashes
                         for (uint16_t k=0; k< l_token_item->auth_signs_total; k++) {
-                            if (dap_hash_fast_compare(&l_sign_pkey_hash, &l_token_item->auth_signs_pkey_hash[k])) {
+                            if (dap_hash_fast_compare(&l_sign_pkey_hash, &l_token_item->auth_pkeys_hash[k])) {
                                 // Verify if its token emission header signed
                                 if (dap_sign_verify(l_sign, &l_emission->hdr, sizeof(l_emission->hdr)) == 1) {
                                     l_aproves++;
@@ -4047,8 +4222,8 @@ void dap_chain_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
         }
         pthread_rwlock_unlock(&l_token_current->token_emissions_rwlock);
         DAP_DELETE(l_token_current->datum_token);
-        DAP_DELETE(l_token_current->auth_signs);
-        DAP_DELETE(l_token_current->auth_signs_pkey_hash);
+        DAP_DELETE(l_token_current->auth_pkeys);
+        DAP_DELETE(l_token_current->auth_pkeys_hash);
         DAP_DEL_Z(l_token_current->tx_recv_allow);
         DAP_DEL_Z(l_token_current->tx_recv_block);
         DAP_DEL_Z(l_token_current->tx_send_allow);
