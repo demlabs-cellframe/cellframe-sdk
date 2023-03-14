@@ -31,7 +31,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                                 dap_chain_hash_fast_t *a_data_hash, uint8_t *a_data, size_t a_data_size);
 static void s_session_round_clear(dap_chain_esbocs_session_t *a_session);
 static void s_session_round_new(dap_chain_esbocs_session_t *a_session);
-static void s_session_candidate_to_chain(
+static bool s_session_candidate_to_chain(
             dap_chain_esbocs_session_t *a_session, dap_chain_hash_fast_t *a_candidate_hash,
                             dap_chain_block_t *a_candidate, size_t a_candidate_size);
 static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session);
@@ -77,6 +77,8 @@ static dap_timerfd_t *s_session_cs_timer = NULL;
 typedef struct dap_chain_esbocs_pvt {
     // Base params
     dap_enc_key_t *blocks_sign_key;
+    dap_hash_fast_t candidate_hash;
+    dap_chain_addr_t fee_addr;
     // Validators section
     bool poa_mode;
     uint16_t min_validators_count;
@@ -89,7 +91,7 @@ typedef struct dap_chain_esbocs_pvt {
     uint16_t round_attempt_timeout;
     // PoA section
     dap_list_t *poa_validators;
-    uint256_t minimum_commission;
+    uint256_t minimum_commission;    
 } dap_chain_esbocs_pvt_t;
 
 #define PVT(a) ((dap_chain_esbocs_pvt_t *)a->_pvt)
@@ -830,6 +832,8 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
     }
     s_message_send(a_session, DAP_STREAM_CH_VOTING_MSG_TYPE_SUBMIT, &l_candidate_hash,
                     l_candidate, l_candidate_size, a_session->cur_round.validators_list);
+    //Save candidate_hash
+    memcpy(&(PVT(a_session->esbocs)->candidate_hash), &l_candidate_hash, sizeof(dap_hash_fast_t));
 }
 
 static void s_session_candidate_verify(dap_chain_esbocs_session_t *a_session, dap_chain_block_t *a_candidate,
@@ -863,9 +867,10 @@ static void s_session_candidate_verify(dap_chain_esbocs_session_t *a_session, da
     a_session->processing_candidate = NULL;
 }
 
-static void s_session_candidate_to_chain(dap_chain_esbocs_session_t *a_session, dap_chain_hash_fast_t *a_candidate_hash,
+static bool s_session_candidate_to_chain(dap_chain_esbocs_session_t *a_session, dap_chain_hash_fast_t *a_candidate_hash,
                                          dap_chain_block_t *a_candidate, size_t a_candidate_size)
 {
+    bool res = false;
     dap_chain_block_t *l_candidate = DAP_DUP_SIZE(a_candidate, a_candidate_size);
     dap_chain_atom_verify_res_t l_res = a_session->chain->callback_atom_add(a_session->chain, l_candidate, a_candidate_size);
     char *l_candidate_hash_str = dap_chain_hash_fast_to_str_new(a_candidate_hash);
@@ -875,7 +880,10 @@ static void s_session_candidate_to_chain(dap_chain_esbocs_session_t *a_session, 
         if (dap_chain_atom_save(a_session->chain, (uint8_t *)l_candidate, a_candidate_size, a_session->chain->cells->id) < 0)
             log_it(L_ERROR, "ESBOCS: Can't save atom %s to the file", l_candidate_hash_str);
         else
+        {
             log_it(L_INFO, "ESBOCS: block %s added in chain successfully", l_candidate_hash_str);
+            res = true;
+        }
         break;
     case ATOM_MOVE_TO_THRESHOLD:
         log_it(L_INFO, "ESBOCS: Thresholded atom with hash %s", l_candidate_hash_str);
@@ -893,11 +901,17 @@ static void s_session_candidate_to_chain(dap_chain_esbocs_session_t *a_session, 
          DAP_DELETE(l_candidate);
     }
     DAP_DELETE(l_candidate_hash_str);
+    return res;
 }
 
 static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_chain_esbocs_store_t *l_store)
 {
     bool l_cs_debug = PVT(a_session->esbocs)->debug;
+    bool f_compare = false;
+    dap_chain_t *l_chain = a_session->chain;
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
+    dap_chain_block_cache_t *l_block_cache = NULL;
+    dap_hash_fast_t l_precommit_candidate_hash = {0};
     uint16_t l_cs_level = PVT(a_session->esbocs)->min_validators_count;
 
     if (!dap_hash_fast_compare(&a_session->cur_round.attempt_candidate_hash, &l_store->candidate_hash)) {
@@ -948,7 +962,15 @@ static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_ch
         DAP_DELETE(l_finish_candidate_hash_str);
         DAP_DELETE(l_finish_block_hash_str);
     }
-    s_session_candidate_to_chain(a_session, &l_store->precommit_candidate_hash, l_store->candidate, l_store->candidate_size);
+
+    memcpy(&l_precommit_candidate_hash, &l_store->precommit_candidate_hash, sizeof(dap_hash_fast_t));
+    f_compare = dap_hash_fast_compare(&l_store->candidate_hash,&(PVT(a_session->esbocs)->candidate_hash));
+   if(s_session_candidate_to_chain(a_session, &l_store->precommit_candidate_hash, l_store->candidate, l_store->candidate_size)&&f_compare)
+   {
+
+        l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_precommit_candidate_hash);
+        //dap_chain_mempool_tx_coll_fee_create(l_cert->enc_key,PVT(a_session->esbocs)->fee_addr,l_block_cache,PVT(a_session->esbocs)->minimum_commission,"hex");
+   }
 }
 
 void s_session_sync_queue_add(dap_chain_esbocs_session_t *a_session, dap_chain_esbocs_message_t *a_message, size_t a_message_size)
