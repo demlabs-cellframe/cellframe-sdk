@@ -540,7 +540,7 @@ int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datu
         uint16_t l_tmp_auth_signs = a_token->signs_total;
         if (a_token->version == 2) a_token->signs_total = 0;
         for (size_t i=0; i < l_signs_unique; i++)
-            if (!dap_sign_verify_all(l_signs[i], l_signs_size, a_token, sizeof(dap_chain_datum_token_t) - sizeof(uint16_t)))
+            if (!dap_sign_verify_all(l_signs[i], l_signs_size, a_token, sizeof(dap_chain_datum_token_t)))
                 l_signs_approve++;
         a_token->signs_total = l_tmp_auth_signs;
         if (l_signs_approve == a_token->signs_total){
@@ -900,7 +900,7 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
             l_token = dap_chain_datum_token_read((byte_t *) a_token, &a_token_size);
             break;
         default:
-            l_token = a_token;
+            l_token = DAP_DUP_SIZE(a_token, a_token_size);
             break;
     }
 
@@ -914,7 +914,7 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
         l_token_item->current_supply = l_token_item->total_supply;
         l_token_item->auth_signs_total = l_token->signs_total;
         l_token_item->auth_signs_valid = l_token->signs_valid;
-        l_token_item->auth_signs = dap_chain_datum_token_signs_parse(l_token, a_token_size,
+        l_token_item->auth_signs = dap_chain_datum_token_signs_parse(a_token, a_token_size,
                                                                      &l_token_item->auth_signs_total,
                                                                      &l_token_item->auth_signs_valid);
         if (l_token_item->auth_signs_total) {
