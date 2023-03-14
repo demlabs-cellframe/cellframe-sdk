@@ -76,6 +76,8 @@
 #include "dap_chain_node_ping.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_tx.h"
+#include "dap_chain_block.h"
+#include "dap_chain_cs_blocks.h"
 
 #ifndef _WIN32
 #include "dap_chain_net_news.h"
@@ -4903,7 +4905,7 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-from_wallet", &l_from_wallet_name);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-wallet_fee", &l_wallet_fee_name);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-from_emission", &l_emission_hash_str);
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-emission_chain", &l_emission_chain_name);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain_emission", &l_emission_chain_name);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-to_addr", &addr_base58_to);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-token", &l_token_ticker);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_name);
@@ -4970,7 +4972,7 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
             l_emission_chain = dap_chain_net_get_default_chain_by_chain_type(l_net,CHAIN_TYPE_EMISSION);
         }
         if (!l_emission_chain) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_create requires parameter '-emission_chain' "
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_create requires parameter '-chain_emission' "
                                                          "to be a valid chain name or set default datum type in chain configuration file");
             return -9;
         }
@@ -5275,6 +5277,30 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
     return 0;
 }
 
+void print_sig(dap_pkey_t *a_pkey, dap_sign_t *a_sign)
+{
+    FILE *fp1;
+
+        fp1 = fopen("/home/roman/rrr", "r+");
+        if ((fp1 == NULL)) {
+            return ;
+        }
+        for (uint32_t i = 0; i < a_sign->header.sign_pkey_size; i++)
+        {
+            fprintf(fp1,"%x",a_sign->pkey_n_sign[i]);
+            //fputc(a_sign->pkey_n_sign[i],fp1);
+        }
+        fputs("\n", fp1);
+        for (uint32_t i = 0; i < a_sign->header.sign_pkey_size; i++)
+        {
+            fprintf(fp1,"%x",a_pkey->pkey[i]);
+            //fputc(a_pkey->pkey[i],fp1);
+        }
+        //fwrite()
+        fputs("\n", fp1);
+        fclose(fp1);
+        return ;
+}
 
 /**
  * @brief stats command
