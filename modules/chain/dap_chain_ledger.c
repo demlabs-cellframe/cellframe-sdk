@@ -2793,8 +2793,12 @@ static bool dap_chain_ledger_item_is_used_out(dap_chain_ledger_tx_item_t *a_item
     assert(a_idx_out < MAX_OUT_ITEMS);
     // if there are used 'out' items
     if(a_item->cache_data.n_outs_used > 0) {
-        if(!dap_hash_fast_is_blank(&(a_item->cache_data.tx_hash_spent_fast[a_idx_out])))
+        if(!dap_hash_fast_is_blank(&(a_item->cache_data.tx_hash_spent_fast[a_idx_out]))) {
             l_used_out = true;
+            char hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+            dap_hash_fast_to_str(&a_item->cache_data.tx_hash_spent_fast[a_idx_out], hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+            log_it(L_INFO, "Out already used by %s", hash_str);
+        }
     }
     return l_used_out;
 }
