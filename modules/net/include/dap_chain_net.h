@@ -147,6 +147,7 @@ dap_ledger_t * dap_chain_ledger_by_net_name( const char * a_net_name);
 dap_string_t* dap_cli_list_net();
 
 dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const char * a_name);
+dap_chain_t *dap_chain_net_get_chain_by_id(dap_chain_net_t *l_net, dap_chain_id_t a_chain_id);
 
 dap_chain_node_addr_t * dap_chain_net_get_cur_addr( dap_chain_net_t * l_net);
 uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t * l_net);

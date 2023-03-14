@@ -760,7 +760,7 @@ static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_clie
     a_node_client->is_connected = true;
     struct json_object *l_json = s_net_states_json_collect(l_net);
     char l_err_str[128] = { };
-    dap_snprintf(l_err_str, sizeof(l_err_str)
+    snprintf(l_err_str, sizeof(l_err_str)
                  , "Established connection with link " NODE_ADDR_FP_STR
                  , NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address));
     json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
@@ -849,7 +849,7 @@ static void s_node_link_callback_error(dap_chain_node_client_t * a_node_client, 
         char l_node_addr_str[INET_ADDRSTRLEN] = {};
         inet_ntop(AF_INET, &a_node_client->info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
         char l_err_str[128] = { };
-        dap_snprintf(l_err_str, sizeof(l_err_str)
+        snprintf(l_err_str, sizeof(l_err_str)
                      , "Link " NODE_ADDR_FP_STR " [%s] can't be established, errno %d"
                      , NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address), l_node_addr_str, a_error);
         json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
@@ -943,7 +943,7 @@ static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_cha
     } else if (l_res == 0) {
         struct json_object *l_json = s_net_states_json_collect(l_net);
         char l_err_str[128] = { };
-        dap_snprintf(l_err_str, sizeof(l_err_str)
+        snprintf(l_err_str, sizeof(l_err_str)
                      , "Link " NODE_ADDR_FP_STR " prepared"
                      , NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address));
         json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
@@ -990,7 +990,7 @@ static void s_net_balancer_link_prepare_error(dap_worker_t * a_worker, void * a_
                                 NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address), l_node_addr_str,a_errno);
     struct json_object *l_json = s_net_states_json_collect(l_net);
     char l_err_str[128] = { };
-    dap_snprintf(l_err_str, sizeof(l_err_str)
+    snprintf(l_err_str, sizeof(l_err_str)
                  , "Link from balancer " NODE_ADDR_FP_STR " [%s] can't be prepared, errno %d"
                  , NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address), l_node_addr_str, a_errno);
     json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
@@ -1129,7 +1129,7 @@ struct json_object *s_net_states_json_collect(dap_chain_net_t *a_net)
     json_object_object_add(l_json, "linksCount"       , json_object_new_int(HASH_COUNT(PVT(a_net)->net_links)));
     json_object_object_add(l_json, "activeLinksCount" , json_object_new_int(s_net_get_active_links_count(a_net)));
     char l_node_addr_str[24] = {'\0'};
-    dap_snprintf(l_node_addr_str, sizeof(l_node_addr_str), NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(PVT(a_net)->node_addr));
+    snprintf(l_node_addr_str, sizeof(l_node_addr_str), NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(PVT(a_net)->node_addr));
     json_object_object_add(l_json, "nodeAddress"     , json_object_new_string(l_node_addr_str));
     return l_json;
 }
@@ -1167,7 +1167,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
     switch (l_net_pvt->state) {
         // State OFFLINE where we don't do anything
         case NET_STATE_OFFLINE: {
-            // delete all links       
+            // delete all links
             struct net_link *l_link, *l_link_tmp;
             HASH_ITER(hh, l_net_pvt->net_links, l_link, l_link_tmp) {
                 HASH_DEL(l_net_pvt->net_links, l_link);
@@ -1362,7 +1362,7 @@ static dap_chain_net_t *s_net_new(const char *a_id, const char *a_name,
     pthread_rwlock_init(&PVT(ret)->downlinks_lock, NULL);
     pthread_rwlock_init(&PVT(ret)->balancer_lock, NULL);
     pthread_rwlock_init(&PVT(ret)->states_lock, NULL);
-    if (dap_sscanf(a_id, "0x%016"DAP_UINT64_FORMAT_X, &ret->pub.id.uint64) != 1) {
+    if (sscanf(a_id, "0x%016"DAP_UINT64_FORMAT_X, &ret->pub.id.uint64) != 1) {
         log_it (L_ERROR, "Wrong id format (\"%s\"). Must be like \"0x0123456789ABCDE\"" , a_id );
         DAP_DELETE(ret);
         return NULL;
@@ -1528,6 +1528,7 @@ const char* dap_chain_net_get_type(dap_chain_t *l_chain)
 static void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
 {
     dap_chain_ledger_purge(l_net->pub.ledger, false);
+    dap_chain_net_srv_stake_cache_purge(l_net);
     dap_chain_t *l_chain = NULL;
     DL_FOREACH(l_net->pub.chains, l_chain) {
         if (l_chain->callback_purge)
@@ -1578,9 +1579,9 @@ static bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
     if(!s_cache_file) {
         s_cache_file = fopen(l_cache_file, "w");
         if (!s_cache_file) {
-            dap_fprintf(stderr, "Can't open cache file %s for one time ledger cache reloading.\
-                Please, do it manually using command\
-                cellframe-node-cli net -net <network_name>> ledger reload'\n", l_cache_file);
+            log_it(L_ERROR, "Can't open cache file %s for one time ledger cache reloading."
+                "Please, do it manually using command"
+                "'cellframe-node-cli net -net <network_name>> ledger reload'", l_cache_file);
             return -1;
         }
     }
@@ -1847,7 +1848,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
             if ( strcmp(l_links_str,"list") == 0 ) {
                 size_t i =0;
                 dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
-                pthread_rwlock_rdlock(&l_net_pvt->uplinks_lock);      
+                pthread_rwlock_rdlock(&l_net_pvt->uplinks_lock);
                 size_t l_links_count = HASH_COUNT(l_net_pvt->net_links);
                 dap_string_t *l_reply = dap_string_new("");
                 dap_string_append_printf(l_reply,"Links %zu:\n", l_links_count);
@@ -2194,7 +2195,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         // Add network to the list
         dap_chain_net_item_t * l_net_item = DAP_NEW_Z( dap_chain_net_item_t);
         dap_chain_net_item_t * l_net_item2 = DAP_NEW_Z( dap_chain_net_item_t);
-        dap_snprintf(l_net_item->name,sizeof (l_net_item->name),"%s"
+        snprintf(l_net_item->name,sizeof (l_net_item->name),"%s"
                      ,dap_config_get_item_str(l_cfg , "general" , "name" ));
         l_net_item->chain_net = l_net;
         l_net_item->net_id.uint64 = l_net->pub.id.uint64;
@@ -2206,6 +2207,8 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         pthread_rwlock_wrlock(&s_net_ids_rwlock);
         HASH_ADD(hh,s_net_items_ids,net_id,sizeof ( l_net_item2->net_id),l_net_item2);
         pthread_rwlock_unlock(&s_net_ids_rwlock);
+
+
 
         // LEDGER model
         uint16_t l_ledger_flags = 0;
@@ -2340,10 +2343,10 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
             dap_chain_node_info_t l_node_info       = { 0 }, *l_node_info_gdb       = NULL;
 
             log_it(L_NOTICE, "Check alias %s in db", l_net_pvt->seed_aliases[i]);
-            dap_snprintf(l_node_info.hdr.alias,sizeof (l_node_info.hdr.alias),"%s", PVT(l_net)->seed_aliases[i]);
-            if (dap_sscanf(l_seed_nodes_addrs[i], NODE_ADDR_FP_STR, NODE_ADDR_FPS_ARGS_S(l_seed_node_addr)) != 4) {
-              log_it(L_ERROR,"Wrong address format, must be 0123::4567::890AB::CDEF");
-              continue;
+            snprintf(l_node_info.hdr.alias,sizeof (l_node_info.hdr.alias),"%s", PVT(l_net)->seed_aliases[i]);
+            if (dap_chain_node_addr_from_str(&l_seed_node_addr, l_seed_nodes_addrs[i])) {
+                log_it(L_ERROR,"Wrong address format, must be 0123::4567::89AB::CDEF");
+                continue;
             }
             if (l_seed_nodes_ipv4_len)
                 inet_pton(AF_INET, l_seed_nodes_ipv4[i], &l_node_info.hdr.ext_addr_v4);
@@ -2427,16 +2430,10 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 l_node_addr = dap_chain_node_alias_find(l_net, l_node_alias_str);
             else {
                 l_node_addr = DAP_NEW_Z(dap_chain_node_addr_t);
-                if (dap_sscanf(l_node_addr_str, "0x%016"DAP_UINT64_FORMAT_x, &l_node_addr->uint64) == 1)
-                    log_it(L_DEBUG, "Parse node address with format 0x016llx");
-                else if (dap_chain_node_addr_from_str(l_node_addr, l_node_addr_str) == 0)
-                    log_it(L_DEBUG, "Parse node address with format 04hX::04hX::04hX::04hX");
-                else {
-                    log_it(L_ERROR,"Can't parse node address %s", l_node_addr_str);
+                if (dap_chain_node_addr_from_str(l_node_addr, l_node_addr_str) == 0)
+                    log_it(L_NOTICE, "Parse node addr "NODE_ADDR_FP_STR" successfully", NODE_ADDR_FP_ARGS(l_node_addr));
+                else
                     DAP_DEL_Z(l_node_addr);
-                }
-                if(l_node_addr)
-                    log_it(L_NOTICE, "Parse node addr " NODE_ADDR_FP_STR " successfully", NODE_ADDR_FP_ARGS(l_node_addr));
                 l_net_pvt->node_addr = l_node_addr;
             }
             if ( l_node_addr ) {
@@ -2481,10 +2478,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
             else{
                 log_it(L_WARNING, "Not present our own address %s in database", (l_node_alias_str) ? l_node_alias_str: "");
             }
-
-
-         }
-
+        }
 
         char * l_chains_path = dap_strdup_printf("%s/network/%s", dap_config_path(), l_net->pub.name);
         DIR * l_chains_dir = opendir(l_chains_path);
@@ -2518,10 +2512,12 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
             }
             closedir(l_chains_dir);
 
+            dap_chain_net_srv_stake_load_cache(l_net);
             // reload ledger cache at once
             if (s_chain_net_reload_ledger_cache_once(l_net)) {
                 log_it(L_WARNING,"Start one time ledger cache reloading");
                 dap_chain_ledger_purge(l_net->pub.ledger, false);
+                dap_chain_net_srv_stake_cache_purge(l_net);
             }
 
             // sort list with chains names by priority
@@ -2536,8 +2532,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 l_chain = dap_chain_load_from_cfg(l_net->pub.ledger, l_net->pub.name,
                                                   l_net->pub.id, l_chain_prior->chains_path);
 
-                if(l_chain) {//add minimum commission from to which the master node agrees. if present (default = 1.0)
-                    l_chain->minimum_commission = dap_chain_coins_to_balance(dap_config_get_item_str_default(l_cfg , "general" ,"minimum_commission","1.0"));
+                if(l_chain) {
                     DL_APPEND(l_net->pub.chains, l_chain);
 
                     // add a callback to monitor changes in the chain
@@ -2634,8 +2629,8 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                 char ** l_proc_chains = dap_config_get_array_str(l_cfg,"role-master" , "proc_chains", &l_proc_chains_count );
                 for ( size_t i = 0; i< l_proc_chains_count ; i++){
                     dap_chain_id_t l_chain_id = {{0}};
-                    if (dap_sscanf( l_proc_chains[i], "0x%16"DAP_UINT64_FORMAT_X,  &l_chain_id.uint64) ==1 ||
-                             dap_sscanf(l_proc_chains[i], "0x%16"DAP_UINT64_FORMAT_x, &l_chain_id.uint64) == 1) {
+                    if (sscanf( l_proc_chains[i], "0x%16"DAP_UINT64_FORMAT_X,  &l_chain_id.uint64) ==1 ||
+                             sscanf(l_proc_chains[i], "0x%16"DAP_UINT64_FORMAT_x, &l_chain_id.uint64) == 1) {
                         dap_chain_t * l_chain = dap_chain_find_by_id(l_net->pub.id, l_chain_id );
                         if ( l_chain ){
                             l_chain->is_datum_pool_proc = true;
@@ -2757,7 +2752,7 @@ dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id)
     pthread_rwlock_rdlock(&s_net_ids_rwlock);
     HASH_FIND(hh,s_net_items_ids,&a_id,sizeof (a_id), l_net_item );
     pthread_rwlock_unlock(&s_net_ids_rwlock);
-    return l_net_item ? l_net_item->chain_net : NULL;    
+    return l_net_item ? l_net_item->chain_net : NULL;
 }
 
 /**
@@ -2797,6 +2792,21 @@ dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const ch
         if(dap_strcmp(l_chain->name, a_name) == 0)
             return  l_chain;
    }
+   return NULL;
+}
+
+/**
+ * @brief dap_chain_net_get_chain_by_id
+ * @param l_net
+ * @param a_name
+ * @return
+ */
+dap_chain_t *dap_chain_net_get_chain_by_id(dap_chain_net_t *l_net, dap_chain_id_t a_chain_id)
+{
+   dap_chain_t *l_chain;
+   DL_FOREACH(l_net->pub.chains, l_chain)
+        if (l_chain->id.uint64 == a_chain_id.uint64)
+            return l_chain;
    return NULL;
 }
 
@@ -2905,24 +2915,24 @@ void dap_chain_net_set_state ( dap_chain_net_t * l_net, dap_chain_net_state_t a_
  * @param l_net
  * @return
  */
-dap_chain_node_addr_t * dap_chain_net_get_cur_addr( dap_chain_net_t * l_net)
+dap_chain_node_addr_t *dap_chain_net_get_cur_addr( dap_chain_net_t *a_net)
 {
-    return l_net ? (PVT(l_net)->node_info ? &PVT(l_net)->node_info->hdr.address : PVT(l_net)->node_addr) : NULL;
+    return a_net ? (PVT(a_net)->node_info ? &PVT(a_net)->node_info->hdr.address : PVT(a_net)->node_addr) : NULL;
 }
 
-uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t * l_net)
+uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t *a_net)
 {
-    if (!l_net)
+    if (!a_net)
         return 0;
     uint64_t l_ret = 0;
-    if(PVT(l_net)->node_addr == NULL){ // Cache address if not present
-        l_ret = dap_chain_net_get_cur_node_addr_gdb_sync(l_net->pub.name);
-        if( l_ret){
-            PVT(l_net)->node_addr = DAP_NEW_Z(dap_chain_node_addr_t);
-            PVT(l_net)->node_addr->uint64 = l_ret;
+    if (PVT(a_net)->node_addr == NULL) { // Cache address if not present
+        l_ret = dap_chain_net_get_cur_node_addr_gdb_sync(a_net->pub.name);
+        if (l_ret) {
+            PVT(a_net)->node_addr = DAP_NEW_Z(dap_chain_node_addr_t);
+            PVT(a_net)->node_addr->uint64 = l_ret;
         }
-    }else
-        l_ret = PVT(l_net)->node_addr->uint64;
+    } else
+        l_ret = PVT(a_net)->node_addr->uint64;
     return l_ret;
 }
 
@@ -3374,7 +3384,6 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
     }
     return 0;
 }
-
 
 bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net)
 {

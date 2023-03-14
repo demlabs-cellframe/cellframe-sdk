@@ -303,6 +303,8 @@ dap_sign_t ** dap_chain_datum_token_signs_parse(dap_chain_datum_token_t * a_datu
     return l_ret;
 }
 
+/*                              Token emission section                          */
+
 dap_chain_datum_token_emission_t *dap_chain_datum_emission_create(uint256_t a_value, const char *a_ticker, dap_chain_addr_t *a_addr)
 {
     dap_chain_datum_token_emission_t *l_emission = DAP_NEW_Z(dap_chain_datum_token_emission_t);
@@ -460,12 +462,3 @@ dap_sign_t *dap_chain_datum_emission_get_signs(dap_chain_datum_token_emission_t 
     return l_ret;
 }
 
-// 256 TYPE
-bool dap_chain_datum_token_is_old(uint8_t a_type) {
-    return a_type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE
-            || a_type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_DECL
-            || a_type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_UPDATE
-            || a_type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_DECL
-            || a_type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_UPDATE
-            || a_type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PUBLIC;
-}

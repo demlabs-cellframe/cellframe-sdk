@@ -85,6 +85,8 @@ typedef dap_time_t (*dap_chain_callback_atom_get_timestamp_t)(dap_chain_atom_ptr
 typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_iter_find_by_hash_t)(dap_chain_atom_iter_t * ,dap_chain_hash_fast_t *,size_t*);
 typedef dap_chain_datum_tx_t* (*dap_chain_callback_tx_find_by_hash_t)(dap_chain_t * ,dap_chain_hash_fast_t *);
 
+typedef dap_chain_atom_ptr_t (*dap_chain_callback_block_find_by_hash_t)(dap_chain_t * ,dap_chain_hash_fast_t *);
+
 typedef dap_chain_atom_ptr_t * (*dap_chain_callback_atom_iter_get_atoms_t)(dap_chain_atom_iter_t * ,size_t* ,size_t**);
 typedef size_t (*dap_chain_callback_add_datums_t)(dap_chain_t * , dap_chain_datum_t **, size_t );
 
@@ -96,6 +98,10 @@ typedef void (*dap_chain_callback_notify_t)(void * a_arg, dap_chain_t *a_chain, 
 typedef size_t(*dap_chain_callback_get_count)(dap_chain_t *a_chain);
 typedef dap_list_t *(*dap_chain_callback_get_list)(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 typedef dap_list_t *(*dap_chain_callback_get_poa_certs)(dap_chain_t *a_chain, size_t *a_auth_certs_count, uint16_t *count_verify);
+typedef void (*dap_chain_callback_set_min_validators_count)(dap_chain_t *a_chain,  uint16_t a_new_value);
+
+
+typedef bool (*dap_chain_callback_check_tx_fee)(dap_chain_t *a_chain,  uint256_t fee_value);
 
 typedef enum dap_chain_type
 {
@@ -131,8 +137,6 @@ typedef struct dap_chain {
     uint16_t autoproc_datum_types_count;
     uint16_t *autoproc_datum_types;
 
-    uint256_t minimum_commission;
-
     // To hold it in double-linked lists
     struct dap_chain * next;
     struct dap_chain * prev;
@@ -162,6 +166,8 @@ typedef struct dap_chain {
     dap_chain_callback_atom_iter_find_by_hash_t callback_atom_find_by_hash;
     dap_chain_callback_tx_find_by_hash_t callback_tx_find_by_hash;
 
+    dap_chain_callback_block_find_by_hash_t callback_block_find_by_tx_hash;
+
     dap_chain_callback_atom_iter_get_next_t callback_atom_iter_get_next;
     dap_chain_callback_atom_iter_get_atoms_t callback_atom_iter_get_links;
     dap_chain_callback_atom_iter_get_atoms_t callback_atom_iter_get_lasts;
@@ -173,6 +179,9 @@ typedef struct dap_chain {
     dap_chain_callback_get_list callback_get_atoms;
 
     dap_chain_callback_get_poa_certs callback_get_poa_certs;
+    dap_chain_callback_set_min_validators_count callback_set_min_validators_count;
+
+    dap_chain_callback_check_tx_fee callback_check_tx_fee;
 
     dap_list_t * atom_notifiers;
 //    dap_chain_callback_notify_t callback_notify;

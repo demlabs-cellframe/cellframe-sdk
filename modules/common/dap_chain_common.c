@@ -82,10 +82,10 @@ size_t dap_chain_hash_slow_to_str( dap_chain_hash_slow_t *a_hash, char *a_str, s
         log_it(L_ERROR, "String for hash too small, need %zu but have only %zu", c_hash_str_size, a_str_max);
     }
     size_t i;
-    dap_snprintf(a_str, 3, "0x");
+    snprintf(a_str, 3, "0x");
 
     for(i = 0; i < sizeof(a_hash->raw); ++i)
-        dap_snprintf( a_str + i * 2 + 2, 3, "%02x", a_hash->raw[i] );
+        snprintf( a_str + i * 2 + 2, 3, "%02x", a_hash->raw[i] );
 
     a_str[c_hash_str_size] = '\0';
 

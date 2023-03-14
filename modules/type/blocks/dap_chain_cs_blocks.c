@@ -35,10 +35,12 @@
 #include "dap_timerfd.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
+#include "dap_chain_mempool.h"
 #define LOG_TAG "dap_chain_cs_blocks"
 
 typedef struct dap_chain_tx_block_index
 {
+    int res;
     time_t ts_added;
     dap_chain_hash_fast_t tx_hash;
     dap_chain_hash_fast_t block_hash;
@@ -105,6 +107,7 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_ite
                                                                        dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
 static dap_chain_datum_tx_t* s_callback_atom_iter_find_by_tx_hash(dap_chain_t * a_chain ,
                                                                        dap_chain_hash_fast_t * a_tx_hash);
+static dap_chain_atom_ptr_t s_callback_block_find_by_tx_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_tx_hash);
 
 static dap_chain_datum_t** s_callback_atom_get_datums(dap_chain_atom_ptr_t a_atom, size_t a_atom_size, size_t * a_datums_count);
 static dap_time_t s_chain_callback_atom_get_timestamp(dap_chain_atom_ptr_t a_atom) { return ((dap_chain_block_t *)a_atom)->hdr.ts_created; }
@@ -115,6 +118,8 @@ static dap_chain_atom_ptr_t *s_callback_atom_iter_get_links( dap_chain_atom_iter
                                                                   size_t ** a_links_size_ptr );  //    Get list of linked blocks
 static dap_chain_atom_ptr_t *s_callback_atom_iter_get_lasts( dap_chain_atom_iter_t * a_atom_iter ,size_t *a_links_size,
                                                                   size_t ** a_lasts_size_ptr );  //    Get list of linked blocks
+//Get list of hashes
+static void dap_block_parse_str_list(const char * a_hash_str, dap_chain_hash_fast_t *** a_hashes, size_t * a_hash_size);
 
 // Delete iterator
 static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter );                  //    Get the fisrt block
@@ -143,7 +148,7 @@ int dap_chain_cs_blocks_init()
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     s_debug_more = dap_config_get_item_bool_default(g_config, "blocks", "debug_more", false);
     dap_cli_server_cmd_add ("block", s_cli_blocks, "Create and explore blockchains",
-        "New block create, fill and complete commands:"
+        "New block create, fill and complete commands:\n"
             "block -net <net_name> -chain <chain_name> new\n"
                 "\t\tCreate new block and flush memory if was smth formed before\n\n"
 
@@ -159,13 +164,17 @@ int dap_chain_cs_blocks_init()
             "block -net <net_name> -chain <chain_name> new_datum\n\n"
                 "\t\tComplete the current new round, verify it and if everything is ok - publish new blocks in chain\n\n"
 
-        "Blockchain explorer:"
+        "Blockchain explorer:\n"
             "block -net <net_name> -chain <chain_name> dump <block_hash>\n"
                 "\t\tDump block info\n\n"
 
             "block -net <net_name> -chain <chain_name> list [-from_hash <block_hash>] [-to_hash <block_hash>]"
-            "[-from_dt <datetime>] [-to_dt <datetime>]"
-                "\t\t List blocks"
+            "[-from_dt <datetime>] [-to_dt <datetime>]\n"
+                "\t\t List blocks\n\n"
+        "Commission collect:\n"
+            "block -net <net_name> -chain <chain_name> fee collect\n"
+            "-cert <priv_cert_name> -addr <addr> {-hash_one <block_hash> | -hash.<bl_hs,bl_hs,...>} -fee <value>\n"
+                "\t\t Take the whole commission\n\n"
 
                                         );
     if (dap_chain_block_cache_init() != 0){
@@ -211,6 +220,8 @@ int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config
 
     a_chain->callback_atom_find_by_hash = s_callback_atom_iter_find_by_hash;
     a_chain->callback_tx_find_by_hash = s_callback_atom_iter_find_by_tx_hash;
+
+    a_chain->callback_block_find_by_tx_hash = s_callback_block_find_by_tx_hash;
 
     a_chain->callback_add_datums = s_callback_add_datums;
     a_chain->callback_purge = s_callback_cs_blocks_purge;
@@ -338,6 +349,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
         SUBCMD_NEW_COMPLETE,
         SUBCMD_DUMP,
         SUBCMD_LIST,
+        SUBCMD_FEE,
         SUBCMD_DROP
     } l_subcmd={0};
 
@@ -345,20 +357,20 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
         [SUBCMD_NEW_FLUSH]="new",
         [SUBCMD_NEW_DATUM_ADD]="new_datum_add",
         [SUBCMD_NEW_DATUM_DEL]="new_datum_del",
-        [SUBCMD_NEW_DATUM_LIST]="new_datum_del",
+        [SUBCMD_NEW_DATUM_LIST]="new_datum_list",
         [SUBCMD_NEW_COMPLETE]="new_complete",
         [SUBCMD_DUMP]="dump",
         [SUBCMD_LIST]="list",
+        [SUBCMD_FEE]="fee",
         [SUBCMD_DROP]="drop",
         [SUBCMD_UNDEFINED]=NULL
     };
-    const size_t l_subcmd_str_count=sizeof(l_subcmd_strs)/sizeof(*l_subcmd_strs)-1;
+    const size_t l_subcmd_str_count=sizeof(l_subcmd_strs)/sizeof(*l_subcmd_strs);
     const char* l_subcmd_str_args[l_subcmd_str_count];
 	for(size_t i=0;i<l_subcmd_str_count;i++)
         l_subcmd_str_args[i]=NULL;
     const char* l_subcmd_str_arg;
     const char* l_subcmd_str = NULL;
-
 
     int arg_index = 1;
 
@@ -584,7 +596,99 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                 dap_string_free(l_str_tmp, true);
 
         }break;
+        case SUBCMD_FEE:{
+            const char * str_tmp = NULL;
+            const char * l_cert_name = NULL;
+            const char * l_addr_str = NULL;
+            const char * l_hash_out_type = NULL;
+            const char * l_hash_str = NULL;
+            //const char * l_hash_mas_str = NULL;
 
+            uint256_t   l_fee_value = {};
+            size_t l_hashes_count = 0;
+            dap_chain_hash_fast_t   **l_block_hashes = NULL;
+            dap_chain_block_t       *l_block;
+            dap_chain_addr_t        *l_addr = NULL;
+
+            //arg_index++;
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "collect", &str_tmp);
+
+            if(!str_tmp) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block' requires parameter 'fee collect'");
+                return -14;
+            }
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
+            if(!l_hash_out_type)
+                l_hash_out_type = "hex";
+            if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
+                return -15;
+            }
+
+            // Private certificate
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cert", &l_cert_name);
+            // The address of the wallet to which the commission is received
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hashes", &l_hash_str);
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &str_tmp);
+
+            if(!l_addr_str) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block fee collect' requires parameter '-addr'");
+                return -16;
+            }
+            l_addr = dap_chain_addr_from_str(l_addr_str);
+
+            if(!l_cert_name) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block fee collect' requires parameter '-cert'");
+                return -17;
+            }
+            dap_cert_t * l_cert = dap_cert_find_by_name( l_cert_name );
+
+            if( l_cert == NULL ){
+                dap_cli_server_cmd_set_reply_text(a_str_reply,
+                        "Can't find \"%s\" certificate", l_cert_name );
+                return -18;
+            }
+
+            l_fee_value = dap_chain_balance_scan(str_tmp);
+            if(!str_tmp||IS_ZERO_256(l_fee_value)) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block fee collect' requires parameter '-fee' to be valid uint256");
+                return -19;
+            }
+
+            if( l_cert->enc_key == NULL ){
+                dap_cli_server_cmd_set_reply_text(a_str_reply,
+                        "Corrupted certificate \"%s\" without keys certificate", l_cert_name );
+                return -20;
+            }
+            dap_pkey_t *l_pub_key = NULL;
+            if(l_cert) {
+                l_pub_key = dap_pkey_from_enc_key(l_cert->enc_key);
+            }
+
+            if(!l_hash_str){
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block fee collect' requires parameter '-hashes'");
+                return -21;
+            }
+            dap_block_parse_str_list(l_hash_str, &l_block_hashes, &l_hashes_count);
+            if(!l_hashes_count){
+                dap_cli_server_cmd_set_reply_text(a_str_reply,
+                        "Block fee collection requires at least one hash to create a transaction");
+                return -22;
+            }
+            size_t l_block_size = 0;
+            l_block = (dap_chain_block_t*) dap_chain_get_atom_by_hash( l_chain, &l_block_hashes[0], &l_block_size);
+            if(l_block){
+                dap_chain_block_cache_t *l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_block_hashes[0]);
+                if(l_block_cache)
+                {
+                    dap_sign_t * l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
+                    if(dap_pkey_compare_with_sign(l_pub_key, l_sign)){
+                        dap_chain_mempool_tx_coll_fee_create(l_cert->enc_key,l_addr,l_block_cache,l_fee_value,l_hash_out_type);
+                    }
+                }
+            }
+        }break;
         case SUBCMD_UNDEFINED: {
             dap_cli_server_cmd_set_reply_text(a_str_reply,
                                               "Undefined block subcommand \"%s\" ",
@@ -595,6 +699,42 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
     return ret;
 }
 
+static void dap_block_parse_str_list(const char * a_hash_str, dap_chain_hash_fast_t *** a_hashes, size_t * a_hash_size)
+{
+    char * l_hashes_tmp_ptrs = NULL;
+    char * l_hashes_str_dup = strdup(a_hash_str);
+    char *l_hashes_str = strtok_r(l_hashes_str_dup, ",", &l_hashes_tmp_ptrs);
+
+    // First we just calc items
+    while(l_hashes_str) {
+        l_hashes_str = strtok_r(NULL, ",", &l_hashes_tmp_ptrs);
+        (*a_hash_size)++;
+    }    
+    dap_chain_hash_fast_t **l_hashes;
+    *a_hashes = l_hashes = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t*, (*a_hash_size) * sizeof(dap_chain_hash_fast_t*) );
+
+    strcpy(l_hashes_str_dup, a_hash_str);
+    l_hashes_str = strtok_r(l_hashes_str_dup, ",", &l_hashes_tmp_ptrs);
+
+    size_t l_hashes_pos = 0;
+
+    while(l_hashes_str) {
+        l_hashes_str = dap_strstrip(l_hashes_str);
+
+        dap_chain_hash_fast_from_hex_str( l_hashes_str, &l_hashes[l_hashes_pos]);
+
+        if(!l_hashes[l_hashes_pos]) {
+            log_it(L_WARNING,"Can't load hash %s",l_hashes_str);
+            DAP_DELETE(*l_hashes);
+            *l_hashes = NULL;
+            *a_hash_size = 0;
+            break;
+        }
+        l_hashes_str = strtok_r(NULL, ",", &l_hashes_tmp_ptrs);
+    }
+    free(l_hashes_str_dup);
+    return;
+}
 
 /**
  * @brief s_callback_delete
@@ -660,24 +800,25 @@ static int s_add_atom_to_ledger(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t *
         }
         dap_hash_fast_t l_tx_hash;
         int l_res = dap_chain_datum_add(a_blocks->chain, l_datum, l_datum_size, &l_tx_hash);
-        if (!l_res) {
-            l_ret++;
-            if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
-                // Save tx hash -> block_hash link in hash table
-                dap_chain_tx_block_index_t * l_tx_block= DAP_NEW_Z(dap_chain_tx_block_index_t);
-                l_tx_block->ts_added = time(NULL);
-                l_tx_block->block_hash = a_block_cache->block_hash;
-                l_tx_block->tx_hash = l_tx_hash;
-                pthread_rwlock_wrlock( &PVT(a_blocks)->rwlock );
-                HASH_ADD(hh, PVT(a_blocks)->tx_block_index, tx_hash, sizeof(l_tx_block->tx_hash), l_tx_block);
-                pthread_rwlock_unlock( &PVT(a_blocks)->rwlock );
-            }
-        } else {
+        //if (!l_res) {
+        l_ret++;
+        if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
+            // Save tx hash -> block_hash link in hash table
+            dap_chain_tx_block_index_t * l_tx_block= DAP_NEW_Z(dap_chain_tx_block_index_t);
+            l_tx_block->ts_added = time(NULL);
+            l_tx_block->block_hash = a_block_cache->block_hash;
+            l_tx_block->tx_hash = l_tx_hash;
+            l_tx_block->res = l_res;
+            pthread_rwlock_wrlock( &PVT(a_blocks)->rwlock );
+            HASH_ADD(hh, PVT(a_blocks)->tx_block_index, tx_hash, sizeof(l_tx_block->tx_hash), l_tx_block);
+            pthread_rwlock_unlock( &PVT(a_blocks)->rwlock );
+        }
+        //} else {
             /* @RRL: disabled due spaming ...
             debug_if(s_debug_more, L_ERROR, "Can't load datum #%zu (%s) from block %s to ledger: code %d", i,
                      dap_chain_datum_type_id_to_str(l_datum->header.type_id), a_block_cache->block_hash_str, l_res);
             */
-        }
+        //}
     }
     return l_ret;
 }
@@ -999,6 +1140,27 @@ static dap_chain_datum_tx_t* s_callback_atom_iter_find_by_tx_hash(dap_chain_t * 
         dap_chain_block_cache_t *l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_cs_blocks, &l_tx_block_index->block_hash);
         if ( l_block_cache){
             return dap_chain_block_cache_get_tx_by_hash(l_block_cache, a_tx_hash);
+        }else
+            return NULL;
+    }else
+        return NULL;
+}
+
+/**
+ * @brief s_callback_block_find_by_tx_hash
+ * @param a_datums
+ * @param a_tx_hash
+ * @return atom_ptr
+ */
+static dap_chain_atom_ptr_t s_callback_block_find_by_tx_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_tx_hash)
+{
+    dap_chain_cs_blocks_t * l_cs_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_tx_block_index_t * l_tx_block_index = NULL;
+    HASH_FIND(hh, PVT(l_cs_blocks)->tx_block_index,a_tx_hash, sizeof (*a_tx_hash), l_tx_block_index);
+    if (l_tx_block_index){
+        dap_chain_block_cache_t *l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_cs_blocks, &l_tx_block_index->block_hash);
+        if ( l_block_cache){
+            return l_block_cache;
         }else
             return NULL;
     }else

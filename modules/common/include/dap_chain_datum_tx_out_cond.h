@@ -109,17 +109,11 @@ typedef struct dap_chain_tx_out_cond {
             dap_chain_addr_t seller_addr;
         } DAP_ALIGN_PACKED srv_xchange;
         struct {
-            // Stake holder address
-            dap_chain_addr_t hldr_addr;
-            // Fee address
-            dap_chain_addr_t fee_addr;
-            // Fee value in percent (fixed point)
-            uint256_t fee_value;
             // Public key hash of signing certificate combined with net id
             dap_chain_addr_t signing_addr;
             // Node address of signer with this stake
             dap_chain_node_addr_t signer_node_addr;
-        } DAP_ALIGN_PACKED srv_stake;
+        } DAP_ALIGN_PACKED srv_stake_pos_delegate;
         struct {
             dap_time_t		time_unlock;
             dap_hash_fast_t	pkey_delegated;
