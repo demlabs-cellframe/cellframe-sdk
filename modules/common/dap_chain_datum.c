@@ -110,35 +110,35 @@ void s_datum_token_dump_tsd(dap_string_t *a_str_out, dap_chain_datum_token_t *a_
                 dap_string_append_printf(a_str_out,"total_signs_valid: %u\n",
                                          dap_tsd_get_scalar(l_tsd, uint16_t) );
             break;
-            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_ADD :
-                if (dap_sign_verify_size((dap_sign_t*)l_tsd->data, l_tsd->size)) {
-                    if(l_tsd->size == dap_sign_get_size((dap_sign_t*)l_tsd->data)){
-                        dap_chain_hash_fast_t l_pkey_hash = {0};
-                        dap_sign_get_pkey_hash((dap_sign_t*)l_tsd->data, &l_pkey_hash);
-                        char *l_hash_str;
-                        if(!dap_strcmp(a_hash_out_type, "hex") || !dap_strcmp(a_hash_out_type, "content_hash") )
-                            l_hash_str = dap_chain_hash_fast_to_str_new(&l_pkey_hash);
-                        else
-                            l_hash_str = dap_enc_base58_encode_hash_to_str(&l_pkey_hash);
-                        dap_string_append_printf(a_str_out,"total_signs_add: %s\n", l_hash_str);
-                        DAP_DELETE( l_hash_str );
-                    }else
-                        dap_string_append_printf(a_str_out, "total_signs_add: The result of the dap_sign_get_size <%zu> function is not equal to the size <%u> specified in the TSD section.\n", dap_sign_get_size((dap_sign_t*)l_tsd->data), l_tsd->size);
-                } else {
-                    dap_string_append_printf(a_str_out,"total_signs_add: <WRONG SIZE %u>\n", l_tsd->size);
-                }
-            break;
-            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_REMOVE :
-                if(l_tsd->size == sizeof(dap_chain_hash_fast_t) ){
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD :
+                if(l_tsd->size >= sizeof(dap_pkey_t) ){
                     char *l_hash_str;
+                    dap_pkey_t *l_pkey = (dap_pkey_t*)l_tsd->data;
+                    dap_hash_fast_t l_hf = {0};
+                    if (!dap_pkey_get_hash(l_pkey, &l_hf)) {
+                        dap_string_append_printf(a_str_out,"total_pkeys_add: <WRONG CALCULATION FINGERPRINT>\n");
+                    } else {
+                        if (!dap_strcmp(a_hash_out_type, "hex") || !dap_strcmp(a_hash_out_type, "content_hash"))
+                            l_hash_str = dap_chain_hash_fast_to_str_new(&l_hf);
+                        else
+                            l_hash_str = dap_enc_base58_encode_hash_to_str(&l_hf);
+                        dap_string_append_printf(a_str_out, "total_pkeys_add: %s\n", l_hash_str);
+                        DAP_DELETE(l_hash_str);
+                    }
+                }else
+                    dap_string_append_printf(a_str_out,"total_pkeys_add: <WRONG SIZE %u>\n", l_tsd->size);
+            break;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE :
+                if(l_tsd->size == sizeof(dap_chain_hash_fast_t) ){
+                    const char *l_hash_str = NULL;
                     if(!dap_strcmp(a_hash_out_type,"hex")|| !dap_strcmp(a_hash_out_type, "content_hash"))
                         l_hash_str = dap_chain_hash_fast_to_str_new((dap_chain_hash_fast_t*) l_tsd->data);
                     else
                         l_hash_str = dap_enc_base58_encode_hash_to_str((dap_chain_hash_fast_t*) l_tsd->data);
-                    dap_string_append_printf(a_str_out,"total_signs_remove: %s\n", l_hash_str );
+                    dap_string_append_printf(a_str_out,"total_pkeys_remove: %s\n", l_hash_str );
                     DAP_DELETE( l_hash_str );
                 }else
-                    dap_string_append_printf(a_str_out,"total_signs_add: <WRONG SIZE %u>\n", l_tsd->size);
+                    dap_string_append_printf(a_str_out,"total_pkeys_remove: <WRONG SIZE %u>\n", l_tsd->size);
             break;
 			case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK: {
 				char *balance = NULL;

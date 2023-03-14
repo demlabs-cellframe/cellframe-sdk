@@ -75,6 +75,42 @@ dap_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token_t *a_token, size_
     return (dap_tsd_t *)a_token->data_n_tsd;
 }
 
+/**
+ * @breif dap_chain_datum_token_get_tsd_signs
+ * @param a_token
+ * @param a_token_size
+ * @param a_tsd_count
+ * @return
+ */
+dap_tsd_t **dap_chain_datum_token_get_tsd_signs(dap_chain_datum_token_t *a_token, size_t a_token_size, size_t *a_tsd_count){
+    dap_tsd_t **l_tsd_signs = NULL;
+    dap_tsd_t * l_tsd = dap_chain_datum_token_tsd_get(a_token, a_token_size);
+    size_t l_tsd_size = 0;
+    size_t l_tsd_total_size = 0;
+    if (a_token->type  == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)
+        l_tsd_total_size = a_token->header_native_update.tsd_total_size;
+    else if (a_token->type  == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE)
+        l_tsd_total_size = a_token->header_native_update.tsd_total_size;
+    else
+        return NULL;
+    size_t l_total_tsd_sign_size = 0;
+    size_t l_tsd_count = 0;
+
+    for( size_t l_offset=0; l_offset < l_tsd_total_size;  l_offset += l_tsd_size ) {
+        l_tsd = (dap_tsd_t *) (((byte_t *) l_tsd) + l_tsd_size);
+        l_tsd_size = l_tsd ? dap_tsd_size(l_tsd) : 0;
+        if( l_tsd_size==0 ){
+                log_it(L_ERROR,"Wrong zero TSD size, exiting TSD parse");
+            break;
+        }else if (l_tsd_size + l_offset > l_tsd_total_size ){
+                log_it(L_ERROR,"Wrong %zd TSD size, exiting TSD parse", l_tsd_size);
+            break;
+        }
+    }
+    (*a_tsd_count) = l_tsd_count;
+    return l_tsd_signs;
+}
+
 dap_chain_datum_token_t *dap_chain_datum_token_read(byte_t *a_token_serial, size_t *a_token_size) {
     switch (((dap_chain_datum_token_t*)a_token_serial)->type) {
     case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE: {

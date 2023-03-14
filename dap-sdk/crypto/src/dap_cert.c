@@ -91,6 +91,11 @@ int dap_cert_init() // TODO deinit too
  */
 size_t dap_cert_parse_str_list(const char * a_certs_str, dap_cert_t *** a_certs, size_t * a_certs_size)
 {
+    if (!a_certs_str) {
+        *a_certs = NULL;
+        *a_certs_size = 0;
+        return 0;
+    }
     char * l_certs_tmp_ptrs = NULL;
     char * l_certs_str_dup = strdup(a_certs_str);
     char *l_cert_str = strtok_r(l_certs_str_dup, ",", &l_certs_tmp_ptrs);

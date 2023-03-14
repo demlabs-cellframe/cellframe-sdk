@@ -168,7 +168,7 @@ const char * dap_sign_type_to_str(dap_sign_type_t a_chain_sign_type)
  * @param a_pkey_type dap_pkey_type_t key type
  * @return dap_sign_type_t 
  */
-dap_sign_type_t dap_pkey_type_from_sign( dap_pkey_type_t a_pkey_type)
+dap_sign_type_t dap_sign_type_from_pkey_type( dap_pkey_type_t a_pkey_type)
 {
     switch (a_pkey_type.type){
     case PKEY_TYPE_SIGN_BLISS:  return (dap_sign_type_t){ .type = SIG_TYPE_BLISS };
@@ -428,6 +428,14 @@ bool dap_sign_match_pkey_signs(dap_sign_t *l_sign1, dap_sign_t *l_sign2)
             return true;
     }
     return false;
+}
+
+dap_pkey_t *dap_sign_get_pkey_deserialization(dap_sign_t *a_sign){
+    dap_pkey_t *l_pkey = DAP_NEW_SIZE(dap_pkey_t, sizeof(dap_pkey_t) + a_sign->header.sign_pkey_size);
+    l_pkey->header.size = a_sign->header.sign_pkey_size;
+    l_pkey->header.type = dap_pkey_type_from_sign_type(a_sign->header.type);
+    memcpy(l_pkey->pkey, a_sign->pkey_n_sign, l_pkey->header.size);
+    return l_pkey;
 }
 
 /**
