@@ -166,7 +166,7 @@ typedef struct dap_chain {
     dap_chain_callback_atom_iter_find_by_hash_t callback_atom_find_by_hash;
     dap_chain_callback_tx_find_by_hash_t callback_tx_find_by_hash;
 
-    dap_chain_callback_block_find_by_hash_t callback_block_find_by_hash;
+    dap_chain_callback_block_find_by_hash_t callback_block_find_by_tx_hash;
 
     dap_chain_callback_atom_iter_get_next_t callback_atom_iter_get_next;
     dap_chain_callback_atom_iter_get_atoms_t callback_atom_iter_get_links;

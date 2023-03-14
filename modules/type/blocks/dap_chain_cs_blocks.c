@@ -221,7 +221,7 @@ int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config
     a_chain->callback_atom_find_by_hash = s_callback_atom_iter_find_by_hash;
     a_chain->callback_tx_find_by_hash = s_callback_atom_iter_find_by_tx_hash;
 
-    a_chain->callback_block_find_by_hash = s_callback_block_find_by_tx_hash;
+    a_chain->callback_block_find_by_tx_hash = s_callback_block_find_by_tx_hash;
 
     a_chain->callback_add_datums = s_callback_add_datums;
     a_chain->callback_purge = s_callback_cs_blocks_purge;

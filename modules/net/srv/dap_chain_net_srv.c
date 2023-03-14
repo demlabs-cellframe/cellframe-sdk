@@ -625,8 +625,8 @@ static bool s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_hash_fast_t 
 
     l_chain = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_CA );
 
-    //l_tx = l_chain->callback_tx_find_by_hash(l_chain, a_tx_out_hash);
-    l_block_cache = l_chain->callback_block_find_by_hash(l_chain,a_tx_out_hash);
+    //l_tx = l_chain->callback_tx_find_by_hash(l_chain, a_tx_out_hash);    
+    l_block_cache = l_chain->callback_block_find_by_tx_hash(l_chain,a_tx_out_hash);
     l_sign_block = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
     //dap_chain_hash_fast_t l_pkey_hash;
     //dap_sign_get_pkey_hash(l_sign_block, &l_pkey_hash);
