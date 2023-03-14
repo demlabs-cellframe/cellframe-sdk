@@ -574,7 +574,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         log_it(L_WARNING, "Requested conditional transaction not found");
         return NULL;
     }
-    int l_prev_cond_idx = 0;
+    int l_prev_cond_idx = -1;
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
                                                                              &l_prev_cond_idx);
     if (!l_tx_out_cond) {
@@ -774,7 +774,7 @@ static bool s_xchange_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price, 
     }
     const char *l_tx_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &a_price->tx_hash);
     bool l_single_channel = !dap_strcmp(l_tx_ticker, l_native_ticker);
-    int l_prev_cond_idx;
+    int l_prev_cond_idx = -1;
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
                                                                              &l_prev_cond_idx);
     if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &a_price->tx_hash, l_prev_cond_idx)) {
@@ -1450,7 +1450,7 @@ static bool s_filter_tx_list(dap_chain_datum_t *a_datum, dap_chain_t *a_chain, v
  */
 static int s_tx_check_for_open_close(dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx)
 {
-    int l_cond_idx = 0;
+    int l_cond_idx = -1;
     dap_hash_fast_t l_tx_hash = {0};
     size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
     dap_hash_fast(a_tx, l_tx_size, &l_tx_hash);
@@ -1490,7 +1490,7 @@ static void s_string_append_tx_cond_info( dap_string_t * a_reply_str, dap_chain_
 
 
     // Find SRV_XCHANGE out_cond item
-    int l_cond_idx = 0;
+    int l_cond_idx = -1;
     dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
                                                                                &l_cond_idx);
     bool l_is_cond_out = false;
@@ -1904,7 +1904,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                                 l_net->pub.ledger, &l_tx_hash);
 
                     // Find SRV_XCHANGE out_cond item
-                    int l_prev_cond_idx = 0;
+                    int l_prev_cond_idx = -1;
                     dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_out_cond_get(l_datum_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
                                                                                                &l_prev_cond_idx);
                     if (l_out_cond_item) {
@@ -2033,7 +2033,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                                 DAP_DEL_Z(l_tx_hash);
                                 continue;
                             }
-                            int l_cond_idx = 0;
+                            int l_cond_idx = -1;
                             dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
                                                                                                        &l_cond_idx);
                             if (l_out_cond_item &&
