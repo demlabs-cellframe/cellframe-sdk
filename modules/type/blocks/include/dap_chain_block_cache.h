@@ -26,6 +26,7 @@
 #include "dap_sign.h"
 #include "dap_hash.h"
 #include "uthash.h"
+#include "dap_chain_ledger.h"
 
 typedef struct dap_chain_cs_blocks dap_chain_cs_blocks_t;
 
@@ -93,4 +94,8 @@ dap_chain_block_cache_t *dap_chain_block_cache_dup(dap_chain_block_cache_t *a_bl
 int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_hash_fast_t *a_block_hash);
 void dap_chain_block_cache_delete(dap_chain_block_cache_t *a_block_cache);
 dap_chain_datum_tx_t *dap_chain_block_cache_get_tx_by_hash(dap_chain_block_cache_t *a_block_cache, dap_chain_hash_fast_t *a_tx_hash);
+// Get the list of 'out_cond' items from previous transactions with summary out value
+// Put this summary value to a_value_out
+dap_list_t * dap_chain_block_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledger,dap_chain_block_cache_t * a_block_cache,uint256_t *a_value_out);
+
 
