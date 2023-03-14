@@ -65,7 +65,6 @@
 #include "json-c/json_object.h"
 #include "dap_notify_srv.h"
 #include "dap_chain_net_tx.h"
-#include "dap_chain_net_srv.h"
 
 #define LOG_TAG "dap_chain_ledger"
 
@@ -254,6 +253,7 @@ typedef struct dap_ledger_private {
 
     bool load_mode;
     bool cached;
+    dap_chain_ledger_cache_tx_check_callback_t cache_tx_check_callback;
     // TPS section
     dap_timerfd_t *tps_timer;
     struct timespec tps_start_time;
@@ -261,8 +261,8 @@ typedef struct dap_ledger_private {
     struct timespec tps_end_time;
     size_t tps_count;
     // Threshold fee
-    dap_timerfd_t *threshold_txs_fee_timer;
-    dap_timerfd_t *threshold_emissions_fee_timer;
+    dap_timerfd_t *threshold_txs_free_timer;
+    dap_timerfd_t *threshold_emissions_free_timer;
 } dap_ledger_private_t;
 #define PVT(a) ( (dap_ledger_private_t* ) a->_internal )
 
@@ -338,9 +338,9 @@ static dap_ledger_t * dap_chain_ledger_handle_new(void)
     pthread_rwlock_init(&l_ledger_pvt->threshold_emissions_rwlock , NULL);
     pthread_rwlock_init(&l_ledger_pvt->balance_accounts_rwlock , NULL);
     pthread_rwlock_init(&l_ledger_pvt->stake_lock_rwlock, NULL);
-    l_ledger_pvt->threshold_txs_fee_timer = dap_interval_timer_create(s_threshold_free_timer_tick,
+    l_ledger_pvt->threshold_txs_free_timer = dap_interval_timer_create(s_threshold_free_timer_tick,
                                                                       (dap_timer_callback_t)s_threshold_txs_free, l_ledger);
-    l_ledger_pvt->threshold_emissions_fee_timer = dap_interval_timer_create(s_threshold_free_timer_tick,
+    l_ledger_pvt->threshold_emissions_free_timer = dap_interval_timer_create(s_threshold_free_timer_tick,
                                                                             (dap_timer_callback_t) s_threshold_emission_free, l_ledger);
     return l_ledger;
 }
@@ -3791,12 +3791,8 @@ static inline int s_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, d
                     break;
                 }
                 if (!IS_ZERO_256(l_token_item->total_supply)) {
-                    dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t*)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_OUT, 0);
-//                    dap_chain_tx_out_ext_t *l_tx_out_ext = (dap_chain_tx_out_ext_t*)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_OUT_EXT, 0);
-//                    uint256_t tmp = l_tx_out ? l_tx_out->header.value : l_tx_out_ext->header.value;
-                    uint256_t l_value_tmp = bound_item->stake_lock_item->ems_value;
-                    //SUBTRACT_256_256(l_token_item->current_supply, l_tx_out->header.value, &l_token_item->current_supply);
-                    SUBTRACT_256_256(l_token_item->current_supply, l_value_tmp, &l_token_item->current_supply);
+                    SUBTRACT_256_256(l_token_item->current_supply, bound_item->stake_lock_item->ems_value,
+                                     &l_token_item->current_supply);
                     char *l_balance = dap_chain_balance_print(l_token_item->current_supply);
                     log_it(L_DEBUG, "New current supply %s for token %s", l_balance, l_token_item->ticker);
                     DAP_DEL_Z(l_balance);
@@ -4110,8 +4106,10 @@ int dap_chain_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
     dap_chain_hash_fast_t l_tx_hash;
     dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_tx_hash);
     if (a_tx_hash)
-        memcpy(a_tx_hash, &l_tx_hash, sizeof(l_tx_hash));
+        *a_tx_hash = l_tx_hash;
     if (PVT(a_ledger)->load_mode) {
+        if (PVT(a_ledger)->cache_tx_check_callback)
+            PVT(a_ledger)->cache_tx_check_callback(&l_tx_hash);
         dap_chain_ledger_tx_item_t *l_tx_item;
         unsigned l_hash_value;
         HASH_VALUE(&l_tx_hash, sizeof(dap_chain_hash_fast_t), l_hash_value);
@@ -4167,7 +4165,6 @@ int dap_chain_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_
         if (!l_item_used) {   // Add it to spent items
             l_item_used = DAP_NEW_Z(dap_chain_ledger_tx_spent_item_t);
             l_item_used->tx_hash_fast = *a_tx_hash;
-            int l_len = strnlen(l_item_tmp->cache_data.token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
             l_item_used->cache_data.spent_time = a_spent_time;
             strncpy(l_item_used->cache_data.token_ticker, l_item_tmp->cache_data.token_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
             int l_out_num = -1;
@@ -5018,4 +5015,14 @@ void dap_chain_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_chain_ledger_tx_
     l_notifier->callback = a_callback;
     l_notifier->arg = a_arg;
     a_ledger->tx_add_notifiers = dap_list_append(a_ledger->tx_add_notifiers, l_notifier);
+}
+
+bool dap_chain_ledger_cache_enabled(dap_ledger_t *a_ledger)
+{
+    return PVT(a_ledger)->cached;
+}
+
+void dap_chain_ledger_set_cache_tx_check_callback(dap_ledger_t *a_ledger, dap_chain_ledger_cache_tx_check_callback_t a_callback)
+{
+    PVT(a_ledger)->cache_tx_check_callback = a_callback;
 }
