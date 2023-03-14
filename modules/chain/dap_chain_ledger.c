@@ -2052,15 +2052,12 @@ dap_ledger_t* dap_chain_ledger_create(uint16_t a_check_flags, char *a_net_name)
     l_ledger_priv->tps_count = 0;
 
 #ifndef DAP_CHAIN_LEDGER_TEST
-    l_ledger_priv->cached = dap_config_get_item_bool_default(g_config, "ledger", "cache_enabled", true);
-    if ( l_ledger_priv->cached ) {
-        dap_chain_node_role_t l_role = dap_chain_net_get_role(l_ledger_priv->net);
-        if (l_role.enums != NODE_ROLE_MASTER && l_role.enums != NODE_ROLE_ROOT) {
-            // load ledger cache from GDB
-            dap_chain_ledger_load_cache(l_ledger);
-
-    }
-}
+    dap_chain_node_role_t l_role = dap_chain_net_get_role(l_ledger_priv->net);
+    if (l_role.enums != NODE_ROLE_MASTER && l_role.enums != NODE_ROLE_ROOT)
+        l_ledger_priv->cached = dap_config_get_item_bool_default(g_config, "ledger", "cache_enabled", true);
+    if ( l_ledger_priv->cached )
+        // load ledger cache from GDB
+        dap_chain_ledger_load_cache(l_ledger);
 #endif
 
     return l_ledger;
@@ -3901,8 +3898,10 @@ static inline int s_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, d
                 .key        = l_tx_i_hash,
                 .value      = l_tx_cache,
                 .value_len  = l_tx_cache_sz,
-                .group      = l_gdb_group
+                .group      = l_gdb_group,
+                .type       = DAP_DB$K_OPTYPE_ADD
         };
+        l_cache_used_outs[i].timestamp = dap_nanotime_now();
 
         // delete previous transactions from cache because all out is used
         if(l_prev_item_out->cache_data.n_outs_used == l_prev_item_out->cache_data.n_outs) {
@@ -4065,8 +4064,10 @@ static inline int s_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, d
                 .key        = l_tx_hash_str,
                 .value      = l_tx_cache,
                 .value_len  = l_tx_cache_sz,
-                .group      = l_gdb_group
+                .group      = l_gdb_group,
+                .type       = DAP_DB$K_OPTYPE_ADD
         };
+        l_cache_used_outs[0].timestamp = dap_nanotime_now();
         // Apply it with single DB transaction
         if (dap_global_db_set_raw(l_cache_used_outs, l_outs_used + 1, NULL, NULL))
             debug_if(s_debug_more, L_WARNING, "Ledger cache mismatch");

@@ -90,8 +90,8 @@ typedef struct dap_chain_esbocs_pvt {
     uint16_t round_attempts_max;
     uint16_t round_attempt_timeout;
     // PoA section
-    dap_list_t *poa_validators;
-    uint256_t minimum_commission;    
+    dap_list_t *poa_validators;  
+    uint256_t minimum_fee;
 } dap_chain_esbocs_pvt_t;
 
 #define PVT(a) ((dap_chain_esbocs_pvt_t *)a->_pvt)
@@ -140,7 +140,6 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_esbocs_pvt->new_round_delay = dap_config_get_item_uint16_default(a_chain_cfg, "esbocs", "new_round_delay", 10);
     l_esbocs_pvt->round_attempts_max = dap_config_get_item_uint16_default(a_chain_cfg, "esbocs", "round_attempts_max", 4);
     l_esbocs_pvt->round_attempt_timeout = dap_config_get_item_uint16_default(a_chain_cfg, "esbocs", "round_attempt_timeout", 10);
-    l_esbocs_pvt->minimum_commission = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_cfg, "esbocs", "minimum_commission", "1.0"));
 
     int l_ret = 0;
     l_esbocs_pvt->min_validators_count = dap_config_get_item_uint16(a_chain_cfg, "esbocs", "min_validators_count");
@@ -218,11 +217,14 @@ static void s_new_atom_notifier(void *a_arg, UNUSED_ARG dap_chain_t *a_chain, UN
     pthread_mutex_unlock(&l_session->mutex);
 }
 
-static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cfg) {
+static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cfg)
+{
 
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
+
+    l_esbocs_pvt->minimum_fee = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "minimum_fee", "1.0"));
 
     const char *l_sign_cert_str = NULL;
     if ((l_sign_cert_str = dap_config_get_item_str(a_chain_net_cfg, "esbocs", "blocks-sign-cert")) != NULL) {
@@ -290,7 +292,7 @@ static bool s_callback_check_tx_fee(dap_chain_t *a_chain, uint256_t l_fee)
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
 
-    if (compare256(l_fee, l_esbocs_pvt->minimum_commission) < 0)
+    if (compare256(l_fee, l_esbocs_pvt->minimum_fee) < 0)
         return false;
 
     return true;
