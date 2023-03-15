@@ -146,6 +146,7 @@ endif()
 
 if(WIN32)
     message(STATUS "[*] Building for Windows")
+    add_definitions ("-DDAP_OS_WINDOWS")
     add_definitions ("-DUNDEBUG")
     add_definitions ("-DWIN32")
     add_definitions ("-D_WINDOWS")
@@ -157,7 +158,8 @@ if(WIN32)
     add_definitions("-DHAVE_STRNDUP")
     add_definitions("-DNGHTTP2_STATICLIB")
     add_compile_definitions(WINVER=0x0600 _WIN32_WINNT=0x0600)
-    add_definitions ("-DDAP_OS_WINDOWS")
+    add_compile_definitions(__USE_MINGW_ANSI_STDIO=1)
+
     set(CCOPT_SYSTEM "")
     set(LDOPT_SYSTEM "")
 
