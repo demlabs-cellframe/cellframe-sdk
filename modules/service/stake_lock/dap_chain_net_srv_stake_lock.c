@@ -545,19 +545,23 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 
 	dap_chain_datum_tx_add_out_item(&l_tx, l_owner_addr, l_tx_out_cond->header.value);
 
-	//add burning tx
-    if (l_tx_out_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX) {
-        dap_chain_addr_t l_addr_blank = {0};
-		if (NULL == (l_datum_burning_tx = dap_chain_burning_tx_create(l_chain, l_owner_key, l_owner_addr, &l_addr_blank,
-																  delegate_ticker_str, l_value_delegated))) {//malloc
-			dap_chain_wallet_close(l_wallet);
-			DAP_DEL_Z(l_owner_addr);
-			dap_chain_datum_tx_delete(l_tx);
-			return CREATE_BURNING_TX_ERROR;
-		}
 
-		//get tx hash
-		dap_hash_fast(l_datum_burning_tx->data, l_datum_burning_tx->header.data_size, &l_tx_burning_hash);
+    if (l_tx_out_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX) {
+        if (dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-tx_burning", &l_tx_burning_str) && l_tx_burning_str) {
+            /* A secret param with already present burning tx was provided */
+            dap_chain_hash_fast_from_hex_str(l_tx_burning_str, &l_tx_burning_hash);
+        } else {
+            /* Create a burning tx */
+            dap_chain_addr_t l_addr_blank = {0};
+            if (NULL == (l_datum_burning_tx = dap_chain_burning_tx_create(l_chain, l_owner_key, l_owner_addr, &l_addr_blank,
+                                                                          delegate_ticker_str, l_value_delegated))) {
+                dap_chain_wallet_close(l_wallet);
+                DAP_DEL_Z(l_owner_addr);
+                dap_chain_datum_tx_delete(l_tx);
+                return CREATE_BURNING_TX_ERROR;
+            }
+            dap_hash_fast(l_datum_burning_tx->data, l_datum_burning_tx->header.data_size, &l_tx_burning_hash);
+        }
 
 		if (NULL == (l_receipt = s_receipt_create(&l_tx_burning_hash, delegate_ticker_str, l_value_delegated))) {
 			dap_chain_wallet_close(l_wallet);
