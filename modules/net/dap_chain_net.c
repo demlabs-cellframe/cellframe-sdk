@@ -1533,10 +1533,8 @@ static void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
     DL_FOREACH(l_net->pub.chains, l_chain) {
         if (l_chain->callback_purge)
             l_chain->callback_purge(l_chain);
-        if (!strcmp(DAP_CHAIN_PVT(l_chain)->cs_name, "none"))
-            dap_chain_gdb_ledger_load((char *)dap_chain_gdb_get_group(l_chain), l_chain);
-        else
-            dap_chain_load_all(l_chain);
+        dap_chain_ledger_set_fee(l_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
+        dap_chain_load_all(l_chain);
     }
     DL_FOREACH(l_net->pub.chains, l_chain) {
         if (l_chain->callback_atom_add_from_treshold) {
@@ -1823,7 +1821,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 // Network fee
                 uint256_t l_network_fee = {};
                 dap_chain_addr_t l_network_fee_addr = {};
-                dap_chain_net_tx_get_fee(l_net->pub.id, NULL, &l_network_fee, &l_network_fee_addr);
+                dap_chain_net_tx_get_fee(l_net->pub.id, &l_network_fee, &l_network_fee_addr);
                 char *l_network_fee_balance_str = dap_chain_balance_print(l_network_fee);
                 char *l_network_fee_coins_str = dap_chain_balance_to_coins(l_network_fee);
                 char *l_network_fee_addr_str = dap_chain_addr_to_str(&l_network_fee_addr);
@@ -2208,8 +2206,6 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         HASH_ADD(hh,s_net_items_ids,net_id,sizeof ( l_net_item2->net_id),l_net_item2);
         pthread_rwlock_unlock(&s_net_ids_rwlock);
 
-
-
         // LEDGER model
         uint16_t l_ledger_flags = 0;
         switch ( PVT( l_net )->node_role.enums ) {
@@ -2223,9 +2219,11 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
             case NODE_ROLE_FULL:
             case NODE_ROLE_LIGHT:
                 l_ledger_flags |= DAP_CHAIN_LEDGER_CHECK_LOCAL_DS;
+                if (dap_config_get_item_bool_default(g_config, "ledger", "cache_enabled", true))
+                    l_ledger_flags |= DAP_CHAIN_LEDGER_CACHE_ENABLED;
         }
         // init LEDGER model
-        l_net->pub.ledger = dap_chain_ledger_create(l_ledger_flags, l_net->pub.name);
+        l_net->pub.ledger = dap_chain_ledger_create(l_ledger_flags, l_net->pub.name, l_net->pub.native_ticker);
         // Check if seed nodes are present in local db alias
         char **l_seed_aliases = dap_config_get_array_str(l_cfg, "general", "seed_nodes_aliases",
                                                          &l_net_pvt->seed_aliases_count);
@@ -2548,6 +2546,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
             // load chains
             l_chain = l_net->pub.chains;
             while(l_chain){
+                dap_chain_ledger_set_fee(l_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
                 if (dap_chain_load_all(l_chain) == 0)
                     log_it (L_NOTICE, "Loaded chain files");
                 else {

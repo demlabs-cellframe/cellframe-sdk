@@ -100,8 +100,9 @@ typedef dap_list_t *(*dap_chain_callback_get_list)(dap_chain_t *a_chain, size_t 
 typedef dap_list_t *(*dap_chain_callback_get_poa_certs)(dap_chain_t *a_chain, size_t *a_auth_certs_count, uint16_t *count_verify);
 typedef void (*dap_chain_callback_set_min_validators_count)(dap_chain_t *a_chain,  uint16_t a_new_value);
 
-
 typedef bool (*dap_chain_callback_check_tx_fee)(dap_chain_t *a_chain,  uint256_t fee_value);
+
+typedef void (*dap_chain_callback_load_from_gdb)(dap_chain_t *a_chain);
 
 typedef enum dap_chain_type
 {
@@ -182,6 +183,8 @@ typedef struct dap_chain {
     dap_chain_callback_set_min_validators_count callback_set_min_validators_count;
 
     dap_chain_callback_check_tx_fee callback_check_tx_fee;
+
+    dap_chain_callback_load_from_gdb callback_load_from_gdb;
 
     dap_list_t * atom_notifiers;
 //    dap_chain_callback_notify_t callback_notify;

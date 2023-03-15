@@ -94,6 +94,7 @@ static dap_chain_datum_t **s_chain_callback_atom_get_datum(dap_chain_atom_ptr_t 
 static dap_time_t s_chain_callback_atom_get_timestamp(dap_chain_atom_ptr_t a_atom) { return ((dap_chain_datum_t *)a_atom)->header.ts_create; }
 static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums,
         size_t a_datums_size);
+static void s_chain_gdb_ledger_load(dap_chain_t *a_chain);
 
 /**
  * @brief stub for consensus
@@ -185,12 +186,8 @@ int dap_chain_gdb_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     // Add group prefix that will be tracking all changes
     dap_global_db_add_sync_group(l_net->pub.name, "chain-gdb", s_history_callback_notify, l_gdb);
 
-    // load ledger
-    l_gdb_priv->is_load_mode = true;
     pthread_cond_init(&l_gdb_priv->load_cond, NULL);
     pthread_mutex_init(&l_gdb_priv->load_mutex, NULL);
-
-    dap_chain_gdb_ledger_load(l_gdb_priv->group_datums, a_chain);
 
     a_chain->callback_delete = dap_chain_gdb_delete;
     a_chain->callback_purge = s_dap_chain_gdb_callback_purge;
@@ -215,6 +212,8 @@ int dap_chain_gdb_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     a_chain->callback_atom_iter_get_lasts = s_chain_callback_atom_iter_get_lasts;
     a_chain->callback_atom_get_datums = s_chain_callback_atom_get_datum;
     a_chain->callback_atom_get_timestamp = s_chain_callback_atom_get_timestamp;
+
+    a_chain->callback_load_from_gdb = s_chain_gdb_ledger_load;
 
     return 0;
 }
@@ -311,18 +310,18 @@ static void s_ledger_load_callback(dap_global_db_context_t *a_global_db_context,
  * @param a_chain chain dap_chain_t object
  * @return int return 0 if OK otherwise  negative error code
  */
-int dap_chain_gdb_ledger_load(char *a_gdb_group, dap_chain_t *a_chain)
+static void s_chain_gdb_ledger_load(dap_chain_t *a_chain)
 {
     dap_chain_gdb_t * l_gdb = DAP_CHAIN_GDB(a_chain);
     dap_chain_gdb_private_t * l_gdb_pvt = PVT(l_gdb);
+    // load ledger
+    l_gdb_pvt->is_load_mode = true;
     //  Read the entire database into an array of size bytes
     pthread_mutex_lock(&l_gdb_pvt->load_mutex);
-    dap_global_db_get_all(a_gdb_group, 0, s_ledger_load_callback, a_chain);
+    dap_global_db_get_all(l_gdb_pvt->group_datums, 0, s_ledger_load_callback, a_chain);
     while (l_gdb_pvt->is_load_mode)
         pthread_cond_wait(&l_gdb_pvt->load_cond, &l_gdb_pvt->load_mutex);
     pthread_mutex_unlock(&l_gdb_pvt->load_mutex);
-
-    return 0;
 }
 
 /**
