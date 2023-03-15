@@ -13,12 +13,14 @@ dap_chain_datum_token_t  *dap_chain_ledger_test_create_datum_decl(dap_cert_t *a_
                                                                   const char *a_token_ticker, uint256_t a_total_supply,
                                                                   byte_t *a_tsd_section, size_t a_size_tsd_section, uint16_t flags) {
     dap_chain_datum_token_t *l_token = DAP_NEW_Z(dap_chain_datum_token_t);
-    l_token->type = DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL;
+    l_token->version = 2;
+    l_token->type = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL;
+    l_token->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE;
     dap_snprintf(l_token->ticker, sizeof(l_token->ticker), "%s", a_token_ticker);
     l_token->signs_valid = 1;
     l_token->total_supply = a_total_supply;
     l_token->header_native_decl.decimals = 18;
-    l_token->signs_total = 1;
+    l_token->signs_total = 0;
     l_token->header_native_decl.flags = flags;
     if (a_tsd_section && a_size_tsd_section != 0) {
         l_token->header_native_decl.tsd_total_size = a_size_tsd_section;
@@ -26,12 +28,13 @@ dap_chain_datum_token_t  *dap_chain_ledger_test_create_datum_decl(dap_cert_t *a_
         memcpy(l_token->data_n_tsd, a_tsd_section, a_size_tsd_section);
     }
     dap_sign_t * l_sign = dap_cert_sign(a_cert,l_token,
-                                        sizeof(*l_token) - sizeof(uint16_t), 0);
+                                        sizeof(*l_token) + a_size_tsd_section, 0);
     if (l_sign) {
         size_t l_sign_size = dap_sign_get_size(l_sign);
         l_token = DAP_REALLOC(l_token, sizeof(dap_chain_datum_token_t) + a_size_tsd_section + l_sign_size);
         memcpy(l_token->data_n_tsd + a_size_tsd_section, l_sign, l_sign_size);
         DAP_DELETE(l_sign);
+        l_token->signs_total = 1;
         *a_token_size = sizeof(dap_chain_datum_token_t) + l_sign_size + a_size_tsd_section;
         return l_token;
     } else {

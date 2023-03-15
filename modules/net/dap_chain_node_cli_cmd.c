@@ -2204,14 +2204,17 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
     }
 
     size_t l_tsd_size = 0;
-    if ((l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL)
-        ||  (l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL))
+    if ((l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_DECL) &&
+            ((l_datum_token->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE)
+            ||(l_datum_token->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE)))
         l_tsd_size = l_datum_token->header_native_decl.tsd_total_size;
+    uint16_t l_tmp_cert_sign_count = l_datum_token->signs_total;
+    l_datum_token->signs_total = 0;
 
     for(size_t i = 0; i < l_certs_count; i++)
     {
         dap_sign_t * l_sign = dap_cert_sign(l_certs[i],  l_datum_token,
-           sizeof(*l_datum_token) - sizeof(uint16_t), 0);
+           sizeof(*l_datum_token) + l_tsd_size, 0);
 
         if (l_sign) {
             size_t l_sign_size = dap_sign_get_size(l_sign);
@@ -2223,6 +2226,7 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
             (*l_sign_counter)++;
         }
     }
+    l_datum_token->signs_total = l_tmp_cert_sign_count;
 
     return l_datum_token;
 }
@@ -2314,8 +2318,8 @@ int com_token_decl_sign(int a_argc, char **a_argv, char ** a_str_reply)
             if(l_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN_DECL) {
                 dap_chain_datum_token_t *l_datum_token = DAP_DUP_SIZE(l_datum->data, l_datum->header.data_size);    // for realloc
                 DAP_DELETE(l_datum);
-                if ((l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL)
-                    ||  (l_datum_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL))
+                if ((l_datum_token->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE)
+                    ||  (l_datum_token->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE))
                     l_tsd_size = l_datum_token->header_native_decl.tsd_total_size;
                 // Check for signatures, are they all in set and are good enought?
                 size_t l_signs_size = 0, i = 1;
@@ -3012,6 +3016,7 @@ typedef struct _dap_sdk_cli_params {
     dap_chain_t *chain;
     dap_chain_net_t *net;
     uint16_t type;
+    uint16_t subtype;
     uint16_t signs_total;
     uint16_t signs_emission;
     uint256_t total_supply;
@@ -3021,7 +3026,7 @@ typedef struct _dap_sdk_cli_params {
 
 static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_str_reply, dap_sdk_cli_params* a_params, bool a_update_token)
 {
-    a_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE;
+    a_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL;
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-H", &a_params->hash_out_type);
     if(!a_params->hash_out_type)
         a_params->hash_out_type = "hex";
@@ -3053,15 +3058,20 @@ static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_s
 
     if (a_params->type_str) {
         if (strcmp(a_params->type_str, "private") == 0) {
-            a_params->type = a_update_token ? DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE : DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL; // 256
+            a_params->type = a_update_token ? DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE : DAP_CHAIN_DATUM_TOKEN_TYPE_DECL; // 256
+            a_params->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE;
         } else if (strcmp(a_params->type_str, "CF20") == 0) {
-            a_params->type = a_update_token ? DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE : DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL; // 256
+            a_params->type = a_update_token ? DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE : DAP_CHAIN_DATUM_TOKEN_TYPE_DECL; // 256
+            a_params->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE;
         } else if (strcmp(a_params->type_str, "private_simple") == 0 && !a_update_token) {
-            a_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE; // 256
+            a_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL;
+            a_params->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE; // 256
         } else if (strcmp(a_params->type_str, "public_simple") == 0 && !a_update_token) {
-            a_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC; // 256
+            a_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL;
+            a_params->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC; // 256
         } else if (strcmp(a_params->type_str, "CF20") == 0) {
-            a_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL; // 256
+            a_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL;
+            a_params->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE; // 256
         } else if (!a_update_token) {
             dap_cli_server_cmd_set_reply_text(a_str_reply,
                         "Unknown token type %s was specified. Supported types:\n"
@@ -3143,7 +3153,7 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, char **
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-tx_receiver_allowed", &a_params->ext.tx_receiver_allowed);
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-tx_sender_blocked", &a_params->ext.tx_sender_blocked);
 
-    if (a_params->type == DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE)
+    if (a_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE)
         return 0;
 
     dap_list_t *l_tsd_list = NULL;
@@ -3264,9 +3274,8 @@ static int s_token_decl_check_params(int a_argc, char **a_argv, char **a_str_rep
         return l_parse_params;
 
     //DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL uses decimals parameter
-    if (a_params->type == DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE
-            ||	a_params->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL
-            ||	a_params->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE) {
+    if (a_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE
+            ||	a_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE) {
         if(!a_params->decimals_str) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "%s requires parameter '-decimals'", a_update_token ? "token_update" : "token_decl");
             return -3;
@@ -3279,8 +3288,7 @@ static int s_token_decl_check_params(int a_argc, char **a_argv, char **a_str_rep
             dap_cli_server_cmd_set_reply_text(a_str_reply, "%s requires parameter '-total_supply'", a_update_token ? "token_update" : "token_decl");
             return -3;
         }
-    } else if (	a_params->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL
-    ||			a_params->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE){
+    } else if (	a_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE){
         //// check l_decimals in CF20 token TODO: At the moment the checks are the same.
         if(!a_params->decimals_str) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "%s requires parameter '-decimals'", a_update_token ? "token_update" : "token_decl");
@@ -3376,7 +3384,8 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     if (!l_params)
         return -1;
 
-    l_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE;
+    l_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL;
+    l_params->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE;
 
     int l_parse_params = s_token_decl_check_params(a_argc,a_argv,a_str_reply,l_params, false);
     if (l_parse_params)
@@ -3401,10 +3410,10 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     l_ticker = l_params->ticker;
     l_hash_out_type = l_params->hash_out_type;
 
-    switch(l_params->type)
+    switch(l_params->subtype)
     {
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL:
+        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
+        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
 		{ // 256
             dap_list_t *l_tsd_list = NULL;
             size_t l_tsd_total_size = 0;
@@ -3473,8 +3482,9 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
 
             // Create new datum token
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t) + l_params->ext.tsd_total_size) ;
+            l_datum_token->version = 2;
             l_datum_token->type = l_params->type;
-            if (l_params->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL) {
+            if (l_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE) {
                 log_it(L_DEBUG,"Prepared TSD sections for private token on %zd total size", l_params->ext.tsd_total_size);
                 snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
                 l_datum_token->header_private_decl.flags = l_params->ext.parsed_flags;
@@ -3525,12 +3535,14 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                 memcpy(l_datum_token->data_n_tsd + l_datum_data_offset, l_tsd, l_tsd_size);
                 l_datum_data_offset += l_tsd_size;
             }
-            log_it(L_DEBUG, "%s token declaration '%s' initialized", l_params->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL ?
+            log_it(L_DEBUG, "%s token declaration '%s' initialized", l_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE ?
                             "Private" : "CF20", l_datum_token->ticker);
         }break;//end
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE: { // 256
+        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE: { // 256
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t));
-            l_datum_token->type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE; // 256
+            l_datum_token->version = 2;
+            l_datum_token->type = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL; // 256
+            l_datum_token->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE; // 256
             snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
             l_datum_token->total_supply = l_total_supply;
             l_datum_token->signs_valid = l_signs_emission;
@@ -3664,7 +3676,8 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
     if (!l_params)
         return -1;
 
-    l_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE;
+    l_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE;
+    l_params->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE;
 
     int l_parse_params = s_token_decl_check_params(a_argc,a_argv,a_str_reply,l_params, true);
     if (l_parse_params)
@@ -3689,15 +3702,17 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
     l_ticker = l_params->ticker;
     l_hash_out_type = l_params->hash_out_type;
 
-    switch(l_params->type)
+    switch(l_params->subtype)
     {
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE:
+        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
+        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
         { // 256
             // Create new datum token
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t) + l_params->ext.tsd_total_size) ;
+            l_datum_token->version = 2;
             l_datum_token->type = l_params->type;
-            if (l_params->type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE) {
+            l_datum_token->subtype = l_params->subtype;
+            if (l_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE) {
                 log_it(L_DEBUG,"Prepared TSD sections for CF20 token on %zd total size", l_params->ext.tsd_total_size);
                 snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
                 l_datum_token->header_native_update.flags = l_params->ext.parsed_flags;
@@ -3720,13 +3735,14 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
                 memcpy(l_datum_token->data_n_tsd, l_params->ext.parsed_tsd, l_params->ext.tsd_total_size);
                 DAP_DELETE(l_params->ext.parsed_tsd);
             }
-            log_it(L_DEBUG, "%s token declaration update '%s' initialized", (	l_params->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL
-                                                                          ||	l_params->type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE)	?
+            log_it(L_DEBUG, "%s token declaration update '%s' initialized", (	l_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE)	?
                                                                      "Private" : "CF20", l_datum_token->ticker);
         }break;//end
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE: { // 256
+        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE: { // 256
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t));
-            l_datum_token->type = DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE; // 256
+            l_datum_token->version = 2;
+            l_datum_token->subtype = DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE;
+            l_datum_token->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE; // 256
             snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
             l_datum_token->total_supply = l_total_supply;
             l_datum_token->signs_valid = l_signs_emission;
