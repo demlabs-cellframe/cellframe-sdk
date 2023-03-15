@@ -64,15 +64,23 @@ void s_datum_token_dump_tsd(dap_string_t *a_str_out, dap_chain_datum_token_t *a_
     size_t l_offset = 0;
     size_t l_offset_max = 0;
     switch (a_token->type) {
-    case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:
-        l_offset_max = a_token->header_private_decl.tsd_total_size; break;
-    case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:
-        l_offset_max = a_token->header_private_update.tsd_total_size; break;
-    case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL:
-        l_offset_max = a_token->header_native_decl.tsd_total_size; break;
-    case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE:
-        l_offset_max = a_token->header_native_update.tsd_total_size; break;
-    default: break;
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_DECL:
+            switch (a_token->subtype) {
+                case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
+                    l_offset_max = a_token->header_private_decl.tsd_total_size; break;
+                case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
+                    l_offset_max = a_token->header_native_decl.tsd_total_size; break;
+                default: break;
+            } break;
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE:
+            switch (a_token->subtype) {
+                case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
+                    l_offset_max = a_token->header_private_update.tsd_total_size; break;
+                case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
+                    l_offset_max = a_token->header_native_update.tsd_total_size; break;
+                default: break;
+            } break;
+        default: break;
     }
     while (l_offset < l_offset_max) {
         if ((l_tsd->size+l_offset) > l_offset_max) {
@@ -537,80 +545,101 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
             dap_string_append_printf(a_str_out, "hash: %s\n", l_hash_str);
             dap_string_append_printf(a_str_out, "ticker: %s\n", l_token->ticker);
             dap_string_append_printf(a_str_out, "size: %zd\n", l_token_size);
+            dap_string_append_printf(a_str_out, "version: %d\n", l_token->version);
             switch (l_token->type) {
-                case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE:{
-                    char *l_value_str = dap_chain_balance_print(l_token->total_supply);
-                    dap_string_append(a_str_out, "type: SIMPLE\n");
-                           dap_string_append(a_str_out, "decimals: 18\n");
-                    dap_string_append_printf(a_str_out, "sign_total: %hu\n", l_token->signs_total );
-                    dap_string_append_printf(a_str_out, "sign_valid: %hu\n", l_token->signs_valid );
-                    dap_string_append_printf(a_str_out, "total_supply: %s\n", l_value_str);
-                    size_t l_certs_field_size = l_token_size - sizeof(*l_token);
-                    dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd,
-                                                     l_certs_field_size, a_hash_out_type);
-                    DAP_DEL_Z(l_value_str);
+                case DAP_CHAIN_DATUM_TOKEN_TYPE_DECL: {
+                    dap_string_append(a_str_out,"type: DECL\n");
+                    switch (l_token->subtype) {
+                        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:{
+                            char *l_value_str = dap_chain_balance_print(l_token->total_supply);
+                            dap_string_append(a_str_out,"subtype: PRIVATE\n");
+                            dap_string_append_printf(a_str_out, "decimals: %d\n", l_token->header_private_decl.decimals);
+                            dap_string_append_printf(a_str_out, "auth signs (valid/total) %u/%u\n", l_token->signs_valid, l_token->signs_total);
+                            dap_string_append_printf(a_str_out, "total_supply: %s\n", l_value_str);
+                            dap_string_append(a_str_out,"flags: ");
+                            dap_chain_datum_token_flags_dump(a_str_out, l_token->header_private_update.flags);
+                            s_datum_token_dump_tsd(a_str_out, l_token, l_token_size, a_hash_out_type);
+                            size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_private_update.tsd_total_size;
+                            dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd + l_token->header_private_update.tsd_total_size,
+                                                             l_certs_field_size, a_hash_out_type);
+                            DAP_DEL_Z(l_value_str);
+                        }break;
+                        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE: {
+                            char *l_value_str = dap_chain_balance_print(l_token->total_supply);
+                            dap_string_append(a_str_out, "subtype: CF20\n");
+                            dap_string_append_printf(a_str_out, "decimals: %d\n", l_token->header_native_decl.decimals);
+                            dap_string_append_printf(a_str_out, "auth signs (valid/total) %u/%u\n", l_token->signs_valid, l_token->signs_total);
+                            dap_string_append_printf(a_str_out, "total_supply: %s\n", l_value_str);
+                            dap_string_append(a_str_out, "flags: ");
+                            dap_chain_datum_token_flags_dump(a_str_out, l_token->header_native_decl.flags);
+                            s_datum_token_dump_tsd(a_str_out, l_token, l_token_size, a_hash_out_type);
+                            size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_native_decl.tsd_total_size;
+                            dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd + l_token->header_native_decl.tsd_total_size,
+                                                             l_certs_field_size, a_hash_out_type);
+                            DAP_DEL_Z(l_value_str);
+                        }break;
+                        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC: {
+                            char *l_premine_supply = dap_chain_balance_print(l_token->header_public.premine_supply);
+                            dap_chain_addr_t l_premine_addr = l_token->header_public.premine_address;
+                            char *l_premine_addr_str = dap_chain_addr_to_str(&l_premine_addr);
+                            dap_string_append(a_str_out, "subtype: PUBLIC\n");
+                            dap_string_append_printf(a_str_out, "premine_supply: %s", l_premine_supply);
+                            dap_string_append_printf(a_str_out, "premine_address: %s", l_premine_addr_str);
+                            dap_string_append(a_str_out, "flags: ");
+                            dap_chain_datum_token_flags_dump(a_str_out, l_token->header_public.flags);
+                            DAP_DELETE(l_premine_supply);
+                            DAP_DELETE(l_premine_addr_str);
+                        }break;
+                    }
                 }break;
-                case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:{
-                    char *l_value_str = dap_chain_balance_print(l_token->total_supply);
-                    dap_string_append(a_str_out,"type: PRIVATE_UPDATE\n");
-                    dap_string_append(a_str_out, "decimals: 18\n");
-                    dap_string_append_printf(a_str_out, "auth signs (valid/total) %u/%u\n", l_token->signs_valid, l_token->signs_total);
-                    dap_string_append_printf(a_str_out, "total_supply: %s\n", l_value_str);
-                    dap_string_append(a_str_out,"flags: ");
-                    dap_chain_datum_token_flags_dump(a_str_out, l_token->header_private_update.flags);
-                    s_datum_token_dump_tsd(a_str_out, l_token, l_token_size, a_hash_out_type);
-                    size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_private_update.tsd_total_size;
-                    dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd + l_token->header_private_update.tsd_total_size,
-                                                     l_certs_field_size, a_hash_out_type);
-                    DAP_DEL_Z(l_value_str);
-                }break;
-                case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:{
-                    char *l_value_str = dap_chain_balance_print(l_token->total_supply);
-                    dap_string_append(a_str_out,"type: PRIVATE\n");
-                    dap_string_append(a_str_out, "decimals: 18\n");
-                    dap_string_append_printf(a_str_out, "auth signs (valid/total) %u/%u\n", l_token->signs_valid, l_token->signs_total);
-                    dap_string_append_printf(a_str_out, "total_supply: %s\n", l_value_str);
-                    dap_string_append(a_str_out,"flags: ");
-                    dap_chain_datum_token_flags_dump(a_str_out, l_token->header_private_decl.flags);
-                    s_datum_token_dump_tsd(a_str_out, l_token, l_token_size, a_hash_out_type);
-                    size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_private_decl.tsd_total_size;
-                    dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd + l_token->header_private_decl.tsd_total_size,
-                                                     l_certs_field_size, a_hash_out_type);
-                    DAP_DEL_Z(l_value_str);
-                }break;
-                case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE:{
-                    char *l_value_str = dap_chain_balance_print(l_token->total_supply);
-                    dap_string_append_printf(a_str_out,"type: CF20_UPDATE\n");
-                    dap_string_append(a_str_out, "decimals: 18\n");
-                    dap_string_append_printf(a_str_out, "auth signs (valid/total) %u/%u\n", l_token->signs_valid, l_token->signs_total);
-                    dap_string_append_printf(a_str_out, "total_supply: %s\n", l_value_str);
-                    dap_string_append(a_str_out, "flags: ");
-                    dap_chain_datum_token_flags_dump(a_str_out, l_token->header_native_update.flags);
-                    s_datum_token_dump_tsd(a_str_out, l_token, l_token_size, a_hash_out_type);
-                    size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_native_update.tsd_total_size;
-                    dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd + l_token->header_native_update.tsd_total_size,
-                                                     l_certs_field_size, a_hash_out_type);
-                    DAP_DEL_Z(l_value_str);
-                }break;
-                case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL:{
-                    char *l_value_str = dap_chain_balance_print(l_token->total_supply);
-                    dap_string_append(a_str_out, "type: CF20\n");
-                    dap_string_append(a_str_out, "decimals: 18\n");
-                    dap_string_append_printf(a_str_out, "auth signs (valid/total) %u/%u\n", l_token->signs_valid, l_token->signs_total);
-                    dap_string_append_printf(a_str_out, "total_supply: %s\n", l_value_str);
-                    dap_string_append(a_str_out, "flags: ");
-                    dap_chain_datum_token_flags_dump(a_str_out, l_token->header_native_decl.flags);
-                    s_datum_token_dump_tsd(a_str_out, l_token, l_token_size, a_hash_out_type);
-                    size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_native_decl.tsd_total_size;
-                    dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd + l_token->header_native_decl.tsd_total_size,
-                                                     l_certs_field_size, a_hash_out_type);
-                    DAP_DEL_Z(l_value_str);
-                }break;
-                case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC:{
-                    dap_string_append(a_str_out,"type: PUBLIC\n");
+                case DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE: {
+                    dap_string_append(a_str_out,"type: UPDATE\n");
+                    switch (l_token->subtype) {
+                        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE: {
+                            char *l_value_str = dap_chain_balance_print(l_token->total_supply);
+                            dap_string_append(a_str_out,"subtype: PRIVATE\n");
+                            dap_string_append_printf(a_str_out, "decimals: %d\n", l_token->header_private_decl.decimals);
+                            dap_string_append_printf(a_str_out, "auth signs (valid/total) %u/%u\n", l_token->signs_valid, l_token->signs_total);
+                            dap_string_append_printf(a_str_out, "total_supply: %s\n", l_value_str);
+                            dap_string_append(a_str_out,"flags: ");
+                            dap_chain_datum_token_flags_dump(a_str_out, l_token->header_private_update.flags);
+                            s_datum_token_dump_tsd(a_str_out, l_token, l_token_size, a_hash_out_type);
+                            size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_private_update.tsd_total_size;
+                            dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd + l_token->header_private_update.tsd_total_size,
+                                                             l_certs_field_size, a_hash_out_type);
+                            DAP_DEL_Z(l_value_str);
+                        }break;
+                        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE: {
+                            char *l_value_str = dap_chain_balance_print(l_token->total_supply);
+                            dap_string_append_printf(a_str_out,"subtype: CF20\n");
+                            dap_string_append_printf(a_str_out, "decimals: %d\n", l_token->header_native_update.decimals);
+                            dap_string_append_printf(a_str_out, "auth signs (valid/total) %u/%u\n", l_token->signs_valid, l_token->signs_total);
+                            dap_string_append_printf(a_str_out, "total_supply: %s\n", l_value_str);
+                            dap_string_append(a_str_out, "flags: ");
+                            dap_chain_datum_token_flags_dump(a_str_out, l_token->header_native_update.flags);
+                            s_datum_token_dump_tsd(a_str_out, l_token, l_token_size, a_hash_out_type);
+                            size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_native_update.tsd_total_size;
+                            dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd + l_token->header_native_update.tsd_total_size,
+                                                             l_certs_field_size, a_hash_out_type);
+                            DAP_DEL_Z(l_value_str);
+                        }break;
+                    }
                 }break;
                 default:
                     dap_string_append(a_str_out,"type: UNKNOWN\n");
+                    break;
+            }
+            if (l_token->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE ) {
+                char *l_value_str = dap_chain_balance_print(l_token->total_supply);
+                dap_string_append(a_str_out, "subtype: SIMPLE\n");
+                dap_string_append_printf(a_str_out, "decimals: %d\n", l_token->header_simple.decimals);
+                dap_string_append_printf(a_str_out, "sign_total: %hu\n", l_token->signs_total );
+                dap_string_append_printf(a_str_out, "sign_valid: %hu\n", l_token->signs_valid );
+                dap_string_append_printf(a_str_out, "total_supply: %s\n", l_value_str);
+                size_t l_certs_field_size = l_token_size - sizeof(*l_token);
+                dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd,
+                                                 l_certs_field_size, a_hash_out_type);
+                DAP_DEL_Z(l_value_str);
             }
             DAP_DELETE(l_token);
         } break;
