@@ -69,13 +69,14 @@ dap_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token_t *a_token, size_
     return (dap_tsd_t *)a_token->data_n_tsd;
 }
 
-dap_chain_datum_token_t *dap_chain_datum_token_read(byte_t *a_token_serial, size_t *a_token_size) {
+dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial, size_t *a_token_size) {
     dap_chain_datum_token_old_t *l_token_old = (dap_chain_datum_token_old_t*)a_token_serial;
-    size_t l_token_tsd_size = *a_token_size - sizeof(dap_chain_datum_token_old_t);
-    size_t l_token_size     = l_token_tsd_size + sizeof(dap_chain_datum_token_t);
+    size_t l_token_data_n_tsd_size = *a_token_size - sizeof(dap_chain_datum_token_old_t);
+    size_t l_token_size     = l_token_data_n_tsd_size + sizeof(dap_chain_datum_token_t);
     dap_chain_datum_token_t *l_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_token_size);
     memcpy(l_token->ticker, l_token_old->ticker, sizeof(l_token_old->ticker));
-    memcpy(l_token->data_n_tsd, l_token_old->data_n_tsd, l_token_tsd_size);
+    memcpy(l_token->data_n_tsd, l_token_old->data_n_tsd, l_token_data_n_tsd_size);
+    *a_token_size = l_token_size;
     switch (((dap_chain_datum_token_t*)a_token_serial)->type) {
     case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE: {
         memcpy(l_token->ticker, l_token_old->ticker, sizeof(l_token_old->ticker));
