@@ -119,7 +119,7 @@ static dap_chain_atom_ptr_t *s_callback_atom_iter_get_links( dap_chain_atom_iter
 static dap_chain_atom_ptr_t *s_callback_atom_iter_get_lasts( dap_chain_atom_iter_t * a_atom_iter ,size_t *a_links_size,
                                                                   size_t ** a_lasts_size_ptr );  //    Get list of linked blocks
 //Get list of hashes
-static void dap_block_parse_str_list(const char * a_hash_str, dap_chain_hash_fast_t *** a_hashes, size_t * a_hash_size);
+static dap_chain_hash_fast_t **s_block_parse_str_list(const char * a_hash_str, size_t * a_hash_size);
 
 // Delete iterator
 static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter );                  //    Get the fisrt block
@@ -670,16 +670,17 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block fee collect' requires parameter '-hashes'");
                 return -21;
             }
-            dap_block_parse_str_list(l_hash_str, &l_block_hashes, &l_hashes_count);
+            l_block_hashes = s_block_parse_str_list(l_hash_str, &l_hashes_count);
             if(!l_hashes_count){
                 dap_cli_server_cmd_set_reply_text(a_str_reply,
                         "Block fee collection requires at least one hash to create a transaction");
                 return -22;
             }
+            //TODO compuound all blocks into a single collect tx
             size_t l_block_size = 0;
-            l_block = (dap_chain_block_t*) dap_chain_get_atom_by_hash( l_chain, &l_block_hashes[0], &l_block_size);
+            l_block = (dap_chain_block_t*) dap_chain_get_atom_by_hash( l_chain, l_block_hashes[0], &l_block_size);
             if(l_block){
-                dap_chain_block_cache_t *l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_block_hashes[0]);
+                dap_chain_block_cache_t *l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, l_block_hashes[0]);
                 if(l_block_cache)
                 {
                     dap_sign_t * l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
@@ -699,10 +700,10 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
     return ret;
 }
 
-static void dap_block_parse_str_list(const char * a_hash_str, dap_chain_hash_fast_t *** a_hashes, size_t * a_hash_size)
+static dap_chain_hash_fast_t **s_block_parse_str_list(const char * a_hash_str, size_t * a_hash_size)
 {
     char * l_hashes_tmp_ptrs = NULL;
-    char * l_hashes_str_dup = strdup(a_hash_str);
+    char * l_hashes_str_dup = dap_strdup(a_hash_str);
     char *l_hashes_str = strtok_r(l_hashes_str_dup, ",", &l_hashes_tmp_ptrs);
 
     // First we just calc items
@@ -710,8 +711,7 @@ static void dap_block_parse_str_list(const char * a_hash_str, dap_chain_hash_fas
         l_hashes_str = strtok_r(NULL, ",", &l_hashes_tmp_ptrs);
         (*a_hash_size)++;
     }    
-    dap_chain_hash_fast_t **l_hashes;
-    *a_hashes = l_hashes = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t*, (*a_hash_size) * sizeof(dap_chain_hash_fast_t*) );
+    dap_chain_hash_fast_t **l_hashes = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t*, (*a_hash_size) * sizeof(dap_chain_hash_fast_t*) );
 
     strcpy(l_hashes_str_dup, a_hash_str);
     l_hashes_str = strtok_r(l_hashes_str_dup, ",", &l_hashes_tmp_ptrs);
@@ -721,7 +721,7 @@ static void dap_block_parse_str_list(const char * a_hash_str, dap_chain_hash_fas
     while(l_hashes_str) {
         l_hashes_str = dap_strstrip(l_hashes_str);
 
-        dap_chain_hash_fast_from_hex_str( l_hashes_str, &l_hashes[l_hashes_pos]);
+        dap_chain_hash_fast_from_hex_str(l_hashes_str, l_hashes[l_hashes_pos]);
 
         if(!l_hashes[l_hashes_pos]) {
             log_it(L_WARNING,"Can't load hash %s",l_hashes_str);
@@ -732,8 +732,8 @@ static void dap_block_parse_str_list(const char * a_hash_str, dap_chain_hash_fas
         }
         l_hashes_str = strtok_r(NULL, ",", &l_hashes_tmp_ptrs);
     }
-    free(l_hashes_str_dup);
-    return;
+    DAP_FREE(l_hashes_str_dup);
+    return l_hashes;
 }
 
 /**

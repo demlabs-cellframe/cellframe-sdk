@@ -224,7 +224,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
 
-    l_esbocs_pvt->minimum_fee = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "minimum_fee", "1.0"));
+    l_esbocs_pvt->minimum_fee = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "minimum_fee", "0.05"));
     l_esbocs_pvt->fee_addr = dap_chain_addr_from_str(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "fee_addr", NULL));
 
     const char *l_sign_cert_str = NULL;
