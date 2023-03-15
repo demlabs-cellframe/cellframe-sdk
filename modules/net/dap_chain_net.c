@@ -1170,14 +1170,15 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
             // delete all links
             struct net_link *l_link, *l_link_tmp;
             HASH_ITER(hh, l_net_pvt->net_links, l_link, l_link_tmp) {
-                HASH_DEL(l_net_pvt->net_links, l_link);
-                if (l_link->link) {
+                if (l_link && l_link->link) {
                     dap_chain_node_client_t *l_client = l_link->link;
-                    l_client->callbacks.delete = NULL;
-                    dap_chain_node_client_close_mt(l_client);
+//                    l_client->callbacks.delete = NULL;
+                    s_net_link_remove(l_net_pvt, l_client, false);
+//                    dap_chain_node_client_close_mt(l_client);
                 }
-                DAP_DEL_Z(l_link->link_info);
-                DAP_DELETE(l_link);
+//                HASH_DEL(l_net_pvt->net_links, l_link);
+//                DAP_DEL_Z(l_link->link_info);
+//                DAP_DEL_Z(l_link);
             }
             struct downlink *l_downlink, *l_dltmp;
             HASH_ITER(hh, l_net_pvt->downlinks, l_downlink, l_dltmp) {
