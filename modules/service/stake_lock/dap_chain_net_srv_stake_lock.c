@@ -596,7 +596,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 
 	dap_chain_datum_tx_delete(l_tx);
 
-    if (l_tx_out_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX) {
+    if (!l_tx_burning_str && l_tx_out_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX) {
 		if (NULL == (l_datum_hash_str = dap_chain_mempool_datum_add(l_datum_burning_tx, l_chain))) {
 			DAP_DEL_Z(l_datum_burning_tx);
 			DAP_DEL_Z(l_datum);
