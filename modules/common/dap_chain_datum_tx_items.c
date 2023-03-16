@@ -631,7 +631,7 @@ byte_t *dap_chain_datum_tx_item_get_data(dap_chain_tx_tsd_t *a_tx_tsd, int *a_ty
     if (!a_tx_tsd || !a_type || !a_size)
         return NULL;
 
-    *a_size = a_tx_tsd->header.size;
+    *a_size = ((dap_tsd_t*)(a_tx_tsd->tsd))->size;
     *a_type = ((dap_tsd_t*)(a_tx_tsd->tsd))->type;
     return ((dap_tsd_t*)(a_tx_tsd->tsd))->data;
 }
