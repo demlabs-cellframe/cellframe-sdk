@@ -173,7 +173,7 @@ int dap_chain_cs_blocks_init()
                 "\t\t List blocks\n\n"
         "Commission collect:\n"
             "block -net <net_name> -chain <chain_name> fee collect\n"
-            "-cert <priv_cert_name> -addr <addr> {-hash_one <block_hash> | -hash.<bl_hs,bl_hs,...>} -fee <value>\n"
+            "-cert <priv_cert_name> -addr <addr> -hashes <hashes list> -fee <value>\n"
                 "\t\t Take the whole commission\n\n"
 
                                         );
