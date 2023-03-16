@@ -1072,29 +1072,33 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_hash_f
 		if (strcmp(l_tx_ticker, delegated_ticker))
 			return false;
 
-        bool l_is_spent = dap_chain_ledger_tx_spent_find_by_hash(a_ledger, &hash_burning_transaction);
-        if (!l_is_spent) {
-            burning_tx = dap_chain_ledger_tx_find_by_hash(a_ledger, &hash_burning_transaction);
-            burning_transaction_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(burning_tx, 0, TX_ITEM_TYPE_OUT, 0);
+
+        int l_tx_burning_blank_out_idx = 0;
+        burning_tx = dap_chain_ledger_tx_find_by_hash(a_ledger, &hash_burning_transaction);
+        dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(burning_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
+        for(dap_list_t *it = l_list_out_items; it; it = it->next, ++l_tx_burning_blank_out_idx) {
+            dap_chain_tx_item_type_t l_type = *(byte_t *)it->data;
+            if (l_type == TX_ITEM_TYPE_OUT) {
+                dap_chain_tx_out_t *l_tx_out = it->data;
+                dap_chain_addr_t l_addr = l_tx_out->addr;
+                if (dap_chain_addr_is_blank(&l_addr)) {
+                    burning_transaction_out = l_tx_out;
+                    break;
+                }
+            }
         }
+        dap_list_free(l_list_out_items);
 
-		if (!burning_transaction_out)
-			return false;
+        if (!burning_transaction_out)
+            return false;
 
-		if (!dap_hash_fast_is_blank(&burning_transaction_out->addr.data.hash_fast)) {
-			if (s_debug_more) {
-				const char *addr_srt = dap_chain_hash_fast_to_str_new(&burning_transaction_out->addr.data.hash_fast);
-				log_it(L_ERROR, "ADDR from burning NOT BLANK: %s", addr_srt);
-				DAP_DEL_Z(addr_srt);
-			}
-			return false;
-		}
-
+        if (dap_chain_ledger_tx_hash_is_used_out_item(a_ledger, &hash_burning_transaction, l_tx_burning_blank_out_idx))
+            return false;
 
 		if (!IS_ZERO_256(l_tsd_section.emission_rate)) {
 			MULT_256_COIN(l_tx_out->header.value, l_tsd_section.emission_rate, &l_value_delegated);
 			if (IS_ZERO_256(l_value_delegated))
-				return COINS_FORMAT_ERROR;
+                return false;
 		} else
 			l_value_delegated = l_tx_out->header.value;
 

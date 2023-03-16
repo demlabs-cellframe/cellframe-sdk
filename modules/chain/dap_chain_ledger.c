@@ -3860,6 +3860,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
                         }
                     }
                 }
+                dap_list_free(l_temp_list_out_items);
             }
             // Update service items if any
             dap_chain_ledger_verificator_t *l_verificator;
