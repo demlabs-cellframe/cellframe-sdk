@@ -3326,17 +3326,14 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             HASH_FIND_INT(s_verificators, &l_sub_tmp, l_verificator);
             pthread_rwlock_unlock(&s_verificators_rwlock);
             if (!l_verificator || !l_verificator->callback) {
-                if(s_debug_more)
-                    log_it(L_ERROR, "No verificator set for conditional output subtype %d", l_sub_tmp);
+                debug_if(s_debug_more, L_ERROR, "No verificator set for conditional output subtype %d", l_sub_tmp);
                 l_err_num = -13;
                 break;
             }
             if (l_verificator->callback(a_ledger, &l_tx_prev_hash, l_tx_prev_out_cond, a_tx, l_owner) == false) {
-                if (l_sub_tmp == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK) {
-                    l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS;
-                } else {
-                    l_err_num = -14;
-                }
+                debug_if(s_debug_more, L_WARNING, "Verificator check error for conditional output %s",
+                                                    dap_chain_tx_out_cond_subtype_to_str(l_sub_tmp));
+                l_err_num = -14;
                 break;
             }
             // calculate sum of values from previous transactions
