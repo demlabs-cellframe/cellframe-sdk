@@ -39,4 +39,3 @@ int dap_chain_gdb_init(void);
 int dap_chain_gdb_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
 void dap_chain_gdb_delete(dap_chain_t * a_chain);
 const char* dap_chain_gdb_get_group(dap_chain_t * a_chain);
-int dap_chain_gdb_ledger_load(char *a_gdb_group, dap_chain_t *a_chain);

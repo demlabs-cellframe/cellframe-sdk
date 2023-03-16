@@ -353,7 +353,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
               l_fee_transfer;
     dap_chain_addr_t l_addr_net_fee;
     dap_list_t *l_list_fee_out = NULL;
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_price->net->pub.id, NULL, &l_net_fee, &l_addr_net_fee);
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_price->net->pub.id, &l_net_fee, &l_addr_net_fee);
     if (l_net_fee_used)
         SUM_256_256(l_total_fee, l_net_fee, &l_total_fee);
 
@@ -493,7 +493,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
               l_fee_transfer;
     dap_chain_addr_t l_net_fee_addr, l_service_fee_addr;
     dap_list_t *l_list_fee_out = NULL;
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_price->net->pub.id, NULL, &l_net_fee, &l_net_fee_addr);
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_price->net->pub.id, &l_net_fee, &l_net_fee_addr);
     if (l_net_fee_used)
         SUM_256_256(l_net_fee, a_price->fee, &l_total_fee);
     uint16_t l_service_fee_type;
@@ -794,7 +794,7 @@ static bool s_xchange_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price, 
     }
     uint256_t l_net_fee = {}, l_transfer_fee;
     dap_chain_addr_t l_addr_fee = {};
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_price->net->pub.id, NULL, &l_net_fee, &l_addr_fee);
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_price->net->pub.id, &l_net_fee, &l_addr_fee);
     uint256_t l_total_fee = {};
     SUM_256_256(a_price->fee, l_net_fee, &l_total_fee);
     // list of transaction with 'out' items to get net fee

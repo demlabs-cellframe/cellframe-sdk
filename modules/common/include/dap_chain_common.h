@@ -157,6 +157,7 @@ typedef union {
 
 extern const dap_chain_net_srv_uid_t c_dap_chain_net_srv_uid_null;
 extern const dap_chain_cell_id_t c_dap_chain_cell_id_null;
+extern const dap_chain_addr_t c_dap_chain_addr_blank;
 
 enum dap_chain_srv_unit_enum {
     SERV_UNIT_UNDEFINED = 0 ,
@@ -217,24 +218,9 @@ enum dap_chain_tx_item_type {
 #define TX_ITEM_TYPE_UNKNOWN TX_ITEM_TYPE_ANY
 typedef byte_t dap_chain_tx_item_type_t;
 
-typedef struct dap_chain_receipt_info {
-    dap_chain_net_srv_uid_t srv_uid; // Service UID
-#if DAP_CHAIN_NET_SRV_UID_SIZE == 8
-    uint64_t addition;
-#endif
-    dap_chain_net_srv_price_unit_uid_t units_type;
-    uint64_t units; // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
-    union {
-        uint256_t value_datoshi; // Receipt value
-        uint64_t value_64;       // Old receipts compliance
-    } DAP_ALIGN_PACKED;
-} DAP_ALIGN_PACKED dap_chain_receipt_info_t;
-
 #ifdef __cplusplus
 extern "C" {
 #endif
-
-json_object* dap_chain_receipt_info_to_json(dap_chain_receipt_info_t *a_info);
 
 size_t dap_chain_hash_slow_to_str(dap_chain_hash_slow_t * a_hash, char * a_str, size_t a_str_max);
 
@@ -254,7 +240,7 @@ int dap_chain_addr_fill_from_key(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key,
 int dap_chain_addr_fill_from_sign(dap_chain_addr_t *a_addr, dap_sign_t *a_sign, dap_chain_net_id_t a_net_id);
 
 int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr);
-DAP_STATIC_INLINE bool dap_chain_addr_compare(dap_chain_addr_t *a_addr1, dap_chain_addr_t *a_addr2)
+DAP_STATIC_INLINE bool dap_chain_addr_compare(const dap_chain_addr_t *a_addr1, const dap_chain_addr_t *a_addr2)
 {
     return !memcmp(a_addr1, a_addr2, sizeof(dap_chain_addr_t));
 }

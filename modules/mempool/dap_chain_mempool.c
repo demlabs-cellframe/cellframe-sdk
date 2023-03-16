@@ -149,7 +149,7 @@ char *dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_fr
     uint256_t l_value_need = a_value, l_net_fee = {}, l_total_fee = {}, l_fee_transfer = {};
     dap_chain_addr_t l_addr_fee = {};
     dap_list_t *l_list_fee_out = NULL;
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_chain->net_id, a_chain, &l_net_fee, &l_addr_fee);
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_chain->net_id, &l_net_fee, &l_addr_fee);
     SUM_256_256(l_net_fee, a_value_fee, &l_total_fee);
     if (l_single_channel)
         SUM_256_256(l_value_need, l_total_fee, &l_value_need);
@@ -287,7 +287,7 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_enc_key_t *a_key_from,const dap_c
     dap_chain_t                 *l_chain = NULL;
 
     l_chain = DAP_CHAIN_CS_BLOCKS(a_block_cache)->chain;
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(l_chain->net_id, l_chain, &l_net_fee, &l_addr_fee);
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(l_chain->net_id, &l_net_fee, &l_addr_fee);
     //add tx
     if (NULL == (l_tx = dap_chain_datum_tx_create())) {
 
@@ -380,7 +380,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
     dap_global_db_obj_t * l_objs = DAP_NEW_Z_SIZE(dap_global_db_obj_t, (a_tx_num + 1) * sizeof (dap_global_db_obj_t));
     uint256_t l_net_fee = {}, l_total_fee = {};
     dap_chain_addr_t l_addr_fee = {};
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_chain->net_id, a_chain, &l_net_fee, &l_addr_fee);
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_chain->net_id, &l_net_fee, &l_addr_fee);
     SUM_256_256(l_net_fee, a_value_fee, &l_total_fee);
     // Search unused out:
     uint256_t l_single_val = {};
@@ -615,7 +615,7 @@ char *dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
     uint256_t l_value_send = a_receipt->receipt_info.value_datoshi;
     uint256_t l_net_fee = {};
     dap_chain_addr_t l_addr_fee = {};
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, NULL, &l_net_fee, &l_addr_fee);
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_addr_fee);
     SUM_256_256(l_value_send, l_net_fee, &l_value_send);
     SUM_256_256(l_value_send, l_fee, &l_value_send);
     if (compare256(l_out_cond->header.value, l_value_send) < 0) {
@@ -702,7 +702,7 @@ char *dap_chain_mempool_tx_create_cond(dap_chain_net_t *a_net,
 
     uint256_t l_net_fee = {};
     dap_chain_addr_t l_addr_fee = {};
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, NULL, &l_net_fee, &l_addr_fee);
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_addr_fee);
     // find the transactions from which to take away coins
     uint256_t l_value_transfer = {}; // how many coins to transfer
     uint256_t l_value_need = {};
@@ -800,7 +800,7 @@ char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast
     dap_list_t *l_list_used_out;
     const char *l_native_ticker = dap_chain_net_by_id(a_chain->net_id)->pub.native_ticker;
     bool not_native = dap_strcmp(a_ticker, l_native_ticker);
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_chain->net_id, NULL, &l_net_fee, &l_addr_fee);
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_chain->net_id, &l_net_fee, &l_addr_fee);
     if(l_net_fee_used)
         SUM_256_256(l_total_fee,l_net_fee,&l_total_fee);
 

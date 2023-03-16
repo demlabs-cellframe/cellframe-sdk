@@ -58,6 +58,8 @@ typedef struct dap_chain_net dap_chain_net_t;
 // Check the double spending  in all cells
 #define DAP_CHAIN_LEDGER_CHECK_CELLS_DS          0x0100
 
+#define DAP_CHAIN_LEDGER_CACHE_ENABLED           0x0200
+
 // Error code for no previous transaction (candidate to threshold)
 #define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS  -111
 // Error code for no emission for a transaction (candidate to threshold)
@@ -75,7 +77,9 @@ typedef struct dap_chain_net dap_chain_net_t;
 int dap_chain_ledger_init();
 void dap_chain_ledger_deinit();
 
-dap_ledger_t* dap_chain_ledger_create(uint16_t a_check_flags, char *a_net_name);
+dap_ledger_t *dap_chain_ledger_create(uint16_t a_flags, char *a_net_name, const char *a_net_native_ticker);
+
+void dap_chain_ledger_set_fee(dap_ledger_t *a_ledger, uint256_t a_fee, dap_chain_addr_t a_fee_addr);
 
 // Remove dap_ledger_t structure
 void dap_chain_ledger_handle_free(dap_ledger_t *a_ledger);
@@ -103,8 +107,6 @@ DAP_STATIC_INLINE char *dap_chain_ledger_get_gdb_group(dap_ledger_t *a_ledger, c
             ? dap_strdup_printf("local.ledger-cache.%s.%s", a_ledger->net_name, a_suffix)
             : NULL;
 }
-
-dap_chain_net_t* dap_chain_ledger_get_net(dap_ledger_t* a_ledger);
 
 /**
  * Add new transaction to the cache
