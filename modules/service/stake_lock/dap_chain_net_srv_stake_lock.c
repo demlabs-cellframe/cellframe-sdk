@@ -1072,8 +1072,11 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_hash_f
 		if (strcmp(l_tx_ticker, delegated_ticker))
 			return false;
 
-		burning_tx = dap_chain_ledger_tx_find_by_hash(a_ledger, &hash_burning_transaction);
-		burning_transaction_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(burning_tx, 0, TX_ITEM_TYPE_OUT,0);
+        bool l_is_spent = dap_chain_ledger_tx_spent_find_by_hash(a_ledger, &hash_burning_transaction);
+        if (!l_is_spent) {
+            burning_tx = dap_chain_ledger_tx_find_by_hash(a_ledger, &hash_burning_transaction);
+            burning_transaction_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(burning_tx, 0, TX_ITEM_TYPE_OUT, 0);
+        }
 
 		if (!burning_transaction_out)
 			return false;
@@ -1086,6 +1089,7 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_hash_f
 			}
 			return false;
 		}
+
 
 		if (!IS_ZERO_256(l_tsd_section.emission_rate)) {
 			MULT_256_COIN(l_tx_out->header.value, l_tsd_section.emission_rate, &l_value_delegated);
