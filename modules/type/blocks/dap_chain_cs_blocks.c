@@ -119,7 +119,7 @@ static dap_chain_atom_ptr_t *s_callback_atom_iter_get_links( dap_chain_atom_iter
 static dap_chain_atom_ptr_t *s_callback_atom_iter_get_lasts( dap_chain_atom_iter_t * a_atom_iter ,size_t *a_links_size,
                                                                   size_t ** a_lasts_size_ptr );  //    Get list of linked blocks
 //Get list of hashes
-static dap_chain_hash_fast_t **s_block_parse_str_list(const char * a_hash_str, size_t * a_hash_size);
+static dap_list_t *s_block_parse_str_list(const char * a_hash_str,size_t * a_hash_size, dap_chain_t * l_chain);
 
 // Delete iterator
 static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter );                  //    Get the fisrt block
@@ -602,12 +602,10 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
             const char * l_addr_str = NULL;
             const char * l_hash_out_type = NULL;
             const char * l_hash_str = NULL;
-            //const char * l_hash_mas_str = NULL;
 
-            uint256_t   l_fee_value = {};
-            size_t l_hashes_count = 0;
-            dap_chain_hash_fast_t   **l_block_hashes = NULL;
-            dap_chain_block_t       *l_block;
+            uint256_t               l_fee_value = {};
+            size_t                  l_hashes_count = 0;
+            dap_list_t              *l_block_list = NULL;
             dap_chain_addr_t        *l_addr = NULL;
 
             //arg_index++;
@@ -670,25 +668,24 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block fee collect' requires parameter '-hashes'");
                 return -21;
             }
-            l_block_hashes = s_block_parse_str_list(l_hash_str, &l_hashes_count);
+            l_block_list = s_block_parse_str_list(l_hash_str, &l_hashes_count,l_chain);
+
             if(!l_hashes_count){
                 dap_cli_server_cmd_set_reply_text(a_str_reply,
                         "Block fee collection requires at least one hash to create a transaction");
                 return -22;
             }
-            //TODO compuound all blocks into a single collect tx
-            size_t l_block_size = 0;
-            l_block = (dap_chain_block_t*) dap_chain_get_atom_by_hash( l_chain, l_block_hashes[0], &l_block_size);
-            if(l_block){
-                dap_chain_block_cache_t *l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, l_block_hashes[0]);
-                if(l_block_cache)
-                {
-                    dap_sign_t * l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
-                    if(dap_pkey_compare_with_sign(l_pub_key, l_sign)){
-                        dap_chain_mempool_tx_coll_fee_create(l_cert->enc_key,l_addr,l_block_cache,l_fee_value,l_hash_out_type);
-                    }
+            //verification of signatures of all blocks
+            for (dap_list_t *bl = l_block_list; bl; bl = bl->next) {
+                dap_chain_block_cache_t *l_block_cache = (dap_chain_block_cache_t *)l_block_list->data;
+                dap_sign_t * l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
+                if(!dap_pkey_compare_with_sign(l_pub_key, l_sign)){
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block fee collect' requires parameter '-hashes'");
+                    return -23;
                 }
             }
+            dap_chain_mempool_tx_coll_fee_create(l_cert->enc_key,l_addr,l_block_list,l_fee_value,l_hash_out_type);
+
         }break;
         case SUBCMD_UNDEFINED: {
             dap_cli_server_cmd_set_reply_text(a_str_reply,
@@ -700,40 +697,52 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
     return ret;
 }
 
-static dap_chain_hash_fast_t **s_block_parse_str_list(const char * a_hash_str, size_t * a_hash_size)
+static dap_list_t * s_block_parse_str_list(const char * a_hash_str,size_t * a_hash_size, dap_chain_t * l_chain)
 {
+    dap_list_t *l_block_list = NULL;
     char * l_hashes_tmp_ptrs = NULL;
     char * l_hashes_str_dup = dap_strdup(a_hash_str);
     char *l_hashes_str = strtok_r(l_hashes_str_dup, ",", &l_hashes_tmp_ptrs);
+    dap_chain_hash_fast_t   l_hash_block;
+    dap_chain_block_t       *l_block;
+    dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
 
     // First we just calc items
     while(l_hashes_str) {
         l_hashes_str = strtok_r(NULL, ",", &l_hashes_tmp_ptrs);
         (*a_hash_size)++;
-    }    
-    dap_chain_hash_fast_t **l_hashes = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t*, (*a_hash_size) * sizeof(dap_chain_hash_fast_t*) );
-
+    }
     strcpy(l_hashes_str_dup, a_hash_str);
     l_hashes_str = strtok_r(l_hashes_str_dup, ",", &l_hashes_tmp_ptrs);
 
     size_t l_hashes_pos = 0;
-
     while(l_hashes_str) {
         l_hashes_str = dap_strstrip(l_hashes_str);
-
-        dap_chain_hash_fast_from_hex_str(l_hashes_str, l_hashes[l_hashes_pos]);
-
-        if(!l_hashes[l_hashes_pos]) {
+        if(dap_chain_hash_fast_from_hex_str(l_hashes_str, &l_hash_block)!=0) {
             log_it(L_WARNING,"Can't load hash %s",l_hashes_str);
-            DAP_DELETE(*l_hashes);
-            *l_hashes = NULL;
+            dap_list_free_full(l_block_list, NULL);
             *a_hash_size = 0;
-            break;
+             DAP_FREE(l_hashes_str_dup);
+            return NULL;
         }
+        size_t l_block_size = 0;
+        l_block = (dap_chain_block_t*) dap_chain_get_atom_by_hash( l_chain, &l_hash_block, &l_block_size);
+        if(!l_block)
+        {
+            log_it(L_WARNING,"There aren't any block by this hash");
+            dap_list_free_full(l_block_list, NULL);
+            *a_hash_size = 0;
+             DAP_FREE(l_hashes_str_dup);
+            return NULL;
+        }
+        dap_chain_block_cache_t *l_block_cache = DAP_NEW_Z(dap_chain_block_cache_t);
+        l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_hash_block);
+        l_block_list = dap_list_append(l_block_list, l_block_cache);
         l_hashes_str = strtok_r(NULL, ",", &l_hashes_tmp_ptrs);
+        l_hashes_pos++;
     }
     DAP_FREE(l_hashes_str_dup);
-    return l_hashes;
+    return l_block_list;
 }
 
 /**
