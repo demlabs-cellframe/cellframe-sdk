@@ -297,7 +297,7 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_enc_key_t *a_key_from,const dap_c
     for(dap_list_t *bl = a_block_list; bl; bl = bl->next)
     {
         uint256_t l_value_out_block = {};
-        dap_chain_block_cache_t *l_block_cache = (dap_chain_block_cache_t *)a_block_list->data;
+        dap_chain_block_cache_t *l_block_cache = (dap_chain_block_cache_t *)bl->data;
         dap_list_t *l_list_used_out = dap_chain_block_get_list_tx_cond_outs_with_val(l_chain->ledger,l_block_cache,&l_value_out_block);
         if (!l_list_used_out) {
             log_it(L_WARNING, "Not enough funds to transfer");
