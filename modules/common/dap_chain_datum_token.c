@@ -309,7 +309,7 @@ dap_sign_t ** dap_chain_datum_token_signs_parse(dap_chain_datum_token_t * a_datu
 dap_chain_datum_token_emission_t *dap_chain_datum_emission_create(uint256_t a_value, const char *a_ticker, dap_chain_addr_t *a_addr)
 {
     dap_chain_datum_token_emission_t *l_emission = DAP_NEW_Z(dap_chain_datum_token_emission_t);
-    l_emission->hdr.version = 2;
+    l_emission->hdr.version = 3;
     l_emission->hdr.value_256 = a_value;
     strncpy(l_emission->hdr.ticker, a_ticker, DAP_CHAIN_TICKER_SIZE_MAX - 1);
     l_emission->hdr.ticker[DAP_CHAIN_TICKER_SIZE_MAX - 1] = '\0';
@@ -401,6 +401,8 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_add_sign(dap_enc_key_
     if (!a_emission || a_emission->hdr.type != DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH)
         return NULL;
 
+    size_t l_signs_count = a_emission->data.type_auth.signs_count;
+
     if (a_emission->data.type_auth.size > a_emission->data.type_auth.tsd_total_size)
     {
         size_t l_pub_key_size = 0;
@@ -414,8 +416,8 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_add_sign(dap_enc_key_
         }
         DAP_DELETE(l_pub_key);
     }
-
-    dap_sign_t *l_new_sign = dap_sign_create(a_sign_key, a_emission, sizeof(a_emission->hdr), 0);
+    a_emission->data.type_auth.signs_count = 0;
+    dap_sign_t *l_new_sign = dap_sign_create(a_sign_key, a_emission, sizeof(a_emission->hdr) + sizeof(a_emission->data) + a_emission->data.type_auth.tsd_total_size, 0);
     if (!l_new_sign)
         return NULL;
     size_t l_emission_size = dap_chain_datum_emission_get_size((uint8_t *)a_emission);
@@ -424,6 +426,8 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_add_sign(dap_enc_key_
     memcpy(l_ret->tsd_n_signs + l_ret->data.type_auth.size, l_new_sign, l_sign_size);
     DAP_DELETE(l_new_sign);
     l_ret->data.type_auth.size += l_sign_size;
+    a_emission->data.type_auth.signs_count = l_signs_count;
+    l_signs_count++;
     l_ret->data.type_auth.signs_count++;
     return l_ret;
 }
