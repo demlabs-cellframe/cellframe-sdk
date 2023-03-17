@@ -308,7 +308,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
     dap_time_t l_time_now = dap_time_now();
     if (l_time_staking < l_time_now)
         return TIME_ERROR;
-    l_time_staking  -= l_time_now;
+    l_time_staking -= l_time_now;
 
 	if (dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-reinvest", &l_reinvest_percent_str)
 	&& NULL != l_reinvest_percent_str) {
@@ -406,7 +406,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 	dap_chain_datum_t					*l_datum_burning_tx	=	NULL;
 	const char							*l_wallets_path		=	dap_chain_wallet_get_path(g_config);
 	char 	delegate_ticker_str[DAP_CHAIN_TICKER_SIZE_MAX] 	=	{[0] = 'm'};
-	int									l_prev_cond_idx		=	0;
+    int									l_prev_cond_idx		=	-1;
 	uint256_t							l_value_delegated	= 	{};
 	char 								*l_datum_hash_str;
 	dap_ledger_t						*l_ledger;
@@ -1120,7 +1120,7 @@ static bool s_stake_lock_callback_verificator_added(dap_ledger_t *a_ledger, dap_
 {
     if (a_tx_item)  // this is IN_COND tx
         return true;
-    int l_out_num = 0;
+    int l_out_num = -1;
     dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, &l_out_num);
     if (l_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX) {
         dap_chain_hash_fast_t l_key_hash;
@@ -1239,7 +1239,6 @@ dap_chain_tx_out_cond_t *dap_chain_net_srv_stake_lock_create_cond_out(dap_pkey_t
     l_item->header.srv_uid = a_srv_uid;
     l_item->subtype.srv_stake_lock.reinvest_percent = a_reinvest_percent;
     if (a_time_staking) {
-//		l_item->header.ts_expires = dap_time_now() + a_time_staking;
         l_item->subtype.srv_stake_lock.time_unlock = dap_time_now() + a_time_staking;
         l_item->subtype.srv_stake_lock.flags |= DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME;
 	}
