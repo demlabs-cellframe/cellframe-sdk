@@ -3484,6 +3484,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t) + l_params->ext.tsd_total_size) ;
             l_datum_token->version = 2;
             l_datum_token->type = l_params->type;
+            l_datum_token->subtype = l_params->subtype;
             if (l_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE) {
                 log_it(L_DEBUG,"Prepared TSD sections for private token on %zd total size", l_params->ext.tsd_total_size);
                 snprintf(l_datum_token->ticker, sizeof(l_datum_token->ticker), "%s", l_ticker);
