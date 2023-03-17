@@ -731,7 +731,7 @@ static void s_gdb_in_pkt_proc_callback_apply(dap_global_db_context_t *a_global_d
     if (l_is_pinned_cur)
         goto ret;
     // Deleted time
-    dap_nanotime_t l_timestamp_del = dap_global_db_get_del_ts_unsafe(l_obj->group, l_obj->key);
+    dap_nanotime_t l_timestamp_del = dap_global_db_get_del_ts_unsafe(a_global_db_context, l_obj->group, l_obj->key);
     // Limit time
     dap_nanotime_t l_limit_time = l_args->limit_time;
     //check whether to apply the received data into the database
