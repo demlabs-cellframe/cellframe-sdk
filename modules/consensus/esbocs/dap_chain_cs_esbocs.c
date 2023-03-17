@@ -971,7 +971,7 @@ static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_ch
    if(s_session_candidate_to_chain(a_session, &l_store->precommit_candidate_hash, l_store->candidate, l_store->candidate_size)&&f_compare)
    {
         l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_precommit_candidate_hash);
-        dap_chain_mempool_tx_coll_fee_create(a_session->blocks_sign_key,(PVT(a_session->esbocs)->fee_addr),l_block_cache,PVT(a_session->esbocs)->minimum_fee,"hex");
+        //dap_chain_mempool_tx_coll_fee_create(a_session->blocks_sign_key,(PVT(a_session->esbocs)->fee_addr),l_block_cache,PVT(a_session->esbocs)->minimum_fee,"hex");
    }
 }
 
