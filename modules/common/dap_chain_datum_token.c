@@ -423,7 +423,7 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_add_sign(dap_enc_key_
         DAP_DELETE(l_pub_key);
     }
     a_emission->data.type_auth.signs_count = 0;
-    dap_sign_t *l_new_sign = dap_sign_create(a_sign_key, a_emission, sizeof(a_emission->hdr) + sizeof(a_emission->data) + a_emission->data.type_auth.tsd_total_size, 0);
+    dap_sign_t *l_new_sign = dap_sign_create(a_sign_key, a_emission, sizeof(dap_chain_datum_token_emission_t) + a_emission->data.type_auth.tsd_total_size, 0);
     if (!l_new_sign)
         return NULL;
     size_t l_emission_size = dap_chain_datum_emission_get_size((uint8_t *)a_emission);
