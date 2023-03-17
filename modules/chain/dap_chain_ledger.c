@@ -64,6 +64,7 @@
 #include "dap_notify_srv.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_srv.h"
+#include "dap_chain_net_srv_stake_lock.h"
 
 #define LOG_TAG "dap_chain_ledger"
 
@@ -3838,30 +3839,43 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
             /// Mark 'out' item in cache because it used
             l_tx_prev_out_used_idx = l_tx_in_cond->header.tx_out_prev_idx;
             dap_chain_tx_out_cond_t *l_cond = bound_item->out.tx_prev_out_cond_256;
-            if (l_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE)
+            switch (l_cond->header.subtype) {
+            case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE:
                 l_main_token_ticker = l_prev_item_out->cache_data.token_ticker;
-            if (l_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
-                l_cur_token_ticker = (char *)PVT(a_ledger)->net->pub.native_ticker;
-            if (l_cond->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK) {
-                /* For a lock, we should also mark burning tx out as used */
-                dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)
-                        dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_RECEIPT, 0);
-                dap_chain_datum_tx_t *l_tx_burning = dap_chain_ledger_tx_find_by_hash(a_ledger, (dap_hash_fast_t*)l_receipt->exts_n_signs);
-                dap_list_t *l_temp_list_out_items = dap_chain_datum_tx_items_get(l_tx_burning, TX_ITEM_TYPE_OUT_ALL, NULL);
-                for(dap_list_t *l_list_tmp = l_temp_list_out_items; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp), ++l_tx_burning_prev_out_used_idx) {
-                    dap_chain_tx_item_type_t l_type = *(uint8_t*)l_list_tmp->data;
-                    if (l_type == TX_ITEM_TYPE_OUT) {
-                        const dap_chain_tx_out_t *l_tx_out = (const dap_chain_tx_out_t *)l_list_tmp->data;
-                        dap_chain_addr_t l_addr = l_tx_out->addr;
-                        if (dap_chain_addr_is_blank(&l_addr)) {
-                            l_prev_item_out->cache_data.tx_hash_spent_fast[l_tx_burning_prev_out_used_idx] = *(dap_hash_fast_t*)l_receipt->exts_n_signs;
-                            l_prev_item_out->cache_data.n_outs_used++;
-                            break;
+                break;
+            case DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE:
+                l_cur_token_ticker = (char*)PVT(a_ledger)->net->pub.native_ticker;
+                break;
+            case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK: {
+                if (l_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX) {
+                    /* For a lock with base tx, we should also mark burning tx out as used */
+                    dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t*)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_RECEIPT, 0);
+                    if (!l_receipt) {
+                        log_it(L_ERROR, "Tx hash %s : no receipt found", l_tx_hash_str);
+                        break;
+                    }
+                    dap_chain_datum_tx_t *l_tx_burning = dap_chain_ledger_tx_find_by_hash(a_ledger, (dap_hash_fast_t*)l_receipt->exts_n_signs);
+                    dap_list_t *l_temp_list_out_items = dap_chain_datum_tx_items_get(l_tx_burning, TX_ITEM_TYPE_OUT_ALL, NULL);
+                    for(dap_list_t *l_list_tmp = l_temp_list_out_items; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp), ++l_tx_burning_prev_out_used_idx) {
+                        dap_chain_tx_item_type_t l_type = *(uint8_t*)l_list_tmp->data;
+                        if (l_type == TX_ITEM_TYPE_OUT) {
+                            const dap_chain_tx_out_t *l_tx_out = (const dap_chain_tx_out_t *)l_list_tmp->data;
+                            dap_chain_addr_t l_addr = l_tx_out->addr;
+                            if (dap_chain_addr_is_blank(&l_addr)) {
+                                l_prev_item_out->cache_data.tx_hash_spent_fast[l_tx_burning_prev_out_used_idx] = *(dap_hash_fast_t*)l_receipt->exts_n_signs;
+                                l_prev_item_out->cache_data.n_outs_used++;
+                                break;
+                            }
                         }
                     }
+                    dap_list_free(l_temp_list_out_items);
                 }
-                dap_list_free(l_temp_list_out_items);
+                break;
             }
+            default:
+                break;
+            }
+
             // Update service items if any
             dap_chain_ledger_verificator_t *l_verificator;
             int l_tmp = l_cond->header.subtype;
