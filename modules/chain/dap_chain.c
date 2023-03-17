@@ -573,12 +573,16 @@ int dap_chain_save_all (dap_chain_t * l_chain)
  * @param l_chain
  * @return
  */
-int dap_chain_load_all(dap_chain_t *l_chain)
+int dap_chain_load_all(dap_chain_t *a_chain)
 {
     int l_ret = 0;
-    if (!l_chain)
+    if (!a_chain)
         return -2;
-    char *l_storage_dir = DAP_CHAIN_PVT(l_chain)->file_storage_dir;
+    if (a_chain->callback_load_from_gdb) {
+        a_chain->callback_load_from_gdb(a_chain);
+        return 0;
+    }
+    char *l_storage_dir = DAP_CHAIN_PVT(a_chain)->file_storage_dir;
     if (!l_storage_dir)
         return 0;
     if (!dap_dir_test(l_storage_dir)) {
@@ -586,7 +590,7 @@ int dap_chain_load_all(dap_chain_t *l_chain)
     }
     DIR *l_dir = opendir(l_storage_dir);
     if (!l_dir) {
-        log_it(L_ERROR, "Cannot open directory %s", DAP_CHAIN_PVT (l_chain)->file_storage_dir);
+        log_it(L_ERROR, "Cannot open directory %s", DAP_CHAIN_PVT(a_chain)->file_storage_dir);
         return -3;
     }
     for (struct dirent *l_dir_entry = readdir(l_dir); l_dir_entry != NULL; l_dir_entry = readdir(l_dir))
@@ -595,7 +599,7 @@ int dap_chain_load_all(dap_chain_t *l_chain)
         const char l_suffix[] = ".dchaincell";
         size_t l_suffix_len = strlen(l_suffix);
         if (strncmp(l_filename + strlen(l_filename) - l_suffix_len, l_suffix, l_suffix_len) == 0 ) {
-            l_ret += dap_chain_cell_load(l_chain,l_filename);
+            l_ret += dap_chain_cell_load(a_chain, l_filename);
         }
     }
     closedir(l_dir);

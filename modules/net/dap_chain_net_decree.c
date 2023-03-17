@@ -357,16 +357,9 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
                 }
 
                 if (!dap_chain_datum_decree_get_fee(a_decree, &l_uint256_buffer)){
-                    if (!dap_chain_net_tx_get_fee(a_chain->net_id, a_chain, NULL, &l_addr)){
-                        if(!dap_chain_net_tx_add_fee(a_chain->net_id, a_chain, &l_uint256_buffer, l_addr)){
-                            log_it(L_WARNING,"Can't add fee value.");
-                            return -102;
-                        }
-                    }else{
-                        if(!dap_chain_net_tx_replace_fee(a_chain->net_id, a_chain, &l_uint256_buffer, l_addr)){
-                            log_it(L_WARNING,"Can't replace fee value.");
-                            return -103;
-                        }
+                    if (!dap_chain_net_tx_add_fee(a_chain->net_id, l_uint256_buffer, l_addr)) {
+                        log_it(L_WARNING,"Can't add/replace fee value.");
+                        return -102;
                     }
                 }else{
                     log_it(L_WARNING,"Can't get fee value from decree.");

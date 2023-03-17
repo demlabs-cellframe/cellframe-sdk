@@ -39,6 +39,7 @@
 
 const dap_chain_net_srv_uid_t c_dap_chain_net_srv_uid_null = {0};
 const dap_chain_cell_id_t c_dap_chain_cell_id_null = {0};
+const dap_chain_addr_t c_dap_chain_addr_blank = {0};
 
 /*
  * Forward declarations
@@ -49,23 +50,6 @@ const dap_chain_cell_id_t c_dap_chain_cell_id_null = {0};
 
 char        *dap_cvt_uint256_to_str (uint256_t a_uint256);
 uint256_t   dap_cvt_str_to_uint256 (const char *a_256bit_num);
-
-json_object* dap_chain_receipt_info_to_json(dap_chain_receipt_info_t *a_info){
-    json_object *l_obj = json_object_new_object();
-    json_object *l_obj_srv_uid = json_object_new_uint64(a_info->srv_uid.uint64);
-    json_object_object_add(l_obj, "srvUID", l_obj_srv_uid);
-#if DAP_CHAIN_NET_SRV_UID_SIZE == 8
-    json_object *l_obj_addition = json_object_new_uint64(a_info->addition);
-    json_object_object_add(l_obj, "addition", l_obj_addition);
-#endif
-    json_object *l_obj_units_type = json_object_new_string(dap_chain_srv_unit_enum_to_str(a_info->units_type.enm));
-    json_object_object_add(l_obj, "unitsType", l_obj_units_type);
-    char *l_datoshi_value = dap_chain_balance_print(a_info->value_datoshi);
-    json_object *l_obj_datoshi = json_object_new_string(l_datoshi_value);
-    DAP_DELETE(l_datoshi_value);
-    json_object_object_add(l_obj, "value", l_obj_datoshi);
-    return l_obj;
-}
 
 /**
  * @brief dap_chain_hash_to_str
@@ -149,9 +133,9 @@ dap_chain_addr_t* dap_chain_addr_from_str(const char *a_str)
     return NULL;
 }
 
-bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr){
-    dap_chain_addr_t l_addr_blank = {0};
-    return !memcmp(a_addr, &l_addr_blank, sizeof(dap_chain_addr_t));
+bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr)
+{
+    return dap_chain_addr_compare(a_addr, &c_dap_chain_addr_blank);
 }
 
 /**
