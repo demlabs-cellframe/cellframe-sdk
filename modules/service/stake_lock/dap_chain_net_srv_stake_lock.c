@@ -563,7 +563,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 /*________________________________________________________________________________________________________________*/
 
 
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(l_chain->net_id, NULL, &l_net_fee, &l_addr_fee);
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(l_chain->net_id, &l_net_fee, &l_addr_fee);
     if(l_net_fee_used)
         SUM_256_256(l_value_need,l_net_fee,&l_value_need);
     SUM_256_256(l_value_need,l_value_fee,&l_value_need);
@@ -600,10 +600,9 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 
     //add burning tx
     if (l_tx_out_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX) {
-        dap_chain_addr_t l_addr_blank = {0};
         uint32_t l_tx_out_prev_idx = 0;
         uint256_t l_value_change = {};
-        if (NULL == (l_datum_burning_tx = dap_chain_burning_tx_create(l_chain, l_owner_key, l_owner_addr, &l_addr_blank,
+        if (NULL == (l_datum_burning_tx = dap_chain_burning_tx_create(l_chain, l_owner_key, l_owner_addr, &c_dap_chain_addr_blank,
                                                                   delegate_ticker_str, l_value_delegated, l_value_fee,&l_tx_out_prev_idx,&l_value_change))) {//malloc
             dap_chain_wallet_close(l_wallet);
             DAP_DEL_Z(l_owner_addr);
@@ -1099,7 +1098,6 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_hash_f
 {
     UNUSED(a_tx_out_hash);
     dap_chain_datum_tx_t									*burning_tx					= NULL;
-    dap_chain_tx_out_t										*burning_transaction_out	= NULL;
     dap_chain_datum_tx_receipt_t							*l_receipt					= NULL;
     uint256_t												l_value_delegated			= {};
     dap_hash_fast_t											hash_burning_transaction;
@@ -1180,17 +1178,28 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_hash_f
             return false;
 
         burning_tx = dap_chain_ledger_tx_find_by_hash(a_ledger, &hash_burning_transaction);
-        burning_transaction_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(burning_tx, 0, TX_ITEM_TYPE_OUT_EXT,0);
-
-        if (!burning_transaction_out)
-            return false;
-
-        if (!dap_hash_fast_is_blank(&burning_transaction_out->addr.data.hash_fast)) {
-            if (s_debug_more) {
-                const char *addr_srt = dap_chain_hash_fast_to_str_new(&burning_transaction_out->addr.data.hash_fast);
-                log_it(L_ERROR, "ADDR from burning NOT BLANK: %s", addr_srt);
-                DAP_DEL_Z(addr_srt);
+        int l_outs_count = 0;
+        dap_list_t *l_outs_list = dap_chain_datum_tx_items_get(burning_tx, TX_ITEM_TYPE_OUT_ALL, &l_outs_count);
+        uint256_t l_blank_out_value = {};
+        for (dap_list_t *it = l_outs_list; it; it = it->next) {
+            byte_t l_type = *(byte_t *)it->data;
+            if (l_type == TX_ITEM_TYPE_OUT) {
+                dap_chain_tx_out_t *l_out = it->data;
+                if (dap_chain_addr_is_blank(&l_out->addr)) {
+                    l_blank_out_value = l_out->header.value;
+                    break;
+                }
+            } else if (l_type == TX_ITEM_TYPE_OUT_EXT) {
+                dap_chain_tx_out_ext_t *l_out = it->data;
+                if (dap_chain_addr_is_blank(&l_out->addr) &&
+                        !strcmp(l_out->token, delegated_ticker)) {
+                    l_blank_out_value = l_out->header.value;
+                    break;
+                }
             }
+        }
+        if (IS_ZERO_256(l_blank_out_value)) {
+            log_it(L_ERROR, "Can't find BLANK addr in burning TX");
             return false;
         }
 
@@ -1202,7 +1211,7 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_hash_f
             l_value_delegated = l_tx_out->header.value;
 
         if (s_debug_more) {
-            char *str1 = dap_chain_balance_print(burning_transaction_out->header.value);
+            char *str1 = dap_chain_balance_print(l_blank_out_value);
             char *str2 = dap_chain_balance_print(l_tx_out->header.value);
             char *str3 = dap_chain_balance_print(l_value_delegated);
             log_it(L_INFO, "burning_value: |%s|",	str1);
@@ -1213,7 +1222,7 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_hash_f
             DAP_DEL_Z(str3);
         }
 
-        if (!EQUAL_256(burning_transaction_out->header.value, l_value_delegated))
+        if (!EQUAL_256(l_blank_out_value, l_value_delegated))
             return false;
     }
 
@@ -1273,7 +1282,7 @@ dap_chain_datum_t *dap_chain_net_srv_stake_lock_datum_create(dap_chain_net_t *a_
     // where to take coins for service
     dap_chain_addr_t l_addr_from;
     dap_chain_addr_t l_net_fee_addr = {};
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, NULL, &l_net_fee, &l_net_fee_addr);
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_fee_addr);
     if(l_net_fee_used)
         SUM_256_256(l_value_need,l_net_fee,&l_value_need);
 
@@ -1374,7 +1383,7 @@ dap_chain_datum_t *dap_chain_burning_tx_create(dap_chain_t *a_chain, dap_enc_key
     const char *l_native_ticker = dap_chain_net_by_id(a_chain->net_id)->pub.native_ticker;
     dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(a_chain->ledger, a_token_ticker,
                                                                              a_addr_from, a_value, &l_value_transfer);
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_chain->net_id, NULL, &l_net_fee, &l_addr_fee);
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_chain->net_id, &l_net_fee, &l_addr_fee);
     if(l_net_fee_used)
         SUM_256_256(l_total_fee,l_net_fee,&l_total_fee);
 
@@ -1483,7 +1492,7 @@ static char *dap_chain_mempool_base_tx_for_stake_lock_create(dap_chain_t *a_chai
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
 
     const char *l_native_ticker = l_net->pub.native_ticker;
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_chain->net_id, NULL, &l_net_fee, &l_net_fee_addr);
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_chain->net_id, &l_net_fee, &l_net_fee_addr);
     if(l_net_fee_used)
         SUM_256_256(l_value_need,l_net_fee,&l_value_need);
 

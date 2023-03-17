@@ -274,7 +274,7 @@ static dap_chain_datum_tx_t *s_stake_tx_create(dap_chain_net_t * a_net, dap_chai
     dap_chain_addr_t *l_owner_addr = (dap_chain_addr_t *)dap_chain_wallet_get_addr(a_wallet, a_net->pub.id);
     uint256_t l_net_fee, l_fee_total = a_fee;
     dap_chain_addr_t l_net_fee_addr;
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, NULL, &l_net_fee, &l_net_fee_addr);
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_fee_addr);
     if (l_net_fee_used)
         SUM_256_256(l_fee_total, l_net_fee, &l_fee_total);
     dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(l_ledger, l_delegated_ticker,
@@ -548,7 +548,7 @@ static dap_chain_datum_tx_t *s_stake_tx_invalidate(dap_chain_net_t *a_net, dap_h
     // list of transaction with 'out' items to sell
     uint256_t l_net_fee, l_fee_total = a_fee;
     dap_chain_addr_t l_net_fee_addr;
-    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, NULL, &l_net_fee, &l_net_fee_addr);
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_fee_addr);
     if (l_net_fee_used)
         SUM_256_256(l_fee_total, l_net_fee, &l_fee_total);
     dap_list_t *l_list_fee_out = dap_chain_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,

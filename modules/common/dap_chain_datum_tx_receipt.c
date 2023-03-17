@@ -156,6 +156,24 @@ uint16_t dap_chain_datum_tx_receipt_signs_count(dap_chain_datum_tx_receipt_t * a
     return l_ret;
 }
 
+
+json_object* dap_chain_receipt_info_to_json(dap_chain_receipt_info_t *a_info){
+    json_object *l_obj = json_object_new_object();
+    json_object *l_obj_srv_uid = json_object_new_uint64(a_info->srv_uid.uint64);
+    json_object_object_add(l_obj, "srvUID", l_obj_srv_uid);
+#if DAP_CHAIN_NET_SRV_UID_SIZE == 8
+    json_object *l_obj_addition = json_object_new_uint64(a_info->addition);
+    json_object_object_add(l_obj, "addition", l_obj_addition);
+#endif
+    json_object *l_obj_units_type = json_object_new_string(dap_chain_srv_unit_enum_to_str(a_info->units_type.enm));
+    json_object_object_add(l_obj, "unitsType", l_obj_units_type);
+    char *l_datoshi_value = dap_chain_balance_print(a_info->value_datoshi);
+    json_object *l_obj_datoshi = json_object_new_string(l_datoshi_value);
+    DAP_DELETE(l_datoshi_value);
+    json_object_object_add(l_obj, "value", l_obj_datoshi);
+    return l_obj;
+}
+
 json_object *dap_chain_datum_tx_receipt_to_json(dap_chain_datum_tx_receipt_t *a_receipt) {
     json_object *l_obj = json_object_new_object();
     json_object *l_obj_info = dap_chain_receipt_info_to_json(&a_receipt->receipt_info);
