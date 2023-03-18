@@ -154,6 +154,13 @@ static void s_dap_chain_gdb_callback_purge(dap_chain_t *a_chain)
     PVT(DAP_CHAIN_GDB(a_chain))->is_load_mode = true;
 }
 
+
+static void s_callback_memepool_notify(dap_global_db_context_t *a_context UNUSED_ARG, dap_store_obj_t *a_obj, void *a_arg)
+{
+    if (a_obj->type == DAP_DB$K_OPTYPE_ADD)
+        dap_chain_node_mempool_process_all(a_arg, false);
+}
+
 /**
  * @brief configure chain gdb
  * Set atom element callbacks
@@ -185,6 +192,8 @@ int dap_chain_gdb_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 
     // Add group prefix that will be tracking all changes
     dap_global_db_add_sync_group(l_net->pub.name, "chain-gdb", s_history_callback_notify, l_gdb);
+
+    dap_chain_add_mempool_notify_callback(a_chain, s_callback_memepool_notify, a_chain);
 
     pthread_cond_init(&l_gdb_priv->load_cond, NULL);
     pthread_mutex_init(&l_gdb_priv->load_mutex, NULL);
