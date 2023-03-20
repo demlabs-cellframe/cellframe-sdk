@@ -228,7 +228,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
         l_hash_str = dap_chain_hash_fast_to_str_new(a_tx_hash);
     else
         l_hash_str = dap_enc_base58_encode_hash_to_str(a_tx_hash);
-    dap_string_append_printf(a_str_out, "transaction:%s hash: %s\n TS Created: %s%s%s\n Items:\n",
+    dap_string_append_printf(a_str_out, "transaction:%s hash %s\n TS Created: %s%s%s\n Items:\n",
                               l_is_first ? " (emit)" : "", l_hash_str, dap_ctime_r(&l_ts_create, l_tmp_buf),
                               a_ticker ? " Token ticker: " : "", a_ticker ? a_ticker : "");
     DAP_DELETE(l_hash_str);
