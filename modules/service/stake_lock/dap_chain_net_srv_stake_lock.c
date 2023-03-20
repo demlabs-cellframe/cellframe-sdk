@@ -1198,8 +1198,9 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_hash_f
                 }
             }
         }
+        dap_list_free(l_outs_list);
         if (IS_ZERO_256(l_blank_out_value)) {
-            log_it(L_ERROR, "Can't find BLANK addr in burning TX");
+            log_it(L_ERROR, "Can't find OUT with BLANK addr in burning TX");
             return false;
         }
 
