@@ -677,7 +677,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
             }
             //verification of signatures of all blocks
             for (dap_list_t *bl = l_block_list; bl; bl = bl->next) {
-                dap_chain_block_cache_t *l_block_cache = (dap_chain_block_cache_t *)l_block_list->data;
+                dap_chain_block_cache_t *l_block_cache = (dap_chain_block_cache_t *)bl->data;
                 dap_sign_t * l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
                 if(!dap_pkey_compare_with_sign(l_pub_key, l_sign)){
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block fee collect' requires parameter '-hashes'");
@@ -685,7 +685,16 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                     return -23;
                 }
             }
-            dap_chain_mempool_tx_coll_fee_create(l_cert->enc_key,l_addr,l_block_list,l_fee_value,l_hash_out_type);
+            char * l_hash_tx = dap_chain_mempool_tx_coll_fee_create(l_cert->enc_key,l_addr,l_block_list,l_fee_value,l_hash_out_type);
+            if (l_hash_tx) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Fee collect TX created succefully, hash=%s\n", l_hash_tx);
+                ret = 0;
+            }
+            else
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create fee collect TX\n");
+            ret = -24;
+
+            DAP_DELETE(l_hash_tx);
             dap_list_free(l_block_list);
         }break;
         case SUBCMD_UNDEFINED: {
