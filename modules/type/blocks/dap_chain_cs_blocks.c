@@ -734,8 +734,7 @@ static dap_list_t * s_block_parse_str_list(const char * a_hash_str,size_t * a_ha
              DAP_FREE(l_hashes_str_dup);
             return NULL;
         }
-        dap_chain_block_cache_t *l_block_cache = DAP_NEW_Z(dap_chain_block_cache_t);
-        l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_hash_block);
+        dap_chain_block_cache_t *l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_hash_block);
         l_block_list = dap_list_append(l_block_list, l_block_cache);
         l_hashes_str = strtok_r(NULL, ",", &l_hashes_tmp_ptrs);
         l_hashes_pos++;
