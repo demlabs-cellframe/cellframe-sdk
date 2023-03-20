@@ -681,11 +681,12 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                 dap_sign_t * l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
                 if(!dap_pkey_compare_with_sign(l_pub_key, l_sign)){
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block fee collect' requires parameter '-hashes'");
+                    dap_list_free(l_block_list);
                     return -23;
                 }
             }
             dap_chain_mempool_tx_coll_fee_create(l_cert->enc_key,l_addr,l_block_list,l_fee_value,l_hash_out_type);
-
+            dap_list_free(l_block_list);
         }break;
         case SUBCMD_UNDEFINED: {
             dap_cli_server_cmd_set_reply_text(a_str_reply,
@@ -720,7 +721,6 @@ static dap_list_t * s_block_parse_str_list(const char * a_hash_str,size_t * a_ha
         l_hashes_str = dap_strstrip(l_hashes_str);
         if(dap_chain_hash_fast_from_hex_str(l_hashes_str, &l_hash_block)!=0) {
             log_it(L_WARNING,"Can't load hash %s",l_hashes_str);
-            dap_list_free_full(l_block_list, NULL);
             *a_hash_size = 0;
              DAP_FREE(l_hashes_str_dup);
             return NULL;
@@ -730,7 +730,6 @@ static dap_list_t * s_block_parse_str_list(const char * a_hash_str,size_t * a_ha
         if(!l_block)
         {
             log_it(L_WARNING,"There aren't any block by this hash");
-            dap_list_free_full(l_block_list, NULL);
             *a_hash_size = 0;
              DAP_FREE(l_hashes_str_dup);
             return NULL;
