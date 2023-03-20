@@ -715,6 +715,10 @@ bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const
     if (!a_node_client)
         return false;
     a_node_client->client = dap_client_new(s_client_delete_callback, s_stage_status_error_callback, a_node_client);
+    if(!a_node_client->client) {
+        log_it(L_WARNING, "Can not allocate memory while client creation.");
+        return false;
+    }
     dap_client_set_is_always_reconnect(a_node_client->client, false);
     a_node_client->client->_inheritor = a_node_client;
     dap_client_set_active_channels_unsafe(a_node_client->client, a_active_channels);
@@ -759,42 +763,42 @@ void dap_chain_node_client_reset(dap_chain_node_client_t *a_client)
  * Close connection to server, delete chain_node_client_t *client
  * @param a_client dap_chain_node_client_t
  */
-void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client)
+void dap_chain_node_client_close_unsafe(dap_chain_node_client_t **a_node_client)
 {
-    if (a_node_client->sync_timer) {
-        a_node_client->sync_timer->callback_arg = NULL;
-        dap_timerfd_delete(a_node_client->sync_timer);
+    if ((*a_node_client)->sync_timer) {
+        (*a_node_client)->sync_timer->callback_arg = NULL;
+        dap_timerfd_delete((*a_node_client)->sync_timer);
     }
-    if (a_node_client->callbacks.delete)
-        a_node_client->callbacks.delete(a_node_client, a_node_client->net);
+    if ((*a_node_client)->callbacks.delete)
+        (*a_node_client)->callbacks.delete(*a_node_client, (*a_node_client)->net);
     char l_node_addr_str[INET_ADDRSTRLEN] = {};
-    inet_ntop(AF_INET, &a_node_client->info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
-    log_it(L_INFO, "Closing node client to uplink %s:%d", l_node_addr_str, a_node_client->info->hdr.ext_port);
-    if (a_node_client->stream_worker) {
-        dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(a_node_client->stream_worker, a_node_client->ch_chain_uuid);
+    inet_ntop(AF_INET, &(*a_node_client)->info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
+    log_it(L_INFO, "Closing node client to uplink %s:%d", l_node_addr_str, (*a_node_client)->info->hdr.ext_port);
+    if ((*a_node_client)->stream_worker) {
+        dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe((*a_node_client)->stream_worker, (*a_node_client)->ch_chain_uuid);
         if (l_ch) {
             dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
             l_ch_chain->callback_notify_packet_in = NULL;
             l_ch_chain->callback_notify_packet_out = NULL;
         }
-        l_ch = dap_stream_ch_find_by_uuid_unsafe(a_node_client->stream_worker, a_node_client->ch_chain_net_uuid);
+        l_ch = dap_stream_ch_find_by_uuid_unsafe((*a_node_client)->stream_worker, (*a_node_client)->ch_chain_net_uuid);
         if (l_ch) {
             dap_stream_ch_chain_net_t *l_ch_chain_net = DAP_STREAM_CH_CHAIN_NET(l_ch);
             l_ch_chain_net->notify_callback = NULL;
         }
     }
     // clean client
-    a_node_client->client->delete_callback = NULL;
-    dap_client_delete_unsafe(a_node_client->client);
+    (*a_node_client)->client->delete_callback = NULL;
+    dap_client_delete_unsafe(&(*a_node_client)->client);
 #ifndef _WIN32
-    pthread_cond_destroy(&a_node_client->wait_cond);
+    pthread_cond_destroy(&(*a_node_client)->wait_cond);
 #else
-    CloseHandle( a_node_client->wait_cond );
+    CloseHandle( (*a_node_client)->wait_cond );
 #endif
-    pthread_mutex_destroy(&a_node_client->wait_mutex);
-    a_node_client->client = NULL;
-    DAP_DEL_Z(a_node_client->info);
-    DAP_DELETE(a_node_client);
+    pthread_mutex_destroy(&(*a_node_client)->wait_mutex);
+
+    DAP_DEL_Z((*a_node_client)->info);
+    DAP_DEL_Z(*a_node_client);
 }
 
 void s_close_on_worker_callback(UNUSED_ARG dap_worker_t *a_worker, void *a_arg)
@@ -803,10 +807,10 @@ void s_close_on_worker_callback(UNUSED_ARG dap_worker_t *a_worker, void *a_arg)
     dap_chain_node_client_close_unsafe(a_arg);
 }
 
-void dap_chain_node_client_close_mt(dap_chain_node_client_t *a_node_client)
+void dap_chain_node_client_close_mt(dap_chain_node_client_t **a_node_client)
 {
-    if (a_node_client->client)
-        dap_worker_exec_callback_on(DAP_CLIENT_PVT(a_node_client->client)->worker, s_close_on_worker_callback, a_node_client);
+    if ((*a_node_client)->client)
+        dap_worker_exec_callback_on(DAP_CLIENT_PVT((*a_node_client)->client)->worker, s_close_on_worker_callback, *a_node_client);
     else
         dap_chain_node_client_close_unsafe(a_node_client);
 }

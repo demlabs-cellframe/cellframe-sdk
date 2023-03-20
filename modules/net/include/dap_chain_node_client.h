@@ -182,8 +182,8 @@ void dap_chain_node_client_reset(dap_chain_node_client_t *a_client);
 /**
  * Close connection to server, delete chain_node_client_t with specified UUID
  */
-void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client);
-void dap_chain_node_client_close_mt(dap_chain_node_client_t *a_node_client);
+void dap_chain_node_client_close_unsafe(dap_chain_node_client_t **a_node_client);
+void dap_chain_node_client_close_mt(dap_chain_node_client_t **a_node_client);
 
 /**
  * Send stream request to server

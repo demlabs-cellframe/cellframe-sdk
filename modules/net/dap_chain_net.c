@@ -652,7 +652,7 @@ static void s_net_link_remove(dap_chain_net_pvt_t *a_net_pvt, dap_chain_node_cli
     dap_chain_node_client_t *l_client = l_link_found->link;
     l_client->callbacks.delete = NULL;
     a_net_pvt->links_queue = dap_list_remove_all(a_net_pvt->links_queue, l_client);
-    dap_chain_node_client_close_mt(l_client);
+    dap_chain_node_client_close_mt(&l_link_found->link);
     if (a_rebase) {
         l_link_found->link = NULL;
         // Add it to the list end
@@ -1172,13 +1172,8 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
             HASH_ITER(hh, l_net_pvt->net_links, l_link, l_link_tmp) {
                 if (l_link && l_link->link) {
                     dap_chain_node_client_t *l_client = l_link->link;
-//                    l_client->callbacks.delete = NULL;
                     s_net_link_remove(l_net_pvt, l_client, false);
-//                    dap_chain_node_client_close_mt(l_client);
                 }
-//                HASH_DEL(l_net_pvt->net_links, l_link);
-//                DAP_DEL_Z(l_link->link_info);
-//                DAP_DEL_Z(l_link);
             }
             struct downlink *l_downlink, *l_dltmp;
             HASH_ITER(hh, l_net_pvt->downlinks, l_downlink, l_dltmp) {
@@ -1322,8 +1317,9 @@ bool dap_chain_net_sync_unlock(dap_chain_net_t *a_net, dap_chain_node_client_t *
         dap_chain_node_sync_status_t l_status = dap_chain_node_client_start_sync(l_link);
         if (l_status != NODE_SYNC_STATUS_WAITING) {
             dap_list_t *l_to_remove = l_net_pvt->links_queue;
-            l_net_pvt->links_queue = l_net_pvt->links_queue->next;
-            DAP_DELETE(l_to_remove);
+            dap_list_delete_link(l_net_pvt->links_queue, l_to_remove);
+//            l_net_pvt->links_queue = l_net_pvt->links_queue->next;
+//            DAP_DELETE(l_to_remove);
         } else {
             break;
         }
