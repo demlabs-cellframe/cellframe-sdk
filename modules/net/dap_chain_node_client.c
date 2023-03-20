@@ -700,7 +700,7 @@ dap_chain_node_client_t *dap_chain_node_client_create(dap_chain_net_t *a_net,
  void s_client_delete_callback(UNUSED_ARG dap_client_t *a_client, void *a_arg)
  {
      assert(a_arg);
-     dap_chain_node_client_close_unsafe(a_arg);
+     dap_chain_node_client_close_unsafe(&a_arg);
  }
 /**
  * @brief dap_chain_node_client_connect
@@ -736,6 +736,7 @@ bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const
     log_it(L_INFO, "Connecting to %s address", l_host_addr);
     // address not defined
     if(!strcmp(l_host_addr, "::")) {
+        DAP_DEL_Z(a_node_client->client);
         log_it(L_WARNING, "Undefined address with node client connect to");
         return false;
     }
@@ -773,7 +774,6 @@ void dap_chain_node_client_close_unsafe(dap_chain_node_client_t **a_node_client)
         (*a_node_client)->callbacks.delete(*a_node_client, (*a_node_client)->net);
     char l_node_addr_str[INET_ADDRSTRLEN] = {};
     inet_ntop(AF_INET, &(*a_node_client)->info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
-    log_it(L_INFO, "Closing node client to uplink %s:%d", l_node_addr_str, (*a_node_client)->info->hdr.ext_port);
     if ((*a_node_client)->stream_worker) {
         dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe((*a_node_client)->stream_worker, (*a_node_client)->ch_chain_uuid);
         if (l_ch) {
@@ -804,7 +804,7 @@ void dap_chain_node_client_close_unsafe(dap_chain_node_client_t **a_node_client)
 void s_close_on_worker_callback(UNUSED_ARG dap_worker_t *a_worker, void *a_arg)
 {
     assert(a_arg);
-    dap_chain_node_client_close_unsafe(a_arg);
+    dap_chain_node_client_close_unsafe(&a_arg);
 }
 
 void dap_chain_node_client_close_mt(dap_chain_node_client_t **a_node_client)
