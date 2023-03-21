@@ -1326,9 +1326,7 @@ bool dap_chain_net_sync_unlock(dap_chain_net_t *a_net, dap_chain_node_client_t *
         dap_chain_node_sync_status_t l_status = dap_chain_node_client_start_sync(l_link);
         if (l_status != NODE_SYNC_STATUS_WAITING) {
             dap_list_t *l_to_remove = l_net_pvt->links_queue;
-            dap_list_delete_link(l_net_pvt->links_queue, l_to_remove);
-//            l_net_pvt->links_queue = l_net_pvt->links_queue->next;
-//            DAP_DELETE(l_to_remove);
+            l_net_pvt->links_queue = dap_list_delete_link(l_net_pvt->links_queue, l_to_remove);
         } else {
             break;
         }
