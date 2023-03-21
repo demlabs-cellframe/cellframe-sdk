@@ -2893,7 +2893,7 @@ static int s_ledger_permissions_check(dap_chain_ledger_token_item_t *  a_token_i
         break;
     }
     if ( l_addrs && l_addrs_count){
-        if (a_data_size != sizeof (*l_addrs)){
+        if (a_data_size != sizeof (dap_chain_addr_t)){
             log_it(L_ERROR,"Wrong data size %zd for ledger permission check", a_data_size);
             return -2;
         }
@@ -3368,7 +3368,8 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         if ( (l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_SENDER_BLOCKED ) ||  // If all is blocked - check if we're
              (l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN) ){ // in white list
 
-            if(s_ledger_permissions_check(l_token_item, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD,&l_tx_in_from,
+            if(!dap_chain_addr_is_blank(&l_tx_in_from) && s_ledger_permissions_check(l_token_item,
+                                           DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD,&l_tx_in_from,
                                           sizeof (l_tx_in_from)) != 0 ){
                 char * l_tmp_tx_in_from = dap_chain_addr_to_str(&l_tx_in_from);
                 if(s_debug_more)
@@ -3529,7 +3530,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
 
         if ( (l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_BLOCKED )||   //  If all is blocked or frozen
              (l_token_item->flags & DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN) ){ //  check if we're in white list
-            if(s_ledger_permissions_check(l_token_item, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD,&l_tx_out_to ,
+            if(!dap_chain_addr_is_blank(&l_tx_out_to) && s_ledger_permissions_check(l_token_item, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD,&l_tx_out_to ,
                                           sizeof (l_tx_out_to)) != 0 ){
                 char * l_tmp_tx_out_to = dap_chain_addr_to_str(&l_tx_out_to);
                 if(s_debug_more)
