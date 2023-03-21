@@ -579,18 +579,80 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
             }
         }break;
         case SUBCMD_LIST:{
+                const char * l_hash_str = NULL;
+                const char * l_cert_name = NULL;
+                const char * l_unspent_str = NULL;
+                size_t l_block_count = 0;
+                dap_cert_t * l_cert = NULL;
+                dap_pkey_t * l_pub_key = NULL;
+
+                dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cert", &l_cert_name);
+
+                if(l_cert_name) {
+
+                    l_cert = dap_cert_find_by_name( l_cert_name );
+                    if( l_cert == NULL ){
+                        dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                "Can't find \"%s\" certificate", l_cert_name );
+                        return -18;
+                    }
+                    if( l_cert->enc_key == NULL ){
+                        dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                "Corrupted certificate \"%s\" without keys certificate", l_cert_name );
+                        return -20;
+                    }
+                    if(l_cert) {
+                        l_pub_key = dap_pkey_from_enc_key(l_cert->enc_key);
+                    }
+                    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-unspent", &l_unspent_str);
+                }
+
                 pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
                 dap_string_t * l_str_tmp = dap_string_new(NULL);
-                dap_chain_block_cache_t * l_block_cache = NULL,*l_block_cache_tmp = NULL;
+                dap_chain_block_cache_t * l_block_cache = NULL,*l_block_cache_tmp = NULL;               
                 HASH_ITER(hh,PVT(l_blocks)->block_cache_first,l_block_cache, l_block_cache_tmp ) {
                     char l_buf[50];
                     time_t l_ts = l_block_cache->block->hdr.ts_created;
                     ctime_r(&l_ts, l_buf);
+                    dap_sign_t * l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
+                    if(l_cert)
+                    {
+                        if(!dap_pkey_compare_with_sign(l_pub_key, l_sign))
+                            continue;
+                        if(l_unspent_str){
+                            dap_chain_block_cache_tx_index_t *l_tx_cur, *l_tmp;
+                            //dap_chain_tx_out_cond_t *l_tx_out_cond = NULL;
+                            bool fl_found = false;
+                            HASH_ITER(hh, l_block_cache->tx_index, l_tx_cur, l_tmp) {
+                                int l_out_idx_tmp = 0;
+                                if (NULL == dap_chain_datum_tx_out_cond_get(l_tx_cur->tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE,
+                                                                                             &l_out_idx_tmp))
+                                {
+                                    continue;
+                                }
+                                if(dap_chain_ledger_tx_hash_is_used_out_item(l_net->pub.ledger,&l_tx_cur->tx_hash,l_out_idx_tmp))
+                                {
+                                    fl_found = true;
+                                    break;
+                                }
+                            }
+                            if(!fl_found)
+                                continue;
+                        }
+                    }
+
                     dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s",
-                                             l_block_cache->block_hash_str, l_buf);
+                                                 l_block_cache->block_hash_str, l_buf);
+                    l_block_count++;
                 }
-                dap_string_append_printf(l_str_tmp,"%s.%s: Have %"DAP_UINT64_FORMAT_U" blocks :\n",
-                                         l_net->pub.name,l_chain->name,PVT(l_blocks)->blocks_count);
+                if(l_cert){
+                    dap_string_append_printf(l_str_tmp,"%s.%s: Have %"DAP_UINT64_FORMAT_U" blocks signed with %s certificate :\n",
+                                             l_net->pub.name,l_chain->name,l_block_count,l_cert_name);
+                }
+                else
+                    dap_string_append_printf(l_str_tmp,"%s.%s: Have %"DAP_UINT64_FORMAT_U" blocks :\n",
+                                             l_net->pub.name,l_chain->name,PVT(l_blocks)->blocks_count);
+
                 pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
                 dap_string_free(l_str_tmp, true);
