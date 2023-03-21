@@ -3213,6 +3213,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         void *l_tx_prev_out = dap_list_nth_data(l_list_prev_out, l_idx);
         dap_list_free(l_list_prev_out);
         if(!l_tx_prev_out) {
+            debug_if(s_debug_more, L_ERROR, "No 'out' items in previous tx found at index %d, bound with current 'in'", l_idx);
             l_err_num = -8;
             break;
         }
@@ -3252,6 +3253,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 l_token = bound_item->out.tx_prev_out_ext_256->token;
                 break;
             default:
+                debug_if(s_debug_more, L_ERROR, "Unknown previous 'out' item type %d", l_type);
                 l_err_num = -8;
                 break;
             }
@@ -3274,6 +3276,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             }
         } else { // TX_ITEM_TYPE_IN_COND
             if(*(uint8_t *)l_tx_prev_out != TX_ITEM_TYPE_OUT_COND) {
+                debug_if(s_debug_more, L_ERROR, "Tx previous item item has wrong type %d", *(uint8_t*)l_tx_prev_out);
                 l_err_num = -8;
                 break;
             }
