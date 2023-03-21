@@ -481,27 +481,27 @@ static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_ch
     (void) a_pkt;
     (void) a_pkt_data_size;
     (void) a_ch_chain;
-    dap_chain_node_client_t ** l_node_client = (dap_chain_node_client_t **)a_arg;
+    dap_chain_node_client_t * l_node_client = (dap_chain_node_client_t *)a_arg;
     assert(a_arg);
     switch (a_pkt_type) {
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB: {
             if(s_stream_ch_chain_debug_more)
-                log_it(L_INFO,"Out: global database sent to uplink "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S((*l_node_client)->remote_node_addr));
+                log_it(L_INFO,"Out: global database sent to uplink "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr));
         } break;
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_CHAINS: {
             if(s_stream_ch_chain_debug_more)
-                log_it(L_INFO,"Out: chain %"DAP_UINT64_FORMAT_x" sent to uplink "NODE_ADDR_FP_STR,(*l_node_client)->cur_chain ? (*l_node_client)->cur_chain->id.uint64 : 0, NODE_ADDR_FP_ARGS_S((*l_node_client)->remote_node_addr));
+                log_it(L_INFO,"Out: chain %"DAP_UINT64_FORMAT_x" sent to uplink "NODE_ADDR_FP_STR,l_node_client->cur_chain ? l_node_client->cur_chain->id.uint64 : 0, NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr));
         } break;
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_TIMEOUT:
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_DELETE: {
-            dap_chain_net_t *l_net = (*l_node_client)->net;
+            dap_chain_net_t *l_net = l_node_client->net;
             assert(l_net);
             dap_chain_node_addr_t *l_node_addr = dap_chain_net_get_cur_addr(l_net);
             log_it(L_DEBUG, "In: State node %s."NODE_ADDR_FP_STR" %s", l_net->pub.name, NODE_ADDR_FP_ARGS(l_node_addr),
                             a_pkt_type == DAP_STREAM_CH_CHAIN_PKT_TYPE_TIMEOUT ? "is timeout for sync" : "stream closed");
-            (*l_node_client)->state = NODE_CLIENT_STATE_ERROR;
-            dap_timerfd_reset((*l_node_client)->sync_timer);
-            bool l_have_waiting = dap_chain_net_sync_unlock(l_net, (*l_node_client));
+            l_node_client->state = NODE_CLIENT_STATE_ERROR;
+            dap_timerfd_reset(l_node_client->sync_timer);
+            bool l_have_waiting = dap_chain_net_sync_unlock(l_net, l_node_client);
             if (!l_have_waiting) {
                 if (dap_chain_net_get_target_state(l_net) == NET_STATE_ONLINE)
                     dap_chain_net_set_state(l_net, NET_STATE_ONLINE);
