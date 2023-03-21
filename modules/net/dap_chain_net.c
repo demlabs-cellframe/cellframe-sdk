@@ -658,8 +658,8 @@ static void s_net_link_remove(dap_chain_net_pvt_t *a_net_pvt, dap_chain_node_cli
         // Add it to the list end
         HASH_ADD(hh, a_net_pvt->net_links, uplink_ip, sizeof(l_link_found->uplink_ip), l_link_found);
     } else {
-        DAP_DELETE(l_link_found->link_info);
-        DAP_DELETE(l_link_found);
+        DAP_DEL_Z(l_link_found->link_info);
+        DAP_DEL_Z(l_link_found);
     }
 }
 
@@ -699,8 +699,8 @@ static struct net_link *s_get_free_link(dap_chain_net_t *a_net)
 
 static bool s_net_link_callback_connect_delayed(void *a_arg)
 {
-    dap_chain_node_client_t *l_client = a_arg;
-    debug_if(s_debug_more, L_DEBUG, "Link "NODE_ADDR_FP_STR" started", NODE_ADDR_FP_ARGS_S(l_client->info->hdr.address));
+    dap_chain_node_client_t **l_client = a_arg;
+    debug_if(s_debug_more, L_DEBUG, "Link "NODE_ADDR_FP_STR" started", NODE_ADDR_FP_ARGS_S((*l_client)->info->hdr.address));
     dap_chain_node_client_connect(l_client, "CN");
     return false;
 }
@@ -716,11 +716,11 @@ static bool s_net_link_start(dap_chain_net_t *a_net, struct net_link *a_link, ui
         return false;
     a_link->link = l_client;
     if (a_delay) {
-        dap_timerfd_start(a_delay * 1000, s_net_link_callback_connect_delayed, l_client);
+        dap_timerfd_start(a_delay * 1000, s_net_link_callback_connect_delayed, &a_link->link);
         return true;
     }
     debug_if(s_debug_more, L_DEBUG, "Link "NODE_ADDR_FP_STR" started", NODE_ADDR_FP_ARGS_S(l_link_info->hdr.address));
-    return dap_chain_node_client_connect(l_client, "CN");
+    return dap_chain_node_client_connect(&a_link->link, "CN");
 }
 
 /**
@@ -1181,6 +1181,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
     switch (l_net_pvt->state) {
         // State OFFLINE where we don't do anything
         case NET_STATE_OFFLINE: {
+            log_it(L_NOTICE,"%s.state: NET_STATE_OFFLINE", l_net->pub.name);
             // delete all links
             s_net_links_remove_all(l_net_pvt);
             struct downlink *l_downlink, *l_dltmp;

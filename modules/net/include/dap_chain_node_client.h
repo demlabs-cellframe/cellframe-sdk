@@ -147,7 +147,7 @@ void dap_chain_node_client_deinit(void);
 dap_chain_node_client_t *dap_chain_node_client_create(dap_chain_net_t *a_net, dap_chain_node_info_t *a_node_info,
                                                       const dap_chain_node_client_callbacks_t *a_callbacks, void *a_callback_arg);
 
-bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const char *a_active_channels);
+bool dap_chain_node_client_connect(dap_chain_node_client_t **a_node_client, const char *a_active_channels);
 
 /**
  * Create handshake to server
