@@ -581,7 +581,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
         case SUBCMD_LIST:{
                 const char * l_hash_str = NULL;
                 const char * l_cert_name = NULL;
-                const char * l_unspent_str = NULL;
+                bool l_unspent_fl = false;
                 size_t l_block_count = 0;
                 dap_cert_t * l_cert = NULL;
                 dap_pkey_t * l_pub_key = NULL;
@@ -604,7 +604,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                     if(l_cert) {
                         l_pub_key = dap_pkey_from_enc_key(l_cert->enc_key);
                     }
-                    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-unspent", &l_unspent_str);
+                    if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-unspent", NULL))
+                        l_unspent_fl = true;
                 }
 
                 pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
@@ -619,18 +620,18 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                     {
                         if(!dap_pkey_compare_with_sign(l_pub_key, l_sign))
                             continue;
-                        if(l_unspent_str){
+                        if(l_unspent_fl){
                             dap_chain_block_cache_tx_index_t *l_tx_cur, *l_tmp;
                             //dap_chain_tx_out_cond_t *l_tx_out_cond = NULL;
                             bool fl_found = false;
-                            HASH_ITER(hh, l_block_cache->tx_index, l_tx_cur, l_tmp) {
+                            HASH_ITER(hh, l_block_cache->tx_index, l_tx_cur, l_tmp)
+                            {
                                 int l_out_idx_tmp = 0;
-                                if (NULL == dap_chain_datum_tx_out_cond_get(l_tx_cur->tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE,
-                                                                                             &l_out_idx_tmp))
+                                if (NULL == dap_chain_datum_tx_out_cond_get(l_tx_cur->tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE,&l_out_idx_tmp))
                                 {
                                     continue;
                                 }
-                                if(dap_chain_ledger_tx_hash_is_used_out_item(l_net->pub.ledger,&l_tx_cur->tx_hash,l_out_idx_tmp))
+                                if(!dap_chain_ledger_tx_hash_is_used_out_item(l_net->pub.ledger,&l_tx_cur->tx_hash,l_out_idx_tmp))
                                 {
                                     fl_found = true;
                                     break;
@@ -671,10 +672,9 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
             dap_chain_addr_t        *l_addr = NULL;
 
             //arg_index++;
-            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "collect", &str_tmp);
 
-            if(!str_tmp) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block' requires parameter 'fee collect'");
+            if(!dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "collect", NULL)) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block fee' requires parameter 'collect'");
                 return -14;
             }
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
@@ -742,7 +742,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                 dap_chain_block_cache_t *l_block_cache = (dap_chain_block_cache_t *)bl->data;
                 dap_sign_t * l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
                 if(!dap_pkey_compare_with_sign(l_pub_key, l_sign)){
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block fee collect' requires parameter '-hashes'");
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Block signature does not match certificate key");
                     dap_list_free(l_block_list);
                     return -23;
                 }
