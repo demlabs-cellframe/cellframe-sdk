@@ -612,7 +612,7 @@ char *dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
         return NULL;
     }
     dap_chain_datum_tx_t *l_tx_cond = dap_chain_ledger_tx_find_by_hash(l_ledger, l_tx_final_hash);
-    int l_out_cond_idx;
+    int l_out_cond_idx = 0;
     dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_cond, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_out_cond_idx);
     if (!l_out_cond) {
         log_it(L_WARNING, "Requested conditioned transaction have no conditioned output");
@@ -881,7 +881,7 @@ char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast
         }        
     }
     //in_ems
-    dap_chain_tx_in_ems_t    *l_tx_token = dap_chain_datum_tx_item_token_create(a_emission_chain_id, a_emission_hash, a_ticker);
+    dap_chain_tx_in_ems_t    *l_tx_token = dap_chain_datum_tx_item_in_ems_create(a_emission_chain_id, a_emission_hash, a_ticker);
     if(l_tx_token){
         dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_tx_token);
         DAP_DEL_Z(l_tx_token);

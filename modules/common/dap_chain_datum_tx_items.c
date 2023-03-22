@@ -230,7 +230,7 @@ size_t dap_chain_datum_item_tx_get_size(const void *a_item)
  *
  * return item, NULL Error
  */
-dap_chain_tx_in_ems_t *dap_chain_datum_tx_item_token_create(dap_chain_id_t a_id, dap_chain_hash_fast_t *a_datum_token_hash, const char *a_ticker)
+dap_chain_tx_in_ems_t *dap_chain_datum_tx_item_in_ems_create(dap_chain_id_t a_id, dap_chain_hash_fast_t *a_datum_token_hash, const char *a_ticker)
 {
     if(!a_ticker)
         return NULL;
@@ -795,7 +795,7 @@ uint8_t *dap_chain_datum_tx_item_get_nth(dap_chain_datum_tx_t *a_tx, dap_chain_t
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_cond_type, int *a_out_num)
 {
     dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
-    int l_prev_cond_idx = a_out_num ? *a_out_num : -1;
+    int l_prev_cond_idx = a_out_num ? *a_out_num : 0;
     dap_chain_tx_out_cond_t *l_res = NULL;
     for (dap_list_t *l_list_tmp = l_list_out_items; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp), l_prev_cond_idx++) {
         // Start from *a_out_num + 1 item if a_out_num != NULL
@@ -808,8 +808,11 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a
         }
     }
     dap_list_free(l_list_out_items);
-    if (a_out_num && l_res) {
-        *a_out_num = l_prev_cond_idx;
+    if (a_out_num) {
+        if (l_res)
+            *a_out_num = l_prev_cond_idx;
+        else
+            *a_out_num = -1;
     }
     return l_res;
 }
