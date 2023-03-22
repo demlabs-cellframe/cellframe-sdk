@@ -3435,7 +3435,12 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         if(l_token)
             strcpy(l_value_cur->token_ticker, l_token);
         HASH_ADD_STR(l_values_from_cur_tx, token_ticker, l_value_cur);
+#ifndef LEDGER_TEST_ENABLED
+        if (strcmp(l_token, PVT(a_ledger)->net_native_ticker) != 0)
+            return -78;
+#endif
     }
+
 
     // find 'out' items
     dap_list_t *l_list_out = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
@@ -3506,9 +3511,6 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 strcpy(l_value_cur->token_ticker, l_token);
                 HASH_ADD_STR(l_values_from_cur_tx, token_ticker, l_value_cur);
             }
-        } else {
-            if (strcmp(l_token, PVT(a_ledger)->net_native_ticker) != 0)
-                return -78;
         }
         if (SUM_256_256(l_value_cur->sum, l_value, &l_value_cur->sum)) {
             debug_if(s_debug_more, L_WARNING, "Sum result overflow for tx_add_check with ticker %s",
