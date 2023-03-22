@@ -732,7 +732,7 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
             dap_string_append_printf(a_str_out, "type: %s\n", l_type_str);
 
             char *l_subtype_str = "";
-            switch(l_decree->header.type)
+            switch(l_decree->header.sub_type)
             {
             case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE:
                 l_subtype_str = "DECREE_COMMON_SUBTYPE_FEE";
