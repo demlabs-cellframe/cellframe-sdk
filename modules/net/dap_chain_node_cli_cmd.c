@@ -2534,6 +2534,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
             const char *l_type = NULL;
             DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type)
             const char *l_token_ticker = NULL;
+            bool l_is_unchained = false;
             if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX) { // TODO rewrite it for support of multichannel & conditional transactions
                 dap_chain_tx_in_ems_t *obj_token = (dap_chain_tx_in_ems_t*)dap_chain_datum_tx_item_get((dap_chain_datum_tx_t*)l_datum->data, NULL, TX_ITEM_TYPE_IN_EMS, NULL);
                 if (obj_token) {
@@ -2544,7 +2545,6 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                         dap_chain_datum_tx_t *l_tx_parent = NULL;
                         int l_item_in_size = 0;
                         void *l_item_in = dap_chain_datum_tx_item_get((dap_chain_datum_tx_t*)l_datum->data, NULL, TX_ITEM_TYPE_IN_ALL, &l_item_in_size);
-                        bool l_is_unchained = false;
                         dap_hash_fast_t l_parent_hash = {0};
                         int l_parrent_tx_out_idx;
                         for (int l_item_in_size_current = 0; l_item_in_size_current < l_item_in_size && !l_token_ticker;) {
@@ -2587,21 +2587,15 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                                     break;
                             }
                         }
-                        if (l_is_unchained) {
-                            dap_string_append_printf(a_str_tmp, ": Transaction %s unchained. \n", l_objs[i].key);
-                        }
-                        if (!l_is_unchained && !l_token_ticker) {
+                        if (!l_is_unchained && !l_token_ticker)
                             l_token_ticker = s_ticker_list_get_main_ticker(l_tickers, a_net->pub.native_ticker);
-                            if (!l_token_ticker)
-                                dap_string_append_printf(a_str_tmp, ": Can't find token ticker for transaction %s. \n", l_objs[i].key);
-                        }
                         dap_list_free(l_tickers);
                     }
                 }
             }
             dap_string_append_printf(a_str_tmp,
-                                                 "type_id=%s%s%s data_size=%u ts_create=%s", // \n included in timestamp
-                                                 l_type,
+                                                 "type_id=%s%s%s%s data_size=%u ts_create=%s", // \n included in timestamp
+                                                 l_type, l_is_unchained ? "(unchainned)" : "",
                                                  l_datum->header.type_id == DAP_CHAIN_DATUM_TX ? " ticker=" : "",
                                                  l_token_ticker ? l_token_ticker :
                                                                   (l_datum->header.type_id == DAP_CHAIN_DATUM_TX ) ? "UNKNOWN" : "",
@@ -5018,11 +5012,11 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
     }
 
     dap_chain_t *l_chain = NULL;
-	if (l_chain_name) {
-		l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_name);
-	} else {
-		l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net,CHAIN_TYPE_TX);
-	}
+    if (l_chain_name) {
+        l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_name);
+    } else {
+        l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net,CHAIN_TYPE_TX);
+    }
 
     if(!l_chain) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "not found chain name '%s', try use parameter '-chain' or set default datum type in chain configuration file",

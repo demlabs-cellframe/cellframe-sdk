@@ -108,7 +108,7 @@ size_t dap_chain_datum_item_tx_get_size(const void *a_item);
  *
  * return item, NULL Error
  */
-dap_chain_tx_in_ems_t *dap_chain_datum_tx_item_token_create(dap_chain_id_t a_id, dap_chain_hash_fast_t *a_datum_token_hash, const char *a_ticker);
+dap_chain_tx_in_ems_t *dap_chain_datum_tx_item_in_ems_create(dap_chain_id_t a_id, dap_chain_hash_fast_t *a_datum_token_hash, const char *a_ticker);
 
 json_object *dap_chain_datum_tx_item_in_ems_to_json(const dap_chain_tx_in_ems_t *a_in_ems);
 

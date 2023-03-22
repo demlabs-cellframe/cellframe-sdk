@@ -38,7 +38,7 @@ dap_sign_t *dap_chain_datum_decree_get_signs(dap_chain_datum_decree_t *a_decree,
     if (!a_decree)
         return NULL;
 
-    dap_sign_t *l_signs_section = (dap_sign_t *)((byte_t*)a_decree->data_n_signs + a_decree->header.data_size);
+    dap_sign_t *l_signs_section = (dap_sign_t *)(a_decree->data_n_signs + a_decree->header.data_size);
 
     *a_signs_size = a_decree->header.signs_size;
 
@@ -55,7 +55,7 @@ int dap_chain_datum_decree_get_fee(dap_chain_datum_decree_t *a_decree, uint256_t
     size_t l_tsd_offset = 0, tsd_data_size = a_decree->header.data_size;
 
     while(l_tsd_offset < tsd_data_size){
-        dap_tsd_t *l_tsd = (dap_tsd_t*)((byte_t*)a_decree->data_n_signs + l_tsd_offset);
+        dap_tsd_t *l_tsd = (dap_tsd_t *)(a_decree->data_n_signs + l_tsd_offset);
         size_t l_tsd_size = l_tsd->size + sizeof(dap_tsd_t);
         if(l_tsd_size > tsd_data_size){
             log_it(L_WARNING,"TSD size is greater than all data size. It's possible corrupt data.");
@@ -84,7 +84,7 @@ int dap_chain_datum_decree_get_fee_addr(dap_chain_datum_decree_t *a_decree, dap_
     size_t l_tsd_offset = 0, tsd_data_size = a_decree->header.data_size;
 
     while(l_tsd_offset < tsd_data_size){
-        dap_tsd_t *l_tsd = (dap_tsd_t*)((byte_t*)a_decree->data_n_signs + l_tsd_offset);
+        dap_tsd_t *l_tsd = (dap_tsd_t *)(a_decree->data_n_signs + l_tsd_offset);
         size_t l_tsd_size = l_tsd->size + sizeof(dap_tsd_t);
         if(l_tsd_size > tsd_data_size){
             log_it(L_WARNING,"TSD size is greater than all data size. It's possible corrupt data.");
@@ -118,7 +118,7 @@ dap_list_t *dap_chain_datum_decree_get_owners(dap_chain_datum_decree_t *a_decree
 
 
     while(l_tsd_offset < tsd_data_size){
-        dap_tsd_t *l_tsd = (dap_tsd_t*)((byte_t*)a_decree->data_n_signs + l_tsd_offset);
+        dap_tsd_t *l_tsd = (dap_tsd_t *)(a_decree->data_n_signs + l_tsd_offset);
         size_t l_tsd_size = dap_tsd_size(l_tsd);
         if(l_tsd_size > tsd_data_size){
             log_it(L_WARNING,"TSD size is greater than all data size. It's possible corrupt data.");
@@ -154,7 +154,7 @@ int dap_chain_datum_decree_get_min_owners(dap_chain_datum_decree_t *a_decree, ui
     size_t l_tsd_offset = 0, tsd_data_size = a_decree->header.data_size;
 
     while(l_tsd_offset < tsd_data_size){
-        dap_tsd_t *l_tsd = (dap_tsd_t*)a_decree->data_n_signs + l_tsd_offset;
+        dap_tsd_t *l_tsd = (dap_tsd_t *)(a_decree->data_n_signs + l_tsd_offset);
         size_t l_tsd_size = dap_tsd_size(l_tsd);
         if(l_tsd_size > tsd_data_size){
             log_it(L_WARNING,"TSD size is greater than all data size. It's possible corrupt data.");
@@ -183,7 +183,7 @@ int dap_chain_datum_decree_get_stake_tx_hash(dap_chain_datum_decree_t *a_decree,
     size_t l_tsd_offset = 0, tsd_data_size = a_decree->header.data_size;
 
     while(l_tsd_offset < tsd_data_size){
-        dap_tsd_t *l_tsd = (dap_tsd_t*)a_decree->data_n_signs + l_tsd_offset;
+        dap_tsd_t *l_tsd = (dap_tsd_t *)(a_decree->data_n_signs + l_tsd_offset);
         size_t l_tsd_size = dap_tsd_size(l_tsd);
         if(l_tsd_size > tsd_data_size){
             log_it(L_WARNING,"TSD size is greater than all data size. It's possible corrupt data.");
@@ -212,7 +212,7 @@ int dap_chain_datum_decree_get_stake_value(dap_chain_datum_decree_t *a_decree, u
     size_t l_tsd_offset = 0, tsd_data_size = a_decree->header.data_size;
 
     while(l_tsd_offset < tsd_data_size){
-        dap_tsd_t *l_tsd = (dap_tsd_t*)a_decree->data_n_signs + l_tsd_offset;
+        dap_tsd_t *l_tsd = (dap_tsd_t *)(a_decree->data_n_signs + l_tsd_offset);
         size_t l_tsd_size = dap_tsd_size(l_tsd);
         if(l_tsd_size > tsd_data_size){
             log_it(L_WARNING,"TSD size is greater than all data size. It's possible corrupt data.");
@@ -241,7 +241,7 @@ int dap_chain_datum_decree_get_stake_signing_addr(dap_chain_datum_decree_t *a_de
     size_t l_tsd_offset = 0, tsd_data_size = a_decree->header.data_size;
 
     while(l_tsd_offset < tsd_data_size){
-        dap_tsd_t *l_tsd = (dap_tsd_t*)a_decree->data_n_signs + l_tsd_offset;
+        dap_tsd_t *l_tsd = (dap_tsd_t *)(a_decree->data_n_signs + l_tsd_offset);
         size_t l_tsd_size = dap_tsd_size(l_tsd);
         if(l_tsd_size > tsd_data_size){
             log_it(L_WARNING,"TSD size is greater than all data size. It's possible corrupt data.");
@@ -270,7 +270,7 @@ int dap_chain_datum_decree_get_stake_signer_node_addr(dap_chain_datum_decree_t *
     size_t l_tsd_offset = 0, tsd_data_size = a_decree->header.data_size;
 
     while(l_tsd_offset < tsd_data_size){
-        dap_tsd_t *l_tsd = (dap_tsd_t*)a_decree->data_n_signs + l_tsd_offset;
+        dap_tsd_t *l_tsd = (dap_tsd_t *)(a_decree->data_n_signs + l_tsd_offset);
         size_t l_tsd_size = dap_tsd_size(l_tsd);
         if(l_tsd_size > tsd_data_size){
             log_it(L_WARNING,"TSD size is greater than all data size. It's possible corrupt data.");
@@ -299,7 +299,7 @@ int dap_chain_datum_decree_get_stake_min_value(dap_chain_datum_decree_t *a_decre
     size_t l_tsd_offset = 0, tsd_data_size = a_decree->header.data_size;
 
     while(l_tsd_offset < tsd_data_size){
-        dap_tsd_t *l_tsd = (dap_tsd_t*)a_decree->data_n_signs + l_tsd_offset;
+        dap_tsd_t *l_tsd = (dap_tsd_t *)(a_decree->data_n_signs + l_tsd_offset);
         size_t l_tsd_size = dap_tsd_size(l_tsd);
         if(l_tsd_size > tsd_data_size){
             log_it(L_WARNING,"TSD size is greater than all data size. It's possible corrupt data.");
@@ -328,7 +328,7 @@ int dap_chain_datum_decree_get_stake_min_signers_count(dap_chain_datum_decree_t 
     size_t l_tsd_offset = 0, tsd_data_size = a_decree->header.data_size;
 
     while(l_tsd_offset < tsd_data_size){
-        dap_tsd_t *l_tsd = (dap_tsd_t*)a_decree->data_n_signs + l_tsd_offset;
+        dap_tsd_t *l_tsd = (dap_tsd_t *)(a_decree->data_n_signs + l_tsd_offset);
         size_t l_tsd_size = dap_tsd_size(l_tsd);
         if(l_tsd_size > tsd_data_size){
             log_it(L_WARNING,"TSD size is greater than all data size. It's possible corrupt data.");
