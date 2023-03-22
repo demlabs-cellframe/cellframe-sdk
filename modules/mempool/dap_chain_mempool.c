@@ -487,7 +487,7 @@ dap_chain_datum_t *dap_chain_tx_create_cond_input(dap_chain_net_t * a_net, dap_c
         return NULL;
     }
     dap_chain_datum_tx_t *l_tx_cond = dap_chain_ledger_tx_find_by_hash(l_ledger, l_tx_final_hash);
-    int l_out_cond_idx;
+    int l_out_cond_idx = -1;
     dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_cond, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_out_cond_idx);
     if (!l_out_cond) {
         log_it(L_WARNING, "Requested conditioned transaction have no conditioned output");
