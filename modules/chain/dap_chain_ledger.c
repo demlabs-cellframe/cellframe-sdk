@@ -3276,9 +3276,24 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             }
         } else { // TX_ITEM_TYPE_IN_COND
             if(*(uint8_t *)l_tx_prev_out != TX_ITEM_TYPE_OUT_COND) {
-                debug_if(s_debug_more, L_ERROR, "Tx previous item item has wrong type %d", *(uint8_t*)l_tx_prev_out);
-                l_err_num = -8;
-                break;
+                debug_if(s_debug_more, L_ERROR, "Tx previous item (num,ber %d) has wrong type %d", l_idx, *(uint8_t*)l_tx_prev_out);
+                /* 8198: Let's iterate thru items and find the appropriate type */
+                int l_outs_count = 0;
+                dap_list_t *l_list_out = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_COND, &l_outs_count);
+                if (l_outs_count > 1) {
+                    debug_if(s_debug_more, L_ERROR, "Prev tx has %d OUT_COND items, which one to choose?..", l_outs_count);
+                    dap_list_free(l_list_out);
+                    l_err_num = -81;
+                    break;
+                } else {
+                    l_tx_prev_out = l_list_out ? (dap_chain_tx_out_t *)l_list_out->data : NULL;
+                    dap_list_free(l_list_out);
+                }
+                if (!l_tx_prev_out) {
+                    debug_if(s_debug_more, L_ERROR, "No OUT_COND item in prev tx...");
+                    l_err_num = -82;
+                    break;
+                }
             }
             // 5a. Check for condition owner
             dap_chain_tx_sig_t *l_tx_prev_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_tx_prev, NULL, TX_ITEM_TYPE_SIG, NULL);
