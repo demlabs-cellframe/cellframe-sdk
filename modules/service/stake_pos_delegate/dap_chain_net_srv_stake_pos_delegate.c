@@ -75,8 +75,8 @@ int dap_chain_net_srv_stake_pos_delegate_init()
          "\tDelegate public key in specified certificate with specified net name. Pay with specified value of m-tokens of native net token.\n"
     "srv_stake approve -net <net_name> -tx <transaction_hash> -poa_cert <priv_cert_name>\n"
          "\tApprove stake transaction by root node certificate within specified net name\n"
-    "srv_stake transactions -net <net_name> [-cert <delegated_cert>]\n"
-         "\tShow the list of requested, active and canceled stake transactions (optional delegated from addr).\n"
+    "srv_stake keylist -net <net_name> [-cert <delegated_cert>]\n"
+         "\tShow the list of active stake keys (optional delegated with specified cert).\n"
     "srv_stake invalidate -net <net_name> {-tx <transaction_hash> | -cert <delegated_cert> | -cert_pkey_hash <pkey_hash>}"
                             " {-wallet <wallet_name> -fee <value> | -poa_cert <cert_name>}\n"
          "\tInvalidate requested delegated stake transaction by hash or cert name or cert pkey hash within net name and"
@@ -147,13 +147,20 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
     assert(s_srv_stake);
     if (!a_signing_addr || !a_node_addr || !a_stake_tx_hash)
         return;
-    dap_chain_net_srv_stake_item_t *l_stake = DAP_NEW_Z(dap_chain_net_srv_stake_item_t);
+    dap_chain_net_srv_stake_item_t *l_stake = NULL;
+    bool l_found = false;
+    HASH_FIND(hh, s_srv_stake->itemlist, a_signing_addr, sizeof(dap_chain_addr_t), l_stake);
+    if (!l_stake)
+        l_stake = DAP_NEW_Z(dap_chain_net_srv_stake_item_t);
+    else
+        l_found = true;
     l_stake->net = a_net;
     l_stake->node_addr = *a_node_addr;
     l_stake->signing_addr = *a_signing_addr;
     l_stake->value = a_value;
     l_stake->tx_hash = *a_stake_tx_hash;
-    HASH_ADD(hh, s_srv_stake->itemlist, signing_addr, sizeof(dap_chain_addr_t), l_stake);
+    if (!l_found)
+        HASH_ADD(hh, s_srv_stake->itemlist, signing_addr, sizeof(dap_chain_addr_t), l_stake);
 
 }
 
@@ -454,7 +461,14 @@ static dap_chain_datum_decree_t *s_stake_decree_approve(dap_chain_net_t *a_net, 
     l_decree->header.ts_created = dap_time_now();
     l_decree->header.type = DAP_CHAIN_DATUM_DECREE_TYPE_COMMON;
     l_decree->header.common_decree_params.net_id = a_net->pub.id;
-    l_decree->header.common_decree_params.chain_id = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_DECREE)->id;
+    dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_DECREE);
+    if (!l_chain)
+        l_chain =  dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_DECREE);
+    if (!l_chain) {
+        log_it(L_ERROR, "No chain supported decree datum type");
+        return NULL;
+    }
+    l_decree->header.common_decree_params.chain_id = l_chain->id;
     l_decree->header.common_decree_params.cell_id = *dap_chain_net_get_cur_cell(a_net);
     l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE;
     l_decree->header.data_size = l_total_tsd_size;
@@ -1014,7 +1028,7 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, dap_strin
 static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
 {
     enum {
-        CMD_NONE, CMD_ORDER, CMD_DELEGATE, CMD_APPROVE, CMD_TX_LIST, CMD_INVALIDATE, CMD_MIN_VALUE
+        CMD_NONE, CMD_ORDER, CMD_DELEGATE, CMD_APPROVE, CMD_KEY_LIST, CMD_INVALIDATE, CMD_MIN_VALUE
     };
     int l_arg_index = 1;
 
@@ -1039,8 +1053,8 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
         l_cmd_num = CMD_APPROVE;
     }
     // Show the tx list with frozen staker funds
-    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "transactions", NULL)) {
-        l_cmd_num = CMD_TX_LIST;
+    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "keylist", NULL)) {
+        l_cmd_num = CMD_KEY_LIST;
     }
     // Return staker's funds
     else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "invalidate", NULL)) {
@@ -1201,7 +1215,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             DAP_DELETE(l_decree);
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Approve decree successfully created");
         } break;
-        case CMD_TX_LIST: {
+        case CMD_KEY_LIST: {
             const char *l_net_str = NULL,
                        *l_cert_str = NULL;
             l_arg_index++;

@@ -225,7 +225,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
 
     l_esbocs_pvt->minimum_fee = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "minimum_fee", "0.05"));
-    l_esbocs_pvt->fee_addr = dap_chain_addr_from_str(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "fee_addr", NULL));
+    l_esbocs_pvt->fee_addr = dap_chain_addr_from_str(dap_config_get_item_str(a_chain_net_cfg, "esbocs", "fee_addr"));
 
     const char *l_sign_cert_str = NULL;
     if ((l_sign_cert_str = dap_config_get_item_str(a_chain_net_cfg, "esbocs", "blocks-sign-cert")) != NULL) {
@@ -709,7 +709,7 @@ static void s_session_proc_state(dap_chain_esbocs_session_t *a_session)
         if (l_round_skip)
             l_round_timeout += PVT(a_session->esbocs)->round_attempt_timeout * PVT(a_session->esbocs)->round_attempts_max;
         if (a_session->ts_round_sync_start && l_time - a_session->ts_round_sync_start >= l_round_timeout) {
-            if (a_session->cur_round.validators_synced_count * 3 >= dap_list_length(a_session->cur_round.validators_list) * 2) {
+            if (a_session->cur_round.validators_synced_count >= PVT(a_session->esbocs)->min_validators_count) {
                 a_session->cur_round.id = s_session_calc_current_round_id(a_session);
                 debug_if(l_cs_debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
                                             " Minimum count of validators are synchronized, wait to submit candidate",
@@ -910,7 +910,6 @@ static bool s_session_candidate_to_chain(dap_chain_esbocs_session_t *a_session, 
 static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_chain_esbocs_store_t *l_store)
 {
     bool l_cs_debug = PVT(a_session->esbocs)->debug;
-    bool f_compare = false;
     dap_chain_t *l_chain = a_session->chain;
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
     dap_chain_block_cache_t *l_block_cache = NULL;
@@ -967,15 +966,16 @@ static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_ch
     }
 
     memcpy(&l_precommit_candidate_hash, &l_store->precommit_candidate_hash, sizeof(dap_hash_fast_t));
-    f_compare = dap_hash_fast_compare(&l_store->candidate_hash,&(PVT(a_session->esbocs)->candidate_hash));
-   if(s_session_candidate_to_chain(a_session, &l_store->precommit_candidate_hash, l_store->candidate, l_store->candidate_size)&&f_compare)
-   {
+    bool l_compare = dap_hash_fast_compare(&l_store->candidate_hash,&(PVT(a_session->esbocs)->candidate_hash));
+    if(s_session_candidate_to_chain(a_session, &l_store->precommit_candidate_hash, l_store->candidate, l_store->candidate_size) &&
+            l_compare && PVT(a_session->esbocs)->fee_addr) {
         dap_list_t *l_block_list = NULL;
         l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_precommit_candidate_hash);
         l_block_list = dap_list_append(l_block_list, l_block_cache);
-        dap_chain_mempool_tx_coll_fee_create(a_session->blocks_sign_key,(PVT(a_session->esbocs)->fee_addr),l_block_list,PVT(a_session->esbocs)->minimum_fee,"hex");
+        dap_chain_mempool_tx_coll_fee_create(a_session->blocks_sign_key, (PVT(a_session->esbocs)->fee_addr),
+                                             l_block_list, PVT(a_session->esbocs)->minimum_fee, "hex");
         dap_list_free(l_block_list);
-   }
+    }
 }
 
 void s_session_sync_queue_add(dap_chain_esbocs_session_t *a_session, dap_chain_esbocs_message_t *a_message, size_t a_message_size)

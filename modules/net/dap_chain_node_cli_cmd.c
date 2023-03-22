@@ -5012,11 +5012,11 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
     }
 
     dap_chain_t *l_chain = NULL;
-	if (l_chain_name) {
-		l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_name);
-	} else {
-		l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net,CHAIN_TYPE_TX);
-	}
+    if (l_chain_name) {
+        l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_name);
+    } else {
+        l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net,CHAIN_TYPE_TX);
+    }
 
     if(!l_chain) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "not found chain name '%s', try use parameter '-chain' or set default datum type in chain configuration file",
