@@ -3406,6 +3406,8 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         if(l_token)
             strcpy(l_value_cur->token_ticker, l_token);
         HASH_ADD_STR(l_values_from_cur_tx, token_ticker, l_value_cur);
+        if (strcmp(l_token, PVT(a_ledger)->net->pub.native_ticker) != 0)
+            return -78;
     }
 
     // find 'out' items
