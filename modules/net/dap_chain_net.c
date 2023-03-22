@@ -685,8 +685,8 @@ static struct net_link *s_get_free_link(dap_chain_net_t *a_net)
 
 static bool s_net_link_callback_connect_delayed(void *a_arg)
 {
-    dap_chain_node_client_t **l_client = a_arg;
-    debug_if(s_debug_more, L_DEBUG, "Link "NODE_ADDR_FP_STR" started", NODE_ADDR_FP_ARGS_S((*l_client)->info->hdr.address));
+    dap_chain_node_client_t *l_client = a_arg;
+    debug_if(s_debug_more, L_DEBUG, "Link "NODE_ADDR_FP_STR" started", NODE_ADDR_FP_ARGS_S(l_client->info->hdr.address));
     dap_chain_node_client_connect(l_client, "CN");
     return false;
 }
@@ -702,11 +702,11 @@ static bool s_net_link_start(dap_chain_net_t *a_net, struct net_link *a_link, ui
         return false;
     a_link->link = l_client;
     if (a_delay) {
-        dap_timerfd_start(a_delay * 1000, s_net_link_callback_connect_delayed, &a_link->link);
+        dap_timerfd_start(a_delay * 1000, s_net_link_callback_connect_delayed, l_client);
         return true;
     }
     debug_if(s_debug_more, L_DEBUG, "Link "NODE_ADDR_FP_STR" started", NODE_ADDR_FP_ARGS_S(l_link_info->hdr.address));
-    return dap_chain_node_client_connect(&a_link->link, "CN");
+    return dap_chain_node_client_connect(l_client, "CN");
 }
 
 /**

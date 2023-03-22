@@ -658,7 +658,7 @@ dap_chain_node_client_t *dap_chain_node_client_create_n_connect(dap_chain_net_t 
                                                                 void *a_callback_arg)
 {
     dap_chain_node_client_t *l_node_client = dap_chain_node_client_create(a_net, a_node_info, a_callbacks, a_callback_arg);
-    if (dap_chain_node_client_connect(&l_node_client, a_active_channels))
+    if (dap_chain_node_client_connect(l_node_client, a_active_channels))
         return l_node_client;
     return NULL;
 }
@@ -710,40 +710,35 @@ dap_chain_node_client_t *dap_chain_node_client_create(dap_chain_net_t *a_net,
  * @return true
  * @return false
  */
-bool dap_chain_node_client_connect(dap_chain_node_client_t **a_node_client, const char *a_active_channels)
+bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const char *a_active_channels)
 {
-    if (!(*a_node_client))
+    if (!a_node_client)
         return false;
-    (*a_node_client)->client = dap_client_new(s_client_delete_callback, s_stage_status_error_callback, a_node_client);
-    if(!(*a_node_client)->client) {
-        log_it(L_WARNING, "Can not allocate memory while client creation.");
-        return false;
-    }
-    dap_client_set_is_always_reconnect((*a_node_client)->client, false);
-    (*a_node_client)->client->_inheritor = (*a_node_client);
-    dap_client_set_active_channels_unsafe((*a_node_client)->client, a_active_channels);
+    a_node_client->client = dap_client_new(s_client_delete_callback, s_stage_status_error_callback, a_node_client);
+    dap_client_set_is_always_reconnect(a_node_client->client, false);
+    a_node_client->client->_inheritor = a_node_client;
+    dap_client_set_active_channels_unsafe(a_node_client->client, a_active_channels);
 
-    dap_client_set_auth_cert((*a_node_client)->client, (*a_node_client)->net->pub.name);
+    dap_client_set_auth_cert(a_node_client->client, a_node_client->net->pub.name);
 
     char l_host_addr[INET6_ADDRSTRLEN];
-    if((*a_node_client)->info->hdr.ext_addr_v4.s_addr){
-        struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = (*a_node_client)->info->hdr.ext_addr_v4 };
+    if(a_node_client->info->hdr.ext_addr_v4.s_addr){
+        struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = a_node_client->info->hdr.ext_addr_v4 };
         inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), l_host_addr, INET6_ADDRSTRLEN);
     } else {
-        struct sockaddr_in6 sa6 = { .sin6_family = AF_INET6, .sin6_addr = (*a_node_client)->info->hdr.ext_addr_v6 };
+        struct sockaddr_in6 sa6 = { .sin6_family = AF_INET6, .sin6_addr = a_node_client->info->hdr.ext_addr_v6 };
         inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) &sa6)->sin6_addr), l_host_addr, INET6_ADDRSTRLEN);
     }
     log_it(L_INFO, "Connecting to %s address", l_host_addr);
     // address not defined
     if(!strcmp(l_host_addr, "::")) {
-        DAP_DEL_Z((*a_node_client)->client);
         log_it(L_WARNING, "Undefined address with node client connect to");
         return false;
     }
-    dap_client_set_uplink_unsafe((*a_node_client)->client, l_host_addr, (*a_node_client)->info->hdr.ext_port);
-    (*a_node_client)->state = NODE_CLIENT_STATE_CONNECTING;
+    dap_client_set_uplink_unsafe(a_node_client->client, l_host_addr, a_node_client->info->hdr.ext_port);
+    a_node_client->state = NODE_CLIENT_STATE_CONNECTING;
     // Handshake & connect
-    dap_client_go_stage((*a_node_client)->client, STAGE_STREAM_STREAMING, s_stage_connected_callback);
+    dap_client_go_stage(a_node_client->client, STAGE_STREAM_STREAMING, s_stage_connected_callback);
     return true;
 }
 
@@ -774,6 +769,7 @@ void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client)
         a_node_client->callbacks.delete(a_node_client, a_node_client->net);
     char l_node_addr_str[INET_ADDRSTRLEN] = {};
     inet_ntop(AF_INET, &a_node_client->info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
+    log_it(L_INFO, "Closing node client to uplink %s:%d", l_node_addr_str, a_node_client->info->hdr.ext_port);
     if (a_node_client->stream_worker) {
         dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(a_node_client->stream_worker, a_node_client->ch_chain_uuid);
         if (l_ch) {
