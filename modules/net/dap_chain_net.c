@@ -652,7 +652,7 @@ static void s_net_link_remove(dap_chain_net_pvt_t *a_net_pvt, dap_chain_node_cli
     dap_chain_node_client_t *l_client = l_link_found->link;
     l_client->callbacks.delete = NULL;
     a_net_pvt->links_queue = dap_list_remove_all(a_net_pvt->links_queue, l_client);
-    dap_chain_node_client_close_mt(&l_link_found->link);
+    dap_chain_node_client_close_mt(l_client);
     if (a_rebase) {
         l_link_found->link = NULL;
         // Add it to the list end
@@ -660,20 +660,6 @@ static void s_net_link_remove(dap_chain_net_pvt_t *a_net_pvt, dap_chain_node_cli
     } else {
         DAP_DEL_Z(l_link_found->link_info);
         DAP_DEL_Z(l_link_found);
-    }
-}
-
-static void s_net_links_remove_all(dap_chain_net_pvt_t *a_net_pvt)
-{
-    struct net_link *l_link = NULL, *l_link_tmp = NULL;
-    HASH_ITER(hh, a_net_pvt->net_links, l_link, l_link_tmp) {
-        HASH_DEL(a_net_pvt->net_links, l_link);
-        dap_chain_node_client_t *l_client = l_link->link;
-        l_client->callbacks.delete = NULL;
-        a_net_pvt->links_queue = dap_list_remove_all(a_net_pvt->links_queue, l_client);
-        dap_chain_node_client_close_mt(&l_link->link);
-        DAP_DEL_Z(l_link->link_info);
-        DAP_DEL_Z(l_link);
     }
 }
 
@@ -1183,7 +1169,14 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
         case NET_STATE_OFFLINE: {
             log_it(L_NOTICE,"%s.state: NET_STATE_OFFLINE", l_net->pub.name);
             // delete all links
-            s_net_links_remove_all(l_net_pvt);
+            struct net_link *l_link, *l_link_tmp;
+            HASH_ITER(hh, l_net_pvt->net_links, l_link, l_link_tmp) {
+                if (l_link && l_link->link) {
+                    dap_chain_node_client_t *l_client = l_link->link;
+                    s_net_link_remove(l_net_pvt, l_client, false);
+                }
+            }
+
             struct downlink *l_downlink, *l_dltmp;
             HASH_ITER(hh, l_net_pvt->downlinks, l_downlink, l_dltmp) {
                 HASH_DEL(l_net_pvt->downlinks, l_downlink);
