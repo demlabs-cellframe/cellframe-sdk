@@ -2209,7 +2209,17 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
                 dap_sign_t *l_sign = (dap_sign_t *)(l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size);
                 size_t l_offset = (byte_t *)l_sign - (byte_t *)l_emission;
                 uint16_t l_aproves = 0, l_aproves_valid = l_token_item->auth_signs_valid;
-                for (uint16_t i = 0; i < l_emission->data.type_auth.signs_count && l_offset < l_emission_size; i++) {
+                size_t l_sign_data_check_size = sizeof(l_emission->hdr);
+                size_t l_sign_auth_count = l_emission->data.type_auth.signs_count;
+                size_t l_sign_auth_size = l_emission->data.type_auth.size;
+                void *l_emi_ptr_check_size = &l_emission->hdr;
+                if (l_emission->hdr.version == 3) {
+                    l_sign_data_check_size = sizeof(dap_chain_datum_token_emission_t) + l_emission->data.type_auth.tsd_total_size;
+                    l_emission->data.type_auth.signs_count = 0;
+                    l_emission->data.type_auth.size = 0;
+                    l_emi_ptr_check_size = l_emission;
+                }
+                for (uint16_t i = 0; i < l_sign_auth_count && l_offset < l_emission_size; i++) {
                     if (dap_sign_verify_size(l_sign, l_emission_size - l_offset)) {
                         dap_chain_hash_fast_t l_sign_pkey_hash;
                         dap_sign_get_pkey_hash(l_sign, &l_sign_pkey_hash);
@@ -2217,7 +2227,7 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
                         for (uint16_t k=0; k< l_token_item->auth_signs_total; k++) {
                             if (dap_hash_fast_compare(&l_sign_pkey_hash, &l_token_item->auth_signs_pkey_hash[k])) {
                                 // Verify if its token emission header signed
-                                if (dap_sign_verify(l_sign, &l_emission->hdr, sizeof(l_emission->hdr)) == 1) {
+                                if (dap_sign_verify(l_sign, l_emi_ptr_check_size, l_sign_data_check_size) == 1) {
                                     l_aproves++;
                                     break;
                                 }
@@ -2228,6 +2238,10 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
                         l_sign = (dap_sign_t *)((byte_t *)l_emission + l_offset);
                     } else
                         break;
+                }
+                if (l_emission->hdr.version == 3) {
+                    l_emission->data.type_auth.signs_count = l_sign_auth_count;
+                    l_emission->data.type_auth.size = l_sign_auth_size;
                 }
                 if (l_aproves < l_aproves_valid ){
                     if(s_debug_more) {
