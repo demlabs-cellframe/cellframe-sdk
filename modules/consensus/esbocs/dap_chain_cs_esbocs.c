@@ -1542,12 +1542,20 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         dap_chain_addr_fill_from_sign(&l_signing_addr, l_sign, a_blocks->chain->net_id);
         if (!l_esbocs_pvt->poa_mode) {
              // Compare signature with delegated keys
-            if (!dap_chain_net_srv_stake_key_delegated(&l_signing_addr))
+            if (!dap_chain_net_srv_stake_key_delegated(&l_signing_addr)) {
+                char *l_bad_addr = dap_chain_addr_to_str(&l_signing_addr);
+                log_it(L_ATT, "Unknown PoS signer %s", l_bad_addr);
+                DAP_DELETE(l_bad_addr);
                 continue;
+            }
         } else {
             // Compare signature with auth_certs
-            if (!s_validator_check(&l_signing_addr, l_esbocs_pvt->poa_validators))
+            if (!s_validator_check(&l_signing_addr, l_esbocs_pvt->poa_validators)) {
+                char *l_bad_addr = dap_chain_addr_to_str(&l_signing_addr);
+                log_it(L_ATT, "Unknown PoA signer %s", l_bad_addr);
+                DAP_DELETE(l_bad_addr);
                 continue;
+            }
         }
         if (dap_sign_verify(l_sign, a_block, l_block_excl_sign_size) == 1)
             l_signs_verified_count++;
@@ -1560,7 +1568,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         return l_ret;
     }
     if (l_signs_verified_count < l_esbocs_pvt->min_validators_count) {
-        log_it(L_ERROR, "Corrupted block: not enough signs: %u of %u", l_signs_verified_count, l_esbocs_pvt->min_validators_count);
+        log_it(L_ERROR, "Corrupted block: not enough authorized signs: %u of %u", l_signs_verified_count, l_esbocs_pvt->min_validators_count);
         return -1;
     }
     return 0;
