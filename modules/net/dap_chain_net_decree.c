@@ -45,8 +45,8 @@
 
 // Private fuctions prototype
 static bool s_verify_pkey (dap_sign_t *a_sign, dap_chain_net_t *a_net);
-static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain);
-static int s_service_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain);
+static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chain_net_t *a_net, dap_chain_t *a_chain, bool a_apply);
+static int s_service_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain, bool a_apply);
 
 
 // Public functions
@@ -213,20 +213,31 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t * a_decree, dap_chain_n
         return -106;
     }
 
+    // check tsd-section
+    if (dap_chain_net_decree_apply(a_decree, a_net, NULL, false))
+    {
+        log_it(L_WARNING,"TSD checking error. Decree verification failed");
+        return -106;
+    }
+
     return 0;
 }
 
-int dap_chain_net_decree_apply(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain)
+int dap_chain_net_decree_apply(dap_chain_datum_decree_t * a_decree, dap_chain_net_t *a_net, dap_chain_t *a_chain, bool a_apply)
 {
     int ret_val = 0;
+    dap_chain_net_t *l_net = NULL;
 
-    if (!a_decree || !a_chain)
+    if (!a_decree || (!a_chain && a_apply))
     {
-        log_it(L_WARNING,"Invalid arguments. a_decree and a_chain must be not NULL");
+        log_it(L_ERROR,"Invalid arguments.");
         return -107;
     }
 
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    if(!a_net && a_chain)
+        l_net = dap_chain_net_by_id(a_chain->net_id);
+    else
+        l_net = a_net;
 
     if (!l_net->pub.decree)
     {
@@ -240,11 +251,11 @@ int dap_chain_net_decree_apply(dap_chain_datum_decree_t * a_decree, dap_chain_t 
     // Process decree
     switch(a_decree->header.type){
         case DAP_CHAIN_DATUM_DECREE_TYPE_COMMON:{
-            return s_common_decree_handler(a_decree, a_chain);
+            return s_common_decree_handler(a_decree, l_net, a_chain, a_apply);
             break;
         }
         case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:{
-            return s_service_decree_handler(a_decree, a_chain);
+            return s_service_decree_handler(a_decree, a_chain, a_apply);
         }
         default:;
     }
@@ -265,7 +276,7 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
     int ret_val = 0;
     if (!a_chain || !a_chain)
     {
-        log_it(L_WARNING, "Bad arguments");
+        log_it(L_ERROR, "Bad arguments");
         return -100;
     }
 
@@ -277,20 +288,27 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
         return -108;
     }
 
-    if ((ret_val = dap_chain_net_decree_verify(a_decree, l_net, NULL, NULL)) != 0)
+    if ((ret_val = dap_chain_net_decree_verify(a_decree, l_net, NULL, NULL)) != 0){
+        log_it(L_ERROR,"Decree verification failed!");
         return ret_val;
+    }
 
-    dap_chain_datum_decree_t * l_decree = NULL;
-    size_t l_data_size = sizeof(dap_chain_datum_decree_t) + a_decree->header.data_size + a_decree->header.signs_size;
-    l_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, l_data_size);
-    memcpy(l_decree, a_decree, l_data_size);
-    dap_hash_fast(l_decree, l_data_size, &l_hash);
+    if (a_decree->header.common_decree_params.chain_id.uint64 == a_chain->id.uint64)
+    {
+        return dap_chain_net_decree_apply(a_decree, l_net, a_chain, true);
+    } else {
+        dap_chain_datum_decree_t * l_decree = NULL;
+        size_t l_data_size = sizeof(dap_chain_datum_decree_t) + a_decree->header.data_size + a_decree->header.signs_size;
+        l_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, l_data_size);
+        memcpy(l_decree, a_decree, l_data_size);
+        dap_hash_fast(l_decree, l_data_size, &l_hash);
 
-    l_decree_data =  DAP_NEW_Z_SIZE(struct decree_data, sizeof(struct decree_data) + l_decree->header.data_size + l_decree->header.signs_size);
-    l_decree_data->decree = l_decree;
-    l_decree_data->key = l_hash;
+        l_decree_data =  DAP_NEW_Z_SIZE(struct decree_data, sizeof(struct decree_data) + l_decree->header.data_size + l_decree->header.signs_size);
+        l_decree_data->decree = l_decree;
+        l_decree_data->key = l_hash;
 
-    HASH_ADD(hh, s_decree_data, key, sizeof(dap_hash_fast_t), l_decree_data);
+        HASH_ADD(hh, s_decree_data, key, sizeof(dap_hash_fast_t), l_decree_data);
+    }
 
     return 0;
 }
@@ -326,17 +344,17 @@ static bool s_verify_pkey (dap_sign_t *a_sign, dap_chain_net_t *a_net)
     return ret_val;
 }
 
-static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain)
+static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chain_net_t *a_net, dap_chain_t *a_chain, bool a_apply)
 {
     uint256_t l_uint256_buffer;
 
     dap_chain_addr_t l_addr = {}; //????????
     dap_hash_fast_t l_hash = {};
     dap_chain_node_addr_t l_node_addr = {};
-    dap_chain_net_t *l_net = NULL;
+    dap_chain_net_t *l_net = a_net;
     dap_list_t *l_owners_list = NULL;
 
-    l_net = dap_chain_net_by_id(a_chain->net_id);
+
 
     switch (a_decree->header.sub_type)
     {
@@ -357,6 +375,9 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
                 }
 
                 if (!dap_chain_datum_decree_get_fee(a_decree, &l_uint256_buffer)){
+                    if (!a_apply)
+                        break;
+
                     if (!dap_chain_net_tx_add_fee(a_chain->net_id, l_uint256_buffer, l_addr)) {
                         log_it(L_WARNING,"Can't add/replace fee value.");
                         return -102;
@@ -373,6 +394,9 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
                 return -104;
             }
 
+            if (!a_apply)
+                break;
+
             l_net->pub.decree->num_of_owners = l_uint256_buffer;
             dap_list_free_full(l_net->pub.decree->pkeys, NULL);
 
@@ -383,10 +407,13 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
                 log_it(L_WARNING,"Can't get min number of ownners from decree.");
                 return -105;
             }
+            if (!a_apply)
+                break;
             l_net->pub.decree->min_num_of_owners = l_uint256_buffer;
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_TON_SIGNERS_MIN:
-
+            if (!a_apply)
+                break;
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE:
             if (dap_chain_datum_decree_get_stake_tx_hash(a_decree, &l_hash)){
@@ -405,6 +432,8 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
                 log_it(L_WARNING,"Can't get signer node address from decree.");
                 return -105;
             }
+            if (!a_apply)
+                break;
             dap_chain_net_srv_stake_key_delegate(l_net, &l_addr, &l_hash, l_uint256_buffer, &l_node_addr);
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE:
@@ -412,6 +441,8 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
                 log_it(L_WARNING,"Can't get signing address from decree.");
                 return -105;
             }
+            if (!a_apply)
+                break;
             dap_chain_net_srv_stake_key_invalidate(&l_addr);
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALUE:
@@ -419,6 +450,8 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
                 log_it(L_WARNING,"Can't get min stake value from decree.");
                 return -105;
             }
+            if (!a_apply)
+                break;
             dap_chain_net_srv_stake_set_allowed_min_value(l_uint256_buffer);
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT:
@@ -426,6 +459,8 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
                 log_it(L_WARNING,"Can't get min stake value from decree.");
                 return -105;
             }
+            if (!a_apply)
+                break;
             a_chain->callback_set_min_validators_count(a_chain, (uint16_t)dap_chain_uint256_to(l_uint256_buffer));
             break;
         default: return -1;
@@ -434,7 +469,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
     return 0;
 }
 
-static int s_service_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain)
+static int s_service_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain, bool a_apply)
 {
    // size_t l_datum_data_size = ;
    //            dap_chain_net_srv_t * l_srv = dap_chain_net_srv_get(l_decree->header.srv_id);

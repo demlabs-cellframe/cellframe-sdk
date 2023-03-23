@@ -1397,11 +1397,13 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
     int arg_index = 1;
     const char *l_net_str = NULL;
     const char * l_chain_str = NULL;
+    const char * l_decree_chain_str = NULL;
     const char * l_certs_str = NULL;
     dap_cert_t ** l_certs = NULL;
     size_t l_certs_count = 0;
     dap_chain_net_t * l_net = NULL;
     dap_chain_t * l_chain = NULL;
+    dap_chain_t * l_decree_chain = NULL;
 
     const char * l_hash_out_type = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
@@ -1486,6 +1488,34 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find chain with decree support.");
                 return -105;
             }
+
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-decree_chain", &l_decree_chain_str);
+
+            // Search chain
+            if(l_decree_chain_str) {
+                l_decree_chain = dap_chain_net_get_chain_by_name(l_net, l_decree_chain_str);
+                if (l_decree_chain == NULL) {
+                    char l_str_to_reply_chain[500] = {0};
+                    char *l_str_to_reply = NULL;
+                    sprintf(l_str_to_reply_chain, "%s requires parameter '-decree_chain' to be valid chain name in chain net %s. Current chain %s is not valid\n",
+                                                    a_argv[0], l_net_str, l_chain_str);
+                    l_str_to_reply = dap_strcat2(l_str_to_reply,l_str_to_reply_chain);
+                    dap_chain_t * l_chain;
+                    dap_chain_net_t * l_chain_net = l_net;
+                    l_str_to_reply = dap_strcat2(l_str_to_reply,"\nAvailable chains:\n");
+                    DL_FOREACH(l_chain_net->pub.chains, l_chain) {
+                            l_str_to_reply = dap_strcat2(l_str_to_reply,"\t");
+                            l_str_to_reply = dap_strcat2(l_str_to_reply,l_chain->name);
+                            l_str_to_reply = dap_strcat2(l_str_to_reply,"\n");
+                    }
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_to_reply);
+                    return -103;
+                }
+            }else {
+                l_decree_chain = l_chain;
+                return -105;
+            }
+
 
             dap_tsd_t *l_tsd = NULL;
             dap_cert_t **l_new_certs = NULL;
@@ -1590,7 +1620,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
             l_datum_decree->header.ts_created = dap_time_now();
             l_datum_decree->header.type = l_type;
             l_datum_decree->header.common_decree_params.net_id = dap_chain_net_id_by_name(l_net_str);
-            l_datum_decree->header.common_decree_params.chain_id = l_chain->id;
+            l_datum_decree->header.common_decree_params.chain_id = l_decree_chain->id;
             l_datum_decree->header.common_decree_params.cell_id = *dap_chain_net_get_cur_cell(l_net);
             l_datum_decree->header.sub_type = l_subtype;
             l_datum_decree->header.data_size = l_total_tsd_size;
