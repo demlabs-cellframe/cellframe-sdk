@@ -207,8 +207,10 @@ bool dap_chain_node_mempool_need_process(dap_chain_t *a_chain, dap_chain_datum_t
 
 // Return true if processed datum should be deleted from mempool
 bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum) {
-    if (!a_chain->callback_add_datums)
+    if (!a_chain->callback_add_datums) {
+        log_it(L_ERROR, "No proper adding callback set");
         return false;
+    }
     // Verify for correctness
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     int l_verify_datum = dap_chain_net_verify_datum_for_add(l_net, a_datum);
@@ -223,6 +225,7 @@ bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_d
 #endif
             )
         a_chain->callback_add_datums(a_chain, &a_datum, 1);
+    log_it(L_DEBUG, "Verification ret code: %d", l_verify_datum);
     return false;
 }
 
@@ -258,8 +261,11 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
                 }
 
                 if (dap_chain_node_mempool_process(a_chain, l_datum)) {
+                    log_it(L_INFO, " ! Delete datum %s from mempool", l_objs[i].key);
                     // Delete processed objects
                     dap_global_db_del(l_gdb_group_mempool, l_objs[i].key, NULL, NULL);
+                } else {
+                    log_it(L_INFO, " ! Datum %s remains in mempool", l_objs[i].key);
                 }
             }
         }
