@@ -229,7 +229,8 @@ static void s_stream_ch_delete_in_proc(dap_worker_t *a_worker, void *a_arg)
 static void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg)
 {
     (void) a_arg;
-    dap_worker_exec_callback_on(a_ch->stream_worker->worker, s_stream_ch_delete_in_proc, a_ch->internal);
+    //dap_worker_exec_callback_on(a_ch->stream_worker->worker, s_stream_ch_delete_in_proc, a_ch->internal);
+    s_stream_ch_delete_in_proc(a_ch->stream_worker->worker, a_ch->internal);
     a_ch->internal = NULL; // To prevent its cleaning in worker
 }
 
