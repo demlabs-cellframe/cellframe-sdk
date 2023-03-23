@@ -58,8 +58,8 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 }
 
 // Decree types
-#define DAP_CHAIN_DATUM_DECREE_TYPE_COMMON                      0x0001
-#define DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE                     0x0002
+#define DAP_CHAIN_DATUM_DECREE_TYPE_COMMON                                  0x0001
+#define DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE                                 0x0002
 
 // Common decree subtypes
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE                           0x0001
@@ -72,18 +72,18 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT    0x0008
 
 // DECREE TSD types
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGN                    0x0001
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE                     0x0002
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER                   0x0003
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER               0x0004
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_TON_SIGNERS_MIN         0x0005
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE_WALLET              0x0006
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_TX_HASH           0x0007
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_VALUE             0x0008
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNING_ADDR      0x0009
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNER_NODE_ADDR  0x0010
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_VALUE         0x0011
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT  0x0012
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGN                                0x0101
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE                                 0x0102
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER                               0x0103
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER                           0x0104
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_TON_SIGNERS_MIN                     0x0105
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE_WALLET                          0x0106
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_TX_HASH                       0x0107
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_VALUE                         0x0108
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNING_ADDR                  0x0109
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNER_NODE_ADDR              0x0110
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_VALUE                     0x0111
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT             0x0112
 
 /**
  * @brief dap_chain_datum_decree_get_signs
