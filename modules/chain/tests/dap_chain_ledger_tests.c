@@ -234,8 +234,11 @@ void dap_chain_ledger_test_write_back_list(dap_ledger_t *a_ledger, dap_cert_t *a
                                                                                       *l_addr_1->addr, a_cert);
         dap_hash_fast_t l_btx_addr1_hash = {0};
         dap_hash_fast(l_btx_addr1, dap_chain_datum_tx_get_size(l_btx_addr1), &l_btx_addr1_hash);
-        dap_assert_PIF(dap_chain_ledger_tx_add(a_ledger, l_btx_addr1, &l_btx_addr1_hash, false) == 1,
-                       "Can't added base tx in white address");
+        int l_ledger_add_code = dap_chain_ledger_tx_add(a_ledger, l_btx_addr1, &l_btx_addr1_hash, false);
+        char *l_ledger_tx_add_str = dap_strdup_printf("Can't added base tx in white address. Code: %d", l_ledger_add_code);
+        dap_assert_PIF(l_ledger_add_code == 1,
+                       l_ledger_tx_add_str);
+        DAP_DELETE(l_ledger_tx_add_str);
         dap_hash_fast_t l_tx_addr4_hash = {0};
         dap_chain_datum_tx_t *l_tx_to_addr4 = dap_chain_ledger_test_create_tx(l_addr_1->enc_key, &l_btx_addr1_hash,
                                                                               l_addr_4->addr, dap_chain_uint256_from(s_total_supply-s_fee));
@@ -421,6 +424,6 @@ void dap_chain_ledger_test_run(void){
     }	
     dap_chain_ledger_test_double_spending(l_ledger, &l_hash_btx, l_cert->enc_key, l_iddn);
     dap_chain_ledger_test_excess_supply(l_ledger, l_cert, &l_addr);
-    //dap_chain_ledger_test_write_back_list(l_ledger, l_cert, l_iddn);
+    dap_chain_ledger_test_write_back_list(l_ledger, l_cert, l_iddn);
 	
 }
