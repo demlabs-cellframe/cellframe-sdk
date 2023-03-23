@@ -1050,6 +1050,10 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_hash_f
         if (dap_hash_fast_is_blank(&hash_burning_transaction)) {
             log_it(L_ERROR, "Verificator: blank burning transaction hash in the receipt");
 			return false;
+        } else {
+            char l_burning_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+            dap_hash_fast_to_str(&hash_burning_transaction, l_burning_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+            log_it(L_DEBUG, "Burning tx hash: %s", l_burning_hash_str);
         }
 
         strcpy(delegated_ticker, (char *)&l_receipt->exts_n_signs[sizeof(dap_hash_fast_t)]);
