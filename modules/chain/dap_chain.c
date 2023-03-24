@@ -794,7 +794,7 @@ int dap_chain_datum_unledgered_search_iter(dap_chain_datum_t* a_datum, dap_chain
                 if (!memcmp(&l_datum_i_hash, &l_datum_hash, DAP_CHAIN_HASH_FAST_SIZE)) {
                     char l_datum_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
                     dap_hash_fast_to_str(&l_datum_hash, l_datum_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-                    log_it(L_INFO, "Datum %s found in chain %llu", l_datum_hash_str, a_chain->id.uint64);
+                    log_it(L_INFO, "Datum %s found in chain %lu", l_datum_hash_str, a_chain->id.uint64);
                     l_found = 1;
                     break;
                 }
