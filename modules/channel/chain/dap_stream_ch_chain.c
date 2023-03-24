@@ -207,12 +207,12 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
 static void s_stream_ch_delete_in_proc(dap_worker_t *a_worker, void *a_arg)
 {
     UNUSED(a_worker);
+    assert(a_arg);
     dap_stream_ch_chain_t *l_ch_chain = (dap_stream_ch_chain_t *)a_arg;
     if (l_ch_chain->callback_notify_packet_out)
         l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_DELETE, NULL, 0,
                                                l_ch_chain->callback_notify_arg);
     s_ch_chain_go_idle(l_ch_chain);
-    s_free_log_list_gdb(l_ch_chain);
     DAP_DELETE(l_ch_chain);
 
 #ifdef  DAP_SYS_DEBUG
@@ -228,16 +228,17 @@ static void s_stream_ch_delete_in_proc(dap_worker_t *a_worker, void *a_arg)
  */
 static void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg)
 {
-    (void) a_arg;
-    dap_worker_exec_callback_on(a_ch->stream_worker->worker, s_stream_ch_delete_in_proc, a_ch->internal);
+    UNUSED(a_arg);
+    void *l_arg = a_ch->internal;
     a_ch->internal = NULL; // To prevent its cleaning in worker
+    dap_worker_exec_callback_on(a_ch->stream_worker->worker, s_stream_ch_delete_in_proc, l_arg);
 }
 
-void dap_stream_ch_chain_reset(dap_stream_ch_chain_t *a_ch_chain)
+void dap_stream_ch_chain_reset_unsafe(dap_stream_ch_chain_t *a_ch_chain)
 {
     if (!a_ch_chain)
         return;
-    dap_worker_exec_callback_on(DAP_STREAM_CH(a_ch_chain)->stream_worker->worker, s_stream_ch_delete_in_proc, a_ch_chain);
+    s_ch_chain_go_idle(a_ch_chain);
 }
 
 /**
@@ -962,7 +963,6 @@ static bool s_chain_timer_callback(void *a_arg)
                 l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_TIMEOUT, NULL, 0,
                                                       l_ch_chain->callback_notify_arg);
         }
-        s_free_log_list_gdb(l_ch_chain);
         DAP_DELETE(a_arg);
         l_ch_chain->activity_timer = NULL;
         return false;
@@ -1565,7 +1565,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_ALL: {
             log_it(L_INFO, "In from "NODE_ADDR_FP_STR":  SYNCED_ALL net 0x%016"DAP_UINT64_FORMAT_x" chain 0x%016"DAP_UINT64_FORMAT_x" cell 0x%016"DAP_UINT64_FORMAT_x,
-                            NODE_ADDR_FP_ARGS_S(l_ch_chain->node_client->remote_node_addr), l_chain_pkt->hdr.net_id.uint64,
+                            NODE_ADDR_FP_ARGS_S(l_ch_chain->request.node_addr), l_chain_pkt->hdr.net_id.uint64,
                             l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64);
         } break;
 
