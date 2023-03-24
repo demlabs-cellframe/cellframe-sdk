@@ -286,7 +286,13 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_enc_key_t *a_key_from,const dap_c
     dap_chain_addr_t            l_addr_fee = {};
     dap_chain_t                 *l_chain = NULL;
 
-    l_chain = DAP_CHAIN_CS_BLOCKS((dap_chain_block_cache_t *)a_block_list->data)->chain;
+    if(a_block_list)
+        l_chain = DAP_CHAIN_CS_BLOCKS((dap_chain_block_cache_t *)a_block_list->data)->chain;
+    else
+    {
+        log_it(L_WARNING, "There aren't block hash");
+        return NULL;
+    }
     bool l_net_fee_used = dap_chain_net_tx_get_fee(l_chain->net_id, &l_net_fee, &l_addr_fee);
     //add tx
     if (NULL == (l_tx = dap_chain_datum_tx_create())) {
