@@ -39,6 +39,12 @@
 #define LOG_TAG "chain_net_decree"
 
 // private types definition
+static struct decree_hh {
+    dap_hash_fast_t key;
+    bool is_applied;
+    dap_chain_datum_decree_t *decree;
+    UT_hash_handle hh;
+} *s_decree_hh = NULL;
 
 // Private variable
 
@@ -251,28 +257,40 @@ int dap_chain_net_decree_apply(dap_chain_datum_decree_t * a_decree, dap_chain_ne
     // Process decree
     switch(a_decree->header.type){
         case DAP_CHAIN_DATUM_DECREE_TYPE_COMMON:{
-            return s_common_decree_handler(a_decree, l_net, a_chain, a_apply);
+            ret_val = s_common_decree_handler(a_decree, l_net, a_chain, a_apply);
             break;
         }
         case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:{
-            return s_service_decree_handler(a_decree, a_chain, a_apply);
+            ret_val = s_service_decree_handler(a_decree, a_chain, a_apply);
         }
-        default:;
+        default:
+        log_it(L_WARNING,"Decree type is undefined!");
+        ret_val = -100;
     }
 
-    return -100;
-}
+    if (!ret_val)
+    {
+        dap_hash_fast_t l_hash = {0};
+        size_t l_data_size = sizeof(dap_chain_datum_decree_t) + a_decree->header.data_size + a_decree->header.signs_size;
+        dap_hash_fast(a_decree, l_data_size, &l_hash);
+        struct decree_hh *l_decree_hh = NULL;
 
-static struct decree_data {
-    dap_hash_fast_t key;
-    dap_chain_datum_decree_t *decree;            // Network fee value
-    UT_hash_handle hh;
-} *s_decree_data = NULL; // Governance statements for networks
+        HASH_FIND(hh, s_decree_hh, &l_hash, sizeof(dap_hash_fast_t), l_decree_hh);
+        if (!l_decree_hh){
+            l_decree_hh->is_applied = true;
+            HASH_DEL(s_decree_hh, l_decree_hh);
+            l_decree_hh->is_applied = true;
+            HASH_ADD(hh, s_decree_hh, key, sizeof(dap_hash_fast_t), l_decree_hh);
+        }
+    }
+
+    return ret_val;
+}
 
 int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain)
 {
     dap_hash_fast_t l_hash = {0};
-    struct decree_data *l_decree_data = NULL;
+    struct decree_hh *l_decree_hh = NULL;
     int ret_val = 0;
     if (!a_chain || !a_chain)
     {
@@ -293,36 +311,48 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
         return ret_val;
     }
 
+    dap_chain_datum_decree_t * l_decree = NULL;
+    size_t l_data_size = sizeof(dap_chain_datum_decree_t) + a_decree->header.data_size + a_decree->header.signs_size;
+    l_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, l_data_size);
+    memcpy(l_decree, a_decree, l_data_size);
+    dap_hash_fast(l_decree, l_data_size, &l_hash);
+
+    l_decree_hh =  DAP_NEW_Z_SIZE(struct decree_hh, sizeof(struct decree_hh) + l_decree->header.data_size + l_decree->header.signs_size);
+    l_decree_hh->decree = l_decree;
+    l_decree_hh->key = l_hash;
+    l_decree_hh->is_applied = false;
+
     if (a_decree->header.common_decree_params.chain_id.uint64 == a_chain->id.uint64)
     {
-        return dap_chain_net_decree_apply(a_decree, l_net, a_chain, true);
-    } else {
-        dap_chain_datum_decree_t * l_decree = NULL;
-        size_t l_data_size = sizeof(dap_chain_datum_decree_t) + a_decree->header.data_size + a_decree->header.signs_size;
-        l_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, l_data_size);
-        memcpy(l_decree, a_decree, l_data_size);
-        dap_hash_fast(l_decree, l_data_size, &l_hash);
+        ret_val = dap_chain_net_decree_apply(a_decree, l_net, a_chain, true);
+        if (ret_val){
+            log_it(L_ERROR,"Decree applying failed!");
 
-        l_decree_data =  DAP_NEW_Z_SIZE(struct decree_data, sizeof(struct decree_data) + l_decree->header.data_size + l_decree->header.signs_size);
-        l_decree_data->decree = l_decree;
-        l_decree_data->key = l_hash;
+        } else
+        {
+            l_decree_hh->is_applied = true;
+        }
 
-        HASH_ADD(hh, s_decree_data, key, sizeof(dap_hash_fast_t), l_decree_data);
     }
 
-    return 0;
+    HASH_ADD(hh, s_decree_hh, key, sizeof(dap_hash_fast_t), l_decree_hh);
+
+    return ret_val;
 }
 
-dap_chain_datum_decree_t * dap_chain_net_decree_get_by_hash(dap_hash_fast_t a_hash)
+dap_chain_datum_decree_t * dap_chain_net_decree_get_by_hash(dap_hash_fast_t a_hash, bool *is_applied)
 {
     dap_hash_fast_t l_hash = a_hash;
-    struct decree_data* l_decree_data = NULL;
+    struct decree_hh* l_decree_hh = NULL;
 
-    HASH_FIND(hh, s_decree_data, &l_hash, sizeof(dap_hash_fast_t), l_decree_data);
-    if (!l_decree_data)
+    HASH_FIND(hh, s_decree_hh, &l_hash, sizeof(dap_hash_fast_t), l_decree_hh);
+    if (!l_decree_hh)
         return NULL;
 
-    return l_decree_data->decree;
+    if (is_applied)
+        *is_applied = l_decree_hh->is_applied;
+
+    return l_decree_hh->decree;
 }
 
 // Private functions
@@ -353,8 +383,6 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
     dap_chain_node_addr_t l_node_addr = {};
     dap_chain_net_t *l_net = a_net;
     dap_list_t *l_owners_list = NULL;
-
-
 
     switch (a_decree->header.sub_type)
     {
