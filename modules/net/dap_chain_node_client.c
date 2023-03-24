@@ -360,7 +360,7 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                     l_node_client->last_error);
             l_node_client->state = NODE_CLIENT_STATE_ERROR;
             if (!strcmp(l_node_client->last_error, "ERROR_SYNC_REQUEST_ALREADY_IN_PROCESS")) {
-                dap_stream_ch_chain_reset(a_ch_chain);
+                dap_stream_ch_chain_reset_unsafe(a_ch_chain);
                 l_finished = true;
             }
         break;
@@ -784,15 +784,16 @@ void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client)
         }
     }
     // clean client
-    a_node_client->client->delete_callback = NULL;
-    dap_client_delete_unsafe(a_node_client->client);
+    if(a_node_client->client){
+        a_node_client->client->delete_callback = NULL;
+        dap_client_delete_unsafe(a_node_client->client);
+    }
 #ifndef _WIN32
     pthread_cond_destroy(&a_node_client->wait_cond);
 #else
     CloseHandle( a_node_client->wait_cond );
 #endif
     pthread_mutex_destroy(&a_node_client->wait_mutex);
-    a_node_client->client = NULL;
     DAP_DEL_Z(a_node_client->info);
     DAP_DELETE(a_node_client);
 }
