@@ -3450,10 +3450,6 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         if (!l_main_ticker)
             l_main_ticker = l_value_cur->token_ticker;
         HASH_ADD_STR(l_values_from_cur_tx, token_ticker, l_value_cur);
-#ifndef LEDGER_TEST_ENABLED
-        if (strcmp(l_token, PVT(a_ledger)->net_native_ticker) != 0)
-            return -78;
-#endif
     }
 
 
