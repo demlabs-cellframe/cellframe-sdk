@@ -251,8 +251,11 @@ int dap_chain_net_decree_apply(dap_chain_datum_decree_t * a_decree, dap_chain_ne
         return -108;
     }
 
-    if ((ret_val = dap_chain_net_decree_verify(a_decree, l_net, NULL, NULL)) != 0)
-        return ret_val;
+    if (a_apply){
+        if ((ret_val = dap_chain_net_decree_verify(a_decree, l_net, NULL, NULL)) != 0)
+            return ret_val;
+    }
+
 
     // Process decree
     switch(a_decree->header.type){
@@ -276,7 +279,7 @@ int dap_chain_net_decree_apply(dap_chain_datum_decree_t * a_decree, dap_chain_ne
         struct decree_hh *l_decree_hh = NULL;
 
         HASH_FIND(hh, s_decree_hh, &l_hash, sizeof(dap_hash_fast_t), l_decree_hh);
-        if (!l_decree_hh){
+        if (l_decree_hh){
             l_decree_hh->is_applied = true;
             HASH_DEL(s_decree_hh, l_decree_hh);
             l_decree_hh->is_applied = true;

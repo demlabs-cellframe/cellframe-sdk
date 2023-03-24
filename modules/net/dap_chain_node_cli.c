@@ -324,7 +324,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "decree anchor -net <net_name> -chain <chain_name> -datum <datum_hash>\n"
             "==Subtype Params==\n"
             "\t -fee <value>: sets fee for tx in net\n"
-            "\t -to_addr <wallet_addr>: sets wallet addr for network fee"
+            "\t -to_addr <wallet_addr>: sets wallet addr for network fee\n"
             "\t -new_certs <certs list>: sets new owners set for net\n"
             "\t -signs_verify <value>: sets minimum number of owners needed to sign decree\n"
             "\t -ton_signs_verify <value>: sets minimum number of TON signers");

@@ -1513,7 +1513,6 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                 }
             }else {
                 l_decree_chain = l_chain;
-                return -105;
             }
 
 
@@ -1903,6 +1902,8 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
         l_datum_anchor->header.data_size = dap_tsd_size(l_tsd);
         l_datum_anchor->header.ts_created = dap_time_now();
         memcpy(l_datum_anchor->data_n_sign, l_tsd, dap_tsd_size(l_tsd));
+
+        DAP_DEL_Z(l_tsd);
 
         // Sign anchor
         size_t l_total_signs_success = 0;
