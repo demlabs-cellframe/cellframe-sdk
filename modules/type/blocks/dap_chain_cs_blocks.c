@@ -119,7 +119,7 @@ static dap_chain_atom_ptr_t *s_callback_atom_iter_get_links( dap_chain_atom_iter
 static dap_chain_atom_ptr_t *s_callback_atom_iter_get_lasts( dap_chain_atom_iter_t * a_atom_iter ,size_t *a_links_size,
                                                                   size_t ** a_lasts_size_ptr );  //    Get list of linked blocks
 //Get list of hashes
-static dap_list_t *s_block_parse_str_list(const char * a_hash_str,size_t * a_hash_size, dap_chain_t * l_chain);
+static dap_list_t *s_block_parse_str_list(const char * a_hash_str,size_t * a_hash_size, dap_chain_t * a_chain, dap_cert_t * a_cert);
 
 // Delete iterator
 static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter );                  //    Get the fisrt block
@@ -721,32 +721,19 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                         "Corrupted certificate \"%s\" without keys certificate", l_cert_name );
                 return -20;
             }
-            dap_pkey_t *l_pub_key = NULL;
-            if(l_cert) {
-                l_pub_key = dap_pkey_from_enc_key(l_cert->enc_key);
-            }
 
             if(!l_hash_str){
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block fee collect' requires parameter '-hashes'");
                 return -21;
             }
-            l_block_list = s_block_parse_str_list(l_hash_str, &l_hashes_count,l_chain);
+            l_block_list = s_block_parse_str_list(l_hash_str, &l_hashes_count,l_chain,l_cert);
 
             if(!l_hashes_count){
                 dap_cli_server_cmd_set_reply_text(a_str_reply,
                         "Block fee collection requires at least one hash to create a transaction");
                 return -22;
             }
-            //verification of signatures of all blocks
-            for (dap_list_t *bl = l_block_list; bl; bl = bl->next) {
-                dap_chain_block_cache_t *l_block_cache = (dap_chain_block_cache_t *)bl->data;
-                dap_sign_t * l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
-                if(!dap_pkey_compare_with_sign(l_pub_key, l_sign)){
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Block signature does not match certificate key");
-                    dap_list_free(l_block_list);
-                    return -23;
-                }
-            }
+
             char * l_hash_tx = dap_chain_mempool_tx_coll_fee_create(l_cert->enc_key,l_addr,l_block_list,l_fee_value,l_hash_out_type);
             if (l_hash_tx) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Fee collect TX created succefully, hash=%s\n", l_hash_tx);
@@ -769,7 +756,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
     return ret;
 }
 
-static dap_list_t * s_block_parse_str_list(const char * a_hash_str,size_t * a_hash_size, dap_chain_t * l_chain)
+static dap_list_t * s_block_parse_str_list(const char * a_hash_str,size_t * a_hash_size, dap_chain_t * a_chain, dap_cert_t *a_cert)
 {
     dap_list_t *l_block_list = NULL;
     char * l_hashes_tmp_ptrs = NULL;
@@ -777,8 +764,12 @@ static dap_list_t * s_block_parse_str_list(const char * a_hash_str,size_t * a_ha
     char *l_hashes_str = strtok_r(l_hashes_str_dup, ",", &l_hashes_tmp_ptrs);
     dap_chain_hash_fast_t   l_hash_block;
     dap_chain_block_t       *l_block;
-    dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
+    dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
 
+    dap_pkey_t *l_pub_key = NULL;
+    if(a_cert) {
+        l_pub_key = dap_pkey_from_enc_key(a_cert->enc_key);
+    }
     // First we just calc items
     while(l_hashes_str) {
         l_hashes_str = strtok_r(NULL, ",", &l_hashes_tmp_ptrs);
@@ -797,7 +788,7 @@ static dap_list_t * s_block_parse_str_list(const char * a_hash_str,size_t * a_ha
             return NULL;
         }
         size_t l_block_size = 0;
-        l_block = (dap_chain_block_t*) dap_chain_get_atom_by_hash( l_chain, &l_hash_block, &l_block_size);
+        l_block = (dap_chain_block_t*) dap_chain_get_atom_by_hash( a_chain, &l_hash_block, &l_block_size);
         if(!l_block)
         {
             log_it(L_WARNING,"There aren't any block by this hash");
@@ -806,7 +797,13 @@ static dap_list_t * s_block_parse_str_list(const char * a_hash_str,size_t * a_ha
             return NULL;
         }
         dap_chain_block_cache_t *l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_hash_block);
-        l_block_list = dap_list_append(l_block_list, l_block_cache);
+        //verification of signatures of all blocks
+        dap_sign_t * l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
+        if(dap_pkey_compare_with_sign(l_pub_key, l_sign))
+            l_block_list = dap_list_append(l_block_list, l_block_cache);
+        else
+             log_it(L_WARNING,"Block %s signature does not match certificate key", l_block_cache->block_hash_str);
+
         l_hashes_str = strtok_r(NULL, ",", &l_hashes_tmp_ptrs);
         l_hashes_pos++;
     }
