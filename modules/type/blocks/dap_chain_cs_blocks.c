@@ -1101,7 +1101,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
     uint64_t l_nonce = 0;
     uint64_t l_nonce2 = 0;
     dap_chain_hash_fast_t l_block_hash;
-    dap_hash_fast(l_block, a_atom_size, &l_block_hash);
+
     dap_chain_block_meta_extract(l_meta, l_meta_count,
                                         &l_block_prev_hash,
                                         &l_block_anchor_hash,
@@ -1121,7 +1121,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
     // genesis or seed mode
     if (l_is_genesis) {
         if (!l_blocks_pvt->blocks) {
-
+            dap_hash_fast(l_block, a_atom_size, &l_block_hash);
             if (s_seed_mode)
                 log_it(L_NOTICE, "Accepting new genesis block");
 
