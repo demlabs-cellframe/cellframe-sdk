@@ -746,6 +746,18 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
             case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_TON_SIGNERS_MIN:
                 l_subtype_str = "DECREE_COMMON_SUBTYPE_TON_SIGNERS_MIN";
                 break;
+            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE:
+                l_subtype_str = "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE";
+                break;
+            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE:
+                l_subtype_str = "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE";
+                break;
+            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALUE:
+                l_subtype_str = "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALUE";
+                break;
+            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT:
+                l_subtype_str = "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT";
+                break;
             default:
                 l_subtype_str = "DECREE_TYPE_UNKNOWN";
             }
@@ -760,12 +772,16 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
             dap_string_append_printf(a_str_out,"=== Datum anchor ===\n");
             dap_string_append_printf(a_str_out, "hash: %s\n", l_hash_str);
             dap_string_append_printf(a_str_out, "size: %zd\n", l_anchor_size);
-            char l_decree_hash_str[40] = "";
+            char *l_decree_hash_str = NULL;
             dap_hash_fast_t l_decree_hash ={0};
             dap_chain_datum_anchor_get_hash_from_data(l_anchor, &l_decree_hash);
-            dap_chain_hash_fast_to_str(&l_decree_hash, l_decree_hash_str, 40);
+            //dap_chain_hash_fast_to_str(&l_decree_hash, l_decree_hash_str, 40);
+
+            l_decree_hash_str = dap_chain_hash_fast_to_str_new(&l_decree_hash);
 
             dap_string_append_printf(a_str_out, "decree hash: %s\n", l_decree_hash_str);
+
+            DAP_DELETE(l_decree_hash_str);
 
             dap_chain_datum_anchor_certs_dump(a_str_out, l_anchor->data_n_sign + l_anchor->header.data_size, l_anchor->header.signs_size, a_hash_out_type);
         } break;
