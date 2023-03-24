@@ -3733,7 +3733,6 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
     dap_store_obj_t *l_cache_used_outs = DAP_NEW_Z_SIZE(dap_store_obj_t, l_cache_size);
     char *l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_TXS_STR);
     char *l_cur_token_ticker = NULL;
-    bool l_ticker_in_heap = false;
     // Update balance: deducts
 
     for (int i = 1; l_list_tmp; i++) {
