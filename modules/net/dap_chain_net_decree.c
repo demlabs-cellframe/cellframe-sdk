@@ -302,12 +302,8 @@ int dap_chain_net_decree_apply(dap_chain_datum_decree_t * a_decree, dap_chain_t 
         struct decree_hh *l_decree_hh = NULL;
 
         HASH_FIND(hh, s_decree_hh, &l_hash, sizeof(dap_hash_fast_t), l_decree_hh);
-        if (l_decree_hh){
+        if (l_decree_hh)
             l_decree_hh->is_applied = true;
-            HASH_DEL(s_decree_hh, l_decree_hh);
-            l_decree_hh->is_applied = true;
-            HASH_ADD(hh, s_decree_hh, key, sizeof(dap_hash_fast_t), l_decree_hh);
-        }
     }
 
     return ret_val;
