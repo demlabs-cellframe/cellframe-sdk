@@ -24,5 +24,5 @@
 #include "dap_chain_datum_anchor.h"
 #include "dap_chain_net.h"
 
-int dap_chain_net_anchor_verify(dap_chain_datum_anchor_t * a_anchor, dap_chain_net_t *a_net, uint32_t *a_signs_count, uint32_t *a_signs_verify);
+int dap_chain_net_anchor_verify(dap_chain_datum_anchor_t * a_anchor, size_t a_data_size);
 int dap_chain_net_anchor_load(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *a_chain);

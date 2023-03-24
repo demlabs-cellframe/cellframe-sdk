@@ -113,7 +113,6 @@ int dap_chain_net_decree_deinit(dap_chain_net_t *a_net)
 int s_decree_verify_tsd(dap_chain_datum_decree_t * a_decree, dap_chain_net_t *a_net)
 {
     int ret_val = 0;
-    dap_chain_net_t *l_net = NULL;
 
     if (!a_decree)
     {
@@ -137,8 +136,30 @@ int s_decree_verify_tsd(dap_chain_datum_decree_t * a_decree, dap_chain_net_t *a_
     return ret_val;
 }
 
-int dap_chain_net_decree_verify(dap_chain_datum_decree_t * a_decree, dap_chain_net_t *a_net, uint32_t *a_signs_count, uint32_t *a_signs_verify)
+int dap_chain_net_decree_verify(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, size_t a_data_size, dap_hash_fast_t *a_decree_hash)
 {
+    if (a_data_size < sizeof(dap_chain_datum_decree_t)) {
+        log_it(L_WARNING, "Decree size is too small");
+        return -120;
+    }
+    if (dap_chain_datum_decree_get_size(a_decree) != a_data_size) {
+        log_it(L_WARNING, "Decree size is invalid");
+        return -121;
+    }
+    if (a_decree->header.common_decree_params.net_id.uint64 != a_net->pub.id.uint64) {
+        log_it(L_WARNING, "Decree net id is invalid");
+        return -122;
+    }
+
+    dap_hash_fast_t l_decree_hash;
+    dap_hash_fast(a_decree, a_data_size, &l_decree_hash);
+    if (a_decree_hash)
+        *a_decree_hash = l_decree_hash;
+    struct decree_hh *l_decree_hh = NULL;
+    HASH_FIND(hh, s_decree_hh, &l_decree_hash, sizeof(dap_hash_fast_t), l_decree_hh);
+    if (l_decree_hh)
+        return DAP_DECREE_IS_PRESENT;
+
     dap_chain_datum_decree_t *l_decree = a_decree;
     // Get pkeys sign from decree datum
 
@@ -189,9 +210,6 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t * a_decree, dap_chain_n
         l_signs_count++;
     }
 
-    if (a_signs_count)
-        *a_signs_count = l_signs_count;
-
     // Find unique pkeys in pkeys set from previous step and check that number of signs > min
     size_t l_num_of_unique_signs = 0;
     dap_sign_t **l_unique_signs = dap_sign_get_unique_signs(l_signs_arr, l_signs_arr_size, &l_num_of_unique_signs);
@@ -235,9 +253,6 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t * a_decree, dap_chain_n
     DAP_DELETE(l_signs_arr);
     DAP_DELETE(l_unique_signs);
 
-    if (a_signs_verify)
-        *a_signs_verify = l_signs_verify_counter;
-
     l_min_signs = a_net->pub.decree->min_num_of_owners;
     l_num_of_valid_signs256 = GET_256_FROM_64((uint64_t)l_signs_verify_counter);
     if (compare256(l_num_of_valid_signs256, l_min_signs) < 0)
@@ -275,10 +290,11 @@ int dap_chain_net_decree_apply(dap_chain_datum_decree_t * a_decree, dap_chain_t 
         return -108;
     }
 
-    if ((ret_val = dap_chain_net_decree_verify(a_decree, l_net, NULL, NULL)) != 0)
+    dap_hash_fast_t l_hash = {0};
+    size_t l_data_size = dap_chain_datum_decree_get_size(a_decree);
+
+    if ((ret_val = dap_chain_net_decree_verify(a_decree, l_net, l_data_size, &l_hash)) != DAP_DECREE_IS_PRESENT)
         return ret_val;
-
-
 
     // Process decree
     switch(a_decree->header.type){
@@ -294,13 +310,8 @@ int dap_chain_net_decree_apply(dap_chain_datum_decree_t * a_decree, dap_chain_t 
         ret_val = -100;
     }
 
-    if (!ret_val)
-    {
-        dap_hash_fast_t l_hash = {0};
-        size_t l_data_size = sizeof(dap_chain_datum_decree_t) + a_decree->header.data_size + a_decree->header.signs_size;
-        dap_hash_fast(a_decree, l_data_size, &l_hash);
+    if (!ret_val) {
         struct decree_hh *l_decree_hh = NULL;
-
         HASH_FIND(hh, s_decree_hh, &l_hash, sizeof(dap_hash_fast_t), l_decree_hh);
         if (l_decree_hh)
             l_decree_hh->is_applied = true;
@@ -311,8 +322,6 @@ int dap_chain_net_decree_apply(dap_chain_datum_decree_t * a_decree, dap_chain_t 
 
 int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain)
 {
-    dap_hash_fast_t l_hash = {0};
-    struct decree_hh *l_decree_hh = NULL;
     int ret_val = 0;
     if (!a_chain || !a_chain)
     {
@@ -328,33 +337,25 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
         return -108;
     }
 
-    if ((ret_val = dap_chain_net_decree_verify(a_decree, l_net, NULL, NULL)) != 0){
+    dap_hash_fast_t l_hash = {};
+    size_t l_data_size = dap_chain_datum_decree_get_size(a_decree);
+
+    if ((ret_val = dap_chain_net_decree_verify(a_decree, l_net, l_data_size, &l_hash)) != 0) {
         log_it(L_ERROR,"Decree verification failed!");
         return ret_val;
     }
-
-    dap_chain_datum_decree_t * l_decree = NULL;
-    size_t l_data_size = sizeof(dap_chain_datum_decree_t) + a_decree->header.data_size + a_decree->header.signs_size;
-    l_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, l_data_size);
-    memcpy(l_decree, a_decree, l_data_size);
-    dap_hash_fast(l_decree, l_data_size, &l_hash);
-
-    l_decree_hh =  DAP_NEW_Z_SIZE(struct decree_hh, sizeof(struct decree_hh) + l_decree->header.data_size + l_decree->header.signs_size);
-    l_decree_hh->decree = l_decree;
+    struct decree_hh *l_decree_hh = DAP_NEW_Z(struct decree_hh);
+    l_decree_hh->decree = DAP_DUP_SIZE(a_decree, l_data_size);;
     l_decree_hh->key = l_hash;
     l_decree_hh->is_applied = false;
 
     if (a_decree->header.common_decree_params.chain_id.uint64 == a_chain->id.uint64)
     {
         ret_val = dap_chain_net_decree_apply(a_decree, a_chain);
-        if (ret_val){
+        if (ret_val)
             log_it(L_ERROR,"Decree applying failed!");
-
-        } else
-        {
+        else
             l_decree_hh->is_applied = true;
-        }
-
     }
 
     HASH_ADD(hh, s_decree_hh, key, sizeof(dap_hash_fast_t), l_decree_hh);

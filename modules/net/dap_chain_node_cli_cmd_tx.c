@@ -43,6 +43,7 @@
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd_tx.h"
 #include "dap_chain_net_tx.h"
+#include "dap_chain_mempool.h"
 
 #define LOG_TAG "chain_node_cli_cmd_tx"
 
@@ -1658,37 +1659,11 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                                                              sizeof(*l_datum_decree) + l_datum_decree->header.data_size +
                                                              l_datum_decree->header.signs_size);
         DAP_DELETE(l_datum_decree);
-        size_t l_datum_size = dap_chain_datum_size(l_datum);
-
-        // Calc datum's hash
-        dap_chain_hash_fast_t l_key_hash;
-        dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_key_hash);
-        char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
-        char * l_key_str_out = dap_strcmp(l_hash_out_type, "hex") ?
-                    dap_enc_base58_encode_hash_to_str(&l_key_hash) : l_key_str;
-
-        // Add datum to mempool with datum_token hash as a key
-        char * l_gdb_group_mempool;
-        if (l_chain)
-            l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
-        else
-            l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_DECREE);
-        if (!l_gdb_group_mempool) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "No suitable chain for placing decree datum found");
-            DAP_DELETE(l_datum);
-            DAP_DELETE(l_key_str);
-            DAP_DELETE(l_key_str_out);
-            DAP_DELETE(l_datum);
-            return -10;
-        }
-        bool l_placed = dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, l_datum, l_datum_size, true) == 0;
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s is%s placed in datum pool",
-                                          l_key_str_out, l_placed ? "" : " not");
-
-        //additional checking for incorrect key format
-        DAP_DELETE(l_key_str);
+        char *l_key_str_out = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type);
         DAP_DELETE(l_datum);
-
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s is%s placed in datum pool",
+                                          l_key_str_out ? l_key_str_out : "",
+                                          l_key_str_out ? "" : " not");
         break;
     }
     case CMD_SIGN:{
@@ -1922,37 +1897,11 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                                                              sizeof(*l_datum_anchor) + l_datum_anchor->header.data_size +
                                                              l_datum_anchor->header.signs_size);
         DAP_DELETE(l_datum_anchor);
-        size_t l_datum_size = dap_chain_datum_size(l_datum);
-
-        // Calc datum's hash
-        dap_chain_hash_fast_t l_key_hash;
-        dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_key_hash);
-        char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
-        char * l_key_str_out = dap_strcmp(l_hash_out_type, "hex") ?
-                    dap_enc_base58_encode_hash_to_str(&l_key_hash) : l_key_str;
-
-        // Add datum to mempool with datum_token hash as a key
-        char * l_gdb_group_mempool;
-        if (l_chain)
-            l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
-        else
-            l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_DECREE);
-        if (!l_gdb_group_mempool) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "No suitable chain for placing decree datum found");
-            DAP_DELETE(l_datum);
-            DAP_DELETE(l_key_str);
-            DAP_DELETE(l_key_str_out);
-            DAP_DELETE(l_datum);
-            return -10;
-        }
-        bool l_placed = dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, l_datum, l_datum_size, true) == 0;
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s is%s placed in datum pool",
-                                          l_key_str_out, l_placed ? "" : " not");
-
-        //additional checking for incorrect key format
-        DAP_DELETE(l_key_str);
+        char *l_key_str_out = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type);
         DAP_DELETE(l_datum);
-
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s is%s placed in datum pool",
+                                          l_key_str_out ? l_key_str_out : "",
+                                          l_key_str_out ? "" : " not");
         break;
     }
     default:

@@ -317,7 +317,10 @@ static uint16_t s_chain_type_convert(dap_chain_type_t a_type)
         return DAP_CHAIN_DATUM_CA;
 	case CHAIN_TYPE_SIGNER:
 		return DAP_CHAIN_DATUM_SIGNER;
-
+    case CHAIN_TYPE_DECREE:
+        return DAP_CHAIN_DATUM_DECREE;
+    case CHAIN_TYPE_ANCHOR:
+        return DAP_CHAIN_DATUM_ANCHOR;
     default:
         return DAP_CHAIN_DATUM_CUSTOM;
     }

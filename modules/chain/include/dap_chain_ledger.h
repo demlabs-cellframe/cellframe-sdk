@@ -60,12 +60,12 @@ typedef struct dap_chain_net dap_chain_net_t;
 
 #define DAP_CHAIN_LEDGER_CACHE_ENABLED           0x0200
 
-// Error code for no previous transaction (candidate to threshold)
-#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS  -111
-// Error code for no emission for a transaction (candidate to threshold)
-#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION  -112
-// Error code for no token for an emission (candidate to threshold)
-#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN     -113
+// Error code for no previous transaction (for stay in mempool)
+#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS  -1111
+// Error code for no emission for a transaction (for stay in mempoold)
+#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION  -1112
+// Error code for no decree for anchor (for stay in mempool)
+#define DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE       -1113
 
 #define DAP_CHAIN_LEDGER_TOKENS_STR              "tokens"
 #define DAP_CHAIN_LEDGER_EMISSIONS_STR           "emissions"

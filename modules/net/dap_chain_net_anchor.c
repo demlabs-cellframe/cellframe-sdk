@@ -38,8 +38,16 @@ static bool s_verify_pubkeys(dap_sign_t *a_sign, dap_sign_t **a_decree_signs, si
 static inline dap_sign_t *s_concate_all_signs_in_array(dap_sign_t *a_in_signs, size_t a_signs_size, size_t *a_sings_count, size_t *a_signs_arr_size);
 
 // Public functions
-int dap_chain_net_anchor_verify(dap_chain_datum_anchor_t * a_anchor, dap_chain_net_t *a_net, uint32_t *a_signs_count, uint32_t *a_signs_verify)
+int dap_chain_net_anchor_verify(dap_chain_datum_anchor_t * a_anchor, size_t a_data_size)
 {
+    if (a_data_size < sizeof(dap_chain_datum_anchor_t)) {
+        log_it(L_WARNING, "Anchor size is too small");
+        return -120;
+    }
+    if (dap_chain_datum_anchor_get_size(a_anchor) != a_data_size) {
+        log_it(L_WARNING, "Anchor size is invalid");
+        return -121;
+    }
     int ret_val = 0;
     dap_chain_datum_anchor_t *l_anchor = a_anchor;
     size_t l_signs_size = l_anchor->header.signs_size;
@@ -90,7 +98,7 @@ int dap_chain_net_anchor_verify(dap_chain_datum_anchor_t * a_anchor, dap_chain_n
         DAP_DELETE(l_signs_arr);
         DAP_DELETE(l_unique_signs);
         log_it(L_WARNING,"Can't get decree by hash");
-        return -107;
+        return DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE;
     }
 
     if (l_is_applied)
@@ -148,9 +156,6 @@ int dap_chain_net_anchor_verify(dap_chain_datum_anchor_t * a_anchor, dap_chain_n
     DAP_DELETE(l_signs_arr);
     DAP_DELETE(l_unique_signs);
 
-    if (a_signs_verify)
-        *a_signs_verify = l_signs_verify_counter;
-
     return 0;
 }
 
@@ -172,7 +177,7 @@ int dap_chain_net_anchor_load(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *
         return -108;
     }
 
-    if ((ret_val = dap_chain_net_anchor_verify(a_anchor, l_net, NULL, NULL)) != 0)
+    if ((ret_val = dap_chain_net_anchor_verify(a_anchor, dap_chain_datum_anchor_get_size(a_anchor))) != 0)
     {
         log_it(L_WARNING,"Decree is not pass verification!");
         return ret_val;

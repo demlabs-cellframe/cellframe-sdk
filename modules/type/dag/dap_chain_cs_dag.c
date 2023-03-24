@@ -557,7 +557,6 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             break;
         case DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS:
         case DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION:
-        case DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN:
             if(s_debug_more)
                 log_it(L_DEBUG, "... ledger tresholded");
             break;
@@ -699,6 +698,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_d
                 if (s_chain_callback_atom_add(a_chain, l_event, l_event_size) == ATOM_ACCEPT) {
                     if (dap_chain_atom_save(a_chain, (uint8_t *)l_event, l_event_size, a_chain->cells->id) < 0)
                         log_it(L_ERROR, "Can't add new event to the file");
+                    return true;
                 } else {
                     log_it(L_ERROR, "Can't add new event");
                     return false;

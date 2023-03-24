@@ -712,7 +712,7 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
         } break;
         case DAP_CHAIN_DATUM_DECREE:{
             dap_chain_datum_decree_t *l_decree = (dap_chain_datum_decree_t *)a_datum->data;
-            size_t l_decree_size = sizeof(dap_chain_datum_decree_t) + l_decree->header.data_size + l_decree->header.signs_size;
+            size_t l_decree_size = dap_chain_datum_decree_get_size(l_decree);
             dap_string_append_printf(a_str_out,"=== Datum decree ===\n");
             dap_string_append_printf(a_str_out, "hash: %s\n", l_hash_str);
             dap_string_append_printf(a_str_out, "size: %zd\n", l_decree_size);
