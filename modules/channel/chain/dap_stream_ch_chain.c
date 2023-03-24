@@ -1154,7 +1154,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB: {
             if(s_debug_more)
-                log_it(L_INFO, "In: GLOBAL_DB data_size=%zu", l_chain_pkt_data_size);
+                log_it(L_INFO, "In: GLOBAL_DB data_size=%zu (remote addr %s)", l_chain_pkt_data_size, a_ch->stream->esocket->remote_addr_str);
             // get transaction and save it to global_db
             if(l_chain_pkt_data_size > 0) {
                 struct sync_request *l_sync_request = dap_stream_ch_chain_create_sync_request(l_chain_pkt, a_ch);

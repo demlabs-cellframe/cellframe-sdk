@@ -282,7 +282,10 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force) {
             if (dap_chain_node_mempool_need_process(a_chain, l_datum)) {
                 if (dap_chain_node_mempool_process(a_chain, l_datum)) {
                     // Delete processed objects
+                    log_it(L_INFO, " ! Delete %s from mempool", l_objs[i].key);
                     dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_mempool);
+                } else {
+                    log_it(L_INFO, " ! Datum %s remain in mempool...", l_objs[i].key);
                 }
             }
         }
