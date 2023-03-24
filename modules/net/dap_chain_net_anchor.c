@@ -201,7 +201,7 @@ int dap_chain_net_anchor_load(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *
     }
 
 
-    if((ret_val = dap_chain_net_decree_apply(l_decree, l_net, a_chain, true))!=0)
+    if((ret_val = dap_chain_net_decree_apply(l_decree, a_chain))!=0)
     {
         log_it(L_WARNING,"Decree applying failed");
     }

@@ -110,6 +110,33 @@ int dap_chain_net_decree_deinit(dap_chain_net_t *a_net)
     return 0;
 }
 
+int s_decree_verify_tsd(dap_chain_datum_decree_t * a_decree, dap_chain_net_t *a_net)
+{
+    int ret_val = 0;
+    dap_chain_net_t *l_net = NULL;
+
+    if (!a_decree)
+    {
+        log_it(L_ERROR,"Invalid arguments.");
+        return -107;
+    }
+
+    // Process decree
+    switch(a_decree->header.type){
+        case DAP_CHAIN_DATUM_DECREE_TYPE_COMMON:{
+            ret_val = s_common_decree_handler(a_decree, a_net, NULL, false);
+            break;
+        }
+        case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:{
+            ret_val = s_service_decree_handler(a_decree, NULL, false);
+        }
+        default:
+        log_it(L_WARNING,"Decree type is undefined!");
+        ret_val = -100;
+    }
+    return ret_val;
+}
+
 int dap_chain_net_decree_verify(dap_chain_datum_decree_t * a_decree, dap_chain_net_t *a_net, uint32_t *a_signs_count, uint32_t *a_signs_verify)
 {
     dap_chain_datum_decree_t *l_decree = a_decree;
@@ -220,7 +247,7 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t * a_decree, dap_chain_n
     }
 
     // check tsd-section
-    if (dap_chain_net_decree_apply(a_decree, a_net, NULL, false))
+    if (s_decree_verify_tsd(a_decree, a_net))
     {
         log_it(L_WARNING,"TSD checking error. Decree verification failed");
         return -106;
@@ -229,21 +256,18 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t * a_decree, dap_chain_n
     return 0;
 }
 
-int dap_chain_net_decree_apply(dap_chain_datum_decree_t * a_decree, dap_chain_net_t *a_net, dap_chain_t *a_chain, bool a_apply)
+int dap_chain_net_decree_apply(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain)
 {
     int ret_val = 0;
     dap_chain_net_t *l_net = NULL;
 
-    if (!a_decree || (!a_chain && a_apply))
+    if (!a_decree || !a_chain)
     {
         log_it(L_ERROR,"Invalid arguments.");
         return -107;
     }
 
-    if(!a_net && a_chain)
-        l_net = dap_chain_net_by_id(a_chain->net_id);
-    else
-        l_net = a_net;
+    l_net = dap_chain_net_by_id(a_chain->net_id);
 
     if (!l_net->pub.decree)
     {
@@ -251,20 +275,19 @@ int dap_chain_net_decree_apply(dap_chain_datum_decree_t * a_decree, dap_chain_ne
         return -108;
     }
 
-    if (a_apply){
-        if ((ret_val = dap_chain_net_decree_verify(a_decree, l_net, NULL, NULL)) != 0)
-            return ret_val;
-    }
+    if ((ret_val = dap_chain_net_decree_verify(a_decree, l_net, NULL, NULL)) != 0)
+        return ret_val;
+
 
 
     // Process decree
     switch(a_decree->header.type){
         case DAP_CHAIN_DATUM_DECREE_TYPE_COMMON:{
-            ret_val = s_common_decree_handler(a_decree, l_net, a_chain, a_apply);
+            ret_val = s_common_decree_handler(a_decree, l_net, a_chain, true);
             break;
         }
         case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:{
-            ret_val = s_service_decree_handler(a_decree, a_chain, a_apply);
+            ret_val = s_service_decree_handler(a_decree, a_chain, true);
         }
         default:
         log_it(L_WARNING,"Decree type is undefined!");
@@ -327,7 +350,7 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
 
     if (a_decree->header.common_decree_params.chain_id.uint64 == a_chain->id.uint64)
     {
-        ret_val = dap_chain_net_decree_apply(a_decree, l_net, a_chain, true);
+        ret_val = dap_chain_net_decree_apply(a_decree, a_chain);
         if (ret_val){
             log_it(L_ERROR,"Decree applying failed!");
 
@@ -386,6 +409,11 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
     dap_chain_node_addr_t l_node_addr = {};
     dap_chain_net_t *l_net = a_net;
     dap_list_t *l_owners_list = NULL;
+
+    if (a_apply && !a_chain){
+        log_it(L_WARNING, "a_chain must not be NULL");
+        return -112;
+    }
 
     switch (a_decree->header.sub_type)
     {
