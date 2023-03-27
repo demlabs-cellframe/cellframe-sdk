@@ -254,6 +254,8 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
                         char *l_min_fee_str = dap_chain_balance_to_coins(l_min_fee);
                         log_it(L_WARNING, "Fee %s is lower than minimum fee %s for tx %s",
                                l_tx_fee_str, l_min_fee_str, l_objs[i].key);
+                        DAP_DELETE(l_tx_fee_str);
+                        DAP_DELETE(l_min_fee_str);
                         continue;
                     }
                 }
