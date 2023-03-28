@@ -624,7 +624,9 @@ static void s_srv_order_callback_notify(dap_global_db_context_t *a_context, dap_
                     l_offset += dap_sign_get_size(l_tmp_sign);
                     dap_hash_fast_t l_pkey_hash = {0};
                     dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
-                    if (!dap_chain_net_srv_stake_pkey_is_stake(l_net, &l_pkey_hash)) {
+                    dap_chain_addr_t l_addr = {0};
+                    dap_chain_addr_fill_from_sign(&l_addr, l_tmp_sign, l_net->pub.id);
+                    if (!dap_chain_net_srv_stake_key_delegated(&l_addr)) {
                         char *l_pkey_hash_str = dap_hash_fast_to_str_new(&l_pkey_hash);
                         log_it(L_ERROR, "Order %s signed by the non-delegated public key %s.", a_obj->key, l_pkey_hash_str);
                         DAP_DELETE(l_pkey_hash_str);
