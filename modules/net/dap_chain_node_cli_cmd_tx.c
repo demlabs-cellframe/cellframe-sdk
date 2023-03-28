@@ -1389,6 +1389,46 @@ static dap_chain_datum_anchor_t * s_sign_anchor_in_cycle(dap_cert_t ** a_certs, 
     return a_datum_anchor;
 }
 
+char *s_decree_subtype_to_str(int a_subtype)
+{
+    switch (a_subtype)
+    {
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE:
+        {
+            return "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE";
+        }
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS:
+        {
+            return "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS";
+        }
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN:
+        {
+            return "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN";
+        }
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_TON_SIGNERS_MIN:
+        {
+            return "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_TON_SIGNERS_MIN";
+        }
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE:
+        {
+            return "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE";
+        }
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE:
+        {
+            return "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE";
+        }
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALUE:
+        {
+            return "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALUE";
+        }
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT:
+        {
+            return "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT";
+        }
+        default: return "(UNKNOWN)";
+    }
+}
+
 // Decree commands handlers
 int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
 {
@@ -1513,9 +1553,9 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                     return -103;
                 }
             }else {
-                l_decree_chain = l_chain;
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "decree requires parameter -decree_chain.");
+                return -105;
             }
-
 
             dap_tsd_t *l_tsd = NULL;
             dap_cert_t **l_new_certs = NULL;
@@ -1530,7 +1570,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                 if (!dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-to_addr", &l_param_addr_str)){
                     if(!l_net->pub.decree->fee_addr)
                     {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Net fee add needed.");
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Net fee add needed. Use -to_addr parameter");
                         return -111;
                     }
                 }else{
@@ -1604,6 +1644,18 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
             }else{
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Decree subtype fail.");
                 return -111;
+            }
+
+            if (l_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS ||
+                l_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN)
+            {
+                if (l_decree_chain->id.uint64 != l_chain->id.uint64){
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Decree subtype %s not suppurted by chain %s", s_decree_subtype_to_str(l_subtype), l_decree_chain_str);
+                    return -107;
+                }
+            } else if (l_decree_chain->id.uint64 == l_chain->id.uint64){
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Decree subtype %s not suppurted by chain %s", s_decree_subtype_to_str(l_subtype), l_decree_chain_str);
+                return -107;
             }
 
             l_datum_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, sizeof(dap_chain_datum_decree_t) + l_total_tsd_size);
