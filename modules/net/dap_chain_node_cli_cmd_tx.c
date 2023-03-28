@@ -1570,7 +1570,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                 if (!dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-to_addr", &l_param_addr_str)){
                     if(!l_net->pub.decree->fee_addr)
                     {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Net fee add needed.");
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Net fee add needed. Use -to_addr parameter");
                         return -111;
                     }
                 }else{
