@@ -105,7 +105,7 @@ int dap_chain_datum_decree_get_fee_addr(dap_chain_datum_decree_t *a_decree, dap_
     return 1;
 }
 
-dap_list_t *dap_chain_datum_decree_get_owners(dap_chain_datum_decree_t *a_decree, uint256_t *a_owners_num)
+dap_list_t *dap_chain_datum_decree_get_owners(dap_chain_datum_decree_t *a_decree, uint16_t *a_owners_num)
 {
     if(!a_decree || !a_owners_num){
         log_it(L_WARNING,"Wrong arguments");
@@ -140,11 +140,12 @@ dap_list_t *dap_chain_datum_decree_get_owners(dap_chain_datum_decree_t *a_decree
         }
         l_tsd_offset += l_tsd_size;
     }
-    *a_owners_num = GET_256_FROM_64(l_owners_num);
+    if (a_owners_num)
+        *a_owners_num = l_owners_num;
     return l_key_list;
 }
 
-int dap_chain_datum_decree_get_min_owners(dap_chain_datum_decree_t *a_decree, uint256_t *a_min_owners_num)
+int dap_chain_datum_decree_get_min_owners(dap_chain_datum_decree_t *a_decree, uint16_t *a_min_owners_num)
 {
     if(!a_decree || !a_min_owners_num){
         log_it(L_WARNING,"Wrong arguments");
@@ -165,7 +166,9 @@ int dap_chain_datum_decree_get_min_owners(dap_chain_datum_decree_t *a_decree, ui
                 log_it(L_WARNING,"Wrong fee tsd data size.");
                 return -1;
             }
-            *a_min_owners_num = dap_tsd_get_scalar(l_tsd, uint256_t);
+            uint256_t l_min_owners_num = dap_tsd_get_scalar(l_tsd, uint256_t);
+            if (a_min_owners_num)
+                *a_min_owners_num = dap_chain_uint256_to(l_min_owners_num);
             return 0;
         }
         l_tsd_offset += l_tsd_size;

@@ -183,7 +183,6 @@ int dap_chain_net_anchor_load(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *
         return ret_val;
     }
 
-    dap_chain_datum_decree_t * l_decree = NULL;
     dap_chain_hash_fast_t l_hash = {0};
     if ((ret_val = dap_chain_datum_anchor_get_hash_from_data(a_anchor, &l_hash)) != 0)
     {
@@ -191,22 +190,7 @@ int dap_chain_net_anchor_load(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *
         return -109;
     }
 
-    bool l_is_applied = false;
-    l_decree = dap_chain_net_decree_get_by_hash(l_hash, &l_is_applied);
-    if (!l_decree)
-    {
-        log_it(L_WARNING,"Decree is not found.");
-        return -110;
-    }
-
-    if (l_is_applied)
-    {
-        log_it(L_WARNING,"Decree already applyed.");
-        return -111;
-    }
-
-
-    if((ret_val = dap_chain_net_decree_apply(l_decree, a_chain))!=0)
+    if((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain))!=0)
     {
         log_it(L_WARNING,"Decree applying failed");
     }
