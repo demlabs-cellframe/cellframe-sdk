@@ -1552,15 +1552,3 @@ static void s_cache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
         log_it(L_WARNING, "Stake service cache mismatch");
     DAP_DELETE(l_data_key);
 }
-
-bool dap_chain_net_srv_stake_pkey_is_stake(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_key_hash) {
-    dap_chain_net_srv_stake_item_t *l_stake = NULL, *l_tmp;
-    HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp) {
-        if (l_stake->net->pub.id.uint64 != a_net->pub.id.uint64)
-            continue;
-        dap_chain_addr_t l_addr = l_stake->signing_addr;
-        if (dap_hash_fast_compare((dap_hash_fast_t*)l_addr.data.key, a_key_hash))
-            return true;
-    }
-    return false;
-}
