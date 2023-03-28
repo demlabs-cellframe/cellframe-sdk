@@ -74,3 +74,4 @@ void dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net, dap_stri
 
 int dap_chain_net_srv_stake_load_cache(dap_chain_net_t *a_net);
 void dap_chain_net_srv_stake_cache_purge(dap_chain_net_t *a_net);
+
