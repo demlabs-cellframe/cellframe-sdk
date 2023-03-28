@@ -1389,46 +1389,6 @@ static dap_chain_datum_anchor_t * s_sign_anchor_in_cycle(dap_cert_t ** a_certs, 
     return a_datum_anchor;
 }
 
-char *s_decree_subtype_to_str(int a_subtype)
-{
-    switch (a_subtype)
-    {
-        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE:
-        {
-            return "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE";
-        }
-        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS:
-        {
-            return "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS";
-        }
-        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN:
-        {
-            return "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN";
-        }
-        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_TON_SIGNERS_MIN:
-        {
-            return "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_TON_SIGNERS_MIN";
-        }
-        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE:
-        {
-            return "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE";
-        }
-        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE:
-        {
-            return "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE";
-        }
-        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALUE:
-        {
-            return "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALUE";
-        }
-        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT:
-        {
-            return "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT";
-        }
-        default: return "(UNKNOWN)";
-    }
-}
-
 // Decree commands handlers
 int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
 {
@@ -1650,11 +1610,13 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                 l_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN)
             {
                 if (l_decree_chain->id.uint64 != l_chain->id.uint64){
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Decree subtype %s not suppurted by chain %s", s_decree_subtype_to_str(l_subtype), l_decree_chain_str);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Decree subtype %s not suppurted by chain %s",
+                                                      dap_chain_datum_decree_subtype_to_str(l_subtype), l_decree_chain_str);
                     return -107;
                 }
             } else if (l_decree_chain->id.uint64 == l_chain->id.uint64){
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Decree subtype %s not suppurted by chain %s", s_decree_subtype_to_str(l_subtype), l_decree_chain_str);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Decree subtype %s not suppurted by chain %s",
+                                                  dap_chain_datum_decree_subtype_to_str(l_subtype), l_decree_chain_str);
                 return -107;
             }
 

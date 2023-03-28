@@ -346,11 +346,10 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
     return ret_val;
 }
 
-dap_chain_datum_decree_t * dap_chain_net_decree_get_by_hash(dap_hash_fast_t a_hash, bool *is_applied)
+dap_chain_datum_decree_t *dap_chain_net_decree_get_by_hash(dap_hash_fast_t *a_hash, bool *is_applied)
 {
     struct decree_hh* l_decree_hh = NULL;
-
-    HASH_FIND(hh, s_decree_hh, &a_hash, sizeof(dap_hash_fast_t), l_decree_hh);
+    HASH_FIND(hh, s_decree_hh, a_hash, sizeof(dap_hash_fast_t), l_decree_hh);
     if (!l_decree_hh)
         return NULL;
 
@@ -448,10 +447,6 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
             if (!a_apply)
                 break;
             l_net->pub.decree->min_num_of_owners = l_uint16_buffer;
-            break;
-        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_TON_SIGNERS_MIN:
-            if (!a_apply)
-                break;
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE:
             if (dap_chain_datum_decree_get_stake_tx_hash(a_decree, &l_hash)){

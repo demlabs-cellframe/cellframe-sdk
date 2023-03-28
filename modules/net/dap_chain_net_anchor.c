@@ -92,7 +92,7 @@ int dap_chain_net_anchor_verify(dap_chain_datum_anchor_t * a_anchor, size_t a_da
     }
 
     bool l_is_applied = false;
-    l_decree = dap_chain_net_decree_get_by_hash(l_decree_hash, &l_is_applied);
+    l_decree = dap_chain_net_decree_get_by_hash(&l_decree_hash, &l_is_applied);
     if (!l_decree)
     {
         DAP_DELETE(l_signs_arr);
