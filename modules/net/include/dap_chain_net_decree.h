@@ -27,8 +27,8 @@
 
 typedef struct decree_params {
     dap_list_t *pkeys;
-    uint256_t   num_of_owners;
-    uint256_t   min_num_of_owners;
+    uint16_t num_of_owners;
+    uint16_t min_num_of_owners;
     dap_chain_addr_t *fee_addr;
 }   dap_chain_net_decree_t;
 
@@ -37,7 +37,7 @@ typedef struct decree_params {
 int dap_chain_net_decree_init(dap_chain_net_t *a_net);
 int dap_chain_net_decree_deinit(dap_chain_net_t *a_net);
 
-int dap_chain_net_decree_apply(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain);
+int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain);
 int dap_chain_net_decree_verify(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, size_t a_data_size, dap_hash_fast_t *a_decree_hash);
 int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain);
 

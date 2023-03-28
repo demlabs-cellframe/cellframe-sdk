@@ -76,7 +76,6 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE                                 0x0102
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER                               0x0103
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER                           0x0104
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_TON_SIGNERS_MIN                     0x0105
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE_WALLET                          0x0106
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_TX_HASH                       0x0107
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_VALUE                         0x0108
@@ -116,7 +115,7 @@ int dap_chain_datum_decree_get_fee_addr(dap_chain_datum_decree_t *a_decree, dap_
  * @param a_owners_num pointer to total number of owners buffer
  * @return dap_list_t with owners keys in dap_pkey_t format
  */
-dap_list_t *dap_chain_datum_decree_get_owners(dap_chain_datum_decree_t *a_decree, uint256_t *a_owners_num);
+dap_list_t *dap_chain_datum_decree_get_owners(dap_chain_datum_decree_t *a_decree, uint16_t *a_owners_num);
 
 /**
  * @brief dap_chain_datum_decree_get_min_owners get minimum number of owners
@@ -124,7 +123,7 @@ dap_list_t *dap_chain_datum_decree_get_owners(dap_chain_datum_decree_t *a_decree
  * @param a_owners_num pointer to minimum number of owners buffer
  * @return result code. 0 - success
  */
-int dap_chain_datum_decree_get_min_owners(dap_chain_datum_decree_t *a_decree, uint256_t *a_min_owners_num);
+int dap_chain_datum_decree_get_min_owners(dap_chain_datum_decree_t *a_decree, uint16_t *a_min_owners_num);
 
 /**
  * @brief dap_chain_datum_decree_get_tx_hash get stake tx hash

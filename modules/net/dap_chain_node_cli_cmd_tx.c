@@ -1394,7 +1394,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
 {
     enum { CMD_NONE=0, CMD_CREATE, CMD_SIGN, CMD_ANCHOR };
     enum { TYPE_NONE=0, TYPE_COMMON, TYPE_SERVICE};
-    enum { SUBTYPE_NONE=0, SUBTYPE_FEE, SUBTYPE_OWNERS, SUBTYPE_MIN_OWNERS, SUBTYPE_TON_MIN_SIGNS};
+    enum { SUBTYPE_NONE=0, SUBTYPE_FEE, SUBTYPE_OWNERS, SUBTYPE_MIN_OWNERS};
     int arg_index = 1;
     const char *l_net_str = NULL;
     const char * l_chain_str = NULL;
@@ -1553,11 +1553,9 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                 l_subtype = SUBTYPE_OWNERS;
                 dap_cert_parse_str_list(l_param_value_str, &l_new_certs, &l_new_certs_count);
 
-                dap_chain_net_t *a_net = dap_chain_net_by_name(l_net_str);
-                uint256_t l_min_signs = a_net->pub.decree->min_num_of_owners;
-                uint256_t l_num_of_valid_signs256 = GET_256_FROM_64((uint64_t)l_new_certs_count);
-                if (compare256(l_num_of_valid_signs256, l_min_signs) < 0)
-                {
+                dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
+                uint16_t l_min_signs = l_net->pub.decree->min_num_of_owners;
+                if (l_new_certs_count < l_min_signs) {
                     log_it(L_WARNING,"Number of new certificates is less than minimum owner number.");
                     return -106;
                 }
@@ -1584,15 +1582,17 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
             }else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-signs_verify", &l_param_value_str)){
                 l_subtype = SUBTYPE_MIN_OWNERS;
                 uint256_t l_new_num_of_owners = dap_cvt_str_to_uint256(l_param_value_str);
-
-                dap_chain_net_t *a_net = dap_chain_net_by_name(l_net_str);
-                uint256_t l_owners = a_net->pub.decree->num_of_owners;
-                uint256_t l_num_of_valid_signs256 = GET_256_FROM_64((uint64_t)l_new_certs_count);
-                if (compare256(l_num_of_valid_signs256, l_owners) > 0)
-                {
+                if (IS_ZERO_256(l_new_num_of_owners)) {
+                    log_it(L_WARNING, "The minimum number of owners can't be zero");
+                    dap_list_free_full(l_tsd_list, NULL);
+                    return -112;
+                }
+                dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
+                uint256_t l_owners = GET_256_FROM_64(l_net->pub.decree->num_of_owners);
+                if (compare256(l_new_num_of_owners, l_owners) > 0) {
                     log_it(L_WARNING,"The minimum number of owners is greater than the total number of owners.");
                     dap_list_free_full(l_tsd_list, NULL);
-                    return -107;
+                    return -110;
                 }
 
                 l_total_tsd_size = sizeof(dap_tsd_t) + sizeof(uint256_t);
@@ -1601,18 +1601,9 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                 l_tsd->size = sizeof(uint256_t);
                 *(uint256_t*)(l_tsd->data) = l_new_num_of_owners;
                 l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
-            }else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-ton_signs_verify", &l_param_value_str)){
-                l_subtype = SUBTYPE_TON_MIN_SIGNS;
-                uint256_t l_new_num_of_owners = dap_cvt_str_to_uint256(l_param_value_str);
-                l_total_tsd_size = sizeof(dap_tsd_t) + sizeof(uint256_t);
-                l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
-                l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_TON_SIGNERS_MIN;
-                l_tsd->size = sizeof(uint256_t);
-                *(uint256_t*)(l_tsd->data) = l_new_num_of_owners;
-                l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
             }else{
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Decree subtype fail.");
-                return -107;
+                return -111;
             }
 
             l_datum_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, sizeof(dap_chain_datum_decree_t) + l_total_tsd_size);
