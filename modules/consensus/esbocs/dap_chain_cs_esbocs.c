@@ -1686,7 +1686,7 @@ static int s_cli_esbocs(int a_argc, char ** a_argv, char **a_str_reply)
 
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str);
     if (!l_cert_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_validators_count' required parameter -cert");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_validators_count' requires parameter -cert");
         return -3;
     }
     dap_cert_t *l_poa_cert = dap_cert_find_by_name(l_cert_str);
@@ -1697,7 +1697,7 @@ static int s_cli_esbocs(int a_argc, char ** a_argv, char **a_str_reply)
 
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-val_count", &l_value_str);
     if (!l_value_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_validators_count' required parameter -val_count");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_validators_count' requires parameter -val_count");
         return -9;
     }
     uint256_t l_value = dap_chain_balance_scan(l_value_str);

@@ -403,7 +403,7 @@ static dap_chain_datum_decree_t *s_stake_decree_approve(dap_chain_net_t *a_net, 
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx,
                                                   DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_prev_cond_idx);
     if (!l_tx_out_cond) {
-        log_it(L_WARNING, "Requested conditional transaction has no required conditional output");
+        log_it(L_WARNING, "Requested conditional transaction has no requires conditional output");
         return NULL;
     }
     if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, a_stake_tx_hash, l_prev_cond_idx)) {
@@ -539,7 +539,7 @@ static dap_chain_datum_tx_t *s_stake_tx_invalidate(dap_chain_net_t *a_net, dap_h
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx,
                                                   DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_prev_cond_idx);
     if (!l_tx_out_cond) {
-        log_it(L_WARNING, "Requested conditional transaction has no required conditional output");
+        log_it(L_WARNING, "Requested conditional transaction has no requires conditional output");
         return NULL;
     }
     if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, a_tx_hash, l_prev_cond_idx)) {
@@ -632,7 +632,7 @@ static dap_chain_datum_decree_t *s_stake_decree_invalidate(dap_chain_net_t *a_ne
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx,
                                                   DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_prev_cond_idx);
     if (!l_tx_out_cond) {
-        log_it(L_WARNING, "Requested conditional transaction has no required conditional output");
+        log_it(L_WARNING, "Requested conditional transaction has no requires conditional output");
         return NULL;
     }
 
@@ -806,7 +806,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
             dap_chain_net_t *l_net = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' required parameter -net");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' requires parameter -net");
                 return -3;
             }
             l_net = dap_chain_net_by_name(l_net_str);
@@ -816,7 +816,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
             }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_value_str);
             if (!l_value_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' required parameter -coins");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' requires parameter -coins");
                 return -5;
             }
             uint256_t l_value = dap_chain_balance_scan(l_value_str);
@@ -826,7 +826,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
             }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str);
             if (!l_cert_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' required parameter -cert");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' requires parameter -cert");
                 return -7;
             }
             dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_str);
@@ -906,7 +906,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
             dap_enc_key_t *l_key = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order update' required parameter -net");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order update' requires parameter -net");
                 return -3;
             }
             l_net = dap_chain_net_by_name(l_net_str);
@@ -986,7 +986,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
             const char *l_net_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order list' required parameter -net");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order list' requires parameter -net");
                 return -3;
             }
             dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
@@ -1095,7 +1095,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             l_arg_index++;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'delegate' required parameter -net");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'delegate' requires parameter -net");
                 return -3;
             }
             dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
@@ -1105,7 +1105,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-wallet", &l_wallet_str);
             if (!l_wallet_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'delegate' required parameter -wallet");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'delegate' requires parameter -wallet");
                 return -17;
             }
             dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config));
@@ -1115,7 +1115,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str);
             if (!l_cert_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'delegate' required parameter -cert");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'delegate' requires parameter -cert");
                 return -13;
             }
             dap_cert_t *l_signing_cert = dap_cert_find_by_name(l_cert_str);
@@ -1134,7 +1134,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_value_str);
             if (!l_value_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'delegate' required parameter -value");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'delegate' requires parameter -value");
                 return -9;
             }
             uint256_t l_value = dap_chain_balance_scan(l_value_str);
@@ -1164,7 +1164,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 l_node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-fee", &l_fee_str);
             if (!l_fee_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'delegate' required parameter -fee");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'delegate' requires parameter -fee");
                 return -15;
             }
             uint256_t l_fee = dap_chain_balance_scan(l_fee_str);
@@ -1192,7 +1192,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             l_arg_index++;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'approve' required parameter -net");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'approve' requires parameter -net");
                 return -3;
             }
             dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
@@ -1202,7 +1202,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-poa_cert", &l_cert_str);
             if (!l_cert_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'approve' required parameter -poa_cert");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'approve' requires parameter -poa_cert");
                 return -17;
             }
             dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_str);
@@ -1216,7 +1216,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-tx", &l_tx_hash_str);
             if (!l_tx_hash_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'approve' required parameter -tx");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'approve' requires parameter -tx");
                 return -13;
             }
             dap_chain_hash_fast_t l_tx_hash = {};
@@ -1238,7 +1238,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             l_arg_index++;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'transactions' required parameter -net");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'keylist' requires parameter -net");
                 return -3;
             }
             dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
@@ -1292,7 +1292,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             l_arg_index++;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'invalidate' required parameter -net");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'invalidate' requires parameter -net");
                 return -3;
             }
             dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
@@ -1305,13 +1305,13 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             if (!l_wallet_str) {
                 dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-poa_cert", &l_poa_cert_str);
                 if (!l_poa_cert_str) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'invalidate' required parameter -wallet or -poa_cert");
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'invalidate' requires parameter -wallet or -poa_cert");
                     return -17;
                 }
             } else {
                 dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-fee", &l_fee_str);
                 if (!l_fee_str) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'delegate' required parameter -fee");
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'delegate' requires parameter -fee");
                     return -5;
                 }
                 l_fee = dap_chain_balance_scan(l_fee_str);
@@ -1326,12 +1326,12 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 if (!l_cert_str) {
                     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-signing_pkey_hash", &l_signing_pkey_hash_str);
                     if (!l_signing_pkey_hash_str) {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'invalidate' required parameter -tx or -cert or -signing_pkey_hash");
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'invalidate' requires parameter -tx or -cert or -signing_pkey_hash");
                         return -13;
                     }
                     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-signing_pkey_type", &l_signing_pkey_type_str);
                     if (!l_signing_pkey_type_str) {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'invalidate' required parameter -signing_pkey_type");
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'invalidate' requires parameter -signing_pkey_type");
                         return -14;
                     }
                     if (dap_sign_type_from_str(l_signing_pkey_type_str).type == SIG_TYPE_NULL) {
@@ -1428,7 +1428,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             l_arg_index++;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_value' required parameter -net");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_value' requires parameter -net");
                 return -3;
             }
             dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
@@ -1439,7 +1439,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
 
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str);
             if (!l_cert_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_value' required parameter -cert");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_value' requires parameter -cert");
                 return -3;
             }
             dap_cert_t *l_poa_cert = dap_cert_find_by_name(l_cert_str);
@@ -1454,7 +1454,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
 
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_value_str);
             if (!l_value_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_value' required parameter -value");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_value' requires parameter -value");
                 return -9;
             }
             uint256_t l_value = dap_chain_balance_scan(l_value_str);

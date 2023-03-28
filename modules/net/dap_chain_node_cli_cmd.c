@@ -3082,7 +3082,7 @@ static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_s
            return -1;
         }
     } else if (a_update_token) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply,"update_token command required parameter:\n-type <CF20 or private>");
+        dap_cli_server_cmd_set_reply_text(a_str_reply,"update_token command requires parameter:\n-type <CF20 or private>");
         return -1;
     }
 

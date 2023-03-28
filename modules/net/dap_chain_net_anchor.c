@@ -97,7 +97,9 @@ int dap_chain_net_anchor_verify(dap_chain_datum_anchor_t * a_anchor, size_t a_da
     {
         DAP_DELETE(l_signs_arr);
         DAP_DELETE(l_unique_signs);
-        log_it(L_WARNING,"Can't get decree by hash");
+        char *l_decree_hash_str = dap_hash_fast_to_str_new(&l_decree_hash);
+        log_it(L_WARNING,"Can't get decree by hash %s", l_decree_hash_str);
+        DAP_DELETE(l_decree_hash_str);
         return DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE;
     }
 

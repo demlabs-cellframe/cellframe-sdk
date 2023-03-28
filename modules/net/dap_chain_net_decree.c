@@ -283,11 +283,13 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
     if (!a_decree) {
         HASH_FIND(hh, s_decree_hh, a_decree_hash, sizeof(dap_hash_fast_t), l_decree_hh);
         if (!l_decree_hh) {
-            log_it(L_WARNING,"Decree is not found.");
+            char *l_decree_hash_str = dap_hash_fast_to_str_new(a_decree_hash);
+            log_it(L_WARNING, "Decree with hash %s is not found", l_decree_hash_str);
+            DAP_DELETE(l_decree_hash_str);
             return -110;
         }
         if (l_decree_hh->is_applied) {
-            log_it(L_WARNING,"Decree already applyed.");
+            log_it(L_WARNING,"Decree already applyed");
             return -111;
         }
     } else {
@@ -295,10 +297,13 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
         l_decree_hh->decree = DAP_DUP_SIZE(a_decree, dap_chain_datum_decree_get_size(a_decree));
         l_decree_hh->key = *a_decree_hash;
         HASH_ADD(hh, s_decree_hh, key, sizeof(dap_hash_fast_t), l_decree_hh);
+        if (a_decree->header.common_decree_params.chain_id.uint64 != a_chain->id.uint64)
+            // Apply it with corresponding anchor
+            return ret_val;
     }
 
     // Process decree
-    switch(a_decree->header.type) {
+    switch(l_decree_hh->decree->header.type) {
     case DAP_CHAIN_DATUM_DECREE_TYPE_COMMON:
         ret_val = s_common_decree_handler(l_decree_hh->decree, l_net, a_chain, true);
         break;
@@ -308,6 +313,11 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
         log_it(L_WARNING,"Decree type is undefined!");
         ret_val = -100;
     }
+
+    if (!ret_val)
+        l_decree_hh->is_applied = true;
+    else
+        log_it(L_ERROR,"Decree applying failed!");
 
     return ret_val;
 }
@@ -337,13 +347,7 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
         return ret_val;
     }
 
-    if (a_decree->header.common_decree_params.chain_id.uint64 == a_chain->id.uint64) {
-        ret_val = dap_chain_net_decree_apply(&l_hash, a_decree, a_chain);
-        if (ret_val)
-            log_it(L_ERROR,"Decree applying failed!");
-    }
-
-    return ret_val;
+    return dap_chain_net_decree_apply(&l_hash, a_decree, a_chain);
 }
 
 dap_chain_datum_decree_t *dap_chain_net_decree_get_by_hash(dap_hash_fast_t *a_hash, bool *is_applied)

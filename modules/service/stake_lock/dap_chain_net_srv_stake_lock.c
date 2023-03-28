@@ -713,7 +713,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
     switch (errorCode)
     {
         case NET_ARG_ERROR: {
-            dap_string_append_printf(output_line, "stake_lock command required parameter -net");
+            dap_string_append_printf(output_line, "stake_lock command requires parameter -net");
             } break;
 
         case NET_ERROR: {
@@ -721,7 +721,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
             } break;
 
         case TOKEN_ARG_ERROR: {
-            dap_string_append_printf(output_line, "stake_lock command required parameter -token");
+            dap_string_append_printf(output_line, "stake_lock command requires parameter -token");
             } break;
 
         case TOKEN_ERROR: {
@@ -729,7 +729,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
             } break;
 
         case COINS_ARG_ERROR: {
-            dap_string_append_printf(output_line, "stake_lock command required parameter -coins");
+            dap_string_append_printf(output_line, "stake_lock command requires parameter -coins");
             } break;
 
         case COINS_FORMAT_ERROR: {
@@ -737,7 +737,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
             } break;
 
         case ADDR_ARG_ERROR: {
-            dap_string_append_printf(output_line, "stake_lock command required parameter -addr_holder");
+            dap_string_append_printf(output_line, "stake_lock command requires parameter -addr_holder");
             } break;
 
         case ADDR_FORMAT_ERROR: {
@@ -745,7 +745,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
             } break;
 
         case CERT_ARG_ERROR: {
-            dap_string_append_printf(output_line, "stake_lock command required parameter -cert");
+            dap_string_append_printf(output_line, "stake_lock command requires parameter -cert");
             } break;
 
         case CERT_LOAD_ERROR: {
@@ -772,7 +772,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
             } break;
 
         case WALLET_ARG_ERROR: {
-            dap_string_append_printf(output_line, "stake_lock command required parameter -wallet");
+            dap_string_append_printf(output_line, "stake_lock command requires parameter -wallet");
             } break;
 
         case WALLET_OPEN_ERROR: {
@@ -788,7 +788,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
             } break;
 
         case TX_ARG_ERROR: {
-            dap_string_append_printf(output_line, "stake_lock command required parameter -tx");
+            dap_string_append_printf(output_line, "stake_lock command requires parameter -tx");
             } break;
 
         case HASH_IS_BLANK_ERROR: {
@@ -872,7 +872,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
             } break;
 
         case FEE_ARG_ERROR: {
-            dap_string_append_printf(output_line, "stake_lock command required parameter -fee");
+            dap_string_append_printf(output_line, "stake_lock command requires parameter -fee");
         } break;
 
         case FEE_FORMAT_ERROR: {
