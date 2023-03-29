@@ -64,6 +64,8 @@ typedef struct dap_chain_cs_blocks_pvt
     dap_chain_block_cache_t * block_cache_first; // Mapped area start
     dap_chain_block_cache_t * block_cache_last; // Last block in mapped area
     dap_chain_hash_fast_t genesis_block_hash;
+    dap_chain_hash_fast_t static_genesis_block_hash;
+
 
     uint64_t blocks_count;
     uint64_t difficulty;
@@ -243,6 +245,14 @@ int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config
         }
     }
     l_cs_blocks_pvt->is_celled = dap_config_get_item_bool_default(a_chain_config,"blocks","is_celled",false);
+    const char * l_static_genesis_blocks_hash_str = dap_config_get_item_str_default(a_chain_config,"blocks","static_genesis_block",NULL);
+    if ( l_static_genesis_blocks_hash_str ){
+        int lhr;
+        if ( (lhr= dap_chain_hash_fast_from_str(l_static_genesis_blocks_hash_str,&l_cs_blocks_pvt->static_genesis_block_hash) )!= 0 ){
+            log_it( L_ERROR, "Can't read hash from static_genesis_block \"%s\", ret code %d ", l_static_genesis_blocks_hash_str, lhr);
+        }
+    }
+
 
     l_cs_blocks_pvt->chunks = dap_chain_block_chunks_create(l_cs_blocks);
 
@@ -884,6 +894,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
     dap_chain_hash_fast_t l_block_anchor_hash = {0};
     uint64_t l_nonce = 0;
     uint64_t l_nonce2 = 0;
+    dap_chain_hash_fast_t l_block_hash;
     dap_chain_block_meta_extract(l_meta, l_meta_count,
                                         &l_block_prev_hash,
                                         &l_block_anchor_hash,
@@ -903,10 +914,16 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
     // genesis or seed mode
     if (l_is_genesis) {
         if (!l_blocks_pvt->blocks) {
+            dap_hash_fast(l_block, a_atom_size, &l_block_hash);
             if (s_seed_mode)
                 log_it(L_NOTICE, "Accepting new genesis block");
-            else
+            else if(dap_hash_fast_compare(&l_block_hash,&l_blocks_pvt->static_genesis_block_hash)
+                    &&!dap_hash_fast_is_blank(&l_block_hash))
                 log_it(L_NOTICE, "Accepting static genesis block");
+            else{
+                log_it(L_WARNING,"Cant accept genesis block: seed mode not enabled or hash mismatch with static genesis block in configuration");
+                return ATOM_REJECT;
+            }
         } else {
             log_it(L_WARNING,"Cant accept genesis block: already present data in blockchain");
             return ATOM_REJECT;
