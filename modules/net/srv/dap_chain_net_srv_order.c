@@ -619,20 +619,15 @@ static void s_srv_order_callback_notify(dap_global_db_context_t *a_context, dap_
                     dap_global_db_del_unsafe(l_gdb_context, a_obj->group, a_obj->key);
                 }
                 // Check new order is signs delegated key
-                for (size_t l_offset = 0; l_offset < l_max_size;) {
-                    dap_sign_t *l_tmp_sign = (dap_sign_t*)(l_sign + l_offset);
-                    l_offset += dap_sign_get_size(l_tmp_sign);
-                    dap_hash_fast_t l_pkey_hash = {0};
-                    dap_sign_get_pkey_hash(l_tmp_sign, &l_pkey_hash);
-                    dap_chain_addr_t l_addr = {0};
-                    dap_chain_addr_fill(&l_addr, l_tmp_sign->header.type, &l_pkey_hash, l_net->pub.id);
-                    if (!dap_chain_net_srv_stake_key_delegated(&l_addr)) {
-                        char *l_pkey_hash_str = dap_hash_fast_to_str_new(&l_pkey_hash);
-                        log_it(L_ERROR, "Order %s signed by the non-delegated public key %s.", a_obj->key, l_pkey_hash_str);
-                        DAP_DELETE(l_pkey_hash_str);
-                        dap_global_db_del_unsafe(l_gdb_context, a_obj->group, a_obj->key);
-                        break;
-                    }
+                dap_hash_fast_t l_pkey_hash = {0};
+                dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
+                dap_chain_addr_t l_addr = {0};
+                dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, l_net->pub.id);
+                if (!dap_chain_net_srv_stake_key_delegated(&l_addr)) {
+                    char *l_pkey_hash_str = dap_hash_fast_to_str_new(&l_pkey_hash);
+                    log_it(L_ERROR, "Order %s signed by the non-delegated public key %s.", a_obj->key, l_pkey_hash_str);
+                    DAP_DELETE(l_pkey_hash_str);
+                    dap_global_db_del_unsafe(l_gdb_context, a_obj->group, a_obj->key);
                 }
                 /*dap_chain_hash_fast_t l_pkey_hash;
                 if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash)) {
