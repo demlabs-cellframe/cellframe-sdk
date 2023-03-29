@@ -303,7 +303,7 @@ static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
     pthread_mutex_lock(&l_session->mutex);
     DL_DELETE(s_session_items, l_session);
     if (!s_session_items)
-        dap_timerfd_delete(s_session_cs_timer);
+        dap_timerfd_delete_mt(s_session_cs_timer);
     s_session_round_clear(l_session);
     dap_chain_esbocs_sync_item_t *l_item, *l_tmp;
     HASH_ITER(hh, l_session->sync_items, l_item, l_tmp) {
@@ -481,7 +481,7 @@ static void s_session_round_new(dap_chain_esbocs_session_t *a_session)
     a_session->cur_round.id++;
     a_session->cur_round.sync_attempt++;
 
-    dap_timerfd_delete(a_session->sync_timer);
+    dap_timerfd_delete_mt(a_session->sync_timer);
     a_session->sync_timer = NULL;
     a_session->state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START;
     a_session->ts_round_sync_start = 0;
@@ -572,7 +572,8 @@ static uint64_t s_session_calc_current_round_id(dap_chain_esbocs_session_t *a_se
     uint16_t l_fill_idx = 0;
     dap_chain_esbocs_message_item_t *l_item, *l_tmp;
     HASH_ITER(hh, a_session->cur_round.message_items, l_item, l_tmp) {
-        if (l_item->message->hdr.type == DAP_STREAM_CH_VOTING_MSG_TYPE_START_SYNC) {
+        if (l_item->message->hdr.type == DAP_STREAM_CH_VOTING_MSG_TYPE_START_SYNC &&
+                a_session->cur_round.sync_attempt == *(uint64_t *)l_item->message->msg_n_sign) {
             uint64_t l_id_candidate = l_item->message->hdr.round_id;
             bool l_candidate_found = false;
             for (uint16_t i = 0; i < l_fill_idx; i++)
@@ -584,7 +585,13 @@ static uint64_t s_session_calc_current_round_id(dap_chain_esbocs_session_t *a_se
             if (!l_candidate_found) {
                 l_id_candidates[l_fill_idx].id = l_id_candidate;
                 l_id_candidates[l_fill_idx].counter = 1;
-                l_fill_idx++;
+                if (++l_fill_idx > a_session->cur_round.validators_synced_count) {
+                    log_it(L_WARNING, "Count of sync messages with same sync attempt is greater"
+                                      " than current synced validators count %hu > %hu",
+                                        l_fill_idx, a_session->cur_round.validators_synced_count);
+                    l_fill_idx--;
+                    break;
+                }
             }
         }
     }
