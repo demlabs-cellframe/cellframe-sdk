@@ -160,9 +160,7 @@ dilithium_signature_t* dap_enc_dilithium_read_signature(uint8_t *a_buf, size_t a
         return NULL;
     }
 
-    uint32_t kind;
-    uint64_t l_buflen = 0;
-    memcpy(&l_buflen, a_buf, sizeof(uint64_t));
+    uint64_t l_buflen = *(uint64_t*)a_buf;
     uint64_t l_shift_mem = sizeof(uint64_t);
     if (l_buflen != a_buflen) {
         if (l_buflen << 32 >> 32 != a_buflen) {
@@ -172,7 +170,7 @@ dilithium_signature_t* dap_enc_dilithium_read_signature(uint8_t *a_buf, size_t a
         }
         l_shift_mem = sizeof(uint32_t);
     }
-    memcpy(&kind, a_buf + l_shift_mem, sizeof(uint32_t));
+    uint32_t kind = *(uint32_t*)(a_buf + l_shift_mem);
     l_shift_mem += sizeof(uint32_t);
     dilithium_param_t p;
     if(!dilithium_params_init(&p, kind))
@@ -180,7 +178,7 @@ dilithium_signature_t* dap_enc_dilithium_read_signature(uint8_t *a_buf, size_t a
 
     dilithium_signature_t* l_sign = DAP_NEW(dilithium_signature_t);
     l_sign->kind = kind;
-    memcpy(&l_sign->sig_len, a_buf + l_shift_mem, sizeof(uint64_t));
+    l_sign->sig_len = *(uint64_t*)(a_buf + l_shift_mem);
     l_shift_mem += sizeof(uint64_t);
 
     if( l_sign->sig_len> (UINT64_MAX - l_shift_mem ) ){

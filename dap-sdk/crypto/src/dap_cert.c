@@ -91,6 +91,11 @@ int dap_cert_init() // TODO deinit too
  */
 size_t dap_cert_parse_str_list(const char * a_certs_str, dap_cert_t *** a_certs, size_t * a_certs_size)
 {
+    if (!a_certs_str) {
+        *a_certs = NULL;
+        *a_certs_size = 0;
+        return 0;
+    }
     char * l_certs_tmp_ptrs = NULL;
     char * l_certs_str_dup = strdup(a_certs_str);
     char *l_cert_str = strtok_r(l_certs_str_dup, ",", &l_certs_tmp_ptrs);
@@ -451,7 +456,7 @@ int dap_cert_compare_with_sign (dap_cert_t * a_cert,const dap_sign_t * a_sign)
         int l_ret;
         size_t l_pub_key_size = 0;
         // serialize public key
-        uint8_t *l_pub_key = dap_enc_key_serealize_pub_key(a_cert->enc_key, &l_pub_key_size);
+        uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(a_cert->enc_key, &l_pub_key_size);
         if ( l_pub_key_size == a_sign->header.sign_pkey_size){
             l_ret = memcmp ( l_pub_key, a_sign->pkey_n_sign, a_sign->header.sign_pkey_size );
         }else

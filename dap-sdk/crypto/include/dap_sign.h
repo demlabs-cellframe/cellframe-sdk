@@ -31,17 +31,23 @@
 #include "dap_pkey.h"
 #include "dap_hash.h"
 #include "dap_string.h"
+#include "json.h"
 
 enum dap_sign_type_enum {
-    SIG_TYPE_NULL = 0x0000,
-    SIG_TYPE_BLISS = 0x0001,
-    SIG_TYPE_DEFO = 0x0002, /// @brief key image for anonymous transaction
-    SIG_TYPE_TESLA = 0x0003, /// @brief
-    SIG_TYPE_PICNIC = 0x0101, /// @brief
-    SIG_TYPE_DILITHIUM = 0x0102, /// @brief
-    SIG_TYPE_FALCON = 0x0103, /// @brief Falcon signature
-    SIG_TYPE_MULTI_CHAINED = 0x0f00, ///  @brief Has inside subset of different signatures and sign composed with all of them
-    SIG_TYPE_MULTI_COMBINED = 0x0f01 ///  @brief Has inside subset of different public keys and sign composed with all of appropriate private keys
+    SIG_TYPE_NULL       = 0x0000,
+    SIG_TYPE_BLISS,
+    SIG_TYPE_DEFEO,
+    SIG_TYPE_TESLA,
+    SIG_TYPE_PICNIC     = 0x0101,
+    SIG_TYPE_DILITHIUM,
+    SIG_TYPE_FALCON,
+#ifdef DAP_PQLR
+    SIG_TYPE_PQLR_DILITHIUM = 0x0200,
+    SIG_TYPE_PQLR_FALCON,
+    SIG_TYPE_PQLR_SPHINCS,
+#endif
+    SIG_TYPE_MULTI_CHAINED  = 0x0f00, ///  @brief Has inside subset of different signatures and sign composed with all of them
+    SIG_TYPE_MULTI_COMBINED ///  @brief Has inside subset of different public keys and sign composed with all of appropriate private keys
 };
 typedef uint32_t dap_sign_type_enum_t;
 
@@ -148,6 +154,27 @@ static inline int dap_sign_verify_all(dap_sign_t * a_sign, const size_t a_sign_s
     return 0;
 }
 
+/**
+* @brief convert dap_sign_type_t type to public key type (dap_pkey_type_t)
+*
+* @param a_sign_type dap_sign_type_t key type
+* @return dap_pkey_type_t
+*/
+DAP_STATIC_INLINE dap_pkey_type_t dap_pkey_type_from_sign_type(dap_sign_type_t a_sign_type)
+{
+    dap_pkey_type_t l_pkey_type = {0};
+    switch (a_sign_type.type){
+        case SIG_TYPE_BLISS: l_pkey_type.type = PKEY_TYPE_SIGN_BLISS; break;
+        case SIG_TYPE_PICNIC: l_pkey_type.type = PKEY_TYPE_SIGN_PICNIC; break;
+        case SIG_TYPE_TESLA: l_pkey_type.type = PKEY_TYPE_SIGN_TESLA; break;
+        case SIG_TYPE_DILITHIUM: l_pkey_type.type = PKEY_TYPE_SIGN_DILITHIUM; break;
+        case SIG_TYPE_FALCON: l_pkey_type.type = PKEY_TYPE_SIGN_FALCON; break;
+        case SIG_TYPE_MULTI_CHAINED: l_pkey_type.type = PKEY_TYPE_MULTI; break;
+        default: l_pkey_type.type = PKEY_TYPE_NULL; break;
+    }
+    return l_pkey_type;
+}
+
 dap_sign_t * dap_sign_create(dap_enc_key_t *a_key, const void * a_data, const size_t a_data_size
                                          ,  size_t a_output_wish_size );
 dap_sign_t * dap_sign_pack(dap_enc_key_t *a_key, const void * a_sign_ser, const size_t a_sign_ser_size, const void * a_pkey, const size_t a_pub_key_size);
@@ -160,12 +187,13 @@ size_t dap_sign_create_output_unserialized_calc_size(dap_enc_key_t * a_key,size_
 dap_sign_type_t dap_sign_type_from_key_type( dap_enc_key_type_t a_key_type);
 dap_enc_key_type_t  dap_sign_type_to_key_type(dap_sign_type_t  a_chain_sign_type);
 
-dap_sign_type_t dap_pkey_type_from_sign( dap_pkey_type_t a_pkey_type);
+dap_sign_type_t dap_sign_type_from_pkey_type( dap_pkey_type_t a_pkey_type);
 
 uint8_t* dap_sign_get_sign(dap_sign_t *a_sign, size_t *a_sign_out);
 uint8_t* dap_sign_get_pkey(dap_sign_t *a_sign, size_t *a_pub_key_out);
 bool dap_sign_get_pkey_hash(dap_sign_t *a_sign, dap_chain_hash_fast_t * a_sign_hash);
 bool dap_sign_match_pkey_signs(dap_sign_t *l_sign1, dap_sign_t *l_sign2);
+dap_pkey_t  *dap_sign_get_pkey_deserialization(dap_sign_t *a_sign);
 
 dap_enc_key_t *dap_sign_to_enc_key(dap_sign_t * a_chain_sign);
 const char * dap_sign_type_to_str(dap_sign_type_t a_chain_sign_type);
@@ -181,6 +209,7 @@ int dap_multi_sign_verify(dap_multi_sign_t *a_sign, const void *a_data, const si
 void dap_multi_sign_delete(dap_multi_sign_t *a_sign);
 
 void dap_sign_get_information(dap_sign_t *a_sign, dap_string_t *a_str_out, const char *a_hash_out_type);
+json_object* dap_sign_to_json(const dap_sign_t *a_sign);
 
 #ifdef __cplusplus
 }

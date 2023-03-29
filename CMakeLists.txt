@@ -48,10 +48,10 @@ endif()
 
 if (BUILD_CRYPTO_TESTS)
     if ( NOT(DAPSDK_MODULES MATCHES "core"))
-	SET(DAPSDK_MODULES "${DAPSDK_MODULES} core")
+        SET(DAPSDK_MODULES "${DAPSDK_MODULES} core")
     endif()
     if ( NOT(DAPSDK_MODULES MATCHES "crypto"))
-	SET(DAPSDK_MODULES "${DAPSDK_MODULES} crypto")
+        SET(DAPSDK_MODULES "${DAPSDK_MODULES} crypto")
     endif()
     set(BUILD_TESTS ON)
 endif()
@@ -64,16 +64,9 @@ endif()
 
 
 if( DARWIN)
-    add_subdirectory(3rdparty/json-c-darwin)
     add_subdirectory(3rdparty/libmagic-darwin)
-    include_directories(3rdparty/json-c-darwin)
 elseif(ANDROID)
-    add_subdirectory(3rdparty/libmagic)
-    add_subdirectory(3rdparty/json-c)
     include_directories(cellframe-sdk/3rdparty/)
-elseif(LINUX)
-    add_subdirectory(3rdparty/json-c)
-    
 endif()
 
 if (BUILD_WITH_ZIP)
@@ -84,6 +77,7 @@ endif()
 add_subdirectory(dap-sdk)
 add_subdirectory(3rdparty/monero_crypto)
 add_subdirectory(3rdparty/cuttdb)
+add_subdirectory(3rdparty/json-c EXCLUDE_FROM_ALL)
 
 if (BUILD_WITH_GDB_DRIVER_MDBX)
     set(SAVED_CMAKE_MESSAGE_LOG_LEVEL ${CMAKE_MESSAGE_LOG_LEVEL})
@@ -227,16 +221,16 @@ endif()
 # Enable service of delegated stake
 if (CELLFRAME_MODULES MATCHES "srv-stake-pos-delegate")
     message("[+] Module 'srv-stake-pos-delegate'")
-    #add TARGET_FILE for proper symbols resolving 
+    #add TARGET_FILE for proper symbols resolving
     #pos_delegate depends on symbols from this libs
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake_pos_delegate $<TARGET_FILE:dap_chain_cs_dag_poa> $<TARGET_FILE:dap_chain_cs_block_poa> $<TARGET_FILE:dap_chain_cs_dag> $<TARGET_FILE:dap_chain_cs_blocks>)
 endif()
 
 if (WIN32)
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} kernel32 user32 shell32 winmm gdi32 advapi32
-					 ole32 version imm32 oleaut32 ws2_32 ntdll psapi 
-					 shlwapi bcrypt crypt32 secur32 userenv #mqrt
-					 )
+                                         ole32 version imm32 oleaut32 ws2_32 ntdll psapi
+                                         shlwapi bcrypt crypt32 secur32 userenv #mqrt
+                                         )
 endif()
 
 if (DARWIN)

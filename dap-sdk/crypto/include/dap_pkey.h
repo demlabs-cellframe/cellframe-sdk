@@ -26,16 +26,23 @@
 #include <stdint.h>
 #include "dap_common.h"
 #include "dap_enc_key.h"
+#include "dap_hash.h"
 
 
 enum dap_pkey_type_enum {
     PKEY_TYPE_NULL = 0x0000,
-    PKEY_TYPE_SIGN_BLISS = 0x0901,
-    PKEY_TYPE_SIGN_TESLA = 0x0902,
-    PKEY_TYPE_SIGN_DILITHIUM =  0x0903,
-    PKEY_TYPE_SIGN_PICNIC = 0x0102,
-    PKEY_TYPE_SIGN_FALCON = 0x0103,
-    PKEY_TYPE_MULTI = 0xffff ///  @brief Has inside subset of different keys
+    PKEY_TYPE_SIGN_BLISS,
+    PKEY_TYPE_SIGN_DEFEO,
+    PKEY_TYPE_SIGN_TESLA,
+    PKEY_TYPE_SIGN_PICNIC = 0x0101,
+    PKEY_TYPE_SIGN_DILITHIUM,
+    PKEY_TYPE_SIGN_FALCON,
+#ifdef DAP_PQLR
+    PKEY_TYPE_SIGN_PQLR_DIL = 0x0200,
+    PKEY_TYPE_SIGN_PQLR_FALCON,
+    PKEY_TYPE_SIGN_PQLR_SPHINCS,
+#endif
+    PKEY_TYPE_MULTI = 0x0f00 ///  @brief Has inside subset of different keys
 
 };
 typedef uint16_t dap_pkey_type_enum_t;
@@ -47,14 +54,19 @@ typedef union dap_pkey_type{
 
 DAP_STATIC_INLINE const char *dap_pkey_type_to_str(dap_pkey_type_t a_type){
     switch (a_type.type) {
-        case PKEY_TYPE_NULL:  return  "PKEY_TYPE_NULL";
-        case PKEY_TYPE_MULTI: return "PKEY_TYPE_MULTI";
-        case PKEY_TYPE_SIGN_BLISS: return "PKEY_TYPE_SIGN_BLISS";
-        case PKEY_TYPE_SIGN_TESLA: return "PKEY_TYPE_SIGN_TESLA";
-        case PKEY_TYPE_SIGN_PICNIC: return "PKEY_TYPE_SIGN_PICNIC";
-        case PKEY_TYPE_SIGN_DILITHIUM: return "PKEY_TYPE_SIGN_DILITHIUM";
-        case PKEY_TYPE_SIGN_FALCON: return "PKEY_TYPE_SIGN_FALCON";
-        default: return "UNDEFINED";
+    case PKEY_TYPE_NULL:            return  "PKEY_TYPE_NULL";
+    case PKEY_TYPE_MULTI:           return "PKEY_TYPE_MULTI";
+    case PKEY_TYPE_SIGN_BLISS:      return "PKEY_TYPE_SIGN_BLISS";
+    case PKEY_TYPE_SIGN_TESLA:      return "PKEY_TYPE_SIGN_TESLA";
+    case PKEY_TYPE_SIGN_PICNIC:     return "PKEY_TYPE_SIGN_PICNIC";
+    case PKEY_TYPE_SIGN_DILITHIUM:  return "PKEY_TYPE_SIGN_DILITHIUM";
+    case PKEY_TYPE_SIGN_FALCON:     return "PKEY_TYPE_SIGN_FALCON";
+#ifdef DAP_PQLR
+    case PKEY_TYPE_SIGN_PQLR_DIL:       return "PKEY_TYPE_SIGN_PQLR_DIL";
+    case PKEY_TYPE_SIGN_PQLR_FALCON:    return "PKEY_TYPE_SIGN_PQLR_FALCON";
+    case PKEY_TYPE_SIGN_PQLR_SPHINCS:   return "PKEY_TYPE_SIGN_PQLR_SPHINCS";
+#endif
+    default: return "UNDEFINED";
     }
 }
 
@@ -71,3 +83,7 @@ typedef struct dap_pkey{
 } DAP_ALIGN_PACKED dap_pkey_t;
 
 dap_pkey_t *dap_pkey_from_enc_key(dap_enc_key_t *a_key);
+
+bool dap_pkey_match(dap_pkey_t *a_pkey1, dap_pkey_t *a_pkey2);
+
+bool dap_pkey_get_hash(dap_pkey_t *a_pkey, dap_chain_hash_fast_t *a_out_hash);

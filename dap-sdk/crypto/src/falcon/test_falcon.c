@@ -3810,7 +3810,7 @@ test_keygen(void)
 }
 
 static void
-test_external_API_inner(unsigned logn, shake256_context *rng)
+test_external_API_inner(unsigned logn, dap_shake256_context *rng)
 {
 	int i;
 	void *pubkey, *pubkey2, *privkey, *sig, *sigpad, *sigct, *expkey;
@@ -3856,14 +3856,14 @@ test_external_API_inner(unsigned logn, shake256_context *rng)
 
 		memset(privkey, 0, privkey_len);
 		memset(pubkey, 0, pubkey_len);
-		r = falcon_keygen_make(rng, logn, privkey, privkey_len,
+		r = dap_falcon_keygen_make(rng, logn, privkey, privkey_len,
 			pubkey, pubkey_len, tmpkg, tmpkg_len);
 		if (r != 0) {
 			fprintf(stderr, "keygen failed: %d\n", r);
 			exit(EXIT_FAILURE);
 		}
 		memset(pubkey2, 0xFF, pubkey_len);
-		r = falcon_make_public(pubkey2, pubkey_len,
+		r = dap_falcon_make_public(pubkey2, pubkey_len,
 			privkey, privkey_len, tmpmp, tmpmp_len);
 		if (r != 0) {
 			fprintf(stderr, "makepub failed: %d\n", r);
@@ -3871,7 +3871,7 @@ test_external_API_inner(unsigned logn, shake256_context *rng)
 		}
 		check_eq(pubkey, pubkey2, pubkey_len, "pub / repub");
 
-		r = falcon_get_logn(pubkey, pubkey_len);
+		r = dap_falcon_get_logn(pubkey, pubkey_len);
 		if (r != (int)logn) {
 			fprintf(stderr, "get_logn failed: %d\n", r);
 			exit(EXIT_FAILURE);
@@ -3879,14 +3879,14 @@ test_external_API_inner(unsigned logn, shake256_context *rng)
 
 		sig_len = FALCON_SIG_COMPRESSED_MAXSIZE(logn);
 		memset(sig, 0, sig_len);
-		r = falcon_sign_dyn(rng, sig, &sig_len, FALCON_SIG_COMPRESSED,
+		r = dap_falcon_sign_dyn(rng, sig, &sig_len, FALCON_SIG_COMPRESSED,
 			privkey, privkey_len,
 			"data1", 5, tmpsd, tmpsd_len);
 		if (r != 0) {
 			fprintf(stderr, "sign_dyn failed: %d\n", r);
 			exit(EXIT_FAILURE);
 		}
-		r = falcon_verify(sig, sig_len, FALCON_SIG_COMPRESSED,
+		r = dap_falcon_verify(sig, sig_len, FALCON_SIG_COMPRESSED,
 			pubkey, pubkey_len, "data1", 5, tmpvv, tmpvv_len);
 		if (r != 0) {
 			fprintf(stderr, "verify failed: %d\n", r);
@@ -3900,7 +3900,7 @@ test_external_API_inner(unsigned logn, shake256_context *rng)
 			 * matches both. Thus, we skip that check for very
 			 * low degrees.
 			 */
-			r = falcon_verify(sig, sig_len, FALCON_SIG_COMPRESSED,
+			r = dap_falcon_verify(sig, sig_len, FALCON_SIG_COMPRESSED,
 				pubkey, pubkey_len, "data2", 5,
 				tmpvv, tmpvv_len);
 			if (r != FALCON_ERR_BADSIG) {
@@ -3911,7 +3911,7 @@ test_external_API_inner(unsigned logn, shake256_context *rng)
 
 		sigpad_len = FALCON_SIG_PADDED_SIZE(logn);
 		memset(sigpad, 0, sigpad_len);
-		r = falcon_sign_dyn(rng, sigpad, &sigpad_len, FALCON_SIG_PADDED,
+		r = dap_falcon_sign_dyn(rng, sigpad, &sigpad_len, FALCON_SIG_PADDED,
 			privkey, privkey_len,
 			"data1", 5, tmpsd, tmpsd_len);
 		if (r != 0) {
@@ -3923,14 +3923,14 @@ test_external_API_inner(unsigned logn, shake256_context *rng)
 				(unsigned long)sigpad_len);
 			exit(EXIT_FAILURE);
 		}
-		r = falcon_verify(sigpad, sigpad_len, FALCON_SIG_PADDED,
+		r = dap_falcon_verify(sigpad, sigpad_len, FALCON_SIG_PADDED,
 			pubkey, pubkey_len, "data1", 5, tmpvv, tmpvv_len);
 		if (r != 0) {
 			fprintf(stderr, "verify(padded) failed: %d\n", r);
 			exit(EXIT_FAILURE);
 		}
 		if (logn >= 5) {
-			r = falcon_verify(sigpad, sigpad_len, FALCON_SIG_PADDED,
+			r = dap_falcon_verify(sigpad, sigpad_len, FALCON_SIG_PADDED,
 				pubkey, pubkey_len, "data2", 5,
 				tmpvv, tmpvv_len);
 			if (r != FALCON_ERR_BADSIG) {
@@ -3942,7 +3942,7 @@ test_external_API_inner(unsigned logn, shake256_context *rng)
 
 		sigct_len = FALCON_SIG_CT_SIZE(logn);
 		memset(sigct, 0, sigct_len);
-		r = falcon_sign_dyn(rng, sigct, &sigct_len, FALCON_SIG_CT,
+		r = dap_falcon_sign_dyn(rng, sigct, &sigct_len, FALCON_SIG_CT,
 			privkey, privkey_len,
 			"data1", 5, tmpsd, tmpsd_len);
 		if (r != 0) {
@@ -3954,14 +3954,14 @@ test_external_API_inner(unsigned logn, shake256_context *rng)
 				(unsigned long)sigct_len);
 			exit(EXIT_FAILURE);
 		}
-		r = falcon_verify(sigct, sigct_len, FALCON_SIG_CT,
+		r = dap_falcon_verify(sigct, sigct_len, FALCON_SIG_CT,
 			pubkey, pubkey_len, "data1", 5, tmpvv, tmpvv_len);
 		if (r != 0) {
 			fprintf(stderr, "verify(ct) failed: %d\n", r);
 			exit(EXIT_FAILURE);
 		}
 		if (logn >= 5) {
-			r = falcon_verify(sigct, sigct_len, FALCON_SIG_CT,
+			r = dap_falcon_verify(sigct, sigct_len, FALCON_SIG_CT,
 				pubkey, pubkey_len, "data2", 5,
 				tmpvv, tmpvv_len);
 			if (r != FALCON_ERR_BADSIG) {
@@ -3971,7 +3971,7 @@ test_external_API_inner(unsigned logn, shake256_context *rng)
 			}
 		}
 
-		r = falcon_expand_privkey(expkey, expkey_len,
+		r = dap_falcon_expand_privkey(expkey, expkey_len,
 			privkey, privkey_len, tmpek, tmpek_len);
 		if (r != 0) {
 			fprintf(stderr, "expand_privkey failed: %d\n", r);
@@ -3980,21 +3980,21 @@ test_external_API_inner(unsigned logn, shake256_context *rng)
 
 		sig_len = FALCON_SIG_COMPRESSED_MAXSIZE(logn);
 		memset(sig, 0, sig_len);
-		r = falcon_sign_tree(rng, sig, &sig_len, FALCON_SIG_COMPRESSED,
+		r = dap_falcon_sign_tree(rng, sig, &sig_len, FALCON_SIG_COMPRESSED,
 			expkey,
 			"data1", 5, tmpst, tmpst_len);
 		if (r != 0) {
 			fprintf(stderr, "sign_tree failed: %d\n", r);
 			exit(EXIT_FAILURE);
 		}
-		r = falcon_verify(sig, sig_len, FALCON_SIG_COMPRESSED,
+		r = dap_falcon_verify(sig, sig_len, FALCON_SIG_COMPRESSED,
 			pubkey, pubkey_len, "data1", 5, tmpvv, tmpvv_len);
 		if (r != 0) {
 			fprintf(stderr, "verify2 failed: %d\n", r);
 			exit(EXIT_FAILURE);
 		}
 		if (logn >= 5) {
-			r = falcon_verify(sig, sig_len, FALCON_SIG_COMPRESSED,
+			r = dap_falcon_verify(sig, sig_len, FALCON_SIG_COMPRESSED,
 				pubkey, pubkey_len, "data2", 5,
 				tmpvv, tmpvv_len);
 			if (r != FALCON_ERR_BADSIG) {
@@ -4005,7 +4005,7 @@ test_external_API_inner(unsigned logn, shake256_context *rng)
 
 		sigpad_len = FALCON_SIG_PADDED_SIZE(logn);
 		memset(sigpad, 0, sigpad_len);
-		r = falcon_sign_tree(rng, sigpad, &sigpad_len,
+		r = dap_falcon_sign_tree(rng, sigpad, &sigpad_len,
 			FALCON_SIG_PADDED,
 			expkey,
 			"data1", 5, tmpst, tmpst_len);
@@ -4013,14 +4013,14 @@ test_external_API_inner(unsigned logn, shake256_context *rng)
 			fprintf(stderr, "sign_tree(padded) failed: %d\n", r);
 			exit(EXIT_FAILURE);
 		}
-		r = falcon_verify(sigpad, sigpad_len, FALCON_SIG_PADDED,
+		r = dap_falcon_verify(sigpad, sigpad_len, FALCON_SIG_PADDED,
 			pubkey, pubkey_len, "data1", 5, tmpvv, tmpvv_len);
 		if (r != 0) {
 			fprintf(stderr, "verify2(padded) failed: %d\n", r);
 			exit(EXIT_FAILURE);
 		}
 		if (logn >= 5) {
-			r = falcon_verify(sigpad, sigpad_len, FALCON_SIG_PADDED,
+			r = dap_falcon_verify(sigpad, sigpad_len, FALCON_SIG_PADDED,
 				pubkey, pubkey_len, "data2", 5,
 				tmpvv, tmpvv_len);
 			if (r != FALCON_ERR_BADSIG) {
@@ -4032,21 +4032,21 @@ test_external_API_inner(unsigned logn, shake256_context *rng)
 
 		sigct_len = FALCON_SIG_CT_SIZE(logn);
 		memset(sigct, 0, sigct_len);
-		r = falcon_sign_tree(rng, sigct, &sigct_len, FALCON_SIG_CT,
+		r = dap_falcon_sign_tree(rng, sigct, &sigct_len, FALCON_SIG_CT,
 			expkey,
 			"data1", 5, tmpst, tmpst_len);
 		if (r != 0) {
 			fprintf(stderr, "sign_tree(ct) failed: %d\n", r);
 			exit(EXIT_FAILURE);
 		}
-		r = falcon_verify(sigct, sigct_len, FALCON_SIG_CT,
+		r = dap_falcon_verify(sigct, sigct_len, FALCON_SIG_CT,
 			pubkey, pubkey_len, "data1", 5, tmpvv, tmpvv_len);
 		if (r != 0) {
 			fprintf(stderr, "verify2(ct) failed: %d\n", r);
 			exit(EXIT_FAILURE);
 		}
 		if (logn >= 5) {
-			r = falcon_verify(sigct, sigct_len, FALCON_SIG_CT,
+			r = dap_falcon_verify(sigct, sigct_len, FALCON_SIG_CT,
 				pubkey, pubkey_len, "data2", 5,
 				tmpvv, tmpvv_len);
 			if (r != FALCON_ERR_BADSIG) {
@@ -4079,12 +4079,12 @@ static void
 test_external_API(void)
 {
 	unsigned logn;
-	shake256_context rng;
+	dap_shake256_context rng;
 
 	printf("Test external API: ");
 	fflush(stdout);
 
-	shake256_init_prng_from_seed(&rng, "external", 8);
+	dap_shake256_init_prng_from_seed(&rng, "external", 8);
 	for (logn = 1; logn <= 10; logn ++) {
 		test_external_API_inner(logn, &rng);
 	}

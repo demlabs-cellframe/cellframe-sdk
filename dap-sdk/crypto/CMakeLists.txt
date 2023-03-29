@@ -26,6 +26,7 @@ file( GLOB CRYPTO_SRCS
 )
 
 file( GLOB CRYPTO_HEADERS
+      include/*.h
       src/*.h
       src/rand/*.h
       src/iaes/*.h
@@ -44,8 +45,20 @@ file( GLOB CRYPTO_HEADERS
       src/sig_dilithium/*.h
       src/ringct20/*.h
       src/falcon/*.h
-      include/*.h
 )
+
+if (DAP_PQLR)
+    message("[*] Building with QApp PQLR libraty from path ${DAP_PQLR}")
+    if (POLICY CMP0074) # using PackageName_ROOT as prefix
+	cmake_policy(SET CMP0074 NEW)
+    endif()
+    find_package(PQLR REQUIRED)
+    message("[ ] Include dir: ${PQLR_INCLUDE_DIR}")
+    include_directories(${PQLR_INCLUDE_DIR})
+    file(GLOB DAP_PQLR_SRC src/pqlr/*.c src/pqlr/*.h)
+    include_directories(src/pqlr)
+endif()
+
 
 enable_language(ASM)
 
@@ -97,10 +110,16 @@ if(UNIX)
 endif()
 
 
+add_library(${PROJECT_NAME} STATIC ${CRYPTO_SRCS} ${XKCP_SRCS} ${XKCP_SRCS2} ${CRYPTO_HEADERS} ${DAP_PQLR_SRC} )
 
+if (DAP_PQLR)
+    target_link_libraries(dap_crypto ${PQLR_DILITHIUM_LIBRARIES})
+    if (WIN32)
+	add_custom_command(TARGET dap_crypto POST_BUILD COMMAND ${CMAKE_COMMAND} -E copy "${PQLR_BINARY_DIR}/pqlr.dll"
+	    "$<TARGET_FILE_DIR:dap_crypto>")
+    endif()
+endif()
 
-
-add_library(${PROJECT_NAME} STATIC ${CRYPTO_SRCS} ${XKCP_SRCS} ${XKCP_SRCS2} ${CRYPTO_HEADERS} )
 
 target_include_directories(dap_crypto PRIVATE src/seed src/rand src/iaes src/oaes src/sha3 src/msrln src/defeo_scheme src/sig_bliss src/sig_tesla src/sig_picnic src/sig_dilithium src/falcon src include)
 target_include_directories(dap_crypto INTERFACE src/ src/sha3 include/)
@@ -282,12 +301,12 @@ if(UNIX)
   endif()
 endif()
 
-if(WIN32)
-  target_link_libraries(dap_crypto dap_core)
-endif()
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../3rdparty/json-c)
 
-if(UNIX)
-  target_link_libraries(dap_crypto dap_core m)
+if(WIN32)
+    target_link_libraries(dap_crypto dap_core dap_json-c)
+else()
+    target_link_libraries(dap_crypto dap_core m dap_json-c)
 endif()
 
 

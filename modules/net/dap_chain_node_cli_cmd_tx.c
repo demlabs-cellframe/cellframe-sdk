@@ -1015,8 +1015,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         //get net
         dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_str);
         //get search type
-        const char *l_unspent_str = NULL;
-        dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-unspent", &l_unspent_str);
+        int l_unspent_flag = dap_chain_node_cli_check_option(a_argv, arg_index, a_argc, "-unspent");
         //check input
         if (l_tx_hash_str == NULL){
             dap_chain_node_cli_set_reply_text(a_str_reply, "Subcommand 'info' requires key -hash");
@@ -1037,7 +1036,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
             return -4;
         }
         dap_chain_datum_tx_t *l_datum_tx = dap_chain_net_get_tx_by_hash(l_net, l_tx_hash,
-                                                                        l_unspent_str ? TX_SEARCH_TYPE_NET_UNSPENT : TX_SEARCH_TYPE_NET);
+                                                                        l_unspent_flag >= 0 ? TX_SEARCH_TYPE_NET_UNSPENT : TX_SEARCH_TYPE_NET);
         if (l_datum_tx == NULL){
             dap_chain_node_cli_set_reply_text(a_str_reply, "Can't get datum from transaction hash %s", l_tx_hash_str);
             return -5;

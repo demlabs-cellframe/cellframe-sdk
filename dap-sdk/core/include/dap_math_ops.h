@@ -762,6 +762,8 @@ static inline void MULT_256_512(uint256_t a_256_bit,uint256_t b_256_bit,uint512_
     RIGHT_SHIFT_256(cross_product,&cross_product_shift_128,128);
     c_512_bit_hi_copy=c_512_bit->hi;
     dummy_overflow=SUM_256_256(c_512_bit_hi_copy,cross_product_shift_128,&c_512_bit->hi);
+    UNUSED(overflow);
+    UNUSED(dummy_overflow);
 }
 
 static inline int MULT_256_256(uint256_t a_256_bit,uint256_t b_256_bit,uint256_t* accum_256_bit){

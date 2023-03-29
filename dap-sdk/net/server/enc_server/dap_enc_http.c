@@ -47,7 +47,7 @@
 #include "dap_enc_base64.h"
 #include "dap_enc_msrln.h"
 #include "include/http_status_code.h"
-#include <json-c/json.h>
+#include "json.h"
 
 
 #define LOG_TAG "dap_enc_http"

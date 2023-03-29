@@ -26,7 +26,7 @@
 
 #include "dap_http_simple.h"
 #include "dap_json_rpc_errors.h"
-#include "json-c/json.h"
+#include "json.h"
 
 #ifdef __cplusplus
 extern "C"{
@@ -37,7 +37,8 @@ typedef enum dap_json_rpc_response_type_result{
     TYPE_RESPONSE_STRING,
     TYPE_RESPONSE_INTEGER,
     TYPE_RESPONSE_DOUBLE,
-    TYPE_RESPONSE_BOOLEAN
+    TYPE_RESPONSE_BOOLEAN,
+    TYPE_RESPONSE_JSON
 }dap_json_rpc_response_type_result_t;
 
 typedef struct dap_json_rpc_response_JSON
@@ -53,10 +54,13 @@ void dap_json_rpc_request_JSON_free(dap_json_rpc_request_JSON_t *l_request_JSON)
 typedef struct dap_json_rpc_response
 {
     dap_json_rpc_response_type_result_t type_result;
-    char* result_string;
-    int64_t result_int;
-    double result_double;
-    bool result_boolean;
+    union {
+        char *result_string;
+        int64_t result_int;
+        double result_double;
+        bool result_boolean;
+        json_object *result_json_object;
+    };
     dap_json_rpc_error_t* error;
     int64_t id;
 }dap_json_rpc_response_t;

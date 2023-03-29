@@ -308,7 +308,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
     dap_time_t l_time_now = dap_time_now();
     if (l_time_staking < l_time_now)
         return TIME_ERROR;
-    l_time_staking  -= l_time_now;
+    l_time_staking -= l_time_now;
 
 	if (dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-reinvest", &l_reinvest_percent_str)
 	&& NULL != l_reinvest_percent_str) {
@@ -406,7 +406,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 	dap_chain_datum_t					*l_datum_burning_tx	=	NULL;
 	const char							*l_wallets_path		=	dap_chain_wallet_get_path(g_config);
 	char 	delegate_ticker_str[DAP_CHAIN_TICKER_SIZE_MAX] 	=	{[0] = 'm'};
-	int									l_prev_cond_idx		=	0;
+    int									l_prev_cond_idx		=	-1;
 	uint256_t							l_value_delegated	= 	{};
 	char 								*l_datum_hash_str;
 	dap_ledger_t						*l_ledger;
@@ -509,7 +509,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 	}
 
     size_t l_owner_pkey_size;
-    uint8_t *l_owner_pkey = dap_enc_key_serealize_pub_key(l_owner_key, &l_owner_pkey_size);
+    uint8_t *l_owner_pkey = dap_enc_key_serialize_pub_key(l_owner_key, &l_owner_pkey_size);
     dap_sign_t *l_owner_sign = NULL;
     dap_chain_tx_sig_t *l_tx_sign = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(
                                                             l_cond_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
@@ -545,19 +545,23 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 
 	dap_chain_datum_tx_add_out_item(&l_tx, l_owner_addr, l_tx_out_cond->header.value);
 
-	//add burning tx
-    if (l_tx_out_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX) {
-        dap_chain_addr_t l_addr_blank = {0};
-		if (NULL == (l_datum_burning_tx = dap_chain_burning_tx_create(l_chain, l_owner_key, l_owner_addr, &l_addr_blank,
-																  delegate_ticker_str, l_value_delegated))) {//malloc
-			dap_chain_wallet_close(l_wallet);
-			DAP_DEL_Z(l_owner_addr);
-			dap_chain_datum_tx_delete(l_tx);
-			return CREATE_BURNING_TX_ERROR;
-		}
 
-		//get tx hash
-		dap_hash_fast(l_datum_burning_tx->data, l_datum_burning_tx->header.data_size, &l_tx_burning_hash);
+    if (l_tx_out_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX) {
+        if (dap_chain_node_cli_find_option_val(a_argv, a_arg_index, a_argc, "-tx_burning", &l_tx_burning_str) && l_tx_burning_str) {
+            /* A secret param with already present burning tx was provided */
+            dap_chain_hash_fast_from_hex_str(l_tx_burning_str, &l_tx_burning_hash);
+        } else {
+            /* Create a burning tx */
+            dap_chain_addr_t l_addr_blank = {0};
+            if (NULL == (l_datum_burning_tx = dap_chain_burning_tx_create(l_chain, l_owner_key, l_owner_addr, &l_addr_blank,
+                                                                          delegate_ticker_str, l_value_delegated))) {
+                dap_chain_wallet_close(l_wallet);
+                DAP_DEL_Z(l_owner_addr);
+                dap_chain_datum_tx_delete(l_tx);
+                return CREATE_BURNING_TX_ERROR;
+            }
+            dap_hash_fast(l_datum_burning_tx->data, l_datum_burning_tx->header.data_size, &l_tx_burning_hash);
+        }
 
 		if (NULL == (l_receipt = s_receipt_create(&l_tx_burning_hash, delegate_ticker_str, l_value_delegated))) {
 			dap_chain_wallet_close(l_wallet);
@@ -592,7 +596,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 
 	dap_chain_datum_tx_delete(l_tx);
 
-    if (l_tx_out_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX) {
+    if (!l_tx_burning_str && l_tx_out_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX) {
 		if (NULL == (l_datum_hash_str = dap_chain_mempool_datum_add(l_datum_burning_tx, l_chain))) {
 			DAP_DEL_Z(l_datum_burning_tx);
 			DAP_DEL_Z(l_datum);
@@ -1006,89 +1010,152 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_hash_f
 	dap_chain_datum_token_t									*delegate_token;
 	char 													delegated_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
 
-    if (!a_owner)
+    if (!a_owner) {
+        log_it(L_ERROR, "Verificator: no owner");
         return false;
+    }
 
     if (a_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME) {
-        if (a_cond->subtype.srv_stake_lock.time_unlock > dap_time_now())
+        if (a_cond->subtype.srv_stake_lock.time_unlock > dap_time_now()) {
+            char l_time_str[32];
+            dap_time_t l_time = a_cond->subtype.srv_stake_lock.time_unlock;
+            dap_ctime_r(&l_time, l_time_str);
+            log_it(L_ERROR, "Verificator: unlock time [%s] has not yet come", l_time_str);
             return false;
+        }
     }
 
     if (a_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX) {
         l_receipt = (dap_chain_datum_tx_receipt_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_RECEIPT, 0);
-		if (!l_receipt)
+        if (!l_receipt) {
+            log_it(L_ERROR, "Verificator: no receipt item found");
 			return false;
+        }
 
 #if DAP_CHAIN_NET_SRV_UID_SIZE == 8
-		if (l_receipt->receipt_info.srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_LOCK_ID)
-			return false;
+        if (l_receipt->receipt_info.srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_LOCK_ID) {
 #elif DAP_CHAIN_NET_SRV_UID_SIZE == 16
-		if (l_receipt->receipt_info.srv_uid.uint128 != DAP_CHAIN_NET_SRV_EXTERNAL_STAKE_ID)
-			return false;
+        if (l_receipt->receipt_info.srv_uid.uint128 != DAP_CHAIN_NET_SRV_EXTERNAL_STAKE_ID) {
 #endif
+            log_it(L_ERROR, "Verificator: service ID in receipt %lu != %d", l_receipt->receipt_info.srv_uid.uint64, DAP_CHAIN_NET_SRV_STAKE_LOCK_ID);
+            return false;
+        }
 
-		if (l_receipt->exts_size) {
-        	hash_burning_transaction = *(dap_hash_fast_t*)l_receipt->exts_n_signs;
-			strcpy(delegated_ticker, (char *)&l_receipt->exts_n_signs[sizeof(dap_hash_fast_t)]);
-		} else
-			return false;
+        if (!l_receipt->exts_size) {
+            log_it(L_ERROR, "Verificator: exts size in receipt is 0");
+            return false;
+        }
 
-		if (dap_hash_fast_is_blank(&hash_burning_transaction))
+        hash_burning_transaction = *(dap_hash_fast_t*)l_receipt->exts_n_signs;
+        if (dap_hash_fast_is_blank(&hash_burning_transaction)) {
+            log_it(L_ERROR, "Verificator: blank burning transaction hash in the receipt");
 			return false;
+        } else {
+            char l_burning_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+            dap_hash_fast_to_str(&hash_burning_transaction, l_burning_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+            log_it(L_DEBUG, "Burning tx hash: %s", l_burning_hash_str);
+        }
+
+        strcpy(delegated_ticker, (char *)&l_receipt->exts_n_signs[sizeof(dap_hash_fast_t)]);
 	}
 
 	l_tx_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_OUT, 0);
 
-	if (!l_tx_out)
+    if (!l_tx_out) {
+        log_it(L_ERROR, "Verificator: no out item in this tx");
 		return false;
+    }
 
-	if (!EQUAL_256(a_cond->header.value, l_tx_out->header.value))
+    if (!EQUAL_256(a_cond->header.value, l_tx_out->header.value)) {
+        char    *l_cond_val = dap_chain_balance_print(a_cond->header.value),
+                *l_tx_out_val = dap_chain_balance_print(l_tx_out->header.value);
+        log_it(L_ERROR, "Verificator: values mismatch [%s != %s]", l_cond_val, l_tx_out_val);
+        DAP_DELETE(l_tx_out_val);
+        DAP_DELETE(l_cond_val);
 		return false;
+    }
 
     if (a_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX) {
 		if (NULL == (delegate_token = dap_chain_ledger_token_ticker_check(a_ledger, delegated_ticker))
 			||	(delegate_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL && delegate_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE)
 			||	!delegate_token->header_native_decl.tsd_total_size
 			||	NULL == (l_tsd = dap_tsd_find(delegate_token->data_n_tsd, delegate_token->header_native_decl.tsd_total_size, DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK))) {
+            log_it(L_ERROR, "Verificator: something wrong with delegate token");
 			return false;
 		}
 
 		l_tsd_section = dap_tsd_get_scalar(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
 
-        if (NULL == (l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_IN_COND, 0)))
+        if (NULL == (l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_IN_COND, 0))) {
+            log_it(L_ERROR, "Verificator: no IN_COND item found");
 			return false;
-		if (dap_hash_fast_is_blank(&l_tx_in_cond->header.tx_prev_hash))
+        }
+        if (dap_hash_fast_is_blank(&l_tx_in_cond->header.tx_prev_hash)) {
+            log_it(L_ERROR, "Verificator: previous tx hash in IN_COND is empty");
 			return false;
-		if (NULL == (l_tx_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_tx_in_cond->header.tx_prev_hash)))
+        }
+        if (NULL == (l_tx_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_tx_in_cond->header.tx_prev_hash))) {
+            log_it(L_ERROR, "Verificator: token ticker in previous tx in IN_COND not found");
 			return false;
-		if (strcmp(l_tx_ticker, l_tsd_section.ticker_token_from))
+        }
+        if (strcmp(l_tx_ticker, l_tsd_section.ticker_token_from)) {
+            log_it(L_ERROR, "Verificator: tickers mismatch %s != %s", l_tx_ticker, l_tsd_section.ticker_token_from);
 			return false;
-		if (NULL == (l_tx_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, &hash_burning_transaction)))
+        }
+        if (NULL == (l_tx_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, &hash_burning_transaction))) {
+            log_it(L_ERROR, "Verificator: token ticker in burning tx not found");
 			return false;
-		if (strcmp(l_tx_ticker, delegated_ticker))
+        }
+        if (strcmp(l_tx_ticker, delegated_ticker)) {
+            log_it(L_ERROR, "Verificator: burning ticker mismatch: %s != %s", l_tx_ticker, delegated_ticker);
 			return false;
+        }
 
-		burning_tx = dap_chain_ledger_tx_find_by_hash(a_ledger, &hash_burning_transaction);
-		burning_transaction_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(burning_tx, 0, TX_ITEM_TYPE_OUT,0);
+        int l_tx_burning_blank_out_idx = 0;
+        burning_tx = dap_chain_ledger_tx_find_by_hash(a_ledger, &hash_burning_transaction);
+        dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(burning_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
+        for(dap_list_t *it = l_list_out_items; it; it = it->next, ++l_tx_burning_blank_out_idx) {
+            dap_chain_tx_item_type_t l_type = *(byte_t *)it->data;
+            if (l_type == TX_ITEM_TYPE_OUT) {
+                dap_chain_tx_out_t *l_tx_out = it->data;
+                dap_chain_addr_t l_addr = l_tx_out->addr;
+                if (dap_chain_addr_is_blank(&l_addr)) {
+                    burning_transaction_out = l_tx_out;
+                    break;
+                }
+            }
+        }
+        dap_list_free(l_list_out_items);
 
-		if (!burning_transaction_out)
-			return false;
+        if (!burning_transaction_out) {
+            log_it(L_ERROR, "Verificator: no burning tx out");
+            return false;
+        }
 
-		if (!dap_hash_fast_is_blank(&burning_transaction_out->addr.data.hash_fast)) {
-			if (s_debug_more) {
-				const char *addr_srt = dap_chain_hash_fast_to_str_new(&burning_transaction_out->addr.data.hash_fast);
-				log_it(L_ERROR, "ADDR from burning NOT BLANK: %s", addr_srt);
-				DAP_DEL_Z(addr_srt);
-			}
-			return false;
-		}
+        if (dap_chain_ledger_tx_hash_is_used_out_item(a_ledger, &hash_burning_transaction, l_tx_burning_blank_out_idx)) {
+            char l_burning_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+            dap_hash_fast_to_str(&hash_burning_transaction, l_burning_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+            log_it(L_ERROR, "Verificator: burning tx %s out item no. %d is already used", l_burning_hash_str, l_tx_burning_blank_out_idx);
+            return false;
+        }
 
 		if (!IS_ZERO_256(l_tsd_section.emission_rate)) {
 			MULT_256_COIN(l_tx_out->header.value, l_tsd_section.emission_rate, &l_value_delegated);
-			if (IS_ZERO_256(l_value_delegated))
-				return COINS_FORMAT_ERROR;
+            if (IS_ZERO_256(l_value_delegated)) {
+                log_it(L_ERROR, "Verificator: delegated token value is 0");
+                return false;
+            }
 		} else
 			l_value_delegated = l_tx_out->header.value;
+
+        if (!EQUAL_256(burning_transaction_out->header.value, l_value_delegated)) {
+            char    *l_brn_tx_val = dap_chain_balance_print(burning_transaction_out->header.value),
+                    *l_delegated_val = dap_chain_balance_print(l_value_delegated);
+            log_it(L_ERROR, "Verificator: delegated token value mismatch: %s != %s", l_brn_tx_val, l_delegated_val);
+            DAP_DELETE(l_brn_tx_val);
+            DAP_DELETE(l_delegated_val);
+            return false;
+        }
 
 		if (s_debug_more) {
 			char *str1 = dap_chain_balance_print(burning_transaction_out->header.value);
@@ -1101,9 +1168,6 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_hash_f
 			DAP_DEL_Z(str2);
 			DAP_DEL_Z(str3);
 		}
-
-		if (!EQUAL_256(burning_transaction_out->header.value, l_value_delegated))
-			return false;
 	}
 
 	return true;
@@ -1120,7 +1184,7 @@ static bool s_stake_lock_callback_verificator_added(dap_ledger_t *a_ledger, dap_
 {
     if (a_tx_item)  // this is IN_COND tx
         return true;
-    int l_out_num = 0;
+    int l_out_num = -1;
     dap_chain_tx_out_cond_t *l_cond = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, &l_out_num);
     if (l_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX) {
         dap_chain_hash_fast_t l_key_hash;
@@ -1239,7 +1303,6 @@ dap_chain_tx_out_cond_t *dap_chain_net_srv_stake_lock_create_cond_out(dap_pkey_t
     l_item->header.srv_uid = a_srv_uid;
     l_item->subtype.srv_stake_lock.reinvest_percent = a_reinvest_percent;
     if (a_time_staking) {
-//		l_item->header.ts_expires = dap_time_now() + a_time_staking;
         l_item->subtype.srv_stake_lock.time_unlock = dap_time_now() + a_time_staking;
         l_item->subtype.srv_stake_lock.flags |= DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME;
 	}
@@ -1249,6 +1312,32 @@ dap_chain_tx_out_cond_t *dap_chain_net_srv_stake_lock_create_cond_out(dap_pkey_t
         dap_hash_fast(a_key->pkey, a_key->header.size, &l_item->subtype.srv_stake_lock.pkey_delegated);
 
     return l_item;
+}
+
+json_object *dap_chain_net_srv_stake_lock_cond_out_to_json(dap_chain_tx_out_cond_t *a_stake_lock) {
+    if (a_stake_lock->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK) {
+        json_object *l_object = json_object_new_object();
+        char *l_value = dap_chain_balance_print(a_stake_lock->header.value);
+        json_object *l_obj_value = json_object_new_string(l_value);
+        DAP_DELETE(l_value);
+        json_object *l_obj_srv_uid = json_object_new_uint64(a_stake_lock->header.srv_uid.uint64);
+        char *l_reinvest_precent = dap_chain_balance_print(a_stake_lock->subtype.srv_stake_lock.reinvest_percent);
+        json_object *l_obj_reinvest_percent = json_object_new_string(l_reinvest_precent);
+        DAP_DELETE(l_reinvest_precent);
+        json_object *l_obj_time_unlock = json_object_new_uint64(a_stake_lock->subtype.srv_stake_lock.time_unlock);
+        json_object *l_obj_flags = json_object_new_uint64(a_stake_lock->subtype.srv_stake_lock.flags);
+        char *l_pkey_delegate_hash = dap_hash_fast_to_str_new(&a_stake_lock->subtype.srv_stake_lock.pkey_delegated);
+        json_object *l_obj_pkey_delegate_hash = json_object_new_string(l_pkey_delegate_hash);
+        DAP_DELETE(l_pkey_delegate_hash);
+        json_object_object_add(l_object, "value", l_obj_value);
+        json_object_object_add(l_object, "srvUID", l_obj_srv_uid);
+        json_object_object_add(l_object, "reinvestPercent", l_obj_reinvest_percent);
+        json_object_object_add(l_object, "timeUnlock", l_obj_time_unlock);
+        json_object_object_add(l_object, "flags", l_obj_flags);
+        json_object_object_add(l_object, "pkeyDelegateHash", l_obj_pkey_delegate_hash);
+        return l_object;
+    }
+    return NULL;
 }
 
 
