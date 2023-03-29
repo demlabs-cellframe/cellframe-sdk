@@ -51,7 +51,7 @@ static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks);
 static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cfg);
 static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t **a_block_ptr, size_t a_block_size);
 static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t *a_block, size_t a_block_size);
-static bool s_callback_check_tx_fee(dap_chain_t *a_chain, uint256_t l_fee);
+static uint256_t s_callback_get_minimum_fee(dap_chain_t *a_chain);
 static void s_callback_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_new_value);
 
 static int s_cli_esbocs(int argc, char ** argv, char **str_reply);
@@ -132,7 +132,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_esbocs->_pvt = DAP_NEW_Z(dap_chain_esbocs_pvt_t);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
 
-    a_chain->callback_check_tx_fee = s_callback_check_tx_fee;
+    a_chain->callback_get_minimum_fee = s_callback_get_minimum_fee;
 
     l_esbocs_pvt->debug = dap_config_get_item_bool_default(a_chain_cfg, "esbocs", "consensus_debug", false);
     l_esbocs_pvt->poa_mode = dap_config_get_item_bool_default(a_chain_cfg, "esbocs", "poa_mode", false);
@@ -287,16 +287,13 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     return 0;
 }
 
-static bool s_callback_check_tx_fee(dap_chain_t *a_chain, uint256_t l_fee)
+static uint256_t s_callback_get_minimum_fee(dap_chain_t *a_chain)
 {
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
 
-    if (compare256(l_fee, l_esbocs_pvt->minimum_fee) < 0)
-        return false;
-
-    return true;
+    return l_esbocs_pvt->minimum_fee;
 }
 
 static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
@@ -686,7 +683,19 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
         }
         l_store->candidate->hdr.meta_n_datum_n_signs_size = l_store->candidate_size - sizeof(l_store->candidate->hdr);
         dap_hash_fast(l_store->candidate, l_store->candidate_size, &l_store->precommit_candidate_hash);
-        // Send PreCommit
+        // Process received earlier PreCommit messages
+        dap_chain_esbocs_message_item_t *l_chain_message, *l_chain_message_tmp;
+        HASH_ITER(hh, a_session->cur_round.message_items, l_chain_message, l_chain_message_tmp) {
+            if (l_chain_message->message->hdr.type == DAP_STREAM_CH_VOTING_MSG_TYPE_PRE_COMMIT &&
+                    dap_hash_fast_compare(&l_chain_message->message->hdr.candidate_hash,
+                                          &a_session->cur_round.attempt_candidate_hash))
+            {
+                dap_chain_esbocs_message_t *l_msg = l_chain_message->message;
+                size_t l_msg_size = sizeof(*l_msg) + l_msg->hdr.sign_size + l_msg->hdr.message_size;
+                s_session_packet_in(a_session, NULL, NULL, &l_chain_message->message_hash, (uint8_t*)l_msg, l_msg_size);
+            }
+        }
+        // Send own PreCommit
         s_message_send(a_session, DAP_STREAM_CH_VOTING_MSG_TYPE_PRE_COMMIT, &l_store->candidate_hash,
                             &l_store->precommit_candidate_hash, sizeof(dap_chain_hash_fast_t),
                                 a_session->cur_round.validators_list);
@@ -1106,14 +1115,19 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                  l_message->hdr.type == DAP_STREAM_CH_VOTING_MSG_TYPE_APPROVE);
         if (l_same_type && dap_chain_addr_compare(&l_chain_message->signing_addr, &l_signing_addr) &&
                 dap_hash_fast_compare(&l_chain_message->message->hdr.candidate_hash, &l_message->hdr.candidate_hash)) {
-            debug_if(l_cs_debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
-                                        " Message rejected: duplicate message %s",
-                                            l_session->chain->net_name, l_session->chain->name,
-                                                l_session->cur_round.id, l_session->cur_round.attempt_num,
-                                                    s_voting_msg_type_to_str(l_message->hdr.type));
-            goto session_unlock;
+            if (l_message->hdr.type != DAP_STREAM_CH_VOTING_MSG_TYPE_START_SYNC || // Not sync or same sync attempt
+                    *(uint64_t *)l_message_data == *(uint64_t *)l_chain_message->message->msg_n_sign) {
+                debug_if(l_cs_debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+                                            " Message rejected: duplicate message %s",
+                                                l_session->chain->net_name, l_session->chain->name,
+                                                    l_session->cur_round.id, l_session->cur_round.attempt_num,
+                                                        s_voting_msg_type_to_str(l_message->hdr.type));
+                goto session_unlock;
+            }
         }
     }
+
+    s_message_chain_add(l_session, l_message, a_data_size, a_data_hash, &l_signing_addr);
 
     dap_chain_hash_fast_t *l_candidate_hash = &l_message->hdr.candidate_hash;
     switch (l_message->hdr.type) {
@@ -1157,7 +1171,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                 break;
             }
         }
-        s_message_chain_add(l_session, l_message, a_data_size, a_data_hash, &l_signing_addr);
+
         for (dap_list_t *it = l_session->cur_round.validators_list; it; it = it->next) {
             dap_chain_esbocs_validator_t *l_validator = it->data;
             if (dap_chain_addr_compare(&l_validator->signing_addr, &l_signing_addr))
@@ -1194,8 +1208,6 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                                                 l_session->cur_round.id, l_session->cur_round.attempt_num);
             break;
         }
-
-        s_message_chain_add(l_session, l_message, a_data_size, a_data_hash, &l_signing_addr);
 
         if (l_cs_debug) {
             char *l_candidate_hash_str = dap_chain_hash_fast_to_str_new(l_candidate_hash);
@@ -1246,8 +1258,6 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
             break;
         }
 
-        s_message_chain_add(l_session, l_message, a_data_size, a_data_hash, &l_signing_addr);
-
         if (l_cs_debug) {
             l_candidate_hash_str = dap_chain_hash_fast_to_str_new(l_candidate_hash);
             log_it(L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
@@ -1281,8 +1291,6 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
             DAP_DELETE(l_candidate_hash_str);
             break;
         }
-
-        s_message_chain_add(l_session, l_message, a_data_size, a_data_hash, &l_signing_addr);
 
         if (l_cs_debug) {
             l_candidate_hash_str = dap_chain_hash_fast_to_str_new(l_candidate_hash);
@@ -1346,7 +1354,6 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                                                 l_offset + sizeof(l_store->candidate->hdr)) == 1;
         // check candidate's sign
         if (l_sign_verified) {
-            s_message_chain_add(l_session, l_message, a_data_size, a_data_hash, &l_signing_addr);
             l_store->candidate_signs = dap_list_append(l_store->candidate_signs,
                                                        DAP_DUP_SIZE(l_candidate_sign, l_candidate_sign_size));
             if (dap_list_length(l_store->candidate_signs) == l_round->validators_synced_count) {
@@ -1380,6 +1387,10 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
             break;
         }
 
+        if (dap_hash_fast_is_blank(&l_store->precommit_candidate_hash))
+            // We have not yet precommit candidate. Message will be processed later
+            break;
+
         dap_hash_fast_t *l_precommit_hash = (dap_hash_fast_t *)l_message_data;
         if (!dap_hash_fast_compare(l_precommit_hash, &l_store->precommit_candidate_hash)) {
             if (l_cs_debug) {
@@ -1398,8 +1409,6 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
             }
             break;
         }
-
-        s_message_chain_add(l_session, l_message, a_data_size, a_data_hash, &l_signing_addr);
 
         if (l_cs_debug) {
             l_candidate_hash_str = dap_chain_hash_fast_to_str_new(l_candidate_hash);
@@ -1677,7 +1686,7 @@ static int s_cli_esbocs(int a_argc, char ** a_argv, char **a_str_reply)
 
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str);
     if (!l_cert_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_validators_count' required parameter -cert");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_validators_count' requires parameter -cert");
         return -3;
     }
     dap_cert_t *l_poa_cert = dap_cert_find_by_name(l_cert_str);
@@ -1688,7 +1697,7 @@ static int s_cli_esbocs(int a_argc, char ** a_argv, char **a_str_reply)
 
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-val_count", &l_value_str);
     if (!l_value_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_validators_count' required parameter -val_count");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_validators_count' requires parameter -val_count");
         return -9;
     }
     uint256_t l_value = dap_chain_balance_scan(l_value_str);

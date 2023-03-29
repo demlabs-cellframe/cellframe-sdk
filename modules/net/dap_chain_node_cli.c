@@ -318,17 +318,15 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Decree create command
     dap_cli_server_cmd_add ("decree", cmd_decree, "Work with decree",
-            "decree create common -net <net_name> [-chain <chain_name>] [-decree_chain <chain_name>] -certs <certs list> -<Subtype param name> <Subtype param Value>\n"
-            "decree create service -net <net_name> [-chain <chain_name>] [-decree_chain <chain_name>] -srv_id <service_id> -certs <certs list> -<Subtype param name> <Subtype param Value>\n"
+            "decree create common -net <net_name> [-chain <chain_name>] -decree_chain <chain_name> -certs <certs list> -<Subtype param name> <Subtype param Value>\n"
+            "decree create service -net <net_name> [-chain <chain_name>] -decree_chain <chain_name> -srv_id <service_id> -certs <certs list> -<Subtype param name> <Subtype param Value>\n"
             "decree sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs_list>\n"
             "decree anchor -net <net_name> -chain <chain_name> -datum <datum_hash> -certs <certs_list>\n"
             "==Subtype Params==\n"
             "\t -fee <value>: sets fee for tx in net\n"
             "\t -to_addr <wallet_addr>: sets wallet addr for network fee\n"
             "\t -new_certs <certs_list>: sets new owners set for net\n"
-            "\t -signs_verify <value>: sets minimum number of owners needed to sign decree\n"
-            "\t -ton_signs_verify <value>: sets minimum number of TON signers");
-
+            "\t -signs_verify <value>: sets minimum number of owners needed to sign decree\n");
 
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",

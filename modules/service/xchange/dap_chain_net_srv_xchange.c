@@ -975,7 +975,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
         case CMD_CREATE: {
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' required parameter -net");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' requires parameter -net");
                 return -2;
             }
             l_net = dap_chain_net_by_name(l_net_str);
@@ -985,7 +985,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
             }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-token_sell", &l_token_sell_str);
             if (!l_token_sell_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'price create' required parameter -token_sell");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'price create' requires parameter -token_sell");
                 return -5;
             }
             if (!dap_chain_ledger_token_ticker_check(l_net->pub.ledger, l_token_sell_str)) {
@@ -994,7 +994,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
             }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-token_buy", &l_token_buy_str);
             if (!l_token_buy_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'price create' required parameter -token_buy");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'price create' requires parameter -token_buy");
                 return -5;
             }
             if (!dap_chain_ledger_token_ticker_check(l_net->pub.ledger, l_token_buy_str)) {
@@ -1004,7 +1004,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
             const char *l_val_sell_str = NULL, *l_val_rate_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_val_sell_str);
             if (!l_val_sell_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'price create' required parameter -value");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'price create' requires parameter -value");
                 return -8;
             }
             uint256_t l_datoshi_sell = dap_chain_balance_scan(l_val_sell_str);
@@ -1014,7 +1014,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
             }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-rate", &l_val_rate_str);
             if (!l_val_rate_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'price create' required parameter -rate");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'price create' requires parameter -rate");
                 return -8;
             }
             uint256_t l_rate = dap_chain_coins_to_balance(l_val_rate_str);
@@ -1025,7 +1025,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
             const char *l_fee_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-fee", &l_fee_str);
             if (!l_fee_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'price create' required parameter -fee");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'price create' requires parameter -fee");
                 return -20;
             }
             uint256_t l_fee = dap_chain_balance_scan(l_fee_str);
@@ -1035,7 +1035,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
             }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-wallet", &l_wallet_str);
             if (!l_wallet_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'price create' required parameter -wallet");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'price create' requires parameter -wallet");
                 return -10;
             }
             dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config));
@@ -1109,7 +1109,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
         case CMD_HISTORY:{
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order history' required parameter -net");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order history' requires parameter -net");
                 return -2;
             }
             l_net = dap_chain_net_by_name(l_net_str);
@@ -1125,7 +1125,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-addr", &l_addr_hash_str);
 
             if (!l_order_hash_str && ! l_addr_hash_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order history' required parameter -order or -addr" );
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order history' requires parameter -order or -addr" );
                 return -12;
             }
             if(l_addr_hash_str){
@@ -1188,7 +1188,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
             const char * l_order_hash_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'price %s' required parameter -net",
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'price %s' requires parameter -net",
                                                                 l_cmd_num == CMD_REMOVE ? "remove" : "update");
                 return -2;
             }
@@ -1199,7 +1199,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
             }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-wallet", &l_wallet_str);
             if (!l_wallet_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'price %s' required parameter -wallet",
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'price %s' requires parameter -wallet",
                                                                 l_cmd_num == CMD_REMOVE ? "remove" : "update");
                 return -10;
             }
@@ -1210,7 +1210,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
             }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-order", &l_order_hash_str);
             if (!l_order_hash_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'price %s' required parameter -order",
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'price %s' requires parameter -order",
                                                                 l_cmd_num == CMD_REMOVE ? "remove" : "update");
                 return -12;
             }
@@ -1338,7 +1338,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
         case CMD_STATUS: {
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order status' required parameter -net");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order status' requires parameter -net");
                 return -2;
             }
             l_net = dap_chain_net_by_name(l_net_str);
@@ -1349,7 +1349,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
             const char * l_order_hash_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-order", &l_order_hash_str);
             if (!l_order_hash_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order history' required parameter -order or -addr" );
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order history' requires parameter -order or -addr" );
                 return -12;
             }
             dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_find_by_hash_str(l_net, l_order_hash_str);
@@ -1668,7 +1668,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
             l_arg_index++;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'orders' required parameter -net");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'orders' requires parameter -net");
                 return -2;
             }
             dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
@@ -1735,7 +1735,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
             l_arg_index++;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'purchase' required parameter -net");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'purchase' requires parameter -net");
                 return -2;
             }
             dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
@@ -1745,7 +1745,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
             }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-wallet", &l_wallet_str);
             if (!l_wallet_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'purchase' required parameter -wallet");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'purchase' requires parameter -wallet");
                 return -10;
             }
             dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config));
@@ -1755,12 +1755,12 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
             }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-order", &l_order_hash_str);
             if (!l_order_hash_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'purchase' required parameter -order");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'purchase' requires parameter -order");
                 return -12;
             }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-coins", &l_val_buy_str);
             if (!l_val_buy_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'purchase' required parameter -coins");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'purchase' requires parameter -coins");
                 return -8;
             }
             uint256_t l_datoshi_buy = dap_chain_balance_scan(l_val_buy_str);
@@ -1835,7 +1835,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 
 
             if(!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'tx_list' required parameter -net");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'tx_list' requires parameter -net");
                 return -3;
             }
             dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
@@ -1949,7 +1949,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
             const char *l_net_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if(!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'token_pair' required parameter -net");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'token_pair' requires parameter -net");
                 return -3;
             }
             dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
@@ -2218,7 +2218,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
             }
 
             // No subcommand selected
-            dap_cli_server_cmd_set_reply_text(a_str_reply,"Command 'token pair' required proper subcommand, please read its manual with command 'help srv_xchange'");
+            dap_cli_server_cmd_set_reply_text(a_str_reply,"Command 'token pair' requires proper subcommand, please read its manual with command 'help srv_xchange'");
 
 
         } break;

@@ -731,36 +731,7 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
 
             dap_string_append_printf(a_str_out, "type: %s\n", l_type_str);
 
-            char *l_subtype_str = "";
-            switch(l_decree->header.sub_type)
-            {
-            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE:
-                l_subtype_str = "DECREE_COMMON_SUBTYPE_FEE";
-                break;
-            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS:
-                l_subtype_str = "DECREE_COMMON_SUBTYPE_OWNERS";
-                break;
-            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN:
-                l_subtype_str = "DECREE_COMMON_SUBTYPE_OWNERS_MIN";
-                break;
-            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_TON_SIGNERS_MIN:
-                l_subtype_str = "DECREE_COMMON_SUBTYPE_TON_SIGNERS_MIN";
-                break;
-            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE:
-                l_subtype_str = "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE";
-                break;
-            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE:
-                l_subtype_str = "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE";
-                break;
-            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALUE:
-                l_subtype_str = "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALUE";
-                break;
-            case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT:
-                l_subtype_str = "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT";
-                break;
-            default:
-                l_subtype_str = "DECREE_TYPE_UNKNOWN";
-            }
+            const char *l_subtype_str = dap_chain_datum_decree_subtype_to_str(l_decree->header.sub_type);
 
             dap_string_append_printf(a_str_out, "subtype: %s\n", l_subtype_str);
 

@@ -605,37 +605,30 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
  * @param a_owner
  * @return
  */
-static bool s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_hash_fast_t *a_tx_out_hash,dap_chain_tx_out_cond_t *a_cond,
-                                       dap_chain_datum_tx_t *a_tx_in, bool a_owner)
+static bool s_fee_verificator_callback(dap_ledger_t *a_ledger, UNUSED_ARG dap_hash_fast_t *a_tx_out_hash,
+                                       UNUSED_ARG dap_chain_tx_out_cond_t *a_cond,
+                                       dap_chain_datum_tx_t *a_tx_in, UNUSED_ARG bool a_owner)
 {
-    UNUSED(a_cond);
-    const char * l_net_name     = a_ledger->net_name;
-    dap_sign_t * l_sign_block   = NULL;
-    dap_sign_t * l_sign_tx      = NULL;
-    dap_chain_net_t * l_net     = NULL;
-    dap_chain_t * l_chain       = NULL;
-    dap_chain_datum_tx_t * l_tx = NULL;
-    const dap_chain_block_cache_t *l_block_cache = NULL;
+    dap_chain_net_t *l_net = dap_chain_net_by_name(a_ledger->net_name);
+    if (!l_net)
+        return false;
+    dap_chain_t *l_chain;
+    DL_FOREACH(l_net->pub.chains, l_chain) {
+        if (!l_chain->callback_block_find_by_tx_hash)
+            continue;
+        const dap_chain_block_cache_t *l_block_cache = l_chain->callback_block_find_by_tx_hash(l_chain, a_tx_out_hash);
+        if (!l_block_cache)
+            continue;
+        dap_sign_t *l_sign_block = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
+        if (!l_sign_block)
+            return false;
 
-    //UNUSED(a_owner);
-    //if (!a_owner)
-        //return false;
-
-    l_net = l_net_name ? dap_chain_net_by_name(l_net_name) : NULL;
-
-    l_chain = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_CA );
-
-    //l_tx = l_chain->callback_tx_find_by_hash(l_chain, a_tx_out_hash);    
-    l_block_cache = l_chain->callback_block_find_by_tx_hash(l_chain,a_tx_out_hash);
-    l_sign_block = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
-    //dap_chain_hash_fast_t l_pkey_hash;
-    //dap_sign_get_pkey_hash(l_sign_block, &l_pkey_hash);
-
-    dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, TX_ITEM_TYPE_SIG, NULL);
-    l_sign_tx = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
-
-    return dap_sign_match_pkey_signs(l_sign_block,l_sign_tx);
-
+        // TX sign is already verified, just compare pkeys
+        dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, TX_ITEM_TYPE_SIG, NULL);
+        dap_sign_t *l_sign_tx = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
+        return dap_sign_match_pkey_signs(l_sign_block, l_sign_tx);
+    }
+    return false;
 }
 
 /**

@@ -92,12 +92,14 @@ int dap_chain_net_anchor_verify(dap_chain_datum_anchor_t * a_anchor, size_t a_da
     }
 
     bool l_is_applied = false;
-    l_decree = dap_chain_net_decree_get_by_hash(l_decree_hash, &l_is_applied);
+    l_decree = dap_chain_net_decree_get_by_hash(&l_decree_hash, &l_is_applied);
     if (!l_decree)
     {
         DAP_DELETE(l_signs_arr);
         DAP_DELETE(l_unique_signs);
-        log_it(L_WARNING,"Can't get decree by hash");
+        char *l_decree_hash_str = dap_hash_fast_to_str_new(&l_decree_hash);
+        log_it(L_WARNING,"Can't get decree by hash %s", l_decree_hash_str);
+        DAP_DELETE(l_decree_hash_str);
         return DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE;
     }
 
@@ -183,7 +185,6 @@ int dap_chain_net_anchor_load(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *
         return ret_val;
     }
 
-    dap_chain_datum_decree_t * l_decree = NULL;
     dap_chain_hash_fast_t l_hash = {0};
     if ((ret_val = dap_chain_datum_anchor_get_hash_from_data(a_anchor, &l_hash)) != 0)
     {
@@ -191,22 +192,7 @@ int dap_chain_net_anchor_load(dap_chain_datum_anchor_t * a_anchor, dap_chain_t *
         return -109;
     }
 
-    bool l_is_applied = false;
-    l_decree = dap_chain_net_decree_get_by_hash(l_hash, &l_is_applied);
-    if (!l_decree)
-    {
-        log_it(L_WARNING,"Decree is not found.");
-        return -110;
-    }
-
-    if (l_is_applied)
-    {
-        log_it(L_WARNING,"Decree already applyed.");
-        return -111;
-    }
-
-
-    if((ret_val = dap_chain_net_decree_apply(l_decree, a_chain))!=0)
+    if((ret_val = dap_chain_net_decree_apply(&l_hash, NULL, a_chain))!=0)
     {
         log_it(L_WARNING,"Decree applying failed");
     }

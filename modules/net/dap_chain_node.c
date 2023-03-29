@@ -242,17 +242,20 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
             if (dap_chain_node_mempool_need_process(a_chain, l_datum)) {
 
                 if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX &&
-                        a_chain->callback_check_tx_fee){
+                        a_chain->callback_get_minimum_fee){
                     uint256_t l_tx_fee = {};
-
-                    if (dap_chain_datum_tx_get_fee_value ((dap_chain_datum_tx_t*)l_datum->data, &l_tx_fee))
-                    {
+                    if (dap_chain_datum_tx_get_fee_value ((dap_chain_datum_tx_t*)l_datum->data, &l_tx_fee)) {
                         log_it(L_WARNING, "Can't get fee value from tx");
                         continue;
                     }
-
-                    if(!a_chain->callback_check_tx_fee(a_chain, l_tx_fee)){
-                        log_it(L_WARNING, "Fee is lower than minimum fee value");
+                    uint256_t l_min_fee = a_chain->callback_get_minimum_fee(a_chain);
+                    if (compare256(l_tx_fee, l_min_fee) < 0) {
+                        char *l_tx_fee_str = dap_chain_balance_to_coins(l_tx_fee);
+                        char *l_min_fee_str = dap_chain_balance_to_coins(l_min_fee);
+                        log_it(L_WARNING, "Fee %s is lower than minimum fee %s for tx %s",
+                               l_tx_fee_str, l_min_fee_str, l_objs[i].key);
+                        DAP_DELETE(l_tx_fee_str);
+                        DAP_DELETE(l_min_fee_str);
                         continue;
                     }
                 }
