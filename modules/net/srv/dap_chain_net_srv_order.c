@@ -292,7 +292,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(dap_chain_net_t *a_ne
         return NULL;
     }
     if (!a_key) {
-        log_it(L_WARNING, "Order mast have a sign");
+        log_it(L_WARNING, "The key with which the order should be signed is not specified.");
         return NULL;
     }
     dap_chain_net_srv_order_t *l_order;
