@@ -1235,6 +1235,29 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
         case CMD_KEY_LIST: {
             const char *l_net_str = NULL,
                        *l_cert_str = NULL;
+            //------------------------------------------------------------
+            // Read time_from
+            dap_time_t l_time_from = 0;
+            const char * l_time_from_str = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-time_from", &l_time_from_str);
+            l_time_from = dap_time_from_str_rfc822(l_time_from_str);
+
+            // Read time_to
+            dap_time_t l_time_to = 0;
+            const char * l_time_to_str = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-time_to", &l_time_to_str);
+            l_time_to = dap_time_from_str_rfc822(l_time_to_str);
+
+            // Check for price subcommand
+            if (strcmp(l_price_subcommand,"average") == 0){
+                dap_string_t *l_reply_str = dap_string_new("");
+
+                dap_list_t *l_tx_cond_list = dap_chain_net_get_tx_cond_all_by_srv_uid(l_net, c_dap_chain_net_srv_xchange_uid,
+                                                                                      l_time_from,l_time_to,TX_SEARCH_TYPE_NET );
+            dap_list_t * l_list = dap_chain_net_get_tx_cond_all_by_srv_uid();
+
+
+            //------------------------------------------------------------------
             l_arg_index++;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
