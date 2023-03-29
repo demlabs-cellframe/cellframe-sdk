@@ -608,7 +608,7 @@ static void s_srv_order_callback_notify(dap_global_db_context_t *a_context, dap_
         if (a_obj->value && a_obj->type == DAP_DB$K_OPTYPE_ADD &&
                 dap_config_get_item_bool_default(g_config, "srv", "order_signed_only", true)) {
             dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)a_obj->value;
-            if (l_order->version != 2) {
+            if (l_order->version != 3) {
                 dap_global_db_del_unsafe(l_gdb_context, a_obj->group, a_obj->key);
             } else {
                 dap_sign_t *l_sign = (dap_sign_t *)(l_order->ext_n_sign + l_order->ext_size);
@@ -623,7 +623,7 @@ static void s_srv_order_callback_notify(dap_global_db_context_t *a_context, dap_
                     dap_sign_t *l_tmp_sign = (dap_sign_t*)(l_sign + l_offset);
                     l_offset += dap_sign_get_size(l_tmp_sign);
                     dap_hash_fast_t l_pkey_hash = {0};
-                    dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
+                    dap_sign_get_pkey_hash(l_tmp_sign, &l_pkey_hash);
                     dap_chain_addr_t l_addr = {0};
                     dap_chain_addr_fill(&l_addr, l_tmp_sign->header.type, &l_pkey_hash, l_net->pub.id);
                     if (!dap_chain_net_srv_stake_key_delegated(&l_addr)) {
