@@ -1,4 +1,5 @@
 project(cellframe-sdk C)
+include(ExternalProject)
 cmake_minimum_required(VERSION 3.10)
 
 set(CMAKE_C_STANDARD 11)
@@ -77,7 +78,11 @@ endif()
 add_subdirectory(dap-sdk)
 add_subdirectory(3rdparty/monero_crypto)
 add_subdirectory(3rdparty/cuttdb)
+
 add_subdirectory(3rdparty/json-c EXCLUDE_FROM_ALL)
+ExternalProject_Add(dap_json-c_dep 
+                    SOURCE_DIR ${PROJECT_SOURCE_DIR}/3rdparty/json-c/ 
+                    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}/deps/ )
 
 if (BUILD_WITH_GDB_DRIVER_MDBX)
     set(SAVED_CMAKE_MESSAGE_LOG_LEVEL ${CMAKE_MESSAGE_LOG_LEVEL})

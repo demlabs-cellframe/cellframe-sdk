@@ -14,7 +14,8 @@ HEADERS +=  $$PWD/include/dap_chain_common.h                 \
 	    $$PWD/include/dap_chain_datum_tx_pkey.h          \
 	    $$PWD/include/dap_chain_datum_tx_receipt.h       \
 	    $$PWD/include/dap_chain_datum_tx_sig.h           \
-	    $$PWD/include/dap_chain_datum_tx_token.h         
+	    $$PWD/include/dap_chain_datum_tx_token.h         \
+	
 
 SOURCES +=  $$PWD/dap_chain_common.c                     \
 	    $$PWD/dap_chain_datum.c                      \
@@ -28,4 +29,4 @@ SOURCES +=  $$PWD/dap_chain_common.c                     \
 	    $$PWD/dap_chain_datum_tx_receipt.c           \
 	    $$PWD/dap_chain_datum_tx_token.c 
 
-INCLUDEPATH += $$PWD/include 
+INCLUDEPATH += $$PWD/include $$PWD/../service/stake_lock/include/ $$PWD/../net/include $$PWD/../net/ $$PWD/../global-db/include/ $$PWD/../chain/include/

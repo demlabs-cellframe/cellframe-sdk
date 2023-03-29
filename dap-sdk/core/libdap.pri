@@ -32,7 +32,7 @@ darwin {
     include(src/darwin/darwin.pri)
     DEFINES += DAP_OS_DARWIN DAP_OS_BSD
     LIBS+ = -lrt
-    #-ljson-c -lmagic
+
     QMAKE_LIBDIR += /usr/local/lib
     QMAKE_CFLAGS += -Wno-deprecated-copy -Wno-deprecated-declarations -Wno-unused-local-typedefs -Wno-unused-function -Wno-implicit-fallthrough -Wno-unused-variable -Wno-unused-parameter -Wno-unused-but-set-variable
     QMAKE_CXXFLAGS += -Wno-deprecated-declarations -Wno-unused-local-typedefs -Wno-unused-function -Wno-implicit-fallthrough -Wno-unused-variable -Wno-unused-parameter -Wno-unused-but-set-variable
@@ -43,7 +43,7 @@ darwin {
 
 win32 {
     include(src/win32/win32.pri)
-    LIBS += -lntdll -lpsapi -ljson-c -lmagic -lmqrt -lshlwapi -lregex -ltre -lintl -liconv -lbcrypt -lcrypt32 -lsecur32 -luser32 -lws2_32 -lole32
+    LIBS += -lntdll -lpsapi  -lmagic -lmqrt -lshlwapi -lregex -ltre -lintl -liconv -lbcrypt -lcrypt32 -lsecur32 -luser32 -lws2_32 -lole32
     include($$PWD/../../3rdparty/wepoll/wepoll.pri)
     DEFINES += DAP_OS_WINDOWS
     QMAKE_CFLAGS_DEBUG += -Wall -ggdb -g3
