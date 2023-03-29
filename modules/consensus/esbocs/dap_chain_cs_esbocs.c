@@ -1084,7 +1084,10 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
     dap_chain_addr_fill_from_sign(&l_signing_addr, l_sign, l_session->chain->net_id);
     if (l_cs_debug)
         l_validator_addr_str = dap_chain_addr_to_str(&l_signing_addr);
-    if (!s_validator_check(&l_signing_addr, l_session->cur_round.validators_list)) {
+    if ((l_message->hdr.type != DAP_STREAM_CH_VOTING_MSG_TYPE_START_SYNC &&         // Accept only current round validators
+                !s_validator_check(&l_signing_addr, l_session->cur_round.validators_list)) ||
+            (l_message->hdr.type == DAP_STREAM_CH_VOTING_MSG_TYPE_START_SYNC &&     // Accept all validators
+                !dap_chain_net_srv_stake_key_delegated(&l_signing_addr))) {
         debug_if(l_cs_debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
                                     " Message rejected: validator addr:%s not in the list.",
                                         l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
@@ -1159,7 +1162,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                                             " current round sync attempt %"DAP_UINT64_FORMAT_U" so fast-forward this round",
                                                l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                                    l_sync_attempt, l_session->cur_round.sync_attempt);
-                for (uint64_t i = 0; i < l_attempts_miss - 1; i++) {
+                for (uint64_t i = 0; i < l_attempts_miss; i++) {
                     // Fast-forward current sync attempt
                     s_get_validators_list(l_session, NULL);
                     l_session->cur_round.sync_attempt++;
