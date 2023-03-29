@@ -178,10 +178,7 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
                     l_tx_data->addr = l_type_256 ? l_tx_out_256->addr : l_tx_out->addr;
                     dap_chain_hash_fast_to_str(&l_tx_data->tx_hash, l_tx_data->tx_hash_str,
                             sizeof(l_tx_data->tx_hash_str));
-                    //l_tx_data->pos_num = l_count;
-                    //l_tx_data->datum = l_datum;
-                    l_tx_data->datum = DAP_NEW_SIZE(dap_chain_datum_t, l_atom_size);
-                    memcpy(l_tx_data->datum, l_datum, l_atom_size);
+                    l_tx_data->datum = DAP_DUP_SIZE(l_datum, l_atom_size);
                     // save token name
                     if(l_list_tx_token) {
                         dap_chain_tx_token_t *tk = l_list_tx_token->data;
@@ -886,7 +883,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
                 if(l_wallet) {
                     dap_chain_addr_t *l_addr_tmp = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet,
                             l_net->pub.id);
-                    l_addr = DAP_NEW_SIZE(dap_chain_addr_t, sizeof(dap_chain_addr_t));
+                    l_addr = DAP_NEW_S(dap_chain_addr_t);
                     memcpy(l_addr, l_addr_tmp, sizeof(dap_chain_addr_t));
                     dap_chain_wallet_close(l_wallet);
                 }
@@ -927,9 +924,6 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
             }
         }
         DAP_DELETE(l_str_out);
-
-
-        DAP_DELETE(l_addr);
         s_dap_chain_tx_hash_processed_ht_free(l_list_tx_hash_processd);
         // all chain
         if(!l_chain)
@@ -1030,19 +1024,19 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
             dap_chain_node_cli_set_reply_text(a_str_reply, "Can't find net %s", l_net_str);
             return -2;
         }
-        dap_chain_hash_fast_t *l_tx_hash = DAP_NEW(dap_chain_hash_fast_t);
-        if (dap_chain_hash_fast_from_str(l_tx_hash_str, l_tx_hash)) {
+        dap_chain_hash_fast_t l_tx_hash = { 0 };
+        if (dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash)) {
             dap_chain_node_cli_set_reply_text(a_str_reply, "Can't get hash_fast from %s", l_tx_hash_str);
             return -4;
         }
-        dap_chain_datum_tx_t *l_datum_tx = dap_chain_net_get_tx_by_hash(l_net, l_tx_hash,
+        dap_chain_datum_tx_t *l_datum_tx = dap_chain_net_get_tx_by_hash(l_net, &l_tx_hash,
                                                                         l_unspent_flag >= 0 ? TX_SEARCH_TYPE_NET_UNSPENT : TX_SEARCH_TYPE_NET);
         if (l_datum_tx == NULL){
             dap_chain_node_cli_set_reply_text(a_str_reply, "Can't get datum from transaction hash %s", l_tx_hash_str);
             return -5;
         }
         dap_string_t *l_str = dap_string_new("");
-        s_dap_chain_datum_tx_out_data(l_datum_tx, l_net->pub.ledger, l_str, l_hash_out_type, l_tx_hash);
+        s_dap_chain_datum_tx_out_data(l_datum_tx, l_net->pub.ledger, l_str, l_hash_out_type, &l_tx_hash);
         dap_chain_node_cli_set_reply_text(a_str_reply, l_str->str);
         dap_string_free(l_str, true);
     }
@@ -1251,13 +1245,9 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
                 const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
                 dap_chain_wallet_t * l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
                 if(l_wallet) {
-                    dap_chain_addr_t *l_addr_tmp = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet,
+                    dap_chain_addr_t *l_addr_base58 = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet,
                             l_net->pub.id);
-                    l_addr_base58 = DAP_NEW_SIZE(dap_chain_addr_t, sizeof(dap_chain_addr_t));
-                    memcpy(l_addr_base58, l_addr_tmp, sizeof(dap_chain_addr_t));
                     dap_chain_wallet_close(l_wallet);
-                    char *ffl_addr_base58 = dap_chain_addr_to_str(l_addr_base58);
-                    ffl_addr_base58 = 0;
                 }
                 else {
                     dap_chain_node_cli_set_reply_text(a_str_reply, "wallet '%s' not found", l_wallet_name);
