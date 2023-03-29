@@ -1162,12 +1162,12 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                                             " current round sync attempt %"DAP_UINT64_FORMAT_U" so fast-forward this round",
                                                l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                                    l_sync_attempt, l_session->cur_round.sync_attempt);
-                for (uint64_t i = 0; i < l_attempts_miss; i++) {
+                for (uint64_t i = 0; i < l_attempts_miss - 1; i++) {
                     // Fast-forward current sync attempt
                     s_get_validators_list(l_session, NULL);
                     l_session->cur_round.sync_attempt++;
                 }
-                // Process this message in new round
+                // Process this message in new round, it will increment current sync attempt
                 s_session_sync_queue_add(l_session, l_message, a_data_size);
                 l_session->round_fast_forward = true;
                 s_session_round_new(l_session);
