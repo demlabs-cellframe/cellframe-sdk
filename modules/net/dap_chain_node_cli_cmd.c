@@ -954,7 +954,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
             return -122;
         }
 
-        if(dap_chain_global_db_gr_set(l_key_str, l_value_str, strlen(l_value_str), l_group_str))
+        if(dap_chain_global_db_gr_set(l_key_str, l_value_str, strlen(l_value_str)+1, l_group_str))
         {
             dap_chain_node_cli_set_reply_text(a_str_reply, "Data has been successfully written to the database");
             return 0;
@@ -984,6 +984,8 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
 
         size_t l_out_len = 0;
         uint8_t *l_value_out = dap_chain_global_db_gr_get(l_key_str, &l_out_len, l_group_str);
+
+
 
         if (!l_value_out || !l_out_len)
         {
