@@ -440,7 +440,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 }
                 uint256_t l_stake_value = dap_tsd_get_scalar(l_tsd, uint256_t);
                 char *l_stake_value_str = dap_chain_balance_print(l_stake_value);
-                dap_string_append_printf(a_str_out, "\tStake value:%s\n", l_stake_value_str);
+                dap_string_append_printf(a_str_out, "\tStake value: %s\n", l_stake_value_str);
                 DAP_DELETE(l_stake_value_str);
                 break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNING_ADDR:
