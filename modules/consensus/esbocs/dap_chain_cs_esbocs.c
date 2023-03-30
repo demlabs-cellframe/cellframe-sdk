@@ -303,7 +303,7 @@ static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
     pthread_mutex_lock(&l_session->mutex);
     DL_DELETE(s_session_items, l_session);
     if (!s_session_items)
-        dap_timerfd_delete_mt(s_session_cs_timer);
+        dap_timerfd_delete_mt(s_session_cs_timer->worker, s_session_cs_timer->esocket_uuid);
     s_session_round_clear(l_session);
     dap_chain_esbocs_sync_item_t *l_item, *l_tmp;
     HASH_ITER(hh, l_session->sync_items, l_item, l_tmp) {
@@ -481,7 +481,7 @@ static void s_session_round_new(dap_chain_esbocs_session_t *a_session)
     a_session->cur_round.id++;
     a_session->cur_round.sync_attempt++;
 
-    dap_timerfd_delete_mt(a_session->sync_timer);
+    dap_timerfd_delete_mt(a_session->sync_timer->worker, a_session->sync_timer->esocket_uuid);
     a_session->sync_timer = NULL;
     a_session->state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START;
     a_session->ts_round_sync_start = 0;
