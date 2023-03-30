@@ -1225,12 +1225,15 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 return -14;
             }
             dap_chain_datum_decree_t *l_decree = s_stake_decree_approve(l_net, &l_tx_hash, l_cert);
-            if (!l_decree || !s_stake_decree_put(l_decree, l_net)) {
+            char *l_decree_hash_str = NULL;
+            if (!l_decree || !(l_decree_hash_str = s_stake_decree_put(l_decree, l_net))) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Approve decree error");
                 return -12;
             }
             DAP_DELETE(l_decree);
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Approve decree successfully created");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Approve decree %s successfully created",
+                                              l_decree_hash_str);
+            DAP_DELETE(l_decree_hash_str);
         } break;
         case CMD_KEY_LIST: {
             const char *l_net_str = NULL,
@@ -1387,8 +1390,11 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 }
                 dap_chain_datum_tx_t *l_tx = s_stake_tx_invalidate(l_net, l_final_tx_hash, l_fee, dap_chain_wallet_get_key(l_wallet, 0));
                 dap_chain_wallet_close(l_wallet);
-                if (l_tx && s_stake_tx_put(l_tx, l_net)) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "All m-tokens successfully returned to owner");
+                char *l_decree_hash_str = NULL;
+                if (l_tx && (l_decree_hash_str = s_stake_tx_put(l_tx, l_net))) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "All m-tokens successfully returned to "
+                                                                   "owner. Returning tx hash %s.", l_decree_hash_str);
+                    DAP_DELETE(l_decree_hash_str);
                     DAP_DELETE(l_tx);
                 } else {
                     char *l_final_tx_hash_str = dap_chain_hash_fast_to_str_new(l_final_tx_hash);
@@ -1408,10 +1414,13 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                     return -26;
                 }
                 dap_chain_datum_decree_t *l_decree = s_stake_decree_invalidate(l_net, l_final_tx_hash, l_poa_cert);
-                if (l_decree && s_stake_decree_put(l_decree, l_net)) {
+                char *l_decree_hash_str = NULL;
+                if (l_decree && (l_decree_hash_str = s_stake_decree_put(l_decree, l_net))) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified delageted key invalidated. "
-                                                                   "Try to execute this command with -wallet to return m-tokens to owner");
+                                                                   "Created key invalidation decree %s."
+                                                                   "Try to execute this command with -wallet to return m-tokens to owner", l_decree_hash_str);
                     DAP_DELETE(l_decree);
+                    DAP_DELETE(l_decree_hash_str);
                 } else {
                     char *l_final_tx_hash_str = dap_chain_hash_fast_to_str_new(l_final_tx_hash);
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't invalidate transaction %s, examine log files for details", l_final_tx_hash_str);
