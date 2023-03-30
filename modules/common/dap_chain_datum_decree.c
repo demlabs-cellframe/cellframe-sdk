@@ -458,9 +458,9 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 if (strcmp(a_hash_out_type, "hex") == 0) {
                     l_pkey_signing_str = dap_hash_fast_to_str_new(l_pkey_signing);
                 } else {
-                    l_pkey_signing_str = dap_enc_base58_encode_hash_to_str(l_pkey_signing);
+                    ccccc = dap_enc_base58_encode_hash_to_str(l_pkey_signing);
                 }
-                dap_string_append_printf(a_str_out, "\tSigning pkey fingerprint: %s\n", l_stake_addr_signing_str);
+                dap_string_append_printf(a_str_out, "\tSigning pkey fingerprint: %s\n", l_pkey_signing_str);
                 DAP_DELETE(l_stake_addr_signing_str);
                 DAP_DELETE(l_pkey_signing_str);
                 DAP_DELETE(l_pkey_signing);
