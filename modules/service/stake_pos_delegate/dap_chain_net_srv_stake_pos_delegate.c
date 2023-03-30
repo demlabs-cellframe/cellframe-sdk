@@ -1393,7 +1393,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 char *l_decree_hash_str = NULL;
                 if (l_tx && (l_decree_hash_str = s_stake_tx_put(l_tx, l_net))) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "All m-tokens successfully returned to "
-                                                                   "owner. According to the decree of %s.", l_decree_hash_str);
+                                                                   "owner. Returning tx hash %s.", l_decree_hash_str);
                     DAP_DELETE(l_decree_hash_str);
                     DAP_DELETE(l_tx);
                 } else {
