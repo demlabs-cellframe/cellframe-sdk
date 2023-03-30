@@ -156,7 +156,7 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         if (l_node_client->keep_connection) {
             if (dap_client_get_stage(l_node_client->client) != STAGE_BEGIN)
                 dap_client_go_stage(l_node_client->client, STAGE_BEGIN, NULL);
-            dap_timerfd_start(45 * 1000, s_timer_node_reconnect, l_node_client);
+            l_node_client->reconnect_timer = dap_timerfd_start(45 * 1000, s_timer_node_reconnect, l_node_client);
         }
     } else if(l_node_client->callbacks.error) // TODO make different error codes
         l_node_client->callbacks.error(l_node_client, EINVAL, l_node_client->callbacks_arg);
@@ -453,7 +453,7 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
         pthread_mutex_unlock(&l_node_client->wait_mutex);
         bool l_have_waiting = dap_chain_net_sync_unlock(l_net, l_node_client);
         if (dap_chain_net_get_target_state(l_net) == NET_STATE_ONLINE) {
-            dap_timerfd_reset(l_node_client->sync_timer);
+            dap_timerfd_reset_unsafe(l_node_client->sync_timer);
             dap_chain_net_set_state(l_net, NET_STATE_ONLINE);
         }
         else if (!l_have_waiting)
@@ -500,7 +500,7 @@ static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_ch
             log_it(L_DEBUG, "In: State node %s."NODE_ADDR_FP_STR" %s", l_net->pub.name, NODE_ADDR_FP_ARGS(l_node_addr),
                             a_pkt_type == DAP_STREAM_CH_CHAIN_PKT_TYPE_TIMEOUT ? "is timeout for sync" : "stream closed");
             l_node_client->state = NODE_CLIENT_STATE_ERROR;
-            dap_timerfd_reset(l_node_client->sync_timer);
+            dap_timerfd_reset_unsafe(l_node_client->sync_timer);
             bool l_have_waiting = dap_chain_net_sync_unlock(l_net, l_node_client);
             if (!l_have_waiting) {
                 if (dap_chain_net_get_target_state(l_net) == NET_STATE_ONLINE)
@@ -761,10 +761,10 @@ void dap_chain_node_client_reset(dap_chain_node_client_t *a_client)
  */
 void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client)
 {
-    if (a_node_client->sync_timer) {
-        a_node_client->sync_timer->callback_arg = NULL;
-        dap_timerfd_delete(a_node_client->sync_timer);
-    }
+    if (a_node_client->sync_timer)
+        dap_timerfd_delete_unsafe(a_node_client->sync_timer);
+    if (a_node_client->reconnect_timer)
+        dap_timerfd_delete_mt(a_node_client->reconnect_timer);
     if (a_node_client->callbacks.delete)
         a_node_client->callbacks.delete(a_node_client, a_node_client->net);
     char l_node_addr_str[INET_ADDRSTRLEN] = {};

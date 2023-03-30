@@ -110,10 +110,7 @@ typedef struct dap_chain_node_client {
     dap_chain_net_t * net;
     char last_error[128];
 
-    // Timer
-    dap_events_socket_t * timer_update_states;
     dap_events_socket_uuid_t esocket_uuid;
-
 
     #ifndef _WIN32
     pthread_cond_t wait_cond;
@@ -132,6 +129,7 @@ typedef struct dap_chain_node_client {
     bool keep_connection;
     bool is_connected;
     dap_timerfd_t *sync_timer;
+    dap_timerfd_t *reconnect_timer;
     // callbacks
     dap_chain_node_client_callbacks_t callbacks;
     dap_chain_node_client_notify_callbacks_t notify_callbacks;
