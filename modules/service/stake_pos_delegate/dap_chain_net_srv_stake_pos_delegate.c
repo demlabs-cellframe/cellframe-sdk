@@ -1229,8 +1229,13 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Approve decree error");
                 return -12;
             }
+            dap_hash_fast_t l_decree_hash = {0};
+            dap_hash_fast(l_decree, dap_chain_datum_decree_get_size(l_decree), &l_decree_hash);
+            char *l_decree_hash_str = dap_hash_fast_to_str_new(&l_decree_hash);
             DAP_DELETE(l_decree);
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Approve decree successfully created");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Approve decree %s successfully created",
+                                              l_decree_hash_str);
+            DAP_DELETE(l_decree_hash_str);
         } break;
         case CMD_KEY_LIST: {
             const char *l_net_str = NULL,
@@ -1409,9 +1414,14 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 }
                 dap_chain_datum_decree_t *l_decree = s_stake_decree_invalidate(l_net, l_final_tx_hash, l_poa_cert);
                 if (l_decree && s_stake_decree_put(l_decree, l_net)) {
+                    dap_hash_fast_t l_decree_hash = {0};
+                    dap_hash_fast(l_decree, dap_chain_datum_decree_get_size(l_decree), &l_decree_hash);
+                    char *l_decree_hash_str = dap_hash_fast_to_str_new(&l_decree_hash);
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified delageted key invalidated. "
-                                                                   "Try to execute this command with -wallet to return m-tokens to owner");
+                                                                   "Created key invalidation decree %s."
+                                                                   "Try to execute this command with -wallet to return m-tokens to owner", l_decree_hash_str);
                     DAP_DELETE(l_decree);
+                    DAP_DELETE(l_decree_hash_str);
                 } else {
                     char *l_final_tx_hash_str = dap_chain_hash_fast_to_str_new(l_final_tx_hash);
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't invalidate transaction %s, examine log files for details", l_final_tx_hash_str);
