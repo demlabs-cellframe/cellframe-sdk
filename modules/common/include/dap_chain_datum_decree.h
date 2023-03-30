@@ -230,7 +230,7 @@ int dap_chain_datum_decree_get_stake_min_signers_count(dap_chain_datum_decree_t 
  * @param a_decree_size size data
  * @param a_hash_out_type
  */
-void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree_t *a_decree, size_t a_decree_size, const char *a_hash_out_type)
+void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree_t *a_decree, size_t a_decree_size, const char *a_hash_out_type);
 
 /**
  * @brief dap_chain_datum_decree_certs_dump compose decree signatures output string

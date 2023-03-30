@@ -426,7 +426,12 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 }
                 dap_hash_fast_t l_stake_tx = {0};
                 l_stake_tx = dap_tsd_get_scalar(l_tsd, dap_hash_fast_t);
-                char *l_stake_tx_hash = dap_hash_fast_to_str_new(&l_stake_tx);
+                char *l_stake_tx_hash = "";
+                if (strcmp(a_hash_out_type, "hex") == 0) {
+                    l_stake_tx_hash = dap_hash_fast_to_str_new(&l_stake_tx);
+                } else {
+                    l_stake_tx_hash = dap_enc_base58_encode_hash_to_str(&l_stake_tx);
+                }
                 dap_string_append_printf(a_str_out, "\t\tStake tx: %s\n", l_stake_tx_hash);
                 DAP_DELETE(l_stake_tx_hash);
                 break;
@@ -481,7 +486,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 DAP_DELETE(l_min_signers_count_str);
                 break;
             default:
-                dap_string_append_printf(a_str_out, "<UNKNOWN_TYPE_TSD_SECTION>\n");
+                dap_string_append_printf(a_str_out, "\t\t<UNKNOWN_TYPE_TSD_SECTION>\n");
                 break;
         }
     }
