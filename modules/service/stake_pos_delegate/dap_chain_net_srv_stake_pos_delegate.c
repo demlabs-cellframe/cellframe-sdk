@@ -1066,9 +1066,21 @@ static void s_get_tx_filter_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_
     int l_out_idx_tmp = 0;
     dap_chain_datum_tx_item_t *l_tx_item = NULL;
     dap_chain_tx_out_cond_t *l_tx_out_cond = NULL;
+    dap_hash_fast_t l_datum_hash;
+    dap_chain_ledger_tx_item_t *l_item_out = NULL;
 
-    if (NULL == (l_tx_out_cond = dap_chain_datum_tx_out_cond_get(a_tx,DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK,// DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE,
+    if (NULL == (l_tx_out_cond = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE,
                                                                  &l_out_idx_tmp)))
+    {
+
+
+        dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_datum_hash);
+
+        s_find_datum_tx_by_hash(a_net->pub.ledger, &l_datum_hash, &l_item_out);
+
+
+
+    }
     l_args->ret = dap_list_append(l_args->ret,a_tx);
     /*while((l_tx_item = (dap_chain_datum_tx_item_t *) dap_chain_datum_tx_item_get(a_tx, &l_item_idx, TX_ITEM_TYPE_OUT_COND , NULL)) != NULL){
         switch (l_tx_item->type) {
@@ -1532,28 +1544,6 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
                 return -4;
             }
-            //------------------------------------------------------------
-            // Read time_from
-/*
-            dap_time_t l_time_from = 0;
-            const char * l_time_from_str = NULL;
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-time_from", &l_time_from_str);
-            l_time_from = dap_time_from_str_rfc822(l_time_from_str);
-
-            // Read time_to
-            dap_time_t l_time_to = 0;
-            const char * l_time_to_str = NULL;
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-time_to", &l_time_to_str);
-            l_time_to = dap_time_from_str_rfc822(l_time_to_str);
-
-            // Check for price subcommand
-            if (strcmp(l_price_subcommand,"average") == 0){
-                dap_string_t *l_reply_str = dap_string_new("");
-
-                dap_list_t *l_tx_cond_list = dap_chain_net_get_tx_cond_all_by_srv_uid(l_net, c_dap_chain_net_srv_xchange_uid,
-                                                                                      l_time_from,l_time_to,TX_SEARCH_TYPE_NET );
-            dap_list_t * l_list = dap_chain_net_get_tx_cond_all_by_srv_uid();
-*/
 
             struct get_tx_cond_all_from_tx * l_args = DAP_NEW_Z(struct get_tx_cond_all_from_tx);
             dap_string_t * l_str_tmp = dap_string_new(NULL);
@@ -1564,12 +1554,18 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             dap_chain_net_get_tx_all(l_net,TX_SEARCH_TYPE_NET,s_get_tx_filter_callback, l_args);
             for(dap_list_t *tx = l_args->ret; tx; tx = tx->next)
             {
+                bool set = false;
                 dap_chain_datum_tx_t *l_datum_tx = (dap_chain_datum_tx_t*)tx->data;
                 dap_hash_fast(l_datum_tx, dap_chain_datum_tx_get_size(l_datum_tx), &l_datum_hash);
+                set = s_stake_cache_check_tx(&l_datum_hash);
                 l_hash_str = dap_chain_hash_fast_to_str_new(&l_datum_hash);
-                dap_string_append_printf(l_str_tmp,"\t%s --",l_hash_str);
+                dap_string_append_printf(l_str_tmp,"\t%s -- %s \n",l_hash_str, set ?"activated":"non-activated");
+                DAP_DELETE(l_hash_str);
+
             }
             //dap_list_t * l_ret = l_args->ret;
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
+            dap_string_free(l_str_tmp, true);
             DAP_DELETE(l_args);
             //------------------------------------------------------------------
         } break;
