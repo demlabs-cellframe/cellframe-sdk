@@ -719,26 +719,8 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
             dap_string_append_printf(a_str_out,"=== Datum decree ===\n");
             dap_string_append_printf(a_str_out, "hash: %s\n", l_hash_str);
             dap_string_append_printf(a_str_out, "size: %zd\n", l_decree_size);
-            char *l_type_str = "";
-            switch(l_decree->header.type)
-            {
-            case DAP_CHAIN_DATUM_DECREE_TYPE_COMMON:
-                l_type_str = "DECREE_TYPE_COMMON";
-                break;
-            case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:
-                l_type_str = "DECREE_TYPE_SERVICE";
-                break;
-            default:
-                l_type_str = "DECREE_TYPE_UNKNOWN";
-            }
 
-            dap_string_append_printf(a_str_out, "type: %s\n", l_type_str);
-
-            const char *l_subtype_str = dap_chain_datum_decree_subtype_to_str(l_decree->header.sub_type);
-
-            dap_string_append_printf(a_str_out, "subtype: %s\n", l_subtype_str);
-
-            dap_chain_datum_decree_certs_dump(a_str_out, l_decree->data_n_signs + l_decree->header.data_size, l_decree->header.signs_size, a_hash_out_type);
+            dap_chain_datum_decree_dump(a_str_out, l_decree, l_decree_size, a_hash_out_type);
         } break;
         case DAP_CHAIN_DATUM_ANCHOR:{
             dap_chain_datum_anchor_t *l_anchor = (dap_chain_datum_anchor_t *)a_datum->data;

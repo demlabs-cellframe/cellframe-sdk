@@ -96,8 +96,6 @@ int dap_chain_net_srv_init()
     dap_stream_ch_chain_net_srv_init();
     m_uid = NULL;
     m_uid_count = 0;
-    if( dap_chain_net_srv_order_init() != 0 )
-        return -1;
 
     dap_cli_server_cmd_add ("net_srv", s_cli_net_srv, "Network services managment",
         "net_srv -net <net_name> order find [-direction {sell | buy}] [-srv_uid <Service UID>] [-price_unit <price unit>]\n"

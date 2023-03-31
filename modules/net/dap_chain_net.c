@@ -651,8 +651,10 @@ static void s_net_link_remove(dap_chain_net_pvt_t *a_net_pvt, dap_chain_node_cli
         return;
     }
     HASH_DEL(a_net_pvt->net_links, l_link_found);
-    if (l_link_found->delay_timer)
-        dap_timerfd_delete_mt(l_link_found->delay_timer);
+    if (l_link_found->delay_timer) {
+        dap_timerfd_delete_mt(l_link_found->delay_timer->worker, l_link_found->delay_timer->esocket_uuid);
+        l_link_found->delay_timer = NULL;
+    }
     dap_chain_node_client_t *l_client = l_link_found->link;
     a_net_pvt->links_queue = dap_list_remove_all(a_net_pvt->links_queue, l_client);
     if (a_rebase) {
@@ -687,9 +689,11 @@ static struct net_link *s_get_free_link(dap_chain_net_t *a_net)
 
 static bool s_net_link_callback_connect_delayed(void *a_arg)
 {
-    dap_chain_node_client_t *l_client = a_arg;
+    struct net_link *l_link = a_arg;
+    dap_chain_node_client_t *l_client = l_link->link;
     debug_if(s_debug_more, L_DEBUG, "Link "NODE_ADDR_FP_STR" started", NODE_ADDR_FP_ARGS_S(l_client->info->hdr.address));
     dap_chain_node_client_connect(l_client, "CN");
+    l_link->delay_timer = NULL;
     return false;
 }
 
@@ -704,7 +708,7 @@ static bool s_net_link_start(dap_chain_net_t *a_net, struct net_link *a_link, ui
         return false;
     a_link->link = l_client;
     if (a_delay) {
-        a_link->delay_timer = dap_timerfd_start(a_delay * 1000, s_net_link_callback_connect_delayed, l_client);
+        a_link->delay_timer = dap_timerfd_start(a_delay * 1000, s_net_link_callback_connect_delayed, a_link);
         return true;
     }
     debug_if(s_debug_more, L_DEBUG, "Link "NODE_ADDR_FP_STR" started", NODE_ADDR_FP_ARGS_S(l_link_info->hdr.address));
@@ -795,6 +799,7 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
     if (l_net_pvt->state_target != NET_STATE_OFFLINE) {
         pthread_mutex_lock(&l_net_pvt->uplinks_mutex);
         s_net_link_remove(l_net_pvt, a_node_client, l_net_pvt->only_static_links);
+        a_node_client->keep_connection = false;
         a_node_client->callbacks.delete = NULL;
         dap_chain_node_client_close_mt(a_node_client);  // Remove it on next context iteration
         struct net_link *l_free_link = s_get_free_link(l_net);
@@ -1175,6 +1180,8 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
             struct net_link *l_link, *l_link_tmp;
             struct downlink *l_downlink, *l_dltmp;
             HASH_ITER(hh, l_net_pvt->net_links, l_link, l_link_tmp) {
+                if (l_link->delay_timer)
+                    dap_timerfd_delete_mt(l_link->delay_timer->worker, l_link->delay_timer->esocket_uuid);
                 if (l_link->link) {
                     dap_chain_node_client_t *l_client = l_link->link;
                     HASH_FIND(hh, l_net_pvt->downlinks, &l_client->ch_chain_uuid,
