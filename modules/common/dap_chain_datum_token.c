@@ -50,6 +50,12 @@ const char *c_dap_chain_datum_token_flag_str[] = {
     [DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_ALLOWED] = "ALL_RECEIVER_ALLOWED",
     [DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_FROZEN] = "ALL_RECEIVER_FROZEN",
     [DAP_CHAIN_DATUM_TOKEN_FLAG_ALL_RECEIVER_UNFROZEN] = "ALL_RECEIVER_UNFROZEN",
+    [DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_ALL] = "STATIC_ALL",
+    [DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_FLAGS] = "STATIC_FLAGS",
+    [DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_ALL] = "STATIC_PERMISSIONS_ALL",
+    [DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_DATUM_TYPE] = "STATIC_PERMISSIONS_DATUM_TYPE",
+    [DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_TX_SENDER] = "TATIC_PERMISSIONS_TX_SENDER",
+    [DAP_CHAIN_DATUM_TOKEN_FLAG_STATIC_PERMISSIONS_TX_RECEIVER] = "STATIC_PERMISSIONS_TX_RECEIVER",
 };
 
 /**
@@ -176,13 +182,13 @@ void dap_chain_datum_token_flags_dump(dap_string_t * a_str_out, uint16_t a_flags
         return;
     }
     bool is_first = true;
-    for ( uint16_t i = 0;  i <= DAP_CHAIN_DATUM_TOKEN_FLAG_MAX; i++){
+    for ( uint16_t i = 0;  BIT(i) <= DAP_CHAIN_DATUM_TOKEN_FLAG_MAX; i++){
         if(   a_flags &  (1 << i) ){
             if(is_first)
                 is_first = false;
             else
                 dap_string_append_printf(a_str_out,", ");
-            dap_string_append_printf(a_str_out,"%s", c_dap_chain_datum_token_flag_str[i]);
+            dap_string_append_printf(a_str_out,"%s", c_dap_chain_datum_token_flag_str[BIT(i)]);
         }
         if(i == DAP_CHAIN_DATUM_TOKEN_FLAG_MAX)
             dap_string_append_printf(a_str_out, "\n");
@@ -212,6 +218,12 @@ void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_data_
         l_offset += dap_sign_get_size(l_sign);
         if (l_sign->header.sign_size == 0) {
             dap_string_append_printf(a_str_out, "<CORRUPTED - 0 size signature>\n");
+            continue;
+        }
+
+        if (l_sign->header.sign_size > a_certs_size)
+        {
+            dap_string_append_printf(a_str_out, "<CORRUPTED - signature size is greater than a_certs_size>\n");
             continue;
         }
 
