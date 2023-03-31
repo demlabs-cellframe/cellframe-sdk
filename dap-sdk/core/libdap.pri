@@ -6,25 +6,25 @@ QMAKE_CXXFLAGS +=  -std=c++11
 QMAKE_CFLAGS +=  -std=gnu11
 
 unix {
-    include(src/unix/unix.pri)
-    DEFINES += DAP_OS_UNIX
+    #include(src/unix/unix.pri)
+    DEFINES += DAP_OS_UNIX DAP_OS_LINUX
 }
 android {
     DEFINES += DAP_OS_ANDROID DAP_OS_LINUX DAP_OS_UNIX
 }
 
 unix: !android : ! darwin {
-    QMAKE_CFLAGS_DEBUG += -Wall -Wno-deprecated-declarations -Wno-unused-local-typedefs -Wno-unused-function -Wno-implicit-fallthrough -Wno-unused-variable -Wno-unused-parameter -Wno-unused-but-set-variable -pg -g3 -ggdb -fno-eliminate-unused-debug-symbols -fno-strict-aliasing
-    QMAKE_LFLAGS_DEBUG += -pg
+    #QMAKE_CFLAGS_DEBUG += -Wall -Wno-deprecated-declarations -Wno-unused-local-typedefs -Wno-unused-function -Wno-implicit-fallthrough -Wno-unused-variable -Wno-unused-parameter -Wno-unused-but-set-variable -pg -g3 -ggdb -fno-eliminate-unused-debug-symbols -fno-strict-aliasing
+    #QMAKE_LFLAGS_DEBUG += -pg
     DEFINES += _GNU_SOURCE
     LIBS += -lrt -lmagic
 }
 
-contains(DAP_FEATURES, ssl){
-    include($$PWD/../../3rdparty/wolfssl/wolfssl.pri)
-}else{
+#contains(DAP_FEATURES, ssl){
+#    include($$PWD/../../3rdparty/wolfssl/wolfssl.pri)
+#}else{
     DEFINES += DAP_NET_CLIENT_NO_SSL
-}
+#}
 
 darwin {
     QMAKE_CFLAGS_DEBUG += -Wall -g3 -ggdb -fno-strict-aliasing
@@ -48,41 +48,3 @@ win32 {
     DEFINES += DAP_OS_WINDOWS
     QMAKE_CFLAGS_DEBUG += -Wall -ggdb -g3
 }
-
-# 3rd party
-HEADERS += $$PWD/../../3rdparty/uthash/src/utlist.h \
-           $$PWD/../../3rdparty/uthash/src/uthash.h
-
-#if(DAPSDK_MODULES MATCHES "ssl-support")
-#    include($$PWD/../../3rdparty/wolfssl/wolfssl.pri)
-#endif()
-
-# Sources itself
-HEADERS += $$PWD/include/dap_common.h \
-    $$PWD/include/dap_binary_tree.h \
-    $$PWD/include/dap_config.h \
-    $$PWD/include/dap_math_ops.h \
-    $$PWD/include/dap_file_utils.h \
-    $$PWD/src/circular_buffer.h \
-    $$PWD/include/dap_circular_buffer.h \
-    $$PWD/include/dap_list.h \
-    $$PWD/include/dap_module.h \
-    $$PWD/include/dap_strfuncs.h \
-    $$PWD/include/dap_string.h \
-    $$PWD/include/dap_time.h \
-    $$PWD/include/dap_tsd.h
-
-SOURCES += $$PWD/src/dap_common.c \
-    $$PWD/src/dap_binary_tree.c \
-    $$PWD/src/dap_config.c \
-    $$PWD/src/dap_file_utils.c \
-    $$PWD/src/dap_circular_buffer.c \
-    $$PWD/src/dap_list.c \
-    $$PWD/src/dap_module.c \
-    $$PWD/src/dap_strfuncs.c \
-    $$PWD/src/dap_string.c \
-    $$PWD/src/dap_time.c \
-    $$PWD/src/dap_tsd.c
-
-INCLUDEPATH += $$PWD/include \
-    $$PWD/../../3rdparty/uthash/src/
