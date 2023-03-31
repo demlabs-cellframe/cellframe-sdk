@@ -441,9 +441,9 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_add_sign(dap_enc_key_
     if (!l_new_sign)
         return NULL;
     size_t l_emission_size = dap_chain_datum_emission_get_size((uint8_t *)a_emission);
-    dap_chain_datum_token_emission_t *l_ret = DAP_REALLOC(a_emission, l_emission_size + dap_sign_get_size(l_new_sign));
+    dap_chain_datum_token_emission_t *l_ret = DAP_REALLOC(a_emission, l_emission_size + l_old_signs_size + dap_sign_get_size(l_new_sign));
     size_t l_sign_size = dap_sign_get_size(l_new_sign);
-    memcpy(l_ret->tsd_n_signs + l_ret->data.type_auth.size, l_new_sign, l_sign_size);
+    memcpy(l_ret->tsd_n_signs + (size_t)l_ret->data.type_auth.tsd_total_size, l_new_sign, l_sign_size);
     DAP_DELETE(l_new_sign);
     l_old_signs_size += l_sign_size;
     l_signs_count++;
