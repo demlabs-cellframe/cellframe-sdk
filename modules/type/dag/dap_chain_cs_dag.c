@@ -1604,75 +1604,66 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                 DAP_DELETE(l_event_hash_base58_str);
                 // dap_chain_net_sync_gdb(l_net);
             }break;
-            case SUBCMD_EVENT_DUMP:{
+            case SUBCMD_EVENT_DUMP: {
                 dap_chain_cs_dag_event_round_item_t * l_round_item = NULL;
                 dap_chain_cs_dag_event_t * l_event = NULL;
                 // dap_chain_cs_dag_event_round_info_t l_event_round_info;
                 size_t l_event_size = 0;
-                if ( l_from_events_str ){
-                    if ( strcmp(l_from_events_str,"round.new") == 0 ){
-                        const char * l_gdb_group_events = l_dag->gdb_group_events_round_new;
-                        size_t l_round_item_size = 0;
-                        l_round_item = (dap_chain_cs_dag_event_round_item_t *)dap_global_db_get_sync(l_gdb_group_events,
-                                                        l_event_hash_str, &l_round_item_size, NULL, NULL);
-                        if (l_round_item) {
-                            l_event_size = l_round_item->event_size;
-                            l_event = (dap_chain_cs_dag_event_t *)l_round_item->event_n_signs;
-                        }
-                    }else if ( strncmp(l_from_events_str,"round.",6) == 0){
-
-                    }else if ( strcmp(l_from_events_str,"events_lasts") == 0){
-                        dap_chain_cs_dag_event_item_t * l_event_item = NULL;
-                        pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
-                        HASH_FIND(hh,PVT(l_dag)->events_lasts_unlinked,&l_event_hash,sizeof(l_event_hash),l_event_item);
-                        pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
-                        if ( l_event_item )
-                            l_event = l_event_item->event;
-                        else {
-                            ret = -23;
-                            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                              "Can't find event %s in events_last table\n", l_event_hash_str);
-                            break;
-                        }
-                    }else if ( strcmp(l_from_events_str,"events") == 0){
-                        dap_chain_cs_dag_event_item_t * l_event_item = NULL;
-                        pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
-                        HASH_FIND(hh,PVT(l_dag)->events,&l_event_hash,sizeof(l_event_hash),l_event_item);
-                        pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
-                        if ( l_event_item ) {
-                            l_event = l_event_item->event;
-                            l_event_size = l_event_item->event_size;
-                        } else {
-                            ret = -24;
-                            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                              "Can't find event %s in events table\n", l_event_hash_str);
-                            break;
-                        }
-                    }else if ( strcmp(l_from_events_str,"threshold") == 0){
-                        dap_chain_cs_dag_event_item_t * l_event_item = NULL;
-                        pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
-                        HASH_FIND(hh,PVT(l_dag)->events_treshold,&l_event_hash,sizeof(l_event_hash),l_event_item);
-                        pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
-                        if (l_event_item)
-                            l_event = l_event_item->event;
-                        else {
-                            ret = -23;
-                            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                              "Can't find event %s in threshold table\n", l_event_hash_str);
-                            break;
-                        }
-                    }else {
-                        ret = -22;
+                if (l_from_events_str && strcmp(l_from_events_str,"round.new") == 0) {
+                    const char * l_gdb_group_events = l_dag->gdb_group_events_round_new;
+                    size_t l_round_item_size = 0;
+                    l_round_item = (dap_chain_cs_dag_event_round_item_t *)dap_global_db_get_sync(l_gdb_group_events,
+                                                    l_event_hash_str, &l_round_item_size, NULL, NULL);
+                    if (l_round_item) {
+                        l_event_size = l_round_item->event_size;
+                        l_event = (dap_chain_cs_dag_event_t *)l_round_item->event_n_signs;
+                    }
+                } else if (l_from_events_str && strcmp(l_from_events_str,"events_lasts") == 0) {
+                    dap_chain_cs_dag_event_item_t * l_event_item = NULL;
+                    pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
+                    HASH_FIND(hh,PVT(l_dag)->events_lasts_unlinked,&l_event_hash,sizeof(l_event_hash),l_event_item);
+                    pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
+                    if ( l_event_item )
+                        l_event = l_event_item->event;
+                    else {
+                        ret = -23;
                         dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                          "Wrong events_from option \"%s\", need one of variant: events, round.new, events_lasts, round.0x0123456789ABCDEF, threshold", l_from_events_str);
+                                                          "Can't find event %s in events_last table\n", l_event_hash_str);
                         break;
-
+                    }
+                } else if (!l_from_events_str || strcmp(l_from_events_str,"events") == 0) {
+                    dap_chain_cs_dag_event_item_t * l_event_item = NULL;
+                    pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
+                    HASH_FIND(hh,PVT(l_dag)->events,&l_event_hash,sizeof(l_event_hash),l_event_item);
+                    pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
+                    if ( l_event_item ) {
+                        l_event = l_event_item->event;
+                        l_event_size = l_event_item->event_size;
+                    } else {
+                        ret = -24;
+                        dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                                          "Can't find event %s in events table\n", l_event_hash_str);
+                        break;
+                    }
+                } else if (l_from_events_str && strcmp(l_from_events_str,"threshold") == 0) {
+                    dap_chain_cs_dag_event_item_t * l_event_item = NULL;
+                    pthread_rwlock_rdlock(&PVT(l_dag)->events_rwlock);
+                    HASH_FIND(hh,PVT(l_dag)->events_treshold,&l_event_hash,sizeof(l_event_hash),l_event_item);
+                    pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
+                    if (l_event_item)
+                        l_event = l_event_item->event;
+                    else {
+                        ret = -23;
+                        dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                                          "Can't find event %s in threshold table\n", l_event_hash_str);
+                        break;
                     }
                 } else {
-                    ret = -21;
+                    ret = -22;
                     dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                      "No events_from option");
+                        "Wrong events_from option \"%s\", need one of variant: events, round.new, events_lasts, threshold", l_from_events_str);
                     break;
+
                 }
                 if ( l_event ){
                     dap_string_t * l_str_tmp = dap_string_new(NULL);
@@ -1759,7 +1750,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     ret=-10;
                 }
                 DAP_DELETE(l_round_item);
-            }break;
+            } break;
             case SUBCMD_EVENT_LIST:{
                 if (l_from_events_str && strcmp(l_from_events_str,"round.new") == 0) {
                     char * l_gdb_group_events = DAP_CHAIN_CS_DAG(l_chain)->gdb_group_events_round_new;

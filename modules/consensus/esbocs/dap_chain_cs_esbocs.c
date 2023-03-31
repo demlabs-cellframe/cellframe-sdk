@@ -325,11 +325,10 @@ static void *s_callback_list_copy(const void *a_validator, UNUSED_ARG void *a_da
 
 static void *s_callback_list_form(const void *a_srv_validator, UNUSED_ARG void *a_data)
 {
-    dap_chain_esbocs_validator_t *l_validator = DAP_NEW(dap_chain_esbocs_validator_t);
+    dap_chain_esbocs_validator_t *l_validator = DAP_NEW_Z(dap_chain_esbocs_validator_t);
     l_validator->node_addr = ((dap_chain_net_srv_stake_item_t *)a_srv_validator)->node_addr;
     l_validator->signing_addr = ((dap_chain_net_srv_stake_item_t *)a_srv_validator)->signing_addr;
     l_validator->weight = ((dap_chain_net_srv_stake_item_t *)a_srv_validator)->value;
-    l_validator->is_synced = false;
     return l_validator;
 }
 
