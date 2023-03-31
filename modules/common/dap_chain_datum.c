@@ -686,10 +686,8 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
                         dap_string_append_printf(a_str_out, "  Skip incorrect or illformed DATUM");
                         break;
                     }
-
-
-                    //dap_chain_datum_token_certs_dump(a_str_out, l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size,
-                    //                                l_emission->data.type_auth.size - l_emission->data.type_auth.tsd_total_size, a_hash_out_type);
+                    dap_chain_datum_token_certs_dump(a_str_out, l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size,
+                                                    l_emission->data.type_auth.size - l_emission->data.type_auth.tsd_total_size, a_hash_out_type);
                     break;
                 case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ALGO:
                     dap_string_append_printf(a_str_out, "  codename: %s\n", l_emission->data.type_algo.codename);
