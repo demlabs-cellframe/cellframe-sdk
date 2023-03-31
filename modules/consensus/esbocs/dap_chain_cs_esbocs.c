@@ -481,8 +481,10 @@ static void s_session_round_new(dap_chain_esbocs_session_t *a_session)
     a_session->cur_round.id++;
     a_session->cur_round.sync_attempt++;
 
-    dap_timerfd_delete_mt(a_session->sync_timer->worker, a_session->sync_timer->esocket_uuid);
-    a_session->sync_timer = NULL;
+    if (a_session->sync_timer) {
+        dap_timerfd_delete_mt(a_session->sync_timer->worker, a_session->sync_timer->esocket_uuid);
+        a_session->sync_timer = NULL;
+    }
     a_session->state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START;
     a_session->ts_round_sync_start = 0;
     a_session->ts_attempt_start = 0;
