@@ -160,7 +160,10 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
     l_stake->value = a_value;
     l_stake->tx_hash = *a_stake_tx_hash;
     if (!l_found)
+    {
         HASH_ADD(hh, s_srv_stake->itemlist, signing_addr, sizeof(dap_chain_addr_t), l_stake);
+        HASH_ADD(ht, s_srv_stake->h_itemlist, tx_hash, sizeof(dap_chain_hash_fast_t), l_stake);
+    }
 
 }
 
@@ -1043,57 +1046,48 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, dap_strin
 }
 
 /**
- * @brief The get_tx_cond_all_from_tx struct
+ * @brief The get_tx_cond_pos_del_from_tx struct
  */
-struct get_tx_cond_all_from_tx
+struct get_tx_cond_pos_del_from_tx
 {
     dap_list_t * ret;
-    dap_hash_fast_t * tx_begin_hash;
-    dap_chain_datum_tx_t * tx_last;
-    dap_hash_fast_t tx_last_hash;
-    int tx_last_cond_idx;
-    dap_chain_net_srv_uid_t srv_uid;
+    struct item_hash
+    {
+        dap_chain_tx_out_cond_t *out_cond;
+        dap_hash_fast_t * l_datum_hash;
+    }ih;
+
 };
 /**
- * @brief s_get_tx_cond_all_from_tx_callback
+ * @brief s_get_tx_filter_callback
  * @param a_net
  * @param a_tx
  * @param a_arg
  */
 static void s_get_tx_filter_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, void *a_arg)
 {
-    struct get_tx_cond_all_from_tx * l_args = (struct get_tx_cond_all_from_tx* ) a_arg;
+    struct get_tx_cond_pos_del_from_tx * l_args = (struct get_tx_cond_pos_del_from_tx* ) a_arg;
+    struct get_tx_cond_pos_del_from_tx tmp;
     int l_out_idx_tmp = 0;
-    dap_chain_datum_tx_item_t *l_tx_item = NULL;
     dap_chain_tx_out_cond_t *l_tx_out_cond = NULL;
     dap_hash_fast_t l_datum_hash;
-    dap_chain_ledger_tx_item_t *l_item_out = NULL;
 
-    if (NULL == (l_tx_out_cond = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE,
+    if (NULL != (l_tx_out_cond = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE,
                                                                  &l_out_idx_tmp)))
     {
-
-
         dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_datum_hash);
-
-        s_find_datum_tx_by_hash(a_net->pub.ledger, &l_datum_hash, &l_item_out);
-
-
-
-    }
-    l_args->ret = dap_list_append(l_args->ret,a_tx);
-    /*while((l_tx_item = (dap_chain_datum_tx_item_t *) dap_chain_datum_tx_item_get(a_tx, &l_item_idx, TX_ITEM_TYPE_OUT_COND , NULL)) != NULL){
-        switch (l_tx_item->type) {
-        case value:{
-
-        }break;
-        default:
-            break;
+        if(dap_chain_ledger_tx_hash_is_used_out_item(a_net->pub.ledger,&l_datum_hash,l_out_idx_tmp)==NULL)
+        {
+            dap_chain_net_srv_stake_item_t *l_stake = NULL;
+            HASH_FIND(ht, s_srv_stake->h_itemlist, &l_datum_hash, sizeof(dap_hash_fast_t), l_stake);
+            if(!l_stake){
+                tmp.ih.l_datum_hash = &l_datum_hash;
+                tmp.ih.out_cond = l_tx_out_cond;
+                l_args->ret = dap_list_append(l_args->ret,&tmp.ih);
+            }
         }
-    }*/
-
+    }
     return;
-
 }
 
 static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
@@ -1545,25 +1539,32 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 return -4;
             }
 
-            struct get_tx_cond_all_from_tx * l_args = DAP_NEW_Z(struct get_tx_cond_all_from_tx);
+            struct get_tx_cond_pos_del_from_tx * l_args = DAP_NEW_Z(struct get_tx_cond_pos_del_from_tx);
             dap_string_t * l_str_tmp = dap_string_new(NULL);
             dap_hash_fast_t l_datum_hash;
             char *l_hash_str = NULL;
             //l_args->tx_begin_hash = a_tx_hash;
             //l_args->srv_uid = a_srv_uid;
             dap_chain_net_get_tx_all(l_net,TX_SEARCH_TYPE_NET,s_get_tx_filter_callback, l_args);
-            for(dap_list_t *tx = l_args->ret; tx; tx = tx->next)
-            {
+            dap_chain_net_srv_stake_item_t *l_stake = NULL, *l_tmp;
+           // HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp) {
                 bool set = false;
-                dap_chain_datum_tx_t *l_datum_tx = (dap_chain_datum_tx_t*)tx->data;
-                dap_hash_fast(l_datum_tx, dap_chain_datum_tx_get_size(l_datum_tx), &l_datum_hash);
-                set = s_stake_cache_check_tx(&l_datum_hash);
-                l_hash_str = dap_chain_hash_fast_to_str_new(&l_datum_hash);
-                dap_string_append_printf(l_str_tmp,"\t%s -- %s \n",l_hash_str, set ?"activated":"non-activated");
-                DAP_DELETE(l_hash_str);
+                for(dap_list_t *tx = l_args->ret; tx; tx = tx->next)
+                {
+                    dap_chain_datum_tx_t *l_datum_tx = (dap_chain_datum_tx_t*)tx->data;
+                    dap_hash_fast(l_datum_tx, dap_chain_datum_tx_get_size(l_datum_tx), &l_datum_hash);
+                   // l_stake->tx_hash
 
-            }
+                    l_hash_str = dap_chain_hash_fast_to_str_new(&l_datum_hash);
+                    if(l_stake)
+                        dap_string_append_printf(l_str_tmp,"\t%s -- \n",l_hash_str);
+                    DAP_DELETE(l_hash_str);
+
+                }
+                //s_srv_stake_print(l_stake, l_str_tmp);
+            //}
             //dap_list_t * l_ret = l_args->ret;
+            //dap_list_free_full(l_args->ret, NULL);
             dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
             dap_string_free(l_str_tmp, true);
             DAP_DELETE(l_args);
