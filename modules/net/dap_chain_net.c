@@ -262,9 +262,9 @@ struct json_object *s_net_states_json_collect(dap_chain_net_t * l_net);
 static void s_net_states_notify(dap_chain_net_t * l_net);
 
 //static void s_net_proc_kill( dap_chain_net_t * a_net );
-int s_net_load(const char * a_net_name, uint16_t a_acl_idx);
+int s_net_init(const char * a_net_name, uint16_t a_acl_idx);
 
-int s_chains_load(dap_chain_net_t *a_net);
+int s_net_load(dap_chain_net_t *a_net);
 
 // Notify callback for GlobalDB changes
 static void s_gbd_history_callback_notify(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg);
@@ -340,7 +340,7 @@ int dap_chain_net_init()
             char* l_dot_pos = strchr(l_dir_entry->d_name,'.');
             if ( l_dot_pos )
                 *l_dot_pos = '\0';
-            s_net_load(l_dir_entry->d_name, l_acl_idx++);
+            s_net_init(l_dir_entry->d_name, l_acl_idx++);
         }
         closedir(l_net_dir);
     }else{
@@ -1494,7 +1494,7 @@ void dap_chain_net_load_all()
     }
 
     for(uint16_t i = 0; i < l_net_count; i++){
-        if((l_ret = s_chains_load(l_net_list[i])) != 0){
+        if((l_ret = s_net_load(l_net_list[i])) != 0){
             log_it(L_ERROR, "Loading chains of net %s finished with (%d) error code.", l_net_list[i]->pub.name, l_ret);
         }
     }
@@ -1592,7 +1592,7 @@ static void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
 /**
  * @brief update ledger cache at once
  * if you node build need ledger cache one time reload, uncomment this function
- * iat the end of s_net_load
+ * iat the end of s_net_init
  * @param l_net network object
  * @return true
  * @return false
@@ -2153,7 +2153,7 @@ void s_main_timer_callback(void *a_arg)
  * @param a_acl_idx currently 0
  * @return int
  */
-int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
+int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
 {
     dap_config_t *l_cfg=NULL;
     dap_string_t *l_cfg_path = dap_string_new("network/");
@@ -2532,7 +2532,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
     return 0;
 }
 
-int s_chains_load(dap_chain_net_t *a_net)
+int s_net_load(dap_chain_net_t *a_net)
 {
     dap_chain_net_t *l_net = a_net;
 
