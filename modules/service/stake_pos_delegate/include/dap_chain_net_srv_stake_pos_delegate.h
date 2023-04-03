@@ -54,7 +54,8 @@ typedef struct dap_chain_net_srv_stake_cache_item {
 
 typedef struct dap_chain_net_srv_stake {
     uint256_t delegate_allowed_min;
-    dap_chain_net_srv_stake_item_t *itemlist, *h_itemlist;
+    dap_chain_net_srv_stake_item_t *itemlist;
+    dap_chain_net_srv_stake_item_t *tx_itemlist;
     dap_chain_net_srv_stake_cache_item_t *cache;
 } dap_chain_net_srv_stake_t;
 

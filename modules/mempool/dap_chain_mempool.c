@@ -809,9 +809,6 @@ char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast
     uint256_t l_value_transfer = {};
     dap_chain_addr_t l_addr_fee = {};
     dap_chain_addr_t* l_addr_from = NULL;
-    //dap_chain_tx_out_cond_t *l_tx_out_fee = NULL;
-    //dap_chain_tx_out_t *l_out_fee_net;
-    //dap_chain_tx_in_t *l_in;
     dap_list_t *l_list_used_out;
     const char *l_native_ticker = dap_chain_net_by_id(a_chain->net_id)->pub.native_ticker;
     bool not_native = dap_strcmp(a_ticker, l_native_ticker);
@@ -821,7 +818,15 @@ char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast
 
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
     l_tx->header.ts_created = time(NULL);
-
+    //in_ems
+    dap_chain_tx_in_ems_t *l_in_ems = dap_chain_datum_tx_item_in_ems_create(a_emission_chain_id, a_emission_hash, a_ticker);
+    if (l_in_ems) {
+        dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*)l_in_ems);
+        DAP_DELETE(l_in_ems);
+    } else {
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
     if (not_native)
     {
         l_addr_from = DAP_NEW_Z(dap_chain_addr_t);
@@ -869,9 +874,7 @@ char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast
             dap_chain_datum_tx_delete(l_tx);
             return NULL;
         }
-    }
-    else
-    {//nativ ticker
+    } else { //native ticker
         if (!IS_ZERO_256(a_value_fee))
             SUBTRACT_256_256(l_value_need, a_value_fee, &l_value_need);
         if(l_net_fee_used){
@@ -885,17 +888,6 @@ char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast
             dap_chain_datum_tx_delete(l_tx);
             return NULL;
         }        
-    }
-    //in_ems
-    dap_chain_tx_in_ems_t    *l_tx_token = dap_chain_datum_tx_item_in_ems_create(a_emission_chain_id, a_emission_hash, a_ticker);
-    if(l_tx_token){
-        dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_tx_token);
-        DAP_DEL_Z(l_tx_token);
-    }
-    else
-    {
-        dap_chain_datum_tx_delete(l_tx);
-        return NULL;
     }
     if (!IS_ZERO_256(a_value_fee)){
         if (!dap_chain_datum_tx_add_fee_item(&l_tx, a_value_fee)){

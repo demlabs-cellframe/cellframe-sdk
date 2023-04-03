@@ -154,18 +154,18 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
     HASH_FIND(hh, s_srv_stake->itemlist, a_signing_addr, sizeof(dap_chain_addr_t), l_stake);
     if (!l_stake)
         l_stake = DAP_NEW_Z(dap_chain_net_srv_stake_item_t);
-    else
+    else {
         l_found = true;
+        HASH_DELETE(ht, s_srv_stake->tx_itemlist, l_stake);
+    }
     l_stake->net = a_net;
     l_stake->node_addr = *a_node_addr;
     l_stake->signing_addr = *a_signing_addr;
     l_stake->value = a_value;
     l_stake->tx_hash = *a_stake_tx_hash;
     if (!l_found)
-    {
         HASH_ADD(hh, s_srv_stake->itemlist, signing_addr, sizeof(dap_chain_addr_t), l_stake);
-        HASH_ADD(ht, s_srv_stake->h_itemlist, tx_hash, sizeof(dap_chain_hash_fast_t), l_stake);
-    }
+    HASH_ADD(ht, s_srv_stake->tx_itemlist, tx_hash, sizeof(dap_chain_hash_fast_t), l_stake);
 
 }
 
@@ -178,6 +178,7 @@ void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr)
     HASH_FIND(hh, s_srv_stake->itemlist, a_signing_addr, sizeof(dap_chain_addr_t), l_stake);
     if (l_stake) {
         HASH_DEL(s_srv_stake->itemlist, l_stake);
+        HASH_DELETE(ht, s_srv_stake->tx_itemlist, l_stake);
         DAP_DELETE(l_stake);
     }
 }
@@ -1089,7 +1090,7 @@ static void s_get_tx_filter_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_
         if(dap_chain_ledger_tx_hash_is_used_out_item(a_net->pub.ledger,&l_datum_hash,l_out_idx_tmp)==NULL)
         {
             dap_chain_net_srv_stake_item_t *l_stake = NULL;
-            HASH_FIND(ht, s_srv_stake->h_itemlist, &l_datum_hash, sizeof(dap_hash_fast_t), l_stake);
+            HASH_FIND(ht, s_srv_stake->tx_itemlist, &l_datum_hash, sizeof(dap_hash_fast_t), l_stake);
             if(!l_stake){
                 l_args->ret = dap_list_append(l_args->ret,a_tx);
             }
@@ -1307,15 +1308,14 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             DAP_DELETE(l_decree_hash_str);
         } break;
         case CMD_LIST: {
-            const char * sub_com = NULL;
             l_arg_index++;
-            if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "keys", &sub_com)){
+            if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "keys", NULL)) {
                 const char *l_net_str = NULL,
                            *l_cert_str = NULL;
                 l_arg_index++;
                 dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
                 if (!l_net_str) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'keylist' requires parameter -net");
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'list keys' requires parameter -net");
                     return -3;
                 }
                 dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
@@ -1356,13 +1356,12 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                     dap_string_append(l_reply_str, "No keys found");
                 }
                 *a_str_reply = dap_string_free(l_reply_str, false);
-            }else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "tx", &sub_com))
-            {
+            } else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "tx", NULL)) {
                 const char *l_net_str = NULL;
                 l_arg_index++;
                 dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
                 if (!l_net_str) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'approve' requires parameter -net");
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'list tx' requires parameter -net");
                     return -3;
                 }
                 dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
@@ -1416,8 +1415,10 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
                 dap_string_free(l_str_tmp, true);
                DAP_DELETE(l_args);
+            } else {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Subcommand '%s' not recognized", a_argv[l_arg_index]);
+                return -2;
             }
-
         } break;
         case CMD_INVALIDATE: {
             const char *l_net_str = NULL,
