@@ -139,6 +139,13 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
     dap_chain_node_client_t *l_node_client = DAP_CHAIN_NODE_CLIENT(a_client);
     if(!l_node_client)
         return;
+
+    if (l_node_client->sync_timer) {
+        // Disable timer, it will be restarted with new connection
+        dap_timerfd_delete_unsafe(l_node_client->sync_timer);
+        l_node_client->sync_timer = NULL;
+    }
+
     // check for last attempt
     bool l_is_last_attempt = a_arg ? true : false;
     if (l_is_last_attempt) {
@@ -156,23 +163,12 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         if (l_node_client->keep_connection) {
             if (dap_client_get_stage(l_node_client->client) != STAGE_BEGIN)
                 dap_client_go_stage(l_node_client->client, STAGE_BEGIN, NULL);
-            dap_timerfd_start(45 * 1000, s_timer_node_reconnect, l_node_client);
+            l_node_client->reconnect_timer = dap_timerfd_start(45 * 1000, s_timer_node_reconnect, l_node_client);
         }
     } else if(l_node_client->callbacks.error) // TODO make different error codes
         l_node_client->callbacks.error(l_node_client, EINVAL, l_node_client->callbacks_arg);
 }
 
-/**
- * @brief s_node_client_connected_synchro_start_callback
- *
- * @param a_worker dap_worker_t
- * @param a_arg void
- */
-static void s_node_client_connected_synchro_start_callback(dap_worker_t *a_worker, void *a_arg)
-{
-    UNUSED(a_worker);
-    s_timer_update_states_callback(a_arg);
-}
 
 /**
  * @brief dap_chain_node_client_start_sync
@@ -253,8 +249,11 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
     dap_chain_node_client_t *l_node_client = DAP_CHAIN_NODE_CLIENT(a_client);
     UNUSED(a_arg);
     if(l_node_client) {
-        log_it(L_NOTICE, "Stream connection with node " NODE_ADDR_FP_STR " established",
-                NODE_ADDR_FP_ARGS_S( l_node_client->remote_node_addr));
+        char l_ip_addr_str[INET_ADDRSTRLEN] = {};
+        inet_ntop(AF_INET, &l_node_client->info->hdr.ext_addr_v4, l_ip_addr_str, INET_ADDRSTRLEN);
+        log_it(L_NOTICE, "Stream connection with node "NODE_ADDR_FP_STR" (%s:%hu) established",
+                    NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr),
+                    l_ip_addr_str, l_node_client->info->hdr.ext_port);
         // set callbacks for C and N channels; for R and S it is not needed
         if (a_client->active_channels) {
             size_t l_channels_count = dap_strlen(a_client->active_channels);
@@ -281,7 +280,7 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
             l_node_client->stream_worker = l_stream->stream_worker;
             if (l_node_client->keep_connection) {
                 if(l_node_client->stream_worker){
-                    dap_worker_exec_callback_on(l_stream->esocket->context->worker, s_node_client_connected_synchro_start_callback, l_node_client);
+                    s_timer_update_states_callback(l_node_client);
                     l_node_client->sync_timer = dap_timerfd_start_on_worker(l_stream->esocket->context->worker,
                                                                             s_timer_update_states * 1000,
                                                                             s_timer_update_states_callback,
@@ -453,7 +452,7 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
         pthread_mutex_unlock(&l_node_client->wait_mutex);
         bool l_have_waiting = dap_chain_net_sync_unlock(l_net, l_node_client);
         if (dap_chain_net_get_target_state(l_net) == NET_STATE_ONLINE) {
-            dap_timerfd_reset(l_node_client->sync_timer);
+            dap_timerfd_reset_unsafe(l_node_client->sync_timer);
             dap_chain_net_set_state(l_net, NET_STATE_ONLINE);
         }
         else if (!l_have_waiting)
@@ -500,7 +499,8 @@ static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_ch
             log_it(L_DEBUG, "In: State node %s."NODE_ADDR_FP_STR" %s", l_net->pub.name, NODE_ADDR_FP_ARGS(l_node_addr),
                             a_pkt_type == DAP_STREAM_CH_CHAIN_PKT_TYPE_TIMEOUT ? "is timeout for sync" : "stream closed");
             l_node_client->state = NODE_CLIENT_STATE_ERROR;
-            dap_timerfd_reset(l_node_client->sync_timer);
+            if (l_node_client->sync_timer)
+                dap_timerfd_reset_unsafe(l_node_client->sync_timer);
             bool l_have_waiting = dap_chain_net_sync_unlock(l_net, l_node_client);
             if (!l_have_waiting) {
                 if (dap_chain_net_get_target_state(l_net) == NET_STATE_ONLINE)
@@ -699,7 +699,9 @@ dap_chain_node_client_t *dap_chain_node_client_create(dap_chain_net_t *a_net,
 
  void s_client_delete_callback(UNUSED_ARG dap_client_t *a_client, void *a_arg)
  {
+     // TODO make decision for possible client replacement
      assert(a_arg);
+     ((dap_chain_node_client_t *)a_arg)->client = NULL;
      dap_chain_node_client_close_unsafe(a_arg);
  }
 /**
@@ -761,15 +763,18 @@ void dap_chain_node_client_reset(dap_chain_node_client_t *a_client)
  */
 void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client)
 {
-    if (a_node_client->sync_timer) {
-        a_node_client->sync_timer->callback_arg = NULL;
-        dap_timerfd_delete(a_node_client->sync_timer);
-    }
-    if (a_node_client->callbacks.delete)
-        a_node_client->callbacks.delete(a_node_client, a_node_client->net);
     char l_node_addr_str[INET_ADDRSTRLEN] = {};
     inet_ntop(AF_INET, &a_node_client->info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
-    log_it(L_INFO, "Closing node client to uplink %s:%d", l_node_addr_str, a_node_client->info->hdr.ext_port);
+    log_it(L_INFO, "Closing node client to uplink %s:%d ["NODE_ADDR_FP_STR"]",
+                    l_node_addr_str, a_node_client->info->hdr.ext_port, NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr));
+
+    if (a_node_client->sync_timer)
+        dap_timerfd_delete_unsafe(a_node_client->sync_timer);
+    if (a_node_client->reconnect_timer)
+        dap_timerfd_delete_mt(a_node_client->reconnect_timer->worker, a_node_client->reconnect_timer->esocket_uuid);
+    if (a_node_client->callbacks.delete)
+        a_node_client->callbacks.delete(a_node_client, a_node_client->net);
+
     if (a_node_client->stream_worker) {
         dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(a_node_client->stream_worker, a_node_client->ch_chain_uuid);
         if (l_ch) {
