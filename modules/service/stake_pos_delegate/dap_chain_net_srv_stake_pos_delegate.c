@@ -1051,13 +1051,9 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, dap_strin
 struct get_tx_cond_pos_del_from_tx
 {
     dap_list_t * ret;
-    struct item_hash
-    {
-        dap_chain_tx_out_cond_t *out_cond;
-        dap_hash_fast_t * l_datum_hash;
-    }ih;
 
 };
+
 /**
  * @brief s_get_tx_filter_callback
  * @param a_net
@@ -1067,7 +1063,6 @@ struct get_tx_cond_pos_del_from_tx
 static void s_get_tx_filter_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, void *a_arg)
 {
     struct get_tx_cond_pos_del_from_tx * l_args = (struct get_tx_cond_pos_del_from_tx* ) a_arg;
-    struct get_tx_cond_pos_del_from_tx tmp;
     int l_out_idx_tmp = 0;
     dap_chain_tx_out_cond_t *l_tx_out_cond = NULL;
     dap_hash_fast_t l_datum_hash;
@@ -1081,9 +1076,7 @@ static void s_get_tx_filter_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_
             dap_chain_net_srv_stake_item_t *l_stake = NULL;
             HASH_FIND(ht, s_srv_stake->h_itemlist, &l_datum_hash, sizeof(dap_hash_fast_t), l_stake);
             if(!l_stake){
-                tmp.ih.l_datum_hash = &l_datum_hash;
-                tmp.ih.out_cond = l_tx_out_cond;
-                l_args->ret = dap_list_append(l_args->ret,&tmp.ih);
+                l_args->ret = dap_list_append(l_args->ret,a_tx);
             }
         }
     }
@@ -1542,29 +1535,38 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             struct get_tx_cond_pos_del_from_tx * l_args = DAP_NEW_Z(struct get_tx_cond_pos_del_from_tx);
             dap_string_t * l_str_tmp = dap_string_new(NULL);
             dap_hash_fast_t l_datum_hash;
+            dap_chain_datum_tx_t *l_datum_tx = NULL;
+            dap_chain_tx_out_cond_t *l_tx_out_cond = NULL;
+            int l_out_idx_tmp = 0;
             char *l_hash_str = NULL;
-            //l_args->tx_begin_hash = a_tx_hash;
-            //l_args->srv_uid = a_srv_uid;
+
             dap_chain_net_get_tx_all(l_net,TX_SEARCH_TYPE_NET,s_get_tx_filter_callback, l_args);
-            dap_chain_net_srv_stake_item_t *l_stake = NULL, *l_tmp;
-           // HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp) {
-                bool set = false;
-                for(dap_list_t *tx = l_args->ret; tx; tx = tx->next)
-                {
-                    dap_chain_datum_tx_t *l_datum_tx = (dap_chain_datum_tx_t*)tx->data;
-                    dap_hash_fast(l_datum_tx, dap_chain_datum_tx_get_size(l_datum_tx), &l_datum_hash);
-                   // l_stake->tx_hash
 
-                    l_hash_str = dap_chain_hash_fast_to_str_new(&l_datum_hash);
-                    if(l_stake)
-                        dap_string_append_printf(l_str_tmp,"\t%s -- \n",l_hash_str);
-                    DAP_DELETE(l_hash_str);
+            for(dap_list_t *tx = l_args->ret; tx; tx = tx->next)
+            {
+                l_datum_tx = (dap_chain_datum_tx_t*)tx->data;
+                dap_hash_fast(l_datum_tx, dap_chain_datum_tx_get_size(l_datum_tx), &l_datum_hash);
+                l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_datum_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE,
+                                                                                 &l_out_idx_tmp);
 
-                }
-                //s_srv_stake_print(l_stake, l_str_tmp);
-            //}
-            //dap_list_t * l_ret = l_args->ret;
-            //dap_list_free_full(l_args->ret, NULL);
+                l_hash_str = dap_chain_hash_fast_to_str_new(&l_datum_hash);
+                dap_string_append_printf(l_str_tmp,"tx_hash:\t%s \n",l_hash_str);
+
+                char *l_signing_addr_str = dap_chain_addr_to_str(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr);
+                char *l_balance = dap_chain_balance_print(l_tx_out_cond->header.value);
+                char* l_node_address_text_block = NULL;
+
+                dap_string_append_printf(l_str_tmp,"value:\t%s \n",l_balance);
+                dap_string_append_printf(l_str_tmp,"signing_addr:\t%s \n",l_signing_addr_str);
+                l_node_address_text_block = dap_strdup_printf("node_address " NODE_ADDR_FP_STR,NODE_ADDR_FP_ARGS_S(l_tx_out_cond->subtype.srv_stake_pos_delegate.signer_node_addr));
+                dap_string_append_printf(l_str_tmp,"\t%s \n",l_node_address_text_block);
+
+                DAP_DELETE(l_node_address_text_block);
+                DAP_DELETE(l_signing_addr_str);
+                DAP_DELETE(l_balance);
+                DAP_DELETE(l_hash_str);
+            }
+
             dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
             dap_string_free(l_str_tmp, true);
             DAP_DELETE(l_args);
