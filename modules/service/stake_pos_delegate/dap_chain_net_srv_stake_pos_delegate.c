@@ -1045,7 +1045,11 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, dap_strin
     char *l_tx_hash_str = dap_chain_hash_fast_to_str_new(&a_stake->tx_hash);
     char *l_pkey_hash_str = dap_chain_hash_fast_to_str_new(&a_stake->signing_addr.data.hash_fast);
     char *l_balance = dap_chain_balance_to_coins(a_stake->value);
-    dap_string_append_printf(a_string, "%s\t%s\t%s\n", l_pkey_hash_str, l_balance, l_tx_hash_str);
+    dap_string_append_printf(a_string, "Pkey hash: %s\n"
+                                        "\tStake value: %s\n"
+                                        "\tTx hash: %s\n"
+                                        "\tNode addr: "NODE_ADDR_FP_STR"\n\n",
+                             l_pkey_hash_str, l_balance, l_tx_hash_str, NODE_ADDR_FP_ARGS_S(a_stake->node_addr));
     DAP_DELETE(l_balance);
     DAP_DELETE(l_tx_hash_str);
     DAP_DELETE(l_pkey_hash_str);
@@ -1277,7 +1281,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                     return -21;
                 }
             }
-            dap_string_t *l_reply_str = dap_string_new("Pkey hash\t\t\tStake value\tTx hash\n");
+            dap_string_t *l_reply_str = dap_string_new("");
             if (l_stake)
                 s_srv_stake_print(l_stake, l_reply_str);
             else
