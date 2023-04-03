@@ -105,6 +105,34 @@ DAP_STATIC_INLINE const char *dap_chain_datum_decree_subtype_to_str(uint16_t a_d
     }
 }
 
+DAP_STATIC_INLINE const char *dap_chain_datum_decree_tsd_type_to_str(uint16_t a_decree_tsd_type) {
+    switch (a_decree_tsd_type) {
+        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGN:
+            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGN";
+        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE:
+            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE";
+        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER:
+            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER";
+        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER:
+            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER";
+        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE_WALLET:
+            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE_WALLET";
+        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_TX_HASH:
+            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_TX_HASH";
+        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_VALUE:
+            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_VALUE";
+        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNING_ADDR:
+            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNING_ADDR";
+        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNER_NODE_ADDR:
+            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNER_NODE_ADDR";
+        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_VALUE:
+            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_VALUE";
+        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT:
+            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT";
+        default:
+            return "DECREE_TSD_TYPE_UNKNOWN";
+    }
+}
 
 /**
  * @brief dap_chain_datum_decree_get_signs
@@ -194,6 +222,15 @@ int dap_chain_datum_decree_get_stake_min_value(dap_chain_datum_decree_t *a_decre
  * @return result code. 0 - success
  */
 int dap_chain_datum_decree_get_stake_min_signers_count(dap_chain_datum_decree_t *a_decree, uint256_t *a_min_signers_count);
+
+/**
+ * @breif dap_chain_datum_decree_dump Dump information about decree
+ * @param a_str_out pointer to output text buffer
+ * @param a_decree pointer to decree
+ * @param a_decree_size size data
+ * @param a_hash_out_type
+ */
+void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree_t *a_decree, size_t a_decree_size, const char *a_hash_out_type);
 
 /**
  * @brief dap_chain_datum_decree_certs_dump compose decree signatures output string

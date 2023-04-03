@@ -303,7 +303,7 @@ static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
     pthread_mutex_lock(&l_session->mutex);
     DL_DELETE(s_session_items, l_session);
     if (!s_session_items)
-        dap_timerfd_delete(s_session_cs_timer);
+        dap_timerfd_delete_mt(s_session_cs_timer->worker, s_session_cs_timer->esocket_uuid);
     s_session_round_clear(l_session);
     dap_chain_esbocs_sync_item_t *l_item, *l_tmp;
     HASH_ITER(hh, l_session->sync_items, l_item, l_tmp) {
@@ -325,11 +325,10 @@ static void *s_callback_list_copy(const void *a_validator, UNUSED_ARG void *a_da
 
 static void *s_callback_list_form(const void *a_srv_validator, UNUSED_ARG void *a_data)
 {
-    dap_chain_esbocs_validator_t *l_validator = DAP_NEW(dap_chain_esbocs_validator_t);
+    dap_chain_esbocs_validator_t *l_validator = DAP_NEW_Z(dap_chain_esbocs_validator_t);
     l_validator->node_addr = ((dap_chain_net_srv_stake_item_t *)a_srv_validator)->node_addr;
     l_validator->signing_addr = ((dap_chain_net_srv_stake_item_t *)a_srv_validator)->signing_addr;
     l_validator->weight = ((dap_chain_net_srv_stake_item_t *)a_srv_validator)->value;
-    l_validator->is_synced = false;
     return l_validator;
 }
 
@@ -481,8 +480,10 @@ static void s_session_round_new(dap_chain_esbocs_session_t *a_session)
     a_session->cur_round.id++;
     a_session->cur_round.sync_attempt++;
 
-    dap_timerfd_delete(a_session->sync_timer);
-    a_session->sync_timer = NULL;
+    if (a_session->sync_timer) {
+        dap_timerfd_delete_mt(a_session->sync_timer->worker, a_session->sync_timer->esocket_uuid);
+        a_session->sync_timer = NULL;
+    }
     a_session->state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START;
     a_session->ts_round_sync_start = 0;
     a_session->ts_attempt_start = 0;
@@ -572,7 +573,8 @@ static uint64_t s_session_calc_current_round_id(dap_chain_esbocs_session_t *a_se
     uint16_t l_fill_idx = 0;
     dap_chain_esbocs_message_item_t *l_item, *l_tmp;
     HASH_ITER(hh, a_session->cur_round.message_items, l_item, l_tmp) {
-        if (l_item->message->hdr.type == DAP_STREAM_CH_VOTING_MSG_TYPE_START_SYNC) {
+        if (l_item->message->hdr.type == DAP_STREAM_CH_VOTING_MSG_TYPE_START_SYNC &&
+                a_session->cur_round.sync_attempt == *(uint64_t *)l_item->message->msg_n_sign) {
             uint64_t l_id_candidate = l_item->message->hdr.round_id;
             bool l_candidate_found = false;
             for (uint16_t i = 0; i < l_fill_idx; i++)
@@ -584,7 +586,13 @@ static uint64_t s_session_calc_current_round_id(dap_chain_esbocs_session_t *a_se
             if (!l_candidate_found) {
                 l_id_candidates[l_fill_idx].id = l_id_candidate;
                 l_id_candidates[l_fill_idx].counter = 1;
-                l_fill_idx++;
+                if (++l_fill_idx > a_session->cur_round.validators_synced_count) {
+                    log_it(L_WARNING, "Count of sync messages with same sync attempt is greater"
+                                      " than current synced validators count %hu > %hu",
+                                        l_fill_idx, a_session->cur_round.validators_synced_count);
+                    l_fill_idx--;
+                    break;
+                }
             }
         }
     }
@@ -1084,7 +1092,10 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
     dap_chain_addr_fill_from_sign(&l_signing_addr, l_sign, l_session->chain->net_id);
     if (l_cs_debug)
         l_validator_addr_str = dap_chain_addr_to_str(&l_signing_addr);
-    if (!s_validator_check(&l_signing_addr, l_session->cur_round.validators_list)) {
+    if ((l_message->hdr.type != DAP_STREAM_CH_VOTING_MSG_TYPE_START_SYNC &&         // Accept only current round validators
+                !s_validator_check(&l_signing_addr, l_session->cur_round.validators_list)) ||
+            (l_message->hdr.type == DAP_STREAM_CH_VOTING_MSG_TYPE_START_SYNC &&     // Accept all validators
+                !dap_chain_net_srv_stake_key_delegated(&l_signing_addr))) {
         debug_if(l_cs_debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
                                     " Message rejected: validator addr:%s not in the list.",
                                         l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
@@ -1164,7 +1175,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                     s_get_validators_list(l_session, NULL);
                     l_session->cur_round.sync_attempt++;
                 }
-                // Process this message in new round
+                // Process this message in new round, it will increment current sync attempt
                 s_session_sync_queue_add(l_session, l_message, a_data_size);
                 l_session->round_fast_forward = true;
                 s_session_round_new(l_session);

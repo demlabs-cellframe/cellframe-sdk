@@ -182,7 +182,6 @@ void dap_stream_ch_chain_deinit()
  */
 void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
 {
-
     UNUSED(a_arg);
     a_ch->internal = DAP_NEW_Z(dap_stream_ch_chain_t);
     dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
@@ -192,33 +191,7 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
 #ifdef  DAP_SYS_DEBUG
     atomic_fetch_add(&s_memstat[MEMSTAT$K_STM_CH_CHAIN].alloc_nr, 1);
 #endif
-
     debug_if(s_debug_more, L_DEBUG, "[stm_ch_chain:%p] --- created chain:%p", a_ch, l_ch_chain);
-
-
-}
-
-/**
- * @brief s_stream_ch_delete_in_proc
- * @param a_thread
- * @param a_arg
- * @return
- */
-static void s_stream_ch_delete_in_proc(dap_worker_t *a_worker, void *a_arg)
-{
-    UNUSED(a_worker);
-    assert(a_arg);
-    dap_stream_ch_chain_t *l_ch_chain = (dap_stream_ch_chain_t *)a_arg;
-    if (l_ch_chain->callback_notify_packet_out)
-        l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_DELETE, NULL, 0,
-                                               l_ch_chain->callback_notify_arg);
-    s_ch_chain_go_idle(l_ch_chain);
-    DAP_DELETE(l_ch_chain);
-
-#ifdef  DAP_SYS_DEBUG
-        atomic_fetch_add(&s_memstat[MEMSTAT$K_STM_CH_CHAIN].free_nr, 1);
-#endif
-
 }
 
 /**
@@ -226,12 +199,20 @@ static void s_stream_ch_delete_in_proc(dap_worker_t *a_worker, void *a_arg)
  * @param ch
  * @param arg
  */
-static void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg)
+static void s_stream_ch_delete(dap_stream_ch_t *a_ch, void *a_arg)
 {
     UNUSED(a_arg);
-    void *l_arg = a_ch->internal;
-    a_ch->internal = NULL; // To prevent its cleaning in worker
-    dap_worker_exec_callback_on(a_ch->stream_worker->worker, s_stream_ch_delete_in_proc, l_arg);
+    dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
+    if (l_ch_chain->callback_notify_packet_out)
+        l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_DELETE, NULL, 0,
+                                               l_ch_chain->callback_notify_arg);
+    s_ch_chain_go_idle(l_ch_chain);
+    debug_if(s_debug_more, L_DEBUG, "[stm_ch_chain:%p] --- deleted chain:%p", a_ch, l_ch_chain);
+    DAP_DEL_Z(a_ch->internal);
+
+#ifdef  DAP_SYS_DEBUG
+    atomic_fetch_add(&s_memstat[MEMSTAT$K_STM_CH_CHAIN].free_nr, 1);
+#endif
 }
 
 void dap_stream_ch_chain_reset_unsafe(dap_stream_ch_chain_t *a_ch_chain)
@@ -967,8 +948,11 @@ static bool s_chain_timer_callback(void *a_arg)
         l_ch_chain->activity_timer = NULL;
         return false;
     }
-    if (l_ch_chain->state != CHAIN_STATE_WAITING && l_ch_chain->sent_breaks)
-        s_stream_ch_packet_out(l_ch, NULL);
+    if (l_ch_chain->state != CHAIN_STATE_WAITING && l_ch_chain->sent_breaks) {
+        s_stream_ch_packet_out(l_ch, a_arg);
+        if (l_ch_chain->activity_timer == NULL)
+            return false;
+    }
     // Sending dumb packet with nothing to inform remote thats we're just skiping atoms of GDB's, nothing freezed
     if (l_ch_chain->state == CHAIN_STATE_SYNC_CHAINS && l_ch_chain->sent_breaks >= 3 * DAP_SYNC_TICKS_PER_SECOND) {
         debug_if(s_debug_more, L_INFO, "Send one chain TSD packet");
@@ -1505,6 +1489,11 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                        l_hash_to_str[0] ? l_hash_to_str: "(null)");
 
             }
+            s_ch_chain_get_idle(l_ch_chain);
+            if (l_ch_chain->activity_timer) {
+                dap_timerfd_delete_unsafe(l_ch_chain->activity_timer);
+                l_ch_chain->activity_timer = NULL;
+            }
             if (!l_ch_chain->callback_notify_packet_in) { // we haven't node client waitng, so reply to other side
                 dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
                 if (!l_chain) {
@@ -1716,10 +1705,8 @@ static void s_stream_ch_chain_pkt_write(dap_stream_ch_t *a_ch, uint8_t a_type, u
  * @param ch
  * @param arg
  */
-void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
+void s_stream_ch_packet_out(dap_stream_ch_t *a_ch, void *a_arg)
 {
-    UNUSED(a_arg);
-
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
     bool l_go_idle = false, l_was_sent_smth = false;
     switch (l_ch_chain->state) {
@@ -1926,11 +1913,17 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
         } break;
         default: break;
     }
-    if (l_go_idle)
-        s_ch_chain_go_idle(l_ch_chain);
     if (l_was_sent_smth) {
         s_chain_timer_reset(l_ch_chain);
         l_ch_chain->sent_breaks = 0;
     } else
         l_ch_chain->sent_breaks++;
+    if (l_go_idle) {
+        s_ch_chain_go_idle(l_ch_chain);
+        if (l_ch_chain->activity_timer) {
+            if (!a_arg)
+                dap_timerfd_delete_unsafe(l_ch_chain->activity_timer);
+            l_ch_chain->activity_timer = NULL;
+        }
+    }
 }
