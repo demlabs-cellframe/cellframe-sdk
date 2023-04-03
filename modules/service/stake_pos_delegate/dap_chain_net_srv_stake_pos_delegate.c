@@ -213,6 +213,31 @@ dap_list_t *dap_chain_net_srv_stake_get_validators()
     return l_ret;
 }
 
+int dap_chain_net_srv_stake_verify_key(dap_chain_addr_t *a_signing_addr, dap_chain_node_addr *a_node_addr)
+{
+    assert(s_srv_stake);
+    int ret_val = 0;
+
+    if (!a_signing_addr || !a_node_addr){
+        log_it(L_WARNING, "Bad arguments.");
+        return -100;
+    }
+
+    dap_chain_net_srv_stake_item_t *l_stake = NULL, *l_tmp = NULL;
+    HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp){
+        //check key not activated for other node
+        if(){
+
+        }
+        //chek node not have other delegated key
+        if(){
+
+        }
+    }
+
+    return ret_val;
+}
+
 static bool s_stake_cache_check_tx(dap_hash_fast_t *a_tx_hash)
 {
     dap_chain_net_srv_stake_cache_item_t *l_stake;
