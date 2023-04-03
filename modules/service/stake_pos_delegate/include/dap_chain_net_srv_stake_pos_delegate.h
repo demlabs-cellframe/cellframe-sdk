@@ -76,3 +76,5 @@ void dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net, dap_stri
 int dap_chain_net_srv_stake_load_cache(dap_chain_net_t *a_net);
 void dap_chain_net_srv_stake_cache_purge(dap_chain_net_t *a_net);
 
+dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t *a_net,
+                                                                 dap_hash_fast_t *a_stake_tx_hash, dap_cert_t *a_cert);
