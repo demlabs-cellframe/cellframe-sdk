@@ -1095,7 +1095,7 @@ static void s_get_tx_filter_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_
 static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
 {
     enum {
-        CMD_NONE, CMD_ORDER, CMD_DELEGATE, CMD_APPROVE, CMD_KEY_LIST, CMD_INVALIDATE, CMD_MIN_VALUE, CMD_test
+        CMD_NONE, CMD_ORDER, CMD_DELEGATE, CMD_APPROVE, CMD_LIST, CMD_INVALIDATE, CMD_MIN_VALUE
     };
     int l_arg_index = 1;
 
@@ -1120,8 +1120,8 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
         l_cmd_num = CMD_APPROVE;
     }
     // Show the tx list with frozen staker funds
-    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "keylist", NULL)) {
-        l_cmd_num = CMD_KEY_LIST;
+    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "list", NULL)) {
+        l_cmd_num = CMD_LIST;
     }
     // Return staker's funds
     else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "invalidate", NULL)) {
@@ -1132,7 +1132,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
         l_cmd_num = CMD_MIN_VALUE;
     }
     else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "test_com", NULL)) {
-        l_cmd_num = CMD_test;
+        //l_cmd_num = CMD_test;
     }
 
     switch (l_cmd_num) {
@@ -1288,53 +1288,111 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                                               l_decree_hash_str);
             DAP_DELETE(l_decree_hash_str);
         } break;
-        case CMD_KEY_LIST: {
-            const char *l_net_str = NULL,
-                       *l_cert_str = NULL;
+        case CMD_LIST: {
+            const char * sub_com = NULL;
             l_arg_index++;
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
-            if (!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'keylist' requires parameter -net");
-                return -3;
-            }
-            dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
-            if (!l_net) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
-                return -4;
-            }
-            dap_chain_net_srv_stake_item_t *l_stake = NULL, *l_tmp;
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str);
-            if (l_cert_str) {
-                dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_str);
-                if (!l_cert) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified certificate not found");
-                    return -18;
+            if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "keys", &sub_com)){
+                const char *l_net_str = NULL,
+                           *l_cert_str = NULL;
+                l_arg_index++;
+                dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
+                if (!l_net_str) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'keylist' requires parameter -net");
+                    return -3;
                 }
-                dap_chain_addr_t l_signing_addr;
-                if (dap_chain_addr_fill_from_key(&l_signing_addr, l_cert->enc_key, l_net->pub.id)) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified certificate is wrong");
-                    return -20;
+                dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
+                if (!l_net) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
+                    return -4;
                 }
-                HASH_FIND(hh, s_srv_stake->itemlist, &l_signing_addr, sizeof(dap_chain_addr_t), l_stake);
-                if (!l_stake) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified certificate isn't delegated or it's delegating isn't approved");
-                    return -21;
-                }
-            }
-            dap_string_t *l_reply_str = dap_string_new("Pkey hash\t\t\tStake value\tTx hash\n");
-            if (l_stake)
-                s_srv_stake_print(l_stake, l_reply_str);
-            else
-                HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp) {
-                    if (l_stake->net->pub.id.uint64 != l_net->pub.id.uint64) {
-                        continue;
+                dap_chain_net_srv_stake_item_t *l_stake = NULL, *l_tmp;
+                dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str);
+                if (l_cert_str) {
+                    dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_str);
+                    if (!l_cert) {
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified certificate not found");
+                        return -18;
                     }
-                    s_srv_stake_print(l_stake, l_reply_str);
+                    dap_chain_addr_t l_signing_addr;
+                    if (dap_chain_addr_fill_from_key(&l_signing_addr, l_cert->enc_key, l_net->pub.id)) {
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified certificate is wrong");
+                        return -20;
+                    }
+                    HASH_FIND(hh, s_srv_stake->itemlist, &l_signing_addr, sizeof(dap_chain_addr_t), l_stake);
+                    if (!l_stake) {
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified certificate isn't delegated or it's delegating isn't approved");
+                        return -21;
+                    }
                 }
-            if (!HASH_CNT(hh, s_srv_stake->itemlist)) {
-                dap_string_append(l_reply_str, "No keys found");
+                dap_string_t *l_reply_str = dap_string_new("Pkey hash\t\t\tStake value\tTx hash\n");
+                if (l_stake)
+                    s_srv_stake_print(l_stake, l_reply_str);
+                else
+                    HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp) {
+                        if (l_stake->net->pub.id.uint64 != l_net->pub.id.uint64) {
+                            continue;
+                        }
+                        s_srv_stake_print(l_stake, l_reply_str);
+                    }
+                if (!HASH_CNT(hh, s_srv_stake->itemlist)) {
+                    dap_string_append(l_reply_str, "No keys found");
+                }
+                *a_str_reply = dap_string_free(l_reply_str, false);
+            }else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "tx", &sub_com))
+            {
+                const char *l_net_str = NULL;
+                l_arg_index++;
+                dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
+                if (!l_net_str) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'approve' requires parameter -net");
+                    return -3;
+                }
+                dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
+                if (!l_net) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
+                    return -4;
+                }
+                struct get_tx_cond_pos_del_from_tx * l_args = DAP_NEW_Z(struct get_tx_cond_pos_del_from_tx);
+                dap_string_t * l_str_tmp = dap_string_new(NULL);
+                dap_hash_fast_t l_datum_hash;
+                dap_chain_datum_tx_t *l_datum_tx = NULL;
+                dap_chain_tx_out_cond_t *l_tx_out_cond = NULL;
+                int l_out_idx_tmp = 0;
+                char *l_hash_str = NULL;
+                char *spaces = {"--------------------------------------------------------------------------------------------------------------------"};
+                char *l_signing_addr_str = NULL;
+                char *l_balance = NULL;
+                char* l_node_address_text_block = NULL;
+                dap_chain_net_get_tx_all(l_net,TX_SEARCH_TYPE_NET,s_get_tx_filter_callback, l_args);
+                for(dap_list_t *tx = l_args->ret; tx; tx = tx->next)
+                {
+                    l_datum_tx = (dap_chain_datum_tx_t*)tx->data;
+                    dap_hash_fast(l_datum_tx, dap_chain_datum_tx_get_size(l_datum_tx), &l_datum_hash);
+                    l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_datum_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE,
+                                                                                     &l_out_idx_tmp);
+                    l_hash_str = dap_chain_hash_fast_to_str_new(&l_datum_hash);
+                    dap_string_append_printf(l_str_tmp,"%s \n",spaces);
+                    dap_string_append_printf(l_str_tmp,"tx_hash:\t%s \n",l_hash_str);
+
+                    l_signing_addr_str = dap_chain_addr_to_str(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr);
+                    l_balance = dap_chain_balance_print(l_tx_out_cond->header.value);
+
+                    dap_string_append_printf(l_str_tmp,"signing_addr:\t%s \n",l_signing_addr_str);
+                    l_node_address_text_block = dap_strdup_printf("node_address:\t" NODE_ADDR_FP_STR,NODE_ADDR_FP_ARGS_S(l_tx_out_cond->subtype.srv_stake_pos_delegate.signer_node_addr));
+                    dap_string_append_printf(l_str_tmp,"%s \n",l_node_address_text_block);
+                    dap_string_append_printf(l_str_tmp,"value:\t\t%s \n",l_balance);
+
+                    DAP_DELETE(l_node_address_text_block);
+                    DAP_DELETE(l_signing_addr_str);
+                    DAP_DELETE(l_balance);
+                    DAP_DELETE(l_hash_str);
+                }
+
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
+                dap_string_free(l_str_tmp, true);
+               DAP_DELETE(l_args);
             }
-            *a_str_reply = dap_string_free(l_reply_str, false);
+
         } break;
         case CMD_INVALIDATE: {
             const char *l_net_str = NULL,
@@ -1534,62 +1592,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 DAP_DELETE(l_decree);
                 return -21;
             }
-        } break;
-        case CMD_test:
-        {
-            const char *l_net_str = NULL;
-            l_arg_index++;
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
-            if (!l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'approve' requires parameter -net");
-                return -3;
-            }
-            dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
-            if (!l_net) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
-                return -4;
-            }
-
-            struct get_tx_cond_pos_del_from_tx * l_args = DAP_NEW_Z(struct get_tx_cond_pos_del_from_tx);
-            dap_string_t * l_str_tmp = dap_string_new(NULL);
-            dap_hash_fast_t l_datum_hash;
-            dap_chain_datum_tx_t *l_datum_tx = NULL;
-            dap_chain_tx_out_cond_t *l_tx_out_cond = NULL;
-            int l_out_idx_tmp = 0;
-            char *l_hash_str = NULL;
-
-            dap_chain_net_get_tx_all(l_net,TX_SEARCH_TYPE_NET,s_get_tx_filter_callback, l_args);
-
-            for(dap_list_t *tx = l_args->ret; tx; tx = tx->next)
-            {
-                l_datum_tx = (dap_chain_datum_tx_t*)tx->data;
-                dap_hash_fast(l_datum_tx, dap_chain_datum_tx_get_size(l_datum_tx), &l_datum_hash);
-                l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_datum_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE,
-                                                                                 &l_out_idx_tmp);
-
-                l_hash_str = dap_chain_hash_fast_to_str_new(&l_datum_hash);
-                dap_string_append_printf(l_str_tmp,"tx_hash:\t%s \n",l_hash_str);
-
-                char *l_signing_addr_str = dap_chain_addr_to_str(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr);
-                char *l_balance = dap_chain_balance_print(l_tx_out_cond->header.value);
-                char* l_node_address_text_block = NULL;
-
-                dap_string_append_printf(l_str_tmp,"value:\t%s \n",l_balance);
-                dap_string_append_printf(l_str_tmp,"signing_addr:\t%s \n",l_signing_addr_str);
-                l_node_address_text_block = dap_strdup_printf("node_address " NODE_ADDR_FP_STR,NODE_ADDR_FP_ARGS_S(l_tx_out_cond->subtype.srv_stake_pos_delegate.signer_node_addr));
-                dap_string_append_printf(l_str_tmp,"\t%s \n",l_node_address_text_block);
-
-                DAP_DELETE(l_node_address_text_block);
-                DAP_DELETE(l_signing_addr_str);
-                DAP_DELETE(l_balance);
-                DAP_DELETE(l_hash_str);
-            }
-
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
-            dap_string_free(l_str_tmp, true);
-            DAP_DELETE(l_args);
-            //------------------------------------------------------------------
-        } break;
+        } break;        
         default: {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Command %s not recognized", a_argv[l_arg_index]);
             return -1;
