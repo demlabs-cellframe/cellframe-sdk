@@ -1719,7 +1719,7 @@ static int s_cli_esbocs(int a_argc, char ** a_argv, char **a_str_reply)
 
     dap_chain_datum_decree_t *l_decree = s_esbocs_decree_set_min_validators_count(l_chain_net, l_value, l_poa_cert);
     if (l_decree && s_esbocs_decree_put(l_decree, l_chain_net)) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Minimum validators count is setted");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Minimum validators count is set");
         DAP_DELETE(l_decree);
     } else {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Minimum validators count setting failed");
