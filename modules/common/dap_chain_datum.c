@@ -438,7 +438,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                         l_hash_str = dap_enc_base58_encode_hash_to_str(l_hash_tmp);
                     dap_string_append_printf(a_str_out, "\t\t\t unit: 0x%08x\n"
                                                         "\t\t\t pkey: %s\n"
-                                                        "\t\t\t max price: %s (%s) \n",
+                                                        "\t\t\t max price: %s (%s)\n",
                                              ((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit.uint32,
                                              l_hash_str,
                                              l_coins_str,
@@ -449,12 +449,21 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                 } break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE: {
                     dap_chain_node_addr_t *l_signer_node_addr = &((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_pos_delegate.signer_node_addr;
-                    char *l_addr_str = dap_chain_addr_to_str(&((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_pos_delegate.signing_addr);
+                    dap_chain_addr_t *l_signing_addr = &((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_pos_delegate.signing_addr;
+                    char *l_addr_str = dap_chain_addr_to_str(l_signing_addr);
+                    l_hash_tmp = &l_signing_addr->data.hash_fast;
+                    if (!dap_strcmp(a_hash_out_type, "hex"))
+                        l_hash_str = dap_chain_hash_fast_to_str_new(l_hash_tmp);
+                    else
+                        l_hash_str = dap_enc_base58_encode_hash_to_str(l_hash_tmp);
                     dap_string_append_printf(a_str_out, "\t\t\t signing_addr: %s\n"
-                                                        "\t\t\t : signer_node_addr: "NODE_ADDR_FP_STR,
+                                                        "\t\t\t with pkey hash %s\n"
+                                                        "\t\t\t signer_node_addr: "NODE_ADDR_FP_STR"\n",
                                                         l_addr_str,
+                                                        l_hash_str,
                                                         NODE_ADDR_FP_ARGS(l_signer_node_addr));
                     DAP_DELETE(l_addr_str);
+                    DAP_DELETE(l_hash_str);
                 } break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE: {
                     char *l_value_str = dap_chain_balance_print(((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_value);
@@ -677,10 +686,8 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
                         dap_string_append_printf(a_str_out, "  Skip incorrect or illformed DATUM");
                         break;
                     }
-
-
-                    //dap_chain_datum_token_certs_dump(a_str_out, l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size,
-                    //                                l_emission->data.type_auth.size - l_emission->data.type_auth.tsd_total_size, a_hash_out_type);
+                    dap_chain_datum_token_certs_dump(a_str_out, l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size,
+                                                    l_emission->data.type_auth.size - l_emission->data.type_auth.tsd_total_size, a_hash_out_type);
                     break;
                 case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ALGO:
                     dap_string_append_printf(a_str_out, "  codename: %s\n", l_emission->data.type_algo.codename);

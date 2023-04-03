@@ -309,7 +309,7 @@ static dap_chain_datum_tx_t *s_stake_tx_create(dap_chain_net_t * a_net, dap_chai
         log_it(L_ERROR, "Can't compose the transaction input");
         goto tx_fail;
     }
-    // add 'in' items to delegate
+    // add 'in' items to pay fee
     uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
     dap_list_free_full(l_list_fee_out, NULL);
     if (!EQUAL_256(l_value_fee_items, l_fee_transfer)) {
@@ -580,6 +580,15 @@ static dap_chain_datum_tx_t *s_stake_tx_invalidate(dap_chain_net_t *a_net, dap_h
 
     // add 'in' item to buy from conditional transaction
     dap_chain_datum_tx_add_in_cond_item(&l_tx, a_tx_hash, l_prev_cond_idx, 0);
+
+    // add 'in' items to pay fee
+    uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
+    dap_list_free_full(l_list_fee_out, NULL);
+    if (!EQUAL_256(l_value_fee_items, l_fee_transfer)) {
+        log_it(L_ERROR, "Can't compose the transaction input");
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
 
     // add 'out_ext' item
     if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_owner_addr, l_tx_out_cond->header.value, l_delegated_ticker) == -1) {
@@ -1034,12 +1043,12 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
 static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, dap_string_t *a_string)
 {
     char *l_tx_hash_str = dap_chain_hash_fast_to_str_new(&a_stake->tx_hash);
-    char *l_signing_addr_str = dap_chain_addr_to_str(&a_stake->signing_addr);
-    char *l_balance = dap_chain_balance_print(a_stake->value);
-    dap_string_append_printf(a_string, "%s %s %s\n", l_tx_hash_str, l_balance, l_signing_addr_str);
+    char *l_pkey_hash_str = dap_chain_hash_fast_to_str_new(&a_stake->signing_addr.data.hash_fast);
+    char *l_balance = dap_chain_balance_to_coins(a_stake->value);
+    dap_string_append_printf(a_string, "%s\t%s\t%s\n", l_pkey_hash_str, l_balance, l_tx_hash_str);
     DAP_DELETE(l_balance);
     DAP_DELETE(l_tx_hash_str);
-    DAP_DELETE(l_signing_addr_str);
+    DAP_DELETE(l_pkey_hash_str);
 }
 
 static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
@@ -1268,7 +1277,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                     return -21;
                 }
             }
-            dap_string_t *l_reply_str = dap_string_new("");
+            dap_string_t *l_reply_str = dap_string_new("Pkey hash\t\t\tStake value\tTx hash\n");
             if (l_stake)
                 s_srv_stake_print(l_stake, l_reply_str);
             else
@@ -1278,8 +1287,8 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                     }
                     s_srv_stake_print(l_stake, l_reply_str);
                 }
-            if (!l_reply_str->len) {
-                dap_string_append(l_reply_str, "No transaction found");
+            if (!HASH_CNT(hh, s_srv_stake->itemlist)) {
+                dap_string_append(l_reply_str, "No keys found");
             }
             *a_str_reply = dap_string_free(l_reply_str, false);
         } break;
