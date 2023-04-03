@@ -170,7 +170,7 @@ int dap_chain_cs_blocks_init()
                 "\t\tDump block info\n\n"
 
             "block -net <net_name> -chain <chain_name> list [-from_hash <block_hash>] [-to_hash <block_hash>]"
-            "[-from_dt <datetime>] [-to_dt <datetime>]\n"
+            "[-from_dt <datetime>] [-to_dt <datetime>] [-cert <priv_cert_name> -unspent]\n"
                 "\t\t List blocks\n\n"
         "Commission collect:\n"
             "block -net <net_name> -chain <chain_name> fee collect\n"
