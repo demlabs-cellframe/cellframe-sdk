@@ -1483,7 +1483,21 @@ void dap_chain_net_delete( dap_chain_net_t * a_net )
  */
 void dap_chain_net_load_all()
 {
+    dap_chain_net_t **l_net_list = NULL;
+    uint16_t l_net_count = 0;
+    int32_t l_ret = 0;
 
+    l_net_list = dap_chain_net_list(&l_net_count);
+    if(!l_net_list|| !l_net_count){
+        log_it(L_ERROR, "Can't find any nets");
+        return;
+    }
+
+    for(uint16_t i = 0; i < l_net_count; i++){
+        if((l_ret = s_chains_load(l_net_list[i])) != 0){
+            log_it(L_ERROR, "Loading chains of net %s finished with (%d) error code.", l_net_list[i]->pub.name, l_ret);
+        }
+    }
 }
 
 dap_string_t* dap_cli_list_net()
@@ -2510,74 +2524,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
         }
 
 
-        // Do specific role actions post-chain created
-        l_net_pvt->state_target = NET_STATE_OFFLINE;
-        dap_chain_net_state_t l_target_state = NET_STATE_OFFLINE;
-        l_net_pvt->only_static_links = false;
-        switch ( l_net_pvt->node_role.enums ) {
-            case NODE_ROLE_ROOT_MASTER:{
-                // Set to process everything in datum pool
-                dap_chain_t * l_chain = NULL;
-                DL_FOREACH(l_net->pub.chains, l_chain ) l_chain->is_datum_pool_proc = true;
-                log_it(L_INFO,"Root master node role established");
-            } // Master root includes root
-            case NODE_ROLE_ROOT:{
-                // Set to process only zerochain
-                dap_chain_id_t l_chain_id = {{0}};
-                dap_chain_t * l_chain = dap_chain_find_by_id(l_net->pub.id,l_chain_id);
-                if (l_chain )
-                   l_chain->is_datum_pool_proc = true;
-                l_net_pvt->only_static_links = true;
-                l_target_state = NET_STATE_ONLINE;
-                log_it(L_INFO,"Root node role established");
-            } break;
-            case NODE_ROLE_CELL_MASTER:
-            case NODE_ROLE_MASTER:{
 
-                uint16_t l_proc_chains_count=0;
-                char ** l_proc_chains = dap_config_get_array_str(l_cfg,"role-master" , "proc_chains", &l_proc_chains_count );
-                for ( size_t i = 0; i< l_proc_chains_count ; i++){
-                    dap_chain_id_t l_chain_id = {{0}};
-                    if (sscanf( l_proc_chains[i], "0x%16"DAP_UINT64_FORMAT_X,  &l_chain_id.uint64) ==1 ||
-                             sscanf(l_proc_chains[i], "0x%16"DAP_UINT64_FORMAT_x, &l_chain_id.uint64) == 1) {
-                        dap_chain_t * l_chain = dap_chain_find_by_id(l_net->pub.id, l_chain_id );
-                        if ( l_chain ){
-                            l_chain->is_datum_pool_proc = true;
-                        }else{
-                            log_it( L_WARNING, "Can't find chain id " );
-                        }
-                    }
-                }
-                l_net_pvt->only_static_links = true;
-                l_target_state = NET_STATE_ONLINE;
-                log_it(L_INFO,"Master node role established");
-            } break;
-            case NODE_ROLE_FULL:{
-                log_it(L_INFO,"Full node role established");
-                l_target_state = NET_STATE_ONLINE;
-            } break;
-            case NODE_ROLE_LIGHT:
-            default:
-                log_it(L_INFO,"Light node role established");
-
-        }
-        if (!l_net_pvt->only_static_links)
-            l_net_pvt->only_static_links = dap_config_get_item_bool_default(l_cfg, "general", "links_static_only", false);
-        if (s_seed_mode || !dap_config_get_item_bool_default(g_config ,"general", "auto_online",false ) ) { // If we seed we do everything manual. First think - prefil list of node_addrs and its aliases
-            l_target_state = NET_STATE_OFFLINE;
-        }
-        l_net_pvt->load_mode = false;
-        dap_chain_ledger_load_end(l_net->pub.ledger);
-
-        l_net_pvt->balancer_http = !dap_config_get_item_bool_default(l_cfg, "general", "use_dns_links", false);
-
-        dap_chain_net_add_gdb_notify_callback(l_net, dap_chain_net_sync_gdb_broadcast, l_net);
-        if (l_target_state != l_net_pvt->state_target)
-            dap_chain_net_state_go_to(l_net, l_target_state);
-
-        uint32_t l_timeout = dap_config_get_item_uint32_default(g_config, "node_client", "timer_update_states", 600);
-        PVT(l_net)->main_timer = dap_interval_timer_create(l_timeout * 1000, s_main_timer_callback, l_net);
-        log_it(L_INFO, "Chain network \"%s\" initialized",l_net_item->name);
 
         DAP_DELETE(l_node_addr_str);
         dap_config_close(l_cfg);
@@ -2588,6 +2535,17 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
 int s_chains_load(dap_chain_net_t *a_net)
 {
     dap_chain_net_t *l_net = a_net;
+
+    dap_config_t *l_cfg=NULL;
+    dap_string_t *l_cfg_path = dap_string_new("network/");
+    dap_string_append(l_cfg_path,a_net->pub.name);
+
+    if( ( l_cfg = dap_config_open ( l_cfg_path->str ) ) == NULL ) {
+        log_it(L_ERROR,"Can't open default network config");
+        dap_string_free(l_cfg_path,true);
+        return -1;
+    }
+
     dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
     char * l_chains_path = dap_strdup_printf("%s/network/%s", dap_config_path(), l_net->pub.name);
     DIR * l_chains_dir = opendir(l_chains_path);
@@ -2711,6 +2669,79 @@ int s_chains_load(dap_chain_net_t *a_net)
         l_net_pvt->load_mode = false;
         return -2;
     }
+
+    // Do specific role actions post-chain created
+    l_net_pvt->state_target = NET_STATE_OFFLINE;
+    dap_chain_net_state_t l_target_state = NET_STATE_OFFLINE;
+    l_net_pvt->only_static_links = false;
+    switch ( l_net_pvt->node_role.enums ) {
+        case NODE_ROLE_ROOT_MASTER:{
+            // Set to process everything in datum pool
+            dap_chain_t * l_chain = NULL;
+            DL_FOREACH(l_net->pub.chains, l_chain ) l_chain->is_datum_pool_proc = true;
+            log_it(L_INFO,"Root master node role established");
+        } // Master root includes root
+        case NODE_ROLE_ROOT:{
+            // Set to process only zerochain
+            dap_chain_id_t l_chain_id = {{0}};
+            dap_chain_t * l_chain = dap_chain_find_by_id(l_net->pub.id,l_chain_id);
+            if (l_chain )
+               l_chain->is_datum_pool_proc = true;
+            l_net_pvt->only_static_links = true;
+            l_target_state = NET_STATE_ONLINE;
+            log_it(L_INFO,"Root node role established");
+        } break;
+        case NODE_ROLE_CELL_MASTER:
+        case NODE_ROLE_MASTER:{
+
+            uint16_t l_proc_chains_count=0;
+            char ** l_proc_chains = dap_config_get_array_str(l_cfg,"role-master" , "proc_chains", &l_proc_chains_count );
+            for ( size_t i = 0; i< l_proc_chains_count ; i++){
+                dap_chain_id_t l_chain_id = {{0}};
+                if (sscanf( l_proc_chains[i], "0x%16"DAP_UINT64_FORMAT_X,  &l_chain_id.uint64) ==1 ||
+                         sscanf(l_proc_chains[i], "0x%16"DAP_UINT64_FORMAT_x, &l_chain_id.uint64) == 1) {
+                    dap_chain_t * l_chain = dap_chain_find_by_id(l_net->pub.id, l_chain_id );
+                    if ( l_chain ){
+                        l_chain->is_datum_pool_proc = true;
+                    }else{
+                        log_it( L_WARNING, "Can't find chain id " );
+                    }
+                }
+            }
+            l_net_pvt->only_static_links = true;
+            l_target_state = NET_STATE_ONLINE;
+            log_it(L_INFO,"Master node role established");
+        } break;
+        case NODE_ROLE_FULL:{
+            log_it(L_INFO,"Full node role established");
+            l_target_state = NET_STATE_ONLINE;
+        } break;
+        case NODE_ROLE_LIGHT:
+        default:
+            log_it(L_INFO,"Light node role established");
+
+    }
+    if (!l_net_pvt->only_static_links)
+        l_net_pvt->only_static_links = dap_config_get_item_bool_default(l_cfg, "general", "links_static_only", false);
+    if (s_seed_mode || !dap_config_get_item_bool_default(g_config ,"general", "auto_online",false ) ) { // If we seed we do everything manual. First think - prefil list of node_addrs and its aliases
+        l_target_state = NET_STATE_OFFLINE;
+    }
+    l_net_pvt->load_mode = false;
+    dap_chain_ledger_load_end(l_net->pub.ledger);
+
+    l_net_pvt->balancer_http = !dap_config_get_item_bool_default(l_cfg, "general", "use_dns_links", false);
+
+    dap_chain_net_add_gdb_notify_callback(l_net, dap_chain_net_sync_gdb_broadcast, l_net);
+    if (l_target_state != l_net_pvt->state_target)
+        dap_chain_net_state_go_to(l_net, l_target_state);
+
+    uint32_t l_timeout = dap_config_get_item_uint32_default(g_config, "node_client", "timer_update_states", 600);
+    PVT(l_net)->main_timer = dap_interval_timer_create(l_timeout * 1000, s_main_timer_callback, l_net);
+    log_it(L_INFO, "Chain network \"%s\" initialized",l_net->pub.name);
+
+    dap_config_close(l_cfg);
+
+    return 0;
 }
 
 /**
