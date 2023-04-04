@@ -492,7 +492,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
             dap_chain_net_srv_stake_set_allowed_min_value(l_uint256_buffer);
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT:
-            if (dap_chain_datum_decree_get_stake_min_value(a_decree, &l_uint256_buffer)){
+            if (dap_chain_datum_decree_get_stake_min_signers_count(a_decree, &l_uint256_buffer)){
                 log_it(L_WARNING,"Can't get min stake value from decree.");
                 return -105;
             }
