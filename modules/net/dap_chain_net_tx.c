@@ -212,7 +212,6 @@ void dap_chain_net_get_tx_all(dap_chain_net_t * a_net, dap_chain_net_tx_search_t
                 dap_chain_cell_t * l_cell, *l_cell_tmp;
                 // Go through all cells
                 HASH_ITER(hh,l_chain->cells,l_cell, l_cell_tmp){
-                    log_it(L_INFO, "!!!! %s %s", l_cell->file_storage, l_cell->file_storage_path);
                     dap_chain_atom_iter_t * l_atom_iter = l_chain->callback_atom_iter_create(l_chain,l_cell->id, false  );
                     // try to find transaction in chain ( inside shard )
                     size_t l_atom_size = 0;

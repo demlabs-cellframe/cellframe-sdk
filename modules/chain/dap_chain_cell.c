@@ -93,17 +93,19 @@ dap_chain_cell_t * dap_chain_cell_find_by_id(dap_chain_t * a_chain, dap_chain_ce
  */
 dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_cell_id_t a_cell_id)
 {
-    dap_chain_cell_t * l_cell = DAP_NEW_Z(dap_chain_cell_t);
+    dap_chain_cell_t * l_cell = NULL;
+    pthread_rwlock_wrlock(&a_chain->cell_rwlock);
+    HASH_FIND(hh, a_chain->cells, &a_cell_id, sizeof(dap_chain_cell_id_t), l_cell);
+    if (l_cell) {
+        pthread_rwlock_unlock(&a_chain->cell_rwlock);
+        return l_cell;
+    }
+    l_cell = DAP_NEW_Z(dap_chain_cell_t);
     l_cell->chain = a_chain;
     l_cell->id.uint64 = a_cell_id.uint64;
     l_cell->file_storage_path = dap_strdup_printf("%0"DAP_UINT64_FORMAT_x".dchaincell", l_cell->id.uint64);
     pthread_rwlock_init(&l_cell->storage_rwlock, NULL);
-    pthread_rwlock_wrlock(&a_chain->cell_rwlock);
-    dap_chain_cell_t *l_cell_tmp = NULL;
-    HASH_FIND(hh, a_chain->cells, &a_cell_id, sizeof(dap_chain_cell_id_t), l_cell_tmp);
-    if (!l_cell_tmp) {
-        HASH_ADD(hh, a_chain->cells, id, sizeof(dap_chain_cell_id_t), l_cell);
-    }
+    HASH_ADD(hh, a_chain->cells, id, sizeof(dap_chain_cell_id_t), l_cell);
     pthread_rwlock_unlock(&a_chain->cell_rwlock);
     return l_cell;
 }
@@ -118,9 +120,9 @@ dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_c
  */
 dap_chain_cell_t * dap_chain_cell_create_fill2(dap_chain_t * a_chain, const char *a_filename)
 {
-    dap_chain_cell_id_t l_cell_id;
-    sscanf(a_filename, "%"DAP_UINT64_FORMAT_x".dchaincell", &l_cell_id.uint64);
-    return dap_chain_cell_create_fill(a_chain, l_cell_id);
+    uint64_t l_cell_id_uint64;
+    dap_sscanf(a_filename, "%"DAP_UINT64_FORMAT_x".dchaincell", &l_cell_id_uint64);
+    return dap_chain_cell_create_fill(a_chain, (dap_chain_cell_id_t){ .uint64 = l_cell_id_uint64});
 }
 
 /**
