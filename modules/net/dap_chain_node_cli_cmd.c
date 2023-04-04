@@ -4964,6 +4964,12 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
         return -7;
     }
 
+    if(!dap_chain_ledger_token_ticker_check(l_ledger, l_token_ticker)) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Ticker '%s' is not declared on network '%s'.",
+                                          l_token_ticker, l_net_name);
+        return -16;
+    }
+
     const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
 
     dap_chain_t *l_emission_chain = NULL;
