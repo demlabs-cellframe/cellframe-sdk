@@ -5004,7 +5004,7 @@ test_speed(void)
 #endif
 
 int
-main(void)
+falcon_main(void)
 {
 	unsigned old;
 
