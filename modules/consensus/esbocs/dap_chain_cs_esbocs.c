@@ -986,12 +986,37 @@ static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_ch
     bool l_compare = dap_hash_fast_compare(&l_store->candidate_hash,&(PVT(a_session->esbocs)->candidate_hash));
     if(s_session_candidate_to_chain(a_session, &l_store->precommit_candidate_hash, l_store->candidate, l_store->candidate_size) &&
             l_compare && PVT(a_session->esbocs)->fee_addr) {
+        l_ret = dap_global_db_get(DAP_GLOBAL_DB_LOCAL_GENERAL, "gdb_version",s_check_db_version_callback_get, NULL);
+        //чтение значения из настроек
+
+        if(l_ret)
+        {
+            if(compare256()==1)
+            {
+                //чтение всех хэшей, заполнение блок листа
+                l_block_list = dap_list_append(l_block_list, l_block_cache);
+            }
+            else{
+                //запись в ГДБ очередного хэша, запись значения
+                dap_global_db_set("local.receipts", l_receipt_hash_str, l_receipt, l_receipt_size, false, NULL, NULL);
+                return;
+            }
+        }
+
+        dap_chain_hash_fast_t l_receipt_hash={0};
+        dap_hash_fast(l_receipt,l_receipt_size,&l_receipt_hash);
+
+        char *l_receipt_hash_str = dap_chain_hash_fast_to_str_new(&l_receipt_hash);
+        dap_global_db_set("local.receipts", l_receipt_hash_str, l_receipt, l_receipt_size, false, NULL, NULL);
+
+
         dap_list_t *l_block_list = NULL;
         l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_precommit_candidate_hash);
         l_block_list = dap_list_append(l_block_list, l_block_cache);
         dap_chain_mempool_tx_coll_fee_create(a_session->blocks_sign_key, (PVT(a_session->esbocs)->fee_addr),
                                              l_block_list, PVT(a_session->esbocs)->minimum_fee, "hex");
         dap_list_free(l_block_list);
+        //очистка ГДБ
     }
 }
 
