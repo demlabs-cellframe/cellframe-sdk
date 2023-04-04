@@ -2774,35 +2774,32 @@ int com_mempool_delete(int argc, char ** argv, char ** a_str_reply)
         return -1;
     }
 
-    if(l_chain && l_net) {  // UNUSED(l_net)
-        const char * l_datum_hash_str = NULL;
-        dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-datum", &l_datum_hash_str);
-        if(l_datum_hash_str) {
-            char *l_datum_hash_hex_str = NULL;
-            // datum hash may be in hex or base58 format
-            if(dap_strncmp(l_datum_hash_str, "0x", 2) && dap_strncmp(l_datum_hash_str, "0X", 2))
-                l_datum_hash_hex_str = dap_enc_base58_to_hex_str_from_str(l_datum_hash_str);
-            char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
-            uint8_t *l_data_tmp = dap_chain_global_db_gr_get(l_datum_hash_hex_str ? l_datum_hash_hex_str : l_datum_hash_str,
-                                                             NULL, l_gdb_group_mempool);
-            if(l_data_tmp && dap_chain_global_db_gr_del(l_datum_hash_hex_str, l_gdb_group_mempool)) {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Datum %s deleted", l_datum_hash_str);
-                return 0;
-            } else {
-                dap_chain_node_cli_set_reply_text(a_str_reply, "Error! Can't find datum %s", l_datum_hash_str);
-                return -4;
-            }
-            DAP_DELETE(l_gdb_group_mempool);
-            DAP_DELETE(l_data_tmp);
-            DAP_DEL_Z(l_datum_hash_hex_str);
-        } else {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "Error! %s requires -datum <datum hash> option", argv[0]);
-            return -3;
-        }
-    } else {
+    if (!l_chain || !l_net) {
         dap_chain_node_cli_set_reply_text(a_str_reply,
                 "Error! Need both -net <network name> and -chain <chain name> params\n");
         return -2;
+    }
+    const char * l_datum_hash_str = NULL;
+    dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-datum", &l_datum_hash_str);
+    if(l_datum_hash_str) {
+        int l_ret = 0;
+        char *l_datum_hash_hex_str = NULL;
+        // datum hash may be in hex or base58 format
+        if(dap_strncmp(l_datum_hash_str, "0x", 2) && dap_strncmp(l_datum_hash_str, "0X", 2))
+            l_datum_hash_hex_str = dap_enc_base58_to_hex_str_from_str(l_datum_hash_str);
+        char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
+        if(dap_chain_global_db_gr_del(l_datum_hash_hex_str ? l_datum_hash_hex_str : l_datum_hash_str, l_gdb_group_mempool)) {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Datum %s deleted", l_datum_hash_str);
+        } else {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Error! Can't find datum %s", l_datum_hash_str);
+            l_ret = -4;
+        }
+        DAP_DELETE(l_gdb_group_mempool);
+        DAP_DEL_Z(l_datum_hash_hex_str);
+        return l_ret;
+    } else {
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Error! %s requires -datum <datum hash> option", argv[0]);
+        return -3;
     }
 }
 
