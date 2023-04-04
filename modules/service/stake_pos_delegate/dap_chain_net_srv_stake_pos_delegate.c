@@ -1376,6 +1376,8 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 char *spaces = {"--------------------------------------------------------------------------------------------------------------------"};
                 char *l_signing_addr_str = NULL;
                 char *l_balance = NULL;
+                char *l_coins = NULL;
+                char *l_pkey_hash_str = NULL;
                 char* l_node_address_text_block = NULL;
                 dap_chain_net_get_tx_all(l_net,TX_SEARCH_TYPE_NET,s_get_tx_filter_callback, l_args);
                 l_args->ret = dap_list_sort(l_args->ret, callback_compare_tx_list);
@@ -1393,14 +1395,15 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                     dap_string_append_printf(l_str_tmp,"tx_hash:\t%s \n",l_hash_str);
 
                     l_signing_addr_str = dap_chain_addr_to_str(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr);
-                    char *l_pkey_hash_str = dap_chain_hash_fast_to_str_new(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr.data.hash_fast);
-                    l_balance = dap_chain_balance_to_coins(l_tx_out_cond->header.value);
+                    l_pkey_hash_str = dap_chain_hash_fast_to_str_new(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr.data.hash_fast);
+                    l_coins = dap_chain_balance_to_coins(l_tx_out_cond->header.value);
+                    l_balance = dap_chain_balance_print(l_tx_out_cond->header.value);
 
                     dap_string_append_printf(l_str_tmp,"signing_addr:\t%s \n",l_signing_addr_str);
                     dap_string_append_printf(l_str_tmp,"signing_hash:\t%s \n",l_pkey_hash_str);
                     l_node_address_text_block = dap_strdup_printf("node_address:\t" NODE_ADDR_FP_STR,NODE_ADDR_FP_ARGS_S(l_tx_out_cond->subtype.srv_stake_pos_delegate.signer_node_addr));
                     dap_string_append_printf(l_str_tmp,"%s \n",l_node_address_text_block);
-                    dap_string_append_printf(l_str_tmp,"value:\t\t%s \n",l_balance);
+                    dap_string_append_printf(l_str_tmp,"value:\t\t%s (%s) \n",l_coins,l_balance);
 
                     DAP_DELETE(l_node_address_text_block);
                     DAP_DELETE(l_signing_addr_str);
