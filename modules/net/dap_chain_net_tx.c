@@ -212,6 +212,7 @@ void dap_chain_net_get_tx_all(dap_chain_net_t * a_net, dap_chain_net_tx_search_t
                 dap_chain_cell_t * l_cell, *l_cell_tmp;
                 // Go through all cells
                 HASH_ITER(hh,l_chain->cells,l_cell, l_cell_tmp){
+                    log_it(L_INFO, "!!!! %s %s", l_cell->file_storage, l_cell->file_storage_path);
                     dap_chain_atom_iter_t * l_atom_iter = l_chain->callback_atom_iter_create(l_chain,l_cell->id, false  );
                     // try to find transaction in chain ( inside shard )
                     size_t l_atom_size = 0;
@@ -232,19 +233,9 @@ void dap_chain_net_get_tx_all(dap_chain_net_t * a_net, dap_chain_net_tx_search_t
 
                             // If found TX
 
-                            dap_hash_fast_t l_datum_hash;
-                            char *l_hash_str = NULL;
-                            char *l_hash_com = {"0xD591DC73ADF040E3636ECA1CD17561EC078F35037AA19EAC9A09FEE7E405E674"};
                             if ( l_tx ) {
-                                dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_datum_hash);
-                                l_hash_str = dap_chain_hash_fast_to_str_new(&l_datum_hash);
-                                if(!memcmp(l_hash_str, l_hash_com, 66))
-                                {
                                    a_tx_callback(a_net, l_tx, a_arg);
-                                }
-
                             }
-                            DAP_DELETE(l_hash_str);
                         }
                         DAP_DEL_Z(l_datums);
                         // go to next atom

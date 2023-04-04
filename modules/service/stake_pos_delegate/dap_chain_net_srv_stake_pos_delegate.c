@@ -1402,7 +1402,6 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                     l_coins = dap_chain_balance_to_coins(l_tx_out_cond->header.value);
                     l_balance = dap_chain_balance_print(l_tx_out_cond->header.value);
                     char *l_pkey_hash_str = dap_chain_hash_fast_to_str_new(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr.data.hash_fast);
-                    l_balance = dap_chain_balance_to_coins(l_tx_out_cond->header.value);
 
                     dap_string_append_printf(l_str_tmp,"signing_addr:\t%s \n",l_signing_addr_str);
                     dap_string_append_printf(l_str_tmp,"signing_hash:\t%s \n",l_pkey_hash_str);
@@ -1415,6 +1414,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                     DAP_DELETE(l_pkey_hash_str);
                     DAP_DELETE(l_balance);
                     DAP_DELETE(l_hash_str);
+                    DAP_DEL_Z(l_coins);
                 }
 
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
