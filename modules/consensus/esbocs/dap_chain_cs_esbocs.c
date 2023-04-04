@@ -101,8 +101,10 @@ int dap_chain_cs_esbocs_init()
     dap_stream_ch_chain_voting_init();
     dap_chain_cs_add("esbocs", s_callback_new);
     dap_cli_server_cmd_add ("esbocs", s_cli_esbocs, "ESBOCS commands",
-        "esbocs min_validators_count -net <net_name> -chain <chain_name> -cert <poa_cert_name> -val_count <value>"
-            "\tSets minimum validators count for ESBOCS consensus\n\n");
+        "esbocs min_validators_count set -net <net_name> -chain <chain_name> -cert <poa_cert_name> -val_count <value>"
+            "\tSets minimum validators count for ESBOCS consensus\n"
+        "esbocs min_validators_count print -net <net_name> -chain <chain_name>"
+            "\tShow minimum validators count for ESBOCS consensus\n\n");
     return 0;
 }
 
@@ -1695,37 +1697,45 @@ static int s_cli_esbocs(int a_argc, char ** a_argv, char **a_str_reply)
         return -3;
     }
 
-    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str);
-    if (!l_cert_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_validators_count' requires parameter -cert");
-        return -3;
-    }
-    dap_cert_t *l_poa_cert = dap_cert_find_by_name(l_cert_str);
-    if (!l_poa_cert) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified certificate not found");
-        return -25;
-    }
+    if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, l_arg_index + 1, "set", NULL)) {
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str);
+        if (!l_cert_str) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_validators_count' requires parameter -cert");
+            return -3;
+        }
+        dap_cert_t *l_poa_cert = dap_cert_find_by_name(l_cert_str);
+        if (!l_poa_cert) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified certificate not found");
+            return -25;
+        }
 
-    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-val_count", &l_value_str);
-    if (!l_value_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_validators_count' requires parameter -val_count");
-        return -9;
-    }
-    uint256_t l_value = dap_chain_balance_scan(l_value_str);
-    if (IS_ZERO_256(l_value)) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized number in '-val_count' param");
-        return -10;
-    }
+        dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-val_count", &l_value_str);
+        if (!l_value_str) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'min_validators_count' requires parameter -val_count");
+            return -9;
+        }
+        uint256_t l_value = dap_chain_balance_scan(l_value_str);
+        if (IS_ZERO_256(l_value)) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized number in '-val_count' param");
+            return -10;
+        }
 
-    dap_chain_datum_decree_t *l_decree = s_esbocs_decree_set_min_validators_count(l_chain_net, l_value, l_poa_cert);
-    if (l_decree && s_esbocs_decree_put(l_decree, l_chain_net)) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Minimum validators count is set");
-        DAP_DELETE(l_decree);
-    } else {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Minimum validators count setting failed");
-        DAP_DELETE(l_decree);
-        return -21;
-    }
-
+        dap_chain_datum_decree_t *l_decree = s_esbocs_decree_set_min_validators_count(l_chain_net, l_value, l_poa_cert);
+        if (l_decree && s_esbocs_decree_put(l_decree, l_chain_net)) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Minimum validators count has been set");
+            DAP_DELETE(l_decree);
+        } else {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Minimum validators count setting failed");
+            DAP_DELETE(l_decree);
+            return -21;
+        }
+    } else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, l_arg_index + 1, "print", NULL)) {
+        dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
+        dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+        dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Minimum validators count is %d",
+                                          l_esbocs_pvt->min_validators_count);
+    } else
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized subcommand '%s'", a_argv[l_arg_index]);
     return ret;
 }
