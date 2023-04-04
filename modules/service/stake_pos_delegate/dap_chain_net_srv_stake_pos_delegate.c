@@ -236,7 +236,7 @@ int dap_chain_net_srv_stake_verify_key_and_node(dap_chain_addr_t *a_signing_addr
         }
 
         //chek node have not other delegated key
-        if(a_node_addr->raw == l_stake->node_addr.raw){
+        if(a_node_addr->uint64 == l_stake->node_addr.uint64){
             log_it(L_WARNING, "Node %s already have active key.", dap_chain_node_addr_to_hash_str(a_node_addr));
             return -102;
         }
