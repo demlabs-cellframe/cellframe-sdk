@@ -2709,16 +2709,12 @@ int com_mempool_delete(int a_argc, char **a_argv, char **a_str_reply)
  * @param a_datum_hash_str
  * @return boolean
  */
-bool s_com_mempool_check_datum_in_chain(dap_chain_t *a_chain, const char *a_datum_hash_str){
+dap_chain_datum_t *s_com_mempool_check_datum_in_chain(dap_chain_t *a_chain, const char *a_datum_hash_str)
+{
     char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     uint8_t *l_data_tmp = dap_global_db_get_sync(l_gdb_group_mempool, a_datum_hash_str, NULL, NULL, NULL);
     DAP_DELETE(l_gdb_group_mempool);
-    if (l_data_tmp){
-        DAP_DELETE(l_data_tmp);
-        return true;
-    } else {
-        return false;
-    }
+    return (dap_chain_datum_t *)l_data_tmp;
 }
 
 /**
@@ -2754,28 +2750,42 @@ int com_mempool_check(int a_argc, char **a_argv, char ** a_str_reply)
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-datum", &l_datum_hash_str);
         if (l_datum_hash_str) {
             char *l_datum_hash_hex_str = NULL;
+            char *l_hash_out_type = "hex";
             // datum hash may be in hex or base58 format
-            if (dap_strncmp(l_datum_hash_str, "0x", 2) && dap_strncmp(l_datum_hash_str, "0X", 2))
+            if (dap_strncmp(l_datum_hash_str, "0x", 2) && dap_strncmp(l_datum_hash_str, "0X", 2)) {
+                l_hash_out_type = "base58";
                 l_datum_hash_hex_str = dap_enc_base58_to_hex_str_from_str(l_datum_hash_str);
-            else
+            } else
                 l_datum_hash_hex_str = dap_strdup(l_datum_hash_str);
             if (l_chain) {
-                if (s_com_mempool_check_datum_in_chain(l_chain, l_datum_hash_hex_str ? l_datum_hash_hex_str : l_datum_hash_str)) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s is present in mempool", l_datum_hash_str);
-                    DAP_DEL_Z(l_datum_hash_hex_str);
+                dap_chain_datum_t *l_datum = s_com_mempool_check_datum_in_chain(l_chain, l_datum_hash_hex_str);
+                DAP_DELETE(l_datum_hash_hex_str);
+                if (l_datum) {
+                    dap_string_t *l_str_reply = dap_string_new("");
+                    dap_string_append_printf(l_str_reply, "Datum %s is present in mempool\n", l_datum_hash_str);
+                    dap_chain_datum_dump(l_str_reply, l_datum, l_hash_out_type);
+                    DAP_DELETE(l_datum);
+                    *a_str_reply = l_str_reply->str;
+                    dap_string_free(l_str_reply, false);
                     return 0;
                 } else {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find datum %s in %s.%s", l_datum_hash_str, l_net->pub.name, l_chain->name);
-                    DAP_DEL_Z(l_datum_hash_hex_str);
                     return -4;
                 }
             } else {
-                DL_FOREACH(l_net->pub.chains, l_chain)
-                    if (s_com_mempool_check_datum_in_chain(l_chain, l_datum_hash_hex_str ? l_datum_hash_hex_str : l_datum_hash_str)) {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s is present in mempool", l_datum_hash_str);
-                        DAP_DEL_Z(l_datum_hash_hex_str);
+                DL_FOREACH(l_net->pub.chains, l_chain) {
+                    dap_chain_datum_t *l_datum = s_com_mempool_check_datum_in_chain(l_chain, l_datum_hash_hex_str);
+                    if (l_datum) {
+                        DAP_DELETE(l_datum_hash_hex_str);
+                        dap_string_t *l_str_reply = dap_string_new("");
+                        dap_string_append_printf(l_str_reply, "Datum %s is present in mempool\n", l_datum_hash_str);
+                        dap_chain_datum_dump(l_str_reply, l_datum, l_hash_out_type);
+                        DAP_DELETE(l_datum);
+                        *a_str_reply = l_str_reply->str;
+                        dap_string_free(l_str_reply, false);
                         return 0;
                     }
+                }
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find datum %s in net %s", l_datum_hash_str, l_net->pub.name);
                 DAP_DEL_Z(l_datum_hash_hex_str);
                 return -4;
@@ -4962,6 +4972,12 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
     if(l_net == NULL || (l_ledger = dap_chain_ledger_by_net_name(l_net_name)) == NULL) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "not found net by name '%s'", l_net_name);
         return -7;
+    }
+
+    if(!dap_chain_ledger_token_ticker_check(l_ledger, l_token_ticker)) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Ticker '%s' is not declared on network '%s'.",
+                                          l_token_ticker, l_net_name);
+        return -16;
     }
 
     const char *c_wallets_path = dap_chain_wallet_get_path(g_config);

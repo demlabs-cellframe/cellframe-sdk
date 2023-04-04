@@ -1353,8 +1353,14 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                         s_srv_stake_print(l_stake, l_reply_str);
                     }
                 if (!HASH_CNT(hh, s_srv_stake->itemlist)) {
-                    dap_string_append(l_reply_str, "No keys found");
+                    dap_string_append(l_reply_str, "No keys found\n");
                 }
+                char *l_delegate_min_str = dap_chain_balance_to_coins(s_srv_stake->delegate_allowed_min);
+                char l_delegated_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+                dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker, l_net->pub.native_ticker);
+                dap_string_append_printf(l_reply_str, "Minimum value for key delegating: %s %s",
+                                         l_delegate_min_str, l_delegated_ticker);
+                DAP_DELETE(l_delegate_min_str);
                 *a_str_reply = dap_string_free(l_reply_str, false);
             } else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "tx", NULL)) {
                 const char *l_net_str = NULL;
