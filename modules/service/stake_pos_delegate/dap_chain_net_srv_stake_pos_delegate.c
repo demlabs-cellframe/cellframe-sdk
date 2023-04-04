@@ -1621,12 +1621,15 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             }
 
             dap_chain_datum_decree_t *l_decree = s_stake_decree_set_min_stake(l_net, l_value, l_poa_cert);
-            if (l_decree && s_stake_decree_put(l_decree, l_net)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Minimum stake value is set");
+            char *l_decree_hash_str = NULL;
+            if (l_decree && (l_decree_hash_str = s_stake_decree_put(l_decree, l_net))) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Minimum stake value has been set."
+                                                                " Decree hash %s", l_decree_hash_str);
                 DAP_DELETE(l_decree);
+                DAP_DELETE(l_decree_hash_str);
             } else {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Minimum stake value setting failed");
-                DAP_DELETE(l_decree);
+                DAP_DEL_Z(l_decree);
                 return -21;
             }
         } break;        
