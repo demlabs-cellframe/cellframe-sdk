@@ -154,18 +154,18 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
     HASH_FIND(hh, s_srv_stake->itemlist, a_signing_addr, sizeof(dap_chain_addr_t), l_stake);
     if (!l_stake)
         l_stake = DAP_NEW_Z(dap_chain_net_srv_stake_item_t);
-    else
+    else {
         l_found = true;
+        HASH_DELETE(ht, s_srv_stake->tx_itemlist, l_stake);
+    }
     l_stake->net = a_net;
     l_stake->node_addr = *a_node_addr;
     l_stake->signing_addr = *a_signing_addr;
     l_stake->value = a_value;
     l_stake->tx_hash = *a_stake_tx_hash;
     if (!l_found)
-    {
         HASH_ADD(hh, s_srv_stake->itemlist, signing_addr, sizeof(dap_chain_addr_t), l_stake);
-        HASH_ADD(ht, s_srv_stake->h_itemlist, tx_hash, sizeof(dap_chain_hash_fast_t), l_stake);
-    }
+    HASH_ADD(ht, s_srv_stake->tx_itemlist, tx_hash, sizeof(dap_chain_hash_fast_t), l_stake);
 
 }
 
@@ -178,6 +178,7 @@ void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr)
     HASH_FIND(hh, s_srv_stake->itemlist, a_signing_addr, sizeof(dap_chain_addr_t), l_stake);
     if (l_stake) {
         HASH_DEL(s_srv_stake->itemlist, l_stake);
+        HASH_DELETE(ht, s_srv_stake->tx_itemlist, l_stake);
         DAP_DELETE(l_stake);
     }
 }
@@ -394,7 +395,7 @@ static char *s_stake_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net)
     return l_ret;
 }
 
-static dap_chain_datum_decree_t *s_stake_decree_approve(dap_chain_net_t *a_net, dap_hash_fast_t *a_stake_tx_hash, dap_cert_t *a_cert)
+dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t *a_net, dap_hash_fast_t *a_stake_tx_hash, dap_cert_t *a_cert)
 {
     dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(a_net->pub.name);
 
@@ -1050,7 +1051,11 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, dap_strin
     char *l_tx_hash_str = dap_chain_hash_fast_to_str_new(&a_stake->tx_hash);
     char *l_pkey_hash_str = dap_chain_hash_fast_to_str_new(&a_stake->signing_addr.data.hash_fast);
     char *l_balance = dap_chain_balance_to_coins(a_stake->value);
-    dap_string_append_printf(a_string, "%s\t%s\t%s\n", l_pkey_hash_str, l_balance, l_tx_hash_str);
+    dap_string_append_printf(a_string, "Pkey hash: %s\n"
+                                        "\tStake value: %s\n"
+                                        "\tTx hash: %s\n"
+                                        "\tNode addr: "NODE_ADDR_FP_STR"\n\n",
+                             l_pkey_hash_str, l_balance, l_tx_hash_str, NODE_ADDR_FP_ARGS_S(a_stake->node_addr));
     DAP_DELETE(l_balance);
     DAP_DELETE(l_tx_hash_str);
     DAP_DELETE(l_pkey_hash_str);
@@ -1085,7 +1090,7 @@ static void s_get_tx_filter_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_
         if(dap_chain_ledger_tx_hash_is_used_out_item(a_net->pub.ledger,&l_datum_hash,l_out_idx_tmp)==NULL)
         {
             dap_chain_net_srv_stake_item_t *l_stake = NULL;
-            HASH_FIND(ht, s_srv_stake->h_itemlist, &l_datum_hash, sizeof(dap_hash_fast_t), l_stake);
+            HASH_FIND(ht, s_srv_stake->tx_itemlist, &l_datum_hash, sizeof(dap_hash_fast_t), l_stake);
             if(!l_stake){
                 l_args->ret = dap_list_append(l_args->ret,a_tx);
             }
@@ -1291,7 +1296,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Invalid transaction hash format");
                 return -14;
             }
-            dap_chain_datum_decree_t *l_decree = s_stake_decree_approve(l_net, &l_tx_hash, l_cert);
+            dap_chain_datum_decree_t *l_decree = dap_chain_net_srv_stake_decree_approve(l_net, &l_tx_hash, l_cert);
             char *l_decree_hash_str = NULL;
             if (!l_decree || !(l_decree_hash_str = s_stake_decree_put(l_decree, l_net))) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Approve decree error");
@@ -1303,15 +1308,14 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             DAP_DELETE(l_decree_hash_str);
         } break;
         case CMD_LIST: {
-            const char * sub_com = NULL;
-            l_arg_index++;
-            if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "keys", &sub_com)){
+            l_arg_index++;            
+            if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "keys", NULL)) {
                 const char *l_net_str = NULL,
                            *l_cert_str = NULL;
                 l_arg_index++;
                 dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
                 if (!l_net_str) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'keylist' requires parameter -net");
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'list keys' requires parameter -net");
                     return -3;
                 }
                 dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
@@ -1338,7 +1342,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                         return -21;
                     }
                 }
-                dap_string_t *l_reply_str = dap_string_new("Pkey hash\t\t\tStake value\tTx hash\n");
+                dap_string_t *l_reply_str = dap_string_new("");
                 if (l_stake)
                     s_srv_stake_print(l_stake, l_reply_str);
                 else
@@ -1352,13 +1356,12 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                     dap_string_append(l_reply_str, "No keys found");
                 }
                 *a_str_reply = dap_string_free(l_reply_str, false);
-            }else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "tx", &sub_com))
-            {
+            } else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "tx", NULL)) {
                 const char *l_net_str = NULL;
                 l_arg_index++;
                 dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
                 if (!l_net_str) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'approve' requires parameter -net");
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'list tx' requires parameter -net");
                     return -3;
                 }
                 dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
@@ -1398,6 +1401,8 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                     l_pkey_hash_str = dap_chain_hash_fast_to_str_new(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr.data.hash_fast);
                     l_coins = dap_chain_balance_to_coins(l_tx_out_cond->header.value);
                     l_balance = dap_chain_balance_print(l_tx_out_cond->header.value);
+                    char *l_pkey_hash_str = dap_chain_hash_fast_to_str_new(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr.data.hash_fast);
+                    l_balance = dap_chain_balance_to_coins(l_tx_out_cond->header.value);
 
                     dap_string_append_printf(l_str_tmp,"signing_addr:\t%s \n",l_signing_addr_str);
                     dap_string_append_printf(l_str_tmp,"signing_hash:\t%s \n",l_pkey_hash_str);
@@ -1415,8 +1420,10 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
                 dap_string_free(l_str_tmp, true);
                DAP_DELETE(l_args);
+            } else {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Subcommand '%s' not recognized", a_argv[l_arg_index]);
+                return -2;
             }
-
         } break;
         case CMD_INVALIDATE: {
             const char *l_net_str = NULL,
@@ -1609,7 +1616,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
 
             dap_chain_datum_decree_t *l_decree = s_stake_decree_set_min_stake(l_net, l_value, l_poa_cert);
             if (l_decree && s_stake_decree_put(l_decree, l_net)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Minimum stake value is setted");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Minimum stake value is set");
                 DAP_DELETE(l_decree);
             } else {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Minimum stake value setting failed");

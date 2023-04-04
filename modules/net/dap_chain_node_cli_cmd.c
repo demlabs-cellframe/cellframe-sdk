@@ -3839,9 +3839,6 @@ int com_token_emit(int a_argc, char **a_argv, char **a_str_reply)
     const char * l_chain_emission_str = NULL;
     dap_chain_t * l_chain_emission = NULL;
 
-    const char * l_chain_base_tx_str = NULL;
-    dap_chain_t * l_chain_base_tx = NULL;
-
     dap_chain_net_t * l_net = NULL;
 
     const char * l_hash_out_type = NULL;
@@ -3882,7 +3879,6 @@ int com_token_emit(int a_argc, char **a_argv, char **a_str_reply)
     }
     const char *l_add_sign = NULL;
     dap_chain_addr_t *l_addr = NULL;
-    dap_chain_addr_t *l_addr_from = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, arg_index + 1, "sign", &l_add_sign);
     if (!l_add_sign) {      //Create the emission
         // Emission value
@@ -3916,8 +3912,8 @@ int com_token_emit(int a_argc, char **a_argv, char **a_str_reply)
         if(l_chain_emission_str) {
             if((l_chain_emission = dap_chain_net_get_chain_by_name(l_net, l_chain_emission_str)) == NULL) { // Can't find such chain
                 dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                      "token_emit requires parameter '-chain_base_tx' to be valid chain name in chain net %s or set default datum type in chain configuration file "
-                                      "but, if you need create emission has no base transaction, use flag '-no_base_tx'", l_net->pub.name);
+                                      "token_emit requires parameter '-chain_emission' to be valid chain name in chain net %s"
+                                      " or set default datum type in chain configuration file", l_net->pub.name);
                 return -45;
             }
         }
@@ -5191,82 +5187,83 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain", &l_chain_str);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-tx", &l_tx_hash_str);
 
-    if(!l_addr_base58 && !l_wallet_name && !l_tx_hash_str) {
+    if (!l_addr_base58 && !l_wallet_name && !l_tx_hash_str) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_history requires parameter '-addr' or '-w' or '-tx'");
         return -1;
     }
 
-    // Select chain network
-    if(!l_net_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_history requires parameter '-net'");
+    if (!l_net_str && !l_addr_base58) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_history requires parameter '-net' or '-addr'");
         return -2;
-    } else {
-        if((l_net = dap_chain_net_by_name(l_net_str)) == NULL) { // Can't find such network
+    }
+
+    dap_chain_hash_fast_t l_tx_hash;
+    if (l_tx_hash_str && dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash) < 0) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "tx hash not recognized");
+        return -3;
+    }
+    // Select chain network
+    if (l_net_str) {
+        l_net = dap_chain_net_by_name(l_net_str);
+        if (!l_net) { // Can't find such network
             dap_cli_server_cmd_set_reply_text(a_str_reply,
                     "tx_history requires parameter '-net' to be valid chain network name");
             return -3;
         }
     }
-    //Select chain emission
-	if (l_chain_str) {
-		l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
-	}
-	else {
-		l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_EMISSION);
-	}
-
-	if(!l_chain) {
-		dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_history requires parameter '-chain' to be valid chain name in chain net %s. You can set default datum type in chain configuration file",
-										  l_net_str);
-		return -8;
-	}
-/*    if(!l_chain_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_history requires parameter '-chain'");
-        return -4;
-    } else {
-        if((l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str)) == NULL) { // Can't find such chain
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                    "tx_history requires parameter '-chain' to be valid chain name in chain net %s",
-                    l_net_str);
+    // Get chain address
+    dap_chain_addr_t *l_addr = NULL;
+    if (l_addr_base58) {
+        if (l_tx_hash_str) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Incomatible params '-addr' & '-tx'");
+            return -4;
+        }
+        l_addr = dap_chain_addr_from_str(l_addr_base58);
+        if (!l_addr) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet address not recognized");
             return -5;
         }
-    }*/
-    //char *l_group_mempool = dap_chain_net_get_gdb_group_mempool(l_chain);
-    //const char *l_chain_group = dap_chain_gdb_get_group(l_chain);
-
-    dap_chain_hash_fast_t l_tx_hash;
-    if(l_tx_hash_str) {
-        if(dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash) < 0) {
-            l_tx_hash_str = NULL;
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "tx hash not recognized");
-            return -1;
-        }
-//        char hash_str[99];
-//        dap_chain_hash_fast_to_str(&l_tx_hash, hash_str,99);
-//        int gsdgsd=523;
-    }
-    dap_chain_addr_t *l_addr = NULL;
-    // if need addr
-    if(!l_tx_hash_str) {
-        if(l_wallet_name) {
-            const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
-            dap_chain_wallet_t * l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
-            if(l_wallet) {
-                dap_chain_addr_t *l_addr_tmp = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
-                l_addr = DAP_NEW_SIZE(dap_chain_addr_t, sizeof(dap_chain_addr_t));
-                memcpy(l_addr, l_addr_tmp, sizeof(dap_chain_addr_t));
-                dap_chain_wallet_close(l_wallet);
+        if (l_net) {
+            if (l_net->pub.id.uint64 != l_addr->net_id.uint64) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                                  "Network ID with '-net' param and network ID with '-addr' param are different");
+                DAP_DELETE(l_addr);
+                return -6;
             }
-        }
-        if(!l_addr && l_addr_base58) {
-            l_addr = dap_chain_addr_from_str(l_addr_base58);
-        }
-        if(!l_addr && !l_tx_hash_str) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "wallet address not recognized");
-            return -1;
+        } else
+            l_net = dap_chain_net_by_id(l_addr->net_id);
+    }
+    if (l_wallet_name) {
+        const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
+        dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
+        if (l_wallet) {
+            dap_chain_addr_t *l_addr_tmp = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
+            if (l_addr) {
+                if (!dap_chain_addr_compare(l_addr, l_addr_tmp)) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                                      "Address with '-addr' param and address with '-w' param are different");
+                    DAP_DELETE(l_addr);
+                    DAP_DELETE(l_addr_tmp);
+                    return -7;
+                }
+                DAP_DELETE(l_addr_tmp);
+            } else
+                l_addr = l_addr_tmp;
+            dap_chain_wallet_close(l_wallet);
         }
     }
+    // Select chain, if any
+    if (l_chain_str)
+        l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
+    else
+        l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
 
+    if(!l_chain) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_history requires parameter '-chain' to be valid chain name in chain net %s."
+                                                        " You can set default datum type in chain configuration file",
+                                          l_net_str);
+        return -8;
+    }
     char *l_str_out = l_tx_hash_str ?
                                       dap_db_history_tx(&l_tx_hash, l_chain, l_hash_out_type) :
                                       dap_db_history_addr(l_addr, l_chain, l_hash_out_type);
