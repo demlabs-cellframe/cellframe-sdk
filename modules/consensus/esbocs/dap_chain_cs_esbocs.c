@@ -1611,7 +1611,8 @@ static char *s_esbocs_decree_put(dap_chain_datum_decree_t *a_decree, dap_chain_n
     return l_ret;
 }
 
-static dap_chain_datum_decree_t *s_esbocs_decree_set_min_validators_count(dap_chain_net_t *a_net, uint256_t a_value, dap_cert_t *a_cert)
+static dap_chain_datum_decree_t *s_esbocs_decree_set_min_validators_count(dap_chain_net_t *a_net, dap_chain_t *a_chain,
+                                                                          uint256_t a_value, dap_cert_t *a_cert)
 {
     size_t l_total_tsd_size = 0;
     dap_chain_datum_decree_t *l_decree = NULL;
@@ -1630,7 +1631,9 @@ static dap_chain_datum_decree_t *s_esbocs_decree_set_min_validators_count(dap_ch
     l_decree->header.ts_created = dap_time_now();
     l_decree->header.type = DAP_CHAIN_DATUM_DECREE_TYPE_COMMON;
     l_decree->header.common_decree_params.net_id = a_net->pub.id;
-    dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_DECREE);
+    dap_chain_t *l_chain = a_chain;
+    if (!a_chain)
+        l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_ANCHOR);
     if(!l_chain){
         log_it(L_ERROR, "Can't find chain with decree support.");
         DAP_DELETE(l_decree);
@@ -1687,7 +1690,7 @@ static dap_chain_datum_decree_t *s_esbocs_decree_set_min_validators_count(dap_ch
 static int s_cli_esbocs(int a_argc, char ** a_argv, char **a_str_reply)
 {
     int ret = -666;
-    int l_arg_index = 1;
+    int l_arg_index = 2;
     dap_chain_net_t * l_chain_net = NULL;
     dap_chain_t * l_chain = NULL;
     const char *l_cert_str = NULL,
@@ -1720,7 +1723,8 @@ static int s_cli_esbocs(int a_argc, char ** a_argv, char **a_str_reply)
             return -10;
         }
 
-        dap_chain_datum_decree_t *l_decree = s_esbocs_decree_set_min_validators_count(l_chain_net, l_value, l_poa_cert);
+        dap_chain_datum_decree_t *l_decree = s_esbocs_decree_set_min_validators_count(
+                                                l_chain_net, l_chain, l_value, l_poa_cert);
         if (l_decree && s_esbocs_decree_put(l_decree, l_chain_net)) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Minimum validators count has been set");
             DAP_DELETE(l_decree);
