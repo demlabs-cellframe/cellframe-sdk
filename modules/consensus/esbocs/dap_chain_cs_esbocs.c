@@ -237,13 +237,13 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
             return 0;
         } else if (l_sign_cert->enc_key->priv_key_data) {
             l_esbocs_pvt->blocks_sign_key = l_sign_cert->enc_key;
-            log_it(L_INFO, "Loaded \"%s\" certificate to sign ESBOCS blocks", l_sign_cert_str);
+            log_it(L_INFO, "Loaded \"%s\" certificate for net %s to sign ESBOCS blocks", a_chain->net_name, l_sign_cert_str);
         } else {
             log_it(L_ERROR, "Certificate \"%s\" has no private key", l_sign_cert_str);
             return 0;
         }
     } else {
-        log_it(L_NOTICE, "No sign certificate provided, can't sign any blocks. This node can't be a consensus validator");
+        log_it(L_NOTICE, "No sign certificate provided for net %s, can't sign any blocks. This node can't be a consensus validator", a_chain->net_name);
         return 0;
     }
 
@@ -659,9 +659,11 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
             HASH_ITER(hh, a_session->cur_round.message_items, l_item, l_tmp) {
                 if (l_item->message->hdr.type == DAP_STREAM_CH_VOTING_MSG_TYPE_SUBMIT &&
                         dap_chain_addr_compare(&l_item->signing_addr, &a_session->cur_round.attempt_submit_validator)) {
+                    a_session->cur_round.attempt_candidate_hash = l_item->message->hdr.candidate_hash;
+                    s_session_state_change(a_session, DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_SIGNS, dap_time_now());
                     // Verify and vote already submitted candidate
                     s_session_candidate_verify(a_session, (dap_chain_block_t *)l_item->message->msg_n_sign,
-                                               l_item->message->hdr.message_size, &l_item->message->hdr.candidate_hash);
+                                               l_item->message->hdr.message_size, &a_session->cur_round.attempt_candidate_hash);
                 }
             }
         }
@@ -1180,6 +1182,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                     s_session_sync_queue_add(l_session, l_message, a_data_size);
                     l_session->round_fast_forward = true;
                     l_session->cur_round.id = l_message->hdr.round_id - 1;
+                    s_session_round_new(l_session);
                 }
             }
             break;
