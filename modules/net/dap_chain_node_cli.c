@@ -916,6 +916,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "global_db write -group <group_name> -key <key_name> -value <value>\n"
             "global_db read -group <group_name> -key <key_name>\n"
             "global_db delete -group <group_name> -key <key_name>\n\n"
+            "global_db get_keys -group <group name>"
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
             );
     dap_chain_node_cli_cmd_item_create("mempool", com_signer, "Sign operations",

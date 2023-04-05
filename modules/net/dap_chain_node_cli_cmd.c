@@ -724,7 +724,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
 int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
 {
     enum {
-        CMD_NONE, CMD_NAME_CELL, CMD_ADD, CMD_FLUSH, CMD_RECORD, CMD_WRITE, CMD_READ, CMD_DELETE
+        CMD_NONE, CMD_NAME_CELL, CMD_ADD, CMD_FLUSH, CMD_RECORD, CMD_WRITE, CMD_READ, CMD_DELETE, CMD_GET_KEYS
     };
     int arg_index = 1;
     int cmd_name = CMD_NONE;
@@ -741,6 +741,8 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
             cmd_name = CMD_READ;
     else if(dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "delete", NULL))
             cmd_name = CMD_DELETE;
+    else if(dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "get_keys", NULL))
+            cmd_name = CMD_GET_KEYS;
     switch (cmd_name) {
     case CMD_NAME_CELL:
     {
@@ -963,6 +965,34 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
             return -124;
         }
 
+    }
+    case CMD_GET_KEYS:
+    {
+        char *l_group_str = NULL;
+        dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-group", &l_group_str);
+
+        if(!l_group_str) {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter 'group' to be valid", a_argv[0]);
+            return -120;
+        }
+
+        size_t l_objs_count = 0;
+        dap_global_db_obj_t* l_obj = dap_chain_global_db_gr_load(l_group_str, &l_objs_count);
+
+        if (!l_obj || !l_objs_count)
+        {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "No data in group %s.", l_group_str);
+            return -124;
+        }
+
+        dap_string_t *l_ret_str = dap_string_new(NULL);
+        for(size_t i = 0; i < l_objs_count; i++){
+            dap_string_append_printf(l_ret_str, "%s\n", l_obj[i].key);
+        }
+
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Keys list for group %s:\n%s\n", l_group_str, l_ret_str->str);
+        dap_string_free(l_ret_str, true);
+        return 0;
     }
     case CMD_READ:
     {
