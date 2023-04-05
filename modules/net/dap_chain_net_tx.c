@@ -231,8 +231,9 @@ void dap_chain_net_get_tx_all(dap_chain_net_t * a_net, dap_chain_net_tx_search_t
                             }
 
                             // If found TX
+
                             if ( l_tx ) {
-                                a_tx_callback(a_net, l_tx, a_arg);
+                                   a_tx_callback(a_net, l_tx, a_arg);
                             }
                         }
                         DAP_DEL_Z(l_datums);

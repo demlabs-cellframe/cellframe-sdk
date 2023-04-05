@@ -469,6 +469,10 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
                 log_it(L_WARNING,"Can't get signer node address from decree.");
                 return -105;
             }
+            if(dap_chain_net_srv_stake_verify_key_and_node(&l_addr, &l_node_addr)){
+                log_it(L_WARNING, "Key and node verification error");
+                return -105;
+            }
             if (!a_apply)
                 break;
             dap_chain_net_srv_stake_key_delegate(l_net, &l_addr, &l_hash, l_uint256_buffer, &l_node_addr);
@@ -496,13 +500,20 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
                 log_it(L_WARNING,"Can't get min stake value from decree.");
                 return -105;
             }
-            if (!a_chain->callback_set_min_validators_count) {
+            dap_chain_t *l_chain = a_chain;
+            if (!a_chain)
+                l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
+            if (!l_chain) {
+                log_it(L_WARNING, "Specified chain not found");
+                return -106;
+            }
+            if (!l_chain->callback_set_min_validators_count) {
                 log_it(L_WARNING, "Can't apply this decree to specified chain");
                 return -115;
             }
             if (!a_apply)
                 break;
-            a_chain->callback_set_min_validators_count(a_chain, (uint16_t)dap_chain_uint256_to(l_uint256_buffer));
+            l_chain->callback_set_min_validators_count(a_chain, (uint16_t)dap_chain_uint256_to(l_uint256_buffer));
             break;
         default: return -1;
     }
