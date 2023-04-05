@@ -348,7 +348,7 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_session_t *a_session, 
     dap_list_t *l_ret = NULL;
 
     if (!l_esbocs_pvt->poa_mode) {
-        dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators();
+        dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_session->chain->net_id);
         size_t l_validators_count = dap_list_length(l_validators);
         if (l_validators_count < l_esbocs_pvt->min_validators_count) {
             dap_list_free_full(l_validators, NULL);
