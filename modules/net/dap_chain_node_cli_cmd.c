@@ -5346,8 +5346,7 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
                         dap_hash_fast_t l_ttx_hash = {0};
                         dap_hash_fast(l_tx, l_datums[i]->header.data_size, &l_ttx_hash);
                         const char *l_token_ticker = NULL;
-                        if (dap_chain_ledger_tx_find_by_hash(l_ledger, &l_ttx_hash)) {
-                            l_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_ttx_hash);
+                        if ((l_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_ttx_hash))) {
                             dap_string_append_printf(l_tx_all_str, "\t\t↓↓↓ Ledger accepted ↓↓↓\n");
                             l_tx_ledger_accepted++;
                         } else {
