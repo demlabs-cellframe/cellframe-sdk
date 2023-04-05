@@ -1032,7 +1032,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
     if (a_sender_node_addr) { //Process network message
         pthread_mutex_lock(&l_session->mutex);
         debug_if(l_cs_debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
-                                    " Receive pkt type:%x from addr:"NODE_ADDR_FP_STR", my_addr:"NODE_ADDR_FP_STR"",
+                                    " Receive pkt type:0x%x from addr:"NODE_ADDR_FP_STR", my_addr:"NODE_ADDR_FP_STR"",
                                         l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                             l_session->cur_round.attempt_num, l_message->hdr.type,
                                                 NODE_ADDR_FP_ARGS(a_sender_node_addr), NODE_ADDR_FP_ARGS_S(l_session->my_addr));
@@ -1148,8 +1148,8 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         uint64_t l_sync_attempt = *(uint64_t *)l_message_data;
         debug_if(l_cs_debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U
                                     " Receive START_SYNC: from validator:%s, sync attempt %"DAP_UINT64_FORMAT_U,
-                                        l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
-                                            l_validator_addr_str, l_sync_attempt);
+                                        l_session->chain->net_name, l_session->chain->name, l_message->hdr.round_id,
+                 l_validator_addr_str, l_sync_attempt);
         if (l_sync_attempt != l_session->cur_round.sync_attempt) {
             if (l_sync_attempt < l_session->cur_round.sync_attempt) {
                  debug_if(l_cs_debug, L_MSG, "ESBOCS: net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U
@@ -1180,6 +1180,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                 // Process this message in new round, it will increment current sync attempt
                 s_session_sync_queue_add(l_session, l_message, a_data_size);
                 l_session->round_fast_forward = true;
+                l_session->cur_round.id = l_message->hdr.round_id - 1;
                 s_session_round_new(l_session);
                 break;
             }
@@ -1484,7 +1485,7 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
     for (dap_list_t *it = a_validators; it; it = it->next) {
         dap_chain_esbocs_validator_t *l_validator = it->data;
         if (l_validator->is_synced || a_message_type == DAP_STREAM_CH_VOTING_MSG_TYPE_START_SYNC) {
-            debug_if(PVT(a_session->esbocs)->debug, L_MSG, "Send pkt type %d to "NODE_ADDR_FP_STR,
+            debug_if(PVT(a_session->esbocs)->debug, L_MSG, "Send pkt type 0x%x to "NODE_ADDR_FP_STR,
                                                             a_message_type, NODE_ADDR_FP_ARGS_S(l_validator->node_addr));
             l_voting_pkt->hdr.receiver_node_addr = l_validator->node_addr;
             dap_stream_ch_chain_voting_message_write(l_net, &l_validator->node_addr, l_voting_pkt);
