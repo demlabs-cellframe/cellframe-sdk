@@ -607,6 +607,17 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
     const char *l_chain_str = NULL;
     const char *l_tx_hash_str = NULL;
 
+    const char *test_value = "test_val";
+    int val_t = 67;
+
+
+
+    dap_global_db_set("local.block_value", test_value, &val_t, sizeof(int), false, NULL, NULL);
+
+
+    l_ret = dap_global_db_get(DAP_GLOBAL_DB_LOCAL_GENERAL, "gdb_version",s_check_db_version_callback_get, NULL);
+
+
     dap_chain_t * l_chain = NULL;
     dap_chain_net_t * l_net = NULL;
 
