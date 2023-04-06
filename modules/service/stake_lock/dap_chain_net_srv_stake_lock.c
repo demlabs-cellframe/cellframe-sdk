@@ -317,12 +317,11 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
     if (dap_strlen(l_time_staking_str) != 6)
         return TIME_ERROR;
 
-    char *l_time_staking_day_str = dap_strdup_printf("%c%c", l_time_staking_str[4], l_time_staking_str[5]);
+    char l_time_staking_day_str[2] = {l_time_staking_str[4], l_time_staking_str[5]};
     int l_time_staking_day = atoi(l_time_staking_day_str);
-    char *l_time_staking_month_str = dap_strdup_printf("%c%c", l_time_staking_str[2], l_time_staking_str[3]);
+    char l_time_staking_month_str[2] = {l_time_staking_str[2], l_time_staking_str[3]};
     int l_time_staking_month = atoi(l_time_staking_month_str);
-    DAP_DELETE(l_time_staking_day_str);
-    DAP_DELETE(l_time_staking_month_str);
+
     if (l_time_staking_month < 1 || l_time_staking_month > 12)
         return TIME_ERROR;
 

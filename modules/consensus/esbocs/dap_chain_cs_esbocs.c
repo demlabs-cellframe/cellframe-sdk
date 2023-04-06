@@ -184,7 +184,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         }
         log_it(L_MSG, "add validator addr:"NODE_ADDR_FP_STR"", NODE_ADDR_FP_ARGS_S(l_signer_node_addr));
         if (l_esbocs_pvt->poa_mode) { // auth by certs in PoA mode
-            dap_chain_esbocs_validator_t *l_validator = DAP_NEW(dap_chain_esbocs_validator_t);
+            dap_chain_esbocs_validator_t *l_validator = DAP_NEW_Z(dap_chain_esbocs_validator_t);
             l_validator->signing_addr = l_signing_addr;
             l_validator->node_addr = l_signer_node_addr;
             l_validator->weight = uint256_1;
@@ -381,6 +381,14 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_session_t *a_session, 
             dap_pseudo_random_seed(*(uint256_t *)a_seed_hash);
         for (size_t l_current_vld_cnt = 0; l_current_vld_cnt < l_need_vld_cnt; l_current_vld_cnt++) {
             uint256_t l_chosen_weight = dap_pseudo_random_get(l_total_weight);
+            if (PVT(a_session->esbocs)->debug) {
+                char *l_chosen_weignt_str = dap_chain_balance_print(l_chosen_weight);
+                char *l_seed_hash_str = dap_hash_fast_to_str_new(&a_session->cur_round.last_block_hash);
+                log_it(L_MSG, "Round seed %s, sync attempt %"DAP_UINT64_FORMAT_U", chosen weight %s",
+                                l_seed_hash_str, a_session->cur_round.sync_attempt, l_chosen_weignt_str);
+                DAP_DELETE(l_chosen_weignt_str);
+                DAP_DELETE(l_seed_hash_str);
+            }
             dap_list_t *l_chosen = NULL;
             uint256_t l_cur_weight = uint256_0;
             for (dap_list_t *it = l_validators; it; it = it->next) {
@@ -1246,7 +1254,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                                                        l_sync_attempt, l_session->cur_round.sync_attempt);
                     for (uint64_t i = 0; i < l_attempts_miss - 1; i++) {
                         // Fast-forward current sync attempt
-                        s_get_validators_list(l_session, NULL);
+                        dap_list_free_full(s_get_validators_list(l_session, NULL), NULL);
                         l_session->cur_round.sync_attempt++;
                     }
                     // Process this message in new round, it will increment current sync attempt
