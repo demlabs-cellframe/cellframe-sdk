@@ -378,7 +378,7 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_session_t *a_session, 
             }
         }
         dap_pseudo_random_seed(*(uint256_t *)a_seed_hash);
-        for (uint64_t i = 1; i < a_skip_count * l_need_vld_cnt; i++)
+        for (uint64_t i = 0; i < a_skip_count * l_need_vld_cnt; i++)
             dap_pseudo_random_get(uint256_0);
         for (size_t l_current_vld_cnt = 0; l_current_vld_cnt < l_need_vld_cnt; l_current_vld_cnt++) {
             uint256_t l_chosen_weight = dap_pseudo_random_get(l_total_weight);
@@ -516,7 +516,7 @@ static void s_session_round_new(dap_chain_esbocs_session_t *a_session)
     if (dap_hash_fast_is_blank(&a_session->cur_round.last_block_hash) ||
             !dap_hash_fast_compare(&l_last_block_hash, &a_session->cur_round.last_block_hash)) {
         a_session->cur_round.last_block_hash = l_last_block_hash;
-        a_session->cur_round.sync_attempt = 1;
+        a_session->cur_round.sync_attempt = 100;
     }
     a_session->cur_round.validators_list = s_get_validators_list(a_session, &l_last_block_hash,
                                                                  a_session->cur_round.sync_attempt - 1);
