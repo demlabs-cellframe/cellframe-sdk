@@ -208,14 +208,15 @@ bool dap_chain_net_srv_stake_key_delegated(dap_chain_addr_t *a_signing_addr)
     return false;
 }
 
-dap_list_t *dap_chain_net_srv_stake_get_validators()
+dap_list_t *dap_chain_net_srv_stake_get_validators(dap_chain_net_id_t a_net_id)
 {
     dap_list_t *l_ret = NULL;
     if (!s_srv_stake || !s_srv_stake->itemlist)
         return l_ret;
     dap_chain_net_srv_stake_item_t *l_stake, *l_tmp;
     HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp)
-        l_ret = dap_list_append(l_ret, DAP_DUP(l_stake));
+        if (a_net_id.uint64 == l_stake->signing_addr.net_id.uint64)
+            l_ret = dap_list_append(l_ret, DAP_DUP(l_stake));
     return l_ret;
 }
 

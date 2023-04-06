@@ -37,6 +37,9 @@ static bool s_session_candidate_to_chain(
 static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session);
 static void s_session_candidate_verify(dap_chain_esbocs_session_t *a_session, dap_chain_block_t *a_candidate,
                                        size_t a_candidate_size, dap_hash_fast_t *a_candidate_hash);
+static void s_session_candidate_precommit(dap_chain_esbocs_session_t *a_session, dap_chain_esbocs_message_t *a_message);
+static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_chain_esbocs_store_t *l_store);
+
 static bool s_session_timer(void *a_arg);
 static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_message_type, dap_hash_fast_t *a_block_hash,
                                     const void *a_data, size_t a_data_size, dap_list_t *a_validators);
@@ -237,13 +240,13 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
             return 0;
         } else if (l_sign_cert->enc_key->priv_key_data) {
             l_esbocs_pvt->blocks_sign_key = l_sign_cert->enc_key;
-            log_it(L_INFO, "Loaded \"%s\" certificate to sign ESBOCS blocks", l_sign_cert_str);
+            log_it(L_INFO, "Loaded \"%s\" certificate for net %s to sign ESBOCS blocks", a_chain->net_name, l_sign_cert_str);
         } else {
             log_it(L_ERROR, "Certificate \"%s\" has no private key", l_sign_cert_str);
             return 0;
         }
     } else {
-        log_it(L_NOTICE, "No sign certificate provided, can't sign any blocks. This node can't be a consensus validator");
+        log_it(L_NOTICE, "No sign certificate provided for net %s, can't sign any blocks. This node can't be a consensus validator", a_chain->net_name);
         return 0;
     }
 
@@ -348,7 +351,7 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_session_t *a_session, 
     dap_list_t *l_ret = NULL;
 
     if (!l_esbocs_pvt->poa_mode) {
-        dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators();
+        dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_session->chain->net_id);
         size_t l_validators_count = dap_list_length(l_validators);
         if (l_validators_count < l_esbocs_pvt->min_validators_count) {
             dap_list_free_full(l_validators, NULL);
@@ -434,9 +437,18 @@ static void s_session_send_startsync(dap_chain_esbocs_session_t *a_session)
         return;     // My last block hash is different, so skip this round
     if (!s_validator_check(&a_session->my_signing_addr, a_session->cur_round.validators_list))
         return;     // I'm not a selected validator, just skip sync message
-    debug_if(PVT(a_session->esbocs)->debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U"."
-                                                   " Sent START_SYNC pkt, attempt %"DAP_UINT64_FORMAT_U,
-                    a_session->chain->net_name, a_session->chain->name, a_session->cur_round.id, a_session->cur_round.sync_attempt);
+    if (PVT(a_session->esbocs)->debug) {
+        dap_string_t *l_addr_list = dap_string_new("");
+        for (dap_list_t *it = a_session->cur_round.validators_list; it; it = it->next) {
+            dap_string_append_printf(l_addr_list, NODE_ADDR_FP_STR"; ",
+                                     NODE_ADDR_FP_ARGS_S(((dap_chain_esbocs_validator_t *)it->data)->node_addr));
+        }
+        log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U"."
+                       " Sent START_SYNC pkt, attempt %"DAP_UINT64_FORMAT_U" current validators list: %s",
+                            a_session->chain->net_name, a_session->chain->name, a_session->cur_round.id,
+                                a_session->cur_round.sync_attempt, l_addr_list->str);
+        dap_string_free(l_addr_list, true);
+    }
     s_message_send(a_session, DAP_STREAM_CH_VOTING_MSG_TYPE_START_SYNC, &l_last_block_hash,
                    &a_session->cur_round.sync_attempt, sizeof(uint64_t),
                    a_session->cur_round.validators_list);
@@ -659,9 +671,11 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
             HASH_ITER(hh, a_session->cur_round.message_items, l_item, l_tmp) {
                 if (l_item->message->hdr.type == DAP_STREAM_CH_VOTING_MSG_TYPE_SUBMIT &&
                         dap_chain_addr_compare(&l_item->signing_addr, &a_session->cur_round.attempt_submit_validator)) {
+                    a_session->cur_round.attempt_candidate_hash = l_item->message->hdr.candidate_hash;
+                    s_session_state_change(a_session, DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_SIGNS, dap_time_now());
                     // Verify and vote already submitted candidate
                     s_session_candidate_verify(a_session, (dap_chain_block_t *)l_item->message->msg_n_sign,
-                                               l_item->message->hdr.message_size, &l_item->message->hdr.candidate_hash);
+                                               l_item->message->hdr.message_size, &a_session->cur_round.attempt_candidate_hash);
                 }
             }
         }
@@ -699,11 +713,8 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
         HASH_ITER(hh, a_session->cur_round.message_items, l_chain_message, l_chain_message_tmp) {
             if (l_chain_message->message->hdr.type == DAP_STREAM_CH_VOTING_MSG_TYPE_PRE_COMMIT &&
                     dap_hash_fast_compare(&l_chain_message->message->hdr.candidate_hash,
-                                          &a_session->cur_round.attempt_candidate_hash))
-            {
-                dap_chain_esbocs_message_t *l_msg = l_chain_message->message;
-                size_t l_msg_size = sizeof(*l_msg) + l_msg->hdr.sign_size + l_msg->hdr.message_size;
-                s_session_packet_in(a_session, NULL, NULL, &l_chain_message->message_hash, (uint8_t*)l_msg, l_msg_size);
+                                          &a_session->cur_round.attempt_candidate_hash)) {
+                s_session_candidate_precommit(a_session, l_chain_message->message);
             }
         }
         // Send own PreCommit
@@ -727,7 +738,7 @@ static void s_session_proc_state(dap_chain_esbocs_session_t *a_session)
         dap_time_t l_round_timeout = PVT(a_session->esbocs)->round_start_sync_timeout;
         bool l_round_skip = !s_validator_check(&a_session->my_signing_addr, a_session->cur_round.validators_list);
         if (l_round_skip)
-            l_round_timeout += PVT(a_session->esbocs)->round_attempt_timeout * 3 * PVT(a_session->esbocs)->round_attempts_max;
+            l_round_timeout += PVT(a_session->esbocs)->round_attempt_timeout * 4 * PVT(a_session->esbocs)->round_attempts_max;
         if (a_session->ts_round_sync_start && l_time - a_session->ts_round_sync_start >= l_round_timeout) {
             if (a_session->cur_round.validators_synced_count >= PVT(a_session->esbocs)->min_validators_count) {
                 a_session->cur_round.id = s_session_calc_current_round_id(a_session);
@@ -784,7 +795,7 @@ static void s_session_proc_state(dap_chain_esbocs_session_t *a_session)
         }
         break;
     case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_FINISH:
-        if (l_time - a_session->ts_attempt_start >= PVT(a_session->esbocs)->round_attempt_timeout) {
+        if (l_time - a_session->ts_attempt_start >= PVT(a_session->esbocs)->round_attempt_timeout * 2) {
             debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
                                         " Attempt finished by reason: cant't collect minimum number of validator's precommits with same final hash",
                                             a_session->chain->net_name, a_session->chain->name,
@@ -888,6 +899,68 @@ static void s_session_candidate_verify(dap_chain_esbocs_session_t *a_session, da
         }
     }
     a_session->processing_candidate = NULL;
+}
+
+static void s_session_candidate_precommit(dap_chain_esbocs_session_t *a_session, dap_chain_esbocs_message_t *a_message)
+{
+    bool l_cs_debug = PVT(a_session->esbocs)->debug;
+    uint16_t l_cs_level = PVT(a_session->esbocs)->min_validators_count;
+    byte_t *l_message_data = a_message->msg_n_sign;
+    dap_chain_hash_fast_t *l_candidate_hash = &a_message->hdr.candidate_hash;
+    dap_chain_esbocs_store_t *l_store;
+    char *l_candidate_hash_str = NULL;
+    HASH_FIND(hh, a_session->cur_round.store_items, l_candidate_hash, sizeof(dap_chain_hash_fast_t), l_store);
+    if (!l_store) {
+        l_candidate_hash_str = dap_chain_hash_fast_to_str_new(l_candidate_hash);
+        log_it(L_WARNING, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+                          " Receive PRE_COMMIT message for unknown candidate:%s",
+                            a_session->chain->net_name, a_session->chain->name,
+                                a_session->cur_round.id, a_message->hdr.attempt_num,
+                                    l_candidate_hash_str);
+        DAP_DELETE(l_candidate_hash_str);
+        return;
+    }
+
+    if (dap_hash_fast_is_blank(&l_store->precommit_candidate_hash))
+        // We have not yet precommit candidate. Message will be processed later
+        return;
+    dap_hash_fast_t *l_precommit_hash = (dap_hash_fast_t *)l_message_data;
+    if (!dap_hash_fast_compare(l_precommit_hash, &l_store->precommit_candidate_hash)) {
+        if (l_cs_debug) {
+            l_candidate_hash_str = dap_chain_hash_fast_to_str_new(l_candidate_hash);
+            char *l_my_precommit_hash_str = dap_chain_hash_fast_to_str_new(&l_store->precommit_candidate_hash);
+            char *l_remote_precommit_hash_str = dap_chain_hash_fast_to_str_new(l_precommit_hash);
+            log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+                          " Candidate:%s has different final hash of local and remote validators\n"
+                          "(%s and %s)",
+                                a_session->chain->net_name, a_session->chain->name, a_session->cur_round.id,
+                                    a_message->hdr.attempt_num, l_candidate_hash_str,
+                                        l_my_precommit_hash_str, l_remote_precommit_hash_str);
+            DAP_DELETE(l_candidate_hash_str);
+            DAP_DELETE(l_my_precommit_hash_str);
+            DAP_DELETE(l_remote_precommit_hash_str);
+        }
+        return;
+    }
+
+    if (l_cs_debug) {
+        l_candidate_hash_str = dap_chain_hash_fast_to_str_new(l_candidate_hash);
+        log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+                        " Receive PRE_COMMIT: candidate:%s",
+                            a_session->chain->net_name, a_session->chain->name, a_session->cur_round.id,
+                                a_message->hdr.attempt_num, l_candidate_hash_str);
+    }
+    if (++l_store->precommit_count >= l_cs_level && !l_store->decide_commit &&
+            dap_hash_fast_compare(&a_session->cur_round.attempt_candidate_hash, l_candidate_hash)) {
+        l_store->decide_commit = true;
+        debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+                                    " Candidate:%s precommted by minimum number of validators, try to finish this round",
+                                        a_session->chain->net_name, a_session->chain->name, a_session->cur_round.id,
+                                            a_message->hdr.attempt_num, l_candidate_hash_str);
+        s_session_round_finish(a_session, l_store);
+        // ATTENTION: New round will be started by incoming atom notifier event
+    }
+    DAP_DEL_Z(l_candidate_hash_str);
 }
 
 static bool s_session_candidate_to_chain(dap_chain_esbocs_session_t *a_session, dap_chain_hash_fast_t *a_candidate_hash,
@@ -1027,6 +1100,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
     uint16_t l_cs_level = PVT(l_session->esbocs)->min_validators_count;
     size_t l_message_data_size = l_message->hdr.message_size;
     byte_t *l_message_data = l_message->msg_n_sign;
+    dap_chain_hash_fast_t *l_candidate_hash = &l_message->hdr.candidate_hash;
     dap_sign_t *l_sign = (dap_sign_t *)(l_message_data + l_message_data_size);
     size_t l_sign_size = l_message->hdr.sign_size;
 
@@ -1143,7 +1217,6 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 
     s_message_chain_add(l_session, l_message, a_data_size, a_data_hash, &l_signing_addr);
 
-    dap_chain_hash_fast_t *l_candidate_hash = &l_message->hdr.candidate_hash;
     switch (l_message->hdr.type) {
     case DAP_STREAM_CH_VOTING_MSG_TYPE_START_SYNC: {
         uint64_t l_sync_attempt = *(uint64_t *)l_message_data;
@@ -1180,6 +1253,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                     s_session_sync_queue_add(l_session, l_message, a_data_size);
                     l_session->round_fast_forward = true;
                     l_session->cur_round.id = l_message->hdr.round_id - 1;
+                    s_session_round_new(l_session);
                 }
             }
             break;
@@ -1396,63 +1470,8 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         DAP_DEL_Z(l_candidate_hash_str);
     } break;
 
-    case DAP_STREAM_CH_VOTING_MSG_TYPE_PRE_COMMIT: {
-        dap_chain_esbocs_store_t *l_store;
-        char *l_candidate_hash_str = NULL;
-        HASH_FIND(hh, l_session->cur_round.store_items, l_candidate_hash, sizeof(dap_chain_hash_fast_t), l_store);
-        if (!l_store) {
-            l_candidate_hash_str = dap_chain_hash_fast_to_str_new(l_candidate_hash);
-            log_it(L_WARNING, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
-                              " Receive PRE_COMMIT message for unknown candidate:%s",
-                                l_session->chain->net_name, l_session->chain->name,
-                                    l_session->cur_round.id, l_message->hdr.attempt_num,
-                                        l_candidate_hash_str);
-            DAP_DELETE(l_candidate_hash_str);
-            break;
-        }
-
-        if (dap_hash_fast_is_blank(&l_store->precommit_candidate_hash))
-            // We have not yet precommit candidate. Message will be processed later
-            break;
-
-        dap_hash_fast_t *l_precommit_hash = (dap_hash_fast_t *)l_message_data;
-        if (!dap_hash_fast_compare(l_precommit_hash, &l_store->precommit_candidate_hash)) {
-            if (l_cs_debug) {
-                l_candidate_hash_str = dap_chain_hash_fast_to_str_new(l_candidate_hash);
-                char *l_my_precommit_hash_str = dap_chain_hash_fast_to_str_new(&l_store->precommit_candidate_hash);
-                char *l_remote_precommit_hash_str = dap_chain_hash_fast_to_str_new(l_precommit_hash);
-                log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
-                              " Candidate:%s has different final hash of local and remote validators\n"
-                              "(%s and %s)",
-                                    l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
-                                        l_message->hdr.attempt_num, l_candidate_hash_str,
-                                            l_my_precommit_hash_str, l_remote_precommit_hash_str);
-                DAP_DELETE(l_candidate_hash_str);
-                DAP_DELETE(l_my_precommit_hash_str);
-                DAP_DELETE(l_remote_precommit_hash_str);
-            }
-            break;
-        }
-
-        if (l_cs_debug) {
-            l_candidate_hash_str = dap_chain_hash_fast_to_str_new(l_candidate_hash);
-            log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
-                            " Receive PRE_COMMIT: candidate:%s",
-                                l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
-                                    l_message->hdr.attempt_num, l_candidate_hash_str);
-        }
-        if (++l_store->precommit_count >= l_cs_level && !l_store->decide_commit &&
-                dap_hash_fast_compare(&l_session->cur_round.attempt_candidate_hash, l_candidate_hash)) {
-            l_store->decide_commit = true;
-            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
-                                        " Candidate:%s precommted by minimum number of validators, try to finish this round",
-                                            l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
-                                                l_message->hdr.attempt_num, l_candidate_hash_str);
-            s_session_round_finish(l_session, l_store);
-            // ATTENTION: New round will be started by incoming atom notifier event
-        }
-        DAP_DEL_Z(l_candidate_hash_str);
-    } break;
+    case DAP_STREAM_CH_VOTING_MSG_TYPE_PRE_COMMIT:
+        s_session_candidate_precommit(l_session, l_message);
     default:
         break;
     }
