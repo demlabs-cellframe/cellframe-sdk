@@ -345,7 +345,7 @@ static void s_callback_set_min_validators_count(dap_chain_t *a_chain, uint16_t a
     l_esbocs_pvt->min_validators_count = a_new_value;
 }
 
-static dap_list_t *s_get_validators_list(dap_chain_esbocs_session_t *a_session, dap_chain_hash_fast_t *a_seed_hash)
+static dap_list_t *s_get_validators_list(dap_chain_esbocs_session_t *a_session, dap_chain_hash_fast_t *a_seed_hash, uint64_t a_skip_count)
 {
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(a_session->esbocs);
     dap_list_t *l_ret = NULL;
@@ -377,8 +377,9 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_session_t *a_session, 
                 return NULL;
             }
         }
-        if (a_seed_hash)
-            dap_pseudo_random_seed(*(uint256_t *)a_seed_hash);
+        dap_pseudo_random_seed(*(uint256_t *)a_seed_hash);
+        for (uint64_t i = 1; i < a_skip_count * l_need_vld_cnt; i++)
+            dap_pseudo_random_get(uint256_0);
         for (size_t l_current_vld_cnt = 0; l_current_vld_cnt < l_need_vld_cnt; l_current_vld_cnt++) {
             uint256_t l_chosen_weight = dap_pseudo_random_get(l_total_weight);
             if (PVT(a_session->esbocs)->debug) {
@@ -510,16 +511,15 @@ static void s_session_round_new(dap_chain_esbocs_session_t *a_session)
     a_session->ts_round_sync_start = 0;
     a_session->ts_attempt_start = 0;
 
-    dap_hash_fast_t *l_seed_hash = NULL;
     dap_hash_fast_t l_last_block_hash;
     s_get_last_block_hash(a_session->chain, &l_last_block_hash);
     if (dap_hash_fast_is_blank(&a_session->cur_round.last_block_hash) ||
             !dap_hash_fast_compare(&l_last_block_hash, &a_session->cur_round.last_block_hash)) {
-        l_seed_hash = &l_last_block_hash;
         a_session->cur_round.last_block_hash = l_last_block_hash;
         a_session->cur_round.sync_attempt = 1;
     }
-    a_session->cur_round.validators_list = s_get_validators_list(a_session, l_seed_hash);
+    a_session->cur_round.validators_list = s_get_validators_list(a_session, &l_last_block_hash,
+                                                                 a_session->cur_round.sync_attempt - 1);
 
     bool l_round_already_started = a_session->round_fast_forward;
     if (s_validator_check(&a_session->my_signing_addr, a_session->cur_round.validators_list)) {
@@ -1252,15 +1252,11 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                                                 " current round sync attempt %"DAP_UINT64_FORMAT_U" so fast-forward this round",
                                                    l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                                        l_sync_attempt, l_session->cur_round.sync_attempt);
-                    for (uint64_t i = 0; i < l_attempts_miss - 1; i++) {
-                        // Fast-forward current sync attempt
-                        dap_list_free_full(s_get_validators_list(l_session, NULL), NULL);
-                        l_session->cur_round.sync_attempt++;
-                    }
                     // Process this message in new round, it will increment current sync attempt
                     s_session_sync_queue_add(l_session, l_message, a_data_size);
                     l_session->round_fast_forward = true;
                     l_session->cur_round.id = l_message->hdr.round_id - 1;
+                    l_session->cur_round.sync_attempt = l_sync_attempt - 1;
                     s_session_round_new(l_session);
                 }
             }
