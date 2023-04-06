@@ -345,7 +345,7 @@ static void s_callback_set_min_validators_count(dap_chain_t *a_chain, uint16_t a
     l_esbocs_pvt->min_validators_count = a_new_value;
 }
 
-static dap_list_t *s_get_validators_list(dap_chain_esbocs_session_t *a_session, dap_chain_hash_fast_t *a_seed_hash, uint64_t a_skip_count)
+static dap_list_t *s_get_validators_list(dap_chain_esbocs_session_t *a_session, uint64_t a_skip_count)
 {
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(a_session->esbocs);
     dap_list_t *l_ret = NULL;
@@ -374,7 +374,7 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_session_t *a_session, 
         size_t l_consensus_optimum = (size_t)l_esbocs_pvt->min_validators_count * 2 - 1;//(n / 2) + (n % 2);
         size_t l_need_vld_cnt = MIN(l_validators_count, l_consensus_optimum);
 
-        dap_pseudo_random_seed(*(uint256_t *)a_seed_hash);
+        dap_pseudo_random_seed(*(uint256_t *)&a_session->cur_round.last_block_hash);
         for (uint64_t i = 0; i < a_skip_count * l_need_vld_cnt; i++)
             dap_pseudo_random_get(uint256_0, NULL);
         for (size_t l_current_vld_cnt = 0; l_current_vld_cnt < l_need_vld_cnt; l_current_vld_cnt++) {
@@ -386,7 +386,7 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_session_t *a_session, 
                 char *l_seed_hash_str = dap_hash_fast_to_str_new(&a_session->cur_round.last_block_hash);
                 char *l_raw_result_str = dap_chain_balance_print(l_raw_result);
                 log_it(L_MSG, "Round seed %s, sync attempt %"DAP_UINT64_FORMAT_U", chosen weight %s from %s, by number %s",
-                                l_seed_hash_str, a_session->cur_round.sync_attempt,
+                                l_seed_hash_str, a_skip_count + 1,
                                 l_chosen_weignt_str, l_total_weight_str, l_raw_result_str);
                 DAP_DELETE(l_chosen_weignt_str);
                 DAP_DELETE(l_total_weight_str);
@@ -521,9 +521,7 @@ static void s_session_round_new(dap_chain_esbocs_session_t *a_session)
         a_session->cur_round.last_block_hash = l_last_block_hash;
         a_session->cur_round.sync_attempt = 1;
     }
-    a_session->cur_round.validators_list = s_get_validators_list(a_session, &l_last_block_hash,
-                                                                 a_session->cur_round.sync_attempt - 1);
-
+    a_session->cur_round.validators_list = s_get_validators_list(a_session, a_session->cur_round.sync_attempt - 1);
     bool l_round_already_started = a_session->round_fast_forward;
     if (s_validator_check(&a_session->my_signing_addr, a_session->cur_round.validators_list)) {
         //I am a current round validator
@@ -1243,7 +1241,9 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                                                 l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                                     l_session->cur_round.sync_attempt, l_sync_attempt);
             } else {
-                dap_list_t *l_validators_list = s_get_validators_list(l_session, &l_session->cur_round.last_block_hash, l_sync_attempt);
+                PVT(l_session->esbocs)->debug = false;  // suppress some debug messages
+                dap_list_t *l_validators_list = s_get_validators_list(l_session, l_sync_attempt);
+                PVT(l_session->esbocs)->debug = l_cs_debug;
                 bool l_msg_from_list = s_validator_check(&l_signing_addr, l_validators_list);
                 dap_list_free_full(l_validators_list, NULL);
                 if (!l_msg_from_list) {
