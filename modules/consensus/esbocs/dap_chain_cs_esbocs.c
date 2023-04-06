@@ -376,17 +376,21 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_session_t *a_session, 
 
         dap_pseudo_random_seed(*(uint256_t *)a_seed_hash);
         for (uint64_t i = 0; i < a_skip_count * l_need_vld_cnt; i++)
-            dap_pseudo_random_get(uint256_0);
+            dap_pseudo_random_get(uint256_0, NULL);
         for (size_t l_current_vld_cnt = 0; l_current_vld_cnt < l_need_vld_cnt; l_current_vld_cnt++) {
-            uint256_t l_chosen_weight = dap_pseudo_random_get(l_total_weight);
+            uint256_t l_raw_result;
+            uint256_t l_chosen_weight = dap_pseudo_random_get(l_total_weight, &l_raw_result);
             if (PVT(a_session->esbocs)->debug) {
                 char *l_chosen_weignt_str = dap_chain_balance_print(l_chosen_weight);
                 char *l_total_weight_str = dap_chain_balance_print(l_total_weight);
                 char *l_seed_hash_str = dap_hash_fast_to_str_new(&a_session->cur_round.last_block_hash);
-                log_it(L_MSG, "Round seed %s, sync attempt %"DAP_UINT64_FORMAT_U", chosen weight %s from %s",
-                                l_seed_hash_str, a_session->cur_round.sync_attempt, l_chosen_weignt_str, l_total_weight_str);
+                char *l_raw_result_str = dap_chain_balance_print(l_raw_result);
+                log_it(L_MSG, "Round seed %s, sync attempt %"DAP_UINT64_FORMAT_U", chosen weight %s from %s, by number %s",
+                                l_seed_hash_str, a_session->cur_round.sync_attempt,
+                                l_chosen_weignt_str, l_total_weight_str, l_raw_result_str);
                 DAP_DELETE(l_chosen_weignt_str);
                 DAP_DELETE(l_total_weight_str);
+                DAP_DELETE(l_raw_result_str);
                 DAP_DELETE(l_seed_hash_str);
             }
             dap_list_t *l_chosen = NULL;
@@ -658,7 +662,7 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
             if (l_validator->is_synced && !l_validator->is_chosen)
                 SUM_256_256(l_total_weight, l_validator->weight, &l_total_weight);
         }
-        uint256_t l_chosen_weight = dap_pseudo_random_get(l_total_weight);
+        uint256_t l_chosen_weight = dap_pseudo_random_get(l_total_weight, NULL);
         uint256_t l_cur_weight = uint256_0;
         for (dap_list_t *it = a_session->cur_round.validators_list; it; it = it->next) {
             l_validator = it->data;
@@ -1239,6 +1243,17 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                                                 l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                                     l_session->cur_round.sync_attempt, l_sync_attempt);
             } else {
+                dap_list_t *l_validators_list = s_get_validators_list(l_session, &l_session->cur_round.last_block_hash, l_sync_attempt);
+                bool l_msg_from_list = s_validator_check(&l_signing_addr, l_validators_list);
+                dap_list_free_full(l_validators_list, NULL);
+                if (!l_msg_from_list) {
+                    debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U
+                                                " SYNC message is rejected because validator %s"
+                                                " not in the specified round validators list",
+                                                    l_session->chain->net_name, l_session->chain->name,
+                                                        l_session->cur_round.id, l_validator_addr_str);
+                    break;
+                }
                 uint64_t l_attempts_miss = l_sync_attempt - l_session->cur_round.sync_attempt;
                 if (l_attempts_miss > UINT16_MAX) {
                     debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U
@@ -1273,7 +1288,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         if (!l_msg_from_list) {
             debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U
                                         " SYNC message is rejected because validator %s"
-                                        " not in the current  round validators list",
+                                        " not in the current round validators list",
                                             l_session->chain->net_name, l_session->chain->name,
                                                 l_session->cur_round.id, l_validator_addr_str);
             break;
