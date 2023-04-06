@@ -669,7 +669,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
 //        dap_chain_hash_fast_to_str(&l_tx_hash, hash_str,99);
 //        int gsdgsd=523;
         }
-        
+
         dap_chain_addr_t *l_addr = NULL;
         // if need addr
         if(l_wallet_name || l_addr_base58) {
@@ -746,7 +746,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
             dap_chain_enum_unlock();
         dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ret->str);
         dap_string_free(l_str_ret, true);
-        return 0;       
+        return 0;
     }
     else if(l_cmd == CMD_LIST){
         enum {SUBCMD_NONE, SUBCMD_LIST_COIN, SUB_CMD_LIST_LEDGER_THRESHOLD, SUB_CMD_LIST_LEDGER_BALANCE, SUB_CMD_LIST_LEDGER_THRESHOLD_WITH_HASH};
@@ -1139,7 +1139,7 @@ static dap_chain_datum_decree_t * s_sign_decree_in_cycle(dap_cert_t ** a_certs, 
             DAP_DELETE(l_sign);
             log_it(L_DEBUG,"<-- Signed with '%s'", a_certs[i]->name);
             l_total_sign_count++;
-        }               
+        }
     }
 
     *a_total_sign_count = l_total_sign_count;
@@ -1233,8 +1233,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
         l_cmd = CMD_ANCHOR;
 
     switch (l_cmd) {
-    case CMD_CREATE:
-    {
+    case CMD_CREATE: {
         if(!l_certs_count) {
             return ({ dap_cli_server_cmd_set_reply_text(a_str_reply, "No certs provided to sign the decree"); -106; });
         }
@@ -1247,7 +1246,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
         dap_chain_datum_decree_t *l_datum_decree = NULL;
 
         switch (l_type) {
-        case TYPE_COMMON:
+        case TYPE_COMMON: {
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain", &l_chain_str);
             if (l_chain_str) {
                 if (!(l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str))) {
@@ -1293,32 +1292,31 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                     return -103;
                 }
             } else {
+                DAP_DELETE(l_certs);
                 return ({ dap_cli_server_cmd_set_reply_text(a_str_reply, "Decree requires parameter -decree_chain"); -105; });
             }
 
             dap_tsd_t *l_tsd = NULL;
-            dap_cert_t **l_new_certs = NULL;
             size_t l_new_certs_count = 0, l_total_tsd_size = 0;
             dap_list_t *l_tsd_list = NULL;
 
             int l_subtype = SUBTYPE_NONE;
-            const char *l_param_value_str = NULL;
-            const char *l_param_addr_str = NULL;
+            const char *l_param_value_str = NULL, *l_param_addr_str = NULL;
             if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &l_param_value_str)){
                 l_subtype = SUBTYPE_FEE;
                 if (!dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-to_addr", &l_param_addr_str)){
-                    if(!l_net->pub.decree->fee_addr)
-                    {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Net fee add needed. Use -to_addr parameter");
-                        return -111;
+                    if(!l_net->pub.decree->fee_addr) {
+                        DAP_DELETE(l_certs);
+                        return ({ dap_cli_server_cmd_set_reply_text(a_str_reply, "Net fee address needed. Use -to_addr parameter"); -111; });
                     }
-                }else{
+                } else {
                     l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(dap_chain_addr_t);
                     l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
                     l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE_WALLET;
                     l_tsd->size = sizeof(dap_chain_addr_t);
                     dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_param_addr_str);
                     memcpy(l_tsd->data, l_addr, sizeof(dap_chain_addr_t));
+                    DAP_DELETE(l_addr);
                     l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
                 }
 
@@ -1328,42 +1326,46 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                 l_tsd->size = sizeof(uint256_t);
                 *(uint256_t*)(l_tsd->data) = dap_cvt_str_to_uint256(l_param_value_str);
                 l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
-            }else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-new_certs", &l_param_value_str)){
+            } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-new_certs", &l_param_value_str)){
                 l_subtype = SUBTYPE_OWNERS;
+                dap_cert_t **l_new_certs = NULL;
                 dap_cert_parse_str_list(l_param_value_str, &l_new_certs, &l_new_certs_count);
-
                 dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
                 uint16_t l_min_signs = l_net->pub.decree->min_num_of_owners;
                 if (l_new_certs_count < l_min_signs) {
-                    log_it(L_WARNING,"Number of new certificates is less than minimum owner number.");
+                    log_it(L_WARNING, "Number of new certificates is less than minimum owners number.");
+                    DAP_DELETE(l_certs);
+                    DAP_DELETE(l_new_certs);
                     return -106;
                 }
 
                 size_t l_failed_certs = 0;
-                for (size_t i=0;i<l_new_certs_count;i++){
+                for (size_t i = 0; i < l_new_certs_count; ++i) {
                     dap_pkey_t *l_pkey = dap_cert_to_pkey(l_new_certs[i]);
                     if(!l_pkey)
                     {
                         log_it(L_WARNING,"New cert [%zu] have no public key.", i);
                         l_failed_certs++;
-                        continue;
+                        break;
                     }
                     l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER, l_pkey, sizeof(dap_pkey_t) + (size_t)l_pkey->header.size);
                     DAP_DELETE(l_pkey);
                     l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
                     l_total_tsd_size += sizeof(dap_tsd_t) + (size_t)l_tsd->size;
                 }
-                if(l_failed_certs)
-                {
+                DAP_DELETE(l_new_certs);
+                if (l_failed_certs) {
+                    DAP_DELETE(l_certs);
                     dap_list_free_full(l_tsd_list, NULL);
-                    return -108;
+                    return ({ dap_cli_server_cmd_set_reply_text(a_str_reply, "One of new certs is corrupted (no public key)"); -108; });
                 }
-            }else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-signs_verify", &l_param_value_str)){
+            } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-signs_verify", &l_param_value_str)) {
                 l_subtype = SUBTYPE_MIN_OWNERS;
                 uint256_t l_new_num_of_owners = dap_cvt_str_to_uint256(l_param_value_str);
                 if (IS_ZERO_256(l_new_num_of_owners)) {
                     log_it(L_WARNING, "The minimum number of owners can't be zero");
                     dap_list_free_full(l_tsd_list, NULL);
+                    DAP_DELETE(l_certs);
                     return -112;
                 }
                 dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
@@ -1371,6 +1373,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                 if (compare256(l_new_num_of_owners, l_owners) > 0) {
                     log_it(L_WARNING,"The minimum number of owners is greater than the total number of owners.");
                     dap_list_free_full(l_tsd_list, NULL);
+                    DAP_DELETE(l_certs);
                     return -110;
                 }
 
@@ -1380,98 +1383,90 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                 l_tsd->size = sizeof(uint256_t);
                 *(uint256_t*)(l_tsd->data) = l_new_num_of_owners;
                 l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
-            }else{
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Decree subtype fail.");
-                return -111;
+            } else {
+                DAP_DELETE(l_certs);
+                return ({ dap_cli_server_cmd_set_reply_text(a_str_reply, "Unknown decree subtype"); -111; });
             }
 
-            if (l_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS ||
-                l_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN)
+            if ( (l_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS ||
+                l_subtype == DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN) != (l_decree_chain->id.uint64 == l_chain->id.uint64)) /* xor */
             {
-                if (l_decree_chain->id.uint64 != l_chain->id.uint64){
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Decree subtype %s not suppurted by chain %s",
-                                                      dap_chain_datum_decree_subtype_to_str(l_subtype), l_decree_chain_str);
-                    return -107;
-                }
-            } else if (l_decree_chain->id.uint64 == l_chain->id.uint64){
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Decree subtype %s not suppurted by chain %s",
-                                                  dap_chain_datum_decree_subtype_to_str(l_subtype), l_decree_chain_str);
-                return -107;
+                return ({ dap_cli_server_cmd_set_reply_text(a_str_reply, "Decree subtype %s is not supported by chain %s",
+                                                  dap_chain_datum_decree_subtype_to_str(l_subtype), l_decree_chain_str); -107; });
             }
 
             l_datum_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, sizeof(dap_chain_datum_decree_t) + l_total_tsd_size);
-            l_datum_decree->decree_version = DAP_CHAIN_DATUM_DECREE_VERSION;
-            l_datum_decree->header.ts_created = dap_time_now();
-            l_datum_decree->header.type = l_type;
-            l_datum_decree->header.common_decree_params.net_id = dap_chain_net_id_by_name(l_net_str);
-            l_datum_decree->header.common_decree_params.chain_id = l_decree_chain->id;
-            l_datum_decree->header.common_decree_params.cell_id = *dap_chain_net_get_cur_cell(l_net);
-            l_datum_decree->header.sub_type = l_subtype;
-            l_datum_decree->header.data_size = l_total_tsd_size;
-            l_datum_decree->header.signs_size = 0;
+            l_datum_decree->decree_version  = DAP_CHAIN_DATUM_DECREE_VERSION;
+            l_datum_decree->header          = (typeof(l_datum_decree->header)) {
+                    .ts_created = dap_time_now(),
+                    .type       = l_type,
+                    .common_decree_params = {
+                        .net_id     = dap_chain_net_id_by_name(l_net_str),
+                        .chain_id   = l_decree_chain->id,
+                        .cell_id    = *dap_chain_net_get_cur_cell(l_net)
+                    },
+                    .sub_type   = l_subtype,
+                    .data_size  = l_total_tsd_size,
+                    .signs_size = 0
+            };
 
             size_t l_data_tsd_offset = 0;
-            for ( dap_list_t* l_iter=dap_list_first(l_tsd_list); l_iter; l_iter=l_iter->next){
-                dap_tsd_t * l_b_tsd = (dap_tsd_t *) l_iter->data;
+            for (dap_list_t *l_iter = dap_list_first(l_tsd_list); l_iter; l_iter = l_iter->next) {
+                dap_tsd_t *l_b_tsd = (dap_tsd_t*)l_iter->data;
                 size_t l_tsd_size = dap_tsd_size(l_b_tsd);
                 memcpy((byte_t*)l_datum_decree->data_n_signs + l_data_tsd_offset, l_b_tsd, l_tsd_size);
                 l_data_tsd_offset += l_tsd_size;
             }
             dap_list_free_full(l_tsd_list, NULL);
-
             break;
+        } /* TYPE_COMMON */
+
         case TYPE_SERVICE:
             break;
+
         default:
             DAP_DELETE(l_certs);
             return ({ dap_cli_server_cmd_set_reply_text(a_str_reply, "Not found decree type (common or service)"), -107; });
-        }
+        } /* l_type */
 
-        if (l_type == TYPE_COMMON){
-
-
-
-        }else if (l_type == TYPE_SERVICE) {
-
-        }else{
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "not found decree type (common or service)");
-            return -107;
-        }
-
-        // Sign decree
+        /* Sign the decree */
         size_t l_total_signs_success = 0;
         if (l_certs_count)
             l_datum_decree = s_sign_decree_in_cycle(l_certs, l_datum_decree, l_certs_count, &l_total_signs_success);
 
-        if (!l_datum_decree || l_total_signs_success == 0){
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                        "Decree creation failed. Successful count of certificate signing is 0");
-                return -108;
+        if (!l_datum_decree || !l_total_signs_success) {
+            DAP_DEL_Z(l_datum_decree);
+            DAP_DELETE(l_certs);
+            return ({ dap_cli_server_cmd_set_reply_text(a_str_reply, "Decree creation failed, couldn't sign it with the certificates"); -108; });
         }
 
-        // Create datum
-        dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_DECREE,
+        /* Create datum */
+        dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_DECREE,
                                                              l_datum_decree,
                                                              sizeof(*l_datum_decree) + l_datum_decree->header.data_size +
                                                              l_datum_decree->header.signs_size);
         DAP_DELETE(l_datum_decree);
         char *l_key_str_out = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type);
         DAP_DELETE(l_datum);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s is%s placed in datum pool",
-                                          l_key_str_out ? l_key_str_out : "",
-                                          l_key_str_out ? "" : " not");
+        if (l_key_str_out) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s was placed into mempool", l_key_str_out);
+            DAP_DELETE(l_key_str_out);
+        } else {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum is NOT placed into mempool");
+        }
         break;
-    }
-    case CMD_SIGN:{
+    }   /* CMD_CREATE */
+
+    case CMD_SIGN: {
         if(!l_certs_count) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                    "decree sign command requres at least one valid certificate to sign the basic transaction of emission");
-            return -106;
+            DAP_DEL_Z(l_certs);
+            return ({ dap_cli_server_cmd_set_reply_text(a_str_reply,
+                    "Decree sign command requres at least one valid certificate to sign the basic transaction of emission"); -106; });
         }
 
-        const char * l_datum_hash_str = NULL;
+        const char *l_datum_hash_str = NULL;
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-datum", &l_datum_hash_str);
-        if(l_datum_hash_str) {
+        if (l_datum_hash_str) {
             char * l_datum_hash_hex_str = NULL;
             char * l_datum_hash_base58_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain", &l_chain_str);
@@ -1567,99 +1562,206 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
             DAP_DELETE(l_datum_hash_hex_str);
             DAP_DELETE(l_datum_hash_base58_str);
         } else {
+            DAP_DELETE(l_certs);
             dap_cli_server_cmd_set_reply_text(a_str_reply, "decree sign need -datum <datum hash> argument");
             return -2;
         }
-        break;
-    }
-    case CMD_ANCHOR:{
+
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain", &l_chain_str);
-
-        // Search chain
-        if(l_chain_str) {
-            l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
-            if (l_chain == NULL) {
-                char l_str_to_reply_chain[500] = {0};
-                char *l_str_to_reply = NULL;
-                sprintf(l_str_to_reply_chain, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid\n",
-                                                a_argv[0], l_net_str, l_chain_str);
-                l_str_to_reply = dap_strcat2(l_str_to_reply,l_str_to_reply_chain);
-                dap_chain_t * l_chain;
-                l_str_to_reply = dap_strcat2(l_str_to_reply,"\nAvailable chain with anchor support:\n");
-                l_chain = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_ANCHOR);
-                l_str_to_reply = dap_strcat2(l_str_to_reply,"\t");
-                l_str_to_reply = dap_strcat2(l_str_to_reply,l_chain->name);
-                l_str_to_reply = dap_strcat2(l_str_to_reply,"\n");
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_to_reply);
+        if (l_chain_str) {
+            if (!(l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str))) {
+                DAP_DELETE(l_certs);
+                dap_chain_t *l_chain_tmp = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_DECREE);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s requires parameter '-chain' to be valid chain name in chain net %s."
+                                                               "Current chain %s is not valid\n"
+                                                               "Available chain with decree support:\n\t%s\n",
+                                                  a_argv[0], l_net_str, l_chain_str, l_chain_tmp->name);
                 return -103;
-            } else if (l_chain != dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_ANCHOR)){ // check chain to support decree
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Chain %s don't support decree", l_chain->name);
-                return -104;
+            } else if (l_chain != dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_DECREE)) {
+                DAP_DELETE(l_certs);
+                return ({ dap_cli_server_cmd_set_reply_text(a_str_reply, "Chain %s doesn't support decree", l_chain->name); -104; });
             }
-        }else if((l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_ANCHOR)) == NULL) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find chain with default anchor support.");
-            return -105;
+        } else {
+            if (!(l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_DECREE))) {
+                DAP_DELETE(l_certs);
+                return ({ dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find chain with decree support"); -105; });
+            }
         }
 
-        dap_chain_datum_anchor_t *l_datum_anchor = NULL;
-        dap_hash_fast_t l_hash = {};
-        const char * l_datum_hash_str = NULL;
-        if (!dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-datum", &l_datum_hash_str))
-        {
+        char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
+        if(!l_gdb_group_mempool) {
+            l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_DECREE);
+        }
+        char *l_datum_hash_hex_str = NULL, *l_datum_hash_base58_str = NULL;
+
+        if(!dap_strncmp(l_datum_hash_str, "0x", 2) || !dap_strncmp(l_datum_hash_str, "0X", 2)) {
+            l_datum_hash_hex_str = dap_strdup(l_datum_hash_str);
+            l_datum_hash_base58_str = dap_enc_base58_from_hex_str_to_str(l_datum_hash_str);
+        } else {
+            l_datum_hash_hex_str = dap_enc_base58_to_hex_str_from_str(l_datum_hash_str);
+            l_datum_hash_base58_str = dap_strdup(l_datum_hash_str);
+        }
+
+        const char *l_datum_hash_out_str = !dap_strcmp(l_hash_out_type,"hex")
+                ? l_datum_hash_hex_str
+                : l_datum_hash_base58_str;
+
+        log_it(L_DEBUG, "Requested to sign decree creation %s in gdb://%s with certs %s",
+                l_gdb_group_mempool, l_datum_hash_hex_str, l_certs_str);
+
+        dap_chain_datum_t *l_datum = NULL;
+        size_t l_datum_size = 0;
+        int l_ret = 0;
+        if ((l_datum = (dap_chain_datum_t*)dap_global_db_get_sync(l_gdb_group_mempool, l_datum_hash_hex_str, &l_datum_size, NULL, NULL))) {
+            if(l_datum->header.type_id == DAP_CHAIN_DATUM_DECREE) {
+                dap_chain_datum_decree_t *l_datum_decree = DAP_DUP_SIZE(l_datum->data, l_datum->header.data_size);
+                DAP_DELETE(l_datum);
+                // Sign decree
+                size_t l_total_signs_success = 0;
+                l_datum_decree = s_sign_decree_in_cycle(l_certs, l_datum_decree, l_certs_count, &l_total_signs_success);
+
+                if (!l_datum_decree || l_total_signs_success == 0) {
+                    DAP_DEL_Z(l_datum_decree);
+                    DAP_DELETE(l_certs);
+                    DAP_DELETE(l_datum_hash_hex_str);
+                    DAP_DELETE(l_gdb_group_mempool);
+                    DAP_DELETE(l_datum_hash_base58_str);
+                    return ({ dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                "Decree creation failed. Successful count of certificate signing is 0"); -108; });
+                }
+                size_t l_decree_size = dap_chain_datum_decree_get_size(l_datum_decree);
+                dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_DECREE, l_datum_decree, l_decree_size);
+                DAP_DELETE(l_datum_decree);
+
+                l_datum_size = dap_chain_datum_size(l_datum);
+                dap_chain_hash_fast_t l_key_hash = { };
+                dap_hash_fast(l_datum->data, l_decree_size, &l_key_hash);
+                const char *l_key_out_str = !dap_strcmp(l_hash_out_type, "hex")
+                        ? dap_chain_hash_fast_to_str_new(&l_key_hash)
+                        : dap_enc_base58_encode_hash_to_str(&l_key_hash);
+
+                // Add datum to mempool with datum_token hash as a key
+                int     l_res_set = dap_global_db_set_sync(l_gdb_group_mempool, l_key_out_str, l_datum, dap_chain_datum_size(l_datum), true),
+                        l_res_del_old = !l_res_set ? dap_global_db_del_sync(l_gdb_group_mempool, l_datum_hash_hex_str) : -1;
+
+                DAP_DELETE(l_datum);
+
+                if (l_res_set) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply,
+                            "Error! Datum %s produced from the elder %s can't be placed into mempool",
+                            l_key_out_str, l_datum_hash_out_str);
+                } else if (l_res_del_old) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply,
+                            "Warning! New datum '%s' is added to mempool, but can't remove the old one '%s'",
+                            l_key_out_str, l_datum_hash_out_str);
+                } else {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply,
+                            "Datum %s is successfully replaced by %s in mempool",
+                            l_datum_hash_out_str, l_key_out_str);
+                }
+                l_ret = l_res_set ? -2 : l_res_del_old ? -1 : 0;
+
+            } else {
+                dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                                  "Error! Wrong datum type, must be DATUM_DECREE");
+                l_ret = -61;
+            }
+        } else {
             dap_cli_server_cmd_set_reply_text(a_str_reply,
-                        "Anchor creation failed. Cmd decree create anchor must contain -datum parameter.");
-                return -107;
+                                              "Can't find datum with hash %s in the mempool of %s:%s",
+                                              l_datum_hash_out_str,
+                                              l_net ? l_net->pub.name: "<undefined>",
+                                              l_chain ? l_chain->name : "<undefined>");
+            l_ret = -5;
         }
-        if(l_datum_hash_str) {
-            dap_chain_hash_fast_from_str(l_datum_hash_str, &l_hash);
+        DAP_DELETE(l_datum_hash_hex_str);
+        DAP_DELETE(l_datum_hash_base58_str);
+        DAP_DELETE(l_gdb_group_mempool);
+        DAP_DELETE(l_certs);
+        return l_ret;
+    }   /* CMD_SIGN */
+
+    case CMD_ANCHOR: {
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain", &l_chain_str);
+        if (l_chain_str) {
+            if (!(l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str))) {
+                DAP_DELETE(l_certs);
+                dap_chain_t *l_chain_tmp = dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_DECREE);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s requires parameter '-chain' to be valid chain name in chain net %s."
+                                                               "Current chain %s is not valid\n"
+                                                               "Available chain with decree support:\n\t%s\n",
+                                                  a_argv[0], l_net_str, l_chain_str, l_chain_tmp->name);
+                return -103;
+            } else if (l_chain != dap_chain_net_get_chain_by_chain_type(l_net, CHAIN_TYPE_DECREE)) {
+                DAP_DELETE(l_certs);
+                return ({ dap_cli_server_cmd_set_reply_text(a_str_reply, "Chain %s doesn't support decree", l_chain->name); -104; });
+            }
+        } else {
+            if (!(l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_DECREE))) {
+                DAP_DELETE(l_certs);
+                return ({ dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find chain with decree support"); -105; });
+            }
         }
 
-        // Pack data into TSD
+        const char *l_datum_hash_str = NULL;
+        if (!dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-datum", &l_datum_hash_str)) {
+            DAP_DELETE(l_certs);
+            return ({ dap_cli_server_cmd_set_reply_text(a_str_reply,
+                        "Anchor creation failed. "
+                        "Cmd decree create anchor must contain valid -datum parameter."); -107; });
+        }
+
+        dap_hash_fast_t l_hash = { };
+        dap_chain_hash_fast_from_str(l_datum_hash_str, &l_hash);
+
         dap_tsd_t *l_tsd = NULL;
-        l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_ANCHOR_TSD_TYPE_DECREE_HASH, &l_hash, sizeof(dap_hash_fast_t));
-        if(!l_tsd)
+        if (!(l_tsd = dap_tsd_create(DAP_CHAIN_DATUM_ANCHOR_TSD_TYPE_DECREE_HASH, &l_hash, sizeof(dap_hash_fast_t))))
         {
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                        "Anchor creation failed. Memory allocation fail.");
-                return -107;
+            DAP_DELETE(l_certs);
+            return ({ dap_cli_server_cmd_set_reply_text(a_str_reply,
+                        "Anchor creation failed. Memory allocation fail."); -107; });
         }
 
-        // Create anchor datum
-        l_datum_anchor = DAP_NEW_Z_SIZE(dap_chain_datum_anchor_t, sizeof(dap_chain_datum_anchor_t) + dap_tsd_size(l_tsd));
-        l_datum_anchor->header.data_size = dap_tsd_size(l_tsd);
-        l_datum_anchor->header.ts_created = dap_time_now();
+        dap_chain_datum_anchor_t *l_datum_anchor = DAP_NEW_Z_SIZE(dap_chain_datum_anchor_t,
+                                                                  sizeof(dap_chain_datum_anchor_t) + dap_tsd_size(l_tsd));
+        l_datum_anchor->header = (typeof(l_datum_anchor->header)) {
+                .ts_created = dap_time_now(),
+                .data_size = dap_tsd_size(l_tsd),
+                .signs_size = 0
+        };
         memcpy(l_datum_anchor->data_n_sign, l_tsd, dap_tsd_size(l_tsd));
-
         DAP_DEL_Z(l_tsd);
 
-        // Sign anchor
         size_t l_total_signs_success = 0;
         if (l_certs_count)
             l_datum_anchor = s_sign_anchor_in_cycle(l_certs, l_datum_anchor, l_certs_count, &l_total_signs_success);
 
-        if (!l_datum_anchor || l_total_signs_success == 0){
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                        "Anchor creation failed. Successful count of certificate signing is 0");
-                return -108;
+        if (!l_datum_anchor || !l_total_signs_success) {
+            DAP_DEL_Z(l_datum_anchor);
+            DAP_DELETE(l_certs);
+            return ({ dap_cli_server_cmd_set_reply_text(a_str_reply,
+                        "Anchor creation failed. Successful count of certificate signing is 0"); -108; });
         }
 
-        // Create datum
-        dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_ANCHOR,
+        /* Create datum */
+        dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_ANCHOR,
                                                              l_datum_anchor,
                                                              sizeof(*l_datum_anchor) + l_datum_anchor->header.data_size +
                                                              l_datum_anchor->header.signs_size);
         DAP_DELETE(l_datum_anchor);
         char *l_key_str_out = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type);
         DAP_DELETE(l_datum);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s is%s placed in datum pool",
-                                          l_key_str_out ? l_key_str_out : "",
-                                          l_key_str_out ? "" : " not");
+        if (l_key_str_out) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s was placed into mempool", l_key_str_out);
+            DAP_DELETE(l_key_str_out);
+        } else {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum is NOT placed into mempool");
+        }
         break;
-    }
-    default:
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Not found decree action. Use create, sign or anchor parametr");
-        return -1;
-    }
+    } /* CMD_ANCHOR */
 
+    default:
+        return ({ dap_cli_server_cmd_set_reply_text(a_str_reply, "Not found decree action. Use create, sign or anchor parametr"); -1; });
+    }
     return 0;
 }
