@@ -1116,7 +1116,7 @@ typedef struct fee_param
     dap_hash_fast_t * block_hash;
     dap_enc_key_t * key_from;
     dap_chain_addr_t * a_addr_to;
-    uint256_t fee_need;
+    uint256_t fee_need_cfg;
     uint256_t value_fee;
     dap_chain_t * chain;
 }fee_param_t;
@@ -1138,7 +1138,7 @@ static void s_check_db_callback_fee_collect (dap_global_db_context_t * a_global_
     dap_list_t *l_block_list = NULL;
     l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_arg->block_hash);
     dap_list_t *l_list_used_out = dap_chain_block_get_list_tx_cond_outs_with_val(l_chain->ledger,l_block_cache,&l_value_out_block);
-    if (!l_list_used_out) continue;
+    //if (!l_list_used_out) continue;
 
     SUM_256_256(l_value_out_block,l_value_gdb,&l_value_total);
     l_value_gdb = *(uint256_t*)a_value;
@@ -1146,35 +1146,53 @@ static void s_check_db_callback_fee_collect (dap_global_db_context_t * a_global_
     l_count = *(int*)(a_value+l_len);
     l_len += sizeof(int);
 
-    if(a_value_len > l_len)
+    if((a_value_len > l_len) && l_count)
     {
-        if(l_count)
+        for(i=0;i<l_count;i++)
         {
-            for(i=0;i<count;i++)
-            {
-                dap_hash_fast_t bl_h = *(dap_hash_fast_t*)a_value + l_len + (i+1)*sizeof(dap_hash_fast_t);
-                dap_chain_block_cache_t *block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &bl_h);
-                l_block_list = dap_list_append(l_block_list, block_cache);
-            }
-            if(compare256(l_value_total,l_arg->fee_need == 1))
-            {
-                dap_chain_mempool_tx_coll_fee_create(a_session->blocks_sign_key, (PVT(a_session->esbocs)->fee_addr),
-                                                     l_block_list, PVT(a_session->esbocs)->minimum_fee, "hex");
-
-                //здесь удаление из базы данных
-
-
-
-            }
-            dap_hash_fast_t *l_hashes = DAP_NEW_Z(l_count * sizeof(dap_hash_fast_t));
-
+            dap_hash_fast_t bl_h = *(dap_hash_fast_t*)a_value + l_len + (i+1)*sizeof(dap_hash_fast_t);
+            l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &bl_h);
+            l_block_list = dap_list_append(l_block_list, l_block_cache);
         }
+        l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_arg->block_hash);
+        l_block_list = dap_list_append(l_block_list, l_block_cache);
+        if(compare256(l_value_total,l_arg->fee_need_cfg == 1))
+        {
+            dap_chain_mempool_tx_coll_fee_create(l_arg->key_from, l_arg->a_addr_to,
+                                                 l_block_list, l_arg->value_fee, "hex");
+            dap_global_db_del("local.block_hash", "l_block", NULL, NULL);
+            dap_list_free_full(l_block_list, NULL);
+            return;
+        }
+        else
+        {
+            size_t t = sizeof(uint256_t) + sizeof(int) + (l_len+1) * sizeof(dap_hash_fast_t);
+            uint8_t * byte_raw = DAP_NEW_Z_SIZE(uint8_t, t);
+            *byte_raw = *(uint256_t*)l_value_total;
+            //формируем байты, записываем в гдб
+            res_1 = dap_global_db_set("local.block_hash", test_value, &val_t, sizeof(int), false, NULL, NULL);
+            //проверка что все записалось
+            dap_list_free_full(l_block_list, NULL);
+            return;
+        }
+        //dap_hash_fast_t *l_hashes = DAP_NEW_Z(l_count * sizeof(dap_hash_fast_t));
+
+
         while(l_len < a_value_len)
         {
             tmp.fee_vall
             *l_arg = *(int*)a_value;
         }
+    }else if(есть блок)
+    {
+        //возможно стоит проверить что в данном блоке накопилось нужное количество и тогда делаем съем
+        //выделяем память
+        //записываем в гдб
+        //проверка что все записалось
+        //удаляем память
+        return;
     }
+
 }
 
 
