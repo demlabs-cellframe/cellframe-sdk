@@ -64,6 +64,10 @@ typedef struct dap_chain_tx_hash_processed_ht{
     UT_hash_handle hh;
 }dap_chain_tx_hash_processed_ht_t;
 
+int val_t = 67;
+int val_t2 = 2;
+int res_1 = 1;
+
 /**
  * @brief s_chain_tx_hash_processed_ht_free
  * free l_current_hash->hash, l_current_hash, l_hash_processed
@@ -587,6 +591,17 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
     return l_ret_str;
 }
 
+static void s_check_db_version_callback_get_2 (dap_global_db_context_t * a_global_db_context, int a_errno, const char * a_group, const char * a_key,
+                                             const void * a_value, const size_t a_value_len,
+                                             dap_nanotime_t value_ts, bool a_is_pinned, void * a_arg)
+{
+    int res = 0;
+    int * l_arg;
+    l_arg = (int*)a_arg;
+
+    if (a_value_len == sizeof(int))
+        *l_arg = *(int*)a_value;
+}
 
 /**
  * @brief com_ledger
@@ -608,14 +623,15 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
     const char *l_tx_hash_str = NULL;
 
     const char *test_value = "test_val";
-    int val_t = 67;
 
 
 
-    dap_global_db_set("local.block_value", test_value, &val_t, sizeof(int), false, NULL, NULL);
-
-
-    l_ret = dap_global_db_get(DAP_GLOBAL_DB_LOCAL_GENERAL, "gdb_version",s_check_db_version_callback_get, NULL);
+    res_1 = dap_global_db_set("local.block_value", test_value, &val_t, sizeof(int), false, NULL, NULL);
+    if(res_1)
+        return 0;
+    const char *l_storage_path = dap_config_get_item_str(g_config, "global_db", "path");
+     l_storage_path;
+    res_1 = dap_global_db_get("local.block_value", test_value,s_check_db_version_callback_get_2, &val_t2);
 
 
     dap_chain_t * l_chain = NULL;
