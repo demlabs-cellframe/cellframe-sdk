@@ -460,8 +460,6 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
             }
         }else if( dap_strcmp( l_order_str, "create" ) == 0 ){
             const char *l_order_cert_name = NULL;
-            const char *l_ip_addr = NULL;
-            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-ip", &l_ip_addr);
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-cert", &l_order_cert_name);
             if ( l_srv_uid_str && l_price_str && l_price_token_str && l_price_unit_str) {
                 dap_chain_net_srv_uid_t l_srv_uid={{0}};
