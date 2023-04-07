@@ -380,7 +380,7 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_session_t *a_session, 
         for (size_t l_current_vld_cnt = 0; l_current_vld_cnt < l_need_vld_cnt; l_current_vld_cnt++) {
             uint256_t l_raw_result;
             uint256_t l_chosen_weight = dap_pseudo_random_get(l_total_weight, &l_raw_result);
-            if (PVT(a_session->esbocs)->debug) {
+            if (false) { //PVT(a_session->esbocs)->debug) {
                 char *l_chosen_weignt_str = dap_chain_balance_print(l_chosen_weight);
                 char *l_total_weight_str = dap_chain_balance_print(l_total_weight);
                 char *l_seed_hash_str = dap_hash_fast_to_str_new(&a_session->cur_round.last_block_hash);
@@ -680,11 +680,20 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
             HASH_ITER(hh, a_session->cur_round.message_items, l_item, l_tmp) {
                 if (l_item->message->hdr.type == DAP_STREAM_CH_VOTING_MSG_TYPE_SUBMIT &&
                         dap_chain_addr_compare(&l_item->signing_addr, &a_session->cur_round.attempt_submit_validator)) {
-                    a_session->cur_round.attempt_candidate_hash = l_item->message->hdr.candidate_hash;
-                    s_session_state_change(a_session, DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_SIGNS, dap_time_now());
-                    // Verify and vote already submitted candidate
-                    s_session_candidate_verify(a_session, (dap_chain_block_t *)l_item->message->msg_n_sign,
-                                               l_item->message->hdr.message_size, &a_session->cur_round.attempt_candidate_hash);
+                    dap_hash_fast_t *l_candidate_hash = &l_item->message->hdr.candidate_hash;
+                    if (dap_hash_fast_is_blank(l_candidate_hash))
+                        s_session_attempt_new(a_session);
+                    else {
+                        dap_chain_esbocs_store_t *l_store;
+                        HASH_FIND(hh, a_session->cur_round.store_items, l_candidate_hash, sizeof(dap_chain_hash_fast_t), l_store);
+                        if (l_store) {
+                            a_session->cur_round.attempt_candidate_hash = *l_candidate_hash;
+                            s_session_state_change(a_session, DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_SIGNS, dap_time_now());
+                            // Verify and vote already submitted candidate
+                            s_session_candidate_verify(a_session, l_store->candidate, l_store->candidate_size, l_candidate_hash);
+                        }
+                    }
+                    break;
                 }
             }
         }
@@ -1302,6 +1311,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
             s_session_state_change(l_session, DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC, dap_time_now());
         }
     } break;
+
     case DAP_STREAM_CH_VOTING_MSG_TYPE_SUBMIT: {
         uint8_t *l_candidate = l_message->msg_n_sign;
         size_t l_candidate_size = l_message->hdr.message_size;

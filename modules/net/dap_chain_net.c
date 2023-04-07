@@ -217,16 +217,14 @@ typedef struct dap_chain_net_item{
     dap_chain_net_id_t net_id;
     dap_chain_net_t * chain_net;
     UT_hash_handle hh;
+    UT_hash_handle hh2;
 } dap_chain_net_item_t;
 
 #define PVT(a) ( (dap_chain_net_pvt_t *) (void*) a->pvt )
 #define PVT_S(a) ( (dap_chain_net_pvt_t *) (void*) a.pvt )
 
-static pthread_rwlock_t    s_net_items_rwlock  = PTHREAD_RWLOCK_INITIALIZER,
-                           s_net_ids_rwlock    = PTHREAD_RWLOCK_INITIALIZER;
-static dap_chain_net_item_t     *s_net_items        = NULL,
-                                *s_net_items_ids    = NULL;
-
+static pthread_rwlock_t s_net_items_rwlock = PTHREAD_RWLOCK_INITIALIZER;
+static dap_chain_net_item_t *s_net_items = NULL, *s_net_ids = NULL;
 
 static const char * c_net_states[]={
     [NET_STATE_OFFLINE] = "NET_STATE_OFFLINE",
@@ -2237,35 +2235,26 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
 
         // Add network to the list
         dap_chain_net_item_t * l_net_item = DAP_NEW_Z( dap_chain_net_item_t);
-        dap_chain_net_item_t * l_net_item2 = DAP_NEW_Z( dap_chain_net_item_t);
         snprintf(l_net_item->name,sizeof (l_net_item->name),"%s"
                      ,dap_config_get_item_str(l_cfg , "general" , "name" ));
         l_net_item->chain_net = l_net;
         l_net_item->net_id.uint64 = l_net->pub.id.uint64;
         pthread_rwlock_wrlock(&s_net_items_rwlock);
         HASH_ADD_STR(s_net_items,name,l_net_item);
+        HASH_ADD(hh2, s_net_ids, net_id, sizeof(l_net_item->net_id), l_net_item);
         pthread_rwlock_unlock(&s_net_items_rwlock);
-
-        memcpy( l_net_item2,l_net_item,sizeof (*l_net_item));
-        pthread_rwlock_wrlock(&s_net_ids_rwlock);
-        HASH_ADD(hh,s_net_items_ids,net_id,sizeof ( l_net_item2->net_id),l_net_item2);
-        pthread_rwlock_unlock(&s_net_ids_rwlock);
 
         // LEDGER model
         uint16_t l_ledger_flags = 0;
         switch ( PVT( l_net )->node_role.enums ) {
-            case NODE_ROLE_ROOT_MASTER:
-            case NODE_ROLE_ROOT:
-            case NODE_ROLE_ARCHIVE:
-            case NODE_ROLE_MASTER:
-                l_ledger_flags |= DAP_CHAIN_LEDGER_CHECK_CELLS_DS;
-            case NODE_ROLE_CELL_MASTER:
-                l_ledger_flags |= DAP_CHAIN_LEDGER_CHECK_TOKEN_EMISSION;
-            case NODE_ROLE_FULL:
-            case NODE_ROLE_LIGHT:
-                l_ledger_flags |= DAP_CHAIN_LEDGER_CHECK_LOCAL_DS;
-                if (dap_config_get_item_bool_default(g_config, "ledger", "cache_enabled", true))
-                    l_ledger_flags |= DAP_CHAIN_LEDGER_CACHE_ENABLED;
+        case NODE_ROLE_LIGHT:
+            break;
+        case NODE_ROLE_FULL:
+            l_ledger_flags |= DAP_CHAIN_LEDGER_CHECK_LOCAL_DS | DAP_CHAIN_LEDGER_CHECK_TOKEN_EMISSION;
+            if (dap_config_get_item_bool_default(g_config, "ledger", "cache_enabled", true))
+                l_ledger_flags |= DAP_CHAIN_LEDGER_CACHE_ENABLED;
+        default:
+            l_ledger_flags |= DAP_CHAIN_LEDGER_CHECK_CELLS_DS;
         }
         // init LEDGER model
         l_net->pub.ledger = dap_chain_ledger_create(l_ledger_flags, l_net->pub.name, l_net->pub.native_ticker);
@@ -2819,9 +2808,9 @@ dap_ledger_t * dap_chain_ledger_by_net_name( const char * a_net_name)
 dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id)
 {
     dap_chain_net_item_t * l_net_item = NULL;
-    pthread_rwlock_rdlock(&s_net_ids_rwlock);
-    HASH_FIND(hh,s_net_items_ids,&a_id,sizeof (a_id), l_net_item );
-    pthread_rwlock_unlock(&s_net_ids_rwlock);
+    pthread_rwlock_rdlock(&s_net_items_rwlock);
+    HASH_FIND(hh2, s_net_ids, &a_id, sizeof(a_id), l_net_item);
+    pthread_rwlock_unlock(&s_net_items_rwlock);
     return l_net_item ? l_net_item->chain_net : NULL;
 }
 
