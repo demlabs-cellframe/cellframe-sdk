@@ -686,10 +686,12 @@ static int s_add_atom_to_ledger(dap_chain_cs_blocks_t * a_blocks, dap_ledger_t *
                 pthread_rwlock_unlock( &PVT(a_blocks)->rwlock );
             }
         } else {
-            /* @RRL: disabled due spaming ...
-            debug_if(s_debug_more, L_ERROR, "Can't load datum #%zu (%s) from block %s to ledger: code %d", i,
-                     dap_chain_datum_type_id_to_str(l_datum->header.type_id), a_block_cache->block_hash_str, l_res);
-            */
+            /*@RRL: disabled due spaming ... */
+            /*
+            dap_get_data_hash_str_static(l_datum->data, l_datum->header.data_size, l_hash_str);
+            debug_if(s_debug_more, L_ERROR, "Can't load datum #%zu (%s), hash %s, from block %s to ledger: code %d", i,
+                     dap_chain_datum_type_id_to_str(l_datum->header.type_id), l_hash_str, a_block_cache->block_hash_str, l_res);
+           */
         }
     }
     return l_ret;
