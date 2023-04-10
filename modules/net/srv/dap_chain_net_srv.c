@@ -489,8 +489,16 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
 
                     if (dap_chain_node_addr_from_str( &l_node_addr, l_node_addr_str ) == 0 )
                         log_it( L_DEBUG, "node addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_node_addr) );
-                    else
-                        log_it( L_ERROR, "Can't parse \"%s\" as node addr", l_node_addr_str);
+                    else {
+                        log_it(L_ERROR, "Can't parse \"%s\" as node addr", l_node_addr_str);
+                        dap_chain_node_cli_set_reply_text(a_str_reply, "The order has not been created. "
+                                                                       "Failed to convert string representation of '%s' "
+                                                                       "to node address.", l_node_addr_str);
+                        DAP_DELETE(l_string_ret);
+                        return -17;
+                    }
+                } else {
+                    l_node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
                 }
                 if (l_tx_cond_hash_str)
                     dap_chain_hash_fast_from_str (l_tx_cond_hash_str, &l_tx_cond_hash);
