@@ -92,6 +92,7 @@ typedef struct dap_chain_esbocs_pvt {
     // PoA section
     dap_list_t *poa_validators;  
     uint256_t minimum_fee;
+    uint256_t fee_coll_set;
 } dap_chain_esbocs_pvt_t;
 
 #define PVT(a) ((dap_chain_esbocs_pvt_t *)a->_pvt)
@@ -228,6 +229,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
 
     l_esbocs_pvt->minimum_fee = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "minimum_fee", "0.05"));
     l_esbocs_pvt->fee_addr = dap_chain_addr_from_str(dap_config_get_item_str(a_chain_net_cfg, "esbocs", "fee_addr"));
+    l_esbocs_pvt->fee_coll_set = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "set_collect_fee", "10.05"));
 
     const char *l_sign_cert_str = NULL;
     if ((l_sign_cert_str = dap_config_get_item_str(a_chain_net_cfg, "esbocs", "blocks-sign-cert")) != NULL) {
@@ -925,7 +927,7 @@ static bool s_session_candidate_to_chain(dap_chain_esbocs_session_t *a_session, 
     DAP_DELETE(l_candidate_hash_str);
     return res;
 }
-
+/*
 typedef struct fee_serv_param
 {
     dap_hash_fast_t block_hash;
@@ -1041,7 +1043,7 @@ static void s_check_db_callback_fee_collect (dap_global_db_context_t * a_global_
         }
     }
 }
-
+*/
 static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_chain_esbocs_store_t *l_store)
 {
     bool l_cs_debug = PVT(a_session->esbocs)->debug;
@@ -1103,7 +1105,7 @@ static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_ch
     bool l_compare = dap_hash_fast_compare(&l_store->candidate_hash,&(PVT(a_session->esbocs)->candidate_hash));
     if(s_session_candidate_to_chain(a_session, &l_store->precommit_candidate_hash, l_store->candidate, l_store->candidate_size) &&
             l_compare && PVT(a_session->esbocs)->fee_addr) {
-
+/*
         fee_serv_param_t *tmp = DAP_NEW(fee_serv_param_t);
         dap_chain_addr_t * addr = DAP_NEW_Z(dap_chain_addr_t);
         *addr = *PVT(a_session->esbocs)->fee_addr;
@@ -1114,7 +1116,7 @@ static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_ch
         tmp->fee_need_cfg = PVT(a_session->esbocs)->minimum_fee;
         tmp->key_from = a_session->blocks_sign_key;
 
-        dap_global_db_get("local.block_hash","l_block",s_check_db_callback_fee_collect, tmp);
+        dap_global_db_get("local.block_hash","l_block",s_check_db_callback_fee_collect, tmp);*/
     }
 }
 
