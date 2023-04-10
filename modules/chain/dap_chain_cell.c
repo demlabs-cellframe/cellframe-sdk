@@ -338,9 +338,10 @@ int dap_chain_cell_file_append(dap_chain_cell_t * a_cell, const void *a_atom, si
     }
 
     size_t l_total_wrote_bytes = 0, l_count = 0;
-    if (a_atom && a_atom_size)
+    if (a_atom && a_atom_size) {
         l_total_wrote_bytes = s_file_atom_add(a_cell, a_atom, a_atom_size);
-    else { // if no atom provided in arguments, we flush all the atoms in given chain
+        l_count = 1;
+    } else { // if no atom provided in arguments, we flush all the atoms in given chain
         size_t l_atom_size = 0;
         fseek(a_cell->file_storage, sizeof(dap_chain_cell_file_header_t), SEEK_SET);
         dap_chain_atom_iter_t *l_atom_iter = a_cell->chain->callback_atom_iter_create(a_cell->chain, a_cell->id, 0);
@@ -362,13 +363,13 @@ int dap_chain_cell_file_append(dap_chain_cell_t * a_cell, const void *a_atom, si
     if (!a_atom) {
         if (l_total_wrote_bytes > 0) {
             ftruncate(fileno(a_cell->file_storage), l_total_wrote_bytes + sizeof(dap_chain_cell_file_header_t));
-            log_it(L_DEBUG, "Saved %zu atoms (total %zu bytes", l_count, l_total_wrote_bytes);
         } else {
             ftruncate(fileno(a_cell->file_storage), sizeof(dap_chain_cell_file_header_t));
             s_file_write_header(a_cell);
             log_it(L_WARNING, "Nothing to save, event table is empty. Rewrite the file header");
         }
     }
+    log_it(L_DEBUG, "Saved %zu atoms, total %zu bytes", l_count, l_total_wrote_bytes);
     pthread_rwlock_unlock(&a_cell->storage_rwlock);
 
     return (int)l_total_wrote_bytes;
