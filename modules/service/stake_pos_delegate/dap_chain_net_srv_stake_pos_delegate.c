@@ -208,15 +208,42 @@ bool dap_chain_net_srv_stake_key_delegated(dap_chain_addr_t *a_signing_addr)
     return false;
 }
 
-dap_list_t *dap_chain_net_srv_stake_get_validators()
+dap_list_t *dap_chain_net_srv_stake_get_validators(dap_chain_net_id_t a_net_id)
 {
     dap_list_t *l_ret = NULL;
     if (!s_srv_stake || !s_srv_stake->itemlist)
         return l_ret;
     dap_chain_net_srv_stake_item_t *l_stake, *l_tmp;
     HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp)
-        l_ret = dap_list_append(l_ret, DAP_DUP(l_stake));
+        if (a_net_id.uint64 == l_stake->signing_addr.net_id.uint64)
+            l_ret = dap_list_append(l_ret, DAP_DUP(l_stake));
     return l_ret;
+}
+
+int dap_chain_net_srv_stake_verify_key_and_node(dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_node_addr)
+{
+    assert(s_srv_stake);
+    if (!a_signing_addr || !a_node_addr){
+        log_it(L_WARNING, "Bad arguments.");
+        return -100;
+    }
+
+    dap_chain_net_srv_stake_item_t *l_stake = NULL, *l_tmp = NULL;
+    HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp){
+        //check key not activated for other node
+        if(dap_chain_addr_compare(a_signing_addr, &l_stake->signing_addr)){
+                log_it(L_WARNING, "Key %s already active for node %s", dap_chain_addr_to_str(a_signing_addr), dap_chain_node_addr_to_hash_str(a_node_addr));
+                return -101;
+        }
+
+        //chek node have not other delegated key
+        if(a_node_addr->uint64 == l_stake->node_addr.uint64){
+            log_it(L_WARNING, "Node %s already have active key.", dap_chain_node_addr_to_hash_str(a_node_addr));
+            return -102;
+        }
+    }
+
+    return 0;
 }
 
 static bool s_stake_cache_check_tx(dap_hash_fast_t *a_tx_hash)
@@ -277,6 +304,8 @@ static dap_chain_datum_tx_t *s_stake_tx_create(dap_chain_net_t * a_net, dap_chai
 {
     if (!a_net || !a_wallet || IS_ZERO_256(a_value) || !a_signing_addr || !a_node_addr)
         return NULL;
+
+
 
     const char *l_native_ticker = a_net->pub.native_ticker;
     char l_delegated_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
@@ -425,6 +454,11 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
     }
     if (compare256(l_tx_out_cond->header.value, s_srv_stake->delegate_allowed_min) == -1) {
         log_it(L_WARNING, "Requested conditional transaction have not enough funds");
+        return NULL;
+    }
+
+    if(dap_chain_net_srv_stake_verify_key_and_node(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr, &l_tx_out_cond->subtype.srv_stake_pos_delegate.signer_node_addr)){
+        log_it(L_WARNING, "Key and node verification error");
         return NULL;
     }
 
@@ -1382,6 +1416,21 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             }
 
             // Create conditional transaction
+            int ret_val = 0;
+            if((ret_val = dap_chain_net_srv_stake_verify_key_and_node(&l_signing_addr, &l_node_addr)) != 0){
+                if (ret_val == -101){
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Key %s already active for node %s", dap_chain_addr_to_str(&l_signing_addr), dap_chain_node_addr_to_hash_str(&l_node_addr));
+                    return ret_val;
+                } else if (ret_val == -102){
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Node %s already have active key.", dap_chain_node_addr_to_hash_str(&l_node_addr));
+                    return ret_val;
+                }else{
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Key and node verification error");
+                    return ret_val;
+                }
+
+            }
+
             dap_chain_datum_tx_t *l_tx = s_stake_tx_create(l_net, l_wallet, l_value, l_fee, &l_signing_addr, &l_node_addr);
             dap_chain_wallet_close(l_wallet);
             if (!l_tx || !s_stake_tx_put(l_tx, l_net)) {
@@ -1757,12 +1806,15 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             }
 
             dap_chain_datum_decree_t *l_decree = s_stake_decree_set_min_stake(l_net, l_value, l_poa_cert);
-            if (l_decree && s_stake_decree_put(l_decree, l_net)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Minimum stake value is set");
+            char *l_decree_hash_str = NULL;
+            if (l_decree && (l_decree_hash_str = s_stake_decree_put(l_decree, l_net))) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Minimum stake value has been set."
+                                                                " Decree hash %s", l_decree_hash_str);
                 DAP_DELETE(l_decree);
+                DAP_DELETE(l_decree_hash_str);
             } else {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Minimum stake value setting failed");
-                DAP_DELETE(l_decree);
+                DAP_DEL_Z(l_decree);
                 return -21;
             }
         } break;        
