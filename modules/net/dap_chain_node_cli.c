@@ -912,7 +912,11 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     dap_chain_node_cli_cmd_item_create("global_db", com_global_db, "Work with global database",
             "global_db cells add -cell <cell id> \n"
-            "global_db flush \n\n"
+            "global_db flush\n"
+            "global_db write -group <group_name> -key <key_name> -value <value>\n"
+            "global_db read -group <group_name> -key <key_name>\n"
+            "global_db delete -group <group_name> -key <key_name>\n\n"
+            "global_db get_keys -group <group name>"
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
             );
     dap_chain_node_cli_cmd_item_create("mempool", com_signer, "Sign operations",
@@ -959,50 +963,50 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_chain_node_cli_cmd_item_create ("token_update", com_token_update, "Token update",
             "\nPrivate or CF20 token update\n"
 /*			"token_update -net <net_name> -chain <chain_name> -token <token_ticker> -total_supply <total supply> -signs_total <sign total> -signs_emission <signs for emission> -certs <certs list>\n"
-			"\t  Declare new simple token for <netname>:<chain name> with ticker <token ticker>, maximum emission <total supply> and <signs for emission> from <signs total> signatures on valid emission\n"*/
-			"\nPrivate token update\n"
-			"token_update -net <net_name> -chain <chain_name> -token <existing token_ticker> -type private -total_supply <the same or more> -decimals <18>\n"
-			"-signs_total <the same total as the token you are updating> -signs_emission <the same total as the token you are updating> -certs <use the certificates of the token you are update>\n"
-			"-flags [<Flag 1>][,<Flag 2>]...[,<Flag N>]...\n"
-			"\t [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
-			"\t   Update token for <netname>:<chain name> with ticker <token ticker>, flags <Flag 1>,<Flag2>...<Flag N>\n"
-			"\t   and custom parameters list <Param 1>, <Param 2>...<Param N>.\n"
-			"\nCF20 token update\n"
-			"token_update -net <net_name> -chain <chain_name> -token <existing token_ticker> -type CF20 -total_supply <the same or more/if 0 = endless> -decimals <18>\n"
-			"-signs_total <the same total as the token you are updating> -signs_emission <the same total as the token you are updating> -certs <use the certificates of the token you are update>\n"
-			"\t -flags [<Flag 1>][,<Flag 2>]...[,<Flag N>]...\n"
-			"\t [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
-			"\t   Update token for <netname>:<chain name> with ticker <token ticker>, flags <Flag 1>,<Flag2>...<Flag N>\n"
-			"\t   and custom parameters list <Param 1>, <Param 2>...<Param N>.\n"
-			"\n"
-			"==Flags=="
-			"\t ALL_BLOCKED:\t Blocked all permissions, usefull add it first and then add allows what you want to allow\n"
-			"\t ALL_ALLOWED:\t Allowed all permissions if not blocked them. Be careful with this mode\n"
-			"\t ALL_FROZEN:\t All permissions are temprorary frozen\n"
-			"\t ALL_UNFROZEN:\t Unfrozen permissions\n"
-			"\t STATIC_ALL:\t No token manipulations after declarations at all. Token declares staticly and can't variabed after\n"
-			"\t STATIC_FLAGS:\t No token manipulations after declarations with flags\n"
-			"\t STATIC_PERMISSIONS_ALL:\t No all permissions lists manipulations after declarations\n"
-			"\t STATIC_PERMISSIONS_DATUM_TYPE:\t No datum type permissions lists manipulations after declarations\n"
-			"\t STATIC_PERMISSIONS_TX_SENDER:\t No tx sender permissions lists manipulations after declarations\n"
-			"\t STATIC_PERMISSIONS_TX_RECEIVER:\t No tx receiver permissions lists manipulations after declarations\n"
-			"\n"
-			"==Params==\n"
-			"General:\n"
-			"\t -flags <value>:\t List of flags from <value> to token declaration or update\n"
-			"\t -total_supply <value>:\t Set total supply - emission's maximum - to the <value>\n"
-			"\t -total_signs_valid <value>:\t Set valid signatures count's minimum\n"
+            "\t  Declare new simple token for <netname>:<chain name> with ticker <token ticker>, maximum emission <total supply> and <signs for emission> from <signs total> signatures on valid emission\n"*/
+            "\nPrivate token update\n"
+            "token_update -net <net_name> -chain <chain_name> -token <existing token_ticker> -type private -total_supply <the same or more> -decimals <18>\n"
+            "-signs_total <the same total as the token you are updating> -signs_emission <the same total as the token you are updating> -certs <use the certificates of the token you are update>\n"
+            "-flags [<Flag 1>][,<Flag 2>]...[,<Flag N>]...\n"
+            "\t [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
+            "\t   Update token for <netname>:<chain name> with ticker <token ticker>, flags <Flag 1>,<Flag2>...<Flag N>\n"
+            "\t   and custom parameters list <Param 1>, <Param 2>...<Param N>.\n"
+            "\nCF20 token update\n"
+            "token_update -net <net_name> -chain <chain_name> -token <existing token_ticker> -type CF20 -total_supply <the same or more/if 0 = endless> -decimals <18>\n"
+            "-signs_total <the same total as the token you are updating> -signs_emission <the same total as the token you are updating> -certs <use the certificates of the token you are update>\n"
+            "\t -flags [<Flag 1>][,<Flag 2>]...[,<Flag N>]...\n"
+            "\t [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
+            "\t   Update token for <netname>:<chain name> with ticker <token ticker>, flags <Flag 1>,<Flag2>...<Flag N>\n"
+            "\t   and custom parameters list <Param 1>, <Param 2>...<Param N>.\n"
+            "\n"
+            "==Flags=="
+            "\t ALL_BLOCKED:\t Blocked all permissions, usefull add it first and then add allows what you want to allow\n"
+            "\t ALL_ALLOWED:\t Allowed all permissions if not blocked them. Be careful with this mode\n"
+            "\t ALL_FROZEN:\t All permissions are temprorary frozen\n"
+            "\t ALL_UNFROZEN:\t Unfrozen permissions\n"
+            "\t STATIC_ALL:\t No token manipulations after declarations at all. Token declares staticly and can't variabed after\n"
+            "\t STATIC_FLAGS:\t No token manipulations after declarations with flags\n"
+            "\t STATIC_PERMISSIONS_ALL:\t No all permissions lists manipulations after declarations\n"
+            "\t STATIC_PERMISSIONS_DATUM_TYPE:\t No datum type permissions lists manipulations after declarations\n"
+            "\t STATIC_PERMISSIONS_TX_SENDER:\t No tx sender permissions lists manipulations after declarations\n"
+            "\t STATIC_PERMISSIONS_TX_RECEIVER:\t No tx receiver permissions lists manipulations after declarations\n"
+            "\n"
+            "==Params==\n"
+            "General:\n"
+            "\t -flags <value>:\t List of flags from <value> to token declaration or update\n"
+            "\t -total_supply <value>:\t Set total supply - emission's maximum - to the <value>\n"
+            "\t -total_signs_valid <value>:\t Set valid signatures count's minimum\n"
 /*			"\t -signs <value>:\t Signature's fingerprint list\n"*/
-			"\nDatum type allowed/blocked:\n"
-			"\t -datum_type_allowed <value>:\t Set allowed datum type(s)\n"
-			"\t -datum_type_blocked <value>:\t Set blocked datum type(s)\n"
-			"\nTx receiver addresses allowed/blocked:\n"
-			"\t -tx_receiver_allowed <value>:\t Set allowed tx receiver(s)\n"
-			"\t -tx_receiver_blocked <value>:\t Set blocked tx receiver(s)\n"
-			"\nTx sender addresses allowed/blocked:\n"
-			"\t -tx_sender_allowed <value>:\t Set allowed tx sender(s)\n"
-			"\t -tx_sender_blocked <value>:\t Set allowed tx sender(s)\n"
-			"\n"
+            "\nDatum type allowed/blocked:\n"
+            "\t -datum_type_allowed <value>:\t Set allowed datum type(s)\n"
+            "\t -datum_type_blocked <value>:\t Set blocked datum type(s)\n"
+            "\nTx receiver addresses allowed/blocked:\n"
+            "\t -tx_receiver_allowed <value>:\t Set allowed tx receiver(s)\n"
+            "\t -tx_receiver_blocked <value>:\t Set blocked tx receiver(s)\n"
+            "\nTx sender addresses allowed/blocked:\n"
+            "\t -tx_sender_allowed <value>:\t Set allowed tx sender(s)\n"
+            "\t -tx_sender_blocked <value>:\t Set allowed tx sender(s)\n"
+            "\n"
 /*            "token_update -net <net_name> -chain <chain_name> -token <token_ticker> [-type private] [-<Param name 1> <Param Value 1>] [-Param name 2> <Param Value 2>] ...[-<Param Name N> <Param Value N>]\n"
             "\t   Update private token <token ticker> for <netname>:<chain name> with"
             "\t   custom parameters list <Param 1>, <Param 2>...<Param N>."
@@ -1109,12 +1113,12 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     dap_chain_node_cli_cmd_item_create ("token_emit", com_token_emit, "Token emission",
             "token_emit { sign | -token <mempool_token_ticker> -emission_value <value>\n"
-			"-addr <addr> [-chain_emission <chain_name>]\n"
-			"[-chain_base_tx <chain_name> | use flag '-no_base_tx' if you need create emission has no base transaction] }\n"
-			"-net <net_name> -certs <cert list>\n");
+            "-addr <addr> [-chain_emission <chain_name>]\n"
+            "[-chain_base_tx <chain_name> | use flag '-no_base_tx' if you need create emission has no base transaction] }\n"
+            "-net <net_name> -certs <cert list>\n");
 
     dap_chain_node_cli_cmd_item_create ("mempool_list", com_mempool_list,
-										"List mempool (entries or transaction) for (selected chain network or wallet)",
+                                        "List mempool (entries or transaction) for (selected chain network or wallet)",
             "mempool_list -net <net_name> [-chain <chain_name>] [-addr <addr>] [-fast] \n");
 
     dap_chain_node_cli_cmd_item_create ("mempool_check", com_mempool_check, "Check mempool entrie for presence in selected chain network",
@@ -1122,9 +1126,6 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     dap_chain_node_cli_cmd_item_create ("mempool_proc", com_mempool_proc, "Proc mempool entrie with specified hash for selected chain network",
             "mempool_proc -net <net_name> -datum <datum hash>\n");
-
-    dap_chain_node_cli_cmd_item_create ("mempool_proc_all", com_mempool_proc_all, "Proc mempool all entries for selected chain network",
-                                        "mempool_proc -net <net_name> -chain <chain_name>\n");
 
     dap_chain_node_cli_cmd_item_create ("mempool_delete", com_mempool_delete, "Delete datum with hash <datum hash> for selected chain network",
             "mempool_delete -net <net_name> -datum <datum hash>\n");
@@ -1196,7 +1197,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_chain_node_cli_cmd_item_create("remove", cmd_remove, "Delete chain files or global database",
                                        "remove -gdb\n"
                                                 "remove -chains [-net <net_name> | -all]\n"
-												"Be careful, the '-all' option for '-chains' will delete all chains and won't ask you for permission!");
+                                                "Be careful, the '-all' option for '-chains' will delete all chains and won't ask you for permission!");
 
 
     // create thread for waiting of clients
