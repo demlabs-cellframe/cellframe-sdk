@@ -1019,7 +1019,7 @@ static bool s_session_candidate_to_chain(dap_chain_esbocs_session_t *a_session, 
     DAP_DELETE(l_candidate_hash_str);
     return res;
 }
-/*
+
 typedef struct fee_serv_param
 {
     dap_hash_fast_t block_hash;
@@ -1030,13 +1030,12 @@ typedef struct fee_serv_param
     dap_chain_t * chain;
 }fee_serv_param_t;
 
-static void s_check_db_callback_fee_collect (dap_global_db_context_t * a_global_db_context, int a_errno, const char * a_group, const char * a_key,
-                                             const void * a_value, const size_t a_value_len,
-                                             dap_nanotime_t value_ts, bool a_is_pinned, void * a_arg)
+static void s_check_db_callback_fee_collect (dap_global_db_context_t *a_global_db_context,
+                                             int a_rc, const char *a_group,
+                                             const size_t a_values_total, const size_t a_values_count,
+                                             dap_global_db_obj_t *a_values, void *a_arg)
 {
     int res = 0;
-    int l_count = 0;
-    size_t l_len = 0;
     uint256_t l_value_out_block = {};
     uint256_t l_value_total = {};
     uint256_t l_value_gdb = {};
@@ -1048,94 +1047,62 @@ static void s_check_db_callback_fee_collect (dap_global_db_context_t * a_global_
     dap_list_t *l_block_list = NULL;
     l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_arg->block_hash);
     dap_list_t *l_list_used_out = dap_chain_block_get_list_tx_cond_outs_with_val(l_chain->ledger,l_block_cache,&l_value_out_block);
-    if (l_list_used_out)
-        dap_list_free_full(l_list_used_out, NULL);
-
-    if(a_value_len)
+    if(!l_list_used_out)
     {
-        l_value_gdb = *(uint256_t*)a_value;
-        l_len += sizeof(uint256_t);
-        l_count = *(int*)(a_value+l_len);
-        l_len += sizeof(int);
-        SUM_256_256(l_value_out_block,l_value_gdb,&l_value_total);
+        log_it(L_WARNING, "There aren't any fee in this block");
+        return;
     }
-    if((a_value_len > l_len) && l_count)
+    res = dap_global_db_set("local.block_hashes",l_block_cache->block_hash_str,&l_value_out_block,sizeof(uint256_t),false,NULL,NULL);
+    if(res)
+        log_it(L_WARNING, "Unable to write data to database");
+    else
+        log_it(L_NOTICE, "The block was successfully added to the database");
+
+    dap_list_free_full(l_list_used_out, NULL);
+    l_block_list = dap_list_append(l_block_list, l_block_cache);
+    if(!a_values_count)
     {
-        for(int i=0;i<l_count;i++)
+        if(compare256(l_value_out_block,l_arg->fee_need_cfg) == 1)
         {
-            dap_hash_fast_t bl_h = *(dap_hash_fast_t*)(a_value + l_len + i * sizeof(dap_hash_fast_t));
-            l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &bl_h);
-            l_block_list = dap_list_append(l_block_list, l_block_cache);
+            dap_chain_mempool_tx_coll_fee_create(l_arg->key_from, l_arg->a_addr_to,
+                                                 l_block_list, l_arg->value_fee, "hex");
+            log_it(L_NOTICE, "Fee collect transaction successfully created");
+            dap_global_db_del("local.block_hashes", NULL, NULL, NULL);
+            dap_list_free_full(l_block_list, NULL);
+            DAP_DELETE(l_arg->a_addr_to);
+            DAP_DELETE(l_arg);
+            return;
         }
-        l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_arg->block_hash);
-        l_block_list = dap_list_append(l_block_list, l_block_cache);
+        dap_list_free_full(l_block_list, NULL);
+        DAP_DELETE(l_arg->a_addr_to);
+        DAP_DELETE(l_arg);
+        return;
+    }
+    else
+    {
+        for(size_t i=0;i<a_values_count;i++)
+        {
+            dap_hash_fast_t block_hash;
+            dap_chain_hash_fast_from_hex_str(a_values[i].key,&block_hash);
+            l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &block_hash);
+            l_block_list = dap_list_append(l_block_list, l_block_cache);
+            SUM_256_256(*(uint256_t*)a_values[i].value,l_value_gdb,&l_value_gdb);
+        }
+        SUM_256_256(l_value_out_block,l_value_gdb,&l_value_total);
         if(compare256(l_value_total,l_arg->fee_need_cfg) == 1)
         {
             dap_chain_mempool_tx_coll_fee_create(l_arg->key_from, l_arg->a_addr_to,
                                                  l_block_list, l_arg->value_fee, "hex");
-            dap_global_db_del("local.block_hash", "l_block", NULL, NULL);
+            dap_global_db_del("local.block_hashes", NULL, NULL, NULL);
             log_it(L_NOTICE, "Fee collect transaction successfully created");
             dap_list_free_full(l_block_list, NULL);
-            DAP_DELETE(l_arg->a_addr_to);
-            DAP_DELETE(l_arg);
-            return;
-        }
-        else
-        {
-            int i = 0;
-            size_t t = sizeof(uint256_t) + sizeof(int) + (l_count+1) * sizeof(dap_hash_fast_t);
-            uint8_t * byte_raw = DAP_NEW_Z_SIZE(uint8_t, t);
-            *(uint256_t*)byte_raw = l_value_total;
-            *(int*)(byte_raw + sizeof(uint256_t)) = l_count+1;
-            for(dap_list_t *bl = l_block_list; bl; bl = bl->next,i++)
-            {
-                dap_chain_block_cache_t *block_cache = (dap_chain_block_cache_t *)bl->data;
-                *(dap_hash_fast_t*)(byte_raw + l_len +(i * sizeof(dap_hash_fast_t))) = block_cache->block_hash;
-            }
-
-            res = dap_global_db_set("local.block_hash", "l_block", byte_raw, t, false, NULL, NULL);
-            if(res)
-                log_it(L_WARNING, "Unable to write data to database");
-            else
-                log_it(L_NOTICE, "The block was successfully added to the database");
-            dap_list_free_full(l_block_list, NULL);
-            DAP_DELETE(byte_raw);
-            DAP_DELETE(l_arg->a_addr_to);
-            DAP_DELETE(l_arg);
-            return;
-        }
-    }else if(l_block_cache)
-    {
-        if(compare256(l_value_out_block,l_arg->fee_need_cfg) == 1)
-        {
-            l_block_list = dap_list_append(l_block_list, l_block_cache);
-            dap_chain_mempool_tx_coll_fee_create(l_arg->key_from, l_arg->a_addr_to,
-                                                 l_block_list, l_arg->value_fee, "hex");
-            log_it(L_NOTICE, "Fee collect transaction successfully created");
-            dap_list_free_full(l_block_list, NULL);
-            DAP_DELETE(l_arg->a_addr_to);
-            DAP_DELETE(l_arg);
-            return;
-        }
-        else{
-            uint8_t * byte_raw = DAP_NEW_Z_SIZE(uint8_t,  sizeof(uint256_t) + sizeof(int) + sizeof(dap_hash_fast_t));
-            *(uint256_t*)byte_raw = l_value_out_block;
-            *(int*)(byte_raw + sizeof(uint256_t)) = 1;
-            *(dap_hash_fast_t*)(byte_raw + sizeof(uint256_t) + sizeof(int)) = l_arg->block_hash;
-            res = dap_global_db_set("local.block_hash", "l_block", byte_raw, sizeof(uint256_t) + sizeof(int) + sizeof(dap_hash_fast_t), false, NULL, NULL);
-            if(res)
-                log_it(L_WARNING, "Unable to write data to database");
-            else
-                log_it(L_NOTICE, "The block was successfully added to the database");
-            dap_list_free_full(l_block_list, NULL);
-            DAP_DELETE(byte_raw);
             DAP_DELETE(l_arg->a_addr_to);
             DAP_DELETE(l_arg);
             return;
         }
     }
 }
-*/
+
 static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_chain_esbocs_store_t *l_store)
 {
     bool l_cs_debug = PVT(a_session->esbocs)->debug;
@@ -1197,18 +1164,18 @@ static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_ch
     bool l_compare = dap_hash_fast_compare(&l_store->candidate_hash,&(PVT(a_session->esbocs)->candidate_hash));
     if(s_session_candidate_to_chain(a_session, &l_store->precommit_candidate_hash, l_store->candidate, l_store->candidate_size) &&
             l_compare && PVT(a_session->esbocs)->fee_addr) {
-/*
+
         fee_serv_param_t *tmp = DAP_NEW(fee_serv_param_t);
         dap_chain_addr_t * addr = DAP_NEW_Z(dap_chain_addr_t);
         *addr = *PVT(a_session->esbocs)->fee_addr;
         tmp->a_addr_to = addr;
         tmp->block_hash = l_precommit_candidate_hash;
         tmp->chain = l_chain;
-        tmp->value_fee = dap_chain_balance_scan("10000");
-        tmp->fee_need_cfg = PVT(a_session->esbocs)->minimum_fee;
+        tmp->value_fee = PVT(a_session->esbocs)->minimum_fee;
+        tmp->fee_need_cfg = PVT(a_session->esbocs)->fee_coll_set;
         tmp->key_from = a_session->blocks_sign_key;
 
-        dap_global_db_get("local.block_hash","l_block",s_check_db_callback_fee_collect, tmp);*/
+        dap_global_db_get_all("local.block_hashes",0,s_check_db_callback_fee_collect,tmp);
     }
 }
 
