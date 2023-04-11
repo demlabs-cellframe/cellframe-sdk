@@ -202,7 +202,7 @@ void dap_chain_ledger_set_tps_start_time(dap_ledger_t *a_ledger);
 /**
  * Check whether used 'out' items
  */
-dap_chain_hash_fast_t *dap_chain_ledger_tx_hash_is_used_out_item(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash, int a_idx_out);
+bool dap_chain_ledger_tx_hash_is_used_out_item(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash, int a_idx_out);
 
 /**
  * Calculate balance of addr
