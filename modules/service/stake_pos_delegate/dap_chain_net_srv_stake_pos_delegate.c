@@ -1121,8 +1121,7 @@ static void s_get_tx_filter_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_
                                                                  &l_out_idx_tmp)))
     {
         dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_datum_hash);
-        if(dap_chain_ledger_tx_hash_is_used_out_item(a_net->pub.ledger,&l_datum_hash,l_out_idx_tmp)==NULL)
-        {
+        if (!dap_chain_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_datum_hash, l_out_idx_tmp)) {
             dap_chain_net_srv_stake_item_t *l_stake = NULL;
             HASH_FIND(ht, s_srv_stake->tx_itemlist, &l_datum_hash, sizeof(dap_hash_fast_t), l_stake);
             if(!l_stake){
