@@ -55,7 +55,7 @@ typedef struct dap_chain_net dap_chain_net_t;
 // Check double spending in local cell
 #define DAP_CHAIN_LEDGER_CHECK_LOCAL_DS          0x0002
 
-// Check the double spending  in all cells
+// Check the double spending in all cells
 #define DAP_CHAIN_LEDGER_CHECK_CELLS_DS          0x0100
 
 #define DAP_CHAIN_LEDGER_CACHE_ENABLED           0x0200
@@ -202,7 +202,7 @@ void dap_chain_ledger_set_tps_start_time(dap_ledger_t *a_ledger);
 /**
  * Check whether used 'out' items
  */
-dap_chain_hash_fast_t *dap_chain_ledger_tx_hash_is_used_out_item(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash, int a_idx_out);
+bool dap_chain_ledger_tx_hash_is_used_out_item(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash, int a_idx_out);
 
 /**
  * Calculate balance of addr

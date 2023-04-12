@@ -2856,11 +2856,11 @@ dap_hash_fast_t *dap_chain_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger
 /**
  * Check whether used 'out' items (local function)
  */
-static dap_hash_fast_t *s_ledger_tx_hash_is_used_out_item(dap_chain_ledger_tx_item_t *a_item, int a_idx_out)
+static bool s_ledger_tx_hash_is_used_out_item(dap_chain_ledger_tx_item_t *a_item, int a_idx_out)
 {
     if (!a_item || !a_item->cache_data.n_outs) {
         //log_it(L_DEBUG, "list_cached_item is NULL");
-        return NULL;
+        return false;
     }
     if(a_idx_out >= MAX_OUT_ITEMS) {
         if(s_debug_more)
@@ -2871,9 +2871,9 @@ static dap_hash_fast_t *s_ledger_tx_hash_is_used_out_item(dap_chain_ledger_tx_it
     if(a_item->cache_data.n_outs_used > 0) {
         dap_hash_fast_t *l_hash_used = &(a_item->cache_data.tx_hash_spent_fast[a_idx_out]);
         if(!dap_hash_fast_is_blank(l_hash_used))
-            return l_hash_used;
+            return true;
     }
-    return NULL;
+    return false;
 }
 
 /**
@@ -4420,7 +4420,7 @@ size_t dap_chain_ledger_count_tps(dap_ledger_t *a_ledger, struct timespec *a_ts_
 /**
  * Check whether used 'out' items
  */
-dap_chain_hash_fast_t *dap_chain_ledger_tx_hash_is_used_out_item(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash, int a_idx_out)
+bool dap_chain_ledger_tx_hash_is_used_out_item(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash, int a_idx_out)
 {
     dap_chain_ledger_tx_item_t *l_item_out = NULL;
     //dap_chain_datum_tx_t *l_tx =
