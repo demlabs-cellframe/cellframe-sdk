@@ -1147,7 +1147,7 @@ static int callback_compare_tx_list(const void * a_datum1, const void * a_datum2
 static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
 {
     enum {
-        CMD_NONE, CMD_ORDER, CMD_DELEGATE, CMD_APPROVE, CMD_LIST, CMD_INVALIDATE, CMD_MIN_VALUE
+        CMD_NONE, CMD_ORDER, CMD_DELEGATE, CMD_APPROVE, CMD_LIST, CMD_INVALIDATE, CMD_MIN_VALUE,CMD_test
     };
     int l_arg_index = 1;
 
@@ -1184,10 +1184,15 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
         l_cmd_num = CMD_MIN_VALUE;
     }
     else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "test_com", NULL)) {
-        //l_cmd_num = CMD_test;
+        l_cmd_num = CMD_test;
     }
 
     switch (l_cmd_num) {
+        case CMD_test:
+        {           
+
+        }
+        break;
         case CMD_ORDER:
             return s_cli_srv_stake_order(a_argc, a_argv, l_arg_index + 1, a_str_reply, l_hash_out_type);
         case CMD_DELEGATE: {
