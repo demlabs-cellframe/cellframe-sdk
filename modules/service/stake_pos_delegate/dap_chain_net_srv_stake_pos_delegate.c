@@ -224,7 +224,7 @@ int dap_chain_net_srv_stake_verify_key_and_node(dap_chain_addr_t *a_signing_addr
 {
     assert(s_srv_stake);
     if (!a_signing_addr || !a_node_addr){
-        log_it(L_WARNING, "Bad arguments.");
+        log_it(L_WARNING, "Bad srv_stake_verify arguments");
         return -100;
     }
 
@@ -232,13 +232,14 @@ int dap_chain_net_srv_stake_verify_key_and_node(dap_chain_addr_t *a_signing_addr
     HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp){
         //check key not activated for other node
         if(dap_chain_addr_compare(a_signing_addr, &l_stake->signing_addr)){
-                log_it(L_WARNING, "Key %s already active for node %s", dap_chain_addr_to_str(a_signing_addr), dap_chain_node_addr_to_hash_str(a_node_addr));
-                return -101;
+            log_it(L_WARNING, "Key %s already active for node"NODE_ADDR_FP_STR,
+                   dap_chain_addr_to_str(a_signing_addr), NODE_ADDR_FP_ARGS(a_node_addr));
+            return -101;
         }
 
         //chek node have not other delegated key
         if(a_node_addr->uint64 == l_stake->node_addr.uint64){
-            log_it(L_WARNING, "Node %s already have active key.", dap_chain_node_addr_to_hash_str(a_node_addr));
+            log_it(L_WARNING, "Node "NODE_ADDR_FP_STR" already have active key", NODE_ADDR_FP_ARGS(a_node_addr));
             return -102;
         }
     }
