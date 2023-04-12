@@ -64,6 +64,7 @@ typedef struct dap_chain_tx_hash_processed_ht{
     UT_hash_handle hh;
 }dap_chain_tx_hash_processed_ht_t;
 
+
 /**
  * @brief s_chain_tx_hash_processed_ht_free
  * free l_current_hash->hash, l_current_hash, l_hash_processed
@@ -587,7 +588,6 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
     return l_ret_str;
 }
 
-
 /**
  * @brief com_ledger
  * ledger command
@@ -605,7 +605,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
     const char *l_wallet_name = NULL;
     const char *l_net_str = NULL;
     const char *l_chain_str = NULL;
-    const char *l_tx_hash_str = NULL;
+    const char *l_tx_hash_str = NULL;    
 
     dap_chain_t * l_chain = NULL;
     dap_chain_net_t * l_net = NULL;
