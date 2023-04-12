@@ -2780,22 +2780,21 @@ dap_hash_fast_t *dap_chain_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger
 /**
  * Check whether used 'out' items (local function)
  */
-static bool dap_chain_ledger_item_is_used_out(dap_chain_ledger_tx_item_t *a_item, int a_idx_out)
+static bool dap_chain_ledger_item_is_used_out(dap_chain_ledger_tx_item_t *a_item, int a_idx_out, dap_chain_hash_fast_t *a_out_spender_hash)
 {
     bool l_used_out = false;
     if (!a_item || !a_item->cache_data.n_outs) {
-        //log_it(L_DEBUG, "list_cached_item is NULL");
         return true;
     }
     if(a_idx_out >= MAX_OUT_ITEMS) {
-        if(s_debug_more)
-            log_it(L_ERROR, "Too big index(%d) of 'out' items (max=%d)", a_idx_out, MAX_OUT_ITEMS);
+        log_it(L_ERROR, "Index '%d' exeeds capacity of 'out' items %d", a_idx_out, MAX_OUT_ITEMS);
+        return true;
     }
-    assert(a_idx_out < MAX_OUT_ITEMS);
-    // if there are used 'out' items
-    if(a_item->cache_data.n_outs_used > 0) {
-        if(!dap_hash_fast_is_blank(&(a_item->cache_data.tx_hash_spent_fast[a_idx_out])))
-            l_used_out = true;
+
+    if ((a_item->cache_data.n_outs_used > 0) && !dap_hash_fast_is_blank(&(a_item->cache_data.tx_hash_spent_fast[a_idx_out]))) {
+        l_used_out = true;
+        if (a_out_spender_hash)
+            *a_out_spender_hash = a_item->cache_data.tx_hash_spent_fast[a_idx_out];
     }
     return l_used_out;
 }
@@ -3201,7 +3200,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
 
         // 2. Check if out in previous transaction has spent
         int l_idx = (l_cond_type == TX_ITEM_TYPE_IN) ? l_tx_in->header.tx_out_prev_idx : l_tx_in_cond->header.tx_out_prev_idx;
-        if (dap_chain_ledger_item_is_used_out(l_item_out, l_idx)) {
+        if (dap_chain_ledger_item_is_used_out(l_item_out, l_idx, NULL)) {
             l_err_num = -6;
             break;
         }
@@ -3785,7 +3784,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
         }
         dap_chain_ledger_tx_item_t *l_prev_item_out = bound_item->item_out;
         l_cur_token_ticker = l_prev_item_out->cache_data.token_ticker;
-        int l_tx_prev_out_used_idx, l_tx_burning_prev_out_used_idx = 0 /* for stake_lock subtype */;
+        int l_tx_prev_out_used_idx = 0;
         if (l_type == TX_ITEM_TYPE_IN) {
             dap_chain_tx_in_t *l_tx_in = bound_item->in.tx_cur_in;
             dap_ledger_wallet_balance_t *wallet_balance = NULL;
@@ -3845,22 +3844,25 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
                 break;
             case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK: {
                 if (l_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX) {
+                    int l_tx_burning_prev_out_used_idx = 0;
                     /* For a lock with base tx, we should also mark burning tx out as used */
                     dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t*)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_RECEIPT, 0);
                     if (!l_receipt) {
                         log_it(L_ERROR, "Tx hash %s : no receipt found", l_tx_hash_str);
                         break;
                     }
-                    dap_chain_datum_tx_t *l_tx_burning = dap_chain_ledger_tx_find_by_hash(a_ledger, (dap_hash_fast_t*)l_receipt->exts_n_signs);
+                    dap_hash_fast_t *l_burning_hash = (dap_hash_fast_t*)l_receipt->exts_n_signs;
+                    dap_chain_ledger_tx_item_t *l_burning_item_out = NULL;
+                    dap_chain_datum_tx_t *l_tx_burning = s_find_datum_tx_by_hash(a_ledger, l_burning_hash, &l_burning_item_out);
                     dap_list_t *l_temp_list_out_items = dap_chain_datum_tx_items_get(l_tx_burning, TX_ITEM_TYPE_OUT_ALL, NULL);
                     for(dap_list_t *l_list_tmp = l_temp_list_out_items; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp), ++l_tx_burning_prev_out_used_idx) {
                         dap_chain_tx_item_type_t l_type = *(uint8_t*)l_list_tmp->data;
                         if (l_type == TX_ITEM_TYPE_OUT) {
-                            const dap_chain_tx_out_t *l_tx_out = (const dap_chain_tx_out_t *)l_list_tmp->data;
-                            dap_chain_addr_t l_addr = l_tx_out->addr;
+                            dap_chain_addr_t l_addr = ((dap_chain_tx_out_t*)l_list_tmp->data)->addr;
                             if (dap_chain_addr_is_blank(&l_addr)) {
-                                l_prev_item_out->cache_data.tx_hash_spent_fast[l_tx_burning_prev_out_used_idx] = *(dap_hash_fast_t*)l_receipt->exts_n_signs;
-                                l_prev_item_out->cache_data.n_outs_used++;
+                                l_burning_item_out->cache_data.tx_hash_spent_fast[l_tx_burning_prev_out_used_idx] = *a_tx_hash;
+                                l_burning_item_out->cache_data.n_outs_used++;
+                                debug_if(s_debug_more, L_INFO, "Mark burning tx 'out' item %d : %s", l_tx_burning_prev_out_used_idx, l_tx_hash_str);
                                 break;
                             }
                         }
@@ -4375,12 +4377,11 @@ size_t dap_chain_ledger_count_tps(dap_ledger_t *a_ledger, struct timespec *a_ts_
 /**
  * Check whether used 'out' items
  */
-bool dap_chain_ledger_tx_hash_is_used_out_item(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash, int a_idx_out)
+bool dap_chain_ledger_tx_hash_is_used_out_item(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash, int a_idx_out, dap_chain_hash_fast_t *l_out_spndr_hash)
 {
     dap_chain_ledger_tx_item_t *l_item_out = NULL;
-    //dap_chain_datum_tx_t *l_tx =
-    s_find_datum_tx_by_hash(a_ledger, a_tx_hash, &l_item_out);
-    return dap_chain_ledger_item_is_used_out(l_item_out, a_idx_out);
+    /* dap_chain_datum_tx_t *l_tx = */s_find_datum_tx_by_hash(a_ledger, a_tx_hash, &l_item_out);
+    return dap_chain_ledger_item_is_used_out(l_item_out, a_idx_out, l_out_spndr_hash);
 }
 
 /**
@@ -4459,7 +4460,7 @@ uint256_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_c
                 {   // if transaction has the out item with requested addr
                     if (!memcmp(a_addr, &l_tx_out->addr, sizeof(dap_chain_addr_t))) {
                         // if 'out' item not used & transaction is valid
-                        if(!dap_chain_ledger_item_is_used_out(l_iter_current, l_out_idx_tmp) &&
+                        if(!dap_chain_ledger_item_is_used_out(l_iter_current, l_out_idx_tmp, NULL) &&
                                 dap_chain_datum_tx_verify_sign(l_cur_tx)) {
                             // uint128_t l_add = dap_chain_uint128_from(l_tx_out->header.value);
                             // balance = dap_uint128_add(balance, l_add);
@@ -4477,7 +4478,7 @@ uint256_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_c
                 {   // if transaction has the out item with requested addr
                     if (!memcmp(a_addr, &l_tx_out->addr, sizeof(dap_chain_addr_t))) {
                         // if 'out' item not used & transaction is valid
-                        if(!dap_chain_ledger_item_is_used_out(l_iter_current, l_out_idx_tmp) &&
+                        if(!dap_chain_ledger_item_is_used_out(l_iter_current, l_out_idx_tmp, NULL) &&
                                 dap_chain_datum_tx_verify_sign(l_cur_tx)) {
                             SUM_256_256(balance, l_tx_out->header.value, &balance);
                         }
@@ -4492,7 +4493,7 @@ uint256_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_c
                 {   // if transaction has the out item with requested addr
                     if (!memcmp(a_addr, &l_tx_out->addr, sizeof(dap_chain_addr_t))) {
                         // if 'out' item not used & transaction is valid
-                        if(!dap_chain_ledger_item_is_used_out(l_iter_current, l_out_idx_tmp) &&
+                        if(!dap_chain_ledger_item_is_used_out(l_iter_current, l_out_idx_tmp, NULL) &&
                                 dap_chain_datum_tx_verify_sign(l_cur_tx)) {
                             SUM_256_256(balance, l_tx_out->header.value, &balance);
                         }
@@ -4828,7 +4829,7 @@ dap_list_t *dap_chain_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, c
                     continue;
             }
             // Check whether used 'out' items
-            if (!dap_chain_ledger_tx_hash_is_used_out_item (a_ledger, &l_tx_cur_hash, l_out_idx_tmp)) {
+            if (!dap_chain_ledger_tx_hash_is_used_out_item (a_ledger, &l_tx_cur_hash, l_out_idx_tmp, NULL)) {
                 list_used_item_t *l_item = DAP_NEW_Z(list_used_item_t);
                 l_item->tx_hash_fast = l_tx_cur_hash;
                 l_item->num_idx_out = l_out_idx_tmp;

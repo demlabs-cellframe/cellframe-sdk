@@ -106,7 +106,7 @@ int dap_chain_net_srv_stake_pos_delegate_init()
             if (!l_tx_tmp) {
                 break;
             }
-            if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &l_tx_cur_hash, l_out_cond_idx))
+            if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &l_tx_cur_hash, l_out_cond_idx, NULL))
                 continue;
             dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_tx_tmp, NULL,
                                                                                              TX_ITEM_TYPE_SIG, NULL);
@@ -464,8 +464,11 @@ static dap_chain_datum_tx_t *s_stake_tx_approve(dap_chain_net_srv_stake_item_t *
     int l_prev_cond_idx;
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx,
                                                   DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_prev_cond_idx);
-    if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &a_stake->tx_hash, l_prev_cond_idx)) {
-        log_it(L_WARNING, "Requested conditional transaction is already used out");
+    dap_hash_fast_t l_spender_hash = { };
+    if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &a_stake->tx_hash, l_prev_cond_idx, &l_spender_hash)) {
+        char l_spender_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+        dap_hash_fast_to_str(&l_spender_hash, l_spender_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+        log_it(L_WARNING, "Requested conditional transaction is already used out by %s", l_spender_hash_str);
         return NULL;
     }
     assert(EQUAL_256(l_tx_out_cond->header.value, a_stake->value));
@@ -520,8 +523,11 @@ static bool s_stake_tx_invalidate(dap_chain_net_srv_stake_item_t *a_stake, dap_c
     int l_prev_cond_idx;
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx,
                                                 DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_prev_cond_idx);
-    if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &a_stake->tx_hash, l_prev_cond_idx)) {
-        log_it(L_WARNING, "Requested conditional transaction is already used out");
+    dap_hash_fast_t l_spender_hash = { };
+    if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &a_stake->tx_hash, l_prev_cond_idx, &l_spender_hash)) {
+        char l_spender_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+        dap_hash_fast_to_str(&l_spender_hash, l_spender_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+        log_it(L_WARNING, "Requested conditional transaction is already used out by %s", l_spender_hash_str);
         return false;
     }
     dap_chain_datum_tx_add_in_cond_item(&l_tx, &a_stake->tx_hash, l_prev_cond_idx, 0);
