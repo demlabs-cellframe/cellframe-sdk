@@ -1877,7 +1877,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 DAP_DELETE(l_network_fee_addr_str);
 
                 //Get validators fee
-                dap_chain_net_srv_stake_get_fee_validators(l_net, l_str);
+                dap_chain_net_srv_stake_get_fee_validators_str(l_net, l_str);
                 //Get services fee
                 dap_string_append_printf(l_str, "Services fee: \n");
                 dap_chain_net_srv_xchange_print_fee(l_net, l_str); //Xchaneg fee
