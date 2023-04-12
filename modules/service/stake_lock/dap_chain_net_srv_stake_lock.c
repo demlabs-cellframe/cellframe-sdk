@@ -465,7 +465,11 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 	if (l_tx_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK)
 		return NO_VALID_SUBTYPE_ERROR;
 
-	if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &l_tx_hash, l_prev_cond_idx)) {
+    dap_hash_fast_t l_spender = { };
+    if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &l_tx_hash, l_prev_cond_idx, &l_spender)) {
+        char hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+        dap_hash_fast_to_str(&l_spender, hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+        debug_if(s_debug_more, L_ERROR, "Already taken by %s", hash_str);
 		return IS_USED_OUT_ERROR;
 	}
 
@@ -1056,7 +1060,6 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_hash_f
             dap_hash_fast_to_str(&hash_burning_transaction, l_burning_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
             log_it(L_DEBUG, "Burning tx hash: %s", l_burning_hash_str);
         }
-
         strcpy(delegated_ticker, (char *)&l_receipt->exts_n_signs[sizeof(dap_hash_fast_t)]);
 	}
 
@@ -1113,9 +1116,10 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_hash_f
         }
 
         int l_tx_burning_blank_out_idx = 0;
+
         burning_tx = dap_chain_ledger_tx_find_by_hash(a_ledger, &hash_burning_transaction);
         dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(burning_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
-        for(dap_list_t *it = l_list_out_items; it; it = it->next, ++l_tx_burning_blank_out_idx) {
+        for(dap_list_t *it = l_list_out_items; it; it = dap_list_next(it), ++l_tx_burning_blank_out_idx) {
             dap_chain_tx_item_type_t l_type = *(byte_t *)it->data;
             if (l_type == TX_ITEM_TYPE_OUT) {
                 dap_chain_tx_out_t *l_tx_out = it->data;
@@ -1133,11 +1137,17 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_hash_f
             return false;
         }
 
-        if (dap_chain_ledger_tx_hash_is_used_out_item(a_ledger, &hash_burning_transaction, l_tx_burning_blank_out_idx)) {
+        {
+            dap_hash_fast_t l_spender_hash = { };
             char l_burning_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_hash_fast_to_str(&hash_burning_transaction, l_burning_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-            log_it(L_ERROR, "Verificator: burning tx %s out item no. %d is already used", l_burning_hash_str, l_tx_burning_blank_out_idx);
-            return false;
+            log_it(L_INFO, "Check burning tx %s : 'out' item %d", l_burning_hash_str, l_tx_burning_blank_out_idx);
+            if (dap_chain_ledger_tx_hash_is_used_out_item(a_ledger, &hash_burning_transaction, l_tx_burning_blank_out_idx, &l_spender_hash)) {
+                char l_spender_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                dap_hash_fast_to_str(&l_spender_hash, l_spender_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+                log_it(L_ERROR, "Verificator: burning tx %s out item no. %d is already used by %s", l_burning_hash_str, l_tx_burning_blank_out_idx, l_spender_hash_str);
+                return false;
+            }
         }
 
 		if (!IS_ZERO_256(l_tsd_section.emission_rate)) {
