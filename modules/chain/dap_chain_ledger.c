@@ -2860,7 +2860,7 @@ static bool s_ledger_tx_hash_is_used_out_item(dap_chain_ledger_tx_item_t *a_item
 {
     if (!a_item || !a_item->cache_data.n_outs) {
         //log_it(L_DEBUG, "list_cached_item is NULL");
-        return false;
+        return true;
     }
     if(a_idx_out >= MAX_OUT_ITEMS) {
         if(s_debug_more)
