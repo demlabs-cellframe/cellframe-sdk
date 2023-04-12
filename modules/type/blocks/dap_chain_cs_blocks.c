@@ -806,10 +806,10 @@ static dap_list_t * s_block_parse_str_list(const char * a_hash_str,size_t * a_ha
         dap_chain_block_cache_t *l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_hash_block);
         //verification of signatures of all blocks
         dap_sign_t * l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
-        if(dap_pkey_compare_with_sign(l_pub_key, l_sign))
+        //if(dap_pkey_compare_with_sign(l_pub_key, l_sign))
             l_block_list = dap_list_append(l_block_list, l_block_cache);
-        else
-             log_it(L_WARNING,"Block %s signature does not match certificate key", l_block_cache->block_hash_str);
+        //else
+             //log_it(L_WARNING,"Block %s signature does not match certificate key", l_block_cache->block_hash_str);
 
         l_hashes_str = strtok_r(NULL, ",", &l_hashes_tmp_ptrs);
         l_hashes_pos++;

@@ -196,9 +196,8 @@ dap_list_t * dap_chain_block_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledg
             dap_list_free_full(l_list_used_out, NULL);
             return NULL;
         }
-
-        // Check whether used 'out' items
-        if (!dap_chain_ledger_tx_hash_is_used_out_item (a_ledger, &(l_tx_cur->tx_hash), l_out_idx_tmp)) {
+        //Check whether used 'out' items
+        if (dap_chain_ledger_tx_hash_is_used_out_item (a_ledger, &l_tx_cur->tx_hash, l_out_idx_tmp)) {
             list_used_item_t *l_item = DAP_NEW_Z(list_used_item_t);
             l_item->tx_hash_fast = l_tx_cur->tx_hash;
             l_item->num_idx_out = l_out_idx_tmp;
