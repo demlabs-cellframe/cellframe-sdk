@@ -296,7 +296,7 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_enc_key_t *a_key_from,const dap_c
     bool l_net_fee_used = dap_chain_net_tx_get_fee(l_chain->net_id, &l_net_fee, &l_addr_fee);
     //add tx
     if (NULL == (l_tx = dap_chain_datum_tx_create())) {
-
+        log_it(L_WARNING, "Can't create datum tx");
         return NULL;
     }
 
@@ -323,6 +323,7 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_enc_key_t *a_key_from,const dap_c
             if (dap_chain_datum_tx_add_out_item(&l_tx, &l_addr_fee, l_net_fee) == 1)
                 SUM_256_256(l_value_pack, l_net_fee, &l_value_pack);
             else {
+                log_it(L_WARNING, "Can't create net_fee out item in transaction fee");
                 dap_chain_datum_tx_delete(l_tx);
                 return NULL;
             }
@@ -332,6 +333,7 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_enc_key_t *a_key_from,const dap_c
             if (dap_chain_datum_tx_add_fee_item(&l_tx, a_value_fee) == 1)
                 SUM_256_256(l_value_pack, a_value_fee, &l_value_pack);
             else {
+                log_it(L_WARNING, "Can't create valid_fee item in transaction fee");
                 dap_chain_datum_tx_delete(l_tx);
                 return NULL;
             }
@@ -349,12 +351,14 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_enc_key_t *a_key_from,const dap_c
     //add 'out' items
     if (dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to, l_value_out) != 1) {
         dap_chain_datum_tx_delete(l_tx);
+        log_it(L_WARNING, "Can't create out item in transaction fee");
         return NULL;
     }
 
     // add 'sign' items
     if(dap_chain_datum_tx_add_sign_item(&l_tx, a_key_from) != 1) {
         dap_chain_datum_tx_delete(l_tx);
+        log_it(L_WARNING, "Can't sign item in transaction fee");
         return NULL;
     }
 

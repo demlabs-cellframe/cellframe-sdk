@@ -2860,7 +2860,7 @@ static bool s_ledger_tx_hash_is_used_out_item(dap_chain_ledger_tx_item_t *a_item
 {
     if (!a_item || !a_item->cache_data.n_outs) {
         //log_it(L_DEBUG, "list_cached_item is NULL");
-        return false;
+        return true;
     }
     if(a_idx_out >= MAX_OUT_ITEMS) {
         if(s_debug_more)
@@ -2871,9 +2871,9 @@ static bool s_ledger_tx_hash_is_used_out_item(dap_chain_ledger_tx_item_t *a_item
     if(a_item->cache_data.n_outs_used > 0) {
         dap_hash_fast_t *l_hash_used = &(a_item->cache_data.tx_hash_spent_fast[a_idx_out]);
         if(!dap_hash_fast_is_blank(l_hash_used))
-            return true;
+            return false;
     }
-    return false;
+    return true;
 }
 
 /**
