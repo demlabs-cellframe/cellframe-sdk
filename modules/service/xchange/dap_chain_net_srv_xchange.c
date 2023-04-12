@@ -782,7 +782,9 @@ static bool s_xchange_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price, 
                                                                              &l_prev_cond_idx);
     dap_hash_fast_t l_spender = { };
     if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &a_price->tx_hash, l_prev_cond_idx, &l_spender)) {
-        log_it(L_WARNING, "Requested conditional transaction is already used out");
+        char hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+        dap_hash_fast_to_str(&l_spender, hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+        log_it(L_WARNING, "Requested conditional transaction is already used out by %s", hash_str);
         dap_chain_datum_tx_delete(l_tx);
         return false;
     }
