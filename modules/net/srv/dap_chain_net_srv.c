@@ -363,6 +363,12 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                     l_direction = SERV_DIR_SELL;
                 else if ( strcmp(l_direction_str, "buy")==0)
                     l_direction = SERV_DIR_BUY;
+                else {
+                    dap_string_free(l_string_ret, true);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong direction of the token was "
+                                                                   "specified, possible directions: buy, sell.");
+                    return -18;
+                }
             }
 
             if ( l_srv_uid_str)
@@ -471,14 +477,19 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 dap_chain_net_srv_price_unit_uid_t l_price_unit={{0}};
                 dap_chain_net_srv_order_direction_t l_direction = SERV_DIR_UNDEFINED;
                 if ( l_direction_str ){
-                    if ( strcmp(l_direction_str, "sell") == 0 ){
+                    if ( strcmp(l_direction_str, "sell") == 0 ) {
                         l_direction = SERV_DIR_SELL;
                         log_it(L_DEBUG, "Created order to sell");
-                    }else if ( strcmp(l_direction_str, "buy")==0){
+                    } else if ( strcmp(l_direction_str, "buy")==0) {
                         l_direction = SERV_DIR_BUY;
                         log_it(L_DEBUG, "Created order to buy");
-                    }else
+                    } else {
                         log_it(L_WARNING, "Undefined order direction");
+                        dap_string_free(l_string_ret, true);
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong direction of the token was "
+                                                                       "specified, possible directions: buy, sell.");
+                        return -18;
+                    }
                 }
 
 
@@ -486,7 +497,6 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                     l_expires = (dap_time_t ) atoll( l_expires_str);
                 l_srv_uid.uint64 = (uint64_t) atoll( l_srv_uid_str);
                 if (l_node_addr_str){
-
                     if (dap_chain_node_addr_from_str( &l_node_addr, l_node_addr_str ) == 0 )
                         log_it( L_DEBUG, "node addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_node_addr) );
                     else {
@@ -510,11 +520,16 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 dap_cert_t *l_cert = NULL;
                 dap_enc_key_t *l_key = NULL;
                 if(l_order_cert_name) {
-                    dap_cert_t *l_cert = dap_cert_find_by_name(l_order_cert_name);
+                    l_cert = dap_cert_find_by_name(l_order_cert_name);
                     if(l_cert)
                         l_key = l_cert->enc_key;
-                    else
+                    else {
                         log_it(L_ERROR, "Can't load cert '%s' for sign order", l_order_cert_name);
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't load cert '%s' for sign "
+                                                                       "order", l_order_cert_name);
+                        dap_string_free(l_string_ret, true);
+                        return -19;
+                    }
                 }
                 // create order
                 char * l_order_new_hash_str = dap_chain_net_srv_order_create(
