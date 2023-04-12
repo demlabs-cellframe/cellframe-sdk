@@ -1543,7 +1543,7 @@ dap_chain_hash_fast_t l_tx_first_hash = {0};
 dap_chain_datum_tx_t    *l_datum_tx;
 size_t  l_datum_tx_size, l_tx_total, l_tx_count;
 int l_item_idx;
-dap_hash_fast_t *l_rc;
+bool l_rc;
 dap_string_t *l_reply_str;
 dap_hash_fast_t l_hash;
 dap_chain_tx_out_cond_t *l_out_cond_item;
@@ -1635,7 +1635,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 {
     enum {CMD_NONE = 0, CMD_ORDER, CMD_ORDERS, CMD_PURCHASE, CMD_ENABLE, CMD_DISABLE, CMD_TX_LIST, CMD_TOKEN_PAIR };
     int l_arg_index = 1, l_cmd_num = CMD_NONE;
-    dap_hash_fast_t *l_rc;
+    bool l_rc;
 
     if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "order", NULL)) {
         l_cmd_num = CMD_ORDER;
