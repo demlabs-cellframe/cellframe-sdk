@@ -705,7 +705,8 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
             dap_chain_addr_t l_signing_addr_cur;
             dap_chain_addr_fill_from_sign(&l_signing_addr_cur, l_candidate_sign, a_session->chain->net_id);
             l_store->candidate = DAP_REALLOC(l_store->candidate, l_store->candidate_size + l_candidate_sign_size);
-            if (dap_chain_addr_compare(&l_signing_addr_cur, &a_session->cur_round.attempt_submit_validator)) {
+            if (dap_chain_addr_compare(&l_signing_addr_cur, &a_session->cur_round.attempt_submit_validator) &&
+                                       l_store->candidate_size != l_candidate_size_exclude_signs) {
                 // If it's the primary attempt validator sign, place it in the beginnig
                 if (l_store->candidate_size > l_candidate_size_exclude_signs)
                     memmove((byte_t *)l_store->candidate + l_candidate_size_exclude_signs + l_candidate_sign_size,
