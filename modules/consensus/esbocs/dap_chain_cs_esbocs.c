@@ -1342,7 +1342,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                                                     l_session->cur_round.sync_attempt, l_sync_attempt);
             } else {
                 PVT(l_session->esbocs)->debug = false;  // suppress some debug messages
-                dap_list_t *l_validators_list = s_get_validators_list(l_session, l_sync_attempt);
+                dap_list_t *l_validators_list = s_get_validators_list(l_session, l_sync_attempt - 1);
                 PVT(l_session->esbocs)->debug = l_cs_debug;
                 bool l_msg_from_list = s_validator_check(&l_signing_addr, l_validators_list);
                 dap_list_free_full(l_validators_list, NULL);
