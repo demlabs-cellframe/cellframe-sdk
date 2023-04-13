@@ -138,8 +138,10 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
         return NULL;
     }
 
-    const char *l_tx_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_chain->ledger, a_tx_hash);
-    dap_chain_datum_dump_tx(l_tx, l_tx_token_ticker, l_str_out, a_hash_out_type, a_tx_hash);
+    if (l_tx) {
+        const char *l_tx_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_chain->ledger, a_tx_hash);
+        dap_chain_datum_dump_tx(l_tx, l_tx_token_ticker, l_str_out, a_hash_out_type, a_tx_hash);
+    }
 
     // if no history
     if(!l_str_out->len)
