@@ -530,6 +530,12 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                         dap_string_free(l_string_ret, true);
                         return -19;
                     }
+                } else {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "The certificate name was not "
+                                                                   "specified. Since version 5.2 it is not possible to "
+                                                                   "create unsigned orders.");
+                    dap_string_free(l_string_ret, true);
+                    return -20;
                 }
                 // create order
                 char * l_order_new_hash_str = dap_chain_net_srv_order_create(
