@@ -3200,7 +3200,11 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
 
         // 2. Check if out in previous transaction has spent
         int l_idx = (l_cond_type == TX_ITEM_TYPE_IN) ? l_tx_in->header.tx_out_prev_idx : l_tx_in_cond->header.tx_out_prev_idx;
-        if (dap_chain_ledger_item_is_used_out(l_item_out, l_idx, NULL)) {
+        dap_hash_fast_t l_spender;
+        if (dap_chain_ledger_item_is_used_out(l_item_out, l_idx, &l_spender)) {
+            char l_hash[DAP_CHAIN_HASH_FAST_STR_SIZE];
+            dap_chain_hash_fast_to_str(&l_spender, l_hash, sizeof(l_hash));
+            log_it(L_INFO, "'Out' item of previous tx %s already spent by %s", l_tx_prev_hash_str, l_hash);
             l_err_num = -6;
             break;
         }
