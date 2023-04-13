@@ -316,8 +316,40 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                             memcpy( &l_session_data->addr_remote,l_addr_new,sizeof (*l_addr_new) );
                         DAP_DELETE(l_addr_new);
                     }
-                }
-                break;
+                } break;
+                case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST:{
+                    log_it(L_INFO, "Get CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST");
+                    dap_chain_net_t * l_net = dap_chain_net_by_id( l_ch_chain_net_pkt->hdr.net_id );
+                    if ( l_net == NULL){
+                        char l_err_str[]="ERROR_NET_INVALID_ID";
+                        dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR ,
+                                                          l_ch_chain_net_pkt->hdr.net_id, l_err_str,sizeof (l_err_str));
+                        dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
+                        log_it(L_ERROR, "Invalid net id in packet");
+                    } else {
+
+                        bool a_proc = l_net->pub.mempool_autoproc;
+                        char tst_s[sizeof(DAP_VERSION)];
+                        strncpy(tst_s, DAP_VERSION,sizeof(DAP_VERSION));
+                                DAP_VERSION
+
+                        uint8_t * byte_raw = DAP_NEW_Z_SIZE(uint8_t, l_ch_chain_net_pkt_data_size);
+                        *byte_raw = *(uint8_t*)l_ch_chain_net_pkt->data;
+                        dap_sign_t * dap_sign_create(dap_enc_key_t *a_key, const void * a_data,
+                            const size_t a_data_size, size_t a_output_wish_size)
+
+
+                    }
+                    dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
+                }break;
+                case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY:{
+                    log_it(L_INFO, "Get CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY");
+
+
+                    //CRYPTO_MSRLN_STATUS random_bytes(unsigned int nbytes, unsigned char* random_array, RandomBytes RandomBytesFunction)
+
+                    dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
+                }break;
             }
             if(l_ch_chain_net->notify_callback)
                 l_ch_chain_net->notify_callback(l_ch_chain_net,l_ch_pkt->hdr.type, l_ch_chain_net_pkt,
