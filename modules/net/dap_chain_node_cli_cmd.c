@@ -5319,6 +5319,11 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
         }
     }
     // Select chain, if any
+    if (!l_net) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Could not determine the network from which to "
+                                                       "extract data for the tx_history command to work.");
+        return -9;
+    }
     if (l_chain_str)
         l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
     else
