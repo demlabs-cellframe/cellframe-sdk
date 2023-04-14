@@ -1144,6 +1144,17 @@ static int callback_compare_tx_list(const void * a_datum1, const void * a_datum2
     return -1;
 }
 
+typedef struct dap_stream_ch_chain_rnd{
+    struct{
+        /// node Version
+        uint8_t version[32];
+        /// autoproc status
+        uint8_t flags;//0 bit -autoproc; 1 bit - order;
+        uint32_t data_size;
+    }DAP_ALIGN_PACKED header;
+    byte_t data[];
+} DAP_ALIGN_PACKED dap_stream_ch_chain_rnd_t;
+
 static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
 {
     enum {
@@ -1189,7 +1200,83 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
 
     switch (l_cmd_num) {
         case CMD_test:
-        {           
+        {
+            const char *chain = NULL;
+            const char * l_netst = NULL;
+            const char * l_hash = NULL;
+            dap_chain_t * l_chain = NULL;
+            dap_chain_net_t * l_net = NULL;
+            dap_chain_hash_fast_t l_hash_block;
+            uint256_t l_value_out_block = {};
+            uint8_t rnd_mass[10] = {0};
+
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-chain", &chain);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_netst);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-hash", &l_hash);
+
+
+            randombytes(rnd_mass, sizeof(rnd_mass));
+
+
+            //формирование команды отправка
+            //-------------------------------------------------
+            /*
+            dap_chain_node_addr_t l_node_addr = { 0 };
+            dap_chain_node_info_t *l_remote_node_info;
+            dap_chain_node_client_t *l_node_client;
+            int res;
+            l_remote_node_info = node_info_read_and_reply(l_net, &l_node_addr, a_str_reply);
+            if(!l_remote_node_info) {
+                return -1;
+            }
+            // start connect
+            l_node_client = dap_chain_node_client_connect_default_channels(l_net,l_remote_node_info);
+            if(!l_node_client) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "can't connect");
+                DAP_DELETE(l_remote_node_info);
+                return -1;
+            }
+            // wait connected
+            int timeout_ms = 7000; // 7 sec = 7000 ms
+            res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_ESTABLISHED, timeout_ms);
+            //проверка res
+            log_it(L_NOTICE, "Stream connection established");
+
+            uint8_t l_ch_id = dap_stream_ch_chain_net_get_id();
+            dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, l_ch_id);
+
+            size_t res = dap_stream_ch_chain_net_pkt_write(l_ch_chain,
+            DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST,
+            l_net->pub.id,
+            rnd_mass, sizeof(rnd_mass));
+            if(res == 0) {
+                log_it(L_WARNING, "Can't send DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST packet");
+                dap_chain_node_client_close_mt(l_node_client);
+                DAP_DELETE(l_remote_node_info);
+                return -1;
+            }*/
+
+            //-------------------------------------------------
+            //прием запроса
+
+            size_t l_orders_num = 0;
+            dap_stream_ch_chain_rnd_t tmp_var;
+            tmp_var.header.flags = 0;
+            memcpy(tmp_var.header.version, 0, sizeof(tmp_var.header.version));
+            strncpy((char*)tmp_var.header.version,DAP_VERSION,sizeof(DAP_VERSION));
+            tmp_var.header.flags = l_net->pub.mempool_autoproc ?  tmp_var.header.flags | 0x01 :
+                                                                  tmp_var.header.flags & 0xfe ;
+
+            //dap_chain_net_srv_order_find_all_by(l_net,SERV_DIR_UNDEFINED,DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID,NULL,NULL,NULL,NULL,&l_orders,&l_orders_num);
+            //заполнения флага ордера
+
+            //uint8_t * byte_raw = DAP_NEW_Z_SIZE(uint8_t, l_ch_chain_net_pkt_data_size);//выделяем память для данных
+            //*byte_raw = *(uint8_t*)l_ch_chain_net_pkt->data;//заполняем данные
+            dap_sign_t *l_sign = dap_sign_create(a_key, rnd_mass, //подписываем данные
+                sizeof(rnd_mass), 0);
+
+
+
 
         }
         break;

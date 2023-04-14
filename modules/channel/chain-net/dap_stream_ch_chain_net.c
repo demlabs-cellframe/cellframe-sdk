@@ -342,7 +342,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         dap_stream_ch_chain_rnd_t tmp_var;
                         tmp_var.header.flags = 0;
                         memcpy(tmp_var.header.version, 0, sizeof(tmp_var.header.version));
-                        strncpy(tmp_var.header.version,DAP_VERSION,sizeof(DAP_VERSION));
+                        strncpy((char*)tmp_var.header.version,DAP_VERSION,sizeof(DAP_VERSION));
                         tmp_var.header.flags = l_net->pub.mempool_autoproc ?  tmp_var.header.flags | 0x01 :
                                                                               tmp_var.header.flags & 0xfe ;
 
