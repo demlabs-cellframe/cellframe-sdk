@@ -178,6 +178,16 @@ void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg)
     }
     DAP_DEL_Z(a_ch->internal);
 }
+typedef struct dap_stream_ch_chain_rnd{
+    struct{
+        /// node Version
+        uint8_t version[32];
+        /// autoproc status
+        uint8_t flags;//0 bit -autoproc; 1 bit - order;
+        uint32_t data_size;
+    }DAP_ALIGN_PACKED header;
+    byte_t data[];
+} DAP_ALIGN_PACKED dap_stream_ch_chain_rnd_t;
 
 /**
  * @brief s_stream_ch_packet_in
@@ -327,16 +337,22 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
                         log_it(L_ERROR, "Invalid net id in packet");
                     } else {
+                        //dap_chain_net_srv_order_t * l_orders = NULL;
+                        size_t l_orders_num = 0;
+                        dap_stream_ch_chain_rnd_t tmp_var;
+                        tmp_var.header.flags = 0;
+                        memcpy(tmp_var.header.version, 0, sizeof(tmp_var.header.version));
+                        strncpy(tmp_var.header.version,DAP_VERSION,sizeof(DAP_VERSION));
+                        tmp_var.header.flags = l_net->pub.mempool_autoproc ?  tmp_var.header.flags | 0x01 :
+                                                                              tmp_var.header.flags & 0xfe ;
 
-                        bool a_proc = l_net->pub.mempool_autoproc;
-                        char tst_s[sizeof(DAP_VERSION)];
-                        strncpy(tst_s, DAP_VERSION,sizeof(DAP_VERSION));
-                                DAP_VERSION
-
+                        //dap_chain_net_srv_order_find_all_by(l_net,SERV_DIR_UNDEFINED,DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID,NULL,NULL,NULL,NULL,&l_orders,&l_orders_num);
+                        /*
                         uint8_t * byte_raw = DAP_NEW_Z_SIZE(uint8_t, l_ch_chain_net_pkt_data_size);
                         *byte_raw = *(uint8_t*)l_ch_chain_net_pkt->data;
                         dap_sign_t * dap_sign_create(dap_enc_key_t *a_key, const void * a_data,
                             const size_t a_data_size, size_t a_output_wish_size)
+                                */
 
 
                     }
