@@ -460,8 +460,8 @@ static void s_tun_send_msg_ip_unassigned(uint32_t a_worker_id, dap_chain_net_srv
     l_msg->ip_unassigment.addr = a_addr;
     l_msg->ip_unassigment.worker_id = a_ch_vpn->ch->stream_worker->worker->id;
     l_msg->esocket = a_ch_vpn->ch->stream->esocket;
-    l_msg->esocket_uuid = a_ch_vpn->ch->stream->esocket->uuid;
-    l_msg->is_reassigned_once = a_ch_vpn->ch->stream->esocket->was_reassigned;
+    l_msg->esocket_uuid = a_ch_vpn->ch->stream->esocket ? a_ch_vpn->ch->stream->esocket->uuid : 0;
+    l_msg->is_reassigned_once = a_ch_vpn->ch->stream->esocket ? a_ch_vpn->ch->stream->esocket->was_reassigned : false;
 
     if ( dap_events_socket_queue_ptr_send(s_tun_sockets_queue_msg[a_worker_id], l_msg) != 0 ) {
         log_it(L_WARNING, "Cant send new  ip unassign message to the tun msg queue #%u", a_worker_id);
@@ -684,6 +684,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
         }
         s_tun_deattach_queue(l_tun_fd);
         s_raw_server->tun_device_name = strdup(s_raw_server->ifr.ifr_name);
+        s_raw_server->tun_fd = l_tun_fd;
 #elif !defined (DAP_OS_DARWIN)
 #error "Undefined tun interface attach for your platform"
 #endif
