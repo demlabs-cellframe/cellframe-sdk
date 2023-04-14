@@ -851,6 +851,8 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
     }
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     dap_chain_block_chunks_delete(PVT(l_blocks)->chunks);
+    PVT(l_blocks)->block_cache_last = NULL;
+    PVT(l_blocks)->block_cache_first = NULL;
     PVT(l_blocks)->chunks = dap_chain_block_chunks_create(l_blocks);
 }
 
