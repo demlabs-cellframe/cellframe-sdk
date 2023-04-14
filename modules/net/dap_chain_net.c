@@ -3377,6 +3377,7 @@ dap_list_t* dap_chain_datum_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, d
                 // go to next transaction
                 l_atom = l_chain_cur->callback_atom_iter_get_next(l_atom_iter, &l_atom_size);
             }
+            l_chain_cur->callback_atom_iter_delete(l_atom_iter);
         }
         // Only for one chain
         if(a_chain)
