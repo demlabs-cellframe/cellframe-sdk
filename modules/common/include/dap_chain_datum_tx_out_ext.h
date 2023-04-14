@@ -35,5 +35,5 @@ typedef struct dap_chain_tx_out_ext{
         uint256_t value;                   // Number of Datoshis ( DAP/10^9 ) to be transfered
     } header;                              // Only header's hash is used for verification
     dap_chain_addr_t addr;                 // Address to transfer to
-    char token[DAP_CHAIN_TICKER_SIZE_MAX]; // Which token is transferred
+    const char token[DAP_CHAIN_TICKER_SIZE_MAX]; // Which token is transferred
 } DAP_ALIGN_PACKED dap_chain_tx_out_ext_t;

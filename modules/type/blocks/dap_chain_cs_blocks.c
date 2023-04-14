@@ -107,8 +107,7 @@ static dap_chain_atom_iter_t* s_callback_atom_iter_create_from(dap_chain_t *  ,
 
 static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter ,
                                                                        dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
-static dap_chain_datum_tx_t* s_callback_atom_iter_find_by_tx_hash(dap_chain_t * a_chain ,
-                                                                       dap_chain_hash_fast_t * a_tx_hash);
+static dap_chain_datum_tx_t *s_callback_atom_iter_find_by_tx_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_tx_hash, dap_chain_hash_fast_t *a_block_hash);
 static dap_chain_atom_ptr_t s_callback_block_find_by_tx_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_tx_hash);
 
 static dap_chain_datum_t** s_callback_atom_get_datums(dap_chain_atom_ptr_t a_atom, size_t a_atom_size, size_t * a_datums_count);
@@ -1223,7 +1222,7 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_ite
  * @param a_atom_hash
  * @return
  */
-static dap_chain_datum_tx_t* s_callback_atom_iter_find_by_tx_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_tx_hash)
+static dap_chain_datum_tx_t *s_callback_atom_iter_find_by_tx_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_tx_hash, dap_chain_hash_fast_t *a_block_hash)
 {
     dap_chain_cs_blocks_t * l_cs_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_tx_block_index_t * l_tx_block_index = NULL;
@@ -1231,6 +1230,8 @@ static dap_chain_datum_tx_t* s_callback_atom_iter_find_by_tx_hash(dap_chain_t * 
     if (l_tx_block_index){
         dap_chain_block_cache_t *l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_cs_blocks, &l_tx_block_index->block_hash);
         if ( l_block_cache){
+            if (a_block_hash)
+                *a_block_hash = l_tx_block_index->block_hash;
             return dap_chain_block_cache_get_tx_by_hash(l_block_cache, a_tx_hash);
         }else
             return NULL;
