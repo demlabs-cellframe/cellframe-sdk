@@ -361,18 +361,21 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
                         s_tx_header_print(l_str_out, l_tx_data_ht, l_tx, l_atom_iter->cur_hash, a_hash_out_type, l_ledger, &l_tx_hash);
                         l_header_printed = true;
                     }
-                    const char *l_src_addr_str = l_base_tx ? "emission" :
-                                                 (l_src_addr ? dap_chain_addr_to_str(l_src_addr)
-                                                             : dap_chain_tx_out_cond_subtype_to_str(l_src_subtype));
+                    const char *l_src_addr_str = NULL, *l_src_str;
+                    if (l_base_tx)
+                        l_src_str = "emission";
+                    else if (l_src_addr && dap_strcmp(l_dst_token, l_noaddr_token))
+                        l_src_str = l_src_addr_str = dap_chain_addr_to_str(l_src_addr);
+                    else
+                        l_src_str = dap_chain_tx_out_cond_subtype_to_str(l_src_subtype);
                     char *l_value_str = dap_chain_balance_print(l_value);
                     char *l_coins_str = dap_chain_balance_to_coins(l_value);
                     dap_string_append_printf(l_str_out, "\trecv %s (%s) %s from %s\n",
                                              l_coins_str,
                                              l_value_str,
                                              l_dst_token ? l_dst_token : "UNKNOWN",
-                                             l_src_addr_str);
-                    if (l_src_addr && !l_base_tx)
-                        DAP_DELETE(l_src_addr_str);
+                                             l_src_str);
+                    DAP_DEL_Z(l_src_addr_str);
                     DAP_DELETE(l_value_str);
                     DAP_DELETE(l_coins_str);
                 }
