@@ -3032,7 +3032,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
     // sum of values in 'out' items from the previous transactions
     dap_chain_ledger_tokenizer_t *l_values_from_prev_tx = NULL, *l_values_from_cur_tx = NULL,
                                  *l_value_cur = NULL, *l_tmp = NULL, *l_res = NULL;
-    char *l_token = NULL, *l_main_ticker = NULL;
+    const char *l_token = NULL, *l_main_ticker = NULL;
     dap_chain_ledger_token_item_t * l_token_item = NULL;
     dap_chain_hash_fast_t *l_emission_hash = NULL;
 
@@ -3328,6 +3328,8 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             l_tx_prev_out_cond = (dap_chain_tx_out_cond_t *)l_tx_prev_out;
             if (l_tx_prev_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
                 l_main_ticker = l_token;
+            else
+                l_main_ticker = l_ledger_pvt->net_native_ticker;
 
             bool l_owner = false;
             l_owner = dap_sign_match_pkey_signs(l_prev_sign,l_sign);

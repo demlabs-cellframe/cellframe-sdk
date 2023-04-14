@@ -1571,11 +1571,14 @@ const char* dap_chain_net_get_type(dap_chain_t *l_chain)
 static void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
 {
     dap_chain_ledger_purge(l_net->pub.ledger, false);
-    dap_chain_net_srv_stake_cache_purge(l_net);
+    dap_chain_net_srv_stake_purge(l_net);
+    dap_chain_net_decree_purge(l_net);
     dap_chain_t *l_chain = NULL;
     DL_FOREACH(l_net->pub.chains, l_chain) {
         if (l_chain->callback_purge)
             l_chain->callback_purge(l_chain);
+        if (l_chain->callback_set_min_validators_count)
+            l_chain->callback_set_min_validators_count(l_chain, 0);
         dap_chain_ledger_set_fee(l_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
         dap_chain_load_all(l_chain);
     }
@@ -1607,7 +1610,7 @@ static bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
         return false;
     }
     // create file, if it not presented. If file exists, ledger cache operation is stopped
-    char *l_cache_file = dap_strdup_printf( "%s/%s.cache", l_cache_dir, "e0fee993-54b7-4cbb-be94-f633cc17853f");
+    char *l_cache_file = dap_strdup_printf( "%s/%s.cache", l_cache_dir, "01df6e58-4eb7-43a3-8c6b-252bcc3d05d4");
     DAP_DELETE(l_cache_dir);
     if (dap_file_simple_test(l_cache_file)) {
         log_it(L_WARNING, "Cache file '%s' already exists", l_cache_file);
@@ -2568,13 +2571,13 @@ int s_net_load(dap_chain_net_t *a_net)
         }
         closedir(l_chains_dir);
 
-        dap_chain_net_srv_stake_load_cache(l_net);
         // reload ledger cache at once
         if (s_chain_net_reload_ledger_cache_once(l_net)) {
             log_it(L_WARNING,"Start one time ledger cache reloading");
             dap_chain_ledger_purge(l_net->pub.ledger, false);
-            dap_chain_net_srv_stake_cache_purge(l_net);
-        }
+            dap_chain_net_srv_stake_purge(l_net);
+        } else
+            dap_chain_net_srv_stake_load_cache(l_net);
 
         // sort list with chains names by priority
         l_prior_list = dap_list_sort(l_prior_list, callback_compare_prioritity_list);

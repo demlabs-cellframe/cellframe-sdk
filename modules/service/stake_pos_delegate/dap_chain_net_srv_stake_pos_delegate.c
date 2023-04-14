@@ -93,9 +93,13 @@ int dap_chain_net_srv_stake_pos_delegate_init()
     return 0;
 }
 
-void dap_chain_net_srv_stake_pos_delegate_deinit()
+void s_stake_ht_clear()
 {
     dap_chain_net_srv_stake_item_t *l_stake, *l_tmp;
+    HASH_ITER(ht, s_srv_stake->tx_itemlist, l_stake, l_tmp) {
+        // Clang bug at this, l_stake should change at every loop cycle
+        HASH_DELETE(ht, s_srv_stake->tx_itemlist, l_stake);
+    }
     HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp) {
         // Clang bug at this, l_stake should change at every loop cycle
         HASH_DEL(s_srv_stake->itemlist, l_stake);
@@ -107,6 +111,11 @@ void dap_chain_net_srv_stake_pos_delegate_deinit()
         HASH_DEL(s_srv_stake->cache, l_cache_item);
         DAP_DELETE(l_cache_item);
     }
+}
+
+void dap_chain_net_srv_stake_pos_delegate_deinit()
+{
+    s_stake_ht_clear();
     DAP_DEL_Z(s_srv_stake);
 }
 
@@ -165,8 +174,8 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
     l_stake->tx_hash = *a_stake_tx_hash;
     if (!l_found)
         HASH_ADD(hh, s_srv_stake->itemlist, signing_addr, sizeof(dap_chain_addr_t), l_stake);
-    HASH_ADD(ht, s_srv_stake->tx_itemlist, tx_hash, sizeof(dap_chain_hash_fast_t), l_stake);
-
+    if (!dap_hash_fast_is_blank(a_stake_tx_hash))
+        HASH_ADD(ht, s_srv_stake->tx_itemlist, tx_hash, sizeof(dap_chain_hash_fast_t), l_stake);
 }
 
 void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr)
@@ -283,18 +292,16 @@ int dap_chain_net_srv_stake_load_cache(dap_chain_net_t *a_net)
     return 0;
 }
 
-void dap_chain_net_srv_stake_cache_purge(dap_chain_net_t *a_net)
+void dap_chain_net_srv_stake_purge(dap_chain_net_t *a_net)
 {
     dap_ledger_t *l_ledger = a_net->pub.ledger;
     char *l_gdb_group = dap_chain_ledger_get_gdb_group(l_ledger, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP);
     dap_global_db_del(l_gdb_group, NULL, NULL, NULL);
     DAP_DELETE(l_gdb_group);
-    dap_chain_net_srv_stake_cache_item_t *l_cache_item, *l_cache_tmp;
-    HASH_ITER(hh, s_srv_stake->cache, l_cache_item, l_cache_tmp) {
-        // Clang bug at this, l_stake should change at every loop cycle
-        HASH_DEL(s_srv_stake->cache, l_cache_item);
-        DAP_DELETE(l_cache_item);
-    }
+
+    s_stake_ht_clear();
+
+    s_srv_stake->delegate_allowed_min = dap_chain_coins_to_balance("1.0");
 }
 
 

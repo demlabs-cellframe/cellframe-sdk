@@ -86,6 +86,7 @@ typedef struct dap_chain_esbocs_pvt {
     // Validators section
     bool poa_mode;
     uint16_t min_validators_count;
+    uint16_t start_validators_min;
     // Debug flag
     bool debug;
     // Round params
@@ -149,7 +150,8 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_esbocs_pvt->round_attempt_timeout = dap_config_get_item_uint16_default(a_chain_cfg, "esbocs", "round_attempt_timeout", 10);
 
     int l_ret = 0;
-    l_esbocs_pvt->min_validators_count = dap_config_get_item_uint16(a_chain_cfg, "esbocs", "min_validators_count");
+    l_esbocs_pvt->start_validators_min = l_esbocs_pvt->min_validators_count =
+            dap_config_get_item_uint16(a_chain_cfg, "esbocs", "min_validators_count");
     if (!l_esbocs_pvt->min_validators_count) {
         l_ret = -1;
         goto lb_err;
@@ -185,13 +187,14 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
             goto lb_err;
         }
         log_it(L_MSG, "add validator addr:"NODE_ADDR_FP_STR"", NODE_ADDR_FP_ARGS_S(l_signer_node_addr));
-        if (l_esbocs_pvt->poa_mode) { // auth by certs in PoA mode
-            dap_chain_esbocs_validator_t *l_validator = DAP_NEW_Z(dap_chain_esbocs_validator_t);
-            l_validator->signing_addr = l_signing_addr;
-            l_validator->node_addr = l_signer_node_addr;
-            l_validator->weight = uint256_1;
-            l_esbocs_pvt->poa_validators = dap_list_append(l_esbocs_pvt->poa_validators, l_validator);
-        } else {
+
+        dap_chain_esbocs_validator_t *l_validator = DAP_NEW_Z(dap_chain_esbocs_validator_t);
+        l_validator->signing_addr = l_signing_addr;
+        l_validator->node_addr = l_signer_node_addr;
+        l_validator->weight = uint256_1;
+        l_esbocs_pvt->poa_validators = dap_list_append(l_esbocs_pvt->poa_validators, l_validator);
+
+        if (!l_esbocs_pvt->poa_mode) { // auth certs in PoA mode wiil be first PoS validators keys
             dap_hash_fast_t l_stake_tx_hash = {};
             dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
             uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value();
@@ -345,7 +348,19 @@ static void s_callback_set_min_validators_count(dap_chain_t *a_chain, uint16_t a
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
-    l_esbocs_pvt->min_validators_count = a_new_value;
+    if (a_new_value)
+        l_esbocs_pvt->min_validators_count = a_new_value;
+    else {
+        dap_hash_fast_t l_stake_tx_hash = {};
+        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+        uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value();
+        for (dap_list_t *it = l_esbocs_pvt->poa_validators; it; it = it->next) {
+            dap_chain_esbocs_validator_t *l_validator = it->data;
+            dap_chain_net_srv_stake_key_delegate(l_net, &l_validator->signing_addr, &l_stake_tx_hash,
+                                                 l_weight, &l_validator->node_addr);
+        }
+        l_esbocs_pvt->min_validators_count = l_esbocs_pvt->start_validators_min;
+    }
 }
 
 static dap_list_t *s_get_validators_list(dap_chain_esbocs_session_t *a_session, uint64_t a_skip_count)

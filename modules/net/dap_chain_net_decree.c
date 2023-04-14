@@ -106,8 +106,19 @@ int dap_chain_net_decree_deinit(dap_chain_net_t *a_net)
     dap_list_free_full(l_decree->pkeys, NULL);
     DAP_DELETE(l_decree->fee_addr);
     DAP_DELETE(l_decree);
-
+    struct decree_hh *l_decree_hh, *l_tmp;
+    HASH_ITER(hh, s_decree_hh, l_decree_hh, l_tmp) {
+        HASH_DEL(s_decree_hh, l_decree_hh);
+        DAP_DELETE(l_decree_hh->decree);
+        DAP_DELETE(l_decree_hh);
+    }
     return 0;
+}
+
+void dap_chain_net_decree_purge(dap_chain_net_t *a_net)
+{
+    dap_chain_net_decree_deinit(a_net);
+    dap_chain_net_decree_init(a_net);
 }
 
 int s_decree_verify_tsd(dap_chain_datum_decree_t * a_decree, dap_chain_net_t *a_net)

@@ -36,6 +36,7 @@
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_mempool.h"
+
 #define LOG_TAG "dap_chain_cs_blocks"
 
 typedef struct dap_chain_tx_block_index
