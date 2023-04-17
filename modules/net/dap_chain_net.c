@@ -2957,10 +2957,10 @@ dap_chain_net_state_t dap_chain_net_get_state ( dap_chain_net_t * l_net)
  * @param l_net
  * @param a_state
  */
-void dap_chain_net_set_state ( dap_chain_net_t * l_net, dap_chain_net_state_t a_state)
+void dap_chain_net_set_state(dap_chain_net_t *l_net, dap_chain_net_state_t a_state)
 {
     assert(l_net);
-    log_it(L_DEBUG,"%s set state %s", l_net->pub.name, dap_chain_net_state_to_str(a_state)  );
+    log_it(L_DEBUG,"%s set state %s", l_net->pub.name, dap_chain_net_state_to_str(a_state));
     pthread_rwlock_wrlock(&PVT(l_net)->states_lock);
     if( a_state == PVT(l_net)->state){
         pthread_rwlock_unlock(&PVT(l_net)->states_lock);
@@ -2968,7 +2968,7 @@ void dap_chain_net_set_state ( dap_chain_net_t * l_net, dap_chain_net_state_t a_
     }
     PVT(l_net)->state = a_state;
     pthread_rwlock_unlock(&PVT(l_net)->states_lock);
-    dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_net_states_proc,l_net );
+    dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_net_states_proc,l_net);
 }
 
 
