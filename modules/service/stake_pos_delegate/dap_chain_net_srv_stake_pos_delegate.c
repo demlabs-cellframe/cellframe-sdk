@@ -1150,9 +1150,10 @@ typedef struct dap_stream_ch_chain_rnd{
         uint8_t version[32];
         /// autoproc status
         uint8_t flags;//0 bit -autoproc; 1 bit - order;
-        uint32_t data_size;
+        uint32_t sign_size;
+        uint8_t data[];
     }DAP_ALIGN_PACKED header;
-    byte_t data[];
+    byte_t sign[];
 } DAP_ALIGN_PACKED dap_stream_ch_chain_rnd_t;
 
 static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
@@ -1204,8 +1205,11 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             const char *chain = NULL;
             const char * l_netst = NULL;
             const char * l_hash = NULL;
+            const char * l_key = NULL;
+            dap_cert_t **l_certs = NULL;
+            size_t l_certs_count = 0;
             dap_chain_t * l_chain = NULL;
-            dap_chain_net_t * l_net = NULL;
+            dap_chain_net_t * l_net1 = NULL;
             dap_chain_hash_fast_t l_hash_block;
             uint256_t l_value_out_block = {};
             uint8_t rnd_mass[10] = {0};
@@ -1213,7 +1217,10 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-chain", &chain);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_netst);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-hash", &l_hash);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_key);
+            l_net1 = dap_chain_net_by_name(l_netst);
 
+            dap_cert_parse_str_list(l_key, &l_certs, &l_certs_count);
 
             randombytes(rnd_mass, sizeof(rnd_mass));
 
@@ -1260,11 +1267,11 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             //прием запроса
 
             size_t l_orders_num = 0;
-            dap_stream_ch_chain_rnd_t tmp_var;
+            dap_stream_ch_chain_rnd_t tmp_var = {0};
             tmp_var.header.flags = 0;
-            memcpy(tmp_var.header.version, 0, sizeof(tmp_var.header.version));
-            strncpy((char*)tmp_var.header.version,DAP_VERSION,sizeof(DAP_VERSION));
-            tmp_var.header.flags = l_net->pub.mempool_autoproc ?  tmp_var.header.flags | 0x01 :
+            strncpy(&tmp_var.header.version,DAP_VERSION,sizeof(DAP_VERSION));
+            l_net1->pub.mempool_autoproc;
+            tmp_var.header.flags = (l_net1->pub.mempool_autoproc) ?  tmp_var.header.flags | 0x01 :
                                                                   tmp_var.header.flags & 0xfe ;
 
             //dap_chain_net_srv_order_find_all_by(l_net,SERV_DIR_UNDEFINED,DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID,NULL,NULL,NULL,NULL,&l_orders,&l_orders_num);
@@ -1272,10 +1279,15 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
 
             //uint8_t * byte_raw = DAP_NEW_Z_SIZE(uint8_t, l_ch_chain_net_pkt_data_size);//выделяем память для данных
             //*byte_raw = *(uint8_t*)l_ch_chain_net_pkt->data;//заполняем данные
-            dap_sign_t *l_sign = dap_sign_create(a_key, rnd_mass, //подписываем данные
+            dap_sign_t *l_sign = dap_sign_create(l_certs[0]->enc_key, rnd_mass, //подписываем данные
                 sizeof(rnd_mass), 0);
+            tmp_var.header.sign_size = dap_sign_get_size(l_sign);
+            byte_t *sign = DAP_NEW_Z_SIZE(byte_t, tmp_var.header.sign_size);
+            *sign = *(byte_t*)l_sign;
 
 
+
+            tmp_var.header.flags = tmp_var.header.flags | 0x01;
 
 
         }
