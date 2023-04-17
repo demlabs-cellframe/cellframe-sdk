@@ -36,6 +36,10 @@
 #include "dap_chain_cs_dag_poa.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 
+#include "dap_chain_node_client.h"
+#include "dap_stream_ch_chain_net_pkt.h"
+#include "dap_chain_node_cli_cmd.h"
+
 #define LOG_TAG "dap_chain_net_srv_stake"
 
 #define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP "delegate_keys"
@@ -1144,17 +1148,40 @@ static int callback_compare_tx_list(const void * a_datum1, const void * a_datum2
     return -1;
 }
 
-typedef struct dap_stream_ch_chain_rnd{
-    struct{
-        /// node Version
-        uint8_t version[32];
-        /// autoproc status
-        uint8_t flags;//0 bit -autoproc; 1 bit - order;
-        uint32_t sign_size;
-        uint8_t data[];
-    }DAP_ALIGN_PACKED header;
-    byte_t sign[];
-} DAP_ALIGN_PACKED dap_stream_ch_chain_rnd_t;
+
+static dap_chain_node_info_t* node_info_read_and_reply(dap_chain_net_t * a_net, dap_chain_node_addr_t *a_address,
+        char **a_str_reply)
+{
+    char *l_key = dap_chain_node_addr_to_hash_str(a_address);
+    if(!l_key)
+    {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "can't calculate hash of addr");
+        return NULL;
+    }
+    size_t node_info_size = 0;
+    dap_chain_node_info_t *node_info;
+    // read node
+    node_info = (dap_chain_node_info_t *) dap_global_db_get_sync(a_net->pub.gdb_nodes, l_key, &node_info_size, NULL, NULL);
+
+    if(!node_info) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "node not found in base");
+        DAP_DELETE(l_key);
+        return NULL;
+    }
+    /* if(!node_info->hdr.ext_port)
+        node_info->hdr.ext_port = 8079; */
+    size_t node_info_size_must_be = dap_chain_node_info_get_size(node_info);
+    if(node_info_size_must_be != node_info_size) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "node has bad size in base=%zu (must be %zu)", node_info_size,
+                node_info_size_must_be);
+        DAP_DELETE(node_info);
+        DAP_DELETE(l_key);
+        return NULL;
+    }
+
+    DAP_DELETE(l_key);
+    return node_info;
+}
 
 static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
 {
@@ -1206,10 +1233,13 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             const char * l_netst = NULL;
             const char * l_hash = NULL;
             const char * l_key = NULL;
+            const char * str_tx_hash = NULL;
+            const char * alias_str = NULL;
             dap_cert_t **l_certs = NULL;
             size_t l_certs_count = 0;
             dap_chain_t * l_chain = NULL;
-            dap_chain_net_t * l_net1 = NULL;
+            dap_chain_net_t * l_net = NULL;
+            dap_hash_fast_t * l_tx = NULL;
             dap_chain_hash_fast_t l_hash_block;
             uint256_t l_value_out_block = {};
             uint8_t rnd_mass[10] = {0};
@@ -1217,22 +1247,37 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-chain", &chain);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_netst);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-hash", &l_hash);
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_key);
-            l_net1 = dap_chain_net_by_name(l_netst);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-alias", &alias_str);
+            //dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_key);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-tx", &str_tx_hash);
+            l_net = dap_chain_net_by_name(l_netst);
+            dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(l_net->pub.name);
 
-            dap_cert_parse_str_list(l_key, &l_certs, &l_certs_count);
+            dap_chain_datum_tx_t *l_cond_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, l_tx);
+
+            //dap_cert_parse_str_list(l_key, &l_certs, &l_certs_count);
+            /*
+            int l_prev_cond_idx = 0;
+            dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx,
+                                                          DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_prev_cond_idx);
+            if (!l_tx_out_cond) {
+                log_it(L_WARNING, "Requested conditional transaction has no requires conditional output");
+                return NULL;
+            }*/
+            dap_chain_node_addr_t *address_tmp = dap_chain_node_addr_get_by_alias(l_net, alias_str);
+            //l_net->pub.
 
             randombytes(rnd_mass, sizeof(rnd_mass));
 
 
             //формирование команды отправка
             //-------------------------------------------------
-            /*
+
             dap_chain_node_addr_t l_node_addr = { 0 };
             dap_chain_node_info_t *l_remote_node_info;
             dap_chain_node_client_t *l_node_client;
             int res;
-            l_remote_node_info = node_info_read_and_reply(l_net, &l_node_addr, a_str_reply);
+            l_remote_node_info = node_info_read_and_reply(l_net, address_tmp, a_str_reply);
             if(!l_remote_node_info) {
                 return -1;
             }
@@ -1252,43 +1297,29 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             uint8_t l_ch_id = dap_stream_ch_chain_net_get_id();
             dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, l_ch_id);
 
-            size_t res = dap_stream_ch_chain_net_pkt_write(l_ch_chain,
+            size_t res1 = dap_stream_ch_chain_net_pkt_write(l_ch_chain,
             DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST,
             l_net->pub.id,
             rnd_mass, sizeof(rnd_mass));
-            if(res == 0) {
+            if(res1 == 0) {
                 log_it(L_WARNING, "Can't send DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST packet");
                 dap_chain_node_client_close_mt(l_node_client);
                 DAP_DELETE(l_remote_node_info);
                 return -1;
-            }*/
+            }
+
+            DAP_DELETE(address_tmp);
+
 
             //-------------------------------------------------
-            //прием запроса
+            //прием ответа
 
-            size_t l_orders_num = 0;
-            dap_stream_ch_chain_rnd_t tmp_var = {0};
-            tmp_var.header.flags = 0;
-            strncpy(&tmp_var.header.version,DAP_VERSION,sizeof(DAP_VERSION));
-            l_net1->pub.mempool_autoproc;
-            tmp_var.header.flags = (l_net1->pub.mempool_autoproc) ?  tmp_var.header.flags | 0x01 :
-                                                                  tmp_var.header.flags & 0xfe ;
-
-            //dap_chain_net_srv_order_find_all_by(l_net,SERV_DIR_UNDEFINED,DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID,NULL,NULL,NULL,NULL,&l_orders,&l_orders_num);
-            //заполнения флага ордера
-
-            //uint8_t * byte_raw = DAP_NEW_Z_SIZE(uint8_t, l_ch_chain_net_pkt_data_size);//выделяем память для данных
-            //*byte_raw = *(uint8_t*)l_ch_chain_net_pkt->data;//заполняем данные
-            dap_sign_t *l_sign = dap_sign_create(l_certs[0]->enc_key, rnd_mass, //подписываем данные
-                sizeof(rnd_mass), 0);
-            tmp_var.header.sign_size = dap_sign_get_size(l_sign);
-            byte_t *sign = DAP_NEW_Z_SIZE(byte_t, tmp_var.header.sign_size);
-            *sign = *(byte_t*)l_sign;
-
-
-
-            tmp_var.header.flags = tmp_var.header.flags | 0x01;
-
+            //dap_sign_t *l_sign2 = DAP_NEW_Z_SIZE(byte_t, tmp_var.header.sign_size);
+            //byte_t *sign2 = DAP_NEW_Z_SIZE(byte_t, tmp_var.header.sign_size);
+            //dap_stream_ch_chain_rnd_t var2 = *(dap_stream_ch_chain_rnd_t*)data1;
+            //uint8_t l_sign_size = ()->header.sign_size;
+            //dap_sign_t *l_sign2 = DAP_NEW_Z_SIZE(byte_t, l_sign_size);
+            //memcpy(l_sign2, ((dap_stream_ch_chain_rnd_t*)data1)->header.data + 10,l_sign_size );
 
         }
         break;

@@ -53,6 +53,10 @@
 #include "dap_stream_ch_proc.h"
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_stream_ch_chain_net.h"
+#include "dap_chain_block_cache.h"
+#include "dap_chain_cs_blocks.h"
+#include "dap_chain_net_srv_order.h"
+//#include "dap_chain_net_srv_stake_pos_delegate.h"
 
 #define LOG_TAG "dap_stream_ch_chain_net"
 
@@ -184,9 +188,10 @@ typedef struct dap_stream_ch_chain_rnd{
         uint8_t version[32];
         /// autoproc status
         uint8_t flags;//0 bit -autoproc; 1 bit - order;
-        uint32_t data_size;
+        uint32_t sign_size;
+        uint8_t data[10];
     }DAP_ALIGN_PACKED header;
-    byte_t data[];
+    byte_t sign[];
 } DAP_ALIGN_PACKED dap_stream_ch_chain_rnd_t;
 
 /**
@@ -337,23 +342,41 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
                         log_it(L_ERROR, "Invalid net id in packet");
                     } else {
-                        //dap_chain_net_srv_order_t * l_orders = NULL;
+                        dap_chain_net_srv_order_t * l_orders = NULL;
+                        //dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_net->pub.chains);
+                        //dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+                        //dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
+                        dap_enc_key_t * enc_key_pvt;
                         size_t l_orders_num = 0;
-                        dap_stream_ch_chain_rnd_t tmp_var;
-                        tmp_var.header.flags = 0;
-                        memcpy(tmp_var.header.version, 0, sizeof(tmp_var.header.version));
-                        strncpy((char*)tmp_var.header.version,DAP_VERSION,sizeof(DAP_VERSION));
-                        tmp_var.header.flags = l_net->pub.mempool_autoproc ?  tmp_var.header.flags | 0x01 :
-                                                                              tmp_var.header.flags & 0xfe ;
+                        dap_stream_ch_chain_rnd_t *send = NULL;
+                        dap_chain_net_srv_price_unit_uid_t *l_price_unit = NULL;
+                        uint256_t l_price_min = {};
+                        uint256_t l_price_max = {};
+                        uint8_t flags = 0;
 
-                        //dap_chain_net_srv_order_find_all_by(l_net,SERV_DIR_UNDEFINED,DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID,NULL,NULL,NULL,NULL,&l_orders,&l_orders_num);
-                        /*
-                        uint8_t * byte_raw = DAP_NEW_Z_SIZE(uint8_t, l_ch_chain_net_pkt_data_size);
-                        *byte_raw = *(uint8_t*)l_ch_chain_net_pkt->data;
-                        dap_sign_t * dap_sign_create(dap_enc_key_t *a_key, const void * a_data,
-                            const size_t a_data_size, size_t a_output_wish_size)
-                                */
+                        dap_sign_t *l_sign = dap_sign_create(enc_key_pvt, (uint8_t*)l_ch_chain_net_pkt->data,
+                            l_ch_chain_net_pkt_data_size, 0);
+                        size_t sign_s = dap_sign_get_size(l_sign);
 
+                        send = DAP_NEW_Z_SIZE(dap_stream_ch_chain_rnd_t,sizeof(dap_stream_ch_chain_rnd_t)+sign_s);
+                        strncpy(send->header.version,DAP_VERSION,sizeof(DAP_VERSION));
+                        send->header.sign_size = sign_s;
+                        strncpy(send->header.data,(uint8_t*)l_ch_chain_net_pkt->data,10);
+                        //set flags
+                        flags = (l_net->pub.mempool_autoproc) ? flags | 0x01 : flags & 0xfe;
+
+
+                       // dap_chain_net_srv_order_find_all_by(l_net,SERV_DIR_UNDEFINED,DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID,
+                         //                                   *l_price_unit,NULL,l_price_min,l_price_max,&l_orders,&l_orders_num);
+
+                        flags = l_orders_num ? flags | 0x02 : flags & 0xfd;
+                        //add sign
+                        memcpy(send->sign,l_sign,sign_s);
+
+                        dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY ,
+                                                         l_ch_chain_net_pkt->hdr.net_id, send, sizeof(dap_stream_ch_chain_rnd_t)+sign_s);
+
+                        //добавить удаление
 
                     }
                     dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
