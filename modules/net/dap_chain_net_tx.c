@@ -154,6 +154,7 @@ dap_chain_datum_tx_spends_items_t * dap_chain_net_get_tx_cond_all_with_spends_by
                         l_atom = l_chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size);
 
                     }
+                    l_chain->callback_atom_iter_delete(l_atom_iter);
                 }
             }
         } break;
@@ -240,6 +241,7 @@ void dap_chain_net_get_tx_all(dap_chain_net_t * a_net, dap_chain_net_tx_search_t
                         // go to next atom
                         l_atom = l_chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size);
                     }
+                    l_chain->callback_atom_iter_delete(l_atom_iter);
                 }
             }
         } break;
@@ -516,8 +518,8 @@ dap_list_t * dap_chain_net_get_tx_cond_all_by_srv_uid(dap_chain_net_t * a_net, c
                         DAP_DEL_Z(l_datums);
                         // go to next atom
                         l_atom = l_chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size);
-
                     }
+                    l_chain->callback_atom_iter_delete(l_atom_iter);
                 }
             }
         } break;
@@ -593,7 +595,7 @@ dap_chain_datum_tx_t * dap_chain_net_get_tx_by_hash(dap_chain_net_t * a_net, dap
                 for ( dap_chain_t * l_chain = a_net->pub.chains; l_chain; l_chain = l_chain->next){
                     if ( l_chain->callback_tx_find_by_hash ){
                         // try to find transaction in chain ( inside shard )
-                        l_tx = l_chain->callback_tx_find_by_hash(l_chain, a_tx_hash);
+                        l_tx = l_chain->callback_tx_find_by_hash(l_chain, a_tx_hash, NULL);
                         if (l_tx) {
                             if ((a_search_type == TX_SEARCH_TYPE_CELL_SPENT ||
                                     a_search_type == TX_SEARCH_TYPE_NET_SPENT) &&

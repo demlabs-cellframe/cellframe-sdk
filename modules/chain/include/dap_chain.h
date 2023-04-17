@@ -83,7 +83,7 @@ typedef dap_chain_datum_t** (*dap_chain_callback_atom_get_datum_t)(dap_chain_ato
 typedef dap_time_t (*dap_chain_callback_atom_get_timestamp_t)(dap_chain_atom_ptr_t);
 
 typedef dap_chain_atom_ptr_t (*dap_chain_callback_atom_iter_find_by_hash_t)(dap_chain_atom_iter_t * ,dap_chain_hash_fast_t *,size_t*);
-typedef dap_chain_datum_tx_t* (*dap_chain_callback_tx_find_by_hash_t)(dap_chain_t * ,dap_chain_hash_fast_t *);
+typedef dap_chain_datum_tx_t * (*dap_chain_callback_tx_find_by_hash_t)(dap_chain_t *, dap_chain_hash_fast_t *, dap_chain_hash_fast_t *);
 
 typedef dap_chain_atom_ptr_t (*dap_chain_callback_block_find_by_hash_t)(dap_chain_t * ,dap_chain_hash_fast_t *);
 

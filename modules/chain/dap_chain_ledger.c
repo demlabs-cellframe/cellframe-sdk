@@ -3809,7 +3809,7 @@ static inline int s_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, d
     size_t l_cache_size = sizeof(dap_store_obj_t) * (l_outs_used + 1);
     dap_store_obj_t *l_cache_used_outs = DAP_NEW_Z_SIZE(dap_store_obj_t, l_cache_size);
     char *l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_TXS_STR);
-    char *l_cur_token_ticker = NULL;
+    const char *l_cur_token_ticker = NULL;
 
     // Update balance: deducts
     for (int i = 1; l_list_tmp; i++) {

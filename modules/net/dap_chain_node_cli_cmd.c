@@ -5395,45 +5395,17 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
     }
 
     char *l_str_ret = NULL;
-    if(l_tx_hash_str) {
-        l_str_ret = dap_strdup_printf("History for tx hash %s:\n%s", l_tx_hash_str,
-                l_str_out ? l_str_out : " empty");
-    }
-    else if(l_addr) {
+    if (l_addr) {
         char *l_addr_str = dap_chain_addr_to_str(l_addr);
         l_str_ret = dap_strdup_printf("History for addr %s:\n%s", l_addr_str,
                 l_str_out ? l_str_out : " empty");
         DAP_DELETE(l_addr_str);
-    } else if (l_is_tx_all) {l_str_ret = dap_strdup(l_str_out);}
+        DAP_DELETE(l_str_out);
+    } else
+        l_str_ret = l_str_out;
     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ret);
-    DAP_DELETE(l_str_out);
     DAP_DELETE(l_str_ret);
     return 0;
-}
-
-void print_sig(dap_pkey_t *a_pkey, dap_sign_t *a_sign)
-{
-    FILE *fp1;
-
-        fp1 = fopen("/home/roman/rrr", "r+");
-        if ((fp1 == NULL)) {
-            return ;
-        }
-        for (uint32_t i = 0; i < a_sign->header.sign_pkey_size; i++)
-        {
-            fprintf(fp1,"%x",a_sign->pkey_n_sign[i]);
-            //fputc(a_sign->pkey_n_sign[i],fp1);
-        }
-        fputs("\n", fp1);
-        for (uint32_t i = 0; i < a_sign->header.sign_pkey_size; i++)
-        {
-            fprintf(fp1,"%x",a_pkey->pkey[i]);
-            //fputc(a_pkey->pkey[i],fp1);
-        }
-        //fwrite()
-        fputs("\n", fp1);
-        fclose(fp1);
-        return ;
 }
 
 /**
