@@ -5754,15 +5754,17 @@ int cmd_remove(int a_argc, char **a_argv, char ** a_str_reply)
     //perform deletion according to the specified parameters, if the path is specified
     if (l_gdb_path) {
         l_net_returns = s_go_all_nets_offline();
-        char *l_gdb_rm_path = dap_strdup_printf("%s/gdb-%s", l_gdb_path,
-                                                dap_config_get_item_str_default(g_config, "gloabl_db", "driver", "mdbx"));
+        dap_global_db_deinit();
+        const char *l_gdb_driver = dap_config_get_item_str_default(g_config, "global_db", "driver", "mdbx");
+        char *l_gdb_rm_path = dap_strdup_printf("%s/gdb-%s", l_gdb_path, l_gdb_driver);
         dap_rm_rf(l_gdb_rm_path);
+        dap_global_db_init(l_gdb_path, l_gdb_driver);
         DAP_DELETE(l_gdb_rm_path);
         if (!error)
             successful |= REMOVED_GDB;
     }
 
-    if (dap_cli_server_cmd_check_option(a_argv, 1, a_argc, "-chains")) {
+    if (dap_cli_server_cmd_check_option(a_argv, 1, a_argc, "-chains") != -1) {
         dap_cli_server_cmd_find_option_val(a_argv, 1, a_argc, "-net", &l_net_str);
         all = dap_cli_server_cmd_check_option(a_argv, 1, a_argc, "-all");
 
