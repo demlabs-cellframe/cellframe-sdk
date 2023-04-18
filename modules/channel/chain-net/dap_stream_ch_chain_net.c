@@ -207,7 +207,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             l_error = true;
         }
         if (!l_error && dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
-            log_it(L_ERROR, "Invalid net id in packet");
+            log_it(L_ERROR, "Net '%s' is offline", l_net->pub.name);
             strcpy(l_err_str, "ERROR_NET_IS_OFFLINE");
             l_error = true;
         }

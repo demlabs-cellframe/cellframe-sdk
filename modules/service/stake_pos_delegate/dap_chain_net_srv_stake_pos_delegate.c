@@ -196,6 +196,9 @@ void dap_chain_net_srv_stake_set_allowed_min_value(uint256_t a_value)
 {
     assert(s_srv_stake);
     s_srv_stake->delegate_allowed_min = a_value;
+    for (dap_chain_net_srv_stake_item_t *it = s_srv_stake->itemlist; it; it = it->hh.next)
+        if (dap_hash_fast_is_blank(&it->tx_hash))
+            it->value = a_value;
 }
 
 uint256_t dap_chain_net_srv_stake_get_allowed_min_value()
@@ -222,8 +225,7 @@ dap_list_t *dap_chain_net_srv_stake_get_validators(dap_chain_net_id_t a_net_id)
     dap_list_t *l_ret = NULL;
     if (!s_srv_stake || !s_srv_stake->itemlist)
         return l_ret;
-    dap_chain_net_srv_stake_item_t *l_stake, *l_tmp;
-    HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp)
+    for (dap_chain_net_srv_stake_item_t *l_stake = s_srv_stake->itemlist; l_stake; l_stake = l_stake->hh.next)
         if (a_net_id.uint64 == l_stake->signing_addr.net_id.uint64)
             l_ret = dap_list_append(l_ret, DAP_DUP(l_stake));
     return l_ret;
@@ -300,8 +302,6 @@ void dap_chain_net_srv_stake_purge(dap_chain_net_t *a_net)
     DAP_DELETE(l_gdb_group);
 
     s_stake_ht_clear();
-
-    s_srv_stake->delegate_allowed_min = dap_chain_coins_to_balance("1.0");
 }
 
 
@@ -416,10 +416,9 @@ tx_fail:
     return NULL;
 }
 
-// Put the transaction to mempool or
+// Put the transaction to mempool
 static char *s_stake_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net)
 {
-    // Put the transaction to mempool or directly to chains
     size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
     dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, a_tx, l_tx_size);
     dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
@@ -436,7 +435,6 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
 {
     dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(a_net->pub.name);
 
-    // add 'in' item to buy from conditional transaction
     dap_chain_datum_tx_t *l_cond_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, a_stake_tx_hash);
     if (!l_cond_tx) {
         log_it(L_WARNING, "Requested conditional transaction not found");
@@ -558,7 +556,6 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
 // Put the decree to mempool
 static char *s_stake_decree_put(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net)
 {
-    // Put the transaction to mempool or directly to chains
     size_t l_decree_size = dap_chain_datum_decree_get_size(a_decree);
     dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_DECREE, a_decree, l_decree_size);
     dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_DECREE);
