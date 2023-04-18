@@ -53,10 +53,14 @@
 #include "dap_stream_ch_proc.h"
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_stream_ch_chain_net.h"
+
+
 #include "dap_chain_block_cache.h"
 #include "dap_chain_cs_blocks.h"
 #include "dap_chain_net_srv_order.h"
-//#include "dap_chain_net_srv_stake_pos_delegate.h"
+//#include "dap_chain_cs_esbocs.h"
+
+#include "dap_chain_net_srv_stake_pos_delegate.h"
 
 #define LOG_TAG "dap_stream_ch_chain_net"
 
@@ -187,7 +191,7 @@ typedef struct dap_stream_ch_chain_rnd{
         /// node Version
         uint8_t version[32];
         /// autoproc status
-        uint8_t flags;//0 bit -autoproc; 1 bit - order;
+        uint8_t flags;//0 bit -autoproc; 1 bit - find order; 2 bit - auto online; 3 bit - auto update; 6 bit - data sign; 7 bit - find cert;
         uint32_t sign_size;
         uint8_t data[10];
     }DAP_ALIGN_PACKED header;
@@ -343,48 +347,68 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         log_it(L_ERROR, "Invalid net id in packet");
                     } else {
                         dap_chain_net_srv_order_t * l_orders = NULL;
-                        //dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_net->pub.chains);
-                        //dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
-                        //dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
-                        dap_enc_key_t * enc_key_pvt;
+                        dap_chain_t *l_chain = l_net->pub.chains;
+                        dap_enc_key_t * enc_key_pvt = l_chain->callback_get_signing_certificate(l_chain);
+                        dap_sign_t *l_sign = NULL;
+                        size_t sign_s = 0;
                         size_t l_orders_num = 0;
                         dap_stream_ch_chain_rnd_t *send = NULL;
-                        dap_chain_net_srv_price_unit_uid_t *l_price_unit = NULL;
+                        dap_chain_net_srv_price_unit_uid_t l_price_unit = { { 0 } };
+                        dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
                         uint256_t l_price_min = {};
                         uint256_t l_price_max = {};
                         uint8_t flags = 0;
+                        l_price_min = l_chain->callback_get_minimum_fee(l_chain);
 
-                        dap_sign_t *l_sign = dap_sign_create(enc_key_pvt, (uint8_t*)l_ch_chain_net_pkt->data,
-                            l_ch_chain_net_pkt_data_size, 0);
-                        size_t sign_s = dap_sign_get_size(l_sign);
+                        if(enc_key_pvt)
+                        {
+                            flags = flags | 0x80;//faund key
+                            l_sign = dap_sign_create(enc_key_pvt, (uint8_t*)l_ch_chain_net_pkt->data,
+                                                   l_ch_chain_net_pkt_data_size, 0);
+                            if(l_sign)
+                            {
+                                sign_s = dap_sign_get_size(l_sign);
+                                flags = flags | 0x40;//data signed
+                            }
+                            else
+                                flags = flags & 0xbf;//data doesn't sign
+                        }
+                        else
+                            flags = flags & 0x7f;//Specified certificate not found
 
                         send = DAP_NEW_Z_SIZE(dap_stream_ch_chain_rnd_t,sizeof(dap_stream_ch_chain_rnd_t)+sign_s);
                         strncpy(send->header.version,DAP_VERSION,sizeof(DAP_VERSION));
                         send->header.sign_size = sign_s;
                         strncpy(send->header.data,(uint8_t*)l_ch_chain_net_pkt->data,10);
-                        //set flags
                         flags = (l_net->pub.mempool_autoproc) ? flags | 0x01 : flags & 0xfe;
 
-
-                       // dap_chain_net_srv_order_find_all_by(l_net,SERV_DIR_UNDEFINED,DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID,
-                         //                                   *l_price_unit,NULL,l_price_min,l_price_max,&l_orders,&l_orders_num);
-
+                        dap_chain_net_srv_order_find_all_by(l_net,SERV_DIR_UNDEFINED,l_uid,
+                                                           l_price_unit,NULL,l_price_min,l_price_max,&l_orders,&l_orders_num);
                         flags = l_orders_num ? flags | 0x02 : flags & 0xfd;
+                        bool auto_online = dap_config_get_item_bool_default( g_config, "general", "auto_online", true );
+                        bool auto_update = dap_config_get_item_bool_default( g_config, "general", "auto_update", true );
+                        flags = auto_online ? flags | 0x04 : flags & 0xfb;
+                        flags - auto_update ? flags | 0x08 : flags & 0xf7;
+
+                        send->header.flags = flags;
                         //add sign
-                        memcpy(send->sign,l_sign,sign_s);
+                        if(sign_s)
+                            memcpy(send->sign,l_sign,sign_s);
 
                         dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY ,
                                                          l_ch_chain_net_pkt->hdr.net_id, send, sizeof(dap_stream_ch_chain_rnd_t)+sign_s);
-
-                        //добавить удаление
-
+                        dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
+                        if(l_sign)
+                            DAP_DELETE(l_sign);
+                        DAP_DELETE(send);
                     }
-                    dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
+
                 }break;
                 case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY:{
                     log_it(L_INFO, "Get CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY");
+                    dap_stream_ch_chain_rnd_t *var2 = (dap_stream_ch_chain_rnd_t*)l_ch_chain_net_pkt->data;
 
-
+                    *var2;
                     //CRYPTO_MSRLN_STATUS random_bytes(unsigned int nbytes, unsigned char* random_array, RandomBytes RandomBytesFunction)
 
                     dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);

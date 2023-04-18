@@ -1301,12 +1301,15 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST,
             l_net->pub.id,
             rnd_mass, sizeof(rnd_mass));
+            dap_stream_ch_set_ready_to_write_unsafe(l_ch_chain, true);
             if(res1 == 0) {
                 log_it(L_WARNING, "Can't send DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST packet");
                 dap_chain_node_client_close_mt(l_node_client);
                 DAP_DELETE(l_remote_node_info);
                 return -1;
             }
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "SEND raw random datat - 0x%X%X%X%X%X%X%X%X%X%X", rnd_mass[0],rnd_mass[1],rnd_mass[2],
+                    rnd_mass[3],rnd_mass[4],rnd_mass[5],rnd_mass[6],rnd_mass[7],rnd_mass[8],rnd_mass[9]);
 
             DAP_DELETE(address_tmp);
 

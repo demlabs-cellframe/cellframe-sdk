@@ -1,3 +1,5 @@
+#pragma once
+
 #include "dap_timerfd.h"
 #include "dap_chain.h"
 #include "dap_chain_block.h"

@@ -101,6 +101,7 @@ typedef dap_list_t *(*dap_chain_callback_get_poa_certs)(dap_chain_t *a_chain, si
 typedef void (*dap_chain_callback_set_min_validators_count)(dap_chain_t *a_chain,  uint16_t a_new_value);
 
 typedef uint256_t (*dap_chain_callback_get_minimum_fee)(dap_chain_t *a_chain);
+typedef dap_enc_key_t* (*dap_chain_callback_get_signing_certificate)(dap_chain_t *a_chain);
 
 typedef void (*dap_chain_callback_load_from_gdb)(dap_chain_t *a_chain);
 
@@ -183,6 +184,7 @@ typedef struct dap_chain {
     dap_chain_callback_set_min_validators_count callback_set_min_validators_count;
 
     dap_chain_callback_get_minimum_fee callback_get_minimum_fee;
+    dap_chain_callback_get_signing_certificate callback_get_signing_certificate;
 
     dap_chain_callback_load_from_gdb callback_load_from_gdb;
 
