@@ -5781,7 +5781,7 @@ int cmd_remove(int a_argc, char **a_argv, char ** a_str_reply)
                         l_chain->callback_purge(l_chain);
                     if (l_chain->callback_set_min_validators_count)
                         l_chain->callback_set_min_validators_count(l_chain, 0);
-                    char *l_chains_rm_path = dap_chain_get_path(l_chain);
+                    const char *l_chains_rm_path = dap_chain_get_path(l_chain);
                     dap_rm_rf(l_chains_rm_path);
                     dap_chain_ledger_set_fee(l_net_list[i]->pub.ledger, uint256_0, c_dap_chain_addr_blank);
                     dap_chain_load_all(l_chain);
@@ -5806,7 +5806,7 @@ int cmd_remove(int a_argc, char **a_argv, char ** a_str_reply)
                     l_chain->callback_purge(l_chain);
                 if (l_chain->callback_set_min_validators_count)
                     l_chain->callback_set_min_validators_count(l_chain, 0);
-                char *l_chains_rm_path = dap_chain_get_path(l_chain);
+                const char *l_chains_rm_path = dap_chain_get_path(l_chain);
                 dap_rm_rf(l_chains_rm_path);
                 dap_chain_ledger_set_fee(l_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
                 dap_chain_load_all(l_chain);
