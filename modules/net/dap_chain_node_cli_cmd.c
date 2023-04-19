@@ -105,6 +105,7 @@
 #include "dap_stream_ch_chain_pkt.h"
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_enc_base64.h"
+#include "dap_chain_net_srv_stake_pos_delegate.h"
 
 #define LOG_TAG "chain_node_cli_cmd"
 
@@ -5719,12 +5720,20 @@ dap_list_t *s_go_all_nets_offline()
     return l_net_returns;
 }
 
+typedef struct _pvt_net_aliases_list{
+    dap_chain_net_t *net;
+    dap_global_db_obj_t *group_aliases;
+    size_t count_aliases;
+    dap_global_db_obj_t *group_nodes;
+    size_t count_nodes;
+}_pvt_net_aliases_list_t;
+
 int cmd_remove(int a_argc, char **a_argv, char ** a_str_reply)
 {
     //default init
     const char		*return_message	=	NULL;
     const char		*l_gdb_path		=	NULL;
-    const char		*l_chains_path	=	NULL;
+//    const char		*l_chains_path	=	NULL;
     const char		*l_net_str		=	NULL;
     dap_chain_net_t	*l_net			=	NULL;
     int 			all				=	0;
@@ -5749,27 +5758,54 @@ int cmd_remove(int a_argc, char **a_argv, char ** a_str_reply)
 
     //check path's from config file
     if (dap_cli_server_cmd_check_option(a_argv, 1, a_argc, "-gdb") >= 0
-    &&	(NULL == (l_gdb_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path")))){
+    &&	(NULL == (l_gdb_path = dap_config_get_item_str(g_config, "global_db", "path")))){
         error |= GDB_FAIL_PATH;
     }
-    if (dap_cli_server_cmd_check_option(a_argv, 1, a_argc, "-chains") >= 0
-    &&	(NULL == (l_chains_path = dap_config_get_item_str(g_config, "resources", "dap_chains_path")))) {
-        error |= CHAINS_FAIL_PATH;
-    }
+//    if (dap_cli_server_cmd_check_option(a_argv, 1, a_argc, "-chains") >= 0
+//    &&	(NULL == (l_chains_path = dap_config_get_item_str(g_config, "resources", "dap_chains_path")))) {
+//        error |= CHAINS_FAIL_PATH;
+//    }
 
     dap_list_t *l_net_returns = NULL;
     //perform deletion according to the specified parameters, if the path is specified
     if (l_gdb_path) {
         l_net_returns = s_go_all_nets_offline();
-        char *l_gdb_rm_path = dap_strdup_printf("%s/gdb-%s", l_gdb_path,
-                                                dap_config_get_item_str_default(g_config, "resources", "global_db_driver", "mdbx"));
+        uint16_t l_net_count;
+        dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
+        dap_list_t *l_gdb_aliases_list = NULL;
+        for (uint16_t i = 0; i < l_net_count; i++) {
+            size_t l_aliases_count = 0;
+            _pvt_net_aliases_list_t *l_gdb_groups = DAP_NEW(_pvt_net_aliases_list_t);
+            l_gdb_groups->net = l_net_list[i];
+            l_gdb_groups->group_aliases = dap_global_db_get_all_sync(l_gdb_groups->net->pub.gdb_nodes_aliases, &l_gdb_groups->count_aliases);
+            l_gdb_groups->group_nodes = dap_global_db_get_all_sync(l_gdb_groups->net->pub.gdb_nodes, &l_gdb_groups->count_nodes);
+            l_gdb_aliases_list = dap_list_append(l_gdb_aliases_list, l_gdb_groups);
+        }
+        dap_global_db_deinit();
+        const char *l_gdb_driver = dap_config_get_item_str_default(g_config, "global_db", "driver", "mdbx");
+        char *l_gdb_rm_path = dap_strdup_printf("%s/gdb-%s", l_gdb_path, l_gdb_driver);
         dap_rm_rf(l_gdb_rm_path);
         DAP_DELETE(l_gdb_rm_path);
+        dap_global_db_init(l_gdb_path, l_gdb_driver);
+        for (dap_list_t *ptr = l_gdb_aliases_list; ptr; ptr = dap_list_next(ptr)) {
+            _pvt_net_aliases_list_t *l_tmp = (_pvt_net_aliases_list_t*)ptr->data;
+            for (size_t i = 0; i < l_tmp->count_aliases; i++) {
+                dap_global_db_obj_t l_obj = l_tmp->group_aliases[i];
+                dap_global_db_set_sync(l_tmp->net->pub.gdb_nodes_aliases, l_obj.key, l_obj.value, l_obj.value_len, true);
+            }
+            dap_global_db_objs_delete(l_tmp->group_aliases, l_tmp->count_aliases);
+            for (size_t i = 0; i < l_tmp->count_nodes; i++) {
+                dap_global_db_obj_t l_obj = l_tmp->group_nodes[i];
+                dap_global_db_set_sync(l_tmp->net->pub.gdb_nodes, l_obj.key, l_obj.value, l_obj.value_len, true);
+            }
+            dap_global_db_objs_delete(l_tmp->group_nodes, l_tmp->count_nodes);
+        }
+        dap_list_free_full(l_gdb_aliases_list, NULL);
         if (!error)
             successful |= REMOVED_GDB;
     }
 
-    if (l_chains_path) {
+    if (dap_cli_server_cmd_check_option(a_argv, 1, a_argc, "-chains") != -1) {
         dap_cli_server_cmd_find_option_val(a_argv, 1, a_argc, "-net", &l_net_str);
         all = dap_cli_server_cmd_check_option(a_argv, 1, a_argc, "-all");
 
@@ -5779,10 +5815,20 @@ int cmd_remove(int a_argc, char **a_argv, char ** a_str_reply)
             uint16_t l_net_count;
             dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
             for (uint16_t i = 0; i < l_net_count; i++) {
-                char *l_chains_rm_path = dap_strdup_printf("%s/%s", l_chains_path,
-                                                           l_net_list[i]->pub.gdb_groups_prefix);
-                dap_rm_rf(l_chains_rm_path);
-                DAP_DELETE(l_chains_rm_path);
+                dap_chain_ledger_purge(l_net_list[i]->pub.ledger, false);
+                dap_chain_net_srv_stake_purge(l_net_list[i]);
+                dap_chain_net_decree_purge(l_net_list[i]);
+                dap_chain_t *l_chain = NULL;
+                DL_FOREACH(l_net_list[i]->pub.chains, l_chain) {
+                    if (l_chain->callback_purge)
+                        l_chain->callback_purge(l_chain);
+                    if (l_chain->callback_set_min_validators_count)
+                        l_chain->callback_set_min_validators_count(l_chain, 0);
+                    const char *l_chains_rm_path = dap_chain_get_path(l_chain);
+                    dap_rm_rf(l_chains_rm_path);
+                    dap_chain_ledger_set_fee(l_net_list[i]->pub.ledger, uint256_0, c_dap_chain_addr_blank);
+                    dap_chain_load_all(l_chain);
+                }
             }
             if (!error)
                 successful |= REMOVED_CHAINS;
@@ -5794,10 +5840,20 @@ int cmd_remove(int a_argc, char **a_argv, char ** a_str_reply)
             } else {
                 error |= NET_NOT_VALID;
             }
-            sleep(1);
-            char *l_chains_rm_path = dap_strdup_printf("%s/%s", l_chains_path, l_net->pub.gdb_groups_prefix);
-            dap_rm_rf(l_chains_rm_path);
-            DAP_DELETE(l_chains_rm_path);
+            dap_chain_t *l_chain = NULL;
+            dap_chain_ledger_purge(l_net->pub.ledger, false);
+            dap_chain_net_srv_stake_purge(l_net);
+            dap_chain_net_decree_purge(l_net);
+            DL_FOREACH(l_net->pub.chains, l_chain) {
+                if (l_chain->callback_purge)
+                    l_chain->callback_purge(l_chain);
+                if (l_chain->callback_set_min_validators_count)
+                    l_chain->callback_set_min_validators_count(l_chain, 0);
+                const char *l_chains_rm_path = dap_chain_get_path(l_chain);
+                dap_rm_rf(l_chains_rm_path);
+                dap_chain_ledger_set_fee(l_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
+                dap_chain_load_all(l_chain);
+            }
             if (!error)
                 successful |= REMOVED_CHAINS;
 

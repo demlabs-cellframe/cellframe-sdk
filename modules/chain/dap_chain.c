@@ -815,3 +815,7 @@ int dap_chain_datum_unledgered_search_iter(dap_chain_datum_t* a_datum, dap_chain
     } /* default */
     }
 }
+
+const char* dap_chain_get_path(dap_chain_t *a_chain){
+    return DAP_CHAIN_PVT(a_chain)->file_storage_dir;
+}
