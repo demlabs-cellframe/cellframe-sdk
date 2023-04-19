@@ -1265,10 +1265,10 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 return NULL;
             }*/
             dap_chain_node_addr_t *address_tmp = dap_chain_node_addr_get_by_alias(l_net, alias_str);
-            //l_net->pub.
+            //проверка адреса
+            //удаление адреса
 
             randombytes(rnd_mass, sizeof(rnd_mass));
-
 
             //формирование команды отправка
             //-------------------------------------------------
@@ -1282,16 +1282,23 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 return -1;
             }
             // start connect
-            l_node_client = dap_chain_node_client_connect_default_channels(l_net,l_remote_node_info);
+            l_node_client = dap_chain_node_client_connect_channels(l_net,l_remote_node_info,"N");
             if(!l_node_client) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "can't connect");
                 DAP_DELETE(l_remote_node_info);
-                return -1;
+                return -2;
             }
             // wait connected
             int timeout_ms = 7000; // 7 sec = 7000 ms
             res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_ESTABLISHED, timeout_ms);
-            //проверка res
+            if (res) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "No response from node");
+                // clean client struct
+                dap_chain_node_client_close_mt(l_node_client);
+                DAP_DELETE(l_remote_node_info);
+                return -3;
+            }
+            DAP_DELETE(l_remote_node_info);
             log_it(L_NOTICE, "Stream connection established");
 
             uint8_t l_ch_id = dap_stream_ch_chain_net_get_id();
@@ -1310,6 +1317,10 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             }
             dap_cli_server_cmd_set_reply_text(a_str_reply, "SEND raw random datat - 0x%X%X%X%X%X%X%X%X%X%X", rnd_mass[0],rnd_mass[1],rnd_mass[2],
                     rnd_mass[3],rnd_mass[4],rnd_mass[5],rnd_mass[6],rnd_mass[7],rnd_mass[8],rnd_mass[9]);
+
+            timeout_ms = 15000; // 15 sec = 15 000 ms
+            res1 = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_NODE_ADDR_LEASED, timeout_ms);///поменять статус ожидания
+
 
             DAP_DELETE(address_tmp);
 

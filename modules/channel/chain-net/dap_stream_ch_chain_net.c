@@ -54,7 +54,7 @@
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_stream_ch_chain_net.h"
 
-
+#include "dap_stream_ch_chain.h"
 #include "dap_chain_block_cache.h"
 #include "dap_chain_cs_blocks.h"
 #include "dap_chain_net_srv_order.h"
@@ -347,8 +347,11 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         log_it(L_ERROR, "Invalid net id in packet");
                     } else {
                         dap_chain_net_srv_order_t * l_orders = NULL;
-                        dap_chain_t *l_chain = l_net->pub.chains;
-                        dap_enc_key_t * enc_key_pvt = l_chain->callback_get_signing_certificate(l_chain);
+                        dap_enc_key_t * enc_key_pvt = NULL;
+                        dap_chain_t *l_chain = NULL;
+                        DL_FOREACH(l_net->pub.chains, l_chain)
+                               if(enc_key_pvt = l_chain->callback_get_signing_certificate(l_chain))
+                                    break;
                         dap_sign_t *l_sign = NULL;
                         size_t sign_s = 0;
                         size_t l_orders_num = 0;
@@ -358,7 +361,6 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         uint256_t l_price_min = {};
                         uint256_t l_price_max = {};
                         uint8_t flags = 0;
-                        l_price_min = l_chain->callback_get_minimum_fee(l_chain);
 
                         if(enc_key_pvt)
                         {
@@ -407,9 +409,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY:{
                     log_it(L_INFO, "Get CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY");
                     dap_stream_ch_chain_rnd_t *var2 = (dap_stream_ch_chain_rnd_t*)l_ch_chain_net_pkt->data;
-
-                    *var2;
-                    //CRYPTO_MSRLN_STATUS random_bytes(unsigned int nbytes, unsigned char* random_array, RandomBytes RandomBytesFunction)
+                    dap_sign_t *l_sign = NULL;
+                    l_sign = (dap_sign_t*)(l_ch_chain_net_pkt->data + sizeof(dap_stream_ch_chain_rnd_t));
 
                     dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
                 }break;
