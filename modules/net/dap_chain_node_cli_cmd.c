@@ -2918,13 +2918,13 @@ int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply)
 
         dap_chain_datum_t * l_datum = l_datum_hash_hex_str ? (dap_chain_datum_t*) dap_global_db_get_sync(l_gdb_group_mempool, l_datum_hash_hex_str,
                                                                                        &l_datum_size, NULL, NULL ) : NULL;
-        size_t l_datum_size2= l_datum? dap_chain_datum_size( l_datum): 0;
-        if (l_datum_size != l_datum_size2 ){
+        size_t l_datum_size2 = l_datum? dap_chain_datum_size( l_datum): 0;
+        if (l_datum_size != l_datum_size2) {
             ret = -8;
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Corrupted datum %s, size by datum headers is %zd when in mempool is only %zd bytes",
                                               l_datum_hash_hex_str, l_datum_size2, l_datum_size);
-        }else{
-            if(l_datum) {
+        } else {
+            if (l_datum) {
                 char buf[50];
                 dap_time_t l_ts_create = (dap_time_t)l_datum->header.ts_create;
                 const char *l_type = NULL;
@@ -2933,25 +2933,33 @@ int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply)
                         l_datum_hash_out_str, l_type,
                         dap_ctime_r(&l_ts_create, buf), l_datum->header.data_size);
                 int l_verify_datum= dap_chain_net_verify_datum_for_add( l_net, l_datum) ;
-                if (l_verify_datum != 0){
-                    dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications (code %d) examine node log files",
-                                             l_verify_datum);
-                    ret = -9;
-                }else{
-                    if (l_chain->callback_add_datums){
-                        if (l_chain->callback_add_datums(l_chain, &l_datum, 1) ==0 ){
-                            dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications, examine node log files");
-                            ret = -6;
-                        }else{
-                            dap_string_append_printf(l_str_tmp, "Datum processed well. ");
-                            /*if ( dap_global_db_del_sync( l_gdb_group_mempool, l_datum_hash_hex_str) != 0){
-                                dap_string_append_printf(l_str_tmp, "Warning! Can't delete datum from mempool!");
-                            }else
-                                dap_string_append_printf(l_str_tmp, "Removed datum from mempool.");*/
+                int l_dup_or_skip = dap_chain_datum_unledgered_search_iter(l_datum, l_chain);
+                if (l_dup_or_skip) {
+                    dap_string_append_printf(l_str_tmp, "Error! Datum unledgered search returned '%d'", l_dup_or_skip);
+                    dap_global_db_del_sync(l_datum_hash_hex_str, l_gdb_group_mempool);
+                    ret = -10;
+                } else {
+                    int l_verify_datum = dap_chain_net_verify_datum_for_add( l_net, l_datum) ;
+                    if (l_verify_datum != 0){
+                        dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications (code %d) examine node log files",
+                                                 l_verify_datum);
+                        ret = -9;
+                    } else {
+                        if (l_chain->callback_add_datums) {
+                            if (l_chain->callback_add_datums(l_chain, &l_datum, 1) == 0) {
+                                dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications, examine node log files");
+                                ret = -6;
+                            } else {
+                                dap_string_append_printf(l_str_tmp, "Datum processed well. ");
+                                if (!dap_global_db_del_sync(l_datum_hash_hex_str, l_gdb_group_mempool)){
+                                    dap_string_append_printf(l_str_tmp, "Warning! Can't delete datum from mempool!");
+                                } else
+                                    dap_string_append_printf(l_str_tmp, "Removed datum from mempool.");
+                            }
+                        } else {
+                            dap_string_append_printf(l_str_tmp, "Error! Can't move to no-concensus chains from mempool");
+                            ret = -1;
                         }
-                    }else{
-                        dap_string_append_printf(l_str_tmp, "Error! Can't move to no-concensus chains from mempool");
-                        ret = -1;
                     }
                 }
                 dap_string_append_printf(l_str_tmp, "\n");

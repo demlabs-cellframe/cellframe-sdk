@@ -45,11 +45,10 @@
 #define CONSENSUS_NAME "none"
 
 typedef struct dap_chain_gdb_datum_hash_item{
-    char key[70];
+    char key[DAP_CHAIN_HASH_FAST_STR_SIZE];
     dap_chain_hash_fast_t datum_data_hash;
     uint8_t padding[2];
-    struct dap_chain_gdb_datum_hash_item * prev;
-    struct dap_chain_gdb_datum_hash_item * next;
+    struct dap_chain_gdb_datum_hash_item *prev, *next;
 } dap_chain_gdb_datum_hash_item_t;
 
 typedef struct dap_chain_gdb_private
@@ -457,9 +456,8 @@ static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create_from(dap_chain_t
  */
 static void s_chain_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter)
 {
-    if (a_atom_iter->cur_item)
-        DAP_DELETE(a_atom_iter->cur_item);
-    DAP_DELETE(a_atom_iter->cur_hash);
+    DAP_DEL_Z(a_atom_iter->cur_item);
+    DAP_DEL_Z(a_atom_iter->cur_hash);
     DAP_DELETE(a_atom_iter);
 }
 
@@ -497,19 +495,18 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_
 {
     if (!a_atom_iter)
         return NULL;
-    if (a_atom_iter->cur_item) {// This iterator should clean up data for it because its allocate it
+    if (a_atom_iter->cur_item) { /* Iterator creates copies, free them at delete routine! */
         DAP_DEL_Z(a_atom_iter->cur);
         DAP_DEL_Z(a_atom_iter->cur_hash);
     }
     dap_chain_datum_t * l_datum = NULL;
     dap_chain_gdb_datum_hash_item_t *l_item = PVT(DAP_CHAIN_GDB(a_atom_iter->chain))->hash_items;
     a_atom_iter->cur_item = l_item;
-    if (a_atom_iter->cur_item ){
-        size_t l_datum_size =0;
-        l_datum= (dap_chain_datum_t*) dap_global_db_get_sync(PVT(DAP_CHAIN_GDB(a_atom_iter->chain))->group_datums, l_item->key, &l_datum_size,
-                                                                 NULL, NULL );
-        if (a_atom_iter->cur) // This iterator should clean up data for it because its allocate it
-            DAP_DELETE( a_atom_iter->cur);
+    if (a_atom_iter->cur_item) {
+        size_t l_datum_size = 0;
+        l_datum = (dap_chain_datum_t*)dap_global_db_get_sync(PVT(DAP_CHAIN_GDB(a_atom_iter->chain))->group_datums,
+                                                             l_item->key, &l_datum_size, NULL, NULL);
+        DAP_DEL_Z(a_atom_iter->cur);
         a_atom_iter->cur = l_datum;
         a_atom_iter->cur_size = l_datum_size;
         a_atom_iter->cur_hash = DAP_NEW_Z(dap_hash_fast_t);

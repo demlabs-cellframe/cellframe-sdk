@@ -395,14 +395,13 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
         // go to next atom (event or block)
         l_atom = a_chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size);
     }
-
+    a_chain->callback_atom_iter_delete(l_atom_iter);
     // delete hashes
     s_dap_chain_tx_hash_processed_ht_free(l_tx_data_ht);
     // if no history
     if(!l_str_out->len)
         dap_string_append(l_str_out, "\tempty");
-    char *l_ret_str = l_str_out ? dap_string_free(l_str_out, false) : NULL;
-    return l_ret_str;
+    return l_str_out ? dap_string_free(l_str_out, false) : NULL;
 }
 
 /**

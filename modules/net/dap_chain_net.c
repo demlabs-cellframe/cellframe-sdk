@@ -2004,7 +2004,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                     }
                     // Get publivc key hash
                     size_t l_pub_key_size = 0;
-                    uint8_t *l_pub_key = dap_enc_key_serealize_pub_key(l_cert->enc_key, &l_pub_key_size);;
+                    uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(l_cert->enc_key, &l_pub_key_size);;
                     if (l_pub_key == NULL) {
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't serialize public key of certificate \"%s\"", l_cert_string);
                         return -9;
@@ -2338,7 +2338,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
                 if(l_certs_size > 0)
                     l_cert = l_certs[0];
                 if(l_cert) {
-                    l_pub_key_data = dap_enc_key_serealize_pub_key(l_cert->enc_key, &l_pub_key_data_size);
+                    l_pub_key_data = dap_enc_key_serialize_pub_key(l_cert->enc_key, &l_pub_key_data_size);
                     // save pub key
                     if(l_pub_key_data && l_pub_key_data_size > 0)
                         dap_global_db_set(GROUP_LOCAL_NODE_ADDR, l_addr_key, l_pub_key_data, l_pub_key_data_size, false,
@@ -3101,7 +3101,6 @@ void s_proc_mempool_callback_load(dap_global_db_context_t *a_global_db_context,
 {
     dap_chain_t * l_chain = (dap_chain_t*) a_arg;
     dap_chain_net_t * l_net = dap_chain_net_by_id( l_chain->net_id );
-    dap_string_t * l_str_tmp = dap_string_new(NULL);
     if(a_values_count) {
         log_it(L_INFO, "%s.%s: Found %zu records :", l_net->pub.name, l_chain->name,
                 a_values_count);
@@ -3111,13 +3110,20 @@ void s_proc_mempool_callback_load(dap_global_db_context_t *a_global_db_context,
         size_t l_objs_size_tmp = (a_values_count > 15) ? min(a_values_count, 10) : a_values_count;
         for(size_t i = 0; i < a_values_count; i++) {
             dap_chain_datum_t * l_datum = (dap_chain_datum_t*) a_values[i].value;
-            int l_verify_datum= dap_chain_net_verify_datum_for_add( l_net, l_datum) ;
-            if (l_verify_datum != 0){
-                log_it(L_WARNING, "Datum doesn't pass verifications (code %d), delete such datum from pool",
-                                         l_verify_datum);
-                dap_global_db_del_unsafe( a_global_db_context, a_group, a_values[i].key);
+            int l_dup_or_skip = dap_chain_datum_unledgered_search_iter(l_datum, l_chain);
+            if (l_dup_or_skip) {
+                log_it(L_WARNING, "Datum unledgered search returned '%d', delete it from mempool", l_dup_or_skip);
+                dap_global_db_del_unsafe(a_global_db_context, a_group, a_values[i].key);
                 l_datums[i] = NULL;
-            }else{
+                continue;
+            }
+
+            int l_verify_datum = dap_chain_net_verify_datum_for_add( l_net, l_datum) ;
+            if (l_verify_datum != 0){
+                log_it(L_WARNING, "Datum doesn't pass verifications (code %d), delete such datum from pool", l_verify_datum);
+                dap_global_db_del_unsafe(a_global_db_context, a_group, a_values[i].key);
+                l_datums[i] = NULL;
+            } else {
                 l_datums[i] = l_datum;
                 if(i < l_objs_size_tmp) {
                     char buf[50] = { '\0' };
@@ -3133,28 +3139,22 @@ void s_proc_mempool_callback_load(dap_global_db_context_t *a_global_db_context,
         size_t l_objs_processed = l_chain->callback_add_datums(l_chain, l_datums, l_datums_size);
         // Delete processed objects
         size_t l_objs_processed_tmp = (l_objs_processed > 15) ? min(l_objs_processed, 10) : l_objs_processed;
-        for(size_t i = 0; i < l_objs_processed; i++) {
-            dap_global_db_del_unsafe(a_global_db_context, a_group, a_values[i].key );
-            if(i < l_objs_processed_tmp) {
-                dap_string_append_printf(l_str_tmp, "New event created, removed datum 0x%s from mempool \n",
-                        a_values[i].key);
-            }
+        for (size_t i = 0; i < l_objs_processed; i++) {
+            dap_global_db_del_unsafe(a_global_db_context, a_group, a_values[i].key);
+            log_it(L_WARNING, "New event created, removed datum 0x%s from mempool \n", a_values[i].key);
         }
-        if(l_objs_processed < l_datums_size)
-            log_it(L_WARNING, "%s.%s: %zu records not processed", l_net->pub.name, l_chain->name,
-                    l_datums_size - l_objs_processed);
+        debug_if(l_objs_processed < l_datums_size, L_WARNING, "%s.%s: %zu records not processed",
+                 l_net->pub.name, l_chain->name, l_datums_size - l_objs_processed);
         dap_global_db_objs_delete(a_values, a_values_count);
 
         // Cleanup datums array
-        if(l_datums){
-            for(size_t i = 0; i < a_values_count; i++) {
-                if (l_datums[i])
-                    DAP_DELETE(l_datums[i]);
+        if (l_datums){
+            for (size_t i = 0; i < a_values_count; i++) {
+                DAP_DEL_Z(l_datums[i]);
             }
-            DAP_DEL_Z(l_datums);
+            DAP_DELETE(l_datums);
         }
-    }
-    else {
+    } else {
         log_it(L_INFO, "%s.%s: No records in mempool", l_net->pub.name, l_chain ? l_chain->name : "[no chain]");
     }
 }
@@ -3276,7 +3276,7 @@ static bool s_net_check_acl(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pke
                 for (dap_list_t *l_tmp = l_certs; l_tmp; l_tmp = dap_list_next(l_tmp)) {
                     dap_cert_t *l_cert = (dap_cert_t *)l_tmp->data;
                     size_t l_pkey_size;
-                    uint8_t *l_pkey_ser = dap_enc_key_serealize_pub_key(l_cert->enc_key, &l_pkey_size);
+                    uint8_t *l_pkey_ser = dap_enc_key_serialize_pub_key(l_cert->enc_key, &l_pkey_size);
                     dap_chain_hash_fast_t l_cert_hash;
                     dap_hash_fast(l_pkey_ser, l_pkey_size, &l_cert_hash);
                     if (!memcmp(&l_cert_hash, a_pkey_hash, sizeof(dap_chain_hash_fast_t))) {

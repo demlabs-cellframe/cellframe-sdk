@@ -45,6 +45,7 @@
 #include "dap_chain_net.h"
 #include "dap_global_db.h"
 #include "dap_chain_node.h"
+#include "dap_chain_cell.h"
 
 #define LOG_TAG "chain_node"
 
@@ -94,9 +95,8 @@ bool dap_chain_node_alias_register(dap_chain_net_t *a_net, const char *a_alias, 
 dap_chain_node_addr_t * dap_chain_node_alias_find(dap_chain_net_t * a_net,const char *a_alias)
 {
     size_t l_addr_size =0;
-    dap_chain_node_addr_t * l_addr = (dap_chain_node_addr_t *)
-            dap_global_db_get_sync(a_net->pub.gdb_nodes_aliases, a_alias, &l_addr_size, NULL, NULL );
-    return  l_addr;
+    return (dap_chain_node_addr_t*)dap_global_db_get_sync(a_net->pub.gdb_nodes_aliases,
+                                                          a_alias, &l_addr_size, NULL, NULL);
 }
 
 /**
@@ -104,7 +104,7 @@ dap_chain_node_addr_t * dap_chain_node_alias_find(dap_chain_net_t * a_net,const 
  */
 bool dap_chain_node_alias_delete(dap_chain_net_t * a_net,const char *a_alias)
 {
-    return  dap_global_db_del_sync(a_net->pub.gdb_nodes_aliases, a_alias) == 0;
+    return dap_global_db_del_sync(a_net->pub.gdb_nodes_aliases, a_alias) == 0;
 }
 
 /**
@@ -209,7 +209,8 @@ bool dap_chain_node_mempool_need_process(dap_chain_t *a_chain, dap_chain_datum_t
 bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum) {
     if (!a_chain->callback_add_datums)
         return false;
-    // Verify for correctness
+    if (dap_chain_datum_unledgered_search_iter(a_datum, a_chain))
+            return true; /* Already chained, no need to keep duplicates */
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     int l_verify_datum = dap_chain_net_verify_datum_for_add(l_net, a_datum);
     if (l_verify_datum != 0 &&

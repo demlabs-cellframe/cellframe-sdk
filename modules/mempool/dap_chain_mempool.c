@@ -1130,8 +1130,8 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
     http_status_code_t * return_code = (http_status_code_t*) arg;
     // save key while it alive, i.e. still exist
     dap_enc_key_t *l_enc_key = dap_enc_ks_find_http(cl_st->http_client);
-    //dap_enc_key_serealize_t *key_ser = dap_enc_key_serealize(key_tmp);
-    //dap_enc_key_t *key = dap_enc_key_deserealize(key_ser, sizeof(dap_enc_key_serealize_t));
+    //dap_enc_key_serialize_t *key_ser = dap_enc_key_serialize(key_tmp);
+    //dap_enc_key_t *key = dap_enc_key_deserialize(key_ser, sizeof(dap_enc_key_serialize_t));
 
     // read header
     dap_http_header_t *hdr_session_close_id =
@@ -1249,12 +1249,12 @@ void dap_chain_mempool_add_proc(dap_http_t * a_http_server, const char * a_url)
  * @param a_removed Pointer to a variable of type int which will store how many remote datums.
  */
 void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
-    int l_removed = 0;
     if (!a_chain) {
-        if (!a_removed)
-            *a_removed = l_removed;
+        if (a_removed)
+            *a_removed = 0;
         return;
     }
+    int l_removed = 0;
     char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     size_t l_objs_size = 0;
     dap_time_t l_cut_off_time = dap_time_now() - 2592000; // 2592000 sec = 30 days
@@ -1263,6 +1263,12 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
     dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_gdb_group, &l_objs_size);
     for (size_t i = 0; i < l_objs_size; i++) {
         dap_chain_datum_t *l_datum = (dap_chain_datum_t*)l_objs[i].value;
+        if (!l_datum) {
+            l_removed++;
+            log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s: empty (possibly trash) value", l_objs[i].key, l_gdb_group);
+            dap_global_db_del_sync(l_objs[i].key, l_gdb_group);
+            continue;
+        }
         size_t l_datum_size = dap_chain_datum_size(l_datum);
         //Filter data size
         if (l_datum_size != l_objs[i].value_len) {

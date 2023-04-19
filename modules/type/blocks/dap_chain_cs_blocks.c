@@ -1161,6 +1161,9 @@ static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, 
     l_atom_iter->chain = a_chain;
     l_atom_iter->cell_id = a_cell_id;
     l_atom_iter->with_treshold = a_with_treshold;
+#ifdef WIN32
+    log_it(L_DEBUG, "! %p create caller id %lu", l_atom_iter, GetThreadId(GetCurrentThread()));
+#endif
     return l_atom_iter;
 }
 
@@ -1201,8 +1204,8 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_ite
 {
     assert(a_atom_iter);
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(DAP_CHAIN_CS_BLOCKS(a_atom_iter->chain));
-    pthread_rwlock_rdlock(&l_blocks_pvt->rwlock);
     dap_chain_block_cache_t * l_block_cache = NULL;
+    pthread_rwlock_rdlock(&l_blocks_pvt->rwlock);
     HASH_FIND(hh, l_blocks_pvt->blocks, a_atom_hash, sizeof(*a_atom_hash), l_block_cache);
     pthread_rwlock_unlock(&l_blocks_pvt->rwlock);
     a_atom_iter->cur_item = l_block_cache;
@@ -1401,8 +1404,11 @@ static dap_chain_atom_ptr_t *s_callback_atom_iter_get_lasts( dap_chain_atom_iter
  * @brief s_callback_atom_iter_delete
  * @param a_atom_iter
  */
-static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter )
+static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter)
 {
+#ifdef WIN32
+    log_it(L_DEBUG, "! %p delete caller id %lu", a_atom_iter, GetThreadId(GetCurrentThread()));
+#endif
     DAP_DELETE(a_atom_iter);
 }
 
