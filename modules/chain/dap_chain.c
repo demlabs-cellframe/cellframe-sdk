@@ -750,11 +750,10 @@ int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name)
     }
     const char *cert_name = cert->name;
     size_t cert_path_length = dap_strlen(net_name) + dap_strlen(cert_name) + 9 + dap_strlen(s_system_chain_ca_dir);
-    char *cert_path = DAP_NEW_Z_SIZE(char, cert_path_length);
+    char *cert_path = DAP_NEW_STACK_SIZE(char, cert_path_length);
     snprintf(cert_path, cert_path_length, "%s/%s/%s.dcert", s_system_chain_ca_dir, net_name, cert_name);
     // In cert_path resolve all `..` and `.`s
     char *cert_path_c = dap_canonicalize_filename(cert_path, NULL);
-    DAP_DELETE(cert_path);
     // Protect the ca folder from using "/.." in cert_name
     if(dap_strncmp(s_system_chain_ca_dir, cert_path_c, dap_strlen(s_system_chain_ca_dir))) {
         log_it(L_ERROR, "Cert path '%s' is not in ca dir: %s", cert_path_c, s_system_chain_ca_dir);

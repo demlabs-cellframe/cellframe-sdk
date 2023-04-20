@@ -2265,7 +2265,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         char **l_seed_aliases = dap_config_get_array_str(l_cfg, "general", "seed_nodes_aliases",
                                                          &l_net_pvt->seed_aliases_count);
         if (l_net_pvt->seed_aliases_count)
-            l_net_pvt->seed_aliases = (char **)DAP_NEW_SIZE(char *, sizeof(char *) * l_net_pvt->seed_aliases_count);
+            l_net_pvt->seed_aliases = DAP_NEW_Z_SIZE(char*, sizeof(char*) * l_net_pvt->seed_aliases_count);
         for(size_t i = 0; i < l_net_pvt->seed_aliases_count; i++)
             l_net_pvt->seed_aliases[i] = dap_strdup(l_seed_aliases[i]);
         // randomize seed nodes list

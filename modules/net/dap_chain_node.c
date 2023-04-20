@@ -205,7 +205,7 @@ bool dap_chain_node_mempool_need_process(dap_chain_t *a_chain, dap_chain_datum_t
     return false;
 }
 
-// Return true if processed datum should be deleted from mempool
+/* Return true if processed datum should be deleted from mempool */
 bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum) {
     if (!a_chain->callback_add_datums)
         return false;
@@ -223,7 +223,9 @@ bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_d
             || l_verify_datum == DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS
 #endif
             )
+    {
         a_chain->callback_add_datums(a_chain, &a_datum, 1);
+    }
     return false;
 }
 

@@ -2996,9 +2996,8 @@ int com_mempool_proc_all(int argc, char ** argv, char ** a_str_reply) {
     dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, argc, argv, a_str_reply, &l_chain, &l_net);
     if (!l_net || !l_chain)
         return -1;
-    char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
 
-    if(!l_gdb_group_mempool) {
+    if(!dap_chain_net_by_id(l_chain->net_id)) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "%s.%s: chain not found\n", l_net->pub.name,
                                           l_chain->name);
     }
