@@ -35,6 +35,7 @@
 #include "dap_chain_cs_block_poa.h"
 #include "dap_chain_cs_dag_poa.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
+#include "dap_stream_ch_chain_net.h"
 
 #include "dap_chain_node_client.h"
 #include "dap_stream_ch_chain_net_pkt.h"
@@ -1148,6 +1149,8 @@ static int callback_compare_tx_list(const void * a_datum1, const void * a_datum2
     return -1;
 }
 
+void
+
 
 static dap_chain_node_info_t* node_info_read_and_reply(dap_chain_net_t * a_net, dap_chain_node_addr_t *a_address,
         char **a_str_reply)
@@ -1283,6 +1286,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             }
             // start connect
             l_node_client = dap_chain_node_client_connect_channels(l_net,l_remote_node_info,"N");
+            //l_node_client = dap_chain_node_client_create_n_connect(l_net,l_remote_node_info,"N",NULL,data);
             if(!l_node_client) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "can't connect");
                 DAP_DELETE(l_remote_node_info);
@@ -1298,7 +1302,6 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 DAP_DELETE(l_remote_node_info);
                 return -3;
             }
-            DAP_DELETE(l_remote_node_info);
             log_it(L_NOTICE, "Stream connection established");
 
             uint8_t l_ch_id = dap_stream_ch_chain_net_get_id();
@@ -1310,31 +1313,55 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             rnd_mass, sizeof(rnd_mass));
             dap_stream_ch_set_ready_to_write_unsafe(l_ch_chain, true);
             if(res1 == 0) {
-                log_it(L_WARNING, "Can't send DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_REQUEST packet");
+                log_it(L_WARNING, "Can't send DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST packet");
                 dap_chain_node_client_close_mt(l_node_client);
                 DAP_DELETE(l_remote_node_info);
-                return -1;
+                return -4;
             }
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "SEND raw random datat - 0x%X%X%X%X%X%X%X%X%X%X", rnd_mass[0],rnd_mass[1],rnd_mass[2],
-                    rnd_mass[3],rnd_mass[4],rnd_mass[5],rnd_mass[6],rnd_mass[7],rnd_mass[8],rnd_mass[9]);
 
             timeout_ms = 15000; // 15 sec = 15 000 ms
-            res1 = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_NODE_ADDR_LEASED, timeout_ms);///поменять статус ожидания
+            res1 = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_VALID_READY, timeout_ms);
+            if(!res1){
+                dap_stream_ch_chain_rnd_t *validators_data = (dap_stream_ch_chain_rnd_t*)l_node_client->callbacks_arg;
+                dap_sign_t *l_sign = NULL;
+                uint8_t * d = rnd_mass;
+                uint8_t * r = validators_data->header.data;
+                if(validators_data->header.sign_size)
+                    l_sign = (dap_sign_t*)(l_node_client->callbacks_arg + sizeof(dap_stream_ch_chain_rnd_t));
+                dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                                  "-------------------------------------------------\n"
+                                                  "SEND DATA \t |  %X-%X-%X-%X-%X-%X-%X-%X-%X-%X \n"
+                                                  "-------------------------------------------------\n"
+                                                  "RECIVED DATA \t |  %X-%X-%X-%X-%X-%X-%X-%X-%X-%X \n"
+                                                  "-------------------------------------------------\n"
+                                                  "VERSION \t |  %s \n"
+                                                  "-------------------------------------------------\n"
+                                                  "AUTO_PROC \t |  %s \n"
+                                                  "-------------------------------------------------\n"
+                                                  "ORDER \t\t |  %s \n"
+                                                  "-------------------------------------------------\n"
+                                                  "AUTO_ONLINE \t |  %s \n"
+                                                  "-------------------------------------------------\n"
+                                                  "AUTO_UPDATE \t |  %s \n"
+                                                  "-------------------------------------------------\n"
+                                                  "DATA_SIGN \t |  %s \n"
+                                                  "-------------------------------------------------\n"
+                                                  "FOUND SERT \t |  %s \n",
+                        d[0],d[1],d[2],d[3],d[4],d[5],d[6],d[7],d[8],d[9],
+                        r[0],r[1],r[2],r[3],r[4],r[5],r[6],r[7],r[8],r[9],
+                        validators_data->header.version,
+                        (validators_data->header.flags & 0x01)?"true":"false",
+                        (validators_data->header.flags & 0x02)?"true":"false",
+                        (validators_data->header.flags & 0x04)?"true":"false",
+                        (validators_data->header.flags & 0x08)?"true":"false",
+                        (validators_data->header.flags & 0x40)?"true":"false",
+                        (validators_data->header.flags & 0x81)?"true":"false");
+            }
 
+            dap_chain_node_client_close_mt(l_node_client);
+            DAP_DELETE(l_remote_node_info);
 
             DAP_DELETE(address_tmp);
-
-
-            //-------------------------------------------------
-            //прием ответа
-
-            //dap_sign_t *l_sign2 = DAP_NEW_Z_SIZE(byte_t, tmp_var.header.sign_size);
-            //byte_t *sign2 = DAP_NEW_Z_SIZE(byte_t, tmp_var.header.sign_size);
-            //dap_stream_ch_chain_rnd_t var2 = *(dap_stream_ch_chain_rnd_t*)data1;
-            //uint8_t l_sign_size = ()->header.sign_size;
-            //dap_sign_t *l_sign2 = DAP_NEW_Z_SIZE(byte_t, l_sign_size);
-            //memcpy(l_sign2, ((dap_stream_ch_chain_rnd_t*)data1)->header.data + 10,l_sign_size );
-
         }
         break;
         case CMD_ORDER:

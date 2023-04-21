@@ -54,12 +54,6 @@
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_stream_ch_chain_net.h"
 
-#include "dap_stream_ch_chain.h"
-#include "dap_chain_block_cache.h"
-#include "dap_chain_cs_blocks.h"
-#include "dap_chain_net_srv_order.h"
-//#include "dap_chain_cs_esbocs.h"
-
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 
 #define LOG_TAG "dap_stream_ch_chain_net"
@@ -186,17 +180,6 @@ void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg)
     }
     DAP_DEL_Z(a_ch->internal);
 }
-typedef struct dap_stream_ch_chain_rnd{
-    struct{
-        /// node Version
-        uint8_t version[32];
-        /// autoproc status
-        uint8_t flags;//0 bit -autoproc; 1 bit - find order; 2 bit - auto online; 3 bit - auto update; 6 bit - data sign; 7 bit - find cert;
-        uint32_t sign_size;
-        uint8_t data[10];
-    }DAP_ALIGN_PACKED header;
-    byte_t sign[];
-} DAP_ALIGN_PACKED dap_stream_ch_chain_rnd_t;
 
 /**
  * @brief s_stream_ch_packet_in
@@ -408,9 +391,6 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 }break;
                 case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY:{
                     log_it(L_INFO, "Get CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY");
-                    dap_stream_ch_chain_rnd_t *var2 = (dap_stream_ch_chain_rnd_t*)l_ch_chain_net_pkt->data;
-                    dap_sign_t *l_sign = NULL;
-                    l_sign = (dap_sign_t*)(l_ch_chain_net_pkt->data + sizeof(dap_stream_ch_chain_rnd_t));
 
                     dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
                 }break;
