@@ -362,7 +362,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                             flags = flags & 0x7f;//Specified certificate not found
 
                         send = DAP_NEW_Z_SIZE(dap_stream_ch_chain_rnd_t,sizeof(dap_stream_ch_chain_rnd_t)+sign_s);
+#ifdef DAP_VERSION
                         strncpy(send->header.version,(char *)DAP_VERSION,sizeof(DAP_VERSION));
+#endif
                         send->header.sign_size = sign_s;
                         strncpy(send->header.data,(uint8_t*)l_ch_chain_net_pkt->data,10);
                         flags = (l_net->pub.mempool_autoproc) ? flags | 0x01 : flags & 0xfe;
