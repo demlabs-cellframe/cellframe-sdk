@@ -1154,7 +1154,124 @@ static int callback_compare_tx_list(const void * a_datum1, const void * a_datum2
     return -1;
 }
 
-void
+void dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_chain_node_addr_t *a_node_addr, dap_pkey_t *a_pkey, int time_connect, int time_respone,char **a_str_reply)
+{
+    char *l_key = NULL;
+    size_t res1 = 0;
+    size_t node_info_size = 0;
+    uint8_t rnd_mass[10] = {0};
+    dap_chain_node_client_t *l_node_client = NULL;
+    dap_chain_node_info_t *l_remote_node_info = NULL;
+
+    l_key = dap_chain_node_addr_to_hash_str(a_node_addr);
+    if(!l_key)
+    {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "can't calculate hash of addr");
+        log_it(L_WARNING, "can't calculate hash of addr");
+        return;
+    }
+
+    // read node
+    l_remote_node_info = (dap_chain_node_info_t *) dap_global_db_get_sync(a_net->pub.gdb_nodes, l_key, &node_info_size, NULL, NULL);
+
+    if(!l_remote_node_info) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "node not found in base");
+        log_it(L_WARNING, "node not found in base");
+        DAP_DELETE(l_key);
+        return;
+    }
+
+    size_t node_info_size_must_be = dap_chain_node_info_get_size(l_remote_node_info);
+    if(node_info_size_must_be != node_info_size) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "node has bad size in base=%zu (must be %zu)", node_info_size,
+                node_info_size_must_be);
+        log_it(L_WARNING, "node has bad size in base=%zu (must be %zu)", node_info_size, node_info_size_must_be);
+        DAP_DELETE(l_remote_node_info);
+        DAP_DELETE(l_key);
+        return;
+    }
+    DAP_DELETE(l_key);
+    // start connect
+    l_node_client = dap_chain_node_client_connect_channels(a_net,l_remote_node_info,"N");
+    if(!l_node_client) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "can't connect");
+        DAP_DELETE(l_remote_node_info);
+        return;
+    }
+    // wait connected
+    //int timeout_ms = 7000; // 7 sec = 7000 ms
+    int res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_ESTABLISHED, time_connect);
+    if (res) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "No response from node");
+        // clean client struct
+        dap_chain_node_client_close_mt(l_node_client);
+        DAP_DELETE(l_remote_node_info);
+        return;
+    }
+    log_it(L_NOTICE, "Stream connection established");
+
+    uint8_t l_ch_id = dap_stream_ch_chain_net_get_id();
+    dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, l_ch_id);
+
+    randombytes(rnd_mass, sizeof(rnd_mass));
+    res1 = dap_stream_ch_chain_net_pkt_write(l_ch_chain,
+    DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST,
+    a_net->pub.id,
+    rnd_mass, sizeof(rnd_mass));
+    dap_stream_ch_set_ready_to_write_unsafe(l_ch_chain, true);
+    if(res1 == 0) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't send DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST packet");
+        log_it(L_WARNING, "Can't send DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST packet");
+        dap_chain_node_client_close_mt(l_node_client);
+        DAP_DELETE(l_remote_node_info);
+        return;
+    }
+
+    //timeout_ms = 15000; // 15 sec = 15 000 ms
+    res1 = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_VALID_READY, time_respone);
+    if(!res1){
+        dap_stream_ch_chain_rnd_t *validators_data = (dap_stream_ch_chain_rnd_t*)l_node_client->callbacks_arg;
+        dap_sign_t *l_sign = NULL;
+        uint8_t * d = rnd_mass;
+        uint8_t * r = validators_data->header.data;
+        if(validators_data->header.sign_size){
+            l_sign = (dap_sign_t*)(l_node_client->callbacks_arg + sizeof(dap_stream_ch_chain_rnd_t));
+            //dap_pkey_compare_with_sign
+        }
+
+        dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                          "-------------------------------------------------\n"
+                                          "SEND DATA \t |  %X-%X-%X-%X-%X-%X-%X-%X-%X-%X \n"
+                                          "-------------------------------------------------\n"
+                                          "RECIVED DATA \t |  %X-%X-%X-%X-%X-%X-%X-%X-%X-%X \n"
+                                          "-------------------------------------------------\n"
+                                          "VERSION \t |  %s \n"
+                                          "-------------------------------------------------\n"
+                                          "AUTO_PROC \t |  %s \n"
+                                          "-------------------------------------------------\n"
+                                          "ORDER \t\t |  %s \n"
+                                          "-------------------------------------------------\n"
+                                          "AUTO_ONLINE \t |  %s \n"
+                                          "-------------------------------------------------\n"
+                                          "AUTO_UPDATE \t |  %s \n"
+                                          "-------------------------------------------------\n"
+                                          "DATA_SIGN \t |  %s \n"
+                                          "-------------------------------------------------\n"
+                                          "FOUND SERT \t |  %s \n",
+                d[0],d[1],d[2],d[3],d[4],d[5],d[6],d[7],d[8],d[9],
+                r[0],r[1],r[2],r[3],r[4],r[5],r[6],r[7],r[8],r[9],
+                validators_data->header.version,
+                (validators_data->header.flags & 0x01)?"true":"false",
+                (validators_data->header.flags & 0x02)?"true":"false",
+                (validators_data->header.flags & 0x04)?"true":"false",
+                (validators_data->header.flags & 0x08)?"true":"false",
+                (validators_data->header.flags & 0x40)?"true":"false",
+                (validators_data->header.flags & 0x81)?"true":"false");
+    }
+
+    dap_chain_node_client_close_mt(l_node_client);
+    DAP_DELETE(l_remote_node_info);
+}
 
 
 static dap_chain_node_info_t* node_info_read_and_reply(dap_chain_net_t * a_net, dap_chain_node_addr_t *a_address,
@@ -1248,9 +1365,6 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             dap_chain_t * l_chain = NULL;
             dap_chain_net_t * l_net = NULL;
             dap_hash_fast_t * l_tx = NULL;
-            dap_chain_hash_fast_t l_hash_block;
-            uint256_t l_value_out_block = {};
-            uint8_t rnd_mass[10] = {0};
 
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-chain", &chain);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_netst);
@@ -1259,11 +1373,11 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             //dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_key);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-tx", &str_tx_hash);
             l_net = dap_chain_net_by_name(l_netst);
-            dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(l_net->pub.name);
+            //dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(l_net->pub.name);
 
-            dap_chain_datum_tx_t *l_cond_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, l_tx);
+            // *l_cond_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, l_tx);
 
-            //dap_cert_parse_str_list(l_key, &l_certs, &l_certs_count);
+           // dap_cert_parse_str_list(l_key, &l_certs, &l_certs_count);
             /*
             int l_prev_cond_idx = 0;
             dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx,
@@ -1276,95 +1390,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             //проверка адреса
             //удаление адреса
 
-            randombytes(rnd_mass, sizeof(rnd_mass));
-
-            //формирование команды отправка
-            //-------------------------------------------------
-
-            dap_chain_node_addr_t l_node_addr = { 0 };
-            dap_chain_node_info_t *l_remote_node_info;
-            dap_chain_node_client_t *l_node_client;
-            int res;
-            l_remote_node_info = node_info_read_and_reply(l_net, address_tmp, a_str_reply);
-            if(!l_remote_node_info) {
-                return -1;
-            }
-            // start connect
-            l_node_client = dap_chain_node_client_connect_channels(l_net,l_remote_node_info,"N");
-            //l_node_client = dap_chain_node_client_create_n_connect(l_net,l_remote_node_info,"N",NULL,data);
-            if(!l_node_client) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "can't connect");
-                DAP_DELETE(l_remote_node_info);
-                return -2;
-            }
-            // wait connected
-            int timeout_ms = 7000; // 7 sec = 7000 ms
-            res = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_ESTABLISHED, timeout_ms);
-            if (res) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "No response from node");
-                // clean client struct
-                dap_chain_node_client_close_mt(l_node_client);
-                DAP_DELETE(l_remote_node_info);
-                return -3;
-            }
-            log_it(L_NOTICE, "Stream connection established");
-
-            uint8_t l_ch_id = dap_stream_ch_chain_net_get_id();
-            dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, l_ch_id);
-
-            size_t res1 = dap_stream_ch_chain_net_pkt_write(l_ch_chain,
-            DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST,
-            l_net->pub.id,
-            rnd_mass, sizeof(rnd_mass));
-            dap_stream_ch_set_ready_to_write_unsafe(l_ch_chain, true);
-            if(res1 == 0) {
-                log_it(L_WARNING, "Can't send DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST packet");
-                dap_chain_node_client_close_mt(l_node_client);
-                DAP_DELETE(l_remote_node_info);
-                return -4;
-            }
-
-            timeout_ms = 15000; // 15 sec = 15 000 ms
-            res1 = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_VALID_READY, timeout_ms);
-            if(!res1){
-                dap_stream_ch_chain_rnd_t *validators_data = (dap_stream_ch_chain_rnd_t*)l_node_client->callbacks_arg;
-                dap_sign_t *l_sign = NULL;
-                uint8_t * d = rnd_mass;
-                uint8_t * r = validators_data->header.data;
-                if(validators_data->header.sign_size)
-                    l_sign = (dap_sign_t*)(l_node_client->callbacks_arg + sizeof(dap_stream_ch_chain_rnd_t));
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "-------------------------------------------------\n"
-                                                  "SEND DATA \t |  %X-%X-%X-%X-%X-%X-%X-%X-%X-%X \n"
-                                                  "-------------------------------------------------\n"
-                                                  "RECIVED DATA \t |  %X-%X-%X-%X-%X-%X-%X-%X-%X-%X \n"
-                                                  "-------------------------------------------------\n"
-                                                  "VERSION \t |  %s \n"
-                                                  "-------------------------------------------------\n"
-                                                  "AUTO_PROC \t |  %s \n"
-                                                  "-------------------------------------------------\n"
-                                                  "ORDER \t\t |  %s \n"
-                                                  "-------------------------------------------------\n"
-                                                  "AUTO_ONLINE \t |  %s \n"
-                                                  "-------------------------------------------------\n"
-                                                  "AUTO_UPDATE \t |  %s \n"
-                                                  "-------------------------------------------------\n"
-                                                  "DATA_SIGN \t |  %s \n"
-                                                  "-------------------------------------------------\n"
-                                                  "FOUND SERT \t |  %s \n",
-                        d[0],d[1],d[2],d[3],d[4],d[5],d[6],d[7],d[8],d[9],
-                        r[0],r[1],r[2],r[3],r[4],r[5],r[6],r[7],r[8],r[9],
-                        validators_data->header.version,
-                        (validators_data->header.flags & 0x01)?"true":"false",
-                        (validators_data->header.flags & 0x02)?"true":"false",
-                        (validators_data->header.flags & 0x04)?"true":"false",
-                        (validators_data->header.flags & 0x08)?"true":"false",
-                        (validators_data->header.flags & 0x40)?"true":"false",
-                        (validators_data->header.flags & 0x81)?"true":"false");
-            }
-
-            dap_chain_node_client_close_mt(l_node_client);
-            DAP_DELETE(l_remote_node_info);
+            dap_chain_net_srv_stake_check_validator(l_net, address_tmp, NULL, 7000, 10000, a_str_reply);
 
             DAP_DELETE(address_tmp);                  
 
