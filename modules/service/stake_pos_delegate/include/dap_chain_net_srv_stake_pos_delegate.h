@@ -72,10 +72,13 @@ bool dap_chain_net_srv_stake_key_delegated(dap_chain_addr_t *a_addr);
 int dap_chain_net_srv_stake_verify_key_and_node(dap_chain_addr_t* a_signing_addr, dap_chain_node_addr_t* a_node_addr);
 dap_list_t *dap_chain_net_srv_stake_get_validators(dap_chain_net_id_t a_net_id);
 
-void dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net, dap_string_t *a_string);
+bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
+                                                uint256_t *a_max_fee, uint256_t *a_average_fee, uint256_t *a_min_fee);
+
+void dap_chain_net_srv_stake_get_fee_validators_str(dap_chain_net_t *a_net, dap_string_t *a_string);
 
 int dap_chain_net_srv_stake_load_cache(dap_chain_net_t *a_net);
-void dap_chain_net_srv_stake_cache_purge(dap_chain_net_t *a_net);
+void dap_chain_net_srv_stake_purge(dap_chain_net_t *a_net);
 
 dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t *a_net,
                                                                  dap_hash_fast_t *a_stake_tx_hash, dap_cert_t *a_cert);

@@ -768,3 +768,7 @@ int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name)
 //  } else
     return l_ret;
 }
+
+const char* dap_chain_get_path(dap_chain_t *a_chain){
+    return DAP_CHAIN_PVT(a_chain)->file_storage_dir;
+}

@@ -103,8 +103,7 @@ static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create_from(dap_chain_t
 
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter ,
                                                                        dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
-static dap_chain_datum_tx_t* s_chain_callback_atom_find_by_tx_hash(dap_chain_t *a_chain,
-                                                                   dap_chain_hash_fast_t *a_tx_hash);
+static dap_chain_datum_tx_t *s_chain_callback_atom_find_by_tx_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_tx_hash, dap_chain_hash_fast_t *a_event_hash);
 static dap_chain_datum_t** s_chain_callback_atom_get_datum(dap_chain_atom_ptr_t a_event, size_t a_atom_size, size_t *a_datums_count);
 static dap_time_t s_chain_callback_atom_get_timestamp(dap_chain_atom_ptr_t a_atom) { return ((dap_chain_cs_dag_event_t *)a_atom)->header.ts_created; }
 //    Get event(s) from dag
@@ -1242,8 +1241,7 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_find_by_hash(dap_chain_at
 }
 
 
-static dap_chain_datum_tx_t* s_chain_callback_atom_find_by_tx_hash(dap_chain_t *a_chain,
-                                                                   dap_chain_hash_fast_t *a_tx_hash)
+static dap_chain_datum_tx_t *s_chain_callback_atom_find_by_tx_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_tx_hash, dap_chain_hash_fast_t *a_event_hash)
 {
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG( a_chain );
     dap_chain_cs_dag_event_item_t * l_event_item = NULL;
@@ -1252,9 +1250,13 @@ static dap_chain_datum_tx_t* s_chain_callback_atom_find_by_tx_hash(dap_chain_t *
     pthread_rwlock_unlock(&PVT(l_dag)->events_rwlock);
     if ( l_event_item ){
         dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(l_event_item->event, l_event_item->event_size);
-        return l_datum ? l_datum->header.data_size ? (dap_chain_datum_tx_t*) l_datum->data : NULL :NULL;
-    }else
-        return NULL;
+        if (l_datum && l_datum->header.data_size) {
+            if (a_event_hash)
+                *a_event_hash = l_event_item->hash;
+            return (dap_chain_datum_tx_t *)l_datum->data;
+        }
+    }
+    return NULL;
 }
 
 /**

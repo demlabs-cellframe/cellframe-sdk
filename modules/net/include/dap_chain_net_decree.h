@@ -37,6 +37,8 @@ typedef struct decree_params {
 int dap_chain_net_decree_init(dap_chain_net_t *a_net);
 int dap_chain_net_decree_deinit(dap_chain_net_t *a_net);
 
+void dap_chain_net_decree_purge(dap_chain_net_t *a_net);
+
 int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain);
 int dap_chain_net_decree_verify(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, size_t a_data_size, dap_hash_fast_t *a_decree_hash);
 int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain);

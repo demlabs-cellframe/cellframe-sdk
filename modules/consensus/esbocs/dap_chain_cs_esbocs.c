@@ -87,6 +87,7 @@ typedef struct dap_chain_esbocs_pvt {
     // Validators section
     bool poa_mode;
     uint16_t min_validators_count;
+    uint16_t start_validators_min;
     // Debug flag
     bool debug;
     // Round params
@@ -151,7 +152,8 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_esbocs_pvt->round_attempt_timeout = dap_config_get_item_uint16_default(a_chain_cfg, "esbocs", "round_attempt_timeout", 10);
 
     int l_ret = 0;
-    l_esbocs_pvt->min_validators_count = dap_config_get_item_uint16(a_chain_cfg, "esbocs", "min_validators_count");
+    l_esbocs_pvt->start_validators_min = l_esbocs_pvt->min_validators_count =
+            dap_config_get_item_uint16(a_chain_cfg, "esbocs", "min_validators_count");
     if (!l_esbocs_pvt->min_validators_count) {
         l_ret = -1;
         goto lb_err;
@@ -187,13 +189,14 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
             goto lb_err;
         }
         log_it(L_MSG, "add validator addr:"NODE_ADDR_FP_STR"", NODE_ADDR_FP_ARGS_S(l_signer_node_addr));
-        if (l_esbocs_pvt->poa_mode) { // auth by certs in PoA mode
-            dap_chain_esbocs_validator_t *l_validator = DAP_NEW_Z(dap_chain_esbocs_validator_t);
-            l_validator->signing_addr = l_signing_addr;
-            l_validator->node_addr = l_signer_node_addr;
-            l_validator->weight = uint256_1;
-            l_esbocs_pvt->poa_validators = dap_list_append(l_esbocs_pvt->poa_validators, l_validator);
-        } else {
+
+        dap_chain_esbocs_validator_t *l_validator = DAP_NEW_Z(dap_chain_esbocs_validator_t);
+        l_validator->signing_addr = l_signing_addr;
+        l_validator->node_addr = l_signer_node_addr;
+        l_validator->weight = uint256_1;
+        l_esbocs_pvt->poa_validators = dap_list_append(l_esbocs_pvt->poa_validators, l_validator);
+
+        if (!l_esbocs_pvt->poa_mode) { // auth certs in PoA mode wiil be first PoS validators keys
             dap_hash_fast_t l_stake_tx_hash = {};
             dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
             uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value();
@@ -356,7 +359,19 @@ static void s_callback_set_min_validators_count(dap_chain_t *a_chain, uint16_t a
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
-    l_esbocs_pvt->min_validators_count = a_new_value;
+    if (a_new_value)
+        l_esbocs_pvt->min_validators_count = a_new_value;
+    else {
+        dap_hash_fast_t l_stake_tx_hash = {};
+        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+        uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value();
+        for (dap_list_t *it = l_esbocs_pvt->poa_validators; it; it = it->next) {
+            dap_chain_esbocs_validator_t *l_validator = it->data;
+            dap_chain_net_srv_stake_key_delegate(l_net, &l_validator->signing_addr, &l_stake_tx_hash,
+                                                 l_weight, &l_validator->node_addr);
+        }
+        l_esbocs_pvt->min_validators_count = l_esbocs_pvt->start_validators_min;
+    }
 }
 
 static dap_list_t *s_get_validators_list(dap_chain_esbocs_session_t *a_session, uint64_t a_skip_count)
@@ -667,23 +682,12 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
     a_session->ts_attempt_start = a_time;
     switch (a_session->state) {
     case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC: {
-        uint256_t l_total_weight = uint256_0;
         dap_chain_esbocs_validator_t *l_validator;
         for (dap_list_t *it = a_session->cur_round.validators_list; it; it = it->next) {
             l_validator = it->data;
-            if (l_validator->is_synced && !l_validator->is_chosen)
-                SUM_256_256(l_total_weight, l_validator->weight, &l_total_weight);
-        }
-        uint256_t l_chosen_weight = dap_pseudo_random_get(l_total_weight, NULL);
-        uint256_t l_cur_weight = uint256_0;
-        for (dap_list_t *it = a_session->cur_round.validators_list; it; it = it->next) {
-            l_validator = it->data;
             if (l_validator->is_synced && !l_validator->is_chosen) {
-                SUM_256_256(l_total_weight, l_validator->weight, &l_cur_weight);
-                if (compare256(l_chosen_weight, l_cur_weight) == -1) {
-                    l_validator->is_chosen = true;
-                    break;
-                }
+                l_validator->is_chosen = true;
+                break;
             }
         }
         a_session->cur_round.attempt_submit_validator = l_validator->signing_addr;
@@ -727,12 +731,13 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
             dap_chain_addr_t l_signing_addr_cur;
             dap_chain_addr_fill_from_sign(&l_signing_addr_cur, l_candidate_sign, a_session->chain->net_id);
             l_store->candidate = DAP_REALLOC(l_store->candidate, l_store->candidate_size + l_candidate_sign_size);
-            if (dap_chain_addr_compare(&l_signing_addr_cur, &a_session->cur_round.attempt_submit_validator)) {
+            if (dap_chain_addr_compare(&l_signing_addr_cur, &a_session->cur_round.attempt_submit_validator) &&
+                                       l_store->candidate_size != l_candidate_size_exclude_signs) {
                 // If it's the primary attempt validator sign, place it in the beginnig
                 if (l_store->candidate_size > l_candidate_size_exclude_signs)
                     memmove((byte_t *)l_store->candidate + l_candidate_size_exclude_signs + l_candidate_sign_size,
                             (byte_t *)l_store->candidate + l_candidate_size_exclude_signs,
-                            l_candidate_sign_size);
+                            l_store->candidate_size - l_candidate_size_exclude_signs);
                 memcpy((byte_t *)l_store->candidate + l_candidate_size_exclude_signs, l_candidate_sign, l_candidate_sign_size);
             } else
                 memcpy(((byte_t *)l_store->candidate) + l_store->candidate_size, l_candidate_sign, l_candidate_sign_size);
@@ -763,10 +768,12 @@ static void s_session_proc_state(dap_chain_esbocs_session_t *a_session)
 {
     if (pthread_mutex_trylock(&a_session->mutex) != 0)
         return; // Session is busy
+    static unsigned int l_listen_ensure;
     bool l_cs_debug = PVT(a_session->esbocs)->debug;
     dap_time_t l_time = dap_time_now();
     switch (a_session->state) {
     case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START: {
+        l_listen_ensure = 1;
         dap_time_t l_round_timeout = PVT(a_session->esbocs)->round_start_sync_timeout;
         bool l_round_skip = !s_validator_check(&a_session->my_signing_addr, a_session->cur_round.validators_list);
         if (l_round_skip)
@@ -790,7 +797,8 @@ static void s_session_proc_state(dap_chain_esbocs_session_t *a_session)
         }
     } break;
     case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC:
-        if (l_time - a_session->ts_attempt_start >= PVT(a_session->esbocs)->round_attempt_timeout) {
+        if (l_time - a_session->ts_attempt_start >= PVT(a_session->esbocs)->round_attempt_timeout * l_listen_ensure) {
+            l_listen_ensure += 2;
             debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
                                         " Attempt finished by reason: haven't cantidate submitted",
                                             a_session->chain->net_name, a_session->chain->name,
@@ -799,6 +807,7 @@ static void s_session_proc_state(dap_chain_esbocs_session_t *a_session)
         }
         break;
     case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_SIGNS:
+        l_listen_ensure = 1;
         if (l_time - a_session->ts_attempt_start >= PVT(a_session->esbocs)->round_attempt_timeout) {
             dap_chain_esbocs_store_t *l_store;
             HASH_FIND(hh, a_session->cur_round.store_items, &a_session->cur_round.attempt_candidate_hash, sizeof(dap_hash_fast_t), l_store);
@@ -1359,7 +1368,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                                                     l_session->cur_round.sync_attempt, l_sync_attempt);
             } else {
                 PVT(l_session->esbocs)->debug = false;  // suppress some debug messages
-                dap_list_t *l_validators_list = s_get_validators_list(l_session, l_sync_attempt);
+                dap_list_t *l_validators_list = s_get_validators_list(l_session, l_sync_attempt - 1);
                 PVT(l_session->esbocs)->debug = l_cs_debug;
                 bool l_msg_from_list = s_validator_check(&l_signing_addr, l_validators_list);
                 dap_list_free_full(l_validators_list, NULL);
