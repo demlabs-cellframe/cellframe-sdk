@@ -293,8 +293,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     // Token info
     dap_cli_server_cmd_add("token", com_token, "Token info",
             "token list -net <net_name>\n"
-            "token info -net <net_name> -name <token_ticker>\n"
-            "token tx [all | -addr <wallet_addr> | -wallet <wallet_name>] -name <token_ticker> -net <net_name> [-page_start <page>] [-page <page>]\n");
+            "token info -net <net_name> -name <token_ticker>\n");
 
     // Log
     dap_cli_server_cmd_add ("print_log", com_print_log, "Print log info",
