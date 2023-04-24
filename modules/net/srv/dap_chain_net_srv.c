@@ -678,14 +678,49 @@ static bool s_pay_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *
                                                dap_chain_datum_tx_item_get(a_tx_in, NULL, TX_ITEM_TYPE_RECEIPT, NULL);
     if (!l_receipt)
         return false;
-    dap_sign_t *l_sign = dap_chain_datum_tx_receipt_sign_get(l_receipt, l_receipt->size, 1);
+
+    // Check provider sign
+    dap_sign_t *l_sign = dap_chain_datum_tx_receipt_sign_get(l_receipt, l_receipt->size, 0);
     if (!l_sign)
         return false;
-    dap_hash_fast_t l_pkey_hash;
+
+    if (dap_sign_verify_all(l_sign, l_sign->header.sign_pkey_size + l_sign->header.sign_size, &l_receipt->receipt_info, sizeof(l_receipt->receipt_info))){
+        return false;
+    }
+
+    // Checking that the signature matches the provider's signature
+    dap_hash_fast_t l_tx_sign_pkey_hash = {};
+    dap_hash_fast_t l_provider_pkey_hash = {};
+    if (!dap_sign_get_pkey_hash(l_sign, &l_provider_pkey_hash))
+        return false;
+
+    int l_item_size = 0;
+    uint8_t* l_sig = dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_SIG, &l_item_size);
+    if(!l_sig){
+        return false;
+    }
+
+    l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_sig);
+    if (!l_sign || !dap_sign_get_pkey_hash(l_sign, &l_tx_sign_pkey_hash))
+        return false;
+
+    if(!dap_hash_fast_compare(&l_tx_sign_pkey_hash, &l_provider_pkey_hash)){
+        return false;
+    }
+
+    // Check client sign
+    l_sign = dap_chain_datum_tx_receipt_sign_get(l_receipt, l_receipt->size, 1);
+    if (!l_sign)
+        return false;
+    dap_hash_fast_t l_pkey_hash = {};
     if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash))
         return false;
-    return dap_hash_fast_compare(&l_pkey_hash, &a_cond->subtype.srv_pay.pkey_hash);
-    // TODO add comparision a_tx sign pkey with receipt provider sign pkey
+
+    if(!dap_hash_fast_compare(&l_pkey_hash, &a_cond->subtype.srv_pay.pkey_hash)){
+        return false;
+    }
+
+    return true;
 }
 
 int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_config_section)
