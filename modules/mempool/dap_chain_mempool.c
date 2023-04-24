@@ -1269,7 +1269,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
             l_removed++;
             log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s. The size of the datum defined by the "
                              "function and the size specified in the record do not match.", l_objs[i].key, l_gdb_group);
-            dap_global_db_del_sync(l_objs[i].key, l_gdb_group);
+            dap_global_db_del_sync(l_gdb_group, l_objs[i].key);
             continue;
         }
         //Filter hash
@@ -1281,7 +1281,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
             DAP_DELETE(l_hash_content_str);
             log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s. The hash of the contents of the "
                              "datum does not match the key.", l_objs[i].key, l_gdb_group);
-            dap_global_db_del_sync(l_objs[i].key, l_gdb_group);
+            dap_global_db_del_sync(l_gdb_group, l_objs[i].key);
             continue;
         }
         DAP_DELETE(l_hash_content_str);
@@ -1290,7 +1290,18 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
             l_removed++;
             log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s. The datum in the mempool was "
                              "created after the %s.", l_objs[i].key, l_gdb_group, l_cut_off_time_str);
-            dap_global_db_del_sync(l_objs[i].key, l_gdb_group);
+            dap_global_db_del_sync(l_gdb_group, l_objs[i].key);
+            dap_global_db_del_sync(l_gdb_group, l_objs[i].key);
+        }
+        //Filter size decree
+        if (l_datum->header.type_id == DAP_CHAIN_DATUM_DECREE) {
+            size_t l_decree_size = dap_chain_datum_decree_get_size((dap_chain_datum_decree_t*)l_datum->data);
+            if (l_datum->header.data_size != l_decree_size) {
+                l_removed++;
+                log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s. Decree datums do not have a "
+                                 "valid size.", l_objs[i].key, l_gdb_group);
+                dap_global_db_del_sync(l_gdb_group, l_objs[i].key);
+            }
         }
     }
     dap_global_db_objs_delete(l_objs, l_objs_size);
