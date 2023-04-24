@@ -89,7 +89,9 @@ int dap_chain_net_srv_stake_pos_delegate_init()
          "\tInvalidate requested delegated stake transaction by hash or cert name or cert pkey hash within net name and"
          " return m-tokens to specified wallet (if any)\n"
     "srv_stake min_value -net <net_name> -cert <cert_name> -value <value>"
-         "\tSets the minimum stake value"
+         "\tSets the minimum stake value\n"
+    "srv_stake check -net <net_name> -tx <tx_hash>"
+         "\tCheck remote validator"
     );
 
     s_srv_stake = DAP_NEW_Z(dap_chain_net_srv_stake_t);
@@ -1154,7 +1156,8 @@ static int callback_compare_tx_list(const void * a_datum1, const void * a_datum2
     return -1;
 }
 
-void dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_chain_node_addr_t *a_node_addr, dap_pkey_t *a_pkey, int time_connect, int time_respone,char **a_str_reply)
+void dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net,
+                                             dap_hash_fast_t *a_tx_hash, int time_connect, int time_respone,char **a_str_reply)
 {
     char *l_key = NULL;
     size_t res1 = 0;
@@ -1162,8 +1165,21 @@ void dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_chain_
     uint8_t rnd_mass[10] = {0};
     dap_chain_node_client_t *l_node_client = NULL;
     dap_chain_node_info_t *l_remote_node_info = NULL;
+    dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(a_net->pub.name);
+    dap_chain_datum_tx_t *l_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, a_tx_hash);
+    dap_chain_node_addr_t *l_signer_node_addr = NULL;
 
-    l_key = dap_chain_node_addr_to_hash_str(a_node_addr);
+    int l_prev_cond_idx = 0;
+    dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_tx,
+                                                  DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_prev_cond_idx);
+    if (!l_tx_out_cond) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Requested conditional transaction has no requires conditional output");
+        log_it(L_WARNING, "Requested conditional transaction has no requires conditional output");
+        return;
+    }
+    l_signer_node_addr = &l_tx_out_cond->subtype.srv_stake_pos_delegate.signer_node_addr;
+
+    l_key = dap_chain_node_addr_to_hash_str(l_signer_node_addr);
     if(!l_key)
     {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "can't calculate hash of addr");
@@ -1226,7 +1242,6 @@ void dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_chain_
         DAP_DELETE(l_remote_node_info);
         return;
     }
-
     //timeout_ms = 15000; // 15 sec = 15 000 ms
     res1 = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_VALID_READY, time_respone);
     if(!res1){
@@ -1234,9 +1249,24 @@ void dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_chain_
         dap_sign_t *l_sign = NULL;
         uint8_t * d = rnd_mass;
         uint8_t * r = validators_data->header.data;
+        dap_pkey_t * l_pkey = NULL;
+        bool ch_key = false;
         if(validators_data->header.sign_size){
             l_sign = (dap_sign_t*)(l_node_client->callbacks_arg + sizeof(dap_stream_ch_chain_rnd_t));
-            //dap_pkey_compare_with_sign
+            int l_item_count = 0;
+            dap_list_t *l_pkey_list = dap_chain_datum_tx_items_get(l_tx,TX_ITEM_TYPE_PKEY, &l_item_count);
+            if(!l_pkey_list)
+            {
+                log_it(L_WARNING, "The requested conditional transaction does not have a signature in the public key");
+            }
+            else
+            {
+                l_pkey = (dap_pkey_t*)((dap_chain_tx_pkey_t*)l_pkey_list->data)->pkey;
+            }
+            if(l_pkey){
+                 ch_key =  dap_pkey_compare_with_sign(l_pkey,l_sign);
+            }
+            dap_list_free_full(l_pkey_list, NULL);
         }
 
         dap_cli_server_cmd_set_reply_text(a_str_reply,
@@ -1255,20 +1285,23 @@ void dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_chain_
                                           "-------------------------------------------------\n"
                                           "AUTO_UPDATE \t |  %s \n"
                                           "-------------------------------------------------\n"
-                                          "DATA_SIGN \t |  %s \n"
+                                          "DATA_SIGNED \t |  %s \n"
                                           "-------------------------------------------------\n"
-                                          "FOUND SERT \t |  %s \n",
+                                          "FOUND SERT \t |  %s \n"
+                                          "-------------------------------------------------\n"
+                                          "SIGN CORRECT \t |  %s \n",
                 d[0],d[1],d[2],d[3],d[4],d[5],d[6],d[7],d[8],d[9],
                 r[0],r[1],r[2],r[3],r[4],r[5],r[6],r[7],r[8],r[9],
                 validators_data->header.version,
-                (validators_data->header.flags & 0x01)?"true":"false",
-                (validators_data->header.flags & 0x02)?"true":"false",
-                (validators_data->header.flags & 0x04)?"true":"false",
-                (validators_data->header.flags & 0x08)?"true":"false",
-                (validators_data->header.flags & 0x40)?"true":"false",
-                (validators_data->header.flags & 0x81)?"true":"false");
+                (validators_data->header.flags & A_PROC)?"true":"false",
+                (validators_data->header.flags & F_ORDR)?"true":"false",
+                (validators_data->header.flags & A_ONLN)?"true":"false",
+                (validators_data->header.flags & A_UPDT)?"true":"false",
+                (validators_data->header.flags & D_SIGN)?"true":"false",
+                (validators_data->header.flags & F_SERT)?"true":"false",
+                ch_key ? "true":"false"
+                                                       );
     }
-
     dap_chain_node_client_close_mt(l_node_client);
     DAP_DELETE(l_remote_node_info);
 }
@@ -1311,7 +1344,7 @@ static dap_chain_node_info_t* node_info_read_and_reply(dap_chain_net_t * a_net, 
 static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
 {
     enum {
-        CMD_NONE, CMD_ORDER, CMD_DELEGATE, CMD_APPROVE, CMD_LIST, CMD_INVALIDATE, CMD_MIN_VALUE,CMD_test
+        CMD_NONE, CMD_ORDER, CMD_DELEGATE, CMD_APPROVE, CMD_LIST, CMD_INVALIDATE, CMD_MIN_VALUE, CMD_CHECK
     };
     int l_arg_index = 1;
 
@@ -1347,52 +1380,32 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
     else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "min_value", NULL)) {
         l_cmd_num = CMD_MIN_VALUE;
     }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "test_com", NULL)) {
-        l_cmd_num = CMD_test;
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "check", NULL)) {
+        l_cmd_num = CMD_CHECK;
     }
 
     switch (l_cmd_num) {
-        case CMD_test:
+        case CMD_CHECK:
         {
-            const char *chain = NULL;
             const char * l_netst = NULL;
-            const char * l_hash = NULL;
-            const char * l_key = NULL;
             const char * str_tx_hash = NULL;
-            const char * alias_str = NULL;
-            dap_cert_t **l_certs = NULL;
-            size_t l_certs_count = 0;
-            dap_chain_t * l_chain = NULL;
             dap_chain_net_t * l_net = NULL;
-            dap_hash_fast_t * l_tx = NULL;
+            dap_hash_fast_t l_tx = {};
 
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-chain", &chain);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_netst);
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-hash", &l_hash);
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-alias", &alias_str);
-            //dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_key);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-tx", &str_tx_hash);
             l_net = dap_chain_net_by_name(l_netst);
-            //dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(l_net->pub.name);
 
-            // *l_cond_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, l_tx);
+            if (!str_tx_hash) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command check requires parameter -tx");
+                return -1;
+            }
+            if (dap_chain_hash_fast_from_str(str_tx_hash, &l_tx)){
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't get hash_fast from %s", str_tx_hash);
+                return -2;
+            }
 
-           // dap_cert_parse_str_list(l_key, &l_certs, &l_certs_count);
-            /*
-            int l_prev_cond_idx = 0;
-            dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx,
-                                                          DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_prev_cond_idx);
-            if (!l_tx_out_cond) {
-                log_it(L_WARNING, "Requested conditional transaction has no requires conditional output");
-                return NULL;
-            }*/
-            dap_chain_node_addr_t *address_tmp = dap_chain_node_addr_get_by_alias(l_net, alias_str);
-            //проверка адреса
-            //удаление адреса
-
-            dap_chain_net_srv_stake_check_validator(l_net, address_tmp, NULL, 7000, 10000, a_str_reply);
-
-            DAP_DELETE(address_tmp);                  
+            dap_chain_net_srv_stake_check_validator(l_net, &l_tx, 7000, 10000, a_str_reply);
 
         }
         break;

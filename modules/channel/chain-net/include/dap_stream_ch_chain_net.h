@@ -53,6 +53,14 @@ typedef struct dap_stream_ch_chain_rnd{
     byte_t sign[];
 } DAP_ALIGN_PACKED dap_stream_ch_chain_rnd_t;
 
+#define A_PROC 0x01
+#define F_ORDR 0x02
+#define A_ONLN 0x04
+#define A_UPDT 0x08
+#define D_SIGN 0x40
+#define F_SERT 0x80
+
+
 #define DAP_STREAM_CH_CHAIN_NET(a) ((dap_stream_ch_chain_net_t *) ((a)->internal) )
 
 uint8_t dap_stream_ch_chain_net_get_id();

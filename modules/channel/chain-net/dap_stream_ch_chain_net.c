@@ -347,19 +347,19 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
                         if(enc_key_pvt)
                         {
-                            flags = flags | 0x80;//faund key
+                            flags = flags | F_SERT;//faund sert
                             l_sign = dap_sign_create(enc_key_pvt, (uint8_t*)l_ch_chain_net_pkt->data,
                                                    l_ch_chain_net_pkt_data_size, 0);
                             if(l_sign)
                             {
                                 sign_s = dap_sign_get_size(l_sign);
-                                flags = flags | 0x40;//data signed
+                                flags = flags | D_SIGN;//data signed
                             }
                             else
-                                flags = flags & 0xbf;//data doesn't sign
+                                flags = flags & ~D_SIGN;//data doesn't sign
                         }
                         else
-                            flags = flags & 0x7f;//Specified certificate not found
+                            flags = flags & ~F_SERT;//Specified certificate not found
 
                         send = DAP_NEW_Z_SIZE(dap_stream_ch_chain_rnd_t,sizeof(dap_stream_ch_chain_rnd_t)+sign_s);
 #ifdef DAP_VERSION
@@ -367,15 +367,15 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 #endif
                         send->header.sign_size = sign_s;
                         strncpy(send->header.data,(uint8_t*)l_ch_chain_net_pkt->data,10);
-                        flags = (l_net->pub.mempool_autoproc) ? flags | 0x01 : flags & 0xfe;
+                        flags = (l_net->pub.mempool_autoproc) ? flags | A_PROC : flags & ~A_PROC;
 
                         dap_chain_net_srv_order_find_all_by(l_net,SERV_DIR_UNDEFINED,l_uid,
                                                            l_price_unit,NULL,l_price_min,l_price_max,&l_orders,&l_orders_num);
-                        flags = l_orders_num ? flags | 0x02 : flags & 0xfd;
+                        flags = l_orders_num ? flags | F_ORDR : flags & ~F_ORDR;
                         bool auto_online = dap_config_get_item_bool_default( g_config, "general", "auto_online", true );
                         bool auto_update = dap_config_get_item_bool_default( g_config, "general", "auto_update", true );
-                        flags = auto_online ? flags | 0x04 : flags & 0xfb;
-                        flags - auto_update ? flags | 0x08 : flags & 0xf7;
+                        flags = auto_online ? flags | A_ONLN : flags & ~A_ONLN;
+                        flags - auto_update ? flags | A_UPDT : flags & ~A_UPDT;
 
                         send->header.flags = flags;
                         //add sign
