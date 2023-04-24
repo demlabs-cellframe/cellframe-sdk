@@ -1246,9 +1246,7 @@ void dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net,
     res1 = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_VALID_READY, time_respone);
     if(!res1){
         dap_stream_ch_chain_rnd_t *validators_data = (dap_stream_ch_chain_rnd_t*)l_node_client->callbacks_arg;
-        dap_sign_t *l_sign = NULL;
-        uint8_t * d = rnd_mass;
-        uint8_t * r = validators_data->header.data;
+        dap_sign_t *l_sign = NULL;        
         dap_pkey_t * l_pkey = NULL;
         bool ch_key = false;
         if(validators_data->header.sign_size){
@@ -1268,12 +1266,7 @@ void dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net,
             }
             dap_list_free_full(l_pkey_list, NULL);
         }
-
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                          "-------------------------------------------------\n"
-                                          "SEND DATA \t |  %X-%X-%X-%X-%X-%X-%X-%X-%X-%X \n"
-                                          "-------------------------------------------------\n"
-                                          "RECIVED DATA \t |  %X-%X-%X-%X-%X-%X-%X-%X-%X-%X \n"
+        dap_cli_server_cmd_set_reply_text(a_str_reply,                                          
                                           "-------------------------------------------------\n"
                                           "VERSION \t |  %s \n"
                                           "-------------------------------------------------\n"
@@ -1287,18 +1280,16 @@ void dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net,
                                           "-------------------------------------------------\n"
                                           "DATA_SIGNED \t |  %s \n"
                                           "-------------------------------------------------\n"
-                                          "FOUND SERT \t |  %s \n"
+                                          "FOUND CERT \t |  %s \n"
                                           "-------------------------------------------------\n"
-                                          "SIGN CORRECT \t |  %s \n",
-                d[0],d[1],d[2],d[3],d[4],d[5],d[6],d[7],d[8],d[9],
-                r[0],r[1],r[2],r[3],r[4],r[5],r[6],r[7],r[8],r[9],
+                                          "SIGN CORRECT \t |  %s \n",                
                 validators_data->header.version,
                 (validators_data->header.flags & A_PROC)?"true":"false",
                 (validators_data->header.flags & F_ORDR)?"true":"false",
                 (validators_data->header.flags & A_ONLN)?"true":"false",
                 (validators_data->header.flags & A_UPDT)?"true":"false",
                 (validators_data->header.flags & D_SIGN)?"true":"false",
-                (validators_data->header.flags & F_SERT)?"true":"false",
+                (validators_data->header.flags & F_CERT)?"true":"false",
                 ch_key ? "true":"false"
                                                        );
     }

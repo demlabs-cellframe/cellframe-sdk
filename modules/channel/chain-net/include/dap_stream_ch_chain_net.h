@@ -58,7 +58,7 @@ typedef struct dap_stream_ch_chain_rnd{
 #define A_ONLN 0x04
 #define A_UPDT 0x08
 #define D_SIGN 0x40
-#define F_SERT 0x80
+#define F_CERT 0x80
 
 
 #define DAP_STREAM_CH_CHAIN_NET(a) ((dap_stream_ch_chain_net_t *) ((a)->internal) )

@@ -347,7 +347,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
                         if(enc_key_pvt)
                         {
-                            flags = flags | F_SERT;//faund sert
+                            flags = flags | F_CERT;//faund sert
                             l_sign = dap_sign_create(enc_key_pvt, (uint8_t*)l_ch_chain_net_pkt->data,
                                                    l_ch_chain_net_pkt_data_size, 0);
                             if(l_sign)
@@ -359,7 +359,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                 flags = flags & ~D_SIGN;//data doesn't sign
                         }
                         else
-                            flags = flags & ~F_SERT;//Specified certificate not found
+                            flags = flags & ~F_CERT;//Specified certificate not found
 
                         send = DAP_NEW_Z_SIZE(dap_stream_ch_chain_rnd_t,sizeof(dap_stream_ch_chain_rnd_t)+sign_s);
 #ifdef DAP_VERSION
