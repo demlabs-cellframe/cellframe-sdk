@@ -90,8 +90,14 @@ typedef union dap_chain_node_addr {
 DAP_STATIC_INLINE bool dap_chain_node_addr_str_check(const char *a_addr_str) {
     size_t l_str_len = dap_strlen(a_addr_str);
     if (l_str_len == 22) {
-        for (size_t i = 0; i < l_str_len; i++) {
-            if (!dap_is_xdigit(a_addr_str[i]) && a_addr_str[i] != ':')
+        for (int n =0; n < 22; n+= 6) {
+            if (!dap_is_xdigit(a_addr_str[n]) || !dap_is_xdigit(a_addr_str[n + 1]) ||
+                !dap_is_xdigit(a_addr_str[n + 2]) || !dap_is_xdigit(a_addr_str[n + 3])) {
+                return false;
+            }
+        }
+        for (int n = 4; n < 18; n += 6) {
+            if (a_addr_str[n] != ':' || a_addr_str[n + 1] != ':')
                 return false;
         }
         return true;
@@ -101,6 +107,7 @@ DAP_STATIC_INLINE bool dap_chain_node_addr_str_check(const char *a_addr_str) {
 
 DAP_STATIC_INLINE int dap_chain_node_addr_from_str(dap_chain_node_addr_t *a_addr, const char *a_addr_str)
 {
+    dap_chain_node_addr_str_check(a_addr_str);
     if (sscanf(a_addr_str, NODE_ADDR_FP_STR, NODE_ADDR_FPS_ARGS(a_addr)) == 4)
         return 0;
     if (sscanf(a_addr_str, "0x%016"DAP_UINT64_FORMAT_x, &a_addr->uint64) == 1)
