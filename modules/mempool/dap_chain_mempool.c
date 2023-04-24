@@ -95,11 +95,9 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
 
     dap_chain_hash_fast_t l_key_hash;
     dap_hash_fast(a_datum->data, a_datum->header.data_size, &l_key_hash);
-    char *l_key_str;
-    if (!dap_strcmp(a_hash_out_type, "hex"))
-        l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
-    else
-        l_key_str = dap_enc_base58_encode_hash_to_str(&l_key_hash);
+    char *l_key_str = dap_strcmp(a_hash_out_type, "hex")
+            ? dap_enc_base58_encode_hash_to_str(&l_key_hash)
+            : dap_chain_hash_fast_to_str_new(&l_key_hash);
 
     const char *l_type_str;
     switch (a_datum->header.type_id) {
@@ -123,8 +121,7 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
     else
         log_it(L_WARNING, "Can't place datum %s with hash %s in mempool group %s", l_type_str, l_key_str, l_gdb_group);
     DAP_DELETE(l_gdb_group);
-
-    return (l_res == DAP_GLOBAL_DB_RC_SUCCESS) ? l_key_str : NULL;
+    return (l_res == DAP_GLOBAL_DB_RC_SUCCESS) ? l_key_str : ({ DAP_DELETE(l_key_str); NULL; });
 }
 
 /**
@@ -561,12 +558,11 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         l_objs[i].value_len = dap_chain_datum_size(l_datum);
         log_it(L_DEBUG, "Prepared obj with key %s (value_len = %"DAP_UINT64_FORMAT_U")",
                l_objs[i].key? l_objs[i].key :"NULL" , l_objs[i].value_len );
-
     }
     dap_list_free_full(l_list_used_out, free);
 
-    char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
-    dap_global_db_set_multiple_zc(l_gdb_group, l_objs,a_tx_num, s_tx_create_massive_gdb_save_callback , NULL );
+    char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+    dap_global_db_set_multiple_zc(l_gdb_group, l_objs, a_tx_num, s_tx_create_massive_gdb_save_callback, NULL);
     DAP_DELETE(l_gdb_group);
     return 0;
 }

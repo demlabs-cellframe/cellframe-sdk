@@ -882,20 +882,16 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
         switch (l_subcmd) {
             case SUMCMD_GET: // Get value
             {
-                dap_hash_fast_t l_hash;
-                char *l_hash_str = NULL;
-                if(dap_hash_fast(l_value, l_value_len, &l_hash)) {
-                    l_hash_str = dap_chain_hash_fast_to_str_new(&l_hash);
-                }
+                char *l_hash_str;
+                dap_get_data_hash_str_static(l_value, l_value_len, l_hash_str);
                 char *l_value_str = DAP_NEW_Z_SIZE(char, l_value_len * 2 + 2);
-                //size_t ret = dap_bin2hex(l_value_str, l_value, l_value_len);
+                size_t ret = dap_bin2hex(l_value_str, l_value, l_value_len);
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Record found\n"
                         "lenght:\t%zu byte\n"
                         "hash:\t%s\n"
                         "pinned:\t%s\n"
                         "value:\t0x%s\n\n", l_value_len, l_hash_str, l_is_pinned ? "Yes" : "No", l_value_str);
                 DAP_DELETE(l_value_str);
-                DAP_DELETE(l_hash_str);
                 break;
             }
             case SUMCMD_PIN: // Pin record
@@ -2257,8 +2253,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, char ** a_str_reply)
     // Chain name
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-datum", &l_datum_hash_str);
     if(l_datum_hash_str) {
-        char * l_datum_hash_hex_str = NULL;
-        char * l_datum_hash_base58_str = NULL;
+        char *l_datum_hash_hex_str = NULL, *l_datum_hash_base58_str = NULL;
         const char * l_certs_str = NULL;
         dap_cert_t ** l_certs = NULL;
         size_t l_certs_count = 0;
@@ -2355,16 +2350,12 @@ int com_token_decl_sign(int a_argc, char **a_argv, char ** a_str_reply)
                 DAP_DELETE(l_datum_token);
                 // Calc datum's hash
                 l_datum_size = dap_chain_datum_size(l_datum);
-                dap_chain_hash_fast_t l_key_hash={};
+                dap_chain_hash_fast_t l_key_hash = { };
                 dap_hash_fast(l_datum->data, l_token_size, &l_key_hash);
                 char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
                 char * l_key_str_base58 = dap_enc_base58_encode_hash_to_str(&l_key_hash);
-                const char * l_key_out_str;
-                if(!dap_strcmp(l_hash_out_type,"hex"))
-                    l_key_out_str = l_key_str;
-                else
-                    l_key_out_str = l_key_str_base58;
-
+                const char *l_key_out_str = dap_strcmp(l_hash_out_type,"hex")
+                        ? l_key_str_base58 : l_key_str;
                 // Add datum to mempool with datum_token hash as a key
                 if( dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, l_datum, dap_chain_datum_size(l_datum), true) == 0) {
 
@@ -2374,7 +2365,8 @@ int com_token_decl_sign(int a_argc, char **a_argv, char ** a_str_reply)
                         dap_cli_server_cmd_set_reply_text(a_str_reply,
                                 "datum %s is replacing the %s in datum pool",
                                 l_key_out_str, l_datum_hash_out_str);
-
+                        DAP_DELETE(l_key_str);
+                        DAP_DELETE(l_key_str_base58);
                         DAP_DELETE(l_datum);
                         //DAP_DELETE(l_datum_token);
                         DAP_DELETE(l_gdb_group_mempool);
@@ -2383,6 +2375,8 @@ int com_token_decl_sign(int a_argc, char **a_argv, char ** a_str_reply)
                         dap_cli_server_cmd_set_reply_text(a_str_reply,
                                 "Warning! Can't remove old datum %s ( new datum %s added normaly in datum pool)",
                                 l_datum_hash_out_str, l_key_out_str);
+                        DAP_DELETE(l_key_str);
+                        DAP_DELETE(l_key_str_base58);
                         DAP_DELETE(l_datum);
                         //DAP_DELETE(l_datum_token);
                         DAP_DELETE(l_gdb_group_mempool);
@@ -3637,31 +3631,24 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                 dap_enc_base58_encode_hash_to_str(&l_key_hash) : l_key_str;
 
     // Add datum to mempool with datum_token hash as a key
-    char * l_gdb_group_mempool;
-    if (l_chain)
-        l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
-    else
-        l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_TOKEN);
+    char *l_gdb_group_mempool = l_chain
+            ? dap_chain_net_get_gdb_group_mempool_new(l_chain)
+            : dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_TOKEN);
     if (!l_gdb_group_mempool) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "No suitable chain for placing token datum found");
+        DAP_DEL_Z(l_key_str);
+        DAP_DEL_Z(l_key_str_out);
         DAP_DELETE(l_datum);
         return -10;
     }
-    int l_ret = 0;
     bool l_placed = dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, l_datum, l_datum_size, true) == 0;
     dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s with token %s is%s placed in datum pool",
                                       l_key_str_out, l_ticker, l_placed ? "" : " not");
-    //additional checking for incorrect key format
-    if (l_key_str_out != l_key_str)
-        DAP_DELETE(l_key_str);
-    else
-        DAP_DELETE(l_key_str);
+    DAP_DEL_Z(l_key_str);
+    DAP_DEL_Z(l_key_str_out);
     DAP_DELETE(l_datum);
     DAP_DELETE(l_params);
-    if (!l_placed) {
-        l_ret = -2;
-    }
-    return l_ret;
+    return l_placed ? 0 : -2;
 }
 
 /**
@@ -3838,30 +3825,24 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
                            dap_enc_base58_encode_hash_to_str(&l_key_hash) : l_key_str;
 
     // Add datum to mempool with datum_token hash as a key
-    char * l_gdb_group_mempool;
-    if (!l_chain)
-        dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TOKEN);
-    l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
+    char *l_gdb_group_mempool = l_chain
+            ? dap_chain_net_get_gdb_group_mempool_new(l_chain)
+            : dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_TOKEN);
     if (!l_gdb_group_mempool) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "No suitable chain for placing token datum found");
+        DAP_DEL_Z(l_key_str);
+        DAP_DEL_Z(l_key_str_out);
         DAP_DELETE(l_datum);
         return -10;
     }
-    int l_ret = 0;
     bool l_placed = !dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, (uint8_t *)l_datum, l_datum_size, false);
     dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s with 256bit token %s is%s placed in datum pool",
                                       l_key_str_out, l_ticker, l_placed ? "" : " not");
-    //additional checking for incorrect key format
-    if (l_key_str_out != l_key_str)
-        DAP_DELETE(l_key_str);
-    else
-        DAP_DELETE(l_key_str);
+    DAP_DEL_Z(l_key_str);
+    DAP_DEL_Z(l_key_str_out);
     DAP_DELETE(l_datum);
     DAP_DELETE(l_params);
-    if (!l_placed) {
-        l_ret = -2;
-    }
-    return l_ret;
+    return l_placed ? 0 : -2;
 }
 
 /**
@@ -4908,21 +4889,18 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
 
     // Add transaction to mempool
     char *l_gdb_group_mempool_base_tx = dap_chain_net_get_gdb_group_mempool_new(l_chain);// get group name for mempool
-    dap_chain_hash_fast_t *l_datum_tx_hash = DAP_NEW(dap_hash_fast_t);
-    dap_hash_fast(l_datum_tx->data, l_datum_tx->header.data_size, l_datum_tx_hash);// Calculate datum hash
-    char *l_tx_hash_str = dap_chain_hash_fast_to_str_new(l_datum_tx_hash);
+    char *l_tx_hash_str;
+    dap_get_data_hash_str_static(l_datum_tx->data, l_datum_tx->header.data_size, l_tx_hash_str);
     bool l_placed = !dap_global_db_set(l_gdb_group_mempool_base_tx,l_tx_hash_str, l_datum_tx, l_datum_tx_size, true, NULL, NULL);
 
     DAP_DELETE(l_datum_tx);
     DAP_DELETE(l_gdb_group_mempool_base_tx);
     if(!l_placed) {
-        DAP_DELETE(l_tx_hash_str);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't add transaction to mempool");
         return -90;
     }
     // Completed successfully
     dap_cli_server_cmd_set_reply_text(a_str_reply, "Transaction %s with %zu items created and added to mempool successfully", l_tx_hash_str, l_items_ready);
-    DAP_DELETE(l_tx_hash_str);
     return l_err_code;
 }
 
@@ -6211,7 +6189,6 @@ static int s_signer_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str
         return -1;
     }
 
-
     dap_chain_net_t *l_network = dap_chain_net_by_name(l_opts_sign[OPT_NET]);
     if (!l_network) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "%s network not found", l_opts_sign[OPT_NET]);
@@ -6231,30 +6208,21 @@ static int s_signer_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str
     l_ret = s_get_key_from_file(l_opts_sign[OPT_FILE], l_opts_sign[OPT_MIME], l_opts_sign[OPT_CERT], &l_sign);
     if (!l_ret) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "%s cert not found", l_opts_sign[OPT_CERT]);
-        l_ret = -1;
-        goto end;
+        return -1;
     }
-
-
 
     l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_SIGNER, l_sign->pkey_n_sign, l_sign->header.sign_size);
     if (!l_datum) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "not created datum");
-        l_ret = -1;
-        goto end;
+        return -1;
     }
 
     l_ret = l_chain->callback_add_datums(l_chain, &l_datum, 1);
 
-    dap_hash_fast_t l_hash;
-    dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_hash);
-    char *l_key_str = dap_chain_hash_fast_to_str_new(&l_hash);
+    char *l_key_str;
+    dap_get_data_hash_str_static(l_datum->data, l_datum->header.data_size, l_key_str);
     dap_cli_server_cmd_set_reply_text(a_str_reply, "hash: %s", l_key_str);
-    DAP_FREE(l_key_str);
-end:
-
-    if (l_datum) DAP_FREE(l_datum);
-
+    DAP_DELETE(l_datum);
     return l_ret;
 }
 

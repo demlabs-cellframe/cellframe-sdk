@@ -712,14 +712,14 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_d
                 dap_hash_fast(a_datum, dap_chain_datum_size(a_datum), &l_datum_hash);
                 l_round_item->round_info.datum_hash = l_datum_hash;
                 dap_chain_cs_dag_event_calc_hash(l_event,l_event_size, &l_event_hash);
-                char * l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_hash);
+                char l_event_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                dap_chain_hash_fast_to_str(&l_event_hash, l_event_hash_str, sizeof(l_event_hash_str));
                 bool l_res = dap_chain_cs_dag_event_gdb_set(l_dag, l_event_hash_str, l_event, l_event_size, l_round_item);
                 DAP_DELETE(l_round_item);
                 if (l_res)
                     log_it(L_INFO, "Event %s placed in the new forming round", l_event_hash_str);
                 else
                     log_it(L_ERROR,"Can't add new event to the new events round");
-                DAP_DEL_Z(l_event_hash_str);
                 return l_res;
             }
         } else {
@@ -825,15 +825,13 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_
             dap_chain_hash_fast_t l_event_hash;
             dap_chain_cs_dag_event_calc_hash(l_event,a_atom_size, &l_event_hash);
             if ( memcmp( &l_event_hash, &l_dag->static_genesis_event_hash, sizeof(l_event_hash) ) != 0 ){
-                char * l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_hash);
-                char * l_genesis_event_hash_str = dap_chain_hash_fast_to_str_new(&l_dag->static_genesis_event_hash);
+                char l_event_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE], l_genesis_event_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                dap_chain_hash_fast_to_str(&l_event_hash, l_event_hash_str, sizeof(l_event_hash_str));
+                dap_chain_hash_fast_to_str(&l_dag->static_genesis_event_hash, l_genesis_event_hash_str, sizeof(l_genesis_event_hash_str));
                 log_it(L_WARNING, "Wrong genesis event %s (staticly predefined %s)",l_event_hash_str, l_genesis_event_hash_str);
-                DAP_DELETE(l_event_hash_str);
-                DAP_DELETE(l_genesis_event_hash_str);
                 return ATOM_REJECT;
             } else {
-                if (s_debug_more)
-                    log_it(L_INFO, "Accepting static genesis event");
+                debug_if(s_debug_more, L_INFO, "Accepting static genesis event");
                 return ATOM_ACCEPT;
             }
         }
@@ -851,11 +849,12 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_
             pthread_rwlock_rdlock(l_events_rwlock);
             HASH_FIND(hh, PVT(l_dag)->events ,l_hash ,sizeof (*l_hash),  l_event_search);
             pthread_rwlock_unlock(l_events_rwlock);
-            if ( l_event_search == NULL ){
-                char * l_hash_str = dap_chain_hash_fast_to_str_new(l_hash);
-                if(s_debug_more)
+            if (l_event_search == NULL) {
+                if(s_debug_more) {
+                    char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                    dap_chain_hash_fast_to_str(l_hash, l_hash_str, sizeof(l_hash_str));
                     log_it(L_WARNING, "Hash %s wasn't in hashtable of previously parsed", l_hash_str);
-                DAP_DELETE(l_hash_str);
+                }
                 res = ATOM_MOVE_TO_THRESHOLD;
                 break;
             }
@@ -1199,7 +1198,7 @@ static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_links( dap_chain_ato
                     char * l_link_hash_str = dap_chain_hash_fast_to_str_new(l_link_hash);
                     char * l_event_hash_str = l_event_item ? dap_chain_hash_fast_to_str_new(&l_event_item->hash) : NULL;
                     log_it(L_ERROR,"Can't find %s->%s links", l_event_hash_str ? l_event_hash_str : "[null]", l_link_hash_str);
-                    DAP_DELETE(l_event_hash_str);
+                    DAP_DEL_Z(l_event_hash_str);
                     DAP_DELETE(l_link_hash_str);
                     (*a_links_size_array)--;
                 }
@@ -1516,15 +1515,13 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                                                                                                   &l_datum_size, NULL, NULL );
                 l_datums[0] = l_datum;
                 if ( s_callback_add_datums(l_chain, l_datums, l_datums_count) == l_datums_count ){
-                    for ( size_t i = 0; i <l_datums_count; i++){
-                       dap_chain_hash_fast_t l_datum_hash;
-                       dap_hash_fast(l_datums[i]->data,l_datums[i]->header.data_size, &l_datum_hash);
-                       char * l_datums_datum_hash_str = dap_chain_hash_fast_to_str_new(&l_datum_hash);
+                    for ( size_t i = 0; i < l_datums_count; i++) {
+                        char *l_datums_datum_hash_str;
+                        dap_get_data_hash_str_static(l_datums[i]->data, l_datums[i]->header.data_size, l_datums_datum_hash_str);
                        if ( dap_global_db_del_sync(l_gdb_group_mempool, l_datums_datum_hash_str ) ==0 ){
                            dap_cli_server_cmd_set_reply_text(a_str_reply,
                                                              "Converted datum %s from mempool to event in the new forming round ",
                                                              l_datums_datum_hash_str);
-                           DAP_DELETE(l_datums_datum_hash_str);
                            ret = 0;
                        }else {
                            dap_cli_server_cmd_set_reply_text(a_str_reply,
