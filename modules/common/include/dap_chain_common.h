@@ -33,6 +33,7 @@
 #include "dap_sign.h"
 #include "dap_hash.h"
 #include <json-c/json.h>
+#include "dap_strfuncs.h"
 
 #define DAP_CHAIN_ADDR_VERSION_CURRENT 1
 
@@ -85,6 +86,24 @@ typedef union dap_chain_node_addr {
 #define NODE_ADDR_FP_ARGS_S(a)  a.words[3],a.words[2],a.words[1],a.words[0]
 #define NODE_ADDR_FPS_ARGS_S(a)  &a.words[3],&a.words[2],&a.words[1],&a.words[0]
 #endif
+
+DAP_STATIC_INLINE bool dap_chain_node_addr_str_check(const char *a_addr_str) {
+    size_t l_str_len = dap_strlen(a_addr_str);
+    if (l_str_len == 22) {
+        for (int n =0; n < 22; n+= 6) {
+            if (!dap_is_xdigit(a_addr_str[n]) || !dap_is_xdigit(a_addr_str[n + 1]) ||
+                !dap_is_xdigit(a_addr_str[n + 2]) || !dap_is_xdigit(a_addr_str[n + 3])) {
+                return false;
+            }
+        }
+        for (int n = 4; n < 18; n += 6) {
+            if (a_addr_str[n] != ':' || a_addr_str[n + 1] != ':')
+                return false;
+        }
+        return true;
+    }
+    return false;
+}
 
 DAP_STATIC_INLINE int dap_chain_node_addr_from_str(dap_chain_node_addr_t *a_addr, const char *a_addr_str)
 {
