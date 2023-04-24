@@ -33,6 +33,7 @@
 #include "dap_sign.h"
 #include "dap_hash.h"
 #include <json-c/json.h>
+#include "dap_strfuncs.h"
 
 #define DAP_CHAIN_ADDR_VERSION_CURRENT 1
 
@@ -86,16 +87,20 @@ typedef union dap_chain_node_addr {
 #define NODE_ADDR_FPS_ARGS_S(a)  &a.words[3],&a.words[2],&a.words[1],&a.words[0]
 #endif
 
+DAP_STATIC_INLINE bool dap_chain_node_addr_str_check(const char *a_addr_str) {
+    size_t l_str_len = dap_strlen(a_addr_str);
+    if (l_str_len == 22) {
+        for (size_t i = 0; i < l_str_len; i++) {
+            if (!dap_is_xdigit(a_addr_str[i]) && a_addr_str[i] != ':')
+                return false;
+        }
+        return true;
+    }
+    return false;
+}
+
 DAP_STATIC_INLINE int dap_chain_node_addr_from_str(dap_chain_node_addr_t *a_addr, const char *a_addr_str)
 {
-    for (size_t i = 0; i < strlen(a_addr_str); i++) {
-        char l_liter = a_addr_str[i];
-        if (l_liter != '0' && l_liter != '1' && l_liter != '2' && l_liter != '3' && l_liter != '4' && l_liter != '5' &&
-        l_liter != '6' && l_liter != '7' && l_liter != '8' && l_liter != '9' && l_liter != 'A' && l_liter != 'B' &&
-        l_liter != 'C' && l_liter != 'D' && l_liter != 'E' && l_liter != 'F' && l_liter != ':') {
-            return -2;
-        }
-    }
     if (sscanf(a_addr_str, NODE_ADDR_FP_STR, NODE_ADDR_FPS_ARGS(a_addr)) == 4)
         return 0;
     if (sscanf(a_addr_str, "0x%016"DAP_UINT64_FORMAT_x, &a_addr->uint64) == 1)
