@@ -1395,14 +1395,18 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_netst);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-tx", &str_tx_hash);
             l_net = dap_chain_net_by_name(l_netst);
+            if (!l_net) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_netst);
+                return -1;
+            }
 
             if (!str_tx_hash) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command check requires parameter -tx");
-                return -1;
+                return -2;
             }
             if (dap_chain_hash_fast_from_str(str_tx_hash, &l_tx)){
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't get hash_fast from %s", str_tx_hash);
-                return -2;
+                return -3;
             }
 
             dap_chain_net_srv_stake_check_validator(l_net, &l_tx, 7000, 10000, a_str_reply);
