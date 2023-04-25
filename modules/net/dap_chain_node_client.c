@@ -737,7 +737,12 @@ bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const
         log_it(L_WARNING, "Undefined address with node client connect to");
         return false;
     }
-    dap_client_set_uplink_unsafe(a_node_client->client, l_host_addr, a_node_client->info->hdr.ext_port);
+    int ret_code = 0;
+    if ((ret_code = dap_client_set_uplink_unsafe(a_node_client->client, l_host_addr, a_node_client->info->hdr.ext_port)) != 0)
+    {
+        log_it(L_ERROR, "dap_client_set_uplink_unsafe has returned non zero error code (%d)", ret_code);
+        return false;
+    }
     a_node_client->state = NODE_CLIENT_STATE_CONNECTING;
     // Handshake & connect
     dap_client_go_stage(a_node_client->client, STAGE_STREAM_STREAMING, s_stage_connected_callback);
