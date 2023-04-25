@@ -1251,20 +1251,17 @@ void dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net,
         bool ch_key = false;
         if(validators_data->header.sign_size){
             l_sign = (dap_sign_t*)(l_node_client->callbacks_arg + sizeof(dap_stream_ch_chain_rnd_t));
-            int l_item_count = 0;
-            dap_list_t *l_pkey_list = dap_chain_datum_tx_items_get(l_tx,TX_ITEM_TYPE_PKEY, &l_item_count);
-            if(!l_pkey_list)
+            char *l_pkey_hash_str = dap_chain_hash_fast_to_str_new(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr.data.hash_fast);
+
+            if(!l_pkey_hash_str)
             {
                 log_it(L_WARNING, "The requested conditional transaction does not have a signature in the public key");
             }
             else
             {
-                l_pkey = (dap_pkey_t*)((dap_chain_tx_pkey_t*)l_pkey_list->data)->pkey;
+                ch_key = (memcmp(l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr.data.hash_fast.raw, l_sign->pkey_n_sign, DAP_CHAIN_HASH_FAST_SIZE)==0)
+                        ? false : true;
             }
-            if(l_pkey){
-                 ch_key =  dap_pkey_compare_with_sign(l_pkey,l_sign);
-            }
-            dap_list_free_full(l_pkey_list, NULL);
         }
         dap_cli_server_cmd_set_reply_text(a_str_reply,                                          
                                           "-------------------------------------------------\n"
