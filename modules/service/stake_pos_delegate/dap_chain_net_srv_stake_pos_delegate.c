@@ -1260,7 +1260,7 @@ void dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net,
             else
             {
                 ch_key = (memcmp(l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr.data.hash_fast.raw, l_sign->pkey_n_sign, DAP_CHAIN_HASH_FAST_SIZE)==0)
-                        ? false : true;
+                        ? true : false;
             }
         }
         dap_cli_server_cmd_set_reply_text(a_str_reply,                                          
