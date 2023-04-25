@@ -366,7 +366,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         strncpy(send->header.version,(char *)DAP_VERSION,sizeof(DAP_VERSION));
 #endif
                         send->header.sign_size = sign_s;
-                        strncpy(send->header.data,(uint8_t*)l_ch_chain_net_pkt->data,10);
+                        //strncpy(send->header.data,(uint8_t*)l_ch_chain_net_pkt->data,10);
                         flags = (l_net->pub.mempool_autoproc) ? flags | A_PROC : flags & ~A_PROC;
 
                         dap_chain_net_srv_order_find_all_by(l_net,SERV_DIR_UNDEFINED,l_uid,
@@ -375,13 +375,11 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         bool auto_online = dap_config_get_item_bool_default( g_config, "general", "auto_online", true );
                         bool auto_update = dap_config_get_item_bool_default( g_config, "general", "auto_update", true );
                         flags = auto_online ? flags | A_ONLN : flags & ~A_ONLN;
-                        flags - auto_update ? flags | A_UPDT : flags & ~A_UPDT;
-
+                        flags = auto_update ? flags | A_UPDT : flags & ~A_UPDT;
                         send->header.flags = flags;
                         //add sign
                         if(sign_s)
                             memcpy(send->sign,l_sign,sign_s);
-
                         dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY ,
                                                          l_ch_chain_net_pkt->hdr.net_id, send, sizeof(dap_stream_ch_chain_rnd_t)+sign_s);
                         dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
@@ -389,7 +387,6 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                             DAP_DELETE(l_sign);
                         DAP_DELETE(send);
                     }
-
                 }break;
                 case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY:{
                     log_it(L_INFO, "Get CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY");
