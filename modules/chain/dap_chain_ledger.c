@@ -1840,6 +1840,58 @@ dap_list_t* dap_chain_ledger_token_decl_all(dap_ledger_t *a_ledger)
     return l_ret;
 }
 
+//returns -1 if no ticker found
+size_t dap_chain_ledger_token_auth_signs_valid(dap_ledger_t *a_ledger, const char * a_token_ticker)
+{
+    dap_chain_ledger_token_item_t *l_token_item, *l_tmp_item;
+    pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
+    size_t l_res = -1;
+    
+    HASH_ITER(hh, PVT(a_ledger)->tokens, l_token_item, l_tmp_item) {
+        if (!dap_strcmp(l_token_item->ticker, a_token_ticker))
+            l_res = l_token_item->auth_signs_valid;
+    }
+
+    pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
+    
+    return l_res;
+}
+
+size_t dap_chain_ledger_token_auth_signs_total(dap_ledger_t *a_ledger, const char * a_token_ticker)
+{
+    dap_chain_ledger_token_item_t *l_token_item, *l_tmp_item;
+    pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
+    size_t l_res = -1;
+    
+    HASH_ITER(hh, PVT(a_ledger)->tokens, l_token_item, l_tmp_item) {
+        if (!dap_strcmp(l_token_item->ticker, a_token_ticker))
+            l_res = l_token_item->auth_signs_total;
+    }
+
+    pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
+    
+    return l_res;
+}
+
+dap_list_t * dap_chain_ledger_token_auth_signs_hashes(dap_ledger_t *a_ledger, const char * a_token_ticker)
+{
+    dap_list_t * l_ret = NULL;
+    dap_chain_ledger_token_item_t *l_token_item, *l_tmp_item;
+    pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
+    
+    HASH_ITER(hh, PVT(a_ledger)->tokens, l_token_item, l_tmp_item) {
+        if (!dap_strcmp(l_token_item->ticker, a_token_ticker))
+        {
+            for (uint16_t i=0; i< l_token_item->auth_signs_total; i++) {
+                dap_list_append(l_ret,  &l_token_item->auth_pkeys_hash[i]);
+            }
+        }
+    }
+
+    pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
+    
+    return l_ret;
+}
 
 /**
  * @brief s_threshold_emissions_proc
