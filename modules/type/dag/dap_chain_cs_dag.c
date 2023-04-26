@@ -1675,7 +1675,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     dap_string_append_printf(l_str_tmp,"\nEvent %s:\n", l_event_hash_str);
 
                     // Round info
-                    if ( strcmp(l_from_events_str,"round.new") == 0 ){
+                    if (l_from_events_str && strcmp(l_from_events_str,"round.new") == 0) {
                         dap_string_append_printf(l_str_tmp,
                             "\tRound info:\n\t\tsigns reject: %d\n",
                             l_round_item->round_info.reject_count);

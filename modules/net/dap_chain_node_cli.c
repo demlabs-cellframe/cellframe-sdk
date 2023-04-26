@@ -322,6 +322,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "decree create service -net <net_name> [-chain <chain_name>] -decree_chain <chain_name> -srv_id <service_id> -certs <certs list> -<Subtype param name> <Subtype param Value>\n"
             "decree sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs_list>\n"
             "decree anchor -net <net_name> -chain <chain_name> -datum <datum_hash> -certs <certs_list>\n"
+            "decree find -net <net_name> -hash <decree_hash>. Find decree by hash and show it's status (apllied or not)"
             "==Subtype Params==\n"
             "\t -fee <value>: sets fee for tx in net\n"
             "\t -to_addr <wallet_addr>: sets wallet addr for network fee\n"

@@ -1200,7 +1200,7 @@ static dap_chain_datum_anchor_t * s_sign_anchor_in_cycle(dap_cert_t ** a_certs, 
 // Decree commands handlers
 int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
 {
-    enum { CMD_NONE=0, CMD_CREATE, CMD_SIGN, CMD_ANCHOR };
+    enum { CMD_NONE=0, CMD_CREATE, CMD_SIGN, CMD_ANCHOR, CMD_FIND };
     enum { TYPE_NONE=0, TYPE_COMMON, TYPE_SERVICE};
     enum { SUBTYPE_NONE=0, SUBTYPE_FEE, SUBTYPE_OWNERS, SUBTYPE_MIN_OWNERS};
     int arg_index = 1;
@@ -1242,15 +1242,19 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
     else if (dap_cli_server_cmd_find_option_val(a_argv, 1, 2, "sign", NULL))
         l_cmd = CMD_SIGN;
     else if (dap_cli_server_cmd_find_option_val(a_argv, 1, 2, "anchor", NULL))
-            l_cmd = CMD_ANCHOR;
+        l_cmd = CMD_ANCHOR;
+    else if (dap_cli_server_cmd_find_option_val(a_argv, 1, 2, "find", NULL))
+        l_cmd = CMD_FIND;
 
-    // Public certifiacte of condition owner
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-certs", &l_certs_str);
-    if (!l_certs_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "decree create requires parameter '-certs'");
-        return -106;
+    if (l_cmd != CMD_FIND) {
+        // Public certifiacte of condition owner
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-certs", &l_certs_str);
+        if (!l_certs_str) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "decree create requires parameter '-certs'");
+            return -106;
+        }
+        dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
     }
-    dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
 
     switch (l_cmd)
     {
@@ -1482,7 +1486,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
     case CMD_SIGN:{
         if(!l_certs_count) {
             dap_cli_server_cmd_set_reply_text(a_str_reply,
-                    "decree sign command requres at least one valid certificate to sign the basic transaction of emission");
+                    "decree sign command requres at least one valid certificate to sign");
             return -106;
         }
 
@@ -1673,8 +1677,26 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                                           l_key_str_out ? "" : " not");
         break;
     }
+    case CMD_FIND: {
+        const char *l_hash_str = NULL;
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_hash_str);
+        if (!l_hash_str) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'decree find' requiers parameter '-hash'");
+            return -110;
+        }
+        dap_hash_fast_t l_datum_hash;
+        if (dap_chain_hash_fast_from_hex_str(l_hash_str, &l_datum_hash) &&
+                dap_chain_hash_fast_from_base58_str(l_hash_str, &l_datum_hash)) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't convert '-hash' parameter to numeric value");
+            return -111;
+        }
+        bool l_applied = false;
+        dap_chain_datum_decree_t *l_decree = dap_chain_net_decree_get_by_hash(&l_datum_hash, &l_applied);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified decree is %s in decrees hash-table",
+                                          l_decree ? (l_applied ? "apllied" : "not applied") : "not found");
+    } break;
     default:
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Not found decree action. Use create, sign or anchor parametr");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Not found decree action. Use create, sign, anchor or find parameter");
         return -1;
     }
 
