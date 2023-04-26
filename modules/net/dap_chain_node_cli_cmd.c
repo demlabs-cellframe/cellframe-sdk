@@ -6322,6 +6322,13 @@ dap_list_t *s_go_all_nets_offline()
     return l_net_returns;
 }
 
+typedef struct _pvt_net_aliases_list{
+    dap_chain_net_t *net;
+    dap_global_db_obj_t *group_aliases;
+    size_t count_aliases;
+    dap_global_db_obj_t *group_nodes;
+    size_t count_nodes;
+}_pvt_net_aliases_list_t;
 int cmd_remove(int argc, char ** argv, char ** a_str_reply)
 {
     //default init
@@ -6366,8 +6373,35 @@ int cmd_remove(int argc, char ** argv, char ** a_str_reply)
         l_net_returns = s_go_all_nets_offline();
         char *l_gdb_rm_path = dap_strdup_printf("%s/gdb-%s", l_gdb_path,
                                                 dap_config_get_item_str_default(g_config, "resources", "global_db_driver", "mdbx"));
+        uint16_t l_net_count;
+        dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
+        dap_list_t *l_gdb_aliases_list = NULL;
+        for (uint16_t i = 0; i < l_net_count; i++) {
+            size_t l_aliases_count = 0;
+            _pvt_net_aliases_list_t *l_gdb_groups = DAP_NEW(_pvt_net_aliases_list_t);
+            l_gdb_groups->net = l_net_list[i];
+            l_gdb_groups->group_aliases = dap_chain_global_db_gr_load(l_gdb_groups->net->pub.gdb_nodes_aliases, &l_gdb_groups->count_aliases);
+            l_gdb_groups->group_nodes = dap_chain_global_db_gr_load(l_gdb_groups->net->pub.gdb_nodes, &l_gdb_groups->count_nodes);
+            l_gdb_aliases_list = dap_list_append(l_gdb_aliases_list, l_gdb_groups);
+        }
+        dap_chain_global_db_deinit();
         dap_rm_rf(l_gdb_rm_path);
         DAP_DELETE(l_gdb_rm_path);
+        dap_chain_global_db_init(g_config);
+        for (dap_list_t *ptr = l_gdb_aliases_list; ptr; ptr = dap_list_next(ptr)) {
+            _pvt_net_aliases_list_t *l_tmp = (_pvt_net_aliases_list_t*)ptr->data;
+            for (size_t i = 0; i < l_tmp->count_aliases; i++) {
+                dap_global_db_obj_t l_obj = l_tmp->group_aliases[i];
+                dap_chain_global_db_gr_set(l_obj.key, l_obj.value, l_obj.value_len, l_tmp->net->pub.gdb_nodes_aliases);
+            }
+            dap_chain_global_db_objs_delete(l_tmp->group_aliases, l_tmp->count_aliases);
+            for (size_t i = 0; i < l_tmp->count_nodes; i++) {
+                dap_global_db_obj_t l_obj = l_tmp->group_nodes[i];
+                dap_chain_global_db_gr_set(l_obj.key, l_obj.value, l_obj.value_len, l_tmp->net->pub.gdb_nodes);
+            }
+            dap_chain_global_db_objs_delete(l_tmp->group_nodes, l_tmp->count_nodes);
+        }
+        dap_list_free_full(l_gdb_aliases_list, NULL);
         if (!error)
             successful |= REMOVED_GDB;
     }
@@ -6382,10 +6416,19 @@ int cmd_remove(int argc, char ** argv, char ** a_str_reply)
             uint16_t l_net_count;
             dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
             for (uint16_t i = 0; i < l_net_count; i++) {
+                dap_chain_ledger_purge(l_net_list[i]->pub.ledger, false);
+                dap_chain_t *l_chain = NULL;
+                DL_FOREACH(l_net_list[i]->pub.chains, l_chain) {
+                    if (l_chain->callback_purge)
+                        l_chain->callback_purge(l_chain);
+                }
                 char *l_chains_rm_path = dap_strdup_printf("%s/%s", l_chains_path,
                                                            l_net_list[i]->pub.gdb_groups_prefix);
                 dap_rm_rf(l_chains_rm_path);
                 DAP_DELETE(l_chains_rm_path);
+                DL_FOREACH(l_net_list[i]->pub.chains, l_chain) {
+                    dap_chain_load_all(l_chain);
+                }
             }
             if (!error)
                 successful |= REMOVED_CHAINS;
@@ -6398,9 +6441,18 @@ int cmd_remove(int argc, char ** argv, char ** a_str_reply)
                 error |= NET_NOT_VALID;
             }
             sleep(1);
+            dap_chain_t *l_chain = NULL;
+            dap_chain_ledger_purge(l_net->pub.ledger, false);
+            DL_FOREACH(l_net->pub.chains, l_chain) {
+                if (l_chain->callback_purge)
+                    l_chain->callback_purge(l_chain);
+            }
             char *l_chains_rm_path = dap_strdup_printf("%s/%s", l_chains_path, l_net->pub.gdb_groups_prefix);
             dap_rm_rf(l_chains_rm_path);
             DAP_DELETE(l_chains_rm_path);
+            DL_FOREACH(l_net->pub.chains, l_chain) {
+                dap_chain_load_all(l_chain);
+            }
             if (!error)
                 successful |= REMOVED_CHAINS;
 
