@@ -5190,7 +5190,7 @@ int com_tx_verify(int a_argc, char **a_argv, char **a_str_reply)
     }
     dap_hash_fast_t l_tx_hash;
     char *l_hex_str_from58 = NULL;
-    if ( (l_tx_hash_str, &l_tx_hash)) {
+    if (dap_chain_hash_fast_from_hex_str(l_tx_hash_str, &l_tx_hash)) {
         l_hex_str_from58 = dap_enc_base58_to_hex_str_from_str(l_tx_hash_str);
         if (dap_chain_hash_fast_from_hex_str(l_hex_str_from58, &l_tx_hash)) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Invalid tx hash format, need hex or base58");
