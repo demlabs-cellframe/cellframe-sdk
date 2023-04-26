@@ -1848,8 +1848,10 @@ size_t dap_chain_ledger_token_auth_signs_valid(dap_ledger_t *a_ledger, const cha
     size_t l_res = -1;
     
     HASH_ITER(hh, PVT(a_ledger)->tokens, l_token_item, l_tmp_item) {
-        if (!dap_strcmp(l_token_item->ticker, a_token_ticker))
+        if (!dap_strcmp(l_token_item->ticker, a_token_ticker)) {
             l_res = l_token_item->auth_signs_valid;
+            break;
+        }
     }
 
     pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
@@ -1864,8 +1866,10 @@ size_t dap_chain_ledger_token_auth_signs_total(dap_ledger_t *a_ledger, const cha
     size_t l_res = -1;
     
     HASH_ITER(hh, PVT(a_ledger)->tokens, l_token_item, l_tmp_item) {
-        if (!dap_strcmp(l_token_item->ticker, a_token_ticker))
+        if (!dap_strcmp(l_token_item->ticker, a_token_ticker)) {
             l_res = l_token_item->auth_signs_total;
+            break;
+        }
     }
 
     pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
@@ -1882,9 +1886,11 @@ dap_list_t * dap_chain_ledger_token_auth_signs_hashes(dap_ledger_t *a_ledger, co
     HASH_ITER(hh, PVT(a_ledger)->tokens, l_token_item, l_tmp_item) {
         if (!dap_strcmp(l_token_item->ticker, a_token_ticker))
         {
+            debug_if(s_debug_more, L_INFO, " ! Token %s : total %lu auth signs", a_token_ticker, l_token_item->auth_signs_total);
             for (uint16_t i=0; i< l_token_item->auth_signs_total; i++) {
-                dap_list_append(l_ret,  &l_token_item->auth_pkeys_hash[i]);
+                l_ret = dap_list_append(l_ret, (dap_chain_hash_fast_t*)(&l_token_item->auth_pkeys_hash[i]));
             }
+            break;
         }
     }
 
