@@ -617,7 +617,8 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
     const char *l_addr_base58 = NULL;
     const char *l_wallet_name = NULL;
     const char *l_net_str = NULL;
-    const char *l_tx_hash_str = NULL;    
+    const char *l_chain_str = NULL;
+    const char *l_tx_hash_str = NULL;
 
     dap_chain_t * l_chain = NULL;
     dap_chain_net_t * l_net = NULL;

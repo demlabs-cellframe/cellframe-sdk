@@ -41,6 +41,26 @@ typedef struct dap_stream_ch_chain_net {
     void *notify_callback_arg;
 } dap_stream_ch_chain_net_t;
 
+typedef struct dap_stream_ch_chain_rnd{
+    struct{
+        /// node Version
+        uint8_t version[32];
+        /// autoproc status
+        uint8_t flags;//0 bit -autoproc; 1 bit - find order; 2 bit - auto online; 3 bit - auto update; 6 bit - data sign; 7 bit - find cert;
+        uint32_t sign_size;
+        //uint8_t data[10];
+    }DAP_ALIGN_PACKED header;
+    byte_t sign[];
+} DAP_ALIGN_PACKED dap_stream_ch_chain_rnd_t;
+
+#define A_PROC 0x01
+#define F_ORDR 0x02
+#define A_ONLN 0x04
+#define A_UPDT 0x08
+#define D_SIGN 0x40
+#define F_CERT 0x80
+
+
 #define DAP_STREAM_CH_CHAIN_NET(a) ((dap_stream_ch_chain_net_t *) ((a)->internal) )
 
 uint8_t dap_stream_ch_chain_net_get_id();

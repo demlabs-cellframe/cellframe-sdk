@@ -48,6 +48,7 @@ typedef enum dap_chain_node_client_state {
     NODE_CLIENT_STATE_SYNC_CHAINS_RVRS = 112,
     NODE_CLIENT_STATE_SYNCED = 120,
     NODE_CLIENT_STATE_CHECKED = 130,
+    NODE_CLIENT_STATE_VALID_READY = 140,
 } dap_chain_node_client_state_t;
 
 typedef enum dap_chain_node_sync_status {
