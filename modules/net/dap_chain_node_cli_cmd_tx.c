@@ -1693,7 +1693,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
         bool l_applied = false;
         dap_chain_datum_decree_t *l_decree = dap_chain_net_decree_get_by_hash(&l_datum_hash, &l_applied);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified decree is %s in decrees hash-table",
-                                          l_decree ? (l_applied ? "apllied" : "not applied") : "not found");
+                                          l_decree ? (l_applied ? "applied" : "not applied") : "not found");
     } break;
     default:
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Not found decree action. Use create, sign, anchor or find parameter");
