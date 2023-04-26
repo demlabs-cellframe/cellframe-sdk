@@ -333,7 +333,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         dap_enc_key_t * enc_key_pvt = NULL;
                         dap_chain_t *l_chain = NULL;
                         DL_FOREACH(l_net->pub.chains, l_chain)
-                               if(enc_key_pvt = l_chain->callback_get_signing_certificate(l_chain))
+                               if((enc_key_pvt = l_chain->callback_get_signing_certificate(l_chain)))
                                     break;
                         dap_sign_t *l_sign = NULL;
                         size_t sign_s = 0;
@@ -363,7 +363,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
                         send = DAP_NEW_Z_SIZE(dap_stream_ch_chain_rnd_t,sizeof(dap_stream_ch_chain_rnd_t)+sign_s);
 #ifdef DAP_VERSION
-                        strncpy(send->header.version,(char *)DAP_VERSION,sizeof(DAP_VERSION));
+                        strncpy((char *)send->header.version, (char *)DAP_VERSION, sizeof(send->header.version));
 #endif
                         send->header.sign_size = sign_s;
                         //strncpy(send->header.data,(uint8_t*)l_ch_chain_net_pkt->data,10);
