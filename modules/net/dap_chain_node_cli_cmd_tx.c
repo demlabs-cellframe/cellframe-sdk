@@ -975,6 +975,9 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
     }
     // command tx history
     else if(l_cmd == CMD_TX) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "The cellframe-node-cli token tx command is deprecated and no longer supported.\n");
+        return 0;
+#if 0
         enum { SUBCMD_TX_NONE, SUBCMD_TX_ALL, SUBCMD_TX_ADDR };
         // find subcommand
         int l_subcmd = CMD_NONE;
@@ -1016,7 +1019,7 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
                 l_page = 1;
         }
 
-         // tx all
+        // tx all
         if(l_subcmd == SUBCMD_TX_ALL) {
             dap_string_t *l_str_out = dap_string_new(NULL);
             // get first chain
@@ -1028,7 +1031,7 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
                     long l_chain_datum = l_cur_datum;
                     dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(l_net_str);
                     char *l_datum_list_str = dap_db_history_filter(l_chain_cur, l_ledger, l_token_name_str, NULL,
-                            l_hash_out_type, l_page_start * l_page_size, (l_page_start+l_page)*l_page_size, &l_chain_datum, l_list_tx_hash_processd);
+                                                                   l_hash_out_type, l_page_start * l_page_size, (l_page_start+l_page)*l_page_size, &l_chain_datum, l_list_tx_hash_processd);
                     if(l_datum_list_str) {
                         l_cur_datum += l_chain_datum;
                         dap_string_append_printf(l_str_out, "Chain: %s\n", l_chain_cur->name);
@@ -1046,7 +1049,7 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
             dap_string_free(l_str_out, true);
             return 0;
         }
-        // tx -addr or tx -wallet
+            // tx -addr or tx -wallet
         else if(l_subcmd == SUBCMD_TX_ADDR) {
             // parse addr from -addr <addr> or -wallet <wallet>
             dap_chain_addr_t *l_addr_base58 = NULL;
@@ -1059,7 +1062,7 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
                 dap_chain_wallet_t * l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
                 if(l_wallet) {
                     dap_chain_addr_t *l_addr_tmp = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet,
-                            l_net->pub.id);
+                                                                                                  l_net->pub.id);
                     l_addr_base58 = DAP_NEW_SIZE(dap_chain_addr_t, sizeof(dap_chain_addr_t));
                     memcpy(l_addr_base58, l_addr_tmp, sizeof(dap_chain_addr_t));
                     dap_chain_wallet_close(l_wallet);
@@ -1107,7 +1110,7 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
             dap_cli_server_cmd_set_reply_text(a_str_reply, "not found parameter '-all', '-wallet' or '-addr'");
             return -1;
         }
-        return 0;
+#endif
     }
 
     dap_cli_server_cmd_set_reply_text(a_str_reply, "unknown command code %d", l_cmd);
