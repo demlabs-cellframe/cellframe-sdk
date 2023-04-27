@@ -3772,7 +3772,6 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
             }
             if (l_params->ext.total_signs_valid){ // Signs valid
                 uint16_t l_param_value = (uint16_t)atoi(l_params->ext.total_signs_valid);
-                l_signs_total = l_param_value;
                 dap_tsd_t * l_tsd = dap_tsd_create_scalar(
                         DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID, l_param_value);
                 l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
