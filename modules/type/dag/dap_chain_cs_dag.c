@@ -164,6 +164,8 @@ int dap_chain_cs_dag_init(void)
             "\tShow event list \n\n"
         "dag round complete -net <net_name> -chain <chain_name> \n"
                                         "\tComplete the current new round, verify it and if everything is ok - publish new events in chain\n"
+        "dag round find -net <net_name> -chain <chain_name> -datum <datum_hash> \n"
+            "\tSearches for rounds that have events that contain the specified datum.\n\n"
                                         );
     log_it(L_NOTICE,"Initialized DAG chain items organization class");
     return 0;
@@ -1451,6 +1453,61 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
 
             // Spread new  mempool changes and  dag events in network - going to SYNC_ALL
             // dap_chain_net_sync_all(l_net);
+        }
+        if (strcmp(l_round_cmd_str, "find") == 0) {
+            dap_cli_server_cmd_find_option_val(argv, arg_index, arg_index + 2, "-datum", &l_datum_hash_str);
+            char *l_datum_in_hash = NULL;
+            if (l_datum_hash_str) {
+                if(!dap_strncmp(l_datum_hash_str, "0x", 2) || !dap_strncmp(l_datum_hash_str, "0X", 2)) {
+                    l_datum_in_hash = dap_strdup(l_datum_hash_str);
+                } else {
+                    l_datum_in_hash = dap_enc_base58_to_hex_str_from_str(l_datum_hash_str);
+                }
+            } else {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "The -datum option was not specified, so "
+                                                               "no datum is known to look for in rounds.\n");
+                return 0;
+            }
+            dap_hash_fast_t l_datum_hash = {0};
+            dap_chain_hash_fast_from_str(l_datum_in_hash, &l_datum_hash);
+            if (dap_hash_fast_is_blank(&l_datum_hash)) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "The -datum parameter is not a valid hash.\n");
+                return 0;
+            }
+            size_t l_objs_size = 0;
+            dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_dag->gdb_group_events_round_new, &l_objs_size);
+            size_t l_search_events = 0;
+            dap_string_t *l_events_str = dap_string_new("Events: \n");
+            for (size_t i = 0; i < l_objs_size;i++) {
+                dap_chain_cs_dag_event_round_item_t *l_round_item = (dap_chain_cs_dag_event_round_item_t *)l_objs[i].value;
+                dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t *)l_round_item->event_n_signs;
+                size_t l_event_size = l_round_item->event_size;
+                dap_hash_fast_t ll_event_hash = {0};
+                dap_hash_fast(l_event, l_event_size, &ll_event_hash);
+                char *ll_event_hash_str = dap_hash_fast_to_str_new(&ll_event_hash);
+                for (size_t j = 0; j < l_event->header.hash_count; j++) {
+                    dap_chain_hash_fast_t * l_hash = (dap_chain_hash_fast_t *) (l_event->hashes_n_datum_n_signs +
+                                                                                i*sizeof (dap_chain_hash_fast_t));
+                    if (dap_hash_fast_compare(l_hash, &l_datum_hash)) {
+                        l_search_events++;
+                        dap_string_append_printf(l_events_str,
+                                                 "\t%zu) hash:%s cell_id:%zu\n", l_search_events, ll_event_hash_str,
+                                                 l_event->header.cell_id.uint64);
+                    }
+                }
+                DAP_DELETE(ll_event_hash_str);
+            }
+            dap_global_db_objs_delete(l_objs, l_objs_size);
+            DAP_DELETE(l_datum_in_hash);
+            if (l_search_events > 0) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                                  "Datum with hash %s found in %zu events:\n%s\n", l_datum_hash_str,
+                                                  l_search_events, l_events_str->str);
+            } else {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum hash %s not found in round event.\n", l_datum_hash_str);
+            }
+            dap_string_free(l_events_str, true);
+            return 0;
         }
     }else if ( l_event_cmd_str  ) {
         char *l_datum_hash_hex_str = NULL;
