@@ -127,27 +127,22 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
     dap_chain_datum_tx_t *l_tx = a_chain->callback_tx_find_by_hash(a_chain, a_tx_hash, &l_atom_hash);
 
     if (l_tx) {
-        char *l_atom_hash_str;
-        if (!dap_strcmp(a_hash_out_type, "hex"))
-            l_atom_hash_str = dap_chain_hash_fast_to_str_new(&l_atom_hash);
-        else
-            l_atom_hash_str = dap_enc_base58_encode_hash_to_str(&l_atom_hash);
+        char *l_atom_hash_str = dap_strcmp(a_hash_out_type, "hex")
+                ? dap_enc_base58_encode_hash_to_str(&l_atom_hash)
+                : dap_chain_hash_fast_to_str_new(&l_atom_hash);
         const char *l_tx_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_chain->ledger, a_tx_hash);
         dap_string_append_printf(l_str_out, "%s TX with atom %s\n", l_tx_token_ticker ? "ACCEPTED" : "DECLINED",
                                                                     l_atom_hash_str);
         DAP_DELETE(l_atom_hash_str);
         dap_chain_datum_dump_tx(l_tx, l_tx_token_ticker, l_str_out, a_hash_out_type, a_tx_hash);
     } else {
-        char *l_tx_hash_str;
-        if (!dap_strcmp(a_hash_out_type, "hex"))
-            l_tx_hash_str = dap_chain_hash_fast_to_str_new(a_tx_hash);
-        else
-            l_tx_hash_str = dap_enc_base58_encode_hash_to_str(a_tx_hash);
+        char *l_tx_hash_str = dap_strcmp(a_hash_out_type, "hex")
+                ? dap_enc_base58_encode_hash_to_str(a_tx_hash)
+                : dap_chain_hash_fast_to_str_new(a_tx_hash);
         dap_string_append_printf(l_str_out, "TX hash %s not founds in chains", l_tx_hash_str);
         DAP_DELETE(l_tx_hash_str);
     }
-    char *l_ret_str = l_str_out ? dap_string_free(l_str_out, false) : NULL;
-    return l_ret_str;
+    return l_str_out ? dap_string_free(l_str_out, false) : NULL;
 }
 
 static void s_tx_header_print(dap_string_t *a_str_out, dap_chain_tx_hash_processed_ht_t *a_tx_data_ht,
@@ -395,14 +390,13 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
         // go to next atom (event or block)
         l_atom = a_chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size);
     }
-
+    a_chain->callback_atom_iter_delete(l_atom_iter);
     // delete hashes
     s_dap_chain_tx_hash_processed_ht_free(l_tx_data_ht);
     // if no history
     if(!l_str_out->len)
         dap_string_append(l_str_out, "\tempty");
-    char *l_ret_str = l_str_out ? dap_string_free(l_str_out, false) : NULL;
-    return l_ret_str;
+    return l_str_out ? dap_string_free(l_str_out, false) : NULL;
 }
 
 /**

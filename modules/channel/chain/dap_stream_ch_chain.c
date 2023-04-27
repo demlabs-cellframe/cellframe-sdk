@@ -1877,9 +1877,9 @@ void s_stream_ch_packet_out(dap_stream_ch_t *a_ch, void *a_arg)
                     l_hash_item = DAP_NEW_Z(dap_stream_ch_chain_hash_item_t);
                     l_hash_item->hash = *l_ch_chain->request_atom_iter->cur_hash;
                     if(s_debug_more){
-                        char *l_atom_hash_str= dap_chain_hash_fast_to_str_new(&l_hash_item->hash);
+                        char l_atom_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                        dap_chain_hash_fast_to_str(&l_hash_item->hash, l_atom_hash_str, sizeof(l_atom_hash_str));
                         log_it(L_INFO, "Out CHAIN pkt: atom hash %s (size %zd) ", l_atom_hash_str, l_ch_chain->request_atom_iter->cur_size);
-                        DAP_DELETE(l_atom_hash_str);
                     }
                     s_stream_ch_chain_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN, l_ch_chain->request_hdr.net_id.uint64,
                                                          l_ch_chain->request_hdr.chain_id.uint64, l_ch_chain->request_hdr.cell_id.uint64,
