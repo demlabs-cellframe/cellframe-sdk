@@ -686,18 +686,18 @@ bool dap_chain_get_atom_last_hash(dap_chain_t *a_chain, dap_hash_fast_t *a_atom_
     bool l_ret = false;
     dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain, a_cel_id, 0);
     dap_chain_atom_ptr_t * l_lasts_atom;
-    size_t l_lasts_atom_count=0;
-    size_t* l_lasts_atom_size =NULL;
-    l_lasts_atom = a_chain->callback_atom_iter_get_lasts(l_atom_iter, &l_lasts_atom_count,&l_lasts_atom_size);
-    if (l_lasts_atom&& l_lasts_atom_count){
+    size_t l_lasts_atom_count = 0;
+    size_t* l_lasts_atom_size = NULL;
+    l_lasts_atom = a_chain->callback_atom_iter_get_lasts(l_atom_iter, &l_lasts_atom_count, &l_lasts_atom_size);
+    if (l_lasts_atom && l_lasts_atom_count) {
         assert(l_lasts_atom_size[0]);
         assert(l_lasts_atom[0]);
         if(a_atom_hash){
-            dap_hash_fast(l_lasts_atom[0], l_lasts_atom_size[0],a_atom_hash);
-            if(dap_log_level_get() <= L_DEBUG){
-                char l_hash_str[128]={[0]='\0'};
-                dap_chain_hash_fast_to_str(a_atom_hash,l_hash_str,sizeof (l_hash_str)-1);
-                log_it(L_DEBUG,"Send sync chain request from %s to infinity",l_hash_str);
+            dap_hash_fast(l_lasts_atom[0], l_lasts_atom_size[0], a_atom_hash);
+            if(dap_log_level_get() <= L_DEBUG) {
+                char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                dap_chain_hash_fast_to_str(a_atom_hash, l_hash_str, sizeof(l_hash_str));
+                log_it(L_DEBUG, "Send sync chain request from %s to infinity",l_hash_str);
             }
         }
         l_ret = true;
@@ -750,11 +750,10 @@ int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name)
     }
     const char *cert_name = cert->name;
     size_t cert_path_length = dap_strlen(net_name) + dap_strlen(cert_name) + 9 + dap_strlen(s_system_chain_ca_dir);
-    char *cert_path = DAP_NEW_Z_SIZE(char, cert_path_length);
+    char *cert_path = DAP_NEW_STACK_SIZE(char, cert_path_length);
     snprintf(cert_path, cert_path_length, "%s/%s/%s.dcert", s_system_chain_ca_dir, net_name, cert_name);
     // In cert_path resolve all `..` and `.`s
     char *cert_path_c = dap_canonicalize_filename(cert_path, NULL);
-    DAP_DELETE(cert_path);
     // Protect the ca folder from using "/.." in cert_name
     if(dap_strncmp(s_system_chain_ca_dir, cert_path_c, dap_strlen(s_system_chain_ca_dir))) {
         log_it(L_ERROR, "Cert path '%s' is not in ca dir: %s", cert_path_c, s_system_chain_ca_dir);
@@ -767,6 +766,53 @@ int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name)
 //      return -1;
 //  } else
     return l_ret;
+}
+
+int dap_chain_datum_unledgered_search_iter(dap_chain_datum_t* a_datum, dap_chain_t* a_chain)
+{
+    /* Only for datum types which do not appear in ledger */
+    switch (a_datum->header.type_id) {
+    case DAP_CHAIN_DATUM_TOKEN_DECL:
+    case DAP_CHAIN_DATUM_TOKEN_EMISSION:
+    case DAP_CHAIN_DATUM_TX:
+        return 0;
+    /* The types above are checked while adding to ledger, otherwise let's unfold the chains */
+    default: {
+        if (!a_chain->callback_atom_get_datums) {
+            log_it(L_WARNING, "No callback set to fetch datums from atom in chain '%s'", a_chain->name);
+            return -2;
+        }
+        int l_found = 0;
+        dap_chain_hash_fast_t l_datum_hash;
+        dap_hash_fast(a_datum, dap_chain_datum_size(a_datum), &l_datum_hash);
+        dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain, a_chain->cells->id, 0);
+        size_t l_atom_size = 0;
+        for (dap_chain_atom_ptr_t l_atom = a_chain->callback_atom_iter_get_first(l_atom_iter, &l_atom_size);
+             l_atom && l_atom_size && !l_found;
+             l_atom = a_chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size))
+        {
+            size_t l_datums_count = 0;
+            dap_chain_datum_t **l_datums = a_chain->callback_atom_get_datums(l_atom, l_atom_size, &l_datums_count);
+            for (size_t i = 0; i < l_datums_count; ++i) {
+                if ((*(l_datums + i))->header.type_id != a_datum->header.type_id) {
+                    break;
+                }
+                dap_chain_hash_fast_t l_datum_i_hash;
+                dap_hash_fast(*(l_datums + i), dap_chain_datum_size(*(l_datums + i)), &l_datum_i_hash);
+                if (!memcmp(&l_datum_i_hash, &l_datum_hash, DAP_CHAIN_HASH_FAST_SIZE)) {
+                    char l_datum_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                    dap_hash_fast_to_str(&l_datum_hash, l_datum_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+                    log_it(L_INFO, "Datum %s found in chain %lu", l_datum_hash_str, a_chain->id.uint64);
+                    l_found = 1;
+                    break;
+                }
+            }
+            DAP_DEL_Z(l_datums);
+        }
+        a_chain->callback_atom_iter_delete(l_atom_iter);
+        return l_found;
+    } /* default */
+    }
 }
 
 const char* dap_chain_get_path(dap_chain_t *a_chain){

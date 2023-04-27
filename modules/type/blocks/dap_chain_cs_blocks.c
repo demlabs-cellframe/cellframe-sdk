@@ -313,14 +313,15 @@ static int s_cli_parse_cmd_hash(char ** a_argv, int a_arg_index, int a_argc, cha
  */
 static void s_cli_meta_hash_print(  dap_string_t * a_str_tmp, const char * a_meta_title, dap_chain_block_meta_t * a_meta)
 {
-    if(a_meta->hdr.data_size == sizeof (dap_chain_hash_fast_t) ){
-        char * l_hash_str = dap_chain_hash_fast_to_str_new( (dap_chain_hash_fast_t *) a_meta->data);
+    if (a_meta->hdr.data_size == sizeof (dap_chain_hash_fast_t)) {
+        char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+        dap_chain_hash_fast_to_str((dap_chain_hash_fast_t*)a_meta->data, l_hash_str, sizeof(l_hash_str));
         dap_string_append_printf(a_str_tmp,"\t\tPREV: \"%s\": %s\n", a_meta_title,l_hash_str);
-        DAP_DELETE(l_hash_str);
-    }else{
-        char * l_data_hex = DAP_NEW_Z_SIZE(char,a_meta->hdr.data_size*2+3);
+    } else {
+        char *l_data_hex = DAP_NEW_Z_SIZE(char,a_meta->hdr.data_size * 2 + 3);
         dap_bin2hex(l_data_hex, a_meta->data, a_meta->hdr.data_size);
-        dap_string_append_printf(a_str_tmp,"\t\t\%s: 0x%s\n", a_meta_title, l_data_hex );
+        dap_string_append_printf(a_str_tmp,"\t\t\%s: 0x%s\n", a_meta_title, l_data_hex);
+        DAP_DELETE(l_data_hex);
     }
 }
 
@@ -332,9 +333,10 @@ static void s_cli_meta_hash_print(  dap_string_t * a_str_tmp, const char * a_met
  */
 static void s_cli_meta_hex_print(  dap_string_t * a_str_tmp, const char * a_meta_title, dap_chain_block_meta_t * a_meta)
 {
-    char * l_data_hex = DAP_NEW_Z_SIZE(char,a_meta->hdr.data_size*2+3);
+    char *l_data_hex = DAP_NEW_Z_SIZE(char, a_meta->hdr.data_size * 2 + 3);
     dap_bin2hex(l_data_hex, a_meta->data, a_meta->hdr.data_size);
-    dap_string_append_printf(a_str_tmp,"\t\t\%s: 0x%s\n", a_meta_title, l_data_hex );
+    dap_string_append_printf(a_str_tmp,"\t\t\%s: 0x%s\n", a_meta_title, l_data_hex);
+    DAP_DELETE(l_data_hex);
 }
 
 /**
@@ -453,9 +455,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                                                                                               &l_datum_size, NULL, NULL);
             l_datums[0] = l_datum;
             for (size_t i = 0; i < l_datums_count; i++) {
-                dap_chain_hash_fast_t l_datum_hash = { };
-                dap_hash_fast(l_datums[i]->data,l_datums[i]->header.data_size,&l_datum_hash);
-                char *l_datums_datum_hash_str = dap_chain_hash_fast_to_str_new(&l_datum_hash);
+                char *l_datums_datum_hash_str;
+                dap_get_data_hash_str_static(l_datums[i]->data, l_datums[i]->header.data_size, l_datums_datum_hash_str);
                 bool l_err = dap_chain_node_mempool_process(l_chain, l_datums[i]);
                 if (l_err) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Datum %s doesn't pass verifications, examine node log files",
@@ -466,11 +467,11 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                                                      l_datums_datum_hash_str);
                    ret = 0;
                 }
-                DAP_DELETE(l_datums_datum_hash_str);
                 if (l_err)
                     break;
             }
             dap_cli_server_cmd_set_reply_text(a_str_reply, "All datums processed");
+            DAP_DELETE(l_gdb_group_mempool);
         } break;
 
         case SUBCMD_NEW_COMPLETE:{
@@ -555,20 +556,19 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
 							}
 							// Signatures
 							dap_string_append_printf(l_str_tmp,"\t\tsignatures:\tcount: %zu\n",l_block_cache->sign_count );
-							for (uint32_t i=0; i < l_block_cache->sign_count ; i++){
-								//dap_sign_t * l_sign =l_block_cache->sign[i];
+                            for (uint32_t i=0; i < l_block_cache->sign_count ; i++) {
 								dap_sign_t * l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, i);
 								size_t l_sign_size = dap_sign_get_size(l_sign);
 								dap_chain_addr_t l_addr = {0};
 								dap_chain_hash_fast_t l_pkey_hash;
 								dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
 								dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, l_net->pub.id);
-								char * l_pkey_hash_str = dap_chain_hash_fast_to_str_new(&l_pkey_hash);
-								char * l_addr_str = dap_chain_addr_to_str(&l_addr);
+                                char l_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                                dap_chain_hash_fast_to_str(&l_pkey_hash, l_pkey_hash_str, sizeof(l_pkey_hash_str));
+                                char *l_addr_str = dap_chain_addr_to_str(&l_addr);
 								dap_string_append_printf(l_str_tmp,"\t\t\ttype:%s size: %zd pkey_hash: %s \n"
 																"\t\t\t\taddr: %s \n", dap_sign_type_to_str( l_sign->header.type ),
 																		l_sign_size, l_pkey_hash_str, l_addr_str );
-								DAP_DELETE( l_pkey_hash_str );
 							}
                             dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
                             dap_string_free(l_str_tmp, true);
@@ -1165,6 +1165,9 @@ static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, 
     l_atom_iter->chain = a_chain;
     l_atom_iter->cell_id = a_cell_id;
     l_atom_iter->with_treshold = a_with_treshold;
+#ifdef WIN32
+    log_it(L_DEBUG, "! %p create caller id %lu", l_atom_iter, GetThreadId(GetCurrentThread()));
+#endif
     return l_atom_iter;
 }
 
@@ -1205,8 +1208,8 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_ite
 {
     assert(a_atom_iter);
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(DAP_CHAIN_CS_BLOCKS(a_atom_iter->chain));
-    pthread_rwlock_rdlock(&l_blocks_pvt->rwlock);
     dap_chain_block_cache_t * l_block_cache = NULL;
+    pthread_rwlock_rdlock(&l_blocks_pvt->rwlock);
     HASH_FIND(hh, l_blocks_pvt->blocks, a_atom_hash, sizeof(*a_atom_hash), l_block_cache);
     pthread_rwlock_unlock(&l_blocks_pvt->rwlock);
     a_atom_iter->cur_item = l_block_cache;
@@ -1405,8 +1408,11 @@ static dap_chain_atom_ptr_t *s_callback_atom_iter_get_lasts( dap_chain_atom_iter
  * @brief s_callback_atom_iter_delete
  * @param a_atom_iter
  */
-static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter )
+static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter)
 {
+#ifdef WIN32
+    log_it(L_DEBUG, "! %p delete caller id %lu", a_atom_iter, GetThreadId(GetCurrentThread()));
+#endif
     DAP_DELETE(a_atom_iter);
 }
 
