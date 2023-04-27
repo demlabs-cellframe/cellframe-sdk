@@ -5399,6 +5399,15 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
             dap_chain_addr_t *l_addr_from = NULL;
             if(l_json_item_addr_str) {
                 l_addr_from = dap_chain_addr_from_str(l_json_item_addr_str);
+                if (!l_addr_from) {
+                    log_it(L_WARNING, "Invalid element 'in', unable to convert string representation of addr_from: '%s' "
+                                      "to binary.", l_json_item_addr_str);
+                    dap_string_append_printf(l_err_str, "Invalid element 'to', unable to convert string representation "
+                                                        "of addr_from: '%s' to binary.\n", l_json_item_addr_str);
+                    // Go to the next item
+                    l_list = dap_list_next(l_list);
+                    continue;
+                }
             }
             else {
                 log_it(L_WARNING, "Invalid 'in' item, incorrect addr_from: '%s'", l_json_item_addr_str ? l_json_item_addr_str : "[null]");
