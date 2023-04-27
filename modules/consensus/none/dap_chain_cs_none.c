@@ -473,12 +473,13 @@ static void s_chain_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_ite
 static dap_chain_atom_ptr_t s_chain_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter,
         dap_chain_hash_fast_t * a_atom_hash, size_t *a_atom_size)
 {
-    char * l_key = dap_chain_hash_fast_to_str_new(a_atom_hash);
+    char l_key[DAP_CHAIN_HASH_FAST_STR_SIZE];
+    dap_chain_hash_fast_to_str(a_atom_hash, l_key, sizeof(l_key));
     size_t l_ret_size;
     dap_chain_atom_ptr_t l_ret = NULL;
-    dap_chain_gdb_t * l_gdb = DAP_CHAIN_GDB(a_atom_iter->chain );
-    if(l_gdb){
-        l_ret = dap_global_db_get_sync(PVT ( l_gdb )->group_datums,l_key,&l_ret_size,NULL, NULL );
+    dap_chain_gdb_t *l_gdb = DAP_CHAIN_GDB(a_atom_iter->chain);
+    if (l_gdb) {
+        l_ret = dap_global_db_get_sync(PVT(l_gdb)->group_datums, l_key, &l_ret_size, NULL, NULL);
         *a_atom_size = l_ret_size;
     }
     return l_ret;

@@ -519,21 +519,18 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
 {
     if (a_order && a_str_out ){
         dap_chain_hash_fast_t l_hash;
-        char *l_hash_str;//[DAP_CHAIN_HASH_FAST_SIZE * 2 + 4];
         dap_hash_fast(a_order, dap_chain_net_srv_order_get_size(a_order), &l_hash);
-        //dap_chain_hash_fast_to_str(&l_hash,l_hash_str,sizeof(l_hash_str)-1);
-        if(!dap_strcmp(a_hash_out_type,"hex"))
-            l_hash_str = dap_chain_hash_fast_to_str_new(&l_hash);
-        else
-            l_hash_str = dap_enc_base58_encode_hash_to_str(&l_hash);
+        char *l_hash_str = dap_strcmp(a_hash_out_type,"hex")
+                ? dap_enc_base58_encode_hash_to_str(&l_hash)
+                : dap_chain_hash_fast_to_str_new(&l_hash);
 
         dap_string_append_printf(a_str_out, "== Order %s ==\n", l_hash_str);
         dap_string_append_printf(a_str_out, "  version:          %u\n", a_order->version );
 
         switch ( a_order->direction) {
-            case SERV_DIR_UNDEFINED: dap_string_append_printf(a_str_out, "  direction:        SERV_DIR_UNDEFINED\n" ); break;
-            case SERV_DIR_SELL: dap_string_append_printf(a_str_out, "  direction:        SERV_DIR_SELL\n" ); break;
-            case SERV_DIR_BUY: dap_string_append_printf(a_str_out, "  direction:        SERV_DIR_BUY\n" ); break;
+        case SERV_DIR_UNDEFINED:    dap_string_append_printf(a_str_out, "  direction:        SERV_DIR_UNDEFINED\n" );   break;
+        case SERV_DIR_SELL:         dap_string_append_printf(a_str_out, "  direction:        SERV_DIR_SELL\n" );        break;
+        case SERV_DIR_BUY:          dap_string_append_printf(a_str_out, "  direction:        SERV_DIR_BUY\n" );         break;
         }
 
         dap_string_append_printf(a_str_out, "  srv_uid:          0x%016"DAP_UINT64_FORMAT_X"\n", a_order->srv_uid.uint64 );
@@ -556,16 +553,15 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         DAP_DELETE(l_region);
         DAP_DELETE(l_hash_str);
 
-        if(!dap_strcmp(a_hash_out_type, "hex"))
-            l_hash_str = dap_chain_hash_fast_to_str_new(&a_order->tx_cond_hash);
-        else
-            l_hash_str = dap_enc_base58_encode_hash_to_str(&a_order->tx_cond_hash);
-        //dap_chain_hash_fast_to_str(&a_order->tx_cond_hash,l_hash_str, sizeof(l_hash_str)-1);
+        l_hash_str = dap_strcmp(a_hash_out_type, "hex")
+                ? dap_enc_base58_encode_hash_to_str(&a_order->tx_cond_hash)
+                : dap_chain_hash_fast_to_str_new(&a_order->tx_cond_hash);
         dap_string_append_printf(a_str_out, "  tx_cond_hash:     %s\n", l_hash_str );
         char *l_ext_out = a_order->ext_size ? DAP_NEW_Z_SIZE(char, a_order->ext_size * 2 + 1) : NULL;
-        dap_bin2hex(l_ext_out, a_order->ext_n_sign, a_order->ext_size);
-        if(l_ext_out)
+        if(l_ext_out) {
+            dap_bin2hex(l_ext_out, a_order->ext_n_sign, a_order->ext_size);
             dap_string_append_printf(a_str_out, "  ext:              0x%s\n", l_ext_out);
+        }
         else
             dap_string_append_printf(a_str_out, "  ext:              0x0\n");
         // order state

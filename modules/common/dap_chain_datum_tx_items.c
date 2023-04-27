@@ -247,9 +247,9 @@ json_object *dap_chain_datum_tx_item_in_ems_to_json(const dap_chain_tx_in_ems_t 
     json_object *l_object = json_object_new_object();
     json_object *l_obj_ticker = json_object_new_string(a_in_ems->header.ticker);
     json_object *l_obj_chain_id = json_object_new_uint64(a_in_ems->header.token_emission_chain_id.uint64);
-    char *l_ehf = dap_chain_hash_fast_to_str_new(&a_in_ems->header.token_emission_hash);
+    char l_ehf[DAP_CHAIN_HASH_FAST_STR_SIZE];
+    dap_chain_hash_fast_to_str(&a_in_ems->header.token_emission_hash, l_ehf, sizeof(l_ehf));
     json_object *l_obj_ehf = json_object_new_string(l_ehf);
-    DAP_DELETE(l_ehf);
     json_object_object_add(l_object, "ticker", l_obj_ticker);
     json_object_object_add(l_object, "chainId", l_obj_chain_id);
     json_object_object_add(l_object, "emissionHash", l_obj_ehf);
@@ -293,9 +293,9 @@ dap_chain_tx_tsd_t *dap_chain_datum_tx_item_tsd_create(void *a_data, int a_type,
 json_object* dap_chain_datum_tx_item_in_to_json(dap_chain_tx_in_t *a_in){
     json_object *l_obj_in = json_object_new_object();
     json_object *l_obj_prev_idx = json_object_new_uint64(a_in->header.tx_out_prev_idx);
-    char *l_hash = dap_chain_hash_fast_to_str_new(&a_in->header.tx_prev_hash);
+    char l_hash[DAP_CHAIN_HASH_FAST_STR_SIZE];
+    dap_chain_hash_fast_to_str(&a_in->header.tx_prev_hash, l_hash, sizeof(l_hash));
     json_object *l_obj_hash = json_object_new_string(l_hash);
-    DAP_DELETE(l_hash);
     json_object_object_add(l_obj_in, "prev_idx", l_obj_prev_idx);
     json_object_object_add(l_obj_in, "prev_hash", l_obj_hash);
     return l_obj_in;

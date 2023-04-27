@@ -392,9 +392,9 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 memcpy(l_owner_pkey, l_tsd->data, l_tsd->size);
                 dap_hash_fast_t l_owner_pkey_hash = {0};
                 dap_hash_fast(l_owner_pkey->pkey, l_owner_pkey->header.size, &l_owner_pkey_hash);
-                char *l_owner_pkey_str = dap_chain_hash_fast_to_str_new(&l_owner_pkey_hash);
+                char l_owner_pkey_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                dap_chain_hash_fast_to_str(&l_owner_pkey_hash, l_owner_pkey_str, sizeof(l_owner_pkey_str));
                 dap_string_append_printf(a_str_out, "\tOwner fingerprint: %s\n", l_owner_pkey_str);
-                DAP_DELETE(l_owner_pkey_str);
                 break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER:
                 if (l_tsd->size > sizeof(uint256_t)){
@@ -424,12 +424,9 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 }
                 dap_hash_fast_t l_stake_tx = {0};
                 l_stake_tx = dap_tsd_get_scalar(l_tsd, dap_hash_fast_t);
-                char *l_stake_tx_hash = "";
-                if (strcmp(a_hash_out_type, "hex") == 0) {
-                    l_stake_tx_hash = dap_hash_fast_to_str_new(&l_stake_tx);
-                } else {
-                    l_stake_tx_hash = dap_enc_base58_encode_hash_to_str(&l_stake_tx);
-                }
+                char *l_stake_tx_hash = dap_strcmp(a_hash_out_type, "hex")
+                        ? dap_enc_base58_encode_hash_to_str(&l_stake_tx)
+                        : dap_chain_hash_fast_to_str_new(&l_stake_tx);
                 dap_string_append_printf(a_str_out, "\tStake tx: %s\n", l_stake_tx_hash);
                 DAP_DELETE(l_stake_tx_hash);
                 break;
@@ -454,12 +451,9 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 dap_string_append_printf(a_str_out, "\tSigning addr: %s\n", l_stake_addr_signing_str);
                 dap_chain_hash_fast_t *l_pkey_signing = DAP_NEW(dap_chain_hash_fast_t);
                 memcpy(l_pkey_signing, l_stake_addr_signing.data.key, sizeof(dap_chain_hash_fast_t));
-                char *l_pkey_signing_str = NULL;
-                if (strcmp(a_hash_out_type, "hex") == 0) {
-                    l_pkey_signing_str = dap_hash_fast_to_str_new(l_pkey_signing);
-                } else {
-                    l_pkey_signing_str = dap_enc_base58_encode_hash_to_str(l_pkey_signing);
-                }
+                char *l_pkey_signing_str = dap_strcmp(a_hash_out_type, "hex")
+                        ? dap_enc_base58_encode_hash_to_str(l_pkey_signing)
+                        : dap_chain_hash_fast_to_str_new(l_pkey_signing);
                 dap_string_append_printf(a_str_out, "\tSigning pkey fingerprint: %s\n", l_pkey_signing_str);
                 DAP_DELETE(l_stake_addr_signing_str);
                 DAP_DELETE(l_pkey_signing_str);
@@ -528,12 +522,9 @@ void dap_chain_datum_decree_certs_dump(dap_string_t * a_str_out, byte_t * a_sign
             continue;
         }
 
-        char *l_hash_str = NULL;
-        if(!dap_strcmp(a_hash_out_type, "hex"))
-            l_hash_str = dap_chain_hash_fast_to_str_new(&l_pkey_hash);
-        else
-            l_hash_str = dap_enc_base58_encode_hash_to_str(&l_pkey_hash);
-
+        char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
+                ? dap_enc_base58_encode_hash_to_str(&l_pkey_hash)
+                : dap_chain_hash_fast_to_str_new(&l_pkey_hash);
         dap_string_append_printf(a_str_out, "%d) %s, %s, %u bytes\n", i, l_hash_str,
                                  dap_sign_type_to_str(l_sign->header.type), l_sign->header.sign_size);
         DAP_DEL_Z(l_hash_str);

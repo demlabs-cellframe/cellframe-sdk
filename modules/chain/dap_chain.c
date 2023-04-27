@@ -686,18 +686,18 @@ bool dap_chain_get_atom_last_hash(dap_chain_t *a_chain, dap_hash_fast_t *a_atom_
     bool l_ret = false;
     dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain, a_cel_id, 0);
     dap_chain_atom_ptr_t * l_lasts_atom;
-    size_t l_lasts_atom_count=0;
-    size_t* l_lasts_atom_size =NULL;
-    l_lasts_atom = a_chain->callback_atom_iter_get_lasts(l_atom_iter, &l_lasts_atom_count,&l_lasts_atom_size);
-    if (l_lasts_atom&& l_lasts_atom_count){
+    size_t l_lasts_atom_count = 0;
+    size_t* l_lasts_atom_size = NULL;
+    l_lasts_atom = a_chain->callback_atom_iter_get_lasts(l_atom_iter, &l_lasts_atom_count, &l_lasts_atom_size);
+    if (l_lasts_atom && l_lasts_atom_count) {
         assert(l_lasts_atom_size[0]);
         assert(l_lasts_atom[0]);
         if(a_atom_hash){
-            dap_hash_fast(l_lasts_atom[0], l_lasts_atom_size[0],a_atom_hash);
-            if(dap_log_level_get() <= L_DEBUG){
-                char l_hash_str[128]={[0]='\0'};
-                dap_chain_hash_fast_to_str(a_atom_hash,l_hash_str,sizeof (l_hash_str)-1);
-                log_it(L_DEBUG,"Send sync chain request from %s to infinity",l_hash_str);
+            dap_hash_fast(l_lasts_atom[0], l_lasts_atom_size[0], a_atom_hash);
+            if(dap_log_level_get() <= L_DEBUG) {
+                char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                dap_chain_hash_fast_to_str(a_atom_hash, l_hash_str, sizeof(l_hash_str));
+                log_it(L_DEBUG, "Send sync chain request from %s to infinity",l_hash_str);
             }
         }
         l_ret = true;

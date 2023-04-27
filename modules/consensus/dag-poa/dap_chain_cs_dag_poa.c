@@ -554,6 +554,7 @@ static void s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
     if (l_chosen_item) {
         dap_chain_cs_dag_event_t *l_new_atom = (dap_chain_cs_dag_event_t *)l_chosen_item->event_n_signs;
         size_t l_event_size = l_chosen_item->event_size;
+        char *l_event_hash_hex_str, *l_datum_hash_str;
         dap_get_data_hash_str_static(l_new_atom, l_event_size, l_event_hash_hex_str);
         dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(l_new_atom, l_event_size);
         dap_get_data_hash_str_static(l_datum, dap_chain_datum_size(l_datum), l_datum_hash_str);
@@ -769,10 +770,8 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
              !(ret = l_poa_pvt->callback_pre_sign->callback(a_dag->chain, l_event, l_event_size,
                                                       l_poa_pvt->callback_pre_sign->arg))) {
         l_event_size_new = dap_chain_cs_dag_event_sign_add(&l_event, l_event_size, l_poa_pvt->events_sign_cert->enc_key);
-        dap_chain_hash_fast_t l_event_new_hash;
-        dap_chain_cs_dag_event_calc_hash(l_event, l_event_size_new, &l_event_new_hash);
-        char l_event_new_hash_hex_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-        dap_chain_hash_fast_to_str(&l_event_new_hash, l_event_new_hash_hex_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+        char *l_event_new_hash_hex_str;
+        dap_get_data_hash_str_static(l_event, l_event_size_new, l_event_new_hash_hex_str);
         dap_chain_cs_dag_event_gdb_set(a_dag, l_event_new_hash_hex_str, l_event, l_event_size_new, l_round_item);
     } else { // set sign for reject
         if (dap_chain_cs_dag_event_round_sign_add(&l_round_item, a_value_size, l_poa_pvt->events_sign_cert->enc_key)) {

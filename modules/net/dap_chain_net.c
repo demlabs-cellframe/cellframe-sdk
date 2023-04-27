@@ -1996,10 +1996,12 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                     dap_cert_t * l_cert = dap_cert_find_by_name(l_cert_string);
                     if (l_cert == NULL) {
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find \"%s\" certificate", l_cert_string);
+                        DAP_DEL_Z(l_hash_hex_str);
                         return -7;
                     }
                     if (l_cert->enc_key == NULL) {
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "No key found in \"%s\" certificate", l_cert_string );
+                        DAP_DEL_Z(l_hash_hex_str);
                         return -8;
                     }
                     // Get publivc key hash
@@ -2007,10 +2009,12 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                     uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(l_cert->enc_key, &l_pub_key_size);;
                     if (l_pub_key == NULL) {
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't serialize public key of certificate \"%s\"", l_cert_string);
+                        DAP_DEL_Z(l_hash_hex_str);
                         return -9;
                     }
                     dap_chain_hash_fast_t l_pkey_hash;
                     dap_hash_fast(l_pub_key, l_pub_key_size, &l_pkey_hash);
+                    DAP_DEL_Z(l_hash_hex_str);
                     l_hash_hex_str = dap_chain_hash_fast_to_str_new(&l_pkey_hash);
                     //l_hash_base58_str = dap_enc_base58_encode_hash_to_str(&l_pkey_hash);
                 }
@@ -3246,7 +3250,8 @@ static bool s_net_check_acl(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pke
             return false;
         }
         l_authorized = false;
-        const char *l_auth_hash_str = dap_chain_hash_fast_to_str_new(a_pkey_hash);
+        char l_auth_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+        dap_chain_hash_fast_to_str(a_pkey_hash, l_auth_hash_str, sizeof(l_auth_hash_str));
         uint16_t l_acl_list_len = 0;
         char **l_acl_list = dap_config_get_array_str(l_cfg, "auth", "acl_accept_ca_list", &l_acl_list_len);
         for (uint16_t i = 0; i < l_acl_list_len; i++) {
@@ -3273,7 +3278,7 @@ static bool s_net_check_acl(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pke
             const char *l_acl_chains = dap_config_get_item_str(l_cfg, "auth", "acl_accept_ca_chains");
             if (l_acl_chains && !strcmp(l_acl_chains, "all")) {
                 dap_list_t *l_certs = dap_cert_get_all_mem();
-                for (dap_list_t *l_tmp = l_certs; l_tmp; l_tmp = dap_list_next(l_tmp)) {
+                for (dap_list_t *l_tmp = l_certs; l_tmp && !l_authorized; l_tmp = dap_list_next(l_tmp)) {
                     dap_cert_t *l_cert = (dap_cert_t *)l_tmp->data;
                     size_t l_pkey_size;
                     uint8_t *l_pkey_ser = dap_enc_key_serialize_pub_key(l_cert->enc_key, &l_pkey_size);
@@ -3281,8 +3286,6 @@ static bool s_net_check_acl(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pke
                     dap_hash_fast(l_pkey_ser, l_pkey_size, &l_cert_hash);
                     if (!memcmp(&l_cert_hash, a_pkey_hash, sizeof(dap_chain_hash_fast_t))) {
                         l_authorized = true;
-                        DAP_DELETE(l_pkey_ser);
-                        break;
                     }
                     DAP_DELETE(l_pkey_ser);
                 }
