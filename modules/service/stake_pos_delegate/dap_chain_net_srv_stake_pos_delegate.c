@@ -1094,8 +1094,9 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
 
 static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, dap_string_t *a_string)
 {
-    char *l_tx_hash_str = dap_chain_hash_fast_to_str_new(&a_stake->tx_hash);
-    char *l_pkey_hash_str = dap_chain_hash_fast_to_str_new(&a_stake->signing_addr.data.hash_fast);
+    char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE], l_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+    dap_chain_hash_fast_to_str(&a_stake->tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
+    dap_chain_hash_fast_to_str(&a_stake->signing_addr.data.hash_fast, l_pkey_hash_str, sizeof(l_pkey_hash_str));
     char *l_balance = dap_chain_balance_to_coins(a_stake->value);
     dap_string_append_printf(a_string, "Pkey hash: %s\n"
                                         "\tStake value: %s\n"
@@ -1103,8 +1104,6 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, dap_strin
                                         "\tNode addr: "NODE_ADDR_FP_STR"\n\n",
                              l_pkey_hash_str, l_balance, l_tx_hash_str, NODE_ADDR_FP_ARGS_S(a_stake->node_addr));
     DAP_DELETE(l_balance);
-    DAP_DELETE(l_tx_hash_str);
-    DAP_DELETE(l_pkey_hash_str);
 }
 
 /**
@@ -1592,12 +1591,10 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 dap_chain_datum_tx_t *l_datum_tx = NULL;
                 dap_chain_tx_out_cond_t *l_tx_out_cond = NULL;
                 int l_out_idx_tmp = 0;
-                char *l_hash_str = NULL;
                 char *spaces = {"--------------------------------------------------------------------------------------------------------------------"};
                 char *l_signing_addr_str = NULL;
                 char *l_balance = NULL;
                 char *l_coins = NULL;
-                char *l_pkey_hash_str = NULL;
                 char* l_node_address_text_block = NULL;
                 dap_chain_net_get_tx_all(l_net,TX_SEARCH_TYPE_NET,s_get_tx_filter_callback, l_args);
                 l_args->ret = dap_list_sort(l_args->ret, callback_compare_tx_list);
@@ -1609,16 +1606,17 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                     dap_hash_fast(l_datum_tx, dap_chain_datum_tx_get_size(l_datum_tx), &l_datum_hash);
                     l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_datum_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE,
                                                                                      &l_out_idx_tmp);
-                    l_hash_str = dap_chain_hash_fast_to_str_new(&l_datum_hash);                    
+                    char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                    dap_chain_hash_fast_to_str(&l_datum_hash, l_hash_str, sizeof(l_hash_str));
                     dap_string_append_printf(l_str_tmp,"%s \n",spaces);
                     dap_string_append_printf(l_str_tmp,"%s \n",dap_ctime_r(&l_ts_create, buf));
                     dap_string_append_printf(l_str_tmp,"tx_hash:\t%s \n",l_hash_str);
 
                     l_signing_addr_str = dap_chain_addr_to_str(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr);
-                    l_pkey_hash_str = dap_chain_hash_fast_to_str_new(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr.data.hash_fast);
+                    char l_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                    dap_chain_hash_fast_to_str(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr.data.hash_fast, l_pkey_hash_str, sizeof(l_pkey_hash_str));
                     l_coins = dap_chain_balance_to_coins(l_tx_out_cond->header.value);
                     l_balance = dap_chain_balance_print(l_tx_out_cond->header.value);
-                    char *l_pkey_hash_str = dap_chain_hash_fast_to_str_new(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr.data.hash_fast);
 
                     dap_string_append_printf(l_str_tmp,"signing_addr:\t%s \n",l_signing_addr_str);
                     dap_string_append_printf(l_str_tmp,"signing_hash:\t%s \n",l_pkey_hash_str);
@@ -1628,9 +1626,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
 
                     DAP_DELETE(l_node_address_text_block);
                     DAP_DELETE(l_signing_addr_str);
-                    DAP_DELETE(l_pkey_hash_str);
                     DAP_DELETE(l_balance);
-                    DAP_DELETE(l_hash_str);
                     DAP_DEL_Z(l_coins);
                 }
 
@@ -1756,9 +1752,9 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                     DAP_DELETE(l_decree_hash_str);
                     DAP_DELETE(l_tx);
                 } else {
-                    char *l_final_tx_hash_str = dap_chain_hash_fast_to_str_new(l_final_tx_hash);
+                    char l_final_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                    dap_chain_hash_fast_to_str(l_final_tx_hash, l_final_tx_hash_str, sizeof(l_final_tx_hash_str));
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't invalidate transaction %s, examine log files for details", l_final_tx_hash_str);
-                    DAP_DELETE(l_final_tx_hash_str);
                     DAP_DELETE(l_tx);
                     return -21;
                 }
@@ -1781,9 +1777,9 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                     DAP_DELETE(l_decree);
                     DAP_DELETE(l_decree_hash_str);
                 } else {
-                    char *l_final_tx_hash_str = dap_chain_hash_fast_to_str_new(l_final_tx_hash);
+                    char l_final_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                    dap_chain_hash_fast_to_str(l_final_tx_hash, l_final_tx_hash_str, sizeof(l_final_tx_hash_str));
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't invalidate transaction %s, examine log files for details", l_final_tx_hash_str);
-                    DAP_DELETE(l_final_tx_hash_str);
                     DAP_DELETE(l_decree);
                     return -21;
                 }
@@ -1932,10 +1928,10 @@ static void s_cache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
         return;
     dap_chain_net_srv_stake_cache_data_t l_cache_data;
     dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_cache_data.tx_hash);
+    char l_data_key[DAP_CHAIN_HASH_FAST_STR_SIZE];
+    dap_chain_hash_fast_to_str(&l_cache_data.tx_hash, l_data_key, sizeof(l_data_key));
     l_cache_data.signing_addr = *a_signing_addr;
-    char *l_data_key = dap_chain_hash_fast_to_str_new(&l_cache_data.tx_hash);
     char *l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP);
     if (dap_global_db_set(l_gdb_group, l_data_key, &l_cache_data, sizeof(l_cache_data), true, NULL, NULL))
         log_it(L_WARNING, "Stake service cache mismatch");
-    DAP_DELETE(l_data_key);
 }

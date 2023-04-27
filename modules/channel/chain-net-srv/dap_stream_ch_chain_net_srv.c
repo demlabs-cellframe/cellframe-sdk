@@ -533,13 +533,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         }
 
         // Store receipt if any problems with transactions
-        dap_chain_hash_fast_t l_receipt_hash={0};
-        dap_hash_fast(l_receipt,l_receipt_size,&l_receipt_hash);
-
-        char *l_receipt_hash_str = dap_chain_hash_fast_to_str_new(&l_receipt_hash);
+        char *l_receipt_hash_str;
+        dap_get_data_hash_str_static(l_receipt, l_receipt_size, l_receipt_hash_str);
         dap_global_db_set("local.receipts", l_receipt_hash_str, l_receipt, l_receipt_size, false, NULL, NULL);
-        DAP_DELETE(l_receipt_hash_str);
-
         size_t l_success_size;
         if (!l_usage->is_grace) {
             // Form input transaction
@@ -559,7 +555,6 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         }
         dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_STACK_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
                                                                               l_success_size);
-
         memset(&l_success->hdr, 0, sizeof(l_success->hdr));
 
         l_success->hdr.usage_id         = l_usage->id;

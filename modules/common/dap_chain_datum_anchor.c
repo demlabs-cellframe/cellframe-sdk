@@ -71,7 +71,7 @@ void dap_chain_datum_anchor_certs_dump(dap_string_t * a_str_out, byte_t * a_sign
 
     size_t l_offset = 0;
     for (int i = 1; l_offset < (a_certs_size); i++) {
-        dap_sign_t *l_sign = (dap_sign_t *) (a_signs + l_offset);
+        dap_sign_t *l_sign = (dap_sign_t*)(a_signs + l_offset);
         l_offset += dap_sign_get_size(l_sign);
         if (l_sign->header.sign_size == 0) {
             dap_string_append_printf(a_str_out, "<CORRUPTED - 0 size signature>\n");
@@ -83,13 +83,9 @@ void dap_chain_datum_anchor_certs_dump(dap_string_t * a_str_out, byte_t * a_sign
             dap_string_append_printf(a_str_out, "<CORRUPTED - can't calc hash>\n");
             continue;
         }
-
-        char *l_hash_str = NULL;
-        if(!dap_strcmp(a_hash_out_type, "hex"))
-            l_hash_str = dap_chain_hash_fast_to_str_new(&l_pkey_hash);
-        else
-            l_hash_str = dap_enc_base58_encode_hash_to_str(&l_pkey_hash);
-
+        char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
+                ? dap_enc_base58_encode_hash_to_str(&l_pkey_hash)
+                : dap_chain_hash_fast_to_str_new(&l_pkey_hash);
         dap_string_append_printf(a_str_out, "%d) %s, %s, %u bytes\n", i, l_hash_str,
                                  dap_sign_type_to_str(l_sign->header.type), l_sign->header.sign_size);
         DAP_DEL_Z(l_hash_str);
