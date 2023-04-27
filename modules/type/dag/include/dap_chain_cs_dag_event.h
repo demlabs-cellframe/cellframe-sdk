@@ -50,7 +50,7 @@ typedef struct dap_chain_cs_dag_event {
 typedef struct dap_chain_cs_dag_event_round_info {
     uint16_t reject_count;
     dap_nanotime_t ts_update;
-    dap_chain_hash_fast_t datum_hash; // for duobles finding
+    dap_chain_hash_fast_t datum_hash; // for doubles finding
 } DAP_ALIGN_PACKED dap_chain_cs_dag_event_round_info_t;
 
 typedef struct dap_chain_cs_dag_event_round_item {
