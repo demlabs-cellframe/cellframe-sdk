@@ -1480,18 +1480,18 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
             dap_string_t *l_events_str = dap_string_new("Events: \n");
             for (size_t i = 0; i < l_objs_size;i++) {
                 dap_chain_cs_dag_event_round_item_t *l_round_item = (dap_chain_cs_dag_event_round_item_t *)l_objs[i].value;
-                dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t *)l_round_item->event_n_signs;
-                size_t l_event_size = l_round_item->event_size;
-                dap_hash_fast_t ll_event_hash = {0};
-                dap_hash_fast(l_event, l_event_size, &ll_event_hash);
-                char *ll_event_hash_str = dap_hash_fast_to_str_new(&ll_event_hash);
-                if (dap_hash_fast_compare(&l_round_item->round_info.datum_hash, &l_datum_hash)){
+                if (dap_hash_fast_compare(&l_round_item->round_info.datum_hash, &l_datum_hash)) {
+                    dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t *)l_round_item->event_n_signs;
+                    size_t l_event_size = l_round_item->event_size;
+                    dap_hash_fast_t ll_event_hash = {0};
+                    dap_hash_fast(l_event, l_event_size, &ll_event_hash);
+                    char *ll_event_hash_str = dap_hash_fast_to_str_new(&ll_event_hash);
                     l_search_events++;
                     dap_string_append_printf(l_events_str,
                                              "\t%zu) hash:%s cell_id:%zu\n", l_search_events, ll_event_hash_str,
                                              l_event->header.cell_id.uint64);
+                    DAP_DELETE(ll_event_hash_str);
                 }
-                DAP_DELETE(ll_event_hash_str);
             }
             dap_global_db_objs_delete(l_objs, l_objs_size);
             DAP_DELETE(l_datum_in_hash);
