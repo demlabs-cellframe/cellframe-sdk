@@ -1485,15 +1485,11 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                 dap_hash_fast_t ll_event_hash = {0};
                 dap_hash_fast(l_event, l_event_size, &ll_event_hash);
                 char *ll_event_hash_str = dap_hash_fast_to_str_new(&ll_event_hash);
-                for (size_t j = 0; j < l_event->header.hash_count; j++) {
-                    dap_chain_hash_fast_t * l_hash = (dap_chain_hash_fast_t *) (l_event->hashes_n_datum_n_signs +
-                                                                                i*sizeof (dap_chain_hash_fast_t));
-                    if (dap_hash_fast_compare(l_hash, &l_datum_hash)) {
-                        l_search_events++;
-                        dap_string_append_printf(l_events_str,
-                                                 "\t%zu) hash:%s cell_id:%zu\n", l_search_events, ll_event_hash_str,
-                                                 l_event->header.cell_id.uint64);
-                    }
+                if (dap_hash_fast_compare(&l_round_item->round_info.datum_hash, &l_datum_hash)){
+                    l_search_events++;
+                    dap_string_append_printf(l_events_str,
+                                             "\t%zu) hash:%s cell_id:%zu\n", l_search_events, ll_event_hash_str,
+                                             l_event->header.cell_id.uint64);
                 }
                 DAP_DELETE(ll_event_hash_str);
             }
