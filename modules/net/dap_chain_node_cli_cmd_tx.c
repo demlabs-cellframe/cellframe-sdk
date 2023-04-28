@@ -646,8 +646,8 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-tx", &l_tx_hash_str);
         dap_chain_tx_hash_processed_ht_t *l_list_tx_hash_processd = NULL;
 
-        if(!l_is_all && !l_addr_base58 && !l_wallet_name) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "command requires parameter '-all' or '-addr' or '-w'");
+        if(!l_is_all && !l_addr_base58 && !l_wallet_name && !l_tx_hash_str) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "command 'tx' requires parameter '-all' or '-addr' or '-w' or '-tx'");
             return -1;
         }
         // Select chain network
@@ -723,16 +723,19 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
                 dap_string_append_printf(l_str_ret, "history for addr %s:\n%s\n", l_addr_str,
                         l_str_out ? l_str_out : " empty");
                 DAP_DELETE(l_addr_str);
-            }
-            if(l_tx_hash_str) {
+            }else if(l_tx_hash_str) {
                 dap_chain_datum_tx_t *l_tx = dap_chain_ledger_tx_find_by_hash(l_ledger,&l_tx_hash);
-                size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
-                dap_hash_fast_t l_tx_hash = {0};
-                dap_hash_fast(l_tx, l_tx_size, &l_tx_hash);
-                const char *l_tx_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_hash);
-                dap_chain_datum_dump_tx(l_tx,l_tx_ticker,l_str_ret,l_hash_out_type,&l_tx_hash);
-                dap_string_append_printf(l_str_ret, "history for tx hash %s:\n%s\n", l_tx_hash_str,
-                        l_str_out ? l_str_out : " empty");
+                if(l_tx){
+                    size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+                    dap_hash_fast_t l_tx_hash = {0};
+                    dap_hash_fast(l_tx, l_tx_size, &l_tx_hash);
+                    const char *l_tx_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_hash);
+                    dap_chain_datum_dump_tx(l_tx,l_tx_ticker,l_str_ret,l_hash_out_type,&l_tx_hash);
+                    dap_string_append_printf(l_str_ret, "history for tx hash %s:\n%s\n", l_tx_hash_str,
+                            l_str_out ? l_str_out : " empty");
+                }
+                else
+                    dap_string_append_printf(l_str_ret, "There is not transaction %s in the network ledger\n",l_tx_hash_str);
             }            
         }
         DAP_DELETE(l_str_out);
