@@ -233,11 +233,9 @@ void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_data_
             continue;
         }
 
-        char *l_hash_str = NULL;
-        if(!dap_strcmp(a_hash_out_type, "hex"))
-            l_hash_str = dap_chain_hash_fast_to_str_new(&l_pkey_hash);
-        else
-            l_hash_str = dap_enc_base58_encode_hash_to_str(&l_pkey_hash);
+        char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
+                ? dap_enc_base58_encode_hash_to_str(&l_pkey_hash)
+                : dap_chain_hash_fast_to_str_new(&l_pkey_hash);
 
         dap_string_append_printf(a_str_out, "%d) %s, %s, %u bytes\n", i, l_hash_str,
                                  dap_sign_type_to_str(l_sign->header.type), l_sign->header.sign_size);
@@ -426,7 +424,7 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_add_sign(dap_enc_key_
     {
         size_t l_pub_key_size = 0;
         dap_sign_t *l_sign = (dap_sign_t *)(a_emission->tsd_n_signs + a_emission->data.type_auth.tsd_total_size);
-        uint8_t *l_pub_key = dap_enc_key_serealize_pub_key(a_sign_key, &l_pub_key_size);
+        uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(a_sign_key, &l_pub_key_size);
         for (int i = 0; i < a_emission->data.type_auth.signs_count; i++) {
             if (l_sign->header.sign_pkey_size == l_pub_key_size &&
                     !memcmp(l_sign->pkey_n_sign, l_pub_key, l_pub_key_size))

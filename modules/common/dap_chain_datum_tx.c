@@ -316,10 +316,7 @@ json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx){
             break;
         }
         dap_chain_tx_item_type_t l_item_type = dap_chain_datum_tx_item_get_type(item);
-        json_object *l_obj_item_type = NULL;
-        json_object *l_obj_item_data = NULL;
-        dap_hash_fast_t a_tx_hash = {0};
-        char *l_hash_str = NULL;
+        json_object *l_obj_item_type = NULL, *l_obj_item_data = NULL;
         switch (l_item_type) {
             case TX_ITEM_TYPE_IN:
                 l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_IN");
@@ -379,12 +376,12 @@ json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx){
                 l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_TSD");
                 l_obj_item_data = dap_chain_datum_tx_item_tsd_to_json((dap_chain_tx_tsd_t*)item);
                 break;
-            default:
-                dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &a_tx_hash);
-                l_hash_str = dap_chain_hash_fast_to_str_new(&a_tx_hash);
+            default: {
+                char *l_hash_str;
+                dap_get_data_hash_str_static(a_tx, dap_chain_datum_tx_get_size(a_tx), l_hash_str);
                 log_it(L_NOTICE, "Transaction %s has an item whose type cannot be handled by the dap_chain_datum_tx_to_json function.", l_hash_str);
-                DAP_DELETE(l_hash_str);
                 break;
+            }
         }
         if (!l_obj_item_type){
             json_object_array_add(l_obj_items, json_object_new_null());

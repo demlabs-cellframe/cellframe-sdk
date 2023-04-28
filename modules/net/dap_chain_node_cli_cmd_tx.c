@@ -127,27 +127,22 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
     dap_chain_datum_tx_t *l_tx = a_chain->callback_tx_find_by_hash(a_chain, a_tx_hash, &l_atom_hash);
 
     if (l_tx) {
-        char *l_atom_hash_str;
-        if (!dap_strcmp(a_hash_out_type, "hex"))
-            l_atom_hash_str = dap_chain_hash_fast_to_str_new(&l_atom_hash);
-        else
-            l_atom_hash_str = dap_enc_base58_encode_hash_to_str(&l_atom_hash);
+        char *l_atom_hash_str = dap_strcmp(a_hash_out_type, "hex")
+                ? dap_enc_base58_encode_hash_to_str(&l_atom_hash)
+                : dap_chain_hash_fast_to_str_new(&l_atom_hash);
         const char *l_tx_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_chain->ledger, a_tx_hash);
         dap_string_append_printf(l_str_out, "%s TX with atom %s\n", l_tx_token_ticker ? "ACCEPTED" : "DECLINED",
                                                                     l_atom_hash_str);
         DAP_DELETE(l_atom_hash_str);
         dap_chain_datum_dump_tx(l_tx, l_tx_token_ticker, l_str_out, a_hash_out_type, a_tx_hash);
     } else {
-        char *l_tx_hash_str;
-        if (!dap_strcmp(a_hash_out_type, "hex"))
-            l_tx_hash_str = dap_chain_hash_fast_to_str_new(a_tx_hash);
-        else
-            l_tx_hash_str = dap_enc_base58_encode_hash_to_str(a_tx_hash);
+        char *l_tx_hash_str = dap_strcmp(a_hash_out_type, "hex")
+                ? dap_enc_base58_encode_hash_to_str(a_tx_hash)
+                : dap_chain_hash_fast_to_str_new(a_tx_hash);
         dap_string_append_printf(l_str_out, "TX hash %s not founds in chains", l_tx_hash_str);
         DAP_DELETE(l_tx_hash_str);
     }
-    char *l_ret_str = l_str_out ? dap_string_free(l_str_out, false) : NULL;
-    return l_ret_str;
+    return l_str_out ? dap_string_free(l_str_out, false) : NULL;
 }
 
 static void s_tx_header_print(dap_string_t *a_str_out, dap_chain_tx_hash_processed_ht_t *a_tx_data_ht,
@@ -395,14 +390,13 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
         // go to next atom (event or block)
         l_atom = a_chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size);
     }
-
+    a_chain->callback_atom_iter_delete(l_atom_iter);
     // delete hashes
     s_dap_chain_tx_hash_processed_ht_free(l_tx_data_ht);
     // if no history
     if(!l_str_out->len)
         dap_string_append(l_str_out, "\tempty");
-    char *l_ret_str = l_str_out ? dap_string_free(l_str_out, false) : NULL;
-    return l_ret_str;
+    return l_str_out ? dap_string_free(l_str_out, false) : NULL;
 }
 
 /**
@@ -617,7 +611,8 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
     const char *l_addr_base58 = NULL;
     const char *l_wallet_name = NULL;
     const char *l_net_str = NULL;
-    const char *l_tx_hash_str = NULL;    
+    const char *l_chain_str = NULL;
+    const char *l_tx_hash_str = NULL;
 
     dap_chain_t * l_chain = NULL;
     dap_chain_net_t * l_net = NULL;
@@ -975,6 +970,9 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
     }
     // command tx history
     else if(l_cmd == CMD_TX) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "The cellframe-node-cli token tx command is deprecated and no longer supported.\n");
+        return 0;
+#if 0
         enum { SUBCMD_TX_NONE, SUBCMD_TX_ALL, SUBCMD_TX_ADDR };
         // find subcommand
         int l_subcmd = CMD_NONE;
@@ -1016,7 +1014,7 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
                 l_page = 1;
         }
 
-         // tx all
+        // tx all
         if(l_subcmd == SUBCMD_TX_ALL) {
             dap_string_t *l_str_out = dap_string_new(NULL);
             // get first chain
@@ -1028,7 +1026,7 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
                     long l_chain_datum = l_cur_datum;
                     dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(l_net_str);
                     char *l_datum_list_str = dap_db_history_filter(l_chain_cur, l_ledger, l_token_name_str, NULL,
-                            l_hash_out_type, l_page_start * l_page_size, (l_page_start+l_page)*l_page_size, &l_chain_datum, l_list_tx_hash_processd);
+                                                                   l_hash_out_type, l_page_start * l_page_size, (l_page_start+l_page)*l_page_size, &l_chain_datum, l_list_tx_hash_processd);
                     if(l_datum_list_str) {
                         l_cur_datum += l_chain_datum;
                         dap_string_append_printf(l_str_out, "Chain: %s\n", l_chain_cur->name);
@@ -1046,7 +1044,7 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
             dap_string_free(l_str_out, true);
             return 0;
         }
-        // tx -addr or tx -wallet
+            // tx -addr or tx -wallet
         else if(l_subcmd == SUBCMD_TX_ADDR) {
             // parse addr from -addr <addr> or -wallet <wallet>
             dap_chain_addr_t *l_addr_base58 = NULL;
@@ -1059,7 +1057,7 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
                 dap_chain_wallet_t * l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
                 if(l_wallet) {
                     dap_chain_addr_t *l_addr_tmp = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet,
-                            l_net->pub.id);
+                                                                                                  l_net->pub.id);
                     l_addr_base58 = DAP_NEW_SIZE(dap_chain_addr_t, sizeof(dap_chain_addr_t));
                     memcpy(l_addr_base58, l_addr_tmp, sizeof(dap_chain_addr_t));
                     dap_chain_wallet_close(l_wallet);
@@ -1107,7 +1105,7 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
             dap_cli_server_cmd_set_reply_text(a_str_reply, "not found parameter '-all', '-wallet' or '-addr'");
             return -1;
         }
-        return 0;
+#endif
     }
 
     dap_cli_server_cmd_set_reply_text(a_str_reply, "unknown command code %d", l_cmd);
@@ -1196,7 +1194,7 @@ static dap_chain_datum_anchor_t * s_sign_anchor_in_cycle(dap_cert_t ** a_certs, 
 // Decree commands handlers
 int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
 {
-    enum { CMD_NONE=0, CMD_CREATE, CMD_SIGN, CMD_ANCHOR };
+    enum { CMD_NONE=0, CMD_CREATE, CMD_SIGN, CMD_ANCHOR, CMD_FIND };
     enum { TYPE_NONE=0, TYPE_COMMON, TYPE_SERVICE};
     enum { SUBTYPE_NONE=0, SUBTYPE_FEE, SUBTYPE_OWNERS, SUBTYPE_MIN_OWNERS};
     int arg_index = 1;
@@ -1238,15 +1236,19 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
     else if (dap_cli_server_cmd_find_option_val(a_argv, 1, 2, "sign", NULL))
         l_cmd = CMD_SIGN;
     else if (dap_cli_server_cmd_find_option_val(a_argv, 1, 2, "anchor", NULL))
-            l_cmd = CMD_ANCHOR;
+        l_cmd = CMD_ANCHOR;
+    else if (dap_cli_server_cmd_find_option_val(a_argv, 1, 2, "find", NULL))
+        l_cmd = CMD_FIND;
 
-    // Public certifiacte of condition owner
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-certs", &l_certs_str);
-    if (!l_certs_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "decree create requires parameter '-certs'");
-        return -106;
+    if (l_cmd != CMD_FIND) {
+        // Public certifiacte of condition owner
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-certs", &l_certs_str);
+        if (!l_certs_str) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "decree create requires parameter '-certs'");
+            return -106;
+        }
+        dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
     }
-    dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
 
     switch (l_cmd)
     {
@@ -1478,7 +1480,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
     case CMD_SIGN:{
         if(!l_certs_count) {
             dap_cli_server_cmd_set_reply_text(a_str_reply,
-                    "decree sign command requres at least one valid certificate to sign the basic transaction of emission");
+                    "decree sign command requres at least one valid certificate to sign");
             return -106;
         }
 
@@ -1669,8 +1671,26 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                                           l_key_str_out ? "" : " not");
         break;
     }
+    case CMD_FIND: {
+        const char *l_hash_str = NULL;
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_hash_str);
+        if (!l_hash_str) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'decree find' requiers parameter '-hash'");
+            return -110;
+        }
+        dap_hash_fast_t l_datum_hash;
+        if (dap_chain_hash_fast_from_hex_str(l_hash_str, &l_datum_hash) &&
+                dap_chain_hash_fast_from_base58_str(l_hash_str, &l_datum_hash)) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't convert '-hash' parameter to numeric value");
+            return -111;
+        }
+        bool l_applied = false;
+        dap_chain_datum_decree_t *l_decree = dap_chain_net_decree_get_by_hash(&l_datum_hash, &l_applied);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified decree is %s in decrees hash-table",
+                                          l_decree ? (l_applied ? "applied" : "not applied") : "not found");
+    } break;
     default:
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Not found decree action. Use create, sign or anchor parametr");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Not found decree action. Use create, sign, anchor or find parameter");
         return -1;
     }
 

@@ -299,7 +299,7 @@ static dap_chain_hash_fast_t* dap_chain_net_vpn_client_tx_cond_hash(dap_chain_ne
      l_cert = l_certs[0];
      if(l_cert) {
      size_t l_pub_key_data_size = 0;
-     uint8_t *l_pub_key_data = dap_enc_key_serealize_pub_key(l_cert->enc_key, &l_pub_key_data_size);
+     uint8_t *l_pub_key_data = dap_enc_key_serialize_pub_key(l_cert->enc_key, &l_pub_key_data_size);
      // save pub key
      if(l_pub_key_data && l_pub_key_data_size > 0){
      if(dap_global_db_gr_set(dap_strdup("client_pkey"), l_pub_key_data, l_pub_key_data_size,
