@@ -1156,7 +1156,7 @@ static int callback_compare_tx_list(const void * a_datum1, const void * a_datum2
 }
 
 bool dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fast_t *a_tx_hash, dap_stream_ch_chain_rnd_t * out_data,
-                                             int a_time_connect, int a_time_respone,char **a_str_reply)
+                                             int a_time_connect, int a_time_respone)
 {
     char *l_key = NULL;
     size_t l_node_info_size = 0;
@@ -1172,7 +1172,6 @@ bool dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_f
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_tx,
                                                   DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_prev_cond_idx);
     if (!l_tx_out_cond) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Requested conditional transaction has no requires conditional output");
         log_it(L_WARNING, "Requested conditional transaction has no requires conditional output");
         return false;
     }
@@ -1181,7 +1180,6 @@ bool dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_f
     l_key = dap_chain_node_addr_to_hash_str(l_signer_node_addr);
     if(!l_key)
     {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "can't calculate hash of addr");
         log_it(L_WARNING, "can't calculate hash of addr");
         return false;
     }
@@ -1190,7 +1188,6 @@ bool dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_f
     l_remote_node_info = (dap_chain_node_info_t *) dap_global_db_get_sync(a_net->pub.gdb_nodes, l_key, &l_node_info_size, NULL, NULL);
 
     if(!l_remote_node_info) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "node not found in base");
         log_it(L_WARNING, "node not found in base");
         DAP_DELETE(l_key);
         return false;
@@ -1198,8 +1195,6 @@ bool dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_f
 
     size_t node_info_size_must_be = dap_chain_node_info_get_size(l_remote_node_info);
     if(node_info_size_must_be != l_node_info_size) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "node has bad size in base=%zu (must be %zu)", l_node_info_size,
-                node_info_size_must_be);
         log_it(L_WARNING, "node has bad size in base=%zu (must be %zu)", l_node_info_size, node_info_size_must_be);
         DAP_DELETE(l_remote_node_info);
         DAP_DELETE(l_key);
@@ -1209,14 +1204,14 @@ bool dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_f
     // start connect
     l_node_client = dap_chain_node_client_connect_channels(a_net,l_remote_node_info,"N");
     if(!l_node_client) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "can't connect");
+        log_it(L_WARNING, "can't connect");
         DAP_DELETE(l_remote_node_info);
         return false;
     }
     // wait connected
     size_t rc = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_ESTABLISHED, a_time_connect);
     if (rc) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "No response from node");
+        log_it(L_WARNING, "No response from node");
         // clean client struct
         dap_chain_node_client_close_mt(l_node_client);
         DAP_DELETE(l_remote_node_info);
@@ -1233,7 +1228,6 @@ bool dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_f
                                             a_net->pub.id,
                                             l_test_data, sizeof(l_test_data));
     if (rc == 0) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't send DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST packet");
         log_it(L_WARNING, "Can't send DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST packet");
         dap_chain_node_client_close_mt(l_node_client);
         DAP_DELETE(l_remote_node_info);
@@ -1243,6 +1237,7 @@ bool dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_f
     rc = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_VALID_READY, a_time_respone);
     if (!rc) {
         dap_stream_ch_chain_rnd_t *validators_data = (dap_stream_ch_chain_rnd_t*)l_node_client->callbacks_arg;
+
         dap_sign_t *l_sign = NULL;        
         bool l_sign_correct = false;
         if(validators_data->header.sign_size){
@@ -1254,11 +1249,11 @@ bool dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_f
                 l_sign_correct = dap_sign_verify_all(l_sign, validators_data->header.sign_size, l_test_data, sizeof(l_test_data));
         }
         l_overall_correct = l_sign_correct && validators_data->header.flags == 0xCF;
-
-        memcpy(out_data,validators_data,sizeof(dap_stream_ch_chain_rnd_t));
+        *out_data = *validators_data;
         out_data->header.sign_correct = l_sign_correct ? 1 : 0;
         out_data->header.overall_correct = l_overall_correct ? 1 : 0;
     }
+    DAP_DELETE(l_node_client->callbacks_arg);
     dap_chain_node_client_close_mt(l_node_client);
     DAP_DELETE(l_remote_node_info);
     return l_overall_correct;
@@ -1323,7 +1318,6 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_netst);
                 return -1;
             }
-
             if (!str_tx_hash) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command check requires parameter -tx");
                 return -2;
@@ -1332,8 +1326,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't get hash_fast from %s", str_tx_hash);
                 return -3;
             }
-
-            dap_chain_net_srv_stake_check_validator(l_net, &l_tx, &l_out, 7000, 10000, a_str_reply);
+            dap_chain_net_srv_stake_check_validator(l_net, &l_tx, &l_out, 7000, 15000);
             dap_cli_server_cmd_set_reply_text(a_str_reply,
                                               "-------------------------------------------------\n"
                                               "VERSION \t |  %s \n"

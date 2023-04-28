@@ -82,7 +82,7 @@ int dap_chain_net_srv_stake_load_cache(dap_chain_net_t *a_net);
 void dap_chain_net_srv_stake_purge(dap_chain_net_t *a_net);
 
 bool dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net,dap_hash_fast_t *a_tx_hash, dap_stream_ch_chain_rnd_t * out_data,
-                                             int a_time_connect, int a_time_respone, char **a_str_reply);
+                                             int a_time_connect, int a_time_respone);
 
 dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t *a_net,
                                                                  dap_hash_fast_t *a_stake_tx_hash, dap_cert_t *a_cert);
