@@ -1361,10 +1361,10 @@ char l_errbuf[128] = {0};
         debug_if(s_debug_more, L_WARNING, "[es:%p] l_client_pvt is NULL", a_es);
         return;
     }
-
-    if ( !(l_client_pvt = dap_client_pvt_find(l_client_pvt->uuid)) )
+    uint64_t l_uid = l_client_pvt->uuid;
+    if ( !(l_client_pvt = dap_client_pvt_find(l_uid)) )
     {
-        log_it(L_ERROR, "[es:%p] no client with UUID:%016"DAP_UINT64_FORMAT_X, a_es, l_client_pvt->uuid);
+        log_it(L_ERROR, "[es:%p] no client with UUID:%016"DAP_UINT64_FORMAT_X, a_es, l_uid);
         return;
     }
 
