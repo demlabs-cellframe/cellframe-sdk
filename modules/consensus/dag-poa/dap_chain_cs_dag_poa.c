@@ -394,6 +394,11 @@ static void s_poa_round_clean(void *a_arg)
             if (!strcmp(DAG_ROUND_CURRENT_KEY, l_objs[i].key))
                 continue;
             dap_chain_cs_dag_event_round_item_t *l_event_round_item = (dap_chain_cs_dag_event_round_item_t *)l_objs[i].value;
+            if (!l_event_round_item) {
+                log_it(L_ERROR, " ! A record %s : %s (index %lu) is empty, possibly trash value. Removing it from DB...", l_gdb_group_round, l_objs[i].key, i);
+                dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_round);
+                continue;
+            }
             uint64_t l_time_diff = dap_gdb_time_now() - l_event_round_item->round_info.ts_update;
             uint64_t l_timeuot = dap_gdb_time_from_sec(l_poa_pvt->confirmations_timeout + l_poa_pvt->wait_sync_before_complete + 10);
             uint64_t l_round_id = ((dap_chain_cs_dag_event_t *)l_event_round_item->event_n_signs)->header.round_id;
