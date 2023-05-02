@@ -407,7 +407,7 @@ static void s_sync_out_gdb_last_worker_callback(dap_worker_t *a_worker, void *a_
     }
 
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
-    s_sync_out_gdb_first_worker_callback(NULL, a_arg);
+    s_sync_out_gdb_first_worker_callback(a_worker, a_arg);
     l_ch_chain->request_db_log = l_sync_request->gdb.db_log;
     debug_if (s_debug_more, L_INFO,"[stm_ch_chain:%p] Out: DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB", l_ch_chain);
     dap_stream_ch_chain_pkt_write_unsafe(DAP_STREAM_CH(l_ch_chain), DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB,
@@ -418,7 +418,6 @@ static void s_sync_out_gdb_last_worker_callback(dap_worker_t *a_worker, void *a_
     if(l_ch_chain->callback_notify_packet_out)
         l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB,
                                                 NULL, 0, l_ch_chain->callback_notify_arg);
-    DAP_DEL_Z(l_sync_request);
 }
 
 /**
