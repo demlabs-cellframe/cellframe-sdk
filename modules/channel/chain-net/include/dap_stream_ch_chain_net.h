@@ -41,7 +41,7 @@ typedef struct dap_stream_ch_chain_net {
     void *notify_callback_arg;
 } dap_stream_ch_chain_net_t;
 
-typedef struct dap_stream_ch_chain_rnd{
+typedef struct dap_stream_ch_chain_validator_test{
     struct{
         /// node Version
         uint8_t version[32];
@@ -53,7 +53,7 @@ typedef struct dap_stream_ch_chain_rnd{
         //uint8_t data[10];
     }DAP_ALIGN_PACKED header;
     byte_t sign[];
-} DAP_ALIGN_PACKED dap_stream_ch_chain_rnd_t;
+} DAP_ALIGN_PACKED dap_stream_ch_chain_validator_test_t;
 
 #define A_PROC 0x01
 #define F_ORDR 0x02
