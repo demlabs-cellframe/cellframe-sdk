@@ -671,7 +671,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
             HASH_ITER(th, l_tmp, l_cur_ev, l_tmp_ev) {
                 if (l_hash_id++ == l_random_id) {
                     l_hashes[l_hashes_linked++] = l_cur_ev->hash;
-                    HASH_DEL(l_tmp, l_cur_ev);
+                    HASH_DELETE(th, l_tmp, l_cur_ev);
                     break;
                 }
             }
