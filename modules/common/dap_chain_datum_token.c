@@ -180,9 +180,18 @@ void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_data_
     dap_string_append_printf(a_str_out, "\n");
 
     size_t l_offset = 0;
-    for (int i = 1; l_offset < (a_certs_size); i++) {
+    int  i = 0;
+//    for (int i = 1; l_offset < (a_certs_size); i++) {
+    while (l_offset < a_certs_size) {
+        i++;
         dap_sign_t *l_sign = (dap_sign_t *) (a_data_n_tsd + l_offset);
         l_offset += dap_sign_get_size(l_sign);
+        if (l_offset > a_certs_size) {
+            dap_string_append_printf(a_str_out, "<CORRUPTED - size signatures. "
+                                                "Offset %zu > certs_size %zu. Signature size %zu>", l_offset, a_certs_size,
+                                     dap_sign_get_size(l_sign));
+            break;
+        }
         if (l_sign->header.sign_size == 0) {
             dap_string_append_printf(a_str_out, "<CORRUPTED - 0 size signature>\n");
             continue;
