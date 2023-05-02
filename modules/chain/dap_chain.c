@@ -784,7 +784,7 @@ int dap_chain_datum_unledgered_search_iter(dap_chain_datum_t* a_datum, dap_chain
         }
         int l_found = 0;
         dap_chain_hash_fast_t l_datum_hash;
-        dap_hash_fast(a_datum, dap_chain_datum_size(a_datum), &l_datum_hash);
+        dap_hash_fast(a_datum->data, a_datum->header.data_size, &l_datum_hash);
         dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain, a_chain->cells->id, 0);
         size_t l_atom_size = 0;
         for (dap_chain_atom_ptr_t l_atom = a_chain->callback_atom_iter_get_first(l_atom_iter, &l_atom_size);
@@ -794,11 +794,11 @@ int dap_chain_datum_unledgered_search_iter(dap_chain_datum_t* a_datum, dap_chain
             size_t l_datums_count = 0;
             dap_chain_datum_t **l_datums = a_chain->callback_atom_get_datums(l_atom, l_atom_size, &l_datums_count);
             for (size_t i = 0; i < l_datums_count; ++i) {
-                if ((*(l_datums + i))->header.type_id != a_datum->header.type_id) {
+                if (l_datums[i]->header.type_id != a_datum->header.type_id) {
                     break;
                 }
                 dap_chain_hash_fast_t l_datum_i_hash;
-                dap_hash_fast(*(l_datums + i), dap_chain_datum_size(*(l_datums + i)), &l_datum_i_hash);
+                dap_hash_fast(l_datums[i]->data, l_datums[i]->header.data_size, &l_datum_i_hash);
                 if (!memcmp(&l_datum_i_hash, &l_datum_hash, DAP_CHAIN_HASH_FAST_SIZE)) {
                     char l_datum_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
                     dap_hash_fast_to_str(&l_datum_hash, l_datum_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
