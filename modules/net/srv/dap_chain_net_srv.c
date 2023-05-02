@@ -616,7 +616,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
             dap_string_append_printf(l_string_ret, "Command 'net_srv' requires subcommand 'order'");
             ret = -3;
         }
-        dap_cli_server_cmd_set_reply_text(a_str_reply, l_string_ret->str);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_ret->str);
         dap_string_free(l_string_ret, true);
     }
 
