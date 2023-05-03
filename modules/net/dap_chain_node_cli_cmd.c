@@ -2975,11 +2975,11 @@ int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply)
                 dap_string_append_printf(l_str_tmp, "hash %s: type_id=%s ts_create=%s data_size=%u\n",
                         l_datum_hash_out_str, l_type,
                         dap_ctime_r(&l_ts_create, buf), l_datum->header.data_size);
-                int l_verify_datum= dap_chain_net_verify_datum_for_add( l_net, l_datum) ;
+//                int l_verify_datum= dap_chain_net_verify_datum_for_add( l_net, l_datum) ;
                 int l_dup_or_skip = dap_chain_datum_unledgered_search_iter(l_datum, l_chain);
                 if (l_dup_or_skip) {
                     dap_string_append_printf(l_str_tmp, "Error! Datum unledgered search returned '%d'", l_dup_or_skip);
-                    dap_global_db_del_sync(l_datum_hash_hex_str, l_gdb_group_mempool);
+                    dap_global_db_del_sync(l_gdb_group_mempool, l_datum_hash_hex_str);
                     ret = -10;
                 } else {
                     int l_verify_datum = dap_chain_net_verify_datum_for_add( l_net, l_datum) ;
@@ -2994,7 +2994,7 @@ int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply)
                                 ret = -6;
                             } else {
                                 dap_string_append_printf(l_str_tmp, "Datum processed well. ");
-                                if (!dap_global_db_del_sync(l_datum_hash_hex_str, l_gdb_group_mempool)){
+                                if (dap_global_db_del_sync(l_gdb_group_mempool, l_datum_hash_hex_str)){
                                     dap_string_append_printf(l_str_tmp, "Warning! Can't delete datum from mempool!");
                                 } else
                                     dap_string_append_printf(l_str_tmp, "Removed datum from mempool.");
@@ -3699,8 +3699,13 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     bool l_placed = dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, l_datum, l_datum_size, true) == 0;
     dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s with token %s is%s placed in datum pool",
                                       l_key_str_out, l_ticker, l_placed ? "" : " not");
+
+    if(l_key_str != l_key_str_out){
+        DAP_DEL_Z(l_key_str_out);
+    } else {
+        l_key_str_out = NULL;
+    }
     DAP_DEL_Z(l_key_str);
-    DAP_DEL_Z(l_key_str_out);
     DAP_DELETE(l_datum);
     DAP_DELETE(l_params);
     return l_placed ? 0 : -2;
