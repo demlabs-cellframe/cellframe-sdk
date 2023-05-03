@@ -559,8 +559,9 @@ static void s_session_round_new(dap_chain_esbocs_session_t *a_session)
 
     dap_hash_fast_t l_last_block_hash;
     s_get_last_block_hash(a_session->chain, &l_last_block_hash);
-    if (dap_hash_fast_is_blank(&a_session->cur_round.last_block_hash) ||
-            !dap_hash_fast_compare(&l_last_block_hash, &a_session->cur_round.last_block_hash)) {
+    if (!dap_hash_fast_compare(&l_last_block_hash, &a_session->cur_round.last_block_hash) ||
+            (!dap_hash_fast_is_blank(&l_last_block_hash) &&
+                dap_hash_fast_is_blank(&a_session->cur_round.last_block_hash))) {
         a_session->cur_round.last_block_hash = l_last_block_hash;
         a_session->cur_round.sync_attempt = 1;
     }
