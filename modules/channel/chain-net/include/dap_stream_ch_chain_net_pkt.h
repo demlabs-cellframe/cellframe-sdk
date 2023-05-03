@@ -42,7 +42,7 @@
 #define DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST  0x30
 #define DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY          0x31
 
-#define DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_DBG                           0x99
+#define DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_TEST                          0x99
 
 #define DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR                         0xff
 
