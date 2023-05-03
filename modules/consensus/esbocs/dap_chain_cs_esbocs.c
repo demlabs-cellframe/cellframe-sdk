@@ -559,8 +559,9 @@ static void s_session_round_new(dap_chain_esbocs_session_t *a_session)
 
     dap_hash_fast_t l_last_block_hash;
     s_get_last_block_hash(a_session->chain, &l_last_block_hash);
-    if (dap_hash_fast_is_blank(&a_session->cur_round.last_block_hash) ||
-            !dap_hash_fast_compare(&l_last_block_hash, &a_session->cur_round.last_block_hash)) {
+    if (!dap_hash_fast_compare(&l_last_block_hash, &a_session->cur_round.last_block_hash) ||
+            (!dap_hash_fast_is_blank(&l_last_block_hash) &&
+                dap_hash_fast_is_blank(&a_session->cur_round.last_block_hash))) {
         a_session->cur_round.last_block_hash = l_last_block_hash;
         a_session->cur_round.sync_attempt = 1;
     }
@@ -901,7 +902,8 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
     dap_chain_block_t *l_candidate;
     size_t l_candidate_size = 0;
     dap_hash_fast_t l_candidate_hash = {0};
-    dap_chain_node_mempool_process_all(a_session->chain, false);
+    for (int i= 0 ; i < 64; i++)
+        dap_chain_node_mempool_process_all(a_session->chain, false);
     l_candidate = l_blocks->callback_new_block_move(l_blocks, &l_candidate_size);
     if (l_candidate_size) {
         dap_hash_fast(l_candidate, l_candidate_size, &l_candidate_hash);

@@ -3682,9 +3682,9 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     // Calc datum's hash
     dap_chain_hash_fast_t l_key_hash;
     dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_key_hash);
-    char * l_key_str = dap_chain_hash_fast_to_str_new(&l_key_hash);
-    char * l_key_str_out = dap_strcmp(l_hash_out_type, "hex") ?
-                dap_enc_base58_encode_hash_to_str(&l_key_hash) : l_key_str;
+    char * l_key_str = dap_strcmp(l_hash_out_type, "hex") ?
+                dap_chain_hash_fast_to_str_new(&l_key_hash) :
+                dap_enc_base58_encode_hash_to_str(&l_key_hash);
 
     // Add datum to mempool with datum_token hash as a key
     char *l_gdb_group_mempool = l_chain
@@ -3693,15 +3693,13 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     if (!l_gdb_group_mempool) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "No suitable chain for placing token datum found");
         DAP_DEL_Z(l_key_str);
-        DAP_DEL_Z(l_key_str_out);
         DAP_DELETE(l_datum);
         return -10;
     }
     bool l_placed = dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, l_datum, l_datum_size, true) == 0;
     dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s with token %s is%s placed in datum pool",
-                                      l_key_str_out, l_ticker, l_placed ? "" : " not");
+                                      l_key_str, l_ticker, l_placed ? "" : " not");
     DAP_DEL_Z(l_key_str);
-    DAP_DEL_Z(l_key_str_out);
     DAP_DELETE(l_datum);
     DAP_DELETE(l_params);
     return l_placed ? 0 : -2;
