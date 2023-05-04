@@ -630,7 +630,7 @@ static char* dap_db_history_token_list(dap_chain_t * a_chain, const char *a_toke
                 dap_chain_datum_t *l_datum = l_datums[l_datum_n];
                 if (!l_datum || l_datum->header.type_id != DAP_CHAIN_DATUM_TOKEN_DECL)
                     continue;
-                if (!a_token_name && dap_strcmp(((dap_chain_datum_token_t *)l_datum->data)->ticker, a_token_name))
+                if (a_token_name && dap_strcmp(((dap_chain_datum_token_t *)l_datum->data)->ticker, a_token_name))
                     continue;
                 dap_chain_datum_dump(l_str_out, l_datum, a_hash_out_type);
                 (*a_token_num)++;
@@ -744,6 +744,10 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                     //calc tx hash
                     dap_chain_hash_fast_t l_tx_hash;
                     dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
+                    char *l_token = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_tx_hash);
+                    if (a_filter_token_name && dap_strcmp(a_filter_token_name, l_token)) {
+                        break;
+                    }
                     dap_chain_tx_hash_processed_ht_t *l_sht = NULL;
                     HASH_FIND(hh, a_tx_hash_processed, &l_tx_hash, sizeof(dap_chain_hash_fast_t), l_sht);
                     if (l_sht != NULL ||
