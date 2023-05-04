@@ -334,8 +334,6 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                 if(enc_key_pvt)
                                     break;
                             }
-                            else
-                                log_it(L_WARNING, "There isn't signature in '%s' chain",l_chain->name);
                         dap_sign_t *l_sign = NULL;
                         size_t sign_s = 0;
                         size_t l_orders_num = 0;
