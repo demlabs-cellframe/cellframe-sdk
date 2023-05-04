@@ -69,8 +69,11 @@ typedef struct dap_chain_tx_hash_processed_ht{
 static void s_dap_chain_tx_hash_processed_ht_free(dap_chain_tx_hash_processed_ht_t *l_hash_processed)
 {
     dap_chain_tx_hash_processed_ht_t *l_tmp, *l_current_hash;
-    HASH_ITER(hh, l_hash_processed, l_current_hash, l_tmp)
+    HASH_ITER(hh, l_hash_processed, l_current_hash, l_tmp) {
+        HASH_DEL(l_hash_processed, l_current_hash);
         DAP_FREE(l_current_hash);
+    }
+    DAP_DELETE(l_hash_processed);
 }
 
 /**
