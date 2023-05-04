@@ -73,7 +73,6 @@ static void s_dap_chain_tx_hash_processed_ht_free(dap_chain_tx_hash_processed_ht
         HASH_DEL(l_hash_processed, l_current_hash);
         DAP_FREE(l_current_hash);
     }
-    DAP_DELETE(l_hash_processed);
 }
 
 /**
