@@ -329,8 +329,13 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         dap_enc_key_t * enc_key_pvt = NULL;
                         dap_chain_t *l_chain = NULL;
                         DL_FOREACH(l_net->pub.chains, l_chain)
-                               if((enc_key_pvt = l_chain->callback_get_signing_certificate(l_chain)))
+                            if(l_chain->callback_get_signing_certificate != NULL){
+                                enc_key_pvt = l_chain->callback_get_signing_certificate(l_chain);
+                                if(enc_key_pvt)
                                     break;
+                            }
+                            else
+                                log_it(L_ERROR, "There isn't signature in this chain");
                         dap_sign_t *l_sign = NULL;
                         size_t sign_s = 0;
                         size_t l_orders_num = 0;
