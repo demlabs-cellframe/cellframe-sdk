@@ -1082,6 +1082,11 @@ static void s_check_db_callback_fee_collect (dap_global_db_context_t *a_global_d
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
     dap_list_t *l_block_list = NULL;
     l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_arg->block_hash);
+    if(!l_block_cache)
+    {
+        log_it(L_WARNING, "The block_cache is empty");
+        return;
+    }
     dap_list_t *l_list_used_out = dap_chain_block_get_list_tx_cond_outs_with_val(l_chain->ledger,l_block_cache,&l_value_out_block);
     if(!l_list_used_out)
     {
@@ -1150,6 +1155,7 @@ static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_ch
     bool l_cs_debug = PVT(a_session->esbocs)->debug;
     dap_chain_t *l_chain = a_session->chain;
     uint16_t l_cs_level = PVT(a_session->esbocs)->min_validators_count;
+    dap_hash_fast_t l_precommit_candidate_hash = {0};
 
     if (!dap_hash_fast_compare(&a_session->cur_round.attempt_candidate_hash, &l_store->candidate_hash)) {
         char *l_current_candidate_hash_str = dap_chain_hash_fast_to_str_new(&a_session->cur_round.attempt_candidate_hash);
@@ -1200,6 +1206,7 @@ static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_ch
         DAP_DELETE(l_finish_block_hash_str);
     }
 
+    memcpy(&l_precommit_candidate_hash, &l_store->precommit_candidate_hash, sizeof(dap_hash_fast_t));
     bool l_compare = dap_hash_fast_compare(&l_store->candidate_hash, &(PVT(a_session->esbocs)->candidate_hash));
     if(s_session_candidate_to_chain(a_session, &l_store->precommit_candidate_hash, l_store->candidate, l_store->candidate_size) &&
             l_compare && PVT(a_session->esbocs)->fee_addr) {
@@ -1208,7 +1215,7 @@ static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_ch
         dap_chain_addr_t * addr = DAP_NEW_Z(dap_chain_addr_t);
         *addr = *PVT(a_session->esbocs)->fee_addr;
         tmp->a_addr_to = addr;
-        tmp->block_hash = l_store->precommit_candidate_hash;
+        tmp->block_hash = l_precommit_candidate_hash;
         tmp->chain = l_chain;
         tmp->value_fee = PVT(a_session->esbocs)->minimum_fee;
         tmp->fee_need_cfg = PVT(a_session->esbocs)->fee_coll_set;
