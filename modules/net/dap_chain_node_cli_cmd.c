@@ -2014,6 +2014,10 @@ char    l_buf[1024];
         case CMD_WALLET_INFO: {
             dap_chain_wallet_t *l_wallet = NULL;
             dap_chain_addr_t *l_addr = NULL;
+            if (l_wallet_name && l_addr_str) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "You can use either the -w or -addr option for the wallet info command.");
+                return -1;
+            }
 
             if(l_wallet_name) {
                 l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
