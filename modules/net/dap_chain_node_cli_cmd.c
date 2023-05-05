@@ -2558,7 +2558,6 @@ static bool dap_chain_mempool_find_addr_ledger(dap_ledger_t* a_ledger, dap_chain
         }
         if(l_dst_addr)
         {
-            log_it(L_ERROR, "Hash - %s",dap_chain_addr_to_str(l_dst_addr));
             if(!memcmp(l_dst_addr, a_addr, sizeof(dap_chain_addr_t)))
             {
                 dap_list_free(l_list_out_items);
