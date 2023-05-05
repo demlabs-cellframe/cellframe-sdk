@@ -241,18 +241,21 @@ size_t dap_stream_ch_pkt_write_unsafe(dap_stream_ch_t * a_ch,  uint8_t a_type, c
     debug_if(dap_stream_get_dump_packet_headers(), L_INFO, "Outgoing channel packet: id='%c' size=%u type=0x%02X seq_id=0x%016"DAP_UINT64_FORMAT_X" enc_type=0x%02hhX",
         (char) l_hdr.id, l_hdr.size, l_hdr.type, l_hdr.seq_id , l_hdr.enc_type);
 
-    if (l_data_size > 0 && l_data_size <= DAP_STREAM_PKT_FRAGMENT_SIZE) {
+    const size_t l_max_fragm_size = DAP_STREAM_PKT_FRAGMENT_SIZE - DAP_STREAM_PKT_ENCRYPTION_OVERHEAD - sizeof(dap_stream_fragment_pkt_t);
+
+    if (l_data_size > 0 && l_data_size <= l_max_fragm_size) {
         memcpy(l_buf, &l_hdr, sizeof(dap_stream_ch_pkt_hdr_t));
         memcpy(l_buf + sizeof(dap_stream_ch_pkt_hdr_t), a_data, a_data_size);
         l_ret = dap_stream_pkt_write_unsafe(a_ch->stream, STREAM_PKT_TYPE_DATA_PACKET, l_buf, l_data_size);
-    } else if (l_data_size > DAP_STREAM_PKT_FRAGMENT_SIZE) {
+        dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
+    } else if (l_data_size > l_max_fragm_size) {
         /* The first fragment (has no memory shift) is the channel header
          The rest fragments just concatenate as-is */
         size_t l_fragment_size;
         dap_stream_fragment_pkt_t *l_fragment;
         for (l_fragment = (dap_stream_fragment_pkt_t*)l_buf, l_fragment_size = sizeof(dap_stream_ch_pkt_hdr_t);
              l_data_size > 0;
-             l_data_size -= l_fragment_size, l_fragment_size = MIN(l_data_size, DAP_STREAM_PKT_FRAGMENT_SIZE))
+             l_data_size -= l_fragment_size, l_fragment_size = MIN(l_data_size, l_max_fragm_size))
         {
             l_fragment->size        = l_fragment_size;
             l_fragment->full_size   = l_max_size;
@@ -261,8 +264,8 @@ size_t dap_stream_ch_pkt_write_unsafe(dap_stream_ch_t * a_ch,  uint8_t a_type, c
                    l_fragment_size);
             l_ret += dap_stream_pkt_write_unsafe(a_ch->stream, STREAM_PKT_TYPE_FRAGMENT_PACKET, l_fragment,
                                                   l_fragment_size + sizeof(dap_stream_fragment_pkt_t));
+            dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
         }
-        dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
     } else {
         a_ch->stat.bytes_write = 0;
         log_it(L_WARNING, "Empty pkt, seq_id %"DAP_UINT64_FORMAT_U, l_hdr.seq_id);
