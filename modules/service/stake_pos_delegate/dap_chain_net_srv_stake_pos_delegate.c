@@ -1326,7 +1326,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't get hash_fast from %s", str_tx_hash);
                 return -3;
             }
-            dap_chain_net_srv_stake_check_validator(l_net, &l_tx, &l_out, 7000, 15000);
+            dap_chain_net_srv_stake_check_validator(l_net, &l_tx, &l_out, 10000, 15000);
             dap_cli_server_cmd_set_reply_text(a_str_reply,
                                               "-------------------------------------------------\n"
                                               "VERSION \t |  %s \n"
