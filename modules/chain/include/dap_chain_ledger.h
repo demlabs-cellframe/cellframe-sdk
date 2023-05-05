@@ -145,6 +145,11 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger);
 dap_string_t *dap_chain_ledger_threshold_info(dap_ledger_t *a_ledger);
 dap_string_t *dap_chain_ledger_threshold_hash_info(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *l_tx_treshold_hash);
 dap_string_t *dap_chain_ledger_balance_info(dap_ledger_t *a_ledger);
+
+size_t dap_chain_ledger_token_auth_signs_valid(dap_ledger_t *a_ledger, const char * a_token_ticker);
+size_t dap_chain_ledger_token_auth_signs_total(dap_ledger_t *a_ledger, const char * a_token_ticker);
+dap_list_t * dap_chain_ledger_token_auth_signs_hashes(dap_ledger_t *a_ledger, const char * a_token_ticker);
+
 /**
  * Add token emission datum
  */
