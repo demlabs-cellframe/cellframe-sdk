@@ -1768,7 +1768,8 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
             if (l_data_size){
                 l_was_sent_smth = true;
                 if(s_debug_more)
-                    log_it(L_DEBUG,"Out: UPDATE_CHAINS with %zu hashes sent", l_data_size / sizeof(dap_stream_ch_chain_update_element_t));
+                    log_it(L_DEBUG,"Out: UPDATE_CHAINS with %zu hashes sent, net id %lu, chain id %lu",
+                           l_data_size / sizeof(dap_stream_ch_chain_update_element_t), l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64);
                 s_stream_ch_chain_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS,
                                                      l_ch_chain->request_hdr.net_id.uint64,
                                                      l_ch_chain->request_hdr.chain_id.uint64,
@@ -1816,7 +1817,8 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                     l_hash_item->hash = *l_ch_chain->request_atom_iter->cur_hash;
                     if(s_debug_more){
                         char *l_atom_hash_str= dap_chain_hash_fast_to_str_new(&l_hash_item->hash);
-                        log_it(L_INFO, "Out CHAIN pkt: atom hash %s (size %zd) ", l_atom_hash_str, l_ch_chain->request_atom_iter->cur_size);
+                        log_it(L_INFO, "Out CHAIN pkt: atom hash %s (size %zd), net id %lu, chain id %lu", l_atom_hash_str, l_ch_chain->request_atom_iter->cur_size,
+                               l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64);
                         DAP_DELETE(l_atom_hash_str);
                     }
                     s_stream_ch_chain_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN, l_ch_chain->request_hdr.net_id.uint64,
