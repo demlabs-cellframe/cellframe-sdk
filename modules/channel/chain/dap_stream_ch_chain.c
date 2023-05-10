@@ -847,7 +847,7 @@ struct sync_request *dap_stream_ch_chain_create_sync_request(dap_stream_ch_chain
             .worker         = a_ch->stream_worker->worker,
             .ch_uuid        = a_ch->uuid,
             .request        = l_ch_chain->request,
-            .request_hdr    = l_ch_chain->request_hdr = a_chain_pkt->hdr,
+            .request_hdr    = a_chain_pkt->hdr,
             .remote_atoms   = l_ch_chain->remote_atoms,
             .remote_gdbs    = l_ch_chain->remote_gdbs
     };
@@ -1025,6 +1025,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             else
                 l_ch_chain->request.id_start = 1;   // incremental sync by default
             struct sync_request *l_sync_request = dap_stream_ch_chain_create_sync_request(l_chain_pkt, a_ch);
+            l_ch_chain->request_hdr = l_chain_pkt->hdr;
             l_ch_chain->stats_request_gdb_processed = 0;
             dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_sync_update_gdb_proc_callback, l_sync_request);
         } break;
