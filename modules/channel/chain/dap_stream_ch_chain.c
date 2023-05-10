@@ -847,7 +847,7 @@ struct sync_request *dap_stream_ch_chain_create_sync_request(dap_stream_ch_chain
             .worker         = a_ch->stream_worker->worker,
             .ch_uuid        = a_ch->uuid,
             .request        = l_ch_chain->request,
-            .request_hdr    = l_ch_chain->request_hdr = a_chain_pkt->hdr,
+            .request_hdr    = a_chain_pkt->hdr,
             .remote_atoms   = l_ch_chain->remote_atoms,
             .remote_gdbs    = l_ch_chain->remote_gdbs
     };
@@ -1025,6 +1025,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             else
                 l_ch_chain->request.id_start = 1;   // incremental sync by default
             struct sync_request *l_sync_request = dap_stream_ch_chain_create_sync_request(l_chain_pkt, a_ch);
+            l_ch_chain->request_hdr = l_chain_pkt->hdr;
             l_ch_chain->stats_request_gdb_processed = 0;
             dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_sync_update_gdb_proc_callback, l_sync_request);
         } break;
@@ -1351,6 +1352,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 }
                 struct sync_request *l_sync_request = dap_stream_ch_chain_create_sync_request(l_chain_pkt, a_ch);
                 l_ch_chain->stats_request_atoms_processed = 0;
+                l_ch_chain->request_hdr = l_chain_pkt->hdr;
                 if (l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS) {
                     char l_hash_from_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' }, l_hash_to_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
                     dap_chain_hash_fast_t l_hash_from = l_ch_chain->request.hash_from,
@@ -1394,6 +1396,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     // Expect atom element in
                     if(l_chain_pkt_data_size > 0) {
                         struct sync_request *l_sync_request = dap_stream_ch_chain_create_sync_request(l_chain_pkt, a_ch);
+                        l_ch_chain->request_hdr = l_chain_pkt->hdr;
                         dap_chain_pkt_item_t *l_pkt_item = &l_sync_request->pkt;
                         l_pkt_item->pkt_data = /* l_chain_pkt->data; */ DAP_DUP_SIZE(l_chain_pkt->data, l_chain_pkt_data_size);
                         if (!l_pkt_item->pkt_data) {
@@ -1768,7 +1771,8 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
             if (l_data_size){
                 l_was_sent_smth = true;
                 if(s_debug_more)
-                    log_it(L_DEBUG,"Out: UPDATE_CHAINS with %zu hashes sent", l_data_size / sizeof(dap_stream_ch_chain_update_element_t));
+                    log_it(L_DEBUG,"Out: UPDATE_CHAINS with %zu hashes sent, net id %lu, chain id %lu",
+                           l_data_size / sizeof(dap_stream_ch_chain_update_element_t), l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64);
                 s_stream_ch_chain_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS,
                                                      l_ch_chain->request_hdr.net_id.uint64,
                                                      l_ch_chain->request_hdr.chain_id.uint64,
@@ -1816,7 +1820,8 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                     l_hash_item->hash = *l_ch_chain->request_atom_iter->cur_hash;
                     if(s_debug_more){
                         char *l_atom_hash_str= dap_chain_hash_fast_to_str_new(&l_hash_item->hash);
-                        log_it(L_INFO, "Out CHAIN pkt: atom hash %s (size %zd) ", l_atom_hash_str, l_ch_chain->request_atom_iter->cur_size);
+                        log_it(L_INFO, "Out CHAIN pkt: atom hash %s (size %zd), net id %lu, chain id %lu", l_atom_hash_str, l_ch_chain->request_atom_iter->cur_size,
+                               l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64);
                         DAP_DELETE(l_atom_hash_str);
                     }
                     s_stream_ch_chain_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN, l_ch_chain->request_hdr.net_id.uint64,
