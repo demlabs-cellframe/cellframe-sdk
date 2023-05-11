@@ -183,47 +183,9 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t *a_decree, dap_chain_ne
         return -100;
     }
 
-    // Concate all signs in array
-    uint32_t l_signs_count = 0;
-    size_t l_tsd_offset = dap_sign_get_size(l_signs_block);
-    size_t l_signs_arr_size = 0;
-    dap_sign_t *l_signs_arr = DAP_NEW_Z_SIZE(dap_sign_t, l_tsd_offset);
-    memcpy(l_signs_arr, l_signs_block, l_tsd_offset);
-    l_signs_arr_size += l_tsd_offset;
-    l_signs_count++;
-    while (l_tsd_offset < l_signs_size)
-    {
-        dap_sign_t *cur_sign = (dap_sign_t *)((byte_t*)l_signs_block + l_tsd_offset);
-        size_t l_sign_size = dap_sign_get_size(cur_sign);
-
-        if (l_sign_size > a_decree->header.signs_size)
-        {
-            log_it(L_WARNING,"Sign size greather than decree datum signs size. May be data is corrupted.");
-            DAP_DELETE(l_signs_arr);
-            return -105;
-        }
-
-        dap_sign_t *l_signs_arr_temp = (dap_sign_t *)DAP_REALLOC(l_signs_arr, l_signs_arr_size + l_sign_size);
-
-        if (!l_signs_arr_temp)
-        {
-            log_it(L_WARNING,"Memory allocate fail");
-            DAP_DELETE(l_signs_arr);
-            return -105;
-        }
-
-        l_signs_arr = l_signs_arr_temp;
-        memcpy((byte_t *)l_signs_arr + l_signs_arr_size, cur_sign, l_sign_size);
-
-
-        l_signs_arr_size += l_sign_size;
-        l_tsd_offset += l_sign_size;
-        l_signs_count++;
-    }
-
     // Find unique pkeys in pkeys set from previous step and check that number of signs > min
     size_t l_num_of_unique_signs = 0;
-    dap_sign_t **l_unique_signs = dap_sign_get_unique_signs(l_signs_arr, l_signs_arr_size, &l_num_of_unique_signs);
+    dap_sign_t **l_unique_signs = dap_sign_get_unique_signs(l_signs_block, l_signs_size, &l_num_of_unique_signs);
 
     uint16_t l_min_signs = a_net->pub.decree->min_num_of_owners;
     if (l_num_of_unique_signs < l_min_signs) {
@@ -233,6 +195,8 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t *a_decree, dap_chain_ne
 
     // Verify all keys and its signatures
     uint16_t l_signs_size_for_current_sign = 0, l_signs_verify_counter = 0;
+    l_decree->header.signs_size = 0;
+    size_t l_verify_data_size = l_decree->header.data_size + sizeof(dap_chain_datum_decree_t);
 
     for(size_t i = 0; i < l_num_of_unique_signs; i++)
     {
@@ -240,20 +204,25 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t *a_decree, dap_chain_ne
         if (s_verify_pkey(l_unique_signs[i], a_net))
         {
             // 3. verify sign
-            size_t l_verify_data_size = l_decree->header.data_size + sizeof(dap_chain_datum_decree_t);
-            l_decree->header.signs_size = l_signs_size_for_current_sign;
             if(!dap_sign_verify_all(l_unique_signs[i], l_sign_max_size, l_decree, l_verify_data_size))
             {
                 l_signs_verify_counter++;
             }
+        } else {
+            dap_hash_fast_t l_sign_hash = {0};
+            dap_hash_fast(l_unique_signs[i], l_sign_max_size, &l_sign_hash);
+            char *l_sign_hash_str = dap_hash_fast_to_str_new(&l_sign_hash);
+            log_it(L_WARNING, "Signature [%zu] %s failed public key verification.", i, l_sign_hash_str);
+            DAP_DELETE(l_sign_hash_str);
         }
-            // Each sign change the sign_size field by adding its size after signing. So we need to change this field in header for each sign.
-            l_signs_size_for_current_sign += l_sign_max_size;
+        // Each sign change the sign_size field by adding its size after signing. So we need to change this field in header for each sign.
+        l_signs_size_for_current_sign += l_sign_max_size;
+        l_decree->header.signs_size = l_signs_size_for_current_sign;
     }
 
-    l_decree->header.signs_size = l_signs_size_for_current_sign;
+    l_decree->header.signs_size = l_signs_size;
 
-    DAP_DELETE(l_signs_arr);
+//    DAP_DELETE(l_signs_arr);
     DAP_DELETE(l_unique_signs);
 
     if (l_signs_verify_counter < l_min_signs) {

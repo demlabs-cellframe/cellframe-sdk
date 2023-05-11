@@ -198,7 +198,14 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
     if(l_ch_chain_net) {
         pthread_mutex_lock(&l_ch_chain_net->mutex);
-        dap_stream_ch_pkt_t *l_ch_pkt = (dap_stream_ch_pkt_t *) a_arg;
+        dap_stream_ch_pkt_t *l_ch_pkt = (dap_stream_ch_pkt_t *)a_arg;
+        if (l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_TEST) {
+            char *l_data_hash_str;
+            dap_get_data_hash_str_static(l_ch_pkt->data, l_ch_pkt->hdr.data_size, l_data_hash_str);
+            log_it(L_ATT, "Receive test data packet with hash %s", l_data_hash_str);
+            pthread_mutex_unlock(&l_ch_chain_net->mutex);
+            return;
+        }
         dap_stream_ch_chain_net_pkt_t *l_ch_chain_net_pkt = (dap_stream_ch_chain_net_pkt_t *) l_ch_pkt->data;
         dap_chain_net_t *l_net = dap_chain_net_by_id(l_ch_chain_net_pkt->hdr.net_id);
         bool l_error = false;
@@ -206,11 +213,6 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         if (!l_net) {
             log_it(L_ERROR, "Invalid net id in packet");
             strcpy(l_err_str, "ERROR_NET_INVALID_ID");
-            l_error = true;
-        }
-        if (!l_error && dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
-            log_it(L_ERROR, "Net '%s' is offline", l_net->pub.name);
-            strcpy(l_err_str, "ERROR_NET_IS_OFFLINE");
             l_error = true;
         }
         if (!l_error) {
@@ -231,12 +233,6 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         if (!l_error && l_ch_chain_net_pkt) {
             size_t l_ch_chain_net_pkt_data_size = l_ch_pkt->hdr.data_size - sizeof(dap_stream_ch_chain_net_pkt_hdr_t);
             switch (l_ch_pkt->hdr.type) {
-                case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_DBG: {
-                    dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PING,
-                                                      l_ch_chain_net_pkt->hdr.net_id, NULL, 0);
-                    dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
-                }
-                    break;
                     // received ping request - > send pong request
                 case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PING: {
                     //log_it(L_INFO, "Get STREAM_CH_CHAIN_NET_PKT_TYPE_PING");
@@ -333,8 +329,11 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         dap_enc_key_t * enc_key_pvt = NULL;
                         dap_chain_t *l_chain = NULL;
                         DL_FOREACH(l_net->pub.chains, l_chain)
-                               if((enc_key_pvt = l_chain->callback_get_signing_certificate(l_chain)))
+                            if(l_chain->callback_get_signing_certificate != NULL){
+                                enc_key_pvt = l_chain->callback_get_signing_certificate(l_chain);
+                                if(enc_key_pvt)
                                     break;
+                            }
                         dap_sign_t *l_sign = NULL;
                         size_t sign_s = 0;
                         size_t l_orders_num = 0;

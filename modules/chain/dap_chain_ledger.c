@@ -1624,6 +1624,72 @@ dap_string_t *dap_chain_ledger_balance_info(dap_ledger_t *a_ledger)
 }
 
 /**
+ * @breif dap_chain_ledger_token_auth_signs_valid
+ * @param a_ledger
+ * @param a_token_ticker
+ * @return 0 if no ticker found
+ */
+size_t dap_chain_ledger_token_auth_signs_valid(dap_ledger_t *a_ledger, const char * a_token_ticker)
+{
+    dap_chain_ledger_token_item_t *l_token_item, *l_tmp_item;
+    pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
+    size_t l_res = 0;
+    HASH_ITER(hh, PVT(a_ledger)->tokens, l_token_item, l_tmp_item) {
+        if (!dap_strcmp(l_token_item->ticker, a_token_ticker)) {
+            l_res = l_token_item->auth_signs_valid;
+            break;
+        }
+    }
+    pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
+    return l_res;
+}
+
+/**
+ * @breif dap_chain_ledger_token_auth_signs_total
+ * @param a_ledger
+ * @param a_token_ticker
+ * @return
+ */
+size_t dap_chain_ledger_token_auth_signs_total(dap_ledger_t *a_ledger, const char * a_token_ticker)
+{
+    dap_chain_ledger_token_item_t *l_token_item, *l_tmp_item;
+    pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
+    size_t l_res = 0;
+    HASH_ITER(hh, PVT(a_ledger)->tokens, l_token_item, l_tmp_item) {
+        if (!dap_strcmp(l_token_item->ticker, a_token_ticker)) {
+            l_res = l_token_item->auth_signs_total;
+            break;
+        }
+    }
+    pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
+    return l_res;
+}
+
+/**
+ * @breif dap_chain_ledger_token_auth_signs_hashes
+ * @param a_ledger
+ * @param a_token_ticker
+ * @return
+ */
+dap_list_t * dap_chain_ledger_token_auth_signs_hashes(dap_ledger_t *a_ledger, const char * a_token_ticker)
+{
+    dap_list_t * l_ret = NULL;
+    dap_chain_ledger_token_item_t *l_token_item, *l_tmp_item;
+    pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
+    HASH_ITER(hh, PVT(a_ledger)->tokens, l_token_item, l_tmp_item) {
+        if (!dap_strcmp(l_token_item->ticker, a_token_ticker)) {
+            debug_if(s_debug_more, L_INFO, " ! Token %s : total %lu auth signs", a_token_ticker, l_token_item->auth_signs_total);
+            for (size_t i = 0; i < l_token_item->auth_signs_total; i++) {
+                l_ret = dap_list_append(l_ret, (dap_chain_hash_fast_t*)(&l_token_item->auth_signs_pkey_hash[i]));
+            }
+            break;
+        }
+    }
+    pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
+    return l_ret;
+}
+
+/**
  * @brief Compose string list of all tokens with information
  * @param a_ledger
  * @return
