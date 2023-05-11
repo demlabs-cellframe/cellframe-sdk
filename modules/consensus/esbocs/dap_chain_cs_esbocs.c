@@ -196,7 +196,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         l_validator->weight = uint256_1;
         l_esbocs_pvt->poa_validators = dap_list_append(l_esbocs_pvt->poa_validators, l_validator);
 
-        if (!l_esbocs_pvt->poa_mode) { // auth certs in PoA mode wiil be first PoS validators keys
+        if (!l_esbocs_pvt->poa_mode) { // auth certs in PoA mode will be first PoS validators keys
             dap_hash_fast_t l_stake_tx_hash = {};
             dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
             uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value();
