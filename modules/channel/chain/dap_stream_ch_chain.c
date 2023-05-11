@@ -1396,7 +1396,6 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                     // Expect atom element in
                     if(l_chain_pkt_data_size > 0) {
                         struct sync_request *l_sync_request = dap_stream_ch_chain_create_sync_request(l_chain_pkt, a_ch);
-                        l_ch_chain->request_hdr = l_chain_pkt->hdr;
                         dap_chain_pkt_item_t *l_pkt_item = &l_sync_request->pkt;
                         l_pkt_item->pkt_data = /* l_chain_pkt->data; */ DAP_DUP_SIZE(l_chain_pkt->data, l_chain_pkt_data_size);
                         if (!l_pkt_item->pkt_data) {
