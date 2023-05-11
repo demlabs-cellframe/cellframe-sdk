@@ -231,7 +231,6 @@ static void s_new_atom_notifier(void *a_arg, UNUSED_ARG dap_chain_t *a_chain, UN
 
 static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cfg)
 {
-
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
@@ -503,9 +502,8 @@ static void s_session_send_startsync(dap_chain_esbocs_session_t *a_session)
                                 a_session->cur_round.sync_attempt, l_addr_list->str);
         dap_string_free(l_addr_list, true);
     }
-    uint64_t l_dummy = 0; // for old version compliance
     s_message_send(a_session, DAP_STREAM_CH_VOTING_MSG_TYPE_START_SYNC, &l_last_block_hash,
-                   &l_dummy, sizeof(uint64_t),
+                   & a_session->cur_round.sync_attempt, sizeof(uint64_t),
                    a_session->cur_round.validators_list);
 }
 
@@ -1379,7 +1377,11 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 
     switch (l_message->hdr.type) {
     case DAP_STREAM_CH_VOTING_MSG_TYPE_START_SYNC: {
-        uint64_t l_sync_attempt = l_message->hdr.attempt_num;
+        if (l_message_data_size != sizeof(uint64_t)) {
+            log_it(L_WARNING, "Invalid START_SYNC message size");
+            break;
+        }
+        uint64_t l_sync_attempt = *(uint64_t *)l_message_data;
         debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U
                                     " Receive START_SYNC: from validator:%s, sync attempt %"DAP_UINT64_FORMAT_U,
                                         l_session->chain->net_name, l_session->chain->name, l_message->hdr.round_id,
@@ -1456,7 +1458,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 
     case DAP_STREAM_CH_VOTING_MSG_TYPE_SUBMIT: {
         uint8_t *l_candidate = l_message->msg_n_sign;
-        size_t l_candidate_size = l_message->hdr.message_size;
+        size_t l_candidate_size = l_message_data_size;
         if (!l_candidate_size || dap_hash_fast_is_blank(&l_message->hdr.candidate_hash)) {
             debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
                                         " Receive SUBMIT candidate NULL",
@@ -1665,8 +1667,7 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
                         DAP_NEW_Z_SIZE(dap_chain_esbocs_message_t, l_message_size);
     l_message->hdr.version = DAP_CHAIN_ESBOCS_PROTOCOL_VERSION;
     l_message->hdr.round_id = a_session->cur_round.id;
-    l_message->hdr.attempt_num = a_message_type == DAP_STREAM_CH_VOTING_MSG_TYPE_START_SYNC ?
-                a_session->cur_round.sync_attempt : a_session->cur_round.attempt_num;
+    l_message->hdr.attempt_num = a_session->cur_round.attempt_num;
     l_message->hdr.chain_id = a_session->chain->id;
     l_message->hdr.ts_created = dap_time_now();
     l_message->hdr.type = a_message_type;

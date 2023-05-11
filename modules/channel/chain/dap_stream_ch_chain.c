@@ -1452,7 +1452,6 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             if(l_chain_pkt_data_size) {
                 dap_chain_t * l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
                 if(l_chain) {
-                    l_ch_chain->request_hdr = l_chain_pkt->hdr;
                     // Expect atom element in
                     if(l_chain_pkt_data_size > 0) {
                         struct sync_request *l_sync_request = dap_stream_ch_chain_create_sync_request(l_chain_pkt, a_ch);
