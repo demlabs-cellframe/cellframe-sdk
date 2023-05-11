@@ -209,7 +209,7 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
     }
     if (!a_grace->usage) {
         l_usage = dap_chain_net_srv_usage_add(l_srv_session, l_net, l_srv);
-        if ( !l_usage ){ // Usage can't add          
+        if ( !l_usage ){ // Usage can't add
             log_it( L_WARNING, "Can't add usage");
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_CANT_ADD_USAGE;
             goto free_exit;
@@ -272,7 +272,7 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
                 memcpy(l_price, l_srv->pricelist, sizeof(*l_price));
                 l_price->value_datoshi = uint256_0;
             }
-            l_usage->price = l_price;         
+            l_usage->price = l_price;
             l_usage->receipt = dap_chain_net_srv_issue_receipt(l_usage->service, l_usage->price, NULL, 0);
             dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
                                            l_usage->receipt, l_usage->receipt->size);
@@ -567,9 +567,43 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         else {
             memcpy(l_success->custom_data, &l_usage->tx_cond_hash, sizeof(dap_chain_hash_fast_t));
             log_it(L_NOTICE, "Receipt with remote client sign is acceptible for. Now start the service's usage");
+            if (l_is_first_sign){ // If there is next receipt add the time and request the next receipt
+                switch( l_usage->receipt->receipt_info.units_type.enm){
+                    case SERV_UNIT_DAY:{
+                        l_srv_session->limits_ts = time(NULL) + (time_t)  l_usage->receipt->receipt_info.units*24*3600;
+                        log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" days more for VPN usage", l_usage->receipt->receipt_info.units);
+                    } break;
+                    case SERV_UNIT_SEC:{
+                        l_srv_session->limits_ts = time(NULL) + (time_t)  l_usage->receipt->receipt_info.units;
+                        log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" seconds more for VPN usage", l_usage->receipt->receipt_info.units);
+                    } break;
+                    case SERV_UNIT_B:{
+                        l_srv_session->limits_bytes +=  (uintmax_t) l_usage->receipt->receipt_info.units;
+                        log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", l_usage->receipt->receipt_info.units);
+                    } break;
+                    case SERV_UNIT_KB:{
+                        l_srv_session->limits_bytes += 1000ull * ( (uintmax_t) l_usage->receipt->receipt_info.units);
+                        log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", l_usage->receipt->receipt_info.units);
+                    } break;
+                    case SERV_UNIT_MB:{
+                        l_srv_session->limits_bytes += 1000000ull * ( (uintmax_t) l_usage->receipt->receipt_info.units);
+                        log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", l_usage->receipt->receipt_info.units);
+                    } break;
+                    default: {
+                        log_it(L_WARNING, "VPN doesnt accept serv unit type 0x%08X for limits_ts", l_usage->receipt->receipt_info.units_type.uint32 );
+                        dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
+                        dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
+                        dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
+                    }
+                }
+
+                l_usage->receipt_next = dap_chain_net_srv_issue_receipt(l_usage->service, l_usage->price, NULL, 0);
+                dap_stream_ch_pkt_write_unsafe(l_usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
+                                               l_usage->receipt_next, l_usage->receipt_next->size);
+            }
         }
 
-        dap_stream_ch_pkt_write_unsafe( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS ,
+        dap_stream_ch_pkt_write_unsafe( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS,
                                        l_success, l_success_size);
 
         if ( l_is_first_sign && l_usage->service->callbacks.response_success){
