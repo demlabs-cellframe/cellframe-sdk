@@ -57,6 +57,7 @@ dap_chain_node_info_t *s_balancer_issue_link(const char *a_net_name)
     }
     if (!l_node_candidate->hdr.ext_addr_v4.s_addr || !l_node_candidate->hdr.ext_port)
         return NULL;
+    //if (l_node_candidate->hdr.cell_id)
     dap_chain_node_info_t *l_node_info = DAP_NEW_Z(dap_chain_node_info_t);
     memcpy(l_node_info, l_node_candidate, sizeof(dap_chain_node_info_t));
     dap_global_db_objs_delete(l_objs, l_nodes_count);
