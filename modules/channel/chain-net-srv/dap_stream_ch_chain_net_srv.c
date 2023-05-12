@@ -565,9 +565,10 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
             log_it(L_NOTICE, "Receipt is OK, but transaction can't be found. Start the grace period for %d seconds",
                    l_srv->grace_period);
         else {
+            //TODO hash to string
             memcpy(l_success->custom_data, &l_usage->tx_cond_hash, sizeof(dap_chain_hash_fast_t));
             log_it(L_NOTICE, "Receipt with remote client sign is acceptible for. Now start the service's usage");
-            if (l_is_first_sign){ // If there is next receipt add the time and request the next receipt
+            if (l_is_first_sign){
                 switch( l_usage->receipt->receipt_info.units_type.enm){
                     case SERV_UNIT_DAY:{
                         l_srv_session->limits_ts = time(NULL) + (time_t)  l_usage->receipt->receipt_info.units*24*3600;

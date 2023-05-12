@@ -1127,7 +1127,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
     bool l_issue_new_receipt = false;
     // Check if there are time limits
     if( a_srv_session->limits_ts ){
-        if( a_srv_session->limits_ts  < time(NULL) ){ // Limits out
+        if( a_srv_session->limits_ts < time(NULL) ){ // Limits out
             a_srv_session->limits_ts = 0;
             log_it(L_INFO, "Limits by timestamp are over. Switch to the next receipt");
             DAP_DELETE(a_usage->receipt);
