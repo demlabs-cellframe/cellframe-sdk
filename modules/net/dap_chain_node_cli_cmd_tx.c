@@ -70,11 +70,15 @@ typedef struct dap_chain_tx_hash_processed_ht{
  * free l_current_hash->hash, l_current_hash, l_hash_processed
  * @param l_hash_processed dap_chain_tx_hash_processed_ht_t
  */
-static void s_dap_chain_tx_hash_processed_ht_free(dap_chain_tx_hash_processed_ht_t *l_hash_processed)
+static void s_dap_chain_tx_hash_processed_ht_free(dap_chain_tx_hash_processed_ht_t **l_hash_processed)
 {
+    if (!l_hash_processed || !*l_hash_processed)
+        return;
     dap_chain_tx_hash_processed_ht_t *l_tmp, *l_current_hash;
-    HASH_ITER(hh, l_hash_processed, l_current_hash, l_tmp)
+    HASH_ITER(hh, *l_hash_processed, l_current_hash, l_tmp) {
+        HASH_DEL(*l_hash_processed, l_current_hash);
         DAP_FREE(l_current_hash);
+    }
 }
 
 /**
@@ -145,7 +149,7 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
     return l_str_out ? dap_string_free(l_str_out, false) : NULL;
 }
 
-static void s_tx_header_print(dap_string_t *a_str_out, dap_chain_tx_hash_processed_ht_t *a_tx_data_ht,
+static void s_tx_header_print(dap_string_t *a_str_out, dap_chain_tx_hash_processed_ht_t **a_tx_data_ht,
                               dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_atom_hash,
                               const char *a_hash_out_type, dap_ledger_t *a_ledger,
                               dap_chain_hash_fast_t *a_tx_hash)
@@ -158,13 +162,13 @@ static void s_tx_header_print(dap_string_t *a_str_out, dap_chain_tx_hash_process
         dap_ctime_r(&l_ts, l_time_str);                             /* Convert ts to  Sat May 17 01:17:08 2014 */
     }
     dap_chain_tx_hash_processed_ht_t *l_tx_data = NULL;
-    HASH_FIND(hh, a_tx_data_ht, a_tx_hash, sizeof(*a_tx_hash), l_tx_data);
+    HASH_FIND(hh, *a_tx_data_ht, a_tx_hash, sizeof(*a_tx_hash), l_tx_data);
     if (l_tx_data)  // this tx already present in ledger (double)
         l_declined = true;
     else {
         l_tx_data = DAP_NEW_Z(dap_chain_tx_hash_processed_ht_t);
         l_tx_data->hash = *a_tx_hash;
-        HASH_ADD(hh, a_tx_data_ht, hash, sizeof(*a_tx_hash), l_tx_data);
+        HASH_ADD(hh, *a_tx_data_ht, hash, sizeof(*a_tx_hash), l_tx_data);
         const char *l_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, a_tx_hash);
         if (!l_token_ticker)
             l_declined = true;
@@ -333,7 +337,7 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
                 if (l_src_addr && dap_chain_addr_compare(l_src_addr, a_addr) &&
                         dap_strcmp(l_dst_token, l_noaddr_token)) {
                     if (!l_header_printed) {
-                        s_tx_header_print(l_str_out, l_tx_data_ht, l_tx, l_atom_iter->cur_hash, a_hash_out_type, l_ledger, &l_tx_hash);
+                        s_tx_header_print(l_str_out, &l_tx_data_ht, l_tx, l_atom_iter->cur_hash, a_hash_out_type, l_ledger, &l_tx_hash);
                         l_header_printed = true;
                     }
                     const char *l_dst_addr_str = l_dst_addr ? dap_chain_addr_to_str(l_dst_addr)
@@ -353,7 +357,7 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
                 }
                 if (l_dst_addr && dap_chain_addr_compare(l_dst_addr, a_addr)) {
                     if (!l_header_printed) {
-                        s_tx_header_print(l_str_out, l_tx_data_ht, l_tx, l_atom_iter->cur_hash, a_hash_out_type, l_ledger, &l_tx_hash);
+                        s_tx_header_print(l_str_out, &l_tx_data_ht, l_tx, l_atom_iter->cur_hash, a_hash_out_type, l_ledger, &l_tx_hash);
                         l_header_printed = true;
                     }
                     const char *l_src_addr_str = NULL, *l_src_str;
@@ -392,7 +396,7 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
     }
     a_chain->callback_atom_iter_delete(l_atom_iter);
     // delete hashes
-    s_dap_chain_tx_hash_processed_ht_free(l_tx_data_ht);
+    s_dap_chain_tx_hash_processed_ht_free(&l_tx_data_ht);
     // if no history
     if(!l_str_out->len)
         dap_string_append(l_str_out, "\tempty");
@@ -740,7 +744,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         }
         DAP_DELETE(l_str_out);
         DAP_DELETE(l_addr);
-        s_dap_chain_tx_hash_processed_ht_free(l_list_tx_hash_processd);
+        s_dap_chain_tx_hash_processed_ht_free(&l_list_tx_hash_processd);
         // all chain
         if(!l_chain)
             dap_chain_enum_unlock();
@@ -1047,7 +1051,7 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
                 l_chain_cur = dap_chain_enum(&l_chain_tmp);
             }
             dap_chain_enum_unlock();
-            s_dap_chain_tx_hash_processed_ht_free(l_list_tx_hash_processd);
+            s_dap_chain_tx_hash_processed_ht_free(&l_list_tx_hash_processd);
             dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_out->str);
             dap_string_free(l_str_out, true);
             return 0;
