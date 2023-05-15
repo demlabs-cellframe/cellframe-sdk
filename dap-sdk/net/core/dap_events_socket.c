@@ -476,11 +476,11 @@ dap_events_socket_t * s_create_type_pipe(dap_worker_t * a_w, dap_events_socket_c
      //   log_it(L_DEBUG, "Created one-way unnamed bytestream pipe %d->%d", l_pipe[0], l_pipe[1]);
     l_es->fd = l_pipe[0];
     l_es->fd2 = l_pipe[1];
-#if defined DAP_OS_UNIX
+/*#if defined DAP_OS_UNIX
     fcntl( l_pipe[0], F_SETFL, O_NONBLOCK);
     fcntl( l_pipe[1], F_SETFL, O_NONBLOCK);
     // this sort of fd doesn't suit ioctlsocket()...
-#endif
+#endif */
 
 #else
 #error "No defined s_create_type_pipe() for your platform"
@@ -749,7 +749,7 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     char l_errbuf[255] = { '\0' };
     int l_errno;
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
-    if( pipe2(l_pipe, O_DIRECT | O_NONBLOCK ) < 0 ){
+    if( pipe2(l_pipe, O_DIRECT /*| O_NONBLOCK */) < 0 ){
 #elif defined(DAP_EVENTS_CAPS_QUEUE_PIPE)
     if( pipe(l_pipe) < 0 ){
 #endif
