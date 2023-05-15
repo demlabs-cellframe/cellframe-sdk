@@ -724,7 +724,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
 int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
 {
     enum {
-        CMD_NONE, CMD_NAME_CELL, CMD_ADD, CMD_FLUSH, CMD_RECORD, CMD_WRITE, CMD_READ, CMD_DELETE, CMD_GET_KEYS
+        CMD_NONE, CMD_NAME_CELL, CMD_ADD, CMD_FLUSH, CMD_RECORD, CMD_WRITE, CMD_READ, CMD_DELETE, CMD_DROP, CMD_GET_KEYS
     };
     int arg_index = 1;
     int cmd_name = CMD_NONE;
@@ -741,6 +741,8 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
             cmd_name = CMD_READ;
     else if(dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "delete", NULL))
             cmd_name = CMD_DELETE;
+    else if(dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "drop_table", NULL))
+            cmd_name = CMD_DROP;
     else if(dap_chain_node_cli_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "get_keys", NULL))
             cmd_name = CMD_GET_KEYS;
     switch (cmd_name) {
@@ -1052,6 +1054,32 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
             dap_chain_node_cli_set_reply_text(a_str_reply, "Record with key %s in group %s deleting failed", l_group_str, l_key_str);
             return -122;
         }
+    }
+    case CMD_DROP:
+    {
+        const char *l_group_str = NULL;
+        dap_chain_node_cli_find_option_val(a_argv, arg_index, a_argc, "-group", &l_group_str);
+        if(!l_group_str) {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter 'group' to be valid", a_argv[0]);
+            return -120;
+        }
+        size_t l_objs_count = 0;
+        dap_global_db_obj_t* l_obj = dap_chain_global_db_gr_load(l_group_str, &l_objs_count);
+
+        if (!l_obj || !l_objs_count)
+        {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "No data in group %s.", l_group_str);
+            return -124;
+        }
+        size_t i, j = 0;
+        for (i = 0; i < l_objs_count; ++i) {
+            if (!l_obj->key)
+                continue;
+            if (dap_chain_global_db_gr_del(l_obj->key, l_group_str)) {
+                ++j;
+            }
+        }
+        dap_chain_node_cli_set_reply_text(a_str_reply, "Removed %lu of %lu records in table %s", j, i, l_group_str);
     }
     default:
         dap_chain_node_cli_set_reply_text(a_str_reply, "parameters are not valid");
