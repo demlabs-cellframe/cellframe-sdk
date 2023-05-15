@@ -1080,6 +1080,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
             }
         }
         dap_chain_node_cli_set_reply_text(a_str_reply, "Removed %lu of %lu records in table %s", j, i, l_group_str);
+        return 0;
     }
     default:
         dap_chain_node_cli_set_reply_text(a_str_reply, "parameters are not valid");
