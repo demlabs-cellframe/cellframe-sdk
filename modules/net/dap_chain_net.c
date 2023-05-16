@@ -1861,8 +1861,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
             if ( strcmp(l_get_str,"status") == 0 ) {
                 s_set_reply_text_node_status(a_str_reply, l_net);
                 l_ret = 0;
-            }
-            if ( strcmp(l_get_str, "fee") == 0) {
+            } else if ( strcmp(l_get_str, "fee") == 0) {
                 dap_string_t *l_str = dap_string_new("\0");
                 // Network fee
                 uint256_t l_network_fee = {};
