@@ -1042,8 +1042,26 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
         }
 
         if(!l_key_str) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "No key provided, table %s will be altered", l_group_str);
-            //return -121;
+            dap_chain_node_cli_set_reply_text(a_str_reply, "No key provided, entire table %s will be altered", l_group_str);
+            size_t l_objs_count = 0;
+            dap_global_db_obj_t* l_obj = dap_chain_global_db_gr_load(l_group_str, &l_objs_count);
+
+            if (!l_obj || !l_objs_count)
+            {
+                dap_chain_node_cli_set_reply_text(a_str_reply, "No data in group %s.", l_group_str);
+                return -124;
+            }
+            size_t i, j = 0;
+            for (i = 0; i < l_objs_count; ++i) {
+                if (!l_obj[i].key)
+                    continue;
+                if (dap_chain_global_db_gr_del(l_obj[i].key, l_group_str)) {
+                    ++j;
+                }
+            }
+            dap_chain_global_db_objs_delete(l_obj, l_objs_count);
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Removed %lu of %lu records in table %s", j, i, l_group_str);
+            return 0;
         }
 
         if (dap_chain_global_db_gr_del(l_key_str, l_group_str))
@@ -1063,30 +1081,20 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
             dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter 'group' to be valid", a_argv[0]);
             return -120;
         }
-        size_t l_objs_count = 0;
-        dap_global_db_obj_t* l_obj = dap_chain_global_db_gr_load(l_group_str, &l_objs_count);
-
-        if (!l_obj || !l_objs_count)
+        if (dap_chain_global_db_gr_del(NULL, l_group_str))
         {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "No data in group %s.", l_group_str);
-            return -124;
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Dropped table %s", l_group_str);
+            return 0;
+        } else {
+            dap_chain_node_cli_set_reply_text(a_str_reply, "Failed to drop table %s", l_group_str);
+            return -122;
         }
-        size_t i, j = 0;
-        for (i = 0; i < l_objs_count; ++i) {
-            if (!l_obj->key)
-                continue;
-            if (dap_chain_global_db_gr_del(l_obj->key, l_group_str)) {
-                ++j;
-            }
-        }
-        dap_chain_node_cli_set_reply_text(a_str_reply, "Removed %lu of %lu records in table %s", j, i, l_group_str);
         return 0;
     }
     default:
         dap_chain_node_cli_set_reply_text(a_str_reply, "parameters are not valid");
         return -1;
     }
-    return  -555;
 }
 
 /**
