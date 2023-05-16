@@ -302,6 +302,7 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
                                     (dap_timerfd_callback_t)s_grace_period_control, a_grace);
         return false;
     } else {
+        l_usage->is_grace = false;
         DAP_DELETE(a_grace->request);
         DAP_DELETE(a_grace);
         return false;
@@ -549,7 +550,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 DAP_DELETE(l_tx_in_hash_str);
             }else
                 log_it(L_ERROR, "Can't create input tx cond transaction!");
-            l_success_size = sizeof(dap_stream_ch_chain_net_srv_pkt_success_hdr_t) + sizeof(dap_chain_hash_fast_t);
+            l_success_size = sizeof(dap_stream_ch_chain_net_srv_pkt_success_hdr_t) + DAP_CHAIN_HASH_FAST_STR_SIZE;//sizeof(dap_chain_hash_fast_t);
         } else {
             l_success_size = sizeof(dap_stream_ch_chain_net_srv_pkt_success_hdr_t);
         }
@@ -565,43 +566,10 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
             log_it(L_NOTICE, "Receipt is OK, but transaction can't be found. Start the grace period for %d seconds",
                    l_srv->grace_period);
         else {
-            //TODO hash to string
-            memcpy(l_success->custom_data, &l_usage->tx_cond_hash, sizeof(dap_chain_hash_fast_t));
+            char *l_hash_str = dap_hash_fast_to_str_new(&l_usage->tx_cond_hash);
+            memcpy(l_success->custom_data, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+            DAP_DEL_Z(l_hash_str);
             log_it(L_NOTICE, "Receipt with remote client sign is acceptible for. Now start the service's usage");
-            if (l_is_first_sign){
-                switch( l_usage->receipt->receipt_info.units_type.enm){
-                    case SERV_UNIT_DAY:{
-                        l_srv_session->limits_ts = time(NULL) + (time_t)  l_usage->receipt->receipt_info.units*24*3600;
-                        log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" days more for VPN usage", l_usage->receipt->receipt_info.units);
-                    } break;
-                    case SERV_UNIT_SEC:{
-                        l_srv_session->limits_ts = time(NULL) + (time_t)  l_usage->receipt->receipt_info.units;
-                        log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" seconds more for VPN usage", l_usage->receipt->receipt_info.units);
-                    } break;
-                    case SERV_UNIT_B:{
-                        l_srv_session->limits_bytes +=  (uintmax_t) l_usage->receipt->receipt_info.units;
-                        log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", l_usage->receipt->receipt_info.units);
-                    } break;
-                    case SERV_UNIT_KB:{
-                        l_srv_session->limits_bytes += 1000ull * ( (uintmax_t) l_usage->receipt->receipt_info.units);
-                        log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", l_usage->receipt->receipt_info.units);
-                    } break;
-                    case SERV_UNIT_MB:{
-                        l_srv_session->limits_bytes += 1000000ull * ( (uintmax_t) l_usage->receipt->receipt_info.units);
-                        log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", l_usage->receipt->receipt_info.units);
-                    } break;
-                    default: {
-                        log_it(L_WARNING, "VPN doesnt accept serv unit type 0x%08X for limits_ts", l_usage->receipt->receipt_info.units_type.uint32 );
-                        dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
-                        dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
-                        dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
-                    }
-                }
-
-                l_usage->receipt_next = dap_chain_net_srv_issue_receipt(l_usage->service, l_usage->price, NULL, 0);
-                dap_stream_ch_pkt_write_unsafe(l_usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
-                                               l_usage->receipt_next, l_usage->receipt_next->size);
-            }
         }
 
         dap_stream_ch_pkt_write_unsafe( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS,

@@ -684,7 +684,7 @@ static bool s_pay_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *
     if (!l_sign)
         return false;
 
-    if (dap_sign_verify_all(l_sign, l_sign->header.sign_pkey_size + l_sign->header.sign_size, &l_receipt->receipt_info, sizeof(l_receipt->receipt_info))){
+    if (dap_sign_verify_all(l_sign, dap_sign_get_size(l_sign), &l_receipt->receipt_info, sizeof(l_receipt->receipt_info))){
         return false;
     }
 
