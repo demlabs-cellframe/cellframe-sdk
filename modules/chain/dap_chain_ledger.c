@@ -3550,10 +3550,10 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         case TX_ITEM_TYPE_OUT_COND: {
             dap_chain_tx_out_cond_t *l_tx_out = (dap_chain_tx_out_cond_t *)l_list_tmp->data;
             if (l_multichannel) {
-                if (l_main_ticker)
-                    l_token = l_main_ticker;
-                else if (l_tx_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
+                if (l_tx_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
                     l_token = (char *)PVT(a_ledger)->net->pub.native_ticker;
+                else if (l_main_ticker)
+                    l_token = l_main_ticker;
                 else {
                     log_it(L_WARNING, "No conditional output support for multichannel transaction");
                     l_err_num = -18;
