@@ -42,7 +42,26 @@ dap_chain_node_info_t *s_balancer_issue_link(const char *a_net_name)
             return NULL;
         }
         l_net = l_nets[rand() % l_nets_count];
+    }    
+    // get nodes list from global_db
+    dap_global_db_obj_t *l_objs = NULL;
+    size_t l_nodes_count = 0;
+    size_t l_node_num;
+    // read all node
+    l_objs = dap_global_db_get_all_sync(l_net->pub.gdb_nodes, &l_nodes_count);
+    if (!l_nodes_count || !l_objs)
+        return NULL;
+    dap_chain_node_info_t *l_node_candidate;
+    for (int i = 0; i < 50; i++) {
+        // 50 tryes for non empty address & port
+        l_node_num = rand() % l_nodes_count;
+        l_node_candidate = (dap_chain_node_info_t *)l_objs[l_node_num].value;
+        if (l_node_candidate->hdr.ext_addr_v4.s_addr && l_node_candidate->hdr.ext_port)
+            break;
     }
+    if (!l_node_candidate->hdr.ext_addr_v4.s_addr || !l_node_candidate->hdr.ext_port)
+        return NULL;
+    //dell cfg seed from db
     if( ( l_cfg = dap_config_open ( l_cfg_path->str ) ) == NULL ) {
         log_it(L_ERROR,"Can't open default network config");
         dap_string_free(l_cfg_path,true);
@@ -56,33 +75,16 @@ dap_chain_node_info_t *s_balancer_issue_link(const char *a_net_name)
             if(!dap_net_resolve_host(l_seed_nodes_hostnames[i], AF_INET, &l_sa))
             {
                 struct in_addr *l_res = (struct in_addr *)&l_sa;
-
+                if(l_node_candidate->hdr.ext_addr_v4.s_addr == l_res->s_addr)
+                {
+                    dap_global_db_del_sync(l_net->pub.gdb_nodes,l_objs[l_node_num].key);
+                    if(l_nodes_count>1)
+                        return NULL;
+                }
             }
         }
-
     }
-    // get nodes list from global_db
-    dap_global_db_obj_t *l_objs = NULL;
-    size_t l_nodes_count = 0;
-    // read all node
-    l_objs = dap_global_db_get_all_sync(l_net->pub.gdb_nodes, &l_nodes_count);
-    if (!l_nodes_count || !l_objs)
-        return NULL;
-    dap_chain_node_info_t *l_node_candidate;
-    for (int i = 0; i < 50; i++) {
-        // 50 tryes for non empty address & port
-        size_t l_node_num = rand() % l_nodes_count;
-        l_node_candidate = (dap_chain_node_info_t *)l_objs[l_node_num].value;
-        if (l_node_candidate->hdr.ext_addr_v4.s_addr && l_node_candidate->hdr.ext_port)
-            break;
-    }
-    if (!l_node_candidate->hdr.ext_addr_v4.s_addr || !l_node_candidate->hdr.ext_port)
-        return NULL;
-
-    if (l_node_candidate->hdr.cell_id)
-        if (dap_global_db_del_sync(a_net->pub.gdb_nodes, l_objs[i].key) !=0 )
-        dap_config_close(l_cfg);
-
+    dap_config_close(l_cfg);
     dap_chain_node_info_t *l_node_info = DAP_NEW_Z(dap_chain_node_info_t);
     memcpy(l_node_info, l_node_candidate, sizeof(dap_chain_node_info_t));
     dap_global_db_objs_delete(l_objs, l_nodes_count);
