@@ -30,6 +30,9 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 dap_chain_node_info_t *s_balancer_issue_link(const char *a_net_name)
 {
+    dap_config_t *l_cfg=NULL;
+    dap_string_t *l_cfg_path = dap_string_new("network/");
+    dap_string_append(l_cfg_path,a_net_name);
     dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
     if (l_net == NULL) {
         uint16_t l_nets_count;
@@ -39,6 +42,24 @@ dap_chain_node_info_t *s_balancer_issue_link(const char *a_net_name)
             return NULL;
         }
         l_net = l_nets[rand() % l_nets_count];
+    }
+    if( ( l_cfg = dap_config_open ( l_cfg_path->str ) ) == NULL ) {
+        log_it(L_ERROR,"Can't open default network config");
+        dap_string_free(l_cfg_path,true);
+    } else {
+        uint16_t l_seed_nodes_hostnames_len =0;
+        char ** l_seed_nodes_hostnames = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_hostnames"
+                                                             ,&l_seed_nodes_hostnames_len);
+        struct sockaddr l_sa = {};
+        for(size_t i = 0;i<l_seed_nodes_hostnames_len;i++)
+        {
+            if(!dap_net_resolve_host(l_seed_nodes_hostnames[i], AF_INET, &l_sa))
+            {
+                struct in_addr *l_res = (struct in_addr *)&l_sa;
+
+            }
+        }
+
     }
     // get nodes list from global_db
     dap_global_db_obj_t *l_objs = NULL;
@@ -57,7 +78,11 @@ dap_chain_node_info_t *s_balancer_issue_link(const char *a_net_name)
     }
     if (!l_node_candidate->hdr.ext_addr_v4.s_addr || !l_node_candidate->hdr.ext_port)
         return NULL;
-    //if (l_node_candidate->hdr.cell_id)
+
+    if (l_node_candidate->hdr.cell_id)
+        if (dap_global_db_del_sync(a_net->pub.gdb_nodes, l_objs[i].key) !=0 )
+        dap_config_close(l_cfg);
+
     dap_chain_node_info_t *l_node_info = DAP_NEW_Z(dap_chain_node_info_t);
     memcpy(l_node_info, l_node_candidate, sizeof(dap_chain_node_info_t));
     dap_global_db_objs_delete(l_objs, l_nodes_count);
