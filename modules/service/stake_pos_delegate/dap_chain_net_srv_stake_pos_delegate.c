@@ -1873,7 +1873,7 @@ bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
         dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)l_orders[i].value;
         if (l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID)
             continue;
-        if (l_orders_count == 0) {
+        if (l_order_fee_count == 0) {
             l_min = l_order->price;
             l_max = l_order->price;
         }
@@ -1892,6 +1892,7 @@ bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
     }
     uint256_t t = {0};
     if (!IS_ZERO_256(l_average)) DIV_256(l_average, dap_chain_uint256_from(l_order_fee_count), &t);
+    l_average = t;
     dap_global_db_objs_delete(l_orders, l_orders_count);
     DAP_DELETE( l_gdb_group_str);
     if (a_min_fee)
