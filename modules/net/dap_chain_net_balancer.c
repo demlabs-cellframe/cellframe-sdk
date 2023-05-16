@@ -48,8 +48,13 @@ dap_chain_node_info_t *s_balancer_issue_link(const char *a_net_name)
     // read all node
     l_objs = dap_global_db_get_all_sync(l_net->pub.gdb_nodes, &l_nodes_count);
     if (!l_nodes_count || !l_objs)
-        return NULL;
+        return NULL;    
     l_node_list = dap_chain_net_get_node_list_cfg(l_net);
+    for(i=0;i<l_nodes_count;i++)
+    {
+        l_objs_list = dap_list_append(l_objs_list,l_objs[i]);
+    }
+    dap_global_db_objs_delete(l_objs, l_nodes_count);
     dap_chain_node_info_t *l_node_candidate;
     for (int i = 0; i < 50; i++) {
         // 50 tryes for non empty address & port
