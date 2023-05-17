@@ -56,7 +56,8 @@ dap_chain_node_info_t *s_balancer_issue_link(const char *a_net_name)
         {
             dap_chain_node_info_t *l_node_cfg = (dap_chain_node_info_t*)node_i->data;
             dap_chain_node_info_t *l_node_cand = (dap_chain_node_info_t *)l_objs[i].value;
-            if(l_node_cfg->hdr.ext_addr_v4.s_addr != l_node_cand->hdr.ext_addr_v4.s_addr)
+            if(l_node_cand->hdr.ext_addr_v4.s_addr && l_node_cand->hdr.ext_port &&
+                (l_node_cfg->hdr.ext_addr_v4.s_addr != l_node_cand->hdr.ext_addr_v4.s_addr))
             {
                 l_objs_list = dap_list_append(l_objs_list,l_objs[i].value);
                 l_node_num++;
@@ -69,22 +70,12 @@ dap_chain_node_info_t *s_balancer_issue_link(const char *a_net_name)
     dap_chain_node_info_t *l_node_candidate;
     if(l_nodes_count)
     {
-        for (int i = 0; i < 50; i++) {
-            // 50 tryes for non empty address & port
-            l_node_num = rand() % l_nodes_count;
-            l_node_candidate = (dap_chain_node_info_t *)dap_list_nth_data(l_objs_list,l_node_num);
-            if (l_node_candidate->hdr.ext_addr_v4.s_addr && l_node_candidate->hdr.ext_port)
-                break;
-        }
+        l_node_num = rand() % l_nodes_count;
+        l_node_candidate = (dap_chain_node_info_t *)dap_list_nth_data(l_objs_list,l_node_num);
     }
     else
         l_node_candidate = (dap_chain_node_info_t *)dap_list_nth_data(l_node_list,0);
-    if (!l_node_candidate->hdr.ext_addr_v4.s_addr || !l_node_candidate->hdr.ext_port)
-    {
-        dap_list_free(l_node_list);
-        dap_list_free(l_objs_list);
-        return NULL;
-    }
+
     dap_chain_node_info_t *l_node_info = DAP_NEW_Z(dap_chain_node_info_t);
     memcpy(l_node_info, l_node_candidate, sizeof(dap_chain_node_info_t));
     dap_list_free(l_objs_list);
