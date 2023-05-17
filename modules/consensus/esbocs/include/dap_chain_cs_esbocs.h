@@ -100,6 +100,7 @@ typedef struct dap_chain_esbocs_round {
     uint16_t validators_synced_count;
     dap_list_t *validators_list;
     uint64_t sync_attempt;
+    bool sync_sent;
 } dap_chain_esbocs_round_t;
 
 typedef struct dap_chain_esbocs_validator {
