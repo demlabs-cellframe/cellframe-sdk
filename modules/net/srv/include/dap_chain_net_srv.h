@@ -342,6 +342,15 @@ DAP_STATIC_INLINE bool dap_chain_net_srv_uid_compare(dap_chain_net_srv_uid_t a, 
 #endif
 }
 
+DAP_STATIC_INLINE dap_chain_net_srv_uid_compare_scalar(const dap_chain_net_srv_uid_t a_uid1, const uint64_t a_id)
+{
+#if DAP_CHAIN_NET_SRV_UID_SIZE == 8
+    return a_uid1.uint64 == a_id;
+#else
+    return compare128(a_uid1.uint128, GET_128_FROM_64(a_id));
+#endif
+}
+
 DAP_STATIC_INLINE const char *dap_chain_net_srv_fee_type_to_str(dap_chain_net_srv_fee_type_t a_fee_type) {
     switch (a_fee_type) {
         case SERVICE_FEE_OWN_FIXED: return "SERVICE_FEE_OWN_FIXED";

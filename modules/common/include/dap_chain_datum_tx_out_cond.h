@@ -55,9 +55,11 @@ DAP_STATIC_INLINE const char *dap_chain_tx_out_cond_subtype_to_str(dap_chain_tx_
 
 // Stake lock base flags
 // Lock by time
-#define DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME                  0x00000008
+#define DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME           0x00000008
 // Create base tx for delegated token
-#define DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX           0x00000010
+#define DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX    0x00000010
+// Emit with single lock TX
+#define DAP_CHAIN_NET_SRV_STAKE_LOCK_EMIT                   0x00000020
 
 /**
  * @struct dap_chain_tx_out
