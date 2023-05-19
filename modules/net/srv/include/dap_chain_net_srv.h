@@ -342,7 +342,7 @@ DAP_STATIC_INLINE bool dap_chain_net_srv_uid_compare(dap_chain_net_srv_uid_t a, 
 #endif
 }
 
-DAP_STATIC_INLINE dap_chain_net_srv_uid_compare_scalar(const dap_chain_net_srv_uid_t a_uid1, const uint64_t a_id)
+DAP_STATIC_INLINE bool dap_chain_net_srv_uid_compare_scalar(const dap_chain_net_srv_uid_t a_uid1, const uint64_t a_id)
 {
 #if DAP_CHAIN_NET_SRV_UID_SIZE == 8
     return a_uid1.uint64 == a_id;

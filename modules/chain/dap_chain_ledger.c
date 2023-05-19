@@ -69,7 +69,7 @@
 typedef struct dap_chain_ledger_verificator {
     int subtype;    // hash key
     dap_chain_ledger_verificator_callback_t callback;
-    dap_chain_ledger_verificator_callback_out_t callback_added;
+    dap_chain_ledger_updater_callback_t callback_added;
     UT_hash_handle hh;
 } dap_chain_ledger_verificator_t;
 
@@ -3448,7 +3448,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 l_err_num = -13;
                 break;
             }
-            if (l_verificator->callback(a_ledger, &l_tx_prev_hash, l_tx_prev_out_cond, a_tx, l_owner) == false) {
+            if (l_verificator->callback(a_ledger, l_tx_prev_out_cond, a_tx, l_owner) == false) {
                 debug_if(s_debug_more, L_WARNING, "Verificator check error for conditional output %s",
                                                     dap_chain_tx_out_cond_subtype_to_str(l_sub_tmp));
                 l_err_num = -14;
@@ -5006,7 +5006,7 @@ dap_list_t *dap_chain_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, c
 }
 
 // Add new verificator callback with associated subtype. Returns 1 if callback replaced, overwise returns 0
-int dap_chain_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_chain_ledger_verificator_callback_t a_callback, dap_chain_ledger_verificator_callback_out_t a_callback_added)
+int dap_chain_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_chain_ledger_verificator_callback_t a_callback, dap_chain_ledger_updater_callback_t a_callback_added)
 {
     dap_chain_ledger_verificator_t *l_new_verificator;
     int l_tmp = (int)a_subtype;

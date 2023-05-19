@@ -54,7 +54,7 @@ static dap_chain_net_srv_fee_item_t *s_service_fees = NULL; // Governance statem
 static pthread_rwlock_t s_service_fees_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 static void s_callback_decree (dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_net, dap_chain_t * a_chain, dap_chain_datum_decree_t * a_decree, size_t a_decree_size);
-static bool s_xchange_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash,  dap_chain_tx_out_cond_t *a_cond,
+static bool s_xchange_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
                             dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 const dap_chain_net_srv_uid_t c_dap_chain_net_srv_xchange_uid = {.uint64= DAP_CHAIN_NET_SRV_XCHANGE_ID};
 
@@ -155,16 +155,21 @@ void dap_chain_net_srv_xchange_deinit()
  * @param a_owner
  * @return
  */
-static bool s_xchange_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash,  dap_chain_tx_out_cond_t *a_tx_out_cond,
+static bool s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_tx_out_cond,
                                            dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
     return true;//for tests
     if (a_owner)
         return true;
-    if(!a_tx_out_hash || !a_tx_in || !a_tx_out_cond)
+    if(!a_tx_in || !a_tx_out_cond)
         return false;
 
-    const char *l_sell_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger,a_tx_out_hash);
+    dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_IN_COND, 0);
+    if (!l_tx_in_cond)
+        return false;
+    if (dap_hash_fast_is_blank(&l_tx_in_cond->header.tx_prev_hash))
+        return false;
+    const char *l_sell_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_tx_in_cond->header.tx_prev_hash);
     if (!l_sell_ticker)
         return false;
     const char *l_buy_ticker = a_tx_out_cond->subtype.srv_xchange.buy_token;
