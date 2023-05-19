@@ -3243,6 +3243,10 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                     l_err_num = -23;
                     break;
                 }
+
+                if (l_girdled_ems)
+                    l_main_ticker = (const char *)l_tsd_section->ticker_token_from;
+
                 dap_chain_tx_out_cond_t *l_tx_stake_lock_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_stake_lock, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, NULL);
                 if (!l_tx_stake_lock_out_cond) {
                     debug_if(s_debug_more, L_WARNING, "No OUT_COND of stake_lock subtype for IN_EMS [%s]", l_tx_in_ems->header.ticker);
@@ -3274,6 +3278,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                         }
                         break;
                     }
+                    l_item_idx++;
                 } while (strcmp(l_tx_out_ext->token, l_token));
                 if (!l_tx_out_ext) {
                     dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_OUT, NULL);
@@ -3308,17 +3313,19 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                     l_err_num = -34;
                     break;
                 }
-                // check tiker
-                const char *tx_tiker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, l_emission_hash);
-                if (!tx_tiker) {
-                    debug_if(s_debug_more, L_WARNING, "No ticker stake_lock to for IN_EMS [%s]", l_tx_in_ems->header.ticker);
-                    l_err_num = -33;
-                    break;
-                }
-                if (strcmp(tx_tiker, (char *)l_tsd_section->ticker_token_from)) {
-                    debug_if(s_debug_more, L_WARNING, "Tickers not equal for [%s]", l_tx_in_ems->header.ticker);
-                    l_err_num = -35;
-                    break;
+                if (!l_girdled_ems) {
+                    // check tiker
+                    const char *l_tx_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, l_emission_hash);
+                    if (!l_tx_ticker) {
+                        debug_if(s_debug_more, L_WARNING, "No ticker found for sake_lock tx [wait %s]", l_tx_in_ems->header.ticker);
+                        l_err_num = -33;
+                        break;
+                    }
+                    if (strcmp(l_tx_ticker, (char *)l_tsd_section->ticker_token_from)) {
+                        debug_if(s_debug_more, L_WARNING, "Ticker %s in different for expected %s", l_tx_ticker, l_tx_in_ems->header.ticker);
+                        l_err_num = -35;
+                        break;
+                    }
                 }
                 debug_if(s_debug_more, L_NOTICE, "Check emission passed for IN_EMS [%s]", l_tx_in_ems->header.ticker);
                 bound_item->tx_prev = l_tx_stake_lock;
@@ -3581,12 +3588,8 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         case TX_ITEM_TYPE_OUT: { // 256
             dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)l_list_tmp->data;
             if (l_multichannel) { // token ticker is mandatory for multichannel transactions
-                if (l_main_ticker)
-                    l_token = l_main_ticker;
-                else {
-                    l_err_num = -16;
-                    break;
-                }
+                l_err_num = -16;
+                break;
             }
             l_value = l_tx_out->header.value;
             l_tx_out_to = l_tx_out->addr;
@@ -3929,16 +3932,21 @@ static inline int s_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, d
                 break;
             }
             if (bound_item->tx_prev) { // It's the stake lock emission
+                char l_delegated_ticker_str[DAP_CHAIN_TICKER_SIZE_MAX];
+                dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker_str, l_main_token_ticker);
                 dap_chain_ledger_token_item_t *l_token_item = NULL;
                 pthread_rwlock_rdlock(&l_ledger_pvt->tokens_rwlock);
-                HASH_FIND_STR(l_ledger_pvt->tokens, l_main_token_ticker, l_token_item);
+                HASH_FIND_STR(l_ledger_pvt->tokens, l_delegated_ticker_str, l_token_item);
                 pthread_rwlock_unlock(&l_ledger_pvt->tokens_rwlock);
                 if (!l_token_item) {
-                    log_it(L_ERROR, "No token item found for token %s", l_main_token_ticker);
+                    log_it(L_ERROR, "No token item found for token %s", l_delegated_ticker_str);
                     break;
                 }
                 if (!IS_ZERO_256(l_token_item->total_supply)) {
-                    SUBTRACT_256_256(l_token_item->current_supply, bound_item->stake_lock_item->ems_value,
+                    uint256_t *l_value = bound_item->stake_lock_item ?
+                                &bound_item->stake_lock_item->ems_value :
+                                &bound_item->out.tx_prev_out_ext_256->header.value;
+                    SUBTRACT_256_256(l_token_item->current_supply, *l_value,
                                      &l_token_item->current_supply);
                     char *l_balance = dap_chain_balance_print(l_token_item->current_supply);
                     log_it(L_DEBUG, "New current supply %s for token %s", l_balance, l_token_item->ticker);
