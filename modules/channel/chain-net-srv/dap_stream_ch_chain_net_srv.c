@@ -302,7 +302,6 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
                                     (dap_timerfd_callback_t)s_grace_period_control, a_grace);
         return false;
     } else {
-        l_usage->is_grace = false;
         DAP_DELETE(a_grace->request);
         DAP_DELETE(a_grace);
         return false;
@@ -481,6 +480,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                         l_usage->service->callbacks.response_error( l_usage->service, l_usage->id, l_usage->client,&l_err,sizeof (l_err) );
                 break;
             }
+
         }
         // get a second signature - from the client (first sign in server, second sign in client)
         dap_sign_t * l_receipt_sign = dap_chain_datum_tx_receipt_sign_get( l_receipt, l_receipt_size, 1);
@@ -540,6 +540,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         size_t l_success_size;
         if (!l_usage->is_grace) {
             // Form input transaction
+            char *l_hash_str = dap_hash_fast_to_str_new(&l_usage->tx_cond_hash);
+            log_it(L_NOTICE, "Trying create input tx cond from tx %s with active receipt", l_hash_str);
+            DAP_DEL_Z(l_hash_str);
             dap_chain_addr_t *l_wallet_addr = dap_chain_wallet_get_addr(l_usage->price->wallet, l_usage->net->pub.id);
             char *l_tx_in_hash_str = dap_chain_mempool_tx_create_cond_input(l_usage->net, &l_usage->tx_cond_hash, l_wallet_addr,
                                                                             dap_chain_wallet_get_key(l_usage->price->wallet, 0),
@@ -548,8 +551,16 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 dap_chain_hash_fast_from_str(l_tx_in_hash_str, &l_usage->tx_cond_hash);
                 log_it(L_NOTICE, "Formed tx %s for input with active receipt", l_tx_in_hash_str);
                 DAP_DELETE(l_tx_in_hash_str);
-            }else
+            }else{
                 log_it(L_ERROR, "Can't create input tx cond transaction!");
+                memset(&l_usage->tx_cond_hash, 0, sizeof(l_usage->tx_cond_hash));
+                // Send Error
+//                l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ENOUGH;
+//                dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+//                if (l_usage->service->callbacks.response_error)
+//                        l_usage->service->callbacks.response_error(l_usage->service,l_usage->id, l_usage->client,&l_err,sizeof (l_err));
+                break;
+            }
             l_success_size = sizeof(dap_stream_ch_chain_net_srv_pkt_success_hdr_t) + DAP_CHAIN_HASH_FAST_STR_SIZE;//sizeof(dap_chain_hash_fast_t);
         } else {
             l_success_size = sizeof(dap_stream_ch_chain_net_srv_pkt_success_hdr_t);
@@ -562,10 +573,12 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         l_success->hdr.net_id.uint64    = l_usage->net->pub.id.uint64;
         l_success->hdr.srv_uid.uint64   = l_usage->service->uid.uint64;
 
-        if (l_usage->is_grace)
-            log_it(L_NOTICE, "Receipt is OK, but transaction can't be found. Start the grace period for %d seconds",
+        if (l_usage->is_grace){
+            char *l_hash_str = dap_hash_fast_to_str_new(&l_usage->tx_cond_hash);
+            log_it(L_NOTICE, "Receipt is OK, but transaction %s can't be found. Start the grace period for %d seconds", l_hash_str,
                    l_srv->grace_period);
-        else {
+            DAP_DEL_Z(l_hash_str);
+        }else {
             char *l_hash_str = dap_hash_fast_to_str_new(&l_usage->tx_cond_hash);
             memcpy(l_success->custom_data, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
             DAP_DEL_Z(l_hash_str);

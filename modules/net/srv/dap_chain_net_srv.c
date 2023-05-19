@@ -672,8 +672,8 @@ static bool s_pay_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *
 {
     UNUSED(a_ledger);
     UNUSED(a_tx_out_hash);
-    if (!a_owner)
-        return false;
+    if (a_owner)
+        return true;
     dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)
                                                dap_chain_datum_tx_item_get(a_tx_in, NULL, TX_ITEM_TYPE_RECEIPT, NULL);
     if (!l_receipt)

@@ -945,38 +945,40 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
     }
 
     // Update limits
-    switch( l_usage_active->receipt->receipt_info.units_type.enm){
-        case SERV_UNIT_DAY:{
-            l_srv_session->limits_ts = time(NULL) + (time_t)  l_usage_active->receipt->receipt_info.units*24*3600;
-            log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" days more for VPN usage", l_usage_active->receipt->receipt_info.units);
-        } break;
-        case SERV_UNIT_SEC:{
-            l_srv_session->limits_ts = time(NULL) + (time_t)  l_usage_active->receipt->receipt_info.units;
-            log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" seconds more for VPN usage", l_usage_active->receipt->receipt_info.units);
-        } break;
-        case SERV_UNIT_B:{
-            l_srv_session->limits_bytes +=  (uintmax_t) l_usage_active->receipt->receipt_info.units;
-            log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", l_usage_active->receipt->receipt_info.units);
-        } break;
-        case SERV_UNIT_KB:{
-            l_srv_session->limits_bytes += 1000ull * ( (uintmax_t) l_usage_active->receipt->receipt_info.units);
-            log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", l_usage_active->receipt->receipt_info.units);
-        } break;
-        case SERV_UNIT_MB:{
-            l_srv_session->limits_bytes += 1000000ull * ( (uintmax_t) l_usage_active->receipt->receipt_info.units);
-            log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", l_usage_active->receipt->receipt_info.units);
-        } break;
-        default: {
-            log_it(L_WARNING, "VPN doesnt accept serv unit type 0x%08X for limits_ts", l_usage_active->receipt->receipt_info.units_type.uint32 );
-            dap_stream_ch_set_ready_to_write_unsafe(l_usage_active->client->ch,false);
-            dap_stream_ch_set_ready_to_read_unsafe(l_usage_active->client->ch,false);
-            dap_stream_ch_pkt_write_unsafe(l_usage_active->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
+    if(!l_usage_active->is_grace){
+        switch( l_usage_active->receipt->receipt_info.units_type.enm){
+            case SERV_UNIT_DAY:{
+                l_srv_session->limits_ts = time(NULL) + (time_t)  l_usage_active->receipt->receipt_info.units*24*3600;
+                log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" days more for VPN usage", l_usage_active->receipt->receipt_info.units);
+            } break;
+            case SERV_UNIT_SEC:{
+                l_srv_session->limits_ts = time(NULL) + (time_t)  l_usage_active->receipt->receipt_info.units;
+                log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" seconds more for VPN usage", l_usage_active->receipt->receipt_info.units);
+            } break;
+            case SERV_UNIT_B:{
+                l_srv_session->limits_bytes +=  (uintmax_t) l_usage_active->receipt->receipt_info.units;
+                log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", l_usage_active->receipt->receipt_info.units);
+            } break;
+            case SERV_UNIT_KB:{
+                l_srv_session->limits_bytes += 1000ull * ( (uintmax_t) l_usage_active->receipt->receipt_info.units);
+                log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", l_usage_active->receipt->receipt_info.units);
+            } break;
+            case SERV_UNIT_MB:{
+                l_srv_session->limits_bytes += 1000000ull * ( (uintmax_t) l_usage_active->receipt->receipt_info.units);
+                log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", l_usage_active->receipt->receipt_info.units);
+            } break;
+            default: {
+                log_it(L_WARNING, "VPN doesnt accept serv unit type 0x%08X for limits_ts", l_usage_active->receipt->receipt_info.units_type.uint32 );
+                dap_stream_ch_set_ready_to_write_unsafe(l_usage_active->client->ch,false);
+                dap_stream_ch_set_ready_to_read_unsafe(l_usage_active->client->ch,false);
+                dap_stream_ch_pkt_write_unsafe(l_usage_active->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
+            }
         }
     }
 
-    l_usage_active->receipt_next = dap_chain_net_srv_issue_receipt(a_srv, a_srv->pricelist, NULL, 0);
-    dap_stream_ch_pkt_write_unsafe(l_usage_active->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
-                               l_usage_active->receipt_next, l_usage_active->receipt_next->size);
+//        l_usage_active->receipt_next = dap_chain_net_srv_issue_receipt(a_srv, a_srv->pricelist, NULL, 0);
+//        dap_stream_ch_pkt_write_unsafe(l_usage_active->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
+//                                   l_usage_active->receipt_next, l_usage_active->receipt_next->size);
 
     pthread_rwlock_unlock(&s_clients_rwlock);
     return l_ret;
@@ -1229,17 +1231,19 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                         dap_stream_ch_pkt_write_unsafe( a_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
                     }
                 }
-
-
             }else {
                 log_it( L_NOTICE, "No activate receipt in usage, switch off write callback for channel");
                 dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
                 dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
                 dap_stream_ch_pkt_write_unsafe( a_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
-
             }
-
         }
+    }
+
+    if (!l_issue_new_receipt &&
+            (a_srv_session->limits_ts || a_srv_session->limits_bytes) &&
+            !a_usage->receipt_next && !dap_hash_fast_is_blank(&a_usage->tx_cond_hash)){
+        l_issue_new_receipt = true;
     }
 
     // If issue new receipt

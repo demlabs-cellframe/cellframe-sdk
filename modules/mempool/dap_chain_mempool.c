@@ -644,20 +644,20 @@ char *dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
     // add 'in_cond' items
     if (dap_chain_datum_tx_add_in_cond_item(&l_tx, l_tx_final_hash, l_out_cond_idx, 0)) {
         dap_chain_datum_tx_delete(l_tx);
-        log_it( L_ERROR, "Cant add tx cond input");
+        log_it( L_ERROR, "Can`t add tx cond input");
         return NULL;
     }
     // add 'out' item
     if (dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to, a_receipt->receipt_info.value_datoshi) != 1) {
         dap_chain_datum_tx_delete(l_tx);
-        log_it( L_ERROR, "Cant add tx output");
+        log_it( L_ERROR, "Can`t add tx output");
         return NULL;
     }
     // add network fee
     if (l_net_fee_used) {
         if (dap_chain_datum_tx_add_out_item(&l_tx, &l_addr_fee, l_net_fee) != 1) {
             dap_chain_datum_tx_delete(l_tx);
-            log_it( L_ERROR, "Cant add tx output");
+            log_it( L_ERROR, "Can`t add tx output");
             return NULL;
         }
     }
@@ -665,7 +665,7 @@ char *dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
     if (!IS_ZERO_256(l_fee)) {
         if (dap_chain_datum_tx_add_fee_item(&l_tx, l_fee) != 1) {
             dap_chain_datum_tx_delete(l_tx);
-            log_it( L_ERROR, "Cant add tx output");
+            log_it( L_ERROR, "Can`t add tx output");
             return NULL;
         }
     }
