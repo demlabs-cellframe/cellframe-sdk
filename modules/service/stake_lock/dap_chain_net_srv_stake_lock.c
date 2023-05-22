@@ -513,11 +513,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 	}
 
     size_t l_owner_pkey_size;
-<<<<<<< HEAD
-    uint8_t *l_owner_pkey = dap_enc_key_serealize_pub_key(l_owner_key, &l_owner_pkey_size);
-=======
     uint8_t *l_owner_pkey = dap_enc_key_serialize_pub_key(l_owner_key, &l_owner_pkey_size);
->>>>>>> 4612e2691dda67e82088d3d1b6d41054acac1aa3
     dap_sign_t *l_owner_sign = NULL;
     dap_chain_tx_sig_t *l_tx_sign = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(
                                                             l_cond_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
@@ -1019,12 +1015,8 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_hash_f
 	dap_chain_datum_token_t									*delegate_token;
 	char 													delegated_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
 
-<<<<<<< HEAD
-    if (!a_owner)
-=======
     if (!a_owner) {
         log_it(L_ERROR, "Verificator: no owner");
->>>>>>> 4612e2691dda67e82088d3d1b6d41054acac1aa3
         return false;
     }
 

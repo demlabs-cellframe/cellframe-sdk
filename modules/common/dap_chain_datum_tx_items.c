@@ -285,8 +285,6 @@ dap_chain_tx_tsd_t *dap_chain_datum_tx_item_tsd_create(void *a_data, int a_type,
     return l_item;
 }
 
-<<<<<<< HEAD
-=======
 json_object* dap_chain_datum_tx_item_in_to_json(dap_chain_tx_in_t *a_in){
     json_object *l_obj_in = json_object_new_object();
     json_object *l_obj_prev_idx = json_object_new_uint64(a_in->header.tx_out_prev_idx);
@@ -309,7 +307,6 @@ json_object* dap_chain_datum_tx_item_tsd_to_json(dap_chain_tx_tsd_t *a_tsd){
     return l_object;
 }
 
->>>>>>> 4612e2691dda67e82088d3d1b6d41054acac1aa3
 /**
  * @brief dap_chain_datum_tx_item_in_cond_create
  * @param a_pkey_serialized
@@ -634,11 +631,7 @@ byte_t *dap_chain_datum_tx_item_get_data(dap_chain_tx_tsd_t *a_tx_tsd, int *a_ty
     if (!a_tx_tsd || !a_type || !a_size)
         return NULL;
 
-<<<<<<< HEAD
-    *a_size = a_tx_tsd->header.size;
-=======
     *a_size = ((dap_tsd_t*)(a_tx_tsd->tsd))->size;
->>>>>>> 4612e2691dda67e82088d3d1b6d41054acac1aa3
     *a_type = ((dap_tsd_t*)(a_tx_tsd->tsd))->type;
     return ((dap_tsd_t*)(a_tx_tsd->tsd))->data;
 }

@@ -1319,11 +1319,7 @@ static void *dap_events_socket_buf_thread(void *arg)
 
     while (l_lifecycle) {
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
-<<<<<<< HEAD
-            l_sock = l_es->fd2;
-=======
         l_sock = l_es->fd2;
->>>>>>> 4612e2691dda67e82088d3d1b6d41054acac1aa3
 #elif defined(DAP_EVENTS_CAPS_QUEUE_MQUEUE)
         l_sock = l_es->mqd;
 #endif
