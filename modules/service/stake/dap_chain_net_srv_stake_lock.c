@@ -1258,7 +1258,6 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
                 return NULL;
             }
         }
-
     }
 
     // add 'sign' items

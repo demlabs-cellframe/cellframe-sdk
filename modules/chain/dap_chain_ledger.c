@@ -3581,8 +3581,12 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         case TX_ITEM_TYPE_OUT: { // 256
             dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)l_list_tmp->data;
             if (l_multichannel) { // token ticker is mandatory for multichannel transactions
-                l_err_num = -16;
-                break;
+                if (l_main_ticker)
+                    l_token = l_main_ticker;
+                else {
+                    l_err_num = -16;
+                    break;
+                }
             }
             l_value = l_tx_out->header.value;
             l_tx_out_to = l_tx_out->addr;
