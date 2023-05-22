@@ -2854,25 +2854,6 @@ bool s_com_mempool_check_datum_in_chain(dap_chain_t *a_chain, const char *a_datu
 
 
 /**
- * @brief s_com_mempool_check_datum_in_chain
- * @param a_chain
- * @param a_datum_hash_str
- * @return boolean
- */
-bool s_com_mempool_check_datum_in_chain(dap_chain_t *a_chain, const char *a_datum_hash_str){
-    char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(a_chain);
-    uint8_t *l_data_tmp = dap_chain_global_db_gr_get(a_datum_hash_str, NULL, l_gdb_group_mempool);
-    DAP_DELETE(l_gdb_group_mempool);
-    if (l_data_tmp){
-        DAP_DELETE(l_data_tmp);
-        return true;
-    } else {
-        return false;
-    }
-}
-
-
-/**
  * @brief com_mempool_check
  * @param argc
  * @param argv
@@ -5351,20 +5332,6 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
                 dap_string_append_printf(l_err_str, "Unable to create receipt out for transaction "
                                                     "described by item %zu.\n", i);
             }
-        }
-            break;
-        case TX_ITEM_TYPE_TSD: {
-            int64_t l_tsd_type;
-            if(!s_json_get_int64(l_json_item_obj, "type_tsd", &l_tsd_type)) {
-                break;
-            }
-            const char *l_tsd_data = s_json_get_text(l_json_item_obj, "data");
-            if (!l_tsd_data) {
-                break;
-            }
-            size_t l_data_size = dap_strlen(l_tsd_data);
-            dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create((void*)l_tsd_data, (int)l_tsd_type, l_data_size);
-            l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
         }
             break;
         case TX_ITEM_TYPE_TSD: {
