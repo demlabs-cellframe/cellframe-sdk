@@ -912,12 +912,13 @@ struct sync_request *dap_stream_ch_chain_create_sync_request(dap_stream_ch_chain
 {
     dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
     struct sync_request *l_sync_request = DAP_NEW_Z(struct sync_request);
-    l_sync_request->ch_uuid = a_ch->uuid;
-    l_sync_request->worker = a_ch->stream_worker->worker;
-    l_sync_request->remote_gdbs = l_ch_chain->remote_gdbs;
-    l_sync_request->remote_atoms = l_ch_chain->remote_atoms;
-    l_sync_request->request_hdr = l_ch_chain->request_hdr = a_chain_pkt->hdr;
-    l_sync_request->request = l_ch_chain->request;
+    *l_sync_request = (struct sync_request) {
+            .worker         = a_ch->stream_worker->worker,
+            .ch_uuid        = a_ch->uuid,
+            .request        = l_ch_chain->request,
+            .request_hdr    = a_chain_pkt->hdr,
+            .remote_atoms   = l_ch_chain->remote_atoms,
+            .remote_gdbs    = l_ch_chain->remote_gdbs };
     return l_sync_request;
 }
 
@@ -1074,6 +1075,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 l_ch_chain->request.id_start = 1;   // incremental sync by default
             struct sync_request *l_sync_request = dap_stream_ch_chain_create_sync_request(l_chain_pkt, a_ch);
             l_ch_chain->stats_request_gdb_processed = 0;
+            l_ch_chain->request_hdr = l_chain_pkt->hdr;
             dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_sync_update_gdb_proc_callback, l_sync_request);
         } break;
 
@@ -1409,6 +1411,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 }
                 struct sync_request *l_sync_request = dap_stream_ch_chain_create_sync_request(l_chain_pkt, a_ch);
                 l_ch_chain->stats_request_atoms_processed = 0;
+                l_ch_chain->request_hdr = l_chain_pkt->hdr;
                 if (l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS) {
                     char l_hash_from_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' }, l_hash_to_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
                     dap_chain_hash_fast_t l_hash_from = l_ch_chain->request.hash_from,

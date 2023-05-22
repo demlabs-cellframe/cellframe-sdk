@@ -41,7 +41,7 @@
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_chain_node_cli_cmd.h"
 
-#define LOG_TAG "dap_chain_net_srv_stake"
+#define LOG_TAG "dap_chain_net_srv_stake_pos_delegate"
 
 #define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP "delegate_keys"
 
@@ -183,6 +183,13 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
         HASH_ADD(hh, s_srv_stake->itemlist, signing_addr, sizeof(dap_chain_addr_t), l_stake);
     if (!dap_hash_fast_is_blank(a_stake_tx_hash))
         HASH_ADD(ht, s_srv_stake->tx_itemlist, tx_hash, sizeof(dap_chain_hash_fast_t), l_stake);
+    char l_key_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+    dap_chain_hash_fast_to_str(&a_signing_addr->data.hash_fast,
+                               l_key_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+    char *l_value_str = dap_chain_balance_to_coins(a_value);
+    log_it(L_NOTICE, "Added key with fingerprint %s and value %s for node "NODE_ADDR_FP_STR,
+                        l_key_hash_str, l_value_str, NODE_ADDR_FP_ARGS(a_node_addr));
+    DAP_DELETE(l_value_str);
 }
 
 void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr)
@@ -195,6 +202,13 @@ void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr)
     if (l_stake) {
         HASH_DEL(s_srv_stake->itemlist, l_stake);
         HASH_DELETE(ht, s_srv_stake->tx_itemlist, l_stake);
+        char l_key_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+        dap_chain_hash_fast_to_str(&a_signing_addr->data.hash_fast,
+                                   l_key_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+        char *l_value_str = dap_chain_balance_to_coins(l_stake->value);
+        log_it(L_NOTICE, "Removed key with fingerprint %s and value %s for node "NODE_ADDR_FP_STR,
+                            l_key_hash_str, l_value_str, NODE_ADDR_FP_ARGS_S(l_stake->node_addr));
+        DAP_DELETE(l_value_str);
         DAP_DELETE(l_stake);
     }
 }
@@ -250,14 +264,21 @@ int dap_chain_net_srv_stake_verify_key_and_node(dap_chain_addr_t *a_signing_addr
     HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp){
         //check key not activated for other node
         if(dap_chain_addr_compare(a_signing_addr, &l_stake->signing_addr)){
-            log_it(L_WARNING, "Key %s already active for node"NODE_ADDR_FP_STR,
-                   dap_chain_addr_to_str(a_signing_addr), NODE_ADDR_FP_ARGS(a_node_addr));
+            char l_key_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+            dap_chain_hash_fast_to_str(&a_signing_addr->data.hash_fast,
+                                       l_key_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+            log_it(L_WARNING, "Key %s already active for node "NODE_ADDR_FP_STR,
+                                l_key_hash_str, NODE_ADDR_FP_ARGS_S(l_stake->node_addr));
             return -101;
         }
 
         //chek node have not other delegated key
         if(a_node_addr->uint64 == l_stake->node_addr.uint64){
-            log_it(L_WARNING, "Node "NODE_ADDR_FP_STR" already have active key", NODE_ADDR_FP_ARGS(a_node_addr));
+            char l_key_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+            dap_chain_hash_fast_to_str(&l_stake->signing_addr.data.hash_fast,
+                                       l_key_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+            log_it(L_WARNING, "Node "NODE_ADDR_FP_STR" already have active key %s",
+                                NODE_ADDR_FP_ARGS(a_node_addr), l_key_hash_str);
             return -102;
         }
     }
@@ -1439,23 +1460,12 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized number in '-fee' param");
                 return -16;
             }
-
-            // Create conditional transaction
             int ret_val = 0;
             if((ret_val = dap_chain_net_srv_stake_verify_key_and_node(&l_signing_addr, &l_node_addr)) != 0){
-                if (ret_val == -101){
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Key %s already active for node %s", dap_chain_addr_to_str(&l_signing_addr), dap_chain_node_addr_to_hash_str(&l_node_addr));
-                    return ret_val;
-                } else if (ret_val == -102){
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Node %s already have active key.", dap_chain_node_addr_to_hash_str(&l_node_addr));
-                    return ret_val;
-                }else{
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Key and node verification error");
-                    return ret_val;
-                }
-
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Key and node verification error");
+                return ret_val;
             }
-
+            // Create conditional transaction
             dap_chain_datum_tx_t *l_tx = s_stake_tx_create(l_net, l_wallet, l_value, l_fee, &l_signing_addr, &l_node_addr);
             dap_chain_wallet_close(l_wallet);
             if (!l_tx || !s_stake_tx_put(l_tx, l_net)) {
@@ -1863,7 +1873,7 @@ bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
         dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)l_orders[i].value;
         if (l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID)
             continue;
-        if (l_orders_count == 0) {
+        if (l_order_fee_count == 0) {
             l_min = l_order->price;
             l_max = l_order->price;
         }
@@ -1882,6 +1892,7 @@ bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
     }
     uint256_t t = {0};
     if (!IS_ZERO_256(l_average)) DIV_256(l_average, dap_chain_uint256_from(l_order_fee_count), &t);
+    l_average = t;
     dap_global_db_objs_delete(l_orders, l_orders_count);
     DAP_DELETE( l_gdb_group_str);
     if (a_min_fee)

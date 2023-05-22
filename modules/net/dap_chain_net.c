@@ -1861,8 +1861,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
             if ( strcmp(l_get_str,"status") == 0 ) {
                 s_set_reply_text_node_status(a_str_reply, l_net);
                 l_ret = 0;
-            }
-            if ( strcmp(l_get_str, "fee") == 0) {
+            } else if ( strcmp(l_get_str, "fee") == 0) {
                 dap_string_t *l_str = dap_string_new("\0");
                 // Network fee
                 uint256_t l_network_fee = {};
@@ -3071,6 +3070,20 @@ dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * l_net)
         l_node_list = dap_list_append(l_node_list, l_address);
     }
     dap_global_db_objs_delete(l_objs, l_nodes_count);
+    return l_node_list;
+}
+
+/**
+ * Get nodes list from config file (list of dap_chain_node_addr_t struct)
+ */
+dap_list_t* dap_chain_net_get_node_list_cfg(dap_chain_net_t * a_net)
+{
+    dap_list_t *l_node_list = NULL;
+    dap_chain_net_pvt_t *l_pvt_net = PVT(a_net);
+    for(size_t i=0; i < l_pvt_net->seed_aliases_count;i++)
+    {
+        l_node_list = dap_list_append(l_node_list, &l_pvt_net->node_info[i]);
+    }
     return l_node_list;
 }
 

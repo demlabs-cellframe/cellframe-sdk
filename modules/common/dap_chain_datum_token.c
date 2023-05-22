@@ -402,6 +402,11 @@ byte_t *dap_chain_emission_get_tsd(dap_chain_datum_token_emission_t *a_emission,
         return NULL;
     dap_tsd_t *l_tsd = (dap_tsd_t *)a_emission->tsd_n_signs;
     do {
+        if (a_emission->data.type_auth.tsd_total_size < l_tsd->size) {
+            log_it(L_ERROR, "Corrupt data in emission: invalid TSD size %lu < %u",
+                   a_emission->data.type_auth.tsd_total_size, l_tsd->size);
+            return NULL;
+        }
         if (l_tsd->type == a_type) {
             if (a_size)
                 *a_size = l_tsd->size;

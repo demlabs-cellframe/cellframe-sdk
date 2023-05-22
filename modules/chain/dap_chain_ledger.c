@@ -23,14 +23,7 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <stddef.h>
-#include <string.h>
-#include <pthread.h>
-//#include <malloc.h>
+#include "dap_common.h"
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -1782,6 +1775,26 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
     pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
     return l_ret_list;
 }
+
+/**
+ * @brief Get all token declatations
+ * @param a_ledger
+ * @return
+ */
+dap_list_t* dap_chain_ledger_token_decl_all(dap_ledger_t *a_ledger)
+{
+    dap_list_t * l_ret = NULL;
+    dap_chain_ledger_token_item_t *l_token_item, *l_tmp_item;
+    pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
+
+    HASH_ITER(hh, PVT(a_ledger)->tokens, l_token_item, l_tmp_item) {
+        dap_chain_datum_token_t *l_token = l_token_item->datum_token;
+        l_ret = dap_list_append(l_ret, l_token);
+    }
+    pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
+    return l_ret;
+}
+
 
 /**
  * @brief s_threshold_emissions_proc
