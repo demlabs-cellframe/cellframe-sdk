@@ -3685,7 +3685,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     // Calc datum's hash
     dap_chain_hash_fast_t l_key_hash;
     dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_key_hash);
-    char * l_key_str = dap_strcmp(l_hash_out_type, "hex") ?
+    char * l_key_str = !dap_strcmp(l_hash_out_type, "hex") ?
                 dap_chain_hash_fast_to_str_new(&l_key_hash) :
                 dap_enc_base58_encode_hash_to_str(&l_key_hash);
 
