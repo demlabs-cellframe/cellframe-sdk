@@ -1194,9 +1194,11 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                 //l_ch_vpn->limits_ts = time(NULL) + l_usage->receipt->receipt
             }else {
                 log_it( L_NOTICE, "No activate receipt in usage, switch off write callback for channel");
+                dap_stream_ch_chain_net_srv_pkt_error_t l_err = { };
+                l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_CANT_FIND ;
                 dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
                 dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
-                dap_stream_ch_pkt_write_unsafe( a_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
+                dap_stream_ch_pkt_write_unsafe( a_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , &l_err, sizeof(l_err));
             }
         }
     }else if ( a_srv_session->limits_bytes ){
@@ -1233,9 +1235,11 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                 }
             }else {
                 log_it( L_NOTICE, "No activate receipt in usage, switch off write callback for channel");
+                dap_stream_ch_chain_net_srv_pkt_error_t l_err = { };
+                l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_CANT_FIND ;
                 dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
                 dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
-                dap_stream_ch_pkt_write_unsafe( a_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
+                dap_stream_ch_pkt_write_unsafe( a_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , &l_err, sizeof(l_err));
             }
         }
     }
@@ -1247,7 +1251,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
     }
 
     // If issue new receipt
-    if ( l_issue_new_receipt ) {
+    if ( l_issue_new_receipt && !dap_hash_fast_is_blank(&a_usage->tx_cond_hash)) {
         if ( a_usage->receipt){
             a_usage->receipt_next = dap_chain_net_srv_issue_receipt(a_usage->service, a_usage->price, NULL, 0);
             dap_stream_ch_pkt_write_unsafe(a_usage->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
