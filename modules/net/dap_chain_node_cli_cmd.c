@@ -2709,7 +2709,7 @@ void s_com_mempool_list_print_for_chain (
                     }
                 }
                 l_token_ticker = s_ticker_list_get_main_ticker(l_tickers, a_net->pub.native_ticker);
-                dap_list_free(l_tickers);
+                dap_list_free_full(l_tickers, NULL);
             }
         }
         if (l_token_ticker) {
