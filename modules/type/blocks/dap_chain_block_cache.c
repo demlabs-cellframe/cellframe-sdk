@@ -71,7 +71,7 @@ dap_chain_block_cache_t *dap_chain_block_cache_new(dap_chain_cs_blocks_t *a_bloc
         DAP_DELETE(l_block_cache);
         return NULL;
     }
-    log_it(L_DEBUG,"Block cache created");
+    //log_it(L_DEBUG,"Block cache created");
     return l_block_cache;
 }
 

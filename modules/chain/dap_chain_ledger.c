@@ -23,14 +23,7 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <stdint.h>
-#include <stdbool.h>
-#include <stddef.h>
-#include <string.h>
-#include <pthread.h>
-//#include <malloc.h>
+#include "dap_common.h"
 
 #ifdef _WIN32
 #include <winsock2.h>
