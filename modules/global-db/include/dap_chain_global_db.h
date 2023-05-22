@@ -23,7 +23,7 @@ typedef struct dap_global_db_obj {
     char *key;
     uint8_t *value;
     size_t value_len;
-} DAP_ALIGN_PACKED dap_global_db_obj_t;
+} dap_global_db_obj_t;
 
 
 typedef void (*dap_global_db_obj_callback_notify_t) (void * a_arg, const char a_op_code, const char * a_group,
@@ -42,10 +42,7 @@ typedef struct dap_sync_group_item {
  */
 int dap_chain_global_db_flush(void);
 
-/**
- * Clean struct dap_global_db_obj_t
- */
-void dap_chain_global_db_obj_clean(dap_global_db_obj_t *obj);
+
 /**
  * Delete struct dap_global_db_obj_t
  */

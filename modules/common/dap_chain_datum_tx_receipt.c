@@ -109,6 +109,32 @@ dap_sign_t* dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t * l
     return l_sign;
 }
 
+uint32_t dap_chain_datum_tx_receipt_type_get(dap_chain_datum_tx_receipt_t * l_receipt)
+{
+    if (!l_receipt)
+        return -1;
+    return l_receipt->receipt_info.units_type.enm;
+}
+uint64_t    dap_chain_datum_tx_receipt_srv_uid_get(dap_chain_datum_tx_receipt_t * l_receipt)
+{
+    if (!l_receipt)
+        return -1;
+    return l_receipt->receipt_info.srv_uid.uint64;
+}
+uint64_t    dap_chain_datum_tx_receipt_units_get(dap_chain_datum_tx_receipt_t * l_receipt)
+{
+    if (!l_receipt)
+        return -1;
+    return l_receipt->receipt_info.units;
+}
+uint256_t   dap_chain_datum_tx_receipt_value_get(dap_chain_datum_tx_receipt_t * l_receipt)
+{
+    uint256_t res = {};
+    if (!l_receipt)
+        return res;
+    return l_receipt->receipt_info.value_datoshi;
+}
+
 /**
  * @brief dap_chain_datum_tx_receipt_signs_count
  * @param a_receipt
@@ -128,4 +154,26 @@ uint16_t dap_chain_datum_tx_receipt_signs_count(dap_chain_datum_tx_receipt_t * a
     if(a_receipt_size != (size_t) ((byte_t *) l_sign - (byte_t *) a_receipt) )
         log_it(L_ERROR, "Receipt 0x%zu (size=%zu) is corrupted", (size_t)a_receipt, a_receipt_size);
     return l_ret;
+}
+
+json_object *dap_chain_datum_tx_receipt_to_json(dap_chain_datum_tx_receipt_t *a_receipt) {
+    json_object *l_obj = json_object_new_object();
+    dap_chain_receipt_info_t l_receipt_info = a_receipt->receipt_info;
+    json_object *l_obj_info = dap_chain_receipt_info_to_json(&l_receipt_info);
+    json_object *l_obj_size = json_object_new_uint64(a_receipt->size);
+    //Provider
+    dap_sign_t *l_first_sign  = dap_chain_datum_tx_receipt_sign_get(a_receipt, a_receipt->size, 1);
+    //Client
+    dap_sign_t *l_second_sign  = dap_chain_datum_tx_receipt_sign_get(a_receipt, a_receipt->size, 2);
+    json_object *l_obj_signs = json_object_new_object();
+    json_object *l_obj_provider_sign = dap_sign_to_json(l_first_sign);
+    json_object *l_obj_client_sign = dap_sign_to_json(l_second_sign);
+    json_object_object_add(l_obj_signs, "provider", l_obj_provider_sign);
+    json_object_object_add(l_obj_signs, "client", l_obj_client_sign);
+    json_object *l_exts_data = json_object_new_string_len((const char*)a_receipt->exts_n_signs, a_receipt->exts_size);
+    json_object_object_add(l_obj, "info", l_obj_info);
+    json_object_object_add(l_obj, "size", l_obj_size);
+    json_object_object_add(l_obj, "sings", l_obj_signs);
+    json_object_object_add(l_obj, "extsData", l_exts_data);
+    return l_obj;
 }

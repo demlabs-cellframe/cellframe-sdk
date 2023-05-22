@@ -45,6 +45,7 @@
 #include "dap_chain_net.h"
 #include "dap_chain_global_db.h"
 #include "dap_chain_node.h"
+#include "dap_chain_cell.h"
 
 #define LOG_TAG "chain_node"
 
@@ -252,7 +253,8 @@ bool dap_chain_node_mempool_need_process(dap_chain_t *a_chain, dap_chain_datum_t
 bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum) {
     if (!a_chain->callback_add_datums)
         return false;
-    // Verify for correctness
+    if (dap_chain_datum_unledgered_search_iter(a_datum, a_chain))
+        return true; /* Already chained, no need to keep duplicates */
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     int l_verify_datum = dap_chain_net_verify_datum_for_add(l_net, a_datum);
     if (l_verify_datum != 0 &&
@@ -265,9 +267,9 @@ bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_d
     return false;
 }
 
-void dap_chain_node_mempool_process_all(dap_chain_t *a_chain) {
+void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force) {
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-    if (!l_net->pub.mempool_autoproc)
+    if (!a_force && !l_net->pub.mempool_autoproc)
         return;
     char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool(a_chain);
     size_t l_objs_size = 0;
@@ -280,7 +282,10 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain) {
             if (dap_chain_node_mempool_need_process(a_chain, l_datum)) {
                 if (dap_chain_node_mempool_process(a_chain, l_datum)) {
                     // Delete processed objects
+                    log_it(L_INFO, " ! Delete %s from mempool", l_objs[i].key);
                     dap_chain_global_db_gr_del(l_objs[i].key, l_gdb_group_mempool);
+                } else {
+                    log_it(L_INFO, " ! Datum %s remain in mempool...", l_objs[i].key);
                 }
             }
         }
@@ -317,7 +322,7 @@ bool dap_chain_node_mempool_autoproc_init()
         dap_chain_t *l_chain;
         DL_FOREACH(l_net_list[i]->pub.chains, l_chain) {
             if (l_chain)
-                dap_chain_node_mempool_process_all(l_chain);
+                dap_chain_node_mempool_process_all(l_chain, false);
         }
     }
     DAP_DELETE(l_net_list);

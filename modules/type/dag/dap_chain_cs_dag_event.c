@@ -91,20 +91,6 @@ dap_chain_cs_dag_event_t *dap_chain_cs_dag_event_new(dap_chain_id_t a_chain_id, 
 }
 
 /**
- * @brief dap_chain_cs_dag_event_deep_copy
- * @param a_event_src
- * @return
- */
-dap_chain_cs_dag_event_t * dap_chain_cs_dag_event_copy(dap_chain_cs_dag_event_t *a_event_src,size_t a_event_size)
-{
-    if(!a_event_src)
-        return NULL;
-    dap_chain_cs_dag_event_t *l_event_new = DAP_NEW_Z_SIZE(dap_chain_cs_dag_event_t, a_event_size);
-    memcpy(l_event_new, a_event_src, a_event_size);
-    return l_event_new;
-}
-
-/**
  * @brief dap_chain_cs_dag_event_sign_add
  * @param a_event
  * @param l_key
@@ -117,7 +103,7 @@ size_t dap_chain_cs_dag_event_sign_add(dap_chain_cs_dag_event_t **a_event_ptr, s
     // check for re-sign with same key
     if (dap_chain_cs_dag_event_sign_exists(l_event, a_event_size, a_key)) {
         size_t l_pub_key_size = 0;
-        uint8_t *l_pub_key = dap_enc_key_serealize_pub_key(a_key, &l_pub_key_size);
+        uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(a_key, &l_pub_key_size);
         dap_hash_fast_t l_pkey_hash = {};
         dap_hash_fast(l_pub_key, l_pub_key_size, &l_pkey_hash);
         DAP_DEL_Z(l_pub_key);
@@ -140,7 +126,7 @@ size_t dap_chain_cs_dag_event_sign_add(dap_chain_cs_dag_event_t **a_event_ptr, s
 static bool s_sign_exists(uint8_t *a_pos, size_t a_len, dap_enc_key_t *a_key)
 {
     size_t l_pub_key_size = 0;
-    uint8_t *l_pub_key = dap_enc_key_serealize_pub_key(a_key, &l_pub_key_size);
+    uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(a_key, &l_pub_key_size);
     uint8_t *l_offset = a_pos;
     while (l_offset < a_pos + a_len) {
         dap_sign_t * l_item_sign = (dap_sign_t *)l_offset;

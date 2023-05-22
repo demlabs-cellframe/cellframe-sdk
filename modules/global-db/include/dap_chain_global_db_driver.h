@@ -37,11 +37,11 @@
 #include <stdint.h>
 
 #define DAP_DB$SZ_MAXGROUPNAME      (128UL)                                 /* A maximum size of group name */
-#define DAP_DB$K_MAXGROUPS          (1024UL)                                /* A maximum number of groups */
+#define DAP_DB$K_MAXGROUPS          (4096UL)                                /* A maximum number of groups */
 #define DAP_DB$SZ_MAXKEY            (512UL)                                 /* A limit for the key's length in DB */
 #define DAP_DB$K_MAXOBJS            (8192UL)                                /* A maximum number of objects to be returned by
                                                                             read_srore_obj() */
-#define DAP_DB$SZ_MAXDB             (32*1024*1024*1024UL)                    /* 1 GB */
+#define DAP_DB$SZ_MAXDB             (4*1024*1024*1024UL)                    /* 4 GB */
 
 enum    {
     DAP_DB$K_OPTYPE_ADD  = 'a',                                             /* Operation Type = INSERT/ADD */
@@ -72,8 +72,8 @@ typedef struct dap_store_obj {
     uint8_t *value;
     uint64_t value_len;
 
-    dap_proc_queue_callback_t cb;                                           /* (Async mode only!) A call back to be called on request completion */
-    const void *cb_arg;                                                     /* (Async mode only!) An argument of the callback rotine */
+    dap_proc_queue_callback_t cb;                                           /* (Async mode only!) A address of routine to be called on request completion */
+    const void *cb_arg;                                                     /* (Async mode only!) An input argument of the callback routine */
 } dap_store_obj_t, *pdap_store_obj_t;
 
 typedef struct dap_store_obj_pkt {

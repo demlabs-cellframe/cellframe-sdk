@@ -130,6 +130,13 @@ int dap_chain_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *
 dap_chain_datum_token_t *dap_chain_ledger_token_ticker_check(dap_ledger_t * a_ledger, const char *a_token_ticker);
 
 /**
+ * Get list transaction
+ *
+ */
+
+char * dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_addr_t *a_addr, const char *a_hash_out_type);
+
+/**
  * Add new token datum
  *
  */
@@ -141,6 +148,14 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger);
 dap_string_t *dap_chain_ledger_threshold_info(dap_ledger_t *a_ledger);
 dap_string_t *dap_chain_ledger_threshold_hash_info(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *l_tx_treshold_hash);
 dap_string_t *dap_chain_ledger_balance_info(dap_ledger_t *a_ledger);
+
+// Get all token-declarations
+dap_list_t* dap_chain_ledger_token_decl_all(dap_ledger_t *a_ledger);
+
+size_t dap_chain_ledger_token_auth_signs_valid(dap_ledger_t *a_ledger, const char * a_token_ticker);
+size_t dap_chain_ledger_token_auth_signs_total(dap_ledger_t *a_ledger, const char * a_token_ticker);
+dap_list_t * dap_chain_ledger_token_auth_signs_hashes(dap_ledger_t *a_ledger, const char * a_token_ticker);
+
 /**
  * Add token emission datum
  */
@@ -167,7 +182,7 @@ void dap_chain_ledger_addr_get_token_ticker_all_fast(dap_ledger_t *a_ledger, dap
 
 // Checking a new transaction before adding to the cache
 int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash,
-                                    bool a_from_threshold, dap_list_t **a_list_bound_items, dap_list_t **a_list_tx_out);
+                                    bool a_from_threshold, dap_list_t **a_list_bound_items, dap_list_t **a_list_tx_out,  char **a_main_ticker);
 
 /**
  * Delete transaction from the cache
@@ -193,11 +208,12 @@ unsigned dap_chain_ledger_count(dap_ledger_t *a_ledger);
 
 uint64_t dap_chain_ledger_count_from_to(dap_ledger_t * a_ledger, dap_time_t a_ts_from, dap_time_t a_ts_to);
 size_t dap_chain_ledger_count_tps(dap_ledger_t *a_ledger, struct timespec *a_ts_from, struct timespec *a_ts_to);
+void dap_chain_ledger_start_tps_count(dap_ledger_t *a_ledger);
 
 /**
  * Check whether used 'out' items
  */
-bool dap_chain_ledger_tx_hash_is_used_out_item(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash, int a_idx_out);
+bool dap_chain_ledger_tx_hash_is_used_out_item(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash, int a_idx_out, dap_chain_hash_fast_t *l_out_spndr_hash);
 
 /**
  * Calculate balance of addr

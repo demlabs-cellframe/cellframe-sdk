@@ -212,7 +212,7 @@ void dap_client_set_auth_cert(dap_client_t *a_client, const char *a_chain_net_na
         }
         dap_config_t *l_cfg = dap_config_open(l_path);
         l_config_read = true;
-        free(l_path);
+        DAP_DEL_Z(l_path);
         if (!l_cfg) {
             log_it(L_ERROR, "Can't allocate memory: file: %s line: %d", __FILE__, __LINE__);
             return;
@@ -237,12 +237,9 @@ void dap_client_set_auth_cert(dap_client_t *a_client, const char *a_chain_net_na
  */
 void dap_client_delete_unsafe(dap_client_t * a_client)
 {
-    if ( DAP_CLIENT_PVT(a_client)->refs_count ==0 ){
-        dap_client_pvt_delete_unsafe( DAP_CLIENT_PVT(a_client) );
-        pthread_mutex_destroy(&a_client->mutex);
-        DAP_DEL_Z(a_client)
-    } else
-        DAP_CLIENT_PVT(a_client)->is_to_delete = true;
+    dap_client_pvt_delete_unsafe( DAP_CLIENT_PVT(a_client) );
+    pthread_mutex_destroy(&a_client->mutex);
+    DAP_DELETE(a_client);
 }
 
 /**

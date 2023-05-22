@@ -127,16 +127,17 @@ size_t dap_stream_pkt_write_unsafe(dap_stream_t * a_stream, uint8_t a_type, cons
 {
     a_stream->is_active = true;
     size_t ret = 0;
-    uint8_t *l_buf = a_stream->buf;
+    size_t data_enc_size = dap_enc_code_out_size(a_stream->session->key, a_data_size, DAP_ENC_DATA_TYPE_RAW);
+    byte_t *l_buf = DAP_NEW_Z_SIZE(byte_t, sizeof(dap_stream_pkt_hdr_t) + data_enc_size);
     dap_stream_pkt_hdr_t *l_pkt_hdr = (dap_stream_pkt_hdr_t*)l_buf;
-    memset(l_buf, 0, sizeof(dap_stream_pkt_hdr_t));
     l_pkt_hdr->type = a_type;
     memcpy(l_pkt_hdr->sig, c_dap_stream_sig, sizeof(l_pkt_hdr->sig));
     l_pkt_hdr->size = (uint32_t)dap_enc_code(a_stream->session->key, a_data, a_data_size,
                                              l_buf + sizeof(dap_stream_pkt_hdr_t),
-                                             a_data_size + DAP_STREAM_PKT_ENCRYPTION_OVERHEAD,
+                                             data_enc_size,
                                              DAP_ENC_DATA_TYPE_RAW);
     ret = dap_events_socket_write_unsafe(a_stream->esocket, l_buf, sizeof(dap_stream_pkt_hdr_t) + l_pkt_hdr->size);
+    DAP_DELETE(l_buf);
     return ret;
 }
 
@@ -163,6 +164,7 @@ size_t dap_stream_pkt_write_mt(dap_worker_t * a_w,dap_events_socket_uuid_t a_es_
     int l_ret= dap_events_socket_queue_ptr_send(a_w->queue_es_io, l_msg );
     if (l_ret!=0){
         log_it(L_ERROR, "Wasn't send pointer to queue: code %d", l_ret);
+        DAP_DELETE(l_msg->data);
         DAP_DELETE(l_msg);
         return 0;
     }

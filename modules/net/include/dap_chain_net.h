@@ -42,6 +42,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 
 #define DAP_CHAIN_NET_NAME_MAX 32
+#define DAP_BROADCAST_LIFETIME 15   // minutes
 
 struct dap_chain_node_info;
 typedef struct dap_chain_node_client dap_chain_node_client_t;

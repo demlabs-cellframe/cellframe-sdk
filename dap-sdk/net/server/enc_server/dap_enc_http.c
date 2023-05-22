@@ -47,7 +47,7 @@
 #include "dap_enc_base64.h"
 #include "dap_enc_msrln.h"
 #include "include/http_status_code.h"
-#include <json-c/json.h>
+#include "json.h"
 
 
 #define LOG_TAG "dap_enc_http"
@@ -97,7 +97,7 @@ void dap_enc_http_set_acl_callback(dap_enc_acl_callback_t a_callback)
  */
 void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
 {
-    log_it(L_DEBUG,"Proc enc http request");
+    log_it(L_DEBUG, "[cl_st:%p] Proc enc http request", cl_st);
 
     http_status_code_t * return_code = (http_status_code_t *) arg;
 
@@ -135,7 +135,7 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
         }
     } else if (l_decode_len != l_pkey_exchange_size) {
         /* No sign inside */
-        log_it(L_WARNING, "Wrong message size, without a valid sign must be = %zu", l_pkey_exchange_size);
+        log_it(L_ERROR, "Wrong message size %zu, without a valid sign must be = %zu", l_decode_len, l_pkey_exchange_size);
         *return_code = Http_Status_BadRequest;
         return;
     }
@@ -187,7 +187,7 @@ void enc_http_proc(struct dap_http_simple *cl_st, void * arg)
  */
 void enc_http_add_proc(struct dap_http * sh, const char * url)
 {
-    dap_http_simple_proc_add(sh,url,140000,enc_http_proc);
+    dap_http_simple_proc_add(sh,url,140000, enc_http_proc);
 }
 
 /**
@@ -199,6 +199,7 @@ enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *a_http_simp
 {
 
     dap_enc_key_t * l_key= dap_enc_ks_find_http(a_http_simple->http_client);
+
     if(l_key){
         enc_http_delegate_t * dg = DAP_NEW_Z(enc_http_delegate_t);
         dg->key=l_key;
@@ -261,11 +262,6 @@ enc_http_delegate_t *enc_http_request_decode(struct dap_http_simple *a_http_simp
  */
 void enc_http_reply_encode(struct dap_http_simple *a_http_simple,enc_http_delegate_t * a_http_delegate)
 {
-    dap_enc_key_t * key = dap_enc_ks_find_http(a_http_simple->http_client);
-    if( key == NULL ) {
-        log_it(L_ERROR, "Can't find http key.");
-        return;
-    }
     if(a_http_delegate->response){
 
         if(a_http_simple->reply)
@@ -282,7 +278,6 @@ void enc_http_reply_encode(struct dap_http_simple *a_http_simple,enc_http_delega
                                                   a_http_simple->reply, l_reply_size_max,
                                                   DAP_ENC_DATA_TYPE_RAW);
     }
-
 }
 
 void enc_http_delegate_delete(enc_http_delegate_t * dg)
@@ -313,15 +308,17 @@ size_t enc_http_reply_f(enc_http_delegate_t * dg, const char * data, ...)
     va_list ap;
     va_start(ap, data);
     int mem_size = dap_vsnprintf(0, 0, data, ap);
-
     va_end(ap);
-    char *buf = (char*)malloc(sizeof(char) * mem_size + 1);
+
+    char *buf = DAP_NEW_SIZE(char, mem_size + 1);
     if(buf) {
         va_start(ap, data);
         dap_vsprintf(buf, data, ap);
         va_end(ap);
-        return enc_http_reply(dg,buf,mem_size);
-    }else
+        size_t ret = enc_http_reply(dg, buf, mem_size);
+        DAP_DELETE(buf);
+        return ret;
+    } else
         log_it(L_ERROR, "Can not memmory allocate");
     return 0;
 }

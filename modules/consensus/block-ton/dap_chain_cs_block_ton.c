@@ -421,7 +421,7 @@ static void s_session_timer(void *a_arg) {
 					// round start
 					l_session->state = DAP_STREAM_CH_CHAIN_SESSION_STATE_WAIT_START;
 					s_session_round_start(l_session);
-					dap_chain_node_mempool_process_all(l_session->chain);		/* Not a good idea to do it by timer... */
+                    dap_chain_node_mempool_process_all(l_session->chain, false);		/* Not a good idea to do it by timer... */
 					dap_list_free_full(l_session->cur_round.validators_list, free);
 					l_session->cur_round.validators_list = s_get_validators_addr_list(l_session);
 					l_session->cur_round.validators_count = dap_list_length(l_session->cur_round.validators_list);
@@ -669,7 +669,12 @@ static void s_session_candidate_to_chain(
 		            log_it(L_ERROR, "TON: Can't save atom %s to the file", l_candidate_hash_str);
 		        }
 		        else {
-					log_it(L_INFO, "TON: atom %s added in chain successfully", l_candidate_hash_str);
+					log_it(L_INFO, "TON: atom %s processed well", l_candidate_hash_str);
+                    dap_chain_hash_fast_t l_block_hash;
+                    dap_hash_fast(l_candidate, a_candidate_size, &l_block_hash);
+                    char *l_block_hash_str = dap_chain_hash_fast_to_str_new(&l_block_hash);
+                    log_it(L_INFO, "TON: block %s added in chain successfully", l_block_hash_str);
+                    DAP_DELETE(l_block_hash_str);
 		        }
 		    } break;
 		    case ATOM_MOVE_TO_THRESHOLD: {

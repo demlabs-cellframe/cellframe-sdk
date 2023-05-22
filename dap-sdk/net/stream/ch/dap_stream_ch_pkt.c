@@ -89,20 +89,15 @@ size_t dap_stream_ch_pkt_write_f_mt(dap_stream_worker_t * a_worker , dap_stream_
     dap_stream_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_stream_worker_msg_io_t);
     l_msg->ch_uuid = a_ch_uuid;
     l_msg->ch_pkt_type = a_type;
-    l_msg->data = DAP_NEW_SIZE(void,l_data_size);
+    l_msg->data = DAP_NEW_SIZE(void, l_data_size + 1);
+    l_msg->data_size = l_data_size;
     l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
     l_data_size = dap_vsnprintf(l_msg->data,0,a_format,ap);
     va_end(ap);
-    if (l_data_size <0 ){
-        log_it(L_ERROR,"Can't write out formatted data '%s' with values",a_format);
-        DAP_DELETE(l_msg);
-        return 0;
-    }
-    l_data_size++;
-    l_msg->data_size = l_data_size;
     int l_ret= dap_events_socket_queue_ptr_send(a_worker->queue_ch_io , l_msg );
     if (l_ret!=0){
         log_it(L_ERROR, "Wasn't send pointer to queue: code %d", l_ret);
+        DAP_DELETE(l_msg->data);
         DAP_DELETE(l_msg);
         return 0;
     }
@@ -128,24 +123,19 @@ size_t dap_stream_ch_pkt_write_f_inter(dap_events_socket_t * a_queue  , dap_stre
         va_end(ap);
         return 0;
     }
-    l_data_size++; // To calc trailing zero
     dap_stream_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_stream_worker_msg_io_t);
     l_msg->ch_uuid = a_ch_uuid;
     l_msg->ch_pkt_type = a_type;
-    l_msg->data = DAP_NEW_SIZE(void,l_data_size);
+    l_msg->data = DAP_NEW_SIZE(void, l_data_size + 1);
     l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
     l_data_size = dap_vsnprintf(l_msg->data,0,a_format,ap);
     va_end(ap);
-    if (l_data_size <0 ){
-        log_it(L_ERROR,"Can't write out formatted data '%s' with values",a_format);
-        DAP_DELETE(l_msg);
-        return 0;
-    }
-    l_data_size++;
     l_msg->data_size = l_data_size;
+
     int l_ret= dap_events_socket_queue_ptr_send_to_input(a_queue , l_msg );
     if (l_ret!=0){
         log_it(L_ERROR, "Wasn't send pointer to queue: code %d", l_ret);
+        DAP_DELETE(l_msg->data);
         DAP_DELETE(l_msg);
         return 0;
     }
@@ -168,13 +158,14 @@ size_t dap_stream_ch_pkt_write_mt(dap_stream_worker_t * a_worker , dap_stream_ch
     dap_stream_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_stream_worker_msg_io_t);
     l_msg->ch_uuid = a_ch_uuid;
     l_msg->ch_pkt_type = a_type;
-    l_msg->data = DAP_NEW_SIZE(void,a_data_size);
+    if (a_data && a_data_size)
+        l_msg->data = DAP_DUP_SIZE(a_data, a_data_size);
     l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
     l_msg->data_size = a_data_size;
-    memcpy( l_msg->data, a_data, a_data_size);
     int l_ret= dap_events_socket_queue_ptr_send(a_worker->queue_ch_io , l_msg );
     if (l_ret!=0){
         log_it(L_ERROR, "Wasn't send pointer to queue: code %d", l_ret);
+        DAP_DEL_Z(l_msg->data);
         DAP_DELETE(l_msg);
         return 0;
     }
@@ -196,13 +187,15 @@ size_t dap_stream_ch_pkt_write_inter(dap_events_socket_t * a_queue , dap_stream_
     dap_stream_worker_msg_io_t * l_msg = DAP_NEW_Z(dap_stream_worker_msg_io_t);
     l_msg->ch_uuid = a_ch_uuid;
     l_msg->ch_pkt_type = a_type;
-    l_msg->data = DAP_NEW_SIZE(void,a_data_size);
+    if (a_data && a_data_size)
+        l_msg->data = DAP_DUP_SIZE(a_data, a_data_size);
     l_msg->flags_set = DAP_SOCK_READY_TO_WRITE;
     l_msg->data_size = a_data_size;
-    memcpy( l_msg->data, a_data, a_data_size);
+
     int l_ret= dap_events_socket_queue_ptr_send_to_input(a_queue , l_msg );
     if (l_ret!=0){
         log_it(L_ERROR, "Wasn't send pointer to queue: code %d", l_ret);
+        DAP_DEL_Z(l_msg->data);
         DAP_DELETE(l_msg);
         return 0;
     }
@@ -235,7 +228,7 @@ size_t dap_stream_ch_pkt_write_unsafe(dap_stream_ch_t * a_ch,  uint8_t a_type, c
 
     size_t  l_ret = 0, l_data_size,
             l_max_size = l_data_size = a_data_size + sizeof(dap_stream_ch_pkt_hdr_t);
-    uint8_t *l_buf = a_ch->buf;
+    byte_t *l_buf = DAP_NEW_Z_SIZE(byte_t, l_max_size); //a_ch->buf;
 
     dap_stream_ch_pkt_hdr_t l_hdr = {
         .id         = a_ch->proc->id,
@@ -248,18 +241,21 @@ size_t dap_stream_ch_pkt_write_unsafe(dap_stream_ch_t * a_ch,  uint8_t a_type, c
     debug_if(dap_stream_get_dump_packet_headers(), L_INFO, "Outgoing channel packet: id='%c' size=%u type=0x%02X seq_id=0x%016"DAP_UINT64_FORMAT_X" enc_type=0x%02hhX",
         (char) l_hdr.id, l_hdr.size, l_hdr.type, l_hdr.seq_id , l_hdr.enc_type);
 
-    if (l_data_size > 0 && l_data_size <= DAP_STREAM_PKT_FRAGMENT_SIZE) {
+    const size_t l_max_fragm_size = DAP_STREAM_PKT_FRAGMENT_SIZE - DAP_STREAM_PKT_ENCRYPTION_OVERHEAD - sizeof(dap_stream_fragment_pkt_t);
+
+    if (l_data_size > 0 && l_data_size <= l_max_fragm_size) {
         memcpy(l_buf, &l_hdr, sizeof(dap_stream_ch_pkt_hdr_t));
         memcpy(l_buf + sizeof(dap_stream_ch_pkt_hdr_t), a_data, a_data_size);
         l_ret = dap_stream_pkt_write_unsafe(a_ch->stream, STREAM_PKT_TYPE_DATA_PACKET, l_buf, l_data_size);
-    } else if (l_data_size > DAP_STREAM_PKT_FRAGMENT_SIZE) {
+        dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
+    } else if (l_data_size > l_max_fragm_size) {
         /* The first fragment (has no memory shift) is the channel header
          The rest fragments just concatenate as-is */
         size_t l_fragment_size;
         dap_stream_fragment_pkt_t *l_fragment;
         for (l_fragment = (dap_stream_fragment_pkt_t*)l_buf, l_fragment_size = sizeof(dap_stream_ch_pkt_hdr_t);
              l_data_size > 0;
-             l_data_size -= l_fragment_size, l_fragment_size = MIN(l_data_size, DAP_STREAM_PKT_FRAGMENT_SIZE))
+             l_data_size -= l_fragment_size, l_fragment_size = MIN(l_data_size, l_max_fragm_size))
         {
             l_fragment->size        = l_fragment_size;
             l_fragment->full_size   = l_max_size;
@@ -268,8 +264,8 @@ size_t dap_stream_ch_pkt_write_unsafe(dap_stream_ch_t * a_ch,  uint8_t a_type, c
                    l_fragment_size);
             l_ret += dap_stream_pkt_write_unsafe(a_ch->stream, STREAM_PKT_TYPE_FRAGMENT_PACKET, l_fragment,
                                                   l_fragment_size + sizeof(dap_stream_fragment_pkt_t));
+            dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
         }
-        dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
     } else {
         a_ch->stat.bytes_write = 0;
         log_it(L_WARNING, "Empty pkt, seq_id %"DAP_UINT64_FORMAT_U, l_hdr.seq_id);
@@ -277,6 +273,7 @@ size_t dap_stream_ch_pkt_write_unsafe(dap_stream_ch_t * a_ch,  uint8_t a_type, c
     }
     // Statistics without header sizes
     a_ch->stat.bytes_write += a_data_size;
+    DAP_DELETE(l_buf);
     return l_ret;
 }
 
@@ -292,7 +289,7 @@ size_t dap_stream_ch_pkt_write_f_unsafe(dap_stream_ch_t * a_ch, uint8_t a_type, 
     char l_buf[4096];
     va_list ap;
     va_start(ap,a_str);
-    dap_vsnprintf(l_buf,sizeof(l_buf),a_str,ap);
+    dap_vsnprintf(l_buf, sizeof(l_buf) - 1, a_str, ap);
     va_end(ap);
     size_t ret=dap_stream_ch_pkt_write_unsafe(a_ch,a_type,l_buf,strlen(l_buf));
     return ret;

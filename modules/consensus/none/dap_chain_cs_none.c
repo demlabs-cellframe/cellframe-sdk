@@ -90,7 +90,7 @@ static dap_chain_atom_ptr_t *s_chain_callback_atom_iter_get_links(dap_chain_atom
 static dap_chain_atom_ptr_t *s_chain_callback_atom_iter_get_lasts(dap_chain_atom_iter_t * a_atom_iter,
         size_t * a_lasts_size_ptr, size_t ** a_lasts_sizes_ptr); //    Get list of linked events
 static dap_chain_datum_t **s_chain_callback_atom_get_datum(dap_chain_atom_ptr_t a_atom, size_t a_atom_size, size_t *a_datums_count);
-
+static dap_time_t s_chain_callback_atom_get_timestamp(dap_chain_atom_ptr_t a_atom) { return ((dap_chain_datum_t *)a_atom)->header.ts_create; }
 static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums,
         size_t a_datums_size);
 
@@ -154,6 +154,14 @@ static void s_dap_chain_gdb_callback_purge(dap_chain_t *a_chain)
     PVT(DAP_CHAIN_GDB(a_chain))->is_load_mode = true;
 }
 
+static void s_callback_memepool_notify(void * a_arg, const char a_op_code, const char * a_group,
+                                      const char * a_key, const void * a_value, const size_t a_value_len)
+{
+    if (a_op_code == DAP_DB$K_OPTYPE_ADD)
+        dap_chain_node_mempool_process_all(a_arg, false);
+}
+
+
 /**
  * @brief configure chain gdb
  * Set atom element callbacks
@@ -186,6 +194,8 @@ int dap_chain_gdb_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     // Add group prefix that will be tracking all changes
     dap_chain_global_db_add_sync_group(l_net->pub.name, "chain-gdb", s_history_callback_notify, l_gdb);
 
+    dap_chain_add_mempool_notify_callback(a_chain, s_callback_memepool_notify, a_chain);
+
     // load ledger
     l_gdb_priv->is_load_mode = true;
     dap_chain_gdb_ledger_load(l_gdb_priv->group_datums, a_chain);
@@ -212,6 +222,7 @@ int dap_chain_gdb_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     a_chain->callback_atom_iter_get_links = s_chain_callback_atom_iter_get_links; // Get the next element from chain from the current one
     a_chain->callback_atom_iter_get_lasts = s_chain_callback_atom_iter_get_lasts;
     a_chain->callback_atom_get_datums = s_chain_callback_atom_get_datum;
+    a_chain->callback_atom_get_timestamp = s_chain_callback_atom_get_timestamp;
 
     return 0;
 }
@@ -414,9 +425,8 @@ static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create_from(dap_chain_t
  */
 static void s_chain_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter)
 {
-    if (a_atom_iter->cur_item)
-        DAP_DELETE(a_atom_iter->cur_item);
-    DAP_DELETE(a_atom_iter->cur_hash);
+    DAP_DEL_Z(a_atom_iter->cur_item);
+    DAP_DEL_Z(a_atom_iter->cur_hash);
     DAP_DELETE(a_atom_iter);
 }
 
@@ -453,7 +463,7 @@ static dap_chain_atom_ptr_t s_chain_callback_atom_iter_get_first(dap_chain_atom_
 {
     if (!a_atom_iter)
         return NULL;
-    if (a_atom_iter->cur_item) {// This iterator should clean up data for it because its allocate it
+    if (a_atom_iter->cur_item) { /* Iterator creates copies, free them at delete routine! */
         DAP_DEL_Z(a_atom_iter->cur);
         DAP_DEL_Z(a_atom_iter->cur_hash);
     }
@@ -560,7 +570,7 @@ static dap_chain_datum_t **s_chain_callback_atom_get_datum(dap_chain_atom_ptr_t 
 {
     UNUSED(a_atom_size);
     if (a_atom){
-        dap_chain_datum_t * l_datum = a_atom;
+        dap_chain_datum_t *l_datum = (dap_chain_datum_t *)a_atom;
         if (l_datum){
             dap_chain_datum_t **l_datums = DAP_NEW(dap_chain_datum_t *);
             if (a_datums_count)

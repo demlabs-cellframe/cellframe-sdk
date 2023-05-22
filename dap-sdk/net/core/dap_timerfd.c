@@ -118,6 +118,7 @@ dap_timerfd_t* dap_timerfd_start_on_worker(dap_worker_t * a_worker, uint64_t a_t
 dap_timerfd_t* dap_timerfd_start_on_proc_thread(dap_proc_thread_t * a_proc_thread, uint64_t a_timeout_ms, dap_timerfd_callback_t a_callback, void *a_callback_arg)
 {
     dap_timerfd_t* l_timerfd = dap_timerfd_create( a_timeout_ms, a_callback, a_callback_arg);
+    // TODO make realization
     return l_timerfd;
 }
 
@@ -172,21 +173,19 @@ dap_timerfd_t* dap_timerfd_create(uint64_t a_timeout_ms, dap_timerfd_callback_t 
         return NULL;
     }
     l_events_socket->socket = l_tfd;
+
 #elif defined (DAP_OS_BSD)
+    l_events_socket->flags = 0;
     l_events_socket->kqueue_base_flags = EV_ONESHOT;
     l_events_socket->kqueue_base_filter = EVFILT_TIMER;
     l_events_socket->socket = arc4random();
 #ifdef DAP_OS_DARWIN
-    // We have all timers not accurate but more power safe
-    // Usualy we don't need exactly 1-5-10 seconds so let it be so
-    // TODO make absolute timer without power-saving flags
-    l_events_socket->kqueue_base_fflags = NOTE_BACKGROUND;
-    l_events_socket->kqueue_data =(int64_t) a_timeout_ms;
+    // We have all timers not critical accurate but more power safe
+    l_events_socket->kqueue_base_fflags = 0U;
 #else
     l_events_socket->kqueue_base_fflags = NOTE_MSECONDS;
-    l_events_socket->kqueue_data =(int64_t) a_timeout_ms;
-#endif
-
+#endif // DAP_OS_DARWIN
+    l_events_socket->kqueue_data =(int64_t)a_timeout_ms;
 
 #elif defined (DAP_OS_WINDOWS)
     l_timerfd->th = NULL;
@@ -241,10 +240,8 @@ static void s_timerfd_reset(dap_timerfd_t *a_timerfd, dap_events_socket_t *a_eve
         log_it(L_WARNING, "Reset timerfd failed: timerfd_settime() errno=%d\n", errno);
     }
 #elif defined (DAP_OS_BSD)
-    dap_worker_add_events_socket_unsafe(a_event_sock,a_event_sock->worker);
-//struct kevent * l_event = &a_event_sock->kqueue_event;
-//EV_SET(l_event, 0, a_event_sock->kqueue_base_filter, a_event_sock->kqueue_base_flags,a_event_sock->kqueue_base_fflags,a_event_sock->kqueue_data,a_event_sock);
-//kevent(a_event_sock->worker->kqueue_fd,l_event,1,NULL,0,NULL);
+    a_event_sock->kqueue_data = (int64_t)a_timerfd->timeout_ms;
+    dap_worker_add_events_socket_unsafe(a_event_sock, a_event_sock->worker);
 #elif defined (DAP_OS_WINDOWS)
     // Doesn't work with one-shot timers
     //if (!ChangeTimerQueueTimer(hTimerQueue, a_timerfd->th, (DWORD)a_timerfd->timeout_ms, 0))
@@ -274,10 +271,13 @@ static void s_es_callback_timer(struct dap_events_socket *a_event_sock)
     if(l_timerfd && l_timerfd->callback && l_timerfd->callback(l_timerfd->callback_arg)) {
         s_timerfd_reset(l_timerfd, a_event_sock);
     } else {
-#ifdef _WIN32
+#ifdef DAP_OS_WINDOWS
         DeleteTimerQueueTimer(hTimerQueue, l_timerfd->th, NULL);
 #endif
-        l_timerfd->events_socket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+#ifdef DAP_OS_BSD
+        l_timerfd->events_socket->kqueue_base_filter = EVFILT_EMPTY;
+#endif
+        a_event_sock->flags |= DAP_SOCK_SIGNAL_CLOSE;
     }
 }
 

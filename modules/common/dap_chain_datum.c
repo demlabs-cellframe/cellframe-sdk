@@ -59,24 +59,29 @@ void s_datum_token_dump_tsd(dap_string_t *a_str_out, dap_chain_datum_token_t *a_
         dap_string_append_printf(a_str_out,"<CORRUPTED TSD SECTION>\n");
         return;
     }
-    size_t l_offset = 0;
-    size_t l_offset_max = 0;
+    size_t l_tsd_total_size = 0;
     switch (a_token->type) {
     case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:
-        l_offset_max = a_token->header_private_decl.tsd_total_size; break;
+        l_tsd_total_size = a_token->header_private_decl.tsd_total_size; break;
     case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:
-        l_offset_max = a_token->header_private_update.tsd_total_size; break;
+        l_tsd_total_size = a_token->header_private_update.tsd_total_size; break;
     case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL:
-        l_offset_max = a_token->header_native_decl.tsd_total_size; break;
+        l_tsd_total_size = a_token->header_native_decl.tsd_total_size; break;
     case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE:
-        l_offset_max = a_token->header_native_update.tsd_total_size; break;
+        l_tsd_total_size = a_token->header_native_update.tsd_total_size; break;
     default: break;
     }
-    while (l_offset < l_offset_max) {
-        if ((l_tsd->size+l_offset) > l_offset_max) {
-            log_it(L_WARNING, "<CORRUPTED TSD> too big size %u when left maximum %zu",
-                   l_tsd->size, l_offset_max - l_offset);
+    size_t l_tsd_size = 0;
+    for (size_t l_offset = 0; l_offset < l_tsd_total_size; l_offset += l_tsd_size) {
+        l_tsd = (dap_tsd_t *) (((byte_t*)l_tsd) + l_tsd_size);
+        l_tsd_size =  l_tsd? dap_tsd_size(l_tsd): 0;
+        if( l_tsd_size==0 ){
+            log_it(L_ERROR,"Wrong zero TSD size, exiting s_datum_token_dump_tsd()");
             return;
+        }else if (l_tsd_size + l_offset > l_tsd_total_size ){
+            log_it(L_WARNING, "<CORRUPTED TSD> too big size %u when left maximum %zu",
+                   l_tsd->size, l_tsd_total_size - l_offset);
+            break;
         }
         switch( l_tsd->type){
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SET_FLAGS:
@@ -105,29 +110,35 @@ void s_datum_token_dump_tsd(dap_string_t *a_str_out, dap_chain_datum_token_t *a_
                 dap_string_append_printf(a_str_out,"total_signs_valid: %u\n",
                                          dap_tsd_get_scalar(l_tsd, uint16_t) );
             break;
-            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_ADD :
-                if(l_tsd->size == sizeof(dap_chain_hash_fast_t) ){
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD :
+                if(l_tsd->size >= sizeof(dap_pkey_t) ){
                     char *l_hash_str;
-                    if(!dap_strcmp(a_hash_out_type, "hex") || !dap_strcmp(a_hash_out_type, "content_hash") )
-                        l_hash_str = dap_chain_hash_fast_to_str_new((dap_chain_hash_fast_t*) l_tsd->data);
-                    else
-                        l_hash_str = dap_enc_base58_encode_hash_to_str((dap_chain_hash_fast_t*) l_tsd->data);
-                    dap_string_append_printf(a_str_out,"total_signs_add: %s\n", l_hash_str);
-                    DAP_DELETE( l_hash_str );
+                    dap_pkey_t *l_pkey = (dap_pkey_t*)l_tsd->data;
+                    dap_hash_fast_t l_hf = {0};
+                    if (!dap_pkey_get_hash(l_pkey, &l_hf)) {
+                        dap_string_append_printf(a_str_out,"total_pkeys_add: <WRONG CALCULATION FINGERPRINT>\n");
+                    } else {
+                        if (!dap_strcmp(a_hash_out_type, "hex") || !dap_strcmp(a_hash_out_type, "content_hash"))
+                            l_hash_str = dap_chain_hash_fast_to_str_new(&l_hf);
+                        else
+                            l_hash_str = dap_enc_base58_encode_hash_to_str(&l_hf);
+                        dap_string_append_printf(a_str_out, "total_pkeys_add: %s\n", l_hash_str);
+                        DAP_DELETE(l_hash_str);
+                    }
                 }else
-                    dap_string_append_printf(a_str_out,"total_signs_add: <WRONG SIZE %u>\n", l_tsd->size);
+                    dap_string_append_printf(a_str_out,"total_pkeys_add: <WRONG SIZE %u>\n", l_tsd->size);
             break;
-            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_REMOVE :
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE :
                 if(l_tsd->size == sizeof(dap_chain_hash_fast_t) ){
-                    char *l_hash_str;
+                    const char *l_hash_str = NULL;
                     if(!dap_strcmp(a_hash_out_type,"hex")|| !dap_strcmp(a_hash_out_type, "content_hash"))
                         l_hash_str = dap_chain_hash_fast_to_str_new((dap_chain_hash_fast_t*) l_tsd->data);
                     else
                         l_hash_str = dap_enc_base58_encode_hash_to_str((dap_chain_hash_fast_t*) l_tsd->data);
-                    dap_string_append_printf(a_str_out,"total_signs_remove: %s\n", l_hash_str );
+                    dap_string_append_printf(a_str_out,"total_pkeys_remove: %s\n", l_hash_str );
                     DAP_DELETE( l_hash_str );
                 }else
-                    dap_string_append_printf(a_str_out,"total_signs_add: <WRONG SIZE %u>\n", l_tsd->size);
+                    dap_string_append_printf(a_str_out,"total_pkeys_remove: <WRONG SIZE %u>\n", l_tsd->size);
             break;
 			case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK: {
 				char *balance = NULL;
@@ -186,7 +197,6 @@ void s_datum_token_dump_tsd(dap_string_t *a_str_out, dap_chain_datum_token_t *a_
             break;
             default: dap_string_append_printf(a_str_out, "<0x%04hX>: <size %u>\n", l_tsd->type, l_tsd->size);
         }
-        l_offset += dap_tsd_size(l_tsd);
     }
 }
 
@@ -544,6 +554,7 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
             if(l_token_size < sizeof(dap_chain_datum_token_t)){
                 dap_string_append_printf(a_str_out,"==Datum has incorrect size. Only %zu, while at least %zu is expected\n",
                                          l_token_size, sizeof(dap_chain_datum_token_t));
+                DAP_DEL_Z(l_token);
                 return;
             }
             dap_string_append_printf(a_str_out,"=== Datum Token Declaration ===\n");
@@ -626,6 +637,7 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
                 default:
                     dap_string_append(a_str_out,"type: UNKNOWN\n");
             }
+            DAP_DELETE(l_token);
         } break;
         case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
             size_t l_emisssion_size = a_datum->header.data_size;
@@ -696,4 +708,32 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
         } break;
     }
     DAP_DELETE(l_hash_str);
+}
+json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum){
+    json_object *l_object = json_object_new_object();
+    dap_hash_fast_t l_hash_data = {0};
+    dap_hash_fast(a_datum->data, a_datum->header.data_size, &l_hash_data);
+    char *l_hash_data_str = dap_hash_fast_to_str_new(&l_hash_data);
+    json_object *l_obj_data_hash = json_object_new_string(l_hash_data_str);
+    DAP_DELETE(l_hash_data_str);
+    json_object *l_obj_version = json_object_new_int(a_datum->header.version_id);
+    json_object *l_obj_size = json_object_new_int(a_datum->header.data_size);
+    json_object *l_obj_ts_created = json_object_new_uint64(a_datum->header.ts_create);
+    json_object *l_obj_type = json_object_new_string(dap_chain_datum_type_id_to_str(a_datum->header.type_id));
+    json_object *l_obj_data;
+    switch (a_datum->header.type_id) {
+        case DAP_CHAIN_DATUM_TX:
+            l_obj_data = dap_chain_datum_tx_to_json((dap_chain_datum_tx_t*)a_datum->data);
+            break;
+        default:
+            l_obj_data = json_object_new_null();
+            break;
+    }
+    json_object_object_add(l_object, "version", l_obj_version);
+    json_object_object_add(l_object, "hash", l_obj_data_hash);
+    json_object_object_add(l_object, "data_size", l_obj_size);
+    json_object_object_add(l_object, "ts_created", l_obj_ts_created);
+    json_object_object_add(l_object, "type", l_obj_type);
+    json_object_object_add(l_object, "data", l_obj_data);
+    return l_object;
 }

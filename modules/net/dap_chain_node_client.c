@@ -20,6 +20,7 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "dap_events_socket.h"
 #include "dap_time.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -44,7 +45,7 @@
 #include <arpa/inet.h>
 #endif
 
-#include <json-c/json.h>
+#include "json.h"
 #include "uthash.h"
 
 #include "dap_common.h"
@@ -194,7 +195,15 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
         if (l_node_client->keep_connection) {
             if (dap_client_get_stage(l_node_client->client) != STAGE_BEGIN)
                 dap_client_go_stage(l_node_client->client, STAGE_BEGIN, NULL);
-            dap_timerfd_start(45 * 1000, s_timer_node_reconnect, DAP_DUP(&l_node_client->uuid));
+            dap_stream_worker_t * l_stream_worker = dap_client_get_stream_worker(l_node_client->client);
+            if(l_stream_worker){
+                log_it(L_DEBUG, "Arm reconnect timer on same worker #%u", l_stream_worker->worker->id);
+            }else{
+                l_stream_worker = DAP_STREAM_WORKER(dap_events_worker_get_auto());
+                log_it(L_DEBUG, "Arm reconnect timer on auto selected worker #%u", l_stream_worker->worker->id);
+            }
+            dap_timerfd_start_on_worker( l_stream_worker->worker,  45 * 1000,
+                                         s_timer_node_reconnect, DAP_DUP(&l_node_client->uuid));
         } else
             dap_chain_node_client_close(l_node_client->uuid);
 
@@ -284,7 +293,8 @@ dap_chain_node_sync_status_t dap_chain_node_client_start_sync(dap_events_socket_
 static bool s_timer_update_states_callback(void *a_arg)
 {
     dap_events_socket_uuid_t *l_uuid = (dap_events_socket_uuid_t *)a_arg;
-    assert(l_uuid);
+    if (!l_uuid) // dap_chain_node_client was removed before
+        return false;
     dap_chain_node_sync_status_t l_status = dap_chain_node_client_start_sync(l_uuid, true);
     if (l_status == NODE_SYNC_STATUS_MISSING) {
         DAP_DELETE(l_uuid);
@@ -312,9 +322,12 @@ static bool s_timer_update_states_callback(void *a_arg)
                         return true;
                     } else {
                         dap_chain_node_client_close(*l_uuid);
+                        return false;
                     }
-                } else
+                } else {
                     dap_chain_node_client_close(*l_uuid);
+                    return false;
+                }
             }
         }
         DAP_DELETE(l_uuid);
@@ -772,6 +785,8 @@ dap_chain_node_client_t* dap_chain_node_client_create_n_connect(dap_chain_net_t 
  */
 static bool dap_chain_node_client_connect_internal(dap_chain_node_client_t *a_node_client, const char *a_active_channels)
 {
+char l_host[INET6_ADDRSTRLEN + 1] = {0};
+
     a_node_client->client = dap_client_new(a_node_client->events, s_stage_status_callback,
             s_stage_status_error_callback);
     dap_client_set_is_always_reconnect(a_node_client->client, false);
@@ -780,23 +795,22 @@ static bool dap_chain_node_client_connect_internal(dap_chain_node_client_t *a_no
 
     dap_client_set_auth_cert(a_node_client->client, a_node_client->net->pub.name);
 
-    int hostlen = 128;
-    char host[hostlen];
+
     if(a_node_client->info->hdr.ext_addr_v4.s_addr){
         struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = a_node_client->info->hdr.ext_addr_v4 };
-        inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), host, hostlen);
-        log_it(L_INFO, "Connecting to %s address",host);
+        inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), l_host, INET_ADDRSTRLEN);
+        log_it(L_INFO, "Connecting to %s address",l_host);
     } else {
         struct sockaddr_in6 sa6 = { .sin6_family = AF_INET6, .sin6_addr = a_node_client->info->hdr.ext_addr_v6 };
-        inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) &sa6)->sin6_addr), host, hostlen);
-        log_it(L_INFO, "Connecting to %s address",host);
+        inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) &sa6)->sin6_addr), l_host, INET6_ADDRSTRLEN);
+        log_it(L_INFO, "Connecting to %s address",l_host);
     }
     // address not defined
-    if(!strcmp(host, "::")) {
+    if(!strcmp(l_host, "::")) {
         dap_chain_node_client_close(a_node_client->uuid);
         return false;
     }
-    dap_client_set_uplink_unsafe(a_node_client->client, host, a_node_client->info->hdr.ext_port);
+    dap_client_set_uplink_unsafe(a_node_client->client, l_host, a_node_client->info->hdr.ext_port);
     a_node_client->state = NODE_CLIENT_STATE_CONNECTING ;
     // Handshake & connect
     dap_client_go_stage(a_node_client->client, STAGE_STREAM_STREAMING, s_stage_connected_callback);
@@ -848,7 +862,7 @@ void dap_chain_node_client_close(dap_events_socket_uuid_t a_uuid)
         dap_chain_node_client_t *l_client = l_client_found->client;
         if (l_client->sync_timer) {
             // Free memory callback_arg=uuid
-            DAP_DELETE(l_client->sync_timer->callback_arg);
+            DAP_DEL_Z(l_client->sync_timer->callback_arg);
             dap_timerfd_delete(l_client->sync_timer);
         }
 

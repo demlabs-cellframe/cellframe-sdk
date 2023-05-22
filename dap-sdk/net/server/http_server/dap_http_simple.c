@@ -40,8 +40,7 @@ See more details here <http://www.gnu.org/licenses/>.
 #include <pthread.h>
 
 #include "utlist.h"
-#include "json-c/json.h"
-#include "json-c/json_object.h"
+#include "json.h"
 
 #include "dap_common.h"
 #include "dap_config.h"
@@ -235,12 +234,17 @@ static void s_esocket_worker_write_callback(dap_worker_t *a_worker, void *a_arg)
         debug_if(g_debug_reactor, L_INFO, "Esocket 0x%"DAP_UINT64_FORMAT_x" is already deleted", l_http_simple->http_client_uuid);
         dap_http_client_t *l_http_client = l_http_simple->http_client;
         if (l_http_client) {
+            debug_if(g_debug_reactor, L_INFO, "l_ht_client:%p", l_http_simple);
+
+
             while (l_http_client->in_headers)
                 dap_http_header_remove(&l_http_client->in_headers, l_http_client->in_headers);
             while (l_http_client->out_headers)
                 dap_http_header_remove(&l_http_client->out_headers, l_http_client->out_headers);
+
             DAP_DELETE(l_http_client);
         }
+
         DAP_DEL_Z(l_http_simple->request);
         DAP_DEL_Z(l_http_simple->reply);
         DAP_DELETE(l_http_simple);
@@ -358,7 +362,7 @@ static void s_http_client_headers_read( dap_http_client_t *a_http_client, void *
 //    This is necessary in order to be able to request information using JavaScript obtained from another source.
     dap_http_header_t* l_header_origin = dap_http_header_find(a_http_client->in_headers, "Origin");
     if (l_header_origin){
-        dap_http_out_header_add(a_http_client, "Access-Control-Allow-Origin", "*");
+        dap_http_header_add(&a_http_client->out_headers, "Access-Control-Allow-Origin", -1, "*", -1);
     }
 
 

@@ -54,8 +54,8 @@ typedef int SOCKET;
     //#define DAP_EVENTS_CAPS_EPOLL
     #define DAP_EVENTS_CAPS_POLL
     #define DAP_EVENTS_CAPS_PIPE_POSIX
-    //#define DAP_EVENTS_CAPS_QUEUE_PIPE2
-    #define DAP_EVENTS_CAPS_QUEUE_MQUEUE
+    #define DAP_EVENTS_CAPS_QUEUE_PIPE2
+    //#define DAP_EVENTS_CAPS_QUEUE_MQUEUE
     #define DAP_EVENTS_CAPS_EVENT_EVENTFD
     #include <netinet/in.h>
     #include <sys/eventfd.h>
@@ -161,11 +161,11 @@ typedef struct dap_events_socket_callbacks {
     void *arg;                                                              /* Callbacks argument */
 } dap_events_socket_callbacks_t;
 
-#define DAP_STREAM_PKT_FRAGMENT_SIZE  (64 * 1024)
-#define DAP_STREAM_PKT_SIZE_MAX     (2 * 1024 * 1024)
-#define DAP_EVENTS_SOCKET_BUF       DAP_STREAM_PKT_SIZE_MAX
-#define DAP_EVENTS_SOCKET_BUF_LIMIT (DAP_STREAM_PKT_SIZE_MAX * 4)
-#define DAP_QUEUE_MAX_MSGS          1024
+#define DAP_STREAM_PKT_FRAGMENT_SIZE    (64 * 1024)
+#define DAP_STREAM_PKT_SIZE_MAX         (101 * 1024 * 1024)
+#define DAP_EVENTS_SOCKET_BUF_SIZE      (DAP_STREAM_PKT_FRAGMENT_SIZE * 16)
+#define DAP_EVENTS_SOCKET_BUF_LIMIT     DAP_STREAM_PKT_SIZE_MAX
+#define DAP_QUEUE_MAX_MSGS              1024
 
 typedef enum {
     DESCRIPTOR_TYPE_SOCKET_CLIENT = 0,
@@ -240,13 +240,16 @@ typedef struct dap_events_socket {
     dap_events_socket_t * pipe_out; // Pipe socket with data for output
 
     // Stored string representation
-    char *hostaddr;
-    char *service;
+#define DAP_EVSOCK$SZ_HOSTNAME  256
+#define DAP_EVSOCK$SZ_SERVICE   64
+
+    char hostaddr[DAP_EVSOCK$SZ_HOSTNAME + 1];
+    char service [DAP_EVSOCK$SZ_SERVICE + 1];
 
     // Remote address, port and others
     struct sockaddr_in remote_addr;
-    char *remote_addr_str;
-    char *remote_addr_str6;
+    char remote_addr_str[INET_ADDRSTRLEN];
+    char remote_addr_str6[INET6_ADDRSTRLEN];
     short remote_port;
 
 
