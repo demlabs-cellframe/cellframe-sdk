@@ -325,7 +325,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
     DAP_DEL_Z(l_datum);
 
     if (l_hash_str)
-        dap_string_append_printf(output_line, "TX STAKE LOCK CREATED\nSuccessfully hash=%s\nSave to take!\n", l_hash_str);
+        dap_string_append_printf(output_line, "TX STAKE LOCK CREATED\nSuccessfully hash = %s\nSave to take!\n", l_hash_str);
     else {
         DAP_DEL_Z(l_addr_holder);
         return CREATE_LOCK_TX_ERROR;
@@ -484,7 +484,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
     if (NULL == (l_datum_hash_str = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type)))
         return ADD_DATUM_TX_TAKE_ERROR;
 
-    dap_string_append_printf(output_line, "TAKE_TX_DATUM_HASH=%s\n", l_datum_hash_str);
+    dap_string_append_printf(output_line, "TAKE_TX_DATUM_HASH = %s\n", l_datum_hash_str);
 
     DAP_DEL_Z(l_datum_hash_str);
     DAP_DEL_Z(l_datum);
@@ -1066,7 +1066,6 @@ static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_
 
     // add 'out_cond' and 'out_ext' items
     {
-        a_time_staking = 0;
         uint256_t l_value_pack = {}, l_native_pack = {}; // how much coin add to 'out_ext' items
         dap_chain_tx_out_cond_t* l_tx_out_cond = dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
                                                         l_uid, a_value, a_time_staking, a_reinvest_percent);

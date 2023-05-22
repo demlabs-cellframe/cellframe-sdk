@@ -3925,35 +3925,28 @@ static inline int s_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, d
         dap_chain_tx_item_type_t l_type = *(uint8_t *)l_item_in;
         if (l_type == TX_ITEM_TYPE_IN_EMS) {
              // It's the emission behind
-            // Find token ticker for emission
-            dap_chain_tx_in_ems_t * l_in_ems = (dap_chain_tx_in_ems_t *) dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_IN_EMS, NULL);
-            if (!l_in_ems) {
-                log_it(L_ERROR, "No token item with blank prev tx hash");
-                break;
-            }
+            dap_chain_tx_in_ems_t *l_in_ems = bound_item->in.tx_cur_in_ems;
+            const char *l_delegated_ticker_str = l_in_ems->header.ticker;
             if (bound_item->tx_prev) { // It's the stake lock emission
-                char l_delegated_ticker_str[DAP_CHAIN_TICKER_SIZE_MAX];
-                dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker_str, l_main_token_ticker);
                 dap_chain_ledger_token_item_t *l_token_item = NULL;
                 pthread_rwlock_rdlock(&l_ledger_pvt->tokens_rwlock);
                 HASH_FIND_STR(l_ledger_pvt->tokens, l_delegated_ticker_str, l_token_item);
                 pthread_rwlock_unlock(&l_ledger_pvt->tokens_rwlock);
-                if (!l_token_item) {
+                if (l_token_item) {
+                    if (!IS_ZERO_256(l_token_item->total_supply)) {
+                        uint256_t *l_value = bound_item->stake_lock_item ?
+                                    &bound_item->stake_lock_item->ems_value :
+                                    &bound_item->out.tx_prev_out_ext_256->header.value;
+                        SUBTRACT_256_256(l_token_item->current_supply, *l_value,
+                                         &l_token_item->current_supply);
+                        char *l_balance = dap_chain_balance_print(l_token_item->current_supply);
+                        log_it(L_DEBUG, "New current supply %s for token %s", l_balance, l_token_item->ticker);
+                        DAP_DEL_Z(l_balance);
+                        if (PVT(a_ledger)->cached)
+                            s_ledger_token_cache_update(a_ledger, l_token_item);
+                    }
+                } else
                     log_it(L_ERROR, "No token item found for token %s", l_delegated_ticker_str);
-                    break;
-                }
-                if (!IS_ZERO_256(l_token_item->total_supply)) {
-                    uint256_t *l_value = bound_item->stake_lock_item ?
-                                &bound_item->stake_lock_item->ems_value :
-                                &bound_item->out.tx_prev_out_ext_256->header.value;
-                    SUBTRACT_256_256(l_token_item->current_supply, *l_value,
-                                     &l_token_item->current_supply);
-                    char *l_balance = dap_chain_balance_print(l_token_item->current_supply);
-                    log_it(L_DEBUG, "New current supply %s for token %s", l_balance, l_token_item->ticker);
-                    DAP_DEL_Z(l_balance);
-                    if (PVT(a_ledger)->cached)
-                        s_ledger_token_cache_update(a_ledger, l_token_item);
-                }
                 if (bound_item->stake_lock_item) {
                     bound_item->stake_lock_item->tx_used_out = *a_tx_hash;
                     if (PVT(a_ledger)->cached)
