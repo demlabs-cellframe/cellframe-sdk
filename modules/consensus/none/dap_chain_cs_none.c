@@ -369,7 +369,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     dap_chain_gdb_datum_hash_item_t * l_hash_item = DAP_NEW_Z(dap_chain_gdb_datum_hash_item_t);
     size_t l_datum_size = dap_chain_datum_size(l_datum);
     dap_hash_fast(l_datum->data,l_datum->header.data_size,&l_hash_item->datum_data_hash );
-    dap_chain_hash_fast_to_str(&l_hash_item->datum_data_hash,l_hash_item->key,sizeof(l_hash_item->key)-1);
+    dap_chain_hash_fast_to_str(&l_hash_item->datum_data_hash, l_hash_item->key, sizeof(l_hash_item->key));
     if (!l_gdb_priv->is_load_mode) {
         dap_global_db_set(l_gdb_priv->group_datums, l_hash_item->key, l_datum, l_datum_size, false, NULL, NULL);
     } else
