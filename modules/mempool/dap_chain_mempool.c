@@ -115,7 +115,7 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
     }
 
     char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
-    int l_res = dap_global_db_set(l_gdb_group, l_key_str, a_datum, dap_chain_datum_size(a_datum), true, NULL, NULL);
+    int l_res = dap_global_db_set(l_gdb_group, l_key_str, a_datum, dap_chain_datum_size(a_datum), false, NULL, NULL);
     if (l_res == DAP_GLOBAL_DB_RC_SUCCESS)
         log_it(L_NOTICE, "Datum %s with hash %s was placed in mempool group %s", l_type_str, l_key_str, l_gdb_group);
     else
@@ -1164,7 +1164,7 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
                 case DAP_DATUM_MEMPOOL_ADD: // add datum in base
                     //a_value = DAP_NEW_Z_SIZE(char, request_size * 2);
                     //bin2hex((char*) a_value, (const unsigned char*) request_str, request_size);
-                    if ( dap_global_db_set_sync(l_gdb_datum_pool, a_key, l_request_data, l_request_size,true )==0 ) {
+                    if ( dap_global_db_set_sync(l_gdb_datum_pool, a_key, l_request_data, l_request_size, false) == 0 ) {
                         *return_code = Http_Status_OK;
                     }
                     log_it(L_INFO, "Insert hash: key=%s result:%s", a_key,

@@ -99,7 +99,7 @@ void dap_chain_block_chunks_add(dap_chain_block_chunks_t * a_chunks,dap_chain_bl
     }
     // Save to GDB
     //dap_global_db_set(a_chunks->gdb_group, a_block_cache->block_hash_str, a_block_cache->block, a_block_cache->block_size,
-    //                           true, NULL, NULL );
+    //                           false, NULL, NULL );
 
     // And here we select chunk for the new block cache
     bool l_is_chunk_found = false;
