@@ -156,7 +156,7 @@ const char* dap_chain_net_get_type(dap_chain_t *l_chain);
 
 dap_list_t* dap_chain_net_get_link_node_list(dap_chain_net_t * l_net, bool a_is_only_cur_cell);
 dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * a_net);
-dap_list_t* dap_chain_net_get_node_list_cfg(dap_chain_net_t * a_net);
+dap_list_t* dap_chain_net_get_node_list_cfg(dap_chain_net_t * a_net,uint16_t *a_nods_cnt);
 dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net);
 
 /**
