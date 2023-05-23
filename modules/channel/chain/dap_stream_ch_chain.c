@@ -710,8 +710,11 @@ static void s_gdb_in_pkt_proc_callback_apply(dap_global_db_context_t *a_global_d
         }
     }
     // Do not overwrite pinned records
-    if (l_is_pinned_cur)
+    if (l_is_pinned_cur) {
+        if (l_obj->type == DAP_DB$K_OPTYPE_DEL)
+            log_it(L_NOTICE, "Can't removed record - current pinned. Group: %s. Key: %s", l_obj->group, l_obj->key);
         goto ret;
+    }
     // Deleted time
     dap_nanotime_t l_timestamp_del = dap_global_db_get_del_ts_unsafe(a_global_db_context, l_obj->group, l_obj->key);
     // Limit time
