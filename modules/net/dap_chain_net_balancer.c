@@ -27,7 +27,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "http_status_code.h"
 
 #define LOG_TAG "dap_chain_net_balancer"
-dap_chain_node_info _t *dap_chain_net_balancer_get_node(const char *a_net_name)
+dap_chain_node_info_t *dap_chain_net_balancer_get_node(const char *a_net_name)
 {
     dap_list_t *l_node_list = NULL,*l_objs_list = NULL;
     dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
@@ -88,11 +88,7 @@ dap_chain_node_info _t *dap_chain_net_balancer_get_node(const char *a_net_name)
 
 dap_chain_node_info_t *s_balancer_issue_link(const char *a_net_name)
 {
-
     dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
-    dap_chain_net_pvt_t *l_net_pvt = l_net ? PVT(l_net) : NULL;
-    if (!l_net_pvt)
-        return false;
     dap_chain_node_info_t *l_node_candidate = dap_chain_net_balancer_get_node(a_net_name);
     if(l_node_candidate)
     {
@@ -106,17 +102,16 @@ dap_chain_node_info_t *s_balancer_issue_link(const char *a_net_name)
         if(l_node_list)
         {
             dap_chain_node_info_t *l_node_info = DAP_NEW_Z(dap_chain_node_info_t);
-            int i = rand() % l_net_pvt;
+            int i = rand() % l_nods_cnt;
+            dap_list_t *nl = l_node_list;
+            while(i--) nl = nl->next;
+            l_node_candidate = (dap_chain_node_info_t*)nl->data;
+            memcpy(l_node_info, l_node_candidate, sizeof(dap_chain_node_info_t));
+            dap_list_free(l_node_list);
+            return l_node_info;
         }
-        dap_chain_node_info_t *l_node_info = DAP_NEW_Z(dap_chain_node_info_t);
-        memcpy(l_node_info, l_node_candidate, sizeof(dap_chain_node_info_t));
-        dap_list_free(l_objs_list);
-        return l_node_info;
-
-        dap_list_t *l_node_list = dap_chain_net_get_node_list_cfg(l_net);
-        l_node_candidate = (dap_chain_node_info_t *)dap_list_nth_data(l_node_list,0);
-        log_it(L_DEBUG, "Node list is empty - seed ip %s",inet_ntoa(l_node_candidate->hdr.ext_addr_v4));
     }
+    return NULL;
 }
 
 void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg)

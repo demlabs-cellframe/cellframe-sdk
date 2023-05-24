@@ -30,3 +30,4 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg);
 dap_chain_node_info_t *dap_chain_net_balancer_dns_issue_link(char *a_str);
+dap_chain_node_info_t *dap_chain_net_balancer_get_node(const char *a_net_name);
