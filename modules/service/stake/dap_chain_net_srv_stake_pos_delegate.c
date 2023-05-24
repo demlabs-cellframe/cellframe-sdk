@@ -32,8 +32,6 @@
 #include "dap_chain_mempool.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_srv.h"
-#include "dap_chain_cs_block_poa.h"
-#include "dap_chain_cs_dag_poa.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 
 #include "rand/dap_rand.h"
@@ -47,7 +45,7 @@
 
 static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply);
 
-static bool s_stake_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond,
+static bool s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond,
                                                       dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 static void s_stake_updater_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_cond);
 
@@ -126,9 +124,8 @@ void dap_chain_net_srv_stake_pos_delegate_deinit()
     DAP_DEL_Z(s_srv_stake);
 }
 
-static bool s_stake_verificator_callback(dap_ledger_t UNUSED_ARG *a_ledger, dap_hash_fast_t UNUSED_ARG *a_tx_out_hash,
-                                         dap_chain_tx_out_cond_t UNUSED_ARG *a_cond, dap_chain_datum_tx_t UNUSED_ARG *a_tx_in,
-                                         bool a_owner)
+static bool s_stake_verificator_callback(dap_ledger_t UNUSED_ARG *a_ledger, dap_chain_tx_out_cond_t UNUSED_ARG *a_cond,
+                                         dap_chain_datum_tx_t UNUSED_ARG *a_tx_in, bool a_owner)
 {
     assert(s_srv_stake);
     if (!a_owner)
@@ -1943,6 +1940,6 @@ static void s_cache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
     dap_chain_hash_fast_to_str(&l_cache_data.tx_hash, l_data_key, sizeof(l_data_key));
     l_cache_data.signing_addr = *a_signing_addr;
     char *l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP);
-    if (dap_global_db_set(l_gdb_group, l_data_key, &l_cache_data, sizeof(l_cache_data), true, NULL, NULL))
+    if (dap_global_db_set(l_gdb_group, l_data_key, &l_cache_data, sizeof(l_cache_data), false, NULL, NULL))
         log_it(L_WARNING, "Stake service cache mismatch");
 }

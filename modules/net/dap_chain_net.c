@@ -1621,9 +1621,10 @@ static bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
         DAP_DELETE(l_cache_dir);
         return false;
     }
-    // create file, if it not presented. If file exists, ledger cache operation is stopped
-    char *l_cache_file = dap_strdup_printf( "%s/%s.cache", l_cache_dir, "01df6e58-4eb7-43a3-8c6b-252bcc3d05d4");
+    // Check the file with provided UUID. Change this UUID to automatically reload cache on next node startup
+    char *l_cache_file = dap_strdup_printf( "%s/%s.cache", l_cache_dir, DAP_CHAIN_LEDGER_CACHE_RELOAD_ONCE_UUID);
     DAP_DELETE(l_cache_dir);
+    // create file, if it not presented. If file exists, ledger cache operation is stopped
     if (dap_file_simple_test(l_cache_file)) {
         log_it(L_WARNING, "Cache file '%s' already exists", l_cache_file);
         DAP_DELETE(l_cache_file);
