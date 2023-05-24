@@ -235,7 +235,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
 
-    l_esbocs_pvt->minimum_fee = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "minimum_fee", "0.05"));
+//    l_esbocs_pvt->minimum_fee = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "minimum_fee", "0.05"));
     l_esbocs_pvt->fee_addr = dap_chain_addr_from_str(dap_config_get_item_str(a_chain_net_cfg, "esbocs", "fee_addr"));
     l_esbocs_pvt->fee_coll_set = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "set_collect_fee", "10.05"));
 
@@ -257,7 +257,37 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
         return 0;
     }
 
+    //Find order minimum fee
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(l_net);
+    size_t l_orders_count = 0;
+    dap_global_db_obj_t * l_orders = dap_global_db_get_all_sync(l_gdb_group_str, &l_orders_count);
+    dap_chain_net_srv_order_t *l_order_service = NULL;
+    for (size_t i = 0; i < l_orders_count; i++) {
+        dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)l_orders[i].value;
+        if (l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID)
+            continue;
+        dap_sign_t *l_order_sign =  (dap_sign_t*)(l_order->ext_n_sign + l_order->ext_size);
+        uint8_t *l_order_sign_pkey = dap_sign_get_pkey(l_order_sign, NULL);
+        if (memcmp(l_esbocs_pvt->blocks_sign_key->pub_key_data, l_order_sign_pkey, l_esbocs_pvt->blocks_sign_key->pub_key_data_size) != 0)
+            continue;
+        if (l_order_service) {
+            if (l_order_service->ts_created < l_order->ts_created)
+                l_order_service = l_order;
+        } else {
+            l_order_service = l_order;
+        }
+    }
+    dap_global_db_objs_delete(l_orders, l_orders_count);
+    DAP_DELETE(l_gdb_group_str);
+    if (l_order_service) {
+        l_esbocs_pvt->minimum_fee = l_order_service->price;
+    } else {
+        log_it(L_ERROR, "An order was not found that was signed by the signature of this validator. Operation of the "
+                        "transaction service is not possible.");
+        return 0;
+    }
+
     dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
     if (l_role.enums > NODE_ROLE_MASTER) {
         log_it(L_NOTICE, "Node role is lower than master role, so this node can't be a consensus validator");
