@@ -244,17 +244,17 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
         dap_cert_t *l_sign_cert = dap_cert_find_by_name(l_sign_cert_str);
         if (l_sign_cert == NULL) {
             log_it(L_ERROR, "Can't load sign certificate, name \"%s\" is wrong", l_sign_cert_str);
-            return 0;
+            return -1;
         } else if (l_sign_cert->enc_key->priv_key_data) {
             l_esbocs_pvt->blocks_sign_key = l_sign_cert->enc_key;
             log_it(L_INFO, "Loaded \"%s\" certificate for net %s to sign ESBOCS blocks", l_sign_cert_str, a_chain->net_name);
         } else {
             log_it(L_ERROR, "Certificate \"%s\" has no private key", l_sign_cert_str);
-            return 0;
+            return -2;
         }
     } else {
         log_it(L_NOTICE, "No sign certificate provided for net %s, can't sign any blocks. This node can't be a consensus validator", a_chain->net_name);
-        return 0;
+        return -3;
     }
 
     //Find order minimum fee
@@ -285,13 +285,13 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     } else {
         log_it(L_ERROR, "An order was not found that was signed by the signature of this validator. Operation of the "
                         "transaction service is not possible.");
-        return 0;
+        return -4;
     }
 
     dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
     if (l_role.enums > NODE_ROLE_MASTER) {
         log_it(L_NOTICE, "Node role is lower than master role, so this node can't be a consensus validator");
-        return 0;
+        return -5;
     }
 
     dap_chain_addr_t l_my_signing_addr;
@@ -299,12 +299,12 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     if (!l_esbocs_pvt->poa_mode) {
         if (!dap_chain_net_srv_stake_key_delegated(&l_my_signing_addr)) {
             log_it(L_WARNING, "Signing key is not delegated by stake service. Switch off validator mode");
-            return 0;
+            return -6;
         }
     } else {
         if (!s_validator_check(&l_my_signing_addr, l_esbocs_pvt->poa_validators)) {
             log_it(L_WARNING, "Signing key is not present in PoA certs list. Switch off validator mode");
-            return 0;
+            return -7;
         }
     }
 
