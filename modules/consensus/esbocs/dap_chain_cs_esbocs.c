@@ -283,9 +283,9 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     if (l_order_service) {
         l_esbocs_pvt->minimum_fee = l_order_service->price;
     } else {
+        l_esbocs_pvt->minimum_fee = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "minimum_fee", "0.05"));
         log_it(L_ERROR, "An order was not found that was signed by the signature of this validator. Operation of the "
                         "transaction service is not possible.");
-        return -4;
     }
 
     dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
