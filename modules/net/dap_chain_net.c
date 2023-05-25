@@ -3089,7 +3089,7 @@ dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * l_net)
 /**
  * Get nodes list from config file (list of dap_chain_node_addr_t struct)
  */
-dap_list_t* dap_chain_net_get_node_list_cfg(dap_chain_net_t * a_net,uint16_t *a_nods_cnt)
+dap_list_t* dap_chain_net_get_node_list_cfg(dap_chain_net_t * a_net)
 {
     dap_list_t *l_node_list = NULL;
     dap_chain_net_pvt_t *l_pvt_net = PVT(a_net);
@@ -3097,7 +3097,6 @@ dap_list_t* dap_chain_net_get_node_list_cfg(dap_chain_net_t * a_net,uint16_t *a_
     {
         l_node_list = dap_list_append(l_node_list, &l_pvt_net->node_info[i]);
     }
-    *a_nods_cnt = l_pvt_net->seed_aliases_count;
     return l_node_list;
 }
 

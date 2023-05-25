@@ -31,7 +31,6 @@ dap_chain_node_info_t *dap_chain_net_balancer_get_node(const char *a_net_name)
 {
     dap_list_t *l_node_list = NULL,*l_objs_list = NULL;
     dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
-    uint16_t l_nods_cnt;
     if (l_net == NULL) {
         uint16_t l_nets_count;
         dap_chain_net_t **l_nets = dap_chain_net_list(&l_nets_count);
@@ -49,7 +48,7 @@ dap_chain_node_info_t *dap_chain_net_balancer_get_node(const char *a_net_name)
     l_objs = dap_global_db_get_all_sync(l_net->pub.gdb_nodes, &l_nodes_count);
     if (!l_nodes_count || !l_objs)
         return NULL;
-    l_node_list = dap_chain_net_get_node_list_cfg(l_net,&l_nods_cnt);
+    l_node_list = dap_chain_net_get_node_list_cfg(l_net);
     for(size_t i=0;i<l_nodes_count;i++)
     {
         for(dap_list_t *node_i = l_node_list;node_i;node_i = node_i->next)
@@ -97,8 +96,8 @@ dap_chain_node_info_t *s_balancer_issue_link(const char *a_net_name)
     }
     else
     {
-        uint16_t l_nods_cnt = 0;
-        dap_list_t *l_node_list = dap_chain_net_get_node_list_cfg(l_net,&l_nods_cnt);
+        dap_list_t *l_node_list = dap_chain_net_get_node_list_cfg(l_net);
+        uint16_t l_nods_cnt = dap_list_length(l_node_list);
         if(l_node_list)
         {
             dap_chain_node_info_t *l_node_info = DAP_NEW_Z(dap_chain_node_info_t);
