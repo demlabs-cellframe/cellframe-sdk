@@ -256,6 +256,8 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
         log_it(L_NOTICE, "No sign certificate provided for net %s, can't sign any blocks. This node can't be a consensus validator", a_chain->net_name);
         return -3;
     }
+    size_t l_esbocs_sign_pub_key_size = 0;
+    uint8_t *l_esbocs_sign_pub_key = dap_enc_key_serialize_pub_key(l_esbocs_pvt->blocks_sign_key, &l_esbocs_sign_pub_key_size);
 
     //Find order minimum fee
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
@@ -269,7 +271,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
             continue;
         dap_sign_t *l_order_sign =  (dap_sign_t*)(l_order->ext_n_sign + l_order->ext_size);
         uint8_t *l_order_sign_pkey = dap_sign_get_pkey(l_order_sign, NULL);
-        if (memcmp(l_esbocs_pvt->blocks_sign_key->pub_key_data, l_order_sign_pkey, l_esbocs_pvt->blocks_sign_key->pub_key_data_size) != 0)
+        if (memcmp(l_esbocs_sign_pub_key, l_order_sign_pkey, l_esbocs_sign_pub_key_size) != 0)
             continue;
         if (l_order_service) {
             if (l_order_service->ts_created < l_order->ts_created)
