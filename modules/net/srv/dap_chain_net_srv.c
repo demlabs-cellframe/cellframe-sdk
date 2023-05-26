@@ -675,7 +675,6 @@ static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out
                                        dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
     UNUSED(a_ledger);
-    UNUSED(a_tx_out_hash);
     if (a_owner)
         return true;
     dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)
