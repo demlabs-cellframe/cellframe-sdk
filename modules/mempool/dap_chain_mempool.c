@@ -115,7 +115,7 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
     }
 
     char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
-    int l_res = dap_global_db_set(l_gdb_group, l_key_str, a_datum, dap_chain_datum_size(a_datum), true, NULL, NULL);
+    int l_res = dap_global_db_set(l_gdb_group, l_key_str, a_datum, dap_chain_datum_size(a_datum), false, NULL, NULL);
     if (l_res == DAP_GLOBAL_DB_RC_SUCCESS)
         log_it(L_NOTICE, "Datum %s with hash %s was placed in mempool group %s", l_type_str, l_key_str, l_gdb_group);
     else
@@ -150,7 +150,7 @@ char *dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_fr
     SUM_256_256(l_net_fee, a_value_fee, &l_total_fee);
     if (l_single_channel)
         SUM_256_256(l_value_need, l_total_fee, &l_value_need);
-    else {
+    else if (!IS_ZERO_256(l_total_fee)) {
         l_list_fee_out = dap_chain_ledger_get_list_tx_outs_with_val(a_chain->ledger, l_native_ticker,
                                                                     a_addr_from, l_total_fee, &l_fee_transfer);
         if (!l_list_fee_out) {
@@ -223,7 +223,7 @@ char *dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_fr
         uint256_t l_value_back;
         SUBTRACT_256_256(l_value_transfer, a_value, &l_value_back);
         if(!IS_ZERO_256(l_value_back)) {
-            if(dap_chain_datum_tx_add_out_item(&l_tx, a_addr_from, l_value_back) != 1) {
+            if(dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_from, l_value_back, a_token_ticker) != 1) {
                 dap_chain_datum_tx_delete(l_tx);
                 return NULL;
             }
@@ -1164,7 +1164,7 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
                 case DAP_DATUM_MEMPOOL_ADD: // add datum in base
                     //a_value = DAP_NEW_Z_SIZE(char, request_size * 2);
                     //bin2hex((char*) a_value, (const unsigned char*) request_str, request_size);
-                    if ( dap_global_db_set_sync(l_gdb_datum_pool, a_key, l_request_data, l_request_size,true )==0 ) {
+                    if ( dap_global_db_set_sync(l_gdb_datum_pool, a_key, l_request_data, l_request_size, false) == 0 ) {
                         *return_code = Http_Status_OK;
                     }
                     log_it(L_INFO, "Insert hash: key=%s result:%s", a_key,

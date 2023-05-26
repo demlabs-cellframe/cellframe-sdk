@@ -264,7 +264,7 @@ static bool node_info_save_and_reply(dap_chain_net_t * a_net, dap_chain_node_inf
     //dap_chain_node_info_t *a_node_info1 = dap_global_db_gr_get(a_key, &data_len_out, a_net->pub.gdb_nodes);
 
     bool res = dap_global_db_set_sync(a_net->pub.gdb_nodes, a_key, (uint8_t *) a_node_info, l_node_info_size,
-                                 true) == 0;
+                                 false) == 0;
 
     //data_len_out = 0;
     //dap_chain_node_info_t *a_node_info2 = dap_global_db_gr_get(a_key, &data_len_out, a_net->pub.gdb_nodes);
@@ -2361,7 +2361,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, char ** a_str_reply)
                 const char *l_key_out_str = dap_strcmp(l_hash_out_type,"hex")
                         ? l_key_str_base58 : l_key_str;
                 // Add datum to mempool with datum_token hash as a key
-                if( dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, l_datum, dap_chain_datum_size(l_datum), true) == 0) {
+                if( dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, l_datum, dap_chain_datum_size(l_datum), false) == 0) {
 
                     char* l_hash_str = l_datum_hash_hex_str;
                     // Remove old datum from pool
@@ -3685,7 +3685,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     // Calc datum's hash
     dap_chain_hash_fast_t l_key_hash;
     dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_key_hash);
-    char * l_key_str = dap_strcmp(l_hash_out_type, "hex") ?
+    char * l_key_str = !dap_strcmp(l_hash_out_type, "hex") ?
                 dap_chain_hash_fast_to_str_new(&l_key_hash) :
                 dap_enc_base58_encode_hash_to_str(&l_key_hash);
 
@@ -3699,7 +3699,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
         DAP_DELETE(l_datum);
         return -10;
     }
-    bool l_placed = dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, l_datum, l_datum_size, true) == 0;
+    bool l_placed = dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, l_datum, l_datum_size, false) == 0;
     dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s with token %s is%s placed in datum pool",
                                       l_key_str, l_ticker, l_placed ? "" : " not");
     DAP_DEL_Z(l_key_str);
@@ -4948,7 +4948,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
     char *l_gdb_group_mempool_base_tx = dap_chain_net_get_gdb_group_mempool_new(l_chain);// get group name for mempool
     char *l_tx_hash_str;
     dap_get_data_hash_str_static(l_datum_tx->data, l_datum_tx->header.data_size, l_tx_hash_str);
-    bool l_placed = !dap_global_db_set(l_gdb_group_mempool_base_tx,l_tx_hash_str, l_datum_tx, l_datum_tx_size, true, NULL, NULL);
+    bool l_placed = !dap_global_db_set(l_gdb_group_mempool_base_tx,l_tx_hash_str, l_datum_tx, l_datum_tx_size, false, NULL, NULL);
 
     DAP_DELETE(l_datum_tx);
     DAP_DELETE(l_gdb_group_mempool_base_tx);
@@ -5818,12 +5818,12 @@ int cmd_remove(int a_argc, char **a_argv, char ** a_str_reply)
             _pvt_net_aliases_list_t *l_tmp = (_pvt_net_aliases_list_t*)ptr->data;
             for (size_t i = 0; i < l_tmp->count_aliases; i++) {
                 dap_global_db_obj_t l_obj = l_tmp->group_aliases[i];
-                dap_global_db_set_sync(l_tmp->net->pub.gdb_nodes_aliases, l_obj.key, l_obj.value, l_obj.value_len, true);
+                dap_global_db_set_sync(l_tmp->net->pub.gdb_nodes_aliases, l_obj.key, l_obj.value, l_obj.value_len, false);
             }
             dap_global_db_objs_delete(l_tmp->group_aliases, l_tmp->count_aliases);
             for (size_t i = 0; i < l_tmp->count_nodes; i++) {
                 dap_global_db_obj_t l_obj = l_tmp->group_nodes[i];
-                dap_global_db_set_sync(l_tmp->net->pub.gdb_nodes, l_obj.key, l_obj.value, l_obj.value_len, true);
+                dap_global_db_set_sync(l_tmp->net->pub.gdb_nodes, l_obj.key, l_obj.value, l_obj.value_len, false);
             }
             dap_global_db_objs_delete(l_tmp->group_nodes, l_tmp->count_nodes);
         }
