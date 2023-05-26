@@ -285,7 +285,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     if (l_order_service) {
         l_esbocs_pvt->minimum_fee = l_order_service->price;
     } else {
-        l_esbocs_pvt->minimum_fee = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "minimum_fee", "0.05"));
+        l_esbocs_pvt->minimum_fee = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "minimum_fee", "10.0"));
         log_it(L_ERROR, "An order was not found that was signed by the signature of this validator. Operation of the "
                         "transaction service is not possible.");
     }
@@ -1115,6 +1115,7 @@ static void s_check_db_callback_fee_collect (dap_global_db_context_t *a_global_d
     dap_chain_block_cache_t *l_block_cache = NULL;
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
     dap_list_t *l_block_list = NULL;
+    char * l_hash_tx;
     l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_arg->block_hash);
     if(!l_block_cache)
     {
@@ -1133,10 +1134,11 @@ static void s_check_db_callback_fee_collect (dap_global_db_context_t *a_global_d
     {
         if(compare256(l_value_out_block,l_arg->fee_need_cfg) == 1)
         {
-            dap_chain_mempool_tx_coll_fee_create(l_arg->key_from, l_arg->a_addr_to,
+            l_hash_tx = dap_chain_mempool_tx_coll_fee_create(l_arg->key_from, l_arg->a_addr_to,
                                                  l_block_list, l_arg->value_fee, "hex");
-            log_it(L_NOTICE, "Fee collect transaction successfully created");
-            dap_global_db_del(block_fee_group, NULL, NULL, NULL);
+            log_it(L_NOTICE, "Fee collect transaction successfully created, hash=%s\n",l_hash_tx);
+            dap_global_db_del(block_fee_group, NULL, NULL, NULL);            
+            DAP_DELETE(l_hash_tx);
         }
         else
         {
@@ -1164,10 +1166,11 @@ static void s_check_db_callback_fee_collect (dap_global_db_context_t *a_global_d
         SUM_256_256(l_value_out_block,l_value_gdb,&l_value_total);
         if(compare256(l_value_total,l_arg->fee_need_cfg) == 1)
         {
-            dap_chain_mempool_tx_coll_fee_create(l_arg->key_from, l_arg->a_addr_to,
+            l_hash_tx = dap_chain_mempool_tx_coll_fee_create(l_arg->key_from, l_arg->a_addr_to,
                                                  l_block_list, l_arg->value_fee, "hex");
             dap_global_db_del(block_fee_group, NULL, NULL, NULL);
-            log_it(L_NOTICE, "Fee collect transaction successfully created");
+            log_it(L_NOTICE, "Fee collect transaction successfully created, hash=%s\n",l_hash_tx);
+            DAP_DELETE(l_hash_tx);
         }
         else
         {
