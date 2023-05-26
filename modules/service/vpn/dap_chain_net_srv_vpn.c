@@ -945,7 +945,7 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
     }
 
     // Update limits
-    if(!l_usage_active->is_grace && !l_usage_active->is_free){
+    if(!l_usage_active->is_free){
         switch( l_usage_active->receipt->receipt_info.units_type.enm){
             case SERV_UNIT_DAY:{
                 l_srv_session->limits_ts = time(NULL) + (time_t)  l_usage_active->receipt->receipt_info.units*24*3600;
@@ -1165,6 +1165,10 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
 {
     bool l_issue_new_receipt = false;
     // Check if there are time limits
+    if(a_usage->is_grace){
+        return; // If grace do not update limits
+    }
+
     if( a_srv_session->limits_ts ){
         if( a_srv_session->limits_ts < time(NULL) ){ // Limits out
             a_srv_session->limits_ts = 0;

@@ -141,7 +141,7 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
     dap_chain_net_srv_usage_t *l_usage = NULL;
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(a_grace->stream_worker, a_grace->ch_uuid);
 
-    if (l_ch== NULL )
+    if (!l_ch)
         goto free_exit;
 
     dap_chain_net_srv_stream_session_t *l_srv_session = l_ch && l_ch->stream && l_ch->stream->session ?
@@ -304,6 +304,7 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
     } else {
         DAP_DELETE(a_grace->request);
         DAP_DELETE(a_grace);
+        l_usage->is_grace = false;
         return false;
     }
 free_exit:
@@ -405,7 +406,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                                        l_request->data_size + sizeof(pkt_test_t));
     } break; /* DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_REQUEST */
 
-    case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST: {
+    case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST: { //Service request
         if (l_ch_pkt->hdr.data_size < sizeof(dap_stream_ch_chain_net_srv_pkt_request_hdr_t) ){
             log_it( L_WARNING, "Wrong request size, less than minimum");
             break;
@@ -421,7 +422,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         s_grace_period_control(l_grace);
     } break; /* DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST */
 
-    case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_RESPONSE: {
+    case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_RESPONSE: { // Check receipt sign and make tx if success
          if (l_ch_pkt->hdr.data_size < sizeof(dap_chain_receipt_info_t)) {
             log_it(L_ERROR, "Wrong sign response size, %u when expected at least %zu with smth", l_ch_pkt->hdr.data_size,
                    sizeof(dap_chain_receipt_info_t));
@@ -554,6 +555,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
             }else{
                 log_it(L_ERROR, "Can't create input tx cond transaction!");
                 memset(&l_usage->tx_cond_hash, 0, sizeof(l_usage->tx_cond_hash));
+                DAP_DEL_Z(l_usage->receipt_next);
+                // TODO send new tx cond request
                 // Send Error
 //                l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ENOUGH;
 //                dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
