@@ -1264,7 +1264,7 @@ bool dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_f
             dap_sign_get_pkey_hash(l_sign, &l_sign_pkey_hash);
             l_sign_correct = dap_hash_fast_compare(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr.data.hash_fast, &l_sign_pkey_hash);
             if (l_sign_correct)
-                l_sign_correct = dap_sign_verify_all(l_sign, validators_data->header.sign_size, l_test_data, sizeof(l_test_data));
+                l_sign_correct = !dap_sign_verify_all(l_sign, validators_data->header.sign_size, l_test_data, sizeof(l_test_data));
         }
         l_overall_correct = l_sign_correct && validators_data->header.flags == 0xCF;
         *out_data = *validators_data;
