@@ -121,22 +121,25 @@ static bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
  */
 char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain, const char *a_hash_out_type)
 {
-    if (!a_chain->callback_tx_find_by_hash) {
-        log_it(L_WARNING, "Not defined callback_tx_find_by_hash for chain \"%s\"", a_chain->name);
+    if (!a_chain->callback_datum_find_by_hash) {
+        log_it(L_WARNING, "Not defined callback_datum_find_by_hash for chain \"%s\"", a_chain->name);
         return NULL;
     }
 
     dap_string_t *l_str_out = dap_string_new(NULL);
     dap_hash_fast_t l_atom_hash = {};
-    dap_chain_datum_tx_t *l_tx = a_chain->callback_tx_find_by_hash(a_chain, a_tx_hash, &l_atom_hash);
+    int l_ret_code = 0;
+    dap_chain_datum_t *l_datum = a_chain->callback_datum_find_by_hash(a_chain, a_tx_hash, &l_atom_hash, &l_ret_code);
+    dap_chain_datum_tx_t *l_tx = l_datum  && l_datum->header.type_id == DAP_CHAIN_DATUM_TX ?
+                                 (dap_chain_datum_tx_t *)l_datum->data : NULL;
 
     if (l_tx) {
         char *l_atom_hash_str = dap_strcmp(a_hash_out_type, "hex")
                 ? dap_enc_base58_encode_hash_to_str(&l_atom_hash)
                 : dap_chain_hash_fast_to_str_new(&l_atom_hash);
         const char *l_tx_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_chain->ledger, a_tx_hash);
-        dap_string_append_printf(l_str_out, "%s TX with atom %s\n", l_tx_token_ticker ? "ACCEPTED" : "DECLINED",
-                                                                    l_atom_hash_str);
+        dap_string_append_printf(l_str_out, "%s TX with atom %s (ret_code %d)\n", l_tx_token_ticker ? "ACCEPTED" : "DECLINED",
+                                                                    l_atom_hash_str, l_ret_code);
         DAP_DELETE(l_atom_hash_str);
         dap_chain_datum_dump_tx(l_tx, l_tx_token_ticker, l_str_out, a_hash_out_type, a_tx_hash);
     } else {
@@ -274,7 +277,8 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
                     continue;
                 }
 
-                l_tx_prev = a_chain->callback_tx_find_by_hash(a_chain, l_tx_prev_hash, NULL);
+                dap_chain_datum_t *l_datum = a_chain->callback_datum_find_by_hash(a_chain, l_tx_prev_hash, NULL, NULL);
+                l_tx_prev = l_datum  && l_datum->header.type_id == DAP_CHAIN_DATUM_TX ? (dap_chain_datum_tx_t *)l_datum->data : NULL;
                 if (l_tx_prev) {
                     uint8_t *l_prev_out_union = dap_chain_datum_tx_item_get_nth(l_tx_prev, TX_ITEM_TYPE_OUT_ALL, l_tx_prev_out_idx);
                     if (!l_prev_out_union)

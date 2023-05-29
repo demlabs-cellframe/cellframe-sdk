@@ -40,9 +40,8 @@ typedef struct dap_chain_tx_in{
     } header; /// Only header's hash is used for verification
 } DAP_ALIGN_PACKED dap_chain_tx_in_t;
 
-typedef struct list_used_item {
+typedef struct dap_chain_tx_used_out_item {
     dap_chain_hash_fast_t tx_hash_fast;
     uint32_t num_idx_out;
-    uint8_t padding[4];
     uint256_t value;
-} list_used_item_t;
+} dap_chain_tx_used_out_item_t;

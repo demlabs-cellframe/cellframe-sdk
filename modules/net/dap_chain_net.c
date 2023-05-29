@@ -3221,7 +3221,7 @@ bool dap_chain_net_get_extra_gdb_group(dap_chain_net_t *a_net, dap_chain_node_ad
  * @param a_datum
  * @return
  */
-int dap_chain_net_verify_datum_for_add(dap_chain_net_t *a_net, dap_chain_datum_t * a_datum )
+int dap_chain_net_verify_datum_for_add(dap_chain_net_t *a_net, dap_chain_datum_t *a_datum)
 {
     if( ! a_datum)
         return -10;
@@ -3229,15 +3229,21 @@ int dap_chain_net_verify_datum_for_add(dap_chain_net_t *a_net, dap_chain_datum_t
         return -11;
     switch ( a_datum->header.type_id) {
         case DAP_CHAIN_DATUM_TX:
-            return dap_chain_ledger_tx_add_check( a_net->pub.ledger, (dap_chain_datum_tx_t*)a_datum->data );
-        case DAP_CHAIN_DATUM_TOKEN_DECL:
-            return dap_chain_ledger_token_decl_add_check( a_net->pub.ledger, (dap_chain_datum_token_t *)a_datum->data, a_datum->header.data_size);
-        case DAP_CHAIN_DATUM_TOKEN_EMISSION:
-            return dap_chain_ledger_token_emission_add_check( a_net->pub.ledger, a_datum->data, a_datum->header.data_size );
-        case DAP_CHAIN_DATUM_DECREE:
-            return dap_chain_net_decree_verify((dap_chain_datum_decree_t*)a_datum->data, a_net, a_datum->header.data_size, NULL);
-        case DAP_CHAIN_DATUM_ANCHOR:
-            return dap_chain_net_anchor_verify((dap_chain_datum_anchor_t*)a_datum->data, a_datum->header.data_size);
+        return dap_chain_ledger_tx_add_check(a_net->pub.ledger, (dap_chain_datum_tx_t*)a_datum->data, a_datum->header.data_size);
+    case DAP_CHAIN_DATUM_TOKEN_DECL:
+        return dap_chain_ledger_token_decl_add_check( a_net->pub.ledger, (dap_chain_datum_token_t *)a_datum->data, a_datum->header.data_size);
+    case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
+        dap_chain_hash_fast_t l_token_emission_hash;
+        dap_hash_fast(a_datum->data, a_datum->header.data_size, &l_token_emission_hash);
+        return dap_chain_ledger_token_emission_add_check( a_net->pub.ledger, a_datum->data, a_datum->header.data_size, &l_token_emission_hash);
+    }
+    case DAP_CHAIN_DATUM_DECREE: {
+        dap_hash_fast_t l_decree_hash;
+        dap_hash_fast(a_datum->data, a_datum->header.data_size, &l_decree_hash);
+        return dap_chain_net_decree_verify((dap_chain_datum_decree_t*)a_datum->data, a_net, a_datum->header.data_size, &l_decree_hash);
+    }
+    case DAP_CHAIN_DATUM_ANCHOR:
+        return dap_chain_net_anchor_verify((dap_chain_datum_anchor_t*)a_datum->data, a_datum->header.data_size);
     default: return 0;
     }
 }
@@ -3416,28 +3422,30 @@ dap_list_t* dap_chain_datum_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, d
  * @param a_datum_size
  * @return
  */
-int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_tx_hash)
+int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash)
 {
     size_t l_datum_data_size = a_datum->header.data_size;
-    if (a_datum_size < l_datum_data_size+ sizeof (a_datum->header)){
-        log_it(L_INFO,"Corrupted datum rejected: wrong size %zd not equel or less datum size %zd",a_datum->header.data_size+ sizeof (a_datum->header),
+    if (a_datum_size < l_datum_data_size + sizeof(a_datum->header)) {
+        log_it(L_INFO,"Corrupted datum rejected: wrong size %zd not equal or less than datum size %zd",a_datum->header.data_size+ sizeof (a_datum->header),
                a_datum_size );
         return -101;
     }
     switch (a_datum->header.type_id) {
-        case DAP_CHAIN_DATUM_DECREE:{
-            dap_chain_datum_decree_t * l_decree = (dap_chain_datum_decree_t *)a_datum->data;
-            if(sizeof(l_decree->header) + l_decree->header.data_size + l_decree->header.signs_size > l_datum_data_size){
-                log_it(L_WARNING, "Corrupted decree, size %zd is smaller than ever decree header's size %zd", l_datum_data_size, sizeof(l_decree->header));
+        case DAP_CHAIN_DATUM_DECREE: {
+            dap_chain_datum_decree_t *l_decree = (dap_chain_datum_decree_t *)a_datum->data;
+            size_t l_decree_size = dap_chain_datum_decree_get_size(l_decree);
+            if (l_decree_size != l_datum_data_size) {
+                log_it(L_WARNING, "Corrupted decree, datum size %zd is not equal to size of decree %zd", l_datum_data_size, l_decree_size);
                 return -102;
             }
-            return dap_chain_net_decree_load(l_decree, a_chain);
+            return dap_chain_net_decree_load(l_decree, a_chain, a_datum_hash);
         }
-        case DAP_CHAIN_DATUM_ANCHOR:{
-            dap_chain_datum_anchor_t * l_anchor = (dap_chain_datum_anchor_t *)a_datum->data;
-            if(sizeof(l_anchor->header) + l_anchor->header.data_size + l_anchor->header.signs_size > l_datum_data_size){
-                log_it(L_WARNING, "Corrupted anchor, size %zd is smaller than ever anchor header's size %zd", l_datum_data_size, sizeof(l_anchor->header));
-                return -103;
+        case DAP_CHAIN_DATUM_ANCHOR: {
+            dap_chain_datum_anchor_t *l_anchor = (dap_chain_datum_anchor_t *)a_datum->data;
+            size_t l_anchor_size = dap_chain_datum_anchor_get_size(l_anchor);
+            if (l_anchor_size != l_datum_data_size) {
+                log_it(L_WARNING, "Corrupted anchor, datum size %zd is not equal to size of anchor %zd", l_datum_data_size, l_anchor_size);
+                return -102;
             }
             return dap_chain_net_anchor_load(l_anchor, a_chain);
         }
@@ -3445,18 +3453,21 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
             return dap_chain_ledger_token_load(a_chain->ledger, (dap_chain_datum_token_t *)a_datum->data, a_datum->header.data_size);
 
         case DAP_CHAIN_DATUM_TOKEN_EMISSION:
-            return dap_chain_ledger_token_emission_load(a_chain->ledger, a_datum->data, a_datum->header.data_size);
+            return dap_chain_ledger_token_emission_load(a_chain->ledger, a_datum->data, a_datum->header.data_size, a_datum_hash);
 
-        case DAP_CHAIN_DATUM_TX:{
-            dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) a_datum->data;
-            // Check tx correcntess
-            int res = dap_chain_ledger_tx_load(a_chain->ledger, l_tx, a_tx_hash);
-            return res == 1 ? 0 : res;
+        case DAP_CHAIN_DATUM_TX: {
+            dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)a_datum->data;
+            size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+            if (l_tx_size != l_datum_data_size) {
+                log_it(L_WARNING, "Corrupted trnsaction, datum size %zd is not equal to size of TX %zd", l_datum_data_size, l_tx_size);
+                return -102;
+            }
+            return dap_chain_ledger_tx_load(a_chain->ledger, l_tx, a_datum_hash);
         }
         case DAP_CHAIN_DATUM_CA:
             return dap_cert_chain_file_save(a_datum, a_chain->net_name);
+
         case DAP_CHAIN_DATUM_SIGNER:
-            break;
         case DAP_CHAIN_DATUM_CUSTOM:
             break;
         default:

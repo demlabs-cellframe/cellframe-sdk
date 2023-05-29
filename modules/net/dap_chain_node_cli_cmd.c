@@ -5241,7 +5241,7 @@ int com_tx_verify(int a_argc, char **a_argv, char **a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified tx not found");
         return -3;
     }
-    int l_ret = dap_chain_ledger_tx_add_check(l_net->pub.ledger, l_tx);
+    int l_ret = dap_chain_ledger_tx_add_check(l_net->pub.ledger, l_tx, l_tx_size);
     if (l_ret) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified tx verify fail with return code=%d", l_ret);
         return -4;
