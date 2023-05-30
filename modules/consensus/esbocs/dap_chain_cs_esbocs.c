@@ -235,33 +235,65 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
 
-    l_esbocs_pvt->minimum_fee = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "minimum_fee", "0.05"));
+//    l_esbocs_pvt->minimum_fee = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "minimum_fee", "0.05"));
     l_esbocs_pvt->fee_addr = dap_chain_addr_from_str(dap_config_get_item_str(a_chain_net_cfg, "esbocs", "fee_addr"));
-    l_esbocs_pvt->fee_coll_set = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "set_collect_fee", "10.05"));
+    l_esbocs_pvt->fee_coll_set = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "set_collect_fee", "10.0"));
 
     const char *l_sign_cert_str = NULL;
     if ((l_sign_cert_str = dap_config_get_item_str(a_chain_net_cfg, "esbocs", "blocks-sign-cert")) != NULL) {
         dap_cert_t *l_sign_cert = dap_cert_find_by_name(l_sign_cert_str);
         if (l_sign_cert == NULL) {
             log_it(L_ERROR, "Can't load sign certificate, name \"%s\" is wrong", l_sign_cert_str);
-            return 0;
+            return -1;
         } else if (l_sign_cert->enc_key->priv_key_data) {
             l_esbocs_pvt->blocks_sign_key = l_sign_cert->enc_key;
             log_it(L_INFO, "Loaded \"%s\" certificate for net %s to sign ESBOCS blocks", l_sign_cert_str, a_chain->net_name);
         } else {
             log_it(L_ERROR, "Certificate \"%s\" has no private key", l_sign_cert_str);
-            return 0;
+            return -2;
         }
     } else {
         log_it(L_NOTICE, "No sign certificate provided for net %s, can't sign any blocks. This node can't be a consensus validator", a_chain->net_name);
-        return 0;
+        return -3;
+    }
+    size_t l_esbocs_sign_pub_key_size = 0;
+    uint8_t *l_esbocs_sign_pub_key = dap_enc_key_serialize_pub_key(l_esbocs_pvt->blocks_sign_key, &l_esbocs_sign_pub_key_size);
+
+    //Find order minimum fee
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(l_net);
+    size_t l_orders_count = 0;
+    dap_global_db_obj_t * l_orders = dap_global_db_get_all_sync(l_gdb_group_str, &l_orders_count);
+    dap_chain_net_srv_order_t *l_order_service = NULL;
+    for (size_t i = 0; i < l_orders_count; i++) {
+        dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)l_orders[i].value;
+        if (l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID)
+            continue;
+        dap_sign_t *l_order_sign =  (dap_sign_t*)(l_order->ext_n_sign + l_order->ext_size);
+        uint8_t *l_order_sign_pkey = dap_sign_get_pkey(l_order_sign, NULL);
+        if (memcmp(l_esbocs_sign_pub_key, l_order_sign_pkey, l_esbocs_sign_pub_key_size) != 0)
+            continue;
+        if (l_order_service) {
+            if (l_order_service->ts_created < l_order->ts_created)
+                l_order_service = l_order;
+        } else {
+            l_order_service = l_order;
+        }
+    }
+    dap_global_db_objs_delete(l_orders, l_orders_count);
+    DAP_DELETE(l_gdb_group_str);
+    if (l_order_service) {
+        l_esbocs_pvt->minimum_fee = l_order_service->price;
+    } else {
+        l_esbocs_pvt->minimum_fee = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "minimum_fee", "0.05"));
+        log_it(L_ERROR, "An order was not found that was signed by the signature of this validator. Operation of the "
+                        "transaction service is not possible.");
     }
 
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
     if (l_role.enums > NODE_ROLE_MASTER) {
         log_it(L_NOTICE, "Node role is lower than master role, so this node can't be a consensus validator");
-        return 0;
+        return -5;
     }
 
     dap_chain_addr_t l_my_signing_addr;
@@ -269,12 +301,12 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     if (!l_esbocs_pvt->poa_mode) {
         if (!dap_chain_net_srv_stake_key_delegated(&l_my_signing_addr)) {
             log_it(L_WARNING, "Signing key is not delegated by stake service. Switch off validator mode");
-            return 0;
+            return -6;
         }
     } else {
         if (!s_validator_check(&l_my_signing_addr, l_esbocs_pvt->poa_validators)) {
             log_it(L_WARNING, "Signing key is not present in PoA certs list. Switch off validator mode");
-            return 0;
+            return -7;
         }
     }
 
@@ -1083,6 +1115,7 @@ static void s_check_db_callback_fee_collect (dap_global_db_context_t *a_global_d
     dap_chain_block_cache_t *l_block_cache = NULL;
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
     dap_list_t *l_block_list = NULL;
+    char * l_hash_tx;
     l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_arg->block_hash);
     if(!l_block_cache)
     {
@@ -1101,10 +1134,11 @@ static void s_check_db_callback_fee_collect (dap_global_db_context_t *a_global_d
     {
         if(compare256(l_value_out_block,l_arg->fee_need_cfg) == 1)
         {
-            dap_chain_mempool_tx_coll_fee_create(l_arg->key_from, l_arg->a_addr_to,
+            l_hash_tx = dap_chain_mempool_tx_coll_fee_create(l_arg->key_from, l_arg->a_addr_to,
                                                  l_block_list, l_arg->value_fee, "hex");
-            log_it(L_NOTICE, "Fee collect transaction successfully created");
-            dap_global_db_del(block_fee_group, NULL, NULL, NULL);
+            log_it(L_NOTICE, "Fee collect transaction successfully created, hash=%s\n",l_hash_tx);
+            dap_global_db_del(block_fee_group, NULL, NULL, NULL);            
+            DAP_DELETE(l_hash_tx);
         }
         else
         {
@@ -1132,10 +1166,11 @@ static void s_check_db_callback_fee_collect (dap_global_db_context_t *a_global_d
         SUM_256_256(l_value_out_block,l_value_gdb,&l_value_total);
         if(compare256(l_value_total,l_arg->fee_need_cfg) == 1)
         {
-            dap_chain_mempool_tx_coll_fee_create(l_arg->key_from, l_arg->a_addr_to,
+            l_hash_tx = dap_chain_mempool_tx_coll_fee_create(l_arg->key_from, l_arg->a_addr_to,
                                                  l_block_list, l_arg->value_fee, "hex");
             dap_global_db_del(block_fee_group, NULL, NULL, NULL);
-            log_it(L_NOTICE, "Fee collect transaction successfully created");
+            log_it(L_NOTICE, "Fee collect transaction successfully created, hash=%s\n",l_hash_tx);
+            DAP_DELETE(l_hash_tx);
         }
         else
         {

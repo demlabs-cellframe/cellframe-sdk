@@ -112,6 +112,21 @@ static void session_data_del_all()
     pthread_mutex_unlock(&s_hash_mutex);
 }
 
+
+
+dap_chain_node_addr_t dap_stream_ch_chain_net_from_session_data_extract_node_addr(unsigned int a_session_id) {
+    dap_chain_node_addr_t l_addr= {0};
+    dap_chain_net_session_data_t *l_sdata, *l_sdata_tmp;
+    pthread_mutex_lock(&s_hash_mutex);
+    HASH_ITER(hh, s_chain_net_data , l_sdata, l_sdata_tmp) {
+        if (l_sdata->session_id == a_session_id) {
+            l_addr = l_sdata->addr_remote;
+        }
+    }
+    pthread_mutex_unlock(&s_hash_mutex);
+    return l_addr;
+}
+
 uint8_t dap_stream_ch_chain_net_get_id()
 {
     return 'N';
@@ -371,8 +386,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         dap_chain_net_srv_order_find_all_by(l_net,SERV_DIR_UNDEFINED,l_uid,
                                                            l_price_unit,NULL,l_price_min,l_price_max,&l_orders,&l_orders_num);
                         flags = l_orders_num ? flags | F_ORDR : flags & ~F_ORDR;
-                        bool auto_online = dap_config_get_item_bool_default( g_config, "general", "auto_online", true );
-                        bool auto_update = dap_config_get_item_bool_default( g_config, "general", "auto_update", true );
+                        bool auto_online = dap_config_get_item_bool_default( g_config, "general", "auto_online", false );
+                        bool auto_update = dap_config_get_item_bool_default( g_config, "general", "auto_update", false );
                         flags = auto_online ? flags | A_ONLN : flags & ~A_ONLN;
                         flags = auto_update ? flags | A_UPDT : flags & ~A_UPDT;
                         send->header.flags = flags;

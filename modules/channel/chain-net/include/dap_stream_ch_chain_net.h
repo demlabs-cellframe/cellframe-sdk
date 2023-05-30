@@ -55,15 +55,17 @@ typedef struct dap_stream_ch_chain_validator_test{
     byte_t sign[];
 } DAP_ALIGN_PACKED dap_stream_ch_chain_validator_test_t;
 
-#define A_PROC 0x01
-#define F_ORDR 0x02
-#define A_ONLN 0x04
-#define A_UPDT 0x08
-#define D_SIGN 0x40
-#define F_CERT 0x80
+#define A_PROC 0x01//autoproc set
+#define F_ORDR 0x02//order exist
+#define A_ONLN 0x04//auto online
+#define A_UPDT 0x08//auto update
+#define D_SIGN 0x40//data signed
+#define F_CERT 0x80//faund sert
 
 
 #define DAP_STREAM_CH_CHAIN_NET(a) ((dap_stream_ch_chain_net_t *) ((a)->internal) )
+
+dap_chain_node_addr_t dap_stream_ch_chain_net_from_session_data_extract_node_addr(unsigned int a_session_id);
 
 uint8_t dap_stream_ch_chain_net_get_id();
 int dap_stream_ch_chain_net_init();
