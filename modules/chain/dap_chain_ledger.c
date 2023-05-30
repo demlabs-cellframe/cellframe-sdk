@@ -3742,7 +3742,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
  * @param a_tx
  * @return
  */
-int dap_chain_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, size_t a_datum_size)
+int dap_chain_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, size_t a_datum_size, dap_hash_fast_t *a_datum_hash)
 {
     if (!a_tx)
         return -200;
@@ -3752,18 +3752,16 @@ int dap_chain_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *
         log_it (L_WARNING, "Inconsistent datum TX with data_size=%zu, tx_size=%zu", a_datum_size, l_tx_size);
         return -202;
     }
-    dap_hash_fast_t l_tx_hash;
-    dap_hash_fast(a_tx, l_tx_size, &l_tx_hash);
 
     int l_ret_check;
-    if( (l_ret_check = dap_chain_ledger_tx_cache_check(a_ledger, a_tx, &l_tx_hash, false,
+    if( (l_ret_check = dap_chain_ledger_tx_cache_check(a_ledger, a_tx, a_datum_hash, false,
                                                        NULL, NULL, NULL)) < 0) {
         debug_if(s_debug_more, L_DEBUG, "dap_chain_ledger_tx_add_check() tx not passed the check: code %d ", l_ret_check);
         return l_ret_check;
     }
     if(s_debug_more) {
         char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-        dap_chain_hash_fast_to_str(&l_tx_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
+        dap_chain_hash_fast_to_str(a_datum_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
         log_it ( L_INFO, "dap_chain_ledger_tx_add_check() check passed for tx %s", l_tx_hash_str);
     }
     return 0;

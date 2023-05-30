@@ -43,7 +43,7 @@ typedef struct dap_chain_block_datum_index {
     dap_chain_hash_fast_t datum_hash;
     int ret_code;
     time_t ts_added;
-    dap_chain_hash_fast_t block_hash;
+    dap_chain_block_cache_t *block_cache;
     size_t datum_index;
     UT_hash_handle hh;
 } dap_chain_block_datum_index_t;
@@ -61,6 +61,7 @@ typedef struct dap_chain_cs_blocks_pvt
     // Chunks treshold
     dap_chain_block_chunks_t * chunks;
 
+    pthread_rwlock_t datums_rwlock;
     dap_chain_block_datum_index_t *datum_index; // To find datum in blocks
 
     // General links
@@ -123,6 +124,12 @@ static dap_list_t *s_block_parse_str_list(const char * a_hash_str,size_t * a_has
 
 // Delete iterator
 static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter );                  //    Get the fisrt block
+
+// Datum ops
+static dap_chain_datum_iter_t *s_chain_callback_datum_iter_create(dap_chain_t *a_chain);
+static void s_chain_callback_datum_iter_delete(dap_chain_datum_iter_t *a_datum_iter);
+static dap_chain_datum_t *s_chain_callback_datum_iter_get_first(dap_chain_datum_iter_t *a_datum_iter); // Get the fisrt datum from blocks
+static dap_chain_datum_t *s_chain_callback_datum_iter_get_next(dap_chain_datum_iter_t *a_datum_iter); // Get the next datum from blocks
 
 static size_t s_callback_add_datums(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums, size_t a_datums_count);
 
@@ -214,6 +221,12 @@ int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config
     a_chain->callback_atom_iter_get_next = s_callback_atom_iter_get_next; // Get the next element from chain from the current one
     a_chain->callback_atom_iter_get_links = s_callback_atom_iter_get_links; // Get the next element from chain from the current one
     a_chain->callback_atom_iter_get_lasts = s_callback_atom_iter_get_lasts;
+
+    // Datum operations callbacks
+    a_chain->callback_datum_iter_create = s_chain_callback_datum_iter_create; // Datum iterator create
+    a_chain->callback_datum_iter_delete = s_chain_callback_datum_iter_delete; // Datum iterator delete
+    a_chain->callback_datum_iter_get_first = s_chain_callback_datum_iter_get_first; // Get the fisrt datum from chain
+    a_chain->callback_datum_iter_get_next = s_chain_callback_datum_iter_get_next; // Get the next datum from chain from the current one
 
     a_chain->callback_atom_get_datums = s_callback_atom_get_datums;
     a_chain->callback_atom_get_timestamp = s_chain_callback_atom_get_timestamp;
@@ -454,16 +467,14 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                                                                                               &l_datum_size, NULL, NULL);
             l_datums[0] = l_datum;
             for (size_t i = 0; i < l_datums_count; i++) {
-                char *l_datums_datum_hash_str;
-                dap_get_data_hash_str_static(l_datums[i]->data, l_datums[i]->header.data_size, l_datums_datum_hash_str);
-                bool l_err = dap_chain_node_mempool_process(l_chain, l_datums[i]);
+                bool l_err = dap_chain_node_mempool_process(l_chain, l_datums[i], l_subcmd_str_arg);
                 if (l_err) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Datum %s doesn't pass verifications, examine node log files",
-                                                      l_datums_datum_hash_str);
+                                                      l_subcmd_str_arg);
                     ret = -9;
                 } else {
                    log_it(L_INFO, "Pass datum %s from mempool to block in the new forming round ",
-                                                     l_datums_datum_hash_str);
+                                                     l_subcmd_str_arg);
                    ret = 0;
                 }
                 if (l_err)
@@ -886,13 +897,13 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
         // Save datum hash -> block_hash link in hash table
         dap_chain_block_datum_index_t *l_datum_index = DAP_NEW_Z(dap_chain_block_datum_index_t);
         l_datum_index->ts_added = time(NULL);
-        l_datum_index->block_hash = a_block_cache->block_hash;
+        l_datum_index->block_cache = a_block_cache;
         l_datum_index->datum_hash = *l_datum_hash;
         l_datum_index->ret_code = l_res;
         l_datum_index->datum_index = i;
-        pthread_rwlock_wrlock( &PVT(a_blocks)->rwlock );
+        pthread_rwlock_wrlock(&PVT(a_blocks)->datums_rwlock);
         HASH_ADD(hh, PVT(a_blocks)->datum_index, datum_hash, sizeof(*l_datum_hash), l_datum_index);
-        pthread_rwlock_unlock( &PVT(a_blocks)->rwlock );
+        pthread_rwlock_unlock(&PVT(a_blocks)->datums_rwlock);
 
     }
     return l_ret;
@@ -1222,17 +1233,16 @@ static dap_chain_datum_t *s_callback_datum_find_by_hash(dap_chain_t *a_chain, da
 {
     dap_chain_cs_blocks_t * l_cs_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_block_datum_index_t *l_datum_index = NULL;
+    pthread_rwlock_rdlock(&PVT(l_cs_blocks)->datums_rwlock);
     HASH_FIND(hh, PVT(l_cs_blocks)->datum_index, a_datum_hash, sizeof (*a_datum_hash), l_datum_index);
-    if (!l_datum_index)
-        return NULL;
-    dap_chain_block_cache_t *l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_cs_blocks, &l_datum_index->block_hash);
-    if (!l_block_cache)
+    pthread_rwlock_unlock(&PVT(l_cs_blocks)->datums_rwlock);
+    if (!l_datum_index || !l_datum_index->block_cache)
         return NULL;
     if (a_block_hash)
-        *a_block_hash = l_datum_index->block_hash;
+        *a_block_hash = l_datum_index->block_cache->block_hash;
     if (a_ret_code)
         *a_ret_code = l_datum_index->ret_code;
-    return l_block_cache->datum[l_datum_index->datum_index];
+    return l_datum_index->block_cache->datum[l_datum_index->datum_index];
 }
 
 /**
@@ -1245,10 +1255,12 @@ static dap_chain_atom_ptr_t s_callback_block_find_by_tx_hash(dap_chain_t * a_cha
 {
     dap_chain_cs_blocks_t * l_cs_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_block_datum_index_t *l_datum_index = NULL;
-    HASH_FIND(hh, PVT(l_cs_blocks)->datum_index,a_tx_hash, sizeof (*a_tx_hash), l_datum_index);
+    pthread_rwlock_rdlock(&PVT(l_cs_blocks)->datums_rwlock);
+    HASH_FIND(hh, PVT(l_cs_blocks)->datum_index, a_tx_hash, sizeof (*a_tx_hash), l_datum_index);
+    pthread_rwlock_unlock(&PVT(l_cs_blocks)->datums_rwlock);
     if (!l_datum_index)
         return NULL;
-    return dap_chain_block_cs_cache_get_by_hash(l_cs_blocks, &l_datum_index->block_hash);
+    return l_datum_index->block_cache;
 }
 
 /**
@@ -1397,6 +1409,59 @@ static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter)
 #endif
     DAP_DELETE(a_atom_iter);
 }
+
+static dap_chain_datum_iter_t *s_chain_callback_datum_iter_create(dap_chain_t *a_chain)
+{
+    dap_chain_datum_iter_t *l_ret = DAP_NEW_Z(dap_chain_datum_iter_t);
+    l_ret->chain = a_chain;
+    return l_ret;
+}
+
+static void s_chain_callback_datum_iter_delete(dap_chain_datum_iter_t *a_datum_iter)
+{
+    DAP_DELETE(a_datum_iter);
+}
+
+static void s_datum_iter_fill(dap_chain_datum_iter_t *a_datum_iter, dap_chain_block_datum_index_t *a_datum_index)
+{
+    a_datum_iter->cur_item = a_datum_index;
+    if (a_datum_index) {
+        a_datum_iter->cur = a_datum_index->block_cache->datum[a_datum_index->datum_index];
+        a_datum_iter->cur_size = dap_chain_datum_size(a_datum_iter->cur);
+        a_datum_iter->cur_hash = &a_datum_index->datum_hash;
+        a_datum_iter->cur_atom_hash = &a_datum_index->block_cache->block_hash;
+        a_datum_iter->ret_code = a_datum_index->ret_code;
+    } else {
+        a_datum_iter->cur = NULL;
+        a_datum_iter->cur_hash = NULL;
+        a_datum_iter->cur_atom_hash = NULL;
+        a_datum_iter->cur_size = 0;
+        a_datum_iter->ret_code = 0;
+    }
+}
+
+static dap_chain_datum_t *s_chain_callback_datum_iter_get_first(dap_chain_datum_iter_t *a_datum_iter)
+{
+    dap_chain_cs_blocks_t * l_cs_blocks = DAP_CHAIN_CS_BLOCKS(a_datum_iter->chain);
+    pthread_rwlock_rdlock(&PVT(l_cs_blocks)->datums_rwlock);
+    dap_chain_block_datum_index_t *l_datum_index = PVT(l_cs_blocks)->datum_index;
+    s_datum_iter_fill(a_datum_iter, l_datum_index);
+    pthread_rwlock_unlock(&PVT(l_cs_blocks)->datums_rwlock);
+    return a_datum_iter->cur;
+}
+
+static dap_chain_datum_t *s_chain_callback_datum_iter_get_next(dap_chain_datum_iter_t *a_datum_iter)
+{
+    dap_chain_cs_blocks_t * l_cs_blocks = DAP_CHAIN_CS_BLOCKS(a_datum_iter->chain);
+    pthread_rwlock_rdlock(&PVT(l_cs_blocks)->datums_rwlock);
+    dap_chain_block_datum_index_t *l_datum_index = a_datum_iter->cur_item;
+    if (l_datum_index)
+        l_datum_index = l_datum_index->hh.next;
+    s_datum_iter_fill(a_datum_iter, l_datum_index);
+    pthread_rwlock_unlock(&PVT(l_cs_blocks)->datums_rwlock);
+    return a_datum_iter->cur;
+}
+
 
 static dap_chain_block_t *s_new_block_move(dap_chain_cs_blocks_t *a_blocks, size_t *a_new_block_size)
 {

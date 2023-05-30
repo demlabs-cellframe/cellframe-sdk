@@ -2911,15 +2911,6 @@ int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply)
     dap_chain_t * l_chain = NULL;
     dap_chain_net_t * l_net = NULL;
 
-    const char * l_hash_out_type = NULL;
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
-    if(!l_hash_out_type)
-        l_hash_out_type = "hex";
-    if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
-        return -1;
-    }
-
     dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net);
     if (!l_net || !l_chain)
         return -1;
@@ -2928,10 +2919,6 @@ int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply)
         DAP_DELETE(*a_str_reply);
         *a_str_reply = NULL;
     }
-
-    char * l_gdb_group_mempool = NULL, *l_gdb_group_mempool_tmp;
-    l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
-    l_gdb_group_mempool_tmp = l_gdb_group_mempool;
 
     // If full or light it doesnt work
     if(dap_chain_net_get_role(l_net).enums>= NODE_ROLE_FULL){
@@ -2942,89 +2929,85 @@ int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply)
     const char * l_datum_hash_str = NULL;
     int ret = 0;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-datum", &l_datum_hash_str);
-    if(l_datum_hash_str) {
-        char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
-        dap_string_t * l_str_tmp = dap_string_new(NULL);
-        size_t l_datum_size=0;
-        const char *l_datum_hash_out_str;
-        char *l_datum_hash_hex_str;
-        char *l_datum_hash_base58_str;
-        // datum hash may be in hex or base58 format
-        if(!dap_strncmp(l_datum_hash_str, "0x", 2) || !dap_strncmp(l_datum_hash_str, "0X", 2)) {
-            l_datum_hash_hex_str = dap_strdup(l_datum_hash_str);
-            l_datum_hash_base58_str = dap_enc_base58_from_hex_str_to_str(l_datum_hash_str);
-        }
-        else {
-            l_datum_hash_hex_str = dap_enc_base58_to_hex_str_from_str(l_datum_hash_str);
-            l_datum_hash_base58_str = dap_strdup(l_datum_hash_str);
-        }
-        if(!dap_strcmp(l_hash_out_type,"hex"))
-            l_datum_hash_out_str = l_datum_hash_hex_str;
-        else
-            l_datum_hash_out_str = l_datum_hash_base58_str;
-
-        dap_chain_datum_t * l_datum = l_datum_hash_hex_str ? (dap_chain_datum_t*) dap_global_db_get_sync(l_gdb_group_mempool, l_datum_hash_hex_str,
-                                                                                       &l_datum_size, NULL, NULL ) : NULL;
-        size_t l_datum_size2 = l_datum? dap_chain_datum_size( l_datum): 0;
-        if (l_datum_size != l_datum_size2) {
-            ret = -8;
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Corrupted datum %s, size by datum headers is %zd when in mempool is only %zd bytes",
-                                              l_datum_hash_hex_str, l_datum_size2, l_datum_size);
-        } else {
-            if (l_datum) {
-                char buf[50];
-                dap_time_t l_ts_create = (dap_time_t)l_datum->header.ts_create;
-                const char *l_type = NULL;
-                DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type);
-                dap_string_append_printf(l_str_tmp, "hash %s: type_id=%s ts_create=%s data_size=%u\n",
-                        l_datum_hash_out_str, l_type,
-                        dap_ctime_r(&l_ts_create, buf), l_datum->header.data_size);
-                int l_verify_datum= dap_chain_net_verify_datum_for_add( l_net, l_datum) ;
-                int l_dup_or_skip = dap_chain_datum_unledgered_search_iter(l_datum, l_chain);
-                if (l_dup_or_skip) {
-                    dap_string_append_printf(l_str_tmp, "Error! Datum unledgered search returned '%d'", l_dup_or_skip);
-                    dap_global_db_del_sync(l_datum_hash_hex_str, l_gdb_group_mempool);
-                    ret = -10;
-                } else {
-                    int l_verify_datum = dap_chain_net_verify_datum_for_add( l_net, l_datum) ;
-                    if (l_verify_datum != 0){
-                        dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications (code %d) examine node log files",
-                                                 l_verify_datum);
-                        ret = -9;
-                    } else {
-                        if (l_chain->callback_add_datums) {
-                            if (l_chain->callback_add_datums(l_chain, &l_datum, 1) == 0) {
-                                dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications, examine node log files");
-                                ret = -6;
-                            } else {
-                                dap_string_append_printf(l_str_tmp, "Datum processed well. ");
-                                if (!dap_global_db_del_sync(l_datum_hash_hex_str, l_gdb_group_mempool)){
-                                    dap_string_append_printf(l_str_tmp, "Warning! Can't delete datum from mempool!");
-                                } else
-                                    dap_string_append_printf(l_str_tmp, "Removed datum from mempool.");
-                            }
-                        } else {
-                            dap_string_append_printf(l_str_tmp, "Error! Can't move to no-concensus chains from mempool");
-                            ret = -1;
-                        }
-                    }
-                }
-                dap_string_append_printf(l_str_tmp, "\n");
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
-                dap_string_free(l_str_tmp, true);
-            } else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Can't find datum %s", l_datum_hash_str);
-                ret = -4;
-            }
-        }
-        DAP_DELETE(l_gdb_group_mempool);
-        DAP_DELETE(l_datum_hash_hex_str);
-        DAP_DELETE(l_datum_hash_base58_str);
-    } else {
+    if (l_datum_hash_str) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! %s requires -datum <datum hash> option", a_argv[0]);
-        ret = -5;
+        return -5;
     }
-    return  ret;
+    char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
+    dap_string_t * l_str_tmp = dap_string_new(NULL);
+    size_t l_datum_size=0;
+
+    char *l_datum_hash_hex_str;
+    // datum hash may be in hex or base58 format
+    if(dap_strncmp(l_datum_hash_str, "0x", 2) && dap_strncmp(l_datum_hash_str, "0X", 2))
+        l_datum_hash_hex_str = dap_enc_base58_to_hex_str_from_str(l_datum_hash_str);
+    else
+        l_datum_hash_hex_str = dap_strdup(l_datum_hash_str);
+
+    dap_chain_datum_t * l_datum = l_datum_hash_hex_str ? (dap_chain_datum_t*) dap_global_db_get_sync(l_gdb_group_mempool, l_datum_hash_hex_str,
+                                                                                   &l_datum_size, NULL, NULL ) : NULL;
+    DAP_DELETE(l_gdb_group_mempool);
+    size_t l_datum_size2 = l_datum? dap_chain_datum_size( l_datum): 0;
+    if (l_datum_size != l_datum_size2) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Corrupted datum %s, size by datum headers is %zd when in mempool is only %zd bytes",
+                                          l_datum_hash_hex_str, l_datum_size2, l_datum_size);
+        DAP_DELETE(l_datum_hash_hex_str);
+        return -8;
+    }
+    if (!l_datum) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Can't find datum %s", l_datum_hash_str);
+        DAP_DELETE(l_datum_hash_hex_str);
+        return -4;
+    }
+    dap_hash_fast_t l_datum_hash, l_real_hash;
+    if (dap_chain_hash_fast_from_hex_str(l_datum_hash_hex_str, &l_datum_hash)) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Can't convert datum hash string %s to digital form",
+                                          l_datum_hash_hex_str);
+        DAP_DELETE(l_datum_hash_hex_str);
+        return -7;
+    }
+    dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_real_hash);
+    if (!dap_hash_fast_compare(&l_datum_hash, &l_real_hash)) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Datum's real hash doesn't match datum's hash string %s",
+                                          l_datum_hash_hex_str);
+        DAP_DELETE(l_datum_hash_hex_str);
+        return -6;
+    }
+    char buf[50];
+    dap_time_t l_ts_create = (dap_time_t)l_datum->header.ts_create;
+    const char *l_type = NULL;
+    DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type);
+    dap_string_append_printf(l_str_tmp, "hash %s: type_id=%s ts_create=%s data_size=%u\n",
+            l_datum_hash_str, l_type,
+            dap_ctime_r(&l_ts_create, buf), l_datum->header.data_size);
+    int l_verify_datum = dap_chain_net_verify_datum_for_add(l_chain, l_datum, &l_datum_hash) ;
+    if (l_verify_datum != 0){
+        dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications (code %d) examine node log files",
+                                 l_verify_datum);
+        ret = -9;
+    } else {
+        if (l_chain->callback_add_datums) {
+            if (l_chain->callback_add_datums(l_chain, &l_datum, 1) == 0) {
+                dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications, examine node log files");
+                ret = -6;
+            } else {
+                dap_string_append_printf(l_str_tmp, "Datum processed well. ");
+                if (dap_global_db_del_sync(l_datum_hash_hex_str, l_gdb_group_mempool)){
+                    dap_string_append_printf(l_str_tmp, "Warning! Can't delete datum from mempool!");
+                } else
+                    dap_string_append_printf(l_str_tmp, "Removed datum from mempool.");
+            }
+        } else {
+            dap_string_append_printf(l_str_tmp, "Error! Can't move to no-concensus chains from mempool");
+            ret = -1;
+        }
+    }
+    dap_string_append_printf(l_str_tmp, "\n");
+    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
+    dap_string_free(l_str_tmp, true);
+
+    DAP_DELETE(l_datum_hash_hex_str);
+    return ret;
 }
 
 /**
@@ -5241,7 +5224,7 @@ int com_tx_verify(int a_argc, char **a_argv, char **a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified tx not found");
         return -3;
     }
-    int l_ret = dap_chain_ledger_tx_add_check(l_net->pub.ledger, l_tx, l_tx_size);
+    int l_ret = dap_chain_ledger_tx_add_check(l_net->pub.ledger, l_tx, l_tx_size, &l_tx_hash);
     if (l_ret) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified tx verify fail with return code=%d", l_ret);
         return -4;

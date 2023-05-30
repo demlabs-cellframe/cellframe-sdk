@@ -32,8 +32,6 @@ typedef struct decree_params {
     dap_chain_addr_t *fee_addr;
 }   dap_chain_net_decree_t;
 
-#define DAP_DECREE_IS_PRESENT -1110
-
 int dap_chain_net_decree_init(dap_chain_net_t *a_net);
 int dap_chain_net_decree_deinit(dap_chain_net_t *a_net);
 

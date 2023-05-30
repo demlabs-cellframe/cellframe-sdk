@@ -165,7 +165,7 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t *a_decree, dap_chain_ne
     struct decree_hh *l_decree_hh = NULL;
     HASH_FIND(hh, s_decree_hh, a_decree_hash, sizeof(dap_hash_fast_t), l_decree_hh);
     if (l_decree_hh)
-        return DAP_DECREE_IS_PRESENT;
+        return -123;
 
     dap_chain_datum_decree_t *l_decree = a_decree;
     // Get pkeys sign from decree datum
@@ -223,14 +223,14 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t *a_decree, dap_chain_ne
 
     if (l_signs_verify_counter < l_min_signs) {
         log_it(L_WARNING,"Not enough valid signatures, get %hu from %hu", l_signs_verify_counter, l_min_signs);
-        return -106;
+        return -107;
     }
 
     // check tsd-section
     if (s_decree_verify_tsd(a_decree, a_net))
     {
         log_it(L_WARNING,"TSD checking error. Decree verification failed");
-        return -106;
+        return -108;
     }
 
     return 0;
