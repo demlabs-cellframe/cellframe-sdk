@@ -35,8 +35,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_string.h"
 #include "dap_list.h"
 #include "dap_chain_common.h"
-#include "dap_chain_node.h"
 #include "dap_chain.h"
+#include "dap_chain_node.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_net_decree.h"
 #include "dap_chain_datum_decree.h"
@@ -158,6 +158,8 @@ dap_list_t* dap_chain_net_get_link_node_list(dap_chain_net_t * l_net, bool a_is_
 dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * a_net);
 dap_list_t* dap_chain_net_get_node_list_cfg(dap_chain_net_t * a_net);
 dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net);
+dap_chain_node_info_t *dap_get_balancer_link_from_cfg(dap_chain_net_t *a_net);
+
 
 /**
  * @brief dap_chain_net_get_gdb_group_mempool
