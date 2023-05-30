@@ -29,7 +29,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define LOG_TAG "dap_chain_net_balancer"
 dap_chain_node_info_t *dap_chain_net_balancer_get_node(const char *a_net_name)
 {
-    dap_list_t *l_node_list = NULL,*l_objs_list = NULL;
+    dap_list_t *l_node_addr_list = NULL,*l_objs_list = NULL;
     dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
     if (l_net == NULL) {
         uint16_t l_nets_count;
@@ -48,24 +48,32 @@ dap_chain_node_info_t *dap_chain_net_balancer_get_node(const char *a_net_name)
     l_objs = dap_global_db_get_all_sync(l_net->pub.gdb_nodes, &l_nodes_count);
     if (!l_nodes_count || !l_objs)
         return NULL;
-    l_node_list = dap_chain_net_get_node_list_cfg(l_net);
+    l_node_addr_list = dap_chain_net_get_node_list_cfg(l_net);
     for(size_t i=0;i<l_nodes_count;i++)
     {
-        for(dap_list_t *node_i = l_node_list;node_i;node_i = node_i->next)
+        bool l_check = true;
+        for(dap_list_t *node_i = l_node_addr_list;node_i;node_i = node_i->next)
         {
-            dap_chain_node_info_t *l_node_cfg = (dap_chain_node_info_t*)node_i->data;
+            struct in_addr *l_node_addr_cfg = (struct in_addr*)node_i->data;
             dap_chain_node_info_t *l_node_cand = (dap_chain_node_info_t *)l_objs[i].value;
             if(l_node_cand->hdr.ext_addr_v4.s_addr && l_node_cand->hdr.ext_port &&
-                (l_node_cfg->hdr.ext_addr_v4.s_addr != l_node_cand->hdr.ext_addr_v4.s_addr))
+                (l_node_addr_cfg->s_addr != l_node_cand->hdr.ext_addr_v4.s_addr))
             {
-                l_objs_list = dap_list_append(l_objs_list,l_objs[i].value);
-                l_node_num++;
+                continue;
+            }
+            else
+            {
+                l_check = false;
                 break;
             }
         }
+        if(l_check){
+            l_objs_list = dap_list_append(l_objs_list,l_objs[i].value);
+            l_node_num++;
+        }
     }
     dap_global_db_objs_delete(l_objs, l_nodes_count);
-    dap_list_free(l_node_list);
+    dap_list_free(l_node_addr_list);
     l_nodes_count = l_node_num;
     dap_chain_node_info_t *l_node_candidate;
     if(l_nodes_count)
@@ -96,18 +104,11 @@ dap_chain_node_info_t *s_balancer_issue_link(const char *a_net_name)
     }
     else
     {
-        dap_list_t *l_node_list = dap_chain_net_get_node_list_cfg(l_net);
-        uint16_t l_nods_cnt = dap_list_length(l_node_list);
-        if(l_node_list)
-        {
-            dap_chain_node_info_t *l_node_info = DAP_NEW_Z(dap_chain_node_info_t);
-            int i = rand() % l_nods_cnt;
-            dap_list_t *nl = l_node_list;
-            while(i--) nl = nl->next;
-            l_node_candidate = (dap_chain_node_info_t*)nl->data;
-            memcpy(l_node_info, l_node_candidate, sizeof(dap_chain_node_info_t));
-            dap_list_free(l_node_list);
-            return l_node_info;
+        dap_chain_node_info_t *l_link_node_info = dap_get_balancer_link_from_cfg(l_net);
+        if(l_link_node_info)
+        {          
+            log_it(L_DEBUG, "Network balancer issues ip from net conf - %s",inet_ntoa(l_link_node_info->hdr.ext_addr_v4));
+            return l_link_node_info;
         }
     }
     return NULL;
