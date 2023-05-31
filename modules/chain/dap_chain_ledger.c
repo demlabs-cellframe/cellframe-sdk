@@ -428,8 +428,7 @@ static bool s_ledger_token_update_check(dap_chain_ledger_token_item_t *a_cur_tok
 
 	l_signs_upd_token = dap_chain_datum_token_signs_parse(a_token_update, a_token_update_size,
 														  &auth_signs_total, &auth_signs_valid);
-	if (a_cur_token_item->auth_signs_total != auth_signs_total
-	||	a_cur_token_item->auth_signs_valid != auth_signs_valid) {
+    if (a_cur_token_item->auth_signs_valid > auth_signs_total) {
 		DAP_DEL_Z(l_signs_upd_token);
 		if(s_debug_more)
 			log_it(L_WARNING,"Can't update token with ticker '%s' because: "
@@ -441,7 +440,7 @@ static bool s_ledger_token_update_check(dap_chain_ledger_token_item_t *a_cur_tok
 		return false;
 	}
 	if(auth_signs_total) {
-		for(uint16_t i = 0; i < auth_signs_total; i++){
+		for(size_t i = 0; i < auth_signs_total; i++){
             dap_pkey_t *l_pkey_upd_token = dap_sign_get_pkey_deserialization(l_signs_upd_token[i]);
 			if (!dap_pkey_match(a_cur_token_item->auth_pkeys[i], l_pkey_upd_token)) {
 				DAP_DEL_Z(l_signs_upd_token);
