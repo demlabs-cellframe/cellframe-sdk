@@ -1,3 +1,4 @@
+
 /*
  * Authors:
  * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
@@ -283,7 +284,6 @@ static void s_update_links_timer_callback(void *a_arg){
     //Updated links
     size_t l_count_downlinks = 0;
     dap_stream_connection_t ** l_downlinks = dap_stream_connections_get_downlinks(&l_count_downlinks);
-    DAP_DELETE(l_downlinks);
     dap_chain_node_addr_t *l_current_addr = dap_chain_net_get_cur_addr(l_net);
     dap_chain_node_info_t *l_node_info = dap_chain_node_info_read(l_net, l_current_addr);
     if (!l_node_info)
