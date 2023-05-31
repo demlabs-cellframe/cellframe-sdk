@@ -283,7 +283,7 @@ static void s_update_links_timer_callback(void *a_arg){
     //Updated links
     size_t l_count_downlinks = 0;
     dap_stream_connection_t ** l_downlinks = dap_stream_connections_get_downlinks(&l_count_downlinks);
-    DAP_DELETE(l_downlinks);
+    DAP_DEL_Z(l_downlinks);
     dap_chain_node_addr_t *l_current_addr = dap_chain_net_get_cur_addr(l_net);
     dap_chain_node_info_t *l_node_info = dap_chain_node_info_read(l_net, l_current_addr);
     if (!l_node_info)
@@ -2771,7 +2771,7 @@ int s_net_load(dap_chain_net_t *a_net)
     uint32_t l_timeout = dap_config_get_item_uint32_default(g_config, "node_client", "timer_update_states", 600);
     PVT(l_net)->main_timer = dap_interval_timer_create(l_timeout * 1000, s_main_timer_callback, l_net);
     log_it(L_INFO, "Chain network \"%s\" initialized",l_net->pub.name);
-    PVT(l_net)->update_links_timer = dap_interval_timer_create(600000, s_update_links_timer_callback, l_net);
+    //PVT(l_net)->update_links_timer = dap_interval_timer_create(600000, s_update_links_timer_callback, l_net);
 
     dap_config_close(l_cfg);
 
