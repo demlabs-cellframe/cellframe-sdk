@@ -75,10 +75,10 @@ typedef struct dap_chain_net_srv_stream_session {
     dap_stream_session_t * parent;
     dap_chain_net_srv_usage_t * usages;
     dap_chain_net_srv_usage_t * usage_active;
-    uintmax_t limits_bytes; // Bytes provided for using the service left
+    intmax_t limits_bytes; // Bytes provided for using the service left
     time_t limits_ts; //Time provided for using the service
 
-    time_t start_of_service_ts; //Time provided for using the service
+    time_t last_update_ts; //Time provided for using the service
 
     dap_chain_net_srv_price_unit_uid_t limits_units_type;
 
