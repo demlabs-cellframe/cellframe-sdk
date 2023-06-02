@@ -1165,7 +1165,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
 
     if (a_srv_session->last_update_ts){
         time_t l_current_limit_ts = 0;
-        if ( a_usage->receipt){ // If there is next receipt add the time and request the next receipt
+        if ( a_usage->receipt){
             switch( a_usage->receipt->receipt_info.units_type.enm){
             case SERV_UNIT_DAY:{
                 l_current_limit_ts = (time_t)a_usage->receipt->receipt_info.units*24*3600;
@@ -1176,9 +1176,11 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
             }
         }
         a_srv_session->limits_ts -= time(NULL) - a_srv_session->last_update_ts;
-        if(a_srv_session->last_update_ts && a_srv_session->limits_ts < l_current_limit_ts/2 && !a_usage->receipt_next && !a_usage->is_grace){
+        if(a_srv_session->limits_ts < l_current_limit_ts/2 && !a_usage->receipt_next && !a_usage->is_grace){
             l_issue_new_receipt = true;
         }
+        a_srv_session->last_update_ts = time(NULL);
+
 
         if( a_srv_session->limits_ts <= 0 && !a_usage->is_grace){
             log_it(L_INFO, "Limits by timestamp are over. Switch to the next receipt");
@@ -1212,7 +1214,6 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                 dap_stream_ch_pkt_write_unsafe( a_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , &l_err, sizeof(l_err));
             }
         }
-        a_srv_session->last_update_ts = time(NULL);
     }else if (!a_usage->is_free){
         intmax_t current_limit_bytes = 0;
         if ( a_usage->receipt){// if we have active receipt and a_srv_session->last_update_ts == 0 then we counts units by traffic

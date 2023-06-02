@@ -273,7 +273,10 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
                 l_price->value_datoshi = uint256_0;
             }
             l_usage->price = l_price;
-            l_usage->receipt = dap_chain_net_srv_issue_receipt(l_usage->service, l_usage->price, NULL, 0);
+            if (l_usage->receipt_next)
+                l_usage->receipt_next = dap_chain_net_srv_issue_receipt(l_usage->service, l_usage->price, NULL, 0);
+            else
+                l_usage->receipt = dap_chain_net_srv_issue_receipt(l_usage->service, l_usage->price, NULL, 0);
             dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
                                            l_usage->receipt, l_usage->receipt->size);
         }else{
@@ -451,7 +454,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
 
         if ( !l_is_found || ! l_usage ){
             log_it(L_WARNING, "Can't find receipt in usages thats equal to response receipt");
-            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_CANT_FIND ;
+            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_CANT_FIND;
             dap_stream_ch_pkt_write_unsafe( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
             if (l_usage && l_usage->service && l_usage->service->callbacks.response_error)
                     l_usage->service->callbacks.response_error(l_usage->service,l_usage->id, l_usage->client,&l_err,sizeof (l_err) );
@@ -555,7 +558,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
             char *l_tx_in_hash_str = dap_chain_mempool_tx_create_cond_input(l_usage->net, &l_usage->tx_cond_hash, l_wallet_addr,
                                                                             dap_chain_wallet_get_key(l_usage->price->wallet, 0),
                                                                             l_receipt, "hex", &ret_status);
-            if (l_tx_in_hash_str) {
+            if (!ret_status) {
                 dap_chain_hash_fast_from_str(l_tx_in_hash_str, &l_usage->tx_cond_hash);
                 log_it(L_NOTICE, "Formed tx %s for input with active receipt", l_tx_in_hash_str);
                 DAP_DELETE(l_tx_in_hash_str);
@@ -587,6 +590,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     break;
                 case DAP_CHAIN_MEMPOOl_RET_STATUS_NOT_ENOUGH:
                     // TODO send new tx cond request
+                    memset(&l_usage->tx_cond_hash, 0, sizeof(l_usage->tx_cond_hash));
+                    DAP_DEL_Z(l_usage->receipt_next);
                     break;
                 case DAP_CHAIN_MEMPOOL_RET_STATUS_BAD_ARGUMENTS:
                 case DAP_CHAIN_MEMPOOl_RET_STATUS_WRONG_ADDR:
