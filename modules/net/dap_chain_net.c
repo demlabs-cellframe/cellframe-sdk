@@ -110,6 +110,7 @@
 #include "dap_stream_ch_chain.h"
 #include "dap_stream_ch_chain_pkt.h"
 #include "dap_stream_ch.h"
+#include "dap_stream.h"
 #include "dap_stream_ch_pkt.h"
 #include "dap_chain_node_dns_client.h"
 #include "dap_module.h"
@@ -211,6 +212,8 @@ typedef struct dap_chain_net_pvt{
     pthread_rwlock_t states_lock;
 
     dap_list_t *gdb_notifiers;
+
+    dap_interval_timer_t update_links_timer;
 } dap_chain_net_pvt_t;
 
 typedef struct dap_chain_net_item{
@@ -272,6 +275,24 @@ static int s_cli_net(int argc, char ** argv, char **str_reply);
 static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
 static void s_prepare_links_from_balancer(dap_chain_net_t *a_net);
 static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_replace_tries);
+
+//Timer update links
+
+static void s_update_links_timer_callback(void *a_arg){
+    dap_chain_net_t *l_net = (dap_chain_net_t*)a_arg;
+    //Updated links
+    size_t l_count_downlinks = 0;
+    dap_stream_connection_t ** l_downlinks = dap_stream_connections_get_downlinks(&l_count_downlinks);
+    DAP_DELETE(l_downlinks);
+    dap_chain_node_addr_t *l_current_addr = dap_chain_net_get_cur_addr(l_net);
+    dap_chain_node_info_t *l_node_info = dap_chain_node_info_read(l_net, l_current_addr);
+    if (!l_node_info)
+        return;
+    l_node_info->hdr.links_number = l_count_downlinks;
+    char *l_key = dap_chain_node_addr_to_hash_str(l_current_addr);
+    dap_global_db_set_sync(l_net->pub.gdb_nodes, l_key, l_node_info, dap_chain_node_info_get_size(l_node_info), false);
+    DAP_DELETE(l_node_info);
+}
 
 static bool s_seed_mode = false;
 
@@ -2750,6 +2771,7 @@ int s_net_load(dap_chain_net_t *a_net)
     uint32_t l_timeout = dap_config_get_item_uint32_default(g_config, "node_client", "timer_update_states", 600);
     PVT(l_net)->main_timer = dap_interval_timer_create(l_timeout * 1000, s_main_timer_callback, l_net);
     log_it(L_INFO, "Chain network \"%s\" initialized",l_net->pub.name);
+    PVT(l_net)->update_links_timer = dap_interval_timer_create(600000, s_update_links_timer_callback, l_net);
 
     dap_config_close(l_cfg);
 

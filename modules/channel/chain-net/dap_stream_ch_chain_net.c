@@ -112,6 +112,21 @@ static void session_data_del_all()
     pthread_mutex_unlock(&s_hash_mutex);
 }
 
+
+
+dap_chain_node_addr_t dap_stream_ch_chain_net_from_session_data_extract_node_addr(unsigned int a_session_id) {
+    dap_chain_node_addr_t l_addr= {0};
+    dap_chain_net_session_data_t *l_sdata, *l_sdata_tmp;
+    pthread_mutex_lock(&s_hash_mutex);
+    HASH_ITER(hh, s_chain_net_data , l_sdata, l_sdata_tmp) {
+        if (l_sdata->session_id == a_session_id) {
+            l_addr = l_sdata->addr_remote;
+        }
+    }
+    pthread_mutex_unlock(&s_hash_mutex);
+    return l_addr;
+}
+
 uint8_t dap_stream_ch_chain_net_get_id()
 {
     return 'N';
