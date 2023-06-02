@@ -3431,7 +3431,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             if (l_tx_prev_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
                 l_main_ticker = l_token;
             else
-                l_main_ticker = l_ledger_pvt->net_native_ticker;
+                l_token = l_main_ticker = l_ledger_pvt->net_native_ticker;
 
             bool l_owner = false;
             l_owner = dap_sign_match_pkey_signs(l_prev_sign,l_sign);
