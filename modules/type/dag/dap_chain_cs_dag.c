@@ -363,7 +363,7 @@ static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
 {
     dap_chain_cs_dag_pvt_t *l_dag_pvt = PVT(DAP_CHAIN_CS_DAG(a_chain));
     pthread_mutex_lock(&l_dag_pvt->events_mutex);
-    HASH_CLEAR(hh, l_dag_pvt->datums);
+    HASH_CLEAR(hh_datums, l_dag_pvt->datums);
     dap_chain_cs_dag_event_item_t *l_event_current, *l_event_tmp;
     // Clang bug at this, l_event_current should change at every loop cycle
     HASH_ITER(hh, l_dag_pvt->events, l_event_current, l_event_tmp) {
@@ -1246,7 +1246,7 @@ static dap_chain_datum_t *s_chain_callback_atom_find_by_datum_hash(dap_chain_t *
     dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG( a_chain );
     dap_chain_cs_dag_event_item_t *l_event_item = NULL;
     pthread_mutex_lock(&PVT(l_dag)->events_mutex);
-    HASH_FIND(hh, PVT(l_dag)->datums, a_datum_hash, sizeof(*a_datum_hash), l_event_item);
+    HASH_FIND(hh_datums, PVT(l_dag)->datums, a_datum_hash, sizeof(*a_datum_hash), l_event_item);
     pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
     if ( l_event_item ){
         dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(l_event_item->event, l_event_item->event_size);
@@ -1360,7 +1360,7 @@ static dap_chain_datum_t *s_chain_callback_datum_iter_get_next(dap_chain_datum_i
     pthread_mutex_lock(&PVT(l_dag)->events_mutex);
     dap_chain_cs_dag_event_item_t *l_item = a_datum_iter->cur_item;
     if (l_item)
-        l_item = l_item->hh.next;
+        l_item = l_item->hh_datums.next;
     s_datum_iter_fill(a_datum_iter, l_item);
     pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
     return a_datum_iter->cur;
@@ -2008,7 +2008,7 @@ static dap_list_t *s_dap_chain_callback_get_txs(dap_chain_t *a_chain, size_t a_c
     dap_list_t *l_list = NULL;
     size_t l_counter = 0;
     size_t l_end = l_offset + a_count;
-    for (dap_chain_cs_dag_event_item_t *ptr = PVT(l_dag)->datums; ptr != NULL && l_counter < l_end; ptr = ptr->hh.next){
+    for (dap_chain_cs_dag_event_item_t *ptr = PVT(l_dag)->datums; ptr != NULL && l_counter < l_end; ptr = ptr->hh_datums.next){
         dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(ptr->event, ptr->event_size);
         if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX && l_counter++ >= l_offset) {
             dap_chain_datum_tx_t  *l_tx = (dap_chain_datum_tx_t*)l_datum->data;
