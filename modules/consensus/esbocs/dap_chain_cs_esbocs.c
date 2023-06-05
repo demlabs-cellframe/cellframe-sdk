@@ -1115,7 +1115,6 @@ static void s_check_db_callback_fee_collect (dap_global_db_context_t *a_global_d
     dap_chain_block_cache_t *l_block_cache = NULL;
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
     dap_list_t *l_block_list = NULL;
-    char * l_hash_tx;
     l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_arg->block_hash);
     if(!l_block_cache)
     {
@@ -1134,11 +1133,14 @@ static void s_check_db_callback_fee_collect (dap_global_db_context_t *a_global_d
     {
         if(compare256(l_value_out_block,l_arg->fee_need_cfg) == 1)
         {
-            l_hash_tx = dap_chain_mempool_tx_coll_fee_create(l_arg->key_from, l_arg->a_addr_to,
+            char *l_hash_tx = dap_chain_mempool_tx_coll_fee_create(l_arg->key_from, l_arg->a_addr_to,
                                                  l_block_list, l_arg->value_fee, "hex");
-            log_it(L_NOTICE, "Fee collect transaction successfully created, hash=%s\n",l_hash_tx);
-            dap_global_db_del(block_fee_group, NULL, NULL, NULL);            
-            DAP_DELETE(l_hash_tx);
+            if(l_hash_tx)
+            {
+                log_it(L_NOTICE, "Fee collect transaction successfully created, hash=%s\n",l_hash_tx);
+                dap_global_db_del(block_fee_group, NULL, NULL, NULL);
+                DAP_DELETE(l_hash_tx);
+            }
         }
         else
         {
@@ -1147,11 +1149,7 @@ static void s_check_db_callback_fee_collect (dap_global_db_context_t *a_global_d
                 log_it(L_WARNING, "Unable to write data to database");
             else
                 log_it(L_NOTICE, "The block was successfully added to the database");
-        }
-        dap_list_free_full(l_block_list, NULL);
-        DAP_DELETE(l_arg->a_addr_to);
-        DAP_DELETE(l_arg);
-        return;
+        }        
     }
     else
     {
@@ -1166,11 +1164,14 @@ static void s_check_db_callback_fee_collect (dap_global_db_context_t *a_global_d
         SUM_256_256(l_value_out_block,l_value_gdb,&l_value_total);
         if(compare256(l_value_total,l_arg->fee_need_cfg) == 1)
         {
-            l_hash_tx = dap_chain_mempool_tx_coll_fee_create(l_arg->key_from, l_arg->a_addr_to,
+            char *l_hash_tx = dap_chain_mempool_tx_coll_fee_create(l_arg->key_from, l_arg->a_addr_to,
                                                  l_block_list, l_arg->value_fee, "hex");
-            dap_global_db_del(block_fee_group, NULL, NULL, NULL);
-            log_it(L_NOTICE, "Fee collect transaction successfully created, hash=%s\n",l_hash_tx);
-            DAP_DELETE(l_hash_tx);
+            if(l_hash_tx)
+            {
+                dap_global_db_del(block_fee_group, NULL, NULL, NULL);
+                log_it(L_NOTICE, "Fee collect transaction successfully created, hash=%s\n",l_hash_tx);
+                DAP_DELETE(l_hash_tx);
+            }
         }
         else
         {
@@ -1180,11 +1181,11 @@ static void s_check_db_callback_fee_collect (dap_global_db_context_t *a_global_d
             else
                 log_it(L_NOTICE, "The block was successfully added to the database");
         }
-        dap_list_free_full(l_block_list, NULL);
-        DAP_DELETE(l_arg->a_addr_to);
-        DAP_DELETE(l_arg);
-        return;
     }
+    dap_list_free(l_block_list);
+    DAP_DEL_Z(l_arg->a_addr_to);
+    DAP_DELETE(l_arg);
+    return;
 }
 
 static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_chain_esbocs_store_t *l_store)
