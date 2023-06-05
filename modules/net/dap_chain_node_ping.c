@@ -70,7 +70,7 @@
 #include "iputils/iputils.h"
 
 #include "dap_common.h"
-//#include "dap_client.h"
+#include "dap_net.h"
 #include "dap_strfuncs.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_ping.h"

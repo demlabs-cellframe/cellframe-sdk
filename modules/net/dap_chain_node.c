@@ -206,13 +206,23 @@ bool dap_chain_node_mempool_need_process(dap_chain_t *a_chain, dap_chain_datum_t
 }
 
 /* Return true if processed datum should be deleted from mempool */
-bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum) {
-    if (!a_chain->callback_add_datums)
+bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, const char *a_datum_hash_str)
+{
+    if (!a_chain->callback_add_datums) {
+        log_it(L_ERROR, "Not found chain callback for datums processing");
         return false;
-    if (dap_chain_datum_unledgered_search_iter(a_datum, a_chain))
-            return true; /* Already chained, no need to keep duplicates */
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-    int l_verify_datum = dap_chain_net_verify_datum_for_add(l_net, a_datum);
+    }
+    dap_hash_fast_t l_datum_hash, l_real_hash;
+    if (dap_chain_hash_fast_from_hex_str(a_datum_hash_str, &l_datum_hash)) {
+        log_it(L_WARNING, "Can't get datum hash from hash string");
+        return false;
+    }
+    dap_hash_fast(a_datum->data, a_datum->header.data_size, &l_real_hash);
+    if (!dap_hash_fast_compare(&l_datum_hash, &l_real_hash)) {
+        log_it(L_WARNING, "Datum hash from mempool key and real datum hash are different");
+        return false;
+    }
+    int l_verify_datum = dap_chain_net_verify_datum_for_add(a_chain, a_datum, &l_datum_hash);
     if (l_verify_datum != 0 &&
             l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS &&
             l_verify_datum != DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION &&
@@ -263,7 +273,7 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
                     }
                 }
 
-                if (dap_chain_node_mempool_process(a_chain, l_datum)) {
+                if (dap_chain_node_mempool_process(a_chain, l_datum, l_objs[i].key)) {
                     // Delete processed objects
                     log_it(L_INFO, " ! Delete datum %s from mempool", l_objs[i].key);
                     dap_global_db_del(l_gdb_group_mempool, l_objs[i].key, NULL, NULL);

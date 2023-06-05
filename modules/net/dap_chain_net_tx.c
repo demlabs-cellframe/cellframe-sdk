@@ -577,43 +577,37 @@ uint256_t dap_chain_net_get_tx_total_value(dap_chain_net_t * a_net, dap_chain_da
  * @param a_search_type
  * @return
  */
-dap_chain_datum_tx_t * dap_chain_net_get_tx_by_hash(dap_chain_net_t * a_net, dap_chain_hash_fast_t * a_tx_hash,
-                                                     dap_chain_net_tx_search_type_t a_search_type)
+dap_chain_datum_tx_t *dap_chain_net_get_tx_by_hash(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_tx_hash,
+                                                   dap_chain_net_tx_search_type_t a_search_type)
 {
-    dap_ledger_t * l_ledger = a_net->pub.ledger;
-    dap_chain_datum_tx_t * l_tx = NULL;
-
+    dap_ledger_t *l_ledger = a_net->pub.ledger;
     switch (a_search_type) {
-        case TX_SEARCH_TYPE_NET:
-        case TX_SEARCH_TYPE_CELL:
-        case TX_SEARCH_TYPE_LOCAL:
-        case TX_SEARCH_TYPE_CELL_SPENT:
-        case TX_SEARCH_TYPE_NET_SPENT: {
-
-            if ( ! l_tx ){
-                // pass all chains
-                for ( dap_chain_t * l_chain = a_net->pub.chains; l_chain; l_chain = l_chain->next){
-                    if ( l_chain->callback_tx_find_by_hash ){
-                        // try to find transaction in chain ( inside shard )
-                        l_tx = l_chain->callback_tx_find_by_hash(l_chain, a_tx_hash, NULL);
-                        if (l_tx) {
-                            if ((a_search_type == TX_SEARCH_TYPE_CELL_SPENT ||
-                                    a_search_type == TX_SEARCH_TYPE_NET_SPENT) &&
-                                    (!dap_chain_ledger_tx_spent_find_by_hash(l_ledger, a_tx_hash)))
-                                return NULL;
-                            break;
-                        }
-                    }
-                }
-            }
-        } break;
-
-        case TX_SEARCH_TYPE_NET_UNSPENT:
-        case TX_SEARCH_TYPE_CELL_UNSPENT:
-            l_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, a_tx_hash);
-            break;
+    case TX_SEARCH_TYPE_NET:
+    case TX_SEARCH_TYPE_CELL:
+    case TX_SEARCH_TYPE_LOCAL:
+    case TX_SEARCH_TYPE_CELL_SPENT:
+    case TX_SEARCH_TYPE_NET_SPENT:
+        // pass all chains
+        for (dap_chain_t * l_chain = a_net->pub.chains; l_chain; l_chain = l_chain->next) {
+            if (!l_chain->callback_datum_find_by_hash)
+                return NULL;
+            // try to find transaction in chain ( inside shard )
+            int l_ret_code;
+            dap_chain_datum_t *l_datum = l_chain->callback_datum_find_by_hash(l_chain, a_tx_hash, NULL, &l_ret_code);
+            if (!l_datum || l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
+                return NULL;
+            if ((a_search_type == TX_SEARCH_TYPE_CELL_SPENT ||
+                    a_search_type == TX_SEARCH_TYPE_NET_SPENT) &&
+                    (!dap_chain_ledger_tx_spent_find_by_hash(l_ledger, a_tx_hash)))
+                return NULL;
+            return (dap_chain_datum_tx_t *)l_datum->data;
+        }
+    case TX_SEARCH_TYPE_NET_UNSPENT:
+    case TX_SEARCH_TYPE_CELL_UNSPENT:
+        return dap_chain_ledger_tx_find_by_hash(l_ledger, a_tx_hash);
+    default:;
     }
-    return l_tx;
+    return NULL;
 }
 
 static struct net_fee {
