@@ -1491,18 +1491,20 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
                                      i, l_address, l_port);
         }
         dap_string_t *l_str_downlinks = dap_string_new("---------------------------\n"
-                                                     "| ↑\\↓ |\t#\t|\t\tIP\t\t|\n");
+                                                     "| ↑\\↓ |\t#\t|\t\tIP\t\t|\tPort\t|\n");
         for (size_t i=0; i < l_downlink_count; i++) {
             char *l_address = l_downlinks[i]->address;
 
-            dap_string_append_printf(l_str_downlinks, "|  ↓  |\t%zu\t|\t%s\t\t|\n",
-                                     i, l_address);
+            dap_string_append_printf(l_str_downlinks, "|  ↓  |\t%zu\t|\t%s\t\t|\t%u\t|\n",
+                                     i, l_address, l_downlinks[i]->port);
         }
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Count links: %zu\n\nUplinks: %zu\n%s\n\nDownlinks: %zu\n%s\n",
                                           l_uplink_count + l_downlink_count, l_uplink_count, l_str_uplinks->str,
                                           l_downlink_count, l_str_downlinks->str);
         dap_string_free(l_str_uplinks, false);
         dap_string_free(l_str_downlinks, false);
+        DAP_DELETE(l_downlinks);
+        DAP_DELETE(l_uplinks);
         return 0;
     }
         break;
