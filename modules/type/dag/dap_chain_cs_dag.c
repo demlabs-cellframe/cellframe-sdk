@@ -1695,13 +1695,14 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
 
                     // Hash links
                     dap_string_append_printf(l_str_tmp,"\t\t\t\thashes:\tcount: %u\n",l_event->header.hash_count);
-                    for (size_t i = 0, l_shift = 0; i < l_event->header.hash_count; ++i, l_shift += sizeof(dap_chain_hash_fast_t)){
-                        dap_chain_hash_fast_t *l_hash = (dap_chain_hash_fast_t*)(l_event->hashes_n_datum_n_signs + l_shift);
+                    size_t l_offset = 0;
+                    for (size_t i = 0; i < l_event->header.hash_count; ++i, l_offset += sizeof(dap_chain_hash_fast_t)){
+                        dap_chain_hash_fast_t *l_hash = (dap_chain_hash_fast_t*)(l_event->hashes_n_datum_n_signs + l_offset);
                         char * l_hash_str = dap_chain_hash_fast_to_str_new(l_hash);
                         dap_string_append_printf(l_str_tmp,"\t\t\t\t\t\thash: %s\n",l_hash_str);
                         DAP_DELETE(l_hash_str);
                     }
-                    size_t l_offset =  l_event->header.hash_count*sizeof (dap_chain_hash_fast_t);
+
                     dap_chain_datum_t * l_datum = (dap_chain_datum_t*) (l_event->hashes_n_datum_n_signs + l_offset);
                     size_t l_datum_size =  dap_chain_datum_size(l_datum);
                     dap_time_t l_datum_ts_create = (dap_time_t) l_datum->header.ts_create;
