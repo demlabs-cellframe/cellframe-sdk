@@ -131,23 +131,6 @@ typedef struct dap_chain_datum{
     byte_t data[]; /// Stored datum body
 } DAP_ALIGN_PACKED dap_chain_datum_t;
 
-
-struct dap_chain;
-typedef struct dap_chain dap_chain_t;
-
-typedef struct dap_chain_datum_iter{
-    dap_chain_t * chain;
-    dap_chain_datum_t * cur;
-    void * cur_item;
-    void * atom_iter;
-} dap_chain_datum_iter_t;
-
-typedef dap_chain_datum_iter_t* (*dap_chain_datum_callback_iter_create_t)(dap_chain_t * );
-typedef dap_chain_datum_t* (*dap_chain_datum_callback_iter_get_first_t)(dap_chain_datum_iter_t * );
-typedef dap_chain_datum_t* (*dap_chain_datum_callback_iter_get_next_t)(dap_chain_datum_iter_t *  );
-typedef void (*dap_chain_datum_callback_iter_delete_t)(dap_chain_datum_iter_t *  );
-
-
 /**
  * @brief dap_chain_datum_size
  * @param a_datum

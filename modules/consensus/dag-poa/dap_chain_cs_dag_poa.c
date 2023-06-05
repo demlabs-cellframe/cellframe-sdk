@@ -569,11 +569,10 @@ static void s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
     if (l_chosen_item) {
         size_t l_event_size = l_chosen_item->event_size;
         dap_chain_cs_dag_event_t *l_new_atom = (dap_chain_cs_dag_event_t *)DAP_DUP_SIZE(l_chosen_item->event_n_signs, l_event_size);
-        char *l_event_hash_hex_str, *l_datum_hash_str;
+        char *l_event_hash_hex_str;
         dap_get_data_hash_str_static(l_new_atom, l_event_size, l_event_hash_hex_str);
         dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(l_new_atom, l_event_size);
-        dap_get_data_hash_str_static(l_datum, dap_chain_datum_size(l_datum), l_datum_hash_str);
-        int l_verify_datum = dap_chain_net_verify_datum_for_add(dap_chain_net_by_id(l_dag->chain->net_id), l_datum);
+        int l_verify_datum = dap_chain_net_verify_datum_for_add(l_dag->chain, l_datum, &l_chosen_item->round_info.datum_hash);
         if (!l_verify_datum) {
             dap_chain_atom_verify_res_t l_res = l_dag->chain->callback_atom_add(l_dag->chain, l_new_atom, l_event_size);
             if (l_res == ATOM_ACCEPT) {
@@ -590,6 +589,8 @@ static void s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
                    l_event_hash_hex_str, l_arg->round_id, dap_chain_atom_verify_res_str[l_res]);
         } else {
             DAP_DELETE(l_new_atom);
+            char l_datum_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+            dap_chain_hash_fast_to_str(&l_chosen_item->round_info.datum_hash, l_datum_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
             log_it(L_INFO, "Event %s from round %"DAP_UINT64_FORMAT_U" not added into chain, because the inner datum %s doesn't pass verification (error %d)",
                    l_event_hash_hex_str, l_arg->round_id, l_datum_hash_str, l_verify_datum);
         }
