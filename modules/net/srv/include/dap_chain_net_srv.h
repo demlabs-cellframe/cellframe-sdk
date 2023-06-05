@@ -87,6 +87,8 @@ typedef struct dap_chain_net_srv_price
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED                0x20
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_DATA                          0x30
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_DATA                 0x31
+#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NEW_TX_COND_REQUEST           0x40
+#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NEW_TX_COND_RESPONSE          0x41
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS              0xf0
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR                0xff
 // for connection testing

@@ -588,6 +588,11 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     // TODO send new tx cond request
                     memset(&l_usage->tx_cond_hash, 0, sizeof(l_usage->tx_cond_hash));
                     DAP_DEL_Z(l_usage->receipt_next);
+                    log_it(L_ERROR, "Tx cond have not enough funds");
+                    l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ENOUGH;
+                    dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+                    if (l_usage->service->callbacks.response_error)
+                            l_usage->service->callbacks.response_error(l_usage->service,l_usage->id, l_usage->client,&l_err,sizeof (l_err));
                     break;
                 case DAP_CHAIN_MEMPOOL_RET_STATUS_BAD_ARGUMENTS:
                 case DAP_CHAIN_MEMPOOl_RET_STATUS_WRONG_ADDR:
@@ -599,7 +604,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     log_it(L_ERROR, "Can't create input tx cond transaction!");
                     memset(&l_usage->tx_cond_hash, 0, sizeof(l_usage->tx_cond_hash));
                     DAP_DEL_Z(l_usage->receipt_next);
-                    l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ENOUGH;
+                    l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND;
                     dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
                     if (l_usage->service->callbacks.response_error)
                             l_usage->service->callbacks.response_error(l_usage->service,l_usage->id, l_usage->client,&l_err,sizeof (l_err));
@@ -693,7 +698,12 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                    sizeof ( dap_stream_ch_chain_net_srv_pkt_error_t) );
         }
     } break;
-
+    case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NEW_TX_COND_RESPONSE:{
+        l_usage->tx_cond_hash = *(dap_hash_fast*)l_ch_pkt->data;
+        dap_chain_hash_fast_from_str(l_tx_in_hash_str, &l_usage->tx_cond_hash);
+        log_it(L_NOTICE, "Received new tx cond %s", l_tx_in_hash_str);
+        DAP_DELETE(l_tx_in_hash_str);
+    }break;
     default: log_it( L_WARNING, "Unknown packet type 0x%02X", l_ch_pkt->hdr.type);
     }
     if(l_ch_chain_net_srv->notify_callback)
