@@ -1008,8 +1008,8 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
         }
 
         if(!l_key_str) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter 'key' to be valid", a_argv[0]);
-            return -121;
+            dap_chain_node_cli_set_reply_text(a_str_reply, "No key provided, the entire table %s will be read", l_group_str);
+            //return -121;
         }
 
         size_t l_out_len = 0;
@@ -1040,8 +1040,8 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
         }
 
         if(!l_key_str) {
-            dap_chain_node_cli_set_reply_text(a_str_reply, "%s requires parameter 'key' to be valid", a_argv[0]);
-            return -121;
+            dap_chain_node_cli_set_reply_text(a_str_reply, "No key provided, table %s will be altered", l_group_str);
+            //return -121;
         }
 
         if (dap_chain_global_db_gr_del(l_key_str, l_group_str))
