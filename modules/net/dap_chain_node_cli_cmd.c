@@ -2966,7 +2966,7 @@ int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply)
     const char * l_datum_hash_str = NULL;
     int ret = 0;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-datum", &l_datum_hash_str);
-    if (l_datum_hash_str) {
+    if (!l_datum_hash_str) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! %s requires -datum <datum hash> option", a_argv[0]);
         return -5;
     }
@@ -5069,7 +5069,7 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
 
     if(!l_token_ticker) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_create requires parameter '-token'");
-        return -6;
+        return -3;
     }
     dap_chain_net_t * l_net = dap_chain_net_by_name(l_net_name);
     dap_ledger_t *l_ledger = l_net ? l_net->pub.ledger : NULL;
@@ -5107,10 +5107,15 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
         const char *l_native_ticker = l_net->pub.native_ticker;
         bool not_native = dap_strcmp(l_token_ticker, l_native_ticker);
 
+        if (!l_wallet_fee_name) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_create requires parameter '-wallet_fee' to be a valid wallet name");
+            return -10;
+        }
+
         l_wallet_fee = dap_chain_wallet_open(l_wallet_fee_name, c_wallets_path);
         if((!l_wallet_fee)&&(not_native)) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "wallet %s does not exist", l_wallet_fee_name);
-            return -9;
+            return -11;
         }
 
         if(!l_wallet_fee){

@@ -2227,7 +2227,7 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
         if(s_debug_more) {
             char l_token_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_chain_hash_fast_to_str(a_emission_hash, l_token_hash_str, sizeof(l_token_hash_str));
-            if ( l_token_emission_item->datum_token_emission->hdr.version == 2 ) {
+            if ( l_token_emission_item->datum_token_emission->hdr.version >= 2 ) {
                 char *l_balance = dap_chain_balance_print(l_token_emission_item->datum_token_emission->hdr.value_256);
                 log_it(L_ERROR, "Can't add token emission datum of %s %s ( %s ): already present in cache",
                         l_balance, l_token_ticker, l_token_hash_str);
