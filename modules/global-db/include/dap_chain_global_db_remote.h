@@ -10,6 +10,8 @@
 #define F_DB_LOG_ADD_EXTRA_GROUPS   1
 #define F_DB_LOG_SYNC_FROM_ZERO     2
 
+#define DAP_DB_LOG_LIST_MAX_SIZE    (256 * 1024)
+
 #define GDB_SYNC_ALWAYS_FROM_ZERO       // For debug purposes
 // for dap_db_log_list_xxx()
 
@@ -30,6 +32,8 @@ typedef struct dap_db_log_list {
     size_t items_rest; // rest items to read from items_list
     size_t items_number; // total items after reading from db
     dap_list_t *groups;
+    size_t size;
+    pthread_cond_t cond;
     pthread_t thread;
     pthread_mutex_t list_mutex;
 } dap_db_log_list_t;
