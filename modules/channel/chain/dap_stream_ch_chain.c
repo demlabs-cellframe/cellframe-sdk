@@ -28,6 +28,7 @@
 #include <stdlib.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <string.h>
 
 #ifdef WIN32
 #include <winsock2.h>
@@ -132,6 +133,7 @@ static char **s_list_ban_groups = NULL;
 static char **s_list_white_groups = NULL;
 static uint16_t s_size_ban_groups = 0;
 static uint16_t s_size_white_groups = 0;
+static dap_stream_ch_chain_packet_time_t * s_remote_addr_time = NULL;
 
 
 #ifdef  DAP_SYS_DEBUG
@@ -1055,7 +1057,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                             "ERROR_NET_NOT_AUTHORIZED");
         return;
     }
-    s_chain_timer_reset(l_ch_chain);
+    s_chain_timer_reset(l_ch_chain);    
+
     switch (l_ch_pkt->hdr.type) {
         /// --- GDB update ---
         // Request for gdbs list update
@@ -1214,6 +1217,31 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB: {
             if(s_debug_more)
                 log_it(L_INFO, "In: GLOBAL_DB data_size=%zu", l_chain_pkt_data_size);
+
+            dap_stream_ch_chain_packet_time_t * l_remote_addr_time = NULL;
+            HASH_FIND(hh, s_remote_addr_time, a_ch->stream->esocket->remote_addr_str, INET_ADDRSTRLEN + 1, l_remote_addr_time);
+            if (!l_remote_addr_time) {
+                l_remote_addr_time = DAP_NEW_Z(dap_stream_ch_chain_packet_time_t);
+                memcpy(l_remote_addr_time->remote_addr, a_ch->stream->esocket->remote_addr_str,INET_ADDRSTRLEN + 1);
+                l_remote_addr_time->time_arrival = dap_nanotime_now();
+                log_it(L_INFO, "Add time from remote node %s", l_remote_addr_time->remote_addr);
+                HASH_ADD(hh, s_remote_addr_time, remote_addr, INET_ADDRSTRLEN + 1, l_remote_addr_time);
+            }
+            else{
+                char l_ts_str[50];
+                dap_time_t ns = dap_nanotime_now();
+                ns = ns - l_remote_addr_time->time_arrival;
+                dap_time_t ms = ns / DAP_USEC_PER_SEC;
+                if(ms > 900)
+                {
+                    dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), dap_nanotime_to_sec(l_remote_addr_time->time_arrival));
+                    log_it(L_INFO, "Remove time from remote node %s time delay = %d ms", l_remote_addr_time->remote_addr, ms);
+                    HASH_DEL(s_remote_addr_time, l_remote_addr_time);
+                }
+                else
+                    break;
+            }
+
             // get transaction and save it to global_db
             if(l_chain_pkt_data_size > 0) {
                 struct sync_request *l_sync_request = dap_stream_ch_chain_create_sync_request(l_chain_pkt, a_ch);
@@ -1227,7 +1255,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
                         "ERROR_GLOBAL_DB_PACKET_EMPTY");
             }
-        }  break;
+        }  break;        
 
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB: {
                 log_it(L_INFO, "In:  SYNCED_GLOBAL_DB: net 0x%016"DAP_UINT64_FORMAT_x" chain 0x%016"DAP_UINT64_FORMAT_x" cell 0x%016"DAP_UINT64_FORMAT_x,
