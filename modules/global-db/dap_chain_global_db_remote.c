@@ -93,15 +93,22 @@ static void *s_list_thread_proc(void *arg)
                     continue;       // the object is broken
                 }
 
-                if (l_limit_time && l_obj_cur->timestamp < l_limit_time) {
-                    if (l_obj_type == DAP_DB$K_OPTYPE_DEL) {
-                        dap_chain_global_db_driver_delete(l_obj_cur, 1);
-                        l_obj_cur->group = DAP_REALLOC(l_obj_cur->group, l_del_name_len + 1);
-                        l_obj_cur->group[l_del_name_len] = '\0';
-                    } else if (l_obj_type == DAP_DB$K_OPTYPE_ADD) {
+                switch (l_obj_type) {
+                case DAP_DB$K_OPTYPE_ADD:
+                    if (l_limit_time && l_obj_cur->timestamp < l_limit_time) {
                         dap_chain_global_db_driver_delete(l_obj_cur, 1);
                         continue;
                     }
+                    break;
+                case DAP_DB$K_OPTYPE_DEL:
+                    if (l_limit_time && l_obj_cur->timestamp < l_limit_time) {
+                        dap_chain_global_db_driver_delete(l_obj_cur, 1);
+                    }
+                    l_obj_cur->group = DAP_REALLOC(l_obj_cur->group, l_del_name_len + 1);
+                    l_obj_cur->group[l_del_name_len] = '\0';
+                    break;
+                default:
+                    break;
                 }
 
                 dap_db_log_list_obj_t *l_list_obj = DAP_NEW_Z(dap_db_log_list_obj_t);
