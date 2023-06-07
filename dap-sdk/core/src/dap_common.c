@@ -559,6 +559,28 @@ void _log_it(const char *a_log_tag, enum dap_log_level a_ll, const char *a_fmt, 
     char *dummy = (offset2 == 0) ? memcpy(&l_log_string->str[sizeof(l_log_string->str) - 6], "...\n\0", 5)
         : memcpy(&l_log_string->str[offset], "\n", 1);
     UNUSED(dummy);
+#ifdef DAP_OS_ANDROID
+    android_LogPriority l_alp;
+    switch (a_ll) {
+    case L_DEBUG:
+        l_alp = ANDROID_LOG_DEBUG; break;
+    case L_INFO:
+    case L_NOTICE:
+    case L_MSG:
+        l_alp = ANDROID_LOG_INFO; break;
+    case L_WARNING:
+    case L_ATT:
+        l_alp = ANDROID_LOG_WARN; break;
+    case L_ERROR:
+        l_alp = ANDROID_LOG_ERROR; break;
+    case L_CRITICAL:
+        l_alp = ANDROID_LOG_FATAL; break;
+    default:
+        l_alp = ANDROID_LOG_VERBOSE;
+        break;
+    }
+    __android_log_write(l_alp, a_log_tag, l_log_string->str);
+#endif
     pthread_mutex_lock(&s_log_mutex);
     DL_APPEND(s_log_buffer, l_log_string);
     ++s_log_count;

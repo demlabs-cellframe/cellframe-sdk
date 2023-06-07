@@ -25,6 +25,8 @@
 
 //#include <dap_client.h>
 
+#define __USE_GNU
+
 #include <stdlib.h>
 #include <sys/types.h>
 #include <assert.h>

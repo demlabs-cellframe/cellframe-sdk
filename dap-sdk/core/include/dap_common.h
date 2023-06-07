@@ -264,7 +264,9 @@ DAP_STATIC_INLINE void _dap_aligned_free( void *ptr )
 }
 
 DAP_STATIC_INLINE void *_dap_page_aligned_alloc(size_t size) {
-#ifndef DAP_OS_WINDOWS
+#ifdef __ANDROID__
+    return memalign(getpagesize(), size);
+#elif !defined(DAP_OS_WINDOWS)
     return valloc(size);
 #else
     return VirtualAlloc(0, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
