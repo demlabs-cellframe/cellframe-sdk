@@ -20,7 +20,6 @@
     You should have received a copy of the GNU General Public License
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include "dap_chain_net.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_global_db.h"

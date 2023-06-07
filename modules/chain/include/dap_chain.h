@@ -26,14 +26,11 @@
 #pragma once
 #include <stdbool.h>
 #include <pthread.h>
-#include "dap_global_db.h"
-#include "dap_global_db_remote.h"
 #include "dap_config.h"
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_cert.h"
-
 
 typedef struct dap_chain dap_chain_t;
 
@@ -142,13 +139,15 @@ typedef struct dap_chain {
     dap_chain_id_t id;
     dap_chain_net_id_t net_id;
     uint16_t load_priority;
-    char * name;
-    char * net_name;
-    dap_ledger_t * ledger; // If present - pointer to associated ledger
+    char *name;
+    char *net_name;
+    dap_ledger_t *ledger; // If present - pointer to associated ledger
     bool is_datum_pool_proc;
 
-    // Nested cells (hashtab by cell_id
-    dap_chain_cell_t * cells;
+    // Nested cells (hashtab by cell_id)
+    dap_chain_cell_t *cells;
+    dap_chain_cell_id_t active_cell_id;
+    dap_chain_cell_id_t forking_cell_id;
 
     uint16_t datum_types_count;
     dap_chain_type_t *datum_types;
@@ -217,11 +216,6 @@ typedef struct dap_chain {
     void * _inheritor; // inheritor object
 } dap_chain_t;
 
-typedef struct dap_chain_gdb_notifier {
-    dap_store_obj_callback_notify_t callback;
-    void *cb_arg;
-} dap_chain_gdb_notifier_t;
-
 typedef struct dap_chain_atom_notifier {
     dap_chain_callback_notify_t callback;
     void *arg;
@@ -249,6 +243,5 @@ void dap_chain_add_callback_notify(dap_chain_t * a_chain, dap_chain_callback_not
 dap_chain_atom_ptr_t dap_chain_get_atom_by_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
 bool dap_chain_get_atom_last_hash(dap_chain_t *a_chain, dap_hash_fast_t *a_atom_hash, dap_chain_cell_id_t a_cel_id);
 ssize_t dap_chain_atom_save(dap_chain_t *a_chain, const uint8_t *a_atom, size_t a_atom_size, dap_chain_cell_id_t a_cell_id);
-void dap_chain_add_mempool_notify_callback(dap_chain_t *a_chain, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg);
 int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name);
 const char* dap_chain_get_path(dap_chain_t *a_chain);

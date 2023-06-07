@@ -36,6 +36,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_list.h"
 #include "dap_chain_common.h"
 #include "dap_chain.h"
+#include "dap_chain_pvt.h"
 #include "dap_chain_node.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_net_decree.h"

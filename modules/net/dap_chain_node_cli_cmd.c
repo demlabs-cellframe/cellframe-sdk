@@ -1399,7 +1399,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             dap_chain_node_client_reset(l_node_client);
             // send request
             dap_stream_ch_chain_sync_request_t l_sync_request = {};
-            dap_chain_hash_fast_t *l_hash = dap_db_get_last_hash_remote(l_node_client->remote_node_addr.uint64, l_chain);
+            dap_chain_hash_fast_t *l_hash = dap_chain_db_get_last_hash_remote(l_node_client->remote_node_addr.uint64, l_chain);
             if (l_hash) {
                 l_sync_request.hash_from = *l_hash;
                 DAP_DELETE(l_hash);

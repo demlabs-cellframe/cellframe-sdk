@@ -22,7 +22,6 @@
 */
 
 #include <pthread.h>
-#include "dap_chain_net.h"
 #include "dap_common.h"
 #include "dap_enc_base58.h"
 #include "dap_chain.h"
@@ -33,7 +32,7 @@
 #include "dap_chain_block_cache.h"
 #include "dap_chain_block_chunk.h"
 #include "dap_timerfd.h"
-#include "dap_chain_node_cli.h"
+#include "dap_cli_server.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_mempool.h"
 
@@ -596,7 +595,6 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
             }
         }break;
         case SUBCMD_LIST:{
-                const char * l_hash_str = NULL;
                 const char * l_cert_name = NULL;
                 bool l_unspent_fl = false;
                 size_t l_block_count = 0;
