@@ -699,7 +699,13 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         }
     } break;
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NEW_TX_COND_RESPONSE:{
-        l_usage->tx_cond_hash = *(dap_hash_fast*)l_ch_pkt->data;
+        dap_chain_net_srv_usage_t * l_usage = NULL, *l_tmp= NULL;
+        pthread_mutex_lock(& l_srv_session->parent->mutex );        // TODO rework it with packet usage_id
+        HASH_ITER(hh, l_srv_session->usages, l_usage, l_tmp);
+        pthread_mutex_unlock(& l_srv_session->parent->mutex );
+
+        l_usage->tx_cond_hash = *(dap_hash_fast_t*)l_ch_pkt->data;
+        char *l_tx_in_hash_str = NULL;
         dap_chain_hash_fast_from_str(l_tx_in_hash_str, &l_usage->tx_cond_hash);
         log_it(L_NOTICE, "Received new tx cond %s", l_tx_in_hash_str);
         DAP_DELETE(l_tx_in_hash_str);
