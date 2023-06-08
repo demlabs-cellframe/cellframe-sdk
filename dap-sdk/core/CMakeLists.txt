@@ -54,7 +54,7 @@ if(UNIX)
     endif()
     if(ANDROID)
         add_subdirectory(src/android)
-        set(CORE_LIBRARIES ${CORE_LIBRARIES} dap_core_android)
+        set(CORE_LIBRARIES ${CORE_LIBRARIES} dap_core_android log)
     endif()
 endif()
 

@@ -92,7 +92,8 @@ ExternalProject_Add(dap_json-c_dep
                                       -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
                                       -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
                                       -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
-                                      -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME})
+                                      -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
+                                      -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE})
 
 
 if (BUILD_WITH_GDB_DRIVER_MDBX)
