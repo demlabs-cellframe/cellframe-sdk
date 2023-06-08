@@ -264,6 +264,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(l_net);
     size_t l_orders_count = 0;
     dap_global_db_obj_t * l_orders = dap_global_db_get_all_sync(l_gdb_group_str, &l_orders_count);
+    DAP_DELETE(l_gdb_group_str);
     dap_chain_net_srv_order_t *l_order_service = NULL;
     for (size_t i = 0; i < l_orders_count; i++) {
         dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)l_orders[i].value;
@@ -280,8 +281,6 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
             l_order_service = l_order;
         }
     }
-    dap_global_db_objs_delete(l_orders, l_orders_count);
-    DAP_DELETE(l_gdb_group_str);
     if (l_order_service) {
         l_esbocs_pvt->minimum_fee = l_order_service->price;
     } else {
@@ -289,7 +288,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
         log_it(L_ERROR, "An order was not found that was signed by the signature of this validator. Operation of the "
                         "transaction service is not possible.");
     }
-
+    dap_global_db_objs_delete(l_orders, l_orders_count);
     dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
     if (l_role.enums > NODE_ROLE_MASTER) {
         log_it(L_NOTICE, "Node role is lower than master role, so this node can't be a consensus validator");
