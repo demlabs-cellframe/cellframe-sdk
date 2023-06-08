@@ -18,9 +18,11 @@ file(GLOB DAP_CHAIN_GLOBAL_DB_HDR
     include/dap_chain_global_db_driver_sqlite.h
 )
 
-if (ANDROID)
+if (NOT BUILD_WITH_GDB_DRIVER_CUTTDB)
     list(FILTER DAP_CHAIN_GLOBAL_DB_SRC EXCLUDE REGEX ".*dap_chain_global_db_driver_cdb\\.c$")
     list(FILTER DAP_CHAIN_GLOBAL_DB_HDR EXCLUDE REGEX ".*dap_chain_global_db_driver_cdb\\.h$")
+else()
+    add_definitions ("-DDAP_CHAIN_GDB_ENGINE_CUTTDB")
 endif()
 
 set(DAP_CHAIN_GLOBAL_DB_LIBS dap_core dap_server_core dap_crypto dap_chain dap_chain_net)

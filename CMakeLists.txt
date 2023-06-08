@@ -80,9 +80,9 @@ endif()
 
 add_subdirectory(dap-sdk)
 add_subdirectory(3rdparty/monero_crypto)
-add_subdirectory(3rdparty/cuttdb)
 add_subdirectory(3rdparty/json-c EXCLUDE_FROM_ALL)
 
+if(NOT ANDROID)
 ExternalProject_Add(dap_json-c_dep
                     SOURCE_DIR ${PROJECT_SOURCE_DIR}/3rdparty/json-c/
                     CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env PATH=$ENV{PATH}
@@ -92,9 +92,27 @@ ExternalProject_Add(dap_json-c_dep
                                       -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
                                       -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
                                       -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
-                                      -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
                                       -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE})
+else()
+    ExternalProject_Add(dap_json-c_dep
+                        SOURCE_DIR ${PROJECT_SOURCE_DIR}/3rdparty/json-c/
+                        CONFIGURE_COMMAND #${CMAKE_COMMAND} -E env PATH=$ENV{PATH}
+                                          ${CMAKE_COMMAND} ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/json-c/
+                                          -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}/deps/
+                                          -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+                                          -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+                                          -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+                                          -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
+                                          -DANDROID_NATIVE_API_LEVEL=29
+                                          -DANDROID_ABI=arm64-v8a
+                                          -DCMAKE_TOOLCHAIN_FILE=D:/android-sdk/ndk/21.4.7075529/build/cmake/android.toolchain.cmake
+                                          -DCMAKE_MAKE_PROGRAM=D:/android-sdk/cmake/3.22.1/bin/ninja.exe
+                                          -G=Ninja)
+endif()
 
+if (BUILD_WITH_GDB_DRIVER_CUTTDB)
+    add_subdirectory(3rdparty/cuttdb)
+endif()
 
 if (BUILD_WITH_GDB_DRIVER_MDBX)
     set(SAVED_CMAKE_MESSAGE_LOG_LEVEL ${CMAKE_MESSAGE_LOG_LEVEL})
