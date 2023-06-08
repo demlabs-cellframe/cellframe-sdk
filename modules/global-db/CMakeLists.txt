@@ -22,7 +22,7 @@ set(DAP_CHAIN_GLOBAL_DB_LIBS dap_core dap_server_core dap_crypto dap_chain dap_c
 
 
 if(BUILD_WITH_GDB_DRIVER_SQLITE)
-    set(DAP_CHAIN_GLOBAL_DB_LIBS ${DAP_CHAIN_GLOBAL_DB_LIBS} sqlite3 json-c)
+    set(DAP_CHAIN_GLOBAL_DB_LIBS ${DAP_CHAIN_GLOBAL_DB_LIBS} sqlite3 dap_json-c)
     add_definitions("-DDAP_GDB_ENGINE_SQLITE3")
 else()
     list(FILTER DAP_CHAIN_GLOBAL_DB_SRC EXCLUDE REGEX "sqlite")
