@@ -109,7 +109,8 @@ else()
                                       -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
                                       -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE}
                                       -DANDROID_NATIVE_API_LEVEL=${ANDROID_NATIVE_API_LEVEL}
-                                      -DANDROID_ABI=${ANDROID_ABI})
+                                      -DANDROID_ABI=${ANDROID_ABI}
+                                      -DANDROID_PLATFORM=${ANDROID_PLATFORM})
 endif()
 
 if (BUILD_WITH_GDB_DRIVER_CUTTDB)
