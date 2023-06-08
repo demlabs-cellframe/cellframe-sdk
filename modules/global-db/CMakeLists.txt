@@ -23,11 +23,9 @@ if (ANDROID)
     list(FILTER DAP_CHAIN_GLOBAL_DB_HDR EXCLUDE REGEX ".*dap_chain_global_db_driver_cdb\\.h$")
 endif()
 
-
-#set(DAP_CHAIN_GLOBAL_DB_LIBS dap_core dap_server_core dap_crypto dap_chain dap_chain_net sqlite3 dap_cuttdb dap_json-c)
 set(DAP_CHAIN_GLOBAL_DB_LIBS dap_core dap_server_core dap_crypto dap_chain dap_chain_net)
 if(BUILD_WITH_GDB_DRIVER_SQLITE)
-    set(DAP_CHAIN_GLOBAL_DB_LIBS ${dap_global_db_LIBS} sqlite3 json-c)
+    set(DAP_CHAIN_GLOBAL_DB_LIBS ${DAP_CHAIN_GLOBAL_DB_LIBS} sqlite3 json-c)
     add_definitions("-DDAP_GDB_ENGINE_SQLITE3")
 else()
     list(FILTER DAP_CHAIN_GLOBAL_DB_SRC EXCLUDE REGEX "sqlite")
