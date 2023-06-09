@@ -63,9 +63,7 @@ dap_chain_net_srv_usage_t* dap_chain_net_srv_usage_add (dap_chain_net_srv_stream
         l_ret->net = a_net;
         l_ret->service = a_srv;
         pthread_rwlock_init(&l_ret->rwlock,NULL);
-        pthread_mutex_lock(&a_srv_session->parent->mutex);
-        HASH_ADD_INT( a_srv_session->usages, id,l_ret );
-        pthread_mutex_unlock(&a_srv_session->parent->mutex);
+        a_srv_session->usage_active = l_ret;
         log_it( L_NOTICE, "Added service %s:0x%016"DAP_UINT64_FORMAT_X" , usage id: %d", l_ret->net->pub.name, a_srv->uid.uint64, l_ret->id);
         return l_ret;
     }else{
@@ -94,9 +92,6 @@ void dap_chain_net_srv_usage_delete (dap_chain_net_srv_stream_session_t * a_srv_
 
 
     }
-    pthread_mutex_lock(&a_srv_session->parent->mutex);
-    HASH_DEL(a_srv_session->usages, a_usage);
-    pthread_mutex_unlock(&a_srv_session->parent->mutex);
     DAP_DELETE( a_usage );
 }
 
@@ -110,6 +105,7 @@ dap_chain_net_srv_usage_t* dap_chain_net_srv_usage_find_unsafe (dap_chain_net_sr
                                                                              uint32_t a_usage_id)
 {
     dap_chain_net_srv_usage_t * l_ret = NULL;
-    HASH_FIND_INT(a_srv_session->usages, &a_usage_id, l_ret);
+    if (a_srv_session->usage_active->id == a_usage_id)
+        l_ret = a_srv_session->usage_active;
     return  l_ret;
 }

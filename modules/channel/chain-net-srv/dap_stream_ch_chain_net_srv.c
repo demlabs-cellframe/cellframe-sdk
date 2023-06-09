@@ -436,23 +436,17 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         }
         dap_chain_datum_tx_receipt_t * l_receipt = (dap_chain_datum_tx_receipt_t *) l_ch_pkt->data;
         size_t l_receipt_size = l_ch_pkt->hdr.data_size;
-        dap_chain_net_srv_usage_t * l_usage= NULL, *l_tmp= NULL;
+        dap_chain_net_srv_usage_t * l_usage = l_srv_session->usage_active;
         bool l_is_found = false;
-        pthread_mutex_lock(& l_srv_session->parent->mutex );        // TODO rework it with packet usage_id
-        HASH_ITER(hh, l_srv_session->usages, l_usage, l_tmp){
-            if ( l_usage->receipt_next ){ // If we have receipt next
-                if ( memcmp(&l_usage->receipt_next->receipt_info, &l_receipt->receipt_info,sizeof (l_receipt->receipt_info) )==0 ){
-                    l_is_found = true;
-                    break;
-                }
-            }else if (l_usage->receipt ){ // If we sign first receipt
-                if ( memcmp(&l_usage->receipt->receipt_info, &l_receipt->receipt_info,sizeof (l_receipt->receipt_info) )==0 ){
-                    l_is_found = true;
-                    break;
-                }
+        if ( l_usage->receipt_next ){ // If we have receipt next
+            if ( memcmp(&l_usage->receipt_next->receipt_info, &l_receipt->receipt_info,sizeof (l_receipt->receipt_info) )==0 ){
+                l_is_found = true;
+            }
+        }else if (l_usage->receipt ){ // If we sign first receipt
+            if ( memcmp(&l_usage->receipt->receipt_info, &l_receipt->receipt_info,sizeof (l_receipt->receipt_info) )==0 ){
+                l_is_found = true;
             }
         }
-        pthread_mutex_unlock(& l_srv_session->parent->mutex );
 
         if ( !l_is_found || ! l_usage ){
             log_it(L_WARNING, "Can't find receipt in usages thats equal to response receipt");
@@ -665,7 +659,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         pkt_t * l_pkt =(pkt_t *) l_ch_pkt->data;
         size_t l_pkt_size = l_ch_pkt->hdr.data_size - sizeof(pkt_t);
         dap_chain_net_srv_t * l_srv = dap_chain_net_srv_get( l_pkt->hdr.srv_uid);
-        dap_chain_net_srv_usage_t * l_usage = dap_chain_net_srv_usage_find_unsafe( l_srv_session, l_pkt->hdr.usage_id );
+        dap_chain_net_srv_usage_t * l_usage = l_srv_session->usage_active;//dap_chain_net_srv_usage_find_unsafe( l_srv_session, l_pkt->hdr.usage_id );
         // If service not found
         if ( l_srv == NULL){
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND ;
@@ -699,14 +693,11 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         }
     } break;
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NEW_TX_COND_RESPONSE:{
-        dap_chain_net_srv_usage_t * l_usage = NULL, *l_tmp= NULL;
-        pthread_mutex_lock(& l_srv_session->parent->mutex );        // TODO rework it with packet usage_id
-        HASH_ITER(hh, l_srv_session->usages, l_usage, l_tmp);
-        pthread_mutex_unlock(& l_srv_session->parent->mutex );
-
-        l_usage->tx_cond_hash = *(dap_hash_fast_t*)l_ch_pkt->data;
-        char *l_tx_in_hash_str = NULL;
-        dap_chain_hash_fast_from_str(l_tx_in_hash_str, &l_usage->tx_cond_hash);
+        dap_chain_net_srv_usage_t * l_usage = NULL;
+        l_usage = l_srv_session->usage_active;
+        dap_stream_ch_chain_net_srv_pkt_request_t* l_responce = (dap_stream_ch_chain_net_srv_pkt_request_t*)l_ch_pkt->data;
+        l_usage->tx_cond_hash = l_responce->hdr.tx_cond;
+        char *l_tx_in_hash_str = dap_chain_hash_fast_to_str_new(&l_usage->tx_cond_hash);
         log_it(L_NOTICE, "Received new tx cond %s", l_tx_in_hash_str);
         DAP_DELETE(l_tx_in_hash_str);
     }break;
