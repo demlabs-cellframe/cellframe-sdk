@@ -621,7 +621,7 @@ dap_chain_node_info_t *dap_get_balancer_link_from_cfg(dap_chain_net_t *a_net)
     dap_chain_net_pvt_t *l_net_pvt = a_net ? PVT(a_net) : NULL;
     if(!l_net_pvt) return NULL;
     struct in_addr l_addr = {};
-    uint16_t i, l_port;
+    uint16_t i, l_port = 0;
     uint64_t l_node_adrr = 0;
     if (l_net_pvt->seed_aliases_count) {
         i = rand() % l_net_pvt->seed_aliases_count;

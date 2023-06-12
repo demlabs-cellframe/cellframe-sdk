@@ -836,7 +836,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     assert(l_wallet_internal);
 
     snprintf(l_wallet->name, DAP_WALLET$SZ_NAME, "%.*s", l_file_hdr.wallet_len, l_wallet_name);
-    strncpy(l_wallet_internal->file_name, a_file_name, sizeof(l_wallet_internal->file_name) );
+    strncpy(l_wallet_internal->file_name, a_file_name, sizeof(l_wallet_internal->file_name) - 1);
 
     l_wallet_internal->certs_count = l_certs_count;
     assert(l_wallet_internal->certs_count);

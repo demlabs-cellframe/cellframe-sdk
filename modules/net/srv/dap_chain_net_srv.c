@@ -838,7 +838,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
         pthread_mutex_init(&l_srv->banlist_mutex, NULL);
         l_sdata = DAP_NEW_Z(service_list_t);
         l_sdata->uid = l_uid;
-        strncpy(l_sdata->name, a_config_section, sizeof(l_sdata->name));
+        strncpy(l_sdata->name, a_config_section, sizeof(l_sdata->name) - 1);
         l_sdata->srv = l_srv;
         dap_chain_net_srv_parse_pricelist(l_srv, a_config_section);
         HASH_ADD(hh, s_srv_list, uid, sizeof(l_srv->uid), l_sdata);

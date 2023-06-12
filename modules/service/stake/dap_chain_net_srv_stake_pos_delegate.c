@@ -1037,6 +1037,11 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                     return -8;
                 }
             }
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str);
+            if (!l_cert_str) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order update' requires parameter -cert");
+                return -7;
+            }
             dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_str);
             if (!l_cert) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't load cert %s", l_cert_str);
@@ -1665,7 +1670,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
                 return -4;
             }
-            uint256_t l_fee;
+            uint256_t l_fee = {};
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-wallet", &l_wallet_str);
             if (!l_wallet_str) {
                 dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-poa_cert", &l_poa_cert_str);
