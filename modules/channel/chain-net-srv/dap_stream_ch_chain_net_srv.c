@@ -277,7 +277,12 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
                 DAP_DEL_Z(l_usage->receipt_next);
                 l_usage->receipt_next = dap_chain_net_srv_issue_receipt(l_usage->service, l_usage->price, NULL, 0);
             }else{
-                l_usage->receipt = dap_chain_net_srv_issue_receipt(l_usage->service, l_usage->price, NULL, 0);
+                dap_chain_net_srv_price_t l_b_price = *l_usage->price;
+                if (l_grace_start){
+                    l_b_price.units *= 2;
+                    MULT_256_256(l_b_price.value_datoshi, GET_256_FROM_64((uint64_t)2), &l_b_price.value_datoshi);
+                }
+                l_usage->receipt = dap_chain_net_srv_issue_receipt(l_usage->service, &l_b_price, NULL, 0);
                 dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
                                            l_usage->receipt, l_usage->receipt->size);
             }
@@ -585,8 +590,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     log_it(L_ERROR, "Tx cond have not enough funds");
                     l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ENOUGH;
                     dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
-                    if (l_usage->service->callbacks.response_error)
-                            l_usage->service->callbacks.response_error(l_usage->service,l_usage->id, l_usage->client,&l_err,sizeof (l_err));
+//                    if (l_usage->service->callbacks.response_error)
+//                            l_usage->service->callbacks.response_error(l_usage->service,l_usage->id, l_usage->client,&l_err,sizeof (l_err));
                     break;
                 case DAP_CHAIN_MEMPOOL_RET_STATUS_BAD_ARGUMENTS:
                 case DAP_CHAIN_MEMPOOl_RET_STATUS_WRONG_ADDR:
