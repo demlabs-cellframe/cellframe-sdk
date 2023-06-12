@@ -487,7 +487,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         return NULL;
     }
     const char *l_native_ticker = a_price->net->pub.native_ticker;
-    const char *l_service_ticker;
+    const char *l_service_ticker = NULL;
     bool l_pay_with_native = !dap_strcmp(a_price->token_buy, l_native_ticker);
     // find the transactions from which to take away coins
     uint256_t l_value_transfer, // how many coins to transfer
@@ -1548,7 +1548,7 @@ dap_chain_hash_fast_t l_tx_first_hash = {0};
 dap_chain_datum_tx_t    *l_datum_tx;
 size_t  l_datum_tx_size, l_tx_total, l_tx_count;
 int l_item_idx;
-bool l_rc;
+bool l_rc = false;
 dap_string_t *l_reply_str;
 dap_hash_fast_t l_hash;
 dap_chain_tx_out_cond_t *l_out_cond_item;
@@ -2122,7 +2122,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 
                                 // Print tx_hash
                                 char * l_tx_hash_str = dap_chain_hash_fast_to_str_new(l_tx_hash);
-                                dap_string_append_printf(l_reply_str,"Tx hash: %s\n", l_tx_hash_str);
+                                dap_string_append_printf(l_reply_str,"Tx hash: %s\n", l_tx_hash_str ? l_tx_hash_str : "(null)");
                                 DAP_DEL_Z(l_tx_hash_str);
 
                                 // Print tx_created

@@ -109,7 +109,7 @@ uint256_t dap_chain_datum_tx_add_in_item_list(dap_chain_datum_tx_t **a_tx, dap_l
     dap_list_t *l_list_tmp = a_list_used_out;
     uint256_t l_value_to_items = {}; // how many datoshi to transfer
     while (l_list_tmp) {
-        list_used_item_t *l_item = l_list_tmp->data;
+        dap_chain_tx_used_out_item_t *l_item = l_list_tmp->data;
         if (dap_chain_datum_tx_add_in_item(a_tx, &l_item->tx_hash_fast, l_item->num_idx_out) == 1) {
             SUM_256_256(l_value_to_items, l_item->value, &l_value_to_items);
         }
@@ -147,7 +147,7 @@ uint256_t dap_chain_datum_tx_add_in_cond_item_list(dap_chain_datum_tx_t **a_tx, 
    dap_list_t *l_list_tmp = a_list_used_out_cound;
    uint256_t l_value_to_items = {};
    while (l_list_tmp) {
-       list_used_item_t *l_item = l_list_tmp->data;
+       dap_chain_tx_used_out_item_t *l_item = l_list_tmp->data;
        if (!dap_chain_datum_tx_add_in_cond_item(a_tx, &l_item->tx_hash_fast, l_item->num_idx_out,0)) {
            SUM_256_256(l_value_to_items, l_item->value, &l_value_to_items);
        }

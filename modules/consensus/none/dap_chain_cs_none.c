@@ -363,7 +363,9 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     dap_chain_gdb_t * l_gdb = DAP_CHAIN_GDB(a_chain);
     dap_chain_gdb_private_t *l_gdb_priv = PVT(l_gdb);
     dap_chain_datum_t *l_datum = (dap_chain_datum_t*) a_atom;
-    if(dap_chain_datum_add(a_chain, l_datum, a_atom_size, NULL))
+    dap_hash_fast_t l_datum_hash;
+    dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_datum_hash);
+    if(dap_chain_datum_add(a_chain, l_datum, a_atom_size, &l_datum_hash))
         return ATOM_REJECT;
 
     dap_chain_gdb_datum_hash_item_t * l_hash_item = DAP_NEW_Z(dap_chain_gdb_datum_hash_item_t);

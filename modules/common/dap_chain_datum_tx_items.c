@@ -501,7 +501,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap
     l_item->header.srv_uid = a_srv_uid;
     l_item->subtype.srv_xchange.buy_net_id = a_buy_net_id;
     l_item->subtype.srv_xchange.sell_net_id = a_sell_net_id;
-    strncpy(l_item->subtype.srv_xchange.buy_token, a_token, DAP_CHAIN_TICKER_SIZE_MAX);
+    strncpy(l_item->subtype.srv_xchange.buy_token, a_token, DAP_CHAIN_TICKER_SIZE_MAX - 1);
     l_item->subtype.srv_xchange.buy_value = a_value_buy;
     l_item->subtype.srv_xchange.seller_addr = *a_seller_addr;
     l_item->tsd_size = a_params_size;
@@ -761,7 +761,7 @@ dap_list_t* dap_chain_datum_tx_items_get(dap_chain_datum_tx_t *a_tx, dap_chain_t
 
 uint8_t *dap_chain_datum_tx_item_get_nth(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_type, int a_item_idx)
 {
-    uint8_t *l_tx_item;
+    uint8_t *l_tx_item = NULL;
     int l_item_idx = 0;
     for (int l_type_idx = 0; l_type_idx <= a_item_idx; l_type_idx++) {
         l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx, a_type, NULL);

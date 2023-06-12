@@ -429,7 +429,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
 
         // Add in and remove out used items
         while(l_list_tmp) {
-            list_used_item_t *l_item = l_list_tmp->data;
+            dap_chain_tx_used_out_item_t *l_item = l_list_tmp->data;
             char l_in_hash_str[70];
 
             dap_chain_hash_fast_to_str(&l_item->tx_hash_fast,l_in_hash_str,sizeof (l_in_hash_str) );
@@ -530,7 +530,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
                     continue;
                 }
                 if ( memcmp(&l_out->addr, a_addr_from, sizeof (*a_addr_from))==0 ){
-                    list_used_item_t *l_item_back = DAP_NEW_Z(list_used_item_t);
+                    dap_chain_tx_used_out_item_t *l_item_back = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
                     l_item_back->tx_hash_fast = l_tx_new_hash;
                     l_item_back->num_idx_out = l_out_idx_tmp;
                     l_item_back->value = l_value_back;
