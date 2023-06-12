@@ -2733,8 +2733,8 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                 }
             }
             dap_string_append_printf(a_str_tmp,
-                                                 "type_id=%s%s%s%s data_size=%u ts_create=%s", // \n included in timestamp
-                                                 l_type, l_is_unchained ? "(unchainned)" : "",
+                                                 "%s: type_id=%s%s%s%s data_size=%u ts_create=%s", // \n included in timestamp
+                                                 l_data_hash_str, l_type, l_is_unchained ? "(unchainned)" : "",
                                                  l_datum->header.type_id == DAP_CHAIN_DATUM_TX ? " ticker=" : "",
                                                  l_token_ticker ? l_token_ticker :
                                                                   (l_datum->header.type_id == DAP_CHAIN_DATUM_TX ) ? "UNKNOWN" : "",
@@ -2850,6 +2850,8 @@ int com_mempool_delete(int a_argc, char **a_argv, char **a_str_reply)
  */
 dap_chain_datum_t *s_com_mempool_check_datum_in_chain(dap_chain_t *a_chain, const char *a_datum_hash_str)
 {
+    if (!a_datum_hash_str)
+        return NULL;
     char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     uint8_t *l_data_tmp = dap_global_db_get_sync(l_gdb_group_mempool, a_datum_hash_str, NULL, NULL, NULL);
     DAP_DELETE(l_gdb_group_mempool);
