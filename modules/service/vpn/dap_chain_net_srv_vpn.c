@@ -1289,7 +1289,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
 
     }
     // If issue new receipt
-    if ( l_issue_new_receipt && !dap_hash_fast_is_blank(&a_usage->tx_cond_hash) && !a_usage->is_grace) {
+    if ( l_issue_new_receipt && !dap_hash_fast_is_blank(&a_usage->tx_cond_hash)) {
         if ( a_usage->receipt){
             log_it( L_NOTICE, "Send next receipt to sign");
             a_usage->receipt_next = dap_chain_net_srv_issue_receipt(a_usage->service, a_usage->price, NULL, 0);

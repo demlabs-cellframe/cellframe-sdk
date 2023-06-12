@@ -278,7 +278,7 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
                 l_usage->receipt_next = dap_chain_net_srv_issue_receipt(l_usage->service, l_usage->price, NULL, 0);
             }else{
                 dap_chain_net_srv_price_t l_b_price = *l_usage->price;
-                if (l_grace_start){
+                if (l_grace_start || a_grace->usage){
                     l_b_price.units *= 2;
                     MULT_256_256(l_b_price.value_datoshi, GET_256_FROM_64((uint64_t)2), &l_b_price.value_datoshi);
                 }
@@ -706,6 +706,14 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         char *l_tx_in_hash_str = dap_chain_hash_fast_to_str_new(&l_usage->tx_cond_hash);
         log_it(L_NOTICE, "Received new tx cond %s", l_tx_in_hash_str);
         DAP_DELETE(l_tx_in_hash_str);
+        size_t l_success_size = sizeof (dap_stream_ch_chain_net_srv_pkt_success_hdr_t );
+        dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
+                                                                              l_success_size);
+        l_success->hdr.usage_id = l_usage->id;
+        l_success->hdr.net_id.uint64 = l_usage->net->pub.id.uint64;
+        l_success->hdr.srv_uid.uint64 = l_usage->service->uid.uint64;
+        dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS, l_success, l_success_size);
+        DAP_DELETE(l_success);
     }break;
     default: log_it( L_WARNING, "Unknown packet type 0x%02X", l_ch_pkt->hdr.type);
     }
