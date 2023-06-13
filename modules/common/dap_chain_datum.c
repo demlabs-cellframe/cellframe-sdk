@@ -46,7 +46,7 @@
 dap_chain_datum_t * dap_chain_datum_create(uint16_t a_type_id, const void * a_data, size_t a_data_size)
 {
    dap_chain_datum_t * l_datum = DAP_NEW_Z_SIZE(dap_chain_datum_t, sizeof(l_datum->header)+ a_data_size);
-   memcpy (l_datum->data,a_data,a_data_size);
+   memcpy(l_datum->data, a_data, (uint32_t)a_data_size);        // Compiler warning escape
    l_datum->header.type_id = a_type_id;
    l_datum->header.data_size = (uint32_t) a_data_size;
    l_datum->header.version_id = DAP_CHAIN_DATUM_VERSION;

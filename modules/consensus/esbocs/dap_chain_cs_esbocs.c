@@ -730,7 +730,7 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
     a_session->ts_attempt_start = a_time;
     switch (a_session->state) {
     case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC: {
-        dap_chain_esbocs_validator_t *l_validator;
+        dap_chain_esbocs_validator_t *l_validator = NULL;
         for (dap_list_t *it = a_session->cur_round.validators_list; it; it = it->next) {
             l_validator = it->data;
             if (l_validator->is_synced && !l_validator->is_chosen) {
