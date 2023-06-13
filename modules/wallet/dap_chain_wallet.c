@@ -59,6 +59,14 @@
 #include "dap_enc_key.h"
 #include "crc32c_adler.h"
 
+#define __USE_GNU
+
+#if defined(__USE_BSD) || defined(__USE_GNU)
+#define S_IREAD S_IRUSR
+#define S_IWRITE S_IWUSR
+#define S_IEXEC S_IXUSR
+#endif
+
 #define LOG_TAG "dap_chain_wallet"
                                                                        /* An argument for open()/create() */
 static const mode_t s_fileprot = ( S_IREAD | S_IWRITE) | (S_IREAD >> 3) | (S_IREAD >> 6);
