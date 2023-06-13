@@ -43,6 +43,8 @@ typedef const void * dap_chain_atom_ptr_t;
 
 // Atomic element iterator
 typedef struct dap_chain_atom_iter {
+    pthread_rwlock_t rwlock;
+
     dap_chain_t *chain;
     dap_chain_atom_ptr_t cur;
     size_t cur_size;

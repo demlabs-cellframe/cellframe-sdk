@@ -325,6 +325,7 @@ static bool s_sync_out_chains_proc_callback(dap_proc_thread_t *a_thread, void *a
     dap_chain_t * l_chain = dap_chain_find_by_id(l_sync_request->request_hdr.net_id, l_sync_request->request_hdr.chain_id);
     assert(l_chain);
     //pthread_rwlock_rdlock(&l_chain->atoms_rwlock);
+    //pthread_rwlock_rdlock(&l_sync_request->chain.request_atom_iter->rwlock);
     l_sync_request->chain.request_atom_iter = l_chain->callback_atom_iter_create(l_chain, l_sync_request->request_hdr.cell_id, 1);
     size_t l_first_size = 0;
     dap_chain_atom_ptr_t l_atom = l_chain->callback_atom_iter_get_first(l_sync_request->chain.request_atom_iter, &l_first_size);
@@ -335,10 +336,12 @@ static bool s_sync_out_chains_proc_callback(dap_proc_thread_t *a_thread, void *a
             (void ) l_chain->callback_atom_find_by_hash(l_sync_request->chain.request_atom_iter,
                                                           &l_hash_from, &l_first_size);
         }
+        //pthread_rwlock_unlock(&l_sync_request->chain.request_atom_iter->rwlock);
         //pthread_rwlock_unlock(&l_chain->atoms_rwlock);
         dap_proc_thread_worker_exec_callback_inter(a_thread, l_sync_request->worker->id, s_sync_out_chains_first_worker_callback, l_sync_request );
     } else {
         //pthread_rwlock_unlock(&l_chain->atoms_rwlock);
+        //pthread_rwlock_unlock(&l_sync_request->chain.request_atom_iter->rwlock);
         dap_proc_thread_worker_exec_callback_inter(a_thread, l_sync_request->worker->id,s_sync_out_chains_last_worker_callback, l_sync_request );
     }
     return true;
@@ -1283,8 +1286,10 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 if(s_debug_more)
                     log_it(L_INFO, "Out: UPDATE_CHAINS_START pkt: net %s chain %s cell 0x%016"DAP_UINT64_FORMAT_X, l_chain->name,
                                         l_chain->net_name, l_chain_pkt->hdr.cell_id.uint64);
+                pthread_rwlock_rdlock(&l_ch_chain->request_atom_iter->rwlock);
                 l_ch_chain->request_atom_iter = l_chain->callback_atom_iter_create(l_chain, l_chain_pkt->hdr.cell_id, 1);
                 l_chain->callback_atom_iter_get_first(l_ch_chain->request_atom_iter, NULL);
+                pthread_rwlock_unlock(&l_ch_chain->request_atom_iter->rwlock);
                 l_ch_chain->request_hdr = l_chain_pkt->hdr;
                 dap_stream_ch_chain_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_START,
                                                      l_chain_pkt->hdr.net_id.uint64,l_chain_pkt->hdr.chain_id.uint64,
