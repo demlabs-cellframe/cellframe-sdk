@@ -140,6 +140,7 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
     dap_chain_net_srv_t * l_srv = NULL;
     dap_chain_net_srv_usage_t *l_usage = NULL;
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(a_grace->stream_worker, a_grace->ch_uuid);
+    bool l_grace_reentry = false;
 
     if (!l_ch)
         goto free_exit;
@@ -165,6 +166,9 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
     if ( l_err.code ){
         goto free_exit;
     }
+
+    if (a_grace->usage)
+        l_grace_reentry = true;
 
     dap_ledger_t * l_ledger =l_net->pub.ledger;
     dap_chain_datum_tx_t * l_tx = NULL;
@@ -273,10 +277,18 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
                 l_price->value_datoshi = uint256_0;
             }
             l_usage->price = l_price;
-            if (l_usage->receipt_next)
-                l_usage->receipt_next = dap_chain_net_srv_issue_receipt(l_usage->service, l_usage->price, NULL, 0);
-            else
-                l_usage->receipt = dap_chain_net_srv_issue_receipt(l_usage->service, l_usage->price, NULL, 0);
+
+//            if (l_usage->receipt_next)
+//                l_usage->receipt_next = dap_chain_net_srv_issue_receipt(l_usage->service, l_usage->price, NULL, 0);
+//            else
+            dap_chain_net_srv_price_t l_b_price = *l_price;
+            if (l_grace_reentry || l_grace_start)
+            {
+                l_b_price.units *= 2;
+                MULT_256_256(l_b_price.value_datoshi, GET_256_FROM_64((uint64_t)2), &l_b_price.value_datoshi);
+            }
+
+            l_usage->receipt = dap_chain_net_srv_issue_receipt(l_usage->service, &l_b_price, NULL, 0);
             dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
                                            l_usage->receipt, l_usage->receipt->size);
         }else{
@@ -568,25 +580,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 switch(ret_status){
                 case DAP_CHAIN_MEMPOOl_RET_STATUS_CANT_FIND_FINAL_TX_HASH:
                     // TX not found in ledger and we not in grace, start grace
-                    if(!l_usage->is_grace){
-                        log_it(L_ERROR, "Can't find tx cond. Start grace!");
-                        l_grace = DAP_NEW_Z(dap_chain_net_srv_grace_t);
-                        // Parse the request
-                        l_grace->request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_request_t, sizeof(dap_stream_ch_chain_net_srv_pkt_request_t));
-                        l_grace->request->hdr.net_id = l_usage->net->pub.id;
-                        memcpy(l_grace->request->hdr.token, l_usage->token_ticker, strlen(l_usage->token_ticker));
-                        l_grace->request->hdr.srv_uid = l_usage->service->uid;
-                        l_grace->request->hdr.tx_cond = l_usage->tx_cond_hash;
-                        l_ch_chain_net_srv->srv_uid.uint64 = l_grace->request->hdr.srv_uid.uint64;
-                        l_grace->request_size = l_ch_pkt->hdr.data_size;
-                        l_grace->ch_uuid = a_ch->uuid;
-                        l_grace->stream_worker = a_ch->stream_worker;
-                        s_grace_period_control(l_grace);
-                    }else{
-                        log_it(L_ERROR, "Can't find tx cond. Wait until grace is over.");
-                        memset(&l_usage->tx_cond_hash, 0, sizeof(l_usage->tx_cond_hash));
-                        DAP_DEL_Z(l_usage->receipt_next);
-                    }
+                    log_it(L_ERROR, "Can't find tx cond. Wait until grace is over.");
+                    memset(&l_usage->tx_cond_hash, 0, sizeof(l_usage->tx_cond_hash));
+                    DAP_DEL_Z(l_usage->receipt_next);
                     break;
                 case DAP_CHAIN_MEMPOOl_RET_STATUS_NOT_ENOUGH:
                     // TODO send new tx cond request
