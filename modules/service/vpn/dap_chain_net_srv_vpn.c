@@ -413,7 +413,7 @@ static void s_tun_recv_msg_callback(dap_events_socket_t * a_esocket_queue, void 
                 if (dap_log_level_get() <= L_INFO) {
                     char l_addrbuf[INET_ADDRSTRLEN];
                     inet_ntop(AF_INET, &l_msg->ip_assigment.addr, l_addrbuf, sizeof(l_addrbuf));
-                    log_it(L_DEBUG, "Tun:%u message: addr %s assigned for worker #%u on tun #u", a_esocket_queue->context->worker->id,
+                    log_it(L_DEBUG, "Tun:%u message: addr %s assigned for worker #%u on tun #%u", a_esocket_queue->context->worker->id,
                         l_addrbuf, l_msg->ip_assigment.worker_id);
                 }
             }
