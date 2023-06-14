@@ -81,7 +81,7 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
     size_t l_token_size     = l_token_data_n_tsd_size + sizeof(dap_chain_datum_token_t);
     dap_chain_datum_token_t *l_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, l_token_size);
     memcpy(l_token->ticker, l_token_old->ticker, sizeof(l_token_old->ticker));
-    memcpy(l_token->data_n_tsd, l_token_old->data_n_tsd, l_token_data_n_tsd_size);
+    memcpy(l_token->data_n_tsd, l_token_old->data_n_tsd, (uint32_t)l_token_data_n_tsd_size);
 //    *a_token_size = l_token_size;
     switch (((dap_chain_datum_token_t*)a_token_serial)->type) {
     case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE: {
@@ -366,7 +366,7 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emissi
         memcpy(l_emission, a_emission_serial, l_old_hdr_size);
         memcpy((byte_t *)l_emission + sizeof(l_emission->hdr),
                a_emission_serial + l_old_hdr_size,
-               l_emission_size - l_old_hdr_size);
+               (uint32_t)(l_emission_size - l_old_hdr_size));
         l_emission->hdr.value_256 = dap_chain_uint256_from(
                     ((dap_chain_datum_token_emission_t *)a_emission_serial)->hdr.value);
         l_emission_size += l_add_size;

@@ -148,6 +148,10 @@ dap_chain_node_client_t *dap_chain_node_client_create(dap_chain_net_t *a_net, da
 
 bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const char *a_active_channels);
 
+void dap_chain_node_client_added_gdb(dap_chain_node_client_t *a_node_client);
+
+void dap_chain_node_client_link_remove_gdb(dap_chain_node_client_t *a_node_client);
+
 /**
  * Create handshake to server
  *
