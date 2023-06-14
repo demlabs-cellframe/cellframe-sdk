@@ -108,7 +108,7 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 
 #define LOG_TAG "chain_node_cli_cmd"
-
+uint256_t test_val = {};
 
 /**
  * @brief dap_chain_node_addr_t* dap_chain_node_addr_get_by_alias
@@ -1031,7 +1031,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
 int com_node(int a_argc, char ** a_argv, char **a_str_reply)
 {
     enum {
-        CMD_NONE, CMD_ADD, CMD_DEL, CMD_LINK, CMD_ALIAS, CMD_HANDSHAKE, CMD_CONNECT, CMD_DUMP, CMD_CONNECTIONS
+        CMD_NONE, CMD_ADD, CMD_DEL, CMD_LINK, CMD_ALIAS, CMD_HANDSHAKE, CMD_CONNECT, CMD_DUMP, CMD_CONNECTIONS, CMD_test
     };
     int arg_index = 1;
     int cmd_num = CMD_NONE;
@@ -1065,6 +1065,9 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
 //        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str);
 //        DAP_DELETE(l_str);
 //        return 0;
+    }
+    else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "test", NULL)) {
+        cmd_num = CMD_test;
     }
     arg_index++;
     if(cmd_num == CMD_NONE) {
@@ -1121,6 +1124,34 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
 
     switch (cmd_num)
     {
+    case CMD_test:
+        {
+            dap_chain_net_t *l_net = NULL;
+            dap_chain_t * l_chain = NULL;
+            const char *l_net_str = NULL;
+            const char *l_chain_str = NULL;
+
+            //dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_str);
+            //l_net = dap_chain_net_by_name(l_net_str);
+            //dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain", &l_chain_str);
+
+            if (l_chain_str) {
+                l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
+            }
+            /*
+            dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
+            dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
+            dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
+            */
+            char *l_value_str = dap_chain_balance_print(test_val);
+            char *l_coins_str = dap_chain_balance_to_coins(test_val);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "It's TEST command - fee %s(%s)",l_coins_str,l_value_str);
+            //log_it(L_ERROR, "It's TEST command - fee %s", l_value_str);
+            DAP_DELETE(l_value_str);
+            DAP_DELETE(l_coins_str);
+
+        }
+        break;
     case CMD_ADD:
         if(!arg_index || a_argc < 8) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameters");

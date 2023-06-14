@@ -17,7 +17,7 @@
 
 #define LOG_TAG "dap_chain_cs_esbocs"
 const char* block_fee_group = "local.fee-collect-block-hashes";
-
+extern uint256_t test_val;
 enum s_esbocs_session_state {
     DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START,
     DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC,
@@ -238,7 +238,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
 //    l_esbocs_pvt->minimum_fee = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "minimum_fee", "0.05"));
     l_esbocs_pvt->fee_addr = dap_chain_addr_from_str(dap_config_get_item_str(a_chain_net_cfg, "esbocs", "fee_addr"));
     l_esbocs_pvt->fee_coll_set = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "set_collect_fee", "10.0"));
-
+    test_val = l_esbocs_pvt->fee_coll_set;
     const char *l_sign_cert_str = NULL;
     if ((l_sign_cert_str = dap_config_get_item_str(a_chain_net_cfg, "esbocs", "blocks-sign-cert")) != NULL) {
         dap_cert_t *l_sign_cert = dap_cert_find_by_name(l_sign_cert_str);
