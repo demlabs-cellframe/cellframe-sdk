@@ -139,35 +139,48 @@ dap_app_cli_connect_param_t* dap_app_cli_connect(const char *a_socket_path)
 {
     // set socket param
     int buffsize = DAP_CLI_HTTP_RESPONSE_SIZE_MAX;
-#ifdef WIN32
+#if defined(__WIN32) || defined(ANDROID)
     // TODO connect to the named pipe "\\\\.\\pipe\\node_cli.pipe"
     uint16_t l_cli_port = dap_config_get_item_uint16 ( g_config, "conserver", "listen_port_tcp");
     if (!l_cli_port)
+    {
+        printf("Cli port is null\n");
         return NULL;
+    }
     SOCKET l_socket = socket(AF_INET, SOCK_STREAM, 0);
 #else
     if (!a_socket_path) {
+        printf("No a socket path\n");
         return NULL;
     }
     // create socket
     int l_socket = socket(AF_UNIX, SOCK_STREAM, 0);
     if (l_socket < 0) {
+        printf("Socet failed \n");
         return NULL;
     }
     struct timeval l_to = {DAP_CLI_HTTP_TIMEOUT, 0};
 #endif
     // connect
     int l_addr_len;
-#ifdef WIN32
-    struct sockaddr_in l_remote_addr = {
-        .sin_family = AF_INET, .sin_port = l_cli_port, .sin_addr = {{ .S_addr = htonl(INADDR_LOOPBACK) }}
+#if defined(__WIN32)
+    struct sockaddr_in l_remote_addr;// = {
+        .sin_family = AF_INET, .sin_port = htons(l_cli_port), .sin_addr = {{ .S_addr = htonl(INADDR_LOOPBACK) }}
     };
     l_addr_len = sizeof(struct sockaddr_in);
 #else
-    struct sockaddr_un l_remote_addr;
-    l_remote_addr.sun_family =  AF_UNIX;
-    strcpy(l_remote_addr.sun_path, a_socket_path);
-    l_addr_len = SUN_LEN(&l_remote_addr);
+    #if defined(ANDROID)
+        struct sockaddr_in l_remote_addr;
+        l_remote_addr.sin_family = AF_INET;       /* Internet domain */
+        l_remote_addr.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
+        l_remote_addr.sin_port=htons(l_cli_port);
+        l_addr_len = sizeof(struct sockaddr_in);
+    #else
+        struct sockaddr_un l_remote_addr;
+        l_remote_addr.sun_family =  AF_UNIX;
+        strcpy(l_remote_addr.sun_path, a_socket_path);
+        l_addr_len = SUN_LEN(&l_remote_addr);
+    #endif
 #endif
     if (connect(l_socket, (struct sockaddr *)&l_remote_addr, l_addr_len) == SOCKET_ERROR) {
 #ifdef __WIN32
@@ -179,6 +192,7 @@ dap_app_cli_connect_param_t* dap_app_cli_connect(const char *a_socket_path)
     }
     dap_app_cli_connect_param_t *l_ret = DAP_NEW(dap_app_cli_connect_param_t);
     *l_ret = l_socket;
+    
     return l_ret;
 }
 
