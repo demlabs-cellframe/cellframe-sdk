@@ -22,7 +22,6 @@
 */
 
 #include <pthread.h>
-#include "dap_chain_net.h"
 #include "dap_common.h"
 #include "dap_enc_base58.h"
 #include "dap_chain.h"
@@ -33,7 +32,7 @@
 #include "dap_chain_block_cache.h"
 #include "dap_chain_block_chunk.h"
 #include "dap_timerfd.h"
-#include "dap_chain_node_cli.h"
+#include "dap_cli_server.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_mempool.h"
 
@@ -569,16 +568,13 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                             for (uint32_t i=0; i < l_block_cache->sign_count ; i++) {
 								dap_sign_t * l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, i);
 								size_t l_sign_size = dap_sign_get_size(l_sign);
-								dap_chain_addr_t l_addr = {0};
 								dap_chain_hash_fast_t l_pkey_hash;
 								dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
-								dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, l_net->pub.id);
                                 char l_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
                                 dap_chain_hash_fast_to_str(&l_pkey_hash, l_pkey_hash_str, sizeof(l_pkey_hash_str));
-                                char *l_addr_str = dap_chain_addr_to_str(&l_addr);
 								dap_string_append_printf(l_str_tmp,"\t\t\ttype:%s size: %zd pkey_hash: %s \n"
-																"\t\t\t\taddr: %s \n", dap_sign_type_to_str( l_sign->header.type ),
-																		l_sign_size, l_pkey_hash_str, l_addr_str );
+																"\t\t\t\n", dap_sign_type_to_str( l_sign->header.type ),
+																		l_sign_size, l_pkey_hash_str );
 							}
                             dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
                             dap_string_free(l_str_tmp, true);
@@ -596,7 +592,6 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
             }
         }break;
         case SUBCMD_LIST:{
-                const char * l_hash_str = NULL;
                 const char * l_cert_name = NULL;
                 bool l_unspent_fl = false;
                 size_t l_block_count = 0;

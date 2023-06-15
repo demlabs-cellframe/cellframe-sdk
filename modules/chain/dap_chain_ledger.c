@@ -4287,7 +4287,7 @@ static inline int s_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, d
             continue;   // balance raise will be with next conditional transaction
         }
 
-        dap_chain_addr_t *l_addr;
+        dap_chain_addr_t *l_addr = NULL;
         uint256_t l_value = {};
         switch (l_type) {
         case TX_ITEM_TYPE_OUT: {

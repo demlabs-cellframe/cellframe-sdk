@@ -279,7 +279,7 @@ int com_vpn_client(int a_argc, char ** a_argv, char **a_str_reply)
         break;
     case CMD_STATUS:
         {
-        char *l_wallet_name = NULL, *l_str_token = NULL;
+        char *l_wallet_name = "non null", *l_str_token = "non null";
         uint256_t l_value_datoshi = uint256_0;
         //dap_chain_net_vpn_client_get_wallet_info(l_net, &l_wallet_name, &l_str_token, &l_value_datoshi);
 

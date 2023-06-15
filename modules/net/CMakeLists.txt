@@ -17,20 +17,12 @@ set(IPUTILS_INCLUDE_DIRS
     )
 
 if(LINUX)
-  file(GLOB IPUTILS_SRCS ../../3rdparty/iputils/*.c ../../3rdparty/iputils/traceroute/*.c)
-  file(GLOB IPUTILS_HEADERS ../../3rdparty/iputils/*.h ${IPUTILS_INCLUDE_DIRS}*.h)
+    file(GLOB IPUTILS_SRCS ../../3rdparty/iputils/*.c ../../3rdparty/iputils/traceroute/*.c)
+    file(GLOB IPUTILS_HEADERS ../../3rdparty/iputils/*.h ${IPUTILS_INCLUDE_DIRS}*.h)
+    set_source_files_properties(../../3rdparty/iputils/traceroute/clif.c PROPERTIES COMPILE_FLAGS -Wno-stringop-truncation)
 endif()
 
 if(WIN32)
-  add_definitions ("-DUNDEBUG")
-  add_definitions ("-DNDEBUG")
-  add_definitions ("-DWIN32")
-  add_definitions ("-D_WINDOWS")
-  add_definitions ("-D__WINDOWS__")
-  add_definitions ("-D_CRT_SECURE_NO_WARNINGS")
-  add_definitions ("-D_POSIX")
-  add_definitions ("-D_POSIX_")
-  add_definitions ("-D_POSIX_THREAD_SAFE_FUNCTIONS")
   add_compile_definitions(_GNU_SOURCE)
 endif()
 
