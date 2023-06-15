@@ -1245,7 +1245,7 @@ static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_ch
         DAP_DELETE(l_finish_block_hash_str);
     }
 
-    memcpy(&l_precommit_candidate_hash, &l_store->precommit_candidate_hash, sizeof(dap_hash_fast_t));
+    l_precommit_candidate_hash = l_store->precommit_candidate_hash;
     bool l_compare = dap_hash_fast_compare(&l_store->candidate_hash, &(PVT(a_session->esbocs)->candidate_hash));
     if(s_session_candidate_to_chain(a_session, &l_store->precommit_candidate_hash, l_store->candidate, l_store->candidate_size) &&
             l_compare && PVT(a_session->esbocs)->fee_addr) {
@@ -1464,7 +1464,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         } else // Send it immediatly, if was not sent yet
             s_session_send_startsync(l_session);
 
-        dap_list_t *l_list = s_validator_check(&l_session->my_signing_addr, l_session->cur_round.validators_list);
+        dap_list_t *l_list = s_validator_check(&l_signing_addr, l_session->cur_round.validators_list);
         if (!l_list)
             break;
         dap_chain_esbocs_validator_t *l_validator = l_list->data;
