@@ -67,6 +67,7 @@
 #include "dap_file_utils.h"
 #include "dap_enc_base58.h"
 #include "dap_chain_wallet.h"
+#include "dap_chain_wallet_internal.h"
 #include "dap_chain_node.h"
 #include "dap_global_db.h"
 #include "dap_global_db_driver.h"
@@ -2144,22 +2145,33 @@ char    l_buf[1024];
 
             if(!l_wallet_name) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet name option <-w>  not defined");
-                return -1;
+                return -EINVAL;
             }
 
             if(!l_pass_str) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet password option <-password>  not defined");
-                return -1;
+                return -EINVAL;
             }
 
             l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
             if (!l_wallet) {
-                return  dap_cli_server_cmd_set_reply_text(a_str_reply, "wrong password"), -1;
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "wrong password");
+                return -1;
             } else if (l_wallet->flags & DAP_WALLET$M_FL_ACTIVE) {
-                return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet can't be converted twice"), -1;
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet can't be converted twice");
+                return  -1;
             }
+            // create wallet backup
+            dap_chain_wallet_internal_t* l_file_name = DAP_CHAIN_WALLET_INTERNAL(l_wallet);
+            snprintf(l_file_name->file_name, sizeof(l_file_name->file_name)  - 1, "%s/%s%s", c_wallets_path, l_wallet_name, ".backup");
+            if ( dap_chain_wallet_save(l_wallet, NULL) ) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create backup wallet file because of internal error");
+                return  -1;
+            }
+            snprintf(l_file_name->file_name, sizeof(l_file_name->file_name)  - 1, "%s/%s%s", c_wallets_path, l_wallet_name, ".dwallet");
             if ( dap_chain_wallet_save(l_wallet, l_pass_str) ) {
-                return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet is not converted because of internal error"), -1;
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet is not converted because of internal error");
+                return  -1;
             }
 
             log_it(L_INFO, "Wallet %s has been converted", l_wallet_name);
