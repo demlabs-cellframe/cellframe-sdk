@@ -319,7 +319,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(dap_chain_net_t *a_ne
     l_order->price_unit.uint32 = a_price_unit.uint32;
 
     if ( a_price_ticker)
-        strncpy(l_order->price_ticker, a_price_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+        strncpy(l_order->price_ticker, a_price_ticker, DAP_CHAIN_TICKER_SIZE_MAX - 1);
     dap_sign_t *l_sign = dap_sign_create(a_key, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size, 0);
     if (!l_sign) {
         DAP_DELETE(l_order);
@@ -346,7 +346,7 @@ char *dap_chain_net_srv_order_save(dap_chain_net_t *a_net, dap_chain_net_srv_ord
     dap_hash_fast(a_order, l_order_size, &l_order_hash);
     char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&l_order_hash);
     char *l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(a_net);
-    if ( dap_global_db_set_sync( l_gdb_group_str,l_order_hash_str, a_order,  l_order_size, true ) != 0) {
+    if ( dap_global_db_set_sync( l_gdb_group_str,l_order_hash_str, a_order,  l_order_size, false ) != 0) {
         DAP_DELETE(l_gdb_group_str);
         return NULL;
     }

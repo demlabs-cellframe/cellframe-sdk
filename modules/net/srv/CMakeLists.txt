@@ -7,11 +7,7 @@ add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NET_SRV_SRCS} ${DAP_CHAIN_NET_SRV
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../../3rdparty/libmaxminddb ${CMAKE_CURRENT_BINARY_DIR}/../../../3rdparty/libmaxminddb)
 
-set(NET_SRV_LIBS maxminddb dap_core dap_crypto dap_chain dap_chain_net dap_chain_wallet)
-if (CELLFRAME_MODULES MATCHES "modules-dynamic")
-    set(NET_SRV_LIBS ${NET_SRV_LIBS} dap_modules_dynamic_cdb)
-endif()
-target_link_libraries(${PROJECT_NAME} ${NET_SRV_LIBS})
+target_link_libraries(${PROJECT_NAME} maxminddb dap_core dap_crypto dap_chain dap_chain_net dap_chain_wallet dap_stream_ch_chain_net_srv)
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)

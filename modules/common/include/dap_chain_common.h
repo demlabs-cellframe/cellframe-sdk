@@ -109,7 +109,7 @@ DAP_STATIC_INLINE int dap_chain_node_addr_from_str(dap_chain_node_addr_t *a_addr
 {
     if (sscanf(a_addr_str, NODE_ADDR_FP_STR, NODE_ADDR_FPS_ARGS(a_addr)) == 4)
         return 0;
-    if (sscanf(a_addr_str, "0x%016"DAP_UINT64_FORMAT_x, &a_addr->uint64) == 1)
+    if (sscanf(a_addr_str, "0x%016" DAP_UINT64_FORMAT_x, &a_addr->uint64) == 1)
         return 0;
     return -1;
 }
@@ -166,10 +166,10 @@ typedef struct dap_chain_addr{
 typedef union {
     uint8_t raw[DAP_CHAIN_NET_SRV_UID_SIZE];
 #if DAP_CHAIN_NET_SRV_UID_SIZE == 8
-    uint64_t raw_ui64[1];
+    uint64_t raw_ui64;
     uint64_t uint64;
 #elif DAP_CHAIN_NET_SRV_UID_SIZE == 16
-    uint64_t raw_ui64[1];
+    uint64_t raw_ui64[2];
     uint128_t uint128;
 #endif
 } dap_chain_net_srv_uid_t;
@@ -259,6 +259,7 @@ int dap_chain_addr_fill_from_key(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key,
 int dap_chain_addr_fill_from_sign(dap_chain_addr_t *a_addr, dap_sign_t *a_sign, dap_chain_net_id_t a_net_id);
 
 int dap_chain_addr_check_sum(const dap_chain_addr_t *a_addr);
+
 DAP_STATIC_INLINE bool dap_chain_addr_compare(const dap_chain_addr_t *a_addr1, const dap_chain_addr_t *a_addr2)
 {
     return !memcmp(a_addr1, a_addr2, sizeof(dap_chain_addr_t));

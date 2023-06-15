@@ -20,7 +20,6 @@
     You should have received a copy of the GNU General Public License
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-#include "dap_chain_net.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_global_db.h"
@@ -99,7 +98,7 @@ void dap_chain_block_chunks_add(dap_chain_block_chunks_t * a_chunks,dap_chain_bl
     }
     // Save to GDB
     //dap_global_db_set(a_chunks->gdb_group, a_block_cache->block_hash_str, a_block_cache->block, a_block_cache->block_size,
-    //                           true, NULL, NULL );
+    //                           false, NULL, NULL );
 
     // And here we select chunk for the new block cache
     bool l_is_chunk_found = false;

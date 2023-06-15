@@ -26,10 +26,8 @@
 #include <stdio.h>
 #include <pthread.h>
 #include "uthash.h"
+#include "dap_chain.h"
 #include "dap_chain_common.h"
-
-typedef struct dap_chain dap_chain_t;
-typedef struct dap_chain_cell dap_chain_cell_t;
 
 typedef struct dap_chain_cell {
     dap_chain_cell_id_t id;

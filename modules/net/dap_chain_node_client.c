@@ -329,6 +329,18 @@ static void s_ch_chain_callback_notify_packet_in2(dap_stream_ch_chain_net_t* a_c
         pthread_mutex_lock(&l_node_client->wait_mutex);
         break;
     }
+    case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY: {
+        if(a_pkt_net_data_size == sizeof(dap_chain_node_addr_t)) {
+            l_node_client->remote_node_addr = *(dap_chain_node_addr_t*)a_pkt_net->data;
+        }
+        pthread_mutex_lock(&l_node_client->wait_mutex);
+        l_node_client->callbacks_arg = DAP_DUP_SIZE(a_pkt_net->data, a_pkt_net_data_size);
+        l_node_client->state = NODE_CLIENT_STATE_VALID_READY;
+        dap_cond_signal(l_node_client->wait_cond);
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
+        break;
+
+    } break;
     default:;
     }
 }

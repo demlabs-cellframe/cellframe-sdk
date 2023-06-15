@@ -91,33 +91,6 @@ void dap_chain_deinit(void)
 
 }
 
-
-/**
- * @brief dap_chain_deinit
- * note: require dap_chain_enum_unlock() after
- */
-dap_chain_t* dap_chain_enum(void** a_item)
-{
-    // if a_item == 0x1 then first item
-    dap_chain_item_t *l_item_start = ( *a_item == (void*) 0x1) ? s_chain_items : (dap_chain_item_t*) *a_item;
-    dap_chain_item_t *l_item = NULL;
-    dap_chain_item_t *l_item_tmp = NULL;
-    pthread_rwlock_rdlock(&s_chain_items_rwlock);
-    HASH_ITER(hh, l_item_start, l_item, l_item_tmp) {
-        *a_item = l_item_tmp;
-        return l_item->chain;
-    }
-    return NULL ;
-}
-
-/**
- * @brief dap_chain_enum_unlock
- */
-void dap_chain_enum_unlock(void)
-{
-    pthread_rwlock_unlock(&s_chain_items_rwlock);
-}
-
 /**
  * @brief 
  * create dap chain object
@@ -138,7 +111,6 @@ dap_chain_t * dap_chain_create(dap_ledger_t* a_ledger, const char * a_chain_net_
     l_ret->net_name = strdup (a_chain_net_name);
     l_ret->ledger = a_ledger;
     pthread_rwlock_init(&l_ret->rwlock, NULL);
-    pthread_rwlock_init(&l_ret->atoms_rwlock,NULL);
     pthread_rwlock_init(&l_ret->cell_rwlock,NULL);
     dap_chain_item_t * l_ret_item = DAP_NEW_Z(dap_chain_item_t);
     l_ret_item->chain = l_ret;
@@ -191,7 +163,6 @@ void dap_chain_delete(dap_chain_t * a_chain)
     a_chain->autoproc_datum_types_count = 0;
     DAP_DELETE(a_chain->autoproc_datum_types);
     pthread_rwlock_destroy(&a_chain->rwlock);
-    pthread_rwlock_destroy(&a_chain->atoms_rwlock);
     pthread_rwlock_destroy(&a_chain->cell_rwlock);
     pthread_rwlock_destroy(&a_chain->rwlock);
     pthread_rwlock_unlock(&s_chain_items_rwlock);
@@ -397,17 +368,14 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                         }
                     }
                 }
-            }
-            l_chain_id.uint64 = l_chain_id_u;
-
-            if (l_chain_id_str)
-                log_it (L_NOTICE, "Chain id 0x%016"DAP_UINT64_FORMAT_x"  ( \"%s\" )", l_chain_id.uint64, l_chain_id_str);
-            else {
-                log_it (L_ERROR,"Wasn't recognized '%s' string as chain net id, hex or dec", l_chain_id_str);
+            } else {
+                log_it (L_ERROR, "Wasn't found chain id string in config");
                 dap_config_close(l_cfg);
                 return NULL;
-
             }
+
+            l_chain_id.uint64 = l_chain_id_u;
+            log_it (L_NOTICE, "Chain id 0x%016"DAP_UINT64_FORMAT_x"  ( \"%s\" )", l_chain_id.uint64, l_chain_id_str);
 
             // Read chain name
             if ( ( l_chain_name = dap_config_get_item_str(l_cfg,"chain","name") ) == NULL )

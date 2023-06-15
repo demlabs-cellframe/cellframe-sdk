@@ -53,7 +53,6 @@ dap_chain_datum_tx_t *dap_chain_ledger_test_create_datum_base_tx(
 	uint256_t l_value_need = a_emi->hdr.value_256;
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
     l_tx->header.ts_created = time(NULL);
-    dap_chain_hash_fast_t l_tx_prev_hash = { 0 };
     dap_chain_tx_in_ems_t *l_in_ems = DAP_NEW_Z(dap_chain_tx_in_ems_t);
     l_in_ems->header.type = TX_ITEM_TYPE_IN_EMS;
     l_in_ems->header.token_emission_chain_id.uint64 = 0;
@@ -97,14 +96,14 @@ void dap_chain_ledger_test_double_spending(
     dap_assert_PIF(l_first_tx, "Can't creating base transaction.");
     dap_chain_hash_fast_t l_first_tx_hash = {0};
     dap_hash_fast(l_first_tx, dap_chain_datum_tx_get_size(l_first_tx), &l_first_tx_hash);
-    dap_assert_PIF(dap_chain_ledger_tx_add(a_ledger, l_first_tx, &l_first_tx_hash, false) == 1, "Can't added first transaction on ledger");
-    uint256_t l_balance = dap_chain_ledger_calc_balance(a_ledger, &l_addr_first, s_token_ticker);
+    dap_assert_PIF(!dap_chain_ledger_tx_add(a_ledger, l_first_tx, &l_first_tx_hash, false), "Can't added first transaction on ledger");
+    //uint256_t l_balance = dap_chain_ledger_calc_balance(a_ledger, &l_addr_first, s_token_ticker);
     // Second tx
     dap_chain_datum_tx_t *l_second_tx = dap_chain_ledger_test_create_tx(a_from_key, a_prev_hash,
                                                                        &l_addr_first, dap_chain_uint256_from(s_standard_value_tx - s_fee));
     dap_chain_hash_fast_t l_second_tx_hash = {0};
     dap_hash_fast(l_second_tx, dap_chain_datum_tx_get_size(l_second_tx), &l_second_tx_hash);
-    dap_assert_PIF(dap_chain_ledger_tx_add(a_ledger, l_second_tx, &l_second_tx_hash, false) != 1, "Added second transaction on ledger");
+    dap_assert_PIF(dap_chain_ledger_tx_add(a_ledger, l_second_tx, &l_second_tx_hash, false), "Added second transaction on ledger");
     dap_pass_msg("The verification test is not able to make two normal transactions per one basic transaction.");
 }
 
@@ -164,7 +163,6 @@ void dap_chain_ledger_test_write_back_list(dap_ledger_t *a_ledger, dap_cert_t *a
     addr_key_container_t *l_addr_3 = gen_addr(a_net_id);
     addr_key_container_t *l_addr_4 = gen_addr(a_net_id);
     //Check white list
-    dap_hash_fast_t l_btx_addr4_hash = {0};
     {
         size_t l_decl_size = 0;
         char *l_token_ticker = "TestWL";
@@ -229,28 +227,27 @@ void dap_chain_ledger_test_write_back_list(dap_ledger_t *a_ledger, dap_cert_t *a
         dap_hash_fast(l_emi_whi, dap_chain_datum_emission_get_size((uint8_t*)l_emi_whi), &l_emi_whi_hash);
         dap_assert_PIF(!dap_chain_ledger_token_emission_add(a_ledger, (byte_t*)l_emi_whi, dap_chain_datum_emission_get_size((byte_t*)l_emi_whi),
                                             &l_emi_whi_hash, false),
-                       "Can't added emission in white address");
+                       "Can't add emission in white address");
         dap_chain_datum_tx_t *l_btx_addr1 = dap_chain_ledger_test_create_datum_base_tx(l_emi_whi, &l_emi_whi_hash,
                                                                                       *l_addr_1->addr, a_cert);
         dap_hash_fast_t l_btx_addr1_hash = {0};
         dap_hash_fast(l_btx_addr1, dap_chain_datum_tx_get_size(l_btx_addr1), &l_btx_addr1_hash);
         int l_ledger_add_code = dap_chain_ledger_tx_add(a_ledger, l_btx_addr1, &l_btx_addr1_hash, false);
-        char *l_ledger_tx_add_str = dap_strdup_printf("Can't added base tx in white address. Code: %d", l_ledger_add_code);
-        dap_assert_PIF(l_ledger_add_code == 1,
-                       l_ledger_tx_add_str);
+        char *l_ledger_tx_add_str = dap_strdup_printf("Can't add base tx in white address. Code: %d", l_ledger_add_code);
+        dap_assert_PIF(!l_ledger_add_code, l_ledger_tx_add_str);
         DAP_DELETE(l_ledger_tx_add_str);
         dap_hash_fast_t l_tx_addr4_hash = {0};
         dap_chain_datum_tx_t *l_tx_to_addr4 = dap_chain_ledger_test_create_tx(l_addr_1->enc_key, &l_btx_addr1_hash,
                                                                               l_addr_4->addr, dap_chain_uint256_from(s_total_supply-s_fee));
         dap_hash_fast(l_tx_to_addr4, dap_chain_datum_tx_get_size(l_tx_to_addr4), &l_tx_addr4_hash);
-        dap_assert_PIF(dap_chain_ledger_tx_add(a_ledger, l_tx_to_addr4, &l_tx_addr4_hash, false) == 1,
-                       "Can't added transaction to address from white list in ledger");
+        dap_assert_PIF(!dap_chain_ledger_tx_add(a_ledger, l_tx_to_addr4, &l_tx_addr4_hash, false),
+                       "Can't add transaction to address from white list in ledger");
         dap_chain_datum_tx_t *l_tx_to_addr3 = dap_chain_ledger_test_create_tx(l_addr_4->enc_key, &l_tx_addr4_hash,
                                                                               l_addr_3->addr, dap_chain_uint256_from(s_total_supply-s_fee));
         dap_hash_fast_t l_tx_addr3_hash = {0};
         dap_hash_fast(l_tx_to_addr3, dap_chain_datum_tx_get_size(l_tx_to_addr3), &l_tx_addr3_hash);
         int res_add_tx = dap_chain_ledger_tx_add(a_ledger, l_tx_to_addr3, &l_tx_addr3_hash, false);
-        if (res_add_tx == 1) {
+        if (!res_add_tx) {
             dap_fail("It was possible to carry out a transaction to a forbidden address");
         } else {
             dap_pass_msg("Transaction to banned address failed.");
@@ -349,8 +346,8 @@ void dap_chain_ledger_test_write_back_list(dap_ledger_t *a_ledger, dap_cert_t *a
                                                                                        *l_addr_2->addr, a_cert);
         dap_hash_fast_t l_btx_addr2_hash = {0};
         dap_hash_fast(l_btx_addr2, dap_chain_datum_tx_get_size(l_btx_addr2), &l_btx_addr2_hash);
-        dap_assert_PIF(dap_chain_ledger_tx_add(a_ledger, l_btx_addr2, &l_btx_addr2_hash, false) == 1,
-                       "Can't added base tx in white address");
+        dap_assert_PIF(!dap_chain_ledger_tx_add(a_ledger, l_btx_addr2, &l_btx_addr2_hash, false),
+                       "Can't add base tx in white address");
         //Check tx in addr from block list
         dap_chain_datum_tx_t *l_tx_to_addr1 = dap_chain_ledger_test_create_tx(l_addr_4->enc_key, &l_btx_addr2_hash,
                                                                               l_addr_1->addr, dap_chain_uint256_from(s_total_supply));
@@ -392,17 +389,18 @@ void dap_chain_ledger_test_run(void){
     dap_chain_datum_token_emission_t *l_emi = dap_chain_datum_emission_create(dap_chain_uint256_from(s_total_supply), s_token_ticker, &l_addr);
     dap_chain_datum_token_emission_t *l_emi_sign = dap_chain_datum_emission_add_sign(l_cert->enc_key, l_emi);
     size_t l_emi_size = dap_chain_datum_emission_get_size((byte_t*)l_emi_sign);
-    int l_emi_check = dap_chain_ledger_token_emission_add_check(l_ledger, (byte_t*)l_emi_sign, l_emi_size);
     dap_chain_hash_fast_t l_emi_hash = {0};
-    dap_assert_PIF(l_emi_check == 0, "check emission for add in ledger");
     dap_hash_fast(l_emi, l_emi_size, &l_emi_hash);
+    int l_emi_check = dap_chain_ledger_token_emission_add_check(l_ledger, (byte_t*)l_emi_sign, l_emi_size, &l_emi_hash);
+    dap_assert_PIF(l_emi_check == 0, "check emission for add in ledger");
     dap_assert_PIF(!dap_chain_ledger_token_emission_add(l_ledger, (byte_t*)l_emi_sign, l_emi_size, &l_emi_hash, false), "Added emission in ledger");
     //first base tx
-    dap_chain_datum_tx_t  *l_base_tx = dap_chain_ledger_test_create_datum_base_tx(l_emi_sign, &l_emi_hash, l_addr, l_cert);
-    dap_assert_PIF(!dap_chain_ledger_tx_add_check(l_ledger, l_base_tx), "Check can added base tx in ledger");
+    dap_chain_datum_tx_t *l_base_tx = dap_chain_ledger_test_create_datum_base_tx(l_emi_sign, &l_emi_hash, l_addr, l_cert);
+    size_t l_base_tx_size = dap_chain_datum_tx_get_size(l_base_tx);
     dap_hash_fast_t l_hash_btx = {0};
-    dap_hash_fast(l_base_tx, dap_chain_datum_tx_get_size(l_base_tx), &l_hash_btx);
-    dap_assert_PIF(dap_chain_ledger_tx_add(l_ledger, l_base_tx, &l_hash_btx, false) == 1, "Added base tx in ledger.");
+    dap_hash_fast(l_base_tx, l_base_tx_size, &l_hash_btx);
+    dap_assert_PIF(!dap_chain_ledger_tx_add_check(l_ledger, l_base_tx, l_base_tx_size, &l_hash_btx), "Check can added base tx in ledger");
+    dap_assert_PIF(!dap_chain_ledger_tx_add(l_ledger, l_base_tx, &l_hash_btx, false), "Added base tx in ledger.");
     uint256_t l_balance_example = dap_chain_uint256_from(s_standard_value_tx);
     uint256_t l_balance = dap_chain_ledger_calc_balance(l_ledger, &l_addr, s_token_ticker);	
 	uint256_t l_fee = dap_chain_uint256_from(s_fee);
@@ -412,12 +410,13 @@ void dap_chain_ledger_test_run(void){
     dap_pass_msg("Validation of the declaration of the tocen, creation of an emission and a basic transaction using this in the ledger.");
     //second base tx
     dap_chain_datum_tx_t  *l_base_tx_second = dap_chain_ledger_test_create_datum_base_tx(l_emi_sign, &l_emi_hash, l_addr, l_cert);
-    if (dap_chain_ledger_tx_add_check(l_ledger, l_base_tx_second)) {
+    size_t l_base_tx_size2 = dap_chain_datum_tx_get_size(l_base_tx_second);
+    dap_hash_fast_t l_hash_btx_second = {0};
+    dap_hash_fast(l_base_tx_second, l_base_tx_size2, &l_hash_btx_second);
+    if (dap_chain_ledger_tx_add_check(l_ledger, l_base_tx_second, l_base_tx_size2, &l_hash_btx_second)) {
         dap_pass_msg("Checking can added second base tx in ledger");
     }
-    dap_hash_fast_t l_hash_btx_second = {0};
-    dap_hash_fast(l_base_tx_second, dap_chain_datum_tx_get_size(l_base_tx_second), &l_hash_btx_second);
-    if (dap_chain_ledger_tx_add(l_ledger, l_base_tx_second, &l_hash_btx_second, false) != 1){
+    if (dap_chain_ledger_tx_add(l_ledger, l_base_tx_second, &l_hash_btx_second, false)){
         dap_pass_msg("Checking for a failure to add a second base transaction for the same issue to the ledger.");
     } else {
         dap_fail("Checking for a failure to add a second base transaction for the same issue to the ledger.");

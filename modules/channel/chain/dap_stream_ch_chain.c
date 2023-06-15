@@ -442,7 +442,7 @@ static bool s_sync_out_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_ar
         l_flags |= F_DB_LOG_SYNC_FROM_ZERO;
     if (l_ch_chain->request_db_log != NULL)
         dap_db_log_list_delete(l_ch_chain->request_db_log);
-    l_ch_chain->request_db_log = dap_db_log_list_start(l_net, l_sync_request->request.node_addr, l_flags);
+    l_ch_chain->request_db_log = dap_db_log_list_start(l_net->pub.name, l_sync_request->request.node_addr.uint64, l_flags);
 
     if (l_ch_chain->request_db_log) {
         if (s_debug_more)
@@ -501,7 +501,7 @@ static bool s_sync_update_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a
         l_flags |= F_DB_LOG_SYNC_FROM_ZERO;
     if (l_ch_chain->request_db_log != NULL)
         dap_db_log_list_delete(l_ch_chain->request_db_log);
-    l_ch_chain->request_db_log = dap_db_log_list_start(l_net, l_sync_request->request.node_addr, l_flags);
+    l_ch_chain->request_db_log = dap_db_log_list_start(l_net->pub.name, l_sync_request->request.node_addr.uint64, l_flags);
     l_ch_chain->state = CHAIN_STATE_UPDATE_GLOBAL_DB;
     l_sync_request->gdb.db_log = l_ch_chain->request_db_log;
     l_sync_request->request.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
@@ -550,14 +550,14 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
         if (s_debug_more){
             log_it(L_WARNING, "Atom with hash %s for %s:%s not accepted (code ATOM_PASS, already present)",  l_atom_hash_str, l_chain->net_name, l_chain->name);
         }
-        dap_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
+        dap_chain_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
         DAP_DELETE(l_atom_copy);
         break;
     case ATOM_MOVE_TO_THRESHOLD:
         if (s_debug_more) {
             log_it(L_INFO, "Thresholded atom with hash %s for %s:%s", l_atom_hash_str, l_chain->net_name, l_chain->name);
         }
-        dap_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
+        dap_chain_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
         break;
     case ATOM_ACCEPT:
         if (s_debug_more) {
@@ -567,7 +567,7 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
         if(l_res < 0) {
             log_it(L_ERROR, "Can't save atom %s to the file", l_atom_hash_str);
         } else {
-            dap_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
+            dap_chain_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
         }
         break;
     case ATOM_REJECT: {
@@ -710,8 +710,11 @@ static void s_gdb_in_pkt_proc_callback_apply(dap_global_db_context_t *a_global_d
         }
     }
     // Do not overwrite pinned records
-    if (l_is_pinned_cur)
+    if (l_is_pinned_cur) {
+        debug_if(s_debug_more, L_WARNING, "Can't %s record from group %s key %s - current record is pinned",
+                                l_obj->type != DAP_DB$K_OPTYPE_DEL ? "remove" : "rewrite", l_obj->group, l_obj->key);
         goto ret;
+    }
     // Deleted time
     dap_nanotime_t l_timestamp_del = dap_global_db_get_del_ts_unsafe(a_global_db_context, l_obj->group, l_obj->key);
     // Limit time
@@ -912,12 +915,13 @@ struct sync_request *dap_stream_ch_chain_create_sync_request(dap_stream_ch_chain
 {
     dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
     struct sync_request *l_sync_request = DAP_NEW_Z(struct sync_request);
-    l_sync_request->ch_uuid = a_ch->uuid;
-    l_sync_request->worker = a_ch->stream_worker->worker;
-    l_sync_request->remote_gdbs = l_ch_chain->remote_gdbs;
-    l_sync_request->remote_atoms = l_ch_chain->remote_atoms;
-    l_sync_request->request_hdr = l_ch_chain->request_hdr = a_chain_pkt->hdr;
-    l_sync_request->request = l_ch_chain->request;
+    *l_sync_request = (struct sync_request) {
+            .worker         = a_ch->stream_worker->worker,
+            .ch_uuid        = a_ch->uuid,
+            .request        = l_ch_chain->request,
+            .request_hdr    = a_chain_pkt->hdr,
+            .remote_atoms   = l_ch_chain->remote_atoms,
+            .remote_gdbs    = l_ch_chain->remote_gdbs };
     return l_sync_request;
 }
 
@@ -1074,6 +1078,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 l_ch_chain->request.id_start = 1;   // incremental sync by default
             struct sync_request *l_sync_request = dap_stream_ch_chain_create_sync_request(l_chain_pkt, a_ch);
             l_ch_chain->stats_request_gdb_processed = 0;
+            l_ch_chain->request_hdr = l_chain_pkt->hdr;
             dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_sync_update_gdb_proc_callback, l_sync_request);
         } break;
 
@@ -1409,6 +1414,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 }
                 struct sync_request *l_sync_request = dap_stream_ch_chain_create_sync_request(l_chain_pkt, a_ch);
                 l_ch_chain->stats_request_atoms_processed = 0;
+                l_ch_chain->request_hdr = l_chain_pkt->hdr;
                 if (l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS) {
                     char l_hash_from_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' }, l_hash_to_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
                     dap_chain_hash_fast_t l_hash_from = l_ch_chain->request.hash_from,

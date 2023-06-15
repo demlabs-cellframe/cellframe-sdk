@@ -147,7 +147,7 @@ int s_decree_verify_tsd(dap_chain_datum_decree_t * a_decree, dap_chain_net_t *a_
     return ret_val;
 }
 
-int dap_chain_net_decree_verify(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, size_t a_data_size, dap_hash_fast_t *a_decree_hash)
+int dap_chain_net_decree_verify(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, size_t a_data_size, dap_chain_hash_fast_t *a_decree_hash)
 {
     if (a_data_size < sizeof(dap_chain_datum_decree_t)) {
         log_it(L_WARNING, "Decree size is too small");
@@ -162,14 +162,10 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t *a_decree, dap_chain_ne
         return -122;
     }
 
-    dap_hash_fast_t l_decree_hash;
-    dap_hash_fast(a_decree, a_data_size, &l_decree_hash);
-    if (a_decree_hash)
-        *a_decree_hash = l_decree_hash;
     struct decree_hh *l_decree_hh = NULL;
-    HASH_FIND(hh, s_decree_hh, &l_decree_hash, sizeof(dap_hash_fast_t), l_decree_hh);
+    HASH_FIND(hh, s_decree_hh, a_decree_hash, sizeof(dap_hash_fast_t), l_decree_hh);
     if (l_decree_hh)
-        return DAP_DECREE_IS_PRESENT;
+        return -123;
 
     dap_chain_datum_decree_t *l_decree = a_decree;
     // Get pkeys sign from decree datum
@@ -183,47 +179,9 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t *a_decree, dap_chain_ne
         return -100;
     }
 
-    // Concate all signs in array
-    uint32_t l_signs_count = 0;
-    size_t l_tsd_offset = dap_sign_get_size(l_signs_block);
-    size_t l_signs_arr_size = 0;
-    dap_sign_t *l_signs_arr = DAP_NEW_Z_SIZE(dap_sign_t, l_tsd_offset);
-    memcpy(l_signs_arr, l_signs_block, l_tsd_offset);
-    l_signs_arr_size += l_tsd_offset;
-    l_signs_count++;
-    while (l_tsd_offset < l_signs_size)
-    {
-        dap_sign_t *cur_sign = (dap_sign_t *)((byte_t*)l_signs_block + l_tsd_offset);
-        size_t l_sign_size = dap_sign_get_size(cur_sign);
-
-        if (l_sign_size > a_decree->header.signs_size)
-        {
-            log_it(L_WARNING,"Sign size greather than decree datum signs size. May be data is corrupted.");
-            DAP_DELETE(l_signs_arr);
-            return -105;
-        }
-
-        dap_sign_t *l_signs_arr_temp = (dap_sign_t *)DAP_REALLOC(l_signs_arr, l_signs_arr_size + l_sign_size);
-
-        if (!l_signs_arr_temp)
-        {
-            log_it(L_WARNING,"Memory allocate fail");
-            DAP_DELETE(l_signs_arr);
-            return -105;
-        }
-
-        l_signs_arr = l_signs_arr_temp;
-        memcpy((byte_t *)l_signs_arr + l_signs_arr_size, cur_sign, l_sign_size);
-
-
-        l_signs_arr_size += l_sign_size;
-        l_tsd_offset += l_sign_size;
-        l_signs_count++;
-    }
-
     // Find unique pkeys in pkeys set from previous step and check that number of signs > min
     size_t l_num_of_unique_signs = 0;
-    dap_sign_t **l_unique_signs = dap_sign_get_unique_signs(l_signs_arr, l_signs_arr_size, &l_num_of_unique_signs);
+    dap_sign_t **l_unique_signs = dap_sign_get_unique_signs(l_signs_block, l_signs_size, &l_num_of_unique_signs);
 
     uint16_t l_min_signs = a_net->pub.decree->min_num_of_owners;
     if (l_num_of_unique_signs < l_min_signs) {
@@ -233,6 +191,8 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t *a_decree, dap_chain_ne
 
     // Verify all keys and its signatures
     uint16_t l_signs_size_for_current_sign = 0, l_signs_verify_counter = 0;
+    l_decree->header.signs_size = 0;
+    size_t l_verify_data_size = l_decree->header.data_size + sizeof(dap_chain_datum_decree_t);
 
     for(size_t i = 0; i < l_num_of_unique_signs; i++)
     {
@@ -240,32 +200,37 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t *a_decree, dap_chain_ne
         if (s_verify_pkey(l_unique_signs[i], a_net))
         {
             // 3. verify sign
-            size_t l_verify_data_size = l_decree->header.data_size + sizeof(dap_chain_datum_decree_t);
-            l_decree->header.signs_size = l_signs_size_for_current_sign;
             if(!dap_sign_verify_all(l_unique_signs[i], l_sign_max_size, l_decree, l_verify_data_size))
             {
                 l_signs_verify_counter++;
             }
+        } else {
+            dap_hash_fast_t l_sign_hash = {0};
+            dap_hash_fast(l_unique_signs[i], l_sign_max_size, &l_sign_hash);
+            char *l_sign_hash_str = dap_hash_fast_to_str_new(&l_sign_hash);
+            log_it(L_WARNING, "Signature [%zu] %s failed public key verification.", i, l_sign_hash_str);
+            DAP_DELETE(l_sign_hash_str);
         }
-            // Each sign change the sign_size field by adding its size after signing. So we need to change this field in header for each sign.
-            l_signs_size_for_current_sign += l_sign_max_size;
+        // Each sign change the sign_size field by adding its size after signing. So we need to change this field in header for each sign.
+        l_signs_size_for_current_sign += l_sign_max_size;
+        l_decree->header.signs_size = l_signs_size_for_current_sign;
     }
 
-    l_decree->header.signs_size = l_signs_size_for_current_sign;
+    l_decree->header.signs_size = l_signs_size;
 
-    DAP_DELETE(l_signs_arr);
+//    DAP_DELETE(l_signs_arr);
     DAP_DELETE(l_unique_signs);
 
     if (l_signs_verify_counter < l_min_signs) {
         log_it(L_WARNING,"Not enough valid signatures, get %hu from %hu", l_signs_verify_counter, l_min_signs);
-        return -106;
+        return -107;
     }
 
     // check tsd-section
     if (s_decree_verify_tsd(a_decree, a_net))
     {
         log_it(L_WARNING,"TSD checking error. Decree verification failed");
-        return -106;
+        return -108;
     }
 
     return 0;
@@ -333,7 +298,7 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
     return ret_val;
 }
 
-int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain)
+int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain, dap_chain_hash_fast_t *a_decree_hash)
 {
     int ret_val = 0;
     if (!a_chain || !a_chain)
@@ -350,15 +315,14 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
         return -108;
     }
 
-    dap_hash_fast_t l_hash = {};
     size_t l_data_size = dap_chain_datum_decree_get_size(a_decree);
 
-    if ((ret_val = dap_chain_net_decree_verify(a_decree, l_net, l_data_size, &l_hash)) != 0) {
+    if ((ret_val = dap_chain_net_decree_verify(a_decree, l_net, l_data_size, a_decree_hash)) != 0) {
         log_it(L_ERROR,"Decree verification failed!");
         return ret_val;
     }
 
-    return dap_chain_net_decree_apply(&l_hash, a_decree, a_chain);
+    return dap_chain_net_decree_apply(a_decree_hash, a_decree, a_chain);
 }
 
 dap_chain_datum_decree_t *dap_chain_net_decree_get_by_hash(dap_hash_fast_t *a_hash, bool *is_applied)
@@ -480,12 +444,13 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
                 log_it(L_WARNING,"Can't get signer node address from decree.");
                 return -105;
             }
-            if(dap_chain_net_srv_stake_verify_key_and_node(&l_addr, &l_node_addr)){
+            if (!a_apply)
+                break;
+            // Check it directly before applying
+            if (dap_chain_net_srv_stake_verify_key_and_node(&l_addr, &l_node_addr)) {
                 log_it(L_WARNING, "Key and node verification error");
                 return -105;
             }
-            if (!a_apply)
-                break;
             dap_chain_net_srv_stake_key_delegate(l_net, &l_addr, &l_hash, l_uint256_buffer, &l_node_addr);
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE:

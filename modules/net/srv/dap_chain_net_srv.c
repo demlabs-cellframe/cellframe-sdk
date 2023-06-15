@@ -80,9 +80,9 @@ static int s_cli_net_srv(int argc, char **argv, char **a_str_reply);
 static void s_load(const char * a_path);
 static void s_load_all(void);
 
-static bool s_pay_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond,
+static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
                                        dap_chain_datum_tx_t *a_tx_in, bool a_owner);
-static bool s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_hash_fast_t *a_tx_out_hash,dap_chain_tx_out_cond_t *a_cond,
+static bool s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
                                        dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 
 /**
@@ -632,8 +632,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
  * @param a_owner
  * @return
  */
-static bool s_fee_verificator_callback(dap_ledger_t *a_ledger, UNUSED_ARG dap_hash_fast_t *a_tx_out_hash,
-                                       UNUSED_ARG dap_chain_tx_out_cond_t *a_cond,
+static bool s_fee_verificator_callback(dap_ledger_t *a_ledger, UNUSED_ARG dap_chain_tx_out_cond_t *a_cond,
                                        dap_chain_datum_tx_t *a_tx_in, UNUSED_ARG bool a_owner)
 {
     dap_chain_net_t *l_net = dap_chain_net_by_name(a_ledger->net_name);
@@ -643,7 +642,12 @@ static bool s_fee_verificator_callback(dap_ledger_t *a_ledger, UNUSED_ARG dap_ha
     DL_FOREACH(l_net->pub.chains, l_chain) {
         if (!l_chain->callback_block_find_by_tx_hash)
             continue;
-        const dap_chain_block_cache_t *l_block_cache = l_chain->callback_block_find_by_tx_hash(l_chain, a_tx_out_hash);
+        dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_IN_COND, 0);
+        if (!l_tx_in_cond)
+            return false;
+        if (dap_hash_fast_is_blank(&l_tx_in_cond->header.tx_prev_hash))
+            return false;
+        const dap_chain_block_cache_t *l_block_cache = l_chain->callback_block_find_by_tx_hash(l_chain, &l_tx_in_cond->header.tx_prev_hash);
         if (!l_block_cache)
             continue;
         dap_sign_t *l_sign_block = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
@@ -667,11 +671,10 @@ static bool s_fee_verificator_callback(dap_ledger_t *a_ledger, UNUSED_ARG dap_ha
  * @param a_owner
  * @return
  */
-static bool s_pay_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond,
+static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
                                        dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
     UNUSED(a_ledger);
-    UNUSED(a_tx_out_hash);
     if (!a_owner)
         return false;
     dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)
@@ -835,7 +838,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
         pthread_mutex_init(&l_srv->banlist_mutex, NULL);
         l_sdata = DAP_NEW_Z(service_list_t);
         l_sdata->uid = l_uid;
-        strncpy(l_sdata->name, a_config_section, sizeof(l_sdata->name));
+        strncpy(l_sdata->name, a_config_section, sizeof(l_sdata->name) - 1);
         l_sdata->srv = l_srv;
         dap_chain_net_srv_parse_pricelist(l_srv, a_config_section);
         HASH_ADD(hh, s_srv_list, uid, sizeof(l_srv->uid), l_sdata);

@@ -10,8 +10,11 @@
 #include "dap_client_pvt.h"
 #include "dap_proc_queue.h"
 #include "dap_chain_node_cli.h"
+#include "dap_chain_cs_blocks.h"
 
 #define LOG_TAG "dap_stream_ch_chain_voting"
+
+#define PKT_SIGN_N_HDR_OVERHEAD (15 * 1024)
 
 struct voting_pkt_in_callback {
     void * arg;
@@ -142,8 +145,11 @@ static void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         return;
 
     size_t l_voting_pkt_size = l_ch_pkt->hdr.data_size;
-    if (!l_voting_pkt_size || l_voting_pkt_size > UINT16_MAX)
+    if (!l_voting_pkt_size || l_voting_pkt_size < sizeof(dap_stream_ch_chain_voting_pkt_t) ||
+            l_voting_pkt_size > DAP_CHAIN_CS_BLOCKS_MAX_BLOCK_SIZE + PKT_SIGN_N_HDR_OVERHEAD) {
+        log_it(L_ERROR, "Invalid packet size %zu, drop this packet", l_voting_pkt_size);
         return;
+    }
 
     dap_stream_ch_chain_voting_pkt_t *l_voting_pkt = (dap_stream_ch_chain_voting_pkt_t *)l_ch_pkt->data;
     dap_proc_queue_add_callback(a_ch->stream_worker->worker, s_callback_pkt_in_call_all,

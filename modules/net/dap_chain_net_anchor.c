@@ -38,7 +38,7 @@ static bool s_verify_pubkeys(dap_sign_t *a_sign, dap_sign_t **a_decree_signs, si
 static inline dap_sign_t *s_concate_all_signs_in_array(dap_sign_t *a_in_signs, size_t a_signs_size, size_t *a_sings_count, size_t *a_signs_arr_size);
 
 // Public functions
-int dap_chain_net_anchor_verify(dap_chain_datum_anchor_t * a_anchor, size_t a_data_size)
+int dap_chain_net_anchor_verify(dap_chain_datum_anchor_t *a_anchor, size_t a_data_size)
 {
     if (a_data_size < sizeof(dap_chain_datum_anchor_t)) {
         log_it(L_WARNING, "Anchor size is too small");

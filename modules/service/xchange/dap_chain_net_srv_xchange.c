@@ -54,7 +54,7 @@ static dap_chain_net_srv_fee_item_t *s_service_fees = NULL; // Governance statem
 static pthread_rwlock_t s_service_fees_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
 static void s_callback_decree (dap_chain_net_srv_t * a_srv, dap_chain_net_t *a_net, dap_chain_t * a_chain, dap_chain_datum_decree_t * a_decree, size_t a_decree_size);
-static bool s_xchange_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash,  dap_chain_tx_out_cond_t *a_cond,
+static bool s_xchange_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
                             dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 const dap_chain_net_srv_uid_t c_dap_chain_net_srv_xchange_uid = {.uint64= DAP_CHAIN_NET_SRV_XCHANGE_ID};
 
@@ -155,16 +155,21 @@ void dap_chain_net_srv_xchange_deinit()
  * @param a_owner
  * @return
  */
-static bool s_xchange_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash,  dap_chain_tx_out_cond_t *a_tx_out_cond,
+static bool s_xchange_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_tx_out_cond,
                                            dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
     return true;//for tests
     if (a_owner)
         return true;
-    if(!a_tx_out_hash || !a_tx_in || !a_tx_out_cond)
+    if(!a_tx_in || !a_tx_out_cond)
         return false;
 
-    const char *l_sell_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger,a_tx_out_hash);
+    dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_IN_COND, 0);
+    if (!l_tx_in_cond)
+        return false;
+    if (dap_hash_fast_is_blank(&l_tx_in_cond->header.tx_prev_hash))
+        return false;
+    const char *l_sell_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_tx_in_cond->header.tx_prev_hash);
     if (!l_sell_ticker)
         return false;
     const char *l_buy_ticker = a_tx_out_cond->subtype.srv_xchange.buy_token;
@@ -482,7 +487,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         return NULL;
     }
     const char *l_native_ticker = a_price->net->pub.native_ticker;
-    const char *l_service_ticker;
+    const char *l_service_ticker = NULL;
     bool l_pay_with_native = !dap_strcmp(a_price->token_buy, l_native_ticker);
     // find the transactions from which to take away coins
     uint256_t l_value_transfer, // how many coins to transfer
@@ -1543,7 +1548,7 @@ dap_chain_hash_fast_t l_tx_first_hash = {0};
 dap_chain_datum_tx_t    *l_datum_tx;
 size_t  l_datum_tx_size, l_tx_total, l_tx_count;
 int l_item_idx;
-bool l_rc;
+bool l_rc = false;
 dap_string_t *l_reply_str;
 dap_hash_fast_t l_hash;
 dap_chain_tx_out_cond_t *l_out_cond_item;
@@ -2117,7 +2122,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 
                                 // Print tx_hash
                                 char * l_tx_hash_str = dap_chain_hash_fast_to_str_new(l_tx_hash);
-                                dap_string_append_printf(l_reply_str,"Tx hash: %s\n", l_tx_hash_str);
+                                dap_string_append_printf(l_reply_str,"Tx hash: %s\n", l_tx_hash_str ? l_tx_hash_str : "(null)");
                                 DAP_DEL_Z(l_tx_hash_str);
 
                                 // Print tx_created

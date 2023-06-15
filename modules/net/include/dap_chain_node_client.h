@@ -48,6 +48,7 @@ typedef enum dap_chain_node_client_state {
     NODE_CLIENT_STATE_SYNC_CHAINS_RVRS = 112,
     NODE_CLIENT_STATE_SYNCED = 120,
     NODE_CLIENT_STATE_CHECKED = 130,
+    NODE_CLIENT_STATE_VALID_READY = 140,
 } dap_chain_node_client_state_t;
 
 typedef enum dap_chain_node_sync_status {
@@ -146,6 +147,10 @@ dap_chain_node_client_t *dap_chain_node_client_create(dap_chain_net_t *a_net, da
                                                       const dap_chain_node_client_callbacks_t *a_callbacks, void *a_callback_arg);
 
 bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const char *a_active_channels);
+
+void dap_chain_node_client_added_gdb(dap_chain_node_client_t *a_node_client);
+
+void dap_chain_node_client_link_remove_gdb(dap_chain_node_client_t *a_node_client);
 
 /**
  * Create handshake to server

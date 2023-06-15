@@ -159,13 +159,6 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_fee(uint256_t a
 json_object *dap_chain_datum_tx_item_out_cond_fee_to_json(dap_chain_tx_out_cond_t *a_fee);
 
 /**
- * Create item dap_chain_tx_out_cond_t with fee stake subtype
- *
- * return item, NULL Error
- */
-dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_fee_stake(uint256_t a_value);
-
-/**
  * Create item dap_chain_tx_out_cond_t
  *
  * return item, NULL Error
@@ -200,9 +193,9 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
 json_object *dap_chain_datum_tx_item_out_cond_srv_stake_to_json(dap_chain_tx_out_cond_t* a_srv_stake);
 
 // Create cond out
-dap_chain_tx_out_cond_t	*dap_chain_net_srv_stake_lock_create_cond_out(dap_pkey_t *a_key, dap_chain_net_srv_uid_t a_srv_uid,
-                                                                      uint256_t a_value, uint64_t a_time_staking,
-                                                                      uint256_t a_reinvest_percent, bool create_base_tx);
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(dap_chain_net_srv_uid_t a_srv_uid,
+                                                                                  uint256_t a_value, uint64_t a_time_staking,
+                                                                                  uint256_t a_reinvest_percent);
 
 json_object *dap_chain_net_srv_stake_lock_cond_out_to_json(dap_chain_tx_out_cond_t *a_stake_lock);
 

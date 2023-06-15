@@ -29,7 +29,7 @@
 #ifdef DAP_TPS_TEST
 #define DAP_CHAIN_CS_BLOCKS_MAX_BLOCK_SIZE (100 * 1024 * 1024)
 #else
-#define DAP_CHAIN_CS_BLOCKS_MAX_BLOCK_SIZE (48 * 1024) //(1 * 1024 * 1024)    // 1 Mb
+#define DAP_CHAIN_CS_BLOCKS_MAX_BLOCK_SIZE (256 * 1024) // 256 KB
 #endif
 
 typedef struct dap_chain_cs_blocks dap_chain_cs_blocks_t;

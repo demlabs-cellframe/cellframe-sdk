@@ -11,7 +11,7 @@ set(DAPSDK_MODULES "")
 if(NOT DEFINED CELLFRAME_MODULES)
     include (cmake/OS_Detection.cmake)
 
-    set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-esbocs cs-none srv-app srv-app-db srv-datum srv-stake-pos-delegate srv-stake-lock srv-xchange")
+    set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-esbocs cs-none srv-app srv-app-db srv-datum srv-stake srv-xchange")
 
     if(LINUX OR DARWIN)
         set(CELLFRAME_MODULES "${CELLFRAME_MODULES} srv-vpn")
@@ -36,6 +36,8 @@ else()
     #    message("[!] INT128 ENABLED")
     #    add_definitions(-DDAP_DISABLE_INT128=FALSE)
 endif(NOT DAP_INT128_SUPPORT)
+
+#set(BUILD_CELLFRAME_SDK_TESTS ON)
 
 if (BUILD_CELLFRAME_SDK_TESTS)
     enable_testing()
@@ -210,18 +212,9 @@ if (CELLFRAME_MODULES MATCHES "srv-xchange")
 endif()
 
 # Enable service of stake token
-if (CELLFRAME_MODULES MATCHES "srv-stake-lock")
-    message("[+] Module 'srv-stake-lock'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake_lock)
-endif()
-
-# Enable service of delegated stake
-if (CELLFRAME_MODULES MATCHES "srv-stake-pos-delegate")
-    message("[+] Module 'srv-stake-pos-delegate'")
-    #add TARGET_FILE for proper symbols resolving
-    #pos_delegate depends on symbols from this libs
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake_pos_delegate $<TARGET_FILE:dap_chain_cs_dag_poa> $<TARGET_FILE:dap_chain_cs_block_poa> $<TARGET_FILE:dap_chain_cs_dag> $<TARGET_FILE:dap_chain_cs_blocks>)
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} crc32c_adler)
+if (CELLFRAME_MODULES MATCHES "srv-stake")
+    message("[+] Module 'srv-stake'")
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_chain_net_srv_stake)
 endif()
 
 # Enable service for dynamic modules

@@ -23,6 +23,7 @@
     along with any DapChain SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
+#include "dap_net.h"
 #include "dap_events.h"
 #include "dap_timerfd.h"
 #include "dap_chain_node_dns_server.h"
@@ -190,7 +191,10 @@ int dap_chain_node_info_dns_request(dap_worker_t *a_worker, struct in_addr a_add
                            dap_dns_client_node_info_request_success_callback_t a_callback_success,
                            dap_dns_client_node_info_request_error_callback_t a_callback_error,void * a_callbacks_arg)
 {
-    log_it(L_INFO, "DNS request for bootstrap nodelist  %s : %d, net %s", inet_ntoa(a_addr), a_port, a_name);
+    char l_addr_str[INET_ADDRSTRLEN] = {};
+    inet_ntop(AF_INET, &a_addr, l_addr_str, INET_ADDRSTRLEN);
+
+    log_it(L_INFO, "DNS request for bootstrap nodelist  %s : %d, net %s", l_addr_str, a_port, a_name);
 
     struct dns_client * l_dns_client = DAP_NEW_Z(struct dns_client);
     if(!l_dns_client)

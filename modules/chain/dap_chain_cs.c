@@ -22,15 +22,11 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include <string.h>
-#include <stdio.h>
-
+#include "dap_common.h"
 #include "uthash.h"
 #include "utlist.h"
-
 #include "dap_chain_cs.h"
 #include "dap_chain_pvt.h"
-#include "dap_common.h"
 
 #define LOG_TAG "dap_chain_cs"
 

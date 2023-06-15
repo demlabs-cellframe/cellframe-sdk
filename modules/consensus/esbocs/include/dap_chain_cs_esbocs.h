@@ -6,14 +6,16 @@
 #include "dap_chain_cs_blocks.h"
 #include "dap_cert.h"
 
-#define DAP_STREAM_CH_VOTING_MSG_TYPE_SUBMIT          0x04
-#define DAP_STREAM_CH_VOTING_MSG_TYPE_APPROVE         0x08
-#define DAP_STREAM_CH_VOTING_MSG_TYPE_REJECT          0x12
-#define DAP_STREAM_CH_VOTING_MSG_TYPE_COMMIT_SIGN     0x16
-//#define DAP_STREAM_CH_VOTING_MSG_TYPE_VOTE            0x20
-//#define DAP_STREAM_CH_VOTING_MSG_TYPE_VOTE_FOR        0x24
-#define DAP_STREAM_CH_VOTING_MSG_TYPE_PRE_COMMIT      0x28
-#define DAP_STREAM_CH_VOTING_MSG_TYPE_START_SYNC      0x32
+#define DAP_CHAIN_ESBOCS_PROTOCOL_VERSION           4
+
+#define DAP_STREAM_CH_VOTING_MSG_TYPE_SUBMIT        0x04
+#define DAP_STREAM_CH_VOTING_MSG_TYPE_APPROVE       0x08
+#define DAP_STREAM_CH_VOTING_MSG_TYPE_REJECT        0x12
+#define DAP_STREAM_CH_VOTING_MSG_TYPE_COMMIT_SIGN   0x16
+//#define DAP_STREAM_CH_VOTING_MSG_TYPE_VOTE          0x20
+//#define DAP_STREAM_CH_VOTING_MSG_TYPE_VOTE_FOR      0x24
+#define DAP_STREAM_CH_VOTING_MSG_TYPE_PRE_COMMIT    0x28
+#define DAP_STREAM_CH_VOTING_MSG_TYPE_START_SYNC    0x32
 
 #define DAP_CHAIN_BLOCKS_SESSION_ROUND_ID_SIZE		8
 #define DAP_CHAIN_BLOCKS_SESSION_MESSAGE_ID_SIZE	8
@@ -30,8 +32,7 @@ typedef struct dap_chain_esbocs_session dap_chain_esbocs_session_t;
 • PreCommit(round, candidate, final_hash) — a preliminary commitment to a block candidate *** candidate with signs hash in data section
 */
 typedef struct dap_chain_esbocs_message_hdr {
-    uint8_t version;
-    uint8_t padding;
+    uint16_t version;
     uint8_t type;
     uint8_t attempt_num;
     uint64_t round_id;
@@ -99,6 +100,7 @@ typedef struct dap_chain_esbocs_round {
     uint16_t validators_synced_count;
     dap_list_t *validators_list;
     uint64_t sync_attempt;
+    bool sync_sent;
 } dap_chain_esbocs_round_t;
 
 typedef struct dap_chain_esbocs_validator {
