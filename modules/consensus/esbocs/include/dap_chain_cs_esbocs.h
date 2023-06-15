@@ -6,7 +6,7 @@
 #include "dap_chain_cs_blocks.h"
 #include "dap_cert.h"
 
-#define DAP_CHAIN_ESBOCS_PROTOCOL_VERSION           4
+#define DAP_CHAIN_ESBOCS_PROTOCOL_VERSION           5
 
 #define DAP_STREAM_CH_VOTING_MSG_TYPE_SUBMIT        0x04
 #define DAP_STREAM_CH_VOTING_MSG_TYPE_APPROVE       0x08
