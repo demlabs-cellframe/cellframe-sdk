@@ -1831,7 +1831,7 @@ int com_help(int a_argc, char **a_argv, char **a_str_reply)
 int com_tx_wallet(int a_argc, char **a_argv, char **a_str_reply)
 {
 const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
-enum { CMD_NONE, CMD_WALLET_NEW, CMD_WALLET_LIST, CMD_WALLET_INFO, CMD_WALLET_ACTIVATE, CMD_WALLET_DEACTIVATE };
+enum { CMD_NONE, CMD_WALLET_NEW, CMD_WALLET_LIST, CMD_WALLET_INFO, CMD_WALLET_ACTIVATE, CMD_WALLET_DEACTIVATE, CMD_WALLET_CONVERT };
 int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 char    l_buf[1024];
 
@@ -1847,6 +1847,8 @@ char    l_buf[1024];
         cmd_num = CMD_WALLET_ACTIVATE;
     else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "deactivate", NULL))
         cmd_num = CMD_WALLET_DEACTIVATE;
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "convert", NULL))
+        cmd_num = CMD_WALLET_CONVERT;
 
     l_arg_index++;
 
@@ -2132,6 +2134,37 @@ char    l_buf[1024];
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet not found");
                 return -1;
             }
+        }
+        break;
+
+        // convert wallet
+        case CMD_WALLET_CONVERT: {
+            dap_chain_wallet_t *l_wallet = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-password", &l_pass_str);
+
+            if(!l_wallet_name) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet name option <-w>  not defined");
+                return -1;
+            }
+
+            if(!l_pass_str) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet password option <-password>  not defined");
+                return -1;
+            }
+
+            l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
+            if (!l_wallet) {
+                return  dap_cli_server_cmd_set_reply_text(a_str_reply, "wrong password"), -1;
+            } else if (l_wallet->flags & DAP_WALLET$M_FL_ACTIVE) {
+                return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet can't be converted twice"), -1;
+            }
+            if ( dap_chain_wallet_save(l_wallet, l_pass_str) ) {
+                return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet is not converted because of internal error"), -1;
+            }
+
+            log_it(L_INFO, "Wallet %s has been converted", l_wallet_name);
+            dap_string_append_printf(l_l_string_ret, "Wallet: %s successfully converted\n", l_wallet_name);
+            dap_chain_wallet_close(l_wallet);
         }
         break;
     }
