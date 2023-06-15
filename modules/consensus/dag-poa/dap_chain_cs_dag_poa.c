@@ -413,6 +413,11 @@ static void s_poa_round_check_callback_round_clean(dap_global_db_context_t *a_gl
                 continue;
             }
             dap_chain_cs_dag_event_round_item_t *l_event_round_item = (dap_chain_cs_dag_event_round_item_t *)a_values[i].value;
+            if (!l_event_round_item) {
+                            log_it(L_WARNING, "DAG-PoA: Empty event in current round, key %s ! Removing it...", a_values[i].key);
+                            dap_global_db_del_unsafe(a_global_db_context, a_group, a_values[i].key);
+                            continue;
+                        }
             uint64_t l_time_diff = dap_nanotime_now() - l_event_round_item->round_info.ts_update;
             uint64_t l_timeuot = dap_nanotime_from_sec(l_poa_pvt->confirmations_timeout + l_poa_pvt->wait_sync_before_complete + 10);
             uint64_t l_round_id = ((dap_chain_cs_dag_event_t *)l_event_round_item->event_n_signs)->header.round_id;

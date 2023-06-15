@@ -3036,7 +3036,6 @@ int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply)
             if (l_chain->callback_add_datums(l_chain, &l_datum, 1) == 0) {
                 dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications, examine node log files");
                 ret = -6;
->>>>>>> origin/release-5.2
             } else {
                 dap_string_append_printf(l_str_tmp, "Datum processed well. ");
                 if (dap_global_db_del_sync(l_datum_hash_hex_str, l_gdb_group_mempool)){
