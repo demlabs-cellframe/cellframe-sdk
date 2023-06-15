@@ -33,12 +33,13 @@
 #define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID 0x13
 
 typedef struct dap_chain_net_srv_stake_item {
+    bool is_active;
     dap_chain_net_t *net;
     uint256_t value;
     dap_chain_addr_t signing_addr;
     dap_chain_hash_fast_t tx_hash;
     dap_chain_node_addr_t node_addr;
-    UT_hash_handle hh,ht;
+    UT_hash_handle hh, ht;
 } dap_chain_net_srv_stake_item_t;
 
 
