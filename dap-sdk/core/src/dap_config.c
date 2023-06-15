@@ -62,8 +62,8 @@ int dap_config_init(const char * a_configs_path)
             return -1;
         }
 #endif
-        log_it(L_ERROR, "Dap dir test %s : %d", a_configs_path, dap_dir_test(a_configs_path));
-        log_it(L_ERROR, "Dap mkdir test %s : %d", a_configs_path, dap_mkdir_with_parents(a_configs_path));
+        //log_it(L_ERROR, "Dap dir test %s : %d", a_configs_path, dap_dir_test(a_configs_path));
+        //log_it(L_ERROR, "Dap mkdir test %s : %d", a_configs_path, dap_mkdir_with_parents(a_configs_path));
         
         if(dap_dir_test(a_configs_path) || !dap_mkdir_with_parents(a_configs_path)) {
             strncpy(s_configs_path, a_configs_path,sizeof(s_configs_path)-1);
