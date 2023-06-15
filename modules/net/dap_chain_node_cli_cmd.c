@@ -3385,21 +3385,23 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, char **
     //Added new certs
     dap_cert_t **l_new_certs = NULL;
     size_t l_new_certs_count = 0;
-    dap_cert_parse_str_list(l_new_certs_str, &l_new_certs, &l_new_certs_count);
-    for (size_t i=0; i < l_new_certs_count; i++){
-        dap_pkey_t *l_pkey = dap_cert_to_pkey(l_new_certs[i]);
-        if (!l_pkey) {
-            log_it(L_ERROR, "Can't get pkey for cert: %s", l_new_certs[i]->name);
-            continue;
+    if (l_new_certs_str) {
+        dap_cert_parse_str_list(l_new_certs_str, &l_new_certs, &l_new_certs_count);
+        for (size_t i = 0; i < l_new_certs_count; i++) {
+            dap_pkey_t *l_pkey = dap_cert_to_pkey(l_new_certs[i]);
+            if (!l_pkey) {
+                log_it(L_ERROR, "Can't get pkey for cert: %s", l_new_certs[i]->name);
+                continue;
+            }
+            size_t l_pkey_size = sizeof(dap_pkey_t) + l_pkey->header.size;
+            dap_tsd_t *l_pkey_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD, l_pkey, l_pkey_size);
+            size_t l_pkey_tsd_size = dap_tsd_size(l_pkey_tsd);
+            l_tsd_list = dap_list_append(l_tsd_list, l_pkey_tsd);
+            l_tsd_total_size += l_pkey_tsd_size;
+            DAP_DELETE(l_pkey);
         }
-        size_t l_pkey_size = sizeof(dap_pkey_t) + l_pkey->header.size;
-        dap_tsd_t *l_pkey_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD, l_pkey, l_pkey_size);
-        size_t l_pkey_tsd_size = dap_tsd_size(l_pkey_tsd);
-        l_tsd_list = dap_list_append(l_tsd_list, l_pkey_tsd);
-        l_tsd_total_size += l_pkey_tsd_size;
-        DAP_DELETE(l_pkey);
+        DAP_DEL_Z(l_new_certs);
     }
-    DAP_DEL_Z(l_new_certs);
     size_t l_tsd_offset = 0;
     a_params->ext.parsed_tsd = DAP_NEW_SIZE(byte_t, l_tsd_total_size);
     for (dap_list_t *l_iter = dap_list_first(l_tsd_list); l_iter; l_iter = l_iter->next) {
