@@ -407,9 +407,13 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
             break;
         }
         /* No need for bare copying, resend it back modified */
+        log_it(L_DEBUG, "DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_REQUEST");
         if (l_request->data_size_recv) {
             l_request->data_size = l_request->data_size_recv;
-            randombytes(l_request->data, l_request->data_size);
+//            randombytes(l_request->data, l_request->data_size);
+            for (uint64_t i = 0; i < l_request->data_size; i++){
+                l_request->data[i] = (uint8_t)rand();
+            }
             dap_hash_fast(l_request->data, l_request->data_size, &l_request->data_hash);
         }
         l_request->err_code = 0;
