@@ -729,7 +729,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
 int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
 {
     enum {
-        CMD_NONE, CMD_NAME_CELL, CMD_ADD, CMD_FLUSH, CMD_RECORD, CMD_WRITE, CMD_READ, CMD_DELETE
+        CMD_NONE, CMD_NAME_CELL, CMD_ADD, CMD_FLUSH, CMD_RECORD, CMD_WRITE, CMD_READ, CMD_DELETE, CMD_DROP, CMD_GET_KEYS
     };
     int arg_index = 1;
     int cmd_name = CMD_NONE;
@@ -746,6 +746,10 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
                 cmd_name = CMD_READ;
     else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "delete", NULL))
                 cmd_name = CMD_DELETE;
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "drop_table", NULL))
+                cmd_name = CMD_DROP;
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "get_keys", NULL))
+                cmd_name = CMD_GET_KEYS;
     switch (cmd_name) {
     case CMD_NAME_CELL:
     {
@@ -976,8 +980,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
             }
 
             if(!l_key_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s requires parameter 'key' to be valid", a_argv[0]);
-                return -122;
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "No key provided, the entire table %s will be read", l_group_str);
             }
 
             size_t l_out_len = 0;
@@ -1006,8 +1009,26 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
                 }
 
                 if(!l_key_str) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s requires parameter 'key' to be valid", a_argv[0]);
-                    return -121;
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "No key provided, entire table %s will be altered", l_group_str);
+                    size_t l_objs_count = 0;
+                    dap_global_db_obj_t* l_obj = dap_global_db_get_all_sync(l_group_str, &l_objs_count);
+
+                    if (!l_obj || !l_objs_count)
+                    {
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "No data in group %s.", l_group_str);
+                        return -124;
+                    }
+                    size_t i, j = 0;
+                    for (i = 0; i < l_objs_count; ++i) {
+                        if (!l_obj[i].key)
+                            continue;
+                        if (dap_global_db_del(l_obj[i].key, l_group_str, NULL, NULL)) {
+                            ++j;
+                        }
+                    }
+                    dap_global_db_objs_delete(l_obj, l_objs_count);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Removed %lu of %lu records in table %s", j, i, l_group_str);
+                    return 0;
                 }
 
                 if (dap_global_db_del(l_group_str, l_key_str, NULL, NULL)) {
@@ -1018,6 +1039,25 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
                     return -122;
                 }
             }
+        case CMD_DROP:
+            {
+                const char *l_group_str = NULL;
+                dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-group", &l_group_str);
+                if(!l_group_str) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s requires parameter 'group' to be valid", a_argv[0]);
+                    return -120;
+                }
+                if (dap_global_db_del(NULL, l_group_str,NULL,NULL))
+                {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Dropped table %s", l_group_str);
+                    return 0;
+                } else {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Failed to drop table %s", l_group_str);
+                    return -122;
+                }
+                return 0;
+            }
+
     default:
         dap_cli_server_cmd_set_reply_text(a_str_reply, "parameters are not valid");
         return -1;

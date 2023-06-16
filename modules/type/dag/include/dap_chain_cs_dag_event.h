@@ -136,7 +136,7 @@ static inline ssize_t dap_chain_cs_dag_event_calc_size_excl_signs(dap_chain_cs_d
 {
     if (a_event_size < sizeof(a_event->header))
         return -1;
-    size_t l_hashes_size = a_event->header.hash_count*sizeof(dap_chain_hash_fast_t);
+    size_t l_hashes_size = a_event->header.hash_count * sizeof(dap_chain_hash_fast_t);
     if (l_hashes_size > a_event_size)
         return -1;
     dap_chain_datum_t * l_datum = (dap_chain_datum_t*) (a_event->hashes_n_datum_n_signs + l_hashes_size);

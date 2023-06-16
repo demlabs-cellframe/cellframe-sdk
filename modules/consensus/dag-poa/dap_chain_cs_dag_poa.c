@@ -611,6 +611,8 @@ static void s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
  * @param a_callback_arg
  * @return
  */
+#undef DAP_CHAIN_POA_ROUND_FILTER_MEM_SIZE
+
 static bool s_callback_round_event_to_chain(struct round_timer_arg *a_callback_arg)
 {
     dap_chain_cs_dag_t * l_dag = a_callback_arg->dag;
