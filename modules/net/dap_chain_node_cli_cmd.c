@@ -2045,6 +2045,8 @@ char    l_buf[1024];
                             dap_chain_wallet_close(l_wallet);
 
                         } else dap_string_append_printf(l_l_string_ret, "Wallet: %.*s (non-Active)\n", (int) l_file_name_len - 8, l_file_name);
+                    } else if ((l_file_name_len > 7) && (!strcmp(l_file_name + l_file_name_len - 7, ".backup"))) {
+                        dap_string_append_printf(l_l_string_ret, "Wallet: %.*s (Backup)\n", (int) l_file_name_len - 7, l_file_name);
                     }
                 }
                 closedir(l_dir);
@@ -2163,7 +2165,11 @@ char    l_buf[1024];
             }
             // create wallet backup
             dap_chain_wallet_internal_t* l_file_name = DAP_CHAIN_WALLET_INTERNAL(l_wallet);
-            snprintf(l_file_name->file_name, sizeof(l_file_name->file_name)  - 1, "%s/%s%s", c_wallets_path, l_wallet_name, ".backup");
+            time_t rawtime;  // add timestamp to filename
+            char l_timestamp[16];
+            time(&rawtime);
+            strftime(l_timestamp,16,"%G%m%d%H%M%S", localtime (&rawtime));
+            snprintf(l_file_name->file_name, sizeof(l_file_name->file_name)  - 1, "%s/%s_%s%s", c_wallets_path, l_wallet_name, l_timestamp,".backup");
             if ( dap_chain_wallet_save(l_wallet, NULL) ) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create backup wallet file because of internal error");
                 return  -1;
