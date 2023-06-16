@@ -213,7 +213,7 @@ bool s_dap_app_cli_cmd_contains_forbidden_symbol(const char * a_cmd_param){
  *
  * return 0 if OK, else error code
  */
-int dap_app_cli_post_command( dap_app_cli_connect_param_t *a_socket, dap_app_cli_cmd_state_t *a_cmd )
+int dap_app_cli_post_command( dap_app_cli_connect_param_t *a_socket, dap_app_cli_cmd_state_t *a_cmd, char **a_res)
 {
     if(!a_socket || !a_cmd || !a_cmd->cmd_name) {
         assert(0);
@@ -263,6 +263,8 @@ int dap_app_cli_post_command( dap_app_cli_connect_param_t *a_socket, dap_app_cli
             //long l_err_code = strtol(l_str[0], NULL, 10);
             l_str_reply = l_str[1];
         }
+        if (a_res)
+            *a_res = dap_strdup(l_str_reply);
         printf("%s\n", (l_str_reply) ? l_str_reply : "no response");
         dap_strfreev(l_str);
     }

@@ -94,6 +94,7 @@ if(ANDROID AND "${CMAKE_HOST_SYSTEM}" MATCHES ".*Windows.*")
                                           -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
                                           -DANDROID_NATIVE_API_LEVEL=29
                                           -DANDROID_ABI=arm64-v8a
+                                          -DANDROID_PLATFORM=${ANDROID_PLATFORM}
                                           -DCMAKE_TOOLCHAIN_FILE=D:/android-sdk/ndk/21.4.7075529/build/cmake/android.toolchain.cmake
                                           -DCMAKE_MAKE_PROGRAM=D:/android-sdk/cmake/3.22.1/bin/ninja.exe
                                           -G=Ninja)
