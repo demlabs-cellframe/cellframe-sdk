@@ -2033,7 +2033,7 @@ char    l_buf[1024];
                             dap_chain_addr_t *l_addr = l_net? dap_chain_wallet_get_addr(l_wallet, l_net->pub.id) : NULL;
                             char *l_addr_str = dap_chain_addr_to_str(l_addr);
 
-                            dap_string_append_printf(l_l_string_ret, "Wallet: %s%s\n", l_wallet->name,
+                            dap_string_append_printf(l_l_string_ret, "Wallet: %.*s%s\n", (int) l_file_name_len - 8, l_file_name,
                                 (l_wallet->flags & DAP_WALLET$M_FL_ACTIVE) ? " (Active)" : "");
 
                             if (l_addr_str)
@@ -2168,6 +2168,7 @@ char    l_buf[1024];
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create backup wallet file because of internal error");
                 return  -1;
             }
+            // change to old filename
             snprintf(l_file_name->file_name, sizeof(l_file_name->file_name)  - 1, "%s/%s%s", c_wallets_path, l_wallet_name, ".dwallet");
             if ( dap_chain_wallet_save(l_wallet, l_pass_str) ) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet is not converted because of internal error");
