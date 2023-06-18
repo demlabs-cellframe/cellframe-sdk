@@ -220,9 +220,10 @@ static void s_event_broadcast_from_context(dap_global_db_context_t *a_context, v
 static bool s_event_broadcast_send(dap_chain_cs_dag_event_round_broadcast_t *a_arg)
 {
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_arg->dag->chain->net_id);
-    if (dap_chain_net_get_state(l_net) != NET_STATE_SYNC_GDB)
-        dap_global_db_context_exec(s_event_broadcast_from_context, a_arg);
-    else if (a_arg->attempts++ < 10)
+    if (dap_chain_net_get_state(l_net) != NET_STATE_SYNC_GDB) {
+        dap_global_db_callback_arg_uid l_arg_uid = dap_global_db_save_callback_data(a_arg);
+        dap_global_db_context_exec(s_event_broadcast_from_context, l_arg_uid);
+    } else if (a_arg->attempts++ < 10)
         return true;
     return false;
 }
@@ -277,7 +278,7 @@ bool dap_chain_cs_dag_event_gdb_set(dap_chain_cs_dag_t *a_dag, char *a_event_has
 
     size_t l_round_item_size = dap_chain_cs_dag_event_round_item_get_size(l_round_item);
     bool ret = dap_global_db_set(a_dag->gdb_group_events_round_new, a_event_hash_str, l_round_item,
-                                 l_round_item_size, false, NULL, NULL) == 0;
+                                 l_round_item_size, false, NULL, 0) == 0;
     DAP_DELETE(l_round_item);
     return ret;
 }

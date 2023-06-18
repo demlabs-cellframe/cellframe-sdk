@@ -953,7 +953,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
                 return -122;
             }
 
-            if (dap_global_db_set(l_group_str, l_key_str, l_value_str, strlen(l_value_str), false, NULL, NULL)) {
+            if (dap_global_db_set(l_group_str, l_key_str, l_value_str, strlen(l_value_str), false, NULL, 0)) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Data has been successfully written to the database");
                 return 0;
             } else {
@@ -1010,7 +1010,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
                     return -121;
                 }
 
-                if (dap_global_db_del(l_group_str, l_key_str, NULL, NULL)) {
+                if (dap_global_db_del(l_group_str, l_key_str, NULL, 0)) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Record with key %s in group %s was deleted successfuly", l_key_str, l_group_str);
                     return 0;
                 } else {
@@ -5038,7 +5038,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
     char *l_gdb_group_mempool_base_tx = dap_chain_net_get_gdb_group_mempool_new(l_chain);// get group name for mempool
     char *l_tx_hash_str;
     dap_get_data_hash_str_static(l_datum_tx->data, l_datum_tx->header.data_size, l_tx_hash_str);
-    bool l_placed = !dap_global_db_set(l_gdb_group_mempool_base_tx,l_tx_hash_str, l_datum_tx, l_datum_tx_size, false, NULL, NULL);
+    bool l_placed = !dap_global_db_set(l_gdb_group_mempool_base_tx,l_tx_hash_str, l_datum_tx, l_datum_tx_size, false, NULL, 0);
 
     DAP_DELETE(l_datum_tx);
     DAP_DELETE(l_gdb_group_mempool_base_tx);

@@ -56,7 +56,7 @@ bool dap_chain_db_set_last_hash_remote(uint64_t a_node_addr, dap_chain_t *a_chai
     char l_key[DAP_GLOBAL_DB_KEY_MAX];
 
     snprintf(l_key, sizeof(l_key) - 1, "%"DAP_UINT64_FORMAT_U"%s%s", a_node_addr, a_chain->net_name, a_chain->name);
-    return dap_global_db_set(GROUP_LOCAL_NODE_LAST_ID, l_key, a_hash, sizeof(dap_chain_hash_fast_t), false, NULL, NULL ) == 0;
+    return dap_global_db_set(GROUP_LOCAL_NODE_LAST_ID, l_key, a_hash, sizeof(dap_chain_hash_fast_t), false, NULL, 0) == 0;
 }
 
 /**

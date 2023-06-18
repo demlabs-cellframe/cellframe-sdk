@@ -85,7 +85,7 @@ void dap_chain_mempool_rpc_handler_list(dap_json_rpc_params_t *a_params,
         if (!l_datum->header.data_size || (l_datum->header.data_size > l_objs[i].value_len)) {
             log_it(L_ERROR, "Trash datum in GDB %s.%s, key: %s data_size:%u, value_len:%zu",
                    l_net->pub.name, l_chain->name, l_objs[i].key, l_datum->header.data_size, l_objs[i].value_len);
-            dap_global_db_del(l_objs[i].key, l_gdb_group_mempool, NULL, NULL);
+            dap_global_db_del(l_objs[i].key, l_gdb_group_mempool, NULL, 0);
             continue;
         }
 

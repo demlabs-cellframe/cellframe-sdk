@@ -566,7 +566,8 @@ static void s_save_stat_to_database_callback_get_last_stat (dap_global_db_contex
     }
 
     char *l_key_str = dap_strdup_printf("%06"DAP_UINT64_FORMAT_x, ++l_key);
-    dap_global_db_set(a_group, l_key_str, l_json_str, strlen(l_json_str) + 1,false, s_save_stat_to_database_callback_set_stat, l_json_str);
+    dap_global_db_callback_arg_uid l_arg_uid = dap_global_db_save_callback_data(l_json_str);
+    dap_global_db_set(a_group, l_key_str, l_json_str, strlen(l_json_str) + 1,false, s_save_stat_to_database_callback_set_stat, l_arg_uid);
 
     DAP_DELETE(l_key_str);
 
@@ -608,8 +609,8 @@ static int s_save_stat_to_database(dap_stream_ch_chain_net_srv_pkt_test_t *a_req
         l_group = dap_strdup_printf("local.%s.orders-test-stat", l_net->pub.gdb_groups_prefix);
     }
     if(l_group) {
-        dap_global_db_get_last( l_group, s_save_stat_to_database_callback_get_last_stat,
-                                dap_strdup(l_json_str));
+        dap_global_db_callback_arg_uid l_arg_uid = dap_global_db_save_callback_data(dap_strdup(l_json_str));
+        dap_global_db_get_last(l_group, s_save_stat_to_database_callback_get_last_stat, l_arg_uid);
         DAP_DELETE(l_group);
     }
     else

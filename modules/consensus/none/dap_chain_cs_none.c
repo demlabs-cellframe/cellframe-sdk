@@ -326,9 +326,12 @@ static void s_chain_gdb_ledger_load(dap_chain_t *a_chain)
     l_gdb_pvt->is_load_mode = true;
     //  Read the entire database into an array of size bytes
     pthread_mutex_lock(&l_gdb_pvt->load_mutex);
-    dap_global_db_get_all(l_gdb_pvt->group_datums, 0, s_ledger_load_callback, a_chain);
-    while (l_gdb_pvt->is_load_mode)
+    dap_global_db_callback_arg_uid l_arg_uid = dap_global_db_save_callback_data(a_chain);
+    dap_global_db_get_all(l_gdb_pvt->group_datums, 0, s_ledger_load_callback, l_arg_uid);
+    while (l_gdb_pvt->is_load_mode) {
         pthread_cond_wait(&l_gdb_pvt->load_cond, &l_gdb_pvt->load_mutex);
+        dap_global_db_remove_callback_data(l_arg_uid);
+    }
     pthread_mutex_unlock(&l_gdb_pvt->load_mutex);
 }
 
@@ -373,7 +376,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     dap_hash_fast(l_datum->data,l_datum->header.data_size,&l_hash_item->datum_data_hash );
     dap_chain_hash_fast_to_str(&l_hash_item->datum_data_hash, l_hash_item->key, sizeof(l_hash_item->key));
     if (!l_gdb_priv->is_load_mode) {
-        dap_global_db_set(l_gdb_priv->group_datums, l_hash_item->key, l_datum, l_datum_size, false, NULL, NULL);
+        dap_global_db_set(l_gdb_priv->group_datums, l_hash_item->key, l_datum, l_datum_size, false, NULL, 0);
     } else
         log_it(L_DEBUG,"Load mode, doesn't save item %s:%s", l_hash_item->key, l_gdb_priv->group_datums);
     DL_APPEND(l_gdb_priv->hash_items, l_hash_item);

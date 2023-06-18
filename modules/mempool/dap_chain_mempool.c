@@ -115,7 +115,7 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
     }
 
     char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
-    int l_res = dap_global_db_set(l_gdb_group, l_key_str, a_datum, dap_chain_datum_size(a_datum), false, NULL, NULL);
+    int l_res = dap_global_db_set(l_gdb_group, l_key_str, a_datum, dap_chain_datum_size(a_datum), false, NULL, 0);
     if (l_res == DAP_GLOBAL_DB_RC_SUCCESS)
         log_it(L_NOTICE, "Datum %s with hash %s was placed in mempool group %s", l_type_str, l_key_str, l_gdb_group);
     else
@@ -562,7 +562,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
     dap_list_free_full(l_list_used_out, free);
 
     char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
-    dap_global_db_set_multiple_zc(l_gdb_group, l_objs, a_tx_num, s_tx_create_massive_gdb_save_callback, NULL);
+    dap_global_db_set_multiple_zc(l_gdb_group, l_objs, a_tx_num, s_tx_create_massive_gdb_save_callback, 0);
     DAP_DELETE(l_gdb_group);
     return 0;
 }

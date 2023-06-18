@@ -313,7 +313,8 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     byte_t *l_current_round = dap_global_db_get_sync(l_dag->gdb_group_events_round_new, DAG_ROUND_CURRENT_KEY, NULL, NULL, NULL);
     l_dag->round_current = l_current_round ? *(uint64_t*)l_current_round : 0;
     DAP_DELETE(l_current_round);
-    dap_global_db_get_all_raw(l_dag->gdb_group_events_round_new, 0, 0, s_dag_rounds_events_iter, l_dag);
+    dap_global_db_callback_arg_uid l_arg_uid = dap_global_db_save_callback_data(l_dag);
+    dap_global_db_get_all_raw(l_dag->gdb_group_events_round_new, 0, 0, s_dag_rounds_events_iter, l_arg_uid);
     PVT(l_dag)->mempool_timer = dap_interval_timer_create(15000, s_timer_process_callback, a_chain);
     PVT(l_dag)->events_treshold = NULL;
     PVT(l_dag)->events_treshold_conflicted = NULL;
@@ -709,7 +710,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
     }
 
     dap_global_db_set(l_dag->gdb_group_events_round_new, DAG_ROUND_CURRENT_KEY,
-                      &l_round_current, sizeof(uint64_t), false, NULL, NULL);
+                      &l_round_current, sizeof(uint64_t), false, NULL, 0);
     dap_chain_cs_dag_event_round_item_t l_round_item = { .round_info.datum_hash = l_datum_hash };
     char *l_event_hash_str;
     dap_get_data_hash_str_static(l_event, l_event_size, l_event_hash_str);

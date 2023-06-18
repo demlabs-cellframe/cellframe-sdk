@@ -276,7 +276,7 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
                 if (dap_chain_node_mempool_process(a_chain, l_datum, l_objs[i].key)) {
                     // Delete processed objects
                     log_it(L_INFO, " ! Delete datum %s from mempool", l_objs[i].key);
-                    dap_global_db_del(l_gdb_group_mempool, l_objs[i].key, NULL, NULL);
+                    dap_global_db_del(l_gdb_group_mempool, l_objs[i].key, NULL, 0);
                 } else {
                     log_it(L_INFO, " ! Datum %s remains in mempool", l_objs[i].key);
                 }
@@ -343,10 +343,10 @@ bool	l_ret;
     snprintf(l_key, sizeof(l_key) - 1, "cur_node_addr_%s", a_net_name);
 
     if ( (l_ret = dap_global_db_set(DAP_GLOBAL_DB_LOCAL_GENERAL, l_key, &a_address, sizeof(a_address),
-                                    true, NULL, NULL)) == 0 ) {
+                                    true, NULL, 0)) == 0 ) {
         snprintf(l_key, sizeof(l_key) - 1, "cur_node_addr_%s_time", a_net_name);
         l_ret = dap_global_db_set(DAP_GLOBAL_DB_LOCAL_GENERAL, l_key, &a_expire_time, sizeof(time_t),
-                                   true, NULL, NULL) == DAP_GLOBAL_DB_RC_SUCCESS;
+                                   true, NULL, 0) == DAP_GLOBAL_DB_RC_SUCCESS;
     }
 
     return l_ret;

@@ -1139,13 +1139,13 @@ static void s_check_db_callback_fee_collect (dap_global_db_context_t *a_global_d
             if(l_hash_tx)
             {
                 log_it(L_NOTICE, "Fee collect transaction successfully created, hash=%s\n",l_hash_tx);
-                dap_global_db_del(block_fee_group, NULL, NULL, NULL);
+                dap_global_db_del(block_fee_group, NULL, NULL, 0);
                 DAP_DELETE(l_hash_tx);
             }
         }
         else
         {
-            res = dap_global_db_set(block_fee_group,l_block_cache->block_hash_str,&l_value_out_block,sizeof(uint256_t),false,NULL,NULL);
+            res = dap_global_db_set(block_fee_group,l_block_cache->block_hash_str,&l_value_out_block,sizeof(uint256_t),false,NULL, 0);
             if(res)
                 log_it(L_WARNING, "Unable to write data to database");
             else
@@ -1169,14 +1169,14 @@ static void s_check_db_callback_fee_collect (dap_global_db_context_t *a_global_d
                                                  l_block_list, l_arg->value_fee, "hex");
             if(l_hash_tx)
             {
-                dap_global_db_del(block_fee_group, NULL, NULL, NULL);
+                dap_global_db_del(block_fee_group, NULL, NULL, 0);
                 log_it(L_NOTICE, "Fee collect transaction successfully created, hash=%s\n",l_hash_tx);
                 DAP_DELETE(l_hash_tx);
             }
         }
         else
         {
-            res = dap_global_db_set(block_fee_group,l_block_cache->block_hash_str,&l_value_out_block,sizeof(uint256_t),false,NULL,NULL);
+            res = dap_global_db_set(block_fee_group,l_block_cache->block_hash_str,&l_value_out_block,sizeof(uint256_t),false,NULL, 0);
             if(res)
                 log_it(L_WARNING, "Unable to write data to database");
             else
@@ -1259,8 +1259,9 @@ static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_ch
         tmp->value_fee = PVT(a_session->esbocs)->minimum_fee;
         tmp->fee_need_cfg = PVT(a_session->esbocs)->fee_coll_set;
         tmp->key_from = a_session->blocks_sign_key;
+        dap_global_db_callback_arg_uid l_arg_uid = dap_global_db_save_callback_data(tmp);
 
-        dap_global_db_get_all(block_fee_group,0,s_check_db_callback_fee_collect,tmp);
+        dap_global_db_get_all(block_fee_group,0,s_check_db_callback_fee_collect, l_arg_uid);
     }
 }
 

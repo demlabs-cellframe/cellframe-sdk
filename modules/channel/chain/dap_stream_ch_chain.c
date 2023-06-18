@@ -756,7 +756,8 @@ static void s_gdb_in_pkt_proc_callback_apply(dap_global_db_context_t *a_global_d
                     (dap_chain_datum_t** restrict) &l_store_obj_value, 1);
     } else {
         // save data to global_db
-        if (dap_global_db_set_raw(l_obj, 1, s_gdb_in_pkt_proc_set_raw_callback, l_sync_request) != 0)
+        dap_global_db_callback_arg_uid l_arg_uid = dap_global_db_save_callback_data(l_sync_request);
+        if (dap_global_db_set_raw(l_obj, 1, s_gdb_in_pkt_proc_set_raw_callback, l_arg_uid) != 0)
             log_it(L_ERROR, "Can't send save GlobalDB request");
         else // do not delete it here
             l_sync_request = NULL;
@@ -861,7 +862,8 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             l_apply_args->obj = dap_store_obj_copy(l_obj, 1);
             l_apply_args->limit_time = l_limit_time;
             l_apply_args->sync_request = DAP_DUP(l_sync_request);
-            dap_global_db_context_exec(s_gdb_in_pkt_proc_callback_apply, l_apply_args);
+            dap_global_db_callback_arg_uid l_arg_uid = dap_global_db_save_callback_data(l_apply_args);
+            dap_global_db_context_exec(s_gdb_in_pkt_proc_callback_apply, l_arg_uid);
         }
         if (l_store_obj)
             dap_store_obj_free(l_store_obj, l_data_obj_count);

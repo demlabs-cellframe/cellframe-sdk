@@ -2381,7 +2381,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
                     // save pub key
                     if(l_pub_key_data && l_pub_key_data_size > 0)
                         dap_global_db_set(GROUP_LOCAL_NODE_ADDR, l_addr_key, l_pub_key_data, l_pub_key_data_size, false,
-                                            NULL, NULL);
+                                            NULL, 0);
                 }
             }
             // generate addr from pub_key
