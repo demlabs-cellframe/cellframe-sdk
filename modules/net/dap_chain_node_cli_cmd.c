@@ -67,6 +67,7 @@
 #include "dap_file_utils.h"
 #include "dap_enc_base58.h"
 #include "dap_chain_wallet.h"
+#include "dap_chain_wallet_internal.h"
 #include "dap_chain_node.h"
 #include "dap_global_db.h"
 #include "dap_global_db_driver.h"
@@ -1831,7 +1832,7 @@ int com_help(int a_argc, char **a_argv, char **a_str_reply)
 int com_tx_wallet(int a_argc, char **a_argv, char **a_str_reply)
 {
 const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
-enum { CMD_NONE, CMD_WALLET_NEW, CMD_WALLET_LIST, CMD_WALLET_INFO, CMD_WALLET_ACTIVATE, CMD_WALLET_DEACTIVATE };
+enum { CMD_NONE, CMD_WALLET_NEW, CMD_WALLET_LIST, CMD_WALLET_INFO, CMD_WALLET_ACTIVATE, CMD_WALLET_DEACTIVATE, CMD_WALLET_CONVERT };
 int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 char    l_buf[1024];
 
@@ -1847,6 +1848,8 @@ char    l_buf[1024];
         cmd_num = CMD_WALLET_ACTIVATE;
     else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "deactivate", NULL))
         cmd_num = CMD_WALLET_DEACTIVATE;
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "convert", NULL))
+        cmd_num = CMD_WALLET_CONVERT;
 
     l_arg_index++;
 
@@ -2030,7 +2033,7 @@ char    l_buf[1024];
                             dap_chain_addr_t *l_addr = l_net? dap_chain_wallet_get_addr(l_wallet, l_net->pub.id) : NULL;
                             char *l_addr_str = dap_chain_addr_to_str(l_addr);
 
-                            dap_string_append_printf(l_l_string_ret, "Wallet: %s%s\n", l_wallet->name,
+                            dap_string_append_printf(l_l_string_ret, "Wallet: %.*s%s\n", (int) l_file_name_len - 8, l_file_name,
                                 (l_wallet->flags & DAP_WALLET$M_FL_ACTIVE) ? " (Active)" : "");
 
                             if (l_addr_str)
@@ -2042,6 +2045,8 @@ char    l_buf[1024];
                             dap_chain_wallet_close(l_wallet);
 
                         } else dap_string_append_printf(l_l_string_ret, "Wallet: %.*s (non-Active)\n", (int) l_file_name_len - 8, l_file_name);
+                    } else if ((l_file_name_len > 7) && (!strcmp(l_file_name + l_file_name_len - 7, ".backup"))) {
+                        dap_string_append_printf(l_l_string_ret, "Wallet: %.*s (Backup)\n", (int) l_file_name_len - 7, l_file_name);
                     }
                 }
                 closedir(l_dir);
@@ -2132,6 +2137,53 @@ char    l_buf[1024];
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet not found");
                 return -1;
             }
+        }
+        break;
+
+        // convert wallet
+        case CMD_WALLET_CONVERT: {
+            dap_chain_wallet_t *l_wallet = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-password", &l_pass_str);
+
+            if(!l_wallet_name) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet name option <-w>  not defined");
+                return -EINVAL;
+            }
+
+            if(!l_pass_str) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet password option <-password>  not defined");
+                return -EINVAL;
+            }
+
+            l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
+            if (!l_wallet) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "wrong password");
+                return -1;
+            } else if (l_wallet->flags & DAP_WALLET$M_FL_ACTIVE) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet can't be converted twice");
+                return  -1;
+            }
+            // create wallet backup
+            dap_chain_wallet_internal_t* l_file_name = DAP_CHAIN_WALLET_INTERNAL(l_wallet);
+            time_t rawtime;  // add timestamp to filename
+            char l_timestamp[16];
+            time(&rawtime);
+            strftime(l_timestamp,16,"%G%m%d%H%M%S", localtime (&rawtime));
+            snprintf(l_file_name->file_name, sizeof(l_file_name->file_name)  - 1, "%s/%s_%s%s", c_wallets_path, l_wallet_name, l_timestamp,".backup");
+            if ( dap_chain_wallet_save(l_wallet, NULL) ) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create backup wallet file because of internal error");
+                return  -1;
+            }
+            // change to old filename
+            snprintf(l_file_name->file_name, sizeof(l_file_name->file_name)  - 1, "%s/%s%s", c_wallets_path, l_wallet_name, ".dwallet");
+            if ( dap_chain_wallet_save(l_wallet, l_pass_str) ) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet is not converted because of internal error");
+                return  -1;
+            }
+
+            log_it(L_INFO, "Wallet %s has been converted", l_wallet_name);
+            dap_string_append_printf(l_l_string_ret, "Wallet: %s successfully converted\n", l_wallet_name);
+            dap_chain_wallet_close(l_wallet);
         }
         break;
     }

@@ -609,7 +609,7 @@ if ( a_pass )
         .signature  = DAP_CHAIN_WALLETS_FILE_SIGNATURE,
         .version    = a_pass ? DAP_WALLET$K_VER_2 : DAP_WALLET$K_VER_1,
         .type       = a_pass ? DAP_WALLET$K_TYPE_GOST89 : DAP_WALLET$K_TYPE_PLAIN,
-        .wallet_len = strnlen(l_cp, DAP_WALLET$SZ_NAME) + 1
+        .wallet_len = strnlen(l_cp, DAP_WALLET$SZ_NAME)
     };
 
     iovec_t l_iov[] = {
