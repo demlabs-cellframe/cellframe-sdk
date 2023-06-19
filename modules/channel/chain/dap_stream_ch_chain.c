@@ -397,24 +397,23 @@ static void s_sync_out_gdb_last_worker_callback(dap_worker_t *a_worker, void *a_
     struct sync_request * l_sync_request = (struct sync_request *) a_arg;
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(DAP_STREAM_WORKER(a_worker), l_sync_request->ch_uuid);
     if( l_ch == NULL ){
-        log_it(L_INFO,"Client disconnected before we sent the reply");
+        log_it(L_INFO, "[stm_ch:%p] Client disconnected before we sent the reply", l_ch);
         s_sync_request_delete(l_sync_request);
         return;
     }
 
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN( l_ch );
-    s_sync_out_gdb_first_worker_callback(NULL,a_arg); // NULL to say callback not to delete request
-
-    if (s_debug_more )
-        log_it(L_INFO,"Out: DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB");
+    s_sync_out_gdb_first_worker_callback(a_worker,a_arg); // NULL to say callback not to delete request
+    l_ch_chain->request_db_log = l_sync_request->gdb.db_log;
+    debug_if (s_debug_more, L_INFO,"[stm_ch_chain:%p] Out: DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB", l_ch_chain);
     dap_stream_ch_chain_pkt_write_unsafe(DAP_STREAM_CH(l_ch_chain), DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB,
                                          l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64,
                                          l_ch_chain->request_hdr.cell_id.uint64, NULL, 0);
     s_ch_chain_go_idle(l_ch_chain);
+
     if(l_ch_chain->callback_notify_packet_out)
         l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB,
                                                 NULL, 0, l_ch_chain->callback_notify_arg);
-    s_sync_request_delete(l_sync_request);
 }
 
 /**

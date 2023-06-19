@@ -1036,12 +1036,12 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
     size_t l_token_size = a_token_size;
 
     switch (a_token->type) {
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE:
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_DECL:
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_UPDATE:
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_DECL:
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_UPDATE:
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PUBLIC:
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE:
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL:
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE:
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL:
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE:
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC:
             l_token = dap_chain_datum_token_read((byte_t *) a_token, &l_token_size);
             break;
         default:
@@ -1181,7 +1181,7 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
     s_threshold_emissions_proc(a_ledger); //TODO process thresholds only for no-consensus chains
     if (PVT(a_ledger)->cached)
         s_ledger_token_cache_update(a_ledger, l_token_item);
-    if (a_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE)
+    if (a_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE)
         DAP_DELETE(l_token);
     return 0;
 }

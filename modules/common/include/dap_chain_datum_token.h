@@ -148,17 +148,17 @@ typedef struct dap_chain_datum_token_tsd_delegate_from_stake_lock {
 
 // 256
 // Simple private token decl
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE               0x0005
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE                   0x0005
 // Extended declaration of privatetoken with in-time control
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_DECL         0x0006
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL             0x0006
 // Token update
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_UPDATE       0x0007
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE           0x0007
 // Open token with now ownership
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PUBLIC               0x0008
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC                   0x0008
 // Native token type
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_DECL          0x0009
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL              0x0009
 // Token update
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_UPDATE        0x000A
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE            0x000A
 // Open token with now ownership
 
 // New datum types with versioning and subtypes.
@@ -416,12 +416,12 @@ DAP_STATIC_INLINE int dap_chain_datum_token_get_delegated_ticker(char *a_buf, co
 
 DAP_STATIC_INLINE bool dap_chain_datum_token_is_old(uint8_t a_type)
 {
-    return a_type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE
-           || a_type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_DECL
-           || a_type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_UPDATE
-           || a_type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_DECL
-           || a_type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_UPDATE
-           || a_type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PUBLIC;
+    return a_type == DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE
+           || a_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL
+           || a_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE
+           || a_type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL
+           || a_type == DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE
+           || a_type == DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC;
 }
 
 /*                              Token emission section                          */
