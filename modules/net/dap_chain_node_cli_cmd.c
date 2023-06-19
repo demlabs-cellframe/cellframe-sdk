@@ -2755,7 +2755,9 @@ int com_mempool_list(int argc, char ** argv, char ** a_str_reply)
 
     const char * l_hash_out_type = "hex";
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-H", &l_hash_out_type);
-    dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, argc, argv, a_str_reply, &l_chain, &l_net);
+    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, argc, argv, a_str_reply, &l_chain, &l_net)){
+        return -1;
+    }
     dap_chain_node_cli_find_option_val(argv, arg_index, argc, "-addr", &l_addr_base58);
     l_fast = (dap_chain_node_cli_check_option(argv, arg_index, argc, "-fast") != -1) ? true : false;
     if(!l_net)
