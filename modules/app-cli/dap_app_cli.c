@@ -211,7 +211,14 @@ int dap_app_cli_main(const char * a_app_name, const char * a_socket_path, int a_
             cmd.cmd_param = (char**) (a_argv + 2);
         // Send command
         char *l_out_str = NULL;
-        int res = dap_app_cli_post_command(cparam, &cmd, &l_out_str);
+        int res = dap_app_cli_post_command(cparam, &cmd,
+#ifdef __ANDROID__
+                                           &l_out_str
+#else
+                                           NULL
+#endif
+
+                                           );
         dap_app_cli_disconnect(cparam);
 #ifdef _WIN32
         WSACleanup();
