@@ -164,7 +164,7 @@ dap_app_cli_connect_param_t* dap_app_cli_connect(const char *a_socket_path)
     // connect
     int l_addr_len;
 #if defined(__WIN32)
-    struct sockaddr_in l_remote_addr;// = {
+    struct sockaddr_in l_remote_addr = {
         .sin_family = AF_INET, .sin_port = htons(l_cli_port), .sin_addr = {{ .S_addr = htonl(INADDR_LOOPBACK) }}
     };
     l_addr_len = sizeof(struct sockaddr_in);
