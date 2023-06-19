@@ -126,7 +126,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "wallet new -w <wallet_name> [-sign <sign_type>] [-restore <hex_value>] [-net <net_name>] [-force] [-password <password>] [-restore <hash>]\n"
                             "wallet info {-addr <addr> | -w <wallet_name>} -net <net_name>\n"
                             "wallet activate -w <wallet_name> -password <password> [-ttl <password_ttl_in_minutes>]\n"
-                            "wallet deactivate -w <wallet_name> -password <password>\n");
+                            "wallet deactivate -w <wallet_name> -password <password>\n"
+                            "wallet convert -w <wallet_name> -password <password>\n");
 
 
     // Token commands
@@ -224,6 +225,12 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "\t -tx_sender_blocked <value>:\t Set allowed tx sender(s)\n"
             "\n"
             );
+
+    dap_cli_server_cmd_add("token_update_sign", com_token_decl_sign, "Token update add sign and new sign",
+                                        "token_update_sign -net <net_name> -chain <chain_name> -datum <datum_hash> -certs <certs list> -new_certs <certs list>\n"
+                                        "\t Sign existent <datum hash> in mempool with <certs list>\n"
+    );
+    // Token commands
 
     dap_cli_server_cmd_add ("token_decl_sign", com_token_decl_sign, "Token declaration add sign",
             "token_decl_sign -net <net_name> -chain <chain_name> -datum <datum_hash> -certs <certs list>\n"

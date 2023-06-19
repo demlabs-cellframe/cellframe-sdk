@@ -609,7 +609,7 @@ if ( a_pass )
         .signature  = DAP_CHAIN_WALLETS_FILE_SIGNATURE,
         .version    = a_pass ? DAP_WALLET$K_VER_2 : DAP_WALLET$K_VER_1,
         .type       = a_pass ? DAP_WALLET$K_TYPE_GOST89 : DAP_WALLET$K_TYPE_PLAIN,
-        .wallet_len = strnlen(l_cp, DAP_WALLET$SZ_NAME) + 1
+        .wallet_len = strnlen(l_cp, DAP_WALLET$SZ_NAME)
     };
 
     iovec_t l_iov[] = {
@@ -836,7 +836,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     assert(l_wallet_internal);
 
     snprintf(l_wallet->name, DAP_WALLET$SZ_NAME, "%.*s", l_file_hdr.wallet_len, l_wallet_name);
-    strncpy(l_wallet_internal->file_name, a_file_name, sizeof(l_wallet_internal->file_name) );
+    strncpy(l_wallet_internal->file_name, a_file_name, sizeof(l_wallet_internal->file_name) - 1);
 
     l_wallet_internal->certs_count = l_certs_count;
     assert(l_wallet_internal->certs_count);

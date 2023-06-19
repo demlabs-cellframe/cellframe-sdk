@@ -6,13 +6,13 @@
 #include "dap_chain_cs_blocks.h"
 #include "dap_cert.h"
 
-#define DAP_CHAIN_ESBOCS_PROTOCOL_VERSION           4
+#define DAP_CHAIN_ESBOCS_PROTOCOL_VERSION           5
 
 #define DAP_STREAM_CH_VOTING_MSG_TYPE_SUBMIT        0x04
 #define DAP_STREAM_CH_VOTING_MSG_TYPE_APPROVE       0x08
 #define DAP_STREAM_CH_VOTING_MSG_TYPE_REJECT        0x12
 #define DAP_STREAM_CH_VOTING_MSG_TYPE_COMMIT_SIGN   0x16
-//#define DAP_STREAM_CH_VOTING_MSG_TYPE_VOTE          0x20
+#define DAP_STREAM_CH_VOTING_MSG_TYPE_VOTE          0x20
 //#define DAP_STREAM_CH_VOTING_MSG_TYPE_VOTE_FOR      0x24
 #define DAP_STREAM_CH_VOTING_MSG_TYPE_PRE_COMMIT    0x28
 #define DAP_STREAM_CH_VOTING_MSG_TYPE_START_SYNC    0x32
@@ -101,6 +101,7 @@ typedef struct dap_chain_esbocs_round {
     dap_list_t *validators_list;
     uint64_t sync_attempt;
     bool sync_sent;
+    uint16_t total_validators_count;
 } dap_chain_esbocs_round_t;
 
 typedef struct dap_chain_esbocs_validator {

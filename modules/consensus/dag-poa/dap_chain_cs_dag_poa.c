@@ -456,9 +456,25 @@ enum dap_chain_poa_round_filter_stage {
     DAP_CHAIN_POA_ROUND_FILTER_STAGE_START,
     DAP_CHAIN_POA_ROUND_FILTER_STAGE_SIGNS,
     DAP_CHAIN_POA_ROUND_FILTER_STAGE_TS,
-    DAP_CHAIN_POA_ROUND_FILTER_STAGE_HASH,
+    DAP_CHAIN_POA_ROUND_FILTER_STAGE_MEM,
     DAP_CHAIN_POA_ROUND_FILTER_STAGE_MAX
 };
+
+#define DAP_CHAIN_POA_ROUND_FILTER_MEM_SIZE 1024
+
+static void s_event_get_unique_mem_region(dap_chain_cs_dag_event_round_item_t *a_round_item, byte_t *a_mem_region)
+{
+    memset(a_mem_region, 0, DAP_CHAIN_POA_ROUND_FILTER_MEM_SIZE);
+    dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t *)a_round_item->event_n_signs;
+    for (int n = 0; n < l_event->header.signs_count; n++) {
+        dap_sign_t *l_sign = dap_chain_cs_dag_event_get_sign(l_event, a_round_item->event_size, n);
+        size_t l_sign_size = 0;
+        byte_t *l_sign_mem = dap_sign_get_sign(l_sign, &l_sign_size);
+        size_t l_mem_size = MIN(l_sign_size, DAP_CHAIN_POA_ROUND_FILTER_MEM_SIZE);
+        for (size_t i = 0; i < l_mem_size; i++)
+            a_mem_region[i] ^= l_sign_mem[i];
+    }
+}
 
 static dap_chain_cs_dag_event_round_item_t *s_round_event_choose_dup(dap_list_t *a_dups, uint16_t a_max_signs_counts)
 {
@@ -468,7 +484,8 @@ static dap_chain_cs_dag_event_round_item_t *s_round_event_choose_dup(dap_list_t 
         return NULL;
     dap_list_t *l_dups = dap_list_copy(a_dups);
     uint64_t l_min_ts_update = (uint64_t)-1;
-    dap_hash_fast_t l_event_hash, l_winner_hash = {};
+    byte_t l_event_mem_region[DAP_CHAIN_POA_ROUND_FILTER_MEM_SIZE],
+           l_winner_mem_region[DAP_CHAIN_POA_ROUND_FILTER_MEM_SIZE] = {};
     enum dap_chain_poa_round_filter_stage l_stage = DAP_CHAIN_POA_ROUND_FILTER_STAGE_START;
     while (l_stage++ < DAP_CHAIN_POA_ROUND_FILTER_STAGE_MAX) {
         for (dap_list_t *it = l_dups; it; it = it->next) {
@@ -485,16 +502,14 @@ static dap_chain_cs_dag_event_round_item_t *s_round_event_choose_dup(dap_list_t 
                 if (l_round_item->round_info.ts_update != l_min_ts_update)
                     l_dups = dap_list_remove_link(l_dups, it);
                 else {
-                    dap_chain_cs_dag_event_calc_hash((dap_chain_cs_dag_event_t *)l_round_item->event_n_signs,
-                                                     l_round_item->event_size, &l_event_hash);
-                    if (memcmp(&l_winner_hash, &l_event_hash, sizeof(dap_hash_fast_t)) < 0)
-                        l_winner_hash = l_event_hash;
+                    s_event_get_unique_mem_region(l_round_item, l_event_mem_region);
+                    if (memcmp(&l_winner_mem_region, &l_event_mem_region, DAP_CHAIN_POA_ROUND_FILTER_MEM_SIZE) > 0)
+                        memcpy(l_winner_mem_region, l_event_mem_region, DAP_CHAIN_POA_ROUND_FILTER_MEM_SIZE);
                 }
                 break;
-            case DAP_CHAIN_POA_ROUND_FILTER_STAGE_HASH:
-                dap_chain_cs_dag_event_calc_hash((dap_chain_cs_dag_event_t *)l_round_item->event_n_signs,
-                                                 l_round_item->event_size, &l_event_hash);
-                if (memcmp(&l_winner_hash, &l_event_hash, sizeof(dap_hash_fast_t)))
+            case DAP_CHAIN_POA_ROUND_FILTER_STAGE_MEM:
+                s_event_get_unique_mem_region(l_round_item, l_event_mem_region);
+                if (memcmp(&l_winner_mem_region, &l_event_mem_region, DAP_CHAIN_POA_ROUND_FILTER_MEM_SIZE))
                     l_dups = dap_list_remove_link(l_dups, it);
             default: break;
             }
@@ -554,11 +569,10 @@ static void s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
     if (l_chosen_item) {
         size_t l_event_size = l_chosen_item->event_size;
         dap_chain_cs_dag_event_t *l_new_atom = (dap_chain_cs_dag_event_t *)DAP_DUP_SIZE(l_chosen_item->event_n_signs, l_event_size);
-        char *l_event_hash_hex_str, *l_datum_hash_str;
+        char *l_event_hash_hex_str;
         dap_get_data_hash_str_static(l_new_atom, l_event_size, l_event_hash_hex_str);
         dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(l_new_atom, l_event_size);
-        dap_get_data_hash_str_static(l_datum, dap_chain_datum_size(l_datum), l_datum_hash_str);
-        int l_verify_datum = dap_chain_net_verify_datum_for_add(dap_chain_net_by_id(l_dag->chain->net_id), l_datum);
+        int l_verify_datum = dap_chain_net_verify_datum_for_add(l_dag->chain, l_datum, &l_chosen_item->round_info.datum_hash);
         if (!l_verify_datum) {
             dap_chain_atom_verify_res_t l_res = l_dag->chain->callback_atom_add(l_dag->chain, l_new_atom, l_event_size);
             if (l_res == ATOM_ACCEPT) {
@@ -575,6 +589,8 @@ static void s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
                    l_event_hash_hex_str, l_arg->round_id, dap_chain_atom_verify_res_str[l_res]);
         } else {
             DAP_DELETE(l_new_atom);
+            char l_datum_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+            dap_chain_hash_fast_to_str(&l_chosen_item->round_info.datum_hash, l_datum_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
             log_it(L_INFO, "Event %s from round %"DAP_UINT64_FORMAT_U" not added into chain, because the inner datum %s doesn't pass verification (error %d)",
                    l_event_hash_hex_str, l_arg->round_id, l_datum_hash_str, l_verify_datum);
         }

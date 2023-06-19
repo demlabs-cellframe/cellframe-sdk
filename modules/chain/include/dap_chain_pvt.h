@@ -28,6 +28,8 @@
 #include "dap_chain_cs.h"
 #include "dap_chain_cell.h"
 #include "dap_common.h"
+#include "dap_global_db_remote.h"
+
 /**
   * @struct dap_chain_pvt
   * @brief Internal blochain data, mostly aggregated
@@ -41,6 +43,15 @@ typedef struct dap_chain_pvt
     int celled;
     dap_list_t *mempool_notifires;
 } dap_chain_pvt_t;
+
+typedef struct dap_chain_gdb_notifier {
+    dap_store_obj_callback_notify_t callback;
+    void *cb_arg;
+} dap_chain_gdb_notifier_t;
+
+void dap_chain_add_mempool_notify_callback(dap_chain_t *a_chain, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg);
+bool dap_chain_db_set_last_hash_remote(uint64_t a_node_addr, dap_chain_t *a_chain, dap_chain_hash_fast_t *a_hash);
+dap_chain_hash_fast_t *dap_chain_db_get_last_hash_remote(uint64_t a_node_addr, dap_chain_t *a_chain);
 
 #define DAP_CHAIN_PVT(a) ((dap_chain_pvt_t *) a->_pvt  )
 

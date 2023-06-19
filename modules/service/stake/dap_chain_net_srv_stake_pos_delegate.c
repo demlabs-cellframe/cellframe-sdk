@@ -626,7 +626,7 @@ static dap_chain_datum_tx_t *s_stake_tx_invalidate(dap_chain_net_t *a_net, dap_h
     dap_chain_addr_t l_wallet_addr;
     dap_chain_addr_fill_from_key(&l_wallet_addr, a_key, a_net->pub.id);
     if (!dap_chain_addr_compare(&l_owner_addr, &l_wallet_addr)) {
-        log_it(L_WARNING, "Try to invalidate delegating tx with not a owner wallet");
+        log_it(L_WARNING, "Trying to invalidate delegating tx with not a owner wallet");
         return NULL;
     }
     const char *l_native_ticker = a_net->pub.native_ticker;
@@ -1036,6 +1036,11 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -value <uint256_t>");
                     return -8;
                 }
+            }
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str);
+            if (!l_cert_str) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order update' requires parameter -cert");
+                return -7;
             }
             dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_str);
             if (!l_cert) {
@@ -1665,7 +1670,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
                 return -4;
             }
-            uint256_t l_fee;
+            uint256_t l_fee = {};
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-wallet", &l_wallet_str);
             if (!l_wallet_str) {
                 dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-poa_cert", &l_poa_cert_str);
@@ -1759,9 +1764,9 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                     DAP_DELETE(l_decree_hash_str);
                     DAP_DELETE(l_tx);
                 } else {
-                    char l_final_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-                    dap_chain_hash_fast_to_str(l_final_tx_hash, l_final_tx_hash_str, sizeof(l_final_tx_hash_str));
+                    char *l_final_tx_hash_str = dap_chain_hash_fast_to_str_new(l_final_tx_hash);
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't invalidate transaction %s, examine log files for details", l_final_tx_hash_str);
+                    DAP_DELETE(l_final_tx_hash_str);
                     DAP_DELETE(l_tx);
                     return -21;
                 }
