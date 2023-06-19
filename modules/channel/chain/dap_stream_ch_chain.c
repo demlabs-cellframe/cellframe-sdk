@@ -783,7 +783,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             // check the applied object newer that we have stored or erased
             if (l_obj->timestamp > (uint64_t)l_timestamp_del &&
                     l_obj->timestamp > (uint64_t)l_timestamp_cur &&
-                    (l_obj->type != DAP_DB$K_OPTYPE_DEL || l_obj->timestamp > l_limit_time)) {
+                    (l_obj->type == DAP_DB$K_OPTYPE_DEL || l_obj->timestamp > l_limit_time)) {
                 l_apply = true;
             }
             if (s_debug_more){
@@ -800,7 +800,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                         log_it(L_WARNING, "New data not applied, because newly object exists");
                     if (l_obj->timestamp <= (uint64_t)l_timestamp_del)
                         log_it(L_WARNING, "New data not applied, because newly object is deleted");
-                    if ((l_obj->type == DAP_DB$K_OPTYPE_DEL && l_obj->timestamp <= l_limit_time))
+                    if ((l_obj->type != DAP_DB$K_OPTYPE_DEL && l_obj->timestamp <= l_limit_time))
                         log_it(L_WARNING, "New data not applied, because object is too old");
                 }
                 continue;
