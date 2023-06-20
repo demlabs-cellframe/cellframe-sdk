@@ -337,7 +337,6 @@ free_exit:
                 l_item->client_pkey_hash = a_grace->usage->client_pkey_hash;
                 l_item->ht_mutex = &l_srv->banlist_mutex;
                 l_item->ht_head = &l_srv->ban_list;
-                l_item->ban_end_ts = time(NULL) + 5*60; //ban 5 min
                 HASH_ADD(hh, l_srv->ban_list, client_pkey_hash, sizeof(dap_chain_hash_fast_t), l_item);
                 pthread_mutex_unlock(&l_srv->banlist_mutex);
                 dap_timerfd_start(l_srv->grace_period * 1000, (dap_timerfd_callback_t)s_unban_client, l_item);
@@ -576,25 +575,19 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 switch(ret_status){
                 case DAP_CHAIN_MEMPOOl_RET_STATUS_CANT_FIND_FINAL_TX_HASH:
                     // TX not found in ledger and we not in grace, start grace
-                    if(!l_usage->is_grace){
-                        log_it(L_ERROR, "Can't find tx cond. Start grace!");
-                        l_grace = DAP_NEW_Z(dap_chain_net_srv_grace_t);
-                        // Parse the request
-                        l_grace->request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_request_t, sizeof(dap_stream_ch_chain_net_srv_pkt_request_t));
-                        l_grace->request->hdr.net_id = l_usage->net->pub.id;
-                        memcpy(l_grace->request->hdr.token, l_usage->token_ticker, strlen(l_usage->token_ticker));
-                        l_grace->request->hdr.srv_uid = l_usage->service->uid;
-                        l_grace->request->hdr.tx_cond = l_usage->tx_cond_hash;
-                        l_ch_chain_net_srv->srv_uid.uint64 = l_grace->request->hdr.srv_uid.uint64;
-                        l_grace->request_size = l_ch_pkt->hdr.data_size;
-                        l_grace->ch_uuid = a_ch->uuid;
-                        l_grace->stream_worker = a_ch->stream_worker;
-                        s_grace_period_control(l_grace);
-                    }else{
-                        log_it(L_ERROR, "Can't find tx cond. Wait until grace is over.");
-                        memset(&l_usage->tx_cond_hash, 0, sizeof(l_usage->tx_cond_hash));
-                        DAP_DEL_Z(l_usage->receipt_next);
-                    }
+                    log_it(L_ERROR, "Can't find tx cond. Start grace!");
+                    l_grace = DAP_NEW_Z(dap_chain_net_srv_grace_t);
+                    // Parse the request
+//                    l_grace->request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_request_t, sizeof(dap_stream_ch_chain_net_srv_pkt_request_t));
+//                    l_grace->request->hdr.net_id = l_usage->net->pub.id;
+//                    memcpy(l_grace->request->hdr.token, l_usage->token_ticker, strlen(l_usage->token_ticker));
+//                    l_grace->request->hdr.srv_uid = l_usage->service->uid;
+//                    l_grace->request->hdr.tx_cond = l_usage->tx_cond_hash;
+//                    l_ch_chain_net_srv->srv_uid.uint64 = l_grace->request->hdr.srv_uid.uint64;
+//                    l_grace->request_size = l_ch_pkt->hdr.data_size;
+//                    l_grace->ch_uuid = a_ch->uuid;
+//                    l_grace->stream_worker = a_ch->stream_worker;
+//                    s_grace_period_control(l_grace);
                     break;
                 case DAP_CHAIN_MEMPOOl_RET_STATUS_NOT_ENOUGH:
                     // TODO send new tx cond request

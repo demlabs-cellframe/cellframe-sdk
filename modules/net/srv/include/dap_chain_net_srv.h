@@ -211,7 +211,6 @@ typedef void (*dap_chain_net_srv_callback_decree_t)(dap_chain_net_srv_t* a_srv, 
 
 typedef struct dap_chain_net_srv_banlist_item {
     dap_chain_hash_fast_t client_pkey_hash;
-    time_t ban_end_ts;
     pthread_mutex_t *ht_mutex;
     struct dap_chain_net_srv_banlist_item **ht_head;
     UT_hash_handle hh;
