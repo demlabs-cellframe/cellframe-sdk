@@ -883,8 +883,8 @@ static bool s_chain_timer_callback(void *a_arg)
         l_ch_chain->activity_timer = NULL;
         return false;
     }
-    if (l_ch_chain->state != CHAIN_STATE_WAITING && l_ch_chain->sent_breaks)
-        s_stream_ch_packet_out(l_ch, NULL);
+    //if (l_ch_chain->state != CHAIN_STATE_WAITING && l_ch_chain->sent_breaks)
+    //    s_stream_ch_packet_out(l_ch, NULL);
     // Sending dumb packet with nothing to inform remote thats we're just skiping atoms of GDB's, nothing freezed
     if (l_ch_chain->state == CHAIN_STATE_SYNC_CHAINS && l_ch_chain->sent_breaks >= 3 * DAP_SYNC_TICKS_PER_SECOND) {
         debug_if(s_debug_more, L_INFO, "Send one chain TSD packet");
