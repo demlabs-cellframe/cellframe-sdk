@@ -1173,7 +1173,6 @@ static bool s_balancer_start_http_request(dap_chain_net_t *a_net, dap_chain_node
         pthread_rwlock_unlock(&PVT(a_net)->states_lock);
         return false;
 
-
     }
     inet_ntop(AF_INET, &a_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
     log_it(L_DEBUG, "Start balancer HTTP request to %s", l_node_addr_str);
