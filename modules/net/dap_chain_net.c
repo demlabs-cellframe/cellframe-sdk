@@ -76,7 +76,7 @@
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_tx_out.h"
 #include "dap_chain_datum_tx_out_cond.h"
-#include "dap_chain_node.h"
+
 #include "dap_list.h"
 #include "dap_timerfd.h"
 #include "dap_stream_worker.h"
@@ -89,6 +89,8 @@
 #include "dap_chain_datum_decree.h"
 #include "dap_chain_tx.h"
 #include "dap_chain_net.h"
+#include "dap_chain_net_balancer.h"
+#include "dap_chain_node.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_pvt.h"
@@ -179,6 +181,7 @@ typedef struct dap_chain_net_pvt{
     bool load_mode;
     char **seed_aliases;
     uint16_t seed_aliases_count;
+    struct in_addr *seed_nodes_addrs_v4;
 
     uint16_t bootstrap_nodes_count;
     struct in_addr *bootstrap_nodes_addrs;
@@ -659,7 +662,7 @@ static void s_gbd_history_callback_notify(void *a_arg, const char a_op_code, con
 /**
  * @brief Get one random link
  */
-static dap_chain_node_info_t *s_get_balancer_link_from_cfg(dap_chain_net_t *a_net)
+dap_chain_node_info_t *dap_get_balancer_link_from_cfg(dap_chain_net_t *a_net)
 {
     dap_chain_net_pvt_t *l_net_pvt = a_net ? PVT(a_net) : NULL;
     if(!l_net_pvt) return NULL;
@@ -877,7 +880,7 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
         if (!l_net_pvt->only_static_links) {
             size_t l_current_links_prepared = HASH_COUNT(l_net_pvt->net_links);
             for (size_t i = l_current_links_prepared; i < l_net_pvt->max_links_count ; i++) {
-                dap_chain_node_info_t *l_link_node_info = s_get_balancer_link_from_cfg(l_net);
+                dap_chain_node_info_t *l_link_node_info = dap_get_balancer_link_from_cfg(l_net);
                 if (l_link_node_info) {
                     if (!s_balancer_start_dns_request(l_net, l_link_node_info, true))
                         log_it(L_ERROR, "Can't process node info dns request");
@@ -1007,7 +1010,7 @@ static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_cha
         debug_if(s_debug_more, L_DEBUG, "Can't add link "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address));
         if (l_balancer_request->link_replace) {
             // Just try a new one
-            dap_chain_node_info_t *l_link_node_info = s_get_balancer_link_from_cfg(l_net);
+            dap_chain_node_info_t *l_link_node_info = dap_get_balancer_link_from_cfg(l_net);
             if (l_link_node_info) {
                 if (!s_balancer_start_dns_request(l_net, l_link_node_info, true))
                     log_it(L_ERROR, "Can't process node info dns request");
@@ -1084,7 +1087,7 @@ void s_net_http_link_prepare_success(void *a_response, size_t a_response_size, v
             if (l_net_pvt->balancer_link_requests)
                 l_net_pvt->balancer_link_requests--;
         } else {
-            dap_chain_node_info_t *l_link_node_info = s_get_balancer_link_from_cfg(l_net);
+            dap_chain_node_info_t *l_link_node_info = dap_get_balancer_link_from_cfg(l_net);
             s_balancer_start_http_request(l_net, l_link_node_info, true);
         }
         return;
@@ -1134,11 +1137,24 @@ static bool s_balancer_start_dns_request(dap_chain_net_t *a_net, dap_chain_node_
 static bool s_balancer_start_http_request(dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_info, bool a_link_replace)
 {
     char l_node_addr_str[INET_ADDRSTRLEN] = { };
-    inet_ntop(AF_INET, &a_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
-    log_it(L_DEBUG, "Start balancer HTTP request to %s", l_node_addr_str);
     dap_chain_net_pvt_t *l_net_pvt = a_net ? PVT(a_net) : NULL;
     if (!l_net_pvt)
         return false;
+    dap_chain_node_info_t *l_link_full_node = dap_chain_net_balancer_get_node(a_net->pub.name);
+    if(l_link_full_node){
+        log_it(L_DEBUG, "Network LOCAL balancer issues ip %s",inet_ntoa(l_link_full_node->hdr.ext_addr_v4));
+        pthread_rwlock_rdlock(&PVT(a_net)->states_lock);
+        s_net_link_add(a_net, l_link_full_node);
+        DAP_DELETE(l_link_full_node);
+        struct net_link *l_free_link = s_get_free_link(a_net);
+        if (l_free_link)
+            s_net_link_start(a_net, l_free_link, l_net_pvt->reconnect_delay);
+        pthread_rwlock_unlock(&PVT(a_net)->states_lock);
+        return false;
+    }
+    inet_ntop(AF_INET, &a_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
+    log_it(L_DEBUG, "Start balancer HTTP request to %s", l_node_addr_str);
+
     struct balancer_link_request *l_balancer_request = DAP_NEW_Z(struct balancer_link_request);
     l_balancer_request->from_http = true;
     l_balancer_request->net = a_net;
@@ -1168,7 +1184,7 @@ static void s_prepare_links_from_balancer(dap_chain_net_t *a_net, bool a_with_dn
     for (size_t l_cur_links_count = 0, n = 0; l_cur_links_count < l_max_links_count; n++) {
         if (n > 1000) // It's a problem with link prepare
             break;
-        dap_chain_node_info_t *l_link_node_info = s_get_balancer_link_from_cfg(a_net);
+        dap_chain_node_info_t *l_link_node_info = dap_get_balancer_link_from_cfg(a_net);
         if (!l_link_node_info)
             continue;
         // Start connect to link hubs
@@ -2404,6 +2420,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
 
         log_it(L_DEBUG, "Read %u aliases, %u address and %u ipv4 addresses, check them",
                 l_net_pvt->seed_aliases_count,l_seed_nodes_addrs_len, l_seed_nodes_ipv4_len );
+        PVT(l_net)->seed_nodes_addrs_v4 = DAP_NEW_SIZE(struct in_addr, l_net_pvt->seed_aliases_count * sizeof(struct in_addr));
         // save new nodes from cfg file to db
         for ( size_t i = 0; i < PVT(l_net)->seed_aliases_count &&
                             i < l_seed_nodes_addrs_len &&
@@ -2438,6 +2455,7 @@ int s_net_load(const char * a_net_name, uint16_t a_acl_idx)
                     struct in_addr *l_res = (struct in_addr *)&l_sa;
                     log_it(L_NOTICE, "Resolved %s to %s (ipv4)", l_seed_nodes_hostnames[i], inet_ntoa(*l_res));
                     l_node_info.hdr.ext_addr_v4.s_addr = l_res->s_addr;
+                    l_net_pvt->seed_nodes_addrs_v4[i].s_addr = l_res->s_addr;
                 } else {
                     log_it(L_ERROR, "%s", gai_strerror(l_ret_code));
                 }
@@ -3044,6 +3062,20 @@ dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * l_net)
     dap_chain_global_db_objs_delete(l_objs, l_nodes_count);
     return l_node_list;
 }
+/**
+ * Get nodes list from config file (list of dap_chain_node_addr_t struct)
+ */
+dap_list_t* dap_chain_net_get_node_list_cfg(dap_chain_net_t * a_net)
+{
+    dap_list_t *l_node_list = NULL;
+    dap_chain_net_pvt_t *l_pvt_net = PVT(a_net);
+    for(size_t i=0; i < l_pvt_net->seed_aliases_count;i++)
+    {
+        l_node_list = dap_list_append(l_node_list, &l_pvt_net->seed_nodes_addrs_v4[i]);
+    }
+    return l_node_list;
+}
+
 
 /**
  * @brief dap_chain_net_set_flag_sync_from_zero
