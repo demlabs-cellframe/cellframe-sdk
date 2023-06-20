@@ -344,7 +344,7 @@ dap_db_log_list_obj_t *dap_db_log_list_get_multiple(dap_db_log_list_t *a_db_log_
 
     dap_db_log_list_obj_t *l_ret = DAP_NEW_Z_SIZE(dap_db_log_list_obj_t, l_count * sizeof(dap_db_log_list_obj_t));
     size_t l_fact_count = 0;
-    for (dap_list_t *l_list = a_db_log_list->items_list; l_list; l_list = a_db_log_list->items_list, ++l_fact_count) {
+    for (dap_list_t *l_list = a_db_log_list->items_list; l_list && l_fact_count < l_count; l_list = a_db_log_list->items_list, ++l_fact_count) {
         a_db_log_list->items_list = dap_list_remove_link(a_db_log_list->items_list, l_list);
         a_db_log_list->items_rest--;
         *(l_ret + l_fact_count) = *(dap_db_log_list_obj_t*)l_list->data;
