@@ -2155,6 +2155,12 @@ char    l_buf[1024];
                 return -EINVAL;
             }
 
+            if ( DAP_WALLET$SZ_PASS < strnlen(l_pass_str, DAP_WALLET$SZ_PASS + 1) ) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet's password is too long ( > %d)", DAP_WALLET$SZ_PASS);
+                log_it(L_ERROR, "Wallet's password is too long ( > %d)", DAP_WALLET$SZ_PASS);
+                return -EINVAL;
+            }
+
             l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
             if (!l_wallet) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "wrong password");
@@ -2165,10 +2171,10 @@ char    l_buf[1024];
             }
             // create wallet backup
             dap_chain_wallet_internal_t* l_file_name = DAP_CHAIN_WALLET_INTERNAL(l_wallet);
-            time_t rawtime;  // add timestamp to filename
+            time_t l_rawtime;  // add timestamp to filename
             char l_timestamp[16];
-            time(&rawtime);
-            strftime(l_timestamp,16,"%G%m%d%H%M%S", localtime (&rawtime));
+            time(&l_rawtime);
+            strftime(l_timestamp,16,"%G%m%d%H%M%S", localtime (&l_rawtime));
             snprintf(l_file_name->file_name, sizeof(l_file_name->file_name)  - 1, "%s/%s_%s%s", c_wallets_path, l_wallet_name, l_timestamp,".backup");
             if ( dap_chain_wallet_save(l_wallet, NULL) ) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create backup wallet file because of internal error");
