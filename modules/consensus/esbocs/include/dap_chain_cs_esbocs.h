@@ -13,7 +13,7 @@
 #define DAP_STREAM_CH_VOTING_MSG_TYPE_REJECT        0x12
 #define DAP_STREAM_CH_VOTING_MSG_TYPE_COMMIT_SIGN   0x16
 #define DAP_STREAM_CH_VOTING_MSG_TYPE_VOTE          0x20
-//#define DAP_STREAM_CH_VOTING_MSG_TYPE_VOTE_FOR      0x24
+#define DAP_STREAM_CH_VOTING_MSG_TYPE_DIRECTIVE     0x24
 #define DAP_STREAM_CH_VOTING_MSG_TYPE_PRE_COMMIT    0x28
 #define DAP_STREAM_CH_VOTING_MSG_TYPE_START_SYNC    0x32
 
@@ -85,6 +85,13 @@ typedef struct dap_chain_esbocs {
     void *_pvt;
 } dap_chain_esbocs_t;
 
+typedef struct dap_chain_esbocs_directive {
+    uint8_t version;
+    uint8_t type;
+    uint16_t size;
+    byte_t tsd[];
+} DAP_ALIGN_PACKED dap_chain_esbocs_directive_t;
+
 typedef struct dap_chain_esbocs_round {
     // Base fields
     uint64_t id;
@@ -93,6 +100,9 @@ typedef struct dap_chain_esbocs_round {
     // Round ancillary
     dap_chain_esbocs_store_t *store_items;
     dap_chain_esbocs_message_item_t *message_items;
+    // Round directive
+    dap_chain_esbocs_directive_t *directive;
+    uint16_t votes_count;
     // Attempt dependent fields
     dap_chain_addr_t attempt_submit_validator;
     dap_hash_fast_t attempt_candidate_hash;

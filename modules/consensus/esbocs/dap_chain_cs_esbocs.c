@@ -70,7 +70,7 @@ DAP_STATIC_INLINE const char *s_voting_msg_type_to_str(uint8_t a_type)
     case DAP_STREAM_CH_VOTING_MSG_TYPE_REJECT: return "REJECT";
     case DAP_STREAM_CH_VOTING_MSG_TYPE_COMMIT_SIGN: return "COMMIT_SIGN";
     case DAP_STREAM_CH_VOTING_MSG_TYPE_VOTE: return "VOTE";
-    //case DAP_STREAM_CH_VOTING_MSG_TYPE_VOTE_FOR: return "VOTE_FOR"
+    case DAP_STREAM_CH_VOTING_MSG_TYPE_DIRECTIVE: return "DIRECTIVE";
     case DAP_STREAM_CH_VOTING_MSG_TYPE_PRE_COMMIT: return "PRE_COMMIT";
     default: return "UNKNOWN";
     }
