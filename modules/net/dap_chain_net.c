@@ -782,6 +782,16 @@ static size_t s_net_get_active_links_count(dap_chain_net_t * a_net)
     return l_ret;
 }
 
+static struct net_link *s_get_free_link(dap_chain_net_t *a_net)
+{
+    struct net_link *l_link, *l_link_tmp;
+    HASH_ITER(hh,  PVT(a_net)->net_links, l_link, l_link_tmp) {
+        if (l_link->link == NULL)  // We have a free prepared link
+            return l_link;
+    }
+    return NULL;
+}
+
 /**
  * @brief s_fill_links_from_root_aliases
  * @param a_net
@@ -1147,10 +1157,23 @@ static bool s_balancer_start_http_request(dap_chain_net_t *a_net, dap_chain_node
         s_net_link_add(a_net, l_link_full_node);
         DAP_DELETE(l_link_full_node);
         struct net_link *l_free_link = s_get_free_link(a_net);
-        if (l_free_link)
-            s_net_link_start(a_net, l_free_link, l_net_pvt->reconnect_delay);
+        if (l_free_link){
+            l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
+            size_t l_used_links = 0;
+            dap_chain_node_info_t *l_link_info = l_free_link->link_info;
+            dap_chain_node_client_t *l_client = dap_chain_net_client_create_n_connect(a_net, l_link_info);
+
+            if ( !(l_free_link->link = l_client) )
+                return true;
+
+            l_free_link->client_uuid = l_client->uuid;
+            if (++l_used_links == l_net_pvt->required_links_count)
+                return true;
+        }
         pthread_rwlock_unlock(&PVT(a_net)->states_lock);
         return false;
+
+
     }
     inet_ntop(AF_INET, &a_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
     log_it(L_DEBUG, "Start balancer HTTP request to %s", l_node_addr_str);
