@@ -326,14 +326,45 @@ dap_db_log_list_obj_t *dap_db_log_list_get(dap_db_log_list_t *a_db_log_list)
         l_ret = l_list->data;
         size_t l_old_size = a_db_log_list->size;
         a_db_log_list->size -= sizeof(dap_db_log_list_obj_t) + sizeof(dap_store_obj_pkt_t) + l_ret->pkt->data_size;
+        DAP_DELETE(l_list);
         if (l_old_size > DAP_DB_LOG_LIST_MAX_SIZE && a_db_log_list->size <= DAP_DB_LOG_LIST_MAX_SIZE)
             pthread_cond_signal(&a_db_log_list->cond);
-        DAP_DELETE(l_list);
     }
     pthread_mutex_unlock(&a_db_log_list->list_mutex);
     //log_it(L_DEBUG, "get item n=%d", a_db_log_list->items_number - a_db_log_list->items_rest);
     return l_ret ? l_ret : DAP_INT_TO_POINTER(l_is_process);
 }
+
+dap_db_log_list_obj_t *dap_db_log_list_get_multiple(dap_db_log_list_t *a_db_log_list, size_t *a_count) {
+    if (!a_db_log_list)
+        return NULL;
+    pthread_mutex_lock(&a_db_log_list->list_mutex);
+    int l_is_process = a_db_log_list->is_process;
+    size_t l_count = a_count && *a_count ? MIN(*a_count, a_db_log_list->items_rest) : a_db_log_list->items_rest;
+
+    dap_db_log_list_obj_t *l_ret = DAP_NEW_Z_SIZE(dap_db_log_list_obj_t, l_count * sizeof(dap_db_log_list_obj_t));
+    size_t l_fact_count = 0;
+    for (dap_list_t *l_list = a_db_log_list->items_list; l_list; l_list = a_db_log_list->items_list, ++l_fact_count) {
+        a_db_log_list->items_list = dap_list_remove_link(a_db_log_list->items_list, l_list);
+        a_db_log_list->items_rest--;
+        *(l_ret + l_fact_count) = *(dap_db_log_list_obj_t*)l_list->data;
+        size_t l_old_size = a_db_log_list->size;
+        a_db_log_list->size -= sizeof(dap_db_log_list_obj_t) + sizeof(dap_store_obj_pkt_t) + (l_ret + l_fact_count)->pkt->data_size;
+        dap_list_free_full(l_list, NULL);
+        if (l_old_size > DAP_DB_LOG_LIST_MAX_SIZE && a_db_log_list->size <= DAP_DB_LOG_LIST_MAX_SIZE) {
+            pthread_cond_signal(&a_db_log_list->cond);
+        }
+    }
+    if (l_fact_count < l_count) {
+        l_ret = DAP_REALLOC(l_ret, l_fact_count * sizeof(dap_db_log_list_obj_t));
+    }
+    if (a_count)
+        *a_count = l_fact_count;
+    pthread_mutex_unlock(&a_db_log_list->list_mutex);
+    //log_it(L_DEBUG, "get item n=%d", a_db_log_list->items_number - a_db_log_list->items_rest);
+    return l_ret ? l_ret : DAP_INT_TO_POINTER(l_is_process);
+}
+
 
 /**
  * @brief Deallocates memory of a list item

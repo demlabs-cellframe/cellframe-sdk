@@ -63,6 +63,7 @@ dap_db_log_list_t* dap_db_log_list_start(dap_chain_net_t *a_net, dap_chain_node_
 size_t dap_db_log_list_get_count(dap_db_log_list_t *a_db_log_list);
 size_t dap_db_log_list_get_count_rest(dap_db_log_list_t *a_db_log_list);
 dap_db_log_list_obj_t *dap_db_log_list_get(dap_db_log_list_t *a_db_log_list);
+dap_db_log_list_obj_t *dap_db_log_list_get_multiple(dap_db_log_list_t *a_db_log_list, size_t *a_count);
 void dap_db_log_list_delete(dap_db_log_list_t *a_db_log_list);
 // Get last id in log
 uint64_t dap_db_log_get_group_last_id(const char *a_group_name);
