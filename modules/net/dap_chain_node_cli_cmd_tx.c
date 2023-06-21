@@ -836,7 +836,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         }
         dap_chain_hash_fast_t *l_tx_hash = DAP_NEW(dap_chain_hash_fast_t);
         if (dap_chain_hash_fast_from_str(l_tx_hash_str, l_tx_hash)) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't get hash_fast from %s", l_tx_hash_str);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't get hash_fast from %s, check that the hash is correct", l_tx_hash_str);
             return -4;
         }
         dap_chain_datum_tx_t *l_datum_tx = dap_chain_net_get_tx_by_hash(l_net, l_tx_hash,
