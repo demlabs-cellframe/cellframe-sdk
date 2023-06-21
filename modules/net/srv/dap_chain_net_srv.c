@@ -679,47 +679,68 @@ static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out
         return true;
     dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)
                                                dap_chain_datum_tx_item_get(a_tx_in, NULL, TX_ITEM_TYPE_RECEIPT, NULL);
-    if (!l_receipt)
-        return false;
-
-    // Check provider sign
-    dap_sign_t *l_sign = dap_chain_datum_tx_receipt_sign_get(l_receipt, l_receipt->size, 0);
-    if (!l_sign)
-        return false;
-
-    if (dap_sign_verify_all(l_sign, dap_sign_get_size(l_sign), &l_receipt->receipt_info, sizeof(l_receipt->receipt_info))){
+    if (!l_receipt){
+        log_it(L_ERROR, "Can't find receipt.");
         return false;
     }
 
-    // Checking that the signature matches the provider's signature
+    // Check provider sign
+    dap_sign_t *l_sign = dap_chain_datum_tx_receipt_sign_get(l_receipt, l_receipt->size, 0);
+    if (!l_sign){
+        log_it(L_ERROR, "Can't get provider sign from receipt.");
+        return false;
+    }
+
+    if (dap_sign_verify_all(l_sign, dap_sign_get_size(l_sign), &l_receipt->receipt_info, sizeof(l_receipt->receipt_info))){
+        log_it(L_ERROR, "Provider sign in receipt not passed verification.");
+        return false;
+    }
+
+    // Checking the signature matches the provider's signature
     dap_hash_fast_t l_tx_sign_pkey_hash = {};
     dap_hash_fast_t l_provider_pkey_hash = {};
-    if (!dap_sign_get_pkey_hash(l_sign, &l_provider_pkey_hash))
+    if (!dap_sign_get_pkey_hash(l_sign, &l_provider_pkey_hash)){
+        log_it(L_ERROR, "Can't get pkey hash from provider sign.");
         return false;
+    }
 
     int l_item_size = 0;
     uint8_t* l_sig = dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_SIG, &l_item_size);
     if(!l_sig){
+        log_it(L_ERROR, "Can't get item with provider signature from tx");
         return false;
     }
 
     l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_sig);
-    if (!l_sign || !dap_sign_get_pkey_hash(l_sign, &l_tx_sign_pkey_hash))
+    if (!l_sign){
+        log_it(L_ERROR, "Provider sign from tx sig_item");
         return false;
+    }
+
+    if(!dap_sign_get_pkey_hash(l_sign, &l_tx_sign_pkey_hash)){
+        log_it(L_ERROR, "Can't get pkey hash from tx provider signature");
+        return false;
+    }
 
     if(!dap_hash_fast_compare(&l_tx_sign_pkey_hash, &l_provider_pkey_hash)){
+        log_it(L_ERROR, "Provider signature in receipt and tx is different.");
         return false;
     }
 
     // Check client sign
     l_sign = dap_chain_datum_tx_receipt_sign_get(l_receipt, l_receipt->size, 1);
-    if (!l_sign)
+    if (!l_sign){
+        log_it(L_ERROR, "Can't get client signature from receipt.");
         return false;
+    }
     dap_hash_fast_t l_pkey_hash = {};
-    if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash))
+    if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash)){
+        log_it(L_ERROR, "Can't get pkey hash from receipt client signature");
         return false;
+    }
 
     if(!dap_hash_fast_compare(&l_pkey_hash, &a_cond->subtype.srv_pay.pkey_hash)){
+        log_it(L_ERROR, "Client signature in receipt is invalid!");
         return false;
     }
 
