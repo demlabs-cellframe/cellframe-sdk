@@ -572,7 +572,7 @@ int ping_util_common(ping_handle_t *a_ping_handle, int type, const char *addr, i
      # sysctl net.ipv4.ping_group_range="1 65000"
      */
     a_ping_handle->ping_common.tsum = a_ping_handle->ping_common.ntransmitted = a_ping_handle->ping_common.nreceived = exiting = 0;
-    int argc = 4;
+    int argc = 6;
     const char *argv[argc];
     if(type != 4)
         argv[0] = "ping6";
@@ -581,6 +581,8 @@ int ping_util_common(ping_handle_t *a_ping_handle, int type, const char *addr, i
     argv[1] = dap_strdup_printf("-c%d", count);
     argv[2] = addr;
     argv[3] = dap_strdup_printf("-w%d", 5);
+    argv[4] = dap_strdup_printf("-n");
+    argv[5] = dap_strdup_printf("-W%d",240);
     int status = ping_main(a_ping_handle, argc, (char**) argv);
     DAP_DELETE((char*) argv[1]);
     DAP_DELETE((char*) argv[3]);
