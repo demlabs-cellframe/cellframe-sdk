@@ -1658,13 +1658,13 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
             dap_stream_ch_chain_update_element_t l_data[s_update_pack_size];
             uint_fast16_t j = s_update_pack_size, i = 0;
             dap_db_log_list_obj_t *l_obj = dap_db_log_list_get_multiple(l_ch_chain->request_db_log, &j);
-            if (!l_obj || DAP_POINTER_TO_SIZE(l_obj) == 1)
-                break;
-            for (i = 0; i < j; ++i) {
-                l_data[i] = (dap_stream_ch_chain_update_element_t){ (l_obj + i)->hash, (l_obj + i)->pkt->data_size };
-                DAP_DEL_Z((l_obj + i)->pkt);
+            if (l_obj && DAP_POINTER_TO_SIZE(l_obj) != 1) {
+                for (i = 0; i < j; ++i) {
+                    l_data[i] = (dap_stream_ch_chain_update_element_t){ (l_obj + i)->hash, (l_obj + i)->pkt->data_size };
+                    DAP_DEL_Z((l_obj + i)->pkt);
+                }
+                DAP_DEL_Z(l_obj);
             }
-            DAP_DEL_Z(l_obj);
             /*dap_db_log_list_obj_t *l_obj = NULL;
             for (i = 0; i < s_update_pack_size; i++) {
                 l_obj = dap_db_log_list_get(l_ch_chain->request_db_log);
