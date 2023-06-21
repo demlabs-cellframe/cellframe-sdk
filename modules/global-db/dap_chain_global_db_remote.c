@@ -140,6 +140,7 @@ static void *s_list_thread_proc(void *arg)
     }
 
     pthread_mutex_lock(&l_dap_db_log_list->list_mutex);
+    log_it(L_DEBUG, "! l_dap_db_log_list->is_process = false");
     l_dap_db_log_list->is_process = false;
     pthread_mutex_unlock(&l_dap_db_log_list->list_mutex);
     return NULL;
@@ -264,6 +265,7 @@ dap_db_log_list_t* dap_db_log_list_start(dap_chain_net_t *a_net, dap_chain_node_
         DAP_DELETE(l_dap_db_log_list);
         return NULL;
     }
+    log_it(L_DEBUG, "! l_dap_db_log_list->is_process = true");
     l_dap_db_log_list->is_process = true;
     pthread_mutex_init(&l_dap_db_log_list->list_mutex, NULL);
     pthread_cond_init(&l_dap_db_log_list->cond, NULL);
@@ -344,16 +346,16 @@ dap_db_log_list_obj_t *dap_db_log_list_get_multiple(dap_db_log_list_t *a_db_log_
     size_t l_count = a_count && *a_count ? MIN(*a_count, a_db_log_list->items_rest) : a_db_log_list->items_rest;
 
     dap_db_log_list_obj_t *l_ret = DAP_NEW_Z_SIZE(dap_db_log_list_obj_t, l_count * sizeof(dap_db_log_list_obj_t));
+    size_t l_old_size = a_db_log_list->size;
     for (dap_list_t *l_list = a_db_log_list->items_list; l_list && l_fact_count < l_count; l_list = a_db_log_list->items_list, ++l_fact_count) {
         a_db_log_list->items_list = dap_list_remove_link(a_db_log_list->items_list, l_list);
         a_db_log_list->items_rest--;
         *(l_ret + l_fact_count) = *(dap_db_log_list_obj_t*)l_list->data;
-        size_t l_old_size = a_db_log_list->size;
         a_db_log_list->size -= sizeof(dap_db_log_list_obj_t) + sizeof(dap_store_obj_pkt_t) + (l_ret + l_fact_count)->pkt->data_size;
         dap_list_free_full(l_list, NULL);
-        if (l_old_size > DAP_DB_LOG_LIST_MAX_SIZE && a_db_log_list->size <= DAP_DB_LOG_LIST_MAX_SIZE) {
-            pthread_cond_signal(&a_db_log_list->cond);
-        }
+    }
+    if (l_old_size > DAP_DB_LOG_LIST_MAX_SIZE && a_db_log_list->size <= DAP_DB_LOG_LIST_MAX_SIZE) {
+        pthread_cond_signal(&a_db_log_list->cond);
     }
     pthread_mutex_unlock(&a_db_log_list->list_mutex);
     if (l_fact_count < l_count) {
