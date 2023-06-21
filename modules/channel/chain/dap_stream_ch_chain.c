@@ -883,8 +883,8 @@ static bool s_chain_timer_callback(void *a_arg)
         l_ch_chain->activity_timer = NULL;
         return false;
     }
-    //if (l_ch_chain->state != CHAIN_STATE_WAITING && l_ch_chain->sent_breaks)
-    //    s_stream_ch_packet_out(l_ch, NULL);
+    if (l_ch_chain->state != CHAIN_STATE_WAITING && l_ch_chain->sent_breaks)
+        s_stream_ch_packet_out(l_ch, NULL);
     // Sending dumb packet with nothing to inform remote thats we're just skiping atoms of GDB's, nothing freezed
     if (l_ch_chain->state == CHAIN_STATE_SYNC_CHAINS && l_ch_chain->sent_breaks >= 3 * DAP_SYNC_TICKS_PER_SECOND) {
         debug_if(s_debug_more, L_INFO, "Send one chain TSD packet");
@@ -1681,7 +1681,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                                             l_ch_chain->request_hdr.cell_id.uint64,
                                             l_data, i * sizeof(dap_stream_ch_chain_update_element_t));
                 l_ch_chain->stats_request_gdb_processed += i;
-                debug_if(s_debug_more, L_INFO, "Out: DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB");
+                debug_if(s_debug_more, L_INFO, "Out: DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB %lu elements", i);
             } else if (!l_obj) {
                 l_was_sent_smth = true;
                 l_ch_chain->request.node_addr.uint64 = dap_chain_net_get_cur_addr_int(dap_chain_net_by_id(

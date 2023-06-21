@@ -338,12 +338,12 @@ dap_db_log_list_obj_t *dap_db_log_list_get(dap_db_log_list_t *a_db_log_list)
 dap_db_log_list_obj_t *dap_db_log_list_get_multiple(dap_db_log_list_t *a_db_log_list, size_t *a_count) {
     if (!a_db_log_list)
         return NULL;
+    size_t l_fact_count = 0;
     pthread_mutex_lock(&a_db_log_list->list_mutex);
     int l_is_process = a_db_log_list->is_process;
     size_t l_count = a_count && *a_count ? MIN(*a_count, a_db_log_list->items_rest) : a_db_log_list->items_rest;
 
     dap_db_log_list_obj_t *l_ret = DAP_NEW_Z_SIZE(dap_db_log_list_obj_t, l_count * sizeof(dap_db_log_list_obj_t));
-    size_t l_fact_count = 0;
     for (dap_list_t *l_list = a_db_log_list->items_list; l_list && l_fact_count < l_count; l_list = a_db_log_list->items_list, ++l_fact_count) {
         a_db_log_list->items_list = dap_list_remove_link(a_db_log_list->items_list, l_list);
         a_db_log_list->items_rest--;
@@ -355,13 +355,13 @@ dap_db_log_list_obj_t *dap_db_log_list_get_multiple(dap_db_log_list_t *a_db_log_
             pthread_cond_signal(&a_db_log_list->cond);
         }
     }
+    pthread_mutex_unlock(&a_db_log_list->list_mutex);
     if (l_fact_count < l_count) {
         l_ret = DAP_REALLOC(l_ret, l_fact_count * sizeof(dap_db_log_list_obj_t));
     }
     if (a_count)
         *a_count = l_fact_count;
-    pthread_mutex_unlock(&a_db_log_list->list_mutex);
-    //log_it(L_DEBUG, "get item n=%d", a_db_log_list->items_number - a_db_log_list->items_rest);
+
     return l_ret ? l_ret : DAP_INT_TO_POINTER(l_is_process);
 }
 
@@ -693,7 +693,7 @@ unsigned char *pdata;
 dap_store_obj_t *dap_store_unpacket_multiple(const dap_store_obj_pkt_t *a_pkt, size_t *a_store_obj_count)
 {
 uint32_t l_count, l_cur_count;
-uint64_t l_offset, l_size ;
+uint64_t l_offset, l_size;
 unsigned char *pdata, *pdata_end;
 dap_store_obj_t *l_store_obj_arr, *l_obj;
 
