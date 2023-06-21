@@ -595,7 +595,7 @@ dap_chain_datum_tx_t *dap_chain_net_get_tx_by_hash(dap_chain_net_t *a_net, dap_c
             int l_ret_code;
             dap_chain_datum_t *l_datum = l_chain->callback_datum_find_by_hash(l_chain, a_tx_hash, NULL, &l_ret_code);
             if (!l_datum || l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
-                return NULL;
+                continue;
             if ((a_search_type == TX_SEARCH_TYPE_CELL_SPENT ||
                     a_search_type == TX_SEARCH_TYPE_NET_SPENT) &&
                     (!dap_chain_ledger_tx_spent_find_by_hash(l_ledger, a_tx_hash)))
