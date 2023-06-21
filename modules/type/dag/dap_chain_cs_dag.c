@@ -881,7 +881,8 @@ void s_dag_events_lasts_delete_linked_with_event(dap_chain_cs_dag_t * a_dag, dap
     for (size_t i = 0; i< a_event->header.hash_count; i++) {
         dap_chain_hash_fast_t * l_hash =  ((dap_chain_hash_fast_t *) a_event->hashes_n_datum_n_signs) + i;
         dap_chain_cs_dag_event_item_t * l_event_item = NULL;
-        HASH_FIND(hh, PVT(a_dag)->events_lasts_unlinked ,l_hash ,sizeof (*l_hash),  l_event_item);
+        dap_chain_cs_dag_pvt_t * l_dag_pvt =  PVT(a_dag);
+        HASH_FIND(hh, l_dag_pvt->events_lasts_unlinked ,l_hash ,sizeof (*l_hash),  l_event_item);
         if ( l_event_item ){
             HASH_DEL(PVT(a_dag)->events_lasts_unlinked,l_event_item);
             DAP_DEL_Z(l_event_item);
@@ -1616,7 +1617,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
             if (s_callback_add_datums(l_chain, &l_datum, 1)) {
                 char *l_datums_datum_hash_str;
                 dap_get_data_hash_str_static(l_datum->data, l_datum->header.data_size, l_datums_datum_hash_str);
-                if (dap_global_db_del_sync(l_datum_hash_str, l_gdb_group_mempool)) {
+                if (!dap_global_db_del_sync(l_datum_hash_str, l_gdb_group_mempool)) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply,
                                                       "Converted datum %s from mempool to event in the new forming round ",
                                                       l_datum_hash_str);
