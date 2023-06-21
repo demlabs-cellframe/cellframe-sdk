@@ -90,6 +90,7 @@ typedef struct dap_chain_esbocs_directive {
     uint8_t version;
     uint8_t type;
     uint16_t size;
+    dap_time_t timestamp;
     byte_t tsd[];
 } DAP_ALIGN_PACKED dap_chain_esbocs_directive_t;
 
@@ -108,11 +109,14 @@ typedef struct dap_chain_esbocs_round {
     dap_chain_addr_t attempt_submit_validator;
     dap_hash_fast_t attempt_candidate_hash;
     // Validators section
-    uint16_t validators_synced_count;
     dap_list_t *validators_list;
+    uint16_t validators_synced_count;
+    // Synchronization params
     uint64_t sync_attempt;
     bool sync_sent;
-    uint16_t total_validators_count;
+    // Check validators online & wide consensus sync
+    dap_list_t *all_validators;
+    uint16_t total_validators_synced;
 } dap_chain_esbocs_round_t;
 
 typedef struct dap_chain_esbocs_validator {
@@ -122,6 +126,14 @@ typedef struct dap_chain_esbocs_validator {
     bool is_synced;
     bool is_chosen;
 } dap_chain_esbocs_validator_t;
+
+typedef struct dap_chain_esbocs_penalty_item {
+        dap_chain_addr_t signing_addr;
+        uint16_t miss_count;
+        UT_hash_handle hh;
+} dap_chain_esbocs_penalty_item_t;
+
+#define DAP_CHAIN_ESBOCS_PENALTY_KICK   3U      // Number of missed rounds to kick
 
 typedef struct dap_chain_esbocs_session {
     pthread_mutex_t mutex;
@@ -143,6 +155,8 @@ typedef struct dap_chain_esbocs_session {
 
     dap_enc_key_t *blocks_sign_key;
     dap_chain_addr_t my_signing_addr;
+
+    dap_chain_esbocs_penalty_item_t *penalty;
 
     struct dap_chain_esbocs_session *next;
     struct dap_chain_esbocs_session *prev;
