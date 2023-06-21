@@ -12,9 +12,9 @@
 #define DAP_STREAM_CH_VOTING_MSG_TYPE_APPROVE       0x08
 #define DAP_STREAM_CH_VOTING_MSG_TYPE_REJECT        0x12
 #define DAP_STREAM_CH_VOTING_MSG_TYPE_COMMIT_SIGN   0x16
+#define DAP_STREAM_CH_VOTING_MSG_TYPE_PRE_COMMIT    0x28
 #define DAP_STREAM_CH_VOTING_MSG_TYPE_VOTE          0x20
 #define DAP_STREAM_CH_VOTING_MSG_TYPE_DIRECTIVE     0x24
-#define DAP_STREAM_CH_VOTING_MSG_TYPE_PRE_COMMIT    0x28
 #define DAP_STREAM_CH_VOTING_MSG_TYPE_START_SYNC    0x32
 
 #define DAP_CHAIN_BLOCKS_SESSION_ROUND_ID_SIZE		8
@@ -28,8 +28,9 @@ typedef struct dap_chain_esbocs_session dap_chain_esbocs_session_t;
 • Approve(round, candidate) — a block candidate has passed local validation
 • Reject(round, candidate) — a block candidate has failed local validation
 • CommitSign(round, candidate, signature) — a block candidate has been accepted and signed *** sign in data section
-• Vote(round, candidate) — a vote for a block candidate in this round (even if the current process has another opinion)
 • PreCommit(round, candidate, final_hash) — a preliminary commitment to a block candidate *** candidate with signs hash in data section
+• Directive(round, body) — a directive to change consensus parameters *** directive body in data section
+• Vote(round, directive) — a vote for a directive in this round
 */
 typedef struct dap_chain_esbocs_message_hdr {
     uint16_t version;
