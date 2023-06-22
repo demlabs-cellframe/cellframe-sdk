@@ -75,7 +75,6 @@ static void *s_list_thread_proc(void *arg)
 
             // set new start pos = lastitem pos + 1
             l_item_start = l_objs[l_item_count - 1].id + 1;
-            log_it(L_DEBUG, "! l_group_cur: %s %lu, subtract %lu", l_group_cur->name, l_group_cur->count, l_item_count);
             l_group_cur->count -= l_item_count;
             dap_list_t *l_list = NULL;
 
@@ -354,10 +353,6 @@ dap_db_log_list_obj_t *dap_db_log_list_get_multiple(dap_db_log_list_t *a_db_log_
         *(l_ret + l_fact_count) = *(dap_db_log_list_obj_t*)l_list->data;
         a_db_log_list->size -= sizeof(dap_db_log_list_obj_t) + sizeof(dap_store_obj_pkt_t) + (l_ret + l_fact_count)->pkt->data_size;
         dap_list_free_full(l_list, NULL);
-    }
-
-    if (l_fact_count) {
-        log_it(L_DEBUG, "! a_db_log_list old size: %lu , new size: %lu", l_old_size, a_db_log_list->size);
     }
 
     if (l_old_size > DAP_DB_LOG_LIST_MAX_SIZE && a_db_log_list->size <= DAP_DB_LOG_LIST_MAX_SIZE) {

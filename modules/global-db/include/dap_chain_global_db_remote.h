@@ -29,8 +29,7 @@ typedef struct dap_db_log_list_obj {
 typedef struct dap_db_log_list {
     dap_list_t *items_list;
     bool is_process;
-    size_t items_rest; // rest items to read from items_list
-    size_t items_number; // total items after reading from db
+    atomic_uint_fast64_t items_rest, items_number; // rest items to read from items_list
     dap_list_t *groups;
     size_t size;
     pthread_cond_t cond;
@@ -60,8 +59,8 @@ uint64_t dap_store_packet_get_id(dap_store_obj_pkt_t *a_pkt);
 void dap_store_packet_change_id(dap_store_obj_pkt_t *a_pkt, uint64_t a_id);
 
 dap_db_log_list_t* dap_db_log_list_start(dap_chain_net_t *a_net, dap_chain_node_addr_t a_addr, int a_flags);
-size_t dap_db_log_list_get_count(dap_db_log_list_t *a_db_log_list);
-size_t dap_db_log_list_get_count_rest(dap_db_log_list_t *a_db_log_list);
+//size_t dap_db_log_list_get_count(dap_db_log_list_t *a_db_log_list);
+//size_t dap_db_log_list_get_count_rest(dap_db_log_list_t *a_db_log_list);
 dap_db_log_list_obj_t *dap_db_log_list_get(dap_db_log_list_t *a_db_log_list);
 dap_db_log_list_obj_t *dap_db_log_list_get_multiple(dap_db_log_list_t *a_db_log_list, size_t *a_count);
 void dap_db_log_list_delete(dap_db_log_list_t *a_db_log_list);
