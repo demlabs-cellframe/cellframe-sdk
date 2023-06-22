@@ -809,23 +809,23 @@ static void s_fill_links_from_root_aliases(dap_chain_net_t * a_net)
         log_it(L_WARNING, "Found link %s."NODE_ADDR_FP_STR" in the node list ip - %s",
                                           a_net->pub.name, NODE_ADDR_FP_ARGS(l_link_node_info->links),
                                           inet_ntoa(l_link_node_info->hdr.ext_addr_v4));
-        ping_handle_t *l_ping_handle = ping_handle_create();
-        const char *addr = inet_ntoa(l_link_node_info->hdr.ext_addr_v4);
-        char *addr1 = DAP_NEW_Z_SIZE(char, strlen(addr));
-        memmove(addr1,addr,strlen(addr));
-        int res = (addr1) ? ping_util(l_ping_handle, addr1, 1) : -EADDRNOTAVAIL;
-        DAP_DELETE(l_ping_handle);
-        if(res >= 0) {
+        //ping_handle_t *l_ping_handle = ping_handle_create();
+        //const char *addr = inet_ntoa(l_link_node_info->hdr.ext_addr_v4);
+        //char *addr1 = DAP_NEW_Z_SIZE(char, strlen(addr));
+        //memmove(addr1,addr,strlen(addr));
+        //int res = (addr1) ? ping_util(l_ping_handle, addr1, 1) : -EADDRNOTAVAIL;
+        //DAP_DELETE(l_ping_handle);
+        //if(res >= 0) {
             ret = s_net_link_add(a_net, l_link_node_info);
             l_node_found++;
-            DAP_DELETE(l_link_node_info);
+           // DAP_DELETE(l_link_node_info);
             if (ret > 0)    // Maximum links count reached
                 return;
-        }
-        else{
-            DAP_DELETE(l_link_node_info);
-            DAP_DELETE(addr1);
-        }
+        //}
+        //else{
+            //DAP_DELETE(l_link_node_info);
+            //DAP_DELETE(addr1);
+        //}
     }
     for (size_t i = l_node_found; i < l_pvt_net->seed_aliases_count; i++) {
         dap_chain_node_addr_t *l_link_addr = dap_chain_node_alias_find(a_net, l_pvt_net->seed_aliases[i]);
