@@ -225,17 +225,17 @@ uint256_t dap_chain_net_srv_stake_get_allowed_min_value()
     return s_srv_stake->delegate_allowed_min;
 }
 
-bool dap_chain_net_srv_stake_key_delegated(dap_chain_addr_t *a_signing_addr)
+int dap_chain_net_srv_stake_key_delegated(dap_chain_addr_t *a_signing_addr)
 {
     assert(s_srv_stake);
     if (!a_signing_addr)
-        return false;
+        return 0;
 
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
     HASH_FIND(hh, s_srv_stake->itemlist, a_signing_addr, sizeof(dap_chain_addr_t), l_stake);
     if (l_stake) // public key delegated for this network
-        return true;
-    return false;
+        return l_stake->is_active ? 1 : -1;
+    return 0;
 }
 
 dap_list_t *dap_chain_net_srv_stake_get_validators(dap_chain_net_id_t a_net_id)

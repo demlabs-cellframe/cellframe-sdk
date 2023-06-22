@@ -69,11 +69,24 @@ DAP_STATIC_INLINE const char *s_voting_msg_type_to_str(uint8_t a_type)
     case DAP_STREAM_CH_VOTING_MSG_TYPE_APPROVE: return "APPROVE";
     case DAP_STREAM_CH_VOTING_MSG_TYPE_REJECT: return "REJECT";
     case DAP_STREAM_CH_VOTING_MSG_TYPE_COMMIT_SIGN: return "COMMIT_SIGN";
-    case DAP_STREAM_CH_VOTING_MSG_TYPE_VOTE: return "VOTE";
-    case DAP_STREAM_CH_VOTING_MSG_TYPE_DIRECTIVE: return "DIRECTIVE";
     case DAP_STREAM_CH_VOTING_MSG_TYPE_PRE_COMMIT: return "PRE_COMMIT";
+    case DAP_STREAM_CH_VOTING_MSG_TYPE_DIRECTIVE: return "DIRECTIVE";
+    case DAP_STREAM_CH_VOTING_MSG_TYPE_VOTE_FOR: return "VOTE_FOR";
+    case DAP_STREAM_CH_VOTING_MSG_TYPE_VOTE_AGAINST: return "VOTE_AGAINST";
     default: return "UNKNOWN";
     }
+}
+
+DAP_STATIC_INLINE uint32_t s_directive_calc_size(uint8_t a_type)
+{
+    uint32_t l_ret = sizeof(dap_chain_esbocs_directive_t);
+    switch (a_type) {
+    case DAP_CHAIN_ESBOCS_DIRECTIVE_KICK:
+    case DAP_CHAIN_ESBOCS_DIRECTIVE_LIFT:
+        l_ret += sizeof(dap_tsd_t) + sizeof(dap_chain_addr_t);
+    default:;
+    }
+    return l_ret;
 }
 
 static dap_chain_esbocs_session_t * s_session_items;
@@ -564,7 +577,7 @@ static void s_session_update_penalty(dap_chain_esbocs_session_t *a_session)
         return; // Not a valid round, less than 2/3 participants
     for (dap_list_t *it = a_session->cur_round.all_validators; it; it = it->next) {
         if (((dap_chain_esbocs_validator_t *)it->data)->is_synced)
-            continue;   // Penalty for non synced participants
+            continue;   // Penalty for non synced participants only
         dap_chain_esbocs_penalty_item_t *l_item = NULL;
         dap_chain_addr_t *l_signing_addr = &((dap_chain_esbocs_validator_t *)it->data)->signing_addr;
         HASH_FIND(hh, a_session->penalty, l_signing_addr, sizeof(*l_signing_addr), l_item);
@@ -593,6 +606,8 @@ static void s_session_round_clear(dap_chain_esbocs_session_t *a_session)
     }
     dap_list_free_full(a_session->cur_round.validators_list, NULL);
     dap_list_free_full(a_session->cur_round.all_validators, NULL);
+
+    DAP_DEL_Z(a_session->cur_round.directive);
 
     a_session->cur_round = (dap_chain_esbocs_round_t){
             .id = a_session->cur_round.id,
@@ -752,9 +767,37 @@ static int s_signs_sort_callback(const void *a_sign1, const void *a_sign2, UNUSE
     return l_ret;
 }
 
-bool s_session_directive_ready(dap_chain_esbocs_session_t *a_session)
+dap_chain_esbocs_directive_t *s_session_directive_ready(dap_chain_esbocs_session_t *a_session)
 {
-
+    bool l_kick = false;
+    dap_chain_esbocs_penalty_item_t *l_item, *l_tmp;
+    HASH_ITER(hh, a_session->penalty, l_item, l_tmp) {
+        int l_key_state = dap_chain_net_srv_stake_key_delegated(&l_item->signing_addr);
+        if (l_key_state == 0) {
+            HASH_DEL(a_session->penalty, l_item);
+            DAP_DELETE(l_item);
+            continue;
+        }
+        if (l_item->miss_count == DAP_CHAIN_ESBOCS_PENALTY_KICK && l_key_state == 1) {
+            l_kick = true;
+            break;
+        }
+        if (l_item->miss_count == 0 && l_key_state == -1)
+            break;
+    }
+    if (!l_item)
+        return NULL;
+    uint32_t l_directive_size = s_directive_calc_size(l_kick ? DAP_CHAIN_ESBOCS_DIRECTIVE_KICK : DAP_CHAIN_ESBOCS_DIRECTIVE_LIFT);
+    dap_chain_esbocs_directive_t *l_ret = DAP_NEW_Z_SIZE(dap_chain_esbocs_directive_t, l_directive_size);
+    l_ret->version = DAP_CHAIN_ESBOCS_DIRECTIVE_VERSION;
+    l_ret->type = l_kick ? DAP_CHAIN_ESBOCS_DIRECTIVE_KICK : DAP_CHAIN_ESBOCS_DIRECTIVE_LIFT;
+    l_ret->size = l_directive_size;
+    l_ret->timestamp = dap_nanotime_now();
+    dap_tsd_t *l_tsd = (dap_tsd_t *)l_ret->tsd;
+    l_tsd->type = DAP_CHAIN_ESBOCS_DIRECTIVE_TSD_TYPE_ADDR;
+    l_tsd->size = sizeof(dap_chain_addr_t);
+    *(dap_chain_addr_t *)l_tsd->data = l_item->signing_addr;
+    return l_ret;
 }
 
 static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s_esbocs_session_state a_new_state, dap_time_t a_time)
@@ -773,8 +816,14 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
         }
         a_session->cur_round.attempt_submit_validator = l_validator->signing_addr;
         if (dap_chain_addr_compare(&a_session->cur_round.attempt_submit_validator, &a_session->my_signing_addr)) {
-            if (s_session_directive_ready(a_session))
-                s_session_directive_issue(a_session);
+            dap_chain_esbocs_directive_t *l_directive = s_session_directive_ready(a_session);
+            if (l_directive) {
+                dap_hash_fast_t l_directive_hash;
+                dap_hash_fast(l_directive, l_directive->size, &l_directive_hash);
+                s_message_send(a_session, DAP_STREAM_CH_VOTING_MSG_TYPE_DIRECTIVE, &l_directive_hash,
+                                    l_directive, l_directive->size, a_session->cur_round.all_validators);
+                DAP_DELETE(l_directive);
+            }
             s_session_candidate_submit(a_session);
         } else {
             dap_chain_esbocs_message_item_t *l_item, *l_tmp;
@@ -1339,6 +1388,63 @@ void s_session_validator_mark_online(dap_chain_esbocs_session_t *a_session, dap_
         l_item->miss_count--;
 }
 
+static void s_session_directive_process(dap_chain_esbocs_session_t *a_session, dap_chain_esbocs_directive_t *a_directive, dap_chain_hash_fast_t *a_directive_hash)
+{
+    if (a_directive->size != s_directive_calc_size(a_directive->type)) {
+        log_it(L_ERROR, "Invalid directive size %u (expected %u)",
+               a_directive->size, s_directive_calc_size(a_directive->type));
+        return;
+    }
+    bool l_vote_for = false;
+    switch (a_directive->type) {
+    case DAP_CHAIN_ESBOCS_DIRECTIVE_KICK:
+    case DAP_CHAIN_ESBOCS_DIRECTIVE_LIFT: {
+        dap_tsd_t *l_tsd = (dap_tsd_t *)a_directive->tsd;
+        if (l_tsd->size != sizeof(dap_chain_addr_t)) {
+            log_it(L_ERROR, "Invalid directive TSD size %u (expected %zu)",
+                   l_tsd->size, sizeof(dap_chain_addr_t));
+            return;
+        }
+        dap_chain_addr_t *l_voting_addr = (dap_chain_addr_t *)l_tsd->data;
+        int l_status = dap_chain_net_srv_stake_key_delegated(l_voting_addr);
+        if (l_status == 0) {
+            const char *l_addr_str = dap_chain_addr_to_str(l_voting_addr);
+            log_it(L_WARNING, "Trying to put to the vote directive type %s for non delegated key %s",
+                                    a_directive->type == DAP_CHAIN_ESBOCS_DIRECTIVE_KICK ? "KICK" : "LIFT",
+                                        l_addr_str);
+            DAP_DELETE(l_addr_str);
+            return;
+        }
+        dap_chain_esbocs_penalty_item_t *l_item = NULL;
+        HASH_FIND(hh, a_session->penalty, l_voting_addr, sizeof(*l_voting_addr), l_item);
+        if (l_status == 1) {
+            if (a_directive->type == DAP_CHAIN_ESBOCS_DIRECTIVE_KICK) {
+                if (l_item && l_item->miss_count == DAP_CHAIN_ESBOCS_PENALTY_KICK)
+                    l_vote_for = true;
+            } else { // a_directive->type == DAP_CHAIN_ESBOCS_DIRECTIVE_LIFT
+                if (!l_item || l_item->miss_count != DAP_CHAIN_ESBOCS_PENALTY_KICK)
+                    l_vote_for = true;
+            }
+        } else { // l_status == -1
+            if (a_directive->type == DAP_CHAIN_ESBOCS_DIRECTIVE_LIFT) {
+                if (l_item && l_item->miss_count == 0)
+                    l_vote_for = true;
+            } else { // a_directive->type == DAP_CHAIN_ESBOCS_DIRECTIVE_KICK
+                if (!l_item || l_item->miss_count != 0)
+                    l_vote_for = true;
+            }
+        }
+    }
+    default:;
+    }
+
+    uint8_t l_type = l_vote_for ? DAP_STREAM_CH_VOTING_MSG_TYPE_VOTE_FOR : DAP_STREAM_CH_VOTING_MSG_TYPE_VOTE_AGAINST;
+    s_message_send(a_session, l_type, a_directive_hash, NULL, 0, a_session->cur_round.all_validators);
+
+    a_session->cur_round.directive_hash = *a_directive_hash;
+    a_session->cur_round.directive = DAP_DUP_SIZE(a_directive, a_directive->size);
+}
+
 /**
  * @brief s_session_packet_in
  * @param a_arg
@@ -1733,6 +1839,39 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
             log_it(L_WARNING, "Candidate:%s sign is incorrect: code %d", l_candidate_hash_str, l_sign_verified);
         }
         DAP_DEL_Z(l_candidate_hash_str);
+    } break;
+
+    case DAP_STREAM_CH_VOTING_MSG_TYPE_DIRECTIVE: {
+        if (l_session->cur_round.directive) {
+            log_it(L_WARNING, "Only one directive can be processed at a time");
+            break;
+        }
+        dap_chain_esbocs_directive_t *l_directive = (dap_chain_esbocs_directive_t *)l_message->msg_n_sign;
+        size_t l_directive_size = l_message_data_size;
+        if (l_directive_size < sizeof(dap_chain_esbocs_directive_t) || l_directive_size != l_directive->size) {
+            log_it(L_WARNING, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+                              " Receive DIRECTIVE with invalid size %zu)",
+                                    l_session->chain->net_name, l_session->chain->name,
+                                        l_session->cur_round.id, l_message->hdr.attempt_num,
+                                            l_directive_size);
+            break;
+        }
+        // check directive hash
+        dap_chain_hash_fast_t l_directive_hash;
+        dap_hash_fast(l_directive, l_directive_size, &l_directive_hash);
+        if (!dap_hash_fast_compare(&l_directive_hash, l_candidate_hash)) {
+            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+                                        " Receive DIRECTIVE hash broken",
+                                            l_session->chain->net_name, l_session->chain->name,
+                                                l_session->cur_round.id, l_message->hdr.attempt_num);
+            break;
+        }
+        s_session_directive_process(l_session, l_directive, &l_directive_hash);
+    } break;
+
+    case DAP_STREAM_CH_VOTING_MSG_TYPE_VOTE_FOR:
+    case DAP_STREAM_CH_VOTING_MSG_TYPE_VOTE_AGAINST: {
+
     } break;
 
     case DAP_STREAM_CH_VOTING_MSG_TYPE_PRE_COMMIT:
