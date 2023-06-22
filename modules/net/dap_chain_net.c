@@ -800,15 +800,13 @@ static struct net_link *s_get_free_link(dap_chain_net_t *a_net)
 static void s_fill_links_from_root_aliases(dap_chain_net_t * a_net)
 {
     int ret = 0;
-    int l_node_found = 0;
+    int l_node_added = 0;
     dap_chain_net_pvt_t *l_pvt_net = PVT(a_net);
-    for(int i=0;i<3;i++){
+    for(int i=0;i<10;i++){
         dap_chain_node_info_t *l_link_node_info = dap_chain_net_balancer_get_node(a_net->pub.name);
         if(!l_link_node_info)
             continue;
-        log_it(L_WARNING, "Found link %s."NODE_ADDR_FP_STR" in the node list ip - %s",
-                                          a_net->pub.name, NODE_ADDR_FP_ARGS(l_link_node_info->links),
-                                          inet_ntoa(l_link_node_info->hdr.ext_addr_v4));
+
         //ping_handle_t *l_ping_handle = ping_handle_create();
         //const char *addr = inet_ntoa(l_link_node_info->hdr.ext_addr_v4);
         //char *addr1 = DAP_NEW_Z_SIZE(char, strlen(addr));
@@ -816,18 +814,28 @@ static void s_fill_links_from_root_aliases(dap_chain_net_t * a_net)
         //int res = (addr1) ? ping_util(l_ping_handle, addr1, 1) : -EADDRNOTAVAIL;
         //DAP_DELETE(l_ping_handle);
         //if(res >= 0) {
-            ret = s_net_link_add(a_net, l_link_node_info);
-            l_node_found++;
-           // DAP_DELETE(l_link_node_info);
-            if (ret > 0)    // Maximum links count reached
-                return;
+            if((l_link_node_info->hdr.ext_addr_v4.s_addr==0) || (s_net_link_find(a_net, l_link_node_info)!=NULL)){
+                DAP_DELETE(l_link_node_info);
+            }
+            else
+            {
+                log_it(L_INFO, "Added link %s."NODE_ADDR_FP_STR" to the node list ip - %s",
+                                                  a_net->pub.name, NODE_ADDR_FP_ARGS_S(l_link_node_info->hdr.address),
+                                                  inet_ntoa(l_link_node_info->hdr.ext_addr_v4));
+                ret = s_net_link_add(a_net, l_link_node_info);
+                l_node_added++;
+                DAP_DELETE(l_link_node_info);
+                if (ret > 0 || l_node_added==3)    // Maximum links count reached
+                    return;
+            }
+
         //}
         //else{
             //DAP_DELETE(l_link_node_info);
             //DAP_DELETE(addr1);
         //}
     }
-    for (size_t i = l_node_found; i < l_pvt_net->seed_aliases_count; i++) {
+    for (size_t i = l_node_added; i < l_pvt_net->seed_aliases_count; i++) {
         dap_chain_node_addr_t *l_link_addr = dap_chain_node_alias_find(a_net, l_pvt_net->seed_aliases[i]);
         if (!l_link_addr)
             continue;
@@ -837,8 +845,8 @@ static void s_fill_links_from_root_aliases(dap_chain_net_t * a_net)
                                               a_net->pub.name, NODE_ADDR_FP_ARGS(l_link_addr));
             continue;
         }
-        log_it(L_WARNING, "Found link %s."NODE_ADDR_FP_STR" in the node list ip - %s",
-                                          a_net->pub.name, NODE_ADDR_FP_ARGS(l_link_node_info->links),
+        log_it(L_INFO, "Found link %s."NODE_ADDR_FP_STR" in the node list ip - %s",
+                                          a_net->pub.name, NODE_ADDR_FP_ARGS_S(l_link_node_info->hdr.address),
                                           inet_ntoa(l_link_node_info->hdr.ext_addr_v4));
         ret = s_net_link_add(a_net, l_link_node_info);
         DAP_DELETE(l_link_node_info);
@@ -1179,10 +1187,12 @@ static bool s_balancer_start_dns_request(dap_chain_net_t *a_net, dap_chain_node_
 static bool s_balancer_start_http_request(dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_info, bool a_link_replace)
 {
     char l_node_addr_str[INET_ADDRSTRLEN] = { };
+    inet_ntop(AF_INET, &a_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
+    log_it(L_DEBUG, "Start balancer HTTP request to %s ip - %s", l_node_addr_str,inet_ntoa(a_link_node_info->hdr.ext_addr_v4));
     dap_chain_net_pvt_t *l_net_pvt = a_net ? PVT(a_net) : NULL;
     if (!l_net_pvt)
         return false;
-
+/*
     dap_chain_node_info_t *l_link_full_node = dap_chain_net_balancer_get_node(a_net->pub.name);
     if(l_link_full_node){
         log_it(L_DEBUG, "Network LOCAL balancer issues ip %s",inet_ntoa(l_link_full_node->hdr.ext_addr_v4));
@@ -1209,7 +1219,7 @@ static bool s_balancer_start_http_request(dap_chain_net_t *a_net, dap_chain_node
     }
     inet_ntop(AF_INET, &a_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
     log_it(L_DEBUG, "Start balancer HTTP request to %s", l_node_addr_str);
-
+    */
     struct balancer_link_request *l_balancer_request = DAP_NEW_Z(struct balancer_link_request);
     l_balancer_request->from_http = true;
     l_balancer_request->net = a_net;

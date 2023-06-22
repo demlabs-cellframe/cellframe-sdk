@@ -40,14 +40,10 @@ dap_chain_node_info_t *dap_chain_net_balancer_get_node(const char *a_net_name)
         }
         l_net = l_nets[rand() % l_nets_count];
     }
-    // get nodes list from global_db
-    //dap_global_db_obj_t *l_objs = NULL;
-    dap_store_obj_t *l_objs = NULL;
+    dap_global_db_obj_t *l_objs = NULL;
     size_t l_nodes_count = 0;
     size_t l_node_num = 0;
-    // read all node
-    //l_objs = dap_global_db_get_all_sync(l_net->pub.gdb_nodes, &l_nodes_count);
-    l_objs = dap_chain_global_db_obj_gr_get(NULL, &l_nodes_count, l_net->pub.gdb_nodes);
+    l_objs = dap_chain_global_db_gr_load(l_net->pub.gdb_nodes, &l_nodes_count);
     if (!l_nodes_count || !l_objs)
         return NULL;
     l_node_addr_list = dap_chain_net_get_node_list_cfg(l_net);
@@ -74,8 +70,7 @@ dap_chain_node_info_t *dap_chain_net_balancer_get_node(const char *a_net_name)
             l_node_num++;
         }
     }
-    //dap_global_db_objs_delete(l_objs, l_nodes_count);
-    dap_store_obj_free(l_objs, l_nodes_count);
+    dap_chain_global_db_objs_delete(l_objs, l_nodes_count);
     dap_list_free(l_node_addr_list);
     l_nodes_count = l_node_num;
     dap_chain_node_info_t *l_node_candidate;
