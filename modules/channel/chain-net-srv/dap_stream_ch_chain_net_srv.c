@@ -244,7 +244,7 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
         DL_FOREACH(l_srv->pricelist, l_price_tmp) {
             if (l_price_tmp->net->pub.id.uint64                 == l_request->hdr.net_id.uint64
                 && dap_strcmp(l_price_tmp->token, l_ticker)     == 0
-                && l_price_tmp->units_uid.enm                   == l_tx_out_cond->subtype.srv_pay.unit.enm
+//                && l_price_tmp->units_uid.enm                   == l_tx_out_cond->subtype.srv_pay.unit.enm
                 )//&& (l_price_tmp->value_datoshi/l_price_tmp->units)  < l_tx_out_cond->subtype.srv_pay.header.unit_price_max_datoshi)
             {
                 l_price = l_price_tmp;
