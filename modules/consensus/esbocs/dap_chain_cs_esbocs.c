@@ -447,8 +447,7 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_session_t *a_session, 
 
         a_session->cur_round.all_validators = dap_list_copy_deep(l_validators, s_callback_list_copy, NULL);
 
-        //size_t n = (size_t)l_esbocs_pvt->min_validators_count * 3;
-        size_t l_consensus_optimum = (size_t)l_esbocs_pvt->min_validators_count * 2 - 1;//(n / 2) + (n % 2);
+        size_t l_consensus_optimum = (size_t)l_esbocs_pvt->min_validators_count * 2 - 1;
         size_t l_need_vld_cnt = MIN(l_total_validators_count, l_consensus_optimum);
 
         dap_pseudo_random_seed(*(uint256_t *)&a_session->cur_round.last_block_hash);
@@ -1445,6 +1444,21 @@ static void s_session_directive_process(dap_chain_esbocs_session_t *a_session, d
     a_session->cur_round.directive = DAP_DUP_SIZE(a_directive, a_directive->size);
 }
 
+static int s_session_directive_apply(dap_chain_esbocs_directive_t *a_directive)
+{
+    if (!a_directive) {
+        log_it(L_ERROR, "Can't apply NULL directive");
+        return -1;
+    }
+    switch (a_directive->type) {
+    case DAP_CHAIN_ESBOCS_DIRECTIVE_KICK:
+    case DAP_CHAIN_ESBOCS_DIRECTIVE_LIFT: {
+
+    }
+    default:;
+    }
+}
+
 /**
  * @brief s_session_packet_in
  * @param a_arg
@@ -1871,6 +1885,31 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 
     case DAP_STREAM_CH_VOTING_MSG_TYPE_VOTE_FOR:
     case DAP_STREAM_CH_VOTING_MSG_TYPE_VOTE_AGAINST: {
+        if (dap_hash_fast_is_blank(l_candidate_hash)) {
+            log_it(L_WARNING, "Receive VOTE %s for empty directive",
+                                    l_message->hdr.type == DAP_STREAM_CH_VOTING_MSG_TYPE_VOTE_FOR ?
+                                        "FOR" : "AGAINST");
+            break;
+        }
+        if (!dap_hash_fast_compare(&l_session->cur_round.directive_hash, l_candidate_hash)) {
+            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+                                        "Received VOTE %s unknown directive",
+                                            l_session->chain->net_name, l_session->chain->name,
+                                                l_session->cur_round.id, l_message->hdr.attempt_num,
+                                                    l_message->hdr.type == DAP_STREAM_CH_VOTING_MSG_TYPE_VOTE_FOR ?
+                                                        "FOR" : "AGAINST");
+            break;
+        }
+        if (l_message->hdr.type == DAP_STREAM_CH_VOTING_MSG_TYPE_VOTE_FOR) {
+            if (++l_session->cur_round.votes_for_count * 3 >=
+                    dap_list_length(l_session->cur_round.all_validators) * 2) {
+                s_session_directive_apply(l_session->cur_round.directive);
+                s_session_state_change(a_prev_session);
+            }
+        } else // l_message->hdr.type == DAP_STREAM_CH_VOTING_MSG_TYPE_VOTE_AGAINST
+            if (++l_session->cur_round.votes_against_count * 3 >=
+                    dap_list_length(l_session->cur_round.all_validators) * 2)
+                s_session_state_change(a_prev_session)
 
     } break;
 
