@@ -7,16 +7,17 @@
 #include "dap_cert.h"
 
 #define DAP_CHAIN_ESBOCS_PROTOCOL_VERSION           6
+#define DAP_CHAIN_ESBOCS_GDB_GROUPS_PREFIX          "esbocs"
 
-#define DAP_STREAM_CH_VOTING_MSG_TYPE_SUBMIT        0x04
-#define DAP_STREAM_CH_VOTING_MSG_TYPE_APPROVE       0x08
-#define DAP_STREAM_CH_VOTING_MSG_TYPE_REJECT        0x12
-#define DAP_STREAM_CH_VOTING_MSG_TYPE_COMMIT_SIGN   0x16
-#define DAP_STREAM_CH_VOTING_MSG_TYPE_PRE_COMMIT    0x28
-#define DAP_STREAM_CH_VOTING_MSG_TYPE_DIRECTIVE     0x20
-#define DAP_STREAM_CH_VOTING_MSG_TYPE_VOTE_FOR      0x22
-#define DAP_STREAM_CH_VOTING_MSG_TYPE_VOTE_AGAINST  0x24
-#define DAP_STREAM_CH_VOTING_MSG_TYPE_START_SYNC    0x32
+#define DAP_CHAIN_ESBOCS_MSG_TYPE_SUBMIT            0x04
+#define DAP_CHAIN_ESBOCS_MSG_TYPE_APPROVE           0x08
+#define DAP_CHAIN_ESBOCS_MSG_TYPE_REJECT            0x12
+#define DAP_CHAIN_ESBOCS_MSG_TYPE_COMMIT_SIGN       0x16
+#define DAP_CHAIN_ESBOCS_MSG_TYPE_PRE_COMMIT        0x28
+#define DAP_CHAIN_ESBOCS_MSG_TYPE_DIRECTIVE         0x20
+#define DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_FOR          0x22
+#define DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_AGAINST      0x24
+#define DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC        0x32
 
 #define DAP_CHAIN_BLOCKS_SESSION_ROUND_ID_SIZE		8
 #define DAP_CHAIN_BLOCKS_SESSION_MESSAGE_ID_SIZE	8
@@ -155,11 +156,12 @@ typedef struct dap_chain_esbocs_session {
 
     dap_chain_node_addr_t my_addr;
     uint8_t state; // session state
+    uint8_t old_state; // for previous state return
     dap_chain_esbocs_round_t cur_round;
     bool round_fast_forward;
 
     dap_time_t ts_round_sync_start; // time of start sync
-    dap_time_t ts_attempt_start; // time of current attempt start
+    dap_time_t ts_stage_entry; // time of current stage entrance
 
     dap_chain_esbocs_sync_item_t *sync_items;
     dap_timerfd_t *sync_timer;
