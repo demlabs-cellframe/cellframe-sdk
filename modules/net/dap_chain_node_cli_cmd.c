@@ -5735,20 +5735,20 @@ int cmd_gdb_export(int a_argc, char **a_argv, char **a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "gdb_export requires parameter 'filename'");
         return -1;
     }
-    const char *l_db_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
-    if (!l_db_path)
+    const char *l_gdb_path = dap_config_get_item_str(g_config, "global_db", "path");
+    if (!l_gdb_path) {
         log_it(L_ERROR, "Can't find gdb path in config file");
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find gdb path in the config file");
         return -1;
-    DIR *dir = opendir(l_db_path);
-    if (!dir) {
+    }
+    if (!opendir(l_gdb_path)) {
         log_it(L_ERROR, "Can't open db directory");
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't open db directory");
         return -1;
     }
-    char l_path[MIN(strlen(l_db_path) + strlen(l_filename) + 12, MAX_PATH)];
+    char l_path[MIN(strlen(l_gdb_path) + strlen(l_filename) + 12, MAX_PATH)];
     memset(l_path, '\0', sizeof(l_path));
-    snprintf(l_path, sizeof(l_path), "%s/%s.json", l_db_path, l_filename);
+    snprintf(l_path, sizeof(l_path), "%s/%s.json", l_gdb_path, l_filename);
 
     const char *l_groups_str = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-groups", &l_groups_str);
@@ -5832,14 +5832,15 @@ int cmd_gdb_import(int a_argc, char **a_argv, char ** a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "gdb_import requires parameter 'filename'");
         return -1;
     }
-    const char *l_db_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
-    if (!l_db_path)
+    const char *l_gdb_path = dap_config_get_item_str(g_config, "global_db", "path");
+    if (!l_gdb_path) {
         log_it(L_ERROR, "Can't find gdb path in config file");
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find gdb path in the config file");
         return -1;
-    char l_path[strlen(l_db_path) + strlen(l_filename) + 12];
+    }
+    char l_path[strlen(l_gdb_path) + strlen(l_filename) + 12];
     memset(l_path, '\0', sizeof(l_path));
-    snprintf(l_path, sizeof(l_path), "%s/%s.json", l_db_path, l_filename);
+    snprintf(l_path, sizeof(l_path), "%s/%s.json", l_gdb_path, l_filename);
     struct json_object *l_json = json_object_from_file(l_path);
     if (!l_json) {
 #if JSON_C_MINOR_VERSION<15
