@@ -5736,6 +5736,9 @@ int cmd_gdb_export(int a_argc, char **a_argv, char **a_str_reply)
         return -1;
     }
     const char *l_db_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
+    if (!l_db_path)
+        log_it(L_ERROR, "Can't find path in config");
+        return -1;
     DIR *dir = opendir(l_db_path);
     if (!dir) {
         log_it(L_ERROR, "Can't open db directory");
