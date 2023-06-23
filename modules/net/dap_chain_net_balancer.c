@@ -76,12 +76,15 @@ dap_chain_node_info_t *dap_chain_net_balancer_get_node(const char *a_net_name)
     dap_chain_node_info_t *l_node_candidate;
     if(l_nodes_count)
     {
-        l_node_num = rand() % l_nodes_count;
-        l_node_candidate = (dap_chain_node_info_t *)dap_list_nth_data(l_objs_list,l_node_num);
         dap_chain_node_info_t *l_node_info = DAP_NEW_Z(dap_chain_node_info_t);
-        memcpy(l_node_info, l_node_candidate, sizeof(dap_chain_node_info_t));
+        do{
+            l_node_num = rand() % l_nodes_count;
+            l_node_candidate = (dap_chain_node_info_t *)dap_list_nth_data(l_objs_list,l_node_num);
+            memmove(l_node_info, l_node_candidate, sizeof(dap_chain_node_info_t));
+        }while(l_node_candidate->hdr.ext_addr_v4.s_addr == 0);
         dap_list_free(l_objs_list);
         return l_node_info;
+
     }
     else
     {

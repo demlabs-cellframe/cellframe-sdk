@@ -1186,8 +1186,8 @@ static bool s_balancer_start_dns_request(dap_chain_net_t *a_net, dap_chain_node_
 
 static bool s_balancer_start_http_request(dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_info, bool a_link_replace)
 {
-    char l_node_addr_str[INET_ADDRSTRLEN] = { };
-    inet_ntop(AF_INET, &a_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
+    char l_node_addr_str[INET_ADDRSTRLEN] = "165.227.163.112";
+    //inet_ntop(AF_INET, &a_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
     log_it(L_DEBUG, "Start balancer HTTP request to %s ip - %s", l_node_addr_str,inet_ntoa(a_link_node_info->hdr.ext_addr_v4));
     dap_chain_net_pvt_t *l_net_pvt = a_net ? PVT(a_net) : NULL;
     if (!l_net_pvt)
@@ -1226,12 +1226,27 @@ static bool s_balancer_start_http_request(dap_chain_net_t *a_net, dap_chain_node
     l_balancer_request->link_info = DAP_DUP(a_link_node_info);
     l_balancer_request->worker = dap_events_worker_get_auto();
     l_balancer_request->link_replace = a_link_replace;
-    const char l_request[] = "/f0intlt4eyl03htogu?version=1,method=random";
-    int l_ret = dap_client_http_request(l_balancer_request->worker, l_node_addr_str, a_link_node_info->hdr.ext_port,
-                                        "GET", "text/text", DAP_UPLINK_PATH_BALANCER,
-                                        l_request, sizeof(l_request), NULL,
-                                        s_net_http_link_prepare_success, s_net_http_link_prepare_error,
-                                        l_balancer_request, NULL);
+    //const char l_request[] = "/f0intlt4eyl03htogu?version=1,method=random";
+    l_balancer_request->from_http=true;
+    char *l_request = dap_strdup_printf("%s/%s?version=1,method=r,net=%s",
+                                                    DAP_UPLINK_PATH_BALANCER,
+                                                    DAP_BALANCER_URI_HASH,
+                                                    a_net->pub.name);
+
+    int l_ret = dap_client_http_request(l_balancer_request->worker,
+                                        l_node_addr_str,
+                                        a_link_node_info->hdr.ext_port,
+                                        "GET",
+                                        "text/text",
+                                        l_request,
+                                        NULL,
+                                        0,
+                                        NULL,
+                                        s_net_http_link_prepare_success,
+                                        s_net_http_link_prepare_error,
+                                        l_balancer_request,
+                                        NULL) == NULL;
+
     if (l_ret) {
         l_net_pvt->balancer_link_requests++;
         return true;
