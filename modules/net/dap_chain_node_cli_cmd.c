@@ -5737,7 +5737,8 @@ int cmd_gdb_export(int a_argc, char **a_argv, char **a_str_reply)
     }
     const char *l_db_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
     if (!l_db_path)
-        log_it(L_ERROR, "Can't find path in config");
+        log_it(L_ERROR, "Can't find gdb path in config file");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find gdb path in the config file");
         return -1;
     DIR *dir = opendir(l_db_path);
     if (!dir) {
@@ -5832,6 +5833,10 @@ int cmd_gdb_import(int a_argc, char **a_argv, char ** a_str_reply)
         return -1;
     }
     const char *l_db_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
+    if (!l_db_path)
+        log_it(L_ERROR, "Can't find gdb path in config file");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find gdb path in the config file");
+        return -1;
     char l_path[strlen(l_db_path) + strlen(l_filename) + 12];
     memset(l_path, '\0', sizeof(l_path));
     snprintf(l_path, sizeof(l_path), "%s/%s.json", l_db_path, l_filename);
