@@ -305,7 +305,7 @@ dap_chain_node_info_t *dap_dns_resolve_hostname(char *str)
         l_net = l_nets[rand() % l_nets_count];
     }
     // get nodes list from global_db
-    /*
+
     dap_global_db_obj_t *l_objs = NULL;
     size_t l_nodes_count = 0;
     // read all node
@@ -328,6 +328,5 @@ dap_chain_node_info_t *dap_dns_resolve_hostname(char *str)
     log_it(L_DEBUG, "DNS resolver find ip %s", inet_ntoa(l_node_info->hdr.ext_addr_v4));
 
     return l_node_info;
-    */
-    return dap_chain_balancer_issue_link(l_net->pub.name);
+
 }
