@@ -2438,9 +2438,9 @@ void dap_chain_ledger_set_fee(dap_ledger_t *a_ledger, uint256_t a_fee, dap_chain
 int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size, dap_chain_hash_fast_t *a_emission_hash)
 {
     if (!a_token_emission || !a_token_emission_size)
-        return -100;
+        return DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_ERROR_EMISSION_NULL_OR_IS_EMISSION_SIZE_ZERO;
 
-    int l_ret = 0;
+    int l_ret = DAP_CHAIN_LEDGER_EMISSION_ADD_OK;
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
 
     const char *l_token_ticker = ((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.ticker;
@@ -2453,7 +2453,7 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
 
     if (!l_token_item) {
         log_it(L_WARNING, "Ledger_token_emission_add_check. Token ticker %s was not found", l_token_ticker);
-        return -5;
+        return DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_TOKEN_NOT_FOUND;
     }
 
     // check if such emission is already present in table
@@ -2478,12 +2478,12 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
                 log_it(L_ERROR, "Can't add token emission datum of %"DAP_UINT64_FORMAT_U" %s ( %s ): already present in cache",
                     l_token_emission_item->datum_token_emission->hdr.value, l_token_ticker, l_token_hash_str);
         }
-        l_ret = -1;
+        l_ret = DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_CAN_NOT_ADDED_EMISSION_ALREADY_IN_CACHE;
     }else if ( (! l_token_item) && ( l_threshold_emissions_count >= s_threshold_emissions_max)) {
         if(s_debug_more)
             log_it(L_WARNING,"threshold for emissions is overfulled (%zu max)",
                s_threshold_emissions_max);
-        l_ret = -2;
+        l_ret = DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_THRESHOLD_EMISSION_OVERFULLED;
     }
     if (l_ret || !PVT(a_ledger)->check_token_emission)
         return l_ret;
@@ -2500,7 +2500,7 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
                     l_balance_cur, l_balance_em);
             DAP_DELETE(l_balance_cur);
             DAP_DELETE(l_balance_em);
-            return -4;
+            return DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_VALUE_MORE_THAN_CURRENT_SUPPLY;
         }
     }
 
@@ -2563,12 +2563,12 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
                                 l_balance, a_ledger->net_name, l_emission->hdr.ticker, l_aproves, l_aproves_valid);
                         DAP_DELETE(l_balance);
                     }
-                    l_ret = -3;
+                    l_ret = DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_VALID_SIGNS_NOT_ENOUGH;
                 }
             }else{
                 if(s_debug_more)
                     log_it(L_WARNING,"Can't find token declaration %s:%s thats pointed in token emission datum", a_ledger->net_name, l_emission->hdr.ticker);
-                l_ret = -5;
+                l_ret = DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_CANT_FIND_DECLARATION_TOKEN;
             }
         }break;
         default:{}
@@ -2709,7 +2709,7 @@ static inline int s_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_e
     HASH_FIND_STR(l_ledger_pvt->tokens, c_token_ticker, l_token_item);
     pthread_rwlock_unlock(&l_ledger_pvt->tokens_rwlock);
     if (!l_token_item && a_from_threshold)
-        return -5;
+        return DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_CANT_FIND_DECLARATION_TOKEN;
 
     // check if such emission is already present in table
     if(a_safe_call) pthread_rwlock_rdlock( l_token_item ? &l_token_item->token_emissions_rwlock
@@ -2732,7 +2732,7 @@ static inline int s_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_e
                 if (!s_chain_ledger_token_tsd_check(l_token_item, (dap_chain_datum_token_emission_t *)a_token_emission)) {
                     DAP_DELETE(l_token_emission_item->datum_token_emission);
                     DAP_DELETE(l_token_emission_item);
-                    return -114;
+                    return DAP_CHAIN_LEDGER_EMISSION_ADD_TSD_CHECK_FAILED;
                 }
             }
             //Update value in ledger memory object
@@ -2752,7 +2752,7 @@ static inline int s_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_e
                     DAP_DELETE(l_value);
                     DAP_DELETE(l_token_emission_item->datum_token_emission);
                     DAP_DELETE(l_token_emission_item);
-                    return -4;
+                    return DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_VALUE_MORE_THAN_CURRENT_SUPPLY;
                 }
                 if (PVT(a_ledger)->cached)
                     s_ledger_token_cache_update(a_ledger, l_token_item);
@@ -2801,7 +2801,7 @@ static inline int s_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_e
             if(s_debug_more)
                 log_it(L_WARNING,"threshold for emissions is overfulled (%zu max), dropping down new data, added nothing",
                    s_threshold_emissions_max);
-            l_ret = -2;
+            l_ret = DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_THRESHOLD_EMISSION_OVERFULLED;
         }
     } else {
         if (l_token_item) {
@@ -2818,7 +2818,7 @@ static inline int s_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_e
                             ((dap_chain_datum_token_emission_t *)a_token_emission)->hdr.value, c_token_ticker, l_hash_str);
             }
         }
-        l_ret = -1;
+        l_ret = DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_CAN_NOT_ADDED_EMISSION_ALREADY_IN_CACHE;
     }
     return l_ret;
 }
