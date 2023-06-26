@@ -1048,9 +1048,14 @@ static void s_net_links_complete_and_start(dap_chain_net_t *a_net, dap_worker_t 
 static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_chain_node_info_t * a_node_info, void * a_arg)
 {
     if(s_debug_more){
-        char l_node_addr_str[INET_ADDRSTRLEN]={};
+        char l_node_addr_str[INET_ADDRSTRLEN]={ };
         inet_ntop(AF_INET,&a_node_info->hdr.ext_addr_v4,l_node_addr_str, INET_ADDRSTRLEN);
         log_it(L_DEBUG,"Link " NODE_ADDR_FP_STR " (%s) prepare success", NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address),
+                                                                                     l_node_addr_str );
+
+         struct balancer_link_request *l_balancer_request2 = (struct balancer_link_request *) a_arg;
+        inet_ntop(AF_INET,&l_balancer_request2->link_info->hdr.ext_addr_v4,l_node_addr_str, INET_ADDRSTRLEN);
+        log_it(L_DEBUG,"SUPER Link " NODE_ADDR_FP_STR " (%s) prepare success", NODE_ADDR_FP_ARGS_S(l_balancer_request2->link_info->hdr.address),
                                                                                      l_node_addr_str );
     }
     struct balancer_link_request *l_balancer_request = (struct balancer_link_request *) a_arg;
@@ -1186,8 +1191,8 @@ static bool s_balancer_start_dns_request(dap_chain_net_t *a_net, dap_chain_node_
 
 static bool s_balancer_start_http_request(dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_info, bool a_link_replace)
 {
-    char l_node_addr_str[INET_ADDRSTRLEN] = { };
-    inet_ntop(AF_INET, &a_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
+    char l_node_addr_str[INET_ADDRSTRLEN] = "165.227.163.112";
+    //inet_ntop(AF_INET, &a_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
     log_it(L_DEBUG, "Start balancer HTTP request to %s ip - %s", l_node_addr_str,inet_ntoa(a_link_node_info->hdr.ext_addr_v4));
     dap_chain_net_pvt_t *l_net_pvt = a_net ? PVT(a_net) : NULL;
     if (!l_net_pvt)
@@ -1208,7 +1213,8 @@ static bool s_balancer_start_http_request(dap_chain_net_t *a_net, dap_chain_node
 
     int l_ret = dap_client_http_request(l_balancer_request->worker,
                                         l_node_addr_str,
-                                        a_link_node_info->hdr.ext_port,
+                                        //a_link_node_info->hdr.ext_port,
+                                        8079,
                                         "GET",
                                         "text/text",
                                         l_request,
