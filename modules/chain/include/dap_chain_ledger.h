@@ -73,7 +73,7 @@ typedef enum dap_chain_ledger_tx_check{
     DAP_CHAIN_LEDGER_TX_CACHE_CHECK_PERMISSION_FAILED = -20
 }dap_chain_ledger_tx_check_t;
 
-typedef enum dap_chein_ledger_emission_err_code{
+typedef enum dap_chain_ledger_emission_err{
     DAP_CHAIN_LEDGER_EMISSION_ADD_OK = 0,
     DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_ERROR_EMISSION_NULL_OR_IS_EMISSION_SIZE_ZERO = -100,
     DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_TOKEN_NOT_FOUND = -5,
@@ -83,7 +83,17 @@ typedef enum dap_chein_ledger_emission_err_code{
     DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_VALID_SIGNS_NOT_ENOUGH = -3,
     DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_CANT_FIND_DECLARATION_TOKEN = -5,
     DAP_CHAIN_LEDGER_EMISSION_ADD_TSD_CHECK_FAILED = -144
-}dap_chein_ledger_emission_err_code_t;
+}dap_chain_ledger_emission_err_code_t;
+
+typedef enum dap_chain_ledger_token_decl_add_err{
+    DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_OK = 0,
+    DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_LEDGER_IS_NULL = -1,
+    DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_DECL_DUPLICATE = -3,
+    DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_TOKEN_UPDATE_CHECK = -2,
+    DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_TOKEN_UPDATE_ABSENT_TOKEN = -6,
+    DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_NOT_ENOUGH_VALID_SIGN = -5,
+    DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_UNIQUE_SIGNS_LESS_TOTAL_SIGNS = -4
+}dap_chain_ledger_token_decl_add_err_t;
 
 typedef bool (*dap_chain_ledger_verificator_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_tx_out_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 typedef void (*dap_chain_ledger_updater_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_prev_cond);

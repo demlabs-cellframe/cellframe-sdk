@@ -691,7 +691,7 @@ int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datu
     if ( !a_ledger){
         if(s_debug_more)
             log_it(L_ERROR, "NULL ledger, can't add datum with token declaration!");
-        return  -1;
+        return  DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_LEDGER_IS_NULL;
     }
 
 
@@ -706,14 +706,14 @@ int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datu
     if	(l_token_item != NULL) {
         if (update_token == false) {
             log_it(L_WARNING,"Duplicate token declaration for ticker '%s' ", a_token->ticker);
-            return -3;
+            return DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_DECL_DUPLICATE;
         } else if (s_ledger_token_update_check(l_token_item, a_token, a_token_size) == false) {
-            return -2;
+            return DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_TOKEN_UPDATE_CHECK;
         }
     }
     else if	(l_token_item == NULL && update_token == true) {
         log_it(L_WARNING,"Can't update token that doesn't exist for ticker '%s' ", a_token->ticker);
-        return -6;
+        return DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_TOKEN_UPDATE_ABSENT_TOKEN;
     }
     // Check signs
     size_t l_signs_unique = 0;
@@ -747,19 +747,19 @@ int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datu
                 l_signs_approve++;
         a_token->signs_total = l_tmp_auth_signs;
         if (l_signs_approve == a_token->signs_total){
-            return 0;
+            return DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_OK;
         } else {
             log_it(L_WARNING, "The token declaration has %zu valid signatures out of %hu.", l_signs_approve, a_token->signs_total);
-            return -5;
+            return DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_NOT_ENOUGH_VALID_SIGN;
         }
     } else {
         log_it(L_WARNING, "The number of unique token signs %zu is less than total token signs set to %hu.",
                l_signs_unique, a_token->signs_total);
-        return -4;
+        return DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_UNIQUE_SIGNS_LESS_TOTAL_SIGNS;
     }
 //    dap_sign_t **l_signs = dap_sign_get_unique_signs(a_token->data_n_tsd, a_token->header_native_decl.
     // Checks passed
-    return 0;
+    return DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_OK;
 }
 
 /**
