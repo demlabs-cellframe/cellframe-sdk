@@ -932,8 +932,8 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
             for (size_t i = l_current_links_prepared; i < l_net_pvt->max_links_count ; i++) {
                 dap_chain_node_info_t *l_link_node_info = dap_get_balancer_link_from_cfg(l_net);
                 if (l_link_node_info) {
-                    if (!s_balancer_start_dns_request(l_net, l_link_node_info, true))
-                        log_it(L_ERROR, "Can't process node info dns request");
+                    if (!s_balancer_start_http_request(l_net, l_link_node_info, false))
+                        log_it(L_ERROR, "Can't process node info http request");
                     DAP_DELETE(l_link_node_info);
                 }
             }
@@ -1049,13 +1049,9 @@ static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_cha
 {
     if(s_debug_more){
         char l_node_addr_str[INET_ADDRSTRLEN]={ };
-        inet_ntop(AF_INET,&a_node_info->hdr.ext_addr_v4,l_node_addr_str, INET_ADDRSTRLEN);
-        log_it(L_DEBUG,"Link " NODE_ADDR_FP_STR " (%s) prepare success", NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address),
-                                                                                     l_node_addr_str );
-
-         struct balancer_link_request *l_balancer_request2 = (struct balancer_link_request *) a_arg;
-        inet_ntop(AF_INET,&l_balancer_request2->link_info->hdr.ext_addr_v4,l_node_addr_str, INET_ADDRSTRLEN);
-        log_it(L_DEBUG,"SUPER Link " NODE_ADDR_FP_STR " (%s) prepare success", NODE_ADDR_FP_ARGS_S(l_balancer_request2->link_info->hdr.address),
+        dap_chain_node_info_t *l_balancer_request2 = (dap_chain_node_info_t *) a_arg;
+        inet_ntop(AF_INET,&l_balancer_request2->hdr.ext_addr_v4,l_node_addr_str, INET_ADDRSTRLEN);
+        log_it(L_DEBUG,"Link " NODE_ADDR_FP_STR " (%s) prepare success", NODE_ADDR_FP_ARGS_S(l_balancer_request2->hdr.address),
                                                                                      l_node_addr_str );
     }
     struct balancer_link_request *l_balancer_request = (struct balancer_link_request *) a_arg;
