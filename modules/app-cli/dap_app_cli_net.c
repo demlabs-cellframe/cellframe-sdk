@@ -150,41 +150,33 @@ dap_app_cli_connect_param_t* dap_app_cli_connect(const char *a_socket_path)
     SOCKET l_socket = socket(AF_INET, SOCK_STREAM, 0);
 #else
     if (!a_socket_path) {
-        printf("No a socket path\n");
+        printf("ERROR: Socket path is empty!\n");
         return NULL;
     }
-    // create socket
+
     int l_socket = socket(AF_UNIX, SOCK_STREAM, 0);
     if (l_socket < 0) {
-        printf("Socet failed \n");
+        printf("ERROR: Socket creation failed!\n");
         return NULL;
     }
     struct timeval l_to = {DAP_CLI_HTTP_TIMEOUT, 0};
 #endif
     // connect
     int l_addr_len;
-#if defined(__WIN32)
+#if defined(DAP_OS_WINDOWS) || defined(DAP_OS_ANDROID)
     struct sockaddr_in l_remote_addr = {
         .sin_family = AF_INET, .sin_port = htons(l_cli_port), .sin_addr = {{ .S_addr = htonl(INADDR_LOOPBACK) }}
     };
     l_addr_len = sizeof(struct sockaddr_in);
 #else
-    #if defined(ANDROID)
-        struct sockaddr_in l_remote_addr;
-        l_remote_addr.sin_family = AF_INET;       /* Internet domain */
-        l_remote_addr.sin_addr.s_addr=htonl(INADDR_LOOPBACK);
-        l_remote_addr.sin_port=htons(l_cli_port);
-        l_addr_len = sizeof(struct sockaddr_in);
-    #else
-        struct sockaddr_un l_remote_addr;
-        l_remote_addr.sun_family =  AF_UNIX;
-        strcpy(l_remote_addr.sun_path, a_socket_path);
-        l_addr_len = SUN_LEN(&l_remote_addr);
-    #endif
+    struct sockaddr_un l_remote_addr;
+    l_remote_addr.sun_family =  AF_UNIX;
+    dap_stpcpy(l_remote_addr.sun_path, a_socket_path);
+    l_addr_len = SUN_LEN(&l_remote_addr);
 #endif
     if (connect(l_socket, (struct sockaddr *)&l_remote_addr, l_addr_len) == SOCKET_ERROR) {
 #ifdef __WIN32
-            _set_errno(WSAGetLastError());
+        _set_errno(WSAGetLastError());
 #endif
         printf("Socket connection err: %d\n", errno);
         closesocket(l_socket);
