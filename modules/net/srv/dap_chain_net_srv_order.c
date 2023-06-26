@@ -30,6 +30,7 @@
 #include "dap_enc_base58.h"
 #include "dap_global_db.h"
 #include "dap_chain_net_srv_countries.h"
+#include "dap_chain_net_srv_stake_pos_delegate.h"
 
 #define LOG_TAG "dap_chain_net_srv_order"
 
@@ -142,7 +143,7 @@ bool dap_chain_net_srv_order_set_continent_region(dap_chain_net_srv_order_t **a_
         memcpy(l_order->ext_n_sign + 1 + sizeof(uint8_t), a_region, strlen(a_region) + 1);
     else if(l_region_prev)
         memcpy(l_order->ext_n_sign + 1 + sizeof(uint8_t), l_region_prev, strlen(l_region_prev) + 1);
-    //dap_sprintf(l_order->ext, "\52%d-%s", a_continent_num, a_region);
+    //sprintf(l_order->ext, "\52%d-%s", a_continent_num, a_region);
     l_order->ext_size = l_ext_size;
     *a_order = l_order;
     DAP_DELETE(l_region_prev);
@@ -291,7 +292,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(dap_chain_net_t *a_ne
         return NULL;
     }
     if (!a_key) {
-        log_it(L_WARNING, "Order mast have a sign");
+        log_it(L_WARNING, "The key with which the order should be signed is not specified.");
         return NULL;
     }
     dap_chain_net_srv_order_t *l_order;
@@ -318,7 +319,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(dap_chain_net_t *a_ne
     l_order->price_unit.uint32 = a_price_unit.uint32;
 
     if ( a_price_ticker)
-        strncpy(l_order->price_ticker, a_price_ticker, DAP_CHAIN_TICKER_SIZE_MAX);
+        strncpy(l_order->price_ticker, a_price_ticker, DAP_CHAIN_TICKER_SIZE_MAX - 1);
     dap_sign_t *l_sign = dap_sign_create(a_key, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size, 0);
     if (!l_sign) {
         DAP_DELETE(l_order);
@@ -345,7 +346,7 @@ char *dap_chain_net_srv_order_save(dap_chain_net_t *a_net, dap_chain_net_srv_ord
     dap_hash_fast(a_order, l_order_size, &l_order_hash);
     char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&l_order_hash);
     char *l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(a_net);
-    if ( dap_global_db_set_sync( l_gdb_group_str,l_order_hash_str, a_order,  l_order_size, true ) != 0) {
+    if ( dap_global_db_set_sync( l_gdb_group_str,l_order_hash_str, a_order,  l_order_size, false ) != 0) {
         DAP_DELETE(l_gdb_group_str);
         return NULL;
     }
@@ -518,21 +519,18 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
 {
     if (a_order && a_str_out ){
         dap_chain_hash_fast_t l_hash;
-        char *l_hash_str;//[DAP_CHAIN_HASH_FAST_SIZE * 2 + 4];
         dap_hash_fast(a_order, dap_chain_net_srv_order_get_size(a_order), &l_hash);
-        //dap_chain_hash_fast_to_str(&l_hash,l_hash_str,sizeof(l_hash_str)-1);
-        if(!dap_strcmp(a_hash_out_type,"hex"))
-            l_hash_str = dap_chain_hash_fast_to_str_new(&l_hash);
-        else
-            l_hash_str = dap_enc_base58_encode_hash_to_str(&l_hash);
+        char *l_hash_str = dap_strcmp(a_hash_out_type,"hex")
+                ? dap_enc_base58_encode_hash_to_str(&l_hash)
+                : dap_chain_hash_fast_to_str_new(&l_hash);
 
         dap_string_append_printf(a_str_out, "== Order %s ==\n", l_hash_str);
         dap_string_append_printf(a_str_out, "  version:          %u\n", a_order->version );
 
         switch ( a_order->direction) {
-            case SERV_DIR_UNDEFINED: dap_string_append_printf(a_str_out, "  direction:        SERV_DIR_UNDEFINED\n" ); break;
-            case SERV_DIR_SELL: dap_string_append_printf(a_str_out, "  direction:        SERV_DIR_SELL\n" ); break;
-            case SERV_DIR_BUY: dap_string_append_printf(a_str_out, "  direction:        SERV_DIR_BUY\n" ); break;
+        case SERV_DIR_UNDEFINED:    dap_string_append_printf(a_str_out, "  direction:        SERV_DIR_UNDEFINED\n" );   break;
+        case SERV_DIR_SELL:         dap_string_append_printf(a_str_out, "  direction:        SERV_DIR_SELL\n" );        break;
+        case SERV_DIR_BUY:          dap_string_append_printf(a_str_out, "  direction:        SERV_DIR_BUY\n" );         break;
         }
 
         dap_string_append_printf(a_str_out, "  srv_uid:          0x%016"DAP_UINT64_FORMAT_X"\n", a_order->srv_uid.uint64 );
@@ -555,16 +553,15 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         DAP_DELETE(l_region);
         DAP_DELETE(l_hash_str);
 
-        if(!dap_strcmp(a_hash_out_type, "hex"))
-            l_hash_str = dap_chain_hash_fast_to_str_new(&a_order->tx_cond_hash);
-        else
-            l_hash_str = dap_enc_base58_encode_hash_to_str(&a_order->tx_cond_hash);
-        //dap_chain_hash_fast_to_str(&a_order->tx_cond_hash,l_hash_str, sizeof(l_hash_str)-1);
+        l_hash_str = dap_strcmp(a_hash_out_type, "hex")
+                ? dap_enc_base58_encode_hash_to_str(&a_order->tx_cond_hash)
+                : dap_chain_hash_fast_to_str_new(&a_order->tx_cond_hash);
         dap_string_append_printf(a_str_out, "  tx_cond_hash:     %s\n", l_hash_str );
         char *l_ext_out = a_order->ext_size ? DAP_NEW_Z_SIZE(char, a_order->ext_size * 2 + 1) : NULL;
-        dap_bin2hex(l_ext_out, a_order->ext_n_sign, a_order->ext_size);
-        if(l_ext_out)
+        if(l_ext_out) {
+            dap_bin2hex(l_ext_out, a_order->ext_n_sign, a_order->ext_size);
             dap_string_append_printf(a_str_out, "  ext:              0x%s\n", l_ext_out);
+        }
         else
             dap_string_append_printf(a_str_out, "  ext:              0x0\n");
         // order state
@@ -607,7 +604,7 @@ static void s_srv_order_callback_notify(dap_global_db_context_t *a_context, dap_
         if (a_obj->value && a_obj->type == DAP_DB$K_OPTYPE_ADD &&
                 dap_config_get_item_bool_default(g_config, "srv", "order_signed_only", true)) {
             dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)a_obj->value;
-            if (l_order->version != 2) {
+            if (l_order->version != 3) {
                 dap_global_db_del_unsafe(l_gdb_context, a_obj->group, a_obj->key);
             } else {
                 dap_sign_t *l_sign = (dap_sign_t *)(l_order->ext_n_sign + l_order->ext_size);
@@ -615,6 +612,17 @@ static void s_srv_order_callback_notify(dap_global_db_context_t *a_context, dap_
                 int l_verify = dap_sign_verify_all(l_sign, l_max_size, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size);
                 if (l_verify) {
                     log_it(L_ERROR, "Order unverified, err %d", l_verify);
+                    dap_global_db_del_unsafe(l_gdb_context, a_obj->group, a_obj->key);
+                }
+                // Check new order is signs delegated key
+                dap_hash_fast_t l_pkey_hash = {0};
+                dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
+                dap_chain_addr_t l_addr = {0};
+                dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, l_net->pub.id);
+                if (!dap_chain_net_srv_stake_key_delegated(&l_addr)) {
+                    char *l_pkey_hash_str = dap_hash_fast_to_str_new(&l_pkey_hash);
+                    log_it(L_ERROR, "Order %s signed by the non-delegated public key %s.", a_obj->key, l_pkey_hash_str);
+                    DAP_DELETE(l_pkey_hash_str);
                     dap_global_db_del_unsafe(l_gdb_context, a_obj->group, a_obj->key);
                 }
                 /*dap_chain_hash_fast_t l_pkey_hash;

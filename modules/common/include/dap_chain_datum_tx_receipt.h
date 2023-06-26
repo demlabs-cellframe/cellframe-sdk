@@ -27,6 +27,17 @@
 #include <stdint.h>
 #include "dap_chain_common.h"
 
+typedef struct dap_chain_receipt_info {
+    dap_chain_net_srv_uid_t srv_uid; // Service UID
+#if DAP_CHAIN_NET_SRV_UID_SIZE == 8
+    uint64_t addition;
+#endif
+    dap_chain_net_srv_price_unit_uid_t units_type;
+    byte_t padding[4];
+    uint64_t units; // Unit of service (seconds, megabytes, etc.) Only for SERV_CLASS_PERMANENT
+    uint256_t value_datoshi; // Receipt value
+} DAP_ALIGN_PACKED dap_chain_receipt_info_t;
+
 /**
  * @struct dap_chain_tx_out
  * @brief Transaction item out_cond
@@ -49,6 +60,8 @@ dap_chain_datum_tx_receipt_t * dap_chain_datum_tx_receipt_create(dap_chain_net_s
                                                                     uint64_t units, uint256_t value_datoshi, const void * a_ext, size_t a_ext_size);
 
 dap_chain_datum_tx_receipt_t *dap_chain_datum_tx_receipt_sign_add(dap_chain_datum_tx_receipt_t *a_receipt, dap_enc_key_t *a_key);
+json_object *dap_chain_receipt_info_to_json(dap_chain_receipt_info_t *a_info);
+json_object *dap_chain_datum_tx_receipt_to_json(dap_chain_datum_tx_receipt_t *a_receipt);
 dap_sign_t* dap_chain_datum_tx_receipt_sign_get(dap_chain_datum_tx_receipt_t * l_receipt, size_t l_receipt_size , uint16_t sign_position);
 uint32_t    dap_chain_datum_tx_receipt_utype_get(dap_chain_datum_tx_receipt_t * l_receipt);
 uint64_t    dap_chain_datum_tx_receipt_srv_uid_get(dap_chain_datum_tx_receipt_t * l_receipt);

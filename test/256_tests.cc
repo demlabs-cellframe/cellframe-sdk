@@ -3235,6 +3235,79 @@ TEST(MathTests, Div256OneMax256) {
     ASSERT_STREQ(dap_chain_balance_print(c), (bmp::uint256_t(lhs) / bmp::uint256_t(rhs)).str().c_str());
 }
 
+TEST(MathTests, DivMoreToLess) {
+    uint256_t a, b, c = uint256_0;
+
+    string lhs = "25000";
+    string rhs = "10000";
+
+    a = dap_chain_balance_scan(lhs.c_str());
+    b = dap_chain_balance_scan(rhs.c_str());
+    DIV_256_COIN(a, b, &c);
+    ASSERT_STREQ(dap_chain_balance_to_coins(c), "2.5");
+}
+
+TEST(MathTests, DivMoreToLessPrimes) {
+    uint256_t a, b, c = uint256_0;
+
+    string lhs = "23";
+    string rhs = "13";
+
+    a = dap_chain_balance_scan(lhs.c_str());
+    b = dap_chain_balance_scan(rhs.c_str());
+    DIV_256_COIN(a, b, &c);
+    ASSERT_STREQ(dap_chain_balance_to_coins(c), "1.76923076923076923");
+}
+
+TEST(MathTests, DivMoreToLessClassic) {
+    uint256_t a, b, c = uint256_0;
+
+    string lhs = "2500";
+    string rhs = "1000";
+
+    a = dap_chain_balance_scan(lhs.c_str());
+    b = dap_chain_balance_scan(rhs.c_str());
+    DIV_256_COIN(a, b, &c);
+    ASSERT_STREQ(dap_chain_balance_to_coins(c), "2.5");
+}
+
+TEST(MathTests, DivMoreToLessSixFour) {
+    uint256_t a, b, c = uint256_0;
+
+    string lhs = "6";
+    string rhs = "4";
+
+    a = dap_chain_balance_scan(lhs.c_str());
+    b = dap_chain_balance_scan(rhs.c_str());
+    DIV_256_COIN(a, b, &c);
+    ASSERT_STREQ(dap_chain_balance_to_coins(c), "1.5");
+}
+
+TEST(MathTests, DivMoreToLessSixThree) {
+    uint256_t a, b, c = uint256_0;
+
+    string lhs = "6";
+    string rhs = "3";
+
+    a = dap_chain_balance_scan(lhs.c_str());
+    b = dap_chain_balance_scan(rhs.c_str());
+    DIV_256_COIN(a, b, &c);
+    ASSERT_STREQ(dap_chain_balance_to_coins(c), "2.0");
+}
+
+TEST(MathTests, DivMoreToLessBigBig) {
+    uint256_t a, b, c = uint256_0;
+
+    string lhs = "1.0e+57";
+    string rhs = "1.0e+23";
+
+    a = dap_chain_balance_scan(lhs.c_str());
+    b = dap_chain_balance_scan(rhs.c_str());
+    DIV_256_COIN(a, b, &c);
+    ASSERT_STREQ(dap_chain_balance_to_coins(c), "10000000000000000000000000000000000.0");
+}
+
+
 TEST_F(RandomMathTests, Div256) {
     bmp::uint256_t boost_a(gen256()), boost_b(gen256());
 

@@ -39,6 +39,7 @@
 
 const dap_chain_net_srv_uid_t c_dap_chain_net_srv_uid_null = {0};
 const dap_chain_cell_id_t c_dap_chain_cell_id_null = {0};
+const dap_chain_addr_t c_dap_chain_addr_blank = {0};
 
 /*
  * Forward declarations
@@ -65,14 +66,26 @@ size_t dap_chain_hash_slow_to_str( dap_chain_hash_slow_t *a_hash, char *a_str, s
         log_it(L_ERROR, "String for hash too small, need %zu but have only %zu", c_hash_str_size, a_str_max);
     }
     size_t i;
-    dap_snprintf(a_str, 3, "0x");
+    snprintf(a_str, 3, "0x");
 
     for(i = 0; i < sizeof(a_hash->raw); ++i)
-        dap_snprintf( a_str + i * 2 + 2, 3, "%02x", a_hash->raw[i] );
+        snprintf( a_str + i * 2 + 2, 3, "%02x", a_hash->raw[i] );
 
     a_str[c_hash_str_size] = '\0';
 
     return strlen(a_str);
+}
+
+/**
+ * @brief dap_chain_addr_to_json
+ * @param a_addr
+ * @return
+ */
+json_object *dap_chain_addr_to_json(const dap_chain_addr_t *a_addr){
+    char *l_addr_str = dap_chain_addr_to_str(a_addr);
+    json_object *l_obj = json_object_new_string(l_addr_str);
+    DAP_DELETE(l_addr_str);
+    return l_obj;
 }
 
 /**
@@ -120,9 +133,9 @@ dap_chain_addr_t* dap_chain_addr_from_str(const char *a_str)
     return NULL;
 }
 
-bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr){
-    dap_chain_addr_t l_addr_blank = {0};
-    return !memcmp(a_addr, &l_addr_blank, sizeof(dap_chain_addr_t));
+bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr)
+{
+    return dap_chain_addr_compare(a_addr, &c_dap_chain_addr_blank);
 }
 
 /**
@@ -178,7 +191,7 @@ int dap_chain_addr_fill_from_key(dap_chain_addr_t *a_addr, dap_enc_key_t *a_key,
 {
     dap_sign_type_t l_type = dap_sign_type_from_key_type(a_key->type);
     size_t l_pub_key_data_size;
-    uint8_t *l_pub_key_data = dap_enc_key_serealize_pub_key(a_key, &l_pub_key_data_size);
+    uint8_t *l_pub_key_data = dap_enc_key_serialize_pub_key(a_key, &l_pub_key_data_size);
     if (!l_pub_key_data) {
         log_it(L_ERROR,"Can't fill address from key, its empty");
         return -1;

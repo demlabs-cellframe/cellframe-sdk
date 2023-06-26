@@ -36,6 +36,8 @@
 
 #include "dap_stream_ch.h"
 
+#define DAP_STREAM_CH_CHAIN_PKT_VERSION                        0x01
+
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN                     0x01
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB                 0x11
 
@@ -161,22 +163,23 @@ size_t dap_stream_ch_chain_pkt_write_inter(dap_events_socket_t * a_es_input, dap
  * @return
  */
 inline static DAP_PRINTF_ATTR(5, 6) size_t dap_stream_ch_chain_pkt_write_error_unsafe(dap_stream_ch_t *a_ch, uint64_t a_net_id,
-                                                  uint64_t a_chain_id, uint64_t a_cell_id, const char * a_err_string_format, ...)
+                                                  uint64_t a_chain_id, uint64_t a_cell_id, const char *a_err_string_format, ...)
 {
     va_list l_va;
-    char * l_str;
+    char *l_str;
     va_start(l_va, a_err_string_format);
     int l_size = vsnprintf(NULL,0,a_err_string_format,l_va);
-    if(l_size >0){
+    va_end(l_va);
+    if (l_size > 0) {
         l_size++;
         l_str = DAP_NEW_STACK_SIZE(char, l_size);
-        vsnprintf(l_str,l_size,a_err_string_format,l_va);
+        va_start(l_va, a_err_string_format);
+        vsnprintf(l_str, l_size,a_err_string_format, l_va);
         va_end(l_va);
-        return  dap_stream_ch_chain_pkt_write_unsafe( a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR, a_net_id, a_chain_id, a_cell_id, l_str,l_size );
-    }else{
-        va_end(l_va);
-        return 0;
+        return dap_stream_ch_chain_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR,
+                                                    a_net_id, a_chain_id, a_cell_id, l_str, l_size);
     }
+    return 0;
 }
 
 /**
@@ -189,21 +192,22 @@ inline static DAP_PRINTF_ATTR(5, 6) size_t dap_stream_ch_chain_pkt_write_error_u
  * @param a_err_string_format
  * @return
  */
-static inline size_t dap_stream_ch_chain_pkt_write_error_inter(dap_events_socket_t * a_es_input,  dap_stream_ch_uuid_t a_ch_uuid,
-                                                               uint64_t a_net_id, uint64_t a_chain_id, uint64_t a_cell_id, const char * a_err_string_format,... )
+static inline size_t dap_stream_ch_chain_pkt_write_error_inter(dap_events_socket_t *a_es_input,  dap_stream_ch_uuid_t a_ch_uuid,
+                                                               uint64_t a_net_id, uint64_t a_chain_id, uint64_t a_cell_id, const char *a_err_string_format, ...)
 {
     va_list l_va;
-    char * l_str;
+    char *l_str;
     va_start(l_va, a_err_string_format);
-    int l_size = vsnprintf(NULL,0,a_err_string_format,l_va);
-    if(l_size >0){
+    int l_size = vsnprintf(NULL, 0, a_err_string_format, l_va);
+    va_end(l_va);
+    if (l_size > 0) {
         l_size++;
         l_str = DAP_NEW_STACK_SIZE(char, l_size);
-        vsnprintf(l_str,l_size,a_err_string_format,l_va);
+        va_start(l_va, a_err_string_format);
+        vsnprintf(l_str, l_size, a_err_string_format, l_va);
         va_end(l_va);
-        return  dap_stream_ch_chain_pkt_write_inter(a_es_input, a_ch_uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR, a_net_id, a_chain_id, a_cell_id, l_str,l_size );
-    }else{
-        va_end(l_va);
-        return 0;
+        return dap_stream_ch_chain_pkt_write_inter(a_es_input, a_ch_uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR,
+                                                    a_net_id, a_chain_id, a_cell_id, l_str, l_size);
     }
+    return 0;
 }

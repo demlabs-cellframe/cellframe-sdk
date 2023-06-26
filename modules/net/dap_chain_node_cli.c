@@ -84,6 +84,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     dap_cli_server_cmd_add("global_db", com_global_db, "Work with global database",
             "global_db cells add -cell <cell id> \n"
             "global_db flush \n\n"
+            "global_db write -group <group_name> -key <key_name> -value <value>"
+            "global_db read -group <group_name> -key <key_name>"
+            "global_db delete -group <group_name> -key <key_name>"
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
             );
     dap_cli_server_cmd_add("mempool", com_signer, "Sign operations",
@@ -123,7 +126,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "wallet new -w <wallet_name> [-sign <sign_type>] [-restore <hex_value>] [-net <net_name>] [-force] [-password <password>] [-restore <hash>]\n"
                             "wallet info {-addr <addr> | -w <wallet_name>} -net <net_name>\n"
                             "wallet activate -w <wallet_name> -password <password> [-ttl <password_ttl_in_minutes>]\n"
-                            "wallet deactivate -w <wallet_name> -password <password>\n");
+                            "wallet deactivate -w <wallet_name> -password <password>\n"
+                            "wallet convert -w <wallet_name> -password <password>\n");
 
 
     // Token commands
@@ -222,6 +226,12 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "\n"
             );
 
+    dap_cli_server_cmd_add("token_update_sign", com_token_decl_sign, "Token update add sign and new sign",
+                                        "token_update_sign -net <net_name> -chain <chain_name> -datum <datum_hash> -certs <certs list> -new_certs <certs list>\n"
+                                        "\t Sign existent <datum hash> in mempool with <certs list>\n"
+    );
+    // Token commands
+
     dap_cli_server_cmd_add ("token_decl_sign", com_token_decl_sign, "Token declaration add sign",
             "token_decl_sign -net <net_name> -chain <chain_name> -datum <datum_hash> -certs <certs list>\n"
             "\t Sign existent <datum hash> in mempool with <certs list>\n"
@@ -239,7 +249,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "mempool_check -net <net_name> -datum <datum hash>\n");
 
     dap_cli_server_cmd_add ("mempool_proc", com_mempool_proc, "Proc mempool entrie with specified hash for selected chain network",
-            "mempool_proc -net <net_name> -datum <datum hash>\n");
+            "mempool_proc -net <net_name> -datum <datum hash>\n"
+            "CAUTION!!! This command will process transaction with any comission! Parameter minimum_comission will not be taken into account!");
 
     dap_cli_server_cmd_add ("mempool_proc_all", com_mempool_proc_all, "Proc mempool all entries for selected chain network",
                             "mempool_proc_all -net <net_name> -chain <chain_name>\n");
@@ -274,7 +285,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Transaction history
     dap_cli_server_cmd_add("tx_history", com_tx_history, "Transaction history (for address or by hash)",
-            "tx_history  {-addr <addr> | -w <wallet_name> | -tx <tx_hash>} -net <net_name> -chain <chain_name>\n");
+            "tx_history  {-addr <addr> | -w <wallet_name> | -tx <tx_hash>} [-net <net_name>] [-chain <chain_name>]\n"
+            "tx_history -all -net <net_name> [-chain <chain_name>]\n");
 
 	// Ledger info
     dap_cli_server_cmd_add("ledger", com_ledger, "Ledger information",
@@ -288,8 +300,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     // Token info
     dap_cli_server_cmd_add("token", com_token, "Token info",
             "token list -net <net_name>\n"
-            "token info -net <net_name> -name <token_ticker>\n"
-            "token tx [all | -addr <wallet_addr> | -wallet <wallet_name>] -name <token_ticker> -net <net_name> [-page_start <page>] [-page <page>]\n");
+            "token info -net <net_name> -name <token_ticker>\n");
 
     // Log
     dap_cli_server_cmd_add ("print_log", com_print_log, "Print log info",
@@ -314,16 +325,16 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Decree create command
     dap_cli_server_cmd_add ("decree", cmd_decree, "Work with decree",
-            "decree create common -net <net_name> [-chain <chain_name>]  -certs <certs list> -<Subtype param name> <Subtype param Value>\n"
-            "decree create service -net <net_name> [-chain <chain_name>] -srv_id <service_id> -certs <certs list> -<Subtype param name> <Subtype param Value>\n"
-            "decree sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs list>\n"
-            "decree anchor -net <net_name> -anchor_chain <chain_name> -decree?????\n"
+            "decree create common -net <net_name> [-chain <chain_name>] -decree_chain <chain_name> -certs <certs list> -<Subtype param name> <Subtype param Value>\n"
+            "decree create service -net <net_name> [-chain <chain_name>] -decree_chain <chain_name> -srv_id <service_id> -certs <certs list> -<Subtype param name> <Subtype param Value>\n"
+            "decree sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs_list>\n"
+            "decree anchor -net <net_name> -chain <chain_name> -datum <datum_hash> -certs <certs_list>\n"
+            "decree find -net <net_name> -hash <decree_hash>. Find decree by hash and show it's status (apllied or not)"
             "==Subtype Params==\n"
             "\t -fee <value>: sets fee for tx in net\n"
-            "\t -new_certs <certs list>: sets new owners set for net\n"
-            "\t -signs_verify <value>: sets minimum number of owners needed to sign decree\n"
-            "\t ton_signs_verify <value>: sets minimum number of TON signers");
-
+            "\t -to_addr <wallet_addr>: sets wallet addr for network fee\n"
+            "\t -new_certs <certs_list>: sets new owners set for net\n"
+            "\t -signs_verify <value>: sets minimum number of owners needed to sign decree\n");
 
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",

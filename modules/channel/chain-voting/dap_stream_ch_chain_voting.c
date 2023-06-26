@@ -10,8 +10,11 @@
 #include "dap_client_pvt.h"
 #include "dap_proc_queue.h"
 #include "dap_chain_node_cli.h"
+#include "dap_chain_cs_blocks.h"
 
 #define LOG_TAG "dap_stream_ch_chain_voting"
+
+#define PKT_SIGN_N_HDR_OVERHEAD (15 * 1024)
 
 struct voting_pkt_in_callback {
     void * arg;
@@ -61,7 +64,7 @@ static bool s_callback_pkt_in_call_all(UNUSED_ARG dap_proc_thread_t *a_thread, v
     for (size_t i = 0; i < s_pkt_in_callback_count; i++) {
         struct voting_pkt_in_callback *l_callback = s_pkt_in_callback + i;
         if (l_callback->packet_in_callback) {
-            l_callback->packet_in_callback(l_callback->arg, &l_voting_pkt->hdr.sender_node_addr,
+            l_callback->packet_in_callback(l_callback->arg, &l_voting_pkt->hdr.sender_node_addr, &l_voting_pkt->hdr.receiver_node_addr,
                                            &l_voting_pkt->hdr.data_hash, l_voting_pkt->data, l_voting_pkt->hdr.data_size);
         }
     }
@@ -93,6 +96,7 @@ void dap_stream_ch_chain_voting_message_write(dap_chain_net_t *a_net, dap_chain_
                 return;
             }
             l_node_client->client->connect_on_demand = true;
+            l_node_client->client->always_reconnect = true;
 
             l_node_client_item = DAP_NEW_Z(struct voting_node_client_list);
             l_node_client_item->node_addr = *a_remote_node_addr;
@@ -141,8 +145,11 @@ static void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         return;
 
     size_t l_voting_pkt_size = l_ch_pkt->hdr.data_size;
-    if (!l_voting_pkt_size || l_voting_pkt_size > UINT16_MAX)
+    if (!l_voting_pkt_size || l_voting_pkt_size < sizeof(dap_stream_ch_chain_voting_pkt_t) ||
+            l_voting_pkt_size > DAP_CHAIN_CS_BLOCKS_MAX_BLOCK_SIZE + PKT_SIGN_N_HDR_OVERHEAD) {
+        log_it(L_ERROR, "Invalid packet size %zu, drop this packet", l_voting_pkt_size);
         return;
+    }
 
     dap_stream_ch_chain_voting_pkt_t *l_voting_pkt = (dap_stream_ch_chain_voting_pkt_t *)l_ch_pkt->data;
     dap_proc_queue_add_callback(a_ch->stream_worker->worker, s_callback_pkt_in_call_all,
@@ -153,13 +160,20 @@ static void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
                                            l_voting_pkt->hdr.data_size, l_ch_chain_voting->callback_notify_arg);
 }
 
-dap_stream_ch_chain_voting_pkt_t *dap_stream_ch_chain_voting_pkt_new(uint64_t a_net_id, const void *a_data, size_t a_data_size)
+dap_stream_ch_chain_voting_pkt_t *dap_stream_ch_chain_voting_pkt_new(uint64_t a_net_id,
+                                                                     dap_chain_node_addr_t *a_sender_node_addr,
+                                                                     dap_chain_node_addr_t *a_receiver_node_addr,
+                                                                     const void *a_data, size_t a_data_size)
 {
     dap_stream_ch_chain_voting_pkt_t *l_voting_pkt = DAP_NEW_Z_SIZE(dap_stream_ch_chain_voting_pkt_t,
                                                                    sizeof(dap_stream_ch_chain_voting_pkt_t) + a_data_size);
     l_voting_pkt->hdr.data_size = a_data_size;
     l_voting_pkt->hdr.version = 1;
     l_voting_pkt->hdr.net_id.uint64 = a_net_id;
+    if (a_sender_node_addr)
+        l_voting_pkt->hdr.sender_node_addr = *a_sender_node_addr;
+    if (a_receiver_node_addr)
+        l_voting_pkt->hdr.receiver_node_addr = *a_receiver_node_addr;
     dap_hash_fast(a_data, a_data_size, &l_voting_pkt->hdr.data_hash);
     if (a_data_size && a_data)
         memcpy(l_voting_pkt->data, a_data, a_data_size);
@@ -167,9 +181,13 @@ dap_stream_ch_chain_voting_pkt_t *dap_stream_ch_chain_voting_pkt_new(uint64_t a_
 }
 
 size_t dap_stream_ch_chain_voting_pkt_write_unsafe(dap_stream_ch_t *a_ch, uint8_t a_type, uint64_t a_net_id,
+                                                   dap_chain_node_addr_t *a_sender_node_addr,
+                                                   dap_chain_node_addr_t *a_receiver_node_addr,
                                                    const void * a_data, size_t a_data_size)
 {
-    dap_stream_ch_chain_voting_pkt_t *l_voting_pkt = dap_stream_ch_chain_voting_pkt_new(a_net_id, a_data, a_data_size);
+    dap_stream_ch_chain_voting_pkt_t *l_voting_pkt = dap_stream_ch_chain_voting_pkt_new(a_net_id, a_sender_node_addr,
+                                                                                        a_receiver_node_addr, a_data,
+                                                                                        a_data_size);
     size_t l_ret  = dap_stream_ch_pkt_write_unsafe(a_ch, a_type, l_voting_pkt, sizeof(l_voting_pkt) + a_data_size);
     DAP_DELETE(l_voting_pkt);
     return l_ret;

@@ -42,12 +42,14 @@ typedef struct dap_ledger {
     void *_internal;
 } dap_ledger_t;
 
-typedef bool (* dap_chain_ledger_verificator_callback_t)(dap_ledger_t * a_ledger, dap_hash_fast_t *a_tx_out_hash,  dap_chain_tx_out_cond_t *a_tx_out_cond,
-                                                         dap_chain_datum_tx_t *a_tx_in, bool a_owner);
-typedef bool (*dap_chain_ledger_verificator_callback_out_t)(dap_ledger_t* a_ledger, dap_chain_datum_tx_t* a_tx, dap_chain_tx_out_cond_t* a_cond);
+typedef bool (*dap_chain_ledger_verificator_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_tx_out_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner);
+typedef void (*dap_chain_ledger_updater_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_prev_cond);
 typedef void (* dap_chain_ledger_tx_add_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
-
+typedef bool (*dap_chain_ledger_cache_tx_check_callback_t)(dap_hash_fast_t *a_tx_hash);
 typedef struct dap_chain_net dap_chain_net_t;
+
+//Change this UUID to automatically reload ledger cache on next node startup
+#define DAP_CHAIN_LEDGER_CACHE_RELOAD_ONCE_UUID "0c92b759-a565-448f-b8bd-99103dacf7fc"
 
 // Checks the emission of the token, usualy on zero chain
 #define DAP_CHAIN_LEDGER_CHECK_TOKEN_EMISSION    0x0001
@@ -55,15 +57,17 @@ typedef struct dap_chain_net dap_chain_net_t;
 // Check double spending in local cell
 #define DAP_CHAIN_LEDGER_CHECK_LOCAL_DS          0x0002
 
-// Check the double spending  in all cells
+// Check the double spending in all cells
 #define DAP_CHAIN_LEDGER_CHECK_CELLS_DS          0x0100
 
-// Error code for no previous transaction (candidate to threshold)
-#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS  -111
-// Error code for no emission for a transaction (candidate to threshold)
-#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION  -112
-// Error code for no token for an emission (candidate to threshold)
-#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_TOKEN     -113
+#define DAP_CHAIN_LEDGER_CACHE_ENABLED           0x0200
+
+// Error code for no previous transaction (for stay in mempool)
+#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS  -1111
+// Error code for no emission for a transaction (for stay in mempoold)
+#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION  -1112
+// Error code for no decree for anchor (for stay in mempool)
+#define DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE       -1113
 
 #define DAP_CHAIN_LEDGER_TOKENS_STR              "tokens"
 #define DAP_CHAIN_LEDGER_EMISSIONS_STR           "emissions"
@@ -75,7 +79,9 @@ typedef struct dap_chain_net dap_chain_net_t;
 int dap_chain_ledger_init();
 void dap_chain_ledger_deinit();
 
-dap_ledger_t* dap_chain_ledger_create(uint16_t a_check_flags, char *a_net_name);
+dap_ledger_t *dap_chain_ledger_create(uint16_t a_flags, char *a_net_name, const char *a_net_native_ticker);
+
+void dap_chain_ledger_set_fee(dap_ledger_t *a_ledger, uint256_t a_fee, dap_chain_addr_t a_fee_addr);
 
 // Remove dap_ledger_t structure
 void dap_chain_ledger_handle_free(dap_ledger_t *a_ledger);
@@ -104,8 +110,6 @@ DAP_STATIC_INLINE char *dap_chain_ledger_get_gdb_group(dap_ledger_t *a_ledger, c
             : NULL;
 }
 
-dap_chain_net_t* dap_chain_ledger_get_net(dap_ledger_t* a_ledger);
-
 /**
  * Add new transaction to the cache
  *
@@ -115,7 +119,7 @@ int dap_chain_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, 
 int dap_chain_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_hash_fast_t *a_tx_hash);
 
 
-int dap_chain_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
+int dap_chain_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, size_t a_datum_size, dap_hash_fast_t *a_datum_hash);
 
 /**
  * Print list transaction from ledger
@@ -140,18 +144,27 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
 int dap_chain_ledger_token_load(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token, size_t a_token_size);
 int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token, size_t a_token_size);
 dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger);
+
+// Get all token-declarations
+dap_list_t* dap_chain_ledger_token_decl_all(dap_ledger_t *a_ledger);
+
 dap_string_t *dap_chain_ledger_threshold_info(dap_ledger_t *a_ledger);
 dap_string_t *dap_chain_ledger_threshold_hash_info(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *l_tx_treshold_hash);
 dap_string_t *dap_chain_ledger_balance_info(dap_ledger_t *a_ledger);
+
+size_t dap_chain_ledger_token_auth_signs_valid(dap_ledger_t *a_ledger, const char * a_token_ticker);
+size_t dap_chain_ledger_token_auth_signs_total(dap_ledger_t *a_ledger, const char * a_token_ticker);
+dap_list_t * dap_chain_ledger_token_auth_pkeys_hashes(dap_ledger_t *a_ledger, const char * a_token_ticker);
+
 /**
  * Add token emission datum
  */
 int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size,
                                         dap_hash_fast_t *a_emission_hash, bool a_from_threshold);
-int dap_chain_ledger_token_emission_load(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size);
+int dap_chain_ledger_token_emission_load(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size, dap_hash_fast_t *a_token_emission_hash);
 
 // Check if it addable
-int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size);
+int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size, dap_chain_hash_fast_t *a_emission_hash);
 
 /* Add stake-lock item */
 int dap_chain_ledger_emission_for_stake_lock_item_add(dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_tx_hash);
@@ -169,7 +182,7 @@ void dap_chain_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chai
 
 // Checking a new transaction before adding to the cache
 int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash,
-                                    bool a_from_threshold, dap_list_t **a_list_bound_items, dap_list_t **a_list_tx_out);
+                                    bool a_from_threshold, dap_list_t **a_list_bound_items, dap_list_t **a_list_tx_out, char **a_main_ticker);
 
 /**
  * Delete transaction from the cache
@@ -195,6 +208,7 @@ unsigned dap_chain_ledger_count(dap_ledger_t *a_ledger);
 
 uint64_t dap_chain_ledger_count_from_to(dap_ledger_t * a_ledger, dap_time_t a_ts_from, dap_time_t a_ts_to);
 size_t dap_chain_ledger_count_tps(dap_ledger_t *a_ledger, struct timespec *a_ts_from, struct timespec *a_ts_to);
+void dap_chain_ledger_set_tps_start_time(dap_ledger_t *a_ledger);
 
 /**
  * Check whether used 'out' items
@@ -251,7 +265,7 @@ dap_list_t *dap_chain_ledger_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledg
 
 // Add new verificator callback with associated subtype. Returns 1 if callback replaced, overwise returns 0
 int dap_chain_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_chain_ledger_verificator_callback_t a_callback,
-                                     dap_chain_ledger_verificator_callback_out_t a_callback_added);
+                                     dap_chain_ledger_updater_callback_t a_callback_added);
 
 // Getting a list of transactions from the ledger.
 dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, size_t a_page, bool a_reverse);
@@ -259,3 +273,6 @@ dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, si
 //bool dap_chain_ledger_fee_verificator(dap_ledger_t* a_ledger, dap_chain_tx_out_cond_t* a_cond, dap_chain_datum_tx_t* a_tx, bool a_owner);
 
 void dap_chain_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_chain_ledger_tx_add_notify_t a_callback, void *a_arg);
+
+bool dap_chain_ledger_cache_enabled(dap_ledger_t *a_ledger);
+void dap_chain_ledger_set_cache_tx_check_callback(dap_ledger_t *a_ledger, dap_chain_ledger_cache_tx_check_callback_t a_callback);

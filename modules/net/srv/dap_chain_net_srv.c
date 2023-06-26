@@ -52,6 +52,7 @@
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_net_srv_stream_session.h"
 #include "dap_stream_ch_chain_net_srv.h"
+#include "dap_chain_cs_blocks.h"
 #ifdef DAP_MODULES_DYNAMIC
 #include "dap_modules_dynamic_cdb.h"
 #endif
@@ -79,9 +80,9 @@ static int s_cli_net_srv(int argc, char **argv, char **a_str_reply);
 static void s_load(const char * a_path);
 static void s_load_all(void);
 
-static bool s_pay_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond,
+static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
                                        dap_chain_datum_tx_t *a_tx_in, bool a_owner);
-static bool s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_hash_fast_t *a_tx_out_hash,dap_chain_tx_out_cond_t *a_cond,
+static bool s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
                                        dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 
 /**
@@ -95,8 +96,6 @@ int dap_chain_net_srv_init()
     dap_stream_ch_chain_net_srv_init();
     m_uid = NULL;
     m_uid_count = 0;
-    if( dap_chain_net_srv_order_init() != 0 )
-        return -1;
 
     dap_cli_server_cmd_add ("net_srv", s_cli_net_srv, "Network services managment",
         "net_srv -net <net_name> order find [-direction {sell | buy}] [-srv_uid <Service UID>] [-price_unit <price unit>]\n"
@@ -364,6 +363,12 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                     l_direction = SERV_DIR_SELL;
                 else if ( strcmp(l_direction_str, "buy")==0)
                     l_direction = SERV_DIR_BUY;
+                else {
+                    dap_string_free(l_string_ret, true);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong direction of the token was "
+                                                                   "specified, possible directions: buy, sell.");
+                    return -18;
+                }
             }
 
             if ( l_srv_uid_str)
@@ -472,14 +477,19 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 dap_chain_net_srv_price_unit_uid_t l_price_unit={{0}};
                 dap_chain_net_srv_order_direction_t l_direction = SERV_DIR_UNDEFINED;
                 if ( l_direction_str ){
-                    if ( strcmp(l_direction_str, "sell") == 0 ){
+                    if ( strcmp(l_direction_str, "sell") == 0 ) {
                         l_direction = SERV_DIR_SELL;
                         log_it(L_DEBUG, "Created order to sell");
-                    }else if ( strcmp(l_direction_str, "buy")==0){
+                    } else if ( strcmp(l_direction_str, "buy")==0) {
                         l_direction = SERV_DIR_BUY;
                         log_it(L_DEBUG, "Created order to buy");
-                    }else
+                    } else {
                         log_it(L_WARNING, "Undefined order direction");
+                        dap_string_free(l_string_ret, true);
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong direction of the token was "
+                                                                       "specified, possible directions: buy, sell.");
+                        return -18;
+                    }
                 }
 
 
@@ -487,11 +497,18 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                     l_expires = (dap_time_t ) atoll( l_expires_str);
                 l_srv_uid.uint64 = (uint64_t) atoll( l_srv_uid_str);
                 if (l_node_addr_str){
-
-                    if (dap_chain_node_addr_from_str( &l_node_addr, l_node_addr_str ) == 0 )
-                        log_it( L_DEBUG, "node addr " NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_node_addr) );
-                    else
-                        log_it( L_ERROR, "Can't parse \"%s\" as node addr", l_node_addr_str);
+                    if (dap_chain_node_addr_str_check(l_node_addr_str)) {
+                        dap_chain_node_addr_from_str( &l_node_addr, l_node_addr_str );
+                    } else {
+                        log_it(L_ERROR, "Can't parse \"%s\" as node addr", l_node_addr_str);
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "The order has not been created. "
+                                                                       "Failed to convert string representation of '%s' "
+                                                                       "to node address.", l_node_addr_str);
+                        DAP_DELETE(l_string_ret);
+                        return -17;
+                    }
+                } else {
+                    l_node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
                 }
                 if (l_tx_cond_hash_str)
                     dap_chain_hash_fast_from_str (l_tx_cond_hash_str, &l_tx_cond_hash);
@@ -503,11 +520,22 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 dap_cert_t *l_cert = NULL;
                 dap_enc_key_t *l_key = NULL;
                 if(l_order_cert_name) {
-                    dap_cert_t *l_cert = dap_cert_find_by_name(l_order_cert_name);
+                    l_cert = dap_cert_find_by_name(l_order_cert_name);
                     if(l_cert)
                         l_key = l_cert->enc_key;
-                    else
+                    else {
                         log_it(L_ERROR, "Can't load cert '%s' for sign order", l_order_cert_name);
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't load cert '%s' for sign "
+                                                                       "order", l_order_cert_name);
+                        dap_string_free(l_string_ret, true);
+                        return -19;
+                    }
+                } else {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "The certificate name was not "
+                                                                   "specified. Since version 5.2 it is not possible to "
+                                                                   "create unsigned orders.");
+                    dap_string_free(l_string_ret, true);
+                    return -20;
                 }
                 // create order
                 char * l_order_new_hash_str = dap_chain_net_srv_order_create(
@@ -588,7 +616,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
             dap_string_append_printf(l_string_ret, "Command 'net_srv' requires subcommand 'order'");
             ret = -3;
         }
-        dap_cli_server_cmd_set_reply_text(a_str_reply, l_string_ret->str);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_ret->str);
         dap_string_free(l_string_ret, true);
     }
 
@@ -604,9 +632,33 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
  * @param a_owner
  * @return
  */
-static bool s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_hash_fast_t *a_tx_out_hash,dap_chain_tx_out_cond_t *a_cond,
-                                       dap_chain_datum_tx_t *a_tx_in, bool a_owner)
+static bool s_fee_verificator_callback(dap_ledger_t *a_ledger, UNUSED_ARG dap_chain_tx_out_cond_t *a_cond,
+                                       dap_chain_datum_tx_t *a_tx_in, UNUSED_ARG bool a_owner)
 {
+    dap_chain_net_t *l_net = dap_chain_net_by_name(a_ledger->net_name);
+    if (!l_net)
+        return false;
+    dap_chain_t *l_chain;
+    DL_FOREACH(l_net->pub.chains, l_chain) {
+        if (!l_chain->callback_block_find_by_tx_hash)
+            continue;
+        dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_IN_COND, 0);
+        if (!l_tx_in_cond)
+            return false;
+        if (dap_hash_fast_is_blank(&l_tx_in_cond->header.tx_prev_hash))
+            return false;
+        const dap_chain_block_cache_t *l_block_cache = l_chain->callback_block_find_by_tx_hash(l_chain, &l_tx_in_cond->header.tx_prev_hash);
+        if (!l_block_cache)
+            continue;
+        dap_sign_t *l_sign_block = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
+        if (!l_sign_block)
+            return false;
+
+        // TX sign is already verified, just compare pkeys
+        dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, TX_ITEM_TYPE_SIG, NULL);
+        dap_sign_t *l_sign_tx = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
+        return dap_sign_match_pkey_signs(l_sign_block, l_sign_tx);
+    }
     return false;
 }
 
@@ -619,25 +671,80 @@ static bool s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_hash_fast_t 
  * @param a_owner
  * @return
  */
-static bool s_pay_verificator_callback(dap_ledger_t * a_ledger,dap_hash_fast_t *a_tx_out_hash, dap_chain_tx_out_cond_t *a_cond,
+static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
                                        dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
     UNUSED(a_ledger);
-    UNUSED(a_tx_out_hash);
-    if (!a_owner)
-        return false;
+    if (a_owner)
+        return true;
     dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)
                                                dap_chain_datum_tx_item_get(a_tx_in, NULL, TX_ITEM_TYPE_RECEIPT, NULL);
-    if (!l_receipt)
+    if (!l_receipt){
+        log_it(L_ERROR, "Can't find receipt.");
         return false;
-    dap_sign_t *l_sign = dap_chain_datum_tx_receipt_sign_get(l_receipt, l_receipt->size, 1);
-    if (!l_sign)
+    }
+
+    // Check provider sign
+    dap_sign_t *l_sign = dap_chain_datum_tx_receipt_sign_get(l_receipt, l_receipt->size, 0);
+    if (!l_sign){
+        log_it(L_ERROR, "Can't get provider sign from receipt.");
         return false;
-    dap_hash_fast_t l_pkey_hash;
-    if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash))
+    }
+
+    if (dap_sign_verify_all(l_sign, dap_sign_get_size(l_sign), &l_receipt->receipt_info, sizeof(l_receipt->receipt_info))){
+        log_it(L_ERROR, "Provider sign in receipt not passed verification.");
         return false;
-    return dap_hash_fast_compare(&l_pkey_hash, &a_cond->subtype.srv_pay.pkey_hash);
-    // TODO add comparision a_tx sign pkey with receipt provider sign pkey
+    }
+
+    // Checking the signature matches the provider's signature
+    dap_hash_fast_t l_tx_sign_pkey_hash = {};
+    dap_hash_fast_t l_provider_pkey_hash = {};
+    if (!dap_sign_get_pkey_hash(l_sign, &l_provider_pkey_hash)){
+        log_it(L_ERROR, "Can't get pkey hash from provider sign.");
+        return false;
+    }
+
+    int l_item_size = 0;
+    uint8_t* l_sig = dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_SIG, &l_item_size);
+    if(!l_sig){
+        log_it(L_ERROR, "Can't get item with provider signature from tx");
+        return false;
+    }
+
+    l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_sig);
+    if (!l_sign){
+        log_it(L_ERROR, "Provider sign from tx sig_item");
+        return false;
+    }
+
+    if(!dap_sign_get_pkey_hash(l_sign, &l_tx_sign_pkey_hash)){
+        log_it(L_ERROR, "Can't get pkey hash from tx provider signature");
+        return false;
+    }
+
+    if(!dap_hash_fast_compare(&l_tx_sign_pkey_hash, &l_provider_pkey_hash)){
+        log_it(L_ERROR, "Provider signature in receipt and tx is different.");
+        return false;
+    }
+
+    // Check client sign
+    l_sign = dap_chain_datum_tx_receipt_sign_get(l_receipt, l_receipt->size, 1);
+    if (!l_sign){
+        log_it(L_ERROR, "Can't get client signature from receipt.");
+        return false;
+    }
+    dap_hash_fast_t l_pkey_hash = {};
+    if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash)){
+        log_it(L_ERROR, "Can't get pkey hash from receipt client signature");
+        return false;
+    }
+
+    if(!dap_hash_fast_compare(&l_pkey_hash, &a_cond->subtype.srv_pay.pkey_hash)){
+        log_it(L_ERROR, "Client signature in receipt is invalid!");
+        return false;
+    }
+
+    return true;
 }
 
 int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_config_section)
@@ -752,7 +859,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
         pthread_mutex_init(&l_srv->banlist_mutex, NULL);
         l_sdata = DAP_NEW_Z(service_list_t);
         l_sdata->uid = l_uid;
-        strncpy(l_sdata->name, a_config_section, sizeof(l_sdata->name));
+        strncpy(l_sdata->name, a_config_section, sizeof(l_sdata->name) - 1);
         l_sdata->srv = l_srv;
         dap_chain_net_srv_parse_pricelist(l_srv, a_config_section);
         HASH_ADD(hh, s_srv_list, uid, sizeof(l_srv->uid), l_sdata);

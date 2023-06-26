@@ -87,11 +87,13 @@ typedef struct dap_chain_net_srv_price
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED                0x20
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_DATA                          0x30
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_DATA                 0x31
+#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NEW_TX_COND_REQUEST           0x40
+#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NEW_TX_COND_RESPONSE          0x41
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS              0xf0
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR                0xff
 // for connection testing
-#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_REQUEST                 0x40
-#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_RESPONSE                0x41
+#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_REQUEST                 0x50
+#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_CHECK_RESPONSE                0x51
 
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_UNDEFINED                  0x00000000
 
@@ -170,7 +172,7 @@ typedef struct dap_stream_ch_chain_net_srv_pkt_test {
     dap_chain_net_srv_uid_t srv_uid;
     int32_t                 time_connect_ms;
     dap_nanotime_t          recv_time1, recv_time2, send_time1, send_time2;
-    char                  ip_send[INET_ADDRSTRLEN], ip_recv[INET_ADDRSTRLEN];
+    char                    ip_send[INET_ADDRSTRLEN], ip_recv[INET_ADDRSTRLEN];
     int32_t                 err_code;
     uint64_t                data_size_send, data_size_recv, data_size;
     dap_chain_hash_fast_t   data_hash;
@@ -339,6 +341,15 @@ DAP_STATIC_INLINE bool dap_chain_net_srv_uid_compare(dap_chain_net_srv_uid_t a, 
     return a.uint64 == b.uint64;
 #else // DAP_CHAIN_NET_SRV_UID_SIZE == 16
     return !memcmp(&a, &b, DAP_CHAIN_NET_SRV_UID_SIZE);
+#endif
+}
+
+DAP_STATIC_INLINE bool dap_chain_net_srv_uid_compare_scalar(const dap_chain_net_srv_uid_t a_uid1, const uint64_t a_id)
+{
+#if DAP_CHAIN_NET_SRV_UID_SIZE == 8
+    return a_uid1.uint64 == a_id;
+#else
+    return compare128(a_uid1.uint128, GET_128_FROM_64(a_id));
 #endif
 }
 

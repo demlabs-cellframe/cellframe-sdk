@@ -104,11 +104,13 @@ dap_chain_tx_out_cond_subtype_t dap_chain_tx_out_cond_subtype_from_str(const cha
 size_t dap_chain_datum_item_tx_get_size(const void *a_item);
 
 /**
- * Create item dap_chain_tx_token_t
+ * Create item dap_chain_tx_in_ems_t
  *
  * return item, NULL Error
  */
-dap_chain_tx_in_ems_t *dap_chain_datum_tx_item_token_create(dap_chain_id_t a_id, dap_chain_hash_fast_t *a_datum_token_hash, const char *a_ticker);
+dap_chain_tx_in_ems_t *dap_chain_datum_tx_item_in_ems_create(dap_chain_id_t a_id, dap_chain_hash_fast_t *a_datum_token_hash, const char *a_ticker);
+
+json_object *dap_chain_datum_tx_item_in_ems_to_json(const dap_chain_tx_in_ems_t *a_in_ems);
 
 /**
  * Create item dap_chain_tx_out_old_t
@@ -117,17 +119,26 @@ dap_chain_tx_in_ems_t *dap_chain_datum_tx_item_token_create(dap_chain_id_t a_id,
  */
 dap_chain_tx_in_t* dap_chain_datum_tx_item_in_create(dap_chain_hash_fast_t *a_tx_prev_hash, uint32_t a_tx_out_prev_idx);
 
+json_object* dap_chain_datum_tx_item_in_to_json(dap_chain_tx_in_t *a_in);
+
 dap_chain_tx_tsd_t *dap_chain_datum_tx_item_tsd_create(void *a_data, int a_type, size_t a_size);
+
+json_object* dap_chain_datum_tx_item_tsd_to_json(dap_chain_tx_tsd_t *a_tsd);
 
 
 dap_chain_tx_in_cond_t* dap_chain_datum_tx_item_in_cond_create(dap_chain_hash_fast_t *a_tx_prev_hash, uint32_t a_tx_out_prev_idx,
                                                                uint32_t a_receipt_idx);
+
+json_object* dap_chain_datum_tx_item_in_cond_to_json(dap_chain_tx_in_cond_t *a_in_cond);
+
 /**
  * Create item dap_chain_tx_out_old_t
  *
  * return item, NULL Error
  */
 dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(const dap_chain_addr_t *a_addr, uint256_t a_value);
+
+json_object* dap_chain_datum_tx_item_out_to_json(const dap_chain_tx_out_t *a_out);
 
 /**
  * Create item dap_chain_tx_out_ext_t
@@ -136,6 +147,8 @@ dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(const dap_chain_addr_t *a
  */
 dap_chain_tx_out_ext_t* dap_chain_datum_tx_item_out_ext_create(const dap_chain_addr_t *a_addr, uint256_t a_value, const char *a_token);
 
+json_object* dap_chain_datum_tx_item_out_ext_to_json(const dap_chain_tx_out_ext_t *a_out_ext);
+
 /**
  * Create item dap_chain_tx_out_cond_t with fee subtype
  *
@@ -143,12 +156,7 @@ dap_chain_tx_out_ext_t* dap_chain_datum_tx_item_out_ext_create(const dap_chain_a
  */
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_fee(uint256_t a_value);
 
-/**
- * Create item dap_chain_tx_out_cond_t with fee stake subtype
- *
- * return item, NULL Error
- */
-dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_fee_stake(uint256_t a_value);
+json_object *dap_chain_datum_tx_item_out_cond_fee_to_json(dap_chain_tx_out_cond_t *a_fee);
 
 /**
  * Create item dap_chain_tx_out_cond_t
@@ -159,6 +167,9 @@ dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_pke
                                                                              uint256_t a_value, uint256_t a_value_max_per_unit,
                                                                              dap_chain_net_srv_price_unit_uid_t a_unit,
                                                                              const void *a_params, size_t a_params_size);
+
+json_object *dap_chain_datum_tx_item_out_cond_srv_pay_to_json(dap_chain_tx_out_cond_t *a_srv_pay);
+
 /**
  * Create item dap_chain_tx_out_cond_t for eXchange service
  *
@@ -168,20 +179,35 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap
                                                                              uint256_t a_value_sell, dap_chain_net_id_t a_buy_net_id,
                                                                              const char *a_token, uint256_t a_value_buy, const dap_chain_addr_t *a_seller_addr,
                                                                              const void *a_params, uint32_t a_params_size);
+
+json_object* dap_chain_datum_tx_item_out_cond_srv_xchange_to_json(dap_chain_tx_out_cond_t* a_srv_xchange);
+
 /**
  * Create item dap_chain_tx_out_cond_t for stake service
  *
  * return item, NULL Error
  */
-dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value, uint256_t a_fee_value,
-                                                                               dap_chain_addr_t *a_fee_addr, dap_chain_addr_t *a_hldr_addr,
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
                                                                                dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr);
+
+json_object *dap_chain_datum_tx_item_out_cond_srv_stake_to_json(dap_chain_tx_out_cond_t* a_srv_stake);
+
+// Create cond out
+dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(dap_chain_net_srv_uid_t a_srv_uid,
+                                                                                  uint256_t a_value, uint64_t a_time_staking,
+                                                                                  uint256_t a_reinvest_percent);
+
+json_object *dap_chain_net_srv_stake_lock_cond_out_to_json(dap_chain_tx_out_cond_t *a_stake_lock);
+
+
 /**
  * Create item dap_chain_tx_sig_t
  *
  * return item, NULL Error
  */
 dap_chain_tx_sig_t *dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, const void *a_data, size_t a_data_size);
+
+json_object* dap_chain_datum_tx_item_sig_to_json(const dap_chain_tx_sig_t *a_sig);
 
 /**
  * Get sign from sign item

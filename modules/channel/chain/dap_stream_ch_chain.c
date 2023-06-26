@@ -182,7 +182,6 @@ void dap_stream_ch_chain_deinit()
  */
 void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
 {
-
     UNUSED(a_arg);
     a_ch->internal = DAP_NEW_Z(dap_stream_ch_chain_t);
     dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
@@ -192,33 +191,7 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
 #ifdef  DAP_SYS_DEBUG
     atomic_fetch_add(&s_memstat[MEMSTAT$K_STM_CH_CHAIN].alloc_nr, 1);
 #endif
-
     debug_if(s_debug_more, L_DEBUG, "[stm_ch_chain:%p] --- created chain:%p", a_ch, l_ch_chain);
-
-
-}
-
-/**
- * @brief s_stream_ch_delete_in_proc
- * @param a_thread
- * @param a_arg
- * @return
- */
-static void s_stream_ch_delete_in_proc(dap_worker_t *a_worker, void *a_arg)
-{
-    UNUSED(a_worker);
-    dap_stream_ch_chain_t *l_ch_chain = (dap_stream_ch_chain_t *)a_arg;
-    if (l_ch_chain->callback_notify_packet_out)
-        l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_DELETE, NULL, 0,
-                                               l_ch_chain->callback_notify_arg);
-    s_ch_chain_go_idle(l_ch_chain);
-    s_free_log_list_gdb(l_ch_chain);
-    DAP_DELETE(l_ch_chain);
-
-#ifdef  DAP_SYS_DEBUG
-        atomic_fetch_add(&s_memstat[MEMSTAT$K_STM_CH_CHAIN].free_nr, 1);
-#endif
-
 }
 
 /**
@@ -226,18 +199,27 @@ static void s_stream_ch_delete_in_proc(dap_worker_t *a_worker, void *a_arg)
  * @param ch
  * @param arg
  */
-static void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg)
+static void s_stream_ch_delete(dap_stream_ch_t *a_ch, void *a_arg)
 {
-    (void) a_arg;
-    dap_worker_exec_callback_on(a_ch->stream_worker->worker, s_stream_ch_delete_in_proc, a_ch->internal);
-    a_ch->internal = NULL; // To prevent its cleaning in worker
+    UNUSED(a_arg);
+    dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
+    if (l_ch_chain->callback_notify_packet_out)
+        l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_DELETE, NULL, 0,
+                                               l_ch_chain->callback_notify_arg);
+    s_ch_chain_go_idle(l_ch_chain);
+    debug_if(s_debug_more, L_DEBUG, "[stm_ch_chain:%p] --- deleted chain:%p", a_ch, l_ch_chain);
+    DAP_DEL_Z(a_ch->internal);
+
+#ifdef  DAP_SYS_DEBUG
+    atomic_fetch_add(&s_memstat[MEMSTAT$K_STM_CH_CHAIN].free_nr, 1);
+#endif
 }
 
-void dap_stream_ch_chain_reset(dap_stream_ch_chain_t *a_ch_chain)
+void dap_stream_ch_chain_reset_unsafe(dap_stream_ch_chain_t *a_ch_chain)
 {
     if (!a_ch_chain)
         return;
-    dap_worker_exec_callback_on(DAP_STREAM_CH(a_ch_chain)->stream_worker->worker, s_stream_ch_delete_in_proc, a_ch_chain);
+    s_ch_chain_go_idle(a_ch_chain);
 }
 
 /**
@@ -460,7 +442,7 @@ static bool s_sync_out_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_ar
         l_flags |= F_DB_LOG_SYNC_FROM_ZERO;
     if (l_ch_chain->request_db_log != NULL)
         dap_db_log_list_delete(l_ch_chain->request_db_log);
-    l_ch_chain->request_db_log = dap_db_log_list_start(l_net, l_sync_request->request.node_addr, l_flags);
+    l_ch_chain->request_db_log = dap_db_log_list_start(l_net->pub.name, l_sync_request->request.node_addr.uint64, l_flags);
 
     if (l_ch_chain->request_db_log) {
         if (s_debug_more)
@@ -519,7 +501,7 @@ static bool s_sync_update_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a
         l_flags |= F_DB_LOG_SYNC_FROM_ZERO;
     if (l_ch_chain->request_db_log != NULL)
         dap_db_log_list_delete(l_ch_chain->request_db_log);
-    l_ch_chain->request_db_log = dap_db_log_list_start(l_net, l_sync_request->request.node_addr, l_flags);
+    l_ch_chain->request_db_log = dap_db_log_list_start(l_net->pub.name, l_sync_request->request.node_addr.uint64, l_flags);
     l_ch_chain->state = CHAIN_STATE_UPDATE_GLOBAL_DB;
     l_sync_request->gdb.db_log = l_ch_chain->request_db_log;
     l_sync_request->request.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
@@ -568,14 +550,14 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
         if (s_debug_more){
             log_it(L_WARNING, "Atom with hash %s for %s:%s not accepted (code ATOM_PASS, already present)",  l_atom_hash_str, l_chain->net_name, l_chain->name);
         }
-        dap_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
+        dap_chain_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
         DAP_DELETE(l_atom_copy);
         break;
     case ATOM_MOVE_TO_THRESHOLD:
         if (s_debug_more) {
             log_it(L_INFO, "Thresholded atom with hash %s for %s:%s", l_atom_hash_str, l_chain->net_name, l_chain->name);
         }
-        dap_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
+        dap_chain_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
         break;
     case ATOM_ACCEPT:
         if (s_debug_more) {
@@ -585,7 +567,7 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
         if(l_res < 0) {
             log_it(L_ERROR, "Can't save atom %s to the file", l_atom_hash_str);
         } else {
-            dap_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
+            dap_chain_db_set_last_hash_remote(l_sync_request->request.node_addr.uint64, l_chain, &l_atom_hash);
         }
         break;
     case ATOM_REJECT: {
@@ -728,10 +710,13 @@ static void s_gdb_in_pkt_proc_callback_apply(dap_global_db_context_t *a_global_d
         }
     }
     // Do not overwrite pinned records
-    if (l_is_pinned_cur)
+    if (l_is_pinned_cur) {
+        debug_if(s_debug_more, L_WARNING, "Can't %s record from group %s key %s - current record is pinned",
+                                l_obj->type != DAP_DB$K_OPTYPE_DEL ? "remove" : "rewrite", l_obj->group, l_obj->key);
         goto ret;
+    }
     // Deleted time
-    dap_nanotime_t l_timestamp_del = dap_global_db_get_del_ts_unsafe(l_obj->group, l_obj->key);
+    dap_nanotime_t l_timestamp_del = dap_global_db_get_del_ts_unsafe(a_global_db_context, l_obj->group, l_obj->key);
     // Limit time
     dap_nanotime_t l_limit_time = l_args->limit_time;
     //check whether to apply the received data into the database
@@ -930,12 +915,13 @@ struct sync_request *dap_stream_ch_chain_create_sync_request(dap_stream_ch_chain
 {
     dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
     struct sync_request *l_sync_request = DAP_NEW_Z(struct sync_request);
-    l_sync_request->ch_uuid = a_ch->uuid;
-    l_sync_request->worker = a_ch->stream_worker->worker;
-    l_sync_request->remote_gdbs = l_ch_chain->remote_gdbs;
-    l_sync_request->remote_atoms = l_ch_chain->remote_atoms;
-    l_sync_request->request_hdr = l_ch_chain->request_hdr = a_chain_pkt->hdr;
-    l_sync_request->request = l_ch_chain->request;
+    *l_sync_request = (struct sync_request) {
+            .worker         = a_ch->stream_worker->worker,
+            .ch_uuid        = a_ch->uuid,
+            .request        = l_ch_chain->request,
+            .request_hdr    = a_chain_pkt->hdr,
+            .remote_atoms   = l_ch_chain->remote_atoms,
+            .remote_gdbs    = l_ch_chain->remote_gdbs };
     return l_sync_request;
 }
 
@@ -943,7 +929,7 @@ static void s_stream_ch_write_error_unsafe(dap_stream_ch_t *a_ch, uint64_t a_net
 {
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
     s_ch_chain_go_idle(l_ch_chain);
-    dap_stream_ch_chain_pkt_write_error_unsafe(a_ch, a_net_id, a_chain_id, a_cell_id, a_err_string);
+    dap_stream_ch_chain_pkt_write_error_unsafe(a_ch, a_net_id, a_chain_id, a_cell_id, "%s", a_err_string);
 }
 
 static bool s_chain_timer_callback(void *a_arg)
@@ -962,13 +948,15 @@ static bool s_chain_timer_callback(void *a_arg)
                 l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_TIMEOUT, NULL, 0,
                                                       l_ch_chain->callback_notify_arg);
         }
-        s_free_log_list_gdb(l_ch_chain);
         DAP_DELETE(a_arg);
         l_ch_chain->activity_timer = NULL;
         return false;
     }
-    if (l_ch_chain->state != CHAIN_STATE_WAITING && l_ch_chain->sent_breaks)
-        s_stream_ch_packet_out(l_ch, NULL);
+    if (l_ch_chain->state != CHAIN_STATE_WAITING && l_ch_chain->sent_breaks) {
+        s_stream_ch_packet_out(l_ch, a_arg);
+        if (l_ch_chain->activity_timer == NULL)
+            return false;
+    }
     // Sending dumb packet with nothing to inform remote thats we're just skiping atoms of GDB's, nothing freezed
     if (l_ch_chain->state == CHAIN_STATE_SYNC_CHAINS && l_ch_chain->sent_breaks >= 3 * DAP_SYNC_TICKS_PER_SECOND) {
         debug_if(s_debug_more, L_INFO, "Send one chain TSD packet");
@@ -1026,6 +1014,11 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     if (l_ch_pkt->hdr.data_size < sizeof (l_chain_pkt->hdr)){
         log_it(L_ERROR, "Corrupted packet: too small size %u, smaller then header size %zu", l_ch_pkt->hdr.data_size,
                sizeof(l_chain_pkt->hdr));
+        return;
+    }
+    if (l_chain_pkt->hdr.version != DAP_STREAM_CH_CHAIN_PKT_VERSION) {
+        debug_if(s_debug_more, L_ATT, "Unsupported protocol version %d, current version %d",
+                 l_chain_pkt->hdr.version, DAP_STREAM_CH_CHAIN_PKT_VERSION);
         return;
     }
     size_t l_chain_pkt_data_size = l_ch_pkt->hdr.data_size - sizeof(l_chain_pkt->hdr);
@@ -1090,6 +1083,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 l_ch_chain->request.id_start = 1;   // incremental sync by default
             struct sync_request *l_sync_request = dap_stream_ch_chain_create_sync_request(l_chain_pkt, a_ch);
             l_ch_chain->stats_request_gdb_processed = 0;
+            l_ch_chain->request_hdr = l_chain_pkt->hdr;
             dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_sync_update_gdb_proc_callback, l_sync_request);
         } break;
 
@@ -1425,6 +1419,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 }
                 struct sync_request *l_sync_request = dap_stream_ch_chain_create_sync_request(l_chain_pkt, a_ch);
                 l_ch_chain->stats_request_atoms_processed = 0;
+                l_ch_chain->request_hdr = l_chain_pkt->hdr;
                 if (l_ch_pkt->hdr.type == DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS) {
                     char l_hash_from_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' }, l_hash_to_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
                     dap_chain_hash_fast_t l_hash_from = l_ch_chain->request.hash_from,
@@ -1505,6 +1500,11 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                        l_hash_to_str[0] ? l_hash_to_str: "(null)");
 
             }
+            s_ch_chain_get_idle(l_ch_chain);
+            if (l_ch_chain->activity_timer) {
+                dap_timerfd_delete_unsafe(l_ch_chain->activity_timer);
+                l_ch_chain->activity_timer = NULL;
+            }
             if (!l_ch_chain->callback_notify_packet_in) { // we haven't node client waitng, so reply to other side
                 dap_chain_t *l_chain = dap_chain_find_by_id(l_chain_pkt->hdr.net_id, l_chain_pkt->hdr.chain_id);
                 if (!l_chain) {
@@ -1565,7 +1565,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_ALL: {
             log_it(L_INFO, "In from "NODE_ADDR_FP_STR":  SYNCED_ALL net 0x%016"DAP_UINT64_FORMAT_x" chain 0x%016"DAP_UINT64_FORMAT_x" cell 0x%016"DAP_UINT64_FORMAT_x,
-                            NODE_ADDR_FP_ARGS_S(l_ch_chain->node_client->remote_node_addr), l_chain_pkt->hdr.net_id.uint64,
+                            NODE_ADDR_FP_ARGS_S(l_ch_chain->request.node_addr), l_chain_pkt->hdr.net_id.uint64,
                             l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64);
         } break;
 
@@ -1716,10 +1716,8 @@ static void s_stream_ch_chain_pkt_write(dap_stream_ch_t *a_ch, uint8_t a_type, u
  * @param ch
  * @param arg
  */
-void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
+void s_stream_ch_packet_out(dap_stream_ch_t *a_ch, void *a_arg)
 {
-    UNUSED(a_arg);
-
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
     bool l_go_idle = false, l_was_sent_smth = false;
     switch (l_ch_chain->state) {
@@ -1890,9 +1888,9 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                     l_hash_item = DAP_NEW_Z(dap_stream_ch_chain_hash_item_t);
                     l_hash_item->hash = *l_ch_chain->request_atom_iter->cur_hash;
                     if(s_debug_more){
-                        char *l_atom_hash_str= dap_chain_hash_fast_to_str_new(&l_hash_item->hash);
+                        char l_atom_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                        dap_chain_hash_fast_to_str(&l_hash_item->hash, l_atom_hash_str, sizeof(l_atom_hash_str));
                         log_it(L_INFO, "Out CHAIN pkt: atom hash %s (size %zd) ", l_atom_hash_str, l_ch_chain->request_atom_iter->cur_size);
-                        DAP_DELETE(l_atom_hash_str);
                     }
                     s_stream_ch_chain_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN, l_ch_chain->request_hdr.net_id.uint64,
                                                          l_ch_chain->request_hdr.chain_id.uint64, l_ch_chain->request_hdr.cell_id.uint64,
@@ -1926,11 +1924,17 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
         } break;
         default: break;
     }
-    if (l_go_idle)
-        s_ch_chain_go_idle(l_ch_chain);
     if (l_was_sent_smth) {
         s_chain_timer_reset(l_ch_chain);
         l_ch_chain->sent_breaks = 0;
     } else
         l_ch_chain->sent_breaks++;
+    if (l_go_idle) {
+        s_ch_chain_go_idle(l_ch_chain);
+        if (l_ch_chain->activity_timer) {
+            if (!a_arg)
+                dap_timerfd_delete_unsafe(l_ch_chain->activity_timer);
+            l_ch_chain->activity_timer = NULL;
+        }
+    }
 }

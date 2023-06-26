@@ -75,7 +75,7 @@ geoip_info_t *chain_net_geoip_get_ip_info_by_web(const char *a_ip_str)
     size_t l_out_len = dap_enc_base64_encode(l_auth, strlen(l_auth), l_out, DAP_ENC_DATA_TYPE_B64);
     size_t l_size_req = l_out_len > 0 ? l_out_len + 32 : 0;
     char * l_custom = l_out_len > 0 ? DAP_NEW_STACK_SIZE(char, l_size_req) : NULL;
-    int l_offset = l_out_len ? dap_snprintf(l_custom, l_size_req, "Authorization: Basic %s\r\n", l_out) : 0;
+    int l_offset = l_out_len ? snprintf(l_custom, l_size_req, "Authorization: Basic %s\r\n", l_out) : 0;
     //finish up https request
     dap_client_http_request_custom(NULL,"geoip.maxmind.com", 443, "GET", "application/json", l_path, NULL,
             0, NULL, m_request_getip_response, m_request_getip_request_error, NULL, l_custom, true);

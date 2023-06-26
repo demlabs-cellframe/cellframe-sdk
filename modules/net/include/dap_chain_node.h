@@ -21,24 +21,6 @@
 
 #pragma once
 
-#include <stdint.h>
-#include <stddef.h>
-#include <stdbool.h>
-
-#ifndef _WIN32
-#include <sys/socket.h>
-#include <netinet/in.h>
-#else
-#include <winsock2.h>
-#include <windows.h>
-#include <mswsock.h>
-#include <ws2tcpip.h>
-
-#include "win32/ip.h"
-#include "win32/iphdr.h"
-#endif
-
-
 #include "dap_common.h"
 #include "dap_list.h"
 #include "dap_worker.h"
@@ -47,7 +29,9 @@
 #include "dap_chain_common.h"
 #include "dap_global_db.h"
 #include "dap_chain.h"
-#include "dap_chain_net.h"
+
+// Default time of a node address expired in hours
+#define NODE_TIME_EXPIRED_DEFAULT 720
 
 typedef struct dap_chain_net dap_chain_net_t;
 /**
@@ -151,12 +135,16 @@ dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_net_t * l_net, dap_cha
 
 inline static char* dap_chain_node_addr_to_hash_str(dap_chain_node_addr_t *address)
 {
-    char *a_key = dap_hash_fast_str_new((const uint8_t*) address, sizeof(dap_chain_node_addr_t));
-    return a_key;
+    return dap_hash_fast_str_new((const uint8_t*) address, sizeof(dap_chain_node_addr_t));
 }
 
 bool dap_chain_node_mempool_need_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum);
-bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum);
+bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, const char *a_datum_hash_str);
 void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force);
 bool dap_chain_node_mempool_autoproc_init();
 void dap_chain_node_mempool_autoproc_deinit();
+
+// Set addr for current node
+bool dap_db_set_cur_node_addr(uint64_t a_address, char *a_net_name);
+bool dap_db_set_cur_node_addr_exp(uint64_t a_address, char *a_net_name );
+uint64_t dap_chain_net_get_cur_node_addr_gdb_sync(char *a_net_name);

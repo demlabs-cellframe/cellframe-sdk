@@ -91,6 +91,11 @@ int com_token_update(int a_argc, char **a_argv, char ** a_str_reply);
  */
 int com_token_decl_sign ( int a_argc,  char **a_argv, char ** str_reply);
 
+/*
+ * Token update sign
+ */
+int com_token_update_sign(int argc, char ** argv, char ** a_str_reply);
+
 /**
  * Token emission
  */

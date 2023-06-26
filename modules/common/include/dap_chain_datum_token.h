@@ -33,36 +33,7 @@
 
 
 // Token declaration
-typedef struct dap_chain_datum_token_old {
-    uint16_t type;
-    char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-    union {
-        struct {
-            uint64_t total_supply;
-            uint16_t signs_valid;
-            uint16_t signs_total;
-        } DAP_ALIGN_PACKED header_simple;
-        struct {
-            uint16_t flags;
-            size_t tsd_total_size;
-        } DAP_ALIGN_PACKED header_private_decl;
-        struct {
-            uint16_t padding;
-            size_t tsd_total_size;
-        } DAP_ALIGN_PACKED header_private_update;
-        struct {
-            uint128_t total_supply;
-            uint128_t premine_supply;
-            dap_chain_addr_t premine_address;
-            uint32_t flags;
-        } DAP_ALIGN_PACKED header_public;
-    };
-    byte_t data_n_tsd[];
-} DAP_ALIGN_PACKED dap_chain_datum_token_old_t;
-
-
-// Token declaration
-typedef struct dap_chain_datum_token{
+typedef struct dap_chain_datum_token_old{
     uint16_t type;
     char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     uint16_t signs_valid; // Emission auth signs
@@ -106,40 +77,104 @@ typedef struct dap_chain_datum_token{
     };
     uint16_t signs_total; // Emission auth signs
     byte_t data_n_tsd[]; // Signs and/or types-size-data sections
+} DAP_ALIGN_PACKED dap_chain_datum_token_old_t;
+
+// Token declaration
+typedef struct dap_chain_datum_token{
+    uint16_t type;
+    uint16_t version;
+    uint16_t subtype;
+    char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
+    uint16_t signs_valid; // Emission auth signs
+    uint16_t signs_total; // Emission auth signs
+    uint256_t total_supply;
+    union {
+        // Simple token declaration. Useful for 100% premined emission without any plays with token and owners after that
+        struct {
+             uint16_t decimals;
+        } DAP_ALIGN_PACKED header_simple;
+        // Private token declarations, with flags, manipulations and updates
+        struct {
+            uint16_t flags; // Token declaration flags
+            uint64_t tsd_total_size; // Data size section with values in key-length-value list trailing the signs section
+            uint16_t decimals;
+        } DAP_ALIGN_PACKED header_private_decl;
+        //native tokens
+        struct {
+            uint16_t flags; // Token declaration flags
+            uint64_t tsd_total_size; // Data size section with values in key-length-value list trailing the signs section
+            uint16_t decimals;
+        } DAP_ALIGN_PACKED header_native_decl;
+        // Private token update
+        struct {
+            uint16_t flags; // Token declaration flags
+            uint64_t tsd_total_size; // Data size section with values in key-length-value list trailing the signs section
+            uint16_t decimals;
+        } DAP_ALIGN_PACKED header_private_update;
+        // native token update
+        struct {
+            uint16_t flags; // Token declaration flags
+            uint64_t tsd_total_size; // Data size section with values in key-length-value list trailing the signs section
+            uint16_t decimals;
+        } DAP_ALIGN_PACKED header_native_update;
+        // Public token declaration
+        struct {
+            uint32_t flags;
+            uint256_t premine_supply;
+            dap_chain_addr_t premine_address;
+        } DAP_ALIGN_PACKED header_public;
+        byte_t header[256]; // For future changes
+    };
+    byte_t data_n_tsd[]; // Signs and/or types-size-data sections
 } DAP_ALIGN_PACKED dap_chain_datum_token_t;
 
 typedef struct dap_chain_datum_token_tsd_delegate_from_stake_lock {
-    char			ticker_token_from[DAP_CHAIN_TICKER_SIZE_MAX];
+    byte_t			ticker_token_from[DAP_CHAIN_TICKER_SIZE_MAX];
     //	dap_hash_fast_t	hash_token_from;//TODO: ???
     uint256_t		emission_rate;	// In "coins", 1^18 == 1.0
-    int				flags;			// Some emission flags for future
+    uint32_t		flags;			// Some emission flags for future
     byte_t			padding[256];	// Some free space for future
 } DAP_ALIGN_PACKED dap_chain_datum_token_tsd_delegate_from_stake_lock_t;
 
 // Token declaration type
 // Simple private token decl
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE           0x0001
+//#define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE           0x0001
 // Extended declaration of privatetoken with in-time control
 //#define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_DECL     0x0002
 // Token update
 //#define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_UPDATE   0x0003
 // Open token with now ownership
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PUBLIC           0x0004
+//#define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PUBLIC           0x0004
 
 // 256
 // Simple private token decl
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_SIMPLE               0x0005
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE               0x0005
 // Extended declaration of privatetoken with in-time control
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_DECL         0x0006
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_DECL         0x0006
 // Token update
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_PRIVATE_UPDATE       0x0007
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_UPDATE       0x0007
 // Open token with now ownership
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_PUBLIC               0x0008
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PUBLIC               0x0008
 // Native token type
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_DECL          0x0009
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_DECL          0x0009
 // Token update
-#define DAP_CHAIN_DATUM_TOKEN_TYPE_NATIVE_UPDATE        0x000A
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_UPDATE        0x000A
 // Open token with now ownership
+
+// New datum types with versioning and subtypes.
+// Declaration token
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_DECL                      0x0010
+// Updated token
+#define DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE                    0x0011
+// Subtypes
+// Simple private token decl
+#define DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE                 0x0001
+// Extended declaration of privatetoken with in-time control
+#define DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE              0x0002
+// Native token
+#define DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE               0x0003
+// Open token with now ownership
+#define DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC               0x0004
 
 
 // Macros for token flags
@@ -223,10 +258,10 @@ extern const char *c_dap_chain_datum_token_flag_str[];
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID                    0x0004
 
 // Remove owner signature by pkey fingerprint
-#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_REMOVE                   0x0005
+#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE                   0x0005
 
 // Add owner signature's pkey fingerprint
-#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_ADD                      0x0006
+#define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD                      0x0006
 
 // Emission for delegated token
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK	0x0027
@@ -298,7 +333,7 @@ static t_datum_token_flag_struct s_flags_table[] = {
 
 #define NKEYS (sizeof(s_flags_table)/sizeof(t_datum_token_flag_struct))
 
-static inline int s_flag_code_from_str(const char *key)
+DAP_STATIC_INLINE int s_flag_code_from_str(const char *key)
 {
     uint64_t i;
     for (i=0; i < NKEYS; i++) {
@@ -310,7 +345,7 @@ static inline int s_flag_code_from_str(const char *key)
     return DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED;
 }
 
-static inline char* s_flag_str_from_code(uint64_t code)
+DAP_STATIC_INLINE char* s_flag_str_from_code(uint64_t code)
 {
     uint64_t i;
     uint64_t flags_count = 0;
@@ -350,7 +385,7 @@ static inline char* s_flag_str_from_code(uint64_t code)
  * @param a_str
  * @return
  */
-static inline char* dap_chain_datum_str_token_flag_from_code(uint64_t code)
+DAP_STATIC_INLINE char *dap_chain_datum_str_token_flag_from_code(uint64_t code)
 {
     return s_flag_str_from_code(code);
 }
@@ -360,13 +395,36 @@ static inline char* dap_chain_datum_str_token_flag_from_code(uint64_t code)
  * @param a_str
  * @return
  */
-static inline uint16_t dap_chain_datum_token_flag_from_str(const char* a_str)
+DAP_STATIC_INLINE uint16_t dap_chain_datum_token_flag_from_str(const char* a_str)
 {
     if (a_str == NULL)
         return DAP_CHAIN_DATUM_TOKEN_FLAG_NONE;
 
     return s_flag_code_from_str(a_str);
 }
+
+// Get delegated ticker
+DAP_STATIC_INLINE int dap_chain_datum_token_get_delegated_ticker(char *a_buf, const char *a_ticker)
+{
+    if (!a_buf || !a_ticker)
+        return -1;
+    *a_buf = 'm';
+    strncpy(a_buf + 1, a_ticker, DAP_CHAIN_TICKER_SIZE_MAX - 2);
+    a_buf[DAP_CHAIN_TICKER_SIZE_MAX - 1] = '\0';
+    return 0;
+}
+
+DAP_STATIC_INLINE bool dap_chain_datum_token_is_old(uint8_t a_type)
+{
+    return a_type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE
+           || a_type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_DECL
+           || a_type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_UPDATE
+           || a_type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_DECL
+           || a_type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_UPDATE
+           || a_type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PUBLIC;
+}
+
+/*                              Token emission section                          */
 
 struct DAP_ALIGN_PACKED dap_chain_emission_header_v0 {
     uint8_t version;
@@ -445,7 +503,7 @@ dap_tsd_t* dap_chain_datum_token_tsd_get(dap_chain_datum_token_t * a_token,  siz
 void dap_chain_datum_token_flags_dump(dap_string_t * a_str_out, uint16_t a_flags);
 void dap_chain_datum_token_certs_dump(dap_string_t * a_str_out, byte_t * a_data_n_tsd, size_t a_certs_size, const char *a_hash_out_type);
 dap_sign_t ** dap_chain_datum_token_signs_parse(dap_chain_datum_token_t * a_datum_token, size_t a_datum_token_size, size_t *a_signs_count, size_t * a_signs_valid);
-dap_chain_datum_token_t *dap_chain_datum_token_read(byte_t *a_token_serial, size_t *a_token_size);
+dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial, size_t *a_token_size);
 
 dap_chain_datum_token_emission_t *dap_chain_datum_emission_create(uint256_t a_value, const char *a_ticker, dap_chain_addr_t *a_addr);
 dap_chain_datum_token_emission_t *dap_chain_datum_emission_add_tsd(dap_chain_datum_token_emission_t *a_emission, int a_type, size_t a_size, void *a_data);
@@ -453,6 +511,8 @@ byte_t *dap_chain_emission_get_tsd(dap_chain_datum_token_emission_t *a_emission,
 dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emission_serial, size_t *a_emission_size);
 size_t dap_chain_datum_emission_get_size(uint8_t *a_emission_serial);
 dap_chain_datum_token_emission_t *dap_chain_datum_emission_add_sign(dap_enc_key_t *a_sign_key, dap_chain_datum_token_emission_t *a_emission);
+dap_chain_datum_token_emission_t *dap_chain_datum_emission_append_sign(dap_sign_t  *a_sign, dap_chain_datum_token_emission_t *a_emission);
+
 dap_sign_t *dap_chain_datum_emission_get_signs(dap_chain_datum_token_emission_t *a_emission, size_t *a_signs_count);
 // 256 TYPE
 bool dap_chain_datum_token_is_old(uint8_t a_type);

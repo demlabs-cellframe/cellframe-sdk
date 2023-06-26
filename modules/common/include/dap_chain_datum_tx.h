@@ -27,12 +27,8 @@
 #include "dap_enc_key.h"
 #include "dap_chain_common.h"
 #include "dap_time.h"
+#include <json-c/json.h>
 
-typedef enum dap_chain_tx_cond_type {
-    COND_SERVICE_PROVIDE = 0x20, //
-    COND_SERVICE_BILL = 0x30, //
-
-} dap_chain_tx_cond_type_t;
 /**
   * @struct dap_chain_datum_tx
   * @brief Transaction section, consists from lot of tx_items
@@ -77,6 +73,7 @@ int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item)
  */
 uint256_t dap_chain_datum_tx_add_in_item_list(dap_chain_datum_tx_t **a_tx, dap_list_t *a_list_used_out);
 
+
 /**
  * Create 'in' item and insert to transaction
  *
@@ -94,6 +91,13 @@ int dap_chain_datum_tx_add_in_item(dap_chain_datum_tx_t **a_tx, dap_chain_hash_f
 int dap_chain_datum_tx_add_in_cond_item(dap_chain_datum_tx_t **a_tx, dap_chain_hash_fast_t *a_tx_prev_hash,
                                         uint32_t a_tx_out_prev_idx,
                                         uint32_t a_receipt_idx);
+
+/**
+ * Create 'in_cond' items from list  and insert to transaction
+ *
+ * return summary value from inserted items
+ */
+uint256_t dap_chain_datum_tx_add_in_cond_item_list(dap_chain_datum_tx_t **a_tx, dap_list_t *a_list_used_out_cound);
 
 /**
  * Create 'out' item and insert to transaction
@@ -139,3 +143,7 @@ int dap_chain_datum_tx_add_sign_item(dap_chain_datum_tx_t **a_tx, dap_enc_key_t 
  * return 1 Ok, 0 Invalid sign, -1 Not found sing or other Error
  */
 int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *a_tx);
+
+json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx);
+
+int dap_chain_datum_tx_get_fee_value (dap_chain_datum_tx_t *a_tx, uint256_t *a_value);

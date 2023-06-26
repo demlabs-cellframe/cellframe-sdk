@@ -55,7 +55,7 @@ typedef struct dap_chain_net_srv_usage{
     bool is_active;
     bool is_free;
     bool is_grace;
-    UT_hash_handle hh; //
+//    UT_hash_handle hh; //
 } dap_chain_net_srv_usage_t;
 
 typedef struct dap_net_stats{
@@ -73,10 +73,12 @@ typedef struct dap_net_stats{
 typedef struct dap_chain_net_srv_stream_session {
     time_t ts_activated;
     dap_stream_session_t * parent;
-    dap_chain_net_srv_usage_t * usages;
     dap_chain_net_srv_usage_t * usage_active;
-    uintmax_t limits_bytes; // Bytes left
-    time_t limits_ts; // Timestamp until its activte
+    intmax_t limits_bytes; // Bytes provided for using the service left
+    time_t limits_ts; //Time provided for using the service
+
+    time_t last_update_ts; //Time provided for using the service
+
     dap_chain_net_srv_price_unit_uid_t limits_units_type;
 
     // Some common stats

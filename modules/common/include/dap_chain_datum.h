@@ -29,6 +29,7 @@
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_token.h"
+#include <json-c/json.h>
 
 #define DAP_CHAIN_DATUM_VERSION 0x00
 
@@ -67,37 +68,41 @@
 #define DAP_CHAIN_DATUM_TOKEN_EMISSION       0xf100
 #define DAP_CHAIN_DATUM_TOKEN_DISMISSAL      0xf200
 
+#define DAP_CHAIN_DATUM_ANCHOR               0x0a00
+
 #define DAP_CHAIN_DATUM_CUSTOM               0xffff
 
-#define DAP_DATUM_TYPE_STR(t, s)            \
-    switch (t) {                            \
-        case DAP_CHAIN_DATUM_TX:            \
-            s = "DATUM_TX"; break;          \
-        case DAP_CHAIN_DATUM_TX_REQUEST:    \
-            s = "DATUM_WASM_CODE"; break;   \
-        case DAP_CHAIN_DATUM_WASM_CODE:     \
-            s = "DATUM_WASM_CODE"; break;   \
-        case DAP_CHAIN_DATUM_WASM_DATA:     \
-            s = "DATUM_WASM_DATA"; break;   \
-        case DAP_CHAIN_DATUM_EVM_CODE:      \
-            s = "DATUM_EVM_CODE"; break;    \
-        case DAP_CHAIN_DATUM_EVM_DATA:      \
-            s = "DATUM_EVM_DATA"; break;    \
-        case DAP_CHAIN_DATUM_CA:            \
-            s = "DATUM_CA"; break;          \
-        case DAP_CHAIN_DATUM_SIGNER:        \
-            s = "DATUM_SIGNER"; break;      \
-        case DAP_CHAIN_DATUM_CUSTOM:        \
-            s = "DATUM_CUSTOM"; break;      \
-        case DAP_CHAIN_DATUM_TOKEN_DECL:    \
-            s = "DATUM_TOKEN_DECL"; break;  \
-        case DAP_CHAIN_DATUM_TOKEN_EMISSION:\
-            s = "DATUM_TOKEN_EMISSION"; break;\
-        case DAP_CHAIN_DATUM_DECREE:\
-            s = "DATUM_DECREE"; break;\
-        default:                            \
-            s = "DATUM_UNKNOWN"; break;     \
-}
+#define DAP_DATUM_TYPE_STR(t, s)        \
+    switch (t) {                        \
+    case DAP_CHAIN_DATUM_TX:            \
+        s = "DATUM_TX"; break;          \
+    case DAP_CHAIN_DATUM_TX_REQUEST:    \
+        s = "DATUM_WASM_CODE"; break;   \
+    case DAP_CHAIN_DATUM_WASM_CODE:     \
+        s = "DATUM_WASM_CODE"; break;   \
+    case DAP_CHAIN_DATUM_WASM_DATA:     \
+        s = "DATUM_WASM_DATA"; break;   \
+    case DAP_CHAIN_DATUM_EVM_CODE:      \
+        s = "DATUM_EVM_CODE"; break;    \
+    case DAP_CHAIN_DATUM_EVM_DATA:      \
+        s = "DATUM_EVM_DATA"; break;    \
+    case DAP_CHAIN_DATUM_CA:            \
+        s = "DATUM_CA"; break;          \
+    case DAP_CHAIN_DATUM_SIGNER:        \
+        s = "DATUM_SIGNER"; break;      \
+    case DAP_CHAIN_DATUM_CUSTOM:        \
+        s = "DATUM_CUSTOM"; break;      \
+    case DAP_CHAIN_DATUM_TOKEN_DECL:    \
+        s = "DATUM_TOKEN_DECL"; break;  \
+    case DAP_CHAIN_DATUM_TOKEN_EMISSION:\
+        s = "DATUM_TOKEN_EMISSION"; break;\
+    case DAP_CHAIN_DATUM_DECREE:        \
+        s = "DATUM_DECREE"; break;      \
+    case DAP_CHAIN_DATUM_ANCHOR:        \
+        s = "DATUM_ANCHOR"; break;      \
+    default:                            \
+        s = "DATUM_UNKNOWN"; break;     \
+    }
 
 #define DAP_CHAIN_DATUM_ID_SIZE 2
 
@@ -125,23 +130,6 @@ typedef struct dap_chain_datum{
     } DAP_ALIGN_PACKED header;
     byte_t data[]; /// Stored datum body
 } DAP_ALIGN_PACKED dap_chain_datum_t;
-
-
-struct dap_chain;
-typedef struct dap_chain dap_chain_t;
-
-typedef struct dap_chain_datum_iter{
-    dap_chain_t * chain;
-    dap_chain_datum_t * cur;
-    void * cur_item;
-    void * atom_iter;
-} dap_chain_datum_iter_t;
-
-typedef dap_chain_datum_iter_t* (*dap_chain_datum_callback_iter_create_t)(dap_chain_t * );
-typedef dap_chain_datum_t* (*dap_chain_datum_callback_iter_get_first_t)(dap_chain_datum_iter_t * );
-typedef dap_chain_datum_t* (*dap_chain_datum_callback_iter_get_next_t)(dap_chain_datum_iter_t *  );
-typedef void (*dap_chain_datum_callback_iter_delete_t)(dap_chain_datum_iter_t *  );
-
 
 /**
  * @brief dap_chain_datum_size
@@ -172,3 +160,4 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                              dap_string_t *a_str_out,
                              const char *a_hash_out_type,
                              dap_hash_fast_t *a_tx_hash);
+json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum);

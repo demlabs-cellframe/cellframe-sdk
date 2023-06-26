@@ -34,7 +34,7 @@ enum dap_chain_tx_out_cond_subtype {
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED = 0x0,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY = 0x01,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE = 0x02,
-    DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE = 0x3,
+    DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE = 0x03,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE = 0x04,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK = 0x06,
     DAP_CHAIN_TX_OUT_COND_SUBTYPE_ALL = 0xFF
@@ -52,6 +52,14 @@ DAP_STATIC_INLINE const char *dap_chain_tx_out_cond_subtype_to_str(dap_chain_tx_
     }
     return "UNDEFINED";
 }
+
+// Stake lock base flags
+// Lock by time
+#define DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME           0x00000008
+// Create base tx for delegated token
+#define DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX    0x00000010
+// Emit with single lock TX
+#define DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_EMIT              0x00000020
 
 /**
  * @struct dap_chain_tx_out
@@ -97,20 +105,14 @@ typedef struct dap_chain_tx_out_cond {
             dap_chain_addr_t seller_addr;
         } DAP_ALIGN_PACKED srv_xchange;
         struct {
-            // Stake holder address
-            dap_chain_addr_t hldr_addr;
-            // Fee address
-            dap_chain_addr_t fee_addr;
-            // Fee value in percent (fixed point)
-            uint256_t fee_value;
             // Public key hash of signing certificate combined with net id
             dap_chain_addr_t signing_addr;
             // Node address of signer with this stake
             dap_chain_node_addr_t signer_node_addr;
-        } DAP_ALIGN_PACKED srv_stake;
+        } DAP_ALIGN_PACKED srv_stake_pos_delegate;
         struct {
             dap_time_t		time_unlock;
-            dap_hash_fast_t	pkey_delegated;
+            dap_hash_fast_t	unused;
             uint256_t		reinvest_percent;
             uint32_t		flags;
             byte_t          padding[4];

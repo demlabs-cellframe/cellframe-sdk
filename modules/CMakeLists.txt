@@ -106,14 +106,9 @@ if (CELLFRAME_MODULES MATCHES "srv-xchange")
     add_subdirectory(service/xchange)
 endif()
 
-# Service for token staking
-if (CELLFRAME_MODULES MATCHES "srv-stake-lock")
-    add_subdirectory(service/stake_lock)
-endif()
-
-# Service for PoS stake delegation
-if (CELLFRAME_MODULES MATCHES "srv-stake-pos-delegate")
-    add_subdirectory(service/stake_pos_delegate)
+# Service for token staking and PoS delegation
+if (CELLFRAME_MODULES MATCHES "srv-stake")
+    add_subdirectory(service/stake)
 endif()
 
 # Unit tests

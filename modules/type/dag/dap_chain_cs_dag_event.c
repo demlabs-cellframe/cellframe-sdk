@@ -105,7 +105,7 @@ size_t dap_chain_cs_dag_event_sign_add(dap_chain_cs_dag_event_t **a_event_ptr, s
     // check for re-sign with same key
     if (dap_chain_cs_dag_event_sign_exists(l_event, a_event_size, a_key)) {
         size_t l_pub_key_size = 0;
-        uint8_t *l_pub_key = dap_enc_key_serealize_pub_key(a_key, &l_pub_key_size);
+        uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(a_key, &l_pub_key_size);
         dap_hash_fast_t l_pkey_hash = {};
         dap_hash_fast(l_pub_key, l_pub_key_size, &l_pkey_hash);
         DAP_DEL_Z(l_pub_key);
@@ -128,7 +128,7 @@ size_t dap_chain_cs_dag_event_sign_add(dap_chain_cs_dag_event_t **a_event_ptr, s
 static bool s_sign_exists(uint8_t *a_pos, size_t a_len, dap_enc_key_t *a_key)
 {
     size_t l_pub_key_size = 0;
-    uint8_t *l_pub_key = dap_enc_key_serealize_pub_key(a_key, &l_pub_key_size);
+    uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(a_key, &l_pub_key_size);
     uint8_t *l_offset = a_pos;
     while (l_offset < a_pos + a_len) {
         dap_sign_t * l_item_sign = (dap_sign_t *)l_offset;
@@ -277,7 +277,7 @@ bool dap_chain_cs_dag_event_gdb_set(dap_chain_cs_dag_t *a_dag, char *a_event_has
 
     size_t l_round_item_size = dap_chain_cs_dag_event_round_item_get_size(l_round_item);
     bool ret = dap_global_db_set(a_dag->gdb_group_events_round_new, a_event_hash_str, l_round_item,
-                                 l_round_item_size,true, NULL, NULL) == 0;
+                                 l_round_item_size, false, NULL, NULL) == 0;
     DAP_DELETE(l_round_item);
     return ret;
 }

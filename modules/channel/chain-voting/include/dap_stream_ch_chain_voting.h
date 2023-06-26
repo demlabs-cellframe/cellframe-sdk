@@ -13,7 +13,8 @@
 #define DAP_STREAM_CH_CHAIN_VOTING_PKT_TYPE_DATA        0x01
 #define DAP_STREAM_CH_CHAIN_VOTING_PKT_TYPE_TEST        0x02
 
-typedef void (*dap_chain_voting_ch_callback_t)(void *a_arg, dap_chain_node_addr_t *a_addr, dap_chain_hash_fast_t *a_data_hash, uint8_t *a_data, size_t a_data_size);
+typedef void (*dap_chain_voting_ch_callback_t)(void *a_arg, dap_chain_node_addr_t *a_sender_addr, dap_chain_node_addr_t *a_receiver_addr,
+                                               dap_chain_hash_fast_t *a_data_hash, uint8_t *a_data, size_t a_data_size);
 
 typedef struct dap_stream_ch_chain_voting_pkt_hdr {
     uint8_t version;
@@ -51,9 +52,14 @@ void dap_stream_ch_chain_voting_in_callback_add(void* a_arg, dap_chain_voting_ch
 void dap_stream_ch_chain_voting_message_write(dap_chain_net_t * a_net, dap_chain_node_addr_t *a_remote_node_addr,
                                               dap_stream_ch_chain_voting_pkt_t *a_voting_pkt);
 
-dap_stream_ch_chain_voting_pkt_t *dap_stream_ch_chain_voting_pkt_new(uint64_t a_net_id, const void *a_data, size_t a_data_size);
+dap_stream_ch_chain_voting_pkt_t *dap_stream_ch_chain_voting_pkt_new(uint64_t a_net_id,
+                                                                     dap_chain_node_addr_t *a_sender_node_addr,
+                                                                     dap_chain_node_addr_t *a_receiver_node_addr,
+                                                                     const void *a_data, size_t a_data_size);
 
 size_t dap_stream_ch_chain_voting_pkt_write_unsafe(dap_stream_ch_t *a_ch, uint8_t a_type, uint64_t a_net_id,
+                                                   dap_chain_node_addr_t *a_sender_node_addr,
+                                                   dap_chain_node_addr_t *a_receiver_node_addr,
                                                    const void * a_data, size_t a_data_size);
 
 int dap_stream_ch_chain_voting_init();

@@ -299,7 +299,7 @@ static dap_chain_hash_fast_t* dap_chain_net_vpn_client_tx_cond_hash(dap_chain_ne
      l_cert = l_certs[0];
      if(l_cert) {
      size_t l_pub_key_data_size = 0;
-     uint8_t *l_pub_key_data = dap_enc_key_serealize_pub_key(l_cert->enc_key, &l_pub_key_data_size);
+     uint8_t *l_pub_key_data = dap_enc_key_serialize_pub_key(l_cert->enc_key, &l_pub_key_data_size);
      // save pub key
      if(l_pub_key_data && l_pub_key_data_size > 0){
      if(dap_global_db_gr_set(dap_strdup("client_pkey"), l_pub_key_data, l_pub_key_data_size,
@@ -338,7 +338,7 @@ static dap_chain_hash_fast_t* dap_chain_net_vpn_client_tx_cond_hash(dap_chain_ne
             dap_chain_hash_fast_from_str(l_tx_cond_hash_str, l_tx_cond_hash);
             DAP_DELETE(l_tx_cond_hash_str);
             // save transaction for login
-            dap_global_db_set_sync(l_gdb_group, "client_tx_cond_hash", l_tx_cond_hash, sizeof(dap_chain_hash_fast_t), true);
+            dap_global_db_set_sync(l_gdb_group, "client_tx_cond_hash", l_tx_cond_hash, sizeof(dap_chain_hash_fast_t), false);
         }
         DAP_DELETE(l_client_key);
     }
@@ -362,11 +362,11 @@ int dap_chain_net_vpn_client_update(dap_chain_net_t *a_net, const char *a_wallet
     }
 
     char *l_gdb_group = dap_strdup_printf("local.%s", DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
-    if(dap_global_db_set_sync(l_gdb_group, "wallet_name", a_wallet_name, -1,true))
+    if(dap_global_db_set_sync(l_gdb_group, "wallet_name", a_wallet_name, -1, false))
         return -2;
-    if(dap_global_db_set_sync(l_gdb_group, "token_name", a_str_token, -1, true))
+    if(dap_global_db_set_sync(l_gdb_group, "token_name", a_str_token, -1, false))
         return -2;
-    if(dap_global_db_set_sync(l_gdb_group, "value_datoshi", &a_value_datoshi, sizeof(a_value_datoshi), true))
+    if(dap_global_db_set_sync(l_gdb_group, "value_datoshi", &a_value_datoshi, sizeof(a_value_datoshi), false))
         return -2;
     DAP_DELETE(l_gdb_group);
     dap_chain_hash_fast_t *l_hash = dap_chain_net_vpn_client_tx_cond_hash(a_net, l_wallet, a_str_token,
@@ -408,7 +408,7 @@ static int get_order_state_so(dap_chain_node_addr_t a_node_addr)
     char l_lib_path[MAX_PATH] = {'\0'};
 #if defined (DAP_OS_LINUX) && !defined (__ANDROID__)
     const char * l_cdb_so_name = "libcellframe-node-cdb.so";
-    dap_sprintf(l_lib_path, "%s/%s/%s", g_sys_dir_path, s_default_path_modules, l_cdb_so_name);
+    sprintf(l_lib_path, "%s/%s/%s", g_sys_dir_path, s_default_path_modules, l_cdb_so_name);
 
     void* l_cdb_handle = NULL;
     l_cdb_handle = dlopen(l_lib_path, RTLD_NOW);

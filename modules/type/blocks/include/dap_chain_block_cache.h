@@ -26,17 +26,11 @@
 #include "dap_sign.h"
 #include "dap_hash.h"
 #include "uthash.h"
+#include "dap_chain_ledger.h"
 
 typedef struct dap_chain_cs_blocks dap_chain_cs_blocks_t;
 
-typedef struct dap_chain_block_cache_tx_index
-{
-    dap_chain_hash_fast_t tx_hash;
-    dap_chain_datum_tx_t* tx;
-    UT_hash_handle hh;
-} dap_chain_block_cache_tx_index_t;
-
-typedef struct dap_chain_block_cache{
+typedef struct dap_chain_block_cache {
     // Block's general non-nested attributes
     dap_chain_hash_fast_t block_hash;
     char* block_hash_str;
@@ -48,7 +42,7 @@ typedef struct dap_chain_block_cache{
     // Block's datums
     size_t datum_count;
     dap_chain_datum_t ** datum;
-    dap_chain_block_cache_tx_index_t * tx_index;
+    dap_hash_fast_t *datum_hash;
 
     // Block's metadatas
     size_t meta_count;
@@ -92,5 +86,8 @@ dap_chain_block_cache_t *dap_chain_block_cache_new(dap_chain_cs_blocks_t *a_bloc
 dap_chain_block_cache_t *dap_chain_block_cache_dup(dap_chain_block_cache_t *a_block);
 int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_hash_fast_t *a_block_hash);
 void dap_chain_block_cache_delete(dap_chain_block_cache_t *a_block_cache);
-dap_chain_datum_tx_t *dap_chain_block_cache_get_tx_by_hash(dap_chain_block_cache_t *a_block_cache, dap_chain_hash_fast_t *a_tx_hash);
+
+// Get the list of 'out_cond' items from previous transactions with summary out value. Put this summary value to a_value_out
+dap_list_t * dap_chain_block_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledger,dap_chain_block_cache_t * a_block_cache,uint256_t *a_value_out);
+
 

@@ -71,7 +71,7 @@ dap_chain_block_cache_t *dap_chain_block_cache_new(dap_chain_cs_blocks_t *a_bloc
         DAP_DELETE(l_block_cache);
         return NULL;
     }
-    log_it(L_DEBUG,"Block cache created");
+    //log_it(L_DEBUG,"Block cache created");
     return l_block_cache;
 }
 
@@ -124,36 +124,12 @@ int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_has
         DAP_DELETE(a_block_cache->datum);
         return -2;
     }
-    dap_chain_datum_t *l_datum;
-    for (size_t i = 0; i < a_block_cache->datum_count && (l_datum = a_block_cache->datum[i]); i++) {
-        if (l_datum->header.data_size == 0 || l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
-            break;
-        dap_chain_hash_fast_t l_tx_hash;
-        dap_hash_fast(l_datum->data,l_datum->header.data_size, &l_tx_hash);
 
-        dap_chain_block_cache_tx_index_t *l_tx_index = NULL;
-        HASH_FIND(hh, a_block_cache->tx_index, &l_tx_hash, sizeof (l_tx_hash), l_tx_index);
-        if (!l_tx_index) {
-            l_tx_index = DAP_NEW_Z(dap_chain_block_cache_tx_index_t);
-            l_tx_index->tx_hash = l_tx_hash;
-            l_tx_index->tx = (dap_chain_datum_tx_t*)l_datum->data;
-            HASH_ADD(hh, a_block_cache->tx_index, tx_hash, sizeof(l_tx_hash), l_tx_index);
-        }
-    }
+    a_block_cache->datum_hash = DAP_NEW_Z_SIZE(dap_hash_fast_t, a_block_cache->datum_count * sizeof(dap_hash_fast_t));
+    for (size_t i = 0; i < a_block_cache->datum_count; i++)
+        dap_hash_fast(a_block_cache->datum[i]->data, a_block_cache->datum[i]->header.data_size, &a_block_cache->datum_hash[i]);
+
     return 0;
-}
-
-/**
- * @brief dap_chain_block_cache_get_tx_by_hash
- * @param a_block_cache
- * @param a_tx_hash
- * @return
- */
-dap_chain_datum_tx_t* dap_chain_block_cache_get_tx_by_hash (dap_chain_block_cache_t * a_block_cache, dap_chain_hash_fast_t * a_tx_hash)
-{
-    dap_chain_block_cache_tx_index_t * l_tx_index = NULL;
-    HASH_FIND(hh, a_block_cache->tx_index, a_tx_hash,sizeof (*a_tx_hash), l_tx_index);
-    return l_tx_index? l_tx_index->tx : NULL;
 }
 
 /**
@@ -164,12 +140,50 @@ void dap_chain_block_cache_delete(dap_chain_block_cache_t * a_block_cache)
 {
     DAP_DEL_Z(a_block_cache->block_hash_str);
     DAP_DEL_Z(a_block_cache->datum);
+    DAP_DEL_Z(a_block_cache->datum_hash);
     DAP_DEL_Z(a_block_cache->meta);
     DAP_DEL_Z(a_block_cache->links_hash);
-    dap_chain_block_cache_tx_index_t *l_tx_cur, *l_tmp;
-    HASH_ITER(hh, a_block_cache->tx_index, l_tx_cur, l_tmp) {
-        HASH_DEL(a_block_cache->tx_index, l_tx_cur);
-        DAP_FREE(l_tx_cur);
-    }
     DAP_DELETE(a_block_cache);
+}
+
+/**
+ * @brief dap_chain_datum_get_list_tx_outs_cond_with_val
+ * @param a_ledger
+ * @param a_block_cache
+ * @param a_value_out
+ * @return list of dap_chain_tx_used_out_item_t
+ */
+dap_list_t * dap_chain_block_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledger, dap_chain_block_cache_t *a_block_cache,
+                                                            uint256_t *a_value_out)
+{
+    dap_list_t *l_list_used_out = NULL; // list of transaction with 'out' items
+    dap_chain_tx_out_cond_t *l_tx_out_cond = NULL;
+    uint256_t l_value_transfer = {};    
+    for (size_t i = 0; i < a_block_cache->datum_count; i++) {
+        if (a_block_cache->datum[i]->header.type_id != DAP_CHAIN_DATUM_TX)
+            continue;
+        dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)a_block_cache->datum[i]->data;
+        int l_out_idx_tmp = 0;
+        if (NULL == (l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE,
+                                                                     &l_out_idx_tmp)))
+            continue;
+
+        //Check whether used 'out' items
+        dap_hash_fast_t *l_tx_hash = a_block_cache->datum_hash + i;
+        if (!dap_chain_ledger_tx_hash_is_used_out_item (a_ledger, l_tx_hash, l_out_idx_tmp)) {
+            dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
+            l_item->tx_hash_fast = *l_tx_hash;
+            l_item->num_idx_out = l_out_idx_tmp;
+            l_item->value = l_tx_out_cond->header.value;
+            l_list_used_out = dap_list_append(l_list_used_out, l_item);
+            SUM_256_256(l_value_transfer, l_item->value, &l_value_transfer);
+        }
+    }
+    if (IS_ZERO_256(l_value_transfer) || !l_list_used_out) {
+        dap_list_free_full(l_list_used_out, NULL);
+        return NULL;
+    }
+    else
+        *a_value_out = l_value_transfer;
+    return l_list_used_out;
 }

@@ -87,6 +87,5 @@ dap_chain_datum_tx_spends_items_t * dap_chain_net_get_tx_cond_all_with_spends_by
 void dap_chain_datum_tx_spends_item_free(dap_chain_datum_tx_spends_item_t * a_items);
 void dap_chain_datum_tx_spends_items_free(dap_chain_datum_tx_spends_items_t * a_items);
 
-bool dap_chain_net_tx_get_fee(dap_chain_net_id_t a_net_id, dap_chain_t *a_chain, uint256_t *a_value, dap_chain_addr_t *a_addr);
-bool dap_chain_net_tx_add_fee(dap_chain_net_id_t a_net_id, dap_chain_t *a_chain, uint256_t *a_value, dap_chain_addr_t *a_addr);
-bool dap_chain_net_tx_replace_fee(dap_chain_net_id_t a_net_id, dap_chain_t *a_chain, uint256_t *a_value, dap_chain_addr_t *a_addr);
+bool dap_chain_net_tx_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a_value, dap_chain_addr_t *a_addr);
+bool dap_chain_net_tx_add_fee(dap_chain_net_id_t a_net_id, uint256_t a_value, dap_chain_addr_t a_addr);
