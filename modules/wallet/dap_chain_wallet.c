@@ -388,13 +388,12 @@ dap_chain_wallet_t * dap_chain_wallet_create_with_seed (
 {
 dap_chain_wallet_t *l_wallet;
 dap_chain_wallet_internal_t *l_wallet_internal;
-int l_rc, l_wallet_name_len, l_pass_len;
 
     /* Sanity checks ... */
-    if ( DAP_WALLET$SZ_NAME < (l_wallet_name_len = strnlen(a_wallet_name, DAP_WALLET$SZ_NAME + 1)) )
+    if (a_wallet_name && DAP_WALLET$SZ_NAME < strnlen(a_wallet_name, DAP_WALLET$SZ_NAME + 1) )
         return  log_it(L_ERROR, "Wallet's name is too long ( > %d)",  DAP_WALLET$SZ_NAME), NULL;
 
-    if ( DAP_WALLET$SZ_PASS < (l_pass_len = strnlen(a_wallet_name, DAP_WALLET$SZ_PASS + 1)) )
+    if ( a_pass && DAP_WALLET$SZ_PASS < strnlen(a_pass, DAP_WALLET$SZ_PASS + 1) )
         return  log_it(L_ERROR, "Wallet's password is too long ( > %d)", DAP_WALLET$SZ_PASS), NULL;
 
     if ( !(l_wallet = DAP_NEW_Z(dap_chain_wallet_t)) )
@@ -412,7 +411,7 @@ int l_rc, l_wallet_name_len, l_pass_len;
 
     l_wallet_internal->certs[0] = dap_cert_generate_mem_with_seed(a_wallet_name, dap_sign_type_to_key_type(a_sig_type), a_seed, a_seed_size);
 
-    if ( !(l_rc = dap_chain_wallet_save(l_wallet, a_pass))  )
+    if ( !dap_chain_wallet_save(l_wallet, a_pass) )
     {
         log_it(L_INFO, "Wallet %s has been created (%s)", a_wallet_name, l_wallet_internal->file_name);
         return l_wallet;
@@ -609,7 +608,7 @@ if ( a_pass )
         .signature  = DAP_CHAIN_WALLETS_FILE_SIGNATURE,
         .version    = a_pass ? DAP_WALLET$K_VER_2 : DAP_WALLET$K_VER_1,
         .type       = a_pass ? DAP_WALLET$K_TYPE_GOST89 : DAP_WALLET$K_TYPE_PLAIN,
-        .wallet_len = strnlen(l_cp, DAP_WALLET$SZ_NAME) + 1
+        .wallet_len = strnlen(l_cp, DAP_WALLET$SZ_NAME)
     };
 
     iovec_t l_iov[] = {
@@ -836,7 +835,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     assert(l_wallet_internal);
 
     snprintf(l_wallet->name, DAP_WALLET$SZ_NAME, "%.*s", l_file_hdr.wallet_len, l_wallet_name);
-    strncpy(l_wallet_internal->file_name, a_file_name, sizeof(l_wallet_internal->file_name) );
+    strncpy(l_wallet_internal->file_name, a_file_name, sizeof(l_wallet_internal->file_name) - 1);
 
     l_wallet_internal->certs_count = l_certs_count;
     assert(l_wallet_internal->certs_count);

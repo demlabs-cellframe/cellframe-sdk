@@ -67,6 +67,7 @@
 #include "dap_file_utils.h"
 #include "dap_enc_base58.h"
 #include "dap_chain_wallet.h"
+#include "dap_chain_wallet_internal.h"
 #include "dap_chain_node.h"
 #include "dap_global_db.h"
 #include "dap_global_db_driver.h"
@@ -1831,7 +1832,7 @@ int com_help(int a_argc, char **a_argv, char **a_str_reply)
 int com_tx_wallet(int a_argc, char **a_argv, char **a_str_reply)
 {
 const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
-enum { CMD_NONE, CMD_WALLET_NEW, CMD_WALLET_LIST, CMD_WALLET_INFO, CMD_WALLET_ACTIVATE, CMD_WALLET_DEACTIVATE };
+enum { CMD_NONE, CMD_WALLET_NEW, CMD_WALLET_LIST, CMD_WALLET_INFO, CMD_WALLET_ACTIVATE, CMD_WALLET_DEACTIVATE, CMD_WALLET_CONVERT };
 int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 char    l_buf[1024];
 
@@ -1847,6 +1848,8 @@ char    l_buf[1024];
         cmd_num = CMD_WALLET_ACTIVATE;
     else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "deactivate", NULL))
         cmd_num = CMD_WALLET_DEACTIVATE;
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "convert", NULL))
+        cmd_num = CMD_WALLET_CONVERT;
 
     l_arg_index++;
 
@@ -2030,7 +2033,7 @@ char    l_buf[1024];
                             dap_chain_addr_t *l_addr = l_net? dap_chain_wallet_get_addr(l_wallet, l_net->pub.id) : NULL;
                             char *l_addr_str = dap_chain_addr_to_str(l_addr);
 
-                            dap_string_append_printf(l_l_string_ret, "Wallet: %s%s\n", l_wallet->name,
+                            dap_string_append_printf(l_l_string_ret, "Wallet: %.*s%s\n", (int) l_file_name_len - 8, l_file_name,
                                 (l_wallet->flags & DAP_WALLET$M_FL_ACTIVE) ? " (Active)" : "");
 
                             if (l_addr_str)
@@ -2042,6 +2045,8 @@ char    l_buf[1024];
                             dap_chain_wallet_close(l_wallet);
 
                         } else dap_string_append_printf(l_l_string_ret, "Wallet: %.*s (non-Active)\n", (int) l_file_name_len - 8, l_file_name);
+                    } else if ((l_file_name_len > 7) && (!strcmp(l_file_name + l_file_name_len - 7, ".backup"))) {
+                        dap_string_append_printf(l_l_string_ret, "Wallet: %.*s (Backup)\n", (int) l_file_name_len - 7, l_file_name);
                     }
                 }
                 closedir(l_dir);
@@ -2132,6 +2137,59 @@ char    l_buf[1024];
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet not found");
                 return -1;
             }
+        }
+        break;
+
+        // convert wallet
+        case CMD_WALLET_CONVERT: {
+            dap_chain_wallet_t *l_wallet = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-password", &l_pass_str);
+
+            if(!l_wallet_name) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet name option <-w>  not defined");
+                return -EINVAL;
+            }
+
+            if(!l_pass_str) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet password option <-password>  not defined");
+                return -EINVAL;
+            }
+
+            if ( DAP_WALLET$SZ_PASS < strnlen(l_pass_str, DAP_WALLET$SZ_PASS + 1) ) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet's password is too long ( > %d)", DAP_WALLET$SZ_PASS);
+                log_it(L_ERROR, "Wallet's password is too long ( > %d)", DAP_WALLET$SZ_PASS);
+                return -EINVAL;
+            }
+
+            l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
+            if (!l_wallet) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "wrong password");
+                return -1;
+            } else if (l_wallet->flags & DAP_WALLET$M_FL_ACTIVE) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet can't be converted twice");
+                return  -1;
+            }
+            // create wallet backup
+            dap_chain_wallet_internal_t* l_file_name = DAP_CHAIN_WALLET_INTERNAL(l_wallet);
+            time_t l_rawtime;  // add timestamp to filename
+            char l_timestamp[16];
+            time(&l_rawtime);
+            strftime(l_timestamp,16,"%G%m%d%H%M%S", localtime (&l_rawtime));
+            snprintf(l_file_name->file_name, sizeof(l_file_name->file_name)  - 1, "%s/%s_%s%s", c_wallets_path, l_wallet_name, l_timestamp,".backup");
+            if ( dap_chain_wallet_save(l_wallet, NULL) ) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create backup wallet file because of internal error");
+                return  -1;
+            }
+            // change to old filename
+            snprintf(l_file_name->file_name, sizeof(l_file_name->file_name)  - 1, "%s/%s%s", c_wallets_path, l_wallet_name, ".dwallet");
+            if ( dap_chain_wallet_save(l_wallet, l_pass_str) ) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet is not converted because of internal error");
+                return  -1;
+            }
+
+            log_it(L_INFO, "Wallet %s has been converted", l_wallet_name);
+            dap_string_append_printf(l_l_string_ret, "Wallet: %s successfully converted\n", l_wallet_name);
+            dap_chain_wallet_close(l_wallet);
         }
         break;
     }
@@ -2733,8 +2791,8 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                 }
             }
             dap_string_append_printf(a_str_tmp,
-                                                 "type_id=%s%s%s%s data_size=%u ts_create=%s", // \n included in timestamp
-                                                 l_type, l_is_unchained ? "(unchainned)" : "",
+                                                 "%s: type_id=%s%s%s%s data_size=%u ts_create=%s", // \n included in timestamp
+                                                 l_data_hash_str, l_type, l_is_unchained ? "(unchainned)" : "",
                                                  l_datum->header.type_id == DAP_CHAIN_DATUM_TX ? " ticker=" : "",
                                                  l_token_ticker ? l_token_ticker :
                                                                   (l_datum->header.type_id == DAP_CHAIN_DATUM_TX ) ? "UNKNOWN" : "",
@@ -2850,6 +2908,8 @@ int com_mempool_delete(int a_argc, char **a_argv, char **a_str_reply)
  */
 dap_chain_datum_t *s_com_mempool_check_datum_in_chain(dap_chain_t *a_chain, const char *a_datum_hash_str)
 {
+    if (!a_datum_hash_str)
+        return NULL;
     char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     uint8_t *l_data_tmp = dap_global_db_get_sync(l_gdb_group_mempool, a_datum_hash_str, NULL, NULL, NULL);
     DAP_DELETE(l_gdb_group_mempool);
@@ -3383,21 +3443,23 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, char **
     //Added new certs
     dap_cert_t **l_new_certs = NULL;
     size_t l_new_certs_count = 0;
-    dap_cert_parse_str_list(l_new_certs_str, &l_new_certs, &l_new_certs_count);
-    for (size_t i=0; i < l_new_certs_count; i++){
-        dap_pkey_t *l_pkey = dap_cert_to_pkey(l_new_certs[i]);
-        if (!l_pkey) {
-            log_it(L_ERROR, "Can't get pkey for cert: %s", l_new_certs[i]->name);
-            continue;
+    if (l_new_certs_str) {
+        dap_cert_parse_str_list(l_new_certs_str, &l_new_certs, &l_new_certs_count);
+        for (size_t i = 0; i < l_new_certs_count; i++) {
+            dap_pkey_t *l_pkey = dap_cert_to_pkey(l_new_certs[i]);
+            if (!l_pkey) {
+                log_it(L_ERROR, "Can't get pkey for cert: %s", l_new_certs[i]->name);
+                continue;
+            }
+            size_t l_pkey_size = sizeof(dap_pkey_t) + l_pkey->header.size;
+            dap_tsd_t *l_pkey_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD, l_pkey, l_pkey_size);
+            size_t l_pkey_tsd_size = dap_tsd_size(l_pkey_tsd);
+            l_tsd_list = dap_list_append(l_tsd_list, l_pkey_tsd);
+            l_tsd_total_size += l_pkey_tsd_size;
+            DAP_DELETE(l_pkey);
         }
-        size_t l_pkey_size = sizeof(dap_pkey_t) + l_pkey->header.size;
-        dap_tsd_t *l_pkey_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD, l_pkey, l_pkey_size);
-        size_t l_pkey_tsd_size = dap_tsd_size(l_pkey_tsd);
-        l_tsd_list = dap_list_append(l_tsd_list, l_pkey_tsd);
-        l_tsd_total_size += l_pkey_tsd_size;
-        DAP_DELETE(l_pkey);
+        DAP_DEL_Z(l_new_certs);
     }
-    DAP_DEL_Z(l_new_certs);
     size_t l_tsd_offset = 0;
     a_params->ext.parsed_tsd = DAP_NEW_SIZE(byte_t, l_tsd_total_size);
     for (dap_list_t *l_iter = dap_list_first(l_tsd_list); l_iter; l_iter = l_iter->next) {
@@ -3473,10 +3535,6 @@ static int s_token_decl_check_params(int a_argc, char **a_argv, char **a_str_rep
             dap_cli_server_cmd_set_reply_text(a_str_reply,
                                               "%s support '-decimals' to be 18 only", a_update_token ? "token_update" : "token_decl");
             return -4;
-        }
-        if(IS_ZERO_256(a_params->total_supply)) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s requires parameter '-total_supply'", a_update_token ? "token_update" : "token_decl");
-            return -3;
         }
     } else if (	a_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE){
         //// check l_decimals in CF20 token TODO: At the moment the checks are the same.
@@ -5174,27 +5232,22 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
         bool not_native = dap_strcmp(l_token_ticker, l_native_ticker);
 
         if (!l_wallet_fee_name) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_create requires parameter '-wallet_fee' to be a valid wallet name");
-            return -10;
-        }
-
-        l_wallet_fee = dap_chain_wallet_open(l_wallet_fee_name, c_wallets_path);
-        if((!l_wallet_fee)&&(not_native)) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "wallet %s does not exist", l_wallet_fee_name);
-            return -11;
-        }
-
-        if(!l_wallet_fee){
-            if(!l_certs_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_create requires parameter '-certs'");
-                return -4;
+            l_wallet_fee = dap_chain_wallet_open(l_wallet_fee_name, c_wallets_path);
+            if((!l_wallet_fee)&&(not_native)) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "wallet %s does not exist", l_wallet_fee_name);
+                return -11;
             }
+        }
+        else if (l_certs_str) {
             dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
             if(!l_certs_count) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply,
                         "tx_create requires at least one valid certificate to sign the basic transaction of emission");
                 return -5;
             }
+        } else {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_create requires parameter '-wallet_fee' to be a valid wallet name or '-certs'");
+            return -10;
         }
     }
 
@@ -5673,16 +5726,20 @@ int cmd_gdb_export(int a_argc, char **a_argv, char **a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "gdb_export requires parameter 'filename'");
         return -1;
     }
-    const char *l_db_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
-    DIR *dir = opendir(l_db_path);
-    if (!dir) {
+    const char *l_gdb_path = dap_config_get_item_str(g_config, "global_db", "path");
+    if (!l_gdb_path) {
+        log_it(L_ERROR, "Can't find gdb path in config file");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find gdb path in the config file");
+        return -1;
+    }
+    if (!opendir(l_gdb_path)) {
         log_it(L_ERROR, "Can't open db directory");
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't open db directory");
         return -1;
     }
-    char l_path[MIN(strlen(l_db_path) + strlen(l_filename) + 12, MAX_PATH)];
+    char l_path[MIN(strlen(l_gdb_path) + strlen(l_filename) + 12, MAX_PATH)];
     memset(l_path, '\0', sizeof(l_path));
-    snprintf(l_path, sizeof(l_path), "%s/%s.json", l_db_path, l_filename);
+    snprintf(l_path, sizeof(l_path), "%s/%s.json", l_gdb_path, l_filename);
 
     const char *l_groups_str = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-groups", &l_groups_str);
@@ -5766,10 +5823,15 @@ int cmd_gdb_import(int a_argc, char **a_argv, char ** a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "gdb_import requires parameter 'filename'");
         return -1;
     }
-    const char *l_db_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
-    char l_path[strlen(l_db_path) + strlen(l_filename) + 12];
+    const char *l_gdb_path = dap_config_get_item_str(g_config, "global_db", "path");
+    if (!l_gdb_path) {
+        log_it(L_ERROR, "Can't find gdb path in config file");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find gdb path in the config file");
+        return -1;
+    }
+    char l_path[strlen(l_gdb_path) + strlen(l_filename) + 12];
     memset(l_path, '\0', sizeof(l_path));
-    snprintf(l_path, sizeof(l_path), "%s/%s.json", l_db_path, l_filename);
+    snprintf(l_path, sizeof(l_path), "%s/%s.json", l_gdb_path, l_filename);
     struct json_object *l_json = json_object_from_file(l_path);
     if (!l_json) {
 #if JSON_C_MINOR_VERSION<15

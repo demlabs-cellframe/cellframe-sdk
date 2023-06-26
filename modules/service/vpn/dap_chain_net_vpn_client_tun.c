@@ -118,7 +118,7 @@ int tun_device_create(char *dev)
      */
     ifr.ifr_flags = IFF_TUN | IFF_NO_PI;
     if(dev && *dev)
-        strncpy(ifr.ifr_name, dev, IFNAMSIZ);
+        strncpy(ifr.ifr_name, dev, IFNAMSIZ - 1);
 
     // try to create the device
     if((err = ioctl(fd, TUNSETIFF, (void *) &ifr)) < 0) {

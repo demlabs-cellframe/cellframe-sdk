@@ -314,7 +314,7 @@ static void s_ch_chain_callback_notify_packet_in2(dap_stream_ch_chain_net_t* a_c
         pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_NODE_ADDR_LEASED;
         dap_cond_signal(l_node_client->wait_cond);
-        pthread_mutex_lock(&l_node_client->wait_mutex);
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
         break;
     }
     // get remote node address
@@ -326,7 +326,7 @@ static void s_ch_chain_callback_notify_packet_in2(dap_stream_ch_chain_net_t* a_c
         pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_GET_NODE_ADDR;
         dap_cond_signal(l_node_client->wait_cond);
-        pthread_mutex_lock(&l_node_client->wait_mutex);
+        pthread_mutex_unlock(&l_node_client->wait_mutex);
         break;
     }
     case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY: {
@@ -642,7 +642,7 @@ static void s_ch_chain_callback_notify_packet_R(dap_stream_ch_chain_net_srv_t* a
             pthread_mutex_lock(&l_node_client->wait_mutex);
             l_node_client->state = NODE_CLIENT_STATE_CHECKED;
             dap_cond_signal(l_node_client->wait_cond);
-            pthread_mutex_lock(&l_node_client->wait_mutex);
+            pthread_mutex_unlock(&l_node_client->wait_mutex);
             break;
         }
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_RESPONSE:
@@ -749,6 +749,7 @@ bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const
         log_it(L_WARNING, "Undefined address with node client connect to");
         return false;
     }
+    int ret_code = 0;
     dap_client_set_uplink_unsafe(a_node_client->client, l_host_addr, a_node_client->info->hdr.ext_port);
     a_node_client->state = NODE_CLIENT_STATE_CONNECTING;
     // Handshake & connect
