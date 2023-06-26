@@ -91,7 +91,12 @@ typedef enum dap_chain_ledger_tx_check{
     DAP_CHAIN_LEDGER_TX_CACHE_CHECK_TICKER_DIFFERENT_EXPECTED = -35,
     DAP_CHAIN_LEDGER_TX_CACHE_CHECK_NOT_USED_OUT_ITEM = -6,
     DAP_CHAIN_LEDGER_TX_CACHE_CHECK_NOT_FIND_PREV_OUT_TX = -8,
-    DAP_CHAIN_LEDGER_TX_CACHE_CHECK_PREVIOUS_TX_OUTPUT_ALREADY_USED_IN_CURRENT_TX = -7
+    DAP_CHAIN_LEDGER_TX_CACHE_CHECK_HASH_PKEY_TX_NOT_COMPARE_HASH_PKEY_OUT_ADDR_PREV_TX = -9,
+    DAP_CHAIN_LEDGER_TX_CACHE_CHECK_PREVIOUS_TX_OUTPUT_ALREADY_USED_IN_CURRENT_TX = -7,
+    DAP_CHAIN_LEDGER_TX_CACHE_CHECK_VERIF_CHECK_NO_VALIDATOR_COND_OUTPUT = -13,
+    DAP_CHAIN_LEDGER_TX_CACHE_CHECK_VERIF_CHECK_FAIL = -14,
+    DAP_CHAIN_LEDGET_TX_CACHE_CHECK_NO_FOUND_TOKEN_TICKER = -15,
+    DAP_CHAIN_LEDGER_TX_CACHE_CHECK_PERMISSION_FAILED = -20
 }dap_chain_ledger_tx_check_t;
 
 typedef struct dap_chain_ledger_stake_lock_item {
@@ -3600,7 +3605,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 l_token = bound_item->out.tx_prev_out_ext_256->token;
                 break;
             default:
-                l_err_num = -8;
+                l_err_num = DAP_CHAIN_LEDGER_TX_CACHE_CHECK_NOT_FIND_PREV_OUT_TX;
                 break;
             }
             if (l_err_num)
@@ -3617,12 +3622,12 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 dap_sign_get_pkey_hash(l_sign, &l_hash_pkey);
             }
             if (!dap_hash_fast_compare(&l_hash_pkey, l_prev_out_addr_key)) {
-                l_err_num = -9;
+                l_err_num = DAP_CHAIN_LEDGER_TX_CACHE_CHECK_HASH_PKEY_TX_NOT_COMPARE_HASH_PKEY_OUT_ADDR_PREV_TX;
                 break;
             }
         } else if(l_cond_type == TX_ITEM_TYPE_IN_COND) { // TX_ITEM_TYPE_IN_COND
             if(*(uint8_t *)l_tx_prev_out != TX_ITEM_TYPE_OUT_COND) {
-                l_err_num = -8;
+                l_err_num = DAP_CHAIN_LEDGER_TX_CACHE_CHECK_NOT_FIND_PREV_OUT_TX;
                 break;
             }
             // 5a. Check for condition owner
@@ -3650,13 +3655,13 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             pthread_rwlock_unlock(&s_verificators_rwlock);
             if (!l_verificator || !l_verificator->callback) {
                 debug_if(s_debug_more, L_ERROR, "No verificator set for conditional output subtype %d", l_sub_tmp);
-                l_err_num = -13;
+                l_err_num = DAP_CHAIN_LEDGER_TX_CACHE_CHECK_VERIF_CHECK_NO_VALIDATOR_COND_OUTPUT;
                 break;
             }
             if (l_verificator->callback(a_ledger, l_tx_prev_out_cond, a_tx, l_owner) == false) {
                 debug_if(s_debug_more, L_WARNING, "Verificator check error for conditional output %s",
                                                     dap_chain_tx_out_cond_subtype_to_str(l_sub_tmp));
-                l_err_num = -14;
+                l_err_num = DAP_CHAIN_LEDGER_TX_CACHE_CHECK_VERIF_CHECK_FAIL;
                 break;
             }
             // calculate sum of values from previous transactions
@@ -3676,7 +3681,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         }
         if (! l_token || !*l_token ) {
             log_it(L_WARNING, "No token ticker found in previous transaction");
-            l_err_num = -15;
+            l_err_num = DAP_CHAIN_LEDGET_TX_CACHE_CHECK_NO_FOUND_TOKEN_TICKER;
             break;
         }
         // Get permissions
@@ -3687,7 +3692,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         if (! l_token_item){
             if(s_debug_more)
                 log_it(L_WARNING, "No token item found for token %s", l_token);
-            l_err_num = -15;
+            l_err_num = DAP_CHAIN_LEDGET_TX_CACHE_CHECK_NO_FOUND_TOKEN_TICKER;
             break;
         }
         // Check permissions
@@ -3701,7 +3706,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 if(s_debug_more)
                     log_it(L_WARNING, "No permission for addr %s", l_tmp_tx_in_from?l_tmp_tx_in_from:"(null)");
                 DAP_DELETE(l_tmp_tx_in_from);
-                l_err_num = -20;
+                l_err_num = DAP_CHAIN_LEDGER_TX_CACHE_CHECK_PERMISSION_FAILED;
                 break;
             }
         }
@@ -3713,7 +3718,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 if(s_debug_more)
                     log_it(L_WARNING, "No permission for addr %s", l_tmp_tx_in_from?l_tmp_tx_in_from:"(null)");
                 DAP_DELETE(l_tmp_tx_in_from);
-                l_err_num = -20;
+                l_err_num = DAP_CHAIN_LEDGER_TX_CACHE_CHECK_PERMISSION_FAILED;
                 break;
             }
         }
