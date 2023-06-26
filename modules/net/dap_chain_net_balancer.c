@@ -101,7 +101,9 @@ dap_chain_node_info_t *dap_chain_balancer_issue_link(const char *a_net_name)
     if(l_node_candidate)
     {
         log_it(L_DEBUG, "Network balancer issues ip %s",inet_ntoa(l_node_candidate->hdr.ext_addr_v4));
-        inet_pton(AF_INET, "192.168.0.1", &(l_node_candidate->hdr.ext_addr_v4));
+
+        //inet_pton(AF_INET, "192.168.0.1", &(l_node_candidate->hdr.ext_addr_v4));
+        l_node_candidate->hdr.ext_addr_v4.s_addr = htonl(INADDR_LOOPBACK);
         return l_node_candidate;
     }
     else
@@ -110,7 +112,8 @@ dap_chain_node_info_t *dap_chain_balancer_issue_link(const char *a_net_name)
         if(l_link_node_info)
         {          
             log_it(L_DEBUG, "Network balancer issues ip from net conf - %s",inet_ntoa(l_link_node_info->hdr.ext_addr_v4));
-            inet_pton(AF_INET, "192.168.0.1", &(l_link_node_info->hdr.ext_addr_v4));
+            //inet_pton(AF_INET, "192.168.0.1", &(l_link_node_info->hdr.ext_addr_v4));
+            l_node_candidate->hdr.ext_addr_v4.s_addr = htonl(INADDR_LOOPBACK);
             return l_link_node_info;
         }
     }

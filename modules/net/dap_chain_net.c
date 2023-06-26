@@ -1047,14 +1047,18 @@ static void s_net_links_complete_and_start(dap_chain_net_t *a_net, dap_worker_t 
  */
 static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_chain_node_info_t * a_node_info, void * a_arg)
 {
-    if(s_debug_more){
+    /*if(s_debug_more){
         char l_node_addr_str[INET_ADDRSTRLEN]={ };
         dap_chain_node_info_t *l_balancer_request2 = (dap_chain_node_info_t *) a_arg;
         inet_ntop(AF_INET,&l_balancer_request2->hdr.ext_addr_v4,l_node_addr_str, INET_ADDRSTRLEN);
         log_it(L_DEBUG,"Link " NODE_ADDR_FP_STR " (%s) prepare success", NODE_ADDR_FP_ARGS_S(l_balancer_request2->hdr.address),
                                                                                      l_node_addr_str );
-    }
+    }*/
     struct balancer_link_request *l_balancer_request = (struct balancer_link_request *) a_arg;
+    char l_node_addr_str[INET_ADDRSTRLEN]={ };
+    struct in_addr a = (struct in_addr) { .s_addr = htonl(l_balancer_request->link_info->hdr.ext_addr_v4.s_addr) };
+    log_it(L_INFO, "! Addr str: %s", l_node_addr_str);
+    inet_ntop(AF_INET,&a, l_node_addr_str, INET_ADDRSTRLEN);
     dap_chain_net_t * l_net = l_balancer_request->net;
     int l_res = s_net_link_add(l_net, a_node_info);
     if (l_res < 0) {    // Can't add this link
@@ -1063,7 +1067,7 @@ static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_cha
             // Just try a new one
             dap_chain_node_info_t *l_link_node_info = dap_get_balancer_link_from_cfg(l_net);
             if (l_link_node_info) {
-                if (!s_balancer_start_dns_request(l_net, l_link_node_info, true))
+                if (!s_balancer_start_http_request(l_net, l_link_node_info, false))
                     log_it(L_ERROR, "Can't process node info dns request");
                 DAP_DELETE(l_link_node_info);
             }
