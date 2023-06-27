@@ -1057,8 +1057,8 @@ static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_cha
     struct balancer_link_request *l_balancer_request = (struct balancer_link_request *) a_arg;
     char l_node_addr_str[INET_ADDRSTRLEN]={ };
     struct in_addr a = (struct in_addr) { .s_addr = htonl(l_balancer_request->link_info->hdr.ext_addr_v4.s_addr) };
-    log_it(L_INFO, "! Addr str: %s", l_node_addr_str);
     inet_ntop(AF_INET,&a, l_node_addr_str, INET_ADDRSTRLEN);
+    log_it(L_INFO, "! Addr str: %s", l_node_addr_str);    
     dap_chain_net_t * l_net = l_balancer_request->net;
     int l_res = s_net_link_add(l_net, a_node_info);
     if (l_res < 0) {    // Can't add this link
@@ -1097,7 +1097,7 @@ static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_cha
         debug_if(s_debug_more, L_DEBUG, "Maximum prepared links reached");
     if (!l_balancer_request->link_replace)
         s_net_links_complete_and_start(l_net, a_worker);
-    DAP_DELETE(l_balancer_request->link_info);
+    //DAP_DELETE(l_balancer_request->link_info);
     DAP_DELETE(l_balancer_request);
 }
 
@@ -1127,7 +1127,7 @@ static void s_net_balancer_link_prepare_error(dap_worker_t * a_worker, void * a_
     json_object_put(l_json);
     if (!l_balancer_request->link_replace)
         s_net_links_complete_and_start(l_net, a_worker);
-    DAP_DELETE(l_node_info);
+    //DAP_DELETE(l_node_info);
     DAP_DELETE(l_balancer_request);
 }
 
@@ -1191,8 +1191,8 @@ static bool s_balancer_start_dns_request(dap_chain_net_t *a_net, dap_chain_node_
 
 static bool s_balancer_start_http_request(dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_info, bool a_link_replace)
 {
-    char l_node_addr_str[INET_ADDRSTRLEN] = "165.227.163.112";
-    //inet_ntop(AF_INET, &a_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
+    char l_node_addr_str[INET_ADDRSTRLEN] = { };//"192.168.1.132";
+    inet_ntop(AF_INET, &a_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
     log_it(L_DEBUG, "Start balancer HTTP request to %s ip - %s", l_node_addr_str,inet_ntoa(a_link_node_info->hdr.ext_addr_v4));
     dap_chain_net_pvt_t *l_net_pvt = a_net ? PVT(a_net) : NULL;
     if (!l_net_pvt)
@@ -1201,10 +1201,9 @@ static bool s_balancer_start_http_request(dap_chain_net_t *a_net, dap_chain_node
     struct balancer_link_request *l_balancer_request = DAP_NEW_Z(struct balancer_link_request);
     l_balancer_request->from_http = true;
     l_balancer_request->net = a_net;
-    l_balancer_request->link_info = DAP_DUP(a_link_node_info);
+    l_balancer_request->link_info = a_link_node_info;//DAP_DUP(a_link_node_info);
     l_balancer_request->worker = dap_events_worker_get_auto();
     l_balancer_request->link_replace = a_link_replace;
-    //const char l_request[] = "/f0intlt4eyl03htogu?version=1,method=random";
     l_balancer_request->from_http=true;
     char *l_request = dap_strdup_printf("%s/%s?version=1,method=r,net=%s",
                                                     DAP_UPLINK_PATH_BALANCER,
@@ -1213,8 +1212,8 @@ static bool s_balancer_start_http_request(dap_chain_net_t *a_net, dap_chain_node
 
     int l_ret = dap_client_http_request(l_balancer_request->worker,
                                         l_node_addr_str,
-                                        //a_link_node_info->hdr.ext_port,
-                                        8079,
+                                        a_link_node_info->hdr.ext_port,
+                                        //8079,
                                         "GET",
                                         "text/text",
                                         l_request,
@@ -1231,7 +1230,7 @@ static bool s_balancer_start_http_request(dap_chain_net_t *a_net, dap_chain_node
         return true;
     }
     log_it(L_ERROR, "Can't process balancer link HTTP request");
-    DAP_DELETE(l_balancer_request->link_info);
+    //DAP_DELETE(l_balancer_request->link_info);
     DAP_DELETE(l_balancer_request);
     return false;
 
