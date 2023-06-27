@@ -176,6 +176,7 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
     l_stake->signing_addr = *a_signing_addr;
     l_stake->value = a_value;
     l_stake->tx_hash = *a_stake_tx_hash;
+    l_stake->is_active = true;
     if (!l_found)
         HASH_ADD(hh, s_srv_stake->itemlist, signing_addr, sizeof(dap_chain_addr_t), l_stake);
     if (!dap_hash_fast_is_blank(a_stake_tx_hash))
@@ -244,7 +245,8 @@ dap_list_t *dap_chain_net_srv_stake_get_validators(dap_chain_net_id_t a_net_id)
     if (!s_srv_stake || !s_srv_stake->itemlist)
         return l_ret;
     for (dap_chain_net_srv_stake_item_t *l_stake = s_srv_stake->itemlist; l_stake; l_stake = l_stake->hh.next)
-        if (a_net_id.uint64 == l_stake->signing_addr.net_id.uint64)
+        if (a_net_id.uint64 == l_stake->signing_addr.net_id.uint64 &&
+                l_stake->is_active)
             l_ret = dap_list_append(l_ret, DAP_DUP(l_stake));
     return l_ret;
 }
