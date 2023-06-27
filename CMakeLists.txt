@@ -41,7 +41,10 @@ endif()
 
 if (CELLFRAME_MODULES MATCHES "dap-sdk-net-client")
     set(DAPSDK_MODULES "core crypto network-core network-client network-server")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_core dap_crypto dap_server_core dap_server dap_client m pthread)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_core dap_crypto dap_server_core dap_server dap_client m)
+    if(NOT ANDROID)
+        set(CELLFRAME_LIBS ${CELLFRAME_LIBS} pthread)
+    endif()
     if (SUPPORT_PYTHON_PLUGINS)
         set(CELLFRAME_MODULES "${CELLFRAME_MODULES} core chains network cs-none srv-")
     endif()
@@ -64,7 +67,7 @@ endif()
     add_subdirectory(3rdparty/crc32c_adler)		# https://github.com/fonic/crc32c_adler
 
 
-if( DARWIN)
+if(DARWIN)
     add_subdirectory(3rdparty/libmagic-darwin)
 elseif(ANDROID)
     include_directories(cellframe-sdk/3rdparty/)
@@ -77,20 +80,44 @@ endif()
 
 add_subdirectory(dap-sdk)
 add_subdirectory(3rdparty/monero_crypto)
-add_subdirectory(3rdparty/cuttdb)
 add_subdirectory(3rdparty/json-c EXCLUDE_FROM_ALL)
+
+set(JSON-C-CONFIG_COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/json-c/
+    -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}/deps/
+    -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
+    -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
+    -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
+    -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME})
+
+##TODO: customize for universal platforms
+if(ANDROID AND "${CMAKE_HOST_SYSTEM}" MATCHES ".*Windows.*")
+    set(JSON-C-CONFIG_COMMAND ${CMAKE_COMMAND} ${JSON-C-CONFIG_COMMAND}
+        -DANDROID_NATIVE_API_LEVEL=29
+        -DANDROID_ABI=arm64-v8a
+        -DANDROID_PLATFORM=${ANDROID_PLATFORM}
+        -DCMAKE_TOOLCHAIN_FILE=D:/android-sdk/ndk/21.4.7075529/build/cmake/android.toolchain.cmake
+        -DCMAKE_MAKE_PROGRAM=D:/android-sdk/cmake/3.22.1/bin/ninja.exe
+        -G=Ninja)
+elseif(ANDROID)
+    set(JSON-C-CONFIG_COMMAND ${CMAKE_COMMAND} -E env PATH=$ENV{PATH}
+        ${CMAKE_COMMAND} ${JSON-C-CONFIG_COMMAND}
+        -DANDROID_NATIVE_API_LEVEL=${ANDROID_NATIVE_API_LEVEL}
+        -DANDROID_ABI=${ANDROID_ABI}
+        -DANDROID_PLATFORM=${ANDROID_PLATFORM}
+        -DCMAKE_TOOLCHAIN_FILE=${CMAKE_TOOLCHAIN_FILE})
+else()
+    set(JSON-C-CONFIG_COMMAND ${CMAKE_COMMAND} -E env PATH=$ENV{PATH} ${CMAKE_COMMAND} ${JSON-C-CONFIG_COMMAND})
+endif()
+
+message("json-c build cmd ${JSON-C-CONFIG_COMMAND}")
 
 ExternalProject_Add(dap_json-c_dep
                     SOURCE_DIR ${PROJECT_SOURCE_DIR}/3rdparty/json-c/
-                    CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env PATH=$ENV{PATH}
-                                      ${CMAKE_COMMAND} ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/json-c/
-                                      -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}/deps/
-                                      -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}
-                                      -DCMAKE_C_COMPILER=${CMAKE_C_COMPILER}
-                                      -DCMAKE_CXX_COMPILER=${CMAKE_CXX_COMPILER}
-                                      -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME}
-                                      -DCMAKE_SYSTEM_NAME=${CMAKE_SYSTEM_NAME})
+                    CONFIGURE_COMMAND ${JSON-C-CONFIG_COMMAND})
 
+if (BUILD_WITH_GDB_DRIVER_CUTTDB)
+    add_subdirectory(3rdparty/cuttdb)
+endif()
 
 if (BUILD_WITH_GDB_DRIVER_MDBX)
     set(SAVED_CMAKE_MESSAGE_LOG_LEVEL ${CMAKE_MESSAGE_LOG_LEVEL})
@@ -113,7 +140,11 @@ set(CELLFRAME_LIBS "")
 # Core libs from dap-sdk
 if (CELLFRAME_MODULES MATCHES "core")
     message("[+] Module 'core'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_core dap_app_cli dap_crypto m pthread)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_core dap_app_cli dap_crypto m)
+    if(NOT ANDROID)
+        set(CELLFRAME_LIBS ${CELLFRAME_LIBS} pthread)
+    endif()
+
 endif()
 
 # General chain libs
@@ -126,7 +157,10 @@ endif()
 if (CELLFRAME_MODULES MATCHES "network")
     message("[+] Module 'network'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_server_core dap_json_rpc dap_enc_server dap_notify_srv dap_http_server dap_session
-        dap_stream dap_stream_ch dap_client dap_stream_ch_chain dap_stream_ch_chain_net dap_chain_net dap_chain_net_srv dap_stream_ch_chain_voting dap_chain_mempool magic)
+        dap_stream dap_stream_ch dap_client dap_stream_ch_chain dap_stream_ch_chain_net dap_chain_net dap_chain_net_srv dap_stream_ch_chain_voting dap_chain_mempool)
+    if(NOT ANDROID)
+        set(CELLFRAME_LIBS ${CELLFRAME_LIBS} magic)
+    endif()
 endif()
 
 # Chain net services

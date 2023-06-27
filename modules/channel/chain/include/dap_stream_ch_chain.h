@@ -88,7 +88,7 @@ typedef struct dap_stream_ch_chain {
 
 #define DAP_STREAM_CH_CHAIN(a) ((dap_stream_ch_chain_t *) ((a)->internal) )
 #define DAP_STREAM_CH(a) ((dap_stream_ch_t *)((a)->_inheritor))
-#define DAP_CHAIN_PKT_EXPECT_SIZE 7168
+#define DAP_CHAIN_PKT_EXPECT_SIZE 0xffff
 
 int dap_stream_ch_chain_init(void);
 void dap_stream_ch_chain_deinit(void);
