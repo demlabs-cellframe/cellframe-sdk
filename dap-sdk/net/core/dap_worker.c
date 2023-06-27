@@ -705,7 +705,7 @@ const struct sched_param l_shed_params = {0};
                                    l_bytes_sent = write(l_es->socket, l_es->buf_out, /*sizeof(void*)*/ l_es->buf_out_size);
                                    debug_if(g_debug_reactor, L_NOTICE, "send %ld bytes to pipe", l_bytes_sent);
                                    l_errno = l_bytes_sent < (ssize_t)l_es->buf_out_size ? errno : 0;
-                                   debug_if(l_errno, L_ERROR, "Writing to pipe %d bytes failed, sent %d only...", l_es->buf_out_size, l_bytes_sent);
+                                   debug_if(l_errno, L_ERROR, "Writing to pipe %lu bytes failed, sent %lu only...", l_es->buf_out_size, l_bytes_sent);
 #elif defined (DAP_EVENTS_CAPS_QUEUE_POSIX)
                                    l_bytes_sent = mq_send(a_es->mqd, (const char *)&a_arg,sizeof (a_arg),0);
 #elif defined DAP_EVENTS_CAPS_MSMQ

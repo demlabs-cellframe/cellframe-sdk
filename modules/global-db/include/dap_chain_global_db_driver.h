@@ -39,7 +39,7 @@
 #define DAP_DB$SZ_MAXGROUPNAME      (128UL)                                 /* A maximum size of group name */
 #define DAP_DB$K_MAXGROUPS          (4096UL)                                /* A maximum number of groups */
 #define DAP_DB$SZ_MAXKEY            (512UL)                                 /* A limit for the key's length in DB */
-#define DAP_DB$K_MAXOBJS            (8192UL)                                /* A maximum number of objects to be returned by
+#define DAP_DB$K_MAXOBJS            (16000UL)                                /* A maximum number of objects to be returned by
                                                                             read_srore_obj() */
 #define DAP_DB$SZ_MAXDB             (4*1024*1024*1024UL)                    /* 4 GB */
 

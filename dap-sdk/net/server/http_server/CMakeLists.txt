@@ -6,6 +6,12 @@ include_directories(http_client/include)
 file(GLOB HTTP_SERVER_SRCS FILES *.c http_client/*.c)
 file(GLOB HTTP_SERVER_HDRS FILES include/*.h http_client/include/*.h)
 
+if (ANDROID)
+  list(FILTER HTTP_SERVER_SRCS EXCLUDE REGEX ".*dap_http_folder\\.c$")
+  list(FILTER HTTP_SERVER_HDRS EXCLUDE REGEX ".*dap_http_folder\\.h$")
+  message(${HTTP_SERVER_SRCS})
+endif()
+
 if(WIN32)
     add_definitions ("-DUNDEBUG")
     add_definitions ("-DNDEBUG")
@@ -48,5 +54,9 @@ if(WIN32)
 endif()
 
 if(UNIX)
-  target_link_libraries(dap_http_server dap_core dap_server_core magic dap_json-c)
+target_link_libraries(dap_http_server dap_core dap_server_core dap_json-c)
+if (NOT ANDROID)
+  target_link_libraries(dap_http_server dap_core dap_server_core dap_json-c magic)
 endif()
+endif()
+

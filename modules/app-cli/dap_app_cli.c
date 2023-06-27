@@ -106,7 +106,15 @@ int execute_line(dap_app_cli_connect_param_t *cparam, char *line)
         if(cmd.cmd_param_count > 0)
             cmd.cmd_param = (char**) (argv + 1);
         // Send command
-        int res = dap_app_cli_post_command(cparam, &cmd);
+        char *l_out_str = NULL;
+        int res = dap_app_cli_post_command(cparam, &cmd,
+#ifdef __ANDROID__
+                                           &l_out_str
+#else
+                                           NULL
+#endif
+
+                                           );
         DAP_DELETE(argv);
         return res;
     }else{
@@ -202,7 +210,15 @@ int dap_app_cli_main(const char * a_app_name, const char * a_socket_path, int a_
         if(cmd.cmd_param_count > 0)
             cmd.cmd_param = (char**) (a_argv + 2);
         // Send command
-        int res = dap_app_cli_post_command(cparam, &cmd);
+        char *l_out_str = NULL;
+        int res = dap_app_cli_post_command(cparam, &cmd,
+#ifdef __ANDROID__
+                                           &l_out_str
+#else
+                                           NULL
+#endif
+
+                                           );
         dap_app_cli_disconnect(cparam);
 #ifdef _WIN32
         WSACleanup();
