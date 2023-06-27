@@ -762,6 +762,27 @@ int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datu
     return DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_OK;
 }
 
+const char *dap_chain_ledger_token_decl_add_err_code_to_str(int a_code) {
+    switch (a_code) {
+        case DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_OK:
+            return "DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_OK";
+        case DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_LEDGER_IS_NULL:
+            return "DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_LEDGER_IS_NULL";
+        case DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_DECL_DUPLICATE:
+            return "DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_DECL_DUPLICATE";
+        case DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_TOKEN_UPDATE_CHECK:
+            return "DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_TOKEN_UPDATE_CHECK";
+        case DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_TOKEN_UPDATE_ABSENT_TOKEN:
+            return "DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_TOKEN_UPDATE_ABSENT_TOKEN";
+        case DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_NOT_ENOUGH_VALID_SIGN:
+            return "DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_NOT_ENOUGH_VALID_SIGN";
+        case DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_UNIQUE_SIGNS_LESS_TOTAL_SIGNS:
+            return "DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_UNIQUE_SIGNS_LESS_TOTAL_SIGNS";
+        default:
+            return dap_strdup_printf("Code error added datum in ledger: %d - has no string representation.", a_code);
+    }
+}
+
 /**
  * @brief dap_chain_ledger_token_ticker_check
  * @param a_ledger
@@ -2453,7 +2474,7 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
 
     if (!l_token_item) {
         log_it(L_WARNING, "Ledger_token_emission_add_check. Token ticker %s was not found", l_token_ticker);
-        return DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_TOKEN_NOT_FOUND;
+        return DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_CANT_FIND_DECLARATION_TOKEN;
     }
 
     // check if such emission is already present in table
@@ -2904,6 +2925,29 @@ int dap_chain_ledger_token_emission_load(dap_ledger_t *a_ledger, byte_t *a_token
         }
     }
     return dap_chain_ledger_token_emission_add(a_ledger, a_token_emission, a_token_emission_size, a_token_emission_hash, false);
+}
+
+const char *dap_chain_ledger_token_emission_err_code_to_str(dap_chain_ledger_emission_err_code_t a_code) {
+    switch (a_code) {
+        case DAP_CHAIN_LEDGER_EMISSION_ADD_OK:
+            return "DAP_CHAIN_LEDGER_EMISSION_ADD_OK";
+        case DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_ERROR_EMISSION_NULL_OR_IS_EMISSION_SIZE_ZERO:
+            return "DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_ERROR_EMISSION_NULL_OR_IS_EMISSION_SIZE_ZERO";
+        case DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_CAN_NOT_ADDED_EMISSION_ALREADY_IN_CACHE:
+            return "DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_CAN_NOT_ADDED_EMISSION_ALREADY_IN_CACHE";
+        case DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_THRESHOLD_EMISSION_OVERFULLED:
+            return "DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_THRESHOLD_EMISSION_OVERFULLED";
+        case DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_VALUE_MORE_THAN_CURRENT_SUPPLY:
+            return "DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_VALUE_MORE_THAN_CURRENT_SUPPLY";
+        case DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_VALID_SIGNS_NOT_ENOUGH:
+            return "DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_VALID_SIGNS_NOT_ENOUGH";
+        case DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_CANT_FIND_DECLARATION_TOKEN:
+            return "DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_CANT_FIND_DECLARATION_TOKEN";
+        case DAP_CHAIN_LEDGER_EMISSION_ADD_TSD_CHECK_FAILED:
+            return "DAP_CHAIN_LEDGER_EMISSION_ADD_TSD_CHECK_FAILED";
+        default:
+            return dap_strdup_printf("Code emission error: %d - has no string representation.", a_code);
+    }
 }
 
 dap_chain_ledger_token_emission_item_t *s_emission_item_find(dap_ledger_t *a_ledger,
