@@ -1116,6 +1116,7 @@ static void s_check_db_callback_fee_collect (dap_global_db_context_t *a_global_d
     dap_chain_block_cache_t *l_block_cache = NULL;
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
     dap_list_t *l_block_list = NULL;
+    log_it(L_MSG, "Fee collector start work");
     l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_arg->block_hash);
     if(!l_block_cache)
     {
