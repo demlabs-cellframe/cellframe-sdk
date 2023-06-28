@@ -2063,9 +2063,11 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
             DAP_DELETE(l_directive_hash_str);
         }
         if (l_message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_FOR) {
-            if (++l_session->cur_round.votes_for_count * 3 >=
-                   dap_list_length(l_session->cur_round.all_validators) * 2) {
+            if (!l_session->cur_round.directive_applied &&
+                    ++l_session->cur_round.votes_for_count * 3 >=
+                        dap_list_length(l_session->cur_round.all_validators) * 2) {
                 s_session_directive_apply(l_session->cur_round.directive, &l_session->cur_round.directive_hash);
+                l_session->cur_round.directive_applied = true;
                 s_session_state_change(l_session, DAP_CHAIN_ESBOCS_SESSION_STATE_PREVIOUS, dap_time_now());
             }
         } else // l_message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_AGAINST

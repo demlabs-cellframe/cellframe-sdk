@@ -115,6 +115,7 @@ typedef struct dap_chain_esbocs_round {
     // Round directive
     dap_hash_fast_t directive_hash;
     dap_chain_esbocs_directive_t *directive;
+    bool directive_applied;
     uint16_t votes_for_count;
     uint16_t votes_against_count;
     // Attempt dependent fields
