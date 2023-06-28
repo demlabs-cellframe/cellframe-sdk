@@ -3536,10 +3536,6 @@ static int s_token_decl_check_params(int a_argc, char **a_argv, char **a_str_rep
                                               "%s support '-decimals' to be 18 only", a_update_token ? "token_update" : "token_decl");
             return -4;
         }
-        if(IS_ZERO_256(a_params->total_supply)) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s requires parameter '-total_supply'", a_update_token ? "token_update" : "token_decl");
-            return -3;
-        }
     } else if (	a_params->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE){
         //// check l_decimals in CF20 token TODO: At the moment the checks are the same.
         if(!a_params->decimals_str) {
@@ -5236,27 +5232,22 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
         bool not_native = dap_strcmp(l_token_ticker, l_native_ticker);
 
         if (!l_wallet_fee_name) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_create requires parameter '-wallet_fee' to be a valid wallet name");
-            return -10;
-        }
-
-        l_wallet_fee = dap_chain_wallet_open(l_wallet_fee_name, c_wallets_path);
-        if((!l_wallet_fee)&&(not_native)) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "wallet %s does not exist", l_wallet_fee_name);
-            return -11;
-        }
-
-        if(!l_wallet_fee){
-            if(!l_certs_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_create requires parameter '-certs'");
-                return -4;
+            l_wallet_fee = dap_chain_wallet_open(l_wallet_fee_name, c_wallets_path);
+            if((!l_wallet_fee)&&(not_native)) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "wallet %s does not exist", l_wallet_fee_name);
+                return -11;
             }
+        }
+        else if (l_certs_str) {
             dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
             if(!l_certs_count) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply,
                         "tx_create requires at least one valid certificate to sign the basic transaction of emission");
                 return -5;
             }
+        } else {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_create requires parameter '-wallet_fee' to be a valid wallet name or '-certs'");
+            return -10;
         }
     }
 
@@ -5735,16 +5726,20 @@ int cmd_gdb_export(int a_argc, char **a_argv, char **a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "gdb_export requires parameter 'filename'");
         return -1;
     }
-    const char *l_db_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
-    DIR *dir = opendir(l_db_path);
-    if (!dir) {
+    const char *l_gdb_path = dap_config_get_item_str(g_config, "global_db", "path");
+    if (!l_gdb_path) {
+        log_it(L_ERROR, "Can't find gdb path in config file");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find gdb path in the config file");
+        return -1;
+    }
+    if (!opendir(l_gdb_path)) {
         log_it(L_ERROR, "Can't open db directory");
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't open db directory");
         return -1;
     }
-    char l_path[MIN(strlen(l_db_path) + strlen(l_filename) + 12, MAX_PATH)];
+    char l_path[MIN(strlen(l_gdb_path) + strlen(l_filename) + 12, MAX_PATH)];
     memset(l_path, '\0', sizeof(l_path));
-    snprintf(l_path, sizeof(l_path), "%s/%s.json", l_db_path, l_filename);
+    snprintf(l_path, sizeof(l_path), "%s/%s.json", l_gdb_path, l_filename);
 
     const char *l_groups_str = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-groups", &l_groups_str);
@@ -5828,10 +5823,15 @@ int cmd_gdb_import(int a_argc, char **a_argv, char ** a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "gdb_import requires parameter 'filename'");
         return -1;
     }
-    const char *l_db_path = dap_config_get_item_str(g_config, "resources", "dap_global_db_path");
-    char l_path[strlen(l_db_path) + strlen(l_filename) + 12];
+    const char *l_gdb_path = dap_config_get_item_str(g_config, "global_db", "path");
+    if (!l_gdb_path) {
+        log_it(L_ERROR, "Can't find gdb path in config file");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find gdb path in the config file");
+        return -1;
+    }
+    char l_path[strlen(l_gdb_path) + strlen(l_filename) + 12];
     memset(l_path, '\0', sizeof(l_path));
-    snprintf(l_path, sizeof(l_path), "%s/%s.json", l_db_path, l_filename);
+    snprintf(l_path, sizeof(l_path), "%s/%s.json", l_gdb_path, l_filename);
     struct json_object *l_json = json_object_from_file(l_path);
     if (!l_json) {
 #if JSON_C_MINOR_VERSION<15
