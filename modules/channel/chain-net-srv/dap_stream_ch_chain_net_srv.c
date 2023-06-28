@@ -65,6 +65,20 @@ static void s_stream_ch_delete(dap_stream_ch_t* ch , void* arg);
 static void s_stream_ch_packet_in(dap_stream_ch_t* ch , void* arg);
 static void s_stream_ch_packet_out(dap_stream_ch_t* ch , void* arg);
 
+static void s_service_start(dap_chain_net_srv_grace_t *a_grace);
+static void s_tx_cond_added_cb(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_prev_cond);
+static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace);
+static bool s_grace_period_finish(dap_chain_net_srv_grace_t *a_grace);
+
+typedef struct usages_in_grace{
+    dap_hash_fast_t tx_cond_hash;
+    dap_chain_net_srv_grace_t *grace;
+    UT_hash_handle hh;
+}usages_in_grace_t;
+
+// TODO: move this to net_srv
+static usages_in_grace_t * s_grace_table = NULL;
+static pthread_mutex_t s_ht_grace_table_mutex;
 /**
  * @brief dap_stream_ch_chain_net_init
  * @return
@@ -73,6 +87,8 @@ int dap_stream_ch_chain_net_srv_init(void)
 {
     log_it(L_NOTICE,"Chain network services channel initialized");
     dap_stream_ch_proc_add(dap_stream_ch_chain_net_srv_get_id(),s_stream_ch_new,s_stream_ch_delete,s_stream_ch_packet_in,s_stream_ch_packet_out);
+    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, NULL, s_tx_cond_added_cb);
+    pthread_mutex_init(&s_ht_grace_table_mutex, NULL);
 
     return 0;
 }
@@ -129,6 +145,42 @@ static bool s_unban_client(dap_chain_net_srv_banlist_item_t *a_item)
     HASH_DEL(*(a_item->ht_head), a_item);
     pthread_mutex_unlock(a_item->ht_mutex);
     DAP_DELETE(a_item);
+    return false;
+}
+
+void s_tx_cond_added_cb(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_prev_cond)
+{
+    UNUSED_ARG(a_ledger);
+    UNUSED_ARG(a_prev_cond);
+    // TODO: 1. Get net_srv by srv_uid from tx_cond
+    // 2. Get usages in grace HT from service
+    dap_chain_net_srv_grace_t *l_grace = NULL;
+    dap_hash_fast_t tx_cond_hash = {};
+    dap_hash_fast((void*)a_tx, dap_chain_datum_tx_get_size(a_tx), &tx_cond_hash);
+    pthread_mutex_lock(&s_ht_grace_table_mutex);
+    HASH_FIND(hh, s_grace_table, &tx_cond_hash, sizeof(dap_hash_fast_t), l_grace);
+    if (l_grace){
+        // Stop timer
+        dap_timerfd_delete_mt(l_grace->stream_worker->worker, l_grace->timer_es_uuid);
+        // finish grace
+        s_grace_period_finish(l_grace);
+    }
+    pthread_mutex_unlock(&s_ht_grace_table_mutex);
+}
+
+static void s_service_start(dap_chain_net_srv_grace_t *a_grace)
+{
+
+}
+
+static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
+{
+
+}
+
+static bool s_grace_period_finish(dap_chain_net_srv_grace_t *a_grace)
+{
+
     return false;
 }
 
