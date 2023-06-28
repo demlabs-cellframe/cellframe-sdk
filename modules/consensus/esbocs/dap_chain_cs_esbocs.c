@@ -456,7 +456,7 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_session_t *a_session, 
     dap_list_t *l_ret = NULL;
 
     if (!l_esbocs_pvt->poa_mode) {
-        dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_session->chain->net_id);
+        dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_session->chain->net_id, true);
         uint16_t l_total_validators_count = dap_list_length(l_validators);
         if (l_total_validators_count < l_esbocs_pvt->min_validators_count) {
             dap_list_free_full(l_validators, NULL);
@@ -580,13 +580,18 @@ static void s_session_send_startsync(dap_chain_esbocs_session_t *a_session)
                                 a_session->cur_round.sync_attempt, l_addr_list->str);
         dap_string_free(l_addr_list, true);
     }
-    dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_session->chain->net_id);
-    dap_list_t *l_send_list = dap_list_copy_deep(l_validators, s_callback_list_form, NULL);
-    dap_list_free_full(l_validators, NULL);
+    dap_list_t *l_inactive_validators = dap_chain_net_srv_stake_get_validators(a_session->chain->net_id, false);
+    dap_list_t *l_inactive_sendlist = dap_list_copy_deep(l_inactive_validators, s_callback_list_form, NULL);
+    dap_list_free_full(l_inactive_validators, NULL);
+    dap_list_t *l_total_sendlist = dap_list_concat(a_session->cur_round.all_validators, l_inactive_sendlist);
     s_message_send(a_session, DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC, &l_last_block_hash,
                    &a_session->cur_round.sync_attempt, sizeof(uint64_t),
-                   l_send_list);
-    dap_list_free_full(l_send_list, NULL);
+                   l_total_sendlist);
+    if (l_inactive_sendlist && l_inactive_sendlist->prev) { // List splitting
+        l_inactive_sendlist->prev->next = NULL;
+        l_inactive_sendlist->prev = NULL;
+    }
+    dap_list_free_full(l_inactive_sendlist, NULL);
     a_session->cur_round.sync_sent = true;
 }
 
@@ -618,7 +623,8 @@ static void s_session_update_penalty(dap_chain_esbocs_session_t *a_session)
         }
         if (PVT(a_session->esbocs)->debug) {
             char *l_addr_str = dap_chain_addr_to_str(l_signing_addr);
-            log_it(L_DEBUG, "Increment miss count %d for addr %s. Miss count for kick is %d",                                    l_item->miss_count, l_addr_str, DAP_CHAIN_ESBOCS_PENALTY_KICK);
+            log_it(L_DEBUG, "Increment miss count %d for addr %s. Miss count for kick is %d",
+                                    l_item->miss_count, l_addr_str, DAP_CHAIN_ESBOCS_PENALTY_KICK);
             DAP_DELETE(l_addr_str);
         }
         l_item->miss_count++;
@@ -654,7 +660,10 @@ static void s_session_round_clear(dap_chain_esbocs_session_t *a_session)
 
 static void s_session_round_new(dap_chain_esbocs_session_t *a_session)
 {
-    s_session_update_penalty(a_session);
+    if (!a_session->round_fast_forward) {
+        s_session_update_penalty(a_session);
+        dap_stream_ch_voting_queue_clear();
+    }
     s_session_round_clear(a_session);
     a_session->cur_round.id++;
     a_session->cur_round.sync_attempt++;
@@ -728,7 +737,7 @@ static void s_session_attempt_new(dap_chain_esbocs_session_t *a_session)
         dap_chain_esbocs_validator_t *l_validator = it->data;
         if (l_validator->is_synced && !l_validator->is_chosen) {
             // We have synced validator with no submitted candidate
-            debug_if(PVT(a_session->esbocs)->debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U". Attempt:%hu is started",
+            debug_if(PVT(a_session->esbocs)->debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U". Attempt:%hhu is started",
                                                                 a_session->chain->net_name, a_session->chain->name,
                                                                     a_session->cur_round.id, a_session->cur_round.attempt_num);
             s_session_state_change(a_session, DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC, dap_time_now());
@@ -868,7 +877,7 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
                 dap_hash_fast(l_directive, l_directive->size, &l_directive_hash);
                 if (PVT(a_session->esbocs)->debug) {
                     char *l_candidate_hash_str = dap_chain_hash_fast_to_str_new(&l_directive_hash);
-                    log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu. Put on the vote my directive:%s",
+                    log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu. Put on the vote my directive:%s",
                             a_session->chain->net_name, a_session->chain->name,
                                 a_session->cur_round.id, a_session->cur_round.attempt_num, l_candidate_hash_str);
                     DAP_DELETE(l_candidate_hash_str);
@@ -970,17 +979,17 @@ static void s_session_proc_state(dap_chain_esbocs_session_t *a_session)
         dap_time_t l_round_timeout = PVT(a_session->esbocs)->round_start_sync_timeout;
         bool l_round_skip = !s_validator_check(&a_session->my_signing_addr, a_session->cur_round.validators_list);
         if (l_round_skip)
-            l_round_timeout += 0;//PVT(a_session->esbocs)->round_attempt_timeout * 4 * PVT(a_session->esbocs)->round_attempts_max;
+            l_round_timeout += PVT(a_session->esbocs)->round_attempt_timeout * 6 * PVT(a_session->esbocs)->round_attempts_max;
         if (a_session->ts_round_sync_start && l_time - a_session->ts_round_sync_start >= l_round_timeout) {
             if (a_session->cur_round.validators_synced_count >= PVT(a_session->esbocs)->min_validators_count && !l_round_skip) {
                 a_session->cur_round.id = s_session_calc_current_round_id(a_session);
-                debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+                debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                             " Minimum count of validators are synchronized, wait to submit candidate",
                                                 a_session->chain->net_name, a_session->chain->name,
                                                     a_session->cur_round.id, a_session->cur_round.attempt_num);
                 s_session_state_change(a_session, DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC, l_time);
             } else { // timeout start sync
-                debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+                debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                             " Round finished by reason: %s",
                                                 a_session->chain->net_name, a_session->chain->name,
                                                     a_session->cur_round.id, a_session->cur_round.attempt_num,
@@ -992,7 +1001,7 @@ static void s_session_proc_state(dap_chain_esbocs_session_t *a_session)
     case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC:
         if (l_time - a_session->ts_stage_entry >= PVT(a_session->esbocs)->round_attempt_timeout * l_listen_ensure) {
             l_listen_ensure += 2;
-            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                         " Attempt finished by reason: haven't cantidate submitted",
                                             a_session->chain->net_name, a_session->chain->name,
                                                 a_session->cur_round.id, a_session->cur_round.attempt_num);
@@ -1012,7 +1021,7 @@ static void s_session_proc_state(dap_chain_esbocs_session_t *a_session)
             if (dap_list_length(l_store->candidate_signs) >= PVT(a_session->esbocs)->min_validators_count) {
                 if(l_cs_debug) {
                     char *l_candidate_hash_str = dap_chain_hash_fast_to_str_new(&a_session->cur_round.attempt_candidate_hash);
-                    log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu"
+                    log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu"
                                             " Candidate %s collected sings of minimum number of validators, so to sent PRE_COMMIT",
                                                 a_session->chain->net_name, a_session->chain->name, a_session->cur_round.id,
                                                     a_session->cur_round.attempt_num, l_candidate_hash_str);
@@ -1021,7 +1030,7 @@ static void s_session_proc_state(dap_chain_esbocs_session_t *a_session)
                 s_session_state_change(a_session, DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_FINISH, l_time);
                 break;
             }
-            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                         " Attempt finished by reason: cant't collect minimum number of validator's signs",
                                             a_session->chain->net_name, a_session->chain->name,
                                                 a_session->cur_round.id, a_session->cur_round.attempt_num);
@@ -1030,7 +1039,7 @@ static void s_session_proc_state(dap_chain_esbocs_session_t *a_session)
         break;
     case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_FINISH:
         if (l_time - a_session->ts_stage_entry >= PVT(a_session->esbocs)->round_attempt_timeout * 2) {
-            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                         " Attempt finished by reason: cant't collect minimum number of validator's precommits with same final hash",
                                             a_session->chain->net_name, a_session->chain->name,
                                                 a_session->cur_round.id, a_session->cur_round.attempt_num);
@@ -1040,7 +1049,7 @@ static void s_session_proc_state(dap_chain_esbocs_session_t *a_session)
     case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_VOTING:
         if (l_time - a_session->ts_stage_entry >= PVT(a_session->esbocs)->round_attempt_timeout * 2) {
             const char *l_hash_str = dap_chain_hash_fast_to_str_new(&a_session->cur_round.directive_hash);
-            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                         " Voting finished by reason: cant't collect minimum number of validator's votes for directive %s",
                                             a_session->chain->net_name, a_session->chain->name,
                                                 a_session->cur_round.id, a_session->cur_round.attempt_num,
@@ -1098,14 +1107,14 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
         dap_hash_fast(l_candidate, l_candidate_size, &l_candidate_hash);
         if (PVT(a_session->esbocs)->debug) {
             char *l_candidate_hash_str = dap_chain_hash_fast_to_str_new(&l_candidate_hash);
-            log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu. Submit my candidate %s",
+            log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu. Submit my candidate %s",
                     a_session->chain->net_name, a_session->chain->name,
                         a_session->cur_round.id, a_session->cur_round.attempt_num, l_candidate_hash_str);
             DAP_DELETE(l_candidate_hash_str);
         }
     } else { // there is no my candidate, send null hash
         if (PVT(a_session->esbocs)->debug)
-            log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+            log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                           " I don't have a candidate. I submit a null candidate.",
                                 a_session->chain->net_name, a_session->chain->name,
                                     a_session->cur_round.id, a_session->cur_round.attempt_num);
@@ -1127,7 +1136,7 @@ static void s_session_candidate_verify(dap_chain_esbocs_session_t *a_session, da
                        NULL, 0, a_session->cur_round.validators_list);
         if (PVT(a_session->esbocs)->debug) {
             char *l_candidate_hash_str = dap_chain_hash_fast_to_str_new(a_candidate_hash);
-            log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Sent APPROVE candidate %s",
+            log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu Sent APPROVE candidate %s",
                                 a_session->chain->net_name, a_session->chain->name, a_session->cur_round.id,
                                         a_session->cur_round.attempt_num, l_candidate_hash_str);
             DAP_DELETE(l_candidate_hash_str);
@@ -1138,7 +1147,7 @@ static void s_session_candidate_verify(dap_chain_esbocs_session_t *a_session, da
                        NULL, 0, a_session->cur_round.validators_list);
         if (PVT(a_session->esbocs)->debug) {
             char *l_candidate_hash_str = dap_chain_hash_fast_to_str_new(a_candidate_hash);
-            log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Sent REJECT candidate %s",
+            log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu Sent REJECT candidate %s",
                                 a_session->chain->net_name, a_session->chain->name, a_session->cur_round.id,
                                         a_session->cur_round.attempt_num, l_candidate_hash_str);
             DAP_DELETE(l_candidate_hash_str);
@@ -1158,7 +1167,7 @@ static void s_session_candidate_precommit(dap_chain_esbocs_session_t *a_session,
     HASH_FIND(hh, a_session->cur_round.store_items, l_candidate_hash, sizeof(dap_chain_hash_fast_t), l_store);
     if (!l_store) {
         l_candidate_hash_str = dap_chain_hash_fast_to_str_new(l_candidate_hash);
-        log_it(L_WARNING, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+        log_it(L_WARNING, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                           " Receive PRE_COMMIT message for unknown candidate %s",
                             a_session->chain->net_name, a_session->chain->name,
                                 a_session->cur_round.id, a_message->hdr.attempt_num,
@@ -1176,7 +1185,7 @@ static void s_session_candidate_precommit(dap_chain_esbocs_session_t *a_session,
             l_candidate_hash_str = dap_chain_hash_fast_to_str_new(l_candidate_hash);
             char *l_my_precommit_hash_str = dap_chain_hash_fast_to_str_new(&l_store->precommit_candidate_hash);
             char *l_remote_precommit_hash_str = dap_chain_hash_fast_to_str_new(l_precommit_hash);
-            log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+            log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                           " Candidate %s has different final hash of local and remote validators\n"
                           "(%s and %s)",
                                 a_session->chain->net_name, a_session->chain->name, a_session->cur_round.id,
@@ -1191,7 +1200,7 @@ static void s_session_candidate_precommit(dap_chain_esbocs_session_t *a_session,
 
     if (l_cs_debug) {
         l_candidate_hash_str = dap_chain_hash_fast_to_str_new(l_candidate_hash);
-        log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+        log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                         " Receive PRE_COMMIT: candidate %s",
                             a_session->chain->net_name, a_session->chain->name, a_session->cur_round.id,
                                 a_message->hdr.attempt_num, l_candidate_hash_str);
@@ -1199,7 +1208,7 @@ static void s_session_candidate_precommit(dap_chain_esbocs_session_t *a_session,
     if (++l_store->precommit_count >= l_cs_level && !l_store->decide_commit &&
             dap_hash_fast_compare(&a_session->cur_round.attempt_candidate_hash, l_candidate_hash)) {
         l_store->decide_commit = true;
-        debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+        debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                     " Candidate %s precommted by minimum number of validators, try to finish this round",
                                         a_session->chain->net_name, a_session->chain->name, a_session->cur_round.id,
                                             a_message->hdr.attempt_num, l_candidate_hash_str);
@@ -1256,9 +1265,9 @@ typedef struct fee_serv_param
     dap_chain_t * chain;
 }fee_serv_param_t;
 
-static void s_check_db_callback_fee_collect (dap_global_db_context_t *a_global_db_context,
-                                             int a_rc, const char *a_group,
-                                             const size_t a_values_total, const size_t a_values_count,
+static void s_check_db_callback_fee_collect (UNUSED_ARG dap_global_db_context_t *a_global_db_context,
+                                             UNUSED_ARG int a_rc, UNUSED_ARG const char *a_group,
+                                             UNUSED_ARG const size_t a_values_total, const size_t a_values_count,
                                              dap_global_db_obj_t *a_values, void *a_arg)
 {
     int res = 0;
@@ -1392,7 +1401,7 @@ static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_ch
     if (l_cs_debug) {
         char *l_finish_candidate_hash_str = dap_chain_hash_fast_to_str_new(&l_store->candidate_hash);
         char *l_finish_block_hash_str = dap_chain_hash_fast_to_str_new(&l_store->precommit_candidate_hash);
-        log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Candidate %s passed the consensus!\n"
+        log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu Candidate %s passed the consensus!\n"
                       "Move block %s to chains",
                         a_session->chain->net_name, a_session->chain->name, a_session->cur_round.id,
                             a_session->cur_round.attempt_num, l_finish_candidate_hash_str, l_finish_block_hash_str);
@@ -1442,25 +1451,32 @@ void s_session_validator_mark_online(dap_chain_esbocs_session_t *a_session, dap_
     }
     dap_chain_esbocs_penalty_item_t *l_item = NULL;
     HASH_FIND(hh, a_session->penalty, a_signing_addr, sizeof(*a_signing_addr), l_item);
-    if (l_in_list) {
-        if (l_item) {
-            HASH_DEL(a_session->penalty, l_item);
-            DAP_DELETE(l_item);
+    if (!l_in_list) {
+        if (!l_item) {
+            log_it(L_ERROR, "Got sync message from validator not in active list nor in penalty list");
+            l_item = DAP_NEW_Z(dap_chain_esbocs_penalty_item_t);
+            l_item->signing_addr = *a_signing_addr;
+            l_item->miss_count = DAP_CHAIN_ESBOCS_PENALTY_KICK;
+            HASH_ADD(hh, a_session->penalty, signing_addr, sizeof(*a_signing_addr), l_item);
+            return;
         }
-        return;
+        if (l_item->miss_count > DAP_CHAIN_ESBOCS_PENALTY_KICK)
+            l_item->miss_count = DAP_CHAIN_ESBOCS_PENALTY_KICK;
     }
-    if (!l_item) {
-        log_it(L_ERROR, "Got sync message from validator not in active list nor in penalty list");
-        l_item = DAP_NEW_Z(dap_chain_esbocs_penalty_item_t);
-        l_item->signing_addr = *a_signing_addr;
-        l_item->miss_count = DAP_CHAIN_ESBOCS_PENALTY_KICK;
-        HASH_ADD(hh, a_session->penalty, signing_addr, sizeof(*a_signing_addr), l_item);
-        return;
+    if (l_item) {
+        if (PVT(a_session->esbocs)->debug) {
+            const char *l_addr_str = dap_chain_addr_to_str(a_signing_addr);
+            log_it(L_DEBUG, "Decrement miss count %d for addr %s. Miss count for kick is %d",
+                            l_item->miss_count, l_addr_str, DAP_CHAIN_ESBOCS_PENALTY_KICK);
+            DAP_DELETE(l_addr_str);
+        }
+        if (l_item->miss_count)
+            l_item->miss_count--;
+        if (l_in_list && !l_item->miss_count) {
+                HASH_DEL(a_session->penalty, l_item);
+                DAP_DELETE(l_item);
+        }
     }
-    if (l_item->miss_count > DAP_CHAIN_ESBOCS_PENALTY_KICK)
-        l_item->miss_count = DAP_CHAIN_ESBOCS_PENALTY_KICK;
-    if (l_item->miss_count)
-        l_item->miss_count--;
 }
 
 static void s_session_directive_process(dap_chain_esbocs_session_t *a_session, dap_chain_esbocs_directive_t *a_directive, dap_chain_hash_fast_t *a_directive_hash)
@@ -1522,7 +1538,7 @@ static void s_session_directive_process(dap_chain_esbocs_session_t *a_session, d
 
     if (PVT(a_session->esbocs)->debug) {
         char *l_directive_hash_str = dap_chain_hash_fast_to_str_new(a_directive_hash);
-        log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu Send VOTE %s directive %s",
+        log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu Send VOTE %s directive %s",
                             a_session->chain->net_name, a_session->chain->name, a_session->cur_round.id,
                                     a_session->cur_round.attempt_num, l_vote_for ? "FOR" : "AGAINST",
                                             l_directive_hash_str);
@@ -1562,15 +1578,15 @@ static int s_session_directive_apply(dap_chain_esbocs_directive_t *a_directive, 
         if (l_status == 1 && a_directive->type == DAP_CHAIN_ESBOCS_DIRECTIVE_KICK) {
             dap_chain_net_srv_stake_mark_validator_active(l_key_addr, false);
             dap_global_db_set(l_penalty_group, l_key_str, NULL, 0, false, NULL, 0);
-            log_it(L_INFO, "Applied %s directive to exclude validator %s with pkey hash %s from consensus",
+            log_it(L_MSG, "Applied %s directive to exclude validator %s with pkey hash %s from consensus",
                             l_directive_hash_str, l_key_str, l_key_hash_str);
         } else if (l_status == -1 && a_directive->type == DAP_CHAIN_ESBOCS_DIRECTIVE_LIFT) {
             dap_chain_net_srv_stake_mark_validator_active(l_key_addr, true);
             dap_global_db_del(l_penalty_group, l_key_str, NULL, 0);
-            log_it(L_INFO, "Applied %s directive to include validator %s with pkey hash %s in consensus",
+            log_it(L_MSG, "Applied %s directive to include validator %s with pkey hash %s in consensus",
                             l_directive_hash_str, l_key_str, l_key_hash_str);
         } else {
-            log_it(L_NOTICE, "No need to apply directive %s. Validator %s with pkey hash %s already %s consensus",
+            log_it(L_MSG, "No need to apply directive %s. Validator %s with pkey hash %s already %s consensus",
                             l_directive_hash_str, l_key_str, l_key_hash_str,
                                 a_directive->type == DAP_CHAIN_ESBOCS_DIRECTIVE_KICK ?
                                     "excluded from" : "included in");
@@ -1611,7 +1627,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 
     if (a_sender_node_addr) { //Process network message
         pthread_mutex_lock(&l_session->mutex);
-        debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+        debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                     " Receive pkt type:0x%x from addr:"NODE_ADDR_FP_STR", my_addr:"NODE_ADDR_FP_STR"",
                                         l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                             l_session->cur_round.attempt_num, l_message->hdr.type,
@@ -1641,7 +1657,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         dap_chain_hash_fast_t l_data_hash = {};
         dap_hash_fast(l_message, a_data_size, &l_data_hash);
         if (!dap_hash_fast_compare(a_data_hash, &l_data_hash)) {
-            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                         " Message rejected: message hash does not match",
                                             l_session->chain->net_name, l_session->chain->name,
                                                 l_session->cur_round.id, l_session->cur_round.attempt_num);
@@ -1650,7 +1666,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 
         l_message->hdr.sign_size = 0;   // restore header on signing time
         if (dap_sign_verify_all(l_sign, l_sign_size, l_message, l_message_data_size + sizeof(l_message->hdr))) {
-            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                         " Message rejected from addr:"NODE_ADDR_FP_STR" not passed verification",
                                             l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                                 l_session->cur_round.attempt_num, NODE_ADDR_FP_ARGS(a_sender_node_addr));
@@ -1671,7 +1687,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         } else if (l_message->hdr.round_id != l_session->cur_round.id ||
                    l_message->hdr.attempt_num < l_session->cur_round.attempt_num) {
             // round check
-            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                         " Message rejected: round or attempt in message does not match",
                                             l_session->chain->net_name, l_session->chain->name,
                                                 l_session->cur_round.id, l_session->cur_round.attempt_num);
@@ -1688,7 +1704,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                 !s_validator_check_synced(&l_signing_addr, l_session->cur_round.validators_list)) ||
             (l_message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC &&     // Accept all validators
                 !dap_chain_net_srv_stake_key_delegated(&l_signing_addr))) {
-        debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+        debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                     " Message rejected: validator addr:%s not in the current validators list",
                                         l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                             l_message->hdr.attempt_num, l_validator_addr_str);
@@ -1701,7 +1717,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
     dap_chain_esbocs_message_item_t *l_message_item_temp = NULL;
     HASH_FIND(hh, l_round->message_items, a_data_hash, sizeof(dap_chain_hash_fast_t), l_message_item_temp);
     if (l_message_item_temp) {
-        debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+        debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                     " Message rejected: message hash is exists in chain (duplicate)",
                                         l_session->chain->net_name, l_session->chain->name,
                                             l_session->cur_round.id, l_message->hdr.attempt_num);
@@ -1720,7 +1736,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                 dap_hash_fast_compare(&l_chain_message->message->hdr.candidate_hash, &l_message->hdr.candidate_hash)) {
             if (l_message->hdr.type != DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC || // Not sync or same sync attempt
                     *(uint64_t *)l_message_data == *(uint64_t *)l_chain_message->message->msg_n_sign) {
-                debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+                debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                             " Message rejected: duplicate message %s",
                                                 l_session->chain->net_name, l_session->chain->name,
                                                     l_session->cur_round.id, l_message->hdr.attempt_num,
@@ -1784,7 +1800,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         l_validator->is_synced = true;
         if (++l_session->cur_round.validators_synced_count == dap_list_length(l_session->cur_round.validators_list)) {
             l_session->cur_round.id = s_session_calc_current_round_id(l_session);
-            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                         " All validators are synchronized, wait to submit candidate",
                                             l_session->chain->net_name, l_session->chain->name,
                                                 l_session->cur_round.id, l_message->hdr.attempt_num);
@@ -1796,7 +1812,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         uint8_t *l_candidate = l_message->msg_n_sign;
         size_t l_candidate_size = l_message_data_size;
         if (!l_candidate_size || dap_hash_fast_is_blank(&l_message->hdr.candidate_hash)) {
-            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                         " Receive SUBMIT candidate NULL",
                                             l_session->chain->net_name, l_session->chain->name,
                                                 l_session->cur_round.id, l_message->hdr.attempt_num);
@@ -1808,7 +1824,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         dap_chain_hash_fast_t l_check_hash;
         dap_hash_fast(l_candidate, l_candidate_size, &l_check_hash);
         if (!dap_hash_fast_compare(&l_check_hash, l_candidate_hash)) {
-            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                         " Receive SUBMIT candidate hash broken",
                                             l_session->chain->net_name, l_session->chain->name,
                                                 l_session->cur_round.id, l_message->hdr.attempt_num);
@@ -1817,7 +1833,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 
         if (l_cs_debug) {
             char *l_candidate_hash_str = dap_chain_hash_fast_to_str_new(l_candidate_hash);
-            log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+            log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                             " Receive SUBMIT candidate %s, size %zu",
                                 l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                     l_message->hdr.attempt_num, l_candidate_hash_str, l_candidate_size);
@@ -1855,7 +1871,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         HASH_FIND(hh, l_session->cur_round.store_items, l_candidate_hash, sizeof(dap_chain_hash_fast_t), l_store);
         if (!l_store) {
             l_candidate_hash_str = dap_chain_hash_fast_to_str_new(l_candidate_hash);
-            log_it(L_WARNING, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+            log_it(L_WARNING, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                 " Receive REJECT message for unknown candidate %s",
                                    l_session->chain->net_name, l_session->chain->name,
                                        l_session->cur_round.id, l_message->hdr.attempt_num,
@@ -1866,7 +1882,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 
         if (l_cs_debug) {
             l_candidate_hash_str = dap_chain_hash_fast_to_str_new(l_candidate_hash);
-            log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+            log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                             " Receive REJECT: candidate %s",
                                 l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                     l_message->hdr.attempt_num, l_candidate_hash_str);
@@ -1874,7 +1890,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         if (++l_store->reject_count >= l_cs_level && !l_store->decide_reject &&
                 dap_hash_fast_compare(&l_session->cur_round.attempt_candidate_hash, l_candidate_hash)) {
             l_store->decide_reject = true;
-            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                         " Candidate %s rejected by minimum number of validators, attempt failed",
                         l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                             l_message->hdr.attempt_num, l_candidate_hash_str);
@@ -1889,7 +1905,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         HASH_FIND(hh, l_session->cur_round.store_items, l_candidate_hash, sizeof(dap_chain_hash_fast_t), l_store);
         if (!l_store) {
             l_candidate_hash_str = dap_chain_hash_fast_to_str_new(l_candidate_hash);
-            log_it(L_WARNING, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+            log_it(L_WARNING, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                 " Receive APPROVE message for unknown candidate %s",
                                    l_session->chain->net_name, l_session->chain->name,
                                        l_session->cur_round.id, l_message->hdr.attempt_num,
@@ -1900,7 +1916,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 
         if (l_cs_debug) {
             l_candidate_hash_str = dap_chain_hash_fast_to_str_new(l_candidate_hash);
-            log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+            log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                             " Receive APPROVE: candidate %s",
                                 l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                     l_message->hdr.attempt_num, l_candidate_hash_str);
@@ -1908,7 +1924,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         if (++l_store->approve_count >= l_cs_level && !l_store->decide_approve &&
                 dap_hash_fast_compare(&l_session->cur_round.attempt_candidate_hash, l_candidate_hash)) {
             l_store->decide_approve = true;
-            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                         " Candidate %s approved by minimum number of validators, let's sign it",
                         l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                             l_message->hdr.attempt_num, l_candidate_hash_str);
@@ -1944,7 +1960,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         HASH_FIND(hh, l_session->cur_round.store_items, l_candidate_hash, sizeof(dap_chain_hash_fast_t), l_store);
         if (!l_store) {
             l_candidate_hash_str = dap_chain_hash_fast_to_str_new(l_candidate_hash);
-            log_it(L_WARNING, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+            log_it(L_WARNING, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                 " Receive COMMIT_SIGN message for unknown candidate %s",
                                     l_session->chain->net_name, l_session->chain->name,
                                         l_session->cur_round.id, l_message->hdr.attempt_num,
@@ -1955,7 +1971,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 
         if (l_cs_debug) {
             l_candidate_hash_str = dap_chain_hash_fast_to_str_new(l_candidate_hash);
-            log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+            log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                             " Receive COMMIT_SIGN: candidate %s",
                                 l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                     l_message->hdr.attempt_num, l_candidate_hash_str);
@@ -1970,7 +1986,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                                                        DAP_DUP_SIZE(l_candidate_sign, l_candidate_sign_size));
             if (dap_list_length(l_store->candidate_signs) == l_round->validators_synced_count) {
                 if (PVT(l_session->esbocs)->debug)
-                    log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+                    log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                   " Candidate %s collected signs of all synced validators",
                                         l_session->chain->net_name, l_session->chain->name, l_round->id,
                                             l_message->hdr.attempt_num, l_candidate_hash_str);
@@ -1992,7 +2008,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         dap_chain_esbocs_directive_t *l_directive = (dap_chain_esbocs_directive_t *)l_message->msg_n_sign;
         size_t l_directive_size = l_message_data_size;
         if (l_directive_size < sizeof(dap_chain_esbocs_directive_t) || l_directive_size != l_directive->size) {
-            log_it(L_WARNING, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+            log_it(L_WARNING, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                               " Receive DIRECTIVE with invalid size %zu)",
                                     l_session->chain->net_name, l_session->chain->name,
                                         l_session->cur_round.id, l_message->hdr.attempt_num,
@@ -2003,7 +2019,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         dap_chain_hash_fast_t l_directive_hash;
         dap_hash_fast(l_directive, l_directive_size, &l_directive_hash);
         if (!dap_hash_fast_compare(&l_directive_hash, l_candidate_hash)) {
-            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                         " Receive DIRECTIVE hash broken",
                                             l_session->chain->net_name, l_session->chain->name,
                                                 l_session->cur_round.id, l_message->hdr.attempt_num);
@@ -2011,7 +2027,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         }
         if (l_cs_debug) {
             char *l_dirtective_hash_str = dap_chain_hash_fast_to_str_new(l_candidate_hash);
-            log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+            log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                             " Receive DIRECTIVE hash %s, size %zu",
                                 l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                     l_message->hdr.attempt_num, l_dirtective_hash_str, l_directive_size);
@@ -2029,7 +2045,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
             break;
         }
         if (!dap_hash_fast_compare(&l_session->cur_round.directive_hash, l_candidate_hash)) {
-            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                         "Received VOTE %s unknown directive",
                                             l_session->chain->net_name, l_session->chain->name,
                                                 l_session->cur_round.id, l_message->hdr.attempt_num,
@@ -2039,7 +2055,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         }
         if (l_cs_debug) {
             char *l_directive_hash_str = dap_chain_hash_fast_to_str_new(l_candidate_hash);
-            log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hu."
+            log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                             " Receive VOTE %s directive %s",
                                 l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                     l_message->hdr.attempt_num, l_message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_FOR ?
@@ -2048,13 +2064,13 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         }
         if (l_message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_FOR) {
             if (++l_session->cur_round.votes_for_count * 3 >=
-                   /* dap_list_length(l_session->cur_round.all_validators) */ 2) {
+                   dap_list_length(l_session->cur_round.all_validators) * 2) {
                 s_session_directive_apply(l_session->cur_round.directive, &l_session->cur_round.directive_hash);
                 s_session_state_change(l_session, DAP_CHAIN_ESBOCS_SESSION_STATE_PREVIOUS, dap_time_now());
             }
         } else // l_message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_AGAINST
             if (++l_session->cur_round.votes_against_count * 3 >=
-                    /* dap_list_length(l_session->cur_round.all_validators) */ 2)
+                    dap_list_length(l_session->cur_round.all_validators) * 2)
                 s_session_state_change(l_session, DAP_CHAIN_ESBOCS_SESSION_STATE_PREVIOUS, dap_time_now());
 
     } break;

@@ -71,6 +71,12 @@ static bool s_callback_pkt_in_call_all(UNUSED_ARG dap_proc_thread_t *a_thread, v
     return true;
 }
 
+void dap_stream_ch_voting_queue_clear()
+{
+    for (struct voting_node_client_list *it = s_node_client_list; it; it = it->hh.next)
+        dap_chain_node_client_queue_clear(it->node_client);
+}
+
 void dap_stream_ch_chain_voting_message_write(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_remote_node_addr,
                                               dap_stream_ch_chain_voting_pkt_t *a_voting_pkt)
 {
