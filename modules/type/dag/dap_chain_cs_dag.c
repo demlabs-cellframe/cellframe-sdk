@@ -1617,7 +1617,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
             if (s_callback_add_datums(l_chain, &l_datum, 1)) {
                 char *l_datums_datum_hash_str;
                 dap_get_data_hash_str_static(l_datum->data, l_datum->header.data_size, l_datums_datum_hash_str);
-                if (!dap_global_db_del_sync(l_datum_hash_str, l_gdb_group_mempool)) {
+                if (!dap_global_db_del_sync(l_gdb_group_mempool, l_datum_hash_str)) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply,
                                                       "Converted datum %s from mempool to event in the new forming round ",
                                                       l_datum_hash_str);
