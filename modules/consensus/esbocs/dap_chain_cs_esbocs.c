@@ -1259,7 +1259,7 @@ static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_ch
         tmp->chain = l_chain;
         tmp->value_fee = PVT(a_session->esbocs)->minimum_fee;
         tmp->fee_need_cfg = PVT(a_session->esbocs)->fee_coll_set;
-        tmp->key_from = a_session->blocks_sign_key;
+        tmp->key_from = PVT(a_session->esbocs)->blocks_sign_key;
 
         dap_global_db_get_all(block_fee_group,0,s_check_db_callback_fee_collect,tmp);
     }
