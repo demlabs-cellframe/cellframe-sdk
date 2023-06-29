@@ -607,9 +607,6 @@ static bool s_session_send_startsync_on_timer(void *a_arg)
 
 static void s_session_update_penalty(dap_chain_esbocs_session_t *a_session)
 {
-    //size_t l_list_length = dap_list_length(a_session->cur_round.all_validators);
-    //if (a_session->cur_round.total_validators_synced * 3 < l_list_length * 2)
-    //    return; // Not a valid round, less than 2/3 participants
     for (dap_list_t *it = a_session->cur_round.all_validators; it; it = it->next) {
         if (((dap_chain_esbocs_validator_t *)it->data)->is_synced)
             continue;   // Penalty for non synced participants only
@@ -813,6 +810,9 @@ static int s_signs_sort_callback(const void *a_sign1, const void *a_sign2, UNUSE
 
 dap_chain_esbocs_directive_t *s_session_directive_ready(dap_chain_esbocs_session_t *a_session)
 {
+    size_t l_list_length = dap_list_length(a_session->cur_round.all_validators);
+    if (a_session->cur_round.total_validators_synced * 3 < l_list_length * 2)
+        return NULL; // Not a valid round, less than 2/3 participants
     bool l_kick = false;
     dap_chain_esbocs_penalty_item_t *l_item, *l_tmp;
     HASH_ITER(hh, a_session->penalty, l_item, l_tmp) {
@@ -1804,7 +1804,6 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                     s_session_round_new(l_session);
                 }
             }
-            break;
         } else // Send it immediatly, if was not sent yet
             s_session_send_startsync(l_session);
 
