@@ -933,12 +933,14 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "node handshake -net <net_name> {-addr <node address> | -alias <node alias>}\n"
             "node dump -net <net_name> [ -addr <node address> | -alias <node alias>] [-full]\n\n"
                                         );
+#ifndef DAP_OS_ANDROID
     dap_chain_node_cli_cmd_item_create ("ping", com_ping, "Send ICMP ECHO_REQUEST to network hosts",
             "ping [-c <count>] host\n");
     dap_chain_node_cli_cmd_item_create ("traceroute", com_traceroute, "Print the hops and time of packets trace to network host",
             "traceroute host\n");
     dap_chain_node_cli_cmd_item_create ("tracepath", com_tracepath,"Traces path to a network host along this path",
             "tracepath host\n");
+#endif
     dap_chain_node_cli_cmd_item_create ("version", com_version, "Return software version",
                                         "version\n"
                                         "\tReturn version number\n"

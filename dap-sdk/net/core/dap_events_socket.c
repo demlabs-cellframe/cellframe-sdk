@@ -725,9 +725,9 @@ dap_events_socket_t * s_create_type_queue_ptr(dap_worker_t * a_w, dap_events_soc
     }
 
     l_es->callbacks.queue_ptr_callback = a_callback; // Arm event callback
-    l_es->buf_in_size_max = DAP_QUEUE_MAX_BUFLEN;
-    l_es->buf_in = DAP_NEW_Z_SIZE(byte_t,l_es->buf_in_size_max);
-    l_es->buf_out = NULL;
+    l_es->buf_in_size_max = l_es->buf_out_size_max = DAP_QUEUE_MAX_BUFLEN;
+    l_es->buf_in    = DAP_NEW_Z_SIZE(byte_t,l_es->buf_in_size_max);
+    l_es->buf_out   = DAP_NEW_Z_SIZE(byte_t,l_es->buf_out_size_max);
 
 #if defined(DAP_EVENTS_CAPS_EPOLL)
     l_es->ev_base_flags = EPOLLIN | EPOLLERR | EPOLLRDHUP | EPOLLHUP;
@@ -963,6 +963,8 @@ dap_events_socket_t * dap_events_socket_create_type_queue_ptr_unsafe(dap_worker_
     return  l_es;
 }
 
+static pthread_rwlock_t s_bufout_rwlock = PTHREAD_RWLOCK_INITIALIZER;
+
 /**
  * @brief dap_events_socket_queue_proc_input
  * @param a_esocket
@@ -979,19 +981,26 @@ int dap_events_socket_queue_proc_input_unsafe(dap_events_socket_t * a_esocket)
 #endif
     if (a_esocket->callbacks.queue_callback){
         if (a_esocket->flags & DAP_SOCK_QUEUE_PTR) {
-            void * l_queue_ptr = NULL;
+            void *l_queue_ptr = NULL, *l_queue_last_ptr = NULL;
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
-            char l_body[DAP_QUEUE_MAX_BUFLEN] = { '\0' };
-            ssize_t l_read_ret = read(a_esocket->fd, l_body, sizeof(l_body));
+            //char l_body[sizeof(void*)] = { '\0' };
+            ssize_t l_read_ret = read(a_esocket->fd, &l_queue_last_ptr, sizeof(void*));
+            uint8_t l_count = 0;
             int l_errno = errno;
             if(l_read_ret > 0) {
-                debug_if(g_debug_reactor, L_NOTICE, "Got %ld bytes from pipe", l_read_ret);
-                for (long shift = 0; shift < l_read_ret; shift += sizeof(void*)) {
-                    l_queue_ptr = *(void**)(l_body + shift);
-                    a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr);
+                if (a_esocket->buf_out_size) {
+                    for (long shift = 0; shift < (long)a_esocket->buf_out_size; shift += sizeof(void*), ++l_count) {
+                        l_queue_ptr = *(void**)(a_esocket->buf_out + shift);
+                        a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_ptr);
+                    }
+                    a_esocket->buf_out_size = 0;
                 }
-            }
-            else if ((l_errno != EAGAIN) && (l_errno != EWOULDBLOCK) )  // we use blocked socket for now but who knows...
+                if (++l_count > 1) {
+                    log_it(L_INFO, "Got %u messages from pipe", l_count);
+                }
+                a_esocket->callbacks.queue_ptr_callback(a_esocket, l_queue_last_ptr);
+
+            } else if ((l_errno != EAGAIN) && (l_errno != EWOULDBLOCK) )  // we use blocked socket for now but who knows...
                 log_it(L_ERROR, "Can't read message from pipe");
 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
             char l_body[DAP_QUEUE_MAX_BUFLEN * DAP_QUEUE_MAX_MSGS] = { '\0' };
@@ -1260,8 +1269,6 @@ void dap_events_socket_event_proc_input_unsafe(dap_events_socket_t *a_esocket)
     } else
         log_it(L_ERROR, "Event socket %"DAP_FORMAT_SOCKET" accepted data but callback is NULL ", a_esocket->socket);
 }
-
-static pthread_rwlock_t s_bufout_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 /**
  *  Waits on the socket
  *  return 0: timeout, 1: may send data, -1 error
@@ -1433,19 +1440,36 @@ int dap_events_socket_queue_ptr_send_to_input(dap_events_socket_t * a_es_input, 
  */
 int dap_events_socket_queue_ptr_send( dap_events_socket_t *a_es, void *a_arg)
 {
-int l_ret = -1024, l_errno = 0;
+int l_ret = -1, l_errno = 0;
 char l_errbuf[128] = { 0 };
 
 #if defined(DAP_EVENTS_CAPS_QUEUE_PIPE2)
+    if (!a_es->buf_out) {
+        a_es->buf_out = DAP_NEW_Z_SIZE(byte_t, DAP_QUEUE_MAX_BUFLEN);
+        a_es->buf_out_size = 0;
+    }
+
     if ((l_ret = write(a_es->fd2, &a_arg, sizeof(a_arg)) == sizeof(a_arg))) {
         debug_if(g_debug_reactor, L_NOTICE, "send %d bytes to pipe", l_ret);
+        debug_if(a_es->buf_out_size > sizeof(a_arg), L_NOTICE, "Sent %lu messages to pipe", a_es->buf_out_size / sizeof(a_arg));
         return 0;
     }
-    l_errno = errno;
-    //char l_errbuf[128] = { '\0' };
     strerror_r(l_errno, l_errbuf, sizeof(l_errbuf));
-    log_it(L_ERROR, "Can't send ptr to pipe:\"%s\" code %d", l_errbuf, l_errno);
-    return l_errno;
+    switch (l_errno = errno) {
+    case EINVAL:
+    case EINTR:
+    case EWOULDBLOCK:
+    {
+        /* bufferize */
+        *(void**)(a_es->buf_out + a_es->buf_out_size) = a_arg;
+        a_es->buf_out_size += sizeof(void*);
+        log_it(L_ERROR, "Pipe is busy, pending %lu messages", a_es->buf_out_size / sizeof(a_arg));
+        return 0;
+    }
+    default:
+        log_it(L_ERROR, "Can't send ptr to pipe:\"%s\" code %d", l_errbuf, l_errno);
+        return l_errno;
+    }
 #elif defined (DAP_EVENTS_CAPS_QUEUE_MQUEUE)
     assert(a_es);
     assert(a_es->mqd);

@@ -144,6 +144,7 @@ int dap_stream_ch_chain_init()
             s_stream_ch_packet_out);
     s_debug_more = dap_config_get_item_bool_default(g_config, "stream_ch_chain", "debug_more",false);
     s_update_pack_size = dap_config_get_item_int16_default(g_config, "stream_ch_chain", "update_pack_size",100);
+    s_skip_in_reactor_count = s_update_pack_size / 10;
     s_list_ban_groups = dap_config_get_array_str(g_config, "stream_ch_chain", "ban_list_sync_groups", &s_size_ban_groups);
     s_list_white_groups = dap_config_get_array_str(g_config, "stream_ch_chain", "white_list_sync_groups", &s_size_white_groups);
 
@@ -896,8 +897,8 @@ static bool s_chain_timer_callback(void *a_arg)
     if (l_ch_chain->state == CHAIN_STATE_SYNC_GLOBAL_DB && l_ch_chain->sent_breaks >= 3 * DAP_SYNC_TICKS_PER_SECOND) {
         if (s_debug_more)
             log_it(L_INFO, "Send one global_db TSD packet (rest=%zu/%zu items)",
-                            dap_db_log_list_get_count_rest(l_ch_chain->request_db_log),
-                            dap_db_log_list_get_count(l_ch_chain->request_db_log));
+                            l_ch_chain->request_db_log->items_rest,
+                            l_ch_chain->request_db_log->items_number);
         dap_stream_ch_chain_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_TSD,
                                              l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64,
                                              l_ch_chain->request_hdr.cell_id.uint64, NULL, 0);
@@ -1656,7 +1657,43 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
         // Update list of global DB records to remote
         case CHAIN_STATE_UPDATE_GLOBAL_DB: {
             dap_stream_ch_chain_update_element_t l_data[s_update_pack_size];
-            uint_fast16_t i;
+
+            /* For multiple reading */
+            uint_fast16_t j = s_update_pack_size, i = 0;
+            dap_db_log_list_obj_t *l_obj = dap_db_log_list_get_multiple(l_ch_chain->request_db_log, &j);
+            if (j && l_obj && DAP_POINTER_TO_SIZE(l_obj) != 1) {
+                for (i = 0; i < j; ++i) {
+                    l_data[i] = (dap_stream_ch_chain_update_element_t){ (l_obj + i)->hash, (l_obj + i)->pkt->data_size };
+                    DAP_DEL_Z((l_obj + i)->pkt);
+                }
+                DAP_DELETE(l_obj);
+                if (i < s_update_pack_size)
+                    l_obj = NULL;
+
+                l_was_sent_smth = true;
+                s_stream_ch_chain_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB,
+                                            l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64,
+                                            l_ch_chain->request_hdr.cell_id.uint64,
+                                            l_data, i * sizeof(dap_stream_ch_chain_update_element_t));
+                l_ch_chain->stats_request_gdb_processed += i;
+                debug_if(s_debug_more, L_INFO, "Out: DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB %lu elements", i);
+            }
+            if (!l_obj) {
+                l_was_sent_smth = true;
+                l_ch_chain->request.node_addr.uint64 = dap_chain_net_get_cur_addr_int(dap_chain_net_by_id(
+                                                                                          l_ch_chain->request_hdr.net_id));
+                s_stream_ch_chain_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_END,
+                                                     l_ch_chain->request_hdr.net_id.uint64,
+                                                     l_ch_chain->request_hdr.chain_id.uint64,
+                                                     l_ch_chain->request_hdr.cell_id.uint64,
+                                                     &l_ch_chain->request, sizeof(dap_stream_ch_chain_sync_request_t));
+                debug_if(s_debug_more, L_INFO, "Out: DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_END %lu elements", i);
+                l_go_idle = true;
+            }
+
+
+            /* For reading objs one by one */
+            /*uint_fast16_t i;
             dap_db_log_list_obj_t *l_obj = NULL;
             for (i = 0; i < s_update_pack_size; i++) {
                 l_obj = dap_db_log_list_get(l_ch_chain->request_db_log);
@@ -1666,6 +1703,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                 DAP_DEL_Z(l_obj->pkt);
                 DAP_DELETE(l_obj);
             }
+
             if (i) {
                 l_was_sent_smth = true;
                 s_stream_ch_chain_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB,
@@ -1673,7 +1711,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                                             l_ch_chain->request_hdr.cell_id.uint64,
                                             l_data, i * sizeof(dap_stream_ch_chain_update_element_t));
                 l_ch_chain->stats_request_gdb_processed += i;
-                debug_if(s_debug_more, L_INFO, "Out: DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB");
+                debug_if(s_debug_more, L_INFO, "Out: DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB %lu elements", i);
             } else if (!l_obj) {
                 l_was_sent_smth = true;
                 l_ch_chain->request.node_addr.uint64 = dap_chain_net_get_cur_addr_int(dap_chain_net_by_id(
@@ -1683,15 +1721,58 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                                                      l_ch_chain->request_hdr.chain_id.uint64,
                                                      l_ch_chain->request_hdr.cell_id.uint64,
                                                      &l_ch_chain->request, sizeof(dap_stream_ch_chain_sync_request_t));
-                debug_if(s_debug_more, L_INFO, "Out: DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_END");
+                debug_if(s_debug_more, L_INFO, "Out: DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_END %lu elements", i);
                 l_go_idle = true;
-            }
+            } */
+
         } break;
 
         // Synchronize GDB
         case CHAIN_STATE_SYNC_GLOBAL_DB: {
             // Get global DB record
             dap_store_obj_pkt_t *l_pkt = NULL;
+
+            /* TODO: A less heavy but not completely correct solution */
+            size_t l_pkt_size = 0, i = 0, j = s_skip_in_reactor_count;
+            dap_db_log_list_obj_t *l_obj = NULL;
+            while (l_pkt_size < DAP_CHAIN_PKT_EXPECT_SIZE) {
+                l_obj = dap_db_log_list_get_multiple(l_ch_chain->request_db_log, &j);
+                if (j && l_obj && DAP_POINTER_TO_SIZE(l_obj) != 1) {
+                    for (i = 0; i < j; ++i) {
+                        dap_stream_ch_chain_hash_item_t *l_hash_item = NULL;
+                        unsigned l_hash_item_hashv = 0;
+                        HASH_VALUE(&(l_obj + i)->hash, sizeof(dap_chain_hash_fast_t), l_hash_item_hashv);
+                        HASH_FIND_BYHASHVALUE(hh, l_ch_chain->remote_gdbs, &(l_obj + i)->hash, sizeof(dap_hash_fast_t),
+                                              l_hash_item_hashv, l_hash_item);
+                        if (l_hash_item) { // If found - skip it
+                            //if (s_debug_more) {
+                            //    char l_request_atom_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                            //    dap_chain_hash_fast_to_str(&(l_obj + i)->hash, l_request_atom_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+                            //    log_it(L_DEBUG, "Out CHAIN: skip GDB hash %s because its already present in remote GDB hash table",
+                            //                    l_request_atom_hash_str);
+                            //}
+                        } else {
+                            l_hash_item = DAP_NEW_Z(dap_stream_ch_chain_hash_item_t);
+                            l_hash_item->hash = (l_obj + i)->hash;
+                            l_hash_item->size = (l_obj + i)->pkt->data_size;
+                            HASH_ADD_BYHASHVALUE(hh, l_ch_chain->remote_gdbs, hash, sizeof(dap_chain_hash_fast_t),
+                                                 l_hash_item_hashv, l_hash_item);
+                            l_pkt = dap_store_packet_multiple(l_pkt, (l_obj + i)->pkt);
+                            l_ch_chain->stats_request_gdb_processed++;
+                            l_pkt_size = sizeof(dap_store_obj_pkt_t) + l_pkt->data_size;
+                        }
+                        DAP_DEL_Z((l_obj + i)->pkt);
+                    }
+                    DAP_DELETE(l_obj);
+                    if (i < s_skip_in_reactor_count) {
+                        l_obj = NULL;
+                        break;
+                    }
+                } else
+                    break;
+            }
+
+            /* // For reading objs one by one
             dap_db_log_list_obj_t *l_obj = NULL;
             size_t l_pkt_size = 0;
             for (uint_fast16_t l_skip_count = 0; l_skip_count < s_skip_in_reactor_count; ) {
@@ -1706,12 +1787,12 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                 HASH_FIND_BYHASHVALUE(hh, l_ch_chain->remote_gdbs, &l_obj->hash, sizeof(dap_hash_fast_t),
                                       l_hash_item_hashv, l_hash_item);
                 if (l_hash_item) { // If found - skip it
-                    /*if (s_debug_more) {
-                        char l_request_atom_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-                        dap_chain_hash_fast_to_str(&l_obj->hash, l_request_atom_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-                        log_it(L_DEBUG, "Out CHAIN: skip GDB hash %s because its already present in remote GDB hash table",
-                                        l_request_atom_hash_str);
-                    }*/
+                    //if (s_debug_more) {
+                    //    char l_request_atom_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                    //    dap_chain_hash_fast_to_str(&l_obj->hash, l_request_atom_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+                    //    log_it(L_DEBUG, "Out CHAIN: skip GDB hash %s because its already present in remote GDB hash table",
+                    //                    l_request_atom_hash_str);
+                    //}
                     l_skip_count++;
                 } else {
                     l_hash_item = DAP_NEW_Z(dap_stream_ch_chain_hash_item_t);
@@ -1727,24 +1808,27 @@ void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
                 DAP_DELETE(l_obj);
                 if (l_pkt_size >= DAP_CHAIN_PKT_EXPECT_SIZE)
                     break;
-            }
+            } */
+
             if (l_pkt_size) {
                 l_was_sent_smth = true;
                 // If request was from defined node_addr we update its state
                 if (s_debug_more)
-                    log_it(L_INFO, "Send one global_db packet len=%zu (rest=%zu/%zu items)", l_pkt_size,
+                    /*log_it(L_INFO, "Send one global_db packet len=%zu (rest=%zu/%zu items)", l_pkt_size,
                                     dap_db_log_list_get_count_rest(l_ch_chain->request_db_log),
-                                    dap_db_log_list_get_count(l_ch_chain->request_db_log));
+                                    dap_db_log_list_get_count(l_ch_chain->request_db_log));*/
+                    debug_if(s_debug_more, L_DEBUG, "Send GDB packet, size = %zu (rest=%zu/%zu items)", l_pkt_size,
+                             l_ch_chain->request_db_log->items_rest, l_ch_chain->request_db_log->items_number);
                 s_stream_ch_chain_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB,
                                                      l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64,
                                                      l_ch_chain->request_hdr.cell_id.uint64, l_pkt, l_pkt_size);
                 DAP_DELETE(l_pkt);
             } else if (!l_obj) {
                 l_was_sent_smth = true;
-                log_it( L_INFO,"Syncronized database: items syncronyzed %"DAP_UINT64_FORMAT_U" from %zu",
-                        l_ch_chain->stats_request_gdb_processed, dap_db_log_list_get_count(l_ch_chain->request_db_log));
+                log_it( L_INFO,"Syncronized database: items %"DAP_UINT64_FORMAT_U" of %zu",
+                        l_ch_chain->stats_request_gdb_processed, l_ch_chain->request_db_log->items_number);
                 // last message
-                dap_stream_ch_chain_sync_request_t l_request = {};
+                dap_stream_ch_chain_sync_request_t l_request = { };
                 s_stream_ch_chain_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB,
                                                      l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64,
                                                      l_ch_chain->request_hdr.cell_id.uint64, &l_request, sizeof(l_request));

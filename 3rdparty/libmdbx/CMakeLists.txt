@@ -193,7 +193,7 @@ include(cmake/compiler.cmake)
 include(cmake/profile.cmake)
 
 # Workaround for `-pthread` toolchain/cmake bug
-if(NOT APPLE AND NOT MSVC
+if(NOT APPLE AND NOT MSVC AND NOT ANDROID
     AND CMAKE_USE_PTHREADS_INIT AND NOT CMAKE_THREAD_LIBS_INIT
     AND (CMAKE_COMPILER_IS_GNUCC OR CMAKE_COMPILER_IS_CLANG))
   check_compiler_flag("-pthread" CC_HAS_PTHREAD)

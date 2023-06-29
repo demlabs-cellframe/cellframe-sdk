@@ -44,8 +44,12 @@
 #include "dap_list.h"
 #include "dap_common.h"
 
+#ifdef DAP_GDB_ENGINE_SQLITE3
 #include "dap_chain_global_db_driver_sqlite.h"
+#endif
+#ifdef DAP_CHAIN_GDB_ENGINE_CUTTDB
 #include "dap_chain_global_db_driver_cdb.h"
+#endif
 #include "dap_chain_global_db_driver_mdbx.h"
 #include "dap_chain_global_db_driver_pgsql.h"
 #include "dap_chain_global_db_driver.h"
@@ -105,10 +109,14 @@ int l_ret = -1;
    // Check for engine
     if(!dap_strcmp(s_used_driver, "ldb"))
         l_ret = -1;
+#ifdef DAP_GDB_ENGINE_SQLITE3
     else if(!dap_strcmp(s_used_driver, "sqlite") || !dap_strcmp(s_used_driver, "sqlite3") )
         l_ret = dap_db_driver_sqlite_init(l_db_path_ext, &s_drv_callback);
+#endif
+#ifdef DAP_CHAIN_GDB_ENGINE_CUTTDB
     else if(!dap_strcmp(s_used_driver, "cdb"))
         l_ret = dap_db_driver_cdb_init(l_db_path_ext, &s_drv_callback);
+#endif
 #ifdef DAP_CHAIN_GDB_ENGINE_MDBX
     else if(!dap_strcmp(s_used_driver, "mdbx"))
         l_ret = dap_db_driver_mdbx_init(l_db_path_ext, &s_drv_callback);
