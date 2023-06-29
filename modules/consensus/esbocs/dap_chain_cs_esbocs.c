@@ -1700,10 +1700,26 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
     dap_chain_addr_fill_from_sign(&l_signing_addr, l_sign, l_session->chain->net_id);
     if (l_cs_debug)
         l_validator_addr_str = dap_chain_addr_to_str(&l_signing_addr);
-    if ((l_message->hdr.type != DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC &&         // Accept only current round synced validators
-                !s_validator_check_synced(&l_signing_addr, l_session->cur_round.validators_list)) ||
-            (l_message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC &&     // Accept all validators
-                !dap_chain_net_srv_stake_key_delegated(&l_signing_addr))) {
+    bool l_not_in_list = false;
+    switch (l_message->hdr.type) {
+    case DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC:
+        // Accept all validators
+        if (!dap_chain_net_srv_stake_key_delegated(&l_signing_addr))
+            l_not_in_list = true;
+        break;
+    case DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_FOR:
+    case DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_AGAINST:
+        // Accept all active synced validators
+        if (!s_validator_check_synced(&l_signing_addr, l_session->cur_round.all_validators))
+            l_not_in_list = true;
+        break;
+    default:
+        // Accept only current round synced validators
+        if (!s_validator_check_synced(&l_signing_addr, l_session->cur_round.validators_list))
+            l_not_in_list = true;
+        break;
+    }
+    if (l_not_in_list) {
         debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                     " Message rejected: validator addr:%s not in the current validators list",
                                         l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
