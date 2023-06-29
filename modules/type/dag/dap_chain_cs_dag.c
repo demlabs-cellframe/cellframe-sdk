@@ -1613,7 +1613,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
             char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
             size_t l_datum_size = 0;
             dap_chain_datum_t *l_datum = (dap_chain_datum_t*)
-                    dap_global_db_get_sync(l_datum_hash_hex_str,l_gdb_group_mempool, &l_datum_size, NULL, NULL);
+                    dap_global_db_get_sync(l_gdb_group_mempool, l_datum_hash_hex_str, &l_datum_size, NULL, NULL);
             if (s_callback_add_datums(l_chain, &l_datum, 1)) {
                 char *l_datums_datum_hash_str;
                 dap_get_data_hash_str_static(l_datum->data, l_datum->header.data_size, l_datums_datum_hash_str);
