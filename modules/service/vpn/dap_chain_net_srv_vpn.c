@@ -1082,7 +1082,7 @@ void s_ch_vpn_new(dap_stream_ch_t* a_ch, void* a_arg)
 
     dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_ch->stream->session->_inheritor;
 
-    l_srv_vpn->usage_id = l_srv_session->usage_active?  l_srv_session->usage_active->id : 0;
+    l_srv_vpn->usage_id = l_srv_session->usage_active ?  l_srv_session->usage_active->id : 0;
 
     if( l_srv_vpn->usage_id) {
         // So complicated to update usage client to be sure that nothing breaks it
@@ -1094,7 +1094,6 @@ void s_ch_vpn_new(dap_stream_ch_t* a_ch, void* a_arg)
         }
         pthread_rwlock_unlock(&s_clients_rwlock);
     }
-
 }
 
 
@@ -1152,6 +1151,7 @@ static void s_ch_vpn_delete(dap_stream_ch_t* a_ch, void* arg)
     l_ch_vpn->ch = NULL;
     l_ch_vpn->net_srv = NULL;
     l_ch_vpn->is_allowed =false;
+    DAP_DEL_Z(a_ch->internal);
 }
 
 /**

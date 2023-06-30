@@ -81,6 +81,7 @@ dap_chain_net_srv_usage_t* dap_chain_net_srv_usage_add (dap_chain_net_srv_stream
 void dap_chain_net_srv_usage_delete (dap_chain_net_srv_stream_session_t * a_srv_session,
                                                                                dap_chain_net_srv_usage_t* a_usage)
 {
+    assert(a_srv_session->usage_active != a_usage);
     if ( a_usage->receipt )
         DAP_DELETE( a_usage->receipt );
     if ( a_usage->client ){
@@ -89,10 +90,9 @@ void dap_chain_net_srv_usage_delete (dap_chain_net_srv_stream_session_t * a_srv_
             l_srv_client = l_srv_client->next;
             DAP_DELETE( tmp);
         }
-
-
     }
     DAP_DELETE( a_usage );
+    a_srv_session->usage_active = NULL;
 }
 
 /**
