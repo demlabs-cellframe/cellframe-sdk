@@ -1745,6 +1745,31 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                                                 l_session->cur_round.id, l_message->hdr.attempt_num);
             goto session_unlock;
         }
+        // check messages chain
+        dap_chain_esbocs_message_item_t *l_chain_message, *l_chain_message_tmp;
+        HASH_ITER(hh, l_round->message_items, l_chain_message, l_chain_message_tmp) {
+            bool l_same_type = l_chain_message->message->hdr.type == l_message->hdr.type ||
+                    (l_chain_message->message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_APPROVE &&
+                        l_message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_REJECT) ||
+                    (l_chain_message->message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_REJECT &&
+                        l_message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_APPROVE) ||
+                    (l_chain_message->message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_FOR &&
+                        l_message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_AGAINST) ||
+                    (l_chain_message->message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_AGAINST &&
+                        l_message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_FOR);
+            if (l_same_type && dap_chain_addr_compare(&l_chain_message->signing_addr, &l_signing_addr) &&
+                    dap_hash_fast_compare(&l_chain_message->message->hdr.candidate_hash, &l_message->hdr.candidate_hash)) {
+                if (l_message->hdr.type != DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC || // Not sync or same sync attempt
+                        *(uint64_t *)l_message_data == *(uint64_t *)l_chain_message->message->msg_n_sign) {
+                    debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
+                                                " Message rejected: duplicate message %s",
+                                                    l_session->chain->net_name, l_session->chain->name,
+                                                        l_session->cur_round.id, l_message->hdr.attempt_num,
+                                                            s_voting_msg_type_to_str(l_message->hdr.type));
+                    goto session_unlock;
+                }
+            }
+        }
         dap_chain_addr_fill_from_sign(&l_signing_addr, l_sign, l_session->chain->net_id);
         s_message_chain_add(l_session, l_message, a_data_size, a_data_hash, &l_signing_addr);
     }
@@ -1781,32 +1806,6 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                                         l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                             l_message->hdr.attempt_num, l_validator_addr_str);
         goto session_unlock;
-    }
-
-    // check messages chain
-    dap_chain_esbocs_message_item_t *l_chain_message, *l_chain_message_tmp;
-    HASH_ITER(hh, l_round->message_items, l_chain_message, l_chain_message_tmp) {
-        bool l_same_type = l_chain_message->message->hdr.type == l_message->hdr.type ||
-                (l_chain_message->message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_APPROVE &&
-                    l_message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_REJECT) ||
-                (l_chain_message->message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_REJECT &&
-                    l_message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_APPROVE) ||
-                (l_chain_message->message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_FOR &&
-                    l_message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_AGAINST) ||
-                (l_chain_message->message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_AGAINST &&
-                    l_message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_FOR);
-        if (l_same_type && dap_chain_addr_compare(&l_chain_message->signing_addr, &l_signing_addr) &&
-                dap_hash_fast_compare(&l_chain_message->message->hdr.candidate_hash, &l_message->hdr.candidate_hash)) {
-            if (l_message->hdr.type != DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC || // Not sync or same sync attempt
-                    *(uint64_t *)l_message_data == *(uint64_t *)l_chain_message->message->msg_n_sign) {
-                debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
-                                            " Message rejected: duplicate message %s",
-                                                l_session->chain->net_name, l_session->chain->name,
-                                                    l_session->cur_round.id, l_message->hdr.attempt_num,
-                                                        s_voting_msg_type_to_str(l_message->hdr.type));
-                goto session_unlock;
-            }
-        }
     }
 
     switch (l_message->hdr.type) {
