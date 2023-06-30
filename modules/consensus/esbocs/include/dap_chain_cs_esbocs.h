@@ -64,6 +64,7 @@ typedef struct dap_chain_esbocs_message_item {
     dap_hash_fast_t message_hash;
     dap_chain_esbocs_message_t *message;
     dap_chain_addr_t signing_addr;
+    bool unprocessed;   // Do not count one message twice
     UT_hash_handle hh;
 } dap_chain_esbocs_message_item_t;
 
