@@ -130,7 +130,6 @@ typedef struct dap_chain_esbocs_session {
     dap_chain_esbocs_sync_item_t *sync_items;
     dap_timerfd_t *sync_timer;
 
-    dap_enc_key_t *blocks_sign_key;
     dap_chain_addr_t my_signing_addr;
 
     struct dap_chain_esbocs_session *next;
