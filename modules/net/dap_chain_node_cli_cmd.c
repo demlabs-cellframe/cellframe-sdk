@@ -3096,7 +3096,7 @@ int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply)
                 ret = -6;
             } else {
                 dap_string_append_printf(l_str_tmp, "Datum processed well. ");
-                if (dap_global_db_del_sync(l_datum_hash_hex_str, l_gdb_group_mempool)){
+                if (dap_global_db_del_sync(l_gdb_group_mempool, l_datum_hash_hex_str)){
                     dap_string_append_printf(l_str_tmp, "Warning! Can't delete datum from mempool!");
                 } else
                     dap_string_append_printf(l_str_tmp, "Removed datum from mempool.");
