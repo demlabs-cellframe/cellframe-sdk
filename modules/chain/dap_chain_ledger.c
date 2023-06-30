@@ -1046,9 +1046,9 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
 
     if (!l_token_item) {
         size_t l_auth_signs_total, l_auth_signs_valid;
-        dap_sign_t **l_signs = dap_chain_datum_token_signs_parse(a_token, a_token_size, &l_auth_signs_total, &l_auth_signs_valid);
+        dap_sign_t **l_signs = dap_chain_datum_token_signs_parse(l_token, l_token_size, &l_auth_signs_total, &l_auth_signs_valid);
         if (!l_signs || !l_auth_signs_total) {
-            log_it(L_ERROR, "No auth signs in token '%s' datum!", a_token->ticker);
+            log_it(L_ERROR, "No auth signs in token '%s' datum!", l_token->ticker);
             DAP_DELETE(l_token);
             return -7;
         }
@@ -1078,7 +1078,7 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
     l_token_item->datum_token       = l_token; //DAP_DUP_SIZE(l_token, l_token_size);
     l_token_item->datum_token->type = l_token_item->type;
 
-    if (a_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE) {
+    if (l_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE) {
         pthread_rwlock_wrlock(&PVT(a_ledger)->tokens_rwlock);
         HASH_ADD_STR(PVT(a_ledger)->tokens, ticker, l_token_item);
         pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
@@ -1137,11 +1137,11 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
             l_res_token_tsd_parse = s_token_tsd_parse(a_ledger, l_token_item, l_token, l_token_size);
             break;
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
-            debug_if(s_debug_more, L_INFO, "Private token %s declared, total_supply: %s, total_signs_valid: %hu, signs_total: %hu",
+            debug_if(s_debug_more, L_INFO, "CF20 token %s updated, total_supply: %s, total_signs_valid: %hu, signs_total: %hu",
                     l_token->ticker, l_balance_dbg,
                     l_token->signs_valid, l_token->signs_total);
             l_res_token_tsd_parse = s_token_tsd_parse(a_ledger, l_token_item, l_token, l_token_size);
-            s_tsd_sign_apply(a_ledger, l_token_item, a_token, a_token_size);
+            s_tsd_sign_apply(a_ledger, l_token_item, l_token, l_token_size);
             break;
         default:
             /* Bogdanoff, unknown token type update. What shall we TODO? */
