@@ -825,8 +825,8 @@ static void s_fill_links_from_root_aliases(dap_chain_net_t * a_net)
                 ret = s_net_link_add(a_net, l_link_node_info);
                 l_node_added++;
                 DAP_DELETE(l_link_node_info);
-                if (ret > 0 || l_node_added==3)    // Maximum links count reached
-                    return;
+                if (ret > 0 )    // Maximum links count reached
+                    continue;
             }
 
         //}
