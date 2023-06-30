@@ -1018,6 +1018,11 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                sizeof(l_chain_pkt->hdr));
         return;
     }
+    if (l_chain_pkt->hdr.version != DAP_STREAM_CH_CHAIN_PKT_VERSION) {
+        debug_if(s_debug_more, L_ATT, "Unsupported protocol version %d, current version %d",
+                 l_chain_pkt->hdr.version, DAP_STREAM_CH_CHAIN_PKT_VERSION);
+        return;
+    }
     size_t l_chain_pkt_data_size = l_ch_pkt->hdr.data_size - sizeof(l_chain_pkt->hdr);
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_chain_pkt->hdr.net_id);
     if (!l_net) {

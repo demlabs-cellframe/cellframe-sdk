@@ -2105,7 +2105,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 }
                 l_ret = dap_global_db_del_sync(l_gdb_group_str, l_hash_string);
                 DAP_DELETE(l_gdb_group_str);
-                if (!l_ret) {
+                if (l_ret) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Cant't find certificate public key hash in database");
                     return -10;
                 }

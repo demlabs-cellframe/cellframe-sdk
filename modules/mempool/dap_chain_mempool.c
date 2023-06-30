@@ -597,24 +597,34 @@ static void s_tx_create_massive_gdb_save_callback(dap_global_db_context_t *a_glo
  *
  * return 0 Ok, -2 not enough funds to transfer, -1 other Error
  */
-char *dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_tx_prev_hash,
+char* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_tx_prev_hash,
                                                           const dap_chain_addr_t *a_addr_to, dap_enc_key_t *a_key_tx_sign,
-                                                          dap_chain_datum_tx_receipt_t *a_receipt, const char *a_hash_out_type)
+                                                          dap_chain_datum_tx_receipt_t *a_receipt, const char *a_hash_out_type, int *a_ret_status)
 {
     dap_ledger_t * l_ledger = a_net ? dap_chain_ledger_by_net_name( a_net->pub.name ) : NULL;
-    if ( ! a_net || ! l_ledger || ! a_addr_to )
+    if ( ! a_net || ! l_ledger || ! a_addr_to ){
+        if (a_ret_status)
+            *a_ret_status = DAP_CHAIN_MEMPOOL_RET_STATUS_BAD_ARGUMENTS;
         return NULL;
+    }
+
     if ( ! dap_chain_addr_check_sum (a_addr_to) ){
         log_it(L_ERROR, "Wrong address_to checksum");
+        if (a_ret_status)
+            *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_WRONG_ADDR;
         return NULL;
     }
     dap_chain_hash_fast_t *l_tx_final_hash = dap_chain_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, a_tx_prev_hash);
     if (!l_tx_final_hash) {
         log_it(L_WARNING, "Requested conditional transaction is already used out");
+        if (a_ret_status)
+            *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_CANT_FIND_FINAL_TX_HASH;
         return NULL;
     }
     if (dap_strcmp(a_net->pub.native_ticker, dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, l_tx_final_hash))) {
         log_it(L_WARNING, "Pay for service should be only in native token ticker");
+        if (a_ret_status)
+            *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_NOT_NATIVE_TOKEN;
         return NULL;
     }
     dap_chain_datum_tx_t *l_tx_cond = dap_chain_ledger_tx_find_by_hash(l_ledger, l_tx_final_hash);
@@ -622,6 +632,8 @@ char *dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
     dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_cond, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, &l_out_cond_idx);
     if (!l_out_cond) {
         log_it(L_WARNING, "Requested conditioned transaction have no conditioned output");
+        if (a_ret_status)
+            *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_NO_COND_OUT;
         return NULL;
     }
 
@@ -635,6 +647,8 @@ char *dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
     SUM_256_256(l_value_send, l_fee, &l_value_send);
     if (compare256(l_out_cond->header.value, l_value_send) < 0) {
         log_it(L_WARNING, "Requested conditioned transaction have no enough funds");
+        if (a_ret_status)
+            *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_NOT_ENOUGH;
         return NULL;
     }
 
@@ -644,20 +658,26 @@ char *dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
     // add 'in_cond' items
     if (dap_chain_datum_tx_add_in_cond_item(&l_tx, l_tx_final_hash, l_out_cond_idx, 0)) {
         dap_chain_datum_tx_delete(l_tx);
-        log_it( L_ERROR, "Cant add tx cond input");
+        log_it( L_ERROR, "Can`t add tx cond input");
+        if (a_ret_status)
+            *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_CANT_ADD_TX_OUT;
         return NULL;
     }
     // add 'out' item
     if (dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to, a_receipt->receipt_info.value_datoshi) != 1) {
         dap_chain_datum_tx_delete(l_tx);
-        log_it( L_ERROR, "Cant add tx output");
+        log_it( L_ERROR, "Can`t add tx output");
+        if (a_ret_status)
+            *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_CANT_ADD_TX_OUT;
         return NULL;
     }
     // add network fee
     if (l_net_fee_used) {
         if (dap_chain_datum_tx_add_out_item(&l_tx, &l_addr_fee, l_net_fee) != 1) {
             dap_chain_datum_tx_delete(l_tx);
-            log_it( L_ERROR, "Cant add tx output");
+            log_it( L_ERROR, "Can`t add tx output");
+            if (a_ret_status)
+                *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_CANT_ADD_TX_OUT;
             return NULL;
         }
     }
@@ -665,7 +685,9 @@ char *dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
     if (!IS_ZERO_256(l_fee)) {
         if (dap_chain_datum_tx_add_fee_item(&l_tx, l_fee) != 1) {
             dap_chain_datum_tx_delete(l_tx);
-            log_it( L_ERROR, "Cant add tx output");
+            log_it( L_ERROR, "Can`t add tx output");
+            if (a_ret_status)
+                *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_CANT_ADD_TX_OUT;
             return NULL;
         }
     }
@@ -680,6 +702,8 @@ char *dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
     if(dap_chain_datum_tx_add_sign_item(&l_tx, a_key_tx_sign) != 1) {
         dap_chain_datum_tx_delete(l_tx);
         log_it( L_ERROR, "Can't add sign output");
+        if (a_ret_status)
+            *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_CANT_ADD_SIGN;
         return NULL;
     }
     size_t l_tx_size = dap_chain_datum_tx_get_size( l_tx );
@@ -688,6 +712,8 @@ char *dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
     dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
     char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain, a_hash_out_type);
     DAP_DELETE(l_datum);
+    if (a_ret_status)
+        *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_SUCCESS;
     return l_ret;
 }
 
@@ -1262,7 +1288,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
         if (!l_datum) {
             l_removed++;
             log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s: empty (possibly trash) value", l_objs[i].key, l_gdb_group);
-            dap_global_db_del_sync(l_objs[i].key, l_gdb_group);
+            dap_global_db_del_sync(l_gdb_group, l_objs[i].key);
             continue;
         }
         size_t l_datum_size = dap_chain_datum_size(l_datum);
