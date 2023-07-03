@@ -1725,11 +1725,10 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                 s_session_sync_queue_add(l_session, l_message, a_data_size);
                 goto session_unlock;
             }
-        } else if (l_message->hdr.round_id != l_session->cur_round.id ||
-                   l_message->hdr.attempt_num < l_session->cur_round.attempt_num) {
+        } else if (l_message->hdr.round_id != l_session->cur_round.id) {
             // round check
             debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
-                                        " Message rejected: round or attempt in message does not match",
+                                        " Message rejected: round number doesn't match",
                                             l_session->chain->net_name, l_session->chain->name,
                                                 l_session->cur_round.id, l_session->cur_round.attempt_num);
             goto session_unlock;
@@ -1745,6 +1744,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                                                 l_session->cur_round.id, l_message->hdr.attempt_num);
             goto session_unlock;
         }
+        dap_chain_addr_fill_from_sign(&l_signing_addr, l_sign, l_session->chain->net_id);
         // check messages chain
         dap_chain_esbocs_message_item_t *l_chain_message, *l_chain_message_tmp;
         HASH_ITER(hh, l_round->message_items, l_chain_message, l_chain_message_tmp) {
@@ -1770,7 +1770,6 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                 }
             }
         }
-        dap_chain_addr_fill_from_sign(&l_signing_addr, l_sign, l_session->chain->net_id);
         s_message_chain_add(l_session, l_message, a_data_size, a_data_hash, &l_signing_addr);
     } else
         dap_chain_addr_fill_from_sign(&l_signing_addr, l_sign, l_session->chain->net_id);
