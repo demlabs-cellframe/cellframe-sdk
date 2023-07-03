@@ -177,7 +177,7 @@ DAP_STATIC_INLINE int dap_chain_node_client_write_mt(dap_chain_node_client_t *a_
 { if (!a_client) return -1; return dap_client_write_mt(a_client->client, a_ch_id, a_type, a_data, a_data_size); }
 
 DAP_STATIC_INLINE void dap_chain_node_client_queue_clear(dap_chain_node_client_t *a_client)
-{ if (!a_client) return; dap_client_queue_clear(a_client->client); };
+{ if (!a_client) return; dap_client_queue_clear(a_client->client); }
 
 /**
  * Reset client state to connected state if it is connected

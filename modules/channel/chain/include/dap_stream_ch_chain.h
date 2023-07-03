@@ -89,8 +89,9 @@ typedef struct dap_stream_ch_chain {
 typedef struct dap_stream_ch_chain_packet_time{
     char    remote_addr [INET_ADDRSTRLEN + 1];
     //in_addr_t remote_addr;
+    uint64_t timestamp_obj;
     uint64_t time_arrival;
-    UT_hash_handle hh;
+    UT_hash_handle hh,ht;
 } dap_stream_ch_chain_packet_time_t;
 
 #define DAP_STREAM_CH_CHAIN(a) ((dap_stream_ch_chain_t *) ((a)->internal) )

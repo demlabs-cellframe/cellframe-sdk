@@ -78,6 +78,7 @@ struct sync_request
     dap_stream_ch_uuid_t ch_uuid;
     dap_stream_ch_chain_sync_request_t request;
     dap_stream_ch_chain_pkt_hdr_t request_hdr;
+    dap_events_socket_t * esocket;
     dap_chain_pkt_item_t pkt;
 
     dap_stream_ch_chain_hash_item_t *remote_atoms; // Remote atoms
@@ -818,6 +819,12 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
         dap_nanotime_t l_time_now = dap_nanotime_now();
         dap_nanotime_t l_time_alowed = l_time_now + dap_nanotime_from_sec(3600 * 24); // to be sure the timestamp is invalid
         dap_nanotime_t l_limit_time = l_time_store_lim_hours ? l_time_now - dap_nanotime_from_sec(l_time_store_lim_hours * 3600) : 0;
+        dap_chain_net_t *l_net = dap_chain_net_by_id(l_sync_request->request_hdr.net_id);
+        dap_chain_t * l_chain = dap_chain_find_by_id(l_sync_request->request_hdr.net_id,
+                                                     l_sync_request->request_hdr.chain_id);
+        char *l_group_str = dap_strdup_printf("%s.chain-%s.mempool",l_net->pub.gdb_groups_prefix,
+                                                  l_chain->name);
+        bool l_set_IP = false;
         for (size_t i = 0; i < l_data_obj_count; i++) {
             // obj to add
             dap_store_obj_t *l_obj = l_store_obj + i;
@@ -825,6 +832,53 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                     l_obj->timestamp > l_time_alowed ||
                     l_obj->group == NULL)
                 continue;       // the object is broken
+
+            if(strncmp(l_group_str, l_obj->group, l_obj->group_len > strlen(l_group_str) ? l_obj->group_len :
+                                                                                        strlen(l_group_str))==0)
+            {
+                //spam IP check
+                if(!l_set_IP){
+                    dap_stream_ch_chain_packet_time_t * l_remote_addr_time = NULL;
+                    HASH_FIND(hh, s_remote_addr_time, l_sync_request->esocket->remote_addr_str, INET_ADDRSTRLEN + 1, l_remote_addr_time);
+                    if (!l_remote_addr_time) {
+                        l_remote_addr_time = DAP_NEW_Z(dap_stream_ch_chain_packet_time_t);
+                        memcpy(l_remote_addr_time->remote_addr, l_sync_request->esocket->remote_addr_str,INET_ADDRSTRLEN + 1);
+                        l_remote_addr_time->time_arrival = dap_nanotime_now();
+                        log_it(L_INFO, "Add last packet time for IP - %s", l_remote_addr_time->remote_addr);
+                        HASH_ADD(hh, s_remote_addr_time, remote_addr, INET_ADDRSTRLEN + 1, l_remote_addr_time);
+                    }
+                    else{
+                        char l_ts_str[50];
+                        dap_time_t ns = dap_nanotime_now();
+                        ns = ns - l_remote_addr_time->time_arrival;
+                        dap_time_t ms = ns / DAP_USEC_PER_SEC;
+                        if(ms > 900)
+                        {
+                            //dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), dap_nanotime_to_sec(l_remote_addr_time->time_arrival));
+                            log_it(L_INFO, "Remove packet time for IP - %s, time delay = %d ms", l_remote_addr_time->remote_addr, ms);
+                            HASH_DEL(s_remote_addr_time, l_remote_addr_time);
+                        }
+                        else
+                            break;
+                    }
+                    l_set_IP = true;
+                }
+                //spam TX check
+                if(i>0){
+
+                    dap_nanotime_t l_time_spam = l_obj->timestamp > (l_store_obj - 1)->timestamp ?
+                                                 l_obj->timestamp - (l_store_obj - 1)->timestamp :
+                                                                    (l_store_obj - 1)->timestamp - l_obj->timestamp;
+                    dap_time_t ms = l_time_spam / DAP_USEC_PER_SEC;
+
+                    if(ms < 200){
+                        log_it(L_ERROR, "Drop spam object!");
+                        continue;
+                    }
+                }
+
+            }
+
             if (s_list_white_groups) {
                 int l_ret = -1;
                 for (int i = 0; i < s_size_white_groups; i++) {
@@ -865,6 +919,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             l_apply_args->sync_request = DAP_DUP(l_sync_request);
             dap_global_db_context_exec(s_gdb_in_pkt_proc_callback_apply, l_apply_args);
         }
+        DAP_DELETE(l_group_str);
         if (l_store_obj)
             dap_store_obj_free(l_store_obj, l_data_obj_count);
     } else {
@@ -922,6 +977,7 @@ struct sync_request *dap_stream_ch_chain_create_sync_request(dap_stream_ch_chain
             .ch_uuid        = a_ch->uuid,
             .request        = l_ch_chain->request,
             .request_hdr    = a_chain_pkt->hdr,
+            .esocket        = a_ch->stream->esocket,
             .remote_atoms   = l_ch_chain->remote_atoms,
             .remote_gdbs    = l_ch_chain->remote_gdbs };
     return l_sync_request;
@@ -1222,30 +1278,6 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB: {
             if(s_debug_more)
                 log_it(L_INFO, "In: GLOBAL_DB data_size=%zu", l_chain_pkt_data_size);
-
-            dap_stream_ch_chain_packet_time_t * l_remote_addr_time = NULL;
-            HASH_FIND(hh, s_remote_addr_time, a_ch->stream->esocket->remote_addr_str, INET_ADDRSTRLEN + 1, l_remote_addr_time);
-            if (!l_remote_addr_time) {
-                l_remote_addr_time = DAP_NEW_Z(dap_stream_ch_chain_packet_time_t);
-                memcpy(l_remote_addr_time->remote_addr, a_ch->stream->esocket->remote_addr_str,INET_ADDRSTRLEN + 1);
-                l_remote_addr_time->time_arrival = dap_nanotime_now();
-                log_it(L_INFO, "Add time from remote node %s", l_remote_addr_time->remote_addr);
-                HASH_ADD(hh, s_remote_addr_time, remote_addr, INET_ADDRSTRLEN + 1, l_remote_addr_time);
-            }
-            else{
-                char l_ts_str[50];
-                dap_time_t ns = dap_nanotime_now();
-                ns = ns - l_remote_addr_time->time_arrival;
-                dap_time_t ms = ns / DAP_USEC_PER_SEC;
-                if(ms > 900)
-                {
-                    dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), dap_nanotime_to_sec(l_remote_addr_time->time_arrival));
-                    log_it(L_INFO, "Remove time from remote node %s time delay = %d ms", l_remote_addr_time->remote_addr, ms);
-                    HASH_DEL(s_remote_addr_time, l_remote_addr_time);
-                }
-                else
-                    break;
-            }
 
             // get transaction and save it to global_db
             if(l_chain_pkt_data_size > 0) {
