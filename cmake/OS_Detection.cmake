@@ -175,6 +175,7 @@ if(WIN32)
     set(CMAKE_LINKER_FLAGS "${CMAKE_LINKER_FLAGS} ${_LOPT}")
 
     include_directories(../../dap-sdk/3rdparty/uthash/src/)
+    include_directories(../../dap-sdk/3rdparty/json-c)
     include_directories(3rdparty/wepoll/)
     #include_directories(libdap-chain-net-srv-vpn/)
 endif()
