@@ -1420,7 +1420,7 @@ static void s_chain_callback_datum_iter_delete(dap_chain_datum_iter_t *a_datum_i
 static void s_datum_iter_fill(dap_chain_datum_iter_t *a_datum_iter, dap_chain_block_datum_index_t *a_datum_index)
 {
     a_datum_iter->cur_item = a_datum_index;
-    if (a_datum_index) {
+    if (a_datum_index && a_datum_index->block_cache->datum) {
         a_datum_iter->cur = a_datum_index->block_cache->datum[a_datum_index->datum_index];
         a_datum_iter->cur_size = dap_chain_datum_size(a_datum_iter->cur);
         a_datum_iter->cur_hash = &a_datum_index->datum_hash;
@@ -1433,6 +1433,7 @@ static void s_datum_iter_fill(dap_chain_datum_iter_t *a_datum_iter, dap_chain_bl
         a_datum_iter->cur_size = 0;
         a_datum_iter->ret_code = 0;
     }
+    debug_if(a_datum_index && !a_datum_index->block_cache->datum, L_ERROR, "Chains was deleted with errors");
 }
 
 static dap_chain_datum_t *s_chain_callback_datum_iter_get_first(dap_chain_datum_iter_t *a_datum_iter)
