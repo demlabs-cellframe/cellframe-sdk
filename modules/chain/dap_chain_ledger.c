@@ -1060,7 +1060,7 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
         l_token_item->current_supply = l_token_item->total_supply;
         l_token_item->auth_signs_total = l_token->signs_total;
         l_token_item->auth_signs_valid = l_token->signs_valid;
-        dap_sign_t **l_signs = dap_chain_datum_token_signs_parse(a_token, a_token_size,
+        dap_sign_t **l_signs = dap_chain_datum_token_signs_parse(l_token, l_token_size,
                                                                      &l_token_item->auth_signs_total,
                                                                      &l_token_item->auth_signs_valid);
         if (l_token_item->auth_signs_total) {
@@ -1148,7 +1148,7 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
                         DAP_DEL_Z(l_balance);
                     }
                     l_res_token_tsd_parse = s_token_tsd_parse(a_ledger, l_token_item, l_token, l_token_size);
-                    s_tsd_sign_apply(a_ledger, l_token_item, a_token, a_token_size);
+                    s_tsd_sign_apply(a_ledger, l_token_item, l_token, l_token_size);
                 }
                     break;
                 case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE: {
@@ -1161,7 +1161,7 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
                         DAP_DEL_Z(l_balance);
                     }
                     l_res_token_tsd_parse = s_token_tsd_parse(a_ledger, l_token_item, l_token, l_token_size);
-                    s_tsd_sign_apply(a_ledger, l_token_item, a_token, a_token_size);
+                    s_tsd_sign_apply(a_ledger, l_token_item, l_token, l_token_size);
                 }
                     break;
             }
