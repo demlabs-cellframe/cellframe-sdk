@@ -1168,20 +1168,19 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
     bool l_issue_new_receipt = false;
     // Check if there are time limits
 
-    if (a_usage->is_free)
+    if (a_usage->is_free || !a_usage->receipt || !a_usage->is_active)
         return;
 
     if (a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_DAY ||
         a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_SEC){
         time_t l_current_limit_ts = 0;
-        if ( a_usage->receipt){
-            switch( a_usage->receipt->receipt_info.units_type.enm){
+
+        switch( a_usage->receipt->receipt_info.units_type.enm){
             case SERV_UNIT_DAY:{
                 l_current_limit_ts = (time_t)a_usage->receipt->receipt_info.units*24*3600;
             } break;
             case SERV_UNIT_SEC:{
                 l_current_limit_ts = (time_t)a_usage->receipt->receipt_info.units;
-            }
             }
         }
 
@@ -1223,6 +1222,8 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                 dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
                 dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
                 dap_stream_ch_pkt_write_unsafe( a_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , &l_err, sizeof(l_err));
+                a_usage->is_active = false;
+                dap_chain_net_srv_usage_delete(a_srv_session, a_usage);
             }
         }
     }else if ( a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_B ||

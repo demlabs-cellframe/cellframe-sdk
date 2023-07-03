@@ -29,6 +29,16 @@
 #include "dap_stream_ch_pkt.h"
 #include "dap_chain_common.h"
 
+#include "dap_chain.h"
+#include "dap_chain_datum_tx.h"
+#include "dap_chain_datum_tx_in.h"
+#include "dap_chain_datum_tx_in_cond.h"
+#include "dap_chain_datum_tx_out.h"
+#include "dap_chain_datum_tx_out_cond.h"
+#include "dap_chain_datum_tx_receipt.h"
+#include "dap_chain_mempool.h"
+#include "dap_common.h"
+
 typedef struct dap_stream_ch_chain_net_srv dap_stream_ch_chain_net_srv_t;
 
 typedef void (*dap_stream_ch_chain_net_srv_callback_packet_t)(dap_stream_ch_chain_net_srv_t *, uint8_t,
@@ -46,3 +56,5 @@ typedef struct dap_stream_ch_chain_net_srv {
 
 uint8_t dap_stream_ch_chain_net_srv_get_id();
 int dap_stream_ch_chain_net_srv_init(void);
+
+void dap_stream_ch_chain_net_srv_tx_cond_added_cb(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_prev_cond);

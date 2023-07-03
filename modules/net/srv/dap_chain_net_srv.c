@@ -91,7 +91,7 @@ static bool s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out
  */
 int dap_chain_net_srv_init()
 {
-    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, s_pay_verificator_callback, NULL);
+    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, s_pay_verificator_callback, dap_stream_ch_chain_net_srv_tx_cond_added_cb);
     dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, s_fee_verificator_callback, NULL);
     dap_stream_ch_chain_net_srv_init();
     m_uid = NULL;
