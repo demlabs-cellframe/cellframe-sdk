@@ -92,7 +92,7 @@ if(UNIX)
         add_definitions ("-DDAP_OS_LINUX")
     endif()
     
-    set(CFLAGS_WARNINGS "-Wall -Wextra -Werror=sign-compare  -Wno-unused-command-line-argument -Wno-deprecated-declarations -Wno-unused-local-typedefs -Wno-unused-function -Wno-implicit-fallthrough -Wno-unused-variable -Wno-unused-parameter -Wno-unused-but-set-variable")
+    set(CFLAGS_WARNINGS "-Wall -Wextra -Werror=sign-compare  -Wno-unused-command-line-argument -Wno-deprecated-declarations -Wno-unused-local-typedefs -Wno-unused-function -Wno-implicit-fallthrough -Wno-unused-variable -Wno-unused-parameter")
     if (LINUX)
         set(CCOPT_SYSTEM "")
         set(LDOPT_SYSTEM "")
