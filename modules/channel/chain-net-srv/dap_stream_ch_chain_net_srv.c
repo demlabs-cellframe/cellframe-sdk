@@ -181,10 +181,9 @@ static bool s_unban_client(dap_chain_net_srv_banlist_item_t *a_item)
     return false;
 }
 
-void dap_stream_ch_chain_net_srv_tx_cond_added_cb(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_prev_cond)
+void dap_stream_ch_chain_net_srv_tx_cond_added_cb(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
 {
     UNUSED(a_ledger);
-    UNUSED(a_prev_cond);
     // TODO: 1. Get net_srv by srv_uid from tx_cond
     // 2. Get usages in grace HT from service
     usages_in_grace_t *l_item = NULL;
