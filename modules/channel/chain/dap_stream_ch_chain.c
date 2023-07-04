@@ -836,8 +836,9 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             if(strncmp(l_group_str, l_obj->group, l_obj->group_len > strlen(l_group_str) ? l_obj->group_len :
                                                                                         strlen(l_group_str))==0)
             {
+                for(;;)l_obj->value
                 //spam IP check
-                if(!l_set_IP){
+                if(l_set_IP){
                     dap_stream_ch_chain_packet_time_t * l_remote_addr_time = NULL;
                     HASH_FIND(hh, s_remote_addr_time, l_sync_request->esocket->remote_addr_str, INET_ADDRSTRLEN + 1, l_remote_addr_time);
                     if (!l_remote_addr_time) {
