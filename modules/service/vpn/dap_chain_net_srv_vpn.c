@@ -1222,8 +1222,6 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                 dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
                 dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
                 dap_stream_ch_pkt_write_unsafe( a_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , &l_err, sizeof(l_err));
-                a_usage->is_active = false;
-                dap_chain_net_srv_usage_delete(a_srv_session, a_usage);
             }
         }
     }else if ( a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_B ||
