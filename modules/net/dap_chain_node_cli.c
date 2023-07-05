@@ -329,12 +329,13 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "decree create service -net <net_name> [-chain <chain_name>] -decree_chain <chain_name> -srv_id <service_id> -certs <certs list> -<Subtype param name> <Subtype param Value>\n"
             "decree sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs_list>\n"
             "decree anchor -net <net_name> -chain <chain_name> -datum <datum_hash> -certs <certs_list>\n"
-            "decree find -net <net_name> -hash <decree_hash>. Find decree by hash and show it's status (apllied or not)"
-            "==Subtype Params==\n"
-            "\t -fee <value>: sets fee for tx in net\n"
-            "\t -to_addr <wallet_addr>: sets wallet addr for network fee\n"
-            "\t -new_certs <certs_list>: sets new owners set for net\n"
-            "\t -signs_verify <value>: sets minimum number of owners needed to sign decree\n");
+            "decree find -net <net_name> -hash <decree_hash>. Find decree by hash and show it's status (apllied or not)\n"
+            "\t==Subtype Params==\n"
+            "\t\t -fee <value>: sets fee for tx in net\n"
+            "\t\t -to_addr <wallet_addr>: sets wallet addr for network fee\n"
+            "\t\t -new_certs <certs_list>: sets new owners set for net\n"
+            "\t\t -signs_verify <value>: sets minimum number of owners needed to sign decree\n"
+            "decree info -net <net_name>. Displays information about the parameters of the decrees in the network.\n");
 
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",
