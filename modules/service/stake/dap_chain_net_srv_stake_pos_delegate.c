@@ -1730,11 +1730,10 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
 
             dap_hash_fast_t *l_final_tx_hash = NULL;
             if (l_tx_hash_str) {
-                dap_hash_fast_t l_tx_hash = {};
-                dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash);
-                l_final_tx_hash = dap_chain_ledger_get_final_chain_tx_hash(l_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_tx_hash);
-                if (!l_final_tx_hash) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Transaction %s is not found or already used", l_tx_hash_str);
+                l_final_tx_hash = DAP_NEW(dap_hash_fast_t);
+                dap_chain_hash_fast_from_str(l_tx_hash_str, l_final_tx_hash);
+                if(!dap_chain_ledger_tx_find_by_hash(l_net->pub.ledger, l_final_tx_hash)) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Transaction %s is not found.", l_tx_hash_str);
                     return -20;
                 }
             } else {
@@ -1773,6 +1772,9 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                     return -18;
                 }
                 dap_chain_datum_tx_t *l_tx = s_stake_tx_invalidate(l_net, l_final_tx_hash, l_fee, dap_chain_wallet_get_key(l_wallet, 0));
+                if (l_tx_hash_str) {
+                    DAP_DELETE(l_final_tx_hash);
+                }
                 dap_chain_wallet_close(l_wallet);
                 char *l_decree_hash_str = NULL;
                 if (l_tx && (l_decree_hash_str = s_stake_tx_put(l_tx, l_net))) {
