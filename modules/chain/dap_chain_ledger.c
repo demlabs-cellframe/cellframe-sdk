@@ -4186,8 +4186,12 @@ static inline int s_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, d
                 pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
             }
         } else {
-            if(s_debug_more)
-                log_it (L_WARNING, "dap_chain_ledger_tx_add() tx %s not passed the check: code %d ",l_tx_hash_str, l_ret_check);
+            if(s_debug_more) {
+                char *l_ret_err_str = dap_chain_ledger_tx_check_err_str(l_ret_check);
+                log_it (L_WARNING, "dap_chain_ledger_tx_add() tx %s not passed the check: %s ", l_tx_hash_str,
+                        l_ret_err_str);
+                DAP_DELETE(l_ret_err_str);
+            }
         }
         return l_ret_check;
     }
