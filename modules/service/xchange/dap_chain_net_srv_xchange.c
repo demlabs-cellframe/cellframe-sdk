@@ -1546,7 +1546,7 @@ static int s_cli_srv_xchange_tx_list_addr (
 char l_hash_str [DAP_CHAIN_HASH_FAST_STR_SIZE + 8] = {0};
 dap_chain_hash_fast_t l_tx_first_hash = {0};
 dap_chain_datum_tx_t    *l_datum_tx;
-size_t  l_datum_tx_size, l_tx_total, l_tx_count;
+size_t  l_datum_tx_size, l_tx_total;
 int l_item_idx;
 bool l_rc = false;
 dap_string_t *l_reply_str;
@@ -1560,7 +1560,7 @@ dap_chain_tx_out_cond_t *l_out_cond_item;
     memset(&l_tx_first_hash, 0, sizeof(dap_chain_hash_fast_t));             /* Initial hash == zero */
 
 
-    for ( l_tx_count = l_tx_total = 0;
+    for (l_tx_total = 0;
             (l_datum_tx = dap_chain_ledger_tx_find_by_addr(a_net->pub.ledger, NULL, a_addr, &l_tx_first_hash));
                 l_tx_total++)
     {

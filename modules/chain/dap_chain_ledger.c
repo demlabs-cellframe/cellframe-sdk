@@ -1387,6 +1387,8 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
                             break;
                         }
                     }
+                    // TODO
+                    UNUSED(l_was_found);
                 }else{
                     if(s_debug_more)
                         log_it(L_ERROR,"TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_REMOVE expected to have %zu bytes data length, not %u",
@@ -1479,6 +1481,8 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
                             break;
                         }
                     }
+                    // TODO
+                    UNUSED(l_was_found);
                 }else{
                     if(s_debug_more)
                         log_it(L_ERROR,"TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_REMOVE expected to have %zu bytes data length, not %u",
@@ -1565,6 +1569,8 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
                             break;
                         }
                     }
+                    // TODO
+                    UNUSED(l_was_found);
                 }else{
                     if(s_debug_more)
                         log_it(L_ERROR,"TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_REMOVE expected to have %zu bytes data length, not %u",
@@ -1652,6 +1658,8 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
                             break;
                         }
                     }
+                    // TODO
+                    UNUSED(l_was_found);
                 }else{
                     if(s_debug_more)
                         log_it(L_ERROR,"TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_REMOVE expected to have %zu bytes data length, not %u",
@@ -1817,7 +1825,6 @@ dap_string_t *dap_chain_ledger_threshold_hash_info(dap_ledger_t *a_ledger, dap_c
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_chain_ledger_tx_item_t *l_tx_item, *l_tx_tmp;
     dap_string_t *l_str_ret = dap_string_new("");
-    uint32_t l_counter = 0;
     pthread_rwlock_rdlock(&l_ledger_pvt->threshold_txs_rwlock);
     HASH_ITER(hh, l_ledger_pvt->threshold_txs, l_tx_item, l_tx_tmp){
         if (!memcmp(l_threshold_hash,&l_tx_item->tx_hash_fast, sizeof(dap_chain_hash_fast_t))){
@@ -1833,7 +1840,6 @@ dap_string_t *dap_chain_ledger_threshold_hash_info(dap_ledger_t *a_ledger, dap_c
     pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
 
     pthread_rwlock_rdlock(&l_ledger_pvt->threshold_emissions_rwlock);
-    l_counter = 0;
     dap_chain_ledger_token_emission_item_t *l_emission_item, *l_emission_tmp;
     HASH_ITER(hh, l_ledger_pvt->threshold_emissions, l_emission_item, l_emission_tmp){
         if (!memcmp(&l_emission_item->datum_token_emission_hash,l_threshold_hash, sizeof(dap_chain_hash_fast_t))){
