@@ -83,9 +83,23 @@ int dap_chain_mempool_tx_create_massive(dap_chain_t * a_chain, dap_enc_key_t *a_
         const char a_token_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
         uint256_t a_value, uint256_t a_value_fee, size_t a_tx_num);
 
+/**
+ * @brief dap_chain_mempool_base_tx_create
+ * @param a_chain
+ * @param a_emission_hash
+ * @param a_emission_chain_id
+ * @param a_emission_value
+ * @param a_ticker
+ * @param a_addr_to
+ * @param a_private_key For a basic transaction not in a native token, use the key obtained from the wallet. For the
+ * basic transaction in the native token, use the key obtained from the certificate.
+ * @param a_hash_out_type
+ * @param a_value_fee
+ * @return
+ */
 char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_emission_hash,
                                        dap_chain_id_t a_emission_chain_id, uint256_t a_emission_value, const char *a_ticker,
-                                       dap_enc_key_t *a_key_from, dap_chain_addr_t *a_addr_to, dap_cert_t **a_certs, size_t a_certs_count,
+                                       dap_chain_addr_t *a_addr_to, dap_enc_key_t *a_private_key,
                                        const char *a_hash_out_type, uint256_t a_value_fee);
 
 dap_chain_datum_token_emission_t *dap_chain_mempool_emission_get(dap_chain_t *a_chain, const char *a_emission_hash_str);
