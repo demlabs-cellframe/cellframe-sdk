@@ -55,6 +55,7 @@ typedef struct dap_chain_net_srv_usage{
     bool is_active;
     bool is_free;
     bool is_grace;
+    bool is_waiting_new_tx_cond;
 //    UT_hash_handle hh; //
 } dap_chain_net_srv_usage_t;
 

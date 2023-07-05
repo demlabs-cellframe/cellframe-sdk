@@ -79,7 +79,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace);
 static inline void s_grace_error(dap_chain_net_srv_grace_t *a_grace, dap_stream_ch_chain_net_srv_pkt_error_t a_err){
     dap_stream_ch_t * l_ch = a_grace->usage->client->ch;
     dap_chain_net_srv_stream_session_t *l_srv_session = l_ch && l_ch->stream && l_ch->stream->session ?
-                                                        (dap_chain_net_srv_stream_session_t *)l_ch->stream->session->_inheritor : NULL;
+                                        (dap_chain_net_srv_stream_session_t *)l_ch->stream->session->_inheritor : NULL;
 
         a_grace->usage->is_grace = false;
     if (a_grace->usage->receipt_next){ // If not first grace-period
@@ -324,7 +324,7 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
         return;
     }
 
-    l_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, &a_grace->usage->tx_cond_hash);
+    l_tx = a_grace->usage->is_waiting_new_tx_cond ? NULL : dap_chain_ledger_tx_find_by_hash(l_ledger, &a_grace->usage->tx_cond_hash);
     if ( ! l_tx ){ // No tx cond transaction, start grace-period
         a_grace->usage->is_grace = true;
 
@@ -333,10 +333,7 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
 
         a_grace->usage->price = l_price;
 
-        if (a_grace->usage->receipt_next){
-            DAP_DEL_Z(a_grace->usage->receipt_next);
-            a_grace->usage->receipt_next = dap_chain_net_srv_issue_receipt(a_grace->usage->service, a_grace->usage->price, NULL, 0);
-        }else{
+        if (!a_grace->usage->receipt){
             a_grace->usage->receipt = dap_chain_net_srv_issue_receipt(a_grace->usage->service, a_grace->usage->price, NULL, 0);
             dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
                                        a_grace->usage->receipt, a_grace->usage->receipt->size);
@@ -426,15 +423,25 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
     memset(&l_err, 0, sizeof(l_err));
     dap_chain_net_srv_grace_t *l_grace = a_grace_item->grace;
 
-    dap_stream_ch_t *l_ch = l_grace->usage->client->ch;
+    dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(a_grace->stream_worker, a_grace->ch_uuid);
 
     if (!l_ch){
         s_grace_error(l_grace, l_err);
         HASH_DEL(s_grace_table, a_grace_item);
+        DAP_DEL_Z(a_grace_item);
         return false;
     }
 
-    dap_chain_net_t * l_net = l_grace->usage->net;
+    if (l_grace->usage->is_waiting_new_tx_cond){
+        log_it(L_INFO, "No new tx cond!");
+        s_grace_error(l_grace, l_err);
+        l_grace->usage->is_waiting_new_tx_cond = false;
+        HASH_DEL(s_grace_table, a_grace_item);
+        DAP_DEL_Z(a_grace_item);
+        return false;
+    }
+
+    dap_chain_net_t * l_net = l_grace->us1age->net;
 
     l_err.net_id.uint64 = l_net->pub.id.uint64;
     l_err.srv_uid.uint64 = l_grace->usage->service->uid.uint64;
@@ -448,6 +455,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_NO_LEDGER ;
         s_grace_error(l_grace, l_err);
         HASH_DEL(s_grace_table, a_grace_item);
+        DAP_DEL_Z(a_grace_item);
         return false;
     }
 
@@ -457,6 +465,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND ;
         s_grace_error(l_grace, l_err);
         HASH_DEL(s_grace_table, a_grace_item);
+        DAP_DEL_Z(a_grace_item);
         return false;
     } else { // Start srvice in normal pay mode
         log_it(L_INFO, "Tx is found in ledger.");
@@ -469,6 +478,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NO_COND_OUT ;
             s_grace_error(l_grace, l_err);
             HASH_DEL(s_grace_table, a_grace_item);
+            DAP_DEL_Z(a_grace_item);
             return false;
         }
 
@@ -479,6 +489,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_WRONG_SRV_UID  ;
             s_grace_error(l_grace, l_err);
             HASH_DEL(s_grace_table, a_grace_item);
+            DAP_DEL_Z(a_grace_item);
             return false;
         }
 
@@ -504,6 +515,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
             l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
             s_grace_error(l_grace, l_err);
             HASH_DEL(s_grace_table, a_grace_item);
+            DAP_DEL_Z(a_grace_item);
             return false;
         }
 
@@ -513,6 +525,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
             l_err.code = (uint32_t) ret ;
             s_grace_error(l_grace, l_err);
             HASH_DEL(s_grace_table, a_grace_item);
+            DAP_DEL_Z(a_grace_item);
             return false;
         }
 
@@ -534,6 +547,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
             log_it(L_WARNING, "Tx already in chain, but receipt is not signed by client. Finish grace and wait receipt sign responce.");
             s_grace_error(l_grace, l_err);
             HASH_DEL(s_grace_table, a_grace_item);
+            DAP_DEL_Z(a_grace_item);
             return false;
         }
         dap_get_data_hash_str_static(l_receipt, l_receipt_size, l_receipt_hash_str);
@@ -554,11 +568,26 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
 
         }else{
             if(ret_status == DAP_CHAIN_MEMPOOl_RET_STATUS_NOT_ENOUGH){
-                memset(&l_grace->usage->tx_cond_hash, 0, sizeof(l_grace->usage->tx_cond_hash));
-                DAP_DEL_Z(l_grace->usage->receipt_next);
+//                memset(&l_grace->usage->tx_cond_hash, 0, sizeof(l_grace->usage->tx_cond_hash));
+//                DAP_DEL_Z(l_grace->usage->receipt_next);
                 log_it(L_ERROR, "Tx cond have not enough funds");
+                dap_chain_net_srv_grace_t* l_grace_new = DAP_NEW_Z(dap_chain_net_srv_grace_t);
+                // Parse the request
+                l_grace_new->request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_request_t, sizeof(dap_stream_ch_chain_net_srv_pkt_request_t));
+                l_grace_new->request->hdr.net_id = a_grace_item->grace->usage->net->pub.id;
+                memcpy(l_grace_new->request->hdr.token, a_grace_item->grace->usage->token_ticker, strlen(a_grace_item->grace->usage->token_ticker));
+                l_grace_new->request->hdr.srv_uid = a_grace_item->grace->usage->service->uid;
+                l_grace_new->request->hdr.tx_cond = a_grace_item->grace->usage->tx_cond_hash;
+                l_grace_new->request_size = sizeof(dap_stream_ch_chain_net_srv_pkt_request_t);
+                l_grace_new->ch_uuid = a_grace_item->grace->usage->client->ch->uuid;
+                l_grace_new->stream_worker = a_grace_item->grace->usage->client->ch->stream_worker;
+                l_grace_new->usage = a_grace_item->grace->usage;
+                l_grace_new->usage->is_waiting_new_tx_cond = true;
+                s_grace_period_start(l_grace_new);
+
                 l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ENOUGH;
                 dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+
             }else{
                 log_it(L_ERROR, "Can't create input tx cond transaction!");
                 memset(&l_grace->usage->tx_cond_hash, 0, sizeof(l_grace->usage->tx_cond_hash));
@@ -578,6 +607,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
     DAP_DELETE(a_grace_item->grace->request);
     DAP_DEL_Z(a_grace_item->grace);
     HASH_DEL(s_grace_table, a_grace_item);
+    DAP_DEL_Z(a_grace_item);
     return false;
 }
 
@@ -759,6 +789,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                         // finish grace
                         s_grace_period_finish(l_grace_item);
                         HASH_DEL(s_grace_table, l_grace_item);
+                        DAP_DEL_Z(a_grace_item);
                     }
                     pthread_mutex_unlock(&s_ht_grace_table_mutex);
                     l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_BANNED_PKEY_HASH ;
@@ -835,13 +866,25 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     break;
                 case DAP_CHAIN_MEMPOOl_RET_STATUS_NOT_ENOUGH:
                     // TODO send new tx cond request
-                    memset(&l_usage->tx_cond_hash, 0, sizeof(l_usage->tx_cond_hash));
-                    DAP_DEL_Z(l_usage->receipt_next);
                     log_it(L_ERROR, "Tx cond have not enough funds");
-//                    l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ENOUGH;
-//                    dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
-//                    if (l_usage->service->callbacks.response_error)
-//                            l_usage->service->callbacks.response_error(l_usage->service,l_usage->id, l_usage->client,&l_err,sizeof (l_err));
+                    l_usage->is_waiting_new_tx_cond = true;
+                    l_grace = DAP_NEW_Z(dap_chain_net_srv_grace_t);
+                    // Parse the request
+                    l_grace->request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_request_t, sizeof(dap_stream_ch_chain_net_srv_pkt_request_t));
+                    l_grace->request->hdr.net_id = l_usage->net->pub.id;
+                    memcpy(l_grace->request->hdr.token, l_usage->token_ticker, strlen(l_usage->token_ticker));
+                    l_grace->request->hdr.srv_uid = l_usage->service->uid;
+                    l_grace->request->hdr.tx_cond = l_usage->tx_cond_hash;
+                    l_ch_chain_net_srv->srv_uid.uint64 = l_grace->request->hdr.srv_uid.uint64;
+                    l_grace->request_size = l_ch_pkt->hdr.data_size;
+                    l_grace->ch_uuid = a_ch->uuid;
+                    l_grace->stream_worker = a_ch->stream_worker;
+                    l_grace->usage = l_usage;
+                    s_grace_period_start(l_grace);
+                    l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ENOUGH;
+                    dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+                    if (l_usage->service->callbacks.response_error)
+                            l_usage->service->callbacks.response_error(l_usage->service,l_usage->id, l_usage->client,&l_err,sizeof (l_err));
                     DAP_DELETE(l_tx_in_hash_str);
                     break;
                 case DAP_CHAIN_MEMPOOL_RET_STATUS_BAD_ARGUMENTS:
@@ -954,11 +997,49 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         dap_chain_net_srv_usage_t * l_usage = NULL;
         l_usage = l_srv_session->usage_active;
         dap_stream_ch_chain_net_srv_pkt_request_t* l_responce = (dap_stream_ch_chain_net_srv_pkt_request_t*)l_ch_pkt->data;
-        l_usage->tx_cond_hash = l_responce->hdr.tx_cond;
-        char *l_tx_in_hash_str = dap_chain_hash_fast_to_str_new(&l_usage->tx_cond_hash);
+
+        char *l_tx_in_hash_str = dap_chain_hash_fast_to_str_new(&l_responce->hdr.tx_cond);
         log_it(L_NOTICE, "Received new tx cond %s", l_tx_in_hash_str);
         DAP_DELETE(l_tx_in_hash_str);
+        l_usage->is_waiting_new_tx_cond = false;
 
+        usages_in_grace_t *l_curr_grace_item = NULL;
+        pthread_mutex_lock(&s_ht_grace_table_mutex);
+        HASH_FIND(hh, s_grace_table, &l_usage->tx_cond_hash, sizeof(dap_hash_fast_t), l_curr_grace_item);
+        pthread_mutex_unlock(&s_ht_grace_table_mutex);
+
+//        if (dap_hash_fast_compare(&l_responce->hdr.tx_cond, &l_usage->tx_cond_hash) || !l_usage->is_grace){ //check new tx not equals to old tx or tx waiting grace period is over
+//            // if equals delete receipt and tx and stop grace if running
+//            if (l_curr_grace_item){
+//                HASH_DEL(s_grace_table, l_curr_grace_item);
+//                dap_timerfd_delete_mt(l_curr_grace_item->grace->stream_worker->worker, l_curr_grace_item->grace->timer_es_uuid);
+//            }
+//            break;
+//        }
+
+        dap_chain_datum_tx_t *l_tx = dap_chain_ledger_tx_find_by_hash(l_usage->net->pub.ledger, &l_responce->hdr.tx_cond);
+        if (l_tx){
+            // Replace
+            if (l_curr_grace_item){
+                log_it(L_INFO, "Found tx in ledger by net tx responce handler. Finish waiting new tx grace period.");
+                // Stop timer
+                dap_timerfd_delete_mt(l_curr_grace_item->grace->stream_worker->worker, l_curr_grace_item->grace->timer_es_uuid);
+                // finish grace
+                l_usage->tx_cond_hash = l_responce->hdr.tx_cond;
+                l_curr_grace_item->grace->request->hdr.tx_cond = l_responce->hdr.tx_cond;
+                s_grace_period_finish(l_curr_grace_item);
+            }
+        }else{
+            if (l_curr_grace_item){
+                l_curr_grace_item->grace->usage->tx_cond_hash = l_responce->hdr.tx_cond;
+                l_curr_grace_item->grace->request->hdr.tx_cond = l_responce->hdr.tx_cond;
+                pthread_mutex_lock(&s_ht_grace_table_mutex);
+                HASH_DEL(s_grace_table, l_curr_grace_item);
+                l_curr_grace_item->tx_cond_hash = l_responce->hdr.tx_cond;
+                HASH_ADD(hh, s_grace_table, tx_cond_hash, sizeof(dap_hash_fast_t), l_curr_grace_item);
+                pthread_mutex_unlock(&s_ht_grace_table_mutex);
+            }
+        }
 
 
         size_t l_success_size = sizeof (dap_stream_ch_chain_net_srv_pkt_success_hdr_t );
