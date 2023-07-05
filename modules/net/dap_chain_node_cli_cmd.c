@@ -1974,23 +1974,9 @@ char    l_buf[1024];
             if (l_sign_type.type == SIG_TYPE_TESLA)
                 return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Tesla algorithm is no longer supported, please, use another variant"), -1;
 
-            uint8_t *l_seed = NULL;
-            size_t l_seed_size = 0, l_restore_str_size = dap_strlen(l_restore_str);
-
-            if(l_restore_str && l_restore_str_size > 2 && !dap_strncmp(l_restore_str, "0x", 2)) {
-                l_seed_size = (l_restore_str_size - 2) / 2;
-                l_seed = DAP_NEW_SIZE(uint8_t, l_seed_size);
-                if(!dap_hex2bin(l_seed, l_restore_str + 2, l_restore_str_size - 2)){
-                    DAP_DELETE(l_seed);
-                    l_seed = NULL;
-                    l_seed_size = 0;
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Restored hash is invalid, wallet is not created");
-                    return -1;
-                }
-            }
             // Creates new wallet
             dap_chain_wallet_t *l_wallet = dap_chain_wallet_create_with_seed(l_wallet_name, c_wallets_path, l_sign_type,
-                    l_seed, l_seed_size, l_pass_str);
+                    l_restore_str, dap_strlen(l_restore_str), l_pass_str);
 
             if (!l_wallet)
                 return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet is not created because of internal error"), -1;
