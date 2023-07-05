@@ -1176,7 +1176,7 @@ static dap_chain_datum_anchor_t * s_sign_anchor_in_cycle(dap_cert_t ** a_certs, 
 // Decree commands handlers
 int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
 {
-    enum { CMD_NONE=0, CMD_CREATE, CMD_SIGN, CMD_ANCHOR, CMD_FIND };
+    enum { CMD_NONE=0, CMD_CREATE, CMD_SIGN, CMD_ANCHOR, CMD_FIND, CMD_INFO };
     enum { TYPE_NONE=0, TYPE_COMMON, TYPE_SERVICE};
     enum { SUBTYPE_NONE=0, SUBTYPE_FEE, SUBTYPE_OWNERS, SUBTYPE_MIN_OWNERS};
     int arg_index = 1;
@@ -1221,8 +1221,10 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
         l_cmd = CMD_ANCHOR;
     else if (dap_cli_server_cmd_find_option_val(a_argv, 1, 2, "find", NULL))
         l_cmd = CMD_FIND;
+    else if (dap_cli_server_cmd_find_option_val(a_argv, 1, 2, "info", NULL))
+        l_cmd = CMD_INFO;
 
-    if (l_cmd != CMD_FIND) {
+    if (l_cmd != CMD_FIND && l_cmd != CMD_INFO) {
         // Public certifiacte of condition owner
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-certs", &l_certs_str);
         if (!l_certs_str) {
@@ -1670,6 +1672,28 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
         dap_chain_datum_decree_t *l_decree = dap_chain_net_decree_get_by_hash(&l_datum_hash, &l_applied);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified decree is %s in decrees hash-table",
                                           l_decree ? (l_applied ? "applied" : "not applied") : "not found");
+    } break;
+    case CMD_INFO: {
+        dap_string_t *l_str_owner_pkey = dap_string_new("");
+        int i = 1;
+        for (dap_list_t *l_current_pkey = l_net->pub.decree->pkeys; l_current_pkey; l_current_pkey = l_current_pkey->next){
+            dap_pkey_t *l_pkey = (dap_pkey_t*)(l_current_pkey->data);
+            dap_hash_fast_t l_pkey_hash = {0};
+            dap_pkey_get_hash(l_pkey, &l_pkey_hash);
+            char *l_pkey_hash_str = dap_hash_fast_to_str_new(&l_pkey_hash);
+            dap_string_append_printf(l_str_owner_pkey, "\t%d) %s\n", i, l_pkey_hash_str);
+            i++;
+            DAP_DELETE(l_pkey_hash_str);
+        }
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Decree info:\n"
+                                                       "\tOwners: %d\n"
+                                                       "\t=====================================================================\n"
+                                                       "%s"
+                                                       "\t=====================================================================\n"
+                                                       "\tMin owners for apply decree: %d\n",
+                                          l_net->pub.decree->num_of_owners, l_str_owner_pkey->str,
+                                          l_net->pub.decree->min_num_of_owners);
+        dap_string_free(l_str_owner_pkey, true);
     } break;
     default:
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Not found decree action. Use create, sign, anchor or find parameter");

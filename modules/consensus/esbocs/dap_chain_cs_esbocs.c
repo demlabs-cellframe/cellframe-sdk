@@ -1299,6 +1299,7 @@ static void s_check_db_callback_fee_collect (UNUSED_ARG dap_global_db_context_t 
     dap_chain_block_cache_t *l_block_cache = NULL;
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
     dap_list_t *l_block_list = NULL;
+    log_it(L_MSG, "Fee collector start work");
     l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_arg->block_hash);
     if(!l_block_cache)
     {
@@ -1441,7 +1442,7 @@ static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_ch
         tmp->chain = l_chain;
         tmp->value_fee = PVT(a_session->esbocs)->minimum_fee;
         tmp->fee_need_cfg = PVT(a_session->esbocs)->fee_coll_set;
-        tmp->key_from = a_session->blocks_sign_key;
+        tmp->key_from = PVT(a_session->esbocs)->blocks_sign_key;
 
         dap_global_db_get_all(s_block_fee_group,0,s_check_db_callback_fee_collect,tmp);
     }
@@ -1725,11 +1726,10 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                 s_session_sync_queue_add(l_session, l_message, a_data_size);
                 goto session_unlock;
             }
-        } else if (l_message->hdr.round_id != l_session->cur_round.id ||
-                   l_message->hdr.attempt_num < l_session->cur_round.attempt_num) {
+        } else if (l_message->hdr.round_id != l_session->cur_round.id) {
             // round check
             debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
-                                        " Message rejected: round or attempt in message does not match",
+                                        " Message rejected: round number doesn't match",
                                             l_session->chain->net_name, l_session->chain->name,
                                                 l_session->cur_round.id, l_session->cur_round.attempt_num);
             goto session_unlock;
@@ -1745,6 +1745,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                                                 l_session->cur_round.id, l_message->hdr.attempt_num);
             goto session_unlock;
         }
+        dap_chain_addr_fill_from_sign(&l_signing_addr, l_sign, l_session->chain->net_id);
         // check messages chain
         dap_chain_esbocs_message_item_t *l_chain_message, *l_chain_message_tmp;
         HASH_ITER(hh, l_round->message_items, l_chain_message, l_chain_message_tmp) {
@@ -1770,12 +1771,11 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                 }
             }
         }
-        dap_chain_addr_fill_from_sign(&l_signing_addr, l_sign, l_session->chain->net_id);
         s_message_chain_add(l_session, l_message, a_data_size, a_data_hash, &l_signing_addr);
-    }
+    } else
+        dap_chain_addr_fill_from_sign(&l_signing_addr, l_sign, l_session->chain->net_id);
 
     // Process local & network messages
-    dap_chain_addr_fill_from_sign(&l_signing_addr, l_sign, l_session->chain->net_id);
     if (l_cs_debug)
         l_validator_addr_str = dap_chain_addr_to_str(&l_signing_addr);
     bool l_not_in_list = false;
@@ -1802,7 +1802,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
     }
     if (l_not_in_list) {
         debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
-                                    " Message rejected: validator addr:%s not in the current validators list",
+                                    " Message rejected: validator addr:%s not in the current validators list or not synced yet",
                                         l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                             l_message->hdr.attempt_num, l_validator_addr_str);
         goto session_unlock;
