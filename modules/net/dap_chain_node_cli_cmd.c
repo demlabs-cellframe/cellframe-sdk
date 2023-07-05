@@ -87,7 +87,7 @@
 
 
 #include "dap_enc_base64.h"
-#include <json-c/json.h>
+#include "json.h"
 #ifdef DAP_OS_UNIX
 #include <dirent.h>
 #endif
@@ -735,17 +735,17 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
     int arg_index = 1;
     int cmd_name = CMD_NONE;
     // find 'cells' as first parameter only
-    if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "cells", NULL))
+    if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "cells", NULL))
         cmd_name = CMD_NAME_CELL;
-    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "flush", NULL))
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "flush", NULL))
         cmd_name = CMD_FLUSH;
-    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "record", NULL))
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "record", NULL))
             cmd_name = CMD_RECORD;
-    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "write", NULL))
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "write", NULL))
                 cmd_name = CMD_WRITE;
-    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "read", NULL))
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "read", NULL))
                 cmd_name = CMD_READ;
-    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "delete", NULL))
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "delete", NULL))
                 cmd_name = CMD_DELETE;
     switch (cmd_name) {
     case CMD_NAME_CELL:
@@ -776,7 +776,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
         int cmd_num = CMD_NONE;
         switch (cmd_name) {
             case CMD_NAME_CELL:
-                if((arg_index_n = dap_cli_server_cmd_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "add", NULL))
+                if((arg_index_n = dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "add", NULL))
                         != 0) {
                     cmd_num = CMD_ADD;
                 }
@@ -848,15 +848,15 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
         int arg_index_n = ++arg_index;
         int l_subcmd;
         // Get value
-        if((arg_index_n = dap_cli_server_cmd_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "get", NULL))!= 0) {
+        if((arg_index_n = dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "get", NULL))!= 0) {
             l_subcmd = SUMCMD_GET;
         }
         // Pin record
-        else if((arg_index_n = dap_cli_server_cmd_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "pin", NULL)) != 0) {
+        else if((arg_index_n = dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "pin", NULL)) != 0) {
             l_subcmd = SUMCMD_PIN;
         }
         // Unpin record
-        else if((arg_index_n = dap_cli_server_cmd_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "unpin", NULL)) != 0) {
+        else if((arg_index_n = dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "unpin", NULL)) != 0) {
             l_subcmd = SUMCMD_UNPIN;
         }
         else{
@@ -1036,30 +1036,30 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     };
     int arg_index = 1;
     int cmd_num = CMD_NONE;
-    if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "add", NULL)) {
+    if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "add", NULL)) {
         cmd_num = CMD_ADD;
     }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "del", NULL)) {
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "del", NULL)) {
         cmd_num = CMD_DEL;
     }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "link", NULL)) {
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "link", NULL)) {
         cmd_num = CMD_LINK;
     }
     else
     // find  add parameter ('alias' or 'handshake')
-    if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "handshake", NULL)) {
+    if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "handshake", NULL)) {
         cmd_num = CMD_HANDSHAKE;
     }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "connect", NULL)) {
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "connect", NULL)) {
         cmd_num = CMD_CONNECT;
     }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "alias", NULL)) {
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "alias", NULL)) {
         cmd_num = CMD_ALIAS;
     }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "dump", NULL)) {
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "dump", NULL)) {
         cmd_num = CMD_DUMP;
     }
-    else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "connections", NULL)) {
+    else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "connections", NULL)) {
         cmd_num = CMD_CONNECTIONS;
 //        char *l_str = NULL;
 //        dap_stream_connections_print(&l_str);
@@ -1143,13 +1143,13 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         return l_ret;
     }
     case CMD_LINK:
-        if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "add", NULL)) {
+        if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "add", NULL)) {
             // handler of command 'node link add -addr <node address> -link <node address>'
             int l_ret = link_add_or_del_with_reply(l_net, l_node_info, "add", alias_str, &l_link, a_str_reply);
             DAP_DELETE(l_node_info);
             return l_ret;
         }
-        else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "del", NULL)) {
+        else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "del", NULL)) {
             // handler of command 'node link del -addr <node address> -link <node address>'
             int l_ret = link_add_or_del_with_reply(l_net, l_node_info, "del", alias_str, &l_link, a_str_reply);
             DAP_DELETE(l_node_info);
@@ -1838,17 +1838,17 @@ char    l_buf[1024];
 
 
     // find  add parameter ('alias' or 'handshake')
-    if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "new", NULL))
+    if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "new", NULL))
         cmd_num = CMD_WALLET_NEW;
-    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "list", NULL))
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "list", NULL))
         cmd_num = CMD_WALLET_LIST;
-    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "info", NULL))
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "info", NULL))
         cmd_num = CMD_WALLET_INFO;
-    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "activate", NULL))
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "activate", NULL))
         cmd_num = CMD_WALLET_ACTIVATE;
-    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "deactivate", NULL))
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "deactivate", NULL))
         cmd_num = CMD_WALLET_DEACTIVATE;
-    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "convert", NULL))
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "convert", NULL))
         cmd_num = CMD_WALLET_CONVERT;
 
     l_arg_index++;
@@ -5611,7 +5611,7 @@ int com_stats(int argc, char **a_argv, char **a_str_reply)
     int arg_index = 1;
     int cmd_num = CMD_NONE;
     // find  add parameter ('cpu')
-    if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, min(argc, arg_index + 1), "cpu", NULL)) {
+    if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(argc, arg_index + 1), "cpu", NULL)) {
         cmd_num = CMD_STATS_CPU;
     }
     switch (cmd_num) {
@@ -6126,7 +6126,7 @@ int com_signer(int a_argc, char **a_argv, char **a_str_reply)
 
     size_t l_len_opts = sizeof(l_opts) / sizeof(struct opts);
     for (size_t i = 0; i < l_len_opts; i++) {
-        if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), l_opts[i].name, NULL)) {
+        if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), l_opts[i].name, NULL)) {
             cmd_num = l_opts[i].cmd;
             break;
         }
