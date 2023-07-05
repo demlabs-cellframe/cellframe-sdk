@@ -1087,6 +1087,10 @@ static void s_message_chain_add(dap_chain_esbocs_session_t *a_session,
                                 dap_chain_hash_fast_t *a_message_hash,
                                 dap_chain_addr_t *a_signing_addr)
 {
+    if (NULL == a_message) {
+        log_it(L_WARNING, "Message is empty %s", a_message);
+        return;
+    }
     dap_chain_esbocs_round_t *l_round = &a_session->cur_round;
     dap_chain_esbocs_message_item_t *l_message_item = DAP_NEW_Z(dap_chain_esbocs_message_item_t);
     if (!a_message_hash) {
@@ -1134,6 +1138,10 @@ static void s_session_candidate_submit(dap_chain_esbocs_session_t *a_session)
 static void s_session_candidate_verify(dap_chain_esbocs_session_t *a_session, dap_chain_block_t *a_candidate,
                                        size_t a_candidate_size, dap_hash_fast_t *a_candidate_hash)
 {
+    if (NULL == a_candidate) {
+        log_it(L_WARNING, "Candidate is empty %s", a_candidate);
+        return false;
+    }
     // Process early received messages
     for (dap_chain_esbocs_message_item_t *l_item = a_session->cur_round.message_items; l_item; l_item = l_item->hh.next) {
         if (l_item->unprocessed &&
@@ -1177,6 +1185,11 @@ static void s_session_candidate_verify(dap_chain_esbocs_session_t *a_session, da
 
 static void s_session_candidate_precommit(dap_chain_esbocs_session_t *a_session, dap_chain_esbocs_message_t *a_message)
 {
+    if (NULL == a_message) {
+        log_it(L_WARNING, "Message is empty %s", a_message);
+        return;
+    }
+
     bool l_cs_debug = PVT(a_session->esbocs)->debug;
     uint16_t l_cs_level = PVT(a_session->esbocs)->min_validators_count;
     byte_t *l_message_data = a_message->msg_n_sign;
@@ -1240,6 +1253,10 @@ static void s_session_candidate_precommit(dap_chain_esbocs_session_t *a_session,
 static bool s_session_candidate_to_chain(dap_chain_esbocs_session_t *a_session, dap_chain_hash_fast_t *a_candidate_hash,
                                          dap_chain_block_t *a_candidate, size_t a_candidate_size)
 {
+    if (NULL == a_candidate) {
+        log_it(L_WARNING, "Candidate is empty %s", a_candidate);
+        return false;
+    }
     bool res = false;
     dap_chain_block_t *l_candidate = DAP_DUP_SIZE(a_candidate, a_candidate_size);
     dap_chain_atom_verify_res_t l_res = a_session->chain->callback_atom_add(a_session->chain, l_candidate, a_candidate_size);

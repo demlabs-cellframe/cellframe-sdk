@@ -556,6 +556,10 @@ static bool s_net_send_atoms(dap_proc_thread_t *a_thread, void *a_arg)
  */
 static void s_chain_callback_notify(void *a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, void* a_atom, size_t a_atom_size)
 {
+    if (NULL == a_chain) {
+        log_it(L_WARNING, "Chain object is empty %s", a_chain);
+        return;
+    }
     if (!a_arg)
         return;
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
