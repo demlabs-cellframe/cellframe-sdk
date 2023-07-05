@@ -1294,7 +1294,7 @@ OAES_RET oaes_encrypt( OAES_CTX * ctx,
 	for( _i = 0; _i < _c_data_len; _i += OAES_BLOCK_SIZE )
 	{
 		uint8_t _block[OAES_BLOCK_SIZE];
-		size_t _block_size = min( m_len - _i, OAES_BLOCK_SIZE );
+        size_t _block_size = min( m_len - _i, OAES_BLOCK_SIZE );
 
 		memcpy( _block, c + 2 * OAES_BLOCK_SIZE + _i, _block_size );
 		
@@ -1413,7 +1413,7 @@ OAES_RET oaes_decrypt( OAES_CTX * ctx,
 			memcpy( _iv, c + OAES_BLOCK_SIZE + _i, OAES_BLOCK_SIZE );
 		
 		_rc = _rc ||
-				oaes_decrypt_block( ctx, m + _i, min( *m_len - _i, OAES_BLOCK_SIZE ) );
+                oaes_decrypt_block( ctx, m + _i, min( *m_len - _i, OAES_BLOCK_SIZE ) );
 		
 		// CBC
 		if( _options & OAES_OPTION_CBC )
