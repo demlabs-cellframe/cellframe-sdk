@@ -1299,6 +1299,7 @@ static void s_check_db_callback_fee_collect (UNUSED_ARG dap_global_db_context_t 
     dap_chain_block_cache_t *l_block_cache = NULL;
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
     dap_list_t *l_block_list = NULL;
+    log_it(L_MSG, "Fee collector start work");
     l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_arg->block_hash);
     if(!l_block_cache)
     {
@@ -1441,7 +1442,7 @@ static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_ch
         tmp->chain = l_chain;
         tmp->value_fee = PVT(a_session->esbocs)->minimum_fee;
         tmp->fee_need_cfg = PVT(a_session->esbocs)->fee_coll_set;
-        tmp->key_from = a_session->blocks_sign_key;
+        tmp->key_from = PVT(a_session->esbocs)->blocks_sign_key;
 
         dap_global_db_get_all(s_block_fee_group,0,s_check_db_callback_fee_collect,tmp);
     }
