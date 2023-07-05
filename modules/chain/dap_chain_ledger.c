@@ -71,56 +71,56 @@ static  pthread_rwlock_t s_verificators_rwlock;
 
 #define MAX_OUT_ITEMS   10
 
-const char* dap_chain_ledger_tx_check_err_str(dap_chain_ledger_tx_check_t a_code){
+char* dap_chain_ledger_tx_check_err_str(dap_chain_ledger_tx_check_t a_code){
     switch (a_code) {
         case DAP_CHAIN_LEDGER_TX_CHECK_OK:
-            return "DAP_CHAIN_LEDGER_TX_CHECK_OK";
+            return dap_strdup("DAP_CHAIN_LEDGER_TX_CHECK_OK");
         case DAP_CHAIN_LEDGER_TX_CHECK_ERROR_IS_NULL_TX:
-            return "DAP_CHAIN_LEDGER_TX_CHECK_ERROR_IS_NULL_TX";
+            return dap_strdup("DAP_CHAIN_LEDGER_TX_CHECK_ERROR_IS_NULL_TX");
         case DAP_CHAIN_LEDGER_TX_CHECK_ERROR_INVALID_SIZE_TX:
-            return "DAP_CHAIN_LEDGER_TX_CHECK_ERROR_INVALID_SIZE_TX";
+            return dap_strdup("DAP_CHAIN_LEDGER_TX_CHECK_ERROR_INVALID_SIZE_TX");
         case DAP_CHAIN_LEDGER_TX_CACHE_CHECK_INVALID_INPUT_DATA:
-            return "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_INVALID_INPUT_DATA";
+            return dap_strdup("DAP_CHAIN_LEDGER_TX_CACHE_CHECK_INVALID_INPUT_DATA");
         case DAP_CHAIN_LEDGER_TX_CACHE_CHECK_INVALID_SIGN_TX:
-            return "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_INVALID_SIGN_TX";
+            return dap_strdup("DAP_CHAIN_LEDGER_TX_CACHE_CHECK_INVALID_SIGN_TX");
         case DAP_CHAIN_LEDGER_TX_CACHE_CHECK_TX_NO_VALID_TNPUTS_FOUND:
-            return "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_TX_NO_VALID_TNPUTS_FOUND";
+            return dap_strdup("DAP_CHAIN_LEDGER_TX_CACHE_CHECK_TX_NO_VALID_TNPUTS_FOUND");
         case DAP_CHAIN_LEDGER_TX_CACHE_CHECK_NOT_FOUND_TOKEN:
-            return "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_NOT_FOUND_TOKEN";
+            return dap_strdup("DAP_CHAIN_LEDGER_TX_CACHE_CHECK_NOT_FOUND_TOKEN");
         case DAP_CHAIN_LEDGER_TX_CACHE_CHECK_TOKEN_NOT_VALID_STAKE_LOCK:
-            return "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_TOKEN_NOT_VALID_STAKE_LOCK";
+            return dap_strdup("DAP_CHAIN_LEDGER_TX_CACHE_CHECK_TOKEN_NOT_VALID_STAKE_LOCK");
         case DAP_CHAIN_LEDGER_TX_CACHE_CHECK_NO_OUT_COND_STAKE_LOCK_FROM_IN_EMS:
-            return "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_NO_OUT_COND_STAKE_LOCK_FROM_IN_EMS";
+            return dap_strdup("DAP_CHAIN_LEDGER_TX_CACHE_CHECK_NO_OUT_COND_STAKE_LOCK_FROM_IN_EMS");
         case DAP_CHAIN_LEDGER_TX_CACHE_CHECK_MULTIPLICATION_OVERFLOW_EMISSION_LOCKED_EMISSION_RATE:
-            return "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_MULTIPLICATION_OVERFLOW_EMISSION_LOCKED_EMISSION_RATE";
+            return dap_strdup("DAP_CHAIN_LEDGER_TX_CACHE_CHECK_MULTIPLICATION_OVERFLOW_EMISSION_LOCKED_EMISSION_RATE");
         case DAP_CHAIN_LEDGER_TX_CACHE_CHECK_NO_OUT_EXT_FOR_GIRDLED_IN_EMS:
-            return "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_NO_OUT_EXT_FOR_GIRDLED_IN_EMS";
+            return dap_strdup("DAP_CHAIN_LEDGER_TX_CACHE_CHECK_NO_OUT_EXT_FOR_GIRDLED_IN_EMS");
         case DAP_CHAIN_LEDGER_TX_CACHE_CHECK_NOT_FIND_OUT_NOR_OUT_EXT_BASE_TX_IN_EMS:
-            return "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_NOT_FIND_OUT_NOR_OUT_EXT_BASE_TX_IN_EMS";
+            return dap_strdup("DAP_CHAIN_LEDGER_TX_CACHE_CHECK_NOT_FIND_OUT_NOR_OUT_EXT_BASE_TX_IN_EMS");
         case DAP_CHAIN_LEDGER_TX_CACHE_CHECK_TOKEN_CURRENT_SUPPLY_LOWER_EMISSION_VALUE:
-            return "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_TOKEN_CURRENT_SUPPLY_LOWER_EMISSION_VALUE";
+            return dap_strdup("DAP_CHAIN_LEDGER_TX_CACHE_CHECK_TOKEN_CURRENT_SUPPLY_LOWER_EMISSION_VALUE");
         case DAP_CHAIN_LEDGER_TX_CACHE_CHECK_VALUE_NOT_THATS_EXPECTED_IN_EMS:
-            return "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_VALUE_NOT_THATS_EXPECTED_IN_EMS";
+            return dap_strdup("DAP_CHAIN_LEDGER_TX_CACHE_CHECK_VALUE_NOT_THATS_EXPECTED_IN_EMS");
         case DAP_CHAIN_LEDGER_TX_CACHE_CHECK_NOT_FOUND_TICKER_FOR_STAKE_LOCK:
-            return "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_NOT_FOUND_TICKER_FOR_STAKE_LOCK";
+            return dap_strdup("DAP_CHAIN_LEDGER_TX_CACHE_CHECK_NOT_FOUND_TICKER_FOR_STAKE_LOCK");
         case DAP_CHAIN_LEDGER_TX_CACHE_CHECK_TICKER_DIFFERENT_EXPECTED:
-            return "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_TICKER_DIFFERENT_EXPECTED";
+            return dap_strdup("DAP_CHAIN_LEDGER_TX_CACHE_CHECK_TICKER_DIFFERENT_EXPECTED");
         case DAP_CHAIN_LEDGER_TX_CACHE_CHECK_NOT_USED_OUT_ITEM:
-            return "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_NOT_USED_OUT_ITEM";
+            return dap_strdup("DAP_CHAIN_LEDGER_TX_CACHE_CHECK_NOT_USED_OUT_ITEM");
         case DAP_CHAIN_LEDGER_TX_CACHE_CHECK_NOT_FIND_PREV_OUT_TX:
-            return "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_NOT_FIND_PREV_OUT_TX";
+            return dap_strdup("DAP_CHAIN_LEDGER_TX_CACHE_CHECK_NOT_FIND_PREV_OUT_TX");
         case DAP_CHAIN_LEDGER_TX_CACHE_CHECK_HASH_PKEY_TX_NOT_COMPARE_HASH_PKEY_OUT_ADDR_PREV_TX:
-            return "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_HASH_PKEY_TX_NOT_COMPARE_HASH_PKEY_OUT_ADDR_PREV_TX";
+            return dap_strdup("DAP_CHAIN_LEDGER_TX_CACHE_CHECK_HASH_PKEY_TX_NOT_COMPARE_HASH_PKEY_OUT_ADDR_PREV_TX");
         case DAP_CHAIN_LEDGER_TX_CACHE_CHECK_PREVIOUS_TX_OUTPUT_ALREADY_USED_IN_CURRENT_TX:
-            return "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_PREVIOUS_TX_OUTPUT_ALREADY_USED_IN_CURRENT_TX";
+            return dap_strdup("DAP_CHAIN_LEDGER_TX_CACHE_CHECK_PREVIOUS_TX_OUTPUT_ALREADY_USED_IN_CURRENT_TX");
         case DAP_CHAIN_LEDGER_TX_CACHE_CHECK_VERIF_CHECK_NO_VALIDATOR_COND_OUTPUT:
-            return "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_VERIF_CHECK_NO_VALIDATOR_COND_OUTPUT";
+            return dap_strdup("DAP_CHAIN_LEDGER_TX_CACHE_CHECK_VERIF_CHECK_NO_VALIDATOR_COND_OUTPUT");
         case DAP_CHAIN_LEDGER_TX_CACHE_CHECK_VERIF_CHECK_FAIL:
-            return "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_VERIF_CHECK_FAIL";
+            return dap_strdup("DAP_CHAIN_LEDGER_TX_CACHE_CHECK_VERIF_CHECK_FAIL");
         case DAP_CHAIN_LEDGET_TX_CACHE_CHECK_NO_FOUND_TOKEN_TICKER:
-            return "DAP_CHAIN_LEDGET_TX_CACHE_CHECK_NO_FOUND_TOKEN_TICKER";
+            return dap_strdup("DAP_CHAIN_LEDGET_TX_CACHE_CHECK_NO_FOUND_TOKEN_TICKER");
         case DAP_CHAIN_LEDGER_TX_CACHE_CHECK_PERMISSION_FAILED:
-            return "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_PERMISSION_FAILED";
+            return dap_strdup("DAP_CHAIN_LEDGER_TX_CACHE_CHECK_PERMISSION_FAILED");
         default:
             return dap_strdup_printf("Code error: %d undefined", a_code);
     }
@@ -762,22 +762,22 @@ int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datu
     return DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_OK;
 }
 
-const char *dap_chain_ledger_token_decl_add_err_code_to_str(int a_code) {
+char *dap_chain_ledger_token_decl_add_err_code_to_str(int a_code) {
     switch (a_code) {
         case DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_OK:
-            return "DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_OK";
+            return dap_strdup("DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_OK");
         case DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_LEDGER_IS_NULL:
-            return "DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_LEDGER_IS_NULL";
+            return dap_strdup("DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_LEDGER_IS_NULL");
         case DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_DECL_DUPLICATE:
-            return "DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_DECL_DUPLICATE";
+            return dap_strdup("DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_DECL_DUPLICATE");
         case DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_TOKEN_UPDATE_CHECK:
-            return "DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_TOKEN_UPDATE_CHECK";
+            return dap_strdup("DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_TOKEN_UPDATE_CHECK");
         case DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_TOKEN_UPDATE_ABSENT_TOKEN:
-            return "DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_TOKEN_UPDATE_ABSENT_TOKEN";
+            return dap_strdup("DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_TOKEN_UPDATE_ABSENT_TOKEN");
         case DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_NOT_ENOUGH_VALID_SIGN:
-            return "DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_NOT_ENOUGH_VALID_SIGN";
+            return dap_strdup("DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_NOT_ENOUGH_VALID_SIGN");
         case DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_UNIQUE_SIGNS_LESS_TOTAL_SIGNS:
-            return "DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_UNIQUE_SIGNS_LESS_TOTAL_SIGNS";
+            return dap_strdup("DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_UNIQUE_SIGNS_LESS_TOTAL_SIGNS");
         default:
             return dap_strdup_printf("Code error added datum in ledger: %d - has no string representation.", a_code);
     }
@@ -2927,24 +2927,24 @@ int dap_chain_ledger_token_emission_load(dap_ledger_t *a_ledger, byte_t *a_token
     return dap_chain_ledger_token_emission_add(a_ledger, a_token_emission, a_token_emission_size, a_token_emission_hash, false);
 }
 
-const char *dap_chain_ledger_token_emission_err_code_to_str(dap_chain_ledger_emission_err_code_t a_code) {
+char *dap_chain_ledger_token_emission_err_code_to_str(dap_chain_ledger_emission_err_code_t a_code) {
     switch (a_code) {
         case DAP_CHAIN_LEDGER_EMISSION_ADD_OK:
-            return "DAP_CHAIN_LEDGER_EMISSION_ADD_OK";
+            return dap_strdup("DAP_CHAIN_LEDGER_EMISSION_ADD_OK");
         case DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_ERROR_EMISSION_NULL_OR_IS_EMISSION_SIZE_ZERO:
-            return "DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_ERROR_EMISSION_NULL_OR_IS_EMISSION_SIZE_ZERO";
+            return dap_strdup("DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_ERROR_EMISSION_NULL_OR_IS_EMISSION_SIZE_ZERO");
         case DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_CAN_NOT_ADDED_EMISSION_ALREADY_IN_CACHE:
-            return "DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_CAN_NOT_ADDED_EMISSION_ALREADY_IN_CACHE";
+            return dap_strdup("DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_CAN_NOT_ADDED_EMISSION_ALREADY_IN_CACHE");
         case DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_THRESHOLD_EMISSION_OVERFULLED:
-            return "DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_THRESHOLD_EMISSION_OVERFULLED";
+            return dap_strdup("DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_THRESHOLD_EMISSION_OVERFULLED");
         case DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_VALUE_MORE_THAN_CURRENT_SUPPLY:
-            return "DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_VALUE_MORE_THAN_CURRENT_SUPPLY";
+            return dap_strdup("DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_VALUE_MORE_THAN_CURRENT_SUPPLY");
         case DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_VALID_SIGNS_NOT_ENOUGH:
-            return "DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_VALID_SIGNS_NOT_ENOUGH";
+            return dap_strdup("DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_VALID_SIGNS_NOT_ENOUGH");
         case DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_CANT_FIND_DECLARATION_TOKEN:
-            return "DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_CANT_FIND_DECLARATION_TOKEN";
+            return dap_strdup("DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_CANT_FIND_DECLARATION_TOKEN");
         case DAP_CHAIN_LEDGER_EMISSION_ADD_TSD_CHECK_FAILED:
-            return "DAP_CHAIN_LEDGER_EMISSION_ADD_TSD_CHECK_FAILED";
+            return dap_strdup("DAP_CHAIN_LEDGER_EMISSION_ADD_TSD_CHECK_FAILED");
         default:
             return dap_strdup_printf("Code emission error: %d - has no string representation.", a_code);
     }
@@ -4041,8 +4041,10 @@ int dap_chain_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *
     int l_ret_check;
     if( (l_ret_check = dap_chain_ledger_tx_cache_check(a_ledger, a_tx, a_datum_hash, false,
                                                        NULL, NULL, NULL)) < 0) {
+        char *l_err_str = dap_chain_ledger_tx_check_err_str(l_ret_check);
         debug_if(s_debug_more, L_DEBUG, "dap_chain_ledger_tx_add_check() tx not passed the check: %s",
-                 dap_chain_ledger_tx_check_err_str(l_ret_check));
+                 l_err_str);
+        DAP_DELETE(l_err_str);
         return l_ret_check;
     }
     if(s_debug_more) {

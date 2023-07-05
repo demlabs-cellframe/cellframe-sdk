@@ -3211,7 +3211,7 @@ int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *
     return 0;
 }
 
-const char *dap_chain_net_verify_datum_err_code_to_str(dap_chain_datum_t *a_datum, int a_code){
+char *dap_chain_net_verify_datum_err_code_to_str(dap_chain_datum_t *a_datum, int a_code){
     switch (a_datum->header.type_id) {
         case DAP_CHAIN_DATUM_TX:
             return dap_chain_ledger_tx_check_err_str(a_code);
@@ -3221,7 +3221,7 @@ const char *dap_chain_net_verify_datum_err_code_to_str(dap_chain_datum_t *a_datu
             return dap_chain_ledger_token_emission_err_code_to_str(a_code);
         default:
             if (a_code == 0) {
-                return "DAP_CHAIN_DATUM_VERIFY_OK";
+                return dap_strdup("DAP_CHAIN_DATUM_VERIFY_OK");
             } else {
                 return dap_strdup_printf("Error code: %d", a_code);
             }

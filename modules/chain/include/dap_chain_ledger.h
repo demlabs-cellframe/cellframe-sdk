@@ -173,7 +173,7 @@ int dap_chain_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
 
 int dap_chain_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, size_t a_datum_size, dap_hash_fast_t *a_datum_hash);
 
-const char* dap_chain_ledger_tx_check_err_str(dap_chain_ledger_tx_check_t a_code);
+char* dap_chain_ledger_tx_check_err_str(dap_chain_ledger_tx_check_t a_code);
 
 /**
  * Print list transaction from ledger
@@ -197,7 +197,7 @@ dap_chain_datum_token_t *dap_chain_ledger_token_ticker_check(dap_ledger_t * a_le
 int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token, size_t a_token_size);
 int dap_chain_ledger_token_load(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token, size_t a_token_size);
 int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token, size_t a_token_size);
-const char *dap_chain_ledger_token_decl_add_err_code_to_str(int a_code);
+char *dap_chain_ledger_token_decl_add_err_code_to_str(int a_code);
 dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger);
 
 // Get all token-declarations
@@ -217,7 +217,7 @@ dap_list_t * dap_chain_ledger_token_auth_pkeys_hashes(dap_ledger_t *a_ledger, co
 int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size,
                                         dap_hash_fast_t *a_emission_hash, bool a_from_threshold);
 int dap_chain_ledger_token_emission_load(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size, dap_hash_fast_t *a_token_emission_hash);
-const char *dap_chain_ledger_token_emission_err_code_to_str(dap_chain_ledger_emission_err_code_t a_code);
+char *dap_chain_ledger_token_emission_err_code_to_str(dap_chain_ledger_emission_err_code_t a_code);
 
 // Check if it addable
 int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size, dap_chain_hash_fast_t *a_emission_hash);
