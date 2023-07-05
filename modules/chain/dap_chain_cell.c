@@ -277,12 +277,6 @@ static ssize_t s_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a_
                         a_cell->file_storage_path);
         return -3;
     }
-    if(a_cell->chain && a_cell->chain->atom_notifiers ){
-        for( dap_list_t * l_iter = a_cell->chain->atom_notifiers;l_iter; l_iter = dap_list_next(l_iter) ){
-            dap_chain_atom_notifier_t * i = (dap_chain_atom_notifier_t *) l_iter->data;
-            i->callback(i->arg, a_cell->chain, a_cell->id, (void *)a_atom, a_atom_size);
-        }
-    }
     return a_atom_size + sizeof(a_atom_size);
 }
 
