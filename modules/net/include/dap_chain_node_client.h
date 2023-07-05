@@ -171,12 +171,13 @@ DAP_STATIC_INLINE dap_chain_node_client_t* dap_chain_node_client_connect_default
 
 
 DAP_STATIC_INLINE ssize_t dap_chain_node_client_write_unsafe(dap_chain_node_client_t *a_client, const char a_ch_id, uint8_t a_type, void *a_data, size_t a_data_size)
-{ return dap_client_write_unsafe(a_client->client, a_ch_id, a_type, a_data, a_data_size); }
+{ if (!a_client) return 0; return dap_client_write_unsafe(a_client->client, a_ch_id, a_type, a_data, a_data_size); }
 
 DAP_STATIC_INLINE int dap_chain_node_client_write_mt(dap_chain_node_client_t *a_client, const char a_ch_id, uint8_t a_type, void *a_data, size_t a_data_size)
-{ return dap_client_write_mt(a_client->client, a_ch_id, a_type, a_data, a_data_size); }
+{ if (!a_client) return -1; return dap_client_write_mt(a_client->client, a_ch_id, a_type, a_data, a_data_size); }
 
-dap_chain_node_client_t *dap_chain_node_client_find(dap_events_socket_uuid_t a_uuid);
+DAP_STATIC_INLINE void dap_chain_node_client_queue_clear(dap_chain_node_client_t *a_client)
+{ if (!a_client) return; dap_client_queue_clear(a_client->client); };
 
 /**
  * Reset client state to connected state if it is connected

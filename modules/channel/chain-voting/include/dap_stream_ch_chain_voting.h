@@ -64,3 +64,5 @@ size_t dap_stream_ch_chain_voting_pkt_write_unsafe(dap_stream_ch_t *a_ch, uint8_
 
 int dap_stream_ch_chain_voting_init();
 void dap_stream_ch_chain_voting_deinit();
+
+void dap_stream_ch_voting_queue_clear();
