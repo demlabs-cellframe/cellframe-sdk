@@ -423,7 +423,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
     memset(&l_err, 0, sizeof(l_err));
     dap_chain_net_srv_grace_t *l_grace = a_grace_item->grace;
 
-    dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(a_grace->stream_worker, a_grace->ch_uuid);
+    dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(l_grace->stream_worker, l_grace->ch_uuid);
 
     if (!l_ch){
         s_grace_error(l_grace, l_err);
@@ -441,7 +441,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
         return false;
     }
 
-    dap_chain_net_t * l_net = l_grace->us1age->net;
+    dap_chain_net_t * l_net = l_grace->usage->net;
 
     l_err.net_id.uint64 = l_net->pub.id.uint64;
     l_err.srv_uid.uint64 = l_grace->usage->service->uid.uint64;
@@ -789,7 +789,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                         // finish grace
                         s_grace_period_finish(l_grace_item);
                         HASH_DEL(s_grace_table, l_grace_item);
-                        DAP_DEL_Z(a_grace_item);
+                        DAP_DEL_Z(l_grace_item);
                     }
                     pthread_mutex_unlock(&s_ht_grace_table_mutex);
                     l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_BANNED_PKEY_HASH ;
