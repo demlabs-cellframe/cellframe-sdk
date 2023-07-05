@@ -3072,8 +3072,10 @@ int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply)
             dap_ctime_r(&l_ts_create, buf), l_datum->header.data_size);
     int l_verify_datum = dap_chain_net_verify_datum_for_add(l_chain, l_datum, &l_datum_hash) ;
     if (l_verify_datum != 0){
-        dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications (code %d) examine node log files",
-                                 l_verify_datum);
+        char *l_err_verify_datum_str = dap_chain_net_verify_datum_err_code_to_str(l_datum, l_verify_datum);
+        dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications (%s) examine node log files",
+                                 l_err_verify_datum_str);
+        DAP_DELETE(l_err_verify_datum_str);
         ret = -9;
     } else {
         if (l_chain->callback_add_datums) {
