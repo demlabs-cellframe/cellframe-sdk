@@ -69,6 +69,7 @@
 #include "dap_stream_ch_chain.h"
 #include "dap_stream_ch_chain_pkt.h"
 #include "dap_chain_net.h"
+#include "dap_enc_base58.h"
 
 #define LOG_TAG "dap_stream_ch_chain"
 
@@ -134,7 +135,7 @@ static char **s_list_ban_groups = NULL;
 static char **s_list_white_groups = NULL;
 static uint16_t s_size_ban_groups = 0;
 static uint16_t s_size_white_groups = 0;
-static dap_stream_ch_chain_packet_time_t * s_remote_addr_time = NULL;
+static dap_stream_ch_chain_packet_time_t * s_obj_time = NULL;
 
 
 #ifdef  DAP_SYS_DEBUG
@@ -822,8 +823,10 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
         dap_chain_net_t *l_net = dap_chain_net_by_id(l_sync_request->request_hdr.net_id);
         dap_chain_t * l_chain = dap_chain_find_by_id(l_sync_request->request_hdr.net_id,
                                                      l_sync_request->request_hdr.chain_id);
-        char *l_group_str = dap_strdup_printf("%s.chain-%s.mempool",l_net->pub.gdb_groups_prefix,
-                                                  l_chain->name);
+        char *l_group_str = NULL;
+        //if(l_chain)
+        l_group_str = dap_strdup_printf("%s.chain-main.mempool",l_net->pub.gdb_groups_prefix);
+
         bool l_set_IP = false;
         for (size_t i = 0; i < l_data_obj_count; i++) {
             // obj to add
@@ -833,36 +836,57 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                     l_obj->group == NULL)
                 continue;       // the object is broken
 
-            if(strncmp(l_group_str, l_obj->group, l_obj->group_len > strlen(l_group_str) ? l_obj->group_len :
+            if(l_group_str && strncmp(l_group_str, l_obj->group, l_obj->group_len > strlen(l_group_str) ? l_obj->group_len :
                                                                                         strlen(l_group_str))==0)
             {
-                for(;;)l_obj->value
+                if(l_obj->value_len){
+                    dap_chain_datum_t * l_datum = (dap_chain_datum_t*)l_obj->value;
+                    dap_chain_datum_tx_t * l_tx = (dap_chain_datum_tx_t *)l_datum->data;
+                    dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
+                    dap_chain_hash_fast_t l_hash_pkey;
+
+                    dap_sign_t *l_sign_tmp = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
+                    if(dap_sign_get_pkey_hash(l_sign_tmp, &l_hash_pkey)){
+                        char *l_hash_key = dap_enc_base58_encode_hash_to_str(&l_hash_pkey);
+
+                        dap_stream_ch_chain_packet_time_t * l_obj_time, *l_obj_time_2 = NULL;
+                        HASH_FIND(hh, s_obj_time, &l_hash_pkey, DAP_CHAIN_HASH_FAST_SIZE, l_obj_time);
+                        if (!l_obj_time) {
+
+                            l_obj_time = DAP_NEW_Z(dap_stream_ch_chain_packet_time_t);
+                            memcpy(&l_obj_time->hash_pkey, &l_hash_pkey, DAP_CHAIN_HASH_FAST_SIZE);
+                            l_obj_time->last_timestamp_obj = l_obj->timestamp;
+                            log_it(L_INFO, "Add last packet time for hash - %s", l_hash_key);
+                            HASH_ADD(hh, s_obj_time, hash_pkey, DAP_CHAIN_HASH_FAST_SIZE, l_obj_time);//+1
+                        }
+                        else{
+                            //get aps diff time value
+                            dap_nanotime_t l_time_spam = l_obj_time->last_timestamp_obj > l_obj->timestamp ?
+                                                         l_obj_time->last_timestamp_obj - l_obj->timestamp :
+                                                         l_obj->timestamp - l_obj_time->last_timestamp_obj;
+                            dap_time_t ms = l_time_spam / DAP_USEC_PER_SEC;
+
+                            log_it(L_INFO, "Remove packet time for hash - %s, time delay = %d ms", l_hash_key, ms);
+                            HASH_DEL(s_obj_time, l_obj_time);
+
+                            l_obj_time_2 = DAP_NEW_Z(dap_stream_ch_chain_packet_time_t);
+                            memcpy(&l_obj_time_2->hash_pkey, &l_hash_pkey,DAP_CHAIN_HASH_FAST_SIZE);
+                            l_obj_time_2->last_timestamp_obj = l_obj->timestamp;
+                            log_it(L_INFO, "Add last packet time for hash - %s", l_hash_key);
+                            HASH_ADD(hh, s_obj_time, hash_pkey, DAP_CHAIN_HASH_FAST_SIZE, l_obj_time_2);//+1
+                            if(ms < 500){
+                                log_it(L_INFO, "That is spam!");
+                                DAP_DELETE(l_hash_key);
+                                break;
+                            }
+                        }
+                        DAP_DELETE(l_hash_key);
+                    }
+
+                }
                 //spam IP check
                 if(l_set_IP){
-                    dap_stream_ch_chain_packet_time_t * l_remote_addr_time = NULL;
-                    HASH_FIND(hh, s_remote_addr_time, l_sync_request->esocket->remote_addr_str, INET_ADDRSTRLEN + 1, l_remote_addr_time);
-                    if (!l_remote_addr_time) {
-                        l_remote_addr_time = DAP_NEW_Z(dap_stream_ch_chain_packet_time_t);
-                        memcpy(l_remote_addr_time->remote_addr, l_sync_request->esocket->remote_addr_str,INET_ADDRSTRLEN + 1);
-                        l_remote_addr_time->time_arrival = dap_nanotime_now();
-                        log_it(L_INFO, "Add last packet time for IP - %s", l_remote_addr_time->remote_addr);
-                        HASH_ADD(hh, s_remote_addr_time, remote_addr, INET_ADDRSTRLEN + 1, l_remote_addr_time);
-                    }
-                    else{
-                        char l_ts_str[50];
-                        dap_time_t ns = dap_nanotime_now();
-                        ns = ns - l_remote_addr_time->time_arrival;
-                        dap_time_t ms = ns / DAP_USEC_PER_SEC;
-                        if(ms > 900)
-                        {
-                            //dap_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), dap_nanotime_to_sec(l_remote_addr_time->time_arrival));
-                            log_it(L_INFO, "Remove packet time for IP - %s, time delay = %d ms", l_remote_addr_time->remote_addr, ms);
-                            HASH_DEL(s_remote_addr_time, l_remote_addr_time);
-                        }
-                        else
-                            break;
-                    }
-                    l_set_IP = true;
+
                 }
                 //spam TX check
                 if(i>0){
