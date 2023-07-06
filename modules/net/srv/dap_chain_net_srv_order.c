@@ -356,6 +356,10 @@ char *dap_chain_net_srv_order_save(dap_chain_net_t *a_net, dap_chain_net_srv_ord
 
 dap_chain_net_srv_order_t *dap_chain_net_srv_order_read(byte_t *a_order, size_t a_order_size)
 {
+    if (NULL == a_order) {
+        log_it(L_ERROR, "Argumets are NULL for dap_chain_net_srv_order_read");
+        return NULL;
+    }
     dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)a_order;
     size_t l_order_size = dap_chain_net_srv_order_get_size((dap_chain_net_srv_order_t *)a_order);
     if (l_order->version > 3 || l_order->direction > SERV_DIR_SELL || l_order_size != a_order_size)
