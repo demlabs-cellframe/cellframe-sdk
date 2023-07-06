@@ -1465,9 +1465,16 @@ void s_session_validator_mark_online(dap_chain_esbocs_session_t *a_session, dap_
     bool l_in_list = false;
     dap_list_t *l_list = s_validator_check(a_signing_addr, a_session->cur_round.all_validators);
     if (l_list) {
+        bool l_was_synced = ((dap_chain_esbocs_validator_t *)l_list->data)->is_synced;
         ((dap_chain_esbocs_validator_t *)l_list->data)->is_synced = true;
-        a_session->cur_round.total_validators_synced++;
+        if (!l_was_synced)
+            a_session->cur_round.total_validators_synced++;
         l_in_list = true;
+        if (PVT(a_session->esbocs)->debug) {
+            const char *l_addr_str = dap_chain_addr_to_str(a_signing_addr);
+            log_it(L_DEBUG, "Mark validator %s as online", l_addr_str);
+            DAP_DELETE(l_addr_str);
+        }
     }
     dap_chain_esbocs_penalty_item_t *l_item = NULL;
     HASH_FIND(hh, a_session->penalty, a_signing_addr, sizeof(*a_signing_addr), l_item);
