@@ -239,7 +239,8 @@ void dap_chain_gdb_delete(dap_chain_t * a_chain)
     DAP_DELETE(l_gdb_priv->group_datums);
 
     DAP_DELETE(l_gdb);
-    a_chain->_inheritor = NULL;
+    if (a_chain)
+        a_chain->_inheritor = NULL;
 }
 
 /**
@@ -360,6 +361,10 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
  */
 static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size)
 {
+    if (NULL == a_chain) {
+        log_it(L_WARNING, "Arguments is NULL for s_chain_callback_atom_add");
+        return ATOM_REJECT;
+    }
     dap_chain_gdb_t * l_gdb = DAP_CHAIN_GDB(a_chain);
     dap_chain_gdb_private_t *l_gdb_priv = PVT(l_gdb);
     dap_chain_datum_t *l_datum = (dap_chain_datum_t*) a_atom;
