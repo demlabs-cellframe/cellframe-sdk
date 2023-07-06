@@ -827,7 +827,6 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
         //if(l_chain)
         l_group_str = dap_strdup_printf("%s.chain-main.mempool",l_net->pub.gdb_groups_prefix);
 
-        bool l_set_IP = false;
         for (size_t i = 0; i < l_data_obj_count; i++) {
             // obj to add
             dap_store_obj_t *l_obj = l_store_obj + i;
@@ -841,69 +840,63 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             {
                 if(l_obj->value_len){
                     dap_chain_datum_t * l_datum = (dap_chain_datum_t*)l_obj->value;
-                    dap_chain_datum_tx_t * l_tx = (dap_chain_datum_tx_t *)l_datum->data;
-                    dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
-                    dap_chain_hash_fast_t l_hash_pkey;
+                    if(l_datum){
+                        size_t l_datum_size =  dap_chain_datum_size(l_datum);
+                        if (!l_datum_size || (l_datum_size < sizeof (l_datum->header)) || (l_datum_size > l_obj->value_len ) ){
+                            if(l_datum->header.type_id == DAP_CHAIN_DATUM_TX){
 
-                    dap_sign_t *l_sign_tmp = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
-                    if(dap_sign_get_pkey_hash(l_sign_tmp, &l_hash_pkey)){
-                        char *l_hash_key = dap_enc_base58_encode_hash_to_str(&l_hash_pkey);
+                                dap_chain_datum_tx_t * l_tx = (dap_chain_datum_tx_t *)l_datum->data;
+                                dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
+                                dap_chain_hash_fast_t l_hash_pkey;
 
-                        dap_stream_ch_chain_packet_time_t * l_obj_time, *l_obj_time_2 = NULL;
-                        HASH_FIND(hh, s_obj_time, &l_hash_pkey, DAP_CHAIN_HASH_FAST_SIZE, l_obj_time);
-                        if (!l_obj_time) {
+                                dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
+                                bool sign_valid = dap_sign_verify_all(l_sign,l_tx->header.tx_items_size,l_tx->tx_items,l_tx->header.tx_items_size);
+                                if (!sign_valid)
+                                    log_it(L_INFO, "Sign valid");
+                                else
+                                    log_it(L_INFO, "Sign not valid");
 
-                            l_obj_time = DAP_NEW_Z(dap_stream_ch_chain_packet_time_t);
-                            memcpy(&l_obj_time->hash_pkey, &l_hash_pkey, DAP_CHAIN_HASH_FAST_SIZE);
-                            l_obj_time->last_timestamp_obj = l_obj->timestamp;
-                            log_it(L_INFO, "Add last packet time for hash - %s", l_hash_key);
-                            HASH_ADD(hh, s_obj_time, hash_pkey, DAP_CHAIN_HASH_FAST_SIZE, l_obj_time);//+1
-                        }
-                        else{
-                            //get aps diff time value
-                            dap_nanotime_t l_time_spam = l_obj_time->last_timestamp_obj > l_obj->timestamp ?
-                                                         l_obj_time->last_timestamp_obj - l_obj->timestamp :
-                                                         l_obj->timestamp - l_obj_time->last_timestamp_obj;
-                            dap_time_t ms = l_time_spam / DAP_USEC_PER_SEC;
+                                if(!sign_valid && dap_sign_get_pkey_hash(l_sign, &l_hash_pkey)){
+                                    char *l_hash_key = dap_enc_base58_encode_hash_to_str(&l_hash_pkey);
 
-                            log_it(L_INFO, "Remove packet time for hash - %s, time delay = %d ms", l_hash_key, ms);
-                            HASH_DEL(s_obj_time, l_obj_time);
+                                    dap_stream_ch_chain_packet_time_t * l_obj_time, *l_obj_time_2 = NULL;
+                                    HASH_FIND(hh, s_obj_time, &l_hash_pkey, DAP_CHAIN_HASH_FAST_SIZE, l_obj_time);
+                                    if (!l_obj_time) {
 
-                            l_obj_time_2 = DAP_NEW_Z(dap_stream_ch_chain_packet_time_t);
-                            memcpy(&l_obj_time_2->hash_pkey, &l_hash_pkey,DAP_CHAIN_HASH_FAST_SIZE);
-                            l_obj_time_2->last_timestamp_obj = l_obj->timestamp;
-                            log_it(L_INFO, "Add last packet time for hash - %s", l_hash_key);
-                            HASH_ADD(hh, s_obj_time, hash_pkey, DAP_CHAIN_HASH_FAST_SIZE, l_obj_time_2);//+1
-                            if(ms < 500){
-                                log_it(L_INFO, "That is spam!");
-                                DAP_DELETE(l_hash_key);
-                                break;
+                                        l_obj_time = DAP_NEW_Z(dap_stream_ch_chain_packet_time_t);
+                                        memcpy(&l_obj_time->hash_pkey, &l_hash_pkey, DAP_CHAIN_HASH_FAST_SIZE);
+                                        l_obj_time->last_timestamp_obj = l_obj->timestamp;
+                                        log_it(L_INFO, "Add last packet time for hash - %s", l_hash_key);
+                                        HASH_ADD(hh, s_obj_time, hash_pkey, DAP_CHAIN_HASH_FAST_SIZE, l_obj_time);//+1
+                                    }
+                                    else{
+                                        //get aps diff time value
+                                        dap_nanotime_t l_time_spam = l_obj_time->last_timestamp_obj > l_obj->timestamp ?
+                                                                     l_obj_time->last_timestamp_obj - l_obj->timestamp :
+                                                                     l_obj->timestamp - l_obj_time->last_timestamp_obj;
+                                        dap_time_t ms = l_time_spam / DAP_USEC_PER_SEC;
+
+                                        log_it(L_INFO, "Remove packet time for hash - %s, time delay = %d ms", l_hash_key, ms);
+                                        HASH_DEL(s_obj_time, l_obj_time);
+
+                                        l_obj_time_2 = DAP_NEW_Z(dap_stream_ch_chain_packet_time_t);
+                                        memcpy(&l_obj_time_2->hash_pkey, &l_hash_pkey,DAP_CHAIN_HASH_FAST_SIZE);
+                                        l_obj_time_2->last_timestamp_obj = l_obj->timestamp;
+                                        log_it(L_INFO, "Add last packet time for hash - %s", l_hash_key);
+                                        HASH_ADD(hh, s_obj_time, hash_pkey, DAP_CHAIN_HASH_FAST_SIZE, l_obj_time_2);//+1
+                                        if(ms < 500){
+                                            log_it(L_INFO, "That is spam!");
+                                            DAP_DELETE(l_hash_key);
+                                            break;
+                                        }
+                                    }
+                                    DAP_DELETE(l_hash_key);
+                                }//<-
                             }
                         }
-                        DAP_DELETE(l_hash_key);
-                    }
-
-                }
-                //spam IP check
-                if(l_set_IP){
-
-                }
-                //spam TX check
-                if(i>0){
-
-                    dap_nanotime_t l_time_spam = l_obj->timestamp > (l_store_obj - 1)->timestamp ?
-                                                 l_obj->timestamp - (l_store_obj - 1)->timestamp :
-                                                                    (l_store_obj - 1)->timestamp - l_obj->timestamp;
-                    dap_time_t ms = l_time_spam / DAP_USEC_PER_SEC;
-
-                    if(ms < 200){
-                        log_it(L_ERROR, "Drop spam object!");
-                        continue;
                     }
                 }
-
             }
-
             if (s_list_white_groups) {
                 int l_ret = -1;
                 for (int i = 0; i < s_size_white_groups; i++) {
