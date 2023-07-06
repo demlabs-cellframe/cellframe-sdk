@@ -64,6 +64,7 @@ typedef struct dap_chain_esbocs_message_item {
     dap_hash_fast_t message_hash;
     dap_chain_esbocs_message_t *message;
     dap_chain_addr_t signing_addr;
+    bool unprocessed;   // Do not count one message twice
     UT_hash_handle hh;
 } dap_chain_esbocs_message_item_t;
 
@@ -167,7 +168,6 @@ typedef struct dap_chain_esbocs_session {
     dap_chain_esbocs_sync_item_t *sync_items;
     dap_timerfd_t *sync_timer;
 
-    dap_enc_key_t *blocks_sign_key;
     dap_chain_addr_t my_signing_addr;
 
     dap_chain_esbocs_penalty_item_t *penalty;

@@ -881,16 +881,16 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
         CMD_NONE, CMD_CREATE, CMD_DECLARE, CMD_REMOVE, CMD_LIST, CMD_UPDATE
     };
     int l_cmd_num = CMD_NONE;
-    if(dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, min(a_argc, a_arg_index + 1), "create", NULL)) {
+    if(dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, MIN(a_argc, a_arg_index + 1), "create", NULL)) {
         l_cmd_num = CMD_CREATE;
     }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, min(a_argc, a_arg_index + 1), "remove", NULL)) {
+    else if(dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, MIN(a_argc, a_arg_index + 1), "remove", NULL)) {
         l_cmd_num = CMD_REMOVE;
     }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, min(a_argc, a_arg_index + 1), "list", NULL)) {
+    else if(dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, MIN(a_argc, a_arg_index + 1), "list", NULL)) {
         l_cmd_num = CMD_LIST;
     }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, min(a_argc, a_arg_index + 1), "update", NULL)) {
+    else if(dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, MIN(a_argc, a_arg_index + 1), "update", NULL)) {
         l_cmd_num = CMD_UPDATE;
     }
     int l_arg_index = a_arg_index + 1;
@@ -1307,7 +1307,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
     int l_arg_index = 1;
 
     const char * l_hash_out_type = NULL;
-    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "-H", &l_hash_out_type);
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "-H", &l_hash_out_type);
     if(!l_hash_out_type)
         l_hash_out_type = "base58";
     if(dap_strcmp(l_hash_out_type," hex") && dap_strcmp(l_hash_out_type, "base58")) {
@@ -1315,30 +1315,30 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
         return -1;
     }
     int l_cmd_num = CMD_NONE;
-    if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "order", NULL)) {
+    if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "order", NULL)) {
         l_cmd_num = CMD_ORDER;
     }
     // Create tx to freeze staker's funds and delete order
-    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "delegate", NULL)) {
+    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "delegate", NULL)) {
         l_cmd_num = CMD_DELEGATE;
     }
     // Create tx to approve staker's funds freeze
-    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "approve", NULL)) {
+    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "approve", NULL)) {
         l_cmd_num = CMD_APPROVE;
     }
     // Show the tx list with frozen staker funds
-    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "list", NULL)) {
+    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "list", NULL)) {
         l_cmd_num = CMD_LIST;
     }
     // Return staker's funds
-    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "invalidate", NULL)) {
+    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "invalidate", NULL)) {
         l_cmd_num = CMD_INVALIDATE;
     }
     // RSetss stake minimum value
-    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "min_value", NULL)) {
+    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "min_value", NULL)) {
         l_cmd_num = CMD_MIN_VALUE;
     }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "check", NULL)) {
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "check", NULL)) {
         l_cmd_num = CMD_CHECK;
     }
 
@@ -1730,11 +1730,10 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
 
             dap_hash_fast_t *l_final_tx_hash = NULL;
             if (l_tx_hash_str) {
-                dap_hash_fast_t l_tx_hash = {};
-                dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash);
-                l_final_tx_hash = dap_chain_ledger_get_final_chain_tx_hash(l_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_tx_hash);
-                if (!l_final_tx_hash) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Transaction %s is not found or already used", l_tx_hash_str);
+                l_final_tx_hash = DAP_NEW(dap_hash_fast_t);
+                dap_chain_hash_fast_from_str(l_tx_hash_str, l_final_tx_hash);
+                if(!dap_chain_ledger_tx_find_by_hash(l_net->pub.ledger, l_final_tx_hash)) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Transaction %s is not found.", l_tx_hash_str);
                     return -20;
                 }
             } else {
@@ -1773,6 +1772,9 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                     return -18;
                 }
                 dap_chain_datum_tx_t *l_tx = s_stake_tx_invalidate(l_net, l_final_tx_hash, l_fee, dap_chain_wallet_get_key(l_wallet, 0));
+                if (l_tx_hash_str) {
+                    DAP_DELETE(l_final_tx_hash);
+                }
                 dap_chain_wallet_close(l_wallet);
                 char *l_decree_hash_str = NULL;
                 if (l_tx && (l_decree_hash_str = s_stake_tx_put(l_tx, l_net))) {

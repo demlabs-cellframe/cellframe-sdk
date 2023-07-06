@@ -811,10 +811,10 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             }else
                  log_it(L_WARNING, "In: GLOBAL_DB parse: packet in list with NULL data(pkt_data_size:%"DAP_UINT64_FORMAT_U")", l_pkt_item->pkt_data_size);
         }
-        uint64_t l_last_id = l_store_obj->id;
+        /*uint64_t l_last_id = l_store_obj->id;
         const char *l_last_group = l_store_obj->group;
         uint32_t l_last_type = l_store_obj->type;
-        bool l_group_changed = false;
+        bool l_group_changed = false;*/
         uint32_t l_time_store_lim_hours = dap_config_get_item_uint32_default(g_config, "global_db", "time_store_limit", 72);
         dap_nanotime_t l_time_now = dap_nanotime_now();
         dap_nanotime_t l_time_alowed = l_time_now + dap_nanotime_from_sec(3600 * 24); // to be sure the timestamp is invalid
@@ -899,9 +899,9 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                 }
                 if (l_ret == -1) continue;
             }
-            l_group_changed = strcmp(l_last_group, l_obj->group) || l_last_type != l_obj->type;
+            /*l_group_changed = strcmp(l_last_group, l_obj->group) || l_last_type != l_obj->type;
             // Send remote side notification about received obj
-            /*if (l_sync_request->request.node_addr.uint64 &&
+            if (l_sync_request->request.node_addr.uint64 &&
                     (l_group_changed || i == l_data_obj_count - 1)) {
                 struct sync_request *l_sync_req_tsd = DAP_DUP(l_sync_request);
                 l_sync_req_tsd->request.id_end = l_last_id;
@@ -909,11 +909,11 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                                                                       dap_strdup_printf("%s.del", l_last_group);
                 dap_proc_thread_worker_exec_callback_inter(a_thread, l_sync_request->worker->id,
                                                      s_gdb_sync_tsd_worker_callback, l_sync_req_tsd);
-            }*/
+            }
             l_last_id = l_obj->id;
             l_last_group = l_obj->group;
             l_last_type = l_obj->type;
-
+            */
             struct gdb_apply_args *l_apply_args = DAP_NEW(struct gdb_apply_args);
             l_apply_args->obj = dap_store_obj_copy(l_obj, 1);
             l_apply_args->limit_time = l_limit_time;

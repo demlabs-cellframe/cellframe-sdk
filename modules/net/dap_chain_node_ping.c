@@ -259,6 +259,8 @@ static void* node_ping_background_proc(void *a_arg)
     if(best_node_pos > 0) {
         l_node_addr.uint64 = l_nodes_addr[best_node_pos];
     }
+    // TODO
+    UNUSED(l_node_addr);
 
     // allocate memory for best node addresses
     dap_chain_node_addr_t *l_node_addr_tmp;
