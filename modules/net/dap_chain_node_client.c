@@ -44,7 +44,7 @@
 #include <arpa/inet.h>
 #endif
 
-#include <json-c/json.h>
+#include "json.h"
 #include "uthash.h"
 
 #include "dap_common.h"

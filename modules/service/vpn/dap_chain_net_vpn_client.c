@@ -234,16 +234,12 @@ static dap_chain_datum_tx_receipt_t * s_callback_client_sign_request(dap_chain_n
 static dap_chain_hash_fast_t* dap_chain_net_vpn_client_tx_cond_hash(dap_chain_net_t *a_net,
         dap_chain_wallet_t *a_wallet, const char *a_token_ticker, uint64_t a_value_datoshi)
 {
-    uint8_t *l_pkey_b64 = NULL;
-    size_t l_pkey_b64_size = 0;
-
     // Try to load from gdb
     size_t l_gdb_group_size = 0;
     char *l_gdb_group = dap_strdup_printf("local.%s", DAP_CHAIN_NET_SRV_VPN_CDB_GDB_PREFIX);
     dap_chain_hash_fast_t *l_tx_cond_hash = (dap_chain_hash_fast_t*) dap_global_db_get_sync(l_gdb_group,
             dap_strdup("client_tx_cond_hash"), &l_gdb_group_size, NULL, NULL);
 
-    time_t l_tx_cond_ts = 0;
     // Check for entry size
     if(l_tx_cond_hash && l_gdb_group_size && l_gdb_group_size != sizeof(dap_chain_hash_fast_t)) {
         log_it(L_ERROR, "Wrong size of tx condition on database (%zd but expected %zd), may be old entry",
@@ -260,7 +256,6 @@ static dap_chain_hash_fast_t* dap_chain_net_vpn_client_tx_cond_hash(dap_chain_ne
             DAP_DELETE(l_tx_cond_hash);
             l_tx_cond_hash = NULL;
             if(l_tx) {
-                l_tx_cond_ts = (time_t) l_tx->header.ts_created;
                 log_it(L_DEBUG, "2791: got some tx, created %"DAP_UINT64_FORMAT_U, l_tx->header.ts_created);
             }
         }
@@ -555,7 +550,7 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_st
             randombytes(l_request->data, a_data_size_to_send);
             dap_hash_fast(l_request->data, l_request->data_size, &l_request->data_hash);
             if(a_ipv4_str)
-                memcpy(l_request->ip_recv, a_ipv4_str, min(sizeof(l_request->ip_recv), strlen(a_ipv4_str)));
+                memcpy(l_request->ip_recv, a_ipv4_str, MIN(sizeof(l_request->ip_recv), strlen(a_ipv4_str)));
             l_request->time_connect_ms = l_dtime_connect_ms;
             l_request->send_time1 = dap_nanotime_now();
             size_t l_request_size = l_request->data_size + sizeof(dap_stream_ch_chain_net_srv_pkt_test_t);

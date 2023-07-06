@@ -860,6 +860,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     // TX not found in ledger and we not in grace, start grace
                     log_it(L_ERROR, "Can't find tx cond. Start grace!");
                     l_grace = DAP_NEW_Z(dap_chain_net_srv_grace_t);
+                    UNUSED(l_grace);
                     // Parse the request
                     l_grace->request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_request_t, sizeof(dap_stream_ch_chain_net_srv_pkt_request_t));
                     l_grace->request->hdr.net_id = l_usage->net->pub.id;

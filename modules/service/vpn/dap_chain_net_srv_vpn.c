@@ -290,12 +290,6 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
     l_pkt_out->header.op_data.data_size = a_data_size;
     memcpy(l_pkt_out->data, a_data, a_data_size);
 
-    struct in_addr l_in_daddr;
-#ifdef DAP_OS_LINUX
-    l_in_daddr.s_addr = ((dap_os_iphdr_t* ) l_pkt_out->data)->daddr;
-#else
-    l_in_daddr.s_addr = ((dap_os_iphdr_t* ) l_pkt_out->data)->ip_dst.s_addr;
-#endif
     if(l_ch_vpn_info->is_on_this_worker){
         dap_events_socket_t* l_es = dap_context_find(l_ch_vpn_info->worker->context, l_ch_vpn_info->esocket_uuid);
         if (!l_es) {

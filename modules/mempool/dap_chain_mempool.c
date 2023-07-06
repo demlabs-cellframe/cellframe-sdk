@@ -276,7 +276,6 @@ char *dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_fr
 char *dap_chain_mempool_tx_coll_fee_create(dap_enc_key_t *a_key_from,const dap_chain_addr_t* a_addr_to,dap_list_t *a_block_list,
                                            uint256_t a_value_fee, const char *a_hash_out_type)
 {
-    uint256_t                   l_value_to_items = {};
     uint256_t                   l_value_out = {};
     uint256_t                   l_net_fee = {};
     dap_chain_datum_tx_t        *l_tx;
@@ -306,8 +305,11 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_enc_key_t *a_key_from,const dap_c
 
         //add 'in' items
         {
-            l_value_to_items = dap_chain_datum_tx_add_in_cond_item_list(&l_tx, l_list_used_out);
+            uint256_t l_value_to_items = dap_chain_datum_tx_add_in_cond_item_list(&l_tx, l_list_used_out);
             assert(EQUAL_256(l_value_to_items, l_value_out_block));
+#ifndef DAP_DEBUG
+            UNUSED(l_value_to_items);
+#endif
             dap_list_free_full(l_list_used_out, NULL);
         }
         SUM_256_256(l_value_out, l_value_out_block, &l_value_out);
@@ -1288,7 +1290,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
         if (!l_datum) {
             l_removed++;
             log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s: empty (possibly trash) value", l_objs[i].key, l_gdb_group);
-            dap_global_db_del_sync(l_objs[i].key, l_gdb_group);
+            dap_global_db_del_sync(l_gdb_group, l_objs[i].key);
             continue;
         }
         size_t l_datum_size = dap_chain_datum_size(l_datum);

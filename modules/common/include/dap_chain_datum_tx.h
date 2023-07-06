@@ -27,7 +27,7 @@
 #include "dap_enc_key.h"
 #include "dap_chain_common.h"
 #include "dap_time.h"
-#include <json-c/json.h>
+#include "json.h"
 
 /**
   * @struct dap_chain_datum_tx
