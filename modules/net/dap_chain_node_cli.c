@@ -273,7 +273,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     // Transaction commands
     dap_cli_server_cmd_add ("tx_create", com_tx_create, "Make transaction",
             "tx_create -net <net_name> -chain <chain_name> -value <value> -token <token_ticker> -to_addr <addr>"
-            "{-from_wallet <wallet_name> | -from_emission <emission_hash> {-certs <cert list> | -wallet_fee <wallet_name>}} -fee <value>\n");
+            "{-from_wallet <wallet_name> | -from_emission <emission_hash> {-cert <cert_name> | -wallet_fee <wallet_name>}} -fee <value>\n");
     dap_cli_server_cmd_add ("tx_create_json", com_tx_create_json, "Make transaction",
                 "tx_create_json -net <net_name> -chain <chain_name> -json <json_file_path>\n" );
     dap_cli_server_cmd_add ("tx_cond_create", com_tx_cond_create, "Make cond transaction",
