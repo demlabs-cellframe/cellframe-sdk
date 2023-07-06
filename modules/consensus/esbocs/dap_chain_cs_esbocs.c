@@ -1254,7 +1254,7 @@ static bool s_session_candidate_to_chain(dap_chain_esbocs_session_t *a_session, 
 {
     if (NULL == a_candidate) {
         log_it(L_ERROR, "Argument is NULL for s_session_candidate_to_chain");
-        return;
+        return false;
     }
     bool res = false;
     dap_chain_block_t *l_candidate = DAP_DUP_SIZE(a_candidate, a_candidate_size);
