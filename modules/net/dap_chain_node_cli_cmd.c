@@ -5112,9 +5112,9 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
     const char * l_emission_chain_name = NULL;
     const char * l_tx_num_str = NULL;
     const char *l_emission_hash_str = NULL;
-    const char *l_certs_str = NULL;
-    dap_cert_t **l_certs = NULL;
-    size_t l_certs_count = 0;
+    const char *l_cert_str = NULL;
+    dap_cert_t *l_cert = NULL;
+    dap_enc_key_t *l_priv_key = NULL;
     dap_chain_hash_fast_t l_emission_hash = {};
     size_t l_tx_num = 0;
     dap_chain_wallet_t * l_wallet_fee = NULL;
@@ -5139,7 +5139,7 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-net", &l_net_name);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain", &l_chain_name);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-tx_num", &l_tx_num_str);
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-certs", &l_certs_str);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cert", &l_cert_str);
 
     if(l_tx_num_str)
         l_tx_num = strtoul(l_tx_num_str, NULL, 10);
@@ -5221,6 +5221,7 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "wallet %s does not exist", l_wallet_fee_name);
                     return -12;
                 }
+                l_priv_key = dap_chain_wallet_get_key(l_wallet_fee, 0);
             } else {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "To create a basic transaction with a "
                                                                "non-native ticker, you must specify the '-wallet_fee' "
@@ -5229,16 +5230,17 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
                 return -11;
             }
         } else {
-            if (l_certs_str) {
-                dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
-                if (!l_certs_count) {
+            if (l_cert_str) {
+                l_cert = dap_cert_find_by_name(l_cert_str);
+                if (!l_cert) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                      "tx_create requires at least one valid certificate to sign the basic transaction of emission");
+                                                      "tx_create requires one valid certificate to sign the basic transaction of emission");
                     return -5;
                 }
+                l_priv_key = l_cert->enc_key;
             } else {
                 dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "tx_create requires parameter '-certs' for create base tx for emission in native token");
+                                                  "tx_create requires parameter '-cert' for create base tx for emission in native token");
                 return -10;
             }
         }
@@ -5268,15 +5270,14 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
     if (l_emission_hash_str) {
         bool not_native = dap_strcmp(l_token_ticker, l_net->pub.native_ticker);
         char *l_tx_hash_str = NULL;
-        if (not_native) {
-            l_tx_hash_str = dap_chain_mempool_base_tx_create(l_chain, &l_emission_hash, l_emission_chain->id,
-                                             l_value, l_token_ticker,dap_chain_wallet_get_key(l_wallet_fee, 0), l_addr_to, NULL,
-                                             0, l_hash_out_type,l_value_fee);
-        } else {
-            l_tx_hash_str = dap_chain_mempool_base_tx_create(l_chain, &l_emission_hash, l_emission_chain->id,
-                                             l_value, l_token_ticker,NULL, l_addr_to, l_certs,
-                                             l_certs_count, l_hash_out_type,l_value_fee);
+        if (!l_priv_key) {
+            dap_string_append_printf(l_string_ret, "No private key defined for creating the underlying "
+                                                   "transaction no '-wallet_fee' or ' -cert' parameter specified.");
+            res = -10;
         }
+        l_tx_hash_str = dap_chain_mempool_base_tx_create(l_chain, &l_emission_hash, l_emission_chain->id,
+                                                         l_value, l_token_ticker, l_addr_to, l_priv_key,
+                                                         l_hash_out_type,l_value_fee);
         if (l_tx_hash_str) {
             dap_string_append_printf(l_string_ret, "\nDatum %s with 256bit TX is placed in datum pool\n", l_tx_hash_str);
             DAP_DELETE(l_tx_hash_str);
@@ -5288,6 +5289,7 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
         dap_string_free(l_string_ret, true);
         DAP_DELETE(l_addr_to);
         dap_chain_wallet_close(l_wallet_fee);
+        DAP_DEL_Z(l_cert);
         return res;        
     }
 
