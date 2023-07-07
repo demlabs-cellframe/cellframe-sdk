@@ -104,6 +104,8 @@ static int parseflow(char *str);
 ping_handle_t* ping_handle_create(void)
 {
     ping_handle_t *lping = DAP_NEW_Z(ping_handle_t);
+    if (!lping)
+        return log_it(L_ERROR, "Memory allocation error in ping_handle_create, errno=%d", errno), NULL;
     lping->source.sin_family = AF_INET;
     lping->pmtudisc = -1;
 
