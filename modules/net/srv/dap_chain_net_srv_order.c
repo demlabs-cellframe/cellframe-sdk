@@ -660,8 +660,10 @@ bool dap_chain_net_srv_order_sign_verify(dap_chain_net_srv_order_t *a_order, siz
     dap_sign_t *l_sign = (dap_sign_t*)((byte_t*)a_order->ext_n_sign + a_order->ext_size);
     if (dap_sign_verify_data(l_sign, a_order, sizeof(dap_chain_net_srv_order_t) + a_order->ext_size)) {
         dap_hash_fast_t l_pkey_hf = {0};
-        if (dap_sign_get_pkey_hash(l_sign, &l_pkey_hf))
-            return true;
+        if (dap_sign_get_pkey_hash(l_sign, &l_pkey_hf)){
+            if (dap_chain_net_srv_stake_check_pkey_hash(&l_pkey_hf))
+                return true;
+        }
     } else {
         return false;
     }
