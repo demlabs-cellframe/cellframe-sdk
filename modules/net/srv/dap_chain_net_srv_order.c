@@ -680,7 +680,7 @@ void s_chain_net_srv_order_check_by_notifier(dap_global_db_context_t *a_context,
         if (l_order->direction == SERV_DIR_BUY) {
             if (!dap_chain_net_srv_order_sign_verify(l_order, a_obj->value_len)) {
                 dap_global_db_del(a_obj->group, a_obj->key, NULL, NULL);
-                log_it(L_NOTICE, "Remove order %s from %s net. An order signed with a non-delegated key.");
+                log_it(L_NOTICE, "Remove order %s from %s net. An order signed with a non-delegated key.", a_obj->key, l_net->pub.name);
             }
         }
     }
