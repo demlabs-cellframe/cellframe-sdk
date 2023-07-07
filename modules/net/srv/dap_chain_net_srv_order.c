@@ -65,6 +65,7 @@ struct dap_order_notify {
 
 static dap_list_t *s_order_notify_callbacks = NULL;
 static void s_srv_order_callback_notify(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg);
+static void s_chain_net_srv_order_check_by_notifier(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg);
 
 /**
  * @brief dap_chain_net_srv_order_init
@@ -76,6 +77,7 @@ int dap_chain_net_srv_order_init(void)
     dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
     for (uint16_t i = 0; i < l_net_count; i++) {
         dap_chain_net_add_gdb_notify_callback(l_net_list[i], s_srv_order_callback_notify, l_net_list[i]);
+        dap_chain_net_srv_order_add_notify_callback(l_net_list[i], s_chain_net_srv_order_check_by_notifier, l_net_list[i]);
     }
     //geoip_info_t *l_ipinfo = chain_net_geoip_get_ip_info("8.8.8.8");
     DAP_DELETE(l_net_list);
@@ -668,4 +670,18 @@ bool dap_chain_net_srv_order_sign_verify(dap_chain_net_srv_order_t *a_order, siz
         return false;
     }
     return false;
+}
+
+void s_chain_net_srv_order_check_by_notifier(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg){
+    UNUSED(a_context);
+    dap_chain_net_t *l_net = (dap_chain_net_t*)a_arg;
+    if (dap_chain_net_get_role(l_net).enums == NODE_ROLE_MASTER) {
+        dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t*)a_obj->value;
+        if (l_order->direction == SERV_DIR_BUY) {
+            if (!dap_chain_net_srv_order_sign_verify(l_order, a_obj->value_len)) {
+                dap_global_db_del(a_obj->group, a_obj->key, NULL, NULL);
+                log_it(L_NOTICE, "Remove order %s from %s net. An order signed with a non-delegated key.");
+            }
+        }
+    }
 }
