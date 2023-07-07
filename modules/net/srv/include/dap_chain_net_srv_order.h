@@ -184,3 +184,5 @@ DAP_STATIC_INLINE char * dap_chain_net_srv_order_get_nodelist_group(dap_chain_ne
    }
    return NULL;
 }
+
+bool dap_chain_net_srv_order_sign_verify(dap_chain_net_srv_order_t *a_order, size_t a_order_size);
