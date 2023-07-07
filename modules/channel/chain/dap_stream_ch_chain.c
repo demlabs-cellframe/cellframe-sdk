@@ -835,14 +835,15 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                     l_obj->group == NULL)
                 continue;       // the object is broken
 
-            if(l_group_str && strncmp(l_group_str, l_obj->group, l_obj->group_len > strlen(l_group_str) ? l_obj->group_len :
-                                                                                        strlen(l_group_str))==0)
+            if(l_group_str && strncmp(l_group_str, l_obj->group,
+                                      l_obj->group_len > strlen(l_group_str) ?
+                                      l_obj->group_len : strlen(l_group_str))==0)
             {
                 if(l_obj->value_len){
                     dap_chain_datum_t * l_datum = (dap_chain_datum_t*)l_obj->value;
                     if(l_datum){
                         size_t l_datum_size =  dap_chain_datum_size(l_datum);
-                        if (!l_datum_size || (l_datum_size < sizeof (l_datum->header)) || (l_datum_size > l_obj->value_len ) ){
+                        if (l_datum_size && (l_datum_size > sizeof (l_datum->header)) && (l_datum_size <= l_obj->value_len ) ){
                             if(l_datum->header.type_id == DAP_CHAIN_DATUM_TX){
 
                                 dap_chain_datum_tx_t * l_tx = (dap_chain_datum_tx_t *)l_datum->data;
@@ -850,13 +851,9 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                                 dap_chain_hash_fast_t l_hash_pkey;
 
                                 dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
-                                bool sign_valid = dap_sign_verify_all(l_sign,l_tx->header.tx_items_size,l_tx->tx_items,l_tx->header.tx_items_size);
-                                if (!sign_valid)
-                                    log_it(L_INFO, "Sign valid");
-                                else
-                                    log_it(L_INFO, "Sign not valid");
-
-                                if(!sign_valid && dap_sign_get_pkey_hash(l_sign, &l_hash_pkey)){
+                                //bool sign_valid = dap_sign_verify_all(l_sign,l_tx->header.tx_items_size,l_tx->tx_items,l_tx->header.tx_items_size);
+                                bool sign_valid = dap_chain_datum_tx_verify_sign(l_tx);
+                                if(sign_valid && dap_sign_get_pkey_hash(l_sign, &l_hash_pkey)){
                                     char *l_hash_key = dap_enc_base58_encode_hash_to_str(&l_hash_pkey);
 
                                     dap_stream_ch_chain_packet_time_t * l_obj_time, *l_obj_time_2 = NULL;
