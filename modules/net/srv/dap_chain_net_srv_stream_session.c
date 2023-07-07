@@ -96,6 +96,9 @@ dap_chain_net_srv_usage_t* dap_chain_net_srv_usage_add (dap_chain_net_srv_stream
  */
 void dap_chain_net_srv_usage_delete (dap_chain_net_srv_stream_session_t * a_srv_session)
 {
+    if (!a_srv_session || !a_srv_session->usage_active)
+        return;
+
     if ( a_srv_session->usage_active->receipt )
         DAP_DELETE( a_srv_session->usage_active->receipt );
     if ( a_srv_session->usage_active->receipt_next )
