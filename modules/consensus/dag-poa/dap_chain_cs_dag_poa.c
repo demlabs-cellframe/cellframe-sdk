@@ -591,8 +591,10 @@ static void s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
             DAP_DELETE(l_new_atom);
             char l_datum_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_chain_hash_fast_to_str(&l_chosen_item->round_info.datum_hash, l_datum_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-            log_it(L_INFO, "Event %s from round %"DAP_UINT64_FORMAT_U" not added into chain, because the inner datum %s doesn't pass verification (error %d)",
-                   l_event_hash_hex_str, l_arg->round_id, l_datum_hash_str, l_verify_datum);
+            char *l_err_verify_str = dap_chain_net_verify_datum_err_code_to_str(l_datum, l_verify_datum);
+            log_it(L_INFO, "Event %s from round %"DAP_UINT64_FORMAT_U" not added into chain, because the inner datum %s doesn't pass verification (%s)",
+                   l_event_hash_hex_str, l_arg->round_id, l_datum_hash_str, l_err_verify_str);
+            DAP_DELETE(l_err_verify_str);
         }
     } else { /* !l_chosen_item */
         log_it(L_WARNING, "No candidates for round id %"DAP_UINT64_FORMAT_U, l_arg->round_id);

@@ -685,7 +685,13 @@ ssize_t dap_chain_atom_save(dap_chain_t *a_chain, const uint8_t *a_atom, size_t 
             return -7;
         }
     }
-    ssize_t l_res =  dap_chain_cell_file_append(l_cell, a_atom, a_atom_size);
+    ssize_t l_res = dap_chain_cell_file_append(l_cell, a_atom, a_atom_size);
+    if (a_chain->atom_notifiers) {
+        for (dap_list_t *it = a_chain->atom_notifiers; it; it = it->next) {
+            dap_chain_atom_notifier_t *l_notifier = (dap_chain_atom_notifier_t *)it->data;
+            l_notifier->callback(l_notifier->arg, a_chain, l_cell->id, (void *)a_atom, a_atom_size);
+        }
+    }
     if (a_chain->callback_atom_add_from_treshold) {
         dap_chain_atom_ptr_t l_atom_treshold;
         do {

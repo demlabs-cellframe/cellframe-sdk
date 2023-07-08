@@ -290,12 +290,6 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
     l_pkt_out->header.op_data.data_size = a_data_size;
     memcpy(l_pkt_out->data, a_data, a_data_size);
 
-    struct in_addr l_in_daddr;
-#ifdef DAP_OS_LINUX
-    l_in_daddr.s_addr = ((dap_os_iphdr_t* ) l_pkt_out->data)->daddr;
-#else
-    l_in_daddr.s_addr = ((dap_os_iphdr_t* ) l_pkt_out->data)->ip_dst.s_addr;
-#endif
     if(l_ch_vpn_info->is_on_this_worker){
         dap_events_socket_t* l_es = dap_context_find(l_ch_vpn_info->worker->context, l_ch_vpn_info->esocket_uuid);
         if (!l_es) {
@@ -1082,7 +1076,7 @@ void s_ch_vpn_new(dap_stream_ch_t* a_ch, void* a_arg)
 
     dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_ch->stream->session->_inheritor;
 
-    l_srv_vpn->usage_id = l_srv_session->usage_active?  l_srv_session->usage_active->id : 0;
+    l_srv_vpn->usage_id = l_srv_session->usage_active ?  l_srv_session->usage_active->id : 0;
 
     if( l_srv_vpn->usage_id) {
         // So complicated to update usage client to be sure that nothing breaks it
@@ -1094,7 +1088,6 @@ void s_ch_vpn_new(dap_stream_ch_t* a_ch, void* a_arg)
         }
         pthread_rwlock_unlock(&s_clients_rwlock);
     }
-
 }
 
 
@@ -1152,6 +1145,7 @@ static void s_ch_vpn_delete(dap_stream_ch_t* a_ch, void* arg)
     l_ch_vpn->ch = NULL;
     l_ch_vpn->net_srv = NULL;
     l_ch_vpn->is_allowed =false;
+    DAP_DEL_Z(a_ch->internal);
 }
 
 /**
@@ -1168,20 +1162,19 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
     bool l_issue_new_receipt = false;
     // Check if there are time limits
 
-    if (a_usage->is_free)
+    if (a_usage->is_free || !a_usage->receipt || !a_usage->is_active)
         return;
 
     if (a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_DAY ||
         a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_SEC){
         time_t l_current_limit_ts = 0;
-        if ( a_usage->receipt){
-            switch( a_usage->receipt->receipt_info.units_type.enm){
+
+        switch( a_usage->receipt->receipt_info.units_type.enm){
             case SERV_UNIT_DAY:{
                 l_current_limit_ts = (time_t)a_usage->receipt->receipt_info.units*24*3600;
             } break;
             case SERV_UNIT_SEC:{
                 l_current_limit_ts = (time_t)a_usage->receipt->receipt_info.units;
-            }
             }
         }
 

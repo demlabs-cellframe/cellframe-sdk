@@ -32,8 +32,8 @@
 #ifdef DAP_OS_LINUX
 #include <dlfcn.h>
 #endif
-#include <json-c/json.h>
-#include <json-c/json_object.h>
+#include "json.h"
+#include "json_object.h"
 #include <pthread.h>
 #include <dirent.h>
 #include "uthash.h"
@@ -307,7 +307,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                     else
                         dap_chain_net_srv_order_set_continent_region(&l_order, l_continent_num, l_region_str);
                     /*if(l_region_str) {
-                        strncpy(l_order->region, l_region_str, min(sizeof(l_order->region) - 1, strlen(l_region_str) + 1));
+                        strncpy(l_order->region, l_region_str, MIN(sizeof(l_order->region) - 1, strlen(l_region_str) + 1));
                     }
                     if(l_continent_num>=0)
                         l_order->continent = l_continent_num;*/
@@ -863,6 +863,8 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
         l_sdata->srv = l_srv;
         dap_chain_net_srv_parse_pricelist(l_srv, a_config_section);
         HASH_ADD(hh, s_srv_list, uid, sizeof(l_srv->uid), l_sdata);
+        if (l_srv->pricelist)
+            dap_chain_ledger_tx_add_notify(l_srv->pricelist->net->pub.ledger, dap_stream_ch_chain_net_srv_tx_cond_added_cb, NULL);
     }else{
         log_it(L_ERROR, "Already present service with 0x%016"DAP_UINT64_FORMAT_X, a_uid.uint64);
     }
