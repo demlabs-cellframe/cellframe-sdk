@@ -1106,12 +1106,14 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
                     l_token->ticker, l_balance_dbg,
                     l_token->signs_valid, l_token->signs_total);
             l_res_token_tsd_parse = s_token_tsd_parse(a_ledger, l_token_item, l_token, l_token_size);
+            s_tsd_sign_apply(a_ledger, l_token_item, l_token, l_token_size);
             break;
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
             debug_if(s_debug_more, L_INFO, "CF20 token %s declared, total_supply: %s, total_signs_valid: %hu, signs_total: %hu",
                     l_token->ticker, l_balance_dbg,
                     l_token->signs_valid, l_token->signs_total);
             l_res_token_tsd_parse = s_token_tsd_parse(a_ledger, l_token_item, l_token, l_token_size);
+            s_tsd_sign_apply(a_ledger, l_token_item, l_token, l_token_size);
             break;
         default:
             /* Bogdanoff, unknown token subtype declaration. What shall we TODO? */
@@ -1135,6 +1137,7 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
                     l_token->ticker, l_balance_dbg,
                     l_token->signs_valid, l_token->signs_total);
             l_res_token_tsd_parse = s_token_tsd_parse(a_ledger, l_token_item, l_token, l_token_size);
+            s_tsd_sign_apply(a_ledger, l_token_item, l_token, l_token_size);
             break;
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
             debug_if(s_debug_more, L_INFO, "CF20 token %s updated, total_supply: %s, total_signs_valid: %hu, signs_total: %hu",
@@ -1154,7 +1157,7 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
             return -8;
         } break;
     default:
-        debug_if(s_debug_more, L_ERROR, "Unknown token type 0x%04X", l_token->type);
+        debug_if(s_debug_more, L_ERROR, "Unknown token type 0x%04X/ Dump it!", l_token->type);
         CLEAN_UP;
         return -8;
     }
