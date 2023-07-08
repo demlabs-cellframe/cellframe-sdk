@@ -1093,6 +1093,8 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
                 l_token_item->current_supply = a_token->total_supply;
             }
             l_token_item->total_supply = a_token->total_supply;
+            char *l_total = dap_chain_balance_print(l_token_item->total_supply);
+            log_it(L_DEBUG, "Total supply on ADD_UPDATE %s", l_total);
             DAP_DELETE(l_token_item->datum_token);
         } else {
             log_it(L_ERROR, "Token with ticker '%s' update check failed", a_token->ticker);
@@ -1293,10 +1295,14 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
             // set total supply
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY:{ // 256
                 a_token_item->total_supply = dap_tsd_get_scalar(l_tsd,uint256_t);
+                char *l_total = dap_chain_balance_print(a_token_item->total_supply);
+                log_it(L_DEBUG, "Total supply on TSD parse %s", l_total);
             }break;
 
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_OLD:{ // 128
                 a_token_item->total_supply = GET_256_FROM_128(dap_tsd_get_scalar(l_tsd,uint128_t));
+                char *l_total = dap_chain_balance_print(a_token_item->total_supply);
+                log_it(L_DEBUG, "Total supply on OLD TSD parse %s", l_total);
             }break;
 
             // Set total signs count value to set to be valid
@@ -2756,10 +2762,18 @@ static inline int s_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_e
                     SUBTRACT_256_256(l_token_item->current_supply, l_emission_value, &l_token_item->current_supply);
                     char *l_balance = dap_chain_balance_print(l_token_item->current_supply);
                     log_it(L_DEBUG,"New current supply %s for token %s", l_balance, l_token_item->ticker);
+
+                    char *l_total = dap_chain_balance_print(l_token_item->total_supply);
+                    log_it(L_DEBUG, "Total supply %s", l_total);
+
                     DAP_DELETE(l_balance);
                 } else {
                     char *l_balance = dap_chain_balance_print(l_token_item->current_supply);
                     char *l_value = dap_chain_balance_print(l_emission_value);
+
+                    char *l_total = dap_chain_balance_print(l_token_item->total_supply);
+                    log_it(L_DEBUG, "Total supply %s", l_total);
+
                     log_it(L_WARNING,"Token current supply %s lower, than emission value = %s",
                                         l_balance, l_value);
                     DAP_DELETE(l_balance);
