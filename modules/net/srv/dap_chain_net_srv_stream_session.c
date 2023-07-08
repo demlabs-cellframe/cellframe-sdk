@@ -100,9 +100,9 @@ void dap_chain_net_srv_usage_delete (dap_chain_net_srv_stream_session_t * a_srv_
         return;
 
     if ( a_srv_session->usage_active->receipt )
-        DAP_DELETE( a_srv_session->usage_active->receipt );
+        DAP_DEL_Z( a_srv_session->usage_active->receipt );
     if ( a_srv_session->usage_active->receipt_next )
-        DAP_DELETE( a_srv_session->usage_active->receipt_next );
+        DAP_DEL_Z( a_srv_session->usage_active->receipt_next);
     if ( a_srv_session->usage_active->client ){
         for (dap_chain_net_srv_client_remote_t * l_srv_client = a_srv_session->usage_active->client, * tmp = NULL; l_srv_client; ){
             tmp = l_srv_client;
