@@ -1071,40 +1071,6 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
         return -1;
     }
 
-    dap_chain_ledger_token_item_t *l_token_item;
-    pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
-    HASH_FIND_STR(PVT(a_ledger)->tokens, a_token->ticker, l_token_item);
-    pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
-
-    if (l_token_item) {
-        if (a_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE) {
-            log_it(L_ERROR, "Duplicate token declaration for ticker '%s'", a_token->ticker);
-            return -3;
-        }
-        if (s_ledger_token_update_check(l_token_item, a_token, a_token_size)) {
-            if (!s_ledger_update_token_add_in_hash_table(l_token_item, a_token, a_token_size)) {
-                log_it(L_ERROR, "Failed to update token with ticker '%s' in ledger", a_token->ticker);
-                return -5;
-            }
-            if (!IS_ZERO_256(a_token->total_supply)) {
-                SUBTRACT_256_256(l_token_item->total_supply, l_token_item->current_supply, &l_token_item->current_supply);
-                SUBTRACT_256_256(a_token->total_supply, l_token_item->current_supply, &l_token_item->current_supply);
-            } else {
-                l_token_item->current_supply = a_token->total_supply;
-            }
-            l_token_item->total_supply = a_token->total_supply;
-            char *l_total = dap_chain_balance_print(l_token_item->total_supply);
-            log_it(L_DEBUG, "Total supply on ADD_UPDATE %s", l_total);
-            DAP_DELETE(l_token_item->datum_token);
-        } else {
-            log_it(L_ERROR, "Token with ticker '%s' update check failed", a_token->ticker);
-            return -2;
-        }
-    } else if (a_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE) {
-        log_it(L_WARNING, "Token with ticker '%s' does not yet exist, declare it first", a_token->ticker);
-        return -6;
-    }
-
     dap_chain_datum_token_t *l_token = NULL;
     size_t l_token_size = a_token_size;
 
@@ -1120,6 +1086,38 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
         default:
             l_token = DAP_DUP_SIZE(a_token, a_token_size);
             break;
+    }
+
+    dap_chain_ledger_token_item_t *l_token_item;
+    pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
+    HASH_FIND_STR(PVT(a_ledger)->tokens, l_token->ticker, l_token_item);
+    pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
+
+    if (l_token_item) {
+        if (l_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE) {
+            log_it(L_ERROR, "Duplicate token declaration for ticker '%s'", l_token->ticker);
+            return -3;
+        }
+        if (s_ledger_token_update_check(l_token_item, l_token, l_token_size)) {
+            if (!s_ledger_update_token_add_in_hash_table(l_token_item, l_token, l_token_size)) {
+                log_it(L_ERROR, "Failed to update token with ticker '%s' in ledger", l_token->ticker);
+                return -5;
+            }
+            if (!IS_ZERO_256(l_token->total_supply)) {
+                SUBTRACT_256_256(l_token_item->total_supply, l_token_item->current_supply, &l_token_item->current_supply);
+                SUBTRACT_256_256(l_token->total_supply, l_token_item->current_supply, &l_token_item->current_supply);
+            } else {
+                l_token_item->current_supply = l_token->total_supply;
+            }
+            l_token_item->total_supply = l_token->total_supply;
+            DAP_DELETE(l_token_item->datum_token);
+        } else {
+            log_it(L_ERROR, "Token with ticker '%s' update check failed", l_token->ticker);
+            return -2;
+        }
+    } else if (l_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE) {
+        log_it(L_WARNING, "Token with ticker '%s' does not yet exist, declare it first", l_token->ticker);
+        return -6;
     }
 
     if (!l_token_item) {
@@ -1154,7 +1152,7 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
 
     l_token_item->datum_token_size  = l_token_size;
     l_token_item->datum_token       = l_token; //DAP_DUP_SIZE(l_token, l_token_size);
-    l_token_item->datum_token->type = l_token_item->type;
+    l_token_item->datum_token->type = l_token->type;
 
     if (l_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE) {
         pthread_rwlock_wrlock(&PVT(a_ledger)->tokens_rwlock);
@@ -1235,7 +1233,7 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
             return -8;
         } break;
     default:
-        debug_if(s_debug_more, L_ERROR, "Unknown token type 0x%04X/ Dump it!", l_token->type);
+        debug_if(s_debug_more, L_ERROR, "Unknown token type 0x%04X, Dump it!", l_token->type);
         CLEAN_UP;
         return -8;
     }
@@ -1295,14 +1293,10 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
             // set total supply
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY:{ // 256
                 a_token_item->total_supply = dap_tsd_get_scalar(l_tsd,uint256_t);
-                char *l_total = dap_chain_balance_print(a_token_item->total_supply);
-                log_it(L_DEBUG, "Total supply on TSD parse %s", l_total);
             }break;
 
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_OLD:{ // 128
                 a_token_item->total_supply = GET_256_FROM_128(dap_tsd_get_scalar(l_tsd,uint128_t));
-                char *l_total = dap_chain_balance_print(a_token_item->total_supply);
-                log_it(L_DEBUG, "Total supply on OLD TSD parse %s", l_total);
             }break;
 
             // Set total signs count value to set to be valid
@@ -2762,20 +2756,13 @@ static inline int s_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_e
                     SUBTRACT_256_256(l_token_item->current_supply, l_emission_value, &l_token_item->current_supply);
                     char *l_balance = dap_chain_balance_print(l_token_item->current_supply);
                     log_it(L_DEBUG,"New current supply %s for token %s", l_balance, l_token_item->ticker);
-
-                    char *l_total = dap_chain_balance_print(l_token_item->total_supply);
-                    log_it(L_DEBUG, "Total supply %s", l_total);
-
                     DAP_DELETE(l_balance);
                 } else {
                     char *l_balance = dap_chain_balance_print(l_token_item->current_supply);
                     char *l_value = dap_chain_balance_print(l_emission_value);
 
-                    char *l_total = dap_chain_balance_print(l_token_item->total_supply);
-                    log_it(L_DEBUG, "Total supply %s", l_total);
-
-                    log_it(L_WARNING,"Token current supply %s lower, than emission value = %s",
-                                        l_balance, l_value);
+                    log_it(L_WARNING,"Token %s current supply %s < emission value %s",
+                                        l_token_item->ticker, l_balance, l_value);
                     DAP_DELETE(l_balance);
                     DAP_DELETE(l_value);
                     DAP_DELETE(l_token_emission_item->datum_token_emission);
