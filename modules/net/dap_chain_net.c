@@ -489,7 +489,7 @@ void dap_chain_net_sync_gdb_broadcast(dap_global_db_context_t *a_context, dap_st
         return;
 
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
-    dap_global_db_pkt_t *l_data_out = dap_store_packet_single(a_obj);
+    dap_global_db_pkt_t *l_data_out = dap_global_db_pkt_serialize(a_obj);
     struct downlink *l_link, *l_tmp;
     pthread_rwlock_rdlock(&PVT(l_net)->downlinks_lock);
     HASH_ITER(hh, PVT(l_net)->downlinks, l_link, l_tmp) {

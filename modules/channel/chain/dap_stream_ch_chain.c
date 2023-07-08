@@ -1675,7 +1675,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t *a_ch, void *a_arg)
                     l_hash_item->size = l_obj->pkt->data_size;
                     HASH_ADD_BYHASHVALUE(hh, l_ch_chain->remote_gdbs, hash, sizeof(dap_chain_hash_fast_t),
                                          l_hash_item_hashv, l_hash_item);
-                    l_pkt = dap_store_packet_multiple(l_pkt, l_obj->pkt);
+                    l_pkt = dap_global_db_pkt_pack(l_pkt, l_obj->pkt);
                     l_ch_chain->stats_request_gdb_processed++;
                     l_pkt_size = sizeof(dap_global_db_pkt_t) + l_pkt->data_size;
                 }
