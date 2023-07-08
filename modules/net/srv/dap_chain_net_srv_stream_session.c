@@ -48,6 +48,22 @@ dap_chain_net_srv_stream_session_t * dap_chain_net_srv_stream_session_create( da
 }
 
 /**
+ * @brief dap_chain_net_srv_stream_session_create
+ * @param a_session
+ * @return
+ */
+void dap_chain_net_srv_stream_session_delete( dap_stream_session_t * a_session)
+{
+    if (!a_session){
+        log_it (L_ERROR, "Session is NULL!");
+        return;
+    }
+    dap_chain_net_srv_stream_session_t * l_session_srv = a_session->_inheritor;
+    dap_chain_net_srv_usage_delete(l_session_srv);
+}
+
+
+/**
  * @brief dap_chain_net_srv_usage_add
  * @param a_srv_session
  * @param a_net
@@ -78,21 +94,23 @@ dap_chain_net_srv_usage_t* dap_chain_net_srv_usage_add (dap_chain_net_srv_stream
  * @param a_usage
  * @return
  */
-void dap_chain_net_srv_usage_delete (dap_chain_net_srv_stream_session_t * a_srv_session,
-                                                                               dap_chain_net_srv_usage_t* a_usage)
+void dap_chain_net_srv_usage_delete (dap_chain_net_srv_stream_session_t * a_srv_session)
 {
-    if ( a_usage->receipt )
-        DAP_DELETE( a_usage->receipt );
-    if ( a_usage->client ){
-        for (dap_chain_net_srv_client_remote_t * l_srv_client = a_usage->client, * tmp = NULL; l_srv_client; ){
+    if (!a_srv_session || !a_srv_session->usage_active)
+        return;
+
+    if ( a_srv_session->usage_active->receipt )
+        DAP_DELETE( a_srv_session->usage_active->receipt );
+    if ( a_srv_session->usage_active->receipt_next )
+        DAP_DELETE( a_srv_session->usage_active->receipt_next );
+    if ( a_srv_session->usage_active->client ){
+        for (dap_chain_net_srv_client_remote_t * l_srv_client = a_srv_session->usage_active->client, * tmp = NULL; l_srv_client; ){
             tmp = l_srv_client;
             l_srv_client = l_srv_client->next;
             DAP_DELETE( tmp);
         }
-
-
     }
-    DAP_DELETE( a_usage );
+    DAP_DEL_Z(a_srv_session->usage_active);
 }
 
 /**

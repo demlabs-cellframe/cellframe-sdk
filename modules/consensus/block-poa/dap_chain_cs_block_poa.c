@@ -152,7 +152,9 @@ static int s_cli_block_poa(int argc, char ** argv, char **a_str_reply)
         l_block_hash_hex_str = dap_enc_base58_to_hex_str_from_str(l_block_hash_str);
         l_event_hash_base58_str = dap_strdup(l_block_hash_str);
     }
-
+    // TODO make useful CLI for PoA blocks
+    UNUSED(l_block_hash_hex_str);
+    UNUSED(l_event_hash_base58_str);
     // Parse block cmd
     if ( l_block_new_cmd_str != NULL ){
         if ( strcmp(l_block_new_cmd_str,"sign") == 0) { // Sign event command

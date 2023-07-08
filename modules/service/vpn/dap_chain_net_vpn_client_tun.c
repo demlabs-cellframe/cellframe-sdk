@@ -638,7 +638,7 @@ static void ch_sf_pkt_send(dap_stream_ch_t * a_ch, void * a_data, size_t a_data_
     //       ,inet_ntoa(in_daddr), read_ret);
     if(!a_ch) {
         log_it(L_ERROR, "Try to send to NULL channel");
-//        return;
+       return;
     }
     l_pkt_out = DAP_NEW_SIZE(ch_vpn_pkt_t, l_pkt_out_size);
     memset(&l_pkt_out->header,0,sizeof(l_pkt_out->header));
@@ -667,18 +667,18 @@ void ch_sf_tun_client_send(dap_chain_net_srv_ch_vpn_t * ch_sf, void * pkt_data, 
     in_saddr.s_addr = ((struct ip*) pkt_data)->ip_src.s_addr;
     in_daddr.s_addr = ((struct ip*) pkt_data)->ip_dst.s_addr;
 #endif
-    in_daddr_net.s_addr = ch_sf->ch->stream->session->tun_client_addr.s_addr; //in_daddr_net.s_addr = in_daddr.s_addr & m_tun_server->int_network_mask.s_addr;
+    //in_daddr_net.s_addr = ch_sf->ch->stream->session->tun_client_addr.s_addr; //in_daddr_net.s_addr = in_daddr.s_addr & m_tun_server->int_network_mask.s_addr;
     char * in_daddr_str = strdup(inet_ntoa(in_daddr));
     char * in_saddr_str = strdup(inet_ntoa(in_saddr));
 
     int ret;
-    //            log_it(L_DEBUG, "Route packet %s=>%s size %u to the OS network stack",in_saddr_str,
-    //                   in_daddr_str,pkt_data_size);
-    //if( ch_sf_raw_write(STREAM_SF_PACKET_OP_CODE_RAW_SEND, sf_pkt->data, sf_pkt->op_data.data_size)<0){
+    /*            log_it(L_DEBUG, "Route packet %s=>%s size %u to the OS network stack",in_saddr_str,
+                       in_daddr_str,pkt_data_size);
+    if( ch_sf_raw_write(STREAM_SF_PACKET_OP_CODE_RAW_SEND, sf_pkt->data, sf_pkt->op_data.data_size)<0){
     struct sockaddr_in sin = { 0 };
     sin.sin_family = AF_INET;
     sin.sin_port = 0;
-    sin.sin_addr.s_addr = in_daddr.s_addr;
+    sin.sin_addr.s_addr = in_daddr.s_addr;*/
     if((ret = /*sendto(ch_sf->raw_l3_sock, pkt_data, pkt_data_size, 0, (struct sockaddr *) &sin, sizeof(sin))*/-1  )
             < 0) {
         //    if((ret = write(raw_server->tun_fd, sf_pkt->data, sf_pkt->header.op_data.data_size))<0){

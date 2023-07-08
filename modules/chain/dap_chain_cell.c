@@ -179,34 +179,33 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
     int ret = 0;
     char l_file_path[MAX_PATH] = {'\0'};
     snprintf(l_file_path, MAX_PATH, "%s/%s", DAP_CHAIN_PVT(a_chain)->file_storage_dir, a_cell_file_path);
-    FILE *l_f = fopen(l_file_path, "rb");
-    if (!l_f) {
+    FILE *l_cell_file = fopen(l_file_path, "rb");
+    if (!l_cell_file) {
         log_it(L_WARNING,"Can't read chain \"%s\"", l_file_path);
         return -1;
     }
     dap_chain_cell_file_header_t l_hdr = { 0 };
-    if (fread(&l_hdr, 1, sizeof(l_hdr), l_f) != sizeof (l_hdr)) {
+    if (fread(&l_hdr, 1, sizeof(l_hdr), l_cell_file) != sizeof (l_hdr)) {
         log_it(L_ERROR,"Can't read chain header \"%s\"", l_file_path);
-        fclose(l_f);
+        fclose(l_cell_file);
         return -2;
     }
     if (l_hdr.signature != DAP_CHAIN_CELL_FILE_SIGNATURE) {
         log_it(L_ERROR, "Wrong signature in chain \"%s\", possible file corrupt", l_file_path);
-        fclose(l_f);
+        fclose(l_cell_file);
         return -3;
     }
     if (l_hdr.version < DAP_CHAIN_CELL_FILE_VERSION ){
         log_it(L_ERROR, "Too low chain version, backup files");
-        fclose(l_f);
+        fclose(l_cell_file);
         return -3;
     }
-    size_t l_el_size = 0;
     unsigned long q = 0;
-    volatile int l_dummy;
-    for (l_dummy = fread(&l_el_size, 1, sizeof(l_el_size), l_f); !feof(l_f); l_el_size = 0, l_dummy = fread(&l_el_size, 1, sizeof(l_el_size), l_f))
-    {
-        if (!l_el_size) {
-            log_it(L_ERROR, "Zero element size, chain %s is corrupted", l_file_path);
+    size_t l_read;
+    uint64_t l_el_size = 0;
+    while ((l_read = fread(&l_el_size, 1, sizeof(l_el_size), l_cell_file)) && !feof(l_cell_file)) {
+        if (l_read != sizeof(l_el_size) || l_el_size == 0) {
+            log_it(L_ERROR, "Corrupted element size %zu, chain %s is damaged", l_el_size, l_file_path);
             ret = -4;
             break;
         }
@@ -216,8 +215,8 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
             ret = -5;
             break;
         }
-        unsigned long l_read = fread((void *)l_element, 1, l_el_size, l_f);
-        if(l_read == l_el_size) {
+        l_read = fread((void *)l_element, 1, l_el_size, l_cell_file);
+        if (l_read == l_el_size) {
             dap_chain_atom_verify_res_t l_res = a_chain->callback_atom_add(a_chain, l_element, l_el_size); // !!! blocking GDB call !!!
             if (l_res == ATOM_PASS || l_res == ATOM_REJECT) {
                 DAP_DELETE(l_element);
@@ -237,7 +236,7 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
     }
     if (q)
         dap_chain_cell_create_fill2(a_chain, a_cell_file_path);
-    fclose(l_f);
+    fclose(l_cell_file);
     return ret;
 
 }
@@ -263,7 +262,7 @@ static bool s_file_write_header(dap_chain_cell_t *a_cell)
     return true;
 }
 
-static ssize_t s_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a_atom, size_t a_atom_size)
+static ssize_t s_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a_atom, uint64_t a_atom_size)
 {
     if (fwrite(&a_atom_size, 1, sizeof(a_atom_size), a_cell->file_storage) != sizeof(a_atom_size)) {
         log_it (L_ERROR,"Can't write atom data size from cell 0x%016"DAP_UINT64_FORMAT_X" in \"%s\"",

@@ -116,21 +116,21 @@ int com_vpn_client(int a_argc, char ** a_argv, char **a_str_reply)
         return -2;
 
     int cmd_num = CMD_NONE;
-    if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "init", NULL)) {
+    if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "init", NULL)) {
         cmd_num = CMD_INIT;
     }
-    if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "start", NULL)) {
+    if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "start", NULL)) {
             cmd_num = CMD_START;
         }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "stop", NULL)) {
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "stop", NULL)) {
         cmd_num = CMD_STOP;
     }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "status", NULL)) {
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "status", NULL)) {
         cmd_num = CMD_STATUS;
     }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, min(a_argc, l_arg_index + 1), "check", NULL)) {
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "check", NULL)) {
         cmd_num = CMD_CHECK;
-        if(dap_cli_server_cmd_find_option_val(a_argv, min(a_argc, l_arg_index + 1), min(a_argc, l_arg_index + 2), "result", NULL)) {
+        if(dap_cli_server_cmd_find_option_val(a_argv, MIN(a_argc, l_arg_index + 1), MIN(a_argc, l_arg_index + 2), "result", NULL)) {
                 cmd_num = CMD_CHECK_RESULT;
             }
     }

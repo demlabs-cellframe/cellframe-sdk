@@ -556,8 +556,10 @@ static bool s_net_send_atoms(dap_proc_thread_t *a_thread, void *a_arg)
  */
 static void s_chain_callback_notify(void *a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, void* a_atom, size_t a_atom_size)
 {
-    if (!a_arg)
+    if (!a_arg || !a_chain) {
+        log_it(L_ERROR, "Argument is NULL for s_chain_callback_notify");
         return;
+    }
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     if (!HASH_COUNT(PVT(l_net)->downlinks))
         return;
@@ -1720,7 +1722,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
     // command 'list'
     const char * l_list_cmd = NULL;
 
-    if(dap_cli_server_cmd_find_option_val(argv, arg_index, min(argc, arg_index + 1), "list", &l_list_cmd) != 0 ) {
+    if(dap_cli_server_cmd_find_option_val(argv, arg_index, MIN(argc, arg_index + 1), "list", &l_list_cmd) != 0 ) {
         dap_string_t *l_string_ret = dap_string_new("");
         if (dap_strcmp(l_list_cmd,"chains")==0){
             const char * l_net_str = NULL;
@@ -3209,6 +3211,23 @@ int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *
             return -1;
     }
     return 0;
+}
+
+char *dap_chain_net_verify_datum_err_code_to_str(dap_chain_datum_t *a_datum, int a_code){
+    switch (a_datum->header.type_id) {
+        case DAP_CHAIN_DATUM_TX:
+            return dap_chain_ledger_tx_check_err_str(a_code);
+        case DAP_CHAIN_DATUM_TOKEN_DECL:
+            return dap_chain_ledger_token_decl_add_err_code_to_str(a_code);
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION:
+            return dap_chain_ledger_token_emission_err_code_to_str(a_code);
+        default:
+            if (a_code == 0) {
+                return dap_strdup("DAP_CHAIN_DATUM_VERIFY_OK");
+            } else {
+                return dap_strdup_printf("Error code: %d", a_code);
+            }
+    }
 }
 
 /**
