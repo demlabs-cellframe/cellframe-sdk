@@ -131,7 +131,7 @@ typedef struct dap_chain_net dap_chain_net_t;
 int dap_chain_ledger_init();
 void dap_chain_ledger_deinit();
 
-dap_ledger_t *dap_chain_ledger_create(uint16_t a_flags, char *a_net_name, const char *a_net_native_ticker);
+dap_ledger_t *dap_chain_ledger_create(uint16_t a_flags, char *a_net_name, const char *a_net_native_ticker, dap_list_t *a_poa_certs);
 
 void dap_chain_ledger_set_fee(dap_ledger_t *a_ledger, uint256_t a_fee, dap_chain_addr_t a_fee_addr);
 
@@ -235,6 +235,8 @@ void dap_chain_ledger_addr_get_token_ticker_all_depricated(dap_ledger_t *a_ledge
 
 void dap_chain_ledger_addr_get_token_ticker_all(dap_ledger_t *a_ledger, dap_chain_addr_t * a_addr,
         char *** a_tickers, size_t * a_tickers_size);
+
+bool dap_chain_ledger_tx_poa_signed(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
 
 // Checking a new transaction before adding to the cache
 int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash,
