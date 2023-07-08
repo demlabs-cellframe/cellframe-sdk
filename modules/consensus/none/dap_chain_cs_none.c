@@ -344,8 +344,7 @@ static void s_chain_gdb_ledger_load(dap_chain_t *a_chain)
  * @param a_datums_count object counts in datums array
  * @return size_t
  */
-static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums,
-        size_t a_datums_count)
+static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums, size_t a_datums_count)
 {
     for(size_t i = 0; i < a_datums_count; i++) {
         dap_chain_datum_t *l_datum = a_datums[i];
@@ -353,6 +352,11 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
         char l_db_key[DAP_CHAIN_HASH_FAST_STR_SIZE];
         dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_datum_hash);
         dap_chain_hash_fast_to_str(&l_datum_hash, l_db_key, sizeof(l_db_key));
+        int l_rc = dap_chain_net_verify_datum_for_add(a_chain, l_datum, &l_datum_hash);
+        if (l_rc != 0) {
+            log_it(L_ERROR, "Verified datum %s not passed the check, code %d", l_db_key, l_rc);
+            return i;
+        }
         dap_global_db_set(PVT(DAP_CHAIN_GDB(a_chain))->group_datums, l_db_key, l_datum,
                           dap_chain_datum_size(l_datum), false, NULL, NULL);
     }

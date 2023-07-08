@@ -1679,8 +1679,11 @@ static void s_db_change_notifier(dap_global_db_context_t *a_context, dap_store_o
     dap_chain_esbocs_session_t *l_session = a_arg;
     dap_global_db_pkt_t *l_pkt = dap_global_db_pkt_serialize(a_obj);
     dap_hash_fast_t l_blank_hash = {};
+    pthread_mutex_lock(&l_session->mutex);
     s_message_send(l_session, DAP_CHAIN_ESBOCS_MSG_TYPE_SEND_DB, &l_blank_hash, l_pkt,
                    sizeof(*l_pkt) + l_pkt->data_size, l_session->cur_round.all_validators);
+    pthread_mutex_unlock(&l_session->mutex);
+    DAP_DELETE(l_pkt);
 }
 
 static int s_session_directive_apply(dap_chain_esbocs_directive_t *a_directive, dap_hash_fast_t *a_directive_hash)
