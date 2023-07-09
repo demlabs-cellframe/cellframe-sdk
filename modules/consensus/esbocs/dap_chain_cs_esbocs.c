@@ -239,6 +239,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         }
     }
     l_blocks->chain->callback_created = s_callback_created;
+
     return 0;
 
 lb_err:
@@ -406,6 +407,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     l_session->my_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
     l_session->my_signing_addr = l_my_signing_addr;
     s_session_load_penaltys(l_session);
+    s_session_db_serialize(l_session);
     dap_global_db_add_notify_group_mask(dap_global_db_context_get_default()->instance,
                                         DAP_CHAIN_ESBOCS_GDB_GROUPS_PREFIX ".*",
                                         s_db_change_notifier, l_session);
@@ -630,11 +632,13 @@ static void s_session_send_startsync(dap_chain_esbocs_session_t *a_session)
             dap_string_append_printf(l_addr_list, NODE_ADDR_FP_STR"; ",
                                      NODE_ADDR_FP_ARGS_S(((dap_chain_esbocs_validator_t *)it->data)->node_addr));
         }
+        char *l_sync_hash = dap_chain_hash_fast_to_str_new(&a_session->db_hash);
         log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U"."
-                       " Sent START_SYNC pkt, sync attempt %"DAP_UINT64_FORMAT_U" current validators list: %s",
+                       " Sent START_SYNC pkt, sync attempt %"DAP_UINT64_FORMAT_U" current validators list: %s DB sync hash %s",
                             a_session->chain->net_name, a_session->chain->name, a_session->cur_round.id,
-                                a_session->cur_round.sync_attempt, l_addr_list->str);
+                                a_session->cur_round.sync_attempt, l_addr_list->str, l_sync_hash);
         dap_string_free(l_addr_list, true);
+        DAP_DELETE(l_sync_hash);
     }
     dap_list_t *l_inactive_validators = dap_chain_net_srv_stake_get_validators(a_session->chain->net_id, false);
     dap_list_t *l_inactive_sendlist = dap_list_copy_deep(l_inactive_validators, s_callback_list_form, NULL);
@@ -1038,11 +1042,9 @@ static void s_session_proc_state(dap_chain_esbocs_session_t *a_session)
     switch (a_session->state) {
     case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START: {
         a_session->listen_ensure = 1;
-        dap_time_t l_round_timeout = PVT(a_session->esbocs)->round_start_sync_timeout;
         bool l_round_skip = !s_validator_check(&a_session->my_signing_addr, a_session->cur_round.validators_list);
-        if (l_round_skip)
-            l_round_timeout += s_get_round_skip_timeout(a_session);
-        if (a_session->ts_round_sync_start && l_time - a_session->ts_round_sync_start >= l_round_timeout) {
+        if (a_session->ts_round_sync_start && l_time - a_session->ts_round_sync_start >=
+                PVT(a_session->esbocs)->round_start_sync_timeout) {
             if (a_session->cur_round.validators_synced_count >= PVT(a_session->esbocs)->min_validators_count && !l_round_skip) {
                 a_session->cur_round.id = s_session_calc_current_round_id(a_session);
                 debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
@@ -1883,6 +1885,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
     bool l_not_in_list = false;
     switch (l_message->hdr.type) {
     case DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC:
+    case DAP_CHAIN_ESBOCS_MSG_TYPE_SEND_DB:
         // Add local sync messages, cause a round clear
         if (!a_sender_node_addr)
             s_message_chain_add(l_session, l_message, a_data_size, a_data_hash, &l_signing_addr);
@@ -1926,9 +1929,12 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                                         " SYNC message is rejected cause DB hash mismatch",
                                            l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                                l_session->cur_round.sync_attempt);
-            dap_list_t *l_validator = dap_list_append(NULL, s_validator_check(&l_signing_addr, l_session->cur_round.all_validators));
-            s_message_send(l_session, DAP_CHAIN_ESBOCS_MSG_TYPE_SEND_DB, &l_session->db_hash, l_session->db_serial,
-                           sizeof(*l_session->db_serial) + l_session->db_serial->data_size, l_validator);
+            if (!dap_hash_fast_is_blank(&l_session->db_hash)) {
+                dap_list_t *l_validator = dap_list_append(NULL, s_validator_check(&l_signing_addr, l_session->cur_round.all_validators));
+                s_message_send(l_session, DAP_CHAIN_ESBOCS_MSG_TYPE_SEND_DB, &l_session->db_hash, l_session->db_serial,
+                               sizeof(*l_session->db_serial) + l_session->db_serial->data_size, l_validator);
+                dap_list_free1(l_validator);
+            }
             break;
         }
         if (l_sync_attempt != l_session->cur_round.sync_attempt) {
