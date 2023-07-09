@@ -133,10 +133,10 @@ typedef struct dap_chain_esbocs_pvt {
 
 #define PVT(a) ((dap_chain_esbocs_pvt_t *)a->_pvt)
 
-struct DAP_ALIGN_PACKED sync_params {
+struct sync_params {
     uint64_t attempt;
     dap_hash_fast_t db_hash;
-};
+} DAP_ALIGN_PACKED;
 
 DAP_STATIC_INLINE uint16_t s_get_round_skip_timeout(dap_chain_esbocs_session_t *a_session)
 {
@@ -640,8 +640,9 @@ static void s_session_send_startsync(dap_chain_esbocs_session_t *a_session)
     dap_list_t *l_inactive_sendlist = dap_list_copy_deep(l_inactive_validators, s_callback_list_form, NULL);
     dap_list_free_full(l_inactive_validators, NULL);
     dap_list_t *l_total_sendlist = dap_list_concat(a_session->cur_round.all_validators, l_inactive_sendlist);
+    struct sync_params l_params = { .attempt = a_session->cur_round.sync_attempt, .db_hash = a_session->db_hash };
     s_message_send(a_session, DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC, &l_last_block_hash,
-                   &a_session->cur_round.sync_attempt, sizeof(uint64_t),
+                   &l_params, sizeof(struct sync_params),
                    l_total_sendlist);
     if (l_inactive_sendlist && l_inactive_sendlist->prev) { // List splitting
         l_inactive_sendlist->prev->next = NULL;
