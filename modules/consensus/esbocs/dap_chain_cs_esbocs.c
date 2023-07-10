@@ -240,6 +240,8 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     }
     l_blocks->chain->callback_created = s_callback_created;
 
+    dap_global_db_set(s_get_penalty_group(a_chain->net_id), "RpiDC8c1T1Phj39nZy6E1jEmigaMV9MHjmMkpBLjMfADD7BPTXCXHg6Rma15kssjDvYn1d2NyMj6HwLKiEkUdxbLam7VFcF79THnMND8", NULL, 0, false, NULL, 0);
+
     return 0;
 
 lb_err:
@@ -281,6 +283,7 @@ static void s_session_db_serialize(dap_chain_esbocs_session_t *a_session)
     }
     dap_store_obj_free(l_objs, l_objs_count);
     char *l_del_sync_group = dap_strdup_printf("%s.del", l_sync_group);
+    l_objs_count = 0;
     l_objs = dap_global_db_get_all_raw_sync(l_del_sync_group, 0, &l_objs_count);
     DAP_DELETE(l_del_sync_group);
     for (size_t i = 0; i < l_objs_count; i++) {
@@ -521,10 +524,12 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_session_t *a_session, 
 
     if (!l_esbocs_pvt->poa_mode) {
         dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_session->chain->net_id, true);
+        a_session->cur_round.all_validators = dap_list_copy_deep(l_validators, s_callback_list_form, NULL);
         uint16_t l_total_validators_count = dap_list_length(l_validators);
         if (l_total_validators_count < l_esbocs_pvt->min_validators_count) {
+            l_ret = dap_list_copy_deep(l_esbocs_pvt->poa_validators, s_callback_list_copy, NULL);
             dap_list_free_full(l_validators, NULL);
-            return NULL;
+            return l_ret;
         }
 
         // TODO: make dap_chain_net_srv_stake_get_total_weight() call
@@ -538,8 +543,6 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_session_t *a_session, 
                 return NULL;
             }
         }
-
-        a_session->cur_round.all_validators = dap_list_copy_deep(l_validators, s_callback_list_form, NULL);
 
         size_t l_consensus_optimum = (size_t)l_esbocs_pvt->min_validators_count * 2 - 1;
         size_t l_need_vld_cnt = MIN(l_total_validators_count, l_consensus_optimum);
@@ -750,6 +753,11 @@ static void s_session_round_new(dap_chain_esbocs_session_t *a_session)
             a_session->cur_round.sync_attempt = 1;
     }
     a_session->cur_round.validators_list = s_get_validators_list(a_session, a_session->cur_round.sync_attempt - 1);
+    if (!a_session->cur_round.validators_list) {
+        log_it(L_WARNING, "Totally no active validators found");
+        a_session->ts_round_sync_start = dap_time_now();
+        return;
+    }
     bool l_round_already_started = a_session->round_fast_forward;
     dap_chain_esbocs_sync_item_t *l_item, *l_tmp;
     HASH_FIND(hh, a_session->sync_items, &a_session->cur_round.last_block_hash, sizeof(dap_hash_fast_t), l_item);
@@ -1945,9 +1953,13 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                                            l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                                l_session->cur_round.sync_attempt);
             if (!dap_hash_fast_is_blank(&l_session->db_hash)) {
-                dap_list_t *l_validator = s_validator_check(&l_signing_addr, l_session->cur_round.all_validators);
+                dap_chain_esbocs_validator_t *l_validator = DAP_NEW_Z(dap_chain_esbocs_validator_t);
+                l_validator->node_addr = *dap_chain_net_srv_stake_key_get_node_addr(&l_signing_addr);
+                l_validator->signing_addr = l_signing_addr;
+                dap_list_t *l_validator_list = dap_list_append(NULL, l_validator);
                 s_message_send(l_session, DAP_CHAIN_ESBOCS_MSG_TYPE_SEND_DB, &l_session->db_hash, l_session->db_serial,
-                               sizeof(*l_session->db_serial) + l_session->db_serial->data_size, l_validator);
+                               sizeof(*l_session->db_serial) + l_session->db_serial->data_size, l_validator_list);
+                dap_list_free_full(l_validator_list, NULL);
             }
             break;
         }
