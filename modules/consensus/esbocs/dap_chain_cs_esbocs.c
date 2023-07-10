@@ -240,7 +240,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     }
     l_blocks->chain->callback_created = s_callback_created;
 
-    dap_global_db_set(s_get_penalty_group(a_chain->net_id), "RpiDC8c1T1Phj39nZy6E1jEmigaMV9MHjmMkpBLjMfADD7BPTXCXHg6Rma15kssjDvYn1d2NyMj6HwLKiEkUdxbLam7VFcF79THnMND8", NULL, 0, false, NULL, 0);
+    //dap_global_db_set(s_get_penalty_group(a_chain->net_id), "RpiDC8c1T1Phj39nZy6E1jEmigaMV9MHjmMkpBLjMfADD7BPTXCXHg6Rma15kssjDvYn1d2NyMj6HwLKiEkUdxbLam7VFcF79THnMND8", NULL, 0, false, NULL, 0);
 
     return 0;
 
@@ -278,6 +278,7 @@ static void s_session_db_serialize(dap_chain_esbocs_session_t *a_session)
         dap_store_obj_t *it = l_objs + i;
         it->type = DAP_DB$K_OPTYPE_ADD;
         dap_global_db_pkt_t *l_pkt_single = dap_global_db_pkt_serialize(it);
+        dap_global_db_pkt_change_id(l_pkt_single, 0);
         l_pkt = dap_global_db_pkt_pack(l_pkt, l_pkt_single);
         DAP_DELETE(l_pkt_single);
     }
@@ -291,7 +292,8 @@ static void s_session_db_serialize(dap_chain_esbocs_session_t *a_session)
         it->type = DAP_DB$K_OPTYPE_DEL;
         DAP_DEL_Z(it->group);
         it->group = dap_strdup(l_sync_group);
-        dap_global_db_pkt_t *l_pkt_single = dap_global_db_pkt_serialize(l_objs + i);
+        dap_global_db_pkt_t *l_pkt_single = dap_global_db_pkt_serialize(it);
+        dap_global_db_pkt_change_id(l_pkt_single, 0);
         l_pkt = dap_global_db_pkt_pack(l_pkt, l_pkt_single);
         DAP_DELETE(l_pkt_single);
     }
@@ -299,7 +301,7 @@ static void s_session_db_serialize(dap_chain_esbocs_session_t *a_session)
     DAP_DEL_Z(a_session->db_serial);
     a_session->db_serial = l_pkt;
     if (l_pkt)
-        dap_hash_fast(l_pkt, sizeof(dap_global_db_pkt_t) + l_pkt->data_size, &a_session->db_hash);
+        dap_hash_fast(l_pkt->data, l_pkt->data_size, &a_session->db_hash);
     if (PVT(a_session->esbocs)->debug) {
         char l_sync_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
         dap_chain_hash_fast_to_str(&a_session->db_hash, l_sync_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
