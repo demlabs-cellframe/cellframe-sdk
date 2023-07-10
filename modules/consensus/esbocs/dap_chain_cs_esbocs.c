@@ -295,7 +295,13 @@ static void s_session_db_serialize(dap_chain_esbocs_session_t *a_session)
     DAP_DELETE(l_sync_group);
     DAP_DEL_Z(a_session->db_serial);
     a_session->db_serial = l_pkt;
-    dap_hash_fast(l_pkt, sizeof(dap_global_db_pkt_t) + l_pkt->data_size, &a_session->db_hash);
+    if (l_pkt)
+        dap_hash_fast(l_pkt, sizeof(dap_global_db_pkt_t) + l_pkt->data_size, &a_session->db_hash);
+    if (PVT(a_session->esbocs)->debug) {
+        char l_sync_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+        dap_chain_hash_fast_to_str(&a_session->db_hash, l_sync_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+        log_it(L_MSG, "DB changes applied, new DB resync hash is %s", l_sync_hash_str);
+    }
 }
 
 /* *** End of the temporary added section for over-consensus sync. *** */
@@ -1829,6 +1835,15 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                 s_session_sync_queue_add(l_session, l_message, a_data_size);
                 goto session_unlock;
             }
+        } else if (l_message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_SEND_DB) {
+            if (dap_hash_fast_compare(&l_message->hdr.candidate_hash, &l_session->db_hash) &&
+                    !dap_hash_fast_is_blank(&l_session->db_hash)) {
+                debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U"."
+                                            " Send DB message with same DB hash is ignored",
+                                                l_session->chain->net_name, l_session->chain->name,
+                                                    l_session->cur_round.id);
+                goto session_unlock;
+            }
         } else if (l_message->hdr.round_id != l_session->cur_round.id) {
             // round check
             debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
@@ -1925,15 +1940,14 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                                         l_session->chain->net_name, l_session->chain->name, l_message->hdr.round_id,
                                             l_validator_addr_str, l_sync_attempt);
         if (!dap_hash_fast_compare(&((struct sync_params *)l_message_data)->db_hash, &l_session->db_hash)) {
-            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", sync_attempt%"DAP_UINT64_FORMAT_U
+            debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", sync_attempt %"DAP_UINT64_FORMAT_U
                                         " SYNC message is rejected cause DB hash mismatch",
                                            l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                                l_session->cur_round.sync_attempt);
             if (!dap_hash_fast_is_blank(&l_session->db_hash)) {
-                dap_list_t *l_validator = dap_list_append(NULL, s_validator_check(&l_signing_addr, l_session->cur_round.all_validators));
+                dap_list_t *l_validator = s_validator_check(&l_signing_addr, l_session->cur_round.all_validators);
                 s_message_send(l_session, DAP_CHAIN_ESBOCS_MSG_TYPE_SEND_DB, &l_session->db_hash, l_session->db_serial,
                                sizeof(*l_session->db_serial) + l_session->db_serial->data_size, l_validator);
-                dap_list_free1(l_validator);
             }
             break;
         }
@@ -2306,7 +2320,9 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
 
     for (dap_list_t *it = a_validators; it; it = it->next) {
         dap_chain_esbocs_validator_t *l_validator = it->data;
-        if (l_validator->is_synced || a_message_type == DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC) {
+        if (l_validator->is_synced ||
+                a_message_type == DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC ||
+                a_message_type == DAP_CHAIN_ESBOCS_MSG_TYPE_SEND_DB) {
             debug_if(PVT(a_session->esbocs)->debug, L_MSG, "Send pkt type 0x%x to "NODE_ADDR_FP_STR,
                                                             a_message_type, NODE_ADDR_FP_ARGS_S(l_validator->node_addr));
             l_voting_pkt->hdr.receiver_node_addr = l_validator->node_addr;
