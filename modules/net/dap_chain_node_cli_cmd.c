@@ -1480,7 +1480,8 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         dap_string_t *l_str_uplinks = dap_string_new("---------------------------\n"
                                              "| ↑\\↓ |\t#\t|\t\tIP\t\t|\tPort\t|\n");
         for (size_t i=0; i < l_uplink_count; i++) {
-            char *l_address = l_uplinks[i]->address;
+            //char *l_address = l_uplinks[i]->address;
+            char *l_address = l_uplinks[i]->stream->esocket->remote_addr_str;
             short l_port = l_uplinks[i]->port;
 
             dap_string_append_printf(l_str_uplinks, "|  ↑  |\t%zu\t|\t%s\t\t|\t%u\t|\n",
