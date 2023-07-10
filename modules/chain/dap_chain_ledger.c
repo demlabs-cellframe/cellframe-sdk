@@ -3510,6 +3510,18 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         bound_item = DAP_NEW_Z(dap_chain_ledger_tx_bound_t);
         if (!bound_item) {
             log_it(L_ERROR, "Memory allocation error in dap_chain_ledger_tx_cache_check");
+            if ( l_list_bound_items )
+                dap_list_free_full(l_list_bound_items, NULL);
+            if (l_list_tx_out)  
+                dap_list_free(l_list_tx_out);
+            HASH_ITER(hh, l_values_from_prev_tx, l_value_cur, l_tmp) {
+                HASH_DEL(l_values_from_prev_tx, l_value_cur);
+                DAP_DELETE(l_value_cur);
+            }
+            HASH_ITER(hh, l_values_from_cur_tx, l_value_cur, l_tmp) {
+                HASH_DEL(l_values_from_cur_tx, l_value_cur);
+                DAP_DELETE(l_value_cur);
+            }
             return -1;
         }
         dap_chain_tx_in_t *l_tx_in = NULL;
@@ -3895,10 +3907,16 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         HASH_FIND_STR(l_values_from_prev_tx, l_token, l_value_cur);
         if (!l_value_cur) {
             l_value_cur = DAP_NEW_Z(dap_chain_ledger_tokenizer_t);
-            // if ( !l_value_cur ) {
-            //     log_it(L_ERROR, "Memory allocation error in ");   //////////////////////////////////////////////
-            //     return -1;
-            // }
+            if ( !l_value_cur ) {
+                log_it(L_ERROR, "Memory allocation error in dap_chain_ledger_tx_cache_check");
+                if (bound_item)
+                    DAP_DELETE(bound_item);
+                if ( l_list_bound_items )
+                    dap_list_free_full(l_list_bound_items, NULL);
+                if (l_list_tx_out)
+                    dap_list_free(l_list_tx_out);
+                return -1;
+            }
             strcpy(l_value_cur->token_ticker, l_token);
             HASH_ADD_STR(l_values_from_prev_tx, token_ticker, l_value_cur);
         }
@@ -3936,6 +3954,16 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         }
     } else {
         l_value_cur = DAP_NEW_Z(dap_chain_ledger_tokenizer_t);
+        if ( !l_value_cur ) {
+            log_it(L_ERROR, "Memory allocation error in dap_chain_ledger_tx_cache_check");
+            if (bound_item)
+                DAP_DELETE(bound_item);
+            if ( l_list_bound_items )
+                dap_list_free_full(l_list_bound_items, NULL);
+            if (l_list_tx_out)
+                dap_list_free(l_list_tx_out);
+            return -1;
+        }
         dap_stpcpy(l_value_cur->token_ticker, l_token);
         if (!l_main_ticker)
             l_main_ticker = l_value_cur->token_ticker;
@@ -4008,6 +4036,16 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             HASH_FIND_STR(l_values_from_cur_tx, l_token, l_value_cur);
             if (!l_value_cur) {
                 l_value_cur = DAP_NEW_Z(dap_chain_ledger_tokenizer_t);
+                if ( !l_value_cur ) {
+                    log_it(L_ERROR, "Memory allocation error in dap_chain_ledger_tx_cache_check");
+                    if (bound_item)
+                        DAP_DELETE(bound_item);
+                    if ( l_list_bound_items )
+                        dap_list_free_full(l_list_bound_items, NULL);
+                    if (l_list_tx_out)
+                        dap_list_free(l_list_tx_out);
+                    return -1;
+                }
                 strcpy(l_value_cur->token_ticker, l_token);
                 HASH_ADD_STR(l_values_from_cur_tx, token_ticker, l_value_cur);
             }
@@ -4558,6 +4596,11 @@ static inline int s_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, d
             s_balance_cache_update(a_ledger, wallet_balance);
         } else {
             wallet_balance = DAP_NEW_Z(dap_ledger_wallet_balance_t);
+            if (!wallet_balance) {
+                log_it(L_ERROR, "Memoru allocation error in s_load_cache_gdb_loaded_txs_callback");
+                l_ret = -1;
+                goto FIN;
+            }
             wallet_balance->key = l_wallet_balance_key;
             strcpy(wallet_balance->token_ticker, l_cur_token_ticker);
             SUM_256_256(wallet_balance->balance, l_value, &wallet_balance->balance);

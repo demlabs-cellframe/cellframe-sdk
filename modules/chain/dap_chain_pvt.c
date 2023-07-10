@@ -37,6 +37,10 @@
 void dap_chain_add_mempool_notify_callback(dap_chain_t *a_chain, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg)
 {
     dap_chain_gdb_notifier_t *l_notifier = DAP_NEW(dap_chain_gdb_notifier_t);
+    if (!l_notifier) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_add_mempool_notify_callback");
+        return;
+    }
     l_notifier->callback = a_callback;
     l_notifier->cb_arg = a_cb_arg;
     DAP_CHAIN_PVT(a_chain)->mempool_notifires = dap_list_append(DAP_CHAIN_PVT(a_chain)->mempool_notifires, l_notifier);

@@ -219,6 +219,10 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
 
         // Create one client
         l_usage->client = DAP_NEW_Z( dap_chain_net_srv_client_remote_t);
+        if (!l_usage->client) {
+            log_it(L_ERROR, "Memory allocation error in s_grace_period_control");
+            goto free_exit;
+        }
         l_usage->client->stream_worker = l_ch->stream_worker;
         l_usage->client->ch = l_ch;
         l_usage->client->session_id = l_ch->stream->session->id;
@@ -269,6 +273,10 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
                 }
             } else {
                 l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
+                if (!l_price) {
+                    log_it(L_ERROR, "Memory allocation error in s_grace_period_control");
+                    goto free_exit;
+                }
                 memcpy(l_price, l_srv->pricelist, sizeof(*l_price));
                 l_price->value_datoshi = uint256_0;
             }
@@ -297,6 +305,10 @@ static bool s_grace_period_control(dap_chain_net_srv_grace_t *a_grace)
         size_t l_success_size = sizeof (dap_stream_ch_chain_net_srv_pkt_success_hdr_t );
         dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
                                                                               l_success_size);
+        if (!l_success) {
+            log_it(L_ERROR, "Memory allocation error in s_grace_period_control");
+            goto free_exit;
+        }
         l_success->hdr.usage_id = l_usage->id;
         l_success->hdr.net_id.uint64 = l_usage->net->pub.id.uint64;
         l_success->hdr.srv_uid.uint64 = l_usage->service->uid.uint64;

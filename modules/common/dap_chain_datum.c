@@ -349,8 +349,20 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                      l_value_str);
             if (((dap_chain_datum_tx_receipt_t*)item)->exts_size == sizeof(dap_sign_t) + sizeof(dap_sign_t)){
                 dap_sign_t *l_provider = DAP_NEW_Z(dap_sign_t);
+                if (!l_provider) {
+                    log_it(L_ERROR, "Memory allocation error in dap_chain_datum_dump_tx");
+                    DAP_DELETE(l_value_str);
+                    DAP_DELETE(l_coins_str);
+                    return false;
+                }
                 memcpy(l_provider, ((dap_chain_datum_tx_receipt_t*)item)->exts_n_signs, sizeof(dap_sign_t));
                 dap_sign_t *l_client = DAP_NEW_Z(dap_sign_t);
+                if (!l_client) {
+                    log_it(L_ERROR, "Memory allocation error in dap_chain_datum_dump_tx");
+                    DAP_DELETE(l_value_str);
+                    DAP_DELETE(l_coins_str);
+                    return false;
+                }
                 memcpy(l_client,
                        ((dap_chain_datum_tx_receipt_t*)item)->exts_n_signs + sizeof(dap_sign_t),
                        sizeof(dap_sign_t));
@@ -361,6 +373,12 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                 dap_sign_get_information(l_client, a_str_out, a_hash_out_type);
             } else if (((dap_chain_datum_tx_receipt_t*)item)->exts_size == sizeof(dap_sign_t)) {
                 dap_sign_t *l_provider = DAP_NEW_Z(dap_sign_t);
+                if (!l_provider) {
+                    log_it(L_ERROR, "Memory allocation error in dap_chain_datum_dump_tx");
+                    DAP_DELETE(l_value_str);
+                    DAP_DELETE(l_coins_str);
+                    return false;
+                }
                 memcpy(l_provider, ((dap_chain_datum_tx_receipt_t*)item)->exts_n_signs, sizeof(dap_sign_t));
                 dap_string_append_printf(a_str_out, "Exts:\n"
                                                     "   Provider:\n");

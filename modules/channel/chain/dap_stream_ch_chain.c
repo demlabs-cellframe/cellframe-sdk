@@ -858,6 +858,12 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             l_last_type = l_obj->type;
             */
             struct gdb_apply_args *l_apply_args = DAP_NEW(struct gdb_apply_args);
+            if (!l_apply_args) {
+                log_it(L_ERROR, "Memory allocation error in s_gdb_in_pkt_proc_callback");
+                DAP_DEL_Z(l_pkt_item->pkt_data);
+                DAP_DELETE(l_sync_request);
+                return true;
+            }
             l_apply_args->obj = dap_store_obj_copy(l_obj, 1);
             l_apply_args->limit_time = l_limit_time;
             l_apply_args->sync_request = DAP_DUP(l_sync_request);
@@ -915,6 +921,10 @@ struct sync_request *dap_stream_ch_chain_create_sync_request(dap_stream_ch_chain
 {
     dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
     struct sync_request *l_sync_request = DAP_NEW_Z(struct sync_request);
+    if (!l_sync_request) {
+        log_it(L_ERROR, "Memory allocation error in dap_stream_ch_chain_create_sync_request");
+        return NULL;
+    }
     *l_sync_request = (struct sync_request) {
             .worker         = a_ch->stream_worker->worker,
             .ch_uuid        = a_ch->uuid,
@@ -1149,6 +1159,10 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                       l_hash_item_hashv, l_hash_item);
                 if (!l_hash_item) {
                     l_hash_item = DAP_NEW_Z(dap_stream_ch_chain_hash_item_t);
+                    if (!l_hash_item) {
+                        log_it(L_ERROR, "Memory allocation error in s_stream_ch_packet_in");
+                        return;
+                    }
                     l_hash_item->hash = l_element->hash;
                     l_hash_item->size = l_element->size;
                     HASH_ADD_BYHASHVALUE(hh, l_ch_chain->remote_gdbs, hash, sizeof(l_hash_item->hash),
@@ -1360,6 +1374,10 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                       l_hash_item_hashv, l_hash_item);
                 if( ! l_hash_item ){
                     l_hash_item = DAP_NEW_Z(dap_stream_ch_chain_hash_item_t);
+                    if (!l_hash_item) {
+                        log_it(L_ERROR, "Memory allocation error in s_stream_ch_packet_in");
+                        return;
+                    }
                     l_hash_item->hash = l_element->hash;
                     l_hash_item->size = l_element->size;
                     HASH_ADD_BYHASHVALUE(hh, l_ch_chain->remote_atoms, hash, sizeof(dap_hash_fast_t),
@@ -1786,6 +1804,10 @@ void s_stream_ch_packet_out(dap_stream_ch_t *a_ch, void *a_arg)
                     l_skip_count++;
                 } else {
                     l_hash_item = DAP_NEW_Z(dap_stream_ch_chain_hash_item_t);
+                    if (!l_hash_item) {
+                        log_it(L_ERROR, "Memory allocation error in s_stream_ch_packet_out");
+                        return;
+                    }
                     l_hash_item->hash = l_obj->hash;
                     l_hash_item->size = l_obj->pkt->data_size;
                     HASH_ADD_BYHASHVALUE(hh, l_ch_chain->remote_gdbs, hash, sizeof(dap_chain_hash_fast_t),
@@ -1886,6 +1908,10 @@ void s_stream_ch_packet_out(dap_stream_ch_t *a_ch, void *a_arg)
                     }*/
                 }else{
                     l_hash_item = DAP_NEW_Z(dap_stream_ch_chain_hash_item_t);
+                    if (!l_hash_item) {
+                        log_it(L_ERROR, "Memory allocation error in s_stream_ch_packet_out");
+                        return;
+                    }
                     l_hash_item->hash = *l_ch_chain->request_atom_iter->cur_hash;
                     if(s_debug_more){
                         char l_atom_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
