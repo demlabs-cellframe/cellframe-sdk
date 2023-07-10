@@ -268,6 +268,12 @@ static void s_new_atom_notifier(void *a_arg, UNUSED_ARG dap_chain_t *a_chain, UN
 
 /* *** Temporary added section for over-consensus sync. Remove this after global DB sync refactoring *** */
 
+void s_callback_clean_db_old_records(UNUSED_ARG dap_global_db_context_t *a_global_db_context, void *a_arg)
+{
+    dap_global_db_driver_delete(a_arg, 1);
+    dap_store_obj_free_one(a_arg);
+}
+
 static void s_session_db_serialize(dap_chain_esbocs_session_t *a_session)
 {
     char *l_sync_group = s_get_penalty_group(a_session->chain->net_id);
@@ -283,12 +289,19 @@ static void s_session_db_serialize(dap_chain_esbocs_session_t *a_session)
         DAP_DELETE(l_pkt_single);
     }
     dap_store_obj_free(l_objs, l_objs_count);
+
+    uint32_t l_time_store_lim_hours = dap_global_db_context_get_default()->instance->store_time_limit;
+    uint64_t l_limit_time = l_time_store_lim_hours ? dap_nanotime_now() - dap_nanotime_from_sec(l_time_store_lim_hours * 3600) : 0;
     char *l_del_sync_group = dap_strdup_printf("%s.del", l_sync_group);
     l_objs_count = 0;
     l_objs = dap_global_db_get_all_raw_sync(l_del_sync_group, 0, &l_objs_count);
     DAP_DELETE(l_del_sync_group);
     for (size_t i = 0; i < l_objs_count; i++) {
         dap_store_obj_t *it = l_objs + i;
+        if (l_limit_time && it->timestamp < l_limit_time) {
+            dap_global_db_context_exec(s_callback_clean_db_old_records, dap_store_obj_copy(it, 1));
+            continue;
+        }
         it->type = DAP_DB$K_OPTYPE_DEL;
         DAP_DEL_Z(it->group);
         it->group = dap_strdup(l_sync_group);
@@ -297,6 +310,7 @@ static void s_session_db_serialize(dap_chain_esbocs_session_t *a_session)
         l_pkt = dap_global_db_pkt_pack(l_pkt, l_pkt_single);
         DAP_DELETE(l_pkt_single);
     }
+    dap_store_obj_free(l_objs, l_objs_count);
     DAP_DELETE(l_sync_group);
     DAP_DEL_Z(a_session->db_serial);
     a_session->db_serial = l_pkt;
