@@ -1993,7 +1993,7 @@ char    l_buf[1024];
         case CMD_WALLET_NEW: {
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-password", &l_pass_str);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-sign", &l_sign_type_str);
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-restore", &l_restore_str);
+            int l_restore_opt = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-restore", &l_restore_str);
             // rewrite existing wallet
             int l_is_force = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-force", NULL);
 
@@ -2038,9 +2038,23 @@ char    l_buf[1024];
             if (l_sign_type.type == SIG_TYPE_TESLA)
                 return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Tesla algorithm is no longer supported, please, use another variant"), -1;
 
+            uint8_t *l_seed = NULL;
+            size_t l_seed_size = 0, l_restore_str_size = dap_strlen(l_restore_str);
+
+            if(l_restore_opt) {
+                if (l_restore_str_size > 3 && !dap_strncmp(l_restore_str, "0x", 2) && !dap_is_hex_string(l_restore_str + 2, l_restore_str_size - 2)) {
+                    l_seed_size = (l_restore_str_size - 2) / 2;
+                    l_seed = DAP_NEW_SIZE(uint8_t, l_seed_size);
+                    dap_hex2bin(l_seed, l_restore_str + 2, l_restore_str_size - 2);
+                } else {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Restored hash is invalid or too short, wallet is not created. Please use -restore 0x<hex value>");
+                    return -1;
+                }
+            }
+
             // Creates new wallet
             dap_chain_wallet_t *l_wallet = dap_chain_wallet_create_with_seed(l_wallet_name, c_wallets_path, l_sign_type,
-                    l_restore_str, dap_strlen(l_restore_str), l_pass_str);
+                    l_seed, l_seed_size, l_pass_str);
 
             if (!l_wallet)
                 return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet is not created because of internal error"), -1;
@@ -5221,9 +5235,9 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
     }
 
     // Validator's fee
-    if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &str_tmp))
+    if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &str_tmp))
         l_value_fee = dap_chain_balance_scan(str_tmp);
-    if (IS_ZERO_256(l_value_fee)) {
+    if (IS_ZERO_256(l_value_fee) && (!l_emission_hash_str || (str_tmp && strcmp(str_tmp, "0")))) {
         dap_cli_server_cmd_set_reply_text(a_str_reply,
                 "tx_create requires parameter '-fee' to be valid uint256");
         return -5;
@@ -5280,38 +5294,24 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
             return -9;
         }
 
-        const char *l_native_ticker = l_net->pub.native_ticker;
-        bool not_native = dap_strcmp(l_token_ticker, l_native_ticker);
-
-        if (not_native) {
-            if (l_wallet_fee_name){
-                l_wallet_fee = dap_chain_wallet_open(l_wallet_fee_name, c_wallets_path);
-                if (!l_wallet_fee) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "wallet %s does not exist", l_wallet_fee_name);
-                    return -12;
-                }
-                l_priv_key = dap_chain_wallet_get_key(l_wallet_fee, 0);
-            } else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "To create a basic transaction with a "
-                                                               "non-native ticker, you must specify the '-wallet_fee' "
-                                                               "parameter. It is required to pay a commission for the "
-                                                               "transaction.");
-                return -11;
+        if (l_wallet_fee_name){
+            l_wallet_fee = dap_chain_wallet_open(l_wallet_fee_name, c_wallets_path);
+            if (!l_wallet_fee) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet %s does not exist", l_wallet_fee_name);
+                return -12;
             }
+            l_priv_key = dap_chain_wallet_get_key(l_wallet_fee, 0);
+        } else if (l_cert_str) {
+            l_cert = dap_cert_find_by_name(l_cert_str);
+            if (!l_cert) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Certificate %s is invalid", l_cert_str);
+                return -5;
+            }
+            l_priv_key = l_cert->enc_key;
         } else {
-            if (l_cert_str) {
-                l_cert = dap_cert_find_by_name(l_cert_str);
-                if (!l_cert) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                      "tx_create requires one valid certificate to sign the basic transaction of emission");
-                    return -5;
-                }
-                l_priv_key = l_cert->enc_key;
-            } else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "tx_create requires parameter '-cert' for create base tx for emission in native token");
-                return -10;
-            }
+            dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                              "tx_create requires parameter '-cert' or '-wallet' for create base tx for emission");
+            return -10;
         }
     }
 
@@ -5337,7 +5337,6 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
     dap_string_t *l_string_ret = dap_string_new(NULL);
     int res = 0;
     if (l_emission_hash_str) {
-        bool not_native = dap_strcmp(l_token_ticker, l_net->pub.native_ticker);
         char *l_tx_hash_str = NULL;
         if (!l_priv_key) {
             dap_string_append_printf(l_string_ret, "No private key defined for creating the underlying "
@@ -5346,7 +5345,7 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
         }
         l_tx_hash_str = dap_chain_mempool_base_tx_create(l_chain, &l_emission_hash, l_emission_chain->id,
                                                          l_value, l_token_ticker, l_addr_to, l_priv_key,
-                                                         l_hash_out_type,l_value_fee);
+                                                         l_hash_out_type, l_value_fee);
         if (l_tx_hash_str) {
             dap_string_append_printf(l_string_ret, "\nDatum %s with 256bit TX is placed in datum pool\n", l_tx_hash_str);
             DAP_DELETE(l_tx_hash_str);

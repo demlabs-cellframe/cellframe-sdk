@@ -271,6 +271,7 @@ typedef struct dap_ledger_private {
     const char *net_native_ticker;
     uint256_t fee_value;
     dap_chain_addr_t fee_addr;
+    dap_list_t *poa_certs;
     // List of ledger - unspent transactions cache
     dap_chain_ledger_tx_item_t *threshold_txs;
     dap_chain_ledger_token_emission_item_t * threshold_emissions;
@@ -2427,12 +2428,13 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
  * @param a_net_name char * network name, for example "kelvin-testnet"
  * @return dap_ledger_t*
  */
-dap_ledger_t *dap_chain_ledger_create(uint16_t a_flags, char *a_net_name, const char *a_net_native_ticker)
+dap_ledger_t *dap_chain_ledger_create(uint16_t a_flags, char *a_net_name, const char *a_net_native_ticker, dap_list_t *a_poa_certs)
 {
     dap_ledger_t *l_ledger = dap_chain_ledger_handle_new();
     l_ledger->net_name = a_net_name;
     dap_ledger_private_t *l_ledger_pvt = PVT(l_ledger);
     l_ledger_pvt->net_native_ticker = a_net_native_ticker;
+    l_ledger_pvt->poa_certs = a_poa_certs;
     l_ledger_pvt->flags = a_flags;
     l_ledger_pvt->check_ds = a_flags & DAP_CHAIN_LEDGER_CHECK_LOCAL_DS;
     l_ledger_pvt->check_cells_ds = a_flags & DAP_CHAIN_LEDGER_CHECK_CELLS_DS;
@@ -3339,6 +3341,19 @@ bool s_tx_match_sign(dap_chain_datum_token_emission_t *a_datum_emission, dap_cha
     return false;
 }
 
+static int s_callback_sign_compare(const void *a, const void *b)
+{
+    return !dap_pkey_match_sign((dap_pkey_t *)a, (dap_sign_t *)b);
+}
+
+bool dap_chain_ledger_tx_poa_signed(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
+{
+    dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
+    dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
+    return dap_list_find_custom(PVT(a_ledger)->poa_certs, l_sign, s_callback_sign_compare);
+}
+
+
 /**
  * Checking a new transaction before adding to the cache
  *
@@ -3993,12 +4008,15 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
 
     // 7. Check the network fee
     if (l_fee_check && compare256(l_fee_sum, l_ledger_pvt->fee_value) == -1) {
-        char *l_current_fee = dap_chain_balance_to_coins(l_fee_sum);
-        char *l_expected_fee = dap_chain_balance_to_coins(l_ledger_pvt->fee_value);
-        log_it(L_ERROR, "Fee value is invalid, expected %s pointed %s", l_expected_fee, l_current_fee);
-        l_err_num = -55;
-        DAP_DEL_Z(l_current_fee);
-        DAP_DEL_Z(l_expected_fee);
+        // Check for PoA-cert-signed "service" no-tax tx
+        if (!dap_chain_ledger_tx_poa_signed(a_ledger, a_tx)) {
+            char *l_current_fee = dap_chain_balance_to_coins(l_fee_sum);
+            char *l_expected_fee = dap_chain_balance_to_coins(l_ledger_pvt->fee_value);
+            log_it(L_ERROR, "Fee value is invalid, expected %s pointed %s", l_expected_fee, l_current_fee);
+            l_err_num = -55;
+            DAP_DEL_Z(l_current_fee);
+            DAP_DEL_Z(l_expected_fee);
+        }
     }
 
     if (a_main_ticker && !l_err_num)
