@@ -377,15 +377,21 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
         l_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &a_grace->usage->tx_cond_hash);
         dap_stpcpy(a_grace->usage->token_ticker, l_ticker);
 
+
+
         dap_chain_net_srv_price_t *l_price_tmp;
         DL_FOREACH(a_grace->usage->service->pricelist, l_price_tmp) {
             if (l_price_tmp && l_price_tmp->net->pub.id.uint64                 == a_grace->usage->net->pub.id.uint64
                 && dap_strcmp(l_price_tmp->token, l_ticker)     == 0
-                && l_price_tmp->units_uid.enm                   == l_tx_out_cond->subtype.srv_pay.unit.enm
-                )//&& (l_price_tmp->value_datoshi/l_price_tmp->units)  < l_tx_out_cond->subtype.srv_pay.header.unit_price_max_datoshi)
+                && l_price_tmp->units_uid.enm                   == l_tx_out_cond->subtype.srv_pay.unit.enm)
             {
-                l_price = l_price_tmp;
-                break;
+                uint256_t l_unit_price = {};
+                SUBTRACT_256_256(l_price_tmp->value_datoshi, GET_256_FROM_64(l_price_tmp->units), &l_unit_price);
+                if(compare256(l_unit_price, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) <= 0){
+                    l_price = l_price_tmp;
+                    break;
+                }
+
             }
         }
         if ( !l_price ) {
@@ -509,11 +515,14 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
         DL_FOREACH(l_grace->usage->service->pricelist, l_price_tmp) {
             if (l_price_tmp && l_price_tmp->net->pub.id.uint64                 == l_grace->usage->net->pub.id.uint64
                 && dap_strcmp(l_price_tmp->token, l_ticker)     == 0
-                && l_price_tmp->units_uid.enm                   == l_tx_out_cond->subtype.srv_pay.unit.enm
-                )//&& (l_price_tmp->value_datoshi/l_price_tmp->units)  < l_tx_out_cond->subtype.srv_pay.header.unit_price_max_datoshi)
+                && l_price_tmp->units_uid.enm                   == l_tx_out_cond->subtype.srv_pay.unit.enm)
             {
-                l_price = l_price_tmp;
-                break;
+                uint256_t l_unit_price = {};
+                SUBTRACT_256_256(l_price_tmp->value_datoshi, GET_256_FROM_64(l_price_tmp->units), &l_unit_price);
+                if(compare256(l_unit_price, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) <= 0){
+                    l_price = l_price_tmp;
+                    break;
+                }
             }
         }
         if ( !l_price ) {

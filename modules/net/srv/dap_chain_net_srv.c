@@ -674,7 +674,6 @@ static bool s_fee_verificator_callback(dap_ledger_t *a_ledger, UNUSED_ARG dap_ch
 static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
                                        dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
-    UNUSED(a_ledger);
     if (a_owner)
         return true;
     dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)
@@ -743,6 +742,19 @@ static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out
         log_it(L_ERROR, "Client signature in receipt is invalid!");
         return false;
     }
+
+    // Check price is less than maximum
+    dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_IN_COND, 0);
+    dap_chain_datum_tx_t *l_tx_prev = dap_chain_ledger_tx_find_by_hash(a_ledger , &l_tx_in_cond->header.tx_prev_hash);
+    dap_chain_tx_out_cond_t *l_prev_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_prev, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, NULL);
+
+    if( compare256(l_receipt->receipt_info.value_datoshi, l_prev_out_cond->subtype.srv_pay.unit_price_max_datoshi) > 0){
+        log_it(L_ERROR, "Value in receipt is exceed max allowable price.");
+        return false;
+    }
+
+    // Check out value is equal to value in receipt
+
 
     return true;
 }
