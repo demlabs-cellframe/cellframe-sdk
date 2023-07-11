@@ -3216,9 +3216,9 @@ int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *
 char *dap_chain_net_verify_datum_err_code_to_str(dap_chain_datum_t *a_datum, int a_code){
     switch (a_datum->header.type_id) {
     case DAP_CHAIN_DATUM_TX:
-        return (char*)dap_chain_ledger_tx_check_err_str(a_code);
+        return dap_chain_ledger_tx_check_err_str(a_code);
     case DAP_CHAIN_DATUM_TOKEN_DECL:
-        return (char*)dap_chain_ledger_token_decl_add_err_code_to_str(a_code);
+        return dap_chain_ledger_token_decl_add_err_code_to_str(a_code);
     case DAP_CHAIN_DATUM_TOKEN_EMISSION:
         return dap_chain_ledger_token_emission_err_code_to_str(a_code);
     default:
@@ -3239,8 +3239,7 @@ static bool s_net_check_acl(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pke
 {
     const char l_path[] = "network/";
     char l_cfg_path[strlen(a_net->pub.name) + strlen(l_path) + 1];
-    strcpy(l_cfg_path, l_path);
-    strcat(l_cfg_path, a_net->pub.name);
+    dap_snprintf(l_cfg_path, sizeof(l_cfg_path) - 1, "%s%s", l_path, a_net->pub.name);
     dap_config_t *l_cfg = dap_config_open(l_cfg_path);
     const char *l_auth_type = dap_config_get_item_str(l_cfg, "auth", "type");
     bool l_authorized = true;
