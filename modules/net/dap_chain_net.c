@@ -115,8 +115,8 @@
 #include "dap_chain_node_dns_client.h"
 #include "dap_module.h"
 
-#include "json-c/json.h"
-#include "json-c/json_object.h"
+#include "json.h"
+#include "json_object.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_net_srv_xchange.h"
 

@@ -53,8 +53,8 @@
 #include "dap_global_db.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_pvt.h"
-#include "json-c/json.h"
-#include "json-c/json_object.h"
+#include "json.h"
+#include "json_object.h"
 #include "dap_notify_srv.h"
 
 #define LOG_TAG "dap_chain_ledger"
