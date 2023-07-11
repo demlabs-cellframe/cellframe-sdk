@@ -1992,3 +1992,12 @@ static void s_cache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
     if (dap_global_db_set(l_gdb_group, l_data_key, &l_cache_data, sizeof(l_cache_data), false, NULL, NULL))
         log_it(L_WARNING, "Stake service cache mismatch");
 }
+
+bool dap_chain_net_srv_stake_check_pkey_hash(dap_hash_fast_t *a_pkey_hash) {
+    dap_chain_net_srv_stake_item_t *l_stake, *l_tmp;
+    HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp) {
+        if (dap_hash_fast_compare(&l_stake->signing_addr.data.hash_fast, a_pkey_hash))
+            return true;
+    }
+    return false;
+}
