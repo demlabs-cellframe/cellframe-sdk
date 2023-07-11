@@ -489,12 +489,7 @@ void dap_chain_net_sync_gdb_broadcast(dap_global_db_context_t *a_context, dap_st
         return;
 
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
-    dap_chain_t *l_chain = NULL;
-    if (a_obj->type == DAP_DB$K_OPTYPE_ADD)
-        l_chain = dap_chain_get_chain_from_group_name(l_net->pub.id, a_obj->group);
-    dap_chain_id_t l_chain_id = l_chain ? l_chain->id : (dap_chain_id_t) {};
-    dap_chain_cell_id_t l_cell_id = l_chain ? l_chain->cells->id : (dap_chain_cell_id_t){};
-    dap_global_db_pkt_t *l_data_out = dap_store_packet_single(a_obj);
+    dap_global_db_pkt_t *l_data_out = dap_global_db_pkt_serialize(a_obj);
     struct downlink *l_link, *l_tmp;
     pthread_rwlock_rdlock(&PVT(l_net)->downlinks_lock);
     HASH_ITER(hh, PVT(l_net)->downlinks, l_link, l_tmp) {
@@ -507,7 +502,7 @@ void dap_chain_net_sync_gdb_broadcast(dap_global_db_context_t *a_context, dap_st
         if (!dap_stream_ch_chain_pkt_write_inter(a_context->queue_worker_ch_io_input[l_link->worker->worker->id],
                                              l_link->ch_uuid,
                                              DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id.uint64,
-                                             l_chain_id.uint64, l_cell_id.uint64, l_data_out,
+                                             0, 0, l_data_out,
                                              sizeof(dap_global_db_pkt_t) + l_data_out->data_size))
             debug_if(g_debug_reactor, L_ERROR, "Can't send pkt to worker (%d) for writing", l_link->worker->worker->id);
     }
@@ -2300,8 +2295,18 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         default:
             l_ledger_flags |= DAP_CHAIN_LEDGER_CHECK_CELLS_DS;
         }
+        dap_list_t *l_net_keys = NULL;
+        for (dap_chain_t *l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
+            if (!l_chain->callback_get_poa_certs)
+                continue;
+            l_net_keys = l_chain->callback_get_poa_certs(l_chain, NULL, NULL);
+            if (l_net_keys)
+                break;
+        }
+        if (!l_net_keys)
+            log_it(L_WARNING,"PoA certificates for net %s not found.", l_net->pub.name);
         // init LEDGER model
-        l_net->pub.ledger = dap_chain_ledger_create(l_ledger_flags, l_net->pub.name, l_net->pub.native_ticker);
+        l_net->pub.ledger = dap_chain_ledger_create(l_ledger_flags, l_net->pub.name, l_net->pub.native_ticker, l_net_keys);
         // Check if seed nodes are present in local db alias
         char **l_seed_aliases = dap_config_get_array_str(l_cfg, "general", "seed_nodes_aliases",
                                                          &l_net_pvt->seed_aliases_count);
