@@ -486,10 +486,10 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     dap_chain_cs_dag_event_calc_hash(l_event, a_atom_size, &l_event_hash);
     l_event_item->hash = l_event_hash;
 
-    char * l_event_hash_str = NULL;
     if(s_debug_more) {
-        l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_item->hash);
-        log_it(L_DEBUG, "Processing event: %s... (size %zd)", l_event_hash_str,a_atom_size);
+        char l_event_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
+        dap_chain_hash_fast_to_str(&l_event_item->hash, l_event_hash_str, sizeof(l_event_hash_str));
+        log_it(L_DEBUG, "Processing event: %s ... (size %zd)", l_event_hash_str,a_atom_size);
     }
 
     pthread_mutex_lock(l_events_mutex);
@@ -511,7 +511,6 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     case ATOM_PASS:
         if(s_debug_more) {
             log_it(L_DEBUG, "Atom already present");
-            DAP_DELETE(l_event_hash_str);
         }
         DAP_DELETE(l_event_item);
         return ret;
@@ -573,8 +572,6 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         DAP_DELETE(l_event_item); // Neither added, nor freed
         break;
     }
-    if(s_debug_more)
-        DAP_DELETE(l_event_hash_str);
     return ret;
 }
 
