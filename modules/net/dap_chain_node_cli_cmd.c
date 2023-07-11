@@ -1994,6 +1994,9 @@ char    l_buf[1024];
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-password", &l_pass_str);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-sign", &l_sign_type_str);
             int l_restore_opt = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-restore", &l_restore_str);
+            int l_restore_legacy_opt = 0;
+            if (!l_restore_str)
+                l_restore_legacy_opt = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-restore_legacy", &l_restore_str);
             // rewrite existing wallet
             int l_is_force = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-force", NULL);
 
@@ -2041,13 +2044,16 @@ char    l_buf[1024];
             uint8_t *l_seed = NULL;
             size_t l_seed_size = 0, l_restore_str_size = dap_strlen(l_restore_str);
 
-            if(l_restore_opt) {
-                if (l_restore_str_size > 3 && !dap_strncmp(l_restore_str, "0x", 2) && !dap_is_hex_string(l_restore_str + 2, l_restore_str_size - 2)) {
+            if(l_restore_opt || l_restore_legacy_opt) {
+                if (l_restore_str_size > 3 && !dap_strncmp(l_restore_str, "0x", 2) && (!dap_is_hex_string(l_restore_str + 2, l_restore_str_size - 2) || l_restore_legacy_opt)) {
                     l_seed_size = (l_restore_str_size - 2) / 2;
                     l_seed = DAP_NEW_SIZE(uint8_t, l_seed_size);
                     dap_hex2bin(l_seed, l_restore_str + 2, l_restore_str_size - 2);
+                    if (l_restore_legacy_opt) {
+                        dap_string_append_printf(l_l_string_ret, "CAUTION!!! CAUTION!!! CAUTION!!!\nYour wallet has a low level of protection. Please create a new wallet again with the option -restore\n");
+                    }
                 } else {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Restored hash is invalid or too short, wallet is not created. Please use -restore 0x<hex value>");
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Restored hash is invalid or too short, wallet is not created. Please use -restore 0x<hex_value> or -restore_legacy 0x<restore_string>");
                     return -1;
                 }
             }
