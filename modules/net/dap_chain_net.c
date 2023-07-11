@@ -97,7 +97,7 @@
 #include "dap_chain_pvt.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli.h"
-#include "dap_chain_node_cli_cmd.h"
+//#include "dap_chain_node_cli_cmd.h"
 #include "dap_notify_srv.h"
 #include "dap_chain_ledger.h"
 #include "dap_chain_cs_none.h"
@@ -670,6 +670,30 @@ static struct net_link *s_net_link_find(dap_chain_net_t *a_net, dap_chain_node_i
     HASH_FIND(hh, PVT(a_net)->net_links, &l_addr, sizeof(l_addr), l_present);
     pthread_mutex_unlock(&PVT(a_net)->uplinks_mutex);
     return l_present;
+}
+
+/**
+ * @brief Check if the current downlink is already present or not
+ *
+ * @param a_net Network
+ * @param a_link_node_info Node info
+ */
+dap_stream_ch_t *dap_chain_net_downlink_get_stream(dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_info)
+{
+    uint64_t l_addr = a_link_node_info->hdr.ext_addr_v4.s_addr;
+    dap_stream_ch_t *l_ch = NULL;
+    struct downlink *l_link, *l_tmp;
+    pthread_rwlock_wrlock(&PVT(a_net)->downlinks_lock);
+    HASH_ITER(hh, PVT(a_net)->downlinks, l_link, l_tmp) {
+        l_ch = dap_stream_ch_find_by_uuid_unsafe(l_link->worker,l_link->ch_uuid);
+        if(l_ch)
+        {
+            if(l_ch->stream->esocket->remote_addr.sin_addr.s_addr == l_addr)
+               break;
+        }
+    }
+    pthread_rwlock_unlock(&PVT(a_net)->downlinks_lock);
+    return l_ch;
 }
 
 static int s_net_link_add(dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_info)

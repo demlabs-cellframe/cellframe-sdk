@@ -26,7 +26,7 @@
 #pragma once
 
 #include "dap_chain.h"
-#include "dap_chain_net.h"
+//#include "dap_chain_net.h"
 #include "dap_chain_node.h"
 #include "dap_chain_node_cli.h"
 

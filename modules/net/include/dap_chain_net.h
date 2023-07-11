@@ -160,6 +160,7 @@ dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * a_net);
 dap_list_t* dap_chain_net_get_node_list_cfg(dap_chain_net_t * a_net);
 dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net);
 dap_chain_node_info_t *dap_get_balancer_link_from_cfg(dap_chain_net_t *a_net);
+dap_stream_ch_t *dap_chain_net_downlink_get_stream(dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_info);
 
 
 /**

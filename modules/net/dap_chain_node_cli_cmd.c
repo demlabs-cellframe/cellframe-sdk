@@ -69,6 +69,7 @@
 #include "dap_chain_wallet.h"
 #include "dap_chain_wallet_internal.h"
 #include "dap_chain_node.h"
+#include "dap_chain_net.h"
 #include "dap_global_db.h"
 #include "dap_global_db_driver.h"
 #include "dap_chain_node_client.h"
@@ -79,6 +80,7 @@
 #include "dap_chain_net_tx.h"
 #include "dap_chain_block.h"
 #include "dap_chain_cs_blocks.h"
+
 
 #ifndef _WIN32
 #include "dap_chain_net_news.h"
@@ -103,6 +105,7 @@
 
 #include "dap_stream_ch_chain_net.h"
 #include "dap_stream_ch_chain.h"
+#include "dap_stream_ch_proc.h"
 #include "dap_stream_ch_chain_pkt.h"
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_enc_base64.h"
@@ -1032,7 +1035,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
 int com_node(int a_argc, char ** a_argv, char **a_str_reply)
 {
     enum {
-        CMD_NONE, CMD_ADD, CMD_DEL, CMD_LINK, CMD_ALIAS, CMD_HANDSHAKE, CMD_CONNECT, CMD_DUMP, CMD_CONNECTIONS
+        CMD_NONE, CMD_ADD, CMD_DEL, CMD_LINK, CMD_ALIAS, CMD_HANDSHAKE, CMD_CONNECT, CMD_DUMP, CMD_CONNECTIONS, CMD_PING
     };
     int arg_index = 1;
     int cmd_num = CMD_NONE;
@@ -1066,6 +1069,10 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
 //        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str);
 //        DAP_DELETE(l_str);
 //        return 0;
+    }
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "stream_ping", NULL)) {
+        cmd_num = CMD_PING;
+
     }
     arg_index++;
     if(cmd_num == CMD_NONE) {
@@ -1503,6 +1510,63 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         DAP_DELETE(l_downlinks);
         DAP_DELETE(l_uplinks);
         return 0;
+    }
+        break;
+    case CMD_PING: {
+
+        dap_stream_ch_t *l_ch = NULL;
+        dap_stream_t *l_stream = NULL;
+        struct in_addr addr_ipv4, addr_ipv4_2;
+        if(a_ipv4_str){
+            inet_pton(AF_INET, a_ipv4_str, &addr_ipv4);
+        }
+        else
+        {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "not found -ipv4 parameter");
+            return -1;
+        }
+        size_t l_downlink_count = 0;
+        dap_stream_connection_t **l_downlinks = dap_stream_connections_get_downlinks(&l_downlink_count);
+        bool fl = false;
+        for (size_t i=0; i < l_downlink_count; i++) {
+            inet_pton(AF_INET, l_downlinks[i]->address, &addr_ipv4_2);
+            if (addr_ipv4_2.s_addr == addr_ipv4.s_addr)
+            {
+                l_stream = l_downlinks[i]->stream;
+                for (size_t t = 0; t < l_stream->channel_count; t++)
+                    if (l_stream->channel[t]->proc->id == dap_stream_ch_chain_get_id())
+                    {
+                        l_ch = l_stream->channel[t];
+                        fl = true;
+                        break;
+                    }
+            }
+            if(fl)
+                break;
+        }
+        uint8_t l_test_data[2] = "hl";
+        size_t rc = dap_stream_ch_chain_net_pkt_write(l_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PING,
+                                          l_net->pub.id,l_test_data, sizeof(l_test_data));
+        if (rc == 0) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "not send data");
+            return -1;
+        }
+        //l_ch = NULL;
+
+        /*
+        dap_chain_node_info_t *l_node_inf = NULL;
+        if(a_ipv4_str){
+            l_node_inf = DAP_NEW_Z_SIZE(dap_chain_node_info_t, l_node_info_size);
+            inet_pton(AF_INET, a_ipv4_str, &(l_node_inf->hdr.ext_addr_v4));
+        }
+        else{
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "not found -ipv4 parameter");
+            return -1;
+        }
+        dap_stream_ch_t *l_ch = dap_chain_net_downlink_get_stream(l_net,l_node_inf);
+        l_ch = NULL;
+        DAP_DELETE(l_node_inf);*/
+
     }
         break;
     }
