@@ -329,7 +329,9 @@ int dap_chain_net_init()
         "net -net <chain net name> ca del -hash <cert hash> [-H {hex | base58(default)}]\n"
             "\tDelete certificate from list of authority cetificates in GDB group by it's hash\n"
         "net -net <chain net name> ledger reload\n"
-            "\tPurge the cache of chain net ledger and recalculate it from chain file\n");
+            "\tPurge the cache of chain net ledger and recalculate it from chain file\n"
+        "net -net <chain net name> poa_cets list\n"
+            "\tPrint list of PoA cerificates for this network\n");
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more",false);
 
@@ -1788,6 +1790,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
         const char *l_stats_str = NULL;
         const char *l_ca_str = NULL;
         const char *l_ledger_str = NULL;
+        const char *l_list_str = NULL;
         dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "sync", &l_sync_str);
         dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "link", &l_links_str);
         dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "go", &l_go_str);
@@ -1795,6 +1798,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
         dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "stats", &l_stats_str);
         dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "ca", &l_ca_str);
         dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "ledger", &l_ledger_str);
+        dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "poa_certs", &l_list_str);
 
         const char * l_sync_mode_str = "updates";
         dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-mode", &l_sync_mode_str);
@@ -2118,6 +2122,31 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
             s_chain_net_ledger_cache_reload(l_net);
             if (l_return_state)
                 dap_chain_net_start(l_net);
+        } else if (l_list_str && !strcmp(l_list_str, "list")) {
+            dap_list_t *l_net_keys = NULL;
+            for (dap_chain_t *l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
+                if (!l_chain->callback_get_poa_certs)
+                    continue;
+                l_net_keys = l_chain->callback_get_poa_certs(l_chain, NULL, NULL);
+                if (l_net_keys)
+                    break;
+            }
+            if (!l_net_keys) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "No PoA certs found for this network");
+                return -11;
+            }
+            dap_string_t *l_str_out = dap_string_new("List of network PoA certificates:\n");
+            int i = 0;
+            for (dap_list_t *it = l_net_keys; it; it = it->next) {
+                dap_hash_fast_t l_pkey_hash;
+                char l_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                dap_pkey_get_hash(it->data, &l_pkey_hash);
+                dap_chain_hash_fast_to_str(&l_pkey_hash, l_pkey_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+                dap_string_append_printf(l_str_out, "%d) %s\n", i++, l_pkey_hash_str);
+            }
+            *a_str_reply = l_str_out->str;
+            dap_string_free(l_str_out, false);
+
         } else {
             dap_cli_server_cmd_set_reply_text(a_str_reply,
                                               "Command 'net' requires one of subcomands: sync, link, go, get, stats, ca, ledger");
