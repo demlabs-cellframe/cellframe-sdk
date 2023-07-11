@@ -685,6 +685,14 @@ void ch_sf_tun_client_send(dap_chain_net_srv_ch_vpn_t * ch_sf, void * pkt_data, 
         log_it(L_ERROR, "write() returned error %d : '%s'", ret, strerror(errno));
         //log_it(ERROR,"raw socket ring buffer overflowed");
         ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header));
+        if (!pkt_out) {
+            log_it(L_ERROR, "Memory allocation error in ch_sf_tun_client_send");
+            if(in_daddr_str)
+                free(in_daddr_str);
+            if(in_saddr_str)
+                free(in_saddr_str);
+            return;
+        }
         pkt_out->header.op_code = VPN_PACKET_OP_CODE_PROBLEM;
         pkt_out->header.op_problem.code = VPN_PROBLEM_CODE_PACKET_LOST;
         pkt_out->header.sock_id = s_fd_tun;
@@ -697,9 +705,9 @@ void ch_sf_tun_client_send(dap_chain_net_srv_ch_vpn_t * ch_sf, void * pkt_data, 
     }
 
     if(in_daddr_str)
-    free(in_daddr_str);
+        free(in_daddr_str);
     if(in_saddr_str)
-    free(in_saddr_str);
+        free(in_saddr_str);
 }
 
 /**

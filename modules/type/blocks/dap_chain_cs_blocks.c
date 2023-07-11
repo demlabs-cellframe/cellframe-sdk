@@ -1380,6 +1380,10 @@ static dap_chain_atom_ptr_t *s_callback_atom_iter_get_lasts( dap_chain_atom_iter
             (*a_lasts_size_ptr)[0] = l_block_cache_last->block_size;
         }
         dap_chain_atom_ptr_t *l_ret = DAP_NEW_Z(dap_chain_atom_ptr_t);
+        if (!l_ret) {
+            log_it(L_ERROR, "Memory allocation error in s_callback_atom_iter_get_lasts");
+            return NULL;
+        }
         l_ret[0] = l_block_cache_last->block;
         return l_ret;
     }
@@ -1408,6 +1412,10 @@ static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter)
 static dap_chain_datum_iter_t *s_chain_callback_datum_iter_create(dap_chain_t *a_chain)
 {
     dap_chain_datum_iter_t *l_ret = DAP_NEW_Z(dap_chain_datum_iter_t);
+    if (!l_ret) {
+        log_it(L_ERROR, "Memory allocation error in s_chain_callback_datum_iter_create");
+        return NULL;
+    }
     l_ret->chain = a_chain;
     return l_ret;
 }
