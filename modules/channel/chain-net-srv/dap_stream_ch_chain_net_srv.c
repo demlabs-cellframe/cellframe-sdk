@@ -821,13 +821,13 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         // Update actual receipt
         bool l_is_first_sign = false;
         if (! l_usage->receipt_next && l_usage->receipt){
-            DAP_DELETE(l_usage->receipt);
+            DAP_DEL_Z(l_usage->receipt);
             l_usage->receipt = DAP_NEW_SIZE(dap_chain_datum_tx_receipt_t,l_receipt_size);
             l_is_first_sign = true;
             l_usage->is_active = true;
             memcpy( l_usage->receipt, l_receipt, l_receipt_size);
         } else if (l_usage->receipt_next ){
-            DAP_DELETE(l_usage->receipt_next);
+            DAP_DEL_Z(l_usage->receipt_next);
             l_usage->receipt_next = DAP_NEW_SIZE(dap_chain_datum_tx_receipt_t,l_receipt_size);
             l_usage->is_active = true;
             memcpy( l_usage->receipt_next, l_receipt, l_receipt_size);
@@ -1012,21 +1012,26 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         char *l_tx_in_hash_str = dap_chain_hash_fast_to_str_new(&l_responce->hdr.tx_cond);
         log_it(L_NOTICE, "Received new tx cond %s", l_tx_in_hash_str);
         DAP_DELETE(l_tx_in_hash_str);
-        l_usage->is_waiting_new_tx_cond = false;
 
+        if(!l_usage->is_waiting_new_tx_cond || !l_usage->is_grace)
+            break;
+
+        l_usage->is_waiting_new_tx_cond = false;
+        dap_stream_ch_chain_net_srv_pkt_error_t l_err = { };
         usages_in_grace_t *l_curr_grace_item = NULL;
         pthread_mutex_lock(&s_ht_grace_table_mutex);
         HASH_FIND(hh, s_grace_table, &l_usage->tx_cond_hash, sizeof(dap_hash_fast_t), l_curr_grace_item);
         pthread_mutex_unlock(&s_ht_grace_table_mutex);
 
-//        if (dap_hash_fast_compare(&l_responce->hdr.tx_cond, &l_usage->tx_cond_hash) || !l_usage->is_grace){ //check new tx not equals to old tx or tx waiting grace period is over
-//            // if equals delete receipt and tx and stop grace if running
-//            if (l_curr_grace_item){
-//                HASH_DEL(s_grace_table, l_curr_grace_item);
-//                dap_timerfd_delete_mt(l_curr_grace_item->grace->stream_worker->worker, l_curr_grace_item->grace->timer_es_uuid);
-//            }
-//            break;
-//        }
+        if (dap_hash_fast_is_blank(&l_responce->hdr.tx_cond)){ //if new tx cond creation failed tx_cond in responce will be blank
+            if (l_curr_grace_item){
+                HASH_DEL(s_grace_table, l_curr_grace_item);
+                dap_timerfd_delete_mt(l_curr_grace_item->grace->stream_worker->worker, l_curr_grace_item->grace->timer_es_uuid);
+                s_grace_error(l_curr_grace_item->grace, l_err);
+                DAP_DEL_Z(l_curr_grace_item);
+            }
+            break;
+        }
 
         dap_chain_datum_tx_t *l_tx = dap_chain_ledger_tx_find_by_hash(l_usage->net->pub.ledger, &l_responce->hdr.tx_cond);
         if (l_tx){

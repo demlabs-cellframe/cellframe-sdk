@@ -2300,8 +2300,18 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         default:
             l_ledger_flags |= DAP_CHAIN_LEDGER_CHECK_CELLS_DS;
         }
+        dap_list_t *l_net_keys = NULL;
+        for (dap_chain_t *l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
+            if (!l_chain->callback_get_poa_certs)
+                continue;
+            l_net_keys = l_chain->callback_get_poa_certs(l_chain, NULL, NULL);
+            if (l_net_keys)
+                break;
+        }
+        if (!l_net_keys)
+            log_it(L_WARNING,"PoA certificates for net %s not found.", l_net->pub.name);
         // init LEDGER model
-        l_net->pub.ledger = dap_chain_ledger_create(l_ledger_flags, l_net->pub.name, l_net->pub.native_ticker);
+        l_net->pub.ledger = dap_chain_ledger_create(l_ledger_flags, l_net->pub.name, l_net->pub.native_ticker, l_net_keys);
         // Check if seed nodes are present in local db alias
         char **l_seed_aliases = dap_config_get_array_str(l_cfg, "general", "seed_nodes_aliases",
                                                          &l_net_pvt->seed_aliases_count);

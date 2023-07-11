@@ -1188,7 +1188,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
 
         if( a_srv_session->limits_ts <= 0 && !a_usage->is_grace){
             log_it(L_INFO, "Limits by timestamp are over. Switch to the next receipt");
-            DAP_DELETE(a_usage->receipt);
+            DAP_DEL_Z(a_usage->receipt);
             a_usage->receipt = a_usage->receipt_next;
             a_usage->receipt_next = NULL;
             if ( a_usage->receipt){ // If there is next receipt add the time and request the next receipt
@@ -1245,7 +1245,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
 
         if (a_srv_session->limits_bytes <= 0  && !a_usage->is_grace){
             log_it(L_INFO, "Limits by traffic is over. Switch to the next receipt");
-            DAP_DELETE(a_usage->receipt);
+            DAP_DEL_Z(a_usage->receipt);
             a_usage->receipt = a_usage->receipt_next;
             a_usage->receipt_next = NULL;
             if ( a_usage->receipt){ // If there is next receipt add the time and request the next receipt
