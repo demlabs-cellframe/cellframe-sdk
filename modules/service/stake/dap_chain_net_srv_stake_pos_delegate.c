@@ -251,6 +251,19 @@ dap_list_t *dap_chain_net_srv_stake_get_validators(dap_chain_net_id_t a_net_id, 
     return l_ret;
 }
 
+dap_chain_node_addr_t *dap_chain_net_srv_stake_key_get_node_addr(dap_chain_addr_t *a_signing_addr)
+{
+    assert(s_srv_stake);
+    if (!a_signing_addr)
+        NULL;
+
+    dap_chain_net_srv_stake_item_t *l_stake = NULL;
+    HASH_FIND(hh, s_srv_stake->itemlist, a_signing_addr, sizeof(dap_chain_addr_t), l_stake);
+    if (l_stake) // public key delegated for this network
+        return &l_stake->node_addr;
+    return NULL;
+}
+
 int dap_chain_net_srv_stake_mark_validator_active(dap_chain_addr_t *a_signing_addr, bool a_on_off)
 {
     assert(s_srv_stake);
