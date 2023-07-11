@@ -915,6 +915,7 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
             if(token_list_str)
                 dap_string_append(l_str_out, token_list_str);
             l_token_num_total += l_token_num;
+            DAP_DEL_Z(token_list_str);
         }
         //total
         dap_string_append_printf(l_str_out, "---------------\ntokens: %zu\n", l_token_num_total);
@@ -942,6 +943,7 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
                 if(token_list_str)
                     dap_string_append(l_str_out, token_list_str);
                 l_token_num_total += l_token_num;
+                DAP_DEL_Z(token_list_str);
             }
             if(!l_token_num_total)
                 dap_string_append_printf(l_str_out, "token '%s' not found\n", l_token_name_str);
