@@ -170,7 +170,16 @@ static void s_callback_memepool_notify(dap_global_db_context_t *a_context UNUSED
 int dap_chain_gdb_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
     dap_chain_gdb_t *l_gdb = DAP_NEW_Z(dap_chain_gdb_t);
+    if (!l_gdb) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_gdb_new");
+        return -1;
+    }
     dap_chain_gdb_private_t *l_gdb_priv = DAP_NEW_Z(dap_chain_gdb_private_t);
+    if (!l_gdb_priv) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_gdb_new");
+        DAP_DELETE(l_gdb);
+        return -1;
+    }
     l_gdb->chain = a_chain;
     l_gdb->_internal = (void*) l_gdb_priv;
     a_chain->_inheritor = l_gdb;
@@ -369,6 +378,10 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         return ATOM_REJECT;
 
     dap_chain_gdb_datum_hash_item_t * l_hash_item = DAP_NEW_Z(dap_chain_gdb_datum_hash_item_t);
+    if (!l_hash_item) {
+        log_it(L_ERROR, "Memory allocation error in s_chain_callback_atom_add");
+        return ATOM_REJECT;
+    }
     size_t l_datum_size = dap_chain_datum_size(l_datum);
     dap_hash_fast(l_datum->data,l_datum->header.data_size,&l_hash_item->datum_data_hash );
     dap_chain_hash_fast_to_str(&l_hash_item->datum_data_hash, l_hash_item->key, sizeof(l_hash_item->key));
@@ -425,6 +438,10 @@ static size_t s_chain_callback_atom_get_static_hdr_size()
 static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_chain, dap_chain_cell_id_t a_cell_id, bool a_with_treshold)
 {
     dap_chain_atom_iter_t * l_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
+    if (!l_iter) {
+        log_it(L_ERROR, "Memory allocation error in s_chain_callback_atom_iter_create");
+        return NULL;
+    }
     l_iter->chain = a_chain;
     l_iter->cell_id = a_cell_id;
     l_iter->with_treshold = a_with_treshold;
@@ -443,6 +460,10 @@ static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create_from(dap_chain_t
         dap_chain_atom_ptr_t a_atom, size_t a_atom_size)
 {
     dap_chain_atom_iter_t * l_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
+    if (!l_iter) {
+        log_it(L_ERROR, "Memory allocation error in s_chain_callback_atom_iter_create");
+        return NULL;
+    }
     l_iter->chain = a_chain;
     l_iter->cur = a_atom;
     l_iter->cur_size = a_atom_size;
@@ -608,6 +629,10 @@ static dap_chain_datum_t **s_chain_callback_atom_get_datum(dap_chain_atom_ptr_t 
         dap_chain_datum_t *l_datum = (dap_chain_datum_t *)a_atom;
         if (l_datum){
             dap_chain_datum_t **l_datums = DAP_NEW(dap_chain_datum_t *);
+            if (!l_datums) {
+                log_it(L_ERROR, "Memory allocation error in s_chain_callback_atom_get_datum");
+                return NULL;
+            }
             if (a_datums_count)
                 *a_datums_count = 1;
             l_datums[0] = l_datum;

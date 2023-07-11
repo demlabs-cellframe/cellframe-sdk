@@ -53,6 +53,10 @@ int dap_dns_zone_register(char *zone, dap_dns_zone_callback_t callback) {
     HASH_FIND_STR(s_dns_server->hash_table, zone, new_zone);
     if (new_zone == NULL) {      // zone is not present
       new_zone = DAP_NEW(dap_dns_zone_hash_t);
+      if (!new_zone) {
+        log_it(L_ERROR, "Memory allocation error in dap_dns_zone_register");
+        return DNS_ERROR_FAILURE;
+      }
       new_zone->zone = dap_strdup(zone);
       HASH_ADD_KEYPTR(hh, s_dns_server->hash_table, new_zone->zone, strlen(new_zone->zone), new_zone);
     }                           // if zone present, just reassign callback
@@ -112,8 +116,20 @@ void dap_dns_client_read(dap_events_socket_t *a_es, void *a_arg) {
         return;
     }
     dap_dns_buf_t *dns_message = DAP_NEW(dap_dns_buf_t);
+    if (!dns_message) {
+        log_it(L_ERROR, "Memory allocation error in dap_dns_client_read");
+        return;
+    }
     dap_dns_buf_t *dns_reply = DAP_NEW(dap_dns_buf_t);
+    if (!dns_reply) {
+        log_it(L_ERROR, "Memory allocation error in dap_dns_client_read");
+        return;
+    }
     dns_message->data = DAP_NEW_SIZE(char, a_es->buf_in_size + 1);
+    if (!dns_message->data) {
+        log_it(L_ERROR, "Memory allocation error in dap_dns_client_read");
+        return;
+    }
     dns_message->data[a_es->buf_in_size] = 0;
     dap_events_socket_pop_from_buf_in(a_es, dns_message->data, a_es->buf_in_size);
     dns_message->size = 0;
@@ -121,6 +137,10 @@ void dap_dns_client_read(dap_events_socket_t *a_es, void *a_arg) {
     // Parse incoming DNS message
     int block_len = DNS_HEADER_SIZE;
     dns_reply->data = DAP_NEW_SIZE(char, block_len);
+    if (!dns_reply->data) {
+        log_it(L_ERROR, "Memory allocation error in dap_dns_client_read");
+        return;
+    }
     dns_reply->size = 0;
     uint16_t val = dap_dns_buf_get_uint16(dns_message); // ID
     dap_dns_buf_put_uint16(dns_reply, val);
@@ -260,6 +280,10 @@ cleanup:
 void dap_dns_server_start( uint16_t a_port)
 {
     s_dns_server = DAP_NEW_Z(dap_dns_server_t);
+    if (!s_dns_server) {
+        log_it(L_ERROR, "Memory allocation error in dap_dns_server_start");
+        return;
+    }
     dap_events_socket_callbacks_t l_cb = {};
     l_cb.read_callback = dap_dns_client_read;
     s_dns_server->instance = dap_server_new( NULL, a_port, SERVER_UDP, &l_cb);

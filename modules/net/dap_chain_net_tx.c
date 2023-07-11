@@ -45,6 +45,10 @@ dap_chain_datum_tx_spends_items_t * dap_chain_net_get_tx_cond_all_with_spends_by
 {
     dap_ledger_t * l_ledger = a_net->pub.ledger;
     dap_chain_datum_tx_spends_items_t * l_ret = DAP_NEW_Z(dap_chain_datum_tx_spends_items_t);
+    if (!l_ret) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_net_get_tx_cond_all_with_spends_by_srv_uid");
+        return NULL;
+    }
 
     switch (a_search_type) {
         case TX_SEARCH_TYPE_NET:
@@ -113,6 +117,11 @@ dap_chain_datum_tx_spends_items_t * dap_chain_net_get_tx_cond_all_with_spends_by
 
                                             if (l_tx_prev_out_item){ // we found previous out_cond with target srv_uid
                                                 dap_chain_datum_tx_spends_item_t *l_item_in = DAP_NEW_Z(dap_chain_datum_tx_spends_item_t);
+                                                if (!l_item_in) {
+                                                    log_it(L_ERROR, "Memory allocation error in dap_chain_net_get_tx_cond_all_with_spends_by_srv_uid");
+                                                    DAP_DEL_Z(l_datums);
+                                                    return NULL;
+                                                }
                                                 size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
                                                 dap_chain_datum_tx_t * l_tx_dup = DAP_DUP_SIZE(l_tx,l_tx_size);
                                                 dap_hash_fast(l_tx_dup,l_tx_size, &l_item_in->tx_hash);
@@ -130,6 +139,11 @@ dap_chain_datum_tx_spends_items_t * dap_chain_net_get_tx_cond_all_with_spends_by
                                             dap_chain_tx_out_cond_t * l_tx_out_cond = (dap_chain_tx_out_cond_t *)l_item;
                                             if(l_tx_out_cond->header.srv_uid.uint64 == a_srv_uid.uint64){
                                                 dap_chain_datum_tx_spends_item_t * l_item = DAP_NEW_Z(dap_chain_datum_tx_spends_item_t);
+                                                if (!l_item) {
+                                                    log_it(L_ERROR, "Memory allocation error in dap_chain_net_get_tx_cond_all_with_spends_by_srv_uid");
+                                                    DAP_DEL_Z(l_datums);
+                                                    return NULL;
+                                                }
                                                 size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
                                                 dap_chain_datum_tx_t * l_tx_dup = DAP_DUP_SIZE(l_tx,l_tx_size);
                                                 dap_hash_fast(l_tx,l_tx_size, &l_item->tx_hash);
@@ -316,6 +330,10 @@ static void s_get_tx_cond_chain_callback(dap_chain_net_t* a_net, dap_chain_datum
 dap_list_t * dap_chain_net_get_tx_cond_chain(dap_chain_net_t * a_net, dap_hash_fast_t * a_tx_hash, dap_chain_net_srv_uid_t a_srv_uid)
 {
     struct get_tx_cond_all_from_tx * l_args = DAP_NEW_Z(struct get_tx_cond_all_from_tx);
+    if (!l_args) {
+        log_it (L_ERROR, "Memory allocation error in dap_chain_net_get_tx_cond_all_for_addr");
+        return NULL;
+    }
     l_args->tx_begin_hash = a_tx_hash;
     l_args->srv_uid = a_srv_uid;
     dap_chain_net_get_tx_all(a_net,TX_SEARCH_TYPE_NET,s_get_tx_cond_chain_callback, l_args);
@@ -430,6 +448,10 @@ static void s_get_tx_cond_all_for_addr_callback(dap_chain_net_t* a_net, dap_chai
 dap_list_t * dap_chain_net_get_tx_cond_all_for_addr(dap_chain_net_t * a_net, dap_chain_addr_t * a_addr, dap_chain_net_srv_uid_t a_srv_uid)
 {
     struct get_tx_cond_all_for_addr * l_args = DAP_NEW_Z(struct get_tx_cond_all_for_addr);
+    if (!l_args) {
+        log_it (L_ERROR, "Memory allocation error in dap_chain_net_get_tx_cond_all_for_addr");
+        return NULL;
+    }
     l_args->addr = a_addr;
     l_args->srv_uid = a_srv_uid;
     dap_chain_net_get_tx_all(a_net,TX_SEARCH_TYPE_NET,s_get_tx_cond_all_for_addr_callback, l_args);

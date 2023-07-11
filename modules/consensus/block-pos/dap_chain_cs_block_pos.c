@@ -80,6 +80,10 @@ void dap_chain_cs_block_pos_deinit(void)
 static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 {
     dap_chain_cs_blocks_new(a_chain, a_chain_cfg);
+    char ** l_tokens_hold = NULL;
+    char ** l_tokens_hold_value_str = NULL;
+    uint16_t l_tokens_hold_size = 0;
+    uint16_t l_tokens_hold_value_size = 0;
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_cs_block_pos_t *l_pos = DAP_NEW_Z(dap_chain_cs_block_pos_t);
     if (!l_pos) {
@@ -96,11 +100,6 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         goto lb_err;
     }
     dap_chain_cs_block_pos_pvt_t *l_pos_pvt = PVT(l_pos);
-
-    char ** l_tokens_hold = NULL;
-    char ** l_tokens_hold_value_str = NULL;
-    uint16_t l_tokens_hold_size = 0;
-    uint16_t l_tokens_hold_value_size = 0;
 
     l_tokens_hold = dap_config_get_array_str(a_chain_cfg, "block-pos", "stake_tokens", &l_tokens_hold_size);
     l_tokens_hold_value_str = dap_config_get_array_str(a_chain_cfg, "block-pos", "stake_tokens_value", &l_tokens_hold_value_size);

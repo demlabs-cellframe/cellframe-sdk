@@ -533,6 +533,12 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
                 }
                 if ( memcmp(&l_out->addr, a_addr_from, sizeof (*a_addr_from))==0 ){
                     dap_chain_tx_used_out_item_t *l_item_back = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
+                    if (!l_item_back) {
+                        log_it(L_ERROR, "Memory allocation error in dap_chain_mempool_tx_create_massive");
+                        DAP_DELETE(l_objs);
+                        dap_list_free( l_list_out_items);
+                        return -6;
+                    }
                     l_item_back->tx_hash_fast = l_tx_new_hash;
                     l_item_back->num_idx_out = l_out_idx_tmp;
                     l_item_back->value = l_value_back;
@@ -1054,6 +1060,10 @@ dap_datum_mempool_t * dap_datum_mempool_deserialize(uint8_t *a_datum_mempool_ser
     //uint8_t *a_datum_mempool_ser = DAP_NEW_Z_SIZE(uint8_t, datum_mempool_size / 2 + 1);
     //datum_mempool_size = hex2bin(a_datum_mempool_ser, datum_mempool_str_in, datum_mempool_size) / 2;
     dap_datum_mempool_t *datum_mempool = DAP_NEW_Z(dap_datum_mempool_t);
+    if (!datum_mempool) {
+        log_it(L_ERROR, "Memory allocation error in dap_datum_mempool_deserialize");
+        return NULL;
+    }
     datum_mempool->version = *(uint16_t*)(a_datum_mempool_ser + shift_size);
     shift_size += sizeof(uint16_t);
     datum_mempool->datum_count = *(uint16_t*)(a_datum_mempool_ser + shift_size);
