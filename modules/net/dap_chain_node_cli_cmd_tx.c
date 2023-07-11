@@ -430,7 +430,7 @@ static char* dap_db_history_token_list(dap_chain_t * a_chain, const char *a_toke
                 dap_chain_datum_t *l_datum = l_datums[l_datum_n];
                 if (!l_datum || l_datum->header.type_id != DAP_CHAIN_DATUM_TOKEN_DECL)
                     continue;
-                if (!a_token_name && dap_strcmp(((dap_chain_datum_token_t *)l_datum->data)->ticker, a_token_name))
+                if (a_token_name && dap_strcmp(((dap_chain_datum_token_t *)l_datum->data)->ticker, a_token_name))
                     continue;
                 dap_chain_datum_dump(l_str_out, l_datum, a_hash_out_type);
                 (*a_token_num)++;
