@@ -173,6 +173,11 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
     HASH_FIND_INT(s_chain_net_data, &a_ch->stream->session->id, l_sdata);
     if(l_sdata == NULL) {
         l_sdata = DAP_NEW_Z(dap_chain_net_session_data_t);
+        if (!l_sdata) {
+            log_it(L_ERROR, "Memory allocation error in s_stream_ch_new");
+            pthread_mutex_unlock(&s_hash_mutex);
+            return;
+        }
         l_sdata->session_id = a_ch->stream->session->id;
         HASH_ADD_INT(s_chain_net_data, session_id, l_sdata);
     }

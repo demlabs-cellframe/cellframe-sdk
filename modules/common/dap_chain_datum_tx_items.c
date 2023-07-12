@@ -235,6 +235,9 @@ dap_chain_tx_in_ems_t *dap_chain_datum_tx_item_in_ems_create(dap_chain_id_t a_id
     if(!a_ticker)
         return NULL;
     dap_chain_tx_in_ems_t *l_item = DAP_NEW_Z(dap_chain_tx_in_ems_t);
+    if (!l_item) {
+        return NULL;
+    }
     l_item->header.type = TX_ITEM_TYPE_IN_EMS;
     l_item->header.token_emission_chain_id.uint64 = a_id.uint64;
     l_item->header.token_emission_hash = *a_datum_token_hash;;
@@ -266,6 +269,9 @@ dap_chain_tx_in_t* dap_chain_datum_tx_item_in_create(dap_chain_hash_fast_t *a_tx
     if(!a_tx_prev_hash)
         return NULL;
     dap_chain_tx_in_t *l_item = DAP_NEW_Z(dap_chain_tx_in_t);
+        if (!l_item) {
+        return NULL;
+    }
     l_item->header.type = TX_ITEM_TYPE_IN;
     l_item->header.tx_out_prev_idx = a_tx_out_prev_idx;
     l_item->header.tx_prev_hash = *a_tx_prev_hash;
@@ -325,6 +331,9 @@ dap_chain_tx_in_cond_t* dap_chain_datum_tx_item_in_cond_create(dap_chain_hash_fa
     if(!a_tx_prev_hash )
         return NULL;
     dap_chain_tx_in_cond_t *l_item = DAP_NEW_Z(dap_chain_tx_in_cond_t);
+    if (!l_item) {
+        return NULL;
+    }
     l_item->header.type = TX_ITEM_TYPE_IN_COND;
     l_item->header.receipt_idx = a_receipt_idx;
     l_item->header.tx_out_prev_idx = a_tx_out_prev_idx;
@@ -360,6 +369,9 @@ dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(const dap_chain_addr_t *a
     if (!a_addr || IS_ZERO_256(a_value))
         return NULL;
     dap_chain_tx_out_t *l_item = DAP_NEW_Z(dap_chain_tx_out_t);
+    if (!l_item) {
+        return NULL;
+    }
     l_item->addr = *a_addr;
     l_item->header.type = TX_ITEM_TYPE_OUT;
     l_item->header.value = a_value;
@@ -382,6 +394,9 @@ dap_chain_tx_out_ext_t* dap_chain_datum_tx_item_out_ext_create(const dap_chain_a
     if (IS_ZERO_256(a_value))
         return NULL;
     dap_chain_tx_out_ext_t *l_item = DAP_NEW_Z(dap_chain_tx_out_ext_t);
+    if (!l_item) {
+        return NULL;
+    }
     l_item->header.type = TX_ITEM_TYPE_OUT_EXT;
     l_item->header.value = a_value;
     l_item->addr = *a_addr;
@@ -407,6 +422,9 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_fee(uint256_t a
     if (IS_ZERO_256(a_value))
         return NULL;
     dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z(dap_chain_tx_out_cond_t);
+    if (!l_item) {
+        return NULL;
+    }
     l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
     l_item->header.value = a_value;
     l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE;
@@ -544,6 +562,9 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
     if (IS_ZERO_256(a_value))
         return NULL;
     dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z(dap_chain_tx_out_cond_t);
+    if (!l_item) {
+        return NULL;
+    }
     l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
     l_item->header.value = a_value;
     l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE;
@@ -591,6 +612,9 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake_lock(
     if (IS_ZERO_256(a_value))
         return NULL;
     dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z(dap_chain_tx_out_cond_t);
+    if (!l_item) {
+        return NULL;
+    }
     l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
     l_item->header.value = a_value;
     l_item->header.subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK;

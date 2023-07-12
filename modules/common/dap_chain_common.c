@@ -296,6 +296,10 @@ uint128_t dap_chain_uint128_from_uint256(uint256_t a_from)
 char *dap_chain_balance_print128(uint128_t a_balance)
 {
     char *l_buf = DAP_NEW_Z_SIZE(char, DATOSHI_POW + 2);
+    if (!l_buf) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_balance_print128");
+        return NULL;
+    }
     int l_pos = 0;
     uint128_t l_value = a_balance;
 #ifdef DAP_GLOBAL_IS_INT128
@@ -626,6 +630,10 @@ uint256_t dap_chain_coins_to_balance256(const char *a_coins)
 
 char *dap_cvt_uint256_to_str(uint256_t a_uint256) {
     char *l_buf = DAP_NEW_Z_SIZE(char, DATOSHI_POW256 + 2); // for decimal dot and trailing zero
+    if (!l_buf) {
+        log_it(L_ERROR, "Memory allocation error in dap_cvt_uint256_to_str");
+        return NULL;
+    }
     int l_pos = 0;
     uint256_t l_value = a_uint256;
     uint256_t uint256_ten = GET_256_FROM_64(10);

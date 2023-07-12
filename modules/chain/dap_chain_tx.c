@@ -36,6 +36,10 @@
 dap_chain_tx_t * dap_chain_tx_wrap_packed(dap_chain_datum_tx_t * a_tx_packed)
 {
     dap_chain_tx_t * l_tx = DAP_NEW_Z(dap_chain_tx_t);
+    if (!l_tx) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_tx_wrap_packed");
+        return NULL;
+    }
     dap_hash_fast(a_tx_packed, dap_chain_datum_tx_get_size(a_tx_packed), &l_tx->hash);
     l_tx->datum_tx = a_tx_packed;
     return l_tx;

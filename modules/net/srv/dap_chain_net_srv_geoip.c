@@ -175,17 +175,21 @@ geoip_info_t *chain_net_geoip_get_ip_info_by_local_db(const char *a_ip_str, cons
     //char *l_file_db_name = dap_strdup_printf("%s/share/geoip/GeoLite2-City.mmdb", g_sys_dir_path);
     if(!dap_file_test(s_geoip_db_file_path)) {
         //DAP_DELETE(l_file_db_name);
-        return NULL ;
+        return NULL;
     }
     MMDB_s mmdb;
     int l_status = MMDB_open(s_geoip_db_file_path, MMDB_MODE_MMAP, &mmdb);
     if(MMDB_SUCCESS != l_status) {
         log_it(L_WARNING, "geoip file %s opened with errcode=%d", s_geoip_db_file_path, l_status);
-        return NULL ;
+        return NULL;
     }
     //DAP_DELETE(l_file_db_name);
 
 	geoip_info_t *l_ret = DAP_NEW_Z(geoip_info_t);
+	if (!l_ret) {
+		log_it(L_ERROR, "Memory allocation error in chain_net_geoip_get_ip_info_by_local_db");
+		return NULL;
+	}
 
 	int gai_error, mmdb_error;
 	MMDB_lookup_result_s result = MMDB_lookup_string(&mmdb, a_ip_str, &gai_error, &mmdb_error);
