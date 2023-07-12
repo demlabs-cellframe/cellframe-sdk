@@ -254,13 +254,14 @@ char * dap_chain_net_srv_order_create(
         dap_time_t a_expires, // TS when the service expires
         const uint8_t *a_ext,
         uint32_t a_ext_size,
+        uint64_t a_units,
         const char *a_region,
         int8_t a_continent_num,
         dap_enc_key_t *a_key
         )
 {
     dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_compose(a_net, a_direction, a_srv_uid, a_node_addr, a_tx_cond_hash, a_price,
-                                                                         a_price_unit, a_price_ticker, a_expires, a_ext, a_ext_size,
+                                                                         a_price_unit, a_price_ticker, a_expires, a_ext, a_ext_size, a_units,
                                                                          a_region, a_continent_num, a_key);
     if (!l_order)
         return NULL;
@@ -280,6 +281,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(dap_chain_net_t *a_ne
         dap_time_t a_expires, // TS when the service expires
         const uint8_t *a_ext,
         uint32_t a_ext_size,
+        uint64_t a_units,
         const char *a_region,
         int8_t a_continent_num,
         dap_enc_key_t *a_key
@@ -320,6 +322,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(dap_chain_net_t *a_ne
 
     if ( a_price_ticker)
         strncpy(l_order->price_ticker, a_price_ticker, DAP_CHAIN_TICKER_SIZE_MAX - 1);
+    l_order->units = a_units;
     dap_sign_t *l_sign = dap_sign_create(a_key, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size, 0);
     if (!l_sign) {
         DAP_DELETE(l_order);
@@ -564,6 +567,7 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         }
         else
             dap_string_append_printf(a_str_out, "  ext:              0x0\n");
+        dap_string_append_printf(a_str_out, "  units:            %zu\n", a_order->units);
         // order state
 /*        {
             int l_order_state = get_order_state(a_order->node_addr);
