@@ -302,7 +302,9 @@ dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv
                                                                dap_chain_net_srv_price_t * a_price,
                                                                const void * a_ext, size_t a_ext_size);
 uint8_t dap_stream_ch_chain_net_srv_get_id();
-int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_config_section);
+
+//int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_config_section);
+int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, const char *a_config_section);
 
 DAP_STATIC_INLINE const char * dap_chain_net_srv_price_unit_uid_to_str( dap_chain_net_srv_price_unit_uid_t a_uid )
 {
