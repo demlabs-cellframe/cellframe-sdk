@@ -240,8 +240,6 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     }
     l_blocks->chain->callback_created = s_callback_created;
 
-    //dap_global_db_set(s_get_penalty_group(a_chain->net_id), "RpiDC8c1T1Phj39nZy6E1jEmigaMV9MHjmMkpBLjMfADD7BPTXCXHg6Rma15kssjDvYn1d2NyMj6HwLKiEkUdxbLam7VFcF79THnMND8", NULL, 0, false, NULL, 0);
-
     return 0;
 
 lb_err:
@@ -1675,7 +1673,6 @@ static void s_session_directive_process(dap_chain_esbocs_session_t *a_session, d
                                             l_directive_hash_str);
         DAP_DELETE(l_directive_hash_str);
     }
-
     a_session->cur_round.directive_hash = *a_directive_hash;
     a_session->cur_round.directive = DAP_DUP_SIZE(a_directive, a_directive->size);
 
