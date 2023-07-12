@@ -1675,7 +1675,6 @@ static void s_session_directive_process(dap_chain_esbocs_session_t *a_session, d
                                             l_directive_hash_str);
         DAP_DELETE(l_directive_hash_str);
     }
-
     a_session->cur_round.directive_hash = *a_directive_hash;
     a_session->cur_round.directive = DAP_DUP_SIZE(a_directive, a_directive->size);
 
