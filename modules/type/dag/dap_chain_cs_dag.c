@@ -499,7 +499,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     dap_chain_cs_dag_event_item_t * l_event_item = DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
     if (!l_event_item) {
         log_it(L_ERROR, "Memory allocation error in s_chain_callback_atom_add");
-        return NULL;
+        return ATOM_REJECT;
     }
     pthread_mutex_t *l_events_mutex = &PVT(l_dag)->events_mutex;
     l_event_item->event = l_event;
