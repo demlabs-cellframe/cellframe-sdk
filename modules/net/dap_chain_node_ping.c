@@ -277,7 +277,7 @@ static void* node_ping_background_proc(void *a_arg)
         log_it(L_ERROR, "Memory allocation error in node_ping_background_proc");
         dap_list_free_full(l_node_list0, NULL);
         DAP_DEL_Z(s_node_addr_ping);
-        return -1;
+        return 0;
     }
     memcpy(l_node_addr_tmp, s_node_addr_tr, sizeof(dap_chain_node_addr_t));
     DAP_DELETE(s_node_addr_tr);
