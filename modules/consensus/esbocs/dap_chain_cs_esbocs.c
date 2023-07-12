@@ -2433,7 +2433,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
     /*if (a_block->hdr.meta_n_datum_n_signs_size != a_block_size - sizeof(a_block->hdr)) {
         log_it(L_WARNING, "Incorrect size with block %p on chain %s", a_block, a_blocks->chain->name);
         return -8;
-    }*/
+    }*/ // TODO Retunn it after hard-fork with correct block sizes
 
     if (l_esbocs->session && l_esbocs->session->processing_candidate == a_block)
         // It's a block candidate, don't check signs
@@ -2460,6 +2460,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
     uint16_t l_signs_verified_count = 0;
     size_t l_block_excl_sign_size = dap_chain_block_get_sign_offset(a_block, a_block_size) + sizeof(a_block->hdr);
     // Get the header on signing operation time
+    size_t l_block_original = a_block->hdr.meta_n_datum_n_signs_size;
     a_block->hdr.meta_n_datum_n_signs_size = l_block_excl_sign_size - sizeof(a_block->hdr);
     for (size_t i=0; i< l_signs_count; i++) {
         dap_sign_t *l_sign = (dap_sign_t *)l_signs[i];
@@ -2493,7 +2494,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
     }
     DAP_DELETE(l_signs);
     // Restore the original header
-    a_block->hdr.meta_n_datum_n_signs_size = a_block_size - sizeof(a_block->hdr);
+    a_block->hdr.meta_n_datum_n_signs_size = l_block_original;
 
     if (l_signs_verified_count < l_esbocs_pvt->min_validators_count) {
         dap_hash_fast_t l_block_hash;
@@ -2502,7 +2503,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         dap_hash_fast_to_str(&l_block_hash, l_block_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
         log_it(L_ERROR, "Corrupted block %s: not enough authorized signs: %u of %u",
                     l_block_hash_str, l_signs_verified_count, l_esbocs_pvt->min_validators_count);
-        return 0; //l_ret
+        return l_ret ? l_ret : -4;
     }
     return 0;
 }
