@@ -142,6 +142,14 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
 static bool s_seed_mode = false;
 static bool s_debug_more = false;
 
+/* Legacy */
+typedef struct s_hash_str {
+    char hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+    UT_hash_handle hh;
+} s_hash_str_t;
+
+s_hash_str_t *s_emissions_whitelist = NULL;
+
 /**
  * @brief dap_chain_cs_dag_init
  * @return
@@ -180,6 +188,18 @@ int dap_chain_cs_dag_init(void)
 void dap_chain_cs_dag_deinit(void)
 {
 
+}
+
+static void s_get_emissions_whitelist(dap_config_t * a_cfg) {
+    uint16_t l_count = 0;
+    char **l_hashes = dap_config_get_array_str(a_cfg, "dag-poa", "ems_whitelisted", &l_count);
+    if (!l_count)
+        return;
+    for (int i = 0; i < l_count; ++i) {
+        s_hash_str_t *l_item = DAP_NEW_Z(s_hash_str_t);
+        dap_stpcpy(l_item->hash_str, l_hashes[i]);
+        HASH_ADD_STR(s_emissions_whitelist, hash_str, l_item);
+    }
 }
 
 static void s_history_callback_round_notify(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg)
@@ -318,6 +338,9 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     PVT(l_dag)->events_treshold = NULL;
     PVT(l_dag)->events_treshold_conflicted = NULL;
     PVT(l_dag)->treshold_fee_timer = dap_interval_timer_create(900000, (dap_timer_callback_t)s_dap_chain_cs_dag_threshold_free, l_dag);
+
+    s_get_emissions_whitelist(a_chain_cfg);
+
     if (l_dag->is_single_line)
         log_it (L_NOTICE, "DAG chain initialized (single line)");
     else
@@ -486,11 +509,11 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     dap_chain_cs_dag_event_calc_hash(l_event, a_atom_size, &l_event_hash);
     l_event_item->hash = l_event_hash;
 
-    if(s_debug_more) {
+    //if(s_debug_more) {
         char l_event_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
         dap_chain_hash_fast_to_str(&l_event_item->hash, l_event_hash_str, sizeof(l_event_hash_str));
-        log_it(L_DEBUG, "Processing event: %s ... (size %zd)", l_event_hash_str,a_atom_size);
-    }
+        debug_if(s_debug_more, L_DEBUG, "Processing event: %s ... (size %zd)", l_event_hash_str,a_atom_size);
+    //}
 
     pthread_mutex_lock(l_events_mutex);
     // check if we already have this event
@@ -498,16 +521,22 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             s_dap_chain_check_if_event_is_present(PVT(l_dag)->events_treshold, &l_event_item->hash) ? ATOM_PASS : ATOM_ACCEPT;
     pthread_mutex_unlock(l_events_mutex);
 
+    s_hash_str_t *l_whitelisted_item = NULL;
+
+    HASH_FIND_STR(s_emissions_whitelist, l_event_hash_str, l_whitelisted_item);
+    debug_if(s_debug_more && l_whitelisted_item, L_MSG, "Event %s is whitelisted", l_event_hash_str);
+
     // verify hashes and consensus
     switch (ret) {
-    case ATOM_ACCEPT:
-        ret = s_chain_callback_atom_verify(a_chain, a_atom, a_atom_size);
+    case ATOM_ACCEPT: {
+        ret = l_whitelisted_item ? ATOM_ACCEPT : s_chain_callback_atom_verify(a_chain, a_atom, a_atom_size);
         if (ret == ATOM_MOVE_TO_THRESHOLD)
             ret = ATOM_REJECT; /* TODO: A temporary fix for memory consumption */
         if(s_debug_more)
             log_it(L_DEBUG, "Verified atom %p: %s", a_atom, ret == ATOM_ACCEPT ? "accepted" :
                                                            (ret == ATOM_REJECT ? "rejected" : "thresholded"));
         break;
+    }
     case ATOM_PASS:
         if(s_debug_more) {
             log_it(L_DEBUG, "Atom already present");
@@ -539,7 +568,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         pthread_mutex_unlock(l_events_mutex);
         break;
     case ATOM_ACCEPT: {
-        int l_consensus_check = s_dap_chain_add_atom_to_events_table(l_dag, l_event_item);
+        int l_consensus_check = l_whitelisted_item ? 0 : s_dap_chain_add_atom_to_events_table(l_dag, l_event_item);
         switch (l_consensus_check) {
         case 0:
             if(s_debug_more)
