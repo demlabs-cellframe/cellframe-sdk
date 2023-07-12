@@ -41,6 +41,10 @@ dap_chain_net_srv_client_t *dap_chain_net_srv_client_create_n_connect(dap_chain_
                                                                       void *a_callbacks_arg)
 {
     dap_chain_net_srv_client_t *l_ret = DAP_NEW_Z(dap_chain_net_srv_client_t);
+    if (!l_ret) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_client_create_n_connect");
+        return NULL;
+    }
     if (a_callbacks)
         l_ret->callbacks = *a_callbacks;
     l_ret->callbacks_arg = a_callbacks_arg;
@@ -50,6 +54,11 @@ dap_chain_net_srv_client_t *dap_chain_net_srv_client_create_n_connect(dap_chain_
         .delete = s_srv_client_callback_deleted
     };
     dap_chain_node_info_t *l_info = DAP_NEW_Z(dap_chain_node_info_t);
+    if (!l_ret) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_client_create_n_connect");
+        DAP_DEL_Z(l_ret);
+        return NULL;
+    }
     inet_pton(AF_INET, a_addr, &l_info->hdr.ext_addr_v4);
     l_info->hdr.ext_port = a_port;
     const char l_channels[] = {dap_stream_ch_chain_net_srv_get_id(), '\0'};
