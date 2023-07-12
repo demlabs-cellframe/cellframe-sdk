@@ -693,4 +693,3 @@ void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_sto
     l_notifier->cb_arg = a_cb_arg;
     s_order_notify_callbacks = dap_list_append(s_order_notify_callbacks, l_notifier);
 }
-
