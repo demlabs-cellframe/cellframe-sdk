@@ -47,6 +47,11 @@ typedef struct dap_chain_block_datum_index {
     UT_hash_handle hh;
 } dap_chain_block_datum_index_t;
 
+struct cs_blocks_hal_item {
+    dap_chain_hash_fast_t hash;
+    UT_hash_handle hh;
+};
+
 typedef struct dap_chain_cs_blocks_pvt
 {
     pthread_rwlock_t rwlock;
@@ -78,6 +83,7 @@ typedef struct dap_chain_cs_blocks_pvt
     pthread_rwlock_t datums_lock;
     uint64_t fill_timeout;
 
+    struct cs_blocks_hal_item *hal;
 } dap_chain_cs_blocks_pvt_t;
 
 #define PVT(a) ((dap_chain_cs_blocks_pvt_t *)(a)->_pvt )
@@ -275,6 +281,21 @@ int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config
 
     l_cs_blocks_pvt->fill_timeout = dap_config_get_item_uint64_default(a_chain_config, "blocks", "fill_timeout", 60) * 1000; // 1 min
     l_cs_blocks_pvt->blocks_count = 0;
+
+    uint16_t l_list_len = 0;
+    char **l_hard_accept_list = dap_config_get_array_str(a_chain_config, "blocks", "hard_accept_list", &l_list_len);
+    log_it(L_MSG, "HAL for blocks contains %d whitelisted events", l_list_len);
+    for (uint16_t i = 0; i < l_list_len; i++) {
+        struct cs_blocks_hal_item *l_hal_item = DAP_NEW_Z(struct cs_blocks_hal_item);
+        if (!l_hal_item){
+            log_it(L_ERROR, "Memory allocation error in dap_chain_cs_dag_new");
+            DAP_DEL_Z(l_cs_blocks_pvt);
+            DAP_DELETE(l_cs_blocks);
+            return -10;
+        }
+        dap_chain_hash_fast_from_str(l_hard_accept_list[i], &l_hal_item->hash);
+        HASH_ADD(hh, l_cs_blocks_pvt->hal, hash, sizeof(l_hal_item->hash), l_hal_item);
+    }
 
     return 0;
 }
@@ -1101,11 +1122,23 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
     dap_chain_cs_blocks_pvt_t * l_blocks_pvt = PVT(l_blocks);
     assert(l_blocks_pvt);
     dap_chain_block_t * l_block = (dap_chain_block_t *) a_atom;
+    dap_chain_hash_fast_t l_block_hash;
 
     if(sizeof (l_block->hdr) >= a_atom_size){
         log_it(L_WARNING,"Size of block is %zd that is equal or less then block's header size %zd",a_atom_size,sizeof (l_block->hdr));
         return  ATOM_REJECT;
     }
+
+    // Hard accept list
+    if (l_blocks_pvt->hal) {
+        dap_hash_fast(l_block, a_atom_size, &l_block_hash);
+        struct cs_blocks_hal_item *l_hash_found = NULL;
+        HASH_FIND(hh, l_blocks_pvt->hal, &l_block_hash, sizeof(l_block_hash), l_hash_found);
+        if (l_hash_found) {
+            return ATOM_ACCEPT;
+        }
+    }
+
     size_t l_meta_count = 0;
     dap_chain_block_meta_t ** l_meta=  dap_chain_block_get_meta(l_block, a_atom_size, & l_meta_count);
     // Parse metadata
@@ -1114,7 +1147,6 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
     dap_chain_hash_fast_t l_block_anchor_hash = {0};
     uint64_t l_nonce = 0;
     uint64_t l_nonce2 = 0;
-    dap_chain_hash_fast_t l_block_hash;
 
     dap_chain_block_meta_extract(l_meta, l_meta_count,
                                         &l_block_prev_hash,
