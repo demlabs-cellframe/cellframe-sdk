@@ -1994,6 +1994,9 @@ char    l_buf[1024];
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-password", &l_pass_str);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-sign", &l_sign_type_str);
             int l_restore_opt = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-restore", &l_restore_str);
+            int l_restore_legacy_opt = 0;
+            if (!l_restore_str)
+                l_restore_legacy_opt = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-restore_legacy", &l_restore_str);
             // rewrite existing wallet
             int l_is_force = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-force", NULL);
 
@@ -2041,13 +2044,16 @@ char    l_buf[1024];
             uint8_t *l_seed = NULL;
             size_t l_seed_size = 0, l_restore_str_size = dap_strlen(l_restore_str);
 
-            if(l_restore_opt) {
-                if (l_restore_str_size > 3 && !dap_strncmp(l_restore_str, "0x", 2) && !dap_is_hex_string(l_restore_str + 2, l_restore_str_size - 2)) {
+            if(l_restore_opt || l_restore_legacy_opt) {
+                if (l_restore_str_size > 3 && !dap_strncmp(l_restore_str, "0x", 2) && (!dap_is_hex_string(l_restore_str + 2, l_restore_str_size - 2) || l_restore_legacy_opt)) {
                     l_seed_size = (l_restore_str_size - 2) / 2;
                     l_seed = DAP_NEW_SIZE(uint8_t, l_seed_size);
                     dap_hex2bin(l_seed, l_restore_str + 2, l_restore_str_size - 2);
+                    if (l_restore_legacy_opt) {
+                        dap_string_append_printf(l_l_string_ret, "CAUTION!!! CAUTION!!! CAUTION!!!\nYour wallet has a low level of protection. Please create a new wallet again with the option -restore\n");
+                    }
                 } else {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Restored hash is invalid or too short, wallet is not created. Please use -restore 0x<hex value>");
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Restored hash is invalid or too short, wallet is not created. Please use -restore 0x<hex_value> or -restore_legacy 0x<restore_string>");
                     return -1;
                 }
             }
@@ -3020,37 +3026,61 @@ int com_mempool_check(int a_argc, char **a_argv, char ** a_str_reply)
                 l_datum_hash_hex_str = dap_enc_base58_to_hex_str_from_str(l_datum_hash_str);
             } else
                 l_datum_hash_hex_str = dap_strdup(l_datum_hash_str);
-            if (l_chain) {
-                dap_chain_datum_t *l_datum = s_com_mempool_check_datum_in_chain(l_chain, l_datum_hash_hex_str);
-                DAP_DELETE(l_datum_hash_hex_str);
-                if (l_datum) {
-                    dap_string_t *l_str_reply = dap_string_new("");
-                    dap_string_append_printf(l_str_reply, "Datum %s is present in mempool\n", l_datum_hash_str);
-                    dap_chain_datum_dump(l_str_reply, l_datum, l_hash_out_type);
-                    DAP_DELETE(l_datum);
-                    *a_str_reply = l_str_reply->str;
-                    dap_string_free(l_str_reply, false);
-                    return 0;
-                } else {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find datum %s in %s.%s", l_datum_hash_str, l_net->pub.name, l_chain->name);
-                    return -4;
-                }
-            } else {
-                DL_FOREACH(l_net->pub.chains, l_chain) {
-                    dap_chain_datum_t *l_datum = s_com_mempool_check_datum_in_chain(l_chain, l_datum_hash_hex_str);
+            dap_chain_datum_t *l_datum = NULL;
+            char *l_chain_name = l_chain ? l_chain->name : NULL;
+            bool l_found_in_chains = false;
+            int l_ret_code = 0;
+            dap_hash_fast_t l_atom_hash = {};
+            if (l_chain)
+                l_datum = s_com_mempool_check_datum_in_chain(l_chain, l_datum_hash_hex_str);
+            else {
+                dap_chain_t *it = NULL;
+                DL_FOREACH(l_net->pub.chains, it) {
+                    l_datum = s_com_mempool_check_datum_in_chain(it, l_datum_hash_hex_str);
                     if (l_datum) {
-                        DAP_DELETE(l_datum_hash_hex_str);
-                        dap_string_t *l_str_reply = dap_string_new("");
-                        dap_string_append_printf(l_str_reply, "Datum %s is present in mempool\n", l_datum_hash_str);
-                        dap_chain_datum_dump(l_str_reply, l_datum, l_hash_out_type);
-                        DAP_DELETE(l_datum);
-                        *a_str_reply = l_str_reply->str;
-                        dap_string_free(l_str_reply, false);
-                        return 0;
+                        l_chain_name = it->name;
+                        break;
                     }
                 }
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find datum %s in net %s", l_datum_hash_str, l_net->pub.name);
-                DAP_DEL_Z(l_datum_hash_hex_str);
+            }
+            if (!l_datum) {
+                l_found_in_chains = true;
+                dap_hash_fast_t l_datum_hash;
+                if (dap_chain_hash_fast_from_hex_str(l_datum_hash_hex_str, &l_datum_hash)) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Incorrect hash string %s", l_datum_hash_str);
+                    return -4;
+                }
+                if (l_chain)
+                    l_datum = l_chain->callback_datum_find_by_hash(l_chain, &l_datum_hash, &l_atom_hash, &l_ret_code);
+                else {
+                    dap_chain_t *it = NULL;
+                    DL_FOREACH(l_net->pub.chains, it) {
+                        l_datum = it->callback_datum_find_by_hash(it, &l_datum_hash, &l_atom_hash, &l_ret_code);
+                        if (l_datum) {
+                            l_chain_name = it->name;
+                            break;
+                        }
+                    }
+                }
+            }
+            DAP_DELETE(l_datum_hash_hex_str);
+            if (l_datum) {
+                dap_string_t *l_str_reply = dap_string_new("");
+                dap_string_append_printf(l_str_reply, "Datum %s is present in %s.%s\n", l_datum_hash_str,
+                                                        l_found_in_chains ? "chains" : "mempool", l_chain_name);
+                if (l_found_in_chains) {
+                    char l_atom_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                    dap_chain_hash_fast_to_str(&l_atom_hash, l_atom_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+                    dap_string_append_printf(l_str_reply, "Atom hash is %s return code is %d\n", l_atom_hash_str, l_ret_code);
+                }
+                dap_chain_datum_dump(l_str_reply, l_datum, l_hash_out_type);
+                if (!l_found_in_chains)
+                    DAP_DELETE(l_datum);
+                *a_str_reply = l_str_reply->str;
+                dap_string_free(l_str_reply, false);
+                return 0;
+            } else {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find datum %s in %s.%s", l_datum_hash_str, l_net->pub.name, l_chain ? l_chain->name : "");
                 return -4;
             }
         } else {
@@ -3150,10 +3180,8 @@ int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply)
             dap_ctime_r(&l_ts_create, buf), l_datum->header.data_size);
     int l_verify_datum = dap_chain_net_verify_datum_for_add(l_chain, l_datum, &l_datum_hash) ;
     if (l_verify_datum != 0){
-        char *l_err_verify_datum_str = dap_chain_net_verify_datum_err_code_to_str(l_datum, l_verify_datum);
         dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications (%s) examine node log files",
-                                 l_err_verify_datum_str);
-        DAP_DELETE(l_err_verify_datum_str);
+                                 dap_chain_net_verify_datum_err_code_to_str(l_datum, l_verify_datum));
         ret = -9;
     } else {
         if (l_chain->callback_add_datums) {

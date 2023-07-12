@@ -115,8 +115,8 @@
 #include "dap_chain_node_dns_client.h"
 #include "dap_module.h"
 
-#include "json-c/json.h"
-#include "json-c/json_object.h"
+#include "json.h"
+#include "json_object.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_net_srv_xchange.h"
 
@@ -329,7 +329,9 @@ int dap_chain_net_init()
         "net -net <chain net name> ca del -hash <cert hash> [-H {hex | base58(default)}]\n"
             "\tDelete certificate from list of authority cetificates in GDB group by it's hash\n"
         "net -net <chain net name> ledger reload\n"
-            "\tPurge the cache of chain net ledger and recalculate it from chain file\n");
+            "\tPurge the cache of chain net ledger and recalculate it from chain file\n"
+        "net -net <chain net name> poa_cets list\n"
+            "\tPrint list of PoA cerificates for this network\n");
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more",false);
 
@@ -1788,6 +1790,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
         const char *l_stats_str = NULL;
         const char *l_ca_str = NULL;
         const char *l_ledger_str = NULL;
+        const char *l_list_str = NULL;
         dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "sync", &l_sync_str);
         dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "link", &l_links_str);
         dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "go", &l_go_str);
@@ -1795,6 +1798,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
         dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "stats", &l_stats_str);
         dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "ca", &l_ca_str);
         dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "ledger", &l_ledger_str);
+        dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "poa_certs", &l_list_str);
 
         const char * l_sync_mode_str = "updates";
         dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-mode", &l_sync_mode_str);
@@ -2118,6 +2122,31 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
             s_chain_net_ledger_cache_reload(l_net);
             if (l_return_state)
                 dap_chain_net_start(l_net);
+        } else if (l_list_str && !strcmp(l_list_str, "list")) {
+            dap_list_t *l_net_keys = NULL;
+            for (dap_chain_t *l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
+                if (!l_chain->callback_get_poa_certs)
+                    continue;
+                l_net_keys = l_chain->callback_get_poa_certs(l_chain, NULL, NULL);
+                if (l_net_keys)
+                    break;
+            }
+            if (!l_net_keys) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "No PoA certs found for this network");
+                return -11;
+            }
+            dap_string_t *l_str_out = dap_string_new("List of network PoA certificates:\n");
+            int i = 0;
+            for (dap_list_t *it = l_net_keys; it; it = it->next) {
+                dap_hash_fast_t l_pkey_hash;
+                char l_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+                dap_pkey_get_hash(it->data, &l_pkey_hash);
+                dap_chain_hash_fast_to_str(&l_pkey_hash, l_pkey_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+                dap_string_append_printf(l_str_out, "%d) %s\n", i++, l_pkey_hash_str);
+            }
+            *a_str_reply = l_str_out->str;
+            dap_string_free(l_str_out, false);
+
         } else {
             dap_cli_server_cmd_set_reply_text(a_str_reply,
                                               "Command 'net' requires one of subcomands: sync, link, go, get, stats, ca, ledger");
@@ -3220,18 +3249,15 @@ int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *
 
 char *dap_chain_net_verify_datum_err_code_to_str(dap_chain_datum_t *a_datum, int a_code){
     switch (a_datum->header.type_id) {
-        case DAP_CHAIN_DATUM_TX:
-            return dap_chain_ledger_tx_check_err_str(a_code);
-        case DAP_CHAIN_DATUM_TOKEN_DECL:
-            return dap_chain_ledger_token_decl_add_err_code_to_str(a_code);
-        case DAP_CHAIN_DATUM_TOKEN_EMISSION:
-            return dap_chain_ledger_token_emission_err_code_to_str(a_code);
-        default:
-            if (a_code == 0) {
-                return dap_strdup("DAP_CHAIN_DATUM_VERIFY_OK");
-            } else {
-                return dap_strdup_printf("Error code: %d", a_code);
-            }
+    case DAP_CHAIN_DATUM_TX:
+        return dap_chain_ledger_tx_check_err_str(a_code);
+    case DAP_CHAIN_DATUM_TOKEN_DECL:
+        return dap_chain_ledger_token_decl_add_err_code_to_str(a_code);
+    case DAP_CHAIN_DATUM_TOKEN_EMISSION:
+        return dap_chain_ledger_token_emission_err_code_to_str(a_code);
+    default:
+        return !a_code ? "DAP_CHAIN_DATUM_VERIFY_OK" : dap_itoa(a_code);
+
     }
 }
 
@@ -3247,8 +3273,7 @@ static bool s_net_check_acl(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pke
 {
     const char l_path[] = "network/";
     char l_cfg_path[strlen(a_net->pub.name) + strlen(l_path) + 1];
-    strcpy(l_cfg_path, l_path);
-    strcat(l_cfg_path, a_net->pub.name);
+    dap_snprintf(l_cfg_path, sizeof(l_cfg_path) - 1, "%s%s", l_path, a_net->pub.name);
     dap_config_t *l_cfg = dap_config_open(l_cfg_path);
     const char *l_auth_type = dap_config_get_item_str(l_cfg, "auth", "type");
     bool l_authorized = true;
