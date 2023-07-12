@@ -24,7 +24,7 @@
  */
 
 #include "dap_common.h"
-
+#include <dirent.h>
 #ifdef _WIN32
 #include <winsock2.h>
 #include <windows.h>
@@ -56,6 +56,7 @@
 #include "json.h"
 #include "json_object.h"
 #include "dap_notify_srv.h"
+
 
 #define LOG_TAG "dap_chain_ledger"
 
@@ -323,6 +324,12 @@ typedef struct dap_ledger_private {
 } dap_ledger_private_t;
 #define PVT(a) ( (dap_ledger_private_t* ) a->_internal )
 
+typedef struct dap_ledger_hal_item {
+    dap_chain_hash_fast_t hash;
+    UT_hash_handle hh;
+} dap_ledger_hal_item_t;
+
+static dap_ledger_hal_item_t *s_hal_items = NULL;
 
 static  dap_chain_ledger_tx_item_t* tx_item_find_by_addr(dap_ledger_t *a_ledger,
         const dap_chain_addr_t *a_addr, const char * a_token, dap_chain_hash_fast_t *a_tx_first_hash);
@@ -2479,6 +2486,36 @@ dap_ledger_t *dap_chain_ledger_create(uint16_t a_flags, char *a_net_name, const 
     pthread_cond_init(&l_ledger_pvt->load_cond, NULL);
     pthread_mutex_init(&l_ledger_pvt->load_mutex, NULL);
 
+    char * l_chains_path = dap_strdup_printf("%s/network/%s", dap_config_path(), a_net_name);
+    DIR * l_chains_dir = opendir(l_chains_path);
+    DAP_DEL_Z(l_chains_path);
+
+    struct dirent * l_dir_entry;
+    uint8_t i = 0;
+    while ( (l_dir_entry = readdir(l_chains_dir) )!= NULL ){
+        if (l_dir_entry->d_name[0] == '\0')
+            continue;
+        char * l_entry_name = dap_strdup(l_dir_entry->d_name);
+        if (strlen(l_entry_name) > 4) {
+            if ( strncmp (l_entry_name + strlen(l_entry_name)-4,".cfg",4) == 0 ) { // its .cfg file
+                l_entry_name [strlen(l_entry_name)-4] = 0;
+                log_it(L_DEBUG,"Open chain config \"%s\"...",l_entry_name);
+                l_chains_path = dap_strdup_printf("network/%s/%s", a_net_name, l_entry_name);
+                dap_config_t * l_cfg = dap_config_open(l_chains_path);
+                uint16_t l_whitelist_size;
+                char **l_whitelist = dap_config_get_array_str(l_cfg, "ledger", "hard_accept_list", &l_whitelist_size);
+                for (uint16_t i = 0; i < l_whitelist_size; ++i) {
+                    dap_ledger_hal_item_t *l_hal_item = DAP_NEW_Z(dap_ledger_hal_item_t);
+                    dap_chain_hash_fast_from_str(l_whitelist[i], &l_hal_item->hash);
+                    HASH_ADD(hh, s_hal_items, hash, sizeof(l_hal_item->hash), l_hal_item);
+                }
+                dap_config_close(l_cfg);
+                log_it(L_DEBUG, "HAL items count for chain %s : %d", l_entry_name, l_whitelist_size);
+            }
+        }
+        DAP_DELETE (l_entry_name);
+    }
+    closedir(l_chains_dir);
 
     log_it(L_DEBUG,"Created ledger \"%s\"",a_net_name);
     l_ledger_pvt->load_mode = true;
@@ -2550,6 +2587,18 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
     }
     if (l_ret || !PVT(a_ledger)->check_token_emission)
         return l_ret;
+
+    if (s_hal_items) {
+        dap_ledger_hal_item_t *l_hash_found = NULL;
+        HASH_FIND(hh, s_hal_items, a_emission_hash, sizeof(*a_emission_hash), l_hash_found);
+        if (l_hash_found) {
+            char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
+            dap_chain_hash_fast_to_str(a_emission_hash, l_hash_str, sizeof(l_hash_str));
+            debug_if(s_debug_more, L_MSG, "Event %s is whitelisted", l_hash_str);
+            return l_ret;
+        }
+    }
+
     // Check emission correctness
     size_t l_emission_size = a_token_emission_size;
     dap_chain_datum_token_emission_t *l_emission = dap_chain_datum_emission_read(a_token_emission, &l_emission_size);
@@ -2634,6 +2683,9 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
                         DAP_DELETE(l_balance);
                     }
                     l_ret = DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_NOT_ENOUGH_VALID_SIGNS;
+                    char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
+                    dap_chain_hash_fast_to_str(a_emission_hash, l_hash_str, sizeof(l_hash_str));
+                    log_it(L_MSG, "!!! Datum hash for HAL: %s", l_hash_str);
                 }
             }else{
                 if(s_debug_more)

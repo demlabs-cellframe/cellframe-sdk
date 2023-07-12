@@ -884,11 +884,16 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
         }
         a_event->header.signs_count = l_event_signs_count;
         DAP_DELETE(l_signs);
-        if ( l_ret != 0 ) {
-            return l_ret;
+        if (l_signs_verified_count < l_certs_count_verify) {
+            dap_hash_fast_t l_event_hash;
+            dap_hash_fast(a_event, a_event_size, &l_event_hash);
+            char l_event_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+            dap_hash_fast_to_str(&l_event_hash, l_event_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+            log_it(L_ERROR, "Corrupted event %s, not enough signs %hu from %hu",
+                            l_event_hash_str, l_signs_verified_count, l_certs_count_verify);
+            return l_ret ? l_ret : -4;
         }
-        return l_signs_verified_count >= l_certs_count_verify ? 0 : -1;
-
+        return 0;
     }
     else if (a_event->header.hash_count == 0){
         dap_chain_hash_fast_t l_event_hash;
