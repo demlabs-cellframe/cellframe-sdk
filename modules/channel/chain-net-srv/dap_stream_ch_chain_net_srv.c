@@ -377,7 +377,7 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
                 uint256_t l_unit_price = {};
                 SUBTRACT_256_256(l_price_tmp->value_datoshi, GET_256_FROM_64(l_price_tmp->units), &l_unit_price);
 
-                if(!compare256(uint256_0, l_prev_out_cond->subtype.srv_pay.unit_price_max_datoshi) ||
+                if(!compare256(uint256_0, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) ||
                     compare256(l_unit_price, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) <= 0){
                     l_price = l_price_tmp;
                     break;
@@ -510,7 +510,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
             {
                 uint256_t l_unit_price = {};
                 SUBTRACT_256_256(l_price_tmp->value_datoshi, GET_256_FROM_64(l_price_tmp->units), &l_unit_price);
-                if(!compare256(uint256_0, l_prev_out_cond->subtype.srv_pay.unit_price_max_datoshi) ||
+                if(!compare256(uint256_0, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) ||
                     compare256(l_unit_price, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) <= 0){
                     l_price = l_price_tmp;
                     break;
