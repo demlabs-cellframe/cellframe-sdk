@@ -4035,7 +4035,7 @@ int dap_chain_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *
     if(s_debug_more) {
         char l_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
         dap_chain_hash_fast_to_str(a_datum_hash, l_tx_hash_str, sizeof(l_tx_hash_str));
-        if (!l_ret_check)
+        if (l_ret_check)
             log_it(L_NOTICE, "Ledger TX adding check not passed for TX %s: error %s",
                    l_tx_hash_str, dap_chain_ledger_tx_check_err_str(l_ret_check));
         else
