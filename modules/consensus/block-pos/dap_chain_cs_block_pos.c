@@ -88,18 +88,18 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     dap_chain_cs_block_pos_t *l_pos = DAP_NEW_Z(dap_chain_cs_block_pos_t);
     if (!l_pos) {
         log_it(L_ERROR, "Memory allocation error in s_callback_new");
-        goto lb_err;
+        return -1;
     }
     l_blocks->_inheritor = l_pos;
     l_blocks->callback_delete = s_callback_delete;
     l_blocks->callback_block_verify = s_callback_block_verify;
     l_blocks->callback_block_sign = s_callback_block_sign;
     l_pos->_pvt = DAP_NEW_Z(dap_chain_cs_block_pos_pvt_t);
+    dap_chain_cs_block_pos_pvt_t *l_pos_pvt = PVT(l_pos);
     if (!l_pos->_pvt) {
         log_it(L_ERROR, "Memory allocation error in s_callback_new");
         goto lb_err;
     }
-    dap_chain_cs_block_pos_pvt_t *l_pos_pvt = PVT(l_pos);
 
     l_tokens_hold = dap_config_get_array_str(a_chain_cfg, "block-pos", "stake_tokens", &l_tokens_hold_size);
     l_tokens_hold_value_str = dap_config_get_array_str(a_chain_cfg, "block-pos", "stake_tokens_value", &l_tokens_hold_value_size);

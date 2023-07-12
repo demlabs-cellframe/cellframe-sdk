@@ -107,7 +107,7 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_ite
 static dap_chain_datum_t *s_callback_datum_find_by_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_datum_hash,
                                                         dap_chain_hash_fast_t *a_block_hash, int *a_ret_code);
 
-static dap_chain_atom_ptr_t s_callback_block_find_by_tx_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_tx_hash);
+static dap_chain_atom_ptr_t s_callback_block_find_by_tx_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_tx_hash, size_t *a_block_size);
 
 static dap_chain_datum_t** s_callback_atom_get_datums(dap_chain_atom_ptr_t a_atom, size_t a_atom_size, size_t * a_datums_count);
 static dap_time_t s_chain_callback_atom_get_timestamp(dap_chain_atom_ptr_t a_atom) { return ((dap_chain_block_t *)a_atom)->hdr.ts_created; }
@@ -1051,8 +1051,10 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
     // verify hashes and consensus
     dap_chain_atom_verify_res_t ret = s_callback_atom_verify (a_chain, a_atom, a_atom_size);
 
-    if (ret == ATOM_MOVE_TO_THRESHOLD)
+    if (ret == ATOM_MOVE_TO_THRESHOLD) {
+        //log_it(L_ATT, "Booo!");
         ret = ATOM_REJECT; // TODO remove it when threshold will work
+    }
 
     if( ret == ATOM_ACCEPT){
         int l_consensus_check = s_add_atom_to_blocks(l_blocks, l_block_cache);
@@ -1269,7 +1271,7 @@ static dap_chain_datum_t *s_callback_datum_find_by_hash(dap_chain_t *a_chain, da
  * @param a_tx_hash
  * @return atom_ptr
  */
-static dap_chain_atom_ptr_t s_callback_block_find_by_tx_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_tx_hash)
+static dap_chain_atom_ptr_t s_callback_block_find_by_tx_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_tx_hash, size_t *a_block_size)
 {
     dap_chain_cs_blocks_t * l_cs_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_block_datum_index_t *l_datum_index = NULL;
@@ -1278,7 +1280,9 @@ static dap_chain_atom_ptr_t s_callback_block_find_by_tx_hash(dap_chain_t * a_cha
     pthread_rwlock_unlock(&PVT(l_cs_blocks)->datums_rwlock);
     if (!l_datum_index)
         return NULL;
-    return l_datum_index->block_cache;
+    if (a_block_size)
+        *a_block_size = l_datum_index->block_cache->block_size;
+    return l_datum_index->block_cache->block;
 }
 
 /**

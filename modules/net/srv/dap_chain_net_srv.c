@@ -647,10 +647,12 @@ static bool s_fee_verificator_callback(dap_ledger_t *a_ledger, UNUSED_ARG dap_ch
             return false;
         if (dap_hash_fast_is_blank(&l_tx_in_cond->header.tx_prev_hash))
             return false;
-        const dap_chain_block_cache_t *l_block_cache = l_chain->callback_block_find_by_tx_hash(l_chain, &l_tx_in_cond->header.tx_prev_hash);
-        if (!l_block_cache)
+        size_t l_block_size = 0;
+        dap_chain_block_t *l_block = (dap_chain_block_t *)l_chain->callback_block_find_by_tx_hash(
+                                                    l_chain, &l_tx_in_cond->header.tx_prev_hash, &l_block_size);
+        if (!l_block)
             continue;
-        dap_sign_t *l_sign_block = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
+        dap_sign_t *l_sign_block = dap_chain_block_sign_get(l_block, l_block_size, 0);
         if (!l_sign_block)
             return false;
 
