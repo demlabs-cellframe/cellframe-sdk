@@ -168,8 +168,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     dap_chain_esbocs_t *l_esbocs = DAP_NEW_Z(dap_chain_esbocs_t);
     if (!l_esbocs) {
         log_it(L_ERROR, "Memory allocation error in s_callback_new");
-        l_ret = - 5;
-        goto lb_err;
+        return - 5;
     }
     l_esbocs->blocks = l_blocks;   
     l_blocks->_inheritor = l_esbocs;
@@ -183,12 +182,12 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     a_chain->callback_get_signing_certificate = s_callback_get_sign_key;
 
     l_esbocs->_pvt = DAP_NEW_Z(dap_chain_esbocs_pvt_t);
+    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
     if (!l_esbocs->_pvt) {
         log_it(L_ERROR, "Memory allocation error in s_callback_new");
         l_ret = - 5;
         goto lb_err;
     }
-    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
     l_esbocs_pvt->debug = dap_config_get_item_bool_default(a_chain_cfg, "esbocs", "consensus_debug", false);
     l_esbocs_pvt->poa_mode = dap_config_get_item_bool_default(a_chain_cfg, "esbocs", "poa_mode", false);
     l_esbocs_pvt->round_start_sync_timeout = dap_config_get_item_uint16_default(a_chain_cfg, "esbocs", "round_start_sync_timeout", 15);
@@ -2496,12 +2495,14 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
     // Restore the original header
     a_block->hdr.meta_n_datum_n_signs_size = a_block_size - sizeof(a_block->hdr);
 
-    if ( l_ret != 0 ) {
-        return l_ret;
-    }
     if (l_signs_verified_count < l_esbocs_pvt->min_validators_count) {
-        log_it(L_ERROR, "Corrupted block: not enough authorized signs: %u of %u", l_signs_verified_count, l_esbocs_pvt->min_validators_count);
-        return -1;
+        dap_hash_fast_t l_block_hash;
+        dap_hash_fast(a_block, a_block_size, &l_block_hash);
+        char l_block_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+        dap_hash_fast_to_str(&l_block_hash, l_block_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+        log_it(L_ERROR, "Corrupted block %s: not enough authorized signs: %u of %u",
+                    l_block_hash_str, l_signs_verified_count, l_esbocs_pvt->min_validators_count);
+        return 0; //l_ret
     }
     return 0;
 }
