@@ -80,7 +80,7 @@ static const char *s_ledger_tx_check_err_str[] = {
     [DAP_CHAIN_LEDGER_TX_CACHE_CHECK_INVALID_TX_SIGN] = "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_INVALID_TX_SIGN",
     [DAP_CHAIN_LEDGER_TX_CACHE_IN_EMS_ALREADY_USED] = "DAP_CHAIN_LEDGER_TX_CACHE_IN_EMS_ALREADY_USED",
     [DAP_CHAIN_LEDGER_TX_CACHE_STAKE_LOCK_IN_EMS_ALREADY_USED] = "DAP_CHAIN_LEDGER_TX_CACHE_STAKE_LOCK_IN_EMS_ALREADY_USED",
-    [DAP_CHAIN_LEDGER_TX_CACHE_STAKE_LOCK_EMISSION_NOT_FOUND] = "DAP_CHAIN_LEDGER_TX_CACHE_STAKE_LOCK_EMISSION_NOT_FOUND",
+    [DAP_CHAIN_LEDGER_TX_CACHE_CHECK_EMISSION_NOT_FOUND] = "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_EMISSION_NOT_FOUND",
     [DAP_CHAIN_LEDGER_TX_CACHE_CHECK_TX_NO_VALID_INPUTS] = "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_TX_NO_VALID_INPUTS",
     [DAP_CHAIN_LEDGER_TX_CACHE_CHECK_TICKER_NOT_FOUND] = "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_TICKER_NOT_FOUND",
     [DAP_CHAIN_LEDGER_TX_CACHE_STAKE_LOCK_INVALID_TOKEN] = "DAP_CHAIN_LEDGER_TX_CACHE_STAKE_LOCK_INVALID_TOKEN",
@@ -126,9 +126,9 @@ static const char *s_ledger_token_decl_err_str[] = {
     [DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_TOTAL_SIGNS_EXCEED_UNIQUE_SIGNS] = "DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_ERR_TOTAL_SIGNS_EXCEED_UNIQUE_SIGNS"
 };
 
-char *dap_chain_ledger_tx_check_err_str(dap_chain_ledger_tx_check_t a_code) {
+char *dap_chain_ledger_tx_check_err_str(int a_code) {
     return (a_code >= DAP_CHAIN_LEDGER_TX_CHECK_OK) && (a_code < DAP_CHAIN_LEDGER_TX_CHECK_UNKNOWN)
-            ? (char*)s_ledger_tx_check_err_str[a_code]
+            ? (char*)s_ledger_tx_check_err_str[(dap_chain_ledger_tx_check_t)a_code]
             : dap_itoa(a_code);
 }
 
@@ -768,9 +768,9 @@ int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datu
     return DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_OK;
 }
 
-char *dap_chain_ledger_token_decl_add_err_code_to_str(dap_chain_ledger_token_decl_add_err_t a_code) {
+char *dap_chain_ledger_token_decl_add_err_code_to_str(int a_code) {
     return (a_code >= DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_OK) && (a_code < DAP_CHAIN_LEDGER_TOKEN_DECL_ADD_UNKNOWN)
-            ? (char*)s_ledger_token_decl_err_str[a_code]
+            ? (char*)s_ledger_token_decl_err_str[(dap_chain_ledger_token_decl_add_err_t)a_code]
             : dap_itoa(a_code);
 }
 
@@ -2920,9 +2920,9 @@ int dap_chain_ledger_token_emission_load(dap_ledger_t *a_ledger, byte_t *a_token
     return dap_chain_ledger_token_emission_add(a_ledger, a_token_emission, a_token_emission_size, a_token_emission_hash, false);
 }
 
-char *dap_chain_ledger_token_emission_err_code_to_str(dap_chain_ledger_emission_err_code_t a_code) {
+char *dap_chain_ledger_token_emission_err_code_to_str(int a_code) {
     return (a_code >= DAP_CHAIN_LEDGER_EMISSION_ADD_OK && a_code < DAP_CHAIN_LEDGER_EMISSION_ADD_UNKNOWN)
-            ? (char*)s_ledger_emission_add_err_str[a_code]
+            ? (char*)s_ledger_emission_add_err_str[(dap_chain_ledger_emission_err_code_t)a_code]
             : dap_itoa(a_code);
 }
 
