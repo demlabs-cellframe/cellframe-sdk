@@ -30,19 +30,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_hash.h"
 #include "rand/dap_rand.h"
 
-//#include "dap_chain.h"
-//#include "dap_chain_datum_tx.h"
-//#include "dap_chain_datum_tx_in.h"
-//#include "dap_chain_datum_tx_in_cond.h"
-//#include "dap_chain_datum_tx_out.h"
-//#include "dap_chain_datum_tx_out_cond.h"
-//#include "dap_chain_datum_tx_receipt.h"
-//#include "dap_chain_mempool.h"
-//#include "dap_common.h"
-
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_stream_session.h"
-
 
 #include "dap_stream.h"
 #include "dap_stream_ch.h"
@@ -387,7 +376,9 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
             {
                 uint256_t l_unit_price = {};
                 SUBTRACT_256_256(l_price_tmp->value_datoshi, GET_256_FROM_64(l_price_tmp->units), &l_unit_price);
-                if(compare256(l_unit_price, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) <= 0){
+
+                if(!compare256(uint256_0, l_prev_out_cond->subtype.srv_pay.unit_price_max_datoshi) ||
+                    compare256(l_unit_price, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) <= 0){
                     l_price = l_price_tmp;
                     break;
                 }
@@ -519,7 +510,8 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
             {
                 uint256_t l_unit_price = {};
                 SUBTRACT_256_256(l_price_tmp->value_datoshi, GET_256_FROM_64(l_price_tmp->units), &l_unit_price);
-                if(compare256(l_unit_price, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) <= 0){
+                if(!compare256(uint256_0, l_prev_out_cond->subtype.srv_pay.unit_price_max_datoshi) ||
+                    compare256(l_unit_price, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) <= 0){
                     l_price = l_price_tmp;
                     break;
                 }
