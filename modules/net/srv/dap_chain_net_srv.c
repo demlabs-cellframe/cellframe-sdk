@@ -252,6 +252,9 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
 
         int8_t l_continent_num = dap_chain_net_srv_order_continent_to_num(l_continent_str);
 
+        const char *l_units_str = NULL;
+        dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-units", &l_units_str);
+
         char *l_order_hash_hex_str;
         char *l_order_hash_base58_str;
         // datum hash may be in hex or base58 format
@@ -467,7 +470,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
         }else if( dap_strcmp( l_order_str, "create" ) == 0 ){
             const char *l_order_cert_name = NULL;
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-cert", &l_order_cert_name);
-            if ( l_srv_uid_str && l_price_str && l_price_token_str && l_price_unit_str) {
+            if ( l_srv_uid_str && l_price_str && l_price_token_str && l_price_unit_str && l_units_str) {
                 dap_chain_net_srv_uid_t l_srv_uid={{0}};
                 dap_chain_node_addr_t l_node_addr={0};
                 dap_chain_hash_fast_t l_tx_cond_hash={{0}};
@@ -514,6 +517,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                     dap_chain_hash_fast_from_str (l_tx_cond_hash_str, &l_tx_cond_hash);
                 l_price = dap_chain_balance_scan(l_price_str);
                 l_price_unit.uint32 = (uint32_t) atol ( l_price_unit_str );
+                uint64_t l_units = atoi(l_units_str);
                 strncpy(l_price_token, l_price_token_str, DAP_CHAIN_TICKER_SIZE_MAX - 1);
                 size_t l_ext_len = l_ext? strlen(l_ext) + 1 : 0;
                 // get cert to order sign
@@ -540,7 +544,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 // create order
                 char * l_order_new_hash_str = dap_chain_net_srv_order_create(
                             l_net,l_direction, l_srv_uid, l_node_addr,l_tx_cond_hash, &l_price, l_price_unit,
-                            l_price_token, l_expires, (uint8_t *)l_ext, l_ext_len, l_region_str, l_continent_num, l_key);
+                            l_price_token, l_expires, (uint8_t *)l_ext, l_ext_len, l_units, l_region_str, l_continent_num, l_key);
                 if(l_cert)
                     dap_cert_delete(l_cert);
                 if (l_order_new_hash_str)
@@ -749,6 +753,51 @@ static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out
     return true;
 }
 
+int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, const char *a_config_section){
+    const char *l_wallet_path = dap_config_get_item_str_default(g_config, "resources", "wallets_path", NULL);
+    const char *l_wallet_name = dap_config_get_item_str_default(g_config, a_config_section, "wallet", NULL);
+    const char *l_net_name = dap_config_get_item_str_default(g_config, a_config_section, "net", NULL);
+    if (!l_wallet_path || !l_wallet_name || l_net_name){
+        return -2;
+    }
+    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, l_wallet_path);
+    if (!l_wallet) {
+        return -3;
+    }
+    dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
+    if (!l_net) {
+        return -4;
+    }
+    a_srv->grace_period = dap_config_get_item_uint32_default(g_config, a_config_section, "grace_period", 60);
+    int l_err_code = 0;
+    dap_chain_node_addr_t *l_node_addr = NULL;
+    l_node_addr = dap_chain_net_get_cur_addr(l_net);
+    if (!l_node_addr)
+        return -1;
+    size_t l_orders_count = 0;
+    char *l_gdb_order_group = dap_chain_net_srv_order_get_gdb_group(l_net);
+    dap_global_db_obj_t *l_orders = dap_global_db_get_all_sync(l_gdb_order_group, &l_orders_count);
+    for (size_t i=0; i < l_orders_count; i++){
+        l_err_code = -4;
+        dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_read(l_orders[i].value, l_orders[i].value_len);
+        if (l_order->node_addr.uint64 == l_node_addr->uint64) {
+            l_err_code = 0;
+            dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
+            l_price->net = l_net;
+            l_price->net_name = dap_strdup(l_net->pub.name);
+            l_price->value_datoshi = l_order->price;
+            dap_stpcpy(l_price->token, l_order->price_ticker);
+            l_price->units = l_order->units;
+            l_price->units_uid = l_order->price_unit;
+            l_price->wallet = l_wallet;
+            break;
+        }
+        DAP_DELETE(l_order);
+    }
+    dap_global_db_objs_delete(l_orders, l_orders_count);
+    return l_err_code;
+}
+
 int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_config_section)
 {
     int ret = 0;
@@ -878,7 +927,8 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
         l_sdata->uid = l_uid;
         strncpy(l_sdata->name, a_config_section, sizeof(l_sdata->name) - 1);
         l_sdata->srv = l_srv;
-        dap_chain_net_srv_parse_pricelist(l_srv, a_config_section);
+        dap_chain_net_srv_price_apply_from_my_order(l_srv, a_config_section);
+//        dap_chain_net_srv_parse_pricelist(l_srv, a_config_section);
         HASH_ADD(hh, s_srv_list, uid, sizeof(l_srv->uid), l_sdata);
         if (l_srv->pricelist)
             dap_chain_ledger_tx_add_notify(l_srv->pricelist->net->pub.ledger, dap_stream_ch_chain_net_srv_tx_cond_added_cb, NULL);
