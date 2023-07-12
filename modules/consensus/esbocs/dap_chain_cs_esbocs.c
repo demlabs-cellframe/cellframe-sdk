@@ -2343,7 +2343,6 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
             if (++l_session->cur_round.votes_against_count * 3 >=
                     dap_list_length(l_session->cur_round.all_validators) * 2)
                 s_session_state_change(l_session, DAP_CHAIN_ESBOCS_SESSION_STATE_PREVIOUS, dap_time_now());
-
     } break;
 
     case DAP_CHAIN_ESBOCS_MSG_TYPE_PRE_COMMIT:
@@ -2476,7 +2475,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         if (!l_esbocs_pvt->poa_mode) {
              // Compare signature with delegated keys
             if (!dap_chain_net_srv_stake_key_delegated(&l_signing_addr)) {
-                char *l_bad_addr = dap_chain_addr_to_str(&l_signing_addr);
+                char *l_bad_addr = dap_chain_hash_fast_to_str_new(&l_signing_addr.data.hash_fast);
                 log_it(L_ATT, "Unknown PoS signer %s", l_bad_addr);
                 DAP_DELETE(l_bad_addr);
                 continue;

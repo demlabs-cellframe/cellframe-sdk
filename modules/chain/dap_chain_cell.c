@@ -215,7 +215,7 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
         }
         dap_chain_atom_ptr_t l_element = DAP_NEW_SIZE(dap_chain_atom_ptr_t, l_el_size);
         if (!l_element) {
-            log_it(L_ERROR, "Memory allocation error in dap_chain_cell_load, errno=%d", errno), NULL;
+            log_it(L_ERROR, "Memory allocation error in dap_chain_cell_load, errno=%d", errno);
             ret = -5;
             break;
         }
