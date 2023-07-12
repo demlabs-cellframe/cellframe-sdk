@@ -2708,11 +2708,11 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     case NODE_ROLE_LIGHT:
         break;
     case NODE_ROLE_FULL:
-        l_ledger_flags |= DAP_CHAIN_LEDGER_CHECK_LOCAL_DS | DAP_CHAIN_LEDGER_CHECK_TOKEN_EMISSION;
+        l_ledger_flags |= DAP_CHAIN_LEDGER_CHECK_LOCAL_DS;
         if (dap_config_get_item_bool_default(g_config, "ledger", "cache_enabled", true))
             l_ledger_flags |= DAP_CHAIN_LEDGER_CACHE_ENABLED;
     default:
-        l_ledger_flags |= DAP_CHAIN_LEDGER_CHECK_CELLS_DS;
+        l_ledger_flags |= DAP_CHAIN_LEDGER_CHECK_CELLS_DS | DAP_CHAIN_LEDGER_CHECK_TOKEN_EMISSION;
     }
     dap_list_t *l_net_keys = NULL;
     for (dap_chain_t *l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {

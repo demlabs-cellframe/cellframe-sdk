@@ -1141,7 +1141,9 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
                     &&!dap_hash_fast_is_blank(&l_block_hash))
                 log_it(L_NOTICE, "Accepting static genesis block");
             else{
-                log_it(L_WARNING,"Cant accept genesis block: seed mode not enabled or hash mismatch with static genesis block in configuration");
+                char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
+                dap_hash_fast_to_str(&l_block_hash, l_hash_str, sizeof(l_hash_str));
+                log_it(L_WARNING,"Cant accept genesis block: seed mode not enabled or hash mismatch with static genesis block %s in configuration", l_hash_str);
                 return ATOM_REJECT;
             }
         } else {
