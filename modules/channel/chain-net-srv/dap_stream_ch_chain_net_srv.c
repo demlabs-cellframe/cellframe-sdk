@@ -404,76 +404,14 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
             return;
         }
 
-<<<<<<< HEAD
-    if ( l_srv->pricelist) {
-        if (l_price || l_grace_start) {
-            if (l_price) {
-                if (a_grace->usage) {
-                    DAP_DELETE(l_usage->price);
-                }
-            } else {
-                l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
-                if (!l_price) {
-                    log_it(L_ERROR, "Memory allocation error in s_grace_period_control");
-                    goto free_exit;
-                }
-                memcpy(l_price, l_srv->pricelist, sizeof(*l_price));
-                l_price->value_datoshi = uint256_0;
-            }
-            l_usage->price = l_price;
-            if (l_usage->receipt_next){
-                DAP_DEL_Z(l_usage->receipt_next);
-                l_usage->receipt_next = dap_chain_net_srv_issue_receipt(l_usage->service, l_usage->price, NULL, 0);
-            }else{
-                dap_chain_net_srv_price_t l_b_price = *l_usage->price;
-                if (l_grace_start || a_grace->usage){
-                    l_b_price.units *= 2;
-                    MULT_256_256(l_b_price.value_datoshi, GET_256_FROM_64((uint64_t)2), &l_b_price.value_datoshi);
-                }
-                l_usage->receipt = dap_chain_net_srv_issue_receipt(l_usage->service, &l_b_price, NULL, 0);
-                dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
-                                           l_usage->receipt, l_usage->receipt->size);
-            }
-=======
         if (a_grace->usage->receipt_next){
             DAP_DEL_Z(a_grace->usage->receipt_next);
             a_grace->usage->receipt_next = dap_chain_net_srv_issue_receipt(a_grace->usage->service, a_grace->usage->price, NULL, 0);
->>>>>>> 7b6c47bc4b39d202866cc1d9e328faaaf50e0a48
         }else{
             a_grace->usage->receipt = dap_chain_net_srv_issue_receipt(a_grace->usage->service, a_grace->usage->price, NULL, 0);
             dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
                                        a_grace->usage->receipt, a_grace->usage->receipt->size);
         }
-<<<<<<< HEAD
-    // If we a here we passed all the checks, wow, now if we're not for free we request the signature.
-    } else{
-        log_it( L_INFO, "Service provide for free");
-        l_usage->is_free = true;
-        size_t l_success_size = sizeof (dap_stream_ch_chain_net_srv_pkt_success_hdr_t );
-        dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
-                                                                              l_success_size);
-        if (!l_success) {
-            log_it(L_ERROR, "Memory allocation error in s_grace_period_control");
-            goto free_exit;
-        }
-        l_success->hdr.usage_id = l_usage->id;
-        l_success->hdr.net_id.uint64 = l_usage->net->pub.id.uint64;
-        l_success->hdr.srv_uid.uint64 = l_usage->service->uid.uint64;
-        dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS, l_success, l_success_size);
-        if (l_usage->service->callbacks.response_success)
-            l_usage->service->callbacks.response_success(l_usage->service, l_usage->id,  l_usage->client, NULL, 0);
-        DAP_DELETE(l_success);
-    }
-    if (l_grace_start) {
-        l_usage->is_grace = true;
-        a_grace->usage = l_usage;
-        dap_timerfd_start_on_worker(a_grace->stream_worker->worker, l_srv->grace_period * 1000,
-                                    (dap_timerfd_callback_t)s_grace_period_control, a_grace);
-        return false;
-    } else {
-=======
-
->>>>>>> 7b6c47bc4b39d202866cc1d9e328faaaf50e0a48
         DAP_DELETE(a_grace->request);
         DAP_DELETE(a_grace);
 

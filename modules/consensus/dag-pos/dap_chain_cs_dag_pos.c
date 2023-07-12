@@ -81,11 +81,18 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
     dap_chain_cs_dag_new(a_chain,a_chain_cfg);
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG ( a_chain );
-    dap_chain_cs_dag_pos_t * l_pos = DAP_NEW_Z ( dap_chain_cs_dag_pos_t);
+    dap_chain_cs_dag_pos_t *l_pos = DAP_NEW_Z( dap_chain_cs_dag_pos_t);
     if (!l_pos) {
         log_it(L_ERROR, "Memory allocation error in s_callback_new");
-        goto lb_err;
+        return -1;
     }
+    dap_chain_cs_dag_pos_pvt_t * l_pos_pvt = PVT ( l_pos );
+
+    char ** l_tokens_hold = NULL;
+    char ** l_tokens_hold_value_str = NULL;
+    uint16_t l_tokens_hold_size = 0;
+    uint16_t l_tokens_hold_value_size = 0;
+
     l_dag->_inheritor = l_pos;
     l_dag->callback_delete = s_callback_delete;
     l_dag->callback_cs_verify = s_callback_event_verify;
@@ -95,12 +102,6 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
         log_it(L_ERROR, "Memory allocation error in s_callback_new");
         goto lb_err;
     }
-    dap_chain_cs_dag_pos_pvt_t * l_pos_pvt = PVT ( l_pos );
-
-    char ** l_tokens_hold = NULL;
-    char ** l_tokens_hold_value_str = NULL;
-    uint16_t l_tokens_hold_size = 0;
-    uint16_t l_tokens_hold_value_size = 0;
 
     l_tokens_hold = dap_config_get_array_str( a_chain_cfg,"dag-pos","tokens_hold",&l_tokens_hold_size);
     l_tokens_hold_value_str = dap_config_get_array_str( a_chain_cfg,"dag-pos","tokens_hold_value",&l_tokens_hold_value_size);
