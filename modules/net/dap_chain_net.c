@@ -2229,6 +2229,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         log_it(L_ERROR,"Can't open default network config");
         dap_string_free(l_cfg_path,true);
         return -1;
+<<<<<<< HEAD
     } else {
         dap_string_free(l_cfg_path,true);
         dap_chain_net_t * l_net = s_net_new(
@@ -2597,7 +2598,450 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
 
         DAP_DELETE(l_node_addr_str);
         dap_config_close(l_cfg);
+=======
+>>>>>>> 4f678ed1b972a88360f0ba023c74201b715429aa
     }
+    dap_string_free(l_cfg_path,true);
+    dap_chain_net_t * l_net = s_net_new(
+                                        dap_config_get_item_str(l_cfg , "general" , "id" ),
+                                        dap_config_get_item_str(l_cfg , "general" , "name" ),
+                                        dap_config_get_item_str(l_cfg , "general" , "native_ticker"),
+                                        dap_config_get_item_str(l_cfg , "general" , "node-role" )
+                                       );
+    if(!l_net) {
+        log_it(L_ERROR,"Can't create l_net");
+        return -1;
+    }
+    dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
+    l_net_pvt->load_mode = true;
+    l_net_pvt->acl_idx = a_acl_idx;
+    l_net->pub.gdb_groups_prefix = dap_strdup (
+                dap_config_get_item_str_default(l_cfg , "general" , "gdb_groups_prefix",
+                                                dap_config_get_item_str(l_cfg , "general" , "name" ) ) );
+    dap_global_db_add_sync_group(l_net->pub.name, "global", s_gbd_history_callback_notify, l_net);
+    dap_global_db_add_sync_group(l_net->pub.name, l_net->pub.gdb_groups_prefix, s_gbd_history_callback_notify, l_net);
+
+    l_net->pub.gdb_nodes = dap_strdup_printf("%s.nodes",l_net->pub.gdb_groups_prefix);
+    l_net->pub.gdb_nodes_aliases = dap_strdup_printf("%s.nodes.aliases",l_net->pub.gdb_groups_prefix);
+
+    // nodes for special sync
+    char **l_gdb_sync_nodes_addrs = dap_config_get_array_str(l_cfg, "general", "gdb_sync_nodes_addrs",
+            &l_net_pvt->gdb_sync_nodes_addrs_count);
+    if(l_gdb_sync_nodes_addrs && l_net_pvt->gdb_sync_nodes_addrs_count > 0) {
+        l_net_pvt->gdb_sync_nodes_addrs = DAP_NEW_Z_SIZE(dap_chain_node_addr_t,
+                sizeof(dap_chain_node_addr_t)*l_net_pvt->gdb_sync_nodes_addrs_count);
+        for(uint16_t i = 0; i < l_net_pvt->gdb_sync_nodes_addrs_count; i++) {
+            dap_chain_node_addr_from_str(l_net_pvt->gdb_sync_nodes_addrs + i, l_gdb_sync_nodes_addrs[i]);
+        }
+    }
+    // links for special sync
+    uint16_t l_gdb_links_count = 0;
+    PVT(l_net)->gdb_sync_nodes_links_count = 0;
+    char **l_gdb_sync_nodes_links = dap_config_get_array_str(l_cfg, "general", "gdb_sync_nodes_links", &l_gdb_links_count);
+    if (l_gdb_sync_nodes_links && l_gdb_links_count > 0) {
+        l_net_pvt->gdb_sync_nodes_links_ips = DAP_NEW_Z_SIZE(uint32_t, l_gdb_links_count * sizeof(uint32_t));
+        l_net_pvt->gdb_sync_nodes_links_ports = DAP_NEW_SIZE(uint16_t, l_gdb_links_count * sizeof(uint16_t));
+        for(uint16_t i = 0; i < l_gdb_links_count; i++) {
+            char *l_gdb_link_port_str = strchr(l_gdb_sync_nodes_links[i], ':');
+            if (!l_gdb_link_port_str) {
+                continue;
+            }
+            uint16_t l_gdb_link_port = atoi(l_gdb_link_port_str + 1);
+            if (!l_gdb_link_port) {
+                continue;
+            }
+            int l_gdb_link_len = l_gdb_link_port_str - l_gdb_sync_nodes_links[i];
+            char l_gdb_link_ip_str[l_gdb_link_len + 1];
+            memcpy(l_gdb_link_ip_str, l_gdb_sync_nodes_links[i], l_gdb_link_len);
+            l_gdb_link_ip_str[l_gdb_link_len] = '\0';
+            struct in_addr l_in_addr;
+            if (inet_pton(AF_INET, (const char *)l_gdb_link_ip_str, &l_in_addr) > 0) {
+                PVT(l_net)->gdb_sync_nodes_links_ips[PVT(l_net)->gdb_sync_nodes_links_count] = l_in_addr.s_addr;
+                PVT(l_net)->gdb_sync_nodes_links_ports[PVT(l_net)->gdb_sync_nodes_links_count] = l_gdb_link_port;
+                PVT(l_net)->gdb_sync_nodes_links_count++;
+            }
+        }
+    }
+    // groups for special sync
+    uint16_t l_gdb_sync_groups_count;
+    char **l_gdb_sync_groups = dap_config_get_array_str(l_cfg, "general", "gdb_sync_groups", &l_gdb_sync_groups_count);
+    if (l_gdb_sync_groups && l_gdb_sync_groups_count > 0) {
+        for(uint16_t i = 0; i < l_gdb_sync_groups_count; i++) {
+            // add group to special sync
+            dap_global_db_add_sync_extra_group(l_net->pub.name, l_gdb_sync_groups[i], s_gbd_history_callback_notify, l_net);
+        }
+    }
+
+    // Add network to the list
+    dap_chain_net_item_t * l_net_item = DAP_NEW_Z( dap_chain_net_item_t);
+    snprintf(l_net_item->name,sizeof (l_net_item->name),"%s"
+                 ,dap_config_get_item_str(l_cfg , "general" , "name" ));
+    l_net_item->chain_net = l_net;
+    l_net_item->net_id.uint64 = l_net->pub.id.uint64;
+    pthread_rwlock_wrlock(&s_net_items_rwlock);
+    HASH_ADD_STR(s_net_items,name,l_net_item);
+    HASH_ADD(hh2, s_net_ids, net_id, sizeof(l_net_item->net_id), l_net_item);
+    pthread_rwlock_unlock(&s_net_items_rwlock);
+
+    // Check if seed nodes are present in local db alias
+    char **l_seed_aliases = dap_config_get_array_str(l_cfg, "general", "seed_nodes_aliases",
+                                                     &l_net_pvt->seed_aliases_count);
+    if (l_net_pvt->seed_aliases_count)
+        l_net_pvt->seed_aliases = DAP_NEW_Z_SIZE(char*, sizeof(char*) * l_net_pvt->seed_aliases_count);
+    for(size_t i = 0; i < l_net_pvt->seed_aliases_count; i++)
+        l_net_pvt->seed_aliases[i] = dap_strdup(l_seed_aliases[i]);
+    // randomize seed nodes list
+    for (int j = l_net_pvt->seed_aliases_count - 1; j > 0; j--) {
+        int n = rand() % j;
+        char *tmp = l_net_pvt->seed_aliases[n];
+        l_net_pvt->seed_aliases[n] = l_net_pvt->seed_aliases[j];
+        l_net_pvt->seed_aliases[j] = tmp;
+    }
+
+    uint16_t l_seed_nodes_addrs_len =0;
+    char ** l_seed_nodes_addrs = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_addrs"
+                                                         ,&l_seed_nodes_addrs_len);
+
+    uint16_t l_seed_nodes_ipv4_len =0;
+    char ** l_seed_nodes_ipv4 = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_ipv4"
+                                                         ,&l_seed_nodes_ipv4_len);
+
+    uint16_t l_seed_nodes_ipv6_len =0;
+    char ** l_seed_nodes_ipv6 = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_ipv6"
+                                                         ,&l_seed_nodes_ipv6_len);
+
+    uint16_t l_seed_nodes_hostnames_len =0;
+    char ** l_seed_nodes_hostnames = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_hostnames"
+                                                         ,&l_seed_nodes_hostnames_len);
+
+    uint16_t l_seed_nodes_port_len =0;
+    char ** l_seed_nodes_port = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_port"
+                                                                 ,&l_seed_nodes_port_len);
+    uint16_t l_bootstrap_nodes_len = 0;
+    char **l_bootstrap_nodes = dap_config_get_array_str(l_cfg, "general", "bootstrap_hostnames", &l_bootstrap_nodes_len);
+
+    // maximum number of prepared connections to other nodes
+    l_net_pvt->max_links_count = dap_config_get_item_int16_default(l_cfg, "general", "max_links", 5);
+    // required number of active connections to other nodes
+    l_net_pvt->required_links_count = dap_config_get_item_int16_default(l_cfg, "general", "require_links", 3);
+    // wait time before reconnect attempt with same link
+    l_net_pvt->reconnect_delay = dap_config_get_item_int16_default(l_cfg, "general", "reconnect_delay", 10);
+
+    const char * l_node_addr_type = dap_config_get_item_str_default(l_cfg , "general" ,"node_addr_type","auto");
+
+    const char * l_node_addr_str = NULL;
+    const char * l_node_alias_str = NULL;
+
+    // use unique addr from pub key
+    if(!dap_strcmp(l_node_addr_type, "auto")) {
+        size_t l_pub_key_data_size = 0;
+        uint8_t *l_pub_key_data = NULL;
+
+        // read pub key
+        char *l_addr_key = dap_strdup_printf("node-addr-%s", l_net->pub.name);
+        l_pub_key_data = dap_global_db_get_sync(GROUP_LOCAL_NODE_ADDR, l_addr_key, &l_pub_key_data_size, NULL, NULL);
+        // generate a new pub key if it doesn't exist
+        if(!l_pub_key_data || !l_pub_key_data_size){
+
+            const char * l_certs_name_str = l_addr_key;
+            dap_cert_t ** l_certs = NULL;
+            size_t l_certs_size = 0;
+            dap_cert_t * l_cert = NULL;
+            // Load certs or create if not found
+            if(!dap_cert_parse_str_list(l_certs_name_str, &l_certs, &l_certs_size)) { // Load certs
+                const char *l_cert_folder = dap_cert_get_folder(0);
+                // create new cert
+                if(l_cert_folder) {
+                    char *l_cert_path = dap_strdup_printf("%s/%s.dcert", l_cert_folder, l_certs_name_str);
+                    l_cert = dap_cert_generate(l_certs_name_str, l_cert_path, DAP_ENC_KEY_TYPE_SIG_DILITHIUM);
+                    DAP_DELETE(l_cert_path);
+                }
+            }
+            if(l_certs_size > 0)
+                l_cert = l_certs[0];
+            if(l_cert) {
+                l_pub_key_data = dap_enc_key_serialize_pub_key(l_cert->enc_key, &l_pub_key_data_size);
+                // save pub key
+                if(l_pub_key_data && l_pub_key_data_size > 0)
+                    dap_global_db_set(GROUP_LOCAL_NODE_ADDR, l_addr_key, l_pub_key_data, l_pub_key_data_size, false,
+                                        NULL, NULL);
+            }
+        }
+        // generate addr from pub_key
+        dap_chain_hash_fast_t l_hash;
+        if(l_pub_key_data_size > 0 && dap_hash_fast(l_pub_key_data, l_pub_key_data_size, &l_hash) == 1) {
+            l_node_addr_str = dap_strdup_printf("%04X::%04X::%04X::%04X",
+                    (uint16_t) *(uint16_t*) (l_hash.raw),
+                    (uint16_t) *(uint16_t*) (l_hash.raw + 2),
+                    (uint16_t) *(uint16_t*) (l_hash.raw + DAP_CHAIN_HASH_FAST_SIZE - 4),
+                    (uint16_t) *(uint16_t*) (l_hash.raw + DAP_CHAIN_HASH_FAST_SIZE - 2));
+        }
+        DAP_DELETE(l_addr_key);
+        DAP_DELETE(l_pub_key_data);
+    }
+    // use static addr from setting
+    else if(!dap_strcmp(l_node_addr_type, "static")) {
+        //const char * l_node_ipv4_str = dap_config_get_item_str(l_cfg , "general" ,"node-ipv4");
+        l_node_addr_str = dap_strdup(dap_config_get_item_str(l_cfg, "general", "node-addr"));
+        l_node_alias_str = dap_config_get_item_str(l_cfg, "general", "node-alias");
+    }
+
+    log_it (L_DEBUG, "Read %u aliases, %u address and %u ipv4 addresses, check them",
+            l_net_pvt->seed_aliases_count,l_seed_nodes_addrs_len, l_seed_nodes_ipv4_len );
+    PVT(l_net)->seed_nodes_addrs_v4 = DAP_NEW_SIZE(struct in_addr, l_net_pvt->seed_aliases_count * sizeof(struct in_addr));
+    // save new nodes from cfg file to db
+    for ( size_t i = 0; i < PVT(l_net)->seed_aliases_count &&
+                        i < l_seed_nodes_addrs_len &&
+                        (
+                            ( l_seed_nodes_ipv4_len  && i < l_seed_nodes_ipv4_len  ) ||
+                            ( l_seed_nodes_ipv6_len  && i < l_seed_nodes_ipv6_len  ) ||
+                            ( l_seed_nodes_hostnames_len  && i < l_seed_nodes_hostnames_len  )
+                        ); i++) {
+        dap_chain_node_addr_t l_seed_node_addr  = { 0 }, *l_seed_node_addr_gdb  = NULL;
+        dap_chain_node_info_t l_node_info       = { 0 }, *l_node_info_gdb       = NULL;
+
+        log_it(L_NOTICE, "Check alias %s in db", l_net_pvt->seed_aliases[i]);
+        snprintf(l_node_info.hdr.alias,sizeof (l_node_info.hdr.alias),"%s", PVT(l_net)->seed_aliases[i]);
+        if (dap_chain_node_addr_from_str(&l_seed_node_addr, l_seed_nodes_addrs[i])) {
+            log_it(L_ERROR,"Wrong address format, must be 0123::4567::89AB::CDEF");
+            continue;
+        }
+        if (l_seed_nodes_ipv4_len)
+            inet_pton(AF_INET, l_seed_nodes_ipv4[i], &l_node_info.hdr.ext_addr_v4);
+        if (l_seed_nodes_ipv6_len)
+            inet_pton(AF_INET6, l_seed_nodes_ipv6[i], &l_node_info.hdr.ext_addr_v6);
+        l_node_info.hdr.ext_port = l_seed_nodes_port_len && l_seed_nodes_port_len >= i ?
+            strtoul(l_seed_nodes_port[i], NULL, 10) : 8079;
+
+        if (l_seed_nodes_hostnames_len) {
+            struct sockaddr l_sa = {};
+            log_it(L_DEBUG, "Resolve %s addr", l_seed_nodes_hostnames[i]);
+            int l_ret_code = dap_net_resolve_host(l_seed_nodes_hostnames[i], AF_INET, &l_sa);
+            if (l_ret_code == 0) {
+                struct in_addr *l_res = (struct in_addr *)&l_sa;
+                log_it(L_NOTICE, "Resolved %s to %s (ipv4)", l_seed_nodes_hostnames[i], inet_ntoa(*l_res));
+                l_node_info.hdr.ext_addr_v4.s_addr = l_res->s_addr;
+                l_net_pvt->seed_nodes_addrs_v4[i].s_addr = l_res->s_addr;
+            } else {
+                log_it(L_ERROR, "%s", gai_strerror(l_ret_code));
+            }
+        }
+
+        l_seed_node_addr_gdb    = dap_chain_node_alias_find(l_net, l_net_pvt->seed_aliases[i]);
+        l_node_info_gdb         = l_seed_node_addr_gdb ? dap_chain_node_info_read(l_net, l_seed_node_addr_gdb) : NULL;
+
+        l_node_info.hdr.address = l_seed_node_addr;
+        if (l_node_info.hdr.ext_addr_v4.s_addr ||
+#ifdef DAP_OS_BSD
+            l_node_info.hdr.ext_addr_v6.__u6_addr.__u6_addr32[0]
+#else
+            l_node_info.hdr.ext_addr_v6.s6_addr32[0]
+#endif
+        ) {
+            /* Let's check if config was altered */
+            int l_ret = l_node_info_gdb ? memcmp(&l_node_info, l_node_info_gdb, sizeof(dap_chain_node_info_t)) : 1;
+            if (!l_ret) {
+                log_it(L_NOTICE,"Seed node "NODE_ADDR_FP_STR" already in list", NODE_ADDR_FP_ARGS_S(l_seed_node_addr));
+            } else {
+                /* Either not yet added or must be altered */
+                l_ret = dap_chain_node_info_save(l_net, &l_node_info);
+                if (!l_ret) {
+                    if (dap_chain_node_alias_register(l_net,l_net_pvt->seed_aliases[i], &l_seed_node_addr))
+                        log_it(L_NOTICE,"Seed node "NODE_ADDR_FP_STR" added to the curent list", NODE_ADDR_FP_ARGS_S(l_seed_node_addr));
+                    else
+                        log_it(L_WARNING,"Cant register alias %s for address "NODE_ADDR_FP_STR, l_net_pvt->seed_aliases[i], NODE_ADDR_FP_ARGS_S(l_seed_node_addr));
+                } else {
+                    log_it(L_WARNING,"Cant save node info for address "NODE_ADDR_FP_STR" return code %d", NODE_ADDR_FP_ARGS_S(l_seed_node_addr), l_ret);
+                }
+            }
+        } else
+            log_it(L_WARNING,"No address for seed node, can't populate global_db with it");
+        DAP_DEL_Z(l_seed_node_addr_gdb);
+        DAP_DEL_Z(l_node_info_gdb);
+    }
+
+    PVT(l_net)->bootstrap_nodes_count = 0;
+    PVT(l_net)->bootstrap_nodes_addrs = DAP_NEW_SIZE(struct in_addr, l_bootstrap_nodes_len * sizeof(struct in_addr));
+    PVT(l_net)->bootstrap_nodes_ports = DAP_NEW_SIZE(uint16_t, l_bootstrap_nodes_len * sizeof(uint16_t));
+    for (int i = 0; i < l_bootstrap_nodes_len; i++) {
+        char *l_bootstrap_port_str = strchr(l_bootstrap_nodes[i], ':');
+        if (!l_bootstrap_port_str) {
+            continue;
+        }
+        uint16_t l_bootstrap_port = atoi(l_bootstrap_port_str + 1);
+        if (!l_bootstrap_port) {
+            continue;
+        }
+        int l_bootstrap_name_len = l_bootstrap_port_str - l_bootstrap_nodes[i];
+        char *l_bootstrap_name = DAP_NEW_SIZE(char, l_bootstrap_name_len + 1);
+        strncpy(l_bootstrap_name, l_bootstrap_nodes[i], l_bootstrap_name_len);
+        struct in_addr l_bootstrap_addr;
+        if (dap_net_resolve_host(l_bootstrap_name, AF_INET, (struct sockaddr* )&l_bootstrap_addr) == 0) {
+            PVT(l_net)->bootstrap_nodes_addrs[PVT(l_net)->bootstrap_nodes_count] = l_bootstrap_addr;
+            PVT(l_net)->bootstrap_nodes_ports[PVT(l_net)->bootstrap_nodes_count] = l_bootstrap_port;
+            PVT(l_net)->bootstrap_nodes_count++;
+        }
+        DAP_DELETE(l_bootstrap_name);
+    }
+    if ( l_node_addr_str || l_node_alias_str ){
+        dap_chain_node_addr_t * l_node_addr;
+        if ( l_node_addr_str == NULL)
+            l_node_addr = dap_chain_node_alias_find(l_net, l_node_alias_str);
+        else {
+            l_node_addr = DAP_NEW_Z(dap_chain_node_addr_t);
+            if (dap_chain_node_addr_from_str(l_node_addr, l_node_addr_str) == 0)
+                log_it(L_NOTICE, "Parse node addr "NODE_ADDR_FP_STR" successfully", NODE_ADDR_FP_ARGS(l_node_addr));
+            else
+                DAP_DEL_Z(l_node_addr);
+            l_net_pvt->node_addr = l_node_addr;
+        }
+        if ( l_node_addr ) {
+            char *l_addr_hash_str = dap_chain_node_addr_to_hash_str(l_node_addr);
+            // save current node address
+            dap_db_set_cur_node_addr(l_node_addr->uint64, l_net->pub.name);
+            if(!l_addr_hash_str){
+                log_it(L_ERROR,"Can't get hash string for node address!");
+            } else {
+                l_net_pvt->node_info = dap_chain_node_info_read (l_net, l_node_addr);
+                if ( !l_net_pvt->node_info ) { // If not present - create it
+                    l_net_pvt->node_info = DAP_NEW_Z(dap_chain_node_info_t);
+                    l_net_pvt->node_info->hdr.address = *l_node_addr;
+                    if (dap_config_get_item_bool_default(g_config,"server","enabled",false) ){
+                        const char * l_ext_addr_v4 = dap_config_get_item_str_default(g_config,"server","ext_address",NULL);
+                        const char * l_ext_addr_v6 = dap_config_get_item_str_default(g_config,"server","ext_address6",NULL);
+                        uint16_t l_ext_port = dap_config_get_item_uint16_default(g_config,"server","ext_port_tcp",0);
+                        uint16_t l_node_info_port = l_ext_port ? l_ext_port :
+                                                dap_config_get_item_uint16_default(g_config,"server","listen_port_tcp",8089);
+                        if (l_ext_addr_v4)
+                            inet_pton(AF_INET,l_ext_addr_v4,&l_net_pvt->node_info->hdr.ext_addr_v4 );
+                        if (l_ext_addr_v6)
+                            inet_pton(AF_INET6,l_ext_addr_v6,&l_net_pvt->node_info->hdr.ext_addr_v6 );
+                        l_net_pvt->node_info->hdr.ext_port =l_node_info_port;
+                        log_it(L_INFO,"Server is enabled on %s:%u",l_ext_addr_v4?l_ext_addr_v4:"<none>",
+                               l_node_info_port);
+                    }else
+                        log_it(L_INFO,"Server is disabled, add only node address in nodelist");
+                    if (l_net_pvt->node_info->hdr.ext_port &&
+                            (l_net_pvt->node_info->hdr.ext_addr_v4.s_addr != INADDR_ANY ||
+                             memcmp(&l_net_pvt->node_info->hdr.ext_addr_v6, &in6addr_any, sizeof(struct in6_addr))))
+                        // Save only info with non null address & port!
+                        dap_chain_node_info_save(l_net,l_net_pvt->node_info);
+                }
+                log_it(L_NOTICE,"GDB Info: node_addr: " NODE_ADDR_FP_STR"  links: %u cell_id: 0x%016"DAP_UINT64_FORMAT_X,
+                       NODE_ADDR_FP_ARGS(l_node_addr),
+                       l_net_pvt->node_info->hdr.links_number,
+                       l_net_pvt->node_info->hdr.cell_id.uint64);
+            }
+            DAP_DELETE(l_addr_hash_str);
+        }
+        else{
+            log_it(L_WARNING, "Not present our own address %s in database", (l_node_alias_str) ? l_node_alias_str: "");
+        }
+    }
+
+    /* *** Chaiins init by configs *** */
+    char * l_chains_path = dap_strdup_printf("%s/network/%s", dap_config_path(), l_net->pub.name);
+    DIR * l_chains_dir = opendir(l_chains_path);
+    DAP_DEL_Z(l_chains_path);
+    if (!l_chains_dir) {
+        log_it(L_ERROR, "Can't find any chains for network %s", l_net->pub.name);
+        l_net_pvt->load_mode = false;
+        return -2;
+    }
+    // for sequential loading chains
+    dap_list_t *l_prior_list = NULL;
+
+    struct dirent * l_dir_entry;
+    while ( (l_dir_entry = readdir(l_chains_dir) )!= NULL ){
+        if (l_dir_entry->d_name[0]=='\0')
+            continue;
+        char * l_entry_name = strdup(l_dir_entry->d_name);
+        if (strlen (l_entry_name) > 4 ){ // It has non zero name excluding file extension
+            if ( strncmp (l_entry_name+ strlen(l_entry_name)-4,".cfg",4) == 0 ) { // its .cfg file
+                l_entry_name [strlen(l_entry_name)-4] = 0;
+                log_it(L_DEBUG,"Open chain config \"%s\"...",l_entry_name);
+                l_chains_path = dap_strdup_printf("network/%s/%s",l_net->pub.name,l_entry_name);
+                dap_config_t * l_cfg = dap_config_open(l_chains_path);
+                if(l_cfg) {
+                    list_priority *l_chain_prior = DAP_NEW_Z(list_priority);
+                    l_chain_prior->prior = dap_config_get_item_uint16_default(l_cfg, "chain", "load_priority", 100);
+                    l_chain_prior->chains_path = l_chains_path;
+                    // add chain to load list;
+                    l_prior_list = dap_list_append(l_prior_list, l_chain_prior);
+                    dap_config_close(l_cfg);
+                }
+            }
+        }
+        DAP_DELETE (l_entry_name);
+    }
+    closedir(l_chains_dir);
+
+    // sort list with chains names by priority
+    l_prior_list = dap_list_sort(l_prior_list, callback_compare_prioritity_list);
+
+    // create and load chains params by priority
+    dap_chain_t *l_chain;
+    dap_list_t *l_list = l_prior_list;
+    while(l_list){
+        list_priority *l_chain_prior = l_list->data;
+        // Create chain object
+        l_chain = dap_chain_load_from_cfg(l_net->pub.ledger, l_net->pub.name,
+                                          l_net->pub.id, l_chain_prior->chains_path);
+        if(l_chain)
+            DL_APPEND(l_net->pub.chains, l_chain);
+        else
+            log_it(L_WARNING, "Can't process chain from config %s", l_chain_prior->chains_path);
+        DAP_DELETE (l_chain_prior->chains_path);
+        l_list = dap_list_next(l_list);
+    }
+    dap_list_free_full(l_prior_list, NULL);
+    dap_chain_t *l_chain02;
+    DL_FOREACH(l_net->pub.chains, l_chain){
+        DL_FOREACH(l_net->pub.chains, l_chain02){
+            if (l_chain != l_chain02){
+                if (l_chain->id.uint64 == l_chain02->id.uint64) {
+                    log_it(L_ERROR, "Your network %s has chains with duplicate ids: 0x%"DAP_UINT64_FORMAT_U", chain01: %s, chain02: %s", l_chain->net_name,
+                                    l_chain->id.uint64, l_chain->name,l_chain02->name);
+                    log_it(L_ERROR, "Please, fix your configs and restart node");
+                    return -2;
+                }
+                if (!dap_strcmp(l_chain->name, l_chain02->name)) {
+                    log_it(L_ERROR, "Your network %s has chains with duplicate names %s: chain01 id = 0x%"DAP_UINT64_FORMAT_U", chain02 id = 0x%"DAP_UINT64_FORMAT_U"",l_chain->net_name,
+                           l_chain->name, l_chain->id.uint64, l_chain02->id.uint64);
+                    log_it(L_ERROR, "Please, fix your configs and restart node");
+                    return -2;
+                }
+                remove_duplicates_in_chain_by_priority(l_chain, l_chain02);
+            }
+        }
+    }
+    // LEDGER model
+    uint16_t l_ledger_flags = 0;
+    switch ( PVT( l_net )->node_role.enums ) {
+    case NODE_ROLE_LIGHT:
+        break;
+    case NODE_ROLE_FULL:
+        l_ledger_flags |= DAP_CHAIN_LEDGER_CHECK_LOCAL_DS | DAP_CHAIN_LEDGER_CHECK_TOKEN_EMISSION;
+        if (dap_config_get_item_bool_default(g_config, "ledger", "cache_enabled", true))
+            l_ledger_flags |= DAP_CHAIN_LEDGER_CACHE_ENABLED;
+    default:
+        l_ledger_flags |= DAP_CHAIN_LEDGER_CHECK_CELLS_DS;
+    }
+    dap_list_t *l_net_keys = NULL;
+    for (dap_chain_t *l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
+        if (!l_chain->callback_get_poa_certs)
+            continue;
+        l_net_keys = l_chain->callback_get_poa_certs(l_chain, NULL, NULL);
+        if (l_net_keys)
+            break;
+    }
+    if (!l_net_keys)
+        log_it(L_WARNING,"PoA certificates for net %s not found.", l_net->pub.name);
+    // init LEDGER model
+    l_net->pub.ledger = dap_chain_ledger_create(l_ledger_flags, l_net->pub.name, l_net->pub.native_ticker, l_net_keys);
+
+    DAP_DELETE(l_node_addr_str);
+    dap_config_close(l_cfg);
     return 0;
 }
 
@@ -2616,128 +3060,47 @@ int s_net_load(dap_chain_net_t *a_net)
     }
 
     dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
-    char * l_chains_path = dap_strdup_printf("%s/network/%s", dap_config_path(), l_net->pub.name);
-    DIR * l_chains_dir = opendir(l_chains_path);
-    DAP_DEL_Z(l_chains_path);
-    if ( l_chains_dir ){
-        // for sequential loading chains
-        dap_list_t *l_prior_list = NULL;
 
-        struct dirent * l_dir_entry;
-        while ( (l_dir_entry = readdir(l_chains_dir) )!= NULL ){
-            if (l_dir_entry->d_name[0]=='\0')
-                continue;
-            char * l_entry_name = strdup(l_dir_entry->d_name);
-            if (strlen (l_entry_name) > 4 ){ // It has non zero name excluding file extension
-                if ( strncmp (l_entry_name+ strlen(l_entry_name)-4,".cfg",4) == 0 ) { // its .cfg file
-                    l_entry_name [strlen(l_entry_name)-4] = 0;
-                    log_it(L_DEBUG,"Open chain config \"%s\"...",l_entry_name);
-                    l_chains_path = dap_strdup_printf("network/%s/%s",l_net->pub.name,l_entry_name);
-                    dap_config_t * l_cfg = dap_config_open(l_chains_path);
-                    if(l_cfg) {
-                        list_priority *l_chain_prior = DAP_NEW_Z(list_priority);
-                        l_chain_prior->prior = dap_config_get_item_uint16_default(l_cfg, "chain", "load_priority", 100);
-                        l_chain_prior->chains_path = l_chains_path;
-                        // add chain to load list;
-                        l_prior_list = dap_list_append(l_prior_list, l_chain_prior);
-                        dap_config_close(l_cfg);
-                    }
-                }
-            }
-            DAP_DELETE (l_entry_name);
-        }
-        closedir(l_chains_dir);
+    // reload ledger cache at once
+    if (s_chain_net_reload_ledger_cache_once(l_net)) {
+        log_it(L_WARNING,"Start one time ledger cache reloading");
+        dap_chain_ledger_purge(l_net->pub.ledger, false);
+        dap_chain_net_srv_stake_purge(l_net);
+    } else
+        dap_chain_net_srv_stake_load_cache(l_net);
 
-        // reload ledger cache at once
-        if (s_chain_net_reload_ledger_cache_once(l_net)) {
-            log_it(L_WARNING,"Start one time ledger cache reloading");
-            dap_chain_ledger_purge(l_net->pub.ledger, false);
-            dap_chain_net_srv_stake_purge(l_net);
-        } else
-            dap_chain_net_srv_stake_load_cache(l_net);
-
-        // sort list with chains names by priority
-        l_prior_list = dap_list_sort(l_prior_list, callback_compare_prioritity_list);
-
-        // create and load chains params by priority
-        dap_chain_t *l_chain;
-        dap_list_t *l_list = l_prior_list;
-        while(l_list){
-            list_priority *l_chain_prior = l_list->data;
-            // Create chain object
-            l_chain = dap_chain_load_from_cfg(l_net->pub.ledger, l_net->pub.name,
-                                              l_net->pub.id, l_chain_prior->chains_path);
-
-            if(l_chain) {
-                DL_APPEND(l_net->pub.chains, l_chain);
-
-                // add a callback to monitor changes in the chain
-                dap_chain_add_callback_notify(l_chain, s_chain_callback_notify, l_net);
-            }
-            DAP_DELETE (l_chain_prior->chains_path);
-            l_list = dap_list_next(l_list);
-        }
-        dap_list_free_full(l_prior_list, NULL);
-
-        //load decree
-        dap_chain_net_decree_init(l_net);
-        // load chains
-        l_chain = l_net->pub.chains;
-        while(l_chain){
-            dap_chain_ledger_set_fee(l_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
-            if (dap_chain_load_all(l_chain) == 0)
-                log_it (L_NOTICE, "Loaded chain files");
-            else {
-                dap_chain_save_all( l_chain );
-                log_it (L_NOTICE, "Initialized chain files");
-            }
-
-            if(l_chain->callback_created)
-                l_chain->callback_created(l_chain, l_cfg);
-
-            l_chain = l_chain->next;
+    //load decree
+    dap_chain_net_decree_init(l_net);
+    // load chains
+    dap_chain_t *l_chain = l_net->pub.chains;
+    while(l_chain){
+        l_chain->ledger = l_net->pub.ledger;
+        dap_chain_ledger_set_fee(l_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
+        if (dap_chain_load_all(l_chain) == 0)
+            log_it (L_NOTICE, "Loaded chain files");
+        else {
+            dap_chain_save_all( l_chain );
+            log_it (L_NOTICE, "Initialized chain files");
         }
 
-        dap_chain_t *l_chain02;
-        DL_FOREACH(l_net->pub.chains, l_chain){
-            DL_FOREACH(l_net->pub.chains, l_chain02){
-                if (l_chain != l_chain02){
-                    if (l_chain->id.uint64 == l_chain02->id.uint64)
-                    {
-                        log_it(L_ERROR, "Your network %s has chains with duplicate ids: 0x%"DAP_UINT64_FORMAT_U", chain01: %s, chain02: %s", l_chain->net_name,
-                                        l_chain->id.uint64, l_chain->name,l_chain02->name);
-                        log_it(L_ERROR, "Please, fix your configs and restart node");
-                        return -2;
-                    }
-                    if (!dap_strcmp(l_chain->name, l_chain02->name))
-                    {
-                        log_it(L_ERROR, "Your network %s has chains with duplicate names %s: chain01 id = 0x%"DAP_UINT64_FORMAT_U", chain02 id = 0x%"DAP_UINT64_FORMAT_U"",l_chain->net_name,
-                               l_chain->name, l_chain->id.uint64, l_chain02->id.uint64);
-                        log_it(L_ERROR, "Please, fix your configs and restart node");
-                        return -2;
-                    }
-                    remove_duplicates_in_chain_by_priority(l_chain, l_chain02);
-                }
-            }
-        }
+        if(l_chain->callback_created)
+            l_chain->callback_created(l_chain, l_cfg);
 
-        bool l_processed;
-        do {
-            l_processed = false;
-            DL_FOREACH(l_net->pub.chains, l_chain) {
-                if (l_chain->callback_atom_add_from_treshold) {
-                    while (l_chain->callback_atom_add_from_treshold(l_chain, NULL)) {
-                        log_it(L_DEBUG, "Added atom from treshold");
-                        l_processed = true;
-                    }
-                }
-            }
-        } while (l_processed);
-    } else {
-        log_it(L_ERROR, "Can't find any chains for network %s", l_net->pub.name);
-        l_net_pvt->load_mode = false;
-        return -2;
+        l_chain = l_chain->next;
     }
+    // Process thresholds if any
+    bool l_processed;
+    do {
+        l_processed = false;
+        DL_FOREACH(l_net->pub.chains, l_chain) {
+            if (l_chain->callback_atom_add_from_treshold) {
+                while (l_chain->callback_atom_add_from_treshold(l_chain, NULL)) {
+                    log_it(L_DEBUG, "Added atom from treshold");
+                    l_processed = true;
+                }
+            }
+        }
+    } while (l_processed);
 
     // Do specific role actions post-chain created
     l_net_pvt->state_target = NET_STATE_OFFLINE;
@@ -2747,7 +3110,8 @@ int s_net_load(dap_chain_net_t *a_net)
         case NODE_ROLE_ROOT_MASTER:{
             // Set to process everything in datum pool
             dap_chain_t * l_chain = NULL;
-            DL_FOREACH(l_net->pub.chains, l_chain ) l_chain->is_datum_pool_proc = true;
+            DL_FOREACH(l_net->pub.chains, l_chain)
+                l_chain->is_datum_pool_proc = true;
             log_it(L_INFO,"Root master node role established");
         } // Master root includes root
         case NODE_ROLE_ROOT:{
@@ -2801,8 +3165,9 @@ int s_net_load(dap_chain_net_t *a_net)
     l_net_pvt->balancer_http = !dap_config_get_item_bool_default(l_cfg, "general", "use_dns_links", false);
 
     dap_chain_net_add_gdb_notify_callback(l_net, dap_chain_net_sync_gdb_broadcast, l_net);
-    if (l_target_state != l_net_pvt->state_target)
-        dap_chain_net_state_go_to(l_net, l_target_state);
+    DL_FOREACH(l_net->pub.chains, l_chain)
+        // add a callback to monitor changes in the chain
+        dap_chain_add_callback_notify(l_chain, s_chain_callback_notify, l_net);
 
     uint32_t l_timeout = dap_config_get_item_uint32_default(g_config, "node_client", "timer_update_states", 600);
     PVT(l_net)->main_timer = dap_interval_timer_create(l_timeout * 1000, s_main_timer_callback, l_net);
@@ -2810,6 +3175,9 @@ int s_net_load(dap_chain_net_t *a_net)
     PVT(l_net)->update_links_timer = dap_interval_timer_create(600 * 1000, s_update_links_timer_callback, l_net);
 
     dap_config_close(l_cfg);
+
+    if (l_target_state != l_net_pvt->state_target)
+        dap_chain_net_state_go_to(l_net, l_target_state);
 
     return 0;
 }
