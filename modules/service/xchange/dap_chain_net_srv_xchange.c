@@ -910,7 +910,7 @@ char *s_xchange_order_create(dap_chain_net_srv_xchange_price_t *a_price, dap_cha
     uint32_t l_ext_size = sizeof(dap_srv_xchange_order_ext_t);
     char *l_order_hash_str = dap_chain_net_srv_order_create(a_price->net, SERV_DIR_SELL, l_uid, *l_node_addr,
                                                             l_tx_hash, &a_price->datoshi_sell, l_unit, a_price->token_sell, 0,
-                                                            (uint8_t *)&l_ext, l_ext_size, NULL, 0, a_price->wallet_key);
+                                                            (uint8_t *)&l_ext, l_ext_size, 0, NULL, 0, a_price->wallet_key);
     return l_order_hash_str;
 }
 

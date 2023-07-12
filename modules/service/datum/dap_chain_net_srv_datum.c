@@ -51,7 +51,7 @@ int dap_chain_net_srv_datum_init()
         return -1;
     }
     s_srv_datum->uid.uint64 = DAP_CHAIN_NET_SRV_DATUM_ID;
-    int l_net_count = dap_chain_net_srv_parse_pricelist(s_srv_datum, "srv_datum");
+    dap_chain_net_srv_price_apply_from_my_order(s_srv_datum, "srv_datum");
     dap_chain_net_srv_price_t *l_price;
     DL_FOREACH(s_srv_datum->pricelist, l_price) {
         dap_chain_net_t *l_net = l_price->net;

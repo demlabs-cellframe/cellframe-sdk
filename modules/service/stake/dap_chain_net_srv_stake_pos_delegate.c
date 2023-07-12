@@ -936,7 +936,7 @@ char *s_stake_order_create(dap_chain_net_t *a_net, uint256_t *a_fee, dap_enc_key
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
     char *l_order_hash_str = dap_chain_net_srv_order_create(a_net, l_dir, l_uid, *l_node_addr,
                                                             l_tx_hash, a_fee, l_unit, l_native_ticker, 0,
-                                                            NULL, 0, NULL, 0, a_key);
+                                                            NULL, 0, 1, NULL, 0, a_key);
     return l_order_hash_str;
 }
 
