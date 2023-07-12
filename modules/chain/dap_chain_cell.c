@@ -205,11 +205,11 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
         return -3;
     }
     unsigned long q = 0;
-    while (!feof(l_cell_file)) {
-        uint64_t l_el_size = 0;
-        size_t l_read = fread(&l_el_size, 1, sizeof(l_el_size), l_cell_file);
+    size_t l_read;
+    uint64_t l_el_size = 0;
+    while ((l_read = fread(&l_el_size, 1, sizeof(l_el_size), l_cell_file)) && !feof(l_cell_file)) {
         if (l_read != sizeof(l_el_size) || l_el_size == 0) {
-            log_it(L_ERROR, "Corrupted element size, chain %s is damaged", l_file_path);
+            log_it(L_ERROR, "Corrupted element size %zu, chain %s is damaged", l_el_size, l_file_path);
             ret = -4;
             break;
         }

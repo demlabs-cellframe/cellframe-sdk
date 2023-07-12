@@ -55,6 +55,7 @@ typedef struct dap_chain_net_srv_usage{
     bool is_active;
     bool is_free;
     bool is_grace;
+    bool is_waiting_new_tx_cond;
 //    UT_hash_handle hh; //
 } dap_chain_net_srv_usage_t;
 
@@ -91,9 +92,9 @@ typedef struct dap_chain_net_srv_stream_session {
 #define DAP_CHAIN_NET_SRV_STREAM_SESSION(a) ((dap_chain_net_srv_stream_session_t *) (a)->_inheritor )
 
 dap_chain_net_srv_stream_session_t * dap_chain_net_srv_stream_session_create( dap_stream_session_t * a_session);
+void dap_chain_net_srv_stream_session_delete( dap_stream_session_t * a_session);
 dap_chain_net_srv_usage_t* dap_chain_net_srv_usage_add (dap_chain_net_srv_stream_session_t * a_srv_session,
                                                                             dap_chain_net_t * a_net, dap_chain_net_srv_t * a_srv);
-void dap_chain_net_srv_usage_delete (dap_chain_net_srv_stream_session_t * a_srv_session,
-                                                                               dap_chain_net_srv_usage_t* a_usage);
+void dap_chain_net_srv_usage_delete (dap_chain_net_srv_stream_session_t * a_srv_session);
 dap_chain_net_srv_usage_t* dap_chain_net_srv_usage_find_unsafe (dap_chain_net_srv_stream_session_t * a_srv_session,
                                                                              uint32_t a_usage_id);

@@ -931,6 +931,15 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
             if (dap_hash_fast_is_blank(&l_burning_tx_hash))
                 return false;
             l_burning_tx = dap_chain_ledger_tx_find_by_hash(a_ledger, &l_burning_tx_hash);
+            if (!l_burning_tx) {
+                char l_burning_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
+                dap_hash_fast_to_str(&l_burning_tx_hash, l_burning_tx_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+                char *l_take_tx_hash_str;
+                dap_get_data_hash_str_static(a_tx_in, dap_chain_datum_tx_get_size(a_tx_in), l_take_tx_hash_str);
+                log_it(L_ERROR, "[Legacy] Can't find burning tx with hash %s, obtained from the receipt of take tx %s",
+                       l_burning_tx_hash_str, l_take_tx_hash_str);
+                return false;
+            }
         } else
             l_burning_tx = a_tx_in;
 

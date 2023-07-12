@@ -66,6 +66,46 @@ struct dap_order_notify {
 static dap_list_t *s_order_notify_callbacks = NULL;
 static void s_srv_order_callback_notify(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg);
 
+
+static dap_timerfd_t *s_timer_order_check_decree_sign = NULL;
+static void s_srv_order_check_decree_sign_timer() {
+    uint32_t l_unverified_orders_lifetime = dap_config_get_item_uint32_default(g_config, "srv", "unverified_orders_lifetime", 21600);
+    dap_time_t l_time_cut_off = dap_time_now();
+    l_time_cut_off -= l_unverified_orders_lifetime; // 6 Hours;
+    uint16_t l_net_count = 0;
+    dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
+    for (uint16_t i = 0; i < l_net_count; i++) {
+        if (dap_chain_net_get_role(l_net_list[i]).enums == NODE_ROLE_MASTER) {
+            char *l_order_group = dap_chain_net_srv_order_get_gdb_group(l_net_list[i]);
+            size_t l_order_count = 0;
+            dap_global_db_obj_t *l_orders = dap_global_db_get_all_sync(l_order_group, &l_order_count);
+            for (size_t j = 0; j < l_order_count; j++) {
+                dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *) (l_orders[j].value);
+                if (!l_order)
+                    continue;
+                if (l_order->ts_created < l_time_cut_off) {
+                    dap_sign_t *l_sign = (dap_sign_t *) (l_order->ext_n_sign + l_order->ext_size);
+                    dap_hash_fast_t l_sign_pkey_hash = {0};
+                    dap_sign_get_pkey_hash(l_sign, &l_sign_pkey_hash);
+                    dap_chain_addr_t l_signed_addr = {0};
+                    dap_chain_addr_fill(&l_signed_addr, l_sign->header.type, &l_sign_pkey_hash, l_net_list[i]->pub.id);
+                    if (!dap_chain_net_srv_stake_key_delegated(&l_signed_addr)) {
+                        char *l_pkey_hash_str = dap_hash_fast_to_str_new(&l_sign_pkey_hash);
+                        log_it(L_NOTICE, "Order %s signed by the non-delegated public key %s. Order deleted",
+                               l_orders[j].key,
+                               l_pkey_hash_str);
+                        DAP_DELETE(l_pkey_hash_str);
+                        dap_global_db_del(l_order_group, l_orders[j].key, NULL, NULL);
+                    }
+                }
+            }
+            dap_global_db_objs_delete(l_orders, l_order_count);
+            DAP_DELETE(l_order_group);
+        }
+    }
+    DAP_DELETE(l_net_list);
+}
+
 /**
  * @brief dap_chain_net_srv_order_init
  * @return
@@ -78,6 +118,15 @@ int dap_chain_net_srv_order_init(void)
         dap_chain_net_add_gdb_notify_callback(l_net_list[i], s_srv_order_callback_notify, l_net_list[i]);
     }
     //geoip_info_t *l_ipinfo = chain_net_geoip_get_ip_info("8.8.8.8");
+    if (!dap_config_get_item_bool_default(g_config, "srv", "allow_unverified_orders", false)) {
+        uint32_t l_unverified_orders_lifetime = dap_config_get_item_uint32_default(g_config, "srv", "unverified_orders_lifetime", 21600); // 6 Hours
+        s_timer_order_check_decree_sign = dap_interval_timer_create(l_unverified_orders_lifetime * 1000,
+                                                                    (dap_timer_callback_t)s_srv_order_check_decree_sign_timer,
+                                                                    NULL);
+    } else {
+        log_it(L_DEBUG, "A mode is enabled that disables verification that the signature was put by "
+                        "the node by the validator.");
+    }
     DAP_DELETE(l_net_list);
     return 0;
 }
@@ -368,6 +417,10 @@ char *dap_chain_net_srv_order_save(dap_chain_net_t *a_net, dap_chain_net_srv_ord
 
 dap_chain_net_srv_order_t *dap_chain_net_srv_order_read(byte_t *a_order, size_t a_order_size)
 {
+    if (NULL == a_order) {
+        log_it(L_ERROR, "Argumets are NULL for dap_chain_net_srv_order_read");
+        return NULL;
+    }
     dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)a_order;
     size_t l_order_size = dap_chain_net_srv_order_get_size((dap_chain_net_srv_order_t *)a_order);
     if (l_order->version > 3 || l_order->direction > SERV_DIR_SELL || l_order_size != a_order_size)
@@ -576,6 +629,12 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         }
         else
             dap_string_append_printf(a_str_out, "  ext:              0x0\n");
+        dap_sign_t *l_sign = (dap_sign_t*)((byte_t*)a_order->ext_n_sign + a_order->ext_size);
+        dap_hash_fast_t l_sign_pkey = {0};
+        dap_sign_get_pkey_hash(l_sign, &l_sign_pkey);
+        char *l_sign_pkey_hash_str = dap_hash_fast_to_str_new(&l_sign_pkey);
+        dap_string_append_printf(a_str_out, "  pkey:             %s\n", l_sign_pkey_hash_str);
+        DAP_DELETE(l_sign_pkey_hash_str);
         // order state
 /*        {
             int l_order_state = get_order_state(a_order->node_addr);
@@ -613,43 +672,25 @@ static void s_srv_order_callback_notify(dap_global_db_context_t *a_context, dap_
                 l_notifier->callback(a_context, a_obj, l_notifier->cb_arg);
             }
         }
-        if (a_obj->value && a_obj->type == DAP_DB$K_OPTYPE_ADD &&
-                dap_config_get_item_bool_default(g_config, "srv", "order_signed_only", true)) {
+        bool l_allow_unsigned_orders = dap_config_get_item_bool_default(g_config, "srv", "allow_unsigned_orders", false);
+        if (a_obj->value && a_obj->type == DAP_DB$K_OPTYPE_ADD) {
             dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)a_obj->value;
             if (l_order->version != 3) {
+                log_it(L_NOTICE, "Order %s removed version != 3.", a_obj->key);
                 dap_global_db_del_unsafe(l_gdb_context, a_obj->group, a_obj->key);
             } else {
-                dap_sign_t *l_sign = (dap_sign_t *)(l_order->ext_n_sign + l_order->ext_size);
-                size_t l_max_size = a_obj->value_len - sizeof(dap_chain_net_srv_order_t) - l_order->ext_size;
-                int l_verify = dap_sign_verify_all(l_sign, l_max_size, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size);
-                if (l_verify) {
-                    log_it(L_ERROR, "Order unverified, err %d", l_verify);
-                    dap_global_db_del_unsafe(l_gdb_context, a_obj->group, a_obj->key);
+                if (l_allow_unsigned_orders) {
+                    log_it(L_DEBUG, "The mode that disables verification of the order signature is enabled.");
+                } else {
+                    dap_sign_t *l_sign = (dap_sign_t *) (l_order->ext_n_sign + l_order->ext_size);
+                    size_t l_max_size = a_obj->value_len - sizeof(dap_chain_net_srv_order_t) - l_order->ext_size;
+                    int l_verify = dap_sign_verify_all(l_sign, l_max_size, l_order,
+                                                       sizeof(dap_chain_net_srv_order_t) + l_order->ext_size);
+                    if (l_verify) {
+                        log_it(L_ERROR, "Order unverified, err %d", l_verify);
+                        dap_global_db_del_unsafe(l_gdb_context, a_obj->group, a_obj->key);
+                    }
                 }
-                // Check new order is signs delegated key
-                dap_hash_fast_t l_pkey_hash = {0};
-                dap_sign_get_pkey_hash(l_sign, &l_pkey_hash);
-                dap_chain_addr_t l_addr = {0};
-                dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, l_net->pub.id);
-                if (!dap_chain_net_srv_stake_key_delegated(&l_addr)) {
-                    char *l_pkey_hash_str = dap_hash_fast_to_str_new(&l_pkey_hash);
-                    log_it(L_ERROR, "Order %s signed by the non-delegated public key %s.", a_obj->key, l_pkey_hash_str);
-                    DAP_DELETE(l_pkey_hash_str);
-                    dap_global_db_del_unsafe(l_gdb_context, a_obj->group, a_obj->key);
-                }
-                /*dap_chain_hash_fast_t l_pkey_hash;
-                if (!dap_sign_get_pkey_hash(l_sign, &l_pkey_hash)) {
-                    dap_global_db_gr_del(dap_strdup(a_key), a_group);
-                    DAP_DELETE(l_gdb_group_str);
-                    return;
-                }
-                dap_chain_addr_t l_addr = {};
-                dap_chain_addr_fill(&l_addr, l_sign->header.type, &l_pkey_hash, l_net->pub.id);
-                uint128_t l_balance = dap_chain_ledger_calc_balance(l_net->pub.ledger, &l_addr, l_order->price_ticker);
-                uint64_t l_solvency = dap_chain_uint128_to(l_balance);
-                if (l_solvency < l_order->price && !dap_chain_net_srv_stake_key_delegated(&l_addr)) {
-                    dap_global_db_gr_del(dap_strdup(a_key), a_group);
-                }*/
             }
         }
     }

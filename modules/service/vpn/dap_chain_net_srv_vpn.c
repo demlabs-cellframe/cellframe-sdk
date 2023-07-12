@@ -1114,7 +1114,7 @@ void s_ch_vpn_new(dap_stream_ch_t* a_ch, void* a_arg)
 
     dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_ch->stream->session->_inheritor;
 
-    l_srv_vpn->usage_id = l_srv_session->usage_active?  l_srv_session->usage_active->id : 0;
+    l_srv_vpn->usage_id = l_srv_session->usage_active ?  l_srv_session->usage_active->id : 0;
 
     if( l_srv_vpn->usage_id) {
         // So complicated to update usage client to be sure that nothing breaks it
@@ -1126,7 +1126,6 @@ void s_ch_vpn_new(dap_stream_ch_t* a_ch, void* a_arg)
         }
         pthread_rwlock_unlock(&s_clients_rwlock);
     }
-
 }
 
 
@@ -1189,6 +1188,7 @@ static void s_ch_vpn_delete(dap_stream_ch_t* a_ch, void* arg)
     l_ch_vpn->ch = NULL;
     l_ch_vpn->net_srv = NULL;
     l_ch_vpn->is_allowed =false;
+    DAP_DEL_Z(a_ch->internal);
 }
 
 /**
@@ -1205,20 +1205,19 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
     bool l_issue_new_receipt = false;
     // Check if there are time limits
 
-    if (a_usage->is_free)
+    if (a_usage->is_free || !a_usage->receipt || !a_usage->is_active)
         return;
 
     if (a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_DAY ||
         a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_SEC){
         time_t l_current_limit_ts = 0;
-        if ( a_usage->receipt){
-            switch( a_usage->receipt->receipt_info.units_type.enm){
+
+        switch( a_usage->receipt->receipt_info.units_type.enm){
             case SERV_UNIT_DAY:{
                 l_current_limit_ts = (time_t)a_usage->receipt->receipt_info.units*24*3600;
             } break;
             case SERV_UNIT_SEC:{
                 l_current_limit_ts = (time_t)a_usage->receipt->receipt_info.units;
-            }
             }
         }
 
@@ -1232,7 +1231,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
 
         if( a_srv_session->limits_ts <= 0 && !a_usage->is_grace){
             log_it(L_INFO, "Limits by timestamp are over. Switch to the next receipt");
-            DAP_DELETE(a_usage->receipt);
+            DAP_DEL_Z(a_usage->receipt);
             a_usage->receipt = a_usage->receipt_next;
             a_usage->receipt_next = NULL;
             if ( a_usage->receipt){ // If there is next receipt add the time and request the next receipt
@@ -1289,7 +1288,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
 
         if (a_srv_session->limits_bytes <= 0  && !a_usage->is_grace){
             log_it(L_INFO, "Limits by traffic is over. Switch to the next receipt");
-            DAP_DELETE(a_usage->receipt);
+            DAP_DEL_Z(a_usage->receipt);
             a_usage->receipt = a_usage->receipt_next;
             a_usage->receipt_next = NULL;
             if ( a_usage->receipt){ // If there is next receipt add the time and request the next receipt

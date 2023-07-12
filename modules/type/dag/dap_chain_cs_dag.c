@@ -510,10 +510,10 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     dap_chain_cs_dag_event_calc_hash(l_event, a_atom_size, &l_event_hash);
     l_event_item->hash = l_event_hash;
 
-    char * l_event_hash_str = NULL;
     if(s_debug_more) {
-        l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_item->hash);
-        log_it(L_DEBUG, "Processing event: %s... (size %zd)", l_event_hash_str,a_atom_size);
+        char l_event_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
+        dap_chain_hash_fast_to_str(&l_event_item->hash, l_event_hash_str, sizeof(l_event_hash_str));
+        log_it(L_DEBUG, "Processing event: %s ... (size %zd)", l_event_hash_str,a_atom_size);
     }
 
     pthread_mutex_lock(l_events_mutex);
@@ -535,7 +535,6 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     case ATOM_PASS:
         if(s_debug_more) {
             log_it(L_DEBUG, "Atom already present");
-            DAP_DELETE(l_event_hash_str);
         }
         DAP_DELETE(l_event_item);
         return ret;
@@ -597,8 +596,6 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         DAP_DELETE(l_event_item); // Neither added, nor freed
         break;
     }
-    if(s_debug_more)
-        DAP_DELETE(l_event_hash_str);
     return ret;
 }
 
@@ -640,8 +637,10 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
 }
 
 static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_datum_t *a_datum) {
-    if (!a_datum || !a_chain)
-        log_it(L_ERROR, "Datum or chain in mempool processing comes NULL");
+    if (!a_datum || !a_chain){
+        log_it(L_ERROR, "Datum or chain in mempool processing comes NULL in s_chain_callback_datums_pool_proc");
+        return false;
+    }
 
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(a_chain);
     /* If datum passes thru rounds, let's check if it wasn't added before */

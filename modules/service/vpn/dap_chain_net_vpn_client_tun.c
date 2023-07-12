@@ -638,7 +638,7 @@ static void ch_sf_pkt_send(dap_stream_ch_t * a_ch, void * a_data, size_t a_data_
     //       ,inet_ntoa(in_daddr), read_ret);
     if(!a_ch) {
         log_it(L_ERROR, "Try to send to NULL channel");
-//        return;
+       return;
     }
     l_pkt_out = DAP_NEW_SIZE(ch_vpn_pkt_t, l_pkt_out_size);
     memset(&l_pkt_out->header,0,sizeof(l_pkt_out->header));

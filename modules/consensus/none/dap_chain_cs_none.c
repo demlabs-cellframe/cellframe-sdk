@@ -139,6 +139,7 @@ static void s_history_callback_notify(dap_global_db_context_t *a_context, dap_st
         dap_chain_net_t *l_net = dap_chain_net_by_id( l_gdb->chain->net_id);
         log_it(L_DEBUG,"%s.%s: op_code='%c' group=\"%s\" key=\"%s\" value_size=%zu",l_net->pub.name,
                l_gdb->chain->name, a_obj->type, a_obj->group, a_obj->key, a_obj->value_len);
+        s_chain_callback_atom_add(l_gdb->chain, a_obj->value, a_obj->value_len);
         dap_chain_net_sync_gdb_broadcast(a_context, a_obj, l_net);
     }
 }
@@ -248,7 +249,8 @@ void dap_chain_gdb_delete(dap_chain_t * a_chain)
     DAP_DELETE(l_gdb_priv->group_datums);
 
     DAP_DELETE(l_gdb);
-    a_chain->_inheritor = NULL;
+    if (a_chain)
+        a_chain->_inheritor = NULL;
 }
 
 /**
@@ -297,9 +299,9 @@ const char* dap_chain_gdb_get_group(dap_chain_t * a_chain)
  * @param a_values
  * @param a_arg
  */
-static void s_ledger_load_callback(dap_global_db_context_t *a_global_db_context,
-                                   int a_rc, const char *a_group,
-                                   const size_t a_values_total, const size_t a_values_count,
+static void s_ledger_load_callback(UNUSED_ARG dap_global_db_context_t *a_global_db_context,
+                                   UNUSED_ARG int a_rc, UNUSED_ARG const char *a_group,
+                                   UNUSED_ARG const size_t a_values_total, const size_t a_values_count,
                                    dap_global_db_obj_t *a_values, void *a_arg)
 {
     assert(a_arg);
@@ -311,7 +313,9 @@ static void s_ledger_load_callback(dap_global_db_context_t *a_global_db_context,
     assert(l_gdb_pvt);
     // make list of datums
     for(size_t i = 0; i < a_values_count; i++) {
-        s_chain_callback_atom_add(l_chain, a_values[i].value, a_values[i].value_len);
+        dap_global_db_obj_t *it = a_values + i;
+        s_chain_callback_atom_add(l_chain, it->value, it->value_len);
+        log_it(L_DEBUG,"Load mode, doesn't save item %s:%s", it->key, l_gdb_pvt->group_datums);
     }
 
     pthread_mutex_lock(&l_gdb_pvt->load_mutex);
@@ -349,12 +353,21 @@ static void s_chain_gdb_ledger_load(dap_chain_t *a_chain)
  * @param a_datums_count object counts in datums array
  * @return size_t
  */
-static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums,
-        size_t a_datums_count)
+static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain_datum_t ** a_datums, size_t a_datums_count)
 {
     for(size_t i = 0; i < a_datums_count; i++) {
-        dap_chain_datum_t * l_datum = a_datums[i];
-        s_chain_callback_atom_add(a_chain, l_datum,dap_chain_datum_size(l_datum) );
+        dap_chain_datum_t *l_datum = a_datums[i];
+        dap_hash_fast_t l_datum_hash;
+        char l_db_key[DAP_CHAIN_HASH_FAST_STR_SIZE];
+        dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_datum_hash);
+        dap_chain_hash_fast_to_str(&l_datum_hash, l_db_key, sizeof(l_db_key));
+        int l_rc = dap_chain_net_verify_datum_for_add(a_chain, l_datum, &l_datum_hash);
+        if (l_rc != 0) {
+            log_it(L_ERROR, "Verified datum %s not passed the check, code %d", l_db_key, l_rc);
+            return i;
+        }
+        dap_global_db_set(PVT(DAP_CHAIN_GDB(a_chain))->group_datums, l_db_key, l_datum,
+                          dap_chain_datum_size(l_datum), false, NULL, NULL);
     }
     return a_datums_count;
 }
@@ -369,6 +382,10 @@ static size_t s_chain_callback_datums_pool_proc(dap_chain_t * a_chain, dap_chain
  */
 static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size)
 {
+    if (NULL == a_chain) {
+        log_it(L_WARNING, "Arguments is NULL for s_chain_callback_atom_add");
+        return ATOM_REJECT;
+    }
     dap_chain_gdb_t * l_gdb = DAP_CHAIN_GDB(a_chain);
     dap_chain_gdb_private_t *l_gdb_priv = PVT(l_gdb);
     dap_chain_datum_t *l_datum = (dap_chain_datum_t*) a_atom;
@@ -385,10 +402,6 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     size_t l_datum_size = dap_chain_datum_size(l_datum);
     dap_hash_fast(l_datum->data,l_datum->header.data_size,&l_hash_item->datum_data_hash );
     dap_chain_hash_fast_to_str(&l_hash_item->datum_data_hash, l_hash_item->key, sizeof(l_hash_item->key));
-    if (!l_gdb_priv->is_load_mode) {
-        dap_global_db_set(l_gdb_priv->group_datums, l_hash_item->key, l_datum, l_datum_size, false, NULL, NULL);
-    } else
-        log_it(L_DEBUG,"Load mode, doesn't save item %s:%s", l_hash_item->key, l_gdb_priv->group_datums);
     DL_APPEND(l_gdb_priv->hash_items, l_hash_item);
     if (!l_gdb_priv->is_load_mode && a_chain->atom_notifiers) {
         for(dap_list_t *l_iter = a_chain->atom_notifiers; l_iter; l_iter = dap_list_next(l_iter)) {
