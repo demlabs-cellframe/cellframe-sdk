@@ -240,8 +240,6 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     }
     l_blocks->chain->callback_created = s_callback_created;
 
-    //dap_global_db_set(s_get_penalty_group(a_chain->net_id), "RpiDC8c1T1Phj39nZy6E1jEmigaMV9MHjmMkpBLjMfADD7BPTXCXHg6Rma15kssjDvYn1d2NyMj6HwLKiEkUdxbLam7VFcF79THnMND8", NULL, 0, false, NULL, 0);
-
     return 0;
 
 lb_err:
@@ -316,6 +314,8 @@ static void s_session_db_serialize(dap_chain_esbocs_session_t *a_session)
     a_session->db_serial = l_pkt;
     if (l_pkt)
         dap_hash_fast(l_pkt->data, l_pkt->data_size, &a_session->db_hash);
+    else
+        a_session->db_hash = (dap_hash_fast_t){};
     if (PVT(a_session->esbocs)->debug) {
         char l_sync_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
         dap_chain_hash_fast_to_str(&a_session->db_hash, l_sync_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
@@ -1967,7 +1967,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                                         " SYNC message is rejected cause DB hash mismatch",
                                            l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
                                                l_session->cur_round.sync_attempt);
-            if (!dap_hash_fast_is_blank(&l_session->db_hash)) {
+            if (l_session->db_serial) {
                 dap_chain_esbocs_validator_t *l_validator = DAP_NEW_Z(dap_chain_esbocs_validator_t);
                 l_validator->node_addr = *dap_chain_net_srv_stake_key_get_node_addr(&l_signing_addr);
                 l_validator->signing_addr = l_signing_addr;

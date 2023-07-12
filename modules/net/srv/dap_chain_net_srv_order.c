@@ -72,7 +72,7 @@ static void s_srv_order_check_decree_sign_timer() {
     uint32_t l_unverified_orders_lifetime = dap_config_get_item_uint32_default(g_config, "srv", "unverified_orders_lifetime", 21600);
     dap_time_t l_time_cut_off = dap_time_now();
     l_time_cut_off -= l_unverified_orders_lifetime; // 6 Hours;
-    size_t l_net_count = 0;
+    uint16_t l_net_count = 0;
     dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
     for (uint16_t i = 0; i < l_net_count; i++) {
         if (dap_chain_net_get_role(l_net_list[i]).enums == NODE_ROLE_MASTER) {
