@@ -54,7 +54,7 @@ typedef enum dap_chain_ledger_tx_check{
     DAP_CHAIN_LEDGER_TX_CACHE_CHECK_INVALID_TX_SIGN,
     DAP_CHAIN_LEDGER_TX_CACHE_IN_EMS_ALREADY_USED,
     DAP_CHAIN_LEDGER_TX_CACHE_STAKE_LOCK_IN_EMS_ALREADY_USED,
-    DAP_CHAIN_LEDGER_TX_CACHE_STAKE_LOCK_EMISSION_NOT_FOUND,
+    DAP_CHAIN_LEDGER_TX_CACHE_CHECK_EMISSION_NOT_FOUND,
     DAP_CHAIN_LEDGER_TX_CACHE_CHECK_TX_NO_VALID_INPUTS,
     DAP_CHAIN_LEDGER_TX_CACHE_CHECK_TICKER_NOT_FOUND,
     DAP_CHAIN_LEDGER_TX_CACHE_STAKE_LOCK_INVALID_TOKEN,
@@ -132,7 +132,7 @@ typedef struct dap_chain_net dap_chain_net_t;
 // Error code for no previous transaction (for stay in mempool)
 #define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS  DAP_CHAIN_LEDGER_TX_CACHE_CHECK_PREV_TX_NOT_FOUND
 // Error code for no emission for a transaction (for stay in mempoold)
-#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION  DAP_CHAIN_LEDGER_TX_CACHE_STAKE_LOCK_EMISSION_NOT_FOUND
+#define DAP_CHAIN_CS_VERIFY_CODE_TX_NO_EMISSION  DAP_CHAIN_LEDGER_TX_CACHE_CHECK_EMISSION_NOT_FOUND
 // Error code for no decree for anchor (for stay in mempool)
 #define DAP_CHAIN_CS_VERIFY_CODE_NO_DECREE       -1113
 
@@ -188,7 +188,7 @@ int dap_chain_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx,
 
 int dap_chain_ledger_tx_add_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, size_t a_datum_size, dap_hash_fast_t *a_datum_hash);
 
-char* dap_chain_ledger_tx_check_err_str(dap_chain_ledger_tx_check_t a_code);
+char* dap_chain_ledger_tx_check_err_str(int a_code);
 
 /**
  * Print list transaction from ledger
@@ -212,7 +212,7 @@ dap_chain_datum_token_t *dap_chain_ledger_token_ticker_check(dap_ledger_t * a_le
 int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token, size_t a_token_size);
 int dap_chain_ledger_token_load(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token, size_t a_token_size);
 int dap_chain_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token, size_t a_token_size);
-char *dap_chain_ledger_token_decl_add_err_code_to_str(dap_chain_ledger_token_decl_add_err_t a_code);
+char *dap_chain_ledger_token_decl_add_err_code_to_str(int a_code);
 dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger);
 
 // Get all token-declarations
@@ -232,7 +232,7 @@ dap_list_t * dap_chain_ledger_token_auth_pkeys_hashes(dap_ledger_t *a_ledger, co
 int dap_chain_ledger_token_emission_add(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size,
                                         dap_hash_fast_t *a_emission_hash, bool a_from_threshold);
 int dap_chain_ledger_token_emission_load(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size, dap_hash_fast_t *a_token_emission_hash);
-char *dap_chain_ledger_token_emission_err_code_to_str(dap_chain_ledger_emission_err_code_t a_code);
+char *dap_chain_ledger_token_emission_err_code_to_str(int a_code);
 
 // Check if it addable
 int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_token_emission, size_t a_token_emission_size, dap_chain_hash_fast_t *a_emission_hash);

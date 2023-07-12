@@ -3270,7 +3270,7 @@ static bool s_net_check_acl(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pke
 {
     const char l_path[] = "network/";
     char l_cfg_path[strlen(a_net->pub.name) + strlen(l_path) + 1];
-    dap_snprintf(l_cfg_path, sizeof(l_cfg_path) - 1, "%s%s", l_path, a_net->pub.name);
+    dap_snprintf(l_cfg_path, sizeof(l_cfg_path), "%s%s", l_path, a_net->pub.name);
     dap_config_t *l_cfg = dap_config_open(l_cfg_path);
     const char *l_auth_type = dap_config_get_item_str(l_cfg, "auth", "type");
     bool l_authorized = true;
