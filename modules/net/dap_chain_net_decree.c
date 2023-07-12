@@ -265,11 +265,15 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
             return -110;
         }
         if (l_decree_hh->is_applied) {
-            log_it(L_WARNING,"Decree already applyed");
+            log_it(L_WARNING,"Decree already applied");
             return -111;
         }
     } else {
         l_decree_hh = DAP_NEW_Z(struct decree_hh);
+        if (!l_decree_hh) {
+            log_it(L_ERROR, "Memory allocation error in dap_chain_net_decree_apply");
+            return -1;
+        }
         l_decree_hh->decree = DAP_DUP_SIZE(a_decree, dap_chain_datum_decree_get_size(a_decree));
         l_decree_hh->key = *a_decree_hash;
         HASH_ADD(hh, s_decree_hh, key, sizeof(dap_hash_fast_t), l_decree_hh);
@@ -386,6 +390,10 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
                     }
                 } else{
                     dap_chain_addr_t *l_decree_addr = DAP_NEW_Z_SIZE(dap_chain_addr_t, sizeof(dap_chain_addr_t));
+                    if (!l_decree_addr) {
+                        log_it(L_ERROR, "Memory allocation error in s_common_decree_handler");
+                        return -1;
+                    }
                     memcpy(l_decree_addr, &l_addr, sizeof(dap_chain_addr_t));
                     l_net->pub.decree->fee_addr = l_decree_addr;
                 }

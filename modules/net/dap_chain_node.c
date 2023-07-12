@@ -55,6 +55,10 @@
 dap_chain_node_addr_t* dap_chain_node_gen_addr(dap_chain_net_id_t a_net_id)
 {
     dap_chain_node_addr_t *l_addr = DAP_NEW_Z(dap_chain_node_addr_t);
+    if (!l_addr) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_node_gen_addr");
+        return NULL;
+    }
     dap_chain_hash_fast_t l_hash;
     dap_hash_fast(&a_net_id, sizeof(dap_chain_net_id_t), &l_hash);
     // first 4 bytes is last 4 bytes of shard id hash

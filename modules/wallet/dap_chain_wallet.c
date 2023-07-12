@@ -125,6 +125,10 @@ char *c_wallets_path;
     if ( !l_prec )
     {
         l_prec  = DAP_NEW_Z(dap_chain_wallet_n_pass_t);                 /* Get memory for new record */
+        if (!l_prec) {
+            log_it(L_ERROR, "Memory allocation error in dap_chain_wallet_activate");
+            return -EINVAL;
+        }
         *l_prec = l_rec;                                                /* Fill it by data */
         HASH_ADD_STR(s_wallet_n_pass, name, l_prec);                    /* Add into the hash-table */
     }

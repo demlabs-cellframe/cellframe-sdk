@@ -37,6 +37,10 @@ dap_chain_block_chunks_t * dap_chain_block_chunks_create(dap_chain_cs_blocks_t *
     assert(a_blocks);
     assert(a_blocks->chain);
     dap_chain_block_chunks_t * l_ret = DAP_NEW_Z(dap_chain_block_chunks_t);
+    if (!l_ret) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_block_chunks_create");
+        return NULL;
+    }
     l_ret->blocks = a_blocks;
     l_ret->gdb_group = dap_strdup_printf("local.%s.%s.block.chunks",a_blocks->chain->net_name, a_blocks->chain->name );
 
@@ -106,6 +110,10 @@ void dap_chain_block_chunks_add(dap_chain_block_chunks_t * a_chunks,dap_chain_bl
         if(dap_hash_fast_compare(&l_chunk->block_cache_top->block_hash, &a_block_cache->prev_hash ) ){
             // Init cache-hash object
             l_chunk_cache_hash = DAP_NEW_Z(dap_chain_block_cache_hash_t);
+            if (!l_chunk_cache_hash) {
+                log_it(L_ERROR, "Memory allocation error in dap_chain_block_chunks_add");
+                return;
+            }
             l_chunk_cache_hash->block_cache=a_block_cache;
             l_chunk_cache_hash->ts_created = time(NULL);
             l_chunk_cache_hash->block_hash = a_block_cache->block_hash;
@@ -128,6 +136,10 @@ void dap_chain_block_chunks_add(dap_chain_block_chunks_t * a_chunks,dap_chain_bl
 
         // Init cache-hash object
         l_chunk_cache_hash = DAP_NEW_Z(dap_chain_block_cache_hash_t);
+        if (!l_chunk_cache_hash) {
+            log_it(L_ERROR, "Memory allocation error in dap_chain_block_chunks_add");
+            return;
+        }
         l_chunk_cache_hash->block_cache=a_block_cache;
         l_chunk_cache_hash->ts_created = time(NULL);
         l_chunk_cache_hash->block_hash = a_block_cache->block_hash;
@@ -156,6 +168,10 @@ void dap_chain_block_chunks_add(dap_chain_block_chunks_t * a_chunks,dap_chain_bl
 dap_chain_block_chunk_t * dap_chain_block_chunk_create(dap_chain_block_chunks_t * a_chunks)
 {
     dap_chain_block_chunk_t * l_chunk = DAP_NEW_Z(dap_chain_block_chunk_t);
+    if (!l_chunk) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_block_chunk_create ");
+        return NULL;
+    }
     // Add in tail
     l_chunk->prev = a_chunks->chunks_first;
     if (a_chunks->chunks_first){
