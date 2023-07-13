@@ -218,6 +218,10 @@ bool dap_chain_net_srv_order_get_continent_region(dap_chain_net_srv_order_t *a_o
         size_t l_size = a_order_static->ext_size - sizeof(uint8_t) - 1;
         if(l_size > 0) {
             *a_region = DAP_NEW_SIZE(char, l_size);
+            if (!a_region) {
+                log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_order_get_continent_region");
+                return false;
+            }
             memcpy(*a_region, a_order_static->ext_n_sign + 1 + sizeof(uint8_t), l_size);
         }
         else
@@ -303,13 +307,14 @@ char * dap_chain_net_srv_order_create(
         dap_time_t a_expires, // TS when the service expires
         const uint8_t *a_ext,
         uint32_t a_ext_size,
+        uint64_t a_units,
         const char *a_region,
         int8_t a_continent_num,
         dap_enc_key_t *a_key
         )
 {
     dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_compose(a_net, a_direction, a_srv_uid, a_node_addr, a_tx_cond_hash, a_price,
-                                                                         a_price_unit, a_price_ticker, a_expires, a_ext, a_ext_size,
+                                                                         a_price_unit, a_price_ticker, a_expires, a_ext, a_ext_size, a_units,
                                                                          a_region, a_continent_num, a_key);
     if (!l_order)
         return NULL;
@@ -329,6 +334,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(dap_chain_net_t *a_ne
         dap_time_t a_expires, // TS when the service expires
         const uint8_t *a_ext,
         uint32_t a_ext_size,
+        uint64_t a_units,
         const char *a_region,
         int8_t a_continent_num,
         dap_enc_key_t *a_key
@@ -347,11 +353,19 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(dap_chain_net_t *a_ne
     dap_chain_net_srv_order_t *l_order;
     if (a_ext_size) {
         l_order = (dap_chain_net_srv_order_t *)DAP_NEW_Z_SIZE(void, sizeof(dap_chain_net_srv_order_t) + a_ext_size);
+        if (!l_order) {
+            log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_order_compose");
+            return NULL;
+        }
         memcpy(l_order->ext_n_sign, a_ext, a_ext_size);
         l_order->ext_size = a_ext_size;
     }
     else {
         l_order = DAP_NEW_Z(dap_chain_net_srv_order_t);
+        if (!l_order) {
+            log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_order_compose");
+            return NULL;
+        }
         dap_chain_net_srv_order_set_continent_region(&l_order, a_continent_num, a_region);
     }
 
@@ -369,6 +383,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(dap_chain_net_t *a_ne
 
     if ( a_price_ticker)
         strncpy(l_order->price_ticker, a_price_ticker, DAP_CHAIN_TICKER_SIZE_MAX - 1);
+    l_order->units = a_units;
     dap_sign_t *l_sign = dap_sign_create(a_key, l_order, sizeof(dap_chain_net_srv_order_t) + l_order->ext_size, 0);
     if (!l_sign) {
         DAP_DELETE(l_order);
@@ -622,6 +637,7 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         dap_sign_get_pkey_hash(l_sign, &l_sign_pkey);
         char *l_sign_pkey_hash_str = dap_hash_fast_to_str_new(&l_sign_pkey);
         dap_string_append_printf(a_str_out, "  pkey:             %s\n", l_sign_pkey_hash_str);
+        dap_string_append_printf(a_str_out, "  units:            %zu\n", a_order->units);
         DAP_DELETE(l_sign_pkey_hash_str);
         // order state
 /*        {
@@ -688,6 +704,10 @@ static void s_srv_order_callback_notify(dap_global_db_context_t *a_context, dap_
 void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg)
 {
     struct dap_order_notify *l_notifier = DAP_NEW(struct dap_order_notify);
+    if (!l_notifier) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_order_add_notify_callback");
+        return;
+    }
     l_notifier->net = a_net;
     l_notifier->callback = a_callback;
     l_notifier->cb_arg = a_cb_arg;

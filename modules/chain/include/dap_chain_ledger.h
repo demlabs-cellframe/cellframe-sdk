@@ -92,7 +92,7 @@ typedef enum dap_chain_ledger_emission_err{
     DAP_CHAIN_LEDGER_EMISSION_ADD_CHECK_ZERO_VALUE,
     DAP_CHAIN_LEDGER_EMISSION_ADD_TSD_CHECK_FAILED,
     /* add custom codes here */
-
+    DAP_CHAIN_LEDGER_EMISSION_ADD_MEMORY_PROBLEM,
     DAP_CHAIN_LEDGER_EMISSION_ADD_UNKNOWN /* MAX */
 } dap_chain_ledger_emission_err_code_t;
 

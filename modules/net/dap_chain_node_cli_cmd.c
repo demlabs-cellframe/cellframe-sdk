@@ -187,6 +187,10 @@ static dap_chain_node_addr_t* s_node_info_get_addr(dap_chain_net_t * a_net, dap_
     }
     if(a_addr->uint64) {
         l_address = DAP_NEW(dap_chain_node_addr_t);
+        if (!l_address) {
+            log_it(L_ERROR, "Memory allocation error in s_node_info_get_addr");
+            return NULL;
+        }
         l_address->uint64 = a_addr->uint64;
     }
     return l_address;
@@ -536,19 +540,20 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
         dap_chain_node_addr_t *l_addr = NULL;
         if(a_addr && a_addr->uint64) {
             l_addr = DAP_NEW(dap_chain_node_addr_t);
+            if(!l_addr) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "addr not valid");
+                dap_string_free(l_string_reply, true);
+                return -1;
+            }
             l_addr->uint64 = a_addr->uint64;
         } else if(a_alias) {
             l_addr = dap_chain_node_alias_find(a_net, a_alias);
         }
-        if(!l_addr) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "addr not valid");
-            dap_string_free(l_string_reply, true);
-            return -1;
-        }
+
         // read node
         dap_chain_node_info_t *node_info_read = node_info_read_and_reply(a_net, l_addr, a_str_reply);
         if(!node_info_read) {
-            DAP_DELETE(l_addr);
+            DAP_DEL_Z(l_addr);
             dap_string_free(l_string_reply, true);
             return -2;
         }
@@ -3071,7 +3076,8 @@ int com_mempool_check(int a_argc, char **a_argv, char ** a_str_reply)
                 if (l_found_in_chains) {
                     char l_atom_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
                     dap_chain_hash_fast_to_str(&l_atom_hash, l_atom_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-                    dap_string_append_printf(l_str_reply, "Atom hash is %s return code is %d\n", l_atom_hash_str, l_ret_code);
+                    dap_string_append_printf(l_str_reply, "Atom hash is %s return code is %d (%s)\n",
+                                                            l_atom_hash_str, l_ret_code, dap_chain_ledger_tx_check_err_str(l_ret_code));
                 }
                 dap_chain_datum_dump(l_str_reply, l_datum, l_hash_out_type);
                 if (!l_found_in_chains)
@@ -6066,6 +6072,11 @@ int cmd_remove(int a_argc, char **a_argv, char ** a_str_reply)
         for (uint16_t i = 0; i < l_net_count; i++) {
             size_t l_aliases_count = 0;
             _pvt_net_aliases_list_t *l_gdb_groups = DAP_NEW(_pvt_net_aliases_list_t);
+            if (!l_gdb_groups) {
+                log_it(L_ERROR, "Memory allocation error in cmd_remove");
+                dap_list_free(l_net_returns);
+                return -1;
+            }
             l_gdb_groups->net = l_net_list[i];
             l_gdb_groups->group_aliases = dap_global_db_get_all_sync(l_gdb_groups->net->pub.gdb_nodes_aliases, &l_gdb_groups->count_aliases);
             l_gdb_groups->group_nodes = dap_global_db_get_all_sync(l_gdb_groups->net->pub.gdb_nodes, &l_gdb_groups->count_nodes);
@@ -6420,6 +6431,11 @@ static char **s_parse_items(const char *a_str, char a_delimiter, int *a_count, c
     }
 
     char **lines = DAP_CALLOC(l_count_temp, sizeof (void *));
+    if (!lines) {
+        log_it(L_ERROR, "Memoru allocation error in s_parse_items");
+        DAP_FREE(l_temp_str);
+        return NULL;
+    }
     for (int i = 0; i < l_count_temp; i++) {
         while (*s == 0) s++;
         lines[i] = strdup(s);
@@ -6665,7 +6681,10 @@ static byte_t *s_concat_meta (dap_list_t *a_meta, size_t *a_fullsize)
         if (l_counter >= l_part_power) {
             l_part_power = l_part * l_power++;
             l_buf = (byte_t *) DAP_REALLOC(l_buf, l_part_power);
-
+            if (!l_buf) {
+                log_it(L_ERROR, "Memory allocation error in s_concat_meta");
+                return NULL;
+            }
         }
         memcpy (&l_buf[l_index], l_tsd->data, strlen((char *)l_tsd->data));
     }
@@ -6685,6 +6704,10 @@ static uint8_t *s_concat_hash_and_mimetypes (dap_chain_hash_fast_t *a_chain_hash
     size_t l_len_meta_buf = *a_fullsize;
     *a_fullsize += sizeof (a_chain_hash->raw) + 1;
     uint8_t *l_fullbuf = DAP_CALLOC(*a_fullsize, 1);
+    if (!l_fullbuf) {
+        log_it(L_ERROR, "Memory allocation error in s_concat_hash_and_mimetypes");
+        return NULL;
+    }
     uint8_t *l_s = l_fullbuf;
 
     memcpy(l_s, a_chain_hash->raw, sizeof(a_chain_hash->raw));
@@ -6699,6 +6722,10 @@ static uint8_t *s_concat_hash_and_mimetypes (dap_chain_hash_fast_t *a_chain_hash
 static char *s_strdup_by_index (const char *a_file, const int a_index)
 {
     char *l_buf = DAP_CALLOC(a_index + 1, 1);
+    if (!l_buf) {
+        log_it(L_ERROR, "Memory allocation error in s_strdup_by_index");
+        return NULL;
+    }
     strncpy (l_buf, a_file, a_index);
     return l_buf;
 }

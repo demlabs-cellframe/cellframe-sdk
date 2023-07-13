@@ -800,6 +800,10 @@ struct sync_request *dap_stream_ch_chain_create_sync_request(dap_stream_ch_chain
 {
     dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
     struct sync_request *l_sync_request = DAP_NEW_Z(struct sync_request);
+    if (!l_sync_request) {
+        log_it(L_ERROR, "Memory allocation error in dap_stream_ch_chain_create_sync_request");
+        return NULL;
+    }
     *l_sync_request = (struct sync_request) {
             .worker         = a_ch->stream_worker->worker,
             .ch_uuid        = a_ch->uuid,
@@ -1034,6 +1038,10 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                       l_hash_item_hashv, l_hash_item);
                 if (!l_hash_item) {
                     l_hash_item = DAP_NEW_Z(dap_stream_ch_chain_hash_item_t);
+                    if (!l_hash_item) {
+                        log_it(L_ERROR, "Memory allocation error in s_stream_ch_packet_in");
+                        return;
+                    }
                     l_hash_item->hash = l_element->hash;
                     l_hash_item->size = l_element->size;
                     HASH_ADD_BYHASHVALUE(hh, l_ch_chain->remote_gdbs, hash, sizeof(l_hash_item->hash),
@@ -1245,6 +1253,10 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                       l_hash_item_hashv, l_hash_item);
                 if( ! l_hash_item ){
                     l_hash_item = DAP_NEW_Z(dap_stream_ch_chain_hash_item_t);
+                    if (!l_hash_item) {
+                        log_it(L_ERROR, "Memory allocation error in s_stream_ch_packet_in");
+                        return;
+                    }
                     l_hash_item->hash = l_element->hash;
                     l_hash_item->size = l_element->size;
                     HASH_ADD_BYHASHVALUE(hh, l_ch_chain->remote_atoms, hash, sizeof(dap_hash_fast_t),
@@ -1363,7 +1375,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                             dap_chain_hash_fast_to_str(&l_atom_hash, l_atom_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
                             log_it(L_INFO, "In: CHAIN pkt: atom hash %s (size %zd)", l_atom_hash_str, l_chain_pkt_data_size);
                         }
-                        dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_sync_in_chains_callback, l_sync_request);
+                        if (dap_proc_queue_add_callback_inter(a_ch->stream_worker->worker->proc_queue_input, s_sync_in_chains_callback, l_sync_request))
+                            log_it(L_ERROR, "System queue overflow with atom trying atom add. All following atoms will be rejected!");
                     } else {
                         log_it(L_WARNING, "Empty chain packet");
                         s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
@@ -1671,6 +1684,10 @@ void s_stream_ch_packet_out(dap_stream_ch_t *a_ch, void *a_arg)
                     l_skip_count++;
                 } else {
                     l_hash_item = DAP_NEW_Z(dap_stream_ch_chain_hash_item_t);
+                    if (!l_hash_item) {
+                        log_it(L_ERROR, "Memory allocation error in s_stream_ch_packet_out");
+                        return;
+                    }
                     l_hash_item->hash = l_obj->hash;
                     l_hash_item->size = l_obj->pkt->data_size;
                     HASH_ADD_BYHASHVALUE(hh, l_ch_chain->remote_gdbs, hash, sizeof(dap_chain_hash_fast_t),
@@ -1771,6 +1788,10 @@ void s_stream_ch_packet_out(dap_stream_ch_t *a_ch, void *a_arg)
                     }*/
                 }else{
                     l_hash_item = DAP_NEW_Z(dap_stream_ch_chain_hash_item_t);
+                    if (!l_hash_item) {
+                        log_it(L_ERROR, "Memory allocation error in s_stream_ch_packet_out");
+                        return;
+                    }
                     l_hash_item->hash = *l_ch_chain->request_atom_iter->cur_hash;
                     if(s_debug_more){
                         char l_atom_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];

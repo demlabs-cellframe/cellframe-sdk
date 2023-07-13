@@ -350,6 +350,10 @@ dap_sign_t ** dap_chain_datum_token_signs_parse(dap_chain_datum_token_t * a_datu
 dap_chain_datum_token_emission_t *dap_chain_datum_emission_create(uint256_t a_value, const char *a_ticker, dap_chain_addr_t *a_addr)
 {
     dap_chain_datum_token_emission_t *l_emission = DAP_NEW_Z(dap_chain_datum_token_emission_t);
+    if (!l_emission) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_datum_emission_create");
+        return NULL;
+    }
     l_emission->hdr.version = 3;
     l_emission->hdr.value_256 = a_value;
     strncpy(l_emission->hdr.ticker, a_ticker, DAP_CHAIN_TICKER_SIZE_MAX - 1);

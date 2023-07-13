@@ -87,6 +87,10 @@ static void* node_ping_proc(void *a_arg)
     DAP_DELETE(a_arg);
 
     char *host4 = DAP_NEW_SIZE(char, INET_ADDRSTRLEN);
+    if (!host4) {
+        log_it(L_ERROR, "Memory allocation error in node_ping_proc");
+        return NULL;
+    }
     struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = l_addr };
     const char* str_ip4 = inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), host4, INET_ADDRSTRLEN);
     if(!str_ip4){
@@ -156,6 +160,10 @@ static void* node_ping_proc(void *a_arg)
 int start_node_ping(pthread_t *a_thread, struct in_addr a_addr, int a_port, int a_count)
 {
     uint8_t *l_data = DAP_NEW_Z_SIZE(uint8_t, sizeof(struct in_addr) + 2 * sizeof(int));
+    if (!l_data) {
+        log_it(L_ERROR, "Memory allocation error in start_node_ping");
+        return -1;
+    }
     memcpy(l_data, &a_count, sizeof(int));
     memcpy(l_data + sizeof(int), &a_port, sizeof(int));
     memcpy(l_data + 2 * sizeof(int), &a_addr, sizeof(struct in_addr));
@@ -265,6 +273,12 @@ static void* node_ping_background_proc(void *a_arg)
     // allocate memory for best node addresses
     dap_chain_node_addr_t *l_node_addr_tmp;
     l_node_addr_tmp = DAP_NEW(dap_chain_node_addr_t);
+    if (!l_node_addr_tmp) {
+        log_it(L_ERROR, "Memory allocation error in node_ping_background_proc");
+        dap_list_free_full(l_node_list0, NULL);
+        DAP_DEL_Z(s_node_addr_ping);
+        return 0;
+    }
     memcpy(l_node_addr_tmp, s_node_addr_tr, sizeof(dap_chain_node_addr_t));
     DAP_DELETE(s_node_addr_tr);
     s_node_addr_tr = l_node_addr_tmp;
@@ -292,12 +306,22 @@ int dap_chain_node_ping_background_start(dap_chain_net_t *a_net, dap_list_t *a_n
     dap_list_t *l_node_list_tmp = a_node_list;
     while(l_node_list_tmp) {
         dap_chain_node_addr_t *l_addr = DAP_NEW(dap_chain_node_addr_t);
+        if (!l_addr) {
+            log_it(L_ERROR, "Memory allocation error in dap_chain_node_ping_background_start");
+            dap_list_free_full(l_node_list, NULL);
+            return -1;
+        }
         memcpy(l_addr, l_node_list_tmp->data, sizeof(dap_chain_node_addr_t));
         l_node_list = dap_list_append(l_node_list, l_addr);
         l_node_list_tmp = dap_list_next(l_node_list_tmp);
     }
     // start searching for better nodes
     uint8_t *l_arg = DAP_NEW_SIZE(uint8_t, sizeof(dap_chain_net_t*) + sizeof(dap_list_t*));
+    if (!l_arg) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_node_ping_background_start");
+        dap_list_free_full(l_node_list, NULL);
+        return -1;
+    }
     memcpy(l_arg, &a_net, sizeof(dap_chain_net_t*));
     memcpy(l_arg + sizeof(dap_chain_net_t*), &l_node_list, sizeof(dap_list_t*));
     pthread_create(&s_thread, NULL, node_ping_background_proc, l_arg);

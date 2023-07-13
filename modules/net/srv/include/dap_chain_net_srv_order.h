@@ -65,7 +65,8 @@ typedef struct dap_chain_net_srv_order
     uint256_t price; //  service price in datoshi, for SERV_CLASS_ONCE ONCE for the whole service, for SERV_CLASS_PERMANENT  for one unit.
     char price_ticker[DAP_CHAIN_TICKER_SIZE_MAX]; // Token ticker to pay for service
     uint32_t ext_size;
-    byte_t free_space[128];  // for future changes
+    uint64_t units;
+    byte_t free_space[120];  // for future changes
     uint8_t ext_n_sign[];
 } DAP_ALIGN_PACKED dap_chain_net_srv_order_t;
 
@@ -132,6 +133,7 @@ char *dap_chain_net_srv_order_create(dap_chain_net_t * a_net,
         dap_time_t a_expires, // TS when the service expires
         const uint8_t *a_ext,
         uint32_t a_ext_size,
+        uint64_t a_units,
         const char *a_region,
         int8_t a_continent_num,
         dap_enc_key_t *a_key
@@ -149,6 +151,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(
         dap_time_t a_expires, // TS when the service expires
         const uint8_t *a_ext,
         uint32_t a_ext_size,
+        uint64_t a_units,
         const char *a_region,
         int8_t a_continent_num,
         dap_enc_key_t *a_key

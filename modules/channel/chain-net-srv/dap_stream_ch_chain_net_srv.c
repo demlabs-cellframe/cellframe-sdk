@@ -379,7 +379,7 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
 
         dap_chain_net_srv_price_t *l_price_tmp;
         DL_FOREACH(a_grace->usage->service->pricelist, l_price_tmp) {
-            if (l_price_tmp && l_price_tmp->net->pub.id.uint64                 == a_grace->usage->net->pub.id.uint64
+            if (l_price_tmp && l_price_tmp->net->pub.id.uint64  == a_grace->usage->net->pub.id.uint64
                 && dap_strcmp(l_price_tmp->token, l_ticker)     == 0
                 && l_price_tmp->units_uid.enm                   == l_tx_out_cond->subtype.srv_pay.unit.enm
                 )//&& (l_price_tmp->value_datoshi/l_price_tmp->units)  < l_tx_out_cond->subtype.srv_pay.header.unit_price_max_datoshi)
@@ -412,7 +412,6 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
             dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
                                        a_grace->usage->receipt, a_grace->usage->receipt->size);
         }
-
         DAP_DELETE(a_grace->request);
         DAP_DELETE(a_grace);
 

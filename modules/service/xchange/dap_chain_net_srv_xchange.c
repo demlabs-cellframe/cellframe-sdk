@@ -130,6 +130,10 @@ int dap_chain_net_srv_xchange_init()
 
     dap_chain_net_srv_t* l_srv = dap_chain_net_srv_add(l_uid, "srv_xchange", &l_srv_callbacks);
     s_srv_xchange = DAP_NEW_Z(dap_chain_net_srv_xchange_t);
+    if (!s_srv_xchange) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_xchange_init");
+        return -1;
+    }
     l_srv->_internal = s_srv_xchange;
     s_srv_xchange->parent = l_srv;
     s_srv_xchange->enabled = false;
@@ -329,6 +333,10 @@ static dap_chain_datum_tx_receipt_t *s_xchange_receipt_create(dap_chain_net_srv_
 {
     uint32_t l_ext_size = sizeof(uint256_t) + DAP_CHAIN_TICKER_SIZE_MAX;
     uint8_t *l_ext = DAP_NEW_STACK_SIZE(uint8_t, l_ext_size);
+    if (!l_ext) {
+        log_it(L_ERROR, "Memory allocation error in s_xchange_receipt_create");
+        return NULL;
+    }
     memcpy(l_ext, &a_datoshi_buy, sizeof(uint256_t));
     strcpy((char *)&l_ext[sizeof(uint256_t)], a_price->token_buy);
     dap_chain_net_srv_price_unit_uid_t l_unit = { .uint32 = SERV_UNIT_UNDEFINED};
@@ -902,7 +910,7 @@ char *s_xchange_order_create(dap_chain_net_srv_xchange_price_t *a_price, dap_cha
     uint32_t l_ext_size = sizeof(dap_srv_xchange_order_ext_t);
     char *l_order_hash_str = dap_chain_net_srv_order_create(a_price->net, SERV_DIR_SELL, l_uid, *l_node_addr,
                                                             l_tx_hash, &a_price->datoshi_sell, l_unit, a_price->token_sell, 0,
-                                                            (uint8_t *)&l_ext, l_ext_size, NULL, 0, a_price->wallet_key);
+                                                            (uint8_t *)&l_ext, l_ext_size, 0, NULL, 0, a_price->wallet_key);
     return l_order_hash_str;
 }
 
@@ -915,6 +923,10 @@ char *s_xchange_order_create(dap_chain_net_srv_xchange_price_t *a_price, dap_cha
 dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a_net, dap_chain_net_srv_order_t *a_order,  bool a_ret_is_invalid)
 {
     dap_chain_net_srv_xchange_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_xchange_price_t);
+    if (!l_price) {
+        log_it(L_ERROR, "Memory allocation error in s_xchange_price_from_order");
+        return NULL;
+    }
     dap_srv_xchange_order_ext_t *l_ext = (dap_srv_xchange_order_ext_t *)a_order->ext_n_sign;
     strcpy(l_price->token_buy, l_ext->token_buy);
     l_price->datoshi_buy = l_ext->datoshi_buy;
@@ -1071,6 +1083,12 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
             }
             // Create the price
             dap_chain_net_srv_xchange_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_xchange_price_t);
+            if (!l_price) {
+                log_it(L_ERROR, "Memory allocation error in s_cli_srv_xchange_order");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Out of memory");
+                dap_chain_wallet_close(l_wallet);
+                return -1;
+            }
             l_price->wallet_str = dap_strdup(l_wallet_str);
             dap_stpcpy(l_price->token_sell, l_token_sell_str);
             l_price->net = l_net;

@@ -170,6 +170,10 @@ static void s_tx_header_print(dap_string_t *a_str_out, dap_chain_tx_hash_process
         l_declined = true;
     else {
         l_tx_data = DAP_NEW_Z(dap_chain_tx_hash_processed_ht_t);
+        if (!l_tx_data) {
+            log_it(L_ERROR, "Memory allocation error in s_tx_header_print");
+            return;
+        }
         l_tx_data->hash = *a_tx_hash;
         HASH_ADD(hh, *a_tx_data_ht, hash, sizeof(*a_tx_hash), l_tx_data);
         const char *l_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, a_tx_hash);
@@ -572,6 +576,10 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                         break;
                     }
                     l_sht = DAP_NEW_Z(dap_chain_tx_hash_processed_ht_t);
+                    if (!l_sht) {
+                        log_it(L_ERROR, "Memory allocation error in dap_db_history_filter");
+                        return NULL;
+                    }
                     l_sht->hash = l_tx_hash;
                     HASH_ADD(hh, a_tx_hash_processed, hash, sizeof(dap_chain_hash_fast_t), l_sht);
                     l_tx_num++;
@@ -698,6 +706,11 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
                     dap_chain_addr_t *l_addr_tmp = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet,
                             l_net->pub.id);
                     l_addr = DAP_NEW_SIZE(dap_chain_addr_t, sizeof(dap_chain_addr_t));
+                    if (!l_addr) {
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Out of memory!");
+                        log_it(L_ERROR, "Memory allocation error in com_ledger");
+                        return -1;
+                    }
                     memcpy(l_addr, l_addr_tmp, sizeof(dap_chain_addr_t));
                     dap_chain_wallet_close(l_wallet);
                 }
@@ -1328,6 +1341,11 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                 }else{
                     l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(dap_chain_addr_t);
                     l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
+                    if (!l_tsd) {
+                        log_it(L_ERROR, "Memory allocation error in cmd_decree");
+                        dap_list_free_full(l_tsd_list, NULL);
+                        return -1;
+                    }
                     l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE_WALLET;
                     l_tsd->size = sizeof(dap_chain_addr_t);
                     dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_param_addr_str);
@@ -1337,6 +1355,11 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
 
                 l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(uint256_t);
                 l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
+                if (!l_tsd) {
+                    log_it(L_ERROR, "Memory allocation error in cmd_decree");
+                    dap_list_free_full(l_tsd_list, NULL);
+                    return -1;
+                }
                 l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE;
                 l_tsd->size = sizeof(uint256_t);
                 *(uint256_t*)(l_tsd->data) = dap_cvt_str_to_uint256(l_param_value_str);
@@ -1389,6 +1412,11 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
 
                 l_total_tsd_size = sizeof(dap_tsd_t) + sizeof(uint256_t);
                 l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
+                if (!l_tsd) {
+                    log_it(L_ERROR, "Memory allocation error in cmd_decree");
+                    dap_list_free_full(l_tsd_list, NULL);
+                    return -1;
+                }
                 l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER;
                 l_tsd->size = sizeof(uint256_t);
                 *(uint256_t*)(l_tsd->data) = l_new_num_of_owners;
