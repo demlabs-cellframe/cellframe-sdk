@@ -55,6 +55,10 @@
 dap_chain_node_addr_t* dap_chain_node_gen_addr(dap_chain_net_id_t a_net_id)
 {
     dap_chain_node_addr_t *l_addr = DAP_NEW_Z(dap_chain_node_addr_t);
+    if (!l_addr) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_node_gen_addr");
+        return NULL;
+    }
     dap_chain_hash_fast_t l_hash;
     dap_hash_fast(&a_net_id, sizeof(dap_chain_net_id_t), &l_hash);
     // first 4 bytes is last 4 bytes of shard id hash
@@ -257,19 +261,25 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
                 if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX &&
                         a_chain->callback_get_minimum_fee){
                     uint256_t l_tx_fee = {};
-                    if (dap_chain_datum_tx_get_fee_value ((dap_chain_datum_tx_t*)l_datum->data, &l_tx_fee)) {
-                        log_it(L_WARNING, "Can't get fee value from tx");
-                        continue;
-                    }
-                    uint256_t l_min_fee = a_chain->callback_get_minimum_fee(a_chain);
-                    if (compare256(l_tx_fee, l_min_fee) < 0) {
-                        char *l_tx_fee_str = dap_chain_balance_to_coins(l_tx_fee);
-                        char *l_min_fee_str = dap_chain_balance_to_coins(l_min_fee);
-                        log_it(L_WARNING, "Fee %s is lower than minimum fee %s for tx %s",
-                               l_tx_fee_str, l_min_fee_str, l_objs[i].key);
-                        DAP_DELETE(l_tx_fee_str);
-                        DAP_DELETE(l_min_fee_str);
-                        continue;
+                    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
+                    if (dap_chain_datum_tx_get_fee_value (l_tx, &l_tx_fee) ||
+                            IS_ZERO_256(l_tx_fee)) {
+                        if (!dap_chain_ledger_tx_poa_signed(l_net->pub.ledger, l_tx)) {
+                            log_it(L_WARNING, "Can't get fee value from tx %s", l_objs[i].key);
+                            continue;
+                        } else
+                            log_it(L_DEBUG, "Process service tx without fee");
+                    } else {
+                        uint256_t l_min_fee = a_chain->callback_get_minimum_fee(a_chain);
+                        if (compare256(l_tx_fee, l_min_fee) < 0) {
+                            char *l_tx_fee_str = dap_chain_balance_to_coins(l_tx_fee);
+                            char *l_min_fee_str = dap_chain_balance_to_coins(l_min_fee);
+                            log_it(L_WARNING, "Fee %s is lower than minimum fee %s for tx %s",
+                                   l_tx_fee_str, l_min_fee_str, l_objs[i].key);
+                            DAP_DELETE(l_tx_fee_str);
+                            DAP_DELETE(l_min_fee_str);
+                            continue;
+                        }
                     }
                 }
 

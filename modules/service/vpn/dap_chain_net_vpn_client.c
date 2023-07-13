@@ -181,6 +181,10 @@ static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usa
     if(l_ch) { // Is present in hash table such destination address
         size_t l_ipv4_str_len = 0; //dap_strlen(a_ipv4_str);
         ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header) + l_ipv4_str_len);
+        if (!pkt_out) {
+            log_it(L_ERROR, "Memory allocation error in s_callback_client_success");
+            return -1;
+        }
 
         pkt_out->header.op_code = VPN_PACKET_OP_CODE_VPN_ADDR_REQUEST;
         //pkt_out->header.sock_id = l_stream->stream->events_socket->socket;

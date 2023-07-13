@@ -230,6 +230,10 @@ static bool s_event_broadcast_send(dap_chain_cs_dag_event_round_broadcast_t *a_a
 void dap_chain_cs_dag_event_broadcast(dap_chain_cs_dag_t *a_dag, dap_store_obj_t *a_obj, dap_global_db_context_t *a_context)
 {
     dap_chain_cs_dag_event_round_broadcast_t *l_arg = DAP_NEW(dap_chain_cs_dag_event_round_broadcast_t);
+    if (!l_arg) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_cs_dag_event_broadcast");
+        return;
+    }
     l_arg->dag = a_dag;
     l_arg->obj = dap_store_obj_copy(a_obj, 1);
     l_arg->context = a_context;

@@ -67,11 +67,11 @@ static dap_list_t *s_order_notify_callbacks = NULL;
 static void s_srv_order_callback_notify(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg);
 
 static dap_timerfd_t *s_timer_order_check_decree_sign = NULL;
-static void s_srv_order_check_decree_sign_timer(){
+static void s_srv_order_check_decree_sign_timer() {
     uint32_t l_unverified_orders_lifetime = dap_config_get_item_uint32_default(g_config, "srv", "unverified_orders_lifetime", 21600);
     dap_time_t l_time_cut_off = dap_time_now();
     l_time_cut_off -= l_unverified_orders_lifetime; // 6 Hours;
-    size_t l_net_count = 0;
+    uint16_t l_net_count = 0;
     dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
     for (uint16_t i = 0; i < l_net_count; i++) {
         if (dap_chain_net_get_role(l_net_list[i]).enums == NODE_ROLE_MASTER) {
@@ -217,6 +217,10 @@ bool dap_chain_net_srv_order_get_continent_region(dap_chain_net_srv_order_t *a_o
         size_t l_size = a_order_static->ext_size - sizeof(uint8_t) - 1;
         if(l_size > 0) {
             *a_region = DAP_NEW_SIZE(char, l_size);
+            if (!a_region) {
+                log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_order_get_continent_region");
+                return false;
+            }
             memcpy(*a_region, a_order_static->ext_n_sign + 1 + sizeof(uint8_t), l_size);
         }
         else
@@ -348,11 +352,19 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(dap_chain_net_t *a_ne
     dap_chain_net_srv_order_t *l_order;
     if (a_ext_size) {
         l_order = (dap_chain_net_srv_order_t *)DAP_NEW_Z_SIZE(void, sizeof(dap_chain_net_srv_order_t) + a_ext_size);
+        if (!l_order) {
+            log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_order_compose");
+            return NULL;
+        }
         memcpy(l_order->ext_n_sign, a_ext, a_ext_size);
         l_order->ext_size = a_ext_size;
     }
     else {
         l_order = DAP_NEW_Z(dap_chain_net_srv_order_t);
+        if (!l_order) {
+            log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_order_compose");
+            return NULL;
+        }
         dap_chain_net_srv_order_set_continent_region(&l_order, a_continent_num, a_region);
     }
 
@@ -407,6 +419,10 @@ char *dap_chain_net_srv_order_save(dap_chain_net_t *a_net, dap_chain_net_srv_ord
 
 dap_chain_net_srv_order_t *dap_chain_net_srv_order_read(byte_t *a_order, size_t a_order_size)
 {
+    if (NULL == a_order) {
+        log_it(L_ERROR, "Argumets are NULL for dap_chain_net_srv_order_read");
+        return NULL;
+    }
     dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)a_order;
     size_t l_order_size = dap_chain_net_srv_order_get_size((dap_chain_net_srv_order_t *)a_order);
     if (l_order->version > 3 || l_order->direction > SERV_DIR_SELL || l_order_size != a_order_size)
@@ -615,12 +631,12 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         }
         else
             dap_string_append_printf(a_str_out, "  ext:              0x0\n");
-        dap_string_append_printf(a_str_out, "  units:            %zu\n", a_order->units);
         dap_sign_t *l_sign = (dap_sign_t*)((byte_t*)a_order->ext_n_sign + a_order->ext_size);
         dap_hash_fast_t l_sign_pkey = {0};
         dap_sign_get_pkey_hash(l_sign, &l_sign_pkey);
         char *l_sign_pkey_hash_str = dap_hash_fast_to_str_new(&l_sign_pkey);
         dap_string_append_printf(a_str_out, "  pkey:             %s\n", l_sign_pkey_hash_str);
+        dap_string_append_printf(a_str_out, "  units:            %zu\n", a_order->units);
         DAP_DELETE(l_sign_pkey_hash_str);
         // order state
 /*        {
@@ -660,7 +676,6 @@ static void s_srv_order_callback_notify(dap_global_db_context_t *a_context, dap_
             }
         }
         bool l_allow_unsigned_orders = dap_config_get_item_bool_default(g_config, "srv", "allow_unsigned_orders", false);
-//        bool l_allow_unverified_orders = dap_config_get_item_bool_default(g_config, "srv", "allow_unverified_orders", false);
         if (a_obj->value && a_obj->type == DAP_DB$K_OPTYPE_ADD) {
             dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)a_obj->value;
             if (l_order->version != 3) {
@@ -688,6 +703,10 @@ static void s_srv_order_callback_notify(dap_global_db_context_t *a_context, dap_
 void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg)
 {
     struct dap_order_notify *l_notifier = DAP_NEW(struct dap_order_notify);
+    if (!l_notifier) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_order_add_notify_callback");
+        return;
+    }
     l_notifier->net = a_net;
     l_notifier->callback = a_callback;
     l_notifier->cb_arg = a_cb_arg;

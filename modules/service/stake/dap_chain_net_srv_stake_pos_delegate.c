@@ -93,6 +93,10 @@ int dap_chain_net_srv_stake_pos_delegate_init()
     );
 
     s_srv_stake = DAP_NEW_Z(dap_chain_net_srv_stake_t);
+    if (!s_srv_stake) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_stake_pos_delegate_init");
+        return -1;
+    }
     s_srv_stake->delegate_allowed_min = dap_chain_coins_to_balance("1.0");
 
     return 0;
@@ -251,6 +255,19 @@ dap_list_t *dap_chain_net_srv_stake_get_validators(dap_chain_net_id_t a_net_id, 
     return l_ret;
 }
 
+dap_chain_node_addr_t *dap_chain_net_srv_stake_key_get_node_addr(dap_chain_addr_t *a_signing_addr)
+{
+    assert(s_srv_stake);
+    if (!a_signing_addr)
+        NULL;
+
+    dap_chain_net_srv_stake_item_t *l_stake = NULL;
+    HASH_FIND(hh, s_srv_stake->itemlist, a_signing_addr, sizeof(dap_chain_addr_t), l_stake);
+    if (l_stake) // public key delegated for this network
+        return &l_stake->node_addr;
+    return NULL;
+}
+
 int dap_chain_net_srv_stake_mark_validator_active(dap_chain_addr_t *a_signing_addr, bool a_on_off)
 {
     assert(s_srv_stake);
@@ -327,6 +344,10 @@ int dap_chain_net_srv_stake_load_cache(dap_chain_net_t *a_net)
         dap_chain_net_srv_stake_cache_data_t *l_cache_data =
                 (dap_chain_net_srv_stake_cache_data_t *)l_store_obj[i].value;
         dap_chain_net_srv_stake_cache_item_t *l_cache = DAP_NEW_Z(dap_chain_net_srv_stake_cache_item_t);
+        if (!l_cache) {
+            log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_stake_load_cache");
+            return -1;
+        }
         l_cache->signing_addr   = l_cache_data->signing_addr;
         l_cache->tx_hash        = l_cache_data->tx_hash;
         HASH_ADD(hh, s_srv_stake->cache, tx_hash, sizeof(dap_hash_fast_t), l_cache);
@@ -518,6 +539,10 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
 
     l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(dap_hash_fast_t);
     l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
+    if (!l_tsd) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_stake_decree_approve");
+        return NULL;
+    }
     l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_TX_HASH;
     l_tsd->size = sizeof(dap_hash_fast_t);
     *(dap_hash_fast_t*)(l_tsd->data) = *a_stake_tx_hash;
@@ -525,6 +550,11 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
 
     l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(uint256_t);
     l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
+    if (!l_tsd) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_stake_decree_approve");
+        dap_list_free_full(l_tsd_list, NULL);
+        return NULL;
+    }
     l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_VALUE;
     l_tsd->size = sizeof(uint256_t);
     *(uint256_t*)(l_tsd->data) = l_tx_out_cond->header.value;
@@ -532,6 +562,11 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
 
     l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(dap_chain_addr_t);
     l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
+    if (!l_tsd) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_stake_decree_approve");
+        dap_list_free_full(l_tsd_list, NULL);
+        return NULL;
+    }
     l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNING_ADDR;
     l_tsd->size = sizeof(dap_chain_addr_t);
     *(dap_chain_addr_t*)(l_tsd->data) = l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr;
@@ -539,12 +574,22 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
 
     l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(dap_chain_node_addr_t);
     l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
+    if (!l_tsd) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_stake_decree_approve");
+        dap_list_free_full(l_tsd_list, NULL);
+        return NULL;
+    }
     l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNER_NODE_ADDR;
     l_tsd->size = sizeof(dap_chain_node_addr_t);
     *(dap_chain_node_addr_t*)(l_tsd->data) = l_tx_out_cond->subtype.srv_stake_pos_delegate.signer_node_addr;
     l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
 
     l_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, sizeof(dap_chain_datum_decree_t) + l_total_tsd_size);
+    if (!l_decree) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_stake_decree_approve");
+        dap_list_free_full(l_tsd_list, NULL);
+        return NULL;
+    }
     l_decree->decree_version = DAP_CHAIN_DATUM_DECREE_VERSION;
     l_decree->header.ts_created = dap_time_now();
     l_decree->header.type = DAP_CHAIN_DATUM_DECREE_TYPE_COMMON;
@@ -740,12 +785,21 @@ static dap_chain_datum_decree_t *s_stake_decree_invalidate(dap_chain_net_t *a_ne
 
     l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(dap_chain_addr_t);
     l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
+    if (!l_tsd) {
+        log_it(L_ERROR, "Memory allocation error in s_stake_decree_invalidate");
+        return NULL;
+    }
     l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNING_ADDR;
     l_tsd->size = sizeof(dap_chain_addr_t);
     *(dap_chain_addr_t*)(l_tsd->data) = l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr;
     l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
 
     l_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, sizeof(dap_chain_datum_decree_t) + l_total_tsd_size);
+    if (!l_decree) {
+        log_it(L_ERROR, "Memory allocation error in s_stake_decree_set_min_stake");
+        dap_list_free_full(l_tsd_list, NULL);
+        return NULL;
+    }
     l_decree->decree_version = DAP_CHAIN_DATUM_DECREE_VERSION;
     l_decree->header.ts_created = dap_time_now();
     l_decree->header.type = DAP_CHAIN_DATUM_DECREE_TYPE_COMMON;
@@ -755,6 +809,7 @@ static dap_chain_datum_decree_t *s_stake_decree_invalidate(dap_chain_net_t *a_ne
         l_chain =  dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_ANCHOR);
     if (!l_chain) {
         log_it(L_ERROR, "No chain supported anchor datum type");
+        dap_list_free_full(l_tsd_list, NULL);
         return NULL;
     }
     l_decree->header.common_decree_params.chain_id = l_chain->id;
@@ -805,12 +860,21 @@ static dap_chain_datum_decree_t *s_stake_decree_set_min_stake(dap_chain_net_t *a
 
     l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(uint256_t);
     l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
+    if (!l_tsd) {
+        log_it(L_ERROR, "Memory allocation error in s_stake_decree_set_min_stake");
+        return NULL;
+    }
     l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_VALUE;
     l_tsd->size = sizeof(uint256_t);
     *(uint256_t*)(l_tsd->data) = a_value;
     l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
 
     l_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, sizeof(dap_chain_datum_decree_t) + l_total_tsd_size);
+    if (!l_decree) {
+        log_it(L_ERROR, "Memory allocation error in s_stake_decree_set_min_stake");
+        dap_list_free_full(l_tsd_list, NULL);
+        return NULL;
+    }
     l_decree->decree_version = DAP_CHAIN_DATUM_DECREE_VERSION;
     l_decree->header.ts_created = dap_time_now();
     l_decree->header.type = DAP_CHAIN_DATUM_DECREE_TYPE_COMMON;
@@ -820,6 +884,7 @@ static dap_chain_datum_decree_t *s_stake_decree_set_min_stake(dap_chain_net_t *a
         l_chain =  dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_ANCHOR);
     if (!l_chain) {
         log_it(L_ERROR, "No chain supported anchor datum type");
+        dap_list_free_full(l_tsd_list, NULL);
         return NULL;
     }
     l_decree->header.common_decree_params.chain_id = l_chain->id;
@@ -1141,8 +1206,11 @@ static void s_srv_stake_print(dap_chain_net_srv_stake_item_t *a_stake, dap_strin
     dap_string_append_printf(a_string, "Pkey hash: %s\n"
                                         "\tStake value: %s\n"
                                         "\tTx hash: %s\n"
-                                        "\tNode addr: "NODE_ADDR_FP_STR"\n\n",
-                             l_pkey_hash_str, l_balance, l_tx_hash_str, NODE_ADDR_FP_ARGS_S(a_stake->node_addr));
+                                        "\tNode addr: "NODE_ADDR_FP_STR"\n"
+                                        "\tActive: %s\n"
+                                        "\n",
+                             l_pkey_hash_str, l_balance, l_tx_hash_str, NODE_ADDR_FP_ARGS_S(a_stake->node_addr),
+                             a_stake->is_active ? "true" : "false");
     DAP_DELETE(l_balance);
 }
 
@@ -1562,7 +1630,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
                     return -4;
                 }
-                dap_chain_net_srv_stake_item_t *l_stake = NULL, *l_tmp;
+                dap_chain_net_srv_stake_item_t *l_stake = NULL;
                 dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str);
                 if (l_cert_str) {
                     dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_str);
@@ -1582,18 +1650,27 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                     }
                 }
                 dap_string_t *l_reply_str = dap_string_new("");
+                size_t l_inactive_count = 0, l_total_count = 0;
                 if (l_stake)
                     s_srv_stake_print(l_stake, l_reply_str);
                 else
-                    HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp) {
-                        if (l_stake->net->pub.id.uint64 != l_net->pub.id.uint64) {
+                    for (l_stake = s_srv_stake->itemlist; l_stake; l_stake = l_stake->hh.next) {
+                        if (l_stake->net->pub.id.uint64 != l_net->pub.id.uint64)
                             continue;
-                        }
+                        l_total_count++;
+                        if (!l_stake->is_active)
+                            l_inactive_count++;
                         s_srv_stake_print(l_stake, l_reply_str);
                     }
                 if (!HASH_CNT(hh, s_srv_stake->itemlist)) {
                     dap_string_append(l_reply_str, "No keys found\n");
+                } else {
+                    dap_string_append_printf(l_reply_str, "Total keys count: %zu\n", l_total_count);
+                    dap_string_append_printf(l_reply_str, "Inactive keys count: %zu\n", l_inactive_count);
                 }
+
+
+
                 char *l_delegate_min_str = dap_chain_balance_to_coins(s_srv_stake->delegate_allowed_min);
                 char l_delegated_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
                 dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker, l_net->pub.native_ticker);
@@ -1615,6 +1692,11 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                     return -4;
                 }
                 struct get_tx_cond_pos_del_from_tx * l_args = DAP_NEW_Z(struct get_tx_cond_pos_del_from_tx);
+                if(!l_args) {
+                    log_it(L_ERROR, "Memory allocation error in s_cli_srv_stake");
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Out of memory");
+                    return -1;
+                }
                 dap_string_t * l_str_tmp = dap_string_new(NULL);
                 dap_hash_fast_t l_datum_hash;
                 dap_chain_datum_tx_t *l_datum_tx = NULL;

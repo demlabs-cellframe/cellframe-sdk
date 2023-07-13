@@ -47,6 +47,11 @@ typedef struct dap_chain_block_datum_index {
     UT_hash_handle hh;
 } dap_chain_block_datum_index_t;
 
+struct cs_blocks_hal_item {
+    dap_chain_hash_fast_t hash;
+    UT_hash_handle hh;
+};
+
 typedef struct dap_chain_cs_blocks_pvt
 {
     pthread_rwlock_t rwlock;
@@ -78,6 +83,7 @@ typedef struct dap_chain_cs_blocks_pvt
     pthread_rwlock_t datums_lock;
     uint64_t fill_timeout;
 
+    struct cs_blocks_hal_item *hal;
 } dap_chain_cs_blocks_pvt_t;
 
 #define PVT(a) ((dap_chain_cs_blocks_pvt_t *)(a)->_pvt )
@@ -107,7 +113,7 @@ static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_ite
 static dap_chain_datum_t *s_callback_datum_find_by_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_datum_hash,
                                                         dap_chain_hash_fast_t *a_block_hash, int *a_ret_code);
 
-static dap_chain_atom_ptr_t s_callback_block_find_by_tx_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_tx_hash);
+static dap_chain_atom_ptr_t s_callback_block_find_by_tx_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_tx_hash, size_t *a_block_size);
 
 static dap_chain_datum_t** s_callback_atom_get_datums(dap_chain_atom_ptr_t a_atom, size_t a_atom_size, size_t * a_datums_count);
 static dap_time_t s_chain_callback_atom_get_timestamp(dap_chain_atom_ptr_t a_atom) { return ((dap_chain_block_t *)a_atom)->hdr.ts_created; }
@@ -202,6 +208,10 @@ void dap_chain_cs_blocks_deinit()
 int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config)
 {
     dap_chain_cs_blocks_t * l_cs_blocks = DAP_NEW_Z(dap_chain_cs_blocks_t);
+    if (!l_cs_blocks) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_cs_blocks_new");
+        return -1;
+    }
     a_chain->_inheritor = l_cs_blocks;
     l_cs_blocks->chain = a_chain;
 
@@ -244,6 +254,10 @@ int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config
     l_cs_blocks->callback_new_block_move = s_new_block_move;
 
     dap_chain_cs_blocks_pvt_t *l_cs_blocks_pvt = DAP_NEW_Z(dap_chain_cs_blocks_pvt_t);
+    if (!l_cs_blocks_pvt) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_cs_blocks_new");
+        return -1;
+    }
     l_cs_blocks->_pvt = l_cs_blocks_pvt;
     pthread_rwlock_init(&l_cs_blocks_pvt->rwlock,NULL);
     pthread_rwlock_init(&l_cs_blocks_pvt->datums_lock, NULL);
@@ -267,6 +281,21 @@ int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config
 
     l_cs_blocks_pvt->fill_timeout = dap_config_get_item_uint64_default(a_chain_config, "blocks", "fill_timeout", 60) * 1000; // 1 min
     l_cs_blocks_pvt->blocks_count = 0;
+
+    uint16_t l_list_len = 0;
+    char **l_hard_accept_list = dap_config_get_array_str(a_chain_config, "blocks", "hard_accept_list", &l_list_len);
+    log_it(L_MSG, "HAL for blocks contains %d whitelisted events", l_list_len);
+    for (uint16_t i = 0; i < l_list_len; i++) {
+        struct cs_blocks_hal_item *l_hal_item = DAP_NEW_Z(struct cs_blocks_hal_item);
+        if (!l_hal_item){
+            log_it(L_ERROR, "Memory allocation error in dap_chain_cs_dag_new");
+            DAP_DEL_Z(l_cs_blocks_pvt);
+            DAP_DELETE(l_cs_blocks);
+            return -10;
+        }
+        dap_chain_hash_fast_from_str(l_hard_accept_list[i], &l_hal_item->hash);
+        HASH_ADD(hh, l_cs_blocks_pvt->hal, hash, sizeof(l_hal_item->hash), l_hal_item);
+    }
 
     return 0;
 }
@@ -460,6 +489,11 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
             char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
             dap_chain_datum_t ** l_datums = DAP_NEW_Z_SIZE(dap_chain_datum_t*,
                                                            sizeof(dap_chain_datum_t*)*l_datums_count);
+            if (!l_datums) {
+                log_it(L_ERROR, "Memory allocation error in s_cli_blocks");
+                dap_cli_server_cmd_set_reply_text(a_str_reply,"Out of memory in s_cli_blocks");
+                return -1;
+            }
             size_t l_datum_size = 0;
 
             dap_chain_datum_t * l_datum = (dap_chain_datum_t*) dap_global_db_get_sync(l_gdb_group_mempool, l_subcmd_str_arg ,
@@ -891,6 +925,10 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
         l_ret++;
         // Save datum hash -> block_hash link in hash table
         dap_chain_block_datum_index_t *l_datum_index = DAP_NEW_Z(dap_chain_block_datum_index_t);
+        if (!l_datum_index) {
+            log_it(L_ERROR, "Memory allocation error in s_add_atom_datums");
+            return 1;
+        }
         l_datum_index->ts_added = time(NULL);
         l_datum_index->block_cache = a_block_cache;
         l_datum_index->datum_hash = *l_datum_hash;
@@ -1034,8 +1072,10 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
     // verify hashes and consensus
     dap_chain_atom_verify_res_t ret = s_callback_atom_verify (a_chain, a_atom, a_atom_size);
 
-    if (ret == ATOM_MOVE_TO_THRESHOLD)
+    if (ret == ATOM_MOVE_TO_THRESHOLD) {
+        //log_it(L_ATT, "Booo!");
         ret = ATOM_REJECT; // TODO remove it when threshold will work
+    }
 
     if( ret == ATOM_ACCEPT){
         int l_consensus_check = s_add_atom_to_blocks(l_blocks, l_block_cache);
@@ -1082,11 +1122,23 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
     dap_chain_cs_blocks_pvt_t * l_blocks_pvt = PVT(l_blocks);
     assert(l_blocks_pvt);
     dap_chain_block_t * l_block = (dap_chain_block_t *) a_atom;
+    dap_chain_hash_fast_t l_block_hash;
 
     if(sizeof (l_block->hdr) >= a_atom_size){
         log_it(L_WARNING,"Size of block is %zd that is equal or less then block's header size %zd",a_atom_size,sizeof (l_block->hdr));
         return  ATOM_REJECT;
     }
+
+    // Hard accept list
+    if (l_blocks_pvt->hal) {
+        dap_hash_fast(l_block, a_atom_size, &l_block_hash);
+        struct cs_blocks_hal_item *l_hash_found = NULL;
+        HASH_FIND(hh, l_blocks_pvt->hal, &l_block_hash, sizeof(l_block_hash), l_hash_found);
+        if (l_hash_found) {
+            return ATOM_ACCEPT;
+        }
+    }
+
     size_t l_meta_count = 0;
     dap_chain_block_meta_t ** l_meta=  dap_chain_block_get_meta(l_block, a_atom_size, & l_meta_count);
     // Parse metadata
@@ -1095,7 +1147,6 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
     dap_chain_hash_fast_t l_block_anchor_hash = {0};
     uint64_t l_nonce = 0;
     uint64_t l_nonce2 = 0;
-    dap_chain_hash_fast_t l_block_hash;
 
     dap_chain_block_meta_extract(l_meta, l_meta_count,
                                         &l_block_prev_hash,
@@ -1124,7 +1175,9 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
                     &&!dap_hash_fast_is_blank(&l_block_hash))
                 log_it(L_NOTICE, "Accepting static genesis block");
             else{
-                log_it(L_WARNING,"Cant accept genesis block: seed mode not enabled or hash mismatch with static genesis block in configuration");
+                char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
+                dap_hash_fast_to_str(&l_block_hash, l_hash_str, sizeof(l_hash_str));
+                log_it(L_WARNING,"Cant accept genesis block: seed mode not enabled or hash mismatch with static genesis block %s in configuration", l_hash_str);
                 return ATOM_REJECT;
             }
         } else {
@@ -1154,6 +1207,10 @@ static size_t s_callback_atom_get_static_hdr_size(void)
 static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, bool a_with_treshold)
 {
     dap_chain_atom_iter_t * l_atom_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
+    if (!l_atom_iter) {
+        log_it(L_ERROR, "Memory allocation error in s_callback_atom_iter_create");
+        return NULL;
+    }
     l_atom_iter->chain = a_chain;
     l_atom_iter->cell_id = a_cell_id;
     l_atom_iter->with_treshold = a_with_treshold;
@@ -1246,7 +1303,7 @@ static dap_chain_datum_t *s_callback_datum_find_by_hash(dap_chain_t *a_chain, da
  * @param a_tx_hash
  * @return atom_ptr
  */
-static dap_chain_atom_ptr_t s_callback_block_find_by_tx_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_tx_hash)
+static dap_chain_atom_ptr_t s_callback_block_find_by_tx_hash(dap_chain_t * a_chain, dap_chain_hash_fast_t * a_tx_hash, size_t *a_block_size)
 {
     dap_chain_cs_blocks_t * l_cs_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_block_datum_index_t *l_datum_index = NULL;
@@ -1255,7 +1312,9 @@ static dap_chain_atom_ptr_t s_callback_block_find_by_tx_hash(dap_chain_t * a_cha
     pthread_rwlock_unlock(&PVT(l_cs_blocks)->datums_rwlock);
     if (!l_datum_index)
         return NULL;
-    return l_datum_index->block_cache;
+    if (a_block_size)
+        *a_block_size = l_datum_index->block_cache->block_size;
+    return l_datum_index->block_cache->block;
 }
 
 /**
@@ -1377,9 +1436,21 @@ static dap_chain_atom_ptr_t *s_callback_atom_iter_get_lasts( dap_chain_atom_iter
             *a_links_size = 1;
         if (a_lasts_size_ptr) {
             *a_lasts_size_ptr = DAP_NEW_Z(size_t);
+            if (!a_lasts_size_ptr) {
+                log_it(L_ERROR, "Memory allocation error in s_callback_atom_iter_get_lasts");
+                return NULL;
+            }
             (*a_lasts_size_ptr)[0] = l_block_cache_last->block_size;
         }
         dap_chain_atom_ptr_t *l_ret = DAP_NEW_Z(dap_chain_atom_ptr_t);
+        if (!l_ret) {
+                log_it(L_ERROR, "Memory allocation error in s_callback_atom_iter_get_lasts");
+                return NULL;
+            }
+        if (!l_ret) {
+            log_it(L_ERROR, "Memory allocation error in s_callback_atom_iter_get_lasts");
+            return NULL;
+        }
         l_ret[0] = l_block_cache_last->block;
         return l_ret;
     }
@@ -1408,6 +1479,10 @@ static void s_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_iter)
 static dap_chain_datum_iter_t *s_chain_callback_datum_iter_create(dap_chain_t *a_chain)
 {
     dap_chain_datum_iter_t *l_ret = DAP_NEW_Z(dap_chain_datum_iter_t);
+    if (!l_ret) {
+        log_it(L_ERROR, "Memory allocation error in s_chain_callback_datum_iter_create");
+        return NULL;
+    }
     l_ret->chain = a_chain;
     return l_ret;
 }

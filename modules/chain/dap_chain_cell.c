@@ -101,6 +101,10 @@ dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_c
         return l_cell;
     }
     l_cell = DAP_NEW_Z(dap_chain_cell_t);
+    if ( !l_cell ) {
+        pthread_rwlock_unlock(&a_chain->cell_rwlock);
+        return log_it(L_ERROR, "Memory allocation error in dap_chain_cell_create_fill, errno=%d", errno), NULL;
+    }
     l_cell->chain = a_chain;
     l_cell->id.uint64 = a_cell_id.uint64;
     l_cell->file_storage_path = dap_strdup_printf("%0"DAP_UINT64_FORMAT_x".dchaincell", l_cell->id.uint64);
@@ -201,17 +205,17 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
         return -3;
     }
     unsigned long q = 0;
-    while (!feof(l_cell_file)) {
-        uint64_t l_el_size = 0;
-        size_t l_read = fread(&l_el_size, 1, sizeof(l_el_size), l_cell_file);
+    size_t l_read;
+    uint64_t l_el_size = 0;
+    while ((l_read = fread(&l_el_size, 1, sizeof(l_el_size), l_cell_file)) && !feof(l_cell_file)) {
         if (l_read != sizeof(l_el_size) || l_el_size == 0) {
-            log_it(L_ERROR, "Corrupted element size, chain %s is damaged", l_file_path);
+            log_it(L_ERROR, "Corrupted element size %zu, chain %s is damaged", l_el_size, l_file_path);
             ret = -4;
             break;
         }
         dap_chain_atom_ptr_t l_element = DAP_NEW_SIZE(dap_chain_atom_ptr_t, l_el_size);
         if (!l_element) {
-            log_it(L_ERROR, "Out of memory");
+            log_it(L_ERROR, "Memory allocation error in dap_chain_cell_load, errno=%d", errno);
             ret = -5;
             break;
         }

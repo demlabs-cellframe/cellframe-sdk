@@ -319,6 +319,10 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
     } else {
         /* Shift it to other worker context */
         tun_socket_msg_t* l_msg = DAP_NEW_Z(tun_socket_msg_t);
+        if (!l_msg) {
+            log_it(L_ERROR, "Memory allocation error in s_tun_client_send_data");
+            return false;
+        }
         l_msg->type             = TUN_SOCKET_MSG_CH_VPN_SEND;
         l_msg->ch_vpn           = l_ch_vpn_info->ch_vpn;
         l_msg->esocket          = l_ch_vpn_info->esocket;
@@ -394,6 +398,11 @@ static void s_tun_recv_msg_callback(dap_events_socket_t * a_esocket_queue, void 
                 log_it(L_WARNING, "Already assigned address %s on tun sock #%u", l_addrbuf, l_tun_sock->worker_id);
             }else{
                 l_new_info                      = DAP_NEW_Z(dap_chain_net_srv_ch_vpn_info_t);
+                if (!l_new_info) {
+                    log_it (L_ERROR, "Memory allocation error in s_tun_recv_msg_callback");
+                    DAP_DELETE(l_msg);
+                    return;
+                }
                 l_new_info->ch_vpn              = l_msg->ch_vpn;
                 l_new_info->addr_ipv4           = l_msg->ip_assigment.addr;
                 l_new_info->queue_msg           = s_tun_sockets_queue_msg[l_msg->ip_assigment.worker_id];
@@ -467,6 +476,10 @@ static void s_tun_recv_msg_callback(dap_events_socket_t * a_esocket_queue, void 
 static void s_tun_send_msg_ip_assigned(uint32_t a_worker_own_id, uint32_t a_worker_id, dap_chain_net_srv_ch_vpn_t * a_ch_vpn, struct in_addr a_addr )
 {
     struct tun_socket_msg * l_msg = DAP_NEW_Z(struct tun_socket_msg);
+    if (!l_msg) {
+        log_it (L_ERROR, "Memory allocation error in s_tun_send_msg_ip_assigned");
+        return;
+    }
     l_msg->type = TUN_SOCKET_MSG_IP_ASSIGNED;
     l_msg->ch_vpn = a_ch_vpn;
     l_msg->esocket = a_ch_vpn->ch->stream->esocket;
@@ -504,6 +517,10 @@ static void s_tun_send_msg_ip_assigned_all(uint32_t a_worker_own_id, dap_chain_n
 static void s_tun_send_msg_ip_unassigned(uint32_t a_worker_own_id, uint32_t a_worker_id, dap_chain_net_srv_ch_vpn_t * a_ch_vpn, struct in_addr a_addr)
 {
     struct tun_socket_msg * l_msg = DAP_NEW_Z(struct tun_socket_msg);
+    if (!l_msg) {
+        log_it (L_ERROR, "Memory allocation error in s_tun_send_msg_ip_unassigned");
+        return;
+    }
     l_msg->type = TUN_SOCKET_MSG_IP_UNASSIGNED;
     l_msg->ch_vpn = a_ch_vpn;
     l_msg->ip_unassigment.addr = a_addr;
@@ -549,6 +566,10 @@ static void s_tun_send_msg_esocket_reassigned_inter(uint32_t a_worker_own_id, da
                                                    dap_events_socket_uuid_t a_esocket_uuid, struct in_addr a_addr)
 {
     struct tun_socket_msg * l_msg = DAP_NEW_Z(struct tun_socket_msg);
+    if (!l_msg) {
+        log_it (L_ERROR, "Memory allocation error in s_tun_send_msg_esocket_reassigned_inter");
+        return;
+    }
     l_msg->type = TUN_SOCKET_MSG_ESOCKET_REASSIGNED ;
     l_msg->ch_vpn = a_ch_vpn;
     l_msg->esocket_reassigment.addr = a_addr;
@@ -801,6 +822,10 @@ lb_err:
 static int s_vpn_tun_init()
 {
     s_raw_server=DAP_NEW_Z(vpn_local_network_t);
+    if (!s_raw_server) {
+        log_it(L_ERROR, "Memory allocation error in s_vpn_tun_init");
+        return -1;
+    }
     pthread_rwlock_init(&s_raw_server->rwlock, NULL);
     pthread_mutex_init(&s_raw_server->pkt_out_mutex,NULL);
     pthread_mutex_init(&s_tun_sockets_mutex_started, NULL);
@@ -826,6 +851,10 @@ static int s_vpn_service_create(dap_config_t * g_config)
     dap_chain_net_srv_t* l_srv = dap_chain_net_srv_add(l_uid, "srv_vpn", &l_srv_callbacks);
 
     dap_chain_net_srv_vpn_t* l_srv_vpn  = DAP_NEW_Z( dap_chain_net_srv_vpn_t);
+    if(!l_srv_vpn) {
+        log_it(L_ERROR, "Memory allocation error in s_vpn_service_create");
+        return -1;
+    }
     l_srv->_internal = l_srv_vpn;
     l_srv_vpn->parent = l_srv;
 
@@ -915,8 +944,17 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
     usage_client_t * l_usage_client = NULL;
 
     l_usage_client = DAP_NEW_Z(usage_client_t);
+    if (!l_usage_client) {
+        log_it(L_ERROR, "Memory allocation error in s_callback_response_success");
+        return -1;
+    }
     l_usage_client->usage_id = a_usage_id;
     l_usage_client->receipt = DAP_NEW_SIZE(dap_chain_datum_tx_receipt_t,l_receipt_size);
+    if (!l_usage_client->receipt) {
+        log_it(L_ERROR, "Memory allocation error in s_callback_response_success");
+        DAP_DEL_Z(l_usage_client);
+        return -1;
+    }
 
     memcpy(l_usage_client->receipt, l_receipt, l_receipt_size);
 
@@ -1076,7 +1114,7 @@ void s_ch_vpn_new(dap_stream_ch_t* a_ch, void* a_arg)
 
     dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_ch->stream->session->_inheritor;
 
-    l_srv_vpn->usage_id = l_srv_session->usage_active?  l_srv_session->usage_active->id : 0;
+    l_srv_vpn->usage_id = l_srv_session->usage_active ?  l_srv_session->usage_active->id : 0;
 
     if( l_srv_vpn->usage_id) {
         // So complicated to update usage client to be sure that nothing breaks it
@@ -1088,7 +1126,6 @@ void s_ch_vpn_new(dap_stream_ch_t* a_ch, void* a_arg)
         }
         pthread_rwlock_unlock(&s_clients_rwlock);
     }
-
 }
 
 
@@ -1131,6 +1168,11 @@ static void s_ch_vpn_delete(dap_stream_ch_t* a_ch, void* arg)
     if ( l_is_unleased ){ // If unleased
         log_it(L_DEBUG, "Unlease address %s and store in treshold", inet_ntoa(l_ch_vpn->addr_ipv4));
         dap_chain_net_srv_vpn_item_ipv4_t * l_item_unleased = DAP_NEW_Z(dap_chain_net_srv_vpn_item_ipv4_t);
+        if (!l_is_unleased) {
+            log_it(L_ERROR, "Memory allocation error in s_ch_vpn_delete");
+            pthread_rwlock_unlock(&s_clients_rwlock);
+            return;
+        }
         l_item_unleased->addr.s_addr = l_ch_vpn->addr_ipv4.s_addr;
         l_item_unleased->next = l_srv_vpn->ipv4_unleased;
         l_srv_vpn->ipv4_unleased = l_item_unleased;
@@ -1146,6 +1188,7 @@ static void s_ch_vpn_delete(dap_stream_ch_t* a_ch, void* arg)
     l_ch_vpn->ch = NULL;
     l_ch_vpn->net_srv = NULL;
     l_ch_vpn->is_allowed =false;
+    DAP_DEL_Z(a_ch->internal);
 }
 
 /**
@@ -1162,20 +1205,19 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
     bool l_issue_new_receipt = false;
     // Check if there are time limits
 
-    if (a_usage->is_free)
+    if (a_usage->is_free || !a_usage->receipt || !a_usage->is_active)
         return;
 
     if (a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_DAY ||
         a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_SEC){
         time_t l_current_limit_ts = 0;
-        if ( a_usage->receipt){
-            switch( a_usage->receipt->receipt_info.units_type.enm){
+
+        switch( a_usage->receipt->receipt_info.units_type.enm){
             case SERV_UNIT_DAY:{
                 l_current_limit_ts = (time_t)a_usage->receipt->receipt_info.units*24*3600;
             } break;
             case SERV_UNIT_SEC:{
                 l_current_limit_ts = (time_t)a_usage->receipt->receipt_info.units;
-            }
             }
         }
 
@@ -1189,7 +1231,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
 
         if( a_srv_session->limits_ts <= 0 && !a_usage->is_grace){
             log_it(L_INFO, "Limits by timestamp are over. Switch to the next receipt");
-            DAP_DELETE(a_usage->receipt);
+            DAP_DEL_Z(a_usage->receipt);
             a_usage->receipt = a_usage->receipt_next;
             a_usage->receipt_next = NULL;
             if ( a_usage->receipt){ // If there is next receipt add the time and request the next receipt
@@ -1246,7 +1288,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
 
         if (a_srv_session->limits_bytes <= 0  && !a_usage->is_grace){
             log_it(L_INFO, "Limits by traffic is over. Switch to the next receipt");
-            DAP_DELETE(a_usage->receipt);
+            DAP_DEL_Z(a_usage->receipt);
             a_usage->receipt = a_usage->receipt_next;
             a_usage->receipt_next = NULL;
             if ( a_usage->receipt){ // If there is next receipt add the time and request the next receipt
@@ -1299,6 +1341,10 @@ static void send_pong_pkt(dap_stream_ch_t* a_ch)
 {
 //    log_it(L_DEBUG,"---------------------------------- PONG!");
     ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header));
+    if (!pkt_out) {
+        log_it(L_ERROR, "Memory allocation error in send_pong_pkt");
+        return;
+    }
     pkt_out->header.op_code = VPN_PACKET_OP_CODE_PONG;
 
     dap_stream_ch_pkt_write_unsafe(a_ch, 'd', pkt_out,
@@ -1323,6 +1369,10 @@ static void s_ch_packet_in_vpn_address_request(dap_stream_ch_t* a_ch, dap_chain_
     if ( l_ch_vpn->addr_ipv4.s_addr ) {
         log_it(L_WARNING, "IP address is already leased");
         ch_vpn_pkt_t* pkt_out           = DAP_NEW_STACK_SIZE(ch_vpn_pkt_t, sizeof(pkt_out->header));
+        if (!pkt_out) {
+            log_it(L_ERROR, "Memory allocation error in send_pong_pkt");
+            return;
+        }
         pkt_out->header.op_code         = VPN_PACKET_OP_CODE_PROBLEM;
         pkt_out->header.sock_id         = s_raw_server->tun_fd;
         pkt_out->header.usage_id        = a_usage->id;

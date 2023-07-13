@@ -247,13 +247,13 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
 
         const char* l_region_str = NULL;
         dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-region", &l_region_str);
+
         const char* l_continent_str = NULL;
         dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-continent", &l_continent_str);
+        int8_t l_continent_num = dap_chain_net_srv_order_continent_to_num(l_continent_str);
 
         const char *l_units_str = NULL;
         dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-units", &l_units_str);
-
-        int8_t l_continent_num = dap_chain_net_srv_order_continent_to_num(l_continent_str);
 
         char *l_order_hash_hex_str;
         char *l_order_hash_base58_str;
@@ -651,10 +651,12 @@ static bool s_fee_verificator_callback(dap_ledger_t *a_ledger, UNUSED_ARG dap_ch
             return false;
         if (dap_hash_fast_is_blank(&l_tx_in_cond->header.tx_prev_hash))
             return false;
-        const dap_chain_block_cache_t *l_block_cache = l_chain->callback_block_find_by_tx_hash(l_chain, &l_tx_in_cond->header.tx_prev_hash);
-        if (!l_block_cache)
+        size_t l_block_size = 0;
+        dap_chain_block_t *l_block = (dap_chain_block_t *)l_chain->callback_block_find_by_tx_hash(
+                                                    l_chain, &l_tx_in_cond->header.tx_prev_hash, &l_block_size);
+        if (!l_block)
             continue;
-        dap_sign_t *l_sign_block = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
+        dap_sign_t *l_sign_block = dap_chain_block_sign_get(l_block, l_block_size, 0);
         if (!l_sign_block)
             return false;
 
@@ -808,6 +810,10 @@ int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_
     char **l_pricelist = dap_config_get_array_str(g_config, a_config_section, "pricelist", &l_pricelist_count);
     for (uint16_t i = 0; i < l_pricelist_count; i++) {
         dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
+        if (!l_price) {
+            log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_parse_pricelist");
+            return ret;
+        }
         short l_iter = 0;
         char *l_ctx;
         for (char *l_price_token = strtok_r(l_pricelist[i], ":", &l_ctx); l_price_token || l_iter == 6; l_price_token = strtok_r(NULL, ":", &l_ctx), ++l_iter) {
@@ -903,16 +909,30 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
     HASH_FIND(hh, s_srv_list, &l_uid, sizeof(l_uid), l_sdata);
     if(l_sdata == NULL) {
         l_srv = DAP_NEW_Z(dap_chain_net_srv_t);
+        if (!l_srv) {
+            log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_add");
+            pthread_mutex_unlock(&s_srv_list_mutex);
+            return NULL;
+        }
         l_srv->uid.uint64 = a_uid.uint64;
         if (a_callbacks)
             l_srv->callbacks = *a_callbacks;
         pthread_mutex_init(&l_srv->banlist_mutex, NULL);
         l_sdata = DAP_NEW_Z(service_list_t);
+        if (!l_sdata) {
+            log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_add");
+            DAP_DEL_Z(l_srv);
+            pthread_mutex_unlock(&s_srv_list_mutex);
+            return NULL;
+        }
         l_sdata->uid = l_uid;
         strncpy(l_sdata->name, a_config_section, sizeof(l_sdata->name) - 1);
         l_sdata->srv = l_srv;
         dap_chain_net_srv_price_apply_from_my_order(l_srv, a_config_section);
+//        dap_chain_net_srv_parse_pricelist(l_srv, a_config_section);
         HASH_ADD(hh, s_srv_list, uid, sizeof(l_srv->uid), l_sdata);
+        if (l_srv->pricelist)
+            dap_chain_ledger_tx_add_notify(l_srv->pricelist->net->pub.ledger, dap_stream_ch_chain_net_srv_tx_cond_added_cb, NULL);
     }else{
         log_it(L_ERROR, "Already present service with 0x%016"DAP_UINT64_FORMAT_X, a_uid.uint64);
     }

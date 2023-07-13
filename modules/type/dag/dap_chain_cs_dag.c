@@ -226,7 +226,16 @@ static void s_timer_process_callback(void *a_arg)
 int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
     dap_chain_cs_dag_t * l_dag = DAP_NEW_Z(dap_chain_cs_dag_t);
+    if (!l_dag){
+        log_it(L_ERROR, "Memory allocation error in dap_chain_cs_dag_new");
+        return -1;
+    }
     l_dag->_pvt = DAP_NEW_Z(dap_chain_cs_dag_pvt_t);
+    if (!l_dag->_pvt){
+        log_it(L_ERROR, "Memory allocation error in dap_chain_cs_dag_new");
+        DAP_DELETE(l_dag);
+        return -1;
+    }
     l_dag->chain = a_chain;
 
     pthread_mutexattr_t l_mutex_attr;
@@ -288,9 +297,16 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
         }
     }
     uint16_t l_list_len = 0;
-    char **l_hard_accept_list = dap_config_get_array_str(a_chain_cfg, "dag", "hard_accept_list", &l_list_len);
+    char **l_hard_accept_list = dap_config_get_array_str(a_chain_cfg, "dag-poa", "hard_accept_list", &l_list_len);
+    log_it(L_MSG, "HAL contains %d whitelisted events", l_list_len);
     for (uint16_t i = 0; i < l_list_len; i++) {
         dap_chain_cs_dag_hal_item_t *l_hal_item = DAP_NEW_Z(dap_chain_cs_dag_hal_item_t);
+        if (!l_hal_item){
+            log_it(L_ERROR, "Memory allocation error in dap_chain_cs_dag_new");
+            DAP_DEL_Z(l_dag->_pvt);
+            DAP_DELETE(l_dag);
+            return -1;
+        }
         dap_chain_hash_fast_from_str(l_hard_accept_list[i], &l_hal_item->hash);
         HASH_ADD(hh, l_dag->hal, hash, sizeof(l_hal_item->hash), l_hal_item);
     }
@@ -335,6 +351,11 @@ static void s_dap_chain_cs_dag_threshold_free(dap_chain_cs_dag_t *a_dag) {
     HASH_ITER(hh, l_pvt->events_treshold, l_current, l_tmp) {
         if (l_current->ts_added < l_time_cut_off) {
             dap_chain_cs_dag_blocked_t *l_el = DAP_NEW(dap_chain_cs_dag_blocked_t);
+            if (!l_el) {
+                log_it(L_ERROR, "Memory allocation error in s_dap_chain_cs_dag_threshold_free");
+                pthread_mutex_unlock(&l_pvt->events_mutex);
+                return;
+            }
             l_el->hash = l_current->hash;
             HASH_ADD(hh, l_pvt->removed_events_from_treshold, hash, sizeof(dap_chain_hash_fast_t), l_el);
             char *l_hash_dag = dap_hash_fast_to_str_new(&l_current->hash);
@@ -477,6 +498,10 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *) a_atom;
 
     dap_chain_cs_dag_event_item_t * l_event_item = DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
+    if (!l_event_item) {
+        log_it(L_ERROR, "Memory allocation error in s_chain_callback_atom_add");
+        return ATOM_REJECT;
+    }
     pthread_mutex_t *l_events_mutex = &PVT(l_dag)->events_mutex;
     l_event_item->event = l_event;
     l_event_item->event_size = a_atom_size;
@@ -486,10 +511,10 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     dap_chain_cs_dag_event_calc_hash(l_event, a_atom_size, &l_event_hash);
     l_event_item->hash = l_event_hash;
 
-    char * l_event_hash_str = NULL;
     if(s_debug_more) {
-        l_event_hash_str = dap_chain_hash_fast_to_str_new(&l_event_item->hash);
-        log_it(L_DEBUG, "Processing event: %s... (size %zd)", l_event_hash_str,a_atom_size);
+        char l_event_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
+        dap_chain_hash_fast_to_str(&l_event_item->hash, l_event_hash_str, sizeof(l_event_hash_str));
+        log_it(L_DEBUG, "Processing event: %s ... (size %zd)", l_event_hash_str,a_atom_size);
     }
 
     pthread_mutex_lock(l_events_mutex);
@@ -511,7 +536,6 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     case ATOM_PASS:
         if(s_debug_more) {
             log_it(L_DEBUG, "Atom already present");
-            DAP_DELETE(l_event_hash_str);
         }
         DAP_DELETE(l_event_item);
         return ret;
@@ -573,8 +597,6 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         DAP_DELETE(l_event_item); // Neither added, nor freed
         break;
     }
-    if(s_debug_more)
-        DAP_DELETE(l_event_hash_str);
     return ret;
 }
 
@@ -616,8 +638,10 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
 }
 
 static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_datum_t *a_datum) {
-    if (!a_datum || !a_chain)
-        log_it(L_ERROR, "Datum or chain in mempool processing comes NULL");
+    if (!a_datum || !a_chain){
+        log_it(L_ERROR, "Datum or chain in mempool processing comes NULL in s_chain_callback_datums_pool_proc");
+        return false;
+    }
 
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(a_chain);
     /* If datum passes thru rounds, let's check if it wasn't added before */
@@ -785,11 +809,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_
             log_it(L_WARNING, "Event from another chain, possible corrupted event");
         return ATOM_REJECT;
     }
-    if (!s_event_verify_size(l_event, a_atom_size)) {
-        if (s_debug_more)
-            log_it(L_WARNING,"Event size not equal to expected");
-        return  ATOM_REJECT;
-    }
+
     // Hard accept list
     if (l_dag->hal) {
         dap_chain_hash_fast_t l_event_hash = { };
@@ -802,6 +822,12 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_
             return ATOM_ACCEPT;
         }
     }
+    if (!s_event_verify_size(l_event, a_atom_size)) {
+        if (s_debug_more)
+            log_it(L_WARNING,"Event size not equal to expected");
+        return  ATOM_REJECT;
+    }
+
     // genesis or seed mode
     if (l_event->header.hash_count == 0){
         if(s_seed_mode && !PVT(l_dag)->events){
@@ -896,6 +922,10 @@ void s_dag_events_lasts_process_new_last_event(dap_chain_cs_dag_t * a_dag, dap_c
 
     //add self
     dap_chain_cs_dag_event_item_t * l_event_last= DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
+    if (!l_event_last) {
+        log_it(L_ERROR, "Memory allocation error in s_dag_events_lasts_process_new_last_event");
+        return;
+    }
     l_event_last->ts_added = a_event_item->ts_added;
     l_event_last->event = a_event_item->event;
     l_event_last->event_size = a_event_item->event_size;
@@ -1012,6 +1042,10 @@ static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create_from(dap_chain_t
                                                                      dap_chain_atom_ptr_t a_atom, size_t a_atom_size)
 {
     dap_chain_atom_iter_t * l_atom_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
+    if (!l_atom_iter) {
+        log_it(L_ERROR, "Memory allocation error in s_chain_callback_atom_iter_create_from");
+        return NULL;
+    }
     l_atom_iter->chain = a_chain;
     l_atom_iter->cur = a_atom;
     l_atom_iter->cur_size = a_atom_size;
@@ -1037,6 +1071,10 @@ static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create_from(dap_chain_t
 static dap_chain_atom_iter_t *s_chain_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, bool a_with_treshold)
 {
     dap_chain_atom_iter_t * l_atom_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
+    if (!l_atom_iter) {
+        log_it(L_ERROR, "Memory allocation error in s_chain_callback_atom_iter_create");
+        return NULL;
+    }
     l_atom_iter->chain = a_chain;
     l_atom_iter->cell_id = a_cell_id;
     l_atom_iter->with_treshold = a_with_treshold;
@@ -1063,6 +1101,10 @@ static dap_chain_datum_t **s_chain_callback_atom_get_datum(dap_chain_atom_ptr_t 
         return NULL;
 
     dap_chain_datum_t **l_datums = DAP_NEW_Z(dap_chain_datum_t*);
+    if (!l_datums) {
+        log_it(L_ERROR, "Memory allocation error in s_chain_callback_atom_get_datum");
+        return NULL;
+    }
     if (a_datums_count)
         *a_datums_count = 1;
     l_datums[0] = l_datum;
@@ -1174,9 +1216,18 @@ static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_links( dap_chain_ato
         if ( l_event->header.hash_count > 0){
             dap_chain_atom_ptr_t * l_ret = DAP_NEW_Z_SIZE(dap_chain_atom_ptr_t,
                                                sizeof (dap_chain_atom_ptr_t) * l_event->header.hash_count );
+            if (!l_ret) {
+                log_it(L_ERROR, "Memory allocation error in s_chain_callback_atom_iter_get_links");
+                return NULL;
+            }
             if( a_links_size)
                 *a_links_size = l_event->header.hash_count;
             *a_links_size_array = DAP_NEW_Z_SIZE(size_t, l_event->header.hash_count*sizeof (size_t));
+            if (!a_links_size_array) {
+                log_it(L_ERROR, "Memory allocation error in s_chain_callback_atom_iter_get_links");
+                DAP_DEL_Z(l_ret);
+                return NULL;
+            }
             for (uint16_t i = 0; i < l_event->header.hash_count; i++){
                 dap_chain_cs_dag_event_item_t * l_link_item = NULL;
                 dap_chain_hash_fast_t * l_link_hash = (dap_chain_hash_fast_t *)
@@ -1319,6 +1370,10 @@ static void s_chain_callback_atom_iter_delete(dap_chain_atom_iter_t * a_atom_ite
 static dap_chain_datum_iter_t *s_chain_callback_datum_iter_create(dap_chain_t *a_chain)
 {
     dap_chain_datum_iter_t *l_ret = DAP_NEW_Z(dap_chain_datum_iter_t);
+    if (!l_ret) {
+        log_it(L_ERROR, "Memory allocation error in s_chain_callback_datum_iter_create");
+        return NULL;
+    }
     l_ret->chain = a_chain;
     return l_ret;
 }

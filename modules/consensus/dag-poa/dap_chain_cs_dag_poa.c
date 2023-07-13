@@ -157,6 +157,10 @@ void dap_chain_cs_dag_poa_presign_callback_set(dap_chain_t *a_chain, dap_chain_c
     dap_chain_cs_dag_poa_pvt_t * l_poa_pvt = PVT(DAP_CHAIN_CS_DAG_POA(l_dag));
     l_poa_pvt->callback_pre_sign =
             (dap_chain_cs_dag_poa_presign_callback_t*)DAP_NEW_Z(dap_chain_cs_dag_poa_presign_callback_t);
+    if (!l_poa_pvt->callback_pre_sign) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_cs_dag_poa_presign_callback_set");
+        return;
+    }
     l_poa_pvt->callback_pre_sign->callback = a_callback;
     l_poa_pvt->callback_pre_sign->arg = a_arg;
 }
@@ -332,12 +336,20 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     dap_chain_cs_dag_new(a_chain,a_chain_cfg);
     dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG ( a_chain );
     dap_chain_cs_dag_poa_t *l_poa = DAP_NEW_Z ( dap_chain_cs_dag_poa_t);
+    if (!l_poa) {
+        log_it(L_ERROR, "Memory allocation error in s_callback_new");
+        return -1;
+    }
     l_dag->_inheritor = l_poa;
     l_dag->callback_delete = s_callback_delete;
     l_dag->callback_cs_verify = s_callback_event_verify;
     l_dag->callback_cs_event_create = s_callback_event_create;
     l_dag->chain->callback_get_poa_certs = dap_chain_cs_dag_poa_get_auth_certs;
     l_poa->_pvt = DAP_NEW_Z ( dap_chain_cs_dag_poa_pvt_t );
+    if (!l_poa->_pvt) {
+        log_it(L_ERROR, "Memory allocation error in s_callback_new");
+        return -1;
+    }
     dap_chain_cs_dag_poa_pvt_t *l_poa_pvt = PVT(l_poa);
     pthread_rwlock_init(&l_poa_pvt->rounds_rwlock, NULL);
     // PoA rounds
@@ -351,6 +363,10 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
         l_poa_pvt->auth_certs_count_verify = dap_config_get_item_uint16_default(a_chain_cfg,"dag-poa","auth_certs_number_verify",0);
         if (l_poa_pvt->auth_certs_count && l_poa_pvt->auth_certs_count_verify) {
             l_poa_pvt->auth_certs = DAP_NEW_Z_SIZE ( dap_cert_t *, l_poa_pvt->auth_certs_count * sizeof(dap_cert_t *));
+            if (!l_poa_pvt->auth_certs) {
+                log_it(L_ERROR, "Memory allocation error in s_callback_new");
+                return -1;
+            }
             char l_cert_name[512];
             for (size_t i = 0; i < l_poa_pvt->auth_certs_count ; i++ ){
                 snprintf(l_cert_name,sizeof(l_cert_name),"%s.%zu",l_poa_pvt->auth_certs_prefix, i);
@@ -591,10 +607,8 @@ static void s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
             DAP_DELETE(l_new_atom);
             char l_datum_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_chain_hash_fast_to_str(&l_chosen_item->round_info.datum_hash, l_datum_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-            char *l_err_verify_str = dap_chain_net_verify_datum_err_code_to_str(l_datum, l_verify_datum);
             log_it(L_INFO, "Event %s from round %"DAP_UINT64_FORMAT_U" not added into chain, because the inner datum %s doesn't pass verification (%s)",
-                   l_event_hash_hex_str, l_arg->round_id, l_datum_hash_str, l_err_verify_str);
-            DAP_DELETE(l_err_verify_str);
+                   l_event_hash_hex_str, l_arg->round_id, l_datum_hash_str, dap_chain_net_verify_datum_err_code_to_str(l_datum, l_verify_datum));
         }
     } else { /* !l_chosen_item */
         log_it(L_WARNING, "No candidates for round id %"DAP_UINT64_FORMAT_U, l_arg->round_id);
@@ -628,6 +642,11 @@ static void s_round_event_cs_done(dap_chain_cs_dag_t * a_dag, uint64_t a_round_i
         return;
     }
     l_callback_arg = DAP_NEW_Z(struct round_timer_arg);
+    if (!l_callback_arg) {
+        log_it(L_ERROR, "Memory allocation error in s_round_event_cs_done");
+        pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
+        return;
+    }
     l_callback_arg->dag = a_dag;
     l_callback_arg->round_id = a_round_id;
     // placement in chain by timer
@@ -865,11 +884,16 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
         }
         a_event->header.signs_count = l_event_signs_count;
         DAP_DELETE(l_signs);
-        if ( l_ret != 0 ) {
-            return l_ret;
+        if (l_signs_verified_count < l_certs_count_verify) {
+            dap_hash_fast_t l_event_hash;
+            dap_hash_fast(a_event, a_event_size, &l_event_hash);
+            char l_event_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+            dap_hash_fast_to_str(&l_event_hash, l_event_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+            log_it(L_ERROR, "Corrupted event %s, not enough signs %hu from %hu",
+                            l_event_hash_str, l_signs_verified_count, l_certs_count_verify);
+            return l_ret ? l_ret : -4;
         }
-        return l_signs_verified_count >= l_certs_count_verify ? 0 : -1;
-
+        return 0;
     }
     else if (a_event->header.hash_count == 0){
         dap_chain_hash_fast_t l_event_hash;

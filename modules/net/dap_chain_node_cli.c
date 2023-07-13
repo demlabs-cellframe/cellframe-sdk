@@ -87,6 +87,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "global_db write -group <group_name> -key <key_name> -value <value>"
             "global_db read -group <group_name> -key <key_name>"
             "global_db delete -group <group_name> -key <key_name>"
+            "global_db drop_table -group <group_name>\n"
+            "global_db get_keys -group <group name>"
+
 //                    "global_db wallet_info set -addr <wallet address> -cell <cell id> \n\n"
             );
     dap_cli_server_cmd_add("mempool", com_signer, "Sign operations",
@@ -123,7 +126,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                         );
     dap_cli_server_cmd_add ("wallet", com_tx_wallet, "Wallet operations",
                             "wallet list\n"
-                            "wallet new -w <wallet_name> [-sign <sign_type>] [-restore <hex_value>] [-net <net_name>] [-force] [-password <password>] [-restore <hash>]\n"
+                            "wallet new -w <wallet_name> [-sign <sign_type>] [-restore <hex_value> | -restore_legacy <restore_string>] [-net <net_name>] [-force] [-password <password>]\n"
                             "wallet info {-addr <addr> | -w <wallet_name>} -net <net_name>\n"
                             "wallet activate -w <wallet_name> -password <password> [-ttl <password_ttl_in_minutes>]\n"
                             "wallet deactivate -w <wallet_name> -password <password>\n"
@@ -273,7 +276,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
     // Transaction commands
     dap_cli_server_cmd_add ("tx_create", com_tx_create, "Make transaction",
             "tx_create -net <net_name> -chain <chain_name> -value <value> -token <token_ticker> -to_addr <addr>"
-            "{-from_wallet <wallet_name> | -from_emission <emission_hash> {-certs <cert list> | -wallet_fee <wallet_name>}} -fee <value>\n");
+            "{-from_wallet <wallet_name> | -from_emission <emission_hash> {-cert <cert_name> | -wallet_fee <wallet_name>}} -fee <value>\n");
     dap_cli_server_cmd_add ("tx_create_json", com_tx_create_json, "Make transaction",
                 "tx_create_json -net <net_name> -chain <chain_name> -json <json_file_path>\n" );
     dap_cli_server_cmd_add ("tx_cond_create", com_tx_cond_create, "Make cond transaction",

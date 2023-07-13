@@ -5,8 +5,9 @@
 #include "dap_chain_block.h"
 #include "dap_chain_cs_blocks.h"
 #include "dap_cert.h"
+#include "dap_global_db_remote.h"
 
-#define DAP_CHAIN_ESBOCS_PROTOCOL_VERSION           6
+#define DAP_CHAIN_ESBOCS_PROTOCOL_VERSION           7
 #define DAP_CHAIN_ESBOCS_GDB_GROUPS_PREFIX          "esbocs"
 
 #define DAP_CHAIN_ESBOCS_MSG_TYPE_SUBMIT            0x04
@@ -18,6 +19,7 @@
 #define DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_FOR          0x22
 #define DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_AGAINST      0x24
 #define DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC        0x32
+#define DAP_CHAIN_ESBOCS_MSG_TYPE_SEND_DB           0x36
 
 #define DAP_CHAIN_BLOCKS_SESSION_ROUND_ID_SIZE		8
 #define DAP_CHAIN_BLOCKS_SESSION_MESSAGE_ID_SIZE	8
@@ -161,6 +163,8 @@ typedef struct dap_chain_esbocs_session {
     uint8_t old_state; // for previous state return
     dap_chain_esbocs_round_t cur_round;
     bool round_fast_forward;
+    unsigned int listen_ensure;
+    bool sync_failed;
 
     dap_time_t ts_round_sync_start; // time of start sync
     dap_time_t ts_stage_entry; // time of current stage entrance
@@ -171,6 +175,9 @@ typedef struct dap_chain_esbocs_session {
     dap_chain_addr_t my_signing_addr;
 
     dap_chain_esbocs_penalty_item_t *penalty;
+    // Temporary sync-over-consensus params
+    dap_global_db_pkt_t *db_serial;
+    dap_hash_fast_t db_hash;
 
     struct dap_chain_esbocs_session *next;
     struct dap_chain_esbocs_session *prev;

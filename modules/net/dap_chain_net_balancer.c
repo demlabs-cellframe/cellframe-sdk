@@ -81,6 +81,11 @@ dap_chain_node_info_t *dap_chain_net_balancer_get_node(const char *a_net_name)
         l_node_num = rand() % l_nodes_count;
         l_node_candidate = (dap_chain_node_info_t *)dap_list_nth_data(l_objs_list,l_node_num);
         dap_chain_node_info_t *l_node_info = DAP_NEW_Z(dap_chain_node_info_t);
+        if (!l_node_info) {
+            log_it(L_ERROR, "Memory allocation error in dap_chain_net_balancer_get_node");
+            dap_list_free(l_objs_list);
+            return NULL;
+        }
         memcpy(l_node_info, l_node_candidate, sizeof(dap_chain_node_info_t));
         dap_list_free(l_objs_list);
         return l_node_info;

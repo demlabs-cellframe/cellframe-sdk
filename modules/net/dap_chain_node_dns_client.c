@@ -171,6 +171,10 @@ static void s_dns_client_esocket_worker_assign_callback(dap_events_socket_t * a_
     dap_events_socket_write_unsafe(a_esocket,l_dns_client->dns_request.data, l_dns_client->dns_request.size );
 
     dap_events_socket_uuid_t * l_es_uuid_ptr = DAP_NEW_Z(dap_events_socket_uuid_t);
+    if (!l_es_uuid_ptr) {
+        log_it(L_ERROR, "Memory allocation error in s_dns_client_esocket_worker_assign_callback");
+        return;
+    }
     *l_es_uuid_ptr = a_esocket->uuid;
     dap_timerfd_start_on_worker(a_worker, dap_config_get_item_uint64_default(g_config,"dns_client","request_timeout",10)*1000,
                                  s_dns_client_esocket_timeout_callback,l_es_uuid_ptr);
