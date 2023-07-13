@@ -463,7 +463,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     dap_chain_add_callback_notify(a_chain, s_new_atom_notifier, l_session);
     s_session_round_new(l_session);
 
-    log_it(L_INFO, "init session for net:%s, chain:%s", a_chain->net_name, a_chain->name);
+    log_it(L_INFO, "Init session for net:%s, chain:%s", a_chain->net_name, a_chain->name);
     DL_APPEND(s_session_items, l_session);
     if (!s_session_cs_timer) {
         s_session_cs_timer = dap_timerfd_start(1000, s_session_timer, NULL);
