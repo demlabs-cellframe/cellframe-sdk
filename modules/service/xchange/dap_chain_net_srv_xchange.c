@@ -627,7 +627,6 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         log_it(L_ERROR, "Can't add selling coins output because price rate is 0");
         return NULL;
     }
-    DAP_DELETE(l_buyer_addr);
     // transfer unselling coins (partial exchange)
     debug_if(s_debug_more, L_NOTICE, "l_datoshi_cond = %s", dap_chain_balance_to_coins(l_tx_out_cond->header.value));
     if (compare256(l_tx_out_cond->header.value, l_datoshi_sell) == 1) {
@@ -719,9 +718,10 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
     if(dap_chain_datum_tx_add_sign_item(&l_tx, l_seller_key) != 1) {
         dap_chain_datum_tx_delete(l_tx);
         log_it( L_ERROR, "Can't add sign output");
+        DAP_DELETE(l_buyer_addr);
         return NULL;
     }
-
+    DAP_DELETE(l_buyer_addr);
     return l_tx;
 }
 

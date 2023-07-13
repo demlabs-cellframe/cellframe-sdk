@@ -469,7 +469,7 @@ int dap_chain_net_add_downlink(dap_chain_net_t *a_net, dap_stream_worker_t *a_wo
         return -2;
     }
     l_downlink = DAP_NEW_Z(struct downlink);
-    if (l_downlink) {
+    if (!l_downlink) {
         log_it(L_ERROR, "Memory allocation error in dap_chain_net_add_downlink");
         pthread_rwlock_unlock(&l_net_pvt->downlinks_lock);
         return -1;
@@ -562,7 +562,7 @@ static bool s_net_send_atoms(dap_proc_thread_t *a_thread, void *a_arg)
  */
 static void s_chain_callback_notify(void *a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, void* a_atom, size_t a_atom_size)
 {
-    if (!a_arg || !a_chain) {
+    if (!a_arg || !a_chain || !a_atom) {
         log_it(L_ERROR, "Argument is NULL for s_chain_callback_notify");
         return;
     }
@@ -2094,12 +2094,13 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 if( l_hash_hex_str ){
                     l_ret = dap_global_db_set_sync(l_gdb_group_str, l_hash_hex_str, &c, sizeof(c), false );
                     DAP_DELETE(l_gdb_group_str);
-                    DAP_DELETE(l_hash_hex_str);
                     if (l_ret) {
                         dap_cli_server_cmd_set_reply_text(a_str_reply,
                                                           "Can't save public key hash %s in database", l_hash_hex_str);
+                        DAP_DELETE(l_hash_hex_str);
                         return -10;
                     }
+                    DAP_DELETE(l_hash_hex_str);
                 } else{
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't save NULL public key hash in database");
                     return -10;
@@ -3420,6 +3421,8 @@ static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash)
         DAP_DELETE(l_net_list);
         return l_ret;
     }
+    if (l_net_list)
+        DAP_DELETE(l_net_list);
     return NULL;
 }
 

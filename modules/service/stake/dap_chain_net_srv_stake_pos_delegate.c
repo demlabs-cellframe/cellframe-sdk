@@ -599,6 +599,7 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
         l_chain =  dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_ANCHOR);
     if (!l_chain) {
         log_it(L_ERROR, "No chain supported anchor datum type");
+        DAP_DEL_Z(l_decree);
         return NULL;
     }
     l_decree->header.common_decree_params.chain_id = l_chain->id;
@@ -809,6 +810,7 @@ static dap_chain_datum_decree_t *s_stake_decree_invalidate(dap_chain_net_t *a_ne
         l_chain =  dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_ANCHOR);
     if (!l_chain) {
         log_it(L_ERROR, "No chain supported anchor datum type");
+        DAP_DEL_Z(l_decree);
         dap_list_free_full(l_tsd_list, NULL);
         return NULL;
     }
@@ -884,6 +886,7 @@ static dap_chain_datum_decree_t *s_stake_decree_set_min_stake(dap_chain_net_t *a
         l_chain =  dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_ANCHOR);
     if (!l_chain) {
         log_it(L_ERROR, "No chain supported anchor datum type");
+        DAP_DEL_Z(l_decree);
         dap_list_free_full(l_tsd_list, NULL);
         return NULL;
     }
@@ -1862,7 +1865,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 if (l_tx && (l_decree_hash_str = s_stake_tx_put(l_tx, l_net))) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "All m-tokens successfully returned to "
                                                                    "owner. Returning tx hash %s.", l_decree_hash_str);
-                    DAP_DELETE(l_decree_hash_str);
+                    DAP_DEL_Z(l_decree_hash_str);
                     DAP_DELETE(l_tx);
                 } else {
                     char *l_final_tx_hash_str = dap_chain_hash_fast_to_str_new(l_final_tx_hash);

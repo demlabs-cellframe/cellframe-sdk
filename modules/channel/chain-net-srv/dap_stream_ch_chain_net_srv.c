@@ -288,6 +288,10 @@ static void s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
         size_t l_success_size = sizeof (dap_stream_ch_chain_net_srv_pkt_success_hdr_t );
         dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
                                                                               l_success_size);
+        if(!l_success) {
+            log_it(L_ERROR, "Memory allocation error in s_service_start");
+            return;
+        }
         l_success->hdr.usage_id = l_usage->id;
         l_success->hdr.net_id.uint64 = l_usage->net->pub.id.uint64;
         l_success->hdr.srv_uid.uint64 = l_usage->service->uid.uint64;
@@ -332,7 +336,12 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
         a_grace->usage->is_grace = true;
 
         l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
-                        memcpy(l_price, a_grace->usage->service->pricelist, sizeof(*l_price));
+        if (!l_price) {
+            log_it(L_ERROR, "Memory allocation error in s_grace_period_start");
+            s_grace_error(a_grace, l_err);
+            return;
+        }
+        memcpy(l_price, a_grace->usage->service->pricelist, sizeof(*l_price));
 
         a_grace->usage->price = l_price;
 
@@ -342,6 +351,12 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
                                        a_grace->usage->receipt, a_grace->usage->receipt->size);
         }
         usages_in_grace_t *l_item = DAP_NEW_Z_SIZE(usages_in_grace_t, sizeof(usages_in_grace_t));
+        if (!l_item) {
+            log_it(L_ERROR, "Memory allocation error in s_grace_period_start");
+            DAP_DEL_Z(l_price);
+            s_grace_error(a_grace, l_err);
+            return;
+        }
         l_item->grace = a_grace;
         l_item->tx_cond_hash = a_grace->usage->tx_cond_hash;
 
@@ -581,8 +596,25 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
 //                DAP_DEL_Z(l_grace->usage->receipt_next);
                 log_it(L_ERROR, "Tx cond have not enough funds");
                 dap_chain_net_srv_grace_t* l_grace_new = DAP_NEW_Z(dap_chain_net_srv_grace_t);
+                if (!l_grace_new) {
+                    log_it(L_ERROR, "Memory allocation error in s_grace_period_finish");
+                    DAP_DELETE(a_grace_item->grace->request);
+                    DAP_DEL_Z(a_grace_item->grace);
+                    HASH_DEL(s_grace_table, a_grace_item);
+                    DAP_DEL_Z(a_grace_item);
+                    return false;
+                }
                 // Parse the request
                 l_grace_new->request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_request_t, sizeof(dap_stream_ch_chain_net_srv_pkt_request_t));
+                if (!l_grace_new->request) {
+                    log_it(L_ERROR, "Memory allocation error in s_grace_period_finish");
+                    DAP_DELETE(a_grace_item->grace->request);
+                    DAP_DEL_Z(a_grace_item->grace);
+                    DAP_DEL_Z(a_grace_new);
+                    HASH_DEL(s_grace_table, a_grace_item);
+                    DAP_DEL_Z(a_grace_item);
+                    return false;
+                }
                 l_grace_new->request->hdr.net_id = a_grace_item->grace->usage->net->pub.id;
                 memcpy(l_grace_new->request->hdr.token, a_grace_item->grace->usage->token_ticker, strlen(a_grace_item->grace->usage->token_ticker));
                 l_grace_new->request->hdr.srv_uid = a_grace_item->grace->usage->service->uid;
@@ -705,6 +737,10 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
             break;
         }
         dap_stream_ch_chain_net_srv_pkt_request_t *l_request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_request_t, l_ch_pkt->hdr.data_size);
+        if (!l_request) {
+            log_it(L_ERROR, "Memory allocation error in s_stream_ch_packet_in");
+            return;
+        }
         memcpy(l_request, l_ch_pkt->data, l_ch_pkt->hdr.data_size);
         l_ch_chain_net_srv->srv_uid.uint64 = l_request->hdr.srv_uid.uint64;
         s_service_start(a_ch, l_request, l_ch_pkt->hdr.data_size);
@@ -822,12 +858,20 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         if (! l_usage->receipt_next && l_usage->receipt){
             DAP_DEL_Z(l_usage->receipt);
             l_usage->receipt = DAP_NEW_SIZE(dap_chain_datum_tx_receipt_t,l_receipt_size);
+            if (!l_usage->receipt_next) {
+                log_it(L_ERROR, "Memory allocation error in s_stream_ch_packet_in");
+                return;
+            }
             l_is_first_sign = true;
             l_usage->is_active = true;
             memcpy( l_usage->receipt, l_receipt, l_receipt_size);
         } else if (l_usage->receipt_next ){
             DAP_DEL_Z(l_usage->receipt_next);
             l_usage->receipt_next = DAP_NEW_SIZE(dap_chain_datum_tx_receipt_t,l_receipt_size);
+            if (!l_usage->receipt_next) {
+                log_it(L_ERROR, "Memory allocation error in s_stream_ch_packet_in");
+                return;
+            }
             l_usage->is_active = true;
             memcpy( l_usage->receipt_next, l_receipt, l_receipt_size);
         }
@@ -859,9 +903,20 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     // TX not found in ledger and we not in grace, start grace
                     log_it(L_ERROR, "Can't find tx cond. Start grace!");
                     l_grace = DAP_NEW_Z(dap_chain_net_srv_grace_t);
+                    if (!l_grace) {
+                        log_it(L_ERROR, "Memory allocation error in s_stream_ch_packet_in");
+                        DAP_DELETE(l_tx_in_hash_str);
+                        return;
+                    }
                     UNUSED(l_grace);
                     // Parse the request
                     l_grace->request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_request_t, sizeof(dap_stream_ch_chain_net_srv_pkt_request_t));
+                    if (!l_grace->request) {
+                        log_it(L_ERROR, "Memory allocation error in s_stream_ch_packet_in");
+                        DAP_DEL_Z(l_grace)
+                        DAP_DELETE(l_tx_in_hash_str);
+                        return;
+                    }
                     l_grace->request->hdr.net_id = l_usage->net->pub.id;
                     memcpy(l_grace->request->hdr.token, l_usage->token_ticker, strlen(l_usage->token_ticker));
                     l_grace->request->hdr.srv_uid = l_usage->service->uid;
@@ -879,8 +934,19 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     log_it(L_ERROR, "Tx cond have not enough funds");
                     l_usage->is_waiting_new_tx_cond = true;
                     l_grace = DAP_NEW_Z(dap_chain_net_srv_grace_t);
+                    if (!l_grace) {
+                        log_it(L_ERROR, "Memory allocation error in s_stream_ch_packet_in");
+                        DAP_DELETE(l_tx_in_hash_str);
+                        return;
+                    }
                     // Parse the request
                     l_grace->request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_request_t, sizeof(dap_stream_ch_chain_net_srv_pkt_request_t));
+                    if (!l_grace->request) {
+                        log_it(L_ERROR, "Memory allocation error in s_stream_ch_packet_in");
+                        DAP_DEL_Z(l_grace)
+                        DAP_DELETE(l_tx_in_hash_str);
+                        return;
+                    }
                     l_grace->request->hdr.net_id = l_usage->net->pub.id;
                     memcpy(l_grace->request->hdr.token, l_usage->token_ticker, strlen(l_usage->token_ticker));
                     l_grace->request->hdr.srv_uid = l_usage->service->uid;
@@ -1060,6 +1126,10 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         size_t l_success_size = sizeof (dap_stream_ch_chain_net_srv_pkt_success_hdr_t );
         dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
                                                                               l_success_size);
+        if(!l_success) {
+            log_it(L_ERROR, "Memory allocation error in s_stream_ch_packet_in");
+            return;
+        }
         l_success->hdr.usage_id = l_usage->id;
         l_success->hdr.net_id.uint64 = l_usage->net->pub.id.uint64;
         l_success->hdr.srv_uid.uint64 = l_usage->service->uid.uint64;

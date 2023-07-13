@@ -6483,6 +6483,8 @@ static int s_get_key_from_file(const char *a_file, const char *a_mime, const cha
 
     int l_ret = s_sign_file(a_file, l_flags_mime, a_cert_name, a_sign, &l_hash);
 
+    if (l_items_mime)
+        DAP_DELETE(l_items_mime);
     return l_ret;
 }
 

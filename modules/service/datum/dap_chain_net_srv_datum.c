@@ -146,6 +146,7 @@ static int s_srv_datum_cli(int argc, char ** argv, char **a_str_reply) {
                     size_t l_retbytes;
                     if ( (l_retbytes = fwrite(l_datum->data, 1, l_datum->header.data_size, l_file)) != l_datum->header.data_size ){
                         log_it(L_ERROR, "Can't write %u bytes on disk (processed only %zu)!", l_datum->header.data_size, l_retbytes);
+                        fclose(l_file);
                         return -3;
                     }
                     fclose(l_file);

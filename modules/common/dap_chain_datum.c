@@ -359,6 +359,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                 dap_sign_t *l_client = DAP_NEW_Z(dap_sign_t);
                 if (!l_client) {
                     log_it(L_ERROR, "Memory allocation error in dap_chain_datum_dump_tx");
+                    DAP_DEL_Z(l_provider);
                     DAP_DELETE(l_value_str);
                     DAP_DELETE(l_coins_str);
                     return false;
