@@ -809,11 +809,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_
             log_it(L_WARNING, "Event from another chain, possible corrupted event");
         return ATOM_REJECT;
     }
-    if (!s_event_verify_size(l_event, a_atom_size)) {
-        if (s_debug_more)
-            log_it(L_WARNING,"Event size not equal to expected");
-        return  ATOM_REJECT;
-    }
+
     // Hard accept list
     if (l_dag->hal) {
         dap_chain_hash_fast_t l_event_hash = { };
@@ -826,6 +822,12 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_
             return ATOM_ACCEPT;
         }
     }
+    if (!s_event_verify_size(l_event, a_atom_size)) {
+        if (s_debug_more)
+            log_it(L_WARNING,"Event size not equal to expected");
+        return  ATOM_REJECT;
+    }
+
     // genesis or seed mode
     if (l_event->header.hash_count == 0){
         if(s_seed_mode && !PVT(l_dag)->events){
