@@ -1993,7 +1993,7 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
         const char *l_type_str;
         const char *l_flags_str = s_flag_str_from_code(l_token_item->datum_token->header_private_decl.flags);
         switch (l_token_item->type) {
-            case DAP_CHAIN_DATUM_TOKEN_DECL: {
+            case DAP_CHAIN_DATUM_TOKEN_TYPE_DECL: {
                 switch (l_token_item->subtype) {
                     case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE:
                         l_type_str = "SIMPLE"; break;
