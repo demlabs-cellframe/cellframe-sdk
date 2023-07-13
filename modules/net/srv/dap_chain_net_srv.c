@@ -788,6 +788,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
             l_price->units = l_order->units;
             l_price->units_uid = l_order->price_unit;
             l_price->wallet = l_wallet;
+            DL_APPEND(a_srv->pricelist, l_price);
             break;
         }
         DAP_DELETE(l_order);
@@ -911,7 +912,6 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
         strncpy(l_sdata->name, a_config_section, sizeof(l_sdata->name) - 1);
         l_sdata->srv = l_srv;
         dap_chain_net_srv_price_apply_from_my_order(l_srv, a_config_section);
-        dap_chain_net_srv_parse_pricelist(l_srv, a_config_section);
         HASH_ADD(hh, s_srv_list, uid, sizeof(l_srv->uid), l_sdata);
     }else{
         log_it(L_ERROR, "Already present service with 0x%016"DAP_UINT64_FORMAT_X, a_uid.uint64);
