@@ -853,6 +853,7 @@ static bool s_chain_timer_callback(void *a_arg)
                                              l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64,
                                              l_ch_chain->request_hdr.cell_id.uint64, NULL, 0);
         l_ch_chain->sent_breaks = 0;
+        l_ch_chain->timer_shots = 0;
     }
     if (l_ch_chain->state == CHAIN_STATE_SYNC_GLOBAL_DB && l_ch_chain->sent_breaks >= 3 * DAP_SYNC_TICKS_PER_SECOND) {
         debug_if(s_debug_more, L_INFO, "Send one global_db TSD packet (rest=%zu/%zu items)",
@@ -862,6 +863,7 @@ static bool s_chain_timer_callback(void *a_arg)
                                              l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64,
                                              l_ch_chain->request_hdr.cell_id.uint64, NULL, 0);
         l_ch_chain->sent_breaks = 0;
+        l_ch_chain->timer_shots = 0;
     }
     return true;
 }
