@@ -827,6 +827,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
             l_price->units = l_order->units;
             l_price->units_uid = l_order->price_unit;
             l_price->wallet = l_wallet;
+            DL_APPEND(a_srv->pricelist, l_price);
             break;
         }
         DAP_DELETE(l_order);
