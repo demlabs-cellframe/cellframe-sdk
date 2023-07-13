@@ -767,11 +767,11 @@ static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out
         dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t*)list_item->data;
         if (dap_chain_addr_compare(&l_provider_addr, &l_out->addr))
         {
-            if(compare256(l_out->header.value, l_receipt->receipt_info.value_datoshi)){
-                dap_list_free_full(items_list, NULL);
+            if(!compare256(l_out->header.value, l_receipt->receipt_info.value_datoshi)){
+                dap_list_free(items_list);
                 return true;
             }else{
-                dap_list_free_full(items_list, NULL);
+                dap_list_free(items_list);
                 log_it(L_ERROR, "Value in tx out is not equal to value in receipt.");
                 return false;
 
@@ -779,7 +779,7 @@ static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out
         }
         items_list = items_list->next;
     }
-    dap_list_free_full(items_list, NULL);
+    dap_list_free(items_list);
     log_it(L_ERROR, "Can't find OUT in tx matching provider.");
     return false;
 }
