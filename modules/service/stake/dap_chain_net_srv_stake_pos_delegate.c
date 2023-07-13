@@ -871,7 +871,7 @@ char *s_stake_order_create(dap_chain_net_t *a_net, uint256_t *a_fee, dap_enc_key
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
     char *l_order_hash_str = dap_chain_net_srv_order_create(a_net, l_dir, l_uid, *l_node_addr,
                                                             l_tx_hash, a_fee, l_unit, l_native_ticker, 0,
-                                                            NULL, 0, NULL, 0, a_key);
+                                                            NULL, 0, 1, NULL, 0, a_key);
     return l_order_hash_str;
 }
 
@@ -1966,4 +1966,13 @@ static void s_cache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
     char *l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP);
     if (dap_global_db_set(l_gdb_group, l_data_key, &l_cache_data, sizeof(l_cache_data), false, NULL, NULL))
         log_it(L_WARNING, "Stake service cache mismatch");
+}
+
+bool dap_chain_net_srv_stake_check_pkey_hash(dap_hash_fast_t *a_pkey_hash) {
+    dap_chain_net_srv_stake_item_t *l_stake, *l_tmp;
+    HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp) {
+        if (dap_hash_fast_compare(&l_stake->signing_addr.data.hash_fast, a_pkey_hash))
+            return true;
+    }
+    return false;
 }
