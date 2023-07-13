@@ -168,8 +168,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     dap_chain_esbocs_t *l_esbocs = DAP_NEW_Z(dap_chain_esbocs_t);
     if (!l_esbocs) {
         log_it(L_ERROR, "Memory allocation error in s_callback_new");
-        l_ret = - 5;
-        goto lb_err;
+        return - 5;
     }
     l_esbocs->blocks = l_blocks;   
     l_blocks->_inheritor = l_esbocs;
@@ -183,12 +182,12 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     a_chain->callback_get_signing_certificate = s_callback_get_sign_key;
 
     l_esbocs->_pvt = DAP_NEW_Z(dap_chain_esbocs_pvt_t);
+    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
     if (!l_esbocs->_pvt) {
         log_it(L_ERROR, "Memory allocation error in s_callback_new");
         l_ret = - 5;
         goto lb_err;
     }
-    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
     l_esbocs_pvt->debug = dap_config_get_item_bool_default(a_chain_cfg, "esbocs", "consensus_debug", false);
     l_esbocs_pvt->poa_mode = dap_config_get_item_bool_default(a_chain_cfg, "esbocs", "poa_mode", false);
     l_esbocs_pvt->round_start_sync_timeout = dap_config_get_item_uint16_default(a_chain_cfg, "esbocs", "round_start_sync_timeout", 15);
@@ -2343,7 +2342,6 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
             if (++l_session->cur_round.votes_against_count * 3 >=
                     dap_list_length(l_session->cur_round.all_validators) * 2)
                 s_session_state_change(l_session, DAP_CHAIN_ESBOCS_SESSION_STATE_PREVIOUS, dap_time_now());
-
     } break;
 
     case DAP_CHAIN_ESBOCS_MSG_TYPE_PRE_COMMIT:
@@ -2435,7 +2433,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
     /*if (a_block->hdr.meta_n_datum_n_signs_size != a_block_size - sizeof(a_block->hdr)) {
         log_it(L_WARNING, "Incorrect size with block %p on chain %s", a_block, a_blocks->chain->name);
         return -8;
-    }*/
+    }*/ // TODO Retunn it after hard-fork with correct block sizes
 
     if (l_esbocs->session && l_esbocs->session->processing_candidate == a_block)
         // It's a block candidate, don't check signs
@@ -2462,6 +2460,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
     uint16_t l_signs_verified_count = 0;
     size_t l_block_excl_sign_size = dap_chain_block_get_sign_offset(a_block, a_block_size) + sizeof(a_block->hdr);
     // Get the header on signing operation time
+    size_t l_block_original = a_block->hdr.meta_n_datum_n_signs_size;
     a_block->hdr.meta_n_datum_n_signs_size = l_block_excl_sign_size - sizeof(a_block->hdr);
     for (size_t i=0; i< l_signs_count; i++) {
         dap_sign_t *l_sign = (dap_sign_t *)l_signs[i];
@@ -2476,7 +2475,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         if (!l_esbocs_pvt->poa_mode) {
              // Compare signature with delegated keys
             if (!dap_chain_net_srv_stake_key_delegated(&l_signing_addr)) {
-                char *l_bad_addr = dap_chain_addr_to_str(&l_signing_addr);
+                char *l_bad_addr = dap_chain_hash_fast_to_str_new(&l_signing_addr.data.hash_fast);
                 log_it(L_ATT, "Unknown PoS signer %s", l_bad_addr);
                 DAP_DELETE(l_bad_addr);
                 continue;
@@ -2495,14 +2494,16 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
     }
     DAP_DELETE(l_signs);
     // Restore the original header
-    a_block->hdr.meta_n_datum_n_signs_size = a_block_size - sizeof(a_block->hdr);
+    a_block->hdr.meta_n_datum_n_signs_size = l_block_original;
 
-    if ( l_ret != 0 ) {
-        return l_ret;
-    }
     if (l_signs_verified_count < l_esbocs_pvt->min_validators_count) {
-        log_it(L_ERROR, "Corrupted block: not enough authorized signs: %u of %u", l_signs_verified_count, l_esbocs_pvt->min_validators_count);
-        return -1;
+        dap_hash_fast_t l_block_hash;
+        dap_hash_fast(a_block, a_block_size, &l_block_hash);
+        char l_block_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+        dap_hash_fast_to_str(&l_block_hash, l_block_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+        log_it(L_ERROR, "Corrupted block %s: not enough authorized signs: %u of %u",
+                    l_block_hash_str, l_signs_verified_count, l_esbocs_pvt->min_validators_count);
+        return l_ret ? l_ret : -4;
     }
     return 0;
 }

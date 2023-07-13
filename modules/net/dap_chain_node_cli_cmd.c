@@ -3076,7 +3076,8 @@ int com_mempool_check(int a_argc, char **a_argv, char ** a_str_reply)
                 if (l_found_in_chains) {
                     char l_atom_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
                     dap_chain_hash_fast_to_str(&l_atom_hash, l_atom_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-                    dap_string_append_printf(l_str_reply, "Atom hash is %s return code is %d\n", l_atom_hash_str, l_ret_code);
+                    dap_string_append_printf(l_str_reply, "Atom hash is %s return code is %d (%s)\n",
+                                                            l_atom_hash_str, l_ret_code, dap_chain_ledger_tx_check_err_str(l_ret_code));
                 }
                 dap_chain_datum_dump(l_str_reply, l_datum, l_hash_out_type);
                 if (!l_found_in_chains)
