@@ -1102,7 +1102,7 @@ void s_net_http_link_prepare_success(void *a_response, size_t a_response_size, v
 {
     struct balancer_link_request *l_balancer_request = (struct balancer_link_request *)a_arg;
     if (a_response_size != sizeof(dap_chain_node_info_t)) {
-        log_it(L_ERROR, "Invalid balancer response size %zu (expect %zu)", a_response_size, sizeof(dap_chain_node_info_t));
+        log_it(L_ERROR, "Invalid balancer response size %zu (expect %zu) - %d", a_response_size, sizeof(dap_chain_node_info_t),l_balancer_request->link_replace_tries);
         s_new_balancer_link_request(l_balancer_request->net, l_balancer_request->link_replace_tries);
         DAP_DELETE(l_balancer_request);
         return;
@@ -1168,7 +1168,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
     l_balancer_request->net = a_net;
     l_balancer_request->link_info = l_link_node_info;
     l_balancer_request->worker = dap_events_worker_get_auto();
-    if (a_link_replace_tries)
+    //if (a_link_replace_tries)
         l_balancer_request->link_replace_tries = a_link_replace_tries + 1;
     int ret;
     if (PVT(a_net)->balancer_http) {
