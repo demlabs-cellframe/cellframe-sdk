@@ -106,7 +106,7 @@ int dap_chain_net_srv_init()
         "net_srv -net <net_name> order dump -hash <Order hash>\n"
         "\tOrder dump info\n"
         "net_srv -net <net_name> order create -direction {sell | buy} -srv_uid <Service UID> -price <Price>\n"
-        " -price_unit <Price Unit> -price_token <token_ticker> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>]\n"
+        " -price_unit <Price Unit> -price_token <token_ticker> -units <units> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>]\n"
         " [-expires <Unix time when expires>] [-cert <cert name to sign order>]\n"
         " [{-ext <Extension with params> | -region <Region name> -continent <Continent name>}]\n"
 #ifdef DAP_MODULES_DYNAMIC
@@ -516,7 +516,22 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 if (l_tx_cond_hash_str)
                     dap_chain_hash_fast_from_str (l_tx_cond_hash_str, &l_tx_cond_hash);
                 l_price = dap_chain_balance_scan(l_price_str);
-                l_price_unit.uint32 = (uint32_t) atol ( l_price_unit_str );
+                
+                if (!dap_strcmp(l_price_unit_str, "MB")){
+                    l_price_unit.uint32 = SERV_UNIT_MB;
+                } else if (!dap_strcmp(l_price_unit_str, "SEC")){
+                    l_price_unit.uint32 = SERV_UNIT_SEC;
+                } else if (!dap_strcmp(l_price_unit_str, "DAY")){
+                    l_price_unit.uint32 = SERV_UNIT_DAY;
+                } else if (!dap_strcmp(l_price_unit_str, "KB")){
+                    l_price_unit.uint32 = SERV_UNIT_KB;
+                } else if (!dap_strcmp(l_price_unit_str, "B")){
+                    l_price_unit.uint32 = SERV_UNIT_B;
+                } else if (!dap_strcmp(l_price_unit_str, "PCS")){
+                    l_price_unit.uint32 = SERV_UNIT_PCS;
+                } else
+                    l_price_unit.uint32 = SERV_UNIT_UNDEFINED;                  
+                        
                 uint64_t l_units = atoi(l_units_str);
                 strncpy(l_price_token, l_price_token_str, DAP_CHAIN_TICKER_SIZE_MAX - 1);
                 size_t l_ext_len = l_ext? strlen(l_ext) + 1 : 0;
@@ -764,7 +779,7 @@ static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out
         log_it(L_ERROR, "Value in receipt is exceed max allowable price.");
         return false;
     }
-1
+
     // Check out value is equal to value in receipt
     int items_count = 0;
     dap_list_t * items_list = dap_chain_datum_tx_items_get(a_tx_in, TX_ITEM_TYPE_OUT, &items_count);
