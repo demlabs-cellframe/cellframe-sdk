@@ -2007,7 +2007,7 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
         const char *l_type_str;
         const char *l_flags_str = s_flag_str_from_code(l_token_item->datum_token->header_private_decl.flags);
         switch (l_token_item->type) {
-            case DAP_CHAIN_DATUM_TOKEN_DECL: {
+            case DAP_CHAIN_DATUM_TOKEN_TYPE_DECL: {
                 switch (l_token_item->subtype) {
                     case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE:
                         l_type_str = "SIMPLE"; break;
@@ -2513,12 +2513,12 @@ dap_ledger_t *dap_chain_ledger_create(uint16_t a_flags, char *a_net_name, const 
     pthread_cond_init(&l_ledger_pvt->load_cond, NULL);
     pthread_mutex_init(&l_ledger_pvt->load_mutex, NULL);
 
+#ifndef DAP_CHAIN_LEDGER_TEST
     char * l_chains_path = dap_strdup_printf("%s/network/%s", dap_config_path(), a_net_name);
     DIR * l_chains_dir = opendir(l_chains_path);
     DAP_DEL_Z(l_chains_path);
 
     struct dirent * l_dir_entry;
-    uint8_t i = 0;
     while ( (l_dir_entry = readdir(l_chains_dir) )!= NULL ){
         if (l_dir_entry->d_name[0] == '\0')
             continue;
@@ -2553,12 +2553,6 @@ dap_ledger_t *dap_chain_ledger_create(uint16_t a_flags, char *a_net_name, const 
     }
     closedir(l_chains_dir);
 
-    log_it(L_DEBUG,"Created ledger \"%s\"",a_net_name);
-    l_ledger_pvt->load_mode = true;
-    l_ledger_pvt->tps_timer = NULL;
-    l_ledger_pvt->tps_count = 0;
-
-#ifndef DAP_CHAIN_LEDGER_TEST
     if ( l_ledger_pvt->cached )
         // load ledger cache from GDB
         dap_chain_ledger_load_cache(l_ledger);
