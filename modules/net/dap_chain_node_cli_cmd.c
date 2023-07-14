@@ -2068,7 +2068,7 @@ char    l_buf[1024];
                     l_seed, l_seed_size, l_pass_str);
 
             if (!l_wallet)
-                return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet is not created because of internal error"), -1;
+                return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet is not created because of internal error. Check name or password length (max 64 chars)"), -1;
 
             dap_chain_addr_t *l_addr = l_net? dap_chain_wallet_get_addr(l_wallet,l_net->pub.id ) : NULL;
 
