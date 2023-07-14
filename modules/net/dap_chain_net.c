@@ -2771,7 +2771,7 @@ int s_net_load(dap_chain_net_t *a_net)
             log_it (L_NOTICE, "Initialized chain files");
         }
 
-        if(l_chain->callback_created)
+        if (l_chain->callback_created)
             l_chain->callback_created(l_chain, l_cfg);
 
         l_chain = l_chain->next;
