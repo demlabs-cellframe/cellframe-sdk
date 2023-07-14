@@ -432,6 +432,9 @@ byte_t *dap_chain_emission_get_tsd(dap_chain_datum_token_emission_t *a_emission,
     if (!(l_tsd = dap_tsd_find(a_emission->tsd_n_signs, a_emission->data.type_auth.tsd_total_size, a_type))) {
         log_it(L_ERROR, "TSD section of type %d not found", a_type);
         return NULL;
+    } else {
+        if (a_size)
+            *a_size = l_tsd->size;
     }
     return l_tsd->data;
 }
