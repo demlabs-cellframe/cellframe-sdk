@@ -120,6 +120,7 @@ dap_chain_datum_tx_spends_items_t * dap_chain_net_get_tx_cond_all_with_spends_by
                                                 if (!l_item_in) {
                                                     log_it(L_ERROR, "Memory allocation error in dap_chain_net_get_tx_cond_all_with_spends_by_srv_uid");
                                                     DAP_DEL_Z(l_datums);
+                                                    DAP_DEL_Z(l_ret);
                                                     return NULL;
                                                 }
                                                 size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
@@ -142,6 +143,7 @@ dap_chain_datum_tx_spends_items_t * dap_chain_net_get_tx_cond_all_with_spends_by
                                                 if (!l_item) {
                                                     log_it(L_ERROR, "Memory allocation error in dap_chain_net_get_tx_cond_all_with_spends_by_srv_uid");
                                                     DAP_DEL_Z(l_datums);
+                                                    DAP_DEL_Z(l_ret);
                                                     return NULL;
                                                 }
                                                 size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
@@ -285,7 +287,7 @@ struct get_tx_cond_all_from_tx
 static void s_get_tx_cond_chain_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, void *a_arg)
 {
     struct get_tx_cond_all_from_tx * l_args = (struct get_tx_cond_all_from_tx* ) a_arg;
-    dap_hash_fast_t * l_tx_hash = dap_chain_node_datum_tx_calc_hash(a_tx);
+    
     if( l_args->ret ){
         int l_item_idx = 0;
         byte_t *l_tx_item;
@@ -300,24 +302,31 @@ static void s_get_tx_cond_chain_callback(dap_chain_net_t* a_net, dap_chain_datum
             }
             l_item_idx++;
         }
-    }else if(dap_hash_fast_compare(l_tx_hash,l_args->tx_begin_hash)){
-        // Found condition
-        int l_item_idx = 0;
-        byte_t *l_tx_item;
+    }else if(a_tx){
+        dap_hash_fast_t * l_tx_hash = dap_chain_node_datum_tx_calc_hash(a_tx);
+        if (!l_tx_hash) {
+            log_it(L_ERROR, "Memory allocation error in s_get_tx_cond_chain_callback");
+            return;
+        }
+        if (dap_hash_fast_compare(l_tx_hash,l_args->tx_begin_hash)) {
+            // Found condition
+            int l_item_idx = 0;
+            byte_t *l_tx_item;
 
-        // Get items from transaction
-        while ((l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx, TX_ITEM_TYPE_OUT_COND , NULL)) != NULL){
-            dap_chain_tx_out_cond_t * l_out_cond = (dap_chain_tx_out_cond_t *) l_tx_item;
-            if ( l_out_cond->header.srv_uid.uint64 == l_args->srv_uid.uint64 ){ // We found output with target service uuid
-                l_args->tx_last = a_tx; // Record current transaction as the last in tx chain
-                memcpy(&l_args->tx_last_hash, l_tx_hash, sizeof(*l_tx_hash)); // Record current hash
-                l_args->tx_last_cond_idx = l_item_idx;
-                l_args->ret = dap_list_append(NULL, a_tx);
-                break;
+            // Get items from transaction
+            while ((l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx, TX_ITEM_TYPE_OUT_COND , NULL)) != NULL){
+                dap_chain_tx_out_cond_t * l_out_cond = (dap_chain_tx_out_cond_t *) l_tx_item;
+                if ( l_out_cond->header.srv_uid.uint64 == l_args->srv_uid.uint64 ){ // We found output with target service uuid
+                    l_args->tx_last = a_tx; // Record current transaction as the last in tx chain
+                    memcpy(&l_args->tx_last_hash, l_tx_hash, sizeof(*l_tx_hash)); // Record current hash
+                    l_args->tx_last_cond_idx = l_item_idx;
+                    l_args->ret = dap_list_append(NULL, a_tx);
+                    break;
+                }
             }
         }
+        DAP_DELETE(l_tx_hash);
     }
-    DAP_DELETE(l_tx_hash);
 }
 
 /**

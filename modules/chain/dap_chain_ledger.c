@@ -2499,7 +2499,7 @@ dap_ledger_t *dap_chain_ledger_create(uint16_t a_flags, char *a_net_name, const 
     dap_ledger_t *l_ledger = dap_chain_ledger_handle_new();
     if (!l_ledger) {
         log_it(L_ERROR, "Memory allocation error indap_chain_ledger_create");
-        return NULL:
+        return NULL;
     }
     l_ledger->net_name = a_net_name;
     dap_ledger_private_t *l_ledger_pvt = PVT(l_ledger);

@@ -3732,8 +3732,10 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     l_params->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE;
 
     int l_parse_params = s_token_decl_check_params(a_argc,a_argv,a_str_reply,l_params, false);
-    if (l_parse_params)
+    if (l_parse_params) {
+        DAP_DEL_Z(l_params);
         return l_parse_params;
+    }
 
     dap_chain_datum_token_t * l_datum_token = NULL;
     size_t l_datum_data_offset = 0;
@@ -3743,6 +3745,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     if(!l_certs_count){
         dap_cli_server_cmd_set_reply_text(a_str_reply,
                 "token_decl command requres at least one valid certificate to sign token");
+        DAP_DEL_Z(l_params);
         return -10;
     }
 
@@ -3770,6 +3773,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                      uint16_t l_flag = dap_chain_datum_token_flag_from_str(*l_str_flags);
                      if (l_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED ){
                          dap_cli_server_cmd_set_reply_text(a_str_reply, "Flag can't be \"%s\"",*l_str_flags);
+                         DAP_DEL_Z(l_params);
                          return -20;
                      }
                      l_flags |= l_flag; // if we have multiple flags
@@ -3780,6 +3784,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
 				dap_chain_datum_token_t *l_delegated_token_from;
 				if (NULL == (l_delegated_token_from = dap_chain_ledger_token_ticker_check(l_net->pub.ledger, l_params->ext.delegated_token_from))) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply,"To create a delegated token %s, can't find token by ticket %s", l_ticker, l_params->ext.delegated_token_from);
+                    DAP_DEL_Z(l_params);
 					return -91;
 				}
 				dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section;
@@ -3825,7 +3830,13 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
 
 
             // Create new datum token
-            l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t) + l_params->ext.tsd_total_size) ;
+            l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t) + l_params->ext.tsd_total_size);
+            if (!l_datum_token) {
+                log_it(L_ERROR, "Memory allocation error in com_token_decl");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Out of memory in com_token_decl");
+                DAP_DEL_Z(l_params);
+                return -1;
+            }
             l_datum_token->version = 2;
             l_datum_token->type = l_params->type;
             l_datum_token->subtype = l_params->subtype;
@@ -3885,6 +3896,12 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
         }break;//end
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE: { // 256
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t));
+            if (!l_datum_token) {
+                log_it(L_ERROR, "Memory allocation error in com_token_decl");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Out of memory in com_token_decl");
+                DAP_DEL_Z(l_params);
+                return -1;
+            }
             l_datum_token->version = 2;
             l_datum_token->type = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL; // 256
             l_datum_token->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE; // 256
@@ -3896,6 +3913,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
         default:
             dap_cli_server_cmd_set_reply_text(a_str_reply,
                     "Unknown token type");
+            DAP_DEL_Z(l_params);
             return -8;
     }
     // If we have more certs than we need signs - use only first part of the list
@@ -3911,6 +3929,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     if (!l_datum_token || l_datum_token->signs_total == 0){
         dap_cli_server_cmd_set_reply_text(a_str_reply,
                     "Token declaration failed. Successful count of certificate signing is 0");
+            DAP_DEL_Z(l_params);
             return -9;
     }
 
@@ -3935,6 +3954,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "No suitable chain for placing token datum found");
         DAP_DEL_Z(l_key_str);
         DAP_DELETE(l_datum);
+        DAP_DEL_Z(l_params);
         return -10;
     }
     bool l_placed = dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, l_datum, l_datum_size, false) == 0;
@@ -4044,7 +4064,11 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
         { // 256
             // Create new datum token
-            l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t) + l_params->ext.tsd_total_size) ;
+            l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t) + l_params->ext.tsd_total_size);
+            if (!l_datum_token) {
+                log_it(L_ERROR, "Memory allocation error in com_token_update");
+                return -1;
+            }
             l_datum_token->version = 2;
             l_datum_token->type = l_params->type;
             l_datum_token->subtype = l_params->subtype;
@@ -4078,6 +4102,10 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
         }break;//end
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE: { // 256
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t));
+            if (!l_datum_token) {
+                log_it(L_ERROR, "Memory allocation error in com_token_update");
+                return -1;
+            }
             l_datum_token->version = 2;
             l_datum_token->subtype = DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE;
             l_datum_token->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE; // 256
@@ -6656,6 +6684,10 @@ static byte_t *s_concat_meta (dap_list_t *a_meta, size_t *a_fullsize)
     int l_part = 256;
     int l_power = 1;
     byte_t *l_buf = DAP_CALLOC(l_part * l_power++, 1);
+    if (!l_buf) {
+        log_it(L_ERROR, "Memory allocation error in s_concat_meta");
+        return NULL;
+    }
     size_t l_counter = 0;
     size_t l_part_power = l_part;
     int l_index = 0;
