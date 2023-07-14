@@ -469,7 +469,7 @@ int dap_chain_net_add_downlink(dap_chain_net_t *a_net, dap_stream_worker_t *a_wo
         return -2;
     }
     l_downlink = DAP_NEW_Z(struct downlink);
-    if (l_downlink) {
+    if (!l_downlink) {
         log_it(L_ERROR, "Memory allocation error in dap_chain_net_add_downlink");
         pthread_rwlock_unlock(&l_net_pvt->downlinks_lock);
         return -1;

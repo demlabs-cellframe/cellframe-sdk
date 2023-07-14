@@ -756,12 +756,15 @@ static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out
     dap_chain_datum_tx_t *l_tx_prev = dap_chain_ledger_tx_find_by_hash(a_ledger , &l_tx_in_cond->header.tx_prev_hash);
     dap_chain_tx_out_cond_t *l_prev_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_prev, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, NULL);
 
+    uint256_t l_unit_price = {};
+    DIV_256(l_receipt->receipt_info.value_datoshi, GET_256_FROM_64(l_receipt->receipt_info.units), &l_unit_price);
+
     if( compare256(uint256_0, l_prev_out_cond->subtype.srv_pay.unit_price_max_datoshi) &&
-        compare256(l_receipt->receipt_info.value_datoshi, l_prev_out_cond->subtype.srv_pay.unit_price_max_datoshi) > 0){
+        compare256(l_unit_price, l_prev_out_cond->subtype.srv_pay.unit_price_max_datoshi) > 0){
         log_it(L_ERROR, "Value in receipt is exceed max allowable price.");
         return false;
     }
-
+1
     // Check out value is equal to value in receipt
     int items_count = 0;
     dap_list_t * items_list = dap_chain_datum_tx_items_get(a_tx_in, TX_ITEM_TYPE_OUT, &items_count);
@@ -794,7 +797,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
     const char *l_wallet_path = dap_config_get_item_str_default(g_config, "resources", "wallets_path", NULL);
     const char *l_wallet_name = dap_config_get_item_str_default(g_config, a_config_section, "wallet", NULL);
     const char *l_net_name = dap_config_get_item_str_default(g_config, a_config_section, "net", NULL);
-    if (!l_wallet_path || !l_wallet_name || l_net_name){
+    if (!l_wallet_path || !l_wallet_name || !l_net_name){
         return -2;
     }
     dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, l_wallet_path);
