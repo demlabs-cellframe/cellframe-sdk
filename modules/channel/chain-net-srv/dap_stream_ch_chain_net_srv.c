@@ -658,7 +658,6 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
                     log_it(L_ERROR, "Memory allocation error in s_grace_period_finish");
                     DAP_DELETE(a_grace_item->grace->request);
                     DAP_DEL_Z(a_grace_item->grace);
-                    DAP_DEL_Z(a_grace_new);
                     HASH_DEL(s_grace_table, a_grace_item);
                     DAP_DEL_Z(a_grace_item);
                     return false;

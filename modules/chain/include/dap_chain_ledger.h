@@ -167,7 +167,6 @@ DAP_STATIC_INLINE dap_chain_hash_fast_t* dap_chain_node_datum_tx_calc_hash(dap_c
 {
     dap_chain_hash_fast_t *tx_hash = DAP_NEW_Z(dap_chain_hash_fast_t);
     if (!tx_hash) {
-        log_it(L_ERROR, "Memory allocation error in dap_chain_node_datum_tx_calc_hash");
         return NULL;
     }
     dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), tx_hash);
