@@ -194,20 +194,18 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t *a_decree, dap_chain_ne
     l_decree->header.signs_size = 0;
     size_t l_verify_data_size = l_decree->header.data_size + sizeof(dap_chain_datum_decree_t);
 
-    for(size_t i = 0; i < l_num_of_unique_signs; i++)
-    {
+    for (size_t i = 0; i < l_num_of_unique_signs; i++) {
         size_t l_sign_max_size = dap_sign_get_size(l_unique_signs[i]);
-        if (s_verify_pkey(l_unique_signs[i], a_net))
-        {
+        if (s_verify_pkey(l_unique_signs[i], a_net)) {
             // 3. verify sign
             if(!dap_sign_verify_all(l_unique_signs[i], l_sign_max_size, l_decree, l_verify_data_size))
-            {
                 l_signs_verify_counter++;
-            }
         } else {
-            dap_hash_fast_t l_sign_hash = {0};
-            dap_hash_fast(l_unique_signs[i], l_sign_max_size, &l_sign_hash);
-            char *l_sign_hash_str = dap_hash_fast_to_str_new(&l_sign_hash);
+            dap_hash_fast_t l_sign_pkey_hash = {0};
+            size_t l_pkey_size = 0;
+            uint8_t *l_pkey = dap_sign_get_pkey(l_unique_signs[i], &l_pkey_size);
+            dap_hash_fast(l_pkey, l_pkey_size, &l_sign_pkey_hash);
+            char *l_sign_hash_str = dap_hash_fast_to_str_new(&l_sign_pkey_hash);
             log_it(L_WARNING, "Signature [%zu] %s failed public key verification.", i, l_sign_hash_str);
             DAP_DELETE(l_sign_hash_str);
         }
@@ -345,20 +343,10 @@ dap_chain_datum_decree_t *dap_chain_net_decree_get_by_hash(dap_hash_fast_t *a_ha
 // Private functions
 static bool s_verify_pkey (dap_sign_t *a_sign, dap_chain_net_t *a_net)
 {
-    bool ret_val = false;
-    dap_list_t *b_item = a_net->pub.decree->pkeys;
-    while (b_item && !ret_val)
-    {
-        dap_pkey_t *l_pkey = (dap_pkey_t*)(b_item->data);
-
-        if (!memcmp(a_sign->pkey_n_sign, l_pkey->pkey, a_sign->header.sign_pkey_size))
-        {
-            ret_val = true;
-        }
-
-        b_item = b_item->next;
-    }
-    return ret_val;
+    for (dap_list_t *it = a_net->pub.decree->pkeys; it; it = it->next)
+        if (dap_pkey_compare_with_sign(it->data, a_sign))
+            return true;
+    return false;
 }
 
 static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chain_net_t *a_net, dap_chain_t *a_chain, bool a_apply)
