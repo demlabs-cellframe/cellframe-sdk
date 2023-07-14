@@ -469,7 +469,7 @@ int dap_chain_net_add_downlink(dap_chain_net_t *a_net, dap_stream_worker_t *a_wo
         return -2;
     }
     l_downlink = DAP_NEW_Z(struct downlink);
-    if (l_downlink) {
+    if (!l_downlink) {
         log_it(L_ERROR, "Memory allocation error in dap_chain_net_add_downlink");
         pthread_rwlock_unlock(&l_net_pvt->downlinks_lock);
         return -1;
@@ -1136,18 +1136,20 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
         pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
         return false;
     }
-    dap_chain_node_info_t *l_link_full_node = dap_chain_net_balancer_get_node(a_net->pub.name);
-    if(l_link_full_node)
-    {
-        log_it(L_DEBUG, "Network LOCAL balancer issues ip %s",inet_ntoa(l_link_full_node->hdr.ext_addr_v4));
-        pthread_rwlock_rdlock(&PVT(a_net)->states_lock);
-        s_net_link_add(a_net, l_link_full_node);
-        DAP_DELETE(l_link_full_node);
-        struct net_link *l_free_link = s_get_free_link(a_net);
-        if (l_free_link)
-            s_net_link_start(a_net, l_free_link, l_net_pvt->reconnect_delay);
-        pthread_rwlock_unlock(&PVT(a_net)->states_lock);
-        return false;
+    if(!a_link_replace_tries){
+        dap_chain_node_info_t *l_link_full_node = dap_chain_net_balancer_get_node(a_net->pub.name);
+        if(l_link_full_node)
+        {
+            log_it(L_DEBUG, "Network LOCAL balancer issues ip %s",inet_ntoa(l_link_full_node->hdr.ext_addr_v4));
+            pthread_rwlock_rdlock(&PVT(a_net)->states_lock);
+            s_net_link_add(a_net, l_link_full_node);
+            DAP_DELETE(l_link_full_node);
+            struct net_link *l_free_link = s_get_free_link(a_net);
+            if (l_free_link)
+                s_net_link_start(a_net, l_free_link, l_net_pvt->reconnect_delay);
+            pthread_rwlock_unlock(&PVT(a_net)->states_lock);
+            return false;
+        }
     }
     dap_chain_node_info_t *l_link_node_info = dap_get_balancer_link_from_cfg(a_net);
     if (!l_link_node_info)
@@ -1163,8 +1165,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
     l_balancer_request->net = a_net;
     l_balancer_request->link_info = l_link_node_info;
     l_balancer_request->worker = dap_events_worker_get_auto();
-    if (a_link_replace_tries)
-        l_balancer_request->link_replace_tries = a_link_replace_tries + 1;
+    l_balancer_request->link_replace_tries = a_link_replace_tries + 1;
     int ret;
     if (PVT(a_net)->balancer_http) {
         l_balancer_request->from_http = true;
