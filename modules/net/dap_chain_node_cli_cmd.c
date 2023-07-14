@@ -2635,7 +2635,7 @@ dap_list_t *s_tickers_list_created(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *
     int l_item_in_size = 0;
     void *l_item_in = dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_IN_ALL, &l_item_in_size);
     dap_hash_fast_t l_parent_hash = {0};
-    int l_parrent_tx_out_idx;
+    int l_parrent_tx_out_idx = 0;
     for (int l_item_in_size_current = 0; l_item_in_size_current < l_item_in_size && !l_token_ticker;) {
         size_t l_tmp_size = dap_chain_datum_item_tx_get_size(l_item_in);
         if (l_tmp_size == 0)
@@ -3525,19 +3525,15 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, char **
         char *l_remove_signs_dup = strdup(l_remove_signs);
         char *l_remove_signs_str = strtok_r(l_remove_signs_dup, ",", &l_remove_signs_ptrs);
         for (; l_remove_signs_str; l_remove_signs_str = strtok_r(NULL, ",", &l_remove_signs_ptrs)) {
-            dap_hash_fast_t *l_hf = DAP_NEW(dap_hash_fast_t);
-            char *l_tmp = strdup(l_remove_signs_str);
-            if (dap_chain_hash_fast_from_str(l_tmp, l_hf) == 0) {
-                dap_tsd_t *l_hf_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE, l_hf, sizeof(dap_hash_fast_t));
+            dap_hash_fast_t l_hf;
+            if (dap_chain_hash_fast_from_str(l_remove_signs_str, &l_hf) == 0) {
+                dap_tsd_t *l_hf_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE, &l_hf, sizeof(dap_hash_fast_t));
                 size_t l_hf_tsd_size = dap_tsd_size(l_hf_tsd);
                 l_tsd_list = dap_list_append(l_tsd_list, l_hf_tsd);
                 l_added_tsd_size += l_hf_tsd_size;
             }
-            DAP_DELETE(l_hf);
-            DAP_DELETE(l_tmp);
         }
         DAP_DELETE(l_remove_signs_dup);
-        DAP_DELETE(l_remove_signs_str);
         l_tsd_total_size += l_added_tsd_size;
     }
     //Added new certs

@@ -108,6 +108,12 @@ static inline void s_grace_error(dap_chain_net_srv_grace_t *a_grace, dap_stream_
                 pthread_mutex_unlock(&a_grace->usage->service->banlist_mutex);
             else {
                 l_item = DAP_NEW_Z(dap_chain_net_srv_banlist_item_t);
+                if (!l_item) {
+                    log_it(L_ERROR, "Memory allocation error in s_grace_error");
+                    DAP_DELETE(a_grace->request);
+                    DAP_DELETE(a_grace);
+                    return;
+                }
                 l_item->client_pkey_hash = a_grace->usage->client_pkey_hash;
                 l_item->ht_mutex = &a_grace->usage->service->banlist_mutex;
                 l_item->ht_head = &a_grace->usage->service->ban_list;
@@ -260,6 +266,16 @@ static void s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
     l_err.usage_id = l_usage->id;
     // Create one client
     l_usage->client = DAP_NEW_Z( dap_chain_net_srv_client_remote_t);
+    if (!l_usage->client) {
+        log_it(L_ERROR, "Memory allocation errror in s_service_start");
+        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
+        if(a_ch)
+            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+        if (l_srv && l_srv->callbacks.response_error)
+            l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
+        DAP_DEL_Z(l_usage);
+        return;
+    }
     l_usage->client->stream_worker = a_ch->stream_worker;
     l_usage->client->ch = a_ch;
     l_usage->client->session_id = a_ch->stream->session->id;
@@ -271,7 +287,30 @@ static void s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
 
 
     dap_chain_net_srv_grace_t *l_grace = DAP_NEW_Z(dap_chain_net_srv_grace_t);
+    if (!l_grace) {
+        log_it(L_ERROR, "Memory allocation errror in s_service_start");
+        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
+        if(a_ch)
+            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+        if (l_srv && l_srv->callbacks.response_error)
+            l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
+        DAP_DEL_Z(l_usage->client);
+        DAP_DEL_Z(l_usage);    
+        return;
+    }
     l_grace->request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_request_t, a_request_size);
+    if (!l_grace->request) {
+        log_it(L_ERROR, "Memory allocation errror in s_service_start");
+        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
+        if(a_ch)
+            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+        if (l_srv && l_srv->callbacks.response_error)
+            l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
+        DAP_DEL_Z(l_usage->client);
+        DAP_DEL_Z(l_usage);
+        DAP_DEL_Z(l_grace);
+        return;
+    }
     memcpy(l_grace->request, a_request, a_request_size);
     l_grace->request_size = a_request_size;
     l_grace->ch_uuid = a_ch->uuid;
@@ -290,6 +329,15 @@ static void s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
                                                                               l_success_size);
         if(!l_success) {
             log_it(L_ERROR, "Memory allocation error in s_service_start");
+            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
+            if(a_ch)
+                dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+            if (l_srv && l_srv->callbacks.response_error)
+                l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
+            DAP_DEL_Z(l_usage->client);
+            DAP_DEL_Z(l_usage);
+            DAP_DEL_Z(l_grace->request);
+            DAP_DEL_Z(l_grace);
             return;
         }
         l_success->hdr.usage_id = l_usage->id;
