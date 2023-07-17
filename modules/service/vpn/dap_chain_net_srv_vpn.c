@@ -949,15 +949,17 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
         return -1;
     }
     l_usage_client->usage_id = a_usage_id;
-    l_usage_client->receipt = DAP_NEW_SIZE(dap_chain_datum_tx_receipt_t,l_receipt_size);
-    if (!l_usage_client->receipt) {
-        log_it(L_ERROR, "Memory allocation error in s_callback_response_success");
-        DAP_DEL_Z(l_usage_client);
-        return -1;
+
+    if (!l_usage_active->is_free){
+        l_usage_client->receipt = DAP_NEW_SIZE(dap_chain_datum_tx_receipt_t,l_receipt_size);
+        if (!l_usage_client->receipt) {
+            log_it(L_ERROR, "Memory allocation error in s_callback_response_success");
+            DAP_DEL_Z(l_usage_client);
+            return -1;
+        }
+
+        memcpy(l_usage_client->receipt, l_receipt, l_receipt_size);
     }
-
-    memcpy(l_usage_client->receipt, l_receipt, l_receipt_size);
-
     pthread_rwlock_wrlock(&s_clients_rwlock);
     HASH_ADD(hh, s_clients,usage_id,sizeof(a_usage_id),l_usage_client);
     l_srv_session->usage_active = l_usage_active;
