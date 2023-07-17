@@ -516,7 +516,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 if (l_tx_cond_hash_str)
                     dap_chain_hash_fast_from_str (l_tx_cond_hash_str, &l_tx_cond_hash);
                 l_price = dap_chain_balance_scan(l_price_str);
-                
+
                 if (!dap_strcmp(l_price_unit_str, "MB")){
                     l_price_unit.uint32 = SERV_UNIT_MB;
                 } else if (!dap_strcmp(l_price_unit_str, "SEC")){
@@ -530,8 +530,8 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 } else if (!dap_strcmp(l_price_unit_str, "PCS")){
                     l_price_unit.uint32 = SERV_UNIT_PCS;
                 } else
-                    l_price_unit.uint32 = SERV_UNIT_UNDEFINED;                  
-                        
+                    l_price_unit.uint32 = SERV_UNIT_UNDEFINED;
+
                 uint64_t l_units = atoi(l_units_str);
                 strncpy(l_price_token, l_price_token_str, DAP_CHAIN_TICKER_SIZE_MAX - 1);
                 size_t l_ext_len = l_ext? strlen(l_ext) + 1 : 0;
@@ -772,7 +772,11 @@ static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out
     dap_chain_tx_out_cond_t *l_prev_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_prev, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, NULL);
 
     uint256_t l_unit_price = {};
-    DIV_256(l_receipt->receipt_info.value_datoshi, GET_256_FROM_64(l_receipt->receipt_info.units), &l_unit_price);
+    if (l_receipt->receipt_info.units != 0){
+        DIV_256(l_receipt->receipt_info.value_datoshi, GET_256_FROM_64(l_receipt->receipt_info.units), &l_unit_price);
+    } else {
+        return false;
+    }
 
     if( compare256(uint256_0, l_prev_out_cond->subtype.srv_pay.unit_price_max_datoshi) &&
         compare256(l_unit_price, l_prev_out_cond->subtype.srv_pay.unit_price_max_datoshi) > 0){
@@ -1174,7 +1178,7 @@ const dap_chain_net_srv_uid_t * dap_chain_net_srv_list(void)
  * @param a_price
  * @return
  */
-dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv_t *a_srv,                                                         
+dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv_t *a_srv,
                                                                dap_chain_net_srv_price_t * a_price,
                                                                const void * a_ext, size_t a_ext_size)
 {
