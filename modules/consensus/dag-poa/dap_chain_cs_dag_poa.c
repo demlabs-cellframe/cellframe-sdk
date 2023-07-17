@@ -432,8 +432,15 @@ static void s_poa_round_check_callback_round_clean(dap_global_db_context_t *a_gl
             uint64_t l_time_diff = dap_nanotime_now() - l_event_round_item->round_info.ts_update;
             uint64_t l_timeuot = dap_nanotime_from_sec(l_poa_pvt->confirmations_timeout + l_poa_pvt->wait_sync_before_complete + 10);
             uint64_t l_round_id = ((dap_chain_cs_dag_event_t *)l_event_round_item->event_n_signs)->header.round_id;
-            if (((int64_t)l_time_diff > 0 && l_time_diff > l_timeuot) ||
-                    l_round_id <= l_dag->round_completed) {
+            if (((int64_t)l_time_diff > 0 && l_time_diff > l_timeuot) || l_round_id <= l_dag->round_completed) {
+                pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
+                struct round_timer_arg *l_arg = NULL;
+                HASH_FIND(hh, l_poa_pvt->active_rounds, &l_round_id, sizeof(uint64_t), l_arg);
+                if (l_arg) {
+                    HASH_DEL(l_poa_pvt->active_rounds, l_arg);
+                    DAP_DELETE(l_arg);
+                }
+                pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
                 dap_global_db_del_unsafe(a_global_db_context, a_group, a_values[i].key);
                 log_it(L_DEBUG, "DAG-PoA: Remove event %s from round %"DAP_UINT64_FORMAT_U" %s.",
                                 a_values[i].key, l_round_id, l_time_diff > l_timeuot ? "by timer" : "owing to round completion");
@@ -504,7 +511,8 @@ static dap_chain_cs_dag_event_round_item_t *s_round_event_choose_dup(dap_list_t 
            l_winner_mem_region[DAP_CHAIN_POA_ROUND_FILTER_MEM_SIZE] = { };
     enum dap_chain_poa_round_filter_stage l_stage = DAP_CHAIN_POA_ROUND_FILTER_STAGE_START;
     while (l_stage++ < DAP_CHAIN_POA_ROUND_FILTER_STAGE_MAX) {
-        for (dap_list_t *it = l_dups; it; it = it->next) {
+        dap_list_t *it, *tmp;
+        for (it = l_dups, tmp = l_dups ? l_dups->next : NULL; it; it = tmp, tmp = tmp ? tmp->next : NULL) {
             l_round_item = (dap_chain_cs_dag_event_round_item_t *)it->data;
             l_event = (dap_chain_cs_dag_event_t *)l_round_item->event_n_signs;
             switch (l_stage) {
@@ -519,13 +527,13 @@ static dap_chain_cs_dag_event_round_item_t *s_round_event_choose_dup(dap_list_t 
                     l_dups = dap_list_remove_link(l_dups, it);
                 else {
                     s_event_get_unique_mem_region(l_round_item, l_event_mem_region);
-                    if (memcmp(&l_winner_mem_region, &l_event_mem_region, DAP_CHAIN_POA_ROUND_FILTER_MEM_SIZE) > 0)
+                    if (memcmp(l_winner_mem_region, l_event_mem_region, DAP_CHAIN_POA_ROUND_FILTER_MEM_SIZE))
                         memcpy(l_winner_mem_region, l_event_mem_region, DAP_CHAIN_POA_ROUND_FILTER_MEM_SIZE);
                 }
                 break;
             case DAP_CHAIN_POA_ROUND_FILTER_STAGE_MEM:
                 s_event_get_unique_mem_region(l_round_item, l_event_mem_region);
-                if (memcmp(&l_winner_mem_region, &l_event_mem_region, DAP_CHAIN_POA_ROUND_FILTER_MEM_SIZE))
+                if (memcmp(l_winner_mem_region, l_event_mem_region, DAP_CHAIN_POA_ROUND_FILTER_MEM_SIZE))
                     l_dups = dap_list_remove_link(l_dups, it);
             default: break;
             }
@@ -595,11 +603,11 @@ static void s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
             dap_chain_atom_verify_res_t l_res = l_dag->chain->callback_atom_add(l_dag->chain, l_new_atom, l_event_size);
             if (l_res == ATOM_ACCEPT) {
                 dap_chain_atom_save(l_dag->chain, (dap_chain_atom_ptr_t)l_new_atom, l_event_size, l_dag->chain->cells->id);
-                pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
+                s_poa_round_clean(l_dag->chain);
+                /*pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
                 HASH_DEL(l_poa_pvt->active_rounds, l_arg);
                 pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
-                DAP_DELETE(a_arg);
-                s_poa_round_clean(l_dag->chain);
+                DAP_DELETE(a_arg); */ // This routine is moved to round_clean callback
             } else if (l_res != ATOM_MOVE_TO_THRESHOLD)
                 DAP_DELETE(l_new_atom);
             log_it(L_INFO, "Event %s from round %"DAP_UINT64_FORMAT_U" %s",
