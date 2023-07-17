@@ -1403,10 +1403,9 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             switch (l_res) {
             case 0:
                 if(l_node_client->cur_node_addr.uint64 != 0) {
-
-                    l_sync_request.node_addr.uint64 = l_node_client->cur_node_addr.uint64;
                     log_it(L_INFO, "Node address leased");
                     l_sync_request.node_addr.uint64 = l_node_client->cur_node_addr.uint64;
+                    
                     // save cur address
                     // already saved
                     // dap_db_set_cur_node_addr_exp(l_sync_request.node_addr.uint64, l_net->pub.name);
@@ -3345,7 +3344,6 @@ static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_s
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-chain", &a_params->chain_str);
     //token_ticker
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-token", &a_params->ticker);
-
     // Token type
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-type", &a_params->type_str);
 
@@ -3362,9 +3360,6 @@ static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_s
         } else if (strcmp(a_params->type_str, "public_simple") == 0 && !a_update_token) {
             a_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL;
             a_params->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC; // 256
-        } else if (strcmp(a_params->type_str, "CF20") == 0) {
-            a_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL;
-            a_params->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE; // 256
         } else if (!a_update_token) {
             dap_cli_server_cmd_set_reply_text(a_str_reply,
                         "Unknown token type %s was specified. Supported types:\n"

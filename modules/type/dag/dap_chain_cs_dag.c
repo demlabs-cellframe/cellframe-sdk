@@ -1182,9 +1182,20 @@ static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_lasts( dap_chain_ato
         if( a_lasts_size)
             *a_lasts_size = l_lasts_size;
         l_ret = DAP_NEW_Z_SIZE(dap_chain_atom_ptr_t, sizeof(dap_chain_atom_ptr_t) * l_lasts_size);
+        if (!l_ret) {
+            log_it(L_ERROR, "Memory allocation error in s_chain_callback_atom_iter_get_lasts");
+            pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
+            return NULL;
+        }
         dap_chain_cs_dag_event_item_t * l_event_item = NULL, *l_event_item_tmp = NULL;
         size_t i = 0;
         *a_lasts_size_array = DAP_NEW_Z_SIZE(size_t, sizeof(size_t) * l_lasts_size);
+        if (!*a_lasts_size_array) {
+            log_it(L_ERROR, "Memory allocation error in s_chain_callback_atom_iter_get_lasts");
+            pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
+            DAP_DEL_Z(l_ret);
+            return NULL;
+        }
         HASH_ITER(hh,PVT(l_dag)->events_lasts_unlinked, l_event_item,l_event_item_tmp){
             l_ret[i] = l_event_item->event;
             (*a_lasts_size_array)[i] = l_event_item->event_size;
@@ -1222,7 +1233,7 @@ static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_links( dap_chain_ato
             if( a_links_size)
                 *a_links_size = l_event->header.hash_count;
             *a_links_size_array = DAP_NEW_Z_SIZE(size_t, l_event->header.hash_count*sizeof (size_t));
-            if (!a_links_size_array) {
+            if (!*a_links_size_array) {
                 log_it(L_ERROR, "Memory allocation error in s_chain_callback_atom_iter_get_links");
                 DAP_DEL_Z(l_ret);
                 return NULL;
@@ -2095,6 +2106,7 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
     if (a_page < 2)
         l_offset = 0;
     if (l_offset > l_count){
+        pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
         return NULL;
     }
     dap_list_t *l_list = NULL;

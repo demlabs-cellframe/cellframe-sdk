@@ -1166,6 +1166,9 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 while(l_tx_list ){
                     dap_chain_datum_tx_t * l_tx_cur = (dap_chain_datum_tx_t*) l_tx_list->data;
                     s_string_append_tx_cond_info(l_str_reply, l_net, l_tx_cur );
+
+                    //INFINITE LOOP ????
+                    
                 }
                 dap_list_free(l_tx_list);
                 *a_str_reply = dap_string_free(l_str_reply, false);
@@ -1194,6 +1197,9 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                         while(l_tx_list ){
                             dap_chain_datum_tx_t * l_tx_cur = (dap_chain_datum_tx_t*) l_tx_list->data;
                             s_string_append_tx_cond_info(l_str_reply, l_net, l_tx_cur );
+
+                            //INFINITE LOOP ????
+
                         }
                         dap_list_free(l_tx_list);
                         *a_str_reply = dap_string_free(l_str_reply, false);
