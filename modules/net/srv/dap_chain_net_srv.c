@@ -769,6 +769,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
         return -4;
     }
     a_srv->grace_period = dap_config_get_item_uint32_default(g_config, a_config_section, "grace_period", 60);
+    a_srv->allow_free_srv = dap_config_get_item_bool_default(g_config, a_config_section, "allow_free_srv", false);
     int l_err_code = 0;
     dap_chain_node_addr_t *l_node_addr = NULL;
     l_node_addr = dap_chain_net_get_cur_addr(l_net);

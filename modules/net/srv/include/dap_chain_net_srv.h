@@ -246,6 +246,7 @@ typedef struct dap_chain_net_srv
     dap_chain_net_srv_abstract_t srv_common;
     dap_chain_net_srv_price_t *pricelist;
 
+    bool allow_free_srv;
     uint32_t grace_period;
     pthread_mutex_t banlist_mutex;
     dap_chain_net_srv_banlist_item_t *ban_list;
