@@ -658,17 +658,18 @@ static void s_round_event_cs_done(dap_chain_cs_dag_t * a_dag, uint64_t a_round_i
         pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
         HASH_ADD(hh, l_poa_pvt->active_rounds, round_id, sizeof(uint64_t), l_callback_arg);
         pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
+        if (!dap_timerfd_start(PVT(l_poa)->confirmations_timeout * 1000, (dap_timerfd_callback_t)s_callback_round_event_to_chain, l_callback_arg)) {
+            pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
+            HASH_DEL(l_poa_pvt->active_rounds, l_callback_arg);
+            pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
+            DAP_DELETE(l_callback_arg);
+            log_it(L_ERROR,"Can't run timer for round ID %"DAP_UINT64_FORMAT_U, a_round_id);
+            return;
+        }
+        log_it(L_NOTICE,"Run timer for %d sec for round ID %"DAP_UINT64_FORMAT_U, PVT(l_poa)->confirmations_timeout, a_round_id);
+    } else {
+        log_it(L_INFO, "Timer for round id %"DAP_UINT64_FORMAT_U" has already started before", a_round_id);
     }
-
-    if (!dap_timerfd_start(PVT(l_poa)->confirmations_timeout * 1000, (dap_timerfd_callback_t)s_callback_round_event_to_chain, l_callback_arg)) {
-        pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
-        HASH_DEL(l_poa_pvt->active_rounds, l_callback_arg);
-        pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
-        DAP_DELETE(l_callback_arg);
-        log_it(L_ERROR,"Can't run timer for round ID %"DAP_UINT64_FORMAT_U, a_round_id);
-        return;
-    }
-    log_it(L_NOTICE,"Run timer for %d sec for round ID %"DAP_UINT64_FORMAT_U, PVT(l_poa)->confirmations_timeout, a_round_id);
 }
 
 /**
