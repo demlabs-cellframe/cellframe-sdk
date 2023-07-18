@@ -62,6 +62,7 @@ typedef struct dap_chain_cs_dag_poa_presign_callback{
 struct round_timer_arg {
     dap_chain_cs_dag_t *dag;
     uint64_t round_id;
+    dap_timerfd_t *confrm_timer;
     UT_hash_handle hh;
 };
 
@@ -432,13 +433,16 @@ static void s_poa_round_check_callback_round_clean(dap_global_db_context_t *a_gl
             uint64_t l_time_diff = dap_nanotime_now() - l_event_round_item->round_info.ts_update;
             uint64_t l_timeuot = dap_nanotime_from_sec(l_poa_pvt->confirmations_timeout + l_poa_pvt->wait_sync_before_complete + 10);
             uint64_t l_round_id = ((dap_chain_cs_dag_event_t *)l_event_round_item->event_n_signs)->header.round_id;
+            log_it(L_MSG, "!! Event round id %llu, last complete round id %llu", l_round_id, l_dag->round_completed);
             if (((int64_t)l_time_diff > 0 && l_time_diff > l_timeuot) || l_round_id <= l_dag->round_completed) {
                 pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
                 struct round_timer_arg *l_arg = NULL;
                 HASH_FIND(hh, l_poa_pvt->active_rounds, &l_round_id, sizeof(uint64_t), l_arg);
                 if (l_arg) {
                     HASH_DEL(l_poa_pvt->active_rounds, l_arg);
+                    dap_timerfd_delete_unsafe(l_arg->confrm_timer);
                     DAP_DELETE(l_arg);
+                    log_it(L_DEBUG, "DAG-PoA: Remove round id %llu from active rounds", l_round_id);
                 }
                 pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
                 dap_global_db_del_unsafe(a_global_db_context, a_group, a_values[i].key);
@@ -598,8 +602,7 @@ static void s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
         dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(l_new_atom, l_event_size);
         int l_verify_datum = dap_chain_net_verify_datum_for_add(l_dag->chain, l_datum, &l_chosen_item->round_info.datum_hash);
         if (!l_verify_datum) {
-            if (!l_new_atom->header.round_id)
-                l_dag->round_completed++;
+            l_dag->round_completed = l_new_atom->header.round_id ? l_new_atom->header.round_id : l_dag->round_completed + 1;
             dap_chain_atom_verify_res_t l_res = l_dag->chain->callback_atom_add(l_dag->chain, l_new_atom, l_event_size);
             if (l_res == ATOM_ACCEPT) {
                 dap_chain_atom_save(l_dag->chain, (dap_chain_atom_ptr_t)l_new_atom, l_event_size, l_dag->chain->cells->id);
@@ -658,7 +661,7 @@ static void s_round_event_cs_done(dap_chain_cs_dag_t * a_dag, uint64_t a_round_i
         pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
         HASH_ADD(hh, l_poa_pvt->active_rounds, round_id, sizeof(uint64_t), l_callback_arg);
         pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
-        if (!dap_timerfd_start(PVT(l_poa)->confirmations_timeout * 1000, (dap_timerfd_callback_t)s_callback_round_event_to_chain, l_callback_arg)) {
+        if (!(l_callback_arg->confrm_timer = dap_timerfd_start(PVT(l_poa)->confirmations_timeout * 1000, (dap_timerfd_callback_t)s_callback_round_event_to_chain, l_callback_arg))) {
             pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
             HASH_DEL(l_poa_pvt->active_rounds, l_callback_arg);
             pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
@@ -696,10 +699,10 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
     dap_chain_node_role_t l_role = dap_chain_net_get_role(l_cur_net);
     if (l_role.enums == NODE_ROLE_ROOT_MASTER || l_role.enums == NODE_ROLE_ROOT) {
         l_dag->callback_cs_event_round_sync = s_callback_event_round_sync;
-        if (l_dag->round_completed >= l_dag->round_current) {
+        log_it(L_MSG, "Round complete ID %llu, current ID %llu", l_dag->round_completed, l_dag->round_current);
+        if (l_dag->round_completed > l_dag->round_current) {
             l_dag->round_completed = l_dag->round_current;
-            if (l_dag->round_completed)
-                l_dag->round_completed--;
+            l_dag->round_current = l_dag->round_completed + 1;
         }
     }
     return 0;
@@ -802,7 +805,8 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
         HASH_FIND(hh, l_poa_pvt->active_rounds, &l_round_id, sizeof(uint64_t), l_round_active);
         pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
         if (!l_round_active) {
-            log_it(L_DEBUG, "DAG event came from too old round so won't be processed");
+            log_it(L_DEBUG, "DAG event came from too old round [last complete id %llu > %llu], skip it",
+                   a_dag->round_completed, l_event->header.round_id);
             DAP_DELETE(l_event);
             return -2;
         }
