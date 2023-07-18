@@ -85,7 +85,8 @@ static bool s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out
  * @brief dap_chain_net_srv_init
  * @return
  */
-int dap_chain_net_srv_init() {
+int dap_chain_net_srv_init()
+{
     dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, s_pay_verificator_callback, NULL);
     dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, s_fee_verificator_callback, NULL);
     dap_stream_ch_chain_net_srv_init();
@@ -119,7 +120,8 @@ int dap_chain_net_srv_init() {
 /**
  * @brief s_load_all
  */
-void s_load_all() {
+void s_load_all()
+{
     char * l_net_dir_str = dap_strdup_printf("%s/service.d", dap_config_path());
     DIR * l_net_dir = opendir( l_net_dir_str);
     if ( l_net_dir ) {
@@ -898,7 +900,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
     dap_chain_net_srv_uid_t l_uid = {.uint64 = a_uid.uint64 }; // Copy to let then compiler to pass args via registers not stack
     pthread_mutex_lock(&s_srv_list_mutex);
     HASH_FIND(hh, s_srv_list, &l_uid, sizeof(l_uid), l_sdata);
-    if(l_sdata == NULL) {
+    if(!l_sdata) {
         l_srv = DAP_NEW_Z(dap_chain_net_srv_t);
         if (!l_srv) {
             log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_add");

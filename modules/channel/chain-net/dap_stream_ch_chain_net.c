@@ -127,7 +127,8 @@ dap_chain_node_addr_t dap_stream_ch_chain_net_from_session_data_extract_node_add
     return l_addr;
 }
 
-uint8_t dap_stream_ch_chain_net_get_id() {
+uint8_t dap_stream_ch_chain_net_get_id()
+{
     return 'N';
 }
 
@@ -135,7 +136,8 @@ uint8_t dap_stream_ch_chain_net_get_id() {
  * @brief dap_stream_ch_chain_net_init
  * @return always 0
  */
-int dap_stream_ch_chain_net_init() {
+int dap_stream_ch_chain_net_init()
+{
     log_it(L_NOTICE, "Chain network channel initialized");
     dap_stream_ch_proc_add(dap_stream_ch_chain_net_get_id(), s_stream_ch_new, s_stream_ch_delete,
             s_stream_ch_packet_in, s_stream_ch_packet_out);

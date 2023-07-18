@@ -593,7 +593,7 @@ int dap_chain_load_all(dap_chain_t *a_chain)
         const char * l_filename = l_dir_entry->d_name;
         const char l_suffix[] = ".dchaincell";
         size_t l_suffix_len = strlen(l_suffix);
-        if (strncmp(l_filename + strlen(l_filename) - l_suffix_len, l_suffix, l_suffix_len) == 0 ) {
+        if (!strncmp(l_filename + strlen(l_filename) - l_suffix_len, l_suffix, l_suffix_len)) {
             l_ret += dap_chain_cell_load(a_chain, l_filename);
         }
     }

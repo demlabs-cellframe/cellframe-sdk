@@ -295,7 +295,8 @@ dap_chain_wallet_n_pass_t   *l_prec;
  * @brief check wallet folders and try open wallets
  * @return 0 if all ok
  */
-int dap_chain_wallet_init() {
+int dap_chain_wallet_init()
+{
     char *c_wallets_path = NULL, l_fspec[MAX_PATH] = {0};
     DIR * l_dir = NULL;
     struct dirent * l_dir_entry = NULL;
@@ -351,7 +352,8 @@ void dap_chain_wallet_deinit(void)
  */
 static char s_wallets_path[MAX_PATH];
 
-const char* dap_chain_wallet_get_path(dap_config_t * a_config) {
+const char* dap_chain_wallet_get_path(dap_config_t * a_config)
+{
     char *l_cp = NULL;
     if (!a_config)
         a_config = g_config;

@@ -146,7 +146,8 @@ static bool s_debug_more = false;
  * @brief dap_chain_cs_dag_init
  * @return always 0
  */
-int dap_chain_cs_dag_init() {
+int dap_chain_cs_dag_init()
+{
     srand((unsigned int) time(NULL));
     dap_chain_cs_type_add( "dag", dap_chain_cs_dag_new );
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);

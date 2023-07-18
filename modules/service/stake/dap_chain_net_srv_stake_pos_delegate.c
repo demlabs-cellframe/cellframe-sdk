@@ -57,7 +57,8 @@ static dap_chain_net_srv_stake_t *s_srv_stake = NULL;
  * @brief dap_stream_ch_vpn_init Init actions for VPN stream channel
  * @return 0 if everything is okay, lesser then zero if errors
  */
-int dap_chain_net_srv_stake_pos_delegate_init() {
+int dap_chain_net_srv_stake_pos_delegate_init()
+{
     dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, s_stake_verificator_callback, s_stake_updater_callback);
     dap_cli_server_cmd_add("srv_stake", s_cli_srv_stake, "Delegated stake service commands",
     "\t\t=== Commands for work with orders ===\n"
@@ -1959,7 +1960,8 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
 }
 
 bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
-                                                uint256_t *a_max_fee, uint256_t *a_average_fee, uint256_t *a_min_fee) {
+                                                uint256_t *a_max_fee, uint256_t *a_average_fee, uint256_t *a_min_fee)
+{
     if (!a_net)
         return false;
     char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(a_net);
@@ -2047,7 +2049,8 @@ static void s_cache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
         log_it(L_WARNING, "Stake service cache mismatch");
 }
 
-bool dap_chain_net_srv_stake_check_pkey_hash(dap_hash_fast_t *a_pkey_hash) {
+bool dap_chain_net_srv_stake_check_pkey_hash(dap_hash_fast_t *a_pkey_hash)
+{
     dap_chain_net_srv_stake_item_t *l_stake, *l_tmp;
     HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp) {
         if (dap_hash_fast_compare(&l_stake->signing_addr.data.hash_fast, a_pkey_hash))
