@@ -34,8 +34,7 @@
  * @brief dap_chain_block_cache_init
  * @return
  */
-int dap_chain_block_cache_init()
-{
+int dap_chain_block_cache_init() {
     return 0;
 }
 

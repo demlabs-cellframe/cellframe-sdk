@@ -154,8 +154,7 @@ static bool s_debug_more = false;
  * @brief dap_chain_cs_blocks_init
  * @return
  */
-int dap_chain_cs_blocks_init()
-{
+int dap_chain_cs_blocks_init() {
     dap_chain_cs_type_add("blocks", dap_chain_cs_blocks_new );
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     s_debug_more = dap_config_get_item_bool_default(g_config, "blocks", "debug_more", false);
@@ -189,7 +188,7 @@ int dap_chain_cs_blocks_init()
                 "\t\t Take the whole commission\n\n"
 
                                         );
-    if (dap_chain_block_cache_init() != 0){
+    if( dap_chain_block_cache_init() ) {
         log_it(L_WARNING, "Can't init blocks cache");
     }
     log_it(L_NOTICE,"Initialized blocks(m) chain type");
@@ -205,8 +204,7 @@ void dap_chain_cs_blocks_deinit()
     dap_chain_block_cache_deinit();
 }
 
-int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config)
-{
+int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config) {
     dap_chain_cs_blocks_t * l_cs_blocks = DAP_NEW_Z(dap_chain_cs_blocks_t);
     if (!l_cs_blocks) {
         log_it(L_ERROR, "Memory allocation error in dap_chain_cs_blocks_new");

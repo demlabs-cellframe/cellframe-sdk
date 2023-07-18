@@ -94,10 +94,9 @@ uint32_t s_timer_update_states = 600;
 
 /**
  * @brief dap_chain_node_client_init
- * @return
+ * @return always 0
  */
-int dap_chain_node_client_init(void)
-{
+int dap_chain_node_client_init() {
     s_stream_ch_chain_debug_more = dap_config_get_item_bool_default(g_config, "stream_ch_chain", "debug_more", false);
     s_timer_update_states = dap_config_get_item_uint32_default(g_config, "node_client", "timer_update_states", s_timer_update_states);
     return 0;

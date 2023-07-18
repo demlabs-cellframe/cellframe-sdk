@@ -37,8 +37,7 @@ static void s_stream_ch_new(dap_stream_ch_t *a_ch, void *a_arg);
 static void s_stream_ch_delete(dap_stream_ch_t *a_ch, void *a_arg);
 static void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg);
 
-int dap_stream_ch_chain_voting_init()
-{
+int dap_stream_ch_chain_voting_init() {
     log_it(L_NOTICE, "Chains voting channel initialized");
 
     dap_stream_ch_proc_add(dap_stream_ch_chain_voting_get_id(),

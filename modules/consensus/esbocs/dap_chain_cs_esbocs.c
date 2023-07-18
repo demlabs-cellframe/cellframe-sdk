@@ -143,8 +143,7 @@ DAP_STATIC_INLINE uint16_t s_get_round_skip_timeout(dap_chain_esbocs_session_t *
     return PVT(a_session->esbocs)->round_attempt_timeout * 6 * PVT(a_session->esbocs)->round_attempts_max;
 }
 
-int dap_chain_cs_esbocs_init()
-{
+int dap_chain_cs_esbocs_init() {
     dap_stream_ch_chain_voting_init();
     dap_chain_cs_add("esbocs", s_callback_new);
     dap_cli_server_cmd_add ("esbocs", s_cli_esbocs, "ESBOCS commands",

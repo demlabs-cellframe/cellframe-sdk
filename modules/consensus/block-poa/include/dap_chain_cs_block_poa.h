@@ -24,8 +24,7 @@
 #pragma once
 #include "dap_chain_cs_blocks.h"
 
-typedef struct dap_chain_cs_block_poa
-{
+typedef struct dap_chain_cs_block_poa {
     dap_chain_t * chain;
     dap_chain_cs_blocks_t * blocks;
     void * _pvt;

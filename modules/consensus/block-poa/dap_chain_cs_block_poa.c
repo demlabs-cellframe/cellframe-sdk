@@ -42,8 +42,7 @@
 #define LOG_TAG "dap_chain_cs_block_poa"
 
 
-typedef struct dap_chain_cs_dag_poa_pvt
-{
+typedef struct dap_chain_cs_dag_poa_pvt {
     dap_enc_key_t *sign_key;
     dap_cert_t ** auth_certs;
     char * auth_certs_prefix;
@@ -171,8 +170,7 @@ static int s_cli_block_poa(int argc, char ** argv, char **a_str_reply)
  * @param a_chain
  * @param a_chain_cfg
  */
-static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
-{
+static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg) {
     dap_chain_cs_blocks_new(a_chain, a_chain_cfg);
     dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS( a_chain );
     dap_chain_cs_block_poa_t * l_poa = DAP_NEW_Z ( dap_chain_cs_block_poa_t);
