@@ -78,8 +78,7 @@ static bool s_debug_more = true;
  * @param vpn_mask Zero if only client mode. Mask if the node shares its local VPN
  * @return 0 if everything is okay, lesser then zero if errors
  */
-int dap_chain_net_srv_xchange_init()
-{
+int dap_chain_net_srv_xchange_init() {
     dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, s_xchange_verificator_callback, NULL);
     dap_cli_server_cmd_add("srv_xchange", s_cli_srv_xchange, "eXchange service commands",
 
@@ -127,10 +126,9 @@ int dap_chain_net_srv_xchange_init()
     l_srv_callbacks.receipt_next_success = s_callback_receipt_next_success;
     l_srv_callbacks.decree = s_callback_decree;
 
-
     dap_chain_net_srv_t* l_srv = dap_chain_net_srv_add(l_uid, "srv_xchange", &l_srv_callbacks);
     s_srv_xchange = DAP_NEW_Z(dap_chain_net_srv_xchange_t);
-    if (!s_srv_xchange) {
+    if (!s_srv_xchange || !l_srv) {
         log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_xchange_init");
         return -1;
     }

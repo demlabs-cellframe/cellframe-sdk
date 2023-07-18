@@ -71,7 +71,7 @@ typedef struct dap_chain_net_srv_order
 } DAP_ALIGN_PACKED dap_chain_net_srv_order_t;
 
 // Init/deinit should be call only if private
-int dap_chain_net_srv_order_init(void);
+int dap_chain_net_srv_order_init();
 void dap_chain_net_srv_order_deinit(void);
 
 size_t dap_chain_net_srv_order_get_size(dap_chain_net_srv_order_t *a_order);
