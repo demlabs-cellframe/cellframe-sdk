@@ -66,9 +66,17 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace);
 static bool s_grace_period_finish(usages_in_grace_t *a_grace);
 
 static inline void s_grace_error(dap_chain_net_srv_grace_t *a_grace, dap_stream_ch_chain_net_srv_pkt_error_t a_err){
+
+
     dap_stream_ch_t * l_ch = dap_stream_ch_find_by_uuid_unsafe(a_grace->stream_worker, a_grace->ch_uuid);
     dap_chain_net_srv_stream_session_t *l_srv_session = l_ch && l_ch->stream && l_ch->stream->session ?
                                         (dap_chain_net_srv_stream_session_t *)l_ch->stream->session->_inheritor : NULL;
+
+    if (!l_srv_session){
+        DAP_DELETE(a_grace->request);
+        DAP_DELETE(a_grace);
+        return;
+    }
 
         a_grace->usage->is_grace = false;
     if (a_grace->usage->receipt_next){ // If not first grace-period
@@ -428,15 +436,15 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
 
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(l_grace->stream_worker, l_grace->ch_uuid);
 
-    if (l_grace->usage->price && !l_grace->usage->receipt_next){ // if first grace delete price and set actual
-        DAP_DEL_Z(l_grace->usage->price);
-    }
-
     if (!l_ch){
         s_grace_error(l_grace, l_err);
         HASH_DEL(s_grace_table, a_grace_item);
         DAP_DEL_Z(a_grace_item);
         return false;
+    }
+
+    if (l_grace->usage->price && !l_grace->usage->receipt_next){ // if first grace delete price and set actual
+        DAP_DEL_Z(l_grace->usage->price);
     }
 
     if (l_grace->usage->is_waiting_new_tx_cond){
