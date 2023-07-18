@@ -269,22 +269,21 @@ static void s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
     l_usage->net = l_net;
     l_usage->service = l_srv;
 
-
-    dap_chain_net_srv_grace_t *l_grace = DAP_NEW_Z(dap_chain_net_srv_grace_t);
-    l_grace->request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_request_t, a_request_size);
-    memcpy(l_grace->request, a_request, a_request_size);
-    l_grace->request_size = a_request_size;
-    l_grace->ch_uuid = a_ch->uuid;
-    l_grace->stream_worker = a_ch->stream_worker;
-    l_grace->usage = l_usage;
-
     if (l_srv->pricelist){
         // not free service
+        log_it( L_INFO, "Valid pricelist is founded. Start service in pay mode.");
+        dap_chain_net_srv_grace_t *l_grace = DAP_NEW_Z(dap_chain_net_srv_grace_t);
+        l_grace->request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_request_t, a_request_size);
+        memcpy(l_grace->request, a_request, a_request_size);
+        l_grace->request_size = a_request_size;
+        l_grace->ch_uuid = a_ch->uuid;
+        l_grace->stream_worker = a_ch->stream_worker;
+        l_grace->usage = l_usage;
         s_grace_period_start(l_grace);
-    } else {
+    } else if (l_srv->allow_free_srv){
         // Start service for free
-        log_it( L_INFO, "Service provide for free");
-        l_grace->usage->is_free = true;
+        log_it( L_INFO, "Can't find a valid pricelist. Service provide for free");
+        l_usage->is_free = true;
         size_t l_success_size = sizeof (dap_stream_ch_chain_net_srv_pkt_success_hdr_t );
         dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
                                                                               l_success_size);
@@ -295,6 +294,11 @@ static void s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
         if (l_usage->service->callbacks.response_success)
             l_usage->service->callbacks.response_success(l_usage->service, l_usage->id,  l_usage->client, NULL, 0);
         DAP_DELETE(l_success);
+    }else {
+        log_it( L_INFO, "No pricelists. Free service sharing is not allowed. Service stop.");
+        dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
+        if (l_srv && l_srv->callbacks.response_error)
+            l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
     }
     return;
 }
