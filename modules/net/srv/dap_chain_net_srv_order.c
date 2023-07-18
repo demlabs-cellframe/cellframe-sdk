@@ -110,7 +110,8 @@ static void s_srv_order_check_decree_sign_timer() {
  * @brief dap_chain_net_srv_order_init
  * @return
  */
-int dap_chain_net_srv_order_init() {
+int dap_chain_net_srv_order_init()
+{
     uint16_t l_net_count = 0;
     dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
     for (uint16_t i = 0; i < l_net_count; i++) {

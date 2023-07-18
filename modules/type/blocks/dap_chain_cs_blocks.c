@@ -154,7 +154,8 @@ static bool s_debug_more = false;
  * @brief dap_chain_cs_blocks_init
  * @return
  */
-int dap_chain_cs_blocks_init() {
+int dap_chain_cs_blocks_init()
+{
     dap_chain_cs_type_add("blocks", dap_chain_cs_blocks_new );
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     s_debug_more = dap_config_get_item_bool_default(g_config, "blocks", "debug_more", false);
@@ -204,7 +205,8 @@ void dap_chain_cs_blocks_deinit()
     dap_chain_block_cache_deinit();
 }
 
-int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config) {
+int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config)
+{
     dap_chain_cs_blocks_t * l_cs_blocks = DAP_NEW_Z(dap_chain_cs_blocks_t);
     if (!l_cs_blocks) {
         log_it(L_ERROR, "Memory allocation error in dap_chain_cs_blocks_new");
@@ -1593,7 +1595,8 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
  * @param a_chain Chain object
  * @return size_t
  */
-static size_t s_callback_count_atom(dap_chain_t *a_chain){
+static size_t s_callback_count_atom(dap_chain_t *a_chain)
+{
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(l_blocks);
     return l_blocks_pvt->blocks_count;

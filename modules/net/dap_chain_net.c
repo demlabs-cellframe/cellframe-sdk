@@ -302,7 +302,8 @@ static bool s_seed_mode = false;
  * register net* commands in cellframe-node-cli interface
  * @return
  */
-int dap_chain_net_init() {
+int dap_chain_net_init()
+{
     dap_stream_ch_chain_init();
     dap_stream_ch_chain_net_init();
     dap_chain_node_client_init();
@@ -1545,8 +1546,7 @@ void dap_chain_net_delete( dap_chain_net_t * a_net )
  * @brief
  * load network config settings
  */
-void dap_chain_net_load_all()
-{
+void dap_chain_net_load_all() {
     dap_chain_net_t **l_net_list = NULL;
     uint16_t l_net_count = 0;
     int32_t l_ret = 0;
@@ -1558,10 +1558,11 @@ void dap_chain_net_load_all()
     }
 
     for(uint16_t i = 0; i < l_net_count; i++){
-        if((l_ret = s_net_load(l_net_list[i])) != 0){
+        if((l_ret = s_net_load(l_net_list[i])) ){
             log_it(L_ERROR, "Loading chains of net %s finished with (%d) error code.", l_net_list[i]->pub.name, l_ret);
         }
     }
+    DAP_DELETE(l_net_list);
 }
 
 dap_string_t* dap_cli_list_net()
@@ -1707,7 +1708,8 @@ static bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
  * @param a_type - dap_chain_type_t a_type [CHAIN_TYPE_TOKEN, CHAIN_TYPE_EMISSION, CHAIN_TYPE_TX]
  * @return uint16_t
  */
-static const char *s_chain_type_convert_to_string(dap_chain_type_t a_type) {
+static const char *s_chain_type_convert_to_string(dap_chain_type_t a_type)
+{
     switch (a_type) {
         case CHAIN_TYPE_TOKEN:
             return ("token");
@@ -2251,12 +2253,13 @@ void s_main_timer_callback(void *a_arg)
  * @param a_acl_idx currently 0
  * @return int
  */
-int s_net_init(const char * a_net_name, uint16_t a_acl_idx) {
+int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
+{
     dap_config_t *l_cfg = NULL;
     dap_string_t *l_cfg_path = dap_string_new("network/");
     dap_string_append(l_cfg_path,a_net_name);
 
-    if( ( l_cfg = dap_config_open ( l_cfg_path->str ) ) == NULL ) {
+    if( !(l_cfg = dap_config_open(l_cfg_path->str)) ) {
         log_it(L_ERROR,"Can't open default network config");
         dap_string_free(l_cfg_path,true);
         return -1;
@@ -2732,15 +2735,14 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx) {
     return 0;
 }
 
-int s_net_load(dap_chain_net_t *a_net)
-{
+int s_net_load(dap_chain_net_t *a_net) {
     dap_chain_net_t *l_net = a_net;
 
-    dap_config_t *l_cfg=NULL;
+    dap_config_t *l_cfg = NULL;
     dap_string_t *l_cfg_path = dap_string_new("network/");
     dap_string_append(l_cfg_path,a_net->pub.name);
 
-    if( ( l_cfg = dap_config_open ( l_cfg_path->str ) ) == NULL ) {
+    if( !( l_cfg = dap_config_open ( l_cfg_path->str ) ) ) {
         log_it(L_ERROR,"Can't open default network config");
         dap_string_free(l_cfg_path,true);
         return -1;
@@ -2763,7 +2765,7 @@ int s_net_load(dap_chain_net_t *a_net)
     while(l_chain){
         l_chain->ledger = l_net->pub.ledger;
         dap_chain_ledger_set_fee(l_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
-        if (dap_chain_load_all(l_chain) == 0)
+        if (!dap_chain_load_all(l_chain))
             log_it (L_NOTICE, "Loaded chain files");
         else {
             dap_chain_save_all( l_chain );
@@ -2892,7 +2894,8 @@ void dap_chain_net_deinit()
  * @brief dap_chain_net_list
  * @return NULL if error
  */
-dap_chain_net_t **dap_chain_net_list(uint16_t *a_size) {
+dap_chain_net_t **dap_chain_net_list(uint16_t *a_size)
+{
     if (!a_size)
         return NULL;
     pthread_rwlock_rdlock(&s_net_items_rwlock);
