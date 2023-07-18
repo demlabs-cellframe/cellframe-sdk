@@ -38,7 +38,8 @@ static int s_srv_datum_cli(int argc, char ** argv, char **a_str_reply);
 
 void s_order_notficator(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg);
 
-int dap_chain_net_srv_datum_init() {
+int dap_chain_net_srv_datum_init()
+{
     dap_cli_server_cmd_add("srv_datum", s_srv_datum_cli, "Service Datum commands", 
         "srv_datum -net <net_name> -chain <chain_name> datum save -datum <datum_hash>\n"
             "\tSaving datum from mempool to file.\n\n"

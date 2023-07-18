@@ -2735,7 +2735,8 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     return 0;
 }
 
-int s_net_load(dap_chain_net_t *a_net) {
+int s_net_load(dap_chain_net_t *a_net)
+{
     dap_chain_net_t *l_net = a_net;
 
     dap_config_t *l_cfg = NULL;
