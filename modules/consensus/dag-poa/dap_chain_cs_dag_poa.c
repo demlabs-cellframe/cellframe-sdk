@@ -574,7 +574,12 @@ static void s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
         return;
     struct round_timer_arg *l_arg = (struct round_timer_arg *)a_arg;
     dap_chain_cs_dag_t *l_dag = l_arg->dag;
+    uint64_t l_round_id = l_arg->round_id;
     dap_chain_cs_dag_poa_pvt_t *l_poa_pvt = PVT(DAP_CHAIN_CS_DAG_POA(l_dag));
+    pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
+    HASH_DEL(l_poa_pvt->active_rounds, l_arg);
+    pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
+    DAP_DELETE(a_arg);
     size_t l_events_round_size = a_values_count;
     dap_store_obj_t *l_events_round = a_values;
     uint16_t l_max_signs_count = 0;
@@ -582,7 +587,7 @@ static void s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
     for (size_t l_index = 0; l_index < l_events_round_size; l_index++) {
         dap_chain_cs_dag_event_round_item_t *l_round_item = (dap_chain_cs_dag_event_round_item_t *)l_events_round[l_index].value;
         dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t *)l_round_item->event_n_signs;
-        if (l_event->header.round_id == l_arg->round_id &&
+        if (l_event->header.round_id == l_round_id &&
                 l_round_item->round_info.reject_count < l_poa_pvt->auth_certs_count_verify) {
             l_dups_list = dap_list_append(l_dups_list, l_round_item);
             if (l_event->header.signs_count > l_max_signs_count)
@@ -606,22 +611,18 @@ static void s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
             } else if (l_res != ATOM_MOVE_TO_THRESHOLD)
                 DAP_DELETE(l_new_atom);
             log_it(L_INFO, "Event %s from round %"DAP_UINT64_FORMAT_U" %s",
-                   l_event_hash_hex_str, l_arg->round_id, dap_chain_atom_verify_res_str[l_res]);
+                   l_event_hash_hex_str, l_round_id, dap_chain_atom_verify_res_str[l_res]);
         } else {
             DAP_DELETE(l_new_atom);
             char l_datum_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_chain_hash_fast_to_str(&l_chosen_item->round_info.datum_hash, l_datum_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
             log_it(L_INFO, "Event %s from round %"DAP_UINT64_FORMAT_U" not added into chain, because the inner datum %s doesn't pass verification (%s)",
-                   l_event_hash_hex_str, l_arg->round_id, l_datum_hash_str, dap_chain_net_verify_datum_err_code_to_str(l_datum, l_verify_datum));
+                   l_event_hash_hex_str, l_round_id, l_datum_hash_str, dap_chain_net_verify_datum_err_code_to_str(l_datum, l_verify_datum));
         }
     } else { /* !l_chosen_item */
-        log_it(L_WARNING, "No candidates for round id %"DAP_UINT64_FORMAT_U, l_arg->round_id);
+        log_it(L_WARNING, "No candidates for round id %"DAP_UINT64_FORMAT_U, l_round_id);
     }
     dap_list_free(l_dups_list);
-    pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
-    HASH_DEL(l_poa_pvt->active_rounds, l_arg);
-    pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
-    DAP_DELETE(a_arg);
 }
 
 /**
