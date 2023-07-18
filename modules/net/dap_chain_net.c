@@ -2875,7 +2875,8 @@ int s_net_load(dap_chain_net_t *a_net)
         l_target_state = NET_STATE_OFFLINE;
     }
     l_net_pvt->load_mode = false;
-    dap_chain_ledger_load_end(l_net->pub.ledger);
+    if (l_net->pub.ledger)
+        dap_chain_ledger_load_end(l_net->pub.ledger);
 
     l_net_pvt->balancer_http = !dap_config_get_item_bool_default(l_cfg, "general", "use_dns_links", false);
 

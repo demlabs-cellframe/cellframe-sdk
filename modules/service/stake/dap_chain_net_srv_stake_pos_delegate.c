@@ -330,7 +330,15 @@ static bool s_stake_cache_check_tx(dap_hash_fast_t *a_tx_hash)
 
 int dap_chain_net_srv_stake_load_cache(dap_chain_net_t *a_net)
 {
+    if (!a_net) {
+        log_it(L_ERROR, "Invalid argument a_net in dap_chain_net_srv_stake_load_cache");
+        return -1;
+    }
     dap_ledger_t *l_ledger = a_net->pub.ledger;
+    if(!l_ledger) {
+        log_it(L_ERROR, "Invalid arguments l_ledger in dap_chain_net_srv_stake_load_cache");
+        return -1;
+    }
     if (!dap_chain_ledger_cache_enabled(l_ledger))
         return 0;
     char *l_gdb_group = dap_chain_ledger_get_gdb_group(l_ledger, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP);
