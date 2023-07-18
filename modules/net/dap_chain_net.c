@@ -2888,8 +2888,13 @@ void dap_chain_net_deinit()
 
 }
 
-dap_chain_net_t **dap_chain_net_list(uint16_t *a_size)
-{
+/**
+ * @brief dap_chain_net_list
+ * @return NULL if error
+ */
+dap_chain_net_t **dap_chain_net_list(uint16_t *a_size) {
+    if (!a_size)
+        return NULL;
     pthread_rwlock_rdlock(&s_net_items_rwlock);
     *a_size = HASH_COUNT(s_net_items);
     if(*a_size){
