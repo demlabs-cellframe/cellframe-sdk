@@ -302,8 +302,7 @@ static bool s_seed_mode = false;
  * register net* commands in cellframe-node-cli interface
  * @return
  */
-int dap_chain_net_init()
-{
+int dap_chain_net_init() {
     dap_stream_ch_chain_init();
     dap_stream_ch_chain_net_init();
     dap_chain_node_client_init();
@@ -338,21 +337,20 @@ int dap_chain_net_init()
     char * l_net_dir_str = dap_strdup_printf("%s/network", dap_config_path());
     DIR * l_net_dir = opendir( l_net_dir_str);
     if ( l_net_dir ){
-        struct dirent * l_dir_entry;
+        struct dirent * l_dir_entry = NULL;
         uint16_t l_acl_idx = 0;
-        while ( (l_dir_entry = readdir(l_net_dir) )!= NULL ){
+        while ( (l_dir_entry = readdir(l_net_dir) ) ){
             if (l_dir_entry->d_name[0]=='\0' || l_dir_entry->d_name[0]=='.')
                 continue;
             // don't search in directories
-            char * l_full_path = dap_strdup_printf("%s/%s", l_net_dir_str, l_dir_entry->d_name);
+            char l_full_path[MAX_PATH + 1] = {0};
+            dap_snprintf(l_full_path, sizeof(l_full_path), "%s/%s", l_net_dir_str, l_dir_entry->d_name);
             if(dap_dir_test(l_full_path)) {
-                DAP_DELETE(l_full_path);
                 continue;
             }
-            DAP_DELETE(l_full_path);
             // search only ".cfg" files
             if(strlen(l_dir_entry->d_name) > 4) { // It has non zero name excluding file extension
-                if(strncmp(l_dir_entry->d_name + strlen(l_dir_entry->d_name) - 4, ".cfg", 4) != 0) {
+                if( strncmp(l_dir_entry->d_name + strlen(l_dir_entry->d_name) - 4, ".cfg", 4) ) {
                     // its not .cfg file
                     continue;
                 }
@@ -2253,9 +2251,8 @@ void s_main_timer_callback(void *a_arg)
  * @param a_acl_idx currently 0
  * @return int
  */
-int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
-{
-    dap_config_t *l_cfg=NULL;
+int s_net_init(const char * a_net_name, uint16_t a_acl_idx) {
+    dap_config_t *l_cfg = NULL;
     dap_string_t *l_cfg_path = dap_string_new("network/");
     dap_string_append(l_cfg_path,a_net_name);
 

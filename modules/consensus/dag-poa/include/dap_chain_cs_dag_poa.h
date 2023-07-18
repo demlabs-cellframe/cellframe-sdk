@@ -38,7 +38,7 @@ typedef struct dap_chain_cs_dag_poa
 #define DAP_CHAIN_CS_DAG_POA(a) ( (dap_chain_cs_dag_poa_t *) (a)->_inheritor)
 
 
-int dap_chain_cs_dag_poa_init(void);
+int dap_chain_cs_dag_poa_init();
 void dap_chain_cs_dag_poa_deinit(void);
 dap_list_t *dap_chain_cs_dag_poa_get_auth_certs(dap_chain_t *a_chain, size_t *a_auth_certs_count, uint16_t *a_count_verify);
 void dap_chain_cs_dag_poa_presign_callback_set(dap_chain_t *a_chain,

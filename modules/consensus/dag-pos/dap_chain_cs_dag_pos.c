@@ -58,8 +58,7 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
  * @brief dap_chain_cs_dag_pos_init
  * @return
  */
-int dap_chain_cs_dag_pos_init()
-{
+int dap_chain_cs_dag_pos_init() {
     dap_chain_cs_add ("dag_pos", s_callback_new );
     return 0;
 }

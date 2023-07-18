@@ -55,12 +55,9 @@ static dap_chain_net_srv_stake_t *s_srv_stake = NULL;
 
 /**
  * @brief dap_stream_ch_vpn_init Init actions for VPN stream channel
- * @param vpn_addr Zero if only client mode. Address if the node shares its local VPN
- * @param vpn_mask Zero if only client mode. Mask if the node shares its local VPN
  * @return 0 if everything is okay, lesser then zero if errors
  */
-int dap_chain_net_srv_stake_pos_delegate_init()
-{
+int dap_chain_net_srv_stake_pos_delegate_init() {
     dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, s_stake_verificator_callback, s_stake_updater_callback);
     dap_cli_server_cmd_add("srv_stake", s_cli_srv_stake, "Delegated stake service commands",
     "\t\t=== Commands for work with orders ===\n"
