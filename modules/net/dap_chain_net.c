@@ -1238,8 +1238,10 @@ struct json_object *s_net_states_json_collect(dap_chain_net_t *a_net)
     json_object_object_add(l_json, "linksCount"       , json_object_new_int(HASH_COUNT(PVT(a_net)->net_links)));
     json_object_object_add(l_json, "activeLinksCount" , json_object_new_int(s_net_get_active_links_count(a_net)));
     char l_node_addr_str[24] = {'\0'};
-    snprintf(l_node_addr_str, sizeof(l_node_addr_str), NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(PVT(a_net)->node_addr));
-    json_object_object_add(l_json, "nodeAddress"     , json_object_new_string(l_node_addr_str));
+    int l_tmp = PVT(a_net)->node_addr
+            ? snprintf(l_node_addr_str, sizeof(l_node_addr_str), NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(PVT(a_net)->node_addr))
+            : 0;
+    json_object_object_add(l_json, "nodeAddress"     , json_object_new_string(l_tmp ? l_node_addr_str : "0000::0000::0000::0000"));
     return l_json;
 }
 
@@ -2798,7 +2800,7 @@ int s_net_load(dap_chain_net_t *a_net)
             log_it (L_NOTICE, "Initialized chain files");
         }
 
-        if(l_chain->callback_created)
+        if (l_chain->callback_created)
             l_chain->callback_created(l_chain, l_cfg);
 
         l_chain = l_chain->next;
