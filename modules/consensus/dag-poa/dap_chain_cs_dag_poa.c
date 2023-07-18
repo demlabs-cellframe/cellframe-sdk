@@ -62,7 +62,6 @@ typedef struct dap_chain_cs_dag_poa_presign_callback{
 struct round_timer_arg {
     dap_chain_cs_dag_t *dag;
     uint64_t round_id;
-    dap_timerfd_t *confrm_timer;
     UT_hash_handle hh;
 };
 
@@ -433,21 +432,18 @@ static void s_poa_round_check_callback_round_clean(dap_global_db_context_t *a_gl
             uint64_t l_time_diff = dap_nanotime_now() - l_event_round_item->round_info.ts_update;
             uint64_t l_timeuot = dap_nanotime_from_sec(l_poa_pvt->confirmations_timeout + l_poa_pvt->wait_sync_before_complete + 10);
             uint64_t l_round_id = ((dap_chain_cs_dag_event_t *)l_event_round_item->event_n_signs)->header.round_id;
-            log_it(L_MSG, "!! Event round id %llu, last complete round id %llu", l_round_id, l_dag->round_completed);
             if (((int64_t)l_time_diff > 0 && l_time_diff > l_timeuot) || l_round_id <= l_dag->round_completed) {
-                pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
+                pthread_rwlock_rdlock(&l_poa_pvt->rounds_rwlock);
                 struct round_timer_arg *l_arg = NULL;
                 HASH_FIND(hh, l_poa_pvt->active_rounds, &l_round_id, sizeof(uint64_t), l_arg);
-                if (l_arg) {
-                    HASH_DEL(l_poa_pvt->active_rounds, l_arg);
-                    dap_timerfd_delete_unsafe(l_arg->confrm_timer);
-                    DAP_DELETE(l_arg);
-                    log_it(L_DEBUG, "DAG-PoA: Remove round id %llu from active rounds", l_round_id);
-                }
                 pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
+                if (l_arg) {
+                    log_it(L_INFO, "Event %s is from currently active round [id %llu]", a_values[i].key, l_round_id);
+                    continue;
+                }
                 dap_global_db_del_unsafe(a_global_db_context, a_group, a_values[i].key);
                 log_it(L_DEBUG, "DAG-PoA: Remove event %s from round %"DAP_UINT64_FORMAT_U" %s.",
-                                a_values[i].key, l_round_id, l_time_diff > l_timeuot ? "by timer" : "owing to round completion");
+                       a_values[i].key, l_round_id, l_time_diff > l_timeuot ? "by timer" : "owing to round completion");
             }
         }
     }
@@ -607,10 +603,6 @@ static void s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
             if (l_res == ATOM_ACCEPT) {
                 dap_chain_atom_save(l_dag->chain, (dap_chain_atom_ptr_t)l_new_atom, l_event_size, l_dag->chain->cells->id);
                 s_poa_round_clean(l_dag->chain);
-                /*pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
-                HASH_DEL(l_poa_pvt->active_rounds, l_arg);
-                pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
-                DAP_DELETE(a_arg); */ // This routine is moved to round_clean callback
             } else if (l_res != ATOM_MOVE_TO_THRESHOLD)
                 DAP_DELETE(l_new_atom);
             log_it(L_INFO, "Event %s from round %"DAP_UINT64_FORMAT_U" %s",
@@ -626,6 +618,10 @@ static void s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
         log_it(L_WARNING, "No candidates for round id %"DAP_UINT64_FORMAT_U, l_arg->round_id);
     }
     dap_list_free(l_dups_list);
+    pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
+    HASH_DEL(l_poa_pvt->active_rounds, l_arg);
+    pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
+    DAP_DELETE(a_arg);
 }
 
 /**
@@ -661,7 +657,7 @@ static void s_round_event_cs_done(dap_chain_cs_dag_t * a_dag, uint64_t a_round_i
         pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
         HASH_ADD(hh, l_poa_pvt->active_rounds, round_id, sizeof(uint64_t), l_callback_arg);
         pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
-        if (!(l_callback_arg->confrm_timer = dap_timerfd_start(PVT(l_poa)->confirmations_timeout * 1000, (dap_timerfd_callback_t)s_callback_round_event_to_chain, l_callback_arg))) {
+        if (!dap_timerfd_start(PVT(l_poa)->confirmations_timeout * 1000, (dap_timerfd_callback_t)s_callback_round_event_to_chain, l_callback_arg)) {
             pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
             HASH_DEL(l_poa_pvt->active_rounds, l_callback_arg);
             pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
