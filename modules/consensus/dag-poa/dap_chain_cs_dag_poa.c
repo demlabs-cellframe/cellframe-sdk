@@ -645,23 +645,20 @@ static void s_round_event_cs_done(dap_chain_cs_dag_t * a_dag, uint64_t a_round_i
     dap_chain_cs_dag_poa_t *l_poa = DAP_CHAIN_CS_DAG_POA(a_dag);
     dap_chain_cs_dag_poa_pvt_t *l_poa_pvt = PVT(l_poa);
     struct round_timer_arg *l_callback_arg = NULL;
-    pthread_rwlock_rdlock(&l_poa_pvt->rounds_rwlock);
+    pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
     HASH_FIND(hh, l_poa_pvt->active_rounds, &a_round_id, sizeof(uint64_t), l_callback_arg);
-    pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
     if (!l_callback_arg) {
         l_callback_arg = DAP_NEW_Z(struct round_timer_arg);
         if (!l_callback_arg) {
+            pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
             log_it(L_ERROR, "Memory allocation error in s_round_event_cs_done");
             return;
         }
         l_callback_arg->dag = a_dag;
         l_callback_arg->round_id = a_round_id;
-        // placement in chain by timer
-        pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
         HASH_ADD(hh, l_poa_pvt->active_rounds, round_id, sizeof(uint64_t), l_callback_arg);
-        pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
+        // Placement into chain by confirmation timer
         if (!dap_timerfd_start(PVT(l_poa)->confirmations_timeout * 1000, (dap_timerfd_callback_t)s_callback_round_event_to_chain, l_callback_arg)) {
-            pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
             HASH_DEL(l_poa_pvt->active_rounds, l_callback_arg);
             pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
             DAP_DELETE(l_callback_arg);
@@ -669,6 +666,9 @@ static void s_round_event_cs_done(dap_chain_cs_dag_t * a_dag, uint64_t a_round_i
             return;
         }
         log_it(L_NOTICE,"Run timer for %d sec for round ID %"DAP_UINT64_FORMAT_U, PVT(l_poa)->confirmations_timeout, a_round_id);
+    } else {
+        // Timer for this round has previosuly started
+        pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
     }
 }
 
