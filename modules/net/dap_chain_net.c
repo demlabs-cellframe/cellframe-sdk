@@ -2578,7 +2578,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
             l_node_addr = dap_chain_node_alias_find(l_net, l_node_alias_str);
         else {
             l_node_addr = DAP_NEW_Z(dap_chain_node_addr_t);
-            if (!l_net_pvt->node_info) {
+            if (!l_node_addr) {
                 log_it(L_ERROR, "Memory allocation error in s_net_init");
                 dap_config_close(l_cfg);
                 return -1;
