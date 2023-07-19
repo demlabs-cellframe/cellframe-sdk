@@ -601,9 +601,9 @@ static void s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
         char *l_event_hash_hex_str;
         dap_get_data_hash_str_static(l_new_atom, l_event_size, l_event_hash_hex_str);
         dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(l_new_atom, l_event_size);
+        l_dag->round_completed = l_new_atom->header.round_id ? l_new_atom->header.round_id : l_dag->round_completed + 1;
         int l_verify_datum = dap_chain_net_verify_datum_for_add(l_dag->chain, l_datum, &l_chosen_item->round_info.datum_hash);
         if (!l_verify_datum) {
-            l_dag->round_completed = l_new_atom->header.round_id ? l_new_atom->header.round_id : l_dag->round_completed + 1;
             dap_chain_atom_verify_res_t l_res = l_dag->chain->callback_atom_add(l_dag->chain, l_new_atom, l_event_size);
             if (l_res == ATOM_ACCEPT) {
                 dap_chain_atom_save(l_dag->chain, (dap_chain_atom_ptr_t)l_new_atom, l_event_size, l_dag->chain->cells->id);
@@ -620,7 +620,9 @@ static void s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
                    l_event_hash_hex_str, l_round_id, l_datum_hash_str, dap_chain_net_verify_datum_err_code_to_str(l_datum, l_verify_datum));
         }
     } else { /* !l_chosen_item */
+        l_dag->round_completed++;
         log_it(L_WARNING, "No candidates for round id %"DAP_UINT64_FORMAT_U, l_round_id);
+
     }
     dap_list_free(l_dups_list);
 }
@@ -667,8 +669,6 @@ static void s_round_event_cs_done(dap_chain_cs_dag_t * a_dag, uint64_t a_round_i
             return;
         }
         log_it(L_NOTICE,"Run timer for %d sec for round ID %"DAP_UINT64_FORMAT_U, PVT(l_poa)->confirmations_timeout, a_round_id);
-    } else {
-        log_it(L_INFO, "Timer for round id %"DAP_UINT64_FORMAT_U" has already started before", a_round_id);
     }
 }
 
