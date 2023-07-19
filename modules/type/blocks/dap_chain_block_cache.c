@@ -86,13 +86,12 @@ dap_chain_block_cache_t *dap_chain_block_cache_new(dap_chain_cs_blocks_t *a_bloc
  */
 dap_chain_block_cache_t * dap_chain_block_cache_dup(dap_chain_block_cache_t * a_block)
 {
-    dap_chain_block_cache_t * l_ret = DAP_NEW_Z(dap_chain_block_cache_t);
+    dap_chain_block_cache_t *l_ret = DAP_DUP(a_block);
     if (!l_ret) {
         log_it(L_ERROR, "Memory allocation error in dap_chain_block_cache_dup");
         return NULL;
     }
-    memcpy(l_ret,a_block, sizeof (*a_block));
-    memset(&l_ret->hh,0, sizeof (l_ret->hh)); // Drop hash handle to prevent its usage
+    l_ret->hh = (UT_hash_handle){ }; // Drop hash handle to prevent its usage
     return l_ret;
 }
 
