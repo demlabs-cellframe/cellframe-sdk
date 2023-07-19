@@ -3150,17 +3150,18 @@ int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply)
 
     dap_chain_datum_t * l_datum = l_datum_hash_hex_str ? (dap_chain_datum_t*) dap_global_db_get_sync(l_gdb_group_mempool, l_datum_hash_hex_str,
                                                                                    &l_datum_size, NULL, NULL ) : NULL;
-    DAP_DELETE(l_gdb_group_mempool);
     size_t l_datum_size2 = l_datum? dap_chain_datum_size( l_datum): 0;
     if (l_datum_size != l_datum_size2) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Corrupted datum %s, size by datum headers is %zd when in mempool is only %zd bytes",
                                           l_datum_hash_hex_str, l_datum_size2, l_datum_size);
         DAP_DELETE(l_datum_hash_hex_str);
+        DAP_DELETE(l_gdb_group_mempool);
         return -8;
     }
     if (!l_datum) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Can't find datum %s", l_datum_hash_str);
         DAP_DELETE(l_datum_hash_hex_str);
+        DAP_DELETE(l_gdb_group_mempool);
         return -4;
     }
     dap_hash_fast_t l_datum_hash, l_real_hash;
@@ -3168,6 +3169,7 @@ int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Can't convert datum hash string %s to digital form",
                                           l_datum_hash_hex_str);
         DAP_DELETE(l_datum_hash_hex_str);
+        DAP_DELETE(l_gdb_group_mempool);
         return -7;
     }
     dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_real_hash);
@@ -3175,6 +3177,7 @@ int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Datum's real hash doesn't match datum's hash string %s",
                                           l_datum_hash_hex_str);
         DAP_DELETE(l_datum_hash_hex_str);
+        DAP_DELETE(l_gdb_group_mempool);
         return -6;
     }
     char buf[50];
@@ -3209,7 +3212,7 @@ int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply)
     dap_string_append_printf(l_str_tmp, "\n");
     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
     dap_string_free(l_str_tmp, true);
-
+    DAP_DELETE(l_gdb_group_mempool);
     DAP_DELETE(l_datum_hash_hex_str);
     return ret;
 }
@@ -5409,12 +5412,26 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
     }
 
     // Check, if network ID is same as ID in destination wallet address. If not - operation is cancelled.
-    if (!dap_chain_addr_is_blank(l_addr_to) && l_addr_to->net_id.uint64 != l_net->pub.id.uint64) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "destination wallet network ID=0x%"DAP_UINT64_FORMAT_x
-                                                       " and network ID=0x%"DAP_UINT64_FORMAT_x" is not equal."
-                                                       " Please, change network name or wallet address",
-                                                       l_addr_to->net_id.uint64, l_net->pub.id.uint64);
-        return -13;
+    if (l_addr_to->net_id.uint64 != l_net->pub.id.uint64) {
+        bool l_found = false;
+        for (dap_list_t *it = l_net->pub.bridged_networks; it; it = it->next) {
+            if (((dap_chain_net_id_t *)it->data)->uint64 == l_addr_to->net_id.uint64) {
+                l_found = true;
+                break;
+            }
+        }
+        if (!l_found) {
+            dap_string_t *l_allowed_list = dap_string_new("");
+            dap_string_append_printf(l_allowed_list, "0x%016"DAP_UINT64_FORMAT_X, l_net->pub.id.uint64);
+            for (dap_list_t *it = l_net->pub.bridged_networks; it; it = it->next)
+                dap_string_append_printf(l_allowed_list, ", 0x%016"DAP_UINT64_FORMAT_X, ((dap_chain_net_id_t *)it->data)->uint64);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Destination network ID=0x%"DAP_UINT64_FORMAT_x
+                                                           " is unreachable. List of available network IDs:\n%s"
+                                                           " Please, change network name or wallet address",
+                                              l_addr_to->net_id.uint64, l_allowed_list->str);
+            dap_string_free(l_allowed_list, true);
+            return -13;
+        }
     }
 
     if(l_tx_num){

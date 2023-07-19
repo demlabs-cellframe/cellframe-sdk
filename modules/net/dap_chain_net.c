@@ -294,8 +294,6 @@ static void s_update_links_timer_callback(void *a_arg){
     DAP_DELETE(l_node_info);
 }
 
-static bool s_seed_mode = false;
-
 /**
  * @brief
  * init network settings from cellrame-node.cfg file
@@ -332,7 +330,7 @@ int dap_chain_net_init()
             "\tPurge the cache of chain net ledger and recalculate it from chain file\n"
         "net -net <chain net name> poa_cets list\n"
             "\tPrint list of PoA cerificates for this network\n");
-    s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
+
     s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more",false);
 
     char * l_net_dir_str = dap_strdup_printf("%s/network", dap_config_path());
@@ -1496,8 +1494,7 @@ static dap_chain_net_t *s_net_new(const char *a_id, const char *a_name,
     pthread_rwlock_init(&PVT(ret)->downlinks_lock, NULL);
     pthread_rwlock_init(&PVT(ret)->balancer_lock, NULL);
     pthread_rwlock_init(&PVT(ret)->states_lock, NULL);
-    if (sscanf(a_id, "0x%016"DAP_UINT64_FORMAT_X, &ret->pub.id.uint64) != 1) {
-        log_it (L_ERROR, "Wrong id format (\"%s\"). Must be like \"0x0123456789ABCDE\"" , a_id );
+    if (dap_chain_net_id_parse(a_id, &ret->pub.id) != 0) {
         DAP_DELETE(ret);
         return NULL;
     }
@@ -2287,6 +2284,16 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     l_net->pub.gdb_nodes = dap_strdup_printf("%s.nodes",l_net->pub.gdb_groups_prefix);
     l_net->pub.gdb_nodes_aliases = dap_strdup_printf("%s.nodes.aliases",l_net->pub.gdb_groups_prefix);
 
+    // Bridged netwoks allowed to send transactions to
+    uint16_t l_net_ids_count = 0;
+    char **l_bridged_net_ids = dap_config_get_array_str(l_cfg, "general", "bridged_network_ids", &l_net_ids_count);
+    for (uint16_t i = 0; i< l_net_ids_count; i++) {
+        dap_chain_net_id_t l_id;
+        if (dap_chain_net_id_parse(l_bridged_net_ids[i], &l_id) != 0)
+            continue;
+        l_net->pub.bridged_networks = dap_list_append(l_net->pub.bridged_networks, DAP_DUP(&l_id));
+    }
+
     // nodes for special sync
     char **l_gdb_sync_nodes_addrs = dap_config_get_array_str(l_cfg, "general", "gdb_sync_nodes_addrs",
             &l_net_pvt->gdb_sync_nodes_addrs_count);
@@ -2811,33 +2818,26 @@ int s_net_load(dap_chain_net_t *a_net)
             if (l_chain )
                l_chain->is_datum_pool_proc = true;
             l_net_pvt->only_static_links = true;
-            l_target_state = NET_STATE_ONLINE;
             log_it(L_INFO,"Root node role established");
         } break;
         case NODE_ROLE_CELL_MASTER:
         case NODE_ROLE_MASTER:{
-
             uint16_t l_proc_chains_count=0;
             char ** l_proc_chains = dap_config_get_array_str(l_cfg,"role-master" , "proc_chains", &l_proc_chains_count );
-            for ( size_t i = 0; i< l_proc_chains_count ; i++){
-                dap_chain_id_t l_chain_id = {{0}};
-                if (sscanf( l_proc_chains[i], "0x%16"DAP_UINT64_FORMAT_X,  &l_chain_id.uint64) ==1 ||
-                         sscanf(l_proc_chains[i], "0x%16"DAP_UINT64_FORMAT_x, &l_chain_id.uint64) == 1) {
+            for ( size_t i = 0; i< l_proc_chains_count ; i++) {
+                dap_chain_id_t l_chain_id = {};
+                if (dap_chain_id_parse(l_proc_chains[i], &l_chain_id) == 0) {
                     dap_chain_t * l_chain = dap_chain_find_by_id(l_net->pub.id, l_chain_id );
-                    if ( l_chain ){
+                    if (l_chain)
                         l_chain->is_datum_pool_proc = true;
-                    }else{
-                        log_it( L_WARNING, "Can't find chain id " );
-                    }
+                    else
+                        log_it(L_WARNING, "Can't find chain id 0x%016" DAP_UINT64_FORMAT_X, l_chain_id.uint64);
                 }
             }
-            l_net_pvt->only_static_links = true;
-            l_target_state = NET_STATE_ONLINE;
             log_it(L_INFO,"Master node role established");
         } break;
         case NODE_ROLE_FULL:{
             log_it(L_INFO,"Full node role established");
-            l_target_state = NET_STATE_ONLINE;
         } break;
         case NODE_ROLE_LIGHT:
         default:
@@ -2846,9 +2846,9 @@ int s_net_load(dap_chain_net_t *a_net)
     }
     if (!l_net_pvt->only_static_links)
         l_net_pvt->only_static_links = dap_config_get_item_bool_default(l_cfg, "general", "links_static_only", false);
-    if (s_seed_mode || !dap_config_get_item_bool_default(g_config ,"general", "auto_online",false ) ) { // If we seed we do everything manual. First think - prefil list of node_addrs and its aliases
+    if (!dap_config_get_item_bool_default(g_config ,"general", "auto_online", false))
         l_target_state = NET_STATE_OFFLINE;
-    }
+
     l_net_pvt->load_mode = false;
     dap_chain_ledger_load_end(l_net->pub.ledger);
 

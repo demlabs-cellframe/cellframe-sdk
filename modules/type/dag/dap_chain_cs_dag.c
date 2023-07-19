@@ -317,18 +317,13 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_dag->is_add_directly = dap_config_get_item_bool_default(a_chain_cfg,"dag","is_add_directly",false);
     l_dag->datum_add_hashes_count = dap_config_get_item_uint16_default(a_chain_cfg,"dag","datum_add_hashes_count",1);
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-    l_dag->broadcast_disable = true;
-    char *l_gdb_group = dap_strdup_printf(l_dag->is_celled ? "dag-%s-%s-%016llx-round" : "dag-%s-%s-round",
+    l_dag->gdb_group_events_round_new = dap_strdup_printf(l_dag->is_celled ? "dag-%s-%s-%016llx-round.new" : "dag-%s-%s-round.new",
                                           l_net->pub.gdb_groups_prefix, a_chain->name, 0LLU);
-    l_dag->gdb_group_events_round_new = dap_strdup_printf("%s.%s", l_gdb_group,
-                                                          dap_config_get_item_str_default(a_chain_cfg,"dag","gdb_group_events_round_new", "new"));
-    DAP_DELETE(l_gdb_group);
     dap_global_db_add_sync_extra_group(l_net->pub.name, l_dag->gdb_group_events_round_new, s_history_callback_round_notify, l_dag);
-    l_dag->broadcast_disable = false;
     byte_t *l_current_round = dap_global_db_get_sync(l_dag->gdb_group_events_round_new, DAG_ROUND_CURRENT_KEY, NULL, NULL, NULL);
     l_dag->round_current = l_current_round ? *(uint64_t*)l_current_round : 0;
     DAP_DELETE(l_current_round);
-    debug_if(s_debug_more, L_INFO, "Current round id %llu", l_dag->round_current);
+    debug_if(s_debug_more, L_INFO, "Current round id %"DAP_UINT64_FORMAT_U, l_dag->round_current);
     dap_global_db_get_all_raw(l_dag->gdb_group_events_round_new, 0, 0, s_dag_rounds_events_iter, l_dag);
     PVT(l_dag)->mempool_timer = dap_interval_timer_create(15000, s_timer_process_callback, a_chain);
     PVT(l_dag)->events_treshold = NULL;
@@ -736,8 +731,8 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
     dap_get_data_hash_str_static(l_event, l_event_size, l_event_hash_str);
     bool l_res = dap_chain_cs_dag_event_gdb_set(l_dag, l_event_hash_str, l_event, l_event_size, &l_round_item);
     log_it(l_res ? L_INFO : L_ERROR,
-           l_res ? "Event %s placed in the new forming round [id %llu]"
-                 : "Can't add new event [%s] to the new events round [id %llu]",
+           l_res ? "Event %s placed in the new forming round [id %"DAP_UINT64_FORMAT_U"]"
+                 : "Can't add new event [%s] to the new events round [id %"DAP_UINT64_FORMAT_U"]",
            l_event_hash_str, l_round_current);
     return l_res;
 }

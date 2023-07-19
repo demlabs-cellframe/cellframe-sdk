@@ -62,6 +62,7 @@ typedef union dap_chain_cell_id {
     uint64_t uint64;
 } DAP_ALIGN_PACKED dap_chain_cell_id_t;
 
+int dap_id_uint64_parse(const char *a_id_str, uint64_t *a_id);
 
 /**
   * @struct Node address

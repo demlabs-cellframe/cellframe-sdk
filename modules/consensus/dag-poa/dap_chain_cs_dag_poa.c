@@ -438,7 +438,7 @@ static void s_poa_round_check_callback_round_clean(dap_global_db_context_t *a_gl
                 HASH_FIND(hh, l_poa_pvt->active_rounds, &l_round_id, sizeof(uint64_t), l_arg);
                 pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
                 if (l_arg) {
-                    log_it(L_INFO, "Event %s is from currently active round [id %llu]", a_values[i].key, l_round_id);
+                    log_it(L_INFO, "Event %s is from currently active round [id %"DAP_UINT64_FORMAT_U"]", a_values[i].key, l_round_id);
                     continue;
                 }
                 dap_global_db_del_unsafe(a_global_db_context, a_group, a_values[i].key);
@@ -696,7 +696,7 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
     dap_chain_node_role_t l_role = dap_chain_net_get_role(l_cur_net);
     if (l_role.enums == NODE_ROLE_ROOT_MASTER || l_role.enums == NODE_ROLE_ROOT) {
         l_dag->callback_cs_event_round_sync = s_callback_event_round_sync;
-        log_it(L_MSG, "Round complete ID %llu, current ID %llu", l_dag->round_completed, l_dag->round_current);
+        log_it(L_MSG, "Round complete ID %"DAP_UINT64_FORMAT_U", current ID %"DAP_UINT64_FORMAT_U, l_dag->round_completed, l_dag->round_current);
         if (l_dag->round_completed > l_dag->round_current) {
             l_dag->round_completed = l_dag->round_current;
             l_dag->round_current = l_dag->round_completed + 1;
@@ -802,7 +802,7 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
         HASH_FIND(hh, l_poa_pvt->active_rounds, &l_round_id, sizeof(uint64_t), l_round_active);
         pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
         if (!l_round_active) {
-            log_it(L_DEBUG, "DAG event came from too old round [last complete id %llu > %llu], skip it",
+            log_it(L_DEBUG, "DAG event came from too old round [last complete id %"DAP_UINT64_FORMAT_U" > %"DAP_UINT64_FORMAT_U"], skip it",
                    a_dag->round_completed, l_event->header.round_id);
             DAP_DELETE(l_event);
             return -2;
