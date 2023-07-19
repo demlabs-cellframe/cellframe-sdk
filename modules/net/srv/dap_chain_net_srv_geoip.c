@@ -201,7 +201,7 @@ geoip_info_t *chain_net_geoip_get_ip_info_by_local_db(const char *a_ip_str, cons
 	if (mmdb_get_value_str3(&result, "continent", "names", a_locale, l_ret->continent, sizeof(l_ret->continent))) {
 		if (mmdb_get_value_str3(&result, "continent", "names", LOCALE_DEFAULT, l_ret->continent, sizeof(l_ret->continent))) {
 			MMDB_close(&mmdb);
-			DAP_FREE(l_ret);
+			DAP_DELETE(l_ret);
 			return NULL;
 		}
 	}
@@ -209,21 +209,21 @@ geoip_info_t *chain_net_geoip_get_ip_info_by_local_db(const char *a_ip_str, cons
 	if (mmdb_get_value_str3(&result, "country", "names", a_locale, l_ret->country_name, sizeof(l_ret->country_name))) {
 		if (mmdb_get_value_str3(&result, "country", "names", LOCALE_DEFAULT, l_ret->country_name, sizeof(l_ret->country_name))) {
 			MMDB_close(&mmdb);
-			DAP_FREE(l_ret);
+			DAP_DELETE(l_ret);
 			return NULL;
 		}
 	}
 	// all the country names http://download.geonames.org/export/dump/countryInfo.txt
 	if (mmdb_get_value_str2(&result, "country", "iso_code", l_ret->country_code, sizeof(l_ret->country_code))) {
 		MMDB_close(&mmdb);
-		DAP_FREE(l_ret);
+		DAP_DELETE(l_ret);
 		return NULL;
 	}
 	// city
 	/*if (mmdb_get_value_str3(&result, "city", "names", a_locale, l_ret->city_name, sizeof(l_ret->city_name))) {
 		if (mmdb_get_value_str3(&result, "city", "names", LOCALE_DEFAULT, l_ret->city_name, sizeof(l_ret->city_name))) {
 			MMDB_close(&mmdb);
-			DAP_FREE(l_ret);
+			DAP_DELETE(l_ret);
 			return NULL;
 		}
 	}*/
@@ -231,19 +231,19 @@ geoip_info_t *chain_net_geoip_get_ip_info_by_local_db(const char *a_ip_str, cons
 	//location
 	if (mmdb_get_value_double2(&result, "location", "latitude", &l_ret->latitude)) {
 		MMDB_close(&mmdb);
-		DAP_FREE(l_ret);
+		DAP_DELETE(l_ret);
 		return NULL;
 	}
 	if (mmdb_get_value_double2(&result, "location", "longitude", &l_ret->longitude)) {
 		MMDB_close(&mmdb);
-		DAP_FREE(l_ret);
+		DAP_DELETE(l_ret);
 		return NULL;
 	}
 
 	// IP
 	/*if (mmdb_get_value_str2(&result, "traits", "ip_address", l_ret->ip_str, sizeof(l_ret->ip_str))) {
 		MMDB_close(&mmdb);
-		DAP_FREE(l_ret);
+		DAP_DELETE(l_ret);
 		return NULL;
 	}*/
 	int a = sizeof(l_ret->ip_str);

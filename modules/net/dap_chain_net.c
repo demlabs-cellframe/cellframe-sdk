@@ -2766,9 +2766,9 @@ int s_net_load(dap_chain_net_t *a_net)
     while(l_chain){
         l_chain->ledger = l_net->pub.ledger;
         dap_chain_ledger_set_fee(l_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
-        if (!dap_chain_load_all(l_chain))
+        if (!dap_chain_load_all(l_chain)) {
             log_it (L_NOTICE, "Loaded chain files");
-        else {
+        } else {
             dap_chain_save_all( l_chain );
             log_it (L_NOTICE, "Initialized chain files");
         }
@@ -2908,11 +2908,11 @@ dap_chain_net_t **dap_chain_net_list(uint16_t *a_size)
             pthread_rwlock_unlock(&s_net_items_rwlock);
             return NULL;
         }
-        dap_chain_net_item_t *l_current_item, *l_tmp;
+        dap_chain_net_item_t *l_current_item = NULL, *l_tmp = NULL;
         int i = 0;
         HASH_ITER(hh, s_net_items, l_current_item, l_tmp) {
             l_net_list[i++] = l_current_item->chain_net;
-            if(i > *a_size)
+            if(i >= *a_size)
                 break;
         }
         pthread_rwlock_unlock(&s_net_items_rwlock);

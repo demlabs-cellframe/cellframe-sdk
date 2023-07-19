@@ -336,7 +336,7 @@ dap_sign_t ** dap_chain_datum_token_signs_parse(dap_chain_datum_token_t * a_datu
         size_t l_sign_size = dap_sign_get_size(l_ret[i]);
         if (l_sign_size == 0 || l_sign_size > a_datum_token_size - l_offset) {
             *a_signs_total = 0;
-            DAP_FREE(l_ret);
+            DAP_DELETE(l_ret);
             return NULL;
         }
         (*a_signs_total)++;
