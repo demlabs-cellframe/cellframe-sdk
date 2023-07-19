@@ -826,7 +826,7 @@ static dap_list_t * s_block_parse_str_list(const char * a_hash_str,size_t * a_ha
         if(dap_chain_hash_fast_from_hex_str(l_hashes_str, &l_hash_block)!=0) {
             log_it(L_WARNING,"Can't load hash %s",l_hashes_str);
             *a_hash_size = 0;
-             DAP_FREE(l_hashes_str_dup);
+            DAP_DELETE(l_hashes_str_dup);
             return NULL;
         }
         size_t l_block_size = 0;
@@ -835,7 +835,7 @@ static dap_list_t * s_block_parse_str_list(const char * a_hash_str,size_t * a_ha
         {
             log_it(L_WARNING,"There aren't any block by this hash");
             *a_hash_size = 0;
-             DAP_FREE(l_hashes_str_dup);
+            DAP_DELETE(l_hashes_str_dup);
             return NULL;
         }
         dap_chain_block_cache_t *l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_hash_block);
@@ -849,7 +849,7 @@ static dap_list_t * s_block_parse_str_list(const char * a_hash_str,size_t * a_ha
         l_hashes_str = strtok_r(NULL, ",", &l_hashes_tmp_ptrs);
         l_hashes_pos++;
     }
-    DAP_FREE(l_hashes_str_dup);
+    DAP_DELETE(l_hashes_str_dup);
     return l_block_list;
 }
 

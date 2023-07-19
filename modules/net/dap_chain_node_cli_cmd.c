@@ -5889,7 +5889,7 @@ int cmd_gdb_export(int a_argc, char **a_argv, char **a_str_reply)
             json_object_object_add(jobj, "timestamp", json_object_new_int64((int64_t)l_store_obj[i].timestamp));
             json_object_array_add(l_json_group, jobj);
 
-            DAP_FREE(l_value_enc_str);
+            DAP_DELETE(l_value_enc_str);
         }
         json_object_object_add(l_json_group_inner, "records", l_json_group);
         json_object_array_add(l_json, l_json_group_inner);
@@ -6415,14 +6415,14 @@ static char **s_parse_items(const char *a_str, char a_delimiter, int *a_count, c
 
     s = l_temp_str;
     if (l_count_temp == 0) {
-        DAP_FREE(l_temp_str);
+        DAP_DELETE(l_temp_str);
         return NULL;
     }
 
     char **lines = DAP_CALLOC(l_count_temp, sizeof (void *));
     if (!lines) {
         log_it(L_ERROR, "Memoru allocation error in s_parse_items");
-        DAP_FREE(l_temp_str);
+        DAP_DELETE(l_temp_str);
         return NULL;
     }
     for (int i = 0; i < l_count_temp; i++) {
@@ -6432,7 +6432,7 @@ static char **s_parse_items(const char *a_str, char a_delimiter, int *a_count, c
         s++;
     }
 
-    DAP_FREE(l_temp_str);
+    DAP_DELETE(l_temp_str);
     *a_count = l_count_temp;
     return lines;
 }
@@ -6471,9 +6471,9 @@ static int s_get_key_from_file(const char *a_file, const char *a_mime, const cha
 
         /* free l_items_mime */
         for (int i = 0; i < l_items_mime_count; i++) {
-            if (l_items_mime[i]) DAP_FREE(l_items_mime[i]);
+            if (l_items_mime[i]) DAP_DELETE(l_items_mime[i]);
         }
-        DAP_FREE(l_items_mime);
+        DAP_DELETE(l_items_mime);
         l_items_mime_count = 0;
     }
     if (l_flags_mime == 0) l_flags_mime = SIGNER_ALL_FLAGS;
@@ -6624,29 +6624,28 @@ static int s_sign_file(const char *a_filename, dap_sign_signer_file_t a_flags, c
 
     dap_cert_t *l_cert = dap_cert_find_by_name(a_cert_name);
     if (!l_cert) {
-        DAP_FREE(l_buffer);
+        DAP_DELETE(l_buffer);
         return 0;
     }
 
     if (!dap_hash_fast(l_buffer, l_file_content_size, a_hash)) {
-        DAP_FREE(l_buffer);
+        DAP_DELETE(l_buffer);
         return 0;
     }
 
     size_t l_full_size_for_sign;
     uint8_t *l_data = s_concat_hash_and_mimetypes(a_hash, l_std_list, &l_full_size_for_sign);
     if (!l_data) {
-        DAP_FREE(l_buffer);
+        DAP_DELETE(l_buffer);
         return 0;
     }
     *a_signed = dap_sign_create(l_cert->enc_key, l_data, l_full_size_for_sign, 0);
     if (*a_signed == NULL) {
-        DAP_FREE(l_buffer);
+        DAP_DELETE(l_buffer);
         return 0;
     }
 
-
-    DAP_FREE(l_buffer);
+    DAP_DELETE(l_buffer);
     return 1;
 }
 
@@ -6702,7 +6701,7 @@ static uint8_t *s_concat_hash_and_mimetypes (dap_chain_hash_fast_t *a_chain_hash
     memcpy(l_s, a_chain_hash->raw, sizeof(a_chain_hash->raw));
     l_s += sizeof (a_chain_hash->raw);
     memcpy(l_s, l_buf, l_len_meta_buf);
-    DAP_FREE(l_buf);
+    DAP_DELETE(l_buf);
 
     return l_fullbuf;
 }

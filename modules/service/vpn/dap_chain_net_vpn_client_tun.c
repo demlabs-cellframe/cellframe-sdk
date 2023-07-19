@@ -688,9 +688,9 @@ void ch_sf_tun_client_send(dap_chain_net_srv_ch_vpn_t * ch_sf, void * pkt_data, 
         if (!pkt_out) {
             log_it(L_ERROR, "Memory allocation error in ch_sf_tun_client_send");
             if(in_daddr_str)
-                free(in_daddr_str);
+                DAP_DELETE(in_daddr_str);
             if(in_saddr_str)
-                free(in_saddr_str);
+                DAP_DELETE(in_saddr_str);
             return;
         }
         pkt_out->header.op_code = VPN_PACKET_OP_CODE_PROBLEM;
@@ -705,9 +705,9 @@ void ch_sf_tun_client_send(dap_chain_net_srv_ch_vpn_t * ch_sf, void * pkt_data, 
     }
 
     if(in_daddr_str)
-        free(in_daddr_str);
+        DAP_DELETE(in_daddr_str);
     if(in_saddr_str)
-        free(in_saddr_str);
+        DAP_DELETE(in_saddr_str);
 }
 
 /**

@@ -552,15 +552,15 @@ bool dap_chain_has_file_store(dap_chain_t * a_chain)
  */
 int dap_chain_save_all (dap_chain_t * l_chain)
 {
-    int ret = 0;
+    int l_ret = 0;
     pthread_rwlock_rdlock(&l_chain->cell_rwlock);
-    dap_chain_cell_t * l_item, *l_item_tmp = NULL;
+    dap_chain_cell_t *l_item = NULL, *l_item_tmp = NULL;
     HASH_ITER(hh,l_chain->cells,l_item,l_item_tmp){
         if(dap_chain_cell_file_update(l_item) <= 0)
-            ret++;
+            l_ret++;
     }
     pthread_rwlock_unlock(&l_chain->cell_rwlock);
-    return ret;
+    return l_ret;
 }
 
 /**
