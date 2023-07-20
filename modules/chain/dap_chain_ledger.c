@@ -273,6 +273,11 @@ typedef struct dap_chain_ledger_tx_notifier {
     void *arg;
 } dap_chain_ledger_tx_notifier_t;
 
+typedef struct dap_chain_ledger_bridged_tx_notificator {
+    dap_chain_ledger_bridged_tx_notify_t callback;
+    void *arg;
+} dap_chain_ledger_bridged_tx_notificator_t;
+
 // dap_ledget_t private section
 typedef struct dap_ledger_private {
     const char *net_native_ticker;
@@ -308,6 +313,10 @@ typedef struct dap_ledger_private {
     bool check_cells_ds;
     bool check_token_emission;
     dap_chain_cell_id_t local_cell_id;
+
+    //Notificators
+    dap_list_t *bridged_tx_notificators;
+    dap_list_t *tx_add_notifiers;
 
     bool load_mode;
     bool cached;
@@ -2471,10 +2480,11 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
  * @param a_net_name char * network name, for example "kelvin-testnet"
  * @return dap_ledger_t*
  */
-dap_ledger_t *dap_chain_ledger_create(uint16_t a_flags, char *a_net_name, const char *a_net_native_ticker, dap_list_t *a_poa_certs)
+dap_ledger_t *dap_chain_ledger_create(uint16_t a_flags, dap_chain_net_id_t a_net_id, char *a_net_name, const char *a_net_native_ticker, dap_list_t *a_poa_certs)
 {
     dap_ledger_t *l_ledger = dap_chain_ledger_handle_new();
     l_ledger->net_name = a_net_name;
+    l_ledger->net_id = a_net_id;
     dap_ledger_private_t *l_ledger_pvt = PVT(l_ledger);
     l_ledger_pvt->net_native_ticker = a_net_native_ticker;
     l_ledger_pvt->poa_certs = a_poa_certs;
@@ -4548,6 +4558,7 @@ static inline int s_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, d
 
     //Update balance : raise
     bool l_multichannel = false;
+    bool l_cross_network = false;
     for (dap_list_t *l_tx_out = l_list_tx_out; l_tx_out; l_tx_out = dap_list_next(l_tx_out)) {
         if (!l_tx_out->data) {
             debug_if(s_debug_more, L_WARNING, "Can't detect tx ticker or matching output, can't append balances cache");
@@ -4593,6 +4604,10 @@ static inline int s_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, d
             log_it(L_DEBUG, "Unknown item type %d", l_type);
             break;
         }
+        if (!l_addr)
+            continue;
+        else if (l_addr->net_id.uint64 != a_ledger->net_id.uint64)
+            l_cross_network = true;
         char *l_addr_str = dap_chain_addr_to_str(l_addr);
         dap_ledger_wallet_balance_t *wallet_balance = NULL;
         char *l_wallet_balance_key = dap_strjoin(" ", l_addr_str, l_cur_token_ticker, (char*)NULL);
@@ -4660,9 +4675,15 @@ static inline int s_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, d
                          l_tx_item, s_sort_ledger_tx_item); // tx_hash_fast: name of key field
     if(a_safe_call) pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
     // Callable callback
-    for (dap_list_t *notifier = a_ledger->tx_add_notifiers; notifier != NULL; notifier = notifier->next) {
+    for (dap_list_t *notifier = PVT(a_ledger)->tx_add_notifiers; notifier != NULL; notifier = notifier->next) {
         dap_chain_ledger_tx_notifier_t *l_notify = (dap_chain_ledger_tx_notifier_t *)notifier->data;
         l_notify->callback(l_notify->arg, a_ledger, l_tx_item->tx);
+    }
+    if (l_cross_network) {
+        for (dap_list_t *it = PVT(a_ledger)->bridged_tx_notificators; it; it = it->next) {
+            dap_chain_ledger_bridged_tx_notificator_t *l_notify = it->data;
+            l_notify->callback(a_ledger, a_tx, a_tx_hash, l_notify->arg);
+        }
     }
     // Count TPS
     clock_gettime(CLOCK_REALTIME, &l_ledger_pvt->tps_end_time);
@@ -5649,7 +5670,21 @@ void dap_chain_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_chain_ledger_tx_
     }
     l_notifier->callback = a_callback;
     l_notifier->arg = a_arg;
-    a_ledger->tx_add_notifiers = dap_list_append(a_ledger->tx_add_notifiers, l_notifier);
+    PVT(a_ledger)->tx_add_notifiers = dap_list_append(PVT(a_ledger)->tx_add_notifiers, l_notifier);
+}
+
+void dap_chain_ledger_bridged_tx_notify_add(dap_ledger_t *a_ledger, dap_chain_ledger_bridged_tx_notify_t a_callback, void *a_arg)
+{
+    if (!a_ledger || !a_callback)
+        return;
+    dap_chain_ledger_bridged_tx_notificator_t *l_notifier = DAP_NEW_Z(dap_chain_ledger_bridged_tx_notificator_t);
+    if (!l_notifier) {
+        log_it(L_ERROR, "Can't allocate memory for notifier in dap_chain_ledger_tx_add_notify()");
+        return;
+    }
+    l_notifier->callback = a_callback;
+    l_notifier->arg = a_arg;
+    PVT(a_ledger)->bridged_tx_notificators = dap_list_append(PVT(a_ledger)->bridged_tx_notificators , l_notifier);
 }
 
 bool dap_chain_ledger_cache_enabled(dap_ledger_t *a_ledger)

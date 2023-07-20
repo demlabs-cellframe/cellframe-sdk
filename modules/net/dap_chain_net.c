@@ -2735,7 +2735,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     if (!l_net_keys)
         log_it(L_WARNING,"PoA certificates for net %s not found.", l_net->pub.name);
     // init LEDGER model
-    l_net->pub.ledger = dap_chain_ledger_create(l_ledger_flags, l_net->pub.name, l_net->pub.native_ticker, l_net_keys);
+    l_net->pub.ledger = dap_chain_ledger_create(l_ledger_flags, l_net->pub.id, l_net->pub.name, l_net->pub.native_ticker, l_net_keys);
 
     DAP_DELETE(l_node_addr_str);
     dap_config_close(l_cfg);
