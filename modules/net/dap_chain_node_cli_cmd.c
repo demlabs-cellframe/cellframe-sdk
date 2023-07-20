@@ -110,6 +110,7 @@
 
 #define LOG_TAG "chain_node_cli_cmd"
 
+static void s_dap_chain_net_purge(dap_chain_net_t * a_net);
 
 /**
  * @brief dap_chain_node_addr_t* dap_chain_node_addr_get_by_alias
@@ -720,6 +721,30 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_reply->str);
     dap_string_free(l_string_reply, true);
     return l_ret;
+}
+
+/**
+ * @brief purge ledger, stake, decree, all chains and remove chain files
+ * @param a_net
+ */
+void s_dap_chain_net_purge(dap_chain_net_t * a_net)
+{
+    if (!a_net)
+        return;
+    dap_chain_t *l_chain = NULL;
+    dap_chain_ledger_purge(a_net->pub.ledger, false);
+    dap_chain_net_srv_stake_purge(a_net);
+    dap_chain_net_decree_purge(a_net);
+    DL_FOREACH(a_net->pub.chains, l_chain) {
+        if (l_chain->callback_purge)
+            l_chain->callback_purge(l_chain);
+        if (l_chain->callback_set_min_validators_count)
+            l_chain->callback_set_min_validators_count(l_chain, 0);
+        const char *l_chains_rm_path = dap_chain_get_path(l_chain);
+        dap_rm_rf(l_chains_rm_path);
+        dap_chain_ledger_set_fee(a_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
+        dap_chain_load_all(l_chain);
+    }
 }
 
 /**
@@ -6105,20 +6130,7 @@ int cmd_remove(int a_argc, char **a_argv, char ** a_str_reply)
             uint16_t l_net_count;
             dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
             for (uint16_t i = 0; i < l_net_count; i++) {
-                dap_chain_ledger_purge(l_net_list[i]->pub.ledger, false);
-                dap_chain_net_srv_stake_purge(l_net_list[i]);
-                dap_chain_net_decree_purge(l_net_list[i]);
-                dap_chain_t *l_chain = NULL;
-                DL_FOREACH(l_net_list[i]->pub.chains, l_chain) {
-                    if (l_chain->callback_purge)
-                        l_chain->callback_purge(l_chain);
-                    if (l_chain->callback_set_min_validators_count)
-                        l_chain->callback_set_min_validators_count(l_chain, 0);
-                    const char *l_chains_rm_path = dap_chain_get_path(l_chain);
-                    dap_rm_rf(l_chains_rm_path);
-                    dap_chain_ledger_set_fee(l_net_list[i]->pub.ledger, uint256_0, c_dap_chain_addr_blank);
-                    dap_chain_load_all(l_chain);
-                }
+                s_dap_chain_net_purge(l_net_list[i]);
             }
             if (!error)
                 successful |= REMOVED_CHAINS;
@@ -6130,20 +6142,7 @@ int cmd_remove(int a_argc, char **a_argv, char ** a_str_reply)
             } else {
                 error |= NET_NOT_VALID;
             }
-            dap_chain_t *l_chain = NULL;
-            dap_chain_ledger_purge(l_net->pub.ledger, false);
-            dap_chain_net_srv_stake_purge(l_net);
-            dap_chain_net_decree_purge(l_net);
-            DL_FOREACH(l_net->pub.chains, l_chain) {
-                if (l_chain->callback_purge)
-                    l_chain->callback_purge(l_chain);
-                if (l_chain->callback_set_min_validators_count)
-                    l_chain->callback_set_min_validators_count(l_chain, 0);
-                const char *l_chains_rm_path = dap_chain_get_path(l_chain);
-                dap_rm_rf(l_chains_rm_path);
-                dap_chain_ledger_set_fee(l_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
-                dap_chain_load_all(l_chain);
-            }
+            s_dap_chain_net_purge(l_net);
             if (!error)
                 successful |= REMOVED_CHAINS;
 
