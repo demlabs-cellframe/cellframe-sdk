@@ -877,13 +877,24 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
 {
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
-    dap_chain_block_cache_t *l_block, *l_block_tmp;
+    dap_chain_block_cache_t *l_block = NULL, *l_block_tmp = NULL;
     HASH_ITER(hh, PVT(l_blocks)->blocks, l_block, l_block_tmp) {
         HASH_DEL(PVT(l_blocks)->blocks, l_block);
         DAP_DELETE(l_block->block);
         dap_chain_block_cache_delete(l_block);
     }
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+    
+    dap_chain_block_datum_index_t *l_datum_index = NULL, *l_datum_index_tmp = NULL;
+    pthread_rwlock_wrlock(&PVT(l_blocks)->datums_rwlock);
+    HASH_ITER(hh, PVT(l_blocks)->datum_index, l_datum_index, l_datum_index_tmp) {
+        HASH_DEL(PVT(l_blocks)->datum_index, l_datum_index);
+        DAP_DELETE(l_datum_index);
+        l_datum_index = NULL;
+    }
+    pthread_rwlock_unlock(&PVT(l_blocks)->datums_rwlock);
+    PVT(l_blocks)->blocks_count = 0;
+
     dap_chain_block_chunks_delete(PVT(l_blocks)->chunks);
     PVT(l_blocks)->block_cache_last = NULL;
     PVT(l_blocks)->block_cache_first = NULL;
