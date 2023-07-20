@@ -1958,7 +1958,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 *a_str_reply = dap_string_free(l_str, false);
                 l_ret = 0;
             } else if (strcmp(l_get_str,"id") == 0 ){
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Net %s has id 0x%X", l_net->pub.name, dap_chain_net_id_by_name(l_net->pub.name));
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Net %s has id 0x%.16lX", l_net->pub.name, dap_chain_net_id_by_name(l_net->pub.name));
                 l_ret = 0;
             }
         } else if ( l_links_str ){
