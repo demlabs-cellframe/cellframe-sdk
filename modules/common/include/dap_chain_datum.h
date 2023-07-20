@@ -24,6 +24,7 @@
 
 #pragma once
 #include <stdint.h>
+#include "dap_events_socket.h"
 #include "dap_common.h"
 #include "dap_math_ops.h"
 #include "dap_chain_common.h"
@@ -159,5 +160,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                              const char *a_ticker,
                              dap_string_t *a_str_out,
                              const char *a_hash_out_type,
-                             dap_hash_fast_t *a_tx_hash);
+                             dap_hash_fast_t *a_tx_hash,
+                             SOCKET newsockfd);
 json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum);
+

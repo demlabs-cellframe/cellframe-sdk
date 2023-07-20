@@ -195,7 +195,7 @@ char* dap_chain_ledger_tx_check_err_str(int a_code);
  *
  */
 
-char * dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_addr_t *a_addr, const char *a_hash_out_type, SOCKET esocket);
+char * dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_addr_t *a_addr, const char *a_hash_out_type); //, SOCKET esocket);
 
 /**
  * Check token ticker existance

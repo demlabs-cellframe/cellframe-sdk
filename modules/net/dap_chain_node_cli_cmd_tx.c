@@ -610,7 +610,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
  * @param a_str_reply
  * @return int
  */
-int com_ledger(int a_argc, char ** a_argv, SOCKET esocket, char **a_str_reply)
+int com_ledger(int a_argc, char ** a_argv, SOCKET newsockdf, char **a_str_reply)
 {
     enum { CMD_NONE, CMD_LIST, CMD_LEDGER_HISTORY, CMD_TX_INFO };
     int arg_index = 1;
@@ -726,7 +726,7 @@ int com_ledger(int a_argc, char ** a_argv, SOCKET esocket, char **a_str_reply)
         } else {
             if(l_addr)
             {
-                l_str_out = dap_ledger_token_tx_item_list(l_ledger,l_addr,l_hash_out_type, esocket);
+                l_str_out = dap_ledger_token_tx_item_list(l_ledger,l_addr,l_hash_out_type);
                 char *l_addr_str = dap_chain_addr_to_str(l_addr);
                 dap_string_append_printf(l_str_ret, "history for addr %s:\n%s\n", l_addr_str,
                         l_str_out ? l_str_out : " empty");
