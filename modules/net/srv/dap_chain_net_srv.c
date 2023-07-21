@@ -786,7 +786,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
             dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
             l_price->net = l_net;
             l_price->net_name = dap_strdup(l_net->pub.name);
-            uint256_t l_max_price = GET_256_FROM_64((uint64_t)100); // Change this value when max price wil be calculated
+            uint256_t l_max_price = GET_256_FROM_64((uint64_t)1000000000000000); // Change this value when max price wil be calculated
             if (!compare256(l_order->price, uint256_0) || l_order->units == 0 ){
                 DAP_DELETE(l_price);
                 continue;
