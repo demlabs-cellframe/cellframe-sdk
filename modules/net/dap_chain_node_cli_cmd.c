@@ -5509,7 +5509,7 @@ int com_tx_verify(int a_argc, char **a_argv, char **a_str_reply)
  * @param a_str_reply
  * @return int
  */
-int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply, SOCKET newsockfd)
+int com_tx_history(int a_argc, char ** a_argv,  SOCKET newsockfd, char **a_str_reply)
 {
     int arg_index = 1;
     const char *l_addr_base58 = NULL;
@@ -5517,6 +5517,7 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply, SOCKET newsoc
     const char *l_net_str = NULL;
     const char *l_chain_str = NULL;
     const char *l_tx_hash_str = NULL;
+    bool long_output = false;
 
     dap_chain_t * l_chain = NULL;
     dap_chain_net_t * l_net = NULL;
@@ -5642,9 +5643,6 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply, SOCKET newsoc
             l_iter = l_chain->callback_atom_iter_create(l_chain, l_cell->id, 0);
             size_t l_atom_size = 0;
             dap_chain_atom_ptr_t l_ptr = l_chain->callback_atom_iter_get_first(l_iter, &l_atom_size);
-            l_is_tx_all = dap_strdup_printf("History for addr %s:\n%s", l_addr_str,
-                l_str_out ? l_str_out : " empty");
-            dap_cli_server_cmd_reply_send(newsockfd, l_is_tx_all);
             while (l_ptr && l_atom_size) {
                 size_t l_datums_count = 0;
                 dap_chain_datum_t **l_datums = l_cell->chain->callback_atom_get_datums(l_ptr, l_atom_size, &l_datums_count);
@@ -5656,15 +5654,16 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply, SOCKET newsoc
                         dap_hash_fast(l_tx, l_datums[i]->header.data_size, &l_ttx_hash);
                         const char *l_token_ticker = NULL;
                         if ((l_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_ttx_hash))) {
-                            dap_cli_server_cmd_reply_send(newsockfd, str_reply);
-                            dap_string_append_printf(l_tx_all_str, "\t\t↓↓↓ Ledger accepted ↓↓↓\n");
+                            dap_cli_server_cmd_reply_send(newsockfd, "\t\t↓↓↓ Ledger accepted ↓↓↓\n");
+                            // dap_string_append_printf(l_tx_all_str, "\t\t↓↓↓ Ledger accepted ↓↓↓\n");
                             l_tx_ledger_accepted++;
                         } else {
                             l_token_ticker = s_tx_get_main_ticker(l_tx, l_net, NULL);
-                            dap_string_append_printf(l_tx_all_str, "\t\t↓↓↓ Ledger rejected ↓↓↓\n");
+                            dap_cli_server_cmd_reply_send(newsockfd, "\t\t↓↓↓ Ledger rejected ↓↓↓\n");
+                            // dap_string_append_printf(l_tx_all_str, "\t\t↓↓↓ Ledger rejected ↓↓↓\n");
                             l_tx_ledger_rejected++;
                         }
-                        dap_chain_datum_dump_tx(l_tx, l_token_ticker, l_tx_all_str, l_hash_out_type, &l_ttx_hash);
+                        long_output = dap_chain_datum_dump_tx(l_tx, l_token_ticker, l_tx_all_str, l_hash_out_type, &l_ttx_hash, newsockfd);
                     }
                 }
                 DAP_DEL_Z(l_datums);
@@ -5690,6 +5689,8 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply, SOCKET newsoc
                 l_str_out ? l_str_out : " empty");
         DAP_DELETE(l_addr_str);
         DAP_DELETE(l_str_out);
+    }else if (long_output){
+        l_str_ret = dap_strdup_printf("ENDLONG");
     } else
         l_str_ret = l_str_out;
     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ret);
