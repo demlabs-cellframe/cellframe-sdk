@@ -139,7 +139,7 @@ typedef struct dap_chain_node_client {
 
 #define DAP_CHAIN_NODE_CLIENT(a) (a ? (dap_chain_node_client_t *) (a)->_inheritor : NULL)
 
-int dap_chain_node_client_init(void);
+int dap_chain_node_client_init();
 
 void dap_chain_node_client_deinit(void);
 

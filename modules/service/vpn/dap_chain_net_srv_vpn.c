@@ -1350,7 +1350,7 @@ static void send_pong_pkt(dap_stream_ch_t* a_ch)
     dap_stream_ch_pkt_write_unsafe(a_ch, 'd', pkt_out,
             pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
     dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
-    free(pkt_out);
+    DAP_DELETE(pkt_out);
 }
 
 /**

@@ -61,10 +61,6 @@
 
 #define LOG_TAG "chain_net_srv"
 
-static size_t m_uid_count;
-static dap_chain_net_srv_uid_t * m_uid;
-
-
 typedef struct service_list {
     dap_chain_net_srv_uid_t uid;
     dap_chain_net_srv_t * srv;
@@ -78,7 +74,7 @@ static service_list_t *s_srv_list = NULL;
 static pthread_mutex_t s_srv_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 static int s_cli_net_srv(int argc, char **argv, char **a_str_reply);
 static void s_load(const char * a_path);
-static void s_load_all(void);
+static void s_load_all();
 
 static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
                                        dap_chain_datum_tx_t *a_tx_in, bool a_owner);
@@ -94,8 +90,6 @@ int dap_chain_net_srv_init()
     dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, s_pay_verificator_callback, NULL);
     dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, s_fee_verificator_callback, NULL);
     dap_stream_ch_chain_net_srv_init();
-    m_uid = NULL;
-    m_uid_count = 0;
 
     dap_cli_server_cmd_add ("net_srv", s_cli_net_srv, "Network services managment",
         "net_srv -net <net_name> order find [-direction {sell | buy}] [-srv_uid <Service UID>] [-price_unit <price unit>]\n"
@@ -126,19 +120,19 @@ int dap_chain_net_srv_init()
 /**
  * @brief s_load_all
  */
-void s_load_all(void)
+void s_load_all()
 {
     char * l_net_dir_str = dap_strdup_printf("%s/service.d", dap_config_path());
     DIR * l_net_dir = opendir( l_net_dir_str);
-    if ( l_net_dir ){
-        struct dirent * l_dir_entry;
+    if ( l_net_dir ) {
+        struct dirent * l_dir_entry = NULL;
         while ( (l_dir_entry = readdir(l_net_dir) )!= NULL ){
             if (l_dir_entry->d_name[0]=='\0' || l_dir_entry->d_name[0]=='.')
                 continue;
             // don't search in directories
-            char * l_full_path = dap_strdup_printf("%s/%s", l_net_dir_str, l_dir_entry->d_name);
+            char l_full_path[MAX_PATH + 1] = {0};
+            dap_snprintf(l_full_path, sizeof(l_full_path), "%s/%s", l_net_dir_str, l_dir_entry->d_name);
             if(dap_dir_test(l_full_path)) {
-                DAP_DELETE(l_full_path);
                 continue;
             }
             // search only ".cfg" files
@@ -154,7 +148,6 @@ void s_load_all(void)
             if ( l_dot_pos )
                 *l_dot_pos = '\0';
             s_load(l_full_path );
-            DAP_DELETE(l_full_path);
         }
         closedir(l_net_dir);
     }
@@ -907,7 +900,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
     dap_chain_net_srv_uid_t l_uid = {.uint64 = a_uid.uint64 }; // Copy to let then compiler to pass args via registers not stack
     pthread_mutex_lock(&s_srv_list_mutex);
     HASH_FIND(hh, s_srv_list, &l_uid, sizeof(l_uid), l_sdata);
-    if(l_sdata == NULL) {
+    if(!l_sdata) {
         l_srv = DAP_NEW_Z(dap_chain_net_srv_t);
         if (!l_srv) {
             log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_add");

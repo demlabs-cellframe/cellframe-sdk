@@ -74,8 +74,6 @@ static bool s_debug_more = true;
 
 /**
  * @brief dap_stream_ch_vpn_init Init actions for VPN stream channel
- * @param vpn_addr Zero if only client mode. Address if the node shares its local VPN
- * @param vpn_mask Zero if only client mode. Mask if the node shares its local VPN
  * @return 0 if everything is okay, lesser then zero if errors
  */
 int dap_chain_net_srv_xchange_init()
@@ -127,10 +125,9 @@ int dap_chain_net_srv_xchange_init()
     l_srv_callbacks.receipt_next_success = s_callback_receipt_next_success;
     l_srv_callbacks.decree = s_callback_decree;
 
-
     dap_chain_net_srv_t* l_srv = dap_chain_net_srv_add(l_uid, "srv_xchange", &l_srv_callbacks);
     s_srv_xchange = DAP_NEW_Z(dap_chain_net_srv_xchange_t);
-    if (!s_srv_xchange) {
+    if (!s_srv_xchange || !l_srv) {
         log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_xchange_init");
         return -1;
     }

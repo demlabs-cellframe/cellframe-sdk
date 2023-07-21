@@ -46,7 +46,7 @@ typedef struct dap_chain_wallet{
 } dap_chain_wallet_t;
 
 
-int dap_chain_wallet_init(void);
+int dap_chain_wallet_init();
 void dap_chain_wallet_deinit(void);
 
 const char* dap_chain_wallet_get_path(dap_config_t * a_config);
