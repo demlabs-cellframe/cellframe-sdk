@@ -5509,8 +5509,13 @@ int com_tx_verify(int a_argc, char **a_argv, char **a_str_reply)
  * @param a_str_reply
  * @return int
  */
-int com_tx_history(int a_argc, char ** a_argv,  SOCKET newsockfd, char **a_str_reply)
+int com_tx_history(int a_argc, char ** a_argv,  SOCKET *newsockfd, char **a_str_reply)
 {
+    char * test = "TEsSTST";
+    dap_cli_server_cmd_reply_send(*newsockfd, test);
+    dap_cli_server_cmd_reply_send(*newsockfd, test);
+    dap_cli_server_cmd_reply_send(*newsockfd, test);
+    dap_cli_server_cmd_reply_send(*newsockfd, test);
     int arg_index = 1;
     const char *l_addr_base58 = NULL;
     const char *l_wallet_name = NULL;
@@ -5654,12 +5659,16 @@ int com_tx_history(int a_argc, char ** a_argv,  SOCKET newsockfd, char **a_str_r
                         dap_hash_fast(l_tx, l_datums[i]->header.data_size, &l_ttx_hash);
                         const char *l_token_ticker = NULL;
                         if ((l_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_ttx_hash))) {
-                            dap_cli_server_cmd_reply_send(newsockfd, "\t\t↓↓↓ Ledger accepted ↓↓↓\n");
+                            l_tx_all_str = dap_strdup_printf("\t\t↓↓↓ Ledger accepted ↓↓↓\n");
+                            dap_cli_server_cmd_reply_send(*newsockfd, l_tx_all_str);
+                            l_tx_all_str->len = 0;
                             // dap_string_append_printf(l_tx_all_str, "\t\t↓↓↓ Ledger accepted ↓↓↓\n");
                             l_tx_ledger_accepted++;
                         } else {
                             l_token_ticker = s_tx_get_main_ticker(l_tx, l_net, NULL);
-                            dap_cli_server_cmd_reply_send(newsockfd, "\t\t↓↓↓ Ledger rejected ↓↓↓\n");
+                            l_tx_all_str = dap_strdup_printf("\t\t↓↓↓ Ledger rejected ↓↓↓\n");
+                            dap_cli_server_cmd_reply_send(*newsockfd, l_tx_all_str);
+                            l_tx_all_str->len = 0;
                             // dap_string_append_printf(l_tx_all_str, "\t\t↓↓↓ Ledger rejected ↓↓↓\n");
                             l_tx_ledger_rejected++;
                         }
@@ -5674,12 +5683,17 @@ int com_tx_history(int a_argc, char ** a_argv,  SOCKET newsockfd, char **a_str_r
         l_time_T = dap_time_now();
         dap_time_to_str_rfc822(out,80, l_time_T);
         log_it(L_DEBUG, "END getting tx from chain: %s", out);
-        dap_string_append_printf(l_tx_all_str, "Chain %s in network %s contains %zu transactions.\n"
+        l_tx_all_str->str = dap_strdup_printf("Chain %s in network %s contains %zu transactions.\n"
                                                "Of which %zu were accepted into the ledger and %zu were rejected.\n",
                                  l_net->pub.name, l_chain->name, l_tx_count, l_tx_ledger_accepted, l_tx_ledger_rejected);
+        dap_cli_server_cmd_reply_send(*newsockfd, l_tx_all_str->str);
+        l_tx_all_str->len = 0;       
+        // dap_cli_server_cmd_reply_send(l_tx_all_str, "Chain %s in network %s contains %zu transactions.\n"
+        //                                        "Of which %zu were accepted into the ledger and %zu were rejected.\n",
+        //                          l_net->pub.name, l_chain->name, l_tx_count, l_tx_ledger_accepted, l_tx_ledger_rejected);
 
         l_str_out = l_str_out ? dap_strdup_printf("%s%s", l_str_out, dap_strdup(l_tx_all_str->str)) : dap_strdup(l_tx_all_str->str);
-        dap_string_free(l_tx_all_str, true);
+        // dap_string_free(l_tx_all_str, true);
     }
 
     char *l_str_ret = NULL;
