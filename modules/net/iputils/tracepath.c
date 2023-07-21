@@ -748,8 +748,8 @@ int tracepath_util(const char *addr, int *hops, int *time_usec)
     };
     int ret = tracepath_main(argc, (char**) argv, &ctl);
     for(int i = 0; i < MAX_HOPS_DEFAULT; i++) {
-        free(ctl.his[i].host_namea);
-        free(ctl.his[i].host_nameb);
+        DAP_DELETE(ctl.his[i].host_namea);
+        DAP_DELETE(ctl.his[i].host_nameb);
     }
     if(ret >= 0)
             {

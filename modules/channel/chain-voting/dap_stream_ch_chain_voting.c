@@ -126,7 +126,8 @@ void dap_stream_ch_chain_voting_message_write(dap_chain_net_t *a_net, dap_chain_
                                     DAP_DUP_SIZE(a_voting_pkt, l_voting_pkt_size));
 }
 
-void dap_stream_ch_chain_voting_deinit() {
+void dap_stream_ch_chain_voting_deinit()
+{
     struct voting_node_client_list *l_node_info_item, *l_node_info_tmp;
     HASH_ITER(hh, s_node_client_list, l_node_info_item, l_node_info_tmp) {
         // Clang bug at this, l_node_info_item should change at every loop cycle
@@ -136,7 +137,8 @@ void dap_stream_ch_chain_voting_deinit() {
     }
 }
 
-static void s_stream_ch_new(dap_stream_ch_t *a_ch, void *a_arg) {
+static void s_stream_ch_new(dap_stream_ch_t *a_ch, void *a_arg)
+{
     UNUSED(a_arg);
     a_ch->internal = DAP_NEW_Z(dap_stream_ch_chain_voting_t);
     dap_stream_ch_chain_voting_t *l_ch_chain_voting = DAP_STREAM_CH_CHAIN_VOTING(a_ch);
