@@ -666,10 +666,8 @@ static void s_round_event_cs_done(dap_chain_cs_dag_t * a_dag, uint64_t a_round_i
             return;
         }
         log_it(L_NOTICE,"Run timer for %d sec for round ID %"DAP_UINT64_FORMAT_U, PVT(l_poa)->confirmations_timeout, a_round_id);
-    } else {
-        // Timer for this round has previosuly started
-        pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
     }
+    pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
 }
 
 /**
