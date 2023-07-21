@@ -313,8 +313,8 @@ int dap_chain_net_init()
         "net -net <chain net name> [-mode {update | all}] go {online | offline | sync}\n"
             "\tFind and establish links and stay online. \n"
             "\tMode \"update\" is by default when only new chains and gdb are updated. Mode \"all\" updates everything from zero\n"
-        "net -net <chain net name> get {status | fee}\n"
-            "\tDisplays the current current status or current fee.\n"
+        "net -net <chain net name> get {status | fee | id}\n"
+            "\tDisplays the current current status, current fee or net id.\n"
         "net -net <chain net name> stats {tx | tps} [-from <From time>] [-to <To time>] [-prev_sec <Seconds>] \n"
             "\tTransactions statistics. Time format is <Year>-<Month>-<Day>_<Hours>:<Minutes>:<Seconds> or just <Seconds> \n"
         "net -net <chain net name> [-mode {update | all}] sync {all | gdb | chains}\n"
@@ -1957,6 +1957,9 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
 
                 *a_str_reply = dap_string_free(l_str, false);
                 l_ret = 0;
+            } else if (strcmp(l_get_str,"id") == 0 ){
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Net %s has id 0x%X", l_net->pub.name, dap_chain_net_id_by_name(l_net->pub.name));
+                l_ret = 0;
             }
         } else if ( l_links_str ){
             if ( strcmp(l_links_str,"list") == 0 ) {
@@ -3172,7 +3175,7 @@ dap_list_t* dap_chain_net_get_link_node_list(dap_chain_net_t * l_net, bool a_is_
                 dap_chain_node_info_t *l_remote_node_info = dap_chain_node_info_read(l_net, l_remote_address);
                 if(!l_remote_node_info || l_remote_node_info->hdr.cell_id.uint64 != l_cur_node_info->hdr.cell_id.uint64)
                     l_is_add = false;
-                if (l_remote_node_info)    
+                if (l_remote_node_info)
                     DAP_DELETE(l_remote_node_info);
             }
             if(l_is_add) {
