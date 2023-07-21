@@ -51,6 +51,10 @@ static void s_stake_updater_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_
 
 static void s_cache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_addr_t *a_signing_addr);
 
+static void s_stake_clear();
+
+static void s_stake_net_clear(dap_chain_net_t *a_net);
+
 static dap_chain_net_srv_stake_t *s_srv_stake = NULL;
 
 /**
@@ -100,29 +104,49 @@ int dap_chain_net_srv_stake_pos_delegate_init()
     return 0;
 }
 
-void s_stake_ht_clear()
+/**
+ * @brief delete ht and hh concretic net from s_srv_stake 
+ */
+void s_stake_net_clear(dap_chain_net_t *a_net)
 {
-    dap_chain_net_srv_stake_item_t *l_stake, *l_tmp;
+    dap_chain_net_srv_stake_item_t *l_stake = NULL, *l_tmp = NULL;
     HASH_ITER(ht, s_srv_stake->tx_itemlist, l_stake, l_tmp) {
         // Clang bug at this, l_stake should change at every loop cycle
-        HASH_DELETE(ht, s_srv_stake->tx_itemlist, l_stake);
+        if (l_stake->net->pub.id.uint64 == a_net->pub.id.uint64)
+            HASH_DELETE(ht, s_srv_stake->tx_itemlist, l_stake);
     }
     HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp) {
         // Clang bug at this, l_stake should change at every loop cycle
-        HASH_DEL(s_srv_stake->itemlist, l_stake);
-        DAP_DELETE(l_stake);
+        if (l_stake->net->pub.id.uint64 == a_net->pub.id.uint64) {
+            HASH_DEL(s_srv_stake->itemlist, l_stake);
+            DAP_DELETE(l_stake);
+        }
     }
-    dap_chain_net_srv_stake_cache_item_t *l_cache_item, *l_cache_tmp;
+    dap_chain_net_srv_stake_cache_item_t *l_cache_item = NULL, *l_cache_tmp = NULL;
     HASH_ITER(hh, s_srv_stake->cache, l_cache_item, l_cache_tmp) {
         // Clang bug at this, l_stake should change at every loop cycle
-        HASH_DEL(s_srv_stake->cache, l_cache_item);
-        DAP_DELETE(l_cache_item);
+        if (l_cache_item->signing_addr.net_id.uint64 == a_net->pub.id.uint64) {
+            HASH_DEL(s_srv_stake->cache, l_cache_item);
+            DAP_DELETE(l_cache_item);
+        }
+    }
+}
+
+/**
+ * @brief delete all nets ht and hh from s_srv_stake 
+ */
+void s_stake_clear()
+{
+    uint16_t l_net_count;
+    dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
+    for (uint16_t i = 0; i < l_net_count; i++) {
+        s_stake_net_clear(l_net_list[i]);
     }
 }
 
 void dap_chain_net_srv_stake_pos_delegate_deinit()
 {
-    s_stake_ht_clear();
+    s_stake_clear();
     DAP_DEL_Z(s_srv_stake);
 }
 
@@ -361,8 +385,7 @@ void dap_chain_net_srv_stake_purge(dap_chain_net_t *a_net)
     char *l_gdb_group = dap_chain_ledger_get_gdb_group(l_ledger, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP);
     dap_global_db_del(l_gdb_group, NULL, NULL, NULL);
     DAP_DELETE(l_gdb_group);
-
-    s_stake_ht_clear();
+    s_stake_net_clear(a_net);
 }
 
 
