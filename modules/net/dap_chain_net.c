@@ -562,7 +562,7 @@ static bool s_net_send_atoms(dap_proc_thread_t *a_thread, void *a_arg)
  */
 static void s_chain_callback_notify(void *a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, void* a_atom, size_t a_atom_size)
 {
-    if (!a_arg || !a_chain) {
+    if (!a_arg || !a_chain || !a_atom) {
         log_it(L_ERROR, "Argument is NULL for s_chain_callback_notify");
         return;
     }
@@ -1209,6 +1209,10 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
 
 static void s_prepare_links_from_balancer(dap_chain_net_t *a_net)
 {
+    if (!a_net) {
+        log_it(L_ERROR, "Invalid arguments in s_prepare_links_from_balancer");
+        return;
+    }
     // Get list of the unique links for l_net
     size_t l_max_links_count = PVT(a_net)->max_links_count * 2;   // Not all will be success
     for (size_t l_cur_links_count = 0, n = 0; l_cur_links_count < l_max_links_count; n++) {
@@ -1220,6 +1224,7 @@ static void s_prepare_links_from_balancer(dap_chain_net_t *a_net)
         // Start connect to link hubs
         s_new_balancer_link_request(a_net, 0);
         l_cur_links_count++;
+        DAP_DEL_Z(l_link_node_info);
     }
 }
 
@@ -2101,12 +2106,13 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 if( l_hash_hex_str ){
                     l_ret = dap_global_db_set_sync(l_gdb_group_str, l_hash_hex_str, &c, sizeof(c), false );
                     DAP_DELETE(l_gdb_group_str);
-                    DAP_DELETE(l_hash_hex_str);
                     if (l_ret) {
                         dap_cli_server_cmd_set_reply_text(a_str_reply,
                                                           "Can't save public key hash %s in database", l_hash_hex_str);
+                        DAP_DELETE(l_hash_hex_str);
                         return -10;
                     }
+                    DAP_DELETE(l_hash_hex_str);
                 } else{
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't save NULL public key hash in database");
                     return -10;
@@ -2576,6 +2582,11 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
             l_node_addr = dap_chain_node_alias_find(l_net, l_node_alias_str);
         else {
             l_node_addr = DAP_NEW_Z(dap_chain_node_addr_t);
+            if (!l_node_addr) {
+                log_it(L_ERROR, "Memory allocation error in s_net_init");
+                dap_config_close(l_cfg);
+                return -1;
+            }
             if (dap_chain_node_addr_from_str(l_node_addr, l_node_addr_str) == 0)
                 log_it(L_NOTICE, "Parse node addr "NODE_ADDR_FP_STR" successfully", NODE_ADDR_FP_ARGS(l_node_addr));
             else
@@ -2592,6 +2603,12 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
                 l_net_pvt->node_info = dap_chain_node_info_read (l_net, l_node_addr);
                 if ( !l_net_pvt->node_info ) { // If not present - create it
                     l_net_pvt->node_info = DAP_NEW_Z(dap_chain_node_info_t);
+                    if (!l_net_pvt->node_info) {
+                        log_it(L_ERROR, "Memory allocation error in s_net_init");
+                        DAP_DEL_Z(l_net_pvt);
+                        dap_config_close(l_cfg);
+                        return -1;
+                    }
                     l_net_pvt->node_info->hdr.address = *l_node_addr;
                     if (dap_config_get_item_bool_default(g_config,"server","enabled",false) ){
                         const char * l_ext_addr_v4 = dap_config_get_item_str_default(g_config,"server","ext_address",NULL);
@@ -2633,6 +2650,8 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     if (!l_chains_dir) {
         log_it(L_ERROR, "Can't find any chains for network %s", l_net->pub.name);
         l_net_pvt->load_mode = false;
+        closedir(l_chains_dir);
+        dap_config_close(l_cfg);
         return -2;
     }
     // for sequential loading chains
@@ -2643,30 +2662,38 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         if (l_dir_entry->d_name[0]=='\0')
             continue;
         char * l_entry_name = strdup(l_dir_entry->d_name);
+        if (!l_entry_name) {
+            log_it(L_ERROR, "Memory allocation error in s_net_init");
+            dap_config_close(l_cfg);
+            closedir(l_chains_dir);
+            return -1;
+        }
         if (strlen (l_entry_name) > 4 ){ // It has non zero name excluding file extension
             if ( strncmp (l_entry_name+ strlen(l_entry_name)-4,".cfg",4) == 0 ) { // its .cfg file
                 l_entry_name [strlen(l_entry_name)-4] = 0;
                 log_it(L_DEBUG,"Open chain config \"%s\"...",l_entry_name);
                 l_chains_path = dap_strdup_printf("network/%s/%s",l_net->pub.name,l_entry_name);
-                dap_config_t * l_cfg = dap_config_open(l_chains_path);
-                if(l_cfg) {
+                dap_config_t * l_cfg_new = dap_config_open(l_chains_path);
+                if(l_cfg_new) {
                     list_priority *l_chain_prior = DAP_NEW_Z(list_priority);
                     if (!l_chain_prior) {
                         log_it(L_ERROR, "Memory allocation error in s_net_init");
                         DAP_DELETE (l_entry_name);
                         closedir(l_chains_dir);
+                        dap_config_close(l_cfg_new);
                         dap_config_close(l_cfg);
+                        closedir(l_chains_dir);
                         return -1;
                     }
                     l_chain_prior->prior = dap_config_get_item_uint16_default(l_cfg, "chain", "load_priority", 100);
                     l_chain_prior->chains_path = l_chains_path;
                     // add chain to load list;
                     l_prior_list = dap_list_append(l_prior_list, l_chain_prior);
-                    dap_config_close(l_cfg);
+                    dap_config_close(l_cfg_new);
                 }
             }
         }
-        DAP_DELETE (l_entry_name);
+        DAP_DEL_Z (l_entry_name);
     }
     closedir(l_chains_dir);
 
@@ -2854,7 +2881,8 @@ int s_net_load(dap_chain_net_t *a_net)
         l_target_state = NET_STATE_OFFLINE;
     }
     l_net_pvt->load_mode = false;
-    dap_chain_ledger_load_end(l_net->pub.ledger);
+    if (l_net->pub.ledger)
+        dap_chain_ledger_load_end(l_net->pub.ledger);
 
     l_net_pvt->balancer_http = !dap_config_get_item_bool_default(l_cfg, "general", "use_dns_links", false);
 
@@ -3427,6 +3455,8 @@ static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash)
         DAP_DELETE(l_net_list);
         return l_ret;
     }
+    if (l_net_list)
+        DAP_DELETE(l_net_list);
     return NULL;
 }
 

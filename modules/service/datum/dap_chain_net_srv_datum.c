@@ -80,13 +80,11 @@ uint8_t * dap_chain_net_srv_file_datum_data_read(char * a_path, size_t *a_data_s
         if ( fread(l_datum_data, 1, l_datum_data_size, l_file ) != l_datum_data_size ){
             log_it(L_ERROR, "Can't read %"DAP_UINT64_FORMAT_U" bytes from the disk!", l_datum_data_size);
             DAP_DELETE(l_datum_data);
-            if( l_file )
-                fclose(l_file);
+            fclose(l_file);
             return NULL;
         }
-    }
-    if( l_file )
         fclose(l_file);
+    }
     *a_data_size = l_datum_data_size;
     return l_datum_data;
 }
@@ -146,6 +144,7 @@ static int s_srv_datum_cli(int argc, char ** argv, char **a_str_reply) {
                     size_t l_retbytes;
                     if ( (l_retbytes = fwrite(l_datum->data, 1, l_datum->header.data_size, l_file)) != l_datum->header.data_size ){
                         log_it(L_ERROR, "Can't write %u bytes on disk (processed only %zu)!", l_datum->header.data_size, l_retbytes);
+                        fclose(l_file);
                         return -3;
                     }
                     fclose(l_file);

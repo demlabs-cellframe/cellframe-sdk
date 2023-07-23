@@ -303,7 +303,6 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
                     dap_cli_server_cmd_set_reply_text(a_str_reply,
                                                   "Can't sign event %s in round.new\n",
                                                   l_event_hash_str);
-                    ret=-1;
                 }
                 DAP_DELETE(l_event);
                 DAP_DELETE(l_round_item);

@@ -759,10 +759,10 @@ int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name)
     char *cert_path_c = dap_canonicalize_filename(cert_path, NULL);
     // Protect the ca folder from using "/.." in cert_name
     if(dap_strncmp(s_system_chain_ca_dir, cert_path_c, dap_strlen(s_system_chain_ca_dir))) {
+        log_it(L_ERROR, "Cert path '%s' is not in ca dir: %s", cert_path_c, s_system_chain_ca_dir);
         dap_cert_delete(cert);
         DAP_DELETE(cert_path_c);
         DAP_DELETE(cert_path);
-        log_it(L_ERROR, "Cert path '%s' is not in ca dir: %s", cert_path_c, s_system_chain_ca_dir);
         return -1;
     }
     int l_ret = dap_cert_file_save(cert, cert_path_c);
