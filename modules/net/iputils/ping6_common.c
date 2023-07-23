@@ -375,7 +375,7 @@ static int niquery_option_subject_addr_handler(int index, const char *arg)
         if(!p)
             continue;
         memcpy(p, (uint8_t *) ai->ai_addr + offset, ni_subject_len);
-        free(ni_subject);
+        DAP_DELETE(ni_subject);
         ni_subject = p;
         break;
     }
@@ -483,23 +483,23 @@ static int niquery_option_subject_name_handler(int index, const char *name)
     if (fqdn < 0)
     buf[n] = 0;
 
-    free(ni_subject);
+    DAP_DELETE(ni_subject);
 
     ni_group = nigroup_buf;
     ni_subject = buf;
     ni_subject_len = n + (fqdn < 0);
     ni_group = nigroup_buf;
 
-    free(canonname);
-    free(idn);
+    DAP_DELETE(canonname);
+    DAP_DELETE(idn);
 
     return 0;
     oomexit:
     error(0, errno, "memory allocation failed");
     errexit:
-    free(buf);
-    free(canonname);
-    free(idn);
+    DAP_DELETE(buf);
+    DAP_DELETE(canonname);
+    DAP_DELETE(idn);
     exit(1);
 }
 #else
