@@ -74,8 +74,6 @@ static bool s_debug_more = true;
 
 /**
  * @brief dap_stream_ch_vpn_init Init actions for VPN stream channel
- * @param vpn_addr Zero if only client mode. Address if the node shares its local VPN
- * @param vpn_mask Zero if only client mode. Mask if the node shares its local VPN
  * @return 0 if everything is okay, lesser then zero if errors
  */
 int dap_chain_net_srv_xchange_init()
@@ -127,10 +125,9 @@ int dap_chain_net_srv_xchange_init()
     l_srv_callbacks.receipt_next_success = s_callback_receipt_next_success;
     l_srv_callbacks.decree = s_callback_decree;
 
-
     dap_chain_net_srv_t* l_srv = dap_chain_net_srv_add(l_uid, "srv_xchange", &l_srv_callbacks);
     s_srv_xchange = DAP_NEW_Z(dap_chain_net_srv_xchange_t);
-    if (!s_srv_xchange) {
+    if (!s_srv_xchange || !l_srv) {
         log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_xchange_init");
         return -1;
     }
@@ -627,7 +624,6 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         log_it(L_ERROR, "Can't add selling coins output because price rate is 0");
         return NULL;
     }
-    DAP_DELETE(l_buyer_addr);
     // transfer unselling coins (partial exchange)
     debug_if(s_debug_more, L_NOTICE, "l_datoshi_cond = %s", dap_chain_balance_to_coins(l_tx_out_cond->header.value));
     if (compare256(l_tx_out_cond->header.value, l_datoshi_sell) == 1) {
@@ -719,9 +715,10 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
     if(dap_chain_datum_tx_add_sign_item(&l_tx, l_seller_key) != 1) {
         dap_chain_datum_tx_delete(l_tx);
         log_it( L_ERROR, "Can't add sign output");
+        DAP_DELETE(l_buyer_addr);
         return NULL;
     }
-
+    DAP_DELETE(l_buyer_addr);
     return l_tx;
 }
 
@@ -1166,6 +1163,9 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 while(l_tx_list ){
                     dap_chain_datum_tx_t * l_tx_cur = (dap_chain_datum_tx_t*) l_tx_list->data;
                     s_string_append_tx_cond_info(l_str_reply, l_net, l_tx_cur );
+
+                    //INFINITE LOOP ????
+                    
                 }
                 dap_list_free(l_tx_list);
                 *a_str_reply = dap_string_free(l_str_reply, false);
@@ -1194,6 +1194,9 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                         while(l_tx_list ){
                             dap_chain_datum_tx_t * l_tx_cur = (dap_chain_datum_tx_t*) l_tx_list->data;
                             s_string_append_tx_cond_info(l_str_reply, l_net, l_tx_cur );
+
+                            //INFINITE LOOP ????
+
                         }
                         dap_list_free(l_tx_list);
                         *a_str_reply = dap_string_free(l_str_reply, false);

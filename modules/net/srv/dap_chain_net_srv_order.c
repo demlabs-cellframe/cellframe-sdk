@@ -110,15 +110,15 @@ static void s_srv_order_check_decree_sign_timer() {
  * @brief dap_chain_net_srv_order_init
  * @return
  */
-int dap_chain_net_srv_order_init(void)
+int dap_chain_net_srv_order_init()
 {
-    uint16_t l_net_count;
+    uint16_t l_net_count = 0;
     dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
     for (uint16_t i = 0; i < l_net_count; i++) {
         dap_chain_net_add_gdb_notify_callback(l_net_list[i], s_srv_order_callback_notify, l_net_list[i]);
     }
     //geoip_info_t *l_ipinfo = chain_net_geoip_get_ip_info("8.8.8.8");
-    if (!dap_config_get_item_bool_default(g_config, "srv", "allow_unverified_orders", false)) {
+    if (!dap_config_get_item_bool_default(g_config, "srv", "allow_unverified_orders", true)) {
         uint32_t l_unverified_orders_lifetime = dap_config_get_item_uint32_default(g_config, "srv", "unverified_orders_lifetime", 21600); // 6 Hours
         s_timer_order_check_decree_sign = dap_interval_timer_create(l_unverified_orders_lifetime * 1000,
                                                                     (dap_timer_callback_t)s_srv_order_check_decree_sign_timer,

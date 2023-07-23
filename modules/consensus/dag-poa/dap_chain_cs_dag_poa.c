@@ -108,7 +108,7 @@ static dap_interval_timer_t s_poa_round_timer = NULL;
  * read parameters from config and register dag_poa commands to cellframe-node-cli
  * @return
  */
-int dap_chain_cs_dag_poa_init(void)
+int dap_chain_cs_dag_poa_init()
 {
     // Add consensus constructor
     dap_chain_cs_add ("dag_poa", s_callback_new );
@@ -303,7 +303,6 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
                     dap_cli_server_cmd_set_reply_text(a_str_reply,
                                                   "Can't sign event %s in round.new\n",
                                                   l_event_hash_str);
-                    ret=-1;
                 }
                 DAP_DELETE(l_event);
                 DAP_DELETE(l_round_item);
@@ -666,10 +665,8 @@ static void s_round_event_cs_done(dap_chain_cs_dag_t * a_dag, uint64_t a_round_i
             return;
         }
         log_it(L_NOTICE,"Run timer for %d sec for round ID %"DAP_UINT64_FORMAT_U, PVT(l_poa)->confirmations_timeout, a_round_id);
-    } else {
-        // Timer for this round has previosuly started
-        pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
     }
+    pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
 }
 
 /**

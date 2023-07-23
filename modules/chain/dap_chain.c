@@ -541,15 +541,15 @@ bool dap_chain_has_file_store(dap_chain_t * a_chain)
  */
 int dap_chain_save_all (dap_chain_t * l_chain)
 {
-    int ret = 0;
+    int l_ret = 0;
     pthread_rwlock_rdlock(&l_chain->cell_rwlock);
-    dap_chain_cell_t * l_item, *l_item_tmp = NULL;
+    dap_chain_cell_t *l_item = NULL, *l_item_tmp = NULL;
     HASH_ITER(hh,l_chain->cells,l_item,l_item_tmp){
         if(dap_chain_cell_file_update(l_item) <= 0)
-            ret++;
+            l_ret++;
     }
     pthread_rwlock_unlock(&l_chain->cell_rwlock);
-    return ret;
+    return l_ret;
 }
 
 /**
@@ -582,7 +582,7 @@ int dap_chain_load_all(dap_chain_t *a_chain)
         const char * l_filename = l_dir_entry->d_name;
         const char l_suffix[] = ".dchaincell";
         size_t l_suffix_len = strlen(l_suffix);
-        if (strncmp(l_filename + strlen(l_filename) - l_suffix_len, l_suffix, l_suffix_len) == 0 ) {
+        if (!strncmp(l_filename + strlen(l_filename) - l_suffix_len, l_suffix, l_suffix_len)) {
             l_ret += dap_chain_cell_load(a_chain, l_filename);
         }
     }
@@ -748,10 +748,10 @@ int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name)
     char *cert_path_c = dap_canonicalize_filename(cert_path, NULL);
     // Protect the ca folder from using "/.." in cert_name
     if(dap_strncmp(s_system_chain_ca_dir, cert_path_c, dap_strlen(s_system_chain_ca_dir))) {
+        log_it(L_ERROR, "Cert path '%s' is not in ca dir: %s", cert_path_c, s_system_chain_ca_dir);
         dap_cert_delete(cert);
         DAP_DELETE(cert_path_c);
         DAP_DELETE(cert_path);
-        log_it(L_ERROR, "Cert path '%s' is not in ca dir: %s", cert_path_c, s_system_chain_ca_dir);
         return -1;
     }
     int l_ret = dap_cert_file_save(cert, cert_path_c);

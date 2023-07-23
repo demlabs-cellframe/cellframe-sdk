@@ -252,7 +252,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "mempool_check -net <net_name> -datum <datum hash>\n");
 
     dap_cli_server_cmd_add ("mempool_proc", com_mempool_proc, "Proc mempool entrie with specified hash for selected chain network",
-            "mempool_proc -net <net_name> -datum <datum hash>\n"
+            "mempool_proc -net <net_name> -datum <datum hash> -chain <chain name>\n"
             "CAUTION!!! This command will process transaction with any comission! Parameter minimum_comission will not be taken into account!");
 
     dap_cli_server_cmd_add ("mempool_proc_all", com_mempool_proc_all, "Proc mempool all entries for selected chain network",

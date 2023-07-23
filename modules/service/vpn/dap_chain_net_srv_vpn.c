@@ -284,6 +284,10 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
 {
     assert(a_data_size > sizeof (dap_os_iphdr_t));
     ch_vpn_pkt_t *l_pkt_out             = DAP_NEW_Z_SIZE(ch_vpn_pkt_t, sizeof(l_pkt_out->header) + a_data_size);
+    if (!l_pkt_out) {
+        log_it(L_ERROR, "Memory allocation error in s_tun_client_send_data");
+        return false;
+    }
     l_pkt_out->header.op_code           = VPN_PACKET_OP_CODE_VPN_RECV;
     l_pkt_out->header.sock_id           = s_raw_server->tun_fd;
     l_pkt_out->header.usage_id          = l_ch_vpn_info->usage_id;
@@ -294,10 +298,12 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
         dap_events_socket_t* l_es = dap_context_find(l_ch_vpn_info->worker->context, l_ch_vpn_info->esocket_uuid);
         if (!l_es) {
             log_it(L_ERROR, "No esocket %p on worker #%u, lost %zd data", l_ch_vpn_info->esocket, l_ch_vpn_info->worker->id, a_data_size);
+            DAP_DEL_Z(l_pkt_out);
             return false;
         }
         if (l_es != l_ch_vpn_info->esocket) {
             log_it(L_ERROR, "Wrong esocket %p on worker #%u, lost %zd data", l_ch_vpn_info->esocket, l_ch_vpn_info->worker->id, a_data_size);
+            DAP_DEL_Z(l_pkt_out);
             return false;
         }
        /*
@@ -321,6 +327,7 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
         tun_socket_msg_t* l_msg = DAP_NEW_Z(tun_socket_msg_t);
         if (!l_msg) {
             log_it(L_ERROR, "Memory allocation error in s_tun_client_send_data");
+            DAP_DEL_Z(l_pkt_out);
             return false;
         }
         l_msg->type             = TUN_SOCKET_MSG_CH_VPN_SEND;
@@ -333,6 +340,7 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
             log_it(L_WARNING, "Error on sending packet to foreign context queue, lost %zd bytes", a_data_size);
             DAP_DELETE(l_msg->ch_vpn_send.pkt);
             DAP_DELETE(l_msg);
+            DAP_DEL_Z(l_pkt_out);
             return false;
         }
 
@@ -347,6 +355,7 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
             log_it(L_INFO, "Sent packet (%zd bytes) to desitnation %s in foreign context", a_data_size, l_str_daddr);
         }
     }
+    DAP_DEL_Z(l_pkt_out);
     return true;
 }
 
@@ -772,8 +781,10 @@ static int s_vpn_tun_create(dap_config_t * g_config)
 #endif
         s_tun_event_stream_create(l_worker, l_tun_fd);
     }
-    if (l_err)
+    if (l_err) {
+        pthread_mutex_unlock(&s_tun_sockets_mutex_started);
         goto lb_err;
+    }
 
     // Waiting for all the tun sockets
     while (s_tun_sockets_started != s_tun_sockets_count)
@@ -949,15 +960,17 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
         return -1;
     }
     l_usage_client->usage_id = a_usage_id;
-    l_usage_client->receipt = DAP_NEW_SIZE(dap_chain_datum_tx_receipt_t,l_receipt_size);
-    if (!l_usage_client->receipt) {
-        log_it(L_ERROR, "Memory allocation error in s_callback_response_success");
-        DAP_DEL_Z(l_usage_client);
-        return -1;
+
+    if (!l_usage_active->is_free){
+        l_usage_client->receipt = DAP_NEW_SIZE(dap_chain_datum_tx_receipt_t,l_receipt_size);
+        if (!l_usage_client->receipt) {
+            log_it(L_ERROR, "Memory allocation error in s_callback_response_success");
+            DAP_DEL_Z(l_usage_client);
+            return -1;
+        }
+
+        memcpy(l_usage_client->receipt, l_receipt, l_receipt_size);
     }
-
-    memcpy(l_usage_client->receipt, l_receipt, l_receipt_size);
-
     pthread_rwlock_wrlock(&s_clients_rwlock);
     HASH_ADD(hh, s_clients,usage_id,sizeof(a_usage_id),l_usage_client);
     l_srv_session->usage_active = l_usage_active;
@@ -1104,6 +1117,10 @@ void s_ch_vpn_new(dap_stream_ch_t* a_ch, void* a_arg)
     a_ch->stream->esocket->callbacks.worker_assign_callback = s_ch_vpn_esocket_assigned;
 
     a_ch->internal = DAP_NEW_Z(dap_chain_net_srv_ch_vpn_t);
+    if (!a_ch->internal) {
+        log_it(L_ERROR, "Memory allocation error in s_ch_vpn_new");
+        return;
+    }
     dap_chain_net_srv_ch_vpn_t * l_srv_vpn = CH_VPN(a_ch);
 
     if(a_ch->stream->session->_inheritor == NULL && a_ch->stream->session != NULL)
@@ -1168,7 +1185,7 @@ static void s_ch_vpn_delete(dap_stream_ch_t* a_ch, void* arg)
     if ( l_is_unleased ){ // If unleased
         log_it(L_DEBUG, "Unlease address %s and store in treshold", inet_ntoa(l_ch_vpn->addr_ipv4));
         dap_chain_net_srv_vpn_item_ipv4_t * l_item_unleased = DAP_NEW_Z(dap_chain_net_srv_vpn_item_ipv4_t);
-        if (!l_is_unleased) {
+        if (!l_item_unleased) {
             log_it(L_ERROR, "Memory allocation error in s_ch_vpn_delete");
             pthread_rwlock_unlock(&s_clients_rwlock);
             return;
@@ -1350,7 +1367,7 @@ static void send_pong_pkt(dap_stream_ch_t* a_ch)
     dap_stream_ch_pkt_write_unsafe(a_ch, 'd', pkt_out,
             pkt_out->header.op_data.data_size + sizeof(pkt_out->header));
     dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
-    free(pkt_out);
+    DAP_DELETE(pkt_out);
 }
 
 /**

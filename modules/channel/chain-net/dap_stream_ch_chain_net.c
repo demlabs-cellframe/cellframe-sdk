@@ -134,7 +134,7 @@ uint8_t dap_stream_ch_chain_net_get_id()
 
 /**
  * @brief dap_stream_ch_chain_net_init
- * @return
+ * @return always 0
  */
 int dap_stream_ch_chain_net_init()
 {

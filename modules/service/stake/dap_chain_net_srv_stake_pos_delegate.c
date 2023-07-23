@@ -51,12 +51,14 @@ static void s_stake_updater_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_
 
 static void s_cache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_addr_t *a_signing_addr);
 
+static void s_stake_clear();
+
+static void s_stake_net_clear(dap_chain_net_t *a_net);
+
 static dap_chain_net_srv_stake_t *s_srv_stake = NULL;
 
 /**
  * @brief dap_stream_ch_vpn_init Init actions for VPN stream channel
- * @param vpn_addr Zero if only client mode. Address if the node shares its local VPN
- * @param vpn_mask Zero if only client mode. Mask if the node shares its local VPN
  * @return 0 if everything is okay, lesser then zero if errors
  */
 int dap_chain_net_srv_stake_pos_delegate_init()
@@ -102,29 +104,49 @@ int dap_chain_net_srv_stake_pos_delegate_init()
     return 0;
 }
 
-void s_stake_ht_clear()
+/**
+ * @brief delete ht and hh concretic net from s_srv_stake 
+ */
+void s_stake_net_clear(dap_chain_net_t *a_net)
 {
-    dap_chain_net_srv_stake_item_t *l_stake, *l_tmp;
+    dap_chain_net_srv_stake_item_t *l_stake = NULL, *l_tmp = NULL;
     HASH_ITER(ht, s_srv_stake->tx_itemlist, l_stake, l_tmp) {
         // Clang bug at this, l_stake should change at every loop cycle
-        HASH_DELETE(ht, s_srv_stake->tx_itemlist, l_stake);
+        if (l_stake->net->pub.id.uint64 == a_net->pub.id.uint64)
+            HASH_DELETE(ht, s_srv_stake->tx_itemlist, l_stake);
     }
     HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp) {
         // Clang bug at this, l_stake should change at every loop cycle
-        HASH_DEL(s_srv_stake->itemlist, l_stake);
-        DAP_DELETE(l_stake);
+        if (l_stake->net->pub.id.uint64 == a_net->pub.id.uint64) {
+            HASH_DEL(s_srv_stake->itemlist, l_stake);
+            DAP_DELETE(l_stake);
+        }
     }
-    dap_chain_net_srv_stake_cache_item_t *l_cache_item, *l_cache_tmp;
+    dap_chain_net_srv_stake_cache_item_t *l_cache_item = NULL, *l_cache_tmp = NULL;
     HASH_ITER(hh, s_srv_stake->cache, l_cache_item, l_cache_tmp) {
         // Clang bug at this, l_stake should change at every loop cycle
-        HASH_DEL(s_srv_stake->cache, l_cache_item);
-        DAP_DELETE(l_cache_item);
+        if (l_cache_item->signing_addr.net_id.uint64 == a_net->pub.id.uint64) {
+            HASH_DEL(s_srv_stake->cache, l_cache_item);
+            DAP_DELETE(l_cache_item);
+        }
+    }
+}
+
+/**
+ * @brief delete all nets ht and hh from s_srv_stake 
+ */
+void s_stake_clear()
+{
+    uint16_t l_net_count;
+    dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
+    for (uint16_t i = 0; i < l_net_count; i++) {
+        s_stake_net_clear(l_net_list[i]);
     }
 }
 
 void dap_chain_net_srv_stake_pos_delegate_deinit()
 {
-    s_stake_ht_clear();
+    s_stake_clear();
     DAP_DEL_Z(s_srv_stake);
 }
 
@@ -330,7 +352,15 @@ static bool s_stake_cache_check_tx(dap_hash_fast_t *a_tx_hash)
 
 int dap_chain_net_srv_stake_load_cache(dap_chain_net_t *a_net)
 {
+    if (!a_net) {
+        log_it(L_ERROR, "Invalid argument a_net in dap_chain_net_srv_stake_load_cache");
+        return -1;
+    }
     dap_ledger_t *l_ledger = a_net->pub.ledger;
+    if(!l_ledger) {
+        log_it(L_ERROR, "Invalid arguments l_ledger in dap_chain_net_srv_stake_load_cache");
+        return -1;
+    }
     if (!dap_chain_ledger_cache_enabled(l_ledger))
         return 0;
     char *l_gdb_group = dap_chain_ledger_get_gdb_group(l_ledger, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP);
@@ -363,8 +393,7 @@ void dap_chain_net_srv_stake_purge(dap_chain_net_t *a_net)
     char *l_gdb_group = dap_chain_ledger_get_gdb_group(l_ledger, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP);
     dap_global_db_del(l_gdb_group, NULL, NULL, NULL);
     DAP_DELETE(l_gdb_group);
-
-    s_stake_ht_clear();
+    s_stake_net_clear(a_net);
 }
 
 
@@ -599,6 +628,7 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
         l_chain =  dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_ANCHOR);
     if (!l_chain) {
         log_it(L_ERROR, "No chain supported anchor datum type");
+        DAP_DEL_Z(l_decree);
         return NULL;
     }
     l_decree->header.common_decree_params.chain_id = l_chain->id;
@@ -809,6 +839,7 @@ static dap_chain_datum_decree_t *s_stake_decree_invalidate(dap_chain_net_t *a_ne
         l_chain =  dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_ANCHOR);
     if (!l_chain) {
         log_it(L_ERROR, "No chain supported anchor datum type");
+        DAP_DEL_Z(l_decree);
         dap_list_free_full(l_tsd_list, NULL);
         return NULL;
     }
@@ -884,6 +915,7 @@ static dap_chain_datum_decree_t *s_stake_decree_set_min_stake(dap_chain_net_t *a
         l_chain =  dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_ANCHOR);
     if (!l_chain) {
         log_it(L_ERROR, "No chain supported anchor datum type");
+        DAP_DEL_Z(l_decree);
         dap_list_free_full(l_tsd_list, NULL);
         return NULL;
     }
@@ -1862,7 +1894,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 if (l_tx && (l_decree_hash_str = s_stake_tx_put(l_tx, l_net))) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "All m-tokens successfully returned to "
                                                                    "owner. Returning tx hash %s.", l_decree_hash_str);
-                    DAP_DELETE(l_decree_hash_str);
+                    DAP_DEL_Z(l_decree_hash_str);
                     DAP_DELETE(l_tx);
                 } else {
                     char *l_final_tx_hash_str = dap_chain_hash_fast_to_str_new(l_final_tx_hash);
@@ -1962,7 +1994,8 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
 }
 
 bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
-                                                uint256_t *a_max_fee, uint256_t *a_average_fee, uint256_t *a_min_fee) {
+                                                uint256_t *a_max_fee, uint256_t *a_average_fee, uint256_t *a_min_fee)
+{
     if (!a_net)
         return false;
     char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(a_net);
@@ -2050,7 +2083,8 @@ static void s_cache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
         log_it(L_WARNING, "Stake service cache mismatch");
 }
 
-bool dap_chain_net_srv_stake_check_pkey_hash(dap_hash_fast_t *a_pkey_hash) {
+bool dap_chain_net_srv_stake_check_pkey_hash(dap_hash_fast_t *a_pkey_hash)
+{
     dap_chain_net_srv_stake_item_t *l_stake, *l_tmp;
     HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp) {
         if (dap_hash_fast_compare(&l_stake->signing_addr.data.hash_fast, a_pkey_hash))

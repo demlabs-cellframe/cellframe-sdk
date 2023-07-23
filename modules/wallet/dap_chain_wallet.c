@@ -292,22 +292,21 @@ dap_chain_wallet_n_pass_t   *l_prec;
 }
 
 /**
- * @brief dap_chain_wallet_init
- * @return
+ * @brief check wallet folders and try open wallets
+ * @return 0 if all ok
  */
-int dap_chain_wallet_init(void)
+int dap_chain_wallet_init()
 {
-char *c_wallets_path, l_fspec[MAX_PATH] = {0};
-DIR * l_dir;
-struct dirent * l_dir_entry;
-dap_chain_wallet_t *l_wallet;
-size_t l_len;
+    char *c_wallets_path = NULL, l_fspec[MAX_PATH] = {0};
+    DIR * l_dir = NULL;
+    struct dirent * l_dir_entry = NULL;
+    dap_chain_wallet_t *l_wallet = NULL;
+    size_t l_len = 0;
 
     if ( !(c_wallets_path = (char *) dap_chain_wallet_get_path(g_config)) ) /* No path to wallets - nothing to do */
-        return 0;
+        return -1;
 
-    if ( !(l_dir = opendir(c_wallets_path)) )                               /* Path is not exist ? Create the dir and exit */
-    {
+    if ( !(l_dir = opendir(c_wallets_path)) ) {                               /* Path is not exist ? Create the dir and exit */
 #ifdef _WIN32
         mkdir(c_wallets_path);
 #else
@@ -319,18 +318,15 @@ size_t l_len;
     /*
      * Load certificates from existing no-password-protected (!!!) wallets
      */
-    while( (l_dir_entry = readdir(l_dir)))
-    {
+    while( (l_dir_entry = readdir(l_dir))) {
 #ifndef DAP_OS_WINDOWS
         if ( l_dir_entry->d_type !=  DT_REG )                           /* Skip unrelated entries */
             continue;
 #endif
         l_len = strlen(l_dir_entry->d_name);                            /* Check for *.dwallet */
 
-        if ( (l_len > 8) && (strcmp(l_dir_entry->d_name + l_len - (sizeof(s_wallet_ext) - 1), s_wallet_ext) == 0) )
-        {
-            int ret = snprintf(l_fspec, sizeof(l_fspec) - 1, "%s/%s", c_wallets_path, l_dir_entry->d_name);
-            if (ret < 0)
+        if ( l_len > 8 && !strcmp(l_dir_entry->d_name + l_len - (sizeof(s_wallet_ext) - 1), s_wallet_ext) ) {
+            if (snprintf(l_fspec, sizeof(l_fspec) - 1, "%s/%s", c_wallets_path, l_dir_entry->d_name) < 0)
                 continue;
             if ( (l_wallet = dap_chain_wallet_open_file(l_fspec, NULL)) )
                 dap_chain_wallet_close(l_wallet);
@@ -358,7 +354,7 @@ static char s_wallets_path[MAX_PATH];
 
 const char* dap_chain_wallet_get_path(dap_config_t * a_config)
 {
-char *l_cp;
+    char *l_cp = NULL;
     if (!a_config)
         a_config = g_config;
     if ( s_wallets_path[0] )                                                /* Is the path to the wallet's store has been defined ? */
@@ -366,7 +362,7 @@ char *l_cp;
 
                                                                             /* Retrieve Wallet's store path from config */
     if ( !(l_cp = (char *) dap_config_get_item_str(a_config, "resources", "wallets_path")) )
-        return  log_it(L_WARNING, "No path to wallet's store has been defined"), s_wallets_path;
+        return  log_it(L_WARNING, "No path to wallet's store has been defined"), l_cp;
 
 
     return  strncpy(s_wallets_path, l_cp, sizeof(s_wallets_path) - 1 );     /* Make local copy , return it to caller */
@@ -410,6 +406,11 @@ dap_chain_wallet_internal_t *l_wallet_internal;
     l_wallet_internal->certs_count = 1;
     l_wallet_internal->certs = DAP_NEW_Z_SIZE(dap_cert_t *,l_wallet_internal->certs_count * sizeof(dap_cert_t *));
     assert(l_wallet_internal->certs);
+    if (!l_wallet_internal->certs) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_wallet_create_with_seed");
+        dap_chain_wallet_close(l_wallet);
+        return NULL;
+    }
 
     snprintf(l_wallet_internal->file_name, sizeof(l_wallet_internal->file_name)  - 1, "%s/%s%s", a_wallets_path, a_wallet_name, s_wallet_ext);
 
@@ -835,17 +836,41 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
      * allocate memory for array to keep loaded certs */
     l_wallet = DAP_NEW_Z(dap_chain_wallet_t);
     assert(l_wallet);
+    if (!l_wallet) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_wallet_open_file");
+        dap_fileclose(l_fh);
+        return NULL;
+    }
+
     DAP_CHAIN_WALLET_INTERNAL_LOCAL_NEW(l_wallet);
     assert(l_wallet_internal);
+    if (!l_wallet_internal) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_wallet_open_file");
+        DAP_DEL_Z(l_wallet);
+        dap_fileclose(l_fh);
+        return NULL;
+    }
 
-    snprintf(l_wallet->name, DAP_WALLET$SZ_NAME, "%.*s", l_file_hdr.wallet_len, l_wallet_name);
+    snprintf(l_wallet->name, DAP_WALLET$SZ_NAME + 1, "%.*s", l_file_hdr.wallet_len, l_wallet_name);
     strncpy(l_wallet_internal->file_name, a_file_name, sizeof(l_wallet_internal->file_name) - 1);
 
     l_wallet_internal->certs_count = l_certs_count;
     assert(l_wallet_internal->certs_count);
+    if (!l_wallet_internal->certs_count) {
+        log_it(L_ERROR, "Count is zero in dap_chain_wallet_open_file");
+        DAP_DEL_Z(l_wallet);
+        dap_fileclose(l_fh);
+        return NULL;
+    }
 
     l_wallet_internal->certs = DAP_NEW_Z_SIZE(dap_cert_t *, l_wallet_internal->certs_count * sizeof(dap_cert_t *));
     assert(l_wallet_internal->certs);
+    if (!l_wallet_internal->certs) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_wallet_open_file");
+        DAP_DEL_Z(l_wallet);
+        dap_fileclose(l_fh);
+        return NULL;
+    }
 
 #ifdef DAP_OS_WINDOWS
     LARGE_INTEGER l_offset;
