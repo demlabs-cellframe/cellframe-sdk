@@ -3209,7 +3209,7 @@ int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply)
             l_datum_hash_str, l_type,
             dap_ctime_r(&l_ts_create, buf), l_datum->header.data_size);
     int l_verify_datum = dap_chain_net_verify_datum_for_add(l_chain, l_datum, &l_datum_hash) ;
-    if (l_verify_datum != 0){
+    if (l_verify_datum){
         dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications (%s) examine node log files",
                                  dap_chain_net_verify_datum_err_code_to_str(l_datum, l_verify_datum));
         ret = -9;
@@ -4320,6 +4320,17 @@ int com_token_emit(int a_argc, char **a_argv, char **a_str_reply)
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Subcommand 'sign' recuires parameter '-emission'");
             return -31;
         }
+    }
+
+    // Check, if network ID is same as ID in destination wallet address. If not - operation is cancelled.
+    if (!dap_chain_addr_is_blank(l_addr) && l_addr->net_id.uint64 != l_net->pub.id.uint64) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "destination wallet network ID=0x%"DAP_UINT64_FORMAT_x
+                                                       " and network ID=0x%"DAP_UINT64_FORMAT_x" is not equal."
+                                                       " Please, change network name or wallet address",
+                                                       l_addr->net_id.uint64, l_net->pub.id.uint64);
+        DAP_DEL_Z(l_addr);
+        DAP_DEL_Z(l_emission);
+        return -3;
     }
 
     if(!l_ticker) {
