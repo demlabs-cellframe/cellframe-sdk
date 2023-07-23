@@ -30,19 +30,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_hash.h"
 #include "rand/dap_rand.h"
 
-//#include "dap_chain.h"
-//#include "dap_chain_datum_tx.h"
-//#include "dap_chain_datum_tx_in.h"
-//#include "dap_chain_datum_tx_in_cond.h"
-//#include "dap_chain_datum_tx_out.h"
-//#include "dap_chain_datum_tx_out_cond.h"
-//#include "dap_chain_datum_tx_receipt.h"
-//#include "dap_chain_mempool.h"
-//#include "dap_common.h"
-
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_stream_session.h"
-
 
 #include "dap_stream.h"
 #include "dap_stream_ch.h"
@@ -77,9 +66,17 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace);
 static bool s_grace_period_finish(usages_in_grace_t *a_grace);
 
 static inline void s_grace_error(dap_chain_net_srv_grace_t *a_grace, dap_stream_ch_chain_net_srv_pkt_error_t a_err){
+
+
     dap_stream_ch_t * l_ch = dap_stream_ch_find_by_uuid_unsafe(a_grace->stream_worker, a_grace->ch_uuid);
     dap_chain_net_srv_stream_session_t *l_srv_session = l_ch && l_ch->stream && l_ch->stream->session ?
                                         (dap_chain_net_srv_stream_session_t *)l_ch->stream->session->_inheritor : NULL;
+
+    if (!l_srv_session){
+        DAP_DELETE(a_grace->request);
+        DAP_DELETE(a_grace);
+        return;
+    }
 
         a_grace->usage->is_grace = false;
     if (a_grace->usage->receipt_next){ // If not first grace-period
@@ -440,15 +437,27 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
         l_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &a_grace->usage->tx_cond_hash);
         dap_stpcpy(a_grace->usage->token_ticker, l_ticker);
 
+
+
         dap_chain_net_srv_price_t *l_price_tmp;
         DL_FOREACH(a_grace->usage->service->pricelist, l_price_tmp) {
             if (l_price_tmp && l_price_tmp->net->pub.id.uint64  == a_grace->usage->net->pub.id.uint64
                 && dap_strcmp(l_price_tmp->token, l_ticker)     == 0
-                && l_price_tmp->units_uid.enm                   == l_tx_out_cond->subtype.srv_pay.unit.enm
-                )//&& (l_price_tmp->value_datoshi/l_price_tmp->units)  < l_tx_out_cond->subtype.srv_pay.header.unit_price_max_datoshi)
+                && l_price_tmp->units_uid.enm                   == l_tx_out_cond->subtype.srv_pay.unit.enm)
             {
-                l_price = l_price_tmp;
-                break;
+                uint256_t l_unit_price = {};
+                if (l_price_tmp->units != 0){
+                    DIV_256(l_price_tmp->value_datoshi, GET_256_FROM_64(l_price_tmp->units), &l_unit_price);
+                } else {
+                    break;
+                }
+
+                if(!compare256(uint256_0, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) ||
+                    compare256(l_unit_price, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) <= 0){
+                    l_price = l_price_tmp;
+                    break;
+                }
+
             }
         }
         if ( !l_price ) {
@@ -490,15 +499,15 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
 
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(l_grace->stream_worker, l_grace->ch_uuid);
 
-    if (l_grace->usage->price && !l_grace->usage->receipt_next){ // if first grace delete price and set actual
-        DAP_DEL_Z(l_grace->usage->price);
-    }
-
     if (!l_ch){
         s_grace_error(l_grace, l_err);
         HASH_DEL(s_grace_table, a_grace_item);
         DAP_DEL_Z(a_grace_item);
         return false;
+    }
+
+    if (l_grace->usage->price && !l_grace->usage->receipt_next){ // if first grace delete price and set actual
+        DAP_DEL_Z(l_grace->usage->price);
     }
 
     if (l_grace->usage->is_waiting_new_tx_cond){
@@ -571,11 +580,20 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
         DL_FOREACH(l_grace->usage->service->pricelist, l_price_tmp) {
             if (l_price_tmp && l_price_tmp->net->pub.id.uint64                 == l_grace->usage->net->pub.id.uint64
                 && dap_strcmp(l_price_tmp->token, l_ticker)     == 0
-                && l_price_tmp->units_uid.enm                   == l_tx_out_cond->subtype.srv_pay.unit.enm
-                )//&& (l_price_tmp->value_datoshi/l_price_tmp->units)  < l_tx_out_cond->subtype.srv_pay.header.unit_price_max_datoshi)
+                && l_price_tmp->units_uid.enm                   == l_tx_out_cond->subtype.srv_pay.unit.enm)
             {
-                l_price = l_price_tmp;
-                break;
+                uint256_t l_unit_price = {};
+                if (l_price_tmp->units != 0){
+                    DIV_256(l_price_tmp->value_datoshi, GET_256_FROM_64(l_price_tmp->units), &l_unit_price);
+                } else {
+                    break;
+                }
+
+                if(!compare256(uint256_0, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) ||
+                    compare256(l_unit_price, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) <= 0){
+                    l_price = l_price_tmp;
+                    break;
+                }
             }
         }
         if ( !l_price ) {

@@ -87,7 +87,6 @@ typedef struct dap_chain_cs_dag_pvt {
 } dap_chain_cs_dag_pvt_t;
 
 #define PVT(a) ((dap_chain_cs_dag_pvt_t *) a->_pvt )
-#define DAG_ROUND_CURRENT_KEY "round_current"
 
 static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain);
 static void s_dap_chain_cs_dag_threshold_free(dap_chain_cs_dag_t *a_dag);
@@ -329,6 +328,7 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     byte_t *l_current_round = dap_global_db_get_sync(l_dag->gdb_group_events_round_new, DAG_ROUND_CURRENT_KEY, NULL, NULL, NULL);
     l_dag->round_current = l_current_round ? *(uint64_t*)l_current_round : 0;
     DAP_DELETE(l_current_round);
+    debug_if(s_debug_more, L_INFO, "Current round id %llu", l_dag->round_current);
     dap_global_db_get_all_raw(l_dag->gdb_group_events_round_new, 0, 0, s_dag_rounds_events_iter, l_dag);
     PVT(l_dag)->mempool_timer = dap_interval_timer_create(15000, s_timer_process_callback, a_chain);
     PVT(l_dag)->events_treshold = NULL;
@@ -542,9 +542,6 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         break;
     }
 
-    if (l_event->header.round_id && l_event->header.round_id < UINT_MAX)
-        l_dag->round_completed = l_event->header.round_id;
-
     switch (ret) {
     case ATOM_MOVE_TO_THRESHOLD:
         pthread_mutex_lock(l_events_mutex);
@@ -708,9 +705,9 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
      * No additional conditions required.
     */
     byte_t *l_current_round = dap_global_db_get_sync(DAG_ROUND_CURRENT_KEY, l_dag->gdb_group_events_round_new, NULL, NULL, NULL);
-    uint64_t l_round_current = MAX(l_current_round ? *(uint64_t*)l_current_round : 0, l_dag->round_completed);
+    uint64_t l_round_current = MAX(l_current_round ? *(uint64_t*)l_current_round : 0, l_dag->round_completed) + 1;
     DAP_DELETE(l_current_round);
-    l_dag->round_current = ++l_round_current; /* it's an atomic_store */
+    l_dag->round_current = l_round_current; /* it's an atomic_store */
     uint64_t l_event_size = 0;
     dap_chain_cs_dag_event_t * l_event = l_dag->callback_cs_event_create
             ? l_dag->callback_cs_event_create(l_dag, a_datum, l_hashes, l_hashes_linked, &l_event_size)
@@ -738,9 +735,9 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
     dap_get_data_hash_str_static(l_event, l_event_size, l_event_hash_str);
     bool l_res = dap_chain_cs_dag_event_gdb_set(l_dag, l_event_hash_str, l_event, l_event_size, &l_round_item);
     log_it(l_res ? L_INFO : L_ERROR,
-           l_res ? "Event %s placed in the new forming round"
-                 : "Can't add new event [%s] to the new events round",
-           l_event_hash_str);
+           l_res ? "Event %s placed in the new forming round [id %llu]"
+                 : "Can't add new event [%s] to the new events round [id %llu]",
+           l_event_hash_str, l_round_current);
     return l_res;
 }
 

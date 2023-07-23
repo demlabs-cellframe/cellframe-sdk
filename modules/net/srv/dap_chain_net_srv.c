@@ -106,7 +106,7 @@ int dap_chain_net_srv_init()
         "net_srv -net <net_name> order dump -hash <Order hash>\n"
         "\tOrder dump info\n"
         "net_srv -net <net_name> order create -direction {sell | buy} -srv_uid <Service UID> -price <Price>\n"
-        " -price_unit <Price Unit> -price_token <token_ticker> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>]\n"
+        " -price_unit <Price Unit> -price_token <token_ticker> -units <units> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>]\n"
         " [-expires <Unix time when expires>] [-cert <cert name to sign order>]\n"
         " [{-ext <Extension with params> | -region <Region name> -continent <Continent name>}]\n"
 #ifdef DAP_MODULES_DYNAMIC
@@ -516,7 +516,22 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 if (l_tx_cond_hash_str)
                     dap_chain_hash_fast_from_str (l_tx_cond_hash_str, &l_tx_cond_hash);
                 l_price = dap_chain_balance_scan(l_price_str);
-                l_price_unit.uint32 = (uint32_t) atol ( l_price_unit_str );
+
+                if (!dap_strcmp(l_price_unit_str, "MB")){
+                    l_price_unit.uint32 = SERV_UNIT_MB;
+                } else if (!dap_strcmp(l_price_unit_str, "SEC")){
+                    l_price_unit.uint32 = SERV_UNIT_SEC;
+                } else if (!dap_strcmp(l_price_unit_str, "DAY")){
+                    l_price_unit.uint32 = SERV_UNIT_DAY;
+                } else if (!dap_strcmp(l_price_unit_str, "KB")){
+                    l_price_unit.uint32 = SERV_UNIT_KB;
+                } else if (!dap_strcmp(l_price_unit_str, "B")){
+                    l_price_unit.uint32 = SERV_UNIT_B;
+                } else if (!dap_strcmp(l_price_unit_str, "PCS")){
+                    l_price_unit.uint32 = SERV_UNIT_PCS;
+                } else
+                    l_price_unit.uint32 = SERV_UNIT_UNDEFINED;
+
                 uint64_t l_units = atoi(l_units_str);
                 strncpy(l_price_token, l_price_token_str, DAP_CHAIN_TICKER_SIZE_MAX - 1);
                 size_t l_ext_len = l_ext? strlen(l_ext) + 1 : 0;
@@ -680,7 +695,6 @@ static bool s_fee_verificator_callback(dap_ledger_t *a_ledger, UNUSED_ARG dap_ch
 static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
                                        dap_chain_datum_tx_t *a_tx_in, bool a_owner)
 {
-    UNUSED(a_ledger);
     if (a_owner)
         return true;
     dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)
@@ -692,10 +706,12 @@ static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out
 
     // Check provider sign
     dap_sign_t *l_sign = dap_chain_datum_tx_receipt_sign_get(l_receipt, l_receipt->size, 0);
+
     if (!l_sign){
         log_it(L_ERROR, "Can't get provider sign from receipt.");
         return false;
     }
+    dap_sign_type_t l_provider_sign_type = l_sign->header.type;
 
     if (dap_sign_verify_all(l_sign, dap_sign_get_size(l_sign), &l_receipt->receipt_info, sizeof(l_receipt->receipt_info))){
         log_it(L_ERROR, "Provider sign in receipt not passed verification.");
@@ -750,14 +766,57 @@ static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out
         return false;
     }
 
-    return true;
+    // Check price is less than maximum
+    dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_IN_COND, 0);
+    dap_chain_datum_tx_t *l_tx_prev = dap_chain_ledger_tx_find_by_hash(a_ledger , &l_tx_in_cond->header.tx_prev_hash);
+    dap_chain_tx_out_cond_t *l_prev_out_cond = dap_chain_datum_tx_out_cond_get(l_tx_prev, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, NULL);
+
+    uint256_t l_unit_price = {};
+    if (l_receipt->receipt_info.units != 0){
+        DIV_256(l_receipt->receipt_info.value_datoshi, GET_256_FROM_64(l_receipt->receipt_info.units), &l_unit_price);
+    } else {
+        return false;
+    }
+
+    if( compare256(uint256_0, l_prev_out_cond->subtype.srv_pay.unit_price_max_datoshi) &&
+        compare256(l_unit_price, l_prev_out_cond->subtype.srv_pay.unit_price_max_datoshi) > 0){
+        log_it(L_ERROR, "Value in receipt is exceed max allowable price.");
+        return false;
+    }
+
+    // Check out value is equal to value in receipt
+    int items_count = 0;
+    dap_list_t * items_list = dap_chain_datum_tx_items_get(a_tx_in, TX_ITEM_TYPE_OUT, &items_count);
+    dap_chain_addr_t l_provider_addr = {};
+    dap_chain_addr_fill(&l_provider_addr, l_provider_sign_type, &l_provider_pkey_hash, dap_chain_net_id_by_name(a_ledger->net_name));
+
+    dap_list_t * list_item = items_list;
+    for (int i = 0; i < items_count; i++){
+        dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t*)list_item->data;
+        if (dap_chain_addr_compare(&l_provider_addr, &l_out->addr))
+        {
+            if(!compare256(l_out->header.value, l_receipt->receipt_info.value_datoshi)){
+                dap_list_free(items_list);
+                return true;
+            }else{
+                dap_list_free(items_list);
+                log_it(L_ERROR, "Value in tx out is not equal to value in receipt.");
+                return false;
+
+            }
+        }
+        items_list = items_list->next;
+    }
+    dap_list_free(items_list);
+    log_it(L_ERROR, "Can't find OUT in tx matching provider.");
+    return false;
 }
 
 int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, const char *a_config_section){
     const char *l_wallet_path = dap_config_get_item_str_default(g_config, "resources", "wallets_path", NULL);
     const char *l_wallet_name = dap_config_get_item_str_default(g_config, a_config_section, "wallet", NULL);
     const char *l_net_name = dap_config_get_item_str_default(g_config, a_config_section, "net", NULL);
-    if (!l_wallet_path || !l_wallet_name || l_net_name){
+    if (!l_wallet_path || !l_wallet_name || !l_net_name){
         return -2;
     }
     dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, l_wallet_path);
@@ -796,6 +855,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
             l_price->units = l_order->units;
             l_price->units_uid = l_order->price_unit;
             l_price->wallet = l_wallet;
+            DL_APPEND(a_srv->pricelist, l_price);
             break;
         }
         DAP_DELETE(l_order);
@@ -1124,7 +1184,7 @@ const dap_chain_net_srv_uid_t * dap_chain_net_srv_list(void)
  * @param a_price
  * @return
  */
-dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv_t *a_srv,                                                         
+dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv_t *a_srv,
                                                                dap_chain_net_srv_price_t * a_price,
                                                                const void * a_ext, size_t a_ext_size)
 {
