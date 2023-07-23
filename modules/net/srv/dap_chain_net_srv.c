@@ -842,6 +842,12 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
         if (l_order->node_addr.uint64 == l_node_addr->uint64) {
             l_err_code = 0;
             dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
+            if (!l_price) {
+                log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_price_apply_from_my_order");
+                DAP_DEL_Z(l_order);
+                dap_global_db_objs_delete(l_orders, l_orders_count);
+                return -1;
+            }
             l_price->net = l_net;
             l_price->net_name = dap_strdup(l_net->pub.name);
             l_price->value_datoshi = l_order->price;

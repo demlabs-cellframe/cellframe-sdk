@@ -384,12 +384,20 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emissi
 {
     assert(a_emission_serial);
     assert(a_emission_size);
+    if(!a_emission_serial || !a_emission_size || *a_emission_size < sizeof(struct dap_chain_emission_header_v0)) {
+        log_it(L_ERROR, "Invalid params in dap_chain_datum_emission_read");
+        return NULL;
+    }
     dap_chain_datum_token_emission_t *l_emission = NULL;
     if (((dap_chain_datum_token_emission_t *)a_emission_serial)->hdr.version == 0) {
         size_t l_emission_size = *a_emission_size;
         size_t l_old_hdr_size = sizeof(struct dap_chain_emission_header_v0);
         size_t l_add_size = sizeof(l_emission->hdr) - l_old_hdr_size;
         l_emission = DAP_NEW_Z_SIZE(dap_chain_datum_token_emission_t, l_emission_size + l_add_size);
+        if (!l_emission) {
+            log_it(L_ERROR, "Memory allocation error in dap_chain_datum_emission_read");
+            return NULL;
+        }
         l_emission->hdr.version = 2;
         memcpy(l_emission, a_emission_serial, l_old_hdr_size);
         memcpy((byte_t *)l_emission + sizeof(l_emission->hdr),
@@ -401,6 +409,10 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emissi
         (*a_emission_size) = l_emission_size;
     } else {
         l_emission = DAP_DUP_SIZE(a_emission_serial, *a_emission_size);
+        if (!l_emission) {
+            log_it(L_ERROR, "Memory allocation error in dap_chain_datum_emission_read");
+            return NULL;
+        }
         if (((dap_chain_datum_token_emission_t *)a_emission_serial)->hdr.version == 1)
             l_emission->hdr.value_256 = dap_chain_uint256_from(
                         ((dap_chain_datum_token_emission_t *)a_emission_serial)->hdr.value);

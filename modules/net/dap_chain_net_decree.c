@@ -303,7 +303,7 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
 int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain, dap_chain_hash_fast_t *a_decree_hash)
 {
     int ret_val = 0;
-    if (!a_chain || !a_chain)
+    if (!a_chain || !a_decree)
     {
         log_it(L_ERROR, "Bad arguments");
         return -100;

@@ -123,11 +123,14 @@ void dap_dns_client_read(dap_events_socket_t *a_es, void *a_arg) {
     dap_dns_buf_t *dns_reply = DAP_NEW(dap_dns_buf_t);
     if (!dns_reply) {
         log_it(L_ERROR, "Memory allocation error in dap_dns_client_read");
+        DAP_DELETE(dns_message);
         return;
     }
     dns_message->data = DAP_NEW_SIZE(char, a_es->buf_in_size + 1);
     if (!dns_message->data) {
         log_it(L_ERROR, "Memory allocation error in dap_dns_client_read");
+        DAP_DELETE(dns_message);
+        DAP_DELETE(dns_reply);
         return;
     }
     dns_message->data[a_es->buf_in_size] = 0;

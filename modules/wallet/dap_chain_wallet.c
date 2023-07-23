@@ -410,6 +410,11 @@ dap_chain_wallet_internal_t *l_wallet_internal;
     l_wallet_internal->certs_count = 1;
     l_wallet_internal->certs = DAP_NEW_Z_SIZE(dap_cert_t *,l_wallet_internal->certs_count * sizeof(dap_cert_t *));
     assert(l_wallet_internal->certs);
+    if (!l_wallet_internal->certs) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_wallet_create_with_seed");
+        dap_chain_wallet_close(l_wallet);
+        return NULL;
+    }
 
     snprintf(l_wallet_internal->file_name, sizeof(l_wallet_internal->file_name)  - 1, "%s/%s%s", a_wallets_path, a_wallet_name, s_wallet_ext);
 
@@ -835,17 +840,41 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
      * allocate memory for array to keep loaded certs */
     l_wallet = DAP_NEW_Z(dap_chain_wallet_t);
     assert(l_wallet);
+    if (!l_wallet) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_wallet_open_file");
+        dap_fileclose(l_fh);
+        return NULL;
+    }
+
     DAP_CHAIN_WALLET_INTERNAL_LOCAL_NEW(l_wallet);
     assert(l_wallet_internal);
+    if (!l_wallet_internal) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_wallet_open_file");
+        DAP_DEL_Z(l_wallet);
+        dap_fileclose(l_fh);
+        return NULL;
+    }
 
     snprintf(l_wallet->name, DAP_WALLET$SZ_NAME + 1, "%.*s", l_file_hdr.wallet_len, l_wallet_name);
     strncpy(l_wallet_internal->file_name, a_file_name, sizeof(l_wallet_internal->file_name) - 1);
 
     l_wallet_internal->certs_count = l_certs_count;
     assert(l_wallet_internal->certs_count);
+    if (!l_wallet_internal->certs_count) {
+        log_it(L_ERROR, "Count is zero in dap_chain_wallet_open_file");
+        DAP_DEL_Z(l_wallet);
+        dap_fileclose(l_fh);
+        return NULL;
+    }
 
     l_wallet_internal->certs = DAP_NEW_Z_SIZE(dap_cert_t *, l_wallet_internal->certs_count * sizeof(dap_cert_t *));
     assert(l_wallet_internal->certs);
+    if (!l_wallet_internal->certs) {
+        log_it(L_ERROR, "Memory allocation error in dap_chain_wallet_open_file");
+        DAP_DEL_Z(l_wallet);
+        dap_fileclose(l_fh);
+        return NULL;
+    }
 
 #ifdef DAP_OS_WINDOWS
     LARGE_INTEGER l_offset;
