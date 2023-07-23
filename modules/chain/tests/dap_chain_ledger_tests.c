@@ -369,7 +369,7 @@ void dap_chain_ledger_test_run(void){
     dap_print_module_name("dap_chain_ledger");
     uint16_t l_flags = 0;
     l_flags |= DAP_CHAIN_LEDGER_CHECK_TOKEN_EMISSION;
-    dap_ledger_t *l_ledger = dap_chain_ledger_create(l_flags, "Snet", s_token_ticker, NULL);
+    dap_ledger_t *l_ledger = dap_chain_ledger_create(l_flags, l_iddn, "Snet", s_token_ticker, NULL);
     char *l_seed_ph = "H58i9GJKbn91238937^#$t6cjdf";
     size_t l_seed_ph_size = strlen(l_seed_ph);
     dap_cert_t *l_cert = dap_cert_generate_mem_with_seed("testCert", DAP_ENC_KEY_TYPE_SIG_PICNIC, l_seed_ph, l_seed_ph_size);
