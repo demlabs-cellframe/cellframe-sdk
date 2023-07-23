@@ -143,9 +143,9 @@ static bool s_debug_more = false;
 
 /**
  * @brief dap_chain_cs_dag_init
- * @return
+ * @return always 0
  */
-int dap_chain_cs_dag_init(void)
+int dap_chain_cs_dag_init()
 {
     srand((unsigned int) time(NULL));
     dap_chain_cs_type_add( "dag", dap_chain_cs_dag_new );

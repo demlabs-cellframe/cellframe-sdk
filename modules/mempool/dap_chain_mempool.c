@@ -1108,7 +1108,7 @@ static void enc_http_reply_encode_new(struct dap_http_simple *a_http_simple, dap
     if(a_http_delegate->response) {
 
         if(a_http_simple->reply)
-            free(a_http_simple->reply);
+            DAP_DELETE(a_http_simple->reply);
 
         size_t l_reply_size_max = dap_enc_code_out_size(a_http_delegate->key,
                 a_http_delegate->response_size,

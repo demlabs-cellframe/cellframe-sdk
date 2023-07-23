@@ -369,7 +369,7 @@ static int ping_main(ping_handle_t *a_ping_handle, int argc, char **argv)
 
                 a_ping_handle->ping_common.options |= F_STRICTSOURCE;
 
-                free(addr);
+                DAP_DELETE(addr);
             } else if(inet_pton(AF_INET, optarg, &a_ping_handle->source.sin_addr) > 0) {
                 a_ping_handle->ping_common.options |= F_STRICTSOURCE;
             } else {

@@ -1020,7 +1020,7 @@ void s_ledger_token_cache_update(dap_ledger_t *a_ledger, dap_chain_ledger_token_
     if (dap_global_db_set(l_gdb_group, l_token_item->ticker, l_cache, l_cache_size, false, NULL, NULL)) {
         char *l_supply = dap_chain_balance_print(l_token_item->current_supply);
         log_it(L_WARNING, "Ledger cache mismatch, can't add token [%s] with supply %s", l_token_item->ticker, l_supply);
-        DAP_FREE(l_supply);
+        DAP_DELETE(l_supply);
     }
     DAP_DELETE(l_gdb_group);
 }

@@ -108,7 +108,7 @@ static dap_interval_timer_t s_poa_round_timer = NULL;
  * read parameters from config and register dag_poa commands to cellframe-node-cli
  * @return
  */
-int dap_chain_cs_dag_poa_init(void)
+int dap_chain_cs_dag_poa_init()
 {
     // Add consensus constructor
     dap_chain_cs_add ("dag_poa", s_callback_new );
