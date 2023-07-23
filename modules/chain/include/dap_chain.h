@@ -223,6 +223,15 @@ typedef struct dap_chain_atom_notifier {
 
 #define DAP_CHAIN(a) ( (dap_chain_t *) (a)->_inheritor)
 
+DAP_STATIC_INLINE int dap_chain_id_parse(const char *a_id_str, dap_chain_id_t *a_id)
+{
+    uint64_t l_id;
+    int res = dap_id_uint64_parse(a_id_str, &l_id);
+    if (!res)
+        a_id->uint64 = l_id;
+    return res;
+}
+
 int dap_chain_init(void);
 void dap_chain_deinit(void);
 

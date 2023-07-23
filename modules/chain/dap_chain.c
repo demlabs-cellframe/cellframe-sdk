@@ -354,25 +354,15 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
         if (l_cfg)
 		{
             dap_chain_t		*l_chain		= NULL;
-            dap_chain_id_t	l_chain_id		= {{0}};
-            uint64_t		l_chain_id_u	= 0;
+            dap_chain_id_t	l_chain_id		= {};
             const char		*l_chain_id_str	= NULL;
             const char 		*l_chain_name	= NULL;
 
             // Recognize chains id
-            if ( (l_chain_id_str = dap_config_get_item_str(l_cfg,"chain","id")) != NULL )
-			{
-                if (sscanf(l_chain_id_str, "0x%"DAP_UINT64_FORMAT_X, & l_chain_id_u)		!=1)
-				{
-                    if (sscanf(l_chain_id_str, "0x%"DAP_UINT64_FORMAT_x, &l_chain_id_u)		!=1)
-					{
-                        if (sscanf(l_chain_id_str, "%"DAP_UINT64_FORMAT_U, &l_chain_id_u)	!=1)
-						{
-                            log_it (L_ERROR,"Can't recognize '%s' string as chain net id, hex or dec",l_chain_id_str);
-                            dap_config_close(l_cfg);
-                            return NULL;
-                        }
-                    }
+            if ( (l_chain_id_str = dap_config_get_item_str(l_cfg,"chain","id")) != NULL ) {
+                if (dap_chain_id_parse(l_chain_id_str, &l_chain_id) != 0) {
+                    dap_config_close(l_cfg);
+                    return NULL;
                 }
             } else {
                 log_it (L_ERROR, "Wasn't found chain id string in config");
@@ -380,7 +370,6 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 return NULL;
             }
 
-            l_chain_id.uint64 = l_chain_id_u;
             log_it (L_NOTICE, "Chain id 0x%016"DAP_UINT64_FORMAT_x"  ( \"%s\" )", l_chain_id.uint64, l_chain_id_str);
 
             // Read chain name

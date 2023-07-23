@@ -88,9 +88,20 @@ typedef struct dap_chain_net{
         const char *native_ticker;
         dap_ledger_t  *ledger;
         dap_chain_net_decree_t *decree;
+
+        dap_list_t *bridged_networks;   // List of bridged network ID's allowed to cross-network TXs
     } pub;
     uint8_t pvt[];
 } dap_chain_net_t;
+
+DAP_STATIC_INLINE int dap_chain_net_id_parse(const char *a_id_str, dap_chain_net_id_t *a_id)
+{
+    uint64_t l_id;
+    int res = dap_id_uint64_parse(a_id_str, &l_id);
+    if (!res)
+        a_id->uint64 = l_id;
+    return res;
+}
 
 typedef bool (dap_chain_datum_filter_func_t)(dap_chain_datum_t *a_datum, dap_chain_t * a_chain, void *a_filter_func_param);
 
