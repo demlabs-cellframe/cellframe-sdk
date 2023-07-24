@@ -1547,22 +1547,20 @@ void dap_chain_net_delete( dap_chain_net_t * a_net )
  * load network config settings
  */
 void dap_chain_net_load_all() {
-    dap_chain_net_t **l_net_list = NULL;
-    uint16_t l_net_count = 0;
     int32_t l_ret = 0;
 
-    l_net_list = dap_chain_net_list(&l_net_count);
-    if(!l_net_list|| !l_net_count){
+    if(!HASH_COUNT(s_net_items)){
         log_it(L_ERROR, "Can't find any nets");
         return;
     }
-
-    for(uint16_t i = 0; i < l_net_count; i++){
-        if((l_ret = s_net_load(l_net_list[i])) ){
-            log_it(L_ERROR, "Loading chains of net %s finished with (%d) error code.", l_net_list[i]->pub.name, l_ret);
+    pthread_rwlock_rdlock(&s_net_items_rwlock);
+    dap_chain_net_item_t *l_net_items_current = NULL, *l_net_items_tmp = NULL;
+    HASH_ITER(hh, s_net_items, l_net_items_current, l_net_items_tmp) {
+        if( (l_ret = s_net_load(l_net_items_current->chain_net)) ) {
+            log_it(L_ERROR, "Loading chains of net %s finished with (%d) error code.", l_net_items_current->name, l_ret);
         }
     }
-    DAP_DELETE(l_net_list);
+    pthread_rwlock_unlock(&s_net_items_rwlock);
 }
 
 dap_string_t* dap_cli_list_net()
@@ -2276,21 +2274,25 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         return -1;
     }
     // check nets with same IDs and names
-    dap_chain_net_item_t *l_current_item = NULL, *l_tmp = NULL;
-    HASH_ITER(hh, s_net_items, l_current_item, l_tmp) {
-        if (l_current_item->net_id.uint64 == l_net->pub.id.uint64) {
-            log_it(L_ERROR,"Can't create net %s, net %s has the same ID %"DAP_UINT64_FORMAT_U"", l_net->pub.name, l_current_item->name, l_net->pub.id.uint64);
+    pthread_rwlock_rdlock(&s_net_items_rwlock);
+    dap_chain_net_item_t *l_net_items_current = NULL, *l_net_items_tmp = NULL;
+    HASH_ITER(hh, s_net_items, l_net_items_current, l_net_items_tmp) {
+        if (l_net_items_current->net_id.uint64 == l_net->pub.id.uint64) {
+            log_it(L_ERROR,"Can't create net %s, net %s has the same ID %"DAP_UINT64_FORMAT_U"", l_net->pub.name, l_net_items_current->name, l_net->pub.id.uint64);
             log_it(L_ERROR, "Please, fix your configs and restart node");
             dap_chain_net_delete(l_net);
+            pthread_rwlock_unlock(&s_net_items_rwlock);
             return -1;
         }
-        if (!strcmp(l_current_item->name, l_net->pub.name)) {
-            log_it(L_ERROR,"Can't create l_net ID %"DAP_UINT64_FORMAT_U", net ID %"DAP_UINT64_FORMAT_U" has the same name %s", l_net->pub.id.uint64, l_current_item->net_id.uint64, l_net->pub.name);
+        if (!strcmp(l_net_items_current->name, l_net->pub.name)) {
+            log_it(L_ERROR,"Can't create l_net ID %"DAP_UINT64_FORMAT_U", net ID %"DAP_UINT64_FORMAT_U" has the same name %s", l_net->pub.id.uint64, l_net_items_current->net_id.uint64, l_net->pub.name);
             log_it(L_ERROR, "Please, fix your configs and restart node");
             dap_chain_net_delete(l_net);
+            pthread_rwlock_unlock(&s_net_items_rwlock);
             return -1;
         }
     }
+    pthread_rwlock_unlock(&s_net_items_rwlock);
     dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
     l_net_pvt->load_mode = true;
     l_net_pvt->acl_idx = a_acl_idx;
