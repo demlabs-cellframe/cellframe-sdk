@@ -1480,47 +1480,47 @@ static dap_chain_net_t *s_net_new(const char *a_id, const char *a_name,
 {
     if (!a_id || !a_name || !a_native_ticker || !a_node_role)
         return NULL;
-    dap_chain_net_t *ret = DAP_NEW_Z_SIZE( dap_chain_net_t, sizeof(ret->pub) + sizeof(dap_chain_net_pvt_t) );
-    if (!ret) {
+    dap_chain_net_t *l_ret = DAP_NEW_Z_SIZE( dap_chain_net_t, sizeof(l_ret->pub) + sizeof(dap_chain_net_pvt_t) );
+    if (!l_ret) {
         log_it(L_ERROR, "Memory allocation error in s_net_new");
         return NULL;
     }
-    ret->pub.name = strdup( a_name );
-    ret->pub.native_ticker = strdup( a_native_ticker );
+    l_ret->pub.name = strdup( a_name );
+    l_ret->pub.native_ticker = strdup( a_native_ticker );
     pthread_mutexattr_t l_mutex_attr;
     pthread_mutexattr_init(&l_mutex_attr);
     pthread_mutexattr_settype(&l_mutex_attr, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutex_init(&PVT(ret)->uplinks_mutex, &l_mutex_attr);
+    pthread_mutex_init(&PVT(l_ret)->uplinks_mutex, &l_mutex_attr);
     pthread_mutexattr_destroy(&l_mutex_attr);
-    pthread_rwlock_init(&PVT(ret)->downlinks_lock, NULL);
-    pthread_rwlock_init(&PVT(ret)->balancer_lock, NULL);
-    pthread_rwlock_init(&PVT(ret)->states_lock, NULL);
-    if (sscanf(a_id, "0x%016"DAP_UINT64_FORMAT_X, &ret->pub.id.uint64) != 1) {
+    pthread_rwlock_init(&PVT(l_ret)->downlinks_lock, NULL);
+    pthread_rwlock_init(&PVT(l_ret)->balancer_lock, NULL);
+    pthread_rwlock_init(&PVT(l_ret)->states_lock, NULL);
+    if (sscanf(a_id, "0x%016"DAP_UINT64_FORMAT_X, &l_ret->pub.id.uint64) != 1) {
         log_it (L_ERROR, "Wrong id format (\"%s\"). Must be like \"0x0123456789ABCDE\"" , a_id );
-        DAP_DELETE(ret);
+        DAP_DELETE(l_ret);
         return NULL;
     }
     if (strcmp (a_node_role, "root_master")==0){
-        PVT(ret)->node_role.enums = NODE_ROLE_ROOT_MASTER;
+        PVT(l_ret)->node_role.enums = NODE_ROLE_ROOT_MASTER;
     } else if (strcmp( a_node_role,"root") == 0){
-        PVT(ret)->node_role.enums = NODE_ROLE_ROOT;
+        PVT(l_ret)->node_role.enums = NODE_ROLE_ROOT;
     } else if (strcmp( a_node_role,"archive") == 0){
-        PVT(ret)->node_role.enums = NODE_ROLE_ARCHIVE;
+        PVT(l_ret)->node_role.enums = NODE_ROLE_ARCHIVE;
     } else if (strcmp( a_node_role,"cell_master") == 0){
-        PVT(ret)->node_role.enums = NODE_ROLE_CELL_MASTER;
+        PVT(l_ret)->node_role.enums = NODE_ROLE_CELL_MASTER;
     }else if (strcmp( a_node_role,"master") == 0){
-        PVT(ret)->node_role.enums = NODE_ROLE_MASTER;
+        PVT(l_ret)->node_role.enums = NODE_ROLE_MASTER;
     }else if (strcmp( a_node_role,"full") == 0){
-        PVT(ret)->node_role.enums = NODE_ROLE_FULL;
+        PVT(l_ret)->node_role.enums = NODE_ROLE_FULL;
     }else if (strcmp( a_node_role,"light") == 0){
-        PVT(ret)->node_role.enums = NODE_ROLE_LIGHT;
+        PVT(l_ret)->node_role.enums = NODE_ROLE_LIGHT;
     }else{
         log_it(L_ERROR,"Unknown node role \"%s\" for network '%s'", a_node_role, a_name);
-        DAP_DELETE(ret);
+        DAP_DELETE(l_ret);
         return NULL;
     }
     log_it (L_NOTICE, "Node role \"%s\" selected for network '%s'", a_node_role, a_name);
-    return ret;
+    return l_ret;
 }
 
 /**
@@ -2274,6 +2274,22 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     if(!l_net) {
         log_it(L_ERROR,"Can't create l_net");
         return -1;
+    }
+    // check nets with same IDs and names
+    dap_chain_net_item_t *l_current_item = NULL, *l_tmp = NULL;
+    HASH_ITER(hh, s_net_items, l_current_item, l_tmp) {
+        if (l_current_item->net_id.uint64 == l_net->pub.id.uint64) {
+            log_it(L_ERROR,"Can't create net %s, net %s has the same ID %"DAP_UINT64_FORMAT_U"", l_net->pub.name, l_current_item->name, l_net->pub.id.uint64);
+            log_it(L_ERROR, "Please, fix your configs and restart node");
+            dap_chain_net_delete(l_net);
+            return -1;
+        }
+        if (!strcmp(l_current_item->name, l_net->pub.name)) {
+            log_it(L_ERROR,"Can't create l_net ID %"DAP_UINT64_FORMAT_U", net ID %"DAP_UINT64_FORMAT_U" has the same name %s", l_net->pub.id.uint64, l_current_item->net_id.uint64, l_net->pub.name);
+            log_it(L_ERROR, "Please, fix your configs and restart node");
+            dap_chain_net_delete(l_net);
+            return -1;
+        }
     }
     dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
     l_net_pvt->load_mode = true;
