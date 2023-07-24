@@ -2761,6 +2761,11 @@ static bool dap_chain_mempool_find_addr_ledger(dap_ledger_t* a_ledger, dap_chain
 void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a_chain, const char * a_add, dap_string_t * a_str_tmp, const char *a_hash_out_type, bool a_fast){
     int l_removed = 0;
     dap_chain_mempool_filter(a_chain, &l_removed);
+
+    // l_str_ret->str = dap_strdup_printf("Network ledger %s contains no transactions.\n", l_ledger->net_name);
+    // dap_cli_server_cmd_reply_send(*newsockfd, l_str_ret->str);
+    // l_str_ret->len = 0; 
+
     dap_string_append_printf(a_str_tmp, "Removed %i records from the %s chain mempool in %s network. \n\n",
                              l_removed, a_chain->name, a_net->pub.name);
     char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
