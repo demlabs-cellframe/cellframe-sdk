@@ -5511,11 +5511,15 @@ int com_tx_verify(int a_argc, char **a_argv, char **a_str_reply)
  */
 int com_tx_history(int a_argc, char ** a_argv,  SOCKET *newsockfd, char **a_str_reply)
 {
-    char * test = "TEsSTST";
+    char * test = "FIRST TEsSTST";
+    char * test1 = "SECOND TEsSTST";
+    char * test2 = "THIRD TEsSTST";
+    char * test3 = "FOURS TEsSTST";
+    char * test4 = "ENDLONG\0";
     dap_cli_server_cmd_reply_send(*newsockfd, test);
-    dap_cli_server_cmd_reply_send(*newsockfd, test);
-    dap_cli_server_cmd_reply_send(*newsockfd, test);
-    dap_cli_server_cmd_reply_send(*newsockfd, test);
+    dap_cli_server_cmd_reply_send(*newsockfd, test1);
+    dap_cli_server_cmd_reply_send(*newsockfd, test2);
+    dap_cli_server_cmd_reply_send(*newsockfd, test3);
     int arg_index = 1;
     const char *l_addr_base58 = NULL;
     const char *l_wallet_name = NULL;
@@ -5707,7 +5711,8 @@ int com_tx_history(int a_argc, char ** a_argv,  SOCKET *newsockfd, char **a_str_
         l_str_ret = dap_strdup_printf("ENDLONG");
     } else
         l_str_ret = l_str_out;
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ret);
+    // dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ret);
+    dap_cli_server_cmd_reply_send(*newsockfd, "ENDLONG");
     DAP_DELETE(l_str_ret);
     return 0;
 }
