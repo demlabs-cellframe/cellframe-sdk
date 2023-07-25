@@ -24,7 +24,6 @@
 
 #pragma once
 #include <stdint.h>
-#include <sys/socket.h>
 #include "dap_common.h"
 #include "dap_math_ops.h"
 #include "dap_chain_common.h"
