@@ -1317,9 +1317,9 @@ bool dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_f
         return false;
     }
     // wait connected
-    size_t rc = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_ESTABLISHED, a_time_connect);
+    int rc = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_ESTABLISHED, a_time_connect);
     if (rc) {
-        log_it(L_WARNING, "No response from node");
+        log_it(L_WARNING, "No response from node. Code: %d", rc);
         // clean client struct
         dap_chain_node_client_close_mt(l_node_client);
         DAP_DELETE(l_remote_node_info);
@@ -1331,11 +1331,11 @@ bool dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_f
     dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, l_ch_id);
 
     randombytes(l_test_data, sizeof(l_test_data));
-    rc = dap_stream_ch_chain_net_pkt_write(l_ch_chain,
+    size_t rc_w = dap_stream_ch_chain_net_pkt_write(l_ch_chain,
                                             DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST,
                                             a_net->pub.id,
                                             l_test_data, sizeof(l_test_data));
-    if (rc == 0) {
+    if (rc_w == 0) {
         log_it(L_WARNING, "Can't send DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST packet");
         dap_chain_node_client_close_mt(l_node_client);
         DAP_DELETE(l_remote_node_info);
@@ -1360,6 +1360,8 @@ bool dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_f
         *out_data = *validators_data;
         out_data->header.sign_correct = l_sign_correct ? 1 : 0;
         out_data->header.overall_correct = l_overall_correct ? 1 : 0;
+    } else {
+        log_it(L_WARNING, "Error wait response. Code: %d", rc);
     }
     DAP_DELETE(l_node_client->callbacks_arg);
     dap_chain_node_client_close_mt(l_node_client);
