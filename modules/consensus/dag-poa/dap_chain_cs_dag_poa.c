@@ -464,9 +464,12 @@ static bool s_round_event_ready_minimum_check(dap_chain_cs_dag_t *a_dag, dap_cha
 {
     dap_chain_cs_dag_poa_t *l_poa = DAP_CHAIN_CS_DAG_POA(a_dag);
     dap_chain_cs_dag_poa_pvt_t *l_poa_pvt = PVT(l_poa);
-    if ( a_event->header.signs_count < l_poa_pvt->auth_certs_count_verify)
+    if ( a_event->header.signs_count < l_poa_pvt->auth_certs_count_verify) {
+        log_it(L_MSG, "[!] not enough signs: %u < %u", a_event->header.signs_count, l_poa_pvt->auth_certs_count_verify);
         return false;
+    }
     int l_ret_event_verify = s_callback_event_verify(a_dag, a_event, a_event_size);
+    log_it(L_MSG, "[!] event verification ret %d", l_ret_event_verify);
     if (l_ret_event_verify == 0)
         return true;
     log_it(L_ERROR,"Round auto-complete error! Event %s is not passing consensus verification, ret code %d\n",
@@ -644,6 +647,7 @@ static void s_round_event_cs_done(dap_chain_cs_dag_t * a_dag, uint64_t a_round_i
     dap_chain_cs_dag_poa_t *l_poa = DAP_CHAIN_CS_DAG_POA(a_dag);
     dap_chain_cs_dag_poa_pvt_t *l_poa_pvt = PVT(l_poa);
     struct round_timer_arg *l_callback_arg = NULL;
+    log_it(L_MSG, "[!] Check active round");
     pthread_rwlock_wrlock(&l_poa_pvt->rounds_rwlock);
     HASH_FIND(hh, l_poa_pvt->active_rounds, &a_round_id, sizeof(uint64_t), l_callback_arg);
     if (!l_callback_arg) {
@@ -791,7 +795,7 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
     dap_chain_cs_dag_event_round_item_t *l_round_item = (dap_chain_cs_dag_event_round_item_t *)a_value;
     size_t l_event_size = l_round_item->event_size;
     dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t*)DAP_DUP_SIZE(l_round_item->event_n_signs, l_event_size);
-
+    log_it(L_MSG, "[!] callback_cs_event_round_sync for record %s : %s", a_group, a_key);
     if (l_event->header.round_id < a_dag->round_completed) {
         struct round_timer_arg *l_round_active;
         uint64_t l_round_id = l_event->header.round_id;
@@ -805,10 +809,11 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
             return -2;
         }
     }
-
+    log_it(L_MSG, "[!] check signs...");
     if (dap_chain_cs_dag_event_sign_exists(l_event, l_event_size, l_poa_pvt->events_sign_cert->enc_key)
             || dap_chain_cs_dag_event_round_sign_exists(l_round_item, l_poa_pvt->events_sign_cert->enc_key)) {
         // if my sign exists
+        log_it(L_MSG, "[!] signs found");
         if (l_poa_pvt->auto_round_complete &&
                 s_round_event_ready_minimum_check(a_dag, l_event, l_event_size, (char *)a_key))
             // cs done (minimum signs & verify passed)
