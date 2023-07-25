@@ -62,6 +62,7 @@ typedef union dap_chain_cell_id {
     uint64_t uint64;
 } DAP_ALIGN_PACKED dap_chain_cell_id_t;
 
+int dap_id_uint64_parse(const char *a_id_str, uint64_t *a_id);
 
 /**
   * @struct Node address
@@ -107,6 +108,9 @@ DAP_STATIC_INLINE bool dap_chain_node_addr_str_check(const char *a_addr_str) {
 
 DAP_STATIC_INLINE int dap_chain_node_addr_from_str(dap_chain_node_addr_t *a_addr, const char *a_addr_str)
 {
+    if (!a_addr){
+        return -1;
+    }
     if (sscanf(a_addr_str, NODE_ADDR_FP_STR, NODE_ADDR_FPS_ARGS(a_addr)) == 4)
         return 0;
     if (sscanf(a_addr_str, "0x%016" DAP_UINT64_FORMAT_x, &a_addr->uint64) == 1)

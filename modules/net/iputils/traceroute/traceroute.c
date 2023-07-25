@@ -302,10 +302,10 @@ static int init_ip_options(void) {
             return -1;
         }
 
-        free(gateways[i]);
+        DAP_DELETE(gateways[i]);
     }
 
-    free(gateways);
+    DAP_DELETE(gateways);
     gateways = NULL;
 
     if(af == AF_INET) {
@@ -1752,7 +1752,7 @@ int traceroute_util(const char *addr, int *hops, int *time_usec)
          one_probe->final, one_probe->recv_ttl, one_probe->recv_time - one_probe->send_time,
          one_probe->err_str);*/
     }
-    free(probes);
+    DAP_DELETE(probes);
 
     return (ret == 1) ? 0 : ret;
 }

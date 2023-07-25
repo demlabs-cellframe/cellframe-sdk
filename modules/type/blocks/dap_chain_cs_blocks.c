@@ -189,7 +189,7 @@ int dap_chain_cs_blocks_init()
                 "\t\t Take the whole commission\n\n"
 
                                         );
-    if (dap_chain_block_cache_init() != 0){
+    if( dap_chain_block_cache_init() ) {
         log_it(L_WARNING, "Can't init blocks cache");
     }
     log_it(L_NOTICE,"Initialized blocks(m) chain type");
@@ -826,7 +826,7 @@ static dap_list_t * s_block_parse_str_list(const char * a_hash_str,size_t * a_ha
         if(dap_chain_hash_fast_from_hex_str(l_hashes_str, &l_hash_block)!=0) {
             log_it(L_WARNING,"Can't load hash %s",l_hashes_str);
             *a_hash_size = 0;
-             DAP_FREE(l_hashes_str_dup);
+            DAP_DELETE(l_hashes_str_dup);
             return NULL;
         }
         size_t l_block_size = 0;
@@ -835,7 +835,7 @@ static dap_list_t * s_block_parse_str_list(const char * a_hash_str,size_t * a_ha
         {
             log_it(L_WARNING,"There aren't any block by this hash");
             *a_hash_size = 0;
-             DAP_FREE(l_hashes_str_dup);
+            DAP_DELETE(l_hashes_str_dup);
             return NULL;
         }
         dap_chain_block_cache_t *l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_hash_block);
@@ -849,7 +849,7 @@ static dap_list_t * s_block_parse_str_list(const char * a_hash_str,size_t * a_ha
         l_hashes_str = strtok_r(NULL, ",", &l_hashes_tmp_ptrs);
         l_hashes_pos++;
     }
-    DAP_FREE(l_hashes_str_dup);
+    DAP_DELETE(l_hashes_str_dup);
     return l_block_list;
 }
 
@@ -877,13 +877,24 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
 {
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     pthread_rwlock_wrlock(&PVT(l_blocks)->rwlock);
-    dap_chain_block_cache_t *l_block, *l_block_tmp;
+    dap_chain_block_cache_t *l_block = NULL, *l_block_tmp = NULL;
     HASH_ITER(hh, PVT(l_blocks)->blocks, l_block, l_block_tmp) {
         HASH_DEL(PVT(l_blocks)->blocks, l_block);
         DAP_DELETE(l_block->block);
         dap_chain_block_cache_delete(l_block);
     }
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+    
+    dap_chain_block_datum_index_t *l_datum_index = NULL, *l_datum_index_tmp = NULL;
+    pthread_rwlock_wrlock(&PVT(l_blocks)->datums_rwlock);
+    HASH_ITER(hh, PVT(l_blocks)->datum_index, l_datum_index, l_datum_index_tmp) {
+        HASH_DEL(PVT(l_blocks)->datum_index, l_datum_index);
+        DAP_DELETE(l_datum_index);
+        l_datum_index = NULL;
+    }
+    pthread_rwlock_unlock(&PVT(l_blocks)->datums_rwlock);
+    PVT(l_blocks)->blocks_count = 0;
+
     dap_chain_block_chunks_delete(PVT(l_blocks)->chunks);
     PVT(l_blocks)->block_cache_last = NULL;
     PVT(l_blocks)->block_cache_first = NULL;
@@ -1444,10 +1455,6 @@ static dap_chain_atom_ptr_t *s_callback_atom_iter_get_lasts( dap_chain_atom_iter
         }
         dap_chain_atom_ptr_t *l_ret = DAP_NEW_Z(dap_chain_atom_ptr_t);
         if (!l_ret) {
-                log_it(L_ERROR, "Memory allocation error in s_callback_atom_iter_get_lasts");
-                return NULL;
-            }
-        if (!l_ret) {
             log_it(L_ERROR, "Memory allocation error in s_callback_atom_iter_get_lasts");
             return NULL;
         }
@@ -1595,7 +1602,8 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
  * @param a_chain Chain object
  * @return size_t
  */
-static size_t s_callback_count_atom(dap_chain_t *a_chain){
+static size_t s_callback_count_atom(dap_chain_t *a_chain)
+{
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(l_blocks);
     return l_blocks_pvt->blocks_count;

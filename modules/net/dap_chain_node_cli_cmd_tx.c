@@ -77,7 +77,7 @@ static void s_dap_chain_tx_hash_processed_ht_free(dap_chain_tx_hash_processed_ht
     dap_chain_tx_hash_processed_ht_t *l_tmp, *l_current_hash;
     HASH_ITER(hh, *l_hash_processed, l_current_hash, l_tmp) {
         HASH_DEL(*l_hash_processed, l_current_hash);
-        DAP_FREE(l_current_hash);
+        DAP_DELETE(l_current_hash);
     }
 }
 
@@ -212,6 +212,10 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
     };
 
     dap_string_t *l_str_out = dap_string_new(NULL);
+    if (!l_str_out) {
+        log_it(L_ERROR, "Memory allocation error in dap_db_history_token_list");
+        return NULL;
+    }
     dap_chain_tx_hash_processed_ht_t *l_tx_data_ht = NULL;
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     if (!l_net) {
@@ -402,7 +406,7 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
 }
 
 /**
- * @brief char* dap_db_history_token_list
+ * @brief show all tokens in chain
  *
  * @param a_chain
  * @param a_token_name
@@ -410,13 +414,16 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
  * @param a_token_num
  * @return char*
  */
-static char* dap_db_history_token_list(dap_chain_t * a_chain, const char *a_token_name, const char *a_hash_out_type, size_t *a_token_num)
-{
+static char* dap_db_chain_history_token_list(dap_chain_t * a_chain, const char *a_token_name, const char *a_hash_out_type, size_t *a_token_num) {
     if (!a_chain->callback_atom_get_datums) {
         log_it(L_WARNING, "Not defined callback_atom_get_datums for chain \"%s\"", a_chain->name);
         return NULL;
     }
     dap_string_t *l_str_out = dap_string_new(NULL);
+    if (!l_str_out) {
+        log_it(L_ERROR, "Memory allocation error in dap_db_history_token_list");
+        return NULL;
+    }
     *a_token_num  = 0;
     size_t l_atom_size = 0;
     dap_chain_cell_t *l_cell = a_chain->cells;
@@ -434,7 +441,7 @@ static char* dap_db_history_token_list(dap_chain_t * a_chain, const char *a_toke
                 dap_chain_datum_t *l_datum = l_datums[l_datum_n];
                 if (!l_datum || l_datum->header.type_id != DAP_CHAIN_DATUM_TOKEN_DECL)
                     continue;
-                if (!a_token_name && dap_strcmp(((dap_chain_datum_token_t *)l_datum->data)->ticker, a_token_name))
+                if (a_token_name && dap_strcmp(((dap_chain_datum_token_t *)l_datum->data)->ticker, a_token_name))
                     continue;
                 dap_chain_datum_dump(l_str_out, l_datum, a_hash_out_type);
                 (*a_token_num)++;
@@ -448,6 +455,29 @@ static char* dap_db_history_token_list(dap_chain_t * a_chain, const char *a_toke
     return l_ret_str;
 }
 
+/**
+ * @brief show all tokens in all chains in net
+ *
+ * @param a_chain
+ * @param a_token_name
+ * @param a_hash_out_type
+ * @param a_token_num
+ * @return char*
+ */
+
+static size_t dap_db_net_history_token_list(dap_chain_net_t * l_net, const char *a_token_name, const char *a_hash_out_type, dap_string_t *a_str_out) {
+    size_t l_token_num_total = 0;
+    dap_chain_t *l_chain_cur;
+    DL_FOREACH(l_net->pub.chains, l_chain_cur) {
+        size_t l_token_num = 0;
+        char *token_list_str = dap_db_chain_history_token_list(l_chain_cur, a_token_name, a_hash_out_type, &l_token_num);
+        if(token_list_str)
+            dap_string_append(a_str_out, token_list_str);
+        l_token_num_total += l_token_num;
+        DAP_DEL_Z(token_list_str);
+    }
+    return l_token_num_total;
+}
 
 /**
  * @brief dap_db_history_filter
@@ -472,6 +502,10 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
         return NULL;
     }
     dap_string_t *l_str_out = dap_string_new(NULL);
+    if (!l_str_out) {
+        log_it(L_ERROR, "Memory allocation error in dap_db_history_filter");
+        return NULL;
+    }
     // list all transactions
     dap_tx_data_t *l_tx_data_hash = NULL;
     dap_chain_cell_t *l_cell = a_chain->cells;
@@ -920,21 +954,12 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
     // token list
     if(l_cmd == CMD_LIST) {
         dap_string_t *l_str_out = dap_string_new(NULL);
-        size_t l_token_num_total = 0;
-        dap_chain_t *l_chain_cur;
-        DL_FOREACH(l_net->pub.chains, l_chain_cur) {
-            size_t l_token_num = 0;
-            char *token_list_str = dap_db_history_token_list(l_chain_cur, NULL, l_hash_out_type, &l_token_num);
-            if(token_list_str)
-                dap_string_append(l_str_out, token_list_str);
-            l_token_num_total += l_token_num;
-        }
+        size_t l_token_num_total = dap_db_net_history_token_list(l_net, NULL, l_hash_out_type, l_str_out);
         //total
         dap_string_append_printf(l_str_out, "---------------\ntokens: %zu\n", l_token_num_total);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_out->str);
         dap_string_free(l_str_out, true);
         return 0;
-
     }
     // token info
     else if(l_cmd == CMD_INFO) {
@@ -944,23 +969,12 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "command requires parameter '-name' <token name>");
                 return -4;
             }
-
-            dap_string_t *l_str_out = dap_string_new(NULL);
-            size_t l_token_num_total = 0;
-            dap_chain_t *l_chain_cur;
-            DL_FOREACH(l_net->pub.chains, l_chain_cur) {
-                size_t l_token_num = 0;
-                // filter - token name
-                char *token_list_str = dap_db_history_token_list(l_chain_cur, l_token_name_str, l_hash_out_type, &l_token_num);
-                if(token_list_str)
-                    dap_string_append(l_str_out, token_list_str);
-                l_token_num_total += l_token_num;
-            }
-            if(!l_token_num_total)
-                dap_string_append_printf(l_str_out, "token '%s' not found\n", l_token_name_str);
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_out->str);
-            dap_string_free(l_str_out, true);
-            return 0;
+        dap_string_t *l_str_out = dap_string_new(NULL);
+        if(!dap_db_net_history_token_list(l_net, l_token_name_str, l_hash_out_type, l_str_out))
+            dap_string_append_printf(l_str_out, "token '%s' not found\n", l_token_name_str);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_out->str);
+        dap_string_free(l_str_out, true);
+        return 0;
     }
     // command tx history
     else if(l_cmd == CMD_TX) {

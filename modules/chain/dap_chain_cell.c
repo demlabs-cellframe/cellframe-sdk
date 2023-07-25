@@ -125,7 +125,7 @@ dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_c
 dap_chain_cell_t * dap_chain_cell_create_fill2(dap_chain_t * a_chain, const char *a_filename)
 {
     uint64_t l_cell_id_uint64;
-    dap_sscanf(a_filename, "%"DAP_UINT64_FORMAT_x".dchaincell", &l_cell_id_uint64);
+    sscanf(a_filename, "%"DAP_UINT64_FORMAT_x".dchaincell", &l_cell_id_uint64);
     return dap_chain_cell_create_fill(a_chain, (dap_chain_cell_id_t){ .uint64 = l_cell_id_uint64});
 }
 
@@ -180,7 +180,7 @@ void dap_chain_cell_delete(dap_chain_cell_t *a_cell)
  */
 int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
 {
-    int ret = 0;
+    int l_ret = 0;
     char l_file_path[MAX_PATH] = {'\0'};
     snprintf(l_file_path, MAX_PATH, "%s/%s", DAP_CHAIN_PVT(a_chain)->file_storage_dir, a_cell_file_path);
     FILE *l_cell_file = fopen(l_file_path, "rb");
@@ -205,18 +205,18 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
         return -3;
     }
     unsigned long q = 0;
-    size_t l_read;
+    size_t l_read = 0;
     uint64_t l_el_size = 0;
     while ((l_read = fread(&l_el_size, 1, sizeof(l_el_size), l_cell_file)) && !feof(l_cell_file)) {
         if (l_read != sizeof(l_el_size) || l_el_size == 0) {
             log_it(L_ERROR, "Corrupted element size %zu, chain %s is damaged", l_el_size, l_file_path);
-            ret = -4;
+            l_ret = -4;
             break;
         }
         dap_chain_atom_ptr_t l_element = DAP_NEW_SIZE(dap_chain_atom_ptr_t, l_el_size);
         if (!l_element) {
             log_it(L_ERROR, "Memory allocation error in dap_chain_cell_load, errno=%d", errno);
-            ret = -5;
+            l_ret = -5;
             break;
         }
         l_read = fread((void *)l_element, 1, l_el_size, l_cell_file);
@@ -229,11 +229,11 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
         } else {
             log_it(L_ERROR, "Read only %lu of %zu bytes, stop cell loading", l_read, l_el_size);
             DAP_DELETE(l_element);
-            ret = -6;
+            l_ret = -6;
             break;
         }
     }
-    if (ret < 0) {
+    if (l_ret < 0) {
         log_it(L_INFO, "Couldn't load all atoms, %lu only", q);
     } else {
         log_it(L_INFO, "Loaded all %lu atoms in cell %s", q, a_cell_file_path);
@@ -241,7 +241,7 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
     if (q)
         dap_chain_cell_create_fill2(a_chain, a_cell_file_path);
     fclose(l_cell_file);
-    return ret;
+    return l_ret;
 
 }
 

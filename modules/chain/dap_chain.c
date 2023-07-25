@@ -354,25 +354,15 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
         if (l_cfg)
 		{
             dap_chain_t		*l_chain		= NULL;
-            dap_chain_id_t	l_chain_id		= {{0}};
-            uint64_t		l_chain_id_u	= 0;
+            dap_chain_id_t	l_chain_id		= {};
             const char		*l_chain_id_str	= NULL;
             const char 		*l_chain_name	= NULL;
 
             // Recognize chains id
-            if ( (l_chain_id_str = dap_config_get_item_str(l_cfg,"chain","id")) != NULL )
-			{
-                if (sscanf(l_chain_id_str, "0x%"DAP_UINT64_FORMAT_X, & l_chain_id_u)		!=1)
-				{
-                    if (sscanf(l_chain_id_str, "0x%"DAP_UINT64_FORMAT_x, &l_chain_id_u)		!=1)
-					{
-                        if (sscanf(l_chain_id_str, "%"DAP_UINT64_FORMAT_U, &l_chain_id_u)	!=1)
-						{
-                            log_it (L_ERROR,"Can't recognize '%s' string as chain net id, hex or dec",l_chain_id_str);
-                            dap_config_close(l_cfg);
-                            return NULL;
-                        }
-                    }
+            if ( (l_chain_id_str = dap_config_get_item_str(l_cfg,"chain","id")) != NULL ) {
+                if (dap_chain_id_parse(l_chain_id_str, &l_chain_id) != 0) {
+                    dap_config_close(l_cfg);
+                    return NULL;
                 }
             } else {
                 log_it (L_ERROR, "Wasn't found chain id string in config");
@@ -380,7 +370,6 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 return NULL;
             }
 
-            l_chain_id.uint64 = l_chain_id_u;
             log_it (L_NOTICE, "Chain id 0x%016"DAP_UINT64_FORMAT_x"  ( \"%s\" )", l_chain_id.uint64, l_chain_id_str);
 
             // Read chain name
@@ -552,15 +541,15 @@ bool dap_chain_has_file_store(dap_chain_t * a_chain)
  */
 int dap_chain_save_all (dap_chain_t * l_chain)
 {
-    int ret = 0;
+    int l_ret = 0;
     pthread_rwlock_rdlock(&l_chain->cell_rwlock);
-    dap_chain_cell_t * l_item, *l_item_tmp = NULL;
+    dap_chain_cell_t *l_item = NULL, *l_item_tmp = NULL;
     HASH_ITER(hh,l_chain->cells,l_item,l_item_tmp){
         if(dap_chain_cell_file_update(l_item) <= 0)
-            ret++;
+            l_ret++;
     }
     pthread_rwlock_unlock(&l_chain->cell_rwlock);
-    return ret;
+    return l_ret;
 }
 
 /**
@@ -593,7 +582,7 @@ int dap_chain_load_all(dap_chain_t *a_chain)
         const char * l_filename = l_dir_entry->d_name;
         const char l_suffix[] = ".dchaincell";
         size_t l_suffix_len = strlen(l_suffix);
-        if (strncmp(l_filename + strlen(l_filename) - l_suffix_len, l_suffix, l_suffix_len) == 0 ) {
+        if (!strncmp(l_filename + strlen(l_filename) - l_suffix_len, l_suffix, l_suffix_len)) {
             l_ret += dap_chain_cell_load(a_chain, l_filename);
         }
     }
@@ -759,10 +748,10 @@ int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name)
     char *cert_path_c = dap_canonicalize_filename(cert_path, NULL);
     // Protect the ca folder from using "/.." in cert_name
     if(dap_strncmp(s_system_chain_ca_dir, cert_path_c, dap_strlen(s_system_chain_ca_dir))) {
+        log_it(L_ERROR, "Cert path '%s' is not in ca dir: %s", cert_path_c, s_system_chain_ca_dir);
         dap_cert_delete(cert);
         DAP_DELETE(cert_path_c);
         DAP_DELETE(cert_path);
-        log_it(L_ERROR, "Cert path '%s' is not in ca dir: %s", cert_path_c, s_system_chain_ca_dir);
         return -1;
     }
     int l_ret = dap_cert_file_save(cert, cert_path_c);

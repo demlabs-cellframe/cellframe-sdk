@@ -41,6 +41,17 @@ const dap_chain_net_srv_uid_t c_dap_chain_net_srv_uid_null = {0};
 const dap_chain_cell_id_t c_dap_chain_cell_id_null = {0};
 const dap_chain_addr_t c_dap_chain_addr_blank = {0};
 
+int dap_id_uint64_parse(const char *a_id_str, uint64_t *a_id)
+{
+    if (sscanf(a_id_str, "0x%16"DAP_UINT64_FORMAT_X, a_id) != 1 &&
+            sscanf(a_id_str, "0x%16"DAP_UINT64_FORMAT_x, a_id) != 1 &&
+            sscanf(a_id_str, "%"DAP_UINT64_FORMAT_U, a_id) != 1) {
+        log_it (L_ERROR, "Can't recognize '%s' string as 64-bit id, hex or dec", a_id_str);
+        return -1;
+    }
+    return 0;
+}
+
 /*
  * Forward declarations
  */
@@ -1133,50 +1144,50 @@ void    uint256_cvt_test (void)
     uint256.__lo.c = 1;
 
     cp = dap_chain_balance_print(uint256);
-    free(cp);
+    DAP_DELETE(cp);
 
     uint256 = uint256_zero;
     uint256.__lo.c = 1;
     cp = dap_chain_balance_to_coins(uint256);
     uint256 = dap_chain_coins_to_balance(cp);
-    free(cp);
+    DAP_DELETE(cp);
 
     uint256 = uint256_zero;
     uint256.__lo.c = 100000000;
     cp = dap_chain_balance_to_coins(uint256);
     uint256 = dap_chain_coins_to_balance(cp);
-    free(cp);
+    DAP_DELETE(cp);
 
 
 
 
     cp = dap_chain_balance_print333(uint256);
-    free(cp);
+    DAP_DELETE(cp);
 
 
 
     uint256.hi = dap_chain_uint128_from(-1);
     uint256.lo = dap_chain_uint128_from(-1);
     cp = dap_chain_balance_print333(uint256);
-    free(cp);
+    DAP_DELETE(cp);
 
     cp = dap_chain_balance_print(uint256);
-    free(cp);
+    DAP_DELETE(cp);
 
     cp = dap_cvt_uint256_to_str(uint256 );
     uint256 = dap_cvt_str_to_uint256(cp);
-    free(cp);
+    DAP_DELETE(cp);
 
     uint256.hi = dap_chain_uint128_from(-1);
     uint256.lo = dap_chain_uint128_from(-1);
     cp = dap_cvt_uint256_to_str(uint256 );
-    free(cp);
+    DAP_DELETE(cp);
 
     uint256.hi = dap_chain_uint128_from(123);
     uint256.lo = dap_chain_uint128_from(374607431768211455);
 
     cp = dap_chain_balance_to_coins256(uint256);
     uint256 = dap_chain_coins_to_balance(cp);
-    free(cp);
+    DAP_DELETE(cp);
 }
 #endif

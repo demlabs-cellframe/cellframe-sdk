@@ -54,7 +54,7 @@ dap_chain_net_srv_client_t *dap_chain_net_srv_client_create_n_connect(dap_chain_
         .delete = s_srv_client_callback_deleted
     };
     dap_chain_node_info_t *l_info = DAP_NEW_Z(dap_chain_node_info_t);
-    if (!l_ret) {
+    if (!l_info) {
         log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_client_create_n_connect");
         DAP_DEL_Z(l_ret);
         return NULL;

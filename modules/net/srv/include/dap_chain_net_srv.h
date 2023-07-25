@@ -116,6 +116,7 @@ typedef struct dap_chain_net_srv_price
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_BANNED_PKEY_HASH   0x00000503
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NOT_FOUND            0x00000600
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_WRONG_HASH                 0x00000BAD
+#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR         0x00BADA55
 
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_UNKNOWN                    0xffffffff
 // TYPE_REQUEST
@@ -246,6 +247,7 @@ typedef struct dap_chain_net_srv
     dap_chain_net_srv_abstract_t srv_common;
     dap_chain_net_srv_price_t *pricelist;
 
+    bool allow_free_srv;
     uint32_t grace_period;
     pthread_mutex_t banlist_mutex;
     dap_chain_net_srv_banlist_item_t *ban_list;
