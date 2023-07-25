@@ -217,7 +217,7 @@ void dap_chain_datum_dump_tx_reply_send(SOCKET newsockfd, dap_string_t *a_str_ou
     va_list args;
     va_start(args, format);
     if (newsockfd == -1) {
-        dap_string_append_printf(a_str_out, format, args);
+        dap_string_append_vprintf(a_str_out, format, args);
     } else if (newsockfd) {
         a_str_out->str = dap_strdup_printf(format, args);
         dap_cli_server_cmd_reply_send(newsockfd, a_str_out->str);
