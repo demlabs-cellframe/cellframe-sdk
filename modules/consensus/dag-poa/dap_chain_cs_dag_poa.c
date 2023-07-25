@@ -195,6 +195,15 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
         return -3;
     }
 
+    const char *l_chain_type = dap_chain_net_get_type(l_chain);
+
+    if (strcmp(l_chain_type, "dag_poa")){
+            dap_cli_server_cmd_set_reply_text(a_str_reply,
+                        "Type of chain %s is not dag_poa. This chain with type %s is not supported by this command",
+                        l_chain->name, l_chain_type);
+            return -42;
+    }
+
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(l_chain);
     dap_chain_cs_dag_poa_pvt_t * l_poa_pvt = PVT ( DAP_CHAIN_CS_DAG_POA( l_dag ) );
 
