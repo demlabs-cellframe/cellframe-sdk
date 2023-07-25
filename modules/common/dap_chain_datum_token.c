@@ -336,7 +336,7 @@ dap_sign_t ** dap_chain_datum_token_signs_parse(dap_chain_datum_token_t * a_datu
         size_t l_sign_size = dap_sign_get_size(l_ret[i]);
         if (l_sign_size == 0 || l_sign_size > a_datum_token_size - l_offset) {
             *a_signs_total = 0;
-            DAP_FREE(l_ret);
+            DAP_DELETE(l_ret);
             return NULL;
         }
         (*a_signs_total)++;
@@ -428,21 +428,15 @@ byte_t *dap_chain_emission_get_tsd(dap_chain_datum_token_emission_t *a_emission,
     if (!a_emission || a_emission->hdr.type != DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH ||
             a_emission->data.type_auth.tsd_total_size == 0)
         return NULL;
-    dap_tsd_t *l_tsd = (dap_tsd_t *)a_emission->tsd_n_signs;
-    do {
-        if (a_emission->data.type_auth.tsd_total_size < l_tsd->size) {
-            log_it(L_ERROR, "Corrupt data in emission: invalid TSD size %lu < %u",
-                   a_emission->data.type_auth.tsd_total_size, l_tsd->size);
-            return NULL;
-        }
-        if (l_tsd->type == a_type) {
-            if (a_size)
-                *a_size = l_tsd->size;
-            return l_tsd->data;
-        }
-        l_tsd = (dap_tsd_t *)((byte_t *)l_tsd + dap_tsd_size(l_tsd));
-    } while ((byte_t *)l_tsd < a_emission->tsd_n_signs + a_emission->data.type_auth.tsd_total_size);
-    return NULL;
+    dap_tsd_t *l_tsd = NULL;
+    if (!(l_tsd = dap_tsd_find(a_emission->tsd_n_signs, a_emission->data.type_auth.tsd_total_size, a_type))) {
+        log_it(L_ERROR, "TSD section of type %d not found", a_type);
+        return NULL;
+    } else {
+        if (a_size)
+            *a_size = l_tsd->size;
+    }
+    return l_tsd->data;
 }
 
 dap_chain_datum_token_emission_t *dap_chain_datum_emission_add_sign(dap_enc_key_t *a_sign_key, dap_chain_datum_token_emission_t *a_emission)

@@ -143,8 +143,7 @@ DAP_STATIC_INLINE uint16_t s_get_round_skip_timeout(dap_chain_esbocs_session_t *
     return PVT(a_session->esbocs)->round_attempt_timeout * 6 * PVT(a_session->esbocs)->round_attempts_max;
 }
 
-int dap_chain_cs_esbocs_init()
-{
+int dap_chain_cs_esbocs_init() {
     dap_stream_ch_chain_voting_init();
     dap_chain_cs_add("esbocs", s_callback_new);
     dap_cli_server_cmd_add ("esbocs", s_cli_esbocs, "ESBOCS commands",
@@ -374,7 +373,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     l_esbocs_pvt->fee_coll_set = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "set_collect_fee", "10.0"));
 
     const char *l_sign_cert_str = NULL;
-    if ((l_sign_cert_str = dap_config_get_item_str(a_chain_net_cfg, "esbocs", "blocks-sign-cert")) != NULL) {
+    if( (l_sign_cert_str = dap_config_get_item_str(a_chain_net_cfg, "esbocs", "blocks-sign-cert")) ) {
         dap_cert_t *l_sign_cert = dap_cert_find_by_name(l_sign_cert_str);
         if (l_sign_cert == NULL) {
             log_it(L_ERROR, "Can't load sign certificate, name \"%s\" is wrong", l_sign_cert_str);
@@ -2545,7 +2544,7 @@ static dap_chain_datum_decree_t *s_esbocs_decree_set_min_validators_count(dap_ch
     l_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, sizeof(dap_chain_datum_decree_t) + l_total_tsd_size);
     if (!l_decree) {
         log_it(L_ERROR, "Memory allocation error in s_esbocs_decree_set_min_validators_count");
-        DAP_DEL_Z(l_tsd);
+        dap_list_free_full(l_tsd_list, NULL);
         return NULL;
     }
     l_decree->decree_version = DAP_CHAIN_DATUM_DECREE_VERSION;
@@ -2557,7 +2556,7 @@ static dap_chain_datum_decree_t *s_esbocs_decree_set_min_validators_count(dap_ch
         l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_ANCHOR);
     if(!l_chain){
         log_it(L_ERROR, "Can't find chain with decree support.");
-        DAP_DEL_Z(l_tsd);
+        dap_list_free_full(l_tsd_list, NULL);
         DAP_DELETE(l_decree);
         return NULL;
     }
@@ -2593,12 +2592,10 @@ static dap_chain_datum_decree_t *s_esbocs_decree_set_min_validators_count(dap_ch
         log_it(L_DEBUG,"<-- Signed with '%s'", a_cert->name);
     }else{
         log_it(L_ERROR, "Decree signing failed");
-        DAP_DEL_Z(l_tsd);
         DAP_DELETE(l_decree);
         return NULL;
     }
-    
-    DAP_DEL_Z(l_tsd);
+
     return l_decree;
 }
 

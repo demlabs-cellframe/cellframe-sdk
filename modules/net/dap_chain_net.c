@@ -338,21 +338,20 @@ int dap_chain_net_init()
     char * l_net_dir_str = dap_strdup_printf("%s/network", dap_config_path());
     DIR * l_net_dir = opendir( l_net_dir_str);
     if ( l_net_dir ){
-        struct dirent * l_dir_entry;
+        struct dirent * l_dir_entry = NULL;
         uint16_t l_acl_idx = 0;
-        while ( (l_dir_entry = readdir(l_net_dir) )!= NULL ){
+        while ( (l_dir_entry = readdir(l_net_dir) ) ){
             if (l_dir_entry->d_name[0]=='\0' || l_dir_entry->d_name[0]=='.')
                 continue;
             // don't search in directories
-            char * l_full_path = dap_strdup_printf("%s/%s", l_net_dir_str, l_dir_entry->d_name);
+            char l_full_path[MAX_PATH + 1] = {0};
+            dap_snprintf(l_full_path, sizeof(l_full_path), "%s/%s", l_net_dir_str, l_dir_entry->d_name);
             if(dap_dir_test(l_full_path)) {
-                DAP_DELETE(l_full_path);
                 continue;
             }
-            DAP_DELETE(l_full_path);
             // search only ".cfg" files
             if(strlen(l_dir_entry->d_name) > 4) { // It has non zero name excluding file extension
-                if(strncmp(l_dir_entry->d_name + strlen(l_dir_entry->d_name) - 4, ".cfg", 4) != 0) {
+                if( strncmp(l_dir_entry->d_name + strlen(l_dir_entry->d_name) - 4, ".cfg", 4) ) {
                     // its not .cfg file
                     continue;
                 }
@@ -1136,18 +1135,20 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
         pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
         return false;
     }
-    dap_chain_node_info_t *l_link_full_node = dap_chain_net_balancer_get_node(a_net->pub.name);
-    if(l_link_full_node)
-    {
-        log_it(L_DEBUG, "Network LOCAL balancer issues ip %s",inet_ntoa(l_link_full_node->hdr.ext_addr_v4));
-        pthread_rwlock_rdlock(&PVT(a_net)->states_lock);
-        s_net_link_add(a_net, l_link_full_node);
-        DAP_DELETE(l_link_full_node);
-        struct net_link *l_free_link = s_get_free_link(a_net);
-        if (l_free_link)
-            s_net_link_start(a_net, l_free_link, l_net_pvt->reconnect_delay);
-        pthread_rwlock_unlock(&PVT(a_net)->states_lock);
-        return false;
+    if(!a_link_replace_tries){
+        dap_chain_node_info_t *l_link_full_node = dap_chain_net_balancer_get_node(a_net->pub.name);
+        if(l_link_full_node)
+        {
+            log_it(L_DEBUG, "Network LOCAL balancer issues ip %s",inet_ntoa(l_link_full_node->hdr.ext_addr_v4));
+            pthread_rwlock_rdlock(&PVT(a_net)->states_lock);
+            s_net_link_add(a_net, l_link_full_node);
+            DAP_DELETE(l_link_full_node);
+            struct net_link *l_free_link = s_get_free_link(a_net);
+            if (l_free_link)
+                s_net_link_start(a_net, l_free_link, l_net_pvt->reconnect_delay);
+            pthread_rwlock_unlock(&PVT(a_net)->states_lock);
+            return false;
+        }
     }
     dap_chain_node_info_t *l_link_node_info = dap_get_balancer_link_from_cfg(a_net);
     if (!l_link_node_info)
@@ -1163,8 +1164,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
     l_balancer_request->net = a_net;
     l_balancer_request->link_info = l_link_node_info;
     l_balancer_request->worker = dap_events_worker_get_auto();
-    if (a_link_replace_tries)
-        l_balancer_request->link_replace_tries = a_link_replace_tries + 1;
+    l_balancer_request->link_replace_tries = a_link_replace_tries + 1;
     int ret;
     if (PVT(a_net)->balancer_http) {
         l_balancer_request->from_http = true;
@@ -1232,8 +1232,10 @@ struct json_object *s_net_states_json_collect(dap_chain_net_t *a_net)
     json_object_object_add(l_json, "linksCount"       , json_object_new_int(HASH_COUNT(PVT(a_net)->net_links)));
     json_object_object_add(l_json, "activeLinksCount" , json_object_new_int(s_net_get_active_links_count(a_net)));
     char l_node_addr_str[24] = {'\0'};
-    snprintf(l_node_addr_str, sizeof(l_node_addr_str), NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(PVT(a_net)->node_addr));
-    json_object_object_add(l_json, "nodeAddress"     , json_object_new_string(l_node_addr_str));
+    int l_tmp = PVT(a_net)->node_addr
+            ? snprintf(l_node_addr_str, sizeof(l_node_addr_str), NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(PVT(a_net)->node_addr))
+            : 0;
+    json_object_object_add(l_json, "nodeAddress"     , json_object_new_string(l_tmp ? l_node_addr_str : "0000::0000::0000::0000"));
     return l_json;
 }
 
@@ -1544,8 +1546,7 @@ void dap_chain_net_delete( dap_chain_net_t * a_net )
  * @brief
  * load network config settings
  */
-void dap_chain_net_load_all()
-{
+void dap_chain_net_load_all() {
     dap_chain_net_t **l_net_list = NULL;
     uint16_t l_net_count = 0;
     int32_t l_ret = 0;
@@ -1557,10 +1558,11 @@ void dap_chain_net_load_all()
     }
 
     for(uint16_t i = 0; i < l_net_count; i++){
-        if((l_ret = s_net_load(l_net_list[i])) != 0){
+        if((l_ret = s_net_load(l_net_list[i])) ){
             log_it(L_ERROR, "Loading chains of net %s finished with (%d) error code.", l_net_list[i]->pub.name, l_ret);
         }
     }
+    DAP_DELETE(l_net_list);
 }
 
 dap_string_t* dap_cli_list_net()
@@ -1706,7 +1708,8 @@ static bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
  * @param a_type - dap_chain_type_t a_type [CHAIN_TYPE_TOKEN, CHAIN_TYPE_EMISSION, CHAIN_TYPE_TX]
  * @return uint16_t
  */
-static const char *s_chain_type_convert_to_string(dap_chain_type_t a_type) {
+static const char *s_chain_type_convert_to_string(dap_chain_type_t a_type)
+{
     switch (a_type) {
         case CHAIN_TYPE_TOKEN:
             return ("token");
@@ -2252,11 +2255,11 @@ void s_main_timer_callback(void *a_arg)
  */
 int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
 {
-    dap_config_t *l_cfg=NULL;
+    dap_config_t *l_cfg = NULL;
     dap_string_t *l_cfg_path = dap_string_new("network/");
     dap_string_append(l_cfg_path,a_net_name);
 
-    if( ( l_cfg = dap_config_open ( l_cfg_path->str ) ) == NULL ) {
+    if( !(l_cfg = dap_config_open(l_cfg_path->str)) ) {
         log_it(L_ERROR,"Can't open default network config");
         dap_string_free(l_cfg_path,true);
         return -1;
@@ -2736,11 +2739,11 @@ int s_net_load(dap_chain_net_t *a_net)
 {
     dap_chain_net_t *l_net = a_net;
 
-    dap_config_t *l_cfg=NULL;
+    dap_config_t *l_cfg = NULL;
     dap_string_t *l_cfg_path = dap_string_new("network/");
     dap_string_append(l_cfg_path,a_net->pub.name);
 
-    if( ( l_cfg = dap_config_open ( l_cfg_path->str ) ) == NULL ) {
+    if( !( l_cfg = dap_config_open ( l_cfg_path->str ) ) ) {
         log_it(L_ERROR,"Can't open default network config");
         dap_string_free(l_cfg_path,true);
         return -1;
@@ -2763,14 +2766,14 @@ int s_net_load(dap_chain_net_t *a_net)
     while(l_chain){
         l_chain->ledger = l_net->pub.ledger;
         dap_chain_ledger_set_fee(l_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
-        if (dap_chain_load_all(l_chain) == 0)
+        if (!dap_chain_load_all(l_chain)) {
             log_it (L_NOTICE, "Loaded chain files");
-        else {
+        } else {
             dap_chain_save_all( l_chain );
             log_it (L_NOTICE, "Initialized chain files");
         }
 
-        if(l_chain->callback_created)
+        if (l_chain->callback_created)
             l_chain->callback_created(l_chain, l_cfg);
 
         l_chain = l_chain->next;
@@ -2888,8 +2891,14 @@ void dap_chain_net_deinit()
 
 }
 
+/**
+ * @brief dap_chain_net_list
+ * @return NULL if error
+ */
 dap_chain_net_t **dap_chain_net_list(uint16_t *a_size)
 {
+    if (!a_size)
+        return NULL;
     pthread_rwlock_rdlock(&s_net_items_rwlock);
     *a_size = HASH_COUNT(s_net_items);
     if(*a_size){
@@ -2899,11 +2908,11 @@ dap_chain_net_t **dap_chain_net_list(uint16_t *a_size)
             pthread_rwlock_unlock(&s_net_items_rwlock);
             return NULL;
         }
-        dap_chain_net_item_t *l_current_item, *l_tmp;
+        dap_chain_net_item_t *l_current_item = NULL, *l_tmp = NULL;
         int i = 0;
         HASH_ITER(hh, s_net_items, l_current_item, l_tmp) {
             l_net_list[i++] = l_current_item->chain_net;
-            if(i > *a_size)
+            if(i >= *a_size)
                 break;
         }
         pthread_rwlock_unlock(&s_net_items_rwlock);

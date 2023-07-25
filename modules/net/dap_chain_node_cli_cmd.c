@@ -110,6 +110,7 @@
 
 #define LOG_TAG "chain_node_cli_cmd"
 
+static void s_dap_chain_net_purge(dap_chain_net_t * a_net);
 
 /**
  * @brief dap_chain_node_addr_t* dap_chain_node_addr_get_by_alias
@@ -720,6 +721,30 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_reply->str);
     dap_string_free(l_string_reply, true);
     return l_ret;
+}
+
+/**
+ * @brief purge ledger, stake, decree, all chains and remove chain files
+ * @param a_net
+ */
+void s_dap_chain_net_purge(dap_chain_net_t * a_net)
+{
+    if (!a_net)
+        return;
+    dap_chain_t *l_chain = NULL;
+    dap_chain_ledger_purge(a_net->pub.ledger, false);
+    dap_chain_net_srv_stake_purge(a_net);
+    dap_chain_net_decree_purge(a_net);
+    DL_FOREACH(a_net->pub.chains, l_chain) {
+        if (l_chain->callback_purge)
+            l_chain->callback_purge(l_chain);
+        if (l_chain->callback_set_min_validators_count)
+            l_chain->callback_set_min_validators_count(l_chain, 0);
+        const char *l_chains_rm_path = dap_chain_get_path(l_chain);
+        dap_rm_rf(l_chains_rm_path);
+        dap_chain_ledger_set_fee(a_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
+        dap_chain_load_all(l_chain);
+    }
 }
 
 /**
@@ -2068,7 +2093,7 @@ char    l_buf[1024];
                     l_seed, l_seed_size, l_pass_str);
 
             if (!l_wallet)
-                return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet is not created because of internal error"), -1;
+                return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet is not created because of internal error. Check name or password length (max 64 chars)"), -1;
 
             dap_chain_addr_t *l_addr = l_net? dap_chain_wallet_get_addr(l_wallet,l_net->pub.id ) : NULL;
 
@@ -3201,7 +3226,7 @@ int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply)
             l_datum_hash_str, l_type,
             dap_ctime_r(&l_ts_create, buf), l_datum->header.data_size);
     int l_verify_datum = dap_chain_net_verify_datum_for_add(l_chain, l_datum, &l_datum_hash) ;
-    if (l_verify_datum != 0){
+    if (l_verify_datum){
         dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications (%s) examine node log files",
                                  dap_chain_net_verify_datum_err_code_to_str(l_datum, l_verify_datum));
         ret = -9;
@@ -4292,6 +4317,17 @@ int com_token_emit(int a_argc, char **a_argv, char **a_str_reply)
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Subcommand 'sign' recuires parameter '-emission'");
             return -31;
         }
+    }
+
+    // Check, if network ID is same as ID in destination wallet address. If not - operation is cancelled.
+    if (!dap_chain_addr_is_blank(l_addr) && l_addr->net_id.uint64 != l_net->pub.id.uint64) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "destination wallet network ID=0x%"DAP_UINT64_FORMAT_x
+                                                       " and network ID=0x%"DAP_UINT64_FORMAT_x" is not equal."
+                                                       " Please, change network name or wallet address",
+                                                       l_addr->net_id.uint64, l_net->pub.id.uint64);
+        DAP_DEL_Z(l_addr);
+        DAP_DEL_Z(l_emission);
+        return -3;
     }
 
     if(!l_ticker) {
@@ -5913,7 +5949,7 @@ int cmd_gdb_export(int a_argc, char **a_argv, char **a_str_reply)
             json_object_object_add(jobj, "timestamp", json_object_new_int64((int64_t)l_store_obj[i].timestamp));
             json_object_array_add(l_json_group, jobj);
 
-            DAP_FREE(l_value_enc_str);
+            DAP_DELETE(l_value_enc_str);
         }
         json_object_object_add(l_json_group_inner, "records", l_json_group);
         json_object_array_add(l_json, l_json_group_inner);
@@ -6129,20 +6165,7 @@ int cmd_remove(int a_argc, char **a_argv, char ** a_str_reply)
             uint16_t l_net_count;
             dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
             for (uint16_t i = 0; i < l_net_count; i++) {
-                dap_chain_ledger_purge(l_net_list[i]->pub.ledger, false);
-                dap_chain_net_srv_stake_purge(l_net_list[i]);
-                dap_chain_net_decree_purge(l_net_list[i]);
-                dap_chain_t *l_chain = NULL;
-                DL_FOREACH(l_net_list[i]->pub.chains, l_chain) {
-                    if (l_chain->callback_purge)
-                        l_chain->callback_purge(l_chain);
-                    if (l_chain->callback_set_min_validators_count)
-                        l_chain->callback_set_min_validators_count(l_chain, 0);
-                    const char *l_chains_rm_path = dap_chain_get_path(l_chain);
-                    dap_rm_rf(l_chains_rm_path);
-                    dap_chain_ledger_set_fee(l_net_list[i]->pub.ledger, uint256_0, c_dap_chain_addr_blank);
-                    dap_chain_load_all(l_chain);
-                }
+                s_dap_chain_net_purge(l_net_list[i]);
             }
             if (!error)
                 successful |= REMOVED_CHAINS;
@@ -6154,20 +6177,7 @@ int cmd_remove(int a_argc, char **a_argv, char ** a_str_reply)
             } else {
                 error |= NET_NOT_VALID;
             }
-            dap_chain_t *l_chain = NULL;
-            dap_chain_ledger_purge(l_net->pub.ledger, false);
-            dap_chain_net_srv_stake_purge(l_net);
-            dap_chain_net_decree_purge(l_net);
-            DL_FOREACH(l_net->pub.chains, l_chain) {
-                if (l_chain->callback_purge)
-                    l_chain->callback_purge(l_chain);
-                if (l_chain->callback_set_min_validators_count)
-                    l_chain->callback_set_min_validators_count(l_chain, 0);
-                const char *l_chains_rm_path = dap_chain_get_path(l_chain);
-                dap_rm_rf(l_chains_rm_path);
-                dap_chain_ledger_set_fee(l_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
-                dap_chain_load_all(l_chain);
-            }
+            s_dap_chain_net_purge(l_net);
             if (!error)
                 successful |= REMOVED_CHAINS;
 
@@ -6439,14 +6449,14 @@ static char **s_parse_items(const char *a_str, char a_delimiter, int *a_count, c
 
     s = l_temp_str;
     if (l_count_temp == 0) {
-        DAP_FREE(l_temp_str);
+        DAP_DELETE(l_temp_str);
         return NULL;
     }
 
     char **lines = DAP_CALLOC(l_count_temp, sizeof (void *));
     if (!lines) {
         log_it(L_ERROR, "Memoru allocation error in s_parse_items");
-        DAP_FREE(l_temp_str);
+        DAP_DELETE(l_temp_str);
         return NULL;
     }
     for (int i = 0; i < l_count_temp; i++) {
@@ -6456,7 +6466,7 @@ static char **s_parse_items(const char *a_str, char a_delimiter, int *a_count, c
         s++;
     }
 
-    DAP_FREE(l_temp_str);
+    DAP_DELETE(l_temp_str);
     *a_count = l_count_temp;
     return lines;
 }
@@ -6495,9 +6505,9 @@ static int s_get_key_from_file(const char *a_file, const char *a_mime, const cha
 
         /* free l_items_mime */
         for (int i = 0; i < l_items_mime_count; i++) {
-            if (l_items_mime[i]) DAP_FREE(l_items_mime[i]);
+            if (l_items_mime[i]) DAP_DELETE(l_items_mime[i]);
         }
-        DAP_FREE(l_items_mime);
+        DAP_DELETE(l_items_mime);
         l_items_mime_count = 0;
     }
     if (l_flags_mime == 0) l_flags_mime = SIGNER_ALL_FLAGS;
@@ -6648,29 +6658,28 @@ static int s_sign_file(const char *a_filename, dap_sign_signer_file_t a_flags, c
 
     dap_cert_t *l_cert = dap_cert_find_by_name(a_cert_name);
     if (!l_cert) {
-        DAP_FREE(l_buffer);
+        DAP_DELETE(l_buffer);
         return 0;
     }
 
     if (!dap_hash_fast(l_buffer, l_file_content_size, a_hash)) {
-        DAP_FREE(l_buffer);
+        DAP_DELETE(l_buffer);
         return 0;
     }
 
     size_t l_full_size_for_sign;
     uint8_t *l_data = s_concat_hash_and_mimetypes(a_hash, l_std_list, &l_full_size_for_sign);
     if (!l_data) {
-        DAP_FREE(l_buffer);
+        DAP_DELETE(l_buffer);
         return 0;
     }
     *a_signed = dap_sign_create(l_cert->enc_key, l_data, l_full_size_for_sign, 0);
     if (*a_signed == NULL) {
-        DAP_FREE(l_buffer);
+        DAP_DELETE(l_buffer);
         return 0;
     }
 
-
-    DAP_FREE(l_buffer);
+    DAP_DELETE(l_buffer);
     return 1;
 }
 
@@ -6726,7 +6735,7 @@ static uint8_t *s_concat_hash_and_mimetypes (dap_chain_hash_fast_t *a_chain_hash
     memcpy(l_s, a_chain_hash->raw, sizeof(a_chain_hash->raw));
     l_s += sizeof (a_chain_hash->raw);
     memcpy(l_s, l_buf, l_len_meta_buf);
-    DAP_FREE(l_buf);
+    DAP_DELETE(l_buf);
 
     return l_fullbuf;
 }

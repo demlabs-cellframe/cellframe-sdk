@@ -42,8 +42,7 @@
 #define LOG_TAG "dap_chain_cs_block_poa"
 
 
-typedef struct dap_chain_cs_dag_poa_pvt
-{
+typedef struct dap_chain_cs_dag_poa_pvt {
     dap_enc_key_t *sign_key;
     dap_cert_t ** auth_certs;
     char * auth_certs_prefix;
