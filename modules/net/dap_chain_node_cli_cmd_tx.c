@@ -643,7 +643,6 @@ int com_ledger(int a_argc, char ** a_argv, SOCKET * newsockfd, char **a_str_repl
     arg_index++;
 
     if(l_cmd == CMD_LEDGER_HISTORY) {
-        dap_cli_server_cmd_reply_send(*newsockfd, "INSIDE LEDGER HISTORY");
         dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-addr", &l_addr_base58);
         dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-w", &l_wallet_name);
         dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-net", &l_net_str);
