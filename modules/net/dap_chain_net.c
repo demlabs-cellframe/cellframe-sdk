@@ -2692,7 +2692,8 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
                         closedir(l_chains_dir);
                         return -1;
                     }
-                    l_chain_prior->prior = dap_config_get_item_uint16_default(l_cfg, "chain", "load_priority", 100);
+                    l_chain_prior->prior = dap_config_get_item_uint16_default(l_cfg_new, "chain", "load_priority", 100);
+                    log_it(L_DEBUG, "Chain priority: %u", l_chain_prior->prior);
                     l_chain_prior->chains_path = l_chains_path;
                     // add chain to load list;
                     l_prior_list = dap_list_append(l_prior_list, l_chain_prior);
@@ -2750,7 +2751,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         break;
     case NODE_ROLE_FULL:
         l_ledger_flags |= DAP_CHAIN_LEDGER_CHECK_LOCAL_DS;
-        if (dap_config_get_item_bool_default(g_config, "ledger", "cache_enabled", true))
+        if (dap_config_get_item_bool_default(g_config, "ledger", "cache_enabled", false))
             l_ledger_flags |= DAP_CHAIN_LEDGER_CACHE_ENABLED;
     default:
         l_ledger_flags |= DAP_CHAIN_LEDGER_CHECK_CELLS_DS | DAP_CHAIN_LEDGER_CHECK_TOKEN_EMISSION;
@@ -2877,8 +2878,8 @@ int s_net_load(dap_chain_net_t *a_net)
     }
     if (!l_net_pvt->only_static_links)
         l_net_pvt->only_static_links = dap_config_get_item_bool_default(l_cfg, "general", "links_static_only", false);
-    if (!dap_config_get_item_bool_default(g_config ,"general", "auto_online", false))
-        l_target_state = NET_STATE_OFFLINE;
+    if (dap_config_get_item_bool_default(g_config ,"general", "auto_online", false))
+        l_target_state = NET_STATE_ONLINE;
 
     l_net_pvt->load_mode = false;
     if (l_net->pub.ledger)
