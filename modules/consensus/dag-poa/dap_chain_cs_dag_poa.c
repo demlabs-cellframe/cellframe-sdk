@@ -828,9 +828,9 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
              !(ret = l_poa_pvt->callback_pre_sign->callback(a_dag->chain, l_event, l_event_size,
                                                       l_poa_pvt->callback_pre_sign->arg))) {
         l_event_size_new = dap_chain_cs_dag_event_sign_add(&l_event, l_event_size, l_poa_pvt->events_sign_cert->enc_key);
-        char *l_event_new_hash_hex_str;
-        dap_get_data_hash_str_static(l_event, l_event_size_new, l_event_new_hash_hex_str);
-        dap_chain_cs_dag_event_gdb_set(a_dag, l_event_new_hash_hex_str, l_event, l_event_size_new, l_round_item);
+        //char *l_event_new_hash_hex_str;
+        //dap_get_data_hash_str_static(l_event, l_event_size_new, l_event_new_hash_hex_str);
+        dap_chain_cs_dag_event_gdb_set(a_dag, /*l_event_new_hash_hex_str*/ (char*)a_key, l_event, l_event_size_new, l_round_item);
     } else { // set sign for reject
         l_round_item = DAP_DUP_SIZE(a_value, a_value_size);
         if (dap_chain_cs_dag_event_round_sign_add(&l_round_item, a_value_size, l_poa_pvt->events_sign_cert->enc_key)) {
