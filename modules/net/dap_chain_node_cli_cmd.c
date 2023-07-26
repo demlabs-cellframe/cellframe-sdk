@@ -230,8 +230,7 @@ static dap_chain_node_info_t* node_info_read_and_reply(dap_chain_net_t * a_net, 
     if(node_info_size_must_be != node_info_size) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "node has bad size in base=%zu (must be %zu)", node_info_size,
                 node_info_size_must_be);
-        DAP_DELETE(node_info);
-        DAP_DELETE(l_key);
+        DAP_DELETE(node_info, l_key);
         return NULL;
     }
 
@@ -274,8 +273,7 @@ static bool node_info_save_and_reply(dap_chain_net_t * a_net, dap_chain_node_inf
 
     //data_len_out = 0;
     //dap_chain_node_info_t *a_node_info2 = dap_global_db_gr_get(a_key, &data_len_out, a_net->pub.gdb_nodes);
-    //DAP_DELETE(a_key);
-    //DAP_DELETE(a_value);
+    //DAP_DELETE(a_key, a_value);
     return res;
 }
 
@@ -393,8 +391,7 @@ static int node_info_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
         }
         else
             dap_cli_server_cmd_set_reply_text(a_str_reply, "node not deleted");
-        DAP_DELETE(a_key);
-        DAP_DELETE(address);
+        DAP_DELETE(a_key, address);
         return l_res;
     }
     dap_cli_server_cmd_set_reply_text(a_str_reply, "addr to delete can't be defined");
@@ -514,8 +511,7 @@ static int link_add_or_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_in
         }
     }
 
-    DAP_DELETE(l_address);
-    DAP_DELETE(l_node_info_read);
+    DAP_DELETE(l_address, l_node_info_read);
     if(res_successful)
         return 0;
     return -1;
@@ -618,8 +614,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
         dap_string_free(aliases_string, true);
         dap_string_free(links_string, true);
 
-        DAP_DELETE(l_addr);
-        DAP_DELETE(node_info_read);
+        DAP_DELETE(l_addr, node_info_read);
 
     } else { // Dump list with !a_addr && !a_alias
         dap_global_db_obj_t *l_objs = NULL;
@@ -1598,8 +1593,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
                                           l_downlink_count, l_str_downlinks->str);
         dap_string_free(l_str_uplinks, false);
         dap_string_free(l_str_downlinks, false);
-        DAP_DELETE(l_downlinks);
-        DAP_DELETE(l_uplinks);
+        DAP_DELETE(l_downlinks, l_uplinks);
         return 0;
     }
         break;
@@ -2218,14 +2212,12 @@ char    l_buf[1024];
                                 l_balance_datoshi, l_l_addr_tokens[i]);
                         if(i < l_l_addr_tokens_size - 1)
                             dap_string_append_printf(l_l_string_ret, "\n");
-                        DAP_DELETE(l_balance_coins);
-                        DAP_DELETE(l_balance_datoshi);
+                        DAP_DELETE(l_balance_coins, l_balance_datoshi);
 
                     }
                     DAP_DELETE(l_l_addr_tokens[i]);
                 }
-                DAP_DELETE(l_l_addr_tokens);
-                DAP_DELETE(l_addr_str);
+                DAP_DELETE(l_l_addr_tokens, l_addr_str);
                 if(l_wallet)
                     dap_chain_wallet_close(l_wallet);
             }
@@ -2532,8 +2524,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, char ** a_str_reply)
                         dap_cli_server_cmd_set_reply_text(a_str_reply,
                                 "Datum %s with datum token has wrong signature %zu, break process and exit",
                                 l_datum_hash_out_str, i);
-                        DAP_DELETE(l_datum_token);
-                        DAP_DELETE(l_gdb_group_mempool);
+                        DAP_DELETE(l_datum_token, l_gdb_group_mempool);
                         return -6;
                     }else{
                         log_it(L_DEBUG,"Sign %zu passed", i);
@@ -2571,35 +2562,24 @@ int com_token_decl_sign(int a_argc, char **a_argv, char ** a_str_reply)
                         dap_cli_server_cmd_set_reply_text(a_str_reply,
                                 "datum %s is replacing the %s in datum pool",
                                 l_key_out_str, l_datum_hash_out_str);
-                        DAP_DELETE(l_key_str);
-                        DAP_DELETE(l_key_str_base58);
-                        DAP_DELETE(l_datum);
+                        DAP_DELETE(l_key_str, l_key_str_base58, l_datum, l_gdb_group_mempool);
                         //DAP_DELETE(l_datum_token);
-                        DAP_DELETE(l_gdb_group_mempool);
                         return 0;
                     } else {
                         dap_cli_server_cmd_set_reply_text(a_str_reply,
                                 "Warning! Can't remove old datum %s ( new datum %s added normaly in datum pool)",
                                 l_datum_hash_out_str, l_key_out_str);
-                        DAP_DELETE(l_key_str);
-                        DAP_DELETE(l_key_str_base58);
-                        DAP_DELETE(l_datum);
+                        DAP_DELETE(l_key_str, l_key_str_base58, l_datum, l_gdb_group_mempool);
                         //DAP_DELETE(l_datum_token);
-                        DAP_DELETE(l_gdb_group_mempool);
                         return 1;
                     }
-                    DAP_DELETE(l_hash_str);
-                    DAP_DELETE(l_key_str);
-                    DAP_DELETE(l_key_str_base58);
+                    DAP_DELETE(l_hash_str, l_key_str, l_key_str_base58);
                 } else {
                     dap_cli_server_cmd_set_reply_text(a_str_reply,
                             "Error! datum %s produced from %s can't be placed in mempool",
                             l_key_out_str, l_datum_hash_out_str);
-                    DAP_DELETE(l_datum);
+                    DAP_DELETE(l_datum, l_gdb_group_mempool, l_key_str, l_key_str_base58);
                     //DAP_DELETE(l_datum_token);
-                    DAP_DELETE(l_gdb_group_mempool);
-                    DAP_DELETE(l_key_str);
-                    DAP_DELETE(l_key_str_base58);
                     return -2;
                 }
             } else {
@@ -2613,8 +2593,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, char ** a_str_reply)
                     l_chain?l_chain->name:"<undefined>");
             return -5;
         }
-        DAP_DELETE(l_datum_hash_hex_str);
-        DAP_DELETE(l_datum_hash_base58_str);
+        DAP_DELETE(l_datum_hash_hex_str, l_datum_hash_base58_str);
     } else {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "token_decl_sign need -datum <datum hash> argument");
         return -2;
@@ -2859,8 +2838,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                     //continue;
                     break;
                 }
-                DAP_DELETE(l_emission);
-                DAP_DELETE(l_addr);
+                DAP_DELETE(l_emission, l_addr);
                 if(!l_f_found)
                     continue;
             }
@@ -2990,8 +2968,7 @@ int com_mempool_delete(int a_argc, char **a_argv, char **a_str_reply)
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Can't find datum %s", l_datum_hash_str);
             return -4;
         }
-        DAP_DELETE(l_gdb_group_mempool);
-        DAP_DELETE(l_data_tmp);
+        DAP_DELETE(l_gdb_group_mempool, l_data_tmp);
         if (l_datum_hash_hex_str != l_datum_hash_str)
             DAP_DELETE(l_datum_hash_hex_str);
     } else {
@@ -3558,11 +3535,9 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, char **
                 l_tsd_list = dap_list_append(l_tsd_list, l_hf_tsd);
                 l_added_tsd_size += l_hf_tsd_size;
             }
-            DAP_DELETE(l_hf);
-            DAP_DELETE(l_tmp);
+            DAP_DELETE(l_hf, l_tmp);
         }
-        DAP_DELETE(l_remove_signs_dup);
-        DAP_DELETE(l_remove_signs_str);
+        DAP_DELETE(l_remove_signs_dup, l_remove_signs_str);
         l_tsd_total_size += l_added_tsd_size;
     }
     //Added new certs
@@ -3943,6 +3918,15 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
             return -9;
     }
 
+    // Add datum to mempool with datum_token hash as a key
+    char *l_gdb_group_mempool = l_chain
+            ? dap_chain_net_get_gdb_group_mempool_new(l_chain)
+            : dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_TOKEN);
+    if (!l_gdb_group_mempool) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "No suitable chain for placing token datum found");
+        return -10;
+    }
+
     dap_chain_datum_t * l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TOKEN_DECL,
                                                          l_datum_token,
                                                          sizeof(*l_datum_token) + l_datum_data_offset);
@@ -3956,22 +3940,10 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                 dap_chain_hash_fast_to_str_new(&l_key_hash) :
                 dap_enc_base58_encode_hash_to_str(&l_key_hash);
 
-    // Add datum to mempool with datum_token hash as a key
-    char *l_gdb_group_mempool = l_chain
-            ? dap_chain_net_get_gdb_group_mempool_new(l_chain)
-            : dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_TOKEN);
-    if (!l_gdb_group_mempool) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "No suitable chain for placing token datum found");
-        DAP_DEL_Z(l_key_str);
-        DAP_DELETE(l_datum);
-        return -10;
-    }
     bool l_placed = dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, l_datum, l_datum_size, false) == 0;
     dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s with token %s is%s placed in datum pool",
                                       l_key_str, l_ticker, l_placed ? "" : " not");
-    DAP_DEL_Z(l_key_str);
-    DAP_DELETE(l_datum);
-    DAP_DELETE(l_params);
+    DAP_DELETE(l_key_str, l_datum, l_params);
     return l_placed ? 0 : -2;
 }
 
@@ -4156,18 +4128,13 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
             : dap_chain_net_get_gdb_group_mempool_by_chain_type(l_net, CHAIN_TYPE_TOKEN);
     if (!l_gdb_group_mempool) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "No suitable chain for placing token datum found");
-        DAP_DEL_Z(l_key_str);
-        DAP_DEL_Z(l_key_str_out);
-        DAP_DELETE(l_datum);
+        DAP_DELETE(l_key_str, l_key_str_out, l_datum);
         return -10;
     }
     bool l_placed = !dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, (uint8_t *)l_datum, l_datum_size, false);
     dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s with 256bit token %s is%s placed in datum pool",
                                       l_key_str_out, l_ticker, l_placed ? "" : " not");
-    DAP_DEL_Z(l_key_str);
-    DAP_DEL_Z(l_key_str_out);
-    DAP_DELETE(l_datum);
-    DAP_DELETE(l_params);
+    DAP_DELETE(l_key_str, l_key_str_out, l_datum, l_params);
     return l_placed ? 0 : -2;
 }
 
@@ -4690,7 +4657,7 @@ int com_chain_ca_pub( int a_argc,  char ** a_argv, char ** a_str_reply)
     // Now all the chechs passed, forming datum for mempool
     dap_chain_datum_t * l_datum = dap_chain_datum_create( DAP_CHAIN_DATUM_CA, l_cert_serialized , l_cert_serialized_size);
     DAP_DELETE( l_cert_serialized);
-    if( l_datum == NULL){
+    if(!l_datum){
         dap_cli_server_cmd_set_reply_text(a_str_reply,
                 "Can't produce datum from certificate");
         return -7;
@@ -5629,8 +5596,7 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
                 if (!dap_chain_addr_compare(l_addr, l_addr_tmp)) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply,
                                                       "Address with '-addr' param and address with '-w' param are different");
-                    DAP_DELETE(l_addr);
-                    DAP_DELETE(l_addr_tmp);
+                    DAP_DELETE(l_addr, l_addr_tmp);
                     return -7;
                 }
                 DAP_DELETE(l_addr_tmp);
@@ -5720,8 +5686,7 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
         char *l_addr_str = dap_chain_addr_to_str(l_addr);
         l_str_ret = dap_strdup_printf("History for addr %s:\n%s", l_addr_str,
                 l_str_out ? l_str_out : " empty");
-        DAP_DELETE(l_addr_str);
-        DAP_DELETE(l_str_out);
+        DAP_DELETE(l_addr_str, l_str_out);
     } else
         l_str_ret = l_str_out;
     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ret);
@@ -5771,8 +5736,7 @@ int com_stats(int argc, char **a_argv, char **a_str_reply)
                 l_str_delimiter = dap_strdup_printf(" ");
             }
             *a_str_reply = dap_strdup_printf("%sCPU-%d: %f%%%s", l_str_reply_prev, n_cpu_num, s_cpu_stats.cpus[n_cpu_num].load, l_str_delimiter);
-            DAP_DELETE(l_str_reply_prev);
-            DAP_DELETE(l_str_delimiter);
+            DAP_DELETE(l_str_reply_prev, l_str_delimiter);
             l_str_reply_prev = *a_str_reply;
         }
         *a_str_reply = dap_strdup_printf("%s\nTotal: %f%%", l_str_reply_prev, s_cpu_stats.cpu_summary.load);
