@@ -388,7 +388,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
         dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
         if (l_role.enums == NODE_ROLE_ROOT_MASTER || l_role.enums == NODE_ROLE_ROOT) {
             if (!s_poa_round_timer) {
-                s_poa_round_timer = dap_interval_timer_create(10 * 1000, s_poa_round_clean, a_chain);
+                s_poa_round_timer = dap_interval_timer_create(600 * 1000, s_poa_round_clean, a_chain);
                 log_it(L_MSG, "DAG-PoA: Round timer is started");
             }
         }
