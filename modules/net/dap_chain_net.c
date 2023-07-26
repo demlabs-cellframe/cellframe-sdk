@@ -2692,7 +2692,8 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
                         closedir(l_chains_dir);
                         return -1;
                     }
-                    l_chain_prior->prior = dap_config_get_item_uint16_default(l_cfg, "chain", "load_priority", 100);
+                    l_chain_prior->prior = dap_config_get_item_uint16_default(l_cfg_new, "chain", "load_priority", 100);
+                    log_it(L_DEBUG, "Chain priority: %u", l_chain_prior->prior);
                     l_chain_prior->chains_path = l_chains_path;
                     // add chain to load list;
                     l_prior_list = dap_list_append(l_prior_list, l_chain_prior);

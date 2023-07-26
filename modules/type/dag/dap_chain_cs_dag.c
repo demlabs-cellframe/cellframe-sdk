@@ -192,7 +192,6 @@ static void s_history_callback_round_notify(dap_global_db_context_t *a_context, 
         if (!l_dag->broadcast_disable)
             dap_chain_cs_dag_event_broadcast(l_dag, a_obj, a_context);
         if (dap_strcmp(a_obj->key, DAG_ROUND_CURRENT_KEY)) {  // check key for round increment, if no than process event
-            log_it(L_MSG, "[!] call callback_cs_event_round_sync for record %s : %s", a_obj->group, a_obj->key);
             l_dag->callback_cs_event_round_sync(l_dag, a_obj->type, a_obj->group, a_obj->key, a_obj->value, a_obj->value_len);
         }
     }
