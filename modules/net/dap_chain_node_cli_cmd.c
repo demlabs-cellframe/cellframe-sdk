@@ -5708,16 +5708,18 @@ int com_tx_history(int a_argc, char ** a_argv,  SOCKET *newsockfd, char **a_str_
                         if ((l_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_ttx_hash))) {
                             l_tx_all_str->str = dap_strdup_printf("\t\t↓↓↓ Ledger accepted ↓↓↓\n");
                             dap_cli_server_cmd_reply_send(*newsockfd, l_tx_all_str->str);
+                            DAP_DEL_Z(l_tx_all_str->str);
                             l_tx_all_str->len = 0;
                             l_tx_ledger_accepted++;
                         } else {
                             l_token_ticker = s_tx_get_main_ticker(l_tx, l_net, NULL);
                             l_tx_all_str->str = dap_strdup_printf("\t\t↓↓↓ Ledger rejected ↓↓↓\n");
                             dap_cli_server_cmd_reply_send(*newsockfd, l_tx_all_str->str);
+                            DAP_DEL_Z(l_tx_all_str->str);
                             l_tx_all_str->len = 0;
                             l_tx_ledger_rejected++;
                         }
-                        long_output = dap_chain_datum_dump_tx(l_tx, l_token_ticker, l_tx_all_str, l_hash_out_type, &l_ttx_hash, newsockfd);
+                        long_output = dap_chain_datum_dump_tx(l_tx, l_token_ticker, l_tx_all_str, l_hash_out_type, &l_ttx_hash, *newsockfd);
                     }
                 }
                 DAP_DEL_Z(l_datums);
@@ -5733,9 +5735,13 @@ int com_tx_history(int a_argc, char ** a_argv,  SOCKET *newsockfd, char **a_str_
                                  l_net->pub.name, l_chain->name, l_tx_count, l_tx_ledger_accepted, l_tx_ledger_rejected);
         dap_cli_server_cmd_reply_send(*newsockfd, l_tx_all_str->str);
         l_tx_all_str->len = 0;       
-        l_str_out = l_str_out ? dap_strdup_printf("%s%s", l_str_out, dap_strdup(l_tx_all_str->str)) : dap_strdup(l_tx_all_str->str);
-        dap_string_free(l_tx_all_str, true);
+        // l_str_out = l_str_out ? dap_strdup_printf("%s%s", l_str_out, dap_strdup(l_tx_all_str->str)) : dap_strdup(l_tx_all_str->str);
+        if (l_str_out)
+            dap_cli_server_cmd_reply_send(*newsockfd, l_str_out);
+        // dap_string_free(l_tx_all_str, true);
         dap_cli_server_cmd_reply_send(*newsockfd, "ENDLONG");
+        DAP_DEL_Z(l_tx_all_str->str);
+        DAP_DEL_Z(l_str_out);
     }
 
     char *l_str_ret = NULL;
