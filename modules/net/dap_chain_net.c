@@ -786,7 +786,7 @@ static bool s_net_link_start(dap_chain_net_t *a_net, struct net_link *a_link, ui
         a_link->delay_timer = dap_timerfd_start(a_delay * 1000, s_net_link_callback_connect_delayed, a_link);
         return true;
     }
-    debug_if(s_debug_more, L_DEBUG, "Link "NODE_ADDR_FP_STR" started", NODE_ADDR_FP_ARGS_S(l_link_info->hdr.address));
+    log_it(L_MSG, "Connecting to link "NODE_ADDR_FP_STR" [%s]", NODE_ADDR_FP_ARGS_S(l_link_info->hdr.address), inet_ntoa(l_link_info->hdr.ext_addr_v4));
     return dap_chain_node_client_connect(l_client, "CN");
 }
 
@@ -1137,9 +1137,18 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
         dap_chain_node_info_t *l_link_full_node = dap_chain_net_balancer_get_node(a_net->pub.name);
         if(l_link_full_node)
         {
-            log_it(L_DEBUG, "Network LOCAL balancer issues ip %s",inet_ntoa(l_link_full_node->hdr.ext_addr_v4));
             pthread_rwlock_rdlock(&PVT(a_net)->states_lock);
-            s_net_link_add(a_net, l_link_full_node);
+            int l_net_link_add = s_net_link_add(a_net, l_link_full_node);
+            switch (l_net_link_add) {
+            case 0:
+                log_it(L_MSG, "Network LOCAL balancer issues link IP %s", inet_ntoa(l_link_full_node->hdr.ext_addr_v4));
+                break;
+            case -1:
+                log_it(L_MSG, "Network LOCAL balancer: IP %s is already among links", inet_ntoa(l_link_full_node->hdr.ext_addr_v4));
+                break;
+            default:
+                break;
+            }
             DAP_DELETE(l_link_full_node);
             struct net_link *l_free_link = s_get_free_link(a_net);
             if (l_free_link)
