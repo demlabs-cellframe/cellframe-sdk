@@ -1483,46 +1483,46 @@ static dap_chain_net_t *s_net_new(const char *a_id, const char *a_name,
 {
     if (!a_id || !a_name || !a_native_ticker || !a_node_role)
         return NULL;
-    dap_chain_net_t *ret = DAP_NEW_Z_SIZE( dap_chain_net_t, sizeof(ret->pub) + sizeof(dap_chain_net_pvt_t) );
-    if (!ret) {
+    dap_chain_net_t *l_ret = DAP_NEW_Z_SIZE( dap_chain_net_t, sizeof(l_ret->pub) + sizeof(dap_chain_net_pvt_t) );
+    if (!l_ret) {
         log_it(L_ERROR, "Memory allocation error in s_net_new");
         return NULL;
     }
-    ret->pub.name = strdup( a_name );
-    ret->pub.native_ticker = strdup( a_native_ticker );
+    l_ret->pub.name = strdup( a_name );
+    l_ret->pub.native_ticker = strdup( a_native_ticker );
     pthread_mutexattr_t l_mutex_attr;
     pthread_mutexattr_init(&l_mutex_attr);
     pthread_mutexattr_settype(&l_mutex_attr, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutex_init(&PVT(ret)->uplinks_mutex, &l_mutex_attr);
+    pthread_mutex_init(&PVT(l_ret)->uplinks_mutex, &l_mutex_attr);
     pthread_mutexattr_destroy(&l_mutex_attr);
-    pthread_rwlock_init(&PVT(ret)->downlinks_lock, NULL);
-    pthread_rwlock_init(&PVT(ret)->balancer_lock, NULL);
-    pthread_rwlock_init(&PVT(ret)->states_lock, NULL);
-    if (dap_chain_net_id_parse(a_id, &ret->pub.id) != 0) {
-        DAP_DELETE(ret);
+    pthread_rwlock_init(&PVT(l_ret)->downlinks_lock, NULL);
+    pthread_rwlock_init(&PVT(l_ret)->balancer_lock, NULL);
+    pthread_rwlock_init(&PVT(l_ret)->states_lock, NULL);
+    if (dap_chain_net_id_parse(a_id, &l_ret->pub.id) != 0) {
+        DAP_DELETE(l_ret);
         return NULL;
     }
     if (strcmp (a_node_role, "root_master")==0){
-        PVT(ret)->node_role.enums = NODE_ROLE_ROOT_MASTER;
+        PVT(l_ret)->node_role.enums = NODE_ROLE_ROOT_MASTER;
     } else if (strcmp( a_node_role,"root") == 0){
-        PVT(ret)->node_role.enums = NODE_ROLE_ROOT;
+        PVT(l_ret)->node_role.enums = NODE_ROLE_ROOT;
     } else if (strcmp( a_node_role,"archive") == 0){
-        PVT(ret)->node_role.enums = NODE_ROLE_ARCHIVE;
+        PVT(l_ret)->node_role.enums = NODE_ROLE_ARCHIVE;
     } else if (strcmp( a_node_role,"cell_master") == 0){
-        PVT(ret)->node_role.enums = NODE_ROLE_CELL_MASTER;
+        PVT(l_ret)->node_role.enums = NODE_ROLE_CELL_MASTER;
     }else if (strcmp( a_node_role,"master") == 0){
-        PVT(ret)->node_role.enums = NODE_ROLE_MASTER;
+        PVT(l_ret)->node_role.enums = NODE_ROLE_MASTER;
     }else if (strcmp( a_node_role,"full") == 0){
-        PVT(ret)->node_role.enums = NODE_ROLE_FULL;
+        PVT(l_ret)->node_role.enums = NODE_ROLE_FULL;
     }else if (strcmp( a_node_role,"light") == 0){
-        PVT(ret)->node_role.enums = NODE_ROLE_LIGHT;
+        PVT(l_ret)->node_role.enums = NODE_ROLE_LIGHT;
     }else{
         log_it(L_ERROR,"Unknown node role \"%s\" for network '%s'", a_node_role, a_name);
-        DAP_DELETE(ret);
+        DAP_DELETE(l_ret);
         return NULL;
     }
     log_it (L_NOTICE, "Node role \"%s\" selected for network '%s'", a_node_role, a_name);
-    return ret;
+    return l_ret;
 }
 
 /**
