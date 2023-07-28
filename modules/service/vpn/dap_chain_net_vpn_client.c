@@ -169,6 +169,7 @@ static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usa
                     a_srv_client->ch->stream->channel[DAP_CHAIN_NET_SRV_VPN_ID]->internal : NULL;
     if ( ! l_srv_ch_vpn ){
         log_it(L_ERROR, "No VPN service stream channel, its closed?");
+        dap_stream_session_unlock();
         return -3;
     }
     l_srv_ch_vpn->usage_id = l_usage->id;
@@ -183,6 +184,7 @@ static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usa
         ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header) + l_ipv4_str_len);
         if (!pkt_out) {
             log_it(L_ERROR, "Memory allocation error in s_callback_client_success");
+            dap_stream_session_unlock();
             return -1;
         }
 
@@ -200,6 +202,7 @@ static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usa
 
     // usage is present, we've accepted packets
     dap_stream_ch_set_ready_to_read_unsafe( l_srv_ch_vpn->ch , true );
+    dap_stream_session_unlock();
     return 0;
 }
 

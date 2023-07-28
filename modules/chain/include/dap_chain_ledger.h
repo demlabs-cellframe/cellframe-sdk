@@ -38,7 +38,7 @@
 
 typedef struct dap_ledger {
     char *net_name;
-    dap_list_t *tx_add_notifiers;
+    dap_chain_net_id_t net_id;
     void *_internal;
 } dap_ledger_t;
 
@@ -112,6 +112,7 @@ typedef enum dap_chain_ledger_token_decl_add_err{
 typedef bool (*dap_chain_ledger_verificator_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_tx_out_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 typedef void (*dap_chain_ledger_updater_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_prev_cond);
 typedef void (* dap_chain_ledger_tx_add_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
+typedef void (* dap_chain_ledger_bridged_tx_notify_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg);
 typedef bool (*dap_chain_ledger_cache_tx_check_callback_t)(dap_hash_fast_t *a_tx_hash);
 typedef struct dap_chain_net dap_chain_net_t;
 
@@ -146,7 +147,7 @@ typedef struct dap_chain_net dap_chain_net_t;
 int dap_chain_ledger_init();
 void dap_chain_ledger_deinit();
 
-dap_ledger_t *dap_chain_ledger_create(uint16_t a_flags, char *a_net_name, const char *a_net_native_ticker, dap_list_t *a_poa_certs);
+dap_ledger_t *dap_chain_ledger_create(uint16_t a_flags, dap_chain_net_id_t a_net_id, char *a_net_name, const char *a_net_native_ticker, dap_list_t *a_poa_certs);
 
 void dap_chain_ledger_set_fee(dap_ledger_t *a_ledger, uint256_t a_fee, dap_chain_addr_t a_fee_addr);
 
@@ -166,6 +167,9 @@ void dap_chain_ledger_set_local_cell_id(dap_ledger_t *a_ledger, dap_chain_cell_i
 DAP_STATIC_INLINE dap_chain_hash_fast_t* dap_chain_node_datum_tx_calc_hash(dap_chain_datum_tx_t *a_tx)
 {
     dap_chain_hash_fast_t *tx_hash = DAP_NEW_Z(dap_chain_hash_fast_t);
+    if (!tx_hash) {
+        return NULL;
+    }
     dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), tx_hash);
     return tx_hash;
 }
@@ -346,6 +350,8 @@ dap_list_t * dap_chain_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, si
 //bool dap_chain_ledger_fee_verificator(dap_ledger_t* a_ledger, dap_chain_tx_out_cond_t* a_cond, dap_chain_datum_tx_t* a_tx, bool a_owner);
 
 void dap_chain_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_chain_ledger_tx_add_notify_t a_callback, void *a_arg);
+void dap_chain_ledger_bridged_tx_notify_add(dap_ledger_t *a_ledger, dap_chain_ledger_bridged_tx_notify_t a_callback, void *a_arg);
+
 
 bool dap_chain_ledger_cache_enabled(dap_ledger_t *a_ledger);
 void dap_chain_ledger_set_cache_tx_check_callback(dap_ledger_t *a_ledger, dap_chain_ledger_cache_tx_check_callback_t a_callback);

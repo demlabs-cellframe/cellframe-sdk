@@ -1455,10 +1455,6 @@ static dap_chain_atom_ptr_t *s_callback_atom_iter_get_lasts( dap_chain_atom_iter
         }
         dap_chain_atom_ptr_t *l_ret = DAP_NEW_Z(dap_chain_atom_ptr_t);
         if (!l_ret) {
-                log_it(L_ERROR, "Memory allocation error in s_callback_atom_iter_get_lasts");
-                return NULL;
-            }
-        if (!l_ret) {
             log_it(L_ERROR, "Memory allocation error in s_callback_atom_iter_get_lasts");
             return NULL;
         }

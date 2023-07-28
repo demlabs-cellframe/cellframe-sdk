@@ -284,6 +284,12 @@ static void* node_ping_background_proc(void *a_arg)
     s_node_addr_tr = l_node_addr_tmp;
 
     l_node_addr_tmp = DAP_NEW(dap_chain_node_addr_t);
+    if (!l_node_addr_tmp) {
+        log_it(L_ERROR, "Memory allocation error in node_ping_background_proc");
+        dap_list_free_full(l_node_list0, NULL);
+        DAP_DEL_Z(s_node_addr_ping);
+        return 0;
+    }
     memcpy(l_node_addr_tmp, s_node_addr_ping, sizeof(dap_chain_node_addr_t));
     DAP_DELETE(s_node_addr_ping);
     s_node_addr_ping = l_node_addr_tmp;

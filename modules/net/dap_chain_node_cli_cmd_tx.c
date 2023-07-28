@@ -212,6 +212,10 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
     };
 
     dap_string_t *l_str_out = dap_string_new(NULL);
+    if (!l_str_out) {
+        log_it(L_ERROR, "Memory allocation error in dap_db_history_token_list");
+        return NULL;
+    }
     dap_chain_tx_hash_processed_ht_t *l_tx_data_ht = NULL;
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     if (!l_net) {
@@ -416,6 +420,10 @@ static char* dap_db_chain_history_token_list(dap_chain_t * a_chain, const char *
         return NULL;
     }
     dap_string_t *l_str_out = dap_string_new(NULL);
+    if (!l_str_out) {
+        log_it(L_ERROR, "Memory allocation error in dap_db_history_token_list");
+        return NULL;
+    }
     *a_token_num  = 0;
     size_t l_atom_size = 0;
     dap_chain_cell_t *l_cell = a_chain->cells;
@@ -494,6 +502,10 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
         return NULL;
     }
     dap_string_t *l_str_out = dap_string_new(NULL);
+    if (!l_str_out) {
+        log_it(L_ERROR, "Memory allocation error in dap_db_history_filter");
+        return NULL;
+    }
     // list all transactions
     dap_tx_data_t *l_tx_data_hash = NULL;
     dap_chain_cell_t *l_cell = a_chain->cells;
