@@ -794,6 +794,10 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
     dap_chain_cs_dag_event_round_item_t *l_round_item = (dap_chain_cs_dag_event_round_item_t *)a_value;
     size_t l_event_size = l_round_item->event_size;
     dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t*)DAP_DUP_SIZE(l_round_item->event_n_signs, l_event_size);
+    if (!l_event) {
+        log_it(L_CRITICAL, "Memory allocation failed");
+        return -1;
+    }
     if (l_event->header.round_id < a_dag->round_completed) {
         struct round_timer_arg *l_round_active;
         uint64_t l_round_id = l_event->header.round_id;

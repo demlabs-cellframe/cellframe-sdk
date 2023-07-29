@@ -737,12 +737,7 @@ int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name)
     }
     const char *cert_name = cert->name;
     size_t cert_path_length = dap_strlen(net_name) + dap_strlen(cert_name) + 9 + dap_strlen(s_system_chain_ca_dir);
-    char *cert_path = DAP_NEW_STACK_SIZE(char, cert_path_length);
-    if ( !cert_path ) {
-        dap_cert_delete(cert);
-        log_it(L_ERROR, "Memory allocation error in dap_cert_chain_file_save, errno=%d", errno);
-        return -1;
-    }
+    char cert_path[cert_path_length];
     snprintf(cert_path, cert_path_length, "%s/%s/%s.dcert", s_system_chain_ca_dir, net_name, cert_name);
     // In cert_path resolve all `..` and `.`s
     char *cert_path_c = dap_canonicalize_filename(cert_path, NULL);
@@ -751,12 +746,10 @@ int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name)
         log_it(L_ERROR, "Cert path '%s' is not in ca dir: %s", cert_path_c, s_system_chain_ca_dir);
         dap_cert_delete(cert);
         DAP_DELETE(cert_path_c);
-        DAP_DELETE(cert_path);
         return -1;
     }
     int l_ret = dap_cert_file_save(cert, cert_path_c);
     dap_cert_delete(cert);
-    DAP_DELETE(cert_path);
     DAP_DELETE(cert_path_c);
 //  if ( access( l_cert_path, F_OK ) != -1 ) {
 //      log_it (L_ERROR, "File %s is already exists.", l_cert_path);
