@@ -603,7 +603,7 @@ static void s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
         char *l_event_hash_hex_str;
         dap_get_data_hash_str_static(l_new_atom, l_event_size, l_event_hash_hex_str);
         dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(l_new_atom, l_event_size);
-        l_dag->round_completed = l_new_atom->header.round_id ? l_new_atom->header.round_id : l_dag->round_completed + 1;
+        l_dag->round_completed = MAX(l_new_atom->header.round_id, l_dag->round_current);
         int l_verify_datum = dap_chain_net_verify_datum_for_add(l_dag->chain, l_datum, &l_chosen_item->round_info.datum_hash);
         if (!l_verify_datum) {
             dap_chain_atom_verify_res_t l_res = l_dag->chain->callback_atom_add(l_dag->chain, l_new_atom, l_event_size);
@@ -622,7 +622,7 @@ static void s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
                    l_event_hash_hex_str, l_round_id, l_datum_hash_str, dap_chain_net_verify_datum_err_code_to_str(l_datum, l_verify_datum));
         }
     } else { /* !l_chosen_item */
-        l_dag->round_completed++;
+        l_dag->round_completed = l_dag->round_current;
         log_it(L_WARNING, "No candidates for round id %"DAP_UINT64_FORMAT_U, l_round_id);
 
     }
@@ -696,11 +696,11 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
     dap_chain_node_role_t l_role = dap_chain_net_get_role(l_cur_net);
     if (l_role.enums == NODE_ROLE_ROOT_MASTER || l_role.enums == NODE_ROLE_ROOT) {
         l_dag->callback_cs_event_round_sync = s_callback_event_round_sync;
-        log_it(L_MSG, "Round complete ID %"DAP_UINT64_FORMAT_U", current ID %"DAP_UINT64_FORMAT_U, l_dag->round_completed, l_dag->round_current);
         if (l_dag->round_completed > l_dag->round_current) {
             l_dag->round_completed = l_dag->round_current;
             l_dag->round_current = l_dag->round_completed + 1;
         }
+        log_it(L_MSG, "Round complete ID %"DAP_UINT64_FORMAT_U", current ID %"DAP_UINT64_FORMAT_U, l_dag->round_completed, l_dag->round_current);
     }
     return 0;
 }
@@ -794,6 +794,10 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
     dap_chain_cs_dag_event_round_item_t *l_round_item = (dap_chain_cs_dag_event_round_item_t *)a_value;
     size_t l_event_size = l_round_item->event_size;
     dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t*)DAP_DUP_SIZE(l_round_item->event_n_signs, l_event_size);
+    if (!l_event) {
+        log_it(L_CRITICAL, "Memory allocation failed");
+        return -1;
+    }
     if (l_event->header.round_id < a_dag->round_completed) {
         struct round_timer_arg *l_round_active;
         uint64_t l_round_id = l_event->header.round_id;
@@ -820,6 +824,10 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
 
     size_t l_event_size_new = 0;
     int ret = 0;
+    if (l_event->header.round_id > a_dag->round_current) {
+        log_it(L_DEBUG, "Refresh current round ID [%lu -> %lu]", a_dag->round_current, l_event->header.round_id);
+        a_dag->round_current = l_event->header.round_id;
+    }
     if (!l_poa_pvt->callback_pre_sign || !l_poa_pvt->callback_pre_sign->callback ||
              !(ret = l_poa_pvt->callback_pre_sign->callback(a_dag->chain, l_event, l_event_size,
                                                       l_poa_pvt->callback_pre_sign->arg))) {

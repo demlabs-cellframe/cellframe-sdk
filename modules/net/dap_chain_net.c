@@ -1167,6 +1167,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
     struct balancer_link_request *l_balancer_request = DAP_NEW_Z(struct balancer_link_request);
     if (!l_balancer_request) {
         log_it(L_ERROR, "Memory allocation error in s_new_balancer_link_request");
+        DAP_DELETE(l_link_node_info);
         return false;
     }
     l_balancer_request->net = a_net;
@@ -1242,7 +1243,7 @@ struct json_object *s_net_states_json_collect(dap_chain_net_t *a_net)
     json_object_object_add(l_json, "name"             , json_object_new_string((const char*)a_net->pub.name));
     json_object_object_add(l_json, "networkState"     , json_object_new_string(dap_chain_net_state_to_str(PVT(a_net)->state)));
     json_object_object_add(l_json, "targetState"      , json_object_new_string(dap_chain_net_state_to_str(PVT(a_net)->state_target)));
-    json_object_object_add(l_json, "linksCount"       , json_object_new_int(HASH_COUNT(PVT(a_net)->net_links)));
+    json_object_object_add(l_json, "linksCount"       , json_object_new_int(PVT(a_net)->net_links ? HASH_COUNT(PVT(a_net)->net_links) : 0));
     json_object_object_add(l_json, "activeLinksCount" , json_object_new_int(s_net_get_active_links_count(a_net)));
     char l_node_addr_str[24] = {'\0'};
     int l_tmp = PVT(a_net)->node_addr
@@ -2622,7 +2623,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
                     l_net_pvt->node_info = DAP_NEW_Z(dap_chain_node_info_t);
                     if (!l_net_pvt->node_info) {
                         log_it(L_ERROR, "Memory allocation error in s_net_init");
-                        DAP_DEL_Z(l_net_pvt);
+                        DAP_DEL_Z(l_node_addr);
                         dap_config_close(l_cfg);
                         return -1;
                     }
@@ -2667,7 +2668,6 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     if (!l_chains_dir) {
         log_it(L_ERROR, "Can't find any chains for network %s", l_net->pub.name);
         l_net_pvt->load_mode = false;
-        closedir(l_chains_dir);
         dap_config_close(l_cfg);
         return -2;
     }
