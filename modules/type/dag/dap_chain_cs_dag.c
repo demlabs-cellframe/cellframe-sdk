@@ -702,7 +702,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
      * or we have successfully chosen the hash(es) to link with.
      * No additional conditions required.
     */
-    byte_t *l_current_round_bytes = dap_global_db_get_sync(DAG_ROUND_CURRENT_KEY, l_dag->gdb_group_events_round_new, NULL, NULL, NULL);
+    byte_t *l_current_round_bytes = dap_global_db_get_sync(l_dag->gdb_group_events_round_new, DAG_ROUND_CURRENT_KEY, NULL, NULL, NULL);
     uint64_t l_current_round = l_current_round_bytes ? *(uint64_t*)l_current_round_bytes : 0;
     DAP_DEL_Z(l_current_round_bytes);
     l_dag->round_completed = l_current_round++;
