@@ -766,7 +766,8 @@ static bool s_net_link_callback_connect_delayed(void *a_arg)
 {
     struct net_link *l_link = a_arg;
     dap_chain_node_client_t *l_client = l_link->link;
-    debug_if(s_debug_more, L_DEBUG, "Link "NODE_ADDR_FP_STR" started", NODE_ADDR_FP_ARGS_S(l_client->info->hdr.address));
+    log_it(L_MSG, "Connecting to link "NODE_ADDR_FP_STR" [%s]",
+           NODE_ADDR_FP_ARGS_S(l_client->info->hdr.address), inet_ntoa(l_client->info->hdr.ext_addr_v4));
     dap_chain_node_client_connect(l_client, "CN");
     l_link->delay_timer = NULL;
     return false;
