@@ -696,10 +696,7 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
     dap_chain_node_role_t l_role = dap_chain_net_get_role(l_cur_net);
     if (l_role.enums == NODE_ROLE_ROOT_MASTER || l_role.enums == NODE_ROLE_ROOT) {
         l_dag->callback_cs_event_round_sync = s_callback_event_round_sync;
-        if (l_dag->round_completed > l_dag->round_current) {
-            l_dag->round_completed = l_dag->round_current;
-            l_dag->round_current = l_dag->round_completed + 1;
-        }
+        l_dag->round_completed = l_dag->round_current++;
         log_it(L_MSG, "Round complete ID %"DAP_UINT64_FORMAT_U", current ID %"DAP_UINT64_FORMAT_U, l_dag->round_completed, l_dag->round_current);
     }
     return 0;

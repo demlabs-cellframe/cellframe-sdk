@@ -702,10 +702,11 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
      * or we have successfully chosen the hash(es) to link with.
      * No additional conditions required.
     */
-    byte_t *l_current_round = dap_global_db_get_sync(DAG_ROUND_CURRENT_KEY, l_dag->gdb_group_events_round_new, NULL, NULL, NULL);
-    uint64_t l_round_current = MAX(l_current_round ? *(uint64_t*)l_current_round : 0, l_dag->round_completed) + 1;
-    DAP_DELETE(l_current_round);
-    l_dag->round_current = l_round_current; /* it's an atomic_store */
+    byte_t *l_current_round_bytes = dap_global_db_get_sync(DAG_ROUND_CURRENT_KEY, l_dag->gdb_group_events_round_new, NULL, NULL, NULL);
+    uint64_t l_current_round = l_current_round_bytes ? *(uint64_t*)l_current_round_bytes : 0;
+    DAP_DEL_Z(l_current_round_bytes);
+    l_dag->round_completed = l_current_round++;
+    l_dag->round_current = l_current_round;
     uint64_t l_event_size = 0;
     dap_chain_cs_dag_event_t * l_event = l_dag->callback_cs_event_create
             ? l_dag->callback_cs_event_create(l_dag, a_datum, l_hashes, l_hashes_linked, &l_event_size)
@@ -727,7 +728,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
     }
 
     dap_global_db_set_sync(l_dag->gdb_group_events_round_new, DAG_ROUND_CURRENT_KEY,
-                      &l_round_current, sizeof(uint64_t), false);
+                      &l_current_round, sizeof(uint64_t), false);
     dap_chain_cs_dag_event_round_item_t l_round_item = { .round_info.datum_hash = l_datum_hash };
     char *l_event_hash_str;
     dap_get_data_hash_str_static(l_event, l_event_size, l_event_hash_str);
@@ -735,7 +736,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
     log_it(l_res ? L_INFO : L_ERROR,
            l_res ? "Event %s placed in the new forming round [id %"DAP_UINT64_FORMAT_U"]"
                  : "Can't add new event [%s] to the new events round [id %"DAP_UINT64_FORMAT_U"]",
-           l_event_hash_str, l_round_current);
+           l_event_hash_str, l_current_round);
     return l_res;
 }
 
