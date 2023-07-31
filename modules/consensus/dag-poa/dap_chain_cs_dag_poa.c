@@ -388,7 +388,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
         dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
         if (l_role.enums == NODE_ROLE_ROOT_MASTER || l_role.enums == NODE_ROLE_ROOT) {
             if (!s_poa_round_timer) {
-                s_poa_round_timer = dap_interval_timer_create(10 * 1000, s_poa_round_clean, a_chain);
+                s_poa_round_timer = dap_interval_timer_create(600 * 1000, s_poa_round_clean, a_chain);
                 log_it(L_MSG, "DAG-PoA: Round timer is started");
             }
         }
@@ -464,12 +464,15 @@ static bool s_round_event_ready_minimum_check(dap_chain_cs_dag_t *a_dag, dap_cha
 {
     dap_chain_cs_dag_poa_t *l_poa = DAP_CHAIN_CS_DAG_POA(a_dag);
     dap_chain_cs_dag_poa_pvt_t *l_poa_pvt = PVT(l_poa);
-    if ( a_event->header.signs_count < l_poa_pvt->auth_certs_count_verify)
+    if ( a_event->header.signs_count < l_poa_pvt->auth_certs_count_verify) {
+        log_it(L_INFO, "Round event %s hasn't got enough signs yet: %u < %u",
+               a_event_hash_hex_str, a_event->header.signs_count, l_poa_pvt->auth_certs_count_verify);
         return false;
+    }
     int l_ret_event_verify = s_callback_event_verify(a_dag, a_event, a_event_size);
     if (l_ret_event_verify == 0)
         return true;
-    log_it(L_ERROR,"Round auto-complete error! Event %s is not passing consensus verification, ret code %d\n",
+    log_it(L_ERROR, "Round auto-complete error! Event %s is not passing consensus verification, ret code %d\n",
                           a_event_hash_hex_str, l_ret_event_verify );
     return false;
 }
@@ -791,7 +794,6 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
     dap_chain_cs_dag_event_round_item_t *l_round_item = (dap_chain_cs_dag_event_round_item_t *)a_value;
     size_t l_event_size = l_round_item->event_size;
     dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t*)DAP_DUP_SIZE(l_round_item->event_n_signs, l_event_size);
-
     if (l_event->header.round_id < a_dag->round_completed) {
         struct round_timer_arg *l_round_active;
         uint64_t l_round_id = l_event->header.round_id;
@@ -805,7 +807,6 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
             return -2;
         }
     }
-
     if (dap_chain_cs_dag_event_sign_exists(l_event, l_event_size, l_poa_pvt->events_sign_cert->enc_key)
             || dap_chain_cs_dag_event_round_sign_exists(l_round_item, l_poa_pvt->events_sign_cert->enc_key)) {
         // if my sign exists
@@ -823,9 +824,9 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
              !(ret = l_poa_pvt->callback_pre_sign->callback(a_dag->chain, l_event, l_event_size,
                                                       l_poa_pvt->callback_pre_sign->arg))) {
         l_event_size_new = dap_chain_cs_dag_event_sign_add(&l_event, l_event_size, l_poa_pvt->events_sign_cert->enc_key);
-        char *l_event_new_hash_hex_str;
-        dap_get_data_hash_str_static(l_event, l_event_size_new, l_event_new_hash_hex_str);
-        dap_chain_cs_dag_event_gdb_set(a_dag, l_event_new_hash_hex_str, l_event, l_event_size_new, l_round_item);
+        //char *l_event_new_hash_hex_str;
+        //dap_get_data_hash_str_static(l_event, l_event_size_new, l_event_new_hash_hex_str);
+        dap_chain_cs_dag_event_gdb_set(a_dag, /*l_event_new_hash_hex_str*/ (char*)a_key, l_event, l_event_size_new, l_round_item);
     } else { // set sign for reject
         l_round_item = DAP_DUP_SIZE(a_value, a_value_size);
         if (dap_chain_cs_dag_event_round_sign_add(&l_round_item, a_value_size, l_poa_pvt->events_sign_cert->enc_key)) {
