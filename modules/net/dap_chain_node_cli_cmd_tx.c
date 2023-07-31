@@ -141,7 +141,7 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
         dap_string_append_printf(l_str_out, "%s TX with atom %s (ret_code %d)\n", l_tx_token_ticker ? "ACCEPTED" : "DECLINED",
                                                                     l_atom_hash_str, l_ret_code);
         DAP_DELETE(l_atom_hash_str);
-        dap_chain_datum_dump_tx(l_tx, l_tx_token_ticker, l_str_out, a_hash_out_type, a_tx_hash);
+        dap_chain_datum_dump_tx(l_tx, l_tx_token_ticker, l_str_out, a_hash_out_type, a_tx_hash, -1);
     } else {
         char *l_tx_hash_str = dap_strcmp(a_hash_out_type, "hex")
                 ? dap_enc_base58_encode_hash_to_str(a_tx_hash)
@@ -644,7 +644,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
  * @param a_str_reply
  * @return int
  */
-int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
+int com_ledger(int a_argc, char ** a_argv, SOCKET newsockfd, char **a_str_reply)
 {
     enum { CMD_NONE, CMD_LIST, CMD_LEDGER_HISTORY, CMD_TX_INFO };
     int arg_index = 1;
@@ -753,7 +753,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
                     dap_hash_fast_t l_tx_hash = {0};
                     dap_hash_fast(l_tx, l_tx_size, &l_tx_hash);
                     const char *l_tx_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_hash);
-                    dap_chain_datum_dump_tx(l_tx, l_tx_ticker, l_str_ret, l_hash_out_type, &l_tx_hash);
+                    dap_chain_datum_dump_tx(l_tx, l_tx_ticker, l_str_ret, l_hash_out_type, &l_tx_hash, *newsockfd);
                 }
                 dap_list_free1(l_txs_list);
             }
@@ -772,7 +772,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
                     dap_hash_fast_t l_tx_hash = {0};
                     dap_hash_fast(l_tx, l_tx_size, &l_tx_hash);
                     const char *l_tx_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_hash);
-                    dap_chain_datum_dump_tx(l_tx,l_tx_ticker,l_str_ret,l_hash_out_type,&l_tx_hash);
+                    dap_chain_datum_dump_tx(l_tx,l_tx_ticker,l_str_ret,l_hash_out_type,&l_tx_hash, -1);
                     dap_string_append_printf(l_str_ret, "history for tx hash %s:\n%s\n", l_tx_hash_str,
                             l_str_out ? l_str_out : " empty");
                 }
