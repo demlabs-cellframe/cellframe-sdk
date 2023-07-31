@@ -191,8 +191,9 @@ static void s_history_callback_round_notify(dap_global_db_context_t *a_context, 
     if (a_obj->type == DAP_DB$K_OPTYPE_ADD && l_dag->callback_cs_event_round_sync) {
         if (!l_dag->broadcast_disable)
             dap_chain_cs_dag_event_broadcast(l_dag, a_obj, a_context);
-        if (dap_strcmp(a_obj->key, DAG_ROUND_CURRENT_KEY))   // check key for round increment, if no than process event
+        if (dap_strcmp(a_obj->key, DAG_ROUND_CURRENT_KEY)) {  // check key for round increment, if no than process event
             l_dag->callback_cs_event_round_sync(l_dag, a_obj->type, a_obj->group, a_obj->key, a_obj->value, a_obj->value_len);
+        }
     }
 }
 
