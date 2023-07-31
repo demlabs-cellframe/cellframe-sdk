@@ -350,6 +350,12 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(dap_chain_net_t *a_ne
         log_it(L_WARNING, "The key with which the order should be signed is not specified.");
         return NULL;
     }
+    // Checking validator or not create order
+    if (!dap_chain_net_srv_stake_is_active_validator(a_net, a_node_addr)) {
+        log_it(L_ERROR, "Only validators can create service orders");
+        return NULL;
+    }
+
     dap_chain_net_srv_order_t *l_order;
     if (a_ext_size) {
         l_order = (dap_chain_net_srv_order_t *)DAP_NEW_Z_SIZE(void, sizeof(dap_chain_net_srv_order_t) + a_ext_size);

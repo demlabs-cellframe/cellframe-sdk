@@ -114,11 +114,11 @@ bool dap_chain_node_alias_delete(dap_chain_net_t * a_net,const char *a_alias)
 /**
  * Calculate size of struct dap_chain_node_info_t
  */
-size_t dap_chain_node_info_get_size(dap_chain_node_info_t *node_info)
+size_t dap_chain_node_info_get_size(dap_chain_node_info_t *a_node_info)
 {
-    if(!node_info)
+    if(!a_node_info)
         return 0;
-    return (sizeof(dap_chain_node_info_t) + node_info->hdr.links_number * sizeof(dap_chain_node_addr_t));
+    return (sizeof(dap_chain_node_info_t) + a_node_info->hdr.links_number * sizeof(dap_chain_node_addr_t));
 }
 
 /**
@@ -126,17 +126,17 @@ size_t dap_chain_node_info_get_size(dap_chain_node_info_t *node_info)
  *
  * @return True if addresses are equal, otherwise false
  */
-bool dap_chain_node_info_addr_match(dap_chain_node_info_t *node_info1, dap_chain_node_info_t *node_info2)
+bool dap_chain_node_info_addr_match(dap_chain_node_info_t *a_node_info1, dap_chain_node_info_t *a_node_info2)
 {
-    if(!node_info1 || !node_info2) {
+    if(!a_node_info1 || !a_node_info2) {
         return false;
     }
     //if(memcmp(&node_info1->hdr.address, &node_info2->hdr.address, sizeof(dap_chain_addr_t))) {
     //    return false;
     //}
-    if(memcmp(&node_info1->hdr.ext_addr_v6, &node_info2->hdr.ext_addr_v6, sizeof(struct in6_addr)) ||
-            memcmp(&node_info1->hdr.ext_addr_v4, &node_info2->hdr.ext_addr_v4, sizeof(struct in_addr)) ||
-            (node_info1->hdr.ext_port != node_info2->hdr.ext_port)) {
+    if(memcmp(&a_node_info1->hdr.ext_addr_v6, &a_node_info2->hdr.ext_addr_v6, sizeof(struct in6_addr)) ||
+            memcmp(&a_node_info1->hdr.ext_addr_v4, &a_node_info2->hdr.ext_addr_v4, sizeof(struct in_addr)) ||
+            (a_node_info1->hdr.ext_port != a_node_info2->hdr.ext_port)) {
         return false;
     }
     return true;
@@ -148,7 +148,7 @@ bool dap_chain_node_info_addr_match(dap_chain_node_info_t *node_info1, dap_chain
  * @param node_info
  * @return
  */
-int dap_chain_node_info_save(dap_chain_net_t * a_net, dap_chain_node_info_t *a_node_info)
+int dap_chain_node_info_save(dap_chain_net_t *a_net, dap_chain_node_info_t *a_node_info)
 {
     if(!a_node_info || !a_node_info->hdr.address.uint64){
         log_it(L_ERROR,"Can't save node info: %s", a_node_info? "null address":"null object" );
@@ -172,7 +172,7 @@ int dap_chain_node_info_save(dap_chain_net_t * a_net, dap_chain_node_info_t *a_n
 /**
  * Read node from base
  */
-dap_chain_node_info_t* dap_chain_node_info_read( dap_chain_net_t * a_net,dap_chain_node_addr_t *l_address)
+dap_chain_node_info_t* dap_chain_node_info_read( dap_chain_net_t *a_net,dap_chain_node_addr_t *l_address)
 {
     char *l_key = dap_chain_node_addr_to_hash_str(l_address);
     if(!l_key) {
