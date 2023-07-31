@@ -27,18 +27,26 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "http_status_code.h"
 
 #define LOG_TAG "dap_chain_net_balancer"
+
+static int callback_compare_node_list(const void * a_item1, const void * a_item2, void *a_unused)
+{
+    UNUSED(a_unused);
+    dap_chain_node_info_t *l_item1 = (dap_chain_node_info_t*) a_item1;
+    dap_chain_node_info_t *l_item2 = (dap_chain_node_info_t*) a_item2;
+    if(!l_item1 || !l_item2 || l_item1->hdr.links_number == l_item2->hdr.links_number)
+        return 0;
+    if(l_item1->hdr.links_number > l_item2->hdr.links_number)
+        return 1;
+    return -1;
+}
+
 dap_chain_node_info_t *dap_chain_net_balancer_get_node(const char *a_net_name)
 {
     dap_list_t *l_node_addr_list = NULL,*l_objs_list = NULL;
     dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
     if (l_net == NULL) {
-        uint16_t l_nets_count;
-        dap_chain_net_t **l_nets = dap_chain_net_list(&l_nets_count);
-        if (!l_nets_count) {
-            log_it(L_WARNING, "No chain network present");
-            return NULL;
-        }
-        l_net = l_nets[rand() % l_nets_count];
+        log_it(L_WARNING, "There isn't any network by this name - %s", a_net_name);
+        return NULL;
     }
     // get nodes list from global_db
     dap_global_db_obj_t *l_objs = NULL;
@@ -73,6 +81,7 @@ dap_chain_node_info_t *dap_chain_net_balancer_get_node(const char *a_net_name)
         }
     }
     dap_list_free(l_node_addr_list);
+    l_objs_list = dap_list_sort(l_objs_list, callback_compare_node_list);
     l_nodes_selected_count = l_node_num;
     dap_chain_node_info_t *l_node_candidate;
     if(l_nodes_selected_count)
