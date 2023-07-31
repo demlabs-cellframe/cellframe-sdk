@@ -163,7 +163,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                              const char *a_ticker,
                              dap_string_t *a_str_out,
                              const char *a_hash_out_type,
-                             dap_hash_fast_t *a_tx_hash
+                             dap_hash_fast_t *a_tx_hash,
                              SOCKET newsockfd);
 
 json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum);
