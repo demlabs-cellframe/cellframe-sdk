@@ -130,7 +130,7 @@ int com_tx_verify(int a_argc, char ** a_argv, char **a_str_reply);
  *
  * Transaction history for an address
  */
-int com_tx_history(int a_argc, char **a_argv, SOCKET newsockfd char **a_str_reply);
+int com_tx_history(int a_argc, char **a_argv, SOCKET newsockfd, char **a_str_reply);
 
 // Print log info
 int com_print_log(int a_argc, char **a_argv, char **a_str_reply);
