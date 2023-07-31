@@ -2782,14 +2782,22 @@ static bool dap_chain_mempool_find_addr_ledger(dap_ledger_t* a_ledger, dap_chain
  * @param a_str_tmp
  * @param a_hash_out_type
  */
-void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a_chain, const char * a_add, dap_string_t * a_str_tmp, const char *a_hash_out_type, bool a_fast){
+void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a_chain, const char * a_add, dap_string_t * a_str_tmp, const char *a_hash_out_type, bool a_fast, SOCKET *newsockfd){
     int l_removed = 0;
     dap_chain_mempool_filter(a_chain, &l_removed);
-    dap_string_append_printf(a_str_tmp, "Removed %i records from the %s chain mempool in %s network. \n\n",
+
+     a_str_tmp->str = dap_strdup_printf("Removed %i records from the %s chain mempool in %s network. \n\n",
                              l_removed, a_chain->name, a_net->pub.name);
+    dap_cli_server_cmd_reply_send(*newsockfd, a_str_tmp->str);
+    DAP_DEL_Z(a_str_tmp->str);
+    a_str_tmp->len = 0; 
+    
     char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     if(!l_gdb_group_mempool){
-        dap_string_append_printf(a_str_tmp, "%s.%s: chain not found\n", a_net->pub.name, a_chain->name);
+        a_str_tmp->str = dap_strdup_printf("%s.%s: chain not found\n", a_net->pub.name, a_chain->name);
+        dap_cli_server_cmd_reply_send(*newsockfd, a_str_tmp->str);
+        DAP_DEL_Z(a_str_tmp->str);
+        a_str_tmp->len = 0; 
     }else{
         size_t l_objs_size = 0;
         size_t l_objs_addr = 0;
@@ -2863,18 +2871,24 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                 if(!l_f_found)
                     continue;
             }
-            if (l_printed_smth)
-                dap_string_append_printf(a_str_tmp, "=========================================================\n");
+            if (l_printed_smth) {
+                a_str_tmp->str = dap_strdup_printf("=========================================================\n");
+                dap_cli_server_cmd_reply_send(*newsockfd, a_str_tmp->str);
+                a_str_tmp->len = 0; 
+            }
             l_printed_smth = true;
             char buf[50] = {[0]='\0'};
             dap_hash_fast_t l_data_hash;
             char l_data_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {[0]='\0'};
             dap_hash_fast(l_datum->data,l_datum->header.data_size,&l_data_hash);
             dap_hash_fast_to_str(&l_data_hash,l_data_hash_str,DAP_CHAIN_HASH_FAST_STR_SIZE);
-            if (strcmp(l_data_hash_str, l_objs[i].key))
-                            dap_string_append_printf(a_str_tmp,
-                                                     "WARNING: key field in DB %s does not match datum's hash %s\n",
+            if (strcmp(l_data_hash_str, l_objs[i].key)) {
+                a_str_tmp->str = dap_strdup_printf("WARNING: key field in DB %s does not match datum's hash %s\n",
                                                      l_objs[i].key, l_data_hash_str);
+                dap_cli_server_cmd_reply_send(*newsockfd, a_str_tmp->str);
+                DAP_DEL_Z(a_str_tmp->str);
+                a_str_tmp->len = 0; 
+            }
             const char *l_type = NULL;
             DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type)
             const char *l_token_ticker = NULL;
@@ -2889,25 +2903,36 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                     }
                 }
             }
-            dap_string_append_printf(a_str_tmp,
-                                                 "%s: type_id=%s%s%s%s data_size=%u ts_create=%s", // \n included in timestamp
-                                                 l_data_hash_str, l_type, l_is_unchained ? "(unchainned)" : "",
-                                                 l_datum->header.type_id == DAP_CHAIN_DATUM_TX ? " ticker=" : "",
-                                                 l_token_ticker ? l_token_ticker :
-                                                                  (l_datum->header.type_id == DAP_CHAIN_DATUM_TX ) ? "UNKNOWN" : "",
-                                                 l_datum->header.data_size,
-                                                 dap_ctime_r(&l_ts_create, buf));
+            
+            a_str_tmp->str = dap_strdup_printf("%s: type_id=%s%s%s%s data_size=%u ts_create=%s", // \n included in timestamp
+                                                l_data_hash_str, l_type, l_is_unchained ? "(unchainned)" : "",
+                                                l_datum->header.type_id == DAP_CHAIN_DATUM_TX ? " ticker=" : "",
+                                                l_token_ticker ? l_token_ticker :
+                                                                (l_datum->header.type_id == DAP_CHAIN_DATUM_TX ) ? "UNKNOWN" : "",
+                                                l_datum->header.data_size,
+                                                dap_ctime_r(&l_ts_create, buf));
+            dap_cli_server_cmd_reply_send(*newsockfd, a_str_tmp->str);
+            DAP_DEL_Z(a_str_tmp->str);
+            a_str_tmp->len = 0;
+
             if (!a_fast)
                 dap_chain_datum_dump(a_str_tmp, l_datum, a_hash_out_type);
         }
-        if(a_add)
-            dap_string_append_printf(a_str_tmp, l_objs_addr
+        if(a_add) {
+            a_str_tmp->str = dap_strdup_printf(l_objs_addr
                                      ? "%s.%s: Total %zu records\n"
                                      : "%s.%s: No records\n", a_net->pub.name, a_chain->name, l_objs_addr);
-        else
-            dap_string_append_printf(a_str_tmp, l_objs_size
+                dap_cli_server_cmd_reply_send(*newsockfd, a_str_tmp->str);
+                DAP_DEL_Z(a_str_tmp->str);
+                a_str_tmp->len = 0; 
+        } else {
+            a_str_tmp->str = dap_strdup_printf(l_objs_size
                                  ? "%s.%s: Total %zu records\n"
                                  : "%s.%s: No records\n", a_net->pub.name, a_chain->name, l_objs_size);
+                dap_cli_server_cmd_reply_send(*newsockfd, a_str_tmp->str);
+                DAP_DEL_Z(a_str_tmp->str);
+                a_str_tmp->len = 0; 
+        }
         dap_global_db_objs_delete(l_objs, l_objs_size);
         DAP_DELETE(l_gdb_group_mempool);
     }
@@ -2921,7 +2946,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
  * @param str_reply
  * @return
  */
-int com_mempool_list(int a_argc, char **a_argv, char **a_str_reply)
+int com_mempool_list(int a_argc, char **a_argv, SOCKET *newsockfd char **a_str_reply)
 {
     int arg_index = 1;
     dap_chain_t * l_chain = NULL;
@@ -2945,11 +2970,11 @@ int com_mempool_list(int a_argc, char **a_argv, char **a_str_reply)
 
     dap_string_t * l_str_tmp = dap_string_new(NULL);
     if(l_chain)
-        s_com_mempool_list_print_for_chain(l_net, l_chain, l_addr_base58, l_str_tmp, l_hash_out_type, l_fast);
+        s_com_mempool_list_print_for_chain(l_net, l_chain, l_addr_base58, l_str_tmp, l_hash_out_type, l_fast, newsockfd);
     else
         DL_FOREACH(l_net->pub.chains, l_chain)
-                s_com_mempool_list_print_for_chain(l_net, l_chain, l_addr_base58, l_str_tmp, l_hash_out_type, l_fast);
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
+                s_com_mempool_list_print_for_chain(l_net, l_chain, l_addr_base58, l_str_tmp, l_hash_out_type, l_fast, newsockfd);
+    dap_cli_server_cmd_reply_send(*newsockfd, "ENDLONG");
     dap_string_free(l_str_tmp, true);
     return 0;
 }
@@ -5581,7 +5606,7 @@ int com_tx_verify(int a_argc, char **a_argv, char **a_str_reply)
  * @param a_str_reply
  * @return int
  */
-int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
+int com_tx_history(int a_argc, char ** a_argv, SOCKET *newsockfd, char **a_str_reply)
 {
     int arg_index = 1;
     const char *l_addr_base58 = NULL;
@@ -5589,6 +5614,7 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
     const char *l_net_str = NULL;
     const char *l_chain_str = NULL;
     const char *l_tx_hash_str = NULL;
+    bool long_output = false;
 
     dap_chain_t * l_chain = NULL;
     dap_chain_net_t * l_net = NULL;
@@ -5725,14 +5751,20 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
                         dap_hash_fast(l_tx, l_datums[i]->header.data_size, &l_ttx_hash);
                         const char *l_token_ticker = NULL;
                         if ((l_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_ttx_hash))) {
-                            dap_string_append_printf(l_tx_all_str, "\t\t↓↓↓ Ledger accepted ↓↓↓\n");
+                              l_tx_all_str->str = dap_strdup_printf("\t\t↓↓↓ Ledger accepted ↓↓↓\n");
+                            dap_cli_server_cmd_reply_send(*newsockfd, l_tx_all_str->str);
+                            DAP_DEL_Z(l_tx_all_str->str);
+                            l_tx_all_str->len = 0;
                             l_tx_ledger_accepted++;
                         } else {
                             l_token_ticker = s_tx_get_main_ticker(l_tx, l_net, NULL);
-                            dap_string_append_printf(l_tx_all_str, "\t\t↓↓↓ Ledger rejected ↓↓↓\n");
+                            l_tx_all_str->str = dap_strdup_printf("\t\t↓↓↓ Ledger rejected ↓↓↓\n");
+                            dap_cli_server_cmd_reply_send(*newsockfd, l_tx_all_str->str);
+                            DAP_DEL_Z(l_tx_all_str->str);
+                            l_tx_all_str->len = 0;
                             l_tx_ledger_rejected++;
                         }
-                        dap_chain_datum_dump_tx(l_tx, l_token_ticker, l_tx_all_str, l_hash_out_type, &l_ttx_hash);
+                        long_output = dap_chain_datum_dump_tx(l_tx, l_token_ticker, l_tx_all_str, l_hash_out_type, &l_ttx_hash, *newsockfd);
                     }
                 }
                 DAP_DEL_Z(l_datums);
@@ -5743,12 +5775,13 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
         l_time_T = dap_time_now();
         dap_time_to_str_rfc822(out,80, l_time_T);
         log_it(L_DEBUG, "END getting tx from chain: %s", out);
-        dap_string_append_printf(l_tx_all_str, "Chain %s in network %s contains %zu transactions.\n"
+
+        l_tx_all_str->str = dap_strdup_printf("Chain %s in network %s contains %zu transactions.\n"
                                                "Of which %zu were accepted into the ledger and %zu were rejected.\n",
                                  l_net->pub.name, l_chain->name, l_tx_count, l_tx_ledger_accepted, l_tx_ledger_rejected);
-
-        l_str_out = l_str_out ? dap_strdup_printf("%s%s", l_str_out, dap_strdup(l_tx_all_str->str)) : dap_strdup(l_tx_all_str->str);
+        dap_cli_server_cmd_reply_send(*newsockfd, l_tx_all_str->str);
         dap_string_free(l_tx_all_str, true);
+        dap_cli_server_cmd_reply_send(*newsockfd, "ENDLONG");
     }
 
     char *l_str_ret = NULL;
@@ -5760,8 +5793,11 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
         DAP_DELETE(l_str_out);
     } else
         l_str_ret = l_str_out;
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ret);
-    DAP_DELETE(l_str_ret);
+
+    if (l_str_ret) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ret);
+        DAP_DELETE(l_str_ret);
+    }
     return 0;
 }
 

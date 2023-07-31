@@ -209,6 +209,25 @@ void s_datum_token_dump_tsd(dap_string_t *a_str_out, dap_chain_datum_token_t *a_
 }
 
 /**
+ * @brief if newsockfd -1 the reply is merged into a_str_out, otherwise the reply is directly send on newsockfd
+ * @param newsockfd 
+ * @param a_str_out 
+ * @param format 
+*/
+void dap_chain_datum_dump_tx_reply_send(SOCKET newsockfd, dap_string_t *a_str_out, const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    if (newsockfd == -1) {
+        dap_string_append_vprintf(a_str_out, format, args);
+    } else if (newsockfd) {
+        a_str_out->str = dap_strdup_printf(format, args);
+        dap_cli_server_cmd_reply_send(newsockfd, a_str_out->str);
+        a_str_out->len = 0;
+    }
+    va_end(args);
+}
+
+/**
  * @brief _dap_chain_datum_tx_out_data
  *
  * @param a_datum
@@ -223,7 +242,8 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                              const char *a_ticker,
                              dap_string_t *a_str_out,
                              const char *a_hash_out_type,
-                             dap_hash_fast_t *a_tx_hash)
+                             dap_hash_fast_t *a_tx_hash
+                             SOCKET newsockfd)
 {
     dap_time_t l_ts_create = (dap_time_t)a_datum->header.ts_created;
     bool l_is_first = false;
@@ -234,7 +254,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
     char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
             ? dap_enc_base58_encode_hash_to_str(a_tx_hash)
             : dap_chain_hash_fast_to_str_new(a_tx_hash);
-    dap_string_append_printf(a_str_out, "transaction:%s hash %s\n TS Created: %s%s%s\n Items:\n",
+    dap_chain_datum_dump_tx_reply_send(newsockfd, a_str_out, "transaction:%s hash %s\n TS Created: %s%s%s\n Items:\n",
                               l_is_first ? " (emit)" : "", l_hash_str, dap_ctime_r(&l_ts_create, l_tmp_buf),
                               a_ticker ? " Token ticker: " : "", a_ticker ? a_ticker : "");
     DAP_DELETE(l_hash_str);
@@ -256,7 +276,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                         ? dap_enc_base58_encode_hash_to_str(l_hash_tmp)
                         : dap_chain_hash_fast_to_str_new(l_hash_tmp);
             }
-            dap_string_append_printf(a_str_out, "\t IN:\nTx_prev_hash: %s\n"
+            dap_chain_datum_dump_tx_reply_send(newsockfd, a_str_out, "\t IN:\nTx_prev_hash: %s\n"
                                                 "\t\t Tx_out_prev_idx: %u\n",
                                         l_hash_str,
                                         ((dap_chain_tx_in_t*)item)->header.tx_out_prev_idx);
@@ -266,7 +286,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
             char *l_value_str = dap_chain_balance_to_coins(dap_chain_uint256_from(
                                                                ((dap_chain_tx_out_old_t*)item)->header.value));
             char *l_addr_str = dap_chain_addr_to_str(&((dap_chain_tx_out_old_t*)item)->addr);
-            dap_string_append_printf(a_str_out, "\t OUT OLD (64):\n"
+            dap_chain_datum_dump_tx_reply_send(newsockfd, a_str_out, "\t OUT OLD (64):\n"
                                                 "\t\t Value: %s (%"DAP_UINT64_FORMAT_U")\n"
                                                 "\t\t Address: %s\n",
                                         l_value_str,
@@ -279,7 +299,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
             char *l_value_str = dap_chain_balance_print(((dap_chain_tx_out_t*)item)->header.value);
             char *l_coins_str = dap_chain_balance_to_coins(((dap_chain_tx_out_t*)item)->header.value);
             char *l_addr_str = dap_chain_addr_to_str(&((dap_chain_tx_out_t*)item)->addr);
-            dap_string_append_printf(a_str_out, "\t OUT:\n"
+            dap_chain_datum_dump_tx_reply_send(newsockfd, a_str_out, "\t OUT:\n"
                                                 "\t\t Value: %s (%s)\n"
                                                 "\t\t Address: %s\n",
                                         l_coins_str,
@@ -294,7 +314,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
             l_hash_str = dap_strcmp(a_hash_out_type, "hex")
                     ? dap_enc_base58_encode_hash_to_str(l_hash_tmp)
                     : dap_chain_hash_fast_to_str_new(l_hash_tmp);
-            dap_string_append_printf(a_str_out, "\t IN_EMS:\n"
+            dap_chain_datum_dump_tx_reply_send(newsockfd, a_str_out, "\t IN_EMS:\n"
                                                 "\t\t ticker: %s \n"
                                                 "\t\t token_emission_hash: %s\n"
                                                 "\t\t token_emission_chain_id: 0x%016"DAP_UINT64_FORMAT_x"\n",
@@ -308,7 +328,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
             l_hash_str = dap_strcmp(a_hash_out_type, "hex")
                     ? dap_enc_base58_encode_hash_to_str(l_hash_tmp)
                     : dap_chain_hash_fast_to_str_new(l_hash_tmp);
-            dap_string_append_printf(a_str_out, "\t IN_EMS EXT:\n"
+            dap_chain_datum_dump_tx_reply_send(newsockfd, a_str_out, "\t IN_EMS EXT:\n"
                                          "\t\t Version: %u\n"
                                          "\t\t Ticker: %s\n"
                                          "\t\t Ext chain id: 0x%016"DAP_UINT64_FORMAT_x"\n"
@@ -332,7 +352,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                         ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.value_datoshi);
             char *l_coins_str = dap_chain_balance_to_coins(
                         ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.value_datoshi);
-            dap_string_append_printf(a_str_out, "\t Receipt:\n"
+            dap_chain_datum_dump_tx_reply_send(newsockfd, a_str_out, "\t Receipt:\n"
                                                 "\t\t size: %"DAP_UINT64_FORMAT_U"\n"
                                                 "\t\t ext size: %"DAP_UINT64_FORMAT_U"\n"
                                                 "\t\t Info:"
@@ -367,10 +387,10 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                 memcpy(l_client,
                        ((dap_chain_datum_tx_receipt_t*)item)->exts_n_signs + sizeof(dap_sign_t),
                        sizeof(dap_sign_t));
-                dap_string_append_printf(a_str_out, "Exts:\n"
+                dap_chain_datum_dump_tx_reply_send(newsockfd, a_str_out, "Exts:\n"
                                                     "   Provider:\n");
                 dap_sign_get_information(l_provider, a_str_out, a_hash_out_type);
-                dap_string_append_printf(a_str_out, "   Client:\n");
+                dap_chain_datum_dump_tx_reply_send(newsockfd, a_str_out, "   Client:\n");
                 dap_sign_get_information(l_client, a_str_out, a_hash_out_type);
             } else if (((dap_chain_datum_tx_receipt_t*)item)->exts_size == sizeof(dap_sign_t)) {
                 dap_sign_t *l_provider = DAP_NEW_Z(dap_sign_t);
@@ -381,7 +401,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                     return false;
                 }
                 memcpy(l_provider, ((dap_chain_datum_tx_receipt_t*)item)->exts_n_signs, sizeof(dap_sign_t));
-                dap_string_append_printf(a_str_out, "Exts:\n"
+                dap_chain_datum_dump_tx_reply_send(newsockfd, a_str_out, "Exts:\n"
                                                     "   Provider:\n");
                 dap_sign_get_information(l_provider, a_str_out, a_hash_out_type);
             }
@@ -395,7 +415,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
             l_hash_str = dap_strcmp(a_hash_out_type, "hex")
                     ? dap_enc_base58_encode_hash_to_str(&l_pkey_hash_tmp)
                     : dap_chain_hash_fast_to_str_new(&l_pkey_hash_tmp);
-            dap_string_append_printf(a_str_out, "\t PKey: \n"
+            dap_chain_datum_dump_tx_reply_send(newsockfd, a_str_out, "\t PKey: \n"
                                                 "\t\t SIG type: %s\n"
                                                 "\t\t SIG size: %u\n"
                                                 "\t\t Sequence number: %u \n"
@@ -412,7 +432,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
             DAP_DELETE(l_hash_str);
         } break;
         case TX_ITEM_TYPE_TSD: {
-            dap_string_append_printf(a_str_out, "\t TSD data: \n"
+            dap_chain_datum_dump_tx_reply_send(newsockfd, a_str_out, "\t TSD data: \n"
                                                 "\t\t type: %d\n"
                                                 "\t\t size: %lu\n",
                                      ((dap_chain_tx_tsd_t*)item)->header.type,
@@ -423,7 +443,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
             l_hash_str = dap_strcmp(a_hash_out_type, "hex")
                     ? dap_enc_base58_encode_hash_to_str(l_hash_tmp)
                     : dap_chain_hash_fast_to_str_new(l_hash_tmp);
-            dap_string_append_printf(a_str_out, "\t IN COND:\n\t\tReceipt_idx: %u\n"
+            dap_chain_datum_dump_tx_reply_send(newsockfd, a_str_out, "\t IN COND:\n\t\tReceipt_idx: %u\n"
                                                 "\t\t Tx_prev_hash: %s\n"
                                                 "\t\t Tx_out_prev_idx: %u\n",
                                      ((dap_chain_tx_in_cond_t*)item)->header.receipt_idx,
@@ -435,7 +455,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
             char *l_value_str = dap_chain_balance_print(((dap_chain_tx_out_cond_t*)item)->header.value);
             char *l_coins_str = dap_chain_balance_to_coins(((dap_chain_tx_out_cond_t*)item)->header.value);
             dap_time_t l_ts_exp = ((dap_chain_tx_out_cond_t*)item)->header.ts_expires;
-            dap_string_append_printf(a_str_out, "\t OUT COND:\n"
+            dap_chain_datum_dump_tx_reply_send(newsockfd, a_str_out, "\t OUT COND:\n"
                                                 "\t Header:\n"
                                                 "\t\t ts_expires: %s"
                                                 "\t\t value: %s (%s)\n"
@@ -455,7 +475,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                     l_hash_str = dap_strcmp(a_hash_out_type, "hex")
                             ? dap_enc_base58_encode_hash_to_str(l_hash_tmp)
                             : dap_chain_hash_fast_to_str_new(l_hash_tmp);
-                    dap_string_append_printf(a_str_out, "\t\t\t unit: 0x%08x\n"
+                    dap_chain_datum_dump_tx_reply_send(newsockfd, a_str_out, "\t\t\t unit: 0x%08x\n"
                                                         "\t\t\t pkey: %s\n"
                                                         "\t\t\t max price: %s (%s)\n",
                                              ((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit.uint32,
@@ -474,7 +494,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                     l_hash_str = dap_strcmp(a_hash_out_type, "hex")
                             ? dap_enc_base58_encode_hash_to_str(l_hash_tmp)
                             : dap_chain_hash_fast_to_str_new(l_hash_tmp);
-                    dap_string_append_printf(a_str_out, "\t\t\t signing_addr: %s\n"
+                    dap_chain_datum_dump_tx_reply_send(newsockfd, a_str_out, "\t\t\t signing_addr: %s\n"
                                                         "\t\t\t with pkey hash %s\n"
                                                         "\t\t\t signer_node_addr: "NODE_ADDR_FP_STR"\n",
                                                         l_addr_str,
@@ -486,7 +506,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE: {
                     char *l_value_str = dap_chain_balance_print(((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_value);
                     char *l_coins_str = dap_chain_balance_to_coins(((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_value);
-                    dap_string_append_printf(a_str_out, "\t\t\t net id: 0x%016"DAP_UINT64_FORMAT_x"\n"
+                    dap_chain_datum_dump_tx_reply_send(newsockfd, a_str_out, "\t\t\t net id: 0x%016"DAP_UINT64_FORMAT_x"\n"
                                                         "\t\t\t buy_token: %s\n"
                                                         "\t\t\t buy_value: %s (%s)\n",
                                              ((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_net_id.uint64,
@@ -498,7 +518,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                 } break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK: {
                     dap_time_t l_ts_exp = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_lock.time_unlock;
-                    dap_string_append_printf(a_str_out, "\t\t\t time_unlock %s\n",
+                    dap_chain_datum_dump_tx_reply_send(newsockfd, a_str_out, "\t\t\t time_unlock %s\n",
                                              dap_ctime_r(&l_ts_exp, l_tmp_buf));
                 } break;
                 default: break;
@@ -508,7 +528,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
             char *l_value_str = dap_chain_balance_print(((dap_chain_tx_out_ext_t*)item)->header.value);
             char *l_coins_str = dap_chain_balance_to_coins(((dap_chain_tx_out_ext_t*)item)->header.value);
             char *l_addr_str = dap_chain_addr_to_str(&((dap_chain_tx_out_ext_t*)item)->addr);
-            dap_string_append_printf(a_str_out, "\t OUT EXT:\n"
+            dap_chain_datum_dump_tx_reply_send(newsockfd, a_str_out, "\t OUT EXT:\n"
                                                 "\t\t Addr: %s\n"
                                                 "\t\t Token: %s\n"
                                                 "\t\t Value: %s (%s)\n",
@@ -521,7 +541,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
             DAP_DELETE(l_coins_str);
         } break;
         default:
-            dap_string_append_printf(a_str_out, " This transaction have unknown item type \n");
+            dap_chain_datum_dump_tx_reply_send(newsockfd, a_str_out, " This transaction have unknown item type \n");
             break;
         }
         l_tx_items_count += l_item_tx_size;
@@ -532,7 +552,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
         }
 
     }
-    dap_string_append_printf(a_str_out, "\n");
+    dap_chain_datum_dump_tx_reply_send(newsockfd, a_str_out, "\n");
     return true;
 }
 
@@ -731,7 +751,7 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
         } break;
         case DAP_CHAIN_DATUM_TX: {
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)a_datum->data;
-            dap_chain_datum_dump_tx(l_tx, NULL, a_str_out, a_hash_out_type, &l_datum_hash);
+            dap_chain_datum_dump_tx(l_tx, NULL, a_str_out, a_hash_out_type, &l_datum_hash, -1);
         } break;
         case DAP_CHAIN_DATUM_DECREE:{
             dap_chain_datum_decree_t *l_decree = (dap_chain_datum_decree_t *)a_datum->data;

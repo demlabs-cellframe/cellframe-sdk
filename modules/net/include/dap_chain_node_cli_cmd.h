@@ -130,7 +130,7 @@ int com_tx_verify(int a_argc, char ** a_argv, char **a_str_reply);
  *
  * Transaction history for an address
  */
-int com_tx_history(int a_argc, char **a_argv, char **a_str_reply);
+int com_tx_history(int a_argc, char **a_argv, SOCKET newsockfd char **a_str_reply);
 
 // Print log info
 int com_print_log(int a_argc, char **a_argv, char **a_str_reply);
@@ -144,7 +144,7 @@ int cmd_gdb_import(int a_argc, char **a_argv, char **a_str_reply);
 int cmd_gdb_export(int a_argc, char **a_argv, char **a_str_reply);
 
 int com_mempool_delete(int a_argc, char **a_argv, char **a_str_reply);
-int com_mempool_list(int a_argc, char **a_argv, char **a_str_reply);
+int com_mempool_list(int a_argc, char **a_argv, SOCKET newsockfd, char **a_str_reply);
 int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply);
 int com_mempool_proc_all(int argc, char ** argv, char ** a_str_reply);
 int com_mempool_check(int a_argc, char **a_argv, char **a_str_reply);
