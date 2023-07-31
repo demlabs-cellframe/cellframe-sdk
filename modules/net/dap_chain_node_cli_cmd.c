@@ -2946,7 +2946,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
  * @param str_reply
  * @return
  */
-int com_mempool_list(int a_argc, char **a_argv, SOCKET *newsockfd char **a_str_reply)
+int com_mempool_list(int a_argc, char **a_argv, SOCKET *newsockfd, char **a_str_reply)
 {
     int arg_index = 1;
     dap_chain_t * l_chain = NULL;
