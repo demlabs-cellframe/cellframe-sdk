@@ -644,7 +644,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
  * @param a_str_reply
  * @return int
  */
-int com_ledger(int a_argc, char ** a_argv, SOCKET newsockfd, char **a_str_reply)
+int com_ledger(int a_argc, char ** a_argv, SOCKET *newsockfd, char **a_str_reply)
 {
     enum { CMD_NONE, CMD_LIST, CMD_LEDGER_HISTORY, CMD_TX_INFO };
     int arg_index = 1;

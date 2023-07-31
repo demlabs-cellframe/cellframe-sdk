@@ -2874,6 +2874,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
             if (l_printed_smth) {
                 a_str_tmp->str = dap_strdup_printf("=========================================================\n");
                 dap_cli_server_cmd_reply_send(*newsockfd, a_str_tmp->str);
+                a_str_tmp->str = dap_strdup_printf("");
                 a_str_tmp->len = 0; 
             }
             l_printed_smth = true;
@@ -5614,7 +5615,6 @@ int com_tx_history(int a_argc, char ** a_argv, SOCKET *newsockfd, char **a_str_r
     const char *l_net_str = NULL;
     const char *l_chain_str = NULL;
     const char *l_tx_hash_str = NULL;
-    bool long_output = false;
 
     dap_chain_t * l_chain = NULL;
     dap_chain_net_t * l_net = NULL;
@@ -5764,7 +5764,7 @@ int com_tx_history(int a_argc, char ** a_argv, SOCKET *newsockfd, char **a_str_r
                             l_tx_all_str->len = 0;
                             l_tx_ledger_rejected++;
                         }
-                        long_output = dap_chain_datum_dump_tx(l_tx, l_token_ticker, l_tx_all_str, l_hash_out_type, &l_ttx_hash, *newsockfd);
+                        dap_chain_datum_dump_tx(l_tx, l_token_ticker, l_tx_all_str, l_hash_out_type, &l_ttx_hash, *newsockfd);
                     }
                 }
                 DAP_DEL_Z(l_datums);
