@@ -76,6 +76,11 @@ dap_chain_datum_tx_receipt_t *dap_chain_datum_tx_receipt_sign_add(dap_chain_datu
     }
     dap_chain_datum_tx_receipt_t *l_receipt = (dap_chain_datum_tx_receipt_t *)
                                                 DAP_REALLOC(a_receipt, a_receipt->size + l_sign_size);
+    if (!l_receipt)
+    {
+        DAP_DELETE(l_sign);
+        return NULL;
+    }
     memcpy((byte_t *)l_receipt + l_receipt->size, l_sign, l_sign_size);
     l_receipt->size += l_sign_size;
     DAP_DELETE(l_sign);

@@ -4430,9 +4430,9 @@ static inline int s_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, d
     size_t l_cache_size = sizeof(dap_store_obj_t) * (l_outs_used + 1);
     dap_store_obj_t *l_cache_used_outs = DAP_NEW_Z_SIZE(dap_store_obj_t, l_cache_size);
     if ( !l_cache_used_outs ) {
-        if (l_item_tmp->tx)
-            DAP_DELETE(l_item_tmp->tx);
         if (l_item_tmp)
+            if (l_item_tmp->tx)
+                DAP_DELETE(l_item_tmp->tx);
             DAP_DELETE(l_item_tmp);
         log_it(L_ERROR, "Memory allocation error in s_tx_add");
         return -1;

@@ -42,7 +42,7 @@ dap_chain_node_info_t *dap_chain_net_balancer_get_node(const char *a_net_name)
     }
     // get nodes list from global_db
     dap_global_db_obj_t *l_objs = NULL;
-    size_t l_nodes_count = 0;
+    size_t l_nodes_count = 0, l_nodes_selected_count = 0;
     size_t l_node_num = 0;
     // read all node
     l_objs = dap_global_db_get_all_sync(l_net->pub.gdb_nodes, &l_nodes_count);
@@ -52,7 +52,7 @@ dap_chain_node_info_t *dap_chain_net_balancer_get_node(const char *a_net_name)
     for(size_t i=0;i<l_nodes_count;i++)
     {
         bool l_check = true;
-        for(dap_list_t *node_i = l_node_addr_list;node_i;node_i = node_i->next)
+        for(dap_list_t *node_i = l_node_addr_list; node_i; node_i = node_i->next)
         {
             struct in_addr *l_node_addr_cfg = (struct in_addr*)node_i->data;
             dap_chain_node_info_t *l_node_cand = (dap_chain_node_info_t *)l_objs[i].value;
@@ -72,14 +72,13 @@ dap_chain_node_info_t *dap_chain_net_balancer_get_node(const char *a_net_name)
             l_node_num++;
         }
     }
-    dap_global_db_objs_delete(l_objs, l_nodes_count);
     dap_list_free(l_node_addr_list);
-    l_nodes_count = l_node_num;
+    l_nodes_selected_count = l_node_num;
     dap_chain_node_info_t *l_node_candidate;
-    if(l_nodes_count)
+    if(l_nodes_selected_count)
     {
-        l_node_num = rand() % l_nodes_count;
-        l_node_candidate = (dap_chain_node_info_t *)dap_list_nth_data(l_objs_list,l_node_num);
+        l_node_num = rand() % l_nodes_selected_count;
+        l_node_candidate = (dap_chain_node_info_t*)dap_list_nth_data(l_objs_list, l_node_num);
         dap_chain_node_info_t *l_node_info = DAP_NEW_Z(dap_chain_node_info_t);
         if (!l_node_info) {
             log_it(L_ERROR, "Memory allocation error in dap_chain_net_balancer_get_node");
@@ -88,12 +87,14 @@ dap_chain_node_info_t *dap_chain_net_balancer_get_node(const char *a_net_name)
         }
         memcpy(l_node_info, l_node_candidate, sizeof(dap_chain_node_info_t));
         dap_list_free(l_objs_list);
+        dap_global_db_objs_delete(l_objs, l_nodes_count);
         return l_node_info;
     }
     else
     {
         dap_list_free(l_objs_list);
-        log_it(L_DEBUG, "Node list is empty");
+        dap_global_db_objs_delete(l_objs, l_nodes_count);
+        log_it(L_ERROR, "Node list is empty");
         return NULL;
     }
 }
