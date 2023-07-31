@@ -242,7 +242,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                              const char *a_ticker,
                              dap_string_t *a_str_out,
                              const char *a_hash_out_type,
-                             dap_hash_fast_t *a_tx_hash
+                             dap_hash_fast_t *a_tx_hash,
                              SOCKET newsockfd)
 {
     dap_time_t l_ts_create = (dap_time_t)a_datum->header.ts_created;
