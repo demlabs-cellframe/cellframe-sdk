@@ -6746,6 +6746,7 @@ static uint8_t *s_concat_hash_and_mimetypes (dap_chain_hash_fast_t *a_chain_hash
     uint8_t *l_fullbuf = DAP_CALLOC(*a_fullsize, 1);
     if (!l_fullbuf) {
         log_it(L_ERROR, "Memory allocation error in s_concat_hash_and_mimetypes");
+        DAP_DELETE(l_buf);
         return NULL;
     }
     uint8_t *l_s = l_fullbuf;

@@ -139,14 +139,12 @@ lb_err:
         if (l_tokens_hold[i])
             DAP_DELETE(l_tokens_hold[i]);
     }
-    if (l_tokens_hold)
-        DAP_DELETE(l_tokens_hold);
-    if (l_pos_pvt->tokens_hold_value)
-        DAP_DELETE(l_pos_pvt->tokens_hold_value);
-    if (l_pos_pvt)
+    DAP_DEL_Z(l_tokens_hold);
+    if (l_pos_pvt) {
+        DAP_DEL_Z(l_pos_pvt->tokens_hold_value);
         DAP_DELETE(l_pos_pvt);
-    if (l_pos)
-        DAP_DELETE(l_pos);
+    }
+    DAP_DEL_Z(l_pos);
     l_blocks->_inheritor = NULL;
     l_blocks->callback_delete = NULL;
     l_blocks->callback_block_verify = NULL;
