@@ -739,7 +739,7 @@ bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const
 
     dap_client_set_auth_cert(a_node_client->client, a_node_client->net->pub.name);
 
-    char l_host_addr[INET6_ADDRSTRLEN];
+    char l_host_addr[INET6_ADDRSTRLEN] = { '\0' };
     if(a_node_client->info->hdr.ext_addr_v4.s_addr){
         struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = a_node_client->info->hdr.ext_addr_v4 };
         inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), l_host_addr, INET6_ADDRSTRLEN);
