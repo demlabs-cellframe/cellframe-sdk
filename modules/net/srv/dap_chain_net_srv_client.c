@@ -61,7 +61,7 @@ dap_chain_net_srv_client_t *dap_chain_net_srv_client_create_n_connect(dap_chain_
     }
     inet_pton(AF_INET, a_addr, &l_info->hdr.ext_addr_v4);
     l_info->hdr.ext_port = a_port;
-    const char l_channels[] = {dap_stream_ch_chain_net_srv_get_id(), '\0'};
+    const char l_channels[] = {DAP_STREAM_CH_ID_NET_SRV, '\0'};
     l_ret->node_client = dap_chain_node_client_create_n_connect(a_net, l_info,
                                                                 l_channels,
                                                                 &l_callbacks, l_ret);
@@ -75,8 +75,7 @@ ssize_t dap_chain_net_srv_client_write(dap_chain_net_srv_client_t *a_client, uin
     if (!a_client || !a_client->net_client || dap_client_get_stage(a_client->net_client) != STAGE_STREAM_STREAMING)
         return -1;
     if (a_type == DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST) {
-        dap_stream_ch_t *l_ch = dap_client_get_stream_ch_unsafe(a_client->net_client,
-                                                                dap_stream_ch_chain_net_srv_get_id());
+        dap_stream_ch_t *l_ch = dap_client_get_stream_ch_unsafe(a_client->net_client, DAP_STREAM_CH_ID_NET_SRV);
         dap_stream_ch_chain_net_srv_t *a_ch_chain = DAP_STREAM_CH_CHAIN_NET_SRV(l_ch);
         dap_stream_ch_chain_net_srv_pkt_request_t *l_request = (dap_stream_ch_chain_net_srv_pkt_request_t *)a_pkt_data;
         a_ch_chain->srv_uid.uint64 = l_request->hdr.srv_uid.uint64;

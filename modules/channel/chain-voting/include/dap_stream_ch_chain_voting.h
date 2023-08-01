@@ -13,6 +13,8 @@
 #define DAP_STREAM_CH_CHAIN_VOTING_PKT_TYPE_DATA        0x01
 #define DAP_STREAM_CH_CHAIN_VOTING_PKT_TYPE_TEST        0x02
 
+#define DAP_STREAM_CH_ID_VOTING 'V'
+
 typedef void (*dap_chain_voting_ch_callback_t)(void *a_arg, dap_chain_node_addr_t *a_sender_addr, dap_chain_node_addr_t *a_receiver_addr,
                                                dap_chain_hash_fast_t *a_data_hash, uint8_t *a_data, size_t a_data_size);
 

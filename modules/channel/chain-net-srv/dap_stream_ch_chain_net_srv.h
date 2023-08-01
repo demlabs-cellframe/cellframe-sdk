@@ -53,8 +53,8 @@ typedef struct dap_stream_ch_chain_net_srv {
 } dap_stream_ch_chain_net_srv_t;
 
 #define DAP_STREAM_CH_CHAIN_NET_SRV(a) ((dap_stream_ch_chain_net_srv_t *) ((a)->internal) )
+#define DAP_STREAM_CH_ID_NET_SRV 'R'
 
-uint8_t dap_stream_ch_chain_net_srv_get_id();
 int dap_stream_ch_chain_net_srv_init(void);
 
 void dap_stream_ch_chain_net_srv_tx_cond_added_cb(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
