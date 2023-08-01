@@ -1359,7 +1359,7 @@ bool dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_f
     }
     log_it(L_NOTICE, "Stream connection established");
 
-    uint8_t l_ch_id = dap_stream_ch_chain_net_get_id();
+    uint8_t l_ch_id = DAP_STREAM_CH_ID_NET;
     dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, l_ch_id);
 
     randombytes(l_test_data, sizeof(l_test_data));

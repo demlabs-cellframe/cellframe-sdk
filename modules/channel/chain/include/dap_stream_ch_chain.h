@@ -89,11 +89,11 @@ typedef struct dap_stream_ch_chain {
 #define DAP_STREAM_CH_CHAIN(a) ((dap_stream_ch_chain_t *) ((a)->internal) )
 #define DAP_STREAM_CH(a) ((dap_stream_ch_t *)((a)->_inheritor))
 #define DAP_CHAIN_PKT_EXPECT_SIZE 7168
+#define DAP_STREAM_CH_ID 'C'
 
 int dap_stream_ch_chain_init(void);
 void dap_stream_ch_chain_deinit(void);
 
-inline static uint8_t dap_stream_ch_chain_get_id(void) { return (uint8_t) 'C'; }
 void dap_stream_ch_chain_create_sync_request_gdb(dap_stream_ch_chain_t * a_ch_chain, dap_chain_net_t * a_net);
 void dap_stream_ch_chain_timer_start(dap_stream_ch_chain_t *a_ch_chain);
 void dap_stream_ch_chain_reset_unsafe(dap_stream_ch_chain_t *a_ch_chain);
