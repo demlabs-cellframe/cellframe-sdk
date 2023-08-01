@@ -847,9 +847,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
             l_price->net = l_net;
             l_price->net_name = dap_strdup(l_net->pub.name);
             uint256_t l_max_price = GET_256_FROM_64((uint64_t)MAX_VPN_UNIT_PRICE); // Change this value when max price wil be calculated
-            log_it(L_MSG, "[!] Create price for net %s", l_price->net_name);
             if (!compare256(l_order->price, uint256_0) || l_order->units == 0 ){
-                log_it(L_MSG, "[!] Zero price in order or no units");
                 DAP_DELETE(l_price);
                 continue;
             }
@@ -862,12 +860,11 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
                 DIV_256(l_price->value_datoshi,  GET_256_FROM_64(l_order->units), &l_price_unit);
                 if (compare256(l_price_unit, l_max_price)>0){
                     char *a = dap_chain_balance_print(l_price_unit), *b = dap_chain_balance_print(l_max_price);
-                    log_it(L_MSG, "[!] Error, unit price exeeds max permitted value: %s > %s", a, b);
+                    log_it(L_ERROR, "Unit price exeeds max permitted value: %s > %s", a, b);
                     DAP_DELETE(l_price);
                     continue;
                 }
             }
-            log_it(L_MSG, "Price added");
             l_price->wallet = l_wallet;
             DL_APPEND(a_srv->pricelist, l_price);
             break;
