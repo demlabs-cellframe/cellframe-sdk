@@ -1399,7 +1399,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
 
         log_it(L_NOTICE, "Stream connection established");
         dap_stream_ch_chain_sync_request_t l_sync_request = {};
-         dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, dap_stream_ch_chain_get_id());
+         dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, DAP_STREAM_CH_ID);
          // fill begin id
          l_sync_request.id_start = 1;
          // fill current node address
@@ -1409,7 +1409,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         if(!l_sync_request.node_addr.uint64 )
         {
             log_it(L_NOTICE, "Now get node addr");
-            uint8_t l_ch_id = dap_stream_ch_chain_net_get_id();
+            uint8_t l_ch_id = DAP_STREAM_CH_ID_NET;
             dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, l_ch_id);
 
             size_t res = dap_stream_ch_chain_net_pkt_write(l_ch_chain,

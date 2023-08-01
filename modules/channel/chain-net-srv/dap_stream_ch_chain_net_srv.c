@@ -49,11 +49,6 @@ typedef struct usages_in_grace{
     UT_hash_handle hh;
 } usages_in_grace_t;
 
-uint8_t dap_stream_ch_chain_net_srv_get_id()
-{
-    return 'R';
-}
-
 static void s_stream_ch_new(dap_stream_ch_t* ch , void* arg);
 static void s_stream_ch_delete(dap_stream_ch_t* ch , void* arg);
 static void s_stream_ch_packet_in(dap_stream_ch_t* ch , void* arg);
@@ -136,7 +131,7 @@ static pthread_mutex_t s_ht_grace_table_mutex;
 int dap_stream_ch_chain_net_srv_init(void)
 {
     log_it(L_NOTICE,"Chain network services channel initialized");
-    dap_stream_ch_proc_add(dap_stream_ch_chain_net_srv_get_id(),s_stream_ch_new,s_stream_ch_delete,s_stream_ch_packet_in,s_stream_ch_packet_out);
+    dap_stream_ch_proc_add(DAP_STREAM_CH_ID_NET_SRV, s_stream_ch_new,s_stream_ch_delete,s_stream_ch_packet_in,s_stream_ch_packet_out);
     pthread_mutex_init(&s_ht_grace_table_mutex, NULL);
 
     return 0;
@@ -352,8 +347,7 @@ static void s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
 static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
 {
     assert(a_grace);
-    dap_stream_ch_chain_net_srv_pkt_error_t l_err;
-    memset(&l_err, 0, sizeof(l_err));
+    dap_stream_ch_chain_net_srv_pkt_error_t l_err = { };
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(a_grace->stream_worker, a_grace->ch_uuid);
 
     if (!l_ch){

@@ -952,7 +952,7 @@ static int s_node_client_set_notify_callbacks(dap_client_t *a_client, uint8_t a_
         dap_stream_ch_t *l_ch = dap_client_get_stream_ch_unsafe(a_client, a_ch_id);
         if(l_ch) {
             // C
-            if(a_ch_id == dap_stream_ch_chain_get_id()) {
+            if(a_ch_id == DAP_STREAM_CH_ID) {
                 dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
                 l_ch_chain->callback_notify_packet_out = s_ch_chain_callback_notify_packet_out;
                 l_ch_chain->callback_notify_packet_in = s_ch_chain_callback_notify_packet_in;
@@ -961,7 +961,7 @@ static int s_node_client_set_notify_callbacks(dap_client_t *a_client, uint8_t a_
                 l_node_client->ch_chain_uuid = l_ch->uuid;
             }
             // N
-            if(a_ch_id == dap_stream_ch_chain_net_get_id()) {
+            if(a_ch_id == DAP_STREAM_CH_ID_NET) {
                 dap_stream_ch_chain_net_t *l_ch_chain = DAP_STREAM_CH_CHAIN_NET(l_ch);
                 l_ch_chain->notify_callback = s_ch_chain_callback_notify_packet_in2;
                 l_ch_chain->notify_callback_arg = l_node_client;
@@ -969,7 +969,7 @@ static int s_node_client_set_notify_callbacks(dap_client_t *a_client, uint8_t a_
                 l_node_client->ch_chain_net_uuid = l_ch->uuid;
             }
             // R
-            if(a_ch_id == dap_stream_ch_chain_net_srv_get_id()) {
+            if(a_ch_id == DAP_STREAM_CH_ID_NET_SRV) {
                 dap_stream_ch_chain_net_srv_t *l_ch_chain = DAP_STREAM_CH_CHAIN_NET_SRV(l_ch);
                 if (l_node_client->notify_callbacks.srv_pkt_in) {
                     l_ch_chain->notify_callback = (dap_stream_ch_chain_net_srv_callback_packet_t)

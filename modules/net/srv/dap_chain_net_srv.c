@@ -845,7 +845,9 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
             l_price->net = l_net;
             l_price->net_name = dap_strdup(l_net->pub.name);
             uint256_t l_max_price = GET_256_FROM_64((uint64_t)1000000000000000); // Change this value when max price wil be calculated
+            log_it(L_MSG, "[!] Create price for net %s", l_price->net_name);
             if (!compare256(l_order->price, uint256_0) || l_order->units == 0 ){
+                log_it(L_MSG, "[!] Zero price in order or no units");
                 DAP_DELETE(l_price);
                 continue;
             }
@@ -857,11 +859,13 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
                 uint256_t l_price_unit = uint256_0;
                 DIV_256(l_price->value_datoshi,  GET_256_FROM_64(l_order->units), &l_price_unit);
                 if (compare256(l_price_unit, l_max_price)>0){
+                    char *a = dap_chain_balance_print(l_price_unit), *b = dap_chain_balance_print(l_max_price);
+                    log_it(L_MSG, "[!] Error, unit price exeeds max permitted value: %s > %s", a, b);
                     DAP_DELETE(l_price);
                     continue;
                 }
             }
-
+            log_it(L_MSG, "Price added");
             l_price->wallet = l_wallet;
             DL_APPEND(a_srv->pricelist, l_price);
             break;
@@ -878,7 +882,6 @@ int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_
     if (!a_config_section)
         return ret;
     a_srv->grace_period = dap_config_get_item_uint32_default(g_config, a_config_section, "grace_period", 60);
-    //! IMPORTANT ! This fetch is single-action and cannot be further reused, since it modifies the stored config data
     uint16_t l_pricelist_count = 0;
     char **l_pricelist = dap_config_get_array_str(g_config, a_config_section, "pricelist", &l_pricelist_count);
     for (uint16_t i = 0; i < l_pricelist_count; i++) {
@@ -888,8 +891,8 @@ int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_
             return ret;
         }
         short l_iter = 0;
-        char *l_ctx;
-        for (char *l_price_token = strtok_r(l_pricelist[i], ":", &l_ctx); l_price_token || l_iter == 6; l_price_token = strtok_r(NULL, ":", &l_ctx), ++l_iter) {
+        char *l_price_str = dap_strdup(l_pricelist[i]), *l_ctx;
+        for (char *l_price_token = strtok_r(l_price_str, ":", &l_ctx); l_price_token || l_iter == 6; l_price_token = strtok_r(NULL, ":", &l_ctx), ++l_iter) {
             //log_it(L_DEBUG, "Tokenizer: %s", l_price_token);
             switch (l_iter) {
             case 0:
@@ -954,10 +957,11 @@ int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_
             log_it(L_DEBUG, "Done with price item %d", i);
             if (l_iter == 6)
                 DL_APPEND(a_srv->pricelist, l_price);
-            else
-                DAP_DELETE(l_price);
             break; // double break exits tokenizer loop and steps to next price item
         }
+        if (l_iter != 6)
+            DAP_DELETE(l_price);
+        DAP_DELETE(l_price_str);
     }
     return ret;
 }

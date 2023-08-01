@@ -152,7 +152,7 @@ static  dap_memstat_rec_t   s_memstat [MEMSTAT$K_NR] = {
 int dap_stream_ch_chain_init()
 {
     log_it(L_NOTICE, "Chains and global db exchange channel initialized");
-    dap_stream_ch_proc_add(dap_stream_ch_chain_get_id(), s_stream_ch_new, s_stream_ch_delete, s_stream_ch_packet_in,
+    dap_stream_ch_proc_add(DAP_STREAM_CH_ID, s_stream_ch_new, s_stream_ch_delete, s_stream_ch_packet_in,
             s_stream_ch_packet_out);
     s_debug_more = dap_config_get_item_bool_default(g_config,"stream_ch_chain","debug_more",false);
     s_update_pack_size = dap_config_get_item_int16_default(g_config,"stream_ch_chain","update_pack_size",100);
@@ -1570,7 +1570,7 @@ static void s_stream_ch_io_complete(dap_events_socket_t *a_es, void *a_arg, int 
         return;
     dap_stream_ch_t *l_ch = NULL;
     for (size_t i = 0; i < l_stream->channel_count; i++)
-        if (l_stream->channel[i]->proc->id == dap_stream_ch_chain_get_id())
+        if (l_stream->channel[i]->proc->id == DAP_STREAM_CH_ID)
             l_ch = l_stream->channel[i];
     if (!l_ch)
         return;
