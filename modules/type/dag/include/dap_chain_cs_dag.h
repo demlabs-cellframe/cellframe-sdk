@@ -60,8 +60,7 @@ typedef struct dap_chain_cs_dag
     dap_chain_hash_fast_t static_genesis_event_hash;
     dap_chain_cs_dag_hal_item_t *hal;
 
-    atomic_uint_fast64_t round_current;
-    uint64_t round_completed;
+    atomic_uint_fast64_t round_current, round_completed;
     bool broadcast_disable;
 
     uint16_t datum_add_hashes_count;

@@ -766,7 +766,8 @@ static bool s_net_link_callback_connect_delayed(void *a_arg)
 {
     struct net_link *l_link = a_arg;
     dap_chain_node_client_t *l_client = l_link->link;
-    debug_if(s_debug_more, L_DEBUG, "Link "NODE_ADDR_FP_STR" started", NODE_ADDR_FP_ARGS_S(l_client->info->hdr.address));
+    log_it(L_MSG, "Connecting to link "NODE_ADDR_FP_STR" [%s]",
+           NODE_ADDR_FP_ARGS_S(l_client->info->hdr.address), inet_ntoa(l_client->info->hdr.ext_addr_v4));
     dap_chain_node_client_connect(l_client, "CN");
     l_link->delay_timer = NULL;
     return false;
@@ -786,7 +787,7 @@ static bool s_net_link_start(dap_chain_net_t *a_net, struct net_link *a_link, ui
         a_link->delay_timer = dap_timerfd_start(a_delay * 1000, s_net_link_callback_connect_delayed, a_link);
         return true;
     }
-    debug_if(s_debug_more, L_DEBUG, "Link "NODE_ADDR_FP_STR" started", NODE_ADDR_FP_ARGS_S(l_link_info->hdr.address));
+    log_it(L_MSG, "Connecting to link "NODE_ADDR_FP_STR" [%s]", NODE_ADDR_FP_ARGS_S(l_link_info->hdr.address), inet_ntoa(l_link_info->hdr.ext_addr_v4));
     return dap_chain_node_client_connect(l_client, "CN");
 }
 
@@ -1137,9 +1138,18 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
         dap_chain_node_info_t *l_link_full_node = dap_chain_net_balancer_get_node(a_net->pub.name);
         if(l_link_full_node)
         {
-            log_it(L_DEBUG, "Network LOCAL balancer issues ip %s",inet_ntoa(l_link_full_node->hdr.ext_addr_v4));
             pthread_rwlock_rdlock(&PVT(a_net)->states_lock);
-            s_net_link_add(a_net, l_link_full_node);
+            int l_net_link_add = s_net_link_add(a_net, l_link_full_node);
+            switch (l_net_link_add) {
+            case 0:
+                log_it(L_MSG, "Network LOCAL balancer issues link IP %s", inet_ntoa(l_link_full_node->hdr.ext_addr_v4));
+                break;
+            case -1:
+                log_it(L_MSG, "Network LOCAL balancer: IP %s is already among links", inet_ntoa(l_link_full_node->hdr.ext_addr_v4));
+                break;
+            default:
+                break;
+            }
             DAP_DELETE(l_link_full_node);
             struct net_link *l_free_link = s_get_free_link(a_net);
             if (l_free_link)
@@ -1157,6 +1167,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
     struct balancer_link_request *l_balancer_request = DAP_NEW_Z(struct balancer_link_request);
     if (!l_balancer_request) {
         log_it(L_ERROR, "Memory allocation error in s_new_balancer_link_request");
+        DAP_DELETE(l_link_node_info);
         return false;
     }
     l_balancer_request->net = a_net;
@@ -1232,7 +1243,7 @@ struct json_object *s_net_states_json_collect(dap_chain_net_t *a_net)
     json_object_object_add(l_json, "name"             , json_object_new_string((const char*)a_net->pub.name));
     json_object_object_add(l_json, "networkState"     , json_object_new_string(dap_chain_net_state_to_str(PVT(a_net)->state)));
     json_object_object_add(l_json, "targetState"      , json_object_new_string(dap_chain_net_state_to_str(PVT(a_net)->state_target)));
-    json_object_object_add(l_json, "linksCount"       , json_object_new_int(HASH_COUNT(PVT(a_net)->net_links)));
+    json_object_object_add(l_json, "linksCount"       , json_object_new_int(PVT(a_net)->net_links ? HASH_COUNT(PVT(a_net)->net_links) : 0));
     json_object_object_add(l_json, "activeLinksCount" , json_object_new_int(s_net_get_active_links_count(a_net)));
     char l_node_addr_str[24] = {'\0'};
     int l_tmp = PVT(a_net)->node_addr
@@ -2612,7 +2623,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
                     l_net_pvt->node_info = DAP_NEW_Z(dap_chain_node_info_t);
                     if (!l_net_pvt->node_info) {
                         log_it(L_ERROR, "Memory allocation error in s_net_init");
-                        DAP_DEL_Z(l_net_pvt);
+                        DAP_DEL_Z(l_node_addr);
                         dap_config_close(l_cfg);
                         return -1;
                     }
@@ -2657,7 +2668,6 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     if (!l_chains_dir) {
         log_it(L_ERROR, "Can't find any chains for network %s", l_net->pub.name);
         l_net_pvt->load_mode = false;
-        closedir(l_chains_dir);
         dap_config_close(l_cfg);
         return -2;
     }
