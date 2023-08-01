@@ -281,7 +281,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
 static void s_update_links_timer_callback(void *a_arg){
     dap_chain_net_t *l_net = (dap_chain_net_t*)a_arg;
     //Updated links
-    size_t l_count_downlinks = 0;
+    size_t l_count_downlinks = 0,l_blocks_events = 0;
     dap_stream_connection_t ** l_downlinks = dap_stream_connections_get_downlinks(&l_count_downlinks);
     DAP_DEL_Z(l_downlinks);
     dap_chain_node_addr_t *l_current_addr = dap_chain_net_get_cur_addr(l_net);
@@ -289,6 +289,12 @@ static void s_update_links_timer_callback(void *a_arg){
     if (!l_node_info)
         return;
     l_node_info->hdr.links_number = l_count_downlinks;
+    dap_chain_t *l_chain;
+    DL_FOREACH(l_net->pub.chains, l_chain) {
+        if(l_chain->callback_count_atom)
+            l_blocks_events += l_chain->callback_count_atom(l_chain);
+    }
+    l_node_info->hdr.blocks_events = l_blocks_events;
     char *l_key = dap_chain_node_addr_to_hash_str(l_current_addr);
     dap_global_db_set_sync(l_net->pub.gdb_nodes, l_key, l_node_info, dap_chain_node_info_get_size(l_node_info), false);
     DAP_DELETE(l_node_info);
@@ -1135,22 +1141,31 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
         return false;
     }
     if(!a_link_replace_tries){
-        dap_chain_node_info_t *l_link_full_node = dap_chain_net_balancer_get_node(a_net->pub.name);
-        if(l_link_full_node)
+        dap_chain_net_node_balancer_t *l_link_full_node_list = dap_chain_net_balancer_get_node(a_net->pub.name);
+        size_t node_cnt = 0,i = 0;
+        if(l_link_full_node_list)
         {
+            node_cnt = l_link_full_node_list->count_node;
             pthread_rwlock_rdlock(&PVT(a_net)->states_lock);
-            int l_net_link_add = s_net_link_add(a_net, l_link_full_node);
-            switch (l_net_link_add) {
-            case 0:
-                log_it(L_MSG, "Network LOCAL balancer issues link IP %s", inet_ntoa(l_link_full_node->hdr.ext_addr_v4));
-                break;
-            case -1:
-                log_it(L_MSG, "Network LOCAL balancer: IP %s is already among links", inet_ntoa(l_link_full_node->hdr.ext_addr_v4));
-                break;
-            default:
-                break;
+            int l_net_link_add = 0;
+            while(!l_net_link_add){
+                if(i >= node_cnt)
+                    break;
+                l_net_link_add = s_net_link_add(a_net, l_link_full_node_list->nodes_info + i);
+                switch (l_net_link_add) {
+                case 0:
+                    log_it(L_MSG, "Network LOCAL balancer issues link IP %s", inet_ntoa((l_link_full_node_list->nodes_info + i)->hdr.ext_addr_v4));
+                    break;
+                case -1:
+                    log_it(L_MSG, "Network LOCAL balancer: IP %s is already among links", inet_ntoa((l_link_full_node_list->nodes_info + i)->hdr.ext_addr_v4));
+                    break;
+                default:
+                    break;
+                }
+                i++;
             }
-            DAP_DELETE(l_link_full_node);
+            DAP_DELETE(l_link_full_node_list->nodes_info);
+            DAP_DELETE(l_link_full_node_list);
             struct net_link *l_free_link = s_get_free_link(a_net);
             if (l_free_link)
                 s_net_link_start(a_net, l_free_link, l_net_pvt->reconnect_delay);

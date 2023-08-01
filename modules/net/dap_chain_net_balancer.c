@@ -40,7 +40,7 @@ static int callback_compare_node_list(const void * a_item1, const void * a_item2
     return -1;
 }
 
-dap_chain_node_info_t *dap_chain_net_balancer_get_node(const char *a_net_name)
+dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node(const char *a_net_name)
 {
     dap_list_t *l_node_addr_list = NULL,*l_objs_list = NULL;
     dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
@@ -50,20 +50,38 @@ dap_chain_node_info_t *dap_chain_net_balancer_get_node(const char *a_net_name)
     }
     // get nodes list from global_db
     dap_global_db_obj_t *l_objs = NULL;
-    size_t l_nodes_count = 0, l_nodes_selected_count = 0;
+    size_t l_nodes_count = 0;
     size_t l_node_num = 0;
+    uint64_t l_blocks_events = 0;
     // read all node
     l_objs = dap_global_db_get_all_sync(l_net->pub.gdb_nodes, &l_nodes_count);
     if (!l_nodes_count || !l_objs)
         return NULL;
     l_node_addr_list = dap_chain_net_get_node_list_cfg(l_net);
-    for(size_t i=0;i<l_nodes_count;i++)
-    {
-        bool l_check = true;
+    for(size_t i=0;i<l_nodes_count;i++){
+        dap_chain_node_info_t *l_node_cand = (dap_chain_node_info_t *)l_objs[i].value;
         for(dap_list_t *node_i = l_node_addr_list; node_i; node_i = node_i->next)
         {
             struct in_addr *l_node_addr_cfg = (struct in_addr*)node_i->data;
-            dap_chain_node_info_t *l_node_cand = (dap_chain_node_info_t *)l_objs[i].value;
+            if(l_node_addr_cfg->s_addr == l_node_cand->hdr.ext_addr_v4.s_addr){
+                if(l_blocks_events != 0)
+                {
+                    if(l_blocks_events > l_node_cand->hdr.blocks_events)l_blocks_events = l_node_cand->hdr.blocks_events;
+                }
+                else
+                    l_blocks_events = l_node_cand->hdr.blocks_events;
+                break;
+            }
+        }
+    }
+
+    for(size_t i=0;i<l_nodes_count;i++)
+    {
+        bool l_check = true;
+        dap_chain_node_info_t *l_node_cand = (dap_chain_node_info_t *)l_objs[i].value;
+        for(dap_list_t *node_i = l_node_addr_list; node_i; node_i = node_i->next)
+        {
+            struct in_addr *l_node_addr_cfg = (struct in_addr*)node_i->data;            
             if(l_node_cand->hdr.ext_addr_v4.s_addr && l_node_cand->hdr.ext_port &&
                 (l_node_addr_cfg->s_addr != l_node_cand->hdr.ext_addr_v4.s_addr))
             {
@@ -76,28 +94,40 @@ dap_chain_node_info_t *dap_chain_net_balancer_get_node(const char *a_net_name)
             }
         }
         if(l_check){
-            l_objs_list = dap_list_append(l_objs_list,l_objs[i].value);
-            l_node_num++;
+            if(l_node_cand->hdr.blocks_events >= l_blocks_events){
+                l_objs_list = dap_list_append(l_objs_list,l_objs[i].value);
+                l_node_num++;
+            }
         }
     }
     dap_list_free(l_node_addr_list);
     l_objs_list = dap_list_sort(l_objs_list, callback_compare_node_list);
-    l_nodes_selected_count = l_node_num;
     dap_chain_node_info_t *l_node_candidate;
-    if(l_nodes_selected_count)
+    if(l_node_num)
     {
-        l_node_num = rand() % l_nodes_selected_count;
-        l_node_candidate = (dap_chain_node_info_t*)dap_list_nth_data(l_objs_list, l_node_num);
-        dap_chain_node_info_t *l_node_info = DAP_NEW_Z(dap_chain_node_info_t);
-        if (!l_node_info) {
+        dap_chain_net_node_balancer_t * l_node_list_res = DAP_NEW_Z(dap_chain_net_node_balancer_t);
+        if (!l_node_list_res) {
             log_it(L_ERROR, "Memory allocation error in dap_chain_net_balancer_get_node");
             dap_list_free(l_objs_list);
             return NULL;
         }
-        memcpy(l_node_info, l_node_candidate, sizeof(dap_chain_node_info_t));
+        dap_chain_node_info_t * l_node_info_list = DAP_NEW_Z_SIZE(dap_chain_node_info_t, l_node_num * sizeof(dap_chain_node_info_t));
+        if (!l_node_info_list) {
+            log_it(L_ERROR, "Memory allocation error in dap_chain_net_balancer_get_node");
+            DAP_DELETE(l_node_list_res);
+            dap_list_free(l_objs_list);
+            return NULL;
+        }
+        for(size_t i=0;i<l_node_num;i++)
+        {
+            l_node_candidate = (dap_chain_node_info_t*)dap_list_nth_data(l_objs_list, i);
+            memcpy(l_node_info_list + i , l_node_candidate, sizeof(dap_chain_node_info_t));
+        }
+        l_node_list_res->nodes_info = l_node_info_list;
+        l_node_list_res->count_node = l_node_num;
         dap_list_free(l_objs_list);
         dap_global_db_objs_delete(l_objs, l_nodes_count);
-        return l_node_info;
+        return l_node_list_res;
     }
     else
     {
@@ -111,7 +141,8 @@ dap_chain_node_info_t *dap_chain_net_balancer_get_node(const char *a_net_name)
 dap_chain_node_info_t *s_balancer_issue_link(const char *a_net_name)
 {
     dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
-    dap_chain_node_info_t *l_node_candidate = dap_chain_net_balancer_get_node(a_net_name);
+    dap_chain_node_info_t *l_node_candidate = NULL;
+    //dap_chain_node_info_t *l_node_candidate = dap_chain_net_balancer_get_node(a_net_name);
     if(l_node_candidate)
     {
         log_it(L_DEBUG, "Network balancer issues ip %s",inet_ntoa(l_node_candidate->hdr.ext_addr_v4));

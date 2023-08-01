@@ -75,6 +75,7 @@ typedef struct dap_chain_node_info {
         struct in6_addr ext_addr_v6;
         uint16_t ext_port; // Port thats node listening
         char alias[256];
+        uint64_t blocks_events;
     } DAP_ALIGN_PACKED hdr;
     dap_chain_node_addr_t links[]; // dap_chain_addr_t
 } DAP_ALIGN_PACKED dap_chain_node_info_t;
