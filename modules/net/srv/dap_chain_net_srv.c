@@ -61,6 +61,8 @@
 
 #define LOG_TAG "chain_net_srv"
 
+#define MAX_VPN_UNIT_PRICE 1000000000000000000
+
 typedef struct service_list {
     dap_chain_net_srv_uid_t uid;
     dap_chain_net_srv_t * srv;
@@ -844,7 +846,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
             }
             l_price->net = l_net;
             l_price->net_name = dap_strdup(l_net->pub.name);
-            uint256_t l_max_price = GET_256_FROM_64((uint64_t)1000000000000000); // Change this value when max price wil be calculated
+            uint256_t l_max_price = GET_256_FROM_64((uint64_t)MAX_VPN_UNIT_PRICE); // Change this value when max price wil be calculated
             log_it(L_MSG, "[!] Create price for net %s", l_price->net_name);
             if (!compare256(l_order->price, uint256_0) || l_order->units == 0 ){
                 log_it(L_MSG, "[!] Zero price in order or no units");
