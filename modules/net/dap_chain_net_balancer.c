@@ -111,7 +111,9 @@ dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node(const char *a_net
             dap_list_free(l_objs_list);
             return NULL;
         }
-        dap_chain_node_info_t * l_node_info_list = DAP_NEW_Z_SIZE(dap_chain_node_info_t, l_node_num * sizeof(dap_chain_node_info_t));
+        dap_chain_node_info_t * l_node_info_list2 = DAP_NEW_Z_SIZE(dap_chain_node_info_t, l_node_num * sizeof(dap_chain_node_info_t));
+        byte_t * l_node_info_list = DAP_NEW_Z_SIZE(byte_t, l_node_num * sizeof(dap_chain_node_info_t));
+        if(l_node_info_list2)l_node_info_list2 = NULL;
         if (!l_node_info_list) {
             log_it(L_ERROR, "Memory allocation error in dap_chain_net_balancer_get_node");
             DAP_DELETE(l_node_list_res);
@@ -123,8 +125,8 @@ dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node(const char *a_net
             l_node_candidate = (dap_chain_node_info_t*)dap_list_nth_data(l_objs_list, i);
             memcpy(l_node_info_list + i , l_node_candidate, sizeof(dap_chain_node_info_t));
         }
-        l_node_list_res->nodes_info = l_node_info_list;
-        l_node_list_res->count_node = l_node_num;
+        //l_node_list_res->nodes_info = l_node_info_list;
+        //l_node_list_res->count_node = l_node_num;
         dap_list_free(l_objs_list);
         dap_global_db_objs_delete(l_objs, l_nodes_count);
         return l_node_list_res;
@@ -146,7 +148,7 @@ dap_chain_net_node_balancer_t *s_balancer_issue_link(const char *a_net_name)
     {
         for(size_t i=0;i<l_link_full_node_list->count_node;i++)
         {
-            log_it(L_DEBUG, "Network balancer issues ip %s",inet_ntoa((l_link_full_node_list->nodes_info + i)->hdr.ext_addr_v4));
+            //log_it(L_DEBUG, "Network balancer issues ip %s",inet_ntoa((l_link_full_node_list->nodes_info + i)->hdr.ext_addr_v4));
         }
         return l_link_full_node_list;
     }
@@ -158,7 +160,7 @@ dap_chain_net_node_balancer_t *s_balancer_issue_link(const char *a_net_name)
             log_it(L_DEBUG, "Network balancer issues ip from net conf - %s",inet_ntoa(l_link_node_info->hdr.ext_addr_v4));
             dap_chain_net_node_balancer_t * l_node_list_res = DAP_NEW_Z(dap_chain_net_node_balancer_t);
             l_node_list_res->count_node = 1;
-            l_node_list_res->nodes_info = l_link_node_info;
+            //l_node_list_res->nodes_info = l_link_node_info;
             return l_node_list_res;
         }
     }

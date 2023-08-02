@@ -1154,10 +1154,10 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
                 l_net_link_add = s_net_link_add(a_net, l_link_full_node_list->nodes_info + i);
                 switch (l_net_link_add) {
                 case 0:
-                    log_it(L_MSG, "Network LOCAL balancer issues link IP %s", inet_ntoa((l_link_full_node_list->nodes_info + i)->hdr.ext_addr_v4));
+                   // log_it(L_MSG, "Network LOCAL balancer issues link IP %s", inet_ntoa((l_link_full_node_list->nodes_info + i)->hdr.ext_addr_v4));
                     break;
                 case -1:
-                    log_it(L_MSG, "Network LOCAL balancer: IP %s is already among links", inet_ntoa((l_link_full_node_list->nodes_info + i)->hdr.ext_addr_v4));
+                    //log_it(L_MSG, "Network LOCAL balancer: IP %s is already among links", inet_ntoa((l_link_full_node_list->nodes_info + i)->hdr.ext_addr_v4));
                     break;
                 case 1:
                     log_it(L_MSG, "Network links table is full");
