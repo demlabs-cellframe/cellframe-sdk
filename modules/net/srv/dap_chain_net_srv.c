@@ -61,8 +61,6 @@
 
 #define LOG_TAG "chain_net_srv"
 
-#define MAX_VPN_UNIT_PRICE 1000000000000000000
-
 typedef struct service_list {
     dap_chain_net_srv_uid_t uid;
     dap_chain_net_srv_t * srv;
@@ -830,6 +828,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
     if (!l_node_addr)
         return -1;
     size_t l_orders_count = 0;
+    uint64_t l_max_price_cfg = dap_config_get_item_uint64_default(g_config, a_config_section, "max_price", 0xFFFFFFFFFFFFFFF);
     char *l_gdb_order_group = dap_chain_net_srv_order_get_gdb_group(l_net);
     dap_global_db_obj_t *l_orders = dap_global_db_get_all_sync(l_gdb_order_group, &l_orders_count);
     for (size_t i=0; i < l_orders_count; i++){
@@ -846,8 +845,9 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
             }
             l_price->net = l_net;
             l_price->net_name = dap_strdup(l_net->pub.name);
-            uint256_t l_max_price = GET_256_FROM_64((uint64_t)MAX_VPN_UNIT_PRICE); // Change this value when max price wil be calculated
+            uint256_t l_max_price = GET_256_FROM_64(l_max_price_cfg); // Change this value when max price wil be calculated
             if (!compare256(l_order->price, uint256_0) || l_order->units == 0 ){
+                log_it(L_ERROR, "Invalid order: units count or price unspecified");
                 DAP_DELETE(l_price);
                 continue;
             }
@@ -859,8 +859,10 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
                 uint256_t l_price_unit = uint256_0;
                 DIV_256(l_price->value_datoshi,  GET_256_FROM_64(l_order->units), &l_price_unit);
                 if (compare256(l_price_unit, l_max_price)>0){
-                    char *a = dap_chain_balance_print(l_price_unit), *b = dap_chain_balance_print(l_max_price);
-                    log_it(L_ERROR, "Unit price exeeds max permitted value: %s > %s", a, b);
+                    char *l_price_unit_str = dap_chain_balance_print(l_price_unit), *l_max_price_str = dap_chain_balance_print(l_max_price);
+                    log_it(L_ERROR, "Unit price exeeds max permitted value: %s > %s", l_price_unit_str, l_max_price_str);
+                    DAP_DELETE(l_price_unit_str);
+                    DAP_DELETE(l_max_price_str);
                     DAP_DELETE(l_price);
                     continue;
                 }
