@@ -1159,6 +1159,9 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
                 case -1:
                     log_it(L_MSG, "Network LOCAL balancer: IP %s is already among links", inet_ntoa((l_link_full_node_list->nodes_info + i)->hdr.ext_addr_v4));
                     break;
+                case 1:
+                    log_it(L_MSG, "Network links table is full");
+                    break;
                 default:
                     break;
                 }
@@ -1241,13 +1244,14 @@ static void s_prepare_links_from_balancer(dap_chain_net_t *a_net)
     for (size_t l_cur_links_count = 0, n = 0; l_cur_links_count < l_max_links_count; n++) {
         if (n > 1000) // It's a problem with link prepare
             break;
-        dap_chain_node_info_t *l_link_node_info = dap_get_balancer_link_from_cfg(a_net);
-        if (!l_link_node_info)
-            continue;
+        //dap_chain_node_info_t *l_link_node_info = dap_get_balancer_link_from_cfg(a_net);
+        //if (!l_link_node_info)
+            //continue;
         // Start connect to link hubs
+
         s_new_balancer_link_request(a_net, 0);
         l_cur_links_count++;
-        DAP_DEL_Z(l_link_node_info);
+        //DAP_DEL_Z(l_link_node_info);
     }
 }
 

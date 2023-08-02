@@ -138,15 +138,17 @@ dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node(const char *a_net
     }
 }
 
-dap_chain_node_info_t *s_balancer_issue_link(const char *a_net_name)
+dap_chain_net_node_balancer_t *s_balancer_issue_link(const char *a_net_name)
 {
     dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
-    dap_chain_node_info_t *l_node_candidate = NULL;
-    //dap_chain_node_info_t *l_node_candidate = dap_chain_net_balancer_get_node(a_net_name);
-    if(l_node_candidate)
+    dap_chain_net_node_balancer_t *l_link_full_node_list = dap_chain_net_balancer_get_node(a_net_name);
+    if(l_link_full_node_list)
     {
-        log_it(L_DEBUG, "Network balancer issues ip %s",inet_ntoa(l_node_candidate->hdr.ext_addr_v4));
-        return l_node_candidate;
+        for(size_t i=0;i<l_link_full_node_list->count_node;i++)
+        {
+            log_it(L_DEBUG, "Network balancer issues ip %s",inet_ntoa((l_link_full_node_list->nodes_info + i)->hdr.ext_addr_v4));
+        }
+        return l_link_full_node_list;
     }
     else
     {
@@ -154,7 +156,10 @@ dap_chain_node_info_t *s_balancer_issue_link(const char *a_net_name)
         if(l_link_node_info)
         {          
             log_it(L_DEBUG, "Network balancer issues ip from net conf - %s",inet_ntoa(l_link_node_info->hdr.ext_addr_v4));
-            return l_link_node_info;
+            dap_chain_net_node_balancer_t * l_node_list_res = DAP_NEW_Z(dap_chain_net_node_balancer_t);
+            l_node_list_res->count_node = 1;
+            l_node_list_res->nodes_info = l_link_node_info;
+            return l_node_list_res;
         }
     }
     return NULL;
@@ -191,15 +196,17 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
     char l_net_name[128] = {};
     strncpy(l_net_name, l_net_str, 127);
     log_it(L_DEBUG, "HTTP balancer parser retrieve netname %s", l_net_name);
-    dap_chain_node_info_t *l_node_info = s_balancer_issue_link(l_net_name);
-    if (!l_node_info) {
+    dap_chain_net_node_balancer_t *l_link_full_node_list = s_balancer_issue_link(l_net_name);
+    if (!l_link_full_node_list) {
         log_it(L_WARNING, "Can't issue link for network %s, no acceptable links found", l_net_name);
         *l_return_code = Http_Status_NotFound;
         return;
     }
     *l_return_code = Http_Status_OK;
-    dap_http_simple_reply(a_http_simple, l_node_info, sizeof(*l_node_info));
-    DAP_DELETE(l_node_info);
+    size_t l_data_send_size = sizeof(dap_chain_net_node_balancer_t) + (sizeof(dap_chain_node_info_t) * l_link_full_node_list->count_node);
+    dap_http_simple_reply(a_http_simple, l_link_full_node_list, l_data_send_size);
+    DAP_DELETE(l_link_full_node_list->nodes_info);
+    DAP_DELETE(l_link_full_node_list);
 }
 
 /**

@@ -28,8 +28,9 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define DAP_BALANCER_URI_HASH "f0intlt4eyl03htogu"
 typedef struct dap_chain_net_node_balancer{
-    dap_chain_node_info_t* nodes_info;
+    //dap_chain_node_info_t* nodes_info;
     size_t count_node;
+    byte_t nodes_info[];
 }dap_chain_net_node_balancer_t;
 
 void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg);
