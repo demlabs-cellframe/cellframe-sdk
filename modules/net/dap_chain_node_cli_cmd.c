@@ -5699,6 +5699,10 @@ int com_tx_history(int a_argc, char ** a_argv, SOCKET *newsockfd, char **a_str_r
             } else
                 l_addr = l_addr_tmp;
             dap_chain_wallet_close(l_wallet);
+        } else {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Could not open %s wallet."
+                                                           "The wallet is not activated or doesn't exist", l_wallet_name);
+            return -7;
         }
     }
     // Select chain, if any
@@ -5751,17 +5755,11 @@ int com_tx_history(int a_argc, char ** a_argv, SOCKET *newsockfd, char **a_str_r
                         dap_hash_fast(l_tx, l_datums[i]->header.data_size, &l_ttx_hash);
                         const char *l_token_ticker = NULL;
                         if ((l_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_ttx_hash))) {
-                              l_tx_all_str->str = dap_strdup_printf("\t\t↓↓↓ Ledger accepted ↓↓↓\n");
-                            dap_cli_server_cmd_reply_send(*newsockfd, l_tx_all_str->str);
-                            DAP_DEL_Z(l_tx_all_str->str);
-                            l_tx_all_str->len = 0;
+                            dap_string_append_printf(l_tx_all_str, "\t\t↓↓↓ Ledger accepted ↓↓↓\n");
                             l_tx_ledger_accepted++;
                         } else {
                             l_token_ticker = s_tx_get_main_ticker(l_tx, l_net, NULL);
-                            l_tx_all_str->str = dap_strdup_printf("\t\t↓↓↓ Ledger rejected ↓↓↓\n");
-                            dap_cli_server_cmd_reply_send(*newsockfd, l_tx_all_str->str);
-                            DAP_DEL_Z(l_tx_all_str->str);
-                            l_tx_all_str->len = 0;
+                            dap_string_append_printf(l_tx_all_str, "\t\t↓↓↓ Ledger rejected ↓↓↓\n");
                             l_tx_ledger_rejected++;
                         }
                         dap_chain_datum_dump_tx(l_tx, l_token_ticker, l_tx_all_str, l_hash_out_type, &l_ttx_hash, *newsockfd);
@@ -5776,7 +5774,7 @@ int com_tx_history(int a_argc, char ** a_argv, SOCKET *newsockfd, char **a_str_r
         dap_time_to_str_rfc822(out,80, l_time_T);
         log_it(L_DEBUG, "END getting tx from chain: %s", out);
 
-        l_tx_all_str->str = dap_strdup_printf("Chain %s in network %s contains %zu transactions.\n"
+        dap_string_append_printf(l_tx_all_str, "Chain %s in network %s contains %zu transactions.\n"
                                                "Of which %zu were accepted into the ledger and %zu were rejected.\n",
                                  l_net->pub.name, l_chain->name, l_tx_count, l_tx_ledger_accepted, l_tx_ledger_rejected);
         dap_cli_server_cmd_reply_send(*newsockfd, l_tx_all_str->str);
@@ -5789,14 +5787,13 @@ int com_tx_history(int a_argc, char ** a_argv, SOCKET *newsockfd, char **a_str_r
         char *l_addr_str = dap_chain_addr_to_str(l_addr);
         l_str_ret = dap_strdup_printf("History for addr %s:\n%s", l_addr_str,
                 l_str_out ? l_str_out : " empty");
-        DAP_DELETE(l_addr_str);
-        DAP_DELETE(l_str_out);
-    } else
-        l_str_ret = l_str_out;
-
-    if (l_str_ret) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ret);
+        DAP_DELETE(l_addr_str);
         DAP_DELETE(l_str_ret);
+    } 
+    if (l_str_out) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_out);
+        DAP_DELETE(l_str_out);
     }
     return 0;
 }

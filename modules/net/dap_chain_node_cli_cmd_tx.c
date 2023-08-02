@@ -743,6 +743,8 @@ int com_ledger(int a_argc, char ** a_argv, SOCKET *newsockfd, char **a_str_reply
             size_t l_tx_count = dap_chain_ledger_count(l_ledger);
             if (!l_tx_count) {
                 dap_string_append_printf(l_str_ret, "Network ledger %s contains no transactions.\n", l_ledger->net_name);
+                dap_cli_server_cmd_reply_send(*newsockfd, l_str_ret);
+                dap_cli_server_cmd_reply_send(*newsockfd, "ENDLONG");
             } else {
                 dap_string_append_printf(l_str_ret, "There are %zu transactions in the network ledger %s:\n",
                                          l_tx_count, l_ledger->net_name);
@@ -756,6 +758,7 @@ int com_ledger(int a_argc, char ** a_argv, SOCKET *newsockfd, char **a_str_reply
                     dap_chain_datum_dump_tx(l_tx, l_tx_ticker, l_str_ret, l_hash_out_type, &l_tx_hash, *newsockfd);
                 }
                 dap_list_free1(l_txs_list);
+                dap_cli_server_cmd_reply_send(*newsockfd, "ENDLONG");
             }
         } else {
             if(l_addr)
@@ -783,7 +786,8 @@ int com_ledger(int a_argc, char ** a_argv, SOCKET *newsockfd, char **a_str_reply
         DAP_DELETE(l_str_out);
         DAP_DELETE(l_addr);
         s_dap_chain_tx_hash_processed_ht_free(&l_list_tx_hash_processd);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ret->str);
+        if (!l_is_all)
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ret->str);
         dap_string_free(l_str_ret, true);
         return 0;       
     }

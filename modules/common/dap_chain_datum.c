@@ -217,14 +217,13 @@ void s_datum_token_dump_tsd(dap_string_t *a_str_out, dap_chain_datum_token_t *a_
 void dap_chain_datum_dump_tx_reply_send(SOCKET newsockfd, dap_string_t *a_str_out, const char *format, ...) {
     va_list args;
     va_start(args, format);
-    if (newsockfd == -1) {
-        dap_string_append_vprintf(a_str_out, format, args);
-    } else if (newsockfd) {
-        a_str_out->str = dap_strdup_printf(format, args);
-        dap_cli_server_cmd_reply_send(newsockfd, a_str_out->str);
-        a_str_out->len = 0;
-    }
+    dap_string_append_vprintf(a_str_out, format, args);
     va_end(args);
+    if (newsockfd > 0) {
+        dap_cli_server_cmd_reply_send(newsockfd, a_str_out->str);
+        memset(a_str_out->str, '\0', a_str_out->len);
+        a_str_out->len = a_str_out->allocated_len = 0;
+    }
 }
 
 /**
@@ -250,7 +249,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
     dap_chain_tx_in_t *l_in_item = (dap_chain_tx_in_t *)dap_chain_datum_tx_item_get(a_datum, NULL, TX_ITEM_TYPE_IN, NULL);
     if (l_in_item && dap_hash_fast_is_blank(&l_in_item->header.tx_prev_hash))
         l_is_first = true;
-    char l_tmp_buf[70];
+    char l_tmp_buf[70] = {'\0'};
     char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
             ? dap_enc_base58_encode_hash_to_str(a_tx_hash)
             : dap_chain_hash_fast_to_str_new(a_tx_hash);
