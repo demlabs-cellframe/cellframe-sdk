@@ -1162,10 +1162,10 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
     }
     if(!a_link_replace_tries){
         dap_chain_net_node_balancer_t *l_link_full_node_list = dap_chain_net_balancer_get_node(a_net->pub.name);
-        size_t node_cnt = 0,i = 0;
-        dap_chain_node_info_t * l_node_info = (dap_chain_node_info_t *)l_link_full_node_list->nodes_info;
+        size_t node_cnt = 0,i = 0;        
         if(l_link_full_node_list)
         {
+            dap_chain_node_info_t * l_node_info = (dap_chain_node_info_t *)l_link_full_node_list->nodes_info;
             node_cnt = l_link_full_node_list->count_node;
             pthread_rwlock_rdlock(&PVT(a_net)->states_lock);
             int l_net_link_add = 0;
