@@ -123,7 +123,6 @@ dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node(const char *a_net
             l_node_candidate = (dap_chain_node_info_t*)dap_list_nth_data(l_objs_list, i);
             memcpy(l_node_info_list + (i * sizeof(dap_chain_node_info_t)) , l_node_candidate, sizeof(dap_chain_node_info_t));
         }
-        //l_node_list_res->nodes_info = (byte_t*)l_node_info_list;
         memmove(l_node_list_res->nodes_info,l_node_info_list,l_node_num * sizeof(dap_chain_node_info_t));
         l_node_list_res->count_node = l_node_num;
         dap_list_free(l_objs_list);
