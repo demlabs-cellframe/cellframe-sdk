@@ -1203,16 +1203,25 @@ dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv
 }
 
 int dap_chain_net_srv_check_store_obj(dap_store_obj_t *a_store_obj) {
-    if (!a_store_obj->value)
+    if (!a_store_obj)
         return 1;
+    if (!a_store_obj->value)
+        return -1;
+    size_t l_net_str_len = 0;
+    const char* l_net_str = NULL;
+    dap_chain_net_t *l_net = NULL;
+    dap_chain_net_srv_order_t *l_order = NULL;
     if (a_store_obj->group_len > 7 && !strcmp(a_store_obj->group + a_store_obj->group_len - 7, ".orders")) {
-        size_t l_net_str_len = a_store_obj->group - strstr(a_store_obj->group, ".");
-        const char* l_net_str = DAP_DUP_SIZE(a_store_obj->group, l_net_str_len);
-        dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
-        dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_read(a_store_obj->value, a_store_obj->value_len);
-        return dap_chain_net_srv_stake_is_active_validator(l_net, l_order->node_addr);
+        l_net_str_len = strstr(a_store_obj->group, ".") - a_store_obj->group;
+        if (l_net_str_len < a_store_obj->group_len) {
+            l_net_str = DAP_DUP_SIZE(a_store_obj->group, l_net_str_len);
+            l_net = dap_chain_net_by_name(l_net_str);
+            l_order = dap_chain_net_srv_order_read(a_store_obj->value, a_store_obj->value_len);
+            DAP_DELETE(l_net_str);
+            return dap_chain_net_srv_stake_is_active_validator(l_net, l_order->node_addr);
+        }
     }
-    return false;
+    return 0;
 }
 
 
