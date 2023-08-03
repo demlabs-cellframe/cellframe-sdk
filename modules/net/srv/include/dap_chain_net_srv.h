@@ -366,3 +366,5 @@ DAP_STATIC_INLINE const char *dap_chain_net_srv_fee_type_to_str(dap_chain_net_sr
         default: return "UNKNOWN";
     }
 }
+
+int dap_chain_net_srv_check_store_obj(dap_store_obj_t *a_store_obj);

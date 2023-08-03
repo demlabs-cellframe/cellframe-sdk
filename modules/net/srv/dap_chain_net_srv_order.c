@@ -351,7 +351,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(dap_chain_net_t *a_ne
         return NULL;
     }
     // Checking validator or not create order
-    if (!dap_chain_net_srv_stake_is_active_validator(a_net, a_node_addr)) {
+    if (dap_chain_net_srv_stake_is_active_validator(a_net, a_node_addr)) {
         log_it(L_ERROR, "Only validators can create service orders");
         return NULL;
     }

@@ -321,7 +321,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
             }
 
         }
-        else if ( dap_strcmp( l_order_str, "find" ) == 0 ){
+        else if ( !dap_strcmp( l_order_str, "find" ) ){
 
             // Order direction
             const char *l_direction_str = NULL;
@@ -1200,6 +1200,19 @@ dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv
                     a_srv->uid, a_price->units_uid, a_price->units, a_price->value_datoshi, a_ext, a_ext_size);
     // Sign with our wallet
     return dap_chain_datum_tx_receipt_sign_add(l_receipt, dap_chain_wallet_get_key(a_price->wallet, 0));
+}
+
+int dap_chain_net_srv_check_store_obj(dap_store_obj_t *a_store_obj) {
+    if (!a_store_obj->value)
+        return 1;
+    if (a_store_obj->group_len > 7 && !strcmp(a_store_obj->group + a_store_obj->group_len - 7, ".orders")) {
+        size_t l_net_str_len = a_store_obj->group - strstr(a_store_obj->group, ".");
+        const char* l_net_str = DAP_DUP_SIZE(a_store_obj->group, l_net_str_len);
+        dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
+        dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_read(a_store_obj->value, a_store_obj->value_len);
+        return dap_chain_net_srv_stake_is_active_validator(l_net, l_order->node_addr);
+    }
+    return false;
 }
 
 
