@@ -92,7 +92,8 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
         log_it(L_ERROR, "NULL datum trying to add in mempool");
         return NULL;
     }
-
+    size_t l_emisssion_size = 0;
+    dap_chain_datum_token_emission_t *l_emission = NULL;
     dap_chain_hash_fast_t l_key_hash;
     dap_hash_fast(a_datum->data, a_datum->header.data_size, &l_key_hash);
     char *l_key_str = dap_strcmp(a_hash_out_type, "hex")
@@ -105,8 +106,8 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
         l_type_str = "token";
         break;
     case DAP_CHAIN_DATUM_TOKEN_EMISSION:
-        size_t l_emisssion_size = a_datum->header.data_size;
-        dap_chain_datum_token_emission_t *l_emission = dap_chain_datum_emission_read(a_datum->data, &l_emisssion_size);
+        l_emisssion_size = a_datum->header.data_size;
+        l_emission = dap_chain_datum_emission_read(a_datum->data, &l_emisssion_size);
         if (l_emission && l_emission->hdr.address.net_id.uint64 != a_chain->net_id.uint64) {
             log_it(L_WARNING, "Datum %s with hash %s not placed in mempool - address net ID and target net ID is different", l_type_str, l_key_str);
             DAP_DEL_Z(l_emission);
