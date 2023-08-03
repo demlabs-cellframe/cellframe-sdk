@@ -167,11 +167,7 @@ void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_sto
 */
 DAP_STATIC_INLINE char * dap_chain_net_srv_order_get_gdb_group(dap_chain_net_t * a_net)
 {
-   if ( a_net ) {
-       const char c_srv_order_group_str[]="service.orders";
-       return dap_strdup_printf("%s.%s",a_net->pub.gdb_groups_prefix,c_srv_order_group_str);
-   }
-   return NULL;
+    return a_net ? dap_strdup_printf("%s.service.orders",a_net->pub.gdb_groups_prefix) : NULL;
 }
 
 /**
@@ -181,9 +177,5 @@ DAP_STATIC_INLINE char * dap_chain_net_srv_order_get_gdb_group(dap_chain_net_t *
 */
 DAP_STATIC_INLINE char * dap_chain_net_srv_order_get_nodelist_group(dap_chain_net_t * a_net)
 {
-   if ( a_net ) {
-       const char c_srv_order_group_str[]="service.orders.static_nodelist";
-       return dap_strdup_printf("%s.%s",a_net->pub.gdb_groups_prefix,c_srv_order_group_str);
-   }
-   return NULL;
+   return a_net ? dap_strdup_printf("%s.service.orders.static_nodelist",a_net->pub.gdb_groups_prefix) : NULL;
 }

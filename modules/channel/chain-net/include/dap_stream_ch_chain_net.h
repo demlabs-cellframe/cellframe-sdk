@@ -62,11 +62,10 @@ typedef struct dap_stream_ch_chain_validator_test{
 #define D_SIGN 0x40//data signed
 #define F_CERT 0x80//faund sert
 
-
+#define DAP_STREAM_CH_ID_NET 'N'
 #define DAP_STREAM_CH_CHAIN_NET(a) ((dap_stream_ch_chain_net_t *) ((a)->internal) )
 
 dap_chain_node_addr_t dap_stream_ch_chain_net_from_session_data_extract_node_addr(unsigned int a_session_id);
 
-uint8_t dap_stream_ch_chain_net_get_id();
 int dap_stream_ch_chain_net_init();
 void dap_stream_ch_chain_net_deinit();
