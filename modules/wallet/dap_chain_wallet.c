@@ -126,7 +126,7 @@ char *c_wallets_path;
     {
         l_prec  = DAP_NEW_Z(dap_chain_wallet_n_pass_t);                 /* Get memory for new record */
         if (!l_prec) {
-            log_it(L_ERROR, "Memory allocation error in dap_chain_wallet_activate");
+            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             return -EINVAL;
         }
         *l_prec = l_rec;                                                /* Fill it by data */
@@ -407,7 +407,7 @@ dap_chain_wallet_internal_t *l_wallet_internal;
     l_wallet_internal->certs = DAP_NEW_Z_SIZE(dap_cert_t *,l_wallet_internal->certs_count * sizeof(dap_cert_t *));
     assert(l_wallet_internal->certs);
     if (!l_wallet_internal->certs) {
-        log_it(L_ERROR, "Memory allocation error in dap_chain_wallet_create_with_seed");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         dap_chain_wallet_close(l_wallet);
         return NULL;
     }
@@ -837,7 +837,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     l_wallet = DAP_NEW_Z(dap_chain_wallet_t);
     assert(l_wallet);
     if (!l_wallet) {
-        log_it(L_ERROR, "Memory allocation error in dap_chain_wallet_open_file");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         dap_fileclose(l_fh);
         return NULL;
     }
@@ -845,7 +845,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     DAP_CHAIN_WALLET_INTERNAL_LOCAL_NEW(l_wallet);
     assert(l_wallet_internal);
     if (!l_wallet_internal) {
-        log_it(L_ERROR, "Memory allocation error in dap_chain_wallet_open_file");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         DAP_DEL_Z(l_wallet);
         dap_fileclose(l_fh);
         return NULL;
@@ -866,7 +866,7 @@ uint32_t    l_csum = CRC32C_INIT, l_csum2 = CRC32C_INIT;
     l_wallet_internal->certs = DAP_NEW_Z_SIZE(dap_cert_t *, l_wallet_internal->certs_count * sizeof(dap_cert_t *));
     assert(l_wallet_internal->certs);
     if (!l_wallet_internal->certs) {
-        log_it(L_ERROR, "Memory allocation error in dap_chain_wallet_open_file");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         DAP_DEL_Z(l_wallet);
         dap_fileclose(l_fh);
         return NULL;

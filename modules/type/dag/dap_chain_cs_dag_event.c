@@ -231,7 +231,7 @@ void dap_chain_cs_dag_event_broadcast(dap_chain_cs_dag_t *a_dag, dap_store_obj_t
 {
     dap_chain_cs_dag_event_round_broadcast_t *l_arg = DAP_NEW(dap_chain_cs_dag_event_round_broadcast_t);
     if (!l_arg) {
-        log_it(L_ERROR, "Memory allocation error in dap_chain_cs_dag_event_broadcast");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return;
     }
     l_arg->dag = a_dag;

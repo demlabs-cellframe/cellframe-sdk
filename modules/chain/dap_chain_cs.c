@@ -66,7 +66,7 @@ void dap_chain_cs_type_add (const char * a_cs_str,  dap_chain_callback_new_cfg_t
 {
     dap_chain_callback_new_cfg_item_t *l_item = DAP_NEW_Z ( dap_chain_callback_new_cfg_item_t );
     if ( !l_item ) {
-        log_it(L_ERROR, "Memory allocation error in dap_chain_cs_type_add, errno=%d", errno);
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return;
     }
     strncpy(l_item->name, a_cs_str, sizeof (l_item->name) - 1);
@@ -106,7 +106,7 @@ void dap_chain_cs_add (const char * a_cs_str,  dap_chain_callback_new_cfg_t a_ca
 {
     dap_chain_callback_new_cfg_item_t *l_item = DAP_NEW_Z ( dap_chain_callback_new_cfg_item_t );
     if ( !l_item ) {
-        log_it(L_ERROR, "Memory allocation error in dap_chain_cs_add, errno=%d", errno);
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return;
     }
     strncpy(l_item->name, a_cs_str, sizeof (l_item->name) - 1);

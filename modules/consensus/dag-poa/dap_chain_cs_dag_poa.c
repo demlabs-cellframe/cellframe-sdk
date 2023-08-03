@@ -158,7 +158,7 @@ void dap_chain_cs_dag_poa_presign_callback_set(dap_chain_t *a_chain, dap_chain_c
     l_poa_pvt->callback_pre_sign =
             (dap_chain_cs_dag_poa_presign_callback_t*)DAP_NEW_Z(dap_chain_cs_dag_poa_presign_callback_t);
     if (!l_poa_pvt->callback_pre_sign) {
-        log_it(L_ERROR, "Memory allocation error in dap_chain_cs_dag_poa_presign_callback_set");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return;
     }
     l_poa_pvt->callback_pre_sign->callback = a_callback;
@@ -336,7 +336,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG ( a_chain );
     dap_chain_cs_dag_poa_t *l_poa = DAP_NEW_Z ( dap_chain_cs_dag_poa_t);
     if (!l_poa) {
-        log_it(L_ERROR, "Memory allocation error in s_callback_new");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return -1;
     }
     l_dag->_inheritor = l_poa;
@@ -346,7 +346,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_dag->chain->callback_get_poa_certs = dap_chain_cs_dag_poa_get_auth_certs;
     l_poa->_pvt = DAP_NEW_Z ( dap_chain_cs_dag_poa_pvt_t );
     if (!l_poa->_pvt) {
-        log_it(L_ERROR, "Memory allocation error in s_callback_new");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return -1;
     }
     dap_chain_cs_dag_poa_pvt_t *l_poa_pvt = PVT(l_poa);
@@ -363,7 +363,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
         if (l_poa_pvt->auth_certs_count && l_poa_pvt->auth_certs_count_verify) {
             l_poa_pvt->auth_certs = DAP_NEW_Z_SIZE ( dap_cert_t *, l_poa_pvt->auth_certs_count * sizeof(dap_cert_t *));
             if (!l_poa_pvt->auth_certs) {
-                log_it(L_ERROR, "Memory allocation error in s_callback_new");
+                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                 return -1;
             }
             char l_cert_name[512];
@@ -653,7 +653,7 @@ static void s_round_event_cs_done(dap_chain_cs_dag_t * a_dag, uint64_t a_round_i
         l_callback_arg = DAP_NEW_Z(struct round_timer_arg);
         if (!l_callback_arg) {
             pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
-            log_it(L_ERROR, "Memory allocation error in s_round_event_cs_done");
+            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             return;
         }
         l_callback_arg->dag = a_dag;
