@@ -1013,53 +1013,70 @@ static void s_net_links_complete_and_start(dap_chain_net_t *a_net, dap_worker_t 
  * @param a_node_info
  * @param a_arg
  */
-static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_chain_node_info_t * a_node_info, void * a_arg)
+static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_chain_net_node_balancer_t * a_link_full_node_list, void * a_arg)
 {
     if(s_debug_more){
         char l_node_addr_str[INET_ADDRSTRLEN]={};
-        inet_ntop(AF_INET,&a_node_info->hdr.ext_addr_v4,l_node_addr_str, INET_ADDRSTRLEN);
-        log_it(L_DEBUG,"Link " NODE_ADDR_FP_STR " (%s) prepare success", NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address),
-                                                                                     l_node_addr_str );
+        dap_chain_node_info_t * l_node_info = (dap_chain_node_info_t *)a_link_full_node_list->nodes_info;
+        for(size_t i=0;i<a_link_full_node_list->count_node;i++){
+            inet_ntop(AF_INET,&(l_node_info + i)->hdr.ext_addr_v4,l_node_addr_str, INET_ADDRSTRLEN);
+            log_it(L_DEBUG,"Link " NODE_ADDR_FP_STR " (%s) prepare success", NODE_ADDR_FP_ARGS_S((l_node_info + i)->hdr.address),
+                                                                                         l_node_addr_str );
+        }
     }
 
     struct balancer_link_request *l_balancer_request = (struct balancer_link_request *) a_arg;
     dap_chain_net_t * l_net = l_balancer_request->net;
-    int l_res = s_net_link_add(l_net, a_node_info);
-    if (l_res < 0) {    // Can't add this link
-        debug_if(s_debug_more, L_DEBUG, "Can't add link "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address));
-        if (l_balancer_request->link_replace_tries)
-            // Just try a new one
-            s_new_balancer_link_request(l_net, l_balancer_request->link_replace_tries);
-    } else if (l_res == 0) {
-        struct json_object *l_json = s_net_states_json_collect(l_net);
-        char l_err_str[128] = { };
-        snprintf(l_err_str, sizeof(l_err_str)
-                     , "Link " NODE_ADDR_FP_STR " prepared"
-                     , NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address));
-        json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
-        dap_notify_server_send_mt(json_object_get_string(l_json));
-        json_object_put(l_json);
-        debug_if(s_debug_more, L_DEBUG, "Link "NODE_ADDR_FP_STR" successfully added",
-                                               NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address));
-        if (l_balancer_request->link_replace_tries &&
-                s_net_get_active_links_count(l_net) < PVT(l_net)->required_links_count) {
-            // Auto-start new link
-            pthread_rwlock_rdlock(&PVT(l_net)->states_lock);
-            if (PVT(l_net)->state_target != NET_STATE_OFFLINE) {
-                struct net_link *l_new_link = s_net_link_find(l_net, a_node_info);
-                if (l_new_link)
-                    s_net_link_start(l_net, l_new_link, PVT(l_net)->reconnect_delay);
-                else
-                    s_new_balancer_link_request(l_net, l_balancer_request->link_replace_tries);
-            }
-            pthread_rwlock_unlock(&PVT(l_net)->states_lock);
+    dap_chain_node_info_t * l_node_info = (dap_chain_node_info_t *)a_link_full_node_list->nodes_info;
+    int l_res = 0;
+    size_t i = 0;
+    while(!l_res){
+        if(i >= a_link_full_node_list->count_node)
+            break;
+        l_res = s_net_link_add(l_net, l_node_info + i);
+        switch (l_res) {
+        case 0:
+            struct json_object *l_json = s_net_states_json_collect(l_net);
+            char l_err_str[128] = { };
+            snprintf(l_err_str, sizeof(l_err_str)
+                         , "Link " NODE_ADDR_FP_STR " prepared"
+                         , NODE_ADDR_FP_ARGS_S((l_node_info + i)->hdr.address));
+            json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
+            dap_notify_server_send_mt(json_object_get_string(l_json));
+            json_object_put(l_json);
+            debug_if(s_debug_more, L_DEBUG, "Link "NODE_ADDR_FP_STR" successfully added",
+                                                   NODE_ADDR_FP_ARGS_S((l_node_info + i)->hdr.address));
+            break;
+        case 1:
+            debug_if(s_debug_more, L_DEBUG, "Maximum prepared links reached");
+            break;
+        case -1:
+
+            break;
+        default:
+            break;
         }
-    } else
-        debug_if(s_debug_more, L_DEBUG, "Maximum prepared links reached");
+        i++;
+    }
+    if (l_balancer_request->link_replace_tries &&
+            s_net_get_active_links_count(l_net) < PVT(l_net)->required_links_count) {
+        // Auto-start new link
+        pthread_rwlock_rdlock(&PVT(l_net)->states_lock);
+        if (PVT(l_net)->state_target != NET_STATE_OFFLINE) {
+            struct net_link *l_free_link = s_get_free_link(l_net);
+            if (l_free_link)
+                s_net_link_start(l_net, l_free_link, PVT(l_net)->reconnect_delay);
+            else
+                s_new_balancer_link_request(l_net, l_balancer_request->link_replace_tries);
+        }
+        pthread_rwlock_unlock(&PVT(l_net)->states_lock);
+    }
+
     if (!l_balancer_request->link_replace_tries)
         s_net_links_complete_and_start(l_net, a_worker);
     DAP_DELETE(l_balancer_request->link_info);
     DAP_DELETE(l_balancer_request);
+
 }
 
 /**
@@ -1098,13 +1115,15 @@ static void s_net_balancer_link_prepare_error(dap_worker_t * a_worker, void * a_
 void s_net_http_link_prepare_success(void *a_response, size_t a_response_size, void *a_arg)
 {
     struct balancer_link_request *l_balancer_request = (struct balancer_link_request *)a_arg;
-    if (a_response_size != sizeof(dap_chain_node_info_t)) {
-        log_it(L_ERROR, "Invalid balancer response size %zu (expect %zu)", a_response_size, sizeof(dap_chain_node_info_t));
+    dap_chain_net_node_balancer_t* l_link_full_node_list = (dap_chain_net_node_balancer_t*)a_response;
+    size_t l_response_size_nead = sizeof(dap_chain_net_node_balancer_t) + (sizeof(dap_chain_node_info_t) * l_link_full_node_list->count_node);
+    if (a_response_size != l_response_size_nead) {
+        log_it(L_ERROR, "Invalid balancer response size %zu (expect %zu)", a_response_size, l_response_size_nead);
         s_new_balancer_link_request(l_balancer_request->net, l_balancer_request->link_replace_tries);
         DAP_DELETE(l_balancer_request);
         return;
     }
-    s_net_balancer_link_prepare_success(l_balancer_request->worker, (dap_chain_node_info_t *)a_response, a_arg);
+    s_net_balancer_link_prepare_success(l_balancer_request->worker, l_link_full_node_list, a_arg);
 }
 
 void s_net_http_link_prepare_error(int a_error_code, void *a_arg)
@@ -1143,6 +1162,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
     if(!a_link_replace_tries){
         dap_chain_net_node_balancer_t *l_link_full_node_list = dap_chain_net_balancer_get_node(a_net->pub.name);
         size_t node_cnt = 0,i = 0;
+        dap_chain_node_info_t * l_node_info = (dap_chain_node_info_t *)l_link_full_node_list->nodes_info;
         if(l_link_full_node_list)
         {
             node_cnt = l_link_full_node_list->count_node;
@@ -1151,13 +1171,13 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
             while(!l_net_link_add){
                 if(i >= node_cnt)
                     break;
-                l_net_link_add = s_net_link_add(a_net, l_link_full_node_list->nodes_info + i);
+                l_net_link_add = s_net_link_add(a_net, l_node_info + i);
                 switch (l_net_link_add) {
                 case 0:
-                   // log_it(L_MSG, "Network LOCAL balancer issues link IP %s", inet_ntoa((l_link_full_node_list->nodes_info + i)->hdr.ext_addr_v4));
+                    log_it(L_MSG, "Network LOCAL balancer issues link IP %s", inet_ntoa((l_node_info + i)->hdr.ext_addr_v4));
                     break;
                 case -1:
-                    //log_it(L_MSG, "Network LOCAL balancer: IP %s is already among links", inet_ntoa((l_link_full_node_list->nodes_info + i)->hdr.ext_addr_v4));
+                    log_it(L_MSG, "Network LOCAL balancer: IP %s is already among links", inet_ntoa((l_node_info + i)->hdr.ext_addr_v4));
                     break;
                 case 1:
                     log_it(L_MSG, "Network links table is full");
