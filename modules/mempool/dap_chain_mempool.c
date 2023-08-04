@@ -104,9 +104,20 @@ char *dap_chain_mempool_datum_add(const dap_chain_datum_t *a_datum, dap_chain_t 
     case DAP_CHAIN_DATUM_TOKEN_DECL:
         l_type_str = "token";
         break;
-    case DAP_CHAIN_DATUM_TOKEN_EMISSION:
+    case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
+        size_t l_emission_size = a_datum->header.data_size;
+        dap_chain_datum_token_emission_t *l_emission = dap_chain_datum_emission_read((byte_t*)a_datum->data, &l_emission_size);
+        uint64_t l_net_id = l_emission ? l_emission->hdr.address.net_id.uint64 : 0;
+        DAP_DELETE(l_emission);
+        if (l_net_id != a_chain->net_id.uint64) {
+            log_it(L_WARNING, "Datum emission with hash %s NOT placed in mempool: wallet addr net ID %lu != %lu chain net ID",
+                   l_key_str, l_net_id, a_chain->net_id.uint64);
+            DAP_DELETE(l_key_str);
+            return NULL;
+        }
         l_type_str = "emission";
         break;
+    }
     case DAP_CHAIN_DATUM_TX:
         l_type_str = "transaction";
         break;
