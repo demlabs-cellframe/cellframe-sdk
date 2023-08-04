@@ -1483,46 +1483,46 @@ static dap_chain_net_t *s_net_new(const char *a_id, const char *a_name,
 {
     if (!a_id || !a_name || !a_native_ticker || !a_node_role)
         return NULL;
-    dap_chain_net_t *ret = DAP_NEW_Z_SIZE( dap_chain_net_t, sizeof(ret->pub) + sizeof(dap_chain_net_pvt_t) );
-    if (!ret) {
+    dap_chain_net_t *l_ret = DAP_NEW_Z_SIZE( dap_chain_net_t, sizeof(l_ret->pub) + sizeof(dap_chain_net_pvt_t) );
+    if (!l_ret) {
         log_it(L_ERROR, "Memory allocation error in s_net_new");
         return NULL;
     }
-    ret->pub.name = strdup( a_name );
-    ret->pub.native_ticker = strdup( a_native_ticker );
+    l_ret->pub.name = strdup( a_name );
+    l_ret->pub.native_ticker = strdup( a_native_ticker );
     pthread_mutexattr_t l_mutex_attr;
     pthread_mutexattr_init(&l_mutex_attr);
     pthread_mutexattr_settype(&l_mutex_attr, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutex_init(&PVT(ret)->uplinks_mutex, &l_mutex_attr);
+    pthread_mutex_init(&PVT(l_ret)->uplinks_mutex, &l_mutex_attr);
     pthread_mutexattr_destroy(&l_mutex_attr);
-    pthread_rwlock_init(&PVT(ret)->downlinks_lock, NULL);
-    pthread_rwlock_init(&PVT(ret)->balancer_lock, NULL);
-    pthread_rwlock_init(&PVT(ret)->states_lock, NULL);
-    if (dap_chain_net_id_parse(a_id, &ret->pub.id) != 0) {
-        DAP_DELETE(ret);
+    pthread_rwlock_init(&PVT(l_ret)->downlinks_lock, NULL);
+    pthread_rwlock_init(&PVT(l_ret)->balancer_lock, NULL);
+    pthread_rwlock_init(&PVT(l_ret)->states_lock, NULL);
+    if (dap_chain_net_id_parse(a_id, &l_ret->pub.id) != 0) {
+        DAP_DELETE(l_ret);
         return NULL;
     }
     if (strcmp (a_node_role, "root_master")==0){
-        PVT(ret)->node_role.enums = NODE_ROLE_ROOT_MASTER;
+        PVT(l_ret)->node_role.enums = NODE_ROLE_ROOT_MASTER;
     } else if (strcmp( a_node_role,"root") == 0){
-        PVT(ret)->node_role.enums = NODE_ROLE_ROOT;
+        PVT(l_ret)->node_role.enums = NODE_ROLE_ROOT;
     } else if (strcmp( a_node_role,"archive") == 0){
-        PVT(ret)->node_role.enums = NODE_ROLE_ARCHIVE;
+        PVT(l_ret)->node_role.enums = NODE_ROLE_ARCHIVE;
     } else if (strcmp( a_node_role,"cell_master") == 0){
-        PVT(ret)->node_role.enums = NODE_ROLE_CELL_MASTER;
+        PVT(l_ret)->node_role.enums = NODE_ROLE_CELL_MASTER;
     }else if (strcmp( a_node_role,"master") == 0){
-        PVT(ret)->node_role.enums = NODE_ROLE_MASTER;
+        PVT(l_ret)->node_role.enums = NODE_ROLE_MASTER;
     }else if (strcmp( a_node_role,"full") == 0){
-        PVT(ret)->node_role.enums = NODE_ROLE_FULL;
+        PVT(l_ret)->node_role.enums = NODE_ROLE_FULL;
     }else if (strcmp( a_node_role,"light") == 0){
-        PVT(ret)->node_role.enums = NODE_ROLE_LIGHT;
+        PVT(l_ret)->node_role.enums = NODE_ROLE_LIGHT;
     }else{
         log_it(L_ERROR,"Unknown node role \"%s\" for network '%s'", a_node_role, a_name);
-        DAP_DELETE(ret);
+        DAP_DELETE(l_ret);
         return NULL;
     }
     log_it (L_NOTICE, "Node role \"%s\" selected for network '%s'", a_node_role, a_name);
-    return ret;
+    return l_ret;
 }
 
 /**
@@ -1549,22 +1549,20 @@ void dap_chain_net_delete( dap_chain_net_t * a_net )
  * load network config settings
  */
 void dap_chain_net_load_all() {
-    dap_chain_net_t **l_net_list = NULL;
-    uint16_t l_net_count = 0;
     int32_t l_ret = 0;
 
-    l_net_list = dap_chain_net_list(&l_net_count);
-    if(!l_net_list|| !l_net_count){
+    if(!HASH_COUNT(s_net_items)){
         log_it(L_ERROR, "Can't find any nets");
         return;
     }
-
-    for(uint16_t i = 0; i < l_net_count; i++){
-        if((l_ret = s_net_load(l_net_list[i])) ){
-            log_it(L_ERROR, "Loading chains of net %s finished with (%d) error code.", l_net_list[i]->pub.name, l_ret);
+    pthread_rwlock_rdlock(&s_net_items_rwlock);
+    dap_chain_net_item_t *l_net_items_current = NULL, *l_net_items_tmp = NULL;
+    HASH_ITER(hh, s_net_items, l_net_items_current, l_net_items_tmp) {
+        if( (l_ret = s_net_load(l_net_items_current->chain_net)) ) {
+            log_it(L_ERROR, "Loading chains of net %s finished with (%d) error code.", l_net_items_current->name, l_ret);
         }
     }
-    DAP_DELETE(l_net_list);
+    pthread_rwlock_unlock(&s_net_items_rwlock);
 }
 
 dap_string_t* dap_cli_list_net()
@@ -2282,6 +2280,26 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         log_it(L_ERROR,"Can't create l_net");
         return -1;
     }
+    // check nets with same IDs and names
+    pthread_rwlock_rdlock(&s_net_items_rwlock);
+    dap_chain_net_item_t *l_net_items_current = NULL, *l_net_items_tmp = NULL;
+    HASH_ITER(hh, s_net_items, l_net_items_current, l_net_items_tmp) {
+        if (l_net_items_current->net_id.uint64 == l_net->pub.id.uint64) {
+            log_it(L_ERROR,"Can't create net %s, net %s has the same ID %"DAP_UINT64_FORMAT_U"", l_net->pub.name, l_net_items_current->name, l_net->pub.id.uint64);
+            log_it(L_ERROR, "Please, fix your configs and restart node");
+            dap_chain_net_delete(l_net);
+            pthread_rwlock_unlock(&s_net_items_rwlock);
+            return -1;
+        }
+        if (!strcmp(l_net_items_current->name, l_net->pub.name)) {
+            log_it(L_ERROR,"Can't create l_net ID %"DAP_UINT64_FORMAT_U", net ID %"DAP_UINT64_FORMAT_U" has the same name %s", l_net->pub.id.uint64, l_net_items_current->net_id.uint64, l_net->pub.name);
+            log_it(L_ERROR, "Please, fix your configs and restart node");
+            dap_chain_net_delete(l_net);
+            pthread_rwlock_unlock(&s_net_items_rwlock);
+            return -1;
+        }
+    }
+    pthread_rwlock_unlock(&s_net_items_rwlock);
     dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
     l_net_pvt->load_mode = true;
     l_net_pvt->acl_idx = a_acl_idx;
