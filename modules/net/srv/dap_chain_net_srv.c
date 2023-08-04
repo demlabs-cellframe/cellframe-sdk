@@ -1209,7 +1209,7 @@ int dap_chain_net_srv_check_store_obj(dap_store_obj_t *a_store_obj) {
     char* l_net_str = NULL;
     dap_chain_net_t *l_net = NULL;
     dap_chain_net_srv_order_t *l_order = NULL;
-    if (a_store_obj->group_len > 7 && !strcmp(a_store_obj->group + a_store_obj->group_len - 7, ".orders")) {
+    if(!dap_fnmatch("*.orders", a_store_obj->group, 0)) {
         l_net_str_len = strstr(a_store_obj->group, ".") - a_store_obj->group;
         if (l_net_str_len < a_store_obj->group_len) {
             l_order = dap_chain_net_srv_order_read(a_store_obj->value, a_store_obj->value_len);
