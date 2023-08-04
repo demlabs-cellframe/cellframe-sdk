@@ -374,15 +374,12 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
     l_tx = a_grace->usage->is_waiting_new_tx_cond ? NULL : dap_chain_ledger_tx_find_by_hash(l_ledger, &a_grace->usage->tx_cond_hash);
     if ( ! l_tx ){ // No tx cond transaction, start grace-period
         a_grace->usage->is_grace = true;
-
-        l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
+        l_price = DAP_DUP(a_grace->usage->service->pricelist);
         if (!l_price) {
             log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             s_grace_error(a_grace, l_err);
             return;
         }
-        memcpy(l_price, a_grace->usage->service->pricelist, sizeof(*l_price));
-
         a_grace->usage->price = l_price;
 
         if (!a_grace->usage->receipt){
@@ -662,7 +659,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
                     RET_WITH_DEL_A_GRACE;
                 }
                 l_grace_new->request->hdr.net_id = a_grace_item->grace->usage->net->pub.id;
-                memcpy(l_grace_new->request->hdr.token, a_grace_item->grace->usage->token_ticker, strlen(a_grace_item->grace->usage->token_ticker));
+                dap_stpcpy(l_grace_new->request->hdr.token, a_grace_item->grace->usage->token_ticker);
                 l_grace_new->request->hdr.srv_uid = a_grace_item->grace->usage->service->uid;
                 l_grace_new->request->hdr.tx_cond = a_grace_item->grace->usage->tx_cond_hash;
                 l_grace_new->request_size = sizeof(dap_stream_ch_chain_net_srv_pkt_request_t);
@@ -781,12 +778,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
             log_it( L_WARNING, "Wrong request size, less than minimum");
             break;
         }
-        dap_stream_ch_chain_net_srv_pkt_request_t *l_request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_request_t, l_ch_pkt->hdr.data_size);
-        if (!l_request) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
-            return;
-        }
-        memcpy(l_request, l_ch_pkt->data, l_ch_pkt->hdr.data_size);
+        dap_stream_ch_chain_net_srv_pkt_request_t *l_request = (dap_stream_ch_chain_net_srv_pkt_request_t*)l_ch_pkt->data;
         l_ch_chain_net_srv->srv_uid.uint64 = l_request->hdr.srv_uid.uint64;
         s_service_start(a_ch, l_request, l_ch_pkt->hdr.data_size);
     } break; /* DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_REQUEST */
@@ -900,25 +892,23 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
 
         // Update actual receipt
         bool l_is_first_sign = false;
-        if (! l_usage->receipt_next && l_usage->receipt){
-            DAP_DEL_Z(l_usage->receipt);
-            l_usage->receipt = DAP_NEW_SIZE(dap_chain_datum_tx_receipt_t,l_receipt_size);
+        if (!l_usage->receipt_next && l_usage->receipt) {
+            DAP_DELETE(l_usage->receipt);
+            l_usage->receipt = DAP_DUP_SIZE(l_receipt, l_receipt_size);
+            if (!l_usage->receipt) {
+                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                return;
+            }
+            l_is_first_sign     = true;
+            l_usage->is_active  = true;
+        } else if (l_usage->receipt_next) {
+            DAP_DELETE(l_usage->receipt_next);
+            l_usage->receipt_next = DAP_DUP_SIZE(l_receipt, l_receipt_size);
             if (!l_usage->receipt_next) {
                 log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                 return;
             }
-            l_is_first_sign = true;
             l_usage->is_active = true;
-            memcpy( l_usage->receipt, l_receipt, l_receipt_size);
-        } else if (l_usage->receipt_next ){
-            DAP_DEL_Z(l_usage->receipt_next);
-            l_usage->receipt_next = DAP_NEW_SIZE(dap_chain_datum_tx_receipt_t,l_receipt_size);
-            if (!l_usage->receipt_next) {
-                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
-                return;
-            }
-            l_usage->is_active = true;
-            memcpy( l_usage->receipt_next, l_receipt, l_receipt_size);
         }
 
         // Store receipt if any problems with transactions
@@ -963,7 +953,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                         return;
                     }
                     l_grace->request->hdr.net_id = l_usage->net->pub.id;
-                    memcpy(l_grace->request->hdr.token, l_usage->token_ticker, strlen(l_usage->token_ticker));
+                    dap_stpcpy(l_grace->request->hdr.token, l_usage->token_ticker);
                     l_grace->request->hdr.srv_uid = l_usage->service->uid;
                     l_grace->request->hdr.tx_cond = l_usage->tx_cond_hash;
                     l_ch_chain_net_srv->srv_uid.uint64 = l_grace->request->hdr.srv_uid.uint64;
@@ -993,7 +983,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                         return;
                     }
                     l_grace->request->hdr.net_id = l_usage->net->pub.id;
-                    memcpy(l_grace->request->hdr.token, l_usage->token_ticker, strlen(l_usage->token_ticker));
+                    dap_stpcpy(l_grace->request->hdr.token, l_usage->token_ticker);
                     l_grace->request->hdr.srv_uid = l_usage->service->uid;
                     l_grace->request->hdr.tx_cond = l_usage->tx_cond_hash;
                     l_ch_chain_net_srv->srv_uid.uint64 = l_grace->request->hdr.srv_uid.uint64;
@@ -1028,30 +1018,26 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                 if (!l_usage->is_grace)
                     break;
             }
-            l_success_size = sizeof(dap_stream_ch_chain_net_srv_pkt_success_hdr_t) + DAP_CHAIN_HASH_FAST_STR_SIZE;//sizeof(dap_chain_hash_fast_t);
+            l_success_size = sizeof(dap_stream_ch_chain_net_srv_pkt_success_hdr_t) + DAP_CHAIN_HASH_FAST_STR_SIZE;
         } else {
             l_success_size = sizeof(dap_stream_ch_chain_net_srv_pkt_success_hdr_t);
         }
 
-        dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_STACK_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
-                                                                              l_success_size);
-        memset(&l_success->hdr, 0, sizeof(l_success->hdr));
-
-        l_success->hdr.usage_id         = l_usage->id;
-        l_success->hdr.net_id.uint64    = l_usage->net->pub.id.uint64;
-        l_success->hdr.srv_uid.uint64   = l_usage->service->uid.uint64;
-
-        if (l_usage->is_grace){
-            char *l_hash_str = dap_hash_fast_to_str_new(&l_usage->tx_cond_hash);
+        dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_STACK_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t, l_success_size);
+        l_success->hdr = (dap_stream_ch_chain_net_srv_pkt_success_hdr_t) {
+                .usage_id   = l_usage->id,
+                .net_id     = l_usage->net->pub.id,
+                .srv_uid    = l_usage->service->uid
+        };
+        if (l_usage->is_grace) {
+            char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
+            dap_hash_fast_to_str(&l_usage->tx_cond_hash, l_hash_str, sizeof(l_hash_str));
                 log_it(L_NOTICE, "Receipt is OK, but tx transaction %s %s. Start the grace period for %d seconds", l_hash_str,
                        l_usage->is_waiting_new_tx_cond ? "have no enough funds. New tx cond requested": "can't be found",
                        l_srv->grace_period);
-            DAP_DEL_Z(l_hash_str);
-        }else {
-            char *l_hash_str = dap_hash_fast_to_str_new(&l_usage->tx_cond_hash);
-            memcpy(l_success->custom_data, l_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-            DAP_DEL_Z(l_hash_str);
-            log_it(L_NOTICE, "Receipt with remote client sign is acceptible for. Now start the service's usage");
+        } else {
+            dap_hash_fast_to_str(&l_usage->tx_cond_hash, (char*)l_success->custom_data, DAP_CHAIN_HASH_FAST_STR_SIZE);
+            log_it(L_NOTICE, "Receipt with client sign is accepted, start service providing");
         }
 
         dap_stream_ch_pkt_write_unsafe( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS,
@@ -1095,10 +1081,12 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         void *l_out_data = l_srv->callbacks.custom_data(l_srv, l_usage, l_pkt->data, l_pkt_size, &l_out_data_size);
         if (l_out_data && l_out_data_size) {
             pkt_t *l_data = DAP_NEW_STACK_SIZE(pkt_t, sizeof(pkt_t) + l_out_data_size);
-            l_data->hdr.version     = 1;
-            l_data->hdr.srv_uid     = l_srv->uid;
-            l_data->hdr.usage_id    = l_pkt->hdr.usage_id;
-            l_data->hdr.data_size   = l_out_data_size;
+            l_data->hdr = (dap_stream_ch_chain_net_srv_pkt_data_hdr_t) {
+                    .version    = 1,
+                    .data_size  = l_out_data_size,
+                    .usage_id   = l_pkt->hdr.usage_id,
+                    .srv_uid    = l_srv->uid
+            };
             memcpy(l_data->data, l_out_data, l_out_data_size);
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_DATA, l_data, sizeof(pkt_t) + l_out_data_size);
         }
@@ -1118,11 +1106,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         dap_chain_net_srv_usage_t * l_usage = NULL;
         l_usage = l_srv_session->usage_active;
         dap_stream_ch_chain_net_srv_pkt_request_t* l_responce = (dap_stream_ch_chain_net_srv_pkt_request_t*)l_ch_pkt->data;
-
-        char *l_tx_in_hash_str = dap_chain_hash_fast_to_str_new(&l_responce->hdr.tx_cond);
+        char l_tx_in_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
+        dap_chain_hash_fast_to_str(&l_responce->hdr.tx_cond, l_tx_in_hash_str, sizeof(l_tx_in_hash_str));
         log_it(L_NOTICE, "Received new tx cond %s", l_tx_in_hash_str);
-        DAP_DELETE(l_tx_in_hash_str);
-
         if(!l_usage->is_waiting_new_tx_cond || !l_usage->is_grace)
             break;
 

@@ -500,7 +500,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "The order has not been created. "
                                                                        "Failed to convert string representation of '%s' "
                                                                        "to node address.", l_node_addr_str);
-                        DAP_DELETE(l_string_ret);
+                        dap_string_free(l_string_ret, true);
                         return -17;
                     }
                 } else {
@@ -522,8 +522,13 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                     l_price_unit.uint32 = SERV_UNIT_B;
                 } else if (!dap_strcmp(l_price_unit_str, "PCS")){
                     l_price_unit.uint32 = SERV_UNIT_PCS;
-                } else
-                    l_price_unit.uint32 = SERV_UNIT_UNDEFINED;
+                } else {
+                    //l_price_unit.uint32 = SERV_UNIT_UNDEFINED;
+                    log_it(L_ERROR, "Undefined price unit");
+                    dap_string_free(l_string_ret, true);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong unit type sepcified, possible values: B, KB, MB, SEC, DAY, PCS");
+                    return -18;
+                }
 
                 uint64_t l_units = atoi(l_units_str);
                 strncpy(l_price_token, l_price_token_str, DAP_CHAIN_TICKER_SIZE_MAX - 1);
