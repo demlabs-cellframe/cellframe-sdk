@@ -105,24 +105,14 @@ dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node(const char *a_net
     dap_chain_node_info_t *l_node_candidate;
     if(l_node_num)
     {
-        dap_chain_net_node_balancer_t * l_node_list_res = DAP_NEW_Z(dap_chain_net_node_balancer_t);
-        if (!l_node_list_res) {
-            log_it(L_ERROR, "Memory allocation error in dap_chain_net_balancer_get_node");
-            dap_list_free(l_objs_list);
-            return NULL;
-        }
-        l_node_list_res->nodes_info = DAP_NEW_Z_SIZE(byte_t, l_node_num * sizeof(dap_chain_node_info_t));
-        dap_chain_node_info_t * l_node_info = (dap_chain_node_info_t *)l_node_list_res->nodes_info;
-        if (!l_node_list_res->nodes_info) {
-            log_it(L_ERROR, "Memory allocation error in dap_chain_net_balancer_get_node");
-            DAP_DELETE(l_node_list_res);
-            dap_list_free(l_objs_list);
-            return NULL;
-        }
+
+        dap_chain_net_node_balancer_t *l_node_list_res = DAP_NEW_Z_SIZE(dap_chain_net_node_balancer_t,
+                   sizeof(dap_chain_net_node_balancer_t) + l_node_num * sizeof(dap_chain_node_info_t));
+
         for(size_t i=0;i<l_node_num;i++)
         {
             l_node_candidate = (dap_chain_node_info_t*)dap_list_nth_data(l_objs_list, i);
-            memcpy(l_node_info + i , l_node_candidate, sizeof(dap_chain_node_info_t));
+            memcpy(l_node_list_res->nodes_info + i , l_node_candidate, sizeof(dap_chain_node_info_t));
         }
         l_node_list_res->count_node = l_node_num;
         dap_list_free(l_objs_list);
@@ -204,9 +194,8 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
         return;
     }
     *l_return_code = Http_Status_OK;
-    size_t l_data_send_size = sizeof(dap_chain_net_node_balancer_t) + (sizeof(dap_chain_node_info_t) * l_link_full_node_list->count_node);
+    size_t l_data_send_size = sizeof(size_t) + (sizeof(dap_chain_node_info_t) * l_link_full_node_list->count_node);
     dap_http_simple_reply(a_http_simple, l_link_full_node_list, l_data_send_size);
-    DAP_DELETE(l_link_full_node_list->nodes_info);
     DAP_DELETE(l_link_full_node_list);
 }
 

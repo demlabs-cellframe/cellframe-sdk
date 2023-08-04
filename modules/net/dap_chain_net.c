@@ -1117,9 +1117,12 @@ void s_net_http_link_prepare_success(void *a_response, size_t a_response_size, v
 {
     struct balancer_link_request *l_balancer_request = (struct balancer_link_request *)a_arg;
     dap_chain_net_node_balancer_t* l_link_full_node_list = (dap_chain_net_node_balancer_t*)a_response;
-    size_t l_response_size_nead = sizeof(dap_chain_net_node_balancer_t) + (sizeof(dap_chain_node_info_t) * l_link_full_node_list->count_node);
-    if (a_response_size != l_response_size_nead) {
-        log_it(L_ERROR, "Invalid balancer response size %zu (expect %zu)", a_response_size, l_response_size_nead);
+
+
+    size_t l_response_size_need = sizeof(size_t) + (sizeof(dap_chain_node_info_t) * l_link_full_node_list->count_node);
+    log_it(L_WARNING, "Get data size - %d need - (%d)",a_response_size,l_response_size_need);
+    if (a_response_size != l_response_size_need) {
+        log_it(L_ERROR, "Invalid balancer response size %zu (expect %zu)", a_response_size, l_response_size_need);
         s_new_balancer_link_request(l_balancer_request->net, l_balancer_request->link_replace_tries);
         DAP_DELETE(l_balancer_request);
         return;
@@ -1188,7 +1191,6 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
                 }
                 i++;
             }
-            DAP_DELETE(l_link_full_node_list->nodes_info);
             DAP_DELETE(l_link_full_node_list);
             struct net_link *l_free_link = s_get_free_link(a_net);
             if (l_free_link)
