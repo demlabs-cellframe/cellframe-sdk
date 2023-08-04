@@ -838,7 +838,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
             l_err_code = 0;
             dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
             if (!l_price) {
-                log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_price_apply_from_my_order");
+                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                 DAP_DEL_Z(l_order);
                 dap_global_db_objs_delete(l_orders, l_orders_count);
                 return -1;
@@ -888,7 +888,7 @@ int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_
     for (uint16_t i = 0; i < l_pricelist_count; i++) {
         dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
         if (!l_price) {
-            log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_parse_pricelist");
+            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             return ret;
         }
         short l_iter = 0;
@@ -988,7 +988,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
     if(!l_sdata) {
         l_srv = DAP_NEW_Z(dap_chain_net_srv_t);
         if (!l_srv) {
-            log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_add");
+            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             pthread_mutex_unlock(&s_srv_list_mutex);
             return NULL;
         }
@@ -998,7 +998,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
         pthread_mutex_init(&l_srv->banlist_mutex, NULL);
         l_sdata = DAP_NEW_Z(service_list_t);
         if (!l_sdata) {
-            log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_add");
+            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             DAP_DEL_Z(l_srv);
             pthread_mutex_unlock(&s_srv_list_mutex);
             return NULL;

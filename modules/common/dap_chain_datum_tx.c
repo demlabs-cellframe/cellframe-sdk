@@ -40,7 +40,7 @@ dap_chain_datum_tx_t* dap_chain_datum_tx_create(void)
 {
     dap_chain_datum_tx_t *tx = DAP_NEW_Z(dap_chain_datum_tx_t);
     if (!tx) {
-        log_it(L_ERROR, "Memory allocation error in dap_chain_datum_tx_create");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return 0;
     }
     tx->header.ts_created = time(NULL);
