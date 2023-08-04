@@ -500,7 +500,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "The order has not been created. "
                                                                        "Failed to convert string representation of '%s' "
                                                                        "to node address.", l_node_addr_str);
-                        DAP_DELETE(l_string_ret);
+                        dap_string_free(l_string_ret, true);
                         return -17;
                     }
                 } else {
@@ -522,8 +522,13 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                     l_price_unit.uint32 = SERV_UNIT_B;
                 } else if (!dap_strcmp(l_price_unit_str, "PCS")){
                     l_price_unit.uint32 = SERV_UNIT_PCS;
-                } else
-                    l_price_unit.uint32 = SERV_UNIT_UNDEFINED;
+                } else {
+                    //l_price_unit.uint32 = SERV_UNIT_UNDEFINED;
+                    log_it(L_ERROR, "Undefined price unit");
+                    dap_string_free(l_string_ret, true);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong unit type sepcified, possible values: B, KB, MB, SEC, DAY, PCS");
+                    return -18;
+                }
 
                 uint64_t l_units = atoi(l_units_str);
                 strncpy(l_price_token, l_price_token_str, DAP_CHAIN_TICKER_SIZE_MAX - 1);
@@ -838,7 +843,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
             l_err_code = 0;
             dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
             if (!l_price) {
-                log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_price_apply_from_my_order");
+                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                 DAP_DEL_Z(l_order);
                 dap_global_db_objs_delete(l_orders, l_orders_count);
                 return -1;
@@ -888,7 +893,7 @@ int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_
     for (uint16_t i = 0; i < l_pricelist_count; i++) {
         dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
         if (!l_price) {
-            log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_parse_pricelist");
+            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             return ret;
         }
         short l_iter = 0;
@@ -988,7 +993,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
     if(!l_sdata) {
         l_srv = DAP_NEW_Z(dap_chain_net_srv_t);
         if (!l_srv) {
-            log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_add");
+            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             pthread_mutex_unlock(&s_srv_list_mutex);
             return NULL;
         }
@@ -998,7 +1003,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
         pthread_mutex_init(&l_srv->banlist_mutex, NULL);
         l_sdata = DAP_NEW_Z(service_list_t);
         if (!l_sdata) {
-            log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_add");
+            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             DAP_DEL_Z(l_srv);
             pthread_mutex_unlock(&s_srv_list_mutex);
             return NULL;
