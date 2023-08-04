@@ -169,7 +169,7 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
     if(l_sdata == NULL) {
         l_sdata = DAP_NEW_Z(dap_chain_net_session_data_t);
         if (!l_sdata) {
-            log_it(L_ERROR, "Memory allocation error in s_stream_ch_new");
+            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             pthread_mutex_unlock(&s_hash_mutex);
             return;
         }

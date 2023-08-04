@@ -38,7 +38,7 @@ dap_chain_block_chunks_t * dap_chain_block_chunks_create(dap_chain_cs_blocks_t *
     assert(a_blocks->chain);
     dap_chain_block_chunks_t * l_ret = DAP_NEW_Z(dap_chain_block_chunks_t);
     if (!l_ret) {
-        log_it(L_ERROR, "Memory allocation error in dap_chain_block_chunks_create");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return NULL;
     }
     l_ret->blocks = a_blocks;
@@ -111,7 +111,7 @@ void dap_chain_block_chunks_add(dap_chain_block_chunks_t * a_chunks,dap_chain_bl
             // Init cache-hash object
             l_chunk_cache_hash = DAP_NEW_Z(dap_chain_block_cache_hash_t);
             if (!l_chunk_cache_hash) {
-                log_it(L_ERROR, "Memory allocation error in dap_chain_block_chunks_add");
+                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                 return;
             }
             l_chunk_cache_hash->block_cache=a_block_cache;
@@ -137,7 +137,7 @@ void dap_chain_block_chunks_add(dap_chain_block_chunks_t * a_chunks,dap_chain_bl
         // Init cache-hash object
         l_chunk_cache_hash = DAP_NEW_Z(dap_chain_block_cache_hash_t);
         if (!l_chunk_cache_hash) {
-            log_it(L_ERROR, "Memory allocation error in dap_chain_block_chunks_add");
+            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             return;
         }
         l_chunk_cache_hash->block_cache=a_block_cache;
@@ -169,7 +169,7 @@ dap_chain_block_chunk_t * dap_chain_block_chunk_create(dap_chain_block_chunks_t 
 {
     dap_chain_block_chunk_t * l_chunk = DAP_NEW_Z(dap_chain_block_chunk_t);
     if (!l_chunk) {
-        log_it(L_ERROR, "Memory allocation error in dap_chain_block_chunk_create ");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return NULL;
     }
     // Add in tail
