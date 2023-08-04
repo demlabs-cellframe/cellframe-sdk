@@ -1031,13 +1031,14 @@ static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_cha
     int l_res = 0;
     size_t i = 0;
     char l_err_str[128] = { };
+    struct json_object *l_json;
     while(!l_res){
         if(i >= a_link_full_node_list->count_node)
             break;
         l_res = s_net_link_add(l_net, l_node_info + i);
         switch (l_res) {
         case 0:
-            struct json_object *l_json = s_net_states_json_collect(l_net);
+            l_json = s_net_states_json_collect(l_net);
 
             snprintf(l_err_str, sizeof(l_err_str)
                          , "Link " NODE_ADDR_FP_STR " prepared"
