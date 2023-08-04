@@ -1029,16 +1029,15 @@ static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_cha
     dap_chain_net_t * l_net = l_balancer_request->net;
     dap_chain_node_info_t * l_node_info = (dap_chain_node_info_t *)a_link_full_node_list->nodes_info;
     int l_res = 0;
-    size_t i = 0;
-    struct json_object *l_json = s_net_states_json_collect(l_net);
-    char l_err_str[128] = { };
+    size_t i = 0;    
     while(!l_res){
         if(i >= a_link_full_node_list->count_node)
             break;
         l_res = s_net_link_add(l_net, l_node_info + i);
         switch (l_res) {
         case 0:
-
+            struct json_object *l_json = s_net_states_json_collect(l_net);
+            char l_err_str[128] = { };
             snprintf(l_err_str, sizeof(l_err_str)
                          , "Link " NODE_ADDR_FP_STR " prepared"
                          , NODE_ADDR_FP_ARGS_S((l_node_info + i)->hdr.address));
@@ -1263,7 +1262,7 @@ static void s_prepare_links_from_balancer(dap_chain_net_t *a_net)
         return;
     }
     // Get list of the unique links for l_net
-    size_t l_max_links_count = PVT(a_net)->max_links_count * 2;   // Not all will be success
+    size_t l_max_links_count = PVT(a_net)->max_links_count;   // Not all will be success
     for (size_t l_cur_links_count = 0, n = 0; l_cur_links_count < l_max_links_count; n++) {
         if (n > 1000) // It's a problem with link prepare
             break;
