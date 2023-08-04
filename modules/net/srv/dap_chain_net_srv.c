@@ -1203,22 +1203,35 @@ dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv
 }
 
 int dap_chain_net_srv_check_store_obj(dap_store_obj_t *a_store_obj) {
-    if (!a_store_obj)
-        return 1;
-    if (!a_store_obj->value)
+    if (!a_store_obj || strlen(a_store_obj->group) != a_store_obj->group_len)
         return -1;
     size_t l_net_str_len = 0;
-    const char* l_net_str = NULL;
+    char* l_net_str = NULL;
     dap_chain_net_t *l_net = NULL;
     dap_chain_net_srv_order_t *l_order = NULL;
     if (a_store_obj->group_len > 7 && !strcmp(a_store_obj->group + a_store_obj->group_len - 7, ".orders")) {
         l_net_str_len = strstr(a_store_obj->group, ".") - a_store_obj->group;
         if (l_net_str_len < a_store_obj->group_len) {
-            l_net_str = DAP_DUP_SIZE(a_store_obj->group, l_net_str_len);
-            l_net = dap_chain_net_by_name(l_net_str);
             l_order = dap_chain_net_srv_order_read(a_store_obj->value, a_store_obj->value_len);
-            DAP_DELETE(l_net_str);
-            return dap_chain_net_srv_stake_is_active_validator(l_net, l_order->node_addr);
+            if (l_order) {
+                if (!(l_net_str = DAP_DUP_SIZE(a_store_obj->group, l_net_str_len))) {
+                    log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_check_store_obj");
+                    return -1;
+                }
+                l_net = dap_chain_net_by_name(l_net_str);
+                DAP_DELETE(l_net_str);
+                if (!l_net) {
+                    log_it(L_ERROR, "Can't get net from dap_store_obj_t group");
+                    return -1;
+                }
+                if (!dap_chain_net_srv_stake_is_active_validator(l_net, l_order->node_addr)) {
+                    DAP_DELETE(l_order);
+                    return 0;
+                }
+                log_it(L_ERROR, "Order not sync - node "NODE_ADDR_FP_STR" is not validator", NODE_ADDR_FP_ARGS_S(l_order->node_addr));
+                DAP_DELETE(l_order);
+            } 
+            return -1;
         }
     }
     return 0;

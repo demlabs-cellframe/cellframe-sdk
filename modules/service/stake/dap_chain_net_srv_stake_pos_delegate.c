@@ -1399,18 +1399,17 @@ bool dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_f
     return l_overall_correct;
 }
 
-bool dap_chain_net_srv_stake_is_active_validator(dap_chain_net_t* a_net, dap_chain_node_addr_t a_node_addr)
+int dap_chain_net_srv_stake_is_active_validator(dap_chain_net_t* a_net, dap_chain_node_addr_t a_node_addr)
 {
-    bool l_ret = true;
     if (!s_srv_stake || !s_srv_stake->itemlist)
-        return l_ret;
-    for (dap_chain_net_srv_stake_item_t *l_stake = s_srv_stake->itemlist; l_stake && l_ret; l_stake = l_stake->hh.next)
+        return -1;
+    for (dap_chain_net_srv_stake_item_t *l_stake = s_srv_stake->itemlist; l_stake; l_stake = l_stake->hh.next)
         if (
             a_net->pub.id.uint64 == l_stake->signing_addr.net_id.uint64 &&
             l_stake->node_addr.uint64 == a_node_addr.uint64 &&
             l_stake->is_active)
-            l_ret = false;
-    return l_ret;
+            return 0;
+    return -1;
 }
 
 static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
