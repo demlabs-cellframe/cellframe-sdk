@@ -1215,22 +1215,23 @@ dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv
 }
 
 int s_check_order_in_store_obj(dap_store_obj_t *a_store_obj) {
-    size_t l_net_str_len = 0;
-    char* l_net_str = NULL;
-    dap_chain_net_t *l_net = NULL;
-    dap_chain_net_srv_order_t *l_order = NULL;
-    l_net_str_len = strstr(a_store_obj->group, ".") - a_store_obj->group;
-    if (l_net_str_len < a_store_obj->group_len) {
-        l_order = dap_chain_net_srv_order_read(a_store_obj->value, a_store_obj->value_len);
+    char* l_point_ptr = strchr(a_store_obj->group, '.');
+    if (l_point_ptr) {
+        size_t l_net_str_len = l_point_ptr - a_store_obj->group;
+        dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_read(a_store_obj->value, a_store_obj->value_len);
         if (l_order) {
-            if (!(l_net_str = DAP_DUP_SIZE(a_store_obj->group, l_net_str_len))) {
-                log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_check_store_obj");
+            char* l_net_str = DAP_DUP_SIZE(a_store_obj->group, l_net_str_len + 1);
+            if (!(l_net_str)) {
+                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                DAP_DELETE(l_order);
                 return -1;
             }
-            l_net = dap_chain_net_by_name(l_net_str);
+            l_net_str[l_net_str_len] = 0;
+            dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
             DAP_DELETE(l_net_str);
             if (!l_net) {
-                log_it(L_ERROR, "Can't get net from dap_store_obj_t group");
+                log_it(L_ERROR, "Can't get net from dap_store_obj_t group in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                DAP_DELETE(l_order);
                 return -1;
             }
             if (!dap_chain_net_srv_stake_is_active_validator(l_net, l_order->node_addr)) {
