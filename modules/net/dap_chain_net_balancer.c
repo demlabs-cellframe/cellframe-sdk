@@ -109,9 +109,10 @@ dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node(const char *a_net
         dap_chain_net_node_balancer_t *l_node_list_res = DAP_NEW_Z_SIZE(dap_chain_net_node_balancer_t,
                    sizeof(dap_chain_net_node_balancer_t) + l_node_num * sizeof(dap_chain_node_info_t));
         dap_chain_node_info_t * l_node_info = (dap_chain_node_info_t *)l_node_list_res->nodes_info;
-        for(size_t i=0;i<l_node_num;i++)
+        dap_list_t *nl = l_objs_list;
+        for(size_t i=0; i<l_node_num; i++,nl = nl->next)
         {
-            l_node_candidate = (dap_chain_node_info_t*)dap_list_nth_data(l_objs_list, i);
+            l_node_candidate = (dap_chain_node_info_t*)nl->data;
             memcpy(l_node_info + i , l_node_candidate, sizeof(dap_chain_node_info_t));
         }
         l_node_list_res->count_node = l_node_num;
@@ -137,7 +138,7 @@ dap_chain_net_node_balancer_t *s_balancer_issue_link(const char *a_net_name)
         dap_chain_node_info_t * l_node_info = (dap_chain_node_info_t *)l_link_full_node_list->nodes_info;
         for(size_t i=0;i<l_link_full_node_list->count_node;i++)
         {
-            log_it(L_DEBUG, "Network balancer issues ip %s",inet_ntoa((l_node_info + i)->hdr.ext_addr_v4));
+            log_it(L_DEBUG, "Network balancer issues ip %s, [%ld blocks]",inet_ntoa((l_node_info + i)->hdr.ext_addr_v4),l_node_info->hdr.blocks_events);
         }
         return l_link_full_node_list;
     }
@@ -147,7 +148,8 @@ dap_chain_net_node_balancer_t *s_balancer_issue_link(const char *a_net_name)
         if(l_link_node_info)
         {          
             log_it(L_DEBUG, "Network balancer issues ip from net conf - %s",inet_ntoa(l_link_node_info->hdr.ext_addr_v4));
-            dap_chain_net_node_balancer_t * l_node_list_res = DAP_NEW_Z(dap_chain_net_node_balancer_t);
+            dap_chain_net_node_balancer_t * l_node_list_res = DAP_NEW_Z_SIZE(dap_chain_net_node_balancer_t,
+                                                                             sizeof(dap_chain_net_node_balancer_t) + sizeof(dap_chain_node_info_t));
             l_node_list_res->count_node = 1;
             memmove(l_node_list_res->nodes_info,l_link_node_info,sizeof(dap_chain_node_info_t));
             return l_node_list_res;
