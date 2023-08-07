@@ -895,13 +895,8 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
         }
         if (!l_net_pvt->only_static_links) {
             size_t l_current_links_prepared = HASH_COUNT(l_net_pvt->net_links);
-            for (size_t i = l_current_links_prepared; i < l_net_pvt->max_links_count ; i++) {
-                dap_chain_node_info_t *l_link_node_info = dap_get_balancer_link_from_cfg(l_net);
-                if (l_link_node_info) {
-                    if (!s_new_balancer_link_request(l_net, 1))
-                        log_it(L_ERROR, "Can't process node info balancer request");
-                    DAP_DELETE(l_link_node_info);
-                }
+            for (size_t i = l_current_links_prepared; i < l_net_pvt->max_links_count ; i++) {                
+                s_new_balancer_link_request(l_net, 0);
             }
         }
         pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
