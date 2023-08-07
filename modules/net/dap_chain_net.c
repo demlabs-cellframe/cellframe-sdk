@@ -1559,9 +1559,14 @@ void dap_chain_net_delete( dap_chain_net_t * a_net )
  * @brief
  * load network config settings
  */
+<<<<<<< HEAD
 void dap_chain_net_load_all()
 {
     int l_ret = 0;
+=======
+void dap_chain_net_load_all() {
+    int32_t l_ret = 0;
+>>>>>>> 6470e33bbac26f6f7ebaf48bd84da3f6fee5f4fe
 
     if(!HASH_COUNT(s_net_items)){
         log_it(L_ERROR, "Can't find any nets");

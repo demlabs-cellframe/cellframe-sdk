@@ -180,13 +180,13 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     a_chain->callback_get_minimum_fee = s_callback_get_minimum_fee;
     a_chain->callback_get_signing_certificate = s_callback_get_sign_key;
 
-    l_esbocs->_pvt = DAP_NEW_Z(dap_chain_esbocs_pvt_t);
-    if (!l_esbocs->_pvt) {
+    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
+    l_esbocs_pvt = DAP_NEW_Z(dap_chain_esbocs_pvt_t);
+    if (!l_esbocs_pvt) {
         log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         l_ret = - 5;
         goto lb_err;
     }
-    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
     l_esbocs_pvt->debug = dap_config_get_item_bool_default(a_chain_cfg, "esbocs", "consensus_debug", false);
     l_esbocs_pvt->poa_mode = dap_config_get_item_bool_default(a_chain_cfg, "esbocs", "poa_mode", false);
     l_esbocs_pvt->round_start_sync_timeout = dap_config_get_item_uint16_default(a_chain_cfg, "esbocs", "round_start_sync_timeout", 15);
