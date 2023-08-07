@@ -189,7 +189,7 @@ static dap_chain_node_addr_t* s_node_info_get_addr(dap_chain_net_t * a_net, dap_
     if(a_addr->uint64) {
         l_address = DAP_NEW(dap_chain_node_addr_t);
         if (!l_address) {
-            log_it(L_ERROR, "Memory allocation error in s_node_info_get_addr");
+            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             return NULL;
         }
         l_address->uint64 = a_addr->uint64;
@@ -1399,7 +1399,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
 
         log_it(L_NOTICE, "Stream connection established");
         dap_stream_ch_chain_sync_request_t l_sync_request = {};
-         dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, dap_stream_ch_chain_get_id());
+         dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, DAP_STREAM_CH_ID);
          // fill begin id
          l_sync_request.id_start = 1;
          // fill current node address
@@ -1409,7 +1409,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         if(!l_sync_request.node_addr.uint64 )
         {
             log_it(L_NOTICE, "Now get node addr");
-            uint8_t l_ch_id = dap_stream_ch_chain_net_get_id();
+            uint8_t l_ch_id = DAP_STREAM_CH_ID_NET;
             dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, l_ch_id);
 
             size_t res = dap_stream_ch_chain_net_pkt_write(l_ch_chain,
@@ -3855,7 +3855,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
             // Create new datum token
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t) + l_params->ext.tsd_total_size);
             if (!l_datum_token) {
-                log_it(L_ERROR, "Memory allocation error in com_token_decl");
+                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Out of memory in com_token_decl");
                 DAP_DEL_Z(l_params);
                 return -1;
@@ -3920,7 +3920,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE: { // 256
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t));
             if (!l_datum_token) {
-                log_it(L_ERROR, "Memory allocation error in com_token_decl");
+                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Out of memory in com_token_decl");
                 DAP_DEL_Z(l_params);
                 return -1;
@@ -4089,7 +4089,7 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
             // Create new datum token
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t) + l_params->ext.tsd_total_size);
             if (!l_datum_token) {
-                log_it(L_ERROR, "Memory allocation error in com_token_update");
+                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                 return -1;
             }
             l_datum_token->version = 2;
@@ -4126,7 +4126,7 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE: { // 256
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t));
             if (!l_datum_token) {
-                log_it(L_ERROR, "Memory allocation error in com_token_update");
+                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                 return -1;
             }
             l_datum_token->version = 2;
@@ -5673,6 +5673,10 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
             } else
                 l_addr = l_addr_tmp;
             dap_chain_wallet_close(l_wallet);
+        } else {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "The wallet %s is not activated or it doesn't exist", l_wallet_name);
+            DAP_DELETE(l_addr);
+            return -7;
         }
     }
     // Select chain, if any
@@ -6134,7 +6138,7 @@ int cmd_remove(int a_argc, char **a_argv, char ** a_str_reply)
             size_t l_aliases_count = 0;
             _pvt_net_aliases_list_t *l_gdb_groups = DAP_NEW(_pvt_net_aliases_list_t);
             if (!l_gdb_groups) {
-                log_it(L_ERROR, "Memory allocation error in cmd_remove");
+                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                 dap_list_free(l_net_returns);
                 return -1;
             }
@@ -6706,7 +6710,7 @@ static byte_t *s_concat_meta (dap_list_t *a_meta, size_t *a_fullsize)
     int l_power = 1;
     byte_t *l_buf = DAP_CALLOC(l_part * l_power++, 1);
     if (!l_buf) {
-        log_it(L_ERROR, "Memory allocation error in s_concat_meta");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return NULL;
     }
     size_t l_counter = 0;
@@ -6722,7 +6726,7 @@ static byte_t *s_concat_meta (dap_list_t *a_meta, size_t *a_fullsize)
             l_part_power = l_part * l_power++;
             l_buf = (byte_t *) DAP_REALLOC(l_buf, l_part_power);
             if (!l_buf) {
-                log_it(L_ERROR, "Memory allocation error in s_concat_meta");
+                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                 return NULL;
             }
         }
@@ -6745,7 +6749,7 @@ static uint8_t *s_concat_hash_and_mimetypes (dap_chain_hash_fast_t *a_chain_hash
     *a_fullsize += sizeof (a_chain_hash->raw) + 1;
     uint8_t *l_fullbuf = DAP_CALLOC(*a_fullsize, 1);
     if (!l_fullbuf) {
-        log_it(L_ERROR, "Memory allocation error in s_concat_hash_and_mimetypes");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         DAP_DELETE(l_buf);
         return NULL;
     }
@@ -6764,7 +6768,7 @@ static char *s_strdup_by_index (const char *a_file, const int a_index)
 {
     char *l_buf = DAP_CALLOC(a_index + 1, 1);
     if (!l_buf) {
-        log_it(L_ERROR, "Memory allocation error in s_strdup_by_index");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return NULL;
     }
     strncpy (l_buf, a_file, a_index);

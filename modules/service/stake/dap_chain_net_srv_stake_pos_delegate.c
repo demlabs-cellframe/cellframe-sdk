@@ -96,7 +96,7 @@ int dap_chain_net_srv_stake_pos_delegate_init()
 
     s_srv_stake = DAP_NEW_Z(dap_chain_net_srv_stake_t);
     if (!s_srv_stake) {
-        log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_stake_pos_delegate_init");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return -1;
     }
     s_srv_stake->delegate_allowed_min = dap_chain_coins_to_balance("1.0");
@@ -375,7 +375,7 @@ int dap_chain_net_srv_stake_load_cache(dap_chain_net_t *a_net)
                 (dap_chain_net_srv_stake_cache_data_t *)l_store_obj[i].value;
         dap_chain_net_srv_stake_cache_item_t *l_cache = DAP_NEW_Z(dap_chain_net_srv_stake_cache_item_t);
         if (!l_cache) {
-            log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_stake_load_cache");
+            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             return -1;
         }
         l_cache->signing_addr   = l_cache_data->signing_addr;
@@ -569,7 +569,7 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
     l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(dap_hash_fast_t);
     l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
     if (!l_tsd) {
-        log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_stake_decree_approve");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return NULL;
     }
     l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_TX_HASH;
@@ -580,7 +580,7 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
     l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(uint256_t);
     l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
     if (!l_tsd) {
-        log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_stake_decree_approve");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         dap_list_free_full(l_tsd_list, NULL);
         return NULL;
     }
@@ -592,7 +592,7 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
     l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(dap_chain_addr_t);
     l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
     if (!l_tsd) {
-        log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_stake_decree_approve");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         dap_list_free_full(l_tsd_list, NULL);
         return NULL;
     }
@@ -604,7 +604,7 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
     l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(dap_chain_node_addr_t);
     l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
     if (!l_tsd) {
-        log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_stake_decree_approve");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         dap_list_free_full(l_tsd_list, NULL);
         return NULL;
     }
@@ -615,7 +615,7 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
 
     l_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, sizeof(dap_chain_datum_decree_t) + l_total_tsd_size);
     if (!l_decree) {
-        log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_stake_decree_approve");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         dap_list_free_full(l_tsd_list, NULL);
         return NULL;
     }
@@ -816,7 +816,7 @@ static dap_chain_datum_decree_t *s_stake_decree_invalidate(dap_chain_net_t *a_ne
     l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(dap_chain_addr_t);
     l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
     if (!l_tsd) {
-        log_it(L_ERROR, "Memory allocation error in s_stake_decree_invalidate");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return NULL;
     }
     l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNING_ADDR;
@@ -826,7 +826,7 @@ static dap_chain_datum_decree_t *s_stake_decree_invalidate(dap_chain_net_t *a_ne
 
     l_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, sizeof(dap_chain_datum_decree_t) + l_total_tsd_size);
     if (!l_decree) {
-        log_it(L_ERROR, "Memory allocation error in s_stake_decree_set_min_stake");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         dap_list_free_full(l_tsd_list, NULL);
         return NULL;
     }
@@ -892,7 +892,7 @@ static dap_chain_datum_decree_t *s_stake_decree_set_min_stake(dap_chain_net_t *a
     l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(uint256_t);
     l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
     if (!l_tsd) {
-        log_it(L_ERROR, "Memory allocation error in s_stake_decree_set_min_stake");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return NULL;
     }
     l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_VALUE;
@@ -902,7 +902,7 @@ static dap_chain_datum_decree_t *s_stake_decree_set_min_stake(dap_chain_net_t *a
 
     l_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, sizeof(dap_chain_datum_decree_t) + l_total_tsd_size);
     if (!l_decree) {
-        log_it(L_ERROR, "Memory allocation error in s_stake_decree_set_min_stake");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         dap_list_free_full(l_tsd_list, NULL);
         return NULL;
     }
@@ -1201,17 +1201,19 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                 if (l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID)
                     continue;
                 // TODO add filters to list (token, address, etc.)
-                char *l_price = dap_chain_balance_print(l_order->price);
+                char *l_price_coins = dap_chain_balance_to_coins(l_order->price);
+                char *l_price_datoshi = dap_chain_balance_print(l_order->price);
                 char *l_node_addr = dap_strdup_printf(NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_order->node_addr));
                 char l_created[80] = {'\0'};
                 dap_time_t l_ts_created = l_order->ts_created;
                 dap_ctime_r(&l_ts_created, l_created);
                 dap_string_append_printf(l_reply_str, "Order: %s\n"
                                                       "\tCreated: %s"
-                                                      "\tPrice: %s %s\n"
+                                                      "\tPrice: %s (%s) %s\n"
                                                       "\tNode addr: %s\n",
-                                                      l_orders[i].key, l_created, l_price, l_order->price_ticker, l_node_addr);
-                DAP_DELETE(l_price);
+                                                      l_orders[i].key, l_created, l_price_coins, l_price_datoshi, l_order->price_ticker, l_node_addr);
+                DAP_DELETE(l_price_coins);
+                DAP_DELETE(l_price_datoshi);
                 DAP_DELETE(l_node_addr);
             }
             dap_global_db_objs_delete(l_orders, l_orders_count);
@@ -1359,7 +1361,7 @@ bool dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_f
     }
     log_it(L_NOTICE, "Stream connection established");
 
-    uint8_t l_ch_id = dap_stream_ch_chain_net_get_id();
+    uint8_t l_ch_id = DAP_STREAM_CH_ID_NET;
     dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, l_ch_id);
 
     randombytes(l_test_data, sizeof(l_test_data));
@@ -1738,7 +1740,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 }
                 struct get_tx_cond_pos_del_from_tx * l_args = DAP_NEW_Z(struct get_tx_cond_pos_del_from_tx);
                 if(!l_args) {
-                    log_it(L_ERROR, "Memory allocation error in s_cli_srv_stake");
+                    log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Out of memory");
                     return -1;
                 }

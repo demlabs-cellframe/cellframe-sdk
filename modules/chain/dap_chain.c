@@ -104,8 +104,10 @@ void dap_chain_deinit(void)
 dap_chain_t * dap_chain_create(dap_ledger_t* a_ledger, const char * a_chain_net_name, const char * a_chain_name, dap_chain_net_id_t a_chain_net_id, dap_chain_id_t a_chain_id )
 {
     dap_chain_t * l_ret = DAP_NEW_Z(dap_chain_t);
-    if ( !l_ret )
-        return log_it(L_ERROR, "Memory allocation error in dap_chain_create, errno=%d", errno), NULL;
+    if ( !l_ret ) {
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        return NULL;   
+    }
     DAP_CHAIN_PVT_LOCAL_NEW(l_ret);
     memcpy(l_ret->id.raw,a_chain_id.raw,sizeof(a_chain_id));
     memcpy(l_ret->net_id.raw,a_chain_net_id.raw,sizeof(a_chain_net_id));
@@ -117,7 +119,8 @@ dap_chain_t * dap_chain_create(dap_ledger_t* a_ledger, const char * a_chain_net_
     dap_chain_item_t * l_ret_item = DAP_NEW_Z(dap_chain_item_t);
     if ( !l_ret_item ){
         DAP_DELETE(l_ret);
-        return log_it(L_ERROR, "Memory allocation error in dap_chain_create, errno=%d", errno), NULL;
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        return NULL;
     }
     l_ret_item->chain = l_ret;
     memcpy(l_ret_item->item_id.id.raw ,a_chain_id.raw,sizeof(a_chain_id));
@@ -433,7 +436,8 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
 					l_chain->datum_types = DAP_NEW_SIZE(dap_chain_type_t, l_datum_types_count * sizeof(dap_chain_type_t)); // TODO: pls check counter for recognized types before memory allocation!
                     if ( !l_chain->datum_types ) {
                         DAP_DELETE(l_chain);
-                        return log_it(L_ERROR, "Memory allocation error in dap_chain_load_from_cfg, errno=%d", errno), NULL;
+                        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                        return NULL;
                     }
                     l_count_recognized = 0;
 					for (uint16_t i = 0; i < l_datum_types_count; i++)
@@ -457,7 +461,8 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                         if (l_chain->datum_types)
                             DAP_DELETE(l_chain->datum_types);
                         DAP_DELETE(l_chain);
-                        return log_it(L_ERROR, "Memory allocation error in dap_chain_load_from_cfg, errno=%d", errno), NULL;
+                        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                        return NULL;
                     }
                     l_count_recognized = 0;
 					for (uint16_t i = 0; i < l_default_datum_types_count; i++)
@@ -482,12 +487,13 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
 				{
 					l_chain->autoproc_datum_types = DAP_NEW_Z_SIZE(uint16_t, l_chain->datum_types_count * sizeof(uint16_t)); // TODO: pls check counter for recognized types before memory allocation!
                     if ( !l_chain->autoproc_datum_types ) {
+                        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                         if (l_chain->datum_types)
                             DAP_DELETE(l_chain->datum_types);
                         if (l_chain->default_datum_types)
                             DAP_DELETE(l_chain->default_datum_types);
                         DAP_DELETE(l_chain);
-                        return log_it(L_ERROR, "Memory allocation error in dap_chain_load_from_cfg, errno=%d", errno), NULL;
+                        return NULL;
                     }
                     l_count_recognized = 0;
 					for (uint16_t i = 0; i < l_datum_types_count; i++)

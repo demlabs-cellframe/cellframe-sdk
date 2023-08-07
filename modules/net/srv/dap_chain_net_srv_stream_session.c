@@ -42,7 +42,7 @@ dap_chain_net_srv_stream_session_t * dap_chain_net_srv_stream_session_create( da
     }
     dap_chain_net_srv_stream_session_t * l_session_srv= DAP_NEW_Z(dap_chain_net_srv_stream_session_t);
     if (!l_session_srv) {
-        log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_stream_session_create");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return NULL;
     }
     a_session->_inheritor = l_session_srv;
@@ -80,7 +80,7 @@ dap_chain_net_srv_usage_t* dap_chain_net_srv_usage_add (dap_chain_net_srv_stream
     if ( a_srv_session && a_net && a_srv ){
         dap_chain_net_srv_usage_t * l_ret = DAP_NEW_Z(dap_chain_net_srv_usage_t);
         if (!l_ret) {
-            log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_usage_add");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             return NULL;
         }
         randombytes(&l_ret->id, sizeof(l_ret->id));

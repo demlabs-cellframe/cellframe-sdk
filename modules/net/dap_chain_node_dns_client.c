@@ -172,7 +172,7 @@ static void s_dns_client_esocket_worker_assign_callback(dap_events_socket_t * a_
 
     dap_events_socket_uuid_t * l_es_uuid_ptr = DAP_NEW_Z(dap_events_socket_uuid_t);
     if (!l_es_uuid_ptr) {
-        log_it(L_ERROR, "Memory allocation error in s_dns_client_esocket_worker_assign_callback");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return;
     }
     *l_es_uuid_ptr = a_esocket->uuid;

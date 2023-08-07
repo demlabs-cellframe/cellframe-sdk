@@ -502,7 +502,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "The order has not been created. "
                                                                        "Failed to convert string representation of '%s' "
                                                                        "to node address.", l_node_addr_str);
-                        DAP_DELETE(l_string_ret);
+                        dap_string_free(l_string_ret, true);
                         return -17;
                     }
                 } else {
@@ -524,8 +524,13 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                     l_price_unit.uint32 = SERV_UNIT_B;
                 } else if (!dap_strcmp(l_price_unit_str, "PCS")){
                     l_price_unit.uint32 = SERV_UNIT_PCS;
-                } else
-                    l_price_unit.uint32 = SERV_UNIT_UNDEFINED;
+                } else {
+                    //l_price_unit.uint32 = SERV_UNIT_UNDEFINED;
+                    log_it(L_ERROR, "Undefined price unit");
+                    dap_string_free(l_string_ret, true);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong unit type sepcified, possible values: B, KB, MB, SEC, DAY, PCS");
+                    return -18;
+                }
 
                 uint64_t l_units = atoi(l_units_str);
                 strncpy(l_price_token, l_price_token_str, DAP_CHAIN_TICKER_SIZE_MAX - 1);
@@ -830,6 +835,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
     if (!l_node_addr)
         return -1;
     size_t l_orders_count = 0;
+    uint64_t l_max_price_cfg = dap_config_get_item_uint64_default(g_config, a_config_section, "max_price", 0xFFFFFFFFFFFFFFF);
     char *l_gdb_order_group = dap_chain_net_srv_order_get_gdb_group(l_net);
     dap_global_db_obj_t *l_orders = dap_global_db_get_all_sync(l_gdb_order_group, &l_orders_count);
     for (size_t i=0; i < l_orders_count; i++){
@@ -839,15 +845,16 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
             l_err_code = 0;
             dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
             if (!l_price) {
-                log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_price_apply_from_my_order");
+                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                 DAP_DEL_Z(l_order);
                 dap_global_db_objs_delete(l_orders, l_orders_count);
                 return -1;
             }
             l_price->net = l_net;
             l_price->net_name = dap_strdup(l_net->pub.name);
-            uint256_t l_max_price = GET_256_FROM_64((uint64_t)1000000000000000); // Change this value when max price wil be calculated
+            uint256_t l_max_price = GET_256_FROM_64(l_max_price_cfg); // Change this value when max price wil be calculated
             if (!compare256(l_order->price, uint256_0) || l_order->units == 0 ){
+                log_it(L_ERROR, "Invalid order: units count or price unspecified");
                 DAP_DELETE(l_price);
                 continue;
             }
@@ -859,11 +866,14 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
                 uint256_t l_price_unit = uint256_0;
                 DIV_256(l_price->value_datoshi,  GET_256_FROM_64(l_order->units), &l_price_unit);
                 if (compare256(l_price_unit, l_max_price)>0){
+                    char *l_price_unit_str = dap_chain_balance_print(l_price_unit), *l_max_price_str = dap_chain_balance_print(l_max_price);
+                    log_it(L_ERROR, "Unit price exeeds max permitted value: %s > %s", l_price_unit_str, l_max_price_str);
+                    DAP_DELETE(l_price_unit_str);
+                    DAP_DELETE(l_max_price_str);
                     DAP_DELETE(l_price);
                     continue;
                 }
             }
-
             l_price->wallet = l_wallet;
             DL_APPEND(a_srv->pricelist, l_price);
             break;
@@ -880,18 +890,17 @@ int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_
     if (!a_config_section)
         return ret;
     a_srv->grace_period = dap_config_get_item_uint32_default(g_config, a_config_section, "grace_period", 60);
-    //! IMPORTANT ! This fetch is single-action and cannot be further reused, since it modifies the stored config data
     uint16_t l_pricelist_count = 0;
     char **l_pricelist = dap_config_get_array_str(g_config, a_config_section, "pricelist", &l_pricelist_count);
     for (uint16_t i = 0; i < l_pricelist_count; i++) {
         dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
         if (!l_price) {
-            log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_parse_pricelist");
+            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             return ret;
         }
         short l_iter = 0;
-        char *l_ctx;
-        for (char *l_price_token = strtok_r(l_pricelist[i], ":", &l_ctx); l_price_token || l_iter == 6; l_price_token = strtok_r(NULL, ":", &l_ctx), ++l_iter) {
+        char *l_price_str = dap_strdup(l_pricelist[i]), *l_ctx;
+        for (char *l_price_token = strtok_r(l_price_str, ":", &l_ctx); l_price_token || l_iter == 6; l_price_token = strtok_r(NULL, ":", &l_ctx), ++l_iter) {
             //log_it(L_DEBUG, "Tokenizer: %s", l_price_token);
             switch (l_iter) {
             case 0:
@@ -956,10 +965,11 @@ int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_
             log_it(L_DEBUG, "Done with price item %d", i);
             if (l_iter == 6)
                 DL_APPEND(a_srv->pricelist, l_price);
-            else
-                DAP_DELETE(l_price);
             break; // double break exits tokenizer loop and steps to next price item
         }
+        if (l_iter != 6)
+            DAP_DELETE(l_price);
+        DAP_DELETE(l_price_str);
     }
     return ret;
 }
@@ -985,7 +995,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
     if(!l_sdata) {
         l_srv = DAP_NEW_Z(dap_chain_net_srv_t);
         if (!l_srv) {
-            log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_add");
+            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             pthread_mutex_unlock(&s_srv_list_mutex);
             return NULL;
         }
@@ -995,7 +1005,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
         pthread_mutex_init(&l_srv->banlist_mutex, NULL);
         l_sdata = DAP_NEW_Z(service_list_t);
         if (!l_sdata) {
-            log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_add");
+            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             DAP_DEL_Z(l_srv);
             pthread_mutex_unlock(&s_srv_list_mutex);
             return NULL;

@@ -183,7 +183,7 @@ static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usa
         size_t l_ipv4_str_len = 0; //dap_strlen(a_ipv4_str);
         ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header) + l_ipv4_str_len);
         if (!pkt_out) {
-            log_it(L_ERROR, "Memory allocation error in s_callback_client_success");
+            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             dap_stream_session_unlock();
             return -1;
         }
@@ -514,7 +514,7 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_st
     clock_gettime(CLOCK_REALTIME, &l_t);//get_cur_time_msec
     long l_t1 = l_t.tv_sec * 1000 + l_t.tv_nsec / 1e6;
 
-    const char l_active_channels[] = { dap_stream_ch_chain_net_srv_get_id(), 0 }; //only R, without S
+    const char l_active_channels[] = { DAP_STREAM_CH_ID_NET_SRV, 0 }; //only R, without S
     if(a_ipv4_str)
         inet_pton(AF_INET, a_ipv4_str, &(s_node_info->hdr.ext_addr_v4));
     if(a_ipv6_str)
@@ -544,7 +544,7 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_ipv4_st
     int l_dtime_connect_ms = l_t2 - l_t1;
 
     {
-        uint8_t l_ch_id = dap_stream_ch_chain_net_srv_get_id(); // Channel id for chain net request = 'R'
+        uint8_t l_ch_id = DAP_STREAM_CH_ID_NET_SRV; // Channel id for chain net request = 'R'
         dap_stream_ch_t *l_ch = dap_client_get_stream_ch_unsafe(s_vpn_client->client, l_ch_id);
         if(l_ch) {
             typedef dap_stream_ch_chain_net_srv_pkt_test_t pkt_t;
@@ -602,7 +602,7 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
         s_node_info = DAP_NEW_Z(dap_chain_node_info_t);
     s_node_info->hdr.ext_port = a_port;
 
-    const char l_active_channels[] = { dap_stream_ch_chain_net_srv_get_id(), DAP_STREAM_CH_ID_NET_SRV_VPN, 0 }; //R, S
+    const char l_active_channels[] = { DAP_STREAM_CH_ID_NET_SRV, DAP_STREAM_CH_ID_NET_SRV_VPN, 0 }; //R, S
     if(a_ipv4_str)
         inet_pton(AF_INET, a_ipv4_str, &(s_node_info->hdr.ext_addr_v4));
     if(a_ipv6_str)
@@ -633,7 +633,7 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_ipv4_st
 
     // send first packet to server
     {
-        uint8_t l_ch_id = dap_stream_ch_chain_net_srv_get_id(); // Channel id for chain net request = 'R'
+        uint8_t l_ch_id = DAP_STREAM_CH_ID_NET_SRV; // Channel id for chain net request = 'R'
         dap_stream_ch_t *l_ch = dap_client_get_stream_ch_unsafe(s_vpn_client->client, l_ch_id);
         if(l_ch) {
             dap_stream_ch_chain_net_srv_pkt_request_t l_request;
@@ -675,7 +675,7 @@ int dap_chain_net_vpn_client_stop(void)
 dap_chain_net_vpn_client_status_t dap_chain_net_vpn_client_status(void)
 {
     if(s_vpn_client) {
-        uint8_t l_ch_id = dap_stream_ch_chain_net_srv_get_id(); // Channel id for chain net request = 'R'
+        uint8_t l_ch_id = DAP_STREAM_CH_ID_NET_SRV; // Channel id for chain net request = 'R'
         dap_stream_ch_t *l_ch = dap_client_get_stream_ch_unsafe(s_vpn_client->client, l_ch_id);
         if(!l_ch)
             return VPN_CLIENT_STATUS_CONN_LOST;
