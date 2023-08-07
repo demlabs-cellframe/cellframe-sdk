@@ -328,8 +328,7 @@ typedef struct dap_ledger_private {
     struct timespec tps_end_time;
     size_t tps_count;
     // Threshold fee
-    dap_timerfd_t *threshold_txs_free_timer;
-    dap_timerfd_t *threshold_emissions_free_timer;
+    dap_interval_timer_t threshold_txs_free_timer, threshold_emissions_free_timer;
 } dap_ledger_private_t;
 #define PVT(a) ( (dap_ledger_private_t* ) a->_internal )
 
