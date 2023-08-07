@@ -74,7 +74,7 @@ dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node(const char *a_net
             }
         }
     }
-
+    log_it(L_DEBUG, "The smallest block size among seed nodes is - %ld", l_blocks_events);
     for(size_t i=0;i<l_nodes_count;i++)
     {
         bool l_check = true;

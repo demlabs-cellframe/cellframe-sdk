@@ -648,11 +648,14 @@ dap_chain_node_info_t *dap_get_balancer_link_from_cfg(dap_chain_net_t *a_net)
                 if (!l_ret)
                     DAP_DELETE(l_remote_node_info);
                 return l_ret;
-            } else
+            } else{
                 log_it(L_WARNING,"Can't find node info for node addr "NODE_ADDR_FP_STR,
                        NODE_ADDR_FP_ARGS(l_remote_addr));
+                return NULL;
+            }
         }else{
             log_it(L_WARNING,"Can't find alias info for seed alias %s",l_net_pvt->seed_aliases[i]);
+            return NULL;
         }
     } else if (l_net_pvt->bootstrap_nodes_count) {
         i = rand() % l_net_pvt->bootstrap_nodes_count;
