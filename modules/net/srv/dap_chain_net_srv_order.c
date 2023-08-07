@@ -117,7 +117,7 @@ int dap_chain_net_srv_order_init()
         dap_chain_net_add_gdb_notify_callback(l_net_list[i], s_srv_order_callback_notify, l_net_list[i]);
     }
     //geoip_info_t *l_ipinfo = chain_net_geoip_get_ip_info("8.8.8.8");
-    if (!dap_config_get_item_bool_default(g_config, "srv", "allow_unverified_orders", false)) {
+    if (!dap_config_get_item_bool_default(g_config, "srv", "allow_unverified_orders", true)) {
         uint32_t l_unverified_orders_lifetime = dap_config_get_item_uint32_default(g_config, "srv", "unverified_orders_lifetime", 21600); // 6 Hours
         s_timer_order_check_decree_sign = dap_interval_timer_create(l_unverified_orders_lifetime * 1000,
                                                                     (dap_timer_callback_t)s_srv_order_check_decree_sign_timer,
@@ -218,7 +218,7 @@ bool dap_chain_net_srv_order_get_continent_region(dap_chain_net_srv_order_t *a_o
         if(l_size > 0) {
             *a_region = DAP_NEW_SIZE(char, l_size);
             if (!a_region) {
-                log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_order_get_continent_region");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                 return false;
             }
             memcpy(*a_region, a_order_static->ext_n_sign + 1 + sizeof(uint8_t), l_size);
@@ -353,7 +353,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(dap_chain_net_t *a_ne
     if (a_ext_size) {
         l_order = (dap_chain_net_srv_order_t *)DAP_NEW_Z_SIZE(void, sizeof(dap_chain_net_srv_order_t) + a_ext_size);
         if (!l_order) {
-            log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_order_compose");
+            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             return NULL;
         }
         memcpy(l_order->ext_n_sign, a_ext, a_ext_size);
@@ -362,7 +362,7 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(dap_chain_net_t *a_ne
     else {
         l_order = DAP_NEW_Z(dap_chain_net_srv_order_t);
         if (!l_order) {
-            log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_order_compose");
+            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             return NULL;
         }
         dap_chain_net_srv_order_set_continent_region(&l_order, a_continent_num, a_region);
@@ -704,7 +704,7 @@ void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_sto
 {
     struct dap_order_notify *l_notifier = DAP_NEW(struct dap_order_notify);
     if (!l_notifier) {
-        log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_order_add_notify_callback");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return;
     }
     l_notifier->net = a_net;

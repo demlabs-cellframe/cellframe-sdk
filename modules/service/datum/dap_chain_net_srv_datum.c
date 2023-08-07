@@ -47,7 +47,7 @@ int dap_chain_net_srv_datum_init()
             "\tLoad datum custum from file to mempool.\n\n");
     s_srv_datum = DAP_NEW_Z(dap_chain_net_srv_t);
     if (!s_srv_datum) {
-        log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_datum_init");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return -1;
     }
     s_srv_datum->uid.uint64 = DAP_CHAIN_NET_SRV_DATUM_ID;
@@ -80,13 +80,11 @@ uint8_t * dap_chain_net_srv_file_datum_data_read(char * a_path, size_t *a_data_s
         if ( fread(l_datum_data, 1, l_datum_data_size, l_file ) != l_datum_data_size ){
             log_it(L_ERROR, "Can't read %"DAP_UINT64_FORMAT_U" bytes from the disk!", l_datum_data_size);
             DAP_DELETE(l_datum_data);
-            if( l_file )
-                fclose(l_file);
+            fclose(l_file);
             return NULL;
         }
-    }
-    if( l_file )
         fclose(l_file);
+    }
     *a_data_size = l_datum_data_size;
     return l_datum_data;
 }
@@ -146,6 +144,7 @@ static int s_srv_datum_cli(int argc, char ** argv, char **a_str_reply) {
                     size_t l_retbytes;
                     if ( (l_retbytes = fwrite(l_datum->data, 1, l_datum->header.data_size, l_file)) != l_datum->header.data_size ){
                         log_it(L_ERROR, "Can't write %u bytes on disk (processed only %zu)!", l_datum->header.data_size, l_retbytes);
+                        fclose(l_file);
                         return -3;
                     }
                     fclose(l_file);

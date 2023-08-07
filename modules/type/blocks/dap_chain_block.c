@@ -461,7 +461,7 @@ dap_chain_block_meta_t** dap_chain_block_get_meta(dap_chain_block_t * a_block, s
     dap_chain_block_meta_t * l_meta=NULL;
     dap_chain_block_meta_t ** l_ret = DAP_NEW_Z_SIZE(dap_chain_block_meta_t *,sizeof (dap_chain_block_meta_t *)* a_block->hdr.meta_count );
     if (!l_ret) {
-        log_it(L_ERROR, "Memory allocation error in dap_chain_block_get_meta");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return NULL;
     }
     for( size_t i = 0; i< a_block->hdr.meta_count &&

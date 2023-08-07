@@ -87,7 +87,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_cs_block_pos_t *l_pos = DAP_NEW_Z(dap_chain_cs_block_pos_t);
     if (!l_pos) {
-        log_it(L_ERROR, "Memory allocation error in s_callback_new");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return -1;
     }
     l_blocks->_inheritor = l_pos;
@@ -95,11 +95,11 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_blocks->callback_block_verify = s_callback_block_verify;
     l_blocks->callback_block_sign = s_callback_block_sign;
     l_pos->_pvt = DAP_NEW_Z(dap_chain_cs_block_pos_pvt_t);
-    dap_chain_cs_block_pos_pvt_t *l_pos_pvt = PVT(l_pos);
     if (!l_pos->_pvt) {
-        log_it(L_ERROR, "Memory allocation error in s_callback_new");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         goto lb_err;
     }
+    dap_chain_cs_block_pos_pvt_t *l_pos_pvt = PVT(l_pos);
 
     l_tokens_hold = dap_config_get_array_str(a_chain_cfg, "block-pos", "stake_tokens", &l_tokens_hold_size);
     l_tokens_hold_value_str = dap_config_get_array_str(a_chain_cfg, "block-pos", "stake_tokens_value", &l_tokens_hold_value_size);
@@ -112,12 +112,12 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_pos_pvt->tokens_hold_size = l_tokens_hold_size;
     l_pos_pvt->tokens_hold = DAP_NEW_Z_SIZE(char *, sizeof(char *) * l_tokens_hold_size);
     if (!l_pos_pvt->tokens_hold) {
-        log_it(L_ERROR, "Memory allocation error in s_callback_new");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         goto lb_err;
     }
     l_pos_pvt->tokens_hold_value = DAP_NEW_Z_SIZE(uint64_t, l_tokens_hold_value_size * sizeof(uint64_t));
     if (!l_pos_pvt->tokens_hold_value) {
-        log_it(L_ERROR, "Memory allocation error in s_callback_new");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         goto lb_err;
     }
     for (size_t i = 0; i < l_tokens_hold_value_size; i++) {
@@ -139,14 +139,12 @@ lb_err:
         if (l_tokens_hold[i])
             DAP_DELETE(l_tokens_hold[i]);
     }
-    if (l_tokens_hold)
-        DAP_DELETE(l_tokens_hold);
-    if (l_pos_pvt->tokens_hold_value)
-        DAP_DELETE(l_pos_pvt->tokens_hold_value);
-    if (l_pos_pvt)
+    DAP_DEL_Z(l_tokens_hold);
+    if (l_pos_pvt) {
+        DAP_DEL_Z(l_pos_pvt->tokens_hold_value);
         DAP_DELETE(l_pos_pvt);
-    if (l_pos)
-        DAP_DELETE(l_pos);
+    }
+    DAP_DEL_Z(l_pos);
     l_blocks->_inheritor = NULL;
     l_blocks->callback_delete = NULL;
     l_blocks->callback_block_verify = NULL;

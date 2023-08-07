@@ -114,9 +114,19 @@ static int s_cli_block_poa(int argc, char ** argv, char **a_str_reply)
         return -1;
     }
 
-    dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain,&l_chain_net);
+    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,argc,argv,a_str_reply,&l_chain,&l_chain_net)){
+        return -3;
+    }
 
-    dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
+    const char *l_chain_type = dap_chain_net_get_type(l_chain);
+    if (strcmp(l_chain_type, "block_poa")){
+            dap_cli_server_cmd_set_reply_text(a_str_reply,
+                        "Type of chain %s is not block_poa. This chain with type %s is not supported by this command",
+                        l_chain->name, l_chain_type);
+            return -42;
+    }
+
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
     dap_chain_cs_block_poa_pvt_t * l_poa_pvt = PVT ( DAP_CHAIN_CS_BLOCK_POA( l_blocks ) );
 
     const char * l_block_new_cmd_str = NULL;
@@ -127,12 +137,12 @@ static int s_cli_block_poa(int argc, char ** argv, char **a_str_reply)
     dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-block", &l_block_hash_str);
     dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-cert", &l_cert_str);
 
-    dap_enc_key_t *l_sign_key;
+    dap_enc_key_t *l_sign_key = NULL;
     // Load cert to sign if its present
     if (l_cert_str) {
         dap_cert_t *l_cert = dap_cert_find_by_name( l_cert_str);
         l_sign_key = l_cert->enc_key;
-    } else {
+    } else if (l_poa_pvt) {
         l_sign_key = l_poa_pvt->sign_key;
     }
     if (!l_sign_key || !l_sign_key->priv_key_data) {
@@ -176,7 +186,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS( a_chain );
     dap_chain_cs_block_poa_t * l_poa = DAP_NEW_Z ( dap_chain_cs_block_poa_t);
     if (!l_poa) {
-        log_it(L_ERROR, "Memory allocation error in s_callback_new");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return -1;
     }
     l_blocks->_inheritor = l_poa;
@@ -185,7 +195,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_blocks->callback_block_sign = s_callback_block_sign;
     l_poa->_pvt = DAP_NEW_Z(dap_chain_cs_block_poa_pvt_t);
     if (!l_poa->_pvt) {
-        log_it(L_ERROR, "Memory allocation error in s_callback_new");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return -1;
     }
     dap_chain_cs_block_poa_pvt_t *l_poa_pvt = PVT(l_poa);
@@ -198,7 +208,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
             // Type sizeof's misunderstanding in malloc?
             l_poa_pvt->auth_certs = DAP_NEW_Z_SIZE ( dap_cert_t *, l_poa_pvt->auth_certs_count * sizeof(dap_cert_t*));
             if (!l_poa_pvt->auth_certs) {
-                log_it(L_ERROR, "Memory allocation error in s_callback_new");
+                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                 return -1;
             }
             char l_cert_name[512];

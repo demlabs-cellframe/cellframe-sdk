@@ -40,7 +40,7 @@ dap_chain_datum_tx_t* dap_chain_datum_tx_create(void)
 {
     dap_chain_datum_tx_t *tx = DAP_NEW_Z(dap_chain_datum_tx_t);
     if (!tx) {
-        log_it(L_ERROR, "Memory allocation error in dap_chain_datum_tx_create");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return 0;
     }
     tx->header.ts_created = time(NULL);
@@ -76,10 +76,13 @@ size_t dap_chain_datum_tx_get_size(dap_chain_datum_tx_t *a_tx)
 int dap_chain_datum_tx_add_item(dap_chain_datum_tx_t **a_tx, const void *a_item)
 {
     size_t size = dap_chain_datum_item_tx_get_size(a_item);
-    if(!size)
+    if(!size || !a_tx || !*a_tx)
         return -1;
     dap_chain_datum_tx_t *tx_cur = *a_tx;
-    tx_cur = (dap_chain_datum_tx_t *)DAP_REALLOC(tx_cur, dap_chain_datum_tx_get_size(tx_cur) + size);
+    size_t l_new_size = dap_chain_datum_tx_get_size(tx_cur) + size;
+    tx_cur = (dap_chain_datum_tx_t*)DAP_REALLOC(tx_cur, l_new_size);
+    if (!tx_cur)
+        return -1;
     memcpy((uint8_t*) tx_cur->tx_items + tx_cur->header.tx_items_size, a_item, size);
     tx_cur->header.tx_items_size += size;
     *a_tx = tx_cur;

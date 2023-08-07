@@ -41,6 +41,17 @@ const dap_chain_net_srv_uid_t c_dap_chain_net_srv_uid_null = {0};
 const dap_chain_cell_id_t c_dap_chain_cell_id_null = {0};
 const dap_chain_addr_t c_dap_chain_addr_blank = {0};
 
+int dap_id_uint64_parse(const char *a_id_str, uint64_t *a_id)
+{
+    if (sscanf(a_id_str, "0x%16"DAP_UINT64_FORMAT_X, a_id) != 1 &&
+            sscanf(a_id_str, "0x%16"DAP_UINT64_FORMAT_x, a_id) != 1 &&
+            sscanf(a_id_str, "%"DAP_UINT64_FORMAT_U, a_id) != 1) {
+        log_it (L_ERROR, "Can't recognize '%s' string as 64-bit id, hex or dec", a_id_str);
+        return -1;
+    }
+    return 0;
+}
+
 /*
  * Forward declarations
  */
@@ -297,7 +308,7 @@ char *dap_chain_balance_print128(uint128_t a_balance)
 {
     char *l_buf = DAP_NEW_Z_SIZE(char, DATOSHI_POW + 2);
     if (!l_buf) {
-        log_it(L_ERROR, "Memory allocation error in dap_chain_balance_print128");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return NULL;
     }
     int l_pos = 0;
@@ -631,7 +642,7 @@ uint256_t dap_chain_coins_to_balance256(const char *a_coins)
 char *dap_cvt_uint256_to_str(uint256_t a_uint256) {
     char *l_buf = DAP_NEW_Z_SIZE(char, DATOSHI_POW256 + 2); // for decimal dot and trailing zero
     if (!l_buf) {
-        log_it(L_ERROR, "Memory allocation error in dap_cvt_uint256_to_str");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return NULL;
     }
     int l_pos = 0;

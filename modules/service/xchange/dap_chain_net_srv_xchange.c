@@ -128,7 +128,7 @@ int dap_chain_net_srv_xchange_init()
     dap_chain_net_srv_t* l_srv = dap_chain_net_srv_add(l_uid, "srv_xchange", &l_srv_callbacks);
     s_srv_xchange = DAP_NEW_Z(dap_chain_net_srv_xchange_t);
     if (!s_srv_xchange || !l_srv) {
-        log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_xchange_init");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return -1;
     }
     l_srv->_internal = s_srv_xchange;
@@ -331,7 +331,7 @@ static dap_chain_datum_tx_receipt_t *s_xchange_receipt_create(dap_chain_net_srv_
     uint32_t l_ext_size = sizeof(uint256_t) + DAP_CHAIN_TICKER_SIZE_MAX;
     uint8_t *l_ext = DAP_NEW_STACK_SIZE(uint8_t, l_ext_size);
     if (!l_ext) {
-        log_it(L_ERROR, "Memory allocation error in s_xchange_receipt_create");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return NULL;
     }
     memcpy(l_ext, &a_datoshi_buy, sizeof(uint256_t));
@@ -624,7 +624,6 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         log_it(L_ERROR, "Can't add selling coins output because price rate is 0");
         return NULL;
     }
-    DAP_DELETE(l_buyer_addr);
     // transfer unselling coins (partial exchange)
     debug_if(s_debug_more, L_NOTICE, "l_datoshi_cond = %s", dap_chain_balance_to_coins(l_tx_out_cond->header.value));
     if (compare256(l_tx_out_cond->header.value, l_datoshi_sell) == 1) {
@@ -716,9 +715,10 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
     if(dap_chain_datum_tx_add_sign_item(&l_tx, l_seller_key) != 1) {
         dap_chain_datum_tx_delete(l_tx);
         log_it( L_ERROR, "Can't add sign output");
+        DAP_DELETE(l_buyer_addr);
         return NULL;
     }
-
+    DAP_DELETE(l_buyer_addr);
     return l_tx;
 }
 
@@ -921,7 +921,7 @@ dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a
 {
     dap_chain_net_srv_xchange_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_xchange_price_t);
     if (!l_price) {
-        log_it(L_ERROR, "Memory allocation error in s_xchange_price_from_order");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return NULL;
     }
     dap_srv_xchange_order_ext_t *l_ext = (dap_srv_xchange_order_ext_t *)a_order->ext_n_sign;
@@ -1081,7 +1081,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
             // Create the price
             dap_chain_net_srv_xchange_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_xchange_price_t);
             if (!l_price) {
-                log_it(L_ERROR, "Memory allocation error in s_cli_srv_xchange_order");
+                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Out of memory");
                 dap_chain_wallet_close(l_wallet);
                 return -1;
@@ -1163,6 +1163,9 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 while(l_tx_list ){
                     dap_chain_datum_tx_t * l_tx_cur = (dap_chain_datum_tx_t*) l_tx_list->data;
                     s_string_append_tx_cond_info(l_str_reply, l_net, l_tx_cur );
+
+                    //INFINITE LOOP ????
+                    
                 }
                 dap_list_free(l_tx_list);
                 *a_str_reply = dap_string_free(l_str_reply, false);
@@ -1191,6 +1194,9 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                         while(l_tx_list ){
                             dap_chain_datum_tx_t * l_tx_cur = (dap_chain_datum_tx_t*) l_tx_list->data;
                             s_string_append_tx_cond_info(l_str_reply, l_net, l_tx_cur );
+
+                            //INFINITE LOOP ????
+
                         }
                         dap_list_free(l_tx_list);
                         *a_str_reply = dap_string_free(l_str_reply, false);

@@ -686,7 +686,7 @@ dap_chain_node_client_t *dap_chain_node_client_create(dap_chain_net_t *a_net,
     }
     dap_chain_node_client_t *l_node_client = DAP_NEW_Z(dap_chain_node_client_t);
     if (!l_node_client) {
-        log_it(L_ERROR, "Memory allocation error in dap_chain_node_client_create");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return NULL;
     }
 
@@ -739,7 +739,7 @@ bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const
 
     dap_client_set_auth_cert(a_node_client->client, a_node_client->net->pub.name);
 
-    char l_host_addr[INET6_ADDRSTRLEN];
+    char l_host_addr[INET6_ADDRSTRLEN] = { '\0' };
     if(a_node_client->info->hdr.ext_addr_v4.s_addr){
         struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = a_node_client->info->hdr.ext_addr_v4 };
         inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), l_host_addr, INET6_ADDRSTRLEN);
@@ -951,47 +951,56 @@ static int s_node_client_set_notify_callbacks(dap_client_t *a_client, uint8_t a_
         // find current channel code
         dap_stream_ch_t *l_ch = dap_client_get_stream_ch_unsafe(a_client, a_ch_id);
         if(l_ch) {
-            // C
-            if(a_ch_id == dap_stream_ch_chain_get_id()) {
-                dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
-                l_ch_chain->callback_notify_packet_out = s_ch_chain_callback_notify_packet_out;
-                l_ch_chain->callback_notify_packet_in = s_ch_chain_callback_notify_packet_in;
-                l_ch_chain->callback_notify_arg = l_node_client;
-                l_node_client->ch_chain = l_ch;
-                l_node_client->ch_chain_uuid = l_ch->uuid;
+            l_ret = 0;
+            switch (a_ch_id) {
+                //  'C'
+            case DAP_STREAM_CH_ID: {
+                dap_stream_ch_chain_t *l_ch_chain       = DAP_STREAM_CH_CHAIN(l_ch);
+                l_ch_chain->callback_notify_packet_out  = s_ch_chain_callback_notify_packet_out;
+                l_ch_chain->callback_notify_packet_in   = s_ch_chain_callback_notify_packet_in;
+                l_ch_chain->callback_notify_arg         = l_node_client;
+                l_node_client->ch_chain         = l_ch;
+                l_node_client->ch_chain_uuid    = l_ch->uuid;
+                break;
             }
-            // N
-            if(a_ch_id == dap_stream_ch_chain_net_get_id()) {
-                dap_stream_ch_chain_net_t *l_ch_chain = DAP_STREAM_CH_CHAIN_NET(l_ch);
-                l_ch_chain->notify_callback = s_ch_chain_callback_notify_packet_in2;
+                //  'N'
+            case DAP_STREAM_CH_ID_NET: {
+                dap_stream_ch_chain_net_t *l_ch_chain   = DAP_STREAM_CH_CHAIN_NET(l_ch);
+                l_ch_chain->notify_callback     = s_ch_chain_callback_notify_packet_in2;
                 l_ch_chain->notify_callback_arg = l_node_client;
-                l_node_client->ch_chain_net = l_ch;
-                l_node_client->ch_chain_net_uuid = l_ch->uuid;
+                l_node_client->ch_chain_net         = l_ch;
+                l_node_client->ch_chain_net_uuid    = l_ch->uuid;
+                break;
             }
-            // R
-            if(a_ch_id == dap_stream_ch_chain_net_srv_get_id()) {
+                //  'R'
+            case DAP_STREAM_CH_ID_NET_SRV: {
                 dap_stream_ch_chain_net_srv_t *l_ch_chain = DAP_STREAM_CH_CHAIN_NET_SRV(l_ch);
                 if (l_node_client->notify_callbacks.srv_pkt_in) {
-                    l_ch_chain->notify_callback = (dap_stream_ch_chain_net_srv_callback_packet_t)
-                                                             l_node_client->notify_callbacks.srv_pkt_in;
+                    l_ch_chain->notify_callback     = (dap_stream_ch_chain_net_srv_callback_packet_t)l_node_client->notify_callbacks.srv_pkt_in;
                     l_ch_chain->notify_callback_arg = l_node_client->callbacks_arg;
                 } else {
-                    l_ch_chain->notify_callback = s_ch_chain_callback_notify_packet_R;
+                    l_ch_chain->notify_callback     = s_ch_chain_callback_notify_packet_R;
                     l_ch_chain->notify_callback_arg = l_node_client;
                 }
-                l_node_client->ch_chain_net_srv = l_ch;
-                l_node_client->ch_chain_net_srv_uuid = l_ch->uuid;
+                l_node_client->ch_chain_net_srv         = l_ch;
+                l_node_client->ch_chain_net_srv_uuid    = l_ch->uuid;
+                break;
             }
-            // V
-            if ( a_ch_id == dap_stream_ch_chain_voting_get_id() ) {
-                dap_stream_ch_chain_voting_t *l_ch_chain = DAP_STREAM_CH_CHAIN_VOTING(l_ch);
-                // l_ch_chain->callback_notify = s_ch_chain_callback_notify_voting_packet_in;
-                l_ch_chain->callback_notify_arg = l_node_client;
-                l_node_client->ch_chain_net = l_ch;
-                l_node_client->ch_chain_net_uuid = l_ch->uuid;
+                // 'V'
+            case DAP_STREAM_CH_ID_VOTING: {
+                dap_stream_ch_chain_voting_t *l_ch_chain    = DAP_STREAM_CH_CHAIN_VOTING(l_ch);
+                // l_ch_chain->callback_notify              = s_ch_chain_callback_notify_voting_packet_in;
+                l_ch_chain->callback_notify_arg             = l_node_client;
+                l_node_client->ch_chain_net         = l_ch;
+                l_node_client->ch_chain_net_uuid    = l_ch->uuid;
+                break;
             }
-            l_ret = 0;
-        } else {
+            default: {
+                l_ret = -2;
+                log_it(L_ERROR, "Unknown channel id %d", a_ch_id);
+                break;
+            }
+            }
         }
         pthread_mutex_unlock(&l_node_client->wait_mutex);
     }

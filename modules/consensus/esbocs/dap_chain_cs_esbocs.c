@@ -166,7 +166,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     int l_ret = 0;
     dap_chain_esbocs_t *l_esbocs = DAP_NEW_Z(dap_chain_esbocs_t);
     if (!l_esbocs) {
-        log_it(L_ERROR, "Memory allocation error in s_callback_new");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return - 5;
     }
     l_esbocs->blocks = l_blocks;   
@@ -181,12 +181,12 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     a_chain->callback_get_signing_certificate = s_callback_get_sign_key;
 
     l_esbocs->_pvt = DAP_NEW_Z(dap_chain_esbocs_pvt_t);
-    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
     if (!l_esbocs->_pvt) {
-        log_it(L_ERROR, "Memory allocation error in s_callback_new");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         l_ret = - 5;
         goto lb_err;
     }
+    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
     l_esbocs_pvt->debug = dap_config_get_item_bool_default(a_chain_cfg, "esbocs", "consensus_debug", false);
     l_esbocs_pvt->poa_mode = dap_config_get_item_bool_default(a_chain_cfg, "esbocs", "poa_mode", false);
     l_esbocs_pvt->round_start_sync_timeout = dap_config_get_item_uint16_default(a_chain_cfg, "esbocs", "round_start_sync_timeout", 15);
@@ -236,7 +236,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 
         dap_chain_esbocs_validator_t *l_validator = DAP_NEW_Z(dap_chain_esbocs_validator_t);
         if (!l_validator) {
-            log_it(L_ERROR, "Memory allocation error in s_callback_new");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             l_ret = - 5;
             goto lb_err;
         }
@@ -353,6 +353,10 @@ static void s_session_load_penaltys(dap_chain_esbocs_session_t *a_session)
             dap_global_db_del(l_penalty_group, (l_keys + i)->key, NULL, NULL);
         else {
             dap_chain_esbocs_penalty_item_t *l_item = DAP_NEW_Z(dap_chain_esbocs_penalty_item_t);
+            if (!l_item) {
+                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                return;
+            }
             l_item->signing_addr = *l_addr;
             l_item->miss_count = DAP_CHAIN_ESBOCS_PENALTY_KICK;
             HASH_ADD(hh, a_session->penalty, signing_addr, sizeof(dap_chain_addr_t), l_item);
@@ -443,6 +447,10 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     }
 
     dap_chain_esbocs_session_t *l_session = DAP_NEW_Z(dap_chain_esbocs_session_t);
+    if(!l_session) {
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        return -8;
+    }
     l_session->chain = a_chain;
     l_session->esbocs = l_esbocs;
     l_esbocs->session = l_session;
@@ -525,7 +533,7 @@ static void *s_callback_list_form(const void *a_srv_validator, UNUSED_ARG void *
 {
     dap_chain_esbocs_validator_t *l_validator = DAP_NEW_Z(dap_chain_esbocs_validator_t);
     if (!l_validator) {
-        log_it(L_ERROR, "Memory allocation error in s_callback_list_form");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return NULL;
     }
     l_validator->node_addr = ((dap_chain_net_srv_stake_item_t *)a_srv_validator)->node_addr;
@@ -722,6 +730,10 @@ static void s_session_update_penalty(dap_chain_esbocs_session_t *a_session)
         HASH_FIND(hh, a_session->penalty, l_signing_addr, sizeof(*l_signing_addr), l_item);
         if (!l_item) {
             l_item = DAP_NEW_Z(dap_chain_esbocs_penalty_item_t);
+            if (!l_item) {
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                return;
+            }
             l_item->signing_addr = *l_signing_addr;
             HASH_ADD(hh, a_session->penalty, signing_addr, sizeof(*l_signing_addr), l_item);
         }
@@ -1203,7 +1215,7 @@ static void s_message_chain_add(dap_chain_esbocs_session_t *a_session,
     dap_chain_esbocs_round_t *l_round = &a_session->cur_round;
     dap_chain_esbocs_message_item_t *l_message_item = DAP_NEW_Z(dap_chain_esbocs_message_item_t);
     if (!l_message_item) {
-        log_it(L_ERROR, "Memory allocation error in s_message_chain_add");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return;
     }
     if (!a_message_hash) {
@@ -1565,12 +1577,13 @@ static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_ch
 
         fee_serv_param_t *tmp = DAP_NEW(fee_serv_param_t);
         if (!tmp) {
-            log_it(L_ERROR, "Memory allocation error in s_session_round_finish");
+            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             return;
         }
         dap_chain_addr_t * addr = DAP_NEW_Z(dap_chain_addr_t);
         if (!addr) {
-            log_it(L_ERROR, "Memory allocation error in s_session_round_finish");
+            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+            DAP_DEL_Z(tmp);
             return;
         }
         *addr = *PVT(a_session->esbocs)->fee_addr;
@@ -1587,12 +1600,16 @@ static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_ch
 
 void s_session_sync_queue_add(dap_chain_esbocs_session_t *a_session, dap_chain_esbocs_message_t *a_message, size_t a_message_size)
 {
+    if (!a_message) {
+        log_it(L_ERROR, "Invalid arguments in s_session_sync_queue_add");
+        return;
+    }
     dap_chain_esbocs_sync_item_t *l_sync_item;
     HASH_FIND(hh, a_session->sync_items, &a_message->hdr.candidate_hash, sizeof(dap_hash_fast_t), l_sync_item);
     if (!l_sync_item) {
         l_sync_item = DAP_NEW_Z(dap_chain_esbocs_sync_item_t);
         if (!l_sync_item) {
-            log_it(L_ERROR, "Memory allocation error in s_session_sync_queue_add");
+            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             return;
         }
         l_sync_item->last_block_hash = a_message->hdr.candidate_hash;
@@ -1623,6 +1640,10 @@ void s_session_validator_mark_online(dap_chain_esbocs_session_t *a_session, dap_
         if (!l_item) {
             log_it(L_ERROR, "Got sync message from validator not in active list nor in penalty list");
             l_item = DAP_NEW_Z(dap_chain_esbocs_penalty_item_t);
+            if (!l_item) {
+                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                return;
+            }
             l_item->signing_addr = *a_signing_addr;
             l_item->miss_count = DAP_CHAIN_ESBOCS_PENALTY_KICK;
             HASH_ADD(hh, a_session->penalty, signing_addr, sizeof(*a_signing_addr), l_item);
@@ -1649,6 +1670,10 @@ void s_session_validator_mark_online(dap_chain_esbocs_session_t *a_session, dap_
 
 static void s_session_directive_process(dap_chain_esbocs_session_t *a_session, dap_chain_esbocs_directive_t *a_directive, dap_chain_hash_fast_t *a_directive_hash)
 {
+    if (!a_directive) {
+        log_it(L_ERROR, "Invalid arguments in s_session_directive_process");
+        return;
+    }
     if (a_directive->size != s_directive_calc_size(a_directive->type)) {
         log_it(L_ERROR, "Invalid directive size %u (expected %u)",
                a_directive->size, s_directive_calc_size(a_directive->type));
@@ -2006,6 +2031,10 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                                                l_session->cur_round.sync_attempt);
             if (l_session->db_serial) {
                 dap_chain_esbocs_validator_t *l_validator = DAP_NEW_Z(dap_chain_esbocs_validator_t);
+                if (!l_validator) {
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                    goto session_unlock;
+                }
                 l_validator->node_addr = *dap_chain_net_srv_stake_key_get_node_addr(&l_signing_addr);
                 l_validator->signing_addr = l_signing_addr;
                 dap_list_t *l_validator_list = dap_list_append(NULL, l_validator);
@@ -2128,7 +2157,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         // store for new candidate
         l_store = DAP_NEW_Z(dap_chain_esbocs_store_t);
         if (!l_store) {
-            log_it(L_ERROR, "Memory allocation error in s_session_packet_in");
+            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             goto session_unlock;
         }
         l_store->candidate_size = l_candidate_size;
@@ -2533,7 +2562,7 @@ static dap_chain_datum_decree_t *s_esbocs_decree_set_min_validators_count(dap_ch
     l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(uint256_t);
     l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
     if (!l_tsd) {
-        log_it(L_ERROR, "Memory allocation error in s_esbocs_decree_set_min_validators_count");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return NULL;
     }
     l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT;
@@ -2543,7 +2572,7 @@ static dap_chain_datum_decree_t *s_esbocs_decree_set_min_validators_count(dap_ch
 
     l_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, sizeof(dap_chain_datum_decree_t) + l_total_tsd_size);
     if (!l_decree) {
-        log_it(L_ERROR, "Memory allocation error in s_esbocs_decree_set_min_validators_count");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         dap_list_free_full(l_tsd_list, NULL);
         return NULL;
     }

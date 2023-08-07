@@ -104,8 +104,10 @@ void dap_chain_deinit(void)
 dap_chain_t * dap_chain_create(dap_ledger_t* a_ledger, const char * a_chain_net_name, const char * a_chain_name, dap_chain_net_id_t a_chain_net_id, dap_chain_id_t a_chain_id )
 {
     dap_chain_t * l_ret = DAP_NEW_Z(dap_chain_t);
-    if ( !l_ret )
-        return log_it(L_ERROR, "Memory allocation error in dap_chain_create, errno=%d", errno), NULL;
+    if ( !l_ret ) {
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        return NULL;   
+    }
     DAP_CHAIN_PVT_LOCAL_NEW(l_ret);
     memcpy(l_ret->id.raw,a_chain_id.raw,sizeof(a_chain_id));
     memcpy(l_ret->net_id.raw,a_chain_net_id.raw,sizeof(a_chain_net_id));
@@ -117,7 +119,8 @@ dap_chain_t * dap_chain_create(dap_ledger_t* a_ledger, const char * a_chain_net_
     dap_chain_item_t * l_ret_item = DAP_NEW_Z(dap_chain_item_t);
     if ( !l_ret_item ){
         DAP_DELETE(l_ret);
-        return log_it(L_ERROR, "Memory allocation error in dap_chain_create, errno=%d", errno), NULL;
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        return NULL;
     }
     l_ret_item->chain = l_ret;
     memcpy(l_ret_item->item_id.id.raw ,a_chain_id.raw,sizeof(a_chain_id));
@@ -354,25 +357,15 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
         if (l_cfg)
 		{
             dap_chain_t		*l_chain		= NULL;
-            dap_chain_id_t	l_chain_id		= {{0}};
-            uint64_t		l_chain_id_u	= 0;
+            dap_chain_id_t	l_chain_id		= {};
             const char		*l_chain_id_str	= NULL;
             const char 		*l_chain_name	= NULL;
 
             // Recognize chains id
-            if ( (l_chain_id_str = dap_config_get_item_str(l_cfg,"chain","id")) != NULL )
-			{
-                if (sscanf(l_chain_id_str, "0x%"DAP_UINT64_FORMAT_X, & l_chain_id_u)		!=1)
-				{
-                    if (sscanf(l_chain_id_str, "0x%"DAP_UINT64_FORMAT_x, &l_chain_id_u)		!=1)
-					{
-                        if (sscanf(l_chain_id_str, "%"DAP_UINT64_FORMAT_U, &l_chain_id_u)	!=1)
-						{
-                            log_it (L_ERROR,"Can't recognize '%s' string as chain net id, hex or dec",l_chain_id_str);
-                            dap_config_close(l_cfg);
-                            return NULL;
-                        }
-                    }
+            if ( (l_chain_id_str = dap_config_get_item_str(l_cfg,"chain","id")) != NULL ) {
+                if (dap_chain_id_parse(l_chain_id_str, &l_chain_id) != 0) {
+                    dap_config_close(l_cfg);
+                    return NULL;
                 }
             } else {
                 log_it (L_ERROR, "Wasn't found chain id string in config");
@@ -380,7 +373,6 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 return NULL;
             }
 
-            l_chain_id.uint64 = l_chain_id_u;
             log_it (L_NOTICE, "Chain id 0x%016"DAP_UINT64_FORMAT_x"  ( \"%s\" )", l_chain_id.uint64, l_chain_id_str);
 
             // Read chain name
@@ -444,7 +436,8 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
 					l_chain->datum_types = DAP_NEW_SIZE(dap_chain_type_t, l_datum_types_count * sizeof(dap_chain_type_t)); // TODO: pls check counter for recognized types before memory allocation!
                     if ( !l_chain->datum_types ) {
                         DAP_DELETE(l_chain);
-                        return log_it(L_ERROR, "Memory allocation error in dap_chain_load_from_cfg, errno=%d", errno), NULL;
+                        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                        return NULL;
                     }
                     l_count_recognized = 0;
 					for (uint16_t i = 0; i < l_datum_types_count; i++)
@@ -468,7 +461,8 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                         if (l_chain->datum_types)
                             DAP_DELETE(l_chain->datum_types);
                         DAP_DELETE(l_chain);
-                        return log_it(L_ERROR, "Memory allocation error in dap_chain_load_from_cfg, errno=%d", errno), NULL;
+                        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                        return NULL;
                     }
                     l_count_recognized = 0;
 					for (uint16_t i = 0; i < l_default_datum_types_count; i++)
@@ -493,12 +487,13 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
 				{
 					l_chain->autoproc_datum_types = DAP_NEW_Z_SIZE(uint16_t, l_chain->datum_types_count * sizeof(uint16_t)); // TODO: pls check counter for recognized types before memory allocation!
                     if ( !l_chain->autoproc_datum_types ) {
+                        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                         if (l_chain->datum_types)
                             DAP_DELETE(l_chain->datum_types);
                         if (l_chain->default_datum_types)
                             DAP_DELETE(l_chain->default_datum_types);
                         DAP_DELETE(l_chain);
-                        return log_it(L_ERROR, "Memory allocation error in dap_chain_load_from_cfg, errno=%d", errno), NULL;
+                        return NULL;
                     }
                     l_count_recognized = 0;
 					for (uint16_t i = 0; i < l_datum_types_count; i++)
@@ -748,26 +743,19 @@ int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name)
     }
     const char *cert_name = cert->name;
     size_t cert_path_length = dap_strlen(net_name) + dap_strlen(cert_name) + 9 + dap_strlen(s_system_chain_ca_dir);
-    char *cert_path = DAP_NEW_STACK_SIZE(char, cert_path_length);
-    if ( !cert_path ) {
-        dap_cert_delete(cert);
-        log_it(L_ERROR, "Memory allocation error in dap_cert_chain_file_save, errno=%d", errno);
-        return -1;
-    }
+    char cert_path[cert_path_length];
     snprintf(cert_path, cert_path_length, "%s/%s/%s.dcert", s_system_chain_ca_dir, net_name, cert_name);
     // In cert_path resolve all `..` and `.`s
     char *cert_path_c = dap_canonicalize_filename(cert_path, NULL);
     // Protect the ca folder from using "/.." in cert_name
     if(dap_strncmp(s_system_chain_ca_dir, cert_path_c, dap_strlen(s_system_chain_ca_dir))) {
+        log_it(L_ERROR, "Cert path '%s' is not in ca dir: %s", cert_path_c, s_system_chain_ca_dir);
         dap_cert_delete(cert);
         DAP_DELETE(cert_path_c);
-        DAP_DELETE(cert_path);
-        log_it(L_ERROR, "Cert path '%s' is not in ca dir: %s", cert_path_c, s_system_chain_ca_dir);
         return -1;
     }
     int l_ret = dap_cert_file_save(cert, cert_path_c);
     dap_cert_delete(cert);
-    DAP_DELETE(cert_path);
     DAP_DELETE(cert_path_c);
 //  if ( access( l_cert_path, F_OK ) != -1 ) {
 //      log_it (L_ERROR, "File %s is already exists.", l_cert_path);

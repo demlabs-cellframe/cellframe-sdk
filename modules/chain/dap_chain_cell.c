@@ -103,7 +103,8 @@ dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_c
     l_cell = DAP_NEW_Z(dap_chain_cell_t);
     if ( !l_cell ) {
         pthread_rwlock_unlock(&a_chain->cell_rwlock);
-        return log_it(L_ERROR, "Memory allocation error in dap_chain_cell_create_fill, errno=%d", errno), NULL;
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        return NULL;
     }
     l_cell->chain = a_chain;
     l_cell->id.uint64 = a_cell_id.uint64;
@@ -125,7 +126,7 @@ dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_c
 dap_chain_cell_t * dap_chain_cell_create_fill2(dap_chain_t * a_chain, const char *a_filename)
 {
     uint64_t l_cell_id_uint64;
-    dap_sscanf(a_filename, "%"DAP_UINT64_FORMAT_x".dchaincell", &l_cell_id_uint64);
+    sscanf(a_filename, "%"DAP_UINT64_FORMAT_x".dchaincell", &l_cell_id_uint64);
     return dap_chain_cell_create_fill(a_chain, (dap_chain_cell_id_t){ .uint64 = l_cell_id_uint64});
 }
 
@@ -215,7 +216,7 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
         }
         dap_chain_atom_ptr_t l_element = DAP_NEW_SIZE(dap_chain_atom_ptr_t, l_el_size);
         if (!l_element) {
-            log_it(L_ERROR, "Memory allocation error in dap_chain_cell_load, errno=%d", errno);
+            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             l_ret = -5;
             break;
         }

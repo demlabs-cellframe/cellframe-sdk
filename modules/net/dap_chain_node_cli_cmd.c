@@ -189,7 +189,7 @@ static dap_chain_node_addr_t* s_node_info_get_addr(dap_chain_net_t * a_net, dap_
     if(a_addr->uint64) {
         l_address = DAP_NEW(dap_chain_node_addr_t);
         if (!l_address) {
-            log_it(L_ERROR, "Memory allocation error in s_node_info_get_addr");
+            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             return NULL;
         }
         l_address->uint64 = a_addr->uint64;
@@ -1399,7 +1399,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
 
         log_it(L_NOTICE, "Stream connection established");
         dap_stream_ch_chain_sync_request_t l_sync_request = {};
-         dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, dap_stream_ch_chain_get_id());
+         dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, DAP_STREAM_CH_ID);
          // fill begin id
          l_sync_request.id_start = 1;
          // fill current node address
@@ -1409,7 +1409,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         if(!l_sync_request.node_addr.uint64 )
         {
             log_it(L_NOTICE, "Now get node addr");
-            uint8_t l_ch_id = dap_stream_ch_chain_net_get_id();
+            uint8_t l_ch_id = DAP_STREAM_CH_ID_NET;
             dap_stream_ch_t * l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, l_ch_id);
 
             size_t res = dap_stream_ch_chain_net_pkt_write(l_ch_chain,
@@ -1428,10 +1428,9 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             switch (l_res) {
             case 0:
                 if(l_node_client->cur_node_addr.uint64 != 0) {
-
-                    l_sync_request.node_addr.uint64 = l_node_client->cur_node_addr.uint64;
                     log_it(L_INFO, "Node address leased");
                     l_sync_request.node_addr.uint64 = l_node_client->cur_node_addr.uint64;
+                    
                     // save cur address
                     // already saved
                     // dap_db_set_cur_node_addr_exp(l_sync_request.node_addr.uint64, l_net->pub.name);
@@ -2660,7 +2659,7 @@ dap_list_t *s_tickers_list_created(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *
     int l_item_in_size = 0;
     void *l_item_in = dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_IN_ALL, &l_item_in_size);
     dap_hash_fast_t l_parent_hash = {0};
-    int l_parrent_tx_out_idx;
+    int l_parrent_tx_out_idx = 0;
     for (int l_item_in_size_current = 0; l_item_in_size_current < l_item_in_size && !l_token_ticker;) {
         size_t l_tmp_size = dap_chain_datum_item_tx_get_size(l_item_in);
         if (l_tmp_size == 0)
@@ -3175,17 +3174,18 @@ int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply)
 
     dap_chain_datum_t * l_datum = l_datum_hash_hex_str ? (dap_chain_datum_t*) dap_global_db_get_sync(l_gdb_group_mempool, l_datum_hash_hex_str,
                                                                                    &l_datum_size, NULL, NULL ) : NULL;
-    DAP_DELETE(l_gdb_group_mempool);
     size_t l_datum_size2 = l_datum? dap_chain_datum_size( l_datum): 0;
     if (l_datum_size != l_datum_size2) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Corrupted datum %s, size by datum headers is %zd when in mempool is only %zd bytes",
                                           l_datum_hash_hex_str, l_datum_size2, l_datum_size);
         DAP_DELETE(l_datum_hash_hex_str);
+        DAP_DELETE(l_gdb_group_mempool);
         return -8;
     }
     if (!l_datum) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Can't find datum %s", l_datum_hash_str);
         DAP_DELETE(l_datum_hash_hex_str);
+        DAP_DELETE(l_gdb_group_mempool);
         return -4;
     }
     dap_hash_fast_t l_datum_hash, l_real_hash;
@@ -3193,6 +3193,7 @@ int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Can't convert datum hash string %s to digital form",
                                           l_datum_hash_hex_str);
         DAP_DELETE(l_datum_hash_hex_str);
+        DAP_DELETE(l_gdb_group_mempool);
         return -7;
     }
     dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_real_hash);
@@ -3200,6 +3201,7 @@ int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Datum's real hash doesn't match datum's hash string %s",
                                           l_datum_hash_hex_str);
         DAP_DELETE(l_datum_hash_hex_str);
+        DAP_DELETE(l_gdb_group_mempool);
         return -6;
     }
     char buf[50];
@@ -3234,7 +3236,7 @@ int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply)
     dap_string_append_printf(l_str_tmp, "\n");
     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
     dap_string_free(l_str_tmp, true);
-
+    DAP_DELETE(l_gdb_group_mempool);
     DAP_DELETE(l_datum_hash_hex_str);
     return ret;
 }
@@ -3370,7 +3372,6 @@ static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_s
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-chain", &a_params->chain_str);
     //token_ticker
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-token", &a_params->ticker);
-
     // Token type
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-type", &a_params->type_str);
 
@@ -3387,9 +3388,6 @@ static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_s
         } else if (strcmp(a_params->type_str, "public_simple") == 0 && !a_update_token) {
             a_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL;
             a_params->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC; // 256
-        } else if (strcmp(a_params->type_str, "CF20") == 0) {
-            a_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL;
-            a_params->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE; // 256
         } else if (!a_update_token) {
             dap_cli_server_cmd_set_reply_text(a_str_reply,
                         "Unknown token type %s was specified. Supported types:\n"
@@ -3550,19 +3548,15 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, char **
         char *l_remove_signs_dup = strdup(l_remove_signs);
         char *l_remove_signs_str = strtok_r(l_remove_signs_dup, ",", &l_remove_signs_ptrs);
         for (; l_remove_signs_str; l_remove_signs_str = strtok_r(NULL, ",", &l_remove_signs_ptrs)) {
-            dap_hash_fast_t *l_hf = DAP_NEW(dap_hash_fast_t);
-            char *l_tmp = strdup(l_remove_signs_str);
-            if (dap_chain_hash_fast_from_str(l_tmp, l_hf) == 0) {
-                dap_tsd_t *l_hf_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE, l_hf, sizeof(dap_hash_fast_t));
+            dap_hash_fast_t l_hf;
+            if (dap_chain_hash_fast_from_str(l_remove_signs_str, &l_hf) == 0) {
+                dap_tsd_t *l_hf_tsd = dap_tsd_create(DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE, &l_hf, sizeof(dap_hash_fast_t));
                 size_t l_hf_tsd_size = dap_tsd_size(l_hf_tsd);
                 l_tsd_list = dap_list_append(l_tsd_list, l_hf_tsd);
                 l_added_tsd_size += l_hf_tsd_size;
             }
-            DAP_DELETE(l_hf);
-            DAP_DELETE(l_tmp);
         }
         DAP_DELETE(l_remove_signs_dup);
-        DAP_DELETE(l_remove_signs_str);
         l_tsd_total_size += l_added_tsd_size;
     }
     //Added new certs
@@ -3761,8 +3755,10 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     l_params->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE;
 
     int l_parse_params = s_token_decl_check_params(a_argc,a_argv,a_str_reply,l_params, false);
-    if (l_parse_params)
+    if (l_parse_params) {
+        DAP_DEL_Z(l_params);
         return l_parse_params;
+    }
 
     dap_chain_datum_token_t * l_datum_token = NULL;
     size_t l_datum_data_offset = 0;
@@ -3772,6 +3768,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     if(!l_certs_count){
         dap_cli_server_cmd_set_reply_text(a_str_reply,
                 "token_decl command requres at least one valid certificate to sign token");
+        DAP_DEL_Z(l_params);
         return -10;
     }
 
@@ -3799,6 +3796,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                      uint16_t l_flag = dap_chain_datum_token_flag_from_str(*l_str_flags);
                      if (l_flag == DAP_CHAIN_DATUM_TOKEN_FLAG_UNDEFINED ){
                          dap_cli_server_cmd_set_reply_text(a_str_reply, "Flag can't be \"%s\"",*l_str_flags);
+                         DAP_DEL_Z(l_params);
                          return -20;
                      }
                      l_flags |= l_flag; // if we have multiple flags
@@ -3809,6 +3807,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
 				dap_chain_datum_token_t *l_delegated_token_from;
 				if (NULL == (l_delegated_token_from = dap_chain_ledger_token_ticker_check(l_net->pub.ledger, l_params->ext.delegated_token_from))) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply,"To create a delegated token %s, can't find token by ticket %s", l_ticker, l_params->ext.delegated_token_from);
+                    DAP_DEL_Z(l_params);
 					return -91;
 				}
 				dap_chain_datum_token_tsd_delegate_from_stake_lock_t l_tsd_section;
@@ -3854,7 +3853,13 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
 
 
             // Create new datum token
-            l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t) + l_params->ext.tsd_total_size) ;
+            l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t) + l_params->ext.tsd_total_size);
+            if (!l_datum_token) {
+                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Out of memory in com_token_decl");
+                DAP_DEL_Z(l_params);
+                return -1;
+            }
             l_datum_token->version = 2;
             l_datum_token->type = l_params->type;
             l_datum_token->subtype = l_params->subtype;
@@ -3914,6 +3919,12 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
         }break;//end
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE: { // 256
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t));
+            if (!l_datum_token) {
+                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Out of memory in com_token_decl");
+                DAP_DEL_Z(l_params);
+                return -1;
+            }
             l_datum_token->version = 2;
             l_datum_token->type = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL; // 256
             l_datum_token->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE; // 256
@@ -3925,6 +3936,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
         default:
             dap_cli_server_cmd_set_reply_text(a_str_reply,
                     "Unknown token type");
+            DAP_DEL_Z(l_params);
             return -8;
     }
     // If we have more certs than we need signs - use only first part of the list
@@ -3940,6 +3952,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     if (!l_datum_token || l_datum_token->signs_total == 0){
         dap_cli_server_cmd_set_reply_text(a_str_reply,
                     "Token declaration failed. Successful count of certificate signing is 0");
+            DAP_DEL_Z(l_params);
             return -9;
     }
 
@@ -3964,6 +3977,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "No suitable chain for placing token datum found");
         DAP_DEL_Z(l_key_str);
         DAP_DELETE(l_datum);
+        DAP_DEL_Z(l_params);
         return -10;
     }
     bool l_placed = dap_global_db_set_sync(l_gdb_group_mempool, l_key_str, l_datum, l_datum_size, false) == 0;
@@ -4073,7 +4087,11 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
         { // 256
             // Create new datum token
-            l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t) + l_params->ext.tsd_total_size) ;
+            l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t) + l_params->ext.tsd_total_size);
+            if (!l_datum_token) {
+                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                return -1;
+            }
             l_datum_token->version = 2;
             l_datum_token->type = l_params->type;
             l_datum_token->subtype = l_params->subtype;
@@ -4107,6 +4125,10 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
         }break;//end
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE: { // 256
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t));
+            if (!l_datum_token) {
+                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                return -1;
+            }
             l_datum_token->version = 2;
             l_datum_token->subtype = DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE;
             l_datum_token->subtype = DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE; // 256
@@ -5445,12 +5467,26 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
     }
 
     // Check, if network ID is same as ID in destination wallet address. If not - operation is cancelled.
-    if (!dap_chain_addr_is_blank(l_addr_to) && l_addr_to->net_id.uint64 != l_net->pub.id.uint64) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "destination wallet network ID=0x%"DAP_UINT64_FORMAT_x
-                                                       " and network ID=0x%"DAP_UINT64_FORMAT_x" is not equal."
-                                                       " Please, change network name or wallet address",
-                                                       l_addr_to->net_id.uint64, l_net->pub.id.uint64);
-        return -13;
+    if (l_addr_to->net_id.uint64 != l_net->pub.id.uint64) {
+        bool l_found = false;
+        for (dap_list_t *it = l_net->pub.bridged_networks; it; it = it->next) {
+            if (((dap_chain_net_id_t *)it->data)->uint64 == l_addr_to->net_id.uint64) {
+                l_found = true;
+                break;
+            }
+        }
+        if (!l_found) {
+            dap_string_t *l_allowed_list = dap_string_new("");
+            dap_string_append_printf(l_allowed_list, "0x%016"DAP_UINT64_FORMAT_X, l_net->pub.id.uint64);
+            for (dap_list_t *it = l_net->pub.bridged_networks; it; it = it->next)
+                dap_string_append_printf(l_allowed_list, ", 0x%016"DAP_UINT64_FORMAT_X, ((dap_chain_net_id_t *)it->data)->uint64);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Destination network ID=0x%"DAP_UINT64_FORMAT_x
+                                                           " is unreachable. List of available network IDs:\n%s"
+                                                           " Please, change network name or wallet address",
+                                              l_addr_to->net_id.uint64, l_allowed_list->str);
+            dap_string_free(l_allowed_list, true);
+            return -13;
+        }
     }
 
     if(l_tx_num){
@@ -5637,6 +5673,10 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
             } else
                 l_addr = l_addr_tmp;
             dap_chain_wallet_close(l_wallet);
+        } else {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "The wallet %s is not activated or it doesn't exist", l_wallet_name);
+            DAP_DELETE(l_addr);
+            return -7;
         }
     }
     // Select chain, if any
@@ -6098,7 +6138,7 @@ int cmd_remove(int a_argc, char **a_argv, char ** a_str_reply)
             size_t l_aliases_count = 0;
             _pvt_net_aliases_list_t *l_gdb_groups = DAP_NEW(_pvt_net_aliases_list_t);
             if (!l_gdb_groups) {
-                log_it(L_ERROR, "Memory allocation error in cmd_remove");
+                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                 dap_list_free(l_net_returns);
                 return -1;
             }
@@ -6493,6 +6533,8 @@ static int s_get_key_from_file(const char *a_file, const char *a_mime, const cha
 
     int l_ret = s_sign_file(a_file, l_flags_mime, a_cert_name, a_sign, &l_hash);
 
+    if (l_items_mime)
+        DAP_DELETE(l_items_mime);
     return l_ret;
 }
 
@@ -6667,6 +6709,10 @@ static byte_t *s_concat_meta (dap_list_t *a_meta, size_t *a_fullsize)
     int l_part = 256;
     int l_power = 1;
     byte_t *l_buf = DAP_CALLOC(l_part * l_power++, 1);
+    if (!l_buf) {
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        return NULL;
+    }
     size_t l_counter = 0;
     size_t l_part_power = l_part;
     int l_index = 0;
@@ -6680,7 +6726,7 @@ static byte_t *s_concat_meta (dap_list_t *a_meta, size_t *a_fullsize)
             l_part_power = l_part * l_power++;
             l_buf = (byte_t *) DAP_REALLOC(l_buf, l_part_power);
             if (!l_buf) {
-                log_it(L_ERROR, "Memory allocation error in s_concat_meta");
+                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                 return NULL;
             }
         }
@@ -6703,7 +6749,8 @@ static uint8_t *s_concat_hash_and_mimetypes (dap_chain_hash_fast_t *a_chain_hash
     *a_fullsize += sizeof (a_chain_hash->raw) + 1;
     uint8_t *l_fullbuf = DAP_CALLOC(*a_fullsize, 1);
     if (!l_fullbuf) {
-        log_it(L_ERROR, "Memory allocation error in s_concat_hash_and_mimetypes");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        DAP_DELETE(l_buf);
         return NULL;
     }
     uint8_t *l_s = l_fullbuf;
@@ -6721,7 +6768,7 @@ static char *s_strdup_by_index (const char *a_file, const int a_index)
 {
     char *l_buf = DAP_CALLOC(a_index + 1, 1);
     if (!l_buf) {
-        log_it(L_ERROR, "Memory allocation error in s_strdup_by_index");
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return NULL;
     }
     strncpy (l_buf, a_file, a_index);

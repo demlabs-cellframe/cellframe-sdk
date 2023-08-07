@@ -127,11 +127,6 @@ dap_chain_node_addr_t dap_stream_ch_chain_net_from_session_data_extract_node_add
     return l_addr;
 }
 
-uint8_t dap_stream_ch_chain_net_get_id()
-{
-    return 'N';
-}
-
 /**
  * @brief dap_stream_ch_chain_net_init
  * @return always 0
@@ -139,7 +134,7 @@ uint8_t dap_stream_ch_chain_net_get_id()
 int dap_stream_ch_chain_net_init()
 {
     log_it(L_NOTICE, "Chain network channel initialized");
-    dap_stream_ch_proc_add(dap_stream_ch_chain_net_get_id(), s_stream_ch_new, s_stream_ch_delete,
+    dap_stream_ch_proc_add(DAP_STREAM_CH_ID_NET, s_stream_ch_new, s_stream_ch_delete,
             s_stream_ch_packet_in, s_stream_ch_packet_out);
 
     return 0;
@@ -174,7 +169,7 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
     if(l_sdata == NULL) {
         l_sdata = DAP_NEW_Z(dap_chain_net_session_data_t);
         if (!l_sdata) {
-            log_it(L_ERROR, "Memory allocation error in s_stream_ch_new");
+            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             pthread_mutex_unlock(&s_hash_mutex);
             return;
         }
