@@ -128,7 +128,11 @@ int dap_chain_net_srv_xchange_init()
     dap_chain_net_srv_t* l_srv = dap_chain_net_srv_add(l_uid, "srv_xchange", &l_srv_callbacks);
     s_srv_xchange = DAP_NEW_Z(dap_chain_net_srv_xchange_t);
     if (!s_srv_xchange || !l_srv) {
+<<<<<<< HEAD
         log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+=======
+        log_it(L_ERROR, "Memory allocation error in dap_chain_net_srv_xchange_init");
+>>>>>>> 7de6eea216cf5a3febe704020575257a90d006d3
         return -1;
     }
     l_srv->_internal = s_srv_xchange;
