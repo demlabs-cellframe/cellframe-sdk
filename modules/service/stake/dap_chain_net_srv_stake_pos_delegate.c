@@ -1190,17 +1190,19 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                 if (l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID)
                     continue;
                 // TODO add filters to list (token, address, etc.)
-                char *l_price = dap_chain_balance_print(l_order->price);
+                char *l_price_coins = dap_chain_balance_to_coins(l_order->price);
+                char *l_price_datoshi = dap_chain_balance_print(l_order->price);
                 char *l_node_addr = dap_strdup_printf(NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_order->node_addr));
                 char l_created[80] = {'\0'};
                 dap_time_t l_ts_created = l_order->ts_created;
                 dap_ctime_r(&l_ts_created, l_created);
                 dap_string_append_printf(l_reply_str, "Order: %s\n"
                                                       "\tCreated: %s"
-                                                      "\tPrice: %s %s\n"
+                                                      "\tPrice: %s (%s) %s\n"
                                                       "\tNode addr: %s\n",
-                                                      l_orders[i].key, l_created, l_price, l_order->price_ticker, l_node_addr);
-                DAP_DELETE(l_price);
+                                                      l_orders[i].key, l_created, l_price_coins, l_price_datoshi, l_order->price_ticker, l_node_addr);
+                DAP_DELETE(l_price_coins);
+                DAP_DELETE(l_price_datoshi);
                 DAP_DELETE(l_node_addr);
             }
             dap_global_db_objs_delete(l_orders, l_orders_count);
