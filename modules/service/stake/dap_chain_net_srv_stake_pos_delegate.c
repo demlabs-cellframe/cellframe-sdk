@@ -1285,16 +1285,14 @@ static void s_get_tx_filter_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_
     return;
 }
 
-static int callback_compare_tx_list(const void * a_datum1, const void * a_datum2, void *a_unused)
+static int callback_compare_tx_list(const void * a_datum1, const void * a_datum2)
 {
-    UNUSED(a_unused);
-    dap_chain_datum_tx_t *l_datum1 = (dap_chain_datum_tx_t*) a_datum1;
-    dap_chain_datum_tx_t *l_datum2 = (dap_chain_datum_tx_t*) a_datum2;
-    if(!l_datum1 || !l_datum2 || l_datum1->header.ts_created == l_datum2->header.ts_created)
+    if (!a_datum1 || !a_datum2)
         return 0;
-    if(l_datum1->header.ts_created > l_datum2->header.ts_created)
-        return 1;
-    return -1;
+    dap_chain_datum_tx_t *l_datum1 = (dap_chain_datum_tx_t*)a_datum1,
+            *l_datum2 = (dap_chain_datum_tx_t*)a_datum2;
+    return l_datum1->header.ts_created == l_datum2->header.ts_created
+            ? 0 : l_datum1->header.ts_created > l_datum2->header.ts_created ? 1 : -1;
 }
 
 bool dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fast_t *a_tx_hash, dap_stream_ch_chain_validator_test_t * out_data,

@@ -783,31 +783,22 @@ static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out
     }
 
     // Check out value is equal to value in receipt
-    int items_count = 0;
-    dap_list_t * items_list = dap_chain_datum_tx_items_get(a_tx_in, TX_ITEM_TYPE_OUT, &items_count);
-    dap_chain_addr_t l_provider_addr = {};
+    dap_list_t *l_items_list = dap_chain_datum_tx_items_get(a_tx_in, TX_ITEM_TYPE_OUT, NULL), *l_item;
+    dap_chain_addr_t l_provider_addr = { };
     dap_chain_addr_fill(&l_provider_addr, l_provider_sign_type, &l_provider_pkey_hash, dap_chain_net_id_by_name(a_ledger->net_name));
-
-    dap_list_t * list_item = items_list;
-    for (int i = 0; i < items_count; i++){
-        dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t*)list_item->data;
-        if (dap_chain_addr_compare(&l_provider_addr, &l_out->addr))
-        {
-            if(!compare256(l_out->header.value, l_receipt->receipt_info.value_datoshi)){
-                dap_list_free(items_list);
-                return true;
-            }else{
-                dap_list_free(items_list);
-                log_it(L_ERROR, "Value in tx out is not equal to value in receipt.");
-                return false;
-
+    int l_ret = -1;
+    DL_FOREACH(l_items_list, l_item) {
+        if (dap_chain_addr_compare(&l_provider_addr, &((dap_chain_tx_out_t*)l_item->data)->addr)) {
+            l_ret = !compare256(((dap_chain_tx_out_t*)l_item->data)->header.value, l_receipt->receipt_info.value_datoshi) ? 0 : 1;
+            if (l_ret) {
+                log_it(L_ERROR, "Value in tx out is not equal to value in receipt"); // TODO: print the balances!
             }
+            break;
         }
-        items_list = items_list->next;
     }
-    dap_list_free(items_list);
-    log_it(L_ERROR, "Can't find OUT in tx matching provider.");
-    return false;
+    dap_list_free(l_items_list);
+    debug_if(l_ret == -1, L_ERROR, "Not found out in tx matching provider addr");
+    return !l_ret;
 }
 
 int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, const char *a_config_section){

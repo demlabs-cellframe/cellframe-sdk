@@ -2742,36 +2742,33 @@ static bool dap_chain_mempool_find_addr_ledger(dap_ledger_t* a_ledger, dap_chain
 {
     dap_chain_datum_tx_t *l_tx;
     l_tx = dap_chain_ledger_tx_find_by_hash (a_ledger,a_tx_prev_hash);
-    dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
+    dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_ALL, NULL), *l_item;
     if(!l_list_out_items)
         return false;
-    for(dap_list_t *l_list_out = l_list_out_items; l_list_out; l_list_out = dap_list_next(l_list_out)) {
+    bool l_ret = false;
+    DL_FOREACH(l_list_out_items, l_item) {
         assert(l_list_out->data);
         dap_chain_addr_t *l_dst_addr = NULL;
-        dap_chain_tx_item_type_t l_type = *(uint8_t *)l_list_out->data;
+        dap_chain_tx_item_type_t l_type = *(uint8_t*)l_item->data;
         switch (l_type) {
         case TX_ITEM_TYPE_OUT:
-            l_dst_addr = &((dap_chain_tx_out_t *)l_list_out->data)->addr;
+            l_dst_addr = &((dap_chain_tx_out_t*)l_item->data)->addr;
             break;
         case TX_ITEM_TYPE_OUT_EXT:
-            l_dst_addr = &((dap_chain_tx_out_ext_t *)l_list_out->data)->addr;
+            l_dst_addr = &((dap_chain_tx_out_ext_t*)l_item->data)->addr;
             break;
         case TX_ITEM_TYPE_OUT_OLD:
-            l_dst_addr = &((dap_chain_tx_out_old_t *)l_list_out->data)->addr;
+            l_dst_addr = &((dap_chain_tx_out_old_t*)l_item->data)->addr;
         default:
             break;
         }
-        if(l_dst_addr)
-        {
-            if(!memcmp(l_dst_addr, a_addr, sizeof(dap_chain_addr_t)))
-            {
-                dap_list_free(l_list_out_items);
-                return true;
-            }
+        if(l_dst_addr && !memcmp(l_dst_addr, a_addr, sizeof(dap_chain_addr_t))) {
+            l_ret = true;
+            break;
         }
     }
     dap_list_free(l_list_out_items);
-    return false;
+    return l_ret;
 }
 
 /**

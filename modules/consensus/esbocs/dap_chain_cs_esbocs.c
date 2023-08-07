@@ -655,7 +655,7 @@ static int s_callback_addr_compare(const void *a_list_data, const void *a_user_d
 
 static dap_list_t *s_validator_check(dap_chain_addr_t *a_addr, dap_list_t *a_validators)
 {
-    return dap_list_find_custom(a_validators, a_addr, s_callback_addr_compare);
+    return dap_list_find(a_validators, a_addr, s_callback_addr_compare);
 }
 
 static int s_callback_addr_compare_synced(const void *a_list_data, const void *a_user_data)
@@ -667,7 +667,7 @@ static int s_callback_addr_compare_synced(const void *a_list_data, const void *a
 
 static dap_list_t *s_validator_check_synced(dap_chain_addr_t *a_addr, dap_list_t *a_validators)
 {
-    return dap_list_find_custom(a_validators, a_addr, s_callback_addr_compare_synced);
+    return dap_list_find(a_validators, a_addr, s_callback_addr_compare_synced);
 }
 
 
@@ -702,9 +702,15 @@ static void s_session_send_startsync(dap_chain_esbocs_session_t *a_session)
     s_message_send(a_session, DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC, &l_last_block_hash,
                    &l_params, sizeof(struct sync_params),
                    l_total_sendlist);
-    if (l_inactive_sendlist && l_inactive_sendlist->prev) { // List splitting
+    /*if (l_inactive_sendlist && l_inactive_sendlist->prev) { // List splitting
         l_inactive_sendlist->prev->next = NULL;
         l_inactive_sendlist->prev = NULL;
+    }*/
+    if (l_inactive_sendlist) { // List splitting
+        dap_list_t *l_tmp = l_inactive_sendlist->prev;
+        l_inactive_sendlist->prev->next = NULL;
+        l_inactive_sendlist->prev = a_session->cur_round.all_validators->prev;
+        a_session->cur_round.all_validators->prev = l_tmp;
     }
     dap_list_free_full(l_inactive_sendlist, NULL);
     a_session->cur_round.sync_sent = true;
@@ -922,17 +928,14 @@ static uint64_t s_session_calc_current_round_id(dap_chain_esbocs_session_t *a_se
     return l_ret ? l_ret : a_session->cur_round.id;
 }
 
-static int s_signs_sort_callback(const void *a_sign1, const void *a_sign2, UNUSED_ARG void *a_user_data)
+static int s_signs_sort_callback(const void *a_sign1, const void *a_sign2)
 {
-    size_t l_size1 = dap_sign_get_size((dap_sign_t *)a_sign1);
-    size_t l_size2 = dap_sign_get_size((dap_sign_t *)a_sign2);
-    size_t l_size_min = MIN(l_size1, l_size2);
+    size_t  l_size1 = dap_sign_get_size((dap_sign_t*)a_sign1),
+            l_size2 = dap_sign_get_size((dap_sign_t*)a_sign2),
+            l_size_min = MIN(l_size1, l_size2);
     int l_ret = memcmp(a_sign1, a_sign2, l_size_min);
     if (!l_ret) {
-        if (l_size1 < l_size2)
-            l_ret = -1;
-        else if (l_size1 > l_size2)
-            l_ret = 1;
+        l_ret = l_size1 == l_size2 ? 0 : l_size1 > l_size2 ? 1 : -1;
     }
     return l_ret;
 }

@@ -943,8 +943,7 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
         } else
             l_burning_tx = a_tx_in;
 
-        int l_outs_count = 0;
-        dap_list_t *l_outs_list = dap_chain_datum_tx_items_get(l_burning_tx, TX_ITEM_TYPE_OUT_ALL, &l_outs_count);
+        dap_list_t *l_outs_list = dap_chain_datum_tx_items_get(l_burning_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
         uint256_t l_blank_out_value = {};
         for (dap_list_t *it = l_outs_list; it; it = it->next) {
             byte_t l_type = *(byte_t *)it->data;

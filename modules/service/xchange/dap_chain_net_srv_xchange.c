@@ -2094,7 +2094,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                         }
                         l_cur = dap_list_next(l_cur);
                     }
-                    dap_list_free_full(l_tx_cond_list, NULL);
+                    dap_list_free(l_tx_cond_list);
                     uint256_t l_rate_average = {0};
                     if (!IS_ZERO_256(l_total_rates_count))
                         DIV_256(l_total_rates,l_total_rates_count,&l_rate_average);

@@ -437,28 +437,24 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         dap_chain_datum_tx_t *l_tx_new = dap_chain_datum_tx_create();
         uint256_t l_value_back = {};
         // add 'in' items
-        dap_list_t *l_list_tmp = l_list_used_out;
         uint256_t l_value_to_items = {}; // how many coins to transfer
 
-        // Add in and remove out used items
-        while(l_list_tmp) {
-            dap_chain_tx_used_out_item_t *l_item = l_list_tmp->data;
-            char l_in_hash_str[70];
-
-            dap_chain_hash_fast_to_str(&l_item->tx_hash_fast,l_in_hash_str,sizeof (l_in_hash_str) );
+        dap_list_t *l_used_out, *l_tmp;
+        DL_FOREACH_SAFE(l_list_used_out, l_used_out, l_tmp) {
+            dap_chain_tx_used_out_item_t *l_item = l_used_out->data;
+            char l_in_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+            dap_chain_hash_fast_to_str(&l_item->tx_hash_fast, l_in_hash_str, sizeof(l_in_hash_str));
 
             char *l_balance = dap_chain_balance_print(l_item->value);
             if (dap_chain_datum_tx_add_in_item(&l_tx_new, &l_item->tx_hash_fast, l_item->num_idx_out)) {
                 SUM_256_256(l_value_to_items, l_item->value, &l_value_to_items);
                 log_it(L_DEBUG, "Added input %s with %s datoshi", l_in_hash_str, l_balance);
-            }else{
+            } else {
                 log_it(L_WARNING, "Can't add input from %s with %s datoshi", l_in_hash_str, l_balance);
             }
             DAP_DELETE(l_balance);
-            l_list_used_out = l_list_tmp->next;
-            DAP_DELETE(l_list_tmp->data);
-            dap_list_free1(l_list_tmp);
-            l_list_tmp = l_list_used_out;
+            DL_DELETE(l_list_used_out, l_used_out);
+            DAP_DELETE(l_item);
             if (compare256(l_value_to_items, l_value_transfer) != -1)
                 break;
         }
@@ -547,12 +543,14 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
                     if (!l_item_back) {
                         log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                         DAP_DELETE(l_objs);
-                        dap_list_free( l_list_out_items);
+                        dap_list_free(l_list_out_items);
                         return -6;
                     }
-                    l_item_back->tx_hash_fast = l_tx_new_hash;
-                    l_item_back->num_idx_out = l_out_idx_tmp;
-                    l_item_back->value = l_value_back;
+                    *l_item_back = (dap_chain_tx_used_out_item_t) {
+                            .tx_hash_fast   = l_tx_new_hash,
+                            .num_idx_out    = l_out_idx_tmp,
+                            .value          = l_value_back
+                    };
                     l_list_used_out = dap_list_prepend(l_list_used_out, l_item_back);
                     log_it(L_DEBUG,"Found change back output, stored back in UTXO table");
                     break;
@@ -560,8 +558,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
                 l_list_tmp = l_list_tmp->next;
                 l_out_idx_tmp++;
             }
-            //log_it(L_DEBUG,"Checked all outputs");
-            dap_list_free( l_list_out_items);
+            dap_list_free(l_list_out_items);
         }
         SUBTRACT_256_256(l_value_transfer, l_value_pack, &l_value_transfer);
 
@@ -578,7 +575,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         log_it(L_DEBUG, "Prepared obj with key %s (value_len = %"DAP_UINT64_FORMAT_U")",
                l_objs[i].key? l_objs[i].key :"NULL" , l_objs[i].value_len );
     }
-    dap_list_free_full(l_list_used_out, free);
+    dap_list_free_full(l_list_used_out, NULL);
 
     char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     dap_global_db_set_multiple_zc(l_gdb_group, l_objs, a_tx_num, s_tx_create_massive_gdb_save_callback, NULL);
@@ -784,7 +781,7 @@ char *dap_chain_mempool_tx_create_cond(dap_chain_net_t *a_net,
     {
         uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
         assert(EQUAL_256(l_value_to_items, l_value_transfer));
-        dap_list_free_full(l_list_used_out, free);
+        dap_list_free_full(l_list_used_out, NULL);
     }
     // add 'out_cond' and 'out' items
     {

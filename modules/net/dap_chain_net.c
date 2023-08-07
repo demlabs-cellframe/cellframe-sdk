@@ -1436,7 +1436,7 @@ bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t 
     if (!l_found) {
         l_net_pvt->active_link = a_client;
     }
-    if (l_found && !dap_list_find(l_net_pvt->links_queue, a_client))
+    if (l_found && !dap_list_find(l_net_pvt->links_queue, a_client, NULL))
         l_net_pvt->links_queue = dap_list_append(l_net_pvt->links_queue, a_client);
     if (a_err != EDEADLK)
         pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
@@ -2240,16 +2240,12 @@ typedef struct list_priority_{
     char * chains_path;
 }list_priority;
 
-static int callback_compare_prioritity_list(const void * a_item1, const void * a_item2, void *a_unused)
+static int callback_compare_prioritity_list(const void * a_item1, const void * a_item2)
 {
-    UNUSED(a_unused);
-    list_priority *l_item1 = (list_priority*) a_item1;
-    list_priority *l_item2 = (list_priority*) a_item2;
-    if(!l_item1 || !l_item2 || l_item1->prior == l_item2->prior)
+    if (!a_item1 || !a_item2)
         return 0;
-    if(l_item1->prior > l_item2->prior)
-        return 1;
-    return -1;
+    list_priority *l_item1 = (list_priority*)a_item1, *l_item2 = (list_priority*)a_item2;
+    return l_item1->prior == l_item2->prior ? 0 : l_item1->prior > l_item2->prior ? 1 : -1;
 }
 
 void s_main_timer_callback(void *a_arg)
@@ -3237,7 +3233,7 @@ dap_list_t* dap_chain_net_get_link_node_list(dap_chain_net_t * l_net, bool a_is_
                     DAP_DELETE(l_remote_node_info);
             }
             if(l_is_add) {
-                dap_chain_node_addr_t *l_address = DAP_NEW(dap_chain_node_addr_t);
+                dap_chain_node_addr_t *l_address = DAP_NEW_Z(dap_chain_node_addr_t);
                 if (!l_address) {
                     log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                     return NULL;
@@ -3246,9 +3242,8 @@ dap_list_t* dap_chain_net_get_link_node_list(dap_chain_net_t * l_net, bool a_is_
                 l_node_list = dap_list_append(l_node_list, l_address);
             }
         }
-
+        DAP_DELETE(l_cur_node_info);
     }
-    DAP_DELETE(l_cur_node_info);
     return l_node_list;
 }
 
