@@ -139,6 +139,7 @@ dap_chain_net_node_balancer_t *s_balancer_issue_link(const char *a_net_name)
         for(size_t i=0;i<l_link_full_node_list->count_node;i++)
         {
             log_it(L_DEBUG, "Network balancer issues ip %s, [%ld blocks]",inet_ntoa((l_node_info + i)->hdr.ext_addr_v4),l_node_info->hdr.blocks_events);
+
         }
         return l_link_full_node_list;
     }
