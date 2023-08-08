@@ -170,7 +170,7 @@ if(WIN32)
       set(_CCOPT "-static -std=gnu11 ${CFLAGS_WARNINGS} -O3 -fPIC -fno-ident -ffast-math -fno-strict-aliasing -ftree-vectorize -mfpmath=sse -mmmx -msse2 -fno-asynchronous-unwind-tables -ffunction-sections -Wl,--gc-sections")
       if(NOT DAP_DBG_INFO)
           add_definitions ("-DNDEBUG")
-          set(_CCOPT "${_CCOPT} -mconsole -Wl,--strip-all")
+          set(_CCOPT "${_CCOPT} -Wl,--strip-all")
       endif()
     endif()
 
