@@ -405,7 +405,6 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
         usages_in_grace_t *l_item = DAP_NEW_Z_SIZE(usages_in_grace_t, sizeof(usages_in_grace_t));
         if (!l_item) {
             log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
-            DAP_DEL_Z(l_price);
             s_grace_error(a_grace, l_err);
             return;
         }
