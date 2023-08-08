@@ -884,8 +884,9 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
     if (l_net_pvt->state_target != NET_STATE_OFFLINE) {
         pthread_mutex_lock(&l_net_pvt->uplinks_mutex);
         s_net_link_remove(l_net_pvt, a_node_client, l_net_pvt->only_static_links);
-
-        dap_global_db_del_sync(l_net->pub.gdb_nodes, a_node_client->info->hdr.address);
+        char *l_key = dap_chain_node_addr_to_hash_str(&a_node_client->info->hdr.address);
+        dap_global_db_del_sync(l_net->pub.gdb_nodes, l_key);
+        log_it(L_NOTICE, "Remove "NODE_ADDR_FP_STR" from local db",NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address));
         a_node_client->keep_connection = false;
         a_node_client->callbacks.delete = NULL;
         dap_chain_node_client_close_mt(a_node_client);  // Remove it on next context iteration
