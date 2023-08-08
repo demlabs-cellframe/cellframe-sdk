@@ -462,7 +462,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
             }
         } else if(!dap_strcmp( l_order_str, "create" )) {
             if (dap_chain_net_get_role(l_net).enums < NODE_ROLE_MASTER) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Node should have role not lower than master\n");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Node role should be not lower than master\n");
                 return -4;
             }
             const char *l_order_cert_name = NULL;
