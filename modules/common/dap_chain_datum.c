@@ -350,7 +350,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
             if (((dap_chain_datum_tx_receipt_t*)item)->exts_size == sizeof(dap_sign_t) + sizeof(dap_sign_t)){
                 dap_sign_t *l_provider = DAP_NEW_Z(dap_sign_t);
                 if (!l_provider) {
-                    log_it(L_ERROR, "Memory allocation error in dap_chain_datum_dump_tx");
+                    log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                     DAP_DELETE(l_value_str);
                     DAP_DELETE(l_coins_str);
                     return false;
@@ -358,7 +358,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                 memcpy(l_provider, ((dap_chain_datum_tx_receipt_t*)item)->exts_n_signs, sizeof(dap_sign_t));
                 dap_sign_t *l_client = DAP_NEW_Z(dap_sign_t);
                 if (!l_client) {
-                    log_it(L_ERROR, "Memory allocation error in dap_chain_datum_dump_tx");
+                    log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                     DAP_DEL_Z(l_provider);
                     DAP_DELETE(l_value_str);
                     DAP_DELETE(l_coins_str);
@@ -375,7 +375,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
             } else if (((dap_chain_datum_tx_receipt_t*)item)->exts_size == sizeof(dap_sign_t)) {
                 dap_sign_t *l_provider = DAP_NEW_Z(dap_sign_t);
                 if (!l_provider) {
-                    log_it(L_ERROR, "Memory allocation error in dap_chain_datum_dump_tx");
+                    log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                     DAP_DELETE(l_value_str);
                     DAP_DELETE(l_coins_str);
                     return false;

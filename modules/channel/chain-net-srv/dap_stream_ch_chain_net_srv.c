@@ -101,7 +101,7 @@ static inline void s_grace_error(dap_chain_net_srv_grace_t *a_grace, dap_stream_
             else {
                 l_item = DAP_NEW_Z(dap_chain_net_srv_banlist_item_t);
                 if (!l_item) {
-                    log_it(L_ERROR, "Memory allocation error in s_grace_error");
+                    log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                     DAP_DELETE(a_grace->request);
                     DAP_DELETE(a_grace);
                     return;
@@ -318,7 +318,7 @@ static void s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
         dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
                                                                               l_success_size);
         if(!l_success) {
-            log_it(L_ERROR, "Memory allocation error in s_service_start");
+            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
             if(a_ch)
                 dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
@@ -372,11 +372,26 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
     }
 
     l_tx = a_grace->usage->is_waiting_new_tx_cond ? NULL : dap_chain_ledger_tx_find_by_hash(l_ledger, &a_grace->usage->tx_cond_hash);
-    if ( ! l_tx ){ // No tx cond transaction, start grace-period
+    if (!l_tx) { // No tx cond transaction, start grace-period
         a_grace->usage->is_grace = true;
-        l_price = DAP_DUP(a_grace->usage->service->pricelist);
+        DL_FOREACH(a_grace->usage->service->pricelist, l_price) {
+            switch (l_price->units_uid.enm) {
+            case SERV_UNIT_MB:
+            case SERV_UNIT_SEC:
+            case SERV_UNIT_DAY:
+            case SERV_UNIT_KB:
+            case SERV_UNIT_B:
+                log_it(L_MSG, "Proper unit type %s found among available prices",
+                       dap_chain_srv_unit_enum_to_str(l_price->units_uid.enm));
+                break;
+            default:
+                continue;
+            }
+            break; // proper price found, thus we exit from the loop
+        }
         if (!l_price) {
-            log_it(L_ERROR, "Memory allocation error in s_grace_period_start");
+            log_it(L_ERROR, "Price with proper unit type not found, check available orders and/or pricelists");
+            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_CANT_ADD_USAGE;
             s_grace_error(a_grace, l_err);
             return;
         }
@@ -389,8 +404,7 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
         }
         usages_in_grace_t *l_item = DAP_NEW_Z_SIZE(usages_in_grace_t, sizeof(usages_in_grace_t));
         if (!l_item) {
-            log_it(L_ERROR, "Memory allocation error in s_grace_period_start");
-            DAP_DEL_Z(l_price);
+            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             s_grace_error(a_grace, l_err);
             return;
         }
@@ -425,11 +439,16 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
             return;
         }
 
-        const char * l_ticker = NULL;
-        l_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &a_grace->usage->tx_cond_hash);
+        const char *l_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &a_grace->usage->tx_cond_hash);
+        if (!l_ticker) {
+            char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
+            dap_hash_fast_to_str(&a_grace->usage->tx_cond_hash, l_hash_str, sizeof(l_hash_str));
+            log_it( L_ERROR, "Token ticker not found for tx cond hash %s", l_hash_str);
+            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND;
+            s_grace_error(a_grace, l_err);
+            return;
+        }
         dap_stpcpy(a_grace->usage->token_ticker, l_ticker);
-
-
 
         dap_chain_net_srv_price_t *l_price_tmp;
         DL_FOREACH(a_grace->usage->service->pricelist, l_price_tmp) {
@@ -500,7 +519,8 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
     }
 
     if (l_grace->usage->price && !l_grace->usage->receipt_next){ // if first grace delete price and set actual
-        DAP_DEL_Z(l_grace->usage->price);
+        l_grace->usage->price = NULL;
+
     }
 
     if (l_grace->usage->is_waiting_new_tx_cond){
@@ -645,7 +665,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
                 log_it(L_ERROR, "Tx cond have not enough funds");
                 dap_chain_net_srv_grace_t* l_grace_new = DAP_NEW_Z(dap_chain_net_srv_grace_t);
                 if (!l_grace_new) {
-                    log_it(L_ERROR, "Memory allocation error in s_grace_period_finish");
+                    log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                     DAP_DELETE(a_grace_item->grace->request);
                     DAP_DEL_Z(a_grace_item->grace);
                     RET_WITH_DEL_A_GRACE;
@@ -653,7 +673,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
                 // Parse the request
                 l_grace_new->request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_request_t, sizeof(dap_stream_ch_chain_net_srv_pkt_request_t));
                 if (!l_grace_new->request) {
-                    log_it(L_ERROR, "Memory allocation error in s_grace_period_finish");
+                    log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                     DAP_DELETE(a_grace_item->grace->request);
                     DAP_DEL_Z(a_grace_item->grace);
                     RET_WITH_DEL_A_GRACE;
@@ -896,7 +916,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
             DAP_DELETE(l_usage->receipt);
             l_usage->receipt = DAP_DUP_SIZE(l_receipt, l_receipt_size);
             if (!l_usage->receipt) {
-                log_it(L_ERROR, "Memory allocation error in s_stream_ch_packet_in");
+                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                 return;
             }
             l_is_first_sign     = true;
@@ -905,7 +925,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
             DAP_DELETE(l_usage->receipt_next);
             l_usage->receipt_next = DAP_DUP_SIZE(l_receipt, l_receipt_size);
             if (!l_usage->receipt_next) {
-                log_it(L_ERROR, "Memory allocation error in s_stream_ch_packet_in");
+                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                 return;
             }
             l_usage->is_active = true;
@@ -939,7 +959,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     log_it(L_ERROR, "Can't find tx cond. Start grace!");
                     l_grace = DAP_NEW_Z(dap_chain_net_srv_grace_t);
                     if (!l_grace) {
-                        log_it(L_ERROR, "Memory allocation error in s_stream_ch_packet_in");
+                        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                         DAP_DELETE(l_tx_in_hash_str);
                         return;
                     }
@@ -947,7 +967,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     // Parse the request
                     l_grace->request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_request_t, sizeof(dap_stream_ch_chain_net_srv_pkt_request_t));
                     if (!l_grace->request) {
-                        log_it(L_ERROR, "Memory allocation error in s_stream_ch_packet_in");
+                        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                         DAP_DEL_Z(l_grace)
                         DAP_DELETE(l_tx_in_hash_str);
                         return;
@@ -970,14 +990,14 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
                     l_usage->is_waiting_new_tx_cond = true;
                     l_grace = DAP_NEW_Z(dap_chain_net_srv_grace_t);
                     if (!l_grace) {
-                        log_it(L_ERROR, "Memory allocation error in s_stream_ch_packet_in");
+                        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                         DAP_DELETE(l_tx_in_hash_str);
                         return;
                     }
                     // Parse the request
                     l_grace->request = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_request_t, sizeof(dap_stream_ch_chain_net_srv_pkt_request_t));
                     if (!l_grace->request) {
-                        log_it(L_ERROR, "Memory allocation error in s_stream_ch_packet_in");
+                        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                         DAP_DEL_Z(l_grace)
                         DAP_DELETE(l_tx_in_hash_str);
                         return;
@@ -1158,7 +1178,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
                                                                               l_success_size);
         if(!l_success) {
-            log_it(L_ERROR, "Memory allocation error in s_stream_ch_packet_in");
+            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
             return;
         }
         l_success->hdr.usage_id = l_usage->id;
