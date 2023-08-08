@@ -94,8 +94,9 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_blocks->callback_delete = s_callback_delete;
     l_blocks->callback_block_verify = s_callback_block_verify;
     l_blocks->callback_block_sign = s_callback_block_sign;
+
+    l_pos->_pvt = DAP_NEW_Z(dap_chain_cs_block_pos_pvt_t);
     dap_chain_cs_block_pos_pvt_t *l_pos_pvt = PVT(l_pos);
-    l_pos_pvt = DAP_NEW_Z(dap_chain_cs_block_pos_pvt_t);
     if (!l_pos_pvt) {
         log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         goto lb_err;

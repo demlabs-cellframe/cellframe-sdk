@@ -86,7 +86,6 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
         log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return -1;
     }
-    dap_chain_cs_dag_pos_pvt_t * l_pos_pvt = PVT ( l_pos );
 
     char ** l_tokens_hold = NULL;
     char ** l_tokens_hold_value_str = NULL;
@@ -98,7 +97,8 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_dag->callback_cs_verify = s_callback_event_verify;
     l_dag->callback_cs_event_create = s_callback_event_create;
     l_pos->_pvt = DAP_NEW_Z ( dap_chain_cs_dag_pos_pvt_t );
-    if (!l_pos->_pvt) {
+    dap_chain_cs_dag_pos_pvt_t *l_pos_pvt = PVT(l_pos);
+    if (!l_pos_pvt) {
         log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         goto lb_err;
     }
