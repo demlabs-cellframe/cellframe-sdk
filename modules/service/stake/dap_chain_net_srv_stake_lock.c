@@ -405,7 +405,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
     if (l_tx_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK)
         return NO_VALID_SUBTYPE_ERROR;
 
-    if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &l_tx_hash, l_prev_cond_idx)) {
+    if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &l_tx_hash, l_prev_cond_idx, NULL)) {
         return IS_USED_OUT_ERROR;
     }
 
