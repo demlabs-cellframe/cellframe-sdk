@@ -181,12 +181,12 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     a_chain->callback_get_signing_certificate = s_callback_get_sign_key;
 
     l_esbocs->_pvt = DAP_NEW_Z(dap_chain_esbocs_pvt_t);
-    if (!l_esbocs->_pvt) {
+    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
+    if (!l_esbocs_pvt) {
         log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         l_ret = - 5;
         goto lb_err;
     }
-    dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
     l_esbocs_pvt->debug = dap_config_get_item_bool_default(a_chain_cfg, "esbocs", "consensus_debug", false);
     l_esbocs_pvt->poa_mode = dap_config_get_item_bool_default(a_chain_cfg, "esbocs", "poa_mode", false);
     l_esbocs_pvt->round_start_sync_timeout = dap_config_get_item_uint16_default(a_chain_cfg, "esbocs", "round_start_sync_timeout", 15);
@@ -283,20 +283,21 @@ static void s_new_atom_notifier(void *a_arg, UNUSED_ARG dap_chain_t *a_chain, UN
 
 /* *** Temporary added section for over-consensus sync. Remove this after global DB sync refactoring *** */
 
-void s_callback_clean_db_old_records(UNUSED_ARG dap_global_db_context_t *a_global_db_context, void *a_arg)
+static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_arg)
 {
-    dap_global_db_driver_delete(a_arg, 1);
-    dap_store_obj_free_one(a_arg);
-}
-
-static void s_session_db_serialize(dap_chain_esbocs_session_t *a_session)
-{
-    char *l_sync_group = s_get_penalty_group(a_session->chain->net_id);
+    dap_chain_esbocs_session_t *l_session = a_arg;
+    char *l_sync_group = s_get_penalty_group(l_session->chain->net_id);
+    uint32_t l_time_store_lim_hours = a_context->instance->store_time_limit;
+    uint64_t l_limit_time = l_time_store_lim_hours ? dap_nanotime_now() - dap_nanotime_from_sec(l_time_store_lim_hours * 3600) : 0;
     size_t l_objs_count = 0;
     dap_global_db_pkt_t *l_pkt = 0;
-    dap_store_obj_t *l_objs = dap_global_db_get_all_raw_sync(l_sync_group, 0, &l_objs_count);
+    dap_store_obj_t *l_objs = dap_global_db_get_all_raw_unsafe(a_context, l_sync_group, 0, &l_objs_count);
     for (size_t i = 0; i < l_objs_count; i++) {
         dap_store_obj_t *it = l_objs + i;
+        if (l_limit_time && it->timestamp < l_limit_time) {
+            dap_global_db_driver_delete(it, 1);
+            continue;
+        }
         it->type = DAP_DB$K_OPTYPE_ADD;
         dap_global_db_pkt_t *l_pkt_single = dap_global_db_pkt_serialize(it);
         dap_global_db_pkt_change_id(l_pkt_single, 0);
@@ -305,16 +306,14 @@ static void s_session_db_serialize(dap_chain_esbocs_session_t *a_session)
     }
     dap_store_obj_free(l_objs, l_objs_count);
 
-    uint32_t l_time_store_lim_hours = dap_global_db_context_get_default()->instance->store_time_limit;
-    uint64_t l_limit_time = l_time_store_lim_hours ? dap_nanotime_now() - dap_nanotime_from_sec(l_time_store_lim_hours * 3600) : 0;
     char *l_del_sync_group = dap_strdup_printf("%s.del", l_sync_group);
     l_objs_count = 0;
-    l_objs = dap_global_db_get_all_raw_sync(l_del_sync_group, 0, &l_objs_count);
+    l_objs = dap_global_db_get_all_raw_unsafe(a_context, l_del_sync_group, 0, &l_objs_count);
     DAP_DELETE(l_del_sync_group);
     for (size_t i = 0; i < l_objs_count; i++) {
         dap_store_obj_t *it = l_objs + i;
         if (l_limit_time && it->timestamp < l_limit_time) {
-            dap_global_db_context_exec(s_callback_clean_db_old_records, dap_store_obj_copy(it, 1));
+            dap_global_db_driver_delete(it, 1);
             continue;
         }
         it->type = DAP_DB$K_OPTYPE_DEL;
@@ -327,15 +326,15 @@ static void s_session_db_serialize(dap_chain_esbocs_session_t *a_session)
     }
     dap_store_obj_free(l_objs, l_objs_count);
     DAP_DELETE(l_sync_group);
-    DAP_DEL_Z(a_session->db_serial);
-    a_session->db_serial = l_pkt;
+    DAP_DEL_Z(l_session->db_serial);
+    l_session->db_serial = l_pkt;
     if (l_pkt)
-        dap_hash_fast(l_pkt->data, l_pkt->data_size, &a_session->db_hash);
+        dap_hash_fast(l_pkt->data, l_pkt->data_size, &l_session->db_hash);
     else
-        a_session->db_hash = (dap_hash_fast_t){};
-    if (PVT(a_session->esbocs)->debug) {
+        l_session->db_hash = (dap_hash_fast_t){};
+    if (PVT(l_session->esbocs)->debug) {
         char l_sync_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-        dap_chain_hash_fast_to_str(&a_session->db_hash, l_sync_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+        dap_chain_hash_fast_to_str(&l_session->db_hash, l_sync_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
         log_it(L_MSG, "DB changes applied, new DB resync hash is %s", l_sync_hash_str);
     }
 }
@@ -372,7 +371,6 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(l_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
 
-//    l_esbocs_pvt->minimum_fee = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "minimum_fee", "0.05"));
     l_esbocs_pvt->fee_addr = dap_chain_addr_from_str(dap_config_get_item_str(a_chain_net_cfg, "esbocs", "fee_addr"));
     l_esbocs_pvt->fee_coll_set = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "set_collect_fee", "10.0"));
 
@@ -418,14 +416,13 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
             l_order_service = l_order;
         }
     }
-    if (l_order_service) {
-        l_esbocs_pvt->minimum_fee = l_order_service->price;
-    } else {
-        l_esbocs_pvt->minimum_fee = dap_chain_coins_to_balance(dap_config_get_item_str_default(a_chain_net_cfg, "esbocs", "minimum_fee", "0.05"));
-        log_it(L_ERROR, "An order was not found that was signed by the signature of this validator. Operation of the "
-                        "transaction service is not possible.");
-    }
     dap_global_db_objs_delete(l_orders, l_orders_count);
+    if (l_order_service)
+        l_esbocs_pvt->minimum_fee = l_order_service->price;
+    else {
+        log_it(L_ERROR, "No order found was signed by this validator deledgated key. Switch off validator mode.");
+        return -4;
+    }
     dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
     if (l_role.enums > NODE_ROLE_MASTER) {
         log_it(L_NOTICE, "Node role is lower than master role, so this node can't be a consensus validator");
@@ -457,7 +454,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     l_session->my_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
     l_session->my_signing_addr = l_my_signing_addr;
     s_session_load_penaltys(l_session);
-    s_session_db_serialize(l_session);
+    dap_global_db_context_exec(s_session_db_serialize, l_session);
     dap_global_db_add_notify_group_mask(dap_global_db_context_get_default()->instance,
                                         DAP_CHAIN_ESBOCS_GDB_GROUPS_PREFIX ".*",
                                         s_db_change_notifier, l_session);
@@ -1763,17 +1760,19 @@ static void s_session_directive_process(dap_chain_esbocs_session_t *a_session, d
 
 static void s_db_change_notifier(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg)
 {
+    dap_chain_esbocs_session_t *l_session = a_arg;
     dap_chain_addr_t *l_validator_addr = dap_chain_addr_from_str(a_obj->key);
     if (!l_validator_addr) {
         log_it(L_WARNING, "Unreadable address in esbocs global DB group");
         dap_global_db_del_unsafe(a_context, a_obj->group, a_obj->key);
+        s_session_db_serialize(a_context, l_session);
         return;
     }
     if (dap_chain_net_srv_stake_mark_validator_active(l_validator_addr, a_obj->type != DAP_DB$K_OPTYPE_ADD)) {
         dap_global_db_del_unsafe(a_context, a_obj->group, a_obj->key);
+        s_session_db_serialize(a_context, l_session);
         return;
     }
-    dap_chain_esbocs_session_t *l_session = a_arg;
     dap_global_db_pkt_t *l_pkt = dap_global_db_pkt_serialize(a_obj);
     dap_hash_fast_t l_blank_hash = {};
     pthread_mutex_lock(&l_session->mutex);
@@ -1781,6 +1780,7 @@ static void s_db_change_notifier(dap_global_db_context_t *a_context, dap_store_o
                    sizeof(*l_pkt) + l_pkt->data_size, l_session->cur_round.all_validators);
     pthread_mutex_unlock(&l_session->mutex);
     DAP_DELETE(l_pkt);
+    s_session_db_serialize(a_context, l_session);
 }
 
 static int s_session_directive_apply(dap_chain_esbocs_directive_t *a_directive, dap_hash_fast_t *a_directive_hash)
@@ -1806,12 +1806,12 @@ static int s_session_directive_apply(dap_chain_esbocs_directive_t *a_directive, 
         const char *l_directive_hash_str = dap_chain_hash_fast_to_str_new(a_directive_hash);
         const char *l_key_hash_str = dap_chain_hash_fast_to_str_new(&l_key_addr->data.hash_fast);
         if (l_status == 1 && a_directive->type == DAP_CHAIN_ESBOCS_DIRECTIVE_KICK) {
-            // Offline wiil be set in gdb notifier for aim of sync supporting
+            // Offline will be set in gdb notifier for aim of sync supporting
             dap_global_db_set(l_penalty_group, l_key_str, NULL, 0, false, NULL, 0);
             log_it(L_MSG, "Applied %s directive to exclude validator %s with pkey hash %s from consensus",
                             l_directive_hash_str, l_key_str, l_key_hash_str);
         } else if (l_status == -1 && a_directive->type == DAP_CHAIN_ESBOCS_DIRECTIVE_LIFT) {
-            // Online wiil be set in gdb notifier for aim of sync supporting
+            // Online will be set in gdb notifier for aim of sync supporting
             dap_global_db_del(l_penalty_group, l_key_str, NULL, 0);
             log_it(L_MSG, "Applied %s directive to include validator %s with pkey hash %s in consensus",
                             l_directive_hash_str, l_key_str, l_key_hash_str);
@@ -2110,10 +2110,8 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         dap_store_obj_t *l_store_objs = dap_global_db_pkt_deserialize(l_db_pkt, &l_data_objs_count);
         for (size_t i = 0; i < l_data_objs_count; i++)
             dap_global_db_remote_apply_obj(l_store_objs + i, NULL, NULL);
-        if (l_store_objs) {
+        if (l_store_objs)
             dap_store_obj_free(l_store_objs, l_data_objs_count);
-            s_session_db_serialize(l_session);
-        }
     } break;
 
     case DAP_CHAIN_ESBOCS_MSG_TYPE_SUBMIT: {
@@ -2363,10 +2361,8 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
             if (!l_session->cur_round.directive_applied &&
                     ++l_session->cur_round.votes_for_count * 3 >=
                         dap_list_length(l_session->cur_round.all_validators) * 2) {
-                int l_res = s_session_directive_apply(l_session->cur_round.directive, &l_session->cur_round.directive_hash);
+                s_session_directive_apply(l_session->cur_round.directive, &l_session->cur_round.directive_hash);
                 l_session->cur_round.directive_applied = true;
-                if (!l_res)
-                    s_session_db_serialize(l_session);
                 s_session_state_change(l_session, DAP_CHAIN_ESBOCS_SESSION_STATE_PREVIOUS, dap_time_now());
             }
         } else // l_message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_AGAINST

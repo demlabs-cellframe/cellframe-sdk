@@ -99,13 +99,36 @@ static bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                                           const char *a_hash_out_type,
                                           dap_chain_hash_fast_t *a_tx_hash)
 {
-    const char *l_ticker = NULL;
-    if (a_ledger) {
-            l_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, a_tx_hash);
-        if (!l_ticker)
-            return false;
-    }
+    const char *l_ticker = a_ledger
+            ? dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, a_tx_hash)
+            : NULL;
+    if (!l_ticker)
+        return false;
     dap_chain_datum_dump_tx(a_datum, l_ticker, a_str_out, a_hash_out_type, a_tx_hash);
+    dap_list_t *l_out_items = dap_chain_datum_tx_items_get(a_datum, TX_ITEM_TYPE_OUT_ALL, NULL);
+    int l_out_idx = 0;
+    dap_string_append_printf(a_str_out, "Spenders:\r\n");
+    bool l_spent = false;
+    for (dap_list_t *l_item = l_out_items; l_item; l_item = l_item->next, ++l_out_idx) {
+        switch (*(dap_chain_tx_item_type_t*)l_item->data) {
+        case TX_ITEM_TYPE_OUT:
+        case TX_ITEM_TYPE_OUT_OLD:
+        case TX_ITEM_TYPE_OUT_EXT: {
+            dap_hash_fast_t l_spender = { };
+            if ((l_spent = dap_chain_ledger_tx_hash_is_used_out_item(a_ledger, a_tx_hash, l_out_idx, &l_spender))) {
+                char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
+                dap_hash_fast_to_str(&l_spender, l_hash_str, sizeof(l_hash_str));
+                dap_string_append_printf(a_str_out,
+                                         "\tout item %d is spent by tx %s\r\n",
+                                         l_out_idx, l_hash_str);
+            }
+            break;
+        }
+        default:
+            break;
+        }
+    }
+    dap_string_append_printf(a_str_out, l_spent ? "\r\n\r\n" : "\tall yet unspent\r\n\r\n");
     return true;
 }
 
@@ -749,11 +772,9 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
                 dap_list_t *l_txs_list = dap_chain_ledger_get_txs(l_ledger, l_tx_count, 1, true);
                 for (dap_list_t *iter = l_txs_list; iter; iter = dap_list_next(iter)) {
                     dap_chain_datum_tx_t *l_tx = iter->data;
-                    size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
-                    dap_hash_fast_t l_tx_hash = {0};
-                    dap_hash_fast(l_tx, l_tx_size, &l_tx_hash);
-                    const char *l_tx_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_hash);
-                    dap_chain_datum_dump_tx(l_tx, l_tx_ticker, l_str_ret, l_hash_out_type, &l_tx_hash);
+                    dap_hash_fast_t l_tx_hash = { };
+                    dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
+                    s_dap_chain_datum_tx_out_data(l_tx, l_ledger, l_str_ret, l_hash_out_type, &l_tx_hash);
                 }
                 dap_list_free(l_txs_list);
             }
@@ -769,10 +790,9 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
                 dap_chain_datum_tx_t *l_tx = dap_chain_ledger_tx_find_by_hash(l_ledger,&l_tx_hash);
                 if(l_tx){
                     size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
-                    dap_hash_fast_t l_tx_hash = {0};
+                    dap_hash_fast_t l_tx_hash = { };
                     dap_hash_fast(l_tx, l_tx_size, &l_tx_hash);
-                    const char *l_tx_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_hash);
-                    dap_chain_datum_dump_tx(l_tx,l_tx_ticker,l_str_ret,l_hash_out_type,&l_tx_hash);
+                    s_dap_chain_datum_tx_out_data(l_tx, l_ledger, l_str_ret, l_hash_out_type, &l_tx_hash);
                     dap_string_append_printf(l_str_ret, "history for tx hash %s:\n%s\n", l_tx_hash_str,
                             l_str_out ? l_str_out : " empty");
                 }
