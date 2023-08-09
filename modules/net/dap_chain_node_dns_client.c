@@ -85,6 +85,7 @@ static void s_dns_client_esocket_read_callback(dap_events_socket_t * a_esocket, 
     }
     l_cur = l_buf + l_addr_point;
 
+    dap_chain_net_node_balancer_t l_link_full_node_list = {};
     dap_chain_node_info_t l_result = {};
     l_result.hdr.ext_addr_v4.s_addr = ntohl(*(uint32_t *)l_cur);
     l_cur = l_buf + 5 * sizeof(uint16_t);
@@ -95,8 +96,10 @@ static void s_dns_client_esocket_read_callback(dap_events_socket_t * a_esocket, 
         l_cur += sizeof(uint16_t);
         l_result.hdr.address.uint64 = be64toh(*(uint64_t *)l_cur);
     }
+    *(dap_chain_node_info_t*)l_link_full_node_list.nodes_info = l_result;
+    l_link_full_node_list.count_node = 1;
 
-    l_dns_client->callback_success(a_esocket->context->worker ,&l_result, l_dns_client->callbacks_arg);
+    l_dns_client->callback_success(a_esocket->context->worker ,&l_link_full_node_list, l_dns_client->callbacks_arg);
     l_dns_client->is_callbacks_called = true;
     a_esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
     a_esocket->buf_in_size = a_esocket->buf_out_size = 0;
@@ -210,6 +213,7 @@ int dap_chain_node_info_dns_request(dap_worker_t *a_worker, struct in_addr a_add
     l_dns_client->addr = a_addr;
     dap_dns_buf_init(&l_dns_client->dns_request, (char *)l_dns_client->buf);
     dap_dns_buf_put_uint16(&l_dns_client->dns_request, rand() % 0xFFFF);    // ID
+
 
     dap_dns_message_flags_t l_flags = {};
     dap_dns_buf_put_uint16(&l_dns_client->dns_request, l_flags.val);

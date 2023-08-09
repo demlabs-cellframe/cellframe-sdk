@@ -636,7 +636,7 @@ dap_chain_datum_tx_t *dap_chain_net_get_tx_by_hash(dap_chain_net_t *a_net, dap_c
     case TX_SEARCH_TYPE_NET_UNSPENT:
     case TX_SEARCH_TYPE_CELL_UNSPENT:
         return dap_chain_ledger_tx_find_by_hash(l_ledger, a_tx_hash);
-    default:;
+    default: break;
     }
     return NULL;
 }

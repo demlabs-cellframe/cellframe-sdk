@@ -177,7 +177,7 @@ dap_list_t * dap_chain_block_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledg
 
         //Check whether used 'out' items
         dap_hash_fast_t *l_tx_hash = a_block_cache->datum_hash + i;
-        if (!dap_chain_ledger_tx_hash_is_used_out_item (a_ledger, l_tx_hash, l_out_idx_tmp)) {
+        if (!dap_chain_ledger_tx_hash_is_used_out_item (a_ledger, l_tx_hash, l_out_idx_tmp, NULL)) {
             dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
             if (!l_item) {
         log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
