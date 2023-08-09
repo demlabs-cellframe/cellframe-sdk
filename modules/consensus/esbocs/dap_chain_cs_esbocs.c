@@ -259,10 +259,8 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 
 lb_err:
     dap_list_free_full(l_esbocs_pvt->poa_validators, NULL);
-    if (l_esbocs_pvt)
-        DAP_DELETE(l_esbocs_pvt);
-    if (l_esbocs)
-        DAP_DELETE(l_esbocs);
+    DAP_DEL_Z(l_esbocs_pvt);
+    DAP_DEL_Z(l_esbocs);
     l_blocks->_inheritor = NULL;
     l_blocks->callback_delete = NULL;
     l_blocks->callback_block_verify = NULL;
@@ -282,6 +280,17 @@ static void s_new_atom_notifier(void *a_arg, UNUSED_ARG dap_chain_t *a_chain, UN
 }
 
 /* *** Temporary added section for over-consensus sync. Remove this after global DB sync refactoring *** */
+
+static bool s_change_db_broadcast(UNUSED_ARG dap_proc_thread_t *a_thread, void *a_arg)
+{
+    dap_chain_esbocs_session_t *l_session = a_arg;
+    pthread_mutex_lock(&l_session->mutex);
+    if (!dap_hash_fast_is_blank(&l_session->db_hash) && l_session->db_serial && l_session->cur_round.all_validators)
+        s_message_send(l_session, DAP_CHAIN_ESBOCS_MSG_TYPE_SEND_DB, &l_session->db_hash, l_session->db_serial,
+                   sizeof(*l_session->db_serial) + l_session->db_serial->data_size, l_session->cur_round.all_validators);
+    pthread_mutex_unlock(&l_session->mutex);
+    return true;
+}
 
 static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_arg)
 {
@@ -337,6 +346,7 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
         dap_chain_hash_fast_to_str(&l_session->db_hash, l_sync_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
         log_it(L_MSG, "DB changes applied, new DB resync hash is %s", l_sync_hash_str);
     }
+    dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_change_db_broadcast, l_session);
 }
 
 /* *** End of the temporary added section for over-consensus sync. *** */
@@ -1761,22 +1771,10 @@ static void s_db_change_notifier(dap_global_db_context_t *a_context, dap_store_o
     dap_chain_addr_t *l_validator_addr = dap_chain_addr_from_str(a_obj->key);
     if (!l_validator_addr) {
         log_it(L_WARNING, "Unreadable address in esbocs global DB group");
-        dap_global_db_del_unsafe(a_context, a_obj->group, a_obj->key);
-        s_session_db_serialize(a_context, l_session);
-        return;
+        dap_global_db_driver_delete(a_obj, 1);
     }
-    if (dap_chain_net_srv_stake_mark_validator_active(l_validator_addr, a_obj->type != DAP_DB$K_OPTYPE_ADD)) {
-        dap_global_db_del_unsafe(a_context, a_obj->group, a_obj->key);
-        s_session_db_serialize(a_context, l_session);
-        return;
-    }
-    dap_global_db_pkt_t *l_pkt = dap_global_db_pkt_serialize(a_obj);
-    dap_hash_fast_t l_blank_hash = {};
-    pthread_mutex_lock(&l_session->mutex);
-    s_message_send(l_session, DAP_CHAIN_ESBOCS_MSG_TYPE_SEND_DB, &l_blank_hash, l_pkt,
-                   sizeof(*l_pkt) + l_pkt->data_size, l_session->cur_round.all_validators);
-    pthread_mutex_unlock(&l_session->mutex);
-    DAP_DELETE(l_pkt);
+    if (dap_chain_net_srv_stake_mark_validator_active(l_validator_addr, a_obj->type != DAP_DB$K_OPTYPE_ADD))
+        dap_global_db_driver_delete(a_obj, 1);
     s_session_db_serialize(a_context, l_session);
 }
 
@@ -2032,7 +2030,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
             if (l_session->db_serial) {
                 dap_chain_esbocs_validator_t *l_validator = DAP_NEW_Z(dap_chain_esbocs_validator_t);
                 if (!l_validator) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                    log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
                     goto session_unlock;
                 }
                 l_validator->node_addr = *dap_chain_net_srv_stake_key_get_node_addr(&l_signing_addr);
