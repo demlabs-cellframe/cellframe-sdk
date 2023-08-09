@@ -4658,7 +4658,8 @@ static inline int s_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, d
         }
         if (!l_addr)
             continue;
-        else if (l_addr->net_id.uint64 != a_ledger->net_id.uint64)
+        else if (l_addr->net_id.uint64 != a_ledger->net_id.uint64 &&
+                 !dap_chain_addr_is_blank(l_addr))
             l_cross_network = true;
         char *l_addr_str = dap_chain_addr_to_str(l_addr);
         dap_ledger_wallet_balance_t *wallet_balance = NULL;

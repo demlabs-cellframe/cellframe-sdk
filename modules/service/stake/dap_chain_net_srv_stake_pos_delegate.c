@@ -1015,7 +1015,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
             }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_value_str);
             if (!l_value_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' requires parameter -coins");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' requires parameter -value");
                 return -5;
             }
             uint256_t l_value = dap_chain_balance_scan(l_value_str);
