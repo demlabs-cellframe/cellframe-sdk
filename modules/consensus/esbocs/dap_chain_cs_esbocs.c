@@ -259,10 +259,8 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 
 lb_err:
     dap_list_free_full(l_esbocs_pvt->poa_validators, NULL);
-    if (l_esbocs_pvt)
-        DAP_DELETE(l_esbocs_pvt);
-    if (l_esbocs)
-        DAP_DELETE(l_esbocs);
+    DAP_DEL_Z(l_esbocs_pvt);
+    DAP_DEL_Z(l_esbocs);
     l_blocks->_inheritor = NULL;
     l_blocks->callback_delete = NULL;
     l_blocks->callback_block_verify = NULL;
@@ -476,6 +474,13 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
         s_session_cs_timer = dap_timerfd_start(1000, s_session_timer, NULL);
         debug_if(l_esbocs_pvt->debug, L_MSG, "Consensus main timer is started");
     }
+
+    char *l_sync_group = s_get_penalty_group(l_session->chain->net_id);
+    dap_global_db_del(l_sync_group, NULL, NULL, NULL);
+    dap_global_db_set(l_sync_group, "1", "1", 2, false, NULL, NULL);
+    log_it(L_ATT, "Value modified");
+    dap_global_db_get_all_sync(l_sync_group, NULL);
+    log_it(L_ATT, "Finally it's OK");
     return 0;
 }
 
@@ -1763,11 +1768,11 @@ static void s_db_change_notifier(dap_global_db_context_t *a_context, dap_store_o
     dap_chain_addr_t *l_validator_addr = dap_chain_addr_from_str(a_obj->key);
     if (!l_validator_addr) {
         log_it(L_WARNING, "Unreadable address in esbocs global DB group");
-        dap_global_db_del_unsafe(a_context, a_obj->group, a_obj->key);
+        dap_global_db_driver_delete(a_obj, 1);
         return;
     }
     if (dap_chain_net_srv_stake_mark_validator_active(l_validator_addr, a_obj->type != DAP_DB$K_OPTYPE_ADD)) {
-        dap_global_db_del_unsafe(a_context, a_obj->group, a_obj->key);
+        dap_global_db_driver_delete(a_obj, 1);
         return;
     }
     dap_chain_esbocs_session_t *l_session = a_arg;
