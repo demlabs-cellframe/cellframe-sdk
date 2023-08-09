@@ -1167,7 +1167,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
         return false;
     }
     if(!a_link_replace_tries){
-        dap_chain_net_node_balancer_t *l_link_full_node_list = dap_chain_net_balancer_get_node(a_net->pub.name);
+        dap_chain_net_node_balancer_t *l_link_full_node_list = dap_chain_net_balancer_get_node(a_net->pub.name,l_net_pvt->max_links_count);
         size_t node_cnt = 0,i = 0;        
         if(l_link_full_node_list)
         {
@@ -1221,9 +1221,10 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
     int ret;
     if (PVT(a_net)->balancer_http) {
         l_balancer_request->from_http = true;
-        char *l_request = dap_strdup_printf("%s/%s?version=1,method=r,net=%s",
+        char *l_request = dap_strdup_printf("%s/%s?version=1,method=r,needlink=%d,net=%s",
                                                 DAP_UPLINK_PATH_BALANCER,
                                                 DAP_BALANCER_URI_HASH,
+                                                l_net_pvt->required_links_count,
                                                 a_net->pub.name);
         ret = dap_client_http_request(l_balancer_request->worker,
                                                 l_node_addr_str,
