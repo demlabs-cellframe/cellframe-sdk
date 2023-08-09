@@ -239,8 +239,8 @@ static void s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
     if ( l_err.code || !l_srv_session){
         debug_if(
             l_check_role, L_ERROR, 
-            "You can't provide service with ID %X in net %s chain %s. Node role should be not lower than master\n", 
-            l_srv->uid.uint64, l_net->pub.name, l_net->pub.chains->name
+            "You can't provide service with ID %X in net %s. Node role should be not lower than master\n", 
+            l_srv->uid.uint64, l_net->pub.name
             );
         if(a_ch)
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
