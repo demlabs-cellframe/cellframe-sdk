@@ -103,7 +103,7 @@ dap_chain_cell_t * dap_chain_cell_create_fill(dap_chain_t * a_chain, dap_chain_c
     l_cell = DAP_NEW_Z(dap_chain_cell_t);
     if ( !l_cell ) {
         pthread_rwlock_unlock(&a_chain->cell_rwlock);
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return NULL;
     }
     l_cell->chain = a_chain;
@@ -216,7 +216,7 @@ int dap_chain_cell_load(dap_chain_t * a_chain, const char * a_cell_file_path)
         }
         dap_chain_atom_ptr_t l_element = DAP_NEW_SIZE(dap_chain_atom_ptr_t, l_el_size);
         if (!l_element) {
-            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+            log_it(L_CRITICAL, "Memory allocation error");
             l_ret = -5;
             break;
         }

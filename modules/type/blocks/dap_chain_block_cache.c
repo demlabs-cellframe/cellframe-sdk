@@ -62,7 +62,7 @@ dap_chain_block_cache_t *dap_chain_block_cache_new(dap_chain_cs_blocks_t *a_bloc
 
     dap_chain_block_cache_t * l_block_cache = DAP_NEW_Z(dap_chain_block_cache_t);
     if (!l_block_cache) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return NULL;
     }
     l_block_cache->block = a_block;
@@ -88,7 +88,7 @@ dap_chain_block_cache_t * dap_chain_block_cache_dup(dap_chain_block_cache_t * a_
 {
     dap_chain_block_cache_t *l_ret = DAP_DUP(a_block);
     if (!l_ret) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return NULL;
     }
     l_ret->hh = (UT_hash_handle){ }; // Drop hash handle to prevent its usage
@@ -180,7 +180,7 @@ dap_list_t * dap_chain_block_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledg
         if (!dap_chain_ledger_tx_hash_is_used_out_item (a_ledger, l_tx_hash, l_out_idx_tmp)) {
             dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
             if (!l_item) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
                 if (l_list_used_out)
                     dap_list_free_full(l_list_used_out, NULL);
                 return NULL;

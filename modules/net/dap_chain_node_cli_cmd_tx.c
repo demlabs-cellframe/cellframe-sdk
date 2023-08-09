@@ -171,7 +171,7 @@ static void s_tx_header_print(dap_string_t *a_str_out, dap_chain_tx_hash_process
     else {
         l_tx_data = DAP_NEW_Z(dap_chain_tx_hash_processed_ht_t);
         if (!l_tx_data) {
-            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+            log_it(L_CRITICAL, "Memory allocation error");
             return;
         }
         l_tx_data->hash = *a_tx_hash;
@@ -213,7 +213,7 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
 
     dap_string_t *l_str_out = dap_string_new(NULL);
     if (!l_str_out) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return NULL;
     }
     dap_chain_tx_hash_processed_ht_t *l_tx_data_ht = NULL;
@@ -421,7 +421,7 @@ static char* dap_db_chain_history_token_list(dap_chain_t * a_chain, const char *
     }
     dap_string_t *l_str_out = dap_string_new(NULL);
     if (!l_str_out) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return NULL;
     }
     *a_token_num  = 0;
@@ -503,7 +503,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
     }
     dap_string_t *l_str_out = dap_string_new(NULL);
     if (!l_str_out) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return NULL;
     }
     // list all transactions
@@ -589,7 +589,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                     }
                     l_sht = DAP_NEW_Z(dap_chain_tx_hash_processed_ht_t);
                     if (!l_sht) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
                         return NULL;
                     }
                     l_sht->hash = l_tx_hash;
@@ -720,7 +720,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
                     l_addr = DAP_NEW_SIZE(dap_chain_addr_t, sizeof(dap_chain_addr_t));
                     if (!l_addr) {
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "Out of memory!");
-                        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                        log_it(L_CRITICAL, "Memory allocation error");
                         return -1;
                     }
                     memcpy(l_addr, l_addr_tmp, sizeof(dap_chain_addr_t));
@@ -1354,7 +1354,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                     l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(dap_chain_addr_t);
                     l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
                     if (!l_tsd) {
-                        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                        log_it(L_CRITICAL, "Memory allocation error");
                         dap_list_free_full(l_tsd_list, NULL);
                         return -1;
                     }
@@ -1368,7 +1368,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                 l_total_tsd_size += sizeof(dap_tsd_t) + sizeof(uint256_t);
                 l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
                 if (!l_tsd) {
-                    log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                    log_it(L_CRITICAL, "Memory allocation error");
                     dap_list_free_full(l_tsd_list, NULL);
                     return -1;
                 }
@@ -1425,7 +1425,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                 l_total_tsd_size = sizeof(dap_tsd_t) + sizeof(uint256_t);
                 l_tsd = DAP_NEW_Z_SIZE(dap_tsd_t, l_total_tsd_size);
                 if (!l_tsd) {
-                    log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                    log_it(L_CRITICAL, "Memory allocation error");
                     dap_list_free_full(l_tsd_list, NULL);
                     return -1;
                 }
