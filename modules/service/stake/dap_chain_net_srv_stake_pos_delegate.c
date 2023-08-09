@@ -539,8 +539,11 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
         log_it(L_WARNING, "Requested conditional transaction has no requires conditional output");
         return NULL;
     }
-    if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, a_stake_tx_hash, l_prev_cond_idx)) {
-        log_it(L_WARNING, "Requested conditional transaction is already used out");
+    dap_hash_fast_t l_spender_hash = { };
+    if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, a_stake_tx_hash, l_prev_cond_idx, &l_spender_hash)) {
+        char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+        dap_chain_hash_fast_to_str(&l_spender_hash, l_hash_str, sizeof(l_hash_str));
+        log_it(L_WARNING, "Requested conditional transaction is already used out by %s", l_hash_str);
         return NULL;
     }
     char l_delegated_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
@@ -704,8 +707,11 @@ static dap_chain_datum_tx_t *s_stake_tx_invalidate(dap_chain_net_t *a_net, dap_h
         log_it(L_WARNING, "Requested conditional transaction has no requires conditional output");
         return NULL;
     }
-    if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, a_tx_hash, l_prev_cond_idx)) {
-        log_it(L_WARNING, "Requested conditional transaction is already used out");
+    dap_hash_fast_t l_spender_hash = { };
+    if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, a_tx_hash, l_prev_cond_idx, &l_spender_hash)) {
+        char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+        dap_chain_hash_fast_to_str(&l_spender_hash, l_hash_str, sizeof(l_hash_str));
+        log_it(L_WARNING, "Requested conditional transaction is already used out by %s", l_hash_str);
         return NULL;
     }
     // Get sign item
@@ -1274,7 +1280,7 @@ static void s_get_tx_filter_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_
                                                                  &l_out_idx_tmp)))
     {
         dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_datum_hash);
-        if (!dap_chain_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_datum_hash, l_out_idx_tmp)) {
+        if (!dap_chain_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_datum_hash, l_out_idx_tmp, NULL)) {
             dap_chain_net_srv_stake_item_t *l_stake = NULL;
             HASH_FIND(ht, s_srv_stake->tx_itemlist, &l_datum_hash, sizeof(dap_hash_fast_t), l_stake);
             if(!l_stake){
