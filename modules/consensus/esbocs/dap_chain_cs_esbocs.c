@@ -1772,14 +1772,9 @@ static void s_db_change_notifier(dap_global_db_context_t *a_context, dap_store_o
     if (!l_validator_addr) {
         log_it(L_WARNING, "Unreadable address in esbocs global DB group");
         dap_global_db_driver_delete(a_obj, 1);
-        s_session_db_serialize(a_context, l_session);
-        return;
     }
-    if (dap_chain_net_srv_stake_mark_validator_active(l_validator_addr, a_obj->type != DAP_DB$K_OPTYPE_ADD)) {
+    if (dap_chain_net_srv_stake_mark_validator_active(l_validator_addr, a_obj->type != DAP_DB$K_OPTYPE_ADD))
         dap_global_db_driver_delete(a_obj, 1);
-        s_session_db_serialize(a_context, l_session);
-        return;
-    }
     s_session_db_serialize(a_context, l_session);
 }
 
