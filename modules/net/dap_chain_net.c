@@ -1188,7 +1188,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
                     log_it(L_MSG, "Network links table is full");
                     break;
                 case -2:
-                    log_it(L_MSG, "it's our addres");
+                    //log_it(L_MSG, "it's our addres");
                     l_net_link_add = 0; //continue
                     break;
                 default:
