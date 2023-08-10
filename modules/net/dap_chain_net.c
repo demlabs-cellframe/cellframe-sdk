@@ -883,10 +883,11 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
     if (l_net_pvt->state_target != NET_STATE_OFFLINE) {
         pthread_mutex_lock(&l_net_pvt->uplinks_mutex);
         s_net_link_remove(l_net_pvt, a_node_client, l_net_pvt->only_static_links);
+        dap_chain_net_balancer_set_link_ban(a_node_client->info);
         //char *l_key = dap_chain_node_addr_to_hash_str(&a_node_client->info->hdr.address);
         //dap_global_db_del_sync(l_net->pub.gdb_nodes, l_key);
         //DAP_DELETE(l_key);
-        log_it(L_DEBUG, "Remove "NODE_ADDR_FP_STR" from local db",NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address));
+
         a_node_client->keep_connection = false;
         a_node_client->callbacks.delete = NULL;
         dap_chain_node_client_close_mt(a_node_client);  // Remove it on next context iteration
@@ -1165,12 +1166,12 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
         return true;
     }
     if(!a_link_replace_tries){
-        dap_chain_net_node_balancer_t *l_link_full_node_list = dap_chain_net_balancer_get_node(a_net->pub.name,l_net_pvt->required_links_count);
+        dap_chain_net_node_balancer_t *l_link_full_node_list = dap_chain_net_balancer_get_node(a_net->pub.name,l_net_pvt->required_links_count + 1);
         size_t node_cnt = 0,i = 0;        
         if(l_link_full_node_list)
         {
             dap_chain_node_info_t * l_node_info = (dap_chain_node_info_t *)l_link_full_node_list->nodes_info;
-            node_cnt = l_link_full_node_list->count_node;
+            node_cnt = l_link_full_node_list->count_node - 1;
             int l_net_link_add = 0;
             while(!l_net_link_add){
                 if(i >= node_cnt)
@@ -1186,6 +1187,10 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
                 case 1:
                     log_it(L_MSG, "Network links table is full");
                     break;
+                case -2:
+                    log_it(L_MSG, "it's our addres");
+                    l_net_link_add = 0; //continue
+                    break;
                 default:
                     break;
                 }
@@ -1193,9 +1198,12 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
             }
             DAP_DELETE(l_link_full_node_list);
             struct net_link *l_free_link = s_get_free_link(a_net);
-            if (l_free_link)
+            if (l_free_link){
                 s_net_link_start(a_net, l_free_link, l_net_pvt->reconnect_delay);
-            return true;
+                return true;
+            }
+            else
+                return false;
         }
     }
     dap_chain_node_info_t *l_link_node_info = dap_get_balancer_link_from_cfg(a_net);
@@ -1438,6 +1446,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
         case NET_STATE_ONLINE: {
             log_it(L_NOTICE,"%s.state: NET_STATE_ONLINE", l_net->pub.name);
             l_net_pvt->last_sync = dap_time_now();
+            dap_chain_net_balancer_free_link_ban();
         }
         break;
 

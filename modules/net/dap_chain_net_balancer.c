@@ -28,6 +28,45 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define LOG_TAG "dap_chain_net_balancer"
 
+static net_link_ban_t *s_ban_links = NULL;
+
+void dap_chain_net_balancer_set_link_ban(dap_chain_node_info_t *a_node_info)
+{
+    net_link_ban_t *l_ban, *l_ban_tmp;
+    HASH_ITER(hh, s_ban_links, l_ban, l_ban_tmp) {
+        if (l_ban->link_info->hdr.ext_addr_v4.s_addr == a_node_info->hdr.ext_addr_v4.s_addr) {
+            return;
+        }
+    }
+    net_link_ban_t * l_link_ban = DAP_NEW_Z( net_link_ban_t);
+    l_link_ban->link_info = DAP_NEW_Z( dap_chain_node_info_t);
+    *l_link_ban->link_info = *a_node_info;
+    HASH_ADD(hh, s_ban_links, link_info, sizeof(s_ban_links->link_info), l_link_ban);
+    log_it(L_DEBUG, "Add addr "NODE_ADDR_FP_STR" to balancer ban list",NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address));
+}
+static bool dap_chain_net_balancer_find_link_ban(dap_chain_node_info_t *a_node_info)
+{
+    net_link_ban_t *l_ban, *l_ban_tmp;
+    HASH_ITER(hh, s_ban_links, l_ban, l_ban_tmp) {
+        if (l_ban->link_info->hdr.ext_addr_v4.s_addr == a_node_info->hdr.ext_addr_v4.s_addr) {
+            return true;
+        }
+    }
+    return false;
+
+}
+void dap_chain_net_balancer_free_link_ban(void)
+{
+    net_link_ban_t *l_ban, *l_ban_tmp;
+    HASH_ITER(hh, s_ban_links, l_ban, l_ban_tmp) {
+        DAP_DELETE(l_ban->link_info);
+        HASH_DEL(s_ban_links, l_ban);
+    }
+    log_it(L_DEBUG, "Balancer banlist cleared");
+
+}
+
+
 static int callback_compare_node_list(const void * a_item1, const void * a_item2, void *a_unused)
 {
     UNUSED(a_unused);
@@ -68,11 +107,13 @@ dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node(const char *a_net
             }
         }
     }
-    log_it(L_DEBUG, "The smallest block size among seed nodes is - %ld", l_blocks_events);
+    //log_it(L_DEBUG, "The smallest block size among seed nodes is - %ld", l_blocks_events);
     for (size_t i = 0; i < l_nodes_count; i++)
     {
         bool l_check = true;
         dap_chain_node_info_t *l_node_cand = (dap_chain_node_info_t *)l_objs[i].value;
+        if(dap_chain_net_balancer_find_link_ban(l_node_cand))
+            continue;
         for(dap_list_t *node_i = l_node_addr_list; node_i; node_i = node_i->next)
         {
             struct in_addr *l_node_addr_cfg = (struct in_addr*)node_i->data;            
