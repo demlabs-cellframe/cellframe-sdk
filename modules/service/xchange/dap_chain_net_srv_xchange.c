@@ -593,7 +593,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         log_it(L_WARNING, "Requested transaction has no conditional output");
         return NULL;
     }
-    if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &a_price->tx_hash, l_prev_cond_idx)) {
+    if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &a_price->tx_hash, l_prev_cond_idx, NULL)) {
         log_it(L_WARNING, "Requested conditional transaction is already used out");
         return NULL;
     }
@@ -788,7 +788,7 @@ static bool s_xchange_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price, 
     int l_prev_cond_idx = 0;
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
                                                                              &l_prev_cond_idx);
-    if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &a_price->tx_hash, l_prev_cond_idx)) {
+    if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &a_price->tx_hash, l_prev_cond_idx, NULL)) {
         log_it(L_WARNING, "Requested conditional transaction is already used out");
         dap_chain_datum_tx_delete(l_tx);
         return false;
@@ -1483,7 +1483,7 @@ static int s_tx_check_for_open_close(dap_chain_net_t * a_net, dap_chain_datum_tx
     dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
                                                                                &l_cond_idx);
     if (l_out_cond_item) {
-        if(dap_chain_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_tx_hash, l_cond_idx))
+        if(dap_chain_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_tx_hash, l_cond_idx, NULL))
             return 1; // If its SRV_XCHANGE and spent its closed
         else
             return 2; // If its SRV_XCHANGE and not spent its open
@@ -1522,7 +1522,7 @@ static void s_string_append_tx_cond_info( dap_string_t * a_reply_str, dap_chain_
     bool l_is_cond_out = false;
     if ( l_out_cond_item && (l_out_cond_item->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE) )
     {
-        bool l_is_closed = dap_chain_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_tx_hash, l_cond_idx);
+        bool l_is_closed = dap_chain_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_tx_hash, l_cond_idx, NULL);
 
         uint256_t l_value_from = l_out_cond_item->header.value;
         uint256_t l_value_to = l_out_cond_item->subtype.srv_xchange.buy_value;
@@ -1614,7 +1614,7 @@ dap_chain_tx_out_cond_t *l_out_cond_item;
 
             if (a_opt_status)                                                   /* 1 - closed, 2 - open  */
             {
-                l_rc = dap_chain_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_hash, l_item_idx);
+                l_rc = dap_chain_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_hash, l_item_idx, NULL);
 
                 if ( a_opt_status )
                 {
@@ -1941,7 +1941,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                         char *l_value_to_str = dap_chain_balance_to_coins(l_value_to);
                         char *l_value_from_str = dap_chain_balance_to_coins(l_value_from);
 
-                        l_rc = dap_chain_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, &l_tx_hash, l_prev_cond_idx);
+                        l_rc = dap_chain_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, &l_tx_hash, l_prev_cond_idx, NULL);
 
                         if ((l_opt_status == 1 && !l_rc) ||       /* Select close only */
                                 (l_opt_status == 2 &&  l_rc))     /* Select open only */
@@ -2065,7 +2065,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                             dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
                                                                                                        &l_cond_idx);
                             if (l_out_cond_item &&
-                                    dap_chain_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_tx_hash, l_cond_idx)) {
+                                    dap_chain_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_tx_hash, l_cond_idx, NULL)) {
                                 uint256_t l_value_sell = l_out_cond_item->header.value;
                                 uint256_t l_value_buy = l_out_cond_item->subtype.srv_xchange.buy_value;
                                 if( l_direction == 1){
