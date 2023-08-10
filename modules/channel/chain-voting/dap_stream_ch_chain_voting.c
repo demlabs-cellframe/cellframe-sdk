@@ -106,7 +106,7 @@ void dap_stream_ch_chain_voting_message_write(dap_chain_net_t *a_net, dap_chain_
 
             l_node_client_item = DAP_NEW_Z(struct voting_node_client_list);
             if (!l_node_client_item) {
-                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                log_it(L_CRITICAL, "Memory allocation error");
                 return;
             }
             l_node_client_item->node_addr = *a_remote_node_addr;

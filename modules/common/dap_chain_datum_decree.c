@@ -451,7 +451,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 dap_string_append_printf(a_str_out, "\tSigning addr: %s\n", l_stake_addr_signing_str);
                 dap_chain_hash_fast_t *l_pkey_signing = DAP_NEW(dap_chain_hash_fast_t);
                 if (!l_pkey_signing) {
-                    log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                    log_it(L_CRITICAL, "Memory allocation error");
                     DAP_DELETE(l_stake_addr_signing_str);
                     return;
                 }
