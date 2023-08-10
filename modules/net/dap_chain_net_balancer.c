@@ -28,42 +28,42 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define LOG_TAG "dap_chain_net_balancer"
 
-static net_link_ban_t *s_ban_links = NULL;
+dap_list_t *s_ban_links = NULL;
 
 void dap_chain_net_balancer_set_link_ban(dap_chain_node_info_t *a_node_info)
-{
-    net_link_ban_t *l_ban, *l_ban_tmp;
-    HASH_ITER(hh, s_ban_links, l_ban, l_ban_tmp) {
-        if (l_ban->link_info->hdr.ext_addr_v4.s_addr == a_node_info->hdr.ext_addr_v4.s_addr) {
+{        
+    for(dap_list_t *bl = s_ban_links; bl; bl = bl->next)
+    {
+        dap_chain_node_info_t *l_node_ban = (dap_chain_node_info_t*)bl->data;
+        if(l_node_ban->hdr.ext_addr_v4.s_addr == a_node_info->hdr.ext_addr_v4.s_addr)
             return;
-        }
     }
-    net_link_ban_t * l_link_ban = DAP_NEW_Z( net_link_ban_t);
-    l_link_ban->link_info = DAP_NEW_Z( dap_chain_node_info_t);
-    *l_link_ban->link_info = *a_node_info;
-    HASH_ADD(hh, s_ban_links, link_info, sizeof(s_ban_links->link_info), l_link_ban);
+
+    dap_chain_node_info_t * l_link_ban = DAP_NEW_Z( dap_chain_node_info_t);
+    *l_link_ban = *a_node_info;
+    s_ban_links = dap_list_append(s_ban_links,l_link_ban);
+
     log_it(L_DEBUG, "Add addr "NODE_ADDR_FP_STR" to balancer ban list",NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address));
 }
 static bool dap_chain_net_balancer_find_link_ban(dap_chain_node_info_t *a_node_info)
 {
-    net_link_ban_t *l_ban, *l_ban_tmp;
-    HASH_ITER(hh, s_ban_links, l_ban, l_ban_tmp) {
-        if (l_ban->link_info->hdr.ext_addr_v4.s_addr == a_node_info->hdr.ext_addr_v4.s_addr) {
+    for(dap_list_t *bl = s_ban_links; bl; bl = bl->next)
+    {
+        dap_chain_node_info_t *l_node_ban = (dap_chain_node_info_t*)bl->data;
+        if(l_node_ban->hdr.ext_addr_v4.s_addr == a_node_info->hdr.ext_addr_v4.s_addr)
             return true;
-        }
     }
-    return false;
 
+    return false;
 }
 void dap_chain_net_balancer_free_link_ban(void)
 {
-    net_link_ban_t *l_ban, *l_ban_tmp;
-    HASH_ITER(hh, s_ban_links, l_ban, l_ban_tmp) {
-        DAP_DELETE(l_ban->link_info);
-        HASH_DEL(s_ban_links, l_ban);
+    for(dap_list_t *bl = s_ban_links; bl; bl = bl->next)
+    {
+        dap_chain_node_info_t *l_node_ban = (dap_chain_node_info_t*)bl->data;
+        DAP_DELETE(l_node_ban);
     }
-    log_it(L_DEBUG, "Balancer banlist cleared");
-
+    dap_list_free(s_ban_links);
 }
 
 
