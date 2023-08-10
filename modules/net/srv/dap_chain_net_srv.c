@@ -80,6 +80,7 @@ static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out
                                        dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 static bool s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
                                        dap_chain_datum_tx_t *a_tx_in, bool a_owner);
+static int s_str_to_price_unit(char* a_price_unit_str, dap_chain_net_srv_price_unit_uid_t* a_price_unit);
 
 /**
  * @brief dap_chain_net_srv_init
@@ -513,20 +514,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                     dap_chain_hash_fast_from_str (l_tx_cond_hash_str, &l_tx_cond_hash);
                 l_price = dap_chain_balance_scan(l_price_str);
 
-                if (!dap_strcmp(l_price_unit_str, "MB")){
-                    l_price_unit.uint32 = SERV_UNIT_MB;
-                } else if (!dap_strcmp(l_price_unit_str, "SEC")){
-                    l_price_unit.uint32 = SERV_UNIT_SEC;
-                } else if (!dap_strcmp(l_price_unit_str, "DAY")){
-                    l_price_unit.uint32 = SERV_UNIT_DAY;
-                } else if (!dap_strcmp(l_price_unit_str, "KB")){
-                    l_price_unit.uint32 = SERV_UNIT_KB;
-                } else if (!dap_strcmp(l_price_unit_str, "B")){
-                    l_price_unit.uint32 = SERV_UNIT_B;
-                } else if (!dap_strcmp(l_price_unit_str, "PCS")){
-                    l_price_unit.uint32 = SERV_UNIT_PCS;
-                } else {
-                    //l_price_unit.uint32 = SERV_UNIT_UNDEFINED;
+                if (s_str_to_price_unit(l_price_unit_str, &l_price_unit)){
                     log_it(L_ERROR, "Undefined price unit");
                     dap_string_free(l_string_ret, true);
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong unit type sepcified, possible values: B, KB, MB, SEC, DAY, PCS");
@@ -929,19 +917,7 @@ int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_
                 }
                 continue;
             case 4:
-                if (!strcmp(l_price_token,      "SEC"))
-                    l_price->units_uid.enm = SERV_UNIT_SEC;
-                else if (!strcmp(l_price_token, "DAY"))
-                    l_price->units_uid.enm = SERV_UNIT_DAY;
-                else if (!strcmp(l_price_token, "MB"))
-                    l_price->units_uid.enm = SERV_UNIT_MB;
-                else if (!strcmp(l_price_token, "KB"))
-                    l_price->units_uid.enm = SERV_UNIT_KB;
-                else if (!strcmp(l_price_token, "B"))
-                    l_price->units_uid.enm = SERV_UNIT_B;
-                else if (!strcmp(l_price_token, "PCS"))
-                    l_price->units_uid.enm = SERV_UNIT_PCS;
-                else {
+                if (s_str_to_price_unit(l_price_token, &(l_price->units_uid))) {
                     log_it(L_ERROR, "Error parsing pricelist: wrong unit type \"%s\"", l_price_token);
                     l_iter = 0;
                     break;
@@ -1213,4 +1189,15 @@ dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv
     return dap_chain_datum_tx_receipt_sign_add(l_receipt, dap_chain_wallet_get_key(a_price->wallet, 0));
 }
 
-
+/**
+ * @brief dap_chain_net_srv_issue_receipt
+ * @param a_str_price_unit
+ * @param a_price_unit
+ * @return 0 if OK, other if error
+ */
+int s_str_to_price_unit(char* a_price_unit_str, dap_chain_net_srv_price_unit_uid_t* a_price_unit) {
+    if (!a_price_unit_str || !a_price_unit)
+        return -1;
+    a_price_unit->enm = dap_chain_srv_str_to_unit_enum(a_price_unit_str);
+    return a_price_unit->enm != SERV_UNIT_UNDEFINED ? 0 : -1;
+}
