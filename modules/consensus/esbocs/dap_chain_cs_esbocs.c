@@ -119,6 +119,8 @@ typedef struct dap_chain_esbocs_pvt {
     uint16_t start_validators_min;
     // Debug flag
     bool debug;
+    // Emergancy mode with signing by current online validators only
+    bool emergency_mode;
     // Round params
     uint16_t new_round_delay;
     uint16_t round_start_sync_timeout;
@@ -188,6 +190,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         goto lb_err;
     }
     l_esbocs_pvt->debug = dap_config_get_item_bool_default(a_chain_cfg, "esbocs", "consensus_debug", false);
+    l_esbocs_pvt->emergency_mode = dap_config_get_item_bool_default(a_chain_cfg, "esbocs", "emergency_mode", false);
     l_esbocs_pvt->poa_mode = dap_config_get_item_bool_default(a_chain_cfg, "esbocs", "poa_mode", false);
     l_esbocs_pvt->round_start_sync_timeout = dap_config_get_item_uint16_default(a_chain_cfg, "esbocs", "round_start_sync_timeout", 15);
     l_esbocs_pvt->new_round_delay = dap_config_get_item_uint16_default(a_chain_cfg, "esbocs", "new_round_delay", 10);
@@ -808,11 +811,13 @@ static void s_session_round_new(dap_chain_esbocs_session_t *a_session)
         if (!a_session->round_fast_forward)
             a_session->cur_round.sync_attempt = 1;
     }
-    a_session->cur_round.validators_list = s_get_validators_list(a_session, a_session->cur_round.sync_attempt - 1);
-    if (!a_session->cur_round.validators_list) {
-        log_it(L_WARNING, "Totally no active validators found");
-        a_session->ts_round_sync_start = dap_time_now();
-        return;
+    if (!PVT(a_session->esbocs)->emergency_mode) {
+        a_session->cur_round.validators_list = s_get_validators_list(a_session, a_session->cur_round.sync_attempt - 1);
+        if (!a_session->cur_round.validators_list) {
+            log_it(L_WARNING, "Totally no active validators found");
+            a_session->ts_round_sync_start = dap_time_now();
+            return;
+        }
     }
     bool l_round_already_started = a_session->round_fast_forward;
     dap_chain_esbocs_sync_item_t *l_item, *l_tmp;
@@ -998,6 +1003,14 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
     switch (a_new_state) {
     case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC: {
         dap_chain_esbocs_validator_t *l_validator = NULL;
+        if (!a_session->cur_round.validators_list && PVT(a_session->esbocs)->emergency_mode) {
+            for (dap_list_t *it = a_session->cur_round.all_validators; it; it = it->next) {
+                l_validator = it->data;
+                if (l_validator->is_synced)
+                    a_session->cur_round.validators_list = dap_list_append(
+                                a_session->cur_round.validators_list, DAP_DUP(l_validator));
+            }
+        }
         for (dap_list_t *it = a_session->cur_round.validators_list; it; it = it->next) {
             l_validator = it->data;
             if (l_validator->is_synced && !l_validator->is_chosen) {
@@ -1008,7 +1021,7 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
         a_session->cur_round.attempt_submit_validator = l_validator->signing_addr;
         if (dap_chain_addr_compare(&a_session->cur_round.attempt_submit_validator, &a_session->my_signing_addr)) {
             dap_chain_esbocs_directive_t *l_directive = NULL;
-            if (!a_session->cur_round.directive)
+            if (!a_session->cur_round.directive && !PVT(a_session->esbocs)->emergency_mode)
                 l_directive = s_session_directive_ready(a_session);
             if (l_directive) {
                 dap_hash_fast_t l_directive_hash;
