@@ -50,7 +50,7 @@ static bool dap_chain_net_balancer_find_link_ban(dap_chain_node_info_t *a_node_i
     for(dap_list_t *bl = s_ban_links; bl; bl = bl->next)
     {
         dap_chain_node_info_t *l_node_ban = (dap_chain_node_info_t*)bl->data;
-        if(l_node_ban->hdr.ext_addr_v4.s_addr == a_node_info->hdr.ext_addr_v4.s_addr)
+        if(l_node_ban && l_node_ban->hdr.ext_addr_v4.s_addr == a_node_info->hdr.ext_addr_v4.s_addr)
             return true;
     }
 
@@ -64,6 +64,7 @@ void dap_chain_net_balancer_free_link_ban(void)
         DAP_DEL_Z(l_node_ban);
     }
     dap_list_free(s_ban_links);
+    s_ban_links = NULL;
     log_it(L_DEBUG, "Balancer banlist cleared");
 }
 
