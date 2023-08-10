@@ -448,7 +448,7 @@ void dap_chain_net_add_gdb_notify_callback(dap_chain_net_t *a_net, dap_store_obj
 {
     dap_chain_gdb_notifier_t *l_notifier = DAP_NEW(dap_chain_gdb_notifier_t);
     if (!l_notifier) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return;
     }
     l_notifier->callback = a_callback;
@@ -472,7 +472,7 @@ int dap_chain_net_add_downlink(dap_chain_net_t *a_net, dap_stream_worker_t *a_wo
     }
     l_downlink = DAP_NEW_Z(struct downlink);
     if (!l_downlink) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         pthread_rwlock_unlock(&l_net_pvt->downlinks_lock);
         return -1;
     }
@@ -578,7 +578,7 @@ static void s_chain_callback_notify(void *a_arg, dap_chain_t *a_chain, dap_chain
 
     struct net_broadcast_atoms_args *l_args = DAP_NEW(struct net_broadcast_atoms_args);
     if (!l_args) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return;
     }
     l_args->net = l_net;
@@ -709,7 +709,7 @@ static int s_net_link_add(dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_
     }
     l_new_link = DAP_NEW_Z(struct net_link);
     if (!l_new_link) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         pthread_mutex_unlock(&PVT(a_net)->uplinks_mutex);
         return -4;
     }
@@ -1214,7 +1214,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
     log_it(L_DEBUG, "Start balancer %s request to %s", PVT(a_net)->balancer_http ? "HTTP" : "DNS", l_node_addr_str);
     struct balancer_link_request *l_balancer_request = DAP_NEW_Z(struct balancer_link_request);
     if (!l_balancer_request) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         DAP_DELETE(l_link_node_info);
         return false;
     }
@@ -1376,7 +1376,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                     break;
                 dap_chain_node_info_t *l_link_node_info = DAP_NEW_Z(dap_chain_node_info_t);
                 if (!l_link_node_info) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
                     pthread_rwlock_unlock(&l_net_pvt->states_lock);
                     return false;
                 }
@@ -1539,7 +1539,7 @@ static dap_chain_net_t *s_net_new(const char *a_id, const char *a_name,
         return NULL;
     dap_chain_net_t *l_ret = DAP_NEW_Z_SIZE(dap_chain_net_t, sizeof(dap_chain_net_t) + sizeof(dap_chain_net_pvt_t));
     if (!l_ret) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return NULL;
     }
     l_ret->pub.name = strdup( a_name );
@@ -2381,7 +2381,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         l_net_pvt->gdb_sync_nodes_addrs = DAP_NEW_Z_SIZE(dap_chain_node_addr_t,
                 sizeof(dap_chain_node_addr_t)*l_net_pvt->gdb_sync_nodes_addrs_count);
         if (!l_net_pvt->gdb_sync_nodes_addrs) {
-            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+            log_it(L_CRITICAL, "Memory allocation error");
             dap_config_close(l_cfg);
             return -1;
         }
@@ -2396,13 +2396,13 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     if (l_gdb_sync_nodes_links && l_gdb_links_count > 0) {
         l_net_pvt->gdb_sync_nodes_links_ips = DAP_NEW_Z_SIZE(uint32_t, l_gdb_links_count * sizeof(uint32_t));
         if (!l_net_pvt->gdb_sync_nodes_links_ips) {
-            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+            log_it(L_CRITICAL, "Memory allocation error");
             dap_config_close(l_cfg);
             return -1;
         }
         l_net_pvt->gdb_sync_nodes_links_ports = DAP_NEW_SIZE(uint16_t, l_gdb_links_count * sizeof(uint16_t));
         if (!l_net_pvt->gdb_sync_nodes_links_ports) {
-            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+            log_it(L_CRITICAL, "Memory allocation error");
             DAP_DEL_Z(l_net_pvt->gdb_sync_nodes_links_ips);
             dap_config_close(l_cfg);
             return -1;
@@ -2440,7 +2440,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     // Add network to the list
     dap_chain_net_item_t * l_net_item = DAP_NEW_Z( dap_chain_net_item_t);
     if (!l_net_item) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         dap_config_close(l_cfg);
         return -1;
     }
@@ -2660,7 +2660,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         else {
             l_node_addr = DAP_NEW_Z(dap_chain_node_addr_t);
             if (!l_node_addr) {
-                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                log_it(L_CRITICAL, "Memory allocation error");
                 dap_config_close(l_cfg);
                 return -1;
             }
@@ -2681,7 +2681,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
                 if ( !l_net_pvt->node_info ) { // If not present - create it
                     l_net_pvt->node_info = DAP_NEW_Z(dap_chain_node_info_t);
                     if (!l_net_pvt->node_info) {
-                        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                        log_it(L_CRITICAL, "Memory allocation error");
                         DAP_DEL_Z(l_node_addr);
                         dap_config_close(l_cfg);
                         return -1;
@@ -2739,7 +2739,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
             continue;
         char * l_entry_name = strdup(l_dir_entry->d_name);
         if (!l_entry_name) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
             dap_config_close(l_cfg);
             closedir(l_chains_dir);
             return -1;
@@ -2753,7 +2753,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
                 if(l_cfg_new) {
                     list_priority *l_chain_prior = DAP_NEW_Z(list_priority);
                     if (!l_chain_prior) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
                         DAP_DELETE (l_entry_name);
                         closedir(l_chains_dir);
                         dap_config_close(l_cfg_new);
@@ -3006,7 +3006,7 @@ dap_chain_net_t **dap_chain_net_list(uint16_t *a_size)
     if(*a_size){
         dap_chain_net_t **l_net_list = DAP_NEW_SIZE(dap_chain_net_t *, (*a_size) * sizeof(dap_chain_net_t *));
         if (!l_net_list) {
-            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+            log_it(L_CRITICAL, "Memory allocation error");
             pthread_rwlock_unlock(&s_net_items_rwlock);
             return NULL;
         }
@@ -3280,7 +3280,7 @@ dap_list_t* dap_chain_net_get_link_node_list(dap_chain_net_t * l_net, bool a_is_
             if(l_is_add) {
                 dap_chain_node_addr_t *l_address = DAP_NEW(dap_chain_node_addr_t);
                 if (!l_address) {
-                    log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                    log_it(L_CRITICAL, "Memory allocation error");
                     return NULL;
                 }
                 l_address->uint64 = l_cur_node_info->links[i].uint64;
@@ -3318,7 +3318,7 @@ dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * l_net)
         dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *) l_objs[i].value;
         dap_chain_node_addr_t *l_address = DAP_NEW(dap_chain_node_addr_t);
         if (!l_address) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
             return NULL;
         }
         l_address->uint64 = l_node_info->hdr.address.uint64;
@@ -3521,7 +3521,7 @@ static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash)
     if (l_net_count && l_net_list) {
         uint8_t *l_ret = DAP_NEW_SIZE(uint8_t, l_net_count);
         if (!l_ret) {
-            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+            log_it(L_CRITICAL, "Memory allocation error");
             DAP_DELETE(l_net_list);
             return NULL;
         }
