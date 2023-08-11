@@ -883,7 +883,7 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
     if (l_net_pvt->state_target != NET_STATE_OFFLINE) {
         pthread_mutex_lock(&l_net_pvt->uplinks_mutex);
         s_net_link_remove(l_net_pvt, a_node_client, l_net_pvt->only_static_links);
-        dap_chain_net_balancer_set_link_ban(a_node_client->info);
+        dap_chain_net_balancer_set_link_ban(a_node_client->info,l_net);
         //char *l_key = dap_chain_node_addr_to_hash_str(&a_node_client->info->hdr.address);
         //dap_global_db_del_sync(l_net->pub.gdb_nodes, l_key);
         //DAP_DELETE(l_key);
@@ -1446,7 +1446,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
         case NET_STATE_ONLINE: {
             log_it(L_NOTICE,"%s.state: NET_STATE_ONLINE", l_net->pub.name);
             l_net_pvt->last_sync = dap_time_now();
-            dap_chain_net_balancer_free_link_ban();
+            dap_chain_net_balancer_free_link_ban(l_net);
         }
         break;
 

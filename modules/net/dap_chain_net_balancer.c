@@ -30,9 +30,10 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 dap_list_t *s_ban_links = NULL;
 
-void dap_chain_net_balancer_set_link_ban(dap_chain_node_info_t *a_node_info)
+void dap_chain_net_balancer_set_link_ban(dap_chain_node_info_t *a_node_info, dap_chain_net_t * a_net)
 {        
-    for(dap_list_t *bl = s_ban_links; bl; bl = bl->next)
+    dap_list_t * l_ban_list = a_net->pub.s_ban_links;
+    for(dap_list_t *bl = l_ban_list; bl; bl = bl->next)
     {
         dap_chain_node_info_t *l_node_ban = (dap_chain_node_info_t*)bl->data;
         if(l_node_ban->hdr.ext_addr_v4.s_addr == a_node_info->hdr.ext_addr_v4.s_addr)
@@ -41,13 +42,13 @@ void dap_chain_net_balancer_set_link_ban(dap_chain_node_info_t *a_node_info)
 
     dap_chain_node_info_t * l_link_ban = DAP_NEW_Z( dap_chain_node_info_t);
     *l_link_ban = *a_node_info;
-    s_ban_links = dap_list_append(s_ban_links,l_link_ban);
+    l_ban_list = dap_list_append(l_ban_list,l_link_ban);
 
     log_it(L_DEBUG, "Add addr "NODE_ADDR_FP_STR" to balancer ban list",NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address));
 }
-static bool dap_chain_net_balancer_find_link_ban(dap_chain_node_info_t *a_node_info)
+static bool dap_chain_net_balancer_find_link_ban(dap_chain_node_info_t *a_node_info,dap_chain_net_t * a_net)
 {
-    for(dap_list_t *bl = s_ban_links; bl; bl = bl->next)
+    for(dap_list_t *bl = a_net->pub.s_ban_links; bl; bl = bl->next)
     {
         dap_chain_node_info_t *l_node_ban = (dap_chain_node_info_t*)bl->data;
         if(l_node_ban && l_node_ban->hdr.ext_addr_v4.s_addr == a_node_info->hdr.ext_addr_v4.s_addr)
@@ -56,15 +57,15 @@ static bool dap_chain_net_balancer_find_link_ban(dap_chain_node_info_t *a_node_i
 
     return false;
 }
-void dap_chain_net_balancer_free_link_ban(void)
+void dap_chain_net_balancer_free_link_ban(dap_chain_net_t * a_net)
 {
-    for(dap_list_t *bl = s_ban_links; bl; bl = bl->next)
+    for(dap_list_t *bl = a_net->pub.s_ban_links; bl; bl = bl->next)
     {
         dap_chain_node_info_t *l_node_ban = (dap_chain_node_info_t*)bl->data;
         DAP_DEL_Z(l_node_ban);
     }
-    dap_list_free(s_ban_links);
-    s_ban_links = NULL;
+    dap_list_free(a_net->pub.s_ban_links);
+    a_net->pub.s_ban_links = NULL;
     log_it(L_DEBUG, "Balancer banlist cleared");
 }
 
@@ -114,7 +115,7 @@ dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node(const char *a_net
     {
         bool l_check = true;
         dap_chain_node_info_t *l_node_cand = (dap_chain_node_info_t *)l_objs[i].value;
-        if(dap_chain_net_balancer_find_link_ban(l_node_cand))
+        if(dap_chain_net_balancer_find_link_ban(l_node_cand,l_net))
             continue;
         for(dap_list_t *node_i = l_node_addr_list; node_i; node_i = node_i->next)
         {
