@@ -579,6 +579,8 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_session_t *a_session, 
 
     if (!l_esbocs_pvt->poa_mode) {
         dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_session->chain->net_id, true);
+        if (l_esbocs_pvt->emergency_mode) // Ignore penaltys
+            l_validators = dap_list_concat(l_validators, dap_chain_net_srv_stake_get_validators(a_session->chain->net_id, false));
         a_session->cur_round.all_validators = dap_list_copy_deep(l_validators, s_callback_list_form, NULL);
         uint16_t l_total_validators_count = dap_list_length(l_validators);
         if (l_total_validators_count < l_esbocs_pvt->min_validators_count) {
@@ -704,10 +706,14 @@ static void s_session_send_startsync(dap_chain_esbocs_session_t *a_session)
         dap_string_free(l_addr_list, true);
         DAP_DELETE(l_sync_hash);
     }
-    dap_list_t *l_inactive_validators = dap_chain_net_srv_stake_get_validators(a_session->chain->net_id, false);
-    dap_list_t *l_inactive_sendlist = dap_list_copy_deep(l_inactive_validators, s_callback_list_form, NULL);
-    dap_list_free_full(l_inactive_validators, NULL);
-    dap_list_t *l_total_sendlist = dap_list_concat(a_session->cur_round.all_validators, l_inactive_sendlist);
+    dap_list_t *l_total_sendlist = a_session->cur_round.all_validators;
+    dap_list_t *l_inactive_sendlist = NULL;
+    if (!PVT(a_session->esbocs)->emergency_mode) {
+        dap_list_t *l_inactive_validators = dap_chain_net_srv_stake_get_validators(a_session->chain->net_id, false);
+        l_inactive_sendlist = dap_list_copy_deep(l_inactive_validators, s_callback_list_form, NULL);
+        dap_list_free_full(l_inactive_validators, NULL);
+        l_total_sendlist = dap_list_concat(a_session->cur_round.all_validators, l_inactive_sendlist);
+    }
     struct sync_params l_params = { .attempt = a_session->cur_round.sync_attempt, .db_hash = a_session->db_hash };
     s_message_send(a_session, DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC, &l_last_block_hash,
                    &l_params, sizeof(struct sync_params),
