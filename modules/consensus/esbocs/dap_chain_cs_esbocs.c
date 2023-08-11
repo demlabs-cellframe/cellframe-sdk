@@ -357,8 +357,6 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
 static void s_session_load_penaltys(dap_chain_esbocs_session_t *a_session)
 {
     const char *l_penalty_group = s_get_penalty_group(a_session->chain->net_id);
-    // TODO: remove it after consensus stabilization
-    dap_global_db_del_sync(l_penalty_group, NULL);
     size_t l_group_size = 0;
     dap_global_db_obj_t *l_keys = dap_global_db_get_all_sync(l_penalty_group, &l_group_size);
     for (size_t i = 0; i < l_group_size; i++) {
@@ -1127,10 +1125,13 @@ static void s_session_proc_state(dap_chain_esbocs_session_t *a_session)
     switch (a_session->state) {
     case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START: {
         a_session->listen_ensure = 1;
-        bool l_round_skip = !s_validator_check(&a_session->my_signing_addr, a_session->cur_round.validators_list);
+        bool l_round_skip = PVT(a_session->esbocs)->emergency_mode ?
+                    false : !s_validator_check(&a_session->my_signing_addr, a_session->cur_round.validators_list);
         if (a_session->ts_round_sync_start && l_time - a_session->ts_round_sync_start >=
                 PVT(a_session->esbocs)->round_start_sync_timeout) {
-            if (a_session->cur_round.validators_synced_count >= PVT(a_session->esbocs)->min_validators_count && !l_round_skip) {
+            uint16_t l_min_validators_synced = PVT(a_session->esbocs)->emergency_mode ?
+                        a_session->cur_round.total_validators_synced : a_session->cur_round.validators_synced_count;
+            if (l_min_validators_synced >= PVT(a_session->esbocs)->min_validators_count && !l_round_skip) {
                 a_session->cur_round.id = s_session_calc_current_round_id(a_session);
                 debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
                                             " Minimum count of validators are synchronized, wait to submit candidate",
