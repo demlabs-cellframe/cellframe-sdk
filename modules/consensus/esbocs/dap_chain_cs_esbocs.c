@@ -357,6 +357,8 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
 static void s_session_load_penaltys(dap_chain_esbocs_session_t *a_session)
 {
     const char *l_penalty_group = s_get_penalty_group(a_session->chain->net_id);
+    // TODO: remove it after consensus stabilization
+    dap_global_db_del_sync(l_penalty_group, NULL);
     size_t l_group_size = 0;
     dap_global_db_obj_t *l_keys = dap_global_db_get_all_sync(l_penalty_group, &l_group_size);
     for (size_t i = 0; i < l_group_size; i++) {
@@ -465,7 +467,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     l_session->esbocs = l_esbocs;
     l_esbocs->session = l_session;
     l_session->my_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
-    l_session->my_signing_addr = l_my_signing_addr;
+    l_session->my_signing_addr = l_my_signing_addr;    
     s_session_load_penaltys(l_session);
     dap_global_db_context_exec(s_session_db_serialize, l_session);
     dap_global_db_add_notify_group_mask(dap_global_db_context_get_default()->instance,
