@@ -579,8 +579,6 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_session_t *a_session, 
 
     if (!l_esbocs_pvt->poa_mode) {
         dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_session->chain->net_id, true);
-        if (l_esbocs_pvt->emergency_mode) // Ignore penaltys
-            l_validators = dap_list_concat(l_validators, dap_chain_net_srv_stake_get_validators(a_session->chain->net_id, false));
         a_session->cur_round.all_validators = dap_list_copy_deep(l_validators, s_callback_list_form, NULL);
         uint16_t l_total_validators_count = dap_list_length(l_validators);
         if (l_total_validators_count < l_esbocs_pvt->min_validators_count) {
@@ -824,6 +822,11 @@ static void s_session_round_new(dap_chain_esbocs_session_t *a_session)
             a_session->ts_round_sync_start = dap_time_now();
             return;
         }
+    } else {
+        dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_session->chain->net_id, true);
+        l_validators = dap_list_concat(l_validators, dap_chain_net_srv_stake_get_validators(a_session->chain->net_id, false));
+        a_session->cur_round.all_validators = dap_list_copy_deep(l_validators, s_callback_list_form, NULL);
+        dap_list_free_full(l_validators, NULL);
     }
     bool l_round_already_started = a_session->round_fast_forward;
     dap_chain_esbocs_sync_item_t *l_item, *l_tmp;
