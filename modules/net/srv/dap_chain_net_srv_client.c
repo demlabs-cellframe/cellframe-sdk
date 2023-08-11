@@ -42,7 +42,7 @@ dap_chain_net_srv_client_t *dap_chain_net_srv_client_create_n_connect(dap_chain_
 {
     dap_chain_net_srv_client_t *l_ret = DAP_NEW_Z(dap_chain_net_srv_client_t);
     if (!l_ret) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return NULL;
     }
     if (a_callbacks)
@@ -55,7 +55,7 @@ dap_chain_net_srv_client_t *dap_chain_net_srv_client_create_n_connect(dap_chain_
     };
     dap_chain_node_info_t *l_info = DAP_NEW_Z(dap_chain_node_info_t);
     if (!l_info) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         DAP_DEL_Z(l_ret);
         return NULL;
     }
