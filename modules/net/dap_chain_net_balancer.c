@@ -58,12 +58,7 @@ static bool dap_chain_net_balancer_find_link_ban(dap_chain_node_info_t *a_node_i
 }
 void dap_chain_net_balancer_free_link_ban(void)
 {
-    for(dap_list_t *bl = s_ban_links; bl; bl = bl->next)
-    {
-        dap_chain_node_info_t *l_node_ban = (dap_chain_node_info_t*)bl->data;
-        DAP_DEL_Z(l_node_ban);
-    }
-    dap_list_free(s_ban_links);
+    dap_list_free_full(s_ban_links, NULL);
     s_ban_links = NULL;
     log_it(L_DEBUG, "Balancer banlist cleared");
 }
