@@ -28,8 +28,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define LOG_TAG "dap_chain_net_balancer"
 
-dap_list_t *s_ban_links = NULL;
-
 void dap_chain_net_balancer_set_link_ban(dap_chain_node_info_t *a_node_info, dap_chain_net_t * a_net)
 {        
     dap_list_t * l_ban_list = a_net->pub.s_ban_links;
@@ -59,8 +57,8 @@ static bool dap_chain_net_balancer_find_link_ban(dap_chain_node_info_t *a_node_i
 }
 void dap_chain_net_balancer_free_link_ban(dap_chain_net_t * a_net)
 {
-    dap_list_free_full(s_ban_links, NULL);
-    s_ban_links = NULL;
+    dap_list_free_full(a_net->pub.s_ban_links, NULL);
+    a_net->pub.s_ban_links = NULL;
     log_it(L_DEBUG, "Balancer banlist cleared");
 }
 
