@@ -28,9 +28,10 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define LOG_TAG "dap_chain_net_balancer"
 
-void dap_chain_net_balancer_set_link_ban(dap_chain_node_info_t *a_node_info, dap_chain_net_t * a_net)
-{        
-    dap_list_t * l_ban_list = a_net->pub.s_ban_links;
+void dap_chain_net_balancer_set_link_ban(dap_chain_node_info_t *a_node_info, const char *a_net_name)
+{
+    dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
+    dap_list_t * l_ban_list = l_net->pub.s_ban_links;
     for(dap_list_t *bl = l_ban_list; bl; bl = bl->next)
     {
         dap_chain_node_info_t *l_node_ban = (dap_chain_node_info_t*)bl->data;
@@ -40,13 +41,14 @@ void dap_chain_net_balancer_set_link_ban(dap_chain_node_info_t *a_node_info, dap
 
     dap_chain_node_info_t * l_link_ban = DAP_NEW_Z( dap_chain_node_info_t);
     *l_link_ban = *a_node_info;
-    l_ban_list = dap_list_append(l_ban_list,l_link_ban);
+    l_net->pub.s_ban_links = dap_list_append(l_net->pub.s_ban_links,l_link_ban);
 
     log_it(L_DEBUG, "Add addr "NODE_ADDR_FP_STR" to balancer ban list",NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address));
 }
 static bool dap_chain_net_balancer_find_link_ban(dap_chain_node_info_t *a_node_info,dap_chain_net_t * a_net)
 {
-    for(dap_list_t *bl = a_net->pub.s_ban_links; bl; bl = bl->next)
+    dap_list_t * l_ban_list = a_net->pub.s_ban_links;
+    for(dap_list_t *bl = l_ban_list; bl; bl = bl->next)
     {
         dap_chain_node_info_t *l_node_ban = (dap_chain_node_info_t*)bl->data;
         if(l_node_ban && l_node_ban->hdr.ext_addr_v4.s_addr == a_node_info->hdr.ext_addr_v4.s_addr)
