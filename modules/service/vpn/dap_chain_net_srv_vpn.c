@@ -188,8 +188,9 @@ static int s_callback_response_error(dap_chain_net_srv_t * a_srv, uint32_t a_usa
 
 static int s_callback_receipt_next_success(dap_chain_net_srv_t * a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t * a_srv_client,
                     const void * a_receipt_next, size_t a_receipt_next_size);
-
-
+static dap_stream_ch_chain_net_srv_remain_service_store_t* s_callback_get_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t usage_id,
+                                         dap_chain_net_srv_client_remote_t * a_srv_client);
+static int s_callback_save_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t usage_id, dap_chain_net_srv_client_remote_t * a_srv_client);
 // Stream callbacks
 static void s_ch_vpn_new(dap_stream_ch_t* ch, void* arg);
 static void s_ch_vpn_delete(dap_stream_ch_t* ch, void* arg);
@@ -858,6 +859,9 @@ static int s_vpn_service_create(dap_config_t * g_config)
     l_srv_callbacks.response_success = s_callback_response_success;
     l_srv_callbacks.response_error = s_callback_response_error;
     l_srv_callbacks.receipt_next_success = s_callback_receipt_next_success;
+    l_srv_callbacks.get_remain_service = s_callback_get_remain_service;
+    l_srv_callbacks.save_remain_service = s_callback_save_remain_service;
+
 
     dap_chain_net_srv_t* l_srv = dap_chain_net_srv_add(l_uid, "srv_vpn", &l_srv_callbacks);
 
@@ -1069,7 +1073,86 @@ static int s_callback_response_error(dap_chain_net_srv_t * a_srv, uint32_t a_usa
     return 0;
 }
 
+static dap_stream_ch_chain_net_srv_remain_service_store_t* s_callback_get_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t a_usage_id,
+                                         dap_chain_net_srv_client_remote_t * a_srv_client)
+{
+    UNUSED(a_srv);
+    dap_chain_net_srv_stream_session_t * l_srv_session = a_srv_client && a_srv_client->ch && a_srv_client->ch->stream && a_srv_client->ch->stream->session ?
+                                            (dap_chain_net_srv_stream_session_t *) a_srv_client->ch->stream->session->_inheritor : NULL;
 
+    if (!l_srv_session){
+        log_it(L_DEBUG, "Can't find srv session");
+        return NULL;
+    }
+    dap_chain_net_srv_usage_t* l_usage = dap_chain_net_srv_usage_find_unsafe(l_srv_session, a_usage_id);
+    if (!l_usage){
+        log_it(L_DEBUG, "Can't find usage.");
+        return NULL;
+    }
+
+    dap_chain_net_t *l_net = l_usage->net;
+
+    // get remain units from DB
+    char *l_remain_limits_gdb_group =  dap_strdup_printf( "local.srv_pay.%s.vpn_srv.remain_limits", l_net->pub.name);
+    char *l_user_key = dap_chain_hash_fast_to_str_new(&l_usage->client_pkey_hash);
+    log_it(L_DEBUG, "Checkout user %s in group %s", l_user_key, l_remain_limits_gdb_group);
+    dap_stream_ch_chain_net_srv_remain_service_store_t* l_remain_service = NULL;
+    size_t l_remain_service_size = 0;
+    l_remain_service = (dap_stream_ch_chain_net_srv_remain_service_store_t*) dap_global_db_get_sync(l_remain_limits_gdb_group, l_user_key, &l_remain_service_size, NULL, NULL);
+    DAP_DELETE(l_remain_limits_gdb_group);
+    DAP_DELETE(l_user_key);
+    return l_remain_service;
+}
+
+static int s_callback_save_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t a_usage_id,
+                                          dap_chain_net_srv_client_remote_t * a_srv_client)
+{
+    UNUSED(a_srv);
+    dap_chain_net_srv_stream_session_t * l_srv_session = a_srv_client && a_srv_client->ch && a_srv_client->ch->stream && a_srv_client->ch->stream->session ?
+                                            (dap_chain_net_srv_stream_session_t *) a_srv_client->ch->stream->session->_inheritor : NULL;
+
+    if (!l_srv_session){
+        log_it(L_DEBUG, "Can't find srv session");
+        return -100;
+    }
+    dap_chain_net_srv_usage_t* l_usage = dap_chain_net_srv_usage_find_unsafe(l_srv_session, a_usage_id);
+    if (!l_usage){
+        log_it(L_DEBUG, "Can't find usage.");
+        return -101;
+    }
+
+    dap_chain_net_t *l_net = l_usage->net;
+
+    // get remain units from DB
+    char *l_remain_limits_gdb_group =  dap_strdup_printf( "local.srv_pay.%s.vpn_srv.remain_limits", l_net->pub.name);
+    char *l_user_key = dap_chain_hash_fast_to_str_new(&l_usage->client_pkey_hash);
+    log_it(L_DEBUG, "Checkout user %s in group %s", l_user_key, l_remain_limits_gdb_group);
+
+    dap_stream_ch_chain_net_srv_remain_service_store_t l_remain_service = {};
+
+    l_remain_service.remain_units_type.enm = l_srv_session->limits_units_type.enm;
+    switch(l_remain_service.remain_units_type.enm){
+        case SERV_UNIT_SEC:
+        case SERV_UNIT_DAY:
+            l_remain_service.remain_units = l_srv_session->limits_ts;
+            break;
+        case SERV_UNIT_MB:
+        case SERV_UNIT_KB:
+        case SERV_UNIT_B:
+            l_remain_service.remain_units = l_srv_session->limits_bytes;
+            break;
+    }
+
+    if(dap_global_db_set_sync(l_remain_limits_gdb_group, l_user_key, &l_remain_service, sizeof(l_remain_service), false))
+    {
+        DAP_DELETE(l_remain_limits_gdb_group);
+        DAP_DELETE(l_user_key);
+        return -102;
+    }
+    DAP_DELETE(l_remain_limits_gdb_group);
+    DAP_DELETE(l_user_key);
+    return 0;
+}
 
 static void s_ch_vpn_esocket_assigned(dap_events_socket_t *a_es, dap_worker_t *a_worker)
 {
@@ -1156,7 +1239,6 @@ static void s_ch_vpn_delete(dap_stream_ch_t* a_ch, void* arg)
     (void) arg;
     dap_chain_net_srv_ch_vpn_t * l_ch_vpn = CH_VPN(a_ch);
     dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) l_ch_vpn->net_srv->_internal;
-
 
     // So complicated to update usage client to be sure that nothing breaks it
     usage_client_t * l_usage_client = NULL;

@@ -204,10 +204,16 @@ typedef struct dap_chain_net_srv_client_remote
     struct dap_chain_net_srv_client_remote *next;
 } dap_chain_net_srv_client_remote_t;
 
+typedef struct {
+    uint64_t remain_units;
+    dap_chain_net_srv_price_unit_uid_t remain_units_type;
+} dap_stream_ch_chain_net_srv_remain_service_store_t;
+
 typedef int  (*dap_chain_net_srv_callback_data_t)(dap_chain_net_srv_t *, uint32_t, dap_chain_net_srv_client_remote_t *, const void *, size_t);
 typedef void* (*dap_chain_net_srv_callback_custom_data_t)(dap_chain_net_srv_t *, dap_chain_net_srv_usage_t *, const void *, size_t, size_t *);
 typedef void (*dap_chain_net_srv_callback_ch_t)(dap_chain_net_srv_t *, dap_stream_ch_t *);
-
+typedef dap_stream_ch_chain_net_srv_remain_service_store_t* (*dap_chain_net_srv_callback_get_remain_srvice_t)(dap_chain_net_srv_t *, uint32_t, dap_chain_net_srv_client_remote_t*);
+typedef int (*dap_chain_net_srv_callback_save_remain_srvice_t)(dap_chain_net_srv_t *, uint32_t, dap_chain_net_srv_client_remote_t*);
 // Process service decree
 typedef void (*dap_chain_net_srv_callback_decree_t)(dap_chain_net_srv_t* a_srv, dap_chain_net_t* a_net, dap_chain_t* a_chain, dap_chain_datum_decree_t* a_decree, size_t a_decree_size);
 
@@ -231,7 +237,10 @@ typedef struct dap_chain_net_srv_callbacks {
     dap_chain_net_srv_callback_data_t receipt_next_success;
     // Custom data processing
     dap_chain_net_srv_callback_custom_data_t custom_data;
-
+    // Remain service getting drom DB
+    dap_chain_net_srv_callback_get_remain_srvice_t get_remain_service;
+    // Remain service saving to DB
+    dap_chain_net_srv_callback_save_remain_srvice_t save_remain_service;
     // Decree processing
     dap_chain_net_srv_callback_decree_t decree;
 
