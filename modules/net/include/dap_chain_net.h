@@ -89,7 +89,7 @@ typedef struct dap_chain_net{
         dap_ledger_t  *ledger;
         dap_chain_net_decree_t *decree;
 
-        dap_list_t *s_ban_links;
+        dap_list_t *link_list;
         dap_list_t *bridged_networks;   // List of bridged network ID's allowed to cross-network TXs
     } pub;
     uint8_t pvt[];

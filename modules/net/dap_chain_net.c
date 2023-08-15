@@ -1166,13 +1166,15 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
         return true;
     }
     if(!a_link_replace_tries){
-        dap_chain_net_node_balancer_t *l_link_full_node_list = dap_chain_net_balancer_get_node(a_net->pub.name,l_net_pvt->required_links_count + 1);
+        dap_chain_net_node_balancer_t *l_link_full_node_list = dap_chain_net_balancer_get_node(a_net->pub.name,l_net_pvt->max_links_count*2);
         size_t node_cnt = 0,i = 0;        
         if(l_link_full_node_list)
         {
             dap_chain_node_info_t * l_node_info = (dap_chain_node_info_t *)l_link_full_node_list->nodes_info;
             node_cnt = l_link_full_node_list->count_node;
             int l_net_link_add = 0;
+            size_t l_links_count = 0;
+            pthread_mutex_lock(&l_net_pvt->uplinks_mutex);
             while(!l_net_link_add){
                 if(i >= node_cnt)
                     break;
@@ -1186,24 +1188,26 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
                     break;
                 case 1:
                     log_it(L_MSG, "Network links table is full");
-                    break;
-                case -2:
-                    //log_it(L_MSG, "it's our addres");
-                    l_net_link_add = 0; //continue
-                    break;
+                    break;                
                 default:
                     break;
                 }
+                l_links_count = HASH_COUNT(l_net_pvt->net_links);
+                if(l_net_link_add && l_links_count < l_net_pvt->required_links_count && i < node_cnt)l_net_link_add = 0;
                 i++;
             }
             DAP_DELETE(l_link_full_node_list);
             struct net_link *l_free_link = s_get_free_link(a_net);
             if (l_free_link){
                 s_net_link_start(a_net, l_free_link, l_net_pvt->reconnect_delay);
+                pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
                 return true;
             }
             else
+            {
+                pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
                 return false;
+            }
         }
     }
     dap_chain_node_info_t *l_link_node_info = dap_get_balancer_link_from_cfg(a_net);
@@ -1446,7 +1450,6 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
         case NET_STATE_ONLINE: {
             log_it(L_NOTICE,"%s.state: NET_STATE_ONLINE", l_net->pub.name);
             l_net_pvt->last_sync = dap_time_now();
-            dap_chain_net_balancer_free_link_ban(l_net);
         }
         break;
 
@@ -1962,6 +1965,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Network \"%s\" going from state %s to %s",
                                                   l_net->pub.name,c_net_states[PVT(l_net)->state],
                                                   c_net_states[NET_STATE_ONLINE]);
+                dap_chain_net_balancer_ttt(l_net);
                 dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE);
             } else if ( strcmp(l_go_str,"offline") == 0 ) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Network \"%s\" going from state %s to %s",

@@ -25,33 +25,35 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_net_balancer.h"
 #include "dap_chain_net.h"
 #include "http_status_code.h"
+#include "dap_chain_node_client.h"
 
 #define LOG_TAG "dap_chain_net_balancer"
+static uint16_t tt = 0;
 
-void dap_chain_net_balancer_set_link_ban(dap_chain_node_info_t *a_node_info, const char *a_net_name)
+void dap_chain_net_balancer_set_link_list(dap_chain_node_info_t *a_node_info, const char *a_net_name)
 {
     dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
-    dap_list_t * l_ban_list = l_net->pub.s_ban_links;
-    for(dap_list_t *bl = l_ban_list; bl; bl = bl->next)
+    dap_list_t * l_link_list = l_net->pub.link_list;
+    for(dap_list_t *ll = l_link_list; ll; ll = ll->next)
     {
-        dap_chain_node_info_t *l_node_ban = (dap_chain_node_info_t*)bl->data;
-        if(l_node_ban->hdr.ext_addr_v4.s_addr == a_node_info->hdr.ext_addr_v4.s_addr)
+        dap_chain_node_info_t *l_node_link = (dap_chain_node_info_t*)ll->data;
+        if(l_node_link->hdr.ext_addr_v4.s_addr == a_node_info->hdr.ext_addr_v4.s_addr)
             return;
     }
 
-    dap_chain_node_info_t * l_link_ban = DAP_NEW_Z( dap_chain_node_info_t);
-    *l_link_ban = *a_node_info;
-    l_net->pub.s_ban_links = dap_list_append(l_net->pub.s_ban_links,l_link_ban);
+    dap_chain_node_info_t * l_node_info = DAP_NEW_Z( dap_chain_node_info_t);
+    *l_node_info = *a_node_info;
+    l_net->pub.link_list = dap_list_append(l_net->pub.link_list,l_node_info);
 
-    log_it(L_DEBUG, "Add addr "NODE_ADDR_FP_STR" to balancer ban list",NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address));
+    log_it(L_DEBUG, "Add addr "NODE_ADDR_FP_STR" to balancer link list",NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address));
 }
-static bool dap_chain_net_balancer_find_link_ban(dap_chain_node_info_t *a_node_info,dap_chain_net_t * a_net)
+static bool dap_chain_net_balancer_find_link(dap_chain_node_info_t *a_node_info,dap_chain_net_t * a_net)
 {
-    dap_list_t * l_ban_list = a_net->pub.s_ban_links;
-    for(dap_list_t *bl = l_ban_list; bl; bl = bl->next)
+    dap_list_t * l_link_list = a_net->pub.link_list;
+    for(dap_list_t *ll = l_link_list; ll; ll = ll->next)
     {
-        dap_chain_node_info_t *l_node_ban = (dap_chain_node_info_t*)bl->data;
-        if(l_node_ban && l_node_ban->hdr.ext_addr_v4.s_addr == a_node_info->hdr.ext_addr_v4.s_addr)
+        dap_chain_node_info_t *l_node_link = (dap_chain_node_info_t*)ll->data;
+        if(l_node_link && l_node_link->hdr.ext_addr_v4.s_addr == a_node_info->hdr.ext_addr_v4.s_addr)
             return true;
     }
 
@@ -59,10 +61,61 @@ static bool dap_chain_net_balancer_find_link_ban(dap_chain_node_info_t *a_node_i
 }
 void dap_chain_net_balancer_free_link_ban(dap_chain_net_t * a_net)
 {
-    dap_list_free_full(a_net->pub.s_ban_links, NULL);
-    a_net->pub.s_ban_links = NULL;
-    log_it(L_DEBUG, "Balancer banlist cleared");
+    dap_list_free_full(a_net->pub.link_list, NULL);
+    a_net->pub.link_list = NULL;
+    log_it(L_DEBUG, "Balancer link list cleared");
 }
+
+static bool dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info,dap_chain_net_t * a_net)
+{
+    dap_chain_node_client_t *l_client = dap_chain_node_client_connect_default_channels(a_net,a_node_info);
+    if(!l_client) {
+        return false;
+    }
+    // wait handshake
+    int timeout_ms = 1000;
+    int res = dap_chain_node_client_wait(l_client, NODE_CLIENT_STATE_ESTABLISHED, timeout_ms);
+    if (res) {
+        dap_chain_node_client_close_mt(l_client);
+        return false;
+    }
+    return true;
+}
+static bool is_it_node_from_cfg()
+
+void dap_chain_net_balancer_prepare_list_links(dap_chain_net_t * a_net)
+{
+    dap_list_t *l_node_addr_list = NULL,*l_objs_list = NULL;
+    /*if (a_net == NULL) {
+        log_it(L_WARNING, "There isn't any network by this name - %s", a_net_name);
+        return NULL;
+    }*/
+    dap_global_db_obj_t *l_objs = NULL;
+    size_t l_nodes_count = 0;
+    size_t l_node_num = 0,l_links_need = 0;
+    uint64_t l_blocks_events = 0;
+    // read all node
+    l_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes, &l_nodes_count);
+    if (!l_nodes_count || !l_objs)
+        return ;
+    l_node_addr_list = dap_chain_net_get_node_list_cfg(a_net);
+    for (size_t i = 0; i < l_nodes_count; i++) {
+        dap_chain_node_info_t *l_node_cand = (dap_chain_node_info_t *)l_objs[i].value;
+        if(dap_chain_net_balancer_handshake(l_node_cand,a_net) == false){
+            tt++;
+            a_net->pub.s_ban_links = dap_list_append(a_net->pub.s_ban_links,l_node_cand);
+        }
+        for (dap_list_t *node_i = l_node_addr_list; node_i; node_i = node_i->next) {
+            if(((struct in_addr*)node_i->data)->s_addr == l_node_cand->hdr.ext_addr_v4.s_addr) {
+                if (!l_blocks_events || l_blocks_events > l_node_cand->hdr.blocks_events)
+                    l_blocks_events = l_node_cand->hdr.blocks_events;
+                break;
+            }
+        }
+    }
+    log_it(L_MSG, "--------------------%d ",tt);
+}
+
 
 
 static int callback_compare_node_list(const void * a_item1, const void * a_item2, void *a_unused)
