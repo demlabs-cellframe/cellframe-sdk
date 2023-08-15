@@ -601,11 +601,13 @@ if ( a_pass )
         return  log_it(L_ERROR, "Error create key context"), -EINVAL;
 
 #ifdef DAP_OS_WINDOWS
-    if ((l_fh = CreateFile(l_wallet_internal->file_name, GENERIC_WRITE, /*FILE_SHARE_READ | FILE_SHARE_WRITE */ 0, NULL, CREATE_ALWAYS,
-                          /*FILE_FLAG_RANDOM_ACCESS | FILE_FLAG_OVERLAPPED | FILE_FLAG_NO_BUFFERING*/ 0, NULL)) == INVALID_HANDLE_VALUE) {
+    l_fh = CreateFile(l_wallet_internal->file_name, GENERIC_WRITE, /*FILE_SHARE_READ | FILE_SHARE_WRITE */ 0, NULL, CREATE_ALWAYS,
+                          /*FILE_FLAG_RANDOM_ACCESS | FILE_FLAG_OVERLAPPED | FILE_FLAG_NO_BUFFERING*/ 0, NULL)
+    SetEndOfFile(l_fh);
+    if (l_fh == INVALID_HANDLE_VALUE) {
         l_err = GetLastError();
 #else
-    if ( 0 > (l_fh = open(l_wallet_internal->file_name , O_CREAT | O_WRONLY, s_fileprot)) ) {
+    if ( 0 > (l_fh = open(l_wallet_internal->file_name , O_CREAT | O_WRONLY | O_TRUNC, s_fileprot)) ) {
         l_err = errno;
 #endif
         return log_it(L_ERROR, "Cant open file %s for writing, errno=%"DAP_FORMAT_ERRNUM,
