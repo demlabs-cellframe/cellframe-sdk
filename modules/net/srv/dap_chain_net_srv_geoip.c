@@ -187,7 +187,7 @@ geoip_info_t *chain_net_geoip_get_ip_info_by_local_db(const char *a_ip_str, cons
 
 	geoip_info_t *l_ret = DAP_NEW_Z(geoip_info_t);
 	if (!l_ret) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
 		return NULL;
 	}
 
