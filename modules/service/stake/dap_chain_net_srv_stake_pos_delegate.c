@@ -2078,8 +2078,8 @@ void dap_chain_net_srv_stake_get_fee_validators_str(dap_chain_net_t *a_net, dap_
     char *l_max_coins = dap_chain_balance_to_coins(l_max);
     char *l_average_balance = dap_chain_balance_print(l_average);
     char *l_average_coins = dap_chain_balance_to_coins(l_average);
-    char *l_median_balance = dap_chain_balance_print(l_average);
-    char *l_median_coins = dap_chain_balance_to_coins(l_average);
+    char *l_median_balance = dap_chain_balance_print(l_median);
+    char *l_median_coins = dap_chain_balance_to_coins(l_median);
     dap_string_append_printf(a_string_ret, "Validator fee: \n"
                                            "\t MIN: %s (%s) %s\n"
                                            "\t MAX: %s (%s) %s\n"
