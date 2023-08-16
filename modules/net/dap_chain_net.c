@@ -209,6 +209,7 @@ typedef struct dap_chain_net_pvt{
     pthread_mutex_t uplinks_mutex;
     pthread_rwlock_t downlinks_lock;
     pthread_rwlock_t states_lock;
+    pthread_rwlock_t balancer_lock;
 
     dap_list_t *gdb_notifiers;
 
@@ -883,7 +884,6 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
     if (l_net_pvt->state_target != NET_STATE_OFFLINE) {
         pthread_mutex_lock(&l_net_pvt->uplinks_mutex);
         s_net_link_remove(l_net_pvt, a_node_client, l_net_pvt->only_static_links);
-        dap_chain_net_balancer_set_link_ban(a_node_client->info,l_net->pub.name);
         //char *l_key = dap_chain_node_addr_to_hash_str(&a_node_client->info->hdr.address);
         //dap_global_db_del_sync(l_net->pub.gdb_nodes, l_key);
         //DAP_DELETE(l_key);
@@ -1166,15 +1166,17 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
         return true;
     }
     if(!a_link_replace_tries){
+        pthread_mutex_lock(&l_net_pvt->uplinks_mutex);
+        pthread_rwlock_rdlock(&PVT(a_net)->balancer_lock);
         dap_chain_net_node_balancer_t *l_link_full_node_list = dap_chain_net_balancer_get_node(a_net->pub.name,l_net_pvt->max_links_count*2);
-        size_t node_cnt = 0,i = 0;        
+        pthread_rwlock_unlock(&PVT(a_net)->balancer_lock);
+        size_t node_cnt = 0,i = 0;
         if(l_link_full_node_list)
         {
             dap_chain_node_info_t * l_node_info = (dap_chain_node_info_t *)l_link_full_node_list->nodes_info;
             node_cnt = l_link_full_node_list->count_node;
             int l_net_link_add = 0;
-            size_t l_links_count = 0;
-            pthread_mutex_lock(&l_net_pvt->uplinks_mutex);
+            size_t l_links_count = 0;            
             while(!l_net_link_add){
                 if(i >= node_cnt)
                     break;
@@ -1554,6 +1556,7 @@ static dap_chain_net_t *s_net_new(const char *a_id, const char *a_name,
     pthread_mutexattr_destroy(&l_mutex_attr);
     pthread_rwlock_init(&PVT(l_ret)->downlinks_lock, NULL);
     pthread_rwlock_init(&PVT(l_ret)->states_lock, NULL);
+    pthread_rwlock_init(&PVT(l_ret)->balancer_lock, NULL);
     if (dap_chain_net_id_parse(a_id, &l_ret->pub.id) != 0) {
         DAP_DELETE(l_ret);
         return NULL;
@@ -1591,6 +1594,7 @@ void dap_chain_net_delete( dap_chain_net_t * a_net )
     pthread_mutex_destroy(&PVT(a_net)->uplinks_mutex);
     pthread_rwlock_destroy(&PVT(a_net)->downlinks_lock);
     pthread_rwlock_destroy(&PVT(a_net)->states_lock);
+    pthread_rwlock_destroy(&PVT(a_net)->balancer_lock);
     if(PVT(a_net)->seed_aliases) {
         DAP_DELETE(PVT(a_net)->seed_aliases);
         PVT(a_net)->seed_aliases = NULL;
@@ -1965,7 +1969,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Network \"%s\" going from state %s to %s",
                                                   l_net->pub.name,c_net_states[PVT(l_net)->state],
                                                   c_net_states[NET_STATE_ONLINE]);
-                dap_chain_net_balancer_ttt(l_net);
+                dap_chain_net_balancer_prepare_list_links(l_net->pub.name);
                 dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE);
             } else if ( strcmp(l_go_str,"offline") == 0 ) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Network \"%s\" going from state %s to %s",
