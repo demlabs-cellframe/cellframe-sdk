@@ -29,23 +29,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define LOG_TAG "dap_chain_net_balancer"
 
-void dap_chain_net_balancer_set_link_list(dap_chain_node_info_t *a_node_info, const char *a_net_name)
-{
-    dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
-    dap_list_t * l_link_list = l_net->pub.link_list;
-    for(dap_list_t *ll = l_link_list; ll; ll = ll->next)
-    {
-        dap_chain_node_info_t *l_node_link = (dap_chain_node_info_t*)ll->data;
-        if(l_node_link->hdr.ext_addr_v4.s_addr == a_node_info->hdr.ext_addr_v4.s_addr)
-            return;
-    }
-
-    dap_chain_node_info_t * l_node_info = DAP_NEW_Z( dap_chain_node_info_t);
-    *l_node_info = *a_node_info;
-    l_net->pub.link_list = dap_list_append(l_net->pub.link_list,l_node_info);
-
-    log_it(L_DEBUG, "Add addr "NODE_ADDR_FP_STR" to balancer link list",NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address));
-}
 static bool dap_chain_net_balancer_find_link(dap_chain_node_info_t *a_node_info,dap_chain_net_t * a_net)
 {
     dap_list_t * l_link_list = a_net->pub.link_list;
@@ -58,6 +41,20 @@ static bool dap_chain_net_balancer_find_link(dap_chain_node_info_t *a_node_info,
 
     return false;
 }
+
+void dap_chain_net_balancer_set_link_list(dap_chain_node_info_t *a_node_info, const char *a_net_name)
+{
+    dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
+    if(dap_chain_net_balancer_find_link(a_node_info,l_net))
+        return;
+
+    dap_chain_node_info_t * l_node_info = DAP_NEW_Z( dap_chain_node_info_t);
+    *l_node_info = *a_node_info;
+    l_net->pub.link_list = dap_list_append(l_net->pub.link_list,l_node_info);
+
+    log_it(L_DEBUG, "Add addr "NODE_ADDR_FP_STR" to balancer link list",NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address));
+}
+
 void dap_chain_net_balancer_free_link_list(dap_chain_net_t * a_net)
 {
     dap_list_free_full(a_net->pub.link_list, NULL);
@@ -80,7 +77,7 @@ static bool dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info,
     }
     return true;
 }
-static bool is_it_node_from_cfg(dap_list_t *a_node_addr_list, dap_chain_node_info_t *a_node_cand)
+static bool is_it_node_from_list(dap_list_t *a_node_addr_list, dap_chain_node_info_t *a_node_cand)
 {
     for(dap_list_t *node_i = a_node_addr_list; node_i; node_i = node_i->next)
     {
@@ -107,9 +104,9 @@ static uint64_t min_count_blocks_events(dap_global_db_obj_t * a_objs,size_t a_no
     return l_blocks_events;
 }
 
-void dap_chain_net_balancer_prepare_list_links(const char *a_net_name)
+void dap_chain_net_balancer_prepare_list_links(const char *a_net_name,bool handshake_on)
 {
-    dap_list_t *l_node_addr_list = NULL;
+    dap_list_t *l_node_addr_list = NULL,*l_links_temp = NULL;
     dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
     if (l_net == NULL) {
         log_it(L_WARNING, "There isn't any network by this name - %s", a_net_name);
@@ -117,7 +114,7 @@ void dap_chain_net_balancer_prepare_list_links(const char *a_net_name)
     }
 
     dap_global_db_obj_t *l_objs = NULL;
-    size_t l_nodes_count = 0;
+    size_t l_nodes_count = 0,link_list_count = 0;
     uint64_t l_blocks_events = 0;
     // read all node
     l_objs = dap_global_db_get_all_sync(l_net->pub.gdb_nodes, &l_nodes_count);
@@ -126,21 +123,56 @@ void dap_chain_net_balancer_prepare_list_links(const char *a_net_name)
 
     l_node_addr_list = dap_chain_net_get_node_list_cfg(l_net);
     l_blocks_events = min_count_blocks_events(l_objs,l_nodes_count,l_node_addr_list);
-    pthread_rwlock_wrlock(&PVT(l_net)->balancer_lock);
-    for (size_t i = 0; i < l_nodes_count; i++)
+    pthread_mutex_lock(&l_net->pub.balancer_mutex);
+    //clear list links
+    //link_list_count = dap_list_length(l_net->pub.link_list);
+    if(!handshake_on)
     {
-        dap_chain_node_info_t *l_node_cand = (dap_chain_node_info_t *)l_objs[i].value;
-        if(!is_it_node_from_cfg(l_node_addr_list, l_node_cand)){
-            if(l_node_cand->hdr.blocks_events >= l_blocks_events){
-                if(dap_chain_net_balancer_handshake(l_node_cand,l_net)){
-                    dap_chain_net_balancer_set_link_list(l_node_cand,l_net->pub.name);
+        log_it(L_DEBUG, "Adjusting node list");
+        for (size_t i = 0; i < l_nodes_count; i++) {
+            dap_chain_node_info_t *l_node_cand = (dap_chain_node_info_t *)l_objs[i].value;
+            for(dap_list_t *node_i = l_net->pub.link_list; node_i; node_i = node_i->next)
+            {
+                dap_chain_node_info_t *l_node_list = (dap_chain_node_info_t *)node_i->data;
+                if(l_node_list->hdr.address.uint64 == l_node_cand->hdr.address.uint64)
+                {
+                   // if(l_node_cand->hdr.blocks_events >= l_blocks_events/2)
+                   // {
+                        dap_chain_node_info_t * l_node_info = DAP_NEW_Z( dap_chain_node_info_t);
+                        *l_node_info = *l_node_cand;
+                        l_links_temp = dap_list_append(l_links_temp,l_node_info);
+                   // }
+                }
+            }
+        }
+        dap_chain_net_balancer_free_link_list(l_net);
+        l_net->pub.link_list = dap_list_copy(l_links_temp);
+        for (dap_list_t *node_i = l_links_temp; node_i; node_i = node_i->next) {
+            dap_chain_node_info_t * l_node_inf = (dap_chain_node_info_t *)node_i->data;
+            log_it(L_DEBUG, "IP from list tmp %s",inet_ntoa(l_node_inf->hdr.ext_addr_v4));
+
+        }
+        dap_list_free(l_links_temp);
+    }
+    else{
+        log_it(L_DEBUG, "Overwrite node list");
+        dap_list_free_full(l_net->pub.link_list, NULL);
+        l_net->pub.link_list = NULL;
+        for (size_t i = 0; i < l_nodes_count; i++)
+        {
+            dap_chain_node_info_t *l_node_cand = (dap_chain_node_info_t *)l_objs[i].value;
+            if(!is_it_node_from_list(l_node_addr_list, l_node_cand)){
+                if(l_node_cand->hdr.blocks_events >= l_blocks_events){
+                    if(dap_chain_net_balancer_handshake(l_node_cand,l_net)){
+                        dap_chain_net_balancer_set_link_list(l_node_cand,l_net->pub.name);
+                    }
                 }
             }
         }
     }
+    pthread_mutex_unlock(&l_net->pub.balancer_mutex);
     dap_global_db_objs_delete(l_objs, l_nodes_count);
     dap_list_free(l_node_addr_list);
-    log_it(L_DEBUG, "Link list generated");
 
     for (dap_list_t *node_i = l_net->pub.link_list; node_i; node_i = node_i->next) {
         dap_chain_node_info_t * l_node_inf = (dap_chain_node_info_t *)node_i->data;
@@ -169,6 +201,7 @@ dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node(const char *a_net
         return NULL;
     }
     // get nodes list from global_db
+    pthread_mutex_lock(&l_net->pub.balancer_mutex);
     size_t l_node_num = 0,l_links_need = 0;
     l_net->pub.link_list = dap_list_sort(l_net->pub.link_list, callback_compare_node_list);
     l_node_num = dap_list_length(l_net->pub.link_list);
@@ -186,11 +219,13 @@ dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node(const char *a_net
             *(l_node_info + i) = *l_node_candidate;
         }
         l_node_list_res->count_node = l_links_need;
+        pthread_mutex_unlock(&l_net->pub.balancer_mutex);
         return l_node_list_res;
     }
     else
     {        
         log_it(L_ERROR, "Node list is empty");
+        pthread_mutex_unlock(&l_net->pub.balancer_mutex);
         return NULL;
     }
 }

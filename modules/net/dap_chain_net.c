@@ -209,7 +209,6 @@ typedef struct dap_chain_net_pvt{
     pthread_mutex_t uplinks_mutex;
     pthread_rwlock_t downlinks_lock;
     pthread_rwlock_t states_lock;
-    pthread_rwlock_t balancer_lock;
 
     dap_list_t *gdb_notifiers;
 
@@ -1166,10 +1165,8 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
         return true;
     }
     if(!a_link_replace_tries){
-        pthread_mutex_lock(&l_net_pvt->uplinks_mutex);
-        pthread_rwlock_rdlock(&PVT(a_net)->balancer_lock);
-        dap_chain_net_node_balancer_t *l_link_full_node_list = dap_chain_net_balancer_get_node(a_net->pub.name,l_net_pvt->max_links_count*2);
-        pthread_rwlock_unlock(&PVT(a_net)->balancer_lock);
+
+        dap_chain_net_node_balancer_t *l_link_full_node_list = dap_chain_net_balancer_get_node(a_net->pub.name,l_net_pvt->max_links_count*2);        
         size_t node_cnt = 0,i = 0;
         if(l_link_full_node_list)
         {
@@ -1199,6 +1196,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
                 i++;
             }
             DAP_DELETE(l_link_full_node_list);
+            pthread_mutex_lock(&l_net_pvt->uplinks_mutex);
             struct net_link *l_free_link = s_get_free_link(a_net);
             if (l_free_link){
                 s_net_link_start(a_net, l_free_link, l_net_pvt->reconnect_delay);
@@ -1553,10 +1551,10 @@ static dap_chain_net_t *s_net_new(const char *a_id, const char *a_name,
     pthread_mutexattr_init(&l_mutex_attr);
     pthread_mutexattr_settype(&l_mutex_attr, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&PVT(l_ret)->uplinks_mutex, &l_mutex_attr);
+    pthread_mutex_init(&l_ret->pub.balancer_mutex, &l_mutex_attr);
     pthread_mutexattr_destroy(&l_mutex_attr);
     pthread_rwlock_init(&PVT(l_ret)->downlinks_lock, NULL);
     pthread_rwlock_init(&PVT(l_ret)->states_lock, NULL);
-    pthread_rwlock_init(&PVT(l_ret)->balancer_lock, NULL);
     if (dap_chain_net_id_parse(a_id, &l_ret->pub.id) != 0) {
         DAP_DELETE(l_ret);
         return NULL;
@@ -1592,9 +1590,9 @@ static dap_chain_net_t *s_net_new(const char *a_id, const char *a_name,
 void dap_chain_net_delete( dap_chain_net_t * a_net )
 {
     pthread_mutex_destroy(&PVT(a_net)->uplinks_mutex);
+    pthread_mutex_destroy(&a_net->pub.balancer_mutex);
     pthread_rwlock_destroy(&PVT(a_net)->downlinks_lock);
     pthread_rwlock_destroy(&PVT(a_net)->states_lock);
-    pthread_rwlock_destroy(&PVT(a_net)->balancer_lock);
     if(PVT(a_net)->seed_aliases) {
         DAP_DELETE(PVT(a_net)->seed_aliases);
         PVT(a_net)->seed_aliases = NULL;
@@ -1969,7 +1967,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Network \"%s\" going from state %s to %s",
                                                   l_net->pub.name,c_net_states[PVT(l_net)->state],
                                                   c_net_states[NET_STATE_ONLINE]);
-                dap_chain_net_balancer_prepare_list_links(l_net->pub.name);
+                dap_chain_net_balancer_prepare_list_links(l_net->pub.name,true);
                 dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE);
             } else if ( strcmp(l_go_str,"offline") == 0 ) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Network \"%s\" going from state %s to %s",
@@ -2309,6 +2307,7 @@ void s_main_timer_callback(void *a_arg)
             l_net_pvt->state >= NET_STATE_LINKS_ESTABLISHED &&
             !s_net_get_active_links_count(l_net)) // restart network
         dap_chain_net_start(l_net);
+    dap_chain_net_balancer_prepare_list_links(l_net->pub.name,false);
 }
 
 /**
@@ -2956,7 +2955,10 @@ int s_net_load(dap_chain_net_t *a_net)
     if (!l_net_pvt->only_static_links)
         l_net_pvt->only_static_links = dap_config_get_item_bool_default(l_cfg, "general", "links_static_only", false);
     if (dap_config_get_item_bool_default(g_config ,"general", "auto_online", false))
+    {
+        dap_chain_net_balancer_prepare_list_links(l_net->pub.name,true);
         l_target_state = NET_STATE_ONLINE;
+    }
 
     l_net_pvt->load_mode = false;
     if (l_net->pub.ledger)
