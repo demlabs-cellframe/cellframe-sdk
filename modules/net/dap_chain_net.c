@@ -2867,6 +2867,24 @@ int s_net_load(dap_chain_net_t *a_net)
         dap_chain_ledger_set_fee(l_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
         if (!dap_chain_load_all(l_chain)) {
             log_it (L_NOTICE, "Loaded chain files");
+            if (DAP_CHAIN_PVT(l_chain)->need_reorder) {
+                log_it(L_DAP, "Reordering chain files for chain %s", l_chain->name);
+                dap_chain_save_all(l_chain);
+                DAP_CHAIN_PVT(l_chain)->need_reorder = false;
+                if (l_chain->callback_purge) {
+                    l_chain->callback_purge(l_chain);
+                    pthread_rwlock_wrlock(&l_chain->cell_rwlock);
+                    for (dap_chain_cell_t *it = l_chain->cells; it; it = it->hh.next)
+                        dap_chain_cell_delete(it);
+                    pthread_rwlock_unlock(&l_chain->cell_rwlock);
+                    dap_chain_ledger_purge(l_net->pub.ledger, false);
+                    dap_chain_ledger_set_fee(l_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
+                    dap_chain_net_srv_stake_purge(l_net);
+                    dap_chain_net_decree_purge(l_net);
+                    dap_chain_load_all(l_chain);
+                } else
+                    log_it(L_WARNING, "No purge callback for chain %s, can't reload it with correct order", l_chain->name);
+            }
         } else {
             dap_chain_save_all( l_chain );
             log_it (L_NOTICE, "Initialized chain files");

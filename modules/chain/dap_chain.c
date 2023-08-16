@@ -583,13 +583,18 @@ int dap_chain_load_all(dap_chain_t *a_chain)
         log_it(L_ERROR, "Cannot open directory %s", DAP_CHAIN_PVT(a_chain)->file_storage_dir);
         return -3;
     }
-    for (struct dirent *l_dir_entry = readdir(l_dir); l_dir_entry != NULL; l_dir_entry = readdir(l_dir))
-    {
+    for (struct dirent *l_dir_entry = readdir(l_dir); l_dir_entry != NULL; l_dir_entry = readdir(l_dir)) {
         const char * l_filename = l_dir_entry->d_name;
         const char l_suffix[] = ".dchaincell";
         size_t l_suffix_len = strlen(l_suffix);
         if (!strncmp(l_filename + strlen(l_filename) - l_suffix_len, l_suffix, l_suffix_len)) {
-            l_ret += dap_chain_cell_load(a_chain, l_filename);
+            dap_chain_cell_t *l_cell = dap_chain_cell_create_fill2(a_chain, l_filename);
+            l_ret += dap_chain_cell_load(a_chain, l_cell);
+            if (DAP_CHAIN_PVT(a_chain)->need_reorder) {
+                const char *l_filename_backup = dap_strdup_printf("%s.unsorted", l_cell->file_storage_path);
+                remove(l_filename_backup);
+                rename(l_cell->file_storage_path, l_filename_backup);
+            }
         }
     }
     closedir(l_dir);
