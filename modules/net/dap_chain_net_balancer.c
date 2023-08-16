@@ -147,11 +147,6 @@ void dap_chain_net_balancer_prepare_list_links(const char *a_net_name,bool hands
         }
         dap_chain_net_balancer_free_link_list(l_net);
         l_net->pub.link_list = dap_list_copy(l_links_temp);
-        for (dap_list_t *node_i = l_links_temp; node_i; node_i = node_i->next) {
-            dap_chain_node_info_t * l_node_inf = (dap_chain_node_info_t *)node_i->data;
-            log_it(L_DEBUG, "IP from list tmp %s",inet_ntoa(l_node_inf->hdr.ext_addr_v4));
-
-        }
         dap_list_free(l_links_temp);
     }
     else{
@@ -173,12 +168,6 @@ void dap_chain_net_balancer_prepare_list_links(const char *a_net_name,bool hands
     pthread_mutex_unlock(&l_net->pub.balancer_mutex);
     dap_global_db_objs_delete(l_objs, l_nodes_count);
     dap_list_free(l_node_addr_list);
-
-    for (dap_list_t *node_i = l_net->pub.link_list; node_i; node_i = node_i->next) {
-        dap_chain_node_info_t * l_node_inf = (dap_chain_node_info_t *)node_i->data;
-        log_it(L_DEBUG, "IP from list %s",inet_ntoa(l_node_inf->hdr.ext_addr_v4));
-
-    }
 }
 
 static int callback_compare_node_list(const void * a_item1, const void * a_item2, void *a_unused)
