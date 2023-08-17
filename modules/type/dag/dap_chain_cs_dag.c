@@ -530,7 +530,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     switch (ret) {
     case ATOM_ACCEPT:
         ret = s_chain_callback_atom_verify(a_chain, a_atom, a_atom_size);
-        if (ret == ATOM_MOVE_TO_THRESHOLD)
+        if (ret == ATOM_MOVE_TO_THRESHOLD && !dap_chain_net_get_load_mode(dap_chain_net_by_id(a_chain->net_id)))
             ret = ATOM_REJECT; /* TODO: A temporary fix for memory consumption */
         if(s_debug_more)
             log_it(L_DEBUG, "Verified atom %p: %s", a_atom, ret == ATOM_ACCEPT ? "accepted" :
@@ -596,7 +596,10 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             l_tail = l_tail->hh.next;
         if (l_tail && l_tail->event->header.ts_created > l_event->header.ts_created)
             DAP_CHAIN_PVT(a_chain)->need_reorder = true;
-        HASH_ADD_INORDER(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item, s_sort_event_item);
+        if (DAP_CHAIN_PVT(a_chain)->need_reorder)
+            HASH_ADD_INORDER(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item, s_sort_event_item);
+        else
+            HASH_ADD(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item);
         s_dag_events_lasts_process_new_last_event(l_dag, l_event_item);
         pthread_mutex_unlock(l_events_mutex);
     } break;

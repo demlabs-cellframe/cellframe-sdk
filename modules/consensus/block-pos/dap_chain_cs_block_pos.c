@@ -229,11 +229,6 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
     dap_chain_cs_block_pos_t *l_pos = DAP_CHAIN_CS_BLOCK_POS(a_blocks);
     dap_chain_cs_block_pos_pvt_t *l_pos_pvt = PVT(l_pos);
 
-    if (a_blocks->chain->ledger == NULL) {
-        log_it(L_CRITICAL,"Ledger is NULL can't check PoS on this chain %s", a_blocks->chain->name);
-        return -3;
-    }
-
     if (sizeof(a_block->hdr) >= a_block_size) {
         log_it(L_WARNING,"Incorrect size with block %p on chain %s", a_block, a_blocks->chain->name);
         return  -7;

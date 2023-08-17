@@ -141,7 +141,6 @@ typedef struct dap_chain {
     uint16_t load_priority;
     char *name;
     char *net_name;
-    dap_ledger_t *ledger; // If present - pointer to associated ledger
     bool is_datum_pool_proc;
 
     // Nested cells (hashtab by cell_id)
@@ -235,7 +234,7 @@ DAP_STATIC_INLINE int dap_chain_id_parse(const char *a_id_str, dap_chain_id_t *a
 int dap_chain_init(void);
 void dap_chain_deinit(void);
 
-dap_chain_t *dap_chain_create(dap_ledger_t* a_ledger,const char * a_chain_net_name, const char * a_chain_name, dap_chain_net_id_t a_chain_net_id, dap_chain_id_t a_chain_id );
+dap_chain_t *dap_chain_create(const char *a_chain_net_name, const char *a_chain_name, dap_chain_net_id_t a_chain_net_id, dap_chain_id_t a_chain_id);
 
 int dap_chain_load_all (dap_chain_t * a_chain);
 int dap_chain_save_all (dap_chain_t * a_chain);
