@@ -2270,11 +2270,7 @@ char    l_buf[1024];
             }
             // create wallet backup
             dap_chain_wallet_internal_t* l_file_name = DAP_CHAIN_WALLET_INTERNAL(l_wallet);
-            time_t l_rawtime;  // add timestamp to filename
-            char l_timestamp[16];
-            time(&l_rawtime);
-            strftime(l_timestamp,16,"%G%m%d%H%M%S", localtime (&l_rawtime));
-            snprintf(l_file_name->file_name, sizeof(l_file_name->file_name)  - 1, "%s/%s_%s%s", c_wallets_path, l_wallet_name, l_timestamp,".backup");
+            snprintf(l_file_name->file_name, sizeof(l_file_name->file_name)  - 1, "%s/%s_%012lu%s", c_wallets_path, l_wallet_name, time(NULL),".backup");
             if ( dap_chain_wallet_save(l_wallet, NULL) ) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create backup wallet file because of internal error");
                 return  -1;
