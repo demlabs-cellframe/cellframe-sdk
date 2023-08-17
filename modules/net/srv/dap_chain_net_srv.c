@@ -323,23 +323,6 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
 
         } else if ( !dap_strcmp(l_order_str, "find") ){
 
-            // Order direction
-            const char *l_direction_str = NULL;
-            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-direction", &l_direction_str);
-
-            // Select with specified service uid
-            const char *l_srv_uid_str = NULL;
-            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-srv_uid", &l_srv_uid_str);
-
-
-            // Select with specified price units
-            const char*  l_price_unit_str = NULL;
-            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-price_unit", &l_price_unit_str);
-
-            // Token ticker
-            const char*  l_price_token_str = NULL;
-            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-price_token", &l_price_token_str);
-
             // Select with price not more than price_min
             const char*  l_price_min_str = NULL;
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-price_min", &l_price_min_str);
@@ -367,7 +350,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 }
             }
 
-            if (dap_id_uint64_parse(l_srv_uid_str ,&l_srv_uid.uint64)) {
+            if (l_srv_uid_str && dap_id_uint64_parse(l_srv_uid_str ,&l_srv_uid.uint64)) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't recognize '%s' string as 64-bit id, hex or dec.", l_srv_uid_str);
                 return -21;
             }
@@ -492,7 +475,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
 
                 if (l_expires_str)
                     l_expires = (dap_time_t ) atoll( l_expires_str);
-                if (dap_id_uint64_parse(l_srv_uid_str ,&l_srv_uid.uint64)) {
+                if (l_srv_uid_str && dap_id_uint64_parse(l_srv_uid_str ,&l_srv_uid.uint64)) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't recognize '%s' string as 64-bit id, hex or dec.", l_srv_uid_str);
                     return -21;
                 }
