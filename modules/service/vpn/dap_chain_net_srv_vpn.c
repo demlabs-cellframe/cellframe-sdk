@@ -950,15 +950,12 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
     dap_chain_net_srv_usage_t * l_usage_active = l_srv_session->usage_active;// dap_chain_net_srv_usage_find_unsafe(l_srv_session,a_usage_id);
     dap_chain_net_srv_ch_vpn_t * l_srv_ch_vpn =(dap_chain_net_srv_ch_vpn_t*) a_srv_client->ch->stream->channel[DAP_CHAIN_NET_SRV_VPN_ID] ?
             a_srv_client->ch->stream->channel[DAP_CHAIN_NET_SRV_VPN_ID]->internal : NULL;
-
     if ( !l_usage_active){
         log_it( L_ERROR, "No active service usage, can't success");
         return -1;
     }
 
-    usage_client_t * l_usage_client = NULL;
-
-    l_usage_client = DAP_NEW_Z(usage_client_t);
+    usage_client_t * l_usage_client = DAP_NEW_Z(usage_client_t);
     if (!l_usage_client) {
         log_it(L_CRITICAL, "Memory allocation error");
         return -1;
@@ -993,6 +990,7 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
 
     // set start limits
     if(!l_usage_active->is_free){
+        l_srv_session->limits_units_type.uint32 = l_usage_active->receipt->receipt_info.units_type.uint32;
         switch( l_usage_active->receipt->receipt_info.units_type.enm){
             case SERV_UNIT_DAY:{
                 l_srv_session->last_update_ts = time(NULL);
@@ -1107,6 +1105,7 @@ static dap_stream_ch_chain_net_srv_remain_service_store_t* s_callback_get_remain
 static int s_callback_save_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t a_usage_id,
                                           dap_chain_net_srv_client_remote_t * a_srv_client)
 {
+
     UNUSED(a_srv);
     dap_chain_net_srv_stream_session_t * l_srv_session = a_srv_client && a_srv_client->ch && a_srv_client->ch->stream && a_srv_client->ch->stream->session ?
                                             (dap_chain_net_srv_stream_session_t *) a_srv_client->ch->stream->session->_inheritor : NULL;
@@ -1120,6 +1119,9 @@ static int s_callback_save_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t
         log_it(L_DEBUG, "Can't find usage.");
         return -101;
     }
+
+    if (l_usage->is_free)
+        return -110;
 
     dap_chain_net_t *l_net = l_usage->net;
 
@@ -1142,6 +1144,9 @@ static int s_callback_save_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t
             l_remain_service.remain_units = l_srv_session->limits_bytes;
             break;
     }
+
+    if (l_srv_session->usage_active->receipt_next)
+        l_remain_service.remain_units += l_srv_session->usage_active->receipt_next->receipt_info.units;
 
     if(dap_global_db_set_sync(l_remain_limits_gdb_group, l_user_key, &l_remain_service, sizeof(l_remain_service), false))
     {
