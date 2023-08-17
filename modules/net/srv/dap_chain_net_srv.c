@@ -477,6 +477,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                     l_expires = (dap_time_t ) atoll( l_expires_str);
                 if (l_srv_uid_str && dap_id_uint64_parse(l_srv_uid_str ,&l_srv_uid.uint64)) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't recognize '%s' string as 64-bit id, hex or dec.", l_srv_uid_str);
+                    dap_string_free(l_string_ret, true);
                     return -21;
                 }
                 if (l_node_addr_str){
