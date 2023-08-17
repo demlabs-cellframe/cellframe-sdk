@@ -2061,6 +2061,14 @@ char    l_buf[1024];
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Unknown signature type");
                     return -1;
                 }
+                if (l_sign_type.type == SIG_TYPE_BLISS) {
+                    if (!l_restore_opt && !l_restore_legacy_opt) {
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "The Bliss signature is deprecated. Please choose other signature type");
+                    } else {
+                        dap_string_append_printf(l_l_string_ret, "CAUTION!!! CAUTION!!! CAUTION!!!\nThe Bliss signature is deprecated. We recommend you to create a new wallet with another available signature and transfer funds there.\n");
+                    }
+                    return -1;
+                }
             }
 
             //
@@ -2268,7 +2276,7 @@ char    l_buf[1024];
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet can't be converted twice");
                 return  -1;
             }
-            // create wallet backup
+            // create wallet backup 
             dap_chain_wallet_internal_t* l_file_name = DAP_CHAIN_WALLET_INTERNAL(l_wallet);
             snprintf(l_file_name->file_name, sizeof(l_file_name->file_name)  - 1, "%s/%s_%012lu%s", c_wallets_path, l_wallet_name, time(NULL),".backup");
             if ( dap_chain_wallet_save(l_wallet, NULL) ) {
