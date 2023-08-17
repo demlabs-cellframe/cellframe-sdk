@@ -189,7 +189,7 @@ static dap_chain_node_addr_t* s_node_info_get_addr(dap_chain_net_t * a_net, dap_
     if(a_addr->uint64) {
         l_address = DAP_NEW(dap_chain_node_addr_t);
         if (!l_address) {
-            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+            log_it(L_CRITICAL, "Memory allocation error");
             return NULL;
         }
         l_address->uint64 = a_addr->uint64;
@@ -2270,11 +2270,7 @@ char    l_buf[1024];
             }
             // create wallet backup
             dap_chain_wallet_internal_t* l_file_name = DAP_CHAIN_WALLET_INTERNAL(l_wallet);
-            time_t l_rawtime;  // add timestamp to filename
-            char l_timestamp[16];
-            time(&l_rawtime);
-            strftime(l_timestamp,16,"%G%m%d%H%M%S", localtime (&l_rawtime));
-            snprintf(l_file_name->file_name, sizeof(l_file_name->file_name)  - 1, "%s/%s_%s%s", c_wallets_path, l_wallet_name, l_timestamp,".backup");
+            snprintf(l_file_name->file_name, sizeof(l_file_name->file_name)  - 1, "%s/%s_%012lu%s", c_wallets_path, l_wallet_name, time(NULL),".backup");
             if ( dap_chain_wallet_save(l_wallet, NULL) ) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create backup wallet file because of internal error");
                 return  -1;
@@ -3855,7 +3851,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
             // Create new datum token
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t) + l_params->ext.tsd_total_size);
             if (!l_datum_token) {
-                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                log_it(L_CRITICAL, "Memory allocation error");
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Out of memory in com_token_decl");
                 DAP_DEL_Z(l_params);
                 return -1;
@@ -3920,7 +3916,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE: { // 256
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t));
             if (!l_datum_token) {
-                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                log_it(L_CRITICAL, "Memory allocation error");
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Out of memory in com_token_decl");
                 DAP_DEL_Z(l_params);
                 return -1;
@@ -4089,7 +4085,7 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
             // Create new datum token
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t) + l_params->ext.tsd_total_size);
             if (!l_datum_token) {
-                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                log_it(L_CRITICAL, "Memory allocation error");
                 return -1;
             }
             l_datum_token->version = 2;
@@ -4126,7 +4122,7 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE: { // 256
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t));
             if (!l_datum_token) {
-                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                log_it(L_CRITICAL, "Memory allocation error");
                 return -1;
             }
             l_datum_token->version = 2;
@@ -6138,7 +6134,7 @@ int cmd_remove(int a_argc, char **a_argv, char ** a_str_reply)
             size_t l_aliases_count = 0;
             _pvt_net_aliases_list_t *l_gdb_groups = DAP_NEW(_pvt_net_aliases_list_t);
             if (!l_gdb_groups) {
-                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                log_it(L_CRITICAL, "Memory allocation error");
                 dap_list_free(l_net_returns);
                 return -1;
             }
@@ -6710,7 +6706,7 @@ static byte_t *s_concat_meta (dap_list_t *a_meta, size_t *a_fullsize)
     int l_power = 1;
     byte_t *l_buf = DAP_CALLOC(l_part * l_power++, 1);
     if (!l_buf) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return NULL;
     }
     size_t l_counter = 0;
@@ -6726,7 +6722,7 @@ static byte_t *s_concat_meta (dap_list_t *a_meta, size_t *a_fullsize)
             l_part_power = l_part * l_power++;
             l_buf = (byte_t *) DAP_REALLOC(l_buf, l_part_power);
             if (!l_buf) {
-                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                log_it(L_CRITICAL, "Memory allocation error");
                 return NULL;
             }
         }
@@ -6749,7 +6745,7 @@ static uint8_t *s_concat_hash_and_mimetypes (dap_chain_hash_fast_t *a_chain_hash
     *a_fullsize += sizeof (a_chain_hash->raw) + 1;
     uint8_t *l_fullbuf = DAP_CALLOC(*a_fullsize, 1);
     if (!l_fullbuf) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         DAP_DELETE(l_buf);
         return NULL;
     }
@@ -6768,7 +6764,7 @@ static char *s_strdup_by_index (const char *a_file, const int a_index)
 {
     char *l_buf = DAP_CALLOC(a_index + 1, 1);
     if (!l_buf) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return NULL;
     }
     strncpy (l_buf, a_file, a_index);

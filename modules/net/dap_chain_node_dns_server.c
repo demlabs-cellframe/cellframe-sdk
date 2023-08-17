@@ -54,7 +54,7 @@ int dap_dns_zone_register(char *zone, dap_dns_zone_callback_t callback) {
     if (new_zone == NULL) {      // zone is not present
       new_zone = DAP_NEW(dap_dns_zone_hash_t);
       if (!new_zone) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return DNS_ERROR_FAILURE;
       }
       new_zone->zone = dap_strdup(zone);
@@ -117,18 +117,18 @@ void dap_dns_client_read(dap_events_socket_t *a_es, void *a_arg) {
     }
     dap_dns_buf_t *dns_message = DAP_NEW(dap_dns_buf_t);
     if (!dns_message) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return;
     }
     dap_dns_buf_t *dns_reply = DAP_NEW(dap_dns_buf_t);
     if (!dns_reply) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         DAP_DELETE(dns_message);
         return;
     }
     dns_message->data = DAP_NEW_SIZE(char, a_es->buf_in_size + 1);
     if (!dns_message->data) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         DAP_DELETE(dns_message);
         DAP_DELETE(dns_reply);
         return;
@@ -141,7 +141,7 @@ void dap_dns_client_read(dap_events_socket_t *a_es, void *a_arg) {
     int block_len = DNS_HEADER_SIZE;
     dns_reply->data = DAP_NEW_SIZE(char, block_len);
     if (!dns_reply->data) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return;
     }
     dns_reply->size = 0;
@@ -284,7 +284,7 @@ void dap_dns_server_start( uint16_t a_port)
 {
     s_dns_server = DAP_NEW_Z(dap_dns_server_t);
     if (!s_dns_server) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return;
     }
     dap_events_socket_callbacks_t l_cb = {};

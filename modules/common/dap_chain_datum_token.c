@@ -351,7 +351,7 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_create(uint256_t a_va
 {
     dap_chain_datum_token_emission_t *l_emission = DAP_NEW_Z(dap_chain_datum_token_emission_t);
     if (!l_emission) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return NULL;
     }
     l_emission->hdr.version = 3;
@@ -395,7 +395,7 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emissi
         size_t l_add_size = sizeof(l_emission->hdr) - l_old_hdr_size;
         l_emission = DAP_NEW_Z_SIZE(dap_chain_datum_token_emission_t, l_emission_size + l_add_size);
         if (!l_emission) {
-            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+            log_it(L_CRITICAL, "Memory allocation error");
             return NULL;
         }
         l_emission->hdr.version = 2;
@@ -410,7 +410,7 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emissi
     } else {
         l_emission = DAP_DUP_SIZE(a_emission_serial, *a_emission_size);
         if (!l_emission) {
-            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+            log_it(L_CRITICAL, "Memory allocation error");
             return NULL;
         }
         if (((dap_chain_datum_token_emission_t *)a_emission_serial)->hdr.version == 1)

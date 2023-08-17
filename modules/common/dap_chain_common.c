@@ -308,7 +308,7 @@ char *dap_chain_balance_print128(uint128_t a_balance)
 {
     char *l_buf = DAP_NEW_Z_SIZE(char, DATOSHI_POW + 2);
     if (!l_buf) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return NULL;
     }
     int l_pos = 0;
@@ -642,7 +642,7 @@ uint256_t dap_chain_coins_to_balance256(const char *a_coins)
 char *dap_cvt_uint256_to_str(uint256_t a_uint256) {
     char *l_buf = DAP_NEW_Z_SIZE(char, DATOSHI_POW256 + 2); // for decimal dot and trailing zero
     if (!l_buf) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return NULL;
     }
     int l_pos = 0;
