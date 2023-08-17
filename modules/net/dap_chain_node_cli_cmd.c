@@ -5622,7 +5622,7 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
 
     dap_chain_hash_fast_t l_tx_hash;
     if (l_tx_hash_str && dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash)) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "tx hash not recognized");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "TX hash not recognized");
         return -3;
     }
     // Select chain network
