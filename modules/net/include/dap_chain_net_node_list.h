@@ -23,3 +23,9 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 */
 #pragma once
 
+#include "dap_http_simple.h"
+
+#define DAP_NODE_LIST_URI_HASH "f0intlt4eyl03htogu"
+
+
+void dap_chain_net_node_list_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg);
