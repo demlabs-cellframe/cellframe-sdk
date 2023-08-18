@@ -103,6 +103,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                     "node alias -addr <node_address> -alias <node_alias>\n\n"
                     "node connect -net <net_name> {-addr <node_address> | -alias <node_alias> | auto}\n\n"
                     "node handshake -net <net_name> {-addr <node_address> | -alias <node_alias>}\n"
+                    "node connections -net <net_name>\n"
+                    "node balancer -net <net_name>\n"
                     "node dump -net <net_name> [ -addr <node_address> | -alias <node_alias>] [-full]\n\n"
                                         );
     dap_cli_server_cmd_add ("ping", com_ping, "Send ICMP ECHO_REQUEST to network hosts",
