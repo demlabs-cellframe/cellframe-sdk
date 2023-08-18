@@ -85,7 +85,8 @@ static void s_dns_client_esocket_read_callback(dap_events_socket_t * a_esocket, 
     }
     l_cur = l_buf + l_addr_point;
 
-    dap_chain_net_node_balancer_t l_link_full_node_list = {};
+    dap_chain_net_node_balancer_t *l_link_full_node_list = DAP_NEW_Z_SIZE(dap_chain_net_node_balancer_t,
+                                                                          sizeof(dap_chain_net_node_balancer_t) + sizeof(dap_chain_node_info_t));
     dap_chain_node_info_t l_result = {};
     l_result.hdr.ext_addr_v4.s_addr = ntohl(*(uint32_t *)l_cur);
     l_cur = l_buf + 5 * sizeof(uint16_t);
@@ -96,13 +97,14 @@ static void s_dns_client_esocket_read_callback(dap_events_socket_t * a_esocket, 
         l_cur += sizeof(uint16_t);
         l_result.hdr.address.uint64 = be64toh(*(uint64_t *)l_cur);
     }
-    *(dap_chain_node_info_t*)l_link_full_node_list.nodes_info = l_result;
-    l_link_full_node_list.count_node = 1;
+    *(dap_chain_node_info_t*)l_link_full_node_list->nodes_info = l_result;
+    l_link_full_node_list->count_node = 1;
 
-    l_dns_client->callback_success(a_esocket->context->worker ,&l_link_full_node_list, l_dns_client->callbacks_arg);
+    l_dns_client->callback_success(a_esocket->context->worker, l_link_full_node_list, l_dns_client->callbacks_arg);
     l_dns_client->is_callbacks_called = true;
     a_esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
     a_esocket->buf_in_size = a_esocket->buf_out_size = 0;
+    DAP_DELETE(l_link_full_node_list);
 }
 
 /**

@@ -219,10 +219,10 @@ dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node(const char *a_net
     }
 }
 
-dap_chain_net_node_balancer_t *s_balancer_issue_link(const char *a_net_name,uint16_t a_links_need)
+dap_chain_net_node_balancer_t *s_balancer_issue_link(const char *a_net_name, uint16_t a_links_need)
 {
     dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
-    dap_chain_net_node_balancer_t *l_link_full_node_list = dap_chain_net_balancer_get_node(a_net_name,a_links_need);
+    dap_chain_net_node_balancer_t *l_link_full_node_list = dap_chain_net_balancer_get_node(a_net_name, a_links_need);
     if(l_link_full_node_list)
     {
         dap_chain_node_info_t * l_node_info = (dap_chain_node_info_t *)l_link_full_node_list->nodes_info;
@@ -264,8 +264,8 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
     char l_issue_method = 0;
     const char l_net_token[] = "net=";
     uint16_t links_need = 0;
-    sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,needlink=%d,net=",
-                                                            &l_protocol_version, &l_issue_method,&links_need);
+    sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,needlink=%hu,net=",
+                                                            &l_protocol_version, &l_issue_method, &links_need);
     if (l_protocol_version != 1 || l_issue_method != 'r') {
         log_it(L_ERROR, "Unsupported prorocol version/method in the request to dap_chain_net_balancer module");
         *l_return_code = Http_Status_MethodNotAllowed;
@@ -302,5 +302,12 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
 dap_chain_node_info_t *dap_chain_net_balancer_dns_issue_link(char *a_str)
 {
     log_it(L_DEBUG, "DNS balancer parser retrieve netname %s", a_str);
-    return s_balancer_issue_link(a_str,3);
+    dap_chain_net_node_balancer_t *l_balancer_reply = s_balancer_issue_link(a_str, 1);
+    if (!l_balancer_reply || !l_balancer_reply->count_node) {
+        DAP_DEL_Z(l_balancer_reply);
+        return NULL;
+    }
+    dap_chain_node_info_t *l_res = DAP_DUP(( dap_chain_node_info_t *)l_balancer_reply->nodes_info);
+    DAP_DELETE(l_balancer_reply);
+    return l_res;
 }
