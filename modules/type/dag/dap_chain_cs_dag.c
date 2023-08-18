@@ -482,6 +482,12 @@ static bool s_dap_chain_check_if_event_is_present(dap_chain_cs_dag_event_item_t 
     return (l_event_search != NULL);
 }
 
+static int s_sort_event_item(dap_chain_cs_dag_event_item_t* a, dap_chain_cs_dag_event_item_t* b)
+{
+    return a->event->header.ts_created == b->event->header.ts_created ? 0 :
+                a->event->header.ts_created < b->event->header.ts_created ? -1 : 1;
+}
+
 /**
  * @brief s_chain_callback_atom_add Accept new event in dag
  * @param a_chain DAG object
@@ -524,7 +530,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     switch (ret) {
     case ATOM_ACCEPT:
         ret = s_chain_callback_atom_verify(a_chain, a_atom, a_atom_size);
-        if (ret == ATOM_MOVE_TO_THRESHOLD)
+        if (ret == ATOM_MOVE_TO_THRESHOLD && !dap_chain_net_get_load_mode(dap_chain_net_by_id(a_chain->net_id)))
             ret = ATOM_REJECT; /* TODO: A temporary fix for memory consumption */
         if(s_debug_more)
             log_it(L_DEBUG, "Verified atom %p: %s", a_atom, ret == ATOM_ACCEPT ? "accepted" :
@@ -583,7 +589,17 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             break;
         }
         pthread_mutex_lock(l_events_mutex);
-        HASH_ADD(hh, PVT(l_dag)->events,hash, sizeof(l_event_item->hash), l_event_item);
+        dap_chain_cs_dag_event_item_t *l_tail = PVT(l_dag)->events ? PVT(l_dag)->events->hh.tbl->tail->prev : NULL;
+        if (!l_tail)
+            l_tail = PVT(l_dag)->events;
+        else
+            l_tail = l_tail->hh.next;
+        if (l_tail && l_tail->event->header.ts_created > l_event->header.ts_created)
+            DAP_CHAIN_PVT(a_chain)->need_reorder = true;
+        if (DAP_CHAIN_PVT(a_chain)->need_reorder)
+            HASH_ADD_INORDER(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item, s_sort_event_item);
+        else
+            HASH_ADD(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item);
         s_dag_events_lasts_process_new_last_event(l_dag, l_event_item);
         pthread_mutex_unlock(l_events_mutex);
     } break;
@@ -1889,7 +1905,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                         l_offset += l_sign_size;
                         DAP_DELETE( l_hash_str);
                     }
-                    dap_chain_datum_dump(l_str_tmp, l_datum, l_hash_out_type);
+                    dap_chain_datum_dump(l_str_tmp, l_datum, l_hash_out_type, l_net->pub.id);
 
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
                     dap_string_free(l_str_tmp, true);
