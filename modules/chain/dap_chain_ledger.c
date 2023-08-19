@@ -878,7 +878,7 @@ char * dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_addr_t *
             int l_src_subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
             dap_list_t *l_in_item;
             DL_FOREACH(l_list_in_items, l_in_item) {
-                assert(it->data);
+                //assert(it->data);
                 dap_chain_hash_fast_t *l_tx_prev_hash;
                 int l_tx_prev_out_idx;
                 dap_chain_datum_tx_t *l_tx_prev = NULL;

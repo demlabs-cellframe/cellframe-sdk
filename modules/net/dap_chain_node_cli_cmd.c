@@ -2747,7 +2747,7 @@ static bool dap_chain_mempool_find_addr_ledger(dap_ledger_t* a_ledger, dap_chain
         return false;
     bool l_ret = false;
     DL_FOREACH(l_list_out_items, l_item) {
-        assert(l_list_out->data);
+        //assert(l_list_out->data);
         dap_chain_addr_t *l_dst_addr = NULL;
         dap_chain_tx_item_type_t l_type = *(uint8_t*)l_item->data;
         switch (l_type) {
