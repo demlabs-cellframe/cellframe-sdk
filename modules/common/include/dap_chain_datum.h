@@ -154,10 +154,11 @@ DAP_STATIC_INLINE const char *dap_chain_datum_type_id_to_str(uint16_t a_type_id)
 }
 
 void s_datum_token_dump_tsd(dap_string_t *a_str_out, dap_chain_datum_token_t *a_token, size_t a_token_size, const char *a_hash_out_type);
-void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type);
+void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type, dap_chain_net_id_t a_net_id);
 bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                              const char *a_ticker,
                              dap_string_t *a_str_out,
                              const char *a_hash_out_type,
-                             dap_hash_fast_t *a_tx_hash);
+                             dap_hash_fast_t *a_tx_hash,
+                             dap_chain_net_id_t a_net_id);
 json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum);
