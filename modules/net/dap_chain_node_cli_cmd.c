@@ -4955,7 +4955,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
         return -15;
     }
 
-    log_it(L_ERROR, "Json TX: found %d items", l_items_count);
+    log_it(L_ERROR, "Json TX: found %lu items", l_items_count);
     // Create transaction
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
     l_tx->header.ts_created = time(NULL);
@@ -5349,7 +5349,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
                 // find the transactions from which to take away coins
                 uint256_t l_value_transfer = { }; // how many coins to transfer
                 //SUM_256_256(a_value, a_value_fee, &l_value_need);
-                dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(l_chain->ledger, l_json_item_token,
+                dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_json_item_token,
                         l_addr_from, l_value_need, &l_value_transfer);
                 if(!l_list_used_out) {
                     log_it(L_WARNING, "Not enough funds in previous tx to transfer");
