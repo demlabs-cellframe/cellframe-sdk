@@ -95,11 +95,11 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_blocks->callback_block_verify = s_callback_block_verify;
     l_blocks->callback_block_sign = s_callback_block_sign;
     l_pos->_pvt = DAP_NEW_Z(dap_chain_cs_block_pos_pvt_t);
-    if (!l_pos->_pvt) {
+    dap_chain_cs_block_pos_pvt_t *l_pos_pvt = PVT(l_pos);
+    if (!l_pos_pvt) {
         log_it(L_CRITICAL, "Memory allocation error");
         goto lb_err;
     }
-    dap_chain_cs_block_pos_pvt_t *l_pos_pvt = PVT(l_pos);
 
     l_tokens_hold = dap_config_get_array_str(a_chain_cfg, "block-pos", "stake_tokens", &l_tokens_hold_size);
     l_tokens_hold_value_str = dap_config_get_array_str(a_chain_cfg, "block-pos", "stake_tokens_value", &l_tokens_hold_value_size);
@@ -228,11 +228,6 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
 {
     dap_chain_cs_block_pos_t *l_pos = DAP_CHAIN_CS_BLOCK_POS(a_blocks);
     dap_chain_cs_block_pos_pvt_t *l_pos_pvt = PVT(l_pos);
-
-    if (a_blocks->chain->ledger == NULL) {
-        log_it(L_CRITICAL,"Ledger is NULL can't check PoS on this chain %s", a_blocks->chain->name);
-        return -3;
-    }
 
     if (sizeof(a_block->hdr) >= a_block_size) {
         log_it(L_WARNING,"Incorrect size with block %p on chain %s", a_block, a_blocks->chain->name);

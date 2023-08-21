@@ -241,11 +241,17 @@ static void s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
 
     if ( ! l_net ) // Network not found
         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_NOT_FOUND;
-
-    if ( ! l_srv ) // Service not found
+    
+    bool l_check_role = dap_chain_net_get_role(l_net).enums < NODE_ROLE_MASTER;  // check role
+    if ( ! l_srv || l_check_role) // Service not found
         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND;
 
     if ( l_err.code || !l_srv_session){
+        debug_if(
+            l_check_role, L_ERROR, 
+            "You can't provide service with ID %lu in net %s. Node role should be not lower than master\n",
+            l_srv->uid.uint64, l_net->pub.name
+            );
         if(a_ch)
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
         if (l_srv && l_srv->callbacks.response_error)
@@ -269,7 +275,7 @@ static void s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
     // Create one client
     l_usage->client = DAP_NEW_Z( dap_chain_net_srv_client_remote_t);
     if (!l_usage->client) {
-        log_it(L_ERROR, "Memory allocation errror in s_service_start");
+        log_it(L_CRITICAL, "Memory allocation error");
         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
         if(a_ch)
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
@@ -292,7 +298,7 @@ static void s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
         log_it( L_INFO, "Valid pricelist is founded. Start service in pay mode.");
         dap_chain_net_srv_grace_t *l_grace = DAP_NEW_Z(dap_chain_net_srv_grace_t);
         if (!l_grace) {
-            log_it(L_ERROR, "Memory allocation errror in s_service_start");
+            log_it(L_CRITICAL, "Memory allocation error");
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
             if(a_ch)
                 dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
@@ -304,7 +310,7 @@ static void s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
         }
         l_grace->request = DAP_DUP_SIZE(a_request, a_request_size);
         if (!l_grace->request) {
-            log_it(L_ERROR, "Memory allocation errror in s_service_start");
+            log_it(L_CRITICAL, "Memory allocation error");
             l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
             if(a_ch)
                 dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));

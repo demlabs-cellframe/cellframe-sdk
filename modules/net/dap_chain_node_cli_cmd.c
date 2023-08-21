@@ -1131,7 +1131,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
 int com_node(int a_argc, char ** a_argv, char **a_str_reply)
 {
     enum {
-        CMD_NONE, CMD_ADD, CMD_DEL, CMD_LINK, CMD_ALIAS, CMD_HANDSHAKE, CMD_CONNECT, CMD_DUMP, CMD_CONNECTIONS
+        CMD_NONE, CMD_ADD, CMD_DEL, CMD_LINK, CMD_ALIAS, CMD_HANDSHAKE, CMD_CONNECT, CMD_DUMP, CMD_CONNECTIONS, CMD_BALANCER
     };
     int arg_index = 1;
     int cmd_num = CMD_NONE;
@@ -1165,6 +1165,9 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
 //        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str);
 //        DAP_DELETE(l_str);
 //        return 0;
+    }
+    else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "balancer", NULL)){
+        cmd_num = CMD_BALANCER;
     }
     arg_index++;
     if(cmd_num == CMD_NONE) {
@@ -1578,8 +1581,8 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         dap_string_t *l_str_uplinks = dap_string_new("---------------------------\n"
                                              "| ↑\\↓ |\t#\t|\t\tIP\t\t|\tPort\t|\n");
         for (size_t i=0; i < l_uplink_count; i++) {
-            char *l_address = l_uplinks[i]->address;
-            short l_port = l_uplinks[i]->port;
+            char *l_address = l_uplinks[i]->stream->esocket->remote_addr_str;
+            short l_port = l_uplinks[i]->stream->esocket->remote_port;
 
             dap_string_append_printf(l_str_uplinks, "|  ↑  |\t%zu\t|\t%s\t\t|\t%u\t|\n",
                                      i, l_address, l_port);
@@ -1600,6 +1603,24 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         DAP_DELETE(l_downlinks);
         DAP_DELETE(l_uplinks);
         return 0;
+    }
+        break;
+    case CMD_BALANCER: {
+        //balancer link list
+        size_t l_node_num = 0;
+        dap_string_t * l_string_balanc = dap_string_new("\n");
+        l_node_num = dap_list_length(l_net->pub.link_list);
+        dap_string_append_printf(l_string_balanc, "Got %d records\n", (uint16_t)l_node_num);
+        for(dap_list_t *ll = l_net->pub.link_list; ll; ll = ll->next)
+        {
+            dap_chain_node_info_t *l_node_link = (dap_chain_node_info_t*)ll->data;
+            dap_string_append_printf(l_string_balanc, "node address "NODE_ADDR_FP_STR"  \tipv4 %s \tnumber of links %u\n",
+                                     NODE_ADDR_FP_ARGS_S(l_node_link->hdr.address),
+                                     inet_ntoa(l_node_link->hdr.ext_addr_v4),
+                                     l_node_link->hdr.links_number);
+        }
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Balancer link list:\n %s \n",
+                                          l_string_balanc->str);
     }
         break;
     }
@@ -2270,11 +2291,7 @@ char    l_buf[1024];
             }
             // create wallet backup
             dap_chain_wallet_internal_t* l_file_name = DAP_CHAIN_WALLET_INTERNAL(l_wallet);
-            time_t l_rawtime;  // add timestamp to filename
-            char l_timestamp[16];
-            time(&l_rawtime);
-            strftime(l_timestamp,16,"%G%m%d%H%M%S", localtime (&l_rawtime));
-            snprintf(l_file_name->file_name, sizeof(l_file_name->file_name)  - 1, "%s/%s_%s%s", c_wallets_path, l_wallet_name, l_timestamp,".backup");
+            snprintf(l_file_name->file_name, sizeof(l_file_name->file_name)  - 1, "%s/%s_%012lu%s", c_wallets_path, l_wallet_name, time(NULL),".backup");
             if ( dap_chain_wallet_save(l_wallet, NULL) ) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create backup wallet file because of internal error");
                 return  -1;
@@ -2898,7 +2915,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                                                  l_datum->header.data_size,
                                                  dap_ctime_r(&l_ts_create, buf));
             if (!a_fast)
-                dap_chain_datum_dump(a_str_tmp, l_datum, a_hash_out_type);
+                dap_chain_datum_dump(a_str_tmp, l_datum, a_hash_out_type, a_net->pub.id);
         }
         if(a_add)
             dap_string_append_printf(a_str_tmp, l_objs_addr
@@ -3103,7 +3120,7 @@ int com_mempool_check(int a_argc, char **a_argv, char ** a_str_reply)
                     dap_string_append_printf(l_str_reply, "Atom hash is %s return code is %d (%s)\n",
                                                             l_atom_hash_str, l_ret_code, dap_chain_ledger_tx_check_err_str(l_ret_code));
                 }
-                dap_chain_datum_dump(l_str_reply, l_datum, l_hash_out_type);
+                dap_chain_datum_dump(l_str_reply, l_datum, l_hash_out_type, l_net->pub.id);
                 if (!l_found_in_chains)
                     DAP_DELETE(l_datum);
                 *a_str_reply = l_str_reply->str;
@@ -5621,8 +5638,8 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
     }
 
     dap_chain_hash_fast_t l_tx_hash;
-    if (l_tx_hash_str && dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash) < 0) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "tx hash not recognized");
+    if (l_tx_hash_str && dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash)) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "TX hash not recognized");
         return -3;
     }
     // Select chain network
@@ -5736,7 +5753,7 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
                             dap_string_append_printf(l_tx_all_str, "\t\t↓↓↓ Ledger rejected ↓↓↓\n");
                             l_tx_ledger_rejected++;
                         }
-                        dap_chain_datum_dump_tx(l_tx, l_token_ticker, l_tx_all_str, l_hash_out_type, &l_ttx_hash);
+                        dap_chain_datum_dump_tx(l_tx, l_token_ticker, l_tx_all_str, l_hash_out_type, &l_ttx_hash, l_net->pub.id);
                     }
                 }
                 DAP_DEL_Z(l_datums);
