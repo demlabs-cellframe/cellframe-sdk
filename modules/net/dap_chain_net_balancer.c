@@ -62,7 +62,7 @@ void dap_chain_net_balancer_free_link_list(dap_chain_net_t * a_net)
     log_it(L_DEBUG, "Balancer link list cleared");
 }
 
-static bool dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info,dap_chain_net_t * a_net)
+bool dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info,dap_chain_net_t * a_net)
 {
     dap_chain_node_client_t *l_client = dap_chain_node_client_connect_default_channels(a_net,a_node_info);
     if(!l_client) {
@@ -264,7 +264,7 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
     char l_issue_method = 0;
     const char l_net_token[] = "net=";
     uint16_t links_need = 0;
-    sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,needlink=%d,net=",
+    sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,needlink=%hu,net=",
                                                             &l_protocol_version, &l_issue_method,&links_need);
     if (l_protocol_version != 1 || l_issue_method != 'r') {
         log_it(L_ERROR, "Unsupported protocol version/method in the request to dap_chain_net_balancer module");

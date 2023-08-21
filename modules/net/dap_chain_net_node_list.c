@@ -24,6 +24,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #include "dap_chain_net_node_list.h"
 #include "dap_chain_net.h"
+#include "http_status_code.h"
 #include "dap_chain_net_balancer.h"
 
 #define LOG_TAG "dap_chain_net_node_list"
@@ -45,7 +46,7 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     uint32_t ipv4 = 0;
     uint16_t port = 0;
     const char l_net_token[] = "net=";
-    sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,addr=%d,ipv4=%d,port=%d,net=",
+    sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,addr=%lu,ipv4=%d,port=%hu,net=",
                                                             &l_protocol_version, &l_issue_method, &addr, &ipv4, &port);
     if (l_protocol_version != 1 || l_issue_method != 'r') {
         log_it(L_ERROR, "Unsupported protocol version/method in the request to dap_chain_net_node_list module");
@@ -63,6 +64,7 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     strncpy(l_net_name, l_net_str, 127);
     log_it(L_DEBUG, "HTTP Node check parser retrieve netname %s", l_net_name);
 
+    dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
     dap_chain_node_info_t * l_node_info = DAP_NEW_Z( dap_chain_node_info_t);
     l_node_info->hdr.address.uint64 = addr;
     l_node_info->hdr.ext_addr_v4.s_addr = ipv4;
@@ -78,15 +80,10 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     {
         log_it(L_DEBUG, "Don't add this addres to node list");
     }
-    dap_chain_net_node_balancer_t *l_link_full_node_list = s_balancer_issue_link(l_net_name,links_need);
-    if (!l_link_full_node_list) {
-        log_it(L_WARNING, "Can't issue link for network %s, no acceptable links found", l_net_name);
-        *l_return_code = Http_Status_NotFound;
-        return;
-    }
-    *l_return_code = Http_Status_OK;
-    size_t l_data_send_size = sizeof(size_t) + (sizeof(dap_chain_node_info_t) * l_link_full_node_list->count_node);
-    dap_http_simple_reply(a_http_simple, l_link_full_node_list, l_data_send_size);
-    DAP_DELETE(l_link_full_node_list);
+
+    //size_t l_data_send_size = sizeof(size_t) + (sizeof(dap_chain_node_info_t) * l_link_full_node_list->count_node);
+    //dap_http_simple_reply(a_http_simple, l_link_full_node_list, l_data_send_size);
+    DAP_DELETE(l_node_info);
 }
+
 
