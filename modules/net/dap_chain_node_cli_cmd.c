@@ -2894,7 +2894,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                                                  l_datum->header.data_size,
                                                  dap_ctime_r(&l_ts_create, buf));
             if (!a_fast)
-                dap_chain_datum_dump(a_str_tmp, l_datum, a_hash_out_type);
+                dap_chain_datum_dump(a_str_tmp, l_datum, a_hash_out_type, a_net->pub.id);
         }
         if(a_add)
             dap_string_append_printf(a_str_tmp, l_objs_addr
@@ -3099,7 +3099,7 @@ int com_mempool_check(int a_argc, char **a_argv, char ** a_str_reply)
                     dap_string_append_printf(l_str_reply, "Atom hash is %s return code is %d (%s)\n",
                                                             l_atom_hash_str, l_ret_code, dap_chain_ledger_tx_check_err_str(l_ret_code));
                 }
-                dap_chain_datum_dump(l_str_reply, l_datum, l_hash_out_type);
+                dap_chain_datum_dump(l_str_reply, l_datum, l_hash_out_type, l_net->pub.id);
                 if (!l_found_in_chains)
                     DAP_DELETE(l_datum);
                 *a_str_reply = l_str_reply->str;
@@ -5732,7 +5732,7 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
                             dap_string_append_printf(l_tx_all_str, "\t\t↓↓↓ Ledger rejected ↓↓↓\n");
                             l_tx_ledger_rejected++;
                         }
-                        dap_chain_datum_dump_tx(l_tx, l_token_ticker, l_tx_all_str, l_hash_out_type, &l_ttx_hash);
+                        dap_chain_datum_dump_tx(l_tx, l_token_ticker, l_tx_all_str, l_hash_out_type, &l_ttx_hash, l_net->pub.id);
                     }
                 }
                 DAP_DEL_Z(l_datums);

@@ -1479,7 +1479,8 @@ static void s_check_db_callback_fee_collect (UNUSED_ARG dap_global_db_context_t 
         log_it(L_WARNING, "The block_cache is empty");
         return;
     }
-    dap_list_t *l_list_used_out = dap_chain_block_get_list_tx_cond_outs_with_val(l_chain->ledger,l_block_cache,&l_value_out_block);
+    dap_ledger_t *l_ledger = dap_chain_net_by_id(l_chain->net_id)->pub.ledger;
+    dap_list_t *l_list_used_out = dap_chain_block_get_list_tx_cond_outs_with_val(l_ledger, l_block_cache, &l_value_out_block);
     if(!l_list_used_out)
     {
         log_it(L_WARNING, "There aren't any fee in this block");
@@ -2468,10 +2469,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
 {
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(a_blocks);
     dap_chain_esbocs_pvt_t *l_esbocs_pvt = PVT(l_esbocs);
-    if (a_blocks->chain->ledger == NULL) {
-        log_it(L_CRITICAL,"Ledger is NULL can't check consensus conditions on this chain %s", a_blocks->chain->name);
-        return -3;
-    }
+
     if (sizeof(a_block->hdr) >= a_block_size) {
         log_it(L_WARNING, "Incorrect header size with block %p on chain %s", a_block, a_blocks->chain->name);
         return  -7;
@@ -2480,7 +2478,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
     /*if (a_block->hdr.meta_n_datum_n_signs_size != a_block_size - sizeof(a_block->hdr)) {
         log_it(L_WARNING, "Incorrect size with block %p on chain %s", a_block, a_blocks->chain->name);
         return -8;
-    }*/ // TODO Retunn it after hard-fork with correct block sizes
+    }*/ // TODO Retun it after hard-fork with correct block sizes
 
     if (l_esbocs->session && l_esbocs->session->processing_candidate == a_block)
         // It's a block candidate, don't check signs

@@ -595,7 +595,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
 								ctime_r(&l_datum_ts_create, buf);
 								dap_string_append_printf(l_str_tmp,"\t\t\t\tts_create=%s\n", buf);
 								dap_string_append_printf(l_str_tmp,"\t\t\t\tdata_size=%u\n", l_datum->header.data_size);
-								dap_chain_datum_dump(l_str_tmp, l_datum, "hex");
+                                dap_chain_datum_dump(l_str_tmp, l_datum, "hex", l_net->pub.id);
 							}
 							// Signatures
 							dap_string_append_printf(l_str_tmp,"\t\tsignatures:\tcount: %zu\n",l_block_cache->sign_count );
