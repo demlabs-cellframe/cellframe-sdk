@@ -430,7 +430,7 @@ static int get_order_state_so(dap_chain_node_addr_t a_node_addr)
 
     return (*get_order_state_so)(a_node_addr);
 #else
-    log_it(L_ERROR,"%s: module is not supported on current platfrom", __PRETTY_FUNCTION__);
+    log_it(L_CRITICAL, "Module is not supported on current platfrom");
     return -1;
 #endif
 

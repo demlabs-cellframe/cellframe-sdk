@@ -227,7 +227,8 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                              const char *a_ticker,
                              dap_string_t *a_str_out,
                              const char *a_hash_out_type,
-                             dap_hash_fast_t *a_tx_hash)
+                             dap_hash_fast_t *a_tx_hash,
+                             dap_chain_net_id_t a_net_id)
 {
     dap_time_t l_ts_create = (dap_time_t)a_datum->header.ts_created;
     bool l_is_first = false;
@@ -330,6 +331,11 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
         case TX_ITEM_TYPE_SIG: {
             l_sign_tmp = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)item);
             dap_sign_get_information(l_sign_tmp, a_str_out, a_hash_out_type);
+            dap_chain_addr_t l_sender_addr;
+            dap_chain_addr_fill_from_sign(&l_sender_addr, l_sign_tmp, a_net_id);
+            const char *l_addr_str = dap_chain_addr_to_str(&l_sender_addr);
+            dap_string_append_printf(a_str_out, "\tSender addr: %s", l_addr_str);
+            DAP_DELETE(l_addr_str);
         } break;
         case TX_ITEM_TYPE_RECEIPT: {
             char *l_value_str = dap_chain_balance_print(
@@ -549,7 +555,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
  * @param a_str_out
  * @param a_datum
  */
-void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type)
+void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, const char *a_hash_out_type, dap_chain_net_id_t a_net_id)
 {
     if( a_datum == NULL){
         dap_string_append_printf(a_str_out,"==Datum is NULL\n");
@@ -735,7 +741,7 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
         } break;
         case DAP_CHAIN_DATUM_TX: {
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)a_datum->data;
-            dap_chain_datum_dump_tx(l_tx, NULL, a_str_out, a_hash_out_type, &l_datum_hash);
+            dap_chain_datum_dump_tx(l_tx, NULL, a_str_out, a_hash_out_type, &l_datum_hash, a_net_id);
         } break;
         case DAP_CHAIN_DATUM_DECREE:{
             dap_chain_datum_decree_t *l_decree = (dap_chain_datum_decree_t *)a_datum->data;
