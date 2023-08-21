@@ -51,11 +51,13 @@ typedef struct dap_chain_net_srv_usage{
     dap_chain_datum_tx_t * tx_cond;
     dap_chain_hash_fast_t tx_cond_hash;
     dap_chain_hash_fast_t client_pkey_hash;
+    dap_events_socket_uuid_t timer_es_uuid;
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     bool is_active;
     bool is_free;
     bool is_grace;
     bool is_waiting_new_tx_cond;
+    bool is_limits_changed;
 //    UT_hash_handle hh; //
 } dap_chain_net_srv_usage_t;
 

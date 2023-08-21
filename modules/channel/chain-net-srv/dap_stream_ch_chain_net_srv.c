@@ -183,7 +183,7 @@ void s_stream_ch_delete(dap_stream_ch_t* a_ch , void* a_arg)
     log_it(L_DEBUG, "Stream ch chain net srv delete");
 
     dap_chain_net_srv_stream_session_t * l_srv_session = a_ch && a_ch->stream && a_ch->stream->session ? (dap_chain_net_srv_stream_session_t *) a_ch->stream->session->_inheritor : NULL;
-    dap_chain_net_srv_t * l_srv = l_srv_session ? dap_chain_net_srv_get(l_srv_session->usage_active->service->uid) : NULL;
+    dap_chain_net_srv_t * l_srv = l_srv_session && l_srv_session->usage_active ? dap_chain_net_srv_get(l_srv_session->usage_active->service->uid) : NULL;
 
     if (l_srv)
         l_srv->callbacks.save_remain_service(l_srv, l_srv_session->usage_active->id, l_srv_session->usage_active->client);
@@ -501,7 +501,7 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
         dap_stream_ch_chain_net_srv_remain_service_store_t* l_remain_service = NULL;
         l_remain_service = a_grace->usage->service->callbacks.get_remain_service(a_grace->usage->service, a_grace->usage->id, a_grace->usage->client);
         if (l_remain_service && !a_grace->usage->is_active &&
-            l_remain_service->remain_units &&
+            (l_remain_service->limits_ts || l_remain_service->limits_bytes) &&
             l_remain_service->remain_units_type.enm == l_tx_out_cond->subtype.srv_pay.unit.enm){
             // Accept connection, set limits and start service
             char *l_unit_type_str = NULL;
@@ -522,7 +522,9 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
                     l_unit_type_str = dap_strdup_printf( "B");
                     break;
             }
-            log_it(L_INFO, "User has %d %s remain service. Start service without paying.", l_remain_service->remain_units, l_unit_type_str);
+
+
+            log_it(L_INFO, "User has %ld %s remain service. Start service without paying.", l_remain_service->limits_ts ? l_remain_service->limits_ts : l_remain_service->limits_bytes, l_unit_type_str);
             DAP_DELETE(l_unit_type_str);
 
 
@@ -545,7 +547,7 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
 
                 // create and fil first receipt
                 a_grace->usage->receipt = dap_chain_datum_tx_receipt_create(
-                            a_grace->usage->service->uid, l_remain_service->remain_units_type, l_remain_service->remain_units, uint256_0, NULL, NULL);
+                            a_grace->usage->service->uid, l_remain_service->remain_units_type, l_remain_service->limits_ts ? l_remain_service->limits_ts : l_remain_service->limits_bytes, uint256_0, NULL, NULL);
 
                 if (a_grace->usage->service->callbacks.response_success)
                     a_grace->usage->service->callbacks.response_success(a_grace->usage->service, a_grace->usage->id,
@@ -693,7 +695,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
         dap_stream_ch_chain_net_srv_remain_service_store_t* l_remain_service = NULL;
         l_remain_service = l_grace->usage->service->callbacks.get_remain_service(l_grace->usage->service, l_grace->usage->id, l_grace->usage->client);
         if (l_remain_service && !l_grace->usage->is_active &&
-            l_remain_service->remain_units &&
+            (l_remain_service->limits_ts || l_remain_service->limits_bytes) &&
             l_remain_service->remain_units_type.enm == l_tx_out_cond->subtype.srv_pay.unit.enm){
             // Accept connection, set limits and start service
             char *l_unit_type_str = NULL;
@@ -714,7 +716,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
                     l_unit_type_str = dap_strdup_printf( "B");
                     break;
             }
-            log_it(L_INFO, "User has %d %s remain service. Start service without paying.", l_remain_service->remain_units, l_unit_type_str);
+            log_it(L_INFO, "User has %d %s remain service. Start service without paying.", l_remain_service->limits_ts ? l_remain_service->limits_ts : l_remain_service->limits_bytes, l_unit_type_str);
             DAP_DELETE(l_unit_type_str);
 
             size_t l_success_size = sizeof (dap_stream_ch_chain_net_srv_pkt_success_hdr_t );
@@ -735,7 +737,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
 
                 // create and fil first receipt
                 l_grace->usage->receipt = dap_chain_datum_tx_receipt_create(
-                            l_grace->usage->service->uid, l_remain_service->remain_units_type, l_remain_service->remain_units, uint256_0, NULL, NULL);
+                            l_grace->usage->service->uid, l_remain_service->remain_units_type, l_remain_service->limits_ts ? l_remain_service->limits_ts : l_remain_service->limits_bytes, uint256_0, NULL, NULL);
 
                 if (l_grace->usage->service->callbacks.response_success)
                     l_grace->usage->service->callbacks.response_success(l_grace->usage->service, l_grace->usage->id,

@@ -205,7 +205,8 @@ typedef struct dap_chain_net_srv_client_remote
 } dap_chain_net_srv_client_remote_t;
 
 typedef struct {
-    uint64_t remain_units;
+    intmax_t limits_bytes; // Bytes provided for using the service left
+    time_t limits_ts; //Time provided for using the service
     dap_chain_net_srv_price_unit_uid_t remain_units_type;
 } dap_stream_ch_chain_net_srv_remain_service_store_t;
 

@@ -160,6 +160,11 @@ typedef struct tun_socket_msg{
     };
 } tun_socket_msg_t;
 
+typedef struct{
+    dap_chain_net_srv_t * srv;
+    uint32_t usage_id;
+    dap_chain_net_srv_client_remote_t * srv_client;
+} remain_limits_save_arg_t;
 
 dap_chain_net_srv_vpn_tun_socket_t ** s_tun_sockets = NULL;
 dap_events_socket_t ** s_tun_sockets_queue_msg = NULL;
@@ -191,6 +196,7 @@ static int s_callback_receipt_next_success(dap_chain_net_srv_t * a_srv, uint32_t
 static dap_stream_ch_chain_net_srv_remain_service_store_t* s_callback_get_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t usage_id,
                                          dap_chain_net_srv_client_remote_t * a_srv_client);
 static int s_callback_save_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t usage_id, dap_chain_net_srv_client_remote_t * a_srv_client);
+static bool s_save_limits(void* arg);
 // Stream callbacks
 static void s_ch_vpn_new(dap_stream_ch_t* ch, void* arg);
 static void s_ch_vpn_delete(dap_stream_ch_t* ch, void* arg);
@@ -972,6 +978,7 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
     }
     pthread_rwlock_wrlock(&s_clients_rwlock);
     HASH_ADD(hh, s_clients,usage_id,sizeof(a_usage_id),l_usage_client);
+    pthread_rwlock_unlock(&s_clients_rwlock);
     l_srv_session->usage_active = l_usage_active;
     l_srv_session->usage_active->is_active = true;
     log_it(L_NOTICE,"Enable VPN service");
@@ -985,11 +992,17 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
         l_usage_client->ch_vpn = l_srv_ch_vpn;
     } else{
         log_it(L_WARNING, "VPN channel is not open, will be no data transmission");
-        l_ret = -2;
+        return -2;
     }
 
     // set start limits
     if(!l_usage_active->is_free){
+        remain_limits_save_arg_t *l_args = DAP_NEW_Z(remain_limits_save_arg_t);
+        l_args->srv = a_srv;
+        l_args->srv_client = a_srv_client;
+        l_args->usage_id = a_usage_id;
+        l_usage_active->timer_es_uuid = dap_timerfd_start_on_worker(l_usage_active->client->stream_worker->worker, 60 * 1000,
+                                                             (dap_timerfd_callback_t)s_save_limits, l_args)->esocket_uuid;
         l_srv_session->limits_units_type.uint32 = l_usage_active->receipt->receipt_info.units_type.uint32;
         switch( l_usage_active->receipt->receipt_info.units_type.enm){
             case SERV_UNIT_DAY:{
@@ -1027,7 +1040,7 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
             }
         }
     }
-    pthread_rwlock_unlock(&s_clients_rwlock);
+
     return l_ret;
 }
 
@@ -1102,6 +1115,16 @@ static dap_stream_ch_chain_net_srv_remain_service_store_t* s_callback_get_remain
     return l_remain_service;
 }
 
+// Limits saving vrapper for timer callback
+static bool s_save_limits(void* arg)
+{
+    remain_limits_save_arg_t *l_args = (remain_limits_save_arg_t *)arg;
+
+    s_callback_save_remain_service(l_args->srv,  l_args->usage_id, l_args->srv_client);
+
+    return true;
+}
+
 static int s_callback_save_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t a_usage_id,
                                           dap_chain_net_srv_client_remote_t * a_srv_client)
 {
@@ -1120,15 +1143,15 @@ static int s_callback_save_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t
         return -101;
     }
 
-    if (l_usage->is_free)
+    if (l_usage->is_free || !l_usage->is_limits_changed)
         return -110;
 
     dap_chain_net_t *l_net = l_usage->net;
 
-    // get remain units from DB
+    // save remain units from DB
     char *l_remain_limits_gdb_group =  dap_strdup_printf( "local.srv_pay.%s.vpn_srv.remain_limits", l_net->pub.name);
     char *l_user_key = dap_chain_hash_fast_to_str_new(&l_usage->client_pkey_hash);
-    log_it(L_DEBUG, "Checkout user %s in group %s", l_user_key, l_remain_limits_gdb_group);
+    log_it(L_DEBUG, "Save user %s remain service into group %s", l_user_key, l_remain_limits_gdb_group);
 
     dap_stream_ch_chain_net_srv_remain_service_store_t l_remain_service = {};
 
@@ -1136,17 +1159,18 @@ static int s_callback_save_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t
     switch(l_remain_service.remain_units_type.enm){
         case SERV_UNIT_SEC:
         case SERV_UNIT_DAY:
-            l_remain_service.remain_units = l_srv_session->limits_ts;
+            l_remain_service.limits_ts = l_srv_session->limits_ts >= 0 ? l_srv_session->limits_ts : 0;
+            if (l_srv_session->usage_active->receipt_next && !l_srv_session->usage_active->is_grace)
+                l_remain_service.limits_ts += l_srv_session->usage_active->receipt_next->receipt_info.units;
             break;
         case SERV_UNIT_MB:
         case SERV_UNIT_KB:
         case SERV_UNIT_B:
-            l_remain_service.remain_units = l_srv_session->limits_bytes;
+            l_remain_service.limits_bytes = l_srv_session->limits_bytes >= 0 ? l_srv_session->limits_bytes : 0;
+            if (l_srv_session->usage_active->receipt_next && !l_srv_session->usage_active->is_grace)
+                l_remain_service.limits_bytes += l_srv_session->usage_active->receipt_next->receipt_info.units;
             break;
     }
-
-    if (l_srv_session->usage_active->receipt_next)
-        l_remain_service.remain_units += l_srv_session->usage_active->receipt_next->receipt_info.units;
 
     if(dap_global_db_set_sync(l_remain_limits_gdb_group, l_user_key, &l_remain_service, sizeof(l_remain_service), false))
     {
@@ -1248,6 +1272,9 @@ static void s_ch_vpn_delete(dap_stream_ch_t* a_ch, void* arg)
     // So complicated to update usage client to be sure that nothing breaks it
     usage_client_t * l_usage_client = NULL;
 
+    dap_chain_net_srv_stream_session_t *l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION(l_ch_vpn->ch->stream->session);
+    dap_timerfd_delete_mt(l_srv_session->usage_active->client->stream_worker->worker, l_srv_session->usage_active->timer_es_uuid);
+
     bool l_is_unleased = false;
     if ( l_ch_vpn->addr_ipv4.s_addr ){ // if leased address
         s_tun_send_msg_ip_unassigned_all(a_ch->stream_worker->worker->id,l_ch_vpn, l_ch_vpn->addr_ipv4); // Signal all the workers that we're switching off
@@ -1324,6 +1351,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
         }
 
         a_srv_session->limits_ts -= time(NULL) - a_srv_session->last_update_ts;
+        a_usage->is_limits_changed = true;
 
         if(a_srv_session->limits_ts < l_current_limit_ts/2 && !a_usage->receipt_next && !a_usage->is_grace){
             l_issue_new_receipt = true;
@@ -1383,7 +1411,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
 
 
         a_srv_session->limits_bytes -= (intmax_t) a_bytes;
-
+        a_usage->is_limits_changed = true;
         if (a_srv_session->limits_bytes && a_srv_session->limits_bytes < current_limit_bytes/2 && ! a_usage->receipt_next){
             l_issue_new_receipt = true;
         }
