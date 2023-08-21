@@ -23,9 +23,10 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 */
 
 #include "dap_chain_net_node_list.h"
-#include "dap_chain_net.h"
 #include "http_status_code.h"
 #include "dap_chain_net_balancer.h"
+#include "dap_client.h"
+#include "dap_client_http.h"
 
 #define LOG_TAG "dap_chain_net_node_list"
 
@@ -86,4 +87,69 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     DAP_DELETE(l_node_info);
 }
 
+static void s_net_node_link_prepare_success(void *a_response, size_t a_response_size, void *a_arg){
+
+    struct node_link_request * l_node_list_request = (struct node_link_request *)a_arg;
+    dap_chain_node_info_t *l_node_info = l_node_list_request->link_info;
+    char l_node_addr_str[INET_ADDRSTRLEN]={};
+    inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
+    uint8_t l_response = *(uint8_t*)a_response;
+    log_it(L_DEBUG, "%s addres "NODE_ADDR_FP_STR" (%s) to node list",l_response ? "ADD" : "NOT added",
+               NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),l_node_addr_str);
+    DAP_DELETE(l_node_info);
+    DAP_DELETE(l_node_list_request);
+}
+s_net_node_link_prepare_error(){
+
+}
+
+bool dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_request)
+{
+    dap_chain_node_info_t *l_link_node_info = dap_get_balancer_link_from_cfg(a_net);
+    if (!l_link_node_info)
+        return false;
+    char l_node_addr_str[INET_ADDRSTRLEN] = {};
+    inet_ntop(AF_INET, &l_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
+    log_it(L_DEBUG, "Start node list HTTP request to %s", l_node_addr_str);
+    struct node_link_request *l_node_list_request = DAP_NEW_Z(struct node_link_request);
+    if(!l_node_list_request){
+        log_it(L_CRITICAL, "Memory allocation error");
+        DAP_DELETE(l_node_list_request);
+        return false;
+    }
+    l_node_list_request->net = a_net;
+    l_node_list_request->link_info = l_link_node_info;
+    l_node_list_request->worker = dap_events_worker_get_auto();
+    l_node_list_request->from_http = true;
+    //l_node_list_request->link_replace_tries
+    int ret = 0;
+
+    char *l_request = dap_strdup_printf("%s/%s?version=1,method=r,addr=%lu,ipv4=%d,port=%hu,net=%s",
+                                            DAP_UPLINK_PATH_NODE_LIST,
+                                            DAP_NODE_LIST_URI_HASH,
+                                            a_link_node_request->hdr.address.uint64,
+                                            a_link_node_request->hdr.ext_addr_v4.s_addr,
+                                            a_link_node_request->hdr.ext_port,
+                                            a_net->pub.name);
+    ret = dap_client_http_request(l_node_list_request->worker,
+                                            l_node_addr_str,
+                                            l_link_node_info->hdr.ext_port,
+                                            "GET",
+                                            "text/text",
+                                            l_request,
+                                            NULL,
+                                            0,
+                                            NULL,
+                                            s_net_node_link_prepare_success,
+                                            s_net_node_link_prepare_error,
+                                            l_node_list_request,
+                                            NULL) == NULL;
+    if(ret){
+        log_it(L_ERROR, "Can't process node list HTTP request");
+        DAP_DELETE(l_node_list_request->link_info);
+        DAP_DELETE(l_node_list_request);
+    }
+    return true;
+
+}
 
