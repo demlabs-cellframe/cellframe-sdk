@@ -1969,349 +1969,317 @@ char    l_buf[1024];
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-addr", &l_addr_str);
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-w", &l_wallet_name);
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_name);
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-password", &l_pass_str);
+    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-sign", &l_sign_type_str);
 
+    // Check if wallet name has only digits and English letter
+    if (l_wallet_name && !dap_isstralnum(l_wallet_name)){
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet name must contains digits and aplhabetical symbols");
+        return -1;
+    }
 
+    dap_chain_net_t * l_net = l_net_name ? dap_chain_net_by_name(l_net_name) : NULL;
+    dap_string_t *l_string_ret = dap_string_new(NULL);
+    dap_chain_wallet_t *l_wallet = NULL;
+    dap_chain_addr_t *l_addr = NULL;
 
-    dap_chain_net_t * l_net = l_net_name ? dap_chain_net_by_name( l_net_name) : NULL;
+    if(l_net_name && !l_net) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Not found net by name '%s'", l_net_name);
+        return -1;
+    }
 
-    dap_string_t *l_l_string_ret = dap_string_new(NULL);
-
-
-    switch (cmd_num)
-    {
-        case CMD_WALLET_ACTIVATE:
-        case CMD_WALLET_DEACTIVATE:
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-password", &l_pass_str);
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-ttl", &l_ttl_str);
-
-
-            if( !l_wallet_name )
-                return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet name option <-w>  not defined"), -EINVAL;
-
-            if( !l_pass_str )
-                return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet password option <-password>  not defined"), -EINVAL;
-
-            if ( l_ttl_str )
-                l_rc = strtoul(l_ttl_str, NULL, 10);
-            else    l_rc = 60;
-                l_rc = l_rc ? l_rc : 60;
-
-            if ( cmd_num == CMD_WALLET_ACTIVATE )
-                    l_rc = dap_chain_wallet_activate   (l_wallet_name, strlen(l_wallet_name), l_pass_str, strlen(l_pass_str), l_rc );
-            else    l_rc = dap_chain_wallet_deactivate (l_wallet_name, strlen(l_wallet_name), l_pass_str, strlen(l_pass_str) );
-
-            if ( !l_rc )
-                    dap_string_append_printf(l_l_string_ret, "Wallet: %s is %sactivated\n",
-                        l_wallet_name, cmd_num == CMD_WALLET_ACTIVATE ? "" : "de");
-            else
-            {
-                switch ( l_rc )
-                {
-                    case    -EBUSY:
-                        strcpy(l_buf, "already activated");
-                        break;
-
-                    case    -EINVAL:
-                        strcpy(l_buf, "wrong password");
-                        break;
-
-
-                    default:
-                        strerror_r(l_rc, l_buf, sizeof(l_buf) - 1 );
-                        break;
-                }
-
-                dap_string_append_printf(l_l_string_ret, "Wallet: %s  %sactivation error, errno=%d (%s)\n",
-                        l_wallet_name, cmd_num == CMD_WALLET_ACTIVATE ? "" : "de", l_rc, l_buf );
-            }
-
-            break;
-
-
-        // new wallet
-        case CMD_WALLET_NEW: {
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-password", &l_pass_str);
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-sign", &l_sign_type_str);
-            int l_restore_opt = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-restore", &l_restore_str);
-            int l_restore_legacy_opt = 0;
-            if (!l_restore_str)
-                l_restore_legacy_opt = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-restore_legacy", &l_restore_str);
-            // rewrite existing wallet
-            int l_is_force = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-force", NULL);
-
-            if(!l_wallet_name) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet name option <-w>  not defined");
-                return -1;
-            }
-            // Check if wallet name has only digits and English letter
-            if (!dap_isstralnum(l_wallet_name)){
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet name must contains digits and aplhabetical symbols");
-                return -1;
-            }
-
-            // check wallet existence
-            if (!l_is_force) {
-                char *l_file_name = dap_strdup_printf("%s/%s.dwallet", c_wallets_path, l_wallet_name);
-                FILE *l_exists = fopen(l_file_name, "rb");
-                DAP_DELETE(l_file_name);
-                if (l_exists) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet %s already exists", l_wallet_name);
-                    fclose(l_exists);
-                    return -1;
-                }
-            }
-
-            dap_sign_type_t l_sign_type;
-            if (!l_sign_type_str) {
-                l_sign_type.type = SIG_TYPE_DILITHIUM;
-                l_sign_type_str = dap_sign_type_to_str(l_sign_type);
-            } else {
-                l_sign_type = dap_sign_type_from_str(l_sign_type_str);
-                if (l_sign_type.type == SIG_TYPE_NULL){
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Unknown signature type");
-                    return -1;
-                }
-                if (l_sign_type.type == SIG_TYPE_BLISS) {
-                    if (!l_restore_opt && !l_restore_legacy_opt) {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "The Bliss signature is deprecated. Please choose other signature type");
-                    } else {
-                        dap_string_append_printf(l_l_string_ret, "CAUTION!!! CAUTION!!! CAUTION!!!\nThe Bliss signature is deprecated. We recommend you to create a new wallet with another available signature and transfer funds there.\n");
-                    }
-                    return -1;
-                }
-            }
-
-            //
-            // Check unsupported tesla algorithm
-            //
-
-            if (l_sign_type.type == SIG_TYPE_TESLA)
-                return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Tesla algorithm is no longer supported, please, use another variant"), -1;
-
-            uint8_t *l_seed = NULL;
-            size_t l_seed_size = 0, l_restore_str_size = dap_strlen(l_restore_str);
-
-            if(l_restore_opt || l_restore_legacy_opt) {
-                if (l_restore_str_size > 3 && !dap_strncmp(l_restore_str, "0x", 2) && (!dap_is_hex_string(l_restore_str + 2, l_restore_str_size - 2) || l_restore_legacy_opt)) {
-                    l_seed_size = (l_restore_str_size - 2) / 2;
-                    l_seed = DAP_NEW_SIZE(uint8_t, l_seed_size);
-                    if(!l_seed) {
-                        log_it(L_CRITICAL, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
-                        return -1;
-                    }
-                    dap_hex2bin(l_seed, l_restore_str + 2, l_restore_str_size - 2);
-                    if (l_restore_legacy_opt) {
-                        dap_string_append_printf(l_l_string_ret, "CAUTION!!! CAUTION!!! CAUTION!!!\nYour wallet has a low level of protection. Please create a new wallet again with the option -restore\n");
-                    }
-                } else {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Restored hash is invalid or too short, wallet is not created. Please use -restore 0x<hex_value> or -restore_legacy 0x<restore_string>");
-                    return -1;
-                }
-            }
-
-            // Creates new wallet
-            dap_chain_wallet_t *l_wallet = dap_chain_wallet_create_with_seed(l_wallet_name, c_wallets_path, l_sign_type,
-                    l_seed, l_seed_size, l_pass_str);
-
-            if (!l_wallet)
-                return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet is not created because of internal error. Check name or password length (max 64 chars)"), -1;
-
-            dap_chain_addr_t *l_addr = l_net? dap_chain_wallet_get_addr(l_wallet,l_net->pub.id ) : NULL;
-
-            char *l_addr_str = l_addr ? dap_chain_addr_to_str(l_addr) : NULL;
-            dap_string_append_printf(l_l_string_ret, "Wallet: %s (type=%s) successfully created\n", l_wallet->name, l_sign_type_str);
-            if ( l_addr_str ) {
-                dap_string_append_printf(l_l_string_ret, "new address %s", l_addr_str);
-                DAP_DELETE(l_addr_str);
-            }
-            dap_chain_wallet_close(l_wallet);
-        }
-        break;
-
-
+    switch (cmd_num) {
         // wallet list
-        case CMD_WALLET_LIST:
-        {
+        case CMD_WALLET_LIST: {
             DIR * l_dir = opendir(c_wallets_path);
             if(l_dir) {
-                struct dirent * l_dir_entry;
+                struct dirent * l_dir_entry = NULL;
 
-                while( (l_dir_entry = readdir(l_dir)) )
-                {
+                while( (l_dir_entry = readdir(l_dir)) ) {
                     const char *l_file_name = l_dir_entry->d_name;
                     size_t l_file_name_len = (l_file_name) ? strlen(l_file_name) : 0;
 
-                    if ( (l_file_name_len > 8) && (!strcmp(l_file_name + l_file_name_len - 8, ".dwallet")) )
-                    {
-
+                    if ( (l_file_name_len > 8) && (!strcmp(l_file_name + l_file_name_len - 8, ".dwallet")) ) {
                         char l_file_path_tmp[MAX_PATH] = {0};
                         snprintf(l_file_path_tmp, sizeof(l_file_path_tmp) - 1, "%s/%s", c_wallets_path, l_file_name);
 
-                        dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_file_name, c_wallets_path);
+                        l_wallet = dap_chain_wallet_open(l_file_name, c_wallets_path);
 
-                        if (l_wallet)
-                        {
-                            dap_chain_addr_t *l_addr = l_net? dap_chain_wallet_get_addr(l_wallet, l_net->pub.id) : NULL;
+                        if (l_wallet) {
+                            l_addr = l_net ? dap_chain_wallet_get_addr(l_wallet, l_net->pub.id) : NULL;
                             char *l_addr_str = dap_chain_addr_to_str(l_addr);
 
-                            dap_string_append_printf(l_l_string_ret, "Wallet: %.*s%s\n", (int) l_file_name_len - 8, l_file_name,
+                            dap_string_append_printf(l_string_ret, "Wallet: %.*s%s\n", (int) l_file_name_len - 8, l_file_name,
                                 (l_wallet->flags & DAP_WALLET$M_FL_ACTIVE) ? " (Active)" : "");
 
-                            if (l_addr_str)
-                            {
-                                dap_string_append_printf(l_l_string_ret, "addr: %s\n", (l_addr_str) ? l_addr_str : "-");
+                            if (l_addr_str) {
+                                dap_string_append_printf(l_string_ret, "addr: %s\n", (l_addr_str) ? l_addr_str : "-");
                                 DAP_DELETE(l_addr_str);
                             }
 
                             dap_chain_wallet_close(l_wallet);
 
-                        } else dap_string_append_printf(l_l_string_ret, "Wallet: %.*s (non-Active)\n", (int) l_file_name_len - 8, l_file_name);
+                        } else dap_string_append_printf(l_string_ret, "Wallet: %.*s (non-Active)\n", (int) l_file_name_len - 8, l_file_name);
                     } else if ((l_file_name_len > 7) && (!strcmp(l_file_name + l_file_name_len - 7, ".backup"))) {
-                        dap_string_append_printf(l_l_string_ret, "Wallet: %.*s (Backup)\n", (int) l_file_name_len - 7, l_file_name);
+                        dap_string_append_printf(l_string_ret, "Wallet: %.*s (Backup)\n", (int) l_file_name_len - 7, l_file_name);
                     }
                 }
                 closedir(l_dir);
             }
+            break;
         }
-        break;
-
         // wallet info
         case CMD_WALLET_INFO: {
-            dap_chain_wallet_t *l_wallet = NULL;
-            dap_chain_addr_t *l_addr = NULL;
-            if (l_wallet_name && l_addr_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "You can use either the -w or -addr option for the wallet info command.");
+            dap_ledger_t *l_ledger = NULL;
+            if (l_wallet_name && l_addr_str || !l_wallet_name && !l_addr_str) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "You should use either the -w or -addr option for the wallet info command.");
+                dap_string_free(l_string_ret, true);
                 return -1;
             }
-
             if(l_wallet_name) {
+                if(!l_net) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Subcommand info requires parameter '-net'");
+                    dap_string_free(l_string_ret, true);
+                    return -1;
+                }
                 l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
-                if ( l_net )
-                    l_addr = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id );
-            }
-            if(!l_addr && l_addr_str)
+                l_addr = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id );
+            } else {
                 l_addr = dap_chain_addr_from_str(l_addr_str);
-
-            dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name((const char *) l_net_name);
-            if(!l_net_name && !l_addr ) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Subcommand info requires parameter '-net'");
-                return -1;
             }
-            else if (! l_addr){
-                if((l_ledger = dap_chain_ledger_by_net_name(l_net_name)) == NULL) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Not found net by name '%s'", l_net_name);
-                    return -1;
-                }
-            }else{
-                l_net = dap_chain_net_by_id(l_addr->net_id);
-                if (l_net){
-                l_ledger = l_net->pub.ledger;
-                    l_net_name = l_net->pub.name;
-                }else{
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find network id 0x%016"DAP_UINT64_FORMAT_X" from address %s",
-                                                      l_addr->net_id.uint64, l_addr_str);
-                    return -1;
-
-                }
-            }
-
-            if(l_addr) {
-                char *l_addr_str = dap_chain_addr_to_str((dap_chain_addr_t*) l_addr);
-                if(l_wallet)
-                    dap_string_append_printf(l_l_string_ret, "wallet: %s\n", l_wallet->name);
-                dap_string_append_printf(l_l_string_ret, "addr: %s\n", (l_addr_str) ? l_addr_str : "-");
-                dap_string_append_printf(l_l_string_ret, "network: %s\n", (l_net_name ) ? l_net_name : "-");
-
-                size_t l_l_addr_tokens_size = 0;
-                char **l_l_addr_tokens = NULL;
-                dap_chain_ledger_addr_get_token_ticker_all(l_ledger, l_addr, &l_l_addr_tokens, &l_l_addr_tokens_size);
-                if(l_l_addr_tokens_size > 0)
-                    dap_string_append_printf(l_l_string_ret, "balance:\n");
-                else
-                    dap_string_append_printf(l_l_string_ret, "balance: 0");
-
-                for(size_t i = 0; i < l_l_addr_tokens_size; i++) {
-                    if(l_l_addr_tokens[i]) {
-                        uint256_t l_balance = dap_chain_ledger_calc_balance(l_ledger, l_addr, l_l_addr_tokens[i]);
-                        char *l_balance_coins = dap_chain_balance_to_coins(l_balance);
-                        char *l_balance_datoshi = dap_chain_balance_print(l_balance);
-                        dap_string_append_printf(l_l_string_ret, "\t%s (%s) %s\n", l_balance_coins,
-                                l_balance_datoshi, l_l_addr_tokens[i]);
-                        if(i < l_l_addr_tokens_size - 1)
-                            dap_string_append_printf(l_l_string_ret, "\n");
-                        DAP_DELETE(l_balance_coins);
-                        DAP_DELETE(l_balance_datoshi);
-
-                    }
-                    DAP_DELETE(l_l_addr_tokens[i]);
-                }
-                DAP_DELETE(l_l_addr_tokens);
-                DAP_DELETE(l_addr_str);
+            
+            if (!l_addr){
                 if(l_wallet)
                     dap_chain_wallet_close(l_wallet);
-            }
-            else {
-                if(l_wallet)
-                    dap_chain_wallet_close(l_wallet);
-
-                dap_string_free(l_l_string_ret, true);
+                dap_string_free(l_string_ret, true);
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet not found");
                 return -1;
+            } else {
+                l_net = dap_chain_net_by_id(l_addr->net_id);
+                if(l_net) {
+                    l_ledger = l_net->pub.ledger;
+                    l_net_name = l_net->pub.name;
+                } else {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find network id 0x%016"DAP_UINT64_FORMAT_X" from address %s",
+                                                    l_addr->net_id.uint64, l_addr_str);
+                    dap_string_free(l_string_ret, true);
+                    return -1;
+                }
             }
+
+            char *l_l_addr_str = dap_chain_addr_to_str((dap_chain_addr_t*) l_addr);
+            if(l_wallet)
+                dap_string_append_printf(l_string_ret, "wallet: %s\n", l_wallet->name);
+            dap_string_append_printf(l_string_ret, "addr: %s\n", (l_l_addr_str) ? l_l_addr_str : "-");
+            dap_string_append_printf(l_string_ret, "network: %s\n", (l_net_name ) ? l_net_name : "-");
+
+            size_t l_l_addr_tokens_size = 0;
+            char **l_l_addr_tokens = NULL;
+            dap_chain_ledger_addr_get_token_ticker_all(l_ledger, l_addr, &l_l_addr_tokens, &l_l_addr_tokens_size);
+            if(l_l_addr_tokens_size > 0)
+                dap_string_append_printf(l_string_ret, "balance:\n");
+            else
+                dap_string_append_printf(l_string_ret, "balance: 0");
+
+            for(size_t i = 0; i < l_l_addr_tokens_size; i++) {
+                if(l_l_addr_tokens[i]) {
+                    uint256_t l_balance = dap_chain_ledger_calc_balance(l_ledger, l_addr, l_l_addr_tokens[i]);
+                    char *l_balance_coins = dap_chain_balance_to_coins(l_balance);
+                    char *l_balance_datoshi = dap_chain_balance_print(l_balance);
+                    dap_string_append_printf(l_string_ret, "\t%s (%s) %s\n", l_balance_coins,
+                            l_balance_datoshi, l_l_addr_tokens[i]);
+                    if(i < l_l_addr_tokens_size - 1)
+                        dap_string_append_printf(l_string_ret, "\n");
+                    DAP_DELETE(l_balance_coins);
+                    DAP_DELETE(l_balance_datoshi);
+
+                }
+                DAP_DELETE(l_l_addr_tokens[i]);
+            }
+            DAP_DELETE(l_l_addr_tokens);
+            DAP_DELETE(l_l_addr_str);
+            if(l_wallet)
+                dap_chain_wallet_close(l_wallet);
+            break;
         }
-        break;
-
-        // convert wallet
-        case CMD_WALLET_CONVERT: {
-            dap_chain_wallet_t *l_wallet = NULL;
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-password", &l_pass_str);
-
-            if(!l_wallet_name) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet name option <-w>  not defined");
-                return -EINVAL;
+        default: {
+            if( !l_wallet_name ) {
+                dap_string_free(l_string_ret, true);
+                return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet name option <-w>  not defined"), -EINVAL;
             }
-
-            if(!l_pass_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet password option <-password>  not defined");
-                return -EINVAL;
+            if( !l_pass_str && cmd_num != CMD_WALLET_NEW) {
+                dap_string_free(l_string_ret, true);
+                return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet password option <-password>  not defined"), -EINVAL;
             }
-
-            if ( DAP_WALLET$SZ_PASS < strnlen(l_pass_str, DAP_WALLET$SZ_PASS + 1) ) {
+            if ( l_pass_str && DAP_WALLET$SZ_PASS < strnlen(l_pass_str, DAP_WALLET$SZ_PASS + 1) ) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet's password is too long ( > %d)", DAP_WALLET$SZ_PASS);
                 log_it(L_ERROR, "Wallet's password is too long ( > %d)", DAP_WALLET$SZ_PASS);
+                dap_string_free(l_string_ret, true);
                 return -EINVAL;
             }
+            switch (cmd_num) {
+                case CMD_WALLET_ACTIVATE:
+                case CMD_WALLET_DEACTIVATE: {
+                    dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-ttl", &l_ttl_str);
+                    if ( l_ttl_str )
+                        l_rc = strtoul(l_ttl_str, NULL, 10);
+                    else
+                        l_rc = 60;
+                        l_rc = l_rc ? l_rc : 60;
 
-            l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
-            if (!l_wallet) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "wrong password");
-                return -1;
-            } else if (l_wallet->flags & DAP_WALLET$M_FL_ACTIVE) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet can't be converted twice");
-                return  -1;
-            }
-            // create wallet backup 
-            dap_chain_wallet_internal_t* l_file_name = DAP_CHAIN_WALLET_INTERNAL(l_wallet);
-            snprintf(l_file_name->file_name, sizeof(l_file_name->file_name)  - 1, "%s/%s_%012lu%s", c_wallets_path, l_wallet_name, time(NULL),".backup");
-            if ( dap_chain_wallet_save(l_wallet, NULL) ) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create backup wallet file because of internal error");
-                return  -1;
-            }
-            // change to old filename
-            snprintf(l_file_name->file_name, sizeof(l_file_name->file_name)  - 1, "%s/%s%s", c_wallets_path, l_wallet_name, ".dwallet");
-            if ( dap_chain_wallet_save(l_wallet, l_pass_str) ) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet is not converted because of internal error");
-                return  -1;
-            }
+                    if ( cmd_num == CMD_WALLET_ACTIVATE )
+                        l_rc = dap_chain_wallet_activate   (l_wallet_name, strlen(l_wallet_name), l_pass_str, strlen(l_pass_str), l_rc );
+                    else
+                        l_rc = dap_chain_wallet_deactivate (l_wallet_name, strlen(l_wallet_name), l_pass_str, strlen(l_pass_str) );
 
-            log_it(L_INFO, "Wallet %s has been converted", l_wallet_name);
-            dap_string_append_printf(l_l_string_ret, "Wallet: %s successfully converted\n", l_wallet_name);
-            dap_chain_wallet_close(l_wallet);
+                    if ( !l_rc ) {
+                        dap_string_append_printf(l_string_ret, "Wallet: %s is %sactivated\n",
+                            l_wallet_name, cmd_num == CMD_WALLET_ACTIVATE ? "" : "de");
+                    } else {
+                        switch ( l_rc ) {
+                            case    -EBUSY:
+                                strcpy(l_buf, "already activated");
+                                break;
+
+                            case    -EINVAL:
+                                strcpy(l_buf, "wrong password");
+                                break;
+
+                            default:
+                                strerror_r(l_rc, l_buf, sizeof(l_buf) - 1 );
+                                break;
+                        }
+
+                        dap_string_append_printf(l_string_ret, "Wallet: %s  %sactivation error, errno=%d (%s)\n",
+                                l_wallet_name, cmd_num == CMD_WALLET_ACTIVATE ? "" : "de", l_rc, l_buf );
+                    }
+                    break;
+                }
+                // convert wallet
+                case CMD_WALLET_CONVERT: {
+                    l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
+                    if (!l_wallet) {
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "wrong password");
+                        return -1;
+                    } else if (l_wallet->flags & DAP_WALLET$M_FL_ACTIVE) {
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet can't be converted twice");
+                        dap_string_free(l_string_ret, true);
+                        return  -1;
+                    }
+                    // create wallet backup 
+                    dap_chain_wallet_internal_t* l_file_name = DAP_CHAIN_WALLET_INTERNAL(l_wallet);
+                    snprintf(l_file_name->file_name, sizeof(l_file_name->file_name)  - 1, "%s/%s_%012lu%s", c_wallets_path, l_wallet_name, time(NULL),".backup");
+                    if ( dap_chain_wallet_save(l_wallet, NULL) ) {
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create backup wallet file because of internal error");
+                        dap_string_free(l_string_ret, true);
+                        return  -1;
+                    }
+                    // change to old filename
+                    snprintf(l_file_name->file_name, sizeof(l_file_name->file_name)  - 1, "%s/%s%s", c_wallets_path, l_wallet_name, ".dwallet");
+                    if ( dap_chain_wallet_save(l_wallet, l_pass_str) ) {
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet is not converted because of internal error");
+                        dap_string_free(l_string_ret, true);
+                        return  -1;
+                    }
+
+                    log_it(L_INFO, "Wallet %s has been converted", l_wallet_name);
+                    dap_string_append_printf(l_string_ret, "Wallet: %s successfully converted\n", l_wallet_name);
+                    dap_chain_wallet_close(l_wallet);
+                    break;
+                }
+                // new wallet
+                case CMD_WALLET_NEW: {
+                    int l_restore_opt = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-restore", &l_restore_str);
+                    int l_restore_legacy_opt = 0;
+                    if (!l_restore_str)
+                        l_restore_legacy_opt = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-restore_legacy", &l_restore_str);
+                    // rewrite existing wallet
+                    int l_is_force = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-force", NULL);
+
+                    // check wallet existence
+                    if (!l_is_force) {
+                        char *l_file_name = dap_strdup_printf("%s/%s.dwallet", c_wallets_path, l_wallet_name);
+                        FILE *l_exists = fopen(l_file_name, "rb");
+                        DAP_DELETE(l_file_name);
+                        if (l_exists) {
+                            dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet %s already exists", l_wallet_name);
+                            fclose(l_exists);
+                            dap_string_free(l_string_ret, true);
+                            return -1;
+                        }
+                    }
+
+                    dap_sign_type_t l_sign_type;
+                    if (!l_sign_type_str) {
+                        l_sign_type.type = SIG_TYPE_DILITHIUM;
+                        l_sign_type_str = dap_sign_type_to_str(l_sign_type);
+                    } else {
+                        l_sign_type = dap_sign_type_from_str(l_sign_type_str);
+                        if (l_sign_type.type == SIG_TYPE_NULL){
+                            dap_cli_server_cmd_set_reply_text(a_str_reply, "Unknown signature type, please use:\n sig_picnic\n sig_dil\n sig_falcon\n sig_multi\n sig_multi2\n");
+                            dap_string_free(l_string_ret, true);
+                            return -1;
+                        }
+                    }
+                    // Check unsupported tesla and bliss algorithm
+
+                    if (l_sign_type.type == SIG_TYPE_TESLA || l_sign_type.type == SIG_TYPE_BLISS) {
+                        if (l_sign_type.type == SIG_TYPE_BLISS && (l_restore_opt || l_restore_legacy_opt)) {
+                            dap_string_append_printf(l_string_ret, "CAUTION!!! CAUTION!!! CAUTION!!!\nThe Bliss signature is deprecated. We recommend you to create a new wallet with another available signature and transfer funds there.\n");
+                        } else {
+                            dap_string_free(l_string_ret, true);
+                            return  dap_cli_server_cmd_set_reply_text(a_str_reply, "This signature algorithm is no longer supported, please, use another variant"), -1;
+                        }
+                    }
+
+                    uint8_t *l_seed = NULL;
+                    size_t l_seed_size = 0, l_restore_str_size = dap_strlen(l_restore_str);
+
+                    if(l_restore_opt || l_restore_legacy_opt) {
+                        if (l_restore_str_size > 3 && !dap_strncmp(l_restore_str, "0x", 2) && (!dap_is_hex_string(l_restore_str + 2, l_restore_str_size - 2) || l_restore_legacy_opt)) {
+                            l_seed_size = (l_restore_str_size - 2) / 2;
+                            l_seed = DAP_NEW_SIZE(uint8_t, l_seed_size);
+                            if(!l_seed) {
+                                log_it(L_CRITICAL, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                                dap_string_free(l_string_ret, true);
+                                return -1;
+                            }
+                            dap_hex2bin(l_seed, l_restore_str + 2, l_restore_str_size - 2);
+                            if (l_restore_legacy_opt) {
+                                dap_string_append_printf(l_string_ret, "CAUTION!!! CAUTION!!! CAUTION!!!\nYour wallet has a low level of protection. Please create a new wallet again with the option -restore\n");
+                            }
+                        } else {
+                            dap_cli_server_cmd_set_reply_text(a_str_reply, "Restored hash is invalid or too short, wallet is not created. Please use -restore 0x<hex_value> or -restore_legacy 0x<restore_string>");
+                            dap_string_free(l_string_ret, true);
+                            return -1;
+                        }
+                    }
+
+                    // Creates new wallet
+                    l_wallet = dap_chain_wallet_create_with_seed(l_wallet_name, c_wallets_path, l_sign_type,
+                            l_seed, l_seed_size, l_pass_str);
+
+                    if (!l_wallet) {
+                        dap_string_free(l_string_ret, true);
+                        return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet is not created because of internal error. Check name or password length (max 64 chars)"), -1;
+                    }
+
+                    l_addr = l_net? dap_chain_wallet_get_addr(l_wallet,l_net->pub.id ) : NULL;
+
+                    char *l_l_addr_str = l_addr ? dap_chain_addr_to_str(l_addr) : NULL;
+                    dap_string_append_printf(l_string_ret, "Wallet: %s (type=%s) successfully created\n", l_wallet->name, l_sign_type_str);
+                    if ( l_l_addr_str ) {
+                        dap_string_append_printf(l_string_ret, "new address %s", l_l_addr_str);
+                        DAP_DELETE(l_l_addr_str);
+                    }
+                    dap_chain_wallet_close(l_wallet);
+                    break;
+                }
+            }
         }
-        break;
     }
 
-    *a_str_reply = dap_string_free(l_l_string_ret, false);
+    *a_str_reply = dap_string_free(l_string_ret, false);
     return 0;
 }
 

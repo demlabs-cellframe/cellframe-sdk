@@ -131,8 +131,7 @@ char *c_wallets_path;
         }
         *l_prec = l_rec;                                                /* Fill it by data */
         HASH_ADD_STR(s_wallet_n_pass, name, l_prec);                    /* Add into the hash-table */
-    }
-    else {
+    } else {
         if ( !l_prec->pass_len )                                        /* Password field is empty ? */
             memcpy(l_prec->pass, a_pass, l_prec->pass_len = a_pass_len);/* Update password with new one */
 
