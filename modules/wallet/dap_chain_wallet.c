@@ -457,7 +457,7 @@ dap_chain_wallet_t * dap_chain_wallet_create(
  * @brief dap_chain_wallet_close
  * @param a_wallet
  */
-void dap_chain_wallet_close( dap_chain_wallet_t * a_wallet)
+void dap_chain_wallet_close(dap_chain_wallet_t *a_wallet)
 {
 dap_chain_wallet_internal_t * l_wallet_internal;
 
@@ -547,7 +547,7 @@ size_t dap_chain_wallet_get_certs_number( dap_chain_wallet_t * a_wallet)
  * @param a_pkey_idx
  * @return
  */
-dap_enc_key_t* dap_chain_wallet_get_key( dap_chain_wallet_t * a_wallet,uint32_t a_pkey_idx )
+dap_enc_key_t *dap_chain_wallet_get_key(dap_chain_wallet_t *a_wallet, uint32_t a_pkey_idx)
 {
     if(!a_wallet)
         return NULL;
