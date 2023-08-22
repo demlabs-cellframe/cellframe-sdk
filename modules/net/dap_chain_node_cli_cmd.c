@@ -1230,9 +1230,14 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             DAP_DELETE(l_node_info);
             return -1;
         }
+        int l_ret =0;
+        if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 2), "request", NULL)){
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "test request");
+        }
         // handler of command 'node add'
-        int l_ret = node_info_add_with_reply(l_net, l_node_info, alias_str, l_cell_str, a_ipv4_str, a_ipv6_str,
-                a_str_reply);
+        else
+            l_ret = node_info_add_with_reply(l_net, l_node_info, alias_str, l_cell_str, a_ipv4_str, a_ipv6_str,
+                    a_str_reply);
         DAP_DELETE(l_node_info);
         return l_ret;
         //break;
