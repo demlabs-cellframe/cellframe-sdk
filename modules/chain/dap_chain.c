@@ -101,7 +101,7 @@ void dap_chain_deinit(void)
  * @param a_chain_id chain id
  * @return dap_chain_t* 
  */
-dap_chain_t * dap_chain_create(dap_ledger_t* a_ledger, const char * a_chain_net_name, const char * a_chain_name, dap_chain_net_id_t a_chain_net_id, dap_chain_id_t a_chain_id )
+dap_chain_t *dap_chain_create(const char *a_chain_net_name, const char *a_chain_name, dap_chain_net_id_t a_chain_net_id, dap_chain_id_t a_chain_id)
 {
     dap_chain_t * l_ret = DAP_NEW_Z(dap_chain_t);
     if ( !l_ret ) {
@@ -113,7 +113,6 @@ dap_chain_t * dap_chain_create(dap_ledger_t* a_ledger, const char * a_chain_net_
     memcpy(l_ret->net_id.raw,a_chain_net_id.raw,sizeof(a_chain_net_id));
     l_ret->name = strdup (a_chain_name);
     l_ret->net_name = strdup (a_chain_net_name);
-    l_ret->ledger = a_ledger;
     pthread_rwlock_init(&l_ret->rwlock, NULL);
     pthread_rwlock_init(&l_ret->cell_rwlock,NULL);
     dap_chain_item_t * l_ret_item = DAP_NEW_Z(dap_chain_item_t);
@@ -383,7 +382,7 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 return NULL;
             }
 
-            l_chain =  dap_chain_create(a_ledger,a_chain_net_name,l_chain_name, a_chain_net_id,l_chain_id);
+            l_chain =  dap_chain_create(a_chain_net_name, l_chain_name, a_chain_net_id, l_chain_id);
             if ( dap_chain_cs_create(l_chain, l_cfg) == 0 ) {
 
                 log_it (L_NOTICE, "Consensus initialized for chain id 0x%016"DAP_UINT64_FORMAT_x, l_chain_id.uint64);
@@ -583,13 +582,18 @@ int dap_chain_load_all(dap_chain_t *a_chain)
         log_it(L_ERROR, "Cannot open directory %s", DAP_CHAIN_PVT(a_chain)->file_storage_dir);
         return -3;
     }
-    for (struct dirent *l_dir_entry = readdir(l_dir); l_dir_entry != NULL; l_dir_entry = readdir(l_dir))
-    {
+    for (struct dirent *l_dir_entry = readdir(l_dir); l_dir_entry != NULL; l_dir_entry = readdir(l_dir)) {
         const char * l_filename = l_dir_entry->d_name;
         const char l_suffix[] = ".dchaincell";
         size_t l_suffix_len = strlen(l_suffix);
         if (!strncmp(l_filename + strlen(l_filename) - l_suffix_len, l_suffix, l_suffix_len)) {
-            l_ret += dap_chain_cell_load(a_chain, l_filename);
+            dap_chain_cell_t *l_cell = dap_chain_cell_create_fill2(a_chain, l_filename);
+            l_ret += dap_chain_cell_load(a_chain, l_cell);
+            if (DAP_CHAIN_PVT(a_chain)->need_reorder) {
+                const char *l_filename_backup = dap_strdup_printf("%s.unsorted", l_cell->file_storage_path);
+                remove(l_filename_backup);
+                rename(l_cell->file_storage_path, l_filename_backup);
+            }
         }
     }
     closedir(l_dir);

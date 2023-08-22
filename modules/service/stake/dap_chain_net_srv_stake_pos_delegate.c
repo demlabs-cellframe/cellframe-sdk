@@ -2002,47 +2002,56 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
 }
 
 bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
-                                                uint256_t *a_max_fee, uint256_t *a_average_fee, uint256_t *a_min_fee)
+                                                uint256_t *a_max_fee, uint256_t *a_average_fee, uint256_t *a_min_fee, uint256_t *a_median_fee)
 {
     if (!a_net)
         return false;
     char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(a_net);
     size_t l_orders_count = 0;
     dap_global_db_obj_t * l_orders = dap_global_db_get_all_sync(l_gdb_group_str, &l_orders_count);
-    uint256_t l_max = {0};
-    uint256_t l_min = {0};
-    uint256_t l_average = {0};
+    DAP_DELETE( l_gdb_group_str);
+    uint256_t l_min = uint256_0, l_max = uint256_0, l_average = uint256_0, l_median = uint256_0;
     uint64_t l_order_fee_count = 0;
+    uint256_t l_all_fees[l_orders_count * sizeof(uint256_t)];
     for (size_t i = 0; i < l_orders_count; i++) {
         dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)l_orders[i].value;
         if (l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID)
             continue;
         if (l_order_fee_count == 0) {
-            l_min = l_order->price;
-            l_max = l_order->price;
+            l_min = l_max = l_order->price;
+        }
+        l_all_fees[l_order_fee_count] = l_order->price;
+        for(int j = l_order_fee_count; j > 0 && compare256(l_all_fees[j], l_all_fees[j - 1]) == -1; --j) {
+            uint256_t l_temp = l_all_fees[j];
+            l_all_fees[j] = l_all_fees[j - 1];
+            l_all_fees[j - 1] = l_temp;
         }
         l_order_fee_count++;
-        uint256_t t = {0};
+        uint256_t t = uint256_0;
         SUM_256_256(l_order->price, l_average, &t);
         l_average = t;
-        int res = compare256(l_min, l_order->price);
-        if (res == 1) {
+        if (compare256(l_min, l_order->price) == 1) {
             l_min = l_order->price;
         }
-        res = compare256(l_max, l_order->price);
-        if (res == -1) {
+        if (compare256(l_max, l_order->price) == -1) {
             l_max = l_order->price;
         }
     }
-    uint256_t t = {0};
+    uint256_t t = uint256_0;
     if (!IS_ZERO_256(l_average)) DIV_256(l_average, dap_chain_uint256_from(l_order_fee_count), &t);
     l_average = t;
+
+    if (l_order_fee_count) {
+        l_median = l_all_fees[(size_t)(l_order_fee_count * 2 / 3)];
+    }
+
     dap_global_db_objs_delete(l_orders, l_orders_count);
-    DAP_DELETE( l_gdb_group_str);
     if (a_min_fee)
         *a_min_fee = l_min;
     if (a_average_fee)
         *a_average_fee = l_average;
+    if (a_median_fee)
+        *a_median_fee = l_median;
     if (a_max_fee)
         *a_max_fee = l_max;
     return true;
@@ -2052,29 +2061,33 @@ void dap_chain_net_srv_stake_get_fee_validators_str(dap_chain_net_t *a_net, dap_
 {
     if (!a_net || !a_string_ret)
         return;
-    uint256_t l_min = {0};
-    uint256_t l_average = {0};
-    uint256_t  l_max = {0};
-    dap_chain_net_srv_stake_get_fee_validators(a_net, &l_max, &l_average, &l_min);
-    const char *l_native_token  =  a_net->pub.native_ticker;
-    char *l_min_balance = dap_chain_balance_print(l_min);
-    char *l_min_coins = dap_chain_balance_to_coins(l_min);
-    char *l_max_balance = dap_chain_balance_print(l_max);
-    char *l_max_coins = dap_chain_balance_to_coins(l_max);
-    char *l_average_balance = dap_chain_balance_print(l_average);
-    char *l_average_coins = dap_chain_balance_to_coins(l_average);
+    uint256_t l_min = uint256_0, l_max = uint256_0, l_average = uint256_0, l_median = uint256_0;
+    dap_chain_net_srv_stake_get_fee_validators(a_net, &l_max, &l_average, &l_min, &l_median);
+    const char *l_native_token  = a_net->pub.native_ticker;
+    char    *l_min_balance      = dap_chain_balance_print(l_min),
+            *l_min_coins        = dap_chain_balance_to_coins(l_min),
+            *l_max_balance      = dap_chain_balance_print(l_max),
+            *l_max_coins        = dap_chain_balance_to_coins(l_max),
+            *l_average_balance  = dap_chain_balance_print(l_average),
+            *l_average_coins    = dap_chain_balance_to_coins(l_average),
+            *l_median_balance   = dap_chain_balance_print(l_median),
+            *l_median_coins     = dap_chain_balance_to_coins(l_median);
     dap_string_append_printf(a_string_ret, "Validator fee: \n"
                                            "\t MIN: %s (%s) %s\n"
                                            "\t MAX: %s (%s) %s\n"
-                                           "\t Average: %s (%s) %s \n", l_min_coins, l_min_balance, l_native_token,
+                                           "\t Average: %s (%s) %s \n"
+                                           "\t Median: %s (%s) %s \n", l_min_coins, l_min_balance, l_native_token,
                                            l_max_coins, l_max_balance, l_native_token,
-                                           l_average_coins, l_average_balance, l_native_token);
+                                           l_average_coins, l_average_balance, l_native_token,
+                                           l_median_coins, l_median_balance, l_native_token);
     DAP_DELETE(l_min_balance);
     DAP_DELETE(l_min_coins);
     DAP_DELETE(l_max_balance);
     DAP_DELETE(l_max_coins);
     DAP_DELETE(l_average_balance);
     DAP_DELETE(l_average_coins);
+    DAP_DELETE(l_median_balance);
+    DAP_DELETE(l_median_coins);
 }
 
 static void s_cache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_addr_t *a_signing_addr)
