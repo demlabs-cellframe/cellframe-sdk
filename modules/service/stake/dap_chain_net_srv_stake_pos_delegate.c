@@ -76,7 +76,7 @@ int dap_chain_net_srv_stake_pos_delegate_init()
     "srv_stake order list -net <net_name>\n"
          "\tGet the fee orders list within specified net name\n"
      "\t\t === Commands for work with stake delegate ===\n"
-    "srv_stake delegate -cert <pub_cert_name> -net <net_name> -wallet <wallet_name> -value <datoshi> [-node_addr <node_addr>] -fee <value> \n"
+    "srv_stake delegate -cert <pub_cert_name> -net <net_name> -w <wallet_name> -value <datoshi> [-node_addr <node_addr>] -fee <value> \n"
          "\tDelegate public key in specified certificate with specified net name. Pay with specified value of m-tokens of native net token.\n"
     "srv_stake approve -net <net_name> -tx <transaction_hash> -poa_cert <priv_cert_name>\n"
          "\tApprove stake transaction by root node certificate within specified net name\n"
@@ -85,7 +85,7 @@ int dap_chain_net_srv_stake_pos_delegate_init()
     "srv_stake list tx -net <net_name> \n"
          "\tShow the list of key delegation transactions.\n"
     "srv_stake invalidate -net <net_name> {-tx <transaction_hash> | -cert <delegated_cert> | -cert_pkey_hash <pkey_hash>}"
-                            " {-wallet <wallet_name> -fee <value> | -poa_cert <cert_name>}\n"
+                            " {-w <wallet_name> -fee <value> | -poa_cert <cert_name>}\n"
          "\tInvalidate requested delegated stake transaction by hash or cert name or cert pkey hash within net name and"
          " return m-tokens to specified wallet (if any)\n"
     "srv_stake min_value -net <net_name> -cert <cert_name> -value <value>"
@@ -1518,9 +1518,9 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Network %s not found", l_net_str);
                 return -4;
             }
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-wallet", &l_wallet_str);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-w", &l_wallet_str);
             if (!l_wallet_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'delegate' requires parameter -wallet");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'delegate' requires parameter -w");
                 return -17;
             }
             dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config));
@@ -1810,11 +1810,11 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 return -4;
             }
             uint256_t l_fee = {};
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-wallet", &l_wallet_str);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-w", &l_wallet_str);
             if (!l_wallet_str) {
                 dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-poa_cert", &l_poa_cert_str);
                 if (!l_poa_cert_str) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'invalidate' requires parameter -wallet or -poa_cert");
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'invalidate' requires parameter -w or -poa_cert");
                     return -17;
                 }
             } else {
@@ -1926,7 +1926,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 if (l_decree && (l_decree_hash_str = s_stake_decree_put(l_decree, l_net))) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified delageted key invalidated. "
                                                                    "Created key invalidation decree %s."
-                                                                   "Try to execute this command with -wallet to return m-tokens to owner", l_decree_hash_str);
+                                                                   "Try to execute this command with -w to return m-tokens to owner", l_decree_hash_str);
                     DAP_DELETE(l_decree);
                     DAP_DELETE(l_decree_hash_str);
                 } else {
