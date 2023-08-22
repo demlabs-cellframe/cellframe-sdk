@@ -2027,7 +2027,7 @@ char    l_buf[1024];
                             l_addr = l_net ? dap_chain_wallet_get_addr(l_wallet, l_net->pub.id) : NULL;
                             char *l_addr_str = dap_chain_addr_to_str(l_addr);
 
-                            dap_string_append_printf(l_string_ret, "Wallet: %.*s%s%s\n", (int) l_file_name_len - 8, l_file_name,
+                            dap_string_append_printf(l_string_ret, "Wallet: %.*s%s %s\n", (int) l_file_name_len - 8, l_file_name,
                                 (l_wallet->flags & DAP_WALLET$M_FL_ACTIVE) ? " (Active)" : "",
                                 s_check_wallet_to_bliss_sign(l_wallet));
 
@@ -5482,6 +5482,8 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
     if(!l_wallet) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "wallet %s does not exist", l_from_wallet_name);
         return -9;
+    } else {
+        dap_string_append_printf(l_string_ret, "%s\n", s_check_wallet_to_bliss_sign(l_wallet));
     }
     const dap_chain_addr_t *addr_from = (const dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
 
@@ -5680,10 +5682,12 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
         } else
             l_net = dap_chain_net_by_id(l_addr->net_id);
     }
+    const char* l_sign_str = "";
     if (l_wallet_name) {
         const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
         dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
         if (l_wallet) {
+            l_sign_str = s_check_wallet_to_bliss_sign(l_wallet);
             dap_chain_addr_t *l_addr_tmp = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
             if (l_addr) {
                 if (!dap_chain_addr_compare(l_addr, l_addr_tmp)) {
@@ -5779,17 +5783,17 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
         dap_string_free(l_tx_all_str, true);
     }
 
-    char *l_str_ret = NULL;
+    dap_string_t *l_str_ret = dap_string_new("");
     if (l_addr) {
         char *l_addr_str = dap_chain_addr_to_str(l_addr);
-        l_str_ret = dap_strdup_printf("History for addr %s:\n%s", l_addr_str,
-                l_str_out ? l_str_out : " empty");
+        dap_string_append_printf(l_str_ret, "%s\n%s\n", dap_strdup_printf("History for addr %s:\n%s", l_addr_str,
+                l_str_out ? l_str_out : " empty"), l_sign_str);
         DAP_DELETE(l_addr_str);
         DAP_DELETE(l_str_out);
     } else
         l_str_ret = l_str_out;
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ret);
-    DAP_DELETE(l_str_ret);
+    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ret->str);
+    dap_string_free(l_str_ret, true);
     return 0;
 }
 
