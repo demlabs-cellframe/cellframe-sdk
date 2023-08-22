@@ -27,11 +27,17 @@
 #include "dap_common.h"
 #include "dap_chain_datum_decree.h"
 #include "dap_enc_base58.h"
+#include "dap_chain_common.h"
+#ifdef DAP_OS_UNIX
+#include <arpa/inet.h>
+#endif
+#ifdef WIN32
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#endif
 
 
 #define LOG_TAG "dap_chain_datum_decree"
-
-
 
 dap_sign_t *dap_chain_datum_decree_get_signs(dap_chain_datum_decree_t *a_decree, size_t* a_signs_size)
 {
@@ -493,6 +499,23 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 dap_string_append_printf(a_str_out, "\tMin signers count: %s\n", l_min_signers_count_str);
                 DAP_DELETE(l_min_signers_count_str);
                 break;
+            case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V4: {
+                struct in_addr l_ip_addr = dap_tsd_get_scalar(l_tsd, struct in_addr);
+                char l_tm[INET_ADDRSTRLEN];
+                dap_string_append_printf(a_str_out, "\tIP address: %s\n", inet_ntop(AF_INET, &l_ip_addr,
+                                                                                  l_tm, INET_ADDRSTRLEN));
+            } break;
+            case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V6: {
+                struct in6_addr l_ip_addr = dap_tsd_get_scalar(l_tsd, struct in6_addr);
+                char l_tm[INET6_ADDRSTRLEN];
+                dap_string_append_printf(a_str_out, "\tIP address: %s\n", inet_ntop(AF_INET6,
+                                                                                  &l_ip_addr, l_tm,
+                                                                                  INET6_ADDRSTRLEN));
+            } break;
+            case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR: {
+                dap_chain_node_addr_t l_addr = dap_tsd_get_scalar(l_tsd, dap_chain_node_addr_t);
+                dap_string_append_printf(a_str_out, "\tNode address: "NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS_S(l_addr));
+            } break;
             default:
                 dap_string_append_printf(a_str_out, "\t<UNKNOWN_TYPE_TSD_SECTION>\n");
                 break;
@@ -534,4 +557,32 @@ void dap_chain_datum_decree_certs_dump(dap_string_t * a_str_out, byte_t * a_sign
                                  dap_sign_type_to_str(l_sign->header.type), l_sign->header.sign_size);
         DAP_DEL_Z(l_hash_str);
     }
+}
+
+dap_chain_datum_decree_t* dap_chain_datum_decree_in_cycle(dap_cert_t ** a_certs, dap_chain_datum_decree_t *a_datum_decree,
+                                                  size_t a_certs_count, size_t *a_total_sign_count)
+{
+    size_t l_cur_sign_offset = a_datum_decree->header.data_size + a_datum_decree->header.signs_size;
+    size_t l_total_signs_size = a_datum_decree->header.signs_size, l_total_sign_count = 0;
+
+    for(size_t i = 0; i < a_certs_count; i++)
+    {
+        dap_sign_t * l_sign = dap_cert_sign(a_certs[i],  a_datum_decree,
+                                            sizeof(dap_chain_datum_decree_t) + a_datum_decree->header.data_size, 0);
+
+        if (l_sign) {
+            size_t l_sign_size = dap_sign_get_size(l_sign);
+            a_datum_decree = DAP_REALLOC(a_datum_decree, sizeof(dap_chain_datum_decree_t) + l_cur_sign_offset + l_sign_size);
+            memcpy((byte_t*)a_datum_decree->data_n_signs + l_cur_sign_offset, l_sign, l_sign_size);
+            l_total_signs_size += l_sign_size;
+            l_cur_sign_offset += l_sign_size;
+            a_datum_decree->header.signs_size = l_total_signs_size;
+            DAP_DELETE(l_sign);
+            log_it(L_DEBUG,"<-- Signed with '%s'", a_certs[i]->name);
+            l_total_sign_count++;
+        }
+    }
+
+    *a_total_sign_count = l_total_sign_count;
+    return a_datum_decree;
 }

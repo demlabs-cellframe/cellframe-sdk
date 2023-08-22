@@ -33,6 +33,8 @@
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
+#include "dap_chain_node_net_ban_list.h"
+#include "dap_enc_http_ban_list_client.h"
 
 
 
@@ -487,6 +489,67 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
                 break;
             l_chain->callback_set_min_validators_count(a_chain, (uint16_t)dap_chain_uint256_to(l_uint256_buffer));
             break;
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BAN: {
+            if (!a_apply)
+                break;
+            size_t l_tsd_offset = 0, tsd_data_size = a_decree->header.data_size;
+            while(l_tsd_offset < tsd_data_size){
+                dap_tsd_t *l_tsd = (dap_tsd_t *)(a_decree->data_n_signs + l_tsd_offset);
+                size_t l_tsd_size = dap_tsd_size(l_tsd);
+                if(l_tsd_size > tsd_data_size){
+                    log_it(L_WARNING,"TSD size is greater than all data size. It's possible corrupt data.");
+                    return -2;
+                }
+                dap_hash_fast_t l_decree_hash = {0};
+                dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_decree_hash);
+                if (l_tsd->type == DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V4){
+                    struct in_addr l_ip_addr = dap_tsd_get_scalar(l_tsd, struct in_addr);
+                    dap_enc_http_ban_list_client_add_ipv4(l_ip_addr, l_decree_hash, a_decree->header.ts_created);
+                } else if (l_tsd->type == DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V6){
+                    struct in6_addr l_ip_addr = dap_tsd_get_scalar(l_tsd, struct in6_addr);
+                    dap_enc_http_ban_list_client_add_ipv6(l_ip_addr, l_decree_hash, a_decree->header.ts_created);
+                } else if (l_tsd->type == DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR){
+                    dap_chain_node_addr_t l_addr_node = dap_tsd_get_scalar(l_tsd, dap_chain_node_addr_t);
+                    if (!dap_chain_node_net_ban_list_add_node_addr(l_node_addr, l_decree_hash, a_decree->header.ts_created, l_net))
+                        return -4;
+                } else {
+                    log_it(L_WARNING, "Invalid section TSD type for sub-decree datum of type "
+                                      "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BAN.");
+                    return  -3;
+                }
+                l_tsd_offset += l_tsd_size;
+            }
+        } break;
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_UNBAN: {
+            if (!a_apply)
+                break;
+            size_t l_tsd_offset = 0, tsd_data_size = a_decree->header.data_size;
+            while(l_tsd_offset < tsd_data_size){
+                dap_tsd_t *l_tsd = (dap_tsd_t *)(a_decree->data_n_signs + l_tsd_offset);
+                size_t l_tsd_size = dap_tsd_size(l_tsd);
+                if(l_tsd_size > tsd_data_size){
+                    log_it(L_WARNING,"TSD size is greater than all data size. It's possible corrupt data.");
+                    return -2;
+                }
+                dap_hash_fast_t l_decree_hash = {0};
+                dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_decree_hash);
+                if (l_tsd->type == DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V4){
+                    struct in_addr l_ip_addr = dap_tsd_get_scalar(l_tsd, struct in_addr);
+                    dap_enc_http_ban_list_client_remove_ipv4(l_ip_addr);
+                } else if (l_tsd->type == DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V6){
+                    struct in6_addr l_ip_addr = dap_tsd_get_scalar(l_tsd, struct in6_addr);
+                    dap_enc_http_ban_list_client_remove_ipv6(l_ip_addr);
+                } else if (l_tsd->type == DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR){
+                    dap_chain_node_addr_t l_addr_node = dap_tsd_get_scalar(l_tsd, dap_chain_node_addr_t);
+                    dap_chain_node_net_ban_list_remove_node_addr(l_net, l_addr_node);
+                } else {
+                    log_it(L_WARNING, "Invalid section TSD type for sub-decree datum of type "
+                                      "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_UNBAN.");
+                    return  -4;
+                }
+                l_tsd_offset += l_tsd_size;
+            }
+        } break;
         default: return -1;
     }
 

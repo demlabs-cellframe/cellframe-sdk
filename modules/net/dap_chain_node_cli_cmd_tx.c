@@ -1142,44 +1142,6 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
 }
 
 /* Decree section */
-/**
- * @brief
- * sign data (datum_decree) by certificates (1 or more)
- * successful count of signes return in l_sign_counter
- * @param l_certs - array with certificates loaded from dcert file
- * @param l_datum_token - updated pointer for l_datum_token variable after realloc
- * @param l_certs_count - count of certificate
- * @param l_datum_data_offset - offset of datum
- * @param l_sign_counter - counter of successful data signing operation
- * @return dap_chain_datum_token_t*
- */
-static dap_chain_datum_decree_t * s_sign_decree_in_cycle(dap_cert_t ** a_certs, dap_chain_datum_decree_t *a_datum_decree,
-                    size_t a_certs_count, size_t *a_total_sign_count)
-{
-    size_t l_cur_sign_offset = a_datum_decree->header.data_size + a_datum_decree->header.signs_size;
-    size_t l_total_signs_size = a_datum_decree->header.signs_size, l_total_sign_count = 0;
-
-    for(size_t i = 0; i < a_certs_count; i++)
-    {
-        dap_sign_t * l_sign = dap_cert_sign(a_certs[i],  a_datum_decree,
-           sizeof(dap_chain_datum_decree_t) + a_datum_decree->header.data_size, 0);
-
-        if (l_sign) {
-            size_t l_sign_size = dap_sign_get_size(l_sign);
-            a_datum_decree = DAP_REALLOC(a_datum_decree, sizeof(dap_chain_datum_decree_t) + l_cur_sign_offset + l_sign_size);
-            memcpy((byte_t*)a_datum_decree->data_n_signs + l_cur_sign_offset, l_sign, l_sign_size);
-            l_total_signs_size += l_sign_size;
-            l_cur_sign_offset += l_sign_size;
-            a_datum_decree->header.signs_size = l_total_signs_size;
-            DAP_DELETE(l_sign);
-            log_it(L_DEBUG,"<-- Signed with '%s'", a_certs[i]->name);
-            l_total_sign_count++;
-        }               
-    }
-
-    *a_total_sign_count = l_total_sign_count;
-    return a_datum_decree;
-}
 
 /**
  * @brief
@@ -1225,7 +1187,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
 {
     enum { CMD_NONE=0, CMD_CREATE, CMD_SIGN, CMD_ANCHOR, CMD_FIND, CMD_INFO };
     enum { TYPE_NONE=0, TYPE_COMMON, TYPE_SERVICE};
-    enum { SUBTYPE_NONE=0, SUBTYPE_FEE, SUBTYPE_OWNERS, SUBTYPE_MIN_OWNERS};
+    enum { SUBTYPE_NONE=0, SUBTYPE_FEE, SUBTYPE_OWNERS, SUBTYPE_MIN_OWNERS, SUBTYPE_IP_BAN};
     int arg_index = 1;
     const char *l_net_str = NULL;
     const char * l_chain_str = NULL;
@@ -1426,7 +1388,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                     dap_list_free_full(l_tsd_list, NULL);
                     return -108;
                 }
-            }else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-signs_verify", &l_param_value_str)){
+            }else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-signs_verify", &l_param_value_str)) {
                 l_subtype = SUBTYPE_MIN_OWNERS;
                 uint256_t l_new_num_of_owners = dap_cvt_str_to_uint256(l_param_value_str);
                 if (IS_ZERO_256(l_new_num_of_owners)) {
@@ -1437,7 +1399,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                 dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
                 uint256_t l_owners = GET_256_FROM_64(l_net->pub.decree->num_of_owners);
                 if (compare256(l_new_num_of_owners, l_owners) > 0) {
-                    log_it(L_WARNING,"The minimum number of owners is greater than the total number of owners.");
+                    log_it(L_WARNING, "The minimum number of owners is greater than the total number of owners.");
                     dap_list_free_full(l_tsd_list, NULL);
                     return -110;
                 }
@@ -1451,9 +1413,9 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                 }
                 l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_MIN_OWNER;
                 l_tsd->size = sizeof(uint256_t);
-                *(uint256_t*)(l_tsd->data) = l_new_num_of_owners;
+                *(uint256_t *) (l_tsd->data) = l_new_num_of_owners;
                 l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
-            }else{
+            } else{
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Decree subtype fail.");
                 return -111;
             }
@@ -1502,7 +1464,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
         // Sign decree
         size_t l_total_signs_success = 0;
         if (l_certs_count)
-            l_datum_decree = s_sign_decree_in_cycle(l_certs, l_datum_decree, l_certs_count, &l_total_signs_success);
+            l_datum_decree = dap_chain_datum_decree_in_cycle(l_certs, l_datum_decree, l_certs_count, &l_total_signs_success);
 
         if (!l_datum_decree || l_total_signs_success == 0){
             dap_cli_server_cmd_set_reply_text(a_str_reply,
@@ -1596,7 +1558,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                     // Sign decree
                     size_t l_total_signs_success = 0;
                     if (l_certs_count)
-                        l_datum_decree = s_sign_decree_in_cycle(l_certs, l_datum_decree, l_certs_count, &l_total_signs_success);
+                        l_datum_decree = dap_chain_datum_decree_in_cycle(l_certs, l_datum_decree, l_certs_count, &l_total_signs_success);
 
                     if (!l_datum_decree || l_total_signs_success == 0){
                         dap_cli_server_cmd_set_reply_text(a_str_reply,
