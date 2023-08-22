@@ -285,7 +285,7 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
     assert(a_data_size > sizeof (dap_os_iphdr_t));
     ch_vpn_pkt_t *l_pkt_out             = DAP_NEW_Z_SIZE(ch_vpn_pkt_t, sizeof(l_pkt_out->header) + a_data_size);
     if (!l_pkt_out) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return false;
     }
     l_pkt_out->header.op_code           = VPN_PACKET_OP_CODE_VPN_RECV;
@@ -326,7 +326,7 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
         /* Shift it to other worker context */
         tun_socket_msg_t* l_msg = DAP_NEW_Z(tun_socket_msg_t);
         if (!l_msg) {
-            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+            log_it(L_CRITICAL, "Memory allocation error");
             DAP_DEL_Z(l_pkt_out);
             return false;
         }
@@ -408,7 +408,7 @@ static void s_tun_recv_msg_callback(dap_events_socket_t * a_esocket_queue, void 
             }else{
                 l_new_info                      = DAP_NEW_Z(dap_chain_net_srv_ch_vpn_info_t);
                 if (!l_new_info) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
                     DAP_DELETE(l_msg);
                     return;
                 }
@@ -486,7 +486,7 @@ static void s_tun_send_msg_ip_assigned(uint32_t a_worker_own_id, uint32_t a_work
 {
     struct tun_socket_msg * l_msg = DAP_NEW_Z(struct tun_socket_msg);
     if (!l_msg) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return;
     }
     l_msg->type = TUN_SOCKET_MSG_IP_ASSIGNED;
@@ -527,7 +527,7 @@ static void s_tun_send_msg_ip_unassigned(uint32_t a_worker_own_id, uint32_t a_wo
 {
     struct tun_socket_msg * l_msg = DAP_NEW_Z(struct tun_socket_msg);
     if (!l_msg) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return;
     }
     l_msg->type = TUN_SOCKET_MSG_IP_UNASSIGNED;
@@ -576,7 +576,7 @@ static void s_tun_send_msg_esocket_reassigned_inter(uint32_t a_worker_own_id, da
 {
     struct tun_socket_msg * l_msg = DAP_NEW_Z(struct tun_socket_msg);
     if (!l_msg) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return;
     }
     l_msg->type = TUN_SOCKET_MSG_ESOCKET_REASSIGNED ;
@@ -649,7 +649,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     const char *c_addr = dap_config_get_item_str(g_config, "srv_vpn", "network_address");
     const char *c_mask = dap_config_get_item_str(g_config, "srv_vpn", "network_mask");
     if(!c_addr || !c_mask){
-        log_it(L_ERROR, "%s: error while reading network parameters from config (network_address and network_mask)", __PRETTY_FUNCTION__);
+        log_it(L_CRITICAL, "Error while reading network parameters from config (network_address and network_mask)");
         DAP_DELETE((void*)c_addr);
         DAP_DELETE((void*)c_mask);
         return -1;
@@ -672,7 +672,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
 #error "Undefined tun create for your platform"
 #endif
     log_it(L_NOTICE, "Auto cpu reassignment is set to '%s'", s_raw_server->auto_cpu_reassignment ? "true" : "false");
-    log_it(L_NOTICE,"%s: trying to initialize multiqueue for %u workers", __PRETTY_FUNCTION__, s_tun_sockets_count);
+    log_it(L_INFO, "Trying to initialize multiqueue for %u workers", s_tun_sockets_count);
     s_tun_sockets = DAP_NEW_Z_SIZE(dap_chain_net_srv_vpn_tun_socket_t*,s_tun_sockets_count*sizeof(dap_chain_net_srv_vpn_tun_socket_t*));
     s_tun_sockets_queue_msg =  DAP_NEW_Z_SIZE(dap_events_socket_t*,s_tun_sockets_count*sizeof(dap_events_socket_t*));
 
@@ -834,7 +834,7 @@ static int s_vpn_tun_init()
 {
     s_raw_server=DAP_NEW_Z(vpn_local_network_t);
     if (!s_raw_server) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return -1;
     }
     pthread_rwlock_init(&s_raw_server->rwlock, NULL);
@@ -863,7 +863,7 @@ static int s_vpn_service_create(dap_config_t * g_config)
 
     dap_chain_net_srv_vpn_t* l_srv_vpn  = DAP_NEW_Z( dap_chain_net_srv_vpn_t);
     if(!l_srv_vpn) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return -1;
     }
     l_srv->_internal = l_srv_vpn;
@@ -956,7 +956,7 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
 
     l_usage_client = DAP_NEW_Z(usage_client_t);
     if (!l_usage_client) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return -1;
     }
     l_usage_client->usage_id = a_usage_id;
@@ -964,7 +964,7 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
     if (!l_usage_active->is_free){
         l_usage_client->receipt = DAP_DUP_SIZE(l_receipt, l_receipt_size);
         if (!l_usage_client->receipt) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
             DAP_DEL_Z(l_usage_client);
             return -1;
         }
@@ -1116,7 +1116,7 @@ void s_ch_vpn_new(dap_stream_ch_t* a_ch, void* a_arg)
 
     a_ch->internal = DAP_NEW_Z(dap_chain_net_srv_ch_vpn_t);
     if (!a_ch->internal) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return;
     }
     dap_chain_net_srv_ch_vpn_t * l_srv_vpn = CH_VPN(a_ch);
@@ -1184,7 +1184,7 @@ static void s_ch_vpn_delete(dap_stream_ch_t* a_ch, void* arg)
         log_it(L_DEBUG, "Unlease address %s and store in treshold", inet_ntoa(l_ch_vpn->addr_ipv4));
         dap_chain_net_srv_vpn_item_ipv4_t * l_item_unleased = DAP_NEW_Z(dap_chain_net_srv_vpn_item_ipv4_t);
         if (!l_item_unleased) {
-            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+            log_it(L_CRITICAL, "Memory allocation error");
             pthread_rwlock_unlock(&s_clients_rwlock);
             return;
         }
@@ -1357,7 +1357,7 @@ static void send_pong_pkt(dap_stream_ch_t* a_ch)
 //    log_it(L_DEBUG,"---------------------------------- PONG!");
     ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header));
     if (!pkt_out) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return;
     }
     pkt_out->header.op_code = VPN_PACKET_OP_CODE_PONG;
@@ -1385,7 +1385,7 @@ static void s_ch_packet_in_vpn_address_request(dap_stream_ch_t* a_ch, dap_chain_
         log_it(L_WARNING, "IP address is already leased");
         ch_vpn_pkt_t* pkt_out           = DAP_NEW_STACK_SIZE(ch_vpn_pkt_t, sizeof(pkt_out->header));
         if (!pkt_out) {
-            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+            log_it(L_CRITICAL, "Memory allocation error");
             return;
         }
         pkt_out->header.op_code         = VPN_PACKET_OP_CODE_PROBLEM;
@@ -1591,7 +1591,18 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         return;
     }
-
+    // check role
+    if (dap_chain_net_get_role(l_usage->net).enums < NODE_ROLE_MASTER) { 
+        log_it(L_ERROR, 
+            "You can't provide service with ID %X in net %s. Node role should be not lower than master\n", 
+            l_usage->service->uid.uint64, l_usage->net->pub.name
+            );
+        if (l_usage->client)
+            dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
+        dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
+        dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
+        return;
+    }
 
     // TODO move address leasing to this structure
     //dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) l_usage->service->_internal;
@@ -1875,7 +1886,7 @@ static void s_es_tun_error(dap_events_socket_t * a_es, int a_error)
 {
     if (! a_es->_inheritor)
         return;
-    log_it(L_ERROR,"%s: error %d in socket %"DAP_FORMAT_SOCKET" (socket type %d)", __PRETTY_FUNCTION__, a_error, a_es->socket, a_es->type);
+    log_it(L_CRITICAL, "Error %d in socket %"DAP_FORMAT_SOCKET" (socket type %d)", a_error, a_es->socket, a_es->type);
 }
 
 /**

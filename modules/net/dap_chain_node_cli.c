@@ -103,6 +103,8 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                     "node alias -addr <node_address> -alias <node_alias>\n\n"
                     "node connect -net <net_name> {-addr <node_address> | -alias <node_alias> | auto}\n\n"
                     "node handshake -net <net_name> {-addr <node_address> | -alias <node_alias>}\n"
+                    "node connections -net <net_name>\n"
+                    "node balancer -net <net_name>\n"
                     "node dump -net <net_name> [ -addr <node_address> | -alias <node_alias>] [-full]\n\n"
                     "node ban -net <net_name> -chain <chain_name> -certs <certs_name> [ -addr <node_address> | -ip <ip v4 or v6 address> ]\n"
                     "node unban -net <net_name> -chain <chain_name> -certs <certs_name> [ -addr <node_address> | -ip <ip v4 or v6 address> ]\n"

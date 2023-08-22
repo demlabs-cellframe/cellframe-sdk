@@ -686,7 +686,7 @@ dap_chain_node_client_t *dap_chain_node_client_create(dap_chain_net_t *a_net,
     }
     dap_chain_node_client_t *l_node_client = DAP_NEW_Z(dap_chain_node_client_t);
     if (!l_node_client) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return NULL;
     }
 
@@ -747,13 +747,11 @@ bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const
         struct sockaddr_in6 sa6 = { .sin6_family = AF_INET6, .sin6_addr = a_node_client->info->hdr.ext_addr_v6 };
         inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) &sa6)->sin6_addr), l_host_addr, INET6_ADDRSTRLEN);
     }
-    log_it(L_INFO, "Connecting to %s address", l_host_addr);
-    // address not defined
-    if(!strcmp(l_host_addr, "::")) {
-        log_it(L_WARNING, "Undefined address with node client connect to");
+    if(!strlen(l_host_addr) || !strcmp(l_host_addr, "::") || !a_node_client->info->hdr.ext_port) {
+        log_it(L_WARNING, "Undefined address of node client");
         return false;
     }
-    int ret_code = 0;
+    log_it(L_INFO, "Connecting to addr %s : %d", l_host_addr, a_node_client->info->hdr.ext_port);
     dap_client_set_uplink_unsafe(a_node_client->client, l_host_addr, a_node_client->info->hdr.ext_port);
     a_node_client->state = NODE_CLIENT_STATE_CONNECTING;
     // Handshake & connect

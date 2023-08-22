@@ -209,7 +209,6 @@ typedef struct dap_chain_net_pvt{
 
     pthread_mutex_t uplinks_mutex;
     pthread_rwlock_t downlinks_lock;
-    pthread_rwlock_t balancer_lock;
     pthread_rwlock_t states_lock;
 
     dap_list_t *gdb_notifiers;
@@ -282,7 +281,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
 static void s_update_links_timer_callback(void *a_arg){
     dap_chain_net_t *l_net = (dap_chain_net_t*)a_arg;
     //Updated links
-    size_t l_count_downlinks = 0;
+    size_t l_count_downlinks = 0,l_blocks_events = 0;
     dap_stream_connection_t ** l_downlinks = dap_stream_connections_get_downlinks(&l_count_downlinks);
     DAP_DEL_Z(l_downlinks);
     dap_chain_node_addr_t *l_current_addr = dap_chain_net_get_cur_addr(l_net);
@@ -290,6 +289,12 @@ static void s_update_links_timer_callback(void *a_arg){
     if (!l_node_info)
         return;
     l_node_info->hdr.links_number = l_count_downlinks;
+    dap_chain_t *l_chain;
+    DL_FOREACH(l_net->pub.chains, l_chain) {
+        if(l_chain->callback_count_atom)
+            l_blocks_events += l_chain->callback_count_atom(l_chain);
+    }
+    l_node_info->hdr.blocks_events = l_blocks_events;
     char *l_key = dap_chain_node_addr_to_hash_str(l_current_addr);
     dap_global_db_set_sync(l_net->pub.gdb_nodes, l_key, l_node_info, dap_chain_node_info_get_size(l_node_info), false);
     DAP_DELETE(l_node_info);
@@ -445,7 +450,7 @@ void dap_chain_net_add_gdb_notify_callback(dap_chain_net_t *a_net, dap_store_obj
 {
     dap_chain_gdb_notifier_t *l_notifier = DAP_NEW(dap_chain_gdb_notifier_t);
     if (!l_notifier) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return;
     }
     l_notifier->callback = a_callback;
@@ -461,7 +466,7 @@ int dap_chain_net_add_downlink(dap_chain_net_t *a_net, dap_stream_worker_t *a_wo
     unsigned a_hash_value;
     HASH_VALUE(&a_ch_uuid, sizeof(a_ch_uuid), a_hash_value);
     struct downlink *l_downlink = NULL;
-    pthread_rwlock_rdlock(&l_net_pvt->downlinks_lock);
+    pthread_rwlock_wrlock(&l_net_pvt->downlinks_lock);
     HASH_FIND_BYHASHVALUE(hh, l_net_pvt->downlinks, &a_ch_uuid, sizeof(a_ch_uuid), a_hash_value, l_downlink);
     if (l_downlink) {
         pthread_rwlock_unlock(&l_net_pvt->downlinks_lock);
@@ -469,7 +474,7 @@ int dap_chain_net_add_downlink(dap_chain_net_t *a_net, dap_stream_worker_t *a_wo
     }
     l_downlink = DAP_NEW_Z(struct downlink);
     if (!l_downlink) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         pthread_rwlock_unlock(&l_net_pvt->downlinks_lock);
         return -1;
     }
@@ -501,7 +506,7 @@ void dap_chain_net_sync_gdb_broadcast(dap_global_db_context_t *a_context, dap_st
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     dap_global_db_pkt_t *l_data_out = dap_global_db_pkt_serialize(a_obj);
     struct downlink *l_link, *l_tmp;
-    pthread_rwlock_rdlock(&PVT(l_net)->downlinks_lock);
+    pthread_rwlock_wrlock(&PVT(l_net)->downlinks_lock);
     HASH_ITER(hh, PVT(l_net)->downlinks, l_link, l_tmp) {
         bool l_ch_alive = dap_stream_ch_check_uuid_mt(l_link->worker, l_link->ch_uuid);
         if (!l_ch_alive) {
@@ -575,7 +580,7 @@ static void s_chain_callback_notify(void *a_arg, dap_chain_t *a_chain, dap_chain
 
     struct net_broadcast_atoms_args *l_args = DAP_NEW(struct net_broadcast_atoms_args);
     if (!l_args) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return;
     }
     l_args->net = l_net;
@@ -706,7 +711,7 @@ static int s_net_link_add(dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_
     }
     l_new_link = DAP_NEW_Z(struct net_link);
     if (!l_new_link) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         pthread_mutex_unlock(&PVT(a_net)->uplinks_mutex);
         return -4;
     }
@@ -880,6 +885,10 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
     if (l_net_pvt->state_target != NET_STATE_OFFLINE) {
         pthread_mutex_lock(&l_net_pvt->uplinks_mutex);
         s_net_link_remove(l_net_pvt, a_node_client, l_net_pvt->only_static_links);
+        //char *l_key = dap_chain_node_addr_to_hash_str(&a_node_client->info->hdr.address);
+        //dap_global_db_del_sync(l_net->pub.gdb_nodes, l_key);
+        //DAP_DELETE(l_key);
+
         a_node_client->keep_connection = false;
         a_node_client->callbacks.delete = NULL;
         dap_chain_node_client_close_mt(a_node_client);  // Remove it on next context iteration
@@ -891,13 +900,8 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
         }
         if (!l_net_pvt->only_static_links) {
             size_t l_current_links_prepared = HASH_COUNT(l_net_pvt->net_links);
-            for (size_t i = l_current_links_prepared; i < l_net_pvt->max_links_count ; i++) {
-                dap_chain_node_info_t *l_link_node_info = dap_get_balancer_link_from_cfg(l_net);
-                if (l_link_node_info) {
-                    if (!s_new_balancer_link_request(l_net, 1))
-                        log_it(L_ERROR, "Can't process node info balancer request");
-                    DAP_DELETE(l_link_node_info);
-                }
+            for (size_t i = l_current_links_prepared; i < l_net_pvt->max_links_count ; i++) {                
+                s_new_balancer_link_request(l_net, 0);
             }
         }
         pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
@@ -984,14 +988,12 @@ static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client,
 static void s_net_links_complete_and_start(dap_chain_net_t *a_net, dap_worker_t *a_worker)
 {
     dap_chain_net_pvt_t * l_net_pvt = PVT(a_net);
-    pthread_rwlock_rdlock(&l_net_pvt->balancer_lock);
     if (--l_net_pvt->balancer_link_requests == 0){ // It was the last one
         // No links obtained from DNS
         if (HASH_COUNT(l_net_pvt->net_links) == 0 && !l_net_pvt->balancer_http) {
             // Try to get links from HTTP balancer
             l_net_pvt->balancer_http = true;
             s_prepare_links_from_balancer(a_net);
-            pthread_rwlock_unlock(&l_net_pvt->balancer_lock);
             return;
         }
         if (HASH_COUNT(l_net_pvt->net_links) < l_net_pvt->max_links_count)
@@ -1003,7 +1005,6 @@ static void s_net_links_complete_and_start(dap_chain_net_t *a_net, dap_worker_t 
         pthread_rwlock_unlock(&l_net_pvt->states_lock);
         dap_proc_queue_add_callback_inter(a_worker->proc_queue_input, s_net_states_proc, a_net);
     }
-    pthread_rwlock_unlock(&l_net_pvt->balancer_lock);
 }
 
 /**
@@ -1012,53 +1013,74 @@ static void s_net_links_complete_and_start(dap_chain_net_t *a_net, dap_worker_t 
  * @param a_node_info
  * @param a_arg
  */
-static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_chain_node_info_t * a_node_info, void * a_arg)
+static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_chain_net_node_balancer_t * a_link_full_node_list, void * a_arg)
 {
     if(s_debug_more){
         char l_node_addr_str[INET_ADDRSTRLEN]={};
-        inet_ntop(AF_INET,&a_node_info->hdr.ext_addr_v4,l_node_addr_str, INET_ADDRSTRLEN);
-        log_it(L_DEBUG,"Link " NODE_ADDR_FP_STR " (%s) prepare success", NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address),
-                                                                                     l_node_addr_str );
+        dap_chain_node_info_t * l_node_info = (dap_chain_node_info_t *)a_link_full_node_list->nodes_info;
+        for(size_t i=0;i<a_link_full_node_list->count_node;i++){
+            inet_ntop(AF_INET,&(l_node_info + i)->hdr.ext_addr_v4,l_node_addr_str, INET_ADDRSTRLEN);
+            log_it(L_DEBUG,"Link " NODE_ADDR_FP_STR " (%s) prepare success", NODE_ADDR_FP_ARGS_S((l_node_info + i)->hdr.address),
+                                                                                         l_node_addr_str );
+        }
     }
 
     struct balancer_link_request *l_balancer_request = (struct balancer_link_request *) a_arg;
     dap_chain_net_t * l_net = l_balancer_request->net;
-    int l_res = s_net_link_add(l_net, a_node_info);
-    if (l_res < 0) {    // Can't add this link
-        debug_if(s_debug_more, L_DEBUG, "Can't add link "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address));
-        if (l_balancer_request->link_replace_tries)
-            // Just try a new one
-            s_new_balancer_link_request(l_net, l_balancer_request->link_replace_tries);
-    } else if (l_res == 0) {
-        struct json_object *l_json = s_net_states_json_collect(l_net);
-        char l_err_str[128] = { };
-        snprintf(l_err_str, sizeof(l_err_str)
-                     , "Link " NODE_ADDR_FP_STR " prepared"
-                     , NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address));
-        json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
-        dap_notify_server_send_mt(json_object_get_string(l_json));
-        json_object_put(l_json);
-        debug_if(s_debug_more, L_DEBUG, "Link "NODE_ADDR_FP_STR" successfully added",
-                                               NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address));
-        if (l_balancer_request->link_replace_tries &&
-                s_net_get_active_links_count(l_net) < PVT(l_net)->required_links_count) {
-            // Auto-start new link
-            pthread_rwlock_rdlock(&PVT(l_net)->states_lock);
-            if (PVT(l_net)->state_target != NET_STATE_OFFLINE) {
-                struct net_link *l_new_link = s_net_link_find(l_net, a_node_info);
-                if (l_new_link)
-                    s_net_link_start(l_net, l_new_link, PVT(l_net)->reconnect_delay);
-                else
-                    s_new_balancer_link_request(l_net, l_balancer_request->link_replace_tries);
-            }
-            pthread_rwlock_unlock(&PVT(l_net)->states_lock);
+    dap_chain_node_info_t * l_node_info = (dap_chain_node_info_t *)a_link_full_node_list->nodes_info;
+    int l_res = 0;
+    size_t i = 0;
+    char l_err_str[128] = { };
+    struct json_object *l_json;
+    while(!l_res){
+        if(i >= a_link_full_node_list->count_node)
+            break;
+        l_res = s_net_link_add(l_net, l_node_info + i);
+        switch (l_res) {
+        case 0:
+            l_json = s_net_states_json_collect(l_net);
+
+            snprintf(l_err_str, sizeof(l_err_str)
+                         , "Link " NODE_ADDR_FP_STR " prepared"
+                         , NODE_ADDR_FP_ARGS_S((l_node_info + i)->hdr.address));
+            json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
+            dap_notify_server_send_mt(json_object_get_string(l_json));
+            json_object_put(l_json);
+            debug_if(s_debug_more, L_DEBUG, "Link "NODE_ADDR_FP_STR" successfully added",
+                                                   NODE_ADDR_FP_ARGS_S((l_node_info + i)->hdr.address));
+            break;
+        case 1:
+            debug_if(s_debug_more, L_DEBUG, "Maximum prepared links reached");
+            break;
+        case -1:
+
+            break;
+        default:
+            break;
         }
-    } else
-        debug_if(s_debug_more, L_DEBUG, "Maximum prepared links reached");
+        i++;
+    }
+    if (l_balancer_request->link_replace_tries &&
+            s_net_get_active_links_count(l_net) < PVT(l_net)->required_links_count) {
+        // Auto-start new link
+        pthread_rwlock_rdlock(&PVT(l_net)->states_lock);
+        dap_chain_net_state_t l_net_state = PVT(l_net)->state_target;
+        pthread_rwlock_unlock(&PVT(l_net)->states_lock);
+        if (l_net_state != NET_STATE_OFFLINE) {
+            struct net_link *l_free_link = s_get_free_link(l_net);
+            if (l_free_link)
+                s_net_link_start(l_net, l_free_link, PVT(l_net)->reconnect_delay);
+            else
+                s_new_balancer_link_request(l_net, l_balancer_request->link_replace_tries);
+        }
+
+    }
+
     if (!l_balancer_request->link_replace_tries)
         s_net_links_complete_and_start(l_net, a_worker);
     DAP_DELETE(l_balancer_request->link_info);
     DAP_DELETE(l_balancer_request);
+
 }
 
 /**
@@ -1097,13 +1119,18 @@ static void s_net_balancer_link_prepare_error(dap_worker_t * a_worker, void * a_
 void s_net_http_link_prepare_success(void *a_response, size_t a_response_size, void *a_arg)
 {
     struct balancer_link_request *l_balancer_request = (struct balancer_link_request *)a_arg;
-    if (a_response_size != sizeof(dap_chain_node_info_t)) {
-        log_it(L_ERROR, "Invalid balancer response size %zu (expect %zu)", a_response_size, sizeof(dap_chain_node_info_t));
+    dap_chain_net_node_balancer_t* l_link_full_node_list = (dap_chain_net_node_balancer_t*)a_response;
+
+
+    size_t l_response_size_need = sizeof(dap_chain_net_node_balancer_t) + (sizeof(dap_chain_node_info_t) * l_link_full_node_list->count_node);
+    log_it(L_WARNING, "Get data size - %lu need - (%lu)", a_response_size, l_response_size_need);
+    if (a_response_size != l_response_size_need) {
+        log_it(L_ERROR, "Invalid balancer response size %lu (expected %lu)", a_response_size, l_response_size_need);
         s_new_balancer_link_request(l_balancer_request->net, l_balancer_request->link_replace_tries);
         DAP_DELETE(l_balancer_request);
         return;
     }
-    s_net_balancer_link_prepare_success(l_balancer_request->worker, (dap_chain_node_info_t *)a_response, a_arg);
+    s_net_balancer_link_prepare_success(l_balancer_request->worker, l_link_full_node_list, a_arg);
 }
 
 void s_net_http_link_prepare_error(int a_error_code, void *a_arg)
@@ -1137,30 +1164,52 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
         if (l_free_link)
             s_net_link_start(a_net, l_free_link, l_net_pvt->reconnect_delay);
         pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
-        return false;
+        return true;
     }
     if(!a_link_replace_tries){
-        dap_chain_node_info_t *l_link_full_node = dap_chain_net_balancer_get_node(a_net->pub.name);
-        if(l_link_full_node)
+
+        dap_chain_net_node_balancer_t *l_link_full_node_list = dap_chain_net_balancer_get_node(a_net->pub.name,l_net_pvt->max_links_count*2);        
+        size_t node_cnt = 0,i = 0;
+        if(l_link_full_node_list)
         {
-            pthread_rwlock_rdlock(&PVT(a_net)->states_lock);
-            int l_net_link_add = s_net_link_add(a_net, l_link_full_node);
-            switch (l_net_link_add) {
-            case 0:
-                log_it(L_MSG, "Network LOCAL balancer issues link IP %s", inet_ntoa(l_link_full_node->hdr.ext_addr_v4));
-                break;
-            case -1:
-                log_it(L_MSG, "Network LOCAL balancer: IP %s is already among links", inet_ntoa(l_link_full_node->hdr.ext_addr_v4));
-                break;
-            default:
-                break;
+            dap_chain_node_info_t * l_node_info = (dap_chain_node_info_t *)l_link_full_node_list->nodes_info;
+            node_cnt = l_link_full_node_list->count_node;
+            int l_net_link_add = 0;
+            size_t l_links_count = 0;            
+            while(!l_net_link_add){
+                if(i >= node_cnt)
+                    break;
+                l_net_link_add = s_net_link_add(a_net, l_node_info + i);
+                switch (l_net_link_add) {
+                case 0:
+                    log_it(L_MSG, "Network LOCAL balancer issues link IP %s, [%ld blocks]", inet_ntoa((l_node_info + i)->hdr.ext_addr_v4),l_node_info->hdr.blocks_events);
+                    break;
+                case -1:
+                    log_it(L_MSG, "Network LOCAL balancer: IP %s is already among links", inet_ntoa((l_node_info + i)->hdr.ext_addr_v4));
+                    break;
+                case 1:
+                    log_it(L_MSG, "Network links table is full");
+                    break;                
+                default:
+                    break;
+                }
+                l_links_count = HASH_COUNT(l_net_pvt->net_links);
+                if(l_net_link_add && l_links_count < l_net_pvt->required_links_count && i < node_cnt)l_net_link_add = 0;
+                i++;
             }
-            DAP_DELETE(l_link_full_node);
+            DAP_DELETE(l_link_full_node_list);
+            pthread_mutex_lock(&l_net_pvt->uplinks_mutex);
             struct net_link *l_free_link = s_get_free_link(a_net);
-            if (l_free_link)
+            if (l_free_link){
                 s_net_link_start(a_net, l_free_link, l_net_pvt->reconnect_delay);
-            pthread_rwlock_unlock(&PVT(a_net)->states_lock);
-            return false;
+                pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
+                return true;
+            }
+            else
+            {
+                pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
+                return false;
+            }
         }
     }
     dap_chain_node_info_t *l_link_node_info = dap_get_balancer_link_from_cfg(a_net);
@@ -1171,7 +1220,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
     log_it(L_DEBUG, "Start balancer %s request to %s", PVT(a_net)->balancer_http ? "HTTP" : "DNS", l_node_addr_str);
     struct balancer_link_request *l_balancer_request = DAP_NEW_Z(struct balancer_link_request);
     if (!l_balancer_request) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         DAP_DELETE(l_link_node_info);
         return false;
     }
@@ -1182,9 +1231,10 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
     int ret;
     if (PVT(a_net)->balancer_http) {
         l_balancer_request->from_http = true;
-        char *l_request = dap_strdup_printf("%s/%s?version=1,method=r,net=%s",
+        char *l_request = dap_strdup_printf("%s/%s?version=1,method=r,needlink=%d,net=%s",
                                                 DAP_UPLINK_PATH_BALANCER,
                                                 DAP_BALANCER_URI_HASH,
+                                                l_net_pvt->required_links_count,
                                                 a_net->pub.name);
         ret = dap_client_http_request(l_balancer_request->worker,
                                                 l_node_addr_str,
@@ -1227,17 +1277,10 @@ static void s_prepare_links_from_balancer(dap_chain_net_t *a_net)
         return;
     }
     // Get list of the unique links for l_net
-    size_t l_max_links_count = PVT(a_net)->max_links_count * 2;   // Not all will be success
-    for (size_t l_cur_links_count = 0, n = 0; l_cur_links_count < l_max_links_count; n++) {
-        if (n > 1000) // It's a problem with link prepare
-            break;
-        dap_chain_node_info_t *l_link_node_info = dap_get_balancer_link_from_cfg(a_net);
-        if (!l_link_node_info)
-            continue;
-        // Start connect to link hubs
-        s_new_balancer_link_request(a_net, 0);
-        l_cur_links_count++;
-        DAP_DEL_Z(l_link_node_info);
+    size_t l_max_links_count = PVT(a_net)->max_links_count;   // Not all will be success
+    for (size_t l_cur_links_count = 0, n = 0; n < 100 && l_cur_links_count < l_max_links_count; ++n) {
+        if (s_new_balancer_link_request(a_net, 0))
+            l_cur_links_count++;
     }
 }
 
@@ -1339,7 +1382,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                     break;
                 dap_chain_node_info_t *l_link_node_info = DAP_NEW_Z(dap_chain_node_info_t);
                 if (!l_link_node_info) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
                     pthread_rwlock_unlock(&l_net_pvt->states_lock);
                     return false;
                 }
@@ -1501,7 +1544,7 @@ static dap_chain_net_t *s_net_new(const char *a_id, const char *a_name,
         return NULL;
     dap_chain_net_t *l_ret = DAP_NEW_Z_SIZE(dap_chain_net_t, sizeof(dap_chain_net_t) + sizeof(dap_chain_net_pvt_t));
     if (!l_ret) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return NULL;
     }
     l_ret->pub.name = strdup( a_name );
@@ -1510,9 +1553,9 @@ static dap_chain_net_t *s_net_new(const char *a_id, const char *a_name,
     pthread_mutexattr_init(&l_mutex_attr);
     pthread_mutexattr_settype(&l_mutex_attr, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&PVT(l_ret)->uplinks_mutex, &l_mutex_attr);
+    pthread_mutex_init(&l_ret->pub.balancer_mutex, &l_mutex_attr);
     pthread_mutexattr_destroy(&l_mutex_attr);
     pthread_rwlock_init(&PVT(l_ret)->downlinks_lock, NULL);
-    pthread_rwlock_init(&PVT(l_ret)->balancer_lock, NULL);
     pthread_rwlock_init(&PVT(l_ret)->states_lock, NULL);
     if (dap_chain_net_id_parse(a_id, &l_ret->pub.id) != 0) {
         DAP_DELETE(l_ret);
@@ -1549,8 +1592,8 @@ static dap_chain_net_t *s_net_new(const char *a_id, const char *a_name,
 void dap_chain_net_delete( dap_chain_net_t * a_net )
 {
     pthread_mutex_destroy(&PVT(a_net)->uplinks_mutex);
+    pthread_mutex_destroy(&a_net->pub.balancer_mutex);
     pthread_rwlock_destroy(&PVT(a_net)->downlinks_lock);
-    pthread_rwlock_destroy(&PVT(a_net)->balancer_lock);
     pthread_rwlock_destroy(&PVT(a_net)->states_lock);
     if(PVT(a_net)->seed_aliases) {
         DAP_DELETE(PVT(a_net)->seed_aliases);
@@ -1925,6 +1968,8 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Network \"%s\" going from state %s to %s",
                                                   l_net->pub.name,c_net_states[PVT(l_net)->state],
                                                   c_net_states[NET_STATE_ONLINE]);
+
+                dap_chain_net_balancer_prepare_list_links(l_net->pub.name,true);
                 dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE);
             } else if ( strcmp(l_go_str,"offline") == 0 ) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Network \"%s\" going from state %s to %s",
@@ -2264,6 +2309,7 @@ void s_main_timer_callback(void *a_arg)
             l_net_pvt->state >= NET_STATE_LINKS_ESTABLISHED &&
             !s_net_get_active_links_count(l_net)) // restart network
         dap_chain_net_start(l_net);
+    dap_chain_net_balancer_prepare_list_links(l_net->pub.name,false);
 }
 
 /**
@@ -2344,7 +2390,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         l_net_pvt->gdb_sync_nodes_addrs = DAP_NEW_Z_SIZE(dap_chain_node_addr_t,
                 sizeof(dap_chain_node_addr_t)*l_net_pvt->gdb_sync_nodes_addrs_count);
         if (!l_net_pvt->gdb_sync_nodes_addrs) {
-            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+            log_it(L_CRITICAL, "Memory allocation error");
             dap_config_close(l_cfg);
             return -1;
         }
@@ -2359,13 +2405,13 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     if (l_gdb_sync_nodes_links && l_gdb_links_count > 0) {
         l_net_pvt->gdb_sync_nodes_links_ips = DAP_NEW_Z_SIZE(uint32_t, l_gdb_links_count * sizeof(uint32_t));
         if (!l_net_pvt->gdb_sync_nodes_links_ips) {
-            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+            log_it(L_CRITICAL, "Memory allocation error");
             dap_config_close(l_cfg);
             return -1;
         }
         l_net_pvt->gdb_sync_nodes_links_ports = DAP_NEW_SIZE(uint16_t, l_gdb_links_count * sizeof(uint16_t));
         if (!l_net_pvt->gdb_sync_nodes_links_ports) {
-            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+            log_it(L_CRITICAL, "Memory allocation error");
             DAP_DEL_Z(l_net_pvt->gdb_sync_nodes_links_ips);
             dap_config_close(l_cfg);
             return -1;
@@ -2403,7 +2449,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     // Add network to the list
     dap_chain_net_item_t * l_net_item = DAP_NEW_Z( dap_chain_net_item_t);
     if (!l_net_item) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         dap_config_close(l_cfg);
         return -1;
     }
@@ -2623,7 +2669,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         else {
             l_node_addr = DAP_NEW_Z(dap_chain_node_addr_t);
             if (!l_node_addr) {
-                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                log_it(L_CRITICAL, "Memory allocation error");
                 dap_config_close(l_cfg);
                 return -1;
             }
@@ -2644,7 +2690,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
                 if ( !l_net_pvt->node_info ) { // If not present - create it
                     l_net_pvt->node_info = DAP_NEW_Z(dap_chain_node_info_t);
                     if (!l_net_pvt->node_info) {
-                        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                        log_it(L_CRITICAL, "Memory allocation error");
                         DAP_DEL_Z(l_node_addr);
                         dap_config_close(l_cfg);
                         return -1;
@@ -2702,7 +2748,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
             continue;
         char * l_entry_name = strdup(l_dir_entry->d_name);
         if (!l_entry_name) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
             dap_config_close(l_cfg);
             closedir(l_chains_dir);
             return -1;
@@ -2716,7 +2762,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
                 if(l_cfg_new) {
                     list_priority *l_chain_prior = DAP_NEW_Z(list_priority);
                     if (!l_chain_prior) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
                         DAP_DELETE (l_entry_name);
                         closedir(l_chains_dir);
                         dap_config_close(l_cfg_new);
@@ -2835,10 +2881,29 @@ int s_net_load(dap_chain_net_t *a_net)
     // load chains
     dap_chain_t *l_chain = l_net->pub.chains;
     while(l_chain){
-        l_chain->ledger = l_net->pub.ledger;
         dap_chain_ledger_set_fee(l_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
         if (!dap_chain_load_all(l_chain)) {
             log_it (L_NOTICE, "Loaded chain files");
+            if (DAP_CHAIN_PVT(l_chain)->need_reorder) {
+                log_it(L_DAP, "Reordering chain files for chain %s", l_chain->name);
+                if (l_chain->callback_atom_add_from_treshold)
+                    while (l_chain->callback_atom_add_from_treshold(l_chain, NULL))
+                        log_it(L_DEBUG, "Added atom from treshold");
+                dap_chain_save_all(l_chain);
+                DAP_CHAIN_PVT(l_chain)->need_reorder = false;
+                if (l_chain->callback_purge) {
+                    l_chain->callback_purge(l_chain);
+                    pthread_rwlock_wrlock(&l_chain->cell_rwlock);
+                    for (dap_chain_cell_t *it = l_chain->cells; it; it = it->hh.next)
+                        dap_chain_cell_delete(it);
+                    pthread_rwlock_unlock(&l_chain->cell_rwlock);
+                    dap_chain_ledger_purge(l_net->pub.ledger, false);
+                    dap_chain_ledger_set_fee(l_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
+                    dap_chain_net_decree_purge(l_net);
+                    dap_chain_load_all(l_chain);
+                } else
+                    log_it(L_WARNING, "No purge callback for chain %s, can't reload it with correct order", l_chain->name);
+            }
         } else {
             dap_chain_save_all( l_chain );
             log_it (L_NOTICE, "Initialized chain files");
@@ -2909,9 +2974,12 @@ int s_net_load(dap_chain_net_t *a_net)
 
     }
     if (!l_net_pvt->only_static_links)
-        l_net_pvt->only_static_links = dap_config_get_item_bool_default(l_cfg, "general", "links_static_only", false);
+        l_net_pvt->only_static_links = dap_config_get_item_bool_default(l_cfg, "general", "links_static_only", true);
     if (dap_config_get_item_bool_default(g_config ,"general", "auto_online", false))
+    {
+        dap_chain_net_balancer_prepare_list_links(l_net->pub.name,true);
         l_target_state = NET_STATE_ONLINE;
+    }
 
     l_net_pvt->load_mode = false;
     if (l_net->pub.ledger)
@@ -2970,7 +3038,7 @@ dap_chain_net_t **dap_chain_net_list(uint16_t *a_size)
     if(*a_size){
         dap_chain_net_t **l_net_list = DAP_NEW_SIZE(dap_chain_net_t *, (*a_size) * sizeof(dap_chain_net_t *));
         if (!l_net_list) {
-            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+            log_it(L_CRITICAL, "Memory allocation error");
             pthread_rwlock_unlock(&s_net_items_rwlock);
             return NULL;
         }
@@ -3244,7 +3312,7 @@ dap_list_t* dap_chain_net_get_link_node_list(dap_chain_net_t * l_net, bool a_is_
             if(l_is_add) {
                 dap_chain_node_addr_t *l_address = DAP_NEW(dap_chain_node_addr_t);
                 if (!l_address) {
-                    log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                    log_it(L_CRITICAL, "Memory allocation error");
                     return NULL;
                 }
                 l_address->uint64 = l_cur_node_info->links[i].uint64;
@@ -3282,7 +3350,7 @@ dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * l_net)
         dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *) l_objs[i].value;
         dap_chain_node_addr_t *l_address = DAP_NEW(dap_chain_node_addr_t);
         if (!l_address) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
             return NULL;
         }
         l_address->uint64 = l_node_info->hdr.address.uint64;
@@ -3485,7 +3553,7 @@ static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash)
     if (l_net_count && l_net_list) {
         uint8_t *l_ret = DAP_NEW_SIZE(uint8_t, l_net_count);
         if (!l_ret) {
-            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+            log_it(L_CRITICAL, "Memory allocation error");
             DAP_DELETE(l_net_list);
             return NULL;
         }
@@ -3583,6 +3651,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
                a_datum_size );
         return -101;
     }
+    dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
     switch (a_datum->header.type_id) {
         case DAP_CHAIN_DATUM_DECREE: {
             dap_chain_datum_decree_t *l_decree = (dap_chain_datum_decree_t *)a_datum->data;
@@ -3603,10 +3672,10 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
             return dap_chain_net_anchor_load(l_anchor, a_chain);
         }
         case DAP_CHAIN_DATUM_TOKEN_DECL:
-            return dap_chain_ledger_token_load(a_chain->ledger, (dap_chain_datum_token_t *)a_datum->data, a_datum->header.data_size);
+            return dap_chain_ledger_token_load(l_ledger, (dap_chain_datum_token_t *)a_datum->data, a_datum->header.data_size);
 
         case DAP_CHAIN_DATUM_TOKEN_EMISSION:
-            return dap_chain_ledger_token_emission_load(a_chain->ledger, a_datum->data, a_datum->header.data_size, a_datum_hash);
+            return dap_chain_ledger_token_emission_load(l_ledger, a_datum->data, a_datum->header.data_size, a_datum_hash);
 
         case DAP_CHAIN_DATUM_TX: {
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)a_datum->data;
@@ -3615,7 +3684,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
                 log_it(L_WARNING, "Corrupted trnsaction, datum size %zd is not equal to size of TX %zd", l_datum_data_size, l_tx_size);
                 return -102;
             }
-            return dap_chain_ledger_tx_load(a_chain->ledger, l_tx, a_datum_hash);
+            return dap_chain_ledger_tx_load(l_ledger, l_tx, a_datum_hash);
         }
         case DAP_CHAIN_DATUM_CA:
             return dap_cert_chain_file_save(a_datum, a_chain->net_name);

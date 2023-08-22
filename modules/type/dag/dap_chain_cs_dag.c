@@ -229,12 +229,12 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
     dap_chain_cs_dag_t * l_dag = DAP_NEW_Z(dap_chain_cs_dag_t);
     if (!l_dag){
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return -1;
     }
     l_dag->_pvt = DAP_NEW_Z(dap_chain_cs_dag_pvt_t);
     if (!l_dag->_pvt){
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         DAP_DELETE(l_dag);
         return -1;
     }
@@ -304,7 +304,7 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     for (uint16_t i = 0; i < l_list_len; i++) {
         dap_chain_cs_dag_hal_item_t *l_hal_item = DAP_NEW_Z(dap_chain_cs_dag_hal_item_t);
         if (!l_hal_item){
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
             DAP_DEL_Z(l_dag->_pvt);
             DAP_DELETE(l_dag);
             return -1;
@@ -350,7 +350,7 @@ static void s_dap_chain_cs_dag_threshold_free(dap_chain_cs_dag_t *a_dag) {
         if (l_current->ts_added < l_time_cut_off) {
             dap_chain_cs_dag_blocked_t *l_el = DAP_NEW(dap_chain_cs_dag_blocked_t);
             if (!l_el) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
                 pthread_mutex_unlock(&l_pvt->events_mutex);
                 return;
             }
@@ -482,6 +482,12 @@ static bool s_dap_chain_check_if_event_is_present(dap_chain_cs_dag_event_item_t 
     return (l_event_search != NULL);
 }
 
+static int s_sort_event_item(dap_chain_cs_dag_event_item_t* a, dap_chain_cs_dag_event_item_t* b)
+{
+    return a->event->header.ts_created == b->event->header.ts_created ? 0 :
+                a->event->header.ts_created < b->event->header.ts_created ? -1 : 1;
+}
+
 /**
  * @brief s_chain_callback_atom_add Accept new event in dag
  * @param a_chain DAG object
@@ -496,7 +502,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
 
     dap_chain_cs_dag_event_item_t * l_event_item = DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
     if (!l_event_item) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return ATOM_REJECT;
     }
     pthread_mutex_t *l_events_mutex = &PVT(l_dag)->events_mutex;
@@ -524,7 +530,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     switch (ret) {
     case ATOM_ACCEPT:
         ret = s_chain_callback_atom_verify(a_chain, a_atom, a_atom_size);
-        if (ret == ATOM_MOVE_TO_THRESHOLD)
+        if (ret == ATOM_MOVE_TO_THRESHOLD && !dap_chain_net_get_load_mode(dap_chain_net_by_id(a_chain->net_id)))
             ret = ATOM_REJECT; /* TODO: A temporary fix for memory consumption */
         if(s_debug_more)
             log_it(L_DEBUG, "Verified atom %p: %s", a_atom, ret == ATOM_ACCEPT ? "accepted" :
@@ -583,7 +589,17 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             break;
         }
         pthread_mutex_lock(l_events_mutex);
-        HASH_ADD(hh, PVT(l_dag)->events,hash, sizeof(l_event_item->hash), l_event_item);
+        dap_chain_cs_dag_event_item_t *l_tail = PVT(l_dag)->events ? PVT(l_dag)->events->hh.tbl->tail->prev : NULL;
+        if (!l_tail)
+            l_tail = PVT(l_dag)->events;
+        else
+            l_tail = l_tail->hh.next;
+        if (l_tail && l_tail->event->header.ts_created > l_event->header.ts_created)
+            DAP_CHAIN_PVT(a_chain)->need_reorder = true;
+        if (DAP_CHAIN_PVT(a_chain)->need_reorder)
+            HASH_ADD_INORDER(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item, s_sort_event_item);
+        else
+            HASH_ADD(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item);
         s_dag_events_lasts_process_new_last_event(l_dag, l_event_item);
         pthread_mutex_unlock(l_events_mutex);
     } break;
@@ -918,7 +934,7 @@ void s_dag_events_lasts_process_new_last_event(dap_chain_cs_dag_t * a_dag, dap_c
     //add self
     dap_chain_cs_dag_event_item_t * l_event_last= DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
     if (!l_event_last) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return;
     }
     l_event_last->ts_added = a_event_item->ts_added;
@@ -1038,7 +1054,7 @@ static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create_from(dap_chain_t
 {
     dap_chain_atom_iter_t * l_atom_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
     if (!l_atom_iter) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return NULL;
     }
     l_atom_iter->chain = a_chain;
@@ -1067,7 +1083,7 @@ static dap_chain_atom_iter_t *s_chain_callback_atom_iter_create(dap_chain_t *a_c
 {
     dap_chain_atom_iter_t * l_atom_iter = DAP_NEW_Z(dap_chain_atom_iter_t);
     if (!l_atom_iter) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return NULL;
     }
     l_atom_iter->chain = a_chain;
@@ -1097,7 +1113,7 @@ static dap_chain_datum_t **s_chain_callback_atom_get_datum(dap_chain_atom_ptr_t 
 
     dap_chain_datum_t **l_datums = DAP_NEW_Z(dap_chain_datum_t*);
     if (!l_datums) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return NULL;
     }
     if (a_datums_count)
@@ -1179,7 +1195,7 @@ static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_lasts( dap_chain_ato
             *a_lasts_size = l_lasts_size;
         l_ret = DAP_NEW_Z_SIZE(dap_chain_atom_ptr_t, sizeof(dap_chain_atom_ptr_t) * l_lasts_size);
         if (!l_ret) {
-            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+            log_it(L_CRITICAL, "Memory allocation error");
             pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
             return NULL;
         }
@@ -1187,7 +1203,7 @@ static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_lasts( dap_chain_ato
         size_t i = 0;
         *a_lasts_size_array = DAP_NEW_Z_SIZE(size_t, sizeof(size_t) * l_lasts_size);
         if (!*a_lasts_size_array) {
-            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+            log_it(L_CRITICAL, "Memory allocation error");
             pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
             DAP_DEL_Z(l_ret);
             return NULL;
@@ -1223,14 +1239,14 @@ static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_links( dap_chain_ato
             dap_chain_atom_ptr_t * l_ret = DAP_NEW_Z_SIZE(dap_chain_atom_ptr_t,
                                                sizeof (dap_chain_atom_ptr_t) * l_event->header.hash_count );
             if (!l_ret) {
-                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                log_it(L_CRITICAL, "Memory allocation error");
                 return NULL;
             }
             if( a_links_size)
                 *a_links_size = l_event->header.hash_count;
             *a_links_size_array = DAP_NEW_Z_SIZE(size_t, l_event->header.hash_count*sizeof (size_t));
             if (!*a_links_size_array) {
-                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                log_it(L_CRITICAL, "Memory allocation error");
                 DAP_DEL_Z(l_ret);
                 return NULL;
             }
@@ -1377,7 +1393,7 @@ static dap_chain_datum_iter_t *s_chain_callback_datum_iter_create(dap_chain_t *a
 {
     dap_chain_datum_iter_t *l_ret = DAP_NEW_Z(dap_chain_datum_iter_t);
     if (!l_ret) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return NULL;
     }
     l_ret->chain = a_chain;
@@ -1889,7 +1905,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                         l_offset += l_sign_size;
                         DAP_DELETE( l_hash_str);
                     }
-                    dap_chain_datum_dump(l_str_tmp, l_datum, l_hash_out_type);
+                    dap_chain_datum_dump(l_str_tmp, l_datum, l_hash_out_type, l_net->pub.id);
 
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
                     dap_string_free(l_str_tmp, true);

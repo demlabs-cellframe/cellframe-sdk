@@ -183,7 +183,7 @@ static int s_callback_client_success(dap_chain_net_srv_t * a_srv, uint32_t a_usa
         size_t l_ipv4_str_len = 0; //dap_strlen(a_ipv4_str);
         ch_vpn_pkt_t *pkt_out = (ch_vpn_pkt_t*) calloc(1, sizeof(pkt_out->header) + l_ipv4_str_len);
         if (!pkt_out) {
-            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+            log_it(L_CRITICAL, "Memory allocation error");
             dap_stream_session_unlock();
             return -1;
         }
@@ -430,7 +430,7 @@ static int get_order_state_so(dap_chain_node_addr_t a_node_addr)
 
     return (*get_order_state_so)(a_node_addr);
 #else
-    log_it(L_ERROR,"%s: module is not supported on current platfrom", __PRETTY_FUNCTION__);
+    log_it(L_CRITICAL, "Module is not supported on current platfrom");
     return -1;
 #endif
 

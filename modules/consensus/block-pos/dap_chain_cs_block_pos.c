@@ -87,7 +87,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_cs_block_pos_t *l_pos = DAP_NEW_Z(dap_chain_cs_block_pos_t);
     if (!l_pos) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return -1;
     }
     l_blocks->_inheritor = l_pos;
@@ -98,7 +98,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_pos->_pvt = DAP_NEW_Z(dap_chain_cs_block_pos_pvt_t);
     dap_chain_cs_block_pos_pvt_t *l_pos_pvt = PVT(l_pos);
     if (!l_pos_pvt) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         goto lb_err;
     }
 
@@ -113,12 +113,12 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_pos_pvt->tokens_hold_size = l_tokens_hold_size;
     l_pos_pvt->tokens_hold = DAP_NEW_Z_SIZE(char *, sizeof(char *) * l_tokens_hold_size);
     if (!l_pos_pvt->tokens_hold) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         goto lb_err;
     }
     l_pos_pvt->tokens_hold_value = DAP_NEW_Z_SIZE(uint64_t, l_tokens_hold_value_size * sizeof(uint64_t));
     if (!l_pos_pvt->tokens_hold_value) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         goto lb_err;
     }
     for (size_t i = 0; i < l_tokens_hold_value_size; i++) {
@@ -229,11 +229,6 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
 {
     dap_chain_cs_block_pos_t *l_pos = DAP_CHAIN_CS_BLOCK_POS(a_blocks);
     dap_chain_cs_block_pos_pvt_t *l_pos_pvt = PVT(l_pos);
-
-    if (a_blocks->chain->ledger == NULL) {
-        log_it(L_CRITICAL,"Ledger is NULL can't check PoS on this chain %s", a_blocks->chain->name);
-        return -3;
-    }
 
     if (sizeof(a_block->hdr) >= a_block_size) {
         log_it(L_WARNING,"Incorrect size with block %p on chain %s", a_block, a_blocks->chain->name);

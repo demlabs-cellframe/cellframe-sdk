@@ -42,6 +42,7 @@ typedef struct dap_chain_pvt
     char * cs_name;
     int celled;
     dap_list_t *mempool_notifires;
+    bool need_reorder;
 } dap_chain_pvt_t;
 
 typedef struct dap_chain_gdb_notifier {

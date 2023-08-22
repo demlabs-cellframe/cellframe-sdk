@@ -271,7 +271,7 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
     } else {
         l_decree_hh = DAP_NEW_Z(struct decree_hh);
         if (!l_decree_hh) {
-            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+            log_it(L_CRITICAL, "Memory allocation error");
             return -1;
         }
         l_decree_hh->decree = DAP_DUP_SIZE(a_decree, dap_chain_datum_decree_get_size(a_decree));
@@ -381,7 +381,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
                 } else{
                     dap_chain_addr_t *l_decree_addr = DAP_NEW_Z_SIZE(dap_chain_addr_t, sizeof(dap_chain_addr_t));
                     if (!l_decree_addr) {
-                        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                        log_it(L_CRITICAL, "Memory allocation error");
                         return -1;
                     }
                     memcpy(l_decree_addr, &l_addr, sizeof(dap_chain_addr_t));

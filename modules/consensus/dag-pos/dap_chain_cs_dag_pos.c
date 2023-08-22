@@ -83,7 +83,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG ( a_chain );
     dap_chain_cs_dag_pos_t *l_pos = DAP_NEW_Z( dap_chain_cs_dag_pos_t);
     if (!l_pos) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return -1;
     }
 
@@ -96,10 +96,10 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_dag->callback_delete = s_callback_delete;
     l_dag->callback_cs_verify = s_callback_event_verify;
     l_dag->callback_cs_event_create = s_callback_event_create;
-    l_pos->_pvt = DAP_NEW_Z ( dap_chain_cs_dag_pos_pvt_t );
+    l_pos->_pvt = DAP_NEW_Z(dap_chain_cs_dag_pos_pvt_t);
     dap_chain_cs_dag_pos_pvt_t *l_pos_pvt = PVT(l_pos);
     if (!l_pos_pvt) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         goto lb_err;
     }
 
@@ -115,13 +115,13 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_pos_pvt->tokens_hold = DAP_NEW_Z_SIZE( char*, sizeof(char*) *
                                              l_tokens_hold_size );
     if (!l_pos_pvt->tokens_hold) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         goto lb_err;
     }
     l_pos_pvt->tokens_hold_value = DAP_NEW_Z_SIZE(uint64_t,
                                                   (l_tokens_hold_value_size +1) *sizeof (uint64_t));
     if (!l_pos_pvt->tokens_hold_value) {
-        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         goto lb_err;
     }
     for (size_t i = 0; i < l_tokens_hold_value_size; i++){
@@ -243,11 +243,6 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
 static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_t * a_dag_event, size_t a_dag_event_size)
 {
     dap_chain_cs_dag_pos_pvt_t * l_pos_pvt = PVT ( DAP_CHAIN_CS_DAG_POS( a_dag ) );
-
-    if(a_dag->chain->ledger == NULL){
-        log_it(L_CRITICAL,"Ledger is NULL can't check PoS on this chain %s", a_dag->chain->name);
-        return -3;
-    }
 
     if (sizeof (a_dag_event->header)>= a_dag_event_size){
         log_it(L_WARNING,"Incorrect size with event %p on chain %s", a_dag_event, a_dag->chain->name);
