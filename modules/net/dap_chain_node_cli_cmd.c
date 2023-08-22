@@ -107,6 +107,7 @@
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_enc_base64.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
+#include "dap_chain_node_net_ban_list.h"
 
 #define LOG_TAG "chain_node_cli_cmd"
 
@@ -1125,13 +1126,62 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
     }
 }
 
+static dap_tsd_t* s_chain_node_cli_com_node_create_tsd_addr(char **a_argv, int a_arg_start, int a_arg_end, char **a_str_reply, const char *a_specified_decree) {
+    const char *l_ban_addr_str = NULL;
+    dap_tsd_t *l_addr_tsd = NULL;
+    if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_start, a_arg_end, "-ip", &l_ban_addr_str)){
+        if (l_ban_addr_str[0] == ':' || dap_strlen(l_ban_addr_str) > 15) {
+            struct in6_addr l_ip_addr;
+            if (inet_pton(AF_INET6, l_ban_addr_str, &l_ip_addr)) {
+                l_addr_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V6,
+                                            &l_ip_addr,
+                                            sizeof(struct in6_addr));
+            } else {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "The -ip option can contain an "
+                                                               "ip address in V4 or V6 format. Well, it is "
+                                                               "possible to convert the string value of the "
+                                                               "V6 address into a binary representation.");
+                return NULL;
+            }
+        } else {
+            struct in_addr l_ip_addr;
+            if (inet_pton(AF_INET, l_ban_addr_str, &l_ip_addr)) {
+                l_addr_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V4,
+                                            &l_ip_addr,
+                                            sizeof(struct in_addr));
+
+            } else {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "The -ip option can contain an "
+                                                               "ip address in V4 or V6 format. Well, it is "
+                                                               "possible to convert the string value of the "
+                                                               "V4 address into a binary representation.");
+                return NULL;
+            }
+        }
+    }else if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_start, a_arg_end, "-addr", &l_ban_addr_str)){
+        dap_chain_node_addr_t l_node_addr = {0};
+        if (dap_chain_node_addr_from_str(&l_node_addr, l_ban_addr_str)) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "The node address is in the wrong format.");
+            return NULL;
+        } else {
+            l_addr_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR, &l_node_addr, sizeof(dap_chain_node_addr_t));
+        }
+    } else {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "The -ip or -addr option was not "
+                                                       "specified to create a %s entry creation decree.", a_specified_decree);
+        return NULL;
+    }
+    return  l_addr_tsd;
+}
+
 /**
  * Node command
  */
 int com_node(int a_argc, char ** a_argv, char **a_str_reply)
 {
     enum {
-        CMD_NONE, CMD_ADD, CMD_DEL, CMD_LINK, CMD_ALIAS, CMD_HANDSHAKE, CMD_CONNECT, CMD_DUMP, CMD_CONNECTIONS
+        CMD_NONE, CMD_ADD, CMD_DEL, CMD_LINK, CMD_ALIAS, CMD_HANDSHAKE, CMD_CONNECT, CMD_DUMP, CMD_CONNECTIONS,
+        CMD_BAN, CMD_UNBAN, CMD_BANLIST
     };
     int arg_index = 1;
     int cmd_num = CMD_NONE;
@@ -1166,6 +1216,15 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
 //        DAP_DELETE(l_str);
 //        return 0;
     }
+    else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index+1), "ban", NULL)) {
+        cmd_num = CMD_BAN;
+    }
+    else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index+1), "unban", NULL)) {
+        cmd_num = CMD_UNBAN;
+    }
+    else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index+1), "banlist", NULL)) {
+        cmd_num = CMD_BANLIST;
+    }
     arg_index++;
     if(cmd_num == CMD_NONE) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "command %s not recognized", a_argv[1]);
@@ -1177,8 +1236,10 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     // find net
     dap_chain_net_t *l_net = NULL;
 
-    if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, NULL, &l_net) < 0)
-        return -11;
+    if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, NULL, &l_net) < 0) {
+        if (cmd_num != CMD_BANLIST)
+            return -11;
+    }
 
     // find addr, alias
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
@@ -1600,8 +1661,140 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         DAP_DELETE(l_downlinks);
         DAP_DELETE(l_uplinks);
         return 0;
-    }
-        break;
+    } break;
+    case  CMD_BAN: {
+        dap_chain_net_t *l_netl = NULL;
+        dap_chain_t *l_chain = NULL;
+        if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_netl) < 0)
+            return -11;
+        const char * l_hash_out_type = NULL;
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
+        if(!l_hash_out_type)
+            l_hash_out_type = "hex";
+        if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
+            return -1;
+        }
+        const char *l_certs_str = NULL;
+        size_t l_certs_count = 0;
+        dap_cert_t **l_certs = NULL;
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-certs", &l_certs_str);
+        if (!l_certs_str) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "ban create requires parameter '-certs'");
+            return -106;
+        }
+        dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
+        if(!l_certs_count) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                              "decree create command request at least one valid certificate to sign the decree");
+            return -106;
+        }
+        dap_chain_datum_decree_t *l_decree = NULL;
+        dap_tsd_t *l_addr_tsd = s_chain_node_cli_com_node_create_tsd_addr(a_argv, arg_index, a_argc, a_str_reply, "bun");
+        if (!l_addr_tsd) {
+            return -112;
+        }
+        l_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, sizeof(dap_chain_datum_decree_t) + dap_tsd_size(l_addr_tsd));
+        l_decree->decree_version = DAP_CHAIN_DATUM_DECREE_VERSION;
+        l_decree->header.ts_created = dap_time_now();
+        l_decree->header.type = DAP_CHAIN_DATUM_DECREE_TYPE_COMMON;
+        l_decree->header.common_decree_params.net_id = l_net->pub.id;
+        l_decree->header.common_decree_params.chain_id = l_chain->id;
+        l_decree->header.common_decree_params.cell_id = *dap_chain_net_get_cur_cell(l_netl);
+        l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BAN;
+        l_decree->header.data_size = dap_tsd_size(l_addr_tsd);
+        l_decree->header.signs_size = 0;
+        memcpy(l_decree->data_n_signs, l_addr_tsd, dap_tsd_size(l_addr_tsd));
+        size_t l_total_signs_success = 0;
+        l_decree = dap_chain_datum_decree_in_cycle(l_certs, l_decree, l_certs_count, &l_total_signs_success);
+        if (!l_decree || !l_total_signs_success) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                              "Decree creation failed. Successful count of certificate signing is 0");
+            return -108;
+        }
+        dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_DECREE, l_decree,
+                                                            sizeof(*l_decree) + l_decree->header.data_size +
+                                                            l_decree->header.signs_size);
+        DAP_DELETE(l_decree);
+        char *l_key_str_out = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type);
+        DAP_DELETE(l_datum);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s is %s placed in datum pool",
+                                          l_key_str_out ? l_key_str_out : "",
+                                          l_key_str_out ? "" : " not");
+        DAP_DELETE(l_key_str_out);
+        return 0;
+    } break;
+    case CMD_UNBAN: {
+        dap_chain_net_t *l_netl = NULL;
+        dap_chain_t *l_chain = NULL;
+        if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_netl) < 0)
+            return -11;
+        const char * l_hash_out_type = NULL;
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
+        if(!l_hash_out_type)
+            l_hash_out_type = "hex";
+        if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
+            return -1;
+        }
+        const char *l_certs_str = NULL;
+        size_t l_certs_count = 0;
+        dap_cert_t **l_certs = NULL;
+        dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-certs", &l_certs_str);
+        if (!l_certs_str) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "ban create requires parameter '-certs'");
+            return -106;
+        }
+        dap_cert_parse_str_list(l_certs_str, &l_certs, &l_certs_count);
+        if(!l_certs_count) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                              "decree create command request at least one valid certificate to sign the decree");
+            return -106;
+        }
+        dap_chain_datum_decree_t *l_decree = NULL;
+        dap_tsd_t *l_addr_tsd = s_chain_node_cli_com_node_create_tsd_addr(a_argv, arg_index, a_argc, a_str_reply, "unbun");
+        if (!l_addr_tsd) {
+            return -112;
+        }
+        l_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, sizeof(dap_chain_datum_decree_t) + dap_tsd_size(l_addr_tsd));
+        l_decree->decree_version = DAP_CHAIN_DATUM_DECREE_VERSION;
+        l_decree->header.ts_created = dap_time_now();
+        l_decree->header.type = DAP_CHAIN_DATUM_DECREE_TYPE_COMMON;
+        l_decree->header.common_decree_params.net_id = l_net->pub.id;
+        l_decree->header.common_decree_params.chain_id = l_chain->id;
+        l_decree->header.common_decree_params.cell_id = *dap_chain_net_get_cur_cell(l_netl);
+        l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_UNBAN;
+        l_decree->header.data_size = dap_tsd_size(l_addr_tsd);
+        l_decree->header.signs_size = 0;
+        memcpy(l_decree->data_n_signs, l_addr_tsd, dap_tsd_size(l_addr_tsd));
+        size_t l_total_signs_success = 0;
+        l_decree = dap_chain_datum_decree_in_cycle(l_certs, l_decree, l_certs_count, &l_total_signs_success);
+        if (!l_decree || !l_total_signs_success) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                              "Decree creation failed. Successful count of certificate signing is 0");
+            return -108;
+        }
+        dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_DECREE, l_decree,
+                                                            sizeof(*l_decree) + l_decree->header.data_size +
+                                                            l_decree->header.signs_size);
+        DAP_DELETE(l_decree);
+        char *l_key_str_out = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type);
+        DAP_DELETE(l_datum);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s is %s placed in datum pool",
+                                          l_key_str_out ? l_key_str_out : "",
+                                          l_key_str_out ? "" : " not");
+        DAP_DELETE(l_key_str_out);
+        return 0;
+    } break;
+    case CMD_BANLIST: {
+        dap_string_t *l_str_ban_list = dap_string_new("Ban list:\n");
+        dap_enc_http_ban_list_client_ipv4_print(l_str_ban_list);
+        dap_enc_http_ban_list_client_ipv6_print(l_str_ban_list);
+        dap_chain_node_net_ban_list_print(l_str_ban_list);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ban_list->str);
+        dap_string_free(l_str_ban_list, true);
+        return 0;
+    } break;
     }
     return 0;
 }
@@ -3219,10 +3412,12 @@ int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply)
                 ret = -6;
             } else {
                 dap_string_append_printf(l_str_tmp, "Datum processed well. ");
+                char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
                 if (dap_global_db_del_sync(l_gdb_group_mempool, l_datum_hash_hex_str)){
                     dap_string_append_printf(l_str_tmp, "Warning! Can't delete datum from mempool!");
                 } else
                     dap_string_append_printf(l_str_tmp, "Removed datum from mempool.");
+                DAP_DELETE(l_gdb_group_mempool);
             }
         } else {
             dap_string_append_printf(l_str_tmp, "Error! Can't move to no-concensus chains from mempool");

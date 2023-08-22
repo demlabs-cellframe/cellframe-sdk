@@ -27,6 +27,7 @@
 #include "dap_time.h"
 #include "dap_list.h"
 #include "dap_tsd.h"
+#include "dap_cert.h"
 #include <stdint.h>
 
 #define DAP_CHAIN_DATUM_DECREE_VERSION  0
@@ -69,6 +70,8 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE              0x0006
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALUE               0x0007
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT    0x0008
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BAN                           0x0009
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_UNBAN                         0x000A
 
 // DECREE TSD types
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGN                                0x0101
@@ -82,6 +85,9 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNER_NODE_ADDR              0x0110
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_VALUE                     0x0111
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT             0x0112
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V4                               0x0113
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V6                               0x0114
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR                           0x0115
 
 DAP_STATIC_INLINE const char *dap_chain_datum_decree_subtype_to_str(uint16_t a_decree_subtype)
 {
@@ -100,6 +106,10 @@ DAP_STATIC_INLINE const char *dap_chain_datum_decree_subtype_to_str(uint16_t a_d
         return "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALUE";
     case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT:
         return"DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT";
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BAN:
+        return "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BAN";
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_UNBAN:
+        return "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_UNBAN";
     default:
         return "DECREE_SUBTYPE_UNKNOWN";
     }
@@ -129,6 +139,12 @@ DAP_STATIC_INLINE const char *dap_chain_datum_decree_tsd_type_to_str(uint16_t a_
             return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_VALUE";
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT:
             return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT";
+        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V4:
+            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V4";
+        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V6:
+            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V6";
+        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR:
+            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR";
         default:
             return "DECREE_TSD_TYPE_UNKNOWN";
     }
@@ -239,3 +255,17 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
  * @param a_certs_size size of decree signatures
  */
 void dap_chain_datum_decree_certs_dump(dap_string_t * a_str_out, byte_t * a_signs, size_t a_certs_size, const char *a_hash_out_type);
+
+/**
+ * @brief dap_chain_datum_decree_in_cycle
+ * sign data (datum_decree) by certificates (1 or more)
+ * successful count of signes return in l_sign_counter
+ * @param l_certs - array with certificates loaded from dcert file
+ * @param l_datum_token - updated pointer for l_datum_token variable after realloc
+ * @param l_certs_count - count of certificate
+ * @param l_datum_data_offset - offset of datum
+ * @param l_sign_counter - counter of successful data signing operation
+ * @return dap_chain_datum_token_t*
+ */
+dap_chain_datum_decree_t* dap_chain_datum_decree_in_cycle(dap_cert_t ** a_certs, dap_chain_datum_decree_t *a_datum_decree,
+                                                  size_t a_certs_count, size_t *a_total_sign_count);

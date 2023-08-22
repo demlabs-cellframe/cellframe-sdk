@@ -119,6 +119,7 @@
 #include "json_object.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_net_srv_xchange.h"
+#include "dap_chain_node_net_ban_list.h"
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -305,6 +306,7 @@ int dap_chain_net_init()
     dap_stream_ch_chain_init();
     dap_stream_ch_chain_net_init();
     dap_chain_node_client_init();
+    dap_chain_node_net_ban_list_init();
     dap_cli_server_cmd_add ("net", s_cli_net, "Network commands",
         "net list [chains -n <chain net name>]"
             "\tList all networks or list all chains in selected network"
@@ -2949,6 +2951,7 @@ void dap_chain_net_deinit()
         DAP_DEL_Z(l_net);
         DAP_DEL_Z(l_current_item);
     }
+    dap_chain_node_net_ban_list_deinit();
     pthread_rwlock_unlock(&s_net_items_rwlock);
     pthread_rwlock_destroy(&s_net_items_rwlock);
 
