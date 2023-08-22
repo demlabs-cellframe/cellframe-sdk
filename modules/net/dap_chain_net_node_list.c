@@ -99,7 +99,8 @@ static void s_net_node_link_prepare_success(void *a_response, size_t a_response_
     DAP_DELETE(l_node_info);
     DAP_DELETE(l_node_list_request);
 }
-s_net_node_link_prepare_error(){
+static void s_net_node_link_prepare_error(int a_error_code, void *a_arg){
+    struct node_link_request * l_node_list_request = (struct node_link_request *)a_arg;
 
 }
 
