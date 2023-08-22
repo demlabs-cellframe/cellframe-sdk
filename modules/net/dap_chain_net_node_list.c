@@ -157,6 +157,5 @@ bool dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_inf
         DAP_DELETE(l_node_list_request);
     }
     return true;
-
 }
 

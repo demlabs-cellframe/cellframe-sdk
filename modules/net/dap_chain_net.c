@@ -1967,10 +1967,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Network \"%s\" going from state %s to %s",
                                                   l_net->pub.name,c_net_states[PVT(l_net)->state],
                                                   c_net_states[NET_STATE_ONLINE]);
-<<<<<<< HEAD
-=======
 
->>>>>>> 987620b724193a208bbd0fa478831b801aca4982
                 dap_chain_net_balancer_prepare_list_links(l_net->pub.name,true);
                 dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE);
             } else if ( strcmp(l_go_str,"offline") == 0 ) {
