@@ -111,7 +111,6 @@
 #define LOG_TAG "chain_node_cli_cmd"
 
 static void s_dap_chain_net_purge(dap_chain_net_t *a_net);
-static const char* s_check_wallet_to_bliss_sign(dap_chain_wallet_t *a_wallet);
 
 /**
  * @brief dap_chain_node_addr_t* dap_chain_node_addr_get_by_alias
@@ -2029,7 +2028,7 @@ char    l_buf[1024];
 
                             dap_string_append_printf(l_string_ret, "Wallet: %.*s%s %s\n", (int) l_file_name_len - 8, l_file_name,
                                 (l_wallet->flags & DAP_WALLET$M_FL_ACTIVE) ? " (Active)" : "",
-                                s_check_wallet_to_bliss_sign(l_wallet));
+                                dap_chain_wallet_check_bliss_sign(l_wallet));
 
                             if (l_addr_str) {
                                 dap_string_append_printf(l_string_ret, "addr: %s\n", (l_addr_str) ? l_addr_str : "-");
@@ -2088,7 +2087,7 @@ char    l_buf[1024];
 
             char *l_l_addr_str = dap_chain_addr_to_str((dap_chain_addr_t*) l_addr);
             if(l_wallet)
-                dap_string_append_printf(l_string_ret, "%s\nwallet: %s\n", s_check_wallet_to_bliss_sign(l_wallet), l_wallet->name);
+                dap_string_append_printf(l_string_ret, "%s\nwallet: %s\n", dap_chain_wallet_check_bliss_sign(l_wallet), l_wallet->name);
             dap_string_append_printf(l_string_ret, "addr: %s\n", (l_l_addr_str) ? l_l_addr_str : "-");
             dap_string_append_printf(l_string_ret, "network: %s\n", (l_net_name ) ? l_net_name : "-");
 
@@ -2202,7 +2201,7 @@ char    l_buf[1024];
                     }
 
                     log_it(L_INFO, "Wallet %s has been converted", l_wallet_name);
-                    dap_string_append_printf(l_string_ret, "%s\nWallet: %s successfully converted\n", s_check_wallet_to_bliss_sign(l_wallet), l_wallet_name);
+                    dap_string_append_printf(l_string_ret, "%s\nWallet: %s successfully converted\n", dap_chain_wallet_check_bliss_sign(l_wallet), l_wallet_name);
                     dap_chain_wallet_close(l_wallet);
                     break;
                 }
@@ -4439,7 +4438,7 @@ int com_tx_cond_create(int a_argc, char ** a_argv, char **a_str_reply)
     // Token ticker
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-token", &l_token_ticker);
     // Wallet name - from
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-wallet", &l_wallet_str);
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-w", &l_wallet_str);
     // Public certifiacte of condition owner
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cert", &l_cert_str);
     // value datoshi
@@ -4458,7 +4457,7 @@ int com_tx_cond_create(int a_argc, char ** a_argv, char **a_str_reply)
         return -1;
     }
     if (!l_wallet_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_cond_create requires parameter '-wallet'");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_cond_create requires parameter '-w'");
         return -2;
     }
     if (!l_cert_str) {
@@ -5426,7 +5425,7 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
             l_priv_key = l_cert->enc_key;
         } else {
             dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                              "tx_create requires parameter '-cert' or '-wallet' for create base tx for emission");
+                                              "tx_create requires parameter '-cert' or '-wallet_fee' for create base tx for emission");
             return -10;
         }
     }
@@ -5483,7 +5482,7 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "wallet %s does not exist", l_from_wallet_name);
         return -9;
     } else {
-        dap_string_append_printf(l_string_ret, "%s\n", s_check_wallet_to_bliss_sign(l_wallet));
+        dap_string_append_printf(l_string_ret, "%s\n", dap_chain_wallet_check_bliss_sign(l_wallet));
     }
     const dap_chain_addr_t *addr_from = (const dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
 
@@ -5687,7 +5686,7 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
         const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
         dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
         if (l_wallet) {
-            l_sign_str = s_check_wallet_to_bliss_sign(l_wallet);
+            l_sign_str = dap_chain_wallet_check_bliss_sign(l_wallet);
             dap_chain_addr_t *l_addr_tmp = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
             if (l_addr) {
                 if (!dap_chain_addr_compare(l_addr, l_addr_tmp)) {
@@ -6878,13 +6877,5 @@ static dap_tsd_t *s_alloc_metadata (const char *a_file, const int a_meta)
             return NULL;
     }
     return NULL;
-}
-
-const char* s_check_wallet_to_bliss_sign(dap_chain_wallet_t *a_wallet) {
-    dap_chain_wallet_internal_t* l_wallet_internal = DAP_CHAIN_WALLET_INTERNAL(a_wallet);
-    if (l_wallet_internal && SIG_TYPE_BLISS == dap_sign_type_from_key_type(l_wallet_internal->certs[0]->enc_key->type).type) {
-        return "The Bliss signature is deprecated. We recommend you to create a new wallet with another available signature and transfer funds there.";
-    }
-    return "";
 }
 
