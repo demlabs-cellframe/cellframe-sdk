@@ -1013,8 +1013,8 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
             } break;
             case SERV_UNIT_SEC:{
                 l_srv_session->last_update_ts = time(NULL);
-                if (l_usage_active->is_grace || l_srv_session->limits_ts == 0)
-                    l_srv_session->limits_ts = (time_t)l_usage_active->receipt->receipt_info.units;
+                if (l_usage_active->is_grace || l_srv_session->limits_ts <= 0)
+                    l_srv_session->limits_ts += (time_t)l_usage_active->receipt->receipt_info.units;
                 log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" seconds more for VPN usage", l_usage_active->receipt->receipt_info.units);
             } break;
             case SERV_UNIT_B:{
@@ -1334,8 +1334,15 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
     bool l_issue_new_receipt = false;
     // Check if there are time limits
 
-    if (a_usage->is_free || !a_usage->receipt || !a_usage->is_active)
+    if (a_usage->is_free || (!a_usage->receipt && !a_usage->is_grace) || !a_usage->is_active)
         return;
+
+    if (a_usage->is_grace && !a_usage->receipt){
+        a_srv_session->limits_bytes -= (intmax_t) a_bytes;
+        a_srv_session->limits_ts -= time(NULL) - a_srv_session->last_update_ts;
+        a_srv_session->last_update_ts = time(NULL);
+        return;
+    }
 
     if (a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_DAY ||
         a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_SEC){
