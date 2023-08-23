@@ -1005,6 +1005,11 @@ uint256_t dap_chain_wallet_get_balance (
     return  (l_net)  ? dap_chain_ledger_calc_balance(l_net->pub.ledger, l_addr, a_token_ticker) : uint256_0;
 }
 
+/**
+ * @brief cheack wallet to the Bliss sign
+ * @param a_wallet
+ * @return if sign Bliss - caution message, else ""
+ */
 const char* dap_chain_wallet_check_bliss_sign(dap_chain_wallet_t *a_wallet) {
     dap_chain_wallet_internal_t *l_wallet_internal = DAP_CHAIN_WALLET_INTERNAL(a_wallet);
     if (l_wallet_internal && SIG_TYPE_BLISS == dap_sign_type_from_key_type(l_wallet_internal->certs[0]->enc_key->type).type) {
