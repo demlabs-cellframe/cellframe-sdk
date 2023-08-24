@@ -415,6 +415,10 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     DAP_DELETE(l_gdb_group_str);
     dap_chain_net_srv_order_t *l_order_service = NULL;
     for (size_t i = 0; i < l_orders_count; i++) {
+        if (l_orders[i].value_len < sizeof(dap_chain_net_srv_order_t)) {
+            log_it(L_ERROR, "Too small order %s with size %zu", l_orders[i].key, l_orders[i].value_len);
+            continue;
+        }
         dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)l_orders[i].value;
         if (l_order->srv_uid.uint64 != DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID)
             continue;
@@ -422,17 +426,16 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
         uint8_t *l_order_sign_pkey = dap_sign_get_pkey(l_order_sign, NULL);
         if (memcmp(l_esbocs_sign_pub_key, l_order_sign_pkey, l_esbocs_sign_pub_key_size) != 0)
             continue;
-        if (l_order_service) {
-            if (l_order_service->ts_created < l_order->ts_created)
-                l_order_service = l_order;
-        } else {
+        if (!l_order_service)
             l_order_service = l_order;
-        }
+        else if (l_order_service->ts_created < l_order->ts_created)
+            l_order_service = l_order;
     }
-    dap_global_db_objs_delete(l_orders, l_orders_count);
     if (l_order_service)
         l_esbocs_pvt->minimum_fee = l_order_service->price;
-    else {
+    dap_global_db_objs_delete(l_orders, l_orders_count);
+
+    if (!l_order_service) {
         log_it(L_ERROR, "No order found was signed by this validator deledgated key. Switch off validator mode.");
         return -4;
     }
@@ -579,7 +582,6 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_session_t *a_session, 
 
     if (!l_esbocs_pvt->poa_mode) {
         dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_session->chain->net_id, true);
-        a_session->cur_round.all_validators = dap_list_copy_deep(l_validators, s_callback_list_form, NULL);
         uint16_t l_total_validators_count = dap_list_length(l_validators);
         if (l_total_validators_count < l_esbocs_pvt->min_validators_count) {
             l_ret = dap_list_copy_deep(l_esbocs_pvt->poa_validators, s_callback_list_copy, NULL);
@@ -704,23 +706,10 @@ static void s_session_send_startsync(dap_chain_esbocs_session_t *a_session)
         dap_string_free(l_addr_list, true);
         DAP_DELETE(l_sync_hash);
     }
-    dap_list_t *l_total_sendlist = a_session->cur_round.all_validators;
-    dap_list_t *l_inactive_sendlist = NULL;
-    if (!PVT(a_session->esbocs)->emergency_mode) {
-        dap_list_t *l_inactive_validators = dap_chain_net_srv_stake_get_validators(a_session->chain->net_id, false);
-        l_inactive_sendlist = dap_list_copy_deep(l_inactive_validators, s_callback_list_form, NULL);
-        dap_list_free_full(l_inactive_validators, NULL);
-        l_total_sendlist = dap_list_concat(a_session->cur_round.all_validators, l_inactive_sendlist);
-    }
     struct sync_params l_params = { .attempt = a_session->cur_round.sync_attempt, .db_hash = a_session->db_hash };
     s_message_send(a_session, DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC, &l_last_block_hash,
                    &l_params, sizeof(struct sync_params),
-                   l_total_sendlist);
-    if (l_inactive_sendlist && l_inactive_sendlist->prev) { // List splitting
-        l_inactive_sendlist->prev->next = NULL;
-        l_inactive_sendlist->prev = NULL;
-    }
-    dap_list_free_full(l_inactive_sendlist, NULL);
+                   a_session->cur_round.all_validators);
     a_session->cur_round.sync_sent = true;
 }
 
@@ -751,13 +740,15 @@ static void s_session_update_penalty(dap_chain_esbocs_session_t *a_session)
             l_item->signing_addr = *l_signing_addr;
             HASH_ADD(hh, a_session->penalty, signing_addr, sizeof(*l_signing_addr), l_item);
         }
-        if (PVT(a_session->esbocs)->debug) {
-            char *l_addr_str = dap_chain_addr_to_str(l_signing_addr);
-            log_it(L_DEBUG, "Increment miss count %d for addr %s. Miss count for kick is %d",
-                                    l_item->miss_count, l_addr_str, DAP_CHAIN_ESBOCS_PENALTY_KICK);
-            DAP_DELETE(l_addr_str);
+        if (l_item->miss_count < DAP_CHAIN_ESBOCS_PENALTY_KICK) {
+            if (PVT(a_session->esbocs)->debug) {
+                char *l_addr_str = dap_chain_addr_to_str(l_signing_addr);
+                log_it(L_DEBUG, "Increment miss count %d for addr %s. Miss count for kick is %d",
+                                        l_item->miss_count, l_addr_str, DAP_CHAIN_ESBOCS_PENALTY_KICK);
+                DAP_DELETE(l_addr_str);
+            }
+            l_item->miss_count++;
         }
-        l_item->miss_count++;
     }
 }
 
@@ -822,12 +813,11 @@ static void s_session_round_new(dap_chain_esbocs_session_t *a_session)
             a_session->ts_round_sync_start = dap_time_now();
             return;
         }
-    } else {
-        dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_session->chain->net_id, true);
-        l_validators = dap_list_concat(l_validators, dap_chain_net_srv_stake_get_validators(a_session->chain->net_id, false));
-        a_session->cur_round.all_validators = dap_list_copy_deep(l_validators, s_callback_list_form, NULL);
-        dap_list_free_full(l_validators, NULL);
     }
+    dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_session->chain->net_id, true);
+    l_validators = dap_list_concat(l_validators, dap_chain_net_srv_stake_get_validators(a_session->chain->net_id, false));
+    a_session->cur_round.all_validators = dap_list_copy_deep(l_validators, s_callback_list_form, NULL);
+    dap_list_free_full(l_validators, NULL);
     bool l_round_already_started = a_session->round_fast_forward;
     dap_chain_esbocs_sync_item_t *l_item, *l_tmp;
     HASH_FIND(hh, a_session->sync_items, &a_session->cur_round.last_block_hash, sizeof(dap_hash_fast_t), l_item);
@@ -1654,16 +1644,22 @@ void s_session_sync_queue_add(dap_chain_esbocs_session_t *a_session, dap_chain_e
 void s_session_validator_mark_online(dap_chain_esbocs_session_t *a_session, dap_chain_addr_t *a_signing_addr)
 {
     bool l_in_list = false;
-    dap_list_t *l_list = s_validator_check(a_signing_addr, a_session->cur_round.all_validators);
-    if (l_list) {
-        bool l_was_synced = ((dap_chain_esbocs_validator_t *)l_list->data)->is_synced;
-        ((dap_chain_esbocs_validator_t *)l_list->data)->is_synced = true;
-        if (!l_was_synced)
-            a_session->cur_round.total_validators_synced++;
-        l_in_list = true;
-        if (PVT(a_session->esbocs)->debug) {
+    if (dap_chain_net_srv_stake_key_delegated(a_signing_addr) == 1) {
+        dap_list_t *l_list = s_validator_check(a_signing_addr, a_session->cur_round.all_validators);
+        if (l_list) {
+            bool l_was_synced = ((dap_chain_esbocs_validator_t *)l_list->data)->is_synced;
+            ((dap_chain_esbocs_validator_t *)l_list->data)->is_synced = true;
+            if (!l_was_synced)
+                a_session->cur_round.total_validators_synced++;
+            l_in_list = true;
+            if (PVT(a_session->esbocs)->debug) {
+                const char *l_addr_str = dap_chain_addr_to_str(a_signing_addr);
+                log_it(L_DEBUG, "Mark validator %s as online", l_addr_str);
+                DAP_DELETE(l_addr_str);
+            }
+        } else {
             const char *l_addr_str = dap_chain_addr_to_str(a_signing_addr);
-            log_it(L_DEBUG, "Mark validator %s as online", l_addr_str);
+            log_it(L_ERROR, "Can't find validator %s in validators list", l_addr_str);
             DAP_DELETE(l_addr_str);
         }
     }
@@ -1695,8 +1691,8 @@ void s_session_validator_mark_online(dap_chain_esbocs_session_t *a_session, dap_
         if (l_item->miss_count)
             l_item->miss_count--;
         if (l_in_list && !l_item->miss_count) {
-                HASH_DEL(a_session->penalty, l_item);
-                DAP_DELETE(l_item);
+            HASH_DEL(a_session->penalty, l_item);
+            DAP_DELETE(l_item);
         }
     }
 }
