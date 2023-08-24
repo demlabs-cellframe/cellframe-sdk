@@ -299,14 +299,19 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
 {
     dap_chain_esbocs_session_t *l_session = a_arg;
     char *l_sync_group = s_get_penalty_group(l_session->chain->net_id);
-    uint32_t l_time_store_lim_hours = a_context->instance->store_time_limit;
+    uint32_t l_time_store_lim_hours;
+    dap_global_db_notify_item_t *l_notify_item = dap_global_db_get_notify_group(a_context->instance, l_sync_group);
+    if (l_notify_item && l_notify_item->ttl)
+        l_time_store_lim_hours = l_notify_item->ttl;
+    else
+        l_time_store_lim_hours = a_context->instance->store_time_limit;
     uint64_t l_limit_time = l_time_store_lim_hours ? dap_nanotime_now() - dap_nanotime_from_sec(l_time_store_lim_hours * 3600) : 0;
     size_t l_objs_count = 0;
     dap_global_db_pkt_t *l_pkt = 0;
     dap_store_obj_t *l_objs = dap_global_db_get_all_raw_unsafe(a_context, l_sync_group, 0, &l_objs_count);
     for (size_t i = 0; i < l_objs_count; i++) {
         dap_store_obj_t *it = l_objs + i;
-        if (l_limit_time && it->timestamp < l_limit_time) {
+        if (l_notify_item->ttl && it->timestamp < l_limit_time) {
             dap_global_db_driver_delete(it, 1);
             continue;
         }
@@ -473,7 +478,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     dap_global_db_context_exec(s_session_db_serialize, l_session);
     dap_global_db_add_notify_group_mask(dap_global_db_context_get_default()->instance,
                                         DAP_CHAIN_ESBOCS_GDB_GROUPS_PREFIX ".*",
-                                        s_db_change_notifier, l_session);
+                                        s_db_change_notifier, l_session, 72);
     pthread_mutexattr_t l_mutex_attr;
     pthread_mutexattr_init(&l_mutex_attr);
     pthread_mutexattr_settype(&l_mutex_attr, PTHREAD_MUTEX_RECURSIVE);
