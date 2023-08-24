@@ -71,8 +71,8 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     l_node_info->hdr.ext_addr_v4.s_addr = ipv4;
     l_node_info->hdr.ext_port = port;
 
-    bool res = dap_chain_net_balancer_handshake(l_node_info,l_net);
-
+    //bool res = dap_chain_net_balancer_handshake(l_node_info,l_net);
+    bool res = 0;
     if(res)
     {
         log_it(L_DEBUG, "ADD this addres to node list");

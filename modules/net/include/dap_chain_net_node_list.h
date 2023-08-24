@@ -36,4 +36,5 @@ struct node_link_request {
     int link_replace_tries;
 };
 
-void dap_chain_net_node_list_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg);
+void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg);
+bool dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_request);
