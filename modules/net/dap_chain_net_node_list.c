@@ -71,9 +71,8 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     l_node_info->hdr.ext_addr_v4.s_addr = ipv4;
     l_node_info->hdr.ext_port = port;
 
-    //bool res = dap_chain_net_balancer_handshake(l_node_info,l_net);
-    bool res = 0;
-    if(res)
+    uint8_t response = dap_chain_net_balancer_handshake(l_node_info,l_net);
+    if(response)
     {
         log_it(L_DEBUG, "ADD this addres to node list");
     }
@@ -82,8 +81,8 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
         log_it(L_DEBUG, "Don't add this addres to node list");
     }
 
-    //size_t l_data_send_size = sizeof(size_t) + (sizeof(dap_chain_node_info_t) * l_link_full_node_list->count_node);
-    //dap_http_simple_reply(a_http_simple, l_link_full_node_list, l_data_send_size);
+    size_t l_data_send_size = sizeof(uint8_t);
+    dap_http_simple_reply(a_http_simple, &response, l_data_send_size);
     DAP_DELETE(l_node_info);
 }
 

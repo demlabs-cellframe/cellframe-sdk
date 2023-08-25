@@ -62,7 +62,7 @@ void dap_chain_net_balancer_free_link_list(dap_chain_net_t * a_net)
     log_it(L_DEBUG, "Balancer link list cleared");
 }
 
-static bool dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info,dap_chain_net_t * a_net)
+bool dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info,dap_chain_net_t * a_net)
 {
     dap_chain_node_client_t *l_client = dap_chain_node_client_connect_default_channels(a_net,a_node_info);
     if(!l_client) {

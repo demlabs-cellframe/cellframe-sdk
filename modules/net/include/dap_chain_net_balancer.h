@@ -37,3 +37,4 @@ dap_chain_node_info_t *dap_chain_net_balancer_dns_issue_link(char *a_str);
 void dap_chain_net_balancer_prepare_list_links(const char *a_net_name,bool handshake_on);
 dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node(const char *a_net_name,uint16_t a_links_need);
 void dap_chain_net_balancer_set_link_ban(dap_chain_node_info_t *a_node_info, const char *a_net_name);
+bool dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info,dap_chain_net_t * a_net);
