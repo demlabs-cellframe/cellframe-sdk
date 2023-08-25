@@ -113,14 +113,14 @@ static void s_net_node_link_prepare_success(void *a_response, size_t a_response_
     char l_node_addr_str[INET_ADDRSTRLEN]={};
     inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
     uint8_t l_response = *(uint8_t*)a_response;
-    log_it(L_DEBUG, "%s addres "NODE_ADDR_FP_STR" (%s) to node list",l_response ? "ADD" : "NOT added",
-               NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),l_node_addr_str);
+
     switch (l_response) {
     case 0:
         log_it(L_DEBUG, "Can't do handshake");
         break;
     case 1:
-        log_it(L_DEBUG, "ADD this addres to node list");
+        log_it(L_DEBUG, "Add addres "NODE_ADDR_FP_STR" (%s) to node list",
+                   NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),l_node_addr_str);
         break;
     case 2:
         log_it(L_DEBUG, "Don't add this addres to node list");

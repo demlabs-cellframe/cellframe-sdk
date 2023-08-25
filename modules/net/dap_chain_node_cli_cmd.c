@@ -1227,6 +1227,12 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     case CMD_ADD:
 
         if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "request", NULL)){
+            if(!l_port_str || !a_ipv4_str)
+            {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "node requires parameter -ipv4 and -port");
+                DAP_DELETE(l_node_info);
+                return -1;
+            }
             dap_chain_node_info_t *l_link_node_request = DAP_NEW_Z( dap_chain_node_info_t);
             l_link_node_request->hdr.address.uint64 = dap_chain_net_get_cur_addr_int(l_net);
             inet_pton(AF_INET, a_ipv4_str, &(l_link_node_request->hdr.ext_addr_v4));
