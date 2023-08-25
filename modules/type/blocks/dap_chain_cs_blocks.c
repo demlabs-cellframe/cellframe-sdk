@@ -1679,3 +1679,8 @@ int dap_chain_cs_block_get_ret_code_ledger(dap_chain_t *a_chain, dap_hash_fast_t
     }
     return -1;
 }
+
+dap_chain_block_t  *dap_chain_cs_blocks_get_block_find_by_tx_hash(dap_chain_t *a_chain, dap_hash_fast_t *a_tx_hash,
+                                                                  size_t *a_out_block_size) {
+    return (dap_chain_block_t*)s_callback_block_find_by_tx_hash(a_chain, a_tx_hash, a_out_block_size);
+}
