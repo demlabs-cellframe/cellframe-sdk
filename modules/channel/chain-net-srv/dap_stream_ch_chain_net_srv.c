@@ -427,12 +427,38 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
         l_item->grace = a_grace;
         l_item->tx_cond_hash = a_grace->usage->tx_cond_hash;
 
-        pthread_mutex_lock(&s_ht_grace_table_mutex);
-        HASH_ADD(hh, s_grace_table, tx_cond_hash, sizeof(dap_hash_fast_t), l_item);
-        pthread_mutex_unlock(&s_ht_grace_table_mutex);
-        a_grace->timer_es_uuid = dap_timerfd_start_on_worker(a_grace->stream_worker->worker, a_grace->usage->service->grace_period * 1000,
-                                                             (dap_timerfd_callback_t)s_grace_period_finish, l_item)->esocket_uuid;
 
+        size_t l_success_size = sizeof (dap_stream_ch_chain_net_srv_pkt_success_hdr_t );
+        dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
+                                                                              l_success_size);
+        if(!l_success) {
+            log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
+            if(l_ch)
+                dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+            if (a_grace->usage->service && a_grace->usage->service->callbacks.response_error)
+                a_grace->usage->service->callbacks.response_error(a_grace->usage->service, 0, NULL, &l_err, sizeof(l_err));
+        } else {
+            l_success->hdr.usage_id = a_grace->usage->id;
+            l_success->hdr.net_id.uint64 = a_grace->usage->net->pub.id.uint64;
+            l_success->hdr.srv_uid.uint64 = a_grace->usage->service->uid.uint64;
+            dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_SUCCESS, l_success, l_success_size);
+
+            char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
+            dap_hash_fast_to_str(&a_grace->usage->tx_cond_hash, l_hash_str, sizeof(l_hash_str));
+                log_it(L_NOTICE, "Transaction %s can't be found. Start the grace period for %d seconds", l_hash_str,
+                        a_grace->usage->service->grace_period);
+
+            if (a_grace->usage->service->callbacks.response_success)
+                a_grace->usage->service->callbacks.response_success(a_grace->usage->service, a_grace->usage->id,
+                                                                    a_grace->usage->client, NULL, 0);
+            DAP_DELETE(l_success);
+            pthread_mutex_lock(&s_ht_grace_table_mutex);
+            HASH_ADD(hh, s_grace_table, tx_cond_hash, sizeof(dap_hash_fast_t), l_item);
+            pthread_mutex_unlock(&s_ht_grace_table_mutex);
+            a_grace->timer_es_uuid = dap_timerfd_start_on_worker(a_grace->stream_worker->worker, a_grace->usage->service->grace_period * 1000,
+                                                                 (dap_timerfd_callback_t)s_grace_period_finish, l_item)->esocket_uuid;
+        }
 
     } else { // Start service in normal pay mode
         a_grace->usage->tx_cond = l_tx;
@@ -1286,7 +1312,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         char l_tx_in_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
         dap_chain_hash_fast_to_str(&l_responce->hdr.tx_cond, l_tx_in_hash_str, sizeof(l_tx_in_hash_str));
         log_it(L_NOTICE, "Received new tx cond %s", l_tx_in_hash_str);
-        if(!l_usage->is_waiting_new_tx_cond || !l_usage->is_grace)
+        if(!l_usage->is_waiting_new_tx_cond || l_usage->is_grace)
             break;
 
         l_usage->is_waiting_new_tx_cond = false;

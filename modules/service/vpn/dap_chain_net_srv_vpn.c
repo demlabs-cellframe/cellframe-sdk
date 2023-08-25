@@ -176,7 +176,6 @@ uint32_t s_tun_sockets_started = 0;
 uint32_t s_tun_sockets_count = 0;
 bool s_debug_more = false;
 
-static usage_client_t * s_clients = NULL;
 static dap_chain_net_srv_ch_vpn_t * s_ch_vpn_addrs  = NULL;
 static pthread_rwlock_t s_clients_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
@@ -961,42 +960,20 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
         return -1;
     }
 
-    usage_client_t * l_usage_client = DAP_NEW_Z(usage_client_t);
-    if (!l_usage_client) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        return -1;
-    }
-    l_usage_client->usage_id = a_usage_id;
-
-    if (!l_usage_active->is_free){
-        l_usage_client->receipt = DAP_DUP_SIZE(l_receipt, l_receipt_size);
-        if (!l_usage_client->receipt) {
-        log_it(L_CRITICAL, "Memory allocation error");
-            DAP_DEL_Z(l_usage_client);
-            return -1;
-        }
-    }
-    pthread_rwlock_wrlock(&s_clients_rwlock);
-    HASH_ADD(hh, s_clients,usage_id,sizeof(a_usage_id),l_usage_client);
-    pthread_rwlock_unlock(&s_clients_rwlock);
     l_srv_session->usage_active = l_usage_active;
     l_srv_session->usage_active->is_active = true;
     log_it(L_NOTICE,"Enable VPN service");
 
     if ( l_srv_ch_vpn ){ // If channel is already opened
-
         dap_stream_ch_set_ready_to_read_unsafe( l_srv_ch_vpn->ch , true );
-
         l_srv_ch_vpn->usage_id = a_usage_id;
-        // So complicated to update usage client to be sure that nothing breaks it
-        l_usage_client->ch_vpn = l_srv_ch_vpn;
     } else{
         log_it(L_WARNING, "VPN channel is not open, will be no data transmission");
         return -2;
     }
 
     // set start limits
-    if(!l_usage_active->is_free){
+    if(!l_usage_active->is_free && l_usage_active->receipt){
         remain_limits_save_arg_t *l_args = DAP_NEW_Z(remain_limits_save_arg_t);
         l_args->srv = a_srv;
         l_args->srv_client = a_srv_client;
@@ -1013,7 +990,7 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
             } break;
             case SERV_UNIT_SEC:{
                 l_srv_session->last_update_ts = time(NULL);
-                if (l_usage_active->is_grace || l_srv_session->limits_ts <= 0)
+                if (!l_usage_active->is_grace && l_srv_session->limits_ts <= 0)
                     l_srv_session->limits_ts += (time_t)l_usage_active->receipt->receipt_info.units;
                 log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" seconds more for VPN usage", l_usage_active->receipt->receipt_info.units);
             } break;
@@ -1242,17 +1219,6 @@ void s_ch_vpn_new(dap_stream_ch_t* a_ch, void* a_arg)
     dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_ch->stream->session->_inheritor;
 
     l_srv_vpn->usage_id = l_srv_session->usage_active ?  l_srv_session->usage_active->id : 0;
-
-    if( l_srv_vpn->usage_id) {
-        // So complicated to update usage client to be sure that nothing breaks it
-        usage_client_t * l_usage_client = NULL;
-        pthread_rwlock_rdlock(&s_clients_rwlock);
-        HASH_FIND(hh,s_clients, &l_srv_vpn->usage_id,sizeof(l_srv_vpn->usage_id),l_usage_client );
-        if (l_usage_client){
-            l_usage_client->ch_vpn = l_srv_vpn;
-        }
-        pthread_rwlock_unlock(&s_clients_rwlock);
-    }
 }
 
 
@@ -1305,11 +1271,6 @@ static void s_ch_vpn_delete(dap_stream_ch_t* a_ch, void* arg)
         l_item_unleased->addr.s_addr = l_ch_vpn->addr_ipv4.s_addr;
         l_item_unleased->next = l_srv_vpn->ipv4_unleased;
         l_srv_vpn->ipv4_unleased = l_item_unleased;
-    }
-
-    HASH_FIND(hh,s_clients, &l_ch_vpn->usage_id,sizeof(l_ch_vpn->usage_id),l_usage_client );
-    if (l_usage_client){
-        l_usage_client->ch_vpn = NULL; // NULL the channel, nobody uses that indicates
     }
 
     pthread_rwlock_unlock(&s_clients_rwlock);
