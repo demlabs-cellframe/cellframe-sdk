@@ -107,6 +107,7 @@
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_enc_base64.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
+#include "dap_chain_net_node_list.h"
 
 #define LOG_TAG "chain_node_cli_cmd"
 
