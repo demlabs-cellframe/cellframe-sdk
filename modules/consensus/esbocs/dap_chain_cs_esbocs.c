@@ -440,8 +440,8 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
         l_esbocs_pvt->minimum_fee = l_order_service->price;
     dap_global_db_objs_delete(l_orders, l_orders_count);
 
-    if (!l_order_service) {
-        log_it(L_ERROR, "No order found was signed by this validator deledgated key. Switch off validator mode.");
+    if (IS_ZERO_256(l_esbocs_pvt->minimum_fee)) {
+        log_it(L_ERROR, "No valid order found was signed by this validator deledgated key. Switch off validator mode.");
         return -4;
     }
     dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net);
@@ -494,7 +494,13 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
         s_session_cs_timer = dap_timerfd_start(1000, s_session_timer, NULL);
         debug_if(l_esbocs_pvt->debug, L_MSG, "Consensus main timer is started");
     }
+    DAP_CHAIN_PVT(a_chain)->cs_started = true;
     return 0;
+}
+
+bool dap_chain_esbocs_started()
+{
+    return s_session_cs_timer;
 }
 
 static uint256_t s_callback_get_minimum_fee(dap_chain_t *a_chain)
@@ -594,7 +600,6 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_session_t *a_session, 
             return l_ret;
         }
 
-        // TODO: make dap_chain_net_srv_stake_get_total_weight() call
         uint256_t l_total_weight = uint256_0;
         for (dap_list_t *it = l_validators; it; it = it->next) {
             if (SUM_256_256(l_total_weight,
