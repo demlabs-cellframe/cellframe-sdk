@@ -960,16 +960,18 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
         return -1;
     }
 
-    l_srv_session->usage_active = l_usage_active;
-    l_srv_session->usage_active->is_active = true;
-    log_it(L_NOTICE,"Enable VPN service");
+    if (!l_srv_session->usage_active->is_active){
+        l_srv_session->usage_active = l_usage_active;
+        l_srv_session->usage_active->is_active = true;
+        log_it(L_NOTICE,"Enable VPN service");
 
-    if ( l_srv_ch_vpn ){ // If channel is already opened
-        dap_stream_ch_set_ready_to_read_unsafe( l_srv_ch_vpn->ch , true );
-        l_srv_ch_vpn->usage_id = a_usage_id;
-    } else{
-        log_it(L_WARNING, "VPN channel is not open, will be no data transmission");
-        return -2;
+        if ( l_srv_ch_vpn ){ // If channel is already opened
+            dap_stream_ch_set_ready_to_read_unsafe( l_srv_ch_vpn->ch , true );
+            l_srv_ch_vpn->usage_id = a_usage_id;
+        } else{
+            log_it(L_WARNING, "VPN channel is not open, will be no data transmission");
+            return -2;
+        }
     }
 
     // set start limits
@@ -990,9 +992,10 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
             } break;
             case SERV_UNIT_SEC:{
                 l_srv_session->last_update_ts = time(NULL);
-                if (!l_usage_active->is_grace && l_srv_session->limits_ts <= 0)
+                if (!l_usage_active->is_grace && l_srv_session->limits_ts <= 0){
                     l_srv_session->limits_ts += (time_t)l_usage_active->receipt->receipt_info.units;
-                log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" seconds more for VPN usage", l_usage_active->receipt->receipt_info.units);
+                    log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" seconds more for VPN usage", l_usage_active->receipt->receipt_info.units);
+                }
             } break;
             case SERV_UNIT_B:{
                 if (l_usage_active->is_grace || l_srv_session->limits_bytes == 0)
@@ -1016,6 +1019,8 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
                 dap_stream_ch_pkt_write_unsafe(l_usage_active->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
             }
         }
+    } else if (!l_usage_active->is_free && !l_usage_active->receipt && l_usage_active->is_grace){
+        l_srv_session->last_update_ts = time(NULL);
     }
 
     return l_ret;
@@ -1800,7 +1805,7 @@ static void s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         return;
     }
-    if ( (! l_usage->is_free) && (! l_usage->receipt) ){
+    if ( (! l_usage->is_free) && (! l_usage->receipt && !l_usage->is_grace) ){
         log_it(L_WARNING, "No active receipt, switching off");
         if (l_usage->client)
             dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );

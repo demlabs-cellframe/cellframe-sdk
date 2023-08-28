@@ -375,8 +375,26 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
 
             if ( l_price_max_str )
                 l_price_max = dap_chain_balance_scan(l_price_max_str);
-            if ( l_price_unit_str)
-                l_price_unit.uint32 = (uint32_t) atol ( l_price_unit_str );
+
+            if (!dap_strcmp(l_price_unit_str, "MB")){
+                l_price_unit.uint32 = SERV_UNIT_MB;
+            } else if (!dap_strcmp(l_price_unit_str, "SEC")){
+                l_price_unit.uint32 = SERV_UNIT_SEC;
+            } else if (!dap_strcmp(l_price_unit_str, "DAY")){
+                l_price_unit.uint32 = SERV_UNIT_DAY;
+            } else if (!dap_strcmp(l_price_unit_str, "KB")){
+                l_price_unit.uint32 = SERV_UNIT_KB;
+            } else if (!dap_strcmp(l_price_unit_str, "B")){
+                l_price_unit.uint32 = SERV_UNIT_B;
+            } else if (!dap_strcmp(l_price_unit_str, "PCS")){
+                l_price_unit.uint32 = SERV_UNIT_PCS;
+            } else {
+                //l_price_unit.uint32 = SERV_UNIT_UNDEFINED;
+                log_it(L_ERROR, "Undefined price unit");
+                dap_string_free(l_string_ret, true);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong unit type sepcified, possible values: B, KB, MB, SEC, DAY, PCS");
+                return -18;
+            }
 
             dap_chain_net_srv_order_t * l_orders;
             size_t l_orders_num = 0;
