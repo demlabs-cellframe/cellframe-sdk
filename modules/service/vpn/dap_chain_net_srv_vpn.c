@@ -1592,9 +1592,9 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         return;
     }
     // check role
-    if (dap_chain_net_get_role(l_usage->net).enums > NODE_ROLE_MASTER) { 
+    if (dap_chain_net_get_role(l_usage->net).enums > NODE_ROLE_MASTER) {
         log_it(L_ERROR, 
-            "You can't provide service with ID %X in net %s. Node role should be not lower than master\n", 
+            "You can't provide service with ID %"DAP_UINT64_FORMAT_X" in net %s. Node role should be not lower than master\n",
             l_usage->service->uid.uint64, l_usage->net->pub.name
             );
         if (l_usage->client)

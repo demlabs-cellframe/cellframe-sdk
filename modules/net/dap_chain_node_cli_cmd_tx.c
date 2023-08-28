@@ -162,8 +162,8 @@ char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain,
                 : dap_chain_hash_fast_to_str_new(&l_atom_hash);
         dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
         const char *l_tx_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, a_tx_hash);
-        dap_string_append_printf(l_str_out, "%s TX with atom %s (ret_code %d)\n", l_tx_token_ticker ? "ACCEPTED" : "DECLINED",
-                                                                    l_atom_hash_str, l_ret_code);
+        dap_string_append_printf(l_str_out, "%s TX with atom %s (ret_code %d - %s)\n", l_tx_token_ticker ? "ACCEPTED" : "DECLINED",
+                                                                    l_atom_hash_str, l_ret_code, dap_chain_ledger_tx_check_err_str(l_ret_code));
         DAP_DELETE(l_atom_hash_str);
         dap_chain_datum_dump_tx(l_tx, l_tx_token_ticker, l_str_out, a_hash_out_type, a_tx_hash, a_chain->net_id);
     } else {
@@ -212,8 +212,9 @@ static void s_tx_header_print(dap_string_t *a_str_out, dap_chain_tx_hash_process
         l_tx_hash_str = dap_enc_base58_encode_hash_to_str(a_tx_hash);
         l_atom_hash_str = dap_enc_base58_encode_hash_to_str(a_atom_hash);
     }
-    dap_string_append_printf(a_str_out, "%s TX hash %s with atom %s (ret code %d) \n\t%s", l_declined ? "DECLINED" : "ACCEPTED",
-                                                                          l_tx_hash_str, l_atom_hash_str, a_ret_code, l_time_str);
+    dap_string_append_printf(a_str_out, "%s TX hash %s with atom %s (ret code %d - %s) \n\t%s", l_declined ? "DECLINED" : "ACCEPTED",
+                                                                          l_tx_hash_str, l_atom_hash_str, a_ret_code,
+                                                                          dap_chain_ledger_tx_check_err_str(a_ret_code), l_time_str);
     DAP_DELETE(l_tx_hash_str);
     DAP_DELETE(l_atom_hash_str);
 }
