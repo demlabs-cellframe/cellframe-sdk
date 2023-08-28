@@ -96,7 +96,7 @@ int dap_chain_net_srv_xchange_init()
     "srv_xchange orders -net <net_name>\n"
          "\tGet the exchange orders list within specified net name\n"
 
-    "srv_xchange purchase -order <order hash> -net <net_name> -wallet <wallet_name> -coins <value>\n"
+    "srv_xchange purchase -order <order hash> -net <net_name> -wallet <wallet_name> -value <value> -fee <value>\n"
          "\tExchange tokens with specified order within specified net name. Specify how many datoshies to sell with rate specified by order\n"
 
     "srv_xchange tx_list -net <net_name> [-time_from <yymmdd> -time_to <yymmdd>]"
