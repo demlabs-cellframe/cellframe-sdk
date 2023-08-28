@@ -1666,16 +1666,3 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
     }
     return l_list;
 }
-
-int dap_chain_cs_block_get_ret_code_ledger(dap_chain_t *a_chain, dap_hash_fast_t *a_datum_hash){
-    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
-    dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(l_blocks);
-    dap_chain_block_datum_index_t *l_datum_index = NULL;
-    pthread_rwlock_rdlock(&l_blocks_pvt->datums_rwlock);
-    HASH_FIND(hh, l_blocks_pvt->datum_index, a_datum_hash, sizeof (*a_datum_hash), l_datum_index);
-    pthread_rwlock_unlock(&l_blocks_pvt->datums_rwlock);
-    if (l_datum_index) {
-        return  l_datum_index->ret_code;
-    }
-    return -1;
-}
