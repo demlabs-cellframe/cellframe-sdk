@@ -464,7 +464,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 dap_string_append(l_string_ret,"need -hash param to obtain what the order we need to dump\n");
             }
         } else if(!dap_strcmp( l_order_str, "create" )) {
-            if (dap_chain_net_get_role(l_net).enums < NODE_ROLE_MASTER) {
+            if (dap_chain_net_get_role(l_net).enums > NODE_ROLE_MASTER) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Node role should be not lower than master\n");
                 return -4;
             }
