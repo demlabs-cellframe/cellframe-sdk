@@ -443,14 +443,14 @@ static int s_dap_chain_add_datum(dap_chain_cs_dag_t *a_dag, dap_chain_cs_dag_eve
     }
     dap_hash_fast_t l_datum_hash;
     dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_datum_hash);
+    pthread_mutex_lock(&PVT(a_dag)->events_mutex);
     int l_ret = dap_chain_datum_add(a_dag->chain, l_datum, l_datum_size, &l_datum_hash);
     if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)  // && l_ret == 0
         PVT(a_dag)->tx_count++;
     a_event_item->datum_hash = l_datum_hash;
     a_event_item->ret_code = l_ret;
     unsigned l_hash_item_hashv;
-    HASH_VALUE(&l_datum_hash, sizeof(l_datum_hash), l_hash_item_hashv);
-    pthread_mutex_lock(&PVT(a_dag)->events_mutex);
+    HASH_VALUE(&l_datum_hash, sizeof(l_datum_hash), l_hash_item_hashv);    
     dap_chain_cs_dag_event_item_t *l_datum_present = NULL;
     HASH_FIND_BYHASHVALUE(hh_datums, PVT(a_dag)->datums, &l_datum_hash, sizeof(l_datum_hash),
                           l_hash_item_hashv, l_datum_present);
