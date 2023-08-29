@@ -5581,7 +5581,7 @@ int com_tx_verify(int a_argc, char **a_argv, char **a_str_reply)
  * @param a_str_reply
  * @return int
  */
-int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
+int com_tx_history(int a_argc, char ** a_argv, json_object* json_reply)
 {
     int arg_index = 1;
     const char *l_addr_base58 = NULL;
@@ -5598,7 +5598,7 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
     if(!l_hash_out_type)
         l_hash_out_type = "hex";
     if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Invalid parameter -H, valid values: -H <hex | base58>");
+        dap_json_rpc_error_add(-1, "Invalid parameter -H, valid values: -H <hex | base58>");
         return -1;
     }
 
@@ -5611,26 +5611,25 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
     bool l_is_tx_all = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-all", NULL);
 
     if (!l_addr_base58 && !l_wallet_name && !l_tx_hash_str && !l_is_tx_all) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_history requires parameter '-addr' or '-w' or '-tx'");
+        dap_json_rpc_error_add(-1, "tx_history requires parameter '-addr' or '-w' or '-tx'");
         return -1;
     }
 
     if (!l_net_str && !l_addr_base58&& !l_is_tx_all) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_history requires parameter '-net' or '-addr'");
+        dap_json_rpc_error_add(-2, "tx_history requires parameter '-net' or '-addr'");
         return -2;
     }
 
     dap_chain_hash_fast_t l_tx_hash;
     if (l_tx_hash_str && dap_chain_hash_fast_from_str(l_tx_hash_str, &l_tx_hash) < 0) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "tx hash not recognized");
+        dap_json_rpc_error_add(-3, "tx hash not recognized");
         return -3;
     }
     // Select chain network
     if (l_net_str) {
         l_net = dap_chain_net_by_name(l_net_str);
         if (!l_net) { // Can't find such network
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                    "tx_history requires parameter '-net' to be valid chain network name");
+            dap_json_rpc_error_add(-3, "tx_history requires parameter '-net' to be valid chain network name");
             return -3;
         }
     }
@@ -5638,18 +5637,17 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
     dap_chain_addr_t *l_addr = NULL;
     if (l_addr_base58) {
         if (l_tx_hash_str) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Incomatible params '-addr' & '-tx'");
+            dap_json_rpc_error_add(-4, "Incomatible params '-addr' & '-tx'");
             return -4;
         }
         l_addr = dap_chain_addr_from_str(l_addr_base58);
         if (!l_addr) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet address not recognized");
+            dap_json_rpc_error_add(-5, "Wallet address not recognized");
             return -5;
         }
         if (l_net) {
             if (l_net->pub.id.uint64 != l_addr->net_id.uint64) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "Network ID with '-net' param and network ID with '-addr' param are different");
+                dap_json_rpc_error_add(-3, "Network ID with '-net' param and network ID with '-addr' param are different");
                 DAP_DELETE(l_addr);
                 return -6;
             }
@@ -5663,8 +5661,7 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
             dap_chain_addr_t *l_addr_tmp = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
             if (l_addr) {
                 if (!dap_chain_addr_compare(l_addr, l_addr_tmp)) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                      "Address with '-addr' param and address with '-w' param are different");
+                    dap_json_rpc_error_add(-7, "Address with '-addr' param and address with '-w' param are different");
                     DAP_DELETE(l_addr);
                     DAP_DELETE(l_addr_tmp);
                     return -7;
@@ -5674,14 +5671,14 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
                 l_addr = l_addr_tmp;
             dap_chain_wallet_close(l_wallet);
         } else {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "The wallet %s is not activated or it doesn't exist", l_wallet_name);
+            dap_json_rpc_error_add(-7, "The wallet %s is not activated or it doesn't exist", l_wallet_name);
             DAP_DELETE(l_addr);
             return -7;
         }
     }
     // Select chain, if any
     if (!l_net) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Could not determine the network from which to "
+        dap_json_rpc_error_add(-9, "Could not determine the network from which to "
                                                        "extract data for the tx_history command to work.");
         return -9;
     }
@@ -5691,9 +5688,8 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
         l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
 
     if(!l_chain) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "tx_history requires parameter '-chain' to be valid chain name in chain net %s."
-                                                        " You can set default datum type in chain configuration file",
-                                          l_net_str);
+        dap_json_rpc_error_add(-8, "tx_history requires parameter '-chain' to be valid chain name in chain net %s."
+                                                        " You can set default datum type in chain configuration file", l_net_str);
         return -8;
     }
     char *l_str_out = NULL;
@@ -5707,7 +5703,7 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
         dap_time_to_str_rfc822(out,80, l_time_T);
         log_it(L_DEBUG, "Start getting tx from chain: %s", out);
         dap_ledger_t *l_ledger = l_net->pub.ledger;
-        dap_string_t *l_tx_all_str = dap_string_new("");
+        // dap_string_t *l_tx_all_str = dap_string_new("");
         size_t l_tx_count = 0;
         size_t l_tx_ledger_accepted = 0;
         size_t l_tx_ledger_rejected = 0;
@@ -5729,13 +5725,18 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
                         dap_hash_fast(l_tx, l_datums[i]->header.data_size, &l_ttx_hash);
                         const char *l_token_ticker = NULL;
                         if ((l_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_ttx_hash))) {
-                            dap_string_append_printf(l_tx_all_str, "\t\t↓↓↓ Ledger accepted ↓↓↓\n");
+                            json_object_object_add(json_reply, "Status", "ACCEPTED");
+                            // dap_string_append_printf(l_tx_all_str, "\t\t↓↓↓ Ledger accepted ↓↓↓\n");
                             l_tx_ledger_accepted++;
                         } else {
                             l_token_ticker = s_tx_get_main_ticker(l_tx, l_net, NULL);
-                            dap_string_append_printf(l_tx_all_str, "\t\t↓↓↓ Ledger rejected ↓↓↓\n");
+                            json_object_object_add(json_reply, "Status", "REJECTED");
+                            // dap_string_append_printf(l_tx_all_str, "\t\t↓↓↓ Ledger rejected ↓↓↓\n");
                             l_tx_ledger_rejected++;
                         }
+                        json_object* datum_tx = dap_chain_datum_tx_to_json(l_tx);
+                        json_object_object_add(json_reply, "hash", &l_ttx_hash);
+                        json_object_put();
                         dap_chain_datum_dump_tx(l_tx, l_token_ticker, l_tx_all_str, l_hash_out_type, &l_ttx_hash);
                     }
                 }
@@ -5764,7 +5765,8 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
         DAP_DELETE(l_str_out);
     } else
         l_str_ret = l_str_out;
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ret);
+    json_object_object_add(json_reply, "result", l_str_ret);
+    // dap_json_rpc_error_add(-3, "%s", l_str_ret);
     DAP_DELETE(l_str_ret);
     return 0;
 }
