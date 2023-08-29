@@ -289,7 +289,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
             return REINVEST_ARG_ERROR;
         if (IS_ZERO_256(l_reinvest_percent)) {
             int l_reinvest_percent_int = atoi(l_reinvest_percent_str);
-            if (l_reinvest_percent_int <= 0 || l_reinvest_percent_int > 100)
+            if (l_reinvest_percent_int < 0 || l_reinvest_percent_int > 100)
                 return REINVEST_ARG_ERROR;
             l_reinvest_percent = dap_chain_uint256_from(l_reinvest_percent_int);
             MULT_256_256(l_reinvest_percent, GET_256_FROM_64(1000000000000000000ULL), &l_reinvest_percent);
@@ -658,7 +658,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
             } break;
 
         case REINVEST_ARG_ERROR: {
-            dap_string_append_printf(output_line, "reinvestment is set as a percentage from 1 to 100");
+            dap_string_append_printf(output_line, "reinvestment is set as a percentage from 0 to 100");
             } break;
 
         case FEE_ARG_ERROR: {

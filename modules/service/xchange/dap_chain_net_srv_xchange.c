@@ -486,7 +486,8 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
 }
 
 static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xchange_price_t *a_price,
-                                                          dap_chain_wallet_t *a_wallet, uint256_t a_datoshi_buy)
+                                                          dap_chain_wallet_t *a_wallet, uint256_t a_datoshi_buy,
+                                                          uint256_t a_datoshi_fee)
 {
     if (!a_price || !a_price->net || !*a_price->token_sell || !*a_price->token_buy || !a_wallet) {
         return NULL;
@@ -499,7 +500,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
               l_value_need = a_price->datoshi_buy,
               l_net_fee,
               l_service_fee,
-              l_total_fee = a_price->fee,
+              l_total_fee = a_datoshi_fee,
               l_fee_transfer;
     dap_chain_addr_t l_net_fee_addr, l_service_fee_addr;
     dap_list_t *l_list_fee_out = NULL;
@@ -572,7 +573,6 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
     if (!l_pay_with_native) {
         // add 'in' items to fee
         uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
-        dap_list_free_full(l_list_used_out, NULL);
         if (!EQUAL_256(l_value_fee_items, l_fee_transfer)) {
             dap_chain_datum_tx_delete(l_tx);
             DAP_DELETE(l_buyer_addr);
@@ -1726,25 +1726,30 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                 }
 
                 uint256_t l_datoshi_buy;
-                char *l_cp1, *l_cp2, *l_cp3;
+                char *l_cp_buy_coins, *l_cp_buy_datoshi, *l_cp_sell_coins, *l_cp_sell_datoshi, *l_cp_rate;
                 char* l_status_order;
                 dap_hash_fast_t l_hash_fast_ref = {0};
                 if (dap_hash_fast_compare(&l_price->tx_hash, &l_hash_fast_ref))
                     l_status_order  = "INVALID";
                 else
-                    l_status_order = "UNKNOWN";
+                    l_status_order = "OPEN";
 
                 MULT_256_COIN(l_price->datoshi_sell, l_price->rate, &l_datoshi_buy);  /* sell/buy computation */
 
-                dap_string_append_printf(l_reply_str, "orderHash: %s (%s) tokSel: %s, net: %s, tokBuy: %s, sell: %s, buy: %s buy/sell: %s\n", l_orders[i].key,
+                dap_string_append_printf(l_reply_str, "orderHash: %s (%s) tokSel: %s, net: %s, tokBuy: %s, sell: %s (%s), buy: %s (%s) buy/sell: %s\n", l_orders[i].key,
                                          l_status_order, l_price->token_sell, l_price->net->pub.name,
                                          l_price->token_buy,
-                                         l_cp1 = dap_chain_balance_print(l_price->datoshi_sell), l_cp2 = dap_chain_balance_print(l_datoshi_buy),
-                                         l_cp3 = dap_chain_balance_to_coins(l_price->rate));
+                                         l_cp_sell_coins = dap_chain_balance_to_coins(l_price->datoshi_sell),
+                                         l_cp_sell_datoshi = dap_chain_balance_print(l_price->datoshi_sell),
+                                         l_cp_buy_coins = dap_chain_balance_to_coins(l_price->datoshi_buy),
+                                         l_cp_buy_datoshi = dap_chain_balance_print(l_datoshi_buy),
+                                         l_cp_rate = dap_chain_balance_to_coins(l_price->rate));
 
-                DAP_DEL_Z(l_cp1);
-                DAP_DEL_Z(l_cp2);
-                DAP_DEL_Z(l_cp3);
+                DAP_DEL_Z(l_cp_buy_coins);
+                DAP_DEL_Z(l_cp_buy_datoshi);
+                DAP_DEL_Z(l_cp_sell_coins);
+                DAP_DEL_Z(l_cp_sell_datoshi);
+                DAP_DEL_Z(l_cp_rate);
                 DAP_DEL_Z(l_price);
             }
             dap_global_db_objs_delete(l_orders, l_orders_count);
@@ -1757,7 +1762,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 
 
         case CMD_PURCHASE: {
-            const char *l_net_str = NULL, *l_wallet_str = NULL, *l_order_hash_str = NULL, *l_val_buy_str = NULL;
+            const char *l_net_str = NULL, *l_wallet_str = NULL, *l_order_hash_str = NULL, *l_val_buy_str = NULL, *l_val_fee_str = NULL;
             l_arg_index++;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
@@ -1784,14 +1789,24 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'purchase' requires parameter -order");
                 return -12;
             }
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-coins", &l_val_buy_str);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_val_buy_str);
             if (!l_val_buy_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'purchase' requires parameter -coins");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'purchase' requires parameter -value");
                 return -8;
             }
             uint256_t l_datoshi_buy = dap_chain_balance_scan(l_val_buy_str);
             if (IS_ZERO_256(l_datoshi_buy)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -coins <unsigned int256>");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -value <unsigned int256>");
+                return -9;
+            }
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-fee", &l_val_fee_str);
+            if (!l_val_fee_str) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'purchase' requires parameter -fee");
+                return  -8;
+            }
+            uint256_t  l_datoshi_fee = dap_chain_balance_scan(l_val_fee_str);
+            if (IS_ZERO_256(l_datoshi_fee)) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -fee <unsigned int256>");
                 return -9;
             }
             dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_find_by_hash_str(l_net, l_order_hash_str);
@@ -1803,7 +1818,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                 }
                 // Create conditional transaction
                 dap_chain_hash_fast_from_str(l_order_hash_str, &l_price->order_hash);
-                dap_chain_datum_tx_t *l_tx = s_xchange_tx_create_exchange(l_price, l_wallet, l_datoshi_buy);
+                dap_chain_datum_tx_t *l_tx = s_xchange_tx_create_exchange(l_price, l_wallet, l_datoshi_buy, l_datoshi_fee);
                 if (l_tx && s_xchange_tx_put(l_tx, l_net) &&
                         dap_hash_fast_is_blank(&l_price->order_hash))
                     dap_chain_net_srv_order_delete_by_hash_str_sync(l_price->net, l_order_hash_str);
