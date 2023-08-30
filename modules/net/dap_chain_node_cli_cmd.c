@@ -6326,7 +6326,11 @@ int cmd_gdb_export(int a_argc, char **a_argv, char **a_str_reply)
     for (dap_list_t *l_list = l_groups_list; l_list; l_list = dap_list_next(l_list)) {
         size_t l_store_obj_count = 0;
         char *l_group_name = (char *)l_list->data;
-        pdap_store_obj_t l_store_obj = dap_global_db_get_all_raw_sync(l_group_name,0, &l_store_obj_count);
+
+        dap_db_iter_t *l_iter = dap_global_db_driver_iter_create(l_group_name);
+        dap_store_obj_t *l_store_obj = dap_global_db_get_all_raw_sync(l_group_name, l_iter, &l_store_obj_count);
+        dap_global_db_driver_iter_delete(l_iter);
+
         if (!l_store_obj_count) {
             log_it(L_INFO, "Group %s is empty or not found", l_group_name);
             continue;
@@ -6420,7 +6424,7 @@ int cmd_gdb_import(int a_argc, char **a_argv, char ** a_str_reply)
         log_it(L_INFO, "Group %zu: %s", i, l_group_name);
         struct json_object *l_json_records = json_object_object_get(l_group_obj, "records");
         size_t l_records_count = json_object_array_length(l_json_records);
-        pdap_store_obj_t l_group_store = DAP_NEW_Z_SIZE(dap_store_obj_t, l_records_count * sizeof(dap_store_obj_t));
+        dap_store_obj_t *l_group_store = DAP_NEW_Z_SIZE(dap_store_obj_t, l_records_count * sizeof(dap_store_obj_t));
         for (size_t j = 0; j < l_records_count; ++j) {
             struct json_object *l_record, *l_id, *l_key, *l_value, *l_value_len, *l_ts;
             l_record = json_object_array_get_idx(l_json_records, j);
