@@ -142,37 +142,55 @@ static bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
  * @param a_hash_out_type
  * @return char*
  */
-char* dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, dap_chain_t * a_chain, const char *a_hash_out_type)
+int dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash, 
+                      dap_chain_t * a_chain, 
+                      const char *a_hash_out_type, 
+                      json_object* json_reply, 
+                      dap_chain_net_t * l_net)
 {
     if (!a_chain->callback_datum_find_by_hash) {
         log_it(L_WARNING, "Not defined callback_datum_find_by_hash for chain \"%s\"", a_chain->name);
         return NULL;
     }
-
-    dap_string_t *l_str_out = dap_string_new(NULL);
-    dap_hash_fast_t l_atom_hash = {};
+    dap_hash_fast_t l_atom_hash = {0};
+    json_object* json_datum = json_object_new_array();
     int l_ret_code = 0;
+    //search tx
     dap_chain_datum_t *l_datum = a_chain->callback_datum_find_by_hash(a_chain, a_tx_hash, &l_atom_hash, &l_ret_code);
     dap_chain_datum_tx_t *l_tx = l_datum  && l_datum->header.type_id == DAP_CHAIN_DATUM_TX ?
                                  (dap_chain_datum_tx_t *)l_datum->data : NULL;
-
     if (l_tx) {
+        const char *l_tx_token_ticker = NULL;
         char *l_atom_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                ? dap_enc_base58_encode_hash_to_str(&l_atom_hash)
-                : dap_chain_hash_fast_to_str_new(&l_atom_hash);
-        const char *l_tx_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_chain->ledger, a_tx_hash);
-        dap_string_append_printf(l_str_out, "%s TX with atom %s (ret_code %d)\n", l_tx_token_ticker ? "ACCEPTED" : "DECLINED",
-                                                                    l_atom_hash_str, l_ret_code);
-        DAP_DELETE(l_atom_hash_str);
-        dap_chain_datum_dump_tx(l_tx, l_tx_token_ticker, l_str_out, a_hash_out_type, a_tx_hash);
+                            ? dap_enc_base58_encode_hash_to_str(&l_atom_hash)
+                            : dap_chain_hash_fast_to_str_new(&l_atom_hash);
+        char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
+                            ? dap_enc_base58_encode_hash_to_str(&a_tx_hash)
+                            : dap_chain_hash_fast_to_str_new(&a_tx_hash);
+
+        if (l_tx_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_chain->ledger, a_tx_hash)) {
+            json_object_object_add(json_datum, "Status", "ACCEPTED");
+        } else {
+            l_tx_token_ticker = s_tx_get_main_ticker(l_tx, l_net, NULL);
+            json_object_object_add(json_datum, "Status", "REJECTED");
+        }
+
+        json_object* datum_tx = dap_chain_datum_tx_to_json(l_tx);
+        json_object_object_add(json_datum, "atom hash", &l_atom_hash_str);
+        json_object_object_add(json_datum, "hash", &l_hash_str);
+        json_object_object_add(json_datum, "token ticker", &l_tx_token_ticker);
+        json_object_object_add(json_datum, "ret_code", &l_ret_code);
+        json_object_object_add(json_datum, "items", &datum_tx);
     } else {
         char *l_tx_hash_str = dap_strcmp(a_hash_out_type, "hex")
                 ? dap_enc_base58_encode_hash_to_str(a_tx_hash)
                 : dap_chain_hash_fast_to_str_new(a_tx_hash);
-        dap_string_append_printf(l_str_out, "TX hash %s not founds in chains", l_tx_hash_str);
+        dap_json_rpc_error_add(-1, "TX hash %s not founds in chains", l_tx_hash_str);
+        json_object_put(json_datum);
         DAP_DELETE(l_tx_hash_str);
+        return NULL;
     }
-    return l_str_out ? dap_string_free(l_str_out, false) : NULL;
+    return json_datum;
 }
 
 static void s_tx_header_print(dap_string_t *a_str_out, dap_chain_tx_hash_processed_ht_t **a_tx_data_ht,

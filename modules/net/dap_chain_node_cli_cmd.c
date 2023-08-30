@@ -5693,17 +5693,14 @@ int com_tx_history(int a_argc, char ** a_argv, json_object* json_reply)
         return -8;
     }
     char *l_str_out = NULL;
+    
     if (l_tx_hash_str) {
         l_str_out = dap_db_history_tx(&l_tx_hash, l_chain, l_hash_out_type);
     } else if (l_addr) {
         l_str_out = dap_db_history_addr(l_addr, l_chain, l_hash_out_type);
     } else if (l_is_tx_all) {
-        dap_time_t l_time_T = dap_time_now();
-        char out[80] = {"\0"};
-        dap_time_to_str_rfc822(out,80, l_time_T);
-        log_it(L_DEBUG, "Start getting tx from chain: %s", out);
+        log_it(L_DEBUG, "Start getting tx from chain");
         dap_ledger_t *l_ledger = l_net->pub.ledger;
-        // dap_string_t *l_tx_all_str = dap_string_new("");
         size_t l_tx_count = 0;
         size_t l_tx_ledger_accepted = 0;
         size_t l_tx_ledger_rejected = 0;
@@ -5721,23 +5718,27 @@ int com_tx_history(int a_argc, char ** a_argv, json_object* json_reply)
                     if (l_datums[i]->header.type_id == DAP_CHAIN_DATUM_TX) {
                         l_tx_count++;
                         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)l_datums[i]->data;
+                        json_object * json_datum = json_object_new_array();
                         dap_hash_fast_t l_ttx_hash = {0};
                         dap_hash_fast(l_tx, l_datums[i]->header.data_size, &l_ttx_hash);
                         const char *l_token_ticker = NULL;
                         if ((l_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_ttx_hash))) {
-                            json_object_object_add(json_reply, "Status", "ACCEPTED");
-                            // dap_string_append_printf(l_tx_all_str, "\t\t↓↓↓ Ledger accepted ↓↓↓\n");
+                            json_object_object_add(json_datum, "Status", "ACCEPTED");
                             l_tx_ledger_accepted++;
                         } else {
                             l_token_ticker = s_tx_get_main_ticker(l_tx, l_net, NULL);
-                            json_object_object_add(json_reply, "Status", "REJECTED");
-                            // dap_string_append_printf(l_tx_all_str, "\t\t↓↓↓ Ledger rejected ↓↓↓\n");
+                            json_object_object_add(json_datum, "Status", "REJECTED");
                             l_tx_ledger_rejected++;
                         }
                         json_object* datum_tx = dap_chain_datum_tx_to_json(l_tx);
-                        json_object_object_add(json_reply, "hash", &l_ttx_hash);
-                        json_object_put();
-                        dap_chain_datum_dump_tx(l_tx, l_token_ticker, l_tx_all_str, l_hash_out_type, &l_ttx_hash);
+                        char *l_hash_str = dap_strcmp(l_hash_out_type, "hex")
+                                            ? dap_enc_base58_encode_hash_to_str(&l_ttx_hash)
+                                            : dap_chain_hash_fast_to_str_new(&l_ttx_hash);
+                        json_object_object_add(json_datum, "hash", &l_hash_str);
+                        json_object_object_add(json_datum, "token ticker", &l_token_ticker);
+                        json_object_object_add(json_datum, "datum", &datum_tx);
+                        json_object_array_add(json_reply, json_datum);
+                        // dap_chain_datum_dump_tx(l_tx, l_token_ticker, l_tx_all_str, l_hash_out_type, &l_ttx_hash);
                     }
                 }
                 DAP_DEL_Z(l_datums);
@@ -5745,15 +5746,15 @@ int com_tx_history(int a_argc, char ** a_argv, json_object* json_reply)
             }
             l_cell->chain->callback_atom_iter_delete(l_iter);
         }
-        l_time_T = dap_time_now();
-        dap_time_to_str_rfc822(out,80, l_time_T);
-        log_it(L_DEBUG, "END getting tx from chain: %s", out);
-        dap_string_append_printf(l_tx_all_str, "Chain %s in network %s contains %zu transactions.\n"
+        log_it(L_DEBUG, "END getting tx from chain");
+
+        char * chain_info_str = NULL;
+        asprintf(chain_info_str, "Chain %s in network %s contains %zu transactions.\n"
                                                "Of which %zu were accepted into the ledger and %zu were rejected.\n",
                                  l_net->pub.name, l_chain->name, l_tx_count, l_tx_ledger_accepted, l_tx_ledger_rejected);
-
-        l_str_out = l_str_out ? dap_strdup_printf("%s%s", l_str_out, dap_strdup(l_tx_all_str->str)) : dap_strdup(l_tx_all_str->str);
-        dap_string_free(l_tx_all_str, true);
+        json_object * chain_info = json_object_new_string(chain_info_str);
+        json_object_array_add(json_reply, chain_info);
+        DAP_FREE(chain_info_str);
     }
 
     char *l_str_ret = NULL;
@@ -5765,7 +5766,7 @@ int com_tx_history(int a_argc, char ** a_argv, json_object* json_reply)
         DAP_DELETE(l_str_out);
     } else
         l_str_ret = l_str_out;
-    json_object_object_add(json_reply, "result", l_str_ret);
+    json_object_array_add(json_reply, l_str_ret);
     // dap_json_rpc_error_add(-3, "%s", l_str_ret);
     DAP_DELETE(l_str_ret);
     return 0;
