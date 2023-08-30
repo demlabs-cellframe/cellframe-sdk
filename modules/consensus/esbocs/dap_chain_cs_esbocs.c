@@ -362,12 +362,6 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
 static void s_session_load_penaltys(dap_chain_esbocs_session_t *a_session)
 {
     const char *l_penalty_group = s_get_penalty_group(a_session->chain->net_id);
-    dap_global_db_set_sync(l_penalty_group,
-                           "RpiDC8c1T1Phj39nZy6E1jEmigaMV9MHjmMkpBLjMfADD7BPTXCXHg6Rma15kssjDvYn1d2NyMj6HwLKiEkUdxbLam7VFcF79THnMND8",
-                            NULL,
-                           0,
-                           false
-                           );
     size_t l_group_size = 0;
     dap_global_db_obj_t *l_keys = dap_global_db_get_all_sync(l_penalty_group, &l_group_size);
     for (size_t i = 0; i < l_group_size; i++) {
