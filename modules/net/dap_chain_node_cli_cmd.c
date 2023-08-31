@@ -5692,15 +5692,13 @@ int com_tx_history(int a_argc, char ** a_argv, json_object* json_reply)
                                                         " You can set default datum type in chain configuration file", l_net_str);
         return -8;
     }
-    char *l_str_out = NULL;
-    
+    json_object * json_out = json_object_new_array();
     if (l_tx_hash_str) {
-        l_str_out = dap_db_history_tx(&l_tx_hash, l_chain, l_hash_out_type);
+        json_out = dap_db_history_tx(&l_tx_hash, l_chain, l_hash_out_type, l_net);
     } else if (l_addr) {
-        l_str_out = dap_db_history_addr(l_addr, l_chain, l_hash_out_type);
+        json_out = dap_db_history_addr(l_addr, l_chain, l_hash_out_type);
     } else if (l_is_tx_all) {
         log_it(L_DEBUG, "Start getting tx from chain");
-        dap_ledger_t *l_ledger = l_net->pub.ledger;
         size_t l_tx_count = 0;
         size_t l_tx_ledger_accepted = 0;
         size_t l_tx_ledger_rejected = 0;
@@ -5718,27 +5716,19 @@ int com_tx_history(int a_argc, char ** a_argv, json_object* json_reply)
                     if (l_datums[i]->header.type_id == DAP_CHAIN_DATUM_TX) {
                         l_tx_count++;
                         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)l_datums[i]->data;
-                        json_object * json_datum = json_object_new_array();
                         dap_hash_fast_t l_ttx_hash = {0};
                         dap_hash_fast(l_tx, l_datums[i]->header.data_size, &l_ttx_hash);
-                        const char *l_token_ticker = NULL;
-                        if ((l_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_ttx_hash))) {
-                            json_object_object_add(json_datum, "Status", "ACCEPTED");
-                            l_tx_ledger_accepted++;
-                        } else {
-                            l_token_ticker = s_tx_get_main_ticker(l_tx, l_net, NULL);
-                            json_object_object_add(json_datum, "Status", "REJECTED");
-                            l_tx_ledger_rejected++;
+                        bool accepted_tx;
+                        json_object* json_datum = dap_db_tx_history_to_json(&l_ttx_hash, NULL, l_tx, l_chain, l_hash_out_type, l_net, NULL, &accepted_tx);
+                        if (!json_datum) {
+                            log_it(L_CRITICAL, "Memory allocation error");
+                            return -44;
                         }
-                        json_object* datum_tx = dap_chain_datum_tx_to_json(l_tx);
-                        char *l_hash_str = dap_strcmp(l_hash_out_type, "hex")
-                                            ? dap_enc_base58_encode_hash_to_str(&l_ttx_hash)
-                                            : dap_chain_hash_fast_to_str_new(&l_ttx_hash);
-                        json_object_object_add(json_datum, "hash", &l_hash_str);
-                        json_object_object_add(json_datum, "token ticker", &l_token_ticker);
-                        json_object_object_add(json_datum, "datum", &datum_tx);
-                        json_object_array_add(json_reply, json_datum);
-                        // dap_chain_datum_dump_tx(l_tx, l_token_ticker, l_tx_all_str, l_hash_out_type, &l_ttx_hash);
+                        if (accepted_tx)
+                            l_tx_ledger_accepted++;
+                        else
+                            l_tx_ledger_rejected++;
+                        json_object_array_add(json_out, json_datum);
                     }
                 }
                 DAP_DEL_Z(l_datums);
@@ -5755,15 +5745,13 @@ int com_tx_history(int a_argc, char ** a_argv, json_object* json_reply)
         json_object * chain_info = json_object_new_string(chain_info_str);
         json_object_array_add(json_reply, chain_info);
         DAP_FREE(chain_info_str);
+        return 0;
     }
-
-    char *l_str_ret = NULL;
     if (l_addr) {
         char *l_addr_str = dap_chain_addr_to_str(l_addr);
-        l_str_ret = dap_strdup_printf("History for addr %s:\n%s", l_addr_str,
-                l_str_out ? l_str_out : " empty");
+        json_object_object_add(json_reply, "Address", l_addr_str);
+        json_object_array_add(json_reply, json_out);
         DAP_DELETE(l_addr_str);
-        DAP_DELETE(l_str_out);
     } else
         l_str_ret = l_str_out;
     json_object_array_add(json_reply, l_str_ret);
