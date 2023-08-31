@@ -357,31 +357,22 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
     dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_change_db_broadcast, l_session);
 }
 
-/* *** End of the temporary added section for over-consensus sync. *** */
-
-static void s_session_load_penaltys(dap_chain_esbocs_session_t *a_session)
+static void s_session_db_clear(UNUSED_ARG dap_global_db_context_t *a_context, void *a_arg)
 {
-    const char *l_penalty_group = s_get_penalty_group(a_session->chain->net_id);
-    size_t l_group_size = 0;
-    dap_global_db_obj_t *l_keys = dap_global_db_get_all_sync(l_penalty_group, &l_group_size);
-    for (size_t i = 0; i < l_group_size; i++) {
-        dap_chain_addr_t *l_addr = dap_chain_addr_from_str((l_keys + i)->key);
-        if (dap_chain_net_srv_stake_mark_validator_active(l_addr, false))
-            dap_global_db_del(l_penalty_group, (l_keys + i)->key, NULL, NULL);
-        else {
-            dap_chain_esbocs_penalty_item_t *l_item = DAP_NEW_Z(dap_chain_esbocs_penalty_item_t);
-            if (!l_item) {
-                log_it(L_CRITICAL, "Memory allocation error");
-                return;
-            }
-            l_item->signing_addr = *l_addr;
-            l_item->miss_count = DAP_CHAIN_ESBOCS_PENALTY_KICK;
-            HASH_ADD(hh, a_session->penalty, signing_addr, sizeof(dap_chain_addr_t), l_item);
-        }
-        DAP_DELETE(l_addr);
-    }
-    DAP_DELETE(l_penalty_group);
+    dap_chain_esbocs_session_t *l_session = a_arg;
+    char *l_sync_group = s_get_penalty_group(l_session->chain->net_id);
+    dap_store_obj_t l_obj = {
+        .group = l_sync_group
+    };
+    dap_global_db_driver_delete(&l_obj, 1);
+    char *l_del_sync_group = dap_strdup_printf("%s.del", l_sync_group);
+    DAP_DELETE(l_sync_group);
+    l_obj.group = l_del_sync_group;
+    dap_global_db_driver_delete(&l_obj, 1);
+    DAP_DELETE(l_del_sync_group);
 }
+
+/* *** End of the temporary added section for over-consensus sync. *** */
 
 static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cfg)
 {
@@ -473,9 +464,8 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     l_session->esbocs = l_esbocs;
     l_esbocs->session = l_session;
     l_session->my_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
-    l_session->my_signing_addr = l_my_signing_addr;    
-    s_session_load_penaltys(l_session);
-    dap_global_db_context_exec(s_session_db_serialize, l_session);
+    l_session->my_signing_addr = l_my_signing_addr;
+    dap_global_db_context_exec(s_session_db_clear, l_session);
     dap_global_db_add_notify_group_mask(dap_global_db_context_get_default()->instance,
                                         DAP_CHAIN_ESBOCS_GDB_GROUPS_PREFIX ".*",
                                         s_db_change_notifier, l_session, 72);
