@@ -986,9 +986,10 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
         switch( l_usage_active->receipt->receipt_info.units_type.enm){
             case SERV_UNIT_DAY:{
                 l_srv_session->last_update_ts = time(NULL);
-                if (l_usage_active->is_grace || l_srv_session->limits_ts == 0)
+                if (!l_usage_active->is_grace && l_srv_session->limits_ts <= 0){
                     l_srv_session->limits_ts = (time_t)l_usage_active->receipt->receipt_info.units*24*3600;
-                log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" seconds more for VPN usage", l_usage_active->receipt->receipt_info.units);
+                    log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" seconds more for VPN usage", l_usage_active->receipt->receipt_info.units);
+                }
             } break;
             case SERV_UNIT_SEC:{
                 l_srv_session->last_update_ts = time(NULL);
@@ -998,19 +999,22 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
                 }
             } break;
             case SERV_UNIT_B:{
-                if (l_usage_active->is_grace || l_srv_session->limits_bytes == 0)
+                if (!l_usage_active->is_grace && l_srv_session->limits_bytes <= 0){
                     l_srv_session->limits_bytes = (uintmax_t) l_usage_active->receipt->receipt_info.units;
-                log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", l_usage_active->receipt->receipt_info.units);
+                    log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", l_usage_active->receipt->receipt_info.units);
+                }
             } break;
             case SERV_UNIT_KB:{
-                if (l_usage_active->is_grace || l_srv_session->limits_bytes == 0)
+                if (!l_usage_active->is_grace && l_srv_session->limits_bytes <= 0){
                     l_srv_session->limits_bytes = 1000ull * ( (uintmax_t) l_usage_active->receipt->receipt_info.units);
-                log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", l_usage_active->receipt->receipt_info.units);
+                    log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", l_usage_active->receipt->receipt_info.units);
+                }
             } break;
             case SERV_UNIT_MB:{
-                if (l_usage_active->is_grace || l_srv_session->limits_bytes == 0)
+                if (!l_usage_active->is_grace && l_srv_session->limits_bytes <= 0){
                     l_srv_session->limits_bytes = 1000000ull * ( (uintmax_t) l_usage_active->receipt->receipt_info.units);
-                log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", l_usage_active->receipt->receipt_info.units);
+                    log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" bytes more for VPN usage", l_usage_active->receipt->receipt_info.units);
+                }
             } break;
             default: {
                 log_it(L_WARNING, "VPN doesnt accept serv unit type 0x%08X", l_usage_active->receipt->receipt_info.units_type.uint32 );
