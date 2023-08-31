@@ -327,7 +327,11 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_dag->round_current = l_current_round ? *(uint64_t*)l_current_round : 0;
     DAP_DELETE(l_current_round);
     debug_if(s_debug_more, L_INFO, "Current round id %"DAP_UINT64_FORMAT_U, l_dag->round_current);
-    dap_global_db_get_all_raw(l_dag->gdb_group_events_round_new, 0, 0, s_dag_rounds_events_iter, l_dag);
+
+    dap_db_iter_t *l_iter = dap_global_db_driver_iter_create(l_dag->gdb_group_events_round_new);
+    dap_global_db_get_all_raw(l_dag->gdb_group_events_round_new, l_iter, 0, s_dag_rounds_events_iter, l_dag);
+    dap_global_db_driver_iter_delete(l_iter);
+
     PVT(l_dag)->mempool_timer = dap_interval_timer_create(15000, s_timer_process_callback, a_chain);
     PVT(l_dag)->events_treshold = NULL;
     PVT(l_dag)->events_treshold_conflicted = NULL;
