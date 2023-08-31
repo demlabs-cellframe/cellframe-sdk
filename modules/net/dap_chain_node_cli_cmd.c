@@ -1580,13 +1580,19 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         dap_stream_connection_t **l_downlinks = dap_stream_connections_get_downlinks(&l_downlink_count);
         dap_string_t *l_str_uplinks = dap_string_new("---------------------------\n"
                                              "| ↑\\↓ |\t#\t|\t\tIP\t\t|\tPort\t|\n");
-        for (size_t i=0; i < l_uplink_count; i++) {
+        size_t l_broken_uplinks = 0;
+        for (size_t i = 0; i < l_uplink_count; i++) {
+            if (!l_uplinks[i]->stream || !l_uplinks[i]->stream->esocket) {
+                l_broken_uplinks++;
+                continue;
+            }
             char *l_address = l_uplinks[i]->stream->esocket->remote_addr_str;
             short l_port = l_uplinks[i]->stream->esocket->remote_port;
 
             dap_string_append_printf(l_str_uplinks, "|  ↑  |\t%zu\t|\t%s\t\t|\t%u\t|\n",
                                      i, l_address, l_port);
         }
+        l_uplink_count -= l_broken_uplinks;
         dap_string_t *l_str_downlinks = dap_string_new("---------------------------\n"
                                                      "| ↑\\↓ |\t#\t|\t\tIP\t\t|\tPort\t|\n");
         for (size_t i=0; i < l_downlink_count; i++) {
