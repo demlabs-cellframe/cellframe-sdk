@@ -1523,10 +1523,13 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'delegate' requires parameter -w");
                 return -17;
             }
+            const char* l_sign_str = "";
             dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config));
             if (!l_wallet) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified wallet not found");
                 return -18;
+            } else {
+                l_sign_str = dap_chain_wallet_check_bliss_sign(l_wallet);
             }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str);
             if (!l_cert_str) {
@@ -1603,7 +1606,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
             DAP_DELETE(l_tx);
             char *l_tx_hash_str = dap_hash_fast_to_str_new(&l_tx_hash);
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "SAVE TO TAKE ===>>> Stake transaction %s has done", l_tx_hash_str);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nSAVE TO TAKE ===>>> Stake transaction %s has done", l_sign_str, l_tx_hash_str);
             DAP_DELETE(l_tx_hash_str);
         } break;
         case CMD_APPROVE: {
@@ -1888,10 +1891,13 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 l_final_tx_hash = &l_stake->tx_hash;
             }
             if (l_wallet_str) {
+                const char* l_sign_str = "";
                 dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_str, dap_chain_wallet_get_path(g_config));
                 if (!l_wallet) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified wallet not found");
                     return -18;
+                } else {
+                    l_sign_str = dap_chain_wallet_check_bliss_sign(l_wallet);
                 }
                 dap_chain_datum_tx_t *l_tx = s_stake_tx_invalidate(l_net, l_final_tx_hash, l_fee, dap_chain_wallet_get_key(l_wallet, 0));
                 if (l_tx_hash_str) {
@@ -1900,13 +1906,13 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 dap_chain_wallet_close(l_wallet);
                 char *l_decree_hash_str = NULL;
                 if (l_tx && (l_decree_hash_str = s_stake_tx_put(l_tx, l_net))) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "All m-tokens successfully returned to "
-                                                                   "owner. Returning tx hash %s.", l_decree_hash_str);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nAll m-tokens successfully returned to "
+                                                                   "owner. Returning tx hash %s.", l_sign_str, l_decree_hash_str);
                     DAP_DEL_Z(l_decree_hash_str);
                     DAP_DELETE(l_tx);
                 } else {
                     char *l_final_tx_hash_str = dap_chain_hash_fast_to_str_new(l_final_tx_hash);
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't invalidate transaction %s, examine log files for details", l_final_tx_hash_str);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nCan't invalidate transaction %s, examine log files for details", l_sign_str, l_final_tx_hash_str);
                     DAP_DELETE(l_final_tx_hash_str);
                     DAP_DELETE(l_tx);
                     return -21;
