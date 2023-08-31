@@ -1131,7 +1131,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
 int com_node(int a_argc, char ** a_argv, char **a_str_reply)
 {
     enum {
-        CMD_NONE, CMD_ADD, CMD_DEL, CMD_LINK, CMD_ALIAS, CMD_HANDSHAKE, CMD_CONNECT, CMD_DUMP, CMD_CONNECTIONS, CMD_BALANCER, CMD_test
+        CMD_NONE, CMD_ADD, CMD_DEL, CMD_LINK, CMD_ALIAS, CMD_HANDSHAKE, CMD_CONNECT, CMD_DUMP, CMD_CONNECTIONS, CMD_BALANCER
     };
     int arg_index = 1;
     int cmd_num = CMD_NONE;
@@ -1169,9 +1169,6 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "balancer", NULL)){
         cmd_num = CMD_BALANCER;
     }
-    else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "test_com", NULL)){
-        cmd_num = CMD_test;
-    }
     arg_index++;
     if(cmd_num == CMD_NONE) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "command %s not recognized", a_argv[1]);
@@ -1200,6 +1197,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     dap_chain_node_addr_t l_link = { 0 };
     dap_chain_node_info_t *l_node_info = NULL;
     size_t l_node_info_size = sizeof(l_node_info->hdr) + sizeof(l_link);
+
     if(cmd_num >= CMD_ADD && cmd_num <= CMD_LINK)
         l_node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, l_node_info_size);
 
@@ -1226,22 +1224,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     }
 
     switch (cmd_num)
-    {
-    case CMD_test:
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "test command!!!");
-        int t1 = system("service acpid status");
-        int t2 = system("service alsa-utils status");
-        int t3 = system("service anacron status");
-        int t4 = system("service apparmor status");
-        int t5 = system("service apport status");
-        int t6 = system("service avahi-daemon status");
-        int t7 = system("service bluetooth status");
-        int t8 = system("service cellframe-updater status");
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "result - \n - %d \n - %d \n - %d \n - %d \n - %d \n - %d \n - %d"
-                                                       "\n - %d",t1,t2,t3,t4,t5,t6,t7,t8);
-        //tt = system("service x11-common status");
-        //dap_cli_server_cmd_set_reply_text(a_str_reply, "x11-common result - %d",tt);
-        break;
+    {    
     case CMD_ADD:
         if(!arg_index || a_argc < 8) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameters");
