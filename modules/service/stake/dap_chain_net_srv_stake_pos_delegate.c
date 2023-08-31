@@ -1303,7 +1303,7 @@ static int callback_compare_tx_list(const void * a_datum1, const void * a_datum2
     return -1;
 }
 
-bool dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fast_t *a_tx_hash, dap_stream_ch_chain_validator_test_t * out_data,
+int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fast_t *a_tx_hash, dap_stream_ch_chain_validator_test_t * out_data,
                                              int a_time_connect, int a_time_respone)
 {
     char *l_key = NULL;
@@ -1314,31 +1314,27 @@ bool dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_f
     dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(a_net->pub.name);
     dap_chain_datum_tx_t *l_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, a_tx_hash);
     dap_chain_node_addr_t *l_signer_node_addr = NULL;
-    bool l_overall_correct = false;
+    int l_overall_correct = false;
 
     int l_prev_cond_idx = 0;
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_tx,
                                                   DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_prev_cond_idx);
     if (!l_tx_out_cond) {
-        log_it(L_WARNING, "Requested conditional transaction has no requires conditional output");
-        return false;
+        return -4;
     }
     l_signer_node_addr = &l_tx_out_cond->subtype.srv_stake_pos_delegate.signer_node_addr;
 
     l_key = dap_chain_node_addr_to_hash_str(l_signer_node_addr);
     if(!l_key)
     {
-        log_it(L_WARNING, "can't calculate hash of addr");
-        return false;
+        return -5;
     }
-
     // read node
     l_remote_node_info = (dap_chain_node_info_t *) dap_global_db_get_sync(a_net->pub.gdb_nodes, l_key, &l_node_info_size, NULL, NULL);
 
     if(!l_remote_node_info) {
-        log_it(L_WARNING, "node not found in base");
         DAP_DELETE(l_key);
-        return false;
+        return -6;
     }
 
     size_t node_info_size_must_be = dap_chain_node_info_get_size(l_remote_node_info);
@@ -1346,24 +1342,22 @@ bool dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_f
         log_it(L_WARNING, "node has bad size in base=%zu (must be %zu)", l_node_info_size, node_info_size_must_be);
         DAP_DELETE(l_remote_node_info);
         DAP_DELETE(l_key);
-        return false;
+        return -7;
     }
     DAP_DELETE(l_key);
     // start connect
     l_node_client = dap_chain_node_client_connect_channels(a_net,l_remote_node_info,"N");
     if(!l_node_client) {
-        log_it(L_WARNING, "can't connect");
         DAP_DELETE(l_remote_node_info);
-        return false;
+        return -8;
     }
     // wait connected
     size_t rc = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_ESTABLISHED, a_time_connect);
     if (rc) {
-        log_it(L_WARNING, "No response from node");
         // clean client struct
         dap_chain_node_client_close_mt(l_node_client);
         DAP_DELETE(l_remote_node_info);
-        return false;
+        return -9;
     }
     log_it(L_NOTICE, "Stream connection established");
 
@@ -1376,10 +1370,9 @@ bool dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_f
                                             a_net->pub.id,
                                             l_test_data, sizeof(l_test_data));
     if (rc == 0) {
-        log_it(L_WARNING, "Can't send DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST packet");
         dap_chain_node_client_close_mt(l_node_client);
         DAP_DELETE(l_remote_node_info);
-        return false;
+        return -10;
     }
 
     rc = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_VALID_READY, a_time_respone);
@@ -1474,7 +1467,39 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't get hash_fast from %s, check that the hash is correct", str_tx_hash);
                 return -3;
             }
-            dap_chain_net_srv_stake_check_validator(l_net, &l_tx, &l_out, 10000, 15000);
+            int res = dap_chain_net_srv_stake_check_validator(l_net, &l_tx, &l_out, 10000, 15000);
+            switch (res) {
+            case -4:
+                dap_cli_server_cmd_set_reply_text(a_str_reply,"Requested conditional transaction has no requires conditional output");
+                return -30;
+                break;
+            case -5:
+                dap_cli_server_cmd_set_reply_text(a_str_reply,"Can't calculate hash of addr");
+                return -31;
+                break;
+            case -6:
+                dap_cli_server_cmd_set_reply_text(a_str_reply,"Node not found in base");
+                return -32;
+                break;
+            case -7:
+                dap_cli_server_cmd_set_reply_text(a_str_reply,"Node has bad size in base, see log file");
+                return -33;
+                break;
+            case -8:
+                dap_cli_server_cmd_set_reply_text(a_str_reply,"Can't connect to remote node");
+                return -34;
+                break;
+            case -9:
+                dap_cli_server_cmd_set_reply_text(a_str_reply,"No response from node");
+                return -35;
+                break;
+            case -10:
+                dap_cli_server_cmd_set_reply_text(a_str_reply,"Can't send DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY_REQUEST packet");
+                return -36;
+                break;
+            default:
+                break;
+            }
             dap_cli_server_cmd_set_reply_text(a_str_reply,
                                               "-------------------------------------------------\n"
                                               "VERSION \t |  %s \n"
@@ -1486,15 +1511,15 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                                               "FOUND CERT \t |  %s\n"
                                               "SIGN CORRECT \t |  %s\n"
                                               "SUMMARY \t |  %s\n",
-                    l_out.header.version,
+                     l_out.header.version,
                     (l_out.header.flags & A_PROC)?"true":"false",
                     (l_out.header.flags & F_ORDR)?"true":"false",
                     (l_out.header.flags & A_ONLN)?"true":"false",
                     (l_out.header.flags & A_UPDT)?"true":"false",
                     (l_out.header.flags & D_SIGN)?"true":"false",
                     (l_out.header.flags & F_CERT)?"true":"false",
-                    l_out.header.sign_correct ? "true":"false",
-                    l_out.header.overall_correct ? "Validator ready" : "There are unresolved issues");
+                     l_out.header.sign_correct ?  "true":"false",
+                     l_out.header.overall_correct ? "Validator ready" : "There are unresolved issues");
 
         }
         break;
