@@ -117,7 +117,7 @@ static void s_net_node_link_prepare_success(void *a_response, size_t a_response_
     struct node_link_request * l_node_list_request = (struct node_link_request *)a_arg;
     dap_chain_node_info_t *l_node_info = l_node_list_request->link_info;
     l_node_list_request->response = *(uint8_t*)a_response;
-    DAP_DELETE(l_node_info);
+    //DAP_DELETE(l_node_info);
     //DAP_DELETE(l_node_list_request);
 }
 static void s_net_node_link_prepare_error(int a_error_code, void *a_arg){
@@ -127,8 +127,8 @@ static void s_net_node_link_prepare_error(int a_error_code, void *a_arg){
     inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
     log_it(L_WARNING, "Link from  "NODE_ADDR_FP_STR" (%s) prepare error with code %d",
                                 NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address), l_node_addr_str,a_error_code);
-    DAP_DELETE(l_node_info);
-    DAP_DELETE(l_node_list_request);
+    //DAP_DELETE(l_node_info);
+    //DAP_DELETE(l_node_list_request);
 }
 
 int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_request)
@@ -179,10 +179,10 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
         return 4;
     }
     else{
-        ret = l_node_list_request->response;
-
+        ret = l_node_list_request->response;        
+        DAP_DELETE(l_node_list_request->link_info);
+        DAP_DELETE(l_node_list_request);
+        return ret - 1;
     }
-
-    return true;
 }
 
