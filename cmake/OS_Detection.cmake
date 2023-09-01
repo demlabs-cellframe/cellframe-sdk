@@ -67,12 +67,15 @@ if(UNIX)
         if (${_CMAKE_OSX_SYSROOT_PATH} MATCHES "MacOS")
             set(MACOS ON)
 	    # on macOS "uname -m" returns the architecture (x86_64 or arm64)
-	    execute_process(
-		COMMAND uname -m
-		RESULT_VARIABLE result
-		OUTPUT_VARIABLE MACOS_ARCH
-		OUTPUT_STRIP_TRAILING_WHITESPACE
-	    )
+	    if (NOT DEFINED MACOS_ARCH)
+        
+            execute_process(
+            COMMAND uname -m
+            RESULT_VARIABLE result
+            OUTPUT_VARIABLE MACOS_ARCH
+            OUTPUT_STRIP_TRAILING_WHITESPACE
+            )
+        endif()
             add_definitions("-DDAP_OS_MAC -DDAP_OS_MAC_ARCH=${MACOS_ARCH}")
         elseif (${_CMAKE_OSX_SYSROOT_PATH} MATCHES "iOS")
             set(IOS ON)
