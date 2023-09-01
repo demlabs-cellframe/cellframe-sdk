@@ -1197,6 +1197,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     dap_chain_node_addr_t l_link = { 0 };
     dap_chain_node_info_t *l_node_info = NULL;
     size_t l_node_info_size = sizeof(l_node_info->hdr) + sizeof(l_link);
+
     if(cmd_num >= CMD_ADD && cmd_num <= CMD_LINK)
         l_node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, l_node_info_size);
 
@@ -1223,7 +1224,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     }
 
     switch (cmd_num)
-    {
+    {    
     case CMD_ADD:
         if(!arg_index || a_argc < 8) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameters");
