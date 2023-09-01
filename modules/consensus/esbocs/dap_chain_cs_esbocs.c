@@ -304,7 +304,7 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
     size_t l_objs_count = 0;
     dap_global_db_pkt_t *l_pkt = 0;
     dap_db_iter_t *l_iter = dap_global_db_driver_iter_create(l_sync_group);
-    dap_store_obj_t *l_objs = dap_global_db_get_all_raw_unsafe(a_context, l_sync_group, l_iter, &l_objs_count);
+    dap_store_obj_t *l_objs = dap_global_db_get_all_raw_unsafe(a_context, l_iter, &l_objs_count);
     dap_global_db_driver_iter_delete(l_iter);
     for (size_t i = 0; i < l_objs_count; i++) {
         dap_store_obj_t *it = l_objs + i;
@@ -323,7 +323,7 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
     char *l_del_sync_group = dap_strdup_printf("%s.del", l_sync_group);
     l_objs_count = 0;
     l_iter = dap_global_db_driver_iter_create(l_sync_group);
-    l_objs = dap_global_db_get_all_raw_unsafe(a_context, l_del_sync_group, l_iter, &l_objs_count);
+    l_objs = dap_global_db_get_all_raw_unsafe(a_context, l_iter, &l_objs_count);
     dap_global_db_driver_iter_delete(l_iter);
     
     DAP_DELETE(l_del_sync_group);

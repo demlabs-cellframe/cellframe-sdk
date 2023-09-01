@@ -367,7 +367,7 @@ int dap_chain_net_srv_stake_load_cache(dap_chain_net_t *a_net)
     size_t l_objs_count = 0;
     
     dap_db_iter_t *l_iter = dap_global_db_driver_iter_create(l_gdb_group);
-    dap_store_obj_t *l_store_obj = dap_global_db_get_all_raw_sync(l_gdb_group, l_iter, &l_objs_count);
+    dap_store_obj_t *l_store_obj = dap_global_db_get_all_raw_sync(l_iter, &l_objs_count);
     dap_global_db_driver_iter_delete(l_iter);
 
     if (!l_objs_count || !l_store_obj) {

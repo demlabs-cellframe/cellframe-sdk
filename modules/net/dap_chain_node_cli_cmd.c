@@ -6328,7 +6328,7 @@ int cmd_gdb_export(int a_argc, char **a_argv, char **a_str_reply)
         char *l_group_name = (char *)l_list->data;
 
         dap_db_iter_t *l_iter = dap_global_db_driver_iter_create(l_group_name);
-        dap_store_obj_t *l_store_obj = dap_global_db_get_all_raw_sync(l_group_name, l_iter, &l_store_obj_count);
+        dap_store_obj_t *l_store_obj = dap_global_db_get_all_raw_sync(l_iter, &l_store_obj_count);
         dap_global_db_driver_iter_delete(l_iter);
 
         if (!l_store_obj_count) {
