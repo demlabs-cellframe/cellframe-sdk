@@ -70,20 +70,39 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     l_node_info->hdr.address.uint64 = addr;
     l_node_info->hdr.ext_addr_v4.s_addr = ipv4;
     l_node_info->hdr.ext_port = port;
+    l_node_info->hdr.cell_id.uint64 = 0;
 
-    bool res = dap_chain_net_balancer_handshake(l_node_info,l_net);
-
-    if(res)
+    uint8_t response;
+    if(dap_chain_net_balancer_handshake(l_node_info,l_net))
+        response = 1;
+    if(response)
     {
-        log_it(L_DEBUG, "ADD this addres to node list");
+        char *a_key = dap_chain_node_addr_to_hash_str(&l_node_info->hdr.address);
+        if(!a_key)
+        {
+            log_it(L_DEBUG, "Can't calculate hash for addr");
+            return;
+        }
+        size_t l_node_info_size = dap_chain_node_info_get_size(l_node_info);
+        bool res = dap_global_db_set_sync(l_net->pub.gdb_nodes, a_key, (uint8_t *) l_node_info, l_node_info_size,
+                                     false) == 0;
+        if(res)
+        {
+            log_it(L_DEBUG, "ADD this addres to node list");
+        }
+        else
+        {
+            response = 2;
+            log_it(L_DEBUG, "Don't add this addres to node list");
+        }
     }
     else
     {
-        log_it(L_DEBUG, "Don't add this addres to node list");
+        log_it(L_DEBUG, "Can't do handshake");
     }
-
-    //size_t l_data_send_size = sizeof(size_t) + (sizeof(dap_chain_node_info_t) * l_link_full_node_list->count_node);
-    //dap_http_simple_reply(a_http_simple, l_link_full_node_list, l_data_send_size);
+    *l_return_code = Http_Status_OK;
+    size_t l_data_send_size = sizeof(uint8_t);
+    dap_http_simple_reply(a_http_simple, &response, l_data_send_size);
     DAP_DELETE(l_node_info);
 }
 
@@ -94,8 +113,21 @@ static void s_net_node_link_prepare_success(void *a_response, size_t a_response_
     char l_node_addr_str[INET_ADDRSTRLEN]={};
     inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
     uint8_t l_response = *(uint8_t*)a_response;
-    log_it(L_DEBUG, "%s addres "NODE_ADDR_FP_STR" (%s) to node list",l_response ? "ADD" : "NOT added",
-               NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),l_node_addr_str);
+
+    switch (l_response) {
+    case 0:
+        log_it(L_DEBUG, "Can't do handshake");
+        break;
+    case 1:
+        log_it(L_DEBUG, "Add addres "NODE_ADDR_FP_STR" (%s) to node list",
+                   NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),l_node_addr_str);
+        break;
+    case 2:
+        log_it(L_DEBUG, "Don't add this addres to node list");
+        break;
+    default:
+        break;
+    }
     DAP_DELETE(l_node_info);
     DAP_DELETE(l_node_list_request);
 }

@@ -107,6 +107,7 @@
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_enc_base64.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
+#include "dap_chain_net_node_list.h"
 
 #define LOG_TAG "chain_node_cli_cmd"
 
@@ -1221,27 +1222,40 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             dap_digit_from_string(l_link_str, l_link.raw, sizeof(l_link.raw));
         }
     }
-
+    int l_ret =0;
     switch (cmd_num)
     {
     case CMD_ADD:
-        if(!arg_index || a_argc < 8) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameters");
-            DAP_DELETE(l_node_info);
-            return -1;
-        }
-        int l_ret =0;
-        if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 2), "request", NULL)){
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "test request");
+
+        if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "request", NULL)){
+            if(!l_port_str || !a_ipv4_str)
+            {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "node requires parameter -ipv4 and -port");
+                DAP_DELETE(l_node_info);
+                return -1;
+            }
+            dap_chain_node_info_t *l_link_node_request = DAP_NEW_Z( dap_chain_node_info_t);
+            l_link_node_request->hdr.address.uint64 = dap_chain_net_get_cur_addr_int(l_net);
+            inet_pton(AF_INET, a_ipv4_str, &(l_link_node_request->hdr.ext_addr_v4));
+            uint16_t l_node_port = 0;
+            dap_digit_from_string(l_port_str, &l_node_port, sizeof(uint16_t));
+            l_link_node_request->hdr.ext_port = l_node_port;
+            dap_chain_net_node_list_request(l_net,l_link_node_request);
         }
         // handler of command 'node add'
-        else
+        else{
+            if(!arg_index || a_argc < 8) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameters");
+                DAP_DELETE(l_node_info);
+                return -1;
+            }
+
             l_ret = node_info_add_with_reply(l_net, l_node_info, alias_str, l_cell_str, a_ipv4_str, a_ipv6_str,
                     a_str_reply);
+        }
         DAP_DELETE(l_node_info);
         return l_ret;
         //break;
-
     case CMD_DEL:
         // handler of command 'node del'
     {
