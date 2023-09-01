@@ -1240,7 +1240,28 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             uint16_t l_node_port = 0;
             dap_digit_from_string(l_port_str, &l_node_port, sizeof(uint16_t));
             l_link_node_request->hdr.ext_port = l_node_port;
-            dap_chain_net_node_list_request(l_net,l_link_node_request);
+            int res = dap_chain_net_node_list_request(l_net,l_link_node_request);
+            switch (res)
+            {
+            case 0:
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Node addr successfully added to node list");
+            break;
+            case 1:
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Didn't add your addres node to node list");
+            break;
+            case 2:
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't calculate hash for your addr");
+            break;
+            case 3:
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't do handshake for your node");
+            break;
+            case 4:
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process node list HTTP request");
+            break;
+            default:
+                break;
+            }
+            DAP_DELETE(l_link_node_request);
         }
         // handler of command 'node add'
         else{

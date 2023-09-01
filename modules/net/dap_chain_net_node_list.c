@@ -82,6 +82,7 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
         {
             log_it(L_DEBUG, "Can't calculate hash for addr");
             response = 3;
+            DAP_DELETE(l_node_info);
             return;
         }
         size_t l_node_info_size = dap_chain_node_info_get_size(l_node_info);
@@ -89,7 +90,10 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
                                      true) == 0;
         if(res)
         {
-            log_it(L_DEBUG, "ADD this addres to node list");
+            char l_node_addr_str[INET_ADDRSTRLEN]={};
+            inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
+            log_it(L_DEBUG, "Add addres "NODE_ADDR_FP_STR" (%s) to node list",
+                       NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),l_node_addr_str);
         }
         else
         {
@@ -100,6 +104,7 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     else
     {
         log_it(L_DEBUG, "Can't do handshake");
+        response = 4;
     }
     *l_return_code = Http_Status_OK;
     size_t l_data_send_size = sizeof(uint8_t);
@@ -111,26 +116,9 @@ static void s_net_node_link_prepare_success(void *a_response, size_t a_response_
 
     struct node_link_request * l_node_list_request = (struct node_link_request *)a_arg;
     dap_chain_node_info_t *l_node_info = l_node_list_request->link_info;
-    char l_node_addr_str[INET_ADDRSTRLEN]={};
-    inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
-    uint8_t l_response = *(uint8_t*)a_response;
-
-    switch (l_response) {
-    case 0:
-        log_it(L_DEBUG, "Can't do handshake");
-        break;
-    case 1:
-        log_it(L_DEBUG, "Add addres "NODE_ADDR_FP_STR" (%s) to node list",
-                   NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),l_node_addr_str);
-        break;
-    case 2:
-        log_it(L_DEBUG, "Don't add this addres to node list");
-        break;
-    default:
-        break;
-    }
+    l_node_list_request->response = *(uint8_t*)a_response;
     DAP_DELETE(l_node_info);
-    DAP_DELETE(l_node_list_request);
+    //DAP_DELETE(l_node_list_request);
 }
 static void s_net_node_link_prepare_error(int a_error_code, void *a_arg){
     struct node_link_request * l_node_list_request = (struct node_link_request *)a_arg;
@@ -143,7 +131,7 @@ static void s_net_node_link_prepare_error(int a_error_code, void *a_arg){
     DAP_DELETE(l_node_list_request);
 }
 
-bool dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_request)
+int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_request)
 {
     dap_chain_node_info_t *l_link_node_info = dap_get_balancer_link_from_cfg(a_net);
     if (!l_link_node_info)
@@ -161,6 +149,7 @@ bool dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_inf
     l_node_list_request->link_info = l_link_node_info;
     l_node_list_request->worker = dap_events_worker_get_auto();
     l_node_list_request->from_http = true;
+    l_node_list_request->response = 0;
     //l_node_list_request->link_replace_tries
     int ret = 0;
 
@@ -185,10 +174,15 @@ bool dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_inf
                                             l_node_list_request,
                                             NULL) == NULL;
     if(ret){
-        log_it(L_ERROR, "Can't process node list HTTP request");
         DAP_DELETE(l_node_list_request->link_info);
         DAP_DELETE(l_node_list_request);
+        return 4;
     }
+    else{
+        ret = l_node_list_request->response;
+
+    }
+
     return true;
 }
 
