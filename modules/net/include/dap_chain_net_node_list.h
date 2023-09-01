@@ -34,6 +34,7 @@ struct node_link_request {
     dap_worker_t *worker;
     bool from_http;
     int link_replace_tries;
+    int response;
 };
 
 void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg);

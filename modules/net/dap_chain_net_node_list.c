@@ -81,11 +81,12 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
         if(!a_key)
         {
             log_it(L_DEBUG, "Can't calculate hash for addr");
+            response = 3;
             return;
         }
         size_t l_node_info_size = dap_chain_node_info_get_size(l_node_info);
         bool res = dap_global_db_set_sync(l_net->pub.gdb_nodes, a_key, (uint8_t *) l_node_info, l_node_info_size,
-                                     false) == 0;
+                                     true) == 0;
         if(res)
         {
             log_it(L_DEBUG, "ADD this addres to node list");
