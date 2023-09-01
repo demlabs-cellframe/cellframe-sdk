@@ -5581,7 +5581,7 @@ int com_tx_verify(int a_argc, char **a_argv, char **a_str_reply)
  * @param a_str_reply
  * @return int
  */
-int com_tx_history(int a_argc, char ** a_argv, json_object* json_reply)
+int com_tx_history(int a_argc, char ** a_argv, json_object* json_arr_reply)
 {
     int arg_index = 1;
     const char *l_addr_base58 = NULL;
@@ -5692,11 +5692,11 @@ int com_tx_history(int a_argc, char ** a_argv, json_object* json_reply)
                                                         " You can set default datum type in chain configuration file", l_net_str);
         return -8;
     }
-    json_object * json_out = json_object_new_array();
+    json_object * json_arr_out = json_object_new_array();
     if (l_tx_hash_str) {
-        json_object_array_add(json_out, dap_db_history_tx(&l_tx_hash, l_chain, l_hash_out_type, l_net));
+        json_object_array_add(json_arr_out, dap_db_history_tx(&l_tx_hash, l_chain, l_hash_out_type, l_net));
     } else if (l_addr) {
-        json_object_array_add(json_out, dap_db_history_addr(l_addr, l_chain, l_hash_out_type));
+        json_object_array_add(json_arr_out, dap_db_history_addr(l_addr, l_chain, l_hash_out_type));
     } else if (l_is_tx_all) {
         log_it(L_DEBUG, "Start getting tx from chain");
         size_t l_tx_count = 0;
@@ -5719,8 +5719,8 @@ int com_tx_history(int a_argc, char ** a_argv, json_object* json_reply)
                         dap_hash_fast_t l_ttx_hash = {0};
                         dap_hash_fast(l_tx, l_datums[i]->header.data_size, &l_ttx_hash);
                         bool accepted_tx;
-                        json_object* json_datum = dap_db_tx_history_to_json(&l_ttx_hash, NULL, l_tx, l_chain, l_hash_out_type, l_net, NULL, &accepted_tx);
-                        if (!json_datum) {
+                        json_object* json_obj_datum = dap_db_tx_history_to_json(&l_ttx_hash, NULL, l_tx, l_chain, l_hash_out_type, l_net, NULL, &accepted_tx);
+                        if (!json_obj_datum) {
                             log_it(L_CRITICAL, "Memory allocation error");
                             return -44;
                         }
@@ -5728,7 +5728,9 @@ int com_tx_history(int a_argc, char ** a_argv, json_object* json_reply)
                             l_tx_ledger_accepted++;
                         else
                             l_tx_ledger_rejected++;
-                        json_object_array_add(json_out, json_datum);
+                        json_object_array_add(json_arr_out, json_obj_datum);
+                        const char * debug_json_string = json_object_to_json_string(json_obj_datum);
+                        log_it(L_MSG, "%s", debug_json_string);
                     }
                 }
                 DAP_DEL_Z(l_datums);
@@ -5738,20 +5740,37 @@ int com_tx_history(int a_argc, char ** a_argv, json_object* json_reply)
         }
         log_it(L_DEBUG, "END getting tx from chain");
 
-        char * chain_info_str = NULL;
-        asprintf(chain_info_str, "Chain %s in network %s contains %zu transactions.\n"
+        char * chain_info_str = DAP_NEW_SIZE(char, 256);
+        if (!chain_info_str) {
+            log_it(L_CRITICAL, "Memory allocation error");
+            json_object_put(json_arr_out);
+            return -44;
+        }
+        if (sprintf(chain_info_str, "Chain %s in network %s contains %zu transactions.\n"
                                                "Of which %zu were accepted into the ledger and %zu were rejected.\n",
-                                 l_net->pub.name, l_chain->name, l_tx_count, l_tx_ledger_accepted, l_tx_ledger_rejected);
-        json_object * chain_info = json_object_new_string(chain_info_str);
-        json_object_array_add(json_reply, chain_info);
+                                 l_net->pub.name, l_chain->name, l_tx_count, l_tx_ledger_accepted, l_tx_ledger_rejected) == -1) {
+            log_it(L_CRITICAL, "Memory allocation error");
+            json_object_put(json_arr_out);
+            DAP_FREE(chain_info_str);
+            return -44;
+        }
+
+        json_object_array_add(json_arr_reply, json_arr_out);
+        json_object_array_add(json_arr_reply, json_object_new_string(chain_info_str));
         DAP_FREE(chain_info_str);
         return 0;
     }
-    if (json_object_object_length(json_out) > 0) {
-        char *l_addr_str = dap_chain_addr_to_str(l_addr);
-        json_object_object_add(json_reply, "Address", l_addr_str);
-        json_object_array_add(json_reply, json_out);
-        DAP_DELETE(l_addr_str);
+    char *l_addr_str = dap_chain_addr_to_str(l_addr);
+    json_object* json_obj_addr = json_object_new_object();
+    json_object_object_add(json_obj_addr, "address", json_object_new_string(l_addr_str));
+    json_object_array_add(json_arr_reply, json_obj_addr);
+    if (json_object_array_length(json_arr_out) > 0) { 
+        json_object_array_add(json_arr_reply, json_arr_out);
+        // DAP_DELETE(l_addr_str);
+    } else {
+        json_object* json_obj_status = json_object_new_object();
+        json_object_object_add(json_obj_status, "status", json_object_new_string("empty"));
+        json_object_array_add(json_arr_reply, json_obj_status);
     }
     return 0;
 }
