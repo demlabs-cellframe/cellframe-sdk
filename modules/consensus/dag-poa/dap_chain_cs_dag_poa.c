@@ -400,6 +400,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
                 s_poa_round_timer = dap_interval_timer_create(600 * 1000, s_poa_round_clean, a_chain);
                 log_it(L_MSG, "DAG-PoA: Round timer is started");
             }
+            DAP_CHAIN_PVT(a_chain)->cs_started = true;
         }
     }
 

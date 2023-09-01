@@ -1580,13 +1580,19 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         dap_stream_connection_t **l_downlinks = dap_stream_connections_get_downlinks(&l_downlink_count);
         dap_string_t *l_str_uplinks = dap_string_new("---------------------------\n"
                                              "| ↑\\↓ |\t#\t|\t\tIP\t\t|\tPort\t|\n");
-        for (size_t i=0; i < l_uplink_count; i++) {
+        size_t l_broken_uplinks = 0;
+        for (size_t i = 0; i < l_uplink_count; i++) {
+            if (!l_uplinks[i]->stream || !l_uplinks[i]->stream->esocket) {
+                l_broken_uplinks++;
+                continue;
+            }
             char *l_address = l_uplinks[i]->stream->esocket->remote_addr_str;
             short l_port = l_uplinks[i]->stream->esocket->remote_port;
 
             dap_string_append_printf(l_str_uplinks, "|  ↑  |\t%zu\t|\t%s\t\t|\t%u\t|\n",
                                      i, l_address, l_port);
         }
+        l_uplink_count -= l_broken_uplinks;
         dap_string_t *l_str_downlinks = dap_string_new("---------------------------\n"
                                                      "| ↑\\↓ |\t#\t|\t\tIP\t\t|\tPort\t|\n");
         for (size_t i=0; i < l_downlink_count; i++) {
@@ -4965,7 +4971,6 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
     dap_list_t *l_in_list = NULL;// list 'in' items
     dap_list_t *l_tsd_list = NULL;// list tsd sections
     uint256_t l_value_need = { };// how many tokens are needed in the 'out' item
-    const char *l_token_out = NULL;// what token is used in the 'out' item
     dap_string_t *l_err_str = dap_string_new("Errors: \n");
     // Creating and adding items to the transaction
     for(size_t i = 0; i < l_items_count; ++i) {
@@ -5026,7 +5031,6 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
                                                                     "is indicated.\n");
                             }
                             l_item = (const uint8_t*) l_out_ext_item;
-                            l_token_out = l_token;
                         }
                         else {
                             log_it(L_WARNING, "Invalid 'out_ext' item %zu", i);
@@ -5125,14 +5129,13 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
                     log_it(L_ERROR, "Json TX: bad value in OUT_COND_SUBTYPE_SRV_XCHANGE");
                     break;
                 }
-                const char *l_params_str = s_json_get_text(l_json_item_obj, "params");
-                size_t l_params_size = dap_strlen(l_params_str);
+                //const char *l_params_str = s_json_get_text(l_json_item_obj, "params");
+                //size_t l_params_size = dap_strlen(l_params_str);
                 dap_chain_tx_out_cond_t *l_out_cond_item = NULL; //dap_chain_datum_tx_item_out_cond_create_srv_xchange(l_srv_uid, l_net->pub.id, l_token, l_value, l_params_str, l_params_size);
                 l_item = (const uint8_t*) l_out_cond_item;
                 // Save value for using in In item
                 if(l_item) {
                     SUM_256_256(l_value_need, l_value, &l_value_need);
-                    l_token_out = l_token;
                 } else {
                     dap_string_append_printf(l_err_str, "Unable to create conditional out for transaction "
                                                         "can of type %s described in item %zu.\n", l_subtype_str, i);
@@ -5280,7 +5283,6 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
     // Add In items
     l_list = l_in_list;
     while(l_list) {
-        const uint8_t *l_item = NULL;
         struct json_object *l_json_item_obj = (struct json_object*) l_list->data;
         // Read prev_hash and out_prev_idx
         const char *l_prev_hash_str = s_json_get_text(l_json_item_obj, "prev_hash");
@@ -5295,7 +5297,6 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
                 if (!l_in_item) {
                     dap_string_append_printf(l_err_str, "Unable to create in for transaction.\n");
                 }
-                l_item = (const uint8_t*) l_in_item;
             } else {
                 log_it(L_WARNING, "Invalid 'in' item, bad prev_hash %s", l_prev_hash_str);
                 dap_string_append_printf(l_err_str, "Unable to create in for transaction. Invalid 'in' item, "
@@ -5401,7 +5402,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
         dap_enc_key_t * l_enc_key  = NULL;
         
         //get wallet or cert
-        const dap_chain_wallet_t *l_wallet = s_json_get_wallet(l_json_item_obj, "wallet");
+        dap_chain_wallet_t *l_wallet = s_json_get_wallet(l_json_item_obj, "wallet");
         const dap_cert_t *l_cert = s_json_get_cert(l_json_item_obj, "cert");
 
         //wallet goes first
