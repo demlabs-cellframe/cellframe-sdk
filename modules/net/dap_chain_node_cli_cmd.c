@@ -5694,9 +5694,9 @@ int com_tx_history(int a_argc, char ** a_argv, json_object* json_reply)
     }
     json_object * json_out = json_object_new_array();
     if (l_tx_hash_str) {
-        json_out = dap_db_history_tx(&l_tx_hash, l_chain, l_hash_out_type, l_net);
+        json_object_array_add(json_out, dap_db_history_tx(&l_tx_hash, l_chain, l_hash_out_type, l_net));
     } else if (l_addr) {
-        json_out = dap_db_history_addr(l_addr, l_chain, l_hash_out_type);
+        json_object_array_add(json_out, dap_db_history_addr(l_addr, l_chain, l_hash_out_type));
     } else if (l_is_tx_all) {
         log_it(L_DEBUG, "Start getting tx from chain");
         size_t l_tx_count = 0;
@@ -5747,16 +5747,12 @@ int com_tx_history(int a_argc, char ** a_argv, json_object* json_reply)
         DAP_FREE(chain_info_str);
         return 0;
     }
-    if (l_addr) {
+    if (json_object_object_length(json_out) > 0) {
         char *l_addr_str = dap_chain_addr_to_str(l_addr);
         json_object_object_add(json_reply, "Address", l_addr_str);
         json_object_array_add(json_reply, json_out);
         DAP_DELETE(l_addr_str);
-    } else
-        l_str_ret = l_str_out;
-    json_object_array_add(json_reply, l_str_ret);
-    // dap_json_rpc_error_add(-3, "%s", l_str_ret);
-    DAP_DELETE(l_str_ret);
+    }
     return 0;
 }
 
