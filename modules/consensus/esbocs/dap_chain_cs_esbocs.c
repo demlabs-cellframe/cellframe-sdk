@@ -312,6 +312,9 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
     for (size_t i = 0; i < l_objs_count; i++) {
         dap_store_obj_t *it = l_objs + i;
         if (l_notify_item->ttl && it->timestamp < l_limit_time) {
+            dap_chain_addr_t *l_signing_addr = dap_chain_addr_from_str(it->key);
+            dap_chain_net_srv_stake_mark_validator_active(l_signing_addr, true);
+            DAP_DEL_Z(l_signing_addr);
             dap_global_db_driver_delete(it, 1);
             continue;
         }
