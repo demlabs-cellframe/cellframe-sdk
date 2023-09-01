@@ -102,7 +102,8 @@ static const char *s_ledger_tx_check_err_str[] = {
     [DAP_CHAIN_LEDGER_TX_CACHE_VERIFICATOR_CHECK_FAILURE] = "DAP_CHAIN_LEDGER_TX_CACHE_VERIFICATOR_CHECK_FAILURE",
     [DAP_CHAIN_LEDGER_TX_CACHE_CHECK_PREV_TICKER_NOT_FOUND] = "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_PREV_TICKER_NOT_FOUND",
     [DAP_CHAIN_LEDGER_TX_CACHE_CHECK_PREV_TOKEN_NOT_FOUND] = "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_PREV_TOKEN_NOT_FOUND",
-    [DAP_CHAIN_LEDGER_PERMISSION_CHECK_FAILED] = "DAP_CHAIN_LEDGER_PERMISSION_CHECK_FAILED"
+    [DAP_CHAIN_LEDGER_PERMISSION_CHECK_FAILED] = "DAP_CHAIN_LEDGER_PERMISSION_CHECK_FAILED",
+    [DAP_CHAIN_LEDGER_TX_CACHE_CHECK_SUM_INS_NOT_EQUAL_SUM_OUTS] = "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_SUM_INS_NOT_EQUAL_SUM_OUTS"
 };
 
 static const char *s_ledger_emission_add_err_str[] = {
@@ -3320,7 +3321,7 @@ dap_chain_datum_tx_t* dap_chain_ledger_tx_find_by_hash(dap_ledger_t *a_ledger, d
     return s_find_datum_tx_by_hash(a_ledger, a_tx_hash, NULL);
 }
 
-bool dap_chain_ledger_tx_spent_find_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash)
+void *dap_chain_ledger_tx_spent_find_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash)
 {
     dap_chain_ledger_tx_spent_item_t *l_tx_item;
     pthread_rwlock_rdlock(&PVT(a_ledger)->ledger_rwlock);
@@ -3805,7 +3806,13 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
             // Get previous transaction in the cache by hash
             dap_chain_ledger_tx_item_t *l_item_out = NULL;
             l_tx_prev = s_find_datum_tx_by_hash(a_ledger, &l_tx_prev_hash, &l_item_out);
-            if (!l_tx_prev) { // Unchained transaction
+            if (!l_tx_prev) { // Unchained transaction or previous TX was already spent and removed from ledger
+                dap_chain_ledger_tx_spent_item_t *l_used_item = dap_chain_ledger_tx_spent_find_by_hash(a_ledger, &l_tx_prev_hash);
+                if (l_used_item) {
+                    l_err_num = DAP_CHAIN_LEDGER_TX_CACHE_CHECK_OUT_ITEM_ALREADY_USED;
+                    debug_if(s_debug_more, L_INFO, "All 'out' items of previous tx %s were already spent", l_tx_prev_hash_str);
+                    break;
+                }
                 debug_if(s_debug_more && !a_from_threshold, L_DEBUG, "No previous transaction was found for hash %s", l_tx_prev_hash_str);
                 l_err_num = DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS;
                 break;
@@ -3822,7 +3829,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 l_err_num = DAP_CHAIN_LEDGER_TX_CACHE_CHECK_OUT_ITEM_ALREADY_USED;
                 char l_hash[DAP_CHAIN_HASH_FAST_STR_SIZE];
                 dap_chain_hash_fast_to_str(&l_spender, l_hash, sizeof(l_hash));
-                 debug_if(s_debug_more, L_INFO, "'Out' item of previous tx %s already spent by %s", l_tx_prev_hash_str, l_hash);
+                debug_if(s_debug_more, L_INFO, "'Out' item of previous tx %s already spent by %s", l_tx_prev_hash_str, l_hash);
                 break;
             }
 
@@ -4202,7 +4209,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                     DAP_DELETE(l_balance);
                     DAP_DELETE(l_balance_cur);
                 }
-                l_err_num = -12;
+                l_err_num = DAP_CHAIN_LEDGER_TX_CACHE_CHECK_SUM_INS_NOT_EQUAL_SUM_OUTS;
                 break;
             }
         }

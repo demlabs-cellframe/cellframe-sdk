@@ -387,7 +387,11 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                                            l_price_unit,NULL,l_price_min,l_price_max,&l_orders,&l_orders_num);
                         flags = l_orders_num ? flags | F_ORDR : flags & ~F_ORDR;
                         bool auto_online = dap_config_get_item_bool_default( g_config, "general", "auto_online", false );
-                        bool auto_update = dap_config_get_item_bool_default( g_config, "general", "auto_update", false );
+                        bool auto_update = false;
+                        if(system("systemctl status cellframe-updater.service") == 0)
+                            auto_update = true;
+                        else
+                            auto_update = false;
                         flags = auto_online ? flags | A_ONLN : flags & ~A_ONLN;
                         flags = auto_update ? flags | A_UPDT : flags & ~A_UPDT;
                         send->header.flags = flags;
