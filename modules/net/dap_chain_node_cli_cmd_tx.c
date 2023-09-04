@@ -148,7 +148,6 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
         return NULL;
     }
 
-    json_object* datum_tx = dap_chain_datum_tx_to_json(l_tx);
     l_tx_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_chain->ledger, a_tx_hash);
     if (l_tx_token_ticker) {
         json_object_object_add(json_obj_datum, "status", json_object_new_string("ACCEPTED"));
@@ -176,6 +175,7 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
     if (l_ret_code)
         json_object_object_add(json_obj_datum, "ret_code", json_object_new_int(l_ret_code));
 
+    json_object* datum_tx = dap_chain_datum_tx_to_json(l_tx);
     json_object_object_add(json_obj_datum, "items", datum_tx);
 
     return json_obj_datum;
@@ -246,14 +246,12 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
         l_tx_hash_str = dap_enc_base58_encode_hash_to_str(a_tx_hash);
         l_atom_hash_str = dap_enc_base58_encode_hash_to_str(a_atom_hash);
     }
-    json_object_object_add(json_obj_datum, "status", l_declined ? "DECLINED" : "ACCEPTED");
-    json_object_object_add(json_obj_datum, "hash", l_tx_hash_str);
-    json_object_object_add(json_obj_datum, "atom hash", l_atom_hash_str);
-    json_object_object_add(json_obj_datum, "ret_code", a_ret_code);
-    json_object_object_add(json_obj_datum, "tx created", l_time_str);
+    json_object_object_add(json_obj_datum, "status", json_object_new_string(l_declined ? "DECLINED" : "ACCEPTED"));
+    json_object_object_add(json_obj_datum, "hash", json_object_new_string(l_tx_hash_str));
+    json_object_object_add(json_obj_datum, "atom hash", json_object_new_string(l_atom_hash_str));
+    json_object_object_add(json_obj_datum, "ret_code", json_object_new_int(a_ret_code));
+    json_object_object_add(json_obj_datum, "tx created", json_object_new_string(l_time_str));
 
-    // dap_string_append_printf(a_str_out, "%s TX hash %s with atom %s (ret code %d) \n\t%s", l_declined ? "DECLINED" : "ACCEPTED",
-    //                                                                       l_tx_hash_str, l_atom_hash_str, a_ret_code, l_time_str);
     DAP_DELETE(l_tx_hash_str);
     DAP_DELETE(l_atom_hash_str);
 }
@@ -474,6 +472,71 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
         json_object_object_add(json_obj_datum, "tx_type", json_object_new_string("empty"));
     }
     return json_obj_datum;
+}
+
+json_object* dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t* l_net, const char *l_hash_out_type) {
+        log_it(L_DEBUG, "Start getting tx from chain");
+        size_t l_tx_count = 0;
+        size_t l_tx_ledger_accepted = 0;
+        size_t l_tx_ledger_rejected = 0;
+        dap_chain_cell_t    *l_cell = NULL,
+                            *l_cell_tmp = NULL;
+        dap_chain_atom_iter_t *l_iter = NULL;
+        json_object * json_arr_out = json_object_new_array();
+        HASH_ITER(hh, l_chain->cells, l_cell, l_cell_tmp) {
+            l_iter = l_chain->callback_atom_iter_create(l_chain, l_cell->id, 0);
+            size_t l_atom_size = 0;
+            dap_chain_atom_ptr_t l_ptr = l_chain->callback_atom_iter_get_first(l_iter, &l_atom_size);
+            while (l_ptr && l_atom_size) {
+                size_t l_datums_count = 0;
+                dap_chain_datum_t **l_datums = l_cell->chain->callback_atom_get_datums(l_ptr, l_atom_size, &l_datums_count);
+                for (size_t i = 0; i < l_datums_count; i++) {
+                    if (l_datums[i]->header.type_id == DAP_CHAIN_DATUM_TX) {
+                        l_tx_count++;
+                        dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)l_datums[i]->data;
+                        dap_hash_fast_t l_ttx_hash = {0};
+                        dap_hash_fast(l_tx, l_datums[i]->header.data_size, &l_ttx_hash);
+                        bool accepted_tx;
+                        json_object* json_obj_datum = dap_db_tx_history_to_json(&l_ttx_hash, NULL, l_tx, l_chain, l_hash_out_type, l_net, NULL, &accepted_tx);
+                        if (!json_obj_datum) {
+                            log_it(L_CRITICAL, "Memory allocation error");
+                            return NULL;
+                        }
+                        if (accepted_tx)
+                            l_tx_ledger_accepted++;
+                        else
+                            l_tx_ledger_rejected++;
+                        json_object_array_add(json_arr_out, json_obj_datum);
+                        const char * debug_json_string = json_object_to_json_string(json_obj_datum);
+                    }
+                }
+                DAP_DEL_Z(l_datums);
+                l_ptr = l_chain->callback_atom_iter_get_next(l_iter, &l_atom_size);
+            }
+            l_cell->chain->callback_atom_iter_delete(l_iter);
+        }
+        log_it(L_DEBUG, "END getting tx from chain");
+
+        char * chain_info_str = DAP_NEW_SIZE(char, 256);
+        if (!chain_info_str) {
+            log_it(L_CRITICAL, "Memory allocation error");
+            json_object_put(json_arr_out);
+            return NULL;
+        }
+
+        if (sprintf(chain_info_str, "Chain %s in network %s contains %zu transactions.\n"
+                                               "Of which %zu were accepted into the ledger and %zu were rejected.\n",
+                                 l_net->pub.name, l_chain->name, l_tx_count, l_tx_ledger_accepted, l_tx_ledger_rejected) == -1) {
+            log_it(L_CRITICAL, "Memory allocation error");
+            json_object_put(json_arr_out);
+            DAP_FREE(chain_info_str);
+            return NULL;
+        }
+        json_object * json_obj_summary = json_object_new_object();
+        json_object_object_add(json_obj_summary, "summary", json_object_new_string(chain_info_str));
+        json_object_array_add(json_arr_out, json_obj_summary);
+        DAP_FREE(chain_info_str);
+        return json_arr_out;
 }
 
 /**
