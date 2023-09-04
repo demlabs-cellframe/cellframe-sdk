@@ -963,12 +963,12 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
 static int s_add_atom_to_blocks(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_cache_t *a_block_cache )
 {
     int l_res = 0;
+    pthread_rwlock_wrlock( &PVT(a_blocks)->rwlock );
     l_res = s_add_atom_datums(a_blocks, a_block_cache);
     debug_if(s_debug_more, L_DEBUG, "Block %s checked, %s", a_block_cache->block_hash_str,
                                                             l_res == (int)a_block_cache->datum_count ?
                                                             "all correct" : "but ledger declined");
-    //All correct, no matter for result
-    pthread_rwlock_wrlock( &PVT(a_blocks)->rwlock );
+    //All correct, no matter for result    
     HASH_ADD(hh, PVT(a_blocks)->blocks,block_hash,sizeof (a_block_cache->block_hash), a_block_cache);
     PVT(a_blocks)->blocks_count++;
     if (! (PVT(a_blocks)->block_cache_first ) )
