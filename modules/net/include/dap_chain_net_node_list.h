@@ -35,6 +35,8 @@ struct node_link_request {
     bool from_http;
     int link_replace_tries;
     int response;
+    pthread_cond_t wait_cond;
+    pthread_mutex_t wait_mutex;
 };
 
 void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg);

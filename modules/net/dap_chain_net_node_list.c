@@ -130,6 +130,90 @@ static void s_net_node_link_prepare_error(int a_error_code, void *a_arg){
     //DAP_DELETE(l_node_info);
     //DAP_DELETE(l_node_list_request);
 }
+static struct node_link_request *s_node_list_request_init ()
+{
+    struct node_link_request *l_node_list_request = DAP_NEW_Z(struct node_link_request);
+    if(!l_node_list_request){
+        return NULL;
+    }
+    l_node_list_request->worker = dap_events_worker_get_auto();
+    l_node_list_request->from_http = true;
+    l_node_list_request->response = 0;
+
+#ifndef _WIN32
+    pthread_condattr_t attr;
+    pthread_condattr_init(&attr);
+#ifndef DAP_OS_DARWIN
+    pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
+#endif
+    pthread_cond_init(&l_node_list_request->wait_cond, &attr);
+#else
+    a_link_node_info->wait_cond = CreateEventA( NULL, FALSE, FALSE, NULL );
+#endif
+    pthread_mutex_init(&l_node_list_request->wait_mutex, NULL);
+
+    return l_node_list_request;
+}
+
+static void s_node_list_request_dinit (struct node_link_request *l_node_list_request)
+{
+#ifndef _WIN32
+    pthread_cond_destroy(&l_node_list_request->wait_cond);
+#else
+    CloseHandle( a_link_node_info->wait_cond );
+#endif
+    pthread_mutex_destroy(&l_node_list_request->wait_mutex);
+    DAP_DEL_Z(l_node_list_request->link_info);
+    DAP_DELETE(l_node_list_request);
+}
+static int dap_chain_net_node_list_wait(struct node_link_request *a_node_list_request, int a_timeout_ms){
+
+    int ret = -1;
+    pthread_mutex_lock(&a_node_list_request->wait_mutex);
+    if(a_node_list_request->response)
+    {
+        pthread_mutex_unlock(&a_node_list_request->wait_mutex);
+        return 0;
+    }
+#ifndef DAP_OS_WINDOWS
+    // prepare for signal waiting
+    struct timespec l_cond_timeout;
+    clock_gettime( CLOCK_MONOTONIC, &l_cond_timeout);
+    l_cond_timeout.tv_sec += a_timeout_ms/1000;
+    // signal waiting
+    while (a_node_list_request->response) {
+        int l_ret_wait = pthread_cond_timedwait(&a_node_list_request->wait_cond, &a_node_list_request->wait_mutex, &l_cond_timeout);
+        if(l_ret_wait) {
+            ret = a_node_list_request->response ? 0 : -2;
+            break;
+        }
+        else if(l_ret_wait == ETIMEDOUT) { // 110 260
+            //log_it(L_NOTICE,"Wait for status is stopped by timeout");
+            ret = -1;
+            break;
+        }else if (l_ret_wait != 0 ){
+            char l_errbuf[128];
+            l_errbuf[0] = '\0';
+            strerror_r(l_ret_wait,l_errbuf,sizeof (l_errbuf));
+            log_it(L_ERROR, "Pthread condition timed wait returned \"%s\"(code %d)", l_errbuf, l_ret_wait);
+        }
+    }
+    pthread_mutex_unlock(&a_node_list_request->wait_mutex);
+#else
+    pthread_mutex_unlock( &a_node_list_request->wait_mutex );
+    DWORD wait = WaitForSingleObject( a_node_list_request->wait_cond, (uint32_t)a_timeout_ms);
+    if ( wait == WAIT_OBJECT_0 && (
+             a_client->state == a_waited_state ||
+             a_client->state == NODE_CLIENT_STATE_ERROR ||
+             a_client->state == NODE_CLIENT_STATE_DISCONNECTED))
+    {
+        return a_node_list_request->response ? 0 : -2;
+    } else if ( wait == WAIT_TIMEOUT || wait == WAIT_FAILED ) {
+        return -1;
+    }
+#endif
+    return ret;
+}
 
 int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_request)
 {
@@ -139,17 +223,14 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
     char l_node_addr_str[INET_ADDRSTRLEN] = {};
     inet_ntop(AF_INET, &l_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
     log_it(L_DEBUG, "Start node list HTTP request to %s", l_node_addr_str);
-    struct node_link_request *l_node_list_request = DAP_NEW_Z(struct node_link_request);
+    struct node_link_request *l_node_list_request = s_node_list_request_init();
     if(!l_node_list_request){
         log_it(L_CRITICAL, "Memory allocation error");
-        DAP_DELETE(l_node_list_request);
+        DAP_DELETE(l_link_node_info);
         return false;
     }
     l_node_list_request->net = a_net;
     l_node_list_request->link_info = l_link_node_info;
-    l_node_list_request->worker = dap_events_worker_get_auto();
-    l_node_list_request->from_http = true;
-    l_node_list_request->response = 0;
     //l_node_list_request->link_replace_tries
     int ret = 0;
 
@@ -173,15 +254,16 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
                                             s_net_node_link_prepare_error,
                                             l_node_list_request,
                                             NULL) == NULL;
+
+    size_t rc = dap_chain_net_node_list_wait(l_node_list_request, 4000);
+
     if(ret){
-        DAP_DELETE(l_node_list_request->link_info);
-        DAP_DELETE(l_node_list_request);
+        s_node_list_request_dinit(l_node_list_request);
         return 4;
     }
     else{
         ret = l_node_list_request->response;        
-        DAP_DELETE(l_node_list_request->link_info);
-        DAP_DELETE(l_node_list_request);
+        s_node_list_request_dinit(l_node_list_request);
         return ret - 1;
     }
 }
