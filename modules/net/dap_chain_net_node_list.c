@@ -167,7 +167,7 @@ static void s_node_list_request_dinit (struct node_link_request *a_node_list_req
 #ifndef _WIN32
     pthread_cond_destroy(&a_node_list_request->wait_cond);
 #else
-    CloseHandle( a_link_node_info->wait_cond );
+    CloseHandle( a_node_list_request->wait_cond );
 #endif
     pthread_mutex_destroy(&a_node_list_request->wait_mutex);
     DAP_DEL_Z(a_node_list_request->link_info);
