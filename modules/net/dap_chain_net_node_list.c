@@ -134,8 +134,10 @@ static void s_net_node_link_prepare_success(void *a_response, size_t a_response_
 
     struct node_link_request * l_node_list_request = (struct node_link_request *)a_arg;
     dap_chain_node_info_t *l_node_info = l_node_list_request->link_info;
+    pthread_mutex_lock(&l_node_list_request->wait_mutex);
     l_node_list_request->response = *(uint8_t*)a_response;
     dap_cond_signal(l_node_list_request->wait_cond);
+    pthread_mutex_unlock(&l_node_list_request->wait_mutex);
     //DAP_DELETE(l_node_info);
     //DAP_DELETE(l_node_list_request);
 }
@@ -157,7 +159,7 @@ static struct node_link_request *s_node_list_request_init ()
     }
     l_node_list_request->worker = dap_events_worker_get_auto();
     l_node_list_request->from_http = true;
-    l_node_list_request->response = 5;//No server
+    l_node_list_request->response = 0;
 
 #ifndef _WIN32
     pthread_condattr_t attr;
@@ -201,7 +203,9 @@ static int dap_chain_net_node_list_wait(struct node_link_request *a_node_list_re
     l_cond_timeout.tv_sec += a_timeout_ms/1000;
     // signal waiting
     while (!a_node_list_request->response) {
+        log_it(L_DEBUG, "TIME OUT 1");
         int l_ret_wait = pthread_cond_timedwait(&a_node_list_request->wait_cond, &a_node_list_request->wait_mutex, &l_cond_timeout);
+        log_it(L_DEBUG, "TIME OUT 2");
         if(l_ret_wait) {
             ret = a_node_list_request->response ? 0 : -2;
             break;
@@ -274,14 +278,21 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
 
     size_t rc = dap_chain_net_node_list_wait(l_node_list_request, 4000);
     log_it(L_DEBUG, "Stop node list HTTP request to ");
-    if(ret || rc){
+    if(ret){
         s_node_list_request_dinit(l_node_list_request);
         return 4;
     }
     else{
-        ret = l_node_list_request->response;        
-        s_node_list_request_dinit(l_node_list_request);
-        return ret;
+        if(rc)
+        {
+            s_node_list_request_dinit(l_node_list_request);
+            return 5;//no server
+        }
+        else{
+            ret = l_node_list_request->response;
+            s_node_list_request_dinit(l_node_list_request);
+            return ret;
+        }
     }
 }
 
