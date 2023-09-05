@@ -108,7 +108,7 @@ DAP_STATIC_INLINE bool dap_chain_node_addr_str_check(const char *a_addr_str) {
 
 DAP_STATIC_INLINE int dap_chain_node_addr_from_str(dap_chain_node_addr_t *a_addr, const char *a_addr_str)
 {
-    if (!a_addr){
+    if (!a_addr || !a_addr_str){
         return -1;
     }
     if (sscanf(a_addr_str, NODE_ADDR_FP_STR, NODE_ADDR_FPS_ARGS(a_addr)) == 4)
@@ -205,6 +205,25 @@ DAP_STATIC_INLINE const char *dap_chain_srv_unit_enum_to_str(dap_chain_srv_unit_
     case SERV_UNIT_PCS: return "SERV_UNIT_PCS";
     default: return "UNDEFINED";
     }
+}
+
+DAP_STATIC_INLINE dap_chain_srv_unit_enum_t dap_chain_srv_str_to_unit_enum(char* a_price_unit_str) {
+    if (!a_price_unit_str)
+        return SERV_UNIT_UNDEFINED;
+    if (!dap_strcmp(a_price_unit_str, "MB")){
+        return SERV_UNIT_MB;
+    } else if (!dap_strcmp(a_price_unit_str, "SEC")){
+        return SERV_UNIT_SEC;
+    } else if (!dap_strcmp(a_price_unit_str, "DAY")){
+        return SERV_UNIT_DAY;
+    } else if (!dap_strcmp(a_price_unit_str, "KB")){
+        return SERV_UNIT_KB;
+    } else if (!dap_strcmp(a_price_unit_str, "B")){
+        return SERV_UNIT_B;
+    } else if (!dap_strcmp(a_price_unit_str, "PCS")){
+        return SERV_UNIT_PCS;
+    }
+    return SERV_UNIT_UNDEFINED;
 }
 
 typedef union {

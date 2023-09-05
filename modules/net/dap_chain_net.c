@@ -514,7 +514,7 @@ void dap_chain_net_sync_gdb_broadcast(dap_global_db_context_t *a_context, dap_st
             DAP_DELETE(l_link);
             continue;
         }
-        if (!dap_stream_ch_chain_pkt_write_inter(a_context->queue_worker_ch_io_input[l_link->worker->worker->id],
+        if (!dap_stream_ch_chain_pkt_write_mt(l_link->worker, //_inter(a_context->queue_worker_ch_io_input[l_link->worker->worker->id],
                                              l_link->ch_uuid,
                                              DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id.uint64,
                                              0, 0, l_data_out,
