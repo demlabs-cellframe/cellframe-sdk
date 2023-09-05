@@ -155,23 +155,23 @@ static struct node_link_request *s_node_list_request_init ()
 #endif
     pthread_cond_init(&l_node_list_request->wait_cond, &attr);
 #else
-    a_link_node_info->wait_cond = CreateEventA( NULL, FALSE, FALSE, NULL );
+    l_node_list_request->wait_cond = CreateEventA( NULL, FALSE, FALSE, NULL );
 #endif
     pthread_mutex_init(&l_node_list_request->wait_mutex, NULL);
 
     return l_node_list_request;
 }
 
-static void s_node_list_request_dinit (struct node_link_request *l_node_list_request)
+static void s_node_list_request_dinit (struct node_link_request *a_node_list_request)
 {
 #ifndef _WIN32
-    pthread_cond_destroy(&l_node_list_request->wait_cond);
+    pthread_cond_destroy(&a_node_list_request->wait_cond);
 #else
     CloseHandle( a_link_node_info->wait_cond );
 #endif
-    pthread_mutex_destroy(&l_node_list_request->wait_mutex);
-    DAP_DEL_Z(l_node_list_request->link_info);
-    DAP_DELETE(l_node_list_request);
+    pthread_mutex_destroy(&a_node_list_request->wait_mutex);
+    DAP_DEL_Z(a_node_list_request->link_info);
+    DAP_DELETE(a_node_list_request);
 }
 static int dap_chain_net_node_list_wait(struct node_link_request *a_node_list_request, int a_timeout_ms){
 
@@ -210,9 +210,7 @@ static int dap_chain_net_node_list_wait(struct node_link_request *a_node_list_re
     pthread_mutex_unlock( &a_node_list_request->wait_mutex );
     DWORD wait = WaitForSingleObject( a_node_list_request->wait_cond, (uint32_t)a_timeout_ms);
     if ( wait == WAIT_OBJECT_0 && (
-             a_client->state == a_waited_state ||
-             a_client->state == NODE_CLIENT_STATE_ERROR ||
-             a_client->state == NODE_CLIENT_STATE_DISCONNECTED))
+             a_node_list_request->response))
     {
         return a_node_list_request->response ? 0 : -2;
     } else if ( wait == WAIT_TIMEOUT || wait == WAIT_FAILED ) {
