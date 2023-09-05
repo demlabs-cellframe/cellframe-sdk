@@ -1255,6 +1255,9 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             case 4:
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process node list HTTP request");
             break;
+            case 5:
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "No server");
+            break;
             default:
                 break;
             }

@@ -36,6 +36,17 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define dap_cond_signal(x) pthread_cond_broadcast(&x)
 #endif
 
+/**
+ * @brief server function, makes handshake and add node to node list
+ *
+ * @param dap_http_simple_t *a_http_simple, void *a_arg
+ * @return void
+ * send value
+ * 0 - Node addr successfully added to node list
+ * 1 - Don't add this addres to node list
+ * 2 - Can't calculate hash for addr
+ * 3 - Can't do handshake
+ */
 void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg)
 {
     log_it(L_DEBUG,"Proc enc http request");
@@ -87,7 +98,7 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
         if(!a_key)
         {
             log_it(L_DEBUG, "Can't calculate hash for addr");
-            response = 3;
+            response = 2;
             DAP_DELETE(l_node_info);
             return;
         }
@@ -100,17 +111,18 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
             inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
             log_it(L_DEBUG, "Add addres "NODE_ADDR_FP_STR" (%s) to node list",
                        NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),l_node_addr_str);
+            response = 0;
         }
         else
         {
-            response = 2;
+            response = 1;
             log_it(L_DEBUG, "Don't add this addres to node list");
         }
     }
     else
     {
         log_it(L_DEBUG, "Can't do handshake");
-        response = 4;
+        response = 3;
     }
     *l_return_code = Http_Status_OK;
     size_t l_data_send_size = sizeof(uint8_t);
@@ -145,7 +157,7 @@ static struct node_link_request *s_node_list_request_init ()
     }
     l_node_list_request->worker = dap_events_worker_get_auto();
     l_node_list_request->from_http = true;
-    l_node_list_request->response = 0;
+    l_node_list_request->response = 5;//No server
 
 #ifndef _WIN32
     pthread_condattr_t attr;
@@ -262,14 +274,14 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
 
     size_t rc = dap_chain_net_node_list_wait(l_node_list_request, 4000);
     log_it(L_DEBUG, "Stop node list HTTP request to ");
-    if(ret){
+    if(ret || rc){
         s_node_list_request_dinit(l_node_list_request);
         return 4;
     }
     else{
         ret = l_node_list_request->response;        
         s_node_list_request_dinit(l_node_list_request);
-        return ret - 1;
+        return ret;
     }
 }
 

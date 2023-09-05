@@ -71,8 +71,8 @@ bool dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info,dap_cha
     // wait handshake
     int timeout_ms = 1000;
     int res = dap_chain_node_client_wait(l_client, NODE_CLIENT_STATE_ESTABLISHED, timeout_ms);
+    dap_chain_node_client_close_mt(l_client);
     if (res) {
-        dap_chain_node_client_close_mt(l_client);
         return false;
     }
     return true;
