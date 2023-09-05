@@ -1027,6 +1027,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
         }
 
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Group %s, key %s, data:\n %s", l_group_str, l_key_str, (char*)l_value_out);
+        DAP_DELETE(l_value_out);
         return 0;
     }
     case CMD_DELETE:
@@ -1161,11 +1162,6 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     }
     else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "connections", NULL)) {
         cmd_num = CMD_CONNECTIONS;
-//        char *l_str = NULL;
-//        dap_stream_connections_print(&l_str);
-//        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str);
-//        DAP_DELETE(l_str);
-//        return 0;
     }
     else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "balancer", NULL)){
         cmd_num = CMD_BALANCER;
@@ -1580,41 +1576,9 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Connection established");
     }
     case CMD_CONNECTIONS: {
-        size_t l_uplink_count = 0;
-        size_t l_downlink_count = 0;
-        dap_stream_connection_t **l_uplinks = dap_stream_connections_get_uplinks(&l_uplink_count);
-        dap_stream_connection_t **l_downlinks = dap_stream_connections_get_downlinks(&l_downlink_count);
-        dap_string_t *l_str_uplinks = dap_string_new("---------------------------\n"
-                                             "| ↑\\↓ |\t#\t|\t\tIP\t\t|\tPort\t|\n");
-        size_t l_broken_uplinks = 0;
-        for (size_t i = 0; i < l_uplink_count; i++) {
-            if (!l_uplinks[i]->stream || !l_uplinks[i]->stream->esocket) {
-                l_broken_uplinks++;
-                continue;
-            }
-            char *l_address = l_uplinks[i]->stream->esocket->remote_addr_str;
-            short l_port = l_uplinks[i]->stream->esocket->remote_port;
-
-            dap_string_append_printf(l_str_uplinks, "|  ↑  |\t%zu\t|\t%s\t\t|\t%u\t|\n",
-                                     i, l_address, l_port);
-        }
-        l_uplink_count -= l_broken_uplinks;
-        dap_string_t *l_str_downlinks = dap_string_new("---------------------------\n"
-                                                     "| ↑\\↓ |\t#\t|\t\tIP\t\t|\tPort\t|\n");
-        for (size_t i=0; i < l_downlink_count; i++) {
-            char *l_address = l_downlinks[i]->address;
-
-            dap_string_append_printf(l_str_downlinks, "|  ↓  |\t%zu\t|\t%s\t\t|\t%u\t|\n",
-                                     i, l_address, l_downlinks[i]->port);
-        }
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Count links: %zu\n\nUplinks: %zu\n%s\n\nDownlinks: %zu\n%s\n",
-                                          l_uplink_count + l_downlink_count, l_uplink_count, l_str_uplinks->str,
-                                          l_downlink_count, l_str_downlinks->str);
-        dap_string_free(l_str_uplinks, false);
-        dap_string_free(l_str_downlinks, false);
-        DAP_DELETE(l_downlinks);
-        DAP_DELETE(l_uplinks);
-        return 0;
+        char *l_reply = dap_chain_net_links_dump(l_net);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_reply);
+        DAP_DELETE(l_reply);
     }
         break;
     case CMD_BALANCER: {
@@ -1633,6 +1597,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         }
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Balancer link list:\n %s \n",
                                           l_string_balanc->str);
+        dap_string_free(l_string_balanc, true);
     }
         break;
     }
