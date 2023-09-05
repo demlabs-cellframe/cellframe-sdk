@@ -1027,6 +1027,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
         }
 
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Group %s, key %s, data:\n %s", l_group_str, l_key_str, (char*)l_value_out);
+        DAP_DELETE(l_value_out);
         return 0;
     }
     case CMD_DELETE:
@@ -1161,11 +1162,6 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     }
     else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "connections", NULL)) {
         cmd_num = CMD_CONNECTIONS;
-//        char *l_str = NULL;
-//        dap_stream_connections_print(&l_str);
-//        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str);
-//        DAP_DELETE(l_str);
-//        return 0;
     }
     else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "balancer", NULL)){
         cmd_num = CMD_BALANCER;
@@ -1198,6 +1194,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     dap_chain_node_addr_t l_link = { 0 };
     dap_chain_node_info_t *l_node_info = NULL;
     size_t l_node_info_size = sizeof(l_node_info->hdr) + sizeof(l_link);
+
     if(cmd_num >= CMD_ADD && cmd_num <= CMD_LINK)
         l_node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, l_node_info_size);
 
@@ -1224,7 +1221,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     }
     int l_ret =0;
     switch (cmd_num)
-    {
+    {    
     case CMD_ADD:
 
         if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "request", NULL)){
@@ -1614,35 +1611,9 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Connection established");
     }
     case CMD_CONNECTIONS: {
-        size_t l_uplink_count = 0;
-        size_t l_downlink_count = 0;
-        dap_stream_connection_t **l_uplinks = dap_stream_connections_get_uplinks(&l_uplink_count);
-        dap_stream_connection_t **l_downlinks = dap_stream_connections_get_downlinks(&l_downlink_count);
-        dap_string_t *l_str_uplinks = dap_string_new("---------------------------\n"
-                                             "| ↑\\↓ |\t#\t|\t\tIP\t\t|\tPort\t|\n");
-        for (size_t i=0; i < l_uplink_count; i++) {
-            char *l_address = l_uplinks[i]->stream->esocket->remote_addr_str;
-            short l_port = l_uplinks[i]->stream->esocket->remote_port;
-
-            dap_string_append_printf(l_str_uplinks, "|  ↑  |\t%zu\t|\t%s\t\t|\t%u\t|\n",
-                                     i, l_address, l_port);
-        }
-        dap_string_t *l_str_downlinks = dap_string_new("---------------------------\n"
-                                                     "| ↑\\↓ |\t#\t|\t\tIP\t\t|\tPort\t|\n");
-        for (size_t i=0; i < l_downlink_count; i++) {
-            char *l_address = l_downlinks[i]->address;
-
-            dap_string_append_printf(l_str_downlinks, "|  ↓  |\t%zu\t|\t%s\t\t|\t%u\t|\n",
-                                     i, l_address, l_downlinks[i]->port);
-        }
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Count links: %zu\n\nUplinks: %zu\n%s\n\nDownlinks: %zu\n%s\n",
-                                          l_uplink_count + l_downlink_count, l_uplink_count, l_str_uplinks->str,
-                                          l_downlink_count, l_str_downlinks->str);
-        dap_string_free(l_str_uplinks, false);
-        dap_string_free(l_str_downlinks, false);
-        DAP_DELETE(l_downlinks);
-        DAP_DELETE(l_uplinks);
-        return 0;
+        char *l_reply = dap_chain_net_links_dump(l_net);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_reply);
+        DAP_DELETE(l_reply);
     }
         break;
     case CMD_BALANCER: {
@@ -1661,6 +1632,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         }
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Balancer link list:\n %s \n",
                                           l_string_balanc->str);
+        dap_string_free(l_string_balanc, true);
     }
         break;
     }
@@ -5005,7 +4977,6 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
     dap_list_t *l_in_list = NULL;// list 'in' items
     dap_list_t *l_tsd_list = NULL;// list tsd sections
     uint256_t l_value_need = { };// how many tokens are needed in the 'out' item
-    const char *l_token_out = NULL;// what token is used in the 'out' item
     dap_string_t *l_err_str = dap_string_new("Errors: \n");
     // Creating and adding items to the transaction
     for(size_t i = 0; i < l_items_count; ++i) {
@@ -5066,7 +5037,6 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
                                                                     "is indicated.\n");
                             }
                             l_item = (const uint8_t*) l_out_ext_item;
-                            l_token_out = l_token;
                         }
                         else {
                             log_it(L_WARNING, "Invalid 'out_ext' item %zu", i);
@@ -5165,14 +5135,13 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
                     log_it(L_ERROR, "Json TX: bad value in OUT_COND_SUBTYPE_SRV_XCHANGE");
                     break;
                 }
-                const char *l_params_str = s_json_get_text(l_json_item_obj, "params");
-                size_t l_params_size = dap_strlen(l_params_str);
+                //const char *l_params_str = s_json_get_text(l_json_item_obj, "params");
+                //size_t l_params_size = dap_strlen(l_params_str);
                 dap_chain_tx_out_cond_t *l_out_cond_item = NULL; //dap_chain_datum_tx_item_out_cond_create_srv_xchange(l_srv_uid, l_net->pub.id, l_token, l_value, l_params_str, l_params_size);
                 l_item = (const uint8_t*) l_out_cond_item;
                 // Save value for using in In item
                 if(l_item) {
                     SUM_256_256(l_value_need, l_value, &l_value_need);
-                    l_token_out = l_token;
                 } else {
                     dap_string_append_printf(l_err_str, "Unable to create conditional out for transaction "
                                                         "can of type %s described in item %zu.\n", l_subtype_str, i);
@@ -5320,7 +5289,6 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
     // Add In items
     l_list = l_in_list;
     while(l_list) {
-        const uint8_t *l_item = NULL;
         struct json_object *l_json_item_obj = (struct json_object*) l_list->data;
         // Read prev_hash and out_prev_idx
         const char *l_prev_hash_str = s_json_get_text(l_json_item_obj, "prev_hash");
@@ -5335,7 +5303,6 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
                 if (!l_in_item) {
                     dap_string_append_printf(l_err_str, "Unable to create in for transaction.\n");
                 }
-                l_item = (const uint8_t*) l_in_item;
             } else {
                 log_it(L_WARNING, "Invalid 'in' item, bad prev_hash %s", l_prev_hash_str);
                 dap_string_append_printf(l_err_str, "Unable to create in for transaction. Invalid 'in' item, "
@@ -5441,7 +5408,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
         dap_enc_key_t * l_enc_key  = NULL;
         
         //get wallet or cert
-        const dap_chain_wallet_t *l_wallet = s_json_get_wallet(l_json_item_obj, "wallet");
+        dap_chain_wallet_t *l_wallet = s_json_get_wallet(l_json_item_obj, "wallet");
         const dap_cert_t *l_cert = s_json_get_cert(l_json_item_obj, "cert");
 
         //wallet goes first
