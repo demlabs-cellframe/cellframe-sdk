@@ -245,40 +245,44 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
 
 static bool s_file_write_header(dap_chain_cell_t *a_cell)
 {
-    fseek(a_cell->file_storage, 0L, SEEK_SET);
     dap_chain_cell_file_header_t l_hdr = {
-        .signature = DAP_CHAIN_CELL_FILE_SIGNATURE,
-        .version = DAP_CHAIN_CELL_FILE_VERSION,
-        .type = DAP_CHAIN_CELL_FILE_TYPE_RAW,
-        .chain_id = { .uint64 = a_cell->id.uint64 },
-        .chain_net_id = a_cell->chain->net_id
+        .signature      = DAP_CHAIN_CELL_FILE_SIGNATURE,
+        .version        = DAP_CHAIN_CELL_FILE_VERSION,
+        .type           = DAP_CHAIN_CELL_FILE_TYPE_RAW,
+        .chain_id       = { .uint64 = a_cell->id.uint64 },
+        .chain_net_id   = a_cell->chain->net_id
     };
-    if(fwrite(&l_hdr, 1, sizeof(l_hdr), a_cell->file_storage) == sizeof(l_hdr)) {
+    if(fwrite(&l_hdr, sizeof(l_hdr), 1, a_cell->file_storage) == 1) {
         log_it(L_NOTICE, "Initialized file storage for cell 0x%016"DAP_UINT64_FORMAT_X" ( %s )",
                 a_cell->id.uint64, a_cell->file_storage_path);
+        fflush(a_cell->file_storage);
+        return true;
     } else {
         log_it(L_ERROR, "Can't init file storage for cell 0x%016"DAP_UINT64_FORMAT_X" ( %s )",
                 a_cell->id.uint64, a_cell->file_storage_path);
         return false;
     }
-    return true;
 }
 
-static ssize_t s_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a_atom, uint64_t a_atom_size)
+static int s_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a_atom, uint64_t a_atom_size)
 {
-    if (fwrite(&a_atom_size, 1, sizeof(a_atom_size), a_cell->file_storage) != sizeof(a_atom_size)) {
-        log_it (L_ERROR,"Can't write atom data size from cell 0x%016"DAP_UINT64_FORMAT_X" in \"%s\"",
+    if (!a_atom || !a_atom_size) {
+        log_it(L_CRITICAL, "Invalid arguments");
+        return -1;
+    }
+    if (fwrite(&a_atom_size, sizeof(a_atom_size), 1, a_cell->file_storage) != 1) {
+        log_it (L_ERROR, "Can't write atom data size from cell 0x%016"DAP_UINT64_FORMAT_X" in \"%s\"",
                 a_cell->id.uint64,
                 a_cell->file_storage_path);
         return -2;
     }
-    if (fwrite(a_atom, 1, a_atom_size, a_cell->file_storage) != a_atom_size) {
+    if (fwrite(a_atom, a_atom_size, 1, a_cell->file_storage) != 1) {
         log_it (L_ERROR, "Can't write data from cell 0x%016"DAP_UINT64_FORMAT_X" to the file \"%s\"",
                         a_cell->id.uint64,
                         a_cell->file_storage_path);
         return -3;
     }
-    return a_atom_size + sizeof(a_atom_size);
+    return 0;
 }
 
 /**
@@ -293,7 +297,7 @@ static ssize_t s_file_atom_add(dap_chain_cell_t *a_cell, dap_chain_atom_ptr_t a_
  * @param a_atom_size
  * @return
  */
-int dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom, size_t a_atom_size)
+ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom, size_t a_atom_size)
 {
     if(!a_cell)
         return -1;
@@ -302,69 +306,84 @@ int dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom, siz
                                a_cell->id.uint64, a_cell->file_storage_path);
         return -1;
     }
-
+    size_t l_total_res = 0, l_count = 0;
+    bool l_err = false;
     pthread_rwlock_wrlock(&a_cell->storage_rwlock);
-    if (!a_cell->file_storage) {
-        a_cell->file_storage = fopen(a_cell->file_storage_path, "r+b");
+    if (!a_atom || !a_atom_size) {
+        a_cell->file_storage = a_cell->file_storage
+                ? freopen(a_cell->file_storage_path, "w+b", a_cell->file_storage)
+                : fopen(a_cell->file_storage_path, "w+b");
         if (!a_cell->file_storage) {
-            log_it(L_INFO, "Create chain cell");
-            a_cell->file_storage = fopen(a_cell->file_storage_path, "w+b");
-            if (!a_cell->file_storage) {
-                log_it(L_ERROR, "Chain cell \"%s\" (0x%016"DAP_UINT64_FORMAT_X") cannot be created",
-                        a_cell->file_storage_path,
-                        a_cell->id.uint64);
-                pthread_rwlock_unlock(&a_cell->storage_rwlock);
-                return -3;
-            } else if (!s_file_write_header(a_cell)) {// fill the header
-                pthread_rwlock_unlock(&a_cell->storage_rwlock);
-                return -4;
-            }
-        }
-    }
-
-    fseek(a_cell->file_storage, 0L, SEEK_END);
-    if (ftell(a_cell->file_storage) < (long)sizeof(dap_chain_cell_file_header_t)) {
-        log_it(L_WARNING, "Corrupted chain file header, rewrite it");
-        if (!s_file_write_header(a_cell)) {
+            log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X" cannot be opened",
+                    a_cell->file_storage_path,
+                    a_cell->id.uint64);
             pthread_rwlock_unlock(&a_cell->storage_rwlock);
-            return -5;
+            return -3;
         }
-    }
-
-    size_t l_total_wrote_bytes = 0, l_count = 0;
-    if (a_atom && a_atom_size)
-        l_total_wrote_bytes = s_file_atom_add(a_cell, a_atom, a_atom_size);
-    else { // if no atom provided in arguments, we flush all the atoms in given chain
-        size_t l_atom_size = 0;
-        fseek(a_cell->file_storage, sizeof(dap_chain_cell_file_header_t), SEEK_SET);
+        if (!s_file_write_header(a_cell)) {
+            log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X": can't fill header", a_cell->file_storage_path, a_cell->id.uint64);
+            pthread_rwlock_unlock(&a_cell->storage_rwlock);
+            return -4;
+        }
         dap_chain_atom_iter_t *l_atom_iter = a_cell->chain->callback_atom_iter_create(a_cell->chain, a_cell->id, 0);
-        dap_chain_atom_ptr_t l_atom = a_cell->chain->callback_atom_iter_get_first(l_atom_iter, &l_atom_size);
-        while (l_atom && l_atom_size && ++l_count) {
-            ssize_t l_atom_added_size = s_file_atom_add(a_cell, l_atom, l_atom_size);
-            if (l_atom_added_size < 0) {
-                l_total_wrote_bytes = l_atom_added_size;
+        dap_chain_atom_ptr_t l_atom;
+        uint64_t l_atom_size = 0;
+        for (l_atom = a_cell->chain->callback_atom_iter_get_first(l_atom_iter, &l_atom_size);
+             l_atom && l_atom_size;
+             l_atom = a_cell->chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size))
+        {
+            if (s_file_atom_add(a_cell, l_atom, l_atom_size)) {
+                l_err = true;
                 break;
+            } else {
+                l_total_res += l_atom_size + sizeof(uint64_t);
+                ++l_count;
             }
-            l_total_wrote_bytes += l_atom_added_size;
-            l_atom = a_cell->chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size);
         }
         a_cell->chain->callback_atom_iter_delete(l_atom_iter);
+        a_cell->file_storage = freopen(a_cell->file_storage_path, "a+b", a_cell->file_storage);
+    } else {
+        if (!a_cell->file_storage)
+            a_cell->file_storage = fopen(a_cell->file_storage_path, "a+b");
+        if (!a_cell->file_storage) {
+            log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X" cannot be opened",
+                    a_cell->file_storage_path,
+                    a_cell->id.uint64);
+            pthread_rwlock_unlock(&a_cell->storage_rwlock);
+            return -3;
+        } else {
+            fseek(a_cell->file_storage, 0L, SEEK_END);
+            if (!ftell(a_cell->file_storage)) { // It's not garunteed that header has been yet added or not, regardless the descriptor validity
+                if (!s_file_write_header(a_cell)) {
+                    log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X": can't fill header", a_cell->file_storage_path, a_cell->id.uint64);
+                    pthread_rwlock_unlock(&a_cell->storage_rwlock);
+                    return -4;
+                }
+            }
+        }
+        if (s_file_atom_add(a_cell, a_atom, a_atom_size)) {
+            log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X": can't save atom!",
+                   a_cell->file_storage_path, a_cell->id.uint64);
+            pthread_rwlock_unlock(&a_cell->storage_rwlock);
+            return -4;
+        }
+        ++l_count;
+        l_total_res = a_atom_size + sizeof(uint64_t);
     }
 
-    if (l_total_wrote_bytes > 0)
+    if (l_total_res) {
         fflush(a_cell->file_storage);
-    if (!a_atom) {
-        if (l_total_wrote_bytes > 0) {
-            ftruncate(fileno(a_cell->file_storage), l_total_wrote_bytes + sizeof(dap_chain_cell_file_header_t));
-            log_it(L_DEBUG, "Saved %zu atoms (total %zu bytes", l_count, l_total_wrote_bytes);
-        } else {
-            ftruncate(fileno(a_cell->file_storage), sizeof(dap_chain_cell_file_header_t));
-            s_file_write_header(a_cell);
-            log_it(L_WARNING, "Nothing to save, event table is empty. Rewrite the file header");
+        log_it(L_DEBUG, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X": saved %zu atoms (%zu bytes)",
+               a_cell->file_storage_path, a_cell->id.uint64, l_count, l_total_res);
+        if (l_err) {
+            log_it(L_WARNING, "Not all data was saved due to writing error!");
         }
+    } else {
+        log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X": nothing saved!",
+               a_cell->file_storage_path, a_cell->id.uint64);
     }
     pthread_rwlock_unlock(&a_cell->storage_rwlock);
-    return (int)l_total_wrote_bytes;
+    return l_total_res;
 }
 
 /**
@@ -373,7 +392,7 @@ int dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom, siz
  * @param a_cell dap_chain_cell_t
  * @return
  */
-int dap_chain_cell_file_update( dap_chain_cell_t * a_cell)
+ssize_t dap_chain_cell_file_update(dap_chain_cell_t *a_cell)
 {
     return dap_chain_cell_file_append(a_cell, NULL, 0);
 }
