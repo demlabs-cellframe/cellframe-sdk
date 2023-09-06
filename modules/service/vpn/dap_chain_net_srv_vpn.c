@@ -1350,7 +1350,7 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                 } break;
                 case SERV_UNIT_SEC:{
                     a_srv_session->limits_ts += (time_t)a_usage->receipt->receipt_info.units;
-                    log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" seconds more for VPN usage", a_srv_session->limits_ts);
+                    log_it(L_INFO,"%"DAP_UINT64_FORMAT_U" seconds more for VPN usage", a_usage->receipt->receipt_info.units);
                 } break;
                 default: {
                     log_it(L_WARNING, "VPN doesnt accept serv unit type 0x%08X for limits_ts", a_usage->receipt->receipt_info.units_type.uint32 );

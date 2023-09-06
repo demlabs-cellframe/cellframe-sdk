@@ -512,23 +512,39 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
 
         dap_chain_net_srv_price_t *l_price_tmp;
         DL_FOREACH(a_grace->usage->service->pricelist, l_price_tmp) {
-            if (l_price_tmp && l_price_tmp->net->pub.id.uint64  == a_grace->usage->net->pub.id.uint64
-                && dap_strcmp(l_price_tmp->token, l_ticker)     == 0
-                && l_price_tmp->units_uid.enm                   == l_tx_out_cond->subtype.srv_pay.unit.enm)
-            {
-                uint256_t l_unit_price = {};
-                if (l_price_tmp->units != 0){
-                    DIV_256(l_price_tmp->value_datoshi, GET_256_FROM_64(l_price_tmp->units), &l_unit_price);
-                } else {
-                    break;
-                }
+            if (!l_price_tmp){
+                continue;
+            }
 
-                if(!compare256(uint256_0, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) ||
-                    compare256(l_unit_price, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) <= 0){
-                    l_price = l_price_tmp;
-                    break;
-                }
+            if (l_price_tmp->net->pub.id.uint64  != a_grace->usage->net->pub.id.uint64){
+                log_it( L_WARNING, "Pricelist is not for net %s.", a_grace->usage->net->pub.id.uint64);
+                continue;
+            }
 
+            if (dap_strcmp(l_price_tmp->token, l_ticker) != 0){
+                log_it( L_WARNING, "Token ticker in the pricelist and tx do not match");
+                continue;
+            }
+
+            if (l_price_tmp->units_uid.enm == l_tx_out_cond->subtype.srv_pay.unit.enm){
+                log_it( L_WARNING, "Unit ID in the pricelist and tx do not match");
+                continue;
+            }
+
+            uint256_t l_unit_price = {};
+            if (l_price_tmp->units != 0){
+                DIV_256(l_price_tmp->value_datoshi, GET_256_FROM_64(l_price_tmp->units), &l_unit_price);
+            } else {
+                log_it( L_WARNING, "Units in pricelist is zero. ");
+                continue;
+            }
+
+            if(!compare256(uint256_0, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) ||
+                compare256(l_unit_price, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) <= 0){
+                l_price = l_price_tmp;
+                break;
+            } else {
+                log_it( L_WARNING, "Unit price in pricelist is greater than max allowable.");
             }
         }
         if ( !l_price ) {
@@ -706,22 +722,39 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
 
         dap_chain_net_srv_price_t *l_price_tmp;
         DL_FOREACH(l_grace->usage->service->pricelist, l_price_tmp) {
-            if (l_price_tmp && l_price_tmp->net->pub.id.uint64                 == l_grace->usage->net->pub.id.uint64
-                && dap_strcmp(l_price_tmp->token, l_ticker)     == 0
-                && l_price_tmp->units_uid.enm                   == l_tx_out_cond->subtype.srv_pay.unit.enm)
-            {
-                uint256_t l_unit_price = {};
-                if (l_price_tmp->units != 0){
-                    DIV_256(l_price_tmp->value_datoshi, GET_256_FROM_64(l_price_tmp->units), &l_unit_price);
-                } else {
-                    break;
-                }
+            if (!l_price_tmp){
+                continue;
+            }
 
-                if(!compare256(uint256_0, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) ||
-                    compare256(l_unit_price, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) <= 0){
-                    l_price = l_price_tmp;
-                    break;
-                }
+            if (l_price_tmp->net->pub.id.uint64  != l_grace->usage->net->pub.id.uint64){
+                log_it( L_WARNING, "Pricelist is not for net %s.", l_grace->usage->net->pub.id.uint64);
+                continue;
+            }
+
+            if (dap_strcmp(l_price_tmp->token, l_ticker) != 0){
+                log_it( L_WARNING, "Token ticker in the pricelist and tx do not match");
+                continue;
+            }
+
+            if (l_price_tmp->units_uid.enm == l_tx_out_cond->subtype.srv_pay.unit.enm){
+                log_it( L_WARNING, "Unit ID in the pricelist and tx do not match");
+                continue;
+            }
+
+            uint256_t l_unit_price = {};
+            if (l_price_tmp->units != 0){
+                DIV_256(l_price_tmp->value_datoshi, GET_256_FROM_64(l_price_tmp->units), &l_unit_price);
+            } else {
+                log_it( L_WARNING, "Units in pricelist is zero. ");
+                continue;
+            }
+
+            if(!compare256(uint256_0, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) ||
+                compare256(l_unit_price, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) <= 0){
+                l_price = l_price_tmp;
+                break;
+            } else {
+                log_it( L_WARNING, "Unit price in pricelist is greater than max allowable.");
             }
         }
         if ( !l_price ) {
