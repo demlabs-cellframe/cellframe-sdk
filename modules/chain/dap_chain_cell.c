@@ -257,7 +257,7 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
 
 }
 
-static bool s_file_write_header(dap_chain_cell_t *a_cell)
+static int s_file_write_header(dap_chain_cell_t *a_cell)
 {
     dap_chain_cell_file_header_t l_hdr = {
         .signature      = DAP_CHAIN_CELL_FILE_SIGNATURE,
@@ -270,11 +270,11 @@ static bool s_file_write_header(dap_chain_cell_t *a_cell)
         log_it(L_NOTICE, "Initialized file storage for cell 0x%016"DAP_UINT64_FORMAT_X" ( %s )",
                 a_cell->id.uint64, a_cell->file_storage_path);
         fflush(a_cell->file_storage);
-        return true;
+        return 0;
     } else {
         log_it(L_ERROR, "Can't init file storage for cell 0x%016"DAP_UINT64_FORMAT_X" ( %s )",
                 a_cell->id.uint64, a_cell->file_storage_path);
-        return false;
+        return -1;
     }
 }
 
@@ -334,7 +334,7 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
             pthread_rwlock_unlock(&a_cell->storage_rwlock);
             return -3;
         }
-        if (!s_file_write_header(a_cell)) {
+        if (s_file_write_header(a_cell)) {
             log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X": can't fill header", a_cell->file_storage_path, a_cell->id.uint64);
             pthread_rwlock_unlock(&a_cell->storage_rwlock);
             return -4;
@@ -368,7 +368,7 @@ ssize_t dap_chain_cell_file_append(dap_chain_cell_t *a_cell, const void *a_atom,
         } else {
             fseek(a_cell->file_storage, 0L, SEEK_END);
             if (!ftell(a_cell->file_storage)) { // It's not garunteed that header has been yet added or not, regardless the descriptor validity
-                if (!s_file_write_header(a_cell)) {
+                if (s_file_write_header(a_cell)) {
                     log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X": can't fill header", a_cell->file_storage_path, a_cell->id.uint64);
                     pthread_rwlock_unlock(&a_cell->storage_rwlock);
                     return -4;
