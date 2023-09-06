@@ -5672,7 +5672,7 @@ int com_tx_history(int a_argc, char ** a_argv, json_object* json_arr_reply)
         l_addr = dap_chain_addr_from_str(l_addr_base58);
         if (!l_addr) {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_WALLET_ADDR_ERR, 
-                                                    "Wallet address not recognized");
+                                                        "Wallet address not recognized");
             return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_WALLET_ADDR_ERR;
         }
         if (l_net) {
@@ -5728,57 +5728,53 @@ int com_tx_history(int a_argc, char ** a_argv, json_object* json_arr_reply)
     }
 
     // response 
-    json_object * json_arr_out = json_object_new_array();
+    json_object * json_obj_out = NULL;
     if (l_tx_hash_str) {
         // history tx hash
-        json_object * json_obj_history_tx = dap_db_history_tx(&l_tx_hash, l_chain, l_hash_out_type, l_net);
-        if (!json_obj_history_tx) {
-            json_object_put(json_arr_out);
+        json_obj_out = dap_db_history_tx(&l_tx_hash, l_chain, l_hash_out_type, l_net);
+        if (!json_obj_out) {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_TX_ERR, 
                                     "something went wrong in tx_history");
             return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_TX_ERR;
         }
-
-        json_object_array_add(json_arr_out, json_obj_history_tx);
-
+    
     } else if (l_addr) {
         // history addr and wallet
-        json_object* json_obj_history_addr = dap_db_history_addr(l_addr, l_chain, l_hash_out_type);
-        if (!json_obj_history_addr) {
-            json_object_put(json_arr_out);
+        char *l_addr_str = dap_chain_addr_to_str(l_addr);
+        json_obj_out = dap_db_history_addr(l_addr, l_chain, l_hash_out_type, l_addr_str);
+        if (!json_obj_out) {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_ADDR_ERR, 
                                     "something went wrong in tx_history");
             return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_ADDR_ERR;
         }
 
-        json_object_array_add(json_arr_out, json_obj_history_addr);
-
     } else if (l_is_tx_all) {
         // history all
-        json_object* json_arr_history_all = dap_db_history_tx_all(l_chain, l_net, l_hash_out_type);
+        json_object * json_obj_summary = json_object_new_object();
+        if (!json_obj_summary) {
+            return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_MEMORY_ERR;
+        }
+
+        json_object* json_arr_history_all = dap_db_history_tx_all(l_chain, l_net, l_hash_out_type, json_obj_summary);
         if (!json_arr_history_all) {
-            json_object_put(json_arr_out);
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_ALL_ERR, 
                                     "something went wrong in tx_history");
             return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_ALL_ERR;
         }
 
         json_object_array_add(json_arr_reply, json_arr_history_all);
+        json_object_array_add(json_arr_reply, json_obj_summary);
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK;
     }
 
-    char *l_addr_str = dap_chain_addr_to_str(l_addr);
-    json_object* json_obj_addr = json_object_new_object();
-    json_object_object_add(json_obj_addr, "address", json_object_new_string(l_addr_str));
-    json_object_array_add(json_arr_reply, json_obj_addr);
-    if (json_object_array_length(json_arr_out) > 0) { 
-        json_object_array_add(json_arr_reply, json_arr_out);
+    if (json_obj_out) { 
+        json_object_array_add(json_arr_reply, json_obj_out);
     } else {
         json_object* json_obj_status = json_object_new_object();
         json_object_object_add(json_obj_status, "status", json_object_new_string("empty"));
         json_object_array_add(json_arr_reply, json_obj_status);
     }
-    DAP_DELETE(l_addr_str);
+
     return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK;
 }
 
