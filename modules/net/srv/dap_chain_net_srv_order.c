@@ -410,7 +410,7 @@ char *dap_chain_net_srv_order_save(dap_chain_net_t *a_net, dap_chain_net_srv_ord
     dap_hash_fast(a_order, l_order_size, &l_order_hash);
     char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&l_order_hash);
     char *l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(a_net);
-    if ( dap_global_db_set_sync( l_gdb_group_str,l_order_hash_str, a_order,  l_order_size, false ) != 0) {
+    if ( dap_global_db_set_sync( l_gdb_group_str,l_order_hash_str, a_order,  l_order_size, true ) != 0) {
         DAP_DELETE(l_gdb_group_str);
         return NULL;
     }
