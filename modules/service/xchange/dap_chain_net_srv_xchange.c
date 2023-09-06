@@ -96,7 +96,7 @@ int dap_chain_net_srv_xchange_init()
     "srv_xchange orders -net <net_name>\n"
          "\tGet the exchange orders list within specified net name\n"
 
-    "srv_xchange purchase -order <order hash> -net <net_name> -wallet <wallet_name> -coins <value>\n"
+    "srv_xchange purchase -order <order hash> -net <net_name> -wallet <wallet_name> -value <value> -fee <value>\n"
          "\tExchange tokens with specified order within specified net name. Specify how many datoshies to sell with rate specified by order\n"
 
     "srv_xchange tx_list -net <net_name> [-time_from <yymmdd> -time_to <yymmdd>]"
@@ -404,7 +404,6 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
     if (!l_single_channel) {
         // add 'in' items to fee
         uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
-        dap_list_free_full(l_list_used_out, NULL);
         if (!EQUAL_256(l_value_fee_items, l_fee_transfer) != 0) {
             dap_chain_datum_tx_delete(l_tx);
             DAP_DELETE(l_seller_addr);
@@ -656,14 +655,14 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
     }
     debug_if(s_debug_more, L_NOTICE, "l_datoshi_buy = %s", dap_chain_balance_to_coins(l_datoshi_buy));
     // transfer validator's fee
-    if (!IS_ZERO_256(a_price->fee)) {
-        if (dap_chain_datum_tx_add_fee_item(&l_tx, a_price->fee) == -1) {
+    if (!IS_ZERO_256(a_datoshi_fee)) {
+        if (dap_chain_datum_tx_add_fee_item(&l_tx, a_datoshi_fee) == -1) {
             dap_chain_datum_tx_delete(l_tx);
             DAP_DELETE(l_buyer_addr);
             log_it(L_ERROR, "Can't add validator fee output");
             return NULL;
         }
-        debug_if(s_debug_more, L_NOTICE, "l_validator_fee = %s", dap_chain_balance_to_coins(a_price->fee));
+        debug_if(s_debug_more, L_NOTICE, "l_validator_fee = %s", dap_chain_balance_to_coins(a_datoshi_fee));
     }
     // transfer net fee
     if (l_net_fee_used) {
@@ -701,7 +700,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
     if (!l_pay_with_native) {
         SUBTRACT_256_256(l_fee_transfer, l_total_fee, &l_value_back);
         if (!IS_ZERO_256(l_value_back)) {
-            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_buyer_addr, l_value_back, a_price->token_buy) == -1) {
+            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, l_buyer_addr, l_value_back, l_native_ticker) == -1) {
                 dap_chain_datum_tx_delete(l_tx);
                 DAP_DELETE(l_buyer_addr);
                 log_it(L_ERROR, "Can't add buying coins back output");
