@@ -102,7 +102,8 @@ static const char *s_ledger_tx_check_err_str[] = {
     [DAP_CHAIN_LEDGER_TX_CACHE_VERIFICATOR_CHECK_FAILURE] = "DAP_CHAIN_LEDGER_TX_CACHE_VERIFICATOR_CHECK_FAILURE",
     [DAP_CHAIN_LEDGER_TX_CACHE_CHECK_PREV_TICKER_NOT_FOUND] = "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_PREV_TICKER_NOT_FOUND",
     [DAP_CHAIN_LEDGER_TX_CACHE_CHECK_PREV_TOKEN_NOT_FOUND] = "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_PREV_TOKEN_NOT_FOUND",
-    [DAP_CHAIN_LEDGER_PERMISSION_CHECK_FAILED] = "DAP_CHAIN_LEDGER_PERMISSION_CHECK_FAILED"
+    [DAP_CHAIN_LEDGER_PERMISSION_CHECK_FAILED] = "DAP_CHAIN_LEDGER_PERMISSION_CHECK_FAILED",
+    [DAP_CHAIN_LEDGER_TX_CACHE_CHECK_SUM_INS_NOT_EQUAL_SUM_OUTS] = "DAP_CHAIN_LEDGER_TX_CACHE_CHECK_SUM_INS_NOT_EQUAL_SUM_OUTS"
 };
 
 static const char *s_ledger_emission_add_err_str[] = {
@@ -4208,7 +4209,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                     DAP_DELETE(l_balance);
                     DAP_DELETE(l_balance_cur);
                 }
-                l_err_num = -12;
+                l_err_num = DAP_CHAIN_LEDGER_TX_CACHE_CHECK_SUM_INS_NOT_EQUAL_SUM_OUTS;
                 break;
             }
         }

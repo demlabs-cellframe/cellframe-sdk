@@ -83,11 +83,12 @@ void dap_chain_net_srv_stake_get_fee_validators_str(dap_chain_net_t *a_net, dap_
 int dap_chain_net_srv_stake_load_cache(dap_chain_net_t *a_net);
 void dap_chain_net_srv_stake_purge(dap_chain_net_t *a_net);
 
-bool dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fast_t *a_tx_hash, dap_stream_ch_chain_validator_test_t * out_data,
+int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fast_t *a_tx_hash, dap_stream_ch_chain_validator_test_t * out_data,
                                              int a_time_connect, int a_time_respone);
 
 dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t *a_net,
                                                                  dap_hash_fast_t *a_stake_tx_hash, dap_cert_t *a_cert);
 int dap_chain_net_srv_stake_mark_validator_active(dap_chain_addr_t *a_signing_addr, bool a_on_off);
 
-bool dap_chain_net_srv_stake_check_pkey_hash(dap_hash_fast_t *a_pkey_hash);
+dap_chain_net_srv_stake_item_t *dap_chain_net_srv_stake_check_pkey_hash(dap_hash_fast_t *a_pkey_hash);
+uint256_t dap_chain_net_srv_stake_get_total_weight(dap_chain_net_id_t a_net_id);

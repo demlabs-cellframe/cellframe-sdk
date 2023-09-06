@@ -7,7 +7,7 @@
 #include "dap_cert.h"
 #include "dap_global_db_remote.h"
 
-#define DAP_CHAIN_ESBOCS_PROTOCOL_VERSION           7
+#define DAP_CHAIN_ESBOCS_PROTOCOL_VERSION           8
 #define DAP_CHAIN_ESBOCS_GDB_GROUPS_PREFIX          "esbocs"
 
 #define DAP_CHAIN_ESBOCS_MSG_TYPE_SUBMIT            0x04
@@ -187,3 +187,4 @@ typedef struct dap_chain_esbocs_session {
 
 int dap_chain_cs_esbocs_init();
 void dap_chain_cs_esbocs_deinit(void);
+bool dap_chain_esbocs_started();

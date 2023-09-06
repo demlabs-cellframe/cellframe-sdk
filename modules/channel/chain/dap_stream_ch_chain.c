@@ -492,7 +492,9 @@ static bool s_sync_update_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a
         DAP_DELETE(l_sync_request);
         return true;
     }
-    dap_chain_net_add_downlink(l_net, l_ch->stream_worker, l_ch->uuid, l_ch->stream->esocket_uuid);
+    dap_chain_net_add_downlink(l_net, l_ch->stream_worker, l_ch->uuid, l_ch->stream->esocket_uuid,
+                               /*l_ch->stream->esocket->remote_addr_str*/ l_ch->stream->esocket->hostaddr,
+                               dap_config_get_item_int32(g_config, "server", "listen_port_tcp"));
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
     int l_flags = 0;
     if (dap_chain_net_get_extra_gdb_group(l_net, l_sync_request->request.node_addr))
