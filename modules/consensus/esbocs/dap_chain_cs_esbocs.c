@@ -898,28 +898,41 @@ static uint64_t s_session_calc_current_round_id(dap_chain_esbocs_session_t *a_se
         uint16_t counter;
     } l_id_candidates[l_total_validators_count];
     uint16_t l_fill_idx = 0;
-    dap_chain_esbocs_message_item_t *l_item, *l_tmp;
-    HASH_ITER(hh, a_session->cur_round.message_items, l_item, l_tmp) {
-        if (l_item->message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC &&
-                a_session->cur_round.sync_attempt == l_item->message->hdr.attempt_num) {
-            uint64_t l_id_candidate = l_item->message->hdr.round_id;
-            bool l_candidate_found = false;
-            for (uint16_t i = 0; i < l_fill_idx; i++)
-                if (l_id_candidates[i].id == l_id_candidate) {
-                    l_id_candidates[i].counter++;
-                    l_candidate_found = true;
-                    break;
-                }
-            if (!l_candidate_found) {
-                l_id_candidates[l_fill_idx].id = l_id_candidate;
-                l_id_candidates[l_fill_idx].counter = 1;
-                if (++l_fill_idx > l_total_validators_count) {
-                    log_it(L_ERROR, "Count of sync messages with same sync attempt is greater"
-                                      " than totel validators count %hu > %hu",
-                                        l_fill_idx, l_total_validators_count);
-                    l_fill_idx--;
-                    break;
-                }
+    for (dap_list_t *it = a_session->cur_round.all_validators; it ;it = it->next) {
+        dap_chain_esbocs_validator_t *l_validator = it->data;
+        if (!l_validator->is_synced)
+            continue;
+        uint64_t l_id_candidate = 0;
+        for (dap_chain_esbocs_message_item_t *l_item = a_session->cur_round.message_items; l_item; l_item = l_item->hh.next) {
+            if (l_item->message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC &&
+                    l_item->message->hdr.attempt_num == a_session->cur_round.sync_attempt &&
+                    dap_chain_addr_compare(&l_item->signing_addr, &l_validator->signing_addr)) {
+                l_id_candidate = l_item->message->hdr.round_id;
+                break;
+            }
+        }
+        if (l_id_candidate == 0) {
+            char *l_signing_addr_str = dap_chain_addr_to_str(&l_validator->signing_addr);
+            log_it(L_ERROR, "Can't find sync message of synced validator %s", l_signing_addr_str);
+            DAP_DELETE(l_signing_addr_str);
+            continue;
+        }
+        bool l_candidate_found = false;
+        for (uint16_t i = 0; i < l_fill_idx; i++)
+            if (l_id_candidates[i].id == l_id_candidate) {
+                l_id_candidates[i].counter++;
+                l_candidate_found = true;
+                break;
+            }
+        if (!l_candidate_found) {
+            l_id_candidates[l_fill_idx].id = l_id_candidate;
+            l_id_candidates[l_fill_idx].counter = 1;
+            if (++l_fill_idx > l_total_validators_count) {
+                log_it(L_ERROR, "Count of sync messages with same sync attempt is greater"
+                                  " than total validators count %hu > %hu",
+                                    l_fill_idx, l_total_validators_count);
+                l_fill_idx--;
+                break;
             }
         }
     }
@@ -1960,10 +1973,11 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         } else if (l_message->hdr.round_id != l_session->cur_round.id) {
             // round check
             debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", attempt:%hhu."
-                                        " Message rejected: round number doesn't match",
-                                            l_session->chain->net_name, l_session->chain->name,
-                                                l_session->cur_round.id, l_session->cur_round.attempt_num);
-            goto session_unlock;
+                                            " Message passed, but round number %"DAP_UINT64_FORMAT_U
+                                                " doesn't match message's one %"DAP_UINT64_FORMAT_U,
+                                                    l_session->chain->net_name, l_session->chain->name,
+                                                        l_session->cur_round.id, l_session->cur_round.attempt_num,
+                                                            l_session->cur_round.id, l_message->hdr.round_id);
         }
 
         // check hash message dup
