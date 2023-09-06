@@ -203,17 +203,13 @@ static int dap_chain_net_node_list_wait(struct node_link_request *a_node_list_re
     l_cond_timeout.tv_sec += a_timeout_ms/1000;
     // signal waiting
     // do{
-        log_it(L_DEBUG, "TIME OUT 1");
         int l_ret_wait = pthread_cond_timedwait(&a_node_list_request->wait_cond, &a_node_list_request->wait_mutex, &l_cond_timeout);
-        log_it(L_DEBUG, "TIME OUT 2");
         if(l_ret_wait) {
             ret = a_node_list_request->response ? 0 : -2;
-            //break;
         }
         else if(l_ret_wait == ETIMEDOUT) { // 110 260
             //log_it(L_NOTICE,"Wait for status is stopped by timeout");
             ret = -1;
-            //break;
         }else if (l_ret_wait != 0 ){
             char l_errbuf[128];
             l_errbuf[0] = '\0';
@@ -280,7 +276,6 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
                                             NULL) == NULL;
 
     int rc = dap_chain_net_node_list_wait(l_node_list_request, 4000);
-    log_it(L_DEBUG, "Stop node list HTTP request to ");
     if(ret){
         s_node_list_request_dinit(l_node_list_request);
         return 5;

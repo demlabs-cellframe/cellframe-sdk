@@ -1223,23 +1223,21 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     switch (cmd_num)
     {    
     case CMD_ADD:
-
-        if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "request", NULL)){
-            if(!l_port_str || !a_ipv4_str)
-            {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "node requires parameter -ipv4 and -port");
-                DAP_DELETE(l_node_info);
-                return -1;
-            }
-            dap_chain_node_info_t *l_link_node_request = DAP_NEW_Z( dap_chain_node_info_t);
-            l_link_node_request->hdr.address.uint64 = dap_chain_net_get_cur_addr_int(l_net);
-            inet_pton(AF_INET, a_ipv4_str, &(l_link_node_request->hdr.ext_addr_v4));
-            uint16_t l_node_port = 0;
-            dap_digit_from_string(l_port_str, &l_node_port, sizeof(uint16_t));
-            l_link_node_request->hdr.ext_port = l_node_port;
-            int res = dap_chain_net_node_list_request(l_net,l_link_node_request);
-            switch (res)
-            {
+        if(!l_port_str || !a_ipv4_str)
+        {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "node requires parameter -ipv4 and -port");
+            DAP_DELETE(l_node_info);
+            return -1;
+        }
+        dap_chain_node_info_t *l_link_node_request = DAP_NEW_Z( dap_chain_node_info_t);
+        l_link_node_request->hdr.address.uint64 = dap_chain_net_get_cur_addr_int(l_net);
+        inet_pton(AF_INET, a_ipv4_str, &(l_link_node_request->hdr.ext_addr_v4));
+        uint16_t l_node_port = 0;
+        dap_digit_from_string(l_port_str, &l_node_port, sizeof(uint16_t));
+        l_link_node_request->hdr.ext_port = l_node_port;
+        int res = dap_chain_net_node_list_request(l_net,l_link_node_request);
+        switch (res)
+        {
             case 0:
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "No server");
             break;
@@ -1257,23 +1255,11 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             break;
             case 5:
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process node list HTTP request");
-            break;            
+            break;
             default:
                 break;
-            }
-            DAP_DELETE(l_link_node_request);
         }
-        // handler of command 'node add'
-        else{
-            if(!arg_index || a_argc < 8) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameters");
-                DAP_DELETE(l_node_info);
-                return -1;
-            }
-
-            l_ret = node_info_add_with_reply(l_net, l_node_info, alias_str, l_cell_str, a_ipv4_str, a_ipv6_str,
-                    a_str_reply);
-        }
+        DAP_DELETE(l_link_node_request);
         DAP_DELETE(l_node_info);
         return l_ret;
         //break;
