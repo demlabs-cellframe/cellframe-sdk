@@ -1026,6 +1026,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
         }
 
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Group %s, key %s, data:\n %s", l_group_str, l_key_str, (char*)l_value_out);
+        DAP_DELETE(l_value_out);
         return 0;
     }
     case CMD_DELETE:
@@ -1160,11 +1161,6 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     }
     else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "connections", NULL)) {
         cmd_num = CMD_CONNECTIONS;
-//        char *l_str = NULL;
-//        dap_stream_connections_print(&l_str);
-//        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str);
-//        DAP_DELETE(l_str);
-//        return 0;
     }
     else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "balancer", NULL)){
         cmd_num = CMD_BALANCER;
@@ -1197,6 +1193,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     dap_chain_node_addr_t l_link = { 0 };
     dap_chain_node_info_t *l_node_info = NULL;
     size_t l_node_info_size = sizeof(l_node_info->hdr) + sizeof(l_link);
+
     if(cmd_num >= CMD_ADD && cmd_num <= CMD_LINK)
         l_node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, l_node_info_size);
 
@@ -1223,7 +1220,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     }
 
     switch (cmd_num)
-    {
+    {    
     case CMD_ADD:
         if(!arg_index || a_argc < 8) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameters");
@@ -1574,35 +1571,9 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Connection established");
     }
     case CMD_CONNECTIONS: {
-        size_t l_uplink_count = 0;
-        size_t l_downlink_count = 0;
-        dap_stream_connection_t **l_uplinks = dap_stream_connections_get_uplinks(&l_uplink_count);
-        dap_stream_connection_t **l_downlinks = dap_stream_connections_get_downlinks(&l_downlink_count);
-        dap_string_t *l_str_uplinks = dap_string_new("---------------------------\n"
-                                             "| ↑\\↓ |\t#\t|\t\tIP\t\t|\tPort\t|\n");
-        for (size_t i=0; i < l_uplink_count; i++) {
-            char *l_address = l_uplinks[i]->stream->esocket->remote_addr_str;
-            short l_port = l_uplinks[i]->stream->esocket->remote_port;
-
-            dap_string_append_printf(l_str_uplinks, "|  ↑  |\t%zu\t|\t%s\t\t|\t%u\t|\n",
-                                     i, l_address, l_port);
-        }
-        dap_string_t *l_str_downlinks = dap_string_new("---------------------------\n"
-                                                     "| ↑\\↓ |\t#\t|\t\tIP\t\t|\tPort\t|\n");
-        for (size_t i=0; i < l_downlink_count; i++) {
-            char *l_address = l_downlinks[i]->address;
-
-            dap_string_append_printf(l_str_downlinks, "|  ↓  |\t%zu\t|\t%s\t\t|\t%u\t|\n",
-                                     i, l_address, l_downlinks[i]->port);
-        }
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Count links: %zu\n\nUplinks: %zu\n%s\n\nDownlinks: %zu\n%s\n",
-                                          l_uplink_count + l_downlink_count, l_uplink_count, l_str_uplinks->str,
-                                          l_downlink_count, l_str_downlinks->str);
-        dap_string_free(l_str_uplinks, false);
-        dap_string_free(l_str_downlinks, false);
-        DAP_DELETE(l_downlinks);
-        DAP_DELETE(l_uplinks);
-        return 0;
+        char *l_reply = dap_chain_net_links_dump(l_net);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_reply);
+        DAP_DELETE(l_reply);
     }
         break;
     case CMD_BALANCER: {
@@ -1621,6 +1592,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         }
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Balancer link list:\n %s \n",
                                           l_string_balanc->str);
+        dap_string_free(l_string_balanc, true);
     }
         break;
     }
@@ -4904,6 +4876,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
         return -3;
     }
 
+    
     // Read network from json file
     if(!l_net_name) {
         struct json_object *l_json_net = json_object_object_get(l_json, "net");
@@ -4944,17 +4917,24 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
     // Read items from json file
     struct json_object *l_json_items = json_object_object_get(l_json, "items");
     size_t l_items_count = json_object_array_length(l_json_items);
-    l_items_count = json_object_array_length(l_json_items);
+    bool a = (l_items_count = json_object_array_length(l_json_items));
     if(!l_json_items || !json_object_is_type(l_json_items, json_type_array) || !(l_items_count = json_object_array_length(l_json_items))) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong json format: not found array 'items' or array is empty");
         json_object_put(l_json);
         return -15;
     }
+
+    log_it(L_ERROR, "Json TX: found %lu items", l_items_count);
     // Create transaction
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
     l_tx->header.ts_created = time(NULL);
     size_t l_items_ready = 0;
-    dap_list_t *l_sign_list = NULL;
+    size_t l_receipt_count = 0;
+    dap_list_t *l_sign_list = NULL;// list 'sing' items
+    dap_list_t *l_in_list = NULL;// list 'in' items
+    dap_list_t *l_tsd_list = NULL;// list tsd sections
+    uint256_t l_value_need = { };// how many tokens are needed in the 'out' item
+    dap_string_t *l_err_str = dap_string_new("Errors: \n");
     // Creating and adding items to the transaction
     for(size_t i = 0; i < l_items_count; ++i) {
         struct json_object *l_json_item_obj = json_object_array_get_idx(l_json_items, i);
@@ -4972,31 +4952,19 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
             log_it(L_WARNING, "Item %zu has invalid type '%s'", i, l_item_type_str);
             continue;
         }
+
+        log_it(L_DEBUG, "Json TX: process item %s", json_object_get_string(l_json_item_type));
         // Create an item depending on its type
         const uint8_t *l_item = NULL;
         switch (l_item_type) {
         case TX_ITEM_TYPE_IN: {
-            // Read prev_hash and out_prev_idx
-            const char *l_prev_hash_str = s_json_get_text(l_json_item_obj, "prev_hash");
-            int64_t l_out_prev_idx;
-            bool l_is_out_prev_idx = s_json_get_int64(l_json_item_obj, "out_prev_idx", &l_out_prev_idx);
-            // If prev_hash and out_prev_idx were read
-            if(l_prev_hash_str && l_is_out_prev_idx) {
-                dap_chain_hash_fast_t l_tx_prev_hash;
-                if(!dap_chain_hash_fast_from_str(l_prev_hash_str, &l_tx_prev_hash)) {
-                    // Create IN item
-                    dap_chain_tx_in_t *l_in_item = dap_chain_datum_tx_item_in_create(&l_tx_prev_hash, (uint32_t)l_out_prev_idx);
-                    l_item = (const uint8_t*) l_in_item;
-                }
-                else {
-                    log_it(L_WARNING, "Invalid 'in' item %zu", i);
-                    continue;
-                }
-            }
+            // Save item obj for in
+            l_in_list = dap_list_append(l_in_list, l_json_item_obj);
         }
             break;
+
         case TX_ITEM_TYPE_OUT:
-            case TX_ITEM_TYPE_OUT_EXT: {
+        case TX_ITEM_TYPE_OUT_EXT: {
             // Read address and value
             uint256_t l_value = { };
             const char *l_json_item_addr_str = s_json_get_text(l_json_item_obj, "addr");
@@ -5007,6 +4975,10 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
                     if(l_item_type == TX_ITEM_TYPE_OUT) {
                         // Create OUT item
                         dap_chain_tx_out_t *l_out_item = dap_chain_datum_tx_item_out_create(l_addr, l_value);
+                        if (!l_out_item) {
+                            dap_string_append_printf(l_err_str, "Failed to create transaction out. "
+                                                                "There may not be enough funds in the wallet.\n");
+                        }
                         l_item = (const uint8_t*) l_out_item;
                     }
                     else if(l_item_type == TX_ITEM_TYPE_OUT_EXT) {
@@ -5015,6 +4987,12 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
                         if(l_token) {
                             // Create OUT_EXT item
                             dap_chain_tx_out_ext_t *l_out_ext_item = dap_chain_datum_tx_item_out_ext_create(l_addr, l_value, l_token);
+                            if (!l_out_ext_item) {
+                                dap_string_append_printf(l_err_str, "Failed to create a out ext"
+                                                                    "for a transaction. There may not be enough funds "
+                                                                    "on the wallet or the wrong ticker token "
+                                                                    "is indicated.\n");
+                            }
                             l_item = (const uint8_t*) l_out_ext_item;
                         }
                         else {
@@ -5022,33 +5000,21 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
                             continue;
                         }
                     }
-                }
-                else {
+                    // Save value for using in In item
+                    if(l_item) {
+                        SUM_256_256(l_value_need, l_value, &l_value_need);
+                    }
+                } else {
                     if(l_item_type == TX_ITEM_TYPE_OUT) {
                         log_it(L_WARNING, "Invalid 'out' item %zu", i);
                     }
                     else if(l_item_type == TX_ITEM_TYPE_OUT_EXT) {
                         log_it(L_WARNING, "Invalid 'out_ext' item %zu", i);
                     }
+                    dap_string_append_printf(l_err_str, "For item %zu of type 'out' or 'out_ext' the "
+                                                        "string representation of the address could not be converted, "
+                                                        "or the size of the output sum is 0.\n", i);
                     continue;
-                }
-            }
-        }
-            break;
-        case TX_ITEM_TYPE_IN_COND: {
-            // Read prev_hash and out_prev_idx
-            const char *l_prev_hash_str = s_json_get_text(l_json_item_obj, "prev_hash");
-            int64_t l_out_prev_idx;
-            int64_t l_receipt_idx;
-            bool l_is_out_prev_idx = s_json_get_int64(l_json_item_obj, "out_prev_idx", &l_out_prev_idx);
-            bool l_is_receipt_idx = s_json_get_int64(l_json_item_obj, "receipt_idx", &l_receipt_idx);
-
-            if(l_prev_hash_str && l_is_out_prev_idx && l_is_receipt_idx) {
-                dap_chain_hash_fast_t l_tx_prev_hash;
-                if(!dap_chain_hash_fast_from_str(l_prev_hash_str, &l_tx_prev_hash)) {
-                    // Create IN_COND item
-                    dap_chain_tx_in_cond_t *l_in_cond_item = dap_chain_datum_tx_item_in_cond_create(&l_tx_prev_hash, (uint32_t) l_out_prev_idx, (uint32_t) l_receipt_idx);
-                    l_item = (const uint8_t*) l_in_cond_item;
                 }
             }
         }
@@ -5063,15 +5029,18 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
                 uint256_t l_value = { };
                 bool l_is_value = s_json_get_uint256(l_json_item_obj, "value", &l_value);
                 if(!l_is_value || IS_ZERO_256(l_value)) {
+                    log_it(L_ERROR, "Json TX: bad value in OUT_COND_SUBTYPE_SRV_PAY");
                     break;
                 }
                 uint256_t l_value_max_per_unit = { };
                 l_is_value = s_json_get_uint256(l_json_item_obj, "value_max_per_unit", &l_value_max_per_unit);
                 if(!l_is_value || IS_ZERO_256(l_value_max_per_unit)) {
+                    log_it(L_ERROR, "Json TX: bad value_max_per_unit in OUT_COND_SUBTYPE_SRV_PAY");
                     break;
                 }
                 dap_chain_net_srv_price_unit_uid_t l_price_unit;
                 if(!s_json_get_unit(l_json_item_obj, "price_unit", &l_price_unit)) {
+                    log_it(L_ERROR, "Json TX: bad price_unit in OUT_COND_SUBTYPE_SRV_PAY");
                     break;
                 }
                 dap_chain_net_srv_uid_t l_srv_uid;
@@ -5083,6 +5052,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
                 // From "wallet" or "cert"
                 dap_pkey_t *l_pkey = s_json_get_pkey(l_json_item_obj);
                 if(!l_pkey) {
+                    log_it(L_ERROR, "Json TX: bad pkey in OUT_COND_SUBTYPE_SRV_PAY");
                     break;
                 }
                 const char *l_params_str = s_json_get_text(l_json_item_obj, "params");
@@ -5090,6 +5060,13 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
                 dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_pay(l_pkey, l_srv_uid, l_value, l_value_max_per_unit,
                         l_price_unit, l_params_str, l_params_size);
                 l_item = (const uint8_t*) l_out_cond_item;
+                // Save value for using in In item
+                if(l_item) {
+                    SUM_256_256(l_value_need, l_value, &l_value_need);
+                } else {
+                    dap_string_append_printf(l_err_str, "Unable to create conditional out for transaction "
+                                                        "can of type %s described in item %zu.\n", l_subtype_str, i);
+                }
                 DAP_DELETE(l_pkey);
             }
                 break;
@@ -5102,21 +5079,30 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
                 }
                 dap_chain_net_t *l_net = dap_chain_net_by_name(s_json_get_text(l_json_item_obj, "net"));
                 if(!l_net) {
+                    log_it(L_ERROR, "Json TX: bad net in OUT_COND_SUBTYPE_SRV_XCHANGE");
                     break;
                 }
                 const char *l_token = s_json_get_text(l_json_item_obj, "token");
                 if(!l_token) {
+                    log_it(L_ERROR, "Json TX: bad token in OUT_COND_SUBTYPE_SRV_XCHANGE");
                     break;
                 }
                 uint256_t l_value = { };
                 if(!s_json_get_uint256(l_json_item_obj, "value", &l_value) || IS_ZERO_256(l_value)) {
+                    log_it(L_ERROR, "Json TX: bad value in OUT_COND_SUBTYPE_SRV_XCHANGE");
                     break;
                 }
-                /*const char *l_params_str = s_json_get_text(l_json_item_obj, "params");
-                size_t l_params_size = dap_strlen(l_params_str);
-                dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_xchange(l_srv_uid, l_net->pub.id, l_token, l_value, l_params_str, l_params_size);
-                l_item = (const uint8_t*) l_out_cond_item;*/
-                l_item = NULL;
+                //const char *l_params_str = s_json_get_text(l_json_item_obj, "params");
+                //size_t l_params_size = dap_strlen(l_params_str);
+                dap_chain_tx_out_cond_t *l_out_cond_item = NULL; //dap_chain_datum_tx_item_out_cond_create_srv_xchange(l_srv_uid, l_net->pub.id, l_token, l_value, l_params_str, l_params_size);
+                l_item = (const uint8_t*) l_out_cond_item;
+                // Save value for using in In item
+                if(l_item) {
+                    SUM_256_256(l_value_need, l_value, &l_value_need);
+                } else {
+                    dap_string_append_printf(l_err_str, "Unable to create conditional out for transaction "
+                                                        "can of type %s described in item %zu.\n", l_subtype_str, i);
+                }
             }
                 break;
             case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE:{
@@ -5127,32 +5113,61 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
                 }
                 uint256_t l_value = { };
                 if(!s_json_get_uint256(l_json_item_obj, "value", &l_value) || IS_ZERO_256(l_value)) {
+                    log_it(L_ERROR, "Json TX: bad value in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
                     break;
                 }
+                uint256_t l_fee_value = { };
+                if(!s_json_get_uint256(l_json_item_obj, "fee", &l_fee_value) || IS_ZERO_256(l_fee_value)) {
+                    break;
+                }
+                
                 const char *l_signing_addr_str = s_json_get_text(l_json_item_obj, "signing_addr");
                 dap_chain_addr_t *l_signing_addr = dap_chain_addr_from_str(l_signing_addr_str);
-                if (!l_signing_addr)
+                if(!l_signing_addr) {
+                {
+                    log_it(L_ERROR, "Json TX: bad signing_addr in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
                     break;
+                }
                 dap_chain_node_addr_t l_signer_node_addr;
                 const char *l_node_addr_str = s_json_get_text(l_json_item_obj, "node_addr");
                 if(!l_node_addr_str || dap_chain_node_addr_from_str(&l_signer_node_addr, l_node_addr_str)) {
+                    log_it(L_ERROR, "Json TX: bad node_addr in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
                     break;
                 }
                 dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_stake(l_srv_uid, l_value, l_signing_addr, &l_signer_node_addr);
                 l_item = (const uint8_t*) l_out_cond_item;
+                // Save value for using in In item
+                if(l_item) {
+                    SUM_256_256(l_value_need, l_value, &l_value_need);
+                } else {
+                    dap_string_append_printf(l_err_str, "Unable to create conditional out for transaction "
+                                                        "can of type %s described in item %zu.\n", l_subtype_str, i);
+                }
+                }
             }
                 break;
             case DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE: {
                 uint256_t l_value = { };
-                s_json_get_uint256(l_json_item_obj, "value", &l_value);
+                bool l_is_value = s_json_get_uint256(l_json_item_obj, "value", &l_value);
                 if(!IS_ZERO_256(l_value)) {
                     dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_fee(l_value);
                     l_item = (const uint8_t*) l_out_cond_item;
+                    // Save value for using in In item
+                    if(l_item) {
+                        SUM_256_256(l_value_need, l_value, &l_value_need);
+                    } else {
+                        dap_string_append_printf(l_err_str, "Unable to create conditional out for transaction "
+                                                            "can of type %s described in item %zu.\n", l_subtype_str, i);
+                    }
                 }
+                else
+                    log_it(L_ERROR, "Json TX: zero value in OUT_COND_SUBTYPE_FEE");
             }
                 break;
             case DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED:
                 log_it(L_WARNING, "Undefined subtype: '%s' of 'out_cond' item %zu ", l_subtype_str, i);
+                    dap_string_append_printf(l_err_str, "Specified unknown sub type %s of conditional out "
+                                                        "on item %zu.\n", l_subtype_str, i);
                 break;
             }
         }
@@ -5166,37 +5181,50 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
         case TX_ITEM_TYPE_RECEIPT: {
             dap_chain_net_srv_uid_t l_srv_uid;
             if(!s_json_get_srv_uid(l_json_item_obj, "service_id", "service", &l_srv_uid.uint64)) {
+                log_it(L_ERROR, "Json TX: bad service_id in TYPE_RECEIPT");
                 break;
             }
             dap_chain_net_srv_price_unit_uid_t l_price_unit;
             if(!s_json_get_unit(l_json_item_obj, "price_unit", &l_price_unit)) {
+                log_it(L_ERROR, "Json TX: bad price_unit in TYPE_RECEIPT");
                 break;
             }
             int64_t l_units;
             if(!s_json_get_int64(l_json_item_obj, "units", &l_units)) {
+                log_it(L_ERROR, "Json TX: bad units in TYPE_RECEIPT");
                 break;
             }
             uint256_t l_value = { };
             if(!s_json_get_uint256(l_json_item_obj, "value", &l_value) || IS_ZERO_256(l_value)) {
+                log_it(L_ERROR, "Json TX: bad value in TYPE_RECEIPT");
                 break;
             }
             const char *l_params_str = s_json_get_text(l_json_item_obj, "params");
             size_t l_params_size = dap_strlen(l_params_str);
             dap_chain_datum_tx_receipt_t *l_receipt = dap_chain_datum_tx_receipt_create(l_srv_uid, l_price_unit, l_units, l_value, l_params_str, l_params_size);
             l_item = (const uint8_t*) l_receipt;
+            if(l_item)
+                l_receipt_count++;
+            else {
+                dap_string_append_printf(l_err_str, "Unable to create receipt out for transaction "
+                                                    "described by item %zu.\n", i);
+            }
         }
             break;
         case TX_ITEM_TYPE_TSD: {
             int64_t l_tsd_type;
             if(!s_json_get_int64(l_json_item_obj, "type_tsd", &l_tsd_type)) {
+                log_it(L_ERROR, "Json TX: bad type_tsd in TYPE_TSD");
                 break;
             }
             const char *l_tsd_data = s_json_get_text(l_json_item_obj, "data");
             if (!l_tsd_data) {
+                log_it(L_ERROR, "Json TX: bad data in TYPE_TSD");
                 break;
             }
             size_t l_data_size = dap_strlen(l_tsd_data);
-            l_item = (const uint8_t*)dap_chain_datum_tx_item_tsd_create((void*)l_tsd_data, (int)l_tsd_type, l_data_size);
+            dap_chain_tx_tsd_t *l_tsd = dap_chain_datum_tx_item_tsd_create((void*)l_tsd_data, (int)l_tsd_type, l_data_size);
+            l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
         }
             break;
             //case TX_ITEM_TYPE_PKEY:
@@ -5210,39 +5238,163 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
         if(l_item) {
             dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*) l_item);
             l_items_ready++;
+            DAP_DELETE(l_item);
         }
     }
-
-    // Add signs
-    dap_list_t *l_list = l_sign_list;
-    while(l_list){
-        bool is_add = false;
+    
+    dap_list_t *l_list;
+    // Add In items
+    l_list = l_in_list;
+    while(l_list) {
         struct json_object *l_json_item_obj = (struct json_object*) l_list->data;
-        // From wallet
-        dap_chain_wallet_t *l_wallet = s_json_get_wallet(l_json_item_obj, "wallet");
-        if(l_wallet) {
-            dap_enc_key_t *l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
-            // sign all previous items in transaction
-            if(dap_chain_datum_tx_add_sign_item(&l_tx, l_enc_key)>0){
-                is_add = true;
-                l_items_ready++;
+        // Read prev_hash and out_prev_idx
+        const char *l_prev_hash_str = s_json_get_text(l_json_item_obj, "prev_hash");
+        int64_t l_out_prev_idx;
+        bool l_is_out_prev_idx = s_json_get_int64(l_json_item_obj, "out_prev_idx", &l_out_prev_idx);
+        // If prev_hash and out_prev_idx were read
+        if(l_prev_hash_str && l_is_out_prev_idx) {
+            dap_chain_hash_fast_t l_tx_prev_hash;
+            if(!dap_chain_hash_fast_from_str(l_prev_hash_str, &l_tx_prev_hash)) {
+                // Create IN item
+                dap_chain_tx_in_t *l_in_item = dap_chain_datum_tx_item_in_create(&l_tx_prev_hash, (uint32_t) l_out_prev_idx);
+                if (!l_in_item) {
+                    dap_string_append_printf(l_err_str, "Unable to create in for transaction.\n");
+                }
+            } else {
+                log_it(L_WARNING, "Invalid 'in' item, bad prev_hash %s", l_prev_hash_str);
+                dap_string_append_printf(l_err_str, "Unable to create in for transaction. Invalid 'in' item, "
+                                                    "bad prev_hash %s\n", l_prev_hash_str);
+                // Go to the next item
+                l_list = dap_list_next(l_list);
+                continue;
             }
-            dap_chain_wallet_close(l_wallet);
         }
-        // If wallet not found
-        if(!is_add) {
-            // From cert
-            const dap_cert_t *l_cert = s_json_get_cert(l_json_item_obj, "cert");
-            if(l_cert && l_cert->enc_key) {
-                // sign all previous items in transaction
-                if(dap_chain_datum_tx_add_sign_item(&l_tx, l_cert->enc_key) > 0) {
-                    is_add = true;
+        // Read addr_from
+        else {
+            const char *l_json_item_addr_str = s_json_get_text(l_json_item_obj, "addr_from");
+            const char *l_json_item_token = s_json_get_text(l_json_item_obj, "token");
+            dap_chain_addr_t *l_addr_from = NULL;
+            if(l_json_item_addr_str) {
+                l_addr_from = dap_chain_addr_from_str(l_json_item_addr_str);
+                if (!l_addr_from) {
+                    log_it(L_WARNING, "Invalid element 'in', unable to convert string representation of addr_from: '%s' "
+                                      "to binary.", l_json_item_addr_str);
+                    dap_string_append_printf(l_err_str, "Invalid element 'to', unable to convert string representation "
+                                                        "of addr_from: '%s' to binary.\n", l_json_item_addr_str);
+                    // Go to the next item
+                    l_list = dap_list_next(l_list);
+                    continue;
+                }
+            }
+            else {
+                log_it(L_WARNING, "Invalid 'in' item, incorrect addr_from: '%s'", l_json_item_addr_str ? l_json_item_addr_str : "[null]");
+                dap_string_append_printf(l_err_str, "Invalid 'in' item, incorrect addr_from: '%s'\n",
+                                         l_json_item_addr_str ? l_json_item_addr_str : "[null]");
+                // Go to the next item
+                l_list = dap_list_next(l_list);
+                continue;
+            }
+            if(!l_json_item_token) {
+                log_it(L_WARNING, "Invalid 'in' item, not found token name");
+                dap_string_append_printf(l_err_str, "Invalid 'in' item, not found token name\n");
+                // Go to the next item
+                l_list = dap_list_next(l_list);
+                continue;
+            }
+            if(IS_ZERO_256(l_value_need)) {
+                log_it(L_WARNING, "Invalid 'in' item, not found value in out items");
+                dap_string_append_printf(l_err_str, "Invalid 'in' item, not found value in out items\n");
+                // Go to the next item
+                l_list = dap_list_next(l_list);
+                continue;
+            }
+            if(l_addr_from)
+            {
+                // find the transactions from which to take away coins
+                uint256_t l_value_transfer = { }; // how many coins to transfer
+                //SUM_256_256(a_value, a_value_fee, &l_value_need);
+                dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_json_item_token,
+                        l_addr_from, l_value_need, &l_value_transfer);
+                if(!l_list_used_out) {
+                    log_it(L_WARNING, "Not enough funds in previous tx to transfer");
+                    dap_string_append_printf(l_err_str, "Can't create in transaction. Not enough funds in previous tx "
+                                                        "to transfer\n");
+                    // Go to the next item
+                    l_list = dap_list_next(l_list);
+                    continue;
+                }
+                // add 'in' items
+                uint256_t l_value_got = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
+                assert(EQUAL_256(l_value_got, l_value_transfer));
+                dap_list_free_full(l_list_used_out, free);
+                if(!IS_ZERO_256(l_value_got)) {
                     l_items_ready++;
+
+                    // add 'out' item for coin back
+                    uint256_t l_value_back;
+                    SUBTRACT_256_256(l_value_got, l_value_need, &l_value_back);
+                    if(!IS_ZERO_256(l_value_back)) {
+                        dap_chain_datum_tx_add_out_item(&l_tx, l_addr_from, l_value_back);
+                    }
                 }
             }
         }
+        // Go to the next 'in' item
         l_list = dap_list_next(l_list);
     }
+    dap_list_free(l_in_list);
+
+
+    
+    // Add TSD section
+    l_list = l_tsd_list;
+    while(l_list) {
+        dap_chain_datum_tx_add_item(&l_tx, l_list->data);
+        l_items_ready++;
+        l_list = dap_list_next(l_list);
+    }
+    dap_list_free(l_tsd_list);
+
+
+    // Add signs
+    l_list = l_sign_list;
+    while(l_list) {
+
+        struct json_object *l_json_item_obj = (struct json_object*) l_list->data;
+
+        dap_enc_key_t * l_enc_key  = NULL;
+        
+        //get wallet or cert
+        dap_chain_wallet_t *l_wallet = s_json_get_wallet(l_json_item_obj, "wallet");
+        const dap_cert_t *l_cert = s_json_get_cert(l_json_item_obj, "cert");
+
+        //wallet goes first
+        if (l_wallet) {
+            l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
+
+        } else if (l_cert && l_cert->enc_key) {
+            l_enc_key = l_cert->enc_key;
+        }
+        else{
+		dap_string_append_printf(l_err_str, "Can't create sign for transactions.\n");
+            log_it(L_ERROR, "Json TX: Item sign has no wallet or cert of they are invalid ");
+            continue;
+        }
+
+        if(l_enc_key && dap_chain_datum_tx_add_sign_item(&l_tx, l_enc_key) > 0) {
+            l_items_ready++;
+        } else {
+            log_it(L_ERROR, "Json TX: Item sign has invalid enc_key.");
+            continue;
+        }
+
+        if (l_wallet)
+            dap_chain_wallet_close(l_wallet);    
+
+    
+        l_list = dap_list_next(l_list);
+    }
+
     dap_list_free(l_sign_list);
     json_object_put(l_json);
 
