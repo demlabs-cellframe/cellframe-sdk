@@ -42,10 +42,10 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
  * @param dap_http_simple_t *a_http_simple, void *a_arg
  * @return void
  * send value
- * 0 - Node addr successfully added to node list
- * 1 - Don't add this addres to node list
- * 2 - Can't calculate hash for addr
- * 3 - Can't do handshake
+ * 1 - Node addr successfully added to node list
+ * 2 - Don't add this addres to node list
+ * 3 - Can't calculate hash for addr
+ * 4 - Can't do handshake
  */
 void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg)
 {
@@ -98,7 +98,7 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
         if(!a_key)
         {
             log_it(L_DEBUG, "Can't calculate hash for addr");
-            response = 2;
+            response = 3;
             DAP_DELETE(l_node_info);
             return;
         }
@@ -111,18 +111,18 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
             inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
             log_it(L_DEBUG, "Add addres "NODE_ADDR_FP_STR" (%s) to node list",
                        NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),l_node_addr_str);
-            response = 0;
+            response = 1;
         }
         else
         {
-            response = 1;
+            response = 2;
             log_it(L_DEBUG, "Don't add this addres to node list");
         }
     }
     else
     {
         log_it(L_DEBUG, "Can't do handshake");
-        response = 3;
+        response = 4;
     }
     *l_return_code = Http_Status_OK;
     size_t l_data_send_size = sizeof(uint8_t);
@@ -202,25 +202,28 @@ static int dap_chain_net_node_list_wait(struct node_link_request *a_node_list_re
     clock_gettime( CLOCK_MONOTONIC, &l_cond_timeout);
     l_cond_timeout.tv_sec += a_timeout_ms/1000;
     // signal waiting
-    while (!a_node_list_request->response) {
+    // do{
         log_it(L_DEBUG, "TIME OUT 1");
         int l_ret_wait = pthread_cond_timedwait(&a_node_list_request->wait_cond, &a_node_list_request->wait_mutex, &l_cond_timeout);
         log_it(L_DEBUG, "TIME OUT 2");
         if(l_ret_wait) {
             ret = a_node_list_request->response ? 0 : -2;
-            break;
+            //break;
         }
         else if(l_ret_wait == ETIMEDOUT) { // 110 260
             //log_it(L_NOTICE,"Wait for status is stopped by timeout");
             ret = -1;
-            break;
+            //break;
         }else if (l_ret_wait != 0 ){
             char l_errbuf[128];
             l_errbuf[0] = '\0';
             strerror_r(l_ret_wait,l_errbuf,sizeof (l_errbuf));
             log_it(L_ERROR, "Pthread condition timed wait returned \"%s\"(code %d)", l_errbuf, l_ret_wait);
         }
-    }
+        else
+            ret = 0;
+   // }
+    //while (!a_node_list_request->response);
     pthread_mutex_unlock(&a_node_list_request->wait_mutex);
 #else
     pthread_mutex_unlock( &a_node_list_request->wait_mutex );
@@ -276,17 +279,17 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
                                             l_node_list_request,
                                             NULL) == NULL;
 
-    size_t rc = dap_chain_net_node_list_wait(l_node_list_request, 4000);
+    int rc = dap_chain_net_node_list_wait(l_node_list_request, 4000);
     log_it(L_DEBUG, "Stop node list HTTP request to ");
     if(ret){
         s_node_list_request_dinit(l_node_list_request);
-        return 4;
+        return 5;
     }
     else{
         if(rc)
         {
             s_node_list_request_dinit(l_node_list_request);
-            return 5;//no server
+            return 0;//no server
         }
         else{
             ret = l_node_list_request->response;
