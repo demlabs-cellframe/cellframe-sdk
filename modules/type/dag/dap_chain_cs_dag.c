@@ -402,10 +402,7 @@ static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
         DAP_DELETE(l_event_current);
     }
     pthread_mutex_unlock(&l_dag_pvt->events_mutex);
-    dap_chain_cell_t *l_cell_cur, *l_cell_tmp;
-    HASH_ITER(hh, a_chain->cells, l_cell_cur, l_cell_tmp) {
-        dap_chain_cell_close(l_cell_cur);
-    }
+    dap_chain_cell_delete_all(a_chain);
 }
 
 /**

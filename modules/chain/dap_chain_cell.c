@@ -170,7 +170,21 @@ void dap_chain_cell_delete(dap_chain_cell_t *a_cell)
     a_cell->chain = NULL;
     a_cell->file_storage_path[0] = '\0';
     pthread_rwlock_destroy(&a_cell->storage_rwlock);
-    DAP_DEL_Z(a_cell);
+    DAP_DELETE(a_cell);
+}
+
+void dap_chain_cell_delete_all(dap_chain_t *a_chain) {
+    if (!a_chain)
+        return;
+    pthread_rwlock_wrlock(&a_chain->cell_rwlock);
+    dap_chain_cell_t *l_cell, *l_tmp;
+    HASH_ITER(hh, a_chain->cells, l_cell, l_tmp) {
+        dap_chain_cell_close(l_cell);
+        HASH_DEL(a_chain->cells, l_cell);
+        pthread_rwlock_destroy(&l_cell->storage_rwlock);
+        DAP_DELETE(l_cell);
+    }
+    pthread_rwlock_unlock(&a_chain->cell_rwlock);
 }
 
 /**
