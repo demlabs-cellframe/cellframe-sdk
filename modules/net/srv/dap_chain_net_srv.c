@@ -80,7 +80,7 @@ static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out
                                        dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 static bool s_fee_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out_cond_t *a_cond,
                                        dap_chain_datum_tx_t *a_tx_in, bool a_owner);
-static int s_str_to_price_unit(char* a_price_unit_str, dap_chain_net_srv_price_unit_uid_t* a_price_unit);
+static int s_str_to_price_unit(const char *a_price_unit_str, dap_chain_net_srv_price_unit_uid_t *a_price_unit);
 
 /**
  * @brief dap_chain_net_srv_init
@@ -1203,9 +1203,10 @@ dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv
  * @param a_price_unit
  * @return 0 if OK, other if error
  */
-int s_str_to_price_unit(char* a_price_unit_str, dap_chain_net_srv_price_unit_uid_t* a_price_unit) {
+int s_str_to_price_unit(const char* a_price_unit_str, dap_chain_net_srv_price_unit_uid_t* a_price_unit)
+{
     if (!a_price_unit_str || !a_price_unit)
         return -1;
-    a_price_unit->enm = dap_chain_srv_str_to_unit_enum(a_price_unit_str);
+    a_price_unit->enm = dap_chain_srv_str_to_unit_enum((char *)a_price_unit_str);
     return a_price_unit->enm != SERV_UNIT_UNDEFINED ? 0 : -1;
 }
