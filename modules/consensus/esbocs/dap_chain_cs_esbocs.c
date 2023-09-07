@@ -325,6 +325,16 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
     }
     dap_store_obj_free(l_objs, l_objs_count);
 
+    if (l_pkt)
+        dap_hash_fast(l_pkt->data, l_pkt->data_size, &l_session->db_hash);
+    else
+        l_session->db_hash = (dap_hash_fast_t){};
+    if (PVT(l_session->esbocs)->debug) {
+        char l_sync_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+        dap_chain_hash_fast_to_str(&l_session->db_hash, l_sync_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+        log_it(L_MSG, "DB changes applied, new DB resync hash is %s", l_sync_hash_str);
+    }
+
     char *l_del_sync_group = dap_strdup_printf("%s.del", l_sync_group);
     l_objs_count = 0;
     l_objs = dap_global_db_get_all_raw_unsafe(a_context, l_del_sync_group, 0, &l_objs_count);
@@ -347,15 +357,7 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
     DAP_DELETE(l_sync_group);
     DAP_DEL_Z(l_session->db_serial);
     l_session->db_serial = l_pkt;
-    if (l_pkt)
-        dap_hash_fast(l_pkt->data, l_pkt->data_size, &l_session->db_hash);
-    else
-        l_session->db_hash = (dap_hash_fast_t){};
-    if (PVT(l_session->esbocs)->debug) {
-        char l_sync_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-        dap_chain_hash_fast_to_str(&l_session->db_hash, l_sync_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-        log_it(L_MSG, "DB changes applied, new DB resync hash is %s", l_sync_hash_str);
-    }
+
     dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_change_db_broadcast, l_session);
 }
 
