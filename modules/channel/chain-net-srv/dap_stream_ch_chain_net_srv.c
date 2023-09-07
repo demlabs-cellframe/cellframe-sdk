@@ -526,7 +526,7 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
                 continue;
             }
 
-            if (l_price_tmp->units_uid.enm == l_tx_out_cond->subtype.srv_pay.unit.enm){
+            if (l_price_tmp->units_uid.enm != l_tx_out_cond->subtype.srv_pay.unit.enm){
                 log_it( L_WARNING, "Unit ID in the pricelist and tx do not match");
                 continue;
             }
@@ -539,7 +539,7 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
                 continue;
             }
 
-            if(!compare256(uint256_0, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) ||
+            if(IS_ZERO_256(l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) ||
                 compare256(l_unit_price, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) <= 0){
                 l_price = l_price_tmp;
                 break;
@@ -749,7 +749,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
                 continue;
             }
 
-            if(!compare256(uint256_0, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) ||
+            if(IS_ZERO_256(l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) ||
                 compare256(l_unit_price, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) <= 0){
                 l_price = l_price_tmp;
                 break;

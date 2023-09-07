@@ -871,7 +871,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
             dap_stpcpy(l_price->token, l_order->price_ticker);
             l_price->units = l_order->units;
             l_price->units_uid = l_order->price_unit;
-            if (compare256(l_max_price, uint256_0)){
+            if (!IS_ZERO_256(l_max_price)){
                 uint256_t l_price_unit = uint256_0;
                 DIV_256(l_price->value_datoshi,  GET_256_FROM_64(l_order->units), &l_price_unit);
                 if (compare256(l_price_unit, l_max_price)>0){
