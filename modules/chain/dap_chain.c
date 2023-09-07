@@ -101,7 +101,7 @@ void dap_chain_deinit(void)
  * @param a_chain_id chain id
  * @return dap_chain_t* 
  */
-dap_chain_t * dap_chain_create(dap_ledger_t* a_ledger, const char * a_chain_net_name, const char * a_chain_name, dap_chain_net_id_t a_chain_net_id, dap_chain_id_t a_chain_id )
+dap_chain_t *dap_chain_create(const char *a_chain_net_name, const char *a_chain_name, dap_chain_net_id_t a_chain_net_id, dap_chain_id_t a_chain_id)
 {
     dap_chain_t * l_ret = DAP_NEW_Z(dap_chain_t);
     if ( !l_ret ) {
@@ -113,7 +113,6 @@ dap_chain_t * dap_chain_create(dap_ledger_t* a_ledger, const char * a_chain_net_
     memcpy(l_ret->net_id.raw,a_chain_net_id.raw,sizeof(a_chain_net_id));
     l_ret->name = strdup (a_chain_name);
     l_ret->net_name = strdup (a_chain_net_name);
-    l_ret->ledger = a_ledger;
     pthread_rwlock_init(&l_ret->rwlock, NULL);
     pthread_rwlock_init(&l_ret->cell_rwlock,NULL);
     dap_chain_item_t * l_ret_item = DAP_NEW_Z(dap_chain_item_t);
@@ -383,7 +382,7 @@ dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_cha
                 return NULL;
             }
 
-            l_chain =  dap_chain_create(a_ledger,a_chain_net_name,l_chain_name, a_chain_net_id,l_chain_id);
+            l_chain =  dap_chain_create(a_chain_net_name, l_chain_name, a_chain_net_id, l_chain_id);
             if ( dap_chain_cs_create(l_chain, l_cfg) == 0 ) {
 
                 log_it (L_NOTICE, "Consensus initialized for chain id 0x%016"DAP_UINT64_FORMAT_x, l_chain_id.uint64);
@@ -545,7 +544,7 @@ bool dap_chain_has_file_store(dap_chain_t * a_chain)
  * @param l_chain
  * @return
  */
-int dap_chain_save_all (dap_chain_t * l_chain)
+int dap_chain_save_all(dap_chain_t *l_chain)
 {
     int l_ret = 0;
     pthread_rwlock_rdlock(&l_chain->cell_rwlock);
@@ -583,13 +582,23 @@ int dap_chain_load_all(dap_chain_t *a_chain)
         log_it(L_ERROR, "Cannot open directory %s", DAP_CHAIN_PVT(a_chain)->file_storage_dir);
         return -3;
     }
-    for (struct dirent *l_dir_entry = readdir(l_dir); l_dir_entry != NULL; l_dir_entry = readdir(l_dir))
-    {
+    for (struct dirent *l_dir_entry = readdir(l_dir); l_dir_entry != NULL; l_dir_entry = readdir(l_dir)) {
         const char * l_filename = l_dir_entry->d_name;
         const char l_suffix[] = ".dchaincell";
         size_t l_suffix_len = strlen(l_suffix);
         if (!strncmp(l_filename + strlen(l_filename) - l_suffix_len, l_suffix, l_suffix_len)) {
-            l_ret += dap_chain_cell_load(a_chain, l_filename);
+            dap_chain_cell_t *l_cell = dap_chain_cell_create_fill2(a_chain, l_filename);
+            l_ret += dap_chain_cell_load(a_chain, l_cell);
+            if (DAP_CHAIN_PVT(a_chain)->need_reorder) {
+                const char *l_filename_backup = dap_strdup_printf("%s.unsorted", l_cell->file_storage_path);
+                if (remove(l_filename_backup) == -1) {
+                    log_it(L_ERROR, "File %s doesn't exist", l_filename_backup);
+                }
+                if (rename(l_cell->file_storage_path, l_filename_backup)) {
+                    log_it(L_ERROR, "Couldn't rename %s to %s", l_cell->file_storage_path, l_filename_backup);
+                }
+                DAP_DELETE(l_filename_backup);
+            }
         }
     }
     closedir(l_dir);
@@ -717,8 +726,10 @@ ssize_t dap_chain_atom_save(dap_chain_t *a_chain, const uint8_t *a_atom, size_t 
             size_t l_atom_treshold_size;
             l_atom_treshold = a_chain->callback_atom_add_from_treshold(a_chain, &l_atom_treshold_size);
             if (l_atom_treshold) {
-                dap_chain_cell_file_append(l_cell, l_atom_treshold, l_atom_treshold_size);
-                log_it(L_INFO, "Added atom from treshold");
+                if (dap_chain_cell_file_append(l_cell, l_atom_treshold, l_atom_treshold_size) > 0)
+                    log_it(L_INFO, "Added atom from treshold");
+                else
+                    log_it(L_ERROR, "Can't add atom from treshold");
             }
         } while(l_atom_treshold);
     }

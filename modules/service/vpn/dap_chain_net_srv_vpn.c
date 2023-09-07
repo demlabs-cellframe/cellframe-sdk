@@ -649,7 +649,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     const char *c_addr = dap_config_get_item_str(g_config, "srv_vpn", "network_address");
     const char *c_mask = dap_config_get_item_str(g_config, "srv_vpn", "network_mask");
     if(!c_addr || !c_mask){
-        log_it(L_ERROR, "%s: error while reading network parameters from config (network_address and network_mask)", __PRETTY_FUNCTION__);
+        log_it(L_CRITICAL, "Error while reading network parameters from config (network_address and network_mask)");
         DAP_DELETE((void*)c_addr);
         DAP_DELETE((void*)c_mask);
         return -1;
@@ -672,7 +672,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
 #error "Undefined tun create for your platform"
 #endif
     log_it(L_NOTICE, "Auto cpu reassignment is set to '%s'", s_raw_server->auto_cpu_reassignment ? "true" : "false");
-    log_it(L_NOTICE,"%s: trying to initialize multiqueue for %u workers", __PRETTY_FUNCTION__, s_tun_sockets_count);
+    log_it(L_INFO, "Trying to initialize multiqueue for %u workers", s_tun_sockets_count);
     s_tun_sockets = DAP_NEW_Z_SIZE(dap_chain_net_srv_vpn_tun_socket_t*,s_tun_sockets_count*sizeof(dap_chain_net_srv_vpn_tun_socket_t*));
     s_tun_sockets_queue_msg =  DAP_NEW_Z_SIZE(dap_events_socket_t*,s_tun_sockets_count*sizeof(dap_events_socket_t*));
 
@@ -1591,7 +1591,18 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         return;
     }
-
+    // check role
+    if (dap_chain_net_get_role(l_usage->net).enums > NODE_ROLE_MASTER) {
+        log_it(L_ERROR, 
+            "You can't provide service with ID %"DAP_UINT64_FORMAT_X" in net %s. Node role should be not lower than master\n",
+            l_usage->service->uid.uint64, l_usage->net->pub.name
+            );
+        if (l_usage->client)
+            dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
+        dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
+        dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
+        return;
+    }
 
     // TODO move address leasing to this structure
     //dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) l_usage->service->_internal;
@@ -1875,7 +1886,7 @@ static void s_es_tun_error(dap_events_socket_t * a_es, int a_error)
 {
     if (! a_es->_inheritor)
         return;
-    log_it(L_ERROR,"%s: error %d in socket %"DAP_FORMAT_SOCKET" (socket type %d)", __PRETTY_FUNCTION__, a_error, a_es->socket, a_es->type);
+    log_it(L_CRITICAL, "Error %d in socket %"DAP_FORMAT_SOCKET" (socket type %d)", a_error, a_es->socket, a_es->type);
 }
 
 /**

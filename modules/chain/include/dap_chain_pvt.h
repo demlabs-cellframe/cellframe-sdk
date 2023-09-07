@@ -40,8 +40,10 @@ typedef struct dap_chain_pvt
     dap_chain_t * chain;
     char * file_storage_dir;
     char * cs_name;
+    bool cs_started;
     int celled;
     dap_list_t *mempool_notifires;
+    bool need_reorder;
 } dap_chain_pvt_t;
 
 typedef struct dap_chain_gdb_notifier {

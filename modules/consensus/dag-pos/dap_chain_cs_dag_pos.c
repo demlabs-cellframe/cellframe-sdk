@@ -244,11 +244,6 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
 {
     dap_chain_cs_dag_pos_pvt_t * l_pos_pvt = PVT ( DAP_CHAIN_CS_DAG_POS( a_dag ) );
 
-    if(a_dag->chain->ledger == NULL){
-        log_it(L_CRITICAL,"Ledger is NULL can't check PoS on this chain %s", a_dag->chain->name);
-        return -3;
-    }
-
     if (sizeof (a_dag_event->header)>= a_dag_event_size){
         log_it(L_WARNING,"Incorrect size with event %p on chain %s", a_dag_event, a_dag->chain->name);
         return  -7;

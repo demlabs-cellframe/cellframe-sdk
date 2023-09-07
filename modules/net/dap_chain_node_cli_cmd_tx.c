@@ -104,7 +104,7 @@ static bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
             : NULL;
     if (!l_ticker)
         return false;
-    dap_chain_datum_dump_tx(a_datum, l_ticker, a_str_out, a_hash_out_type, a_tx_hash);
+    dap_chain_datum_dump_tx(a_datum, l_ticker, a_str_out, a_hash_out_type, a_tx_hash, a_ledger->net_id);
     dap_list_t *l_out_items = dap_chain_datum_tx_items_get(a_datum, TX_ITEM_TYPE_OUT_ALL, NULL);
     int l_out_idx = 0;
     dap_string_append_printf(a_str_out, "Spenders:\r\n");
@@ -569,7 +569,7 @@ static char* dap_db_chain_history_token_list(dap_chain_t * a_chain, const char *
                     continue;
                 if (a_token_name && dap_strcmp(((dap_chain_datum_token_t *)l_datum->data)->ticker, a_token_name))
                     continue;
-                dap_chain_datum_dump(l_str_out, l_datum, a_hash_out_type);
+                dap_chain_datum_dump(l_str_out, l_datum, a_hash_out_type, a_chain->net_id);
                 (*a_token_num)++;
             }
             DAP_DELETE(l_datums);
@@ -669,7 +669,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                         break;
                     }
                     if(!a_filter_token_name || !dap_strcmp(l_token->ticker, a_filter_token_name)) {
-                        dap_chain_datum_dump(l_str_out, l_datum, a_hash_out_type);
+                        dap_chain_datum_dump(l_str_out, l_datum, a_hash_out_type, a_chain->net_id);
                         dap_string_append(l_str_out, "\n");
                         l_token_num++;
                     }
@@ -689,7 +689,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                         if (a_filtr_addr_base58 && dap_strcmp(a_filtr_addr_base58, l_token_emission_address_str)) {
                              break;
                         }
-                        dap_chain_datum_dump(l_str_out, l_datum, a_hash_out_type);
+                        dap_chain_datum_dump(l_str_out, l_datum, a_hash_out_type, a_chain->net_id);
                         dap_string_append(l_str_out, "\n");
                         l_emission_num++;
                     }
@@ -1047,9 +1047,9 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
 
     const char * l_hash_out_type = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
-    if(!l_hash_out_type)
-        l_hash_out_type = "base58";
-    if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
+    if (!l_hash_out_type)
+        l_hash_out_type = "hex";
+    if (dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
         return -1;
     }
