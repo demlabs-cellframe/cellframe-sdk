@@ -294,6 +294,20 @@ static void s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
     if (l_srv->pricelist){
         // not free service
         log_it( L_INFO, "Valid pricelist is founded. Start service in pay mode.");
+
+//        pthread_mutex_lock(&l_srv->banlist_mutex);
+//        HASH_FIND(hh, l_srv->ban_list, &l_usage->client_pkey_hash, sizeof(dap_chain_hash_fast_t), l_item);
+//        pthread_mutex_unlock(&l_srv->banlist_mutex);
+//        if (l_item) {   // client banned
+//            log_it(L_INFO, "Client pkey is banned!");
+//            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_BANNED_PKEY_HASH ;
+//            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
+//            if (l_usage->service->callbacks.response_error)
+//                    l_usage->service->callbacks.response_error(l_usage->service,l_usage->id, l_usage->client, &l_err, sizeof(l_err));
+//            break;
+//        }
+
+
         dap_chain_net_srv_grace_t *l_grace = DAP_NEW_Z(dap_chain_net_srv_grace_t);
         if (!l_grace) {
             log_it(L_CRITICAL, "Memory allocation error");
@@ -412,12 +426,6 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
                 return;
             }
             a_grace->usage->price = l_price;
-
-//            if (!a_grace->usage->receipt_next){
-//                a_grace->usage->receipt_next = dap_chain_net_srv_issue_receipt(a_grace->usage->service, a_grace->usage->price, NULL, 0);
-//                dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
-//                                           a_grace->usage->receipt_next, a_grace->usage->receipt_next->size);
-//            }
             usages_in_grace_t *l_item = DAP_NEW_Z_SIZE(usages_in_grace_t, sizeof(usages_in_grace_t));
             if (!l_item) {
                 log_it(L_CRITICAL, "Memory allocation error");
@@ -736,7 +744,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
                 continue;
             }
 
-            if (l_price_tmp->units_uid.enm == l_tx_out_cond->subtype.srv_pay.unit.enm){
+            if (l_price_tmp->units_uid.enm != l_tx_out_cond->subtype.srv_pay.unit.enm){
                 log_it( L_WARNING, "Unit ID in the pricelist and tx do not match");
                 continue;
             }
