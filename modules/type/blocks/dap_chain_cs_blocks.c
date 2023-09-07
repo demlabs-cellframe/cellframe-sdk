@@ -1061,15 +1061,23 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
     pthread_rwlock_wrlock(&PVT(l_blocks)->datums_lock);
     dap_chain_hash_fast_t l_block_hash;
     dap_hash_fast(l_block, l_block_size, &l_block_hash);
-    dap_chain_block_cache_t * l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_block_hash);
+
+    //dap_chain_block_cache_t * l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_block_hash);
+
+    dap_chain_block_cache_t * l_block_cache = NULL;
+    pthread_rwlock_wrlock(& PVT(l_blocks)->rwlock);
+    HASH_FIND(hh, PVT(l_blocks)->blocks,&l_block_hash, sizeof (l_block_hash), l_block_cache );
+
     if (l_block_cache ){
         debug_if(s_debug_more, L_DEBUG, "... already present in blocks %s", l_block_cache->block_hash_str);
+        pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
         pthread_rwlock_unlock(&PVT(l_blocks)->datums_lock);
         return ATOM_PASS;
     } else {
         l_block_cache = dap_chain_block_cache_new(l_blocks, &l_block_hash, l_block, l_block_size);
         if (!l_block_cache) {
             log_it(L_DEBUG, "... corrupted block");
+            pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
             pthread_rwlock_unlock(&PVT(l_blocks)->datums_lock);
             return ATOM_REJECT;
         }
@@ -1086,23 +1094,45 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
     }
 
     if( ret == ATOM_ACCEPT){
-        int l_consensus_check = s_add_atom_to_blocks(l_blocks, l_block_cache);
+        //int l_consensus_check = s_add_atom_to_blocks(l_blocks, l_block_cache);
+
+        int l_res = 0;
+        l_res = s_add_atom_datums(l_blocks, l_block_cache);
+        debug_if(s_debug_more, L_DEBUG, "Block %s checked, %s", l_block_cache->block_hash_str,
+                                                                l_res == (int)l_block_cache->datum_count ?
+                                                                "all correct" : "but ledger declined");
+        //All correct, no matter for result
+        HASH_ADD(hh, PVT(l_blocks)->blocks,block_hash,sizeof (l_block_cache->block_hash), l_block_cache);
+        PVT(l_blocks)->blocks_count++;
+        if (! (PVT(l_blocks)->block_cache_first ) )
+                PVT(l_blocks)->block_cache_first = l_block_cache;
+        if (PVT(l_blocks)->block_cache_last)
+            PVT(l_blocks)->block_cache_last->next = l_block_cache;
+        l_block_cache->prev = PVT(l_blocks)->block_cache_last;
+        PVT(l_blocks)->block_cache_last = l_block_cache;
+
+        debug_if(s_debug_more, L_DEBUG, "... added");
+        /*
         if(l_consensus_check == 1){
-             debug_if(s_debug_more, L_DEBUG, "... added");
+            debug_if(s_debug_more, L_DEBUG, "... added");
         }else if (l_consensus_check == DAP_CHAIN_CS_VERIFY_CODE_TX_NO_PREVIOUS){
-            pthread_rwlock_wrlock( &PVT(l_blocks)->rwlock );
+            //pthread_rwlock_wrlock( &PVT(l_blocks)->rwlock );
             HASH_ADD(hh, PVT(l_blocks)->blocks_tx_treshold, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
-            pthread_rwlock_unlock( &PVT(l_blocks)->rwlock );
+            //pthread_rwlock_unlock( &PVT(l_blocks)->rwlock );
             debug_if(s_debug_more, L_DEBUG, "... tresholded for tx ledger");
         }else{
-             debug_if(s_debug_more, L_WARNING, "... error adding (code %d)", l_consensus_check);
-             ret = ATOM_REJECT;
-        }
+            debug_if(s_debug_more, L_WARNING, "... error adding (code %d)", l_consensus_check);
+            ret = ATOM_REJECT;
+        }*/
          // !TODO make chunks add to blocks
     }else if(ret == ATOM_MOVE_TO_THRESHOLD){
-        if (dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_block_hash)) {
+        //if (dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_block_hash)) {
+        l_block_cache = NULL;
+        HASH_FIND(hh, PVT(l_blocks)->blocks,&l_block_hash, sizeof (l_block_hash), l_block_cache );
+        if (l_block_cache) {
             // if it was concurrent atom processed before
             dap_chain_block_cache_delete(l_block_cache);
+            pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
             return ATOM_PASS;
         }
         dap_chain_block_chunks_add( PVT(l_blocks)->chunks,l_block_cache);
@@ -1113,6 +1143,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
     debug_if(s_debug_more, L_DEBUG, "Verified atom %p: %s", a_atom, ret == ATOM_ACCEPT ? "accepted" :
                                                    (ret == ATOM_REJECT ? "rejected" : "thresholded"));
     //s_bft_consensus_setup(l_blocks);
+    pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     return ret;
 }
 

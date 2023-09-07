@@ -521,7 +521,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     // check if we already have this event
     dap_chain_atom_verify_res_t ret = s_dap_chain_check_if_event_is_present(PVT(l_dag)->events, &l_event_item->hash) ||
             s_dap_chain_check_if_event_is_present(PVT(l_dag)->events_treshold, &l_event_item->hash) ? ATOM_PASS : ATOM_ACCEPT;
-    pthread_mutex_unlock(l_events_mutex);
+    //pthread_mutex_unlock(l_events_mutex);
 
     // verify hashes and consensus
     switch (ret) {
@@ -538,6 +538,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             log_it(L_DEBUG, "Atom already present");
         }
         DAP_DELETE(l_event_item);
+        pthread_mutex_unlock(l_events_mutex);
         return ret;
     default:
         break;
@@ -545,7 +546,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
 
     switch (ret) {
     case ATOM_MOVE_TO_THRESHOLD:
-        pthread_mutex_lock(l_events_mutex);
+        //pthread_mutex_lock(l_events_mutex);
         dap_chain_cs_dag_blocked_t *el = NULL;
         HASH_FIND(hh, PVT(l_dag)->removed_events_from_treshold, &l_event_item->hash, sizeof(dap_chain_hash_fast_t), el);
         if (!el) {
@@ -558,7 +559,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
             if (s_debug_more)
                 log_it(L_DEBUG, "... rejected because the atom was removed from the threshold.");
         }
-        pthread_mutex_unlock(l_events_mutex);
+        //pthread_mutex_unlock(l_events_mutex);
         break;
     case ATOM_ACCEPT: {
         int l_consensus_check = s_dap_chain_add_atom_to_events_table(l_dag, l_event_item);
@@ -585,7 +586,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
                 log_it(L_WARNING, "... added with ledger code %d", l_consensus_check);
             break;
         }
-        pthread_mutex_lock(l_events_mutex);
+        //pthread_mutex_lock(l_events_mutex);
         dap_chain_cs_dag_event_item_t *l_tail = PVT(l_dag)->events ? PVT(l_dag)->events->hh.tbl->tail->prev : NULL;
         if (!l_tail)
             l_tail = PVT(l_dag)->events;
@@ -598,12 +599,13 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         else
             HASH_ADD(hh, PVT(l_dag)->events, hash, sizeof(l_event_item->hash), l_event_item);
         s_dag_events_lasts_process_new_last_event(l_dag, l_event_item);
-        pthread_mutex_unlock(l_events_mutex);
+        //pthread_mutex_unlock(l_events_mutex);
     } break;
     default:
         DAP_DELETE(l_event_item); // Neither added, nor freed
         break;
     }
+    pthread_mutex_unlock(l_events_mutex);
     return ret;
 }
 
