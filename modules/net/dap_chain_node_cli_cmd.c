@@ -825,7 +825,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
                         return -1;
                     }
                     dap_chain_cell_t *l_cell = dap_chain_cell_create_fill(l_chain, l_cell_id);
-                    int l_ret = dap_chain_cell_file_update(l_cell);
+                    int l_ret = (int)dap_chain_cell_file_update(l_cell);
                     if(l_ret > 0)
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "cell added successfully");
                     else

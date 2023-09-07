@@ -2898,10 +2898,6 @@ int s_net_load(dap_chain_net_t *a_net)
                 DAP_CHAIN_PVT(l_chain)->need_reorder = false;
                 if (l_chain->callback_purge) {
                     l_chain->callback_purge(l_chain);
-                    pthread_rwlock_wrlock(&l_chain->cell_rwlock);
-                    for (dap_chain_cell_t *it = l_chain->cells; it; it = it->hh.next)
-                        dap_chain_cell_delete(it);
-                    pthread_rwlock_unlock(&l_chain->cell_rwlock);
                     dap_chain_ledger_purge(l_net->pub.ledger, false);
                     dap_chain_ledger_set_fee(l_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
                     dap_chain_net_decree_purge(l_net);
@@ -2979,7 +2975,7 @@ int s_net_load(dap_chain_net_t *a_net)
 
     }
     if (!l_net_pvt->only_static_links)
-        l_net_pvt->only_static_links = dap_config_get_item_bool_default(l_cfg, "general", "links_static_only", true);
+        l_net_pvt->only_static_links = dap_config_get_item_bool_default(l_cfg, "general", "links_static_only", false);
     if (dap_config_get_item_bool_default(g_config ,"general", "auto_online", false))
     {
         dap_chain_net_balancer_prepare_list_links(l_net->pub.name,true);
