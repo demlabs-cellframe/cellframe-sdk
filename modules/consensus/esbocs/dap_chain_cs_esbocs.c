@@ -1005,14 +1005,11 @@ dap_chain_esbocs_directive_t *s_session_directive_ready(dap_chain_esbocs_session
 
 static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s_esbocs_session_state a_new_state, dap_time_t a_time)
 {
-    if (a_new_state != DAP_CHAIN_ESBOCS_SESSION_STATE_PREVIOUS) {
-        if (a_session->state == DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_VOTING) {
-            // Do not change this state, state changing will be applied after return to PREVIOUS state
-            a_session->old_state = a_new_state;
-            return;
-        }
+    if (a_new_state == DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_VOTING)
+        a_session->old_state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC;
+    else if (a_new_state != DAP_CHAIN_ESBOCS_SESSION_STATE_PREVIOUS)
         a_session->old_state = a_session->state;
-    }
+
     a_session->state = a_new_state;
     a_session->ts_stage_entry = a_time;
 
