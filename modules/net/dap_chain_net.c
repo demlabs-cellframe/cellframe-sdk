@@ -2766,12 +2766,11 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
                 if(l_cfg_new) {
                     list_priority *l_chain_prior = DAP_NEW_Z(list_priority);
                     if (!l_chain_prior) {
-        log_it(L_CRITICAL, "Memory allocation error");
-                        DAP_DELETE (l_entry_name);
+                        log_it(L_CRITICAL, "Memory allocation error");
+                        DAP_DELETE(l_entry_name);
                         closedir(l_chains_dir);
                         dap_config_close(l_cfg_new);
                         dap_config_close(l_cfg);
-                        closedir(l_chains_dir);
                         return -1;
                     }
                     l_chain_prior->prior = dap_config_get_item_uint16_default(l_cfg_new, "chain", "load_priority", 100);
@@ -3403,7 +3402,7 @@ bool dap_chain_net_get_flag_sync_from_zero( dap_chain_net_t * a_net)
  */
 bool dap_chain_net_get_extra_gdb_group(dap_chain_net_t *a_net, dap_chain_node_addr_t a_node_addr)
 {
-    if(!a_net || !PVT(a_net) || !PVT(a_net)->gdb_sync_nodes_addrs)
+    if (!a_net || !PVT(a_net)->gdb_sync_nodes_addrs)
         return false;
     for(uint16_t i = 0; i < PVT(a_net)->gdb_sync_nodes_addrs_count; i++) {
         if(a_node_addr.uint64 == PVT(a_net)->gdb_sync_nodes_addrs[i].uint64) {

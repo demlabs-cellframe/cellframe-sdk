@@ -106,7 +106,6 @@ DAP_STATIC_INLINE size_t s_get_esbocs_message_size(dap_chain_esbocs_message_t *a
 }
 
 static dap_chain_esbocs_session_t * s_session_items;
-static dap_timerfd_t *s_session_cs_timer = NULL;
 
 typedef struct dap_chain_esbocs_pvt {
     // Base params
@@ -483,17 +482,16 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
 
     log_it(L_INFO, "Init session for net:%s, chain:%s", a_chain->net_name, a_chain->name);
     DL_APPEND(s_session_items, l_session);
-    if (!s_session_cs_timer) {
-        s_session_cs_timer = dap_timerfd_start(1000, s_session_timer, NULL);
-        debug_if(l_esbocs_pvt->debug, L_MSG, "Consensus main timer is started");
-    }
+    l_session->cs_timer = dap_timerfd_start(1000, s_session_timer, l_session);
+    debug_if(l_esbocs_pvt->debug, L_MSG, "Consensus main timer is started");
+
     DAP_CHAIN_PVT(a_chain)->cs_started = true;
     return 0;
 }
 
 bool dap_chain_esbocs_started()
 {
-    return s_session_cs_timer;
+    return s_session_items;
 }
 
 static uint256_t s_callback_get_minimum_fee(dap_chain_t *a_chain)
@@ -520,8 +518,7 @@ static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
     dap_chain_esbocs_session_t *l_session = l_esbocs->session;
     pthread_mutex_lock(&l_session->mutex);
     DL_DELETE(s_session_items, l_session);
-    if (!s_session_items)
-        dap_timerfd_delete_mt(s_session_cs_timer->worker, s_session_cs_timer->esocket_uuid);
+    dap_timerfd_delete_mt(l_session->cs_timer->worker, l_session->cs_timer->esocket_uuid);
     s_session_round_clear(l_session);
     dap_chain_esbocs_sync_item_t *l_sync_item, *l_sync_tmp;
     HASH_ITER(hh, l_session->sync_items, l_sync_item, l_sync_tmp) {
@@ -1254,11 +1251,8 @@ static void s_session_proc_state(dap_chain_esbocs_session_t *a_session)
 
 static bool s_session_timer(void *a_arg)
 {
-    UNUSED(a_arg);
-    dap_chain_esbocs_session_t *l_session = NULL;
-    DL_FOREACH(s_session_items, l_session) {
-        s_session_proc_state(l_session);
-    }
+    dap_chain_esbocs_session_t *l_session = a_arg;
+    s_session_proc_state(l_session);
     return true;
 }
 

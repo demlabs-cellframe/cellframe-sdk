@@ -5528,22 +5528,23 @@ dap_list_t *dap_chain_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, c
             switch (l_type) {
                 case TX_ITEM_TYPE_OUT_OLD: {
                     dap_chain_tx_out_old_t *l_out = (dap_chain_tx_out_old_t *)l_list_tmp->data;
-                    if (!l_out->header.value || memcmp(a_addr_from, &l_out->addr, sizeof(dap_chain_addr_t))) {
+                    if (!l_out->header.value || memcmp(a_addr_from, &l_out->addr, sizeof(dap_chain_addr_t)))
                         continue;
-                    }
                     l_value = GET_256_FROM_64(l_out->header.value);
                 } break;
                 case TX_ITEM_TYPE_OUT: {
                     dap_chain_tx_out_t *l_out = (dap_chain_tx_out_t *)l_list_tmp->data;
-                    if ( IS_ZERO_256(l_out->header.value) || memcmp(a_addr_from, &l_out->addr, sizeof(dap_chain_addr_t))) {
+                    if (memcmp(a_addr_from, &l_out->addr, sizeof(dap_chain_addr_t)) ||
+                            dap_strcmp(dap_chain_ledger_tx_get_token_ticker_by_hash(a_ledger, &l_tx_cur_hash), a_token_ticker) ||
+                            IS_ZERO_256(l_out->header.value))
                         continue;
-                    }
                     l_value = l_out->header.value;
                 } break;
                 case TX_ITEM_TYPE_OUT_EXT: {
                     dap_chain_tx_out_ext_t *l_out_ext = (dap_chain_tx_out_ext_t *)l_list_tmp->data;
-                    if (IS_ZERO_256(l_out_ext->header.value) || memcmp(a_addr_from, &l_out_ext->addr, sizeof(dap_chain_addr_t)) ||
-                            strcmp((char *)a_token_ticker, l_out_ext->token)) {
+                    if (memcmp(a_addr_from, &l_out_ext->addr, sizeof(dap_chain_addr_t)) ||
+                            strcmp((char *)a_token_ticker, l_out_ext->token) ||
+                            IS_ZERO_256(l_out_ext->header.value) ) {
                         continue;
                     }
                     l_value = l_out_ext->header.value;
@@ -5557,6 +5558,7 @@ dap_list_t *dap_chain_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, c
             if (!dap_chain_ledger_tx_hash_is_used_out_item (a_ledger, &l_tx_cur_hash, l_out_idx_tmp, NULL)) {
                 dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
                 if ( !l_item ) {
+                    log_it(L_CRITICAL, "Out of memory");
                     if (l_list_used_out)
                         dap_list_free_full(l_list_used_out, NULL);
                     dap_list_free(l_list_out_items);

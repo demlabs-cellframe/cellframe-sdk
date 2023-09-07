@@ -637,7 +637,6 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
                     l_seller_addr, NULL, 0);
         if (!l_tx_out) {
             dap_chain_datum_tx_delete(l_tx);
-            DAP_DELETE(l_seller_addr);
             log_it(L_WARNING, "Can't add selling coins back conditioned output (cond cashback)");
             return NULL;
         }
