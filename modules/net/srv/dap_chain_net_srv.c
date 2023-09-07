@@ -850,7 +850,8 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
     for (size_t i=0; i < l_orders_count; i++){
         l_err_code = -4;
         dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_read(l_orders[i].value, l_orders[i].value_len);
-        if (l_order->node_addr.uint64 == l_node_addr->uint64) {
+        if (l_order->node_addr.uint64 == l_node_addr->uint64 &&
+            l_order->srv_uid.uint64 == a_srv->uid.uint64) {
             l_err_code = 0;
             dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
             if (!l_price) {
@@ -862,7 +863,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
             l_price->net = l_net;
             l_price->net_name = dap_strdup(l_net->pub.name);
             uint256_t l_max_price = GET_256_FROM_64(l_max_price_cfg); // Change this value when max price wil be calculated
-            if (!compare256(l_order->price, uint256_0) || l_order->units == 0 ){
+            if (IS_ZERO_256(l_order->price) || l_order->units == 0 ){
                 log_it(L_ERROR, "Invalid order: units count or price unspecified");
                 DAP_DELETE(l_price);
                 continue;
@@ -884,6 +885,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
                 }
             }
             l_price->wallet = l_wallet;
+            // TODO: find most advantageous for us order
             DL_APPEND(a_srv->pricelist, l_price);
             break;
         }
