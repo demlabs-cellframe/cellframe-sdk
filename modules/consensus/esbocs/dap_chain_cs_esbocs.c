@@ -663,10 +663,15 @@ static void s_get_last_block_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a
     a_chain->callback_atom_iter_delete(l_iter);
 }
 
-static int s_callback_addr_compare(const void *a_list_data, const void *a_user_data)
+static int s_callback_addr_compare(const void *a_list_elem, const void *a_addr)
 {
-    return memcmp(&((dap_chain_esbocs_validator_t *)a_list_data)->signing_addr,
-                  (dap_chain_addr_t *)a_user_data, sizeof(dap_chain_addr_t));
+    dap_chain_esbocs_validator_t *l_validator = (dap_chain_esbocs_validator_t*)((dap_list_t*)a_list_elem)->data;
+    dap_chain_addr_t *l_addr = (dap_chain_addr_t*)a_addr;
+    if (!l_validator || !l_addr) {
+        log_it(L_CRITICAL, "Invalid argument");
+        return -1;
+    }
+    return memcmp(&l_validator->signing_addr, l_addr, sizeof(dap_chain_addr_t));
 }
 
 static dap_list_t *s_validator_check(dap_chain_addr_t *a_addr, dap_list_t *a_validators)
@@ -674,11 +679,15 @@ static dap_list_t *s_validator_check(dap_chain_addr_t *a_addr, dap_list_t *a_val
     return dap_list_find(a_validators, a_addr, s_callback_addr_compare);
 }
 
-static int s_callback_addr_compare_synced(const void *a_list_data, const void *a_user_data)
+static int s_callback_addr_compare_synced(const void *a_list_elem, const void *a_addr)
 {
-    return memcmp(&((dap_chain_esbocs_validator_t *)a_list_data)->signing_addr,
-                  (dap_chain_addr_t *)a_user_data, sizeof(dap_chain_addr_t)) ||
-            !((dap_chain_esbocs_validator_t *)a_list_data)->is_synced;
+    dap_chain_esbocs_validator_t *l_validator = (dap_chain_esbocs_validator_t*)((dap_list_t*)a_list_elem)->data;
+    dap_chain_addr_t *l_addr = (dap_chain_addr_t*)a_addr;
+    if (!l_validator || !l_addr) {
+        log_it(L_CRITICAL, "Invalid argument");
+        return -1;
+    }
+    return memcmp(&l_validator->signing_addr, l_addr, sizeof(dap_chain_addr_t)) || !l_validator->is_synced;
 }
 
 static dap_list_t *s_validator_check_synced(dap_chain_addr_t *a_addr, dap_list_t *a_validators)
@@ -950,10 +959,18 @@ static uint64_t s_session_calc_current_round_id(dap_chain_esbocs_session_t *a_se
 
 static int s_signs_sort_callback(const void *a_sign1, const void *a_sign2)
 {
-    size_t  l_size1 = dap_sign_get_size((dap_sign_t*)a_sign1),
-            l_size2 = dap_sign_get_size((dap_sign_t*)a_sign2),
+    dap_sign_t  *l_sign1 = (dap_sign_t*)((dap_list_t*)a_sign1)->data,
+                *l_sign2 = (dap_sign_t*)((dap_list_t*)a_sign1)->data;
+    if (!l_sign1 || !l_sign2) {
+        log_it(L_CRITICAL, "Invalid element");
+        return 0;
+    }
+
+    size_t  l_size1 = dap_sign_get_size(l_sign1),
+            l_size2 = dap_sign_get_size(l_sign2),
             l_size_min = MIN(l_size1, l_size2);
-    int l_ret = memcmp(a_sign1, a_sign2, l_size_min);
+
+    int l_ret = memcmp(l_sign1, l_sign2, l_size_min);
     if (!l_ret) {
         l_ret = l_size1 == l_size2 ? 0 : l_size1 > l_size2 ? 1 : -1;
     }

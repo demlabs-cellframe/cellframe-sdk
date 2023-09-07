@@ -2292,13 +2292,16 @@ static void remove_duplicates_in_chain_by_priority(dap_chain_t *l_chain_1, dap_c
 typedef struct list_priority_{
     uint16_t prior;
     char * chains_path;
-}list_priority;
+} list_priority;
 
-static int callback_compare_prioritity_list(const void * a_item1, const void * a_item2)
+static int callback_compare_prioritity_list(const void *a_item1, const void *a_item2)
 {
-    if (!a_item1 || !a_item2)
+    list_priority   *l_item1 = (list_priority*)((dap_list_t*)a_item1)->data,
+                    *l_item2 = (list_priority*)((dap_list_t*)a_item2)->data;
+    if (!l_item1 || !l_item2) {
+        log_it(L_CRITICAL, "Invalid arg");
         return 0;
-    list_priority *l_item1 = (list_priority*)a_item1, *l_item2 = (list_priority*)a_item2;
+    }
     return l_item1->prior == l_item2->prior ? 0 : l_item1->prior > l_item2->prior ? 1 : -1;
 }
 
