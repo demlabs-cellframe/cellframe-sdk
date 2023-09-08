@@ -904,7 +904,7 @@ static uint64_t s_session_calc_current_round_id(dap_chain_esbocs_session_t *a_se
         uint64_t l_id_candidate = 0;
         for (dap_chain_esbocs_message_item_t *l_item = a_session->cur_round.message_items; l_item; l_item = l_item->hh.next) {
             if (l_item->message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC &&
-                    l_item->message->hdr.attempt_num == a_session->cur_round.sync_attempt &&
+                    ((struct sync_params *)l_item->message->msg_n_sign)->attempt == a_session->cur_round.sync_attempt &&
                     dap_chain_addr_compare(&l_item->signing_addr, &l_validator->signing_addr)) {
                 l_id_candidate = l_item->message->hdr.round_id;
                 break;
