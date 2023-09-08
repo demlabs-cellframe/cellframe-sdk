@@ -662,10 +662,10 @@ static void s_get_last_block_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a
     a_chain->callback_atom_iter_delete(l_iter);
 }
 
-static int s_callback_addr_compare(const void *a_list_elem, const void *a_addr)
+static int s_callback_addr_compare(const void *a_list_elem, const void *a_addr_elem)
 {
     dap_chain_esbocs_validator_t *l_validator = (dap_chain_esbocs_validator_t*)((dap_list_t*)a_list_elem)->data;
-    dap_chain_addr_t *l_addr = (dap_chain_addr_t*)a_addr;
+    dap_chain_addr_t *l_addr = (dap_chain_addr_t*)((dap_list_t*)a_addr_elem)->data;
     if (!l_validator || !l_addr) {
         log_it(L_CRITICAL, "Invalid argument");
         return -1;
@@ -678,10 +678,10 @@ static dap_list_t *s_validator_check(dap_chain_addr_t *a_addr, dap_list_t *a_val
     return dap_list_find(a_validators, a_addr, s_callback_addr_compare);
 }
 
-static int s_callback_addr_compare_synced(const void *a_list_elem, const void *a_addr)
+static int s_callback_addr_compare_synced(const void *a_list_elem, const void *a_addr_elem)
 {
     dap_chain_esbocs_validator_t *l_validator = (dap_chain_esbocs_validator_t*)((dap_list_t*)a_list_elem)->data;
-    dap_chain_addr_t *l_addr = (dap_chain_addr_t*)a_addr;
+    dap_chain_addr_t *l_addr = (dap_chain_addr_t*)((dap_list_t*)a_addr_elem)->data;
     if (!l_validator || !l_addr) {
         log_it(L_CRITICAL, "Invalid argument");
         return -1;

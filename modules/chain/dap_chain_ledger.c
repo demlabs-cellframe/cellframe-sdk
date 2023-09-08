@@ -3493,14 +3493,15 @@ bool s_tx_match_sign(dap_chain_datum_token_emission_t *a_datum_emission, dap_cha
     return false;
 }
 
-static int s_callback_sign_compare(const void *a_list_elem, const void *a_sign)
+static int s_callback_sign_compare(const void *a_list_elem, const void *a_sign_elem)
 {
     dap_pkey_t* l_key = (dap_pkey_t*)((dap_list_t*)a_list_elem)->data;
-    if (!l_key || !a_sign) {
-        log_it(L_CRITICAL, "Invalid element");
+    dap_sign_t* l_sign = (dap_sign_t*)((dap_list_t*)a_sign_elem)->data;
+    if (!l_key || !l_sign) {
+        log_it(L_CRITICAL, "Invalid argument");
         return -1;
     }
-    return !dap_pkey_match_sign(l_key, (dap_sign_t*)a_sign);
+    return !dap_pkey_match_sign(l_key, l_sign);
 }
 
 bool dap_chain_ledger_tx_poa_signed(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
