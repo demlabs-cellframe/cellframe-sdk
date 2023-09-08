@@ -1002,9 +1002,7 @@ dap_chain_esbocs_directive_t *s_session_directive_ready(dap_chain_esbocs_session
 
 static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s_esbocs_session_state a_new_state, dap_time_t a_time)
 {
-    if (a_new_state == DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_VOTING)
-        a_session->old_state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC;
-    else if (a_new_state != DAP_CHAIN_ESBOCS_SESSION_STATE_PREVIOUS)
+    if (a_new_state != DAP_CHAIN_ESBOCS_SESSION_STATE_PREVIOUS)
         a_session->old_state = a_session->state;
 
     a_session->state = a_new_state;
@@ -1070,6 +1068,24 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
             }
         }
     } break;
+    case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_VOTING: {
+        if (a_session->old_state == DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC) {
+            // Clear mark of chosen to submit validator
+            dap_list_t l_list = s_validator_check(
+                        a_session->cur_round.attempt_submit_validator,
+                        a_session->cur_round.validators_list
+                        );
+            dap_chain_esbocs_validator_t *l_validator = l_list ? l_list->data : NULL;
+            if (!l_validator || !l_validator->is_chosen) {
+                char *l_addr = dap_chain_addr_to_str(&a_session->cur_round.attempt_submit_validator);
+                log_it(L_MSG, "Error: can't find current attmempt submit validator %s in signers list", l_addr);
+                DAP_DELETE(l_addr);
+            }
+            l_validator->is_chosen = false;
+        } else
+            a_session->old_state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC;
+    } break;
+
     case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_FINISH: {
         dap_chain_esbocs_store_t *l_store;
         HASH_FIND(hh, a_session->cur_round.store_items, &a_session->cur_round.attempt_candidate_hash, sizeof(dap_hash_fast_t), l_store);
@@ -2326,7 +2342,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 
     case DAP_CHAIN_ESBOCS_MSG_TYPE_DIRECTIVE: {
         if (l_session->cur_round.directive) {
-            log_it(L_WARNING, "Only one directive can be processed at a time");
+            log_it(L_WARNING, "Only one directive can be processed by round");
             break;
         }
         dap_chain_esbocs_directive_t *l_directive = l_message_data;
