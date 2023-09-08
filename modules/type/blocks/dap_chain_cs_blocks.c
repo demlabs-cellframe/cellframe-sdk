@@ -898,10 +898,7 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
     dap_chain_block_chunks_delete(PVT(l_blocks)->chunks);
     PVT(l_blocks)->block_cache_last = NULL;
     PVT(l_blocks)->block_cache_first = NULL;
-    dap_chain_cell_t *l_cell = NULL, *l_cell_tmp = NULL;
-    HASH_ITER(hh, a_chain->cells, l_cell, l_cell_tmp) {
-        dap_chain_cell_delete(l_cell);
-    }
+    dap_chain_cell_delete_all(a_chain);
     PVT(l_blocks)->chunks = dap_chain_block_chunks_create(l_blocks);
 }
 
