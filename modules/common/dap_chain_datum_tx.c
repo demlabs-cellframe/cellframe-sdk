@@ -309,8 +309,6 @@ int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *tx)
 }
 
 json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx){
-    json_object *l_obj = json_object_new_object();
-    json_object *l_obj_ts_created = json_object_new_uint64(a_tx->header.ts_created);
     json_object *l_obj_items = json_object_new_array();
     uint32_t l_tx_items_count = 0;
     uint32_t l_tx_items_size = a_tx->header.tx_items_size;
@@ -403,8 +401,5 @@ json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx){
 
         l_tx_items_count += l_tx_item_size;
     }
-    json_object_object_add(l_obj, "tsCrated", l_obj_ts_created);
-    json_object_object_add(l_obj, "items", l_obj_items);
-    return l_obj;
+    return l_obj_items;
 }
-
