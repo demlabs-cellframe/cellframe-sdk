@@ -1085,8 +1085,8 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
     case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_VOTING: {
         if (a_session->old_state == DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC) {
             // Clear mark of chosen to submit validator
-            dap_list_t l_list = s_validator_check(
-                        a_session->cur_round.attempt_submit_validator,
+            dap_list_t *l_list = s_validator_check(
+                        &a_session->cur_round.attempt_submit_validator,
                         a_session->cur_round.validators_list
                         );
             dap_chain_esbocs_validator_t *l_validator = l_list ? l_list->data : NULL;
