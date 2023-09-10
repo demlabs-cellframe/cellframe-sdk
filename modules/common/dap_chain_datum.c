@@ -47,7 +47,7 @@ dap_chain_datum_t *dap_chain_datum_create(uint16_t a_type_id, const void *a_data
 {
    dap_chain_datum_t *l_datum = DAP_NEW_Z_SIZE(dap_chain_datum_t, sizeof(l_datum->header)+ a_data_size);
    if(!l_datum) {
-        log_it(L_CRITICAL, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return NULL;
    }
    memcpy(l_datum->data, a_data, (uint32_t)a_data_size);        // Compiler warning escape

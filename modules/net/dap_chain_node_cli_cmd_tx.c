@@ -742,15 +742,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
                 dap_chain_wallet_t * l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
                 if(l_wallet) {
                     l_sign_str = dap_chain_wallet_check_bliss_sign(l_wallet);
-                    dap_chain_addr_t *l_addr_tmp = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet,
-                            l_net->pub.id);
-                    l_addr = DAP_NEW_SIZE(dap_chain_addr_t, sizeof(dap_chain_addr_t));
-                    if (!l_addr) {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Out of memory!");
-                        log_it(L_CRITICAL, "Memory allocation error");
-                        return -1;
-                    }
-                    memcpy(l_addr, l_addr_tmp, sizeof(dap_chain_addr_t));
+                    l_addr = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
                     dap_chain_wallet_close(l_wallet);
                 }
             }

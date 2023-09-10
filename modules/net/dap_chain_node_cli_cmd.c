@@ -133,7 +133,6 @@ dap_chain_node_addr_t* dap_chain_node_addr_get_by_alias(dap_chain_net_t * a_net,
         DAP_DELETE(l_addr);
         l_addr = NULL;
     }
-//    DAP_DELETE(addr_str);
     return l_addr;
 }
 
@@ -182,18 +181,11 @@ static dap_list_t* get_aliases_by_name(dap_chain_net_t * l_net, dap_chain_node_a
  */
 static dap_chain_node_addr_t* s_node_info_get_addr(dap_chain_net_t * a_net, dap_chain_node_addr_t *a_addr, const char *a_alias_str)
 {
-    dap_chain_node_addr_t *l_address = NULL;
-    if(a_alias_str && !a_addr->uint64) {
-        l_address = dap_chain_node_addr_get_by_alias(a_net, a_alias_str);
-    }
-    if(a_addr->uint64) {
-        l_address = DAP_NEW(dap_chain_node_addr_t);
-        if (!l_address) {
-            log_it(L_CRITICAL, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
-            return NULL;
-        }
-        l_address->uint64 = a_addr->uint64;
-    }
+    dap_chain_node_addr_t *l_address = a_alias_str
+            ? dap_chain_node_addr_get_by_alias(a_net, a_alias_str)
+            : a_addr && a_addr->uint64 ? DAP_DUP(a_addr) : NULL;
+    if (!l_address)
+        log_it(L_ERROR, "Node address with specified params not found");
     return l_address;
 }
 
@@ -533,18 +525,14 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
     int l_ret = 0;
     dap_string_t *l_string_reply = dap_string_new("Node dump:");
 
-    if((a_addr && a_addr->uint64) || a_alias) {
-        dap_chain_node_addr_t *l_addr = NULL;
-        if(a_addr && a_addr->uint64) {
-            l_addr = DAP_NEW(dap_chain_node_addr_t);
-            if(!l_addr) {
-                log_it(L_CRITICAL, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
-                dap_string_free(l_string_reply, true);
-                return -1;
-            }
-            l_addr->uint64 = a_addr->uint64;
-        } else if(a_alias) {
-            l_addr = dap_chain_node_alias_find(a_net, a_alias);
+    if (a_addr || a_alias) {
+        dap_chain_node_addr_t *l_addr = a_alias
+                ? dap_chain_node_alias_find(a_net, a_alias)
+                : a_addr && a_addr->uint64 ? DAP_DUP(a_addr) : NULL;
+
+        if (!l_addr) {
+            log_it(L_ERROR, "Node address with specified params not found");
+            return -1;
         }
 
         // read node
@@ -918,7 +906,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
                 dap_get_data_hash_str_static(l_value, l_value_len, l_hash_str);
                 char *l_value_str = DAP_NEW_Z_SIZE(char, l_value_len * 2 + 2);
                 if(!l_value_str) {
-                    log_it(L_CRITICAL, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                    log_it(L_CRITICAL, "Memory allocation error");
                     DAP_DELETE(l_value);
                     return -1;
                 }
@@ -1197,7 +1185,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     if(cmd_num >= CMD_ADD && cmd_num <= CMD_LINK) {
         l_node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, l_node_info_size);
         if (!l_node_info) {
-            log_it(L_CRITICAL, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+            log_it(L_CRITICAL, "Memory allocation error");
             return -1;
         }
     }
@@ -1925,8 +1913,6 @@ int com_tx_wallet(int a_argc, char **a_argv, char **a_str_reply)
 const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
 enum { CMD_NONE, CMD_WALLET_NEW, CMD_WALLET_LIST, CMD_WALLET_INFO, CMD_WALLET_ACTIVATE, CMD_WALLET_DEACTIVATE, CMD_WALLET_CONVERT };
 int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
-char    l_buf[1024];
-
 
     // find  add parameter ('alias' or 'handshake')
     if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "new", NULL))
@@ -2109,40 +2095,31 @@ char    l_buf[1024];
             switch (cmd_num) {
                 case CMD_WALLET_ACTIVATE:
                 case CMD_WALLET_DEACTIVATE: {
+                    const char *l_prefix = CMD_WALLET_DEACTIVATE ? "" : "de";
                     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-ttl", &l_ttl_str);
-                    if ( l_ttl_str )
-                        l_rc = strtoul(l_ttl_str, NULL, 10);
-                    else
-                        l_rc = 60;
-                        l_rc = l_rc ? l_rc : 60;
+                    l_rc = l_ttl_str ? strtoul(l_ttl_str, NULL, 10) : 60;
 
-                    if ( cmd_num == CMD_WALLET_ACTIVATE )
-                        l_rc = dap_chain_wallet_activate   (l_wallet_name, strlen(l_wallet_name), l_pass_str, strlen(l_pass_str), l_rc );
-                    else
-                        l_rc = dap_chain_wallet_deactivate (l_wallet_name, strlen(l_wallet_name), l_pass_str, strlen(l_pass_str) );
+                    l_rc = cmd_num == CMD_WALLET_ACTIVATE
+                            ? dap_chain_wallet_activate(l_wallet_name, strlen(l_wallet_name), l_pass_str, strlen(l_pass_str), l_rc)
+                            : dap_chain_wallet_deactivate (l_wallet_name, strlen(l_wallet_name), l_pass_str, strlen(l_pass_str));
 
-                    if ( !l_rc ) {
-                        dap_string_append_printf(l_string_ret, "Wallet: %s is %sactivated\n",
-                            l_wallet_name, cmd_num == CMD_WALLET_ACTIVATE ? "" : "de");
-                    } else {
-                        switch ( l_rc ) {
-                            case    -EBUSY:
-                                strcpy(l_buf, "already activated");
-                                break;
-
-                            case    -EINVAL:
-                                strcpy(l_buf, "wrong password");
-                                break;
-
-                            default:
-                                strerror_r(l_rc, l_buf, sizeof(l_buf) - 1 );
-                                break;
-                        }
-
-                        dap_string_append_printf(l_string_ret, "Wallet: %s  %sactivation error, errno=%d (%s)\n",
-                                l_wallet_name, cmd_num == CMD_WALLET_ACTIVATE ? "" : "de", l_rc, l_buf );
+                    switch (l_rc) {
+                    case 0:
+                        dap_string_append_printf(l_string_ret, "Wallet %s is %sactivated\n", l_wallet_name, l_prefix);
+                        break;
+                    case -EBUSY:
+                        dap_string_append_printf(l_string_ret, "Error: wallet %s is already %sactivated\n", l_wallet_name, l_prefix);
+                        break;
+                    case -EINVAL:
+                        dap_string_append_printf(l_string_ret, "Error: wrong password for wallet %s\n", l_wallet_name);
+                        break;
+                    default: {
+                        char l_buf[512] = { '\0' };
+                        strerror_r(l_rc, l_buf, sizeof(l_buf) - 1);
+                        dap_string_append_printf(l_string_ret, "Wallet %s %sactivation error %d : %s\n", l_wallet_name, l_prefix, l_rc, l_buf);
+                        break;
                     }
-                    break;
+                    }
                 }
                 // convert wallet
                 case CMD_WALLET_CONVERT: {
@@ -2227,9 +2204,9 @@ char    l_buf[1024];
                     if(l_restore_opt || l_restore_legacy_opt) {
                         if (l_restore_str_size > 3 && !dap_strncmp(l_restore_str, "0x", 2) && (!dap_is_hex_string(l_restore_str + 2, l_restore_str_size - 2) || l_restore_legacy_opt)) {
                             l_seed_size = (l_restore_str_size - 2) / 2;
-                            l_seed = DAP_NEW_SIZE(uint8_t, l_seed_size);
+                            l_seed = DAP_NEW_Z_SIZE(uint8_t, l_seed_size);
                             if(!l_seed) {
-                                log_it(L_CRITICAL, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                                log_it(L_CRITICAL, "Memory allocation error");
                                 dap_string_free(l_string_ret, true);
                                 return -1;
                             }
@@ -2247,7 +2224,7 @@ char    l_buf[1024];
                     // Creates new wallet
                     l_wallet = dap_chain_wallet_create_with_seed(l_wallet_name, c_wallets_path, l_sign_type,
                             l_seed, l_seed_size, l_pass_str);
-
+                    DAP_DELETE(l_seed);
                     if (!l_wallet) {
                         dap_string_free(l_string_ret, true);
                         return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet is not created because of internal error. Check name or password length (max 64 chars)"), -1;
@@ -3557,7 +3534,7 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, char **
     size_t l_tsd_offset = 0;
     a_params->ext.parsed_tsd = DAP_NEW_SIZE(byte_t, l_tsd_total_size);
     if(!a_params->ext.parsed_tsd) {
-        log_it(L_CRITICAL, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return -1;
     }
     for (dap_list_t *l_iter = dap_list_first(l_tsd_list); l_iter; l_iter = l_iter->next) {
@@ -3728,7 +3705,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
     dap_sdk_cli_params* l_params = DAP_NEW_Z(dap_sdk_cli_params);
 
     if (!l_params) {
-        log_it(L_CRITICAL, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return -1;
     }
 
@@ -3836,7 +3813,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
             // Create new datum token
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t) + l_params->ext.tsd_total_size);
             if (!l_datum_token) {
-                log_it(L_CRITICAL, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                log_it(L_CRITICAL, "Memory allocation error");
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Out of memory in com_token_decl");
                 DAP_DEL_Z(l_params);
                 return -1;
@@ -3901,7 +3878,7 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE: { // 256
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t));
             if (!l_datum_token) {
-                log_it(L_CRITICAL, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                log_it(L_CRITICAL, "Memory allocation error");
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Out of memory in com_token_decl");
                 DAP_DEL_Z(l_params);
                 return -1;
@@ -4034,7 +4011,7 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
     dap_sdk_cli_params* l_params = DAP_NEW_Z(dap_sdk_cli_params);
 
     if (!l_params) {
-        log_it(L_CRITICAL, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return -1;
     }
 
@@ -4072,7 +4049,7 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
             // Create new datum token
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t) + l_params->ext.tsd_total_size);
             if (!l_datum_token) {
-                log_it(L_CRITICAL, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                log_it(L_CRITICAL, "Memory allocation error");
                 return -1;
             }
             l_datum_token->version = 2;
@@ -4109,7 +4086,7 @@ int com_token_update(int a_argc, char ** a_argv, char ** a_str_reply)
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE: { // 256
             l_datum_token = DAP_NEW_Z_SIZE(dap_chain_datum_token_t, sizeof(dap_chain_datum_token_t));
             if (!l_datum_token) {
-                log_it(L_CRITICAL, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                log_it(L_CRITICAL, "Memory allocation error");
                 return -1;
             }
             l_datum_token->version = 2;
@@ -4687,7 +4664,7 @@ int com_chain_ca_pub( int a_argc,  char ** a_argv, char ** a_str_reply)
                                                       l_cert_new->enc_key->pub_key_data_size =
                                                       l_cert->enc_key->pub_key_data_size );
     if(!l_cert_new->enc_key->pub_key_data) {
-        log_it(L_CRITICAL, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         DAP_DELETE(l_cert_new->enc_key);
         DAP_DELETE(l_cert_new);
         return -11;
@@ -4935,7 +4912,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
     // Create transaction
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
     if(!l_tx) {
-        log_it(L_CRITICAL, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        log_it(L_CRITICAL, "Memory allocation error");
         return -16;
     }
     l_tx->header.ts_created = time(NULL);
@@ -6138,7 +6115,7 @@ int cmd_gdb_export(int a_argc, char **a_argv, char **a_str_reply)
             size_t l_out_size = DAP_ENC_BASE64_ENCODE_SIZE((int64_t)l_store_obj[i].value_len) + 1;
             char *l_value_enc_str = DAP_NEW_Z_SIZE(char, l_out_size);
             if(!l_value_enc_str) {
-                log_it(L_CRITICAL, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                log_it(L_CRITICAL, "Memory allocation error");
                 return -1;
             }
             dap_enc_base64_encode(l_store_obj[i].value, l_store_obj[i].value_len, l_value_enc_str, DAP_ENC_DATA_TYPE_B64);
@@ -6222,7 +6199,7 @@ int cmd_gdb_import(int a_argc, char **a_argv, char ** a_str_reply)
         size_t l_records_count = json_object_array_length(l_json_records);
         pdap_store_obj_t l_group_store = DAP_NEW_Z_SIZE(dap_store_obj_t, l_records_count * sizeof(dap_store_obj_t));
         if(!l_group_store) {
-            log_it(L_CRITICAL, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+            log_it(L_CRITICAL, "Memory allocation error");
             return -1;
         }
         for (size_t j = 0; j < l_records_count; ++j) {
@@ -6244,7 +6221,7 @@ int cmd_gdb_import(int a_argc, char **a_argv, char ** a_str_reply)
             const char *l_value_str = json_object_get_string(l_value);
             char *l_val = DAP_NEW_Z_SIZE(char, l_group_store[j].value_len);
             if(!l_val) {
-                log_it(L_CRITICAL, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                log_it(L_CRITICAL, "Memory allocation error");
                 l_records_count = j;
                 break;
             }
@@ -6332,7 +6309,7 @@ int cmd_remove(int a_argc, char **a_argv, char ** a_str_reply)
             size_t l_aliases_count = 0;
             _pvt_net_aliases_list_t *l_gdb_groups = DAP_NEW(_pvt_net_aliases_list_t);
             if (!l_gdb_groups) {
-                log_it(L_CRITICAL, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                log_it(L_CRITICAL, "Memory allocation error");
                 dap_list_free(l_net_returns);
                 return -1;
             }
