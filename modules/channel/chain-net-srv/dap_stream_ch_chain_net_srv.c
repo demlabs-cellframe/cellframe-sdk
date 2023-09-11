@@ -107,6 +107,7 @@ static inline void s_grace_error(dap_chain_net_srv_grace_t *a_grace, dap_stream_
                     DAP_DELETE(a_grace);
                     return;
                 }
+                log_it(L_DEBUG, "Add client to banlist");
                 l_item->client_pkey_hash = a_grace->usage->client_pkey_hash;
                 l_item->ht_mutex = &a_grace->usage->service->banlist_mutex;
                 l_item->ht_head = &a_grace->usage->service->ban_list;
@@ -194,6 +195,7 @@ void s_stream_ch_delete(dap_stream_ch_t* a_ch , void* a_arg)
 
 static bool s_unban_client(dap_chain_net_srv_banlist_item_t *a_item)
 {
+    log_it(L_DEBUG, "Unban client");
     pthread_mutex_lock(a_item->ht_mutex);
     HASH_DEL(*(a_item->ht_head), a_item);
     pthread_mutex_unlock(a_item->ht_mutex);
@@ -290,23 +292,12 @@ static void s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
     l_usage->ts_created = time(NULL);
     l_usage->net = l_net;
     l_usage->service = l_srv;
+    l_usage->client_pkey_hash = a_request->hdr.client_pkey_hash;
+
 
     if (l_srv->pricelist){
         // not free service
         log_it( L_INFO, "Valid pricelist is founded. Start service in pay mode.");
-
-//        pthread_mutex_lock(&l_srv->banlist_mutex);
-//        HASH_FIND(hh, l_srv->ban_list, &l_usage->client_pkey_hash, sizeof(dap_chain_hash_fast_t), l_item);
-//        pthread_mutex_unlock(&l_srv->banlist_mutex);
-//        if (l_item) {   // client banned
-//            log_it(L_INFO, "Client pkey is banned!");
-//            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_BANNED_PKEY_HASH ;
-//            dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
-//            if (l_usage->service->callbacks.response_error)
-//                    l_usage->service->callbacks.response_error(l_usage->service,l_usage->id, l_usage->client, &l_err, sizeof(l_err));
-//            break;
-//        }
-
 
         dap_chain_net_srv_grace_t *l_grace = DAP_NEW_Z(dap_chain_net_srv_grace_t);
         if (!l_grace) {
@@ -401,6 +392,19 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
 
     l_tx = a_grace->usage->is_waiting_new_tx_cond ? NULL : dap_chain_ledger_tx_find_by_hash(l_ledger, &a_grace->usage->tx_cond_hash);
     if (!l_tx) { // No tx cond transaction, start grace-period
+        if (!a_grace->usage->is_active){
+            dap_chain_net_srv_banlist_item_t *l_item = NULL;
+            pthread_mutex_lock(&a_grace->usage->service->banlist_mutex);
+            HASH_FIND(hh, a_grace->usage->service->ban_list, &a_grace->usage->client_pkey_hash, sizeof(dap_chain_hash_fast_t), l_item);
+            pthread_mutex_unlock(&a_grace->usage->service->banlist_mutex);
+            if (l_item) {   // client banned
+                log_it(L_INFO, "Client pkey is banned!");
+                l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_BANNED_PKEY_HASH ;
+                s_grace_error(a_grace, l_err);;
+                return;
+            }
+        }
+
         a_grace->usage->is_grace = true;
         if (a_grace->usage->receipt){ // If it is repeated grace
             DL_FOREACH(a_grace->usage->service->pricelist, l_price) {
@@ -571,7 +575,7 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
             return;
         }
 
-        memcpy(&a_grace->usage->client_pkey_hash, &l_tx_out_cond->subtype.srv_pay.pkey_hash, sizeof(dap_chain_hash_fast_t));
+//        memcpy(&a_grace->usage->client_pkey_hash, &l_tx_out_cond->subtype.srv_pay.pkey_hash, sizeof(dap_chain_hash_fast_t));
 
         if(!a_grace->usage->receipt){
             dap_stream_ch_chain_net_srv_remain_service_store_t* l_remain_service = NULL;
@@ -784,7 +788,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
         }
 
         if (!l_grace->usage->receipt){
-            memcpy(&l_grace->usage->client_pkey_hash, &l_tx_out_cond->subtype.srv_pay.pkey_hash, sizeof(dap_chain_hash_fast_t));
+//            memcpy(&l_grace->usage->client_pkey_hash, &l_tx_out_cond->subtype.srv_pay.pkey_hash, sizeof(dap_chain_hash_fast_t));
             // get remain units from DB
             dap_stream_ch_chain_net_srv_remain_service_store_t* l_remain_service = NULL;
             l_remain_service = l_grace->usage->service->callbacks.get_remain_service(l_grace->usage->service, l_grace->usage->id, l_grace->usage->client);
@@ -1124,41 +1128,13 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
             break;
         }
         // Check receipt signature pkey hash
-        dap_chain_net_srv_banlist_item_t *l_item = NULL;
         dap_chain_net_srv_t * l_srv = dap_chain_net_srv_get(l_receipt->receipt_info.srv_uid);
-        dap_sign_get_pkey_hash(l_receipt_sign, &l_usage->client_pkey_hash);
-        if (l_usage->is_grace) {
-            pthread_mutex_lock(&l_srv->banlist_mutex);
-            HASH_FIND(hh, l_srv->ban_list, &l_usage->client_pkey_hash, sizeof(dap_chain_hash_fast_t), l_item);
-            pthread_mutex_unlock(&l_srv->banlist_mutex);
-            if (l_item) {   // client banned
-                    log_it(L_INFO, "Client pkey is banned!");
-                    usages_in_grace_t *l_grace_item = NULL;
-                    pthread_mutex_lock(&s_ht_grace_table_mutex);
-                    HASH_FIND(hh, s_grace_table, &l_usage->tx_cond_hash, sizeof(dap_hash_fast_t), l_grace_item);
-                    if (l_grace_item){
-                        // Stop timer
-                        dap_timerfd_delete_mt(l_grace_item->grace->stream_worker->worker, l_grace_item->grace->timer_es_uuid);
-                        // finish grace
-                        HASH_DEL(s_grace_table, l_grace_item);
-                        DAP_DEL_Z(l_grace_item);
-
-                    }
-                    pthread_mutex_unlock(&s_ht_grace_table_mutex);
-                    l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_BANNED_PKEY_HASH ;
-                    dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof(l_err));
-                    if (l_usage->service->callbacks.response_error)
-                            l_usage->service->callbacks.response_error(l_usage->service,l_usage->id, l_usage->client, &l_err, sizeof(l_err));
-                    break;
-                }
-        } else {
-            if (memcmp(l_usage->client_pkey_hash.raw, l_tx_out_cond->subtype.srv_pay.pkey_hash.raw, sizeof(l_usage->client_pkey_hash)) != 0) {
-                l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_WRONG_PKEY_HASH ;
-                dap_stream_ch_pkt_write_unsafe( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
-                if (l_usage->service->callbacks.response_error)
-                        l_usage->service->callbacks.response_error(l_usage->service,l_usage->id, l_usage->client,&l_err,sizeof (l_err) );
-                break;
-            }
+        if (memcmp(l_usage->client_pkey_hash.raw, l_tx_out_cond->subtype.srv_pay.pkey_hash.raw, sizeof(l_usage->client_pkey_hash)) != 0) {
+            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_WRONG_PKEY_HASH ;
+            dap_stream_ch_pkt_write_unsafe( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err) );
+            if (l_usage->service->callbacks.response_error)
+                    l_usage->service->callbacks.response_error(l_usage->service,l_usage->id, l_usage->client,&l_err,sizeof (l_err) );
+            break;
         }
 
         // Update actual receipt
