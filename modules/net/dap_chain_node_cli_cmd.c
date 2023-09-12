@@ -2095,7 +2095,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             switch (cmd_num) {
                 case CMD_WALLET_ACTIVATE:
                 case CMD_WALLET_DEACTIVATE: {
-                    const char *l_prefix = CMD_WALLET_DEACTIVATE ? "" : "de";
+                    const char *l_prefix = cmd_num == CMD_WALLET_ACTIVATE ? "" : "de";
                     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-ttl", &l_ttl_str);
                     l_rc = l_ttl_str ? strtoul(l_ttl_str, NULL, 10) : 60;
 
@@ -2110,7 +2110,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     case -EBUSY:
                         dap_string_append_printf(l_string_ret, "Error: wallet %s is already %sactivated\n", l_wallet_name, l_prefix);
                         break;
-                    case -EINVAL:
+                    case -EAGAIN:
                         dap_string_append_printf(l_string_ret, "Error: wrong password for wallet %s\n", l_wallet_name);
                         break;
                     default: {
@@ -2120,7 +2120,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         break;
                     }
                     }
-                }
+                } break;
                 // convert wallet
                 case CMD_WALLET_CONVERT: {
                     l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
