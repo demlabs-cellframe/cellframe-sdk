@@ -1488,7 +1488,7 @@ bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t 
     if (!l_found) {
         l_net_pvt->active_link = a_client;
     }
-    if (l_found && !dap_list_find(l_net_pvt->links_queue, a_client))
+    if (l_found && !dap_list_find(l_net_pvt->links_queue, a_client, NULL))
         l_net_pvt->links_queue = dap_list_append(l_net_pvt->links_queue, a_client);
     if (a_err != EDEADLK)
         pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
