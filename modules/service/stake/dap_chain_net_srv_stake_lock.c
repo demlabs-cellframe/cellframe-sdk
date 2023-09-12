@@ -120,14 +120,14 @@ int dap_chain_net_srv_stake_lock_init()
        "Command:"
                 "stake_lock hold\n"
                 "Required parameters:\n"
-                "-net <net name> -wallet <wallet name> -time_staking <in YYMMDD>\n"
+                "-net <net name> -w <wallet name> -time_staking <in YYMMDD>\n"
                 "-token <ticker> -value <value> -fee <value>\n"
                 "Optional parameters:\n"
                 "-chain <chain> -reinvest <percentage from 1 to 100>\n"
                 "Command:"
                 "stake_lock take\n"
                 "Required parameters:\n"
-                "-net <net name> -wallet <wallet name> -tx <transaction hash> -fee <value>\n"
+                "-net <net name> -w <wallet name> -tx <transaction hash> -fee <value>\n"
                 "Optional parameters:\n"
                 "-chain <chain>\n"
     );
@@ -244,12 +244,12 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
     if(!l_chain)
         return CHAIN_ERROR;
 
-    if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-wallet", &l_wallet_str)
-    ||	NULL == l_wallet_str)
+    if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-w", &l_wallet_str)
+    ||	!l_wallet_str)
         return WALLET_ARG_ERROR;
 
     if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-fee", &l_value_fee_str)
-    ||	NULL == l_value_fee_str)
+    ||	!l_value_fee_str)
         return FEE_ARG_ERROR;
 
     if (IS_ZERO_256( (l_value_fee = dap_chain_balance_scan(l_value_fee_str)) ))
@@ -257,7 +257,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 
     // Read time staking
     if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-time_staking", &l_time_staking_str)
-    ||	NULL == l_time_staking_str)
+    ||	!l_time_staking_str)
         return TIME_ERROR;
 
     if (dap_strlen(l_time_staking_str) != 6)
@@ -299,6 +299,8 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
     if(NULL == (l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallets_path))) {
         dap_string_append_printf(output_line, "'%s'", l_wallet_str);
         return WALLET_OPEN_ERROR;
+    } else {
+        dap_string_append_printf(output_line, "%s\n", dap_chain_wallet_check_bliss_sign(l_wallet));
     }
 
     if (compare256(dap_chain_wallet_get_balance(l_wallet, l_net->pub.id, l_ticker_str), l_value) == -1) {
@@ -438,12 +440,12 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
         }
     }
 
-    if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-wallet", &l_wallet_str)
-    ||	NULL == l_wallet_str)
+    if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-w", &l_wallet_str)
+    ||	!l_wallet_str)
         return WALLET_ARG_ERROR;
 
     if (!dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, a_argc, "-fee", &l_value_fee_str)
-    ||	NULL == l_value_fee_str)
+    ||	!l_value_fee_str)
         return FEE_ARG_ERROR;
 
     if (IS_ZERO_256( (l_value_fee = dap_chain_balance_scan(l_value_fee_str)) ))
@@ -451,6 +453,9 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 
     if (NULL == (l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallets_path)))
         return WALLET_OPEN_ERROR;
+    else
+        dap_string_append_printf(output_line, "%s\n", dap_chain_wallet_check_bliss_sign(l_wallet));
+
 
     if (NULL == (l_owner_key = dap_chain_wallet_get_key(l_wallet, 0))) {
         dap_chain_wallet_close(l_wallet);
@@ -562,7 +567,7 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
             } break;
 
         case WALLET_ARG_ERROR: {
-            dap_string_append_printf(output_line, "stake_lock command requires parameter -wallet");
+            dap_string_append_printf(output_line, "stake_lock command requires parameter -w");
             } break;
 
         case WALLET_OPEN_ERROR: {
@@ -943,8 +948,7 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
         } else
             l_burning_tx = a_tx_in;
 
-        int l_outs_count = 0;
-        dap_list_t *l_outs_list = dap_chain_datum_tx_items_get(l_burning_tx, TX_ITEM_TYPE_OUT_ALL, &l_outs_count);
+        dap_list_t *l_outs_list = dap_chain_datum_tx_items_get(l_burning_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
         uint256_t l_blank_out_value = {};
         for (dap_list_t *it = l_outs_list; it; it = it->next) {
             byte_t l_type = *(byte_t *)it->data;
