@@ -2292,18 +2292,17 @@ static void remove_duplicates_in_chain_by_priority(dap_chain_t *l_chain_1, dap_c
 typedef struct list_priority_{
     uint16_t prior;
     char * chains_path;
-}list_priority;
+} list_priority;
 
-static int callback_compare_prioritity_list(const void * a_item1, const void * a_item2, void *a_unused)
+static int callback_compare_prioritity_list(const void *a_item1, const void *a_item2)
 {
-    UNUSED(a_unused);
-    list_priority *l_item1 = (list_priority*) a_item1;
-    list_priority *l_item2 = (list_priority*) a_item2;
-    if(!l_item1 || !l_item2 || l_item1->prior == l_item2->prior)
+    list_priority   *l_item1 = (list_priority*)((dap_list_t*)a_item1)->data,
+                    *l_item2 = (list_priority*)((dap_list_t*)a_item2)->data;
+    if (!l_item1 || !l_item2) {
+        log_it(L_CRITICAL, "Invalid arg");
         return 0;
-    if(l_item1->prior > l_item2->prior)
-        return 1;
-    return -1;
+    }
+    return l_item1->prior == l_item2->prior ? 0 : l_item1->prior > l_item2->prior ? 1 : -1;
 }
 
 void s_main_timer_callback(void *a_arg)
@@ -3309,7 +3308,7 @@ dap_list_t* dap_chain_net_get_link_node_list(dap_chain_net_t * l_net, bool a_is_
                     DAP_DELETE(l_remote_node_info);
             }
             if(l_is_add) {
-                dap_chain_node_addr_t *l_address = DAP_NEW(dap_chain_node_addr_t);
+                dap_chain_node_addr_t *l_address = DAP_NEW_Z(dap_chain_node_addr_t);
                 if (!l_address) {
                     log_it(L_CRITICAL, "Memory allocation error");
                     return NULL;
@@ -3318,9 +3317,8 @@ dap_list_t* dap_chain_net_get_link_node_list(dap_chain_net_t * l_net, bool a_is_
                 l_node_list = dap_list_append(l_node_list, l_address);
             }
         }
-
+        DAP_DELETE(l_cur_node_info);
     }
-    DAP_DELETE(l_cur_node_info);
     return l_node_list;
 }
 
