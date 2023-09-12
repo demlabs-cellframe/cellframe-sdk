@@ -202,7 +202,7 @@ typedef struct dap_chain {
 
     dap_chain_callback_load_from_gdb callback_load_from_gdb;
 
-    dap_list_t * atom_notifiers;
+    dap_list_t *atom_notifiers;
 //    dap_chain_callback_notify_t callback_notify;
 //    void *callback_notify_arg;
 
