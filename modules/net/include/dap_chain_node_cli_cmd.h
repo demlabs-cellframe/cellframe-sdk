@@ -147,14 +147,14 @@ typedef enum s_com_tx_history_err{
     DAP_CHAIN_NODE_CLI_COM_TX_UNKNOWN /* MAX */
 } s_com_tx_history_err_t;
 
-char *dap_chain_node_cli_com_tx_err(int a_code);
+char *dap_chain_node_cli_com_tx_history_err(int a_code);
 
 /**
  * tx_history command
  *
  * Transaction history for an address
  */
-int com_tx_history(int a_argc, char ** a_argv, json_object* json_reply);
+int com_tx_history(int a_argc, char ** a_argv, json_object** json_arr_reply, char ** str);
 
 
 // Print log info

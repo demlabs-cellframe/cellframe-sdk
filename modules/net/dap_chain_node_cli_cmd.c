@@ -5758,7 +5758,7 @@ static const char *s_com_tx_history_decl_err_str[] = {
     [DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_ALL_ERR] = "DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_ALL_ERR",
 };
 
-char *dap_chain_node_cli_com_tx_err(int a_code) {
+char *dap_chain_node_cli_com_tx_history_err(int a_code) {
     return (a_code >= DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK) && (a_code < DAP_CHAIN_NODE_CLI_COM_TX_UNKNOWN)
             ? (char*)s_com_tx_history_decl_err_str[(dap_chain_ledger_tx_check_t)a_code]
             : dap_itoa(a_code);
@@ -5773,8 +5773,9 @@ char *dap_chain_node_cli_com_tx_err(int a_code) {
  * @param a_str_reply
  * @return int
  */
-int com_tx_history(int a_argc, char ** a_argv, json_object* json_arr_reply)
+int com_tx_history(int a_argc, char ** a_argv, json_object** json_arr_reply, char ** str)
 {
+    UNUSED(str);
     int arg_index = 1;
     const char *l_addr_base58 = NULL;
     const char *l_wallet_name = NULL;
@@ -5928,17 +5929,15 @@ int com_tx_history(int a_argc, char ** a_argv, json_object* json_arr_reply)
             return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_DAP_DB_HISTORY_ALL_ERR;
         }
 
-        json_object_array_add(json_arr_reply, json_arr_history_all);
-        json_object_array_add(json_arr_reply, json_obj_summary);
+        json_object_array_add(*json_arr_reply, json_arr_history_all);
+        json_object_array_add(*json_arr_reply, json_obj_summary);
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK;
     }
 
     if (json_obj_out) { 
-        json_object_array_add(json_arr_reply, json_obj_out);
+        *json_arr_reply = json_object_get(json_obj_out);
     } else {
-        json_object* json_obj_status = json_object_new_object();
-        json_object_object_add(json_obj_status, "status", json_object_new_string("empty"));
-        json_object_array_add(json_arr_reply, json_obj_status);
+        json_object_array_add(*json_arr_reply, json_object_new_string("empty"));
     }
 
     return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK;
