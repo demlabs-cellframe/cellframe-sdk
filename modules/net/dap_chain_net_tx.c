@@ -481,8 +481,8 @@ dap_list_t * dap_chain_net_get_tx_cond_all_by_srv_uid(dap_chain_net_t * a_net, c
                                                       const dap_time_t a_time_from, const dap_time_t a_time_to,
                                                      const dap_chain_net_tx_search_type_t a_search_type)
 {
-    dap_ledger_t * l_ledger = a_net->pub.ledger;
-    dap_list_t * l_ret = NULL;
+    dap_ledger_t *l_ledger = a_net->pub.ledger;
+    dap_list_t *l_ret = NULL;
 
     switch (a_search_type) {
         case TX_SEARCH_TYPE_NET:
@@ -531,16 +531,13 @@ dap_list_t * dap_chain_net_get_tx_cond_all_by_srv_uid(dap_chain_net_t * a_net, c
                                         continue;
                                 }
                                 // Check for OUT_COND items
-                                dap_list_t *l_list_out_cond_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_COND , NULL);
-                                if(l_list_out_cond_items){
-                                    dap_list_t *l_list_cur = l_list_out_cond_items;
-                                    while(l_list_cur){ // Go through all cond items
-                                        dap_chain_tx_out_cond_t * l_tx_out_cond = (dap_chain_tx_out_cond_t *)l_list_cur->data;
-                                        if(l_tx_out_cond) // If we found cond out with target srv_uid
-                                            if(l_tx_out_cond->header.srv_uid.uint64 == a_srv_uid.uint64)
-                                                l_ret = dap_list_append(l_ret,
-                                                                        DAP_DUP_SIZE(l_tx, dap_chain_datum_tx_get_size(l_tx)));
-                                        l_list_cur = dap_list_next(l_list_cur);
+                                dap_list_t *l_list_out_cond_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_COND, NULL), *l_out_cond_item;
+                                if(l_list_out_cond_items) {
+                                    DL_FOREACH(l_list_out_cond_items, l_out_cond_item) {
+                                        dap_chain_tx_out_cond_t *l_tx_out_cond = (dap_chain_tx_out_cond_t*)l_out_cond_item->data;
+                                        if (l_tx_out_cond && l_tx_out_cond->header.srv_uid.uint64 == a_srv_uid.uint64) {
+                                            l_ret = dap_list_append(l_ret, l_tx);
+                                        }
                                     }
                                     dap_list_free(l_list_out_cond_items);
                                 }
@@ -561,7 +558,6 @@ dap_list_t * dap_chain_net_get_tx_cond_all_by_srv_uid(dap_chain_net_t * a_net, c
             break;
     }
     return l_ret;
-
 }
 
 

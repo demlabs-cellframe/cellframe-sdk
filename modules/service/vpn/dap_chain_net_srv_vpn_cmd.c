@@ -34,20 +34,19 @@ static void add_value_text(dap_string_t *l_str, char *l_addstr, uintmax_t a_valu
 int com_vpn_statistics(int a_argc, char ** a_argv, char **a_str_reply)
 {
     // get statistics for all actual sessions
-    dap_list_t *l_list = dap_stream_session_get_list_sessions();
+    dap_list_t *l_sessions_list = dap_stream_session_get_list_sessions(), *l_item;
     dap_string_t *l_str = dap_string_new(NULL);
     int l_conn = 0;
     // display statistic for all sessions
-    while(l_list) {
-        dap_stream_session_t * l_session = (dap_stream_session_t*) l_list->data;
-        dap_chain_net_srv_stream_session_t * l_srv_str_session = l_session->_inheritor;
-        if(l_srv_str_session) {
-            dap_net_stats_t l_stats = l_srv_str_session->stats; //(dap_net_stats_t*) l_list;
-            dap_string_append_printf(l_str, "VPN connection %d\n", l_conn);
+    DL_FOREACH(l_sessions_list, l_item) {
+        dap_stream_session_t *l_session = (dap_stream_session_t*)l_item->data;
+        dap_chain_net_srv_stream_session_t *l_srv_str_session = l_session->_inheritor;
+        if (l_srv_str_session) {
+            dap_net_stats_t *l_stats = (dap_net_stats_t*)&l_srv_str_session->stats;
             l_conn++;
             // time start/length
             uint32_t l_time_len_sec = time(NULL) - l_session->time_created;
-            char l_buf[1024];
+            char l_buf[70] = { '\0' };
             if(dap_time_to_str_rfc822(l_buf, sizeof(l_buf), l_session->time_created) > 0)
                 dap_string_append_printf(l_str, "  start at %s (length %02u:%02u:%02u)\n", l_buf,
                         l_time_len_sec / 3600, (l_time_len_sec % 3600) / 60, l_time_len_sec % 60);
@@ -58,26 +57,25 @@ int com_vpn_statistics(int a_argc, char ** a_argv, char **a_str_reply)
                 dap_string_append_printf(l_str, "  client addr........%s\n", l_tun_client_addr_str);
             else
                 dap_string_append(l_str, "  client addr........???\n");
-            add_value_text(l_str, "  recv..............", l_stats.bytes_recv);
-            add_value_text(l_str, "  recv lost.........", l_stats.bytes_recv_lost);
-            add_value_text(l_str, "  send..............", l_stats.bytes_sent);
-            add_value_text(l_str, "  send lost.........", l_stats.bytes_sent_lost);
-            dap_string_append_printf(l_str, "  packets recv.......%ld\n", l_stats.packets_recv);
-            dap_string_append_printf(l_str, "  packets recv lost..%ld\n", l_stats.packets_recv_lost);
-            dap_string_append_printf(l_str, "  packets send.......%ld\n", l_stats.packets_sent);
-            dap_string_append_printf(l_str, "  packets send lost..%ld\n", l_stats.packets_sent_lost);
+            add_value_text(l_str, "  recv..............", l_stats->bytes_recv);
+            add_value_text(l_str, "  recv lost.........", l_stats->bytes_recv_lost);
+            add_value_text(l_str, "  send..............", l_stats->bytes_sent);
+            add_value_text(l_str, "  send lost.........", l_stats->bytes_sent_lost);
+            dap_string_append_printf(l_str, "  packets recv.......%ld\n", l_stats->packets_recv);
+            dap_string_append_printf(l_str, "  packets recv lost..%ld\n", l_stats->packets_recv_lost);
+            dap_string_append_printf(l_str, "  packets send.......%ld\n", l_stats->packets_sent);
+            dap_string_append_printf(l_str, "  packets send lost..%ld\n", l_stats->packets_sent_lost);
             // average bitrate
-            double l_bitrate = (l_stats.bytes_recv - l_stats.bytes_recv_lost +
-                    l_stats.bytes_sent - l_stats.bytes_sent_lost) * 1. / l_time_len_sec;
+            double l_bitrate = (l_stats->bytes_recv - l_stats->bytes_recv_lost +
+                    l_stats->bytes_sent - l_stats->bytes_sent_lost) * 1. / l_time_len_sec;
             dap_string_append_printf(l_str, "  average bitrate....%.2lf kbps\n", l_bitrate / 1024.);
             // not add line break after last session
-            if(l_list->next)
+            if (l_item->next)
                 dap_string_append_printf(l_str, "\n");
         }
-        // next session
-        l_list = dap_list_next(l_list);
     }
     // unlock sessions list
+    dap_list_free(l_sessions_list);
     dap_stream_session_get_list_sessions_unlock();
     if(l_conn>0)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str->str);

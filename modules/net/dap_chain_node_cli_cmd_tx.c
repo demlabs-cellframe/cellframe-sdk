@@ -867,7 +867,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         }
         dap_string_t *l_str_ret = dap_string_new("");
         dap_list_t *l_token_list = dap_chain_ledger_token_info(l_ledger);
-        dap_string_append_printf(l_str_ret, "Found %u tokens in %s ledger\n", dap_list_length(l_token_list), l_net_str);
+        dap_string_append_printf(l_str_ret, "Found %lu tokens in %s ledger\n", dap_list_length(l_token_list), l_net_str);
         for (dap_list_t *l_list = l_token_list; l_list; l_list = dap_list_next(l_list)) {
             dap_string_append(l_str_ret, (char *)l_list->data);
         }
