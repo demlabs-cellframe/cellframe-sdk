@@ -735,20 +735,14 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         
         dap_chain_addr_t *l_addr = NULL;
         // if need addr
+        const char* l_sign_str = "";
         if(l_wallet_name || l_addr_base58) {
             if(l_wallet_name) {
                 const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
                 dap_chain_wallet_t * l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
                 if(l_wallet) {
-                    dap_chain_addr_t *l_addr_tmp = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet,
-                            l_net->pub.id);
-                    l_addr = DAP_NEW_SIZE(dap_chain_addr_t, sizeof(dap_chain_addr_t));
-                    if (!l_addr) {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Out of memory!");
-                        log_it(L_CRITICAL, "Memory allocation error");
-                        return -1;
-                    }
-                    memcpy(l_addr, l_addr_tmp, sizeof(dap_chain_addr_t));
+                    l_sign_str = dap_chain_wallet_check_bliss_sign(l_wallet);
+                    l_addr = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
                     dap_chain_wallet_close(l_wallet);
                 }
             }
@@ -805,7 +799,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         DAP_DELETE(l_str_out);
         DAP_DELETE(l_addr);
         s_dap_chain_tx_hash_processed_ht_free(&l_list_tx_hash_processd);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ret->str);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\n%s", l_str_ret->str, l_sign_str);
         dap_string_free(l_str_ret, true);
         return 0;       
     }
@@ -1013,7 +1007,7 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
             l_subcmd = SUBCMD_TX_ALL;
         else if(dap_cli_server_cmd_find_option_val(a_argv, 2, a_argc, "-addr", &l_addr_base58_str))
             l_subcmd = SUBCMD_TX_ADDR;
-        else if(dap_cli_server_cmd_find_option_val(a_argv, 2, a_argc, "-wallet", &l_wallet_name))
+        else if(dap_cli_server_cmd_find_option_val(a_argv, 2, a_argc, "-w", &l_wallet_name))
             l_subcmd = SUBCMD_TX_ADDR;
 
         const char *l_token_name_str = NULL;
