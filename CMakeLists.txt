@@ -81,11 +81,6 @@ if (CELLFRAME_MODULES MATCHES "test-framework")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_test)
 endif()
 
-add_subdirectory(3rdparty/crc32c_adler)             # https://github.com/fonic/crc32c_adler
-include_directories(3rdparty/crc32c_adler)
-set(CELLFRAME_LIBS ${CELLFRAME_LIBS} crc32c_adler)
-
-
 if (BUILD_WITH_ZIP)
     add_subdirectory(3rdparty/libzip)
     include_directories(3rdparty/libzip/lib)

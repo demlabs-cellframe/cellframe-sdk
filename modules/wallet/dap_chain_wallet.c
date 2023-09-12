@@ -69,8 +69,6 @@ static char s_wallet_ext [] = ".dwallet";
 static  pthread_rwlock_t s_wallet_n_pass_lock = PTHREAD_RWLOCK_INITIALIZER; /* Coordinate access to the hash-table */
 static  dap_chain_wallet_n_pass_t   *s_wallet_n_pass;                       /* A hash table to keep passwords for wallets */
 
-#define     CRC32C_INIT    0xEDB88320
-
 /*
  *  DESCRIPTION: Add/update a record for wallet into the internaly used table of name/password pair.
  *      Thhose records are supposed to be used for operations with the password-protected wallets.

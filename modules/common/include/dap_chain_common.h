@@ -78,6 +78,10 @@ typedef union dap_chain_node_role{
     uint8_t raw[DAP_CHAIN_NODE_ROLE_SIZE];
 } DAP_ALIGN_PACKED dap_chain_node_role_t;
 
+typedef dap_stream_node_addr_t dap_chain_node_addr_t;
+#define dap_chain_node_addr_str_check dap_stream_node_addr_str_check
+#define dap_chain_node_addr_from_str dap_stream_node_addr_from_str
+#define dap_chain_node_addr_not_null dap_stream_node_addr_not_null
 
 typedef union dap_chain_net_id{
     uint64_t uint64;
