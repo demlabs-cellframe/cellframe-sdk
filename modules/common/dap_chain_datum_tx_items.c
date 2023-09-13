@@ -787,11 +787,10 @@ uint8_t *dap_chain_datum_tx_item_get_nth(dap_chain_datum_tx_t *a_tx, dap_chain_t
 {
     uint8_t *l_tx_item = NULL;
     int l_item_idx = 0;
-    for (int l_type_idx = 0; l_type_idx <= a_item_idx; l_type_idx++) {
+    for (int l_type_idx = 0; l_type_idx <= a_item_idx; ++l_type_idx, ++l_item_idx) {
         l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx, a_type, NULL);
         if (!l_tx_item)
             break;
-        ++l_item_idx;
     }
     return l_tx_item;
 }
