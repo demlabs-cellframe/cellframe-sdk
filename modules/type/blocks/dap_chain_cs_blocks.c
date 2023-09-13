@@ -64,11 +64,6 @@ typedef struct dap_chain_cs_blocks_pvt
     dap_chain_block_chunks_t * chunks;
     dap_chain_block_datum_index_t *datum_index; // To find datum in blocks
 
-    // General links
-    dap_chain_block_cache_t * block_cache_last; // Last block in mapped area
-
-    dap_chain_block_cache_t *block_cache_list;
-
     dap_chain_hash_fast_t genesis_block_hash;
     dap_chain_hash_fast_t static_genesis_block_hash;
 
@@ -896,7 +891,6 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain)
     pthread_rwlock_unlock(&PVT(l_blocks)->datums_rwlock);
 
     dap_chain_block_chunks_delete(PVT(l_blocks)->chunks);
-    PVT(l_blocks)->block_cache_last = NULL;
     dap_chain_cell_delete_all(a_chain);
     PVT(l_blocks)->chunks = dap_chain_block_chunks_create(l_blocks);
 }
