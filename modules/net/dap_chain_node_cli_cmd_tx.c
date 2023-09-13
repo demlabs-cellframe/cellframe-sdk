@@ -487,7 +487,9 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
     s_dap_chain_tx_hash_processed_ht_free(&l_tx_data_ht);
     // if no history
     if (json_object_array_length(json_obj_datum) == 1) {
-        json_object_array_add(json_obj_datum, json_object_new_string("empty"));
+        json_object * json_empty_tx = json_object_new_object();
+        json_object_object_add(json_empty_tx, "status", json_object_new_string("empty"));
+        json_object_array_add(json_obj_datum, json_empty_tx);
     }
     return json_obj_datum;
 }
