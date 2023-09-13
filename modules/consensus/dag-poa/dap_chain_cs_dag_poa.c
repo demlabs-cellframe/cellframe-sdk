@@ -647,9 +647,7 @@ static void s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
 static bool s_callback_round_event_to_chain(struct round_timer_arg *a_callback_arg)
 {
     dap_chain_cs_dag_t *l_dag = a_callback_arg->dag;
-    dap_db_iter_t *l_iter = dap_global_db_driver_iter_create(l_dag->gdb_group_events_round_new);
-    dap_global_db_get_all_raw(l_iter, 0, s_callback_round_event_to_chain_callback_get_round_item, a_callback_arg);
-    dap_global_db_driver_iter_delete(l_iter);
+    dap_global_db_get_all_raw(l_dag->gdb_group_events_round_new, 0, s_callback_round_event_to_chain_callback_get_round_item, a_callback_arg);
     return false;
 }
 
