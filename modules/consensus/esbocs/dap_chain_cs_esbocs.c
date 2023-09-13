@@ -959,7 +959,7 @@ static uint64_t s_session_calc_current_round_id(dap_chain_esbocs_session_t *a_se
 static int s_signs_sort_callback(const void *a_sign1, const void *a_sign2)
 {
     dap_sign_t  *l_sign1 = (dap_sign_t*)((dap_list_t*)a_sign1)->data,
-                *l_sign2 = (dap_sign_t*)((dap_list_t*)a_sign1)->data;
+                *l_sign2 = (dap_sign_t*)((dap_list_t*)a_sign2)->data;
     if (!l_sign1 || !l_sign2) {
         log_it(L_CRITICAL, "Invalid element");
         return 0;

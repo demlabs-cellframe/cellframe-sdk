@@ -783,7 +783,7 @@ static void s_gdb_in_pkt_proc_set_raw_callback(dap_global_db_context_t *a_global
 
     struct sync_request *l_sync_req = (struct sync_request*) a_arg;
     if( a_rc != 0){
-        log_it(L_ERROR, "Can't save GlobalDB request, code %d", a_rc);
+        debug_if(s_debug_more, L_ERROR, "Can't save GlobalDB request, code %d", a_rc);
         dap_worker_exec_callback_inter(a_global_db_context->queue_worker_callback_input[l_sync_req->worker->id],
                                     s_gdb_in_pkt_error_worker_callback, l_sync_req);
     }else{
