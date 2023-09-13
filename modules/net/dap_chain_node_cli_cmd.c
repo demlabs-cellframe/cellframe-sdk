@@ -525,10 +525,10 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
     int l_ret = 0;
     dap_string_t *l_string_reply = dap_string_new("Node dump:");
 
-    if (a_addr || a_alias) {
+    if ((a_addr && a_addr->uint64) || a_alias) {
         dap_chain_node_addr_t *l_addr = a_alias
                 ? dap_chain_node_alias_find(a_net, a_alias)
-                : a_addr && a_addr->uint64 ? DAP_DUP(a_addr) : NULL;
+                : DAP_DUP(a_addr);
 
         if (!l_addr) {
             log_it(L_ERROR, "Node address with specified params not found");
