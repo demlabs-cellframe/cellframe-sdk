@@ -788,7 +788,6 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
         }
 
         if (!l_grace->usage->receipt){
-//            memcpy(&l_grace->usage->client_pkey_hash, &l_tx_out_cond->subtype.srv_pay.pkey_hash, sizeof(dap_chain_hash_fast_t));
             // get remain units from DB
             dap_stream_ch_chain_net_srv_remain_service_store_t* l_remain_service = NULL;
             l_remain_service = l_grace->usage->service->callbacks.get_remain_service(l_grace->usage->service, l_grace->usage->id, l_grace->usage->client);

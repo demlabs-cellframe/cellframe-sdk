@@ -1140,20 +1140,24 @@ static int s_callback_save_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t
     log_it(L_DEBUG, "Save user %s remain service into group %s", l_user_key, l_remain_limits_gdb_group);
 
     dap_stream_ch_chain_net_srv_remain_service_store_t l_remain_service = {};
+    dap_sign_t * l_receipt_sign = NULL;
+    if (l_srv_session->usage_active->receipt_next && !l_srv_session->usage_active->is_grace){
+        l_receipt_sign = dap_chain_datum_tx_receipt_sign_get( l_srv_session->usage_active->receipt_next, l_srv_session->usage_active->receipt_next->size, 1);
+    }
 
     l_remain_service.remain_units_type.enm = l_srv_session->limits_units_type.enm;
     switch(l_remain_service.remain_units_type.enm){
         case SERV_UNIT_SEC:
         case SERV_UNIT_DAY:
             l_remain_service.limits_ts = l_srv_session->limits_ts >= 0 ? l_srv_session->limits_ts : 0;
-            if (l_srv_session->usage_active->receipt_next && !l_srv_session->usage_active->is_grace)
+            if(l_receipt_sign)
                 l_remain_service.limits_ts += l_srv_session->usage_active->receipt_next->receipt_info.units;
             break;
         case SERV_UNIT_MB:
         case SERV_UNIT_KB:
         case SERV_UNIT_B:
-            l_remain_service.limits_bytes = l_srv_session->limits_bytes >= 0 ? l_srv_session->limits_bytes : 0;
-            if (l_srv_session->usage_active->receipt_next && !l_srv_session->usage_active->is_grace)
+            l_remain_service.limits_bytes = l_srv_session->limits_bytes >= 0 ? l_srv_session->limits_bytes : 0;            
+            if (l_receipt_sign)
                 l_remain_service.limits_bytes += l_srv_session->usage_active->receipt_next->receipt_info.units;
             break;
     }
@@ -1338,6 +1342,11 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
 
         if( a_srv_session->limits_ts <= 0 && !a_usage->is_grace){
             log_it(L_INFO, "Limits by timestamp are over. Switch to the next receipt");
+            dap_sign_t * l_receipt_sign = dap_chain_datum_tx_receipt_sign_get( a_usage->receipt_next, a_usage->receipt_next->size, 1);
+            if ( ! l_receipt_sign ){
+                log_it(L_WARNING, "Next receipt does not have client's sign. Delete it.");
+                DAP_DEL_Z(a_usage->receipt_next);
+            }
             DAP_DEL_Z(a_usage->receipt);
             a_usage->receipt = a_usage->receipt_next;
             a_usage->receipt_next = NULL;
@@ -1395,6 +1404,12 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
 
         if (a_srv_session->limits_bytes <= 0  && !a_usage->is_grace){
             log_it(L_INFO, "Limits by traffic is over. Switch to the next receipt");
+            // get a second signature - from the client (first sign in server, second sign in client)
+            dap_sign_t * l_receipt_sign = dap_chain_datum_tx_receipt_sign_get( a_usage->receipt_next, a_usage->receipt_next->size, 1);
+            if ( ! l_receipt_sign ){
+                log_it(L_WARNING, "Next receipt does not have client's sign. Delete it.");
+                DAP_DEL_Z(a_usage->receipt_next);
+            }
             DAP_DEL_Z(a_usage->receipt);
             a_usage->receipt = a_usage->receipt_next;
             a_usage->receipt_next = NULL;
