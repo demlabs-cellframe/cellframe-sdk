@@ -5920,7 +5920,7 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
         DAP_DELETE(l_addr_str);
         DAP_DELETE(l_str_out);
     } else
-        l_str_ret = l_str_out;
+        dap_string_append_printf(l_str_ret, "%s", l_str_out);
     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ret->str);
     dap_string_free(l_str_ret, true);
     return 0;
