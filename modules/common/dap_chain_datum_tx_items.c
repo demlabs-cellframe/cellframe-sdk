@@ -809,9 +809,9 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a
     dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_ALL, NULL), *l_item;
     int l_prev_cond_idx = a_out_num ? *a_out_num : 0;
     dap_chain_tx_out_cond_t *l_res = NULL;
-    DL_FOREACH(l_list_out_items, l_item) {
+    for (dap_list_t *l_item = l_list_out_items; l_item; l_item = l_item->next, ++l_prev_cond_idx) {
         // Start from *a_out_num + 1 item if a_out_num != NULL
-        if (a_out_num && l_prev_cond_idx++ < *a_out_num)
+        if (a_out_num && l_prev_cond_idx < *a_out_num)
             continue;
         if (*(byte_t*)l_item->data == TX_ITEM_TYPE_OUT_COND &&
                 ((dap_chain_tx_out_cond_t*)l_item->data)->header.subtype == a_cond_type) {
