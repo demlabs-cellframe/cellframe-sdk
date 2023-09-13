@@ -1488,7 +1488,7 @@ bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t 
     if (!l_found) {
         l_net_pvt->active_link = a_client;
     }
-    if (l_found && !dap_list_find(l_net_pvt->links_queue, a_client))
+    if (l_found && !dap_list_find(l_net_pvt->links_queue, a_client, NULL))
         l_net_pvt->links_queue = dap_list_append(l_net_pvt->links_queue, a_client);
     if (a_err != EDEADLK)
         pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
@@ -2292,18 +2292,17 @@ static void remove_duplicates_in_chain_by_priority(dap_chain_t *l_chain_1, dap_c
 typedef struct list_priority_{
     uint16_t prior;
     char * chains_path;
-}list_priority;
+} list_priority;
 
-static int callback_compare_prioritity_list(const void * a_item1, const void * a_item2, void *a_unused)
+static int callback_compare_prioritity_list(const void *a_item1, const void *a_item2)
 {
-    UNUSED(a_unused);
-    list_priority *l_item1 = (list_priority*) a_item1;
-    list_priority *l_item2 = (list_priority*) a_item2;
-    if(!l_item1 || !l_item2 || l_item1->prior == l_item2->prior)
+    list_priority   *l_item1 = (list_priority*)((dap_list_t*)a_item1)->data,
+                    *l_item2 = (list_priority*)((dap_list_t*)a_item2)->data;
+    if (!l_item1 || !l_item2) {
+        log_it(L_CRITICAL, "Invalid arg");
         return 0;
-    if(l_item1->prior > l_item2->prior)
-        return 1;
-    return -1;
+    }
+    return l_item1->prior == l_item2->prior ? 0 : l_item1->prior > l_item2->prior ? 1 : -1;
 }
 
 void s_main_timer_callback(void *a_arg)
@@ -2767,12 +2766,11 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
                 if(l_cfg_new) {
                     list_priority *l_chain_prior = DAP_NEW_Z(list_priority);
                     if (!l_chain_prior) {
-        log_it(L_CRITICAL, "Memory allocation error");
-                        DAP_DELETE (l_entry_name);
+                        log_it(L_CRITICAL, "Memory allocation error");
+                        DAP_DELETE(l_entry_name);
                         closedir(l_chains_dir);
                         dap_config_close(l_cfg_new);
                         dap_config_close(l_cfg);
-                        closedir(l_chains_dir);
                         return -1;
                     }
                     l_chain_prior->prior = dap_config_get_item_uint16_default(l_cfg_new, "chain", "load_priority", 100);
@@ -2898,10 +2896,6 @@ int s_net_load(dap_chain_net_t *a_net)
                 DAP_CHAIN_PVT(l_chain)->need_reorder = false;
                 if (l_chain->callback_purge) {
                     l_chain->callback_purge(l_chain);
-                    pthread_rwlock_wrlock(&l_chain->cell_rwlock);
-                    for (dap_chain_cell_t *it = l_chain->cells; it; it = it->hh.next)
-                        dap_chain_cell_delete(it);
-                    pthread_rwlock_unlock(&l_chain->cell_rwlock);
                     dap_chain_ledger_purge(l_net->pub.ledger, false);
                     dap_chain_ledger_set_fee(l_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
                     dap_chain_net_decree_purge(l_net);
@@ -3314,7 +3308,7 @@ dap_list_t* dap_chain_net_get_link_node_list(dap_chain_net_t * l_net, bool a_is_
                     DAP_DELETE(l_remote_node_info);
             }
             if(l_is_add) {
-                dap_chain_node_addr_t *l_address = DAP_NEW(dap_chain_node_addr_t);
+                dap_chain_node_addr_t *l_address = DAP_NEW_Z(dap_chain_node_addr_t);
                 if (!l_address) {
                     log_it(L_CRITICAL, "Memory allocation error");
                     return NULL;
@@ -3323,9 +3317,8 @@ dap_list_t* dap_chain_net_get_link_node_list(dap_chain_net_t * l_net, bool a_is_
                 l_node_list = dap_list_append(l_node_list, l_address);
             }
         }
-
+        DAP_DELETE(l_cur_node_info);
     }
-    DAP_DELETE(l_cur_node_info);
     return l_node_list;
 }
 
@@ -3409,7 +3402,7 @@ bool dap_chain_net_get_flag_sync_from_zero( dap_chain_net_t * a_net)
  */
 bool dap_chain_net_get_extra_gdb_group(dap_chain_net_t *a_net, dap_chain_node_addr_t a_node_addr)
 {
-    if(!a_net || !PVT(a_net) || !PVT(a_net)->gdb_sync_nodes_addrs)
+    if (!a_net || !PVT(a_net)->gdb_sync_nodes_addrs)
         return false;
     for(uint16_t i = 0; i < PVT(a_net)->gdb_sync_nodes_addrs_count; i++) {
         if(a_node_addr.uint64 == PVT(a_net)->gdb_sync_nodes_addrs[i].uint64) {

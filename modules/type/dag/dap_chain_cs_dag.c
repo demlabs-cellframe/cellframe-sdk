@@ -402,10 +402,7 @@ static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
         DAP_DELETE(l_event_current);
     }
     pthread_mutex_unlock(&l_dag_pvt->events_mutex);
-    dap_chain_cell_t *l_cell_cur, *l_cell_tmp;
-    HASH_ITER(hh, a_chain->cells, l_cell_cur, l_cell_tmp) {
-        dap_chain_cell_close(l_cell_cur);
-    }
+    dap_chain_cell_delete_all(a_chain);
 }
 
 /**
@@ -1563,10 +1560,9 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
             if(l_list_to_del) {
                 if (dap_chain_cell_file_update(l_chain->cells) > 0) {
                     // delete events from db
-                    dap_list_t *l_list_tmp = l_list_to_del;
-                    while(l_list_tmp) {
-                        dap_global_db_del_sync(l_dag->gdb_group_events_round_new, (char*)l_list_tmp->data);
-                        l_list_tmp = dap_list_next(l_list_tmp);
+                    dap_list_t *l_el;
+                    DL_FOREACH(l_list_to_del, l_el) {
+                        dap_global_db_del_sync(l_dag->gdb_group_events_round_new, (char*)l_el->data);
                     }
                 }
                 dap_chain_cell_close(l_chain->cells);
