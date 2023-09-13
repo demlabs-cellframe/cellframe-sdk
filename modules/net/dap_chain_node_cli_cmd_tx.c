@@ -309,13 +309,13 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
         return NULL;
     }
     // load transactions
-    json_object* json_obj_tx = json_object_new_object();
     dap_chain_datum_iter_t *l_datum_iter = a_chain->callback_datum_iter_create(a_chain);
 
     for (dap_chain_datum_t *l_datum = a_chain->callback_datum_iter_get_first(l_datum_iter);
                             l_datum;
                             l_datum = a_chain->callback_datum_iter_get_next(l_datum_iter))
     {
+        json_object* json_obj_tx = json_object_new_object();
         if (l_datum->header.type_id != DAP_CHAIN_DATUM_TX)
             // go to next datum
             continue;
