@@ -3530,7 +3530,7 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, char **
     }
     size_t l_tsd_offset = 0;
     a_params->ext.parsed_tsd = DAP_NEW_SIZE(byte_t, l_tsd_total_size);
-    if(!a_params->ext.parsed_tsd) {
+    if(l_tsd_total_size && !a_params->ext.parsed_tsd) {
         log_it(L_CRITICAL, "Memory allocation error");
         return -1;
     }
