@@ -1247,10 +1247,10 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't do handshake for your node");
             break;
             case 5:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't do handshake for your node");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "The node is already exists");
             break;
             case 6:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "The node is already exists");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process node list HTTP request");
             break;
             default:
                 break;
