@@ -30,12 +30,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define LOG_TAG "dap_chain_net_node_list"
 
-#ifdef DAP_OS_WINDOWS
-#define dap_cond_signal(x) SetEvent(x)
-#else
-#define dap_cond_signal(x) pthread_cond_broadcast(&x)
-#endif
-
 /**
  * @brief server function, makes handshake and add node to node list
  *
@@ -43,9 +37,10 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
  * @return void
  * send value
  * 1 - Node addr successfully added to node list
- * 2 - Don't add this addres to node list
+ * 2 - Can't add this addres to node list
  * 3 - Can't calculate hash for addr
  * 4 - Can't do handshake
+ * 5 - Already exists
  */
 void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg)
 {
@@ -77,25 +72,23 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
         *l_return_code = Http_Status_NotFound;
         return;
     }
-    l_net_str += sizeof(l_net_token) - 1;
-    char l_net_name[128] = {};
-    strncpy(l_net_name, l_net_str, 127);
-    log_it(L_DEBUG, "HTTP Node check parser retrieve netname %s", l_net_name);
+    l_net_str += strlen(l_net_token);
+    log_it(L_DEBUG, "HTTP Node check parser retrieve netname %s", l_net_str);
 
-    dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
-    dap_chain_node_info_t * l_node_info = DAP_NEW_Z( dap_chain_node_info_t);
-    l_node_info->hdr.address.uint64 = addr;
-    l_node_info->hdr.ext_addr_v4.s_addr = ipv4;
-    l_node_info->hdr.ext_port = port;
-    l_node_info->hdr.cell_id.uint64 = 0;
+    dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
+    dap_chain_node_info_t l_node_info = {
+        .hdr.address.uint64 = addr,
+        .hdr.ext_addr_v4.s_addr = ipv4,
+        .hdr.ext_port = port
+    };
+
     uint8_t response = 0;
-    char *l_key = dap_chain_node_addr_to_hash_str(&l_node_info->hdr.address);
+    char *l_key = dap_chain_node_addr_to_hash_str(&l_node_info.hdr.address);
     if(!l_key)
     {
         log_it(L_DEBUG, "Can't calculate hash for addr");
         response = 3;
-    }
-    else{
+    } else{
         size_t node_info_size = 0;
         dap_chain_node_info_t *l_node_inf_check;
         l_node_inf_check = (dap_chain_node_info_t *) dap_global_db_get_sync(l_net->pub.gdb_nodes, l_key, &node_info_size, NULL, NULL);
@@ -106,20 +99,18 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
             DAP_DELETE(l_node_inf_check);
         }
         else{
-            if(dap_chain_net_balancer_handshake(l_node_info,l_net))
+            if(dap_chain_net_balancer_handshake(&l_node_info,l_net))
                 response = 1;
             if(response)
             {
-
-                size_t l_node_info_size = dap_chain_node_info_get_size(l_node_info);
-                bool res = dap_global_db_set_sync(l_net->pub.gdb_nodes, l_key, (uint8_t *) l_node_info, l_node_info_size,
-                                             true) == 0;
+                size_t l_node_info_size = dap_chain_node_info_get_size(&l_node_info);
+                bool res = dap_global_db_set_sync(l_net->pub.gdb_nodes, l_key, (uint8_t*)&l_node_info, l_node_info_size, true) == 0;
                 if(res)
                 {
                     char l_node_addr_str[INET_ADDRSTRLEN]={};
-                    inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
-                    log_it(L_DEBUG, "Add addres "NODE_ADDR_FP_STR" (%s) to node list",
-                               NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),l_node_addr_str);
+                    inet_ntop(AF_INET, &l_node_info.hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
+                    log_it(L_DEBUG, "Add address"NODE_ADDR_FP_STR" (%s) to node list",
+                               NODE_ADDR_FP_ARGS_S(l_node_info.hdr.address),l_node_addr_str);
                     response = 1;
                 }
                 else
@@ -135,22 +126,18 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
             }
         }
     }
+    DAP_DELETE(l_key);
     *l_return_code = Http_Status_OK;
     size_t l_data_send_size = sizeof(uint8_t);
     dap_http_simple_reply(a_http_simple, &response, l_data_send_size);
-    DAP_DELETE(l_node_info);
 }
 
-static void s_net_node_link_prepare_success(void *a_response, size_t a_response_size, void *a_arg){
-
-    struct node_link_request * l_node_list_request = (struct node_link_request *)a_arg;
-    dap_chain_node_info_t *l_node_info = l_node_list_request->link_info;
+static void s_net_node_link_prepare_success(void *a_response, size_t a_response_size, void *a_arg) {
+    struct node_link_request *l_node_list_request = (struct node_link_request *)a_arg;
     pthread_mutex_lock(&l_node_list_request->wait_mutex);
     l_node_list_request->response = *(uint8_t*)a_response;
-    dap_cond_signal(l_node_list_request->wait_cond);
+    pthread_cond_broadcast(&l_node_list_request->wait_cond);
     pthread_mutex_unlock(&l_node_list_request->wait_mutex);
-    //DAP_DELETE(l_node_info);
-    //DAP_DELETE(l_node_list_request);
 }
 static void s_net_node_link_prepare_error(int a_error_code, void *a_arg){
     struct node_link_request * l_node_list_request = (struct node_link_request *)a_arg;
@@ -159,8 +146,6 @@ static void s_net_node_link_prepare_error(int a_error_code, void *a_arg){
     inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
     log_it(L_WARNING, "Link from  "NODE_ADDR_FP_STR" (%s) prepare error with code %d",
                                 NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address), l_node_addr_str,a_error_code);
-    //DAP_DELETE(l_node_info);
-    //DAP_DELETE(l_node_list_request);
 }
 static struct node_link_request *s_node_list_request_init ()
 {
@@ -172,31 +157,21 @@ static struct node_link_request *s_node_list_request_init ()
     l_node_list_request->from_http = true;
     l_node_list_request->response = 0;
 
-#ifndef _WIN32
     pthread_condattr_t attr;
     pthread_condattr_init(&attr);
 #ifndef DAP_OS_DARWIN
     pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
 #endif
     pthread_cond_init(&l_node_list_request->wait_cond, &attr);
-#else
-    l_node_list_request->wait_cond = CreateEventA( NULL, FALSE, FALSE, NULL );
-#endif
     pthread_mutex_init(&l_node_list_request->wait_mutex, NULL);
-
     return l_node_list_request;
 }
 
-static void s_node_list_request_dinit (struct node_link_request *a_node_list_request)
+static void s_node_list_request_deinit (struct node_link_request *a_node_list_request)
 {
-#ifndef _WIN32
     pthread_cond_destroy(&a_node_list_request->wait_cond);
-#else
-    CloseHandle( a_node_list_request->wait_cond );
-#endif
     pthread_mutex_destroy(&a_node_list_request->wait_mutex);
     DAP_DEL_Z(a_node_list_request->link_info);
-    DAP_DELETE(a_node_list_request);
 }
 static int dap_chain_net_node_list_wait(struct node_link_request *a_node_list_request, int a_timeout_ms){
 
@@ -207,42 +182,23 @@ static int dap_chain_net_node_list_wait(struct node_link_request *a_node_list_re
         pthread_mutex_unlock(&a_node_list_request->wait_mutex);
         return 0;
     }
-#ifndef DAP_OS_WINDOWS
-    // prepare for signal waiting
     struct timespec l_cond_timeout;
-    clock_gettime( CLOCK_MONOTONIC, &l_cond_timeout);
+    clock_gettime(CLOCK_MONOTONIC, &l_cond_timeout);
     l_cond_timeout.tv_sec += a_timeout_ms/1000;
-    // signal waiting
-    // do{
-        int l_ret_wait = pthread_cond_timedwait(&a_node_list_request->wait_cond, &a_node_list_request->wait_mutex, &l_cond_timeout);
-        if(l_ret_wait) {
-            ret = a_node_list_request->response ? 0 : -2;
-        }
-        else if(l_ret_wait == ETIMEDOUT) { // 110 260
-            //log_it(L_NOTICE,"Wait for status is stopped by timeout");
-            ret = -1;
-        }else if (l_ret_wait != 0 ){
-            char l_errbuf[128];
-            l_errbuf[0] = '\0';
-            strerror_r(l_ret_wait,l_errbuf,sizeof (l_errbuf));
-            log_it(L_ERROR, "Pthread condition timed wait returned \"%s\"(code %d)", l_errbuf, l_ret_wait);
-        }
-        else
-            ret = 0;
-   // }
-    //while (!a_node_list_request->response);
-    pthread_mutex_unlock(&a_node_list_request->wait_mutex);
-#else
-    pthread_mutex_unlock( &a_node_list_request->wait_mutex );
-    DWORD wait = WaitForSingleObject( a_node_list_request->wait_cond, (uint32_t)a_timeout_ms);
-    if ( wait == WAIT_OBJECT_0 && (
-             a_node_list_request->response))
-    {
-        return a_node_list_request->response ? 0 : -2;
-    } else if ( wait == WAIT_TIMEOUT || wait == WAIT_FAILED ) {
-        return -1;
+    int l_ret_wait = pthread_cond_timedwait(&a_node_list_request->wait_cond, &a_node_list_request->wait_mutex, &l_cond_timeout);
+    if(!l_ret_wait) {
+        ret = a_node_list_request->response ? 0 : -2;
+    } else if(l_ret_wait == ETIMEDOUT) {
+        log_it(L_NOTICE,"Wait for status is stopped by timeout");
+        ret = -1;
+    } else if (l_ret_wait) {
+        char l_errbuf[128];
+        l_errbuf[0] = '\0';
+        strerror_r(l_ret_wait,l_errbuf,sizeof (l_errbuf));
+        log_it(L_ERROR, "Pthread condition timed wait returned \"%s\"(code %d)", l_errbuf, l_ret_wait);
+        ret = -3;
     }
-#endif
+    pthread_mutex_unlock(&a_node_list_request->wait_mutex);
     return ret;
 }
 
@@ -262,7 +218,6 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
     }
     l_node_list_request->net = a_net;
     l_node_list_request->link_info = l_link_node_info;
-    //l_node_list_request->link_replace_tries
     int ret = 0;
 
     char *l_request = dap_strdup_printf("%s/%s?version=1,method=r,addr=%lu,ipv4=%d,port=%hu,net=%s",
@@ -288,18 +243,18 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
 
     int rc = dap_chain_net_node_list_wait(l_node_list_request, 4000);
     if(ret){
-        s_node_list_request_dinit(l_node_list_request);
+        s_node_list_request_deinit(l_node_list_request);
         return 6;
     }
     else{
         if(rc)
         {
-            s_node_list_request_dinit(l_node_list_request);
+            s_node_list_request_deinit(l_node_list_request);
             return 0;//no server
         }
         else{
             ret = l_node_list_request->response;
-            s_node_list_request_dinit(l_node_list_request);
+            s_node_list_request_deinit(l_node_list_request);
             return ret;
         }
     }
