@@ -120,7 +120,6 @@ if(UNIX)
                 set(_LOPT "${_LOPT} -fsanitize=thread")
             elseif(DEFINED ENV{DAP_UBSAN})
                 message("[!] Undefined behaviour Sanitizer enabled")
-
             endif()
             SET(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -pg")
         else()
