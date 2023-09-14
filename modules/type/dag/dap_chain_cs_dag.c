@@ -763,13 +763,15 @@ static bool s_event_verify_size(dap_chain_cs_dag_event_t *a_event, size_t a_even
         return false;
     if (a_event->header.signs_count > UINT8_MAX)
         return false;
-    for (int i = 0; i < a_event->header.signs_count; i++) {
-        dap_sign_t *l_sign = (dap_sign_t *)((uint8_t *)a_event + l_sign_offset);
+    uint8_t i;
+    for (i = 0; i < a_event->header.signs_count && l_sign_offset < a_event_size; ++i) {
+        dap_sign_t *l_sign = (dap_sign_t*)((uint8_t*)a_event + l_sign_offset);
         l_sign_offset += dap_sign_get_size(l_sign);
-        if (l_sign_offset > a_event_size) {
-            log_it(L_ERROR, "%d of atom signes don't fit in the atom size %zd", a_event->header.signs_count, a_event_size);
-            return false;
-        }
+    }
+    if (i != a_event->header.signs_count) {
+        log_it(L_WARNING, "Malformed event! Only %d of claimed %d signs fit data size%s",
+               i, a_event->header.signs_count, l_sign_offset == a_event_size ? "" : ", incomplete sequence");
+
     }
     return l_sign_offset == a_event_size;
 }
