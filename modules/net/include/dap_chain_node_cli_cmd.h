@@ -37,6 +37,9 @@
  */
 dap_chain_node_addr_t* dap_chain_node_addr_get_by_alias(dap_chain_net_t * a_net, const char *alias);
 
+int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(int *a_arg_index, int a_argc,
+                                                           char **a_argv, json_object *a_obj_reply,
+                                                           dap_chain_t **a_chain, dap_chain_net_t **a_net);
 
 int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index,int a_argc, char **a_argv, char ** a_str_reply,
                              dap_chain_t ** a_chain, dap_chain_net_t ** a_net);
@@ -169,7 +172,17 @@ int cmd_gdb_import(int a_argc, char **a_argv, char **a_str_reply);
 int cmd_gdb_export(int a_argc, char **a_argv, char **a_str_reply);
 
 int com_mempool_delete(int a_argc, char **a_argv, char **a_str_reply);
-int com_mempool_list(int a_argc, char **a_argv, char **a_str_reply);
+typedef enum com_mempool_list_err{
+    DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_MEMORY_ERR,
+    DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_CHAIN_NOT_FOUND,
+    DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_CAN_NOT_GET_MEMPOOL_GROUP,
+    /* add custom codes here */
+
+    DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_UNKNOWN /* MAX */
+} com_mempool_list_err_t;
+int com_mempool_list(int a_argc, char **a_argv, json_object **a_json_reply);
 int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply);
 int com_mempool_proc_all(int argc, char ** argv, char ** a_str_reply);
 int com_mempool_check(int a_argc, char **a_argv, char **a_str_reply);
