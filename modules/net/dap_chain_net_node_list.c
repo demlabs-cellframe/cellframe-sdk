@@ -88,41 +88,52 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     l_node_info->hdr.ext_addr_v4.s_addr = ipv4;
     l_node_info->hdr.ext_port = port;
     l_node_info->hdr.cell_id.uint64 = 0;
-
-    uint8_t response;
-    if(dap_chain_net_balancer_handshake(l_node_info,l_net))
-        response = 1;
-    if(response)
+    uint8_t response = 0;
+    char *l_key = dap_chain_node_addr_to_hash_str(&l_node_info->hdr.address);
+    if(!l_key)
     {
-        char *a_key = dap_chain_node_addr_to_hash_str(&l_node_info->hdr.address);
-        if(!a_key)
-        {
-            log_it(L_DEBUG, "Can't calculate hash for addr");
-            response = 3;
-            DAP_DELETE(l_node_info);
-            return;
-        }
-        size_t l_node_info_size = dap_chain_node_info_get_size(l_node_info);
-        bool res = dap_global_db_set_sync(l_net->pub.gdb_nodes, a_key, (uint8_t *) l_node_info, l_node_info_size,
-                                     true) == 0;
-        if(res)
-        {
-            char l_node_addr_str[INET_ADDRSTRLEN]={};
-            inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
-            log_it(L_DEBUG, "Add addres "NODE_ADDR_FP_STR" (%s) to node list",
-                       NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),l_node_addr_str);
-            response = 1;
-        }
-        else
-        {
-            response = 2;
-            log_it(L_DEBUG, "Don't add this addres to node list");
-        }
+        log_it(L_DEBUG, "Can't calculate hash for addr");
+        response = 3;
     }
-    else
-    {
-        log_it(L_DEBUG, "Can't do handshake");
-        response = 4;
+    else{
+        size_t node_info_size = 0;
+        dap_chain_node_info_t *l_node_inf_check;
+        l_node_inf_check = (dap_chain_node_info_t *) dap_global_db_get_sync(l_net->pub.gdb_nodes, l_key, &node_info_size, NULL, NULL);
+        if(l_node_inf_check)
+        {
+            log_it(L_DEBUG, "The node is already exists");
+            response = 5;
+            DAP_DELETE(l_node_inf_check);
+        }
+        else{
+            if(dap_chain_net_balancer_handshake(l_node_info,l_net))
+                response = 1;
+            if(response)
+            {
+
+                size_t l_node_info_size = dap_chain_node_info_get_size(l_node_info);
+                bool res = dap_global_db_set_sync(l_net->pub.gdb_nodes, l_key, (uint8_t *) l_node_info, l_node_info_size,
+                                             true) == 0;
+                if(res)
+                {
+                    char l_node_addr_str[INET_ADDRSTRLEN]={};
+                    inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
+                    log_it(L_DEBUG, "Add addres "NODE_ADDR_FP_STR" (%s) to node list",
+                               NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),l_node_addr_str);
+                    response = 1;
+                }
+                else
+                {
+                    response = 2;
+                    log_it(L_DEBUG, "Don't add this addres to node list");
+                }
+            }
+            else
+            {
+                log_it(L_DEBUG, "Can't do handshake");
+                response = 4;
+            }
+        }
     }
     *l_return_code = Http_Status_OK;
     size_t l_data_send_size = sizeof(uint8_t);
@@ -278,7 +289,7 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
     int rc = dap_chain_net_node_list_wait(l_node_list_request, 4000);
     if(ret){
         s_node_list_request_dinit(l_node_list_request);
-        return 5;
+        return 6;
     }
     else{
         if(rc)
