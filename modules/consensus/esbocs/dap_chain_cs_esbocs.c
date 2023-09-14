@@ -307,7 +307,9 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
     uint64_t l_limit_time = l_time_store_lim_hours ? dap_nanotime_now() - dap_nanotime_from_sec(l_time_store_lim_hours * 3600) : 0;
     size_t l_objs_count = 0;
     dap_global_db_pkt_t *l_pkt = 0;
-    dap_store_obj_t *l_objs = dap_global_db_get_all_raw_unsafe(a_context, l_sync_group, 0, &l_objs_count);
+    dap_db_iter_t *l_iter = dap_global_db_driver_iter_create(l_sync_group);
+    dap_store_obj_t *l_objs = dap_global_db_get_all_raw_unsafe(a_context, l_iter, &l_objs_count);
+    dap_global_db_driver_iter_delete(l_iter);
     for (size_t i = 0; i < l_objs_count; i++) {
         dap_store_obj_t *it = l_objs + i;
         if (l_notify_item->ttl && it->timestamp < l_limit_time) {
@@ -337,7 +339,10 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
 
     char *l_del_sync_group = dap_strdup_printf("%s.del", l_sync_group);
     l_objs_count = 0;
-    l_objs = dap_global_db_get_all_raw_unsafe(a_context, l_del_sync_group, 0, &l_objs_count);
+    l_iter = dap_global_db_driver_iter_create(l_sync_group);
+    l_objs = dap_global_db_get_all_raw_unsafe(a_context, l_iter, &l_objs_count);
+    dap_global_db_driver_iter_delete(l_iter);
+    
     DAP_DELETE(l_del_sync_group);
     for (size_t i = 0; i < l_objs_count; i++) {
         dap_store_obj_t *it = l_objs + i;
@@ -1650,7 +1655,7 @@ static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_ch
         tmp->fee_need_cfg = PVT(a_session->esbocs)->fee_coll_set;
         tmp->key_from = PVT(a_session->esbocs)->blocks_sign_key;
 
-        dap_global_db_get_all(s_block_fee_group,0,s_check_db_callback_fee_collect,tmp);
+        dap_global_db_get_all(s_block_fee_group, 0, s_check_db_callback_fee_collect,tmp);
     }
 }
 

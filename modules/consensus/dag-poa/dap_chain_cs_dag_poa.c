@@ -466,7 +466,7 @@ static void s_poa_round_check_callback_round_clean(dap_global_db_context_t *a_gl
 static void s_poa_round_clean(void *a_arg)
 {
     dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG((dap_chain_t *)a_arg);
-    dap_global_db_get_all(l_dag->gdb_group_events_round_new,0,s_poa_round_check_callback_round_clean, l_dag);
+    dap_global_db_get_all(l_dag->gdb_group_events_round_new, 0, s_poa_round_check_callback_round_clean, l_dag);
 }
 
 static bool s_round_event_ready_minimum_check(dap_chain_cs_dag_t *a_dag, dap_chain_cs_dag_event_t *a_event,
@@ -646,9 +646,8 @@ static void s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
  */
 static bool s_callback_round_event_to_chain(struct round_timer_arg *a_callback_arg)
 {
-    dap_chain_cs_dag_t * l_dag = a_callback_arg->dag;
-    char * l_gdb_group_events = l_dag->gdb_group_events_round_new;
-    dap_global_db_get_all_raw(l_gdb_group_events, 0, 0, s_callback_round_event_to_chain_callback_get_round_item, a_callback_arg);
+    dap_chain_cs_dag_t *l_dag = a_callback_arg->dag;
+    dap_global_db_get_all_raw(l_dag->gdb_group_events_round_new, 0, 0, s_callback_round_event_to_chain_callback_get_round_item, a_callback_arg);
     return false;
 }
 
