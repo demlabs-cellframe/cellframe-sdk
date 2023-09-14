@@ -129,8 +129,7 @@ char *c_wallets_path;
         }
         *l_prec = l_rec;                                                /* Fill it by data */
         HASH_ADD_STR(s_wallet_n_pass, name, l_prec);                    /* Add into the hash-table */
-    }
-    else {
+    } else {
         if ( !l_prec->pass_len )                                        /* Password field is empty ? */
             memcpy(l_prec->pass, a_pass, l_prec->pass_len = a_pass_len);/* Update password with new one */
 
@@ -274,11 +273,11 @@ dap_chain_wallet_n_pass_t   *l_prec;
     if ( l_prec )
     {
         if ( !l_prec->pass_len )                                        /* Password is zero - has been reset probably */
-            log_it(L_WARNING, "The Wallet %.*s is not active", (int) a_name_len, a_name);
+            l_rc = -EBUSY, log_it(L_WARNING, "The Wallet %.*s is not active", (int) a_name_len, a_name);
 
         else if ( (l_prec->pass_len != a_pass_len)                      /* Check that passwords is equivalent */
              || memcmp(l_prec->pass, a_pass, l_prec->pass_len) )
-            l_rc = -EINVAL, log_it(L_ERROR, "Wallet's password does not match");
+            l_rc = -EAGAIN, log_it(L_ERROR, "Wallet's password does not match");
 
         else    l_rc = 0, memset(l_prec->pass, l_prec->pass_len = 0, sizeof(l_prec->pass));
     }
@@ -500,9 +499,13 @@ dap_chain_addr_t* dap_chain_wallet_get_addr(dap_chain_wallet_t * a_wallet, dap_c
  * @param a_net_id
  * @return
  */
-dap_chain_addr_t * dap_cert_to_addr(dap_cert_t * a_cert, dap_chain_net_id_t a_net_id)
+dap_chain_addr_t *dap_cert_to_addr(dap_cert_t * a_cert, dap_chain_net_id_t a_net_id)
 {
-    dap_chain_addr_t * l_addr = DAP_NEW_Z(dap_chain_addr_t);
+    dap_chain_addr_t *l_addr = DAP_NEW_Z(dap_chain_addr_t);
+    if(!l_addr) {
+        log_it(L_CRITICAL, "Memory allocation error");
+        return NULL;
+    }
     dap_chain_addr_fill_from_key(l_addr, a_cert->enc_key, a_net_id);
     return l_addr;
 }
@@ -998,4 +1001,17 @@ uint256_t dap_chain_wallet_get_balance (
     dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(a_wallet, a_net_id);
 
     return  (l_net)  ? dap_chain_ledger_calc_balance(l_net->pub.ledger, l_addr, a_token_ticker) : uint256_0;
+}
+
+/**
+ * @brief cheack wallet to the Bliss sign
+ * @param a_wallet
+ * @return if sign Bliss - caution message, else ""
+ */
+const char* dap_chain_wallet_check_bliss_sign(dap_chain_wallet_t *a_wallet) {
+    dap_chain_wallet_internal_t *l_wallet_internal = DAP_CHAIN_WALLET_INTERNAL(a_wallet);
+    if (l_wallet_internal && SIG_TYPE_BLISS == dap_sign_type_from_key_type(l_wallet_internal->certs[0]->enc_key->type).type) {
+        return "The Bliss signature is deprecated. We recommend you to create a new wallet with another available signature and transfer funds there.";
+    }
+    return "";
 }

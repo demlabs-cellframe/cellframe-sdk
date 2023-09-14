@@ -259,6 +259,18 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
 
 static int s_file_write_header(dap_chain_cell_t *a_cell)
 {
+    if (!a_cell->file_storage) {
+        log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X" not opened",
+               a_cell->file_storage_path, a_cell->id.uint64);
+        return -2;
+    } else {
+        fseek(a_cell->file_storage, 0L, SEEK_END);
+        if (ftell(a_cell->file_storage) > (ssize_t)sizeof(dap_chain_cell_file_header_t)) {
+            log_it(L_ERROR, "Chain cell \"%s\" 0x%016"DAP_UINT64_FORMAT_X" is already not empty!",
+                   a_cell->file_storage_path, a_cell->id.uint64);
+            return -3;
+        }
+    }
     dap_chain_cell_file_header_t l_hdr = {
         .signature      = DAP_CHAIN_CELL_FILE_SIGNATURE,
         .version        = DAP_CHAIN_CELL_FILE_VERSION,
