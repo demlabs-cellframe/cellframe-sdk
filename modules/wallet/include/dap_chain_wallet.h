@@ -80,3 +80,5 @@ int dap_chain_wallet_save_file( dap_chain_wallet_t * a_wallet);
 
 int     dap_chain_wallet_activate   (const char *a_name, ssize_t a_name_len, const char *a_pass, ssize_t a_pass_len, unsigned a_ttl);
 int     dap_chain_wallet_deactivate   (const char *a_name, ssize_t a_name_len, const char *a_pass, ssize_t a_pass_len);
+
+const char* dap_chain_wallet_check_bliss_sign(dap_chain_wallet_t *a_wallet);

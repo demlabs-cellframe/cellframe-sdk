@@ -172,16 +172,17 @@ void dap_chain_net_balancer_prepare_list_links(const char *a_net_name,bool hands
     dap_list_free(l_node_addr_list);
 }
 
-static int callback_compare_node_list(const void * a_item1, const void * a_item2, void *a_unused)
+static int callback_compare_node_list(const void *a_item1, const void *a_item2)
 {
-    UNUSED(a_unused);
-    if (!a_item1 || !a_item2) {
+    dap_chain_node_info_t   *l_item1 = (dap_chain_node_info_t*)((dap_list_t*)a_item1)->data,
+                            *l_item2 = (dap_chain_node_info_t*)((dap_list_t*)a_item2)->data;
+    if (!l_item1 || !l_item2) {
+        log_it(L_CRITICAL, "Invalid element");
         return 0;
     }
-    dap_chain_node_info_t *l_item1 = (dap_chain_node_info_t*)a_item1, *l_item2 = (dap_chain_node_info_t*)a_item2;
+
     return l_item1->hdr.links_number == l_item2->hdr.links_number
-            ? 0 : l_item1->hdr.links_number > l_item2->hdr.links_number
-              ? 1 : -1;
+            ? 0 : l_item1->hdr.links_number > l_item2->hdr.links_number ? 1 : -1;
 }
 
 dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node(const char *a_net_name,uint16_t a_links_need)
