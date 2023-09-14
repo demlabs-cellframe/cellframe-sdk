@@ -2296,7 +2296,7 @@ static void s_load_cache_gdb_loaded_spent_txs_callback(dap_global_db_context_t *
     }
 
     char * l_gdb_group = dap_chain_ledger_get_gdb_group(l_ledger, DAP_CHAIN_LEDGER_BALANCES_STR);
-    dap_global_db_get_all(l_gdb_group,0, s_load_cache_gdb_loaded_balances_callback, l_ledger);
+    dap_global_db_get_all(l_gdb_group, 0, s_load_cache_gdb_loaded_balances_callback, l_ledger);
     DAP_DELETE(l_gdb_group);
 }
 
@@ -2339,7 +2339,7 @@ static void s_load_cache_gdb_loaded_txs_callback(dap_global_db_context_t *a_glob
     }
 
     char *l_gdb_group = dap_chain_ledger_get_gdb_group(l_ledger, DAP_CHAIN_LEDGER_SPENT_TXS_STR);
-    dap_global_db_get_all(l_gdb_group,0, s_load_cache_gdb_loaded_spent_txs_callback, l_ledger);
+    dap_global_db_get_all(l_gdb_group, 0, s_load_cache_gdb_loaded_spent_txs_callback, l_ledger);
     DAP_DELETE(l_gdb_group);
 }
 
@@ -2365,7 +2365,7 @@ static void s_load_cache_gdb_loaded_stake_lock_callback(dap_global_db_context_t 
     }
 
     char* l_gdb_group = dap_chain_ledger_get_gdb_group(l_ledger, DAP_CHAIN_LEDGER_TXS_STR);
-    dap_global_db_get_all(l_gdb_group,0, s_load_cache_gdb_loaded_txs_callback, l_ledger);
+    dap_global_db_get_all(l_gdb_group, 0, s_load_cache_gdb_loaded_txs_callback, l_ledger);
     DAP_DELETE(l_gdb_group);
 }
 
@@ -2417,7 +2417,7 @@ static void s_load_cache_gdb_loaded_emissions_callback(dap_global_db_context_t *
     }
 
     char* l_gdb_group = dap_chain_ledger_get_gdb_group(l_ledger, DAP_CHAIN_LEDGER_STAKE_LOCK_STR);
-    dap_global_db_get_all(l_gdb_group,0, s_load_cache_gdb_loaded_stake_lock_callback, l_ledger);
+    dap_global_db_get_all(l_gdb_group, 0, s_load_cache_gdb_loaded_stake_lock_callback, l_ledger);
     DAP_DELETE(l_gdb_group);
 }
 
@@ -2469,7 +2469,7 @@ static void s_load_cache_gdb_loaded_tokens_callback(dap_global_db_context_t *a_g
     }
 
     char *l_gdb_group = dap_chain_ledger_get_gdb_group(l_ledger, DAP_CHAIN_LEDGER_EMISSIONS_STR);
-    dap_global_db_get_all(l_gdb_group,0, s_load_cache_gdb_loaded_emissions_callback, l_ledger);
+    dap_global_db_get_all(l_gdb_group, 0, s_load_cache_gdb_loaded_emissions_callback, l_ledger);
     DAP_DELETE(l_gdb_group);
 }
 
@@ -2483,7 +2483,7 @@ void dap_chain_ledger_load_cache(dap_ledger_t *a_ledger)
     char *l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_LEDGER_TOKENS_STR);
 
     pthread_mutex_lock(& l_ledger_pvt->load_mutex);
-    dap_global_db_get_all(l_gdb_group,0,s_load_cache_gdb_loaded_tokens_callback, a_ledger);
+    dap_global_db_get_all(l_gdb_group, 0, s_load_cache_gdb_loaded_tokens_callback, a_ledger);
     while (!l_ledger_pvt->load_end)
         pthread_cond_wait(& l_ledger_pvt->load_cond, &l_ledger_pvt->load_mutex);
     pthread_mutex_unlock(& l_ledger_pvt->load_mutex);

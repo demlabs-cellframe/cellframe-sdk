@@ -365,7 +365,9 @@ int dap_chain_net_srv_stake_load_cache(dap_chain_net_t *a_net)
         return 0;
     char *l_gdb_group = dap_chain_ledger_get_gdb_group(l_ledger, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP);
     size_t l_objs_count = 0;
-    dap_store_obj_t *l_store_obj = dap_global_db_get_all_raw_sync(l_gdb_group, 0, &l_objs_count);
+    
+    dap_store_obj_t *l_store_obj = dap_global_db_get_all_raw_sync(l_gdb_group, &l_objs_count);
+
     if (!l_objs_count || !l_store_obj) {
         log_it(L_ATT, "Stake cache data not found");
         return -1;
