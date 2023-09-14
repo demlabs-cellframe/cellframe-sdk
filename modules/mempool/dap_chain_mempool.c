@@ -1247,19 +1247,16 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
                 DAP_DEL_Z(a_key);
             } else
                 *return_code = Http_Status_BadRequest;
-        }
-        else    *return_code = Http_Status_BadRequest;
+        } else
+            *return_code = Http_Status_BadRequest;
 
         enc_http_delegate_delete(l_enc_delegate);
-    }
-    else    *return_code = Http_Status_Unauthorized;
+    } else
+        *return_code = Http_Status_Unauthorized;
 
-    if(hdr_session_close_id && hdr_session_close_id->value && !strcmp(hdr_session_close_id->value, "yes")) {
+    if (hdr_session_close_id && !strcmp(hdr_session_close_id->value, "yes") && hdr_key_id)
         // close session
-        if(hdr_key_id && hdr_key_id->value) {
-            dap_enc_ks_delete(hdr_key_id->value);
-        }
-    }
+        dap_enc_ks_delete(hdr_key_id->value);
 }
 
 /**

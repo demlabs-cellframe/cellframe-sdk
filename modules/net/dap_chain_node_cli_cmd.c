@@ -830,7 +830,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
                         return -1;
                     }
                     dap_chain_cell_t *l_cell = dap_chain_cell_create_fill(l_chain, l_cell_id);
-                    int l_ret = dap_chain_cell_file_update(l_cell);
+                    int l_ret = (int)dap_chain_cell_file_update(l_cell);
                     if(l_ret > 0)
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "cell added successfully");
                     else
@@ -5577,6 +5577,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
         else{
 		dap_string_append_printf(l_err_str, "Can't create sign for transactions.\n");
             log_it(L_ERROR, "Json TX: Item sign has no wallet or cert of they are invalid ");
+            l_list = dap_list_next(l_list);
             continue;
         }
 
@@ -5584,6 +5585,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
             l_items_ready++;
         } else {
             log_it(L_ERROR, "Json TX: Item sign has invalid enc_key.");
+            l_list = dap_list_next(l_list);
             continue;
         }
 
