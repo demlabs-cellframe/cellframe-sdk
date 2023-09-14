@@ -113,14 +113,13 @@ int dap_chain_datum_tx_add_in_item(dap_chain_datum_tx_t **a_tx, dap_chain_hash_f
  */
 uint256_t dap_chain_datum_tx_add_in_item_list(dap_chain_datum_tx_t **a_tx, dap_list_t *a_list_used_out)
 {
-    dap_list_t *l_list_tmp = a_list_used_out;
-    uint256_t l_value_to_items = {}; // how many datoshi to transfer
-    while (l_list_tmp) {
-        dap_chain_tx_used_out_item_t *l_item = l_list_tmp->data;
+    dap_list_t *l_item_out;
+    uint256_t l_value_to_items = { }; // how many datoshi to transfer
+    DL_FOREACH(a_list_used_out, l_item_out) {
+        dap_chain_tx_used_out_item_t *l_item = l_item_out->data;
         if (dap_chain_datum_tx_add_in_item(a_tx, &l_item->tx_hash_fast, l_item->num_idx_out) == 1) {
             SUM_256_256(l_value_to_items, l_item->value, &l_value_to_items);
         }
-        l_list_tmp = dap_list_next(l_list_tmp);
     }
     return l_value_to_items;
 }
@@ -138,27 +137,24 @@ int dap_chain_datum_tx_add_in_cond_item(dap_chain_datum_tx_t **a_tx, dap_chain_h
                                         uint32_t a_tx_out_prev_idx,
                                         uint32_t a_receipt_idx)
 {
-    dap_chain_tx_in_cond_t *l_tx_in_cond = dap_chain_datum_tx_item_in_cond_create( a_tx_prev_hash, a_tx_out_prev_idx,
-                a_receipt_idx);
-    if(l_tx_in_cond) {
-        dap_chain_datum_tx_add_item(a_tx, (uint8_t *)l_tx_in_cond);
-        DAP_DELETE(l_tx_in_cond);
-        return 0;
-    }
-    return -1;
-
+    dap_chain_tx_in_cond_t *l_tx_in_cond
+            = dap_chain_datum_tx_item_in_cond_create(a_tx_prev_hash, a_tx_out_prev_idx, a_receipt_idx);
+    if (!l_tx_in_cond)
+        return -1;
+    dap_chain_datum_tx_add_item(a_tx, (uint8_t*)l_tx_in_cond);
+    DAP_DELETE(l_tx_in_cond);
+    return 0;
 }
 
 uint256_t dap_chain_datum_tx_add_in_cond_item_list(dap_chain_datum_tx_t **a_tx, dap_list_t *a_list_used_out_cound)
 {
-   dap_list_t *l_list_tmp = a_list_used_out_cound;
-   uint256_t l_value_to_items = {};
-   while (l_list_tmp) {
-       dap_chain_tx_used_out_item_t *l_item = l_list_tmp->data;
+   dap_list_t *l_item_out;
+   uint256_t l_value_to_items = { };
+   DL_FOREACH(a_list_used_out_cound, l_item_out) {
+       dap_chain_tx_used_out_item_t *l_item = l_item_out->data;
        if (!dap_chain_datum_tx_add_in_cond_item(a_tx, &l_item->tx_hash_fast, l_item->num_idx_out,0)) {
            SUM_256_256(l_value_to_items, l_item->value, &l_value_to_items);
        }
-       l_list_tmp = dap_list_next(l_list_tmp);
    }
    return l_value_to_items;
 }
@@ -178,19 +174,22 @@ int dap_chain_datum_tx_add_fee_item(dap_chain_datum_tx_t **a_tx, uint256_t a_val
     return -1;
 }
 
-int dap_chain_datum_tx_get_fee_value (dap_chain_datum_tx_t *a_tx, uint256_t *a_value)
+int dap_chain_datum_tx_get_fee_value(dap_chain_datum_tx_t *a_tx, uint256_t *a_value)
 {
-    dap_list_t *l_items_list = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_COND, NULL);
-
-    for(dap_list_t *l_item=l_items_list; l_item; l_item=l_item->next){
+    if (!a_value)
+        return -2;
+    int l_ret = -1;
+    dap_list_t *l_items_list = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_COND, NULL), *l_item;
+    DL_FOREACH(l_items_list, l_item) {
         dap_chain_tx_out_cond_t *l_out_item = (dap_chain_tx_out_cond_t*)l_item->data;
         if (l_out_item->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE){
             *a_value = l_out_item->header.value;
-            return 0;
+            l_ret = 0;
+            break;
         }
     }
-
-    return -1;
+    dap_list_free(l_items_list);
+    return l_ret;
 }
 
 /**

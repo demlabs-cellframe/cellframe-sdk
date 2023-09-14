@@ -341,9 +341,12 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
  */
 static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
-    dap_chain_cs_dag_new(a_chain,a_chain_cfg);
-    dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG ( a_chain );
-    dap_chain_cs_dag_poa_t *l_poa = DAP_NEW_Z ( dap_chain_cs_dag_poa_t);
+    if (dap_chain_cs_dag_new(a_chain,a_chain_cfg)) {
+        log_it(L_ERROR, "Couldn't init DAG");
+        return -1;
+    }
+    dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG(a_chain);
+    dap_chain_cs_dag_poa_t *l_poa = DAP_NEW_Z(dap_chain_cs_dag_poa_t);
     if (!l_poa) {
         log_it(L_CRITICAL, "Memory allocation error");
         return -1;
