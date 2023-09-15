@@ -307,9 +307,7 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
     uint64_t l_limit_time = l_time_store_lim_hours ? dap_nanotime_now() - dap_nanotime_from_sec(l_time_store_lim_hours * 3600) : 0;
     size_t l_objs_count = 0;
     dap_global_db_pkt_t *l_pkt = 0;
-    dap_db_iter_t *l_iter = dap_global_db_driver_iter_create(l_sync_group);
-    dap_store_obj_t *l_objs = dap_global_db_get_all_raw_unsafe(a_context, l_iter, &l_objs_count);
-    dap_global_db_driver_iter_delete(l_iter);
+    dap_store_obj_t *l_objs = dap_global_db_get_all_raw_unsafe(a_context, l_sync_group, &l_objs_count);
     for (size_t i = 0; i < l_objs_count; i++) {
         dap_store_obj_t *it = l_objs + i;
         if (l_notify_item->ttl && it->timestamp < l_limit_time) {
@@ -339,9 +337,7 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
 
     char *l_del_sync_group = dap_strdup_printf("%s.del", l_sync_group);
     l_objs_count = 0;
-    l_iter = dap_global_db_driver_iter_create(l_sync_group);
-    l_objs = dap_global_db_get_all_raw_unsafe(a_context, l_iter, &l_objs_count);
-    dap_global_db_driver_iter_delete(l_iter);
+    l_objs = dap_global_db_get_all_raw_unsafe(a_context, l_sync_group, &l_objs_count);
     
     DAP_DELETE(l_del_sync_group);
     for (size_t i = 0; i < l_objs_count; i++) {
@@ -1499,7 +1495,7 @@ typedef struct fee_serv_param
     dap_chain_t * chain;
 }fee_serv_param_t;
 
-static void s_check_db_callback_fee_collect (UNUSED_ARG dap_global_db_context_t *a_global_db_context,
+static bool s_check_db_callback_fee_collect (UNUSED_ARG dap_global_db_context_t *a_global_db_context,
                                              UNUSED_ARG int a_rc, UNUSED_ARG const char *a_group,
                                              UNUSED_ARG const size_t a_values_total, const size_t a_values_count,
                                              dap_global_db_obj_t *a_values, void *a_arg)
@@ -1516,46 +1512,36 @@ static void s_check_db_callback_fee_collect (UNUSED_ARG dap_global_db_context_t 
     dap_list_t *l_block_list = NULL;
     log_it(L_MSG, "Fee collector start work");
     l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_arg->block_hash);
-    if(!l_block_cache)
-    {
+    if(!l_block_cache) {
         log_it(L_WARNING, "The block_cache is empty");
-        return;
+        return false;
     }
     dap_ledger_t *l_ledger = dap_chain_net_by_id(l_chain->net_id)->pub.ledger;
     dap_list_t *l_list_used_out = dap_chain_block_get_list_tx_cond_outs_with_val(l_ledger, l_block_cache, &l_value_out_block);
-    if(!l_list_used_out)
-    {
+    if(!l_list_used_out) {
         log_it(L_WARNING, "There aren't any fee in this block");
-        return;
+        return false;
     }
     dap_list_free_full(l_list_used_out, NULL);
     l_block_list = dap_list_append(l_block_list, l_block_cache);
-    if(!a_values_count)
-    {
-        if(compare256(l_value_out_block,l_arg->fee_need_cfg) == 1)
-        {
+    if(!a_values_count){
+        if(compare256(l_value_out_block,l_arg->fee_need_cfg) == 1) {
             char *l_hash_tx = dap_chain_mempool_tx_coll_fee_create(l_arg->key_from, l_arg->a_addr_to,
                                                  l_block_list, l_arg->value_fee, "hex");
-            if(l_hash_tx)
-            {
+            if(l_hash_tx) {
                 log_it(L_NOTICE, "Fee collect transaction successfully created, hash=%s\n",l_hash_tx);
                 dap_global_db_del(s_block_fee_group, NULL, NULL, NULL);
                 DAP_DELETE(l_hash_tx);
             }
-        }
-        else
-        {
+        } else {
             res = dap_global_db_set(s_block_fee_group,l_block_cache->block_hash_str,&l_value_out_block,sizeof(uint256_t),false,NULL,NULL);
             if(res)
                 log_it(L_WARNING, "Unable to write data to database");
             else
                 log_it(L_NOTICE, "The block was successfully added to the database");
         }        
-    }
-    else
-    {
-        for(size_t i=0;i<a_values_count;i++)
-        {
+    } else {
+        for(size_t i=0;i<a_values_count;i++) {
             dap_hash_fast_t block_hash;
             dap_chain_hash_fast_from_hex_str(a_values[i].key,&block_hash);
             dap_chain_block_cache_t *block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &block_hash);
@@ -1563,19 +1549,15 @@ static void s_check_db_callback_fee_collect (UNUSED_ARG dap_global_db_context_t 
             SUM_256_256(*(uint256_t*)a_values[i].value,l_value_gdb,&l_value_gdb);
         }
         SUM_256_256(l_value_out_block,l_value_gdb,&l_value_total);
-        if(compare256(l_value_total,l_arg->fee_need_cfg) == 1)
-        {
+        if(compare256(l_value_total,l_arg->fee_need_cfg) == 1) {
             char *l_hash_tx = dap_chain_mempool_tx_coll_fee_create(l_arg->key_from, l_arg->a_addr_to,
                                                  l_block_list, l_arg->value_fee, "hex");
-            if(l_hash_tx)
-            {
+            if(l_hash_tx) {
                 dap_global_db_del(s_block_fee_group, NULL, NULL, NULL);
                 log_it(L_NOTICE, "Fee collect transaction successfully created, hash=%s\n",l_hash_tx);
                 DAP_DELETE(l_hash_tx);
             }
-        }
-        else
-        {
+        } else {
             res = dap_global_db_set(s_block_fee_group,l_block_cache->block_hash_str,&l_value_out_block,sizeof(uint256_t),false,NULL,NULL);
             if(res)
                 log_it(L_WARNING, "Unable to write data to database");
@@ -1586,7 +1568,7 @@ static void s_check_db_callback_fee_collect (UNUSED_ARG dap_global_db_context_t 
     dap_list_free(l_block_list);
     DAP_DEL_Z(l_arg->a_addr_to);
     DAP_DELETE(l_arg);
-    return;
+    return true;
 }
 
 static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_chain_esbocs_store_t *l_store)
@@ -1669,7 +1651,7 @@ static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_ch
         tmp->fee_need_cfg = PVT(a_session->esbocs)->fee_coll_set;
         tmp->key_from = PVT(a_session->esbocs)->blocks_sign_key;
 
-        dap_global_db_get_all(s_block_fee_group, 0, s_check_db_callback_fee_collect,tmp);
+        dap_global_db_get_all(s_block_fee_group, 0, s_check_db_callback_fee_collect, tmp);
     }
 }
 
