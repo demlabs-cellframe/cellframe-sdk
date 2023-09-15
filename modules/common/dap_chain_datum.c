@@ -784,6 +784,9 @@ json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum){
         case DAP_CHAIN_DATUM_TX:
             l_obj_data = dap_chain_datum_tx_to_json((dap_chain_datum_tx_t*)a_datum->data);
             break;
+        case DAP_CHAIN_DATUM_DECREE:
+            l_obj_data = dap_chain_datum_decree_to_json((dap_chain_datum_decree_t*)a_datum->data);
+            break;
         default:
             l_obj_data = json_object_new_null();
             break;
@@ -793,6 +796,10 @@ json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum){
     json_object_object_add(l_object, "data_size", l_obj_size);
     json_object_object_add(l_object, "ts_created", l_obj_ts_created);
     json_object_object_add(l_object, "type", l_obj_type);
-    json_object_object_add(l_object, "data", l_obj_data);
+    if (a_datum->header.type_id == DAP_CHAIN_DATUM_TX) {
+        json_object_object_add(l_object, "items", l_obj_data);
+    } else {
+        json_object_object_add(l_object, "data", l_obj_data);
+    }
     return l_object;
 }
