@@ -199,6 +199,8 @@ typedef struct dap_chain_net_pvt{
 
     uint16_t seed_aliases_count;
     struct in_addr *seed_nodes_addrs_v4;
+    uint16_t *seed_nodes_ports;
+    uint64_t *seed_nodes_addrs;
 
     dap_chain_net_state_t state;
     dap_chain_net_state_t state_target;
@@ -647,6 +649,7 @@ dap_chain_node_info_t *dap_get_balancer_link_from_cfg(dap_chain_net_t *a_net)
         i = rand() % l_net_pvt->seed_aliases_count;
         dap_chain_node_addr_t *l_remote_addr = dap_chain_node_alias_find(a_net, l_net_pvt->seed_aliases[i]);
         if (l_remote_addr){
+            dap_chain_node_info_t *l_link_node_info = DAP_NEW_Z(dap_chain_node_info_t);
             dap_chain_node_info_t *l_remote_node_info = dap_chain_node_info_read(a_net, l_remote_addr);
             if (l_remote_node_info) {
                 dap_chain_node_info_t *l_ret = l_remote_node_info->hdr.ext_addr_v4.s_addr ? l_remote_node_info : NULL;
@@ -2572,6 +2575,8 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     log_it (L_DEBUG, "Read %u aliases, %u address and %u ipv4 addresses, check them",
             l_net_pvt->seed_aliases_count,l_seed_nodes_addrs_len, l_seed_nodes_ipv4_len );
     PVT(l_net)->seed_nodes_addrs_v4 = DAP_NEW_SIZE(struct in_addr, l_net_pvt->seed_aliases_count * sizeof(struct in_addr));
+    PVT(l_net)->seed_nodes_addrs = DAP_NEW_SIZE(uint64_t, l_net_pvt->seed_aliases_count * sizeof(uint64_t));
+    PVT(l_net)->seed_nodes_ports = DAP_NEW_SIZE(uint16_t, l_net_pvt->seed_aliases_count * sizeof(uint16_t));
     // save new nodes from cfg file to db
     for ( size_t i = 0; i < PVT(l_net)->seed_aliases_count &&
                         i < l_seed_nodes_addrs_len &&
@@ -2595,6 +2600,8 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
             inet_pton(AF_INET6, l_seed_nodes_ipv6[i], &l_node_info.hdr.ext_addr_v6);
         l_node_info.hdr.ext_port = l_seed_nodes_port_len && l_seed_nodes_port_len >= i ?
             strtoul(l_seed_nodes_port[i], NULL, 10) : 8079;
+        l_net_pvt->seed_nodes_ports[i] = l_node_info.hdr.ext_port;
+        l_net_pvt->seed_nodes_addrs[i] = l_seed_node_addr.uint64;
 
         if (l_seed_nodes_hostnames_len) {
             struct sockaddr l_sa = {};

@@ -78,6 +78,7 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_str);
     dap_chain_node_info_t l_node_info = {
         .hdr.address.uint64 = addr,
+        .hdr.owner_address.uint64 = dap_chain_net_get_cur_addr_int(l_net),
         .hdr.ext_addr_v4.s_addr = ipv4,
         .hdr.ext_port = port
     };
