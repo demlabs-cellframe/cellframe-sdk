@@ -626,6 +626,12 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
             for(size_t i = 0; i < l_nodes_count; i++) {
                 dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)l_objs[i].value;
                 // read node
+                if (!l_node_info || !l_objs[i].value_len) {
+                    log_it(L_WARNING, "Broken record with key %s in nodelist, skip and delete it",
+                           l_objs[i].key ? l_objs[i].key : "(null)");
+                    dap_global_db_del_sync(a_net->pub.gdb_nodes, l_objs[i].key);
+                    continue;
+                }
                 if ( !dap_chain_node_addr_not_null(&l_node_info->hdr.address)){
                     log_it(L_ERROR, "Node address is NULL");
                     continue;

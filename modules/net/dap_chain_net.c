@@ -3345,6 +3345,12 @@ dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * l_net)
         return l_node_list;
     for(size_t i = 0; i < l_nodes_count; i++) {
         dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *) l_objs[i].value;
+        if (!l_node_info || !l_objs[i].value_len) {
+            log_it(L_WARNING, "Broken record with key %s in nodelist, skip and delete it",
+                   l_objs[i].key ? l_objs[i].key : "(null)");
+            dap_global_db_del_sync(l_net->pub.gdb_nodes, l_objs[i].key);
+            continue;
+        }
         dap_chain_node_addr_t *l_address = DAP_NEW(dap_chain_node_addr_t);
         if (!l_address) {
         log_it(L_CRITICAL, "Memory allocation error");

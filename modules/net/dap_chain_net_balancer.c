@@ -93,6 +93,11 @@ static uint64_t min_count_blocks_events(dap_global_db_obj_t * a_objs,size_t a_no
     uint64_t l_blocks_events = 0;
     for (size_t i = 0; i < a_node_count; i++) {
         dap_chain_node_info_t *l_node_cand = (dap_chain_node_info_t *)a_objs[i].value;
+        if (!l_node_cand || !a_objs[i].value_len) {
+            log_it(L_WARNING, "Broken record with key %s in nodelist, skip it",
+                   a_objs[i].key ? a_objs[i].key : "(null)");
+            continue;
+        }
         for (dap_list_t *node_i = a_node_addr_list; node_i; node_i = node_i->next) {
             if(((struct in_addr*)node_i->data)->s_addr == l_node_cand->hdr.ext_addr_v4.s_addr) {
                 if (!l_blocks_events || l_blocks_events > l_node_cand->hdr.blocks_events)
@@ -133,6 +138,12 @@ void dap_chain_net_balancer_prepare_list_links(const char *a_net_name,bool hands
         log_it(L_DEBUG, "Adjusting node list");
         for (size_t i = 0; i < l_nodes_count; i++) {
             dap_chain_node_info_t *l_node_cand = (dap_chain_node_info_t *)l_objs[i].value;
+            if (!l_node_cand || !l_objs[i].value_len) {
+                log_it(L_WARNING, "Broken record with key %s in nodelist, skip and delete it",
+                       l_objs[i].key ? l_objs[i].key : "(null)");
+                dap_global_db_del_sync(l_net->pub.gdb_nodes, l_objs[i].key);
+                continue;
+            }
             for(dap_list_t *node_i = l_net->pub.link_list; node_i; node_i = node_i->next)
             {
                 dap_chain_node_info_t *l_node_list = (dap_chain_node_info_t *)node_i->data;
@@ -158,6 +169,12 @@ void dap_chain_net_balancer_prepare_list_links(const char *a_net_name,bool hands
         for (size_t i = 0; i < l_nodes_count; i++)
         {
             dap_chain_node_info_t *l_node_cand = (dap_chain_node_info_t *)l_objs[i].value;
+            if (!l_node_cand || !l_objs[i].value_len) {
+                log_it(L_WARNING, "Broken record with key %s in nodelist, skip and delete it",
+                       l_objs[i].key ? l_objs[i].key : "(null)");
+                dap_global_db_del_sync(l_net->pub.gdb_nodes, l_objs[i].key);
+                continue;
+            }
             if(!is_it_node_from_list(l_node_addr_list, l_node_cand)){
                 if(l_node_cand->hdr.blocks_events >= l_blocks_events){
                     if(dap_chain_net_balancer_handshake(l_node_cand,l_net)){
