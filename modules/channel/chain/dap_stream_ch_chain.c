@@ -114,7 +114,7 @@ static bool s_sync_out_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_ar
 static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg);
 
 static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg);
-static void s_gdb_in_pkt_proc_set_raw_callback(dap_global_db_context_t *a_global_db_context,
+static bool s_gdb_in_pkt_proc_set_raw_callback(dap_global_db_context_t *a_global_db_context,
                                                int a_rc, const char *a_group,
                                                const size_t a_values_total, const size_t a_values_count,
                                                dap_store_obj_t *a_values, void *a_arg);
@@ -775,21 +775,21 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
  * @param a_values
  * @param a_arg
  */
-static void s_gdb_in_pkt_proc_set_raw_callback(dap_global_db_context_t *a_global_db_context,
+static bool s_gdb_in_pkt_proc_set_raw_callback(dap_global_db_context_t *a_global_db_context,
                                                int a_rc, const char *a_group,
                                                const size_t a_values_total, const size_t a_values_count,
                                                dap_store_obj_t *a_values, void *a_arg)
 {
-
     struct sync_request *l_sync_req = (struct sync_request*) a_arg;
-    if( a_rc != 0){
+    if(a_rc){
         debug_if(s_debug_more, L_ERROR, "Can't save GlobalDB request, code %d", a_rc);
         dap_worker_exec_callback_inter(a_global_db_context->queue_worker_callback_input[l_sync_req->worker->id],
                                     s_gdb_in_pkt_error_worker_callback, l_sync_req);
-    }else{
+    } else {
         debug_if(s_debug_more, L_DEBUG, "Added new GLOBAL_DB synchronization record");
         DAP_DELETE(l_sync_req);
     }
+    return true;
 }
 
 

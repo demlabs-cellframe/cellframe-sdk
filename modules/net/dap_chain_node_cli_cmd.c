@@ -2200,7 +2200,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
         // wallet info
         case CMD_WALLET_INFO: {
             dap_ledger_t *l_ledger = NULL;
-            if (l_wallet_name && l_addr_str || !l_wallet_name && !l_addr_str) {
+            if ((l_wallet_name && l_addr_str) || (!l_wallet_name && !l_addr_str)) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "You should use either the -w or -addr option for the wallet info command.");
                 dap_string_free(l_string_ret, true);
                 return -1;
