@@ -3722,3 +3722,57 @@ char *dap_chain_net_links_dump(dap_chain_net_t *a_net) {
     dap_string_free(l_str_downlinks, true);
     return l_res_str;
 }
+
+/**
+ * @brief init node addr and set in gdb
+ * @param -
+ * @return 0 if no errors
+ */
+int s_net_init_node_addr_cert() 
+{
+    dap_config_t *l_cfg = NULL;
+    dap_string_t *l_cfg_path = dap_string_new("cellframe-node");
+
+    if( !(l_cfg = dap_config_open(l_cfg_path->str)) ) {
+        log_it(L_ERROR,"Can't open default node config");
+        dap_string_free(l_cfg_path,true);
+        return -1;
+    }
+    dap_string_free(l_cfg_path,true);
+
+    const char * l_node_addr_type = dap_config_get_item_str_default(l_cfg , "general" ,"node_addr_type","auto");
+    // use unique addr from pub key
+    size_t l_pub_key_data_size = 0;
+    uint8_t *l_pub_key_data = NULL;
+
+    // read pub key
+    char *l_addr_key = dap_strdup_printf("node-addr");
+    l_pub_key_data = dap_global_db_get_sync(GROUP_LOCAL_NODE_ADDR, l_addr_key, &l_pub_key_data_size, NULL, NULL);
+    // generate a new pub key if it doesn't exist
+    if(!l_pub_key_data || !l_pub_key_data_size) {
+        const char *l_certs_name_str = l_addr_key;
+        dap_cert_t **l_certs = NULL;
+        size_t l_certs_size = 0;
+        dap_cert_t *l_cert = NULL;
+        // Load certs or create if not found
+        if(!dap_cert_parse_str_list(l_certs_name_str, &l_certs, &l_certs_size)) { // Load certs
+            const char *l_cert_folder = dap_cert_get_folder(0);
+            // create new cert
+            if(l_cert_folder) {
+                char *l_cert_path = dap_strdup_printf("%s/%s.dcert", l_cert_folder, l_certs_name_str);
+                l_cert = dap_cert_generate(l_certs_name_str, l_cert_path, DAP_ENC_KEY_TYPE_SIG_DILITHIUM);
+                DAP_DELETE(l_cert_path);
+            }
+        }
+        if(l_certs_size > 0)
+            l_cert = l_certs[0];
+        if(l_cert) {
+            l_pub_key_data = dap_enc_key_serialize_pub_key(l_cert->enc_key, &l_pub_key_data_size);
+            // save pub key
+            if(l_pub_key_data && l_pub_key_data_size > 0)
+                dap_global_db_set(GROUP_LOCAL_NODE_ADDR, l_addr_key, l_pub_key_data, l_pub_key_data_size, false,
+                                    NULL, NULL);
+        }
+    }
+    return 0;
+}
