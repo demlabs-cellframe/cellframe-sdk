@@ -212,6 +212,264 @@ void s_datum_token_dump_tsd(dap_string_t *a_str_out, dap_chain_datum_token_t *a_
     }
 }
 
+json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_token, size_t a_token_size) {
+    dap_tsd_t *l_tsd = dap_chain_datum_token_tsd_get(a_token, a_token_size);
+    if (l_tsd == NULL) {
+        json_object *l_tsd_wgn = json_object_new_object();
+        json_object *l_tsd_wgn_warning = json_object_new_string("<CORRUPTED TSD SECTION>");
+        json_object_object_add(l_tsd_wgn, "warning", l_tsd_wgn_warning);
+        return l_tsd_wgn;
+    }
+    json_object *l_tsd_array = json_object_new_array();
+    size_t l_tsd_total_size = 0;
+    switch (a_token->type) {
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_DECL:
+            switch (a_token->subtype) {
+                case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
+                    l_tsd_total_size = a_token->header_private_decl.tsd_total_size; break;
+                case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
+                    l_tsd_total_size = a_token->header_native_decl.tsd_total_size; break;
+                default: break;
+            } break;
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE:
+            switch (a_token->subtype) {
+                case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:
+                    l_tsd_total_size = a_token->header_private_update.tsd_total_size; break;
+                case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
+                    l_tsd_total_size = a_token->header_native_update.tsd_total_size; break;
+                default: break;
+            } break;
+        default: break;
+    }
+    size_t l_tsd_size = 0;
+    for (size_t l_offset = 0; l_offset < l_tsd_total_size; l_offset += l_tsd_size) {
+        json_object *l_jobj_tsd = json_object_new_object();
+        l_tsd = (dap_tsd_t *) (((byte_t*)l_tsd) + l_tsd_size);
+        l_tsd_size = l_tsd ? dap_tsd_size(l_tsd) : 0;
+        if (l_tsd_size == 0) {
+            json_object *l_wgn_text = json_object_new_string("Wrong zero TSD size, exiting s_datum_token_dump_tsd()");
+            json_object *l_wgn = json_object_new_object();
+            json_object_object_add(l_wgn, "error", l_wgn_text);
+            json_object_array_add(l_tsd_array, l_wgn);
+            break;
+        } else if (l_tsd_size+l_offset > l_tsd_total_size) {
+            char *l_wgn_str = dap_strdup_printf("<CORRUPTED TSD> too big size %u when left maximum %zu",
+                                           l_tsd->size, l_tsd_total_size - l_offset);
+            json_object *l_wgn_text = json_object_new_string(l_wgn_str);
+            DAP_DELETE(l_wgn_str);
+            json_object *l_wgn = json_object_new_object();
+            json_object_object_add(l_wgn, "error", l_wgn_text);
+            json_object_array_add(l_tsd_array, l_wgn);
+            break;
+        }
+        switch( l_tsd->type){
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SET_FLAGS: {
+                json_object *l_jobj_tsd = json_object_new_object();
+                json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SET_FLAGS");
+                json_object *l_jobj_tsd_flag = dap_chain_datum_token_flags_to_json(dap_tsd_get_scalar(l_tsd, uint16_t));
+                json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
+                json_object_object_add(l_jobj_tsd, "flags", l_jobj_tsd_flag);
+                json_object_array_add(l_tsd_array, l_jobj_tsd);
+            } continue;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UNSET_FLAGS: {
+                json_object *l_jobj_tsd = json_object_new_object();
+                json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UNSET_FLAGS");
+                json_object *l_jobj_tsd_flag = dap_chain_datum_token_flags_to_json(dap_tsd_get_scalar(l_tsd, uint16_t));
+                json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
+                json_object_object_add(l_jobj_tsd, "flags", l_jobj_tsd_flag);
+                json_object_array_add(l_tsd_array, l_jobj_tsd);
+            } continue;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY: { // 256
+                json_object *l_jobj_tsd = json_object_new_object();
+                json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY");
+                char *l_balance = dap_chain_balance_print(dap_tsd_get_scalar(l_tsd, uint256_t));
+                json_object *l_jobj_tsd_value = json_object_new_string(l_balance);
+                json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
+                json_object_object_add(l_jobj_tsd, "value", l_jobj_tsd_value);
+                json_object_array_add(l_tsd_array, l_jobj_tsd);
+                DAP_DELETE(l_balance);
+            } continue;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_OLD: {// 128
+                json_object *l_jobj_tsd = json_object_new_object();
+                json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_OLD");
+                char *l_balance = dap_chain_balance_print(GET_256_FROM_128(dap_tsd_get_scalar(l_tsd, uint128_t)));
+                json_object *l_jobj_tsd_value = json_object_new_string(l_balance);
+                json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
+                json_object_object_add(l_jobj_tsd, "value", l_jobj_tsd_value);
+                json_object_array_add(l_tsd_array, l_jobj_tsd);
+                DAP_DELETE(l_balance);
+            } continue;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID: {
+                json_object *l_jobj_tsd = json_object_new_object();
+                json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID");
+                json_object *l_jobj_value = json_object_new_uint64(dap_tsd_get_scalar(l_tsd, uint16_t));
+                json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
+                json_object_object_add(l_jobj_tsd, "total_signs_valid", l_jobj_value);
+                json_object_array_add(l_tsd_array, l_jobj_tsd);
+            } continue;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD: {
+                json_object *l_jobj_tsd = json_object_new_object();
+                json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD");
+                json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
+                if (l_tsd->size >= sizeof(dap_pkey_t)) {
+                    dap_pkey_t *l_pkey = (dap_pkey_t *) l_tsd->data;
+                    dap_hash_fast_t l_hf = {0};
+                    if (!dap_pkey_get_hash(l_pkey, &l_hf)) {
+                        json_object *l_wgn_text = json_object_new_string("total_pkeys_add: <WRONG CALCULATION FINGERPRINT>");
+                        json_object_object_add(l_jobj_tsd, "warning", l_wgn_text);
+                    } else {
+                        char *l_hash_str = dap_chain_hash_fast_to_str_new(&l_hf);
+                        json_object *l_jobj_hash = json_object_new_string(l_hash_str);
+                        json_object_object_add(l_jobj_tsd, "pkey", l_jobj_hash);
+                        DAP_DELETE(l_hash_str);
+                    }
+                } else {
+                    char *l_wgn_text = dap_strdup_printf("total_pkeys_add: <WRONG SIZE %u>\n", l_tsd->size);
+                    json_object *l_jobj_wgn_text = json_object_new_string(l_wgn_text);
+                    DAP_DELETE(l_wgn_text);
+                    json_object_object_add(l_jobj_tsd, "warning", l_jobj_wgn_text);
+                }
+                json_object_array_add(l_tsd_array, l_jobj_tsd);
+            } continue;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE: {
+                json_object *l_jobj_tsd = json_object_new_object();
+                json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE");
+                json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
+                if (l_tsd->size == sizeof(dap_chain_hash_fast_t)) {
+                    char *l_hash_str =  dap_chain_hash_fast_to_str_new((dap_chain_hash_fast_t *) l_tsd->data);
+                    json_object *l_jobj_hash = json_object_new_string(l_hash_str);
+                    json_object_object_add(l_jobj_tsd, "pkey", l_jobj_hash);
+                    DAP_DELETE(l_hash_str);
+                } else {
+                    char *l_wgn_text = dap_strdup_printf("total_pkeys_remove: <WRONG SIZE %u>\n", l_tsd->size);
+                    json_object *l_jobj_wgn_text = json_object_new_string(l_wgn_text);
+                    DAP_DELETE(l_wgn_text);
+                    json_object_object_add(l_jobj_tsd, "warning", l_jobj_wgn_text);
+                }
+                json_object_array_add(l_tsd_array, l_jobj_tsd);
+            } continue;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK: {
+                json_object *l_jobj_tsd = json_object_new_object();
+                json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK");
+                json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
+                char *balance = NULL;
+                dap_chain_datum_token_tsd_delegate_from_stake_lock_t *l_tsd_section = dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
+                json_object *l_jobj_ticker_token_from = json_object_new_string((char*)l_tsd_section->ticker_token_from);
+                json_object *l_jobj_emission_rate = json_object_new_string((balance = dap_chain_balance_to_coins(l_tsd_section->emission_rate)));
+                DAP_DEL_Z(balance);
+                json_object_object_add(l_jobj_tsd, "ticker_token_from", l_jobj_ticker_token_from);
+                json_object_object_add(l_jobj_tsd, "emission_rate", l_jobj_emission_rate);
+                json_object_array_add(l_tsd_array, l_jobj_tsd);
+            } continue;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_ADD: {
+                json_object *l_jobj_tsd = json_object_new_object();
+                json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_ADD");
+                json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
+                json_object *l_jobj_datum_type_allowed_add = json_object_new_string(dap_tsd_get_string_const(l_tsd));
+                json_object_object_add(l_jobj_tsd, "datum_type_allowed_add", l_jobj_datum_type_allowed_add);
+                json_object_array_add(l_tsd_array, l_jobj_tsd);
+            }continue;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_REMOVE: {
+                json_object *l_jobj_tsd = json_object_new_object();
+                json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_REMOVE");
+                json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
+                json_object *l_jobj_datum_type_allowed_remove = json_object_new_string(dap_tsd_get_string_const(l_tsd));
+                json_object_object_add(l_jobj_tsd, "datum_type_allowed_remove", l_jobj_datum_type_allowed_remove);
+                json_object_array_add(l_tsd_array, l_jobj_tsd);
+            }continue;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_ADD: {
+                json_object *l_jobj_tsd = json_object_new_object();
+                json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_ADD");
+                json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
+                json_object *l_jobj_datum_type_blocked_add = json_object_new_string(dap_tsd_get_string_const(l_tsd));
+                json_object_object_add(l_jobj_tsd, "datum_type_blocked_add", l_jobj_datum_type_blocked_add);
+                json_object_array_add(l_tsd_array, l_jobj_tsd);
+            } continue;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_REMOVE: {
+                json_object *l_jobj_tsd = json_object_new_object();
+                json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_REMOVE");
+                json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
+                json_object *l_jobj_datum_type_blocked_remove = json_object_new_string(dap_tsd_get_string_const(l_tsd));
+                json_object_object_add(l_jobj_tsd, "datum_type_blocked_remove", l_jobj_datum_type_blocked_remove);
+                json_object_array_add(l_tsd_array, l_jobj_tsd);
+            } continue;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD: {
+                json_object *l_jobj_tsd = json_object_new_object();
+                json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD");
+                json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
+                json_object *l_jobj_tx_sender_allowed_add = json_object_new_string(dap_tsd_get_string_const(l_tsd));
+                json_object_object_add(l_jobj_tsd, "tx_sender_allowed_add",l_jobj_tx_sender_allowed_add);
+                json_object_array_add(l_tsd_array, l_jobj_tsd);
+            } continue;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_REMOVE: {
+                json_object *l_jobj_tsd = json_object_new_object();
+                json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_REMOVE");
+                json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
+                json_object *l_jobj_tx_sender_allowed_remove = json_object_new_string(dap_tsd_get_string_const(l_tsd));
+                json_object_object_add(l_jobj_tsd, "tx_sender_allowed_remove",l_jobj_tx_sender_allowed_remove);
+                json_object_array_add(l_tsd_array, l_jobj_tsd);
+            }continue;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD: {
+                json_object *l_jobj_tsd = json_object_new_object();
+                json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD");
+                json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
+                json_object *l_jobj_tx_sender_blocked_add = json_object_new_string(dap_tsd_get_string_const(l_tsd));
+                json_object_object_add(l_jobj_tsd, "tx_sender_blocked_add", l_jobj_tx_sender_blocked_add);
+                json_object_array_add(l_tsd_array, l_jobj_tsd);
+            } continue;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_REMOVE: {
+                json_object *l_jobj_tsd = json_object_new_object();
+                json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_REMOVE");
+                json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
+                json_object *l_jobj_tx_sender_blocked_remove = json_object_new_string(dap_tsd_get_string_const(l_tsd));
+                json_object_object_add(l_jobj_tsd, "tx_sender_blocked_remove", l_jobj_tx_sender_blocked_remove);
+                json_object_array_add(l_tsd_array, l_jobj_tsd);
+            } continue;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD: {
+                json_object *l_jobj_tsd = json_object_new_object();
+                json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD");
+                json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
+                json_object *l_tx_receiver_allowed_add = json_object_new_string(dap_tsd_get_string_const(l_tsd));
+                json_object_object_add(l_jobj_tsd, "tx_receiver_allowed_add", l_tx_receiver_allowed_add);
+                json_object_array_add(l_tsd_array, l_jobj_tsd);
+            } continue;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_REMOVE: {
+                json_object *l_jobj_tsd = json_object_new_object();
+                json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_REMOVE");
+                json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
+                json_object *l_jobj_tx_receiver_allowed_remove = json_object_new_string(dap_tsd_get_string_const(l_tsd));
+                json_object_object_add(l_jobj_tsd, "tx_receiver_allowed_remove", l_jobj_tx_receiver_allowed_remove);
+                json_object_array_add(l_tsd_array, l_jobj_tsd);
+            } continue;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD: {
+                json_object *l_jobj_tsd = json_object_new_object();
+                json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD");
+                json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
+                json_object *l_jobj_tx_receiver_blocked_add = json_object_new_string(dap_tsd_get_string_const(l_tsd));
+                json_object_object_add(l_jobj_tsd, "tx_receiver_blocked_add", l_jobj_tx_receiver_blocked_add);
+                json_object_array_add(l_tsd_array, l_jobj_tsd);
+            } continue;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_REMOVE: {
+                json_object *l_jobj_tsd = json_object_new_object();
+                json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_REMOVE");
+                json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
+                json_object *l_jobj_tx_receiver_blocked_remove = json_object_new_string(dap_tsd_get_string_const(l_tsd));
+                json_object_object_add(l_jobj_tsd, "tx_receiver_blocked_remove", l_jobj_tx_receiver_blocked_remove);
+                json_object_array_add(l_tsd_array, l_jobj_tsd);
+            } continue;
+            default: {
+                char *l_wgn_text = dap_strdup_printf("<0x%04hX>: <size %u>\n", l_tsd->type, l_tsd->size);
+                json_object *l_jobj_wgn_text = json_object_new_string(l_wgn_text);
+                json_object *l_jobj_warning = json_object_new_object();
+                json_object_object_add(l_jobj_warning, "warning", l_jobj_wgn_text);
+                json_object_array_add(l_tsd_array, l_jobj_warning);
+                DAP_DELETE(l_wgn_text);
+            }
+        }
+    }
+    return l_tsd_array;
+}
+
 /**
  * @brief _dap_chain_datum_tx_out_data
  *
@@ -787,6 +1045,15 @@ json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum){
         case DAP_CHAIN_DATUM_DECREE:
             l_obj_data = dap_chain_datum_decree_to_json((dap_chain_datum_decree_t*)a_datum->data);
             break;
+        case DAP_CHAIN_DATUM_ANCHOR:
+            l_obj_data = dap_chain_datum_anchor_to_json((dap_chain_datum_anchor_t*)a_datum->data);
+        case DAP_CHAIN_DATUM_TOKEN_DECL: {
+            size_t l_token_size = a_datum->header.data_size;
+            dap_chain_datum_token_t *l_token = dap_chain_datum_token_read(a_datum->data, &l_token_size);
+            l_obj_data = dap_chain_datum_token_to_json(l_token);
+            json_object_object_add(l_obj_data, "TSD", s_dap_chain_datum_token_tsd_to_json(l_token, l_token_size));
+            DAP_DELETE(l_token);
+        }
         default:
             l_obj_data = json_object_new_null();
             break;

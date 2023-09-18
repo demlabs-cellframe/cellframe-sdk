@@ -439,9 +439,6 @@ json_object *dap_chain_datum_token_to_json(dap_chain_datum_token_t * a_token){
     json_object_object_add(l_jobj_token, "ticker", l_jobj_ticker);
     json_object_object_add(l_jobj_token, "signs_valid", l_jobj_signs_valid);
     json_object_object_add(l_jobj_token, "signs_total", l_jobj_signs_total);
-//    char *l_token_type_str = dap_chain_datum_token_type;
-//    char *l_token_subtype_str;
-//    char *l_token_;
     return l_jobj_token;
 }
 
