@@ -216,6 +216,19 @@ void dap_chain_datum_token_flags_dump(dap_string_t * a_str_out, uint16_t a_flags
     }
 }
 
+json_object *dap_chain_datum_token_flags_to_json(uint16_t a_flags){
+    if (!a_flags) {
+        return json_object_new_null();
+    }
+    json_object *l_jobj_flags = json_object_new_array();
+    for (uint16_t i = 0; BIT(i) <= DAP_CHAIN_DATUM_TOKEN_FLAG_MAX; i++){
+        if(a_flags & (1 << i)){
+            json_object *l_jobj_flag_txt = json_object_new_string(c_dap_chain_datum_token_flag_str[BIT(i)]);
+            json_object_array_add(l_jobj_flags, l_jobj_flag_txt);
+        }
+    }
+    return l_jobj_flags;
+}
 
 /**
  * @brief dap_chain_datum_token_certs_dump
@@ -343,6 +356,93 @@ dap_sign_t ** dap_chain_datum_token_signs_parse(dap_chain_datum_token_t * a_datu
         l_offset += l_sign_size;
     }
     return l_ret;
+}
+
+json_object *dap_chain_datum_token_to_json(dap_chain_datum_token_t * a_token){
+    json_object *l_jobj_token = json_object_new_object();
+    json_object *l_jobj_type;
+    json_object *l_jobj_version = json_object_new_uint64(a_token->version);
+//    const char *l_jobj_type = NULL;
+    switch (a_token->type) {
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_DECL:
+            l_jobj_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TYPE_DECL");
+            break;
+        case DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE:
+            l_jobj_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE");
+            break;
+        default:
+            l_jobj_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TYPE_UNKNOWN");
+            break;
+    }
+    json_object_object_add(l_jobj_token, "version", l_jobj_version);
+    json_object_object_add(l_jobj_token, "type", l_jobj_type);
+    json_object *l_jobj_subtype = NULL;
+    json_object *l_jobj_header = json_object_new_object();
+    switch (a_token->subtype) {
+        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE: {
+            json_object *l_jobj_decimals  = json_object_new_uint64(a_token->header_simple.decimals);
+            json_object_object_add(l_jobj_header, "decimals", l_jobj_decimals);
+            l_jobj_subtype = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE");
+        }break;
+        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE: {
+            json_object *l_jobj_flags = NULL;
+            json_object *l_jobj_decimals  = NULL;
+            if (a_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_DECL) {
+                l_jobj_flags = json_object_new_string(s_flag_str_from_code(a_token->header_private_decl.flags));
+                l_jobj_decimals = json_object_new_uint64(a_token->header_private_decl.decimals);
+            } else {
+                l_jobj_flags = json_object_new_string(s_flag_str_from_code(a_token->header_private_update.flags));
+                l_jobj_decimals = json_object_new_uint64(a_token->header_private_update.decimals);
+            }
+            json_object_object_add(l_jobj_header, "flags", l_jobj_flags);
+            json_object_object_add(l_jobj_header, "decimals", l_jobj_decimals);
+            l_jobj_subtype = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE");
+        } break;
+        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE: {
+            json_object *l_jobj_flags = NULL;
+            json_object *l_jobj_decimals  = NULL;
+            if (a_token->type == DAP_CHAIN_DATUM_TOKEN_TYPE_DECL) {
+                l_jobj_flags = json_object_new_string(s_flag_str_from_code(a_token->header_native_decl.flags));
+                l_jobj_decimals = json_object_new_uint64(a_token->header_native_decl.decimals);
+            } else {
+                l_jobj_flags = json_object_new_string(s_flag_str_from_code(a_token->header_native_update.flags));
+                l_jobj_decimals = json_object_new_uint64(a_token->header_native_update.decimals);
+            }
+            json_object_object_add(l_jobj_header, "flags", l_jobj_flags);
+            json_object_object_add(l_jobj_header, "decimals", l_jobj_decimals);
+            l_jobj_subtype = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE");
+        } break;
+        case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC: {
+            json_object *l_jobj_flags = json_object_new_string(s_flag_str_from_code(a_token->header_public.flags));
+            char *l_premine_supply_str = dap_chain_balance_print(a_token->header_public.premine_supply);
+            json_object *l_jobj_premine_supply = json_object_new_string(l_premine_supply_str);
+            DAP_DELETE(l_premine_supply_str);
+            json_object *l_jobj_premine_address = dap_chain_addr_to_json(&a_token->header_public.premine_address);
+            json_object_object_add(l_jobj_header, "flags", l_jobj_flags);
+            json_object_object_add(l_jobj_header, "premine_supply", l_jobj_premine_supply);
+            json_object_object_add(l_jobj_header, "premine_address", l_jobj_premine_address);
+            l_jobj_subtype = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC");
+        } break;
+        default: {
+            json_object *l_wgn_header = json_object_new_string("The token subtype could not be determined, so the "
+                                                               "header contents could not be determined.");
+            l_jobj_subtype = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_SUBTYPE_UNKNOWN");
+
+
+        } break;
+    }
+    json_object_object_add(l_jobj_token, "subtype", l_jobj_subtype);
+    json_object_object_add(l_jobj_token, "header", l_jobj_header);
+    json_object *l_jobj_ticker = json_object_new_string(a_token->ticker);
+    json_object *l_jobj_signs_valid = json_object_new_uint64(a_token->signs_valid);
+    json_object *l_jobj_signs_total = json_object_new_uint64(a_token->signs_total);
+    json_object_object_add(l_jobj_token, "ticker", l_jobj_ticker);
+    json_object_object_add(l_jobj_token, "signs_valid", l_jobj_signs_valid);
+    json_object_object_add(l_jobj_token, "signs_total", l_jobj_signs_total);
+//    char *l_token_type_str = dap_chain_datum_token_type;
+//    char *l_token_subtype_str;
+//    char *l_token_;
+    return l_jobj_token;
 }
 
 /*                              Token emission section                          */
