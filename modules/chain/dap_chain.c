@@ -53,12 +53,12 @@ typedef struct dap_chain_item_id {
 
 typedef struct dap_chain_item {
     dap_chain_item_id_t item_id;
-    dap_chain_t * chain;
-   UT_hash_handle hh;
+    dap_chain_t *chain;
+    UT_hash_handle hh;
 } dap_chain_item_t;
 
 static pthread_rwlock_t s_chain_items_rwlock = PTHREAD_RWLOCK_INITIALIZER;
-static dap_chain_item_t * s_chain_items = NULL;
+static dap_chain_item_t *s_chain_items = NULL;
 
 int s_prepare_env();
 
@@ -103,29 +103,36 @@ void dap_chain_deinit(void)
  */
 dap_chain_t *dap_chain_create(const char *a_chain_net_name, const char *a_chain_name, dap_chain_net_id_t a_chain_net_id, dap_chain_id_t a_chain_id)
 {
-    dap_chain_t * l_ret = DAP_NEW_Z(dap_chain_t);
+    dap_chain_t *l_ret = DAP_NEW_Z(dap_chain_t);
     if ( !l_ret ) {
         log_it(L_CRITICAL, "Memory allocation error");
         return NULL;   
     }
+    *l_ret = (dap_chain_t) {
+            .rwlock     = PTHREAD_RWLOCK_INITIALIZER,
+            .id         = a_chain_id,
+            .net_id     = a_chain_net_id,
+            .name       = dap_strdup(a_chain_name),
+            .net_name   = dap_strdup(a_chain_net_name),
+            .cell_rwlock    = PTHREAD_RWLOCK_INITIALIZER,
+            .atom_notifiers = NULL
+    };
     DAP_CHAIN_PVT_LOCAL_NEW(l_ret);
-    memcpy(l_ret->id.raw,a_chain_id.raw,sizeof(a_chain_id));
-    memcpy(l_ret->net_id.raw,a_chain_net_id.raw,sizeof(a_chain_net_id));
-    l_ret->name = strdup (a_chain_name);
-    l_ret->net_name = strdup (a_chain_net_name);
-    pthread_rwlock_init(&l_ret->rwlock, NULL);
-    pthread_rwlock_init(&l_ret->cell_rwlock,NULL);
-    dap_chain_item_t * l_ret_item = DAP_NEW_Z(dap_chain_item_t);
-    if ( !l_ret_item ){
+
+    dap_chain_item_t *l_ret_item = DAP_NEW_Z(dap_chain_item_t);
+    if (!l_ret_item) {
+        DAP_DELETE(l_ret->name);
+        DAP_DELETE(l_ret->net_name);
         DAP_DELETE(l_ret);
         log_it(L_CRITICAL, "Memory allocation error");
         return NULL;
     }
-    l_ret_item->chain = l_ret;
-    memcpy(l_ret_item->item_id.id.raw ,a_chain_id.raw,sizeof(a_chain_id));
-    memcpy(l_ret_item->item_id.net_id.raw ,a_chain_net_id.raw,sizeof(a_chain_net_id));
+    *l_ret_item = (dap_chain_item_t) {
+            .item_id    = { a_chain_id, a_chain_net_id },
+            .chain      = l_ret
+    };
     pthread_rwlock_wrlock(&s_chain_items_rwlock);
-    HASH_ADD(hh,s_chain_items,item_id,sizeof(dap_chain_item_id_t),l_ret_item);
+    HASH_ADD(hh, s_chain_items, item_id, sizeof(dap_chain_item_id_t), l_ret_item);
     pthread_rwlock_unlock(&s_chain_items_rwlock);
     return l_ret;
 }
@@ -139,41 +146,35 @@ void dap_chain_delete(dap_chain_t * a_chain)
 {
     dap_chain_item_t * l_item = NULL;
     dap_chain_item_id_t l_chain_item_id = {
-        .id = a_chain->id,
+        .id     = a_chain->id,
         .net_id = a_chain->net_id,
     };
 
-    dap_list_free_full(a_chain->atom_notifiers,NULL);
-
     pthread_rwlock_wrlock(&s_chain_items_rwlock);
-    HASH_FIND(hh,s_chain_items,&l_chain_item_id,sizeof(dap_chain_item_id_t),l_item);
-
-    if( l_item){
+    HASH_FIND(hh, s_chain_items, &l_chain_item_id, sizeof(dap_chain_item_id_t), l_item);
+    if (l_item) {
        HASH_DEL(s_chain_items, l_item);
-       if (a_chain->callback_delete )
-           a_chain->callback_delete(a_chain);
-       if ( a_chain->name)
-           DAP_DELETE (a_chain->name);
-       if ( a_chain->net_name)
-           DAP_DELETE (a_chain->net_name);
-       if (a_chain->_pvt ){
-           DAP_DELETE(DAP_CHAIN_PVT(a_chain)->file_storage_dir);
-           DAP_DELETE(a_chain->_pvt);
-       }
-       if (a_chain->_inheritor )
-           DAP_DELETE(a_chain->_inheritor);
        DAP_DELETE(l_item);
-    }else
-       log_it(L_WARNING,"Trying to remove non-existent 0x%16"DAP_UINT64_FORMAT_X":0x%16"DAP_UINT64_FORMAT_X" chain",a_chain->id.uint64,
-              a_chain->net_id.uint64);
-    a_chain->datum_types_count = 0;
+    } else {
+       log_it(L_WARNING,"Trying to remove non-existent 0x%16"DAP_UINT64_FORMAT_X":0x%16"DAP_UINT64_FORMAT_X" chain",
+              a_chain->id.uint64, a_chain->net_id.uint64);
+    }
+    pthread_rwlock_unlock(&s_chain_items_rwlock);
+    dap_list_free_full(a_chain->atom_notifiers, NULL);
+    DAP_DEL_Z(a_chain->name);
+    DAP_DEL_Z(a_chain->net_name);
+    if (DAP_CHAIN_PVT(a_chain)){
+        DAP_DEL_Z(DAP_CHAIN_PVT(a_chain)->file_storage_dir);
+        DAP_DELETE(DAP_CHAIN_PVT(a_chain));
+    }
     DAP_DELETE(a_chain->datum_types);
-    a_chain->autoproc_datum_types_count = 0;
     DAP_DELETE(a_chain->autoproc_datum_types);
+    if (a_chain->callback_delete)
+        a_chain->callback_delete(a_chain);
+    DAP_DEL_Z(a_chain->_inheritor);
     pthread_rwlock_destroy(&a_chain->rwlock);
     pthread_rwlock_destroy(&a_chain->cell_rwlock);
     pthread_rwlock_destroy(&a_chain->rwlock);
-    pthread_rwlock_unlock(&s_chain_items_rwlock);
 }
 
 /**
@@ -544,7 +545,7 @@ bool dap_chain_has_file_store(dap_chain_t * a_chain)
  * @param l_chain
  * @return
  */
-int dap_chain_save_all (dap_chain_t * l_chain)
+int dap_chain_save_all(dap_chain_t *l_chain)
 {
     int l_ret = 0;
     pthread_rwlock_rdlock(&l_chain->cell_rwlock);
@@ -591,8 +592,13 @@ int dap_chain_load_all(dap_chain_t *a_chain)
             l_ret += dap_chain_cell_load(a_chain, l_cell);
             if (DAP_CHAIN_PVT(a_chain)->need_reorder) {
                 const char *l_filename_backup = dap_strdup_printf("%s.unsorted", l_cell->file_storage_path);
-                remove(l_filename_backup);
-                rename(l_cell->file_storage_path, l_filename_backup);
+                if (remove(l_filename_backup) == -1) {
+                    log_it(L_ERROR, "File %s doesn't exist", l_filename_backup);
+                }
+                if (rename(l_cell->file_storage_path, l_filename_backup)) {
+                    log_it(L_ERROR, "Couldn't rename %s to %s", l_cell->file_storage_path, l_filename_backup);
+                }
+                DAP_DELETE(l_filename_backup);
             }
         }
     }
@@ -710,9 +716,10 @@ ssize_t dap_chain_atom_save(dap_chain_t *a_chain, const uint8_t *a_atom, size_t 
     }
     ssize_t l_res = dap_chain_cell_file_append(l_cell, a_atom, a_atom_size);
     if (a_chain->atom_notifiers) {
-        for (dap_list_t *it = a_chain->atom_notifiers; it; it = it->next) {
-            dap_chain_atom_notifier_t *l_notifier = (dap_chain_atom_notifier_t *)it->data;
-            l_notifier->callback(l_notifier->arg, a_chain, l_cell->id, (void *)a_atom, a_atom_size);
+        dap_list_t *l_iter;
+        DL_FOREACH(a_chain->atom_notifiers, l_iter) {
+            dap_chain_atom_notifier_t *l_notifier = (dap_chain_atom_notifier_t*)l_iter->data;
+            l_notifier->callback(l_notifier->arg, a_chain, l_cell->id, (void*)a_atom, a_atom_size);
         }
     }
     if (a_chain->callback_atom_add_from_treshold) {
@@ -721,8 +728,10 @@ ssize_t dap_chain_atom_save(dap_chain_t *a_chain, const uint8_t *a_atom, size_t 
             size_t l_atom_treshold_size;
             l_atom_treshold = a_chain->callback_atom_add_from_treshold(a_chain, &l_atom_treshold_size);
             if (l_atom_treshold) {
-                dap_chain_cell_file_append(l_cell, l_atom_treshold, l_atom_treshold_size);
-                log_it(L_INFO, "Added atom from treshold");
+                if (dap_chain_cell_file_append(l_cell, l_atom_treshold, l_atom_treshold_size) > 0)
+                    log_it(L_INFO, "Added atom from treshold");
+                else
+                    log_it(L_ERROR, "Can't add atom from treshold");
             }
         } while(l_atom_treshold);
     }

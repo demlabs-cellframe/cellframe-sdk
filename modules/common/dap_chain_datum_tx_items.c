@@ -773,8 +773,8 @@ dap_list_t* dap_chain_datum_tx_items_get(dap_chain_datum_tx_t *a_tx, dap_chain_t
     while ((l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx_start, a_type, NULL)) != NULL)
     {
         items_list = dap_list_append(items_list, l_tx_item);
-        l_items_count++;
-        l_item_idx_start++;
+        ++l_items_count;
+        ++l_item_idx_start;
     }
 
     if(a_item_count)
@@ -787,11 +787,10 @@ uint8_t *dap_chain_datum_tx_item_get_nth(dap_chain_datum_tx_t *a_tx, dap_chain_t
 {
     uint8_t *l_tx_item = NULL;
     int l_item_idx = 0;
-    for (int l_type_idx = 0; l_type_idx <= a_item_idx; l_type_idx++) {
+    for (int l_type_idx = 0; l_type_idx <= a_item_idx; ++l_type_idx, ++l_item_idx) {
         l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx, a_type, NULL);
         if (!l_tx_item)
             break;
-        l_item_idx++;
     }
     return l_tx_item;
 }
@@ -806,25 +805,22 @@ uint8_t *dap_chain_datum_tx_item_get_nth(dap_chain_datum_tx_t *a_tx, dap_chain_t
  */
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_cond_type, int *a_out_num)
 {
-    dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
+    dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_ALL, NULL), *l_item;
     int l_prev_cond_idx = a_out_num ? *a_out_num : 0;
     dap_chain_tx_out_cond_t *l_res = NULL;
-    for (dap_list_t *l_list_tmp = l_list_out_items; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp), l_prev_cond_idx++) {
+    for (dap_list_t *l_item = l_list_out_items; l_item; l_item = l_item->next, ++l_prev_cond_idx) {
         // Start from *a_out_num + 1 item if a_out_num != NULL
         if (a_out_num && l_prev_cond_idx < *a_out_num)
             continue;
-        if (*(uint8_t *)l_list_tmp->data == TX_ITEM_TYPE_OUT_COND &&
-                ((dap_chain_tx_out_cond_t *)l_list_tmp->data)->header.subtype == a_cond_type) {
-            l_res = l_list_tmp->data;
+        if (*(byte_t*)l_item->data == TX_ITEM_TYPE_OUT_COND &&
+                ((dap_chain_tx_out_cond_t*)l_item->data)->header.subtype == a_cond_type) {
+            l_res = l_item->data;
             break;
         }
     }
     dap_list_free(l_list_out_items);
     if (a_out_num) {
-        if (l_res)
-            *a_out_num = l_prev_cond_idx;
-        else
-            *a_out_num = -1;
+        *a_out_num = l_res ? l_prev_cond_idx : -1;
     }
     return l_res;
 }

@@ -106,7 +106,6 @@ DAP_STATIC_INLINE size_t s_get_esbocs_message_size(dap_chain_esbocs_message_t *a
 }
 
 static dap_chain_esbocs_session_t * s_session_items;
-static dap_timerfd_t *s_session_cs_timer = NULL;
 
 typedef struct dap_chain_esbocs_pvt {
     // Base params
@@ -308,7 +307,9 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
     uint64_t l_limit_time = l_time_store_lim_hours ? dap_nanotime_now() - dap_nanotime_from_sec(l_time_store_lim_hours * 3600) : 0;
     size_t l_objs_count = 0;
     dap_global_db_pkt_t *l_pkt = 0;
-    dap_store_obj_t *l_objs = dap_global_db_get_all_raw_unsafe(a_context, l_sync_group, 0, &l_objs_count);
+    dap_db_iter_t *l_iter = dap_global_db_driver_iter_create(l_sync_group);
+    dap_store_obj_t *l_objs = dap_global_db_get_all_raw_unsafe(a_context, l_iter, &l_objs_count);
+    dap_global_db_driver_iter_delete(l_iter);
     for (size_t i = 0; i < l_objs_count; i++) {
         dap_store_obj_t *it = l_objs + i;
         if (l_notify_item->ttl && it->timestamp < l_limit_time) {
@@ -326,9 +327,22 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
     }
     dap_store_obj_free(l_objs, l_objs_count);
 
+    if (l_pkt)
+        dap_hash_fast(l_pkt->data, l_pkt->data_size, &l_session->db_hash);
+    else
+        l_session->db_hash = (dap_hash_fast_t){};
+    if (PVT(l_session->esbocs)->debug) {
+        char l_sync_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
+        dap_chain_hash_fast_to_str(&l_session->db_hash, l_sync_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+        log_it(L_MSG, "DB changes applied, new DB resync hash is %s", l_sync_hash_str);
+    }
+
     char *l_del_sync_group = dap_strdup_printf("%s.del", l_sync_group);
     l_objs_count = 0;
-    l_objs = dap_global_db_get_all_raw_unsafe(a_context, l_del_sync_group, 0, &l_objs_count);
+    l_iter = dap_global_db_driver_iter_create(l_sync_group);
+    l_objs = dap_global_db_get_all_raw_unsafe(a_context, l_iter, &l_objs_count);
+    dap_global_db_driver_iter_delete(l_iter);
+    
     DAP_DELETE(l_del_sync_group);
     for (size_t i = 0; i < l_objs_count; i++) {
         dap_store_obj_t *it = l_objs + i;
@@ -348,15 +362,7 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
     DAP_DELETE(l_sync_group);
     DAP_DEL_Z(l_session->db_serial);
     l_session->db_serial = l_pkt;
-    if (l_pkt)
-        dap_hash_fast(l_pkt->data, l_pkt->data_size, &l_session->db_hash);
-    else
-        l_session->db_hash = (dap_hash_fast_t){};
-    if (PVT(l_session->esbocs)->debug) {
-        char l_sync_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-        dap_chain_hash_fast_to_str(&l_session->db_hash, l_sync_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-        log_it(L_MSG, "DB changes applied, new DB resync hash is %s", l_sync_hash_str);
-    }
+
     dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_change_db_broadcast, l_session);
 }
 
@@ -483,17 +489,16 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
 
     log_it(L_INFO, "Init session for net:%s, chain:%s", a_chain->net_name, a_chain->name);
     DL_APPEND(s_session_items, l_session);
-    if (!s_session_cs_timer) {
-        s_session_cs_timer = dap_timerfd_start(1000, s_session_timer, NULL);
-        debug_if(l_esbocs_pvt->debug, L_MSG, "Consensus main timer is started");
-    }
+    l_session->cs_timer = dap_timerfd_start(1000, s_session_timer, l_session);
+    debug_if(l_esbocs_pvt->debug, L_MSG, "Consensus main timer is started");
+
     DAP_CHAIN_PVT(a_chain)->cs_started = true;
     return 0;
 }
 
 bool dap_chain_esbocs_started()
 {
-    return s_session_cs_timer;
+    return s_session_items;
 }
 
 static uint256_t s_callback_get_minimum_fee(dap_chain_t *a_chain)
@@ -520,8 +525,7 @@ static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
     dap_chain_esbocs_session_t *l_session = l_esbocs->session;
     pthread_mutex_lock(&l_session->mutex);
     DL_DELETE(s_session_items, l_session);
-    if (!s_session_items)
-        dap_timerfd_delete_mt(s_session_cs_timer->worker, s_session_cs_timer->esocket_uuid);
+    dap_timerfd_delete_mt(l_session->cs_timer->worker, l_session->cs_timer->esocket_uuid);
     s_session_round_clear(l_session);
     dap_chain_esbocs_sync_item_t *l_sync_item, *l_sync_tmp;
     HASH_ITER(hh, l_session->sync_items, l_sync_item, l_sync_tmp) {
@@ -663,27 +667,36 @@ static void s_get_last_block_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a
     a_chain->callback_atom_iter_delete(l_iter);
 }
 
-static int s_callback_addr_compare(const void *a_list_data, const void *a_user_data)
+static int s_callback_addr_compare(const void *a_list_elem, const void *a_addr_elem)
 {
-    return memcmp(&((dap_chain_esbocs_validator_t *)a_list_data)->signing_addr,
-                  (dap_chain_addr_t *)a_user_data, sizeof(dap_chain_addr_t));
+    dap_chain_esbocs_validator_t *l_validator = (dap_chain_esbocs_validator_t*)((dap_list_t*)a_list_elem)->data;
+    dap_chain_addr_t *l_addr = (dap_chain_addr_t*)((dap_list_t*)a_addr_elem)->data;
+    if (!l_validator || !l_addr) {
+        log_it(L_CRITICAL, "Invalid argument");
+        return -1;
+    }
+    return memcmp(&l_validator->signing_addr, l_addr, sizeof(dap_chain_addr_t));
 }
 
 static dap_list_t *s_validator_check(dap_chain_addr_t *a_addr, dap_list_t *a_validators)
 {
-    return dap_list_find_custom(a_validators, a_addr, s_callback_addr_compare);
+    return dap_list_find(a_validators, a_addr, s_callback_addr_compare);
 }
 
-static int s_callback_addr_compare_synced(const void *a_list_data, const void *a_user_data)
+static int s_callback_addr_compare_synced(const void *a_list_elem, const void *a_addr_elem)
 {
-    return memcmp(&((dap_chain_esbocs_validator_t *)a_list_data)->signing_addr,
-                  (dap_chain_addr_t *)a_user_data, sizeof(dap_chain_addr_t)) ||
-            !((dap_chain_esbocs_validator_t *)a_list_data)->is_synced;
+    dap_chain_esbocs_validator_t *l_validator = (dap_chain_esbocs_validator_t*)((dap_list_t*)a_list_elem)->data;
+    dap_chain_addr_t *l_addr = (dap_chain_addr_t*)((dap_list_t*)a_addr_elem)->data;
+    if (!l_validator || !l_addr) {
+        log_it(L_CRITICAL, "Invalid argument");
+        return -1;
+    }
+    return memcmp(&l_validator->signing_addr, l_addr, sizeof(dap_chain_addr_t)) || !l_validator->is_synced;
 }
 
 static dap_list_t *s_validator_check_synced(dap_chain_addr_t *a_addr, dap_list_t *a_validators)
 {
-    return dap_list_find_custom(a_validators, a_addr, s_callback_addr_compare_synced);
+    return dap_list_find(a_validators, a_addr, s_callback_addr_compare_synced);
 }
 
 
@@ -905,7 +918,7 @@ static uint64_t s_session_calc_current_round_id(dap_chain_esbocs_session_t *a_se
         uint64_t l_id_candidate = 0;
         for (dap_chain_esbocs_message_item_t *l_item = a_session->cur_round.message_items; l_item; l_item = l_item->hh.next) {
             if (l_item->message->hdr.type == DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC &&
-                    l_item->message->hdr.attempt_num == a_session->cur_round.sync_attempt &&
+                    ((struct sync_params *)l_item->message->msg_n_sign)->attempt == a_session->cur_round.sync_attempt &&
                     dap_chain_addr_compare(&l_item->signing_addr, &l_validator->signing_addr)) {
                 l_id_candidate = l_item->message->hdr.round_id;
                 break;
@@ -948,17 +961,22 @@ static uint64_t s_session_calc_current_round_id(dap_chain_esbocs_session_t *a_se
     return l_ret ? l_ret : a_session->cur_round.id;
 }
 
-static int s_signs_sort_callback(const void *a_sign1, const void *a_sign2, UNUSED_ARG void *a_user_data)
+static int s_signs_sort_callback(const void *a_sign1, const void *a_sign2)
 {
-    size_t l_size1 = dap_sign_get_size((dap_sign_t *)a_sign1);
-    size_t l_size2 = dap_sign_get_size((dap_sign_t *)a_sign2);
-    size_t l_size_min = MIN(l_size1, l_size2);
-    int l_ret = memcmp(a_sign1, a_sign2, l_size_min);
+    dap_sign_t  *l_sign1 = (dap_sign_t*)((dap_list_t*)a_sign1)->data,
+                *l_sign2 = (dap_sign_t*)((dap_list_t*)a_sign2)->data;
+    if (!l_sign1 || !l_sign2) {
+        log_it(L_CRITICAL, "Invalid element");
+        return 0;
+    }
+
+    size_t  l_size1 = dap_sign_get_size(l_sign1),
+            l_size2 = dap_sign_get_size(l_sign2),
+            l_size_min = MIN(l_size1, l_size2);
+
+    int l_ret = memcmp(l_sign1, l_sign2, l_size_min);
     if (!l_ret) {
-        if (l_size1 < l_size2)
-            l_ret = -1;
-        else if (l_size1 > l_size2)
-            l_ret = 1;
+        l_ret = l_size1 == l_size2 ? 0 : l_size1 > l_size2 ? 1 : -1;
     }
     return l_ret;
 }
@@ -1003,14 +1021,9 @@ dap_chain_esbocs_directive_t *s_session_directive_ready(dap_chain_esbocs_session
 
 static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s_esbocs_session_state a_new_state, dap_time_t a_time)
 {
-    if (a_new_state != DAP_CHAIN_ESBOCS_SESSION_STATE_PREVIOUS) {
-        if (a_session->state == DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_VOTING) {
-            // Do not change this state, state changing will be applied after return to PREVIOUS state
-            a_session->old_state = a_new_state;
-            return;
-        }
+    if (a_new_state != DAP_CHAIN_ESBOCS_SESSION_STATE_PREVIOUS)
         a_session->old_state = a_session->state;
-    }
+
     a_session->state = a_new_state;
     a_session->ts_stage_entry = a_time;
 
@@ -1074,6 +1087,24 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
             }
         }
     } break;
+    case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_VOTING: {
+        if (a_session->old_state == DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC) {
+            // Clear mark of chosen to submit validator
+            dap_list_t *l_list = s_validator_check(
+                        &a_session->cur_round.attempt_submit_validator,
+                        a_session->cur_round.validators_list
+                        );
+            dap_chain_esbocs_validator_t *l_validator = l_list ? l_list->data : NULL;
+            if (!l_validator || !l_validator->is_chosen) {
+                char *l_addr = dap_chain_addr_to_str(&a_session->cur_round.attempt_submit_validator);
+                log_it(L_MSG, "Error: can't find current attmempt submit validator %s in signers list", l_addr);
+                DAP_DELETE(l_addr);
+            }
+            l_validator->is_chosen = false;
+        } else
+            a_session->old_state = DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_PROC;
+    } break;
+
     case DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_FINISH: {
         dap_chain_esbocs_store_t *l_store;
         HASH_FIND(hh, a_session->cur_round.store_items, &a_session->cur_round.attempt_candidate_hash, sizeof(dap_hash_fast_t), l_store);
@@ -1240,11 +1271,8 @@ static void s_session_proc_state(dap_chain_esbocs_session_t *a_session)
 
 static bool s_session_timer(void *a_arg)
 {
-    UNUSED(a_arg);
-    dap_chain_esbocs_session_t *l_session = NULL;
-    DL_FOREACH(s_session_items, l_session) {
-        s_session_proc_state(l_session);
-    }
+    dap_chain_esbocs_session_t *l_session = a_arg;
+    s_session_proc_state(l_session);
     return true;
 }
 
@@ -1641,7 +1669,7 @@ static void s_session_round_finish(dap_chain_esbocs_session_t *a_session, dap_ch
         tmp->fee_need_cfg = PVT(a_session->esbocs)->fee_coll_set;
         tmp->key_from = PVT(a_session->esbocs)->blocks_sign_key;
 
-        dap_global_db_get_all(s_block_fee_group,0,s_check_db_callback_fee_collect,tmp);
+        dap_global_db_get_all(s_block_fee_group, 0, s_check_db_callback_fee_collect,tmp);
     }
 }
 
@@ -2333,7 +2361,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 
     case DAP_CHAIN_ESBOCS_MSG_TYPE_DIRECTIVE: {
         if (l_session->cur_round.directive) {
-            log_it(L_WARNING, "Only one directive can be processed at a time");
+            log_it(L_WARNING, "Only one directive can be processed by round");
             break;
         }
         dap_chain_esbocs_directive_t *l_directive = l_message_data;

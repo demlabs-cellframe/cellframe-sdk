@@ -1496,7 +1496,7 @@ bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t 
     if (!l_found) {
         l_net_pvt->active_link = a_client;
     }
-    if (l_found && !dap_list_find(l_net_pvt->links_queue, a_client))
+    if (l_found && !dap_list_find(l_net_pvt->links_queue, a_client, NULL))
         l_net_pvt->links_queue = dap_list_append(l_net_pvt->links_queue, a_client);
     if (a_err != EDEADLK)
         pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
@@ -2299,18 +2299,17 @@ static void remove_duplicates_in_chain_by_priority(dap_chain_t *l_chain_1, dap_c
 typedef struct list_priority_{
     uint16_t prior;
     char * chains_path;
-}list_priority;
+} list_priority;
 
-static int callback_compare_prioritity_list(const void * a_item1, const void * a_item2, void *a_unused)
+static int callback_compare_prioritity_list(const void *a_item1, const void *a_item2)
 {
-    UNUSED(a_unused);
-    list_priority *l_item1 = (list_priority*) a_item1;
-    list_priority *l_item2 = (list_priority*) a_item2;
-    if(!l_item1 || !l_item2 || l_item1->prior == l_item2->prior)
+    list_priority   *l_item1 = (list_priority*)((dap_list_t*)a_item1)->data,
+                    *l_item2 = (list_priority*)((dap_list_t*)a_item2)->data;
+    if (!l_item1 || !l_item2) {
+        log_it(L_CRITICAL, "Invalid arg");
         return 0;
-    if(l_item1->prior > l_item2->prior)
-        return 1;
-    return -1;
+    }
+    return l_item1->prior == l_item2->prior ? 0 : l_item1->prior > l_item2->prior ? 1 : -1;
 }
 
 void s_main_timer_callback(void *a_arg)
@@ -2753,12 +2752,11 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
                 if(l_cfg_new) {
                     list_priority *l_chain_prior = DAP_NEW_Z(list_priority);
                     if (!l_chain_prior) {
-        log_it(L_CRITICAL, "Memory allocation error");
-                        DAP_DELETE (l_entry_name);
+                        log_it(L_CRITICAL, "Memory allocation error");
+                        DAP_DELETE(l_entry_name);
                         closedir(l_chains_dir);
                         dap_config_close(l_cfg_new);
                         dap_config_close(l_cfg);
-                        closedir(l_chains_dir);
                         return -1;
                     }
                     l_chain_prior->prior = dap_config_get_item_uint16_default(l_cfg_new, "chain", "load_priority", 100);
@@ -2884,10 +2882,6 @@ int s_net_load(dap_chain_net_t *a_net)
                 DAP_CHAIN_PVT(l_chain)->need_reorder = false;
                 if (l_chain->callback_purge) {
                     l_chain->callback_purge(l_chain);
-                    pthread_rwlock_wrlock(&l_chain->cell_rwlock);
-                    for (dap_chain_cell_t *it = l_chain->cells; it; it = it->hh.next)
-                        dap_chain_cell_delete(it);
-                    pthread_rwlock_unlock(&l_chain->cell_rwlock);
                     dap_chain_ledger_purge(l_net->pub.ledger, false);
                     dap_chain_ledger_set_fee(l_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
                     dap_chain_net_decree_purge(l_net);
@@ -3301,7 +3295,7 @@ dap_list_t* dap_chain_net_get_link_node_list(dap_chain_net_t * l_net, bool a_is_
                     DAP_DELETE(l_remote_node_info);
             }
             if(l_is_add) {
-                dap_chain_node_addr_t *l_address = DAP_NEW(dap_chain_node_addr_t);
+                dap_chain_node_addr_t *l_address = DAP_NEW_Z(dap_chain_node_addr_t);
                 if (!l_address) {
                     log_it(L_CRITICAL, "Memory allocation error");
                     return NULL;
@@ -3310,9 +3304,8 @@ dap_list_t* dap_chain_net_get_link_node_list(dap_chain_net_t * l_net, bool a_is_
                 l_node_list = dap_list_append(l_node_list, l_address);
             }
         }
-
+        DAP_DELETE(l_cur_node_info);
     }
-    DAP_DELETE(l_cur_node_info);
     return l_node_list;
 }
 
@@ -3396,7 +3389,7 @@ bool dap_chain_net_get_flag_sync_from_zero( dap_chain_net_t * a_net)
  */
 bool dap_chain_net_get_extra_gdb_group(dap_chain_net_t *a_net, dap_chain_node_addr_t a_node_addr)
 {
-    if(!a_net || !PVT(a_net) || !PVT(a_net)->gdb_sync_nodes_addrs)
+    if (!a_net || !PVT(a_net)->gdb_sync_nodes_addrs)
         return false;
     for(uint16_t i = 0; i < PVT(a_net)->gdb_sync_nodes_addrs_count; i++) {
         if(a_node_addr.uint64 == PVT(a_net)->gdb_sync_nodes_addrs[i].uint64) {
@@ -3728,58 +3721,4 @@ char *dap_chain_net_links_dump(dap_chain_net_t *a_net) {
     dap_string_free(l_str_uplinks, true);
     dap_string_free(l_str_downlinks, true);
     return l_res_str;
-}
-
-/**
- * @brief init node addr and set in gdb
- * @param -
- * @return 0 if no errors
- */
-int s_net_init_node_addr_cert() 
-{
-    dap_config_t *l_cfg = NULL;
-    dap_string_t *l_cfg_path = dap_string_new("cellframe-node");
-
-    if( !(l_cfg = dap_config_open(l_cfg_path->str)) ) {
-        log_it(L_ERROR,"Can't open default node config");
-        dap_string_free(l_cfg_path,true);
-        return -1;
-    }
-    dap_string_free(l_cfg_path,true);
-
-    const char * l_node_addr_type = dap_config_get_item_str_default(l_cfg , "general" ,"node_addr_type","auto");
-    // use unique addr from pub key
-    size_t l_pub_key_data_size = 0;
-    uint8_t *l_pub_key_data = NULL;
-
-    // read pub key
-    char *l_addr_key = dap_strdup_printf("node-addr");
-    l_pub_key_data = dap_global_db_get_sync(GROUP_LOCAL_NODE_ADDR, l_addr_key, &l_pub_key_data_size, NULL, NULL);
-    // generate a new pub key if it doesn't exist
-    if(!l_pub_key_data || !l_pub_key_data_size) {
-        const char *l_certs_name_str = l_addr_key;
-        dap_cert_t **l_certs = NULL;
-        size_t l_certs_size = 0;
-        dap_cert_t *l_cert = NULL;
-        // Load certs or create if not found
-        if(!dap_cert_parse_str_list(l_certs_name_str, &l_certs, &l_certs_size)) { // Load certs
-            const char *l_cert_folder = dap_cert_get_folder(0);
-            // create new cert
-            if(l_cert_folder) {
-                char *l_cert_path = dap_strdup_printf("%s/%s.dcert", l_cert_folder, l_certs_name_str);
-                l_cert = dap_cert_generate(l_certs_name_str, l_cert_path, DAP_ENC_KEY_TYPE_SIG_DILITHIUM);
-                DAP_DELETE(l_cert_path);
-            }
-        }
-        if(l_certs_size > 0)
-            l_cert = l_certs[0];
-        if(l_cert) {
-            l_pub_key_data = dap_enc_key_serialize_pub_key(l_cert->enc_key, &l_pub_key_data_size);
-            // save pub key
-            if(l_pub_key_data && l_pub_key_data_size > 0)
-                dap_global_db_set(GROUP_LOCAL_NODE_ADDR, l_addr_key, l_pub_key_data, l_pub_key_data_size, false,
-                                    NULL, NULL);
-        }
-    }
-    return 0;
 }
