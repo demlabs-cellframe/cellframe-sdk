@@ -373,7 +373,7 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
             dap_global_db_driver_delete(it, 1);
             continue;
         }
-        it->type = DAP_DB$K_OPTYPE_DEL;
+        it->type = DAP_GLOBAL_DB_OPTYPE_DEL;
         DAP_DEL_Z(it->group);
         it->group = dap_strdup(l_sync_group);
         dap_global_db_pkt_t *l_pkt_single = dap_global_db_pkt_serialize(it);

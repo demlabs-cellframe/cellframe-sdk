@@ -740,7 +740,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                     (l_group_changed || i == l_data_obj_count - 1)) {
                 struct sync_request *l_sync_req_tsd = DAP_DUP(l_sync_request);
                 l_sync_req_tsd->request.id_end = l_last_id;
-                l_sync_req_tsd->gdb.sync_group = l_obj->type == DAP_DB$K_OPTYPE_ADD ? dap_strdup(l_last_group) :
+                l_sync_req_tsd->gdb.sync_group = l_obj->type == DAP_GLOBAL_DB_OPTYPE_ADD ? dap_strdup(l_last_group) :
                                                                       dap_strdup_printf("%s.del", l_last_group);
                 dap_proc_thread_worker_exec_callback_inter(a_thread, l_sync_request->worker->id,
                                                      s_gdb_sync_tsd_worker_callback, l_sync_req_tsd);
