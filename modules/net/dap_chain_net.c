@@ -89,6 +89,7 @@
 #include "dap_chain_datum_anchor.h"
 #include "dap_chain_tx.h"
 #include "dap_chain_net.h"
+#include "dap_chain_net_node_list.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_anchor.h"
 #include "dap_chain_net_decree.h"
@@ -2650,6 +2651,8 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         DAP_DEL_Z(l_seed_node_addr_gdb);
         DAP_DEL_Z(l_node_info_gdb);*/
     }
+
+    dap_chain_net_node_list_init();
 
     PVT(l_net)->bootstrap_nodes_count = 0;
     PVT(l_net)->bootstrap_nodes_addrs = DAP_NEW_SIZE(struct in_addr, l_bootstrap_nodes_len * sizeof(struct in_addr));

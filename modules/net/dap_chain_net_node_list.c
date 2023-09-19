@@ -260,4 +260,36 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
         }
     }
 }
+static void s_node_list_callback_notify(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg)
+{
+    if (!a_arg || !a_obj || !a_obj->key)
+        return;
+    dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
+    dap_global_db_context_t * l_gdb_context = dap_global_db_context_current();
+    assert(l_net);
+    assert(l_gdb_context);
+
+    if (!dap_strcmp(a_obj->group, l_net->pub.gdb_nodes)) {
+        if (a_obj->value && a_obj->type == DAP_DB$K_OPTYPE_ADD) {
+            dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)a_obj->value;
+            if(l_node_info->hdr.owner_address.uint64 == 0){
+                log_it(L_NOTICE, "Node %s removed, there is not piners", a_obj->key);
+                dap_global_db_del_unsafe(l_gdb_context, a_obj->group, a_obj->key);
+            }
+            else
+                log_it(L_NOTICE, "Node %s add", a_obj->key);
+        }
+    }
+
+}
+
+int dap_chain_net_node_list_init()
+{
+    uint16_t l_net_count = 0;
+    dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
+    for (uint16_t i = 0; i < l_net_count; i++) {
+        dap_chain_net_add_gdb_notify_callback(l_net_list[i], s_node_list_callback_notify, l_net_list[i]);
+    }
+    return 0;
+}
 
