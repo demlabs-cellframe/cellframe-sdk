@@ -110,8 +110,9 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
                 {
                     char l_node_addr_str[INET_ADDRSTRLEN]={};
                     inet_ntop(AF_INET, &l_node_info.hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
-                    log_it(L_DEBUG, "Add address"NODE_ADDR_FP_STR" (%s) to node list",
-                               NODE_ADDR_FP_ARGS_S(l_node_info.hdr.address),l_node_addr_str);
+                    log_it(L_DEBUG, "Add address"NODE_ADDR_FP_STR" (%s) to node list by "NODE_ADDR_FP_STR"",
+                                NODE_ADDR_FP_ARGS_S(l_node_info.hdr.address),l_node_addr_str,
+                                NODE_ADDR_FP_ARGS_S(l_node_info.hdr.owner_address));
                     response = 1;
                 }
                 else
