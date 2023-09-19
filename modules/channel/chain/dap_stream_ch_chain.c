@@ -492,7 +492,9 @@ static bool s_sync_update_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a
         DAP_DELETE(l_sync_request);
         return true;
     }
-    dap_chain_net_add_downlink(l_net, l_ch->stream_worker, l_ch->uuid, l_ch->stream->esocket_uuid);
+    dap_chain_net_add_downlink(l_net, l_ch->stream_worker, l_ch->uuid, l_ch->stream->esocket_uuid,
+                               /*l_ch->stream->esocket->remote_addr_str*/ l_ch->stream->esocket->hostaddr,
+                               dap_config_get_item_int32(g_config, "server", "listen_port_tcp"));
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
     int l_flags = 0;
     if (dap_chain_net_get_extra_gdb_group(l_net, l_sync_request->request.node_addr))
@@ -781,7 +783,7 @@ static void s_gdb_in_pkt_proc_set_raw_callback(dap_global_db_context_t *a_global
 
     struct sync_request *l_sync_req = (struct sync_request*) a_arg;
     if( a_rc != 0){
-        log_it(L_ERROR, "Can't save GlobalDB request, code %d", a_rc);
+        debug_if(s_debug_more, L_ERROR, "Can't save GlobalDB request, code %d", a_rc);
         dap_worker_exec_callback_inter(a_global_db_context->queue_worker_callback_input[l_sync_req->worker->id],
                                     s_gdb_in_pkt_error_worker_callback, l_sync_req);
     }else{
