@@ -2225,7 +2225,7 @@ static void s_threshold_emission_free(dap_ledger_t *a_ledger){
  * @param a_values
  * @param a_arg
  */
-static void s_load_cache_gdb_loaded_balances_callback(dap_global_db_context_t *a_global_db_context,
+static bool s_load_cache_gdb_loaded_balances_callback(dap_global_db_context_t *a_global_db_context,
                                                       int a_rc, const char *a_group,
                                                       const size_t a_values_total, const size_t a_values_count,
                                                       dap_global_db_obj_t *a_values, void *a_arg)
@@ -2236,13 +2236,13 @@ static void s_load_cache_gdb_loaded_balances_callback(dap_global_db_context_t *a
         dap_ledger_wallet_balance_t *l_balance_item = DAP_NEW_Z(dap_ledger_wallet_balance_t);
         if (!l_balance_item) {
         log_it(L_CRITICAL, "Memory allocation error");
-            return;
+            return false;
         }
         l_balance_item->key = DAP_NEW_Z_SIZE(char, strlen(a_values[i].key) + 1);
         if (!l_balance_item->key) {
         log_it(L_CRITICAL, "Memory allocation error");
             DAP_DEL_Z(l_balance_item);
-            return;
+            return false;
         }
         strcpy(l_balance_item->key, a_values[i].key);
         char *l_ptr = strchr(l_balance_item->key, ' ');
@@ -2261,6 +2261,7 @@ static void s_load_cache_gdb_loaded_balances_callback(dap_global_db_context_t *a
     l_ledger_pvt->load_end = true;
     pthread_cond_broadcast( &l_ledger_pvt->load_cond );
     pthread_mutex_unlock( &l_ledger_pvt->load_mutex );
+    return true;
 }
 
 /**
@@ -2275,7 +2276,7 @@ static void s_load_cache_gdb_loaded_balances_callback(dap_global_db_context_t *a
  * @param a_values
  * @param a_arg
  */
-static void s_load_cache_gdb_loaded_spent_txs_callback(dap_global_db_context_t *a_global_db_context,
+static bool s_load_cache_gdb_loaded_spent_txs_callback(dap_global_db_context_t *a_global_db_context,
                                                        int a_rc, const char *a_group,
                                                        const size_t a_values_total, const size_t a_values_count,
                                                        dap_global_db_obj_t *a_values, void *a_arg)
@@ -2287,16 +2288,17 @@ static void s_load_cache_gdb_loaded_spent_txs_callback(dap_global_db_context_t *
         dap_chain_ledger_tx_spent_item_t *l_tx_spent_item = DAP_NEW_Z(dap_chain_ledger_tx_spent_item_t);
         if ( !l_tx_spent_item ) {
         log_it(L_CRITICAL, "Memory allocation error");
-            return;
+            return false;
         }
         dap_chain_hash_fast_from_str(a_values[i].key, &l_tx_spent_item->tx_hash_fast);
         l_tx_spent_item->cache_data = *(typeof(l_tx_spent_item->cache_data)*)a_values[i].value;
         HASH_ADD(hh, l_ledger_pvt->spent_items, tx_hash_fast, sizeof(dap_chain_hash_fast_t), l_tx_spent_item);
     }
 
-    char * l_gdb_group = dap_chain_ledger_get_gdb_group(l_ledger, DAP_CHAIN_LEDGER_BALANCES_STR);
+    char *l_gdb_group = dap_chain_ledger_get_gdb_group(l_ledger, DAP_CHAIN_LEDGER_BALANCES_STR);
     dap_global_db_get_all(l_gdb_group, 0, s_load_cache_gdb_loaded_balances_callback, l_ledger);
     DAP_DELETE(l_gdb_group);
+    return true;
 }
 
 /**
@@ -2311,7 +2313,7 @@ static void s_load_cache_gdb_loaded_spent_txs_callback(dap_global_db_context_t *
  * @param a_values
  * @param a_arg
  */
-static void s_load_cache_gdb_loaded_txs_callback(dap_global_db_context_t *a_global_db_context,
+static bool s_load_cache_gdb_loaded_txs_callback(dap_global_db_context_t *a_global_db_context,
                                                  int a_rc, const char *a_group,
                                                  const size_t a_values_total, const size_t a_values_count,
                                                  dap_global_db_obj_t *a_values, void *a_arg)
@@ -2322,14 +2324,14 @@ static void s_load_cache_gdb_loaded_txs_callback(dap_global_db_context_t *a_glob
         dap_chain_ledger_tx_item_t *l_tx_item = DAP_NEW_Z(dap_chain_ledger_tx_item_t);
         if ( !l_tx_item ) {
             log_it(L_CRITICAL, "Memory allocation error");
-            return;
+            return false;
         }
         dap_chain_hash_fast_from_str(a_values[i].key, &l_tx_item->tx_hash_fast);
         l_tx_item->tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, a_values[i].value_len - sizeof(l_tx_item->cache_data));
         if ( !l_tx_item->tx ) {
             DAP_DELETE(l_tx_item);
             log_it(L_CRITICAL, "Memory allocation error");
-            return;
+            return false;
         }
         memcpy(&l_tx_item->cache_data, a_values[i].value, sizeof(l_tx_item->cache_data));
         memcpy(l_tx_item->tx, a_values[i].value + sizeof(l_tx_item->cache_data), a_values[i].value_len - sizeof(l_tx_item->cache_data));
@@ -2340,9 +2342,10 @@ static void s_load_cache_gdb_loaded_txs_callback(dap_global_db_context_t *a_glob
     char *l_gdb_group = dap_chain_ledger_get_gdb_group(l_ledger, DAP_CHAIN_LEDGER_SPENT_TXS_STR);
     dap_global_db_get_all(l_gdb_group, 0, s_load_cache_gdb_loaded_spent_txs_callback, l_ledger);
     DAP_DELETE(l_gdb_group);
+    return true;
 }
 
-static void s_load_cache_gdb_loaded_stake_lock_callback(dap_global_db_context_t *a_global_db_context,
+static bool s_load_cache_gdb_loaded_stake_lock_callback(dap_global_db_context_t *a_global_db_context,
                                                         int a_rc, const char *a_group,
                                                         const size_t a_values_total, const size_t a_values_count,
                                                         dap_global_db_obj_t *a_values, void *a_arg)
@@ -2366,6 +2369,7 @@ static void s_load_cache_gdb_loaded_stake_lock_callback(dap_global_db_context_t 
     char* l_gdb_group = dap_chain_ledger_get_gdb_group(l_ledger, DAP_CHAIN_LEDGER_TXS_STR);
     dap_global_db_get_all(l_gdb_group, 0, s_load_cache_gdb_loaded_txs_callback, l_ledger);
     DAP_DELETE(l_gdb_group);
+    return true;
 }
 
 
@@ -2382,7 +2386,7 @@ static void s_load_cache_gdb_loaded_stake_lock_callback(dap_global_db_context_t 
  * @param a_arg
  * @return Always true thats means to clear up a_values
  */
-static void s_load_cache_gdb_loaded_emissions_callback(dap_global_db_context_t *a_global_db_context,
+static bool s_load_cache_gdb_loaded_emissions_callback(dap_global_db_context_t *a_global_db_context,
                                                        int a_rc, const char *a_group,
                                                        const size_t a_values_total, const size_t a_values_count,
                                                        dap_global_db_obj_t *a_values, void *a_arg)
@@ -2404,7 +2408,7 @@ static void s_load_cache_gdb_loaded_emissions_callback(dap_global_db_context_t *
         dap_chain_ledger_token_emission_item_t *l_emission_item = DAP_NEW_Z(dap_chain_ledger_token_emission_item_t);
         if ( !l_emission_item ) {
             log_it(L_CRITICAL, "Memory allocation error");
-            return;
+            return false;
         }
         dap_chain_hash_fast_from_str(a_values[i].key, &l_emission_item->datum_token_emission_hash);
         l_emission_item->tx_used_out = *(dap_hash_fast_t*)a_values[i].value;
@@ -2418,6 +2422,7 @@ static void s_load_cache_gdb_loaded_emissions_callback(dap_global_db_context_t *
     char* l_gdb_group = dap_chain_ledger_get_gdb_group(l_ledger, DAP_CHAIN_LEDGER_STAKE_LOCK_STR);
     dap_global_db_get_all(l_gdb_group, 0, s_load_cache_gdb_loaded_stake_lock_callback, l_ledger);
     DAP_DELETE(l_gdb_group);
+    return true;
 }
 
 
@@ -2433,14 +2438,14 @@ static void s_load_cache_gdb_loaded_emissions_callback(dap_global_db_context_t *
  * @param a_values
  * @param a_arg
  */
-static void s_load_cache_gdb_loaded_tokens_callback(dap_global_db_context_t *a_global_db_context,
+static bool s_load_cache_gdb_loaded_tokens_callback(dap_global_db_context_t *a_global_db_context,
                                                     int a_rc, const char *a_group,
                                                     const size_t a_values_total, const size_t a_values_count,
                                                     dap_global_db_obj_t *a_values, void *a_arg)
 {
-    dap_ledger_t * l_ledger = (dap_ledger_t*) a_arg;
-    dap_ledger_private_t * l_ledger_pvt = PVT(l_ledger);
-    if( a_rc != 0){
+    dap_ledger_t *l_ledger = (dap_ledger_t *) a_arg;
+    dap_ledger_private_t *l_ledger_pvt = PVT(l_ledger);
+    if(a_rc) {
         log_it(L_NOTICE, "No ledger cache found");
         pthread_mutex_lock(&l_ledger_pvt->load_mutex);
         l_ledger_pvt->load_end = true;
@@ -2470,6 +2475,7 @@ static void s_load_cache_gdb_loaded_tokens_callback(dap_global_db_context_t *a_g
     char *l_gdb_group = dap_chain_ledger_get_gdb_group(l_ledger, DAP_CHAIN_LEDGER_EMISSIONS_STR);
     dap_global_db_get_all(l_gdb_group, 0, s_load_cache_gdb_loaded_emissions_callback, l_ledger);
     DAP_DELETE(l_gdb_group);
+    return true;
 }
 
 /**
@@ -2741,10 +2747,9 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
 bool s_chain_ledger_token_address_check(dap_chain_addr_t * a_addrs, dap_chain_datum_token_emission_t *a_token_emission, size_t a_addrs_count)
 {
     // if l_addrs is empty - nothing to check
-    if (!a_addrs)
-        return true;
+    dap_return_val_if_pass(!a_addrs, true);
 
-    for(size_t n=0; n<a_addrs_count;n++ ){
+    for(size_t n = 0; n < a_addrs_count; n++ ){
         dap_chain_addr_t l_addr = a_addrs[n];
         if (memcmp(&l_addr,&a_token_emission->hdr.address,sizeof(dap_chain_addr_t))==0)
             return true;
