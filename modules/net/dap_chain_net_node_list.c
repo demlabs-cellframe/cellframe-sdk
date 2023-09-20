@@ -61,7 +61,7 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     const char l_net_token[] = "net=";
     sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,addr=%lu,ipv4=%d,port=%hu,net=",
                                                             &l_protocol_version, &l_issue_method, &addr, &ipv4, &port);
-    if (l_protocol_version != 1 || l_issue_method != 'r') {
+    if (l_protocol_version != 1 || (l_issue_method != 'r' && l_issue_method != 'u')) {
         log_it(L_ERROR, "Unsupported protocol version/method in the request to dap_chain_net_node_list module");
         *l_return_code = Http_Status_MethodNotAllowed;
         return;
