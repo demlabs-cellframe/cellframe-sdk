@@ -243,7 +243,7 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
                                             l_node_list_request,
                                             NULL) == NULL;
 
-    int rc = dap_chain_net_node_list_wait(l_node_list_request, 4000);
+    int rc = dap_chain_net_node_list_wait(l_node_list_request, 10000);
     if(ret){
         s_node_list_request_deinit(l_node_list_request);
         return 6;
