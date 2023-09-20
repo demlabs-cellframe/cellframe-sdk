@@ -68,8 +68,7 @@ typedef struct dap_chain_node_decl{
 
 typedef struct dap_chain_node_info {
     struct {
-        dap_chain_node_addr_t address;
-        dap_chain_node_addr_t owner_address;
+        dap_chain_node_addr_t address;        
         dap_chain_cell_id_t cell_id;
         uint32_t links_number;
         struct in_addr ext_addr_v4;
@@ -77,6 +76,7 @@ typedef struct dap_chain_node_info {
         uint16_t ext_port; // Port thats node listening
         char alias[248];
         uint64_t blocks_events; /* truncated alias len */
+        dap_chain_node_addr_t owner_address;
     } DAP_ALIGN_PACKED hdr;
     dap_chain_node_addr_t links[]; // dap_chain_addr_t
 } DAP_ALIGN_PACKED dap_chain_node_info_t;

@@ -110,8 +110,9 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
                 {
                     char l_node_addr_str[INET_ADDRSTRLEN]={};
                     inet_ntop(AF_INET, &l_node_info.hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
-                    log_it(L_DEBUG, "Add address"NODE_ADDR_FP_STR" (%s) to node list",
-                               NODE_ADDR_FP_ARGS_S(l_node_info.hdr.address),l_node_addr_str);
+                    log_it(L_DEBUG, "Add address"NODE_ADDR_FP_STR" (%s) to node list by "NODE_ADDR_FP_STR"",
+                                NODE_ADDR_FP_ARGS_S(l_node_info.hdr.address),l_node_addr_str,
+                                NODE_ADDR_FP_ARGS_S(l_node_info.hdr.owner_address));
                     response = 1;
                 }
                 else
@@ -242,7 +243,7 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
                                             l_node_list_request,
                                             NULL) == NULL;
 
-    int rc = dap_chain_net_node_list_wait(l_node_list_request, 4000);
+    int rc = dap_chain_net_node_list_wait(l_node_list_request, 10000);
     if(ret){
         s_node_list_request_deinit(l_node_list_request);
         return 6;
@@ -268,16 +269,28 @@ static void s_node_list_callback_notify(dap_global_db_context_t *a_context, dap_
     dap_global_db_context_t * l_gdb_context = dap_global_db_context_current();
     assert(l_net);
     assert(l_gdb_context);
+    size_t l_size_obj_need = (sizeof(dap_chain_node_info_t));
 
     if (!dap_strcmp(a_obj->group, l_net->pub.gdb_nodes)) {
         if (a_obj->value && a_obj->type == DAP_DB$K_OPTYPE_ADD) {
             dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)a_obj->value;
-            if(l_node_info->hdr.owner_address.uint64 == 0){
-                log_it(L_NOTICE, "Node %s removed, there is not piners", a_obj->key);
-                dap_global_db_del_unsafe(l_gdb_context, a_obj->group, a_obj->key);
+
+            size_t l_size_obj = (a_obj->value_len - (l_node_info->hdr.links_number * sizeof(dap_chain_node_addr_t)));
+            if(l_size_obj_need == l_size_obj)
+            {
+                if(l_node_info->hdr.owner_address.uint64 == 0){
+                    log_it(L_NOTICE, "Node %s removed, there is not pinners", a_obj->key);
+                    dap_global_db_del_unsafe(l_gdb_context, a_obj->group, a_obj->key);
+                }
+                else
+                    log_it(L_NOTICE, "Node %s add", a_obj->key);
             }
             else
-                log_it(L_NOTICE, "Node %s add", a_obj->key);
+            {
+                dap_global_db_del_unsafe(l_gdb_context, a_obj->group, a_obj->key);
+                log_it(L_NOTICE, "Wrong size! data size %lu need - (%lu) %s removed ",l_size_obj,
+                       l_size_obj_need, a_obj->key);
+            }
         }
     }
 

@@ -2729,8 +2729,41 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
                     if (l_net_pvt->node_info->hdr.ext_port &&
                             (l_net_pvt->node_info->hdr.ext_addr_v4.s_addr != INADDR_ANY ||
                              memcmp(&l_net_pvt->node_info->hdr.ext_addr_v6, &in6addr_any, sizeof(struct in6_addr))))
+                    {
                         // Save only info with non null address & port!
-                        dap_chain_node_info_save(l_net,l_net_pvt->node_info);
+                        dap_chain_node_info_t *l_link_node_request = DAP_NEW_Z( dap_chain_node_info_t);
+                        l_link_node_request->hdr.address.uint64 = l_node_addr->uint64;
+                        l_link_node_request->hdr.ext_addr_v4.s_addr = l_net_pvt->node_info->hdr.ext_addr_v4.s_addr;
+                        l_link_node_request->hdr.ext_port = l_net_pvt->node_info->hdr.ext_port;
+                        int res = dap_chain_net_node_list_request(l_net,l_link_node_request);
+                        switch (res)
+                        {
+                            case 0:
+                                log_it(L_NOTICE,"No server");
+                            break;
+                            case 1:
+                                log_it(L_NOTICE,"Node addr successfully added to node list");
+                            break;
+                            case 2:
+                                log_it(L_NOTICE,"Didn't add your addres node to node list");
+                            break;
+                            case 3:
+                                log_it(L_NOTICE,"Can't calculate hash for your addr");
+                            break;
+                            case 4:
+                                log_it(L_NOTICE,"Can't do handshake for your node");
+                            break;
+                            case 5:
+                                log_it(L_NOTICE,"The node is already exists");
+                            break;
+                            case 6:
+                                log_it(L_NOTICE,"Can't process node list HTTP request");
+                            break;
+                            default:
+                                break;
+                        }
+                        DAP_DELETE(l_link_node_request);
+                    }
                 }
                 log_it(L_NOTICE,"GDB Info: node_addr: " NODE_ADDR_FP_STR"  links: %u cell_id: 0x%016"DAP_UINT64_FORMAT_X,
                        NODE_ADDR_FP_ARGS(l_node_addr),
