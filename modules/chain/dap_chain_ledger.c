@@ -3713,7 +3713,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                     l_err_num = DAP_CHAIN_LEDGER_TX_CACHE_STAKE_LOCK_INVALID_TOKEN;
                     break;
                 }
-                dap_chain_datum_token_tsd_delegate_from_stake_lock_t *l_tsd_section = dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
+                dap_chain_datum_token_tsd_delegate_from_stake_lock_t *l_tsd_section = _dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
                 if (!dap_chain_ledger_token_ticker_check(a_ledger, (char*)l_tsd_section->ticker_token_from)) {
                     debug_if(s_debug_more, L_WARNING, "Token [%s] not found", l_tsd_section->ticker_token_from);
                     l_err_num = DAP_CHAIN_LEDGER_TX_CACHE_CHECK_TICKER_NOT_FOUND;
