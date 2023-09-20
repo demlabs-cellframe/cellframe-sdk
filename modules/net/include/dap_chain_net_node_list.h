@@ -23,18 +23,31 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 */
 #pragma once
 
-#include "dap_chain_node.h"
 #include "dap_http_simple.h"
+#include "dap_chain_net.h"
 
-#define DAP_BALANCER_URI_HASH "f0intlt4eyl03htogu"
-typedef struct dap_chain_net_node_balancer {
-    size_t count_node;
-    byte_t nodes_info[];
-} dap_chain_net_node_balancer_t;
+#define DAP_NODE_LIST_URI_HASH "node_list_hash"
 
-void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg);
-dap_chain_node_info_t *dap_chain_net_balancer_dns_issue_link(char *a_str);
-void dap_chain_net_balancer_prepare_list_links(const char *a_net_name,bool handshake_on);
-dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node(const char *a_net_name,uint16_t a_links_need);
-void dap_chain_net_balancer_set_link_ban(dap_chain_node_info_t *a_node_info, const char *a_net_name);
-bool dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info,dap_chain_net_t * a_net);
+struct node_link_request {
+    dap_chain_node_info_t *link_info;
+    dap_chain_net_t *net;
+    dap_worker_t *worker;
+    bool from_http;
+    int link_replace_tries;
+    int response;
+    pthread_cond_t wait_cond;
+    pthread_mutex_t wait_mutex;
+};
+/**
+* @brief dap_chain_net_node_list_get_gdb_group
+* @param a_net
+* @return
+*/
+DAP_STATIC_INLINE char * dap_chain_net_node_list_get_gdb_group(dap_chain_net_t * a_net)
+{
+    return a_net ? dap_strdup_printf("%s.service.orders",a_net->pub.gdb_groups_prefix) : NULL;
+}
+
+void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg);
+int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_request);
+int dap_chain_net_node_list_init();

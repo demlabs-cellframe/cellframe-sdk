@@ -107,6 +107,7 @@
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_enc_base64.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
+#include "dap_chain_net_node_list.h"
 
 #define LOG_TAG "chain_node_cli_cmd"
 
@@ -1211,22 +1212,53 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             dap_digit_from_string(l_link_str, l_link.raw, sizeof(l_link.raw));
         }
     }
-
+    int l_ret =0;
     switch (cmd_num)
     {    
     case CMD_ADD:
-        if(!arg_index || a_argc < 8) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameters");
+        if(!l_port_str || !a_ipv4_str)
+        {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "node requires parameter -ipv4 and -port");
             DAP_DELETE(l_node_info);
             return -1;
         }
-        // handler of command 'node add'
-        int l_ret = node_info_add_with_reply(l_net, l_node_info, alias_str, l_cell_str, a_ipv4_str, a_ipv6_str,
-                a_str_reply);
+        dap_chain_node_info_t *l_link_node_request = DAP_NEW_Z( dap_chain_node_info_t);
+        l_link_node_request->hdr.address.uint64 = dap_chain_net_get_cur_addr_int(l_net);
+        inet_pton(AF_INET, a_ipv4_str, &(l_link_node_request->hdr.ext_addr_v4));
+        uint16_t l_node_port = 0;
+        dap_digit_from_string(l_port_str, &l_node_port, sizeof(uint16_t));
+        l_link_node_request->hdr.ext_port = l_node_port;
+        int res = dap_chain_net_node_list_request(l_net,l_link_node_request);
+        switch (res)
+        {
+            case 0:
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "No server");
+            break;
+            case 1:
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Node addr successfully added to node list");
+            break;
+            case 2:
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Didn't add your addres node to node list");
+            break;
+            case 3:
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't calculate hash for your addr");
+            break;
+            case 4:
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't do handshake for your node");
+            break;
+            case 5:
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "The node is already exists");
+            break;
+            case 6:
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process node list HTTP request");
+            break;
+            default:
+                break;
+        }
+        DAP_DELETE(l_link_node_request);
         DAP_DELETE(l_node_info);
         return l_ret;
         //break;
-
     case CMD_DEL:
         // handler of command 'node del'
     {

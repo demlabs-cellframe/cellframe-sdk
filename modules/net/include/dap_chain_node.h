@@ -69,6 +69,7 @@ typedef struct dap_chain_node_decl{
 typedef struct dap_chain_node_info {
     struct {
         dap_chain_node_addr_t address;
+        dap_chain_node_addr_t owner_address;
         dap_chain_cell_id_t cell_id;
         uint32_t links_number;
         struct in_addr ext_addr_v4;

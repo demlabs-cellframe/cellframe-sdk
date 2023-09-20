@@ -89,6 +89,7 @@
 #include "dap_chain_datum_anchor.h"
 #include "dap_chain_tx.h"
 #include "dap_chain_net.h"
+#include "dap_chain_net_node_list.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_anchor.h"
 #include "dap_chain_net_decree.h"
@@ -199,6 +200,8 @@ typedef struct dap_chain_net_pvt{
 
     uint16_t seed_aliases_count;
     struct in_addr *seed_nodes_addrs_v4;
+    uint16_t *seed_nodes_ports;
+    uint64_t *seed_nodes_addrs;
 
     dap_chain_net_state_t state;
     dap_chain_net_state_t state_target;
@@ -645,23 +648,24 @@ dap_chain_node_info_t *dap_get_balancer_link_from_cfg(dap_chain_net_t *a_net)
     uint64_t l_node_adrr = 0;
     if (l_net_pvt->seed_aliases_count) {
         i = rand() % l_net_pvt->seed_aliases_count;
-        dap_chain_node_addr_t *l_remote_addr = dap_chain_node_alias_find(a_net, l_net_pvt->seed_aliases[i]);
+        /*dap_chain_node_addr_t *l_remote_addr = dap_chain_node_alias_find(a_net, l_net_pvt->seed_aliases[i]);
         if (l_remote_addr){
-            dap_chain_node_info_t *l_remote_node_info = dap_chain_node_info_read(a_net, l_remote_addr);
-            if (l_remote_node_info) {
-                dap_chain_node_info_t *l_ret = l_remote_node_info->hdr.ext_addr_v4.s_addr ? l_remote_node_info : NULL;
-                if (!l_ret)
-                    DAP_DELETE(l_remote_node_info);
-                return l_ret;
-            } else{
-                log_it(L_WARNING,"Can't find node info for node addr "NODE_ADDR_FP_STR,
-                       NODE_ADDR_FP_ARGS(l_remote_addr));
+            */
+            dap_chain_node_info_t *l_link_node_info = DAP_NEW_Z(dap_chain_node_info_t);
+            if(l_link_node_info){
+                l_link_node_info->hdr.address.uint64 = l_net_pvt->seed_nodes_addrs[i];
+                l_link_node_info->hdr.ext_addr_v4.s_addr = l_net_pvt->seed_nodes_addrs_v4[i].s_addr;
+                l_link_node_info->hdr.ext_port = l_net_pvt->seed_nodes_ports[i];
+                return l_link_node_info;
+            }else{
+                log_it(L_WARNING,"Can't allocate memory");
                 return NULL;
             }
-        }else{
+        /*}
+        else{
             log_it(L_WARNING,"Can't find alias info for seed alias %s",l_net_pvt->seed_aliases[i]);
             return NULL;
-        }
+        }*/
     } else if (l_net_pvt->bootstrap_nodes_count) {
         i = rand() % l_net_pvt->bootstrap_nodes_count;
         l_node_adrr = 0;
@@ -814,18 +818,19 @@ static void s_fill_links_from_root_aliases(dap_chain_net_t * a_net)
     int ret = 0;
     dap_chain_net_pvt_t *l_pvt_net = PVT(a_net);
     for (size_t i = 0; i < l_pvt_net->seed_aliases_count; i++) {
+        /*
         dap_chain_node_addr_t *l_link_addr = dap_chain_node_alias_find(a_net, l_pvt_net->seed_aliases[i]);
         if (!l_link_addr)
             continue;
         dap_chain_node_info_t *l_link_node_info = dap_chain_node_info_read(a_net, l_link_addr);
+        */
+        dap_chain_node_info_t *l_link_node_info = dap_get_balancer_link_from_cfg(a_net);
         if (!l_link_node_info)
-            log_it(L_WARNING, "Not found link %s."NODE_ADDR_FP_STR" in the node list",
-                                              a_net->pub.name, NODE_ADDR_FP_ARGS(l_link_addr));
+            log_it(L_WARNING, "Not found any root nodes");
         else {
             ret = s_net_link_add(a_net, l_link_node_info);
             DAP_DELETE(l_link_node_info);
         }
-        DAP_DELETE(l_link_addr);
         if (ret > 0)    // Maximum links count reached
             break;
     }
@@ -2572,6 +2577,8 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     log_it (L_DEBUG, "Read %u aliases, %u address and %u ipv4 addresses, check them",
             l_net_pvt->seed_aliases_count,l_seed_nodes_addrs_len, l_seed_nodes_ipv4_len );
     PVT(l_net)->seed_nodes_addrs_v4 = DAP_NEW_SIZE(struct in_addr, l_net_pvt->seed_aliases_count * sizeof(struct in_addr));
+    PVT(l_net)->seed_nodes_addrs = DAP_NEW_SIZE(uint64_t, l_net_pvt->seed_aliases_count * sizeof(uint64_t));
+    PVT(l_net)->seed_nodes_ports = DAP_NEW_SIZE(uint16_t, l_net_pvt->seed_aliases_count * sizeof(uint16_t));
     // save new nodes from cfg file to db
     for ( size_t i = 0; i < PVT(l_net)->seed_aliases_count &&
                         i < l_seed_nodes_addrs_len &&
@@ -2595,6 +2602,8 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
             inet_pton(AF_INET6, l_seed_nodes_ipv6[i], &l_node_info.hdr.ext_addr_v6);
         l_node_info.hdr.ext_port = l_seed_nodes_port_len && l_seed_nodes_port_len >= i ?
             strtoul(l_seed_nodes_port[i], NULL, 10) : 8079;
+        l_net_pvt->seed_nodes_ports[i] = l_node_info.hdr.ext_port;
+        l_net_pvt->seed_nodes_addrs[i] = l_seed_node_addr.uint64;
 
         if (l_seed_nodes_hostnames_len) {
             struct sockaddr l_sa = {};
@@ -2609,7 +2618,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
                 log_it(L_ERROR, "%s", gai_strerror(l_ret_code));
             }
         }
-
+/*
         l_seed_node_addr_gdb    = dap_chain_node_alias_find(l_net, l_net_pvt->seed_aliases[i]);
         l_node_info_gdb         = l_seed_node_addr_gdb ? dap_chain_node_info_read(l_net, l_seed_node_addr_gdb) : NULL;
 
@@ -2621,12 +2630,12 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
             l_node_info.hdr.ext_addr_v6.s6_addr32[0]
 #endif
         ) {
-            /* Let's check if config was altered */
+             //Let's check if config was altered
             int l_ret = l_node_info_gdb ? memcmp(&l_node_info, l_node_info_gdb, sizeof(dap_chain_node_info_t)) : 1;
             if (!l_ret) {
                 log_it(L_NOTICE,"Seed node "NODE_ADDR_FP_STR" already in list", NODE_ADDR_FP_ARGS_S(l_seed_node_addr));
             } else {
-                /* Either not yet added or must be altered */
+                // Either not yet added or must be altered
                 l_ret = dap_chain_node_info_save(l_net, &l_node_info);
                 if (!l_ret) {
                     if (dap_chain_node_alias_register(l_net,l_net_pvt->seed_aliases[i], &l_seed_node_addr))
@@ -2640,8 +2649,10 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         } else
             log_it(L_WARNING,"No address for seed node, can't populate global_db with it");
         DAP_DEL_Z(l_seed_node_addr_gdb);
-        DAP_DEL_Z(l_node_info_gdb);
+        DAP_DEL_Z(l_node_info_gdb);*/
     }
+
+    dap_chain_net_node_list_init();
 
     PVT(l_net)->bootstrap_nodes_count = 0;
     PVT(l_net)->bootstrap_nodes_addrs = DAP_NEW_SIZE(struct in_addr, l_bootstrap_nodes_len * sizeof(struct in_addr));
