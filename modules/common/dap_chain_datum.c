@@ -97,59 +97,65 @@ void s_datum_token_dump_tsd(dap_string_t *a_str_out, dap_chain_datum_token_t *a_
                    l_tsd->size, l_tsd_total_size - l_offset);
             return;
         }
-        switch( l_tsd->type){
-            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SET_FLAGS:
-                dap_string_append_printf(a_str_out,"flags_set: ");
-                dap_chain_datum_token_flags_dump(a_str_out,
-                                                 dap_tsd_get_scalar(l_tsd, uint16_t));
-                continue;
-            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UNSET_FLAGS:
-                dap_string_append_printf(a_str_out,"flags_unset: ");
-                dap_chain_datum_token_flags_dump(a_str_out,
-                                                 dap_tsd_get_scalar(l_tsd, uint16_t));
+        switch(l_tsd->type) {
+        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SET_FLAGS: {
+            dap_string_append_printf(a_str_out,"flags_set: ");
+            uint16_t l_t = 0;
+            dap_chain_datum_token_flags_dump(a_str_out, _dap_tsd_get_scalar(l_tsd, &l_t));
             continue;
-            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY: { // 256
-                char *l_balance = dap_chain_balance_print(dap_tsd_get_scalar(l_tsd, uint256_t));
-                dap_string_append_printf(a_str_out, "total_supply: %s\n", l_balance);
-                DAP_DELETE(l_balance);
-            }
+        }
+        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UNSET_FLAGS: {
+            dap_string_append_printf(a_str_out,"flags_unset: ");
+            uint16_t l_t = 0;
+            dap_chain_datum_token_flags_dump(a_str_out, _dap_tsd_get_scalar(l_tsd, &l_t));
             continue;
-            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_OLD: {// 128
-                char *l_balance = dap_chain_balance_print(GET_256_FROM_128(dap_tsd_get_scalar(l_tsd, uint128_t)));
-                dap_string_append_printf(a_str_out, "total_supply: %s\n", l_balance);
-                DAP_DELETE(l_balance);
-            }
+        }
+        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY: {     // 256
+            uint256_t l_t = uint256_0;
+            char *l_balance = dap_chain_balance_print(_dap_tsd_get_scalar(l_tsd, &l_t));
+            dap_string_append_printf(a_str_out, "total_supply: %s\n", l_balance);
+            DAP_DELETE(l_balance);
             continue;
-            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID :
-                dap_string_append_printf(a_str_out,"total_signs_valid: %u\n",
-                                         dap_tsd_get_scalar(l_tsd, uint16_t) );
+        }
+        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_OLD: { // 128
+            uint128_t l_t = uint128_0;
+            char *l_balance = dap_chain_balance_print(GET_256_FROM_128(_dap_tsd_get_scalar(l_tsd, &l_t)));
+            dap_string_append_printf(a_str_out, "total_supply: %s\n", l_balance);
+            DAP_DELETE(l_balance);
             continue;
-            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD:
-                if(l_tsd->size >= sizeof(dap_pkey_t)){
-                    char *l_hash_str;
-                    dap_pkey_t *l_pkey = (dap_pkey_t*)l_tsd->data;
-                    dap_hash_fast_t l_hf = {0};
-                    if (!dap_pkey_get_hash(l_pkey, &l_hf)) {
-                        dap_string_append_printf(a_str_out,"total_pkeys_add: <WRONG CALCULATION FINGERPRINT>\n");
-                    } else {
-                        if (!dap_strcmp(a_hash_out_type, "hex") || !dap_strcmp(a_hash_out_type, "content_hash"))
-                            l_hash_str = dap_chain_hash_fast_to_str_new(&l_hf);
-                        else
-                            l_hash_str = dap_enc_base58_encode_hash_to_str(&l_hf);
-                        dap_string_append_printf(a_str_out, "total_pkeys_add: %s\n", l_hash_str);
-                        DAP_DELETE(l_hash_str);
-                    }
-                } else
+        }
+        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID: {
+            uint16_t l_t = 0;
+            dap_string_append_printf(a_str_out,"total_signs_valid: %u\n", _dap_tsd_get_scalar(l_tsd, &l_t));
+            continue;
+        }
+        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD:
+            if(l_tsd->size >= sizeof(dap_pkey_t)) {
+                char *l_hash_str;
+                dap_pkey_t *l_pkey = (dap_pkey_t*)l_tsd->data;
+                dap_hash_fast_t l_hf = { };
+                if (!dap_pkey_get_hash(l_pkey, &l_hf)) {
+                    dap_string_append_printf(a_str_out,"total_pkeys_add: <WRONG CALCULATION FINGERPRINT>\n");
+                } else {
+                    if (!dap_strcmp(a_hash_out_type, "hex") || !dap_strcmp(a_hash_out_type, "content_hash"))
+                        l_hash_str = dap_chain_hash_fast_to_str_new(&l_hf);
+                    else
+                        l_hash_str = dap_enc_base58_encode_hash_to_str(&l_hf);
+                    dap_string_append_printf(a_str_out, "total_pkeys_add: %s\n", l_hash_str);
+                    DAP_DELETE(l_hash_str);
+                }
+            } else
                     dap_string_append_printf(a_str_out,"total_pkeys_add: <WRONG SIZE %u>\n", l_tsd->size);
             continue;
-            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE:
+
+        case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE:
                 if(l_tsd->size == sizeof(dap_chain_hash_fast_t) ){
                     char *l_hash_str = (!dap_strcmp(a_hash_out_type,"hex")|| !dap_strcmp(a_hash_out_type, "content_hash"))
                             ? dap_chain_hash_fast_to_str_new((dap_chain_hash_fast_t*) l_tsd->data)
                             : dap_enc_base58_encode_hash_to_str((dap_chain_hash_fast_t*) l_tsd->data);
                     dap_string_append_printf(a_str_out,"total_pkeys_remove: %s\n", l_hash_str);
                     DAP_DELETE( l_hash_str );
-                }else
+                } else
                     dap_string_append_printf(a_str_out,"total_pkeys_remove: <WRONG SIZE %u>\n", l_tsd->size);
             continue;
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK: {

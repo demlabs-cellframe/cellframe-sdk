@@ -224,7 +224,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
     }
 
     l_tsd_section = dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
-    if (strcmp(l_ticker_str, (char *)l_tsd_section->ticker_token_from))
+    if (strcmp(l_ticker_str, (char*)l_tsd_section->ticker_token_from))
         return TOKEN_ERROR;
 
     if (IS_ZERO_256(l_tsd_section->emission_rate))
@@ -430,7 +430,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
         }
 
         l_tsd_section = dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
-        if (strcmp(l_ticker_str, (char *)l_tsd_section->ticker_token_from))
+        if (strcmp(l_ticker_str, (char*)l_tsd_section->ticker_token_from))
             return TOKEN_ERROR;
 
         if (!IS_ZERO_256(l_tsd_section->emission_rate)) {

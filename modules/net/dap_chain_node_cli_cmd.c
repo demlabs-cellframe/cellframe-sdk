@@ -2006,7 +2006,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
         // wallet info
         case CMD_WALLET_INFO: {
             dap_ledger_t *l_ledger = NULL;
-            if (l_wallet_name && l_addr_str || !l_wallet_name && !l_addr_str) {
+            if ((l_wallet_name && l_addr_str) || (!l_wallet_name && !l_addr_str)) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "You should use either the -w or -addr option for the wallet info command.");
                 dap_string_free(l_string_ret, true);
                 return -1;
@@ -3541,10 +3541,12 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, char **
             continue;
         }
         switch (l_tsd->type){
-            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID:
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID: {
+            uint16_t l_t = 0;
                 log_it(L_DEBUG,"== TOTAL_SIGNS_VALID: %u",
-                        dap_tsd_get_scalar(l_tsd,uint16_t) );
+                        _dap_tsd_get_scalar(l_tsd, &l_t) );
             break;
+        }
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_ADD:
                 log_it(L_DEBUG,"== DATUM_TYPE_ALLOWED_ADD: %s",
                        dap_tsd_get_string_const(l_tsd) );
@@ -3843,10 +3845,12 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                     continue;
                 }
                 switch (l_tsd->type){
-                    case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID:
+                    case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID: {
+                    uint16_t l_t = 0;
                         log_it(L_DEBUG,"== TOTAL_SIGNS_VALID: %u",
-                                dap_tsd_get_scalar(l_tsd, uint16_t) );
+                                _dap_tsd_get_scalar(l_tsd, &l_t) );
                     break;
+                }
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_ADD:
                         log_it(L_DEBUG,"== DATUM_TYPE_ALLOWED_ADD: %s",
                                dap_tsd_get_string_const(l_tsd) );
