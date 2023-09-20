@@ -160,7 +160,7 @@ void s_datum_token_dump_tsd(dap_string_t *a_str_out, dap_chain_datum_token_t *a_
             continue;
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK: {
                 char *balance = NULL;
-                dap_chain_datum_token_tsd_delegate_from_stake_lock_t *l_tsd_section = dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
+                dap_chain_datum_token_tsd_delegate_from_stake_lock_t *l_tsd_section = _dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
                 dap_string_append_printf(a_str_out, "ticker_token_from: %s\nemission_rate: %s\n",
                                          l_tsd_section->ticker_token_from, (balance = dap_chain_balance_to_coins(l_tsd_section->emission_rate)));
                 DAP_DEL_Z(balance);

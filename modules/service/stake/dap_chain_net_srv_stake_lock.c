@@ -223,7 +223,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
         return NO_DELEGATED_TOKEN_ERROR;
     }
 
-    l_tsd_section = dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
+    l_tsd_section = _dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
     if (strcmp(l_ticker_str, (char*)l_tsd_section->ticker_token_from))
         return TOKEN_ERROR;
 
@@ -429,7 +429,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
             return NO_DELEGATED_TOKEN_ERROR;
         }
 
-        l_tsd_section = dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
+        l_tsd_section = _dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
         if (strcmp(l_ticker_str, (char*)l_tsd_section->ticker_token_from))
             return TOKEN_ERROR;
 
@@ -918,7 +918,7 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
             return false;
         }
 
-        l_tsd_section = dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
+        l_tsd_section = _dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
 
         if (!IS_ZERO_256(l_tsd_section->emission_rate)) {
             MULT_256_COIN(a_cond->header.value, l_tsd_section->emission_rate, &l_value_delegated);
