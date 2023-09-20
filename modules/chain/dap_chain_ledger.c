@@ -3342,7 +3342,7 @@ dap_hash_fast_t *dap_chain_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger
         HASH_VALUE(l_tx_hash, sizeof(*l_tx_hash), l_hash_value);
         HASH_FIND_BYHASHVALUE(hh, l_ledger_pvt->ledger_items, l_tx_hash, sizeof(*l_tx_hash), l_hash_value, l_item);
         if (l_item) {
-            int l_out_num = -1;
+            int l_out_num = 0;
             dap_chain_datum_tx_out_cond_get(l_item->tx, a_cond_type, &l_out_num);
             if (l_out_num != -1 && l_out_num < MAX_OUT_ITEMS) {
                 if (dap_hash_fast_is_blank(&l_item->cache_data.tx_hash_spent_fast[l_out_num]))
