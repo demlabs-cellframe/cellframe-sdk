@@ -2715,56 +2715,16 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
                     if (dap_config_get_item_bool_default(g_config,"server","enabled",false) ){
                         const char * l_ext_addr_v4 = dap_config_get_item_str_default(g_config,"server","ext_address",NULL);
                         const char * l_ext_addr_v6 = dap_config_get_item_str_default(g_config,"server","ext_address6",NULL);
-                        uint16_t l_ext_port = dap_config_get_item_uint16_default(g_config,"server","ext_port_tcp",0);
+                        uint16_t l_ext_port = dap_config_get_item_uint16_default(g_config,"server","ext_port_tcp", 8079);
                         uint16_t l_node_info_port = l_ext_port ? l_ext_port :
-                                                dap_config_get_item_uint16_default(g_config,"server","listen_port_tcp",8089);
+                                                dap_config_get_item_uint16_default(g_config,"server","listen_port_tcp",8079);
                         if (l_ext_addr_v4)
                             inet_pton(AF_INET,l_ext_addr_v4,&l_net_pvt->node_info->hdr.ext_addr_v4 );
                         if (l_ext_addr_v6)
                             inet_pton(AF_INET6,l_ext_addr_v6,&l_net_pvt->node_info->hdr.ext_addr_v6 );
                         l_net_pvt->node_info->hdr.ext_port =l_node_info_port;
-                        log_it(L_INFO,"Server is enabled on %s:%u",l_ext_addr_v4?l_ext_addr_v4:"<none>",
-                               l_node_info_port);
-                    }else
+                    } else
                         log_it(L_INFO,"Server is disabled, add only node address in nodelist");
-                    if (l_net_pvt->node_info->hdr.ext_port &&
-                            (l_net_pvt->node_info->hdr.ext_addr_v4.s_addr != INADDR_ANY ||
-                             memcmp(&l_net_pvt->node_info->hdr.ext_addr_v6, &in6addr_any, sizeof(struct in6_addr))))
-                    {
-                        // Save only info with non null address & port!
-                        dap_chain_node_info_t *l_link_node_request = DAP_NEW_Z( dap_chain_node_info_t);
-                        l_link_node_request->hdr.address.uint64 = l_node_addr->uint64;
-                        l_link_node_request->hdr.ext_addr_v4.s_addr = l_net_pvt->node_info->hdr.ext_addr_v4.s_addr;
-                        l_link_node_request->hdr.ext_port = l_net_pvt->node_info->hdr.ext_port;
-                        int res = dap_chain_net_node_list_request(l_net,l_link_node_request);
-                        switch (res)
-                        {
-                            case 0:
-                                log_it(L_NOTICE,"No server");
-                            break;
-                            case 1:
-                                log_it(L_NOTICE,"Node addr successfully added to node list");
-                            break;
-                            case 2:
-                                log_it(L_NOTICE,"Didn't add your addres node to node list");
-                            break;
-                            case 3:
-                                log_it(L_NOTICE,"Can't calculate hash for your addr");
-                            break;
-                            case 4:
-                                log_it(L_NOTICE,"Can't do handshake for your node");
-                            break;
-                            case 5:
-                                log_it(L_NOTICE,"The node is already exists");
-                            break;
-                            case 6:
-                                log_it(L_NOTICE,"Can't process node list HTTP request");
-                            break;
-                            default:
-                                break;
-                        }
-                        DAP_DELETE(l_link_node_request);
-                    }
                 }
                 log_it(L_NOTICE,"GDB Info: node_addr: " NODE_ADDR_FP_STR"  links: %u cell_id: 0x%016"DAP_UINT64_FORMAT_X,
                        NODE_ADDR_FP_ARGS(l_node_addr),
@@ -3743,6 +3703,29 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
 bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net)
 {
     return PVT(a_net)->load_mode;
+}
+
+void dap_chain_net_announce_addrs() {
+    if(!HASH_COUNT(s_net_items)){
+        log_it(L_ERROR, "Can't find any nets");
+        return;
+    }
+    pthread_rwlock_rdlock(&s_net_items_rwlock);
+    dap_chain_net_item_t *l_net_item = NULL, *l_tmp = NULL;
+    HASH_ITER(hh, s_net_items, l_net_item, l_tmp) {
+        dap_chain_net_pvt_t *l_net_pvt = PVT(l_net_item->chain_net);
+        if (l_net_pvt->node_info->hdr.ext_port &&
+                (l_net_pvt->node_info->hdr.ext_addr_v4.s_addr != INADDR_ANY
+                 || memcmp(&l_net_pvt->node_info->hdr.ext_addr_v6, &in6addr_any, sizeof(struct in6_addr))))
+        {
+            dap_chain_net_node_list_request(l_net_item->chain_net, l_net_pvt->node_info, false);
+            char l_node_addr_str[INET_ADDRSTRLEN] = { '\0' };
+            inet_ntop(AF_INET, &l_net_pvt->node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
+            log_it(L_MSG, "Announce our node address "NODE_ADDR_FP_STR" < %s:%u > in net %s",
+                   NODE_ADDR_FP_ARGS(l_net_pvt->node_addr), l_node_addr_str, l_net_pvt->node_info->hdr.ext_port, l_net_item->name);
+        }
+    }
+    pthread_rwlock_unlock(&s_net_items_rwlock);
 }
 
 char *dap_chain_net_links_dump(dap_chain_net_t *a_net) {
