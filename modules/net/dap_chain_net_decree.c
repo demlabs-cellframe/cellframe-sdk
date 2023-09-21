@@ -510,7 +510,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
                     dap_enc_http_ban_list_client_add_ipv6(l_ip_addr, l_decree_hash, a_decree->header.ts_created);
                 } else if (l_tsd->type == DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR){
                     dap_chain_node_addr_t l_addr_node = dap_tsd_get_scalar(l_tsd, dap_chain_node_addr_t);
-                    if (!dap_chain_node_net_ban_list_add_node_addr(l_node_addr, l_decree_hash, a_decree->header.ts_created, l_net))
+                    if (!dap_chain_node_net_ban_list_add_node_addr(l_addr_node, l_decree_hash, a_decree->header.ts_created, l_net))
                         return -4;
                 } else {
                     log_it(L_WARNING, "Invalid section TSD type for sub-decree datum of type "
