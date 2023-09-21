@@ -273,8 +273,19 @@ static void s_node_list_callback_notify(dap_global_db_context_t *a_context, dap_
                     log_it(L_NOTICE, "Node %s removed, there is not pinners", a_obj->key);
                     dap_global_db_del_unsafe(l_gdb_context, a_obj->group, a_obj->key);
                 }
-                else
-                    log_it(L_NOTICE, "Node %s add", a_obj->key);
+                else {
+                    char l_node_ipv4_str[INET_ADDRSTRLEN]={ '\0' }, l_node_ipv6_str[INET6_ADDRSTRLEN]={ '\0' };
+                    inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_ipv4_str, INET_ADDRSTRLEN);
+                    inet_ntop(AF_INET6, &l_node_info->hdr.ext_addr_v6, l_node_ipv6_str, INET6_ADDRSTRLEN);
+                    char l_ts[128] = { '\0' };
+                    dap_gbd_time_to_str_rfc822(l_ts, sizeof(l_ts), a_obj->timestamp);
+
+                    log_it(L_MSG, "Add node "NODE_ADDR_FP_STR" %s %s, pinned by "NODE_ADDR_FP_STR" at %s\n",
+                                             NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),
+                                             l_node_ipv4_str, dap_itoa(l_node_info->hdr.ext_port),
+                                             NODE_ADDR_FP_ARGS_S(l_node_info->hdr.owner_address),
+                                             l_ts);
+                }
             }
             else
             {

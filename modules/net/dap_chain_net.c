@@ -298,7 +298,7 @@ static void s_update_links_timer_callback(void *a_arg){
     }
     l_node_info->hdr.blocks_events = l_blocks_events;
     char *l_key = dap_chain_node_addr_to_hash_str(l_current_addr);
-    dap_global_db_set_sync(l_net->pub.gdb_nodes, l_key, l_node_info, dap_chain_node_info_get_size(l_node_info), false);
+    //dap_global_db_set_sync(l_net->pub.gdb_nodes, l_key, l_node_info, dap_chain_node_info_get_size(l_node_info), false);
     DAP_DELETE(l_node_info);
 }
 
