@@ -204,7 +204,7 @@ static int dap_chain_net_node_list_wait(struct node_link_request *a_node_list_re
     return ret;
 }
 
-int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_request)
+int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_request, bool a_sync)
 {
     dap_chain_node_info_t *l_link_node_info = dap_get_balancer_link_from_cfg(a_net);
     if (!l_link_node_info)
@@ -243,23 +243,14 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
                                             l_node_list_request,
                                             NULL) == NULL;
 
-    int rc = dap_chain_net_node_list_wait(l_node_list_request, 10000);
-    if(ret){
-        s_node_list_request_deinit(l_node_list_request);
-        return 6;
+    if (a_sync) {
+        int rc = dap_chain_net_node_list_wait(l_node_list_request, 10000);
+        ret = ret ? 6 : rc ? 0 : l_node_list_request->response;
+    } else {
+        ret = 7;
     }
-    else{
-        if(rc)
-        {
-            s_node_list_request_deinit(l_node_list_request);
-            return 0;//no server
-        }
-        else{
-            ret = l_node_list_request->response;
-            s_node_list_request_deinit(l_node_list_request);
-            return ret;
-        }
-    }
+    s_node_list_request_deinit(l_node_list_request);
+    return ret;
 }
 static void s_node_list_callback_notify(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg)
 {

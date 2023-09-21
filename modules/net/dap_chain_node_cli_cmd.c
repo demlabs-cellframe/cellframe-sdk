@@ -1228,7 +1228,8 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         uint16_t l_node_port = 0;
         dap_digit_from_string(l_port_str, &l_node_port, sizeof(uint16_t));
         l_link_node_request->hdr.ext_port = l_node_port;
-        int res = dap_chain_net_node_list_request(l_net,l_link_node_request);
+        // Synchronous request, wait for reply
+        int res = dap_chain_net_node_list_request(l_net,l_link_node_request, true);
         switch (res)
         {
             case 0:
