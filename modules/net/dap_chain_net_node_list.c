@@ -242,7 +242,7 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
                                             s_net_node_link_prepare_error,
                                             l_node_list_request,
                                             NULL) == NULL;
-
+    DAP_DELETE(l_request);
     if (a_sync) {
         int rc = dap_chain_net_node_list_wait(l_node_list_request, 10000);
         ret = ret ? 6 : rc ? 0 : l_node_list_request->response;

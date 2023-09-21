@@ -1258,6 +1258,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
                                                 s_net_http_link_prepare_error,
                                                 l_balancer_request,
                                                 NULL) == NULL;
+        DAP_DELETE(l_request);
     } else {
         l_link_node_info->hdr.ext_port = DNS_LISTEN_PORT;
         ret = dap_chain_node_info_dns_request(l_balancer_request->worker,
