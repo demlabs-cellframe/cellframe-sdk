@@ -647,7 +647,10 @@ dap_chain_node_info_t *dap_get_balancer_link_from_cfg(dap_chain_net_t *a_net)
     uint16_t i, l_port = 0;
     uint64_t l_node_adrr = 0;
     if (l_net_pvt->seed_aliases_count) {
-        i = rand() % l_net_pvt->seed_aliases_count;
+        do {
+            i = rand() % l_net_pvt->seed_aliases_count;
+        } while (l_net_pvt->seed_nodes_addrs[i] == l_net_pvt->node_addr->uint64);
+
         /*dap_chain_node_addr_t *l_remote_addr = dap_chain_node_alias_find(a_net, l_net_pvt->seed_aliases[i]);
         if (l_remote_addr){
             */
@@ -909,7 +912,7 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
         }
         if (!l_net_pvt->only_static_links) {
             size_t l_current_links_prepared = HASH_COUNT(l_net_pvt->net_links);
-            for (size_t i = l_current_links_prepared; i < l_net_pvt->max_links_count ; i++) {                
+            for (size_t i = l_current_links_prepared; i < l_net_pvt->max_links_count ; i++) {
                 s_new_balancer_link_request(l_net, 0);
             }
         }
@@ -1177,14 +1180,14 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
     }
     if(!a_link_replace_tries){
 
-        dap_chain_net_node_balancer_t *l_link_full_node_list = dap_chain_net_balancer_get_node(a_net->pub.name,l_net_pvt->max_links_count*2);        
+        dap_chain_net_node_balancer_t *l_link_full_node_list = dap_chain_net_balancer_get_node(a_net->pub.name,l_net_pvt->max_links_count*2);
         size_t node_cnt = 0,i = 0;
         if(l_link_full_node_list)
         {
             dap_chain_node_info_t * l_node_info = (dap_chain_node_info_t *)l_link_full_node_list->nodes_info;
             node_cnt = l_link_full_node_list->count_node;
             int l_net_link_add = 0;
-            size_t l_links_count = 0;            
+            size_t l_links_count = 0;
             while(!l_net_link_add){
                 if(i >= node_cnt)
                     break;
@@ -1198,7 +1201,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
                     break;
                 case 1:
                     log_it(L_MSG, "Network links table is full");
-                    break;                
+                    break;
                 default:
                     break;
                 }
