@@ -204,7 +204,7 @@ static int dap_chain_net_node_list_wait(struct node_link_request *a_node_list_re
     return ret;
 }
 
-int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_request)
+int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_request, bool a_sync)
 {
     dap_chain_node_info_t *l_link_node_info = dap_get_balancer_link_from_cfg(a_net);
     if (!l_link_node_info)
@@ -242,24 +242,15 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
                                             s_net_node_link_prepare_error,
                                             l_node_list_request,
                                             NULL) == NULL;
-
-    int rc = dap_chain_net_node_list_wait(l_node_list_request, 10000);
-    if(ret){
-        s_node_list_request_deinit(l_node_list_request);
-        return 6;
+    DAP_DELETE(l_request);
+    if (a_sync) {
+        int rc = dap_chain_net_node_list_wait(l_node_list_request, 10000);
+        ret = ret ? 6 : rc ? 0 : l_node_list_request->response;
+    } else {
+        ret = 7;
     }
-    else{
-        if(rc)
-        {
-            s_node_list_request_deinit(l_node_list_request);
-            return 0;//no server
-        }
-        else{
-            ret = l_node_list_request->response;
-            s_node_list_request_deinit(l_node_list_request);
-            return ret;
-        }
-    }
+    s_node_list_request_deinit(l_node_list_request);
+    return ret;
 }
 static void s_node_list_callback_notify(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg)
 {
@@ -282,8 +273,19 @@ static void s_node_list_callback_notify(dap_global_db_context_t *a_context, dap_
                     log_it(L_NOTICE, "Node %s removed, there is not pinners", a_obj->key);
                     dap_global_db_del_unsafe(l_gdb_context, a_obj->group, a_obj->key);
                 }
-                else
-                    log_it(L_NOTICE, "Node %s add", a_obj->key);
+                else {
+                    char l_node_ipv4_str[INET_ADDRSTRLEN]={ '\0' }, l_node_ipv6_str[INET6_ADDRSTRLEN]={ '\0' };
+                    inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_ipv4_str, INET_ADDRSTRLEN);
+                    inet_ntop(AF_INET6, &l_node_info->hdr.ext_addr_v6, l_node_ipv6_str, INET6_ADDRSTRLEN);
+                    char l_ts[128] = { '\0' };
+                    dap_gbd_time_to_str_rfc822(l_ts, sizeof(l_ts), a_obj->timestamp);
+
+                    log_it(L_MSG, "Add node "NODE_ADDR_FP_STR" %s %s, pinned by "NODE_ADDR_FP_STR" at %s\n",
+                                             NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),
+                                             l_node_ipv4_str, dap_itoa(l_node_info->hdr.ext_port),
+                                             NODE_ADDR_FP_ARGS_S(l_node_info->hdr.owner_address),
+                                             l_ts);
+                }
             }
             else
             {
