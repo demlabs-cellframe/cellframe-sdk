@@ -493,15 +493,16 @@ int dap_chain_net_add_downlink(dap_chain_net_t *a_net, dap_stream_worker_t *a_wo
     return 0;
 }
 
-int dap_chain_net_get_downlink_count(dap_chain_net_t *a_net,size_t * a_count)
+int dap_chain_net_get_downlink_count(dap_chain_net_t *a_net,uint32_t * a_count)
 {
-    size_t l_count = 0;
+    uint32_t l_count = 0;
     if (!a_net)
         return -1;
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
-
+    pthread_rwlock_rdlock(&l_net_pvt->downlinks_lock);
     l_count = HASH_COUNT(l_net_pvt->downlinks);
     *a_count = l_count;
+    pthread_rwlock_unlock(&l_net_pvt->downlinks_lock);
     return 0;
 }
 /**
@@ -696,6 +697,31 @@ dap_chain_node_info_t *dap_get_balancer_link_from_cfg(dap_chain_net_t *a_net)
     l_link_node_info->hdr.ext_addr_v4 = l_addr;
     l_link_node_info->hdr.ext_port = l_port;
     return l_link_node_info;
+}
+
+dap_chain_node_info_t *dap_chain_get_root_addr(dap_chain_net_t *a_net, dap_chain_node_addr_t* a_node_addr )
+{
+    dap_chain_net_pvt_t *l_net_pvt = a_net ? PVT(a_net) : NULL;
+    if(!l_net_pvt) return NULL;
+
+    for(int i = 0; i < l_net_pvt->seed_aliases_count; i++)
+    {
+        if(l_net_pvt->seed_nodes_addrs[i] == a_node_addr->uint64)
+        {
+            dap_chain_node_info_t *l_link_node_info = DAP_NEW_Z(dap_chain_node_info_t);
+            if(l_link_node_info){
+                l_link_node_info->hdr.address.uint64 = l_net_pvt->seed_nodes_addrs[i];
+                l_link_node_info->hdr.ext_addr_v4.s_addr = l_net_pvt->seed_nodes_addrs_v4[i].s_addr;
+                l_link_node_info->hdr.ext_port = l_net_pvt->seed_nodes_ports[i];
+                return l_link_node_info;
+            }else{
+                log_it(L_WARNING,"Can't allocate memory");
+                return NULL;
+            }
+
+        }
+    }
+    return NULL;
 }
 
 /**

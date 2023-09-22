@@ -1230,8 +1230,11 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         l_link_node_request->hdr.address.uint64 = dap_chain_net_get_cur_addr_int(l_net);
         inet_pton(AF_INET, a_ipv4_str, &(l_link_node_request->hdr.ext_addr_v4));
         uint16_t l_node_port = 0;
+        uint32_t links_count = 0;
         dap_digit_from_string(l_port_str, &l_node_port, sizeof(uint16_t));
+        dap_chain_net_get_downlink_count(l_net,&links_count);
         l_link_node_request->hdr.ext_port = l_node_port;
+        l_link_node_request->hdr.links_number = links_count;
         // Synchronous request, wait for reply
         int res = dap_chain_net_node_list_request(l_net,l_link_node_request, true);
         switch (res)
@@ -1253,8 +1256,8 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             break;
             case 5:
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "The node is already exists");
-            break;
-            case 6:
+            break;            
+            case 7:
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process node list HTTP request");
             break;
             default:
