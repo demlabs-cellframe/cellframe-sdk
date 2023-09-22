@@ -144,6 +144,10 @@ static void s_net_node_link_prepare_success(void *a_response, size_t a_response_
 static void s_net_node_link_prepare_error(int a_error_code, void *a_arg){
     struct node_link_request * l_node_list_request = (struct node_link_request *)a_arg;
     dap_chain_node_info_t *l_node_info = l_node_list_request->link_info;
+    if (!l_node_info) {
+        log_it(L_WARNING, "Link prepare error, code %d", a_error_code);
+        return;
+    }
     char l_node_addr_str[INET_ADDRSTRLEN]={};
     inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
     log_it(L_WARNING, "Link from  "NODE_ADDR_FP_STR" (%s) prepare error with code %d",
