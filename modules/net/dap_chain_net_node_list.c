@@ -30,6 +30,26 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define LOG_TAG "dap_chain_net_node_list"
 
+static int s_dap_chain_net_node_list_add_downlink(const char * a_group, const char *a_key, dap_chain_node_info_t * a_node_info) {
+
+    size_t l_node_info_size = dap_chain_node_info_get_size(&a_node_info);
+    bool res = dap_global_db_set_sync(a_group, a_key, (uint8_t*)&a_node_info, l_node_info_size, true) == 0;
+    if(res)
+    {
+        char l_node_addr_str[INET_ADDRSTRLEN]={};
+        inet_ntop(AF_INET, &l_node_info.hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
+        log_it(L_DEBUG, "Add address"NODE_ADDR_FP_STR" (%s) to node list by "NODE_ADDR_FP_STR"",
+                    NODE_ADDR_FP_ARGS_S(l_node_info.hdr.address),l_node_addr_str,
+                    NODE_ADDR_FP_ARGS_S(l_node_info.hdr.owner_address));
+        return 1;
+    }
+    else
+    {
+        log_it(L_DEBUG, "Don't add this addres to node list");
+        return 2;
+    }
+}
+
 /**
  * @brief server function, makes handshake and add node to node list
  *
@@ -84,6 +104,7 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     };
 
     uint8_t response = 0;
+    size_t links_count = 0;
     char *l_key = dap_chain_node_addr_to_hash_str(&l_node_info.hdr.address);
     if(!l_key)
     {
@@ -95,31 +116,24 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
         l_node_inf_check = (dap_chain_node_info_t *) dap_global_db_get_sync(l_net->pub.gdb_nodes, l_key, &node_info_size, NULL, NULL);
         if(l_node_inf_check)
         {
-            log_it(L_DEBUG, "The node is already exists");
-            response = 5;
-            DAP_DELETE(l_node_inf_check);
+            if(l_issue_method == 'r'){
+                log_it(L_DEBUG, "The node is already exists");
+                response = 5;
+                DAP_DELETE(l_node_inf_check);
+            }else if(l_issue_method == 'u')
+            {
+                dap_chain_net_get_downlink_count(l_net,&links_count);
+                l_node_info.hdr.links_number = links_count;
+                dap_global_db_del_unsafe(l_gdb_context, l_net->pub.gdb_nodes, l_key);
+                response = s_dap_chain_net_node_list_add_downlink(l_net->pub.gdb_nodes,l_key,l_node_info);
+            }
         }
         else{
             if(dap_chain_net_balancer_handshake(&l_node_info,l_net))
                 response = 1;
             if(response)
-            {
-                size_t l_node_info_size = dap_chain_node_info_get_size(&l_node_info);
-                bool res = dap_global_db_set_sync(l_net->pub.gdb_nodes, l_key, (uint8_t*)&l_node_info, l_node_info_size, true) == 0;
-                if(res)
-                {
-                    char l_node_addr_str[INET_ADDRSTRLEN]={};
-                    inet_ntop(AF_INET, &l_node_info.hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
-                    log_it(L_DEBUG, "Add address"NODE_ADDR_FP_STR" (%s) to node list by "NODE_ADDR_FP_STR"",
-                                NODE_ADDR_FP_ARGS_S(l_node_info.hdr.address),l_node_addr_str,
-                                NODE_ADDR_FP_ARGS_S(l_node_info.hdr.owner_address));
-                    response = 1;
-                }
-                else
-                {
-                    response = 2;
-                    log_it(L_DEBUG, "Don't add this addres to node list");
-                }
+            {                
+                response = s_dap_chain_net_node_list_add_downlink(l_net->pub.gdb_nodes,l_key,l_node_info);
             }
             else
             {

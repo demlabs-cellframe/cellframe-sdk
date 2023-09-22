@@ -492,6 +492,18 @@ int dap_chain_net_add_downlink(dap_chain_net_t *a_net, dap_stream_worker_t *a_wo
     pthread_rwlock_unlock(&l_net_pvt->downlinks_lock);
     return 0;
 }
+
+int dap_chain_net_get_downlink_count(dap_chain_net_t *a_net,size_t * a_count)
+{
+    size_t l_count = 0;
+    if (!a_net)
+        return -1;
+    dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
+
+    l_count = HASH_COUNT(l_net_pvt->downlinks);
+    *a_count = l_count;
+    return 0;
+}
 /**
  * @brief executes, when you add data to gdb and sends it to current network connected nodes
  * @param a_arg arguments. Can be network object (dap_chain_net_t)
