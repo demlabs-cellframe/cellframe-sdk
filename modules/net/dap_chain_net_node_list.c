@@ -165,9 +165,7 @@ static struct node_link_request *s_node_list_request_init ()
 
     pthread_condattr_t attr;
     pthread_condattr_init(&attr);
-#ifndef DAP_OS_DARWIN
     pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
-#endif
     pthread_cond_init(&l_node_list_request->wait_cond, &attr);
     pthread_mutex_init(&l_node_list_request->wait_mutex, NULL);
     return l_node_list_request;
