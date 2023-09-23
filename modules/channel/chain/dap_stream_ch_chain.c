@@ -494,8 +494,11 @@ static bool s_sync_update_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a
         return true;
     }
     dap_chain_net_add_downlink(l_net, l_ch->stream_worker, l_ch->uuid, l_ch->stream->esocket_uuid,
-                               l_ch->stream->esocket->hostaddr,
-                               strtoll(l_ch->stream->esocket->service, NULL, 10));
+                               l_ch->stream->esocket->hostaddr[0]
+            ? l_ch->stream->esocket->hostaddr : l_ch->stream->esocket->remote_addr_str,
+            l_ch->stream->esocket->service[0]
+            ? strtoll(l_ch->stream->esocket->service, NULL, 10)
+            : l_ch->stream->esocket->remote_addr.sin_port);
 
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
     int l_flags = 0;
