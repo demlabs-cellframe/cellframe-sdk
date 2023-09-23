@@ -494,12 +494,8 @@ static bool s_sync_update_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a
         return true;
     }
     dap_chain_net_add_downlink(l_net, l_ch->stream_worker, l_ch->uuid, l_ch->stream->esocket_uuid,
-                               l_ch->stream->esocket->remote_addr_str[0]
-            ? l_ch->stream->esocket->remote_addr_str
-            : l_ch->stream->esocket->hostaddr,
-            l_ch->stream->esocket->service[0]
-            ? strtoll(l_ch->stream->esocket->service, NULL, 10)
-            : dap_config_get_item_int32(g_config, "server", "listen_port_tcp"));
+                               l_ch->stream->esocket->hostaddr,
+                               strtoll(l_ch->stream->esocket->service, NULL, 10));
 
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
     int l_flags = 0;
@@ -833,8 +829,9 @@ static void s_stream_ch_write_error_unsafe(dap_stream_ch_t *a_ch, uint64_t a_net
 static bool s_chain_timer_callback(void *a_arg)
 {
     dap_worker_t *l_worker = dap_worker_get_current();
-    dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(DAP_STREAM_WORKER(l_worker), *(dap_stream_ch_uuid_t *)a_arg);
+    dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(DAP_STREAM_WORKER(l_worker), *(dap_stream_ch_uuid_t*)a_arg);
     if (!l_ch) {
+        dap_chain_net_del_downlink(*(dap_stream_ch_uuid_t*)a_arg);
         DAP_DELETE(a_arg);
         return false;
     }
@@ -932,9 +929,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         } else {
             log_it(L_ERROR, "Invalid request from %s with ext_id %016"DAP_UINT64_FORMAT_x" net id 0x%016"DAP_UINT64_FORMAT_x
                             " chain id 0x%016"DAP_UINT64_FORMAT_x" cell_id 0x%016"DAP_UINT64_FORMAT_x" in packet",
-                            a_ch->stream->esocket->remote_addr_str[0]
-                    ? a_ch->stream->esocket->remote_addr_str
-                    : a_ch->stream->esocket->hostaddr, l_chain_pkt->hdr.ext_id,
+                            a_ch->stream->esocket->hostaddr, l_chain_pkt->hdr.ext_id,
                             l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64,
                             l_chain_pkt->hdr.cell_id.uint64);
             s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
@@ -956,9 +951,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
     uint8_t l_acl = a_ch->stream->session->acl ? a_ch->stream->session->acl[l_acl_idx] : 1;
     if (!l_acl) {
         log_it(L_WARNING, "Unauthorized request attempt from %s to network %s",
-               a_ch->stream->esocket->remote_addr_str[0]
-                  ? a_ch->stream->esocket->remote_addr_str
-                  : a_ch->stream->esocket->hostaddr,
+               a_ch->stream->esocket->hostaddr,
                dap_chain_net_by_id(l_chain_pkt->hdr.net_id)->pub.name);
         s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
                                             l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
@@ -1224,9 +1217,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             if (!l_chain) {
                 log_it(L_ERROR, "Invalid UPDATE_CHAINS_START request from %s with ext_id %016"DAP_UINT64_FORMAT_x" net id 0x%016"DAP_UINT64_FORMAT_x
                                 " chain id 0x%016"DAP_UINT64_FORMAT_x" cell_id 0x%016"DAP_UINT64_FORMAT_x" in packet",
-                                a_ch->stream->esocket->remote_addr_str[0]
-                        ? a_ch->stream->esocket->remote_addr_str
-                        : a_ch->stream->esocket->hostaddr, l_chain_pkt->hdr.ext_id,
+                                a_ch->stream->esocket->hostaddr, l_chain_pkt->hdr.ext_id,
                                 l_chain_pkt->hdr.net_id.uint64, l_chain_pkt->hdr.chain_id.uint64,
                                 l_chain_pkt->hdr.cell_id.uint64);
                 s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
@@ -1475,10 +1466,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 l_error_str[l_chain_pkt_data_size-1]='\0'; // To be sure that nobody sends us garbage
                                                            // without trailing zero
             log_it(L_WARNING,"In from remote addr %s chain id 0x%016"DAP_UINT64_FORMAT_x" got error on his side: '%s'",
-                   DAP_STREAM_CH(l_ch_chain)->stream->esocket->remote_addr_str[0] ?
-                        DAP_STREAM_CH(l_ch_chain)->stream->esocket->remote_addr_str:
-                        DAP_STREAM_CH(l_ch_chain)->stream->esocket->hostaddr,
-                    l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt_data_size ? l_error_str : "<empty>");
+                   DAP_STREAM_CH(l_ch_chain)->stream->esocket->hostaddr,
+                   l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt_data_size ? l_error_str : "<empty>");
         } break;
 
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_ALL: {
