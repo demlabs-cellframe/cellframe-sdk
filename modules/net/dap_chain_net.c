@@ -115,7 +115,7 @@
 #include "dap_stream_ch_pkt.h"
 #include "dap_chain_node_dns_client.h"
 #include "dap_module.h"
-
+#include "rand/dap_rand.h"
 #include "json.h"
 #include "json_object.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
@@ -648,7 +648,7 @@ dap_chain_node_info_t *dap_get_balancer_link_from_cfg(dap_chain_net_t *a_net)
     uint64_t l_node_adrr = 0;
     if (l_net_pvt->seed_aliases_count) {
         do {
-            i = rand() % l_net_pvt->seed_aliases_count;
+            i = dap_random_uint16() % l_net_pvt->seed_aliases_count;
         } while (l_net_pvt->seed_nodes_addrs[i] == l_net_pvt->node_addr->uint64);
 
         /*dap_chain_node_addr_t *l_remote_addr = dap_chain_node_alias_find(a_net, l_net_pvt->seed_aliases[i]);
@@ -670,7 +670,7 @@ dap_chain_node_info_t *dap_get_balancer_link_from_cfg(dap_chain_net_t *a_net)
             return NULL;
         }*/
     } else if (l_net_pvt->bootstrap_nodes_count) {
-        i = rand() % l_net_pvt->bootstrap_nodes_count;
+        i = dap_random_uint16() % l_net_pvt->bootstrap_nodes_count;
         l_node_adrr = 0;
         l_addr = l_net_pvt->bootstrap_nodes_addrs[i];
         l_port = l_net_pvt->bootstrap_nodes_ports[i];
@@ -2484,7 +2484,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         l_net_pvt->seed_aliases[i] = dap_strdup(l_seed_aliases[i]);
     // randomize seed nodes list
     for (int j = l_net_pvt->seed_aliases_count - 1; j > 0; j--) {
-        int n = rand() % j;
+        short n = dap_random_uint16() % j;
         char *tmp = l_net_pvt->seed_aliases[n];
         l_net_pvt->seed_aliases[n] = l_net_pvt->seed_aliases[j];
         l_net_pvt->seed_aliases[j] = tmp;
