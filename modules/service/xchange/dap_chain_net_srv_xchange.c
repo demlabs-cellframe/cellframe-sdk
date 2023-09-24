@@ -89,27 +89,27 @@ int dap_chain_net_srv_xchange_init()
     "srv_xchange order update -net <net_name> -order <order_hash> -w <wallet_name> [-token_sell <token_ticker>] "
                             "[-net_buy <net_name>] [-token_buy <token_ticker>] [-coins <value>] [-rate <value>]\n"
          "\tUpdate order with specified order hash in specified net name\n"
-    "srv_xchange order history -net <net_name> {-order <order_hash> | -addr <wallet_addr>}"
+    "srv_xchange order history -net <net_name> {-order <order_hash> | -addr <wallet_addr>}\n"
          "\tShows transaction history for the selected order\n"
-    "srv_xchange order status -net <net_name> -order <order_hash>"
+    "srv_xchange order status -net <net_name> -order <order_hash>\n"
          "\tShows current amount of unselled coins from the selected order and percentage of its completion\n"
     "srv_xchange orders -net <net_name>\n"
          "\tGet the exchange orders list within specified net name\n"
 
-    "srv_xchange purchase -order <order hash> -net <net_name> -w <wallet_name> -value <value> -fee <value>\n"
+    "srv_xchange purchase -order <order_hash> -net <net_name> -w <wallet_name> -value <value> -fee <value>\n"
          "\tExchange tokens with specified order within specified net name. Specify how many datoshies to sell with rate specified by order\n"
 
     "srv_xchange tx_list -net <net_name> [-time_from <yymmdd> -time_to <yymmdd>]"
-        "[[-addr <wallet_addr>  [-status closed | open] ]\n"                /* @RRL:  #6294  */
+        "[-addr <wallet_addr>  [-status {closed | open}]]\n"                /* @RRL:  #6294  */
         "\tList of exchange transactions\n"
 
     "srv_xchange token_pair -net <net_name> list all\n"
         "\tList of all token pairs\n"
-    "srv_xchange token_pair -net <net_name> price average -token_from <token_ticker> -token_to <token_ticker> [-time_from <From time>] [-time_to <To time>]  \n"
-        "\tGet average rate for token pair <token from>:<token to> from <From time> to <To time> \n"
+    "srv_xchange token_pair -net <net_name> price average -token_from <token_ticker> -token_to <token_ticker> [-time_from <from_time>] [-time_to <to_time>]  \n"
+        "\tGet average rate for token pair <token from>:<token to> from <from_time> to <to_time> \n"
         "\tAll times are in RFC822\n"
-    "srv_xchange token_pair -net <net_name> price history -token_from <token_ticker> -token_to <token_ticker> [-time_from <From time>] [-time_to <To time>] \n"
-        "\tPrint rate history for token pair <token from>:<token to> from <From time> to <To time>\n"
+    "srv_xchange token_pair -net <net_name> price history -token_from <token_ticker> -token_to <token_ticker> [-time_from <from_time>] [-time_to <to_time>] \n"
+        "\tPrint rate history for token pair <token from>:<token to> from <from_time> to <to_time>\n"
         "\tAll times are in RFC822\n"
 
     "srv_xchange enable\n"
