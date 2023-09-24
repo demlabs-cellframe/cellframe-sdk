@@ -504,9 +504,11 @@ void dap_chain_net_del_downlink(dap_stream_ch_uuid_t a_ch_uuid) {
             HASH_DEL(l_net_pvt->downlinks, l_downlink);
             log_it(L_MSG, "Remove downlink %s : %d from net ht", l_downlink->addr, l_downlink->port);
             DAP_DELETE(l_downlink);
+            pthread_rwlock_unlock(&PVT(l_net_item->chain_net)->downlinks_lock);
             break;
+        } else {
+            pthread_rwlock_unlock(&PVT(l_net_item->chain_net)->downlinks_lock);
         }
-        pthread_rwlock_unlock(&PVT(l_net_item->chain_net)->downlinks_lock);
     }
     pthread_rwlock_unlock(&s_net_items_rwlock);
 }
