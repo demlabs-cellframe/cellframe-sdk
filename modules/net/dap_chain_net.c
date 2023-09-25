@@ -285,21 +285,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
 static void s_update_links_timer_callback(void *a_arg){
     dap_chain_net_t *l_net = (dap_chain_net_t*)a_arg;
     //Updated links
-    size_t l_count_downlinks = 0,l_blocks_events = 0;
-    dap_chain_node_addr_t *l_current_addr = dap_chain_net_get_cur_addr(l_net);
-    dap_chain_node_info_t *l_node_info = dap_chain_node_info_read(l_net, l_current_addr);
-    if (!l_node_info)
-        return;
-    l_node_info->hdr.links_number = l_count_downlinks;
-    dap_chain_t *l_chain;
-    DL_FOREACH(l_net->pub.chains, l_chain) {
-        if(l_chain->callback_count_atom)
-            l_blocks_events += l_chain->callback_count_atom(l_chain);
-    }
-    l_node_info->hdr.blocks_events = l_blocks_events;
-    char *l_key = dap_chain_node_addr_to_hash_str(l_current_addr);
-    //dap_global_db_set_sync(l_net->pub.gdb_nodes, l_key, l_node_info, dap_chain_node_info_get_size(l_node_info), false);
-    DAP_DELETE(l_node_info);
+   dap_chain_net_node_list_request_update(l_net);
 }
 
 /**

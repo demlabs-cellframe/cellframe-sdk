@@ -1231,10 +1231,17 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         inet_pton(AF_INET, a_ipv4_str, &(l_link_node_request->hdr.ext_addr_v4));
         uint16_t l_node_port = 0;
         uint32_t links_count = 0;
+        size_t l_blocks_events = 0;
         dap_digit_from_string(l_port_str, &l_node_port, sizeof(uint16_t));
         dap_chain_net_get_downlink_count(l_net,&links_count);
         l_link_node_request->hdr.ext_port = l_node_port;
         l_link_node_request->hdr.links_number = links_count;
+        dap_chain_t *l_chain;
+        DL_FOREACH(l_net->pub.chains, l_chain) {
+            if(l_chain->callback_count_atom)
+                l_blocks_events += l_chain->callback_count_atom(l_chain);
+        }
+        l_link_node_request->hdr.blocks_events = l_blocks_events;
         // Synchronous request, wait for reply
         int res = dap_chain_net_node_list_request(l_net,l_link_node_request, true);
         switch (res)
