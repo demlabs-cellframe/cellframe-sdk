@@ -4,10 +4,8 @@
 
 #include "dap_chain_common.h"
 #include "dap_chain.h"
-#include "dap_global_db_remote.h"
 #include "dap_chain_node_client.h"
 #include "dap_list.h"
-// #include "dap_stream_ch_chain_pkt.h"
 #include "uthash.h"
 
 #define DAP_STREAM_CH_CHAIN_VOTING_PKT_TYPE_DATA        0x01

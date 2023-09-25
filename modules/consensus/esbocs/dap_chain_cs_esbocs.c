@@ -330,7 +330,7 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
     uint64_t l_limit_time = l_time_store_lim_hours ? dap_nanotime_now() - dap_nanotime_from_sec(l_time_store_lim_hours * 3600) : 0;
     size_t l_objs_count = 0;
     dap_global_db_pkt_t *l_pkt = 0;
-    dap_db_iter_t *l_iter = dap_global_db_driver_iter_create(l_sync_group);
+    dap_global_db_iter_t *l_iter = dap_global_db_driver_iter_create(l_sync_group);
     dap_store_obj_t *l_objs = dap_global_db_get_all_raw_unsafe(a_context, l_iter, &l_objs_count);
     dap_global_db_driver_iter_delete(l_iter);
     for (size_t i = 0; i < l_objs_count; i++) {
@@ -342,7 +342,7 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
             dap_global_db_driver_delete(it, 1);
             continue;
         }
-        it->type = DAP_DB$K_OPTYPE_ADD;
+        it->type = DAP_GLOBAL_DB_OPTYPE_ADD;
         dap_global_db_pkt_t *l_pkt_single = dap_global_db_pkt_serialize(it);
         dap_global_db_pkt_change_id(l_pkt_single, 0);
         l_pkt = dap_global_db_pkt_pack(l_pkt, l_pkt_single);
@@ -1867,7 +1867,7 @@ static void s_db_change_notifier(dap_global_db_context_t *a_context, dap_store_o
         log_it(L_WARNING, "Unreadable address in esbocs global DB group");
         dap_global_db_driver_delete(a_obj, 1);
     }
-    if (dap_chain_net_srv_stake_mark_validator_active(l_validator_addr, a_obj->type != DAP_DB$K_OPTYPE_ADD))
+    if (dap_chain_net_srv_stake_mark_validator_active(l_validator_addr, a_obj->type != DAP_GLOBAL_DB_OPTYPE_ADD))
         dap_global_db_driver_delete(a_obj, 1);
     s_session_db_serialize(a_context, l_session);
 }

@@ -32,7 +32,6 @@
 #include "dap_chain_node.h"
 #include "dap_string.h"
 #include "dap_global_db.h"
-#include "dap_global_db_remote.h"
 #include "dap_chain_net_balancer.h"
 
 #define LOG_TAG "dap_chain_node_dns_server"

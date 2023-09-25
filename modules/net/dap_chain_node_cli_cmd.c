@@ -99,7 +99,7 @@
 #include "dap_chain_ledger.h"
 #include "dap_chain_mempool.h"
 #include "dap_global_db.h"
-#include "dap_global_db_remote.h"
+#include "dap_global_db_cluster.h"
 
 #include "dap_stream_ch_chain_net.h"
 #include "dap_stream_ch_chain.h"

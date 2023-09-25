@@ -210,7 +210,7 @@ static void s_dag_rounds_events_iter(dap_global_db_context_t *a_context,
         return;
     for (size_t i = 0; i < a_values_count; i++) {
         dap_store_obj_t *l_obj_cur = a_values + i;
-        l_obj_cur->type = DAP_DB$K_OPTYPE_ADD;
+        l_obj_cur->type = DAP_GLOBAL_DB_OPTYPE_ADD;
         s_history_callback_round_notify(a_context, a_values + i, a_arg);
     }
 }

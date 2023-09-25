@@ -28,7 +28,6 @@
 #include "dap_chain_cs.h"
 #include "dap_chain_cell.h"
 #include "dap_common.h"
-#include "dap_global_db_remote.h"
 
 /**
   * @struct dap_chain_pvt

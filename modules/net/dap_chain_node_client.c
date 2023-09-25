@@ -56,7 +56,6 @@
 #include "dap_uuid.h"
 #include "dap_client.h"
 #include "dap_client_pvt.h"
-#include "dap_global_db_remote.h"
 #include "dap_chain.h"
 #include "dap_chain_cell.h"
 #include "dap_chain_net_srv.h"

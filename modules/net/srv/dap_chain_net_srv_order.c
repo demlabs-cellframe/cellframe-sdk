@@ -676,7 +676,7 @@ static void s_srv_order_callback_notify(dap_global_db_context_t *a_context, dap_
             }
         }
         bool l_allow_unsigned_orders = dap_config_get_item_bool_default(g_config, "srv", "allow_unsigned_orders", false);
-        if (a_obj->value && a_obj->type == DAP_DB$K_OPTYPE_ADD) {
+        if (a_obj->value && a_obj->type == DAP_GLOBAL_DB_OPTYPE_ADD) {
             dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)a_obj->value;
             if (l_order->version != 3) {
                 log_it(L_NOTICE, "Order %s removed version != 3.", a_obj->key);

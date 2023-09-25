@@ -32,7 +32,7 @@
 #include "dap_list.h"
 #include "dap_stream_ch_chain_pkt.h"
 #include "uthash.h"
-#include "dap_global_db_remote.h"
+#include "dap_global_db_cluster.h"
 
 #define DAP_CHAIN_NODE_SYNC_TIMEOUT 60  // sec
 #define DAP_SYNC_TICKS_PER_SECOND   10

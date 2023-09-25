@@ -4598,7 +4598,7 @@ static inline int s_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, d
                     .value      = l_tx_cache,
                     .value_len  = l_tx_cache_sz,
                     .group      = l_ledger_cache_group,
-                    .type       = DAP_DB$K_OPTYPE_ADD
+                    .type       = DAP_GLOBAL_DB_OPTYPE_ADD
             };
             l_cache_used_outs[i].timestamp = dap_nanotime_now();
         }
@@ -4777,7 +4777,7 @@ static inline int s_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, d
                 .value      = l_tx_cache,
                 .value_len  = l_tx_cache_sz,
                 .group      = l_ledger_cache_group,
-                .type       = DAP_DB$K_OPTYPE_ADD
+                .type       = DAP_GLOBAL_DB_OPTYPE_ADD
         };
         l_cache_used_outs[0].timestamp = dap_nanotime_now();
         // Apply it with single DB transaction

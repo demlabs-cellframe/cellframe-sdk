@@ -103,7 +103,6 @@
 #include "dap_chain_cs_none.h"
 #include "dap_client_http.h"
 #include "dap_global_db.h"
-#include "dap_global_db_remote.h"
 
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_stream_ch_chain_net.h"

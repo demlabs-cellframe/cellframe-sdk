@@ -28,7 +28,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_block.h"
 #include "dap_chain_cs_blocks.h"
 #include "dap_cert.h"
-#include "dap_global_db_remote.h"
 
 #define DAP_CHAIN_ESBOCS_PROTOCOL_VERSION           8
 #define DAP_CHAIN_ESBOCS_GDB_GROUPS_PREFIX          "esbocs"

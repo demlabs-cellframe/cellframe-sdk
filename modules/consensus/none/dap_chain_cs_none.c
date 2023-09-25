@@ -157,7 +157,7 @@ static void s_dap_chain_gdb_callback_purge(dap_chain_t *a_chain)
 
 static void s_callback_memepool_notify(dap_global_db_context_t *a_context UNUSED_ARG, dap_store_obj_t *a_obj, void *a_arg)
 {
-    if (a_obj->type == DAP_DB$K_OPTYPE_ADD)
+    if (a_obj->type == DAP_GLOBAL_DB_OPTYPE_ADD)
         dap_chain_node_mempool_process_all(a_arg, false);
 }
 
