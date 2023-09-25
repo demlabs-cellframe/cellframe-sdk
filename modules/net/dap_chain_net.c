@@ -115,7 +115,7 @@
 #include "dap_stream_ch_pkt.h"
 #include "dap_chain_node_dns_client.h"
 #include "dap_module.h"
-
+#include "rand/dap_rand.h"
 #include "json.h"
 #include "json_object.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
@@ -151,7 +151,7 @@ struct downlink {
     dap_stream_worker_t *worker;
     dap_stream_ch_uuid_t ch_uuid;
     dap_events_socket_uuid_t esocket_uuid;
-    char *addr;
+    char addr[INET_ADDRSTRLEN];
     int port;
     UT_hash_handle hh;
 };
@@ -471,13 +471,14 @@ int dap_chain_net_add_downlink(dap_chain_net_t *a_net, dap_stream_worker_t *a_wo
             .worker     = a_worker,
             .ch_uuid    = a_ch_uuid,
             .esocket_uuid = a_esocket_uuid,
-            .addr       = a_addr,
             .port       = a_port
     };
+    strncpy(l_downlink->addr, a_addr, INET_ADDRSTRLEN - 1);
     HASH_ADD_BYHASHVALUE(hh, l_net_pvt->downlinks, ch_uuid, sizeof(a_ch_uuid), a_hash_value, l_downlink);
     pthread_rwlock_unlock(&l_net_pvt->downlinks_lock);
     return 0;
 }
+
 
 int dap_chain_net_get_downlink_count(dap_chain_net_t *a_net,uint32_t * a_count)
 {
@@ -491,6 +492,27 @@ int dap_chain_net_get_downlink_count(dap_chain_net_t *a_net,uint32_t * a_count)
     pthread_rwlock_unlock(&l_net_pvt->downlinks_lock);
     return 0;
 }
+
+void dap_chain_net_del_downlink(dap_stream_ch_uuid_t a_ch_uuid) {
+    pthread_rwlock_rdlock(&s_net_items_rwlock);
+    for (dap_chain_net_item_t *l_net_item = s_net_items; l_net_item; l_net_item = l_net_item->hh.next) {
+        dap_chain_net_pvt_t *l_net_pvt = PVT(l_net_item->chain_net);
+        pthread_rwlock_wrlock(&l_net_pvt->downlinks_lock);
+        struct downlink *l_downlink = NULL;
+        HASH_FIND(hh, l_net_pvt->downlinks, &a_ch_uuid, sizeof(a_ch_uuid), l_downlink);
+        if (l_downlink) {
+            HASH_DEL(l_net_pvt->downlinks, l_downlink);
+            log_it(L_MSG, "Remove downlink %s : %d from net ht", l_downlink->addr, l_downlink->port);
+            DAP_DELETE(l_downlink);
+            pthread_rwlock_unlock(&PVT(l_net_item->chain_net)->downlinks_lock);
+            break;
+        } else {
+            pthread_rwlock_unlock(&PVT(l_net_item->chain_net)->downlinks_lock);
+        }
+    }
+    pthread_rwlock_unlock(&s_net_items_rwlock);
+}
+
 /**
  * @brief executes, when you add data to gdb and sends it to current network connected nodes
  * @param a_arg arguments. Can be network object (dap_chain_net_t)
@@ -647,7 +669,7 @@ dap_chain_node_info_t *dap_get_balancer_link_from_cfg(dap_chain_net_t *a_net)
     uint64_t l_node_adrr = 0;
     if (l_net_pvt->seed_aliases_count) {
         do {
-            i = rand() % l_net_pvt->seed_aliases_count;
+            i = dap_random_uint16() % l_net_pvt->seed_aliases_count;
         } while (l_net_pvt->seed_nodes_addrs[i] == l_net_pvt->node_addr->uint64);
 
         /*dap_chain_node_addr_t *l_remote_addr = dap_chain_node_alias_find(a_net, l_net_pvt->seed_aliases[i]);
@@ -669,7 +691,7 @@ dap_chain_node_info_t *dap_get_balancer_link_from_cfg(dap_chain_net_t *a_net)
             return NULL;
         }*/
     } else if (l_net_pvt->bootstrap_nodes_count) {
-        i = rand() % l_net_pvt->bootstrap_nodes_count;
+        i = dap_random_uint16() % l_net_pvt->bootstrap_nodes_count;
         l_node_adrr = 0;
         l_addr = l_net_pvt->bootstrap_nodes_addrs[i];
         l_port = l_net_pvt->bootstrap_nodes_ports[i];
@@ -2508,7 +2530,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         l_net_pvt->seed_aliases[i] = dap_strdup(l_seed_aliases[i]);
     // randomize seed nodes list
     for (int j = l_net_pvt->seed_aliases_count - 1; j > 0; j--) {
-        int n = rand() % j;
+        short n = dap_random_uint16() % j;
         char *tmp = l_net_pvt->seed_aliases[n];
         l_net_pvt->seed_aliases[n] = l_net_pvt->seed_aliases[j];
         l_net_pvt->seed_aliases[j] = tmp;
@@ -3776,11 +3798,9 @@ char *dap_chain_net_links_dump(dap_chain_net_t *a_net) {
     pthread_rwlock_rdlock(&l_net_pvt->downlinks_lock);
     struct downlink *l_downlink = NULL, *l_downtmp = NULL;
     HASH_ITER(hh, l_net_pvt->downlinks, l_downlink, l_downtmp) {
-        if (l_downlink->addr[0]) {
-            dap_string_append_printf(l_str_downlinks, "|  ↓  |\t%zu\t|\t%s\t\t|\t%u\t|\n",
+        dap_string_append_printf(l_str_downlinks, "|  ↓  |\t%zu\t|\t%s\t\t|\t%u\t|\n",
                                      ++l_down_count,
                                      l_downlink->addr, l_downlink->port);
-        }
     }
     pthread_rwlock_unlock(&l_net_pvt->downlinks_lock);
     char *l_res_str = dap_strdup_printf("Count links: %zu\n\nUplinks: %zu\n%s\n\nDownlinks: %zu\n%s\n",

@@ -170,6 +170,10 @@ static void s_net_node_link_prepare_success(void *a_response, size_t a_response_
 static void s_net_node_link_prepare_error(int a_error_code, void *a_arg){
     struct node_link_request * l_node_list_request = (struct node_link_request *)a_arg;
     dap_chain_node_info_t *l_node_info = l_node_list_request->link_info;
+    if (!l_node_info) {
+        log_it(L_WARNING, "Link prepare error, code %d", a_error_code);
+        return;
+    }
     char l_node_addr_str[INET_ADDRSTRLEN]={};
     inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
     log_it(L_WARNING, "Link from  "NODE_ADDR_FP_STR" (%s) prepare error with code %d",
@@ -187,9 +191,7 @@ static struct node_link_request *s_node_list_request_init ()
 
     pthread_condattr_t attr;
     pthread_condattr_init(&attr);
-#ifndef DAP_OS_DARWIN
     pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
-#endif
     pthread_cond_init(&l_node_list_request->wait_cond, &attr);
     pthread_mutex_init(&l_node_list_request->wait_mutex, NULL);
     return l_node_list_request;
@@ -360,9 +362,7 @@ static void s_node_list_callback_notify(dap_global_db_context_t *a_context, dap_
     if (!a_arg || !a_obj || !a_obj->key)
         return;
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
-    dap_global_db_context_t * l_gdb_context = dap_global_db_context_current();
     assert(l_net);
-    assert(l_gdb_context);
     size_t l_size_obj_need = (sizeof(dap_chain_node_info_t));
 
     if (!dap_strcmp(a_obj->group, l_net->pub.gdb_nodes)) {
@@ -374,7 +374,7 @@ static void s_node_list_callback_notify(dap_global_db_context_t *a_context, dap_
             {
                 if(l_node_info->hdr.owner_address.uint64 == 0){
                     log_it(L_NOTICE, "Node %s removed, there is not pinners", a_obj->key);
-                    dap_global_db_del_unsafe(l_gdb_context, a_obj->group, a_obj->key);
+                    dap_global_db_del_unsafe(a_context, a_obj->group, a_obj->key);
                 }
                 else {
                     char l_node_ipv4_str[INET_ADDRSTRLEN]={ '\0' }, l_node_ipv6_str[INET6_ADDRSTRLEN]={ '\0' };
@@ -392,7 +392,7 @@ static void s_node_list_callback_notify(dap_global_db_context_t *a_context, dap_
             }
             else
             {
-                dap_global_db_del_unsafe(l_gdb_context, a_obj->group, a_obj->key);
+                dap_global_db_del_unsafe(a_context, a_obj->group, a_obj->key);
                 log_it(L_NOTICE, "Wrong size! data size %lu need - (%lu) %s removed ",l_size_obj,
                        l_size_obj_need, a_obj->key);
             }

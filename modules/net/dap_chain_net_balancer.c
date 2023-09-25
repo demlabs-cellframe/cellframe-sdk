@@ -93,6 +93,10 @@ static uint64_t min_count_blocks_events(dap_global_db_obj_t * a_objs,size_t a_no
     uint64_t l_blocks_events = 0;
     for (size_t i = 0; i < a_node_count; i++) {
         dap_chain_node_info_t *l_node_cand = (dap_chain_node_info_t *)a_objs[i].value;
+        if (!l_node_cand) {
+            log_it(L_ERROR, "Invalid record, key %s", a_objs[i].key);
+            continue;
+        }
         for (dap_list_t *node_i = a_node_addr_list; node_i; node_i = node_i->next) {
             if(((struct in_addr*)node_i->data)->s_addr == l_node_cand->hdr.ext_addr_v4.s_addr) {
                 if (!l_blocks_events || l_blocks_events > l_node_cand->hdr.blocks_events)
