@@ -272,8 +272,7 @@ static void s_node_list_callback_notify(dap_global_db_context_t *a_context, dap_
                 if(l_node_info->hdr.owner_address.uint64 == 0){
                     log_it(L_NOTICE, "Node %s removed, there is not pinners", a_obj->key);
                     dap_global_db_del_unsafe(a_context, a_obj->group, a_obj->key);
-                }
-                else {
+                } else {
                     char l_node_ipv4_str[INET_ADDRSTRLEN]={ '\0' }, l_node_ipv6_str[INET6_ADDRSTRLEN]={ '\0' };
                     inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_ipv4_str, INET_ADDRSTRLEN);
                     inet_ntop(AF_INET6, &l_node_info->hdr.ext_addr_v6, l_node_ipv6_str, INET6_ADDRSTRLEN);
