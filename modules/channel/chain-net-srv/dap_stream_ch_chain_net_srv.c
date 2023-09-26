@@ -900,12 +900,11 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
         char *l_hash_str = dap_hash_fast_to_str_new(&l_grace->usage->tx_cond_hash);
         log_it(L_NOTICE, "Trying create input tx cond from tx %s with active receipt", l_hash_str);
         DAP_DEL_Z(l_hash_str);
-        dap_chain_addr_t *l_wallet_addr = dap_chain_wallet_get_addr(l_grace->usage->price->wallet, l_grace->usage->net->pub.id);
         int ret_status = 0;
-        char *l_tx_in_hash_str = dap_chain_mempool_tx_create_cond_input(l_grace->usage->net, &l_grace->usage->tx_cond_hash, l_wallet_addr,
-                                                                        dap_chain_wallet_get_key(l_grace->usage->price->wallet, 0),
+        char *l_tx_in_hash_str = dap_chain_mempool_tx_create_cond_input(l_grace->usage->net, &l_grace->usage->tx_cond_hash, l_grace->usage->price->wallet_addr,
+                                                                        l_grace->usage->price->receipt_sign_cert->enc_key,
                                                                         l_receipt, "hex", &ret_status);
-        DAP_DEL_Z(l_wallet_addr);
+//        DAP_DEL_Z(l_wallet_addr);
         if (!ret_status) {
             dap_chain_hash_fast_from_str(l_tx_in_hash_str, &l_grace->usage->tx_cond_hash);
             log_it(L_NOTICE, "Formed tx %s for input with active receipt", l_tx_in_hash_str);
@@ -1175,10 +1174,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
             char *l_hash_str = dap_hash_fast_to_str_new(&l_usage->tx_cond_hash);
             log_it(L_NOTICE, "Trying create input tx cond from tx %s with active receipt", l_hash_str);
             DAP_DEL_Z(l_hash_str);
-            dap_chain_addr_t *l_wallet_addr = dap_chain_wallet_get_addr(l_usage->price->wallet, l_usage->net->pub.id);
             int ret_status = 0;
-            char *l_tx_in_hash_str = dap_chain_mempool_tx_create_cond_input(l_usage->net, &l_usage->tx_cond_hash, l_wallet_addr,
-                                                                            dap_chain_wallet_get_key(l_usage->price->wallet, 0),
+            char *l_tx_in_hash_str = dap_chain_mempool_tx_create_cond_input(l_usage->net, &l_usage->tx_cond_hash, l_usage->price->wallet_addr,
+                                                                            l_usage->price->receipt_sign_cert->enc_key,
                                                                             l_receipt, "hex", &ret_status);
             if (!ret_status) {
                 dap_chain_hash_fast_from_str(l_tx_in_hash_str, &l_usage->tx_cond_hash);

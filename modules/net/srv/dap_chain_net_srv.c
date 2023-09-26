@@ -813,16 +813,19 @@ static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out
 }
 
 int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, const char *a_config_section){
-    const char *l_wallet_path = dap_config_get_item_str_default(g_config, "resources", "wallets_path", NULL);
-    const char *l_wallet_name = dap_config_get_item_str_default(g_config, a_config_section, "wallet", NULL);
+//    const char *l_wallet_path = dap_config_get_item_str_default(g_config, "resources", "wallets_path", NULL);
+//    const char *l_wallet_name = dap_config_get_item_str_default(g_config, a_config_section, "wallet", NULL);
+
+    const char *l_wallet_addr = dap_config_get_item_str_default(g_config, a_config_section, "wallet_addr", NULL);
+    const char *l_cert_name = dap_config_get_item_str_default(g_config, a_config_section, "receipt_sign_cert", NULL);
     const char *l_net_name = dap_config_get_item_str_default(g_config, a_config_section, "net", NULL);
-    if (!l_wallet_path || !l_wallet_name || !l_net_name){
+    if (!l_wallet_addr || !l_cert_name || !l_net_name){
         return -2;
     }
-    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, l_wallet_path);
-    if (!l_wallet) {
-        return -3;
-    }
+//    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, l_wallet_path);
+//    if (!l_wallet) {
+//        return -3;
+//    }
     dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
     if (!l_net) {
         return -4;
@@ -875,7 +878,26 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
                     continue;
                 }
             }
-            l_price->wallet = l_wallet;
+//            l_price->wallet = l_wallet;
+            l_price->wallet_addr = dap_chain_addr_from_str(l_wallet_addr);
+            if(!l_price->wallet_addr){
+                log_it(L_ERROR, "Can't get wallet addr from wallet_addr in config file.");
+                DAP_DEL_Z(l_order);
+                DAP_DELETE(l_price);
+                dap_global_db_objs_delete(l_orders, l_orders_count);
+                return -100;
+            }
+
+            l_price->receipt_sign_cert = dap_cert_find_by_name(l_cert_name);
+            if(!l_price->receipt_sign_cert){
+                log_it(L_ERROR, "Can't find cert %s.", l_cert_name);
+                DAP_DEL_Z(l_order);
+                DAP_DELETE(l_price);
+                dap_global_db_objs_delete(l_orders, l_orders_count);
+                return -101;
+            }
+
+
             // TODO: find most advantageous for us order
             DL_APPEND(a_srv->pricelist, l_price);
             break;
@@ -939,11 +961,11 @@ int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_
                 }
                 continue;
             case 5:
-                if (!(l_price->wallet = dap_chain_wallet_open(l_price_token, dap_config_get_item_str_default(g_config, "resources", "wallets_path", NULL)))) {
-                    log_it(L_ERROR, "Error parsing pricelist: can't open wallet \"%s\"", l_price_token);
-                    l_iter = 0;
-                    break;
-                }
+//                if (!(l_price->wallet = dap_chain_wallet_open(l_price_token, dap_config_get_item_str_default(g_config, "resources", "wallets_path", NULL)))) {
+//                    log_it(L_ERROR, "Error parsing pricelist: can't open wallet \"%s\"", l_price_token);
+//                    l_iter = 0;
+//                    break;
+//                }
                 continue;
             case 6:
                 log_it(L_INFO, "Price item correct, added to service");
@@ -1201,7 +1223,7 @@ dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv
     dap_chain_datum_tx_receipt_t * l_receipt = dap_chain_datum_tx_receipt_create(
                     a_srv->uid, a_price->units_uid, a_price->units, a_price->value_datoshi, a_ext, a_ext_size);
     // Sign with our wallet
-    return dap_chain_datum_tx_receipt_sign_add(l_receipt, dap_chain_wallet_get_key(a_price->wallet, 0));
+    return dap_chain_datum_tx_receipt_sign_add(l_receipt, a_price->receipt_sign_cert->enc_key);
 }
 
 /**
