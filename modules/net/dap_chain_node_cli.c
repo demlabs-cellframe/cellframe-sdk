@@ -107,12 +107,15 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                     "node balancer -net <net_name>\n"
                     "node dump -net <net_name> [ -addr <node_address> | -alias <node_alias>] [-full]\n\n"
                                         );
+    #ifndef DAP_OS_ANDROID
     dap_cli_server_cmd_add ("ping", com_ping, "Send ICMP ECHO_REQUEST to network hosts",
             "ping [-c <count>] host\n");
     dap_cli_server_cmd_add ("traceroute", com_traceroute, "Print the hops and time of packets trace to network host",
             "traceroute host\n");
     dap_cli_server_cmd_add ("tracepath", com_tracepath,"Traces path to a network host along this path",
             "tracepath host\n");
+    #endif
+    
     dap_cli_server_cmd_add ("version", com_version, "Return software version",
                                         "version\n"
                                         "\tReturn version number\n"
