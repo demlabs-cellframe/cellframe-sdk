@@ -1,9 +1,9 @@
 /*
 * Authors:
-* Dmitriy Gerasimov <naeper@demlabs.net>
+* Roman Padenkov <roman.padenkov@demlabs.net>
 * Cellframe       https://cellframe.net
 * DeM Labs Inc.   https://demlabs.net
-* Copyright  (c) 2017-2019
+* Copyright  (c) 2022-2023
 * All rights reserved.
 
 This file is part of CellFrame SDK the open source project
