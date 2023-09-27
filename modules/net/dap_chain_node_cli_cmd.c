@@ -107,6 +107,7 @@
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_enc_base64.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
+#include "dap_chain_net_node_list.h"
 
 #define LOG_TAG "chain_node_cli_cmd"
 
@@ -475,7 +476,7 @@ static int link_add_or_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_in
     }
     // save edited node_info
     if(res_successful) {
-        bool res = node_info_save_and_reply(a_net, l_node_info_read, a_str_reply);
+        bool res = true;  //node_info_save_and_reply(a_net, l_node_info_read, a_str_reply);
         if(res) {
             res_successful = true;
             if(cmd_int == 1)
@@ -523,7 +524,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
         const char *a_alias, char **a_str_reply)
 {
     int l_ret = 0;
-    dap_string_t *l_string_reply = dap_string_new("Node dump:");
+    dap_string_t *l_string_reply = dap_string_new("Node dump:\n");
 
     if ((a_addr && a_addr->uint64) || a_alias) {
         dap_chain_node_addr_t *l_addr = a_alias
@@ -544,7 +545,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
         }
 
         // get aliases in form of string
-        dap_string_t *aliases_string = dap_string_new(NULL);
+        /*dap_string_t *aliases_string = dap_string_new(NULL);
         dap_list_t *list_aliases = get_aliases_by_name(a_net, l_addr);
         if(list_aliases)
         {
@@ -559,6 +560,8 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
         }
         else
             dap_string_append(aliases_string, "\nno aliases");
+
+
 
         const int hostlen = 128;
         char *host4 = (char*) alloca(hostlen);
@@ -603,14 +606,11 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
         dap_string_free(links_string, true);
 
         DAP_DELETE(l_addr);
-        DAP_DELETE(node_info_read);
+        DAP_DELETE(node_info_read);*/ // TODO
 
     } else { // Dump list with !a_addr && !a_alias
-        dap_global_db_obj_t *l_objs = NULL;
         size_t l_nodes_count = 0;
-        dap_string_append(l_string_reply, "\n");
-        // read all node
-        l_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes, &l_nodes_count);
+        dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes, &l_nodes_count);
 
         if(!l_nodes_count || !l_objs) {
             dap_string_append_printf(l_string_reply, "No records\n");
@@ -619,18 +619,18 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
             dap_global_db_objs_delete(l_objs, l_nodes_count);
             return -1;
         } else {
-            dap_string_append_printf(l_string_reply, "Got %zu records:\n", l_nodes_count);
+            dap_string_append_printf(l_string_reply, "Got %zu nodes:\n", l_nodes_count);
+            dap_string_append_printf(l_string_reply, "%-26s%-20s%-8s%-26s%s", "Address", "IPv4", "Port", "Pinner", "Timestamp\n");
             size_t l_data_size = 0;
-            // read all aliases
+
             dap_global_db_obj_t *l_aliases_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes_aliases, &l_data_size);
-            for(size_t i = 0; i < l_nodes_count; i++) {
-                dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)l_objs[i].value;
-                // read node
-                if ( !dap_chain_node_addr_not_null(&l_node_info->hdr.address)){
+            for (size_t i = 0; i < l_nodes_count; i++) {
+                dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t*)l_objs[i].value;
+                if (!dap_chain_node_addr_not_null(&l_node_info->hdr.address)){
                     log_it(L_ERROR, "Node address is NULL");
                     continue;
                 }
-
+/*
                 dap_chain_node_info_t *l_node_info_read = node_info_read_and_reply(a_net, &l_node_info->hdr.address, NULL);
                 if (!l_node_info_read) {
                     log_it(L_ERROR, "Invalid node info object, remove it");
@@ -639,17 +639,22 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
                     continue;
                 } else
                     DAP_DELETE(l_node_info_read);
-                const int hostlen = 128;
-                char *host4 = (char*) alloca(hostlen);
-                char *host6 = (char*) alloca(hostlen);
-                struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = l_node_info->hdr.ext_addr_v4 };
-                const char* str_ip4 = inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), host4, hostlen);
+*/
 
-                struct sockaddr_in6 sa6 = { .sin6_family = AF_INET6, .sin6_addr = l_node_info->hdr.ext_addr_v6 };
-                const char* str_ip6 = inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) &sa6)->sin6_addr), host6, hostlen);
+                char l_node_ipv4_str[INET_ADDRSTRLEN]={ '\0' }, l_node_ipv6_str[INET6_ADDRSTRLEN]={ '\0' };
+                inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_ipv4_str, INET_ADDRSTRLEN);
+                inet_ntop(AF_INET6, &l_node_info->hdr.ext_addr_v6, l_node_ipv6_str, INET6_ADDRSTRLEN);
+                char l_ts[128] = { '\0' };
+                dap_gbd_time_to_str_rfc822(l_ts, sizeof(l_ts), l_objs[i].timestamp);
+
+                dap_string_append_printf(l_string_reply, NODE_ADDR_FP_STR"    %-20s%-8s"NODE_ADDR_FP_STR"    %-32s\n",
+                                         NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),
+                                         l_node_ipv4_str, dap_itoa(l_node_info->hdr.ext_port),
+                                         NODE_ADDR_FP_ARGS_S(l_node_info->hdr.owner_address),
+                                         l_ts);
 
                 // get aliases in form of string
-                dap_string_t *aliases_string = dap_string_new(NULL);
+                /*dap_string_t *aliases_string = dap_string_new(NULL);
 
                 for (size_t i = 0; i < l_data_size; i++) {
                     //dap_chain_node_addr_t addr_i;
@@ -676,7 +681,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
                 if(i)
                     dap_string_append_printf(l_string_reply, "\n");
                 char l_port_str[10];
-                sprintf(l_port_str,"%d", l_node_info->hdr.ext_port);
+                sprintf(l_port_str, "%d", l_node_info->hdr.ext_port);
                 // set short reply with node param
                 if(!a_is_full)
                     dap_string_append_printf(l_string_reply,
@@ -696,7 +701,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
                             aliases_string->str,
                             l_node_info->hdr.links_number, links_string->str);
                 dap_string_free(aliases_string, true);
-                dap_string_free(links_string, true);
+                dap_string_free(links_string, true);*/
             }
             dap_global_db_objs_delete(l_aliases_objs, l_data_size);
         }
@@ -1211,22 +1216,54 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             dap_digit_from_string(l_link_str, l_link.raw, sizeof(l_link.raw));
         }
     }
-
+    int l_ret =0;
     switch (cmd_num)
     {    
     case CMD_ADD:
-        if(!arg_index || a_argc < 8) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameters");
+        if(!l_port_str || !a_ipv4_str)
+        {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "node requires parameter -ipv4 and -port");
             DAP_DELETE(l_node_info);
             return -1;
         }
-        // handler of command 'node add'
-        int l_ret = node_info_add_with_reply(l_net, l_node_info, alias_str, l_cell_str, a_ipv4_str, a_ipv6_str,
-                a_str_reply);
+        dap_chain_node_info_t *l_link_node_request = DAP_NEW_Z( dap_chain_node_info_t);
+        l_link_node_request->hdr.address.uint64 = dap_chain_net_get_cur_addr_int(l_net);
+        inet_pton(AF_INET, a_ipv4_str, &(l_link_node_request->hdr.ext_addr_v4));
+        uint16_t l_node_port = 0;
+        dap_digit_from_string(l_port_str, &l_node_port, sizeof(uint16_t));
+        l_link_node_request->hdr.ext_port = l_node_port;
+        // Synchronous request, wait for reply
+        int res = dap_chain_net_node_list_request(l_net,l_link_node_request, true);
+        switch (res)
+        {
+            case 0:
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "No server");
+            break;
+            case 1:
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Node addr successfully added to node list");
+            break;
+            case 2:
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Didn't add your addres node to node list");
+            break;
+            case 3:
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't calculate hash for your addr");
+            break;
+            case 4:
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't do handshake for your node");
+            break;
+            case 5:
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "The node is already exists");
+            break;
+            case 6:
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process node list HTTP request");
+            break;
+            default:
+                break;
+        }
+        DAP_DELETE(l_link_node_request);
         DAP_DELETE(l_node_info);
         return l_ret;
         //break;
-
     case CMD_DEL:
         // handler of command 'node del'
     {
@@ -2006,7 +2043,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
         // wallet info
         case CMD_WALLET_INFO: {
             dap_ledger_t *l_ledger = NULL;
-            if (l_wallet_name && l_addr_str || !l_wallet_name && !l_addr_str) {
+            if ((l_wallet_name && l_addr_str) || (!l_wallet_name && !l_addr_str)) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "You should use either the -w or -addr option for the wallet info command.");
                 dap_string_free(l_string_ret, true);
                 return -1;
@@ -3541,10 +3578,12 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, char **
             continue;
         }
         switch (l_tsd->type){
-            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID:
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID: {
+            uint16_t l_t = 0;
                 log_it(L_DEBUG,"== TOTAL_SIGNS_VALID: %u",
-                        dap_tsd_get_scalar(l_tsd,uint16_t) );
+                        _dap_tsd_get_scalar(l_tsd, &l_t) );
             break;
+        }
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_ADD:
                 log_it(L_DEBUG,"== DATUM_TYPE_ALLOWED_ADD: %s",
                        dap_tsd_get_string_const(l_tsd) );
@@ -3843,10 +3882,12 @@ int com_token_decl(int a_argc, char ** a_argv, char ** a_str_reply)
                     continue;
                 }
                 switch (l_tsd->type){
-                    case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID:
+                    case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID: {
+                    uint16_t l_t = 0;
                         log_it(L_DEBUG,"== TOTAL_SIGNS_VALID: %u",
-                                dap_tsd_get_scalar(l_tsd, uint16_t) );
+                                _dap_tsd_get_scalar(l_tsd, &l_t) );
                     break;
+                }
                     case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_ADD:
                         log_it(L_DEBUG,"== DATUM_TYPE_ALLOWED_ADD: %s",
                                dap_tsd_get_string_const(l_tsd) );
