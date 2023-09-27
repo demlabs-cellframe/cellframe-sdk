@@ -4836,6 +4836,8 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
     const char *l_net_name = NULL; // optional parameter
     const char *l_chain_name = NULL; // optional parameter
     const char *l_json_file_path = NULL;
+    const char *l_native_token = NULL;
+    const char *l_main_token = NULL;
 
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_name); // optional parameter
     dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-chain", &l_chain_name); // optional parameter
@@ -4871,6 +4873,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
         }
     }
     dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
+    l_native_token = l_net->pub.native_ticker;
     if(!l_net) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Not found net by name '%s'", l_net_name);
         json_object_put(l_json);
@@ -4919,6 +4922,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
     dap_list_t *l_in_list = NULL;// list 'in' items
     dap_list_t *l_tsd_list = NULL;// list tsd sections
     uint256_t l_value_need = { };// how many tokens are needed in the 'out' item
+    uint256_t l_value_need_fee = {};
     dap_string_t *l_err_str = dap_string_new("Errors: \n");
     // Creating and adding items to the transaction
     for(size_t i = 0; i < l_items_count; ++i) {
@@ -4969,6 +4973,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
                     else if(l_item_type == TX_ITEM_TYPE_OUT_EXT) {
                         // Read address and value
                         const char *l_token = s_json_get_text(l_json_item_obj, "token");
+                        l_main_token = l_token;
                         if(l_token) {
                             // Create OUT_EXT item
                             dap_chain_tx_out_ext_t *l_out_ext_item = dap_chain_datum_tx_item_out_ext_create(l_addr, l_value, l_token);
@@ -5139,7 +5144,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
                     l_item = (const uint8_t*) l_out_cond_item;
                     // Save value for using in In item
                     if(l_item) {
-                        SUM_256_256(l_value_need, l_value, &l_value_need);
+                        SUM_256_256(l_value_need_fee, l_value, &l_value_need_fee);
                     } else {
                         dap_string_append_printf(l_err_str, "Unable to create conditional out for transaction "
                                                             "can of type %s described in item %zu.\n", l_subtype_str, i);
@@ -5258,6 +5263,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
         else {
             const char *l_json_item_addr_str = s_json_get_text(l_json_item_obj, "addr_from");
             const char *l_json_item_token = s_json_get_text(l_json_item_obj, "token");
+            l_main_token = l_json_item_token;
             dap_chain_addr_t *l_addr_from = NULL;
             if(l_json_item_addr_str) {
                 l_addr_from = dap_chain_addr_from_str(l_json_item_addr_str);
@@ -5296,21 +5302,65 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
             if(l_addr_from)
             {
                 // find the transactions from which to take away coins
+                dap_list_t *l_list_used_out = NULL;
+                dap_list_t *l_list_used_out_fee = NULL;
                 uint256_t l_value_transfer = { }; // how many coins to transfer
+                uint256_t l_value_transfer_fee = { }; // how many coins to transfer
                 //SUM_256_256(a_value, a_value_fee, &l_value_need);
-                dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_json_item_token,
-                        l_addr_from, l_value_need, &l_value_transfer);
-                if(!l_list_used_out) {
-                    log_it(L_WARNING, "Not enough funds in previous tx to transfer");
-                    dap_string_append_printf(l_err_str, "Can't create in transaction. Not enough funds in previous tx "
-                                                        "to transfer\n");
-                    // Go to the next item
-                    l_list = dap_list_next(l_list);
-                    continue;
+                uint256_t l_value_need_check = {};
+                if (!dap_strcmp(l_native_token, l_main_token)) {
+                    SUM_256_256(l_value_need_check, l_value_need, &l_value_need_check);
+                    SUM_256_256(l_value_need_check, l_value_need_fee, &l_value_need_check);
+                    l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_json_item_token,
+                                                                                             l_addr_from, l_value_need_check, &l_value_transfer);
+                    if(!l_list_used_out) {
+                        log_it(L_WARNING, "Not enough funds in previous tx to transfer");
+                        dap_string_append_printf(l_err_str, "Can't create in transaction. Not enough funds in previous tx "
+                                                            "to transfer\n");
+                        // Go to the next item
+                        l_list = dap_list_next(l_list);
+                        continue;
+                    }
+                } else {
+                    //CHECK value need
+                    l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_json_item_token,
+                                                                                             l_addr_from, l_value_need, &l_value_transfer);
+                    if(!l_list_used_out) {
+                        log_it(L_WARNING, "Not enough funds in previous tx to transfer");
+                        dap_string_append_printf(l_err_str, "Can't create in transaction. Not enough funds in previous tx "
+                                                            "to transfer\n");
+                        // Go to the next item
+                        l_list = dap_list_next(l_list);
+                        continue;
+                    }
+                    //CHECK value fee
+                    l_list_used_out_fee = dap_chain_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_native_token,
+                                                                                                  l_addr_from, l_value_need_fee, &l_value_transfer_fee);
+                    if(!l_list_used_out_fee) {
+                        log_it(L_WARNING, "Not enough funds in previous tx to transfer");
+                        dap_string_append_printf(l_err_str, "Can't create in transaction. Not enough funds in previous tx "
+                                                            "to transfer\n");
+                        // Go to the next item
+                        l_list = dap_list_next(l_list);
+                        continue;
+                    }
                 }
                 // add 'in' items
                 uint256_t l_value_got = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
                 assert(EQUAL_256(l_value_got, l_value_transfer));
+                if (l_list_used_out_fee) {
+                    uint256_t l_value_got_fee = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out_fee);
+                    assert(EQUAL_256(l_value_got_fee, l_value_transfer_fee));
+                    dap_list_free_full(l_list_used_out_fee, free);
+                    // add 'out' item for coin fee back
+                    uint256_t  l_value_back;
+                    SUBTRACT_256_256(l_value_got_fee, l_value_need_fee, &l_value_back);
+                    if (!IS_ZERO_256(l_value_back)) {
+                        dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_from, l_value_back, l_native_token);
+                    }
+                } else {
+                    SUM_256_256(l_value_need, l_value_need_fee, &l_value_need);
+                }
                 dap_list_free_full(l_list_used_out, free);
                 if(!IS_ZERO_256(l_value_got)) {
                     l_items_ready++;
