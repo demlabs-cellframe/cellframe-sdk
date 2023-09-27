@@ -51,7 +51,7 @@ int dap_chain_datum_anchor_get_hash_from_data(dap_chain_datum_anchor_t* a_anchor
                 log_it(L_WARNING,"Wrong fee tsd data size.");
                 return -1;
             }
-            *l_out_hash = dap_tsd_get_scalar(l_tsd, dap_hash_fast_t);
+            _dap_tsd_get_scalar(l_tsd, l_out_hash);
             return 0;
         }
         l_tsd_offset += l_tsd_size;
