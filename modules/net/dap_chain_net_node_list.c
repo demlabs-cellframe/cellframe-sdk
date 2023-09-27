@@ -139,7 +139,7 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
             }
             DAP_DELETE(l_node_inf_check);
         }
-        else{            
+        else{
             if(dap_chain_net_balancer_handshake(&l_node_info,l_net))
                 response = 1;
             if(response)
@@ -250,7 +250,7 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
     l_node_list_request->link_info = l_link_node_info;
     int ret = 0;
 
-    char *l_request = dap_strdup_printf("%s/%s?version=1,method=r,addr=%lu,ipv4=%d,port=%hu,lcnt=%d,blks=%d,net=%s",
+    char *l_request = dap_strdup_printf("%s/%s?version=1,method=r,addr=%lu,ipv4=%d,port=%hu,lcnt=%d,blks=%lu,net=%s",
                                             DAP_UPLINK_PATH_NODE_LIST,
                                             DAP_NODE_LIST_URI_HASH,
                                             a_link_node_request->hdr.address.uint64,
@@ -324,14 +324,14 @@ int dap_chain_net_node_list_request_update (dap_chain_net_t *a_net)
     l_link_node_request->hdr.blocks_events = l_blocks_events;
 
     dap_chain_net_get_downlink_count(a_net,&links_count);
-    char *l_request = dap_strdup_printf("%s/%s?version=1,method=r,addr=%lu,ipv4=%d,port=%hu,lcnt=%d,blks=%d,net=%s",
+    char *l_request = dap_strdup_printf("%s/%s?version=1,method=r,addr=%lu,ipv4=%d,port=%hu,lcnt=%d,blks=%lu,net=%s",
                                             DAP_UPLINK_PATH_NODE_LIST,
                                             DAP_NODE_LIST_URI_HASH,
                                             l_link_node_request->hdr.address.uint64,
                                             l_link_node_request->hdr.ext_addr_v4.s_addr,
                                             l_link_node_request->hdr.ext_port,
-                                            l_link_node_request->hdr.blocks_events,
                                             links_count,
+                                            l_link_node_request->hdr.blocks_events,                                            
                                             a_net->pub.name);
     ret = dap_client_http_request(l_node_list_request->worker,
                                             l_node_addr_str,
