@@ -62,17 +62,17 @@ void dap_chain_net_balancer_free_link_list(dap_chain_net_t * a_net)
     log_it(L_DEBUG, "Balancer link list cleared");
 }
 
-static bool dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info,dap_chain_net_t * a_net)
+bool dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info,dap_chain_net_t * a_net)
 {
     dap_chain_node_client_t *l_client = dap_chain_node_client_connect_default_channels(a_net,a_node_info);
     if(!l_client) {
         return false;
     }
     // wait handshake
-    int timeout_ms = 1000;
+    int timeout_ms = 4000;
     int res = dap_chain_node_client_wait(l_client, NODE_CLIENT_STATE_ESTABLISHED, timeout_ms);
+    dap_chain_node_client_close_mt(l_client);
     if (res) {
-        dap_chain_node_client_close_mt(l_client);
         return false;
     }
     return true;
@@ -93,6 +93,10 @@ static uint64_t min_count_blocks_events(dap_global_db_obj_t * a_objs,size_t a_no
     uint64_t l_blocks_events = 0;
     for (size_t i = 0; i < a_node_count; i++) {
         dap_chain_node_info_t *l_node_cand = (dap_chain_node_info_t *)a_objs[i].value;
+        if (!l_node_cand) {
+            log_it(L_ERROR, "Invalid record, key %s", a_objs[i].key);
+            continue;
+        }
         for (dap_list_t *node_i = a_node_addr_list; node_i; node_i = node_i->next) {
             if(((struct in_addr*)node_i->data)->s_addr == l_node_cand->hdr.ext_addr_v4.s_addr) {
                 if (!l_blocks_events || l_blocks_events > l_node_cand->hdr.blocks_events)
@@ -270,7 +274,7 @@ void dap_chain_net_balancer_http_issue_link(dap_http_simple_t *a_http_simple, vo
     sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,needlink=%hu,net=",
                                                             &l_protocol_version, &l_issue_method, &links_need);
     if (l_protocol_version != 1 || l_issue_method != 'r') {
-        log_it(L_ERROR, "Unsupported prorocol version/method in the request to dap_chain_net_balancer module");
+        log_it(L_ERROR, "Unsupported protocol version/method in the request to dap_chain_net_balancer module");
         *l_return_code = Http_Status_MethodNotAllowed;
         return;
     }
