@@ -365,20 +365,23 @@ int dap_chain_net_node_list_request_del(dap_chain_net_t *a_net)
 
 int dap_chain_net_node_list_request_update (dap_chain_net_t *a_net)
 {
-    if(!a_net) return 1;
+    if(!a_net) return -1;
 
     dap_chain_node_addr_t l_node_addr_cur = {
         .uint64 = dap_chain_net_get_cur_addr_int(a_net)
     };
     dap_chain_node_info_t *l_link_node_request = dap_chain_node_info_read(a_net, &l_node_addr_cur);
     if(!l_link_node_request)
+    {
         log_it(L_WARNING, "There is not node address "NODE_ADDR_FP_STR" in node list",NODE_ADDR_FP_ARGS_S(l_node_addr_cur));
+        return -2;
+    }
 
     dap_chain_node_info_t *l_link_node_info = dap_chain_get_root_addr(a_net, &l_link_node_request->hdr.owner_address);
     if (!l_link_node_info)
     {
         DAP_DEL_Z(l_link_node_request);
-        return 2;
+        return -3;
     }
     char l_node_addr_str[INET_ADDRSTRLEN] = {};
     inet_ntop(AF_INET, &l_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
@@ -388,7 +391,7 @@ int dap_chain_net_node_list_request_update (dap_chain_net_t *a_net)
         log_it(L_CRITICAL, "Memory allocation error");
         DAP_DEL_Z(l_link_node_request);
         DAP_DELETE(l_link_node_info);
-        return 3;
+        return -4;
     }
     l_node_list_request->net = a_net;
     l_node_list_request->link_info = l_link_node_info;
@@ -429,7 +432,7 @@ int dap_chain_net_node_list_request_update (dap_chain_net_t *a_net)
     DAP_DELETE(l_request);
 
     int rc = dap_chain_net_node_list_wait(l_node_list_request, 10000);
-    ret = ret ? 7 : rc ? 0 : l_node_list_request->response;
+    ret = ret ? -5 : rc ? 0 : l_node_list_request->response;
 
     DAP_DELETE(l_link_node_info);
     DAP_DEL_Z(l_link_node_request);
