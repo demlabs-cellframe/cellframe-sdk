@@ -201,11 +201,20 @@ static struct node_link_request *s_node_list_request_init ()
 
     pthread_condattr_t attr;
     pthread_condattr_init(&attr);
+#ifdef DAP_OS_DARWIN
+    struct timespec ts;
+    ts.tv_sec = 10;
+    ts.tv_nsec = 10;
+    pthread_cond_timedwait_relative_np(&l_node_list_request->wait_cond, &l_node_list_request->wait_mutex,
+                                       &ts);
+#else
     pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
+#endif
     pthread_cond_init(&l_node_list_request->wait_cond, &attr);
     pthread_mutex_init(&l_node_list_request->wait_mutex, NULL);
     return l_node_list_request;
 }
+
 
 static void s_node_list_request_deinit (struct node_link_request *a_node_list_request)
 {
@@ -224,7 +233,7 @@ static int dap_chain_net_node_list_wait(struct node_link_request *a_node_list_re
     }
     struct timespec l_cond_timeout;
     clock_gettime(CLOCK_MONOTONIC, &l_cond_timeout);
-    l_cond_timeout.tv_sec += a_timeout_ms/1000;
+    l_cond_timeout.tv_sec += a_timeout_ms/10;
     int l_ret_wait = pthread_cond_timedwait(&a_node_list_request->wait_cond, &a_node_list_request->wait_mutex, &l_cond_timeout);
     if(!l_ret_wait) {
         ret = a_node_list_request->response ? 0 : -2;
