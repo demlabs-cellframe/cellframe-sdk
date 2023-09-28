@@ -83,7 +83,7 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     const char l_net_token[] = "net=";
     sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,addr=%lu,ipv4=%d,port=%hu,lcnt=%d,net=",
                                                             &l_protocol_version, &l_issue_method, &addr, &ipv4, &port, &links_cnt);
-    if (l_protocol_version != 1 || l_issue_method != 'r') {
+    if (l_protocol_version != 1 || (l_issue_method != 'r' && l_issue_method != 'd')) {
         log_it(L_ERROR, "Unsupported protocol version/method in the request to dap_chain_net_node_list module");
         *l_return_code = Http_Status_MethodNotAllowed;
         return;
@@ -121,15 +121,25 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
             //is it pinner?
             if(l_node_inf_check->hdr.owner_address.uint64 == l_node_info.hdr.owner_address.uint64)
             {
-                if(l_node_info.hdr.links_number != l_node_inf_check->hdr.links_number)
+                if(l_issue_method != 'd')
                 {
-                    dap_global_db_del_sync(l_net->pub.gdb_nodes, l_key);
-                    response = s_dap_chain_net_node_list_add_downlink(l_net->pub.gdb_nodes,l_key,&l_node_info);
+                    if(l_node_info.hdr.links_number != l_node_inf_check->hdr.links_number)
+                    {
+                        dap_global_db_del_sync(l_net->pub.gdb_nodes, l_key);
+                        response = s_dap_chain_net_node_list_add_downlink(l_net->pub.gdb_nodes,l_key,&l_node_info);
+                    }
+                    else
+                    {
+                        log_it(L_DEBUG, "The node is already exists");
+                        response = 5;
+                    }
                 }
                 else
                 {
-                    log_it(L_DEBUG, "The node is already exists");
-                    response = 5;
+                    dap_global_db_del_sync(l_net->pub.gdb_nodes, l_key);
+                    log_it(L_DEBUG, "Node "NODE_ADDR_FP_STR" deleted",
+                                NODE_ADDR_FP_ARGS_S(l_node_info.hdr.address));
+                    response = 7;
                 }
             }
             else
@@ -281,6 +291,67 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
     }
     s_node_list_request_deinit(l_node_list_request);
     return ret;
+}
+
+int dap_chain_net_node_list_request_del(dap_chain_net_t *a_net)
+{
+    if(!a_net) return 1;
+
+    dap_chain_node_addr_t l_node_addr_cur = {
+        .uint64 = dap_chain_net_get_cur_addr_int(a_net)
+    };
+    dap_chain_node_info_t *l_link_node_request = dap_chain_node_info_read(a_net, &l_node_addr_cur);
+    if(!l_link_node_request)
+        log_it(L_WARNING, "There is not node address "NODE_ADDR_FP_STR" in node list",NODE_ADDR_FP_ARGS_S(l_node_addr_cur));
+
+    dap_chain_node_info_t *l_link_node_info = dap_chain_get_root_addr(a_net, &l_link_node_request->hdr.owner_address);
+    if (!l_link_node_info)
+    {
+        DAP_DEL_Z(l_link_node_request);
+        return 2;
+    }
+    char l_node_addr_str[INET_ADDRSTRLEN] = {};
+    inet_ntop(AF_INET, &l_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
+    log_it(L_DEBUG, "Start node list HTTP request to %s", l_node_addr_str);
+    struct node_link_request *l_node_list_request = s_node_list_request_init();
+    if(!l_node_list_request){
+        log_it(L_CRITICAL, "Memory allocation error");
+        DAP_DEL_Z(l_link_node_request);
+        DAP_DELETE(l_link_node_info);
+        return 3;
+    }
+    l_node_list_request->net = a_net;
+    l_node_list_request->link_info = l_link_node_info;
+
+    int ret = 0;
+
+    char *l_request = dap_strdup_printf("%s/%s?version=1,method=d,addr=%lu,net=%s",
+                                            DAP_UPLINK_PATH_NODE_LIST,
+                                            DAP_NODE_LIST_URI_HASH,
+                                            l_link_node_request->hdr.address.uint64,
+                                            a_net->pub.name);
+    ret = dap_client_http_request(l_node_list_request->worker,
+                                            l_node_addr_str,
+                                            l_link_node_info->hdr.ext_port,
+                                            "GET",
+                                            "text/text",
+                                            l_request,
+                                            NULL,
+                                            0,
+                                            NULL,
+                                            s_net_node_link_prepare_success,
+                                            s_net_node_link_prepare_error,
+                                            l_node_list_request,
+                                            NULL) == NULL;
+    DAP_DELETE(l_request);
+    int rc = dap_chain_net_node_list_wait(l_node_list_request, 10000);
+    ret = ret ? 1 : rc ? 0 : l_node_list_request->response;
+
+    DAP_DELETE(l_link_node_info);
+    DAP_DEL_Z(l_link_node_request);
+    s_node_list_request_deinit(l_node_list_request);
+    return ret;
+
 }
 
 int dap_chain_net_node_list_request_update (dap_chain_net_t *a_net)

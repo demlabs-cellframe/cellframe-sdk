@@ -1277,9 +1277,16 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     case CMD_DEL:
         // handler of command 'node del'
     {
-        int l_ret = node_info_del_with_reply(l_net, l_node_info, alias_str, a_str_reply);
+        //int l_ret = node_info_del_with_reply(l_net, l_node_info, alias_str, a_str_reply);
+        int l_ret = dap_chain_net_node_list_request_del(l_net);
         DAP_DELETE(l_node_info);
-        return l_ret;
+        if(l_ret == 7)
+        {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "node deleted");
+            return 0;
+        }
+        else
+            return -1;
     }
     case CMD_LINK:
         if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "add", NULL)) {
