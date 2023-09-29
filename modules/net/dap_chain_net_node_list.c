@@ -33,7 +33,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 static int s_dap_chain_net_node_list_add_downlink(const char * a_group, const char *a_key, dap_chain_node_info_t * a_node_info) {
 
     size_t l_node_info_size = (sizeof(dap_chain_node_info_t));
-    bool res = dap_global_db_set_sync(a_group, a_key, (uint8_t*)&a_node_info, l_node_info_size, true) == 0;
+    bool res = dap_global_db_set_sync(a_group, a_key, (uint8_t*)a_node_info, l_node_info_size, true) == 0;
     if(res)
     {
         char l_node_addr_str[INET_ADDRSTRLEN]={};
