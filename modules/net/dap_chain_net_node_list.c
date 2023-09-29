@@ -304,20 +304,23 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
 
 int dap_chain_net_node_list_request_del(dap_chain_net_t *a_net)
 {
-    if(!a_net) return 1;
+    if(!a_net) return -1;
 
     dap_chain_node_addr_t l_node_addr_cur = {
         .uint64 = dap_chain_net_get_cur_addr_int(a_net)
     };
     dap_chain_node_info_t *l_link_node_request = dap_chain_node_info_read(a_net, &l_node_addr_cur);
     if(!l_link_node_request)
+    {
         log_it(L_WARNING, "There is not node address "NODE_ADDR_FP_STR" in node list",NODE_ADDR_FP_ARGS_S(l_node_addr_cur));
+        return -2;
+    }
 
     dap_chain_node_info_t *l_link_node_info = dap_chain_get_root_addr(a_net, &l_link_node_request->hdr.owner_address);
     if (!l_link_node_info)
     {
         DAP_DEL_Z(l_link_node_request);
-        return 2;
+        return -3;
     }
     char l_node_addr_str[INET_ADDRSTRLEN] = {};
     inet_ntop(AF_INET, &l_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
@@ -327,7 +330,7 @@ int dap_chain_net_node_list_request_del(dap_chain_net_t *a_net)
         log_it(L_CRITICAL, "Memory allocation error");
         DAP_DEL_Z(l_link_node_request);
         DAP_DELETE(l_link_node_info);
-        return 3;
+        return -4;
     }
     l_node_list_request->net = a_net;
     l_node_list_request->link_info = l_link_node_info;
@@ -397,7 +400,7 @@ int dap_chain_net_node_list_request_update (dap_chain_net_t *a_net)
     l_node_list_request->link_info = l_link_node_info;
 
     int ret = 0;
-    uint32_t links_count = 0;
+    uint32_t links_count = 3;
     size_t l_blocks_events = 0;
     dap_chain_t *l_chain;
     DL_FOREACH(a_net->pub.chains, l_chain) {
@@ -406,7 +409,7 @@ int dap_chain_net_node_list_request_update (dap_chain_net_t *a_net)
     }
     l_link_node_request->hdr.blocks_events = l_blocks_events;
 
-    dap_chain_net_get_downlink_count(a_net,&links_count);
+    //dap_chain_net_get_downlink_count(a_net,&links_count);
     char *l_request = dap_strdup_printf("%s/%s?version=1,method=r,addr=%lu,ipv4=%d,port=%hu,lcnt=%d,blks=%lu,net=%s",
                                             DAP_UPLINK_PATH_NODE_LIST,
                                             DAP_NODE_LIST_URI_HASH,
@@ -452,7 +455,7 @@ static void s_node_list_callback_notify(dap_global_db_context_t *a_context, dap_
         if (a_obj->value && a_obj->type == DAP_DB$K_OPTYPE_ADD) {
             dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)a_obj->value;
 
-            size_t l_size_obj = (a_obj->value_len - (l_node_info->hdr.links_number * sizeof(dap_chain_node_addr_t)));
+            size_t l_size_obj = a_obj->value_len; // - (l_node_info->hdr.links_number * sizeof(dap_chain_node_addr_t)));
             if(l_size_obj_need == l_size_obj)
             {
                 if(l_node_info->hdr.owner_address.uint64 == 0){

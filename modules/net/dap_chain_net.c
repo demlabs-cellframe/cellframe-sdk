@@ -3046,7 +3046,7 @@ int s_net_load(dap_chain_net_t *a_net)
     uint32_t l_timeout = dap_config_get_item_uint32_default(g_config, "node_client", "timer_update_states", 600);
     PVT(l_net)->main_timer = dap_interval_timer_create(l_timeout * 1000, s_main_timer_callback, l_net);
     log_it(L_INFO, "Chain network \"%s\" initialized",l_net->pub.name);
-    PVT(l_net)->update_links_timer = dap_interval_timer_create(600 * 1000, s_update_links_timer_callback, l_net);
+    PVT(l_net)->update_links_timer = dap_interval_timer_create(600 * 100, s_update_links_timer_callback, l_net);
 
     dap_config_close(l_cfg);
 
