@@ -495,7 +495,7 @@ int dap_chain_net_add_downlink(dap_chain_net_t *a_net, dap_stream_worker_t *a_wo
 
 void dap_chain_net_del_downlink(dap_stream_ch_uuid_t *a_ch_uuid) {
     unsigned l_hash_value;
-    HASH_VALUE(*a_ch_uuid, sizeof(*a_ch_uuid), l_hash_value);
+    HASH_VALUE(a_ch_uuid, sizeof(*a_ch_uuid), l_hash_value);
     pthread_rwlock_rdlock(&s_net_items_rwlock);
     struct downlink *l_downlink = NULL;
     for (dap_chain_net_item_t *l_net_item = s_net_items; l_net_item && !l_downlink; l_net_item = l_net_item->hh.next) {
