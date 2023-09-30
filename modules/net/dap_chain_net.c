@@ -212,7 +212,6 @@ typedef struct dap_chain_net_pvt{
     dap_interval_timer_t main_timer;
 
     pthread_mutex_t uplinks_mutex, downlinks_mutex;
-    pthread_rwlock_t downlinks_lock;
     pthread_rwlock_t states_lock;
 
     dap_list_t *gdb_notifiers;
@@ -728,20 +727,24 @@ static struct net_link *s_net_link_find(dap_chain_net_t *a_net, dap_chain_node_i
 
 static int s_net_link_add(dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_info)
 {
-    dap_chain_net_pvt_t *l_pvt_net = PVT(a_net);
-    if (HASH_COUNT(PVT(a_net)->net_links) >= PVT(a_net)->max_links_count)
-        return +1;
     if (!a_link_node_info)
         return -1;
+    dap_chain_net_pvt_t *l_pvt_net = PVT(a_net);
+    pthread_mutex_lock(&l_pvt_net->uplinks_mutex);
+    if (HASH_COUNT(l_pvt_net->net_links) >= PVT(a_net)->max_links_count) {
+        pthread_mutex_unlock(&l_pvt_net->uplinks_mutex);
+        return 1;
+    }
     uint64_t l_own_addr = dap_chain_net_get_cur_addr_int(a_net);
-    if (a_link_node_info->hdr.address.uint64 == l_own_addr)
+    if (a_link_node_info->hdr.address.uint64 == l_own_addr) {
+        pthread_mutex_unlock(&l_pvt_net->uplinks_mutex);
         return -2;
+    }
     uint64_t l_addr = a_link_node_info->hdr.ext_addr_v4.s_addr;
     struct net_link *l_new_link;
-    pthread_mutex_lock(&PVT(a_net)->uplinks_mutex);
-    HASH_FIND(hh, PVT(a_net)->net_links, &l_addr, sizeof(l_addr), l_new_link);
+    HASH_FIND(hh, l_pvt_net->net_links, &l_addr, sizeof(l_addr), l_new_link);
     if (l_new_link) {
-        pthread_mutex_unlock(&PVT(a_net)->uplinks_mutex);
+        pthread_mutex_unlock(&l_pvt_net->uplinks_mutex);
         return -3;
     }
     l_new_link = DAP_NEW_Z(struct net_link);
@@ -884,7 +887,7 @@ static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_clie
     if ( s_debug_more )
     log_it(L_NOTICE, "Established connection with %s."NODE_ADDR_FP_STR,l_net->pub.name,
            NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr));
-    pthread_mutex_lock(&l_net_pvt->uplinks_mutex);
+    pthread_rwlock_wrlock(&l_net_pvt->states_lock);
     a_node_client->is_connected = true;
     struct json_object *l_json = s_net_states_json_collect(l_net);
     char l_err_str[128] = { };
@@ -898,8 +901,7 @@ static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_clie
         l_net_pvt->state = NET_STATE_LINKS_ESTABLISHED;
         dap_proc_queue_add_callback_inter(a_node_client->stream_worker->worker->proc_queue_input,s_net_states_proc,l_net );
     }
-    pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
-
+    pthread_rwlock_unlock(&l_net_pvt->states_lock);
 }
 
 /**
@@ -930,17 +932,17 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
         dap_chain_node_client_close_mt(a_node_client);  // Remove it on next context iteration
         struct net_link *l_free_link = s_get_free_link(l_net);
         if (l_free_link) {
-            s_net_link_start(l_net, l_free_link, l_net_pvt->reconnect_delay);
             pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
+            s_net_link_start(l_net, l_free_link, l_net_pvt->reconnect_delay);
             return;
         }
+        size_t l_current_links_prepared = HASH_COUNT(l_net_pvt->net_links);
+        pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
         if (!l_net_pvt->only_static_links) {
-            size_t l_current_links_prepared = HASH_COUNT(l_net_pvt->net_links);
             for (size_t i = l_current_links_prepared; i < l_net_pvt->max_links_count ; i++) {
                 s_new_balancer_link_request(l_net, 0);
             }
         }
-        pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
     }
 }
 
