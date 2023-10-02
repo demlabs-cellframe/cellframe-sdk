@@ -148,9 +148,9 @@ int dap_chain_cs_esbocs_init() {
     dap_stream_ch_chain_voting_init();
     dap_chain_cs_add("esbocs", s_callback_new);
     dap_cli_server_cmd_add ("esbocs", s_cli_esbocs, "ESBOCS commands",
-        "esbocs min_validators_count set -net <net_name> -chain <chain_name> -cert <poa_cert_name> -val_count <value>"
+        "esbocs min_validators_count set -net <net_name> -chain <chain_name> -cert <poa_cert_name> -val_count <value>\n"
             "\tSets minimum validators count for ESBOCS consensus\n"
-        "esbocs min_validators_count print -net <net_name> -chain <chain_name>"
+        "esbocs min_validators_count print -net <net_name> -chain <chain_name>\n"
             "\tShow minimum validators count for ESBOCS consensus\n\n");
     return 0;
 }
