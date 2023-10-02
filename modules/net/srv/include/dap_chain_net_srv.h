@@ -198,7 +198,7 @@ typedef struct dap_chain_net_srv_client_remote
     dap_stream_ch_t * ch; // Use ONLY in own context, not thread-safe
     time_t ts_created;
     dap_stream_worker_t * stream_worker;
-    int session_id;
+    uint32_t session_id;
     uint64_t bytes_received;
     uint64_t bytes_sent;
     struct dap_chain_net_srv_client_remote *prev;

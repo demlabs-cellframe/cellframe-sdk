@@ -174,7 +174,6 @@ void dap_chain_delete(dap_chain_t * a_chain)
     DAP_DEL_Z(a_chain->_inheritor);
     pthread_rwlock_destroy(&a_chain->rwlock);
     pthread_rwlock_destroy(&a_chain->cell_rwlock);
-    pthread_rwlock_destroy(&a_chain->rwlock);
 }
 
 /**
