@@ -1244,6 +1244,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         l_link_node_request->hdr.blocks_events = l_blocks_events;
         // Synchronous request, wait for reply
         int res = dap_chain_net_node_list_request(l_net,l_link_node_request, true, 0);
+
         switch (res)
         {
             case 0:

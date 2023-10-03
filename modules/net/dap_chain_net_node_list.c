@@ -234,7 +234,7 @@ static int dap_chain_net_node_list_wait(struct node_link_request *a_node_list_re
     }
     struct timespec l_cond_timeout;
     clock_gettime(CLOCK_MONOTONIC, &l_cond_timeout);
-    l_cond_timeout.tv_sec += a_timeout_ms/10;
+    l_cond_timeout.tv_sec += a_timeout_ms/1000;
     int l_ret_wait = pthread_cond_timedwait(&a_node_list_request->wait_cond, &a_node_list_request->wait_mutex, &l_cond_timeout);
     if(!l_ret_wait) {
         ret = a_node_list_request->response ? 0 : -2;
