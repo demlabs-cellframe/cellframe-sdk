@@ -1636,7 +1636,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t *a_ch, void *a_arg)
         size_t i, q =
                 // s_update_pack_size;
                 0;
-        dap_db_log_list_obj_t **l_objs = dap_db_log_list_get_multiple(l_ch_chain->request_db_log, &q);
+        dap_db_log_list_obj_t **l_objs = dap_db_log_list_get_multiple(l_ch_chain->request_db_log, DAP_STREAM_PKT_SIZE_MAX, &q);
         dap_stream_ch_chain_update_element_t *l_data = DAP_NEW_Z_SIZE(dap_stream_ch_chain_update_element_t, q * sizeof(dap_stream_ch_chain_update_element_t));
         for (i = 0; i < q; ++i) {
             l_data[i].hash = l_objs[i]->hash;
@@ -1653,8 +1653,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t *a_ch, void *a_arg)
             l_ch_chain->stats_request_gdb_processed += i;
             DAP_DELETE(l_data);
             DAP_DELETE(l_objs);
-            if (s_debug_more)
-                log_it(L_INFO, "Out: DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB");
+            debug_if(s_debug_more, L_INFO, "Out: DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB, size %zu ", i * sizeof(dap_stream_ch_chain_update_element_t));
         } else if (!l_objs) {
             l_was_sent_smth = true;
             l_ch_chain->request.node_addr.uint64 = dap_chain_net_get_cur_addr_int(dap_chain_net_by_id(
@@ -1709,7 +1708,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t *a_ch, void *a_arg)
     case CHAIN_STATE_SYNC_GLOBAL_DB: {
         dap_global_db_pkt_t *l_pkt = NULL;
         size_t l_pkt_size = 0, i, q = 0;
-        dap_db_log_list_obj_t **l_objs = dap_db_log_list_get_multiple(l_ch_chain->request_db_log, &q);
+        dap_db_log_list_obj_t **l_objs = dap_db_log_list_get_multiple(l_ch_chain->request_db_log, DAP_STREAM_PKT_SIZE_MAX, &q);
         for (i = 0; i < q; ++i) {
             dap_stream_ch_chain_hash_item_t *l_hash_item = NULL;
             unsigned l_hash_item_hashv = 0;
@@ -1738,7 +1737,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t *a_ch, void *a_arg)
             s_stream_ch_chain_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB,
                                         l_ch_chain->request_hdr.net_id.uint64, l_ch_chain->request_hdr.chain_id.uint64,
                                         l_ch_chain->request_hdr.cell_id.uint64, l_pkt, l_pkt_size);
-            debug_if(s_debug_more, L_INFO, "Send one global_db packet len=%zu (rest=%zu/%zu items)", l_pkt_size,
+            debug_if(s_debug_more, L_INFO, "Send one global_db packet, size %zu, rest %zu/%zu items", l_pkt_size,
                      l_ch_chain->request_db_log->items_rest,
                      l_ch_chain->request_db_log->items_number);
             DAP_DELETE(l_pkt);
@@ -1754,7 +1753,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t *a_ch, void *a_arg)
             if (l_ch_chain->callback_notify_packet_out)
                 l_ch_chain->callback_notify_packet_out(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNCED_GLOBAL_DB,
                                                        NULL, 0, l_ch_chain->callback_notify_arg);
-            log_it( L_INFO,"Syncronized database: items syncronyzed %"DAP_UINT64_FORMAT_U" of %zu",
+            log_it(L_INFO,"Syncronized database: items syncronyzed %"DAP_UINT64_FORMAT_U" of %zu",
                     l_ch_chain->stats_request_gdb_processed, l_ch_chain->request_db_log->items_number);
         }
 #if 0
