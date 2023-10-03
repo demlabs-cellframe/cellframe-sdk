@@ -51,7 +51,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 struct dap_chain_node_info;
 typedef struct dap_chain_node_client dap_chain_node_client_t;
 
-typedef  enum dap_chain_net_state{
+typedef enum dap_chain_net_state{
     NET_STATE_OFFLINE = 0,
     NET_STATE_LINKS_PREPARE,
     NET_STATE_LINKS_CONNECTING,
@@ -61,18 +61,6 @@ typedef  enum dap_chain_net_state{
     NET_STATE_SYNC_CHAINS,
     NET_STATE_ONLINE
 } dap_chain_net_state_t;
-
-static const char * g_net_state_str[]={
-    [NET_STATE_OFFLINE] = "NET_STATE_OFFLINE",
-    [NET_STATE_LINKS_PREPARE]="NET_STATE_LINKS_PREPARE",
-    [NET_STATE_LINKS_CONNECTING]="NET_STATE_LINKS_CONNECTING",
-    [NET_STATE_LINKS_ESTABLISHED]="NET_STATE_LINKS_ESTABLISHED",
-    [NET_STATE_ADDR_REQUEST]="NET_STATE_ADDR_REQUEST", // Waiting for address assign
-    [NET_STATE_SYNC_GDB]="NET_STATE_SYNC_GDB",
-    [NET_STATE_SYNC_CHAINS]="NET_STATE_SYNC_CHAINS",
-    [NET_STATE_ONLINE]="NET_STATE_ONLINE"
-};
-
 
 typedef struct dap_chain_net{
     struct {
@@ -132,18 +120,6 @@ inline static int dap_chain_net_links_establish(dap_chain_net_t * a_net) { retur
 inline static int dap_chain_net_sync_gdb(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_GDB); }
 inline static int dap_chain_net_sync_chains(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_CHAINS); }
 inline static int dap_chain_net_sync_all(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_CHAINS); }
-
-/**
- * @brief dap_chain_net_state_to_str
- * @param a_state
- * @return
- */
-static inline const char * dap_chain_net_state_to_str(dap_chain_net_state_t a_state){
-    if(a_state< NET_STATE_OFFLINE || a_state > NET_STATE_ONLINE)
-        return "<Undefined net state>";
-    else
-        return g_net_state_str[a_state];
-}
 
 void dap_chain_net_delete( dap_chain_net_t * a_net);
 void dap_chain_net_proc_mempool(dap_chain_net_t *a_net);
