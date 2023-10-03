@@ -285,7 +285,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
 static void s_update_links_timer_callback(void *a_arg){
     dap_chain_net_t *l_net = (dap_chain_net_t*)a_arg;
     //Updated links
-   dap_chain_net_node_list_request_update(l_net);
+   dap_chain_net_node_list_request(l_net, NULL, true, 1);
 }
 
 /**
@@ -3765,7 +3765,7 @@ void dap_chain_net_announce_addrs() {
                 (l_net_pvt->node_info->hdr.ext_addr_v4.s_addr != INADDR_ANY
                  || memcmp(&l_net_pvt->node_info->hdr.ext_addr_v6, &in6addr_any, sizeof(struct in6_addr))))
         {
-            dap_chain_net_node_list_request(l_net_item->chain_net, l_net_pvt->node_info, false);
+            dap_chain_net_node_list_request(l_net_item->chain_net, l_net_pvt->node_info, false, 0);
             char l_node_addr_str[INET_ADDRSTRLEN] = { '\0' };
             inet_ntop(AF_INET, &l_net_pvt->node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
             log_it(L_MSG, "Announce our node address "NODE_ADDR_FP_STR" < %s:%u > in net %s",

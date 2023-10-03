@@ -62,6 +62,7 @@ static int s_dap_chain_net_node_list_add_downlink(const char * a_group, const ch
  * 4 - Can't do handshake
  * 5 - Already exists
  * 6 - I'am not the pinner this node (only for update links count)
+ * 7 - Node deleted
  */
 void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg)
 {
@@ -251,33 +252,104 @@ static int dap_chain_net_node_list_wait(struct node_link_request *a_node_list_re
     return ret;
 }
 
-int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_request, bool a_sync)
+int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_request, bool a_sync, int cmd)
 {
-    dap_chain_node_info_t *l_link_node_info = dap_get_balancer_link_from_cfg(a_net);
-    if (!l_link_node_info)
-        return false;
+    enum Cmd{
+        ADD,
+        UPDATE,
+        DEL
+    };
+    if(!a_net) return -1;
+    dap_chain_node_info_t *l_link_node_info = NULL;
     char l_node_addr_str[INET_ADDRSTRLEN] = {};
-    inet_ntop(AF_INET, &l_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
-    log_it(L_DEBUG, "Start node list HTTP request to %s", l_node_addr_str);
-    struct node_link_request *l_node_list_request = s_node_list_request_init();
-    if(!l_node_list_request){
-        log_it(L_CRITICAL, "Memory allocation error");
-        DAP_DELETE(l_link_node_info);
-        return false;
-    }
-    l_node_list_request->net = a_net;
-    l_node_list_request->link_info = l_link_node_info;
-    int ret = 0;
+    struct node_link_request *l_node_list_request;
+    dap_chain_node_addr_t l_node_addr_cur = {
+        .uint64 = dap_chain_net_get_cur_addr_int(a_net)
+    };
 
-    char *l_request = dap_strdup_printf("%s/%s?version=1,method=r,addr=%lu,ipv4=%d,port=%hu,lcnt=%d,blks=%lu,net=%s",
-                                            DAP_UPLINK_PATH_NODE_LIST,
-                                            DAP_NODE_LIST_URI_HASH,
-                                            a_link_node_request->hdr.address.uint64,
-                                            a_link_node_request->hdr.ext_addr_v4.s_addr,
-                                            a_link_node_request->hdr.ext_port,
-                                            a_link_node_request->hdr.links_number,
-                                            a_link_node_request->hdr.blocks_events,
-                                            a_net->pub.name);
+    dap_chain_node_info_t *l_link_node_request = NULL;
+    uint32_t links_count = 0;
+    char *l_request = NULL;
+
+    if(cmd == ADD){ //request to add
+        l_link_node_info = dap_get_balancer_link_from_cfg(a_net);
+        if (!l_link_node_info)
+            return -2;
+
+        inet_ntop(AF_INET, &l_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
+        log_it(L_DEBUG, "Start node list HTTP request to %s", l_node_addr_str);
+        l_node_list_request = s_node_list_request_init();
+        if(!l_node_list_request){
+            log_it(L_CRITICAL, "Memory allocation error");
+            DAP_DELETE(l_link_node_info);
+            return -3;
+        }
+        l_node_list_request->net = a_net;
+        l_node_list_request->link_info = l_link_node_info;
+        l_link_node_request = a_link_node_request;
+
+    } else if(cmd == UPDATE || cmd == DEL){//request update or delete
+
+        l_link_node_request = dap_chain_node_info_read(a_net, &l_node_addr_cur);
+        if(!l_link_node_request)
+        {
+            log_it(L_WARNING, "There is not node address "NODE_ADDR_FP_STR" in node list",NODE_ADDR_FP_ARGS_S(l_node_addr_cur));
+            return -2;
+        }
+
+        l_link_node_info = dap_chain_get_root_addr(a_net, &l_link_node_request->hdr.owner_address);
+        if (!l_link_node_info)
+        {
+            DAP_DEL_Z(l_link_node_request);
+            return -3;
+        }
+
+        inet_ntop(AF_INET, &l_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
+        log_it(L_DEBUG, "Start node list HTTP request to %s", l_node_addr_str);
+        l_node_list_request = s_node_list_request_init();
+        if(!l_node_list_request){
+            log_it(L_CRITICAL, "Memory allocation error");
+            DAP_DEL_Z(l_link_node_request);
+            DAP_DELETE(l_link_node_info);
+            return -4;
+        }
+        l_node_list_request->net = a_net;
+        l_node_list_request->link_info = l_link_node_info;
+    }
+    if(cmd == UPDATE)
+    {
+        size_t l_blocks_events = 0;
+        dap_chain_t *l_chain;
+        DL_FOREACH(a_net->pub.chains, l_chain) {
+            if(l_chain->callback_count_atom)
+                l_blocks_events += l_chain->callback_count_atom(l_chain);
+        }
+        l_link_node_request->hdr.blocks_events = l_blocks_events;
+
+        dap_chain_net_get_downlink_count(a_net,&links_count);
+        l_link_node_request->hdr.links_number = links_count;
+
+    }
+    if(cmd == ADD || cmd == UPDATE)
+    {
+        l_request = dap_strdup_printf("%s/%s?version=1,method=r,addr=%lu,ipv4=%d,port=%hu,lcnt=%d,blks=%lu,net=%s",
+                                                DAP_UPLINK_PATH_NODE_LIST,
+                                                DAP_NODE_LIST_URI_HASH,
+                                                l_link_node_request->hdr.address.uint64,
+                                                l_link_node_request->hdr.ext_addr_v4.s_addr,
+                                                l_link_node_request->hdr.ext_port,
+                                                l_link_node_request->hdr.links_number,
+                                                l_link_node_request->hdr.blocks_events,
+                                                a_net->pub.name);
+    }else if(cmd == DEL)
+    {
+        l_request = dap_strdup_printf("%s/%s?version=1,method=d,addr=%lu,net=%s",
+                                                    DAP_UPLINK_PATH_NODE_LIST,
+                                                    DAP_NODE_LIST_URI_HASH,
+                                                    l_link_node_request->hdr.address.uint64,
+                                                    a_net->pub.name);
+    }
+    int ret = 0;
     ret = dap_client_http_request(l_node_list_request->worker,
                                             l_node_addr_str,
                                             l_link_node_info->hdr.ext_port,
@@ -294,151 +366,11 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
     DAP_DELETE(l_request);
     if (a_sync) {
         int rc = dap_chain_net_node_list_wait(l_node_list_request, 10000);
-        ret = ret ? 7 : rc ? 0 : l_node_list_request->response;
+        ret = ret ? 8 : rc ? 0 : l_node_list_request->response;
     } else {
-        ret = 8;
+        if(ret)ret = 8;
+        else ret = 1;
     }
-    s_node_list_request_deinit(l_node_list_request);
-    return ret;
-}
-
-int dap_chain_net_node_list_request_del(dap_chain_net_t *a_net)
-{
-    if(!a_net) return -1;
-
-    dap_chain_node_addr_t l_node_addr_cur = {
-        .uint64 = dap_chain_net_get_cur_addr_int(a_net)
-    };
-    dap_chain_node_info_t *l_link_node_request = dap_chain_node_info_read(a_net, &l_node_addr_cur);
-    if(!l_link_node_request)
-    {
-        log_it(L_WARNING, "There is not node address "NODE_ADDR_FP_STR" in node list",NODE_ADDR_FP_ARGS_S(l_node_addr_cur));
-        return -2;
-    }
-
-    dap_chain_node_info_t *l_link_node_info = dap_chain_get_root_addr(a_net, &l_link_node_request->hdr.owner_address);
-    if (!l_link_node_info)
-    {
-        DAP_DEL_Z(l_link_node_request);
-        return -3;
-    }
-    char l_node_addr_str[INET_ADDRSTRLEN] = {};
-    inet_ntop(AF_INET, &l_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
-    log_it(L_DEBUG, "Start node list HTTP request to %s", l_node_addr_str);
-    struct node_link_request *l_node_list_request = s_node_list_request_init();
-    if(!l_node_list_request){
-        log_it(L_CRITICAL, "Memory allocation error");
-        DAP_DEL_Z(l_link_node_request);
-        DAP_DELETE(l_link_node_info);
-        return -4;
-    }
-    l_node_list_request->net = a_net;
-    l_node_list_request->link_info = l_link_node_info;
-
-    int ret = 0;
-
-    char *l_request = dap_strdup_printf("%s/%s?version=1,method=d,addr=%lu,net=%s",
-                                            DAP_UPLINK_PATH_NODE_LIST,
-                                            DAP_NODE_LIST_URI_HASH,
-                                            l_link_node_request->hdr.address.uint64,
-                                            a_net->pub.name);
-    ret = dap_client_http_request(l_node_list_request->worker,
-                                            l_node_addr_str,
-                                            l_link_node_info->hdr.ext_port,
-                                            "GET",
-                                            "text/text",
-                                            l_request,
-                                            NULL,
-                                            0,
-                                            NULL,
-                                            s_net_node_link_prepare_success,
-                                            s_net_node_link_prepare_error,
-                                            l_node_list_request,
-                                            NULL) == NULL;
-    DAP_DELETE(l_request);
-    int rc = dap_chain_net_node_list_wait(l_node_list_request, 10000);
-    ret = ret ? 1 : rc ? 0 : l_node_list_request->response;
-
-    DAP_DELETE(l_link_node_info);
-    DAP_DEL_Z(l_link_node_request);
-    s_node_list_request_deinit(l_node_list_request);
-    return ret;
-
-}
-
-int dap_chain_net_node_list_request_update (dap_chain_net_t *a_net)
-{
-    if(!a_net) return -1;
-
-    dap_chain_node_addr_t l_node_addr_cur = {
-        .uint64 = dap_chain_net_get_cur_addr_int(a_net)
-    };
-    dap_chain_node_info_t *l_link_node_request = dap_chain_node_info_read(a_net, &l_node_addr_cur);
-    if(!l_link_node_request)
-    {
-        log_it(L_WARNING, "There is not node address "NODE_ADDR_FP_STR" in node list",NODE_ADDR_FP_ARGS_S(l_node_addr_cur));
-        return -2;
-    }
-
-    dap_chain_node_info_t *l_link_node_info = dap_chain_get_root_addr(a_net, &l_link_node_request->hdr.owner_address);
-    if (!l_link_node_info)
-    {
-        DAP_DEL_Z(l_link_node_request);
-        return -3;
-    }
-    char l_node_addr_str[INET_ADDRSTRLEN] = {};
-    inet_ntop(AF_INET, &l_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
-    log_it(L_DEBUG, "Start node list HTTP request to %s", l_node_addr_str);
-    struct node_link_request *l_node_list_request = s_node_list_request_init();
-    if(!l_node_list_request){
-        log_it(L_CRITICAL, "Memory allocation error");
-        DAP_DEL_Z(l_link_node_request);
-        DAP_DELETE(l_link_node_info);
-        return -4;
-    }
-    l_node_list_request->net = a_net;
-    l_node_list_request->link_info = l_link_node_info;
-
-    int ret = 0;
-    uint32_t links_count = 3;
-    size_t l_blocks_events = 0;
-    dap_chain_t *l_chain;
-    DL_FOREACH(a_net->pub.chains, l_chain) {
-        if(l_chain->callback_count_atom)
-            l_blocks_events += l_chain->callback_count_atom(l_chain);
-    }
-    l_link_node_request->hdr.blocks_events = l_blocks_events;
-
-    //dap_chain_net_get_downlink_count(a_net,&links_count);
-    char *l_request = dap_strdup_printf("%s/%s?version=1,method=r,addr=%lu,ipv4=%d,port=%hu,lcnt=%d,blks=%lu,net=%s",
-                                            DAP_UPLINK_PATH_NODE_LIST,
-                                            DAP_NODE_LIST_URI_HASH,
-                                            l_link_node_request->hdr.address.uint64,
-                                            l_link_node_request->hdr.ext_addr_v4.s_addr,
-                                            l_link_node_request->hdr.ext_port,
-                                            links_count,
-                                            l_link_node_request->hdr.blocks_events,                                            
-                                            a_net->pub.name);
-    ret = dap_client_http_request(l_node_list_request->worker,
-                                            l_node_addr_str,
-                                            l_link_node_info->hdr.ext_port,
-                                            "GET",
-                                            "text/text",
-                                            l_request,
-                                            NULL,
-                                            0,
-                                            NULL,
-                                            s_net_node_link_prepare_success,
-                                            s_net_node_link_prepare_error,
-                                            l_node_list_request,
-                                            NULL) == NULL;
-    DAP_DELETE(l_request);
-
-    int rc = dap_chain_net_node_list_wait(l_node_list_request, 10000);
-    ret = ret ? -5 : rc ? 0 : l_node_list_request->response;
-
-    DAP_DELETE(l_link_node_info);
-    DAP_DEL_Z(l_link_node_request);
     s_node_list_request_deinit(l_node_list_request);
     return ret;
 }

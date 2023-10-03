@@ -1243,7 +1243,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         }
         l_link_node_request->hdr.blocks_events = l_blocks_events;
         // Synchronous request, wait for reply
-        int res = dap_chain_net_node_list_request(l_net,l_link_node_request, true);
+        int res = dap_chain_net_node_list_request(l_net,l_link_node_request, true, 0);
         switch (res)
         {
             case 0:
@@ -1278,7 +1278,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         // handler of command 'node del'
     {
         //int l_ret = node_info_del_with_reply(l_net, l_node_info, alias_str, a_str_reply);
-        int l_ret = dap_chain_net_node_list_request_del(l_net);
+        int l_ret = dap_chain_net_node_list_request(l_net,NULL,true,2);
         DAP_DELETE(l_node_info);
         if(l_ret == 7)
         {
@@ -1286,7 +1286,10 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             return 0;
         }
         else
+        {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "node not deleted");
             return -1;
+        }
     }
     case CMD_LINK:
         if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "add", NULL)) {
