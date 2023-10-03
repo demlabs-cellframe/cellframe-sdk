@@ -107,7 +107,7 @@ static bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
     dap_chain_datum_dump_tx(a_datum, l_ticker, a_str_out, a_hash_out_type, a_tx_hash, a_ledger->net_id);
     dap_list_t *l_out_items = dap_chain_datum_tx_items_get(a_datum, TX_ITEM_TYPE_OUT_ALL, NULL);
     int l_out_idx = 0;
-    dap_string_append_printf(a_str_out, "Spenders:\r\n");
+    dap_string_append_printf(a_str_out, "Spent OUTs:\r\n");
     bool l_spent = false;
     for (dap_list_t *l_item = l_out_items; l_item; l_item = l_item->next, ++l_out_idx) {
         switch (*(dap_chain_tx_item_type_t*)l_item->data) {
@@ -115,12 +115,13 @@ static bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
         case TX_ITEM_TYPE_OUT_OLD:
         case TX_ITEM_TYPE_OUT_EXT: {
             dap_hash_fast_t l_spender = { };
-            if ((l_spent = dap_chain_ledger_tx_hash_is_used_out_item(a_ledger, a_tx_hash, l_out_idx, &l_spender))) {
+            if (dap_chain_ledger_tx_hash_is_used_out_item(a_ledger, a_tx_hash, l_out_idx, &l_spender)) {
                 char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
                 dap_hash_fast_to_str(&l_spender, l_hash_str, sizeof(l_hash_str));
                 dap_string_append_printf(a_str_out,
-                                         "\tout item %d is spent by tx %s\r\n",
+                                         "\tOUT %d is spent by tx %s\r\n",
                                          l_out_idx, l_hash_str);
+                l_spent = true;
             }
             break;
         }
@@ -128,7 +129,7 @@ static bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
             break;
         }
     }
-    dap_string_append_printf(a_str_out, l_spent ? "\r\n\r\n" : "\tall yet unspent\r\n\r\n");
+    dap_string_append_printf(a_str_out, l_spent ? "\r\n\r\n" : "\tall OUTs yet unspent\r\n\r\n");
     return true;
 }
 
