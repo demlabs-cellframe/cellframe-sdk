@@ -496,7 +496,7 @@ void dap_chain_net_add_downlink(dap_chain_net_t *a_net, dap_stream_worker_t *a_w
 
 void dap_chain_net_del_downlink(dap_stream_ch_uuid_t *a_ch_uuid) {
     unsigned l_hash_value;
-    HASH_VALUE(*a_ch_uuid, sizeof(*a_ch_uuid), l_hash_value);
+    HASH_VALUE(a_ch_uuid, sizeof(*a_ch_uuid), l_hash_value);
     struct downlink *l_downlink = NULL;
     for (dap_chain_net_item_t *l_net_item = s_net_items; l_net_item && !l_downlink; l_net_item = l_net_item->hh.next) {
         dap_chain_net_pvt_t *l_net_pvt = PVT(l_net_item->chain_net);
@@ -596,13 +596,7 @@ static void s_chain_callback_notify(void *a_arg, dap_chain_t *a_chain, dap_chain
         log_it(L_ERROR, "Argument is NULL for s_chain_callback_notify");
         return;
     }
-    dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
-    int l_downcount = 0;
-    pthread_mutex_lock(&PVT(l_net)->downlinks_mutex);
-    l_downcount = HASH_COUNT(PVT(l_net)->downlinks);
-    pthread_mutex_unlock(&PVT(l_net)->downlinks_mutex);
-    if (!l_downcount)
-        return;
+    dap_chain_net_t *l_net = (dap_chain_net_t*)a_arg;
     // Check object lifetime for broadcasting decision
     dap_time_t l_time_diff = dap_time_now() - a_chain->callback_atom_get_timestamp(a_atom);
     if (l_time_diff > DAP_BROADCAST_LIFETIME * 60)
