@@ -148,6 +148,7 @@ struct net_link {
 };
 
 struct downlink {
+    dap_chain_net_t *net;
     dap_stream_worker_t *worker;
     dap_stream_ch_uuid_t ch_uuid;
     dap_events_socket_uuid_t esocket_uuid;
@@ -452,38 +453,45 @@ void dap_chain_net_add_gdb_notify_callback(dap_chain_net_t *a_net, dap_store_obj
     PVT(a_net)->gdb_notifiers = dap_list_append(PVT(a_net)->gdb_notifiers, l_notifier);
 }
 
-int dap_chain_net_add_downlink(dap_chain_net_t *a_net, dap_stream_worker_t *a_worker,
+void dap_chain_net_add_downlink_cb(UNUSED_ARG dap_worker_t *a_worker, void *a_arg) {
+    struct downlink *l_downlink = (struct downlink*)a_arg;
+    if (!l_downlink->net) {
+        DAP_DELETE(l_downlink);
+        return;
+    }
+    dap_chain_net_pvt_t *l_net_pvt = PVT(l_downlink->net);
+    unsigned a_hash_value;
+    HASH_VALUE(&l_downlink->ch_uuid, sizeof(l_downlink->ch_uuid), a_hash_value);
+    struct downlink *l_sought_downlink = NULL;
+    pthread_mutex_lock(&l_net_pvt->downlinks_mutex);
+    HASH_FIND_BYHASHVALUE(hh, l_net_pvt->downlinks, &l_downlink->ch_uuid, sizeof(l_downlink->ch_uuid), a_hash_value, l_sought_downlink);
+    if (l_sought_downlink) {
+        pthread_mutex_unlock(&l_net_pvt->downlinks_mutex);
+        DAP_DELETE(l_downlink);
+        return;
+    }
+    HASH_ADD_BYHASHVALUE(hh, l_net_pvt->downlinks, ch_uuid, sizeof(l_downlink->ch_uuid), a_hash_value, l_downlink);
+    pthread_mutex_unlock(&l_net_pvt->downlinks_mutex);
+}
+
+void dap_chain_net_add_downlink(dap_chain_net_t *a_net, dap_stream_worker_t *a_worker,
                                dap_stream_ch_uuid_t a_ch_uuid, dap_events_socket_uuid_t a_esocket_uuid,
                                char *a_addr, int a_port)
 {
-    if (!a_net || !a_worker)
-        return -1;
-    dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
-    unsigned a_hash_value;
-    HASH_VALUE(&a_ch_uuid, sizeof(a_ch_uuid), a_hash_value);
-    struct downlink *l_downlink = NULL;
-    pthread_mutex_lock(&l_net_pvt->downlinks_mutex);
-    HASH_FIND_BYHASHVALUE(hh, l_net_pvt->downlinks, &a_ch_uuid, sizeof(a_ch_uuid), a_hash_value, l_downlink);
-    if (l_downlink) {
-        pthread_mutex_unlock(&l_net_pvt->downlinks_mutex);
-        return -2;
-    }
-    l_downlink = DAP_NEW_Z(struct downlink);
+    struct downlink *l_downlink = DAP_NEW_Z(struct downlink);
     if (!l_downlink) {
         log_it(L_CRITICAL, "Memory allocation error");
-        pthread_mutex_unlock(&l_net_pvt->downlinks_mutex);
-        return -1;
+        return;
     }
     *l_downlink = (struct downlink) {
-            .worker     = a_worker,
-            .ch_uuid    = a_ch_uuid,
-            .esocket_uuid = a_esocket_uuid,
-            .port       = a_port
+            .net            = a_net,
+            .worker         = a_worker,
+            .ch_uuid        = a_ch_uuid,
+            .esocket_uuid   = a_esocket_uuid,
+            .port           = a_port
     };
     strncpy(l_downlink->addr, a_addr, INET_ADDRSTRLEN - 1);
-    HASH_ADD_BYHASHVALUE(hh, l_net_pvt->downlinks, ch_uuid, sizeof(a_ch_uuid), a_hash_value, l_downlink);
-    pthread_mutex_unlock(&l_net_pvt->downlinks_mutex);
-    return 0;
+    dap_worker_exec_callback_on(a_worker->worker, dap_chain_net_add_downlink_cb, l_downlink);
 }
 
 void dap_chain_net_del_downlink(dap_stream_ch_uuid_t *a_ch_uuid) {

@@ -834,7 +834,7 @@ static bool s_chain_timer_callback(void *a_arg)
     dap_worker_t *l_worker = dap_worker_get_current();
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(DAP_STREAM_WORKER(l_worker), *(dap_stream_ch_uuid_t*)a_arg);
     if (!l_ch) {
-        //dap_chain_net_del_downlink((dap_stream_ch_uuid_t*)a_arg);
+        dap_chain_net_del_downlink((dap_stream_ch_uuid_t*)a_arg);
         DAP_DELETE(a_arg);
         return false;
     }
