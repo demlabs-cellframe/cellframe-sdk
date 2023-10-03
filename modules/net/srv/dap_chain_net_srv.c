@@ -813,19 +813,12 @@ static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out
 }
 
 int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, const char *a_config_section){
-//    const char *l_wallet_path = dap_config_get_item_str_default(g_config, "resources", "wallets_path", NULL);
-//    const char *l_wallet_name = dap_config_get_item_str_default(g_config, a_config_section, "wallet", NULL);
-
     const char *l_wallet_addr = dap_config_get_item_str_default(g_config, a_config_section, "wallet_addr", NULL);
     const char *l_cert_name = dap_config_get_item_str_default(g_config, a_config_section, "receipt_sign_cert", NULL);
     const char *l_net_name = dap_config_get_item_str_default(g_config, a_config_section, "net", NULL);
     if (!l_wallet_addr || !l_cert_name || !l_net_name){
         return -2;
     }
-//    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, l_wallet_path);
-//    if (!l_wallet) {
-//        return -3;
-//    }
     dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
     if (!l_net) {
         return -4;
@@ -878,7 +871,6 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
                     continue;
                 }
             }
-//            l_price->wallet = l_wallet;
             l_price->wallet_addr = dap_chain_addr_from_str(l_wallet_addr);
             if(!l_price->wallet_addr){
                 log_it(L_ERROR, "Can't get wallet addr from wallet_addr in config file.");
@@ -897,6 +889,19 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
                 return -101;
             }
 
+            dap_hash_fast_t order_pkey_hash = {};
+            dap_hash_fast_t price_pkey_hash = {};
+            dap_sign_get_pkey_hash(l_order->ext_n_sign + l_order->ext_size, &order_pkey_hash);
+            dap_hash_fast(l_price->receipt_sign_cert->enc_key->pub_key_data,
+                          l_price->receipt_sign_cert->enc_key->pub_key_data_size, &price_pkey_hash);
+            if (dap_hash_fast_compare(&order_pkey_hash, &price_pkey_hash))
+            {
+                log_it(L_ERROR, "pkey in order not equal to pkey in config.");
+                DAP_DEL_Z(l_order);
+                DAP_DELETE(l_price);
+                dap_global_db_objs_delete(l_orders, l_orders_count);
+                continue;
+            }
 
             // TODO: find most advantageous for us order
             DL_APPEND(a_srv->pricelist, l_price);
