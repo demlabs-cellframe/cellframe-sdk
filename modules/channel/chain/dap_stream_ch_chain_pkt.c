@@ -85,7 +85,9 @@ size_t dap_stream_ch_chain_pkt_write_mt(dap_stream_worker_t *a_worker, dap_strea
                                         const void * a_data, size_t a_data_size)
 {
     size_t l_chain_pkt_size = sizeof(dap_stream_ch_chain_pkt_hdr_t) + a_data_size;
-    dap_stream_ch_chain_pkt_t *l_chain_pkt = DAP_NEW_Z_SIZE(dap_stream_ch_chain_pkt_t, l_chain_pkt_size );
+    dap_stream_ch_chain_pkt_t *l_chain_pkt = l_chain_pkt_size > 0x3FFF
+            ? DAP_NEW_Z_SIZE(dap_stream_ch_chain_pkt_t, l_chain_pkt_size)
+            : DAP_NEW_STACK_SIZE(dap_stream_ch_chain_pkt_t, l_chain_pkt_size);
     *l_chain_pkt = (dap_stream_ch_chain_pkt_t){
             .hdr = { .version = DAP_STREAM_CH_CHAIN_PKT_VERSION, .net_id.uint64 = a_net_id, .cell_id.uint64 = a_cell_id, .chain_id.uint64 = a_chain_id }
     };
@@ -94,7 +96,8 @@ size_t dap_stream_ch_chain_pkt_write_mt(dap_stream_worker_t *a_worker, dap_strea
         memcpy(l_chain_pkt->data, a_data, a_data_size);
 
     size_t l_ret = dap_stream_ch_pkt_write_mt(a_worker, a_ch_uuid, a_type, l_chain_pkt, l_chain_pkt_size);
-    DAP_DELETE(l_chain_pkt);
+    if (l_chain_pkt_size > 0x3FFF)
+        DAP_DELETE(l_chain_pkt);
     return l_ret;
 }
 
