@@ -58,7 +58,7 @@ void dap_stream_ch_chain_voting_in_callback_add(void* a_arg, dap_chain_voting_ch
     s_pkt_in_callback_count++;
 }
 
-static bool s_callback_pkt_in_call_all(UNUSED_ARG dap_proc_thread_t *a_thread, void *a_arg)
+static bool s_callback_pkt_in_call_all(dap_proc_thread_t UNUSED_ARG *a_thread, void *a_arg)
 {
     dap_stream_ch_chain_voting_pkt_t *l_voting_pkt = a_arg;
     for (size_t i = 0; i < s_pkt_in_callback_count; i++) {
@@ -68,7 +68,7 @@ static bool s_callback_pkt_in_call_all(UNUSED_ARG dap_proc_thread_t *a_thread, v
                                            &l_voting_pkt->hdr.data_hash, l_voting_pkt->data, l_voting_pkt->hdr.data_size);
         }
     }
-    return true;
+    return false;
 }
 
 void dap_stream_ch_voting_queue_clear()
@@ -122,7 +122,7 @@ void dap_stream_ch_chain_voting_message_write(dap_chain_net_t *a_net, dap_chain_
                                        DAP_STREAM_CH_CHAIN_VOTING_PKT_TYPE_DATA, a_voting_pkt,
                                        l_voting_pkt_size);
     } else
-        dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_callback_pkt_in_call_all,
+        dap_proc_thread_callback_add(NULL, s_callback_pkt_in_call_all,
                                     DAP_DUP_SIZE(a_voting_pkt, l_voting_pkt_size));
 }
 
@@ -164,7 +164,7 @@ static void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
     }
 
     dap_stream_ch_chain_voting_pkt_t *l_voting_pkt = (dap_stream_ch_chain_voting_pkt_t *)l_ch_pkt->data;
-    dap_proc_queue_add_callback(a_ch->stream_worker->worker, s_callback_pkt_in_call_all,
+    dap_proc_thread_callback_add(dap_proc_thread_get(a_ch->stream_worker->worker->id), s_callback_pkt_in_call_all,
                                 DAP_DUP_SIZE(l_voting_pkt, l_voting_pkt_size));
     dap_stream_ch_chain_voting_t *l_ch_chain_voting = DAP_STREAM_CH_CHAIN_VOTING(a_ch);
     if (l_ch_chain_voting->callback_notify)

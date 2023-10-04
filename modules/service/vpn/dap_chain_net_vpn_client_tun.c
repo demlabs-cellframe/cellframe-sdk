@@ -351,7 +351,7 @@ void m_client_tun_new(dap_events_socket_t * a_es, void * arg)
     (void) arg;
     dap_chain_net_srv_vpn_tun_socket_t * l_tun_socket = DAP_NEW_Z(dap_chain_net_srv_vpn_tun_socket_t);
     if ( l_tun_socket ){
-        l_tun_socket->worker = a_es->context->worker;
+        l_tun_socket->worker = a_es->worker;
         l_tun_socket->worker_id = l_tun_socket->worker->id;
         l_tun_socket->es = a_es;
         //s_tun_sockets_queue_msg[a_es->worker->id] = dap_events_socket_create_type_queue_ptr_unsafe(a_es->worker, s_tun_recv_msg_callback );
@@ -551,7 +551,7 @@ int dap_chain_net_vpn_client_tun_delete(void)
 {
     if(s_tun_events_socket) {
         pthread_mutex_lock(&s_clients_mutex);
-        dap_events_socket_remove_and_delete_mt(s_tun_events_socket->context->worker, s_tun_events_socket->uuid);
+        dap_events_socket_remove_and_delete_mt(s_tun_events_socket->worker, s_tun_events_socket->uuid);
         s_tun_events_socket = NULL;
         pthread_mutex_unlock(&s_clients_mutex);
     }

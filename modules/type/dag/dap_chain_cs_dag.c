@@ -199,20 +199,21 @@ static void s_history_callback_round_notify(dap_global_db_context_t *a_context, 
     }
 }
 
-static void s_dag_rounds_events_iter(dap_global_db_context_t *a_context,
+static bool s_dag_rounds_events_iter(dap_global_db_context_t *a_context,
                                      int a_rc, const char *a_group,
                                      const size_t a_values_current, const size_t a_values_count,
                                      dap_store_obj_t *a_values, void *a_arg)
 {
     UNUSED(a_group);
     UNUSED(a_values_current);
-    if (a_rc != DAP_GLOBAL_DB_RC_SUCCESS)
-        return;
+    dap_return_val_if_pass(a_rc != DAP_GLOBAL_DB_RC_SUCCESS, false);
+
     for (size_t i = 0; i < a_values_count; i++) {
         dap_store_obj_t *l_obj_cur = a_values + i;
         l_obj_cur->type = DAP_GLOBAL_DB_OPTYPE_ADD;
         s_history_callback_round_notify(a_context, a_values + i, a_arg);
     }
+    return true;
 }
 
 static void s_timer_process_callback(void *a_arg)

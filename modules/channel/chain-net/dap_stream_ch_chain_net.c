@@ -63,10 +63,8 @@ static void s_stream_ch_packet_in(dap_stream_ch_t* ch, void* arg);
 static void s_stream_ch_packet_out(dap_stream_ch_t* ch, void* arg);
 
 typedef struct dap_chain_net_session_data {
-    unsigned int session_id;
-
+    uint32_t session_id;
     dap_chain_node_addr_t addr_remote;
-
     UT_hash_handle hh;
 } dap_chain_net_session_data_t;
 
@@ -76,20 +74,20 @@ static dap_chain_net_session_data_t *s_chain_net_data = NULL;
 static pthread_mutex_t s_hash_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
-static dap_chain_net_session_data_t* session_data_find(unsigned int a_id)
+static dap_chain_net_session_data_t* session_data_find(uint32_t a_id)
 {
     dap_chain_net_session_data_t *l_sdata;
     pthread_mutex_lock(&s_hash_mutex);
-    HASH_FIND_INT(s_chain_net_data, &a_id, l_sdata);
+    HASH_FIND(hh, s_chain_net_data, &a_id, sizeof(uint32_t), l_sdata);
     pthread_mutex_unlock(&s_hash_mutex);
     return l_sdata;
 }
 
-static void session_data_del(unsigned int a_id)
+static void session_data_del(uint32_t a_id)
 {
     dap_chain_net_session_data_t *l_sdata;
     pthread_mutex_lock(&s_hash_mutex);
-    HASH_FIND_INT(s_chain_net_data, &a_id, l_sdata);
+    HASH_FIND(hh, s_chain_net_data, &a_id, sizeof(uint32_t), l_sdata);
     if(l_sdata) {
         // Clang bug at this, l_sdata should change at every loop cycle
         HASH_DEL(s_chain_net_data, l_sdata);
@@ -113,7 +111,7 @@ static void session_data_del_all()
 
 
 
-dap_chain_node_addr_t dap_stream_ch_chain_net_from_session_data_extract_node_addr(unsigned int a_session_id) {
+dap_chain_node_addr_t dap_stream_ch_chain_net_from_session_data_extract_node_addr(uint32_t a_session_id) {
     dap_chain_node_addr_t l_addr= {0};
     dap_chain_net_session_data_t *l_sdata, *l_sdata_tmp;
     pthread_mutex_lock(&s_hash_mutex);
@@ -164,7 +162,7 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
     // Create chain net session ever it created
     dap_chain_net_session_data_t *l_sdata;
     pthread_mutex_lock(&s_hash_mutex);
-    HASH_FIND_INT(s_chain_net_data, &a_ch->stream->session->id, l_sdata);
+    HASH_FIND(hh, s_chain_net_data, &a_ch->stream->session->id, sizeof(uint32_t), l_sdata);
     if(l_sdata == NULL) {
         l_sdata = DAP_NEW_Z(dap_chain_net_session_data_t);
         if (!l_sdata) {
@@ -173,7 +171,7 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
             return;
         }
         l_sdata->session_id = a_ch->stream->session->id;
-        HASH_ADD_INT(s_chain_net_data, session_id, l_sdata);
+        HASH_ADD(hh, s_chain_net_data, session_id, sizeof(uint32_t), l_sdata);
     }
     pthread_mutex_unlock(&s_hash_mutex);
 }
@@ -387,7 +385,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         flags = l_orders_num ? flags | F_ORDR : flags & ~F_ORDR;
                         bool auto_online = dap_config_get_item_bool_default( g_config, "general", "auto_online", false );
                         bool auto_update = false;
-                        if(system("systemctl status cellframe-updater.service") == 0)
+                        if((system("systemctl status cellframe-updater.service") == 768) && (system("systemctl status cellframe-updater.timer") == 0))
                             auto_update = true;
                         else
                             auto_update = false;

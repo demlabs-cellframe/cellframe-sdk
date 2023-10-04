@@ -344,7 +344,7 @@ void dap_chain_node_mempool_autoproc_deinit()
  */
 static bool dap_db_set_cur_node_addr_common(uint64_t a_address, char *a_net_name, time_t a_expire_time)
 {
-char	l_key [DAP_GLOBAL_DB_KEY_MAX];
+char	l_key [DAP_GLOBAL_DB_KEY_SIZE_MAX];
 bool	l_ret;
 
     if(!a_net_name)
@@ -394,7 +394,7 @@ bool dap_db_set_cur_node_addr_exp(uint64_t a_address, char *a_net_name )
  */
 uint64_t dap_chain_net_get_cur_node_addr_gdb_sync(char *a_net_name)
 {
-char	l_key[DAP_GLOBAL_DB_KEY_MAX], l_key_time[DAP_GLOBAL_DB_KEY_MAX];
+char	l_key[DAP_GLOBAL_DB_KEY_SIZE_MAX], l_key_time[DAP_GLOBAL_DB_KEY_SIZE_MAX];
 uint8_t *l_node_addr_data, *l_node_time_data;
 size_t l_node_addr_len = 0, l_node_time_len = 0;
 uint64_t l_node_addr_ret = 0;

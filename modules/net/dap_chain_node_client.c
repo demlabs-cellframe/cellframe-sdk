@@ -280,7 +280,7 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
             if (l_node_client->keep_connection) {
                 if(l_node_client->stream_worker){
                     s_timer_update_states_callback(l_node_client);
-                    l_node_client->sync_timer = dap_timerfd_start_on_worker(l_stream->esocket->context->worker,
+                    l_node_client->sync_timer = dap_timerfd_start_on_worker(l_stream->esocket->worker,
                                                                             s_timer_update_states * 1000,
                                                                             s_timer_update_states_callback,
                                                                             l_node_client);
