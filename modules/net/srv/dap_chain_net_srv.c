@@ -378,8 +378,22 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
 
             if ( l_price_max_str )
                 l_price_max = dap_chain_balance_scan(l_price_max_str);
-            if ( l_price_unit_str)
-                l_price_unit.uint32 = (uint32_t) atol ( l_price_unit_str );
+
+            if (l_price_unit_str){
+                if (!dap_strcmp(l_price_unit_str, "MB")){
+                    l_price_unit.uint32 = SERV_UNIT_MB;
+                } else if (!dap_strcmp(l_price_unit_str, "SEC")){
+                    l_price_unit.uint32 = SERV_UNIT_SEC;
+                } else if (!dap_strcmp(l_price_unit_str, "DAY")){
+                    l_price_unit.uint32 = SERV_UNIT_DAY;
+                } else if (!dap_strcmp(l_price_unit_str, "KB")){
+                    l_price_unit.uint32 = SERV_UNIT_KB;
+                } else if (!dap_strcmp(l_price_unit_str, "B")){
+                    l_price_unit.uint32 = SERV_UNIT_B;
+                } else if (!dap_strcmp(l_price_unit_str, "PCS")){
+                    l_price_unit.uint32 = SERV_UNIT_PCS;
+                }
+            }
 
             dap_chain_net_srv_order_t * l_orders;
             size_t l_orders_num = 0;
@@ -799,16 +813,19 @@ static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out
 }
 
 int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, const char *a_config_section){
-    const char *l_wallet_path = dap_config_get_item_str_default(g_config, "resources", "wallets_path", NULL);
-    const char *l_wallet_name = dap_config_get_item_str_default(g_config, a_config_section, "wallet", NULL);
+//    const char *l_wallet_path = dap_config_get_item_str_default(g_config, "resources", "wallets_path", NULL);
+//    const char *l_wallet_name = dap_config_get_item_str_default(g_config, a_config_section, "wallet", NULL);
+
+    const char *l_wallet_addr = dap_config_get_item_str_default(g_config, a_config_section, "wallet_addr", NULL);
+    const char *l_cert_name = dap_config_get_item_str_default(g_config, a_config_section, "receipt_sign_cert", NULL);
     const char *l_net_name = dap_config_get_item_str_default(g_config, a_config_section, "net", NULL);
-    if (!l_wallet_path || !l_wallet_name || !l_net_name){
+    if (!l_wallet_addr || !l_cert_name || !l_net_name){
         return -2;
     }
-    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, l_wallet_path);
-    if (!l_wallet) {
-        return -3;
-    }
+//    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, l_wallet_path);
+//    if (!l_wallet) {
+//        return -3;
+//    }
     dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
     if (!l_net) {
         return -4;
@@ -827,7 +844,8 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
     for (size_t i=0; i < l_orders_count; i++){
         l_err_code = -4;
         dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_read(l_orders[i].value, l_orders[i].value_len);
-        if (l_order->node_addr.uint64 == l_node_addr->uint64) {
+        if (l_order->node_addr.uint64 == l_node_addr->uint64 &&
+            l_order->srv_uid.uint64 == a_srv->uid.uint64) {
             l_err_code = 0;
             dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
             if (!l_price) {
@@ -839,7 +857,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
             l_price->net = l_net;
             l_price->net_name = dap_strdup(l_net->pub.name);
             uint256_t l_max_price = GET_256_FROM_64(l_max_price_cfg); // Change this value when max price wil be calculated
-            if (!compare256(l_order->price, uint256_0) || l_order->units == 0 ){
+            if (IS_ZERO_256(l_order->price) || l_order->units == 0 ){
                 log_it(L_ERROR, "Invalid order: units count or price unspecified");
                 DAP_DELETE(l_price);
                 continue;
@@ -848,7 +866,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
             dap_stpcpy(l_price->token, l_order->price_ticker);
             l_price->units = l_order->units;
             l_price->units_uid = l_order->price_unit;
-            if (compare256(l_max_price, uint256_0)){
+            if (!IS_ZERO_256(l_max_price)){
                 uint256_t l_price_unit = uint256_0;
                 DIV_256(l_price->value_datoshi,  GET_256_FROM_64(l_order->units), &l_price_unit);
                 if (compare256(l_price_unit, l_max_price)>0){
@@ -860,7 +878,27 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
                     continue;
                 }
             }
-            l_price->wallet = l_wallet;
+//            l_price->wallet = l_wallet;
+            l_price->wallet_addr = dap_chain_addr_from_str(l_wallet_addr);
+            if(!l_price->wallet_addr){
+                log_it(L_ERROR, "Can't get wallet addr from wallet_addr in config file.");
+                DAP_DEL_Z(l_order);
+                DAP_DELETE(l_price);
+                dap_global_db_objs_delete(l_orders, l_orders_count);
+                return -100;
+            }
+
+            l_price->receipt_sign_cert = dap_cert_find_by_name(l_cert_name);
+            if(!l_price->receipt_sign_cert){
+                log_it(L_ERROR, "Can't find cert %s.", l_cert_name);
+                DAP_DEL_Z(l_order);
+                DAP_DELETE(l_price);
+                dap_global_db_objs_delete(l_orders, l_orders_count);
+                return -101;
+            }
+
+
+            // TODO: find most advantageous for us order
             DL_APPEND(a_srv->pricelist, l_price);
             break;
         }
@@ -923,11 +961,11 @@ int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_
                 }
                 continue;
             case 5:
-                if (!(l_price->wallet = dap_chain_wallet_open(l_price_token, dap_config_get_item_str_default(g_config, "resources", "wallets_path", NULL)))) {
-                    log_it(L_ERROR, "Error parsing pricelist: can't open wallet \"%s\"", l_price_token);
-                    l_iter = 0;
-                    break;
-                }
+//                if (!(l_price->wallet = dap_chain_wallet_open(l_price_token, dap_config_get_item_str_default(g_config, "resources", "wallets_path", NULL)))) {
+//                    log_it(L_ERROR, "Error parsing pricelist: can't open wallet \"%s\"", l_price_token);
+//                    l_iter = 0;
+//                    break;
+//                }
                 continue;
             case 6:
                 log_it(L_INFO, "Price item correct, added to service");
@@ -1185,7 +1223,7 @@ dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv
     dap_chain_datum_tx_receipt_t * l_receipt = dap_chain_datum_tx_receipt_create(
                     a_srv->uid, a_price->units_uid, a_price->units, a_price->value_datoshi, a_ext, a_ext_size);
     // Sign with our wallet
-    return dap_chain_datum_tx_receipt_sign_add(l_receipt, dap_chain_wallet_get_key(a_price->wallet, 0));
+    return dap_chain_datum_tx_receipt_sign_add(l_receipt, a_price->receipt_sign_cert->enc_key);
 }
 
 /**
