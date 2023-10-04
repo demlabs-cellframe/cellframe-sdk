@@ -534,12 +534,11 @@ void dap_chain_net_sync_gdb_broadcast(dap_global_db_context_t *a_context, dap_st
     struct downlink *l_link, *l_tmp;
     pthread_mutex_lock(&PVT(l_net)->downlinks_mutex);
     HASH_ITER(hh, PVT(l_net)->downlinks, l_link, l_tmp) {
-        /*bool l_ch_alive = dap_stream_ch_check_uuid_mt(l_link->worker, l_link->ch_uuid);
-        if (!l_ch_alive) {
-            HASH_DEL(PVT(l_net)->downlinks, l_link);
-            DAP_DELETE(l_link);
+        if (!dap_stream_ch_check_uuid_mt(l_link->worker, l_link->ch_uuid)) {
+            //HASH_DEL(PVT(l_net)->downlinks, l_link);
+            //DAP_DELETE(l_link);
             continue;
-        }*/
+        }
         if (!dap_stream_ch_chain_pkt_write_mt(l_link->worker, //_inter(a_context->queue_worker_ch_io_input[l_link->worker->worker->id],
                                              l_link->ch_uuid,
                                              DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id.uint64,
@@ -568,12 +567,11 @@ static bool s_net_send_atoms(dap_proc_thread_t *a_thread, void *a_arg)
     struct downlink *l_link, *l_tmp;
     pthread_mutex_lock(&PVT(l_net)->downlinks_mutex);
     HASH_ITER(hh, PVT(l_net)->downlinks, l_link, l_tmp) {
-        /*bool l_ch_alive = dap_stream_ch_check_uuid_mt(l_link->worker, l_link->ch_uuid);
-        if (!l_ch_alive) {
-            HASH_DEL(PVT(l_net)->downlinks, l_link);
-            DAP_DELETE(l_link);
+        if (!dap_stream_ch_check_uuid_mt(l_link->worker, l_link->ch_uuid)) {
+            //HASH_DEL(PVT(l_net)->downlinks, l_link);
+            //DAP_DELETE(l_link);
             continue;
-        }*/
+        }
         if(!dap_stream_ch_chain_pkt_write_mt(l_link->worker, l_link->ch_uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN,
                                          l_net->pub.id.uint64, l_args->chain_id, l_args->cell_id,
                                          l_args->atom, l_args->atom_size))
