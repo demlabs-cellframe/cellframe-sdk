@@ -110,7 +110,7 @@ static uint64_t min_count_blocks_events(dap_global_db_obj_t * a_objs,size_t a_no
 
 void dap_chain_net_balancer_prepare_list_links(const char *a_net_name)
 {
-    if(!dap_config_get_item_bool_default(g_config ,"general", "balancer", false))
+    if(!dap_config_get_item_bool_default(g_config ,"general", "balancer", true))
         return;
     dap_list_t *l_node_addr_list = NULL;
     dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
