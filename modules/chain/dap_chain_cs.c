@@ -26,7 +26,6 @@
 #include "uthash.h"
 #include "utlist.h"
 #include "dap_chain_cs.h"
-#include "dap_chain_pvt.h"
 
 #define LOG_TAG "dap_chain_cs"
 

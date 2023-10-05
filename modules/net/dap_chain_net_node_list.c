@@ -256,7 +256,7 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
     s_node_list_request_deinit(l_node_list_request);
     return ret;
 }
-static void s_node_list_callback_notify(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg)
+static void s_node_list_callback_notify(dap_global_db_instance_t *a_dbi, dap_store_obj_t *a_obj, void *a_arg)
 {
     if (!a_arg || !a_obj || !a_obj->key)
         return;

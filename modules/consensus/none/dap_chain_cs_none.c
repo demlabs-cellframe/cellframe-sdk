@@ -132,7 +132,7 @@ int dap_chain_gdb_init(void)
  * @param a_value buffer with data
  * @param a_value_len buffer size
  */
-static void s_history_callback_notify(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg)
+static void s_history_callback_notify(dap_global_db_instance_t *a_dbi, dap_store_obj_t *a_obj, void *a_arg)
 {
     if (a_arg){
         dap_chain_gdb_t * l_gdb = (dap_chain_gdb_t *) a_arg;
@@ -155,7 +155,7 @@ static void s_dap_chain_gdb_callback_purge(dap_chain_t *a_chain)
 }
 
 
-static void s_callback_memepool_notify(dap_global_db_context_t *a_context UNUSED_ARG, dap_store_obj_t *a_obj, void *a_arg)
+static void s_callback_memepool_notify(dap_global_db_instance_t *a_dbi UNUSED_ARG, dap_store_obj_t *a_obj, void *a_arg)
 {
     if (a_obj->type == DAP_GLOBAL_DB_OPTYPE_ADD)
         dap_chain_node_mempool_process_all(a_arg, false);
@@ -299,7 +299,7 @@ const char* dap_chain_gdb_get_group(dap_chain_t * a_chain)
  * @param a_values
  * @param a_arg
  */
-static bool s_ledger_load_callback(UNUSED_ARG dap_global_db_context_t *a_global_db_context,
+static bool s_ledger_load_callback(UNUSED_ARG dap_global_db_instance_t *a_dbi,
                                    UNUSED_ARG int a_rc, UNUSED_ARG const char *a_group,
                                    UNUSED_ARG const size_t a_values_total, const size_t a_values_count,
                                    dap_global_db_obj_t *a_values, void *a_arg)

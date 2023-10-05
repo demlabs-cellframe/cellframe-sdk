@@ -275,7 +275,7 @@ static int s_net_load(dap_chain_net_t *a_net);
 static int s_net_init_node_addr_cert();
 
 // Notify callback for GlobalDB changes
-static void s_gbd_history_callback_notify(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg);
+static void s_gbd_history_callback_notify(dap_global_db_instance_t *a_dbi, dap_store_obj_t *a_obj, void *a_arg);
 static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, void *a_atom, size_t a_atom_size);
 static int s_cli_net(int argc, char ** argv, char **str_reply);
 static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
@@ -528,7 +528,7 @@ void dap_chain_net_del_downlink(dap_stream_ch_uuid_t *a_ch_uuid) {
  * @param a_value buffer with data
  * @param a_value_size buffer size
  */
-void dap_chain_net_sync_gdb_broadcast(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg)
+void dap_chain_net_sync_gdb_broadcast(dap_global_db_instance_t *a_dbi, dap_store_obj_t *a_obj, void *a_arg)
 {
     if (!a_arg || !a_obj || !a_obj->group || !a_obj->key)
         return;
@@ -639,7 +639,7 @@ static void s_chain_callback_notify(void *a_arg, dap_chain_t *a_chain, dap_chain
  * @param a_value buffer with data
  * @param a_value_len buffer size
  */
-static void s_gbd_history_callback_notify(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg)
+static void s_gbd_history_callback_notify(dap_global_db_instance_t *a_dbi, dap_store_obj_t *a_obj, void *a_arg)
 {
     if (!a_obj || !a_arg)
         return;

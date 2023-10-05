@@ -70,7 +70,7 @@
 
 #define LOG_TAG "dap_chain_mempool"
 
-static bool s_tx_create_massive_gdb_save_callback(dap_global_db_context_t *a_global_db_context,
+static bool s_tx_create_massive_gdb_save_callback(dap_global_db_instance_t *a_dbi,
                                                   int a_rc, const char *a_group,
                                                   const size_t a_values_total, const size_t a_values_count,
                                                   dap_global_db_obj_t *a_values, void *a_arg);

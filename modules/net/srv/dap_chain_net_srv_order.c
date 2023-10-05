@@ -64,7 +64,7 @@ struct dap_order_notify {
 };
 
 static dap_list_t *s_order_notify_callbacks = NULL;
-static void s_srv_order_callback_notify(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg);
+static void s_srv_order_callback_notify(dap_global_db_instance_t *a_dbi, dap_store_obj_t *a_obj, void *a_arg);
 
 static dap_timerfd_t *s_timer_order_check_decree_sign = NULL;
 static void s_srv_order_check_decree_sign_timer() {
@@ -656,7 +656,7 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
     }
 }
 
-static void s_srv_order_callback_notify(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg)
+static void s_srv_order_callback_notify(dap_global_db_instance_t *a_dbi, dap_store_obj_t *a_obj, void *a_arg)
 {
     if (!a_arg || !a_obj || !a_obj->key)
         return;

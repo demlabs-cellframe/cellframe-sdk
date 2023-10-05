@@ -84,7 +84,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
 static uint256_t s_callback_get_minimum_fee(dap_chain_t *a_chain);
 static dap_enc_key_t *s_callback_get_sign_key(dap_chain_t *a_chain);
 static void s_callback_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_new_value);
-static void s_db_change_notifier(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void * a_arg);
+static void s_db_change_notifier(dap_global_db_instance_t *a_dbi, dap_store_obj_t *a_obj, void * a_arg);
 
 static int s_cli_esbocs(int argc, char ** argv, char **str_reply);
 
@@ -317,7 +317,7 @@ static bool s_change_db_broadcast(UNUSED_ARG dap_proc_thread_t *a_thread, void *
     return false;
 }
 
-static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_arg)
+static void s_session_db_serialize(dap_global_db_instance_t *a_dbi, void *a_arg)
 {
     dap_chain_esbocs_session_t *l_session = a_arg;
     char *l_sync_group = s_get_penalty_group(l_session->chain->net_id);
@@ -385,7 +385,7 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
     dap_proc_thread_callback_add(NULL, s_change_db_broadcast, l_session);
 }
 
-static void s_session_db_clear(UNUSED_ARG dap_global_db_context_t *a_context, void *a_arg)
+static void s_session_db_clear(UNUSED_ARG dap_global_db_instance_t *a_dbi, void *a_arg)
 {
     dap_chain_esbocs_session_t *l_session = a_arg;
     char *l_sync_group = s_get_penalty_group(l_session->chain->net_id);
@@ -1522,7 +1522,7 @@ typedef struct fee_serv_param
     dap_chain_t * chain;
 }fee_serv_param_t;
 
-static bool s_check_db_callback_fee_collect (UNUSED_ARG dap_global_db_context_t *a_global_db_context,
+static bool s_check_db_callback_fee_collect (UNUSED_ARG dap_global_db_instance_t *a_dbi,
                                              UNUSED_ARG int a_rc, UNUSED_ARG const char *a_group,
                                              UNUSED_ARG const size_t a_values_total, const size_t a_values_count,
                                              dap_global_db_obj_t *a_values, void *a_arg)
@@ -1845,7 +1845,7 @@ static void s_session_directive_process(dap_chain_esbocs_session_t *a_session, d
     s_message_send(a_session, l_type, a_directive_hash, NULL, 0, a_session->cur_round.all_validators);
 }
 
-static void s_db_change_notifier(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg)
+static void s_db_change_notifier(dap_global_db_instance_t *a_dbi, dap_store_obj_t *a_obj, void *a_arg)
 {
     dap_chain_esbocs_session_t *l_session = a_arg;
     dap_chain_addr_t *l_validator_addr = dap_chain_addr_from_str(a_obj->key);

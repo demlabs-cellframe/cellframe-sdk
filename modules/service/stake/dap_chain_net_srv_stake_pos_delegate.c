@@ -1313,10 +1313,10 @@ static void s_get_tx_filter_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_
     return;
 }
 
-static int callback_compare_tx_list(const void *a_datum1, const void *a_datum2)
+static int callback_compare_tx_list(dap_list_t *a_datum1, dap_list_t *a_datum2)
 {
-    dap_chain_datum_tx_t    *l_datum1 = (dap_chain_datum_tx_t*)((dap_list_t*)a_datum1)->data,
-                            *l_datum2 = (dap_chain_datum_tx_t*)((dap_list_t*)a_datum2)->data;
+    dap_chain_datum_tx_t    *l_datum1 = a_datum1->data,
+                            *l_datum2 = a_datum2->data;
     if (!l_datum1 || !l_datum2) {
         log_it(L_CRITICAL, "Invalid element");
         return 0;

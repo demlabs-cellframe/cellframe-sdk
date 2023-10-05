@@ -181,7 +181,7 @@ void dap_chain_cs_dag_deinit(void)
 
 }
 
-static void s_history_callback_round_notify(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg)
+static void s_history_callback_round_notify(dap_global_db_instance_t *a_dbi, dap_store_obj_t *a_obj, void *a_arg)
 {
     dap_chain_cs_dag_t *l_dag = (dap_chain_cs_dag_t *)a_arg;
     assert(l_dag);
@@ -199,7 +199,7 @@ static void s_history_callback_round_notify(dap_global_db_context_t *a_context, 
     }
 }
 
-static bool s_dag_rounds_events_iter(dap_global_db_context_t *a_context,
+static bool s_dag_rounds_events_iter(dap_global_db_instance_t *a_dbi,
                                      int a_rc, const char *a_group,
                                      const size_t a_values_current, const size_t a_values_count,
                                      dap_store_obj_t *a_values, void *a_arg)

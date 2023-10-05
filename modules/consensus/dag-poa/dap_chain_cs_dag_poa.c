@@ -422,7 +422,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
  * @param a_values
  * @param a_arg
  */
-static bool s_poa_round_check_callback_round_clean(dap_global_db_context_t *a_global_db_context,
+static bool s_poa_round_check_callback_round_clean(dap_global_db_instance_t *a_dbi,
                                                    int a_rc, const char *a_group,
                                                    const size_t a_values_total, const size_t a_values_count,
                                                    dap_global_db_obj_t *a_values, void *a_arg)
@@ -581,7 +581,7 @@ static dap_chain_cs_dag_event_round_item_t *s_round_event_choose_dup(dap_list_t 
  * @param a_is_pinned
  * @param a_arg
  */
-static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_db_context_t *a_global_db_context,
+static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_db_instance_t *a_dbi,
                                                                     int a_rc, const char *a_group,
                                                                     const size_t a_values_total, const size_t a_values_count,
                                                                     dap_store_obj_t *a_values, void *a_arg)

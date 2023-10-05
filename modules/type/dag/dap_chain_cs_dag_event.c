@@ -208,7 +208,7 @@ size_t dap_chain_cs_dag_event_round_sign_add(dap_chain_cs_dag_event_round_item_t
     return a_round_item_size+l_sign_size;
 }
 
-static void s_event_broadcast_from_context(dap_global_db_context_t *a_context, void *a_arg)
+static void s_event_broadcast_from_context(dap_global_db_instance_t *a_dbi, void *a_arg)
 {
     dap_chain_cs_dag_event_round_broadcast_t *l_arg = a_arg;
     dap_chain_net_t *l_net = dap_chain_net_by_id(l_arg->dag->chain->net_id);
@@ -227,7 +227,7 @@ static bool s_event_broadcast_send(dap_chain_cs_dag_event_round_broadcast_t *a_a
     return false;
 }
 
-void dap_chain_cs_dag_event_broadcast(dap_chain_cs_dag_t *a_dag, dap_store_obj_t *a_obj, dap_global_db_context_t *a_context)
+void dap_chain_cs_dag_event_broadcast(dap_chain_cs_dag_t *a_dag, dap_store_obj_t *a_obj, dap_global_db_instance_t *a_dbi)
 {
     dap_chain_cs_dag_event_round_broadcast_t *l_arg = DAP_NEW(dap_chain_cs_dag_event_round_broadcast_t);
     if (!l_arg) {

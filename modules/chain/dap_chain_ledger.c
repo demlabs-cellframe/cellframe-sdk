@@ -52,7 +52,6 @@
 #include "dap_chain_datum_token.h"
 #include "dap_global_db.h"
 #include "dap_chain_ledger.h"
-#include "dap_chain_pvt.h"
 #include "json.h"
 #include "json_object.h"
 #include "dap_notify_srv.h"
@@ -2232,7 +2231,7 @@ static void s_threshold_emission_free(dap_ledger_t *a_ledger){
  * @param a_values
  * @param a_arg
  */
-static bool s_load_cache_gdb_loaded_balances_callback(dap_global_db_context_t *a_global_db_context,
+static bool s_load_cache_gdb_loaded_balances_callback(dap_global_db_instance_t *a_dbi,
                                                       int a_rc, const char *a_group,
                                                       const size_t a_values_total, const size_t a_values_count,
                                                       dap_global_db_obj_t *a_values, void *a_arg)
@@ -2283,7 +2282,7 @@ static bool s_load_cache_gdb_loaded_balances_callback(dap_global_db_context_t *a
  * @param a_values
  * @param a_arg
  */
-static bool s_load_cache_gdb_loaded_spent_txs_callback(dap_global_db_context_t *a_global_db_context,
+static bool s_load_cache_gdb_loaded_spent_txs_callback(dap_global_db_instance_t *a_dbi,
                                                        int a_rc, const char *a_group,
                                                        const size_t a_values_total, const size_t a_values_count,
                                                        dap_global_db_obj_t *a_values, void *a_arg)
@@ -2320,7 +2319,7 @@ static bool s_load_cache_gdb_loaded_spent_txs_callback(dap_global_db_context_t *
  * @param a_values
  * @param a_arg
  */
-static bool s_load_cache_gdb_loaded_txs_callback(dap_global_db_context_t *a_global_db_context,
+static bool s_load_cache_gdb_loaded_txs_callback(dap_global_db_instance_t *a_dbi,
                                                  int a_rc, const char *a_group,
                                                  const size_t a_values_total, const size_t a_values_count,
                                                  dap_global_db_obj_t *a_values, void *a_arg)
@@ -2352,7 +2351,7 @@ static bool s_load_cache_gdb_loaded_txs_callback(dap_global_db_context_t *a_glob
     return true;
 }
 
-static bool s_load_cache_gdb_loaded_stake_lock_callback(dap_global_db_context_t *a_global_db_context,
+static bool s_load_cache_gdb_loaded_stake_lock_callback(dap_global_db_instance_t *a_dbi,
                                                         int a_rc, const char *a_group,
                                                         const size_t a_values_total, const size_t a_values_count,
                                                         dap_global_db_obj_t *a_values, void *a_arg)
@@ -2393,7 +2392,7 @@ static bool s_load_cache_gdb_loaded_stake_lock_callback(dap_global_db_context_t 
  * @param a_arg
  * @return Always true thats means to clear up a_values
  */
-static bool s_load_cache_gdb_loaded_emissions_callback(dap_global_db_context_t *a_global_db_context,
+static bool s_load_cache_gdb_loaded_emissions_callback(dap_global_db_instance_t *a_dbi,
                                                        int a_rc, const char *a_group,
                                                        const size_t a_values_total, const size_t a_values_count,
                                                        dap_global_db_obj_t *a_values, void *a_arg)
@@ -2445,7 +2444,7 @@ static bool s_load_cache_gdb_loaded_emissions_callback(dap_global_db_context_t *
  * @param a_values
  * @param a_arg
  */
-static bool s_load_cache_gdb_loaded_tokens_callback(dap_global_db_context_t *a_global_db_context,
+static bool s_load_cache_gdb_loaded_tokens_callback(dap_global_db_instance_t *a_dbi,
                                                     int a_rc, const char *a_group,
                                                     const size_t a_values_total, const size_t a_values_count,
                                                     dap_global_db_obj_t *a_values, void *a_arg)
@@ -3505,10 +3504,10 @@ bool s_tx_match_sign(dap_chain_datum_token_emission_t *a_datum_emission, dap_cha
     return false;
 }
 
-static int s_callback_sign_compare(const void *a_list_elem, const void *a_sign_elem)
+static int s_callback_sign_compare(dap_list_t *a_list_elem, dap_list_t *a_sign_elem)
 {
-    dap_pkey_t* l_key = (dap_pkey_t*)((dap_list_t*)a_list_elem)->data;
-    dap_sign_t* l_sign = (dap_sign_t*)((dap_list_t*)a_sign_elem)->data;
+    dap_pkey_t *l_key = (dap_pkey_t *)a_list_elem->data;
+    dap_sign_t *l_sign = (dap_sign_t *)a_sign_elem->data;
     if (!l_key || !l_sign) {
         log_it(L_CRITICAL, "Invalid argument");
         return -1;
