@@ -486,10 +486,10 @@ int dap_chain_net_get_downlink_count(dap_chain_net_t *a_net,uint32_t * a_count)
     if (!a_net)
         return -1;
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
-    pthread_rwlock_rdlock(&l_net_pvt->downlinks_lock);
+    pthread_mutex_lock(&PVT(a_net)->downlinks_mutex);
     l_count = HASH_COUNT(l_net_pvt->downlinks);
     *a_count = l_count;
-    pthread_rwlock_unlock(&l_net_pvt->downlinks_lock);
+    pthread_mutex_unlock(&PVT(a_net)->downlinks_mutex);
     return 0;
 }
 
