@@ -1633,13 +1633,14 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         dap_string_t * l_string_balanc = dap_string_new("\n");
         l_node_num = dap_list_length(l_net->pub.link_list);
         dap_string_append_printf(l_string_balanc, "Got %d records\n", (uint16_t)l_node_num);
+        dap_string_append_printf(l_string_balanc, "%-26s%-20s%s", "Address", "IPv4", "downlinks\n");
         for(dap_list_t *ll = l_net->pub.link_list; ll; ll = ll->next)
         {
             dap_chain_node_info_t *l_node_link = (dap_chain_node_info_t*)ll->data;
-            dap_string_append_printf(l_string_balanc, "node address "NODE_ADDR_FP_STR"  \tipv4 %s \tnumber of links %u\n",
+            dap_string_append_printf(l_string_balanc, NODE_ADDR_FP_STR"    %-20s%s\n",
                                      NODE_ADDR_FP_ARGS_S(l_node_link->hdr.address),
                                      inet_ntoa(l_node_link->hdr.ext_addr_v4),
-                                     l_node_link->hdr.links_number);
+                                     dap_itoa(l_node_link->hdr.links_number));
         }
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Balancer link list:\n %s \n",
                                           l_string_balanc->str);
