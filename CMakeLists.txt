@@ -259,3 +259,9 @@ target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})
             set(SPHINCS_HASH_TYPE "sphincs-shake-256f")
         #set(SPHINCS_HASH_TYPE "sphincs-shake-256s")
     endif()
+
+    #choose one thash
+    if(NOT DEFINED SPHINCS_HASH_TYPE)
+            set(SPHINCS_THASH "robust")
+        #set(SPHINCS_THASH "simple")
+    endif()
