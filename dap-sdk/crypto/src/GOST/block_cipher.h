@@ -9,6 +9,9 @@
 
 #include "dll_import.h"
 #include "callback_print.h"
+#ifdef defined(Q_OS_IOS)
+#include <stddef.h>
+#endif
 
 /** @brief Размер контекста для режима шифрования ECB алгоритма "кузнечик" */
 #define kEcb14ContextLen 0x38
