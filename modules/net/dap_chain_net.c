@@ -1163,8 +1163,8 @@ static void s_net_balancer_link_prepare_error(dap_worker_t * a_worker, void * a_
         s_net_links_complete_and_start(l_net, a_worker);
     else
         s_new_balancer_link_request(l_net, l_balancer_request->link_replace_tries);
-    DAP_DELETE(l_node_info);
-    DAP_DELETE(l_balancer_request);
+    //DAP_DELETE(l_node_info);
+    //DAP_DELETE(l_balancer_request);
 }
 
 
