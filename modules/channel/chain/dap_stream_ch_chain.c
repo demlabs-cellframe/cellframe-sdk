@@ -133,6 +133,7 @@ static char **s_list_ban_groups = NULL;
 static char **s_list_white_groups = NULL;
 static uint16_t s_size_ban_groups = 0;
 static uint16_t s_size_white_groups = 0;
+static dap_stream_ch_chain_packet_time_t * s_obj_time = NULL;
 
 
 #ifdef  DAP_SYS_DEBUG
@@ -713,6 +714,14 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
         uint32_t l_time_store_lim_hours = dap_config_get_item_uint32_default(g_config, "global_db", "time_store_limit", 72);
         dap_nanotime_t l_time_now = dap_nanotime_now();
         dap_nanotime_t l_time_alowed = l_time_now + dap_nanotime_from_sec(3600 * 24); // to be sure the timestamp is invalid
+
+        dap_chain_net_t *l_net = dap_chain_net_by_id(l_sync_request->request_hdr.net_id);
+        dap_chain_t * l_chain = dap_chain_find_by_id(l_sync_request->request_hdr.net_id,
+                                                     l_sync_request->request_hdr.chain_id);
+        char *l_group_str = NULL;
+        //if(l_chain)
+        l_group_str = dap_strdup_printf("%s.nodes",l_net->pub.gdb_groups_prefix);
+
         for (size_t i = 0; i < l_data_obj_count; i++) {
             // obj to add
             dap_store_obj_t *l_obj = l_store_obj + i;
@@ -720,6 +729,56 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                     l_obj->timestamp > l_time_alowed ||
                     l_obj->group == NULL)
                 continue;       // the object is broken
+            //------------------------SPAM FILTER----------------------------------------------
+            if(l_group_str && strncmp(l_group_str, l_obj->group,
+                                      l_obj->group_len > strlen(l_group_str) ?
+                                      l_obj->group_len : strlen(l_group_str))==0)
+            {
+                if(l_obj->value_len){
+                    dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)l_obj->value;
+                    if(l_node_info){
+                        char *l_key = dap_chain_node_addr_to_hash_str(&l_node_info->hdr.address);
+                        dap_chain_hash_fast_t l_hash_node;
+                        if(dap_chain_hash_fast_from_str(l_key,&l_hash_node) == 0)
+                        {
+                            dap_stream_ch_chain_packet_time_t * l_obj_time, *l_obj_time_2 = NULL;
+                            HASH_FIND(hh, s_obj_time, &l_hash_node, DAP_CHAIN_HASH_FAST_SIZE, l_obj_time);
+                            if (!l_obj_time) {
+                                l_obj_time = DAP_NEW_Z(dap_stream_ch_chain_packet_time_t);
+                                memcpy(&l_obj_time->hash_pkey, &l_hash_node, DAP_CHAIN_HASH_FAST_SIZE);
+                                l_obj_time->last_timestamp_obj = l_obj->timestamp;
+                                log_it(L_INFO, "Add last packet time for hash - %s", l_key);
+                                HASH_ADD(hh, s_obj_time, hash_pkey, DAP_CHAIN_HASH_FAST_SIZE, l_obj_time);//+1
+                            }
+                            else
+                            {
+                                //get aps diff time value
+                                dap_nanotime_t l_time_spam = l_obj_time->last_timestamp_obj > l_obj->timestamp ?
+                                                             l_obj_time->last_timestamp_obj - l_obj->timestamp :
+                                                             l_obj->timestamp - l_obj_time->last_timestamp_obj;
+                                dap_time_t ms = l_time_spam / DAP_USEC_PER_SEC;
+
+                                log_it(L_INFO, "Remove packet time for hash - %s, time delay = %d ms", l_key, ms);
+                                HASH_DEL(s_obj_time, l_obj_time);
+
+                                l_obj_time_2 = DAP_NEW_Z(dap_stream_ch_chain_packet_time_t);
+                                memcpy(&l_obj_time_2->hash_pkey, &l_hash_node,DAP_CHAIN_HASH_FAST_SIZE);
+                                l_obj_time_2->last_timestamp_obj = l_obj->timestamp;
+                                log_it(L_INFO, "Add last packet time for hash - %s", l_key);
+                                HASH_ADD(hh, s_obj_time, hash_pkey, DAP_CHAIN_HASH_FAST_SIZE, l_obj_time_2);//+1
+                                if(ms < 5000){
+                                    log_it(L_INFO, "That is spam!");
+                                    DAP_DELETE(l_key);
+                                    break;
+                                }
+                            }
+                            DAP_DELETE(l_key);
+                        }
+
+                    }
+                }
+            }
+            //----------------------------------------------------------------------
             if (s_list_white_groups) {
                 int l_ret = -1;
                 for (int i = 0; i < s_size_white_groups; i++) {
