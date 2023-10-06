@@ -769,7 +769,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                                 if(ms < 5000){
                                     log_it(L_INFO, "That is spam!");
                                     DAP_DELETE(l_key);
-                                    break;
+                                    continue;
                                 }
                             }
                             DAP_DELETE(l_key);
