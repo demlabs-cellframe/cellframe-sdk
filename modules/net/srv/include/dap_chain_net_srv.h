@@ -69,7 +69,9 @@ typedef void (*dap_chain_callback_trafic_t)(dap_events_socket_t *, dap_stream_ch
 
 typedef struct dap_chain_net_srv_price
 {
-    dap_chain_wallet_t *wallet;
+//    dap_chain_wallet_t *wallet;
+    dap_chain_addr_t *wallet_addr;
+    dap_cert_t *receipt_sign_cert;
     char *net_name;
     dap_chain_net_t *net;
     uint256_t value_datoshi;
