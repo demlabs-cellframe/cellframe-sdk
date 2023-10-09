@@ -532,21 +532,27 @@ void dap_chain_net_sync_gdb_broadcast(dap_global_db_context_t *a_context, dap_st
     dap_chain_net_t *l_net = (dap_chain_net_t*)a_arg;
     dap_global_db_pkt_t *l_data_out = dap_global_db_pkt_serialize(a_obj);
     struct downlink *l_link, *l_tmp;
+    dap_stream_ch_cachet_t *l_active_downs = NULL;
     pthread_mutex_lock(&PVT(l_net)->downlinks_mutex);
+    size_t l_new_count = 0, l_count = HASH_COUNT(PVT(l_net)->downlinks);
+    l_active_downs = DAP_NEW_Z_COUNT(dap_stream_ch_cachet_t, l_count);
     HASH_ITER(hh, PVT(l_net)->downlinks, l_link, l_tmp) {
-        if (!dap_stream_ch_check_uuid_mt(l_link->worker, l_link->ch_uuid)) {
-            //HASH_DEL(PVT(l_net)->downlinks, l_link);
-            //DAP_DELETE(l_link);
-            continue;
+        if (dap_stream_ch_check_uuid_mt(l_link->worker, l_link->ch_uuid)) {
+            l_active_downs[l_new_count++] = (dap_stream_ch_cachet_t){ .stream_worker = l_link->worker, .uuid = l_link->ch_uuid };
         }
-        if (!dap_stream_ch_chain_pkt_write_mt(l_link->worker, //_inter(a_context->queue_worker_ch_io_input[l_link->worker->worker->id],
-                                             l_link->ch_uuid,
-                                             DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id.uint64,
-                                             0, 0, l_data_out,
-                                             sizeof(dap_global_db_pkt_t) + l_data_out->data_size))
-            debug_if(g_debug_reactor, L_ERROR, "Can't send pkt to worker (%d) for writing", l_link->worker->worker->id);
     }
     pthread_mutex_unlock(&PVT(l_net)->downlinks_mutex);
+    if (l_new_count < l_count) {
+        l_active_downs = DAP_REALLOC_COUNT(l_active_downs, l_new_count);
+    }
+    if (!dap_stream_ch_chain_pkt_write_multi_mt(l_active_downs, //_inter(a_context->queue_worker_ch_io_input[l_link->worker->worker->id],
+                                         l_new_count,
+                                         DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id.uint64,
+                                         0, 0, l_data_out,
+                                         sizeof(dap_global_db_pkt_t) + l_data_out->data_size))
+        debug_if(g_debug_reactor, L_ERROR, "Can't broadcast pkt");
+
+    DAP_DELETE(l_active_downs);
     DAP_DELETE(l_data_out);
 }
 
@@ -565,19 +571,24 @@ static bool s_net_send_atoms(dap_proc_thread_t *a_thread, void *a_arg)
     struct net_broadcast_atoms_args *l_args = a_arg;
     dap_chain_net_t *l_net = l_args->net;
     struct downlink *l_link, *l_tmp;
+    dap_stream_ch_cachet_t *l_active_downs = NULL;
     pthread_mutex_lock(&PVT(l_net)->downlinks_mutex);
+    size_t l_new_count = 0, l_count = HASH_COUNT(PVT(l_net)->downlinks);
+    l_active_downs = DAP_NEW_Z_COUNT(dap_stream_ch_cachet_t, l_count);
     HASH_ITER(hh, PVT(l_net)->downlinks, l_link, l_tmp) {
-        if (!dap_stream_ch_check_uuid_mt(l_link->worker, l_link->ch_uuid)) {
-            //HASH_DEL(PVT(l_net)->downlinks, l_link);
-            //DAP_DELETE(l_link);
-            continue;
+        if (dap_stream_ch_check_uuid_mt(l_link->worker, l_link->ch_uuid)) {
+            l_active_downs[l_new_count++] = (dap_stream_ch_cachet_t){ .stream_worker = l_link->worker, .uuid = l_link->ch_uuid };
         }
-        if(!dap_stream_ch_chain_pkt_write_mt(l_link->worker, l_link->ch_uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN,
-                                         l_net->pub.id.uint64, l_args->chain_id, l_args->cell_id,
-                                         l_args->atom, l_args->atom_size))
-            debug_if(g_debug_reactor, L_ERROR, "Can't send atom to worker (%d) for writing", l_link->worker->worker->id);
     }
     pthread_mutex_unlock(&PVT(l_net)->downlinks_mutex);
+    if (l_new_count < l_count) {
+        l_active_downs = DAP_REALLOC_COUNT(l_active_downs, l_new_count);
+    }
+    if(!dap_stream_ch_chain_pkt_write_multi_mt(l_active_downs, l_new_count, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN,
+                                     l_net->pub.id.uint64, l_args->chain_id, l_args->cell_id,
+                                     l_args->atom, l_args->atom_size))
+        debug_if(g_debug_reactor, L_ERROR, "Can't broadcast atom");
+    DAP_DELETE(l_active_downs);
     DAP_DELETE(l_args->atom);
     DAP_DELETE(l_args);
     return true;
