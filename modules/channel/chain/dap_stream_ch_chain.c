@@ -447,7 +447,7 @@ static bool s_sync_out_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_ar
 
     if (l_ch_chain->request_db_log) {
         if (s_debug_more)
-            log_it(L_DEBUG, "Sync out gdb proc, requested %"DAP_UINT64_FORMAT_U" transactions from address "NODE_ADDR_FP_STR,
+            log_it(L_DEBUG, "Sync out gdb proc, requested %"DAP_UINT64_FORMAT_U" records from address "NODE_ADDR_FP_STR,
                              l_ch_chain->request_db_log->items_number, NODE_ADDR_FP_ARGS_S(l_sync_request->request.node_addr));
         l_sync_request->gdb.db_log = l_ch_chain->request_db_log;
         dap_proc_thread_worker_exec_callback_inter(a_thread, l_sync_request->worker->id, s_sync_out_gdb_first_worker_callback, l_sync_request );
@@ -834,7 +834,7 @@ static bool s_chain_timer_callback(void *a_arg)
     dap_worker_t *l_worker = dap_worker_get_current();
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(DAP_STREAM_WORKER(l_worker), *(dap_stream_ch_uuid_t*)a_arg);
     if (!l_ch) {
-        //dap_chain_net_del_downlink((dap_stream_ch_uuid_t*)a_arg);
+        dap_chain_net_del_downlink((dap_stream_ch_uuid_t*)a_arg);
         DAP_DELETE(a_arg);
         return false;
     }
@@ -1636,8 +1636,8 @@ void s_stream_ch_packet_out(dap_stream_ch_t *a_ch, void *a_arg)
         size_t i, q =
                 // s_update_pack_size;
                 0;
-        dap_db_log_list_obj_t **l_objs = dap_db_log_list_get_multiple(l_ch_chain->request_db_log, DAP_STREAM_PKT_SIZE_MAX, &q);
-        dap_stream_ch_chain_update_element_t *l_data = DAP_NEW_Z_SIZE(dap_stream_ch_chain_update_element_t, q * sizeof(dap_stream_ch_chain_update_element_t));
+        dap_db_log_list_obj_t **l_objs = dap_db_log_list_get_multiple(l_ch_chain->request_db_log, /*DAP_STREAM_PKT_SIZE_MAX*/ 0, &q);
+        dap_stream_ch_chain_update_element_t *l_data = DAP_NEW_Z_COUNT(dap_stream_ch_chain_update_element_t, q);
         for (i = 0; i < q; ++i) {
             l_data[i].hash = l_objs[i]->hash;
             l_data[i].size = l_objs[i]->pkt->data_size;
@@ -1653,7 +1653,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t *a_ch, void *a_arg)
             l_ch_chain->stats_request_gdb_processed += i;
             DAP_DELETE(l_data);
             DAP_DELETE(l_objs);
-            debug_if(s_debug_more, L_INFO, "Out: DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB, size %zu ", i * sizeof(dap_stream_ch_chain_update_element_t));
+            debug_if(s_debug_more, L_INFO, "Out: DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB, %zu records", i);
         } else if (!l_objs) {
             l_was_sent_smth = true;
             l_ch_chain->request.node_addr.uint64 = dap_chain_net_get_cur_addr_int(dap_chain_net_by_id(
