@@ -135,12 +135,13 @@ void dap_chain_net_balancer_prepare_list_links(const char *a_net_name)
     dap_list_free_full(l_net->pub.link_list, NULL);
     l_net->pub.link_list = NULL;
     dap_time_t l_time = dap_time_now();
+    uint32_t l_timeout = 300 + dap_config_get_item_uint32_default(g_config, "node_client", "timer_update_states", 600);
     for (size_t i = 0; i < l_nodes_count; i++)
     {
         dap_chain_node_info_t *l_node_cand = (dap_chain_node_info_t *)l_objs[i].value;
         //if(!is_it_node_from_list(l_node_addr_list, l_node_cand)){//without root nodes
-        if((l_objs[i].timestamp / DAP_NSEC_PER_SEC) > l_time &&
-          ((l_objs[i].timestamp / DAP_NSEC_PER_SEC) - l_time) < 900)
+        if(l_time > (l_objs[i].timestamp / DAP_NSEC_PER_SEC) &&
+          (l_time - (l_objs[i].timestamp / DAP_NSEC_PER_SEC)) < l_timeout)
             if(l_node_cand->hdr.blocks_events >= l_blocks_events){
                 dap_chain_net_balancer_set_link_list(l_node_cand,l_net->pub.name);
             }
