@@ -1313,7 +1313,7 @@ static void s_get_tx_filter_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_
     return;
 }
 
-static int callback_compare_tx_list(dap_list_t *a_datum1, dap_list_t *a_datum2)
+static int s_callback_compare_tx_list(dap_list_t *a_datum1, dap_list_t *a_datum2)
 {
     dap_chain_datum_tx_t    *l_datum1 = a_datum1->data,
                             *l_datum2 = a_datum2->data;
@@ -1831,7 +1831,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 char *l_coins = NULL;
                 char* l_node_address_text_block = NULL;
                 dap_chain_net_get_tx_all(l_net,TX_SEARCH_TYPE_NET,s_get_tx_filter_callback, l_args);
-                l_args->ret = dap_list_sort(l_args->ret, callback_compare_tx_list);
+                l_args->ret = dap_list_sort(l_args->ret, s_callback_compare_tx_list);
                 for(dap_list_t *tx = l_args->ret; tx; tx = tx->next)
                 {
                     l_datum_tx = (dap_chain_datum_tx_t*)tx->data;

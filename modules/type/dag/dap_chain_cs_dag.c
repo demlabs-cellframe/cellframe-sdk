@@ -147,7 +147,7 @@ static bool s_seed_mode = false, s_debug_more = false, s_threshold_enabled = fal
 int dap_chain_cs_dag_init()
 {
     srand((unsigned int) time(NULL));
-    dap_chain_cs_type_add( "dag", dap_chain_cs_dag_new );
+    dap_chain_cs_type_add( "dag", s_chain_cs_dag_new );
     s_seed_mode         = dap_config_get_item_bool_default(g_config, "general", "seed_mode",        false);
     s_debug_more        = dap_config_get_item_bool_default(g_config, "dag",     "debug_more",       false);
     s_threshold_enabled = dap_config_get_item_bool_default(g_config, "dag",     "threshold_enabled",false);
@@ -222,11 +222,11 @@ static void s_timer_process_callback(void *a_arg)
 }
 
 /**
- * @brief dap_chain_cs_dag_new
+ * @brief s_chain_cs_dag_new
  * @param a_chain
  * @param a_chain_cfg
  */
-int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
+static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
     dap_chain_cs_dag_t * l_dag = DAP_NEW_Z(dap_chain_cs_dag_t);
     if (!l_dag){
@@ -247,7 +247,7 @@ int dap_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     pthread_mutex_init(&PVT(l_dag)->events_mutex, &l_mutex_attr);
     pthread_mutexattr_destroy(&l_mutex_attr);
 
-    a_chain->callback_delete = dap_chain_cs_dag_delete;
+    a_chain->callback_delete = s_chain_cs_dag_delete;
     a_chain->callback_purge = s_dap_chain_cs_dag_purge;
 
     // Atom element callbacks
@@ -410,11 +410,11 @@ static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain)
 }
 
 /**
- * @brief dap_chain_cs_dag_delete
+ * @brief s_chain_cs_dag_delete
  * @param a_dag
  * @return
  */
-void dap_chain_cs_dag_delete(dap_chain_t * a_chain)
+static void s_chain_cs_dag_delete(dap_chain_t * a_chain)
 {
     s_dap_chain_cs_dag_purge(a_chain);
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG ( a_chain );

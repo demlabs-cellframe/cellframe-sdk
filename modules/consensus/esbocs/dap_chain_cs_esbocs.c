@@ -184,7 +184,7 @@ void dap_chain_cs_esbocs_deinit(void)
 
 static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 {
-    dap_chain_cs_blocks_new(a_chain, a_chain_cfg);
+    dap_chain_cs_type_create("blocks", a_chain, a_chain_cfg);
 
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     int l_ret = 0;

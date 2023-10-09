@@ -37,7 +37,6 @@
 #include "dap_timerfd.h"
 #include "dap_strfuncs.h"
 #include "dap_enc_base58.h"
-#include "dap_chain_pvt.h"
 #include "dap_chain_net.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
@@ -47,7 +46,6 @@
 #include "dap_chain_cs_dag.h"
 #include "dap_chain_cs_dag_event.h"
 #include "dap_chain_cs_dag_poa.h"
-//#include "dap_chain_net_srv_stake.h"
 #include "dap_chain_cell.h"
 #include "dap_global_db.h"
 #include "dap_cert.h"
@@ -111,7 +109,7 @@ static dap_interval_timer_t s_poa_round_timer = NULL;
 int dap_chain_cs_dag_poa_init()
 {
     // Add consensus constructor
-    dap_chain_cs_add ("dag_poa", s_callback_new );
+    dap_chain_cs_add("dag_poa", s_callback_new);
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     dap_cli_server_cmd_add ("dag_poa", s_cli_dag_poa, "DAG PoA commands",
         "dag_poa event sign -net <net_name> -chain <chain_name> -event <event_hash> [-H {hex | base58(default)}]\n"
@@ -341,7 +339,7 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
  */
 static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
-    if (dap_chain_cs_dag_new(a_chain,a_chain_cfg)) {
+    if (dap_chain_cs_type_create("dag", a_chain, a_chain_cfg)) {
         log_it(L_ERROR, "Couldn't init DAG");
         return -1;
     }

@@ -182,7 +182,7 @@ static int s_cli_block_poa(int argc, char ** argv, char **a_str_reply)
  */
 static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
-    dap_chain_cs_blocks_new(a_chain, a_chain_cfg);
+    dap_chain_cs_type_create("blocks", a_chain, a_chain_cfg);
     dap_chain_cs_blocks_t * l_blocks = DAP_CHAIN_CS_BLOCKS( a_chain );
     dap_chain_cs_block_poa_t * l_poa = DAP_NEW_Z ( dap_chain_cs_block_poa_t);
     if (!l_poa) {

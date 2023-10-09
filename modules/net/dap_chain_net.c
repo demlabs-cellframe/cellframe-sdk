@@ -81,7 +81,6 @@
 #include "dap_timerfd.h"
 #include "dap_stream_worker.h"
 #include "dap_worker.h"
-#include "dap_proc_queue.h"
 #include "dap_proc_thread.h"
 #include "dap_enc_http.h"
 #include "dap_chain_common.h"
@@ -95,7 +94,6 @@
 #include "dap_chain_net_decree.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_balancer.h"
-#include "dap_chain_pvt.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
@@ -104,7 +102,6 @@
 #include "dap_chain_cs_none.h"
 #include "dap_client_http.h"
 #include "dap_global_db.h"
-
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_stream_ch_chain_net.h"
 #include "dap_stream_ch_chain.h"
@@ -180,9 +177,7 @@ typedef struct dap_chain_net_pvt{
     bool only_static_links;
     uint16_t required_links_count;
     uint16_t max_links_count;
-    uint16_t reconnect_delay;         // sec
-
-    struct downlink *downlinks;         // HT of links who sent SYNC REQ, it used for sync broadcasting
+    uint16_t reconnect_delay;           // sec
 
     bool load_mode;
     char ** seed_aliases;
@@ -207,15 +202,11 @@ typedef struct dap_chain_net_pvt{
     _Atomic(dap_chain_net_state_t) state, state_target;
     uint16_t acl_idx;
 
-
     // Main loop timer
     dap_interval_timer_t main_timer;
-    pthread_mutex_t uplinks_mutex, downlinks_mutex;
-    pthread_rwlock_t states_lock;
+    pthread_mutex_t uplinks_mutex;
 
     dap_list_t *gdb_notifiers;
-
-    dap_interval_timer_t update_links_timer;
 } dap_chain_net_pvt_t;
 
 typedef struct dap_chain_net_item{
@@ -282,17 +273,14 @@ static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
 static void s_prepare_links_from_balancer(dap_chain_net_t *a_net);
 static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_replace_tries);
 
-//Timer update links
-
-static void s_update_links_timer_callback(void *a_arg){
+static void s_update_my_link_info_timer_callback(void *a_arg)
+{
     dap_chain_net_t *l_net = (dap_chain_net_t*)a_arg;
-    //Updated links
-    size_t l_count_downlinks = 0,l_blocks_events = 0;
+    size_t l_blocks_events = 0;
     dap_chain_node_addr_t *l_current_addr = dap_chain_net_get_cur_addr(l_net);
     dap_chain_node_info_t *l_node_info = dap_chain_node_info_read(l_net, l_current_addr);
     if (!l_node_info)
         return;
-    l_node_info->hdr.links_number = l_count_downlinks;
     dap_chain_t *l_chain;
     DL_FOREACH(l_net->pub.chains, l_chain) {
         if(l_chain->callback_count_atom)
@@ -303,6 +291,7 @@ static void s_update_links_timer_callback(void *a_arg){
     //dap_global_db_set_sync(l_net->pub.gdb_nodes, l_key, l_node_info, dap_chain_node_info_get_size(l_node_info), false);
     DAP_DELETE(l_node_info);
 }
+
 
 /**
  * @brief
@@ -460,143 +449,6 @@ void dap_chain_net_add_gdb_notify_callback(dap_chain_net_t *a_net, dap_store_obj
     PVT(a_net)->gdb_notifiers = dap_list_append(PVT(a_net)->gdb_notifiers, l_notifier);
 }
 
-void dap_chain_net_add_downlink_cb(UNUSED_ARG dap_worker_t *a_worker, void *a_arg) {
-    struct downlink *l_downlink = (struct downlink*)a_arg;
-    if (!l_downlink->net) {
-        DAP_DELETE(l_downlink);
-        return;
-    }
-    dap_chain_net_pvt_t *l_net_pvt = PVT(l_downlink->net);
-    unsigned a_hash_value;
-    HASH_VALUE(&l_downlink->ch_uuid, sizeof(l_downlink->ch_uuid), a_hash_value);
-    struct downlink *l_sought_downlink = NULL;
-    pthread_mutex_lock(&l_net_pvt->downlinks_mutex);
-    HASH_FIND_BYHASHVALUE(hh, l_net_pvt->downlinks, &l_downlink->ch_uuid, sizeof(l_downlink->ch_uuid), a_hash_value, l_sought_downlink);
-    if (l_sought_downlink) {
-        pthread_mutex_unlock(&l_net_pvt->downlinks_mutex);
-        DAP_DELETE(l_downlink);
-        return;
-    }
-    HASH_ADD_BYHASHVALUE(hh, l_net_pvt->downlinks, ch_uuid, sizeof(l_downlink->ch_uuid), a_hash_value, l_downlink);
-    pthread_mutex_unlock(&l_net_pvt->downlinks_mutex);
-}
-
-void dap_chain_net_add_downlink(dap_chain_net_t *a_net, dap_stream_worker_t *a_worker,
-                               dap_stream_ch_uuid_t a_ch_uuid, dap_events_socket_uuid_t a_esocket_uuid,
-                               char *a_addr, int a_port)
-{
-    struct downlink *l_downlink = DAP_NEW_Z(struct downlink);
-    if (!l_downlink) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        return;
-    }
-    *l_downlink = (struct downlink) {
-            .net            = a_net,
-            .worker         = a_worker,
-            .ch_uuid        = a_ch_uuid,
-            .esocket_uuid   = a_esocket_uuid,
-            .port           = a_port
-    };
-    strncpy(l_downlink->addr, a_addr, INET_ADDRSTRLEN - 1);
-    dap_worker_exec_callback_on(a_worker->worker, dap_chain_net_add_downlink_cb, l_downlink);
-}
-
-void dap_chain_net_del_downlink(dap_stream_ch_uuid_t *a_ch_uuid) {
-    unsigned l_hash_value;
-    HASH_VALUE(a_ch_uuid, sizeof(*a_ch_uuid), l_hash_value);
-    struct downlink *l_downlink = NULL;
-    for (dap_chain_net_item_t *l_net_item = s_net_items; l_net_item && !l_downlink; l_net_item = l_net_item->hh.next) {
-        dap_chain_net_pvt_t *l_net_pvt = PVT(l_net_item->chain_net);
-        pthread_mutex_lock(&l_net_pvt->downlinks_mutex);
-        HASH_FIND_BYHASHVALUE(hh, l_net_pvt->downlinks, a_ch_uuid, sizeof(*a_ch_uuid), l_hash_value, l_downlink);
-        if (l_downlink) {
-            HASH_DEL(l_net_pvt->downlinks, l_downlink);
-            log_it(L_MSG, "Remove downlink %s : %d from net ht", l_downlink->addr, l_downlink->port);
-            DAP_DELETE(l_downlink);
-        }
-        pthread_mutex_unlock(&l_net_pvt->downlinks_mutex);
-    }
-}
-
-/**
- * @brief executes, when you add data to gdb and sends it to current network connected nodes
- * @param a_arg arguments. Can be network object (dap_chain_net_t)
- * @param a_op_code object type (f.e. l_net->type from dap_store_obj)
- * @param a_group group, for example "chain-gdb.home21-network.chain-F"
- * @param a_key key hex value, f.e. 0x12EFA084271BAA5EEE93B988E73444B76B4DF5F63DADA4B300B051E29C2F93
- * @param a_value buffer with data
- * @param a_value_size buffer size
- */
-void dap_chain_net_sync_gdb_broadcast(dap_global_db_instance_t *a_dbi, dap_store_obj_t *a_obj, void *a_arg)
-{
-    if (!a_arg || !a_obj || !a_obj->group || !a_obj->key)
-        return;
-    // Check object lifetime for broadcasting decision
-    dap_time_t l_time_diff = dap_nanotime_to_sec(dap_nanotime_now() - a_obj->timestamp);
-    if (l_time_diff > DAP_BROADCAST_LIFETIME * 60)
-        return;
-
-    dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
-    dap_global_db_pkt_t *l_data_out = dap_global_db_pkt_serialize(a_obj);
-    struct downlink *l_link, *l_tmp;
-    pthread_mutex_lock(&PVT(l_net)->downlinks_mutex);
-    HASH_ITER(hh, PVT(l_net)->downlinks, l_link, l_tmp) {
-        bool l_ch_alive = dap_stream_ch_check_uuid_mt(l_link->worker, l_link->ch_uuid);
-        if (!l_ch_alive) {
-            HASH_DEL(PVT(l_net)->downlinks, l_link);
-            DAP_DELETE(l_link);
-            continue;
-        }
-        if (!dap_stream_ch_chain_pkt_write_mt(l_link->worker, //_inter(a_context->queue_worker_ch_io_input[l_link->worker->worker->id],
-                                             l_link->ch_uuid,
-                                             DAP_STREAM_CH_CHAIN_PKT_TYPE_GLOBAL_DB, l_net->pub.id.uint64,
-                                             0, 0, l_data_out,
-                                             sizeof(dap_global_db_pkt_t) + l_data_out->data_size))
-            debug_if(g_debug_reactor, L_ERROR, "Can't send pkt to worker (%d) for writing", l_link->worker->worker->id);
-    }
-    pthread_mutex_unlock(&PVT(l_net)->downlinks_mutex);
-}
-
-struct net_broadcast_atoms_args {
-    dap_chain_atom_ptr_t atom;
-    size_t atom_size;
-    dap_chain_net_t *net;
-    uint64_t chain_id;
-    uint64_t cell_id;
-};
-
-static bool s_net_send_atoms(dap_proc_thread_t *a_thread, void *a_arg)
-{
-    UNUSED(a_thread);
-
-    struct net_broadcast_atoms_args *l_args = a_arg;
-    dap_chain_net_t *l_net = l_args->net;
-    struct downlink *l_link, *l_tmp;
-    pthread_mutex_lock(&PVT(l_net)->downlinks_mutex);
-    HASH_ITER(hh, PVT(l_net)->downlinks, l_link, l_tmp) {
-        bool l_ch_alive = dap_stream_ch_check_uuid_mt(l_link->worker, l_link->ch_uuid);
-        if (!l_ch_alive) {
-            HASH_DEL(PVT(l_net)->downlinks, l_link);
-            DAP_DELETE(l_link);
-            continue;
-        }
-        if(!dap_stream_ch_chain_pkt_write_mt(l_link->worker, l_link->ch_uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN,
-                                         l_net->pub.id.uint64, l_args->chain_id, l_args->cell_id,
-                                         l_args->atom, l_args->atom_size))
-            debug_if(g_debug_reactor, L_ERROR, "Can't send atom to worker (%d) for writing", l_link->worker->worker->id);
-    }
-    pthread_mutex_unlock(&PVT(l_net)->downlinks_mutex);
-    DAP_DELETE(l_args->atom);
-    DAP_DELETE(l_args);
-    return false;
-}
-
-/**
- * @brief s_chain_callback_notify
- * @param a_arg
- * @param a_chain
- * @param a_id
- */
 static void s_chain_callback_notify(void *a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, void* a_atom, size_t a_atom_size)
 {
     if (!a_arg || !a_chain || !a_atom) {
@@ -609,17 +461,10 @@ static void s_chain_callback_notify(void *a_arg, dap_chain_t *a_chain, dap_chain
     if (l_time_diff > DAP_BROADCAST_LIFETIME * 60)
         return;
 
-    struct net_broadcast_atoms_args *l_args = DAP_NEW(struct net_broadcast_atoms_args);
-    if (!l_args) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        return;
-    }
-    l_args->net = l_net;
-    l_args->atom = DAP_DUP_SIZE(a_atom, a_atom_size);
-    l_args->atom_size = a_atom_size;
-    l_args->chain_id = a_chain->id.uint64;
-    l_args->cell_id = a_id.uint64;
-    dap_proc_thread_callback_add(NULL, s_net_send_atoms, l_args);
+    if(!dap_stream_ch_chain_pkt_write_mt(l_link->worker, l_link->ch_uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN,
+                                     l_net->pub.id.uint64, l_args->chain_id, l_args->cell_id,
+                                     l_args->atom, l_args->atom_size))
+        debug_if(g_debug_reactor, L_ERROR, "Can't send atom to worker (%d) for writing", l_link->worker->worker->id);
 }
 
 /**
@@ -632,7 +477,7 @@ static void s_chain_callback_notify(void *a_arg, dap_chain_t *a_chain, dap_chain
  * @param a_value buffer with data
  * @param a_value_len buffer size
  */
-static void s_gbd_history_callback_notify(dap_global_db_instance_t *a_dbi, dap_store_obj_t *a_obj, void *a_arg)
+static void s_gbd_history_callback_notify(dap_global_db_instance_t UNUSED_ARG *a_dbi, dap_store_obj_t *a_obj, void *a_arg)
 {
     if (!a_obj || !a_arg)
         return;
@@ -674,25 +519,16 @@ dap_chain_node_info_t *dap_get_balancer_link_from_cfg(dap_chain_net_t *a_net)
         do {
             i = dap_random_uint16() % l_net_pvt->seed_aliases_count;
         } while (l_net_pvt->seed_nodes_addrs[i] == l_net_pvt->node_addr->uint64);
-
-        /*dap_chain_node_addr_t *l_remote_addr = dap_chain_node_alias_find(a_net, l_net_pvt->seed_aliases[i]);
-        if (l_remote_addr){
-            */
-            dap_chain_node_info_t *l_link_node_info = DAP_NEW_Z(dap_chain_node_info_t);
-            if(l_link_node_info){
-                l_link_node_info->hdr.address.uint64 = l_net_pvt->seed_nodes_addrs[i];
-                l_link_node_info->hdr.ext_addr_v4.s_addr = l_net_pvt->seed_nodes_addrs_v4[i].s_addr;
-                l_link_node_info->hdr.ext_port = l_net_pvt->seed_nodes_ports[i];
-                return l_link_node_info;
-            }else{
-                log_it(L_WARNING,"Can't allocate memory");
-                return NULL;
-            }
-        /*}
-        else{
-            log_it(L_WARNING,"Can't find alias info for seed alias %s",l_net_pvt->seed_aliases[i]);
+        dap_chain_node_info_t *l_link_node_info = DAP_NEW_Z(dap_chain_node_info_t);
+        if(l_link_node_info){
+            l_link_node_info->hdr.address.uint64 = l_net_pvt->seed_nodes_addrs[i];
+            l_link_node_info->hdr.ext_addr_v4.s_addr = l_net_pvt->seed_nodes_addrs_v4[i].s_addr;
+            l_link_node_info->hdr.ext_port = l_net_pvt->seed_nodes_ports[i];
+            return l_link_node_info;
+        }else{
+            log_it(L_WARNING,"Can't allocate memory");
             return NULL;
-        }*/
+        }
     } else if (l_net_pvt->bootstrap_nodes_count) {
         i = dap_random_uint16() % l_net_pvt->bootstrap_nodes_count;
         l_node_adrr = 0;
@@ -2564,8 +2400,8 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
                             ( l_seed_nodes_ipv6_len  && i < l_seed_nodes_ipv6_len  ) ||
                             ( l_seed_nodes_hostnames_len  && i < l_seed_nodes_hostnames_len  )
                         ); i++) {
-        dap_chain_node_addr_t l_seed_node_addr  = { 0 }, *l_seed_node_addr_gdb  = NULL;
-        dap_chain_node_info_t l_node_info       = { 0 }, *l_node_info_gdb       = NULL;
+        dap_chain_node_addr_t l_seed_node_addr  = { 0 };
+        dap_chain_node_info_t l_node_info       = { 0 };
 
         log_it(L_NOTICE, "Check alias %s in db", l_net_pvt->seed_aliases[i]);
         snprintf(l_node_info.hdr.alias,sizeof (l_node_info.hdr.alias),"%s", PVT(l_net)->seed_aliases[i]);
@@ -2595,38 +2431,6 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
                 log_it(L_ERROR, "%s", gai_strerror(l_ret_code));
             }
         }
-/*
-        l_seed_node_addr_gdb    = dap_chain_node_alias_find(l_net, l_net_pvt->seed_aliases[i]);
-        l_node_info_gdb         = l_seed_node_addr_gdb ? dap_chain_node_info_read(l_net, l_seed_node_addr_gdb) : NULL;
-
-        l_node_info.hdr.address = l_seed_node_addr;
-        if (l_node_info.hdr.ext_addr_v4.s_addr ||
-#ifdef DAP_OS_BSD
-            l_node_info.hdr.ext_addr_v6.__u6_addr.__u6_addr32[0]
-#else
-            l_node_info.hdr.ext_addr_v6.s6_addr32[0]
-#endif
-        ) {
-             //Let's check if config was altered
-            int l_ret = l_node_info_gdb ? memcmp(&l_node_info, l_node_info_gdb, sizeof(dap_chain_node_info_t)) : 1;
-            if (!l_ret) {
-                log_it(L_NOTICE,"Seed node "NODE_ADDR_FP_STR" already in list", NODE_ADDR_FP_ARGS_S(l_seed_node_addr));
-            } else {
-                // Either not yet added or must be altered
-                l_ret = dap_chain_node_info_save(l_net, &l_node_info);
-                if (!l_ret) {
-                    if (dap_chain_node_alias_register(l_net,l_net_pvt->seed_aliases[i], &l_seed_node_addr))
-                        log_it(L_NOTICE,"Seed node "NODE_ADDR_FP_STR" added to the curent list", NODE_ADDR_FP_ARGS_S(l_seed_node_addr));
-                    else
-                        log_it(L_WARNING,"Cant register alias %s for address "NODE_ADDR_FP_STR, l_net_pvt->seed_aliases[i], NODE_ADDR_FP_ARGS_S(l_seed_node_addr));
-                } else {
-                    log_it(L_WARNING,"Cant save node info for address "NODE_ADDR_FP_STR" return code %d", NODE_ADDR_FP_ARGS_S(l_seed_node_addr), l_ret);
-                }
-            }
-        } else
-            log_it(L_WARNING,"No address for seed node, can't populate global_db with it");
-        DAP_DEL_Z(l_seed_node_addr_gdb);
-        DAP_DEL_Z(l_node_info_gdb);*/
     }
 
     dap_chain_net_node_list_init();
@@ -2975,7 +2779,6 @@ int s_net_load(dap_chain_net_t *a_net)
     uint32_t l_timeout = dap_config_get_item_uint32_default(g_config, "node_client", "timer_update_states", 600);
     PVT(l_net)->main_timer = dap_interval_timer_create(l_timeout * 1000, s_main_timer_callback, l_net);
     log_it(L_INFO, "Chain network \"%s\" initialized",l_net->pub.name);
-    PVT(l_net)->update_links_timer = dap_interval_timer_create(600 * 1000, s_update_links_timer_callback, l_net);
 
     dap_config_close(l_cfg);
 
@@ -3682,40 +3485,6 @@ void dap_chain_net_announce_addrs() {
                    NODE_ADDR_FP_ARGS(l_net_pvt->node_addr), l_node_addr_str, l_net_pvt->node_info->hdr.ext_port, l_net_item->name);
         }
     }
-}
-
-char *dap_chain_net_links_dump(dap_chain_net_t *a_net) {
-    dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
-    pthread_mutex_lock(&l_net_pvt->uplinks_mutex);
-    dap_string_t *l_str_uplinks = dap_string_new("---------------------------\n"
-                                         "| ↑\\↓ |\t#\t|\t\tIP\t\t|\tPort\t|\n");
-    struct net_link *l_link, *l_link_tmp = NULL;
-    size_t l_up_count = 0;
-    HASH_ITER(hh, l_net_pvt->net_links, l_link, l_link_tmp) {
-        dap_string_append_printf(l_str_uplinks, "|  ↑  |\t%zu\t|\t%s\t\t|\t%u\t|\n",
-                                 ++l_up_count,
-                                 inet_ntoa(l_link->link_info->hdr.ext_addr_v4),
-                                 l_link->link_info->hdr.ext_port);
-    }
-
-    size_t l_down_count = 0;
-    dap_string_t *l_str_downlinks = dap_string_new("---------------------------\n"
-                                                 "| ↑\\↓ |\t#\t|\t\tIP\t\t|\tPort\t|\n");
-    pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
-    pthread_mutex_lock(&l_net_pvt->downlinks_mutex);
-    struct downlink *l_downlink = NULL, *l_downtmp = NULL;
-    HASH_ITER(hh, l_net_pvt->downlinks, l_downlink, l_downtmp) {
-        dap_string_append_printf(l_str_downlinks, "|  ↓  |\t%zu\t|\t%s\t\t|\t%u\t|\n",
-                                     ++l_down_count,
-                                     l_downlink->addr, l_downlink->port);
-    }
-    pthread_mutex_unlock(&l_net_pvt->downlinks_mutex);
-    char *l_res_str = dap_strdup_printf("Count links: %zu\n\nUplinks: %zu\n%s\n\nDownlinks: %zu\n%s\n",
-                                        l_up_count + l_down_count, l_up_count, l_str_uplinks->str,
-                                        l_down_count, l_str_downlinks->str);
-    dap_string_free(l_str_uplinks, true);
-    dap_string_free(l_str_downlinks, true);
-    return l_res_str;
 }
 
 /**

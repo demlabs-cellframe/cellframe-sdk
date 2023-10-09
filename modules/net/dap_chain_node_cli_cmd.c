@@ -1663,9 +1663,12 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Connection established");
     } break;
     case CMD_CONNECTIONS: {
-        char *l_reply = dap_chain_net_links_dump(l_net);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_reply);
-        DAP_DELETE(l_reply);
+        dap_global_db_cluster_t *l_links_cluster = dap_global_db_cluster_by_mnemonim(l_net->pub.name);
+        if (!l_links_cluster) {
+             dap_cli_server_cmd_set_reply_text(a_str_reply, "Not found links cluster for net %s", l_net->pub.name);
+             break;
+        }
+        *a_str_reply = dap_cluster_get_links_info(l_links_cluster->member_cluster);
     } break;
     case  CMD_BAN: {
         dap_chain_net_t *l_netl = NULL;
