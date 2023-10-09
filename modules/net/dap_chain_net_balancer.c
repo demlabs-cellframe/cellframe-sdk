@@ -134,14 +134,17 @@ void dap_chain_net_balancer_prepare_list_links(const char *a_net_name)
     log_it(L_DEBUG, "Overwrite node list");
     dap_list_free_full(l_net->pub.link_list, NULL);
     l_net->pub.link_list = NULL;
+    dap_time_t l_time = dap_time_now();
     for (size_t i = 0; i < l_nodes_count; i++)
     {
         dap_chain_node_info_t *l_node_cand = (dap_chain_node_info_t *)l_objs[i].value;
-        if(!is_it_node_from_list(l_node_addr_list, l_node_cand)){
+        //if(!is_it_node_from_list(l_node_addr_list, l_node_cand)){//without root nodes
+        if((l_objs[i].timestamp / DAP_NSEC_PER_SEC) > l_time &&
+          ((l_objs[i].timestamp / DAP_NSEC_PER_SEC) - l_time) < 900)
             if(l_node_cand->hdr.blocks_events >= l_blocks_events){
                 dap_chain_net_balancer_set_link_list(l_node_cand,l_net->pub.name);
             }
-        }
+        //}
     }
 
     pthread_mutex_unlock(&l_net->pub.balancer_mutex);
