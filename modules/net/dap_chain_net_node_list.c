@@ -32,7 +32,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 static int s_dap_chain_net_node_list_add_downlink(const char * a_group, const char *a_key, dap_chain_node_info_t * a_node_info) {
 
-    size_t l_node_info_size = (sizeof(dap_chain_node_info_t));
+    size_t l_node_info_size = dap_chain_node_info_get_size(a_node_info);//(sizeof(dap_chain_node_info_t));
     bool res = dap_global_db_set_sync(a_group, a_key, (uint8_t*)a_node_info, l_node_info_size, true) == 0;
     if(res)
     {
@@ -387,7 +387,7 @@ static void s_node_list_callback_notify(dap_global_db_context_t *a_context, dap_
         if (a_obj->value && a_obj->type == DAP_DB$K_OPTYPE_ADD) {
             dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)a_obj->value;
 
-            size_t l_size_obj = a_obj->value_len; // - (l_node_info->hdr.links_number * sizeof(dap_chain_node_addr_t)));
+            size_t l_size_obj = (a_obj->value_len - (l_node_info->hdr.links_number * sizeof(dap_chain_node_addr_t)));
             if(l_size_obj_need == l_size_obj)
             {
                 if(l_node_info->hdr.owner_address.uint64 == 0){
