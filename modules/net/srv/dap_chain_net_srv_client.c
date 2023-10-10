@@ -69,6 +69,9 @@ dap_chain_net_srv_client_t *dap_chain_net_srv_client_create_n_connect(dap_chain_
     DAP_DELETE(l_info);
     return l_ret;
 }
+void dap_chain_net_srv_client_close(dap_chain_net_srv_client_t *a_client){
+    dap_chain_node_client_close_mt( a_client->node_client );
+}
 
 ssize_t dap_chain_net_srv_client_write(dap_chain_net_srv_client_t *a_client, uint8_t a_type, void *a_pkt_data, size_t a_pkt_data_size)
 {
