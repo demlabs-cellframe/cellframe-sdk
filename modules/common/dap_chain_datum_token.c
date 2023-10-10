@@ -362,7 +362,6 @@ json_object *dap_chain_datum_token_to_json(dap_chain_datum_token_t * a_token){
     json_object *l_jobj_token = json_object_new_object();
     json_object *l_jobj_type;
     json_object *l_jobj_version = json_object_new_uint64(a_token->version);
-//    const char *l_jobj_type = NULL;
     switch (a_token->type) {
         case DAP_CHAIN_DATUM_TOKEN_TYPE_DECL:
             l_jobj_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TYPE_DECL");
@@ -439,6 +438,16 @@ json_object *dap_chain_datum_token_to_json(dap_chain_datum_token_t * a_token){
     json_object_object_add(l_jobj_token, "ticker", l_jobj_ticker);
     json_object_object_add(l_jobj_token, "signs_valid", l_jobj_signs_valid);
     json_object_object_add(l_jobj_token, "signs_total", l_jobj_signs_total);
+    json_object *l_obj_signs = json_object_new_array();
+    size_t l_offset = 0;
+//    size_t l_certs_field_size = dap_chain_datum_token_size - sizeof(*l_token);
+    for (int i = 1; i < a_emission->data.type_auth.signs_count; i++) {
+        dap_sign_t *l_sign = (dap_sign_t *) ((byte_t)a_emission->tsd_n_signs + l_offset);
+        l_offset += dap_sign_get_size(l_sign);
+        json_object *l_obj_sign = dap_sign_to_json(l_sign);
+        json_object_array_add(l_obj_signs);
+    }
+    json_object_object_add(l_emi_data, "signs", l_obj_signs);
     return l_jobj_token;
 }
 
@@ -651,5 +660,67 @@ dap_sign_t *dap_chain_datum_emission_get_signs(dap_chain_datum_token_emission_t 
     *a_signs_count = MIN(l_count, a_emission->data.type_auth.signs_count);
     memcpy(l_ret, a_emission->tsd_n_signs + a_emission->data.type_auth.tsd_total_size, l_actual_size);
     return l_ret;
+}
+
+json_object *dap_chain_datum_emission_to_json(dap_chain_datum_token_emission_t *a_emission, size_t a_emission_size){
+    json_object *l_emi_obj = json_object_new_object();
+    json_object *l_emi_version = json_object_new_uint64(a_emission->hdr.version);
+    json_object *l_emi_type = json_object_new_string(c_dap_chain_datum_token_emission_type_str[a_emission->hdr.type]);
+    json_object *l_emi_address = dap_chain_addr_to_json(&a_emission->hdr.address);
+    json_object *l_emi_header = json_object_new_object();
+    json_object_object_add(l_emi_header, "version", l_emi_version);
+    json_object_object_add(l_emi_header, "type", l_emi_type);
+    json_object_object_add(l_emi_header, "address", l_emi_address);
+    json_object_object_add(l_emi_obj, "header", l_emi_header);
+    json_object *l_emi_data = json_object_new_object();
+    switch (a_emission->hdr.type){
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH: {
+            json_object *l_obj_size = json_object_new_uint64(a_emission->data.type_auth.size);
+            json_object *l_obj_tsd_total_size = json_object_new_uint64(a_emission->data.type_auth.tsd_total_size);
+            json_object *l_obj_signs_count = json_object_new_uint64(a_emission->data.type_auth.signs_count);
+            json_object_object_add(l_emi_data, "size", l_obj_size);
+            json_object_object_add(l_emi_data, "tsd_total_size", l_obj_tsd_total_size);
+            json_object_object_add(l_emi_data, "signs_count", l_obj_signs_count);
+            if (((void *) a_emission->tsd_n_signs + a_emission->data.type_auth.tsd_total_size) >
+                  ((void *) a_emission + a_emission_size)) {
+                char *l_err_str = dap_strdup_printf("Malformed DATUM type %d, TSD section is out-of-buffer (%" DAP_UINT64_FORMAT_U " vs %zu)",
+                                                            a_emission->hdr.type, a_emission->data.type_auth.tsd_total_size, a_emisssion_size);
+                json_object *l_err_tsd = json_object_new_string(l_err_str);
+                json_object_object_add(l_emi_data, "ERROR", l_err_str);
+            }
+            json_object *l_obj_signs = json_object_new_array();
+            size_t l_offset = 0;
+            for (int i = 1; i < a_emission->data.type_auth.signs_count; i++) {
+                dap_sign_t *l_sign = (dap_sign_t *) ((byte_t)a_emission->tsd_n_signs + l_offset);
+                l_offset += dap_sign_get_size(l_sign);
+                json_object *l_obj_sign = dap_sign_to_json(l_sign);
+                json_object_array_add(l_obj_signs);
+            }
+            json_object_object_add(l_emi_data, "signs", l_obj_signs);
+
+        }
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ALGO: {
+            json_object *l_code_name = json_object_new_string(a_emission->data.type_algo.codename);
+            json_object_object_add(l_emi_data, "codename", l_code_name);
+        } break;
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ATOM_OWNER: {
+            json_object *l_value_start = json_object_new_uint64(a_emission->data.type_atom_owner.value_start);
+            json_object *l_value_change_algo_codename = json_object_new_string(
+                    a_emission->data.type_atom_owner.value_change_algo_codename);
+            json_object_object_add(l_emi_data, "value_start", l_value_start);
+            json_object_object_add(l_emi_data, "value_change_algo_codename", l_value_change_algo_codename);
+        } break;
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_SMART_CONTRACT:
+        {
+            json_object *l_obj_addr = dap_chain_addr_to_json(&a_emission->data.type_presale.addr);
+            json_object *l_obj_flags = json_object_new_int64(a_emission->data.type_presale.flags);
+            json_object *l_obj_lock_time = json_object_new_uint64(a_emission->data.type_presale.lock_time);
+            json_object_object_add(l_emi_data, "addr", l_obj_addr);
+            json_object_object_add(l_emi_data, "flags", l_obj_flags);
+            json_object_object_add(l_emi_data, "lock_time", l_obj_lock_time);
+        }break;
+    }
+    json_object_object_add(l_emi_obj, "data", l_emi_data);
+    return  l_emi_obj;
 }
 

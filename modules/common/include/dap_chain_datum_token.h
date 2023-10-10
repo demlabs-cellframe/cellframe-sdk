@@ -517,5 +517,6 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_add_sign(dap_enc_key_
 dap_chain_datum_token_emission_t *dap_chain_datum_emission_append_sign(dap_sign_t  *a_sign, dap_chain_datum_token_emission_t *a_emission);
 
 dap_sign_t *dap_chain_datum_emission_get_signs(dap_chain_datum_token_emission_t *a_emission, size_t *a_signs_count);
+json_object *dap_chain_datum_emission_to_json(dap_chain_datum_token_emission_t *a_emission, size_t a_emission_size);
 // 256 TYPE
 bool dap_chain_datum_token_is_old(uint8_t a_type);
