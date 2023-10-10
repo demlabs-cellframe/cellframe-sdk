@@ -135,7 +135,7 @@ void dap_chain_net_balancer_prepare_list_links(const char *a_net_name)
     dap_list_free_full(l_net->pub.link_list, NULL);
     l_net->pub.link_list = NULL;
     dap_time_t l_time = dap_time_now();
-    uint32_t l_timeout = 300 + dap_config_get_item_uint32_default(g_config, "node_client", "timer_update_states", 600);
+    uint32_t l_timeout = 2 * dap_config_get_item_uint32_default(g_config, "node_client", "timer_update_states", 600);
     for (size_t i = 0; i < l_nodes_count; i++)
     {
         dap_chain_node_info_t *l_node_cand = (dap_chain_node_info_t *)l_objs[i].value;
