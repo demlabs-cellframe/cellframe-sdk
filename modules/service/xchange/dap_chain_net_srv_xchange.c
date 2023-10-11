@@ -496,7 +496,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
     bool l_pay_with_native = !dap_strcmp(a_price->token_buy, l_native_ticker);
     // find the transactions from which to take away coins
     uint256_t l_value_transfer, // how many coins to transfer
-              l_value_need = a_price->datoshi_buy,
+              l_value_need = a_datoshi_buy, //a_price->datoshi_buy,
               l_net_fee,
               l_service_fee,
               l_total_fee = a_datoshi_fee,
