@@ -424,7 +424,7 @@ DAP_STATIC_INLINE bool dap_chain_datum_token_is_old(uint8_t a_type)
            || a_type == DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PUBLIC;
 }
 
-json_object *dap_chain_datum_token_to_json(dap_chain_datum_token_t * a_token);
+json_object *dap_chain_datum_token_to_json(dap_chain_datum_token_t * a_token, size_t a_token_size);
 
 /*                              Token emission section                          */
 
