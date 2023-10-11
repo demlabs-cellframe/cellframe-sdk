@@ -133,8 +133,6 @@ static char **s_list_ban_groups = NULL;
 static char **s_list_white_groups = NULL;
 static uint16_t s_size_ban_groups = 0;
 static uint16_t s_size_white_groups = 0;
-static dap_stream_ch_chain_packet_time_t * s_obj_time = NULL;
-
 
 #ifdef  DAP_SYS_DEBUG
 
@@ -714,14 +712,13 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
         uint32_t l_time_store_lim_hours = dap_config_get_item_uint32_default(g_config, "global_db", "time_store_limit", 72);
         dap_nanotime_t l_time_now = dap_nanotime_now();
         dap_nanotime_t l_time_alowed = l_time_now + dap_nanotime_from_sec(3600 * 24); // to be sure the timestamp is invalid
-
         for (size_t i = 0; i < l_data_obj_count; i++) {
             // obj to add
             dap_store_obj_t *l_obj = l_store_obj + i;
             if (l_obj->timestamp >> 32 == 0 ||
                     l_obj->timestamp > l_time_alowed ||
                     l_obj->group == NULL)
-                continue;       // the object is broken            
+                continue;       // the object is broken
             if (s_list_white_groups) {
                 int l_ret = -1;
                 for (int i = 0; i < s_size_white_groups; i++) {

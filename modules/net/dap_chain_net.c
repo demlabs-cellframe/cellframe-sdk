@@ -183,6 +183,7 @@ typedef struct dap_chain_net_pvt{
     uint16_t reconnect_delay;         // sec
 
     struct downlink *downlinks;         // HT of links who sent SYNC REQ, it used for sync broadcasting
+    atomic_uint downlinks_cnt;
 
     bool load_mode;
     char ** seed_aliases;
@@ -457,6 +458,7 @@ void dap_chain_net_add_downlink_cb(UNUSED_ARG dap_worker_t *a_worker, void *a_ar
         return;
     }
     HASH_ADD_BYHASHVALUE(hh, l_net_pvt->downlinks, ch_uuid, sizeof(l_downlink->ch_uuid), a_hash_value, l_downlink);
+    l_net_pvt->downlinks_cnt++;
     pthread_mutex_unlock(&l_net_pvt->downlinks_mutex);
 }
 
@@ -486,10 +488,8 @@ int dap_chain_net_get_downlink_count(dap_chain_net_t *a_net,uint32_t * a_count)
     if (!a_net)
         return -1;
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
-    pthread_mutex_lock(&PVT(a_net)->downlinks_mutex);
-    l_count = HASH_COUNT(l_net_pvt->downlinks);
+    l_count = l_net_pvt->downlinks_cnt;
     *a_count = l_count;
-    pthread_mutex_unlock(&PVT(a_net)->downlinks_mutex);
     return 0;
 }
 
@@ -503,6 +503,7 @@ void dap_chain_net_del_downlink(dap_stream_ch_uuid_t *a_ch_uuid) {
         HASH_FIND_BYHASHVALUE(hh, l_net_pvt->downlinks, a_ch_uuid, sizeof(*a_ch_uuid), l_hash_value, l_downlink);
         if (l_downlink) {
             HASH_DEL(l_net_pvt->downlinks, l_downlink);
+            l_net_pvt->downlinks_cnt--;
             log_it(L_MSG, "Remove downlink %s : %d from net ht", l_downlink->addr, l_downlink->port);
             DAP_DELETE(l_downlink);
         }
@@ -1413,6 +1414,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
             pthread_mutex_lock(&l_net_pvt->downlinks_mutex);
             HASH_ITER(hh, l_net_pvt->downlinks, l_downlink, l_dltmp) {
                 HASH_DEL(l_net_pvt->downlinks, l_downlink);
+                l_net_pvt->downlinks_cnt--;
                 dap_events_socket_delete_mt(l_downlink->worker->worker, l_downlink->esocket_uuid);
                 DAP_DELETE(l_downlink);
             }

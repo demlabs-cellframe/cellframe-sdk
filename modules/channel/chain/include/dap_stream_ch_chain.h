@@ -86,13 +86,6 @@ typedef struct dap_stream_ch_chain {
     void *callback_notify_arg;
 } dap_stream_ch_chain_t;
 
-typedef struct dap_stream_ch_chain_packet_time{
-    dap_chain_hash_fast_t hash_pkey;
-    dap_nanotime_t last_timestamp_obj;
-    //uint64_t last_timestamp_obj;
-    UT_hash_handle hh;
-} dap_stream_ch_chain_packet_time_t;
-
 #define DAP_STREAM_CH_CHAIN(a) ((dap_stream_ch_chain_t *) ((a)->internal) )
 #define DAP_STREAM_CH(a) ((dap_stream_ch_t *)((a)->_inheritor))
 #define DAP_CHAIN_PKT_EXPECT_SIZE 7168
