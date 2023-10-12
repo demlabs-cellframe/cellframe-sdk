@@ -1047,22 +1047,23 @@ json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum){
             break;
         case DAP_CHAIN_DATUM_ANCHOR:
             l_obj_data = dap_chain_datum_anchor_to_json((dap_chain_datum_anchor_t*)a_datum->data);
+            break;
         case DAP_CHAIN_DATUM_TOKEN_DECL: {
             size_t l_token_size = a_datum->header.data_size;
             dap_chain_datum_token_t *l_token = dap_chain_datum_token_read(a_datum->data, &l_token_size);
             l_obj_data = dap_chain_datum_token_to_json(l_token, l_token_size);
             json_object_object_add(l_obj_data, "TSD", s_dap_chain_datum_token_tsd_to_json(l_token, l_token_size));
             DAP_DELETE(l_token);
-        }
+        } break;
         case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
             size_t l_emission_size = 0;
             dap_chain_datum_token_emission_t *l_emission = dap_chain_datum_emission_read(a_datum->data, &l_emission_size);
-            if (!l_emission_size) {
+            if (l_emission_size == 0 || !l_emission) {
                 json_object *l_err = json_object_new_string("Failed to read issue.");
                 l_obj_data = json_object_new_object();
                 json_object_object_add(l_obj_data, "error", l_err);
-            }
-            l_obj_data = dap_chain_datum_emission_to_json(l_emission, l_emission_size);
+            } else
+                l_obj_data = dap_chain_datum_emission_to_json(l_emission, l_emission_size);
         } break;
         default:
             l_obj_data = json_object_new_null();
