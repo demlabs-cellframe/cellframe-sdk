@@ -38,6 +38,7 @@
 #include "utlist.h"
 
 #include "dap_chain_common.h"
+#include "dap_chain_datum.h"
 #include "dap_events.h"
 #include "dap_math_ops.h"
 #include "dap_list.h"
@@ -2054,7 +2055,7 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
                 ||	(l_token_item->type != DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC)) {
             char *l_balance_cur = dap_chain_balance_print(l_token_item->current_supply);
             char *l_balance_total = dap_chain_balance_print(l_token_item->total_supply);
-            s_datum_token_dump_tsd(l_str_tmp, l_token_item->datum_token, l_token_item->datum_token_size, "hex");
+            dap_chain_datum_token_dump_tsd(l_str_tmp, l_token_item->datum_token, l_token_item->datum_token_size, "hex");
             size_t l_certs_field_size = l_token_item->datum_token_size - sizeof(*l_token_item->datum_token) - l_token_item->datum_token->header_native_decl.tsd_total_size;
             dap_chain_datum_token_certs_dump(l_str_tmp, l_token_item->datum_token->data_n_tsd + l_token_item->datum_token->header_native_decl.tsd_total_size,
                                          l_certs_field_size, "hex");

@@ -72,7 +72,7 @@ typedef struct dap_stream_ch_chain {
 
     // request section
     dap_chain_atom_iter_t *request_atom_iter;
-    dap_db_log_list_t *request_db_log; // list of global db records
+    //dap_db_log_list_t *request_db_log; // list of global db records
     dap_stream_ch_chain_sync_request_t request;
     dap_stream_ch_chain_pkt_hdr_t request_hdr;
     dap_list_t *request_db_iter;

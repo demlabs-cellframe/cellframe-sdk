@@ -76,7 +76,6 @@ typedef struct dap_chain_net{
         dap_ledger_t  *ledger;
         dap_chain_net_decree_t *decree;
 
-        pthread_mutex_t balancer_mutex;
         dap_list_t *link_list;
         dap_list_t *bridged_networks;   // List of bridged network ID's allowed to cross-network TXs
     } pub;

@@ -58,7 +58,7 @@ dap_chain_datum_t *dap_chain_datum_create(uint16_t a_type_id, const void *a_data
    return  l_datum;
 }
 
-void s_datum_token_dump_tsd(dap_string_t *a_str_out, dap_chain_datum_token_t *a_token, size_t a_token_size, const char *a_hash_out_type)
+void dap_chain_datum_token_dump_tsd(dap_string_t *a_str_out, dap_chain_datum_token_t *a_token, size_t a_token_size, const char *a_hash_out_type)
 {
     dap_tsd_t *l_tsd = dap_chain_datum_token_tsd_get(a_token, a_token_size);
     if (l_tsd == NULL) {
@@ -90,7 +90,7 @@ void s_datum_token_dump_tsd(dap_string_t *a_str_out, dap_chain_datum_token_t *a_
         l_tsd = (dap_tsd_t *) (((byte_t*)l_tsd) + l_tsd_size);
         l_tsd_size = l_tsd ? dap_tsd_size(l_tsd) : 0;
         if (l_tsd_size == 0) {
-            log_it(L_ERROR,"Wrong zero TSD size, exiting s_datum_token_dump_tsd()");
+            log_it(L_ERROR,"Wrong zero TSD size, exiting dap_chain_datum_token_dump_tsd()");
             return;
         } else if (l_tsd_size+l_offset > l_tsd_total_size) {
             log_it(L_WARNING, "<CORRUPTED TSD> too big size %u when left maximum %zu",
@@ -599,7 +599,7 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
                             dap_string_append_printf(a_str_out, "total_supply: %s\n", l_value_str);
                             dap_string_append(a_str_out,"flags: ");
                             dap_chain_datum_token_flags_dump(a_str_out, l_token->header_private_update.flags);
-                            s_datum_token_dump_tsd(a_str_out, l_token, l_token_size, a_hash_out_type);
+                            dap_chain_datum_token_dump_tsd(a_str_out, l_token, l_token_size, a_hash_out_type);
                             size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_private_update.tsd_total_size;
                             dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd + l_token->header_private_update.tsd_total_size,
                                                              l_certs_field_size, a_hash_out_type);
@@ -613,7 +613,7 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
                             dap_string_append_printf(a_str_out, "total_supply: %s\n", l_value_str);
                             dap_string_append(a_str_out, "flags: ");
                             dap_chain_datum_token_flags_dump(a_str_out, l_token->header_native_decl.flags);
-                            s_datum_token_dump_tsd(a_str_out, l_token, l_token_size, a_hash_out_type);
+                            dap_chain_datum_token_dump_tsd(a_str_out, l_token, l_token_size, a_hash_out_type);
                             size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_native_decl.tsd_total_size;
                             dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd + l_token->header_native_decl.tsd_total_size,
                                                              l_certs_field_size, a_hash_out_type);
@@ -644,7 +644,7 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
                             dap_string_append_printf(a_str_out, "total_supply: %s\n", l_value_str);
                             dap_string_append(a_str_out,"flags: ");
                             dap_chain_datum_token_flags_dump(a_str_out, l_token->header_private_update.flags);
-                            s_datum_token_dump_tsd(a_str_out, l_token, l_token_size, a_hash_out_type);
+                            dap_chain_datum_token_dump_tsd(a_str_out, l_token, l_token_size, a_hash_out_type);
                             size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_private_update.tsd_total_size;
                             dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd + l_token->header_private_update.tsd_total_size,
                                                              l_certs_field_size, a_hash_out_type);
@@ -658,7 +658,7 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
                             dap_string_append_printf(a_str_out, "total_supply: %s\n", l_value_str);
                             dap_string_append(a_str_out, "flags: ");
                             dap_chain_datum_token_flags_dump(a_str_out, l_token->header_native_update.flags);
-                            s_datum_token_dump_tsd(a_str_out, l_token, l_token_size, a_hash_out_type);
+                            dap_chain_datum_token_dump_tsd(a_str_out, l_token, l_token_size, a_hash_out_type);
                             size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_native_update.tsd_total_size;
                             dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd + l_token->header_native_update.tsd_total_size,
                                                              l_certs_field_size, a_hash_out_type);

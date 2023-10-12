@@ -8,7 +8,6 @@
 #include "dap_stream_ch_chain_voting.h"
 #include "dap_chain_net.h"
 #include "dap_client_pvt.h"
-#include "dap_proc_queue.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_cs_blocks.h"
 
