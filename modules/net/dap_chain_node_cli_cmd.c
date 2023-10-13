@@ -2251,7 +2251,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
 
 int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(int *a_arg_index, int a_argc,
-                                                           char **a_argv, json_object *a_obj_reply,
+                                                           char **a_argv,
                                                            dap_chain_t **a_chain, dap_chain_net_t **a_net) {
     const char * l_chain_str = NULL;
     const char * l_net_str = NULL;
@@ -2979,8 +2979,8 @@ int com_mempool_list(int a_argc, char **a_argv, json_object **a_json_reply)
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
     const char *l_chain_str = NULL;
     (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain", NULL) == false) ?
-        dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, a_argc, a_argv, a_json_reply, NULL, &l_net) :
-        dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, a_argc, a_argv, a_json_reply, &l_chain, &l_net);
+        dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, a_argc, a_argv, NULL, &l_net) :
+        dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, a_argc, a_argv, &l_chain, &l_net);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_base58);
     l_fast = (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-fast") != -1) ? true : false;
     if(!l_net)
@@ -3196,7 +3196,7 @@ int com_mempool_proc(int a_argc, char **a_argv, json_object **a_json_reply)
     int arg_index = 1;
     dap_chain_t * l_chain = NULL;
     dap_chain_net_t * l_net = NULL;
-    dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, a_argc, a_argv, a_json_reply, &l_chain, &l_net);
+    dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, a_argc, a_argv, &l_chain, &l_net);
     if (!l_net || !l_chain)
         return -1;
 
@@ -3329,26 +3329,33 @@ int com_mempool_proc(int a_argc, char **a_argv, json_object **a_json_reply)
  * @param a_str_reply
  * @return
  */
-int com_mempool_proc_all(int argc, char ** argv, char ** a_str_reply) {
+int com_mempool_proc_all(int argc, char ** argv, json_object **a_json_reply) {
     dap_chain_net_t *l_net = NULL;
     dap_chain_t *l_chain = NULL;
     int arg_index = 1;
 
-    dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, argc, argv, a_str_reply, &l_chain, &l_net);
+    dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, argc, argv, &l_chain, &l_net);
     if (!l_net || !l_chain)
         return -1;
 
+    json_object *l_ret = json_object_new_object();
     if(!dap_chain_net_by_id(l_chain->net_id)) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s.%s: chain not found\n", l_net->pub.name,
-                                          l_chain->name);
+        char *l_warn_str = dap_strdup_printf("%s.%s: chain not found\n", l_net->pub.name,
+                                             l_chain->name);
+        json_object *l_warn_obj = json_object_new_string(l_warn_str);
+        DAP_DELETE(l_warn_str);
+        json_object_object_add(l_ret, "warning", l_warn_obj);
     }
 
 #ifdef DAP_TPS_TEST
     dap_chain_ledger_set_tps_start_time(l_net->pub.ledger);
 #endif
     dap_chain_node_mempool_process_all(l_chain, true);
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "The entire mempool has been processed in %s.%s.",
-                                                   l_net->pub.name, l_chain->name);
+    char *l_str_result = dap_strdup_printf("The entire mempool has been processed in %s.%s.",
+                                           l_net->pub.name, l_chain->name);
+    json_object *l_obj_result = json_object_new_string(l_str_result);
+    json_object_object_add(l_ret, "result", l_obj_result);
+    json_object_array_add(*a_json_reply, l_obj_result);
     return 0;
 }
 
