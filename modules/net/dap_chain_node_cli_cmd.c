@@ -3020,13 +3020,13 @@ int com_mempool_list(int a_argc, char **a_argv, json_object **a_json_reply)
  * @param a_str_reply
  * @return
  */
-int com_mempool_delete(int a_argc, char **a_argv, char **a_str_reply)
+int com_mempool_delete(int a_argc, char **a_argv, json_object **a_json_reply)
 {
     int arg_index = 1;
     dap_chain_t * l_chain = NULL;
     dap_chain_net_t * l_net = NULL;
 
-    if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net) != 0) {
+    if(dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, a_argc, a_argv, &l_chain, &l_net) != 0) {
         return -1;
     }
     const char * l_datum_hash_str = NULL;
@@ -3041,10 +3041,16 @@ int com_mempool_delete(int a_argc, char **a_argv, char **a_str_reply)
         uint8_t *l_data_tmp = dap_global_db_get_sync(l_gdb_group_mempool, l_datum_hash_hex_str ? l_datum_hash_hex_str : l_datum_hash_str,
                                                      NULL, NULL, NULL);
         if(l_data_tmp && dap_global_db_del_sync(l_gdb_group_mempool, l_datum_hash_hex_str) == 0) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s deleted", l_datum_hash_str);
+            char *l_msg_str = dap_strdup_printf("Datum %s deleted", l_datum_hash_str);
+            json_object *l_msg = json_object_new_string(l_msg_str);
+            DAP_DELETE(l_msg_str);
+            json_object_array_add(*a_json_reply, l_msg);
             return 0;
         } else {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Can't find datum %s", l_datum_hash_str);
+            char *l_msg_str = dap_strdup_printf("Error! Can't find datum %s", l_datum_hash_str);
+            json_object *l_msg = json_object_new_string(l_msg_str);
+            DAP_DELETE(l_msg_str);
+            json_object_array_add(*a_json_reply, l_msg);
             return -4;
         }
         DAP_DELETE(l_gdb_group_mempool);
@@ -3052,7 +3058,7 @@ int com_mempool_delete(int a_argc, char **a_argv, char **a_str_reply)
         if (l_datum_hash_hex_str != l_datum_hash_str)
             DAP_DELETE(l_datum_hash_hex_str);
     } else {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! %s requires -datum <datum hash> option", a_argv[0]);
+        dap_json_rpc_error_add(-3, "Error! %s requires -datum <datum hash> option", a_argv[0]);
         return -3;
     }
 }
@@ -4649,7 +4655,7 @@ int com_tx_cond_create(int a_argc, char ** a_argv, char **a_str_reply)
  * @param a_str_reply
  * @return
  */
-int com_mempool_add_ca(int a_argc,  char ** a_argv, char ** a_str_reply)
+int com_mempool_add_ca(int a_argc,  char ** a_argv, json_object ** a_json_reply)
 {
     int arg_index = 1;
 
@@ -4659,12 +4665,12 @@ int com_mempool_add_ca(int a_argc,  char ** a_argv, char ** a_str_reply)
     dap_chain_t * l_chain = NULL;
 
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-ca_name", &l_ca_name);
-    dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,a_argc, a_argv, a_str_reply, &l_chain, &l_net);
+    dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index,a_argc, a_argv, &l_chain, &l_net);
     if ( l_net == NULL ){
         return -1;
-    } else if (a_str_reply && *a_str_reply) {
-        DAP_DELETE(*a_str_reply);
-        *a_str_reply = NULL;
+    } else if (a_json_reply && *a_json_reply) {
+        DAP_DELETE(*a_json_reply);
+        *a_json_reply = NULL;
     }
 
     // Chech for chain if was set or not
@@ -4673,34 +4679,29 @@ int com_mempool_add_ca(int a_argc,  char ** a_argv, char ** a_str_reply)
         l_chain = dap_chain_net_get_chain_by_chain_type( l_net, CHAIN_TYPE_CA );
         if (l_chain == NULL) { // If can't auto detect
             // clean previous error code
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                    "No chains for CA datum in network \"%s\"", l_net->pub.name );
+            dap_json_rpc_error_add(-2, "No chains for CA datum in network \"%s\"", l_net->pub.name);
             return -2;
         }
     }
     // Check if '-ca_name' wasn't specified
     if (l_ca_name == NULL){
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "mempool_add_ca_public requires parameter '-ca_name' to specify the certificate name");
+        dap_json_rpc_error_add(-3, "mempool_add_ca_public requires parameter '-ca_name' to specify the certificate name");
         return -3;
     }
 
     // Find certificate with specified key
     dap_cert_t * l_cert = dap_cert_find_by_name( l_ca_name );
     if( l_cert == NULL ){
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "Can't find \"%s\" certificate", l_ca_name );
+        dap_json_rpc_error_add(-4, "Can't find \"%s\" certificate", l_ca_name);
         return -4;
     }
     if( l_cert->enc_key == NULL ){
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "Corrupted certificate \"%s\" without keys certificate", l_ca_name );
+        dap_json_rpc_error_add(-5, "Corrupted certificate \"%s\" without keys certificate", l_ca_name);
         return -5;
     }
 
     if ( l_cert->enc_key->priv_key_data_size || l_cert->enc_key->priv_key_data){
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "Certificate \"%s\" has private key data. Please export public only key certificate without private keys", l_ca_name );
+        dap_json_rpc_error_add(-6, "Certificate \"%s\" has private key data. Please export public only key certificate without private keys", l_ca_name);
         return -6;
     }
 
@@ -4708,16 +4709,14 @@ int com_mempool_add_ca(int a_argc,  char ** a_argv, char ** a_str_reply)
     uint32_t l_cert_serialized_size = 0;
     byte_t * l_cert_serialized = dap_cert_mem_save( l_cert, &l_cert_serialized_size );
     if( l_cert_serialized == NULL){
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "Can't serialize in memory certificate \"%s\"", l_ca_name );
+        dap_json_rpc_error_add(-7, "Can't serialize in memory certificate \"%s\"", l_ca_name);
         return -7;
     }
     // Now all the chechs passed, forming datum for mempool
     dap_chain_datum_t * l_datum = dap_chain_datum_create( DAP_CHAIN_DATUM_CA, l_cert_serialized , l_cert_serialized_size);
     DAP_DELETE( l_cert_serialized);
     if( l_datum == NULL){
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "Can't produce datum from certificate \"%s\"", l_ca_name );
+        dap_json_rpc_error_add(-7, "Can't produce datum from certificate \"%s\"", l_ca_name);
         return -7;
     }
 
@@ -4725,13 +4724,17 @@ int com_mempool_add_ca(int a_argc,  char ** a_argv, char ** a_str_reply)
     char *l_hash_str = dap_chain_mempool_datum_add(l_datum, l_chain, "hex");
     DAP_DELETE(l_datum);
     if (l_hash_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "Datum %s was successfully placed to mempool", l_hash_str);
+        char *l_msg = dap_strdup_printf("Datum %s was successfully placed to mempool", l_hash_str);
+        json_object *l_obj_message = json_object_new_string(l_msg);
+        DAP_DELETE(l_msg);
         DAP_DELETE(l_hash_str);
+        json_object_array_add(*a_json_reply, l_obj_message);
         return 0;
     } else {
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "Can't place certificate \"%s\" to mempool", l_ca_name);
+        char *l_msg = dap_strdup_printf("Can't place certificate \"%s\" to mempool", l_ca_name);
+        json_object *l_obj_msg = json_object_new_string(l_msg);
+        DAP_DELETE(l_msg);
+        json_object_array_add(*a_json_reply, l_obj_msg);
         return -8;
     }
 }
@@ -4745,9 +4748,9 @@ int com_mempool_add_ca(int a_argc,  char ** a_argv, char ** a_str_reply)
  * @param a_str_reply
  * @return
  */
-int com_chain_ca_copy( int a_argc,  char ** a_argv, char ** a_str_reply)
+int com_chain_ca_copy( int a_argc,  char ** a_argv, json_object ** a_json_reply)
 {
-    return com_mempool_add_ca(a_argc, a_argv, a_str_reply);
+    return com_mempool_add_ca(a_argc, a_argv, a_json_reply);
 }
 
 

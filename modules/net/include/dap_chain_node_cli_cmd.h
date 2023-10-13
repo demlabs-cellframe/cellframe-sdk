@@ -171,7 +171,7 @@ int com_exit(int a_argc, char **a_argv, char **a_str_reply);
 int cmd_gdb_import(int a_argc, char **a_argv, char **a_str_reply);
 int cmd_gdb_export(int a_argc, char **a_argv, char **a_str_reply);
 
-int com_mempool_delete(int a_argc, char **a_argv, char **a_str_reply);
+int com_mempool_delete(int a_argc, char **a_argv, json_object **a_json_reply);
 typedef enum com_mempool_list_err{
     DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_OK = 0,
     DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_MEMORY_ERR,
@@ -189,9 +189,9 @@ int com_mempool_check(int a_argc, char **a_argv, char **a_str_reply);
 /**
  * Place public CA into the mempool
  */
-int com_mempool_add_ca( int a_argc,  char **a_argv, char **a_str_reply);
+int com_mempool_add_ca( int a_argc,  char **a_argv, json_object **a_json_reply);
 int com_chain_ca_pub( int a_argc,  char **a_argv, char **a_str_reply);
-int com_chain_ca_copy( int a_argc,  char **a_argv, char **a_str_reply);
+int com_chain_ca_copy( int a_argc,  char **a_argv, json_object **a_json_reply);
 int com_signer(int a_argc, char **a_argv, char **a_str_reply);
 //remove func
 int cmd_remove(int a_argc, char **a_argv, char ** a_str_reply);
