@@ -148,7 +148,7 @@ static int s_cs_callback_new(dap_chain_t *a_chain, dap_config_t UNUSED_ARG *a_ch
     if (!l_nochain_priv) {
         log_it(L_CRITICAL, "Memory allocation error");
         DAP_DELETE(l_nochain);
-        return -1;
+        return -2;
     }
     l_nochain->chain = a_chain;
     l_nochain->_internal = (void*) l_nochain_priv;
@@ -159,10 +159,13 @@ static int s_cs_callback_new(dap_chain_t *a_chain, dap_config_t UNUSED_ARG *a_ch
 
     l_nochain_priv->group_datums = dap_chain_net_get_gdb_group_nochain_new(a_chain);
     // Add group prefix that will be tracking all changes
-    dap_global_db_cluster_add(dap_global_db_instance_get_default(), l_net->pub.name,
+    if (dap_global_db_cluster_add(dap_global_db_instance_get_default(), l_net->pub.name,
                               l_nochain_priv->group_datums, 0, true,
                               s_changes_callback_notify, a_chain,
-                              DAP_GDB_MEMBER_ROLE_USER);
+                              DAP_GDB_MEMBER_ROLE_USER, DAP_CLUSTER_ROLE_EMBEDDED)) {
+        log_it(L_ERROR, "Can't create global DB cluster for synchronization");
+        return -3;
+    }
 
     dap_chain_add_mempool_notify_callback(a_chain, s_nonconsensus_callback_mempool_notify, a_chain);
 

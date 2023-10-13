@@ -256,7 +256,7 @@ static int s_net_load(dap_chain_net_t *a_net);
 
 // Notify callback for GlobalDB changes
 static void s_gbd_history_callback_notify(dap_global_db_instance_t *a_dbi, dap_store_obj_t *a_obj, void *a_arg);
-static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, void *a_atom, size_t a_atom_size);
+static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, void *a_atom, size_t a_atom_size){}
 static int s_cli_net(int argc, char ** argv, char **str_reply);
 static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
 static void s_prepare_links_from_balancer(dap_chain_net_t *a_net);
@@ -321,10 +321,6 @@ int dap_chain_net_init()
             "\tPrint list of PoA cerificates for this network\n");
 
     s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more",false);
-    if(s_net_init_node_addr_cert()) {
-        log_it(L_ERROR,"Error init node-addr cert");
-        return -1;
-    }
 
     char * l_net_dir_str = dap_strdup_printf("%s/network", dap_config_path());
     DIR * l_net_dir = opendir( l_net_dir_str);
@@ -436,24 +432,6 @@ void dap_chain_net_add_gdb_notify_callback(dap_chain_net_t *a_net, dap_store_obj
     l_notifier->callback = a_callback;
     l_notifier->cb_arg = a_cb_arg;
     PVT(a_net)->gdb_notifiers = dap_list_append(PVT(a_net)->gdb_notifiers, l_notifier);
-}
-
-static void s_chain_callback_notify(void *a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, void* a_atom, size_t a_atom_size)
-{
-    if (!a_arg || !a_chain || !a_atom) {
-        log_it(L_ERROR, "Argument is NULL for s_chain_callback_notify");
-        return;
-    }
-    dap_chain_net_t *l_net = (dap_chain_net_t*)a_arg;
-    // Check object lifetime for broadcasting decision
-    dap_time_t l_time_diff = dap_time_now() - a_chain->callback_atom_get_timestamp(a_atom);
-    if (l_time_diff > DAP_BROADCAST_LIFETIME * 60)
-        return;
-
-    if(!dap_stream_ch_chain_pkt_write_mt(l_link->worker, l_link->ch_uuid, DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN,
-                                     l_net->pub.id.uint64, l_args->chain_id, l_args->cell_id,
-                                     l_args->atom, l_args->atom_size))
-        debug_if(g_debug_reactor, L_ERROR, "Can't send atom to worker (%d) for writing", l_link->worker->worker->id);
 }
 
 /**
@@ -1391,7 +1369,6 @@ static dap_chain_net_t *s_net_new(const char *a_id, const char *a_name,
     pthread_mutexattr_settype(&l_mutex_attr, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&PVT(l_ret)->uplinks_mutex, &l_mutex_attr);
     pthread_mutex_init(&l_ret->pub.balancer_mutex, &l_mutex_attr);
-    pthread_mutex_init(&PVT(l_ret)->downlinks_mutex, &l_mutex_attr);
     pthread_mutexattr_destroy(&l_mutex_attr);
     if (dap_chain_net_id_parse(a_id, &l_ret->pub.id) != 0) {
         DAP_DELETE(l_ret);
@@ -1428,7 +1405,6 @@ static dap_chain_net_t *s_net_new(const char *a_id, const char *a_name,
 void dap_chain_net_delete(dap_chain_net_t *a_net)
 {
     pthread_mutex_destroy(&PVT(a_net)->uplinks_mutex);
-    pthread_mutex_destroy(&PVT(a_net)->downlinks_mutex);
     pthread_mutex_destroy(&a_net->pub.balancer_mutex);
     if(PVT(a_net)->seed_aliases) {
         DAP_DELETE(PVT(a_net)->seed_aliases);
@@ -2184,12 +2160,12 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
             return -1;
         }
     }
-    dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
+    dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
     l_net_pvt->load_mode = true;
     l_net_pvt->acl_idx = a_acl_idx;
-    l_net->pub.gdb_groups_prefix = dap_strdup (
-                dap_config_get_item_str_default(l_cfg , "general" , "gdb_groups_prefix",
-                                                dap_config_get_item_str(l_cfg , "general" , "name" ) ) );
+    l_net->pub.gdb_groups_prefix = dap_strdup(
+                dap_config_get_item_str_default(l_cfg, "general", "gdb_groups_prefix",
+                                                dap_config_get_item_str(l_cfg, "general", "name")));
     dap_global_db_add_sync_group(l_net->pub.name, "global", s_gbd_history_callback_notify, l_net);
     dap_global_db_add_sync_group(l_net->pub.name, l_net->pub.gdb_groups_prefix, s_gbd_history_callback_notify, l_net);
 
@@ -2363,18 +2339,18 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
             const char * l_ext_addr_v4 = dap_config_get_item_str_default(g_config, "server", "ext_address", NULL);
             const char * l_ext_addr_v6 = dap_config_get_item_str_default(g_config, "server", "ext_address6", NULL);
             uint16_t l_node_info_port = dap_config_get_item_uint16_default(g_config, "server", "ext_port_tcp",
-                                        dap_config_get_item_uint16_default(g_config, "server", "listen_port_tcp", 8079);
+                                        dap_config_get_item_uint16_default(g_config, "server", "listen_port_tcp", 8079));
             if (l_ext_addr_v4)
                 inet_pton(AF_INET, l_ext_addr_v4, &l_net_pvt->node_info->hdr.ext_addr_v4);
             if (l_ext_addr_v6)
                 inet_pton(AF_INET6, l_ext_addr_v6, &l_net_pvt->node_info->hdr.ext_addr_v6);
             l_net_pvt->node_info->hdr.ext_port = l_node_info_port;
         } else
-            log_it(L_INFO,"Server is disabled, add only node address in nodelist");
+            log_it(L_INFO, "Server is disabled, add only node address in nodelist");
     }
-    log_it(L_NOTICE,"GDB Info: node_addr: " NODE_ADDR_FP_STR"  links: %u cell_id: 0x%016"DAP_UINT64_FORMAT_X,
-           NODE_ADDR_FP_ARGS(l_node_addr),
-           l_net_pvt->node_info->hdr.links_number,
+    log_it(L_NOTICE, "Net load information: node_addr " NODE_ADDR_FP_STR ", balancers links %u, cell_id 0x%016"DAP_UINT64_FORMAT_X,
+           NODE_ADDR_FP_ARGS(g_node_addr),
+           l_net_pvt->seed_aliases_count,
            l_net_pvt->node_info->hdr.cell_id.uint64);
 
     /* *** Chains init by configs *** */
