@@ -165,10 +165,10 @@ int dap_chain_cs_blocks_init()
                 "\t\tCreate new block and flush memory if was smth formed before\n\n"
 
             "block -net <net_name> -chain <chain_name> new_datum_add <datum_hash>\n"
-                "\t\tAdd block section from datum <datum hash> taken from the mempool\n\n"
+                "\t\tAdd block section from datum <datum_hash> taken from the mempool\n\n"
 
             "block -net <net_name> -chain <chain_name> new_datum_del <datum_hash>\n"
-                "\t\tDel block section with datum <datum hash>\n\n"
+                "\t\tDel block section with datum <datum_hash>\n\n"
 
             "block -net <net_name> -chain <chain_name> new_datum_list\n"
                 "\t\tList block sections and show their datums hashes\n\n"

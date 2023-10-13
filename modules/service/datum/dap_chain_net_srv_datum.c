@@ -41,10 +41,9 @@ void s_order_notficator(dap_global_db_context_t *a_context, dap_store_obj_t *a_o
 int dap_chain_net_srv_datum_init()
 {
     dap_cli_server_cmd_add("srv_datum", s_srv_datum_cli, "Service Datum commands", 
-        "srv_datum -net <net_name> -chain <chain_name> datum save -datum <datum_hash>\n"
-            "\tSaving datum from mempool to file.\n\n"
-        "srv_datum -net <net_name> -chain <chain_name> datum load -datum <datum_hash>\n"
-            "\tLoad datum custum from file to mempool.\n\n");
+        "srv_datum -net <net_name> -chain <chain_name> datum {save | load} -datum <datum_hash>\n"
+            "\tdatum = save: Saving datum from mempool to file.\n"
+            "\tdatum = load: Load datum custum from file to mempool.\n\n");
     s_srv_datum = DAP_NEW_Z(dap_chain_net_srv_t);
     if (!s_srv_datum) {
         log_it(L_CRITICAL, "Memory allocation error");
@@ -115,7 +114,7 @@ static int s_srv_datum_cli(int argc, char ** argv, char **a_str_reply) {
     const char * l_datum_hash_str = NULL;
     dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-datum", &l_datum_hash_str);
     if (!l_datum_hash_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command srv_datum requires parameter '-datum' <datum hash>");
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command srv_datum requires parameter '-datum' <datum_hash>");
         return -4;
     }
 

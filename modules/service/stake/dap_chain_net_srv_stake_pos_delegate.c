@@ -69,9 +69,9 @@ int dap_chain_net_srv_stake_pos_delegate_init()
     "srv_stake order create -net <net_name> -value <value> -cert <priv_cert_name> \n"
         "\tCreates a new order signed with a delegated key, which declares the commission for which \n"
         "\tthe node agrees to conduct the transaction.\n"
-    "srv_stake order remove -net <net_name> -order <order_hash> [-H {hex | base58(default)}]\n"
+    "srv_stake order remove -net <net_name> -order <ip_addr> [-H {hex | base58(default)}]\n"
          "\tRemove order with specified hash\n"
-    "srv_stake order update -net <net_name> -order <order_hash> [-H {hex | base58(default)}] -cert <priv_cert_name>  -value <value>\n"
+    "srv_stake order update -net <net_name> -order <ip_addr> [-H {hex | base58(default)}] -cert <priv_cert_name>  -value <value>\n"
          "\tUpdate order with specified hash\n"
     "srv_stake order list -net <net_name>\n"
          "\tGet the fee orders list within specified net name\n"
@@ -88,9 +88,9 @@ int dap_chain_net_srv_stake_pos_delegate_init()
                             " {-w <wallet_name> -fee <value> | -poa_cert <cert_name>}\n"
          "\tInvalidate requested delegated stake transaction by hash or cert name or cert pkey hash within net name and"
          " return m-tokens to specified wallet (if any)\n"
-    "srv_stake min_value -net <net_name> -cert <cert_name> -value <value>"
+    "srv_stake min_value -net <net_name> -cert <cert_name> -value <value>\n"
          "\tSets the minimum stake value\n"
-    "srv_stake check -net <net_name> -tx <tx_hash>"
+    "srv_stake check -net <net_name> -tx <tx_hash>\n"
          "\tCheck remote validator"
     );
 
