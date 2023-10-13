@@ -5613,7 +5613,7 @@ int dap_chain_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, 
     l_new_verificator = DAP_NEW(dap_chain_ledger_verificator_t);
     if ( !l_new_verificator ) {
         log_it(L_CRITICAL, "Memory allocation error");
-        return -1; 
+        return -1;
     }
     l_new_verificator->subtype = (int)a_subtype;
     l_new_verificator->callback = a_callback;
