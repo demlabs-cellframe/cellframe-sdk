@@ -45,6 +45,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "uthash.h"
 
 #define DAP_CHAIN_NET_NAME_MAX 32
+#define DAP_CHAIN_NET_MEMPOOL_TTL 48 // Hours
 
 struct dap_chain_node_info;
 typedef struct dap_chain_node_client dap_chain_node_client_t;
@@ -89,6 +90,11 @@ DAP_STATIC_INLINE int dap_chain_net_id_parse(const char *a_id_str, dap_chain_net
     if (!res)
         a_id->uint64 = l_id;
     return res;
+}
+
+DAP_STATIC_INLINE dap_cluster_member_t *dap_chain_net_add_validator_addr(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_addr)
+{
+    return dap_global_db_cluster_member_add(PVT(a_net)->mempool_cluster, a_addr, DAP_GDB_MEMBER_ROLE_ROOT);
 }
 
 typedef bool (dap_chain_datum_filter_func_t)(dap_chain_datum_t *a_datum, dap_chain_t * a_chain, void *a_filter_func_param);

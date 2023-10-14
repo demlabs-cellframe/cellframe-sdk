@@ -1663,7 +1663,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Connection established");
     } break;
     case CMD_CONNECTIONS: {
-        dap_global_db_cluster_t *l_links_cluster = dap_global_db_cluster_by_mnemonim(l_net->pub.name);
+        dap_global_db_cluster_t *l_links_cluster = dap_cluster_by_mnemonim(l_net->pub.name);
         if (!l_links_cluster) {
              dap_cli_server_cmd_set_reply_text(a_str_reply, "Not found links cluster for net %s", l_net->pub.name);
              break;

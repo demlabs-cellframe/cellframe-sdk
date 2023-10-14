@@ -155,8 +155,7 @@ typedef struct dap_chain_net_pvt{
     uint32_t  flags;
     time_t    last_sync;
 
-    dap_chain_node_addr_t * node_addr;
-    dap_chain_node_info_t * node_info;  // Current node's info
+    dap_chain_node_info_t *node_info;  // Current node's info
 
     atomic_uint balancer_link_requests;
     bool balancer_http;
@@ -198,6 +197,7 @@ typedef struct dap_chain_net_pvt{
     pthread_mutex_t uplinks_mutex;
 
     dap_list_t *gdb_notifiers;
+    dap_global_db_cluster_t *mempool_cluster;
 } dap_chain_net_pvt_t;
 
 typedef struct dap_chain_net_item{
@@ -434,17 +434,36 @@ void dap_chain_net_add_gdb_notify_callback(dap_chain_net_t *a_net, dap_store_obj
     PVT(a_net)->gdb_notifiers = dap_list_append(PVT(a_net)->gdb_notifiers, l_notifier);
 }
 
-/**
- * @brief added like callback in dap_global_db_add_sync_group
- *
- * @param a_arg arguments. Can be network object (dap_chain_net_t)
- * @param a_op_code object type (f.e. l_net->type from dap_store_obj)
- * @param a_group group, for example "chain-gdb.home21-network.chain-F"
- * @param a_key key hex value, f.e. 0x12EFA084271BAA5EEE93B988E73444B76B4DF5F63DADA4B300B051E29C2F93
- * @param a_value buffer with data
- * @param a_value_len buffer size
- */
-static void s_gbd_history_callback_notify(dap_global_db_instance_t *a_dbi, dap_store_obj_t *a_obj, void *a_arg)
+static void s_mempool_change_notify(dap_global_db_instance_t *a_dbi, dap_store_obj_t *a_obj, void *a_arg)
+{
+    if (!a_obj || !a_arg)
+        return;
+    dap_chain_t *l_chain;
+    DL_FOREACH(l_net->pub.chains, l_chain) {
+        if (!l_chain)
+            continue;
+        char *l_gdb_group_str = dap_chain_net_get_gdb_group_mempool_new(l_chain);
+        if (!strcmp(a_obj->group, l_gdb_group_str)) {
+            for (dap_list_t *it = DAP_CHAIN_PVT(l_chain)->mempool_notifires; it; it = it->next) {
+                dap_chain_gdb_notifier_t *el = it->data;
+                if (!el)
+                    continue;
+                if (el->callback)
+                    el->callback(a_dbi, a_obj, el->cb_arg);
+            }
+        }
+        DAP_DELETE(l_gdb_group_str);
+    }
+}
+
+
+static void s_service_change_notify(dap_global_db_instance_t *a_dbi, dap_store_obj_t *a_obj, void *a_arg)
+{
+
+}
+
+// Exclude mempool and services
+static void s_network_change_notify(dap_global_db_instance_t *a_dbi, dap_store_obj_t *a_obj, void *a_arg)
 {
     if (!a_obj || !a_arg)
         return;
@@ -456,24 +475,8 @@ static void s_gbd_history_callback_notify(dap_global_db_instance_t *a_dbi, dap_s
         if (el->callback)
             el->callback(a_dbi, a_obj, el->cb_arg);
     }
-    dap_chain_t *l_chain;
-    DL_FOREACH(l_net->pub.chains, l_chain) {
-        if (!l_chain) {
-            continue;
-        }
-        char *l_gdb_group_str = dap_chain_net_get_gdb_group_mempool_new(l_chain);
-        if (!strcmp(a_obj->group, l_gdb_group_str)) {
-            for (dap_list_t *it = DAP_CHAIN_PVT(l_chain)->mempool_notifires; it; it = it->next) {
-                dap_chain_gdb_notifier_t *el = (dap_chain_gdb_notifier_t *)it->data;
-                if (!el)
-                    continue;
-                if (el->callback)
-                    el->callback(a_dbi, a_obj, el->cb_arg);
-            }
-        }
-        DAP_DELETE(l_gdb_group_str);
-    }
 }
+
 
 dap_chain_node_info_t *dap_get_balancer_link_from_cfg(dap_chain_net_t *a_net)
 {
@@ -2605,6 +2608,13 @@ int s_net_load(dap_chain_net_t *a_net)
 
     l_net_pvt->balancer_http = !dap_config_get_item_bool_default(l_cfg, "general", "use_dns_links", false);
 
+    char *l_gdb_mempool_mask = dap_strdup_printf("%s.*.mempool", l_net->pub.gdb_groups_prefix);
+    l_net->mempool_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
+                                                                           l_net->pub.name, l_gdb_mempool_mask,
+                                                                           DAP_CHAIN_NET_MEMPOOL_TTL, true,
+                                                                           s_mempool_change_notify, l_net,
+                                                                           DAP_GDB_MEMBER_ROLE_USER, DAP_CLUSTER_ROLE_EMBEDDED);
+    DAP_DELETE(l_gdb_mempool_mask);
     dap_chain_net_add_gdb_notify_callback(l_net, dap_chain_net_sync_gdb_broadcast, l_net);
     DL_FOREACH(l_net->pub.chains, l_chain)
         // add a callback to monitor changes in the chain
