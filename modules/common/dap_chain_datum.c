@@ -272,7 +272,9 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SET_FLAGS: {
                 json_object *l_jobj_tsd = json_object_new_object();
                 json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SET_FLAGS");
-                json_object *l_jobj_tsd_flag = dap_chain_datum_token_flags_to_json(dap_tsd_get_scalar(l_tsd, uint16_t));
+                uint16_t l_flags = 0;
+                _dap_tsd_get_scalar(l_tsd, &l_flags);
+                json_object *l_jobj_tsd_flag = dap_chain_datum_token_flags_to_json(l_flags);
                 json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
                 json_object_object_add(l_jobj_tsd, "flags", l_jobj_tsd_flag);
                 json_object_array_add(l_tsd_array, l_jobj_tsd);
@@ -280,7 +282,9 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UNSET_FLAGS: {
                 json_object *l_jobj_tsd = json_object_new_object();
                 json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UNSET_FLAGS");
-                json_object *l_jobj_tsd_flag = dap_chain_datum_token_flags_to_json(dap_tsd_get_scalar(l_tsd, uint16_t));
+                uint16_t l_flags = 0;
+                _dap_tsd_get_scalar(l_tsd, &l_flags);
+                json_object *l_jobj_tsd_flag = dap_chain_datum_token_flags_to_json(l_flags);
                 json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
                 json_object_object_add(l_jobj_tsd, "flags", l_jobj_tsd_flag);
                 json_object_array_add(l_tsd_array, l_jobj_tsd);
@@ -288,7 +292,9 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY: { // 256
                 json_object *l_jobj_tsd = json_object_new_object();
                 json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY");
-                char *l_balance = dap_chain_balance_print(dap_tsd_get_scalar(l_tsd, uint256_t));
+                uint256_t l_balance_native = uint256_0;
+                _dap_tsd_get_scalar(l_tsd, &l_balance_native);
+                char *l_balance = dap_chain_balance_print(l_balance_native);
                 json_object *l_jobj_tsd_value = json_object_new_string(l_balance);
                 json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
                 json_object_object_add(l_jobj_tsd, "value", l_jobj_tsd_value);
@@ -298,7 +304,9 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_OLD: {// 128
                 json_object *l_jobj_tsd = json_object_new_object();
                 json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_OLD");
-                char *l_balance = dap_chain_balance_print(GET_256_FROM_128(dap_tsd_get_scalar(l_tsd, uint128_t)));
+                uint128_t l_balance_native_old = uint128_0;
+                _dap_tsd_get_scalar(l_tsd, &l_balance_native_old);
+                char *l_balance = dap_chain_balance_print(GET_256_FROM_128(l_balance_native_old));
                 json_object *l_jobj_tsd_value = json_object_new_string(l_balance);
                 json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
                 json_object_object_add(l_jobj_tsd, "value", l_jobj_tsd_value);
@@ -308,7 +316,9 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID: {
                 json_object *l_jobj_tsd = json_object_new_object();
                 json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID");
-                json_object *l_jobj_value = json_object_new_uint64(dap_tsd_get_scalar(l_tsd, uint16_t));
+                uint16_t l_flags = 0;
+                _dap_tsd_get_scalar(l_tsd, &l_flags);
+                json_object *l_jobj_value = json_object_new_uint64(l_flags);
                 json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
                 json_object_object_add(l_jobj_tsd, "total_signs_valid", l_jobj_value);
                 json_object_array_add(l_tsd_array, l_jobj_tsd);
@@ -359,7 +369,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                 json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK");
                 json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
                 char *balance = NULL;
-                dap_chain_datum_token_tsd_delegate_from_stake_lock_t *l_tsd_section = dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
+                dap_chain_datum_token_tsd_delegate_from_stake_lock_t *l_tsd_section = _dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
                 json_object *l_jobj_ticker_token_from = json_object_new_string((char*)l_tsd_section->ticker_token_from);
                 json_object *l_jobj_emission_rate = json_object_new_string((balance = dap_chain_balance_to_coins(l_tsd_section->emission_rate)));
                 DAP_DEL_Z(balance);

@@ -404,7 +404,8 @@ json_object *dap_chain_datum_decree_to_json(dap_chain_datum_decree_t *a_decree){
                     json_object_object_add(l_jobj_tsd, "warning", l_text_wgn);
                     break;
                 }
-                uint256_t l_fee_value = dap_tsd_get_scalar(l_tsd, uint256_t);
+                uint256_t l_fee_value = uint256_0;
+                _dap_tsd_get_scalar(l_tsd, &l_fee_value);
                 char *l_fee_value_str = dap_chain_balance_print(l_fee_value);
                 json_object *l_jobj_fee = json_object_new_string(l_fee_value_str);
                 json_object_object_add(l_jobj_tsd, "value", l_jobj_fee);
@@ -436,7 +437,8 @@ json_object *dap_chain_datum_decree_to_json(dap_chain_datum_decree_t *a_decree){
                     json_object_object_add(l_jobj_tsd, "warning", l_text_wgn);
                     break;
                 }
-                uint256_t l_owner_min = dap_tsd_get_scalar(l_tsd, uint256_t);
+                uint256_t l_owner_min = {0};
+                _dap_tsd_get_scalar(l_tsd, &l_owner_min);
                 char *l_owner_min_str = dap_chain_balance_print(l_owner_min);
                 json_object *l_jobj_owner_min = json_object_new_string(l_owner_min_str);
                 json_object_object_add(l_jobj_tsd, "owner_min", l_jobj_owner_min);
@@ -451,7 +453,7 @@ json_object *dap_chain_datum_decree_to_json(dap_chain_datum_decree_t *a_decree){
                     break;
                 }
                 dap_chain_addr_t l_addr_fee_wallet = {0};
-                l_addr_fee_wallet = dap_tsd_get_scalar(l_tsd, dap_chain_addr_t);
+                _dap_tsd_get_scalar(l_tsd, &l_addr_fee_wallet);
                 char *l_addr_fee_wallet_str = dap_chain_addr_to_str(&l_addr_fee_wallet);
                 json_object *l_jobj_addr_fee_wallet = json_object_new_string(l_addr_fee_wallet_str);
                 json_object_object_add(l_jobj_tsd, "addr", l_jobj_addr_fee_wallet);
@@ -466,7 +468,7 @@ json_object *dap_chain_datum_decree_to_json(dap_chain_datum_decree_t *a_decree){
                     break;
                 }
                 dap_hash_fast_t l_stake_tx = {0};
-                l_stake_tx = dap_tsd_get_scalar(l_tsd, dap_hash_fast_t);
+                _dap_tsd_get_scalar(l_tsd, &l_stake_tx);
                 char *l_stake_tx_hash = dap_chain_hash_fast_to_str_new(&l_stake_tx);
                 json_object *l_jobj_tx_hash = json_object_new_string(l_stake_tx_hash);
                 json_object_object_add(l_jobj_tsd, "hash", l_jobj_tx_hash);
@@ -484,7 +486,8 @@ json_object *dap_chain_datum_decree_to_json(dap_chain_datum_decree_t *a_decree){
                     json_object_object_add(l_jobj_tsd, "warning", l_text_wgn);
                     break;
                 }
-                uint256_t l_stake_value = dap_tsd_get_scalar(l_tsd, uint256_t);
+                uint256_t l_stake_value = uint256_0;
+                _dap_tsd_get_scalar(l_tsd, &l_stake_value);
                 char *l_stake_value_str = dap_chain_balance_print(l_stake_value);
                 json_object *l_jobj_stake_value = json_object_new_string(l_stake_value_str);
                 json_object_object_add(l_jobj_tsd, "value", l_jobj_stake_value);
@@ -499,7 +502,7 @@ json_object *dap_chain_datum_decree_to_json(dap_chain_datum_decree_t *a_decree){
                     break;
                 }
                 dap_chain_addr_t l_stake_addr_signing = {0};
-                l_stake_addr_signing = dap_tsd_get_scalar(l_tsd, dap_chain_addr_t);
+                _dap_tsd_get_scalar(l_tsd, &l_stake_addr_signing);
                 char *l_stake_addr_signing_str = dap_chain_addr_to_str(&l_stake_addr_signing);
 //                dap_string_append_printf(a_str_out, "\tSigning addr: %s\n", l_stake_addr_signing_str);
                 dap_chain_hash_fast_t *l_pkey_signing = DAP_NEW(dap_chain_hash_fast_t);
@@ -531,7 +534,8 @@ json_object *dap_chain_datum_decree_to_json(dap_chain_datum_decree_t *a_decree){
                     json_object_object_add(l_jobj_tsd, "warning", l_text_wgn);
                     break;
                 }
-                dap_chain_node_addr_t l_node_addr = dap_tsd_get_scalar(l_tsd, dap_chain_node_addr_t);
+                dap_chain_node_addr_t l_node_addr = {0};
+                _dap_tsd_get_scalar(l_tsd, &l_node_addr);
                 char *l_node_addr_str = dap_strdup_printf(NODE_ADDR_FP_STR,NODE_ADDR_FP_ARGS_S(l_node_addr));
                 json_object *l_jobj_node_addr = json_object_new_string(l_node_addr_str);
                 json_object_object_add(l_jobj_tsd, "node", l_jobj_node_addr);
@@ -546,7 +550,8 @@ json_object *dap_chain_datum_decree_to_json(dap_chain_datum_decree_t *a_decree){
                     json_object_object_add(l_jobj_tsd, "warning", l_text_wgn);
                     break;
                 }
-                uint256_t l_min_value = dap_tsd_get_scalar(l_tsd, uint256_t);
+                uint256_t l_min_value = uint256_0;
+                _dap_tsd_get_scalar(l_tsd, &l_min_value);
                 char *l_min_value_str = dap_chain_balance_print(l_min_value);
                 json_object *l_jobj_min_value = json_object_new_string(l_min_value_str);
                 json_object_object_add(l_jobj_tsd, "value", l_jobj_min_value);
@@ -561,7 +566,8 @@ json_object *dap_chain_datum_decree_to_json(dap_chain_datum_decree_t *a_decree){
                     json_object_object_add(l_jobj_tsd, "warning", l_text_wgn);
                     break;
                 }
-                uint256_t l_min_signers_count = dap_tsd_get_scalar(l_tsd, uint256_t);
+                uint256_t l_min_signers_count = uint256_0;
+                _dap_tsd_get_scalar(l_tsd, &l_min_signers_count);
                 char *l_min_signers_count_str = dap_chain_balance_print(l_min_signers_count);
                 json_object *l_jobj_min_signers_count = json_object_new_string(l_min_signers_count_str);
                 json_object_object_add(l_jobj_tsd, "count", l_jobj_min_signers_count);

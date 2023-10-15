@@ -150,7 +150,8 @@ json_object *dap_chain_datum_anchor_to_json(dap_chain_datum_anchor_t *a_anchor){
                 json_object_array_add(l_obj_tsd_array, l_jobj_tsd);
                 break;
             }
-            dap_hash_fast_t l_out_hash = dap_tsd_get_scalar(l_tsd, dap_hash_fast_t);
+            dap_hash_fast_t l_out_hash = {0};
+            _dap_tsd_get_scalar(l_tsd, &l_out_hash);
             char *l_hash_str = dap_hash_fast_to_str_new(&l_out_hash);
             json_object *l_obj_tsd_hash = json_object_new_string(l_hash_str);
             json_object_object_add(l_jobj_tsd, "hash", l_obj_tsd_hash);
