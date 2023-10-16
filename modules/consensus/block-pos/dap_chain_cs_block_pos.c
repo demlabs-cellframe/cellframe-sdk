@@ -262,7 +262,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         }
 
         int l_sign_verified = dap_sign_verify(l_sign, a_block, l_block_data_size);
-        if (l_sign_verified != 1) {
+        if (l_sign_verified) {
             log_it(L_WARNING, "Block's sign is incorrect: code %d", l_sign_verified);
             return -41;
         }

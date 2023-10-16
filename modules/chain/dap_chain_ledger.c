@@ -2711,7 +2711,7 @@ int dap_chain_ledger_token_emission_add_check(dap_ledger_t *a_ledger, byte_t *a_
                         for (uint16_t k=0; k< l_token_item->auth_signs_total; k++) {
                             if (dap_hash_fast_compare(&l_sign_pkey_hash, &l_token_item->auth_pkeys_hash[k])) {
                                 // Verify if its token emission header signed
-                                if (dap_sign_verify(l_sign, l_emi_ptr_check_size, l_sign_data_check_size) == 1) {
+                                if (!dap_sign_verify(l_sign, l_emi_ptr_check_size, l_sign_data_check_size)) {
                                     l_aproves++;
                                     break;
                                 }

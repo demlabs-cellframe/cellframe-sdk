@@ -2709,7 +2709,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, char ** a_str_reply)
                 size_t l_signs_size = 0, i = 1;
                 for (i = 1; i <= l_datum_token->signs_total; i++){
                     dap_sign_t *l_sign = (dap_sign_t *)(l_datum_token->data_n_tsd + l_tsd_size + l_signs_size);
-                    if( dap_sign_verify(l_sign, l_datum_token, sizeof(*l_datum_token) - sizeof(uint16_t)) != 1) {
+                    if(dap_sign_verify(l_sign, l_datum_token, sizeof(*l_datum_token) - sizeof(uint16_t))) {
                         log_it(L_WARNING, "Wrong signature %zu for datum_token with key %s in mempool!", i, l_datum_hash_out_str);
                         dap_cli_server_cmd_set_reply_text(a_str_reply,
                                 "Datum %s with datum token has wrong signature %zu, break process and exit",

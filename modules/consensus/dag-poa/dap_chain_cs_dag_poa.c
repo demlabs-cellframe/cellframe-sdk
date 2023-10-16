@@ -909,8 +909,8 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
             // Compare signature with auth_certs
             a_event->header.signs_count = i;
             for (uint16_t j = 0; j < l_poa_pvt->auth_certs_count; j++) {
-                if (dap_cert_compare_with_sign( l_poa_pvt->auth_certs[j], l_sign) == 0
-                            && dap_sign_verify(l_sign, a_event, l_offset_from_beginning) == 1 ){
+                if (!dap_cert_compare_with_sign( l_poa_pvt->auth_certs[j], l_sign)
+                            && !dap_sign_verify(l_sign, a_event, l_offset_from_beginning)){
                     l_signs_verified_count++;
                     break;
                 }
