@@ -34,6 +34,7 @@
 #include "dap_enc_base58.h"
 #include "dap_hash.h"
 #include "dap_strfuncs.h"
+#include "dap_json_rpc_errors.h"
 
 #define LOG_TAG "dap_chain_common"
 
@@ -94,8 +95,16 @@ size_t dap_chain_hash_slow_to_str( dap_chain_hash_slow_t *a_hash, char *a_str, s
  */
 json_object *dap_chain_addr_to_json(const dap_chain_addr_t *a_addr){
     char *l_addr_str = dap_chain_addr_to_str(a_addr);
+    if (!l_addr_str) {
+        dap_json_rpc_allocated_error
+        return NULL;
+    }
     json_object *l_obj = json_object_new_string(l_addr_str);
     DAP_DELETE(l_addr_str);
+    if (!l_obj) {
+        dap_json_rpc_allocated_error
+        return NULL;
+    }
     return l_obj;
 }
 
