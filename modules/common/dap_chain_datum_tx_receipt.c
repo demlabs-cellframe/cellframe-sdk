@@ -171,7 +171,7 @@ json_object* dap_chain_receipt_info_to_json(dap_chain_receipt_info_t *a_info){
     }
     json_object *l_obj_srv_uid = json_object_new_uint64(a_info->srv_uid.uint64);
     if (!l_obj_srv_uid) {
-        json_object_put(l_obj_srv_uid);
+        json_object_put(l_obj);
         dap_json_rpc_allocated_error
         return NULL;
     }
