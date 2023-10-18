@@ -2843,30 +2843,35 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
         int l_removed = 0;
         json_object *l_obj_chain = json_object_new_object();
         if (!l_obj_chain) {
-            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_MEMORY_ERR, "Can't allocated memory");
+            dap_json_rpc_allocated_error
             return;
         }
         json_object *l_obj_chain_name  = json_object_new_string(a_chain->name);
         if (!l_obj_chain_name) {
-            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_MEMORY_ERR, "Can't allocated memory");
+            dap_json_rpc_allocated_error
             return;
         }
         json_object_object_add(l_obj_chain, "name", l_obj_chain_name);
         dap_chain_mempool_filter(a_chain, &l_removed);
         json_object *l_jobj_removed = json_object_new_int(l_removed);
         if (!l_jobj_removed) {
-            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_MEMORY_ERR, "Can't allocated memory");
+            dap_json_rpc_allocated_error
             return;
         }
         json_object_object_add(l_obj_chain, "removed", l_jobj_removed);
-        json_object *l_jobj_datums = json_object_new_array();
-        if (!l_jobj_datums) {
-            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_MEMORY_ERR, "Can't allocated memory");
-            return;
-        }
         size_t l_objs_size = 0;
         dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_gdb_group_mempool, &l_objs_size);
         size_t l_objs_addr = 0;
+        json_object  *l_jobj_datums;
+        if (l_objs_size == 0) {
+            l_jobj_datums = json_object_new_null();
+        } else {
+            l_jobj_datums = json_object_new_array();
+            if (!l_jobj_datums) {
+                dap_json_rpc_allocated_error
+                return;
+            }
+        }
         for(size_t i = 0; i < l_objs_size; i++) {
             dap_chain_datum_t *l_datum = (dap_chain_datum_t *)l_objs[i].value;
             dap_time_t l_ts_create = (dap_time_t) l_datum->header.ts_create;
@@ -2877,11 +2882,24 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                 continue;
             }
             json_object *l_jobj_datum = dap_chain_datum_to_json(l_datum);
+            if (!l_jobj_datum){
+                json_object_put(l_jobj_datums);
+                dap_global_db_objs_delete(l_objs, l_objs_size);
+                dap_json_rpc_allocated_error
+                return;
+            }
             json_object *l_jobj_warning = NULL;
             if(a_add)
             {
                 size_t l_emisssion_size = l_datum->header.data_size;
                 dap_chain_datum_token_emission_t *l_emission = dap_chain_datum_emission_read(l_datum->data, &l_emisssion_size);
+                if (!l_emission) {
+                    json_object_put(l_jobj_datum);
+                    json_object_put(l_jobj_datums);
+                    dap_global_db_objs_delete(l_objs, l_objs_size);
+                    dap_json_rpc_allocated_error
+                    return;
+                }
                 dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
 
                 uint32_t l_tx_items_count = 0;
@@ -2889,6 +2907,13 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                 bool l_f_found = false;
 
                 dap_chain_addr_t *l_addr = dap_chain_addr_from_str(a_add);
+                if (!l_addr) {
+                    json_object_put(l_jobj_datum);
+                    json_object_put(l_jobj_datums);
+                    dap_global_db_objs_delete(l_objs, l_objs_size);
+                    dap_json_rpc_allocated_error
+                    return;
+                }
                 switch (l_datum->header.type_id) {
                 case DAP_CHAIN_DATUM_TX:
                     while (l_tx_items_count < l_tx_items_size)
@@ -2947,14 +2972,18 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                                                 l_objs[i].key, l_data_hash_str);
                 if (!l_wgn) {
                     dap_global_db_objs_delete(l_objs, l_objs_size);
-                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_MEMORY_ERR, "Can't allocated memory");
+                    json_object_put(l_jobj_datum);
+                    json_object_put(l_jobj_datums);
+                    dap_json_rpc_allocated_error
                     return;
                 }
                 l_jobj_warning = json_object_new_string(l_wgn);
                 DAP_DELETE(l_wgn);
                 if (!l_jobj_warning) {
                     dap_global_db_objs_delete(l_objs, l_objs_size);
-                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_MEMORY_ERR, "Can't allocated memory");
+                    json_object_put(l_jobj_datum);
+                    json_object_put(l_jobj_datums);
+                    dap_json_rpc_allocated_error
                     return;
                 }
             }
@@ -2974,8 +3003,10 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                 if (l_token_ticker) {
                     json_object *l_main_ticker = json_object_new_string(l_token_ticker);
                     if (!l_main_ticker) {
-                        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_MEMORY_ERR, "Can't allocated memory");
                         dap_global_db_objs_delete(l_objs, l_objs_size);
+                        json_object_put(l_jobj_datum);
+                        json_object_put(l_jobj_datums);
+                        dap_json_rpc_allocated_error
                         return;
                     }
                     json_object_object_add(l_jobj_datum, "main_ticker", l_main_ticker);
@@ -2987,6 +3018,11 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
         json_object_object_add(l_obj_chain, "datums", l_jobj_datums);
         if (a_add) {
             json_object *l_ev_addr = json_object_new_int64(l_objs_size);
+            if (!l_ev_addr) {
+                json_object_put(l_jobj_datums);
+                dap_json_rpc_allocated_error
+                return;
+            }
             json_object_object_add(l_obj_chain, "Number_elements_per_address", l_ev_addr);
         }
         json_object_array_add(a_json_obj, l_obj_chain);
@@ -3073,6 +3109,11 @@ int com_mempool_delete(int a_argc, char **a_argv, json_object **a_json_reply)
             l_datum_hash_hex_str = dap_enc_base58_to_hex_str_from_str(l_datum_hash_str);
 
         char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
+        if (!l_gdb_group_mempool) {
+            log_it(L_CRITICAL, "Memory allocation error");
+            dap_json_rpc_error_add(1, "Memory allocation error");
+            return 1;
+        }
         uint8_t *l_data_tmp = dap_global_db_get_sync(l_gdb_group_mempool, l_datum_hash_hex_str ? l_datum_hash_hex_str : l_datum_hash_str,
                                                      NULL, NULL, NULL);
         if(l_data_tmp && dap_global_db_del_sync(l_gdb_group_mempool, l_datum_hash_hex_str) == 0) {
