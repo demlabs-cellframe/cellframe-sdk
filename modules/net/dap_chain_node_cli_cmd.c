@@ -3110,22 +3110,37 @@ int com_mempool_delete(int a_argc, char **a_argv, json_object **a_json_reply)
 
         char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
         if (!l_gdb_group_mempool) {
-            log_it(L_CRITICAL, "Memory allocation error");
-            dap_json_rpc_error_add(1, "Memory allocation error");
+            dap_json_rpc_allocated_error
             return 1;
         }
         uint8_t *l_data_tmp = dap_global_db_get_sync(l_gdb_group_mempool, l_datum_hash_hex_str ? l_datum_hash_hex_str : l_datum_hash_str,
                                                      NULL, NULL, NULL);
         if(l_data_tmp && dap_global_db_del_sync(l_gdb_group_mempool, l_datum_hash_hex_str) == 0) {
             char *l_msg_str = dap_strdup_printf("Datum %s deleted", l_datum_hash_str);
+            if (!l_msg_str) {
+                dap_json_rpc_allocated_error
+                return 1;
+            }
             json_object *l_msg = json_object_new_string(l_msg_str);
             DAP_DELETE(l_msg_str);
+            if (!l_msg) {
+                dap_json_rpc_allocated_error
+                return 1;
+            }
             json_object_array_add(*a_json_reply, l_msg);
             return 0;
         } else {
             char *l_msg_str = dap_strdup_printf("Error! Can't find datum %s", l_datum_hash_str);
+            if (!l_msg_str) {
+               dap_json_rpc_allocated_error
+                return 1;
+            }
             json_object *l_msg = json_object_new_string(l_msg_str);
             DAP_DELETE(l_msg_str);
+            if (!l_msg) {
+                dap_json_rpc_allocated_error
+                return 1;
+            }
             json_object_array_add(*a_json_reply, l_msg);
             return -4;
         }
@@ -3150,6 +3165,8 @@ dap_chain_datum_t *s_com_mempool_check_datum_in_chain(dap_chain_t *a_chain, cons
     if (!a_datum_hash_str)
         return NULL;
     char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+    if (!l_gdb_group_mempool)
+        return NULL;
     uint8_t *l_data_tmp = dap_global_db_get_sync(l_gdb_group_mempool, a_datum_hash_str, NULL, NULL, NULL);
     DAP_DELETE(l_gdb_group_mempool);
     return (dap_chain_datum_t *)l_data_tmp;
@@ -3163,13 +3180,13 @@ dap_chain_datum_t *s_com_mempool_check_datum_in_chain(dap_chain_t *a_chain, cons
  * @param a_str_reply
  * @return
  */
-int com_mempool_check(int a_argc, char **a_argv, char ** a_str_reply)
+int com_mempool_check(int a_argc, char **a_argv, json_object ** a_json_reply)
 {
     int arg_index = 1;
     dap_chain_t * l_chain = NULL;
     dap_chain_net_t * l_net = NULL;
 
-    if (dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, NULL, &l_net))
+    if (dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, a_argc, a_argv, NULL, &l_net))
         return -1;
 
     const char *l_chain_str = NULL;
@@ -3177,8 +3194,8 @@ int com_mempool_check(int a_argc, char **a_argv, char ** a_str_reply)
     if (l_chain_str) {
         l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
         if (!l_chain) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid",
-                                              a_argv[0], l_net->pub.name, l_chain_str);
+            dap_json_rpc_error_add(-4, "%s requires parameter '-chain' to be valid chain name in chain net %s. Current chain %s is not valid",
+                                   a_argv[0], l_net->pub.name, l_chain_str);
             return -4;
         }
     }
@@ -3216,7 +3233,7 @@ int com_mempool_check(int a_argc, char **a_argv, char ** a_str_reply)
                 l_found_in_chains = true;
                 dap_hash_fast_t l_datum_hash;
                 if (dap_chain_hash_fast_from_hex_str(l_datum_hash_hex_str, &l_datum_hash)) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Incorrect hash string %s", l_datum_hash_str);
+                    dap_json_rpc_error_add(-4, "Incorrect hash string %s", l_datum_hash_str);
                     return -4;
                 }
                 if (l_chain)
@@ -3233,33 +3250,91 @@ int com_mempool_check(int a_argc, char **a_argv, char ** a_str_reply)
                 }
             }
             DAP_DELETE(l_datum_hash_hex_str);
+            json_object *l_jobj_datum = json_object_new_object();
+            json_object *l_datum_hash = json_object_new_string(l_datum_hash_str);
+            json_object *l_net_obj = json_object_new_string(l_net->pub.name);
+            if (!l_jobj_datum || !l_datum_hash || !l_net_obj){
+                json_object_put(l_jobj_datum);
+                json_object_put(l_datum_hash);
+                json_object_put(l_net_obj);
+                dap_json_rpc_allocated_error;
+                return 1;
+            }
+            json_object *l_chain_obj;
+            if(l_chain_name) {
+                l_chain_obj = json_object_new_string(l_chain_name);
+                if (!l_chain_obj) {
+                    json_object_put(l_jobj_datum);
+                    json_object_put(l_datum_hash);
+                    json_object_put(l_net_obj);
+                    dap_json_rpc_allocated_error;
+                    return 1;
+                }
+            } else
+                l_chain_obj = json_object_new_null();
+            json_object_object_add(l_jobj_datum, "hash", l_datum_hash);
+            json_object_object_add(l_jobj_datum, "net", l_net_obj);
+            json_object_object_add(l_jobj_datum, "chain", l_chain_obj);
+            json_object *l_find_bool;
             if (l_datum) {
-                dap_string_t *l_str_reply = dap_string_new("");
-                dap_string_append_printf(l_str_reply, "Datum %s is present in %s.%s\n", l_datum_hash_str,
-                                                        l_found_in_chains ? "chains" : "mempool", l_chain_name);
+                l_find_bool = json_object_new_boolean(TRUE);
+                json_object *l_find_chain_or_mempool = json_object_new_string(l_found_in_chains ? "chain" : "mempool");
+                if (!l_find_chain_or_mempool || !l_find_bool) {
+                    json_object_put(l_find_chain_or_mempool);
+                    json_object_put(l_find_bool);
+                    json_object_put(l_jobj_datum);
+                    dap_json_rpc_allocated_error;
+                    return 1;
+                }
+                json_object_object_add(l_jobj_datum, "find", l_find_bool);
+                json_object_object_add(l_jobj_datum, "source", l_find_chain_or_mempool);
                 if (l_found_in_chains) {
                     char l_atom_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
                     dap_chain_hash_fast_to_str(&l_atom_hash, l_atom_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-                    dap_string_append_printf(l_str_reply, "Atom hash is %s return code is %d (%s)\n",
-                                                            l_atom_hash_str, l_ret_code, dap_chain_ledger_tx_check_err_str(l_ret_code));
+                    json_object *l_obj_atom = json_object_new_object();
+                    json_object *l_jobj_atom_hash = json_object_new_string(l_atom_hash_str);
+                    json_object *l_jobj_atom_err = json_object_new_string(dap_chain_ledger_tx_check_err_str(l_ret_code));
+                    if (!l_obj_atom || !l_jobj_atom_hash || !l_jobj_atom_err) {
+                        json_object_put(l_jobj_datum);
+                        json_object_put(l_obj_atom);
+                        json_object_put(l_jobj_atom_hash);
+                        json_object_put(l_jobj_atom_err);
+                        dap_json_rpc_allocated_error;
+                        return 1;
+                    }
+                    json_object_object_add(l_obj_atom, "hash", l_jobj_atom_hash);
+                    json_object_object_add(l_obj_atom, "err", l_jobj_atom_err);
+                    json_object_object_add(l_jobj_datum, "atom", l_obj_atom);
                 }
-                dap_chain_datum_dump(l_str_reply, l_datum, l_hash_out_type, l_net->pub.id);
+                json_object *l_datum_obj_inf = dap_chain_datum_to_json(l_datum);
+                if (!l_datum_obj_inf) {
+                    if (!l_found_in_chains)
+                        DAP_DELETE(l_datum);
+                    json_object_put(l_jobj_datum);
+                    dap_json_rpc_error_add(2, "Failed to serialize datum to JSON.");
+                    return 2;
+                }
                 if (!l_found_in_chains)
                     DAP_DELETE(l_datum);
-                *a_str_reply = l_str_reply->str;
-                dap_string_free(l_str_reply, false);
+                json_object_array_add(*a_json_reply, l_jobj_datum);
                 return 0;
             } else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find datum %s in %s.%s", l_datum_hash_str, l_net->pub.name, l_chain ? l_chain->name : "");
+               l_find_bool = json_object_new_boolean(TRUE);
+               if (!l_find_bool) {
+                   json_object_put(l_jobj_datum);
+                   dap_json_rpc_allocated_error;
+                   return 1;
+               }
+                json_object_object_add(l_jobj_datum, "find", l_find_bool);
+                json_object_array_add(*a_json_reply, l_jobj_datum);
                 return -4;
             }
         } else {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! %s requires -datum <datum hash> option", a_argv[0]);
+            dap_json_rpc_error_add(-3, "Error! %s requires -datum <datum hash> option", a_argv[0]);
             return -3;
         }
     } else {
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                          "Error! Need both -net <network name> param\n");
+        dap_json_rpc_error_add(-2, "Error! Need both -net <network name> param");
         return -2;
     }
 }
@@ -3301,6 +3376,10 @@ int com_mempool_proc(int a_argc, char **a_argv, json_object **a_json_reply)
         return -5;
     }
     char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
+    if (!l_gdb_group_mempool){
+        dap_json_rpc_error_add(-5, "Failed to get mempool group name on network %s", l_net->pub.name);
+        return -5;
+    }
     size_t l_datum_size=0;
 
     char *l_datum_hash_hex_str;
@@ -3353,8 +3432,33 @@ int com_mempool_proc(int a_argc, char **a_argv, json_object **a_json_reply)
     json_object *l_jobj_ts_created = json_object_new_object();
     json_object *l_jobj_ts_created_time_stamp = json_object_new_uint64(l_ts_create);
     char *l_ts_created_str = dap_ctime_r(&l_ts_create, buf);
+    if (!l_ts_created_str || !l_jobj_ts_created || !l_jobj_ts_created_time_stamp || !l_jobj_type ||
+        !l_jobj_hash || !l_jobj_datum || !l_jobj_res) {
+        json_object_put(l_jobj_res);
+        json_object_put(l_jobj_datum);
+        json_object_put(l_jobj_hash);
+        json_object_put(l_jobj_type);
+        json_object_put(l_jobj_ts_created);
+        json_object_put(l_jobj_ts_created_time_stamp);
+        DAP_DEL_Z(l_ts_created_str);
+        dap_json_rpc_allocated_error
+        return 1;
+    }
     json_object *l_jobj_ts_created_str = json_object_new_string(l_ts_created_str);
+    DAP_DEL_Z(l_ts_created_str);
     json_object *l_jobj_data_size = json_object_new_uint64(l_datum->header.data_size);
+    if (!l_jobj_ts_created_str || !l_jobj_data_size) {
+        json_object_put(l_jobj_res);
+        json_object_put(l_jobj_datum);
+        json_object_put(l_jobj_hash);
+        json_object_put(l_jobj_type);
+        json_object_put(l_jobj_ts_created);
+        json_object_put(l_jobj_ts_created_time_stamp);
+        json_object_put(l_jobj_ts_created_str);
+        json_object_put(l_jobj_data_size);
+        dap_json_rpc_allocated_error
+        return 1;
+    }
     json_object_object_add(l_jobj_datum, "hash", l_jobj_hash);
     json_object_object_add(l_jobj_datum, "type", l_jobj_type);
     json_object_object_add(l_jobj_ts_created, "time_stamp", l_jobj_ts_created_time_stamp);
@@ -3363,13 +3467,32 @@ int com_mempool_proc(int a_argc, char **a_argv, json_object **a_json_reply)
     json_object_object_add(l_jobj_datum, "data_size", l_jobj_data_size);
     json_object_object_add(l_jobj_res, "datum", l_jobj_datum);
     json_object *l_jobj_verify = json_object_new_object();
+    if (!l_jobj_verify) {
+        json_object_put(l_jobj_res);
+        dap_json_rpc_allocated_error
+        return 1;
+    }
     int l_verify_datum = dap_chain_net_verify_datum_for_add(l_chain, l_datum, &l_datum_hash);
     if (l_verify_datum){
         char *l_str_err = dap_strdup_printf("Error! Datum doesn't pass verifications (%s) examine node log files",
                                             dap_chain_net_verify_datum_err_code_to_str(l_datum, l_verify_datum));
+        if (!l_str_err) {
+            json_object_put(l_jobj_verify);
+            json_object_put(l_jobj_res);
+            dap_json_rpc_allocated_error;
+            return -10;
+        }
         json_object *l_jobj_verify_err = json_object_new_string(l_str_err);
         DAP_DELETE(l_str_err);
         json_object *l_jobj_verify_status = json_object_new_boolean(FALSE);
+        if (!l_jobj_verify_status || !l_jobj_verify_err) {
+            json_object_put(l_jobj_verify_status);
+            json_object_put(l_jobj_verify_err);
+            json_object_put(l_jobj_verify);
+            json_object_put(l_jobj_res);
+            dap_json_rpc_allocated_error;
+            return -10;
+        }
         json_object_object_add(l_jobj_verify, "isProcessed", l_jobj_verify_status);
         json_object_object_add(l_jobj_verify, "error", l_jobj_verify_err);
         ret = -9;
@@ -3378,17 +3501,43 @@ int com_mempool_proc(int a_argc, char **a_argv, json_object **a_json_reply)
             if (l_chain->callback_add_datums(l_chain, &l_datum, 1) == 0) {
                 json_object *l_jobj_verify_err = json_object_new_string("Error! Datum doesn't pass verifications, examine node log files");
                 json_object *l_jobj_verify_status = json_object_new_boolean(FALSE);
+                if (!l_jobj_verify_status || !l_jobj_verify_err) {
+                    json_object_put(l_jobj_verify_status);
+                    json_object_put(l_jobj_verify_err);
+                    json_object_put(l_jobj_verify);
+                    json_object_put(l_jobj_res);
+                    dap_json_rpc_allocated_error;
+                    return -10;
+                }
                 json_object_object_add(l_jobj_verify, "isProcessed", l_jobj_verify_status);
                 json_object_object_add(l_jobj_verify, "error", l_jobj_verify_err);
                 ret = -6;
             } else {
                 json_object *l_jobj_verify_status = json_object_new_boolean(TRUE);
+                if (!l_jobj_verify_status) {
+                    json_object_put(l_jobj_verify);
+                    json_object_put(l_jobj_res);
+                    dap_json_rpc_allocated_error;
+                    return -10;
+                }
                 json_object_object_add(l_jobj_verify, "isProcessed", l_jobj_verify_status);
                 if (dap_global_db_del_sync(l_gdb_group_mempool, l_datum_hash_hex_str)){
                     json_object *l_jobj_wrn_text = json_object_new_string("Can't delete datum from mempool!");
+                    if (!l_jobj_wrn_text) {
+                        json_object_put(l_jobj_verify);
+                        json_object_put(l_jobj_res);
+                        dap_json_rpc_allocated_error;
+                        return -10;
+                    }
                     json_object_object_add(l_jobj_verify, "warning", l_jobj_wrn_text);
                 } else {
                     json_object *l_jobj_text = json_object_new_string("Removed datum from mempool.");
+                    if (!l_jobj_text) {
+                        json_object_put(l_jobj_verify);
+                        json_object_put(l_jobj_res);
+                        dap_json_rpc_allocated_error;
+                        return -10;
+                    }
                     json_object_object_add(l_jobj_verify, "notice", l_jobj_text);
                 }
             }
@@ -3421,11 +3570,25 @@ int com_mempool_proc_all(int argc, char ** argv, json_object **a_json_reply) {
         return -1;
 
     json_object *l_ret = json_object_new_object();
+    if (!l_ret){
+        dap_json_rpc_allocated_error
+        return -10;
+    }
     if(!dap_chain_net_by_id(l_chain->net_id)) {
         char *l_warn_str = dap_strdup_printf("%s.%s: chain not found\n", l_net->pub.name,
                                              l_chain->name);
+        if (!l_warn_str) {
+            json_object_put(l_ret);
+            dap_json_rpc_allocated_error;
+            return -10;
+        }
         json_object *l_warn_obj = json_object_new_string(l_warn_str);
         DAP_DELETE(l_warn_str);
+        if (!l_warn_obj){
+            json_object_put(l_ret);
+            dap_json_rpc_allocated_error;
+            return -10;
+        }
         json_object_object_add(l_ret, "warning", l_warn_obj);
     }
 
@@ -3435,7 +3598,18 @@ int com_mempool_proc_all(int argc, char ** argv, json_object **a_json_reply) {
     dap_chain_node_mempool_process_all(l_chain, true);
     char *l_str_result = dap_strdup_printf("The entire mempool has been processed in %s.%s.",
                                            l_net->pub.name, l_chain->name);
+    if (!l_str_result) {
+        json_object_put(l_ret);
+        dap_json_rpc_allocated_error;
+        return -10;
+    }
     json_object *l_obj_result = json_object_new_string(l_str_result);
+    DAP_DEL_Z(l_str_result);
+    if (!l_obj_result) {
+        json_object_put(l_ret);
+        dap_json_rpc_allocated_error;
+        return -10;
+    }
     json_object_object_add(l_ret, "result", l_obj_result);
     json_object_array_add(*a_json_reply, l_obj_result);
     return 0;
@@ -4805,15 +4979,31 @@ int com_mempool_add_ca(int a_argc,  char ** a_argv, json_object ** a_json_reply)
     DAP_DELETE(l_datum);
     if (l_hash_str) {
         char *l_msg = dap_strdup_printf("Datum %s was successfully placed to mempool", l_hash_str);
+        if (!l_msg) {
+            dap_json_rpc_allocated_error
+            return -9;
+        }
         json_object *l_obj_message = json_object_new_string(l_msg);
         DAP_DELETE(l_msg);
         DAP_DELETE(l_hash_str);
+        if (!l_obj_message) {
+            dap_json_rpc_allocated_error
+            return -9;
+        }
         json_object_array_add(*a_json_reply, l_obj_message);
         return 0;
     } else {
         char *l_msg = dap_strdup_printf("Can't place certificate \"%s\" to mempool", l_ca_name);
+        if (!l_msg) {
+            dap_json_rpc_allocated_error
+            return -9;
+        }
         json_object *l_obj_msg = json_object_new_string(l_msg);
         DAP_DELETE(l_msg);
+        if (!l_obj_msg) {
+            dap_json_rpc_allocated_error;
+            return -9;
+        }
         json_object_array_add(*a_json_reply, l_obj_msg);
         return -8;
     }

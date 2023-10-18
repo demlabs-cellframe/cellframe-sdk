@@ -185,7 +185,7 @@ typedef enum com_mempool_list_err{
 int com_mempool_list(int a_argc, char **a_argv, json_object **a_json_reply);
 int com_mempool_proc(int a_argc, char **a_argv, json_object **a_json_reply);
 int com_mempool_proc_all(int argc, char ** argv, json_object ** a_json_reply);
-int com_mempool_check(int a_argc, char **a_argv, char **a_str_reply);
+int com_mempool_check(int a_argc, char **a_argv, json_object **a_json_reply);
 /**
  * Place public CA into the mempool
  */
