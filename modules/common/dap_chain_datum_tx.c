@@ -311,7 +311,7 @@ int dap_chain_datum_tx_verify_sign(dap_chain_datum_tx_t *tx)
 json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx){
     json_object *l_obj_items = json_object_new_array();
     if (!l_obj_items) {
-        dap_json_rpc_allocated_error
+        dap_json_rpc_allocated_error;
         return NULL;
     }
     uint32_t l_tx_items_count = 0;
@@ -402,7 +402,7 @@ json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx){
                 json_object_put(l_obj_item_type);
                 json_object_put(l_obj_item_data);
                 json_object_put(l_obj_items);
-                dap_json_rpc_allocated_error
+                dap_json_rpc_allocated_error;
                 return NULL;
             }
             json_object_object_add(l_obj_item, "type", l_obj_item_type);

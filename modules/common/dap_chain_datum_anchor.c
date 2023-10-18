@@ -128,20 +128,20 @@ json_object *s_dap_chain_datum_anchor_sign_to_json(byte_t * a_signs, size_t a_ce
 json_object *dap_chain_datum_anchor_to_json(dap_chain_datum_anchor_t *a_anchor){
     json_object *l_obj_anchor = json_object_new_object();
     if (!l_obj_anchor) {
-        dap_json_rpc_allocated_error
+        dap_json_rpc_allocated_error;
         return NULL;
     }
     json_object *l_obj_version = json_object_new_uint64(a_anchor->anchor_version);
     if (!l_obj_version){
         json_object_put(l_obj_anchor);
-        dap_json_rpc_allocated_error
+        dap_json_rpc_allocated_error;
         return NULL;
     }
     json_object *l_obj_ts_created = json_object_new_uint64(a_anchor->header.ts_created);
     if (!l_obj_ts_created) {
         json_object_put(l_obj_version);
         json_object_put(l_obj_anchor);
-        dap_json_rpc_allocated_error
+        dap_json_rpc_allocated_error;
         return NULL;
     }
     json_object *l_obj_tsd_array = json_object_new_array();
@@ -149,7 +149,7 @@ json_object *dap_chain_datum_anchor_to_json(dap_chain_datum_anchor_t *a_anchor){
         json_object_put(l_obj_ts_created);
         json_object_put(l_obj_version);
         json_object_put(l_obj_anchor);
-        dap_json_rpc_allocated_error
+        dap_json_rpc_allocated_error;
         return NULL;
     }
     size_t l_tsd_offset = 0, tsd_data_size = a_anchor->header.data_size;
@@ -161,7 +161,7 @@ json_object *dap_chain_datum_anchor_to_json(dap_chain_datum_anchor_t *a_anchor){
             json_object_put(l_obj_ts_created);
             json_object_put(l_obj_version);
             json_object_put(l_obj_anchor);
-            dap_json_rpc_allocated_error
+            dap_json_rpc_allocated_error;
             return NULL;
         }
         dap_tsd_t *l_tsd = (dap_tsd_t*)a_anchor->data_n_sign + l_tsd_offset;
@@ -175,7 +175,7 @@ json_object *dap_chain_datum_anchor_to_json(dap_chain_datum_anchor_t *a_anchor){
                 json_object_put(l_obj_ts_created);
                 json_object_put(l_obj_version);
                 json_object_put(l_obj_anchor);
-                dap_json_rpc_allocated_error
+                dap_json_rpc_allocated_error;
                 return NULL;
             }
             json_object_object_add(l_jobj_tsd, "warning", l_jobj_wgn);
@@ -191,7 +191,7 @@ json_object *dap_chain_datum_anchor_to_json(dap_chain_datum_anchor_t *a_anchor){
                 json_object_put(l_obj_ts_created);
                 json_object_put(l_obj_version);
                 json_object_put(l_obj_anchor);
-                dap_json_rpc_allocated_error
+                dap_json_rpc_allocated_error;
                 return NULL;
             }
             json_object_object_add(l_jobj_tsd, "type", l_obj_tsd_type);
@@ -204,7 +204,7 @@ json_object *dap_chain_datum_anchor_to_json(dap_chain_datum_anchor_t *a_anchor){
                     json_object_put(l_obj_ts_created);
                     json_object_put(l_obj_version);
                     json_object_put(l_obj_anchor);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object_object_add(l_jobj_tsd, "warning", l_jobj_wgn);
@@ -221,7 +221,7 @@ json_object *dap_chain_datum_anchor_to_json(dap_chain_datum_anchor_t *a_anchor){
                 json_object_put(l_obj_ts_created);
                 json_object_put(l_obj_version);
                 json_object_put(l_obj_anchor);
-                dap_json_rpc_allocated_error
+                dap_json_rpc_allocated_error;
                 return NULL;
             }
             json_object *l_obj_tsd_hash = json_object_new_string(l_hash_str);
@@ -233,7 +233,7 @@ json_object *dap_chain_datum_anchor_to_json(dap_chain_datum_anchor_t *a_anchor){
                 json_object_put(l_obj_ts_created);
                 json_object_put(l_obj_version);
                 json_object_put(l_obj_anchor);
-                dap_json_rpc_allocated_error
+                dap_json_rpc_allocated_error;
                 return NULL;
             }
             json_object_object_add(l_jobj_tsd, "hash", l_obj_tsd_hash);

@@ -224,13 +224,13 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
     if (l_tsd == NULL) {
         json_object *l_tsd_wgn = json_object_new_object();
         if (!l_tsd_wgn){
-            dap_json_rpc_allocated_error
+            dap_json_rpc_allocated_error;
             return NULL;
         }
         json_object *l_tsd_wgn_warning = json_object_new_string("<CORRUPTED TSD SECTION>");
         if (!l_tsd_wgn_warning) {
             json_object_put(l_tsd_wgn);
-            dap_json_rpc_allocated_error
+            dap_json_rpc_allocated_error;
             return NULL;
         }
         json_object_object_add(l_tsd_wgn, "warning", l_tsd_wgn_warning);
@@ -238,7 +238,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
     }
     json_object *l_tsd_array = json_object_new_array();
     if (!l_tsd_array) {
-        dap_json_rpc_allocated_error
+        dap_json_rpc_allocated_error;
         return NULL;
     }
     size_t l_tsd_total_size = 0;
@@ -270,14 +270,14 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
             json_object *l_wgn_text = json_object_new_string("Wrong zero TSD size, exiting s_datum_token_dump_tsd()");
             if (!l_wgn_text) {
                 json_object_put(l_tsd_array);
-                dap_json_rpc_allocated_error
+                dap_json_rpc_allocated_error;
                 return NULL;
             }
             json_object *l_wgn = json_object_new_object();
             if (!l_wgn) {
                 json_object_put(l_wgn_text);
                 json_object_put(l_tsd_array);
-                dap_json_rpc_allocated_error
+                dap_json_rpc_allocated_error;
                 return NULL;
             }
             json_object_object_add(l_wgn, "error", l_wgn_text);
@@ -288,21 +288,21 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                                            l_tsd->size, l_tsd_total_size - l_offset);
             if (!l_wgn_str) {
                 json_object_put(l_tsd_array);
-                dap_json_rpc_allocated_error
+                dap_json_rpc_allocated_error;
                 return NULL;
             }
             json_object *l_wgn_text = json_object_new_string(l_wgn_str);
             DAP_DELETE(l_wgn_str);
             if (!l_wgn_text) {
                 json_object_put(l_tsd_array);
-                dap_json_rpc_allocated_error
+                dap_json_rpc_allocated_error;
                 return NULL;
             }
             json_object *l_wgn = json_object_new_object();
             if (!l_wgn) {
                 json_object_put(l_wgn_text);
                 json_object_put(l_tsd_array);
-                dap_json_rpc_allocated_error
+                dap_json_rpc_allocated_error;
                 return NULL;
             }
             json_object_object_add(l_wgn, "error", l_wgn_text);
@@ -314,14 +314,14 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                 json_object *l_jobj_tsd = json_object_new_object();
                 if (!l_jobj_tsd) {
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SET_FLAGS");
                 if (!l_jobj_tsd_type) {
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 uint16_t l_flags = 0;
@@ -331,7 +331,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                     json_object_put(l_jobj_tsd_type);
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
@@ -342,14 +342,14 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                 json_object *l_jobj_tsd = json_object_new_object();
                 if (!l_jobj_tsd) {
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UNSET_FLAGS");
                 if (!l_jobj_tsd_type) {
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 uint16_t l_flags = 0;
@@ -359,7 +359,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                     json_object_put(l_jobj_tsd_type);
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
@@ -370,14 +370,14 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                 json_object *l_jobj_tsd = json_object_new_object();
                 if (!l_jobj_tsd) {
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY");
                 if (!l_jobj_tsd_type) {
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 uint256_t l_balance_native = uint256_0;
@@ -387,7 +387,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_jobj_tsd_type);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object *l_jobj_tsd_value = json_object_new_string(l_balance);
@@ -396,7 +396,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_jobj_tsd_type);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
@@ -407,14 +407,14 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                 json_object *l_jobj_tsd = json_object_new_object();
                 if (!l_jobj_tsd) {
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_OLD");
                 if (!l_jobj_tsd_type) {
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 uint128_t l_balance_native_old = uint128_0;
@@ -424,7 +424,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_jobj_tsd_type);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object *l_jobj_tsd_value = json_object_new_string(l_balance);
@@ -433,7 +433,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                     json_object_put(l_jobj_tsd_type);
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
@@ -454,14 +454,14 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                 json_object *l_jobj_tsd = json_object_new_object();
                 if (!l_jobj_tsd) {
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD");
                 if (!l_jobj_tsd_type) {
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
@@ -473,7 +473,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                         if (!l_wgn_text) {
                             json_object_put(l_jobj_tsd);
                             json_object_put(l_tsd_array);
-                            dap_json_rpc_allocated_error
+                            dap_json_rpc_allocated_error;
                             return NULL;
                         }
                         json_object_object_add(l_jobj_tsd, "warning", l_wgn_text);
@@ -482,7 +482,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                         if (!l_hash_str) {
                             json_object_put(l_jobj_tsd);
                             json_object_put(l_tsd_array);
-                            dap_json_rpc_allocated_error
+                            dap_json_rpc_allocated_error;
                             return NULL;
                         }
                         json_object *l_jobj_hash = json_object_new_string(l_hash_str);
@@ -490,7 +490,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                         if (l_jobj_hash) {
                             json_object_put(l_jobj_tsd);
                             json_object_put(l_tsd_array);
-                            dap_json_rpc_allocated_error
+                            dap_json_rpc_allocated_error;
                             return NULL;
                         }
                         json_object_object_add(l_jobj_tsd, "pkey", l_jobj_hash);
@@ -500,7 +500,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                     if (!l_wgn_text) {
                         json_object_put(l_jobj_tsd);
                         json_object_put(l_tsd_array);
-                        dap_json_rpc_allocated_error
+                        dap_json_rpc_allocated_error;
                         return NULL;
                     }
                     json_object *l_jobj_wgn_text = json_object_new_string(l_wgn_text);
@@ -508,7 +508,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                     if (!l_jobj_wgn_text) {
                         json_object_put(l_jobj_tsd);
                         json_object_put(l_tsd_array);
-                        dap_json_rpc_allocated_error
+                        dap_json_rpc_allocated_error;
                         return NULL;
                     }
                     json_object_object_add(l_jobj_tsd, "warning", l_jobj_wgn_text);
@@ -519,14 +519,14 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                 json_object *l_jobj_tsd = json_object_new_object();
                 if (!l_jobj_tsd){
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE");
                 if (!l_jobj_tsd_type) {
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
@@ -535,7 +535,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                     if (!l_hash_str) {
                         json_object_put(l_jobj_tsd);
                         json_object_put(l_tsd_array);
-                        dap_json_rpc_allocated_error
+                        dap_json_rpc_allocated_error;
                         return NULL;
                     }
                     json_object *l_jobj_hash = json_object_new_string(l_hash_str);
@@ -543,7 +543,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                     if (!l_jobj_hash) {
                         json_object_put(l_jobj_tsd);
                         json_object_put(l_tsd_array);
-                        dap_json_rpc_allocated_error
+                        dap_json_rpc_allocated_error;
                         return NULL;
                     }
                     json_object_object_add(l_jobj_tsd, "pkey", l_jobj_hash);
@@ -552,7 +552,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                     if (!l_wgn_text) {
                         json_object_put(l_jobj_tsd);
                         json_object_put(l_tsd_array);
-                        dap_json_rpc_allocated_error
+                        dap_json_rpc_allocated_error;
                         return NULL;
                     }
                     json_object *l_jobj_wgn_text = json_object_new_string(l_wgn_text);
@@ -560,7 +560,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                     if (!l_jobj_wgn_text) {
                         json_object_put(l_jobj_tsd);
                         json_object_put(l_tsd_array);
-                        dap_json_rpc_allocated_error
+                        dap_json_rpc_allocated_error;
                         return NULL;
                     }
                     json_object_object_add(l_jobj_tsd, "warning", l_jobj_wgn_text);
@@ -571,14 +571,14 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                 json_object *l_jobj_tsd = json_object_new_object();
                 if (!l_jobj_tsd) {
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK");
                 if (!l_jobj_tsd_type) {
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
@@ -590,7 +590,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                     DAP_DEL_Z(balance);
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object_object_add(l_jobj_tsd, "ticker_token_from", l_jobj_ticker_token_from);
@@ -599,7 +599,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                 if (!l_jobj_emission_rate) {
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object_object_add(l_jobj_tsd, "emission_rate", l_jobj_emission_rate);
@@ -609,14 +609,14 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                 json_object *l_jobj_tsd = json_object_new_object();
                 if (!l_jobj_tsd) {
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object *l_jobj_tsd_type = json_object_new_string("DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_ADD");
                 if (!l_jobj_tsd_type) {
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
@@ -624,7 +624,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                 if (!l_jobj_datum_type_allowed_add) {
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object_object_add(l_jobj_tsd, "datum_type_allowed_add", l_jobj_datum_type_allowed_add);
@@ -638,7 +638,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                     json_object_put(l_jobj_datum_type_allowed_remove);
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
@@ -653,7 +653,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                     json_object_put(l_jobj_datum_type_blocked_add);
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
@@ -668,7 +668,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                     json_object_put(l_jobj_datum_type_blocked_remove);
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                 }
                 json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
                 json_object_object_add(l_jobj_tsd, "datum_type_blocked_remove", l_jobj_datum_type_blocked_remove);
@@ -682,7 +682,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                     json_object_put(l_jobj_tx_sender_allowed_add);
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
@@ -697,7 +697,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                     json_object_put(l_jobj_tx_sender_allowed_remove);
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
@@ -712,7 +712,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                     json_object_put(l_jobj_tx_sender_blocked_add);
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
@@ -727,7 +727,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                     json_object_put(l_jobj_tx_sender_blocked_remove);
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
@@ -742,7 +742,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                     json_object_put(l_tx_receiver_allowed_add);
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
@@ -757,7 +757,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                     json_object_put(l_jobj_tx_receiver_allowed_remove);
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
@@ -772,7 +772,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                     json_object_put(l_jobj_tx_receiver_blocked_add);
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
@@ -787,7 +787,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                     json_object_put(l_jobj_tx_receiver_blocked_remove);
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
@@ -799,7 +799,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                 if (!l_wgn_text){
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object *l_jobj_wgn_text = json_object_new_string(l_wgn_text);
@@ -810,7 +810,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                     json_object_put(l_jobj_warning);
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
-                    dap_json_rpc_allocated_error
+                    dap_json_rpc_allocated_error;
                     return NULL;
                 }
                 json_object_object_add(l_jobj_warning, "warning", l_jobj_wgn_text);
@@ -1382,7 +1382,7 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
 json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum){
     json_object *l_object = json_object_new_object();
     if (!l_object){
-        dap_json_rpc_allocated_error
+        dap_json_rpc_allocated_error;
         return NULL;
     }
     char *l_hash_data_str;
@@ -1390,14 +1390,14 @@ json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum){
     json_object *l_obj_data_hash = json_object_new_string(l_hash_data_str);
     if (!l_obj_data_hash) {
         json_object_put(l_object);
-        dap_json_rpc_allocated_error
+        dap_json_rpc_allocated_error;
         return NULL;
     }
     json_object *l_obj_version = json_object_new_int(a_datum->header.version_id);
     if (!l_obj_version) {
         json_object_put(l_object);
         json_object_put(l_obj_data_hash);
-        dap_json_rpc_allocated_error
+        dap_json_rpc_allocated_error;
         return NULL;
     }
     json_object *l_obj_size = json_object_new_int(a_datum->header.data_size);
@@ -1405,7 +1405,7 @@ json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum){
         json_object_put(l_object);
         json_object_put(l_obj_data_hash);
         json_object_put(l_obj_version);
-        dap_json_rpc_allocated_error
+        dap_json_rpc_allocated_error;
         return NULL;
     }
     json_object *l_obj_ts_created = json_object_new_uint64(a_datum->header.ts_create);
@@ -1414,7 +1414,7 @@ json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum){
         json_object_put(l_obj_data_hash);
         json_object_put(l_obj_version);
         json_object_put(l_obj_size);
-        dap_json_rpc_allocated_error
+        dap_json_rpc_allocated_error;
         return NULL;
     }
     json_object *l_obj_type = json_object_new_string(dap_chain_datum_type_id_to_str(a_datum->header.type_id));
@@ -1424,7 +1424,7 @@ json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum){
         json_object_put(l_obj_version);
         json_object_put(l_obj_size);
         json_object_put(l_obj_ts_created);
-        dap_json_rpc_allocated_error
+        dap_json_rpc_allocated_error;
         return NULL;
     }
     json_object *l_obj_data;
