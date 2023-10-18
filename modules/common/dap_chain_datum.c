@@ -1381,7 +1381,7 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
 
 json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum){
     json_object *l_object = json_object_new_object();
-    if (l_object){
+    if (!l_object){
         dap_json_rpc_allocated_error
         return NULL;
     }

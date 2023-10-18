@@ -472,9 +472,10 @@ dap_chain_tx_out_t* dap_chain_datum_tx_item_out_create(const dap_chain_addr_t *a
 
 json_object* dap_chain_datum_tx_item_out_to_json(const dap_chain_tx_out_t *a_out) {
     json_object *l_object = json_object_new_object();
-    if (!l_object)
+    if (!l_object) {
         dap_json_rpc_allocated_error
         return NULL;
+    }
     json_object *l_value = json_object_new_string(dap_chain_balance_print(a_out->header.value));
     if (!l_value) {
         json_object_put(l_value);
