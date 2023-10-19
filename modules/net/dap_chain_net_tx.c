@@ -287,21 +287,34 @@ struct get_tx_cond_all_from_tx
 static void s_get_tx_cond_chain_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, void *a_arg)
 {
     struct get_tx_cond_all_from_tx * l_args = (struct get_tx_cond_all_from_tx* ) a_arg;
-    
+
     if( l_args->ret ){
         int l_item_idx = 0;
         byte_t *l_tx_item;
-
+        dap_hash_fast_t * l_tx_hash = dap_chain_node_datum_tx_calc_hash(a_tx);
         // Get items from transaction
         while ((l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx, TX_ITEM_TYPE_IN_COND , NULL)) != NULL){
             dap_chain_tx_in_cond_t * l_in_cond = (dap_chain_tx_in_cond_t *) l_tx_item;
             if(dap_hash_fast_compare(&l_in_cond->header.tx_prev_hash, &l_args->tx_last_hash) &&
                     (uint32_t)l_args->tx_last_cond_idx == l_in_cond->header.tx_out_prev_idx ){ // Found output
                 // We're the next tx in tx cond chain
+
                 l_args->ret = dap_list_append(l_args->ret, a_tx);
+                // Check cond output and update tx last hash and index
+                dap_chain_tx_out_cond_t * l_out_cond = NULL;
+                int l_out_item_idx = 0;
+                if (l_out_cond = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_out_item_idx)){
+                    if ( l_out_cond->header.srv_uid.uint64 == l_args->srv_uid.uint64 ){ // We found output with target service uuid
+                        l_args->tx_last = a_tx; // Record current transaction as the last in tx chain
+                        memcpy(&l_args->tx_last_hash, l_tx_hash, sizeof(*l_tx_hash)); // Record current hash
+                        l_args->tx_last_cond_idx = l_out_item_idx;
+                    }
+                }
+                break;
             }
             l_item_idx++;
         }
+        DAP_DELETE(l_tx_hash);
     }else if(a_tx){
         dap_hash_fast_t * l_tx_hash = dap_chain_node_datum_tx_calc_hash(a_tx);
         if (!l_tx_hash) {
@@ -311,11 +324,10 @@ static void s_get_tx_cond_chain_callback(dap_chain_net_t* a_net, dap_chain_datum
         if (dap_hash_fast_compare(l_tx_hash,l_args->tx_begin_hash)) {
             // Found condition
             int l_item_idx = 0;
-            byte_t *l_tx_item;
 
             // Get items from transaction
-            while ((l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx, TX_ITEM_TYPE_OUT_COND , NULL)) != NULL){
-                dap_chain_tx_out_cond_t * l_out_cond = (dap_chain_tx_out_cond_t *) l_tx_item;
+            dap_chain_tx_out_cond_t * l_out_cond = NULL;
+            while (l_out_cond = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_item_idx)){
                 if ( l_out_cond->header.srv_uid.uint64 == l_args->srv_uid.uint64 ){ // We found output with target service uuid
                     l_args->tx_last = a_tx; // Record current transaction as the last in tx chain
                     memcpy(&l_args->tx_last_hash, l_tx_hash, sizeof(*l_tx_hash)); // Record current hash

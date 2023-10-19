@@ -1151,6 +1151,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order history' requires parameter -order or -addr" );
                 return -12;
             }
+
             if(l_addr_hash_str){
                 dap_chain_addr_t *l_addr = dap_chain_addr_from_str(l_addr_hash_str);
                 if (!l_addr) {
@@ -1163,17 +1164,17 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 }
                 dap_list_t *l_tx_list = dap_chain_net_get_tx_cond_all_for_addr(l_net,l_addr, c_dap_chain_net_srv_xchange_uid );
                 dap_string_t * l_str_reply = dap_string_new("");
-                while(l_tx_list ){
-                    dap_chain_datum_tx_t * l_tx_cur = (dap_chain_datum_tx_t*) l_tx_list->data;
+                dap_list_t *l_tx_list_temp = l_tx_list;
+                while(l_tx_list_temp ){
+                    dap_chain_datum_tx_t * l_tx_cur = (dap_chain_datum_tx_t*) l_tx_list_temp->data;
                     s_string_append_tx_cond_info(l_str_reply, l_net, l_tx_cur );
-
-                    //INFINITE LOOP ????
-                    
+                    l_tx_list_temp = l_tx_list_temp->next;
                 }
                 dap_list_free(l_tx_list);
                 *a_str_reply = dap_string_free(l_str_reply, false);
                 DAP_DELETE(l_addr);
             }
+
             if(l_order_hash_str){
                 dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_find_by_hash_str(l_net, l_order_hash_str);
                 if (!l_order) {
@@ -1193,13 +1194,12 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                         *a_str_reply = dap_string_free(l_str_reply, false);
                     }else if(l_rc == 2){
                         dap_string_t * l_str_reply = dap_string_new("");
-                        dap_list_t *l_tx_list = dap_chain_net_get_tx_cond_chain(l_net,&l_order->tx_cond_hash, c_dap_chain_net_srv_xchange_uid );
-                        while(l_tx_list ){
-                            dap_chain_datum_tx_t * l_tx_cur = (dap_chain_datum_tx_t*) l_tx_list->data;
+                        dap_list_t *l_tx_list = dap_chain_net_get_tx_cond_chain(l_net, &l_order->tx_cond_hash, c_dap_chain_net_srv_xchange_uid );
+                        dap_list_t *l_tx_list_temp = l_tx_list;
+                        while(l_tx_list_temp ){
+                            dap_chain_datum_tx_t * l_tx_cur = (dap_chain_datum_tx_t*) l_tx_list_temp->data;
                             s_string_append_tx_cond_info(l_str_reply, l_net, l_tx_cur );
-
-                            //INFINITE LOOP ????
-
+                            l_tx_list_temp = l_tx_list_temp->next;
                         }
                         dap_list_free(l_tx_list);
                         *a_str_reply = dap_string_free(l_str_reply, false);
@@ -1491,9 +1491,9 @@ static int s_tx_check_for_open_close(dap_chain_net_t * a_net, dap_chain_datum_tx
     dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
                                                                                &l_cond_idx);
     if (l_out_cond_item) {
-        if(dap_chain_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_tx_hash, l_cond_idx, NULL))
-            return 1; // If its SRV_XCHANGE and spent its closed
-        else
+//        if(dap_chain_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_tx_hash, l_cond_idx, NULL))
+//            return 1; // If its SRV_XCHANGE and spent its closed
+//        else
             return 2; // If its SRV_XCHANGE and not spent its open
     }
     return 0;
@@ -1544,6 +1544,12 @@ static void s_string_append_tx_cond_info( dap_string_t * a_reply_str, dap_chain_
 
         DAP_DELETE(l_value_from_str);
         DAP_DELETE(l_value_to_str);
+        l_is_cond_out = true;
+    }
+    else {
+        dap_string_append_printf(a_reply_str, "Hash: %s", l_tx_hash_str);
+        dap_string_append_printf(a_reply_str, "  Status: closed");
+        dap_string_append_printf(a_reply_str, "  Order is used out");
         l_is_cond_out = true;
     }
     if(l_is_cond_out){
