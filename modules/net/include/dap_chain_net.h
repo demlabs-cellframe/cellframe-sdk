@@ -69,6 +69,8 @@ typedef struct dap_chain_net{
         char * gdb_nodes_aliases;
         char * gdb_nodes;
 
+        dap_list_t *keys;               // List of PoA certs for net
+
         bool mempool_autoproc;
 
         dap_chain_t * chains; // double-linked list of chains
@@ -78,7 +80,7 @@ typedef struct dap_chain_net{
 
         pthread_mutex_t balancer_mutex;
         dap_list_t *link_list;
-        dap_list_t *bridged_networks;   // List of bridged network ID's allowed to cross-network TXs
+        dap_list_t *bridged_networks;   // List of bridged network ID's allowed to cross-network TX
     } pub;
     uint8_t pvt[];
 } dap_chain_net_t;
@@ -92,15 +94,14 @@ DAP_STATIC_INLINE int dap_chain_net_id_parse(const char *a_id_str, dap_chain_net
     return res;
 }
 
-DAP_STATIC_INLINE dap_cluster_member_t *dap_chain_net_add_validator_addr(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_addr)
-{
-    return dap_global_db_cluster_member_add(PVT(a_net)->mempool_cluster, a_addr, DAP_GDB_MEMBER_ROLE_ROOT);
-}
+dap_cluster_member_t *dap_chain_net_add_validator_addr(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_addr);
 
 typedef bool (dap_chain_datum_filter_func_t)(dap_chain_datum_t *a_datum, dap_chain_t * a_chain, void *a_filter_func_param);
 
 int dap_chain_net_init(void);
 void dap_chain_net_deinit(void);
+
+DAP_STATIC_INLINE uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t *a_net) { return g_node_addr.uint64; }
 
 void dap_chain_net_load_all();
 
@@ -153,8 +154,8 @@ dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * a_net);
 dap_list_t* dap_chain_net_get_node_list_cfg(dap_chain_net_t * a_net);
 dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net);
 dap_chain_node_info_t *dap_get_balancer_link_from_cfg(dap_chain_net_t *a_net);
-
-
+int dap_chain_net_add_poa_certs_to_cluster(dap_chain_net_t *a_net, dap_global_db_cluster_t *a_cluster);
+bool dap_chain_net_add_validator_to_clusters(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_addr);
 
 /**
  * @brief dap_chain_net_get_gdb_group_mempool
@@ -188,7 +189,6 @@ char *dap_chain_net_verify_datum_err_code_to_str(dap_chain_datum_t *a_datum, int
 void dap_chain_net_add_downlink(dap_chain_net_t *a_net, dap_stream_worker_t *a_worker, dap_stream_ch_uuid_t a_ch_uuid, dap_events_socket_uuid_t a_esocket_uuid, char *a_addr, int a_port);
 void dap_chain_net_del_downlink(dap_stream_ch_uuid_t *a_ch_uuid);
 void dap_chain_net_add_gdb_notify_callback(dap_chain_net_t *a_net, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg);
-void dap_chain_net_sync_gdb_broadcast(dap_global_db_instance_t *a_dbi, dap_store_obj_t *a_obj, void *a_arg);
 
 /**
  * @brief dap_chain_datum_list

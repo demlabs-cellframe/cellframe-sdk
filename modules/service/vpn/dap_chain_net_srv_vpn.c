@@ -82,6 +82,7 @@ typedef struct iphdr dap_os_iphdr_t;
 #include "dap_strfuncs.h"
 #include "dap_config.h"
 
+#include "dap_context.h"
 #include "dap_events_socket.h"
 #include "dap_http_client.h"
 

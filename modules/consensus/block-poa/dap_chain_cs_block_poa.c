@@ -28,7 +28,6 @@
 #include "dap_enc_base58.h"
 #include "dap_cert.h"
 #include "dap_chain.h"
-#include "dap_chain_pvt.h"
 #include "dap_chain_block.h"
 #include "dap_chain_block_cache.h"
 #include "dap_chain_cs_blocks.h"
@@ -40,7 +39,6 @@
 #include "dap_chain_cs_blocks.h"
 
 #define LOG_TAG "dap_chain_cs_block_poa"
-
 
 typedef struct dap_chain_cs_dag_poa_pvt {
     dap_enc_key_t *sign_key;

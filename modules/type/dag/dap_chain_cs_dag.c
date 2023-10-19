@@ -88,6 +88,8 @@ typedef struct dap_chain_cs_dag_pvt {
 
 #define PVT(a) ((dap_chain_cs_dag_pvt_t *) a->_pvt )
 
+static int s_chain_cs_dag_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg);
+static void s_chain_cs_dag_delete(dap_chain_t *a_chain);
 static void s_dap_chain_cs_dag_purge(dap_chain_t *a_chain);
 static void s_dap_chain_cs_dag_threshold_free(dap_chain_cs_dag_t *a_dag);
 static dap_chain_cs_dag_event_item_t *s_dag_proc_treshold(dap_chain_cs_dag_t *a_dag);
@@ -181,7 +183,7 @@ void dap_chain_cs_dag_deinit(void)
 
 }
 
-static void s_history_callback_round_notify(dap_global_db_instance_t *a_dbi, dap_store_obj_t *a_obj, void *a_arg)
+static void s_round_changes_notify(dap_global_db_instance_t *a_dbi, dap_store_obj_t *a_obj, void *a_arg)
 {
     dap_chain_cs_dag_t *l_dag = (dap_chain_cs_dag_t *)a_arg;
     assert(l_dag);
@@ -189,13 +191,10 @@ static void s_history_callback_round_notify(dap_global_db_instance_t *a_dbi, dap
     debug_if(s_debug_more, L_DEBUG, "%s.%s: op_code='%c' group=\"%s\" key=\"%s\" value_size=%zu",
         l_net->pub.name, l_dag->chain->name, a_obj->type, a_obj->group, a_obj->key, a_obj->value_len);
     if (a_obj->type == DAP_GLOBAL_DB_OPTYPE_ADD && l_dag->callback_cs_event_round_sync) {
-        if (!l_dag->broadcast_disable)
-            dap_chain_cs_dag_event_broadcast(l_dag, a_obj, a_context);
-        if (dap_strcmp(a_obj->key, DAG_ROUND_CURRENT_KEY)) {  // check key for round increment, if no than process event
+        if (dap_strcmp(a_obj->key, DAG_ROUND_CURRENT_KEY))  // check key for round increment, if no than process event
             l_dag->callback_cs_event_round_sync(l_dag, a_obj->type, a_obj->group, a_obj->key, a_obj->value, a_obj->value_len);
-        } else {
+        else
             log_it(L_INFO, "Global round ID: %lu", *(uint64_t*)a_obj->value);
-        }
     }
 }
 
@@ -211,7 +210,7 @@ static bool s_dag_rounds_events_iter(dap_global_db_instance_t *a_dbi,
     for (size_t i = 0; i < a_values_count; i++) {
         dap_store_obj_t *l_obj_cur = a_values + i;
         l_obj_cur->type = DAP_GLOBAL_DB_OPTYPE_ADD;
-        s_history_callback_round_notify(a_context, a_values + i, a_arg);
+        s_round_changes_notify(a_dbi, a_values + i, a_arg);
     }
     return true;
 }
@@ -323,7 +322,11 @@ static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     l_dag->gdb_group_events_round_new = dap_strdup_printf(l_dag->is_celled ? "dag-%s-%s-%016llx-round.new" : "dag-%s-%s-round.new",
                                           l_net->pub.gdb_groups_prefix, a_chain->name, 0LLU);
-    dap_global_db_add_sync_extra_group(l_net->pub.name, l_dag->gdb_group_events_round_new, s_history_callback_round_notify, l_dag);
+    dap_global_db_cluster_t *l_dag_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
+                                                                       l_dag->gdb_group_events_round_new, l_dag->gdb_group_events_round_new,
+                                                                       900, true, s_round_changes_notify, l_dag,
+                                                                       DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_ROLE_AUTONOMIC);
+    dap_chain_net_add_poa_certs_to_cluster(l_net, l_dag_cluster);
     byte_t *l_current_round = dap_global_db_get_sync(l_dag->gdb_group_events_round_new, DAG_ROUND_CURRENT_KEY, NULL, NULL, NULL);
     l_dag->round_current = l_current_round ? *(uint64_t*)l_current_round : 0;
     DAP_DELETE(l_current_round);
@@ -1532,7 +1535,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                             dap_string_append_printf(l_str_ret_tmp, "Event %s not added in chain\n", l_objs[i].key);
                         } else {
                             // add event to delete
-                            l_list_to_del = dap_list_prepend(l_list_to_del, l_objs[i].key);
+                            l_list_to_del = dap_list_prepend(l_list_to_del, (void *)l_objs[i].key);
                             dap_string_append_printf(l_str_ret_tmp, "Event %s added in chain successfully\n",
                                     l_objs[i].key);
                         }

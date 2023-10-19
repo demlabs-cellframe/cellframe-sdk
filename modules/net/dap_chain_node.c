@@ -50,40 +50,6 @@
 #define LOG_TAG "chain_node"
 
 /**
- * Generate node address
- */
-dap_chain_node_addr_t* dap_chain_node_gen_addr(dap_chain_net_id_t a_net_id)
-{
-    dap_chain_node_addr_t *l_addr = DAP_NEW_Z(dap_chain_node_addr_t);
-    if (!l_addr) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        return NULL;
-    }
-    dap_chain_hash_fast_t l_hash;
-    dap_hash_fast(&a_net_id, sizeof(dap_chain_net_id_t), &l_hash);
-    // first 4 bytes is last 4 bytes of shard id hash
-    memcpy(l_addr->raw, l_hash.raw + sizeof(l_hash.raw) - sizeof(uint64_t) / 2, sizeof(uint64_t) / 2);
-    // last 4 bytes is random
-    randombytes(l_addr->raw + sizeof(uint64_t) / 2, sizeof(uint64_t) / 2);
-    // for LITTLE_ENDIAN (Intel), do nothing, otherwise swap bytes
-    l_addr->uint64 = le64toh(l_addr->uint64); // l_addr->raw the same l_addr->uint64
-    return l_addr;
-}
-
-/**
- * Check the validity of the node address by cell id
- */
-bool dap_chain_node_check_addr(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_addr)
-{
-    if (!a_addr || !a_net)
-        return false;
-    dap_chain_hash_fast_t l_hash;
-    dap_hash_fast(&a_net->pub.id, sizeof(dap_chain_net_id_t), &l_hash);
-    // first 4 bytes is last 4 bytes of shard id hash
-    return !memcmp(a_addr->raw, l_hash.raw + sizeof(l_hash.raw) - sizeof(uint64_t) / 2, sizeof(uint64_t) / 2);
-}
-
-/**
  * Register alias in base
  */
 bool dap_chain_node_alias_register(dap_chain_net_t *a_net, const char *a_alias, dap_chain_node_addr_t *a_addr)
@@ -328,9 +294,3 @@ bool dap_chain_node_mempool_autoproc_init()
     return true;
 }
 
-/**
- * @brief dap_chain_node_mempool_deinit
- */
-void dap_chain_node_mempool_autoproc_deinit()
-{
-}

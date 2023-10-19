@@ -25,6 +25,7 @@
 
 #include "dap_net.h"
 #include "dap_events.h"
+#include "dap_context.h"
 #include "dap_timerfd.h"
 #include "dap_chain_node_dns_server.h"
 #include "dap_chain_node_dns_client.h"
