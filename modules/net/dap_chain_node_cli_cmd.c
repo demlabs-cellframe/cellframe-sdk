@@ -3348,6 +3348,18 @@ int com_mempool_check(int a_argc, char **a_argv, json_object ** a_json_reply)
     }
 }
 
+typedef enum com_mempool_proc_list_error{
+    DAP_COM_MEMPOOL_PROC_LIST_ERROR_NODE_ROLE_NOT_FULL = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
+    DAP_COM_MEMPOOL_PROC_LIST_ERROR_GET_DATUM_HASH_FROM_STR,
+    DAP_COM_MEMPOOL_PROC_LIST_ERROR_DATUM_CORRUPT_SIZE_DATUM_NOT_EQUALS_SIZE_RECORD,
+    DAP_COM_MEMPOOL_PROC_LIST_ERROR_CAN_NOT_GROUP_NAME,
+    DAP_COM_MEMPOOL_PROC_LIST_ERROR_CAN_NOT_FIND_DATUM,
+    DAP_COM_MEMPOOL_PROC_LIST_ERROR_CAN_NOT_CONVERT_DATUM_HASH_TO_DIGITAL_FORM,
+    DAP_COM_MEMPOOL_PROC_LIST_ERROR_REAL_HASH_DATUM_DOES_NOT_MATCH_HASH_DATA_STRING,
+    DAP_COM_MEMPOOL_PROC_LIST_ERROR_FALSE_VERIFY,
+    DAP_COM_MEMPOOL_PROC_LIST_ERROR_CAN_NOT_MOVE_TO_NO_CONCENSUS_FROM_MEMPOOL
+
+}com_mempool_proc_list_error_t;
 /**
  * @brief com_mempool_proc
  * process mempool datums
@@ -3373,21 +3385,24 @@ int com_mempool_proc(int a_argc, char **a_argv, json_object **a_json_reply)
 
     // If full or light it doesnt work
     if(dap_chain_net_get_role(l_net).enums>= NODE_ROLE_FULL){
-        dap_json_rpc_error_add(-1, "Need master node role or higher for network %s to process this command", l_net->pub.name);
-        return -1;
+        dap_json_rpc_error_add(DAP_COM_MEMPOOL_PROC_LIST_ERROR_NODE_ROLE_NOT_FULL,
+                               "Need master node role or higher for network %s to process this command", l_net->pub.name);
+        return DAP_COM_MEMPOOL_PROC_LIST_ERROR_NODE_ROLE_NOT_FULL;
     }
 
     const char * l_datum_hash_str = NULL;
     int ret = 0;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-datum", &l_datum_hash_str);
     if (!l_datum_hash_str) {
-        dap_json_rpc_error_add(-5, "Error! %s requires -datum <datum hash> option", a_argv[0]);
-        return -5;
+        dap_json_rpc_error_add(DAP_COM_MEMPOOL_PROC_LIST_ERROR_GET_DATUM_HASH_FROM_STR,
+                               "Error! %s requires -datum <datum hash> option", a_argv[0]);
+        return DAP_COM_MEMPOOL_PROC_LIST_ERROR_GET_DATUM_HASH_FROM_STR;
     }
     char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
     if (!l_gdb_group_mempool){
-        dap_json_rpc_error_add(-5, "Failed to get mempool group name on network %s", l_net->pub.name);
-        return -5;
+        dap_json_rpc_error_add(DAP_COM_MEMPOOL_PROC_LIST_ERROR_CAN_NOT_GROUP_NAME,
+                               "Failed to get mempool group name on network %s", l_net->pub.name);
+        return DAP_COM_MEMPOOL_PROC_LIST_ERROR_CAN_NOT_GROUP_NAME;
     }
     size_t l_datum_size=0;
 
@@ -3402,33 +3417,36 @@ int com_mempool_proc(int a_argc, char **a_argv, json_object **a_json_reply)
                                                                                    &l_datum_size, NULL, NULL ) : NULL;
     size_t l_datum_size2 = l_datum? dap_chain_datum_size( l_datum): 0;
     if (l_datum_size != l_datum_size2) {
-        dap_json_rpc_error_add(-8, "Error! Corrupted datum %s, size by datum headers is %zd when in mempool is only %zd bytes",
+        dap_json_rpc_error_add(DAP_COM_MEMPOOL_PROC_LIST_ERROR_DATUM_CORRUPT_SIZE_DATUM_NOT_EQUALS_SIZE_RECORD, "Error! Corrupted datum %s, size by datum headers is %zd when in mempool is only %zd bytes",
                                             l_datum_hash_hex_str, l_datum_size2, l_datum_size);
         DAP_DELETE(l_datum_hash_hex_str);
         DAP_DELETE(l_gdb_group_mempool);
-        return -8;
+        return DAP_COM_MEMPOOL_PROC_LIST_ERROR_DATUM_CORRUPT_SIZE_DATUM_NOT_EQUALS_SIZE_RECORD;
     }
     if (!l_datum) {
-        dap_json_rpc_error_add(-4, "Error! Can't find datum %s", l_datum_hash_str);
+        dap_json_rpc_error_add(DAP_COM_MEMPOOL_PROC_LIST_ERROR_CAN_NOT_FIND_DATUM,
+                               "Error! Can't find datum %s", l_datum_hash_str);
         DAP_DELETE(l_datum_hash_hex_str);
         DAP_DELETE(l_gdb_group_mempool);
-        return -4;
+        return DAP_COM_MEMPOOL_PROC_LIST_ERROR_CAN_NOT_FIND_DATUM;
     }
     dap_hash_fast_t l_datum_hash, l_real_hash;
     if (dap_chain_hash_fast_from_hex_str(l_datum_hash_hex_str, &l_datum_hash)) {
-        dap_json_rpc_error_add(-7, "Error! Can't convert datum hash string %s to digital form",
+        dap_json_rpc_error_add(DAP_COM_MEMPOOL_PROC_LIST_ERROR_CAN_NOT_CONVERT_DATUM_HASH_TO_DIGITAL_FORM,
+                               "Error! Can't convert datum hash string %s to digital form",
                                l_datum_hash_hex_str);
         DAP_DELETE(l_datum_hash_hex_str);
         DAP_DELETE(l_gdb_group_mempool);
-        return -7;
+        return DAP_COM_MEMPOOL_PROC_LIST_ERROR_CAN_NOT_CONVERT_DATUM_HASH_TO_DIGITAL_FORM;
     }
     dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_real_hash);
     if (!dap_hash_fast_compare(&l_datum_hash, &l_real_hash)) {
-        dap_json_rpc_error_add(-6, "Error! Datum's real hash doesn't match datum's hash string %s",
+        dap_json_rpc_error_add(DAP_COM_MEMPOOL_PROC_LIST_ERROR_REAL_HASH_DATUM_DOES_NOT_MATCH_HASH_DATA_STRING,
+                               "Error! Datum's real hash doesn't match datum's hash string %s",
                                             l_datum_hash_hex_str);
         DAP_DELETE(l_datum_hash_hex_str);
         DAP_DELETE(l_gdb_group_mempool);
-        return -6;
+        return DAP_COM_MEMPOOL_PROC_LIST_ERROR_REAL_HASH_DATUM_DOES_NOT_MATCH_HASH_DATA_STRING;
     }
     char buf[50];
     dap_time_t l_ts_create = (dap_time_t)l_datum->header.ts_create;
@@ -3451,7 +3469,7 @@ int com_mempool_proc(int a_argc, char **a_argv, json_object **a_json_reply)
         json_object_put(l_jobj_ts_created_time_stamp);
         DAP_DEL_Z(l_ts_created_str);
         dap_json_rpc_allocated_error;
-        return 1;
+        return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
     }
     json_object *l_jobj_ts_created_str = json_object_new_string(l_ts_created_str);
     DAP_DEL_Z(l_ts_created_str);
@@ -3466,7 +3484,7 @@ int com_mempool_proc(int a_argc, char **a_argv, json_object **a_json_reply)
         json_object_put(l_jobj_ts_created_str);
         json_object_put(l_jobj_data_size);
         dap_json_rpc_allocated_error;
-        return 1;
+        return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
     }
     json_object_object_add(l_jobj_datum, "hash", l_jobj_hash);
     json_object_object_add(l_jobj_datum, "type", l_jobj_type);
@@ -3479,20 +3497,11 @@ int com_mempool_proc(int a_argc, char **a_argv, json_object **a_json_reply)
     if (!l_jobj_verify) {
         json_object_put(l_jobj_res);
         dap_json_rpc_allocated_error;
-        return 1;
+        return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
     }
     int l_verify_datum = dap_chain_net_verify_datum_for_add(l_chain, l_datum, &l_datum_hash);
     if (l_verify_datum){
-        char *l_str_err = dap_strdup_printf("Error! Datum doesn't pass verifications (%s) examine node log files",
-                                            dap_chain_net_verify_datum_err_code_to_str(l_datum, l_verify_datum));
-        if (!l_str_err) {
-            json_object_put(l_jobj_verify);
-            json_object_put(l_jobj_res);
-            dap_json_rpc_allocated_error;
-            return -10;
-        }
-        json_object *l_jobj_verify_err = json_object_new_string(l_str_err);
-        DAP_DELETE(l_str_err);
+        json_object *l_jobj_verify_err = json_object_new_string(dap_chain_net_verify_datum_err_code_to_str(l_datum, l_verify_datum));
         json_object *l_jobj_verify_status = json_object_new_boolean(FALSE);
         if (!l_jobj_verify_status || !l_jobj_verify_err) {
             json_object_put(l_jobj_verify_status);
@@ -3500,34 +3509,31 @@ int com_mempool_proc(int a_argc, char **a_argv, json_object **a_json_reply)
             json_object_put(l_jobj_verify);
             json_object_put(l_jobj_res);
             dap_json_rpc_allocated_error;
-            return -10;
+            return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
         }
         json_object_object_add(l_jobj_verify, "isProcessed", l_jobj_verify_status);
         json_object_object_add(l_jobj_verify, "error", l_jobj_verify_err);
-        ret = -9;
+        ret = DAP_COM_MEMPOOL_PROC_LIST_ERROR_FALSE_VERIFY;
     } else {
         if (l_chain->callback_add_datums) {
             if (l_chain->callback_add_datums(l_chain, &l_datum, 1) == 0) {
-                json_object *l_jobj_verify_err = json_object_new_string("Error! Datum doesn't pass verifications, examine node log files");
                 json_object *l_jobj_verify_status = json_object_new_boolean(FALSE);
-                if (!l_jobj_verify_status || !l_jobj_verify_err) {
+                if (!l_jobj_verify_status) {
                     json_object_put(l_jobj_verify_status);
-                    json_object_put(l_jobj_verify_err);
                     json_object_put(l_jobj_verify);
                     json_object_put(l_jobj_res);
                     dap_json_rpc_allocated_error;
-                    return -10;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 }
                 json_object_object_add(l_jobj_verify, "isProcessed", l_jobj_verify_status);
-                json_object_object_add(l_jobj_verify, "error", l_jobj_verify_err);
-                ret = -6;
+                ret = DAP_COM_MEMPOOL_PROC_LIST_ERROR_FALSE_VERIFY;
             } else {
                 json_object *l_jobj_verify_status = json_object_new_boolean(TRUE);
                 if (!l_jobj_verify_status) {
                     json_object_put(l_jobj_verify);
                     json_object_put(l_jobj_res);
                     dap_json_rpc_allocated_error;
-                    return -10;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 }
                 json_object_object_add(l_jobj_verify, "isProcessed", l_jobj_verify_status);
                 if (dap_global_db_del_sync(l_gdb_group_mempool, l_datum_hash_hex_str)){
@@ -3536,7 +3542,7 @@ int com_mempool_proc(int a_argc, char **a_argv, json_object **a_json_reply)
                         json_object_put(l_jobj_verify);
                         json_object_put(l_jobj_res);
                         dap_json_rpc_allocated_error;
-                        return -10;
+                        return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                     }
                     json_object_object_add(l_jobj_verify, "warning", l_jobj_wrn_text);
                 } else {
@@ -3545,14 +3551,14 @@ int com_mempool_proc(int a_argc, char **a_argv, json_object **a_json_reply)
                         json_object_put(l_jobj_verify);
                         json_object_put(l_jobj_res);
                         dap_json_rpc_allocated_error;
-                        return -10;
+                        return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                     }
                     json_object_object_add(l_jobj_verify, "notice", l_jobj_text);
                 }
             }
         } else {
-            dap_json_rpc_error_add(-1, "Error! Can't move to no-concensus chains from mempool");
-            ret = -1;
+            dap_json_rpc_error_add(DAP_COM_MEMPOOL_PROC_LIST_ERROR_CAN_NOT_MOVE_TO_NO_CONCENSUS_FROM_MEMPOOL, "Error! Can't move to no-concensus chains from mempool");
+            ret = DAP_COM_MEMPOOL_PROC_LIST_ERROR_CAN_NOT_MOVE_TO_NO_CONCENSUS_FROM_MEMPOOL;
         }
     }
     DAP_DELETE(l_gdb_group_mempool);
