@@ -246,7 +246,8 @@ json_object *dap_chain_datum_tx_receipt_to_json(dap_chain_datum_tx_receipt_t *a_
         json_object_put(l_obj_info);
         json_object_put(l_obj_signs);
         json_object_put(l_obj);
-        dap_json_rpc_error_add(2, "Error serializing signature to JSON.");
+        dap_json_rpc_error_add(DAP_JSON_RPC_ERR_CODE_SERIALIZATION_SIGN_TO_JSON,
+                               "Error serializing signature to JSON.");
         return NULL;
     }
     json_object *l_obj_client_sign = dap_sign_to_json(l_second_sign);
@@ -256,7 +257,8 @@ json_object *dap_chain_datum_tx_receipt_to_json(dap_chain_datum_tx_receipt_t *a_
         json_object_put(l_obj_info);
         json_object_put(l_obj_signs);
         json_object_put(l_obj);
-        dap_json_rpc_error_add(2, "Error serializing signature to JSON.");
+        dap_json_rpc_error_add(DAP_JSON_RPC_ERR_CODE_SERIALIZATION_SIGN_TO_JSON,
+                               "Error serializing signature to JSON.");
         return NULL;
     }
     json_object_object_add(l_obj_signs, "provider", l_obj_provider_sign);

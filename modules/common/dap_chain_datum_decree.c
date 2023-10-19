@@ -675,7 +675,8 @@ json_object *dap_chain_datum_decree_to_json(dap_chain_datum_decree_t *a_decree){
                     json_object_put(l_jobj_type);
                     json_object_put(l_jobj_decree);
                     json_object_put(l_jobj_tsd);
-                    dap_json_rpc_allocated_error;
+                    dap_json_rpc_error_add(DAP_JSON_RPC_ERR_CODE_SERIALIZATION_ADDR_TO_JSON,
+                                           "Failed to serialize address to JSON.");
                     return NULL;
                 }
                 json_object *l_jobj_addr_fee_wallet = json_object_new_string(l_addr_fee_wallet_str);
@@ -986,7 +987,7 @@ json_object *dap_chain_datum_decree_to_json(dap_chain_datum_decree_t *a_decree){
         json_object_put(l_json_subtype);
         json_object_put(l_jobj_type);
         json_object_put(l_jobj_decree);
-        dap_json_rpc_error_add(2, "Can't serialize the decree signature in JSON.");
+        dap_json_rpc_error_add(DAP_JSON_RPC_ERR_CODE_SERIALIZATION_SIGN_TO_JSON, "Can't serialize the decree signature in JSON.");
         return NULL;
     }
     json_object_object_add(l_jobj_decree, "type", l_jobj_type);

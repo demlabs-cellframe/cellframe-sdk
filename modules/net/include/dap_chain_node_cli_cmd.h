@@ -174,8 +174,7 @@ int cmd_gdb_export(int a_argc, char **a_argv, char **a_str_reply);
 int com_mempool_delete(int a_argc, char **a_argv, json_object **a_json_reply);
 typedef enum com_mempool_list_err{
     DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_OK = 0,
-    DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_MEMORY_ERR,
-    DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_CAN_NOT_READ_EMISSION = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
     DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_CHAIN_NOT_FOUND,
     DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_CAN_NOT_GET_MEMPOOL_GROUP,
     /* add custom codes here */

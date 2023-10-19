@@ -533,7 +533,8 @@ json_object* dap_chain_datum_tx_item_out_ext_to_json(const dap_chain_tx_out_ext_
     json_object *l_obj_addr = dap_chain_addr_to_json(&a_out_ext->addr);
     if (!l_obj_addr) {
         json_object_put(l_obj);
-        dap_json_rpc_error_add(2, "Can't get from addr JSON");
+        dap_json_rpc_error_add(DAP_JSON_RPC_ERR_CODE_SERIALIZATION_ADDR_TO_JSON,
+                               "Can't get from addr JSON");
         return NULL;
     }
     json_object *l_obj_token = json_object_new_string(a_out_ext->token);
@@ -809,6 +810,8 @@ json_object* dap_chain_datum_tx_item_out_cond_srv_xchange_to_json(dap_chain_tx_o
             json_object_put(l_obj_sell_net_id);
             json_object_put(l_obj_buy_token);
             json_object_put(l_obj_value_buy);
+            dap_json_rpc_error_add(DAP_JSON_RPC_ERR_CODE_SERIALIZATION_ADDR_TO_JSON,
+                                   "Failed to serialize address to JSON.");
             dap_json_rpc_allocated_error;
             return NULL;
         }
@@ -876,7 +879,8 @@ json_object *dap_chain_datum_tx_item_out_cond_srv_stake_to_json(dap_chain_tx_out
             json_object_put(l_obj_srv_uid);
             json_object_put(l_obj_value);
             json_object_put(l_object);
-            dap_json_rpc_allocated_error;
+            dap_json_rpc_error_add(DAP_JSON_RPC_ERR_CODE_SERIALIZATION_ADDR_TO_JSON,
+                                   "Failed to serialize address to JSON.");
             return NULL;
         }
         char *l_signer_node_addr = dap_strdup_printf(
@@ -1048,7 +1052,8 @@ json_object* dap_chain_datum_tx_item_sig_to_json(const dap_chain_tx_sig_t *a_sig
     if (!l_sign) {
         json_object_put(l_object);
         json_object_put(l_sign_size);
-        dap_json_rpc_error_add(-1, "Error serializing signature to JSON.");
+        dap_json_rpc_error_add(DAP_JSON_RPC_ERR_CODE_SERIALIZATION_SIGN_TO_JSON,
+                               "Error serializing signature to JSON.");
         return NULL;
     }
     json_object_object_add(l_object, "signSize", l_sign_size);

@@ -252,7 +252,7 @@ json_object *dap_chain_datum_anchor_to_json(dap_chain_datum_anchor_t *a_anchor){
         json_object_put(l_obj_ts_created);
         json_object_put(l_obj_version);
         json_object_put(l_obj_anchor);
-        dap_json_rpc_error_add(2, "I can't serialize the anchor signature in JSON.");
+        dap_json_rpc_error_add(DAP_JSON_RPC_ERR_CODE_SERIALIZATION_SIGN_TO_JSON, "I can't serialize the anchor signature in JSON.");
         return NULL;
     }
     json_object_object_add(l_obj_anchor, "signs", l_jobj_signs);

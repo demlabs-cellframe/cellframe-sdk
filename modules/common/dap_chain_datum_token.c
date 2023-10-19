@@ -526,7 +526,8 @@ json_object *dap_chain_datum_token_to_json(dap_chain_datum_token_t * a_token, si
                 json_object_put(l_jobj_premine_supply);
                 json_object_put(l_jobj_header);
                 json_object_put(l_jobj_token);
-                dap_json_rpc_error_add(2, "Failed to convert address to JSON.");
+                dap_json_rpc_error_add(DAP_JSON_RPC_ERR_CODE_SERIALIZATION_ADDR_TO_JSON,
+                                       "Failed to convert address to JSON.");
                 return NULL;
             }
             json_object_object_add(l_jobj_header, "flags", l_jobj_flags);
@@ -582,7 +583,7 @@ json_object *dap_chain_datum_token_to_json(dap_chain_datum_token_t * a_token, si
         if (!l_obj_sign) {
             json_object_put(l_obj_signs);
             json_object_put(l_jobj_token);
-            dap_json_rpc_error_add(2, "Failed to convert signature to JSON.");
+            dap_json_rpc_error_add(DAP_JSON_RPC_ERR_CODE_SERIALIZATION_SIGN_TO_JSON, "Failed to convert signature to JSON.");
             return NULL;
         }
         json_object_array_add(l_obj_signs, l_obj_sign);
@@ -864,6 +865,7 @@ json_object *dap_chain_datum_emission_to_json(dap_chain_datum_token_emission_t *
             if (!l_obj_signs){
                 json_object_put(l_emi_data);
                 json_object_put(l_emi_obj);
+                dap_json_rpc_error_add(DAP_JSON_RPC_ERR_CODE_SERIALIZATION_SIGN_TO_JSON, "Error serialization signatures to JSON");
                 dap_json_rpc_allocated_error;
                 return NULL;
             }
