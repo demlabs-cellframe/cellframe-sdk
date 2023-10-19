@@ -936,7 +936,10 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
         l_datum_index->ret_code = l_res;
         l_datum_index->datum_index = i;
         pthread_rwlock_wrlock(&PVT(a_blocks)->datums_rwlock);
-        HASH_ADD(hh, PVT(a_blocks)->datum_index, datum_hash, sizeof(*l_datum_hash), l_datum_index);
+        dap_chain_block_datum_index_t *l_datum_index_tmp = NULL;
+        HASH_FIND(hh, PVT(a_blocks)->datum_index, l_datum_hash, sizeof (*l_datum_hash), l_datum_index_tmp);
+        if(!l_datum_index_tmp)
+            HASH_ADD(hh, PVT(a_blocks)->datum_index, datum_hash, sizeof(*l_datum_hash), l_datum_index);
         pthread_rwlock_unlock(&PVT(a_blocks)->datums_rwlock);
 
     }
