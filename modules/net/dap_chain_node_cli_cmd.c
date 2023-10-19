@@ -2848,6 +2848,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
         }
         json_object *l_obj_chain_name  = json_object_new_string(a_chain->name);
         if (!l_obj_chain_name) {
+            json_object_put(l_obj_chain);
             dap_json_rpc_allocated_error;
             return;
         }
@@ -2855,6 +2856,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
         dap_chain_mempool_filter(a_chain, &l_removed);
         json_object *l_jobj_removed = json_object_new_int(l_removed);
         if (!l_jobj_removed) {
+            json_object_put(l_obj_chain);
             dap_json_rpc_allocated_error;
             return;
         }
@@ -2868,6 +2870,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
         } else {
             l_jobj_datums = json_object_new_array();
             if (!l_jobj_datums) {
+                json_object_put(l_obj_chain);
                 dap_json_rpc_allocated_error;
                 return;
             }
@@ -2884,6 +2887,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
             json_object *l_jobj_datum = dap_chain_datum_to_json(l_datum);
             if (!l_jobj_datum){
                 json_object_put(l_jobj_datums);
+                json_object_put(l_obj_chain);
                 dap_global_db_objs_delete(l_objs, l_objs_size);
                 dap_json_rpc_allocated_error;
                 return;
@@ -2896,6 +2900,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                 if (!l_emission) {
                     json_object_put(l_jobj_datum);
                     json_object_put(l_jobj_datums);
+                    json_object_put(l_obj_chain);
                     dap_global_db_objs_delete(l_objs, l_objs_size);
                     dap_json_rpc_allocated_error;
                     return;
@@ -2908,6 +2913,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
 
                 dap_chain_addr_t *l_addr = dap_chain_addr_from_str(a_add);
                 if (!l_addr) {
+                    json_object_put(l_obj_chain);
                     json_object_put(l_jobj_datum);
                     json_object_put(l_jobj_datums);
                     dap_global_db_objs_delete(l_objs, l_objs_size);
@@ -2972,6 +2978,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                                                 l_objs[i].key, l_data_hash_str);
                 if (!l_wgn) {
                     dap_global_db_objs_delete(l_objs, l_objs_size);
+                    json_object_put(l_obj_chain);
                     json_object_put(l_jobj_datum);
                     json_object_put(l_jobj_datums);
                     dap_json_rpc_allocated_error;
@@ -2981,6 +2988,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                 DAP_DELETE(l_wgn);
                 if (!l_jobj_warning) {
                     dap_global_db_objs_delete(l_objs, l_objs_size);
+                    json_object_put(l_obj_chain);
                     json_object_put(l_jobj_datum);
                     json_object_put(l_jobj_datums);
                     dap_json_rpc_allocated_error;
@@ -3004,6 +3012,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                     json_object *l_main_ticker = json_object_new_string(l_token_ticker);
                     if (!l_main_ticker) {
                         dap_global_db_objs_delete(l_objs, l_objs_size);
+                        json_object_put(l_obj_chain);
                         json_object_put(l_jobj_datum);
                         json_object_put(l_jobj_datums);
                         dap_json_rpc_allocated_error;
@@ -3019,7 +3028,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
         if (a_add) {
             json_object *l_ev_addr = json_object_new_int64(l_objs_size);
             if (!l_ev_addr) {
-                json_object_put(l_jobj_datums);
+                json_object_put(l_obj_chain);
                 dap_json_rpc_allocated_error;
                 return;
             }
