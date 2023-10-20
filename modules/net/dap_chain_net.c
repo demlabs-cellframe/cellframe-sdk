@@ -506,6 +506,16 @@ dap_chain_node_info_t *dap_get_balancer_link_from_cfg(dap_chain_net_t *a_net)
     return l_link_node_info;
 }
 
+void dap_chain_net_add_cluster_link(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_node_addr)
+{
+    dap_return_if_fail(a_net && a_node_addr);
+    dap_cluster_t *l_links_cluster = dap_cluster_by_mnemonim(a_net->pub.gdb_groups_prefix);
+    if (l_links_cluster)
+        dap_cluster_member_add(l_links_cluster, a_node_addr, 0, NULL);
+    else
+        log_it(L_ERROR, "Not found links cluster for net %s", a_net->pub.name);
+}
+
 /**
  * @brief Check if the current link is already present or not
  *
@@ -685,6 +695,9 @@ static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_clie
     log_it(L_NOTICE, "Established connection with %s."NODE_ADDR_FP_STR,l_net->pub.name,
            NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr));
     a_node_client->is_connected = true;
+    dap_stream_t *l_stream = dap_client_get_stream(a_node_client->client);
+    assert(l_stream);
+    dap_chain_net_add_cluster_link(l_net, l_stream->node);
     struct json_object *l_json = s_net_states_json_collect(l_net);
     char l_err_str[128] = { };
     snprintf(l_err_str, sizeof(l_err_str)

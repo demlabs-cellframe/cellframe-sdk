@@ -132,6 +132,7 @@ bool dap_chain_net_get_flag_sync_from_zero( dap_chain_net_t * a_net);
 bool dap_chain_net_sync_trylock(dap_chain_net_t *a_net, dap_chain_node_client_t *a_client);
 bool dap_chain_net_sync_unlock(dap_chain_net_t *a_net, dap_chain_node_client_t *a_client);
 
+void dap_chain_net_add_cluster_link(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_node_addr);
 dap_chain_net_t * dap_chain_net_by_name( const char * a_name);
 dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id);
 uint16_t dap_chain_net_get_acl_idx(dap_chain_net_t *a_net);
@@ -179,7 +180,6 @@ dap_chain_t *dap_chain_net_get_chain_by_chain_type(dap_chain_net_t *a_net, dap_c
 dap_chain_t *dap_chain_net_get_default_chain_by_chain_type(dap_chain_net_t *a_net, dap_chain_type_t a_datum_type);
 char *dap_chain_net_get_gdb_group_mempool_by_chain_type(dap_chain_net_t *a_net, dap_chain_type_t a_datum_type);
 dap_chain_net_t **dap_chain_net_list(uint16_t *a_size);
-bool dap_chain_net_get_extra_gdb_group(dap_chain_net_t *a_net, dap_chain_node_addr_t a_node_addr);
 
 int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, dap_hash_fast_t *a_datum_hash);
 char *dap_chain_net_verify_datum_err_code_to_str(dap_chain_datum_t *a_datum, int a_code);
