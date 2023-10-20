@@ -2356,9 +2356,6 @@ int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(int *a_arg_index, int
                                              "type in chain configuration file");
                 return DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_CONFIG_DEFAULT_DATUM;
             }
-        } else {
-            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_CHAIN_STR_IS_NULL, "%s requires parameter '-chain'", a_argv[0]);
-            return DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_CHAIN_STR_IS_NULL;
         }
     }
     return 0;
@@ -3069,9 +3066,7 @@ int com_mempool_list(int a_argc, char **a_argv, json_object **a_json_reply)
     const char * l_hash_out_type = "hex";
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
     const char *l_chain_str = NULL;
-    (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-chain", NULL) == false) ?
-        dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, a_argc, a_argv, NULL, &l_net) :
-        dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, a_argc, a_argv, &l_chain, &l_net);
+    dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, a_argc, a_argv, &l_chain, &l_net);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_base58);
     l_fast = (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-fast") != -1) ? true : false;
     if(!l_net)
