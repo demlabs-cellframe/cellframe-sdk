@@ -397,8 +397,8 @@ static void s_get_tx_cond_all_for_addr_callback(dap_chain_net_t* a_net, dap_chai
                 dap_chain_tx_in_t * l_in = (dap_chain_tx_in_t *) l_tx_item;
                 if( l_tx_from_addr) // Already detected thats spends from addr
                     break;
-                dap_chain_tx_t * l_tx = dap_chain_tx_hh_find( l_args->tx_all_hh, &l_in->header.tx_prev_hash);
-                if( l_tx ){ // Its input thats closing output for target address - we note it
+//                dap_chain_tx_t * l_tx = dap_chain_tx_hh_find( l_args->tx_all_hh, &l_in->header.tx_prev_hash);
+                if( dap_chain_tx_hh_find( l_args->tx_all_hh, &l_in->header.tx_prev_hash) ){ // Its input thats closing output for target address - we note it
                     l_tx_from_addr = true;
                     //l_tx_from_addr_token = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_tx->hash);
                 }
@@ -407,8 +407,8 @@ static void s_get_tx_cond_all_for_addr_callback(dap_chain_net_t* a_net, dap_chai
                 if(l_tx_collected) // Already collected
                     break;
                 dap_chain_tx_in_cond_t * l_in_cond = (dap_chain_tx_in_cond_t *) l_tx_item;
-                dap_chain_tx_t * l_tx = dap_chain_tx_hh_find( l_args->tx_all_hh, &l_in_cond->header.tx_prev_hash);
-                if( l_tx ){ // Its input thats closing conditioned tx related with target address, collect it
+//                dap_chain_tx_t * l_tx = dap_chain_tx_hh_find( l_args->tx_all_hh, &l_in_cond->header.tx_prev_hash);
+                if( dap_chain_tx_hh_find( l_args->tx_all_hh, &l_in_cond->header.tx_prev_hash) ){ // Its input thats closing conditioned tx related with target address, collect it
                     //dap_chain_tx_t *l_tx_add = dap_chain_tx_wrap_packed(a_datum_tx);
                     l_args->ret = dap_list_append(l_args->ret, a_datum_tx);
                     l_tx_collected = true;
@@ -417,8 +417,9 @@ static void s_get_tx_cond_all_for_addr_callback(dap_chain_net_t* a_net, dap_chai
         }
         l_item_idx++;
     }
-
+//dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_out_item_idx)
     // Get out items from transaction
+    l_item_idx = 0;
     while ((l_tx_item = (dap_chain_datum_tx_item_t *) dap_chain_datum_tx_item_get(a_datum_tx, &l_item_idx, TX_ITEM_TYPE_OUT_ALL , NULL)) != NULL){
         switch (l_tx_item->type){
             case TX_ITEM_TYPE_OUT:{
@@ -427,7 +428,7 @@ static void s_get_tx_cond_all_for_addr_callback(dap_chain_net_t* a_net, dap_chai
                 dap_chain_tx_out_t * l_out = (dap_chain_tx_out_t*) l_tx_item;
                 if ( memcmp(&l_out->addr, l_args->addr, sizeof(*l_args->addr)) == 0){ // Its our address tx
                     dap_chain_tx_t * l_tx = dap_chain_tx_wrap_packed(a_datum_tx);
-                    dap_chain_tx_hh_add(l_args->tx_all_hh, l_tx);
+                    dap_chain_tx_hh_add(&l_args->tx_all_hh, l_tx);
                     l_tx_for_addr = true;
                 }
             }break;
@@ -437,7 +438,7 @@ static void s_get_tx_cond_all_for_addr_callback(dap_chain_net_t* a_net, dap_chai
                 dap_chain_tx_out_ext_t * l_out = (dap_chain_tx_out_ext_t*) l_tx_item;
                 if ( memcmp(&l_out->addr, l_args->addr, sizeof(*l_args->addr)) == 0){ // Its our address tx
                     dap_chain_tx_t * l_tx = dap_chain_tx_wrap_packed(a_datum_tx);
-                    dap_chain_tx_hh_add(l_args->tx_all_hh, l_tx);
+                    dap_chain_tx_hh_add(&l_args->tx_all_hh, l_tx);
                     l_tx_for_addr = true;
                 }
             }break;

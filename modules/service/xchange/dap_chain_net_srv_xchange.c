@@ -1164,14 +1164,19 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 }
                 dap_list_t *l_tx_list = dap_chain_net_get_tx_cond_all_for_addr(l_net,l_addr, c_dap_chain_net_srv_xchange_uid );
                 dap_string_t * l_str_reply = dap_string_new("");
-                dap_list_t *l_tx_list_temp = l_tx_list;
-                while(l_tx_list_temp ){
+
+                if (l_tx_list){
+                    dap_list_t *l_tx_list_temp = l_tx_list;
+                    while(l_tx_list_temp ){
                     dap_chain_datum_tx_t * l_tx_cur = (dap_chain_datum_tx_t*) l_tx_list_temp->data;
                     s_string_append_tx_cond_info(l_str_reply, l_net, l_tx_cur );
                     l_tx_list_temp = l_tx_list_temp->next;
+                    }
+                    dap_list_free(l_tx_list);
+                    *a_str_reply = dap_string_free(l_str_reply, false);
+                }else{
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "No history");
                 }
-                dap_list_free(l_tx_list);
-                *a_str_reply = dap_string_free(l_str_reply, false);
                 DAP_DELETE(l_addr);
             }
 
@@ -1519,9 +1524,6 @@ static void s_string_append_tx_cond_info( dap_string_t * a_reply_str, dap_chain_
     // Get input token ticker
     const char * l_tx_input_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(
                 a_net->pub.ledger, &l_tx_hash);
-
-
-
 
     // Find SRV_XCHANGE out_cond item
     int l_cond_idx = 0;
