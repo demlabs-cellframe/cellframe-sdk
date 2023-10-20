@@ -62,11 +62,18 @@ bool dap_chain_node_alias_register(dap_chain_net_t *a_net, const char *a_alias, 
  * @param alias
  * @return
  */
-dap_chain_node_addr_t * dap_chain_node_alias_find(dap_chain_net_t * a_net,const char *a_alias)
+dap_chain_node_addr_t *dap_chain_node_alias_find(dap_chain_net_t *a_net, const char *a_alias)
 {
+    dap_return_val_if_fail(a_alias && a_net, NULL);
     size_t l_addr_size =0;
-    return (dap_chain_node_addr_t*)dap_global_db_get_sync(a_net->pub.gdb_nodes_aliases,
-                                                          a_alias, &l_addr_size, NULL, NULL);
+    dap_chain_node_addr_t *l_addr = (dap_chain_node_addr_t *)dap_global_db_get_sync(a_net->pub.gdb_nodes_aliases,
+                                                                                    a_alias, &l_addr_size, NULL, NULL);
+    if (l_addr_size != sizeof(dap_chain_node_addr_t)) {
+        log_it(L_WARNING, "Address in database is corrupted for alias %s", a_alias);
+        DAP_DELETE(l_addr);
+        return NULL;
+    }
+    return l_addr;
 }
 
 /**

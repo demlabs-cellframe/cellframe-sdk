@@ -30,14 +30,6 @@
 #include "dap_chain_node.h"
 #include "dap_chain_node_cli.h"
 
-/**
- * Find in base addr by alias
- *
- * return addr, NULL if not found
- */
-dap_chain_node_addr_t* dap_chain_node_addr_get_by_alias(dap_chain_net_t * a_net, const char *alias);
-
-
 int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index,int a_argc, char **a_argv, char ** a_str_reply,
                              dap_chain_t ** a_chain, dap_chain_net_t ** a_net);
 

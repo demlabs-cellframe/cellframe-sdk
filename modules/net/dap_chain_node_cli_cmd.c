@@ -115,31 +115,6 @@
 static void s_dap_chain_net_purge(dap_chain_net_t *a_net);
 
 /**
- * @brief dap_chain_node_addr_t* dap_chain_node_addr_get_by_alias
- * Find in base addr by alias
- *
- * return addr, NULL if not found
- * @param a_net
- * @param a_alias
- * @return dap_chain_node_addr_t*
- */
-dap_chain_node_addr_t* dap_chain_node_addr_get_by_alias(dap_chain_net_t * a_net, const char *a_alias)
-{
-    dap_chain_node_addr_t *l_addr = NULL;
-    if(!a_alias)
-        return NULL;
-    const char *a_key = a_alias;
-    size_t l_addr_size = 0;
-    l_addr = (dap_chain_node_addr_t*) (void*) dap_global_db_get_sync(a_net->pub.gdb_nodes_aliases,a_key, &l_addr_size,NULL, NULL);
-    if(l_addr_size != sizeof(dap_chain_node_addr_t)) {
-        DAP_DELETE(l_addr);
-        l_addr = NULL;
-    }
-    return l_addr;
-}
-
-
-/**
  * @brief dap_list_t* get_aliases_by_name Get the aliases by name object
  * Find in base alias by addr
  *
@@ -184,7 +159,7 @@ static dap_list_t* get_aliases_by_name(dap_chain_net_t * l_net, dap_chain_node_a
 static dap_chain_node_addr_t* s_node_info_get_addr(dap_chain_net_t * a_net, dap_chain_node_addr_t *a_addr, const char *a_alias_str)
 {
     dap_chain_node_addr_t *l_address = a_alias_str
-            ? dap_chain_node_addr_get_by_alias(a_net, a_alias_str)
+            ? dap_chain_node_alias_find(a_net, a_alias_str)
             : a_addr && a_addr->uint64 ? DAP_DUP(a_addr) : NULL;
     if (!l_address)
         log_it(L_ERROR, "Node address with specified params not found");
@@ -1377,7 +1352,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     case CMD_CONNECT: {
         // get address from alias if addr not defined
         if(alias_str && !l_node_addr.uint64) {
-            dap_chain_node_addr_t *address_tmp = dap_chain_node_addr_get_by_alias(l_net, alias_str);
+            dap_chain_node_addr_t *address_tmp = dap_chain_node_alias_find(l_net, alias_str);
             if(address_tmp) {
                 l_node_addr = *address_tmp;
                 DAP_DELETE(address_tmp);
@@ -1561,7 +1536,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     case CMD_HANDSHAKE: {
         // get address from alias if addr not defined
         if(alias_str && !l_node_addr.uint64) {
-            dap_chain_node_addr_t *address_tmp = dap_chain_node_addr_get_by_alias(l_net, alias_str);
+            dap_chain_node_addr_t *address_tmp = dap_chain_node_alias_find(l_net, alias_str);
             if(address_tmp) {
                 l_node_addr = *address_tmp;
                 DAP_DELETE(address_tmp);

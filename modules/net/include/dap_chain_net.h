@@ -94,8 +94,6 @@ DAP_STATIC_INLINE int dap_chain_net_id_parse(const char *a_id_str, dap_chain_net
     return res;
 }
 
-dap_cluster_member_t *dap_chain_net_add_validator_addr(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_addr);
-
 typedef bool (dap_chain_datum_filter_func_t)(dap_chain_datum_t *a_datum, dap_chain_t * a_chain, void *a_filter_func_param);
 
 int dap_chain_net_init(void);
@@ -144,7 +142,6 @@ dap_string_t* dap_cli_list_net();
 dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const char * a_name);
 dap_chain_t *dap_chain_net_get_chain_by_id(dap_chain_net_t *l_net, dap_chain_id_t a_chain_id);
 
-dap_chain_node_addr_t * dap_chain_net_get_cur_addr( dap_chain_net_t * l_net);
 uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t * l_net);
 dap_chain_cell_id_t * dap_chain_net_get_cur_cell( dap_chain_net_t * l_net);
 const char* dap_chain_net_get_type(dap_chain_t *l_chain);
@@ -186,8 +183,6 @@ bool dap_chain_net_get_extra_gdb_group(dap_chain_net_t *a_net, dap_chain_node_ad
 
 int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, dap_hash_fast_t *a_datum_hash);
 char *dap_chain_net_verify_datum_err_code_to_str(dap_chain_datum_t *a_datum, int a_code);
-void dap_chain_net_add_downlink(dap_chain_net_t *a_net, dap_stream_worker_t *a_worker, dap_stream_ch_uuid_t a_ch_uuid, dap_events_socket_uuid_t a_esocket_uuid, char *a_addr, int a_port);
-void dap_chain_net_del_downlink(dap_stream_ch_uuid_t *a_ch_uuid);
 void dap_chain_net_add_gdb_notify_callback(dap_chain_net_t *a_net, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg);
 
 /**

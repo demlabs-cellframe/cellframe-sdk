@@ -483,8 +483,7 @@ static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_ch
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_DELETE: {
             dap_chain_net_t *l_net = l_node_client->net;
             assert(l_net);
-            dap_chain_node_addr_t *l_node_addr = dap_chain_net_get_cur_addr(l_net);
-            log_it(L_DEBUG, "In: State node %s."NODE_ADDR_FP_STR" %s", l_net->pub.name, NODE_ADDR_FP_ARGS(l_node_addr),
+            log_it(L_DEBUG, "In: State node %s."NODE_ADDR_FP_STR" %s", l_net->pub.name, NODE_ADDR_FP_ARGS_S(g_node_addr),
                             a_pkt_type == DAP_STREAM_CH_CHAIN_PKT_TYPE_TIMEOUT ? "is timeout for sync" : "stream closed");
             l_node_client->state = NODE_CLIENT_STATE_ERROR;
             if (l_node_client->sync_timer)
