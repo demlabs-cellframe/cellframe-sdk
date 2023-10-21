@@ -19,6 +19,7 @@ if(NOT DEFINED CELLFRAME_MODULES)
 
     add_subdirectory(dap-sdk)
 
+    set(DAP_SDK_STANDALONE_BUILD)
 endif()
 
 message("Cellframe modules: ${CELLFRAME_MODULES}")
