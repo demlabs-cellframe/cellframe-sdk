@@ -30,7 +30,6 @@
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_datum_decree.h"
-#include "dap_chain_pvt.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_file_utils.h"
@@ -38,7 +37,7 @@
 #include "dap_chain.h"
 #include "dap_chain_ledger.h"
 #include "dap_cert.h"
-#include "dap_chain_ledger.h"
+#include "dap_chain_cell.h"
 #include "dap_chain_cs.h"
 #include "dap_cert_file.h"
 #include <uthash.h>
@@ -117,12 +116,20 @@ dap_chain_t *dap_chain_create(const char *a_chain_net_name, const char *a_chain_
             .cell_rwlock    = PTHREAD_RWLOCK_INITIALIZER,
             .atom_notifiers = NULL
     };
-    DAP_CHAIN_PVT_LOCAL_NEW(l_ret);
-
+    dap_chain_pvt_t *l_chain_pvt = DAP_NEW_Z(dap_chain_pvt_t);
+    if (!l_chain_pvt) {
+        DAP_DEL_Z(l_ret->name);
+        DAP_DEL_Z(l_ret->net_name);
+        DAP_DELETE(l_ret);
+        log_it(L_CRITICAL, "Memory allocation error");
+        return NULL;
+    }
+    l_ret->_pvt = l_chain_pvt;
     dap_chain_item_t *l_ret_item = DAP_NEW_Z(dap_chain_item_t);
     if (!l_ret_item) {
-        DAP_DELETE(l_ret->name);
-        DAP_DELETE(l_ret->net_name);
+        DAP_DEL_Z(l_ret->name);
+        DAP_DEL_Z(l_ret->net_name);
+        DAP_DELETE(l_ret->_pvt);
         DAP_DELETE(l_ret);
         log_it(L_CRITICAL, "Memory allocation error");
         return NULL;
@@ -778,4 +785,16 @@ int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name)
 
 const char* dap_chain_get_path(dap_chain_t *a_chain){
     return DAP_CHAIN_PVT(a_chain)->file_storage_dir;
+}
+
+void dap_chain_add_mempool_notify_callback(dap_chain_t *a_chain, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg)
+{
+    dap_chain_gdb_notifier_t *l_notifier = DAP_NEW(dap_chain_gdb_notifier_t);
+    if (!l_notifier) {
+        log_it(L_CRITICAL, "Memory allocation error");
+        return;
+    }
+    l_notifier->callback = a_callback;
+    l_notifier->cb_arg = a_cb_arg;
+    DAP_CHAIN_PVT(a_chain)->mempool_notifires = dap_list_append(DAP_CHAIN_PVT(a_chain)->mempool_notifires, l_notifier);
 }

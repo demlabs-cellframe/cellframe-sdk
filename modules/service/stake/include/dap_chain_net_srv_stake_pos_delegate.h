@@ -72,7 +72,7 @@ uint256_t dap_chain_net_srv_stake_get_allowed_min_value();
 
 int dap_chain_net_srv_stake_key_delegated(dap_chain_addr_t *a_addr);
 int dap_chain_net_srv_stake_verify_key_and_node(dap_chain_addr_t* a_signing_addr, dap_chain_node_addr_t* a_node_addr);
-dap_list_t *dap_chain_net_srv_stake_get_validators(dap_chain_net_id_t a_net_id, bool a_is_active);
+dap_list_t *dap_chain_net_srv_stake_get_validators(dap_chain_net_id_t a_net_id, bool a_only_active);
 dap_chain_node_addr_t *dap_chain_net_srv_stake_key_get_node_addr(dap_chain_addr_t *a_signing_addr);
 
 bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,

@@ -79,7 +79,7 @@ void dap_chain_cs_block_pos_deinit(void)
  */
 static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 {
-    dap_chain_cs_blocks_new(a_chain, a_chain_cfg);
+    dap_chain_cs_type_create("blocks", a_chain, a_chain_cfg);
     char ** l_tokens_hold = NULL;
     char ** l_tokens_hold_value_str = NULL;
     uint16_t l_tokens_hold_size = 0;

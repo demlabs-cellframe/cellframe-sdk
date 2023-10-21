@@ -36,7 +36,7 @@
 static dap_chain_net_srv_t *s_srv_datum = NULL;
 static int s_srv_datum_cli(int argc, char ** argv, char **a_str_reply);
 
-void s_order_notficator(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg);
+void s_order_notficator(dap_global_db_instance_t *a_dbi, dap_store_obj_t *a_obj, void *a_arg);
 
 int dap_chain_net_srv_datum_init()
 {
@@ -195,20 +195,16 @@ static int s_srv_datum_cli(int argc, char ** argv, char **a_str_reply) {
  * @param a_value
  * @param a_value_len
  */
-void s_order_notficator(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg)
+void s_order_notficator(dap_global_db_instance_t *a_dbi, dap_store_obj_t *a_obj, void *a_arg)
 {
-    if (a_obj->type == DAP_DB$K_OPTYPE_DEL)
+    if (a_obj->type == DAP_GLOBAL_DB_OPTYPE_DEL)
         return;
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_read((byte_t *)a_obj->value, a_obj->value_len);    // Old format comliance
-    dap_global_db_context_t * l_gdb_context = dap_global_db_context_current();
-    assert(l_gdb_context);
     if (!l_order && a_obj->key) {
         log_it(L_NOTICE, "Order %s is corrupted", a_obj->key);
-        if(dap_global_db_del_unsafe(l_gdb_context, a_obj->group, a_obj->key) != 0 ){
+        if (dap_global_db_driver_delete(a_obj, 1) != 0)
             log_it(L_ERROR,"Can't delete order %s", a_obj->key);
-        }
-
         return; // order is corrupted
     }
 

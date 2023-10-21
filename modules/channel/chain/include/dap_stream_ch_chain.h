@@ -32,7 +32,7 @@
 #include "dap_list.h"
 #include "dap_stream_ch_chain_pkt.h"
 #include "uthash.h"
-#include "dap_global_db_remote.h"
+#include "dap_global_db_cluster.h"
 
 #define DAP_CHAIN_NODE_SYNC_TIMEOUT 60  // sec
 #define DAP_SYNC_TICKS_PER_SECOND   10
@@ -72,7 +72,7 @@ typedef struct dap_stream_ch_chain {
 
     // request section
     dap_chain_atom_iter_t *request_atom_iter;
-    dap_db_log_list_t *request_db_log; // list of global db records
+    //dap_db_log_list_t *request_db_log; // list of global db records
     dap_stream_ch_chain_sync_request_t request;
     dap_stream_ch_chain_pkt_hdr_t request_hdr;
     dap_list_t *request_db_iter;

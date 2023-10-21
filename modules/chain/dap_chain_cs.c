@@ -26,7 +26,6 @@
 #include "uthash.h"
 #include "utlist.h"
 #include "dap_chain_cs.h"
-#include "dap_chain_pvt.h"
 
 #define LOG_TAG "dap_chain_cs"
 
@@ -81,18 +80,13 @@ void dap_chain_cs_type_add (const char * a_cs_str,  dap_chain_callback_new_cfg_t
  * @param a_chain_cfg
  * @return
  */
-int dap_chain_cs_type_create(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
+int dap_chain_cs_type_create(const char *a_type, dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
     dap_chain_callback_new_cfg_item_t *l_item = NULL;
-
-    HASH_FIND_STR(s_class_callbacks,dap_config_get_item_str( a_chain_cfg, "chain", "consensus"), l_item );
-    if ( l_item ) {
-        l_item->callback_init( a_chain, a_chain_cfg);
-        // TODO
-        return 0;
-    } else {
-        return -1;
-    }
+    HASH_FIND_STR(s_class_callbacks, a_type, l_item);
+    if (l_item && l_item->callback_init)
+        return l_item->callback_init(a_chain, a_chain_cfg);
+    return -1;
 }
 
 
@@ -130,9 +124,10 @@ int dap_chain_cs_create(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     const char *l_consensus = dap_config_get_item_str( a_chain_cfg, "chain", "consensus");
     if(l_consensus)
         HASH_FIND_STR(s_cs_callbacks, l_consensus, l_item );
-    if ( l_item ) {
+    if (l_item) {
         log_it(L_NOTICE,"Consensus \"%s\" found, prepare to parse config file",l_item->name );
-        l_item->callback_init( a_chain, a_chain_cfg);
+        if (l_item->callback_init)
+            l_item->callback_init(a_chain, a_chain_cfg);
         DAP_CHAIN_PVT(a_chain)->cs_name = l_item->name;
         return 0;
     } else {
