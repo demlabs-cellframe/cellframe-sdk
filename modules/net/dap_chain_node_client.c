@@ -56,7 +56,6 @@
 #include "dap_uuid.h"
 #include "dap_client.h"
 #include "dap_client_pvt.h"
-#include "dap_global_db_remote.h"
 #include "dap_chain.h"
 #include "dap_chain_cell.h"
 #include "dap_chain_net_srv.h"
@@ -281,7 +280,7 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
             if (l_node_client->keep_connection) {
                 if(l_node_client->stream_worker){
                     s_timer_update_states_callback(l_node_client);
-                    l_node_client->sync_timer = dap_timerfd_start_on_worker(l_stream->esocket->context->worker,
+                    l_node_client->sync_timer = dap_timerfd_start_on_worker(l_stream->esocket->worker,
                                                                             s_timer_update_states * 1000,
                                                                             s_timer_update_states_callback,
                                                                             l_node_client);
@@ -306,29 +305,6 @@ static void s_ch_chain_callback_notify_packet_in2(dap_stream_ch_chain_net_t* a_c
 {
     dap_chain_node_client_t * l_node_client = (dap_chain_node_client_t *) a_arg;
     switch (a_pkt_type) {
-    // get new generated current node address
-    case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR_LEASE: {
-        if(a_pkt_net_data_size == sizeof(dap_chain_node_addr_t)) {
-            l_node_client->cur_node_addr = *(dap_chain_node_addr_t*)a_pkt_net->data;
-        }
-        pthread_mutex_lock(&l_node_client->wait_mutex);
-        l_node_client->state = NODE_CLIENT_STATE_NODE_ADDR_LEASED;
-        dap_cond_signal(l_node_client->wait_cond);
-        pthread_mutex_unlock(&l_node_client->wait_mutex);
-        break;
-    }
-    // get remote node address
-    case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_ADDR: {
-
-        if(a_pkt_net_data_size == sizeof(dap_chain_node_addr_t)) {
-            l_node_client->remote_node_addr = *(dap_chain_node_addr_t*)a_pkt_net->data;
-        }
-        pthread_mutex_lock(&l_node_client->wait_mutex);
-        l_node_client->state = NODE_CLIENT_STATE_GET_NODE_ADDR;
-        dap_cond_signal(l_node_client->wait_cond);
-        pthread_mutex_unlock(&l_node_client->wait_mutex);
-        break;
-    }
     case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY: {
         if(a_pkt_net_data_size == sizeof(dap_chain_node_addr_t)) {
             l_node_client->remote_node_addr = *(dap_chain_node_addr_t*)a_pkt_net->data;
@@ -507,8 +483,7 @@ static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_ch
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_DELETE: {
             dap_chain_net_t *l_net = l_node_client->net;
             assert(l_net);
-            dap_chain_node_addr_t *l_node_addr = dap_chain_net_get_cur_addr(l_net);
-            log_it(L_DEBUG, "In: State node %s."NODE_ADDR_FP_STR" %s", l_net->pub.name, NODE_ADDR_FP_ARGS(l_node_addr),
+            log_it(L_DEBUG, "In: State node %s."NODE_ADDR_FP_STR" %s", l_net->pub.name, NODE_ADDR_FP_ARGS_S(g_node_addr),
                             a_pkt_type == DAP_STREAM_CH_CHAIN_PKT_TYPE_TIMEOUT ? "is timeout for sync" : "stream closed");
             l_node_client->state = NODE_CLIENT_STATE_ERROR;
             if (l_node_client->sync_timer)
@@ -537,7 +512,7 @@ static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_ch
  * @param a_is_pinned
  * @param a_arg
  */
-static void s_save_stat_to_database_callback_set_stat (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const void * a_value, const size_t a_value_len, dap_nanotime_t a_value_ts, bool a_is_pinned, void * a_arg)
+static void s_save_stat_to_database_callback_set_stat(dap_global_db_instance_t *a_dbi, int a_rc, const char * a_group, const char * a_key, const void * a_value, const size_t a_value_len, dap_nanotime_t a_value_ts, bool a_is_pinned, void * a_arg)
 {
     if( a_rc != DAP_GLOBAL_DB_RC_SUCCESS)
         log_it(L_ERROR,"Can't save stats to GlobalDB, code %d", a_rc);
@@ -557,7 +532,7 @@ static void s_save_stat_to_database_callback_set_stat (dap_global_db_context_t *
  * @param a_is_pinned
  * @param a_arg
  */
-static void s_save_stat_to_database_callback_get_last_stat (dap_global_db_context_t * a_global_db_context,int a_rc, const char * a_group, const char * a_key, const void * a_value, const size_t a_value_len, dap_nanotime_t a_value_ts, bool a_is_pinned, void * a_arg)
+static void s_save_stat_to_database_callback_get_last_stat(dap_global_db_instance_t *a_dbi, int a_rc, const char * a_group, const char * a_key, const void * a_value, const size_t a_value_len, dap_nanotime_t a_value_ts, bool a_is_pinned, void * a_arg)
 {
     char * l_json_str = (char *) a_arg;
     uint64_t l_key = 0;

@@ -49,6 +49,7 @@
 #include "dap_chain.h"
 #include "dap_chain_common.h"
 #include "dap_chain_net_srv.h"
+#include "dap_chain_net_tx.h"
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_net_srv_stream_session.h"
 #include "dap_stream_ch_chain_net_srv.h"
@@ -793,23 +794,42 @@ static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out
         return false;
     }
 
-    // Check out value is equal to value in receipt
-    dap_list_t *l_items_list = dap_chain_datum_tx_items_get(a_tx_in, TX_ITEM_TYPE_OUT, NULL), *l_item;
-    dap_chain_addr_t l_provider_addr = { };
-    dap_chain_addr_fill(&l_provider_addr, l_provider_sign_type, &l_provider_pkey_hash, dap_chain_net_id_by_name(a_ledger->net_name));
-    int l_ret = -1;
-    DL_FOREACH(l_items_list, l_item) {
-        if (dap_chain_addr_compare(&l_provider_addr, &((dap_chain_tx_out_t*)l_item->data)->addr)) {
-            l_ret = !compare256(((dap_chain_tx_out_t*)l_item->data)->header.value, l_receipt->receipt_info.value_datoshi) ? 0 : 1;
-            if (l_ret) {
-                log_it(L_ERROR, "Value in tx out is not equal to value in receipt"); // TODO: print the balances!
+    // check remainder on srv pay cond out is valid
+    // find 'out' items
+    dap_list_t *l_list_out = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx_in, TX_ITEM_TYPE_OUT_ALL, NULL);
+    uint256_t l_value = l_receipt->receipt_info.value_datoshi;
+    uint256_t l_cond_out_value = {};
+    dap_chain_addr_t l_network_fee_addr = {};
+    dap_chain_net_tx_get_fee(a_ledger->net_id, NULL, &l_network_fee_addr);
+    int l_item_idx = 0;
+    for (dap_list_t * l_list_tmp = l_list_out; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp), l_item_idx++) {
+        dap_chain_tx_item_type_t l_type = *(uint8_t *)l_list_tmp->data;
+        switch (l_type) {
+        case TX_ITEM_TYPE_OUT: { // 256
+            dap_chain_tx_out_t *l_tx_out = (dap_chain_tx_out_t *)l_list_tmp->data;
+            if (dap_chain_addr_compare(&l_tx_out->addr, &l_network_fee_addr)){
+                SUM_256_256(l_value, l_tx_out->header.value, &l_value);
             }
-            break;
+        } break;
+        case TX_ITEM_TYPE_OUT_COND: {
+            dap_chain_tx_out_cond_t *l_tx_out = (dap_chain_tx_out_cond_t *)l_list_tmp->data;
+            if (l_tx_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE){
+                SUM_256_256(l_value, l_cond_out_value = l_tx_out->header.value, &l_value);
+            } else if (l_tx_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY){
+                l_cond_out_value = l_tx_out->header.value;
+            }
+        } break;
+        default: {}
         }
     }
-    dap_list_free(l_items_list);
-    debug_if(l_ret == -1, L_ERROR, "Not found out in tx matching provider addr");
-    return !l_ret;
+
+    if (!compare256(l_value, l_cond_out_value)){
+        log_it(L_ERROR, "Value in tx out is invalid!");
+        dap_list_free(l_list_out);
+        return false;
+    }
+    dap_list_free(l_list_out);
+    return true;
 }
 
 int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, const char *a_config_section){
@@ -833,10 +853,6 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
     a_srv->grace_period = dap_config_get_item_uint32_default(g_config, a_config_section, "grace_period", 60);
     a_srv->allow_free_srv = dap_config_get_item_bool_default(g_config, a_config_section, "allow_free_srv", false);
     int l_err_code = 0;
-    dap_chain_node_addr_t *l_node_addr = NULL;
-    l_node_addr = dap_chain_net_get_cur_addr(l_net);
-    if (!l_node_addr)
-        return -1;
     size_t l_orders_count = 0;
     uint64_t l_max_price_cfg = dap_config_get_item_uint64_default(g_config, a_config_section, "max_price", 0xFFFFFFFFFFFFFFF);
     char *l_gdb_order_group = dap_chain_net_srv_order_get_gdb_group(l_net);
@@ -844,7 +860,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
     for (size_t i=0; i < l_orders_count; i++){
         l_err_code = -4;
         dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_read(l_orders[i].value, l_orders[i].value_len);
-        if (l_order->node_addr.uint64 == l_node_addr->uint64 &&
+        if (l_order->node_addr.uint64 == g_node_addr.uint64 &&
             l_order->srv_uid.uint64 == a_srv->uid.uint64) {
             l_err_code = 0;
             dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);

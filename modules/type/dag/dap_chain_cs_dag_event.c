@@ -208,44 +208,6 @@ size_t dap_chain_cs_dag_event_round_sign_add(dap_chain_cs_dag_event_round_item_t
     return a_round_item_size+l_sign_size;
 }
 
-static void s_event_broadcast_from_context(dap_global_db_context_t *a_context, void *a_arg)
-{
-    dap_chain_cs_dag_event_round_broadcast_t *l_arg = a_arg;
-    dap_chain_net_t *l_net = dap_chain_net_by_id(l_arg->dag->chain->net_id);
-    dap_chain_net_sync_gdb_broadcast(a_context, l_arg->obj, l_net);
-    dap_store_obj_free_one(l_arg->obj);
-    DAP_DELETE(a_arg);
-}
-
-static bool s_event_broadcast_send(dap_chain_cs_dag_event_round_broadcast_t *a_arg)
-{
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_arg->dag->chain->net_id);
-    if (dap_chain_net_get_state(l_net) != NET_STATE_SYNC_GDB)
-        dap_global_db_context_exec(s_event_broadcast_from_context, a_arg);
-    else if (a_arg->attempts++ < 10)
-        return true;
-    return false;
-}
-
-void dap_chain_cs_dag_event_broadcast(dap_chain_cs_dag_t *a_dag, dap_store_obj_t *a_obj, dap_global_db_context_t *a_context)
-{
-    dap_chain_cs_dag_event_round_broadcast_t *l_arg = DAP_NEW(dap_chain_cs_dag_event_round_broadcast_t);
-    if (!l_arg) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        return;
-    }
-    l_arg->dag = a_dag;
-    l_arg->obj = dap_store_obj_copy(a_obj, 1);
-    l_arg->context = a_context;
-    l_arg->attempts = 0;
-    if (!s_event_broadcast_send(l_arg))
-        return;
-    if (dap_timerfd_start(3 * 1000,
-                        (dap_timerfd_callback_t)s_event_broadcast_send,
-                        l_arg) == NULL)
-        log_it(L_ERROR, "Can't run timer for broadcast Event %s", a_obj->key);
-}
-
 /**
  * @brief dap_chain_cs_dag_event_gdb_set
  * @param a_dag

@@ -208,7 +208,7 @@ static int dap_chain_net_node_list_wait(struct node_link_request *a_node_list_re
     return ret;
 }
 
-int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_request, bool a_sync)
+int dap_chain_net_node_list_request(dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_request, bool a_sync)
 {
     dap_chain_node_info_t *l_link_node_info = dap_get_balancer_link_from_cfg(a_net);
     if (!l_link_node_info)
@@ -256,7 +256,7 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
     s_node_list_request_deinit(l_node_list_request);
     return ret;
 }
-static void s_node_list_callback_notify(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg)
+static void s_node_list_callback_notify(dap_global_db_instance_t *a_dbi, dap_store_obj_t *a_obj, void *a_arg)
 {
     if (!a_arg || !a_obj || !a_obj->key)
         return;
@@ -265,7 +265,7 @@ static void s_node_list_callback_notify(dap_global_db_context_t *a_context, dap_
     size_t l_size_obj_need = (sizeof(dap_chain_node_info_t));
 
     if (!dap_strcmp(a_obj->group, l_net->pub.gdb_nodes)) {
-        if (a_obj->value && a_obj->type == DAP_DB$K_OPTYPE_ADD) {
+        if (a_obj->value && a_obj->type == DAP_GLOBAL_DB_OPTYPE_ADD) {
             dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)a_obj->value;
 
             size_t l_size_obj = (a_obj->value_len - (l_node_info->hdr.links_number * sizeof(dap_chain_node_addr_t)));
@@ -273,7 +273,7 @@ static void s_node_list_callback_notify(dap_global_db_context_t *a_context, dap_
             {
                 if(l_node_info->hdr.owner_address.uint64 == 0){
                     log_it(L_NOTICE, "Node %s removed, there is not pinners", a_obj->key);
-                    dap_global_db_del_unsafe(a_context, a_obj->group, a_obj->key);
+                    dap_global_db_del_sync(a_obj->group, a_obj->key);
                 } else {
                     char l_node_ipv4_str[INET_ADDRSTRLEN]={ '\0' }, l_node_ipv6_str[INET6_ADDRSTRLEN]={ '\0' };
                     inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_ipv4_str, INET_ADDRSTRLEN);
@@ -290,13 +290,12 @@ static void s_node_list_callback_notify(dap_global_db_context_t *a_context, dap_
             }
             else
             {
-                dap_global_db_del_unsafe(a_context, a_obj->group, a_obj->key);
+                dap_global_db_del_sync(a_obj->group, a_obj->key);
                 log_it(L_NOTICE, "Wrong size! data size %lu need - (%lu) %s removed ",l_size_obj,
                        l_size_obj_need, a_obj->key);
             }
         }
     }
-
 }
 
 int dap_chain_net_node_list_init()

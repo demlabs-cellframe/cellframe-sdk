@@ -64,7 +64,7 @@ struct dap_order_notify {
 };
 
 static dap_list_t *s_order_notify_callbacks = NULL;
-static void s_srv_order_callback_notify(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg);
+static void s_srv_order_callback_notify(dap_global_db_instance_t *a_dbi, dap_store_obj_t *a_obj, void *a_arg);
 
 static dap_timerfd_t *s_timer_order_check_decree_sign = NULL;
 static void s_srv_order_check_decree_sign_timer() {
@@ -656,15 +656,12 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
     }
 }
 
-static void s_srv_order_callback_notify(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg)
+static void s_srv_order_callback_notify(dap_global_db_instance_t *a_dbi, dap_store_obj_t *a_obj, void *a_arg)
 {
     if (!a_arg || !a_obj || !a_obj->key)
         return;
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
-    dap_global_db_context_t * l_gdb_context = dap_global_db_context_current();
     assert(l_net);
-    assert(l_gdb_context);
-
     char *l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(l_net);
 
     if (!dap_strcmp(a_obj->group, l_gdb_group_str)) {
@@ -672,15 +669,15 @@ static void s_srv_order_callback_notify(dap_global_db_context_t *a_context, dap_
             struct dap_order_notify *l_notifier = (struct dap_order_notify *)it->data;
             if ((l_notifier->net == NULL || l_notifier->net == l_net) &&
                         l_notifier->callback) {
-                l_notifier->callback(a_context, a_obj, l_notifier->cb_arg);
+                l_notifier->callback(a_dbi, a_obj, l_notifier->cb_arg);
             }
         }
         bool l_allow_unsigned_orders = dap_config_get_item_bool_default(g_config, "srv", "allow_unsigned_orders", false);
-        if (a_obj->value && a_obj->type == DAP_DB$K_OPTYPE_ADD) {
+        if (a_obj->value && a_obj->type == DAP_GLOBAL_DB_OPTYPE_ADD) {
             dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)a_obj->value;
             if (l_order->version != 3) {
                 log_it(L_NOTICE, "Order %s removed version != 3.", a_obj->key);
-                dap_global_db_del_unsafe(l_gdb_context, a_obj->group, a_obj->key);
+                dap_global_db_del_sync(a_obj->group, a_obj->key);
             } else {
                 if (l_allow_unsigned_orders) {
                     log_it(L_DEBUG, "The mode that disables verification of the order signature is enabled.");
@@ -691,7 +688,7 @@ static void s_srv_order_callback_notify(dap_global_db_context_t *a_context, dap_
                                                        sizeof(dap_chain_net_srv_order_t) + l_order->ext_size);
                     if (l_verify) {
                         log_it(L_ERROR, "Order unverified, err %d", l_verify);
-                        dap_global_db_del_unsafe(l_gdb_context, a_obj->group, a_obj->key);
+                        dap_global_db_del_sync(a_obj->group, a_obj->key);
                     }
                 }
             }

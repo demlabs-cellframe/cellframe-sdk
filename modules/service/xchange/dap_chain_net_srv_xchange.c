@@ -894,7 +894,6 @@ char *s_xchange_order_create(dap_chain_net_srv_xchange_price_t *a_price, dap_cha
     dap_chain_hash_fast_t l_tx_hash = {};
     dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_tx_hash);
     a_price->tx_hash = l_tx_hash;
-    dap_chain_node_addr_t *l_node_addr = dap_chain_net_get_cur_addr(a_price->net);
     dap_chain_net_srv_price_unit_uid_t l_unit = { .uint32 =  SERV_UNIT_UNDEFINED};
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_XCHANGE_ID };
     uint256_t l_datoshi_buy = uint256_0;
@@ -903,7 +902,7 @@ char *s_xchange_order_create(dap_chain_net_srv_xchange_price_t *a_price, dap_cha
     l_ext.datoshi_buy = l_datoshi_buy;
     strncpy(l_ext.token_buy, a_price->token_buy, DAP_CHAIN_TICKER_SIZE_MAX);
     uint32_t l_ext_size = sizeof(dap_srv_xchange_order_ext_t);
-    char *l_order_hash_str = dap_chain_net_srv_order_create(a_price->net, SERV_DIR_SELL, l_uid, *l_node_addr,
+    char *l_order_hash_str = dap_chain_net_srv_order_create(a_price->net, SERV_DIR_SELL, l_uid, g_node_addr,
                                                             l_tx_hash, &a_price->datoshi_sell, l_unit, a_price->token_sell, 0,
                                                             (uint8_t *)&l_ext, l_ext_size, 0, NULL, 0, a_price->wallet_key);
     return l_order_hash_str;

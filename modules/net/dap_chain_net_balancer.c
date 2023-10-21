@@ -176,10 +176,10 @@ void dap_chain_net_balancer_prepare_list_links(const char *a_net_name,bool hands
     dap_list_free(l_node_addr_list);
 }
 
-static int callback_compare_node_list(const void *a_item1, const void *a_item2)
+static int callback_compare_node_list(dap_list_t *a_item1, dap_list_t *a_item2)
 {
-    dap_chain_node_info_t   *l_item1 = (dap_chain_node_info_t*)((dap_list_t*)a_item1)->data,
-                            *l_item2 = (dap_chain_node_info_t*)((dap_list_t*)a_item2)->data;
+    dap_chain_node_info_t   *l_item1 = a_item1->data,
+                            *l_item2 = a_item2->data;
     if (!l_item1 || !l_item2) {
         log_it(L_CRITICAL, "Invalid element");
         return 0;
