@@ -80,8 +80,6 @@ int dap_stream_ch_chain_net_init()
  */
 void dap_stream_ch_chain_net_deinit()
 {
-    //printf("* del all sessions\n");
-    session_data_del_all();
 }
 
 /**
@@ -96,22 +94,6 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
     dap_stream_ch_chain_net_t * l_ch_chain_net = DAP_STREAM_CH_CHAIN_NET(a_ch);
     l_ch_chain_net->ch = a_ch;
     pthread_mutex_init(&l_ch_chain_net->mutex, NULL);
-
-    // Create chain net session ever it created
-    dap_chain_net_session_data_t *l_sdata;
-    pthread_mutex_lock(&s_hash_mutex);
-    HASH_FIND(hh, s_chain_net_data, &a_ch->stream->session->id, sizeof(uint32_t), l_sdata);
-    if(l_sdata == NULL) {
-        l_sdata = DAP_NEW_Z(dap_chain_net_session_data_t);
-        if (!l_sdata) {
-            log_it(L_CRITICAL, "Memory allocation error");
-            pthread_mutex_unlock(&s_hash_mutex);
-            return;
-        }
-        l_sdata->session_id = a_ch->stream->session->id;
-        HASH_ADD(hh, s_chain_net_data, session_id, sizeof(uint32_t), l_sdata);
-    }
-    pthread_mutex_unlock(&s_hash_mutex);
 }
 
 /**
@@ -122,12 +104,6 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
 void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg)
 {
     (void) a_arg;
-    dap_stream_ch_chain_net_t * l_ch_chain_net = DAP_STREAM_CH_CHAIN_NET(a_ch);
-    if(l_ch_chain_net) {
-        pthread_mutex_lock(&l_ch_chain_net->mutex);
-        session_data_del(a_ch->stream->session->id);
-        pthread_mutex_unlock(&l_ch_chain_net->mutex);
-    }
     DAP_DEL_Z(a_ch->internal);
 }
 
@@ -139,13 +115,6 @@ void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg)
 void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 {
     dap_stream_ch_chain_net_t * l_ch_chain_net = DAP_STREAM_CH_CHAIN_NET(a_ch);
-    dap_chain_net_session_data_t *l_session_data = session_data_find(a_ch->stream->session->id);
-    if (l_session_data == NULL) {
-        log_it(L_ERROR, "Can't find chain net session for stream session %d", a_ch->stream->session->id);
-        dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
-        return;
-    }
-
     if(l_ch_chain_net) {
         pthread_mutex_lock(&l_ch_chain_net->mutex);
         dap_stream_ch_pkt_t *l_ch_pkt = (dap_stream_ch_pkt_t *)a_arg;
@@ -184,14 +153,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             size_t l_ch_chain_net_pkt_data_size = l_ch_pkt->hdr.data_size - sizeof(dap_stream_ch_chain_net_pkt_hdr_t);
             switch (l_ch_pkt->hdr.type) {
             case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ANNOUNCE:
-                assert(dap_stream_node_addr_not_null(a_ch->stream->node));
-                dap_chain_net_add_link(l_net, a_ch->stream->node);
-                dap_cluster_t *l_links_cluster = dap_cluster_by_mnemonim(l_net->pub.gdb_groups_prefix);
-                if (!l_links_cluster) {
-                    log_it(L_ERROR, "Not found links cluster for net %s", l_net->pub.name);
-                    break;
-                }
-                dap_cluster_member_add(l_links_cluster, &a_ch->stream->node, 0, NULL);
+                assert(dap_stream_node_addr_not_null(&a_ch->stream->node));
+                dap_chain_net_add_cluster_link(l_net, &a_ch->stream->node);
                 break;
                 // received ping request - > send pong request
             case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PING:

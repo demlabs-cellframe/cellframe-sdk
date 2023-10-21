@@ -30,6 +30,8 @@
 #include "dap_chain_node.h"
 #include "dap_stream_ch.h"
 
+#define DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_TEST                          0x01
+
 #define DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PING                          0x02
 #define DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PONG                          0x03
 

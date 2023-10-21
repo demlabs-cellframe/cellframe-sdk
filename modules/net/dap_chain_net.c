@@ -467,7 +467,6 @@ static void s_network_change_notify(dap_global_db_instance_t *a_dbi, dap_store_o
 
 }
 
-
 dap_chain_node_info_t *dap_get_balancer_link_from_cfg(dap_chain_net_t *a_net)
 {
     dap_chain_net_pvt_t *l_net_pvt = a_net ? PVT(a_net) : NULL;
@@ -697,7 +696,7 @@ static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_clie
     a_node_client->is_connected = true;
     dap_stream_t *l_stream = dap_client_get_stream(a_node_client->client);
     assert(l_stream);
-    dap_chain_net_add_cluster_link(l_net, l_stream->node);
+    dap_chain_net_add_cluster_link(l_net, &l_stream->node);
     struct json_object *l_json = s_net_states_json_collect(l_net);
     char l_err_str[128] = { };
     snprintf(l_err_str, sizeof(l_err_str)
