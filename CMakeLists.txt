@@ -6,6 +6,35 @@ set(CELLFRAME_SDK_NATIVE_VERSION "3.3-0")
 
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
+# define sphincs hash params
+    # choose one hashtype
+    if(NOT DEFINED SPHINCS_HASH_TYPE)
+        # set(SPHINCS_HASH_TYPE "sphincs-haraka-128f")
+        # set(SPHINCS_HASH_TYPE "sphincs-haraka-128s")
+        # set(SPHINCS_HASH_TYPE "sphincs-haraka-192f")
+        # set(SPHINCS_HASH_TYPE "sphincs-haraka-192s")
+        # set(SPHINCS_HASH_TYPE "sphincs-haraka-256f")
+        # set(SPHINCS_HASH_TYPE "sphincs-haraka-256s")
+        # set(SPHINCS_HASH_TYPE "sphincs-sha2-128f")
+        # set(SPHINCS_HASH_TYPE "sphincs-sha2-128s")
+        # set(SPHINCS_HASH_TYPE "sphincs-sha2-192f")
+        # set(SPHINCS_HASH_TYPE "sphincs-sha2-192s")
+        set(SPHINCS_HASH_TYPE "sphincs-sha2-256f")
+        # set(SPHINCS_HASH_TYPE "sphincs-sha2-256s")
+        # set(SPHINCS_HASH_TYPE "sphincs-shake-128f")
+        # set(SPHINCS_HASH_TYPE "sphincs-shake-128s")
+        # set(SPHINCS_HASH_TYPE "sphincs-shake-192f")
+        # set(SPHINCS_HASH_TYPE "sphincs-shake-192s")
+        # set(SPHINCS_HASH_TYPE "sphincs-shake-256f")
+        # set(SPHINCS_HASH_TYPE "sphincs-shake-256s")
+    endif()
+
+    # choose one thash
+    if(NOT DEFINED SPHINCS_HASH_TYPE)
+        # set(SPHINCS_THASH "robust")
+        set(SPHINCS_THASH "simple")
+    endif()
+
 set(DAPSDK_MODULES "")
 
 if(NOT DEFINED CELLFRAME_MODULES)
@@ -236,32 +265,3 @@ endif()
 set(CELLFRAME_LIBS ${CELLFRAME_LIBS} crc32c_adler)
 
 target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})
-
-# define sphincs hash params
-    # choose one hashtype
-    if(NOT DEFINED SPHINCS_HASH_TYPE)
-        # set(SPHINCS_HASH_TYPE "sphincs-haraka-128f")
-        # set(SPHINCS_HASH_TYPE "sphincs-haraka-128s")
-        # set(SPHINCS_HASH_TYPE "sphincs-haraka-192f")
-        # set(SPHINCS_HASH_TYPE "sphincs-haraka-192s")
-        # set(SPHINCS_HASH_TYPE "sphincs-haraka-256f")
-        # set(SPHINCS_HASH_TYPE "sphincs-haraka-256s")
-        # set(SPHINCS_HASH_TYPE "sphincs-sha2-128f")
-        # set(SPHINCS_HASH_TYPE "sphincs-sha2-128s")
-        # set(SPHINCS_HASH_TYPE "sphincs-sha2-192f")
-        # set(SPHINCS_HASH_TYPE "sphincs-sha2-192s")
-        set(SPHINCS_HASH_TYPE "sphincs-sha2-256f")
-        # set(SPHINCS_HASH_TYPE "sphincs-sha2-256s")
-        # set(SPHINCS_HASH_TYPE "sphincs-shake-128f")
-        # set(SPHINCS_HASH_TYPE "sphincs-shake-128s")
-        # set(SPHINCS_HASH_TYPE "sphincs-shake-192f")
-        # set(SPHINCS_HASH_TYPE "sphincs-shake-192s")
-        # set(SPHINCS_HASH_TYPE "sphincs-shake-256f")
-        # set(SPHINCS_HASH_TYPE "sphincs-shake-256s")
-    endif()
-
-    # choose one thash
-    if(NOT DEFINED SPHINCS_HASH_TYPE)
-        # set(SPHINCS_THASH "robust")
-        set(SPHINCS_THASH "simple")
-    endif()
