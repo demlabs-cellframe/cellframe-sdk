@@ -936,10 +936,7 @@ static int s_add_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_ca
         l_datum_index->ret_code = l_res;
         l_datum_index->datum_index = i;
         pthread_rwlock_wrlock(&PVT(a_blocks)->datums_rwlock);
-        dap_chain_block_datum_index_t *l_datum_index_tmp = NULL;
-        HASH_FIND(hh, PVT(a_blocks)->datum_index, l_datum_hash, sizeof (*l_datum_hash), l_datum_index_tmp);
-        if(!l_datum_index_tmp)
-            HASH_ADD(hh, PVT(a_blocks)->datum_index, datum_hash, sizeof(*l_datum_hash), l_datum_index);
+        HASH_ADD(hh, PVT(a_blocks)->datum_index, datum_hash, sizeof(*l_datum_hash), l_datum_index);
         pthread_rwlock_unlock(&PVT(a_blocks)->datums_rwlock);
 
     }
@@ -1576,6 +1573,13 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
             log_it(L_DEBUG, "Maximum size exeeded, %zu > %d", l_blocks->block_new_size + l_datum_size, DAP_CHAIN_CS_BLOCKS_MAX_BLOCK_SIZE);
             break;
         }
+        dap_chain_block_datum_index_t *l_datum_index_tmp = NULL;
+        dap_hash_fast_t l_datum_hash;
+        dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_datum_hash);
+        HASH_FIND(hh, l_blocks_pvt->datum_index, &l_datum_hash, sizeof (l_datum_hash), l_datum_index_tmp);
+        if(l_datum_index_tmp)
+            continue;
+
         if (!l_blocks->block_new) {
             dap_chain_block_cache_t *l_bcache_last = l_blocks_pvt->blocks ? l_blocks_pvt->blocks->hh.tbl->tail->prev : NULL;
             l_bcache_last = l_bcache_last ? l_bcache_last->hh.next : l_blocks_pvt->blocks;
