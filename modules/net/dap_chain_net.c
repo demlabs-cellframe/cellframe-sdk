@@ -314,8 +314,8 @@ int dap_chain_net_init()
     dap_stream_ch_chain_net_init();
     dap_chain_node_client_init();
     dap_cli_server_cmd_add ("net", s_cli_net, "Network commands",
-        "net list [chains -n <chain net name>]"
-            "\tList all networks or list all chains in selected network"
+        "net list [chains -net <chain net name>]\n"
+            "\tList all networks or list all chains in selected network\n"
         "net -net <chain net name> [-mode {update | all}] go {online | offline | sync}\n"
             "\tFind and establish links and stay online. \n"
             "\tMode \"update\" is by default when only new chains and gdb are updated. Mode \"all\" updates everything from zero\n"
@@ -1838,8 +1838,17 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
             const char * l_net_str = NULL;
             dap_chain_net_t* l_net = NULL;
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-net", &l_net_str);
+            if (!l_net_str) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Parameter '-net' require <net name>");
+                return -1;
+            }
 
             l_net = dap_chain_net_by_name(l_net_str);
+            if (l_net_str && !l_net) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong <net name>, use 'net list' "
+                                                            "command to display a list of available networks");
+                return -1;
+            }
 
             if (l_net){
                 dap_string_append(l_string_ret,"Chains:\n");
@@ -1873,6 +1882,12 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
             }
 
         }else{
+            // plug for wrong command arguments
+            if (argc > 2) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "To many arguments for 'net list' command' see help");
+                return -1;
+            }
+
             dap_string_append(l_string_ret,"Networks:\n");
             // show list of nets
             dap_chain_net_item_t * l_net_item, *l_net_item_tmp;
