@@ -6121,7 +6121,7 @@ int com_print_log(int a_argc, char **a_argv, char **a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "requires valid parameter 'l_ts_after'");
         return -1;
     }
-    if(!l_limit) {
+    if(l_limit <= 0) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "requires valid parameter 'limit'");
         return -1;
     }
