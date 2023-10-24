@@ -360,126 +360,6 @@ static int node_info_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
     return -1;
 }
 
-
-/**
- * @brief link_add_or_del_with_reply
- * Handler of command 'global_db node link'
- * cmd 'add' or 'del'
- * str_reply[out] for reply
- * return 0 Ok, -1 error
- * @param a_net
- * @param a_node_info
- * @param cmd
- * @param a_alias_str
- * @param link
- * @param a_str_reply
- * @return int
- */
-static int link_add_or_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_info_t *a_node_info, const char *cmd,
-        const char *a_alias_str,
-        dap_chain_node_addr_t *link, char **a_str_reply)
-{
-    if(!a_node_info->hdr.address.uint64 && !a_alias_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "addr not found");
-        return -1;
-    }
-    if(!link->uint64) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "link not found");
-        return -1;
-    }
-    // TODO check the presence of link in the node base
-#ifdef DAP_CHAIN_NODE_CHECK_PRESENSE
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "node 0x%016llx not found in base", link->uint64);
-        return -1;
-#endif
-
-    // find addr by alias or addr_str
-    dap_chain_node_addr_t *l_address = s_node_info_get_addr(a_net, &a_node_info->hdr.address, a_alias_str);
-    if(!l_address) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "alias not found");
-        return -1;
-    }
-
-    dap_chain_node_info_t * l_node_info_read = node_info_read_and_reply(a_net, l_address, a_str_reply);
-    size_t l_node_info_read_size = dap_chain_node_info_get_size(l_node_info_read);
-    if(!l_node_info_read)
-        return -1;
-
-    int cmd_int = 0;
-    if(!strcmp(cmd, "add"))
-        cmd_int = 1;
-    else if(!strcmp(cmd, "del"))
-        cmd_int = 2;
-
-    // find link in node_info_read
-    int index_link = -1;
-    for(size_t i = 0; i < l_node_info_read->hdr.links_number; i++) {
-        if(l_node_info_read->links[i].uint64 == link->uint64) {
-            // link already present
-            index_link = (int) i;
-            break;
-        }
-    }
-    bool res_successful = false; // is successful whether add/del
-    // add link
-    if(cmd_int == 1) {
-        if(index_link == -1) {
-            l_node_info_read->hdr.links_number++;
-            l_node_info_read_size = dap_chain_node_info_get_size(l_node_info_read);
-            l_node_info_read = DAP_REALLOC(l_node_info_read, l_node_info_read_size);
-            l_node_info_read->links[l_node_info_read->hdr.links_number-1] = *link;
-            res_successful = true;
-        }
-    }
-    // delete link
-    else if(cmd_int == 2) {
-        // move link list to one item prev
-        if(index_link >= 0) {
-            for(unsigned int j = (unsigned int) index_link; j < (l_node_info_read->hdr.links_number - 1); j++) {
-                l_node_info_read->links[j] = l_node_info_read->links[j + 1];
-            }
-            l_node_info_read->hdr.links_number--;
-            res_successful = true;
-            l_node_info_read = DAP_REALLOC(l_node_info_read, l_node_info_read_size -= sizeof(*link));
-        }
-    }
-    // save edited node_info
-    if(res_successful) {
-        bool res = true;  //node_info_save_and_reply(a_net, l_node_info_read, a_str_reply);
-        if(res) {
-            res_successful = true;
-            if(cmd_int == 1)
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "link added");
-            if(cmd_int == 2)
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "link deleted");
-        }
-        else {
-            res_successful = false;
-        }
-    }
-    else {
-        if(cmd_int == 1) {
-            if(index_link >= 0)
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "link not added because it is already present");
-            else
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "link not added");
-        }
-        if(cmd_int == 2) {
-            if(index_link == -1)
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "link not deleted because not found");
-            else
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "link not deleted");
-        }
-    }
-
-    DAP_DELETE(l_address);
-    DAP_DELETE(l_node_info_read);
-    if(res_successful)
-        return 0;
-    return -1;
-}
-
-
 /**
  * @brief node_info_dump_with_reply Handler of command 'node dump'
  * @param a_net
@@ -616,10 +496,9 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
                 char l_ts[128] = { '\0' };
                 dap_gbd_time_to_str_rfc822(l_ts, sizeof(l_ts), l_objs[i].timestamp);
 
-                dap_string_append_printf(l_string_reply, NODE_ADDR_FP_STR"    %-20s%-8s"NODE_ADDR_FP_STR"    %-32s\n",
+                dap_string_append_printf(l_string_reply, NODE_ADDR_FP_STR"    %-20s%-8s    %-32s\n",
                                          NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),
                                          l_node_ipv4_str, dap_itoa(l_node_info->hdr.ext_port),
-                                         NODE_ADDR_FP_ARGS_S(l_node_info->hdr.owner_address),
                                          l_ts);
 
                 // get aliases in form of string
@@ -1143,7 +1022,7 @@ static dap_tsd_t* s_chain_node_cli_com_node_create_tsd_addr(char **a_argv, int a
 int com_node(int a_argc, char ** a_argv, char **a_str_reply)
 {
     enum {
-        CMD_NONE, CMD_ADD, CMD_DEL, CMD_LINK, CMD_ALIAS, CMD_HANDSHAKE, CMD_CONNECT, CMD_DUMP, CMD_CONNECTIONS, CMD_BALANCER,
+        CMD_NONE, CMD_ADD, CMD_DEL, CMD_ALIAS, CMD_HANDSHAKE, CMD_CONNECT, CMD_DUMP, CMD_CONNECTIONS, CMD_BALANCER,
         CMD_BAN, CMD_UNBAN, CMD_BANLIST
     };
     int arg_index = 1;
@@ -1153,13 +1032,8 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     }
     else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "del", NULL)) {
         cmd_num = CMD_DEL;
-    }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "link", NULL)) {
-        cmd_num = CMD_LINK;
-    }
-    else
-    // find  add parameter ('alias' or 'handshake')
-    if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "handshake", NULL)) {
+    } // find  add parameter ('alias' or 'handshake')
+    else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "handshake", NULL)) {
         cmd_num = CMD_HANDSHAKE;
     }
     else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "connect", NULL)) {
@@ -1173,11 +1047,6 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     }
     else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "connections", NULL)) {
         cmd_num = CMD_CONNECTIONS;
-//        char *l_str = NULL;
-//        dap_stream_connections_print(&l_str);
-//        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str);
-//        DAP_DELETE(l_str);
-//        return 0;
     } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index+1), "ban", NULL)) {
         cmd_num = CMD_BAN;
     } else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index+1), "unban", NULL)) {
@@ -1217,7 +1086,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     dap_chain_node_addr_t l_link = { 0 };
     dap_chain_node_info_t *l_node_info = NULL;
     size_t l_node_info_size = sizeof(l_node_info->hdr) + sizeof(l_link);
-    if(cmd_num >= CMD_ADD && cmd_num <= CMD_LINK) {
+    if(cmd_num >= CMD_ADD && cmd_num <= CMD_DEL) {
         l_node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, l_node_info_size);
         if (!l_node_info) {
             log_it(L_CRITICAL, "Memory allocation error");
@@ -1301,25 +1170,6 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         DAP_DELETE(l_node_info);
         return l_ret;
     }
-    case CMD_LINK:
-        if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "add", NULL)) {
-            // handler of command 'node link add -addr <node address> -link <node address>'
-            int l_ret = link_add_or_del_with_reply(l_net, l_node_info, "add", alias_str, &l_link, a_str_reply);
-            DAP_DELETE(l_node_info);
-            return l_ret;
-        }
-        else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "del", NULL)) {
-            // handler of command 'node link del -addr <node address> -link <node address>'
-            int l_ret = link_add_or_del_with_reply(l_net, l_node_info, "del", alias_str, &l_link, a_str_reply);
-            DAP_DELETE(l_node_info);
-            return l_ret;
-        }
-        else {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "command not recognize, supported format:\n"
-                    "global_db node link <add|del] [-addr <node address>  | -alias <node alias>] -link <node address>");
-            DAP_DELETE(l_node_info);
-            return -1;
-        }
 
     case CMD_DUMP: {
         // handler of command 'node dump'
@@ -1379,13 +1229,10 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
 
             // get cur node links
             bool a_is_only_cur_cell = false;
-            dap_list_t *l_node_link_list = dap_chain_net_get_link_node_list(l_net, a_is_only_cur_cell);
+            // TODO rewrite this command totally
+            // dap_list_t *l_node_link_list = dap_chain_net_get_link_node_list(l_net, a_is_only_cur_cell);
             // get all nodes list if no links
-            if(!l_node_link_list)
-                l_node_list = dap_chain_net_get_node_list(l_net);
-            else
-                l_node_list = dap_list_concat(l_node_link_list, l_node_list);
-
+            l_node_list = dap_chain_net_get_node_list(l_net);
             // select random node from the list
             l_nodes_count = dap_list_length(l_node_list);
             if(l_nodes_count > 0) {
@@ -1726,7 +1573,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             dap_string_append_printf(l_string_balanc, "node address "NODE_ADDR_FP_STR"  \tipv4 %s \tnumber of links %u\n",
                                      NODE_ADDR_FP_ARGS_S(l_node_link->hdr.address),
                                      inet_ntoa(l_node_link->hdr.ext_addr_v4),
-                                     l_node_link->hdr.links_number);
+                                     l_node_link->info.links_number);
         }
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Balancer link list:\n %s \n",
                                           l_string_balanc->str);

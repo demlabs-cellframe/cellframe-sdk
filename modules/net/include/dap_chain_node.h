@@ -31,19 +31,22 @@
 #include "dap_chain.h"
 
 typedef struct dap_chain_net dap_chain_net_t;
+
 typedef struct dap_chain_node_info {
     struct {
-        dap_chain_node_addr_t address;        
+        dap_chain_node_addr_t address;
         dap_chain_cell_id_t cell_id;
-        uint32_t links_number;
         struct in_addr ext_addr_v4;
         struct in6_addr ext_addr_v6;
         uint16_t ext_port; // Port thats node listening
-        char alias[240];
-        dap_chain_node_addr_t owner_address;
-        uint64_t blocks_events; /* truncated alias len */
     } DAP_ALIGN_PACKED hdr;
-    dap_chain_node_addr_t links[]; // dap_chain_addr_t
+    struct {
+        uint64_t atoms_count; /* truncated alias len */
+        uint32_t links_number;
+        byte_t other_info_for_future[240];
+    } DAP_ALIGN_PACKED info;
+    uint16_t alias_len;
+    byte_t alias[];
 } DAP_ALIGN_PACKED dap_chain_node_info_t;
 
 typedef dap_stream_node_addr_t dap_chain_node_addr_t;
@@ -54,7 +57,12 @@ typedef dap_stream_node_addr_t dap_chain_node_addr_t;
 /**
  * Calculate size of struct dap_chain_node_info_t
  */
-size_t dap_chain_node_info_get_size(dap_chain_node_info_t *node_info);
+DAP_STATIC_INLINE size_t dap_chain_node_info_get_size(dap_chain_node_info_t *a_node_info)
+{
+    if (!a_node_info)
+        return 0;
+    return (sizeof(dap_chain_node_info_t) + a_node_info->alias_len);
+}
 
 /**
  * Compare addresses of two dap_chain_node_info_t structures
@@ -82,9 +90,9 @@ bool dap_chain_node_alias_delete(dap_chain_net_t * l_net,const char *alias);
 int dap_chain_node_info_save(dap_chain_net_t * l_net,dap_chain_node_info_t *node_info);
 dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_net_t * l_net, dap_chain_node_addr_t *address);
 
-inline static char* dap_chain_node_addr_to_hash_str(dap_chain_node_addr_t *address)
+inline static char *dap_chain_node_addr_to_hash_str(dap_chain_node_addr_t *a_address)
 {
-    return dap_hash_fast_str_new((const uint8_t*) address, sizeof(dap_chain_node_addr_t));
+    return dap_strdup_printf(NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(a_address));
 }
 
 bool dap_chain_node_mempool_need_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum);

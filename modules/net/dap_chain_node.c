@@ -68,7 +68,7 @@ dap_chain_node_addr_t *dap_chain_node_alias_find(dap_chain_net_t *a_net, const c
     size_t l_addr_size =0;
     dap_chain_node_addr_t *l_addr = (dap_chain_node_addr_t *)dap_global_db_get_sync(a_net->pub.gdb_nodes_aliases,
                                                                                     a_alias, &l_addr_size, NULL, NULL);
-    if (l_addr_size != sizeof(dap_chain_node_addr_t)) {
+    if (l_addr && l_addr_size != sizeof(dap_chain_node_addr_t)) {
         log_it(L_WARNING, "Address in database is corrupted for alias %s", a_alias);
         DAP_DELETE(l_addr);
         return NULL;
@@ -82,16 +82,6 @@ dap_chain_node_addr_t *dap_chain_node_alias_find(dap_chain_net_t *a_net, const c
 bool dap_chain_node_alias_delete(dap_chain_net_t * a_net,const char *a_alias)
 {
     return dap_global_db_del_sync(a_net->pub.gdb_nodes_aliases, a_alias) == 0;
-}
-
-/**
- * Calculate size of struct dap_chain_node_info_t
- */
-size_t dap_chain_node_info_get_size(dap_chain_node_info_t *node_info)
-{
-    if(!node_info)
-        return 0;
-    return (sizeof(dap_chain_node_info_t) + node_info->hdr.links_number * sizeof(dap_chain_node_addr_t));
 }
 
 /**
@@ -148,17 +138,17 @@ int dap_chain_node_info_save(dap_chain_net_t * a_net, dap_chain_node_info_t *a_n
 dap_chain_node_info_t* dap_chain_node_info_read( dap_chain_net_t * a_net,dap_chain_node_addr_t *l_address)
 {
     char *l_key = dap_chain_node_addr_to_hash_str(l_address);
-    if(!l_key) {
+    if (!l_key) {
         log_it(L_WARNING,"Can't calculate hash of addr");
         return NULL;
     }
     size_t node_info_size = 0;
     dap_chain_node_info_t *l_node_info;
     // read node
-    l_node_info = (dap_chain_node_info_t *) dap_global_db_get_sync(a_net->pub.gdb_nodes, l_key, &node_info_size, NULL, NULL);
+    l_node_info = (dap_chain_node_info_t *)dap_global_db_get_sync(a_net->pub.gdb_nodes, l_key, &node_info_size, NULL, NULL);
 
-    if(!l_node_info) {
-        log_it(L_INFO, "node with key %s (addr " NODE_ADDR_FP_STR ") not found in base",l_key, NODE_ADDR_FP_ARGS(l_address));
+    if (!l_node_info) {
+        log_it(L_NOTICE, "Node with address %s not found in base", l_key);
         DAP_DELETE(l_key);
         return NULL;
     }
