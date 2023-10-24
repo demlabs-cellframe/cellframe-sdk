@@ -1837,8 +1837,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
         if (dap_strcmp(l_list_cmd,"chains")==0){
             const char * l_net_str = NULL;
             dap_chain_net_t* l_net = NULL;
-            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-net", &l_net_str);
-            if (!l_net_str) {
+            if (dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-net", &l_net_str) && !l_net_str) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Parameter '-net' require <net name>");
                 return -1;
             }
@@ -1884,7 +1883,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
         }else{
             // plug for wrong command arguments
             if (argc > 2) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "To many arguments for 'net list' command' see help");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "To many arguments for 'net list' command see help");
                 return -1;
             }
 
