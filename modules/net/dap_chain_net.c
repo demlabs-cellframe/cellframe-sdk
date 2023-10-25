@@ -2104,6 +2104,16 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                     size_t node_info_size = 0;
                     dap_chain_node_info_t *l_node_inf_check;
                     l_node_inf_check = (dap_chain_node_info_t *) dap_global_db_get_sync(l_net->pub.gdb_nodes, l_key, &node_info_size, NULL, NULL);
+                    if(!l_node_inf_check){
+                        for(int i=0;i<PVT(l_net)->seed_aliases_count;i++)
+                        {
+                            if(PVT(l_net)->seed_nodes_addrs[i] == l_node_addr.uint64){
+                                l_node_inf_check = DAP_NEW_Z(dap_chain_node_info_t);
+                                l_node_inf_check->hdr.ext_addr_v4.s_addr = PVT(l_net)->seed_nodes_addrs_v4[i].s_addr;
+                                break;
+                            }
+                        }
+                    }
                     if(l_node_inf_check){
 
                         uint64_t l_addr = l_node_inf_check->hdr.ext_addr_v4.s_addr;
