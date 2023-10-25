@@ -523,13 +523,13 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
 						if ( l_block_cache ){
 							dap_string_t * l_str_tmp = dap_string_new(NULL);
 							char buf[50];
-							time_t l_ts_reated = (time_t) l_block->hdr.ts_created;
+                            dap_time_t l_ts_reated = l_block->hdr.ts_created;
 							// Header
 							dap_string_append_printf(l_str_tmp,"Block %s:\n", l_subcmd_str_arg);
 							dap_string_append_printf(l_str_tmp, "\t\t\tversion: 0x%04X\n", l_block->hdr.version);
 							dap_string_append_printf(l_str_tmp,"\t\t\tcell_id: 0x%016"DAP_UINT64_FORMAT_X"\n",l_block->hdr.cell_id.uint64);
 							dap_string_append_printf(l_str_tmp,"\t\t\tchain_id: 0x%016"DAP_UINT64_FORMAT_X"\n",l_block->hdr.chain_id.uint64);
-							ctime_r(&l_ts_reated, buf);
+                            dap_ctime_r(&l_ts_reated, buf);
 							dap_string_append_printf(l_str_tmp,"\t\t\tts_created: %s\n", buf);
 		
 							// Dump Metadata
@@ -573,13 +573,13 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
 															sizeof (l_datum->header));
 									break;
 								}
-								time_t l_datum_ts_create = (time_t) l_datum->header.ts_create;
+                                dap_time_t l_datum_ts_create = l_datum->header.ts_create;
 								// Nested datums
 								dap_string_append_printf(l_str_tmp,"\t\t\t\tversion:=0x%02X\n", l_datum->header.version_id);
 								const char * l_datum_type_str="UNKNOWN";
 								DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_datum_type_str);
 								dap_string_append_printf(l_str_tmp,"\t\t\t\ttype_id:=%s\n", l_datum_type_str);
-								ctime_r(&l_datum_ts_create, buf);
+                                dap_ctime_r(&l_datum_ts_create, buf);
 								dap_string_append_printf(l_str_tmp,"\t\t\t\tts_create=%s\n", buf);
 								dap_string_append_printf(l_str_tmp,"\t\t\t\tdata_size=%u\n", l_datum->header.data_size);
                                 dap_chain_datum_dump(l_str_tmp, l_datum, "hex", l_net->pub.id);
@@ -645,8 +645,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                 dap_string_t * l_str_tmp = dap_string_new(NULL);             
                 for (dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next) {
                     char l_buf[50];
-                    time_t l_ts = l_block_cache->block->hdr.ts_created;
-                    ctime_r(&l_ts, l_buf);
+                    dap_time_t l_ts = l_block_cache->block->hdr.ts_created;
+                    dap_ctime_r(&l_ts, l_buf);
                     dap_sign_t * l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
                     if(l_cert)
                     {

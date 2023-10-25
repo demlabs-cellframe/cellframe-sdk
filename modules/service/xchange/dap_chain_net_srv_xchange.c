@@ -2169,25 +2169,14 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                                 DAP_DEL_Z(l_tx_hash_str);
 
                                 // Print tx_created
-                                char l_tx_ts_str[92] = {0};
-                                struct tm l_tm={0};                                             /* Convert ts to  Sat May 17 01:17:08 2014 */
-                                uint64_t l_ts = l_tx->header.ts_created; // We take the next tx in chain to print close time, not the open one
-                                if ( (localtime_r((time_t *) &l_ts, &l_tm )) )
-                                    asctime_r (&l_tm, l_tx_ts_str);
-
+                                char l_tx_ts_str[92] = {};  /* Convert ts to Sat May 17 01:17:08 2014 */
+                                dap_time_to_str_rfc822(l_tx_ts_str, 92, l_tx->header.ts_created);
                                 dap_string_append_printf(l_reply_str,"\tts_created: %s", l_tx_ts_str);
-
                                 // Print tx_closed
                                 memset(l_tx_ts_str,0,sizeof(l_tx_ts_str));
-                                memset(&l_tm,0,sizeof(l_tm));                                             /* Convert ts to  Sat May 17 01:17:08 2014 */
-                                l_ts = l_cur->tx_next->header.ts_created; // We take the next tx in chain to print close time, not the open one
-                                if ( (localtime_r((time_t *) &l_ts, &l_tm )) )
-                                    asctime_r (&l_tm, l_tx_ts_str);
-
+                                dap_time_to_str_rfc822(l_tx_ts_str, 92, l_cur->tx_next->header.ts_created);
                                 dap_string_append_printf(l_reply_str,"\tts_closed: %s", l_tx_ts_str);
-
                                 // Print value_from/value_to
-
                                 uint256_t l_value_from = l_out_cond_item->header.value;
                                 uint256_t l_value_to = l_out_cond_item->subtype.srv_xchange.buy_value;
                                 uint256_t l_rate = {};
