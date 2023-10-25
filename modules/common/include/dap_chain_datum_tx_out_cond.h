@@ -98,7 +98,7 @@ typedef struct dap_chain_tx_out_cond {
             // Chain network to change to
             dap_chain_net_id_t buy_net_id;
             // Total amount of datoshi to change to
-            uint256_t buy_value;
+            uint256_t rate;
             // Token ticker to change to
             char buy_token[DAP_CHAIN_TICKER_SIZE_MAX];
             // Seller address
