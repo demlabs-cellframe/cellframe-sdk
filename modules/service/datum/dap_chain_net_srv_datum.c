@@ -36,7 +36,7 @@
 static dap_chain_net_srv_t *s_srv_datum = NULL;
 static int s_srv_datum_cli(int argc, char ** argv, char **a_str_reply);
 
-void s_order_notficator(dap_global_db_instance_t *a_dbi, dap_store_obj_t *a_obj, void *a_arg);
+void s_order_notficator(dap_store_obj_t *a_obj, void *a_arg);
 
 int dap_chain_net_srv_datum_init()
 {
@@ -195,7 +195,7 @@ static int s_srv_datum_cli(int argc, char ** argv, char **a_str_reply) {
  * @param a_value
  * @param a_value_len
  */
-void s_order_notficator(dap_global_db_instance_t *a_dbi, dap_store_obj_t *a_obj, void *a_arg)
+void s_order_notficator(dap_store_obj_t *a_obj, void *a_arg)
 {
     if (a_obj->type == DAP_GLOBAL_DB_OPTYPE_DEL)
         return;

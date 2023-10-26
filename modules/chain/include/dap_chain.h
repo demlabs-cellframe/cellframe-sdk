@@ -203,7 +203,7 @@ typedef struct dap_chain {
 
     dap_chain_callback_load_from_gdb callback_load_from_gdb;
 
-    dap_list_t *atom_notifiers;
+    dap_list_t *atom_notificators;
 //    dap_chain_callback_notify_t callback_notify;
 //    void *callback_notify_arg;
 
@@ -216,24 +216,17 @@ typedef struct dap_chain {
     void * _inheritor; // inheritor object
 } dap_chain_t;
 
-typedef struct dap_chain_atom_notifier {
+typedef struct dap_chain_atom_notificator {
     dap_chain_callback_notify_t callback;
     void *arg;
-} dap_chain_atom_notifier_t;
+} dap_chain_atom_notificator_t;
 
-typedef struct dap_chain_gdb_notifier {
-    dap_store_obj_callback_notify_t callback;
-    void *cb_arg;
-} dap_chain_gdb_notifier_t;
-
-typedef struct dap_chain_pvt
-{
+typedef struct dap_chain_pvt {
     dap_chain_t * chain;
     char * file_storage_dir;
     char * cs_name;
     bool cs_started;
     int celled;
-    dap_list_t *mempool_notifires;
     bool need_reorder;
 } dap_chain_pvt_t;
 
@@ -272,4 +265,4 @@ bool dap_chain_get_atom_last_hash(dap_chain_t *a_chain, dap_hash_fast_t *a_atom_
 ssize_t dap_chain_atom_save(dap_chain_t *a_chain, const uint8_t *a_atom, size_t a_atom_size, dap_chain_cell_id_t a_cell_id);
 int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name);
 const char* dap_chain_get_path(dap_chain_t *a_chain);
-void dap_chain_add_mempool_notify_callback(dap_chain_t *a_chain, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg);
+

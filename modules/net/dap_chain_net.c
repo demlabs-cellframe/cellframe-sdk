@@ -189,11 +189,8 @@ typedef struct dap_chain_net_pvt{
     dap_interval_timer_t main_timer;
     pthread_mutex_t uplinks_mutex;
 
-    dap_list_t *gdb_notifiers;
-
-    //Global DB clusters for different access groups.
-    dap_global_db_cluster_t *zerochain_cluster;
-    dap_global_db_cluster_t *mempool_cluster;
+    //Global DB clusters for different access groups. Notification with cluster contents changing
+    dap_global_db_cluster_t *mempool_clusters; // List of chains mempools
     dap_global_db_cluster_t *orders_cluster;
     dap_global_db_cluster_t *nodes_cluster;
 } dap_chain_net_pvt_t;
@@ -246,7 +243,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg);
 struct json_object *s_net_states_json_collect(dap_chain_net_t * l_net);
 
 static void s_net_states_notify(dap_chain_net_t * l_net);
-
+static void s_nodelist_change_notify(dap_store_obj_t *a_obj, void *a_arg);
 //static void s_net_proc_kill( dap_chain_net_t * a_net );
 static int s_net_init(const char * a_net_name, uint16_t a_acl_idx);
 
@@ -390,55 +387,6 @@ dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net)
 {
     dap_chain_net_state_t l_ret = PVT(a_net)->state_target;
     return l_ret;
-}
-
-/**
- * @brief set s_srv_callback_notify
- *
- * @param a_callback dap_global_db_obj_callback_notify_t callback function
- */
-void dap_chain_net_add_gdb_notify_callback(dap_chain_net_t *a_net, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg)
-{
-    dap_chain_gdb_notifier_t *l_notifier = DAP_NEW(dap_chain_gdb_notifier_t);
-    if (!l_notifier) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        return;
-    }
-    l_notifier->callback = a_callback;
-    l_notifier->cb_arg = a_cb_arg;
-    PVT(a_net)->gdb_notifiers = dap_list_append(PVT(a_net)->gdb_notifiers, l_notifier);
-}
-
-static void s_network_change_notify(dap_global_db_instance_t *a_dbi, dap_store_obj_t *a_obj, void *a_arg)
-{
-    if (!a_obj || !a_arg)
-        return;
-    dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
-    for (dap_list_t *it = PVT(l_net)->gdb_notifiers; it; it = it->next) {
-        dap_chain_gdb_notifier_t *el = (dap_chain_gdb_notifier_t *)it->data;
-        if (!el)
-            continue;
-        if (el->callback)
-            el->callback(a_dbi, a_obj, el->cb_arg);
-    }
-    dap_chain_t *l_chain;
-    DL_FOREACH(l_net->pub.chains, l_chain) {
-        if (!l_chain) {
-            continue;
-        }
-        char *l_gdb_group_str = dap_chain_net_get_gdb_group_mempool_new(l_chain);
-        if (!strcmp(a_obj->group, l_gdb_group_str)) {
-            for (dap_list_t *it = DAP_CHAIN_PVT(l_chain)->mempool_notifires; it; it = it->next) {
-                dap_chain_gdb_notifier_t *el = (dap_chain_gdb_notifier_t *)it->data;
-                if (!el)
-                    continue;
-                if (el->callback)
-                    el->callback(a_dbi, a_obj, el->cb_arg);
-            }
-        }
-        DAP_DELETE(l_gdb_group_str);
-    }
-
 }
 
 dap_chain_node_info_t *dap_get_balancer_link_from_cfg(dap_chain_net_t *a_net)
@@ -2219,8 +2167,6 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         }
     }
 
-    dap_chain_net_node_list_init();
-
     PVT(l_net)->bootstrap_nodes_count = 0;
     PVT(l_net)->bootstrap_nodes_addrs = DAP_NEW_SIZE(struct in_addr, l_bootstrap_nodes_len * sizeof(struct in_addr));
     PVT(l_net)->bootstrap_nodes_ports = DAP_NEW_SIZE(uint16_t, l_bootstrap_nodes_len * sizeof(uint16_t));
@@ -2521,40 +2467,30 @@ int s_net_load(dap_chain_net_t *a_net)
     l_net_pvt->balancer_http = !dap_config_get_item_bool_default(l_cfg, "general", "use_dns_links", false);
 
     // Init GlobalDB clusters for mempool, service and nodes (with aliases)
-    // Zerochain mempool cluster
-    char *l_gdb_mempool_mask = dap_strdup_printf("%s.chain-%s.mempool", l_net->pub.gdb_groups_prefix, l_net->pub.chains->name);
-    l_net_pvt->zerochain_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
-                                                             l_net->pub.name, l_gdb_mempool_mask,
-                                                             DAP_CHAIN_NET_MEMPOOL_TTL, true,
-                                                             s_network_change_notify, l_net,
-                                                             DAP_GDB_MEMBER_ROLE_USER,
-                                                             DAP_CLUSTER_ROLE_EMBEDDED);
-    if (!l_net_pvt->zerochain_cluster) {
-        log_it(L_ERROR, "Can't initialize zerochain cluster for network %s", l_net->pub.name);
-        return -1;
+    char *l_gdb_groups_mask = NULL;
+    DL_FOREACH(l_net->pub.chains, l_chain) {
+        // Personal chain mempool cluster for each chain
+        l_gdb_groups_mask = dap_strdup_printf("%s.chain-%s.mempool", l_net->pub.gdb_groups_prefix, l_chain->name);
+        dap_global_db_cluster_t *l_cluster = dap_global_db_cluster_add(
+                                                    dap_global_db_instance_get_default(),
+                                                    l_net->pub.name, l_gdb_groups_mask,
+                                                    DAP_CHAIN_NET_MEMPOOL_TTL, true,
+                                                    DAP_GDB_MEMBER_ROLE_USER,
+                                                    DAP_CLUSTER_ROLE_EMBEDDED);
+        if (!l_cluster) {
+            log_it(L_ERROR, "Can't initialize mempool cluster for network %s", l_net->pub.name);
+            return -1;
+        }
+        dap_chain_net_add_poa_certs_to_cluster(l_net, l_cluster);
+        DAP_DELETE(l_gdb_groups_mask);
+        if (l_net->pub.chains == l_chain)
+            l_net_pvt->mempool_clusters = l_cluster;
     }
-    dap_chain_net_add_poa_certs_to_cluster(l_net, l_net_pvt->zerochain_cluster);
-    DAP_DELETE(l_gdb_mempool_mask);
-    // Other chains mempool cluster
-    l_gdb_mempool_mask = dap_strdup_printf("%s.*.mempool", l_net->pub.gdb_groups_prefix);
-    l_net_pvt->mempool_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
-                                                           l_net->pub.name, l_gdb_mempool_mask,
-                                                           DAP_CHAIN_NET_MEMPOOL_TTL, true,
-                                                           s_network_change_notify, l_net,
-                                                           DAP_GDB_MEMBER_ROLE_USER,
-                                                           DAP_CLUSTER_ROLE_EMBEDDED);
-    if (!l_net_pvt->mempool_cluster) {
-        log_it(L_ERROR, "Can't initialize mempool cluster for network %s", l_net->pub.name);
-        return -1;
-    }
-    dap_chain_net_add_poa_certs_to_cluster(l_net, l_net_pvt->mempool_cluster);
-    DAP_DELETE(l_gdb_mempool_mask);
     // Service orders cluster
-    l_gdb_mempool_mask = dap_strdup_printf("%s.service.orders", l_net->pub.gdb_groups_prefix);
+    l_gdb_groups_mask = dap_strdup_printf("%s.service.orders", l_net->pub.gdb_groups_prefix);
     l_net_pvt->orders_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
-                                                          l_net->pub.name, l_gdb_mempool_mask,
+                                                          l_net->pub.name, l_gdb_groups_mask,
                                                           0, true,
-                                                          s_network_change_notify, l_net,
                                                           DAP_GDB_MEMBER_ROLE_GUEST,
                                                           DAP_CLUSTER_ROLE_EMBEDDED);
     if (!l_net_pvt->orders_cluster) {
@@ -2562,15 +2498,14 @@ int s_net_load(dap_chain_net_t *a_net)
         return -1;
     }
     dap_chain_net_add_poa_certs_to_cluster(l_net, l_net_pvt->orders_cluster);
-    DAP_DELETE(l_gdb_mempool_mask);
+    DAP_DELETE(l_gdb_groups_mask);
     // Nodes and its aliases cluster
     l_net->pub.gdb_nodes = dap_strdup_printf("%s.nodes",l_net->pub.gdb_groups_prefix);
     l_net->pub.gdb_nodes_aliases = dap_strdup_printf("%s.nodes.aliases",l_net->pub.gdb_groups_prefix);
-    l_gdb_mempool_mask = dap_strdup_printf("%s.nodes*", l_net->pub.gdb_groups_prefix);
+    l_gdb_groups_mask = dap_strdup_printf("%s.nodes*", l_net->pub.gdb_groups_prefix);
     l_net_pvt->nodes_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
-                                                         l_net->pub.name, l_gdb_mempool_mask,
+                                                         l_net->pub.name, l_gdb_groups_mask,
                                                          0, true,
-                                                         s_network_change_notify, l_net,
                                                          DAP_GDB_MEMBER_ROLE_GUEST,
                                                          DAP_CLUSTER_ROLE_EMBEDDED);
     if (!l_net_pvt->nodes_cluster) {
@@ -2578,7 +2513,8 @@ int s_net_load(dap_chain_net_t *a_net)
         return -1;
     }
     dap_chain_net_add_poa_certs_to_cluster(l_net, l_net_pvt->nodes_cluster);
-    DAP_DELETE(l_gdb_mempool_mask);
+    dap_chain_net_add_nodelist_notify_callback(l_net, s_nodelist_change_notify, l_net);
+    DAP_DELETE(l_gdb_groups_mask);
 
     DL_FOREACH(l_net->pub.chains, l_chain)
         if (l_chain->callback_created)
@@ -2611,6 +2547,47 @@ int s_net_load(dap_chain_net_t *a_net)
     return 0;
 }
 
+void dap_chain_add_mempool_notify_callback(dap_chain_t *a_chain, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg)
+{
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    dap_global_db_cluster_t *l_mempool = PVT(l_net)->mempool_clusters;
+    dap_chain_t *l_chain;
+    DL_FOREACH(l_net->pub.chains, l_chain) {
+        if (l_chain == a_chain)
+            dap_global_db_cluster_add_notify_callback(l_mempool, a_callback, a_cb_arg);
+        assert(l_mempool);
+        l_mempool = l_mempool->next;
+    }
+}
+
+static void s_nodelist_change_notify(dap_store_obj_t *a_obj, void *a_arg)
+{
+    dap_chain_net_t *l_net = a_arg;
+    dap_return_if_fail(a_obj->type == DAP_GLOBAL_DB_OPTYPE_ADD && !dap_strcmp(l_net->pub.gdb_nodes, a_obj->group));
+    dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)a_obj->value;
+    assert(dap_chain_node_info_get_size(l_node_info) == a_obj->value_len);
+    char l_node_ipv4_str[INET_ADDRSTRLEN]={ '\0' }, l_node_ipv6_str[INET6_ADDRSTRLEN]={ '\0' };
+    inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_ipv4_str, INET_ADDRSTRLEN);
+    inet_ntop(AF_INET6, &l_node_info->hdr.ext_addr_v6, l_node_ipv6_str, INET6_ADDRSTRLEN);
+    char l_ts[128] = { '\0' };
+    dap_gbd_time_to_str_rfc822(l_ts, sizeof(l_ts), a_obj->timestamp);
+
+    log_it(L_MSG, "Add node "NODE_ADDR_FP_STR" ipv4 %s(ipv6 %s):%s at %s to network\n",
+                             NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),
+                             l_node_ipv4_str, dap_itoa(l_node_info->hdr.ext_port),
+                             l_ts, l_net->pub.name);
+}
+
+void dap_chain_net_add_nodelist_notify_callback(dap_chain_net_t *a_net, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg)
+{
+    dap_global_db_cluster_add_notify_callback(PVT(a_net)->nodes_cluster, a_callback, a_cb_arg);
+}
+
+void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg)
+{
+    dap_global_db_cluster_add_notify_callback(PVT(a_net)->orders_cluster, a_callback, a_cb_arg);
+}
+
 int dap_chain_net_add_poa_certs_to_cluster(dap_chain_net_t *a_net, dap_global_db_cluster_t *a_cluster)
 {
     dap_return_val_if_fail(a_net && a_cluster, -1);
@@ -2624,7 +2601,8 @@ int dap_chain_net_add_poa_certs_to_cluster(dap_chain_net_t *a_net, dap_global_db
 
 bool dap_chain_net_add_validator_to_clusters(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_addr)
 {
-    bool l_ret = dap_global_db_cluster_member_add(PVT(a_net)->mempool_cluster, a_addr, DAP_GDB_MEMBER_ROLE_ROOT);
+    // Zerochain is always first, so clusters->next is mainchain cluster
+    bool l_ret = dap_global_db_cluster_member_add(PVT(a_net)->mempool_clusters->next, a_addr, DAP_GDB_MEMBER_ROLE_ROOT);
     return !l_ret ? false : dap_global_db_cluster_member_add(PVT(a_net)->orders_cluster, a_addr, DAP_GDB_MEMBER_ROLE_USER);
 }
 

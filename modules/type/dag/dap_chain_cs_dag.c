@@ -183,7 +183,7 @@ void dap_chain_cs_dag_deinit(void)
 
 }
 
-static void s_round_changes_notify(dap_global_db_instance_t *a_dbi, dap_store_obj_t *a_obj, void *a_arg)
+static void s_round_changes_notify(dap_store_obj_t *a_obj, void *a_arg)
 {
     dap_chain_cs_dag_t *l_dag = (dap_chain_cs_dag_t *)a_arg;
     assert(l_dag);
@@ -203,14 +203,12 @@ static bool s_dag_rounds_events_iter(dap_global_db_instance_t *a_dbi,
                                      const size_t a_values_current, const size_t a_values_count,
                                      dap_store_obj_t *a_values, void *a_arg)
 {
-    UNUSED(a_group);
-    UNUSED(a_values_current);
     dap_return_val_if_pass(a_rc != DAP_GLOBAL_DB_RC_SUCCESS, false);
 
     for (size_t i = 0; i < a_values_count; i++) {
         dap_store_obj_t *l_obj_cur = a_values + i;
         l_obj_cur->type = DAP_GLOBAL_DB_OPTYPE_ADD;
-        s_round_changes_notify(a_dbi, a_values + i, a_arg);
+        s_round_changes_notify(a_values + i, a_arg);
     }
     return true;
 }
@@ -324,8 +322,8 @@ static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
                                           l_net->pub.gdb_groups_prefix, a_chain->name, 0LLU);
     dap_global_db_cluster_t *l_dag_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
                                                                        l_dag->gdb_group_events_round_new, l_dag->gdb_group_events_round_new,
-                                                                       900, true, s_round_changes_notify, l_dag,
-                                                                       DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_ROLE_AUTONOMIC);
+                                                                       900, true, DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_ROLE_AUTONOMIC);
+    dap_global_db_cluster_add_notify_callback(l_dag_cluster, s_round_changes_notify, l_dag);
     dap_chain_net_add_poa_certs_to_cluster(l_net, l_dag_cluster);
     byte_t *l_current_round = dap_global_db_get_sync(l_dag->gdb_group_events_round_new, DAG_ROUND_CURRENT_KEY, NULL, NULL, NULL);
     l_dag->round_current = l_current_round ? *(uint64_t*)l_current_round : 0;

@@ -115,13 +115,13 @@ static void s_nonconsensus_callback_purge(dap_chain_t *a_chain)
 }
 
 
-static void s_nonconsensus_callback_mempool_notify(dap_global_db_instance_t UNUSED_ARG *a_dbi, dap_store_obj_t *a_obj, void *a_arg)
+static void s_nonconsensus_callback_mempool_notify(dap_store_obj_t *a_obj, void *a_arg)
 {
     if (a_obj->type == DAP_GLOBAL_DB_OPTYPE_ADD)
         dap_chain_node_mempool_process_all(a_arg, false);
 }
 
-static void s_changes_callback_notify(dap_global_db_instance_t UNUSED_ARG *a_dbi, dap_store_obj_t *a_obj, void *a_arg)
+static void s_changes_callback_notify(dap_store_obj_t *a_obj, void *a_arg)
 {
     dap_return_if_fail(a_obj->type == DAP_GLOBAL_DB_OPTYPE_ADD && a_obj->value_len && a_obj->value);
     dap_chain_t *l_chain = a_arg;
@@ -159,14 +159,15 @@ static int s_cs_callback_new(dap_chain_t *a_chain, dap_config_t UNUSED_ARG *a_ch
 
     l_nochain_priv->group_datums = dap_chain_net_get_gdb_group_nochain_new(a_chain);
     // Add group prefix that will be tracking all changes
-    if (dap_global_db_cluster_add(dap_global_db_instance_get_default(), l_net->pub.name,
-                                  l_nochain_priv->group_datums, 0, true,
-                                  s_changes_callback_notify, a_chain,
-                                  DAP_GDB_MEMBER_ROLE_USER, DAP_CLUSTER_ROLE_EMBEDDED)) {
+    dap_global_db_cluster_t *l_nonconsensus_cluster =
+            dap_global_db_cluster_add(dap_global_db_instance_get_default(), l_net->pub.name,
+                                      l_nochain_priv->group_datums, 0, true,
+                                      DAP_GDB_MEMBER_ROLE_USER, DAP_CLUSTER_ROLE_EMBEDDED);
+    if (!l_nonconsensus_cluster) {
         log_it(L_ERROR, "Can't create global DB cluster for synchronization");
         return -3;
     }
-
+    dap_global_db_cluster_add_notify_callback(l_nonconsensus_cluster, s_changes_callback_notify, a_chain);
     dap_chain_add_mempool_notify_callback(a_chain, s_nonconsensus_callback_mempool_notify, a_chain);
 
     pthread_cond_init(&l_nochain_priv->load_cond, NULL);
@@ -369,11 +370,11 @@ static dap_chain_atom_verify_res_t s_nonconsensus_callback_atom_add(dap_chain_t 
     dap_hash_fast(l_datum->data,l_datum->header.data_size,&l_hash_item->datum_data_hash );
     dap_chain_hash_fast_to_str(&l_hash_item->datum_data_hash, l_hash_item->key, sizeof(l_hash_item->key));
     DL_APPEND(l_nochain_priv->hash_items, l_hash_item);
-    if (!l_nochain_priv->is_load_mode && a_chain->atom_notifiers) {
+    if (!l_nochain_priv->is_load_mode && a_chain->atom_notificators) {
         dap_list_t *l_iter;
-        DL_FOREACH(a_chain->atom_notifiers, l_iter) {
-            dap_chain_atom_notifier_t *l_notifier = (dap_chain_atom_notifier_t*)l_iter->data;
-            l_notifier->callback(l_notifier->arg, a_chain, (dap_chain_cell_id_t){ }, (void*)l_datum, l_datum_size);
+        DL_FOREACH(a_chain->atom_notificators, l_iter) {
+            dap_chain_atom_notificator_t *l_notificator = (dap_chain_atom_notificator_t*)l_iter->data;
+            l_notificator->callback(l_notificator->arg, a_chain, (dap_chain_cell_id_t){ }, (void*)l_datum, l_datum_size);
         }
     }
     return ATOM_ACCEPT;
