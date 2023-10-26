@@ -113,7 +113,9 @@ static bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
         switch (*(dap_chain_tx_item_type_t*)l_item->data) {
         case TX_ITEM_TYPE_OUT:
         case TX_ITEM_TYPE_OUT_OLD:
-        case TX_ITEM_TYPE_OUT_EXT: {
+        case TX_ITEM_TYPE_OUT_EXT:
+        case TX_ITEM_TYPE_OUT_COND_OLD:
+        case TX_ITEM_TYPE_OUT_COND: {
             dap_hash_fast_t l_spender = { };
             if (dap_chain_ledger_tx_hash_is_used_out_item(a_ledger, a_tx_hash, l_out_idx, &l_spender)) {
                 char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
@@ -762,9 +764,6 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(l_net_str);
         if(l_is_all) {
             size_t l_tx_count = dap_chain_ledger_count(l_ledger), l_tx_count_spent_count = 0;
-            if (!l_unspent_flag) {
-                l_tx_count += (l_tx_count_spent_count = dap_chain_ledger_spent_count(l_ledger));
-            }
             if (!l_tx_count) {
                 dap_string_append_printf(l_str_ret, "Network ledger %s contains no transactions.\n", l_ledger->net_name);
             } else {
@@ -790,7 +789,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
             } else if(l_tx_hash_str) {
                 dap_chain_datum_tx_t *l_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, &l_tx_hash);
                 if (!l_tx && !l_unspent_flag) {
-                    l_tx = dap_chain_ledger_tx_spent_get_datum(dap_chain_ledger_tx_spent_find_by_hash(l_ledger, &l_tx_hash));
+                    l_tx = dap_chain_ledger_tx_spent_find_by_hash(l_ledger, &l_tx_hash);
                 }
                 if(l_tx) {
                     size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);

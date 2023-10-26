@@ -263,13 +263,6 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                                     bool a_from_threshold, dap_list_t **a_list_bound_items, dap_list_t **a_list_tx_out, char **a_main_ticker);
 
 /**
- * Delete transaction from the cache
- *
- * return 1 OK, -1 error, -2 tx_hash not found
- */
-int dap_chain_ledger_tx_remove(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash, dap_time_t a_spent_time);
-
-/**
  * Delete all transactions from the cache
  */
 void dap_chain_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db);
@@ -283,7 +276,6 @@ void dap_chain_ledger_load_end(dap_ledger_t *a_ledger);
  * Return number transactions from the cache
  */
 unsigned dap_chain_ledger_count(dap_ledger_t *a_ledger);
-unsigned dap_chain_ledger_spent_count(dap_ledger_t *a_ledger);
 uint64_t dap_chain_ledger_count_from_to(dap_ledger_t * a_ledger, dap_time_t a_ts_from, dap_time_t a_ts_to);
 size_t dap_chain_ledger_count_tps(dap_ledger_t *a_ledger, struct timespec *a_ts_from, struct timespec *a_ts_to);
 void dap_chain_ledger_set_tps_start_time(dap_ledger_t *a_ledger);
@@ -309,8 +301,7 @@ uint256_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_c
  * return transaction, or NULL if transaction not found in the cache
  */
 dap_chain_datum_tx_t* dap_chain_ledger_tx_find_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash);
-void *dap_chain_ledger_tx_spent_find_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash);
-dap_chain_datum_tx_t *dap_chain_ledger_tx_spent_get_datum(void *a_tx_item);
+dap_chain_datum_tx_t* dap_chain_ledger_tx_spent_find_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash);
 dap_hash_fast_t *dap_chain_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_cond_type, dap_chain_hash_fast_t *a_tx_hash);
 
  // Get the transaction in the cache by the addr in out item
