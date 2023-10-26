@@ -173,7 +173,7 @@ int dap_chain_cs_blocks_init()
                 "\t\tDump block info\n\n"
 
             "block -net <net_name> -chain <chain_name> list [-from_hash <block_hash>] [-to_hash <block_hash>]"
-            "[-from_dt <datetime>] [-to_dt <datetime>] [-cert <priv_cert_name> -unspent]\n"
+            "[-from_dt <in YYMMDD>] [-to_dt <in YYMMDD>] [-cert <priv_cert_name> -unspent]\n"
                 "\t\t List blocks\n\n"
         "Commission collect:\n"
             "block -net <net_name> -chain <chain_name> fee collect\n"
@@ -621,7 +621,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
         case SUBCMD_LIST:{
                 const char * l_cert_name, *l_from_hash_name, *l_to_hash_name, *l_from_dt_name, *l_to_dt_name;
                 l_cert_name = l_from_hash_name = l_to_hash_name = l_from_dt_name = l_to_dt_name = NULL;
-                bool l_unspent_fl = false,l_hash_fl = false,l_dt_fl = false;
+                bool l_unspent_fl = false,l_hash_fl = false;
                 size_t l_block_count = 0;
                 dap_cert_t * l_cert = NULL;
                 dap_pkey_t * l_pub_key = NULL;                
@@ -659,8 +659,29 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                 if(l_from_hash_name){
                     dap_chain_hash_fast_from_hex_str(l_from_hash_name, &l_from_hash);
                 }
-                struct tm tm;
-                //strptime("2001-11-12 18:31:01", "%Y-%m-%d %H:%M:%S", &tm);
+                if(l_from_dt_name){
+                    char l_from_data_month[3] = {l_from_dt_name[2], l_from_dt_name[3], 0};
+                    int l_from_time_month = atoi(l_from_data_month);
+                    if (l_from_time_month < 1 || l_from_time_month > 12)
+                        return -21;
+                    char l_from_data_day[3] = {l_from_dt_name[4], l_from_dt_name[5], 0};
+                    int l_from_time_day = atoi(l_from_data_day);
+                    if (l_from_time_day < 1 || l_from_time_day > 31)
+                        return -21;
+                }
+                if(l_to_dt_name){
+                    char l_to_data_month[3] = {l_to_dt_name[2], l_to_dt_name[3], 0};
+                    int l_to_time_month = atoi(l_to_data_month);
+                    if (l_to_time_month < 1 || l_to_time_month > 12)
+                        return -21;
+                    char l_to_data_day[3] = {l_to_dt_name[4], l_to_dt_name[5], 0};
+                    int l_to_time_day = atoi(l_to_data_day);
+                    if (l_to_time_day < 1 || l_to_time_day > 31)
+                        return -21;
+                }
+
+                time_t l_from_data = dap_time_from_str_simplified(l_from_dt_name);
+                time_t l_to_data = dap_time_from_str_simplified(l_to_dt_name);
 
                 pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
                 dap_string_t * l_str_tmp = dap_string_new(NULL);             
@@ -692,11 +713,14 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                                 continue;
                         }
                     }
-                    if(dap_hash_fast_compare(&l_to_hash,&l_block_cache->block_hash))
+                    if(l_to_hash_name && dap_hash_fast_compare(&l_to_hash,&l_block_cache->block_hash))
+                        break;
+                    if(l_to_dt_name && (l_to_data < l_ts))
                         break;
                     if(dap_hash_fast_compare(&l_from_hash,&l_block_cache->block_hash))
                         l_hash_fl = true;
-                    if(l_from_hash_name && !l_hash_fl)
+                    if((l_from_hash_name && !l_hash_fl) ||
+                       (l_from_dt_name && (l_from_data > l_ts)))
                         continue;
 
                     dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s",
@@ -707,7 +731,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                     dap_string_append_printf(l_str_tmp,"%s.%s: Have %"DAP_UINT64_FORMAT_U" blocks signed with %s certificate :\n",
                                              l_net->pub.name,l_chain->name,l_block_count,l_cert_name);
                 }
-                else if(l_to_hash_name || l_from_hash_name){
+                else if(l_to_hash_name || l_from_hash_name || l_from_dt_name || l_to_dt_name){
                     dap_string_append_printf(l_str_tmp,"%"DAP_UINT64_FORMAT_U" filtered blocks shown :\n",l_block_count);
                 }
                 dap_string_append_printf(l_str_tmp,"%s.%s: Have %"DAP_UINT64_FORMAT_U" blocks :\n",
