@@ -242,7 +242,7 @@ dap_chain_net_node_balancer_t *s_balancer_issue_link(const char *a_net_name, uin
     }
     else
     {
-        dap_chain_node_info_t *l_link_node_info = dap_get_balancer_link_from_cfg(l_net);
+        dap_chain_node_info_t *l_link_node_info = dap_chain_net_balancer_link_from_cfg(l_net);
         if(l_link_node_info)
         {          
             log_it(L_DEBUG, "Network balancer issues ip from net conf - %s",inet_ntoa(l_link_node_info->hdr.ext_addr_v4));

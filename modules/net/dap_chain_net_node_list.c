@@ -208,7 +208,7 @@ static int dap_chain_net_node_list_wait(struct node_link_request *a_node_list_re
 
 int dap_chain_net_node_list_request(dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_request, bool a_sync)
 {
-    dap_chain_node_info_t *l_link_node_info = dap_get_balancer_link_from_cfg(a_net);
+    dap_chain_node_info_t *l_link_node_info = dap_chain_net_balancer_link_from_cfg(a_net);
     if (!l_link_node_info)
         return false;
     char l_node_addr_str[INET_ADDRSTRLEN] = {};
