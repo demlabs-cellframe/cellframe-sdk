@@ -723,7 +723,11 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                         l_hash_fl = true;
                     if((l_from_hash_name && !l_hash_fl) ||
                        (l_from_dt_name && (l_from_data > l_ts)))
+                    {
+                        if(l_to_hash_name && dap_hash_fast_compare(&l_to_hash,&l_block_cache->block_hash))
+                            break;
                         continue;
+                    }
 
                     dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s",
                                                  l_block_cache->block_hash_str, l_buf);
