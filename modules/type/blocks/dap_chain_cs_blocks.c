@@ -681,7 +681,11 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                 }
 
                 time_t l_from_data = dap_time_from_str_simplified(l_from_dt_name);
+                struct tm *u;
                 time_t l_to_data = dap_time_from_str_simplified(l_to_dt_name);
+                u = localtime(&l_to_data);
+                u->tm_mday += 1;
+                time_t l_to_data_p_one_day = mktime(u);
 
                 pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
                 dap_string_t * l_str_tmp = dap_string_new(NULL);             
@@ -712,10 +716,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                             if(!fl_found)
                                 continue;
                         }
-                    }
-                    if(l_to_hash_name && dap_hash_fast_compare(&l_to_hash,&l_block_cache->block_hash))
-                        break;
-                    if(l_to_dt_name && (l_to_data < l_ts))
+                    }                    
+                    if(l_to_dt_name && (l_to_data_p_one_day < l_ts))
                         break;
                     if(dap_hash_fast_compare(&l_from_hash,&l_block_cache->block_hash))
                         l_hash_fl = true;
@@ -726,6 +728,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                     dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s",
                                                  l_block_cache->block_hash_str, l_buf);
                     l_block_count++;
+                    if(l_to_hash_name && dap_hash_fast_compare(&l_to_hash,&l_block_cache->block_hash))
+                        break;
                 }                
                 if(l_cert){
                     dap_string_append_printf(l_str_tmp,"%s.%s: Have %"DAP_UINT64_FORMAT_U" blocks signed with %s certificate :\n",
