@@ -508,8 +508,8 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                              ((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_net_id.uint64,
                                              ((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_token,
                                              l_rate_str);
-                    DAP_DELETE(l_value_str);
-                    DAP_DELETE(l_coins_str);
+//                    DAP_DELETE(l_value_str);
+//                    DAP_DELETE(l_coins_str);
                 } break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK: {
                     dap_time_t l_ts_exp = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_lock.time_unlock;
