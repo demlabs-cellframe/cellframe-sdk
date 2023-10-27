@@ -153,7 +153,8 @@ dap_list_t* dap_chain_net_get_node_list_cfg(dap_chain_net_t * a_net);
 dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net);
 dap_chain_node_info_t *dap_get_balancer_link_from_cfg(dap_chain_net_t *a_net);
 int dap_chain_net_add_poa_certs_to_cluster(dap_chain_net_t *a_net, dap_global_db_cluster_t *a_cluster);
-bool dap_chain_net_add_validator_to_clusters(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_addr);
+bool dap_chain_net_add_validator_to_clusters(dap_chain_t *a_chain, dap_stream_node_addr_t *a_addr);
+dap_global_db_cluster_t *dap_chain_net_get_mempool_cluster(dap_chain_t *a_chain);
 
 /**
  * @brief dap_chain_net_get_gdb_group_mempool

@@ -373,7 +373,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     for (dap_list_t *it = l_validators; it; it = it->next) {
         dap_stream_node_addr_t *l_addr = &((dap_chain_net_srv_stake_item_t *)it->data)->node_addr;
         dap_global_db_cluster_member_add(l_session->db_cluster, l_addr, DAP_GDB_MEMBER_ROLE_ROOT);
-        dap_chain_net_add_validator_to_clusters(l_net, l_addr);
+        dap_chain_net_add_validator_to_clusters(a_chain, l_addr);
     }
     //Find order minimum fee
     char * l_gdb_group_str = dap_chain_net_srv_order_get_gdb_group(l_net);

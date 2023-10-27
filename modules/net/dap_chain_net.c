@@ -2547,17 +2547,29 @@ int s_net_load(dap_chain_net_t *a_net)
     return 0;
 }
 
-void dap_chain_add_mempool_notify_callback(dap_chain_t *a_chain, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg)
+dap_global_db_cluster_t *dap_chain_net_get_mempool_cluster(dap_chain_t *a_chain)
 {
+    dap_return_val_if_fail(a_chain, NULL);
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    if (!l_net) {
+        log_it(L_ERROR, "Invalid chain specified for mempool cluster search");
+        return NULL;
+    }
     dap_global_db_cluster_t *l_mempool = PVT(l_net)->mempool_clusters;
     dap_chain_t *l_chain;
     DL_FOREACH(l_net->pub.chains, l_chain) {
         if (l_chain == a_chain)
-            dap_global_db_cluster_add_notify_callback(l_mempool, a_callback, a_cb_arg);
+            return l_mempool;
         assert(l_mempool);
         l_mempool = l_mempool->next;
     }
+    log_it(L_ERROR, "No mempool cluster found for chain specified");
+    return NULL;
+}
+
+void dap_chain_add_mempool_notify_callback(dap_chain_t *a_chain, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg)
+{
+    dap_global_db_cluster_add_notify_callback(dap_chain_net_get_mempool_cluster(a_chain), a_callback, a_cb_arg);
 }
 
 static void s_nodelist_change_notify(dap_store_obj_t *a_obj, void *a_arg)
@@ -2599,11 +2611,12 @@ int dap_chain_net_add_poa_certs_to_cluster(dap_chain_net_t *a_net, dap_global_db
     return 0;
 }
 
-bool dap_chain_net_add_validator_to_clusters(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_addr)
+bool dap_chain_net_add_validator_to_clusters(dap_chain_t *a_chain, dap_stream_node_addr_t *a_addr)
 {
-    // Zerochain is always first, so clusters->next is mainchain cluster
-    bool l_ret = dap_global_db_cluster_member_add(PVT(a_net)->mempool_clusters->next, a_addr, DAP_GDB_MEMBER_ROLE_ROOT);
-    return !l_ret ? false : dap_global_db_cluster_member_add(PVT(a_net)->orders_cluster, a_addr, DAP_GDB_MEMBER_ROLE_USER);
+    bool l_ret = dap_global_db_cluster_member_add(
+                dap_chain_net_get_mempool_cluster(a_chain), a_addr, DAP_GDB_MEMBER_ROLE_ROOT);
+    return !l_ret ? false : dap_global_db_cluster_member_add(
+                        PVT(dap_chain_net_by_id(a_chain->net_id))->orders_cluster, a_addr, DAP_GDB_MEMBER_ROLE_USER);
 }
 
 /**
