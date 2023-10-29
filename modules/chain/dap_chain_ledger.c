@@ -3685,16 +3685,20 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                     break;
                 }
                 if (!EQUAL_256(l_value_expected, l_stake_lock_ems_value)) {
-                    char *l_value_expected_str = dap_chain_balance_print(l_value_expected);
-                    char *l_locked_value_str = dap_chain_balance_print(l_stake_lock_ems_value);
+                    // !!! A terrible legacy crutch, TODO !!!
+                    SUM_256_256(l_value_expected, GET_256_FROM_64(10), &l_value_expected);
+                    if (!EQUAL_256(l_value_expected, l_stake_lock_ems_value)) {
+                            char *l_value_expected_str = dap_chain_balance_print(l_value_expected);
+                            char *l_locked_value_str = dap_chain_balance_print(l_stake_lock_ems_value);
 
-                    debug_if(s_debug_more, L_WARNING, "Value %s != %s expected for [%s]",l_locked_value_str, l_value_expected_str,
-                             l_tx_in_ems->header.ticker);
+                            debug_if(s_debug_more, L_WARNING, "Value %s != %s expected for [%s]",l_locked_value_str, l_value_expected_str,
+                                     l_tx_in_ems->header.ticker);
 
-                    DAP_DEL_Z(l_value_expected_str);
-                    DAP_DEL_Z(l_locked_value_str);
-                    l_err_num = DAP_CHAIN_LEDGER_TX_CACHE_STAKE_LOCK_UNEXPECTED_VALUE;
-                    break;
+                            DAP_DEL_Z(l_value_expected_str);
+                            DAP_DEL_Z(l_locked_value_str);
+                            l_err_num = DAP_CHAIN_LEDGER_TX_CACHE_STAKE_LOCK_UNEXPECTED_VALUE;
+                            break;
+                    }
                 }
                 if (!l_girdled_ems) {
                     // check tiker
