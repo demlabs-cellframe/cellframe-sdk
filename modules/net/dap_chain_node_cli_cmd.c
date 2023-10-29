@@ -2918,7 +2918,10 @@ int com_mempool_list(int a_argc, char **a_argv, char **a_str_reply)
     const char * l_hash_out_type = "hex";
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
     dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net);
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_base58);
+    if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_base58) && !l_addr_base58) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Parameter '-addr' require <addr>");
+        return -1;
+    }
     l_fast = (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-fast") != -1) ? true : false;
     if(!l_net)
         return -1;
