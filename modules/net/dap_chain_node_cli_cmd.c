@@ -5712,8 +5712,7 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
         return -10;
     }
 
-    // Check, if network ID is same as ID in destination wallet address. If not - operation is cancelled.
-    if (l_addr_to->net_id.uint64 != l_net->pub.id.uint64) {
+    if (l_addr_to->net_id.uint64 != l_net->pub.id.uint64 && !dap_chain_addr_is_blank(l_addr_to)) {
         bool l_found = false;
         for (dap_list_t *it = l_net->pub.bridged_networks; it; it = it->next) {
             if (((dap_chain_net_id_t *)it->data)->uint64 == l_addr_to->net_id.uint64) {
