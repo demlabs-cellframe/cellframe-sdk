@@ -343,7 +343,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, dap_string_t *output_line)
 {
     const char *l_net_str, *l_ticker_str, *l_wallet_str, *l_tx_str, *l_tx_burning_str, *l_chain_str, *l_value_fee_str;
-    l_net_str = l_ticker_str = l_wallet_str = l_tx_str = l_tx_burning_str = l_chain_str = NULL;
+    l_net_str = l_ticker_str = l_wallet_str = l_tx_str = l_tx_burning_str = l_chain_str = l_value_fee_str = NULL;
     dap_chain_net_t						*l_net				=	NULL;
     const char							*l_wallets_path		=	dap_chain_wallet_get_path(g_config);
     char l_delegated_ticker_str[DAP_CHAIN_TICKER_SIZE_MAX] 	=	{};
