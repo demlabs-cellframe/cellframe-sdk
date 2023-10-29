@@ -985,8 +985,14 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
             DAP_DEL_Z(str3);
         }
 
-        if (!EQUAL_256(l_blank_out_value, l_value_delegated))
-            return false;
+        if (!EQUAL_256(l_blank_out_value, l_value_delegated)) {
+            // !!! A terrible legacy crutch, TODO !!!
+            SUM_256_256(l_value_delegated, GET_256_FROM_64(10), &l_value_delegated);
+            if (!EQUAL_256(l_blank_out_value, l_value_delegated)) {
+                log_it(L_ERROR, "Burning and delegated value mismatch");
+                return false;
+            }
+        }
     }
 
     return true;
