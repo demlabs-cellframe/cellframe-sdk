@@ -5379,7 +5379,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
                     }
                     //CHECK value fee
                     l_list_used_out_fee = dap_chain_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_native_token,
-                                                                                                  l_addr_from, l_value_need_fee, &l_value_transfer_fee);
+                                                                                     l_addr_from, l_value_need_fee, &l_value_transfer_fee);
                     if(!l_list_used_out_fee) {
                         log_it(L_WARNING, "Not enough funds in previous tx to transfer");
                         dap_string_append_printf(l_err_str, "Can't create in transaction. Not enough funds in previous tx "
