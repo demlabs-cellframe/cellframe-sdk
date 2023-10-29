@@ -1375,11 +1375,8 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
 
                     // Check if its correct
                     dap_chain_addr_t * l_add_addr = (dap_chain_addr_t *) l_tsd->data;
-                    int l_add_addr_check;
-                    if (  (l_add_addr_check=dap_chain_addr_check_sum(l_add_addr))!=1){
-                        if(s_debug_more)
-                            log_it(L_ERROR,"Wrong address checksum in TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD (code %d)",
-                               l_add_addr_check);
+                    if (dap_chain_addr_check_sum(l_add_addr)) {
+                        debug_if(s_debug_more, L_ERROR, "Wrong address checksum in TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD");
                         return -12;
                     }
                     // Check if its already present
@@ -1417,11 +1414,8 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
                 if( l_tsd->size == sizeof (dap_chain_addr_t) ){
                     // Check if its correct
                     dap_chain_addr_t * l_add_addr = (dap_chain_addr_t *) l_tsd->data;
-                    int l_add_addr_check;
-                    if (  (l_add_addr_check=dap_chain_addr_check_sum(l_add_addr))!=0){
-                        if(s_debug_more)
-                            log_it(L_ERROR,"Wrong address checksum in TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_REMOVE (code %d)",
-                               l_add_addr_check);
+                    if (dap_chain_addr_check_sum(l_add_addr)) {
+                        debug_if(s_debug_more, L_ERROR, "Wrong address checksum in TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_REMOVE");
                         return -12;
                     }
                     bool l_was_found=false;
@@ -1468,12 +1462,8 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
                                           (a_token_item->tx_recv_block_size + 1) * sizeof(*a_token_item->tx_recv_block));
                     // Check if its correct
                     dap_chain_addr_t * l_add_addr = (dap_chain_addr_t *) l_tsd->data;
-                    int l_add_addr_check;
-                    if ((l_add_addr_check=dap_chain_addr_check_sum(l_add_addr)) != 1) {
-                        if(s_debug_more)
-                            log_it(L_ERROR,"Wrong address checksum in TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD (code %d)",
-                               l_add_addr_check);
-                        DAP_DELETE(l_addrs);
+                    if (dap_chain_addr_check_sum(l_add_addr)) {
+                        debug_if(s_debug_more, L_ERROR, "Wrong address checksum in TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD");
                         return -12;
                     }
                     // Check if its already present
@@ -1511,11 +1501,8 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
                 if( l_tsd->size == sizeof (dap_chain_addr_t) ){
                     // Check if its correct
                     dap_chain_addr_t * l_add_addr = (dap_chain_addr_t *) l_tsd->data;
-                    int l_add_addr_check;
-                    if (  (l_add_addr_check=dap_chain_addr_check_sum(l_add_addr))!=0){
-                        if(s_debug_more)
-                            log_it(L_ERROR,"Wrong address checksum in TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_REMOVE (code %d)",
-                               l_add_addr_check);
+                    if (dap_chain_addr_check_sum(l_add_addr)) {
+                        debug_if(s_debug_more, L_ERROR, "Wrong address checksum in TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_REMOVE");
                         return -12;
                     }
                     bool l_was_found=false;
@@ -1560,12 +1547,8 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
                                 : DAP_REALLOC(a_token_item->tx_send_allow,(a_token_item->tx_send_allow_size+1)*sizeof (*a_token_item->tx_send_allow) );
                     // Check if its correct
                     dap_chain_addr_t * l_add_addr = (dap_chain_addr_t *) l_tsd->data;
-                    int l_add_addr_check;
-                    if (  (l_add_addr_check=dap_chain_addr_check_sum(l_add_addr)) != 1){
-                        if(s_debug_more)
-                            log_it(L_ERROR,"Wrong address checksum in TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD (code %d)",
-                               l_add_addr_check);
-                        DAP_DELETE(l_addrs);
+                    if (dap_chain_addr_check_sum(l_add_addr)) {
+                        debug_if(s_debug_more, L_ERROR, "Wrong address checksum in TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD");
                         return -12;
                     }
                     // Check if its already present
@@ -1599,11 +1582,8 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
                 if( l_tsd->size == sizeof (dap_chain_addr_t) ){
                     // Check if its correct
                     dap_chain_addr_t * l_add_addr = (dap_chain_addr_t *) l_tsd->data;
-                    int l_add_addr_check;
-                    if (  (l_add_addr_check=dap_chain_addr_check_sum(l_add_addr))!=0){
-                        if(s_debug_more)
-                            log_it(L_ERROR,"Wrong address checksum in TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_REMOVE (code %d)",
-                               l_add_addr_check);
+                    if (dap_chain_addr_check_sum(l_add_addr)) {
+                        debug_if(s_debug_more, L_ERROR, "Wrong address checksum in TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_REMOVE");
                         return -12;
                     }
                     bool l_was_found=false;
@@ -1644,18 +1624,13 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
             //Blocked tx sender addres list add, remove or clear
             case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD:{
                 if( l_tsd->size == sizeof (dap_chain_addr_t) ){
-                    dap_chain_addr_t * l_addrs = a_token_item->tx_send_block ? DAP_NEW_Z_SIZE( dap_chain_addr_t,
-                                                                                              sizeof(*a_token_item->tx_send_block) )
-                                : DAP_REALLOC(a_token_item->tx_send_block,(a_token_item->tx_send_block_size+1)*sizeof (*a_token_item->tx_send_block) );
+                    dap_chain_addr_t *l_addrs = a_token_item->tx_send_block
+                            ? DAP_NEW_Z_SIZE(dap_chain_addr_t, sizeof(*a_token_item->tx_send_block))
+                            : DAP_REALLOC(a_token_item->tx_send_block, (a_token_item->tx_send_block_size + 1) * sizeof(*a_token_item->tx_send_block));
                     // Check if its correct
                     dap_chain_addr_t * l_add_addr = (dap_chain_addr_t *) l_tsd->data;
-                    int l_add_addr_check;
-                    if ((l_add_addr_check=dap_chain_addr_check_sum(l_add_addr)) != 1) {
-                        if(s_debug_more)
-                            log_it(L_ERROR,"Wrong address checksum in TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD (code %d)",
-                               l_add_addr_check);
-                        if (l_addrs)
-                            DAP_DELETE(l_addrs);
+                    if (dap_chain_addr_check_sum(l_add_addr)) {
+                        debug_if(s_debug_more, L_ERROR, "Wrong address checksum in TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD");
                         return -12;
                     }
                     // Check if its already present
@@ -1690,11 +1665,8 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
                 if( l_tsd->size == sizeof (dap_chain_addr_t) ){
                     // Check if its correct
                     dap_chain_addr_t * l_add_addr = (dap_chain_addr_t *) l_tsd->data;
-                    int l_add_addr_check;
-                    if (  (l_add_addr_check=dap_chain_addr_check_sum(l_add_addr))!=0){
-                        if(s_debug_more)
-                            log_it(L_ERROR,"Wrong address checksum in TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_REMOVE (code %d)",
-                               l_add_addr_check);
+                    if (dap_chain_addr_check_sum(l_add_addr)) {
+                        debug_if(s_debug_more, L_ERROR, "Wrong address checksum in TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_REMOVE");
                         return -12;
                     }
                     bool l_was_found=false;
@@ -4990,7 +4962,7 @@ uint256_t dap_chain_ledger_calc_balance_full(dap_ledger_t *a_ledger, const dap_c
 {
     uint256_t balance = uint256_0;
 
-    if(!a_addr || !dap_chain_addr_check_sum(a_addr))
+    if(!a_addr || dap_chain_addr_check_sum(a_addr))
         return balance;
 
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
