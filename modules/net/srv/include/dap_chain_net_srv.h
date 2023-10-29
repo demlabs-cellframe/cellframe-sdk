@@ -69,7 +69,9 @@ typedef void (*dap_chain_callback_trafic_t)(dap_events_socket_t *, dap_stream_ch
 
 typedef struct dap_chain_net_srv_price
 {
-    dap_chain_wallet_t *wallet;
+//    dap_chain_wallet_t *wallet;
+    dap_chain_addr_t *wallet_addr;
+    dap_cert_t *receipt_sign_cert;
     char *net_name;
     dap_chain_net_t *net;
     uint256_t value_datoshi;
@@ -125,6 +127,7 @@ typedef struct dap_stream_ch_chain_net_srv_pkt_request_hdr{
     dap_chain_hash_fast_t tx_cond; // Conditioned transaction with paymemt for
     dap_chain_net_srv_uid_t srv_uid;
     char token[DAP_CHAIN_TICKER_SIZE_MAX];
+    dap_chain_hash_fast_t client_pkey_hash;
 } DAP_ALIGN_PACKED dap_stream_ch_chain_net_srv_pkt_request_hdr_t;
 
 typedef struct dap_stream_ch_chain_net_srv_pkt_request{
@@ -197,17 +200,24 @@ typedef struct dap_chain_net_srv_client_remote
     dap_stream_ch_t * ch; // Use ONLY in own context, not thread-safe
     time_t ts_created;
     dap_stream_worker_t * stream_worker;
-    int session_id;
+    uint32_t session_id;
     uint64_t bytes_received;
     uint64_t bytes_sent;
     struct dap_chain_net_srv_client_remote *prev;
     struct dap_chain_net_srv_client_remote *next;
 } dap_chain_net_srv_client_remote_t;
 
+typedef struct {
+    intmax_t limits_bytes; // Bytes provided for using the service left
+    time_t limits_ts; //Time provided for using the service
+    dap_chain_net_srv_price_unit_uid_t remain_units_type;
+} dap_stream_ch_chain_net_srv_remain_service_store_t;
+
 typedef int  (*dap_chain_net_srv_callback_data_t)(dap_chain_net_srv_t *, uint32_t, dap_chain_net_srv_client_remote_t *, const void *, size_t);
 typedef void* (*dap_chain_net_srv_callback_custom_data_t)(dap_chain_net_srv_t *, dap_chain_net_srv_usage_t *, const void *, size_t, size_t *);
 typedef void (*dap_chain_net_srv_callback_ch_t)(dap_chain_net_srv_t *, dap_stream_ch_t *);
-
+typedef dap_stream_ch_chain_net_srv_remain_service_store_t* (*dap_chain_net_srv_callback_get_remain_srvice_t)(dap_chain_net_srv_t *, uint32_t, dap_chain_net_srv_client_remote_t*);
+typedef int (*dap_chain_net_srv_callback_save_remain_srvice_t)(dap_chain_net_srv_t *, uint32_t, dap_chain_net_srv_client_remote_t*);
 // Process service decree
 typedef void (*dap_chain_net_srv_callback_decree_t)(dap_chain_net_srv_t* a_srv, dap_chain_net_t* a_net, dap_chain_t* a_chain, dap_chain_datum_decree_t* a_decree, size_t a_decree_size);
 
@@ -231,7 +241,10 @@ typedef struct dap_chain_net_srv_callbacks {
     dap_chain_net_srv_callback_data_t receipt_next_success;
     // Custom data processing
     dap_chain_net_srv_callback_custom_data_t custom_data;
-
+    // Remain service getting drom DB
+    dap_chain_net_srv_callback_get_remain_srvice_t get_remain_service;
+    // Remain service saving to DB
+    dap_chain_net_srv_callback_save_remain_srvice_t save_remain_service;
     // Decree processing
     dap_chain_net_srv_callback_decree_t decree;
 

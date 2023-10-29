@@ -51,7 +51,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 struct dap_chain_node_info;
 typedef struct dap_chain_node_client dap_chain_node_client_t;
 
-typedef  enum dap_chain_net_state{
+typedef enum dap_chain_net_state{
     NET_STATE_OFFLINE = 0,
     NET_STATE_LINKS_PREPARE,
     NET_STATE_LINKS_CONNECTING,
@@ -61,18 +61,6 @@ typedef  enum dap_chain_net_state{
     NET_STATE_SYNC_CHAINS,
     NET_STATE_ONLINE
 } dap_chain_net_state_t;
-
-static const char * g_net_state_str[]={
-    [NET_STATE_OFFLINE] = "NET_STATE_OFFLINE",
-    [NET_STATE_LINKS_PREPARE]="NET_STATE_LINKS_PREPARE",
-    [NET_STATE_LINKS_CONNECTING]="NET_STATE_LINKS_CONNECTING",
-    [NET_STATE_LINKS_ESTABLISHED]="NET_STATE_LINKS_ESTABLISHED",
-    [NET_STATE_ADDR_REQUEST]="NET_STATE_ADDR_REQUEST", // Waiting for address assign
-    [NET_STATE_SYNC_GDB]="NET_STATE_SYNC_GDB",
-    [NET_STATE_SYNC_CHAINS]="NET_STATE_SYNC_CHAINS",
-    [NET_STATE_ONLINE]="NET_STATE_ONLINE"
-};
-
 
 typedef struct dap_chain_net{
     struct {
@@ -132,18 +120,6 @@ inline static int dap_chain_net_links_establish(dap_chain_net_t * a_net) { retur
 inline static int dap_chain_net_sync_gdb(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_GDB); }
 inline static int dap_chain_net_sync_chains(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_CHAINS); }
 inline static int dap_chain_net_sync_all(dap_chain_net_t * a_net) { return dap_chain_net_state_go_to(a_net,NET_STATE_SYNC_CHAINS); }
-
-/**
- * @brief dap_chain_net_state_to_str
- * @param a_state
- * @return
- */
-static inline const char * dap_chain_net_state_to_str(dap_chain_net_state_t a_state){
-    if(a_state< NET_STATE_OFFLINE || a_state > NET_STATE_ONLINE)
-        return "<Undefined net state>";
-    else
-        return g_net_state_str[a_state];
-}
 
 void dap_chain_net_delete( dap_chain_net_t * a_net);
 void dap_chain_net_proc_mempool(dap_chain_net_t *a_net);
@@ -205,7 +181,8 @@ bool dap_chain_net_get_extra_gdb_group(dap_chain_net_t *a_net, dap_chain_node_ad
 
 int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, dap_hash_fast_t *a_datum_hash);
 char *dap_chain_net_verify_datum_err_code_to_str(dap_chain_datum_t *a_datum, int a_code);
-int dap_chain_net_add_downlink(dap_chain_net_t *a_net, dap_stream_worker_t *a_worker, dap_stream_ch_uuid_t a_ch_uuid, dap_events_socket_uuid_t a_esocket_uuid, char *a_addr, int a_port);
+void dap_chain_net_add_downlink(dap_chain_net_t *a_net, dap_stream_worker_t *a_worker, dap_stream_ch_uuid_t a_ch_uuid, dap_events_socket_uuid_t a_esocket_uuid, char *a_addr, int a_port);
+void dap_chain_net_del_downlink(dap_stream_ch_uuid_t *a_ch_uuid);
 void dap_chain_net_add_gdb_notify_callback(dap_chain_net_t *a_net, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg);
 void dap_chain_net_sync_gdb_broadcast(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg);
 
@@ -222,5 +199,5 @@ dap_list_t *dap_chain_datum_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, d
 int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_t a_datum_size, dap_hash_fast_t *a_datum_hash);
 
 bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net);
-
+void dap_chain_net_announce_addrs();
 char *dap_chain_net_links_dump(dap_chain_net_t*);

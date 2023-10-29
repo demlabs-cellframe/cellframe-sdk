@@ -516,8 +516,15 @@ static dap_enc_key_t *s_callback_get_sign_key(dap_chain_t *a_chain)
 
 static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
 {
+
     dap_chain_esbocs_t *l_esbocs = DAP_CHAIN_ESBOCS(a_blocks);
+    DAP_DEL_Z(l_esbocs->_pvt);
+    DAP_DEL_Z(a_blocks->_inheritor);
     dap_chain_esbocs_session_t *l_session = l_esbocs->session;
+    if (!l_session) {
+        log_it(L_INFO, "No session found");
+        return;
+    }
     pthread_mutex_lock(&l_session->mutex);
     DL_DELETE(s_session_items, l_session);
     dap_timerfd_delete_mt(l_session->cs_timer->worker, l_session->cs_timer->esocket_uuid);
@@ -535,9 +542,6 @@ static void s_callback_delete(dap_chain_cs_blocks_t *a_blocks)
     }
     pthread_mutex_unlock(&l_session->mutex);
     DAP_DELETE(l_session);
-    if (l_esbocs->_pvt)
-        DAP_DELETE(l_esbocs->_pvt);
-    DAP_DEL_Z(a_blocks->_inheritor);
 }
 
 static void *s_callback_list_copy(const void *a_validator, UNUSED_ARG void *a_data)
