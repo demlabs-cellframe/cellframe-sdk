@@ -469,8 +469,14 @@ static char* dap_db_chain_history_token_list(dap_chain_t * a_chain, const char *
                 dap_chain_datum_t *l_datum = l_datums[l_datum_n];
                 if (!l_datum || l_datum->header.type_id != DAP_CHAIN_DATUM_TOKEN_DECL)
                     continue;
-                if (a_token_name && dap_strcmp(((dap_chain_datum_token_t *)l_datum->data)->ticker, a_token_name))
-                    continue;
+                if (a_token_name) {
+                    size_t l_token_size = l_datum->header.data_size;
+                    dap_chain_datum_token_t *l_token = dap_chain_datum_token_read(l_datum->data, &l_token_size);
+                    int l_cmp = dap_strcmp(l_token->ticker, a_token_name);
+                    DAP_DELETE(l_token);
+                    if (l_cmp)
+                        continue;
+                }
                 dap_chain_datum_dump(l_str_out, l_datum, a_hash_out_type, a_chain->net_id);
                 (*a_token_num)++;
             }
