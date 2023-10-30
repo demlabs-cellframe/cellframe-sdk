@@ -2123,7 +2123,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     log_it (L_DEBUG, "Read %u seed nodes params", l_net_pvt->seed_nodes_count);
     l_net_pvt->seed_nodes_ipv4 = DAP_NEW_SIZE(struct sockaddr_in, l_net_pvt->seed_nodes_count * sizeof(struct sockaddr_in));
     l_net_pvt->seed_nodes_ipv6 = DAP_NEW_SIZE(struct sockaddr_in6, l_net_pvt->seed_nodes_count * sizeof(struct sockaddr_in6));
-    // save new nodes from cfg file to db
+    // Load seed nodes from cfg file
     for (uint16_t i = 0; i < l_net_pvt->seed_nodes_count; i++) {
         char *l_node_hostname = NULL;
         uint16_t l_node_port = 0;
@@ -2149,6 +2149,9 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
             dap_chain_net_delete(l_net);
             dap_config_close(l_cfg);
             return -12;
+        } else {
+            l_net_pvt->seed_nodes_ipv4[i].sin_port = l_node_port;
+            l_net_pvt->seed_nodes_ipv6[i].sin6_port = l_node_port;
         }
         if (l_node_hostname) {
             struct in_addr l_res = {};
