@@ -1099,26 +1099,7 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
         return -1;
     }
 
-    dap_chain_datum_token_t *l_token = NULL;
-    size_t l_token_size = a_token_size;
-
-    switch (a_token->type) {
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_SIMPLE:
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_DECL:
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_UPDATE:
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_DECL:
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_UPDATE:
-        case DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PUBLIC:
-            l_token = dap_chain_datum_token_read((byte_t *) a_token, &l_token_size);
-            break;
-        default:
-            l_token = DAP_DUP_SIZE(a_token, a_token_size);
-            if ( !l_token ) {
-        log_it(L_CRITICAL, "Memory allocation error");
-                return -6;
-            }
-            break;
-    }
+    dap_chain_datum_token_t *l_token = a_token;
 
     dap_chain_ledger_token_item_t *l_token_item;
     pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
@@ -1126,15 +1107,17 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
     pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
 
     if (l_token_item) {
-        if (l_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE) {
+        if (l_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE
+                && l_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_UPDATE
+                && l_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_UPDATE) {
             log_it(L_ERROR, "Duplicate token declaration for ticker '%s'", l_token->ticker);
-            DAP_DEL_Z(l_token);
+            DAP_DELETE(l_token);
             return -3;
         }
-        if (s_ledger_token_update_check(l_token_item, l_token, l_token_size)) {
-            if (!s_ledger_update_token_add_in_hash_table(l_token_item, l_token, l_token_size)) {
+        if (s_ledger_token_update_check(l_token_item, l_token, a_token_size)) {
+            if (!s_ledger_update_token_add_in_hash_table(l_token_item, l_token, a_token_size)) {
                 log_it(L_ERROR, "Failed to update token with ticker '%s' in ledger", l_token->ticker);
-                DAP_DEL_Z(l_token);
+                DAP_DELETE(l_token);
                 return -5;
             }
             if (!IS_ZERO_256(l_token->total_supply)) {
@@ -1158,7 +1141,7 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
 
     if (!l_token_item) {
         size_t l_auth_signs_total, l_auth_signs_valid;
-        dap_sign_t **l_signs = dap_chain_datum_token_signs_parse(l_token, l_token_size, &l_auth_signs_total, &l_auth_signs_valid);
+        dap_sign_t **l_signs = dap_chain_datum_token_signs_parse(l_token, a_token_size, &l_auth_signs_total, &l_auth_signs_valid);
         if (!l_signs || !l_auth_signs_total) {
             log_it(L_ERROR, "No auth signs in token '%s' datum!", l_token->ticker);
             DAP_DEL_Z(l_token);
@@ -1207,11 +1190,13 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
     }
 
 
-    l_token_item->datum_token_size  = l_token_size;
+    l_token_item->datum_token_size  = a_token_size;
     l_token_item->datum_token       = l_token;
     l_token_item->datum_token->type = l_token->type;
 
-    if (l_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE) {
+    if(l_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE
+            && l_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_UPDATE
+            && l_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_UPDATE) {
         pthread_rwlock_wrlock(&PVT(a_ledger)->tokens_rwlock);
         HASH_ADD_STR(PVT(a_ledger)->tokens, ticker, l_token_item);
         pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
@@ -1238,15 +1223,15 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
             debug_if(s_debug_more, L_INFO, "Private token %s declared, total_supply: %s, total_signs_valid: %hu, signs_total: %hu",
                     l_token->ticker, l_balance_dbg,
                     l_token->signs_valid, l_token->signs_total);
-            l_res_token_tsd_parse = s_token_tsd_parse(a_ledger, l_token_item, l_token, l_token_size);
-            s_tsd_sign_apply(a_ledger, l_token_item, l_token, l_token_size);
+            l_res_token_tsd_parse = s_token_tsd_parse(a_ledger, l_token_item, l_token, a_token_size);
+            s_tsd_sign_apply(a_ledger, l_token_item, l_token, a_token_size);
             break;
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
             debug_if(s_debug_more, L_INFO, "CF20 token %s declared, total_supply: %s, total_signs_valid: %hu, signs_total: %hu",
                     l_token->ticker, l_balance_dbg,
                     l_token->signs_valid, l_token->signs_total);
-            l_res_token_tsd_parse = s_token_tsd_parse(a_ledger, l_token_item, l_token, l_token_size);
-            s_tsd_sign_apply(a_ledger, l_token_item, l_token, l_token_size);
+            l_res_token_tsd_parse = s_token_tsd_parse(a_ledger, l_token_item, l_token, a_token_size);
+            s_tsd_sign_apply(a_ledger, l_token_item, l_token, a_token_size);
             break;
         default:
             /* Bogdanoff, unknown token subtype declaration. What shall we TODO? */
@@ -1269,15 +1254,15 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
             debug_if(s_debug_more, L_INFO, "Private token %s updated, total_supply: %s, total_signs_valid: %hu, signs_total: %hu",
                     l_token->ticker, l_balance_dbg,
                     l_token->signs_valid, l_token->signs_total);
-            l_res_token_tsd_parse = s_token_tsd_parse(a_ledger, l_token_item, l_token, l_token_size);
-            s_tsd_sign_apply(a_ledger, l_token_item, l_token, l_token_size);
+            l_res_token_tsd_parse = s_token_tsd_parse(a_ledger, l_token_item, l_token, a_token_size);
+            s_tsd_sign_apply(a_ledger, l_token_item, l_token, a_token_size);
             break;
         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE:
             debug_if(s_debug_more, L_INFO, "CF20 token %s updated, total_supply: %s, total_signs_valid: %hu, signs_total: %hu",
                     l_token->ticker, l_balance_dbg,
                     l_token->signs_valid, l_token->signs_total);
-            l_res_token_tsd_parse = s_token_tsd_parse(a_ledger, l_token_item, l_token, l_token_size);
-            s_tsd_sign_apply(a_ledger, l_token_item, l_token, l_token_size);
+            l_res_token_tsd_parse = s_token_tsd_parse(a_ledger, l_token_item, l_token, a_token_size);
+            s_tsd_sign_apply(a_ledger, l_token_item, l_token, a_token_size);
             break;
         default:
             /* Bogdanoff, unknown token type update. What shall we TODO? */
@@ -1782,17 +1767,24 @@ static int s_tsd_sign_apply(dap_ledger_t *a_ledger, dap_chain_ledger_token_item_
     return 0;
 }
 
-int dap_chain_ledger_token_load(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token, size_t a_token_size)
+int dap_chain_ledger_token_load(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size)
 {
+    dap_chain_datum_token_t *l_token = dap_chain_datum_token_read(a_token, &a_token_size);
+
     if (PVT(a_ledger)->load_mode) {
         dap_chain_ledger_token_item_t *l_token_item;
         pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
-        HASH_FIND_STR(PVT(a_ledger)->tokens, a_token->ticker, l_token_item);
+        HASH_FIND_STR(PVT(a_ledger)->tokens, l_token->ticker, l_token_item);
         pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
-        if (l_token_item && a_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE)
+        if (l_token_item
+                && l_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE
+                && l_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_NATIVE_UPDATE
+                && l_token->type != DAP_CHAIN_DATUM_TOKEN_TYPE_OLD_PRIVATE_UPDATE) {
+            DAP_DELETE(l_token);
             return 0;
+        }
     }
-    return dap_chain_ledger_token_add(a_ledger, a_token, a_token_size);
+    return dap_chain_ledger_token_add(a_ledger, l_token, a_token_size);
 }
 
 dap_string_t *dap_chain_ledger_threshold_info(dap_ledger_t *a_ledger)
@@ -2391,6 +2383,7 @@ static void s_load_cache_gdb_loaded_tokens_callback(dap_global_db_context_t *a_g
             log_it(L_WARNING, "Corrupted token with ticker [%s], need to 'ledger reload' to update cache", a_values[i].key);
             continue;
         }
+        // TODO: rework! Old token types may be passed unchecked!
         dap_chain_ledger_token_add(l_ledger, l_token, l_token_size);
         dap_chain_ledger_token_item_t *l_token_item = NULL;
         HASH_FIND_STR(l_ledger_pvt->tokens, l_token->ticker, l_token_item);
