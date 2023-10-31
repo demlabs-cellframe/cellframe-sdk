@@ -1815,12 +1815,13 @@ int com_ping(int a_argc, char**a_argv, char **a_str_reply)
 {
 #ifdef DAP_OS_LINUX
 
-    int n = 4;
+    int n = 4,w = 0;
     if (a_argc < 2) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Host not specified");
         return -1;
     }
     const char *n_str = NULL;
+    const char *w_str = NULL;
     int argc_host = 1;
     int argc_start = 1;
     argc_start = dap_cli_server_cmd_find_option_val(a_argv, argc_start, a_argc, "-n", &n_str);
@@ -1834,13 +1835,22 @@ int com_ping(int a_argc, char**a_argv, char **a_str_reply)
             argc_host = argc_start + 1;
             n = (n_str) ? atoi(n_str) : 4;
         }
+        else
+        {
+            argc_start = dap_cli_server_cmd_find_option_val(a_argv, argc_start, a_argc, "-w", &w_str);
+            if(argc_start) {
+                argc_host = argc_start + 1;
+                n = 4;
+                w = (w_str) ? atoi(w_str) : 5;
+            }
+        }
     }
     if(n <= 1)
         n = 1;
     const char *addr = a_argv[argc_host];
     iputils_set_verbose();
     ping_handle_t *l_ping_handle = ping_handle_create();
-    int res = (addr) ? ping_util(l_ping_handle, addr, n) : -EADDRNOTAVAIL;
+    int res = (addr) ? ping_util(l_ping_handle, addr, n, w) : -EADDRNOTAVAIL;
     DAP_DELETE(l_ping_handle);
     if(res >= 0) {
         if(a_str_reply)
