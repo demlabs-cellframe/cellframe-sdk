@@ -125,7 +125,7 @@ void dap_stream_ch_chain_voting_message_write(dap_chain_net_t *a_net, dap_chain_
                                        DAP_STREAM_CH_CHAIN_VOTING_PKT_TYPE_DATA, a_voting_pkt,
                                        l_voting_pkt_size);
     } else
-        dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_callback_pkt_in_call_addr(),
+        dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_callback_pkt_in_call_addr,
                                     DAP_DUP_SIZE(a_voting_pkt, l_voting_pkt_size));
 }
 
