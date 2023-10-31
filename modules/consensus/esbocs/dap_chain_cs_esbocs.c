@@ -478,7 +478,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     pthread_mutexattr_settype(&l_mutex_attr, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&l_session->mutex, &l_mutex_attr);
     pthread_mutexattr_destroy(&l_mutex_attr);
-    dap_stream_ch_chain_voting_in_callback_add(l_session, s_session_packet_in);
+    dap_stream_ch_chain_voting_in_callback_add(l_session, s_session_packet_in, l_session->my_addr);
     dap_chain_add_callback_notify(a_chain, s_new_atom_notifier, l_session);
     s_session_round_new(l_session);
 
@@ -1843,7 +1843,7 @@ static void s_db_change_notifier(dap_global_db_context_t *a_context, dap_store_o
         log_it(L_WARNING, "Unreadable address in esbocs global DB group");
         dap_global_db_driver_delete(a_obj, 1);
     }
-    if (dap_chain_net_srv_stake_mark_validator_active(l_validator_addr, a_obj->type != DAP_DB$K_OPTYPE_ADD))
+    if (!dap_chain_net_srv_stake_mark_validator_active(l_validator_addr, a_obj->type != DAP_DB$K_OPTYPE_ADD))
         dap_global_db_driver_delete(a_obj, 1);
     s_session_db_serialize(a_context, l_session);
 }
