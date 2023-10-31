@@ -64,4 +64,7 @@ typedef struct dap_chain_net_srv_client {
 dap_chain_net_srv_client_t *dap_chain_net_srv_client_create_n_connect(dap_chain_net_t *a_net, char *a_addr, uint16_t a_port,
                                                                       dap_chain_net_srv_client_callbacks_t *a_callbacks,
                                                                       void *a_callbacks_arg);
+
+void dap_chain_net_srv_client_close(dap_chain_net_srv_client_t *a_client);
+
 ssize_t dap_chain_net_srv_client_write(dap_chain_net_srv_client_t *a_client, uint8_t a_type, void *a_pkt_data, size_t a_pkt_data_size);
