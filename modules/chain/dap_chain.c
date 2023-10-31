@@ -30,7 +30,6 @@
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_datum_decree.h"
-#include "dap_chain_pvt.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_file_utils.h"
@@ -38,7 +37,7 @@
 #include "dap_chain.h"
 #include "dap_chain_ledger.h"
 #include "dap_cert.h"
-#include "dap_chain_ledger.h"
+#include "dap_chain_cell.h"
 #include "dap_chain_cs.h"
 #include "dap_cert_file.h"
 #include <uthash.h>
@@ -68,7 +67,6 @@ int s_prepare_env();
  */
 int dap_chain_init(void)
 {
-    dap_cert_init();
     // Cell sharding init
     dap_chain_cell_init();
     dap_chain_ledger_init();
@@ -115,14 +113,22 @@ dap_chain_t *dap_chain_create(const char *a_chain_net_name, const char *a_chain_
             .name       = dap_strdup(a_chain_name),
             .net_name   = dap_strdup(a_chain_net_name),
             .cell_rwlock    = PTHREAD_RWLOCK_INITIALIZER,
-            .atom_notifiers = NULL
+            .atom_notificators = NULL
     };
-    DAP_CHAIN_PVT_LOCAL_NEW(l_ret);
-
+    dap_chain_pvt_t *l_chain_pvt = DAP_NEW_Z(dap_chain_pvt_t);
+    if (!l_chain_pvt) {
+        DAP_DEL_Z(l_ret->name);
+        DAP_DEL_Z(l_ret->net_name);
+        DAP_DELETE(l_ret);
+        log_it(L_CRITICAL, "Memory allocation error");
+        return NULL;
+    }
+    l_ret->_pvt = l_chain_pvt;
     dap_chain_item_t *l_ret_item = DAP_NEW_Z(dap_chain_item_t);
     if (!l_ret_item) {
-        DAP_DELETE(l_ret->name);
-        DAP_DELETE(l_ret->net_name);
+        DAP_DEL_Z(l_ret->name);
+        DAP_DEL_Z(l_ret->net_name);
+        DAP_DELETE(l_ret->_pvt);
         DAP_DELETE(l_ret);
         log_it(L_CRITICAL, "Memory allocation error");
         return NULL;
@@ -160,7 +166,7 @@ void dap_chain_delete(dap_chain_t * a_chain)
               a_chain->id.uint64, a_chain->net_id.uint64);
     }
     pthread_rwlock_unlock(&s_chain_items_rwlock);
-    dap_list_free_full(a_chain->atom_notifiers, NULL);
+    dap_list_free_full(a_chain->atom_notificators, NULL);
     DAP_DEL_Z(a_chain->name);
     DAP_DEL_Z(a_chain->net_name);
     if (DAP_CHAIN_PVT(a_chain)){
@@ -657,16 +663,16 @@ void dap_chain_add_callback_notify(dap_chain_t * a_chain, dap_chain_callback_not
         log_it(L_ERROR, "NULL callback passed to dap_chain_add_callback_notify()");
         return;
     }
-    dap_chain_atom_notifier_t * l_notifier = DAP_NEW_Z(dap_chain_atom_notifier_t);
-    if (l_notifier == NULL){
-        log_it(L_ERROR, "Can't allocate memory for notifier in dap_chain_add_callback_notify()");
+    dap_chain_atom_notificator_t * l_notificator = DAP_NEW_Z(dap_chain_atom_notificator_t);
+    if (l_notificator == NULL){
+        log_it(L_ERROR, "Can't allocate memory for notificator in dap_chain_add_callback_notify()");
         return;
     }
 
-    l_notifier->callback = a_callback;
-    l_notifier->arg = a_callback_arg;
+    l_notificator->callback = a_callback;
+    l_notificator->arg = a_callback_arg;
     pthread_rwlock_wrlock(&a_chain->rwlock);
-    a_chain->atom_notifiers = dap_list_append(a_chain->atom_notifiers, l_notifier);
+    a_chain->atom_notificators = dap_list_append(a_chain->atom_notificators, l_notificator);
     pthread_rwlock_unlock(&a_chain->rwlock);
 }
 
@@ -714,11 +720,11 @@ ssize_t dap_chain_atom_save(dap_chain_t *a_chain, const uint8_t *a_atom, size_t 
         }
     }
     ssize_t l_res = dap_chain_cell_file_append(l_cell, a_atom, a_atom_size);
-    if (a_chain->atom_notifiers) {
+    if (a_chain->atom_notificators) {
         dap_list_t *l_iter;
-        DL_FOREACH(a_chain->atom_notifiers, l_iter) {
-            dap_chain_atom_notifier_t *l_notifier = (dap_chain_atom_notifier_t*)l_iter->data;
-            l_notifier->callback(l_notifier->arg, a_chain, l_cell->id, (void*)a_atom, a_atom_size);
+        DL_FOREACH(a_chain->atom_notificators, l_iter) {
+            dap_chain_atom_notificator_t *l_notificator = (dap_chain_atom_notificator_t*)l_iter->data;
+            l_notificator->callback(l_notificator->arg, a_chain, l_cell->id, (void*)a_atom, a_atom_size);
         }
     }
     if (a_chain->callback_atom_add_from_treshold) {
@@ -769,13 +775,11 @@ int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name)
     int l_ret = dap_cert_file_save(cert, cert_path_c);
     dap_cert_delete(cert);
     DAP_DELETE(cert_path_c);
-//  if ( access( l_cert_path, F_OK ) != -1 ) {
-//      log_it (L_ERROR, "File %s is already exists.", l_cert_path);
-//      return -1;
-//  } else
     return l_ret;
 }
 
-const char* dap_chain_get_path(dap_chain_t *a_chain){
+const char* dap_chain_get_path(dap_chain_t *a_chain)
+{
     return DAP_CHAIN_PVT(a_chain)->file_storage_dir;
 }
+

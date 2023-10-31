@@ -1,3 +1,26 @@
+/*
+* Authors:
+* Roman Khlopkov <roman.khlopkov@demlabs.net>
+* Cellframe       https://cellframe.net
+* DeM Labs Inc.   https://demlabs.net
+* Copyright  (c) 2017-2023
+* All rights reserved.
+
+This file is part of CellFrame SDK the open source project
+
+CellFrame SDK is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+CellFrame SDK is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/licenses/>.
+*/
 #pragma once
 
 #include "dap_timerfd.h"
@@ -5,7 +28,7 @@
 #include "dap_chain_block.h"
 #include "dap_chain_cs_blocks.h"
 #include "dap_cert.h"
-#include "dap_global_db_remote.h"
+#include "dap_global_db_driver.h"
 
 #define DAP_CHAIN_ESBOCS_PROTOCOL_VERSION           8
 #define DAP_CHAIN_ESBOCS_GDB_GROUPS_PREFIX          "esbocs"
@@ -19,7 +42,6 @@
 #define DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_FOR          0x22
 #define DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_AGAINST      0x24
 #define DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC        0x32
-#define DAP_CHAIN_ESBOCS_MSG_TYPE_SEND_DB           0x36
 
 #define DAP_CHAIN_BLOCKS_SESSION_ROUND_ID_SIZE		8
 #define DAP_CHAIN_BLOCKS_SESSION_MESSAGE_ID_SIZE	8
@@ -176,12 +198,10 @@ typedef struct dap_chain_esbocs_session {
     dap_chain_addr_t my_signing_addr;
 
     dap_chain_esbocs_penalty_item_t *penalty;
-    // Temporary sync-over-consensus params
-    dap_global_db_pkt_t *db_serial;
-    dap_hash_fast_t db_hash;
+    dap_global_db_cluster_t *db_cluster;
+    dap_global_db_driver_hash_t db_hash;
 
-    struct dap_chain_esbocs_session *next;
-    struct dap_chain_esbocs_session *prev;
+    struct dap_chain_esbocs_session *prev, *next;
 } dap_chain_esbocs_session_t;
 
 #define DAP_CHAIN_ESBOCS(a) ((dap_chain_esbocs_t *)(a)->_inheritor)

@@ -79,14 +79,13 @@ void dap_chain_cs_dag_pos_deinit(void)
  */
 static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
-    dap_chain_cs_dag_new(a_chain,a_chain_cfg);
-    dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG ( a_chain );
+    dap_chain_cs_type_create("dag", a_chain, a_chain_cfg);
+    dap_chain_cs_dag_t *l_dag = DAP_CHAIN_CS_DAG ( a_chain );
     dap_chain_cs_dag_pos_t *l_pos = DAP_NEW_Z( dap_chain_cs_dag_pos_t);
     if (!l_pos) {
         log_it(L_CRITICAL, "Memory allocation error");
         return -1;
     }
-    dap_chain_cs_dag_pos_pvt_t * l_pos_pvt = PVT ( l_pos );
 
     char ** l_tokens_hold = NULL;
     char ** l_tokens_hold_value_str = NULL;
@@ -97,8 +96,9 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_dag->callback_delete = s_callback_delete;
     l_dag->callback_cs_verify = s_callback_event_verify;
     l_dag->callback_cs_event_create = s_callback_event_create;
-    l_pos->_pvt = DAP_NEW_Z ( dap_chain_cs_dag_pos_pvt_t );
-    if (!l_pos->_pvt) {
+    l_pos->_pvt = DAP_NEW_Z(dap_chain_cs_dag_pos_pvt_t);
+    dap_chain_cs_dag_pos_pvt_t *l_pos_pvt = PVT(l_pos);
+    if (!l_pos_pvt) {
         log_it(L_CRITICAL, "Memory allocation error");
         goto lb_err;
     }

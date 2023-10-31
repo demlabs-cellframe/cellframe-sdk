@@ -106,6 +106,9 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                     "node connections -net <net_name>\n"
                     "node balancer -net <net_name>\n"
                     "node dump -net <net_name> [ -addr <node_address> | -alias <node_alias>] [-full]\n\n"
+                    "node ban -net <net_name> -chain <chain_name> -certs <certs_name> [ -addr <node_address> | -ip <ip v4 or v6 address> ]\n"
+                    "node unban -net <net_name> -chain <chain_name> -certs <certs_name> [ -addr <node_address> | -ip <ip v4 or v6 address> ]\n"
+                    "node banlist\n\n"
                                         );
     dap_cli_server_cmd_add ("ping", com_ping, "Send ICMP ECHO_REQUEST to network hosts",
             "ping [-c <count>] host\n");

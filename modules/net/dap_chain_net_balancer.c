@@ -99,8 +99,8 @@ static uint64_t min_count_blocks_events(dap_global_db_obj_t * a_objs,size_t a_no
         }
         for (dap_list_t *node_i = a_node_addr_list; node_i; node_i = node_i->next) {
             if(((struct in_addr*)node_i->data)->s_addr == l_node_cand->hdr.ext_addr_v4.s_addr) {
-                if (!l_blocks_events || l_blocks_events > l_node_cand->hdr.blocks_events)
-                    l_blocks_events = l_node_cand->hdr.blocks_events;
+                if (!l_blocks_events || l_blocks_events > l_node_cand->info.atoms_count)
+                    l_blocks_events = l_node_cand->info.atoms_count;
                 break;
             }
         }
@@ -142,7 +142,7 @@ void dap_chain_net_balancer_prepare_list_links(const char *a_net_name,bool hands
                 dap_chain_node_info_t *l_node_list = (dap_chain_node_info_t *)node_i->data;
                 if(l_node_list->hdr.address.uint64 == l_node_cand->hdr.address.uint64)
                 {
-                   // if(l_node_cand->hdr.blocks_events >= l_blocks_events/2)
+                   // if(l_node_cand->info.atoms_count >= l_blocks_events/2)
                    // {
                         dap_chain_node_info_t * l_node_info = DAP_NEW_Z( dap_chain_node_info_t);
                         *l_node_info = *l_node_cand;
@@ -163,7 +163,7 @@ void dap_chain_net_balancer_prepare_list_links(const char *a_net_name,bool hands
         {
             dap_chain_node_info_t *l_node_cand = (dap_chain_node_info_t *)l_objs[i].value;
             if(!is_it_node_from_list(l_node_addr_list, l_node_cand)){
-                if(l_node_cand->hdr.blocks_events >= l_blocks_events){
+                if(l_node_cand->info.atoms_count >= l_blocks_events){
                     if(dap_chain_net_balancer_handshake(l_node_cand,l_net)){
                         dap_chain_net_balancer_set_link_list(l_node_cand,l_net->pub.name);
                     }
@@ -176,17 +176,17 @@ void dap_chain_net_balancer_prepare_list_links(const char *a_net_name,bool hands
     dap_list_free(l_node_addr_list);
 }
 
-static int callback_compare_node_list(const void *a_item1, const void *a_item2)
+static int callback_compare_node_list(dap_list_t *a_item1, dap_list_t *a_item2)
 {
-    dap_chain_node_info_t   *l_item1 = (dap_chain_node_info_t*)((dap_list_t*)a_item1)->data,
-                            *l_item2 = (dap_chain_node_info_t*)((dap_list_t*)a_item2)->data;
+    dap_chain_node_info_t   *l_item1 = a_item1->data,
+                            *l_item2 = a_item2->data;
     if (!l_item1 || !l_item2) {
         log_it(L_CRITICAL, "Invalid element");
         return 0;
     }
 
-    return l_item1->hdr.links_number == l_item2->hdr.links_number
-            ? 0 : l_item1->hdr.links_number > l_item2->hdr.links_number ? 1 : -1;
+    return l_item1->info.links_number == l_item2->info.links_number
+            ? 0 : l_item1->info.links_number > l_item2->info.links_number ? 1 : -1;
 }
 
 dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node(const char *a_net_name,uint16_t a_links_need)
@@ -235,14 +235,14 @@ dap_chain_net_node_balancer_t *s_balancer_issue_link(const char *a_net_name, uin
         dap_chain_node_info_t * l_node_info = (dap_chain_node_info_t *)l_link_full_node_list->nodes_info;
         for(size_t i=0;i<l_link_full_node_list->count_node;i++)
         {
-            log_it(L_DEBUG, "Network balancer issues ip %s, [%ld blocks]",inet_ntoa((l_node_info + i)->hdr.ext_addr_v4),l_node_info->hdr.blocks_events);
+            log_it(L_DEBUG, "Network balancer issues ip %s, [%ld blocks]",inet_ntoa((l_node_info + i)->hdr.ext_addr_v4),l_node_info->info.atoms_count);
 
         }
         return l_link_full_node_list;
     }
     else
     {
-        dap_chain_node_info_t *l_link_node_info = dap_get_balancer_link_from_cfg(l_net);
+        dap_chain_node_info_t *l_link_node_info = dap_chain_net_balancer_link_from_cfg(l_net);
         if(l_link_node_info)
         {          
             log_it(L_DEBUG, "Network balancer issues ip from net conf - %s",inet_ntoa(l_link_node_info->hdr.ext_addr_v4));

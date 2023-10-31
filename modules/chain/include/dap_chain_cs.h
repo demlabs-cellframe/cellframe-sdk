@@ -40,4 +40,4 @@ void dap_chain_cs_add (const char * a_cs_str,  dap_chain_callback_new_cfg_t a_ca
 int dap_chain_cs_create(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
 
 void dap_chain_cs_type_add (const char * a_cs_str,  dap_chain_callback_new_cfg_t a_callback_init);
-int dap_chain_cs_type_create(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
+int dap_chain_cs_type_create(const char *a_type, dap_chain_t * a_chain, dap_config_t * a_chain_cfg);

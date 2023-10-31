@@ -65,14 +65,14 @@ dap_chain_wallet_t *dap_chain_wallet_open(const char * a_wallet_name, const char
 dap_chain_wallet_t *dap_chain_wallet_open_ext(const char * a_wallet_name, const char * a_wallets_path, const char *pass);
 int dap_chain_wallet_save(dap_chain_wallet_t * a_wallet, const char *a_pass);
 
-void dap_chain_wallet_close( dap_chain_wallet_t * a_wallet);
+void dap_chain_wallet_close(dap_chain_wallet_t *a_wallet);
 
 dap_chain_addr_t * dap_cert_to_addr(dap_cert_t * a_cert, dap_chain_net_id_t a_net_id);
 
 dap_chain_addr_t* dap_chain_wallet_get_addr(dap_chain_wallet_t * a_wallet, dap_chain_net_id_t a_net_id);
 size_t dap_chain_wallet_get_certs_number( dap_chain_wallet_t * a_wallet);
 dap_pkey_t * dap_chain_wallet_get_pkey( dap_chain_wallet_t * a_wallet,uint32_t a_key_idx);
-dap_enc_key_t * dap_chain_wallet_get_key( dap_chain_wallet_t * a_wallet,uint32_t a_key_idx);
+dap_enc_key_t *dap_chain_wallet_get_key(dap_chain_wallet_t *a_wallet, uint32_t a_key_idx);
 
 uint256_t dap_chain_wallet_get_balance(dap_chain_wallet_t *a_wallet, dap_chain_net_id_t a_net_id, const char *a_token_ticker);
 

@@ -79,7 +79,7 @@ void dap_chain_cs_block_pos_deinit(void)
  */
 static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
 {
-    dap_chain_cs_blocks_new(a_chain, a_chain_cfg);
+    dap_chain_cs_type_create("blocks", a_chain, a_chain_cfg);
     char ** l_tokens_hold = NULL;
     char ** l_tokens_hold_value_str = NULL;
     uint16_t l_tokens_hold_size = 0;
@@ -94,6 +94,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
     l_blocks->callback_delete = s_callback_delete;
     l_blocks->callback_block_verify = s_callback_block_verify;
     l_blocks->callback_block_sign = s_callback_block_sign;
+
     l_pos->_pvt = DAP_NEW_Z(dap_chain_cs_block_pos_pvt_t);
     dap_chain_cs_block_pos_pvt_t *l_pos_pvt = PVT(l_pos);
     if (!l_pos_pvt) {

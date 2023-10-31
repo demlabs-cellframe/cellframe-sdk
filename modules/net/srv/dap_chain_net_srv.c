@@ -242,9 +242,9 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
 
         const char* l_region_str = NULL;
         dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-region", &l_region_str);
+
         const char* l_continent_str = NULL;
         dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-continent", &l_continent_str);
-
         int8_t l_continent_num = dap_chain_net_srv_order_continent_to_num(l_continent_str);
 
         const char *l_units_str = NULL;
@@ -455,28 +455,24 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 DAP_DELETE(l_orders);
             }
         } else if(!dap_strcmp( l_order_str, "delete" )) {
-            // Select with specified service uid
-            //const char *l_order_hash_str = NULL;
-            //dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-hash", &l_order_hash_str);
-            if ( l_order_hash_str ){
-                dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str( l_net, l_order_hash_hex_str );
-                if (l_order && dap_chain_net_srv_order_delete_by_hash_str_sync(l_net,l_order_hash_hex_str) == 0){
-                    l_ret = 0 ;
-                    if(!dap_strcmp(l_hash_out_type,"hex"))
-                        dap_string_append_printf(l_string_ret, "Deleted order %s\n", l_order_hash_hex_str);
-                    else
-                        dap_string_append_printf(l_string_ret, "Deleted order %s\n", l_order_hash_base58_str);
-                }else{
-                    l_ret = -8 ;
-                    if(!dap_strcmp(l_hash_out_type,"hex"))
-                        dap_string_append_printf(l_string_ret, "Can't find order with hash %s\n", l_order_hash_hex_str);
-                    else
-                        dap_string_append_printf(l_string_ret, "Can't find order with hash %s\n", l_order_hash_base58_str);
+            if (l_order_hash_str) {
+                dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_find_by_hash_str(l_net, l_order_hash_hex_str);
+                if (l_order) {
+                    if (!dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str)) {
+                        l_ret = 0;
+                        dap_string_append_printf(l_string_ret, "Deleted order %s\n", l_order_hash_str);
+                    } else {
+                        l_ret = -9;
+                        dap_string_append_printf(l_string_ret, "Can't delete order with hash %s\n", l_order_hash_str);
+                    }
+                } else {
+                    l_ret = -8;
+                    dap_string_append_printf(l_string_ret, "Can't find order with hash %s\n", l_order_hash_str);
                 }
                 DAP_DELETE(l_order);
-            } else{
-                l_ret = -9 ;
-                dap_string_append(l_string_ret,"need -hash param to obtain what the order we need to dump\n");
+            } else {
+                l_ret = -9;
+                dap_string_append(l_string_ret,"Comman 'oreder delete' requires -hash param\n");
             }
         } else if(!dap_strcmp( l_order_str, "create" )) {
             if (dap_chain_net_get_role(l_net).enums > NODE_ROLE_MASTER) {
@@ -833,12 +829,21 @@ static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out
 }
 
 int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, const char *a_config_section){
+
+//    const char *l_wallet_path = dap_config_get_item_str_default(g_config, "resources", "wallets_path", NULL);
+//    const char *l_wallet_name = dap_config_get_item_str_default(g_config, a_config_section, "wallet", NULL);
+
     const char *l_wallet_addr = dap_config_get_item_str_default(g_config, a_config_section, "wallet_addr", NULL);
     const char *l_cert_name = dap_config_get_item_str_default(g_config, a_config_section, "receipt_sign_cert", NULL);
     const char *l_net_name = dap_config_get_item_str_default(g_config, a_config_section, "net", NULL);
     if (!l_wallet_addr || !l_cert_name || !l_net_name){
         return -2;
     }
+
+//    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, l_wallet_path);
+//    if (!l_wallet) {
+//        return -3;
+//    }
     dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
     if (!l_net) {
         return -4;
@@ -846,10 +851,6 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
     a_srv->grace_period = dap_config_get_item_uint32_default(g_config, a_config_section, "grace_period", 60);
     a_srv->allow_free_srv = dap_config_get_item_bool_default(g_config, a_config_section, "allow_free_srv", false);
     int l_err_code = 0;
-    dap_chain_node_addr_t *l_node_addr = NULL;
-    l_node_addr = dap_chain_net_get_cur_addr(l_net);
-    if (!l_node_addr)
-        return -1;
     size_t l_orders_count = 0;
     uint64_t l_max_price_cfg = dap_config_get_item_uint64_default(g_config, a_config_section, "max_price", 0xFFFFFFFFFFFFFFF);
     char *l_gdb_order_group = dap_chain_net_srv_order_get_gdb_group(l_net);
@@ -857,7 +858,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
     for (size_t i=0; i < l_orders_count; i++){
         l_err_code = -4;
         dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_read(l_orders[i].value, l_orders[i].value_len);
-        if (l_order->node_addr.uint64 == l_node_addr->uint64 &&
+        if (l_order->node_addr.uint64 == g_node_addr.uint64 &&
             l_order->srv_uid.uint64 == a_srv->uid.uint64) {
             l_err_code = 0;
             dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
@@ -891,6 +892,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
                     continue;
                 }
             }
+//          l_price->wallet = l_wallet;
             l_price->wallet_addr = dap_chain_addr_from_str(l_wallet_addr);
             if(!l_price->wallet_addr){
                 log_it(L_ERROR, "Can't get wallet addr from wallet_addr in config file.");
@@ -909,9 +911,8 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
                 return -101;
             }
 
-            dap_hash_fast_t order_pkey_hash = {};
-            dap_hash_fast_t price_pkey_hash = {};
-            dap_sign_get_pkey_hash(l_order->ext_n_sign + l_order->ext_size, &order_pkey_hash);
+            dap_hash_fast_t order_pkey_hash = { }, price_pkey_hash = { };
+            dap_sign_get_pkey_hash((dap_sign_t*)l_order->ext_n_sign + l_order->ext_size, &order_pkey_hash);
             dap_hash_fast(l_price->receipt_sign_cert->enc_key->pub_key_data,
                           l_price->receipt_sign_cert->enc_key->pub_key_data_size, &price_pkey_hash);
             if (dap_hash_fast_compare(&order_pkey_hash, &price_pkey_hash))
@@ -1138,7 +1139,6 @@ void dap_chain_net_srv_del_all(void)
     pthread_mutex_lock(&s_srv_list_mutex);
     HASH_ITER(hh, s_srv_list , l_sdata, l_sdata_tmp)
     {
-        // Clang bug at this, l_sdata should change at every loop cycle
         HASH_DEL(s_srv_list, l_sdata);
         pthread_mutex_destroy(&l_sdata->srv->banlist_mutex);
         DAP_DELETE(l_sdata->srv);

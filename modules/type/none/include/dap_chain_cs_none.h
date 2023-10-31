@@ -26,16 +26,13 @@
 
 #include "dap_chain.h"
 
-typedef struct dap_chain_gdb {
-
+typedef struct dap_nonconsensus {
     dap_chain_t *chain;
     void * _internal; // private data
     void * _inheritor; // inheritor object
+} dap_nonconsensus_t;
 
-} dap_chain_gdb_t;
-#define DAP_CHAIN_GDB(a) ( (a) ? (dap_chain_gdb_t *) (a)->_inheritor : NULL)
+#define DAP_NONCONSENSUS(a) ((a) ? (dap_nonconsensus_t *)(a)->_inheritor : NULL)
 
-int dap_chain_gdb_init(void);
-int dap_chain_gdb_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
-void dap_chain_gdb_delete(dap_chain_t * a_chain);
-const char* dap_chain_gdb_get_group(dap_chain_t * a_chain);
+int dap_nonconsensus_init(void);
+const char* dap_nonconsensus_get_group(dap_chain_t * a_chain);

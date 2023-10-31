@@ -265,14 +265,14 @@ int dap_chain_net_srv_stake_key_delegated(dap_chain_addr_t *a_signing_addr)
     return 0;
 }
 
-dap_list_t *dap_chain_net_srv_stake_get_validators(dap_chain_net_id_t a_net_id, bool a_is_active)
+dap_list_t *dap_chain_net_srv_stake_get_validators(dap_chain_net_id_t a_net_id, bool a_only_active)
 {
     dap_list_t *l_ret = NULL;
     if (!s_srv_stake || !s_srv_stake->itemlist)
         return l_ret;
     for (dap_chain_net_srv_stake_item_t *l_stake = s_srv_stake->itemlist; l_stake; l_stake = l_stake->hh.next)
         if (a_net_id.uint64 == l_stake->signing_addr.net_id.uint64 &&
-                l_stake->is_active == a_is_active)
+                a_only_active ? l_stake->is_active : true)
             l_ret = dap_list_append(l_ret, DAP_DUP(l_stake));
     return l_ret;
 }
@@ -365,7 +365,9 @@ int dap_chain_net_srv_stake_load_cache(dap_chain_net_t *a_net)
         return 0;
     char *l_gdb_group = dap_chain_ledger_get_gdb_group(l_ledger, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP);
     size_t l_objs_count = 0;
-    dap_store_obj_t *l_store_obj = dap_global_db_get_all_raw_sync(l_gdb_group, 0, &l_objs_count);
+    
+    dap_store_obj_t *l_store_obj = dap_global_db_get_all_raw_sync(l_gdb_group, &l_objs_count);
+
     if (!l_objs_count || !l_store_obj) {
         log_it(L_ATT, "Stake cache data not found");
         return -1;
@@ -969,10 +971,9 @@ char *s_stake_order_create(dap_chain_net_t *a_net, uint256_t *a_fee, dap_enc_key
     dap_chain_hash_fast_t l_tx_hash = {};
     dap_chain_net_srv_order_direction_t l_dir = SERV_DIR_SELL;
     const char *l_native_ticker = a_net->pub.native_ticker;
-    dap_chain_node_addr_t *l_node_addr = dap_chain_net_get_cur_addr(a_net);
     dap_chain_net_srv_price_unit_uid_t l_unit = { .uint32 =  SERV_UNIT_PCS};
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
-    char *l_order_hash_str = dap_chain_net_srv_order_create(a_net, l_dir, l_uid, *l_node_addr,
+    char *l_order_hash_str = dap_chain_net_srv_order_create(a_net, l_dir, l_uid, g_node_addr,
                                                             l_tx_hash, a_fee, l_unit, l_native_ticker, 0,
                                                             NULL, 0, 1, NULL, 0, a_key);
     return l_order_hash_str;
@@ -1311,10 +1312,10 @@ static void s_get_tx_filter_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_
     return;
 }
 
-static int callback_compare_tx_list(const void *a_datum1, const void *a_datum2)
+static int s_callback_compare_tx_list(dap_list_t *a_datum1, dap_list_t *a_datum2)
 {
-    dap_chain_datum_tx_t    *l_datum1 = (dap_chain_datum_tx_t*)((dap_list_t*)a_datum1)->data,
-                            *l_datum2 = (dap_chain_datum_tx_t*)((dap_list_t*)a_datum2)->data;
+    dap_chain_datum_tx_t    *l_datum1 = a_datum1->data,
+                            *l_datum2 = a_datum2->data;
     if (!l_datum1 || !l_datum2) {
         log_it(L_CRITICAL, "Invalid element");
         return 0;
@@ -1829,7 +1830,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 char *l_coins = NULL;
                 char* l_node_address_text_block = NULL;
                 dap_chain_net_get_tx_all(l_net,TX_SEARCH_TYPE_NET,s_get_tx_filter_callback, l_args);
-                l_args->ret = dap_list_sort(l_args->ret, callback_compare_tx_list);
+                l_args->ret = dap_list_sort(l_args->ret, s_callback_compare_tx_list);
                 for(dap_list_t *tx = l_args->ret; tx; tx = tx->next)
                 {
                     l_datum_tx = (dap_chain_datum_tx_t*)tx->data;

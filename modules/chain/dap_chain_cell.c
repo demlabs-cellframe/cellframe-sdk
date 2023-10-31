@@ -26,7 +26,6 @@
 #include "dap_chain.h"
 #include "dap_chain_cell.h"
 #include "dap_chain_cs.h"
-#include "dap_chain_pvt.h"
 #include "dap_common.h"
 #include "dap_config.h"
 #include "dap_strfuncs.h"

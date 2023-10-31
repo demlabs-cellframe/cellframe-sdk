@@ -69,8 +69,6 @@ static char s_wallet_ext [] = ".dwallet";
 static  pthread_rwlock_t s_wallet_n_pass_lock = PTHREAD_RWLOCK_INITIALIZER; /* Coordinate access to the hash-table */
 static  dap_chain_wallet_n_pass_t   *s_wallet_n_pass;                       /* A hash table to keep passwords for wallets */
 
-#define     CRC32C_INIT    0xEDB88320
-
 /*
  *  DESCRIPTION: Add/update a record for wallet into the internaly used table of name/password pair.
  *      Thhose records are supposed to be used for operations with the password-protected wallets.
@@ -456,7 +454,7 @@ dap_chain_wallet_t * dap_chain_wallet_create(
  * @brief dap_chain_wallet_close
  * @param a_wallet
  */
-void dap_chain_wallet_close( dap_chain_wallet_t * a_wallet)
+void dap_chain_wallet_close(dap_chain_wallet_t *a_wallet)
 {
 dap_chain_wallet_internal_t * l_wallet_internal;
 
@@ -550,7 +548,7 @@ size_t dap_chain_wallet_get_certs_number( dap_chain_wallet_t * a_wallet)
  * @param a_pkey_idx
  * @return
  */
-dap_enc_key_t* dap_chain_wallet_get_key( dap_chain_wallet_t * a_wallet,uint32_t a_pkey_idx )
+dap_enc_key_t *dap_chain_wallet_get_key(dap_chain_wallet_t *a_wallet, uint32_t a_pkey_idx)
 {
     if(!a_wallet)
         return NULL;
