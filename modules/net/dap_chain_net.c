@@ -3738,7 +3738,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
             return dap_chain_net_anchor_load(l_anchor, a_chain);
         }
         case DAP_CHAIN_DATUM_TOKEN_DECL:
-            return dap_chain_ledger_token_load(l_ledger, (dap_chain_datum_token_t *)a_datum->data, a_datum->header.data_size);
+            return dap_chain_ledger_token_load(l_ledger, a_datum->data, a_datum->header.data_size);
 
         case DAP_CHAIN_DATUM_TOKEN_EMISSION:
             return dap_chain_ledger_token_emission_load(l_ledger, a_datum->data, a_datum->header.data_size, a_datum_hash);
