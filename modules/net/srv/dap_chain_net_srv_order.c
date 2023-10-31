@@ -663,6 +663,10 @@ static void s_srv_order_callback_notify(dap_global_db_context_t *a_context, dap_
         return;
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     dap_global_db_context_t * l_gdb_context = dap_global_db_context_current();
+    if (!l_gdb_context) {
+        log_it(L_ATT, "[!] GDB context not found in LTS");
+        l_gdb_context = a_context;
+    }
     assert(l_net);
     assert(l_gdb_context);
 
