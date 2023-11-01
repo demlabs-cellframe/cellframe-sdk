@@ -176,7 +176,6 @@ typedef struct dap_chain_net_pvt{
     uint16_t seed_nodes_count;
     struct sockaddr_in *seed_nodes_ipv4;
     struct sockaddr_in6 *seed_nodes_ipv6;       // TODO
-
     _Atomic(dap_chain_net_state_t) state, state_target;
     uint16_t acl_idx;
 
@@ -262,8 +261,8 @@ int dap_chain_net_init()
     dap_chain_node_client_init();
     dap_chain_node_net_ban_list_init();
     dap_cli_server_cmd_add ("net", s_cli_net, "Network commands",
-        "net list [chains -n <chain net name>]"
-            "\tList all networks or list all chains in selected network"
+        "net list [chains -net <chain net name>]\n"
+            "\tList all networks or list all chains in selected network\n"
         "net -net <chain net name> [-mode {update | all}] go {online | offline | sync}\n"
             "\tFind and establish links and stay online. \n"
             "\tMode \"update\" is by default when only new chains and gdb are updated. Mode \"all\" updates everything from zero\n"
@@ -274,7 +273,7 @@ int dap_chain_net_init()
         "net -net <chain net name> [-mode {update | all}] sync {all | gdb | chains}\n"
             "\tSyncronyze gdb, chains or everything\n"
             "\tMode \"update\" is by default when only new chains and gdb are updated. Mode \"all\" updates everything from zero\n"
-        "net -net <chain net name> link {list | add | del | info | disconnect_all}\n"
+        "net -net <chain net name> link {list | add | del | info [-addr] | disconnect_all}\n"
             "\tList, add, del, dump or establish links\n"
         "net -net <chain net name> ca add {-cert <cert name> | -hash <cert hash>}\n"
             "\tAdd certificate to list of authority cetificates in GDB group\n"
@@ -387,7 +386,7 @@ dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net)
 dap_chain_node_info_t *dap_chain_net_balancer_link_from_cfg(dap_chain_net_t *a_net)
 {
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
-    struct in_addr l_addr = {};
+    struct in_addr l_addr = { };
     uint16_t i, l_port = 0;
     if (l_net_pvt->seed_nodes_count) {
         i = dap_random_uint16() % l_net_pvt->seed_nodes_count;
@@ -1488,9 +1487,17 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
         if (dap_strcmp(l_list_cmd,"chains")==0){
             const char * l_net_str = NULL;
             dap_chain_net_t* l_net = NULL;
-            dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-net", &l_net_str);
+            if (dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-net", &l_net_str) && !l_net_str) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Parameter '-net' require <net name>");
+                return -1;
+            }
 
             l_net = dap_chain_net_by_name(l_net_str);
+            if (l_net_str && !l_net) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong <net name>, use 'net list' "
+                                                            "command to display a list of available networks");
+                return -1;
+            }
 
             if (l_net){
                 dap_string_append(l_string_ret,"Chains:\n");
@@ -1524,6 +1531,12 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
             }
 
         }else{
+            // plug for wrong command arguments
+            if (argc > 2) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "To many arguments for 'net list' command see help");
+                return -1;
+            }
+
             dap_string_append(l_string_ret,"Networks:\n");
             // show list of nets
             dap_chain_net_item_t * l_net_item, *l_net_item_tmp;
@@ -2087,7 +2100,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
                  ,dap_config_get_item_str(l_cfg , "general" , "name" ));
     l_net_item->chain_net = l_net;
     l_net_item->net_id.uint64 = l_net->pub.id.uint64;
-    HASH_ADD_STR(s_net_items, name,l_net_item);
+    HASH_ADD_STR(s_net_items, name, l_net_item);
     HASH_ADD(hh2, s_net_ids, net_id, sizeof(l_net_item->net_id), l_net_item);
 
     // Maximum number of prepared connections to other nodes
@@ -3142,7 +3155,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
             return dap_chain_net_anchor_load(l_anchor, a_chain);
         }
         case DAP_CHAIN_DATUM_TOKEN_DECL:
-            return dap_chain_ledger_token_load(l_ledger, (dap_chain_datum_token_t *)a_datum->data, a_datum->header.data_size);
+            return dap_chain_ledger_token_load(l_ledger, a_datum->data, a_datum->header.data_size);
 
         case DAP_CHAIN_DATUM_TOKEN_EMISSION:
             return dap_chain_ledger_token_emission_load(l_ledger, a_datum->data, a_datum->header.data_size, a_datum_hash);
