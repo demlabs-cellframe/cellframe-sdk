@@ -18,6 +18,7 @@
 #define LOG_TAG "dap_chain_cs_esbocs"
 
 static const char *s_block_fee_group = "local.fee-collect-block-hashes";
+static dap_chain_esbocs_session_t *s_session_items;
 
 enum s_esbocs_session_state {
     DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START,
@@ -104,8 +105,6 @@ DAP_STATIC_INLINE size_t s_get_esbocs_message_size(dap_chain_esbocs_message_t *a
 {
     return sizeof(*a_message) + a_message->hdr.sign_size + a_message->hdr.message_size;
 }
-
-static dap_chain_esbocs_session_t * s_session_items;
 
 typedef struct dap_chain_esbocs_pvt {
     // Base params
@@ -472,7 +471,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     dap_global_db_context_exec(s_session_db_clear, l_session);
     dap_global_db_add_notify_group_mask(dap_global_db_context_get_default()->instance,
                                         DAP_CHAIN_ESBOCS_GDB_GROUPS_PREFIX ".*",
-                                        s_db_change_notifier, l_session, 72);
+                                        s_db_change_notifier, NULL, 72);
     pthread_mutexattr_t l_mutex_attr;
     pthread_mutexattr_init(&l_mutex_attr);
     pthread_mutexattr_settype(&l_mutex_attr, PTHREAD_MUTEX_RECURSIVE);
@@ -1835,19 +1834,22 @@ static void s_session_directive_process(dap_chain_esbocs_session_t *a_session, d
     s_message_send(a_session, l_type, a_directive_hash, NULL, 0, a_session->cur_round.all_validators);
 }
 
-static void s_db_change_notifier(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg)
+static void s_db_change_notifier(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void UNUSED_ARG *a_arg)
 {
-    dap_chain_esbocs_session_t *l_session = a_arg;
     dap_chain_addr_t *l_validator_addr = dap_chain_addr_from_str(a_obj->key);
     if (!l_validator_addr) {
         log_it(L_WARNING, "Unreadable address in esbocs global DB group");
         dap_global_db_driver_delete(a_obj, 1);
     }
-    if (!dap_chain_net_srv_stake_mark_validator_active(l_validator_addr, a_obj->type != DAP_DB$K_OPTYPE_ADD))
-        dap_global_db_driver_delete(a_obj, 1);
-    log_it(L_DEBUG, "Got new penalty item for group %s with key %s", a_obj->group, a_obj->key);
-    s_session_db_serialize(a_context, l_session);
-}
+    dap_chain_esbocs_session_t *l_session;
+    DL_FOREACH(s_session_items, l_session) {
+        if (l_validator_addr->net_id.uint64 == l_session->chain->net_id.uint64) {
+            if (!dap_chain_net_srv_stake_mark_validator_active(l_validator_addr, a_obj->type != DAP_DB$K_OPTYPE_ADD))
+                dap_global_db_driver_delete(a_obj, 1);
+            log_it(L_DEBUG, "Got new penalty item for group %s with key %s", a_obj->group, a_obj->key);
+            s_session_db_serialize(a_context, l_session);
+        }
+    }
 
 static int s_session_directive_apply(dap_chain_esbocs_directive_t *a_directive, dap_hash_fast_t *a_directive_hash)
 {
