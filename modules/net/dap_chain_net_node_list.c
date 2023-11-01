@@ -124,7 +124,8 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
             {
                 if(l_issue_method != 'd')
                 {
-                    if(l_node_info.hdr.links_number != l_node_inf_check->hdr.links_number)
+                    if((l_node_info.hdr.links_number != l_node_inf_check->hdr.links_number) ||
+                       (l_node_info.hdr.ext_addr_v4.s_addr != l_node_inf_check->hdr.ext_addr_v4.s_addr))
                     {
                         dap_global_db_del_sync(l_net->pub.gdb_nodes, l_key);
                         response = s_dap_chain_net_node_list_add_downlink(l_net->pub.gdb_nodes,l_key,&l_node_info);
