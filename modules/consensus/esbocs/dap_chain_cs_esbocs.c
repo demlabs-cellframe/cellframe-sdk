@@ -312,7 +312,7 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
         if (l_notify_item->ttl && it->timestamp < l_limit_time) {
             dap_chain_addr_t *l_signing_addr = dap_chain_addr_from_str(it->key);
             char l_time_str[90]; // TODO define it in dap_time header
-            dap_nanotime_to_str(it->timestamp, l_time_str);
+            dap_nanotime_to_str(&it->timestamp, l_time_str);
             log_it(L_MSG, "Delete object %s from %s with time to live expired (%s)",
                                     it->group, it->key, l_time_str);
             dap_chain_net_srv_stake_mark_validator_active(l_signing_addr, true);
@@ -1849,13 +1849,17 @@ static void s_db_change_notifier(dap_global_db_context_t *a_context, dap_store_o
         dap_global_db_driver_delete(a_obj, 1);
         return;
     }
-    if (l_validator_addr->net_id.uint64 == l_session->chain->net_id.uint64) {
+    if (l_validator_addr->net_id.uint64 != l_session->chain->net_id.uint64) {
         log_it(L_ERROR, "Worong destination net ID %" DAP_UINT64_FORMAT_x "session net ID %" DAP_UINT64_FORMAT_x,
                                                     l_validator_addr->net_id.uint64, l_session->chain->net_id.uint64);
         return;
     }
-    if (!dap_chain_net_srv_stake_mark_validator_active(l_validator_addr, a_obj->type != DAP_DB$K_OPTYPE_ADD))
+    if (dap_chain_net_srv_stake_mark_validator_active(l_validator_addr, a_obj->type != DAP_DB$K_OPTYPE_ADD)) {
+        log_it(L_ERROR, "Validator with signing address %s not found in network %s",
+                                                    a_obj->key, l_session->chain->net_name);
         dap_global_db_driver_delete(a_obj, 1);
+        return;
+    }
     log_it(L_DEBUG, "Got new penalty item for group %s with key %s", a_obj->group, a_obj->key);
     s_session_db_serialize(a_context, l_session);
 }
