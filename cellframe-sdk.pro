@@ -15,11 +15,11 @@ win32 {
 }
 
 android {
-    sdk_build.commands = $$PWD/../cellframe-sdk/prod_build/build.sh --target android release -DANDROID_PLATFORM=android-21 -DINSTALL_SDK=1
+    sdk_build.commands = $$PWD/../cellframe-sdk/prod_build/build.sh --target android release -DANDROID_PLATFORM=android-21 -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/
 }
 
 mac {
-    sdk_build.commands = $$PWD/../cellframe-sdk/prod_build/build.sh --target osx -DINSTALL_SDK=1
+    sdk_build.commands = $$PWD/../cellframe-sdk/prod_build/build.sh --target osx release -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/
 }
 
 
