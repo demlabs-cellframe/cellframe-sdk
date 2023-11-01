@@ -6225,7 +6225,8 @@ int cmd_gdb_export(int a_argc, char **a_argv, char **a_str_reply)
         json_object_array_add(l_json, l_json_group_inner);
         dap_store_obj_free(l_store_obj, l_store_obj_count);
     }
-    dap_list_free_full(l_groups_list, NULL);
+    if (l_parsed_groups_list)
+        dap_list_free_full(l_groups_list, NULL);
     if (json_object_to_file(l_path, l_json) == -1) {
 #if JSON_C_MINOR_VERSION<15
         log_it(L_CRITICAL, "Couldn't export JSON to file, error code %d", errno );
@@ -6237,6 +6238,7 @@ int cmd_gdb_export(int a_argc, char **a_argv, char **a_str_reply)
          json_object_put(l_json);
          return -1;
     }
+    dap_cli_server_cmd_set_reply_text(a_str_reply, "Global DB export in file %s", l_path);
     json_object_put(l_json);
     return 0;
 }
