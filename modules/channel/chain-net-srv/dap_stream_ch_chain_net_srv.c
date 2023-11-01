@@ -249,14 +249,14 @@ static void s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
             l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
         return;
     }
-    
+
     bool l_check_role = dap_chain_net_get_role(l_net).enums > NODE_ROLE_MASTER;  // check role
     if ( ! l_srv || l_check_role) // Service not found
         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND;
 
     if ( l_err.code || !l_srv_session){
         debug_if(
-            l_check_role, L_ERROR, 
+            l_check_role, L_ERROR,
             "You can't provide service with ID %lu in net %s. Node role should be not lower than master\n",
             l_srv->uid.uint64, l_net->pub.name
             );
@@ -420,6 +420,7 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
 
         if (a_grace->usage->receipt){ // If it is repeated grace
             if (dap_hash_fast_is_blank(&a_grace->usage->static_order_hash)){
+                log_it(L_MSG, "Get price from list.");
                 DL_FOREACH(a_grace->usage->service->pricelist, l_price) {
                     switch (l_price->units_uid.enm) {
                     case SERV_UNIT_MB:
@@ -444,6 +445,9 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
                 }
                 a_grace->usage->price = l_price;
             } else {
+                char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&a_grace->usage->static_order_hash);
+                log_it(L_MSG, "Get price from order %s.", l_order_hash_str);
+                DAP_DELETE(l_order_hash_str);
                 if ((l_price = dap_chain_net_srv_get_price_from_order(a_grace->usage->service, "srv_vpn", &a_grace->usage->static_order_hash))){
                     switch (l_price->units_uid.enm) {
                     case SERV_UNIT_MB:
@@ -598,6 +602,9 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
                 }
             }
         } else {
+            char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&a_grace->usage->static_order_hash);
+            log_it(L_MSG, "Get price from order %s.", l_order_hash_str);
+            DAP_DELETE(l_order_hash_str);
             if ((l_price = dap_chain_net_srv_get_price_from_order(a_grace->usage->service, "srv_vpn", &a_grace->usage->static_order_hash))){
                 if (l_price->net->pub.id.uint64  != a_grace->usage->net->pub.id.uint64){
                     log_it( L_WARNING, "Pricelist is not for net %s.", a_grace->usage->net->pub.name);
@@ -853,7 +860,10 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
                 }
             }
         } else {
-            if (l_price = dap_chain_net_srv_get_price_from_order(l_grace->usage->service, "srv_vpn", &l_grace->usage->static_order_hash)){
+            char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&a_grace->usage->static_order_hash);
+            log_it(L_MSG, "Get price from order %s.", l_order_hash_str);
+            DAP_DELETE(l_order_hash_str);
+            if ((l_price = dap_chain_net_srv_get_price_from_order(l_grace->usage->service, "srv_vpn", &l_grace->usage->static_order_hash))){
                 if (l_price->net->pub.id.uint64  != l_grace->usage->net->pub.id.uint64){
                     log_it( L_WARNING, "Pricelist is not for net %s.", l_grace->usage->net->pub.name);
                     l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
