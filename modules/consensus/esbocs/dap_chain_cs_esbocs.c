@@ -332,7 +332,7 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
     if (PVT(l_session->esbocs)->debug) {
         char l_sync_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
         dap_chain_hash_fast_to_str(&l_session->db_hash, l_sync_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-        log_it(L_MSG, "DB changes applied, new DB resync hash is %s", l_sync_hash_str);
+        log_it(L_MSG, "DB changes for group %s applied, new DB resync hash is %s", l_sync_group, l_sync_hash_str);
     }
 
     char *l_del_sync_group = dap_strdup_printf("%s.del", l_sync_group);
@@ -1845,6 +1845,7 @@ static void s_db_change_notifier(dap_global_db_context_t *a_context, dap_store_o
     }
     if (!dap_chain_net_srv_stake_mark_validator_active(l_validator_addr, a_obj->type != DAP_DB$K_OPTYPE_ADD))
         dap_global_db_driver_delete(a_obj, 1);
+    log_it(L_DEBUG, "Got new penalty item for group %s with key %s", a_obj->group, a_obj->key);
     s_session_db_serialize(a_context, l_session);
 }
 
