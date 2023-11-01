@@ -860,7 +860,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
                 }
             }
         } else {
-            char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&a_grace->usage->static_order_hash);
+            char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&l_grace->usage->static_order_hash);
             log_it(L_MSG, "Get price from order %s.", l_order_hash_str);
             DAP_DELETE(l_order_hash_str);
             if ((l_price = dap_chain_net_srv_get_price_from_order(l_grace->usage->service, "srv_vpn", &l_grace->usage->static_order_hash))){
