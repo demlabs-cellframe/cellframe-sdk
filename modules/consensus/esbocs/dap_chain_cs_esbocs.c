@@ -311,6 +311,10 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
         dap_store_obj_t *it = l_objs + i;
         if (l_notify_item->ttl && it->timestamp < l_limit_time) {
             dap_chain_addr_t *l_signing_addr = dap_chain_addr_from_str(it->key);
+            char l_time_str[90]; // TODO define it in dap_time header
+            dap_nanotime_to_str(it->timestamp, l_time_str);
+            log_it(L_MSG, "Delete object %s from %s with time to live expired (%s)",
+                                    it->group, it->key, l_time_str);
             dap_chain_net_srv_stake_mark_validator_active(l_signing_addr, true);
             DAP_DEL_Z(l_signing_addr);
             dap_global_db_driver_delete(it, 1);
