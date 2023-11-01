@@ -2,7 +2,7 @@ TEMPLATE = aux
 
 
 linux {
-        sdk_build.commands = $$PWD/../cellframe-sdk/prod_build/build.sh --target linux release -DINSTALL_SDK=1
+    sdk_build.commands = $$PWD/../cellframe-sdk/prod_build/build.sh --target linux release -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/
 }
 
 win32 {
@@ -10,7 +10,7 @@ win32 {
         sdk_build.commands = $$PWD/../cellframe-sdk/prod_build/build.bat
     }
     else {
-        sdk_build.commands = "$$shell_path($$PWD/../cellframe-sdk/prod_build/build.sh)" --target windows -DINSTALL_SDK=1
+        sdk_build.commands = "$$shell_path($$PWD/../cellframe-sdk/prod_build/build.sh)" --target windows release -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/
     }
 }
 
