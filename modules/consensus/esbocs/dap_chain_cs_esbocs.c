@@ -1850,6 +1850,7 @@ static void s_db_change_notifier(dap_global_db_context_t *a_context, dap_store_o
             s_session_db_serialize(a_context, l_session);
         }
     }
+}
 
 static int s_session_directive_apply(dap_chain_esbocs_directive_t *a_directive, dap_hash_fast_t *a_directive_hash)
 {
