@@ -370,11 +370,11 @@ static dap_chain_atom_verify_res_t s_nonconsensus_callback_atom_add(dap_chain_t 
     dap_hash_fast(l_datum->data,l_datum->header.data_size,&l_hash_item->datum_data_hash );
     dap_chain_hash_fast_to_str(&l_hash_item->datum_data_hash, l_hash_item->key, sizeof(l_hash_item->key));
     DL_APPEND(l_nochain_priv->hash_items, l_hash_item);
-    if (!l_nochain_priv->is_load_mode && a_chain->atom_notificators) {
+    if (!l_nochain_priv->is_load_mode && a_chain->atom_notifiers) {
         dap_list_t *l_iter;
-        DL_FOREACH(a_chain->atom_notificators, l_iter) {
-            dap_chain_atom_notificator_t *l_notificator = (dap_chain_atom_notificator_t*)l_iter->data;
-            l_notificator->callback(l_notificator->arg, a_chain, (dap_chain_cell_id_t){ }, (void*)l_datum, l_datum_size);
+        DL_FOREACH(a_chain->atom_notifiers, l_iter) {
+            dap_chain_atom_notifier_t *l_notifier = (dap_chain_atom_notifier_t*)l_iter->data;
+            l_notifier->callback(l_notifier->arg, a_chain, (dap_chain_cell_id_t){ }, (void*)l_datum, l_datum_size);
         }
     }
     return ATOM_ACCEPT;

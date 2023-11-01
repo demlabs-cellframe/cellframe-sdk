@@ -259,15 +259,15 @@ typedef struct dap_ledger_cache_str_item {
     bool found;
 } dap_ledger_cache_str_item_t;
 
-typedef struct dap_chain_ledger_tx_notificator {
+typedef struct dap_chain_ledger_tx_notifier {
     dap_chain_ledger_tx_add_notify_t callback;
     void *arg;
-} dap_chain_ledger_tx_notificator_t;
+} dap_chain_ledger_tx_notifier_t;
 
-typedef struct dap_chain_ledger_bridged_tx_notificator {
+typedef struct dap_chain_ledger_bridged_tx_notifier {
     dap_chain_ledger_bridged_tx_notify_t callback;
     void *arg;
-} dap_chain_ledger_bridged_tx_notificator_t;
+} dap_chain_ledger_bridged_tx_notifier_t;
 
 // dap_ledget_t private section
 typedef struct dap_ledger_private {
@@ -304,9 +304,9 @@ typedef struct dap_ledger_private {
     bool check_token_emission;
     dap_chain_cell_id_t local_cell_id;
 
-    //Notificators
-    dap_list_t *bridged_tx_notificators;
-    dap_list_t *tx_add_notificators;
+    //notifiers
+    dap_list_t *bridged_tx_notifiers;
+    dap_list_t *tx_add_notifiers;
 
     bool load_mode;
     bool cached;
@@ -4645,15 +4645,15 @@ static inline int s_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, d
                          l_tx_item, s_sort_ledger_tx_item); // tx_hash_fast: name of key field
     if(a_safe_call) pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
     // Callable callback
-    dap_list_t *l_notificator;
-    DL_FOREACH(PVT(a_ledger)->tx_add_notificators, l_notificator) {
-        dap_chain_ledger_tx_notificator_t *l_notify = (dap_chain_ledger_tx_notificator_t*)l_notificator->data;
+    dap_list_t *l_notifier;
+    DL_FOREACH(PVT(a_ledger)->tx_add_notifiers, l_notifier) {
+        dap_chain_ledger_tx_notifier_t *l_notify = (dap_chain_ledger_tx_notifier_t*)l_notifier->data;
         l_notify->callback(l_notify->arg, a_ledger, l_tx_item->tx);
     }
     if (l_cross_network) {
-        dap_list_t *l_notificator;
-        DL_FOREACH(PVT(a_ledger)->bridged_tx_notificators, l_notificator) {
-            dap_chain_ledger_bridged_tx_notificator_t *l_notify = l_notificator->data;
+        dap_list_t *l_notifier;
+        DL_FOREACH(PVT(a_ledger)->bridged_tx_notifiers, l_notifier) {
+            dap_chain_ledger_bridged_tx_notifier_t *l_notify = l_notifier->data;
             l_notify->callback(a_ledger, a_tx, a_tx_hash, l_notify->arg);
         }
     }
@@ -5537,28 +5537,28 @@ void dap_chain_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_chain_ledger_tx_
         log_it(L_ERROR, "NULL callback passed to dap_chain_ledger_tx_add_notify()");
         return;
     }
-    dap_chain_ledger_tx_notificator_t *l_notificator = DAP_NEW(dap_chain_ledger_tx_notificator_t);
-    if (!l_notificator){
-        log_it(L_ERROR, "Can't allocate memory for notificator in dap_chain_ledger_tx_add_notify()");
+    dap_chain_ledger_tx_notifier_t *l_notifier = DAP_NEW(dap_chain_ledger_tx_notifier_t);
+    if (!l_notifier){
+        log_it(L_ERROR, "Can't allocate memory for notifier in dap_chain_ledger_tx_add_notify()");
         return;
     }
-    l_notificator->callback = a_callback;
-    l_notificator->arg = a_arg;
-    PVT(a_ledger)->tx_add_notificators = dap_list_append(PVT(a_ledger)->tx_add_notificators, l_notificator);
+    l_notifier->callback = a_callback;
+    l_notifier->arg = a_arg;
+    PVT(a_ledger)->tx_add_notifiers = dap_list_append(PVT(a_ledger)->tx_add_notifiers, l_notifier);
 }
 
 void dap_chain_ledger_bridged_tx_notify_add(dap_ledger_t *a_ledger, dap_chain_ledger_bridged_tx_notify_t a_callback, void *a_arg)
 {
     if (!a_ledger || !a_callback)
         return;
-    dap_chain_ledger_bridged_tx_notificator_t *l_notificator = DAP_NEW_Z(dap_chain_ledger_bridged_tx_notificator_t);
-    if (!l_notificator) {
-        log_it(L_ERROR, "Can't allocate memory for notificator in dap_chain_ledger_tx_add_notify()");
+    dap_chain_ledger_bridged_tx_notifier_t *l_notifier = DAP_NEW_Z(dap_chain_ledger_bridged_tx_notifier_t);
+    if (!l_notifier) {
+        log_it(L_ERROR, "Can't allocate memory for notifier in dap_chain_ledger_tx_add_notify()");
         return;
     }
-    l_notificator->callback = a_callback;
-    l_notificator->arg = a_arg;
-    PVT(a_ledger)->bridged_tx_notificators = dap_list_append(PVT(a_ledger)->bridged_tx_notificators , l_notificator);
+    l_notifier->callback = a_callback;
+    l_notifier->arg = a_arg;
+    PVT(a_ledger)->bridged_tx_notifiers = dap_list_append(PVT(a_ledger)->bridged_tx_notifiers , l_notifier);
 }
 
 bool dap_chain_ledger_cache_enabled(dap_ledger_t *a_ledger)
