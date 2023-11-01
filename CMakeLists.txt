@@ -7,6 +7,10 @@ set(CELLFRAME_SDK_NATIVE_VERSION "3.3-0")
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
 set(DAPSDK_MODULES "")
+if (INSTALL_SDK)
+    set(INSTALL_DAP_SDK ON)
+endif()
+
 
 if(NOT DEFINED CELLFRAME_MODULES)
     include (cmake/OS_Detection.cmake)
@@ -236,3 +240,5 @@ endif()
 set(CELLFRAME_LIBS ${CELLFRAME_LIBS} crc32c_adler)
 
 target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})
+
+
