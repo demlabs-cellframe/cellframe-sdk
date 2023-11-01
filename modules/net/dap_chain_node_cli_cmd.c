@@ -1233,7 +1233,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         uint32_t links_count = 0;
         size_t l_blocks_events = 0;
         dap_digit_from_string(l_port_str, &l_node_port, sizeof(uint16_t));
-        dap_chain_net_get_downlink_count(l_net,&links_count);
+        links_count = dap_chain_net_get_downlink_count(l_net);
         l_link_node_request->hdr.ext_port = l_node_port;
         l_link_node_request->hdr.links_number = links_count;
         dap_chain_t *l_chain;

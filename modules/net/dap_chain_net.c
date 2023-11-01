@@ -482,15 +482,14 @@ void dap_chain_net_add_downlink(dap_chain_net_t *a_net, dap_stream_worker_t *a_w
     dap_worker_exec_callback_on(a_worker->worker, dap_chain_net_add_downlink_cb, l_downlink);
 }
 
-int dap_chain_net_get_downlink_count(dap_chain_net_t *a_net,uint32_t * a_count)
+uint32_t dap_chain_net_get_downlink_count(dap_chain_net_t *a_net)
 {
     uint32_t l_count = 0;
     if (!a_net)
         return -1;
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     l_count = l_net_pvt->downlinks_cnt;
-    *a_count = l_count;
-    return 0;
+    return l_count;
 }
 
 void dap_chain_net_del_downlink(dap_stream_ch_uuid_t *a_ch_uuid) {

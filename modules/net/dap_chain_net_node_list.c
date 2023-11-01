@@ -326,7 +326,7 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
         }
         l_link_node_request->hdr.blocks_events = l_blocks_events;
 
-        dap_chain_net_get_downlink_count(a_net,&links_count);
+        links_count = dap_chain_net_get_downlink_count(a_net);
         l_link_node_request->hdr.links_number = links_count;
 
     }

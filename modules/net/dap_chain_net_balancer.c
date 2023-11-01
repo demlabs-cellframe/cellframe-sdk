@@ -179,9 +179,10 @@ dap_chain_net_node_balancer_t *dap_chain_net_balancer_get_node(const char *a_net
     l_net->pub.link_list = dap_list_sort(l_net->pub.link_list, callback_compare_node_list);
     l_node_num = dap_list_length(l_net->pub.link_list);
     dap_chain_node_info_t *l_node_candidate;
-    if(l_node_num)
+    if(l_node_num >= a_links_need)
     {
-        l_links_need = l_node_num > a_links_need ? a_links_need : l_node_num;
+        //l_links_need = l_node_num > a_links_need ? a_links_need : l_node_num;
+        l_links_need = a_links_need;
         dap_chain_net_node_balancer_t *l_node_list_res = DAP_NEW_Z_SIZE(dap_chain_net_node_balancer_t,
                    sizeof(dap_chain_net_node_balancer_t) + l_links_need * sizeof(dap_chain_node_info_t));
         dap_chain_node_info_t * l_node_info = (dap_chain_node_info_t *)l_node_list_res->nodes_info;
