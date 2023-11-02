@@ -35,7 +35,9 @@
 #include <assert.h>
 #include <ctype.h>
 #include <dirent.h>
+#ifndef DAP_OS_ANDROID
 #include <magic.h>
+#endif
 #include <sys/stat.h>
 
 #ifdef WIN32
@@ -1630,6 +1632,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
 }
 
 
+#ifndef DAP_OS_ANDROID
 /**
  * @brief Traceroute command
  * return 0 OK, -1 Err
@@ -1716,6 +1719,7 @@ int com_traceroute(int argc, char** argv, char **a_str_reply)
     return -1;
 #endif
 }
+
 
 
 /**
@@ -1873,6 +1877,7 @@ int com_ping(int a_argc, char**a_argv, char **a_str_reply)
     return -1;
 #endif
 }
+#endif /* !ANDROID (1582) */
 
 /**
  * @brief com_version
@@ -7076,6 +7081,7 @@ static dap_tsd_t *s_alloc_metadata (const char *a_file, const int a_meta)
                 return dap_tsd_create_string(SIGNER_DATE, l_ctime);
             }
             break;
+        #ifndef DAP_OS_ANDROID
         case SIGNER_MIME_MAGIC:
             {
                 magic_t l_magic = magic_open(MAGIC_MIME);
@@ -7096,6 +7102,7 @@ static dap_tsd_t *s_alloc_metadata (const char *a_file, const int a_meta)
 
             }
             break;
+        #endif
         default:
             return NULL;
     }
