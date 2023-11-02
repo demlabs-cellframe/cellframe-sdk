@@ -253,16 +253,7 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
         log_it(L_NOTICE, "Stream connection with node "NODE_ADDR_FP_STR" (%s:%hu) established",
                     NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr),
                     l_ip_addr_str, l_node_client->info->hdr.ext_port);
-        // set callbacks for C and N channels; for R and S it is not needed
-        if (a_client->active_channels) {
-            size_t l_channels_count = dap_strlen(a_client->active_channels);
-            for(size_t i = 0; i < l_channels_count; i++) {
-                if(s_node_client_set_notify_callbacks(a_client, a_client->active_channels[i]) == -1) {
-                    log_it(L_WARNING, "No ch_chain channel, can't init notify callback for pkt type CH_CHAIN");
-                    return;
-                }
-            }
-        }
+
         if(l_node_client->callbacks.connected)
             l_node_client->callbacks.connected(l_node_client, l_node_client->callbacks_arg);
 
@@ -286,6 +277,15 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
                                                                             l_node_client);
                 }else{
                     log_it(L_ERROR,"After NODE_CLIENT_STATE_ESTABLISHED: Node client has no worker, too dangerous to run update states in alien context");
+                }
+            }
+        }
+        // set callbacks for C and N channels; for R and S it is not needed
+        if (a_client->active_channels) {
+            size_t l_channels_count = dap_strlen(a_client->active_channels);
+            for(size_t i = 0; i < l_channels_count; i++) {
+                if(s_node_client_set_notify_callbacks(a_client, a_client->active_channels[i]) == -1) {
+                    log_it(L_WARNING, "No ch_chain channel, can't init notify callback for pkt type CH_CHAIN");
                 }
             }
         }
