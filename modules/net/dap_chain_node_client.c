@@ -255,7 +255,8 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
 
         if(l_node_client->callbacks.connected)
             l_node_client->callbacks.connected(l_node_client, l_node_client->callbacks_arg);
-
+        dap_client_write_unsafe(a_client, 'N', DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ANNOUNCE,
+                                         l_node_client->net->pub.id, sizeof(dap_chain_net_id_t));
         pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_ESTABLISHED;
         if (s_stream_ch_chain_debug_more)
