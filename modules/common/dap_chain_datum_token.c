@@ -185,9 +185,12 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
         *a_token_size = l_token_size;
         return l_token;
     }
+    case DAP_CHAIN_DATUM_TOKEN_TYPE_DECL:
+    case DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE:
+        return DAP_DUP_SIZE(a_token_serial, *a_token_size);
     default:
         log_it(L_NOTICE, "Unknown token type '%d' read", ((dap_chain_datum_token_t*)a_token_serial)->type);
-        return DAP_DUP_SIZE(a_token_serial, *a_token_size);
+        return NULL;
     }
 }
 

@@ -49,6 +49,7 @@
 #include "dap_chain.h"
 #include "dap_chain_common.h"
 #include "dap_chain_net_srv.h"
+#include "dap_chain_net_tx.h"
 #include "dap_chain_net_srv_order.h"
 #include "dap_chain_net_srv_stream_session.h"
 #include "dap_stream_ch_chain_net_srv.h"
