@@ -169,13 +169,3 @@ DAP_STATIC_INLINE char * dap_chain_net_srv_order_get_gdb_group(dap_chain_net_t *
 {
     return a_net ? dap_strdup_printf("%s.service.orders",a_net->pub.gdb_groups_prefix) : NULL;
 }
-
-/**
-* @brief dap_chain_net_srv_order_get_gdb_group_mempool
-* @param l_chain
-* @return
-*/
-DAP_STATIC_INLINE char * dap_chain_net_srv_order_get_nodelist_group(dap_chain_net_t * a_net)
-{
-   return a_net ? dap_strdup_printf("%s.service.orders.static_nodelist",a_net->pub.gdb_groups_prefix) : NULL;
-}

@@ -48,12 +48,15 @@ dap_chain_net_srv_client_t *dap_chain_net_srv_client_create_n_connect(dap_chain_
     if (a_callbacks)
         l_ret->callbacks = *a_callbacks;
     l_ret->callbacks_arg = a_callbacks_arg;
+    
     dap_chain_node_client_callbacks_t l_callbacks = {
         .connected = s_srv_client_callback_connected,
         .disconnected = s_srv_client_callback_disconnected,
         .delete = s_srv_client_callback_deleted
     };
+
     dap_chain_node_info_t *l_info = DAP_NEW_Z(dap_chain_node_info_t);
+
     if (!l_info) {
         log_it(L_CRITICAL, "Memory allocation error");
         DAP_DEL_Z(l_ret);
@@ -68,6 +71,10 @@ dap_chain_net_srv_client_t *dap_chain_net_srv_client_create_n_connect(dap_chain_
     l_ret->node_client->notify_callbacks.srv_pkt_in = (dap_stream_ch_callback_packet_t)s_srv_client_pkt_in;
     DAP_DELETE(l_info);
     return l_ret;
+}
+void dap_chain_net_srv_client_close(dap_chain_net_srv_client_t *a_client){
+    if (a_client->node_client)
+        dap_chain_node_client_close_mt( a_client->node_client );
 }
 
 ssize_t dap_chain_net_srv_client_write(dap_chain_net_srv_client_t *a_client, uint8_t a_type, void *a_pkt_data, size_t a_pkt_data_size)
@@ -108,8 +115,6 @@ static void s_srv_client_callback_deleted(dap_chain_node_client_t *a_node_client
     UNUSED(a_node_client);
     log_it(L_INFO, "Service client deleted");
     dap_chain_net_srv_client_t *l_srv_client = (dap_chain_net_srv_client_t *)a_arg;
-    if (l_srv_client->callbacks.deleted)
-        l_srv_client->callbacks.deleted(l_srv_client, l_srv_client->callbacks_arg);
     DAP_DELETE(l_srv_client);
 }
 

@@ -20,7 +20,6 @@
     You should have received a copy of the GNU General Public License
     along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/>.
 */
-
 #include <pthread.h>
 #include "dap_common.h"
 #include "dap_enc_base58.h"
@@ -139,6 +138,8 @@ static dap_chain_block_t *s_new_block_move(dap_chain_cs_blocks_t *a_blocks, size
 static size_t s_callback_count_atom(dap_chain_t *a_chain);
 static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 
+static int s_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config);
+
 static bool s_seed_mode = false;
 static bool s_debug_more = false;
 
@@ -149,7 +150,7 @@ static bool s_debug_more = false;
  */
 int dap_chain_cs_blocks_init()
 {
-    dap_chain_cs_type_add("blocks", dap_chain_cs_blocks_new );
+    dap_chain_cs_type_add("blocks", s_chain_cs_blocks_new);
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     s_debug_more = dap_config_get_item_bool_default(g_config, "blocks", "debug_more", false);
     dap_cli_server_cmd_add ("block", s_cli_blocks, "Create and explore blockchains",
@@ -174,7 +175,7 @@ int dap_chain_cs_blocks_init()
                 "\t\tDump block info\n\n"
 
             "block -net <net_name> -chain <chain_name> list [-from_hash <block_hash>] [-to_hash <block_hash>]"
-            "[-from_dt <datetime>] [-to_dt <datetime>] [-cert <priv_cert_name> -unspent]\n"
+            "[-from_dt <in YYMMDD>] [-to_dt <in YYMMDD>] [-cert <priv_cert_name> -unspent]\n"
                 "\t\t List blocks\n\n"
         "Commission collect:\n"
             "block -net <net_name> -chain <chain_name> fee collect\n"
@@ -198,7 +199,7 @@ void dap_chain_cs_blocks_deinit()
     dap_chain_block_cache_deinit();
 }
 
-int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config)
+static int s_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config)
 {
     dap_chain_cs_blocks_t * l_cs_blocks = DAP_NEW_Z(dap_chain_cs_blocks_t);
     if (!l_cs_blocks) {
@@ -291,15 +292,6 @@ int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config
     }
 
     return 0;
-}
-
-/**
- * @brief dap_chain_cs_blocks_delete
- * @param a_chain
- */
-void dap_chain_cs_blocks_delete(dap_chain_t * a_chain)
-{
-    s_callback_delete(a_chain);
 }
 
 /**
@@ -530,13 +522,13 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
 						if ( l_block_cache ){
 							dap_string_t * l_str_tmp = dap_string_new(NULL);
 							char buf[50];
-							time_t l_ts_reated = (time_t) l_block->hdr.ts_created;
+                            dap_time_t l_ts_reated = l_block->hdr.ts_created;
 							// Header
 							dap_string_append_printf(l_str_tmp,"Block %s:\n", l_subcmd_str_arg);
 							dap_string_append_printf(l_str_tmp, "\t\t\tversion: 0x%04X\n", l_block->hdr.version);
 							dap_string_append_printf(l_str_tmp,"\t\t\tcell_id: 0x%016"DAP_UINT64_FORMAT_X"\n",l_block->hdr.cell_id.uint64);
 							dap_string_append_printf(l_str_tmp,"\t\t\tchain_id: 0x%016"DAP_UINT64_FORMAT_X"\n",l_block->hdr.chain_id.uint64);
-							ctime_r(&l_ts_reated, buf);
+                            dap_ctime_r(&l_ts_reated, buf);
 							dap_string_append_printf(l_str_tmp,"\t\t\tts_created: %s\n", buf);
 		
 							// Dump Metadata
@@ -580,13 +572,13 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
 															sizeof (l_datum->header));
 									break;
 								}
-								time_t l_datum_ts_create = (time_t) l_datum->header.ts_create;
+                                dap_time_t l_datum_ts_create = l_datum->header.ts_create;
 								// Nested datums
 								dap_string_append_printf(l_str_tmp,"\t\t\t\tversion:=0x%02X\n", l_datum->header.version_id);
 								const char * l_datum_type_str="UNKNOWN";
 								DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_datum_type_str);
 								dap_string_append_printf(l_str_tmp,"\t\t\t\ttype_id:=%s\n", l_datum_type_str);
-								ctime_r(&l_datum_ts_create, buf);
+                                dap_ctime_r(&l_datum_ts_create, buf);
 								dap_string_append_printf(l_str_tmp,"\t\t\t\tts_create=%s\n", buf);
 								dap_string_append_printf(l_str_tmp,"\t\t\t\tdata_size=%u\n", l_datum->header.data_size);
                                 dap_chain_datum_dump(l_str_tmp, l_datum, "hex", l_net->pub.id);
@@ -620,13 +612,20 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
             }
         }break;
         case SUBCMD_LIST:{
-                const char * l_cert_name = NULL;
-                bool l_unspent_fl = false;
+                const char * l_cert_name, *l_from_hash_name, *l_to_hash_name, *l_from_dt_name, *l_to_dt_name;
+                l_cert_name = l_from_hash_name = l_to_hash_name = l_from_dt_name = l_to_dt_name = NULL;
+                bool l_unspent_fl = false,l_hash_fl = false;
                 size_t l_block_count = 0;
                 dap_cert_t * l_cert = NULL;
-                dap_pkey_t * l_pub_key = NULL;
+                dap_pkey_t * l_pub_key = NULL;                
+                dap_hash_fast_t l_from_hash;
+                dap_hash_fast_t l_to_hash;
 
                 dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cert", &l_cert_name);
+                dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-from_hash", &l_from_hash_name);
+                dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-to_hash", &l_to_hash_name);
+                dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-from_dt", &l_from_dt_name);
+                dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-to_dt", &l_to_dt_name);
 
                 if(l_cert_name) {
 
@@ -647,16 +646,50 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                     if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-unspent", NULL))
                         l_unspent_fl = true;
                 }
+                if(l_to_hash_name){
+                    dap_chain_hash_fast_from_hex_str(l_to_hash_name, &l_to_hash);
+                }
+                if(l_from_hash_name){
+                    dap_chain_hash_fast_from_hex_str(l_from_hash_name, &l_from_hash);
+                }
+                if(l_from_dt_name){
+                    char l_from_data_month[3] = {l_from_dt_name[2], l_from_dt_name[3], 0};
+                    int l_from_time_month = atoi(l_from_data_month);
+                    if (l_from_time_month < 1 || l_from_time_month > 12)
+                        return -21;
+                    char l_from_data_day[3] = {l_from_dt_name[4], l_from_dt_name[5], 0};
+                    int l_from_time_day = atoi(l_from_data_day);
+                    if (l_from_time_day < 1 || l_from_time_day > 31)
+                        return -21;
+                }
+                if(l_to_dt_name){
+                    char l_to_data_month[3] = {l_to_dt_name[2], l_to_dt_name[3], 0};
+                    int l_to_time_month = atoi(l_to_data_month);
+                    if (l_to_time_month < 1 || l_to_time_month > 12)
+                        return -21;
+                    char l_to_data_day[3] = {l_to_dt_name[4], l_to_dt_name[5], 0};
+                    int l_to_time_day = atoi(l_to_data_day);
+                    if (l_to_time_day < 1 || l_to_time_day > 31)
+                        return -21;
+                }
+
+                dap_time_t l_from_data = dap_time_from_str_simplified(l_from_dt_name);
+                struct tm *u;
+                time_t l_to_data = (time_t)dap_time_from_str_simplified(l_to_dt_name);
+                u = localtime(&l_to_data);
+                u->tm_mday += 1;
+                dap_time_t l_to_data_p_one_day = mktime(u);
 
                 pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
                 dap_string_t * l_str_tmp = dap_string_new(NULL);             
                 for (dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next) {
                     char l_buf[50];
-                    time_t l_ts = l_block_cache->block->hdr.ts_created;
-                    ctime_r(&l_ts, l_buf);
+                    dap_time_t l_ts = l_block_cache->block->hdr.ts_created;
+                    dap_ctime_r(&l_ts, l_buf);
                     dap_sign_t * l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
                     if(l_cert)
                     {
+                        l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
                         if(!dap_pkey_compare_with_sign(l_pub_key, l_sign))
                             continue;
                         if(l_unspent_fl){
@@ -676,19 +709,34 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                             if(!fl_found)
                                 continue;
                         }
+                    }                    
+                    if(l_to_dt_name && (l_to_data_p_one_day < l_ts))
+                        break;
+                    if(dap_hash_fast_compare(&l_from_hash,&l_block_cache->block_hash))
+                        l_hash_fl = true;
+                    if((l_from_hash_name && !l_hash_fl) ||
+                       (l_from_dt_name && (l_from_data > l_ts)))
+                    {
+                        if(l_to_hash_name && dap_hash_fast_compare(&l_to_hash,&l_block_cache->block_hash))
+                            break;
+                        continue;
                     }
 
                     dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s",
                                                  l_block_cache->block_hash_str, l_buf);
                     l_block_count++;
-                }
+                    if(l_to_hash_name && dap_hash_fast_compare(&l_to_hash,&l_block_cache->block_hash))
+                        break;
+                }                
                 if(l_cert){
                     dap_string_append_printf(l_str_tmp,"%s.%s: Have %"DAP_UINT64_FORMAT_U" blocks signed with %s certificate :\n",
                                              l_net->pub.name,l_chain->name,l_block_count,l_cert_name);
                 }
-                else
-                    dap_string_append_printf(l_str_tmp,"%s.%s: Have %"DAP_UINT64_FORMAT_U" blocks :\n",
-                                             l_net->pub.name,l_chain->name,PVT(l_blocks)->blocks_count);
+                else if(l_to_hash_name || l_from_hash_name || l_from_dt_name || l_to_dt_name){
+                    dap_string_append_printf(l_str_tmp,"%"DAP_UINT64_FORMAT_U" filtered blocks shown :\n",l_block_count);
+                }
+                dap_string_append_printf(l_str_tmp,"%s.%s: Have %"DAP_UINT64_FORMAT_U" blocks :\n",
+                                         l_net->pub.name,l_chain->name,PVT(l_blocks)->blocks_count);
 
                 pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);

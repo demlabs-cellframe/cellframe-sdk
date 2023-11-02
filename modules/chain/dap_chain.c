@@ -30,7 +30,6 @@
 #include "dap_chain_common.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_datum_decree.h"
-#include "dap_chain_pvt.h"
 #include "dap_common.h"
 #include "dap_strfuncs.h"
 #include "dap_file_utils.h"
@@ -38,7 +37,7 @@
 #include "dap_chain.h"
 #include "dap_chain_ledger.h"
 #include "dap_cert.h"
-#include "dap_chain_ledger.h"
+#include "dap_chain_cell.h"
 #include "dap_chain_cs.h"
 #include "dap_cert_file.h"
 #include <uthash.h>
@@ -68,7 +67,6 @@ int s_prepare_env();
  */
 int dap_chain_init(void)
 {
-    dap_cert_init();
     // Cell sharding init
     dap_chain_cell_init();
     dap_chain_ledger_init();
@@ -117,12 +115,20 @@ dap_chain_t *dap_chain_create(const char *a_chain_net_name, const char *a_chain_
             .cell_rwlock    = PTHREAD_RWLOCK_INITIALIZER,
             .atom_notifiers = NULL
     };
-    DAP_CHAIN_PVT_LOCAL_NEW(l_ret);
-
+    dap_chain_pvt_t *l_chain_pvt = DAP_NEW_Z(dap_chain_pvt_t);
+    if (!l_chain_pvt) {
+        DAP_DEL_Z(l_ret->name);
+        DAP_DEL_Z(l_ret->net_name);
+        DAP_DELETE(l_ret);
+        log_it(L_CRITICAL, "Memory allocation error");
+        return NULL;
+    }
+    l_ret->_pvt = l_chain_pvt;
     dap_chain_item_t *l_ret_item = DAP_NEW_Z(dap_chain_item_t);
     if (!l_ret_item) {
-        DAP_DELETE(l_ret->name);
-        DAP_DELETE(l_ret->net_name);
+        DAP_DEL_Z(l_ret->name);
+        DAP_DEL_Z(l_ret->net_name);
+        DAP_DELETE(l_ret->_pvt);
         DAP_DELETE(l_ret);
         log_it(L_CRITICAL, "Memory allocation error");
         return NULL;
@@ -769,13 +775,11 @@ int dap_cert_chain_file_save(dap_chain_datum_t *datum, char *net_name)
     int l_ret = dap_cert_file_save(cert, cert_path_c);
     dap_cert_delete(cert);
     DAP_DELETE(cert_path_c);
-//  if ( access( l_cert_path, F_OK ) != -1 ) {
-//      log_it (L_ERROR, "File %s is already exists.", l_cert_path);
-//      return -1;
-//  } else
     return l_ret;
 }
 
-const char* dap_chain_get_path(dap_chain_t *a_chain){
+const char* dap_chain_get_path(dap_chain_t *a_chain)
+{
     return DAP_CHAIN_PVT(a_chain)->file_storage_dir;
 }
+

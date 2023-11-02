@@ -36,6 +36,11 @@ if (CELLFRAME_MODULES MATCHES "srv")
     add_subdirectory(channel/chain-net-srv)
 endif()
 
+# No consensus
+if (CELLFRAME_MODULES MATCHES "cs-none")
+    add_subdirectory(type/none)
+endif()
+
 # Consensus type dag
 if (CELLFRAME_MODULES MATCHES "cs-dag-")
     add_subdirectory(type/dag)
@@ -74,11 +79,6 @@ endif()
 # Block PoW
 if (CELLFRAME_MODULES MATCHES "cs-block-pow")
     add_subdirectory(consensus/block-pow)
-endif()
-
-# No consensus
-if (CELLFRAME_MODULES MATCHES "cs-none")
-    add_subdirectory(consensus/none)
 endif()
 
 # Service App

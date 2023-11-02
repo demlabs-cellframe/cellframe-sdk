@@ -37,7 +37,6 @@
 #include "dap_timerfd.h"
 #include "dap_strfuncs.h"
 #include "dap_enc_base58.h"
-#include "dap_chain_pvt.h"
 #include "dap_chain_net.h"
 #include "dap_chain_node_cli.h"
 #include "dap_chain_node_cli_cmd.h"
@@ -47,7 +46,6 @@
 #include "dap_chain_cs_dag.h"
 #include "dap_chain_cs_dag_event.h"
 #include "dap_chain_cs_dag_poa.h"
-//#include "dap_chain_net_srv_stake.h"
 #include "dap_chain_cell.h"
 #include "dap_global_db.h"
 #include "dap_cert.h"
@@ -111,7 +109,7 @@ static dap_interval_timer_t s_poa_round_timer = NULL;
 int dap_chain_cs_dag_poa_init()
 {
     // Add consensus constructor
-    dap_chain_cs_add ("dag_poa", s_callback_new );
+    dap_chain_cs_add("dag_poa", s_callback_new);
     s_seed_mode = dap_config_get_item_bool_default(g_config,"general","seed_mode",false);
     dap_cli_server_cmd_add ("dag_poa", s_cli_dag_poa, "DAG PoA commands",
         "dag_poa event sign -net <net_name> -chain <chain_name> -event <event_hash> [-H {hex | base58(default)}]\n"
@@ -341,7 +339,7 @@ static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
  */
 static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
 {
-    if (dap_chain_cs_dag_new(a_chain,a_chain_cfg)) {
+    if (dap_chain_cs_type_create("dag", a_chain, a_chain_cfg)) {
         log_it(L_ERROR, "Couldn't init DAG");
         return -1;
     }
@@ -422,7 +420,7 @@ static int s_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
  * @param a_values
  * @param a_arg
  */
-static bool s_poa_round_check_callback_round_clean(dap_global_db_context_t *a_global_db_context,
+static bool s_poa_round_check_callback_round_clean(dap_global_db_instance_t *a_dbi,
                                                    int a_rc, const char *a_group,
                                                    const size_t a_values_total, const size_t a_values_count,
                                                    dap_global_db_obj_t *a_values, void *a_arg)
@@ -437,7 +435,7 @@ static bool s_poa_round_check_callback_round_clean(dap_global_db_context_t *a_gl
                 continue;
             if (a_values[i].value_len <= sizeof(dap_chain_cs_dag_event_round_item_t) + sizeof(dap_chain_cs_dag_event_t)) {
                 log_it(L_WARNING, "Too small round item in DAG PoA rounds GDB group");
-                dap_global_db_del_unsafe(a_global_db_context, a_group, a_values[i].key);
+                dap_global_db_del_sync(a_group, a_values[i].key);
                 continue;
             }
             dap_chain_cs_dag_event_round_item_t *l_event_round_item = (dap_chain_cs_dag_event_round_item_t *)a_values[i].value;
@@ -453,7 +451,7 @@ static bool s_poa_round_check_callback_round_clean(dap_global_db_context_t *a_gl
                     log_it(L_INFO, "Event %s is from currently active round [id %"DAP_UINT64_FORMAT_U"]", a_values[i].key, l_round_id);
                     continue;
                 }
-                dap_global_db_del_unsafe(a_global_db_context, a_group, a_values[i].key);
+                dap_global_db_del_sync(a_group, a_values[i].key);
                 log_it(L_DEBUG, "DAG-PoA: Remove event %s from round %"DAP_UINT64_FORMAT_U" %s.",
                        a_values[i].key, l_round_id, l_time_diff > l_timeuot ? "by timer" : "owing to round completion");
             }
@@ -582,7 +580,7 @@ static dap_chain_cs_dag_event_round_item_t *s_round_event_choose_dup(dap_list_t 
  * @param a_is_pinned
  * @param a_arg
  */
-static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_db_context_t *a_global_db_context,
+static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_db_instance_t *a_dbi,
                                                                     int a_rc, const char *a_group,
                                                                     const size_t a_values_total, const size_t a_values_count,
                                                                     dap_store_obj_t *a_values, void *a_arg)
@@ -791,7 +789,7 @@ static dap_chain_cs_dag_event_t * s_callback_event_create(dap_chain_cs_dag_t * a
 static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_op_code, const char *a_group,
                                         const char *a_key, const void *a_value, const size_t a_value_size)
 {
-    if (a_op_code != DAP_DB$K_OPTYPE_ADD || !a_key || !a_value || !a_value_size)
+    if (a_op_code != DAP_GLOBAL_DB_OPTYPE_ADD || !a_key || !a_value || !a_value_size)
         return 0;
 
     dap_chain_cs_dag_poa_t * l_poa = DAP_CHAIN_CS_DAG_POA(a_dag);

@@ -241,7 +241,7 @@ static void s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
 
     if ( ! l_net ) {
         // Network not found
-        log_it( L_WARNING, "Can't find net with id %"DAP_UINT64_FORMAT_U, a_request->hdr.srv_uid.uint64);
+        log_it( L_WARNING, "Can't find net with id 0x%016"DAP_UINT64_FORMAT_x"", a_request->hdr.srv_uid.uint64);
         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_NOT_FOUND;
         if(a_ch)
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
@@ -1039,7 +1039,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         }
         l_request->err_code = 0;
 
-        strncpy(l_request->ip_send, a_ch->stream->esocket->hostaddr, INET_ADDRSTRLEN - 1);
+        strncpy(l_request->ip_send, a_ch->stream->esocket->remote_addr_str, INET_ADDRSTRLEN - 1);
         l_request->ip_send[INET_ADDRSTRLEN - 1] = '\0'; // Compiler warning escape
         l_request->recv_time2 = dap_nanotime_now();
 

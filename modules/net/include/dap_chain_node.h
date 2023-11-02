@@ -25,72 +25,44 @@
 #include "dap_list.h"
 #include "dap_worker.h"
 #include "dap_events_socket.h"
-
+#include "dap_stream.h"
 #include "dap_chain_common.h"
 #include "dap_global_db.h"
 #include "dap_chain.h"
 
-// Default time of a node address expired in hours
-#define NODE_TIME_EXPIRED_DEFAULT 720
-
 typedef struct dap_chain_net dap_chain_net_t;
-/**
-  *  Node Declaration request
-  *
-  */
-
-#define DAP_CHAIN_NODE_DECL_REQ_INFO_SIZE 32
-typedef struct dap_chain_node_delc_req{
-    dap_chain_node_addr_t node_address;
-    uint64_t create_ts;
-    union{
-        uint8_t raw[DAP_CHAIN_NODE_DECL_REQ_INFO_SIZE];
-        char str[DAP_CHAIN_NODE_DECL_REQ_INFO_SIZE];
-    } info;
-} DAP_ALIGN_PACKED dap_chain_decl_req_t;
-
-/**
-  * @struct dap_chain_node decl
-  * @details New node declaration
-  *
-  */
-#define DAP_CHAIN_NODE_DECL_ACCEPT_INFO_SIZE 32
-typedef struct dap_chain_node_decl{
-    dap_chain_decl_req_t request;
-    uint64_t accept_ts;
-    struct in_addr accept_addr_v4;
-    struct in6_addr accept_addr_v6;
-    union{
-        uint8_t raw[DAP_CHAIN_NODE_DECL_ACCEPT_INFO_SIZE];
-        char str[DAP_CHAIN_NODE_DECL_ACCEPT_INFO_SIZE];
-    } accept_info;
-} DAP_ALIGN_PACKED dap_chain_node_decl_t;
 
 typedef struct dap_chain_node_info {
     struct {
-        dap_chain_node_addr_t address;        
+        dap_chain_node_addr_t address;
         dap_chain_cell_id_t cell_id;
-        uint32_t links_number;
         struct in_addr ext_addr_v4;
         struct in6_addr ext_addr_v6;
         uint16_t ext_port; // Port thats node listening
-        char alias[240];
-        dap_chain_node_addr_t owner_address;
-        uint64_t blocks_events; /* truncated alias len */
     } DAP_ALIGN_PACKED hdr;
-    dap_chain_node_addr_t links[]; // dap_chain_addr_t
+    struct {
+        uint64_t atoms_count; /* truncated alias len */
+        uint32_t links_number;
+        byte_t other_info_for_future[240];
+    } DAP_ALIGN_PACKED info;
+    uint16_t alias_len;
+    byte_t alias[];
 } DAP_ALIGN_PACKED dap_chain_node_info_t;
 
-typedef struct dap_chain_node_publ{
-    dap_chain_hash_fast_t decl_hash;
-    dap_chain_node_info_t node_info;
-} DAP_ALIGN_PACKED dap_chain_node_publ_t;
+typedef dap_stream_node_addr_t dap_chain_node_addr_t;
+#define dap_chain_node_addr_str_check dap_stream_node_addr_str_check
+#define dap_chain_node_addr_from_str dap_stream_node_addr_from_str
+#define dap_chain_node_addr_not_null dap_stream_node_addr_not_null
 
 /**
  * Calculate size of struct dap_chain_node_info_t
  */
-size_t dap_chain_node_info_get_size(dap_chain_node_info_t *node_info);
-
+DAP_STATIC_INLINE size_t dap_chain_node_info_get_size(dap_chain_node_info_t *a_node_info)
+{
+    if (!a_node_info)
+        return 0;
+    return (sizeof(dap_chain_node_info_t) + a_node_info->alias_len);
+}
 
 /**
  * Compare addresses of two dap_chain_node_info_t structures
@@ -111,23 +83,6 @@ bool dap_chain_node_info_match(dap_chain_node_info_t *node_info1, dap_chain_node
  */
 //uint8_t* dap_chain_node_info_serialize(dap_chain_node_info_t *node_info, size_t *size);
 
-/**
- * Deserialize dap_chain_node_info_t
- * size[in] - length of input string
- * return data or NULL if error
- */
-//dap_chain_node_info_t* dap_chain_node_info_deserialize(uint8_t *node_info_str, size_t size);
-
-/**
- * Generate node addr by shard id
- */
-dap_chain_node_addr_t* dap_chain_node_gen_addr(dap_chain_net_id_t a_net_id);
-
-/**
- * Check the validity of the node address by shard id
- */
-bool dap_chain_node_check_addr(dap_chain_net_t * l_net,dap_chain_node_addr_t *addr);
-
 dap_chain_node_addr_t * dap_chain_node_alias_find(dap_chain_net_t * l_net,const char *alias);
 bool dap_chain_node_alias_register(dap_chain_net_t *a_net, const char *a_alias, dap_chain_node_addr_t *a_addr);
 bool dap_chain_node_alias_delete(dap_chain_net_t * l_net,const char *alias);
@@ -135,18 +90,13 @@ bool dap_chain_node_alias_delete(dap_chain_net_t * l_net,const char *alias);
 int dap_chain_node_info_save(dap_chain_net_t * l_net,dap_chain_node_info_t *node_info);
 dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_net_t * l_net, dap_chain_node_addr_t *address);
 
-inline static char* dap_chain_node_addr_to_hash_str(dap_chain_node_addr_t *address)
+inline static char *dap_chain_node_addr_to_hash_str(dap_chain_node_addr_t *a_address)
 {
-    return dap_hash_fast_str_new((const uint8_t*) address, sizeof(dap_chain_node_addr_t));
+    return dap_strdup_printf(NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(a_address));
 }
 
 bool dap_chain_node_mempool_need_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum);
 bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, const char *a_datum_hash_str);
 void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force);
 bool dap_chain_node_mempool_autoproc_init();
-void dap_chain_node_mempool_autoproc_deinit();
-
-// Set addr for current node
-bool dap_db_set_cur_node_addr(uint64_t a_address, char *a_net_name);
-bool dap_db_set_cur_node_addr_exp(uint64_t a_address, char *a_net_name );
-uint64_t dap_chain_net_get_cur_node_addr_gdb_sync(char *a_net_name);
+inline static void dap_chain_node_mempool_autoproc_deinit() {}

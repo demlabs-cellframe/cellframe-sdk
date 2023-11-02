@@ -20,6 +20,7 @@ if(NOT DEFINED CELLFRAME_MODULES)
 
     add_subdirectory(dap-sdk)
 
+    set(CELLFRAME_SDK_STANDALONE_BUILD ON)
 endif()
 
 message("Cellframe modules: ${CELLFRAME_MODULES}")
@@ -82,11 +83,6 @@ if (CELLFRAME_MODULES MATCHES "test-framework")
     add_subdirectory(test-framework)
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_test)
 endif()
-
-add_subdirectory(3rdparty/crc32c_adler)             # https://github.com/fonic/crc32c_adler
-include_directories(3rdparty/crc32c_adler)
-set(CELLFRAME_LIBS ${CELLFRAME_LIBS} crc32c_adler)
-
 
 if (BUILD_WITH_ZIP)
     add_subdirectory(3rdparty/libzip)
