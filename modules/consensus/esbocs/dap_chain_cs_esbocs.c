@@ -1766,7 +1766,7 @@ static void s_db_change_notifier(dap_store_obj_t *a_obj, void *a_arg)
                                                     l_validator_addr->net_id.uint64, l_session->chain->net_id.uint64);
         return;
     }
-    if (dap_chain_net_srv_stake_mark_validator_active(l_validator_addr, a_obj->type != DAP_DB$K_OPTYPE_ADD)) {
+    if (dap_chain_net_srv_stake_mark_validator_active(l_validator_addr, a_obj->type != DAP_GLOBAL_DB_OPTYPE_ADD)) {
         log_it(L_ERROR, "Validator with signing address %s not found in network %s",
                                                     a_obj->key, l_session->chain->net_name);
         dap_global_db_driver_delete(a_obj, 1);
