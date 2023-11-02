@@ -214,8 +214,7 @@ dap_chain_node_sync_status_t dap_chain_node_client_start_sync(dap_chain_node_cli
  */
 static bool s_timer_update_states_callback(void *a_arg)
 {
-    if (!a_arg)
-        return false;
+    return false;
     dap_chain_node_client_t *l_me = a_arg;
     dap_chain_node_sync_status_t l_status = dap_chain_node_client_start_sync(l_me);
     if (l_status == NODE_SYNC_STATUS_FAILED) {
