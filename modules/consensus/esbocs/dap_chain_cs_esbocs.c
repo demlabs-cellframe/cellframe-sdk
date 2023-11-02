@@ -2226,10 +2226,10 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         }
 
         size_t l_offset = dap_chain_block_get_sign_offset(l_store->candidate, l_store->candidate_size);
-        bool l_sign_verified = dap_sign_verify(l_candidate_sign, l_store->candidate,
-                                                l_offset + sizeof(l_store->candidate->hdr)) == 1;
+        int l_sign_verified = dap_sign_verify(l_candidate_sign, l_store->candidate,
+                                                l_offset + sizeof(l_store->candidate->hdr));
         // check candidate's sign
-        if (l_sign_verified) {
+        if (!l_sign_verified) {
             l_store->candidate_signs = dap_list_append(l_store->candidate_signs,
                                                        DAP_DUP_SIZE(l_candidate_sign, l_candidate_sign_size));
             if (dap_list_length(l_store->candidate_signs) == l_round->validators_synced_count) {
@@ -2469,7 +2469,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
                 continue;
             }
         }
-        if (dap_sign_verify(l_sign, a_block, l_block_excl_sign_size) == 1)
+        if (!dap_sign_verify(l_sign, a_block, l_block_excl_sign_size))
             l_signs_verified_count++;
     }
     DAP_DELETE(l_signs);
