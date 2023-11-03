@@ -97,7 +97,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                "mempool check -cert <priv_cert_name> -net <net_name> {-file <filename> | -hash <hash>} [-mime {SIGNER_FILENAME,SIGNER_FILENAME_SHORT,SIGNER_FILESIZE,SIGNER_DATE,SIGNER_MIME_MAGIC | SIGNER_ALL_FLAGS}]\n"
                                           );
     dap_cli_server_cmd_add("node", com_node, "Work with node",
-            "node add  -net <net_name> {-addr <node_address> | -alias <node_alias>} -port <port> -cell <cell_id> {-ipv4 <ipv4_external_address> | -ipv6 <ipv6_external_address>}\n\n"
+                    "node add  -net <net_name> -port <port> -ipv4 <ipv4 external address>\n\n"
                     "node del -net <net_name> {-addr <node_address> | -alias <node_alias>}\n\n"
                     "node link del -net <net_name> {-addr <node_address> | -alias <node_alias>} -link <node_address>\n\n"
                     "node link add -net <net_name> {-addr <node_address> | -alias <node_alias>} -link <node_address>\n\n"
@@ -285,7 +285,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "ledger list threshold [-hash <tx_treshold_hash>] -net <net_name>\n"
             "ledger list balance -net <net_name>\n"
             "ledger info -hash <tx_hash> -net <net_name> [-unspent]\n"
-            "ledger tx -all -net <net_name>\n"
+            "ledger tx -all -net <net_name> [-unspent]\n"
             "ledger tx {-addr <addr> | -w <wallet_name> | -tx <tx_hash>} -net <net_name>\n");
 
     // Token info
@@ -319,7 +319,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "decree create common -net <net_name> [-chain <chain_name>] -decree_chain <chain_name> -certs <certs_list> -fee <value> -to_addr <wallet_addr> -new_certs <certs_list> -signs_verify <value>\n"
             "decree create service -net <net_name> [-chain <chain_name>] -decree_chain <chain_name> -srv_id <service_id> -certs <certs_list> -fee <value> -to_addr <wallet_addr> -new_certs <certs_list> -signs_verify <value>\n"
             "decree sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs_list>\n"
-            "decree anchor -net <net_name> -chain <chain_name> -datum <datum_hash> -certs <certs_list>\n\n"
+            "decree anchor -net <net_name> -chain <chain_name> -datum <datum_hash> -certs <certs_list>\n"
             "Find decree by hash and show it's status (apllied or not)\n"
             "decree find -net <net_name> -hash <decree_hash>\n"
             "\t==Subtype Params==\n"

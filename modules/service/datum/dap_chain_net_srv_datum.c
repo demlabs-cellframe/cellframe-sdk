@@ -119,6 +119,10 @@ static int s_srv_datum_cli(int argc, char ** argv, char **a_str_reply) {
     }
 
     const char * l_system_datum_folder = dap_config_get_item_str(g_config, "resources", "datum_folder");
+    if (!l_system_datum_folder){
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Configuration wasn't loaded");
+        return -6;
+    }
 
     const char * l_datum_cmd_str = NULL;
     dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "datum", &l_datum_cmd_str);
