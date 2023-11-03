@@ -440,13 +440,13 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
                 log_it(L_WARNING,"Can't get signer node address from decree.");
                 return -105;
             }
-            if (!a_apply)
-                break;
             // Check it directly before applying
             if (dap_chain_net_srv_stake_verify_key_and_node(&l_addr, &l_node_addr)) {
                 log_it(L_WARNING, "Key and node verification error");
                 return -105;
             }
+            if (!a_apply)
+                break;
             dap_chain_net_srv_stake_key_delegate(l_net, &l_addr, &l_hash, l_uint256_buffer, &l_node_addr);
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE:

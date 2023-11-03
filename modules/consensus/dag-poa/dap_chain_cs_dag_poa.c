@@ -527,19 +527,19 @@ static dap_chain_cs_dag_event_round_item_t *s_round_event_choose_dup(dap_list_t 
     enum dap_chain_poa_round_filter_stage l_stage = DAP_CHAIN_POA_ROUND_FILTER_STAGE_START;
     while (l_stage++ < DAP_CHAIN_POA_ROUND_FILTER_STAGE_MAX) {
         dap_list_t *it, *tmp;
-        for (it = l_dups, tmp = l_dups ? l_dups->next : NULL; it; it = tmp, tmp = tmp ? tmp->next : NULL) {
+        DL_FOREACH_SAFE(l_dups, it, tmp) {
             l_round_item = (dap_chain_cs_dag_event_round_item_t *)it->data;
             l_event = (dap_chain_cs_dag_event_t *)l_round_item->event_n_signs;
             switch (l_stage) {
             case DAP_CHAIN_POA_ROUND_FILTER_STAGE_SIGNS:
                 if (l_event->header.signs_count != a_max_signs_counts)
-                    l_dups = dap_list_remove_link(l_dups, it);
+                    l_dups = dap_list_delete_link(l_dups, it);
                 else if (l_round_item->round_info.ts_update < l_min_ts_update)
                     l_min_ts_update = l_round_item->round_info.ts_update;
                 break;
             case DAP_CHAIN_POA_ROUND_FILTER_STAGE_TS:
                 if (l_round_item->round_info.ts_update != l_min_ts_update)
-                    l_dups = dap_list_remove_link(l_dups, it);
+                    l_dups = dap_list_delete_link(l_dups, it);
                 else {
                     s_event_get_unique_mem_region(l_round_item, l_event_mem_region);
                     if (memcmp(l_winner_mem_region, l_event_mem_region, DAP_CHAIN_POA_ROUND_FILTER_MEM_SIZE))
@@ -549,8 +549,9 @@ static dap_chain_cs_dag_event_round_item_t *s_round_event_choose_dup(dap_list_t 
             case DAP_CHAIN_POA_ROUND_FILTER_STAGE_MEM:
                 s_event_get_unique_mem_region(l_round_item, l_event_mem_region);
                 if (memcmp(l_winner_mem_region, l_event_mem_region, DAP_CHAIN_POA_ROUND_FILTER_MEM_SIZE))
-                    l_dups = dap_list_remove_link(l_dups, it);
-            default: break;
+                    l_dups = dap_list_delete_link(l_dups, it);
+            default:
+                break;
             }
         }
         unsigned int l_dups_count = dap_list_length(l_dups);

@@ -213,8 +213,8 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
         return NO_DELEGATED_TOKEN_ERROR;
     }
 
-    l_tsd_section = dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
-    if (strcmp(l_ticker_str, (char *)l_tsd_section->ticker_token_from))
+    l_tsd_section = _dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
+    if (strcmp(l_ticker_str, (char*)l_tsd_section->ticker_token_from))
         return TOKEN_ERROR;
 
     if (IS_ZERO_256(l_tsd_section->emission_rate))
@@ -333,7 +333,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, dap_string_t *output_line)
 {
     const char *l_net_str, *l_ticker_str, *l_wallet_str, *l_tx_str, *l_tx_burning_str, *l_chain_str, *l_value_fee_str;
-    l_net_str = l_ticker_str = l_wallet_str = l_tx_str = l_tx_burning_str = l_chain_str = NULL;
+    l_net_str = l_ticker_str = l_wallet_str = l_tx_str = l_tx_burning_str = l_chain_str = l_value_fee_str = NULL;
     dap_chain_net_t						*l_net				=	NULL;
     const char							*l_wallets_path		=	dap_chain_wallet_get_path(g_config);
     char l_delegated_ticker_str[DAP_CHAIN_TICKER_SIZE_MAX] 	=	{};
@@ -419,8 +419,8 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
             return NO_DELEGATED_TOKEN_ERROR;
         }
 
-        l_tsd_section = dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
-        if (strcmp(l_ticker_str, (char *)l_tsd_section->ticker_token_from))
+        l_tsd_section = _dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
+        if (strcmp(l_ticker_str, (char*)l_tsd_section->ticker_token_from))
             return TOKEN_ERROR;
 
         if (!IS_ZERO_256(l_tsd_section->emission_rate)) {
@@ -908,7 +908,7 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
             return false;
         }
 
-        l_tsd_section = dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
+        l_tsd_section = _dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
 
         if (!IS_ZERO_256(l_tsd_section->emission_rate)) {
             MULT_256_COIN(a_cond->header.value, l_tsd_section->emission_rate, &l_value_delegated);
@@ -975,8 +975,14 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
             DAP_DEL_Z(str3);
         }
 
-        if (!EQUAL_256(l_blank_out_value, l_value_delegated))
-            return false;
+        if (!EQUAL_256(l_blank_out_value, l_value_delegated)) {
+            // !!! A terrible legacy crutch, TODO !!!
+            SUM_256_256(l_value_delegated, GET_256_FROM_64(10), &l_value_delegated);
+            if (!EQUAL_256(l_blank_out_value, l_value_delegated)) {
+                log_it(L_ERROR, "Burning and delegated value mismatch");
+                return false;
+            }
+        }
     }
 
     return true;

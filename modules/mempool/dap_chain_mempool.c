@@ -147,7 +147,7 @@ char *dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_fr
 {
     // check valid param
     if(!a_chain | !a_key_from || ! a_addr_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
-            !dap_chain_addr_check_sum(a_addr_from) || (a_addr_to && !dap_chain_addr_check_sum(a_addr_to)) || IS_ZERO_256(a_value))
+            dap_chain_addr_check_sum(a_addr_from) || (a_addr_to && dap_chain_addr_check_sum(a_addr_to)) || IS_ZERO_256(a_value))
         return NULL;
 
     const char *l_native_ticker = dap_chain_net_by_id(a_chain->net_id)->pub.native_ticker;
@@ -394,7 +394,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
 {
     // check valid paramdap_chain_mempool_tx_coll_fee_create
     if(!a_chain | !a_key_from || !a_addr_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
-            !dap_chain_addr_check_sum(a_addr_from) || !dap_chain_addr_check_sum(a_addr_to) ||
+            dap_chain_addr_check_sum(a_addr_from) || dap_chain_addr_check_sum(a_addr_to) ||
             IS_ZERO_256(a_value) || !a_tx_num){
         log_it(L_ERROR, "Wrong parameters in dap_chain_mempool_tx_create_massive() call");
         return -1;
@@ -625,7 +625,7 @@ char* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
         return NULL;
     }
 
-    if ( ! dap_chain_addr_check_sum (a_addr_to) ){
+    if (dap_chain_addr_check_sum (a_addr_to)) {
         log_it(L_ERROR, "Wrong address_to checksum");
         if (a_ret_status)
             *a_ret_status = DAP_CHAIN_MEMPOOl_RET_STATUS_WRONG_ADDR;
@@ -712,9 +712,11 @@ char* dap_chain_mempool_tx_create_cond_input(dap_chain_net_t *a_net, dap_chain_h
     uint256_t l_new_val = {};
     uint256_t l_value_cond = l_out_cond->header.value;
     SUBTRACT_256_256(l_out_cond->header.value, l_value_send, &l_new_val);
-    l_out_cond->header.value = l_new_val;       // Use old conditinal output to form the new one
-    dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_out_cond);
-    l_out_cond->header.value = l_value_cond;    // Restore original value
+    //if (!!IS_ZERO_256(l_new_val)){
+        l_out_cond->header.value = l_new_val; // Use old conditinal output to form the new one
+        dap_chain_datum_tx_add_item(&l_tx, (const uint8_t *)l_out_cond);
+        l_out_cond->header.value = l_value_cond;    // Restore original value
+    //}
     // add 'sign' item
     if(dap_chain_datum_tx_add_sign_item(&l_tx, a_key_tx_sign) != 1) {
         dap_chain_datum_tx_delete(l_tx);

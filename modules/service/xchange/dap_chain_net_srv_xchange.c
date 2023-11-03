@@ -1157,7 +1157,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Incorrect chain address");
                     return -14;
                 }
-                if (dap_chain_addr_check_sum(l_addr) != 1 ) {
+                if (dap_chain_addr_check_sum(l_addr)) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Incorrect chain address");
                     return -15;
                 }
