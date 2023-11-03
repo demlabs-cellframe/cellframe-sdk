@@ -9,7 +9,7 @@ add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 set(DAPSDK_MODULES "")
 
 if(NOT DEFINED CELLFRAME_MODULES)
-    include (cmake/OS_Detection.cmake)
+    include (dap-sdk/cmake/OS_Detection.cmake)
 
     set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-esbocs cs-none srv-app srv-app-db srv-datum srv-stake srv-xchange")
 
