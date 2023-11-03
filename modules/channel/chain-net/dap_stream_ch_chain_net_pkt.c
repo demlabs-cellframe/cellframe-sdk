@@ -38,8 +38,9 @@ size_t dap_stream_ch_chain_net_pkt_write(dap_stream_ch_t *a_ch, uint8_t a_type,d
     dap_stream_ch_chain_net_pkt_t * l_net_pkt;
     size_t l_net_pkt_size = sizeof (l_net_pkt->hdr) + a_data_size;
     l_net_pkt = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_pkt_t, l_net_pkt_size );
-    l_net_pkt->hdr.version = 1;
+    l_net_pkt->hdr.version = DAP_STREAM_CH_CHAIN_NET_PKT_VERSION;
     l_net_pkt->hdr.net_id.uint64 = a_net_id.uint64;
+    l_net_pkt->hdr.data_size = a_data_size;
     memcpy( l_net_pkt->data, a_data, a_data_size);
     size_t l_ret  = dap_stream_ch_pkt_write_unsafe(a_ch, a_type , l_net_pkt, l_net_pkt_size);
     DAP_DELETE(l_net_pkt);

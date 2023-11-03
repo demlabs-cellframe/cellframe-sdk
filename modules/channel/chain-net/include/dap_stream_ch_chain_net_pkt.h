@@ -30,6 +30,8 @@
 #include "dap_chain_node.h"
 #include "dap_stream_ch.h"
 
+#define DAP_STREAM_CH_CHAIN_NET_PKT_VERSION                             1
+
 #define DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_TEST                          0x01
 
 #define DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_PING                          0x02
@@ -42,11 +44,12 @@
 
 #define DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ERROR                         0xff
 
-typedef struct stream_ch_chain_net_pkt_hdr{
+typedef struct stream_ch_chain_net_pkt_hdr {
     uint8_t version;
-    uint8_t padding[3];
+    byte_t padding;
+    uint16_t data_size;
     dap_chain_net_id_t net_id;
-}  DAP_ALIGN_PACKED dap_stream_ch_chain_net_pkt_hdr_t;
+} DAP_ALIGN_PACKED dap_stream_ch_chain_net_pkt_hdr_t;
 
 typedef struct dap_stream_ch_chain_net_pkt{
     dap_stream_ch_chain_net_pkt_hdr_t hdr;
