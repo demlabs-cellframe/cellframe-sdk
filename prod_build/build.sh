@@ -58,6 +58,11 @@ while [[ $# -gt 0 ]]; do
       shift # past argument
       shift # past value
       ;;
+    -b|--bpfx)
+      BUILD_POSTFIX="$2"
+      shift # past argument
+      shift # past value
+      ;;
     *)
       POSITIONAL_ARGS+=("$1") # save positional arg
       shift # past argument
@@ -89,8 +94,7 @@ fi
 
 echo "Host machin is $MACHINE"
 BUILD_TARGET="${TARGET:-$DEFAULT_TARGET}"
-
-BUILD_DIR=${PWD}/build_${BUILD_TARGET}_${BUILD_TYPE}
+BUILD_DIR=${PWD}/build_${BUILD_TARGET}_${BUILD_TYPE}/$BUILD_POSTFIX/
 
 VALIDATE_TARGET $TARGET
 VALIDATE_BUILD_TYPE $BUILD_TYPE
@@ -122,7 +126,7 @@ fi
 echo "Build [${BUILD_TYPE}] binaries for [$BUILD_TARGET] in [${BUILD_DIR}] on $NPROC threads"
 echo "with options: [${BUILD_OPTIONS[@]}]"
 
-cd ${BUILD_DIR}/build
+cd ${BUILD_DIR}/build/
 
 #debug out
 pwd
@@ -130,5 +134,5 @@ echo "${CMAKE[@]} ${MHERE}/../  ${BUILD_OPTIONS[@]}"
 #echo $HERE
 export INSTALL_ROOT=${BUILD_DIR}/dist
 "${CMAKE[@]}" ${MHERE}/../ ${BUILD_OPTIONS[@]}  
-"${MAKE[@]}" -j $NPROC
+"${MAKE[@]}" #-j $NPROC
 "${MAKE[@]}" install DESTDIR=${INSTALL_ROOT}
