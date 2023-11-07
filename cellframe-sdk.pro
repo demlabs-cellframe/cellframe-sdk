@@ -15,11 +15,9 @@ win32 {
 }
 
 android {
-    
-    
     for (AABI, ANDROID_ABIS) {
-        message($$AABI)
-        sdk_build_$${AABI}.commands += $$PWD/../cellframe-sdk/prod_build/build.sh -b $$AABI --target android release -DANDROID_PLATFORM=android-21 -DANDROID_ABI=$$AABI -DANDROID_NATIVE_API_LEVEL=29 -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/
+        message("Requested ABI: $$AABI")
+        sdk_build_$${AABI}.commands += $$PWD/../cellframe-sdk/prod_build/build.sh -b $$AABI --target android release -DANDROID_PLATFORM=android-21 -DANDROID_ABI=$$AABI -DANDROID_NATIVE_API_LEVEL=29 -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/ -DCMAKE_VERBOSE_MAKEFILE:BOOL=ON
     }
 }
 
@@ -27,7 +25,6 @@ mac {
     
     sdk_build.commands = $$PWD/../cellframe-sdk/prod_build/build.sh --target osx release -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/
 }
-
 
 QMAKE_EXTRA_TARGETS += sdk_build
 PRE_TARGETDEPS = sdk_build
