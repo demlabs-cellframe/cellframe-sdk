@@ -2226,7 +2226,6 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     if (!l_chains_dir) {
         log_it(L_ERROR, "Can't find any chains for network %s", l_net->pub.name);
         dap_chain_net_delete(l_net);
-        closedir(l_chains_dir);
         return -7;
     }
     // for sequential loading chains
