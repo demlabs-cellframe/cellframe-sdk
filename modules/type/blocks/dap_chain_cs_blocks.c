@@ -1578,8 +1578,12 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
         dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_datum_hash);
         HASH_FIND(hh, l_blocks_pvt->datum_index, &l_datum_hash, sizeof (l_datum_hash), l_datum_index_tmp);
         if(l_datum_index_tmp)
+        {
+            char *l_datum_hash_str = dap_hash_fast_to_str_new(&l_datum_hash);
+            log_it(L_WARNING, "The datum is %s has been already added to block",l_datum_hash_str);
+            DAP_DELETE(l_datum_hash_str);
             continue;
-
+        }
         if (!l_blocks->block_new) {
             dap_chain_block_cache_t *l_bcache_last = l_blocks_pvt->blocks ? l_blocks_pvt->blocks->hh.tbl->tail->prev : NULL;
             l_bcache_last = l_bcache_last ? l_bcache_last->hh.next : l_blocks_pvt->blocks;
