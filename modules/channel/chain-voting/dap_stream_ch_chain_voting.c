@@ -162,8 +162,18 @@ static void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         log_it(L_ERROR, "Invalid packet size %zu, drop this packet", l_voting_pkt_size);
         return;
     }
-
     dap_stream_ch_chain_voting_pkt_t *l_voting_pkt = (dap_stream_ch_chain_voting_pkt_t *)l_ch_pkt->data;
+    dap_chain_net_t *l_net = dap_chain_net_by_id(l_voting_pkt->hdr.net_id);
+
+    if (!l_net)
+        return;
+    if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
+        dap_stream_ch_chain_voting_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_VOTING_PKT_TYPE_ERROR, l_voting_pkt->hdr.net_id.uint64,
+                                       &l_voting_pkt->hdr.sender_node_addr, &l_voting_pkt->hdr.receiver_node_addr, NULL, 0);
+        a_ch->stream->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+        return;
+    }
+
     dap_proc_queue_add_callback(a_ch->stream_worker->worker, s_callback_pkt_in_call_all,
                                 DAP_DUP_SIZE(l_voting_pkt, l_voting_pkt_size));
     dap_stream_ch_chain_voting_t *l_ch_chain_voting = DAP_STREAM_CH_CHAIN_VOTING(a_ch);

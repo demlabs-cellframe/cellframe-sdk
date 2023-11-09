@@ -1252,7 +1252,9 @@ static void s_ch_vpn_delete(dap_stream_ch_t* a_ch, void* arg)
     usage_client_t * l_usage_client = NULL;
 
     dap_chain_net_srv_stream_session_t *l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION(l_ch_vpn->ch->stream->session);
-    dap_timerfd_delete_mt(l_srv_session->usage_active->client->stream_worker->worker, l_srv_session->usage_active->timer_es_uuid);
+    if (l_srv_session && l_srv_session->usage_active &&
+        l_srv_session->usage_active->client && l_srv_session->usage_active->client->stream_worker)
+        dap_timerfd_delete_mt(l_srv_session->usage_active->client->stream_worker->worker, l_srv_session->usage_active->timer_es_uuid);
 
     bool l_is_unleased = false;
     if ( l_ch_vpn->addr_ipv4.s_addr ){ // if leased address
