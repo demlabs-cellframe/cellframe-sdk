@@ -430,8 +430,10 @@ int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_n
     if(a_new_state == NET_STATE_ONLINE)
         dap_chain_esbocs_start_timer(a_net->pub.id);
 
-    if (a_new_state == NET_STATE_OFFLINE)
+    if (a_new_state == NET_STATE_OFFLINE){
+        dap_chain_esbocs_stop_timer(a_net->pub.id);
         return 0;
+    }
     return dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_net_states_proc, a_net);
 }
 
@@ -1408,7 +1410,6 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
             }
             l_net_pvt->last_sync = 0;
 
-            dap_chain_esbocs_stop_timer(l_net->pub.id);
         } break;
 
         // Prepare links

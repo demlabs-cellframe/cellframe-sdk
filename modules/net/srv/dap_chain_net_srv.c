@@ -911,7 +911,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
 
             dap_hash_fast_t order_pkey_hash = {};
             dap_hash_fast_t price_pkey_hash = {};
-            dap_sign_get_pkey_hash(l_order->ext_n_sign + l_order->ext_size, &order_pkey_hash);
+            dap_sign_get_pkey_hash((dap_sign_t*)((byte_t*)l_order->ext_n_sign + l_order->ext_size), &order_pkey_hash);
             dap_hash_fast(l_price->receipt_sign_cert->enc_key->pub_key_data,
                           l_price->receipt_sign_cert->enc_key->pub_key_data_size, &price_pkey_hash);
             if (dap_hash_fast_compare(&order_pkey_hash, &price_pkey_hash))

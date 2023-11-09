@@ -168,6 +168,7 @@ static void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
     if (!l_net)
         return;
     if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
+        log_it(L_ERROR, "Reject packet because net %s is offline", l_net->pub.name);
         dap_stream_ch_chain_voting_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_VOTING_PKT_TYPE_ERROR, l_voting_pkt->hdr.net_id.uint64,
                                        &l_voting_pkt->hdr.sender_node_addr, &l_voting_pkt->hdr.receiver_node_addr, NULL, 0);
         a_ch->stream->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
