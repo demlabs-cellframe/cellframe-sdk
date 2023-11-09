@@ -203,7 +203,7 @@ typedef struct dap_chain {
 
     dap_chain_callback_load_from_gdb callback_load_from_gdb;
 
-    dap_list_t *atom_notificators;
+    dap_list_t *atom_notifiers;
 //    dap_chain_callback_notify_t callback_notify;
 //    void *callback_notify_arg;
 
@@ -216,10 +216,10 @@ typedef struct dap_chain {
     void * _inheritor; // inheritor object
 } dap_chain_t;
 
-typedef struct dap_chain_atom_notificator {
+typedef struct dap_chain_atom_notifier {
     dap_chain_callback_notify_t callback;
     void *arg;
-} dap_chain_atom_notificator_t;
+} dap_chain_atom_notifier_t;
 
 typedef struct dap_chain_pvt {
     dap_chain_t * chain;

@@ -1068,7 +1068,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     dap_chain_net_t *l_net = NULL;
 
     if(dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, NULL, &l_net) < 0) {
-        if (cmd_num != CMD_BANLIST)
+        if (cmd_num != CMD_BANLIST && cmd_num != CMD_CONNECTIONS)
             return -11;
     }
 
@@ -1423,12 +1423,15 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     } break;
 
     case CMD_CONNECTIONS: {
-        dap_cluster_t *l_links_cluster = dap_cluster_by_mnemonim(l_net->pub.name);
-        if (!l_links_cluster) {
-             dap_cli_server_cmd_set_reply_text(a_str_reply, "Not found links cluster for net %s", l_net->pub.name);
-             break;
-        }
-        *a_str_reply = dap_cluster_get_links_info(l_links_cluster);
+        if (l_net) {
+            dap_cluster_t *l_links_cluster = dap_cluster_by_mnemonim(l_net->pub.name);
+            if (!l_links_cluster) {
+                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Not found links cluster for net %s", l_net->pub.name);
+                 break;
+            }
+            *a_str_reply = dap_cluster_get_links_info(l_links_cluster);
+        } else
+            *a_str_reply = dap_cluster_get_links_info(NULL);
     } break;
 
     case  CMD_BAN: {
@@ -2473,7 +2476,7 @@ int com_token_decl_sign(int a_argc, char **a_argv, char ** a_str_reply)
                 size_t l_signs_size = 0, i = 1;
                 for (i = 1; i <= l_datum_token->signs_total; i++){
                     dap_sign_t *l_sign = (dap_sign_t *)(l_datum_token->data_n_tsd + l_tsd_size + l_signs_size);
-                    if( dap_sign_verify(l_sign, l_datum_token, sizeof(*l_datum_token) - sizeof(uint16_t)) != 1) {
+                    if(dap_sign_verify(l_sign, l_datum_token, sizeof(*l_datum_token) - sizeof(uint16_t))) {
                         log_it(L_WARNING, "Wrong signature %zu for datum_token with key %s in mempool!", i, l_datum_hash_out_str);
                         dap_cli_server_cmd_set_reply_text(a_str_reply,
                                 "Datum %s with datum token has wrong signature %zu, break process and exit",

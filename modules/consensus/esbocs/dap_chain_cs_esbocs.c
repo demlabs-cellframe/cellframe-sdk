@@ -84,7 +84,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
 static uint256_t s_callback_get_minimum_fee(dap_chain_t *a_chain);
 static dap_enc_key_t *s_callback_get_sign_key(dap_chain_t *a_chain);
 static void s_callback_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_new_value);
-static void s_db_change_notificator(dap_store_obj_t *a_obj, void * a_arg);
+static void s_db_change_notifier(dap_store_obj_t *a_obj, void * a_arg);
 
 static int s_cli_esbocs(int argc, char ** argv, char **str_reply);
 
@@ -291,7 +291,7 @@ lb_err:
     return l_ret;
 }
 
-static void s_new_atom_notificator(void *a_arg, UNUSED_ARG dap_chain_t *a_chain, UNUSED_ARG dap_chain_cell_id_t a_id,
+static void s_new_atom_notifier(void *a_arg, UNUSED_ARG dap_chain_t *a_chain, UNUSED_ARG dap_chain_cell_id_t a_id,
                              UNUSED_ARG void* a_atom, UNUSED_ARG size_t a_atom_size)
 {
     dap_chain_esbocs_session_t *l_session = a_arg;
@@ -367,7 +367,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
                                                       72 * 3600, true,
                                                       DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_ROLE_AUTONOMIC);
     DAP_DELETE(l_sync_group);
-    dap_global_db_cluster_add_notify_callback(l_session->db_cluster, s_db_change_notificator, l_session);
+    dap_global_db_cluster_add_notify_callback(l_session->db_cluster, s_db_change_notifier, l_session);
 
     dap_list_t *l_validators = dap_chain_net_srv_stake_get_validators(a_chain->net_id, false);
     for (dap_list_t *it = l_validators; it; it = it->next) {
@@ -412,7 +412,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     pthread_mutex_init(&l_session->mutex, &l_mutex_attr);
     pthread_mutexattr_destroy(&l_mutex_attr);
     dap_stream_ch_chain_voting_in_callback_add(l_session, s_session_packet_in);
-    dap_chain_add_callback_notify(a_chain, s_new_atom_notificator, l_session);
+    dap_chain_add_callback_notify(a_chain, s_new_atom_notifier, l_session);
     s_session_round_new(l_session);
 
     log_it(L_INFO, "Init session for net:%s, chain:%s", a_chain->net_name, a_chain->name);
@@ -1373,7 +1373,7 @@ static void s_session_candidate_precommit(dap_chain_esbocs_session_t *a_session,
                                         a_session->chain->net_name, a_session->chain->name, a_session->cur_round.id,
                                             a_message->hdr.attempt_num, l_candidate_hash_str);
         s_session_round_finish(a_session, l_store);
-        // ATTENTION: New round will be started by incoming atom notificator event
+        // ATTENTION: New round will be started by incoming atom notifier event
     }
     DAP_DEL_Z(l_candidate_hash_str);
 }
@@ -1752,16 +1752,27 @@ static void s_session_directive_process(dap_chain_esbocs_session_t *a_session, d
     s_message_send(a_session, l_type, a_directive_hash, NULL, 0, a_session->cur_round.all_validators);
 }
 
-static void s_db_change_notificator(dap_store_obj_t *a_obj, void *a_arg)
+static void s_db_change_notifier(dap_store_obj_t *a_obj, void *a_arg)
 {
     dap_chain_esbocs_session_t *l_session = a_arg;
     dap_chain_addr_t *l_validator_addr = dap_chain_addr_from_str(a_obj->key);
     if (!l_validator_addr) {
         log_it(L_WARNING, "Unreadable address in esbocs global DB group");
         dap_global_db_driver_delete(a_obj, 1);
+        return;
     }
-    if (dap_chain_net_srv_stake_mark_validator_active(l_validator_addr, a_obj->type != DAP_GLOBAL_DB_OPTYPE_ADD))
+    if (l_validator_addr->net_id.uint64 != l_session->chain->net_id.uint64) {
+        log_it(L_ERROR, "Worong destination net ID %" DAP_UINT64_FORMAT_x "session net ID %" DAP_UINT64_FORMAT_x,
+                                                    l_validator_addr->net_id.uint64, l_session->chain->net_id.uint64);
+        return;
+    }
+    if (dap_chain_net_srv_stake_mark_validator_active(l_validator_addr, a_obj->type != DAP_GLOBAL_DB_OPTYPE_ADD)) {
+        log_it(L_ERROR, "Validator with signing address %s not found in network %s",
+                                                    a_obj->key, l_session->chain->net_name);
         dap_global_db_driver_delete(a_obj, 1);
+        return;
+    }
+    log_it(L_DEBUG, "Got new penalty item for group %s with key %s", a_obj->group, a_obj->key);
     l_session->db_hash = dap_global_db_driver_hash_get(a_obj);
 }
 
@@ -1788,12 +1799,12 @@ static int s_session_directive_apply(dap_chain_esbocs_directive_t *a_directive, 
         const char *l_directive_hash_str = dap_chain_hash_fast_to_str_new(a_directive_hash);
         const char *l_key_hash_str = dap_chain_hash_fast_to_str_new(&l_key_addr->data.hash_fast);
         if (l_status == 1 && a_directive->type == DAP_CHAIN_ESBOCS_DIRECTIVE_KICK) {
-            // Offline will be set in gdb notificator for aim of sync supporting
+            // Offline will be set in gdb notifier for aim of sync supporting
             dap_global_db_set(l_penalty_group, l_key_str, NULL, 0, false, NULL, 0);
             log_it(L_MSG, "Applied %s directive to exclude validator %s with pkey hash %s from consensus",
                             l_directive_hash_str, l_key_str, l_key_hash_str);
         } else if (l_status == -1 && a_directive->type == DAP_CHAIN_ESBOCS_DIRECTIVE_LIFT) {
-            // Online will be set in gdb notificator for aim of sync supporting
+            // Online will be set in gdb notifier for aim of sync supporting
             dap_global_db_del(l_penalty_group, l_key_str, NULL, 0);
             log_it(L_MSG, "Applied %s directive to include validator %s with pkey hash %s in consensus",
                             l_directive_hash_str, l_key_str, l_key_hash_str);
@@ -2215,10 +2226,10 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         }
 
         size_t l_offset = dap_chain_block_get_sign_offset(l_store->candidate, l_store->candidate_size);
-        bool l_sign_verified = dap_sign_verify(l_candidate_sign, l_store->candidate,
-                                                l_offset + sizeof(l_store->candidate->hdr)) == 1;
+        int l_sign_verified = dap_sign_verify(l_candidate_sign, l_store->candidate,
+                                                l_offset + sizeof(l_store->candidate->hdr));
         // check candidate's sign
-        if (l_sign_verified) {
+        if (!l_sign_verified) {
             l_store->candidate_signs = dap_list_append(l_store->candidate_signs,
                                                        DAP_DUP_SIZE(l_candidate_sign, l_candidate_sign_size));
             if (dap_list_length(l_store->candidate_signs) == l_round->validators_synced_count) {
@@ -2458,7 +2469,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
                 continue;
             }
         }
-        if (dap_sign_verify(l_sign, a_block, l_block_excl_sign_size) == 1)
+        if (!dap_sign_verify(l_sign, a_block, l_block_excl_sign_size))
             l_signs_verified_count++;
     }
     DAP_DELETE(l_signs);

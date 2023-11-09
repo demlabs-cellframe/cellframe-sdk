@@ -523,7 +523,7 @@ static bool s_net_link_callback_connect_delayed(void *a_arg)
     dap_chain_node_client_t *l_client = l_link->link;
     log_it(L_MSG, "Connecting to link "NODE_ADDR_FP_STR" [%s]",
            NODE_ADDR_FP_ARGS_S(l_client->info->hdr.address), inet_ntoa(l_client->info->hdr.ext_addr_v4));
-    dap_chain_node_client_connect(l_client, "CN");
+    dap_chain_node_client_connect(l_client, "GND");
     l_link->delay_timer = NULL;
     return false;
 }
@@ -543,7 +543,7 @@ static bool s_net_link_start(dap_chain_net_t *a_net, struct net_link *a_link, ui
         return true;
     }
     log_it(L_MSG, "Connecting to link "NODE_ADDR_FP_STR" [%s]", NODE_ADDR_FP_ARGS_S(l_link_info->hdr.address), inet_ntoa(l_link_info->hdr.ext_addr_v4));
-    return dap_chain_node_client_connect(l_client, "CN");
+    return dap_chain_node_client_connect(l_client, "GND");
 }
 
 /**
@@ -2226,7 +2226,6 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     if (!l_chains_dir) {
         log_it(L_ERROR, "Can't find any chains for network %s", l_net->pub.name);
         dap_chain_net_delete(l_net);
-        closedir(l_chains_dir);
         return -7;
     }
     // for sequential loading chains

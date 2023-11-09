@@ -269,7 +269,7 @@ static int s_callback_event_verify(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_
             size_t l_dag_event_size_without_sign = dap_chain_cs_dag_event_calc_size_excl_signs(a_dag_event,a_dag_event_size);
             int l_sign_verified = dap_sign_verify(l_sign, a_dag_event, l_dag_event_size_without_sign);
             a_dag_event->header.signs_count = l_signs_total;
-            if (l_sign_verified != 1) {
+            if (l_sign_verified) {
                 log_it(L_WARNING, "Event's sign is incorrect: code %d", l_sign_verified);
                 return -41;
             }

@@ -214,8 +214,7 @@ dap_chain_node_sync_status_t dap_chain_node_client_start_sync(dap_chain_node_cli
  */
 static bool s_timer_update_states_callback(void *a_arg)
 {
-    if (!a_arg)
-        return false;
+    return false;
     dap_chain_node_client_t *l_me = a_arg;
     dap_chain_node_sync_status_t l_status = dap_chain_node_client_start_sync(l_me);
     if (l_status == NODE_SYNC_STATUS_FAILED) {
@@ -253,19 +252,13 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
         log_it(L_NOTICE, "Stream connection with node "NODE_ADDR_FP_STR" (%s:%hu) established",
                     NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr),
                     l_ip_addr_str, l_node_client->info->hdr.ext_port);
-        // set callbacks for C and N channels; for R and S it is not needed
-        if (a_client->active_channels) {
-            size_t l_channels_count = dap_strlen(a_client->active_channels);
-            for(size_t i = 0; i < l_channels_count; i++) {
-                if(s_node_client_set_notify_callbacks(a_client, a_client->active_channels[i]) == -1) {
-                    log_it(L_WARNING, "No ch_chain channel, can't init notify callback for pkt type CH_CHAIN");
-                    return;
-                }
-            }
-        }
+
         if(l_node_client->callbacks.connected)
             l_node_client->callbacks.connected(l_node_client, l_node_client->callbacks_arg);
-
+        dap_stream_ch_chain_net_pkt_hdr_t l_announce = { .version = DAP_STREAM_CH_CHAIN_NET_PKT_VERSION,
+                                                         .net_id  = l_node_client->net->pub.id };
+        dap_client_write_unsafe(a_client, 'N', DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ANNOUNCE,
+                                         &l_announce, sizeof(l_announce));
         pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_ESTABLISHED;
         if (s_stream_ch_chain_debug_more)
@@ -286,6 +279,15 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
                                                                             l_node_client);
                 }else{
                     log_it(L_ERROR,"After NODE_CLIENT_STATE_ESTABLISHED: Node client has no worker, too dangerous to run update states in alien context");
+                }
+            }
+        }
+        // set callbacks for C and N channels; for R and S it is not needed
+        if (a_client->active_channels) {
+            size_t l_channels_count = dap_strlen(a_client->active_channels);
+            for(size_t i = 0; i < l_channels_count; i++) {
+                if(s_node_client_set_notify_callbacks(a_client, a_client->active_channels[i]) == -1) {
+                    log_it(L_WARNING, "No ch_chain channel, can't init notify callback for pkt type CH_CHAIN");
                 }
             }
         }
