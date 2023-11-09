@@ -103,7 +103,7 @@ dap_store_obj_t* dap_chain_global_db_get_last(const char *a_group);
 dap_store_obj_t* dap_chain_global_db_cond_load(const char *a_group, uint64_t a_first_id, size_t *a_objs_count);
 dap_global_db_obj_t* dap_chain_global_db_gr_load(const char *a_group, size_t *a_data_size_out);
 dap_global_db_obj_t* dap_chain_global_db_load(size_t *a_data_size_out);
-
+int dap_chain_global_db_compare_by_ts(const void *a_obj1, const void *a_obj2);
 /**
  * Write to the database from an array of data_size bytes
  *
