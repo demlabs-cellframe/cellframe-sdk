@@ -505,6 +505,7 @@ void dap_chain_esbocs_stop_timer(dap_chain_net_id_t a_net_id)
             dap_timerfd_delete_mt(l_session->cs_timer->worker, l_session->cs_timer->esocket_uuid);
         }
     }
+    dap_stream_ch_chain_voting_close_all_clients(a_net_id);
 }
 
 void dap_chain_esbocs_start_timer(dap_chain_net_id_t a_net_id)

@@ -137,6 +137,19 @@ void dap_stream_ch_chain_voting_deinit()
     }
 }
 
+void dap_stream_ch_chain_voting_close_all_clients(dap_chain_net_id_t a_net_id)
+{
+    struct voting_node_client_list *l_node_info_item, *l_node_info_tmp;
+    HASH_ITER(hh, s_node_client_list, l_node_info_item, l_node_info_tmp) {
+        // Clang bug at this, l_node_info_item should change at every loop cycle
+        if (l_node_info_item->node_client->net->pub.id.uint64 == a_net_id.uint64){
+            HASH_DEL(s_node_client_list, l_node_info_item);
+            dap_chain_node_client_close_mt(l_node_info_item->node_client);
+            DAP_DELETE(l_node_info_item);
+        }
+    }
+}
+
 static void s_stream_ch_new(dap_stream_ch_t *a_ch, void *a_arg)
 {
     UNUSED(a_arg);
