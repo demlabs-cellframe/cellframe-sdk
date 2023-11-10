@@ -183,8 +183,11 @@ void dap_stream_ch_chain_deinit()
 void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg)
 {
     UNUSED(a_arg);
-    a_ch->internal = DAP_NEW_Z(dap_stream_ch_chain_t);
-    dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
+    if (!(a_ch->internal = DAP_NEW_Z(dap_stream_ch_chain_t))) {
+        log_it(L_CRITICAL, "Memory allocation error");
+        return;
+    };
+    dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
     l_ch_chain->_inheritor = a_ch;
     a_ch->stream->esocket->callbacks.write_finished_callback = s_stream_ch_io_complete;
 
@@ -260,6 +263,11 @@ static void s_sync_out_chains_first_worker_callback(dap_worker_t *a_worker, void
     }
 
     dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
+    if (!l_ch_chain) {
+        log_it(L_CRITICAL, "Channel without chain, dump it");
+        s_sync_request_delete(l_sync_request);
+        return;
+    }
     if (l_ch_chain->state != CHAIN_STATE_UPDATE_CHAINS_REMOTE) {
         log_it(L_INFO, "Timeout fired before we sent the reply");
         s_sync_request_delete(l_sync_request);
@@ -298,6 +306,11 @@ static void s_sync_out_chains_last_worker_callback(dap_worker_t *a_worker, void 
     }
 
     dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
+    if (!l_ch_chain) {
+        log_it(L_CRITICAL, "Channel without chain, dump it");
+        s_sync_request_delete(l_sync_request);
+        return;
+    }
     l_ch_chain->request_atom_iter = l_sync_request->chain.request_atom_iter;
     // last packet
     dap_stream_ch_chain_sync_request_t l_request = {};
@@ -359,6 +372,13 @@ static void s_sync_out_gdb_first_worker_callback(dap_worker_t *a_worker, void *a
     }
 
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN( l_ch );
+
+    if (!l_ch_chain) {
+        log_it(L_CRITICAL, "Channel without chain, dump it");
+        s_sync_request_delete(l_sync_request);
+        return;
+    }
+
     if (l_ch_chain->state != CHAIN_STATE_UPDATE_GLOBAL_DB_REMOTE) {
         log_it(L_INFO, "Timeout fired before we sent the reply");
         s_sync_request_delete(l_sync_request);
@@ -400,6 +420,11 @@ static void s_sync_out_gdb_last_worker_callback(dap_worker_t *a_worker, void *a_
     }
 
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN( l_ch );
+    if (!l_ch_chain) {
+        log_it(L_CRITICAL, "Channel without chain, dump it");
+        s_sync_request_delete(l_sync_request);
+        return;
+    }
     s_sync_out_gdb_first_worker_callback(NULL,a_arg); // NULL to say callback not to delete request
 
     if (s_debug_more )
@@ -432,7 +457,11 @@ static bool s_sync_out_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_ar
         return true;
     }
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
-
+    if (!l_ch_chain) {
+        log_it(L_CRITICAL, "Channel without chain, dump it");
+        s_sync_request_delete(l_sync_request);
+        return true;
+    }
     int l_flags = 0;
     if (dap_chain_net_get_extra_gdb_group(l_net, l_sync_request->request.node_addr))
         l_flags |= F_DB_LOG_ADD_EXTRA_GROUPS;
@@ -488,6 +517,10 @@ static bool s_sync_update_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(DAP_STREAM_WORKER(l_sync_request->worker), l_sync_request->ch_uuid);
     if (!l_ch) {
         log_it(L_INFO, "Client disconnected before we sent the reply");
+        DAP_DELETE(l_sync_request);
+        return true;
+    } else if (!DAP_STREAM_CH_CHAIN(l_ch)) {
+        log_it(L_CRITICAL, "Channel without chain, dump it");
         DAP_DELETE(l_sync_request);
         return true;
     }
@@ -698,6 +731,10 @@ static bool s_gdb_in_pkt_proc_set_raw_callback(dap_global_db_instance_t *a_dbi,
 struct sync_request *dap_stream_ch_chain_create_sync_request(dap_stream_ch_chain_pkt_t *a_chain_pkt, dap_stream_ch_t* a_ch)
 {
     dap_stream_ch_chain_t * l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
+    if (!l_ch_chain) {
+        log_it(L_CRITICAL, "Channel without chain, dump it");
+        return NULL;
+    }
     struct sync_request *l_sync_request = DAP_NEW_Z(struct sync_request);
     if (!l_sync_request) {
         log_it(L_CRITICAL, "Memory allocation error");
@@ -716,6 +753,10 @@ struct sync_request *dap_stream_ch_chain_create_sync_request(dap_stream_ch_chain
 static void s_stream_ch_write_error_unsafe(dap_stream_ch_t *a_ch, uint64_t a_net_id, uint64_t a_chain_id, uint64_t a_cell_id, const char * a_err_string)
 {
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
+    if (!l_ch_chain) {
+        log_it(L_CRITICAL, "Channel without chain, dump it");
+        return;
+    }
     s_ch_chain_go_idle(l_ch_chain);
     dap_stream_ch_chain_pkt_write_error_unsafe(a_ch, a_net_id, a_chain_id, a_cell_id, "%s", a_err_string);
 }
@@ -729,6 +770,12 @@ static bool s_chain_timer_callback(void *a_arg)
         return false;
     }
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
+    if (!l_ch_chain) {
+        log_it(L_CRITICAL, "Channel without chain, dump it");
+        dap_chain_net_del_downlink((dap_stream_ch_uuid_t*)a_arg);
+        DAP_DELETE(a_arg);
+        return false;
+    }
     if (l_ch_chain->timer_shots++ >= DAP_SYNC_TICKS_PER_SECOND * DAP_CHAIN_NODE_SYNC_TIMEOUT) {
         if (!s_ch_chain_get_idle(l_ch_chain)) {
             s_ch_chain_go_idle(l_ch_chain);
@@ -1447,7 +1494,7 @@ static void s_stream_ch_io_complete(dap_events_socket_t *a_es, void *a_arg, int 
     for (size_t i = 0; i < l_stream->channel_count; i++)
         if (l_stream->channel[i]->proc->id == DAP_STREAM_CH_ID)
             l_ch = l_stream->channel[i];
-    if (!l_ch)
+    if (!l_ch || !DAP_STREAM_CH_CHAIN(l_ch))
         return;
     if (a_arg) {
         struct chain_io_complete *l_arg = (struct chain_io_complete *)a_arg;
@@ -1494,6 +1541,11 @@ static void s_stream_ch_chain_pkt_write(dap_stream_ch_t *a_ch, uint8_t a_type, u
 void s_stream_ch_packet_out(dap_stream_ch_t *a_ch, void *a_arg)
 {
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
+    if (!l_ch_chain) {
+        log_it(L_CRITICAL, "Channel without chain, dump it");
+        s_ch_chain_go_idle(l_ch_chain);
+        return;
+    }
     bool l_go_idle = false, l_was_sent_smth = false;
     switch (l_ch_chain->state) {
         // Update list of global DB records to remote
