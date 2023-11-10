@@ -81,12 +81,12 @@ enum error_code {
     FEE_FORMAT_ERROR            = 43,
 };
 
-typedef struct dap_chain_ledger_token_emission_for_stake_lock_item {
+typedef struct dap_ledger_token_emission_for_stake_lock_item {
     dap_chain_hash_fast_t	datum_token_emission_for_stake_lock_hash;
     dap_chain_hash_fast_t	tx_used_out;
 //	const char 				datum_token_emission_hash[DAP_CHAIN_HASH_FAST_STR_SIZE];
     UT_hash_handle hh;
-} dap_chain_ledger_token_emission_for_stake_lock_item_t;
+} dap_ledger_token_emission_for_stake_lock_item_t;
 
 #define LOG_TAG		"dap_chain_net_stake_lock"
 #define MONTH_INDEX	8
@@ -115,7 +115,7 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
  */
 int dap_chain_net_srv_stake_lock_init()
 {
-    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, s_stake_lock_callback_verificator, s_stake_lock_callback_updater);
+    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, s_stake_lock_callback_verificator, s_stake_lock_callback_updater);
     dap_cli_server_cmd_add("stake_lock", s_cli_stake_lock, "Stake lock service commands",
        "Command:"
                 "stake_lock hold\n"
@@ -200,7 +200,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 
     l_ledger = l_net->pub.ledger;
 
-    if (NULL == dap_chain_ledger_token_ticker_check(l_ledger, l_ticker_str)) {
+    if (NULL == dap_ledger_token_ticker_check(l_ledger, l_ticker_str)) {
         dap_string_append_printf(output_line, "'%s'", l_ticker_str);
         return TOKEN_ERROR;
     }
@@ -214,7 +214,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 
     dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker_str, l_ticker_str);
 
-    if (NULL == (l_delegated_token = dap_chain_ledger_token_ticker_check(l_ledger, l_delegated_ticker_str))
+    if (NULL == (l_delegated_token = dap_ledger_token_ticker_check(l_ledger, l_delegated_ticker_str))
     ||	(l_delegated_token->subtype != DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE)
     ||	!l_delegated_token->header_native_decl.tsd_total_size
     ||	NULL == (l_tsd = dap_tsd_find(l_delegated_token->data_n_tsd, l_delegated_token->header_native_decl.tsd_total_size,
@@ -398,7 +398,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 
     l_ledger = l_net->pub.ledger;
 
-    l_cond_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, &l_tx_hash);
+    l_cond_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_tx_hash);
 
     if (NULL == (l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK,
                                                                  &l_prev_cond_idx)))
@@ -407,11 +407,11 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
     if (l_tx_out_cond->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK)
         return NO_VALID_SUBTYPE_ERROR;
 
-    if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, &l_tx_hash, l_prev_cond_idx, NULL)) {
+    if (dap_ledger_tx_hash_is_used_out_item(l_ledger, &l_tx_hash, l_prev_cond_idx, NULL)) {
         return IS_USED_OUT_ERROR;
     }
 
-    if (NULL == (l_ticker_str = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_hash)))
+    if (NULL == (l_ticker_str = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_hash)))
         return TX_TICKER_ERROR;
 
     if (l_tx_out_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX ||
@@ -419,7 +419,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
 
         dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker_str, l_ticker_str);
 
-        if (NULL == (l_delegated_token = dap_chain_ledger_token_ticker_check(l_ledger, l_delegated_ticker_str))
+        if (NULL == (l_delegated_token = dap_ledger_token_ticker_check(l_ledger, l_delegated_ticker_str))
             ||	(l_delegated_token->subtype != DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE)
             ||	!l_delegated_token->header_native_decl.tsd_total_size
             ||	NULL == (l_tsd = dap_tsd_find(l_delegated_token->data_n_tsd,
@@ -901,7 +901,7 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
         return false;
     if (dap_hash_fast_is_blank(&l_tx_in_cond->header.tx_prev_hash))
         return false;
-    if (NULL == (l_prev_tx_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(
+    if (NULL == (l_prev_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(
                                                             a_ledger, &l_tx_in_cond->header.tx_prev_hash)))
         return false;
 
@@ -909,7 +909,7 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
 
     if (a_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX ||
             a_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_EMIT) {
-        if (NULL == (l_delegated_token = dap_chain_ledger_token_ticker_check(a_ledger, l_delegated_ticker_str))
+        if (NULL == (l_delegated_token = dap_ledger_token_ticker_check(a_ledger, l_delegated_ticker_str))
             ||	(l_delegated_token->subtype != DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE)
             ||	!l_delegated_token->header_native_decl.tsd_total_size
             ||	NULL == (l_tsd = dap_tsd_find(l_delegated_token->data_n_tsd,
@@ -935,7 +935,7 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
             l_burning_tx_hash = *(dap_hash_fast_t*)l_receipt->exts_n_signs;
             if (dap_hash_fast_is_blank(&l_burning_tx_hash))
                 return false;
-            l_burning_tx = dap_chain_ledger_tx_find_by_hash(a_ledger, &l_burning_tx_hash);
+            l_burning_tx = dap_ledger_tx_find_by_hash(a_ledger, &l_burning_tx_hash);
             if (!l_burning_tx) {
                 char l_burning_tx_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
                 dap_hash_fast_to_str(&l_burning_tx_hash, l_burning_tx_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
@@ -1014,7 +1014,7 @@ static void s_stake_lock_callback_updater(dap_ledger_t *a_ledger, dap_chain_datu
     if (l_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_CREATE_BASE_TX) {
         dap_chain_hash_fast_t l_tx_cond_hash;
         dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_tx_cond_hash);
-        dap_chain_ledger_emission_for_stake_lock_item_add(a_ledger, &l_tx_cond_hash);
+        dap_ledger_emission_for_stake_lock_item_add(a_ledger, &l_tx_cond_hash);
     }
 }
 
@@ -1025,7 +1025,7 @@ static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_
                                                     const char *a_delegated_ticker_str, uint256_t a_delegated_value)
 {
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_LOCK_ID };
-    dap_ledger_t * l_ledger = a_net ? dap_chain_ledger_by_net_name( a_net->pub.name ) : NULL;
+    dap_ledger_t * l_ledger = a_net ? dap_ledger_by_net_name( a_net->pub.name ) : NULL;
     // check valid param
     if (!a_net || !l_ledger || !a_key_from ||
         !a_key_from->priv_key_data || !a_key_from->priv_key_data_size || IS_ZERO_256(a_value))
@@ -1045,7 +1045,7 @@ static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_
     if (l_main_native)
         SUM_256_256(l_value_need, l_total_fee, &l_value_need);
     else if (!IS_ZERO_256(l_total_fee)) {
-        l_list_fee_out = dap_chain_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_ticker,
+        l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_ticker,
                                                                     &l_addr, l_total_fee, &l_fee_transfer);
         if (!l_list_fee_out) {
             log_it(L_WARNING, "Not enough funds to pay fee");
@@ -1053,7 +1053,7 @@ static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_
         }
     }
     // list of transaction with 'out' items
-    dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(l_ledger, a_main_ticker,
+    dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_main_ticker,
                                                                              &l_addr, l_value_need, &l_value_transfer);
     if(!l_list_used_out) {
         log_it( L_ERROR, "Nothing to transfer (not enough funds)");
@@ -1188,7 +1188,7 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
     SUM_256_256(l_net_fee, a_value_fee, &l_total_fee);
 
     if (!IS_ZERO_256(l_total_fee)) {
-        l_list_fee_out = dap_chain_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_ticker,
+        l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_ticker,
                                                                     &l_addr, l_total_fee, &l_fee_transfer);
         if (!l_list_fee_out) {
             log_it(L_WARNING, "Not enough funds to pay fee");
@@ -1196,7 +1196,7 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
         }
     }
     if (!IS_ZERO_256(a_delegated_value)) {
-        l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, a_delegated_ticker_str,
+        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, a_delegated_ticker_str,
                                                                                  &l_addr, a_delegated_value, &l_value_transfer);
         if(!l_list_used_out) {
             log_it( L_ERROR, "Nothing to transfer (not enough delegated tokens)");

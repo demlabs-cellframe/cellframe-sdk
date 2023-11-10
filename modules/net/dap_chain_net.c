@@ -1748,7 +1748,7 @@ const char* dap_chain_net_get_type(dap_chain_t *l_chain)
  */
 static void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
 {
-    dap_chain_ledger_purge(l_net->pub.ledger, false);
+    dap_ledger_purge(l_net->pub.ledger, false);
     dap_chain_net_srv_stake_purge(l_net);
     dap_chain_net_decree_purge(l_net);
     dap_chain_t *l_chain = NULL;
@@ -1757,7 +1757,7 @@ static void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
             l_chain->callback_purge(l_chain);
         if (l_chain->callback_set_min_validators_count)
             l_chain->callback_set_min_validators_count(l_chain, 0);
-        dap_chain_ledger_set_fee(l_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
+        dap_ledger_set_fee(l_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
         dap_chain_load_all(l_chain);
     }
     DL_FOREACH(l_net->pub.chains, l_chain) {
@@ -1788,7 +1788,7 @@ static bool s_chain_net_reload_ledger_cache_once(dap_chain_net_t *l_net)
         return false;
     }
     // Check the file with provided UUID. Change this UUID to automatically reload cache on next node startup
-    char *l_cache_file = dap_strdup_printf( "%s/%s.cache", l_cache_dir, DAP_CHAIN_LEDGER_CACHE_RELOAD_ONCE_UUID);
+    char *l_cache_file = dap_strdup_printf( "%s/%s.cache", l_cache_dir, DAP_LEDGER_CACHE_RELOAD_ONCE_UUID);
     DAP_DELETE(l_cache_dir);
     // create file, if it not presented. If file exists, ledger cache operation is stopped
     if (dap_file_simple_test(l_cache_file)) {
@@ -1997,7 +1997,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
                 dap_string_t * l_ret_str = dap_string_new("Transactions statistics:\n");
                 dap_string_append_printf( l_ret_str, "\tFrom: %s\tTo: %s\n", l_from_str_new, l_to_str_new);
                 log_it(L_INFO, "Calc TPS from %s to %s", l_from_str_new, l_to_str_new);
-                uint64_t l_tx_count = dap_chain_ledger_count_from_to ( l_net->pub.ledger, l_from_ts, l_to_ts);
+                uint64_t l_tx_count = dap_ledger_count_from_to ( l_net->pub.ledger, l_from_ts, l_to_ts);
                 long double l_tps = l_to_ts == l_from_ts ? 0 :
                                                      (long double) l_tx_count / (long double) ( l_to_ts - l_from_ts );
                 dap_string_append_printf( l_ret_str, "\tSpeed:  %.3Lf TPS\n", l_tps );
@@ -2007,7 +2007,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
             } else if (strcmp(l_stats_str, "tps") == 0) {
                 struct timespec l_from_time_acc = {}, l_to_time_acc = {};
                 dap_string_t * l_ret_str = dap_string_new("Transactions per second peak values:\n");
-                size_t l_tx_num = dap_chain_ledger_count_tps(l_net->pub.ledger, &l_from_time_acc, &l_to_time_acc);
+                size_t l_tx_num = dap_ledger_count_tps(l_net->pub.ledger, &l_from_time_acc, &l_to_time_acc);
                 if (l_tx_num) {
                     localtime_r(&l_from_time_acc.tv_sec, &l_from_tm);
                     strftime(l_from_str_new, sizeof(l_from_str_new), c_time_fmt, &l_from_tm);
@@ -2951,24 +2951,23 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     case NODE_ROLE_LIGHT:
         break;
     case NODE_ROLE_FULL:
-        l_ledger_flags |= DAP_CHAIN_LEDGER_CHECK_LOCAL_DS;
+        l_ledger_flags |= DAP_LEDGER_CHECK_LOCAL_DS;
         if (dap_config_get_item_bool_default(g_config, "ledger", "cache_enabled", false))
-            l_ledger_flags |= DAP_CHAIN_LEDGER_CACHE_ENABLED;
+            l_ledger_flags |= DAP_LEDGER_CACHE_ENABLED;
     default:
-        l_ledger_flags |= DAP_CHAIN_LEDGER_CHECK_CELLS_DS | DAP_CHAIN_LEDGER_CHECK_TOKEN_EMISSION;
+        l_ledger_flags |= DAP_LEDGER_CHECK_CELLS_DS | DAP_LEDGER_CHECK_TOKEN_EMISSION;
     }
-    dap_list_t *l_net_keys = NULL;
+
     for (dap_chain_t *l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
         if (!l_chain->callback_get_poa_certs)
             continue;
-        l_net_keys = l_chain->callback_get_poa_certs(l_chain, NULL, NULL);
-        if (l_net_keys)
-            break;
+        l_net->pub.keys = l_chain->callback_get_poa_certs(l_chain, NULL, NULL);
+        break;
     }
-    if (!l_net_keys)
+    if (!l_net->pub.keys)
         log_it(L_WARNING,"PoA certificates for net %s not found.", l_net->pub.name);
     // init LEDGER model
-    l_net->pub.ledger = dap_chain_ledger_create(l_ledger_flags, l_net->pub.id, l_net->pub.name, l_net->pub.native_ticker, l_net_keys);
+    l_net->pub.ledger = dap_ledger_create(l_ledger_flags, l_net->pub.id, l_net->pub.name, l_net->pub.native_ticker, l_net->pub.keys);
 
     DAP_DELETE(l_node_addr_str);
     dap_config_close(l_cfg);
@@ -2994,7 +2993,7 @@ int s_net_load(dap_chain_net_t *a_net)
     // reload ledger cache at once
     if (s_chain_net_reload_ledger_cache_once(l_net)) {
         log_it(L_WARNING,"Start one time ledger cache reloading");
-        dap_chain_ledger_purge(l_net->pub.ledger, false);
+        dap_ledger_purge(l_net->pub.ledger, false);
         dap_chain_net_srv_stake_purge(l_net);
     } else
         dap_chain_net_srv_stake_load_cache(l_net);
@@ -3004,7 +3003,7 @@ int s_net_load(dap_chain_net_t *a_net)
     // load chains
     dap_chain_t *l_chain = l_net->pub.chains;
     while(l_chain){
-        dap_chain_ledger_set_fee(l_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
+        dap_ledger_set_fee(l_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
         if (!dap_chain_load_all(l_chain)) {
             log_it (L_NOTICE, "Loaded chain files");
             if (DAP_CHAIN_PVT(l_chain)->need_reorder) {
@@ -3016,8 +3015,8 @@ int s_net_load(dap_chain_net_t *a_net)
                 DAP_CHAIN_PVT(l_chain)->need_reorder = false;
                 if (l_chain->callback_purge) {
                     l_chain->callback_purge(l_chain);
-                    dap_chain_ledger_purge(l_net->pub.ledger, false);
-                    dap_chain_ledger_set_fee(l_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
+                    dap_ledger_purge(l_net->pub.ledger, false);
+                    dap_ledger_set_fee(l_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
                     dap_chain_net_decree_purge(l_net);
                     dap_chain_load_all(l_chain);
                 } else
@@ -3102,7 +3101,7 @@ int s_net_load(dap_chain_net_t *a_net)
 
     l_net_pvt->load_mode = false;
     if (l_net->pub.ledger)
-        dap_chain_ledger_load_end(l_net->pub.ledger);
+        dap_ledger_load_end(l_net->pub.ledger);
 
     l_net_pvt->balancer_http = !dap_config_get_item_bool_default(l_cfg, "general", "use_dns_links", false);
 
@@ -3182,11 +3181,11 @@ dap_chain_net_t *dap_chain_net_by_name(const char *a_name)
 }
 
 /**
- * @brief dap_chain_ledger_by_net_name
+ * @brief dap_ledger_by_net_name
  * @param a_net_name
  * @return
  */
-dap_ledger_t * dap_chain_ledger_by_net_name( const char * a_net_name)
+dap_ledger_t * dap_ledger_by_net_name( const char * a_net_name)
 {
     dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
     return l_net ? l_net->pub.ledger : NULL;
@@ -3523,9 +3522,9 @@ void dap_chain_net_proc_mempool(dap_chain_net_t *a_net)
 /**
  * @brief dap_chain_net_verify_datum_for_add
  * process datum verification process. Can be:
- *   if DAP_CHAIN_DATUM_TX, called dap_chain_ledger_tx_add_check
- *   if DAP_CHAIN_DATUM_TOKEN_DECL, called dap_chain_ledger_token_decl_add_check
- *   if DAP_CHAIN_DATUM_TOKEN_EMISSION, called dap_chain_ledger_token_emission_add_check
+ *   if DAP_CHAIN_DATUM_TX, called dap_ledger_tx_add_check
+ *   if DAP_CHAIN_DATUM_TOKEN_DECL, called dap_ledger_token_decl_add_check
+ *   if DAP_CHAIN_DATUM_TOKEN_EMISSION, called dap_ledger_token_emission_add_check
  *   if DAP_CHAIN_DATUM_DECREE
  * @param a_net
  * @param a_datum
@@ -3540,11 +3539,11 @@ int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     switch (a_datum->header.type_id) {
     case DAP_CHAIN_DATUM_TX:
-        return dap_chain_ledger_tx_add_check(l_net->pub.ledger, (dap_chain_datum_tx_t *)a_datum->data, a_datum->header.data_size, a_datum_hash);
+        return dap_ledger_tx_add_check(l_net->pub.ledger, (dap_chain_datum_tx_t *)a_datum->data, a_datum->header.data_size, a_datum_hash);
     case DAP_CHAIN_DATUM_TOKEN_DECL:
-        return dap_chain_ledger_token_decl_add_check(l_net->pub.ledger, (dap_chain_datum_token_t *)a_datum->data, a_datum->header.data_size);
+        return dap_ledger_token_decl_add_check(l_net->pub.ledger, (dap_chain_datum_token_t *)a_datum->data, a_datum->header.data_size);
     case DAP_CHAIN_DATUM_TOKEN_EMISSION:
-        return dap_chain_ledger_token_emission_add_check(l_net->pub.ledger, a_datum->data, a_datum->header.data_size, a_datum_hash);
+        return dap_ledger_token_emission_add_check(l_net->pub.ledger, a_datum->data, a_datum->header.data_size, a_datum_hash);
     case DAP_CHAIN_DATUM_DECREE:
         return dap_chain_net_decree_verify((dap_chain_datum_decree_t *)a_datum->data, l_net, a_datum->header.data_size, a_datum_hash);
     case DAP_CHAIN_DATUM_ANCHOR:
@@ -3560,11 +3559,11 @@ int dap_chain_net_verify_datum_for_add(dap_chain_t *a_chain, dap_chain_datum_t *
 char *dap_chain_net_verify_datum_err_code_to_str(dap_chain_datum_t *a_datum, int a_code){
     switch (a_datum->header.type_id) {
     case DAP_CHAIN_DATUM_TX:
-        return dap_chain_ledger_tx_check_err_str(a_code);
+        return dap_ledger_tx_check_err_str(a_code);
     case DAP_CHAIN_DATUM_TOKEN_DECL:
-        return dap_chain_ledger_token_decl_add_err_code_to_str(a_code);
+        return dap_ledger_token_decl_add_err_code_to_str(a_code);
     case DAP_CHAIN_DATUM_TOKEN_EMISSION:
-        return dap_chain_ledger_token_emission_err_code_to_str(a_code);
+        return dap_ledger_token_emission_err_code_to_str(a_code);
     default:
         return !a_code ? "DAP_CHAIN_DATUM_VERIFY_OK" : dap_itoa(a_code);
 
@@ -3770,10 +3769,10 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
             return dap_chain_net_anchor_load(l_anchor, a_chain);
         }
         case DAP_CHAIN_DATUM_TOKEN_DECL:
-            return dap_chain_ledger_token_load(l_ledger, a_datum->data, a_datum->header.data_size);
+            return dap_ledger_token_load(l_ledger, a_datum->data, a_datum->header.data_size);
 
         case DAP_CHAIN_DATUM_TOKEN_EMISSION:
-            return dap_chain_ledger_token_emission_load(l_ledger, a_datum->data, a_datum->header.data_size, a_datum_hash);
+            return dap_ledger_token_emission_load(l_ledger, a_datum->data, a_datum->header.data_size, a_datum_hash);
 
         case DAP_CHAIN_DATUM_TX: {
             dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)a_datum->data;
@@ -3782,7 +3781,7 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
                 log_it(L_WARNING, "Corrupted trnsaction, datum size %zd is not equal to size of TX %zd", l_datum_data_size, l_tx_size);
                 return -102;
             }
-            return dap_chain_ledger_tx_load(l_ledger, l_tx, a_datum_hash);
+            return dap_ledger_tx_load(l_ledger, l_tx, a_datum_hash);
         }
         case DAP_CHAIN_DATUM_CA:
             return dap_cert_chain_file_save(a_datum, a_chain->net_name);
