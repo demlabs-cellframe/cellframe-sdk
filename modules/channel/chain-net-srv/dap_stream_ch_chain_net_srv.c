@@ -398,7 +398,7 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
         return;
     }
 
-    l_tx = a_grace->usage->is_waiting_new_tx_cond ? NULL : dap_chain_ledger_tx_find_by_hash(l_ledger, &a_grace->usage->tx_cond_hash);
+    l_tx = a_grace->usage->is_waiting_new_tx_cond ? NULL : dap_ledger_tx_find_by_hash(l_ledger, &a_grace->usage->tx_cond_hash);
     if (!l_tx) { // No tx cond transaction, start grace-period
         if (!a_grace->usage->is_active){
             dap_chain_net_srv_banlist_item_t *l_item = NULL;
@@ -519,7 +519,7 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
             return;
         }
 
-        const char *l_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &a_grace->usage->tx_cond_hash);
+        const char *l_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &a_grace->usage->tx_cond_hash);
         if (!l_ticker) {
             char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
             dap_hash_fast_to_str(&a_grace->usage->tx_cond_hash, l_hash_str, sizeof(l_hash_str));
@@ -707,7 +707,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
         RET_WITH_DEL_A_GRACE;
     }
     log_it(L_INFO, "Grace period is over! Check tx in ledger.");
-    l_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, &l_grace->usage->tx_cond_hash);
+    l_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_grace->usage->tx_cond_hash);
     if ( ! l_tx ){ // No tx cond transaction, start grace-period
         log_it( L_WARNING, "No tx cond transaction");
         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND ;
@@ -737,7 +737,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
 
         dap_chain_net_srv_price_t * l_price = NULL;
         const char * l_ticker = NULL;
-        l_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_grace->usage->tx_cond_hash);
+        l_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_grace->usage->tx_cond_hash);
         dap_stpcpy(l_grace->usage->token_ticker, l_ticker);
 
         dap_chain_net_srv_price_t *l_price_tmp;
@@ -1382,7 +1382,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
             break;
         }
 
-        dap_chain_datum_tx_t *l_tx = dap_chain_ledger_tx_find_by_hash(l_usage->net->pub.ledger, &l_responce->hdr.tx_cond);
+        dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(l_usage->net->pub.ledger, &l_responce->hdr.tx_cond);
         if (l_tx){
             // Replace
             if (l_curr_grace_item){

@@ -138,7 +138,7 @@ dap_chain_net_t * dap_chain_net_by_name( const char * a_name);
 dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id);
 uint16_t dap_chain_net_get_acl_idx(dap_chain_net_t *a_net);
 dap_chain_net_id_t dap_chain_net_id_by_name( const char * a_name);
-dap_ledger_t * dap_chain_ledger_by_net_name( const char * a_net_name);
+dap_ledger_t * dap_ledger_by_net_name( const char * a_net_name);
 dap_string_t* dap_cli_list_net();
 
 dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const char * a_name);

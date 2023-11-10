@@ -555,9 +555,9 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
 /**
  * @brief dap_chain_net_dump_datum
  * process datum verification process. Can be:
- * if DAP_CHAIN_DATUM_TX, called dap_chain_ledger_tx_add_check
- * if DAP_CHAIN_DATUM_TOKEN_DECL, called dap_chain_ledger_token_decl_add_check
- * if DAP_CHAIN_DATUM_TOKEN_EMISSION, called dap_chain_ledger_token_emission_add_check
+ * if DAP_CHAIN_DATUM_TX, called dap_ledger_tx_add_check
+ * if DAP_CHAIN_DATUM_TOKEN_DECL, called dap_ledger_token_decl_add_check
+ * if DAP_CHAIN_DATUM_TOKEN_EMISSION, called dap_ledger_token_emission_add_check
  * @param a_str_out
  * @param a_datum
  */

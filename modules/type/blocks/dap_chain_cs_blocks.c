@@ -701,7 +701,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                                 int l_out_idx_tmp = 0;
                                 if (NULL == dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, &l_out_idx_tmp))
                                     continue;
-                                if (!dap_chain_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_block_cache->datum_hash + i, l_out_idx_tmp, NULL)) {
+                                if (!dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_block_cache->datum_hash + i, l_out_idx_tmp, NULL)) {
                                     fl_found = true;
                                     break;
                                 }

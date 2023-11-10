@@ -227,7 +227,7 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
                     dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
                     if (dap_chain_datum_tx_get_fee_value (l_tx, &l_tx_fee) ||
                             IS_ZERO_256(l_tx_fee)) {
-                        if (!dap_chain_ledger_tx_poa_signed(l_net->pub.ledger, l_tx)) {
+                        if (!dap_ledger_tx_poa_signed(l_net->pub.ledger, l_tx)) {
                             log_it(L_WARNING, "Can't get fee value from tx %s", l_objs[i].key);
                             continue;
                         } else
