@@ -613,7 +613,7 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_session_t *a_session, 
         }
 
         size_t l_consensus_optimum = (size_t)l_esbocs_pvt->min_validators_count * 2 - 1;
-        size_t l_need_vld_cnt = MIN(l_total_validators_count, l_consensus_optimum);
+        size_t l_need_vld_cnt = dap_min(l_total_validators_count, l_consensus_optimum);
 
         dap_pseudo_random_seed(*(uint256_t *)&a_session->cur_round.last_block_hash);
         for (uint64_t i = 0; i < a_skip_count * l_need_vld_cnt; i++)
@@ -959,7 +959,7 @@ static uint64_t s_session_calc_current_round_id(dap_chain_esbocs_session_t *a_se
             l_counter_max = l_id_candidates[i].counter;
             l_ret = l_id_candidates[i].id;
         } else if (l_id_candidates[i].counter == l_counter_max) // Choose maximum round ID
-            l_ret = MAX(l_ret, l_id_candidates[i].id);
+            l_ret = dap_max(l_ret, l_id_candidates[i].id);
     }
     return l_ret ? l_ret : a_session->cur_round.id;
 }
@@ -975,7 +975,7 @@ static int s_signs_sort_callback(const void *a_sign1, const void *a_sign2)
 
     size_t  l_size1 = dap_sign_get_size(l_sign1),
             l_size2 = dap_sign_get_size(l_sign2),
-            l_size_min = MIN(l_size1, l_size2);
+            l_size_min = dap_min(l_size1, l_size2);
 
     int l_ret = memcmp(l_sign1, l_sign2, l_size_min);
     if (!l_ret) {
