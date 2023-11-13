@@ -10,3 +10,12 @@ target_link_libraries(${PROJECT_NAME} dap_http_server dap_client dap_chain_net d
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/3rdparty/json-c)
+
+if (INSTALL_SDK)
+set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_MEMPOOL_HDR}")
+INSTALL(TARGETS ${PROJECT_NAME} 
+        LIBRARY DESTINATION lib/modules/mempool/
+        ARCHIVE DESTINATION lib/modules/mempool/
+        PUBLIC_HEADER DESTINATION include/modules/mempool/
+        )
+endif()

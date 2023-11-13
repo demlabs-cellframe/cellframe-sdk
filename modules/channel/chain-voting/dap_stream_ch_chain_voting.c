@@ -69,6 +69,7 @@ static bool s_callback_pkt_in_call_all(dap_proc_thread_t UNUSED_ARG *a_thread, v
                                            &l_voting_pkt->hdr.data_hash, l_voting_pkt->data, l_voting_pkt->hdr.data_size);
         }
     }
+    DAP_DELETE(a_arg);
     return false;
 }
 

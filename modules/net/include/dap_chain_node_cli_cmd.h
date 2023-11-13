@@ -43,6 +43,7 @@ int com_global_db(int a_argc,  char **a_argv, char **a_str_reply);
  */
 int com_node(int a_argc,  char **a_argv, char **a_str_reply);
 
+#ifndef DAP_OS_ANDROID
 /**
  * Traceroute command
  *
@@ -63,7 +64,7 @@ int com_tracepath(int a_argc,  char** argv, char **a_str_reply);
  * return 0 OK, -1 Err
  */
 int com_ping(int a_argc,  char** argv, char **a_str_reply);
-
+#endif
 /**
  * Help command
  */
