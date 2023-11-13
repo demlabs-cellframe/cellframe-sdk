@@ -43,3 +43,11 @@ if (!WIN32)
     target_include_directories(${PROJECT_NAME} PUBLIC ${IPUTILS_INCLUDE_DIRS})
 endif()
 
+if (INSTALL_SDK)
+set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_NET_HEADERS}")
+INSTALL(TARGETS ${PROJECT_NAME} 
+        LIBRARY DESTINATION lib/modules/net/
+        ARCHIVE DESTINATION lib/modules/net/
+        PUBLIC_HEADER DESTINATION include/modules/net/
+)
+endif()

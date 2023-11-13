@@ -13,4 +13,9 @@ project(crc32c_adler)
 set( CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall" )
 set( SRCS crc32c_adler.c  crc32c_adler.h)
 add_library(crc32c_adler  STATIC ${SRCS})
-target_link_libraries(crc32c_adler pthread)
+
+target_link_libraries(crc32c_adler)
+
+if(NOT ANDROID)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} pthread)
+endif()
