@@ -6224,6 +6224,7 @@ int cmd_gdb_export(int a_argc, char **a_argv, char **a_str_reply)
          json_object_put(l_json);
          return -1;
     }
+    dap_cli_server_cmd_set_reply_text(a_str_reply, "Global DB export in file %s", l_path);
     json_object_put(l_json);
     dap_cli_server_cmd_set_reply_text(a_str_reply, "Global DB export in file %s", l_path);
     return 0;
