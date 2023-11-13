@@ -1232,10 +1232,21 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         l_link_node_request->hdr.address.uint64 = dap_chain_net_get_cur_addr_int(l_net);
         inet_pton(AF_INET, a_ipv4_str, &(l_link_node_request->hdr.ext_addr_v4));
         uint16_t l_node_port = 0;
+        uint32_t links_count = 0;
+        size_t l_blocks_events = 0;
         dap_digit_from_string(l_port_str, &l_node_port, sizeof(uint16_t));
+        links_count = dap_chain_net_get_downlink_count(l_net);
         l_link_node_request->hdr.ext_port = l_node_port;
+        l_link_node_request->hdr.links_number = links_count;
+        dap_chain_t *l_chain;
+        DL_FOREACH(l_net->pub.chains, l_chain) {
+            if(l_chain->callback_count_atom)
+                l_blocks_events += l_chain->callback_count_atom(l_chain);
+        }
+        l_link_node_request->hdr.blocks_events = l_blocks_events;
         // Synchronous request, wait for reply
-        int res = dap_chain_net_node_list_request(l_net,l_link_node_request, true);
+        int res = dap_chain_net_node_list_request(l_net,l_link_node_request, true, 0);
+
         switch (res)
         {
             case 0:
@@ -1255,8 +1266,8 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             break;
             case 5:
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "The node is already exists");
-            break;
-            case 6:
+            break;            
+            case 7:
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process node list HTTP request");
             break;
             default:
@@ -1269,9 +1280,19 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     case CMD_DEL:
         // handler of command 'node del'
     {
-        int l_ret = node_info_del_with_reply(l_net, l_node_info, alias_str, a_str_reply);
+        //int l_ret = node_info_del_with_reply(l_net, l_node_info, alias_str, a_str_reply);
+        int l_ret = dap_chain_net_node_list_request(l_net,NULL,true,2);
         DAP_DELETE(l_node_info);
-        return l_ret;
+        if(l_ret == 7)
+        {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "node deleted");
+            return 0;
+        }
+        else
+        {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "node not deleted");
+            return -1;
+        }
     }
     case CMD_LINK:
         if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "add", NULL)) {
@@ -1614,13 +1635,14 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         dap_string_t * l_string_balanc = dap_string_new("\n");
         l_node_num = dap_list_length(l_net->pub.link_list);
         dap_string_append_printf(l_string_balanc, "Got %d records\n", (uint16_t)l_node_num);
+        dap_string_append_printf(l_string_balanc, "%-26s%-20s%s", "Address", "IPv4", "downlinks\n");
         for(dap_list_t *ll = l_net->pub.link_list; ll; ll = ll->next)
         {
             dap_chain_node_info_t *l_node_link = (dap_chain_node_info_t*)ll->data;
-            dap_string_append_printf(l_string_balanc, "node address "NODE_ADDR_FP_STR"  \tipv4 %s \tnumber of links %u\n",
+            dap_string_append_printf(l_string_balanc, NODE_ADDR_FP_STR"    %-20s%s\n",
                                      NODE_ADDR_FP_ARGS_S(l_node_link->hdr.address),
                                      inet_ntoa(l_node_link->hdr.ext_addr_v4),
-                                     l_node_link->hdr.links_number);
+                                     dap_itoa(l_node_link->hdr.links_number));
         }
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Balancer link list:\n %s \n",
                                           l_string_balanc->str);
@@ -1819,12 +1841,13 @@ int com_ping(int a_argc, char**a_argv, char **a_str_reply)
 {
 #ifdef DAP_OS_LINUX
 
-    int n = 4;
+    int n = 4,w = 0;
     if (a_argc < 2) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Host not specified");
         return -1;
     }
     const char *n_str = NULL;
+    const char *w_str = NULL;
     int argc_host = 1;
     int argc_start = 1;
     argc_start = dap_cli_server_cmd_find_option_val(a_argv, argc_start, a_argc, "-n", &n_str);
@@ -1838,13 +1861,22 @@ int com_ping(int a_argc, char**a_argv, char **a_str_reply)
             argc_host = argc_start + 1;
             n = (n_str) ? atoi(n_str) : 4;
         }
+        else
+        {
+            argc_start = dap_cli_server_cmd_find_option_val(a_argv, argc_start, a_argc, "-w", &w_str);
+            if(argc_start) {
+                argc_host = argc_start + 1;
+                n = 4;
+                w = (w_str) ? atoi(w_str) : 5;
+            }
+        }
     }
     if(n <= 1)
         n = 1;
     const char *addr = a_argv[argc_host];
     iputils_set_verbose();
     ping_handle_t *l_ping_handle = ping_handle_create();
-    int res = (addr) ? ping_util(l_ping_handle, addr, n) : -EADDRNOTAVAIL;
+    int res = (addr) ? ping_util(l_ping_handle, addr, n, w) : -EADDRNOTAVAIL;
     DAP_DELETE(l_ping_handle);
     if(res >= 0) {
         if(a_str_reply)
@@ -6230,7 +6262,8 @@ int cmd_gdb_export(int a_argc, char **a_argv, char **a_str_reply)
         json_object_array_add(l_json, l_json_group_inner);
         dap_store_obj_free(l_store_obj, l_store_obj_count);
     }
-    dap_list_free_full(l_groups_list, NULL);
+    if (l_parsed_groups_list)
+        dap_list_free_full(l_groups_list, NULL);
     if (json_object_to_file(l_path, l_json) == -1) {
 #if JSON_C_MINOR_VERSION<15
         log_it(L_CRITICAL, "Couldn't export JSON to file, error code %d", errno );
@@ -6242,6 +6275,7 @@ int cmd_gdb_export(int a_argc, char **a_argv, char **a_str_reply)
          json_object_put(l_json);
          return -1;
     }
+    dap_cli_server_cmd_set_reply_text(a_str_reply, "Global DB export in file %s", l_path);
     json_object_put(l_json);
     return 0;
 }
