@@ -134,7 +134,6 @@ static char **s_list_white_groups = NULL;
 static uint16_t s_size_ban_groups = 0;
 static uint16_t s_size_white_groups = 0;
 
-
 #ifdef  DAP_SYS_DEBUG
 
 enum    {MEMSTAT$K_STM_CH_CHAIN, MEMSTAT$K_NR};
