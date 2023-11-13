@@ -507,7 +507,7 @@ static void s_event_get_unique_mem_region(dap_chain_cs_dag_event_round_item_t *a
         dap_sign_t *l_sign = dap_chain_cs_dag_event_get_sign(l_event, a_round_item->event_size, n);
         size_t l_sign_size = 0;
         byte_t *l_sign_mem = dap_sign_get_sign(l_sign, &l_sign_size);
-        size_t l_mem_size = MIN(l_sign_size, DAP_CHAIN_POA_ROUND_FILTER_MEM_SIZE);
+        size_t l_mem_size = dap_min(l_sign_size, (size_t)DAP_CHAIN_POA_ROUND_FILTER_MEM_SIZE);
         for (size_t i = 0; i < l_mem_size; i++)
             a_mem_region[i] ^= l_sign_mem[i];
     }
@@ -616,7 +616,7 @@ static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
         char *l_event_hash_hex_str;
         dap_get_data_hash_str_static(l_new_atom, l_event_size, l_event_hash_hex_str);
         dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(l_new_atom, l_event_size);
-        l_dag->round_completed = MAX(l_new_atom->header.round_id, l_dag->round_current);
+        l_dag->round_completed = dap_max(l_new_atom->header.round_id, l_dag->round_current);
         int l_verify_datum = dap_chain_net_verify_datum_for_add(l_dag->chain, l_datum, &l_chosen_item->round_info.datum_hash);
         if (!l_verify_datum) {
             dap_chain_atom_verify_res_t l_res = l_dag->chain->callback_atom_add(l_dag->chain, l_new_atom, l_event_size);
