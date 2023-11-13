@@ -19,6 +19,7 @@
 struct voting_pkt_in_callback {
     void * arg;
     dap_chain_voting_ch_callback_t packet_in_callback;
+    dap_chain_node_addr_t my_addr;
 };
 
 struct voting_node_client_list {
@@ -50,24 +51,26 @@ int dap_stream_ch_chain_voting_init()
     return 0;
 }
 
-void dap_stream_ch_chain_voting_in_callback_add(void* a_arg, dap_chain_voting_ch_callback_t packet_in_callback)
+void dap_stream_ch_chain_voting_in_callback_add(void* a_arg, dap_chain_voting_ch_callback_t packet_in_callback, dap_chain_node_addr_t a_my_addr)
 {
     size_t i = s_pkt_in_callback_count;
     s_pkt_in_callback[i].arg = a_arg;
     s_pkt_in_callback[i].packet_in_callback = packet_in_callback;
+    s_pkt_in_callback[i].my_addr = a_my_addr;
     s_pkt_in_callback_count++;
 }
 
-static bool s_callback_pkt_in_call_all(UNUSED_ARG dap_proc_thread_t *a_thread, void *a_arg)
+static bool s_callback_pkt_in_call_addr(dap_proc_thread_t *a_thread, void *a_arg)
 {
     dap_stream_ch_chain_voting_pkt_t *l_voting_pkt = a_arg;
     for (size_t i = 0; i < s_pkt_in_callback_count; i++) {
         struct voting_pkt_in_callback *l_callback = s_pkt_in_callback + i;
-        if (l_callback->packet_in_callback) {
+        if (l_callback->packet_in_callback && dap_chain_node_addr_match(&l_callback->my_addr, &l_voting_pkt->hdr.receiver_node_addr)) {
             l_callback->packet_in_callback(l_callback->arg, &l_voting_pkt->hdr.sender_node_addr, &l_voting_pkt->hdr.receiver_node_addr,
                                            &l_voting_pkt->hdr.data_hash, l_voting_pkt->data, l_voting_pkt->hdr.data_size);
         }
     }
+    DAP_DELETE(a_arg);
     return true;
 }
 
@@ -122,7 +125,7 @@ void dap_stream_ch_chain_voting_message_write(dap_chain_net_t *a_net, dap_chain_
                                        DAP_STREAM_CH_CHAIN_VOTING_PKT_TYPE_DATA, a_voting_pkt,
                                        l_voting_pkt_size);
     } else
-        dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_callback_pkt_in_call_all,
+        dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_callback_pkt_in_call_addr,
                                     DAP_DUP_SIZE(a_voting_pkt, l_voting_pkt_size));
 }
 
@@ -164,7 +167,7 @@ static void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
     }
 
     dap_stream_ch_chain_voting_pkt_t *l_voting_pkt = (dap_stream_ch_chain_voting_pkt_t *)l_ch_pkt->data;
-    dap_proc_queue_add_callback(a_ch->stream_worker->worker, s_callback_pkt_in_call_all,
+    dap_proc_queue_add_callback(a_ch->stream_worker->worker, s_callback_pkt_in_call_addr,
                                 DAP_DUP_SIZE(l_voting_pkt, l_voting_pkt_size));
     dap_stream_ch_chain_voting_t *l_ch_chain_voting = DAP_STREAM_CH_CHAIN_VOTING(a_ch);
     if (l_ch_chain_voting->callback_notify)

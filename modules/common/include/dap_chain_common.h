@@ -120,6 +120,8 @@ DAP_STATIC_INLINE int dap_chain_node_addr_from_str(dap_chain_node_addr_t *a_addr
 
 DAP_STATIC_INLINE bool dap_chain_node_addr_not_null(dap_chain_node_addr_t * a_addr) { return a_addr->uint64 != 0; }
 
+DAP_STATIC_INLINE bool dap_chain_node_addr_match(dap_chain_node_addr_t *a_addr1, dap_chain_node_addr_t *a_addr2) { return a_addr1->uint64 == a_addr2->uint64; }
+
 enum {
     NODE_ROLE_ROOT_MASTER=0x00,
     NODE_ROLE_ROOT=0x01,
