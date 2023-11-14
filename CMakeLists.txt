@@ -7,6 +7,10 @@ set(CELLFRAME_SDK_NATIVE_VERSION "3.3-0")
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
 set(DAPSDK_MODULES "")
+if (INSTALL_SDK)
+    set(INSTALL_DAP_SDK ON)
+endif()
+
 
 if(NOT DEFINED CELLFRAME_MODULES)
     include (cmake/OS_Detection.cmake)
@@ -107,7 +111,7 @@ set(CELLFRAME_LIBS "")
 # Core libs from dap-sdk
 if (CELLFRAME_MODULES MATCHES "core")
     message("[+] Module 'core'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_core dap_app_cli dap_plugin dap_crypto m pthread)
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_core dap_app_cli dap_plugin dap_crypto m)
 endif()
 
 # General chain libs
@@ -120,7 +124,7 @@ endif()
 if (CELLFRAME_MODULES MATCHES "network")
     message("[+] Module 'network'")
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_io dap_json_rpc dap_enc_server dap_notify_srv dap_http_server dap_session
-        dap_stream dap_stream_ch dap_client dap_cli_server dap_stream_ch_chain dap_stream_ch_chain_net dap_chain_net dap_chain_net_srv dap_stream_ch_chain_voting dap_chain_mempool magic)
+        dap_stream dap_stream_ch dap_client dap_cli_server dap_stream_ch_chain dap_stream_ch_chain_net dap_chain_net dap_chain_net_srv dap_stream_ch_chain_voting dap_chain_mempool )
 endif()
 
 # Chain net services
@@ -236,3 +240,5 @@ endif()
 set(CELLFRAME_LIBS ${CELLFRAME_LIBS} crc32c_adler)
 
 target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})
+
+

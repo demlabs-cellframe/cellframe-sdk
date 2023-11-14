@@ -18,6 +18,7 @@
 #define LOG_TAG "dap_chain_cs_esbocs"
 
 static const char *s_block_fee_group = "local.fee-collect-block-hashes";
+static dap_chain_esbocs_session_t *s_session_items;
 
 enum s_esbocs_session_state {
     DAP_CHAIN_ESBOCS_SESSION_STATE_WAIT_START,
@@ -104,8 +105,6 @@ DAP_STATIC_INLINE size_t s_get_esbocs_message_size(dap_chain_esbocs_message_t *a
 {
     return sizeof(*a_message) + a_message->hdr.sign_size + a_message->hdr.message_size;
 }
-
-static dap_chain_esbocs_session_t * s_session_items;
 
 typedef struct dap_chain_esbocs_pvt {
     // Base params
@@ -312,6 +311,10 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
         dap_store_obj_t *it = l_objs + i;
         if (l_notify_item->ttl && it->timestamp < l_limit_time) {
             dap_chain_addr_t *l_signing_addr = dap_chain_addr_from_str(it->key);
+            char l_time_str[90]; // TODO define it in dap_time header
+            dap_nanotime_to_str(&it->timestamp, l_time_str);
+            log_it(L_MSG, "Delete object %s from %s with time to live expired (%s)",
+                                    it->group, it->key, l_time_str);
             dap_chain_net_srv_stake_mark_validator_active(l_signing_addr, true);
             DAP_DEL_Z(l_signing_addr);
             dap_global_db_driver_delete(it, 1);
@@ -332,7 +335,7 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
     if (PVT(l_session->esbocs)->debug) {
         char l_sync_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
         dap_chain_hash_fast_to_str(&l_session->db_hash, l_sync_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-        log_it(L_MSG, "DB changes applied, new DB resync hash is %s", l_sync_hash_str);
+        log_it(L_MSG, "DB changes for group %s applied, new DB resync hash is %s", l_sync_group, l_sync_hash_str);
     }
 
     char *l_del_sync_group = dap_strdup_printf("%s.del", l_sync_group);
@@ -470,15 +473,16 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     l_session->my_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
     l_session->my_signing_addr = l_my_signing_addr;
     dap_global_db_context_exec(s_session_db_clear, l_session);
+    char *l_penalty_mask = dap_strdup_printf(DAP_CHAIN_ESBOCS_GDB_GROUPS_PREFIX".%s.penalty*", l_net->pub.gdb_groups_prefix);
     dap_global_db_add_notify_group_mask(dap_global_db_context_get_default()->instance,
-                                        DAP_CHAIN_ESBOCS_GDB_GROUPS_PREFIX ".*",
-                                        s_db_change_notifier, l_session, 72);
+                                        l_penalty_mask, s_db_change_notifier, l_session, 72);
+    DAP_DELETE(l_penalty_mask);
     pthread_mutexattr_t l_mutex_attr;
     pthread_mutexattr_init(&l_mutex_attr);
     pthread_mutexattr_settype(&l_mutex_attr, PTHREAD_MUTEX_RECURSIVE);
     pthread_mutex_init(&l_session->mutex, &l_mutex_attr);
     pthread_mutexattr_destroy(&l_mutex_attr);
-    dap_stream_ch_chain_voting_in_callback_add(l_session, s_session_packet_in);
+    dap_stream_ch_chain_voting_in_callback_add(l_session, s_session_packet_in, l_session->my_addr);
     dap_chain_add_callback_notify(a_chain, s_new_atom_notifier, l_session);
     s_session_round_new(l_session);
 
@@ -634,7 +638,7 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_session_t *a_session, 
         }
 
         size_t l_consensus_optimum = (size_t)l_esbocs_pvt->min_validators_count * 2 - 1;
-        size_t l_need_vld_cnt = MIN(l_total_validators_count, l_consensus_optimum);
+        size_t l_need_vld_cnt = dap_min(l_total_validators_count, l_consensus_optimum);
 
         dap_pseudo_random_seed(*(uint256_t *)&a_session->cur_round.last_block_hash);
         for (uint64_t i = 0; i < a_skip_count * l_need_vld_cnt; i++)
@@ -980,7 +984,7 @@ static uint64_t s_session_calc_current_round_id(dap_chain_esbocs_session_t *a_se
             l_counter_max = l_id_candidates[i].counter;
             l_ret = l_id_candidates[i].id;
         } else if (l_id_candidates[i].counter == l_counter_max) // Choose maximum round ID
-            l_ret = MAX(l_ret, l_id_candidates[i].id);
+            l_ret = dap_max(l_ret, l_id_candidates[i].id);
     }
     return l_ret ? l_ret : a_session->cur_round.id;
 }
@@ -996,7 +1000,7 @@ static int s_signs_sort_callback(const void *a_sign1, const void *a_sign2)
 
     size_t  l_size1 = dap_sign_get_size(l_sign1),
             l_size2 = dap_sign_get_size(l_sign2),
-            l_size_min = MIN(l_size1, l_size2);
+            l_size_min = dap_min(l_size1, l_size2);
 
     int l_ret = memcmp(l_sign1, l_sign2, l_size_min);
     if (!l_ret) {
@@ -1863,13 +1867,25 @@ static void s_session_directive_process(dap_chain_esbocs_session_t *a_session, d
 static void s_db_change_notifier(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg)
 {
     dap_chain_esbocs_session_t *l_session = a_arg;
+    assert(l_session);
     dap_chain_addr_t *l_validator_addr = dap_chain_addr_from_str(a_obj->key);
     if (!l_validator_addr) {
         log_it(L_WARNING, "Unreadable address in esbocs global DB group");
         dap_global_db_driver_delete(a_obj, 1);
+        return;
     }
-    if (dap_chain_net_srv_stake_mark_validator_active(l_validator_addr, a_obj->type != DAP_DB$K_OPTYPE_ADD))
+    if (l_validator_addr->net_id.uint64 != l_session->chain->net_id.uint64) {
+        log_it(L_ERROR, "Worong destination net ID %" DAP_UINT64_FORMAT_x "session net ID %" DAP_UINT64_FORMAT_x,
+                                                    l_validator_addr->net_id.uint64, l_session->chain->net_id.uint64);
+        return;
+    }
+    if (dap_chain_net_srv_stake_mark_validator_active(l_validator_addr, a_obj->type != DAP_DB$K_OPTYPE_ADD)) {
+        log_it(L_ERROR, "Validator with signing address %s not found in network %s",
+                                                    a_obj->key, l_session->chain->net_name);
         dap_global_db_driver_delete(a_obj, 1);
+        return;
+    }
+    log_it(L_DEBUG, "Got new penalty item for group %s with key %s", a_obj->group, a_obj->key);
     s_session_db_serialize(a_context, l_session);
 }
 

@@ -10,3 +10,11 @@ target_link_libraries(${PROJECT_NAME} dap_chain_net_srv dap_chain_net_srv_datum)
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 
+if (INSTALL_SDK)
+set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_NET_SRV_DATUM_POOL_HEADERS}")
+INSTALL(TARGETS ${PROJECT_NAME} 
+        LIBRARY DESTINATION lib/modules/service/mining-pool/
+        ARCHIVE DESTINATION lib/modules/service/mining-pool/
+        PUBLIC_HEADER DESTINATION include/modules/service/mining-pool/
+)
+endif()
