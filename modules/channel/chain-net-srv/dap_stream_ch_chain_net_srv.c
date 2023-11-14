@@ -289,7 +289,7 @@ static void s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
             dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
         if (l_srv && l_srv->callbacks.response_error)
             l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
-        DAP_DEL_Z(l_usage);
+        dap_chain_net_srv_usage_delete(l_srv_session);
         return;
     }
     l_usage->client->stream_worker = a_ch->stream_worker;
@@ -306,6 +306,17 @@ static void s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
     if (l_srv->pricelist || !dap_hash_fast_is_blank(&a_request->hdr.order_hash)){
         // not free service
         log_it( L_INFO, "Valid pricelist is founded. Start service in pay mode.");
+
+        if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
+            log_it(L_ERROR, "Can't start service because net %s is offline.", l_net->pub.name);
+            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_IS_OFFLINE;
+            if(a_ch)
+                dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+            if (l_srv && l_srv->callbacks.response_error)
+                l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
+            dap_chain_net_srv_usage_delete(l_srv_session);
+            return;
+        }
 
         if (!dap_hash_fast_is_blank(&a_request->hdr.order_hash))
             l_usage->static_order_hash = a_request->hdr.order_hash;
@@ -531,6 +542,13 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
         }
 
     } else { // Start service in normal pay mode
+        if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
+            log_it(L_ERROR, "Can't pay service because net %s is offline.", l_net->pub.name);
+            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_IS_OFFLINE;
+            s_grace_error(a_grace, l_err);
+            return;
+        }
+
         a_grace->usage->tx_cond = l_tx;
 
         l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, NULL );
@@ -795,6 +813,13 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
         s_grace_error(l_grace, l_err);
         RET_WITH_DEL_A_GRACE;
     } else { // Start service in normal pay mode
+        if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
+            log_it(L_ERROR, "Can't pay service because net %s is offline.", l_net->pub.name);
+            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_IS_OFFLINE;
+            s_grace_error(l_grace, l_err);
+            RET_WITH_DEL_A_GRACE;
+        }
+
         log_it(L_INFO, "Tx is found in ledger.");
         l_grace->usage->tx_cond = l_tx;
 
@@ -1192,6 +1217,13 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
 
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_RESPONSE: { // Check receipt sign and make tx if success
         dap_chain_net_srv_usage_t * l_usage = l_srv_session->usage_active;
+
+        if (dap_chain_net_get_state(l_usage->net) == NET_STATE_OFFLINE) {
+            log_it(L_ERROR, "Can't pay service because net %s is offline.", l_usage->net->pub.name);
+            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_IS_OFFLINE;
+            break;
+        }
+
         if (l_ch_pkt->hdr.data_size < sizeof(dap_chain_receipt_info_t)) {
             log_it(L_ERROR, "Wrong sign response size, %u when expected at least %zu with smth", l_ch_pkt->hdr.data_size,
                    sizeof(dap_chain_receipt_info_t));
