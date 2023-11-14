@@ -35,10 +35,10 @@
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_in_ems.h"
 #include "dap_chain_datum_tx_items.h"
+#include "dap_chain_net.h"
 
 typedef struct dap_ledger {
-    char *net_name;
-    dap_chain_net_id_t net_id;
+    dap_chain_net_t *net;
     void *_internal;
 } dap_ledger_t;
 
@@ -69,6 +69,7 @@ typedef enum dap_ledger_tx_check{
     DAP_LEDGER_TX_CACHE_CHECK_OUT_ITEM_ALREADY_USED,
     DAP_LEDGER_TX_CACHE_CHECK_PREV_TX_NOT_FOUND,
     DAP_LEDGER_TX_CACHE_CHECK_PREV_OUT_ITEM_NOT_FOUND,
+    DAP_LEDGER_TX_CACHE_CHECK_PREV_OUT_ITEM_MISSTYPED,
     DAP_LEDGER_TX_CACHE_CHECK_PKEY_HASHES_DONT_MATCH,
     DAP_LEDGER_TX_CACHE_CHECK_PREV_OUT_ALREADY_USED_IN_CURRENT_TX,
     DAP_LEDGER_TX_CACHE_CHECK_NO_VERIFICATOR_SET,
@@ -77,6 +78,7 @@ typedef enum dap_ledger_tx_check{
     DAP_LEDGER_TX_CACHE_CHECK_PREV_TOKEN_NOT_FOUND,
     DAP_LEDGER_PERMISSION_CHECK_FAILED,
     DAP_LEDGER_TX_CACHE_CHECK_SUM_INS_NOT_EQUAL_SUM_OUTS,
+    DAP_LEDGER_TX_CACHE_CHECK_REWARD_ITEM_ALREADY_USED,
     /* add custom codes here */
 
     DAP_LEDGER_TX_CHECK_UNKNOWN /* MAX */
@@ -148,9 +150,7 @@ typedef struct dap_chain_net dap_chain_net_t;
 int dap_ledger_init();
 void dap_ledger_deinit();
 
-dap_ledger_t *dap_ledger_create(uint16_t a_flags, dap_chain_net_id_t a_net_id, char *a_net_name, const char *a_net_native_ticker, dap_list_t *a_poa_certs);
-
-void dap_ledger_set_fee(dap_ledger_t *a_ledger, uint256_t a_fee, dap_chain_addr_t a_fee_addr);
+dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags);
 
 // Remove dap_ledger_t structure
 void dap_ledger_handle_free(dap_ledger_t *a_ledger);
@@ -177,8 +177,8 @@ DAP_STATIC_INLINE dap_chain_hash_fast_t* dap_chain_node_datum_tx_calc_hash(dap_c
 
 DAP_STATIC_INLINE char *dap_ledger_get_gdb_group(dap_ledger_t *a_ledger, const char *a_suffix)
 {
-    return a_ledger && a_ledger->net_name && a_suffix
-            ? dap_strdup_printf("local.ledger-cache.%s.%s", a_ledger->net_name, a_suffix)
+    return a_ledger && a_ledger->net->pub.name && a_suffix
+            ? dap_strdup_printf("local.ledger-cache.%s.%s", a_ledger->net->pub.name, a_suffix)
             : NULL;
 }
 

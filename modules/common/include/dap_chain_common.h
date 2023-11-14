@@ -183,6 +183,7 @@ typedef union {
 
 enum dap_chain_tx_item_type {
     TX_ITEM_TYPE_IN = 0x00, /// @brief  Transaction: inputs
+    TX_ITEM_TYPE_IN_REWARD = 0x07,
 
     TX_ITEM_TYPE_OUT_OLD = 0x10, /// @brief  Transaction: outputs
     TX_ITEM_TYPE_OUT_EXT = 0x11,

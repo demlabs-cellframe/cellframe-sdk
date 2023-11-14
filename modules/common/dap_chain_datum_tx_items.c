@@ -31,10 +31,6 @@
 #include "dap_sign.h"
 #include "dap_hash.h"
 #include "dap_chain_datum_tx.h"
-#include "dap_chain_datum_tx_in.h"
-#include "dap_chain_datum_tx_out.h"
-#include "dap_chain_datum_tx_in_cond.h"
-#include "dap_chain_datum_tx_out_cond.h"
 #include "dap_chain_datum_tx_items.h"
 
 static size_t dap_chain_tx_in_get_size(const dap_chain_tx_in_t *a_item)
@@ -92,10 +88,16 @@ static size_t dap_chain_tx_sig_get_size(const dap_chain_tx_sig_t *a_item)
     return size;
 }
 
-static size_t dap_chain_tx_token_get_size(const dap_chain_tx_in_ems_t *a_item)
+static size_t dap_chain_tx_in_ems_get_size(const dap_chain_tx_in_ems_t *a_item)
 {
     (void) a_item;
     size_t size = sizeof(dap_chain_tx_in_ems_t);
+    return size;
+}
+
+static size_t dap_chain_tx_in_reward_get_size(const dap_chain_tx_in_reward_t UNUSED_ARG *a_item)
+{
+    size_t size = sizeof(dap_chain_tx_in_reward_t);
     return size;
 }
 
@@ -120,6 +122,10 @@ dap_chain_tx_item_type_t dap_chain_datum_tx_item_str_to_type(const char *a_datum
         return TX_ITEM_TYPE_UNKNOWN;
     if(!dap_strcmp(a_datum_name, "in"))
         return TX_ITEM_TYPE_IN;
+    else if(!dap_strcmp(a_datum_name, "in_ems"))
+        return TX_ITEM_TYPE_IN_EMS;
+    else if(!dap_strcmp(a_datum_name, "in_reward"))
+        return TX_ITEM_TYPE_IN_REWARD;
     else if(!dap_strcmp(a_datum_name, "out"))
         return TX_ITEM_TYPE_OUT;
     else if(!dap_strcmp(a_datum_name, "out_ext"))
@@ -213,8 +219,11 @@ size_t dap_chain_datum_item_tx_get_size(const void *a_item)
     case TX_ITEM_TYPE_SIG: // Transaction signatures
         size = dap_chain_tx_sig_get_size((const dap_chain_tx_sig_t*) a_item);
         break;
-    case TX_ITEM_TYPE_IN_EMS: // token item
-        size = dap_chain_tx_token_get_size((const dap_chain_tx_in_ems_t*) a_item);
+    case TX_ITEM_TYPE_IN_EMS: // token emission pointer
+        size = dap_chain_tx_in_ems_get_size((const dap_chain_tx_in_ems_t*) a_item);
+        break;
+    case TX_ITEM_TYPE_IN_REWARD: // block emission pointer
+        size = dap_chain_tx_in_reward_get_size((const dap_chain_tx_in_reward_t *)a_item);
         break;
     case TX_ITEM_TYPE_TSD:
         size = dap_chain_tx_tsd_get_size((const dap_chain_tx_tsd_t*)a_item);
@@ -269,12 +278,23 @@ dap_chain_tx_in_t* dap_chain_datum_tx_item_in_create(dap_chain_hash_fast_t *a_tx
     if(!a_tx_prev_hash)
         return NULL;
     dap_chain_tx_in_t *l_item = DAP_NEW_Z(dap_chain_tx_in_t);
-        if (!l_item) {
+    if (!l_item)
         return NULL;
-    }
     l_item->header.type = TX_ITEM_TYPE_IN;
     l_item->header.tx_out_prev_idx = a_tx_out_prev_idx;
     l_item->header.tx_prev_hash = *a_tx_prev_hash;
+    return l_item;
+}
+
+dap_chain_tx_in_reward_t *dap_chain_datum_tx_item_in_reward_create(dap_chain_hash_fast_t *a_block_hash)
+{
+    if (!a_block_hash)
+        return NULL;
+    dap_chain_tx_in_reward_t *l_item = DAP_NEW_Z(dap_chain_tx_in_reward_t);
+    if (!l_item)
+        return NULL;
+    l_item->type = TX_ITEM_TYPE_IN_REWARD;
+    l_item->block_hash = *a_block_hash;
     return l_item;
 }
 
@@ -741,6 +761,7 @@ uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_id
                     (a_type == TX_ITEM_TYPE_IN_ALL && l_type == TX_ITEM_TYPE_IN) ||
                     (a_type == TX_ITEM_TYPE_IN_ALL && l_type == TX_ITEM_TYPE_IN_COND) ||
                     (a_type == TX_ITEM_TYPE_IN_ALL && l_type == TX_ITEM_TYPE_IN_EMS) ||
+                    (a_type == TX_ITEM_TYPE_IN_ALL && l_type == TX_ITEM_TYPE_IN_REWARD) ||
                     (a_type == TX_ITEM_TYPE_IN_ALL && l_type == TX_ITEM_TYPE_IN_EMS_EXT)) {
                 if(a_item_idx)
                     *a_item_idx = l_item_idx;

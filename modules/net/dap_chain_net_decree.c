@@ -392,8 +392,8 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
                     if (!a_apply)
                         break;
 
-                    if (!dap_chain_net_tx_add_fee(a_chain->net_id, l_uint256_buffer, l_addr)) {
-                        log_it(L_WARNING,"Can't add/replace fee value.");
+                    if (!dap_chain_net_tx_set_fee(a_chain->net_id, l_uint256_buffer, l_addr)) {
+                        log_it(L_WARNING,"Can't set fee value for network %s", a_chain->net_name);
                         return -102;
                     }
                 }else{

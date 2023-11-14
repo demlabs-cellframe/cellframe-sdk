@@ -26,6 +26,7 @@
 #include "dap_chain_net_tx.h"
 #include "dap_chain_cell.h"
 #include "dap_chain_common.h"
+#include "dap_chain_ledger.h"
 #include "dap_chain_datum_tx_in_cond.h"
 #include "dap_chain_tx.h"
 #include "dap_list.h"
@@ -637,58 +638,31 @@ dap_chain_datum_tx_t *dap_chain_net_get_tx_by_hash(dap_chain_net_t *a_net, dap_c
     return NULL;
 }
 
-static struct net_fee {
-    dap_chain_net_id_t net_id;
-    uint256_t value;            // Network fee value
-    dap_chain_addr_t fee_addr;  // Addr collector
-    UT_hash_handle hh;
-} *s_net_fees = NULL; // Governance statements for networks
-
 bool dap_chain_net_tx_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a_value, dap_chain_addr_t *a_addr)
 {
-    struct net_fee *l_net_fee;
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
-
     if (!l_net){
         log_it(L_WARNING, "Can't find net with id 0x%016"DAP_UINT64_FORMAT_x"", a_net_id.uint64);
         return false;
     }
-
-    HASH_FIND(hh, s_net_fees, &a_net_id, sizeof(dap_chain_net_id_t), l_net_fee);
-    if (!l_net_fee || IS_ZERO_256(l_net_fee->value))
+    if (IS_ZERO_256(l_net->pub.fee_value))
         return false;
     if (a_value)
-        *a_value = l_net_fee->value;
+        *a_value = l_net->pub.fee_value;
     if (a_addr)
-        *a_addr = l_net_fee->fee_addr;
+        *a_addr = l_net->pub.fee_addr;
     return true;
 }
 
-bool dap_chain_net_tx_add_fee(dap_chain_net_id_t a_net_id, uint256_t a_value, dap_chain_addr_t a_addr)
+bool dap_chain_net_tx_set_fee(dap_chain_net_id_t a_net_id, uint256_t a_value, dap_chain_addr_t a_addr)
 {
-    struct net_fee *l_net_fee = NULL;
-    bool l_found = false;
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
-
     if (!l_net){
         log_it(L_WARNING, "Can't find net with id 0x%016"DAP_UINT64_FORMAT_x"", a_net_id.uint64);
         return false;
     }
-
-    HASH_FIND(hh, s_net_fees, &a_net_id, sizeof(dap_chain_net_id_t), l_net_fee);
-
-    if (l_net_fee)
-        l_found = true;
-    else
-        l_net_fee = DAP_NEW(struct net_fee);
-    l_net_fee->net_id = a_net_id;
-    l_net_fee->value = a_value;
-    l_net_fee->fee_addr = a_addr;
-
-    if (!l_found)
-        HASH_ADD(hh, s_net_fees, net_id, sizeof(dap_chain_net_id_t), l_net_fee);
-
-    dap_ledger_set_fee(l_net->pub.ledger, a_value, a_addr);
+    l_net->pub.fee_value = a_value;
+    l_net->pub.fee_addr = a_addr;
 
     return true;
 }

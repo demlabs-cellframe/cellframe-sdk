@@ -58,6 +58,7 @@
 #include "dap_chain_wallet_internal.h"
 #include "dap_enc_key.h"
 #include "crc32c_adler.h"
+#include "dap_chain_ledger.h"
 
 #define LOG_TAG "dap_chain_wallet"
 
