@@ -198,7 +198,7 @@ static void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
         return;
     }
 
-    dap_proc_queue_add_callback(a_ch->stream_worker->worker, s_callback_pkt_in_call_all,
+    dap_proc_queue_add_callback(a_ch->stream_worker->worker, s_callback_pkt_in_call_addr,
                                 DAP_DUP_SIZE(l_voting_pkt, l_voting_pkt_size));
     dap_stream_ch_chain_voting_t *l_ch_chain_voting = DAP_STREAM_CH_CHAIN_VOTING(a_ch);
     if (l_ch_chain_voting->callback_notify)
