@@ -22,16 +22,15 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "dap_chain_net_srv.h"
-#include "dap_chain_net_srv_stake_lock.h"
-#include "dap_chain_net_tx.h"
-#include "dap_chain_node_cli.h"
-#include "dap_chain_mempool.h"
-#include "dap_chain_wallet.h"
-#include "dap_chain_ledger.h"
 #include "dap_common.h"
 #include "dap_hash.h"
 #include "dap_time.h"
+#include "dap_chain_ledger.h"
+#include "dap_chain_net_srv_stake_lock.h"
+#include "dap_chain_node_cli.h"
+#include "dap_chain_wallet.h"
+#include "dap_chain_mempool.h"
+#include "dap_chain_net_srv.h"
 
 static bool s_debug_more = false;
 

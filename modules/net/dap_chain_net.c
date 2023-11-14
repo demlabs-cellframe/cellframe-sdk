@@ -299,6 +299,7 @@ static void s_update_links_timer_callback(void *a_arg){
  */
 int dap_chain_net_init()
 {
+    dap_ledger_init();
     dap_stream_ch_chain_init();
     dap_stream_ch_chain_net_init();
     dap_chain_node_client_init();
@@ -1641,25 +1642,6 @@ static dap_chain_net_t *s_net_new(const char *a_id, const char *a_name,
 }
 
 /**
- * @brief dap_chain_net_delete
- * free dap_chain_net_t * a_net object
- * @param a_net
- */
-void dap_chain_net_delete( dap_chain_net_t * a_net )
-{
-    pthread_mutex_destroy(&PVT(a_net)->uplinks_mutex);
-    pthread_mutex_destroy(&PVT(a_net)->downlinks_mutex);
-    pthread_mutex_destroy(&a_net->pub.balancer_mutex);
-    pthread_rwlock_destroy(&PVT(a_net)->states_lock);
-    if(PVT(a_net)->seed_aliases) {
-        DAP_DELETE(PVT(a_net)->seed_aliases);
-        PVT(a_net)->seed_aliases = NULL;
-    }
-    DAP_DELETE(a_net);
-}
-
-
-/**
  * @brief
  * load network config settings
  */
@@ -1757,7 +1739,8 @@ static void s_chain_net_ledger_cache_reload(dap_chain_net_t *l_net)
             l_chain->callback_purge(l_chain);
         if (l_chain->callback_set_min_validators_count)
             l_chain->callback_set_min_validators_count(l_chain, 0);
-        dap_ledger_set_fee(l_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
+        l_net->pub.fee_value = uint256_0;
+        l_net->pub.fee_addr = c_dap_chain_addr_blank;
         dap_chain_load_all(l_chain);
     }
     DL_FOREACH(l_net->pub.chains, l_chain) {
@@ -2444,6 +2427,49 @@ void s_main_timer_callback(void *a_arg)
 }
 
 /**
+ * @brief dap_chain_net_deinit
+ */
+void dap_chain_net_deinit()
+{
+    dap_chain_net_item_t *l_current_item, *l_tmp;
+    HASH_ITER(hh, s_net_ids, l_current_item, l_tmp)
+        HASH_DELETE(hh2, s_net_ids, l_current_item);
+    HASH_ITER(hh, s_net_items, l_current_item, l_tmp) {
+        HASH_DEL(s_net_items, l_current_item);
+        dap_chain_net_delete(l_current_item->chain_net);
+        DAP_DELETE(l_current_item);
+    }
+    dap_chain_node_net_ban_list_deinit();
+}
+
+/**
+ * @brief dap_chain_net_delete
+ * free dap_chain_net_t * a_net object
+ * @param a_net
+ */
+void dap_chain_net_delete(dap_chain_net_t *a_net)
+{
+    // Synchronously going to offline state
+    PVT(a_net)->state = PVT(a_net)->state_target = NET_STATE_OFFLINE;
+    s_net_states_proc(NULL, a_net);
+    dap_chain_net_item_t *l_net_item;
+    HASH_FIND(hh, s_net_items, a_net->pub.name, strlen(a_net->pub.name), l_net_item);
+    if (l_net_item) {
+        HASH_DEL(s_net_items, l_net_item);
+        HASH_DELETE(hh2, s_net_ids, l_net_item);
+        DAP_DELETE(l_net_item);
+    }
+    if (PVT(a_net)->main_timer)
+        dap_interval_timer_delete(PVT(a_net)->main_timer);
+    DAP_DEL_Z(PVT(a_net)->seed_nodes_ipv4);
+    DAP_DEL_Z(PVT(a_net)->seed_nodes_ipv6);
+    DAP_DEL_Z(PVT(a_net)->node_info);
+    dap_ledger_purge(a_net->pub.ledger, true);
+    dap_ledger_handle_free(a_net->pub.ledger);
+    DAP_DELETE(a_net);
+}
+
+/**
  * @brief load network config settings from cellframe-node.cfg file
  *
  * @param a_net_name const char *: network name, for example "home21-network"
@@ -2967,7 +2993,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     if (!l_net->pub.keys)
         log_it(L_WARNING,"PoA certificates for net %s not found.", l_net->pub.name);
     // init LEDGER model
-    l_net->pub.ledger = dap_ledger_create(l_ledger_flags, l_net->pub.id, l_net->pub.name, l_net->pub.native_ticker, l_net->pub.keys);
+    l_net->pub.ledger = dap_ledger_create(l_net, l_ledger_flags);
 
     DAP_DELETE(l_node_addr_str);
     dap_config_close(l_cfg);
@@ -3003,7 +3029,8 @@ int s_net_load(dap_chain_net_t *a_net)
     // load chains
     dap_chain_t *l_chain = l_net->pub.chains;
     while(l_chain){
-        dap_ledger_set_fee(l_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
+        l_net->pub.fee_value = uint256_0;
+        l_net->pub.fee_addr = c_dap_chain_addr_blank;
         if (!dap_chain_load_all(l_chain)) {
             log_it (L_NOTICE, "Loaded chain files");
             if (DAP_CHAIN_PVT(l_chain)->need_reorder) {
@@ -3016,7 +3043,8 @@ int s_net_load(dap_chain_net_t *a_net)
                 if (l_chain->callback_purge) {
                     l_chain->callback_purge(l_chain);
                     dap_ledger_purge(l_net->pub.ledger, false);
-                    dap_ledger_set_fee(l_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
+                    l_net->pub.fee_value = uint256_0;
+                    l_net->pub.fee_addr = c_dap_chain_addr_blank;
                     dap_chain_net_decree_purge(l_net);
                     dap_chain_load_all(l_chain);
                 } else

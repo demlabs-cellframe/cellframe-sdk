@@ -723,7 +723,8 @@ void s_dap_chain_net_purge(dap_chain_net_t * a_net)
             l_chain->callback_set_min_validators_count(l_chain, 0);
         const char *l_chains_rm_path = dap_chain_get_path(l_chain);
         dap_rm_rf(l_chains_rm_path);
-        dap_ledger_set_fee(a_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
+        a_net->pub.fee_value = uint256_0;
+        a_net->pub.fee_addr = c_dap_chain_addr_blank;
         dap_chain_load_all(l_chain);
     }
 }

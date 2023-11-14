@@ -98,8 +98,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
 static size_t s_callback_atom_get_static_hdr_size(void);
 
 static dap_chain_atom_iter_t *s_callback_atom_iter_create(dap_chain_t *a_chain, dap_chain_cell_id_t a_cell_id, bool a_with_treshold);
-static dap_chain_atom_iter_t* s_callback_atom_iter_create_from(dap_chain_t *  ,
-                                                                     dap_chain_atom_ptr_t , size_t);
+static dap_chain_atom_iter_t* s_callback_atom_iter_create_from(dap_chain_t *a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size);
 static dap_chain_atom_ptr_t s_callback_atom_iter_find_by_hash(dap_chain_atom_iter_t * a_atom_iter ,
                                                                        dap_chain_hash_fast_t * a_atom_hash, size_t * a_atom_size);
 static dap_chain_datum_t *s_callback_datum_find_by_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_datum_hash,

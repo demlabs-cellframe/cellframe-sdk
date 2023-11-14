@@ -662,12 +662,11 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
  * @param a_owner
  * @return
  */
-static bool s_fee_verificator_callback(dap_ledger_t *a_ledger, UNUSED_ARG dap_chain_tx_out_cond_t *a_cond,
-                                       dap_chain_datum_tx_t *a_tx_in, UNUSED_ARG bool a_owner)
+static bool s_fee_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t UNUSED_ARG *a_cond,
+                                       dap_chain_datum_tx_t *a_tx_in, bool UNUSED_ARG a_owner)
 {
-    dap_chain_net_t *l_net = dap_chain_net_by_name(a_ledger->net_name);
-    if (!l_net)
-        return false;
+    dap_chain_net_t *l_net = a_ledger->net;
+    assert(l_net);
     dap_chain_t *l_chain;
     DL_FOREACH(l_net->pub.chains, l_chain) {
         if (!l_chain->callback_block_find_by_tx_hash)
@@ -801,7 +800,7 @@ static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out
     uint256_t l_value = l_receipt->receipt_info.value_datoshi;
     uint256_t l_cond_out_value = {};
     dap_chain_addr_t l_network_fee_addr = {};
-    dap_chain_net_tx_get_fee(a_ledger->net_id, NULL, &l_network_fee_addr);
+    dap_chain_net_tx_get_fee(a_ledger->net->pub.id, NULL, &l_network_fee_addr);
     int l_item_idx = 0;
     for (dap_list_t * l_list_tmp = l_list_out; l_list_tmp; l_list_tmp = dap_list_next(l_list_tmp), l_item_idx++) {
         dap_chain_tx_item_type_t l_type = *(uint8_t *)l_list_tmp->data;

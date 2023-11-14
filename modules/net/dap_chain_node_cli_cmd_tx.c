@@ -105,7 +105,7 @@ static bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
             : NULL;
     if (!l_ticker)
         return false;
-    dap_chain_datum_dump_tx(a_datum, l_ticker, a_str_out, a_hash_out_type, a_tx_hash, a_ledger->net_id);
+    dap_chain_datum_dump_tx(a_datum, l_ticker, a_str_out, a_hash_out_type, a_tx_hash, a_ledger->net->pub.id);
     dap_list_t *l_out_items = dap_chain_datum_tx_items_get(a_datum, TX_ITEM_TYPE_OUT_ALL, NULL);
     int l_out_idx = 0;
     dap_string_append_printf(a_str_out, "Spent OUTs:\r\n");
@@ -772,10 +772,10 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         if(l_is_all) {
             size_t l_tx_count = dap_ledger_count(l_ledger), l_tx_count_spent_count = 0;
             if (!l_tx_count) {
-                dap_string_append_printf(l_str_ret, "Network ledger %s contains no transactions.\n", l_ledger->net_name);
+                dap_string_append_printf(l_str_ret, "Network ledger %s contains no transactions.\n", l_ledger->net->pub.name);
             } else {
                 dap_string_append_printf(l_str_ret, "There are %zu transactions in the network ledger %s:\n",
-                                         l_tx_count, l_ledger->net_name);
+                                         l_tx_count, l_ledger->net->pub.name);
                 dap_list_t *l_txs_list = dap_ledger_get_txs(l_ledger, l_tx_count, 1, true, l_unspent_flag);
                 for (dap_list_t *iter = l_txs_list; iter; iter = dap_list_next(iter)) {
                     dap_chain_datum_tx_t *l_tx = iter->data;

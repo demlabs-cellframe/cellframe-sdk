@@ -46,6 +46,7 @@
 #include "dap_global_db.h"
 #include "dap_chain_node.h"
 #include "dap_chain_cell.h"
+#include "dap_chain_ledger.h"
 
 #define LOG_TAG "chain_node"
 
