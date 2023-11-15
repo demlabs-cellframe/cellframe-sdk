@@ -2228,7 +2228,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet is not created because of internal error. Check name or password length (max 64 chars)"), -1;
                     }
 
-                    l_addr = l_net? dap_chain_wallet_get_addr(l_wallet,l_net->pub.id ) : NULL;
+                    l_addr = l_net ? dap_chain_wallet_get_addr(l_wallet,l_net->pub.id ) : NULL;
 
                     char *l_l_addr_str = l_addr ? dap_chain_addr_to_str(l_addr) : NULL;
                     dap_string_append_printf(l_string_ret, "Wallet: %s (type=%s) successfully created\n", l_wallet->name, l_sign_type_str);

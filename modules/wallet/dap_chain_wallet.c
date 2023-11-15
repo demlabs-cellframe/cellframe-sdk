@@ -405,7 +405,11 @@ dap_chain_wallet_internal_t *l_wallet_internal;
     }
 
     strncpy(l_wallet->name, a_wallet_name, DAP_WALLET$SZ_NAME);
-    l_wallet_internal->certs_count = 1;
+    if (a_sig_type.type == SIG_TYPE_MULTI_CHAINED) {
+        l_wallet_internal->certs_count = 5;
+    } else {
+        l_wallet_internal->certs_count = 1;
+    }
     l_wallet_internal->certs = DAP_NEW_Z_SIZE(dap_cert_t *,l_wallet_internal->certs_count * sizeof(dap_cert_t *));
     assert(l_wallet_internal->certs);
     if (!l_wallet_internal->certs) {
@@ -415,8 +419,20 @@ dap_chain_wallet_internal_t *l_wallet_internal;
     }
 
     snprintf(l_wallet_internal->file_name, sizeof(l_wallet_internal->file_name)  - 1, "%s/%s%s", a_wallets_path, a_wallet_name, s_wallet_ext);
-
-    l_wallet_internal->certs[0] = dap_cert_generate_mem_with_seed(a_wallet_name, dap_sign_type_to_key_type(a_sig_type), a_seed, a_seed_size);
+    if (a_sig_type.type == SIG_TYPE_MULTI_CHAINED) {
+        dap_sign_type_t l_sig_types [5] = {
+            {.type = SIG_TYPE_SPHINCSPLUS},
+            {.type = SIG_TYPE_TESLA},
+            {.type = SIG_TYPE_PICNIC},
+            {.type = SIG_TYPE_DILITHIUM},
+            {.type = SIG_TYPE_FALCON}
+        };
+        for (size_t i = 0; i < l_wallet_internal->certs_count; ++i) {
+            l_wallet_internal->certs[i] = dap_cert_generate_mem_with_seed(a_wallet_name, dap_sign_type_to_key_type(l_sig_types[i]), a_seed, a_seed_size);
+        }
+    } else {
+         l_wallet_internal->certs[0] = dap_cert_generate_mem_with_seed(a_wallet_name, dap_sign_type_to_key_type(a_sig_type), a_seed, a_seed_size);
+    }
 
     if ( !dap_chain_wallet_save(l_wallet, a_pass) )
     {
