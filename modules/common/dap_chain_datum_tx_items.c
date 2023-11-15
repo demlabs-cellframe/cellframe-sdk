@@ -665,7 +665,7 @@ json_object *dap_chain_datum_tx_item_out_cond_srv_pay_to_json(dap_chain_tx_out_c
             return NULL;
         }
         json_object *l_obj_price_max_datoshi = json_object_new_string(l_price_max_datoshi);
-        if (l_obj_price_max_datoshi) {
+        if (!l_obj_price_max_datoshi) {
             DAP_DELETE(l_price_max_datoshi);
             json_object_put(l_obj);
             dap_json_rpc_allocated_error;

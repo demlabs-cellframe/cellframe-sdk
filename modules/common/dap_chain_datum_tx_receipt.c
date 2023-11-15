@@ -241,26 +241,7 @@ json_object *dap_chain_datum_tx_receipt_to_json(dap_chain_datum_tx_receipt_t *a_
         return NULL;
     }
     json_object *l_obj_provider_sign = dap_sign_to_json(l_first_sign);
-    if (!l_obj_provider_sign) {
-        json_object_put(l_obj_size);
-        json_object_put(l_obj_info);
-        json_object_put(l_obj_signs);
-        json_object_put(l_obj);
-        dap_json_rpc_error_add(DAP_JSON_RPC_ERR_CODE_SERIALIZATION_SIGN_TO_JSON,
-                               "Error serializing signature to JSON.");
-        return NULL;
-    }
     json_object *l_obj_client_sign = dap_sign_to_json(l_second_sign);
-    if (!l_obj_client_sign) {
-        json_object_put(l_obj_provider_sign);
-        json_object_put(l_obj_size);
-        json_object_put(l_obj_info);
-        json_object_put(l_obj_signs);
-        json_object_put(l_obj);
-        dap_json_rpc_error_add(DAP_JSON_RPC_ERR_CODE_SERIALIZATION_SIGN_TO_JSON,
-                               "Error serializing signature to JSON.");
-        return NULL;
-    }
     json_object_object_add(l_obj_signs, "provider", l_obj_provider_sign);
     json_object_object_add(l_obj_signs, "client", l_obj_client_sign);
     json_object *l_exts_data = json_object_new_string_len((char *)a_receipt->exts_n_signs, a_receipt->exts_size);

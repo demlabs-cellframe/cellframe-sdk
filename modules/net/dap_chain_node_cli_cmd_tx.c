@@ -229,7 +229,8 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
     char l_time_str[32] = "unknown";                                /* Prefill string */
     if (a_tx->header.ts_created) {
         uint64_t l_ts = a_tx->header.ts_created;
-        dap_ctime_r(&l_ts, l_time_str);                             /* Convert ts to  Sat May 17 01:17:08 2014 */
+        dap_ctime_r(&l_ts, l_time_str);                             /* Convert ts to  "Sat May 17 01:17:08 2014\n" */
+        l_time_str[strlen(l_time_str)-1] = '\0';                    /* Remove "\n"*/
     }
     dap_chain_tx_hash_processed_ht_t *l_tx_data = NULL;
     HASH_FIND(hh, *a_tx_data_ht, a_tx_hash, sizeof(*a_tx_hash), l_tx_data);
@@ -257,9 +258,9 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
     }
     json_object_object_add(json_obj_datum, "status", json_object_new_string(l_declined ? "DECLINED" : "ACCEPTED"));
     json_object_object_add(json_obj_datum, "hash", json_object_new_string(l_tx_hash_str));
-    json_object_object_add(json_obj_datum, "atom hash", json_object_new_string(l_atom_hash_str));
-    json_object_object_add(json_obj_datum, "ret code", json_object_new_int(a_ret_code));
-    json_object_object_add(json_obj_datum, "tx created", json_object_new_string(l_time_str));
+    json_object_object_add(json_obj_datum, "atom_hash", json_object_new_string(l_atom_hash_str));
+    json_object_object_add(json_obj_datum, "ret_code", json_object_new_int(a_ret_code));
+    json_object_object_add(json_obj_datum, "tx_created", json_object_new_string(l_time_str));
 
     DAP_DELETE(l_tx_hash_str);
     DAP_DELETE(l_atom_hash_str);
@@ -434,12 +435,12 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                                                               ((dap_chain_tx_out_cond_t *)it->data)->header.subtype);
                 char *l_value_str = dap_chain_balance_print(l_value);
                 char *l_coins_str = dap_chain_balance_to_coins(l_value);
-                json_object_object_add(json_obj_tx, "tx type", json_object_new_string("send"));
-                json_object_object_add(json_obj_tx, "amount", json_object_new_string(l_coins_str));
-                json_object_object_add(json_obj_tx, "amountMantissa", json_object_new_string(l_value_str));
+                json_object_object_add(json_obj_tx, "tx_type", json_object_new_string("send"));
+                json_object_object_add(json_obj_tx, "send_coins", json_object_new_string(l_coins_str));
+                json_object_object_add(json_obj_tx, "send_datoshi", json_object_new_string(l_value_str));
                 json_object_object_add(json_obj_tx, "token", l_dst_token ? json_object_new_string(l_dst_token) 
                                                                             : json_object_new_string("UNKNOWN"));
-                json_object_object_add(json_obj_tx, "destinationAddress", json_object_new_string(l_dst_addr_str));
+                json_object_object_add(json_obj_tx, "destination_address", json_object_new_string(l_dst_addr_str));
                 if (l_dst_addr)
                     DAP_DELETE(l_dst_addr_str);
                 DAP_DELETE(l_value_str);
@@ -460,12 +461,12 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                     l_src_str = dap_chain_tx_out_cond_subtype_to_str(l_src_subtype);
                 char *l_value_str = dap_chain_balance_print(l_value);
                 char *l_coins_str = dap_chain_balance_to_coins(l_value);
-                json_object_object_add(json_obj_tx, "tx type", json_object_new_string("recv"));
-                json_object_object_add(json_obj_tx, "amount", json_object_new_string(l_coins_str));
-                json_object_object_add(json_obj_tx, "amountMantissa", json_object_new_string(l_value_str));
+                json_object_object_add(json_obj_tx, "tx_type", json_object_new_string("recv"));
+                json_object_object_add(json_obj_tx, "recv_coins", json_object_new_string(l_coins_str));
+                json_object_object_add(json_obj_tx, "recv_datoshi", json_object_new_string(l_value_str));
                 json_object_object_add(json_obj_tx, "token", l_dst_token ? json_object_new_string(l_dst_token) 
                                                                             : json_object_new_string("UNKNOWN"));
-                json_object_object_add(json_obj_tx, "sourceAddress", json_object_new_string(l_src_str));
+                json_object_object_add(json_obj_tx, "source_address", json_object_new_string(l_src_str));
                 DAP_DEL_Z(l_src_addr_str);
                 DAP_DELETE(l_value_str);
                 DAP_DELETE(l_coins_str);
@@ -476,8 +477,8 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
         if (l_header_printed && l_base_tx && !dap_strcmp(l_native_ticker, l_src_token)) {
             char *l_fee_value_str = dap_chain_balance_print(l_fee_sum);
             char *l_fee_coins_str = dap_chain_balance_to_coins(l_fee_sum);
-            json_object_object_add(json_obj_tx, "fee", json_object_new_string(l_fee_value_str));
-            json_object_object_add(json_obj_tx, "feeMantissa", json_object_new_string(l_fee_coins_str));;
+            json_object_object_add(json_obj_tx, "fee", json_object_new_string(l_fee_coins_str));;
+            json_object_object_add(json_obj_tx, "fee_datoshi", json_object_new_string(l_fee_value_str));
             DAP_DELETE(l_fee_value_str);
             DAP_DELETE(l_fee_coins_str);
         }
