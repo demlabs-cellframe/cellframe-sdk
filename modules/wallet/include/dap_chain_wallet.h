@@ -67,7 +67,7 @@ int dap_chain_wallet_save(dap_chain_wallet_t * a_wallet, const char *a_pass);
 
 void dap_chain_wallet_close(dap_chain_wallet_t *a_wallet);
 
-dap_chain_addr_t * dap_cert_to_addr(dap_cert_t * a_cert, dap_chain_net_id_t a_net_id);
+dap_chain_addr_t *dap_cert_to_addr(dap_cert_t **a_certs, size_t a_count, size_t a_key_start_index, dap_chain_net_id_t a_net_id);
 
 dap_chain_addr_t* dap_chain_wallet_get_addr(dap_chain_wallet_t * a_wallet, dap_chain_net_id_t a_net_id);
 size_t dap_chain_wallet_get_certs_number( dap_chain_wallet_t * a_wallet);

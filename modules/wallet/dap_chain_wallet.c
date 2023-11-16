@@ -499,14 +499,14 @@ dap_chain_wallet_internal_t * l_wallet_internal;
  * @param a_net_id
  * @return
  */
-dap_chain_addr_t* dap_chain_wallet_get_addr(dap_chain_wallet_t * a_wallet, dap_chain_net_id_t a_net_id)
+dap_chain_addr_t *dap_chain_wallet_get_addr(dap_chain_wallet_t *a_wallet, dap_chain_net_id_t a_net_id)
 {
-    if(!a_wallet)
-        return NULL;
-
+// sanity check
+    dap_return_val_if_pass(!a_wallet, NULL);
     DAP_CHAIN_WALLET_INTERNAL_LOCAL(a_wallet);
-
-    return a_net_id.uint64 ? dap_cert_to_addr (l_wallet_internal->certs[0], a_net_id) : NULL;
+    dap_return_val_if_pass(!l_wallet_internal, NULL);
+// func work
+    return a_net_id.uint64 ? dap_cert_to_addr (l_wallet_internal->certs, l_wallet_internal->certs_count, 0, a_net_id) : NULL;
 }
 
 /**
@@ -515,14 +515,14 @@ dap_chain_addr_t* dap_chain_wallet_get_addr(dap_chain_wallet_t * a_wallet, dap_c
  * @param a_net_id
  * @return
  */
-dap_chain_addr_t *dap_cert_to_addr(dap_cert_t * a_cert, dap_chain_net_id_t a_net_id)
+dap_chain_addr_t *dap_cert_to_addr(dap_cert_t **a_certs, size_t a_count, size_t a_key_start_index, dap_chain_net_id_t a_net_id)
 {
-    dap_chain_addr_t *l_addr = DAP_NEW_Z(dap_chain_addr_t);
-    if(!l_addr) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        return NULL;
-    }
-    dap_chain_addr_fill_from_key(l_addr, a_cert->enc_key, a_net_id);
+// memory alloc
+    dap_chain_addr_t *l_addr = NULL;
+    DAP_NEW_Z_RET_VAL(l_addr, dap_chain_addr_t, NULL, NULL);
+    dap_enc_key_t *l_key = dap_cert_merge_keys(a_certs, a_count, a_key_start_index);
+    dap_chain_addr_fill_from_key(l_addr, l_key, a_net_id);
+    // NEED l_key MEMORY FREE!!!!
     return l_addr;
 }
 
@@ -566,13 +566,13 @@ size_t dap_chain_wallet_get_certs_number( dap_chain_wallet_t * a_wallet)
  */
 dap_enc_key_t *dap_chain_wallet_get_key(dap_chain_wallet_t *a_wallet, uint32_t a_pkey_idx)
 {
-    if(!a_wallet)
-        return NULL;
+// sanity check
+    dap_return_val_if_pass(!a_wallet, NULL);
 
     DAP_CHAIN_WALLET_INTERNAL_LOCAL(a_wallet);
 
     if( l_wallet_internal->certs_count > a_pkey_idx )
-        return l_wallet_internal->certs[a_pkey_idx] ? l_wallet_internal->certs[a_pkey_idx]->enc_key : NULL;
+        return dap_cert_merge_keys(l_wallet_internal->certs, l_wallet_internal->certs_count, a_pkey_idx);
 
     log_it( L_WARNING, "No key with index %u in the wallet (total size %zu)",a_pkey_idx,l_wallet_internal->certs_count);
     return 0;
