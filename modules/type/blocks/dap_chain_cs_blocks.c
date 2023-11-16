@@ -1614,7 +1614,7 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
 {
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     dap_chain_cs_blocks_pvt_t *l_blocks_pvt = PVT(l_blocks);
-
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     size_t l_datum_processed = 0;
     pthread_rwlock_wrlock(&l_blocks_pvt->rwlock);
     for (size_t i = 0; i < a_datums_count; ++i) {
@@ -1632,7 +1632,9 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
         dap_hash_fast_t l_datum_hash;
         dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_datum_hash);
         HASH_FIND(hh, l_blocks_pvt->datum_index, &l_datum_hash, sizeof (l_datum_hash), l_datum_index_tmp);
-        if(l_datum_index_tmp)
+        dap_chain_datum_tx_t *l_datum_hash_ledger = NULL;
+        l_datum_hash_ledger = dap_chain_ledger_tx_find_by_hash(l_net->pub.ledger, &l_datum_hash);
+        if(l_datum_index_tmp && l_datum_hash_ledger)
         {
             char *l_datum_hash_str = dap_hash_fast_to_str_new(&l_datum_hash);
             log_it(L_WARNING, "The datum is %s has been already added to block",l_datum_hash_str);
