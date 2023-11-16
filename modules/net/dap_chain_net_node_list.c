@@ -103,8 +103,7 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
         .hdr.owner_address.uint64 = dap_chain_net_get_cur_addr_int(l_net),
         .hdr.ext_addr_v4.s_addr = ipv4,
         .hdr.ext_port = port,
-        .hdr.links_number = links_cnt,
-        .links = {}
+        .hdr.links_number = links_cnt
     };
 
     uint8_t response = 0;
