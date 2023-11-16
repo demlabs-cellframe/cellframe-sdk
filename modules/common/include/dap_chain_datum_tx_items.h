@@ -42,6 +42,7 @@
 #include "dap_chain_datum_tx_in_ems.h"
 #include "dap_chain_datum_tx_receipt.h"
 #include "dap_chain_datum_tx_tsd.h"
+#include "dap_chain_datum_tx_voting.h"
 
 /**
  * Get item type
@@ -217,6 +218,23 @@ json_object* dap_chain_datum_tx_item_sig_to_json(const dap_chain_tx_sig_t *a_sig
 dap_sign_t *dap_chain_datum_tx_item_sign_get_sig(dap_chain_tx_sig_t *a_tx_sig);
 
 byte_t *dap_chain_datum_tx_item_get_data(dap_chain_tx_tsd_t *a_tx_tsd, int *a_type, size_t *a_size);
+
+/**
+ * Create item dap_chain_tx_voting_t
+ *
+ * return item, NULL Error
+ */
+dap_chain_tx_voting_t *dap_chain_datum_tx_item_voting_create(void);
+
+
+/**
+ * Create item dap_chain_tx_vote_t
+ *
+ * return item, NULL Error
+ */
+dap_chain_tx_vote_t *dap_chain_datum_tx_item_vote_create_fee(dap_chain_hash_fast_t *a_voting_hash, uint64_t *a_answer_idx);
+
+json_object *dap_chain_datum_tx_item_vote_to_json(dap_chain_tx_vote_t *a_vote);
 
 /**
  * Get item from transaction

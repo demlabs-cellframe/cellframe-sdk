@@ -31,6 +31,7 @@
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_decree.h"
 #include "dap_chain_datum_anchor.h"
+#include "dap_chain_datum_tx_voting.h"
 #include "dap_chain_datum_hashtree_roots.h"
 #include "dap_enc_base58.h"
 
@@ -535,6 +536,28 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
             DAP_DELETE(l_addr_str);
             DAP_DELETE(l_value_str);
             DAP_DELETE(l_coins_str);
+        } break;
+        case TX_ITEM_TYPE_VOTING:{
+            size_t l_tsd_size = 0;
+            dap_chain_tx_tsd_t *l_item = dap_chain_datum_tx_item_get(a_datum, 0, TX_ITEM_TYPE_TSD, l_tsd_size);
+            if (!l_item || !l_tsd_size)
+                break;
+            dap_chain_datum_tx_voting_params_t *l_voting_params = dap_chain_voting_parse_tsd(l_item->tsd, l_item->header.size);
+            dap_string_append_printf(a_str_out, "\t %s\n", l_voting_params->voting_question);
+            dap_list_t *l_temp = l_voting_params->answers_list;
+            while (l_temp){
+
+
+                l_temp = l_temp->next;
+            }
+
+
+            dap_list_free_full(l_voting_params->answers_list);
+            DAP_DELETE(l_voting_params->voting_question);
+            DAP_DELETE(l_voting_params);
+        } break;
+        case TX_ITEM_TYPE_VOTE:{
+
         } break;
         default:
             dap_string_append_printf(a_str_out, " This transaction have unknown item type \n");

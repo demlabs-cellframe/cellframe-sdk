@@ -110,6 +110,20 @@ static size_t dap_chain_tx_tsd_get_size(const dap_chain_tx_tsd_t *a_item)
     return sizeof(dap_chain_tx_tsd_t) + a_item->header.size;
 }
 
+static size_t dap_chain_tx_voting_get_size(const dap_chain_tx_voting_t *a_item)
+{
+    (void) a_item;
+    size_t size = sizeof(dap_chain_tx_voting_t);
+    return size;
+}
+
+static size_t dap_chain_tx_vote_get_size(const dap_chain_tx_vote_t *a_item)
+{
+    (void) a_item;
+    size_t size = sizeof(dap_chain_tx_vote_t);
+    return size;
+}
+
 /**
  * Get item type by item name
  *
@@ -138,6 +152,10 @@ dap_chain_tx_item_type_t dap_chain_datum_tx_item_str_to_type(const char *a_datum
         return TX_ITEM_TYPE_RECEIPT;
     else if(!dap_strcmp(a_datum_name, "data"))
         return TX_ITEM_TYPE_TSD;
+    else if(!dap_strcmp(a_datum_name, "voting"))
+        return TX_ITEM_TYPE_VOTING;
+    else if(!dap_strcmp(a_datum_name, "vote"))
+        return TX_ITEM_TYPE_VOTE;
     return TX_ITEM_TYPE_UNKNOWN;
 }
 
@@ -218,6 +236,12 @@ size_t dap_chain_datum_item_tx_get_size(const void *a_item)
         break;
     case TX_ITEM_TYPE_TSD:
         size = dap_chain_tx_tsd_get_size((const dap_chain_tx_tsd_t*)a_item);
+        break;
+    case TX_ITEM_TYPE_VOTING:
+        size = dap_chain_tx_voting_get_size((const dap_chain_tx_voting_t*)a_item);
+        break;
+    case TX_ITEM_TYPE_VOTE:
+        size = dap_chain_tx_voting_get_size((const dap_chain_tx_vote_t*)a_item);
         break;
     default:
         return 0;
@@ -706,6 +730,37 @@ byte_t *dap_chain_datum_tx_item_get_data(dap_chain_tx_tsd_t *a_tx_tsd, int *a_ty
     *a_size = ((dap_tsd_t*)(a_tx_tsd->tsd))->size;
     *a_type = ((dap_tsd_t*)(a_tx_tsd->tsd))->type;
     return ((dap_tsd_t*)(a_tx_tsd->tsd))->data;
+}
+
+dap_chain_tx_voting_t *dap_chain_datum_tx_item_voting_create(void)
+{
+    dap_chain_tx_voting_t * l_item = DAP_NEW_Z(dap_chain_tx_voting_t);
+    l_item->type = TX_ITEM_TYPE_VOTING;
+    return l_item;
+}
+
+dap_chain_tx_vote_t *dap_chain_datum_tx_item_vote_create(dap_chain_hash_fast_t *a_voting_hash, uint64_t *a_answer_idx)
+{
+    if (!a_voting_hash)
+        return NULL;
+
+    dap_chain_tx_vote_t * l_item = DAP_NEW_Z(dap_chain_tx_vote_t);
+    l_item->type = TX_ITEM_TYPE_VOTE;
+    l_item->answer_idx = a_answer_idx;
+    l_item->voting_hash = *a_voting_hash;
+    return l_item;
+}
+
+json_object *dap_chain_datum_tx_item_vote_to_json(dap_chain_tx_vote_t *a_vote)
+{
+    json_object *l_object = json_object_new_object();
+    char *l_voting_hash_str = dap_hash_fast_to_str_new(&a_vote->voting_hash);
+    json_object *l_voting_hash = json_object_new_string(l_voting_hash_str);
+    DAP_DELETE(l_voting_hash_str);
+    json_object *l_answer_idx = json_object_new_uint64(a_vote->answer_idx);
+    json_object_object_add(l_object, "votingHash", l_voting_hash);
+    json_object_object_add(l_object, "answer_idx", l_answer_idx);
+    return l_object;
 }
 
 /**
