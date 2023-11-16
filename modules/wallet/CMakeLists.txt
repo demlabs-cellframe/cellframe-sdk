@@ -10,3 +10,12 @@ target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_chain dap_chain_ne
 
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
+
+if (INSTALL_SDK)
+set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_WALLET_HEADERS}")
+INSTALL(TARGETS ${PROJECT_NAME} 
+        LIBRARY DESTINATION lib/modules/wallet/
+        ARCHIVE DESTINATION lib/modules/wallet/
+        PUBLIC_HEADER DESTINATION include/modules/wallet/
+)
+endif()

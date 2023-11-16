@@ -560,7 +560,7 @@ static int ping_main(ping_handle_t *a_ping_handle, int argc, char **argv)
  * @count number of packets to transmit
  * @return ping time in microsecond or -1 if error
  */
-int ping_util_common(ping_handle_t *a_ping_handle, int type, const char *addr, int count)
+int ping_util_common(ping_handle_t *a_ping_handle, int type, const char *addr, int count, int wait)
 {
 
     /*
@@ -572,14 +572,15 @@ int ping_util_common(ping_handle_t *a_ping_handle, int type, const char *addr, i
      # sysctl net.ipv4.ping_group_range="1 65000"
      */
     a_ping_handle->ping_common.tsum = a_ping_handle->ping_common.ntransmitted = a_ping_handle->ping_common.nreceived = exiting = 0;
-    int argc = 3;
+    int argc = 4;
     const char *argv[argc];
     if(type != 4)
         argv[0] = "ping6";
     else
         argv[0] = "ping4";
     argv[1] = dap_strdup_printf("-c%d", count);
-    argv[2] = addr;
+    argv[2] = dap_strdup_printf("-w%d", wait);
+    argv[3] = addr;
     int status = ping_main(a_ping_handle, argc, (char**) argv);
     DAP_DELETE((char*) argv[1]);
     if(a_ping_handle->ping_common.ntransmitted >= 1 && a_ping_handle->ping_common.nreceived >= 1)
@@ -594,9 +595,9 @@ int ping_util_common(ping_handle_t *a_ping_handle, int type, const char *addr, i
  * @count number of packets to transmit
  * @return ping time in microsecond or -1 if error
  */
-int ping_util(ping_handle_t *a_ping_handle, const char *addr, int count)
+int ping_util(ping_handle_t *a_ping_handle, const char *addr, int count, int wait)
 {
-    return ping_util_common(a_ping_handle, 4, addr, count);
+    return ping_util_common(a_ping_handle, 4, addr, count, wait);
 }
 
 /**
@@ -608,7 +609,7 @@ int ping_util(ping_handle_t *a_ping_handle, const char *addr, int count)
  */
 int ping_util6(ping_handle_t *a_ping_handle, const char *addr, int count)
 {
-    return ping_util_common(a_ping_handle, 6, addr, count);
+    return ping_util_common(a_ping_handle, 6, addr, count, 10);
 }
 
 int ping4_run(ping_handle_t *a_ping_handle, int argc, char **argv, struct addrinfo *ai, socket_st *sock)

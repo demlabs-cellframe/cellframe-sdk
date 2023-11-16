@@ -1,0 +1,42 @@
+#!/bin/bash 
+
+DAP_CHAINS_NAME="cellframe"
+DAP_APP_NAME="${DAP_CHAINS_NAME}-node"
+DAP_PREFIX="/opt/${DAP_APP_NAME}"
+
+GDB_PATH=`cat ${DAP_PREFIX}/etc/${DAP_APP_NAME}.cfg | grep -oP "^dap_global_db_path=\K.*"`
+CONFFILES="${DAP_PREFIX}/etc/"
+
+
+case "$1" in
+    purge)
+    # Purge database
+    if [ -e /usr/share/debconf/confmodule ] ; then
+        . /usr/share/debconf/confmodule
+        db_purge
+    fi
+    # Remove user and group
+    echo "[*] Removing user cellframe-node"
+    userdel ${DAP_APP_NAME} > /dev/null || true
+    echo "[*] Removing group cellframe-node"
+    groupdel ${DAP_APP_NAME} > /dev/null || true
+
+    # Remove configuration file, logs and at least gdb path for now on purge
+    echo "[*] Removing configuration files for ${DAP_APP_NAME}"
+    rm -rf ${CONFFILES} || true
+    echo "[*] Removing log files for ${DAP_APP_NAME}"
+    rm -rf ${DAP_PREFIX}/var/log || true
+    echo "[*] Removing databases for ${DAP_APP_NAME}"
+    rm -rf ${GDB_PATH} || true
+    ;;
+
+    remove|upgrade|failed-upgrade|abort-install|abort-upgrade|disappear)
+    ;;
+
+    *)
+        echo "postrm called with unknown argument \`$1'" >&2
+        exit 1
+    ;;
+esac
+
+exit 0

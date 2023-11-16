@@ -965,19 +965,19 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
         CMD_NONE, CMD_CREATE, CMD_REMOVE, CMD_UPDATE, CMD_HISTORY, CMD_STATUS
     };
     int l_cmd_num = CMD_NONE;
-    if(dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, MIN(a_argc, a_arg_index + 1), "create", NULL)) {
+    if(dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, dap_min(a_argc, a_arg_index + 1), "create", NULL)) {
         l_cmd_num = CMD_CREATE;
     }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, MIN(a_argc, a_arg_index + 1), "remove", NULL)) {
+    else if(dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, dap_min(a_argc, a_arg_index + 1), "remove", NULL)) {
         l_cmd_num = CMD_REMOVE;
     }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, MIN(a_argc, a_arg_index + 1), "update", NULL)) {
+    else if(dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, dap_min(a_argc, a_arg_index + 1), "update", NULL)) {
         l_cmd_num = CMD_UPDATE;
     }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, MIN(a_argc, a_arg_index + 1), "history", NULL)) {
+    else if(dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, dap_min(a_argc, a_arg_index + 1), "history", NULL)) {
         l_cmd_num = CMD_HISTORY;
     }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, MIN(a_argc, a_arg_index + 1), "status", NULL)) {
+    else if(dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, dap_min(a_argc, a_arg_index + 1), "status", NULL)) {
         l_cmd_num = CMD_STATUS;
     }
     int l_arg_index = a_arg_index + 1;
@@ -1671,25 +1671,25 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
     int l_arg_index = 1, l_cmd_num = CMD_NONE;
     bool l_rc;
 
-    if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "order", NULL)) {
+    if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "order", NULL)) {
         l_cmd_num = CMD_ORDER;
     }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "orders", NULL)) {
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "orders", NULL)) {
         l_cmd_num = CMD_ORDERS;
     }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "purchase", NULL)) {
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "purchase", NULL)) {
         l_cmd_num = CMD_PURCHASE;
     }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "enable", NULL)) {
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "enable", NULL)) {
         l_cmd_num = CMD_ENABLE;
     }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "disable", NULL)) {
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "disable", NULL)) {
         l_cmd_num = CMD_DISABLE;
     }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "tx_list", NULL)) {
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "tx_list", NULL)) {
         l_cmd_num = CMD_TX_LIST;
     }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "token_pair", NULL)) {
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "token_pair", NULL)) {
         l_cmd_num = CMD_TOKEN_PAIR;
     }
 
