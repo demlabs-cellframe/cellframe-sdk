@@ -219,16 +219,6 @@ static dap_chain_node_info_t* node_info_read_and_reply(dap_chain_net_t * a_net, 
         DAP_DELETE(l_key);
         return NULL;
     }
-    /* if(!node_info->hdr.ext_port)
-        node_info->hdr.ext_port = 8079; */
-    size_t node_info_size_must_be = dap_chain_node_info_get_size(node_info);
-    if(node_info_size_must_be != node_info_size) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "node has bad size in base=%zu (must be %zu)", node_info_size,
-                node_info_size_must_be);
-        DAP_DELETE(node_info);
-        DAP_DELETE(l_key);
-        return NULL;
-    }
 
     DAP_DELETE(l_key);
     return node_info;

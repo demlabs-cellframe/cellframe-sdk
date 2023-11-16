@@ -1357,13 +1357,6 @@ int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fa
         return -6;
     }
 
-    size_t node_info_size_must_be = dap_chain_node_info_get_size(l_remote_node_info);
-    if(node_info_size_must_be != l_node_info_size) {
-        log_it(L_WARNING, "node has bad size in base=%zu (must be %zu)", l_node_info_size, node_info_size_must_be);
-        DAP_DELETE(l_remote_node_info);
-        DAP_DELETE(l_key);
-        return -7;
-    }
     DAP_DELETE(l_key);
     // start connect
     l_node_client = dap_chain_node_client_connect_channels(a_net,l_remote_node_info,"N");
