@@ -314,6 +314,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                                 ((dap_chain_tx_in_ems_t*)item)->header.token_emission_chain_id.uint64);
             DAP_DELETE(l_hash_str);
         } break;
+            /*
         case TX_ITEM_TYPE_IN_EMS_EXT: {
             l_hash_tmp = &((dap_chain_tx_in_ems_ext_t*)item)->header.ext_tx_hash;
             l_hash_str = dap_strcmp(a_hash_out_type, "hex")
@@ -333,7 +334,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                      l_hash_str,
                                      ((dap_chain_tx_in_ems_ext_t*)item)->header.ext_tx_out_idx);
             DAP_DELETE(l_hash_str);
-        } break;
+        } break; */
         case TX_ITEM_TYPE_SIG: {
             l_sign_tmp = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)item);
             dap_sign_get_information(l_sign_tmp, a_str_out, a_hash_out_type);
@@ -687,8 +688,8 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
         case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
             size_t l_emisssion_size = a_datum->header.data_size;
             dap_chain_datum_token_emission_t *l_emission = dap_chain_datum_emission_read(a_datum->data, &l_emisssion_size);
-            char *l_value_str = dap_chain_balance_print(l_emission->hdr.value_256);
-            char *l_coins_str = dap_chain_balance_to_coins(l_emission->hdr.value_256);
+            char *l_value_str = dap_chain_balance_print(l_emission->hdr.value);
+            char *l_coins_str = dap_chain_balance_to_coins(l_emission->hdr.value);
             char *l_addr_str = dap_chain_addr_to_str(&(l_emission->hdr.address));
             dap_string_append_printf(a_str_out, "emission: hash %s\n\t%s(%s) %s, type: %s, version: %d\n",
                                     l_hash_str,

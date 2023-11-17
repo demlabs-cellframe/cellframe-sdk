@@ -192,10 +192,10 @@ size_t dap_chain_datum_item_tx_get_size(const void *a_item)
     case TX_ITEM_TYPE_IN: // Transaction inputs
         size = dap_chain_tx_in_get_size((const dap_chain_tx_in_t*) a_item);
         break;
-    case TX_ITEM_TYPE_OUT_OLD: // Transaction outputs
+    case TX_ITEM_TYPE_OUT_OLD: //64
         size = dap_chain_tx_out_get_size((const dap_chain_tx_out_old_t*) a_item);
         break;
-    case TX_ITEM_TYPE_OUT: // 256
+    case TX_ITEM_TYPE_OUT: // Transaction outputs
         size = dap_chain_256_tx_out_get_size((const dap_chain_tx_out_t*) a_item);
         break;
     case TX_ITEM_TYPE_OUT_EXT: // Exchange transaction outputs
@@ -207,10 +207,7 @@ size_t dap_chain_datum_item_tx_get_size(const void *a_item)
     case TX_ITEM_TYPE_IN_COND: // Transaction inputs with condition
         size = dap_chain_tx_in_cond_get_size((const dap_chain_tx_in_cond_t*) a_item);
         break;
-    case TX_ITEM_TYPE_OUT_COND_OLD: // Transaction output with condition
-        size = 0; // obsolete dap_chain_tx_out_cond_get_size((const dap_chain_tx_out_cond_t*) a_item);
-        break;
-    case TX_ITEM_TYPE_OUT_COND: // 256
+    case TX_ITEM_TYPE_OUT_COND: // Condtional output
         size = dap_chain_tx_out_cond_get_size((const dap_chain_tx_out_cond_t *)a_item);
         break;
     case TX_ITEM_TYPE_PKEY: // Transaction public keys
@@ -761,8 +758,7 @@ uint8_t* dap_chain_datum_tx_item_get( dap_chain_datum_tx_t *a_tx, int *a_item_id
                     (a_type == TX_ITEM_TYPE_IN_ALL && l_type == TX_ITEM_TYPE_IN) ||
                     (a_type == TX_ITEM_TYPE_IN_ALL && l_type == TX_ITEM_TYPE_IN_COND) ||
                     (a_type == TX_ITEM_TYPE_IN_ALL && l_type == TX_ITEM_TYPE_IN_EMS) ||
-                    (a_type == TX_ITEM_TYPE_IN_ALL && l_type == TX_ITEM_TYPE_IN_REWARD) ||
-                    (a_type == TX_ITEM_TYPE_IN_ALL && l_type == TX_ITEM_TYPE_IN_EMS_EXT)) {
+                    (a_type == TX_ITEM_TYPE_IN_ALL && l_type == TX_ITEM_TYPE_IN_REWARD)) {
                 if(a_item_idx)
                     *a_item_idx = l_item_idx;
                 if(a_item_out_size)
