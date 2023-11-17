@@ -115,7 +115,6 @@ static bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
         case TX_ITEM_TYPE_OUT:
         case TX_ITEM_TYPE_OUT_OLD:
         case TX_ITEM_TYPE_OUT_EXT:
-        case TX_ITEM_TYPE_OUT_COND_OLD:
         case TX_ITEM_TYPE_OUT_COND: {
             dap_hash_fast_t l_spender = { };
             if (dap_ledger_tx_hash_is_used_out_item(a_ledger, a_tx_hash, l_out_idx, &l_spender)) {
@@ -1374,9 +1373,8 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
             if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &l_param_value_str)){
                 l_subtype = SUBTYPE_FEE;
                 if (!dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-to_addr", &l_param_addr_str)){
-                    if(!l_net->pub.decree->fee_addr)
-                    {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Net fee add needed. Use -to_addr parameter");
+                    if (dap_chain_addr_is_blank(&l_net->pub.fee_addr)) {
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Use -to_addr parameter to set net fee");
                         return -111;
                     }
                 }else{

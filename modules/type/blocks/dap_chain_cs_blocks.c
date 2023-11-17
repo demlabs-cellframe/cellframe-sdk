@@ -108,6 +108,7 @@ static dap_chain_atom_ptr_t s_callback_block_find_by_tx_hash(dap_chain_t * a_cha
 
 static dap_chain_datum_t** s_callback_atom_get_datums(dap_chain_atom_ptr_t a_atom, size_t a_atom_size, size_t * a_datums_count);
 static dap_time_t s_chain_callback_atom_get_timestamp(dap_chain_atom_ptr_t a_atom) { return ((dap_chain_block_t *)a_atom)->hdr.ts_created; }
+static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash, dap_sign_t *a_block_sign);
 //    Get blocks
 static dap_chain_atom_ptr_t s_callback_atom_iter_get_first( dap_chain_atom_iter_t * a_atom_iter, size_t *a_atom_size ); //    Get the fisrt block
 static dap_chain_atom_ptr_t s_callback_atom_iter_get_next( dap_chain_atom_iter_t * a_atom_iter,size_t *a_atom_size );  //    Get the next block
@@ -888,11 +889,11 @@ static dap_list_t * s_block_parse_str_list(const char * a_hash_str,size_t * a_ha
         }
         dap_chain_block_cache_t *l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_hash_block);
         //verification of signatures of all blocks
-        dap_sign_t * l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
-        if(dap_pkey_compare_with_sign(l_pub_key, l_sign))
+        dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
+        if (l_sign && dap_pkey_compare_with_sign(l_pub_key, l_sign))
             l_block_list = dap_list_append(l_block_list, l_block_cache);
         else
-             log_it(L_WARNING,"Block %s signature does not match certificate key", l_block_cache->block_hash_str);
+            log_it(L_WARNING,"Block %s signature does not match certificate key", l_block_cache->block_hash_str);
 
         l_hashes_str = strtok_r(NULL, ",", &l_hashes_tmp_ptrs);
         l_hashes_pos++;
@@ -1175,6 +1176,11 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
         }
     }
 
+    if (l_block->hdr.ts_created > dap_time_now() + 60) {
+        log_it(L_WARNING, "Incorrect block timestamp");
+        return  ATOM_REJECT;
+    }
+
     size_t l_meta_count = 0;
     dap_chain_block_meta_t ** l_meta=  dap_chain_block_get_meta(l_block, a_atom_size, & l_meta_count);
     // Parse metadata
@@ -1193,7 +1199,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
                                         &l_is_genesis,
                                         &l_nonce,
                                         &l_nonce2 ) ;
-    DAP_DELETE(l_meta);
+    DAP_DEL_Z(l_meta);
 
     // 2nd level consensus
     if(l_blocks->callback_block_verify)
@@ -1717,4 +1723,32 @@ static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, si
     }
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
     return l_list;
+}
+
+static const dap_time_t s_block_timediff_unit = 60;
+
+static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash, dap_sign_t *a_block_sign)
+{
+    uint256_t l_ret = uint256_0;
+    size_t l_block_size = 0;
+    const dap_chain_block_t *l_block = dap_chain_get_atom_by_hash(a_chain, a_block_hash, &l_block_size);
+    if (dap_chain_block_sign_match_pkey(l_block, l_block_size, a_block_sign)) {
+        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+        if (!l_net) {
+            log_it(L_ERROR, "Invalid chain object");
+            return l_ret;
+        }
+        size_t l_signs_count = dap_chain_block_get_signs_count(l_block, l_block_size);
+        DIV_256(l_net->pub.base_reward, GET_256_FROM_64(l_signs_count), &l_ret);
+        dap_time_t l_block_time = l_block->hdr.ts_created;
+        dap_hash_fast_t *l_prev_block_hash = dap_chain_block_get_prev_hash(l_block, l_block_size);
+        if (l_prev_block_hash) {
+            l_block = dap_chain_get_atom_by_hash(a_chain, l_prev_block_hash, &l_block_size);
+            assert(l_block);
+            dap_time_t l_time_diff = l_block_time - l_block->hdr.ts_created;
+            MULT_256_256(l_ret, GET_256_FROM_64(l_time_diff), &l_ret);
+            DIV_256(l_ret, GET_256_FROM_64(s_block_timediff_unit), &l_ret);
+        }
+    }
+    return l_ret;
 }

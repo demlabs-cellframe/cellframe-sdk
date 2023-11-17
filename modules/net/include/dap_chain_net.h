@@ -81,6 +81,8 @@ typedef struct dap_chain_net{
         // Net fee
         uint256_t fee_value;
         dap_chain_addr_t fee_addr;
+        // Block sign reward
+        uint256_t base_reward;
 
         pthread_mutex_t balancer_mutex;
         dap_list_t *link_list;

@@ -100,16 +100,18 @@ size_t dap_chain_block_datum_del_by_hash(dap_chain_block_t ** a_block_ptr, size_
 
 // Add sign in block
 size_t dap_chain_block_sign_add(dap_chain_block_t ** a_block_ptr, size_t a_block_size, dap_enc_key_t *a_key);
-dap_sign_t *dap_chain_block_sign_get ( dap_chain_block_t * a_block_ptr, size_t a_block_size, uint16_t a_sign_num );
+dap_sign_t *dap_chain_block_sign_get (const dap_chain_block_t *a_block_ptr, size_t a_block_size, uint16_t a_sign_num );
+bool dap_chain_block_sign_match_pkey(const dap_chain_block_t *a_block, size_t a_block_size, dap_sign_t *a_sign);
+size_t dap_chain_block_get_signs_count(const dap_chain_block_t *a_block, size_t a_block_size);
+size_t dap_chain_block_get_sign_offset(const dap_chain_block_t *a_block, size_t a_block_size);
 
-size_t dap_chain_block_get_signs_count(dap_chain_block_t * a_block, size_t a_block_size);
-size_t dap_chain_block_get_sign_offset(dap_chain_block_t *a_block, size_t a_block_size);
+dap_hash_fast_t *dap_chain_block_get_prev_hash(const dap_chain_block_t *a_block, size_t a_block_size);
 
 // Create and return datums list
-dap_chain_datum_t** dap_chain_block_get_datums(dap_chain_block_t * a_block, size_t a_block_size,size_t * a_datums_count );
+dap_chain_datum_t** dap_chain_block_get_datums(const dap_chain_block_t * a_block, size_t a_block_size,size_t * a_datums_count );
 
 // Create and return meta parameters  list
-dap_chain_block_meta_t** dap_chain_block_get_meta(dap_chain_block_t * a_block, size_t a_block_size,size_t * a_meta_count );
+dap_chain_block_meta_t** dap_chain_block_get_meta(const dap_chain_block_t *a_block, size_t a_block_size, size_t * a_meta_count );
 
 void dap_chain_block_meta_extract(dap_chain_block_meta_t ** a_meta, size_t a_meta_count,
                                     dap_chain_hash_fast_t * a_block_prev_hash,
