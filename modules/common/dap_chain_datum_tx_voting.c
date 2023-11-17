@@ -75,50 +75,6 @@ dap_chain_datum_tx_voting_params_t* dap_chain_voting_parse_tsd(byte_t* a_tsd_dat
 }
 
 
-json_object *dap_chain_voting_parse_tsd_to_json(byte_t* a_tsd_data, size_t a_tsd_size)
-{
-    if (!a_tsd_data || !a_tsd_size)
-        return NULL;
-
-    dap_tsd_t *l_tsd = a_tsd_data;
-    size_t l_tsd_shift = 0;
-    json_object *l_json_objects = json_object_new_object();
-
-    while (l_tsd_shift < a_tsd_size && l_tsd->size < a_tsd_size){
-        switch(l_tsd->type){
-        case VOTING_TSD_TYPE_QUESTION:
-            json_object *l_question = json_object_new_string_len((char*)l_tsd->data, l_tsd->size);
-            json_object_object_add(l_json_objects, "question", l_question);
-            break;
-        case VOTING_TSD_TYPE_ANSWER:
-            char *l_answer_string = DAP_NEW_Z_SIZE(char, l_tsd->size);
-            memcpy(l_answer_string, l_tsd->data, l_tsd->size);
-            dap_list_append(l_voting_parms->answers_list, l_question_string);
-            l_voting_parms->answers_count++;
-            break;
-        case VOTING_TSD_TYPE_EXPIRE:
-            l_voting_parms->voting_expire = *(dap_time_t*)l_tsd->data;
-            break;
-        case VOTING_TSD_TYPE_MAX_VOTES_COUNT:
-            l_voting_parms->votes_max_count = *(uint64_t*)l_tsd->data;
-            break;
-        case VOTING_TSD_TYPE_DELEGATE_KEY_REQUIRED:
-            l_voting_parms->delegate_key_required = *(bool*)l_tsd->data;
-            break;
-        case VOTING_TSD_TYPE_VOTE_CHANGING_ALLOWED:
-            l_voting_parms->delegate_key_required = *(bool*)l_tsd->data;
-            break;
-        default:
-            break;
-        }
-
-        l_tsd_shift += dap_tsd_size(l_tsd);
-    }
-
-
-    return l_json_objects;
-}
-
 dap_tsd_t* dap_chain_datum_voting_question_tsd_create(char* a_question_str, size_t str_len)
 {
     if (!a_question_str || !str_len)

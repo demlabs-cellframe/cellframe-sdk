@@ -225,14 +225,14 @@ byte_t *dap_chain_datum_tx_item_get_data(dap_chain_tx_tsd_t *a_tx_tsd, int *a_ty
  * return item, NULL Error
  */
 dap_chain_tx_voting_t *dap_chain_datum_tx_item_voting_create(void);
-
+json_object *dap_chain_datum_tx_item_voting_tsd_to_json(byte_t *a_data, size_t a_data_size);
 
 /**
  * Create item dap_chain_tx_vote_t
  *
  * return item, NULL Error
  */
-dap_chain_tx_vote_t *dap_chain_datum_tx_item_vote_create_fee(dap_chain_hash_fast_t *a_voting_hash, uint64_t *a_answer_idx);
+dap_chain_tx_vote_t *dap_chain_datum_tx_item_vote_create(dap_chain_hash_fast_t *a_voting_hash, uint64_t *a_answer_idx);
 
 json_object *dap_chain_datum_tx_item_vote_to_json(dap_chain_tx_vote_t *a_vote);
 

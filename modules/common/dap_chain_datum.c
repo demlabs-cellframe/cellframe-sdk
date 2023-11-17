@@ -543,21 +543,31 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
             if (!l_item || !l_tsd_size)
                 break;
             dap_chain_datum_tx_voting_params_t *l_voting_params = dap_chain_voting_parse_tsd(l_item->tsd, l_item->header.size);
-            dap_string_append_printf(a_str_out, "\t %s\n", l_voting_params->voting_question);
+            dap_string_append_printf(a_str_out, "\t Voting question: %s\n\tAnswer options:\n", l_voting_params->voting_question);
             dap_list_t *l_temp = l_voting_params->answers_list;
+            uint8_t l_index = 1;
             while (l_temp){
-
-
+                dap_string_append_printf(a_str_out, "\t\t %i) %s\n", l_index, l_temp->data);
+                l_index++;
                 l_temp = l_temp->next;
             }
 
+            dap_string_append_printf(a_str_out, "\t Voting expire: %s\n", dap_ctime_r(l_voting_params->voting_expire, l_tmp_buf));
+            dap_string_append_printf(a_str_out, "\t Votes max count: 0x%016"DAP_UINT64_FORMAT_x"\n", l_voting_params->votes_max_count);
+            dap_string_append_printf(a_str_out, "\t Changing vote is %s available.\n", l_voting_params->vote_changing_allowed ? "" : "not");
+            dap_string_append_printf(a_str_out, "\t A delegated key is%s required to participate in voting. \n", l_voting_params->delegate_key_required ? "" : " not");
 
             dap_list_free_full(l_voting_params->answers_list);
             DAP_DELETE(l_voting_params->voting_question);
             DAP_DELETE(l_voting_params);
         } break;
         case TX_ITEM_TYPE_VOTE:{
-
+            dap_chain_tx_vote_t *l_vote_item = (dap_chain_tx_vote_t *)item;
+            char *l_hash_str = dap_chain_hash_fast_to_str_new(&l_vote_item->voting_hash);
+            dap_string_append_printf(a_str_out, "\t VOTE: \n"
+                                                "\t Voting hash: %s\n"
+                                                "\t Vote answer idx: %d", l_hash_str, l_vote_item->answer_idx);
+            DAP_DELETE(l_hash_str);
         } break;
         default:
             dap_string_append_printf(a_str_out, " This transaction have unknown item type \n");

@@ -65,9 +65,6 @@ typedef struct dap_chain_datum_tx_voting_params {
 
 
 dap_chain_datum_tx_voting_params_t *dap_chain_voting_parse_tsd(byte_t* a_tsd_data, size_t a_tsd_size);
-json_object *dap_chain_voting_parse_tsd_to_json(byte_t* a_tsd_data, size_t a_tsd_size);
-json_object *dap_chain_voting_dump_tsd(byte_t* a_tsd_data, size_t a_tsd_size);
-
 
 dap_tsd_t* dap_chain_datum_voting_question_tsd_create(char* a_question_str, size_t str_len);
 dap_tsd_t* dap_chain_datum_voting_answer_tsd_create(char* a_answer_str, size_t str_len);

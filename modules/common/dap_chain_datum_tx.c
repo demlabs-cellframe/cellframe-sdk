@@ -384,6 +384,12 @@ json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx){
                 break;
             case TX_ITEM_TYPE_VOTING:
                 l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_VOTING");
+                // TODO voting tsd to json
+
+
+
+
+
                 break;
             case TX_ITEM_TYPE_VOTE:
                 l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_VOTE");
