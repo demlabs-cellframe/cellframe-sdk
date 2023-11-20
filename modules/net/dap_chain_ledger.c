@@ -3501,7 +3501,8 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
                     }
                     l_tx_stake_lock = dap_ledger_tx_find_by_hash(a_ledger, l_emission_hash);
                 } else {
-                    if (l_girdled_ems_used) {    // 3. Only one allowed item with girdled emission
+                    // 2. The only allowed item with girdled emission
+                    if (l_girdled_ems_used) {
                         debug_if(s_debug_more, L_WARNING, "stake_lock_emission is used out for IN_EMS [%s]", l_token);
                         l_err_num = DAP_LEDGER_TX_CHECK_STAKE_LOCK_IN_EMS_ALREADY_USED;
                         break;
@@ -3665,6 +3666,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
                 // calculate hash from sign public key
                 dap_sign_get_pkey_hash(l_tx_first_sign, &l_hash_pkey);
             }
+            // 3. Check if already spent reward
             dap_ledger_reward_key_t l_search_key = { .block_hash = *l_block_hash, .sign_pkey_hash = l_hash_pkey };
             dap_ledger_reward_item_t *l_reward_item = s_find_reward(a_ledger, &l_search_key);
             if (l_reward_item) {
