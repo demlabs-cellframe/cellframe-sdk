@@ -79,9 +79,9 @@ dap_chain_tx_t* dap_chain_tx_dup(dap_chain_tx_t * a_tx)
  * @param a_tx_hh
  * @param a_tx
  */
-void dap_chain_tx_hh_add (dap_chain_tx_t * a_tx_hh, dap_chain_tx_t * a_tx)
+void dap_chain_tx_hh_add (dap_chain_tx_t ** a_tx_hh, dap_chain_tx_t * a_tx)
 {
-    HASH_ADD(hh,a_tx_hh,hash, sizeof(a_tx->hash),a_tx);
+    HASH_ADD(hh,*a_tx_hh,hash, sizeof(a_tx->hash),a_tx);
 }
 
 void dap_chain_tx_hh_free (dap_chain_tx_t * a_tx_hh)
