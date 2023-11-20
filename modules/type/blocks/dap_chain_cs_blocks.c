@@ -175,11 +175,24 @@ int dap_chain_cs_blocks_init()
             "block -net <net_name> -chain <chain_name> list [-from_hash <block_hash>] [-to_hash <block_hash>]"
             "[-from_dt <in YYMMDD>] [-to_dt <in YYMMDD>] [-cert <priv_cert_name> -unspent]\n"
                 "\t\t List blocks\n\n"
+
         "Commission collect:\n"
             "block -net <net_name> -chain <chain_name> fee collect\n"
             "-cert <priv_cert_name> -addr <addr> -hashes <hashes list> -fee <value>\n"
                 "\t\t Take the whole commission\n\n"
 
+        "Reward for block signs:\n"
+            "block -net <net_name> -chain <chain_name> reward collect\n"
+            "-cert <priv_cert_name> -addr <addr> -hashes <hashes list> -fee <value>\n"
+                "\t\t Take reward\n\n"
+
+            "block -net <net_name> -chain <chain_name> reward collect\n"
+            "-cert <priv_cert_name> -addr <addr> -hashes <hashes list> -fee <value>\n"
+                "\t\t Take reward\n\n"
+
+            "block -net <net_name> -chain <chain_name> reward collect\n"
+            "-cert <priv_cert_name> -addr <addr> -hashes <hashes list> -fee <value>\n"
+                "\t\t Take reward\n\n"
                                         );
     if( dap_chain_block_cache_init() ) {
         log_it(L_WARNING, "Can't init blocks cache");
