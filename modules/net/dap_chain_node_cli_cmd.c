@@ -2173,26 +2173,47 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         }
                     }
 
-                    dap_sign_type_t l_sign_type;
+                    dap_sign_type_t l_sign_types[MAX_ENC_KEYS_IN_MULTYSIGN] = {0};
+                    size_t l_sign_count = 0;
                     if (!l_sign_type_str) {
-                        l_sign_type.type = SIG_TYPE_DILITHIUM;
-                        l_sign_type_str = dap_sign_type_to_str(l_sign_type);
+                        l_sign_types[0].type = SIG_TYPE_DILITHIUM;
+                        l_sign_type_str = dap_sign_type_to_str(l_sign_types[0]);
+                        l_sign_count = 1;
                     } else {
-                        l_sign_type = dap_sign_type_from_str(l_sign_type_str);
-                        if (l_sign_type.type == SIG_TYPE_NULL){
-                            dap_cli_server_cmd_set_reply_text(a_str_reply, "Unknown signature type, please use:\n sig_picnic\n sig_dil\n sig_falcon\n sig_multi\n sig_multi2\n");
+                        l_sign_types[0] = dap_sign_type_from_str(l_sign_type_str);
+                        if (l_sign_types[0].type == SIG_TYPE_NULL){
+                            dap_cli_server_cmd_set_reply_text(a_str_reply, "Unknown signature type, please use:\n sig_picnic\n sig_dil\n sig_falcon\n sig_multi_chained\n ");
                             dap_string_free(l_string_ret, true);
                             return -1;
+                        }
+                        if (l_sign_types[0].type == SIG_TYPE_MULTI_CHAINED){
+                            int l_sign_index = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, l_sign_type_str, NULL);
+                            l_sign_index++;
+                            for (;l_sign_index && l_sign_index < a_argc; ++l_sign_index) {
+                                l_sign_types[l_sign_count] = dap_sign_type_from_str(a_argv[l_sign_index]);
+                                if (l_sign_types[l_sign_count].type == SIG_TYPE_NULL) {
+                                    break;
+                                }
+                                l_sign_count++;
+                            }
+                            if (!l_sign_count) {
+                                dap_cli_server_cmd_set_reply_text(a_str_reply, "Unknown signature type, please use:\n sig_picnic\n sig_dil\n sig_falcon\n sig_multi_chained\n ");
+                                dap_string_free(l_string_ret, true);
+                                return -1;
+                            }
                         }
                     }
                     // Check unsupported tesla and bliss algorithm
 
-                    if (l_sign_type.type == SIG_TYPE_TESLA || l_sign_type.type == SIG_TYPE_BLISS) {
-                        if (l_sign_type.type == SIG_TYPE_BLISS && (l_restore_opt || l_restore_legacy_opt)) {
-                            dap_string_append_printf(l_string_ret, "CAUTION!!! CAUTION!!! CAUTION!!!\nThe Bliss signature is deprecated. We recommend you to create a new wallet with another available signature and transfer funds there.\n");
-                        } else {
-                            dap_string_free(l_string_ret, true);
-                            return  dap_cli_server_cmd_set_reply_text(a_str_reply, "This signature algorithm is no longer supported, please, use another variant"), -1;
+                    for (size_t i = 0; i < l_sign_count; ++i) {
+                        if (l_sign_types[i].type == SIG_TYPE_TESLA || l_sign_types[i].type == SIG_TYPE_BLISS) {
+                            if (l_sign_types[i].type == SIG_TYPE_BLISS && (l_restore_opt || l_restore_legacy_opt)) {
+                                dap_string_append_printf(l_string_ret, "CAUTION!!! CAUTION!!! CAUTION!!!\nThe Bliss and Tesla signatures is deprecated. We recommend you to create a new wallet with another available signature and transfer funds there.\n");
+                                break;
+                            } else {
+                                dap_string_free(l_string_ret, true);
+                                return  dap_cli_server_cmd_set_reply_text(a_str_reply, "This signature algorithms Bliss and Tesla is no longer supported, please, use another variant"), -1;
+                            }
                         }
                     }
 
@@ -2220,7 +2241,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     }
 
                     // Creates new wallet
-                    l_wallet = dap_chain_wallet_create_with_seed(l_wallet_name, c_wallets_path, l_sign_type,
+                    l_wallet = dap_chain_wallet_create_with_seed_multi(l_wallet_name, c_wallets_path, l_sign_types, l_sign_count,
                             l_seed, l_seed_size, l_pass_str);
                     DAP_DELETE(l_seed);
                     if (!l_wallet) {

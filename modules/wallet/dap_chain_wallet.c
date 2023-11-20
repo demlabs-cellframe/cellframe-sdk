@@ -374,68 +374,41 @@ const char* dap_chain_wallet_get_path(dap_config_t * a_config)
  * @details Creates new wallet
  * @return Wallet, new wallet or NULL if errors
  */
-dap_chain_wallet_t * dap_chain_wallet_create_with_seed (
-                    const char * a_wallet_name,
-                    const char * a_wallets_path,
-                    dap_sign_type_t a_sig_type,
-                    const void* a_seed,
+dap_chain_wallet_t *dap_chain_wallet_create_with_seed_multi (
+                    const char *a_wallet_name,
+                    const char *a_wallets_path,
+                    const dap_sign_type_t *a_sig_types,
+                    size_t a_sig_count,
+                    const void *a_seed,
                     size_t a_seed_size,
                     const char *a_pass
                                         )
 {
-dap_chain_wallet_t *l_wallet;
-dap_chain_wallet_internal_t *l_wallet_internal;
+dap_chain_wallet_t *l_wallet = NULL;
+dap_chain_wallet_internal_t *l_wallet_internal = NULL;
 
-    /* Sanity checks ... */
+// sanity check
+    dap_return_val_if_pass(!a_wallet_name || !a_wallets_path || !a_sig_types || !a_sig_count,  NULL);
     if (a_wallet_name && DAP_WALLET$SZ_NAME < strnlen(a_wallet_name, DAP_WALLET$SZ_NAME + 1) )
         return  log_it(L_ERROR, "Wallet's name is too long ( > %d)",  DAP_WALLET$SZ_NAME), NULL;
-
     if ( a_pass && DAP_WALLET$SZ_PASS < strnlen(a_pass, DAP_WALLET$SZ_PASS + 1) )
         return  log_it(L_ERROR, "Wallet's password is too long ( > %d)", DAP_WALLET$SZ_PASS), NULL;
-
-    if ( !(l_wallet = DAP_NEW_Z(dap_chain_wallet_t)) ) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        return NULL;
-    }
-
-    if ( !(l_wallet->_internal = l_wallet_internal = DAP_NEW_Z(dap_chain_wallet_internal_t)) ) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        DAP_DELETE(l_wallet);
-        return NULL;
-    }
+// memory alloc
+    DAP_NEW_Z_RET_VAL(l_wallet, dap_chain_wallet_t, NULL, NULL);
+    DAP_NEW_Z_RET_VAL(l_wallet_internal, dap_chain_wallet_internal_t, NULL, l_wallet);
+    DAP_NEW_Z_COUNT_RET_VAL(l_wallet_internal->certs, dap_cert_t *, a_sig_count, NULL, l_wallet_internal, l_wallet);
 
     strncpy(l_wallet->name, a_wallet_name, DAP_WALLET$SZ_NAME);
-    if (a_sig_type.type == SIG_TYPE_MULTI_CHAINED) {
-        l_wallet_internal->certs_count = 5;
-    } else {
-        l_wallet_internal->certs_count = 1;
-    }
-    l_wallet_internal->certs = DAP_NEW_Z_SIZE(dap_cert_t *,l_wallet_internal->certs_count * sizeof(dap_cert_t *));
-    assert(l_wallet_internal->certs);
-    if (!l_wallet_internal->certs) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        dap_chain_wallet_close(l_wallet);
-        return NULL;
-    }
+    l_wallet_internal->certs_count = a_sig_count;
+
 
     snprintf(l_wallet_internal->file_name, sizeof(l_wallet_internal->file_name)  - 1, "%s/%s%s", a_wallets_path, a_wallet_name, s_wallet_ext);
-    if (a_sig_type.type == SIG_TYPE_MULTI_CHAINED) {
-        dap_sign_type_t l_sig_types [5] = {
-            {.type = SIG_TYPE_SPHINCSPLUS},
-            {.type = SIG_TYPE_TESLA},
-            {.type = SIG_TYPE_PICNIC},
-            {.type = SIG_TYPE_DILITHIUM},
-            {.type = SIG_TYPE_FALCON}
-        };
-        for (size_t i = 0; i < l_wallet_internal->certs_count; ++i) {
-            l_wallet_internal->certs[i] = dap_cert_generate_mem_with_seed(a_wallet_name, dap_sign_type_to_key_type(l_sig_types[i]), a_seed, a_seed_size);
-        }
-    } else {
-         l_wallet_internal->certs[0] = dap_cert_generate_mem_with_seed(a_wallet_name, dap_sign_type_to_key_type(a_sig_type), a_seed, a_seed_size);
+    for (size_t i = 0; i < l_wallet_internal->certs_count; ++i) {
+        l_wallet_internal->certs[i] = dap_cert_generate_mem_with_seed(a_wallet_name, dap_sign_type_to_key_type(a_sig_types[i]), a_seed, a_seed_size);
     }
 
-    if ( !dap_chain_wallet_save(l_wallet, a_pass) )
-    {
+    l_wallet->_internal = l_wallet_internal;
+    if ( !dap_chain_wallet_save(l_wallet, a_pass) ) {
         log_it(L_INFO, "Wallet %s has been created (%s)", a_wallet_name, l_wallet_internal->file_name);
         return l_wallet;
     }
@@ -472,24 +445,19 @@ dap_chain_wallet_t * dap_chain_wallet_create(
  */
 void dap_chain_wallet_close(dap_chain_wallet_t *a_wallet)
 {
-dap_chain_wallet_internal_t * l_wallet_internal;
-
-    if(!a_wallet)
-        return;
-
-    if ( (l_wallet_internal = a_wallet->_internal) )
-    {
-        if ( l_wallet_internal->certs )
-        {
+// sanity check
+    dap_return_if_pass(!a_wallet);
+// func work
+    dap_chain_wallet_internal_t *l_wallet_internal = a_wallet->_internal;
+    if ( l_wallet_internal ) {
+        if ( l_wallet_internal->certs ) {
             for(size_t i = 0; i < l_wallet_internal->certs_count; i++)
                 dap_cert_delete( l_wallet_internal->certs[i]);
 
             DAP_DELETE(l_wallet_internal->certs);
         }
-
         DAP_DELETE(l_wallet_internal);
     }
-
     DAP_DELETE(a_wallet);
 }
 

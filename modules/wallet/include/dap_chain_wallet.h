@@ -52,8 +52,14 @@ void dap_chain_wallet_deinit(void);
 const char* dap_chain_wallet_get_path(dap_config_t * a_config);
 
 /* @RRL: #6131 - Password protected BMF Wallet */
-dap_chain_wallet_t * dap_chain_wallet_create_with_seed(const char * a_wallet_name, const char * a_wallets_path,
-        dap_sign_type_t a_sig_type, const void* a_seed, size_t a_seed_size, const char *a_pass);
+
+dap_chain_wallet_t * dap_chain_wallet_create_with_seed_multi(const char * a_wallet_name, const char * a_wallets_path,
+        const dap_sign_type_t *a_sig_types, size_t a_sig_count, const void* a_seed, size_t a_seed_size, const char *a_pass);
+
+DAP_STATIC_INLINE dap_chain_wallet_t * dap_chain_wallet_create_with_seed(const char * a_wallet_name, const char * a_wallets_path,
+        dap_sign_type_t a_sig_type, const void* a_seed, size_t a_seed_size, const char *a_pass) {
+                return dap_chain_wallet_create_with_seed_multi(a_wallet_name, a_wallets_path, &a_sig_type, 1, a_seed, a_seed_size, a_pass);
+        }
 
 dap_chain_wallet_t * dap_chain_wallet_create_with_pass(const char * a_wallet_name, const char * a_wallets_path,
         const void* a_pass, size_t a_pass_sz);
