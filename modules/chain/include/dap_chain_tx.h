@@ -66,7 +66,7 @@ typedef struct dap_chain_tx
 } dap_chain_tx_t;
 
 dap_chain_tx_t * dap_chain_tx_wrap_packed(dap_chain_datum_tx_t * a_tx_packed);
-void dap_chain_tx_hh_add (dap_chain_tx_t * a_tx_hh, dap_chain_tx_t * a_tx);
+void dap_chain_tx_hh_add (dap_chain_tx_t ** a_tx_hh, dap_chain_tx_t * a_tx);
 
 /**
  * @brief Find tx in hashtable by its datum_tx hash

@@ -82,7 +82,6 @@ typedef struct iphdr dap_os_iphdr_t;
 #include "dap_strfuncs.h"
 #include "dap_config.h"
 
-#include "dap_context.h"
 #include "dap_events_socket.h"
 #include "dap_http_client.h"
 
@@ -102,6 +101,7 @@ typedef struct iphdr dap_os_iphdr_t;
 #include "dap_chain_node_cli.h"
 #include "dap_chain_ledger.h"
 #include "dap_events.h"
+#include "dap_context.h"
 
 #define LOG_TAG "dap_chain_net_srv_vpn"
 
@@ -313,6 +313,10 @@ static bool s_tun_client_send_data(dap_chain_net_srv_ch_vpn_info_t * l_ch_vpn_in
             DAP_DEL_Z(l_pkt_out);
             return false;
         }
+       /*
+        dap_stream_worker_t *l_stream_worker = (dap_stream_worker_t *)dap_worker_get_current()->_inheritor;
+        s_tun_client_send_data_inter(l_stream_worker->queue_ch_io_input[l_ch_vpn_info->worker->id], l_ch_vpn_info->ch_vpn, l_pkt_out);
+        */
         if(s_debug_more){
 #ifdef DAP_OS_LINUX
             struct in_addr l_in_daddr = { .s_addr = ((dap_os_iphdr_t*)l_pkt_out->data)->daddr };
@@ -1249,7 +1253,9 @@ static void s_ch_vpn_delete(dap_stream_ch_t* a_ch, void* arg)
     usage_client_t * l_usage_client = NULL;
 
     dap_chain_net_srv_stream_session_t *l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION(l_ch_vpn->ch->stream->session);
-    dap_timerfd_delete_mt(l_srv_session->usage_active->client->stream_worker->worker, l_srv_session->usage_active->timer_es_uuid);
+    if (l_srv_session && l_srv_session->usage_active &&
+        l_srv_session->usage_active->client && l_srv_session->usage_active->client->stream_worker)
+        dap_timerfd_delete_mt(l_srv_session->usage_active->client->stream_worker->worker, l_srv_session->usage_active->timer_es_uuid);
 
     bool l_is_unleased = false;
     if ( l_ch_vpn->addr_ipv4.s_addr ){ // if leased address
@@ -1339,10 +1345,12 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
 
         if( a_srv_session->limits_ts <= 0 && !a_usage->is_grace){
             log_it(L_INFO, "Limits by timestamp are over. Switch to the next receipt");
-            dap_sign_t * l_receipt_sign = dap_chain_datum_tx_receipt_sign_get( a_usage->receipt_next, a_usage->receipt_next->size, 1);
-            if ( ! l_receipt_sign ){
-                log_it(L_WARNING, "Next receipt does not have client's sign. Delete it.");
-                DAP_DEL_Z(a_usage->receipt_next);
+            if (a_usage->receipt_next){
+                dap_sign_t * l_receipt_sign = dap_chain_datum_tx_receipt_sign_get( a_usage->receipt_next, a_usage->receipt_next->size, 1);
+                if ( ! l_receipt_sign ){
+                    log_it(L_WARNING, "Next receipt does not have client's sign. Delete it.");
+                    DAP_DEL_Z(a_usage->receipt_next);
+                }
             }
             DAP_DEL_Z(a_usage->receipt);
             a_usage->receipt = a_usage->receipt_next;
@@ -1401,11 +1409,12 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
 
         if (a_srv_session->limits_bytes <= 0  && !a_usage->is_grace){
             log_it(L_INFO, "Limits by traffic is over. Switch to the next receipt");
-            // get a second signature - from the client (first sign in server, second sign in client)
-            dap_sign_t * l_receipt_sign = dap_chain_datum_tx_receipt_sign_get( a_usage->receipt_next, a_usage->receipt_next->size, 1);
-            if ( ! l_receipt_sign ){
-                log_it(L_WARNING, "Next receipt does not have client's sign. Delete it.");
-                DAP_DEL_Z(a_usage->receipt_next);
+            if (a_usage->receipt_next){
+                dap_sign_t * l_receipt_sign = dap_chain_datum_tx_receipt_sign_get( a_usage->receipt_next, a_usage->receipt_next->size, 1);
+                if ( ! l_receipt_sign ){
+                    log_it(L_WARNING, "Next receipt does not have client's sign. Delete it.");
+                    DAP_DEL_Z(a_usage->receipt_next);
+                }
             }
             DAP_DEL_Z(a_usage->receipt);
             a_usage->receipt = a_usage->receipt_next;

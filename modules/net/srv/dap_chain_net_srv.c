@@ -40,6 +40,7 @@
 #include "utlist.h"
 
 #include "dap_chain_net.h"
+#include "dap_chain_net_tx.h"
 #include "dap_hash.h"
 #include "dap_common.h"
 #include "dap_enc_base58.h"
@@ -73,6 +74,9 @@ typedef struct service_list {
 static service_list_t *s_srv_list = NULL;
 // for separate access to s_srv_list
 static pthread_mutex_t s_srv_list_mutex = PTHREAD_MUTEX_INITIALIZER;
+
+
+
 static int s_cli_net_srv(int argc, char **argv, char **a_str_reply);
 static void s_load(const char * a_path);
 static void s_load_all();
@@ -827,6 +831,110 @@ static bool s_pay_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx_out
     return true;
 }
 
+dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net_srv_t *a_srv, const char *a_config_section, dap_chain_hash_fast_t* a_order_hash){
+
+    const char *l_wallet_addr = dap_config_get_item_str_default(g_config, a_config_section, "wallet_addr", NULL);
+    const char *l_cert_name = dap_config_get_item_str_default(g_config, a_config_section, "receipt_sign_cert", NULL);
+    const char *l_net_name = dap_config_get_item_str_default(g_config, a_config_section, "net", NULL);
+    if (!l_wallet_addr || !l_cert_name || !l_net_name){
+        return NULL;
+    }
+
+    dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
+    if (!l_net) {
+        return NULL;
+    }
+
+    dap_chain_node_addr_t *l_node_addr = NULL;
+    l_node_addr = &g_node_addr;//dap_chain_net_get_cur_addr(l_net);
+    if (!l_node_addr){
+        return NULL;
+    }
+
+    dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_find_by_hash(l_net, a_order_hash);
+    if (!l_order){
+        log_it(L_ERROR, "Memory allocation error");
+        return NULL;
+    }
+
+    dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
+    if (!l_price) {
+        log_it(L_CRITICAL, "Memory allocation error");
+        DAP_DEL_Z(l_order);
+        return NULL;
+    }
+
+    uint64_t l_max_price_cfg = dap_config_get_item_uint64_default(g_config, a_config_section, "max_price", 0xFFFFFFFFFFFFFFF);
+    if (l_order->node_addr.uint64 != l_node_addr->uint64 &&
+        l_order->srv_uid.uint64 != a_srv->uid.uint64) {
+        DAP_DELETE(l_price);
+        DAP_DEL_Z(l_order);
+        return NULL;
+    }
+
+    l_price->net = l_net;
+    l_price->net_name = dap_strdup(l_net->pub.name);
+    uint256_t l_max_price = GET_256_FROM_64(l_max_price_cfg); // Change this value when max price wil be calculated
+    if (IS_ZERO_256(l_order->price) || l_order->units == 0 ){
+        log_it(L_ERROR, "Invalid order: units count or price unspecified");
+        DAP_DELETE(l_price);
+        DAP_DEL_Z(l_order);
+        return NULL;
+    }
+    l_price->value_datoshi = l_order->price;
+    dap_stpcpy(l_price->token, l_order->price_ticker);
+    l_price->units = l_order->units;
+    l_price->units_uid = l_order->price_unit;
+    if (!IS_ZERO_256(l_max_price)){
+        uint256_t l_price_unit = uint256_0;
+        DIV_256(l_price->value_datoshi,  GET_256_FROM_64(l_order->units), &l_price_unit);
+        if (compare256(l_price_unit, l_max_price)>0){
+            char *l_price_unit_str = dap_chain_balance_print(l_price_unit), *l_max_price_str = dap_chain_balance_print(l_max_price);
+            log_it(L_ERROR, "Unit price exeeds max permitted value: %s > %s", l_price_unit_str, l_max_price_str);
+            DAP_DELETE(l_price_unit_str);
+            DAP_DELETE(l_max_price_str);
+            DAP_DELETE(l_price);
+            DAP_DEL_Z(l_order);
+            return NULL;
+        }
+    }
+
+    l_price->wallet_addr = dap_chain_addr_from_str(l_wallet_addr);
+    if(!l_price->wallet_addr){
+        log_it(L_ERROR, "Can't get wallet addr from wallet_addr in config file.");
+        DAP_DEL_Z(l_order);
+        DAP_DELETE(l_price);
+        DAP_DEL_Z(l_order);
+        return NULL;
+    }
+
+    l_price->receipt_sign_cert = dap_cert_find_by_name(l_cert_name);
+    if(!l_price->receipt_sign_cert){
+        log_it(L_ERROR, "Can't find cert %s.", l_cert_name);
+        DAP_DEL_Z(l_order);
+        DAP_DELETE(l_price);
+        return NULL;
+    }
+
+    dap_hash_fast_t order_pkey_hash = {};
+    dap_hash_fast_t price_pkey_hash = {};
+    dap_sign_get_pkey_hash((dap_sign_t*)(l_order->ext_n_sign + l_order->ext_size), &order_pkey_hash);
+    dap_hash_fast(l_price->receipt_sign_cert->enc_key->pub_key_data,
+                  l_price->receipt_sign_cert->enc_key->pub_key_data_size, &price_pkey_hash);
+    if (dap_hash_fast_compare(&order_pkey_hash, &price_pkey_hash))
+    {
+        log_it(L_ERROR, "pkey in order not equal to pkey in config.");
+        DAP_DEL_Z(l_order);
+        DAP_DELETE(l_price);
+        return NULL;
+    }
+
+    DAP_DELETE(l_order);
+    return l_price;
+
+}
+
+
 int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, const char *a_config_section){
 
 //    const char *l_wallet_path = dap_config_get_item_str_default(g_config, "resources", "wallets_path", NULL);
@@ -911,7 +1019,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
             }
 
             dap_hash_fast_t order_pkey_hash = { }, price_pkey_hash = { };
-            dap_sign_get_pkey_hash((dap_sign_t*)l_order->ext_n_sign + l_order->ext_size, &order_pkey_hash);
+            dap_sign_get_pkey_hash((dap_sign_t*)(l_order->ext_n_sign + l_order->ext_size), &order_pkey_hash);
             dap_hash_fast(l_price->receipt_sign_cert->enc_key->pub_key_data,
                           l_price->receipt_sign_cert->enc_key->pub_key_data_size, &price_pkey_hash);
             if (dap_hash_fast_compare(&order_pkey_hash, &price_pkey_hash))
@@ -923,7 +1031,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
                 continue;
             }
 
-            // TODO: find most advantageous for us order
+            // TODO: find most advantageous order for us
             DL_APPEND(a_srv->pricelist, l_price);
             break;
         }
