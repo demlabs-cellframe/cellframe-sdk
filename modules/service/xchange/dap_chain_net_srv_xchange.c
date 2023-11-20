@@ -934,7 +934,7 @@ dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a
 
     dap_hash_fast_t l_tx_hash = {};
     dap_hash_fast(a_order, dap_chain_datum_tx_get_size(a_order), &l_tx_hash);
-    const char *l_token_sell = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_tx_hash);
+    const char *l_token_sell = dap_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_tx_hash);
     strcpy(l_price->token_sell, l_token_sell);
 
 
@@ -1281,7 +1281,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
 
             dap_hash_fast_t l_tx_hash = {};
             dap_chain_hash_fast_from_str(l_order_hash_str, &l_tx_hash);
-            dap_chain_datum_tx_t *l_cond_tx = dap_chain_ledger_tx_find_by_hash(l_net->pub.ledger, &l_tx_hash);
+            dap_chain_datum_tx_t *l_cond_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_tx_hash);
             if (!l_cond_tx) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nSpecified order not found", l_sign_str);
                 return -13;
@@ -1797,7 +1797,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 //            dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_find_by_hash_str(l_net, l_order_hash_str);
             dap_hash_fast_t l_tx_hash = {};
             dap_chain_hash_fast_from_str(l_order_hash_str, &l_tx_hash);
-            dap_chain_datum_tx_t *l_cond_tx = dap_chain_ledger_tx_find_by_hash(l_net->pub.ledger, &l_tx_hash);
+            dap_chain_datum_tx_t *l_cond_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_tx_hash);
 
             if (l_cond_tx) {
                 dap_chain_net_srv_xchange_price_t *l_price = s_xchange_price_from_order(l_net, l_cond_tx, false);
