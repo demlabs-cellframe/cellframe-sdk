@@ -133,6 +133,8 @@
 
 static bool s_debug_more = false;
 
+#define NODELIST_GROUP_NAME "nodes.v2"
+
 struct balancer_link_request {
     dap_chain_node_info_t *link_info;
     dap_chain_net_t *net;
@@ -2498,7 +2500,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     dap_global_db_add_sync_group(l_net->pub.name, "global", s_gbd_history_callback_notify, l_net);
     dap_global_db_add_sync_group(l_net->pub.name, l_net->pub.gdb_groups_prefix, s_gbd_history_callback_notify, l_net);
 
-    l_net->pub.gdb_nodes = dap_strdup_printf("%s.nodes",l_net->pub.gdb_groups_prefix);
+    l_net->pub.gdb_nodes = dap_strdup_printf("%s."NODELIST_GROUP_NAME, l_net->pub.gdb_groups_prefix);
     l_net->pub.gdb_nodes_aliases = dap_strdup_printf("%s.nodes.aliases",l_net->pub.gdb_groups_prefix);
 
     // Bridged netwoks allowed to send transactions to

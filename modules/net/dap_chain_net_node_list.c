@@ -32,8 +32,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 static int s_dap_chain_net_node_list_add_downlink(const char * a_group, const char *a_key, dap_chain_node_info_t * a_node_info) {
 
-    size_t l_node_info_size = dap_chain_node_info_get_size(a_node_info);//(sizeof(dap_chain_node_info_t));
-    bool res = dap_global_db_set_sync(a_group, a_key, (uint8_t*)a_node_info, l_node_info_size, true) == 0;
+    bool res = dap_global_db_set_sync(a_group, a_key, (uint8_t*)a_node_info, sizeof(dap_chain_node_info_t), true) == 0;
     if(res)
     {
         char l_node_addr_str[INET_ADDRSTRLEN]={};
@@ -382,38 +381,25 @@ static void s_node_list_callback_notify(dap_global_db_context_t *a_context, dap_
         return;
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     assert(l_net);
-    size_t l_size_obj_need = (sizeof(dap_chain_node_info_t));
 
     if (!dap_strcmp(a_obj->group, l_net->pub.gdb_nodes)) {
         if (a_obj->value && a_obj->type == DAP_DB$K_OPTYPE_ADD) {
             dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)a_obj->value;
-
-            size_t l_size_obj = (a_obj->value_len - (l_node_info->hdr.links_number * sizeof(dap_chain_node_addr_t)));
-            if(l_size_obj_need == l_size_obj)
-            {
-                if(l_node_info->hdr.owner_address.uint64 == 0){
-                    log_it(L_NOTICE, "Node %s removed, there is not pinners", a_obj->key);
-                    dap_global_db_del_unsafe(a_context, a_obj->group, a_obj->key);
-                }
-                else {
-                    char l_node_ipv4_str[INET_ADDRSTRLEN]={ '\0' }, l_node_ipv6_str[INET6_ADDRSTRLEN]={ '\0' };
-                    inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_ipv4_str, INET_ADDRSTRLEN);
-                    inet_ntop(AF_INET6, &l_node_info->hdr.ext_addr_v6, l_node_ipv6_str, INET6_ADDRSTRLEN);
-                    char l_ts[128] = { '\0' };
-                    dap_gbd_time_to_str_rfc822(l_ts, sizeof(l_ts), a_obj->timestamp);
-
-                    log_it(L_MSG, "Add node "NODE_ADDR_FP_STR" %s %s, pinned by "NODE_ADDR_FP_STR" at %s\n",
-                                             NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),
-                                             l_node_ipv4_str, dap_itoa(l_node_info->hdr.ext_port),
-                                             NODE_ADDR_FP_ARGS_S(l_node_info->hdr.owner_address),
-                                             l_ts);
-                }
-            }
-            else
-            {
+            if(l_node_info->hdr.owner_address.uint64 == 0){
+                log_it(L_NOTICE, "Node %s removed, there is not pinners", a_obj->key);
                 dap_global_db_del_unsafe(a_context, a_obj->group, a_obj->key);
-                log_it(L_NOTICE, "Wrong size! data size %lu need - (%lu) %s removed ",l_size_obj,
-                       l_size_obj_need, a_obj->key);
+            } else {
+                char l_node_ipv4_str[INET_ADDRSTRLEN]={ '\0' }, l_node_ipv6_str[INET6_ADDRSTRLEN]={ '\0' };
+                inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_ipv4_str, INET_ADDRSTRLEN);
+                inet_ntop(AF_INET6, &l_node_info->hdr.ext_addr_v6, l_node_ipv6_str, INET6_ADDRSTRLEN);
+                char l_ts[128] = { '\0' };
+                dap_gbd_time_to_str_rfc822(l_ts, sizeof(l_ts), a_obj->timestamp);
+
+                log_it(L_MSG, "Add node "NODE_ADDR_FP_STR" %s %s, pinned by "NODE_ADDR_FP_STR" at %s\n",
+                                         NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),
+                                         l_node_ipv4_str, dap_itoa(l_node_info->hdr.ext_port),
+                                         NODE_ADDR_FP_ARGS_S(l_node_info->hdr.owner_address),
+                                         l_ts);
             }
         }
     }
