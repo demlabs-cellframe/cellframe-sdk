@@ -3565,6 +3565,15 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                     break;
                 }
                 bound_item->item_emission = l_emission_item;
+                // 3. Compare emission with currently used emission
+                dap_list_t *l_bound_item;
+                DL_FOREACH(l_list_bound_items, l_bound_item) {
+                    if (l_emission_item == ((dap_chain_ledger_tx_bound_t*)l_bound_item->data)->item_emission) {
+                        debug_if(s_debug_more, L_ERROR, "Previous transaction output already used in current tx");
+                        l_err_num = DAP_CHAIN_LEDGER_TX_CACHE_CHECK_PREV_OUT_ALREADY_USED_IN_CURRENT_TX;
+                        break;
+                    }
+                }
             } else if ((l_girdled_ems = dap_hash_fast_is_blank(l_emission_hash)) ||
                             (l_stake_lock_emission = s_emissions_for_stake_lock_item_find(a_ledger, l_emission_hash))) {
                 dap_chain_datum_tx_t *l_tx_stake_lock = a_tx;
@@ -3712,6 +3721,15 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                 if (l_stake_lock_emission) {
                     bound_item->stake_lock_item = l_stake_lock_emission;
                     bound_item->stake_lock_item->ems_value = l_value_expected;
+                    // 3. Compare emission with currently used emission
+                    dap_list_t *l_bound_item;
+                    DL_FOREACH(l_list_bound_items, l_bound_item) {
+                        if (l_stake_lock_emission == ((dap_chain_ledger_tx_bound_t*)l_bound_item->data)->l_stake_lock_emission) {
+                            debug_if(s_debug_more, L_ERROR, "Previous transaction output already used in current tx");
+                            l_err_num = DAP_CHAIN_LEDGER_TX_CACHE_CHECK_PREV_OUT_ALREADY_USED_IN_CURRENT_TX;
+                            break;
+                        }
+                    }
                 } else // girdled emission
                     bound_item->out.tx_prev_out_ext_256 = l_tx_out_ext;
             } else {
