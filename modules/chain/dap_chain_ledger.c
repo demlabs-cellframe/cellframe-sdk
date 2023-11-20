@@ -3724,7 +3724,7 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
                     // 3. Compare emission with currently used emission
                     dap_list_t *l_bound_item;
                     DL_FOREACH(l_list_bound_items, l_bound_item) {
-                        if (l_stake_lock_emission == ((dap_chain_ledger_tx_bound_t*)l_bound_item->data)->l_stake_lock_emission) {
+                        if (l_stake_lock_emission == ((dap_chain_ledger_tx_bound_t*)l_bound_item->data)->stake_lock_item) {
                             debug_if(s_debug_more, L_ERROR, "Previous transaction output already used in current tx");
                             l_err_num = DAP_CHAIN_LEDGER_TX_CACHE_CHECK_PREV_OUT_ALREADY_USED_IN_CURRENT_TX;
                             break;
