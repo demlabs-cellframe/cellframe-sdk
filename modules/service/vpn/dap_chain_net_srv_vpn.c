@@ -101,6 +101,7 @@ typedef struct iphdr dap_os_iphdr_t;
 #include "dap_chain_node_cli.h"
 #include "dap_chain_ledger.h"
 #include "dap_events.h"
+#include "dap_context.h"
 
 #define LOG_TAG "dap_chain_net_srv_vpn"
 
@@ -376,7 +377,7 @@ static void s_tun_recv_msg_callback(dap_events_socket_t * a_esocket_queue, void 
     switch (l_msg->type) {
         case TUN_SOCKET_MSG_ESOCKET_REASSIGNED: {
             assert(l_msg->esocket_reassigment.worker_id < s_tun_sockets_count);
-            dap_chain_net_srv_vpn_tun_socket_t* l_tun_sock = s_tun_sockets[a_esocket_queue->context->worker->id];
+            dap_chain_net_srv_vpn_tun_socket_t* l_tun_sock = s_tun_sockets[a_esocket_queue->worker->id];
             assert(l_tun_sock);
             dap_chain_net_srv_ch_vpn_info_t* l_info = NULL;
             HASH_FIND(hh, l_tun_sock->clients, &l_msg->esocket_reassigment.addr, sizeof(l_msg->esocket_reassigment.addr), l_info);
@@ -384,11 +385,11 @@ static void s_tun_recv_msg_callback(dap_events_socket_t * a_esocket_queue, void 
                 l_info->worker = dap_events_worker_get(l_msg->esocket_reassigment.worker_id);
                 l_info->queue_msg = s_tun_sockets_queue_msg[l_msg->esocket_reassigment.worker_id];
                 l_info->is_reassigned_once = true;
-                l_info->is_on_this_worker = (a_esocket_queue->context->worker->id == l_msg->esocket_reassigment.worker_id);
+                l_info->is_on_this_worker = (a_esocket_queue->worker->id == l_msg->esocket_reassigment.worker_id);
                 if (s_debug_more) {
                     char l_addrbuf[INET_ADDRSTRLEN];
                     inet_ntop(AF_INET, &l_msg->esocket_reassigment.addr, l_addrbuf, sizeof(l_addrbuf));
-                    log_it(L_INFO, "Tun:%u message: addr %s reassign on worker #%u", a_esocket_queue->context->worker->id,
+                    log_it(L_INFO, "Tun:%u message: addr %s reassign on worker #%u", a_esocket_queue->worker->id,
                         l_addrbuf, l_msg->esocket_reassigment.worker_id);
                 }
             }
@@ -396,13 +397,13 @@ static void s_tun_recv_msg_callback(dap_events_socket_t * a_esocket_queue, void 
                 char l_addrbuf[INET_ADDRSTRLEN];
                 inet_ntop(AF_INET, &l_msg->esocket_reassigment.addr, l_addrbuf, sizeof(l_addrbuf));
                 log_it(L_INFO, "Reassigment message for address %s on worker %u comes but no such address was found on tun socket %u",
-                    l_addrbuf, l_msg->esocket_reassigment.worker_id, a_esocket_queue->context->worker->id);
+                    l_addrbuf, l_msg->esocket_reassigment.worker_id, a_esocket_queue->worker->id);
             }
         } break; /* l_msg->type == TUN_SOCKET_MSG_ESOCKET_REASSIGNED */
 
         case TUN_SOCKET_MSG_IP_ASSIGNED:{
             assert(l_msg->ip_assigment.worker_id < s_tun_sockets_count);
-            dap_chain_net_srv_vpn_tun_socket_t * l_tun_sock = s_tun_sockets[a_esocket_queue->context->worker->id];
+            dap_chain_net_srv_vpn_tun_socket_t * l_tun_sock = s_tun_sockets[a_esocket_queue->worker->id];
             assert(l_tun_sock);
 
             dap_chain_net_srv_ch_vpn_info_t * l_new_info = NULL;
@@ -423,7 +424,7 @@ static void s_tun_recv_msg_callback(dap_events_socket_t * a_esocket_queue, void 
                 l_new_info->queue_msg           = s_tun_sockets_queue_msg[l_msg->ip_assigment.worker_id];
                 l_new_info->usage_id            = l_msg->ip_assigment.usage_id;
                 l_new_info->is_reassigned_once  = l_msg->is_reassigned_once;
-                l_new_info->is_on_this_worker   = (l_msg->ip_assigment.worker_id == a_esocket_queue->context->worker->id);
+                l_new_info->is_on_this_worker   = (l_msg->ip_assigment.worker_id == a_esocket_queue->worker->id);
                 l_new_info->esocket             = l_msg->esocket;
                 l_new_info->esocket_uuid        = l_msg->esocket_uuid;
                 l_new_info->worker              = dap_events_worker_get(l_msg->ip_assigment.worker_id);
@@ -431,7 +432,7 @@ static void s_tun_recv_msg_callback(dap_events_socket_t * a_esocket_queue, void 
                 if (dap_log_level_get() <= L_INFO) {
                     char l_addrbuf[INET_ADDRSTRLEN];
                     inet_ntop(AF_INET, &l_msg->ip_assigment.addr, l_addrbuf, sizeof(l_addrbuf));
-                    log_it(L_DEBUG, "Tun:%u message: addr %s assigned for worker #%u on tun #u", a_esocket_queue->context->worker->id,
+                    log_it(L_DEBUG, "Tun:%u message: addr %s assigned for worker #%u on tun #u", a_esocket_queue->worker->id,
                         l_addrbuf, l_msg->ip_assigment.worker_id);
                 }
             }
@@ -439,7 +440,7 @@ static void s_tun_recv_msg_callback(dap_events_socket_t * a_esocket_queue, void 
 
         case TUN_SOCKET_MSG_IP_UNASSIGNED:{
             assert(l_msg->ip_unassigment.worker_id < s_tun_sockets_count);
-            dap_chain_net_srv_vpn_tun_socket_t *l_tun_sock = s_tun_sockets[a_esocket_queue->context->worker->id];
+            dap_chain_net_srv_vpn_tun_socket_t *l_tun_sock = s_tun_sockets[a_esocket_queue->worker->id];
             assert(l_tun_sock);
 
             dap_chain_net_srv_ch_vpn_info_t *l_new_info = NULL;
@@ -460,18 +461,18 @@ static void s_tun_recv_msg_callback(dap_events_socket_t * a_esocket_queue, void 
         }break; /* l_msg->type == TUN_SOCKET_MSG_IP_UNASSIGNED */
 
         case TUN_SOCKET_MSG_CH_VPN_SEND: {
-            if (dap_context_find(a_esocket_queue->context->worker->context, l_msg->esocket_uuid) == l_msg->esocket) {
+            if (dap_context_find(a_esocket_queue->worker->context, l_msg->esocket_uuid) == l_msg->esocket) {
                 s_tun_client_send_data_unsafe(l_msg->ch_vpn, l_msg->ch_vpn_send.pkt);
                 if (s_debug_more) {
                     char l_addrbuf[INET_ADDRSTRLEN];
                     inet_ntop(AF_INET, &l_msg->ip_assigment.addr, l_addrbuf, sizeof(l_addrbuf));
                     log_it(L_DEBUG, "Tun:%u message: send %u bytes for ch vpn protocol",
-                        a_esocket_queue->context->worker->id, l_msg->ch_vpn_send.pkt->header.op_data.data_size);
+                        a_esocket_queue->worker->id, l_msg->ch_vpn_send.pkt->header.op_data.data_size);
                 }
             }
             else {
                 log_it(L_ERROR, "MSG: No esocket %p on worker #%u, lost %d data",
-                    l_msg->esocket, a_esocket_queue->context->worker->id, l_msg->ch_vpn_send.pkt->header.op_data.data_size);
+                    l_msg->esocket, a_esocket_queue->worker->id, l_msg->ch_vpn_send.pkt->header.op_data.data_size);
             }
             DAP_DELETE(l_msg->ch_vpn_send.pkt);
         } break; /* l_msg->type == TUN_SOCKET_MSG_CH_VPN_SEND */
@@ -1198,7 +1199,7 @@ static void s_ch_vpn_esocket_unassigned(dap_events_socket_t* a_es, dap_worker_t 
    //dap_chain_net_srv_ch_vpn_info_t * l_info = NULL;
    // HASH_FIND(hh,l_tun_sock->clients,&l_ch_vpn->addr_ipv4 , sizeof (l_ch_vpn->addr_ipv4), l_info);
 
-    s_tun_send_msg_esocket_reassigned_all_inter(a_es->context->worker->id, l_ch_vpn, l_ch_vpn->ch->stream->esocket,
+    s_tun_send_msg_esocket_reassigned_all_inter(a_es->worker->id, l_ch_vpn, l_ch_vpn->ch->stream->esocket,
                                                l_ch_vpn->ch->stream->esocket_uuid, l_ch_vpn->addr_ipv4);
 }
 
@@ -1851,9 +1852,9 @@ static void s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
 static void s_es_tun_delete(dap_events_socket_t * a_es, void * arg)
 {
     (void) arg;
-    if (a_es->context->worker) {
-        s_tun_sockets[a_es->context->worker->id] = NULL;
-        dap_events_socket_remove_and_delete_unsafe(s_tun_sockets_queue_msg[a_es->context->worker->id],false);
+    if (a_es->worker) {
+        s_tun_sockets[a_es->worker->id] = NULL;
+        dap_events_socket_remove_and_delete_unsafe(s_tun_sockets_queue_msg[a_es->worker->id],false);
         log_it(L_NOTICE,"Destroyed TUN event socket");
     }
 }
@@ -1973,11 +1974,11 @@ static void s_es_tun_read(dap_events_socket_t * a_es, void * arg)
         }
         if (l_vpn_info) {
             if ( !l_vpn_info->is_on_this_worker && !l_vpn_info->is_reassigned_once && s_raw_server->auto_cpu_reassignment) {
-                log_it(L_NOTICE, "Reassigning from worker %u to %u", l_vpn_info->worker->id, a_es->context->worker->id);
+                log_it(L_NOTICE, "Reassigning from worker %u to %u", l_vpn_info->worker->id, a_es->worker->id);
                 l_vpn_info->is_reassigned_once = true;
-                s_tun_send_msg_esocket_reassigned_all_inter(a_es->context->worker->id, l_vpn_info->ch_vpn, l_vpn_info->esocket, l_vpn_info->esocket_uuid,
+                s_tun_send_msg_esocket_reassigned_all_inter(a_es->worker->id, l_vpn_info->ch_vpn, l_vpn_info->esocket, l_vpn_info->esocket_uuid,
                     l_vpn_info->addr_ipv4);
-                dap_events_socket_reassign_between_workers_mt(l_vpn_info->worker, l_vpn_info->esocket, a_es->context->worker);
+                dap_events_socket_reassign_between_workers_mt(l_vpn_info->worker, l_vpn_info->esocket, a_es->worker);
             }
             s_tun_client_send_data(l_vpn_info, a_es->buf_in, l_buf_in_size);
         } else if(s_debug_more) {
@@ -2011,7 +2012,7 @@ static void s_es_tun_new(dap_events_socket_t * a_es, void * arg)
     (void) arg;
     dap_chain_net_srv_vpn_tun_socket_t * l_tun_socket = DAP_NEW_Z(dap_chain_net_srv_vpn_tun_socket_t);
     if ( l_tun_socket ){
-        dap_worker_t * l_worker = l_tun_socket->worker = a_es->context->worker;
+        dap_worker_t * l_worker = l_tun_socket->worker = a_es->worker;
         uint32_t l_worker_id = l_tun_socket->worker_id = l_worker->id;
         l_tun_socket->es = a_es;
 

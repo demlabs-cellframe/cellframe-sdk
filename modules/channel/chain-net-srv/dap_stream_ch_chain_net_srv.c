@@ -1193,7 +1193,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         }
         l_request->err_code = 0;
 
-        strncpy(l_request->ip_send, a_ch->stream->esocket->hostaddr, INET_ADDRSTRLEN - 1);
+        strncpy(l_request->ip_send, a_ch->stream->esocket->remote_addr_str, INET_ADDRSTRLEN - 1);
         l_request->ip_send[INET_ADDRSTRLEN - 1] = '\0'; // Compiler warning escape
         l_request->recv_time2 = dap_nanotime_now();
 

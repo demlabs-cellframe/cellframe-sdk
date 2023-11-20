@@ -129,6 +129,7 @@ typedef struct dap_stream_ch_chain_net_srv_pkt_request_hdr{
     dap_chain_net_srv_uid_t srv_uid;
     char token[DAP_CHAIN_TICKER_SIZE_MAX];
     dap_chain_hash_fast_t client_pkey_hash;
+    dap_chain_hash_fast_t order_hash;
 } DAP_ALIGN_PACKED dap_stream_ch_chain_net_srv_pkt_request_hdr_t;
 
 typedef struct dap_stream_ch_chain_net_srv_pkt_request{
@@ -322,6 +323,7 @@ dap_chain_datum_tx_receipt_t * dap_chain_net_srv_issue_receipt(dap_chain_net_srv
 int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_config_section);
 
 int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, const char *a_config_section);
+dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net_srv_t *a_srv, const char *a_config_section, dap_chain_hash_fast_t* a_order_hash);
 
 DAP_STATIC_INLINE const char * dap_chain_net_srv_price_unit_uid_to_str( dap_chain_net_srv_price_unit_uid_t a_uid )
 {
