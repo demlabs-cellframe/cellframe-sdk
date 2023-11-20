@@ -751,27 +751,23 @@ json_object *dap_chain_datum_tx_item_voting_tsd_to_json(byte_t *a_tsd_data, size
     while (l_tsd_shift < a_tsd_size && l_tsd->size < a_tsd_size){
         switch(l_tsd->type){
         case VOTING_TSD_TYPE_QUESTION:
-            char *l_question_string = DAP_NEW_Z_SIZE(char, l_tsd->size);
-            memcpy(l_question_string, l_tsd->data, l_tsd->size);
-            l_voting_parms->voting_question = l_question_string;
+            json_object *l_question_obj = json_object_new_string_len(l_tsd->data, l_tsd->size);
             break;
         case VOTING_TSD_TYPE_ANSWER:
-            char *l_answer_string = DAP_NEW_Z_SIZE(char, l_tsd->size);
-            memcpy(l_answer_string, l_tsd->data, l_tsd->size);
-            dap_list_append(l_voting_parms->answers_list, l_question_string);
-            l_voting_parms->answers_count++;
+
+
             break;
         case VOTING_TSD_TYPE_EXPIRE:
-            l_voting_parms->voting_expire = *(dap_time_t*)l_tsd->data;
+            json_object *l_expire_obj = json_object_new_uint64(*(uint64_t*)l_tsd->data);
             break;
         case VOTING_TSD_TYPE_MAX_VOTES_COUNT:
-            l_voting_parms->votes_max_count = *(uint64_t*)l_tsd->data;
+            json_object *l_max_count_obj = json_object_new_uint64(*(uint64_t*)l_tsd->data);
             break;
         case VOTING_TSD_TYPE_DELEGATE_KEY_REQUIRED:
-            l_voting_parms->delegate_key_required = *(bool*)l_tsd->data;
+            json_object *l_delegate_key_req_obj = json_object_new_boolean(*(bool*)l_tsd->data);
             break;
         case VOTING_TSD_TYPE_VOTE_CHANGING_ALLOWED:
-            l_voting_parms->delegate_key_required = *(bool*)l_tsd->data;
+            json_object *l_delegate_key_req_obj = json_object_new_boolean(*(bool*)l_tsd->data);
             break;
         default:
             break;
@@ -780,17 +776,6 @@ json_object *dap_chain_datum_tx_item_voting_tsd_to_json(byte_t *a_tsd_data, size
         l_tsd_shift += dap_tsd_size(l_tsd);
     }
 
-
-    return l_voting_parms;
-
-
-
-
-
-    char *l_voting_hash_str = dap_hash_fast_to_str_new(&a_vote->voting_hash);
-    json_object *l_voting_hash = json_object_new_string(l_voting_hash_str);
-    DAP_DELETE(l_voting_hash_str);
-    json_object *l_answer_idx = json_object_new_uint64(a_vote->answer_idx);
     json_object_object_add(l_object, "votingHash", l_voting_hash);
     json_object_object_add(l_object, "answer_idx", l_answer_idx);
     return l_object;

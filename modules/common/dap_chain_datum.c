@@ -557,7 +557,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
             dap_string_append_printf(a_str_out, "\t Changing vote is %s available.\n", l_voting_params->vote_changing_allowed ? "" : "not");
             dap_string_append_printf(a_str_out, "\t A delegated key is%s required to participate in voting. \n", l_voting_params->delegate_key_required ? "" : " not");
 
-            dap_list_free_full(l_voting_params->answers_list);
+            dap_list_free_full(l_voting_params->answers_list, NULL);
             DAP_DELETE(l_voting_params->voting_question);
             DAP_DELETE(l_voting_params);
         } break;
