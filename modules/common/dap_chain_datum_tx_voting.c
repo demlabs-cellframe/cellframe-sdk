@@ -21,10 +21,21 @@
 */
 
 #include "dap_chain_datum_tx_voting.h"
+#include "dap_chain_common.h"
+
+
+#define LOG_TAG "datum_tx_voting"
+
+
+bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in);
+
+
+int dap_chain_datum_tx_voting_init()
+{
 
 
 
-
+}
 
 
 

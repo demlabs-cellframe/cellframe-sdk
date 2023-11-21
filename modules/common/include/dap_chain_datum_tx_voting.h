@@ -73,3 +73,5 @@ dap_tsd_t* dap_chain_datum_voting_max_votes_count_tsd_create(uint64_t a_max_coun
 dap_tsd_t* dap_chain_datum_voting_delegated_key_required_tsd_create(bool a_delegate_key_required);
 dap_tsd_t* dap_chain_datum_voting_delegated_key_required_tsd_create(bool a_vote_changing_allowed);
 
+
+

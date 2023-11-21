@@ -384,12 +384,11 @@ json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx){
                 break;
             case TX_ITEM_TYPE_VOTING:
                 l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_VOTING");
-                // TODO voting tsd to json
-
-
-
-
-
+                dap_chain_tx_tsd_t *l_item = dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_TSD, l_tsd_size);
+                if (!l_item)
+                    l_obj_item_data = json_object_new_string("NaN");
+                else
+                    l_obj_item_data = dap_chain_datum_tx_item_voting_tsd_to_json(((dap_chain_tx_tsd_t*)l_item)->tsd, ((dap_chain_tx_tsd_t*)l_item)->header.size);
                 break;
             case TX_ITEM_TYPE_VOTE:
                 l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_VOTE");
