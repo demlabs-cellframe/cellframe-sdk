@@ -1,9 +1,9 @@
 /*
 * Authors:
-* Dmitriy Gerasimov <naeper@demlabs.net>
+* Roman Padenkov <roman.padenkov@demlabs.net>
 * Cellframe       https://cellframe.net
 * DeM Labs Inc.   https://demlabs.net
-* Copyright  (c) 2017-2019
+* Copyright  (c) 2022-2023
 * All rights reserved.
 
 This file is part of CellFrame SDK the open source project
@@ -30,6 +30,25 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define LOG_TAG "dap_chain_net_node_list"
 
+static int s_dap_chain_net_node_list_add_downlink(const char * a_group, const char *a_key, dap_chain_node_info_t * a_node_info) {
+
+    bool res = dap_global_db_set_sync(a_group, a_key, (uint8_t*)a_node_info, sizeof(dap_chain_node_info_t), true) == 0;
+    if(res)
+    {
+        char l_node_addr_str[INET_ADDRSTRLEN]={};
+        inet_ntop(AF_INET, &a_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
+        log_it(L_DEBUG, "Add address"NODE_ADDR_FP_STR" (%s) to node list by "NODE_ADDR_FP_STR"",
+                    NODE_ADDR_FP_ARGS_S(a_node_info->hdr.address),l_node_addr_str,
+                    NODE_ADDR_FP_ARGS_S(a_node_info->hdr.owner_address));
+        return 1;
+    }
+    else
+    {
+        log_it(L_DEBUG, "Don't add this addres to node list");
+        return 2;
+    }
+}
+
 /**
  * @brief server function, makes handshake and add node to node list
  *
@@ -41,6 +60,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
  * 3 - Can't calculate hash for addr
  * 4 - Can't do handshake
  * 5 - Already exists
+ * 6 - I'am not the pinner this node (only for update links count)
+ * 7 - Node deleted
  */
 void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg)
 {
@@ -58,10 +79,11 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     uint64_t addr = 0;
     uint32_t ipv4 = 0;
     uint16_t port = 0;
+    uint32_t links_cnt = 0;
     const char l_net_token[] = "net=";
-    sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,addr=%lu,ipv4=%d,port=%hu,net=",
-                                                            &l_protocol_version, &l_issue_method, &addr, &ipv4, &port);
-    if (l_protocol_version != 1 || l_issue_method != 'r') {
+    sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,addr=%lu,ipv4=%d,port=%hu,lcnt=%d,net=",
+                                                            &l_protocol_version, &l_issue_method, &addr, &ipv4, &port, &links_cnt);
+    if (l_protocol_version != 1 || (l_issue_method != 'r' && l_issue_method != 'd')) {
         log_it(L_ERROR, "Unsupported protocol version/method in the request to dap_chain_net_node_list module");
         *l_return_code = Http_Status_MethodNotAllowed;
         return;
@@ -80,7 +102,8 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
         .hdr.address.uint64 = addr,
         .hdr.owner_address.uint64 = dap_chain_net_get_cur_addr_int(l_net),
         .hdr.ext_addr_v4.s_addr = ipv4,
-        .hdr.ext_port = port
+        .hdr.ext_port = port,
+        .hdr.links_number = links_cnt
     };
 
     uint8_t response = 0;
@@ -95,8 +118,36 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
         l_node_inf_check = (dap_chain_node_info_t *) dap_global_db_get_sync(l_net->pub.gdb_nodes, l_key, &node_info_size, NULL, NULL);
         if(l_node_inf_check)
         {
-            log_it(L_DEBUG, "The node is already exists");
-            response = 5;
+            //is it pinner?
+            if(l_node_inf_check->hdr.owner_address.uint64 == l_node_info.hdr.owner_address.uint64)
+            {
+                if(l_issue_method != 'd')
+                {
+                    if((l_node_info.hdr.links_number != l_node_inf_check->hdr.links_number) ||
+                       (l_node_info.hdr.ext_addr_v4.s_addr != l_node_inf_check->hdr.ext_addr_v4.s_addr))
+                    {
+                        dap_global_db_del_sync(l_net->pub.gdb_nodes, l_key);
+                        response = s_dap_chain_net_node_list_add_downlink(l_net->pub.gdb_nodes,l_key,&l_node_info);
+                    }
+                    else
+                    {
+                        log_it(L_DEBUG, "The node is already exists");
+                        response = 5;
+                    }
+                }
+                else
+                {
+                    dap_global_db_del_sync(l_net->pub.gdb_nodes, l_key);
+                    log_it(L_DEBUG, "Node "NODE_ADDR_FP_STR" deleted",
+                                NODE_ADDR_FP_ARGS_S(l_node_info.hdr.address));
+                    response = 7;
+                }
+            }
+            else
+            {
+                log_it(L_DEBUG, "I'am not the pinner this node");
+                response = 6;
+            }
             DAP_DELETE(l_node_inf_check);
         }
         else{
@@ -104,22 +155,7 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
                 response = 1;
             if(response)
             {
-                size_t l_node_info_size = dap_chain_node_info_get_size(&l_node_info);
-                bool res = dap_global_db_set_sync(l_net->pub.gdb_nodes, l_key, (uint8_t*)&l_node_info, l_node_info_size, true) == 0;
-                if(res)
-                {
-                    char l_node_addr_str[INET_ADDRSTRLEN]={};
-                    inet_ntop(AF_INET, &l_node_info.hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
-                    log_it(L_DEBUG, "Add address"NODE_ADDR_FP_STR" (%s) to node list by "NODE_ADDR_FP_STR"",
-                                NODE_ADDR_FP_ARGS_S(l_node_info.hdr.address),l_node_addr_str,
-                                NODE_ADDR_FP_ARGS_S(l_node_info.hdr.owner_address));
-                    response = 1;
-                }
-                else
-                {
-                    response = 2;
-                    log_it(L_DEBUG, "Don't add this addres to node list");
-                }
+                response = s_dap_chain_net_node_list_add_downlink(l_net->pub.gdb_nodes,l_key,&l_node_info);
             }
             else
             {
@@ -127,8 +163,9 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
                 response = 4;
             }
         }
+        DAP_DELETE(l_key);
     }
-    DAP_DELETE(l_key);
+
     *l_return_code = Http_Status_OK;
     size_t l_data_send_size = sizeof(uint8_t);
     dap_http_simple_reply(a_http_simple, &response, l_data_send_size);
@@ -165,13 +202,20 @@ static struct node_link_request *s_node_list_request_init ()
 
     pthread_condattr_t attr;
     pthread_condattr_init(&attr);
-#ifndef DAP_OS_DARWIN
+#ifdef DAP_OS_DARWIN
+    struct timespec ts;
+    ts.tv_sec = 10;
+    ts.tv_nsec = 10;
+    pthread_cond_timedwait_relative_np(&l_node_list_request->wait_cond, &l_node_list_request->wait_mutex,
+                                       &ts);
+#else
     pthread_condattr_setclock(&attr, CLOCK_MONOTONIC);
 #endif
     pthread_cond_init(&l_node_list_request->wait_cond, &attr);
     pthread_mutex_init(&l_node_list_request->wait_mutex, NULL);
     return l_node_list_request;
 }
+
 
 static void s_node_list_request_deinit (struct node_link_request *a_node_list_request)
 {
@@ -208,31 +252,104 @@ static int dap_chain_net_node_list_wait(struct node_link_request *a_node_list_re
     return ret;
 }
 
-int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_request, bool a_sync)
+int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_request, bool a_sync, int cmd)
 {
-    dap_chain_node_info_t *l_link_node_info = dap_get_balancer_link_from_cfg(a_net);
-    if (!l_link_node_info)
-        return false;
+    enum Cmd{
+        ADD,
+        UPDATE,
+        DEL
+    };
+    if(!a_net) return -1;
+    dap_chain_node_info_t *l_link_node_info = NULL;
     char l_node_addr_str[INET_ADDRSTRLEN] = {};
-    inet_ntop(AF_INET, &l_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
-    log_it(L_DEBUG, "Start node list HTTP request to %s", l_node_addr_str);
-    struct node_link_request *l_node_list_request = s_node_list_request_init();
-    if(!l_node_list_request){
-        log_it(L_CRITICAL, "Memory allocation error");
-        DAP_DELETE(l_link_node_info);
-        return false;
-    }
-    l_node_list_request->net = a_net;
-    l_node_list_request->link_info = l_link_node_info;
-    int ret = 0;
+    struct node_link_request *l_node_list_request;
+    dap_chain_node_addr_t l_node_addr_cur = {
+        .uint64 = dap_chain_net_get_cur_addr_int(a_net)
+    };
 
-    char *l_request = dap_strdup_printf("%s/%s?version=1,method=r,addr=%lu,ipv4=%d,port=%hu,net=%s",
-                                            DAP_UPLINK_PATH_NODE_LIST,
-                                            DAP_NODE_LIST_URI_HASH,
-                                            a_link_node_request->hdr.address.uint64,
-                                            a_link_node_request->hdr.ext_addr_v4.s_addr,
-                                            a_link_node_request->hdr.ext_port,
-                                            a_net->pub.name);
+    dap_chain_node_info_t *l_link_node_request = NULL;
+    uint32_t links_count = 0;
+    char *l_request = NULL;
+
+    if(cmd == ADD){ //request to add
+        l_link_node_info = dap_get_balancer_link_from_cfg(a_net);
+        if (!l_link_node_info)
+            return -2;
+
+        inet_ntop(AF_INET, &l_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
+        log_it(L_DEBUG, "Start node list HTTP request to %s", l_node_addr_str);
+        l_node_list_request = s_node_list_request_init();
+        if(!l_node_list_request){
+            log_it(L_CRITICAL, "Memory allocation error");
+            DAP_DELETE(l_link_node_info);
+            return -3;
+        }
+        l_node_list_request->net = a_net;
+        l_node_list_request->link_info = l_link_node_info;
+        l_link_node_request = a_link_node_request;
+
+    } else if(cmd == UPDATE || cmd == DEL){//request update or delete
+
+        l_link_node_request = dap_chain_node_info_read(a_net, &l_node_addr_cur);
+        if(!l_link_node_request)
+        {
+            log_it(L_WARNING, "There is not node address "NODE_ADDR_FP_STR" in node list",NODE_ADDR_FP_ARGS_S(l_node_addr_cur));
+            return -2;
+        }
+
+        l_link_node_info = dap_chain_get_root_addr(a_net, &l_link_node_request->hdr.owner_address);
+        if (!l_link_node_info)
+        {
+            DAP_DEL_Z(l_link_node_request);
+            return -3;
+        }
+
+        inet_ntop(AF_INET, &l_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
+        log_it(L_DEBUG, "Start node list HTTP request to %s", l_node_addr_str);
+        l_node_list_request = s_node_list_request_init();
+        if(!l_node_list_request){
+            log_it(L_CRITICAL, "Memory allocation error");
+            DAP_DEL_Z(l_link_node_request);
+            DAP_DELETE(l_link_node_info);
+            return -4;
+        }
+        l_node_list_request->net = a_net;
+        l_node_list_request->link_info = l_link_node_info;
+    }
+    if(cmd == UPDATE)
+    {
+        size_t l_blocks_events = 0;
+        dap_chain_t *l_chain;
+        DL_FOREACH(a_net->pub.chains, l_chain) {
+            if(l_chain->callback_count_atom)
+                l_blocks_events += l_chain->callback_count_atom(l_chain);
+        }
+        l_link_node_request->hdr.blocks_events = l_blocks_events;
+
+        links_count = dap_chain_net_get_downlink_count(a_net);
+        l_link_node_request->hdr.links_number = links_count;
+
+    }
+    if(cmd == ADD || cmd == UPDATE)
+    {
+        l_request = dap_strdup_printf("%s/%s?version=1,method=r,addr=%lu,ipv4=%d,port=%hu,lcnt=%d,blks=%lu,net=%s",
+                                                DAP_UPLINK_PATH_NODE_LIST,
+                                                DAP_NODE_LIST_URI_HASH,
+                                                l_link_node_request->hdr.address.uint64,
+                                                l_link_node_request->hdr.ext_addr_v4.s_addr,
+                                                l_link_node_request->hdr.ext_port,
+                                                l_link_node_request->hdr.links_number,
+                                                l_link_node_request->hdr.blocks_events,
+                                                a_net->pub.name);
+    }else if(cmd == DEL)
+    {
+        l_request = dap_strdup_printf("%s/%s?version=1,method=d,addr=%lu,net=%s",
+                                                    DAP_UPLINK_PATH_NODE_LIST,
+                                                    DAP_NODE_LIST_URI_HASH,
+                                                    l_link_node_request->hdr.address.uint64,
+                                                    a_net->pub.name);
+    }
+    int ret = 0;
     ret = dap_client_http_request(l_node_list_request->worker,
                                             l_node_addr_str,
                                             l_link_node_info->hdr.ext_port,
@@ -249,54 +366,43 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
     DAP_DELETE(l_request);
     if (a_sync) {
         int rc = dap_chain_net_node_list_wait(l_node_list_request, 10000);
-        ret = ret ? 6 : rc ? 0 : l_node_list_request->response;
+        ret = ret ? 8 : rc ? 0 : l_node_list_request->response;
     } else {
-        ret = 7;
+        if(ret)ret = 8;
+        else ret = 1;
     }
     s_node_list_request_deinit(l_node_list_request);
     return ret;
 }
+
 static void s_node_list_callback_notify(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg)
 {
     if (!a_arg || !a_obj || !a_obj->key)
         return;
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     assert(l_net);
-    size_t l_size_obj_need = (sizeof(dap_chain_node_info_t));
 
     if (!dap_strcmp(a_obj->group, l_net->pub.gdb_nodes)) {
         if (a_obj->value && a_obj->type == DAP_DB$K_OPTYPE_ADD) {
             dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)a_obj->value;
-
-            size_t l_size_obj = (a_obj->value_len - (l_node_info->hdr.links_number * sizeof(dap_chain_node_addr_t)));
-            if(l_size_obj_need == l_size_obj)
-            {
-                if(l_node_info->hdr.owner_address.uint64 == 0){
-                    log_it(L_NOTICE, "Node %s removed, there is not pinners", a_obj->key);
-                    dap_global_db_del_unsafe(a_context, a_obj->group, a_obj->key);
-                } else {
-                    char l_node_ipv4_str[INET_ADDRSTRLEN]={ '\0' }, l_node_ipv6_str[INET6_ADDRSTRLEN]={ '\0' };
-                    inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_ipv4_str, INET_ADDRSTRLEN);
-                    inet_ntop(AF_INET6, &l_node_info->hdr.ext_addr_v6, l_node_ipv6_str, INET6_ADDRSTRLEN);
-                    char l_ts[128] = { '\0' };
-                    dap_gbd_time_to_str_rfc822(l_ts, sizeof(l_ts), a_obj->timestamp);
-
-                    log_it(L_MSG, "Add node "NODE_ADDR_FP_STR" %s %s, pinned by "NODE_ADDR_FP_STR" at %s\n",
-                                             NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),
-                                             l_node_ipv4_str, dap_itoa(l_node_info->hdr.ext_port),
-                                             NODE_ADDR_FP_ARGS_S(l_node_info->hdr.owner_address),
-                                             l_ts);
-                }
-            }
-            else
-            {
+            if(l_node_info->hdr.owner_address.uint64 == 0){
+                log_it(L_NOTICE, "Node %s removed, there is not pinners", a_obj->key);
                 dap_global_db_del_unsafe(a_context, a_obj->group, a_obj->key);
-                log_it(L_NOTICE, "Wrong size! data size %lu need - (%lu) %s removed ",l_size_obj,
-                       l_size_obj_need, a_obj->key);
+            } else {
+                char l_node_ipv4_str[INET_ADDRSTRLEN]={ '\0' }, l_node_ipv6_str[INET6_ADDRSTRLEN]={ '\0' };
+                inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_ipv4_str, INET_ADDRSTRLEN);
+                inet_ntop(AF_INET6, &l_node_info->hdr.ext_addr_v6, l_node_ipv6_str, INET6_ADDRSTRLEN);
+                char l_ts[128] = { '\0' };
+                dap_gbd_time_to_str_rfc822(l_ts, sizeof(l_ts), a_obj->timestamp);
+
+                log_it(L_MSG, "Add node "NODE_ADDR_FP_STR" %s %s, pinned by "NODE_ADDR_FP_STR" at %s\n",
+                                         NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),
+                                         l_node_ipv4_str, dap_itoa(l_node_info->hdr.ext_port),
+                                         NODE_ADDR_FP_ARGS_S(l_node_info->hdr.owner_address),
+                                         l_ts);
             }
         }
     }
-
 }
 
 int dap_chain_net_node_list_init()

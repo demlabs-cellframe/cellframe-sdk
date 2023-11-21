@@ -35,7 +35,9 @@
 #include <assert.h>
 #include <ctype.h>
 #include <dirent.h>
+#ifndef DAP_OS_ANDROID
 #include <magic.h>
+#endif
 #include <sys/stat.h>
 
 #ifdef WIN32
@@ -214,16 +216,6 @@ static dap_chain_node_info_t* node_info_read_and_reply(dap_chain_net_t * a_net, 
 
     if(!node_info) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "node not found in base");
-        DAP_DELETE(l_key);
-        return NULL;
-    }
-    /* if(!node_info->hdr.ext_port)
-        node_info->hdr.ext_port = 8079; */
-    size_t node_info_size_must_be = dap_chain_node_info_get_size(node_info);
-    if(node_info_size_must_be != node_info_size) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "node has bad size in base=%zu (must be %zu)", node_info_size,
-                node_info_size_must_be);
-        DAP_DELETE(node_info);
         DAP_DELETE(l_key);
         return NULL;
     }
@@ -754,21 +746,21 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
     int arg_index = 1;
     int cmd_name = CMD_NONE;
     // find 'cells' as first parameter only
-    if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "cells", NULL))
+    if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "cells", NULL))
         cmd_name = CMD_NAME_CELL;
-    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "flush", NULL))
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "flush", NULL))
         cmd_name = CMD_FLUSH;
-    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "record", NULL))
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "record", NULL))
             cmd_name = CMD_RECORD;
-    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "write", NULL))
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "write", NULL))
                 cmd_name = CMD_WRITE;
-    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "read", NULL))
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "read", NULL))
                 cmd_name = CMD_READ;
-    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "delete", NULL))
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "delete", NULL))
                 cmd_name = CMD_DELETE;
-    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "drop_table", NULL))
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "drop_table", NULL))
                 cmd_name = CMD_DROP;
-    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, min(a_argc, arg_index + 1), "get_keys", NULL))
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "get_keys", NULL))
             cmd_name = CMD_GET_KEYS;
 
     switch (cmd_name) {
@@ -800,7 +792,7 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
         int cmd_num = CMD_NONE;
         switch (cmd_name) {
             case CMD_NAME_CELL:
-                if((arg_index_n = dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "add", NULL))
+                if((arg_index_n = dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "add", NULL))
                         != 0) {
                     cmd_num = CMD_ADD;
                 }
@@ -872,15 +864,15 @@ int com_global_db(int a_argc, char ** a_argv, char **a_str_reply)
         int arg_index_n = ++arg_index;
         int l_subcmd;
         // Get value
-        if((arg_index_n = dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "get", NULL))!= 0) {
+        if((arg_index_n = dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "get", NULL))!= 0) {
             l_subcmd = SUMCMD_GET;
         }
         // Pin record
-        else if((arg_index_n = dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "pin", NULL)) != 0) {
+        else if((arg_index_n = dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "pin", NULL)) != 0) {
             l_subcmd = SUMCMD_PIN;
         }
         // Unpin record
-        else if((arg_index_n = dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "unpin", NULL)) != 0) {
+        else if((arg_index_n = dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "unpin", NULL)) != 0) {
             l_subcmd = SUMCMD_UNPIN;
         }
         else{
@@ -1130,33 +1122,33 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     };
     int arg_index = 1;
     int cmd_num = CMD_NONE;
-    if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "add", NULL)) {
+    if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "add", NULL)) {
         cmd_num = CMD_ADD;
     }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "del", NULL)) {
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "del", NULL)) {
         cmd_num = CMD_DEL;
     }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "link", NULL)) {
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "link", NULL)) {
         cmd_num = CMD_LINK;
     }
     else
     // find  add parameter ('alias' or 'handshake')
-    if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "handshake", NULL)) {
+    if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "handshake", NULL)) {
         cmd_num = CMD_HANDSHAKE;
     }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "connect", NULL)) {
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "connect", NULL)) {
         cmd_num = CMD_CONNECT;
     }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "alias", NULL)) {
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "alias", NULL)) {
         cmd_num = CMD_ALIAS;
     }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "dump", NULL)) {
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "dump", NULL)) {
         cmd_num = CMD_DUMP;
     }
-    else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "connections", NULL)) {
+    else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "connections", NULL)) {
         cmd_num = CMD_CONNECTIONS;
     }
-    else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "balancer", NULL)){
+    else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "balancer", NULL)){
         cmd_num = CMD_BALANCER;
     }
     arg_index++;
@@ -1230,10 +1222,21 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         l_link_node_request->hdr.address.uint64 = dap_chain_net_get_cur_addr_int(l_net);
         inet_pton(AF_INET, a_ipv4_str, &(l_link_node_request->hdr.ext_addr_v4));
         uint16_t l_node_port = 0;
+        uint32_t links_count = 0;
+        size_t l_blocks_events = 0;
         dap_digit_from_string(l_port_str, &l_node_port, sizeof(uint16_t));
+        links_count = dap_chain_net_get_downlink_count(l_net);
         l_link_node_request->hdr.ext_port = l_node_port;
+        l_link_node_request->hdr.links_number = links_count;
+        dap_chain_t *l_chain;
+        DL_FOREACH(l_net->pub.chains, l_chain) {
+            if(l_chain->callback_count_atom)
+                l_blocks_events += l_chain->callback_count_atom(l_chain);
+        }
+        l_link_node_request->hdr.blocks_events = l_blocks_events;
         // Synchronous request, wait for reply
-        int res = dap_chain_net_node_list_request(l_net,l_link_node_request, true);
+        int res = dap_chain_net_node_list_request(l_net,l_link_node_request, true, 0);
+
         switch (res)
         {
             case 0:
@@ -1253,8 +1256,8 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
             break;
             case 5:
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "The node is already exists");
-            break;
-            case 6:
+            break;            
+            case 7:
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process node list HTTP request");
             break;
             default:
@@ -1267,18 +1270,28 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     case CMD_DEL:
         // handler of command 'node del'
     {
-        int l_ret = node_info_del_with_reply(l_net, l_node_info, alias_str, a_str_reply);
+        //int l_ret = node_info_del_with_reply(l_net, l_node_info, alias_str, a_str_reply);
+        int l_ret = dap_chain_net_node_list_request(l_net,NULL,true,2);
         DAP_DELETE(l_node_info);
-        return l_ret;
+        if(l_ret == 7)
+        {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "node deleted");
+            return 0;
+        }
+        else
+        {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "node not deleted");
+            return -1;
+        }
     }
     case CMD_LINK:
-        if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "add", NULL)) {
+        if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "add", NULL)) {
             // handler of command 'node link add -addr <node address> -link <node address>'
             int l_ret = link_add_or_del_with_reply(l_net, l_node_info, "add", alias_str, &l_link, a_str_reply);
             DAP_DELETE(l_node_info);
             return l_ret;
         }
-        else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), "del", NULL)) {
+        else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "del", NULL)) {
             // handler of command 'node link del -addr <node address> -link <node address>'
             int l_ret = link_add_or_del_with_reply(l_net, l_node_info, "del", alias_str, &l_link, a_str_reply);
             DAP_DELETE(l_node_info);
@@ -1612,13 +1625,14 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         dap_string_t * l_string_balanc = dap_string_new("\n");
         l_node_num = dap_list_length(l_net->pub.link_list);
         dap_string_append_printf(l_string_balanc, "Got %d records\n", (uint16_t)l_node_num);
+        dap_string_append_printf(l_string_balanc, "%-26s%-20s%s", "Address", "IPv4", "downlinks\n");
         for(dap_list_t *ll = l_net->pub.link_list; ll; ll = ll->next)
         {
             dap_chain_node_info_t *l_node_link = (dap_chain_node_info_t*)ll->data;
-            dap_string_append_printf(l_string_balanc, "node address "NODE_ADDR_FP_STR"  \tipv4 %s \tnumber of links %u\n",
+            dap_string_append_printf(l_string_balanc, NODE_ADDR_FP_STR"    %-20s%s\n",
                                      NODE_ADDR_FP_ARGS_S(l_node_link->hdr.address),
                                      inet_ntoa(l_node_link->hdr.ext_addr_v4),
-                                     l_node_link->hdr.links_number);
+                                     dap_itoa(l_node_link->hdr.links_number));
         }
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Balancer link list:\n %s \n",
                                           l_string_balanc->str);
@@ -1630,6 +1644,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
 }
 
 
+#ifndef DAP_OS_ANDROID
 /**
  * @brief Traceroute command
  * return 0 OK, -1 Err
@@ -1716,6 +1731,7 @@ int com_traceroute(int argc, char** argv, char **a_str_reply)
     return -1;
 #endif
 }
+
 
 
 /**
@@ -1815,12 +1831,13 @@ int com_ping(int a_argc, char**a_argv, char **a_str_reply)
 {
 #ifdef DAP_OS_LINUX
 
-    int n = 4;
+    int n = 4,w = 0;
     if (a_argc < 2) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Host not specified");
         return -1;
     }
     const char *n_str = NULL;
+    const char *w_str = NULL;
     int argc_host = 1;
     int argc_start = 1;
     argc_start = dap_cli_server_cmd_find_option_val(a_argv, argc_start, a_argc, "-n", &n_str);
@@ -1834,13 +1851,22 @@ int com_ping(int a_argc, char**a_argv, char **a_str_reply)
             argc_host = argc_start + 1;
             n = (n_str) ? atoi(n_str) : 4;
         }
+        else
+        {
+            argc_start = dap_cli_server_cmd_find_option_val(a_argv, argc_start, a_argc, "-w", &w_str);
+            if(argc_start) {
+                argc_host = argc_start + 1;
+                n = 4;
+                w = (w_str) ? atoi(w_str) : 5;
+            }
+        }
     }
     if(n <= 1)
         n = 1;
     const char *addr = a_argv[argc_host];
     iputils_set_verbose();
     ping_handle_t *l_ping_handle = ping_handle_create();
-    int res = (addr) ? ping_util(l_ping_handle, addr, n) : -EADDRNOTAVAIL;
+    int res = (addr) ? ping_util(l_ping_handle, addr, n, w) : -EADDRNOTAVAIL;
     DAP_DELETE(l_ping_handle);
     if(res >= 0) {
         if(a_str_reply)
@@ -1873,6 +1899,7 @@ int com_ping(int a_argc, char**a_argv, char **a_str_reply)
     return -1;
 #endif
 }
+#endif /* !ANDROID (1582) */
 
 /**
  * @brief com_version
@@ -1952,17 +1979,17 @@ enum { CMD_NONE, CMD_WALLET_NEW, CMD_WALLET_LIST, CMD_WALLET_INFO, CMD_WALLET_AC
 int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
     // find  add parameter ('alias' or 'handshake')
-    if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "new", NULL))
+    if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "new", NULL))
         cmd_num = CMD_WALLET_NEW;
-    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "list", NULL))
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "list", NULL))
         cmd_num = CMD_WALLET_LIST;
-    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "info", NULL))
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "info", NULL))
         cmd_num = CMD_WALLET_INFO;
-    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "activate", NULL))
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "activate", NULL))
         cmd_num = CMD_WALLET_ACTIVATE;
-    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "deactivate", NULL))
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "deactivate", NULL))
         cmd_num = CMD_WALLET_DEACTIVATE;
-    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "convert", NULL))
+    else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "convert", NULL))
         cmd_num = CMD_WALLET_CONVERT;
 
     l_arg_index++;
@@ -2727,38 +2754,6 @@ const char* s_tx_get_main_ticker(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_
     }
 }
 
-static bool dap_chain_mempool_find_addr_ledger(dap_ledger_t* a_ledger, dap_chain_hash_fast_t* a_tx_prev_hash, dap_chain_addr_t *a_addr)
-{
-    dap_chain_datum_tx_t *l_tx;
-    l_tx = dap_chain_ledger_tx_find_by_hash (a_ledger,a_tx_prev_hash);
-    dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_ALL, NULL), *l_item;
-    if(!l_list_out_items)
-        return false;
-    bool l_ret = false;
-    DL_FOREACH(l_list_out_items, l_item) {
-        //assert(l_list_out->data);
-        dap_chain_addr_t *l_dst_addr = NULL;
-        dap_chain_tx_item_type_t l_type = *(uint8_t*)l_item->data;
-        switch (l_type) {
-        case TX_ITEM_TYPE_OUT:
-            l_dst_addr = &((dap_chain_tx_out_t*)l_item->data)->addr;
-            break;
-        case TX_ITEM_TYPE_OUT_EXT:
-            l_dst_addr = &((dap_chain_tx_out_ext_t*)l_item->data)->addr;
-            break;
-        case TX_ITEM_TYPE_OUT_OLD:
-            l_dst_addr = &((dap_chain_tx_out_old_t*)l_item->data)->addr;
-        default:
-            break;
-        }
-        if(l_dst_addr && !memcmp(l_dst_addr, a_addr, sizeof(dap_chain_addr_t))) {
-            l_ret = true;
-            break;
-        }
-    }
-    dap_list_free(l_list_out_items);
-    return l_ret;
-}
 
 /**
  * @brief s_com_mempool_list_print_for_chain
@@ -2807,23 +2802,23 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                     {
                         uint8_t *item = l_tx->tx_items + l_tx_items_count;
                         size_t l_item_tx_size = dap_chain_datum_item_tx_get_size(item);
-                        dap_chain_hash_fast_t l_hash;
-                        bool t =false;
+                        dap_chain_hash_fast_t *l_hash = NULL;
                         if(!memcmp(l_addr, &((dap_chain_tx_out_old_t*)item)->addr, sizeof(dap_chain_addr_t))||
                             !memcmp(l_addr, &((dap_chain_tx_out_t*)item)->addr, sizeof(dap_chain_addr_t))||
                             !memcmp(l_addr, &((dap_chain_tx_out_ext_t*)item)->addr, sizeof(dap_chain_addr_t)))
                         {
                             l_f_found = true;                            
                             break;
-                        }
-                        l_hash = ((dap_chain_tx_in_t*)item)->header.tx_prev_hash;
-                        if(dap_chain_mempool_find_addr_ledger(a_net->pub.ledger,&l_hash,l_addr)){l_f_found=true;break;}
-                        l_hash = ((dap_chain_tx_in_cond_t*)item)->header.tx_prev_hash;
-                        if(dap_chain_mempool_find_addr_ledger(a_net->pub.ledger,&l_hash,l_addr)){l_f_found=true;break;}
-                        l_hash = ((dap_chain_tx_in_ems_t*)item)->header.token_emission_hash;
-                        if(dap_chain_mempool_find_addr_ledger(a_net->pub.ledger,&l_hash,l_addr)){l_f_found=true;break;}
-                        l_hash = ((dap_chain_tx_in_ems_ext_t*)item)->header.ext_tx_hash;
-                        if(dap_chain_mempool_find_addr_ledger(a_net->pub.ledger,&l_hash,l_addr)){l_f_found=true;break;}
+                        }                        
+                        if(((dap_chain_tx_in_t*)item)->header.type == TX_ITEM_TYPE_IN)
+                            l_hash = &((dap_chain_tx_in_t *)item)->header.tx_prev_hash;
+                        if(((dap_chain_tx_in_cond_t*)item)->header.type == TX_ITEM_TYPE_IN_COND)
+                            l_hash = &((dap_chain_tx_in_cond_t*)item)->header.tx_prev_hash;
+                        if(((dap_chain_tx_in_ems_t*)item)->header.type == TX_ITEM_TYPE_IN_EMS)
+                            l_hash = &((dap_chain_tx_in_ems_t*)item)->header.token_emission_hash;
+                        if(((dap_chain_tx_in_ems_ext_t*)item)->header.type == TX_ITEM_TYPE_IN_EMS_EXT)
+                            l_hash = &((dap_chain_tx_in_ems_ext_t*)item)->header.ext_tx_hash;
+                        if(l_hash && dap_chain_mempool_find_addr_ledger(a_net->pub.ledger,l_hash,l_addr)){l_f_found=true;break;}
 
                         l_tx_items_count += l_item_tx_size;
                     }
@@ -6036,7 +6031,7 @@ int com_stats(int argc, char **a_argv, char **a_str_reply)
     int arg_index = 1;
     int cmd_num = CMD_NONE;
     // find  add parameter ('cpu')
-    if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(argc, arg_index + 1), "cpu", NULL)) {
+    if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(argc, arg_index + 1), "cpu", NULL)) {
         cmd_num = CMD_STATS_CPU;
     }
     switch (cmd_num) {
@@ -6168,7 +6163,7 @@ int cmd_gdb_export(int a_argc, char **a_argv, char **a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't open db directory");
         return -1;
     }
-    char l_path[MIN(strlen(l_gdb_path) + strlen(l_filename) + 12, MAX_PATH)];
+    char l_path[dap_min(strlen(l_gdb_path) + strlen(l_filename) + 12, (size_t)MAX_PATH)];
     memset(l_path, '\0', sizeof(l_path));
     snprintf(l_path, sizeof(l_path), "%s/%s.json", l_gdb_path, l_filename);
 
@@ -6225,7 +6220,8 @@ int cmd_gdb_export(int a_argc, char **a_argv, char **a_str_reply)
         json_object_array_add(l_json, l_json_group_inner);
         dap_store_obj_free(l_store_obj, l_store_obj_count);
     }
-    dap_list_free_full(l_groups_list, NULL);
+    if (l_parsed_groups_list)
+        dap_list_free_full(l_groups_list, NULL);
     if (json_object_to_file(l_path, l_json) == -1) {
 #if JSON_C_MINOR_VERSION<15
         log_it(L_CRITICAL, "Couldn't export JSON to file, error code %d", errno );
@@ -6237,6 +6233,7 @@ int cmd_gdb_export(int a_argc, char **a_argv, char **a_str_reply)
          json_object_put(l_json);
          return -1;
     }
+    dap_cli_server_cmd_set_reply_text(a_str_reply, "Global DB export in file %s", l_path);
     json_object_put(l_json);
     return 0;
 }
@@ -6543,7 +6540,7 @@ int com_signer(int a_argc, char **a_argv, char **a_str_reply)
 
     size_t l_len_opts = sizeof(l_opts) / sizeof(struct opts);
     for (size_t i = 0; i < l_len_opts; i++) {
-        if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, MIN(a_argc, arg_index + 1), l_opts[i].name, NULL)) {
+        if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), l_opts[i].name, NULL)) {
             cmd_num = l_opts[i].cmd;
             break;
         }
@@ -7076,6 +7073,7 @@ static dap_tsd_t *s_alloc_metadata (const char *a_file, const int a_meta)
                 return dap_tsd_create_string(SIGNER_DATE, l_ctime);
             }
             break;
+        #ifndef DAP_OS_ANDROID
         case SIGNER_MIME_MAGIC:
             {
                 magic_t l_magic = magic_open(MAGIC_MIME);
@@ -7096,6 +7094,7 @@ static dap_tsd_t *s_alloc_metadata (const char *a_file, const int a_meta)
 
             }
             break;
+        #endif
         default:
             return NULL;
     }
