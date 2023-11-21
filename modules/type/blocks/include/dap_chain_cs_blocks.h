@@ -66,4 +66,4 @@ typedef int (*dap_chain_blocks_block_callback_ptr_t)(dap_chain_cs_blocks_t *, da
 
 int dap_chain_cs_blocks_init();
 void dap_chain_cs_blocks_deinit();
-dap_chain_block_cache_t * dap_chain_block_cs_cache_get_by_hash(dap_chain_cs_blocks_t * a_blocks,  dap_chain_hash_fast_t *a_block_hash);
+dap_chain_block_cache_t *dap_chain_block_cache_get_by_hash(dap_chain_cs_blocks_t *a_blocks, dap_chain_hash_fast_t *a_block_hash);

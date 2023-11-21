@@ -390,7 +390,7 @@ size_t dap_chain_block_get_signs_count(const dap_chain_block_t * a_block, size_t
     return l_sign_count;
 }
 
-bool dap_chain_block_sign_match_pkey(const dap_chain_block_t *a_block, size_t a_block_size, dap_sign_t *a_sign)
+bool dap_chain_block_sign_match_pkey(const dap_chain_block_t *a_block, size_t a_block_size, dap_pkey_t *a_sign_pkey)
 {
     dap_return_val_if_fail(a_block && a_block_size, false);
     uint16_t l_sign_count = 0;
@@ -402,7 +402,7 @@ bool dap_chain_block_sign_match_pkey(const dap_chain_block_t *a_block, size_t a_
             log_it(L_WARNING, "Empty sign #%hu", l_sign_count);
             return false;
         }
-        if (dap_sign_match_pkey_signs(l_sign, a_sign))
+        if (dap_pkey_match_sign(a_sign_pkey, l_sign))
             return true;
         l_offset += l_sign_size;
     }

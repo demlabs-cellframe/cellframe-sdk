@@ -526,7 +526,7 @@ static bool s_ledger_token_update_check(dap_ledger_token_item_t *a_cur_token_ite
     if(auth_signs_total) {
         size_t l_valid_pkeys = 0;
         for(uint16_t i = 0; i < auth_signs_total; i++){
-            dap_pkey_t *l_pkey_upd_token = dap_pkey_get_from_sign_deserialization(l_signs_upd_token[i]);
+            dap_pkey_t *l_pkey_upd_token = dap_pkey_get_from_sign(l_signs_upd_token[i]);
             for (size_t j = 0; j < a_cur_token_item->auth_signs_total; j++) {
                 if (dap_pkey_match(a_cur_token_item->auth_pkeys[j], l_pkey_upd_token)) {
                     l_valid_pkeys++;
@@ -1212,7 +1212,7 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_toke
         }
         dap_stpcpy(l_token_item->ticker, l_token->ticker);
         for (uint16_t k = 0; k < l_token_item->auth_signs_total; k++) {
-            l_token_item->auth_pkeys[k] = dap_pkey_get_from_sign_deserialization(l_signs[k]);
+            l_token_item->auth_pkeys[k] = dap_pkey_get_from_sign(l_signs[k]);
             dap_pkey_get_hash(l_token_item->auth_pkeys[k], &l_token_item->auth_pkeys_hash[k]);
         }
         DAP_DELETE(l_signs);
@@ -3461,8 +3461,8 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
         log_it(L_WARNING, "Tx check: no valid inputs found");
         return DAP_LEDGER_TX_CHECK_TX_NO_VALID_INPUTS;
     }
-    dap_chain_hash_fast_t l_hash_pkey = {};
-    dap_sign_t *l_tx_first_sign = NULL;
+    dap_chain_hash_fast_t l_tx_first_sign_pkey_hash = {};
+    dap_pkey_t *l_tx_first_sign_pkey = NULL;
     bool l_girdled_ems_used = false;
 
     // find all previous transactions
@@ -3676,19 +3676,20 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
             }
             if (l_err_num)
                 break;
-            if (!l_tx_first_sign) {
+            if (!l_tx_first_sign_pkey) {
                 // Get sign item
                 dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t*) dap_chain_datum_tx_item_get(a_tx, NULL,
                         TX_ITEM_TYPE_SIG, NULL);
                 assert(l_tx_sig);
                 // Get sign from sign item
-                l_tx_first_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
+                dap_sign_t *l_tx_first_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
                 assert(l_tx_first_sign);
                 // calculate hash from sign public key
-                dap_sign_get_pkey_hash(l_tx_first_sign, &l_hash_pkey);
+                dap_sign_get_pkey_hash(l_tx_first_sign, &l_tx_first_sign_pkey_hash);
+                l_tx_first_sign_pkey = dap_pkey_get_from_sign(l_tx_first_sign);
             }
             // 3. Check if already spent reward
-            dap_ledger_reward_key_t l_search_key = { .block_hash = *l_block_hash, .sign_pkey_hash = l_hash_pkey };
+            dap_ledger_reward_key_t l_search_key = { .block_hash = *l_block_hash, .sign_pkey_hash = l_tx_first_sign_pkey_hash };
             dap_ledger_reward_item_t *l_reward_item = s_find_reward(a_ledger, &l_search_key);
             if (l_reward_item) {
                 l_err_num = DAP_LEDGER_TX_CHECK_REWARD_ITEM_ALREADY_USED;
@@ -3696,7 +3697,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
                      l_sign_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE],
                      l_spender_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
                 dap_chain_hash_fast_to_str(l_block_hash, l_block_hash_str, sizeof(l_block_hash_str));
-                dap_chain_hash_fast_to_str(&l_hash_pkey, l_sign_hash_str, sizeof(l_sign_hash_str));
+                dap_chain_hash_fast_to_str(&l_tx_first_sign_pkey_hash, l_sign_hash_str, sizeof(l_sign_hash_str));
                 dap_chain_hash_fast_to_str(&l_reward_item->spender_tx, l_spender_hash_str, sizeof(l_spender_hash_str));
                 debug_if(s_debug_more, L_WARNING, "Reward for block %s sign %s already spent by %s", l_block_hash_str, l_sign_hash_str, l_spender_hash_str);
                 break;
@@ -3705,7 +3706,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
             dap_chain_t *l_chain;
             DL_FOREACH(a_ledger->net->pub.chains, l_chain) {
                 if (l_chain->callback_calc_reward) {
-                    l_value = l_chain->callback_calc_reward(l_chain, l_block_hash, l_tx_first_sign);
+                    l_value = l_chain->callback_calc_reward(l_chain, l_block_hash, l_tx_first_sign_pkey);
                     break;
                 }
             }
@@ -3714,7 +3715,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
                 char l_block_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE],
                      l_sign_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
                 dap_chain_hash_fast_to_str(l_block_hash, l_block_hash_str, sizeof(l_block_hash_str));
-                dap_chain_hash_fast_to_str(&l_hash_pkey, l_sign_hash_str, sizeof(l_sign_hash_str));
+                dap_chain_hash_fast_to_str(&l_tx_first_sign_pkey_hash, l_sign_hash_str, sizeof(l_sign_hash_str));
                 debug_if(s_debug_more, L_DEBUG, "Can't find block %s with sign %s", l_block_hash_str, l_sign_hash_str);
                 break;
             }
@@ -3838,18 +3839,18 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
                 l_bound_item->in.addr_from = *l_addr_from;
                 strncpy(l_bound_item->in.token_ticker, l_token, DAP_CHAIN_TICKER_SIZE_MAX - 1);
                 // 4. compare public key hashes in the signature of the current transaction and in the 'out' item of the previous transaction
-                if (!l_tx_first_sign) {
+                if (dap_hash_fast_is_blank(&l_tx_first_sign_pkey_hash)) {
                     // Get sign item
                     dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t*) dap_chain_datum_tx_item_get(a_tx, NULL,
                             TX_ITEM_TYPE_SIG, NULL);
                     assert(l_tx_sig);
                     // Get sign from sign item
-                    l_tx_first_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
+                    dap_sign_t *l_tx_first_sign = dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
                     assert(l_tx_first_sign);
                     // calculate hash from sign public key
-                    dap_sign_get_pkey_hash(l_tx_first_sign, &l_hash_pkey);
+                    dap_sign_get_pkey_hash(l_tx_first_sign, &l_tx_first_sign_pkey_hash);
                 }
-                if (!dap_hash_fast_compare(&l_hash_pkey, &l_addr_from->data.hash_fast)) {
+                if (!dap_hash_fast_compare(&l_tx_first_sign_pkey_hash, &l_addr_from->data.hash_fast)) {
                     l_err_num = DAP_LEDGER_TX_CHECK_PKEY_HASHES_DONT_MATCH;
                     break;
                 }
@@ -3966,7 +3967,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
 
     if (l_list_in)
         dap_list_free(l_list_in);
-
+    DAP_DEL_Z(l_tx_first_sign_pkey);
     if (l_err_num) {
         if ( l_list_bound_items )
             dap_list_free_full(l_list_bound_items, NULL);
