@@ -117,7 +117,7 @@ typedef void (*dap_chain_callback_set_min_validators_count)(dap_chain_t *a_chain
 typedef uint256_t (*dap_chain_callback_get_minimum_fee)(dap_chain_t *a_chain);
 typedef dap_enc_key_t* (*dap_chain_callback_get_signing_certificate)(dap_chain_t *a_chain);
 typedef void (*dap_chain_callback_load_from_gdb)(dap_chain_t *a_chain);
-typedef uint256_t (*dap_chain_callback_calc_reward)(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash, dap_sign_t *a_block_sign);
+typedef uint256_t (*dap_chain_callback_calc_reward)(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash, dap_pkey_t *a_block_sign_pkey);
 
 typedef enum dap_chain_type {
     CHAIN_TYPE_FIRST,

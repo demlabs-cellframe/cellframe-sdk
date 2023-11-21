@@ -54,8 +54,7 @@ void dap_chain_block_cache_deinit()
  * @return
  */
 
-dap_chain_block_cache_t *dap_chain_block_cache_new(dap_chain_cs_blocks_t *a_blocks, dap_hash_fast_t *a_block_hash,
-                                                   dap_chain_block_t *a_block, size_t a_block_size)
+dap_chain_block_cache_t *dap_chain_block_cache_new(dap_hash_fast_t *a_block_hash, dap_chain_block_t *a_block, size_t a_block_size)
 {
     if (! a_block)
         return NULL;
@@ -67,7 +66,6 @@ dap_chain_block_cache_t *dap_chain_block_cache_new(dap_chain_cs_blocks_t *a_bloc
     }
     l_block_cache->block = a_block;
     l_block_cache->block_size= a_block_size;
-    l_block_cache->_inheritor = a_blocks;
     l_block_cache->ts_created = a_block->hdr.ts_created;
     l_block_cache->sign_count = dap_chain_block_get_signs_count(a_block, a_block_size);
     if (dap_chain_block_cache_update(l_block_cache, a_block_hash)) {
@@ -180,7 +178,7 @@ dap_list_t * dap_chain_block_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledg
         if (!dap_ledger_tx_hash_is_used_out_item (a_ledger, l_tx_hash, l_out_idx_tmp, NULL)) {
             dap_chain_tx_used_out_item_t *l_item = DAP_NEW_Z(dap_chain_tx_used_out_item_t);
             if (!l_item) {
-        log_it(L_CRITICAL, "Memory allocation error");
+                log_it(L_CRITICAL, "Memory allocation error");
                 if (l_list_used_out)
                     dap_list_free_full(l_list_used_out, NULL);
                 return NULL;
