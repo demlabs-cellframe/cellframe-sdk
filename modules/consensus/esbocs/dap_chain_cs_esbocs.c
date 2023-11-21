@@ -2610,6 +2610,13 @@ static int s_cli_esbocs(int a_argc, char ** a_argv, char **a_str_reply)
     if (dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index,a_argc,a_argv,a_str_reply,&l_chain,&l_chain_net)) {
         return -3;
     }
+    const char *l_chain_type = dap_chain_net_get_type(l_chain);
+    if (strcmp(l_chain_type, "esbocs")) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply,
+                        "Type of chain \"%s\" is not block. Chain with current consensus \"%s\" is not supported by this command",
+                        l_chain->name, l_chain_type);
+            return ret;
+    }
 
     if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, l_arg_index + 1, "set", NULL)) {
         dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str);
