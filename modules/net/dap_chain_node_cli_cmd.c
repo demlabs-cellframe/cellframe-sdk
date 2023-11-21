@@ -3030,6 +3030,169 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
     return 0;
 }
 
+int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_datum_hash, const char **a_str_reply) {
+    if(dap_chain_net_get_role(a_net).enums>= NODE_ROLE_FULL){
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Need master node role or higher for network %s "
+                                                       "to process this command", a_net->pub.name);
+        return -1;
+    }
+
+    const char * l_datum_hash_str = NULL;
+    int ret = 0;
+    char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+    dap_string_t * l_str_tmp = dap_string_new(NULL);
+    size_t l_datum_size=0;
+
+    dap_chain_datum_t * l_datum = dap_global_db_get_sync(l_gdb_group_mempool, a_datum_hash,
+                                                         &l_datum_size, NULL, NULL );
+    size_t l_datum_size2 = l_datum? dap_chain_datum_size( l_datum): 0;
+    if (l_datum_size != l_datum_size2) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Corrupted datum %s, size by datum headers "
+                                                       "is %zd when in mempool is only %zd bytes",
+                                          a_datum_hash, l_datum_size2, l_datum_size);
+        DAP_DELETE(l_gdb_group_mempool);
+        return -8;
+    }
+    if (!l_datum) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Can't find datum %s", l_datum_hash_str);
+        DAP_DELETE(l_gdb_group_mempool);
+        return -4;
+    }
+    dap_hash_fast_t l_datum_hash, l_real_hash;
+    dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_real_hash);
+    if (!dap_hash_fast_compare(&l_datum_hash, &l_real_hash)) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Datum's real hash doesn't match datum's hash string %s",
+                                          a_datum_hash);
+        DAP_DELETE(l_gdb_group_mempool);
+        return -6;
+    }
+    char buf[50];
+    dap_time_t l_ts_create = (dap_time_t)l_datum->header.ts_create;
+    const char *l_type = NULL;
+    DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type);
+    dap_string_append_printf(l_str_tmp, "hash %s: type_id=%s ts_create=%s data_size=%u\n",
+                             l_datum_hash_str, l_type,
+                             dap_ctime_r(&l_ts_create, buf), l_datum->header.data_size);
+    int l_verify_datum = dap_chain_net_verify_datum_for_add(a_chain, l_datum, &l_datum_hash) ;
+    if (l_verify_datum){
+        dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications (%s) examine node log files",
+                                 dap_chain_net_verify_datum_err_code_to_str(l_datum, l_verify_datum));
+        ret = -9;
+    } else {
+        if (a_chain->callback_add_datums) {
+            if (a_chain->callback_add_datums(a_chain, &l_datum, 1) == 0) {
+                dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications, examine node log files");
+                ret = -6;
+            } else {
+                dap_string_append_printf(l_str_tmp, "Datum processed well. ");
+                if (dap_global_db_del_sync(l_gdb_group_mempool, a_datum_hash)){
+                    dap_string_append_printf(l_str_tmp, "Warning! Can't delete datum from mempool!");
+                } else
+                    dap_string_append_printf(l_str_tmp, "Removed datum from mempool.");
+            }
+        } else {
+            dap_string_append_printf(l_str_tmp, "Error! Can't move to no-concensus chains from mempool");
+            ret = -1;
+        }
+    }
+    dap_string_append_printf(l_str_tmp, "\n");
+    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
+    dap_string_free(l_str_tmp, true);
+    DAP_DELETE(l_gdb_group_mempool);
+    return ret;
+}
+
+int _cmd_mempool_proc_all(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char **a_str_reply) {
+    if (!a_net || !a_chain) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "The net and chain argument is not set");
+        return -1;
+    }
+    if(!dap_chain_net_by_id(a_chain->net_id)) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s.%s: chain not found\n", a_net->pub.name,
+                                          a_chain->name);
+    }
+
+#ifdef DAP_TPS_TEST
+    dap_chain_ledger_set_tps_start_time(l_net->pub.ledger);
+#endif
+    dap_chain_node_mempool_process_all(a_chain, true);
+    dap_cli_server_cmd_set_reply_text(a_str_reply, "The entire mempool has been processed in %s.%s.",
+                                      a_net->pub.name, a_chain->name);
+    return 0;
+}
+
+int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t *a_cert, const char **a_str_reply){
+    if (a_net == NULL){
+        return -1;
+    } else if (a_str_reply && *a_str_reply) {
+        DAP_DELETE(*a_str_reply);
+        *a_str_reply = NULL;
+    }
+    dap_chain_t *l_chain = a_chain;
+
+    // Chech for chain if was set or not
+    if (!a_chain){
+        // If wasn't set - trying to auto detect
+        l_chain = dap_chain_net_get_chain_by_chain_type(a_net, CHAIN_TYPE_CA);
+        if (!l_chain) { // If can't auto detect
+            // clean previous error code
+            dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                              "No chains for CA datum in network \"%s\"", a_net->pub.name);
+            return -2;
+        }
+    }
+    // Check if '-ca_name' wasn't specified
+    if (!a_cert){
+        dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                          "mempool_add_ca_public requires parameter '-ca_name' to specify the certificate name");
+        return -3;
+    }
+    // Find certificate with specified key
+    if(!a_cert->enc_key){
+        dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                          "Corrupted certificate \"%s\" without keys certificate", a_cert->name);
+        return -5;
+    }
+
+    if (a_cert->enc_key->priv_key_data_size || a_cert->enc_key->priv_key_data){
+        dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                          "Certificate \"%s\" has private key data. Please export public only key certificate without private keys", a_cert->name);
+        return -6;
+    }
+
+    // Serialize certificate into memory
+    uint32_t l_cert_serialized_size = 0;
+    byte_t  *l_cert_serialized = dap_cert_mem_save(a_cert, &l_cert_serialized_size);
+    if(!l_cert_serialized){
+        dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                          "Can't serialize in memory certificate \"%s\"", a_cert->name);
+        return -7;
+    }
+    // Now all the chechs passed, forming datum for mempool
+    dap_chain_datum_t * l_datum = dap_chain_datum_create( DAP_CHAIN_DATUM_CA, l_cert_serialized , l_cert_serialized_size);
+    DAP_DELETE(l_cert_serialized);
+    if(!l_datum){
+        dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                          "Can't produce datum from certificate \"%s\"", a_cert->name);
+        return -7;
+    }
+
+    // Finaly add datum to mempool
+    char *l_hash_str = dap_chain_mempool_datum_add(l_datum, l_chain, "hex");
+    DAP_DELETE(l_datum);
+    if (l_hash_str) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                          "Datum %s was successfully placed to mempool", l_hash_str);
+        DAP_DELETE(l_hash_str);
+        return 0;
+    } else {
+        dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                          "Can't place certificate \"%s\" to mempool", a_cert->name);
+        return -8;
+    }
+    return 0;
+}
+
 int com_mempool(int a_argc, char **a_argv,  char **a_str_reply){
     int arg_index = 1;
     dap_chain_net_t *l_net = NULL;
@@ -3051,7 +3214,7 @@ int com_mempool(int a_argc, char **a_argv,  char **a_str_reply){
             l_cmd = SUBCMD_ADD_CA;
         } else if (dap_strcmp(lts, "dump")) {
             l_cmd = SUBCMD_DUMP;
-        } else if (dap_strcmp, "check") {
+        } else if (dap_strcmp(lts, "check")) {
             l_cmd = SUBCMD_CHECK;
         } else {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Invalid sub command specified. Ыub command %s "
@@ -3074,39 +3237,54 @@ int com_mempool(int a_argc, char **a_argv,  char **a_str_reply){
 //            DAP_DELETE(l_datum_hash_in)
         }
     }
+    int ret = -100;
     switch (l_cmd) {
         case SUBCMD_LIST: {} break;
         case SUBCMD_PROC: {
+            ret = _cmd_mempool_proc(l_net, l_chain, l_datum_hash, a_str_reply);
         } break;
         case SUBCMD_PROC_ALL: {
+            ret = _cmd_mempool_proc_all(l_net, l_chain, a_str_reply);
         } break;
         case SUBCMD_DELETE: {
             if (!l_chain) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "The chain parameter was not specified or "
                                                                "was specified incorrectly.");
-                return -2;
+                ret = -2;
             }
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-datum", &l_datum_hash);
             if (l_datum_hash) {
-                int ret = _cmd_mempool_delete(l_chain, l_datum_hash, a_str_reply);
-
-                return ret;
+                ret = _cmd_mempool_delete(l_chain, l_datum_hash, a_str_reply);
             } else {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! %s requires -datum <datum hash> option", a_argv[0]);
-                return -3;
+                ret = -3;
             }
         } break;
         case SUBCMD_ADD_CA: {
             const char *l_datum_hash = NULL;
+            char *l_ca_name  = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-ca_name", &l_ca_name);
+            if (!l_ca_name) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                                               "mempool add_ca requires parameter '-ca_name' to specify the certificate name");
+                ret = -3;
+            }
+            dap_cert_t *l_cert = dap_cert_find_by_name(l_ca_name);
+            if (!l_cert) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Cert with name '%s' not found.", l_ca_name);
+                ret = -4;
+            }
+            ret = _cmd_mempool_add_ca(l_net, l_chain, l_cert, a_str_reply);
+            DAP_DELETE(l_cert);
         } break;
         case SUBCMD_CHECK: {
-            _cmd_mempool_check(l_net, l_chain, l_datum_hash, l_hash_out_type, a_str_reply);
+            ret = _cmd_mempool_check(l_net, l_chain, l_datum_hash, l_hash_out_type, a_str_reply);
         } break;
         case SUBCMD_DUMP: {
             const char *l_datum_hash = NULL;
         } break;
     }
-    return 0;
+    return ret;
 }
 
 /**
@@ -3268,12 +3446,6 @@ int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply)
         *a_str_reply = NULL;
     }
 
-    // If full or light it doesnt work
-    if(dap_chain_net_get_role(l_net).enums>= NODE_ROLE_FULL){
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Need master node role or higher for network %s to process this command", l_net->pub.name);
-        return -1;
-    }
-
     const char * l_datum_hash_str = NULL;
     int ret = 0;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-datum", &l_datum_hash_str);
@@ -3281,10 +3453,6 @@ int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! %s requires -datum <datum hash> option", a_argv[0]);
         return -5;
     }
-    char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
-    dap_string_t * l_str_tmp = dap_string_new(NULL);
-    size_t l_datum_size=0;
-
     char *l_datum_hash_hex_str;
     // datum hash may be in hex or base58 format
     if(dap_strncmp(l_datum_hash_str, "0x", 2) && dap_strncmp(l_datum_hash_str, "0X", 2))
@@ -3292,72 +3460,7 @@ int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply)
     else
         l_datum_hash_hex_str = dap_strdup(l_datum_hash_str);
 
-    dap_chain_datum_t * l_datum = l_datum_hash_hex_str ? (dap_chain_datum_t*) dap_global_db_get_sync(l_gdb_group_mempool, l_datum_hash_hex_str,
-                                                                                   &l_datum_size, NULL, NULL ) : NULL;
-    size_t l_datum_size2 = l_datum? dap_chain_datum_size( l_datum): 0;
-    if (l_datum_size != l_datum_size2) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Corrupted datum %s, size by datum headers is %zd when in mempool is only %zd bytes",
-                                          l_datum_hash_hex_str, l_datum_size2, l_datum_size);
-        DAP_DELETE(l_datum_hash_hex_str);
-        DAP_DELETE(l_gdb_group_mempool);
-        return -8;
-    }
-    if (!l_datum) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Can't find datum %s", l_datum_hash_str);
-        DAP_DELETE(l_datum_hash_hex_str);
-        DAP_DELETE(l_gdb_group_mempool);
-        return -4;
-    }
-    dap_hash_fast_t l_datum_hash, l_real_hash;
-    if (dap_chain_hash_fast_from_hex_str(l_datum_hash_hex_str, &l_datum_hash)) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Can't convert datum hash string %s to digital form",
-                                          l_datum_hash_hex_str);
-        DAP_DELETE(l_datum_hash_hex_str);
-        DAP_DELETE(l_gdb_group_mempool);
-        return -7;
-    }
-    dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_real_hash);
-    if (!dap_hash_fast_compare(&l_datum_hash, &l_real_hash)) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Datum's real hash doesn't match datum's hash string %s",
-                                          l_datum_hash_hex_str);
-        DAP_DELETE(l_datum_hash_hex_str);
-        DAP_DELETE(l_gdb_group_mempool);
-        return -6;
-    }
-    char buf[50];
-    dap_time_t l_ts_create = (dap_time_t)l_datum->header.ts_create;
-    const char *l_type = NULL;
-    DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type);
-    dap_string_append_printf(l_str_tmp, "hash %s: type_id=%s ts_create=%s data_size=%u\n",
-            l_datum_hash_str, l_type,
-            dap_ctime_r(&l_ts_create, buf), l_datum->header.data_size);
-    int l_verify_datum = dap_chain_net_verify_datum_for_add(l_chain, l_datum, &l_datum_hash) ;
-    if (l_verify_datum){
-        dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications (%s) examine node log files",
-                                 dap_chain_net_verify_datum_err_code_to_str(l_datum, l_verify_datum));
-        ret = -9;
-    } else {
-        if (l_chain->callback_add_datums) {
-            if (l_chain->callback_add_datums(l_chain, &l_datum, 1) == 0) {
-                dap_string_append_printf(l_str_tmp, "Error! Datum doesn't pass verifications, examine node log files");
-                ret = -6;
-            } else {
-                dap_string_append_printf(l_str_tmp, "Datum processed well. ");
-                if (dap_global_db_del_sync(l_gdb_group_mempool, l_datum_hash_hex_str)){
-                    dap_string_append_printf(l_str_tmp, "Warning! Can't delete datum from mempool!");
-                } else
-                    dap_string_append_printf(l_str_tmp, "Removed datum from mempool.");
-            }
-        } else {
-            dap_string_append_printf(l_str_tmp, "Error! Can't move to no-concensus chains from mempool");
-            ret = -1;
-        }
-    }
-    dap_string_append_printf(l_str_tmp, "\n");
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
-    dap_string_free(l_str_tmp, true);
-    DAP_DELETE(l_gdb_group_mempool);
-    DAP_DELETE(l_datum_hash_hex_str);
+    ret = _cmd_mempool_proc(l_net, l_chain, l_datum_hash_hex_str, a_str_reply);
     return ret;
 }
 
@@ -3377,18 +3480,7 @@ int com_mempool_proc_all(int argc, char ** argv, char ** a_str_reply) {
     if (!l_net || !l_chain)
         return -1;
 
-    if(!dap_chain_net_by_id(l_chain->net_id)) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s.%s: chain not found\n", l_net->pub.name,
-                                          l_chain->name);
-    }
-
-#ifdef DAP_TPS_TEST
-    dap_chain_ledger_set_tps_start_time(l_net->pub.ledger);
-#endif
-    dap_chain_node_mempool_process_all(l_chain, true);
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "The entire mempool has been processed in %s.%s.",
-                                                   l_net->pub.name, l_chain->name);
-    return 0;
+    return _cmd_mempool_proc_all(l_net, l_chain, a_str_reply);
 }
 
 /**
@@ -4696,7 +4788,7 @@ int com_mempool_add_ca(int a_argc,  char ** a_argv, char ** a_str_reply)
 
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-ca_name", &l_ca_name);
     dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index,a_argc, a_argv, a_str_reply, &l_chain, &l_net);
-    if ( l_net == NULL ){
+    if (l_net == NULL){
         return -1;
     } else if (a_str_reply && *a_str_reply) {
         DAP_DELETE(*a_str_reply);
@@ -4704,20 +4796,20 @@ int com_mempool_add_ca(int a_argc,  char ** a_argv, char ** a_str_reply)
     }
 
     // Chech for chain if was set or not
-    if ( l_chain == NULL){
-       // If wasn't set - trying to auto detect
-        l_chain = dap_chain_net_get_chain_by_chain_type( l_net, CHAIN_TYPE_CA );
-        if (l_chain == NULL) { // If can't auto detect
-            // clean previous error code
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                    "No chains for CA datum in network \"%s\"", l_net->pub.name );
-            return -2;
-        }
-    }
+//    if (l_chain == NULL){
+//        If wasn't set - trying to auto detect
+//        l_chain = dap_chain_net_get_chain_by_chain_type( l_net, CHAIN_TYPE_CA );
+//        if (l_chain == NULL) { // If can't auto detect
+//             clean previous error code
+//            dap_cli_server_cmd_set_reply_text(a_str_reply,
+//                    "No chains for CA datum in network \"%s\"", l_net->pub.name );
+//            return -2;
+//        }
+//    }
     // Check if '-ca_name' wasn't specified
     if (l_ca_name == NULL){
         dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "mempool_add_ca_public requires parameter '-ca_name' to specify the certificate name");
+                "mempool_add_ca public requires parameter '-ca_name' to specify the certificate name");
         return -3;
     }
 
@@ -4728,48 +4820,9 @@ int com_mempool_add_ca(int a_argc,  char ** a_argv, char ** a_str_reply)
                 "Can't find \"%s\" certificate", l_ca_name );
         return -4;
     }
-    if( l_cert->enc_key == NULL ){
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "Corrupted certificate \"%s\" without keys certificate", l_ca_name );
-        return -5;
-    }
-
-    if ( l_cert->enc_key->priv_key_data_size || l_cert->enc_key->priv_key_data){
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "Certificate \"%s\" has private key data. Please export public only key certificate without private keys", l_ca_name );
-        return -6;
-    }
-
-    // Serialize certificate into memory
-    uint32_t l_cert_serialized_size = 0;
-    byte_t * l_cert_serialized = dap_cert_mem_save( l_cert, &l_cert_serialized_size );
-    if( l_cert_serialized == NULL){
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "Can't serialize in memory certificate \"%s\"", l_ca_name );
-        return -7;
-    }
-    // Now all the chechs passed, forming datum for mempool
-    dap_chain_datum_t * l_datum = dap_chain_datum_create( DAP_CHAIN_DATUM_CA, l_cert_serialized , l_cert_serialized_size);
-    DAP_DELETE( l_cert_serialized);
-    if( l_datum == NULL){
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "Can't produce datum from certificate \"%s\"", l_ca_name );
-        return -7;
-    }
-
-    // Finaly add datum to mempool
-    char *l_hash_str = dap_chain_mempool_datum_add(l_datum, l_chain, "hex");
-    DAP_DELETE(l_datum);
-    if (l_hash_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "Datum %s was successfully placed to mempool", l_hash_str);
-        DAP_DELETE(l_hash_str);
-        return 0;
-    } else {
-        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                "Can't place certificate \"%s\" to mempool", l_ca_name);
-        return -8;
-    }
+    int ret = _cmd_mempool_add_ca(l_net, l_chain, l_cert, a_str_reply);
+    DAP_DELETE(l_cert);
+    return ret;
 }
 
 /**
