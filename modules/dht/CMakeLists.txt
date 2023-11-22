@@ -16,3 +16,11 @@ target_link_libraries(${PROJECT_NAME}  ${DAP_CHAIN_DHT_LIBS})
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 
+if (INSTALL_SDK)
+set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_DHT_HDR}")
+INSTALL(TARGETS ${PROJECT_NAME} 
+        LIBRARY DESTINATION lib/modules/dht/
+        ARCHIVE DESTINATION lib/modules/dht/
+        PUBLIC_HEADER DESTINATION include/modules/dht/
+        )
+endif()

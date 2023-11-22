@@ -21,3 +21,11 @@ add_definitions("-DDAP_TUN_IN_WORKER")
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 
+if (INSTALL_SDK)
+set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_NET_SRV_VPN_HEADERS}")
+INSTALL(TARGETS ${PROJECT_NAME} 
+        LIBRARY DESTINATION lib/modules/service/vpn/
+        ARCHIVE DESTINATION lib/modules/service/vpn/
+        PUBLIC_HEADER DESTINATION include/modules/service/vpn/
+)
+endif()
