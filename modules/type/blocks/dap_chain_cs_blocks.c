@@ -323,6 +323,70 @@ dap_chain_block_cache_t * dap_chain_block_cache_get_by_hash(dap_chain_cs_blocks_
     return l_ret;
 }
 
+static char *s_blocks_decree_set_reward(dap_chain_net_t *a_net, dap_chain_t *a_chain, uint256_t a_value, dap_cert_t *a_cert)
+{
+    dap_return_val_if_fail(a_net && a_cert && a_cert->enc_key &&
+                           a_cert->enc_key->priv_key_data && a_cert->enc_key->priv_key_data_size, NULL);
+    dap_chain_t *l_chain_anchor = a_chain ? a_chain : dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_ANCHOR);
+    if (!l_chain_anchor) {
+        log_it(L_ERROR, "Can't find chain with anchor support");
+        return NULL;
+    }
+    dap_chain_t *l_chain_decree = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_DECREE);
+    if (!l_chain_decree) {
+        log_it(L_ERROR, "Can't find chain with decree support");
+        return NULL;
+    }
+    // Create decree
+    size_t l_tsd_total_size = sizeof(dap_tsd_t) + sizeof(uint256_t);
+    size_t l_decree_size = sizeof(dap_chain_datum_decree_t) + l_tsd_total_size;
+    dap_chain_datum_decree_t *l_decree = DAP_NEW_Z_SIZE(dap_chain_datum_decree_t, l_decree_size);
+    if (!l_decree) {
+        log_it(L_CRITICAL, "Memory allocation error");
+        return NULL;
+    }
+    // Fill the header
+    l_decree->decree_version = DAP_CHAIN_DATUM_DECREE_VERSION;
+    l_decree->header.ts_created = dap_time_now();
+    l_decree->header.type = DAP_CHAIN_DATUM_DECREE_TYPE_COMMON;
+    l_decree->header.common_decree_params.net_id = a_net->pub.id;
+    l_decree->header.common_decree_params.chain_id = l_chain_anchor->id;
+    l_decree->header.common_decree_params.cell_id = *dap_chain_net_get_cur_cell(a_net);
+    l_decree->header.sub_type = DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_REWARD;
+    l_decree->header.data_size = l_tsd_total_size;
+    // Fill a TSD section
+    dap_tsd_t *l_tsd = (dap_tsd_t *)l_decree->data_n_signs;
+    l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE;
+    l_tsd->size = sizeof(uint256_t);
+    *(uint256_t*)(l_tsd->data) = a_value;
+    // Sign it
+    dap_sign_t *l_sign = dap_cert_sign(a_cert, l_decree, l_decree_size, 0);
+    if (!l_sign) {
+        log_it(L_ERROR, "Decree signing failed");
+        DAP_DELETE(l_decree);
+        return NULL;
+    }
+    log_it(L_NOTICE, "<-- Signed with '%s'", a_cert->name);
+    size_t l_sign_size = dap_sign_get_size(l_sign);
+    l_decree_size += l_sign_size;
+    l_decree->header.signs_size = l_sign_size;
+    void *l_decree_rl = DAP_REALLOC(l_decree, l_decree_size);
+    if (!l_decree_rl) {
+        log_it(L_CRITICAL, "Memory reallocation error");
+        DAP_DELETE(l_decree);
+        return NULL;
+    } else
+        l_decree = l_decree_rl;
+    memcpy(l_decree->data_n_signs + l_tsd_total_size, l_sign, l_sign_size);
+    DAP_DELETE(l_sign);
+
+    dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_DECREE, l_decree, l_decree_size);
+    // Processing will be made according to autoprocess policy
+    char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain_decree, "hex");
+    DAP_DELETE(l_datum);
+    return l_ret;
+}
+
 /**
  * @brief s_cli_parse_cmd_hash
  * @param a_argv
@@ -777,7 +841,38 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                 }
             } else { // l_sumcmd == SUBCMD_REWARD
                 if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "set")) {
-                    l_net->pub.base_reward = dap_chain_coins_to_balance("1.0");
+                    const char *l_value_str = NULL;
+                    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-poa_cert", &l_cert_name);
+                    if(!l_cert_name) {
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block reward set' requires parameter '-poa_cert'");
+                        return -17;
+                    }
+                    dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_name);
+                    if (!l_cert) {
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find \"%s\" certificate", l_cert_name);
+                        return -18;
+                    }
+                    if (!l_cert->enc_key || !l_cert->enc_key->priv_key_data || l_cert->enc_key->priv_key_data_size) {
+                        dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                "Certificate \"%s\" doesn't contains private key", l_cert_name);
+                        return -19;
+                    }
+
+                    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-value", &l_value_str);
+                    uint256_t l_value = dap_chain_balance_scan(l_value_str);
+                    if (!l_value_str || IS_ZERO_256(l_value)) {
+                        dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                "Command 'block reward set' requires parameter '-value' to be valid 256-bit unsigned integer");
+                        return -20;
+                    }
+                    char *l_decree_hash_str = s_blocks_decree_set_reward(l_net, l_chain, l_value, l_cert);
+                    if (l_decree_hash_str) {
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Decree with hash %s created to set basic block sign reward", l_decree_hash_str);
+                        DAP_DELETE(l_decree_hash_str);
+                    } else {
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Basic block sign reward setting failed. Examine log file for details");
+                        return -21;
+                    }
                     break;
                 } else if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "show")) {
                     char *l_base_reward_str = dap_chain_balance_to_coins(l_net->pub.base_reward);

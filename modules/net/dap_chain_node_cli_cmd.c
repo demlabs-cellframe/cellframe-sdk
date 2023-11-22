@@ -1479,7 +1479,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         l_decree->header.signs_size = 0;
         memcpy(l_decree->data_n_signs, l_addr_tsd, dap_tsd_size(l_addr_tsd));
         size_t l_total_signs_success = 0;
-        l_decree = dap_chain_datum_decree_in_cycle(l_certs, l_decree, l_certs_count, &l_total_signs_success);
+        l_decree = dap_chain_datum_decree_sign_in_cycle(l_certs, l_decree, l_certs_count, &l_total_signs_success);
         if (!l_decree || !l_total_signs_success) {
             dap_cli_server_cmd_set_reply_text(a_str_reply,
                                               "Decree creation failed. Successful count of certificate signing is 0");
@@ -1540,7 +1540,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         l_decree->header.signs_size = 0;
         memcpy(l_decree->data_n_signs, l_addr_tsd, dap_tsd_size(l_addr_tsd));
         size_t l_total_signs_success = 0;
-        l_decree = dap_chain_datum_decree_in_cycle(l_certs, l_decree, l_certs_count, &l_total_signs_success);
+        l_decree = dap_chain_datum_decree_sign_in_cycle(l_certs, l_decree, l_certs_count, &l_total_signs_success);
         if (!l_decree || !l_total_signs_success) {
             dap_cli_server_cmd_set_reply_text(a_str_reply,
                                               "Decree creation failed. Successful count of certificate signing is 0");

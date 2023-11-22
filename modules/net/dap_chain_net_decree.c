@@ -533,7 +533,17 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
                 l_tsd_offset += l_tsd_size;
             }
         } break;
-        default: return -1;
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_REWARD: {
+            if (dap_chain_datum_decree_get_value(a_decree, &l_uint256_buffer)) {
+                log_it(L_WARNING,"Can't get value from decree.");
+                return -103;
+            }
+            if (!a_apply)
+                break;
+            a_net->pub.base_reward = l_uint256_buffer;
+        } break;
+        default:
+            return -1;
     }
 
     return 0;

@@ -3266,6 +3266,12 @@ static dap_ledger_reward_item_t *s_find_reward(dap_ledger_t *a_ledger, dap_ledge
     return l_reward_item;
 }
 
+bool dap_ledger_is_used_reward(dap_ledger_t *a_ledger, dap_hash_fast_t *a_block_hash, dap_hash_fast_t *a_sign_pkey_hash)
+{
+    dap_ledger_reward_key_t l_search_key = { .block_hash = *a_block_hash, .sign_pkey_hash = *a_sign_pkey_hash };
+    return s_find_reward(a_ledger, &l_search_key);
+}
+
 /**
  * @brief dap_ledger_permissions_check
  * @param a_token_item

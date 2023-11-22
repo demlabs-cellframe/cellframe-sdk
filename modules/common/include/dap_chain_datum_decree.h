@@ -72,8 +72,10 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT    0x0008
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BAN                           0x0009
 #define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_UNBAN                         0x000A
+#define DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_REWARD                        0x000B
 
 // DECREE TSD types
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE                               0x0100
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGN                                0x0101
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE                                 0x0102
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER                               0x0103
@@ -99,17 +101,19 @@ DAP_STATIC_INLINE const char *dap_chain_datum_decree_subtype_to_str(uint16_t a_d
     case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN:
         return "DECREE_COMMON_SUBTYPE_OWNERS_MIN";
     case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE:
-        return "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE";
+        return "DECREE_COMMON_SUBTYPE_STAKE_APPROVE";
     case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE:
-        return "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE";
+        return "DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE";
     case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALUE:
-        return "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALUE";
+        return "DECREE_COMMON_SUBTYPE_STAKE_MIN_VALUE";
     case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT:
-        return"DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT";
+        return "COMMON_SUBTYPE_STAKE_MIN_VALIDATORS_COUNT";
     case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BAN:
-        return "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BAN";
+        return "DECREE_COMMON_SUBTYPE_BAN";
     case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_UNBAN:
-        return "DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_UNBAN";
+        return "DECREE_COMMON_SUBTYPE_UNBAN";
+    case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_REWARD:
+        return "DECREE_COMMON_SUBTYPE_REWARD";
     default:
         return "DECREE_SUBTYPE_UNKNOWN";
     }
@@ -117,6 +121,8 @@ DAP_STATIC_INLINE const char *dap_chain_datum_decree_subtype_to_str(uint16_t a_d
 
 DAP_STATIC_INLINE const char *dap_chain_datum_decree_tsd_type_to_str(uint16_t a_decree_tsd_type) {
     switch (a_decree_tsd_type) {
+        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE:
+            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE";
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGN:
             return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGN";
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE:
@@ -207,6 +213,15 @@ int dap_chain_datum_decree_get_stake_tx_hash(dap_chain_datum_decree_t *a_decree,
  */
 int dap_chain_datum_decree_get_stake_value(dap_chain_datum_decree_t *a_decree, uint256_t *a_stake_value);
 
+
+/**
+ * @brief dap_chain_datum_decree_get_stake_value get stake value
+ * @param a_decree pointer to decree
+ * @param a_stake_value pointer to stake value buffer
+ * @return result code. 0 - success
+ */
+int dap_chain_datum_decree_get_value(dap_chain_datum_decree_t *a_decree, uint256_t *a_value);
+
 /**
  * @brief dap_chain_datum_decree_get_stake_signing_addr get signing address
  * @param a_decree pointer to decree
@@ -257,7 +272,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
 void dap_chain_datum_decree_certs_dump(dap_string_t * a_str_out, byte_t * a_signs, size_t a_certs_size, const char *a_hash_out_type);
 
 /**
- * @brief dap_chain_datum_decree_in_cycle
+ * @brief dap_chain_datum_decree_sign_in_cycle
  * sign data (datum_decree) by certificates (1 or more)
  * successful count of signes return in l_sign_counter
  * @param l_certs - array with certificates loaded from dcert file
@@ -267,5 +282,5 @@ void dap_chain_datum_decree_certs_dump(dap_string_t * a_str_out, byte_t * a_sign
  * @param l_sign_counter - counter of successful data signing operation
  * @return dap_chain_datum_token_t*
  */
-dap_chain_datum_decree_t* dap_chain_datum_decree_in_cycle(dap_cert_t ** a_certs, dap_chain_datum_decree_t *a_datum_decree,
+dap_chain_datum_decree_t* dap_chain_datum_decree_sign_in_cycle(dap_cert_t ** a_certs, dap_chain_datum_decree_t *a_datum_decree,
                                                   size_t a_certs_count, size_t *a_total_sign_count);

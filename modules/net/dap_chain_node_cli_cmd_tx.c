@@ -1471,7 +1471,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
         // Sign decree
         size_t l_total_signs_success = 0;
         if (l_certs_count)
-            l_datum_decree = dap_chain_datum_decree_in_cycle(l_certs, l_datum_decree, l_certs_count, &l_total_signs_success);
+            l_datum_decree = dap_chain_datum_decree_sign_in_cycle(l_certs, l_datum_decree, l_certs_count, &l_total_signs_success);
 
         if (!l_datum_decree || l_total_signs_success == 0){
             dap_cli_server_cmd_set_reply_text(a_str_reply,
@@ -1565,7 +1565,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                     // Sign decree
                     size_t l_total_signs_success = 0;
                     if (l_certs_count)
-                        l_datum_decree = dap_chain_datum_decree_in_cycle(l_certs, l_datum_decree, l_certs_count, &l_total_signs_success);
+                        l_datum_decree = dap_chain_datum_decree_sign_in_cycle(l_certs, l_datum_decree, l_certs_count, &l_total_signs_success);
 
                     if (!l_datum_decree || l_total_signs_success == 0){
                         dap_cli_server_cmd_set_reply_text(a_str_reply,
