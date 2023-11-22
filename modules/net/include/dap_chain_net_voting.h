@@ -1,6 +1,6 @@
 /*
  * Authors:
- * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
+ * Daniil Frolov <daniil.frolov@demlabs.net>
  * DeM Labs Inc.   https://demlabs.net
  * Cellframe Network https://cellframe.net
  * Copyright  (c) 2022
@@ -22,6 +22,8 @@
     along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
 */
 #pragma once
-
+#include "dap_chain_datum_tx_voting.h"
 
 int dap_chain_datum_tx_voting_init();
+
+

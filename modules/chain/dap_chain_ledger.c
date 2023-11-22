@@ -70,6 +70,8 @@ typedef struct dap_chain_ledger_verificator {
 static dap_chain_ledger_verificator_t *s_verificators;
 static  pthread_rwlock_t s_verificators_rwlock;
 
+static dap_chain_ledger_voting_callback_t s_voting_callback;
+
 #define MAX_OUT_ITEMS   10
 
 static const char *s_ledger_tx_check_err_str[] = {
@@ -5422,6 +5424,20 @@ int dap_chain_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, 
     pthread_rwlock_wrlock(&s_verificators_rwlock);
     HASH_ADD_INT(s_verificators, subtype, l_new_verificator);
     pthread_rwlock_unlock(&s_verificators_rwlock);
+    return 0;
+}
+
+int dap_chain_ledger_voting_verificator_add(dap_chain_ledger_voting_callback_t a_callback)
+{
+    if (!a_callback)
+        return -1;
+
+    if (s_voting_callback){
+        s_voting_callback = a_callback;
+        return 1;
+    }
+
+    s_voting_callback = a_callback;
     return 0;
 }
 
