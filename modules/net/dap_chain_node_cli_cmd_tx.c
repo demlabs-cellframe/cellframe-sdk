@@ -1149,46 +1149,6 @@ int com_token(int a_argc, char ** a_argv, char **a_str_reply)
     return -5;
 }
 
-/* Decree section */
-/**
- * @brief
- * sign data (datum_decree) by certificates (1 or more)
- * successful count of signes return in l_sign_counter
- * @param l_certs - array with certificates loaded from dcert file
- * @param l_datum_token - updated pointer for l_datum_token variable after realloc
- * @param l_certs_count - count of certificate
- * @param l_datum_data_offset - offset of datum
- * @param l_sign_counter - counter of successful data signing operation
- * @return dap_chain_datum_token_t*
- */
-static dap_chain_datum_decree_t * s_sign_decree_in_cycle(dap_cert_t ** a_certs, dap_chain_datum_decree_t *a_datum_decree,
-                    size_t a_certs_count, size_t *a_total_sign_count)
-{
-    size_t l_cur_sign_offset = a_datum_decree->header.data_size + a_datum_decree->header.signs_size;
-    size_t l_total_signs_size = a_datum_decree->header.signs_size, l_total_sign_count = 0;
-
-    for(size_t i = 0; i < a_certs_count; i++)
-    {
-        dap_sign_t * l_sign = dap_cert_sign(a_certs[i],  a_datum_decree,
-           sizeof(dap_chain_datum_decree_t) + a_datum_decree->header.data_size, 0);
-
-        if (l_sign) {
-            size_t l_sign_size = dap_sign_get_size(l_sign);
-            a_datum_decree = DAP_REALLOC(a_datum_decree, sizeof(dap_chain_datum_decree_t) + l_cur_sign_offset + l_sign_size);
-            memcpy((byte_t*)a_datum_decree->data_n_signs + l_cur_sign_offset, l_sign, l_sign_size);
-            l_total_signs_size += l_sign_size;
-            l_cur_sign_offset += l_sign_size;
-            a_datum_decree->header.signs_size = l_total_signs_size;
-            DAP_DELETE(l_sign);
-            log_it(L_DEBUG,"<-- Signed with '%s'", a_certs[i]->name);
-            l_total_sign_count++;
-        }               
-    }
-
-    *a_total_sign_count = l_total_sign_count;
-    return a_datum_decree;
-}
-
 /**
  * @brief
  * sign data (datum_decree) by certificates (1 or more)
@@ -1509,7 +1469,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
         // Sign decree
         size_t l_total_signs_success = 0;
         if (l_certs_count)
-            l_datum_decree = s_sign_decree_in_cycle(l_certs, l_datum_decree, l_certs_count, &l_total_signs_success);
+            l_datum_decree = dap_chain_datum_decree_sign_in_cycle(l_certs, l_datum_decree, l_certs_count, &l_total_signs_success);
 
         if (!l_datum_decree || l_total_signs_success == 0){
             dap_cli_server_cmd_set_reply_text(a_str_reply,
@@ -1603,7 +1563,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                     // Sign decree
                     size_t l_total_signs_success = 0;
                     if (l_certs_count)
-                        l_datum_decree = s_sign_decree_in_cycle(l_certs, l_datum_decree, l_certs_count, &l_total_signs_success);
+                        l_datum_decree = dap_chain_datum_decree_sign_in_cycle(l_certs, l_datum_decree, l_certs_count, &l_total_signs_success);
 
                     if (!l_datum_decree || l_total_signs_success == 0){
                         dap_cli_server_cmd_set_reply_text(a_str_reply,

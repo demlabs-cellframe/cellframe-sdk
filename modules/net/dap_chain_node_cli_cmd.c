@@ -1618,8 +1618,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         char *l_reply = dap_chain_net_links_dump(l_net);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_reply);
         DAP_DELETE(l_reply);
-    }
-        break;
+    } break;
     case CMD_BALANCER: {
         //balancer link list
         size_t l_node_num = 0;

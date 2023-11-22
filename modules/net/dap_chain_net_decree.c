@@ -470,7 +470,17 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
                 break;
             l_chain->callback_set_min_validators_count(a_chain, (uint16_t)dap_chain_uint256_to(l_uint256_buffer));
             break;
-        default: return -1;
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_REWARD: {
+            if (dap_chain_datum_decree_get_value(a_decree, &l_uint256_buffer)) {
+                log_it(L_WARNING,"Can't get value from decree.");
+                return -103;
+            }
+            if (!a_apply)
+                break;
+            a_net->pub.base_reward = l_uint256_buffer;
+        } break;
+        default:
+            return -1;
     }
 
     return 0;

@@ -288,6 +288,11 @@ void dap_ledger_set_tps_start_time(dap_ledger_t *a_ledger);
 bool dap_ledger_tx_hash_is_used_out_item(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash, int a_idx_out, dap_hash_fast_t *a_out_spender);
 
 /**
+ * Retun true if reward was collected before
+ */
+bool dap_ledger_is_used_reward(dap_ledger_t *a_ledger, dap_hash_fast_t *a_block_hash, dap_hash_fast_t *a_sign_pkey_hash);
+
+/**
  * Calculate balance of addr
  *
  */
