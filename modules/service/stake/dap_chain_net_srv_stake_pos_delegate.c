@@ -1586,7 +1586,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified wallet not found");
                 return -18;
             } else {
-                l_sign_str = dap_chain_wallet_check_bliss_sign(l_wallet);
+                l_sign_str = dap_chain_wallet_check_sign(l_wallet);
             }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str);
             if (!l_cert_str) {
@@ -1976,7 +1976,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified wallet not found");
                     return -18;
                 } else {
-                    l_sign_str = dap_chain_wallet_check_bliss_sign(l_wallet);
+                    l_sign_str = dap_chain_wallet_check_sign(l_wallet);
                 }
                 dap_chain_datum_tx_t *l_tx = s_stake_tx_invalidate(l_net, l_final_tx_hash, l_fee, dap_chain_wallet_get_key(l_wallet, 0));
                 if (l_tx_hash_str) {
