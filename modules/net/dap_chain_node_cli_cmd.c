@@ -2754,7 +2754,7 @@ const char* s_tx_get_main_ticker(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_
     }
 }
 
-static bool dap_chain_mempool_find_addr_ledger(dap_ledger_t* a_ledger, dap_chain_hash_fast_t* a_tx_prev_hash, dap_chain_addr_t *a_addr)
+static bool s_mempool_find_addr_ledger(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_prev_hash, dap_chain_addr_t *a_addr)
 {
     dap_chain_datum_tx_t *l_tx;
     l_tx = dap_ledger_tx_find_by_hash(a_ledger, a_tx_prev_hash);
@@ -2848,10 +2848,10 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                             l_hash = &((dap_chain_tx_in_cond_t*)item)->header.tx_prev_hash;
                         if(((dap_chain_tx_in_ems_t*)item)->header.type == TX_ITEM_TYPE_IN_EMS)
                             l_hash = &((dap_chain_tx_in_ems_t*)item)->header.token_emission_hash;
-                        if(((dap_chain_tx_in_ems_ext_t*)item)->header.type == TX_ITEM_TYPE_IN_EMS_EXT)
-                            l_hash = &((dap_chain_tx_in_ems_ext_t*)item)->header.ext_tx_hash;
-                        if(l_hash && dap_chain_mempool_find_addr_ledger(a_net->pub.ledger,l_hash,l_addr)){l_f_found=true;break;}
-
+                        if(l_hash && s_mempool_find_addr_ledger(a_net->pub.ledger,l_hash,l_addr)) {
+                            l_f_found = true;
+                            break;
+                        }
                         l_tx_items_count += l_item_tx_size;
                     }
                     if(l_f_found)

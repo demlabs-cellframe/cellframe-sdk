@@ -5088,8 +5088,7 @@ static dap_ledger_tx_item_t* tx_item_find_by_addr(dap_ledger_t *a_ledger, const 
 
 bool dap_chain_mempool_find_addr_ledger(dap_ledger_t* a_ledger, dap_chain_hash_fast_t* a_tx_prev_hash, dap_chain_addr_t *a_addr)
 {
-    dap_chain_datum_tx_t *l_tx;
-    l_tx = dap_chain_ledger_tx_find_by_hash (a_ledger,a_tx_prev_hash);
+    dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(a_ledger, a_tx_prev_hash);
     dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_ALL, NULL), *l_item;
     if(!l_list_out_items)
         return false;

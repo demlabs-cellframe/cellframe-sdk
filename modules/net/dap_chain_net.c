@@ -2439,7 +2439,6 @@ void dap_chain_net_deinit()
         dap_chain_net_delete(l_current_item->chain_net);
         DAP_DELETE(l_current_item);
     }
-    dap_chain_node_net_ban_list_deinit();
 }
 
 /**
@@ -2461,8 +2460,6 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
     }
     if (PVT(a_net)->main_timer)
         dap_interval_timer_delete(PVT(a_net)->main_timer);
-    DAP_DEL_Z(PVT(a_net)->seed_nodes_ipv4);
-    DAP_DEL_Z(PVT(a_net)->seed_nodes_ipv6);
     DAP_DEL_Z(PVT(a_net)->node_info);
     dap_ledger_purge(a_net->pub.ledger, true);
     dap_ledger_handle_free(a_net->pub.ledger);
@@ -3149,21 +3146,6 @@ int s_net_load(dap_chain_net_t *a_net)
         dap_chain_net_state_go_to(l_net, l_target_state);
 
     return 0;
-}
-
-/**
- * @brief dap_chain_net_deinit
- */
-void dap_chain_net_deinit()
-{
-    dap_chain_net_item_t *l_current_item, *l_tmp;
-    HASH_ITER(hh, s_net_items, l_current_item, l_tmp) {
-        HASH_DEL(s_net_items, l_current_item);
-        dap_chain_net_t *l_net = l_current_item->chain_net;
-        dap_interval_timer_delete(PVT(l_net)->main_timer);
-        DAP_DEL_Z(l_net);
-        DAP_DEL_Z(l_current_item);
-    }
 }
 
 /**

@@ -37,7 +37,6 @@
 #include "dap_config.h"
 #include "dap_chain.h"
 #include "dap_cert.h"
-#include "dap_chain_ledger.h"
 #include "dap_chain_cs.h"
 #include "dap_cert_file.h"
 #include <uthash.h>
