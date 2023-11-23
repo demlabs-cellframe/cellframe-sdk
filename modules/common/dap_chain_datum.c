@@ -213,6 +213,9 @@ void dap_chain_datum_token_dump_tsd(dap_string_t *a_str_out, dap_chain_datum_tok
                 dap_string_append_printf(a_str_out, "tx_receiver_blocked_remove: %s\n",
                                          dap_tsd_get_string_const(l_tsd) );
             continue;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION:
+                dap_string_append_printf(a_str_out, "description: '%s'\n", l_tsd->data);
+                continue;
             default: dap_string_append_printf(a_str_out, "<0x%04hX>: <size %u>\n", l_tsd->type, l_tsd->size);
         }
     }
@@ -500,17 +503,15 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                     DAP_DELETE(l_hash_str);
                 } break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE: {
-                    char *l_value_str = dap_chain_balance_print(((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_value);
-                    char *l_coins_str = dap_chain_balance_to_coins(((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_value);
+//                    char *l_value_str = dap_chain_balance_print(((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_value);
+                    char *l_rate_str = dap_chain_balance_to_coins(((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.rate);
                     dap_string_append_printf(a_str_out, "\t\t\t net id: 0x%016"DAP_UINT64_FORMAT_x"\n"
                                                         "\t\t\t buy_token: %s\n"
-                                                        "\t\t\t buy_value: %s (%s)\n",
+                                                        "\t\t\t rate: %s (%s)\n",
                                              ((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_net_id.uint64,
                                              ((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_token,
-                                             l_coins_str,
-                                             l_value_str);
-                    DAP_DELETE(l_value_str);
-                    DAP_DELETE(l_coins_str);
+                                             l_rate_str);
+                    DAP_DELETE(l_rate_str);
                 } break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK: {
                     dap_time_t l_ts_exp = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_lock.time_unlock;

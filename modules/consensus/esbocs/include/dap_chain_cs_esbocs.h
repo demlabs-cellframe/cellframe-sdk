@@ -209,3 +209,6 @@ typedef struct dap_chain_esbocs_session {
 int dap_chain_cs_esbocs_init();
 void dap_chain_cs_esbocs_deinit(void);
 bool dap_chain_esbocs_started();
+
+void dap_chain_esbocs_stop_timer(dap_chain_net_id_t a_net_id);
+void dap_chain_esbocs_start_timer(dap_chain_net_id_t a_net_id);

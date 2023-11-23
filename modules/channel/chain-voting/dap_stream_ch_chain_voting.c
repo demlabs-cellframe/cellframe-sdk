@@ -31,6 +31,7 @@ static struct voting_node_client_list *s_node_client_list = NULL;
 
 static size_t s_pkt_in_callback_count = 0;
 static struct voting_pkt_in_callback s_pkt_in_callback[16] = {};
+static pthread_rwlock_t s_node_client_list_lock;
 
 static void s_stream_ch_new(dap_stream_ch_t *a_ch, void *a_arg);
 static void s_stream_ch_delete(dap_stream_ch_t *a_ch, void *a_arg);
@@ -40,6 +41,7 @@ int dap_stream_ch_chain_voting_init()
 {
     log_it(L_NOTICE, "Chains voting channel initialized");
 
+    pthread_rwlock_init(&s_node_client_list_lock, NULL);
     dap_stream_ch_proc_add(DAP_STREAM_CH_ID_VOTING,
                            s_stream_ch_new,
                            s_stream_ch_delete,
@@ -82,7 +84,9 @@ void dap_stream_ch_chain_voting_message_write(dap_chain_net_t *a_net, dap_chain_
     size_t l_voting_pkt_size =  sizeof(*a_voting_pkt) + a_voting_pkt->hdr.data_size;
     struct voting_node_client_list *l_node_client_item = NULL;
     if (a_remote_node_addr->uint64 != dap_chain_net_get_cur_addr_int(a_net)) {
+        pthread_rwlock_rdlock(&s_node_client_list_lock);
         HASH_FIND(hh, s_node_client_list, a_remote_node_addr, sizeof(dap_chain_node_addr_t), l_node_client_item);
+        pthread_rwlock_unlock(&s_node_client_list_lock);
         if (!l_node_client_item) {
             size_t node_info_size = 0;
             char *l_key = dap_chain_node_addr_to_hash_str(a_remote_node_addr);
@@ -111,7 +115,9 @@ void dap_stream_ch_chain_voting_message_write(dap_chain_net_t *a_net, dap_chain_
             l_node_client_item->node_addr = *a_remote_node_addr;
             l_node_client_item->node_info = l_node_info;
             l_node_client_item->node_client = l_node_client;
+            pthread_rwlock_wrlock(&s_node_client_list_lock);
             HASH_ADD(hh, s_node_client_list, node_addr, sizeof(dap_chain_node_addr_t), l_node_client_item);
+            pthread_rwlock_unlock(&s_node_client_list_lock);
         }
         if (!l_node_client_item->node_client) {
             log_it(L_ERROR, "NULL node_client in item of voting channel");
@@ -134,6 +140,21 @@ void dap_stream_ch_chain_voting_deinit()
         dap_chain_node_client_close_mt(l_node_info_item->node_client);
         DAP_DELETE(l_node_info_item);
     }
+}
+
+void dap_stream_ch_chain_voting_close_all_clients(dap_chain_net_id_t a_net_id)
+{
+    struct voting_node_client_list *l_node_info_item, *l_node_info_tmp;
+    pthread_rwlock_wrlock(&s_node_client_list_lock);
+    HASH_ITER(hh, s_node_client_list, l_node_info_item, l_node_info_tmp) {
+        // Clang bug at this, l_node_info_item should change at every loop cycle
+        if (l_node_info_item->node_client->net->pub.id.uint64 == a_net_id.uint64){
+            HASH_DEL(s_node_client_list, l_node_info_item);
+            dap_chain_node_client_close_mt(l_node_info_item->node_client);
+            DAP_DELETE(l_node_info_item);
+        }
+    }
+    pthread_rwlock_unlock(&s_node_client_list_lock);
 }
 
 static void s_stream_ch_new(dap_stream_ch_t *a_ch, void *a_arg)
@@ -163,6 +184,18 @@ static void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void *a_arg)
     }
 
     dap_stream_ch_chain_voting_pkt_t *l_voting_pkt = (dap_stream_ch_chain_voting_pkt_t *)l_ch_pkt->data;
+    dap_chain_net_t *l_net = dap_chain_net_by_id(l_voting_pkt->hdr.net_id);
+
+    if (!l_net)
+        return;
+    if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
+        log_it(L_ERROR, "Reject packet because net %s is offline", l_net->pub.name);
+        dap_stream_ch_chain_voting_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_VOTING_PKT_TYPE_ERROR, l_voting_pkt->hdr.net_id.uint64,
+                                                    &l_voting_pkt->hdr.sender_node_addr, &l_voting_pkt->hdr.receiver_node_addr, NULL, 0);
+        a_ch->stream->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+        return;
+    }
+
     dap_proc_thread_callback_add(dap_proc_thread_get(a_ch->stream_worker->worker->id), s_callback_pkt_in_call_all,
                                 DAP_DUP_SIZE(l_voting_pkt, l_voting_pkt_size));
     dap_stream_ch_chain_voting_t *l_ch_chain_voting = DAP_STREAM_CH_CHAIN_VOTING(a_ch);

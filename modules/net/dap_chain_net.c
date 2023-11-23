@@ -117,6 +117,7 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_net_srv_xchange.h"
 #include "dap_chain_node_net_ban_list.h"
+#include "dap_chain_cs_esbocs.h"
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -372,8 +373,14 @@ int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_n
     }
     PVT(a_net)->state_target = a_new_state;
     //PVT(a_net)->flags |= F_DAP_CHAIN_NET_SYNC_FROM_ZERO;  // TODO set this flag according to -mode argument from command line
-    if (a_new_state == NET_STATE_OFFLINE)
+    if(a_new_state == NET_STATE_ONLINE)
+        dap_chain_esbocs_start_timer(a_net->pub.id);
+
+    if (a_new_state == NET_STATE_OFFLINE){
+        dap_chain_esbocs_stop_timer(a_net->pub.id);
         return 0;
+    }
+
     return dap_proc_thread_callback_add(NULL, s_net_states_proc, a_net);
 }
 
