@@ -2202,34 +2202,6 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         l_net_pvt->seed_nodes_ipv4[j] = tmp;
     }
 
-    l_net_pvt->node_info = dap_chain_node_info_read(l_net, &g_node_addr);
-    if ( !l_net_pvt->node_info ) { // If not present - create it
-        l_net_pvt->node_info = DAP_NEW_Z(dap_chain_node_info_t);
-        if (!l_net_pvt->node_info) {
-            log_it(L_CRITICAL, "Memory allocation error");
-            dap_chain_net_delete(l_net);
-            return -6;
-        }
-        l_net_pvt->node_info->hdr.address = g_node_addr;
-        if (dap_config_get_item_bool_default(g_config, "server", "enabled", false)) {
-            const char *l_ext_addr_v4 = dap_config_get_item_str_default(g_config, "server", "ext_address", NULL);
-            const char *l_ext_addr_v6 = dap_config_get_item_str_default(g_config, "server", "ext_address6", NULL);
-            uint16_t l_node_info_port = dap_config_get_item_uint16_default(g_config, "server", "ext_port_tcp",
-                                        dap_config_get_item_uint16_default(g_config, "server", "listen_port_tcp", 8079));
-            if (l_ext_addr_v4)
-                inet_pton(AF_INET, l_ext_addr_v4, &l_net_pvt->node_info->hdr.ext_addr_v4);
-            if (l_ext_addr_v6)
-                inet_pton(AF_INET6, l_ext_addr_v6, &l_net_pvt->node_info->hdr.ext_addr_v6);
-            l_net_pvt->node_info->hdr.ext_port = l_node_info_port;
-        } else
-            log_it(L_INFO, "Server is disabled, add only node address in nodelist");
-    }
-
-    log_it(L_NOTICE, "Net load information: node_addr " NODE_ADDR_FP_STR ", balancers links %u, cell_id 0x%016"DAP_UINT64_FORMAT_X,
-           NODE_ADDR_FP_ARGS_S(g_node_addr),
-           l_net_pvt->seed_nodes_count,
-           l_net_pvt->node_info->hdr.cell_id.uint64);
-
     /* *** Chains init by configs *** */
     char * l_chains_path = dap_strdup_printf("%s/network/%s", dap_config_path(), l_net->pub.name);
     DIR * l_chains_dir = opendir(l_chains_path);
@@ -2531,6 +2503,34 @@ int s_net_load(dap_chain_net_t *a_net)
     DL_FOREACH(l_net->pub.chains, l_chain)
         if (l_chain->callback_created)
             l_chain->callback_created(l_chain, l_cfg);
+
+    l_net_pvt->node_info = dap_chain_node_info_read(l_net, &g_node_addr);
+    if ( !l_net_pvt->node_info ) { // If not present - create it
+        l_net_pvt->node_info = DAP_NEW_Z(dap_chain_node_info_t);
+        if (!l_net_pvt->node_info) {
+            log_it(L_CRITICAL, "Memory allocation error");
+            dap_chain_net_delete(l_net);
+            return -6;
+        }
+        l_net_pvt->node_info->hdr.address = g_node_addr;
+        if (dap_config_get_item_bool_default(g_config, "server", "enabled", false)) {
+            const char *l_ext_addr_v4 = dap_config_get_item_str_default(g_config, "server", "ext_address", NULL);
+            const char *l_ext_addr_v6 = dap_config_get_item_str_default(g_config, "server", "ext_address6", NULL);
+            uint16_t l_node_info_port = dap_config_get_item_uint16_default(g_config, "server", "ext_port_tcp",
+                                        dap_config_get_item_uint16_default(g_config, "server", "listen_port_tcp", 8079));
+            if (l_ext_addr_v4)
+                inet_pton(AF_INET, l_ext_addr_v4, &l_net_pvt->node_info->hdr.ext_addr_v4);
+            if (l_ext_addr_v6)
+                inet_pton(AF_INET6, l_ext_addr_v6, &l_net_pvt->node_info->hdr.ext_addr_v6);
+            l_net_pvt->node_info->hdr.ext_port = l_node_info_port;
+        } else
+            log_it(L_INFO, "Server is disabled, add only node address in nodelist");
+    }
+
+    log_it(L_NOTICE, "Net load information: node_addr " NODE_ADDR_FP_STR ", balancers links %u, cell_id 0x%016"DAP_UINT64_FORMAT_X,
+           NODE_ADDR_FP_ARGS_S(g_node_addr),
+           l_net_pvt->seed_nodes_count,
+           l_net_pvt->node_info->hdr.cell_id.uint64);
 
     // TODO rework alias concept
     const char * l_node_addr_type = dap_config_get_item_str_default(l_cfg , "general", "node_addr_type", "auto");

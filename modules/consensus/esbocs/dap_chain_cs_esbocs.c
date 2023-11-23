@@ -2036,7 +2036,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                                         l_session->chain->net_name, l_session->chain->name, l_message->hdr.round_id,
                                             l_validator_addr_str, l_sync_attempt);
         if (!PVT(l_session->esbocs)->emergency_mode &&
-                !dap_global_db_driver_hash_compare(((struct sync_params *)l_message_data)->db_hash, l_session->db_hash)) {
+                dap_global_db_driver_hash_compare(((struct sync_params *)l_message_data)->db_hash, l_session->db_hash)) {
             debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", sync_attempt %"DAP_UINT64_FORMAT_U
                                         " SYNC message is rejected cause DB hash mismatch",
                                            l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,
