@@ -497,10 +497,13 @@ static dap_chain_datum_tx_t *s_stake_tx_create(dap_chain_net_t * a_net, dap_chai
     }
 
     // add 'sign' item
-    if(dap_chain_datum_tx_add_sign_item(&l_tx, dap_chain_wallet_get_key(a_wallet, 0)) != 1) {
+    dap_enc_key_t *l_enc_key = dap_chain_wallet_get_key(a_wallet, 0);
+    if(dap_chain_datum_tx_add_sign_item(&l_tx, l_enc_key) != 1) {
         log_it(L_ERROR, "Can't add sign output");
+        dap_enc_key_delete(l_enc_key);
         goto tx_fail;
     }
+    dap_enc_key_delete(l_enc_key);
     DAP_DELETE(l_owner_addr);
     return l_tx;
 
@@ -1978,11 +1981,13 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 } else {
                     l_sign_str = dap_chain_wallet_check_sign(l_wallet);
                 }
-                dap_chain_datum_tx_t *l_tx = s_stake_tx_invalidate(l_net, l_final_tx_hash, l_fee, dap_chain_wallet_get_key(l_wallet, 0));
+                dap_enc_key_t *l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
+                dap_chain_datum_tx_t *l_tx = s_stake_tx_invalidate(l_net, l_final_tx_hash, l_fee, l_enc_key);
                 if (l_tx_hash_str) {
                     DAP_DELETE(l_final_tx_hash);
                 }
                 dap_chain_wallet_close(l_wallet);
+                dap_enc_key_delete(l_enc_key);
                 char *l_decree_hash_str = NULL;
                 if (l_tx && (l_decree_hash_str = s_stake_tx_put(l_tx, l_net))) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nAll m-tokens successfully returned to "

@@ -227,6 +227,7 @@ static dap_chain_datum_tx_receipt_t * s_callback_client_sign_request(dap_chain_n
         dap_enc_key_t *l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
         l_ret = dap_chain_datum_tx_receipt_sign_add(a_receipt, l_enc_key);
         dap_chain_wallet_close(l_wallet);
+        dap_enc_key_delete(l_enc_key);
     }
     DAP_DELETE(l_gdb_group);
     DAP_DELETE(l_wallet_name);

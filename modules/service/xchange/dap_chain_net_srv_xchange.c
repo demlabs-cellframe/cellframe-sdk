@@ -379,7 +379,6 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
             return NULL;
         }
     }
-    dap_enc_key_t *l_seller_key = dap_chain_wallet_get_key(a_wallet, 0);
     // list of transaction with 'out' items to sell
     dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(l_ledger, a_price->token_sell,
                                                                              l_seller_addr, l_value_need, &l_value_transfer);
@@ -474,13 +473,15 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
     }
     DAP_DELETE(l_seller_addr);
 
+    dap_enc_key_t *l_seller_key = dap_chain_wallet_get_key(a_wallet, 0);
     // add 'sign' item
     if(dap_chain_datum_tx_add_sign_item(&l_tx, l_seller_key) != 1) {
         dap_chain_datum_tx_delete(l_tx);
+        dap_enc_key_delete(l_seller_key);
         log_it(L_ERROR, "Can't add sign output");
         return NULL;
     }
-
+    dap_enc_key_delete(l_seller_key);
     return l_tx;
 }
 
@@ -546,7 +547,6 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         return NULL;
     }
 
-    dap_enc_key_t *l_seller_key = dap_chain_wallet_get_key(a_wallet, 0);
 
     // create empty transaction
     dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
@@ -710,12 +710,16 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         debug_if(s_debug_more, L_NOTICE, "l_value_back = %s", dap_chain_balance_to_coins(l_value_back));
     }
     // add 'sign' items
+
+    dap_enc_key_t *l_seller_key = dap_chain_wallet_get_key(a_wallet, 0);
     if(dap_chain_datum_tx_add_sign_item(&l_tx, l_seller_key) != 1) {
         dap_chain_datum_tx_delete(l_tx);
+        dap_enc_key_delete(l_seller_key);
         log_it( L_ERROR, "Can't add sign output");
         DAP_DELETE(l_buyer_addr);
         return NULL;
     }
+    dap_enc_key_delete(l_seller_key);
     DAP_DELETE(l_buyer_addr);
     return l_tx;
 }
@@ -762,7 +766,6 @@ static bool s_xchange_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price, 
 
     dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(a_price->net->pub.name);
     dap_chain_addr_t *l_seller_addr = (dap_chain_addr_t *)dap_chain_wallet_get_addr(a_wallet, a_price->net->pub.id);
-    dap_enc_key_t *l_seller_key = dap_chain_wallet_get_key(a_wallet, 0);
 
     // create and add reciept
     dap_chain_datum_tx_receipt_t *l_receipt = s_xchange_receipt_create(a_price, uint256_0);
@@ -872,11 +875,14 @@ static bool s_xchange_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price, 
     DAP_DELETE(l_seller_addr);
 
     // add 'sign' items
+    dap_enc_key_t *l_seller_key = dap_chain_wallet_get_key(a_wallet, 0);
     if(dap_chain_datum_tx_add_sign_item(&l_tx, l_seller_key) != 1) {
         dap_chain_datum_tx_delete(l_tx);
+        dap_enc_key_delete(l_seller_key);
         log_it( L_ERROR, "Can't add sign output");
         return false;
     }
+    dap_enc_key_delete(l_seller_key);
     if (!s_xchange_tx_put(l_tx, a_price->net)) {
         return false;
     }
@@ -1108,6 +1114,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
             l_price->wallet_key = dap_chain_wallet_get_key(l_wallet, 0);
             char *l_order_hash_str = s_xchange_order_create(l_price, l_tx);
             dap_chain_wallet_close(l_wallet);
+            dap_enc_key_delete(l_price->wallet_key);
             if (l_order_hash_str) {
                 dap_chain_hash_fast_from_str(l_order_hash_str, &l_price->order_hash);
                 if(!s_xchange_tx_put(l_tx, l_net)) {

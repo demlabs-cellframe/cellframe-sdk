@@ -2186,7 +2186,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                             dap_string_free(l_string_ret, true);
                             return -1;
                         }
-                        if (l_sign_types[0].type == SIG_TYPE_MULTI_CHAINED){
+                        if (l_sign_types[0].type == SIG_TYPE_MULTI_CHAINED) {
                             int l_sign_index = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, l_sign_type_str, NULL);
                             l_sign_index++;
                             for (;l_sign_index && l_sign_index < a_argc; ++l_sign_index) {
@@ -2201,6 +2201,8 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                                 dap_string_free(l_string_ret, true);
                                 return -1;
                             }
+                        } else {
+                            l_sign_count = 1;
                         }
                     }
                     // Check unsupported tesla and bliss algorithm
@@ -4510,6 +4512,7 @@ int com_tx_cond_create(int a_argc, char ** a_argv, char **a_str_reply)
     dap_pkey_t *l_key_cond = dap_pkey_from_enc_key(l_cert_cond->enc_key);
     if (!l_key_cond) {
         dap_chain_wallet_close(l_wallet);
+        dap_enc_key_delete(l_key_from);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Cert '%s' doesn't contain a valid public key", l_cert_str);
         return -14;
     }
@@ -4519,6 +4522,7 @@ int com_tx_cond_create(int a_argc, char ** a_argv, char **a_str_reply)
                                                         l_value_datoshi, l_value_per_unit_max, l_price_unit,
                                                         l_srv_uid, l_value_fee, NULL, 0, l_hash_out_type);
     dap_chain_wallet_close(l_wallet);
+    dap_enc_key_delete(l_key_from);
     DAP_DELETE(l_key_cond);
 
     if (l_hash_str) {
@@ -5436,7 +5440,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
             l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
 
         } else if (l_cert && l_cert->enc_key) {
-            l_enc_key = l_cert->enc_key;
+            l_enc_key = l_cert->enc_key; 
         }
         else{
 		dap_string_append_printf(l_err_str, "Can't create sign for transactions.\n");
@@ -5453,8 +5457,10 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
             continue;
         }
 
-        if (l_wallet)
-            dap_chain_wallet_close(l_wallet);    
+        if (l_wallet) {
+            dap_chain_wallet_close(l_wallet);  
+            dap_enc_key_delete(l_enc_key);
+        }  
 
     
         l_list = dap_list_next(l_list);
@@ -5679,7 +5685,10 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_ret->str);
         dap_string_free(l_string_ret, true);
         DAP_DELETE(l_addr_to);
-        dap_chain_wallet_close(l_wallet_fee);
+        if (l_wallet_fee) {
+            dap_chain_wallet_close(l_wallet_fee);
+            dap_enc_key_delete(l_priv_key);
+        }
         DAP_DEL_Z(l_cert);
         return l_ret;        
     }
@@ -5721,14 +5730,15 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
         }
     }
 
+    l_priv_key = dap_chain_wallet_get_key(l_wallet, 0);
     if(l_tx_num){
-        l_ret = dap_chain_mempool_tx_create_massive(l_chain, dap_chain_wallet_get_key(l_wallet, 0), addr_from,
+        l_ret = dap_chain_mempool_tx_create_massive(l_chain, l_priv_key, addr_from,
                                                   l_addr_to, l_token_ticker, l_value, l_value_fee, l_tx_num);
 
         dap_string_append_printf(l_string_ret, "transfer=%s\n",
                 (l_ret == 0) ? "Ok" : (l_ret == -2) ? "False, not enough funds for transfer" : "False");
     } else {
-        char *l_tx_hash_str = dap_chain_mempool_tx_create(l_chain, dap_chain_wallet_get_key(l_wallet, 0), addr_from, l_addr_to,
+        char *l_tx_hash_str = dap_chain_mempool_tx_create(l_chain, l_priv_key, addr_from, l_addr_to,
                                                                   l_token_ticker, l_value, l_value_fee, l_hash_out_type);
         if (l_tx_hash_str) {
             dap_string_append_printf(l_string_ret, "transfer=Ok\ntx_hash=%s\n",l_tx_hash_str);
@@ -5743,6 +5753,7 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
 
     DAP_DELETE(l_addr_to);
     dap_chain_wallet_close(l_wallet);
+    dap_enc_key_delete(l_priv_key);
     return l_ret;
 }
 
