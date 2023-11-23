@@ -23,7 +23,17 @@
 */
 #pragma once
 #include "dap_chain_datum_tx_voting.h"
+#include "dap_chain_ledger.h"
+#include "dap_chain_net.h"
+#include "dap_chain_common.h"
 
-int dap_chain_datum_tx_voting_init();
+
+typedef struct dap_chain_net_voting_result {
+    uint64_t answer_idx;
+    uint64_t votes_count;
+} dap_chain_net_voting_result_t;
+
+int dap_chain_net_voting_init();
 
 
+uint64_t* dap_chain_net_voting_get_result(dap_ledger_t* a_ledger, dap_chain_hash_fast_t* a_voting_hash);

@@ -748,31 +748,32 @@ json_object *dap_chain_datum_tx_item_voting_tsd_to_json(byte_t *a_tsd_data, size
     size_t l_tsd_shift = 0;
     json_object *l_object = json_object_new_object();
     json_object *l_answer_array_object = json_object_new_array();
+    json_object *l_json_obj = NULL;
     while (l_tsd_shift < a_tsd_size && l_tsd->size < a_tsd_size){
         switch(l_tsd->type){
         case VOTING_TSD_TYPE_QUESTION:
-            json_object *l_question_obj = json_object_new_string_len(l_tsd->data, l_tsd->size);
-            json_object_object_add(l_object, "question", l_question_obj);
+            l_json_obj = json_object_new_string_len(l_tsd->data, l_tsd->size);
+            json_object_object_add(l_object, "question", l_json_obj);
             break;
         case VOTING_TSD_TYPE_ANSWER:
-            json_object *l_answer_obj = json_object_new_string_len(l_tsd->data, l_tsd->size);
-            json_object_array_add(l_answer_array_object, l_answer_obj);
+            l_json_obj = json_object_new_string_len(l_tsd->data, l_tsd->size);
+            json_object_array_add(l_answer_array_object, l_json_obj);
             break;
         case VOTING_TSD_TYPE_EXPIRE:
-            json_object *l_expire_obj = json_object_new_uint64(*(uint64_t*)l_tsd->data);
-            json_object_object_add(l_object, "exired", l_expire_obj);
+            l_json_obj = json_object_new_uint64(*(uint64_t*)l_tsd->data);
+            json_object_object_add(l_object, "exired", l_json_obj);
             break;
         case VOTING_TSD_TYPE_MAX_VOTES_COUNT:
-            json_object *l_max_count_obj = json_object_new_uint64(*(uint64_t*)l_tsd->data);
-            json_object_object_add(l_object, "maxVotes", l_max_count_obj);
+            l_json_obj = json_object_new_uint64(*(uint64_t*)l_tsd->data);
+            json_object_object_add(l_object, "maxVotes", l_json_obj);
             break;
         case VOTING_TSD_TYPE_DELEGATE_KEY_REQUIRED:
-            json_object *l_delegate_key_req_obj = json_object_new_boolean(*(bool*)l_tsd->data);
-            json_object_object_add(l_object, "delegateKeyRequired", l_delegate_key_req_obj);
+            l_json_obj = json_object_new_boolean(*(bool*)l_tsd->data);
+            json_object_object_add(l_object, "delegateKeyRequired", l_json_obj);
             break;
         case VOTING_TSD_TYPE_VOTE_CHANGING_ALLOWED:
-            json_object *l_changing_allowed_obj = json_object_new_boolean(*(bool*)l_tsd->data);
-            json_object_object_add(l_object, "voteChangingAllowed", l_changing_allowed_obj);
+            l_json_obj = json_object_new_boolean(*(bool*)l_tsd->data);
+            json_object_object_add(l_object, "voteChangingAllowed", l_json_obj);
             break;
         default:
             break;

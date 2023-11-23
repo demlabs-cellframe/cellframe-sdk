@@ -27,18 +27,6 @@
 #define LOG_TAG "datum_tx_voting"
 
 
-bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx_in);
-
-
-int dap_chain_datum_tx_voting_init()
-{
-
-
-
-}
-
-
-
 dap_chain_datum_tx_voting_params_t* dap_chain_voting_parse_tsd(byte_t* a_tsd_data, size_t a_tsd_size)
 {
     if (!a_tsd_data || !a_tsd_size)
@@ -48,18 +36,18 @@ dap_chain_datum_tx_voting_params_t* dap_chain_voting_parse_tsd(byte_t* a_tsd_dat
     size_t l_tsd_shift = 0;
     dap_chain_datum_tx_voting_params_t *l_voting_parms = DAP_NEW_Z_SIZE(dap_chain_datum_tx_voting_params_t,
                                                                         sizeof(dap_chain_datum_tx_voting_params_t));
-
+    char *l_buf_string = NULL;
     while (l_tsd_shift < a_tsd_size && l_tsd->size < a_tsd_size){
         switch(l_tsd->type){
         case VOTING_TSD_TYPE_QUESTION:
-            char *l_question_string = DAP_NEW_Z_SIZE(char, l_tsd->size);
-            memcpy(l_question_string, l_tsd->data, l_tsd->size);
-            l_voting_parms->voting_question = l_question_string;
+            l_buf_string = DAP_NEW_Z_SIZE(char, l_tsd->size);
+            memcpy(l_buf_string, l_tsd->data, l_tsd->size);
+            l_voting_parms->voting_question = l_buf_string;
             break;
         case VOTING_TSD_TYPE_ANSWER:
-            char *l_answer_string = DAP_NEW_Z_SIZE(char, l_tsd->size);
-            memcpy(l_answer_string, l_tsd->data, l_tsd->size);
-            dap_list_append(l_voting_parms->answers_list, l_question_string);
+            l_buf_string = DAP_NEW_Z_SIZE(char, l_tsd->size);
+            memcpy(l_buf_string, l_tsd->data, l_tsd->size);
+            dap_list_append(l_voting_parms->answers_list, l_buf_string);
             l_voting_parms->answers_count++;
             break;
         case VOTING_TSD_TYPE_EXPIRE:
@@ -133,7 +121,7 @@ dap_tsd_t* dap_chain_datum_voting_delegated_key_required_tsd_create(bool a_deleg
     return l_tsd;
 }
 
-dap_tsd_t* dap_chain_datum_voting_delegated_key_required_tsd_create(bool a_vote_changing_allowed)
+dap_tsd_t* dap_chain_datum_voting_vote_changing_allowed_tsd_create(bool a_vote_changing_allowed)
 {
     dap_tsd_t* l_tsd = dap_tsd_create(VOTING_TSD_TYPE_VOTE_CHANGING_ALLOWED, &a_vote_changing_allowed, sizeof(bool));
 

@@ -49,7 +49,7 @@ typedef struct dap_chain_tx_voting {
 typedef struct dap_chain_tx_vote {
     dap_chain_tx_item_type_t type;
     dap_chain_hash_fast_t voting_hash;
-    uint8_t answer_idx;
+    uint64_t answer_idx;
 } DAP_ALIGN_PACKED dap_chain_tx_vote_t;
 
 
@@ -71,7 +71,7 @@ dap_tsd_t* dap_chain_datum_voting_answer_tsd_create(char* a_answer_str, size_t s
 dap_tsd_t* dap_chain_datum_voting_expire_tsd_create(dap_time_t a_expire);
 dap_tsd_t* dap_chain_datum_voting_max_votes_count_tsd_create(uint64_t a_max_count);
 dap_tsd_t* dap_chain_datum_voting_delegated_key_required_tsd_create(bool a_delegate_key_required);
-dap_tsd_t* dap_chain_datum_voting_delegated_key_required_tsd_create(bool a_vote_changing_allowed);
+dap_tsd_t* dap_chain_datum_voting_vote_changing_allowed_tsd_create(bool a_vote_changing_allowed);
 
 
 
