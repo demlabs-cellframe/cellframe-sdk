@@ -184,6 +184,11 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t *a_decree, dap_chain_ne
     size_t l_num_of_unique_signs = 0;
     dap_sign_t **l_unique_signs = dap_sign_get_unique_signs(l_signs_block, l_signs_size, &l_num_of_unique_signs);
 
+    if (!a_net->pub.decree) {
+        log_it(L_ERROR, "Decree module hasn't been initialized yet");
+        return -404;
+    }
+
     uint16_t l_min_signs = a_net->pub.decree->min_num_of_owners;
     if (l_num_of_unique_signs < l_min_signs) {
         log_it(L_WARNING, "Not enough unique signatures, get %zu from %hu", l_num_of_unique_signs, l_min_signs);
