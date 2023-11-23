@@ -21,13 +21,13 @@
 */
 #pragma once
 
-#include "dap_chain_common.h"
 #include "dap_common.h"
 #include "dap_math_ops.h"
 #include "dap_time.h"
 #include "dap_list.h"
 #include "dap_tsd.h"
-#include <stdint.h>
+#include "dap_cert.h"
+#include "dap_chain_common.h"
 
 #define DAP_CHAIN_DATUM_DECREE_VERSION  0
 
@@ -272,5 +272,5 @@ void dap_chain_datum_decree_certs_dump(dap_string_t * a_str_out, byte_t * a_sign
  * @param l_sign_counter - counter of successful data signing operation
  * @return dap_chain_datum_token_t*
  */
-dap_chain_datum_decree_t* dap_chain_datum_decree_sign_in_cycle(dap_cert_t ** a_certs, dap_chain_datum_decree_t *a_datum_decree,
+dap_chain_datum_decree_t* dap_chain_datum_decree_sign_in_cycle(dap_cert_t **a_certs, dap_chain_datum_decree_t *a_datum_decree,
                                                   size_t a_certs_count, size_t *a_total_sign_count);
