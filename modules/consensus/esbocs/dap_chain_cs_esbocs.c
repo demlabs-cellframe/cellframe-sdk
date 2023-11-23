@@ -898,7 +898,7 @@ static void s_session_attempt_new(dap_chain_esbocs_session_t *a_session)
             return;
         }
     }
-    debug_if(PVT(a_session->esbocs)->debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U"."
+    debug_if(PVT(a_session->esbocs)->debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U". "
                                                     "All synced validators already tryed their attempts",
                                                         a_session->chain->net_name, a_session->chain->name,
                                                             a_session->cur_round.id);

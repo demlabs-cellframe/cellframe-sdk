@@ -842,12 +842,12 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
             dap_chain_addr_t        *l_addr = NULL;
 
             if (l_subcmd == SUBCMD_FEE) {
-                if (!dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "collect")) {
+                if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "collect") >= 0) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block fee' requires subcommand 'collect'");
                     return -14;
                 }
             } else { // l_sumcmd == SUBCMD_REWARD
-                if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "set")) {
+                if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "set") >= 0) {
                     const char *l_value_str = NULL;
                     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-poa_cert", &l_cert_name);
                     if(!l_cert_name) {
@@ -859,7 +859,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find \"%s\" certificate", l_cert_name);
                         return -18;
                     }
-                    if (!l_cert->enc_key || !l_cert->enc_key->priv_key_data || l_cert->enc_key->priv_key_data_size) {
+                    if (!l_cert->enc_key || !l_cert->enc_key->priv_key_data || !l_cert->enc_key->priv_key_data_size) {
                         dap_cli_server_cmd_set_reply_text(a_str_reply,
                                 "Certificate \"%s\" doesn't contains private key", l_cert_name);
                         return -19;
@@ -881,12 +881,12 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                         return -21;
                     }
                     break;
-                } else if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "show")) {
+                } else if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "show") >= 0) {
                     char *l_base_reward_str = dap_chain_balance_to_coins(l_net->pub.base_reward);
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Current base block reward is %s\n", l_base_reward_str);
                     DAP_DEL_Z(l_base_reward_str);
                     break;
-                } else if (!dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "collect")) {
+                } else if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "collect") == -1) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block reward' requires subcommands 'set' or 'show' or 'collect'");
                     return -14;
                 }
@@ -922,7 +922,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find \"%s\" certificate", l_cert_name);
                 return -18;
             }
-            if (!l_cert->enc_key || !l_cert->enc_key->priv_key_data || l_cert->enc_key->priv_key_data_size) {
+            if (!l_cert->enc_key || !l_cert->enc_key->priv_key_data || !l_cert->enc_key->priv_key_data_size) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply,
                         "Certificate \"%s\" doesn't contains private key", l_cert_name);
                 return -19;

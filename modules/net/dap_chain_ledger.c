@@ -1052,7 +1052,7 @@ static bool s_ledger_token_supply_check_update(dap_ledger_t *a_ledger, dap_ledge
         return false;
     int l_overflow = SUBTRACT_256_256(a_token_item->current_supply, a_value, &a_token_item->current_supply);
     assert(!l_overflow);
-    char *l_balance = dap_chain_balance_print(a_token_item->current_supply);
+    char *l_balance = dap_chain_balance_to_coins(a_token_item->current_supply);
     log_it(L_NOTICE, "New current supply %s for token %s", l_balance, a_token_item->ticker);
     DAP_DELETE(l_balance);
     s_ledger_token_cache_update(a_ledger, a_token_item);
@@ -2458,6 +2458,7 @@ dap_ledger_t *dap_ledger_create(dap_chain_net_t *a_net, uint16_t a_flags)
         log_it(L_CRITICAL, "Memory allocation error");
         return NULL;
     }
+    l_ledger->net = a_net;
     dap_ledger_private_t *l_ledger_pvt = PVT(l_ledger);
     l_ledger_pvt->check_ds = a_flags & DAP_LEDGER_CHECK_LOCAL_DS;
     l_ledger_pvt->check_cells_ds = a_flags & DAP_LEDGER_CHECK_CELLS_DS;
@@ -3481,7 +3482,8 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
             // 2. Check current transaction for doubles in input items list
             for (dap_list_t *l_iter = l_list_in; l_iter; l_iter = l_iter->next) {
                 dap_chain_tx_in_ems_t *l_in_ems_check = l_iter->data;
-                if (l_in_ems_check->header.type == TX_ITEM_TYPE_IN_EMS &&
+                if (l_tx_in_ems != l_in_ems_check &&
+                        l_in_ems_check->header.type == TX_ITEM_TYPE_IN_EMS &&
                         dap_hash_fast_compare(&l_in_ems_check->header.token_emission_hash, l_emission_hash)) {
                     debug_if(s_debug_more, L_ERROR, "Emission output already used in current tx");
                     l_err_num = DAP_LEDGER_TX_CHECK_PREV_OUT_ALREADY_USED_IN_CURRENT_TX;
@@ -3652,7 +3654,8 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
             // 2. Check current transaction for doubles in input items list
             for (dap_list_t *l_iter = l_list_in; l_iter; l_iter = l_iter->next) {
                 dap_chain_tx_in_reward_t *l_in_reward_check = l_iter->data;
-                if (l_in_reward_check->type == TX_ITEM_TYPE_IN_REWARD &&
+                if (l_tx_in_reward != l_in_reward_check &&
+                        l_in_reward_check->type == TX_ITEM_TYPE_IN_REWARD &&
                         dap_hash_fast_compare(&l_in_reward_check->block_hash, l_block_hash)) {
                     debug_if(s_debug_more, L_ERROR, "Reward for this block sign already used in current tx");
                     l_err_num = DAP_LEDGER_TX_CHECK_PREV_OUT_ALREADY_USED_IN_CURRENT_TX;
@@ -3735,7 +3738,8 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
                 // 2. Check current transaction for doubles in input items list
                 for (dap_list_t *l_iter = l_list_in; l_iter; l_iter = l_iter->next) {
                     dap_chain_tx_in_t *l_in_check = l_iter->data;
-                    if (l_in_check->header.type == TX_ITEM_TYPE_IN &&
+                    if (l_tx_in != l_in_check &&
+                            l_in_check->header.type == TX_ITEM_TYPE_IN &&
                             l_in_check->header.tx_out_prev_idx == l_idx &&
                             dap_hash_fast_compare(&l_in_check->header.tx_prev_hash, l_tx_prev_hash)) {
                         debug_if(s_debug_more, L_ERROR, "This previous tx output already used in current tx");
@@ -3752,7 +3756,8 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
                 // 2. Check current transaction for doubles in input items list
                 for (dap_list_t *l_iter = l_list_in; l_iter; l_iter = l_iter->next) {
                     dap_chain_tx_in_cond_t *l_in_cond_check = l_iter->data;
-                    if (l_in_cond_check->header.type == TX_ITEM_TYPE_IN_COND &&
+                    if (l_tx_in_cond != l_in_cond_check &&
+                            l_in_cond_check->header.type == TX_ITEM_TYPE_IN_COND &&
                             l_in_cond_check->header.tx_out_prev_idx == l_idx &&
                             dap_hash_fast_compare(&l_in_cond_check->header.tx_prev_hash, l_tx_prev_hash)) {
                         debug_if(s_debug_more, L_ERROR, "This previous tx output already used in current tx");
