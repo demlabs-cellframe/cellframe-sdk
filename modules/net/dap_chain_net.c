@@ -3804,9 +3804,7 @@ void dap_chain_net_announce_addrs() {
     dap_chain_net_item_t *l_net_item = NULL, *l_tmp = NULL;
     HASH_ITER(hh, s_net_items, l_net_item, l_tmp) {
         dap_chain_net_pvt_t *l_net_pvt = PVT(l_net_item->chain_net);
-        if (l_net_pvt->node_info->hdr.ext_port &&
-                (l_net_pvt->node_info->hdr.ext_addr_v4.s_addr != INADDR_ANY
-                 || memcmp(&l_net_pvt->node_info->hdr.ext_addr_v6, &in6addr_any, sizeof(struct in6_addr))))
+        if (l_net_pvt->node_info->hdr.ext_port)
         {
             dap_chain_net_node_list_request(l_net_item->chain_net, l_net_pvt->node_info, false, 0);
             char l_node_addr_str[INET_ADDRSTRLEN] = { '\0' };

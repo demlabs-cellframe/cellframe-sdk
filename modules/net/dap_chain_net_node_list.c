@@ -66,8 +66,7 @@ static int s_dap_chain_net_node_list_add_downlink(const char * a_group, const ch
 void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg)
 {
     log_it(L_DEBUG,"Proc enc http request");
-    http_status_code_t *l_return_code = (http_status_code_t *)a_arg;
-
+    http_status_code_t *l_return_code = (http_status_code_t *)a_arg;    
     if (strcmp(a_http_simple->http_client->url_path, DAP_NODE_LIST_URI_HASH)) {
         log_it(L_ERROR, "Wrong path '%s' in the request to dap_chain_net_node_list module",
                                                             a_http_simple->http_client->url_path);
@@ -77,12 +76,11 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     int l_protocol_version = 0;
     char l_issue_method = 0;
     uint64_t addr = 0;
-    uint32_t ipv4 = 0;
     uint16_t port = 0;
     uint32_t links_cnt = 0;
     const char l_net_token[] = "net=";
-    sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,addr=%lu,ipv4=%d,port=%hu,lcnt=%d,net=",
-                                                            &l_protocol_version, &l_issue_method, &addr, &ipv4, &port, &links_cnt);
+    sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,addr=%lu,port=%hu,lcnt=%d,net=",
+                                                            &l_protocol_version, &l_issue_method, &addr, &port, &links_cnt);
     if (l_protocol_version != 1 || (l_issue_method != 'r' && l_issue_method != 'd')) {
         log_it(L_ERROR, "Unsupported protocol version/method in the request to dap_chain_net_node_list module");
         *l_return_code = Http_Status_MethodNotAllowed;
@@ -101,10 +99,10 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     dap_chain_node_info_t l_node_info = {
         .hdr.address.uint64 = addr,
         .hdr.owner_address.uint64 = dap_chain_net_get_cur_addr_int(l_net),
-        .hdr.ext_addr_v4.s_addr = ipv4,
         .hdr.ext_port = port,
         .hdr.links_number = links_cnt
-    };
+    };    
+    inet_pton(AF_INET, a_http_simple->esocket->hostaddr, &l_node_info.hdr.ext_addr_v4);
 
     uint8_t response = 0;
     char *l_key = dap_chain_node_addr_to_hash_str(&l_node_info.hdr.address);
@@ -332,11 +330,10 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
     }
     if(cmd == ADD || cmd == UPDATE)
     {
-        l_request = dap_strdup_printf("%s/%s?version=1,method=r,addr=%lu,ipv4=%d,port=%hu,lcnt=%d,blks=%lu,net=%s",
+        l_request = dap_strdup_printf("%s/%s?version=1,method=r,addr=%lu,port=%hu,lcnt=%d,blks=%lu,net=%s",
                                                 DAP_UPLINK_PATH_NODE_LIST,
                                                 DAP_NODE_LIST_URI_HASH,
                                                 l_link_node_request->hdr.address.uint64,
-                                                l_link_node_request->hdr.ext_addr_v4.s_addr,
                                                 l_link_node_request->hdr.ext_port,
                                                 l_link_node_request->hdr.links_number,
                                                 l_link_node_request->hdr.blocks_events,
