@@ -79,7 +79,6 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     uint16_t port = 0;
     uint32_t links_cnt = 0;
     const char l_net_token[] = "net=";
-    log_it(L_INFO, "Raw string - '%s' ",a_http_simple->http_client->in_query_string);
     sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,addr=%lu,port=%hu,lcnt=%d,net=",
                                                             &l_protocol_version, &l_issue_method, &addr, &port, &links_cnt);
     if (l_protocol_version != 1 || (l_issue_method != 'r' && l_issue_method != 'd')) {
@@ -104,7 +103,6 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
         .hdr.links_number = links_cnt
     };    
     inet_pton(AF_INET, a_http_simple->esocket->hostaddr, &l_node_info.hdr.ext_addr_v4);
-    log_it(L_INFO, "Server - The addres "NODE_ADDR_FP_STR" will be added to the node list",NODE_ADDR_FP_ARGS_S(l_node_info.hdr.address));
     uint8_t response = 0;
     char *l_key = dap_chain_node_addr_to_hash_str(&l_node_info.hdr.address);
     if(!l_key)
@@ -265,8 +263,6 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
     dap_chain_node_addr_t l_node_addr_cur = {
         .uint64 = dap_chain_net_get_cur_addr_int(a_net)
     };
-    log_it(L_INFO, "Client - The addres "NODE_ADDR_FP_STR" will be added to the node list",NODE_ADDR_FP_ARGS_S(l_node_addr_cur));
-
     dap_chain_node_info_t *l_link_node_request = NULL;
     uint32_t links_count = 0;
     char *l_request = NULL;
@@ -298,7 +294,7 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
             l_node_list_request->link_info = l_link_node_info;
             l_link_node_request = a_link_node_request;
 
-            l_request = dap_strdup_printf("%s/%s?version=1,method=r,addr=%lu,port=%hu,lcnt=%d,blks=%lu,net=%s",
+            l_request = dap_strdup_printf("%s/%s?version=1,method=r,addr=%zu,port=%hu,lcnt=%d,blks=%zu,net=%s",
                                           DAP_UPLINK_PATH_NODE_LIST,
                                           DAP_NODE_LIST_URI_HASH,
                                           l_link_node_request->hdr.address.uint64,
