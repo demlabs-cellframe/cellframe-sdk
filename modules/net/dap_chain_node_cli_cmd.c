@@ -1915,7 +1915,7 @@ int com_version(int argc, char ** argv, char **a_str_reply)
     (void) argv;
 #ifndef DAP_VERSION
 #pragma message "[!WRN!] DAP_VERSION IS NOT DEFINED. Manual override engaged."
-#define DAP_VERSION 0.9-15
+#define DAP_VERSION "0.9-15"
 #endif
     dap_cli_server_cmd_set_reply_text(a_str_reply,
             "%s version %s\n", dap_get_appname(), DAP_VERSION );
