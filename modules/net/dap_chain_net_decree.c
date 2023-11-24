@@ -106,7 +106,6 @@ int dap_chain_net_decree_deinit(dap_chain_net_t *a_net)
 {
     dap_chain_net_decree_t *l_decree = a_net->pub.decree;
     dap_list_free_full(l_decree->pkeys, NULL);
-    DAP_DELETE(l_decree->fee_addr);
     DAP_DELETE(l_decree);
     struct decree_hh *l_decree_hh, *l_tmp;
     HASH_ITER(hh, s_decree_hh, l_decree_hh, l_tmp) {
@@ -184,6 +183,11 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t *a_decree, dap_chain_ne
     // Find unique pkeys in pkeys set from previous step and check that number of signs > min
     size_t l_num_of_unique_signs = 0;
     dap_sign_t **l_unique_signs = dap_sign_get_unique_signs(l_signs_block, l_signs_size, &l_num_of_unique_signs);
+
+    if (!a_net->pub.decree) {
+        log_it(L_ERROR, "Decree module hasn't been initialized yet");
+        return -404;
+    }
 
     uint16_t l_min_signs = a_net->pub.decree->min_num_of_owners;
     if (l_num_of_unique_signs < l_min_signs) {
@@ -369,37 +373,21 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
     switch (a_decree->header.sub_type)
     {
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE:
-                if(dap_chain_datum_decree_get_fee_addr(a_decree, &l_addr)){
-                    if(l_net->pub.decree->fee_addr != NULL)
-                    {
-                        l_addr = *l_net->pub.decree->fee_addr;
-                    } else
-                    {
+                if (dap_chain_datum_decree_get_fee_addr(a_decree, &l_addr)) {
+                    if (dap_chain_addr_is_blank(&l_net->pub.fee_addr)) {
                         log_it(L_WARNING, "Fee wallet address not set.");
                         return -111;
-                    }
-                } else{
-                    dap_chain_addr_t *l_decree_addr = DAP_NEW_Z_SIZE(dap_chain_addr_t, sizeof(dap_chain_addr_t));
-                    if (!l_decree_addr) {
-                        log_it(L_CRITICAL, "Memory allocation error");
-                        return -1;
-                    }
-                    memcpy(l_decree_addr, &l_addr, sizeof(dap_chain_addr_t));
-                    l_net->pub.decree->fee_addr = l_decree_addr;
+                    } else
+                        l_addr = l_net->pub.fee_addr;
                 }
-
-                if (!dap_chain_datum_decree_get_fee(a_decree, &l_uint256_buffer)){
-                    if (!a_apply)
-                        break;
-
-                    if (!dap_chain_net_tx_add_fee(a_chain->net_id, l_uint256_buffer, l_addr)) {
-                        log_it(L_WARNING,"Can't add/replace fee value.");
-                        return -102;
-                    }
-                }else{
+                if (dap_chain_datum_decree_get_fee(a_decree, &l_uint256_buffer)) {
                     log_it(L_WARNING,"Can't get fee value from decree.");
                     return -103;
                 }
+                if (!a_apply)
+                    break;
+                if (!dap_chain_net_tx_set_fee(a_chain->net_id, l_uint256_buffer, l_addr))
+                    log_it(L_ERROR, "Can't set fee value for network %s", a_chain->net_name);
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS:
             l_owners_list = dap_chain_datum_decree_get_owners(a_decree, &l_uint16_buffer);
@@ -550,7 +538,17 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
                 l_tsd_offset += l_tsd_size;
             }
         } break;
-        default: return -1;
+        case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_REWARD: {
+            if (dap_chain_datum_decree_get_value(a_decree, &l_uint256_buffer)) {
+                log_it(L_WARNING,"Can't get value from decree.");
+                return -103;
+            }
+            if (!a_apply)
+                break;
+            a_net->pub.base_reward = l_uint256_buffer;
+        } break;
+        default:
+            return -1;
     }
 
     return 0;

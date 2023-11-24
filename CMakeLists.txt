@@ -6,9 +6,6 @@ set(CELLFRAME_SDK_NATIVE_VERSION "3.3-0")
 
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
-
-set(DAPSDK_MODULES "")
-
 if(NOT DEFINED CELLFRAME_MODULES)
     include (dap-sdk/cmake/OS_Detection.cmake)
 
@@ -17,9 +14,10 @@ if(NOT DEFINED CELLFRAME_MODULES)
     if(LINUX OR DARWIN)
         set(CELLFRAME_MODULES "${CELLFRAME_MODULES} srv-vpn")
     endif()
-    if (BUILD_CELLFRAME_SDK_TESTS)
-        set (CELLFRAME_MODULES ${CELLFRAME_MODULES} "test-framework")
-    endif ()
+
+    if(BUILD_CELLFRAME_SDK_TESTS)
+        set(DAPSDK_MODULES "test-framework")
+    endif()
 
     add_subdirectory(dap-sdk)
 
@@ -43,8 +41,7 @@ else()
 endif(NOT DAP_INT128_SUPPORT)
 
 if (BUILD_CELLFRAME_SDK_TESTS)
-    enable_testing()
-    add_definitions("-DDAP_CHAIN_LEDGER_TEST")
+    add_definitions("-DDAP_LEDGER_TEST")
 endif()
 
 if (BUILD_WITH_ZIP)
@@ -53,9 +50,6 @@ if (BUILD_WITH_ZIP)
 endif()
 
 add_subdirectory(3rdparty/monero_crypto)
-if(DAPSDK_MODULES MATCHES "ssl-support")
-    add_subdirectory(3rdparty/wolfssl)
-endif()
 
 add_subdirectory(modules/)
 

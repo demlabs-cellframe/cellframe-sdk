@@ -37,7 +37,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_common.h"
 #include "dap_chain.h"
 #include "dap_chain_node.h"
-#include "dap_chain_ledger.h"
 #include "dap_chain_net_decree.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_datum_decree.h"
@@ -50,6 +49,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 struct dap_chain_node_info;
 typedef struct dap_chain_node_client dap_chain_node_client_t;
+typedef struct dap_ledger dap_ledger_t;
 
 typedef enum dap_chain_net_state{
     NET_STATE_OFFLINE = 0,
@@ -74,10 +74,15 @@ typedef struct dap_chain_net{
 
         bool mempool_autoproc;
 
-        dap_chain_t * chains; // double-linked list of chains
+        dap_chain_t *chains; // double-linked list of chains
         const char *native_ticker;
-        dap_ledger_t  *ledger;
+        dap_ledger_t *ledger;
         dap_chain_net_decree_t *decree;
+        // Net fee
+        uint256_t fee_value;
+        dap_chain_addr_t fee_addr;
+        // Block sign reward
+        uint256_t base_reward;
 
         pthread_mutex_t balancer_mutex;
         dap_list_t *link_list;
@@ -138,7 +143,7 @@ dap_chain_net_t * dap_chain_net_by_name( const char * a_name);
 dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id);
 uint16_t dap_chain_net_get_acl_idx(dap_chain_net_t *a_net);
 dap_chain_net_id_t dap_chain_net_id_by_name( const char * a_name);
-dap_ledger_t * dap_chain_ledger_by_net_name( const char * a_net_name);
+dap_ledger_t * dap_ledger_by_net_name( const char * a_net_name);
 dap_string_t* dap_cli_list_net();
 
 dap_chain_t * dap_chain_net_get_chain_by_name( dap_chain_net_t * l_net, const char * a_name);
