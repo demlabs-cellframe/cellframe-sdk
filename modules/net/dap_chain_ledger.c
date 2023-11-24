@@ -4388,36 +4388,42 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
             l_spent_idx++;
         }
 
+        if ((l_type == TX_ITEM_TYPE_IN_EMS_LOCK || l_type == TX_ITEM_TYPE_IN_REWARD) &&
+                !s_ledger_token_supply_check_update(a_ledger, l_bound_item->token_item, l_bound_item->value))
+            log_it(L_ERROR, "Insufficient supply for token %s", l_bound_item->token_item->ticker);
+
         switch (l_type) {
         case TX_ITEM_TYPE_IN_EMS:
+            // Mark it as used with current tx hash
+            l_bound_item->emission_item->tx_used_out = *a_tx_hash;
+            s_ledger_emission_cache_update(a_ledger, l_bound_item->emission_item);
+            l_outs_used--; // Do not calc this output with tx used items
+            continue;
+
         case TX_ITEM_TYPE_IN_EMS_LOCK:
-        case TX_ITEM_TYPE_IN_REWARD: {
-             // It's the emission behind
-            if (!s_ledger_token_supply_check_update(a_ledger, l_bound_item->token_item, l_bound_item->value))
-                log_it(L_ERROR, "Insufficient supply for token %s", l_bound_item->token_item->ticker);
-            if (l_type == TX_ITEM_TYPE_IN_EMS_LOCK) {
+            if (l_bound_item->stake_lock_item) { // Legacy stake lock emission
                 // Mark it as used with current tx hash
                 l_bound_item->stake_lock_item->tx_used_out = *a_tx_hash;
                 s_ledger_stake_lock_cache_update(a_ledger, l_bound_item->stake_lock_item);
-            } else if (l_type == TX_ITEM_TYPE_IN_EMS) {
-                // Mark it as used with current tx hash
-                l_bound_item->emission_item->tx_used_out = *a_tx_hash;
-                s_ledger_emission_cache_update(a_ledger, l_bound_item->emission_item);
-            } else { // l_type == TX_ITEM_TYPE_IN_REWARD
-                dap_ledger_reward_item_t *l_item = DAP_NEW_Z(dap_ledger_reward_item_t);
-                if (!l_item) {
-                    log_it(L_CRITICAL, "Memory allocation error");
-                    l_ret = -1;
-                    goto FIN;
-                }
-                l_item->key = l_bound_item->reward_key;
-                l_item->spender_tx = *a_tx_hash;
-                pthread_rwlock_wrlock(&l_ledger_pvt->rewards_rwlock);
-                HASH_ADD(hh, l_ledger_pvt->rewards, key, sizeof(l_item->key), l_item);
-                pthread_rwlock_unlock(&l_ledger_pvt->rewards_rwlock);
             }
             l_outs_used--; // Do not calc this output with tx used items
-        } continue;
+            continue;
+
+        case TX_ITEM_TYPE_IN_REWARD: {
+            dap_ledger_reward_item_t *l_item = DAP_NEW_Z(dap_ledger_reward_item_t);
+            if (!l_item) {
+                log_it(L_CRITICAL, "Memory allocation error");
+                l_ret = -1;
+                goto FIN;
+            }
+            l_item->key = l_bound_item->reward_key;
+            l_item->spender_tx = *a_tx_hash;
+            pthread_rwlock_wrlock(&l_ledger_pvt->rewards_rwlock);
+            HASH_ADD(hh, l_ledger_pvt->rewards, key, sizeof(l_item->key), l_item);
+            pthread_rwlock_unlock(&l_ledger_pvt->rewards_rwlock);
+        }
+        l_outs_used--; // Do not calc this output with tx used items
+        continue;
 
         case TX_ITEM_TYPE_IN: {
             dap_ledger_wallet_balance_t *wallet_balance = NULL;
