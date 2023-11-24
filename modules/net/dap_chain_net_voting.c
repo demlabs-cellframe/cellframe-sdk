@@ -134,6 +134,12 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
 
         size_t l_tsd_size = 0;
         dap_tsd_t *l_tsd = (dap_chain_tx_tsd_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_TSD, &l_tsd_size);
+        if (!l_tsd){
+
+            log_it(L_ERROR, "Can't find tsd section in tx with hash %s.", l_hash_str);
+
+            return false;
+        }
         size_t l_tsd_shift = 0;
 
         while (l_tsd_shift < a_tsd_size && l_tsd->size < a_tsd_size){
