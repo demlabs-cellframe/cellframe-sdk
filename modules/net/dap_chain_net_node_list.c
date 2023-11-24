@@ -79,6 +79,7 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     uint16_t port = 0;
     uint32_t links_cnt = 0;
     const char l_net_token[] = "net=";
+    log_it(L_INFO, "Raw string - '%s' ",a_http_simple->http_client->in_query_string);
     sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,addr=%lu,port=%hu,lcnt=%d,net=",
                                                             &l_protocol_version, &l_issue_method, &addr, &port, &links_cnt);
     if (l_protocol_version != 1 || (l_issue_method != 'r' && l_issue_method != 'd')) {
