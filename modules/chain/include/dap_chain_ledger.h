@@ -307,6 +307,7 @@ dap_hash_fast_t *dap_chain_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger
  // Get the transaction in the cache by the addr in out item
 dap_chain_datum_tx_t* dap_chain_ledger_tx_find_by_addr(dap_ledger_t *a_ledger, const char * a_token,
          const dap_chain_addr_t *a_addr, dap_chain_hash_fast_t *a_tx_first_hash);
+bool dap_chain_mempool_find_addr_ledger(dap_ledger_t* a_ledger, dap_chain_hash_fast_t* a_tx_prev_hash, dap_chain_addr_t *a_addr);
 
 // Get the transaction in the cache by the public key that signed the transaction, starting with a_tx_first_hash
 const dap_chain_datum_tx_t* dap_chain_ledger_tx_find_by_pkey(dap_ledger_t *a_ledger,
