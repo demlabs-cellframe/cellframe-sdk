@@ -53,9 +53,9 @@
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_cell.h"
 #include "dap_chain_net.h"
+#include "dap_chain_ledger.h"
 
 #define LOG_TAG "dap_chain_cs_dag"
-
 
 typedef struct dap_chain_cs_dag_event_item {
     dap_chain_hash_fast_t hash;

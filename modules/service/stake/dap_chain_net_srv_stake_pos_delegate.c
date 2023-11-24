@@ -63,7 +63,7 @@ static dap_chain_net_srv_stake_t *s_srv_stake = NULL;
  */
 int dap_chain_net_srv_stake_pos_delegate_init()
 {
-    dap_chain_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, s_stake_verificator_callback, s_stake_updater_callback);
+    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, s_stake_verificator_callback, s_stake_updater_callback);
     dap_cli_server_cmd_add("srv_stake", s_cli_srv_stake, "Delegated stake service commands",
     "\t\t=== Commands for work with orders ===\n"
     "srv_stake order create -net <net_name> -value <value> -cert <priv_cert_name> \n"
@@ -361,9 +361,9 @@ int dap_chain_net_srv_stake_load_cache(dap_chain_net_t *a_net)
         log_it(L_ERROR, "Invalid arguments l_ledger in dap_chain_net_srv_stake_load_cache");
         return -1;
     }
-    if (!dap_chain_ledger_cache_enabled(l_ledger))
+    if (!dap_ledger_cache_enabled(l_ledger))
         return 0;
-    char *l_gdb_group = dap_chain_ledger_get_gdb_group(l_ledger, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP);
+    char *l_gdb_group = dap_ledger_get_gdb_group(l_ledger, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP);
     size_t l_objs_count = 0;
     
     dap_store_obj_t *l_store_obj = dap_global_db_get_all_raw_sync(l_gdb_group, &l_objs_count);
@@ -385,14 +385,14 @@ int dap_chain_net_srv_stake_load_cache(dap_chain_net_t *a_net)
         HASH_ADD(hh, s_srv_stake->cache, tx_hash, sizeof(dap_hash_fast_t), l_cache);
     }
     dap_store_obj_free(l_store_obj, l_objs_count);
-    dap_chain_ledger_set_cache_tx_check_callback(l_ledger, s_stake_cache_check_tx);
+    dap_ledger_set_cache_tx_check_callback(l_ledger, s_stake_cache_check_tx);
     return 0;
 }
 
 void dap_chain_net_srv_stake_purge(dap_chain_net_t *a_net)
 {
     dap_ledger_t *l_ledger = a_net->pub.ledger;
-    char *l_gdb_group = dap_chain_ledger_get_gdb_group(l_ledger, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP);
+    char *l_gdb_group = dap_ledger_get_gdb_group(l_ledger, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP);
     dap_global_db_del(l_gdb_group, NULL, NULL, NULL);
     DAP_DELETE(l_gdb_group);
     s_stake_net_clear(a_net);
@@ -412,7 +412,7 @@ static dap_chain_datum_tx_t *s_stake_tx_create(dap_chain_net_t * a_net, dap_chai
     const char *l_native_ticker = a_net->pub.native_ticker;
     char l_delegated_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker, l_native_ticker);
-    dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(a_net->pub.name);
+    dap_ledger_t *l_ledger = dap_ledger_by_net_name(a_net->pub.name);
     uint256_t l_value_transfer = {}, l_fee_transfer = {}; // how many coins to transfer
     // list of transaction with 'out' items to sell
     dap_chain_addr_t *l_owner_addr = (dap_chain_addr_t *)dap_chain_wallet_get_addr(a_wallet, a_net->pub.id);
@@ -421,14 +421,14 @@ static dap_chain_datum_tx_t *s_stake_tx_create(dap_chain_net_t * a_net, dap_chai
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_fee_addr);
     if (l_net_fee_used)
         SUM_256_256(l_fee_total, l_net_fee, &l_fee_total);
-    dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(l_ledger, l_delegated_ticker,
+    dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_delegated_ticker,
                                                                              l_owner_addr, a_value, &l_value_transfer);
     if (!l_list_used_out) {
         log_it(L_WARNING, "Nothing to pay for delegate (not enough funds)");
         DAP_DELETE(l_owner_addr);
         return NULL;
     }
-    dap_list_t *l_list_fee_out = dap_chain_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+    dap_list_t *l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
                                                                             l_owner_addr, l_fee_total, &l_fee_transfer);
     if (!l_list_fee_out) {
         log_it(L_WARNING, "Nothing to pay for fee (not enough funds)");
@@ -530,9 +530,9 @@ static char *s_stake_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net)
 
 dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t *a_net, dap_hash_fast_t *a_stake_tx_hash, dap_cert_t *a_cert)
 {
-    dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(a_net->pub.name);
+    dap_ledger_t *l_ledger = dap_ledger_by_net_name(a_net->pub.name);
 
-    dap_chain_datum_tx_t *l_cond_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, a_stake_tx_hash);
+    dap_chain_datum_tx_t *l_cond_tx = dap_ledger_tx_find_by_hash(l_ledger, a_stake_tx_hash);
     if (!l_cond_tx) {
         log_it(L_WARNING, "Requested conditional transaction not found");
         return NULL;
@@ -545,7 +545,7 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
         return NULL;
     }
     dap_hash_fast_t l_spender_hash = { };
-    if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, a_stake_tx_hash, l_prev_cond_idx, &l_spender_hash)) {
+    if (dap_ledger_tx_hash_is_used_out_item(l_ledger, a_stake_tx_hash, l_prev_cond_idx, &l_spender_hash)) {
         char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
         dap_chain_hash_fast_to_str(&l_spender_hash, l_hash_str, sizeof(l_hash_str));
         log_it(L_WARNING, "Requested conditional transaction is already used out by %s", l_hash_str);
@@ -553,7 +553,7 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
     }
     char l_delegated_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker, a_net->pub.native_ticker);
-    const char *l_tx_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, a_stake_tx_hash);
+    const char *l_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, a_stake_tx_hash);
     if (dap_strcmp(l_tx_ticker, l_delegated_ticker)) {
         log_it(L_WARNING, "Requested conditional transaction have another ticker (not %s)", l_delegated_ticker);
         return NULL;
@@ -698,9 +698,9 @@ static char *s_stake_decree_put(dap_chain_datum_decree_t *a_decree, dap_chain_ne
 
 static dap_chain_datum_tx_t *s_stake_tx_invalidate(dap_chain_net_t *a_net, dap_hash_fast_t *a_tx_hash, uint256_t a_fee, dap_enc_key_t *a_key)
 {
-    dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(a_net->pub.name);
+    dap_ledger_t *l_ledger = dap_ledger_by_net_name(a_net->pub.name);
 
-    dap_chain_datum_tx_t *l_cond_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, a_tx_hash);
+    dap_chain_datum_tx_t *l_cond_tx = dap_ledger_tx_find_by_hash(l_ledger, a_tx_hash);
     if (!l_cond_tx) {
         log_it(L_WARNING, "Requested conditional transaction not found");
         return NULL;
@@ -713,7 +713,7 @@ static dap_chain_datum_tx_t *s_stake_tx_invalidate(dap_chain_net_t *a_net, dap_h
         return NULL;
     }
     dap_hash_fast_t l_spender_hash = { };
-    if (dap_chain_ledger_tx_hash_is_used_out_item(l_ledger, a_tx_hash, l_prev_cond_idx, &l_spender_hash)) {
+    if (dap_ledger_tx_hash_is_used_out_item(l_ledger, a_tx_hash, l_prev_cond_idx, &l_spender_hash)) {
         char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
         dap_chain_hash_fast_to_str(&l_spender_hash, l_hash_str, sizeof(l_hash_str));
         log_it(L_WARNING, "Requested conditional transaction is already used out by %s", l_hash_str);
@@ -733,7 +733,7 @@ static dap_chain_datum_tx_t *s_stake_tx_invalidate(dap_chain_net_t *a_net, dap_h
         return NULL;
     }
     const char *l_native_ticker = a_net->pub.native_ticker;
-    const char *l_delegated_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, a_tx_hash);
+    const char *l_delegated_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, a_tx_hash);
     uint256_t l_fee_transfer = {}; // how many coins to transfer
     // list of transaction with 'out' items to sell
     uint256_t l_net_fee, l_fee_total = a_fee;
@@ -741,7 +741,7 @@ static dap_chain_datum_tx_t *s_stake_tx_invalidate(dap_chain_net_t *a_net, dap_h
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_net_fee_addr);
     if (l_net_fee_used)
         SUM_256_256(l_fee_total, l_net_fee, &l_fee_total);
-    dap_list_t *l_list_fee_out = dap_chain_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+    dap_list_t *l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
                                                                             &l_owner_addr, l_fee_total, &l_fee_transfer);
     if (!l_list_fee_out) {
         log_it(L_WARNING, "Nothing to pay for fee (not enough funds)");
@@ -802,10 +802,10 @@ static dap_chain_datum_tx_t *s_stake_tx_invalidate(dap_chain_net_t *a_net, dap_h
 
 static dap_chain_datum_decree_t *s_stake_decree_invalidate(dap_chain_net_t *a_net, dap_hash_fast_t *a_stake_tx_hash, dap_cert_t *a_cert)
 {
-    dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(a_net->pub.name);
+    dap_ledger_t *l_ledger = dap_ledger_by_net_name(a_net->pub.name);
 
     // add 'in' item to buy from conditional transaction
-    dap_chain_datum_tx_t *l_cond_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, a_stake_tx_hash);
+    dap_chain_datum_tx_t *l_cond_tx = dap_ledger_tx_find_by_hash(l_ledger, a_stake_tx_hash);
     if (!l_cond_tx) {
         log_it(L_WARNING, "Requested conditional transaction not found");
         return NULL;
@@ -1304,7 +1304,7 @@ static void s_get_tx_filter_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_
                                                                  &l_out_idx_tmp)))
     {
         dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_datum_hash);
-        if (!dap_chain_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_datum_hash, l_out_idx_tmp, NULL)) {
+        if (!dap_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_datum_hash, l_out_idx_tmp, NULL)) {
             dap_chain_net_srv_stake_item_t *l_stake = NULL;
             HASH_FIND(ht, s_srv_stake->tx_itemlist, &l_datum_hash, sizeof(dap_hash_fast_t), l_stake);
             if(!l_stake){
@@ -1335,8 +1335,8 @@ int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fa
     uint8_t l_test_data[1024] = {0};
     dap_chain_node_client_t *l_node_client = NULL;
     dap_chain_node_info_t *l_remote_node_info = NULL;
-    dap_ledger_t *l_ledger = dap_chain_ledger_by_net_name(a_net->pub.name);
-    dap_chain_datum_tx_t *l_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, a_tx_hash);
+    dap_ledger_t *l_ledger = dap_ledger_by_net_name(a_net->pub.name);
+    dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(l_ledger, a_tx_hash);
     dap_chain_node_addr_t *l_signer_node_addr = NULL;
     int l_overall_correct = false;
 
@@ -1939,7 +1939,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             if (l_tx_hash_str) {
                 l_final_tx_hash = DAP_NEW(dap_hash_fast_t);
                 dap_chain_hash_fast_from_str(l_tx_hash_str, l_final_tx_hash);
-                if(!dap_chain_ledger_tx_find_by_hash(l_net->pub.ledger, l_final_tx_hash)) {
+                if(!dap_ledger_tx_find_by_hash(l_net->pub.ledger, l_final_tx_hash)) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Transaction %s is not found.", l_tx_hash_str);
                     return -20;
                 }
@@ -2182,14 +2182,14 @@ void dap_chain_net_srv_stake_get_fee_validators_str(dap_chain_net_t *a_net, dap_
 
 static void s_cache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_addr_t *a_signing_addr)
 {
-    if (!dap_chain_ledger_cache_enabled(a_ledger))
+    if (!dap_ledger_cache_enabled(a_ledger))
         return;
     dap_chain_net_srv_stake_cache_data_t l_cache_data;
     dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_cache_data.tx_hash);
     char l_data_key[DAP_CHAIN_HASH_FAST_STR_SIZE];
     dap_chain_hash_fast_to_str(&l_cache_data.tx_hash, l_data_key, sizeof(l_data_key));
     l_cache_data.signing_addr = *a_signing_addr;
-    char *l_gdb_group = dap_chain_ledger_get_gdb_group(a_ledger, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP);
+    char *l_gdb_group = dap_ledger_get_gdb_group(a_ledger, DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP);
     if (dap_global_db_set(l_gdb_group, l_data_key, &l_cache_data, sizeof(l_cache_data), false, NULL, NULL))
         log_it(L_WARNING, "Stake service cache mismatch");
 }

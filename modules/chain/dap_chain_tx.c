@@ -23,7 +23,6 @@
 */
 #include "dap_chain_tx.h"
 #include "dap_chain_datum_tx.h"
-#include "dap_chain_ledger.h"
 #include "dap_common.h"
 #include "uthash.h"
 #define LOG_TAG "dap_chain_tx"

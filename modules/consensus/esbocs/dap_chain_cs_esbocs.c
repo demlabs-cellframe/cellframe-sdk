@@ -851,7 +851,7 @@ static void s_session_attempt_new(dap_chain_esbocs_session_t *a_session)
             return;
         }
     }
-    debug_if(PVT(a_session->esbocs)->debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U"."
+    debug_if(PVT(a_session->esbocs)->debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U". "
                                                     "All synced validators already tryed their attempts",
                                                         a_session->chain->net_name, a_session->chain->name,
                                                             a_session->cur_round.id);
@@ -1470,7 +1470,7 @@ static bool s_check_db_callback_fee_collect (UNUSED_ARG dap_global_db_instance_t
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(l_chain);
     dap_list_t *l_block_list = NULL;
     log_it(L_MSG, "Fee collector start work");
-    l_block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &l_arg->block_hash);
+    l_block_cache = dap_chain_block_cache_get_by_hash(l_blocks, &l_arg->block_hash);
     if(!l_block_cache) {
         log_it(L_WARNING, "The block_cache is empty");
         return false;
@@ -1482,10 +1482,10 @@ static bool s_check_db_callback_fee_collect (UNUSED_ARG dap_global_db_instance_t
         return false;
     }
     dap_list_free_full(l_list_used_out, NULL);
-    l_block_list = dap_list_append(l_block_list, l_block_cache);
+    l_block_list = dap_list_append(l_block_list, DAP_DUP(&l_arg->block_hash));
     if(!a_values_count){
         if(compare256(l_value_out_block,l_arg->fee_need_cfg) == 1) {
-            char *l_hash_tx = dap_chain_mempool_tx_coll_fee_create(l_arg->key_from, l_arg->a_addr_to,
+            char *l_hash_tx = dap_chain_mempool_tx_coll_fee_create(l_blocks, l_arg->key_from, l_arg->a_addr_to,
                                                  l_block_list, l_arg->value_fee, "hex");
             if(l_hash_tx) {
                 log_it(L_NOTICE, "Fee collect transaction successfully created, hash=%s\n",l_hash_tx);
@@ -1503,13 +1503,12 @@ static bool s_check_db_callback_fee_collect (UNUSED_ARG dap_global_db_instance_t
         for(size_t i=0;i<a_values_count;i++) {
             dap_hash_fast_t block_hash;
             dap_chain_hash_fast_from_hex_str(a_values[i].key,&block_hash);
-            dap_chain_block_cache_t *block_cache = dap_chain_block_cs_cache_get_by_hash(l_blocks, &block_hash);
-            l_block_list = dap_list_append(l_block_list, block_cache);
+            l_block_list = dap_list_append(l_block_list, DAP_DUP(&block_hash));
             SUM_256_256(*(uint256_t*)a_values[i].value,l_value_gdb,&l_value_gdb);
         }
         SUM_256_256(l_value_out_block,l_value_gdb,&l_value_total);
         if(compare256(l_value_total,l_arg->fee_need_cfg) == 1) {
-            char *l_hash_tx = dap_chain_mempool_tx_coll_fee_create(l_arg->key_from, l_arg->a_addr_to,
+            char *l_hash_tx = dap_chain_mempool_tx_coll_fee_create(l_blocks, l_arg->key_from, l_arg->a_addr_to,
                                                  l_block_list, l_arg->value_fee, "hex");
             if(l_hash_tx) {
                 dap_global_db_del(s_block_fee_group, NULL, NULL, NULL);
@@ -1524,7 +1523,7 @@ static bool s_check_db_callback_fee_collect (UNUSED_ARG dap_global_db_instance_t
                 log_it(L_NOTICE, "The block was successfully added to the database");
         }
     }
-    dap_list_free(l_block_list);
+    dap_list_free_full(l_block_list, NULL);
     DAP_DEL_Z(l_arg->a_addr_to);
     DAP_DELETE(l_arg);
     return true;
@@ -2037,7 +2036,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                                         l_session->chain->net_name, l_session->chain->name, l_message->hdr.round_id,
                                             l_validator_addr_str, l_sync_attempt);
         if (!PVT(l_session->esbocs)->emergency_mode &&
-                !dap_global_db_driver_hash_compare(((struct sync_params *)l_message_data)->db_hash, l_session->db_hash)) {
+                dap_global_db_driver_hash_compare(((struct sync_params *)l_message_data)->db_hash, l_session->db_hash)) {
             debug_if(l_cs_debug, L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U", sync_attempt %"DAP_UINT64_FORMAT_U
                                         " SYNC message is rejected cause DB hash mismatch",
                                            l_session->chain->net_name, l_session->chain->name, l_session->cur_round.id,

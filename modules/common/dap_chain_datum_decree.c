@@ -61,6 +61,13 @@ int dap_chain_datum_decree_get_fee(dap_chain_datum_decree_t *a_decree, uint256_t
     return l_tsd ? ({ _dap_tsd_get_scalar(l_tsd, a_fee_value); 0; }) : 1;
 }
 
+int dap_chain_datum_decree_get_value(dap_chain_datum_decree_t *a_decree, uint256_t *a_value)
+{
+    dap_return_val_if_fail(a_decree && a_value, -1);
+    dap_tsd_t *l_tsd = dap_tsd_find(a_decree->data_n_signs, a_decree->header.data_size, DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE);
+    return l_tsd ? ({ _dap_tsd_get_scalar(l_tsd, a_value); 0; }) : 1;
+}
+
 int dap_chain_datum_decree_get_fee_addr(dap_chain_datum_decree_t *a_decree, dap_chain_addr_t *a_fee_wallet)
 {
     if(!a_decree || !a_fee_wallet) {
@@ -179,9 +186,19 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
         dap_tsd_t *l_tsd = (dap_tsd_t *)((byte_t*)a_decree->data_n_signs + l_offset);
         l_offset += dap_tsd_size(l_tsd);
         switch(l_tsd->type) {
+            case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_VALUE:
+                if (l_tsd->size > sizeof(uint256_t)){
+                    dap_string_append_printf(a_str_out, "\tValue: <WRONG SIZE>\n");
+                    break;
+                }
+                uint256_t l_value = uint256_0;
+                _dap_tsd_get_scalar(l_tsd, &l_value);
+                char *l_value_str = dap_chain_balance_print(l_value);
+                dap_string_append_printf(a_str_out, "\tValue: %s\n", l_value_str);
+                DAP_DELETE(l_value_str);
+                break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGN:
             break;
-//                return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGN";
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE:
                 if (l_tsd->size > sizeof(uint256_t)){
                     dap_string_append_printf(a_str_out, "\tFee: <WRONG SIZE>\n");
@@ -358,7 +375,7 @@ void dap_chain_datum_decree_certs_dump(dap_string_t * a_str_out, byte_t * a_sign
     }
 }
 
-dap_chain_datum_decree_t* dap_chain_datum_decree_in_cycle(dap_cert_t ** a_certs, dap_chain_datum_decree_t *a_datum_decree,
+dap_chain_datum_decree_t* dap_chain_datum_decree_sign_in_cycle(dap_cert_t ** a_certs, dap_chain_datum_decree_t *a_datum_decree,
                                                   size_t a_certs_count, size_t *a_total_sign_count)
 {
     size_t l_cur_sign_offset = a_datum_decree->header.data_size + a_datum_decree->header.signs_size;
