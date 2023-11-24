@@ -1840,8 +1840,13 @@ static const dap_time_t s_block_timediff_unit = 60;
 static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash, dap_pkey_t *a_block_sign_pkey)
 {
     uint256_t l_ret = uint256_0;
-    size_t l_block_size = 0;
-    const dap_chain_block_t *l_block = dap_chain_get_atom_by_hash(a_chain, a_block_hash, &l_block_size);
+    dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
+    dap_chain_block_cache_t *l_block_cache;
+    HASH_FIND(hh, PVT(l_blocks)->blocks, a_block_hash, sizeof(*a_block_hash), l_block_cache);
+    if (!l_block_cache)
+        return l_ret;
+    const dap_chain_block_t *l_block = l_block_cache->block;
+    size_t l_block_size = l_block_cache->block_size;
     if (dap_chain_block_sign_match_pkey(l_block, l_block_size, a_block_sign_pkey)) {
         dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
         if (!l_net) {
