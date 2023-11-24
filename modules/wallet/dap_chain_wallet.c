@@ -375,52 +375,41 @@ const char* dap_chain_wallet_get_path(dap_config_t * a_config)
  * @details Creates new wallet
  * @return Wallet, new wallet or NULL if errors
  */
-dap_chain_wallet_t * dap_chain_wallet_create_with_seed (
-                    const char * a_wallet_name,
-                    const char * a_wallets_path,
-                    dap_sign_type_t a_sig_type,
-                    const void* a_seed,
+dap_chain_wallet_t *dap_chain_wallet_create_with_seed_multi (
+                    const char *a_wallet_name,
+                    const char *a_wallets_path,
+                    const dap_sign_type_t *a_sig_types,
+                    size_t a_sig_count,
+                    const void *a_seed,
                     size_t a_seed_size,
                     const char *a_pass
                                         )
 {
-dap_chain_wallet_t *l_wallet;
-dap_chain_wallet_internal_t *l_wallet_internal;
+dap_chain_wallet_t *l_wallet = NULL;
+dap_chain_wallet_internal_t *l_wallet_internal = NULL;
 
-    /* Sanity checks ... */
+// sanity check
+    dap_return_val_if_pass(!a_wallet_name || !a_wallets_path || !a_sig_types || !a_sig_count,  NULL);
     if (a_wallet_name && DAP_WALLET$SZ_NAME < strnlen(a_wallet_name, DAP_WALLET$SZ_NAME + 1) )
         return  log_it(L_ERROR, "Wallet's name is too long ( > %d)",  DAP_WALLET$SZ_NAME), NULL;
-
     if ( a_pass && DAP_WALLET$SZ_PASS < strnlen(a_pass, DAP_WALLET$SZ_PASS + 1) )
         return  log_it(L_ERROR, "Wallet's password is too long ( > %d)", DAP_WALLET$SZ_PASS), NULL;
-
-    if ( !(l_wallet = DAP_NEW_Z(dap_chain_wallet_t)) ) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        return NULL;
-    }
-
-    if ( !(l_wallet->_internal = l_wallet_internal = DAP_NEW_Z(dap_chain_wallet_internal_t)) ) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        DAP_DELETE(l_wallet);
-        return NULL;
-    }
+// memory alloc
+    DAP_NEW_Z_RET_VAL(l_wallet, dap_chain_wallet_t, NULL, NULL);
+    DAP_NEW_Z_RET_VAL(l_wallet_internal, dap_chain_wallet_internal_t, NULL, l_wallet);
+    DAP_NEW_Z_COUNT_RET_VAL(l_wallet_internal->certs, dap_cert_t *, a_sig_count, NULL, l_wallet_internal, l_wallet);
 
     strncpy(l_wallet->name, a_wallet_name, DAP_WALLET$SZ_NAME);
-    l_wallet_internal->certs_count = 1;
-    l_wallet_internal->certs = DAP_NEW_Z_SIZE(dap_cert_t *,l_wallet_internal->certs_count * sizeof(dap_cert_t *));
-    assert(l_wallet_internal->certs);
-    if (!l_wallet_internal->certs) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        dap_chain_wallet_close(l_wallet);
-        return NULL;
-    }
+    l_wallet_internal->certs_count = a_sig_count;
+
 
     snprintf(l_wallet_internal->file_name, sizeof(l_wallet_internal->file_name)  - 1, "%s/%s%s", a_wallets_path, a_wallet_name, s_wallet_ext);
+    for (size_t i = 0; i < l_wallet_internal->certs_count; ++i) {
+        l_wallet_internal->certs[i] = dap_cert_generate_mem_with_seed(a_wallet_name, dap_sign_type_to_key_type(a_sig_types[i]), a_seed, a_seed_size);
+    }
 
-    l_wallet_internal->certs[0] = dap_cert_generate_mem_with_seed(a_wallet_name, dap_sign_type_to_key_type(a_sig_type), a_seed, a_seed_size);
-
-    if ( !dap_chain_wallet_save(l_wallet, a_pass) )
-    {
+    l_wallet->_internal = l_wallet_internal;
+    if ( !dap_chain_wallet_save(l_wallet, a_pass) ) {
         log_it(L_INFO, "Wallet %s has been created (%s)", a_wallet_name, l_wallet_internal->file_name);
         return l_wallet;
     }
@@ -457,24 +446,19 @@ dap_chain_wallet_t * dap_chain_wallet_create(
  */
 void dap_chain_wallet_close(dap_chain_wallet_t *a_wallet)
 {
-dap_chain_wallet_internal_t * l_wallet_internal;
-
-    if(!a_wallet)
-        return;
-
-    if ( (l_wallet_internal = a_wallet->_internal) )
-    {
-        if ( l_wallet_internal->certs )
-        {
+// sanity check
+    dap_return_if_pass(!a_wallet);
+// func work
+    dap_chain_wallet_internal_t *l_wallet_internal = a_wallet->_internal;
+    if ( l_wallet_internal ) {
+        if ( l_wallet_internal->certs ) {
             for(size_t i = 0; i < l_wallet_internal->certs_count; i++)
                 dap_cert_delete( l_wallet_internal->certs[i]);
 
             DAP_DELETE(l_wallet_internal->certs);
         }
-
         DAP_DELETE(l_wallet_internal);
     }
-
     DAP_DELETE(a_wallet);
 }
 
@@ -484,14 +468,14 @@ dap_chain_wallet_internal_t * l_wallet_internal;
  * @param a_net_id
  * @return
  */
-dap_chain_addr_t* dap_chain_wallet_get_addr(dap_chain_wallet_t * a_wallet, dap_chain_net_id_t a_net_id)
+dap_chain_addr_t *dap_chain_wallet_get_addr(dap_chain_wallet_t *a_wallet, dap_chain_net_id_t a_net_id)
 {
-    if(!a_wallet)
-        return NULL;
-
+// sanity check
+    dap_return_val_if_pass(!a_wallet, NULL);
     DAP_CHAIN_WALLET_INTERNAL_LOCAL(a_wallet);
-
-    return a_net_id.uint64 ? dap_cert_to_addr (l_wallet_internal->certs[0], a_net_id) : NULL;
+    dap_return_val_if_pass(!l_wallet_internal, NULL);
+// func work
+    return a_net_id.uint64 ? dap_cert_to_addr (l_wallet_internal->certs, l_wallet_internal->certs_count, 0, a_net_id) : NULL;
 }
 
 /**
@@ -500,14 +484,14 @@ dap_chain_addr_t* dap_chain_wallet_get_addr(dap_chain_wallet_t * a_wallet, dap_c
  * @param a_net_id
  * @return
  */
-dap_chain_addr_t *dap_cert_to_addr(dap_cert_t * a_cert, dap_chain_net_id_t a_net_id)
+dap_chain_addr_t *dap_cert_to_addr(dap_cert_t **a_certs, size_t a_count, size_t a_key_start_index, dap_chain_net_id_t a_net_id)
 {
-    dap_chain_addr_t *l_addr = DAP_NEW_Z(dap_chain_addr_t);
-    if(!l_addr) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        return NULL;
-    }
-    dap_chain_addr_fill_from_key(l_addr, a_cert->enc_key, a_net_id);
+// memory alloc
+    dap_chain_addr_t *l_addr = NULL;
+    DAP_NEW_Z_RET_VAL(l_addr, dap_chain_addr_t, NULL, NULL);
+    dap_enc_key_t *l_key = dap_cert_get_keys_from_certs(a_certs, a_count, a_key_start_index);
+    dap_chain_addr_fill_from_key(l_addr, l_key, a_net_id);
+    dap_enc_key_delete(l_key);
     return l_addr;
 }
 
@@ -541,8 +525,6 @@ size_t dap_chain_wallet_get_certs_number( dap_chain_wallet_t * a_wallet)
     return l_wallet_internal->certs_count;
 }
 
-
-
 /**
  * @brief dap_chain_wallet_get_key
  * @param a_wallet
@@ -551,13 +533,13 @@ size_t dap_chain_wallet_get_certs_number( dap_chain_wallet_t * a_wallet)
  */
 dap_enc_key_t *dap_chain_wallet_get_key(dap_chain_wallet_t *a_wallet, uint32_t a_pkey_idx)
 {
-    if(!a_wallet)
-        return NULL;
+// sanity check
+    dap_return_val_if_pass(!a_wallet, NULL);
 
     DAP_CHAIN_WALLET_INTERNAL_LOCAL(a_wallet);
 
     if( l_wallet_internal->certs_count > a_pkey_idx )
-        return l_wallet_internal->certs[a_pkey_idx] ? l_wallet_internal->certs[a_pkey_idx]->enc_key : NULL;
+        return dap_cert_get_keys_from_certs(l_wallet_internal->certs, l_wallet_internal->certs_count, a_pkey_idx);
 
     log_it( L_WARNING, "No key with index %u in the wallet (total size %zu)",a_pkey_idx,l_wallet_internal->certs_count);
     return 0;
@@ -1009,10 +991,15 @@ uint256_t dap_chain_wallet_get_balance (
  * @param a_wallet
  * @return if sign Bliss - caution message, else ""
  */
-const char* dap_chain_wallet_check_bliss_sign(dap_chain_wallet_t *a_wallet) {
+const char* dap_chain_wallet_check_sign(dap_chain_wallet_t *a_wallet) {
+    dap_return_val_if_pass(!a_wallet || !a_wallet->_internal, "" );
     dap_chain_wallet_internal_t *l_wallet_internal = DAP_CHAIN_WALLET_INTERNAL(a_wallet);
-    if (l_wallet_internal && SIG_TYPE_BLISS == dap_sign_type_from_key_type(l_wallet_internal->certs[0]->enc_key->type).type) {
-        return "The Bliss signature is deprecated. We recommend you to create a new wallet with another available signature and transfer funds there.";
+    dap_return_val_if_pass(!l_wallet_internal->certs || !l_wallet_internal->certs, "" );
+    for (size_t i = 0; i < l_wallet_internal->certs_count; ++i) {
+        dap_sign_type_t l_sign_type = dap_sign_type_from_key_type(l_wallet_internal->certs[i]->enc_key->type);
+        if (SIG_TYPE_BLISS == l_sign_type.type || SIG_TYPE_PICNIC == l_sign_type.type || SIG_TYPE_TESLA == l_sign_type.type) {
+            return "The Bliss, Picnic and Tesla signatures is deprecated. We recommend you to create a new wallet with another available signature and transfer funds there.";
+        }
     }
     return "";
 }

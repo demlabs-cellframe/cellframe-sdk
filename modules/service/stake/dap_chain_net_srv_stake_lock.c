@@ -299,7 +299,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
         dap_string_append_printf(output_line, "'%s'", l_wallet_str);
         return WALLET_OPEN_ERROR;
     } else {
-        dap_string_append_printf(output_line, "%s\n", dap_chain_wallet_check_bliss_sign(l_wallet));
+        dap_string_append_printf(output_line, "%s\n", dap_chain_wallet_check_sign(l_wallet));
     }
 
     if (compare256(dap_chain_wallet_get_balance(l_wallet, l_net->pub.id, l_ticker_str), l_value) == -1) {
@@ -321,6 +321,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
                                                            l_time_staking, l_reinvest_percent,
                                                            l_delegated_ticker_str, l_value_delegated);
     dap_chain_wallet_close(l_wallet);
+    dap_enc_key_delete(l_key_from);
 
     l_hash_str = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type);
     DAP_DEL_Z(l_datum);
@@ -453,7 +454,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
     if (NULL == (l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallets_path)))
         return WALLET_OPEN_ERROR;
     else
-        dap_string_append_printf(output_line, "%s\n", dap_chain_wallet_check_bliss_sign(l_wallet));
+        dap_string_append_printf(output_line, "%s\n", dap_chain_wallet_check_sign(l_wallet));
 
 
     if (NULL == (l_owner_key = dap_chain_wallet_get_key(l_wallet, 0))) {
@@ -471,12 +472,14 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
     if (!l_owner_sign || l_owner_pkey_size != l_owner_sign->header.sign_pkey_size ||
             memcmp(l_owner_sign->pkey_n_sign, l_owner_pkey, l_owner_pkey_size)) {
         dap_chain_wallet_close(l_wallet);
+        dap_enc_key_delete(l_owner_key);
         return OWNER_KEY_ERROR;
     }
 
     if (l_tx_out_cond->subtype.srv_stake_lock.flags & DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_BY_TIME &&
             l_tx_out_cond->subtype.srv_stake_lock.time_unlock > dap_time_now()) {
         dap_chain_wallet_close(l_wallet);
+        dap_enc_key_delete(l_owner_key);
         return NOT_ENOUGH_TIME;
     }
 
@@ -484,6 +487,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
                                           l_ticker_str, l_tx_out_cond->header.value, l_value_fee,
                                           l_delegated_ticker_str, l_value_delegated);
 
+    dap_enc_key_delete(l_owner_key);  // need wallet close??
     // Processing will be made according to autoprocess policy
     if (NULL == (l_datum_hash_str = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type)))
         return ADD_DATUM_TX_TAKE_ERROR;

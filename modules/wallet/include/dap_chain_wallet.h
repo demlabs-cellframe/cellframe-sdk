@@ -52,8 +52,14 @@ void dap_chain_wallet_deinit(void);
 const char* dap_chain_wallet_get_path(dap_config_t * a_config);
 
 /* @RRL: #6131 - Password protected BMF Wallet */
-dap_chain_wallet_t * dap_chain_wallet_create_with_seed(const char * a_wallet_name, const char * a_wallets_path,
-        dap_sign_type_t a_sig_type, const void* a_seed, size_t a_seed_size, const char *a_pass);
+
+dap_chain_wallet_t * dap_chain_wallet_create_with_seed_multi(const char * a_wallet_name, const char * a_wallets_path,
+        const dap_sign_type_t *a_sig_types, size_t a_sig_count, const void* a_seed, size_t a_seed_size, const char *a_pass);
+
+DAP_STATIC_INLINE dap_chain_wallet_t * dap_chain_wallet_create_with_seed(const char * a_wallet_name, const char * a_wallets_path,
+        dap_sign_type_t a_sig_type, const void* a_seed, size_t a_seed_size, const char *a_pass) {
+                return dap_chain_wallet_create_with_seed_multi(a_wallet_name, a_wallets_path, &a_sig_type, 1, a_seed, a_seed_size, a_pass);
+        }
 
 dap_chain_wallet_t * dap_chain_wallet_create_with_pass(const char * a_wallet_name, const char * a_wallets_path,
         const void* a_pass, size_t a_pass_sz);
@@ -67,7 +73,7 @@ int dap_chain_wallet_save(dap_chain_wallet_t * a_wallet, const char *a_pass);
 
 void dap_chain_wallet_close(dap_chain_wallet_t *a_wallet);
 
-dap_chain_addr_t * dap_cert_to_addr(dap_cert_t * a_cert, dap_chain_net_id_t a_net_id);
+dap_chain_addr_t *dap_cert_to_addr(dap_cert_t **a_certs, size_t a_count, size_t a_key_start_index, dap_chain_net_id_t a_net_id);
 
 dap_chain_addr_t* dap_chain_wallet_get_addr(dap_chain_wallet_t * a_wallet, dap_chain_net_id_t a_net_id);
 size_t dap_chain_wallet_get_certs_number( dap_chain_wallet_t * a_wallet);
@@ -81,4 +87,4 @@ int dap_chain_wallet_save_file( dap_chain_wallet_t * a_wallet);
 int     dap_chain_wallet_activate   (const char *a_name, ssize_t a_name_len, const char *a_pass, ssize_t a_pass_len, unsigned a_ttl);
 int     dap_chain_wallet_deactivate   (const char *a_name, ssize_t a_name_len, const char *a_pass, ssize_t a_pass_len);
 
-const char* dap_chain_wallet_check_bliss_sign(dap_chain_wallet_t *a_wallet);
+const char* dap_chain_wallet_check_sign(dap_chain_wallet_t *a_wallet);

@@ -1984,7 +1984,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
                             dap_string_append_printf(l_string_ret, "Wallet: %.*s%s %s\n", (int) l_file_name_len - 8, l_file_name,
                                 (l_wallet->flags & DAP_WALLET$M_FL_ACTIVE) ? " (Active)" : "",
-                                dap_chain_wallet_check_bliss_sign(l_wallet));
+                                dap_chain_wallet_check_sign(l_wallet));
 
                             if (l_addr_str) {
                                 dap_string_append_printf(l_string_ret, "addr: %s\n", (l_addr_str) ? l_addr_str : "-");
@@ -2043,7 +2043,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
             char *l_l_addr_str = dap_chain_addr_to_str((dap_chain_addr_t*) l_addr);
             if(l_wallet)
-                dap_string_append_printf(l_string_ret, "%s\nwallet: %s\n", dap_chain_wallet_check_bliss_sign(l_wallet), l_wallet->name);
+                dap_string_append_printf(l_string_ret, "%s\nwallet: %s\n", dap_chain_wallet_check_sign(l_wallet), l_wallet->name);
             dap_string_append_printf(l_string_ret, "addr: %s\n", (l_l_addr_str) ? l_l_addr_str : "-");
             dap_string_append_printf(l_string_ret, "network: %s\n", (l_net_name ) ? l_net_name : "-");
 
@@ -2148,7 +2148,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     }
 
                     log_it(L_INFO, "Wallet %s has been converted", l_wallet_name);
-                    dap_string_append_printf(l_string_ret, "%s\nWallet: %s successfully converted\n", dap_chain_wallet_check_bliss_sign(l_wallet), l_wallet_name);
+                    dap_string_append_printf(l_string_ret, "%s\nWallet: %s successfully converted\n", dap_chain_wallet_check_sign(l_wallet), l_wallet_name);
                     dap_chain_wallet_close(l_wallet);
                     break;
                 }
@@ -2174,26 +2174,49 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         }
                     }
 
-                    dap_sign_type_t l_sign_type;
+                    dap_sign_type_t l_sign_types[MAX_ENC_KEYS_IN_MULTYSIGN] = {0};
+                    size_t l_sign_count = 0;
                     if (!l_sign_type_str) {
-                        l_sign_type.type = SIG_TYPE_DILITHIUM;
-                        l_sign_type_str = dap_sign_type_to_str(l_sign_type);
+                        l_sign_types[0].type = SIG_TYPE_DILITHIUM;
+                        l_sign_type_str = dap_sign_type_to_str(l_sign_types[0]);
+                        l_sign_count = 1;
                     } else {
-                        l_sign_type = dap_sign_type_from_str(l_sign_type_str);
-                        if (l_sign_type.type == SIG_TYPE_NULL){
-                            dap_cli_server_cmd_set_reply_text(a_str_reply, "Unknown signature type, please use:\n sig_picnic\n sig_dil\n sig_falcon\n sig_multi\n sig_multi2\n");
+                        l_sign_types[0] = dap_sign_type_from_str(l_sign_type_str);
+                        if (l_sign_types[0].type == SIG_TYPE_NULL){
+                            dap_cli_server_cmd_set_reply_text(a_str_reply, "Unknown signature type, please use:\n sig_picnic\n sig_dil\n sig_falcon\n sig_multi_chained\n ");
                             dap_string_free(l_string_ret, true);
                             return -1;
+                        }
+                        if (l_sign_types[0].type == SIG_TYPE_MULTI_CHAINED) {
+                            int l_sign_index = dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, l_sign_type_str, NULL);
+                            l_sign_index++;
+                            for (;l_sign_index && l_sign_index < a_argc; ++l_sign_index) {
+                                l_sign_types[l_sign_count] = dap_sign_type_from_str(a_argv[l_sign_index]);
+                                if (l_sign_types[l_sign_count].type == SIG_TYPE_NULL) {
+                                    break;
+                                }
+                                l_sign_count++;
+                            }
+                            if (!l_sign_count) {
+                                dap_cli_server_cmd_set_reply_text(a_str_reply, "Unknown signature type, please use:\n sig_picnic\n sig_dil\n sig_falcon\n sig_multi_chained\n ");
+                                dap_string_free(l_string_ret, true);
+                                return -1;
+                            }
+                        } else {
+                            l_sign_count = 1;
                         }
                     }
                     // Check unsupported tesla and bliss algorithm
 
-                    if (l_sign_type.type == SIG_TYPE_TESLA || l_sign_type.type == SIG_TYPE_BLISS) {
-                        if (l_sign_type.type == SIG_TYPE_BLISS && (l_restore_opt || l_restore_legacy_opt)) {
-                            dap_string_append_printf(l_string_ret, "CAUTION!!! CAUTION!!! CAUTION!!!\nThe Bliss signature is deprecated. We recommend you to create a new wallet with another available signature and transfer funds there.\n");
-                        } else {
-                            dap_string_free(l_string_ret, true);
-                            return  dap_cli_server_cmd_set_reply_text(a_str_reply, "This signature algorithm is no longer supported, please, use another variant"), -1;
+                    for (size_t i = 0; i < l_sign_count; ++i) {
+                        if (l_sign_types[i].type == SIG_TYPE_TESLA || l_sign_types[i].type == SIG_TYPE_BLISS|| l_sign_types[i].type == SIG_TYPE_PICNIC) {
+                            if (l_restore_opt || l_restore_legacy_opt) {
+                                dap_string_append_printf(l_string_ret, "CAUTION!!! CAUTION!!! CAUTION!!!\nThe Bliss, Tesla and Picnic signatures is deprecated. We recommend you to create a new wallet with another available signature and transfer funds there.\n");
+                                break;
+                            } else {
+                                dap_string_free(l_string_ret, true);
+                                return  dap_cli_server_cmd_set_reply_text(a_str_reply, "The Bliss, Tesla and Picnic signature algorithms is no longer supported, please, use another variant"), -1;
+                            }
                         }
                     }
 
@@ -2221,7 +2244,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     }
 
                     // Creates new wallet
-                    l_wallet = dap_chain_wallet_create_with_seed(l_wallet_name, c_wallets_path, l_sign_type,
+                    l_wallet = dap_chain_wallet_create_with_seed_multi(l_wallet_name, c_wallets_path, l_sign_types, l_sign_count,
                             l_seed, l_seed_size, l_pass_str);
                     DAP_DELETE(l_seed);
                     if (!l_wallet) {
@@ -2229,7 +2252,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet is not created because of internal error. Check name or password length (max 64 chars)"), -1;
                     }
 
-                    l_addr = l_net? dap_chain_wallet_get_addr(l_wallet,l_net->pub.id ) : NULL;
+                    l_addr = l_net ? dap_chain_wallet_get_addr(l_wallet,l_net->pub.id ) : NULL;
 
                     char *l_l_addr_str = l_addr ? dap_chain_addr_to_str(l_addr) : NULL;
                     dap_string_append_printf(l_string_ret, "Wallet: %s (type=%s) successfully created\n", l_wallet->name, l_sign_type_str);
@@ -4500,7 +4523,7 @@ int com_tx_cond_create(int a_argc, char ** a_argv, char **a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't open wallet '%s'", l_wallet_str);
         return -12;
     } else {
-        l_sign_str = dap_chain_wallet_check_bliss_sign(l_wallet);
+        l_sign_str = dap_chain_wallet_check_sign(l_wallet);
     }
 
     dap_cert_t *l_cert_cond = dap_cert_find_by_name(l_cert_str);
@@ -4514,6 +4537,7 @@ int com_tx_cond_create(int a_argc, char ** a_argv, char **a_str_reply)
     dap_pkey_t *l_key_cond = dap_pkey_from_enc_key(l_cert_cond->enc_key);
     if (!l_key_cond) {
         dap_chain_wallet_close(l_wallet);
+        dap_enc_key_delete(l_key_from);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Cert '%s' doesn't contain a valid public key", l_cert_str);
         return -14;
     }
@@ -4523,6 +4547,7 @@ int com_tx_cond_create(int a_argc, char ** a_argv, char **a_str_reply)
                                                         l_value_datoshi, l_value_per_unit_max, l_price_unit,
                                                         l_srv_uid, l_value_fee, NULL, 0, l_hash_out_type);
     dap_chain_wallet_close(l_wallet);
+    dap_enc_key_delete(l_key_from);
     DAP_DELETE(l_key_cond);
 
     if (l_hash_str) {
@@ -5440,7 +5465,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
             l_enc_key = dap_chain_wallet_get_key(l_wallet, 0);
 
         } else if (l_cert && l_cert->enc_key) {
-            l_enc_key = l_cert->enc_key;
+            l_enc_key = l_cert->enc_key; 
         }
         else{
 		dap_string_append_printf(l_err_str, "Can't create sign for transactions.\n");
@@ -5457,8 +5482,10 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
             continue;
         }
 
-        if (l_wallet)
-            dap_chain_wallet_close(l_wallet);    
+        if (l_wallet) {
+            dap_chain_wallet_close(l_wallet);  
+            dap_enc_key_delete(l_enc_key);
+        }  
 
     
         l_list = dap_list_next(l_list);
@@ -5683,7 +5710,10 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_ret->str);
         dap_string_free(l_string_ret, true);
         DAP_DELETE(l_addr_to);
-        dap_chain_wallet_close(l_wallet_fee);
+        if (l_wallet_fee) {
+            dap_chain_wallet_close(l_wallet_fee);
+            dap_enc_key_delete(l_priv_key);
+        }
         DAP_DEL_Z(l_cert);
         return l_ret;        
     }
@@ -5694,7 +5724,7 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "wallet %s does not exist", l_from_wallet_name);
         return -9;
     } else {
-        dap_string_append_printf(l_string_ret, "%s\n", dap_chain_wallet_check_bliss_sign(l_wallet));
+        dap_string_append_printf(l_string_ret, "%s\n", dap_chain_wallet_check_sign(l_wallet));
     }
     const dap_chain_addr_t *addr_from = (const dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
 
@@ -5725,14 +5755,15 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
         }
     }
 
+    l_priv_key = dap_chain_wallet_get_key(l_wallet, 0);
     if(l_tx_num){
-        l_ret = dap_chain_mempool_tx_create_massive(l_chain, dap_chain_wallet_get_key(l_wallet, 0), addr_from,
+        l_ret = dap_chain_mempool_tx_create_massive(l_chain, l_priv_key, addr_from,
                                                   l_addr_to, l_token_ticker, l_value, l_value_fee, l_tx_num);
 
         dap_string_append_printf(l_string_ret, "transfer=%s\n",
                 (l_ret == 0) ? "Ok" : (l_ret == -2) ? "False, not enough funds for transfer" : "False");
     } else {
-        char *l_tx_hash_str = dap_chain_mempool_tx_create(l_chain, dap_chain_wallet_get_key(l_wallet, 0), addr_from, l_addr_to,
+        char *l_tx_hash_str = dap_chain_mempool_tx_create(l_chain, l_priv_key, addr_from, l_addr_to,
                                                                   l_token_ticker, l_value, l_value_fee, l_hash_out_type);
         if (l_tx_hash_str) {
             dap_string_append_printf(l_string_ret, "transfer=Ok\ntx_hash=%s\n",l_tx_hash_str);
@@ -5747,6 +5778,7 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
 
     DAP_DELETE(l_addr_to);
     dap_chain_wallet_close(l_wallet);
+    dap_enc_key_delete(l_priv_key);
     return l_ret;
 }
 
@@ -5897,7 +5929,7 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
         const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
         dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
         if (l_wallet) {
-            l_sign_str = dap_chain_wallet_check_bliss_sign(l_wallet);
+            l_sign_str = dap_chain_wallet_check_sign(l_wallet);
             dap_chain_addr_t *l_addr_tmp = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
             if (l_addr) {
                 if (!dap_chain_addr_compare(l_addr, l_addr_tmp)) {
