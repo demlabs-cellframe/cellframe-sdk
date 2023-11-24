@@ -271,21 +271,27 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
 
     if(cmd == ADD){ //request to add
         dap_list_t *l_node_list = dap_chain_net_get_node_list_cfg(a_net);
-        int ret = 0;
+        int ret = 9;
+        l_node_list_request = s_node_list_request_init();
+        if(!l_node_list_request){
+            log_it(L_CRITICAL, "Memory allocation error");
+            dap_list_free(l_node_list);
+            return -3;
+        }
         for (dap_list_t *l_tmp = l_node_list; l_tmp; l_tmp = dap_list_next(l_tmp)) {
             l_link_node_info = (dap_chain_node_info_t *)l_tmp->data;
+            if(l_link_node_info->hdr.address.uint64 == l_node_addr_cur.uint64)
+                continue;
 
-            if (!l_link_node_info)
+            if (!l_link_node_info){
+                s_node_list_request_deinit(l_node_list_request);
+                dap_list_free(l_node_list);
                 return -2;
+            }
 
             inet_ntop(AF_INET, &l_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
             log_it(L_DEBUG, "Start node list HTTP request to %s", l_node_addr_str);
-            l_node_list_request = s_node_list_request_init();
-            if(!l_node_list_request){
-                log_it(L_CRITICAL, "Memory allocation error");
-                DAP_DELETE(l_link_node_info);
-                return -3;
-            }
+
             l_node_list_request->net = a_net;
             l_node_list_request->link_info = l_link_node_info;
             l_link_node_request = a_link_node_request;
@@ -320,8 +326,35 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
                 if(ret)ret = 8;
                 else ret = 1;
             }
-            s_node_list_request_deinit(l_node_list_request);
+            if(ret == 1 || ret == 5){
+                break;
+            }
+            else
+            {
+                switch (ret)
+                {
+                case 0:
+                    log_it(L_WARNING, "No server");
+                    break;
+                case 2:
+                    log_it(L_WARNING, "Didn't add your addres node to node list");
+                    break;
+                case 3:
+                    log_it(L_WARNING, "Can't calculate hash for your addr");
+                    break;
+                case 4:
+                    log_it(L_WARNING, "Can't do handshake for your node");
+                    break;
+                case 7:
+                    log_it(L_WARNING, "Can't process node list HTTP request");
+                    break;
+                default:
+                    break;
+                }
+            }
         }
+        dap_list_free(l_node_list);
+        s_node_list_request_deinit(l_node_list_request);
         return ret;
     } else if(cmd == UPDATE || cmd == DEL){//request update or delete
 

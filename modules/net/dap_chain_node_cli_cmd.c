@@ -1199,17 +1199,12 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         if(dap_chain_node_addr_from_str(&l_link, l_link_str) != 0) {
             dap_digit_from_string(l_link_str, l_link.raw, sizeof(l_link.raw));
         }
-    }
-    int l_ret =0;
+    }    
     switch (cmd_num)
-    {    
+    {
     case CMD_ADD:
-        if(l_ret)
-        {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "node requires parameter -ipv4 and -port");
-            DAP_DELETE(l_node_info);
-            return -1;
-        }
+    {
+        int l_ret =0;
         dap_chain_node_info_t *l_link_node_request = DAP_NEW_Z( dap_chain_node_info_t);
         l_link_node_request->hdr.address.uint64 = dap_chain_net_get_cur_addr_int(l_net);        
         l_link_node_request->hdr.ext_port = dap_config_get_item_uint16_default(g_config,"server","listen_port_tcp",8079);
@@ -1256,6 +1251,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         DAP_DELETE(l_node_info);
         return l_ret;
         //break;
+    }
     case CMD_DEL:
         // handler of command 'node del'
     {
