@@ -690,26 +690,26 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
             dap_stream_ch_chain_net_srv_remain_service_store_t* l_remain_service = NULL;
             l_remain_service = a_grace->usage->service->callbacks.get_remain_service(a_grace->usage->service, a_grace->usage->id, a_grace->usage->client);
             if (l_remain_service && !a_grace->usage->is_active &&
-                (l_remain_service->limits_ts || l_remain_service->limits_bytes) &&
-                l_remain_service->remain_units_type.enm == l_tx_out_cond->subtype.srv_pay.unit.enm){
+                (l_remain_service->limits_ts || l_remain_service->limits_bytes) /*&&
+                l_remain_service->remain_units_type.enm == l_tx_out_cond->subtype.srv_pay.unit.enm*/){
                 // Accept connection, set limits and start service
                 dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_grace->usage->client->ch->stream->session->_inheritor;
                 char *l_unit_type_str = NULL;
-                switch(l_remain_service->remain_units_type.enm){
+                switch(l_tx_out_cond->subtype.srv_pay.unit.enm){
                     case SERV_UNIT_SEC:
                         l_unit_type_str = dap_strdup_printf( "SEC");
                         l_srv_session->limits_ts = l_remain_service->limits_ts;
                         break;
                     case SERV_UNIT_DAY:
-                        l_unit_type_str = dap_strdup_printf( "DAY");
+                        l_unit_type_str = dap_strdup_printf( "SEC");
                         l_srv_session->limits_ts = l_remain_service->limits_ts;
                         break;
                     case SERV_UNIT_MB:
-                        l_unit_type_str = dap_strdup_printf( "MB");
+                        l_unit_type_str = dap_strdup_printf( "B");
                         l_srv_session->limits_bytes = l_remain_service->limits_bytes;
                         break;
                     case SERV_UNIT_KB:
-                        l_unit_type_str = dap_strdup_printf( "KB");
+                        l_unit_type_str = dap_strdup_printf( "B");
                         l_srv_session->limits_bytes = l_remain_service->limits_bytes;
                         break;
                     case SERV_UNIT_B:
@@ -958,26 +958,26 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
             dap_stream_ch_chain_net_srv_remain_service_store_t* l_remain_service = NULL;
             l_remain_service = l_grace->usage->service->callbacks.get_remain_service(l_grace->usage->service, l_grace->usage->id, l_grace->usage->client);
             if (l_remain_service && !l_grace->usage->is_active &&
-                (l_remain_service->limits_ts || l_remain_service->limits_bytes) &&
-                l_remain_service->remain_units_type.enm == l_tx_out_cond->subtype.srv_pay.unit.enm){
+                (l_remain_service->limits_ts || l_remain_service->limits_bytes) /*&&
+                l_remain_service->remain_units_type.enm == l_tx_out_cond->subtype.srv_pay.unit.enm*/){
                 // Accept connection, set limits and start service
                 dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) l_grace->usage->client->ch->stream->session->_inheritor;
                 char *l_unit_type_str = NULL;
-                switch(l_remain_service->remain_units_type.enm){
+                switch(l_tx_out_cond->subtype.srv_pay.unit.enm){
                     case SERV_UNIT_SEC:
                         l_unit_type_str = dap_strdup_printf( "SEC");
                         l_srv_session->limits_ts = l_remain_service->limits_ts;
                         break;
                     case SERV_UNIT_DAY:
-                        l_unit_type_str = dap_strdup_printf( "DAY");
+                        l_unit_type_str = dap_strdup_printf( "SEC");
                         l_srv_session->limits_ts = l_remain_service->limits_ts;
                         break;
                     case SERV_UNIT_MB:
-                        l_unit_type_str = dap_strdup_printf( "MB");
+                        l_unit_type_str = dap_strdup_printf( "B");
                         l_srv_session->limits_bytes = l_remain_service->limits_bytes;
                         break;
                     case SERV_UNIT_KB:
-                        l_unit_type_str = dap_strdup_printf( "KB");
+                        l_unit_type_str = dap_strdup_printf( "B");
                         l_srv_session->limits_bytes = l_remain_service->limits_bytes;
                         break;
                     case SERV_UNIT_B:

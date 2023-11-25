@@ -196,6 +196,7 @@ static dap_stream_ch_chain_net_srv_remain_service_store_t* s_callback_get_remain
                                          dap_chain_net_srv_client_remote_t * a_srv_client);
 static int s_callback_save_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t usage_id, dap_chain_net_srv_client_remote_t * a_srv_client);
 static bool s_save_limits(void* arg);
+static char* s_ch_vpn_get_my_pkey_str(dap_chain_net_srv_usage_t* a_usage);
 // Stream callbacks
 static void s_ch_vpn_new(dap_stream_ch_t* ch, void* arg);
 static void s_ch_vpn_delete(dap_stream_ch_t* ch, void* arg);
@@ -204,6 +205,7 @@ static void s_ch_packet_out(dap_stream_ch_t* ch, void* arg);
 
 static void s_ch_vpn_esocket_assigned(dap_events_socket_t* a_es, dap_worker_t * l_worker);
 static void s_ch_vpn_esocket_unassigned(dap_events_socket_t* a_es, dap_worker_t * l_worker);
+
 
 
 //static int srv_ch_sf_raw_write(uint8_t op_code, const void * data, size_t data_size);
@@ -1090,7 +1092,13 @@ static dap_stream_ch_chain_net_srv_remain_service_store_t* s_callback_get_remain
     dap_chain_net_t *l_net = l_usage->net;
 
     // get remain units from DB
-    char *l_remain_limits_gdb_group =  dap_strdup_printf( "local.srv_pay.%s.vpn_srv.remain_limits", l_net->pub.name);
+    char *l_server_pkey_hash = s_ch_vpn_get_my_pkey_str(l_usage);
+    if (!l_server_pkey_hash){
+        log_it(L_DEBUG, "Can't get server pkey hash.");
+        return NULL;
+    }
+    char *l_remain_limits_gdb_group =  dap_strdup_printf( "%s.0x%016"DAP_UINT64_FORMAT_x".remain_limits.%s", l_net->pub.gdb_groups_prefix, a_srv->uid.uint64, l_server_pkey_hash);
+    DAP_DEL_Z(l_server_pkey_hash);
     char *l_user_key = dap_chain_hash_fast_to_str_new(&l_usage->client_pkey_hash);
     log_it(L_DEBUG, "Checkout user %s in group %s", l_user_key, l_remain_limits_gdb_group);
     dap_stream_ch_chain_net_srv_remain_service_store_t* l_remain_service = NULL;
@@ -1109,6 +1117,25 @@ static bool s_save_limits(void* arg)
     s_callback_save_remain_service(l_args->srv,  l_args->usage_id, l_args->srv_client);
 
     return true;
+}
+
+static char* s_ch_vpn_get_my_pkey_str(dap_chain_net_srv_usage_t* a_usage)
+{
+    dap_chain_net_srv_usage_t* l_usage = a_usage;
+    if (!l_usage){
+        log_it(L_DEBUG, "Can't save remain servis. Usage is NULL.");
+        return NULL;
+    }
+
+    dap_chain_net_srv_price_t *l_price = l_usage->price;
+
+    dap_hash_fast_t price_pkey_hash = {};
+    dap_hash_fast(l_price->receipt_sign_cert->enc_key->pub_key_data,
+                  l_price->receipt_sign_cert->enc_key->pub_key_data_size, &price_pkey_hash);
+    char* l_pkey_hash_str = dap_chain_hash_fast_to_str_new(&price_pkey_hash);
+
+    return l_pkey_hash_str;
+
 }
 
 static int s_callback_save_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t a_usage_id,
@@ -1135,7 +1162,13 @@ static int s_callback_save_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t
     dap_chain_net_t *l_net = l_usage->net;
 
     // save remain units from DB
-    char *l_remain_limits_gdb_group =  dap_strdup_printf( "local.srv_pay.%s.vpn_srv.remain_limits", l_net->pub.name);
+    char *l_server_pkey_hash = s_ch_vpn_get_my_pkey_str(l_usage);
+    if (!l_server_pkey_hash){
+        log_it(L_DEBUG, "Can't get server pkey hash.");
+        return -101;
+    }
+    char *l_remain_limits_gdb_group =  dap_strdup_printf( "%s.0x%016"DAP_UINT64_FORMAT_x".remain_limits.%s", l_net->pub.gdb_groups_prefix, a_srv->uid.uint64, l_server_pkey_hash);
+    DAP_DEL_Z(l_server_pkey_hash);
     char *l_user_key = dap_chain_hash_fast_to_str_new(&l_usage->client_pkey_hash);
     log_it(L_DEBUG, "Save user %s remain service into group %s", l_user_key, l_remain_limits_gdb_group);
 
@@ -1145,8 +1178,8 @@ static int s_callback_save_remain_service(dap_chain_net_srv_t * a_srv,  uint32_t
         l_receipt_sign = dap_chain_datum_tx_receipt_sign_get( l_srv_session->usage_active->receipt_next, l_srv_session->usage_active->receipt_next->size, 1);
     }
 
-    l_remain_service.remain_units_type.enm = l_srv_session->limits_units_type.enm;
-    switch(l_remain_service.remain_units_type.enm){
+//    l_remain_service.remain_units_type.enm = l_srv_session->limits_units_type.enm;
+    switch(l_srv_session->limits_units_type.enm){
         case SERV_UNIT_SEC:
         case SERV_UNIT_DAY:
             l_remain_service.limits_ts = l_srv_session->limits_ts >= 0 ? l_srv_session->limits_ts : 0;

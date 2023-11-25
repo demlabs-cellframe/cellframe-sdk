@@ -41,6 +41,10 @@ enum dap_chain_net_srv_order_direction{
 };
 typedef byte_t dap_chain_net_srv_order_direction_t;
 
+typedef struct {
+    intmax_t limits_bytes; // Bytes provided for using the service left
+    time_t limits_ts; //Time provided for using the service
+} dap_stream_ch_chain_net_srv_remain_service_store_t;
 
 typedef struct dap_chain_net_srv_abstract
 {
@@ -208,12 +212,6 @@ typedef struct dap_chain_net_srv_client_remote
     struct dap_chain_net_srv_client_remote *prev;
     struct dap_chain_net_srv_client_remote *next;
 } dap_chain_net_srv_client_remote_t;
-
-typedef struct {
-    intmax_t limits_bytes; // Bytes provided for using the service left
-    time_t limits_ts; //Time provided for using the service
-    dap_chain_net_srv_price_unit_uid_t remain_units_type;
-} dap_stream_ch_chain_net_srv_remain_service_store_t;
 
 typedef int  (*dap_chain_net_srv_callback_data_t)(dap_chain_net_srv_t *, uint32_t, dap_chain_net_srv_client_remote_t *, const void *, size_t);
 typedef void* (*dap_chain_net_srv_callback_custom_data_t)(dap_chain_net_srv_t *, dap_chain_net_srv_usage_t *, const void *, size_t, size_t *);
