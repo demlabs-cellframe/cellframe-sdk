@@ -657,13 +657,13 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-client_pkey_hash", &l_client_pkey_hash_str);
 
             if (!l_provider_pkey_hash_str){
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'get_limits' require the parameter provider_pkey_hash", l_order_str);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'get_limits' require the parameter provider_pkey_hash");
                 dap_string_free(l_string_ret, true);
                 return -15;
             }
 
             if (!l_client_pkey_hash_str){
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'get_limits' require the parameter client_pkey_hash", l_order_str);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'get_limits' require the parameter client_pkey_hash");
                 dap_string_free(l_string_ret, true);
                 return -16;
             }
@@ -691,9 +691,9 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
             }
 
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Provider %s. Client %s remain service values:\n"
-                                                   "SEC: "DAP_UINT64_FORMAT_x"\n"
-                                                   "BYTES: "DAP_UINT64_FORMAT_x"\n", l_provider_pkey_hash_str, l_client_pkey_hash_str,
-                                              l_remain_service->limits_ts, l_remain_service->limits_bytes);
+                                                   "SEC: %"DAP_UINT64_FORMAT_U"\n"
+                                                   "BYTES: %"DAP_UINT64_FORMAT_U"\n", l_provider_pkey_hash_str, l_client_pkey_hash_str,
+                                              (uint64_t)l_remain_service->limits_ts, (uint64_t)l_remain_service->limits_bytes);
 
             dap_string_free(l_string_ret, true);
             DAP_DELETE(l_remain_service);
@@ -996,11 +996,22 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
     const char *l_wallet_addr = dap_config_get_item_str_default(g_config, a_config_section, "wallet_addr", NULL);
     const char *l_cert_name = dap_config_get_item_str_default(g_config, a_config_section, "receipt_sign_cert", NULL);
     const char *l_net_name = dap_config_get_item_str_default(g_config, a_config_section, "net", NULL);
-    if (!l_wallet_addr || !l_cert_name || !l_net_name){
+
+    if (!l_wallet_addr){
+        log_it(L_CRITICAL, "Wallet addr is not defined. Check node configuration file.");
+        return -1;
+    }
+    if (!l_cert_name){
+        log_it(L_CRITICAL, "Receipt sign certificate is not defined. Check node configuration file.");
         return -2;
+    }
+    if (!l_net_name){
+        log_it(L_CRITICAL, "Net for is not defined. Check node configuration file.");
+        return -3;
     }
     dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
     if (!l_net) {
+        log_it(L_CRITICAL, "Can't find net %s. Check node configuration file.", l_net_name);
         return -4;
     }
     a_srv->grace_period = dap_config_get_item_uint32_default(g_config, a_config_section, "grace_period", 60);
@@ -1008,8 +1019,11 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
     int l_err_code = 0;
     dap_chain_node_addr_t *l_node_addr = NULL;
     l_node_addr = dap_chain_net_get_cur_addr(l_net);
-    if (!l_node_addr)
-        return -1;
+    if (!l_node_addr){
+        log_it(L_CRITICAL, "Can't get node current addr.");
+        return -5;
+    }
+
     size_t l_orders_count = 0;
     uint64_t l_max_price_cfg = dap_config_get_item_uint64_default(g_config, a_config_section, "max_price", 0xFFFFFFFFFFFFFFF);
     char *l_gdb_order_group = dap_chain_net_srv_order_get_gdb_group(l_net);
@@ -1210,7 +1224,13 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
         l_sdata->uid = l_uid;
         strncpy(l_sdata->name, a_config_section, sizeof(l_sdata->name) - 1);
         l_sdata->srv = l_srv;
-        dap_chain_net_srv_price_apply_from_my_order(l_srv, a_config_section);
+        if (dap_chain_net_srv_price_apply_from_my_order(l_srv, a_config_section) && a_uid.uint64 == 1){
+            log_it(L_CRITICAL, "Service %s initialization error.", a_config_section);
+            DAP_DEL_Z(l_srv);
+            DAP_DEL_Z(l_sdata);
+            pthread_mutex_unlock(&s_srv_list_mutex);
+            return NULL;
+        }
 //        dap_chain_net_srv_parse_pricelist(l_srv, a_config_section);
         HASH_ADD(hh, s_srv_list, uid, sizeof(l_srv->uid), l_sdata);
         if (l_srv->pricelist)

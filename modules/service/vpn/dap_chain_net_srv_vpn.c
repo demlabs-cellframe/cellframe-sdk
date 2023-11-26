@@ -871,6 +871,10 @@ static int s_vpn_service_create(dap_config_t * g_config)
 
 
     dap_chain_net_srv_t* l_srv = dap_chain_net_srv_add(l_uid, "srv_vpn", &l_srv_callbacks);
+    if (!l_srv){
+        log_it(L_CRITICAL, "VPN service initialization failed.");
+        return -2;
+    }
 
     dap_chain_net_srv_vpn_t* l_srv_vpn  = DAP_NEW_Z( dap_chain_net_srv_vpn_t);
     if(!l_srv_vpn) {
@@ -893,16 +897,22 @@ static int s_vpn_service_create(dap_config_t * g_config)
  * @return 0 if everything is okay, lesser then zero if errors
  */
 int dap_chain_net_srv_vpn_init(dap_config_t * g_config) {
+
     s_vpn_tun_init();
 
     log_it(L_DEBUG,"Initializing TUN driver...");
     if(s_vpn_tun_create(g_config) != 0){
         log_it(L_CRITICAL, "Error initializing TUN device driver!");
+        dap_chain_net_srv_vpn_deinit();
         return -1;
     }
 
     log_it(L_INFO,"TUN driver configured successfuly");
-    s_vpn_service_create(g_config);
+    if (s_vpn_service_create(g_config)){
+        log_it(L_CRITICAL, "VPN service creating failed");
+        dap_chain_net_srv_vpn_deinit();
+        return -2;
+    }
     dap_stream_ch_proc_add(DAP_STREAM_CH_ID_NET_SRV_VPN, s_ch_vpn_new, s_ch_vpn_delete, s_ch_packet_in,
             s_ch_packet_out);
 
@@ -920,8 +930,8 @@ void dap_chain_net_srv_vpn_deinit(void)
 {
     pthread_mutex_destroy(&s_tun_sockets_mutex_started);
     pthread_cond_destroy(&s_tun_sockets_cond_started);
-    DAP_DELETE(s_srv_vpn_addr);
-    DAP_DELETE(s_srv_vpn_mask);
+    DAP_DEL_Z(s_srv_vpn_addr);
+    DAP_DEL_Z(s_srv_vpn_mask);
     if(s_raw_server)
         DAP_DELETE(s_raw_server);
 }
