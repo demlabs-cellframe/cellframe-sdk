@@ -1149,6 +1149,7 @@ static char* s_ch_vpn_get_my_pkey_str(dap_chain_net_srv_usage_t* a_usage)
     }
 
     dap_hash_fast(l_pub_key, l_key_size, &price_pkey_hash);
+    DAP_DELETE(l_pub_key);
     char* l_pkey_hash_str = dap_chain_hash_fast_to_str_new(&price_pkey_hash);
 
     return l_pkey_hash_str;

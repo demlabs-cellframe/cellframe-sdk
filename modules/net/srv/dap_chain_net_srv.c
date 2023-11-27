@@ -986,8 +986,19 @@ dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net
     dap_hash_fast_t order_pkey_hash = {};
     dap_hash_fast_t price_pkey_hash = {};
     dap_sign_get_pkey_hash((dap_sign_t*)(l_order->ext_n_sign + l_order->ext_size), &order_pkey_hash);
-    dap_hash_fast(l_price->receipt_sign_cert->enc_key->pub_key_data,
-                  l_price->receipt_sign_cert->enc_key->pub_key_data_size, &price_pkey_hash);
+    size_t l_key_size = 0;
+    uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(l_price->receipt_sign_cert->enc_key, &l_key_size);
+    if (!l_pub_key || !l_key_size)
+    {
+        log_it(L_ERROR, "Can't get pkey from cert %s.", l_cert_name);
+        DAP_DEL_Z(l_order);
+        DAP_DELETE(l_price);
+        return NULL;
+    }
+
+    dap_hash_fast(l_pub_key, l_key_size, &price_pkey_hash);
+    DAP_DELETE(l_pub_key);
+
     if (!dap_hash_fast_compare(&order_pkey_hash, &price_pkey_hash))
     {
         log_it(L_ERROR, "pkey in order not equal to pkey in config.");
@@ -1106,6 +1117,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
             }
 
             dap_hash_fast(l_pub_key, l_key_size, &price_pkey_hash);
+            DAP_DELETE(l_pub_key);
             if (!dap_hash_fast_compare(&order_pkey_hash, &price_pkey_hash))
             {
                 log_it(L_WARNING, "pkey in order not equal to pkey in config. Skip order.");
