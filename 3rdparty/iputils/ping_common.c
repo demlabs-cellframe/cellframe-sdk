@@ -302,7 +302,7 @@ void fill(ping_handle_t *a_ping_handle, char *patp, unsigned char *packet, unsig
 
 static void sigexit(int signo __attribute__((__unused__)))
 {
-    //exiting = 1;
+    exiting = 1;
     //if(in_pr_addr)
     //    longjmp(pr_addr_jmp, 0);
 }
