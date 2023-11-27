@@ -1140,8 +1140,15 @@ static char* s_ch_vpn_get_my_pkey_str(dap_chain_net_srv_usage_t* a_usage)
     dap_chain_net_srv_price_t *l_price = l_usage->price;
 
     dap_hash_fast_t price_pkey_hash = {};
-    dap_hash_fast(l_price->receipt_sign_cert->enc_key->pub_key_data,
-                  l_price->receipt_sign_cert->enc_key->pub_key_data_size, &price_pkey_hash);
+    size_t l_key_size = 0;
+    uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(l_price->receipt_sign_cert->enc_key, &l_key_size);
+    if (!l_pub_key || !l_key_size)
+    {
+        log_it(L_ERROR, "Can't get pkey from cert %s.", l_price->receipt_sign_cert->name);
+        return NULL;
+    }
+
+    dap_hash_fast(l_pub_key, l_key_size, &price_pkey_hash);
     char* l_pkey_hash_str = dap_chain_hash_fast_to_str_new(&price_pkey_hash);
 
     return l_pkey_hash_str;
