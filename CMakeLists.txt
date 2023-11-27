@@ -16,9 +16,7 @@ if(NOT DEFINED CELLFRAME_MODULES)
     if(LINUX OR DARWIN)
         set(CELLFRAME_MODULES "${CELLFRAME_MODULES} srv-vpn")
     endif()
-
     add_subdirectory(dap-sdk)
-
 endif()
 
 message("Cellframe modules: ${CELLFRAME_MODULES}")
@@ -30,12 +28,13 @@ endif()
 option(DAP_INT128_SUPPORT "Use 128-bit varaibles, if supported" ON) # Enabled by default
 
 if(NOT DAP_INT128_SUPPORT)
-    message("[!] INT128 DISABLED")
-    add_definitions(-DDAP_DISABLE_INT128)
+message("[!] INT128 DISABLED")
+add_definitions(-DDAP_DISABLE_INT128)
 else()
-    #    message("[!] INT128 ENABLED")
-    #    add_definitions(-DDAP_DISABLE_INT128=FALSE)
+#    message("[!] INT128 ENABLED")
+#    add_definitions(-DDAP_DISABLE_INT128=FALSE)
 endif(NOT DAP_INT128_SUPPORT)
+
 
 #set(BUILD_CELLFRAME_SDK_TESTS ON)
 
@@ -119,7 +118,7 @@ endif()
 # Networking
 if (CELLFRAME_MODULES MATCHES "network")
     message("[+] Module 'network'")
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_io dap_json_rpc dap_enc_server dap_notify_srv dap_http_server dap_session
+    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_io dap_enc_server dap_notify_srv dap_http_server dap_session
         dap_stream dap_stream_ch dap_client dap_cli_server dap_stream_ch_chain dap_stream_ch_chain_net dap_chain_net dap_chain_net_srv dap_stream_ch_chain_voting dap_chain_mempool magic)
 endif()
 

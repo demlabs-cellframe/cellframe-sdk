@@ -45,6 +45,9 @@
 #include "dap_chain_net_tx.h"
 #include "dap_chain_mempool.h"
 
+#include "dap_json_rpc_errors.h"
+#include "dap_json_rpc_chain_datum_tx.h"
+
 #define LOG_TAG "chain_node_cli_cmd_tx"
 
 #include "uthash.h"
@@ -59,18 +62,13 @@ typedef struct dap_tx_data {
     dap_chain_addr_t addr;
 } dap_tx_data_t;
 
-typedef struct dap_chain_tx_hash_processed_ht{
-    dap_chain_hash_fast_t hash;
-    UT_hash_handle hh;
-}dap_chain_tx_hash_processed_ht_t;
-
 
 /**
  * @brief s_chain_tx_hash_processed_ht_free
  * free l_current_hash->hash, l_current_hash, l_hash_processed
  * @param l_hash_processed dap_chain_tx_hash_processed_ht_t
  */
-static void s_dap_chain_tx_hash_processed_ht_free(dap_chain_tx_hash_processed_ht_t **l_hash_processed)
+void s_dap_chain_tx_hash_processed_ht_free(dap_chain_tx_hash_processed_ht_t **l_hash_processed)
 {
     if (!l_hash_processed || !*l_hash_processed)
         return;
@@ -156,7 +154,7 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
         json_object_object_add(json_obj_datum, "status", json_object_new_string("ACCEPTED"));
         *accepted_tx = true;
     } else {
-        json_object_object_add(json_obj_datum, "status", json_object_new_string("REJECTED"));
+        json_object_object_add(json_obj_datum, "status", json_object_new_string("DECLINED"));
         *accepted_tx = false;
     }
 
@@ -164,7 +162,7 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
         char *l_atom_hash_str = dap_strcmp(a_hash_out_type, "hex")
                             ? dap_enc_base58_encode_hash_to_str(l_atom_hash)
                             : dap_chain_hash_fast_to_str_new(l_atom_hash);
-        json_object_object_add(json_obj_datum, "atom hash", json_object_new_string(l_atom_hash_str));
+        json_object_object_add(json_obj_datum, "atom_hash", json_object_new_string(l_atom_hash_str));
     }
 
     char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
@@ -172,16 +170,22 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
                         : dap_chain_hash_fast_to_str_new(a_tx_hash);
     json_object_object_add(json_obj_datum, "hash", json_object_new_string(l_hash_str));
 
-    json_object_object_add(json_obj_datum, "token ticker", l_tx_token_ticker ? json_object_new_string(l_tx_token_ticker) 
+    json_object_object_add(json_obj_datum, "token_ticker", l_tx_token_ticker ? json_object_new_string(l_tx_token_ticker) 
                                                                              : json_object_new_null());
 
-    if (l_ret_code)
-        json_object_object_add(json_obj_datum, "ret code", json_object_new_int(l_ret_code));
+    json_object_object_add(json_obj_datum, "ret_code", json_object_new_int(l_ret_code));
+    json_object_object_add(json_obj_datum, "ret_code_str", json_object_new_string(dap_chain_ledger_tx_check_err_str(l_ret_code)));
 
-    json_object *l_obj_ts_created = json_object_new_uint64(l_tx->header.ts_created);
-    json_object_object_add(json_obj_datum, "ts created", l_obj_ts_created);
+    char l_time_str[32];
+    if (l_tx->header.ts_created) {
+        uint64_t l_ts = l_tx->header.ts_created;
+        dap_ctime_r(&l_ts, l_time_str);                             /* Convert ts to  "Sat May 17 01:17:08 2014\n" */
+        l_time_str[strlen(l_time_str)-1] = '\0';                    /* Remove "\n"*/
+    }
+    json_object *l_obj_ts_created = json_object_new_string(l_time_str);
+    json_object_object_add(json_obj_datum, "tx_created", l_obj_ts_created);
 
-    json_object* datum_tx = dap_chain_datum_tx_to_json(l_tx);
+    json_object* datum_tx = dap_chain_datum_dump_tx_to_json(l_tx, a_hash_out_type);
     json_object_object_add(json_obj_datum, "items", datum_tx);
 
     return json_obj_datum;
@@ -260,6 +264,7 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
     json_object_object_add(json_obj_datum, "hash", json_object_new_string(l_tx_hash_str));
     json_object_object_add(json_obj_datum, "atom_hash", json_object_new_string(l_atom_hash_str));
     json_object_object_add(json_obj_datum, "ret_code", json_object_new_int(a_ret_code));
+    json_object_object_add(json_obj_datum, "ret_code_str", json_object_new_string(dap_chain_ledger_tx_check_err_str(a_ret_code)));
     json_object_object_add(json_obj_datum, "tx_created", json_object_new_string(l_time_str));
 
     DAP_DELETE(l_tx_hash_str);

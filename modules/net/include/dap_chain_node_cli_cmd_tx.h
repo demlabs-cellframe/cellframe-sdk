@@ -21,10 +21,20 @@
  You should have received a copy of the GNU General Public License
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
+#pragma once
 
 #include "dap_chain.h"
 #include "dap_chain_common.h"
+#include "uthash.h"
+#include "json.h"
 
+typedef struct dap_chain_tx_hash_processed_ht{
+    dap_chain_hash_fast_t hash;
+    UT_hash_handle hh;
+}dap_chain_tx_hash_processed_ht_t;
+
+
+void s_dap_chain_tx_hash_processed_ht_free(dap_chain_tx_hash_processed_ht_t **l_hash_processed);
 /**
  *
  * return history json

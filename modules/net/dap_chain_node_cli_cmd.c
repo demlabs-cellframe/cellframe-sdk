@@ -109,6 +109,9 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_net_node_list.h"
 
+#include "dap_json_rpc_errors.h"
+#include "dap_json_rpc_chain_datum.h"
+
 #define LOG_TAG "chain_node_cli_cmd"
 
 static void s_dap_chain_net_purge(dap_chain_net_t *a_net);
@@ -3400,11 +3403,6 @@ int com_mempool_proc(int a_argc, char **a_argv, json_object **a_json_reply)
     if (!l_net || !l_chain)
         return -1;
 
-//    if(*a_str_reply) {
-//        DAP_DELETE(*a_str_reply);COM_MEMPOOL_CHECK_ERR_DATUM_NOT_FIND
-//        *a_str_reply = NULL;
-//    }
-
     // If full or light it doesnt work
     if(dap_chain_net_get_role(l_net).enums>= NODE_ROLE_FULL){
         dap_json_rpc_error_add(DAP_COM_MEMPOOL_PROC_LIST_ERROR_NODE_ROLE_NOT_FULL,
@@ -6274,9 +6272,8 @@ char *dap_chain_node_cli_com_tx_history_err(int a_code) {
  * @param a_str_reply
  * @return int
  */
-int com_tx_history(int a_argc, char ** a_argv, json_object** json_arr_reply, char ** str)
+int com_tx_history(int a_argc, char ** a_argv, json_object** json_arr_reply)
 {
-    UNUSED(str);
     int arg_index = 1;
     const char *l_addr_base58 = NULL;
     const char *l_wallet_name = NULL;

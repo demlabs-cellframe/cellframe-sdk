@@ -239,10 +239,3 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
  * @param a_certs_size size of decree signatures
  */
 void dap_chain_datum_decree_certs_dump(dap_string_t * a_str_out, byte_t * a_signs, size_t a_certs_size, const char *a_hash_out_type);
-
-/**
- * @brief dap_chain_datum_decree_to_json Convert dap_chain_datum_decree_t tp json_object
- * @param a_decree pointer to decree
- * @return pointer json_object
- */
-json_object *dap_chain_datum_decree_to_json(dap_chain_datum_decree_t *a_decree);

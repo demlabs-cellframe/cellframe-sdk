@@ -6,7 +6,6 @@ endif()
 # Chains
 if (CELLFRAME_MODULES MATCHES "chains")
     add_subdirectory(chain)
-    add_subdirectory(chain/btc_rpc)
     add_subdirectory(wallet)
 endif()
 
