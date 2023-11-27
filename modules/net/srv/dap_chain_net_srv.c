@@ -106,7 +106,7 @@ int dap_chain_net_srv_init()
         " -price_unit <Price Unit> -price_token <token_ticker> -units <units> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>]\n"
         " [-expires <Unix time when expires>] [-cert <cert name to sign order>]\n"
         " [{-ext <Extension with params> | -region <Region name> -continent <Continent name>}]\n"
-        "net_srv get_limits -net <net_name> -srv_uid <Service UID> -provider_pkey_hash <Service provider public key hash> -client_pkey_hash <Client public key hash>"
+        "net_srv get_limits -net <net_name> -srv_uid <Service_UID> -provider_pkey_hash <Service_provider_public_key_hash> -client_pkey_hash <Client_public_key_hash>"
 #ifdef DAP_MODULES_DYNAMIC
         "\tOrder create\n"
             "net_srv -net <net_name> order static [save | delete]\n"

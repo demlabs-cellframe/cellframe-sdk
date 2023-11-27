@@ -992,8 +992,8 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
         l_args->srv = a_srv;
         l_args->srv_client = a_srv_client;
         l_args->usage_id = a_usage_id;
-        l_usage_active->timer_es_uuid = dap_timerfd_start_on_worker(l_usage_active->client->stream_worker->worker, 60 * 1000,
-                                                             (dap_timerfd_callback_t)s_save_limits, l_args)->esocket_uuid;
+        l_usage_active->grace_timer = dap_timerfd_start_on_worker(l_usage_active->client->stream_worker->worker, 60 * 1000,
+                                                             (dap_timerfd_callback_t)s_save_limits, l_args);
         l_srv_session->limits_units_type.uint32 = l_usage_active->receipt->receipt_info.units_type.uint32;
         switch( l_usage_active->receipt->receipt_info.units_type.enm){
             case SERV_UNIT_DAY:{
@@ -1291,14 +1291,16 @@ static void s_ch_vpn_delete(dap_stream_ch_t* a_ch, void* arg)
     dap_chain_net_srv_ch_vpn_t * l_ch_vpn = CH_VPN(a_ch);
     dap_chain_net_srv_vpn_t * l_srv_vpn =(dap_chain_net_srv_vpn_t *) l_ch_vpn->net_srv->_internal;
 
-    // So complicated to update usage client to be sure that nothing breaks it
-    usage_client_t * l_usage_client = NULL;
+    dap_chain_net_srv_usage_t *l_usage =  NULL;
 
     dap_chain_net_srv_stream_session_t *l_srv_session = DAP_CHAIN_NET_SRV_STREAM_SESSION(l_ch_vpn->ch->stream->session);
-    if (l_srv_session && l_srv_session->usage_active &&
-        l_srv_session->usage_active->client && l_srv_session->usage_active->client->stream_worker)
-        dap_timerfd_delete_mt(l_srv_session->usage_active->client->stream_worker->worker, l_srv_session->usage_active->timer_es_uuid);
+    if (l_srv_session)
+        l_usage =  l_srv_session->usage_active;
 
+    if (l_usage && l_usage->grace_timer){
+        dap_timerfd_delete_mt(l_usage->grace_timer->worker, l_usage->grace_timer->esocket_uuid);
+        l_usage->grace_timer = NULL;
+    }
     bool l_is_unleased = false;
     if ( l_ch_vpn->addr_ipv4.s_addr ){ // if leased address
         s_tun_send_msg_ip_unassigned_all(a_ch->stream_worker->worker->id,l_ch_vpn, l_ch_vpn->addr_ipv4); // Signal all the workers that we're switching off

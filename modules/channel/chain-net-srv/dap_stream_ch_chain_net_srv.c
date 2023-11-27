@@ -1034,8 +1034,15 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
         } else {
             log_it(L_INFO, "Send first receipt to sign");
             l_grace->usage->receipt = dap_chain_net_srv_issue_receipt(l_grace->usage->service, l_grace->usage->price, NULL, 0);
-            dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
+            if (l_grace->usage->receipt )
+                dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_REQUEST,
                                        l_grace->usage->receipt, l_grace->usage->receipt->size);
+            else{
+                log_it(L_WARNING, "Can't sign the receipt.");
+                l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_UNDEFINED;
+                s_grace_error(l_grace, l_err);
+            }
+
             RET_WITH_DEL_A_GRACE;
         }
         if (!l_receipt) {
