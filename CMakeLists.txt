@@ -11,6 +11,8 @@ if (INSTALL_SDK)
     set(INSTALL_DAP_SDK ON)
 endif()
 
+add_compile_options(-Wno-sign-compare)
+
 
 if(NOT DEFINED CELLFRAME_MODULES)
     include (dap-sdk/cmake/OS_Detection.cmake)

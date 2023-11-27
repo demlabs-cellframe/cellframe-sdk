@@ -7,7 +7,7 @@ file(GLOB DAP_CHAIN_TESTS_SRC *.c)
 
 add_executable(${PROJECT_NAME} ${DAP_CHAIN_TESTS_SRC} ${DAP_CHAIN_TESTS_HEADERS})
 
-target_link_libraries(${PROJECT_NAME} dap_test)
+target_link_libraries(${PROJECT_NAME} dap_test dap_core dap_crypto)
 
 if (DARWIN)
     target_link_libraries(${PROJECT_NAME} bz2)
