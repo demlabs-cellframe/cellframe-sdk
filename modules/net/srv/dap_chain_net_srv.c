@@ -1016,7 +1016,6 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
     }
     a_srv->grace_period = dap_config_get_item_uint32_default(g_config, a_config_section, "grace_period", 60);
     a_srv->allow_free_srv = dap_config_get_item_bool_default(g_config, a_config_section, "allow_free_srv", false);
-    int l_err_code = 0;
     dap_chain_node_addr_t *l_node_addr = NULL;
     l_node_addr = dap_chain_net_get_cur_addr(l_net);
     if (!l_node_addr){
@@ -1028,12 +1027,11 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
     uint64_t l_max_price_cfg = dap_config_get_item_uint64_default(g_config, a_config_section, "max_price", 0xFFFFFFFFFFFFFFF);
     char *l_gdb_order_group = dap_chain_net_srv_order_get_gdb_group(l_net);
     dap_global_db_obj_t *l_orders = dap_global_db_get_all_sync(l_gdb_order_group, &l_orders_count);
+    log_it(L_CRITICAL, "Found %"DAP_UINT64_FORMAT_U, l_orders_count);
     for (size_t i=0; i < l_orders_count; i++){
-        l_err_code = -4;
         dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_read(l_orders[i].value, l_orders[i].value_len);
         if (l_order->node_addr.uint64 == l_node_addr->uint64 &&
             l_order->srv_uid.uint64 == a_srv->uid.uint64) {
-            l_err_code = 0;
             dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
             if (!l_price) {
                 log_it(L_CRITICAL, "Memory allocation error");
@@ -1045,7 +1043,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
             l_price->net_name = dap_strdup(l_net->pub.name);
             uint256_t l_max_price = GET_256_FROM_64(l_max_price_cfg); // Change this value when max price wil be calculated
             if (IS_ZERO_256(l_order->price) || l_order->units == 0 ){
-                log_it(L_ERROR, "Invalid order: units count or price unspecified");
+                log_it(L_ERROR, "Invalid order: units count or price unspecified. Skip order.");
                 DAP_DELETE(l_price);
                 continue;
             }
@@ -1058,7 +1056,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
                 DIV_256(l_price->value_datoshi,  GET_256_FROM_64(l_order->units), &l_price_unit);
                 if (compare256(l_price_unit, l_max_price)>0){
                     char *l_price_unit_str = dap_chain_balance_print(l_price_unit), *l_max_price_str = dap_chain_balance_print(l_max_price);
-                    log_it(L_ERROR, "Unit price exeeds max permitted value: %s > %s", l_price_unit_str, l_max_price_str);
+                    log_it(L_ERROR, "Unit price exeeds max permitted value: %s > %s. Skip order.", l_price_unit_str, l_max_price_str);
                     DAP_DELETE(l_price_unit_str);
                     DAP_DELETE(l_max_price_str);
                     DAP_DELETE(l_price);
@@ -1067,7 +1065,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
             }
             l_price->wallet_addr = dap_chain_addr_from_str(l_wallet_addr);
             if(!l_price->wallet_addr){
-                log_it(L_ERROR, "Can't get wallet addr from wallet_addr in config file.");
+                log_it(L_ERROR, "Can't get wallet addr from wallet_addr in config file. Check configuration file.");
                 DAP_DEL_Z(l_order);
                 DAP_DELETE(l_price);
                 dap_global_db_objs_delete(l_orders, l_orders_count);
@@ -1076,7 +1074,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
 
             l_price->receipt_sign_cert = dap_cert_find_by_name(l_cert_name);
             if(!l_price->receipt_sign_cert){
-                log_it(L_ERROR, "Can't find cert %s.", l_cert_name);
+                log_it(L_ERROR, "Can't find cert %s. Check receipt_sign_cert in configuration file.", l_cert_name);
                 DAP_DEL_Z(l_order);
                 DAP_DELETE(l_price);
                 dap_global_db_objs_delete(l_orders, l_orders_count);
@@ -1090,7 +1088,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
                           l_price->receipt_sign_cert->enc_key->pub_key_data_size, &price_pkey_hash);
             if (dap_hash_fast_compare(&order_pkey_hash, &price_pkey_hash))
             {
-                log_it(L_ERROR, "pkey in order not equal to pkey in config.");
+                log_it(L_WARNING, "pkey in order not equal to pkey in config. Skip order.");
                 DAP_DEL_Z(l_order);
                 DAP_DELETE(l_price);
                 dap_global_db_objs_delete(l_orders, l_orders_count);
@@ -1103,8 +1101,12 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
         }
         DAP_DELETE(l_order);
     }
+
+    if(!a_srv->pricelist)
+        log_it(L_WARNING, "No valid orders for this node.");
+
     dap_global_db_objs_delete(l_orders, l_orders_count);
-    return l_err_code;
+    return 0;
 }
 
 int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_config_section)
