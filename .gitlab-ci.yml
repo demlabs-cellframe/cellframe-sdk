@@ -24,6 +24,16 @@ linux-amd64-tests:
       - mkdir build
       - cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="multisign" && make -j$(nproc) && ctest --verbose
 
+
+linux-amd64-tests-clang:
+    extends: .tests
+    image: demlabs/amd64/debian-bullseye:linuxbuilder
+    before_script: /opt/buildtools/prepare_environment.sh amd64-linux
+    script:
+      - mkdir build
+      - cd build && cmake .. -DCMAKE_C_COMPILER=clang -DCMAKE_BUILD_TYPE=Release -DBUILD_CELLFRAME_SDK_TESTS=ON -DOFF_CORE_CELLFRAME_SDK_TESTS_OFF=network-monitor -DOFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF="multisign" && make -j$(nproc) && ctest --verbose
+
+
 linux-arm32v7-tests:
     extends: .tests
     image: demlabs/arm32v7/debian-bullseye:linuxbuilder
