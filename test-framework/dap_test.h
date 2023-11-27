@@ -37,6 +37,7 @@
     if(expr) {} \
     else { \
     printf("\t%s%s FAILED!%s\n", TEXT_COLOR_RED, msg, TEXT_COLOR_RESET); \
+    fflush(stdout); \
     abort(); } }
 
 /**
@@ -48,6 +49,7 @@
         fflush(stdout); \
     } else { \
     printf("\t%s%s FAILED!%s\n", TEXT_COLOR_RED, testname, TEXT_COLOR_RESET); \
+    fflush(stdout); \
     abort(); } } \
 
 /**
