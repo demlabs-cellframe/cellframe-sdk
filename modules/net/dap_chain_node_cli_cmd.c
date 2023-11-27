@@ -3276,6 +3276,51 @@ int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t
     return 0;
 }
 
+int _cmd_mempool_dump_from_group(dap_chain_net_id_t a_net_id, const char *a_group_gdb, const char *a_datum_hash, const char *a_hash_out_type, dap_string_t *a_str_tmp) {
+    size_t l_datum_size = 0;
+    dap_chain_datum_t * l_datum = dap_global_db_get_sync(a_group_gdb, a_datum_hash,
+                                                         &l_datum_size, NULL, NULL );
+    size_t l_datum_size2 = l_datum? dap_chain_datum_size( l_datum): 0;
+    if (l_datum_size != l_datum_size2) {
+        dap_string_append_printf(a_str_tmp,"Error! Corrupted datum %s, size by datum headers "
+                                                       "is %zd when in mempool is only %zd bytes",
+                                                       a_datum_hash, l_datum_size2, l_datum_size);
+        return -101;
+    }
+    if (!l_datum) {
+        dap_string_append_printf(a_str_tmp, "Error! Can't find datum %s in %s", a_datum_hash, a_group_gdb);
+        return -102;
+    }
+    dap_chain_datum_dump(a_str_tmp, l_datum, a_hash_out_type, a_net_id);
+    return 0;
+}
+
+int _cmd_mempool_dump(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_datum_hash, const char *a_hash_out_type, char **a_str_out) {
+    dap_string_t *l_str_tmp = dap_string_new("");
+    if (!a_str_out)
+        return -1;
+    if (!a_net || !a_datum_hash || !a_hash_out_type) {
+        return -2;
+    }
+    if (a_chain) {
+        char *l_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+        _cmd_mempool_dump_from_group(a_net->pub.id, l_group_mempool, a_datum_hash, a_hash_out_type, l_str_tmp);
+        DAP_DELETE(l_group_mempool);
+    } else {
+        dap_chain_t *l_chain = NULL;
+        DL_FOREACH(a_net->pub.chains, l_chain){
+            char *l_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+            if (!_cmd_mempool_dump_from_group(a_net->pub.id, l_group_mempool, a_datum_hash, a_hash_out_type, l_str_tmp)){
+                DAP_DELETE(l_group_mempool);
+                break;
+            }
+            DAP_DELETE(l_group_mempool);
+        }
+    }
+    dap_cli_server_cmd_set_reply_text(a_str_out, "%s", l_str_tmp->str);
+    dap_string_free(l_str_tmp, true);
+}
+
 int com_mempool(int a_argc, char **a_argv,  char **a_str_reply){
     int arg_index = 1;
     dap_chain_net_t *l_net = NULL;
@@ -3306,19 +3351,17 @@ int com_mempool(int a_argc, char **a_argv,  char **a_str_reply){
         }
     }
     dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net);
-//    bool l_fast = NULL;
     const char *l_hash_out_type = "hex";
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
     const char *l_datum_hash_in = NULL;
     const char *l_datum_hash = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-datum", &l_datum_hash_in);
     if (l_datum_hash_in) {
-        l_datum_hash = l_datum_hash_in;
-        // datum hash may be in hex or base58 format
         if(dap_strncmp(l_datum_hash_in, "0x", 2) && dap_strncmp(l_datum_hash_in, "0X", 2)) {
             l_datum_hash = dap_enc_base58_to_hex_str_from_str(l_datum_hash_in);
-//            DAP_DELETE(l_datum_hash_in)
-        }
+        } else
+            l_datum_hash = dap_strdup(l_datum_hash_in);
+        DAP_DELETE(l_datum_hash_in);
     }
     int ret = -100;
     switch (l_cmd) {
@@ -3361,7 +3404,6 @@ int com_mempool(int a_argc, char **a_argv,  char **a_str_reply){
             }
         } break;
         case SUBCMD_ADD_CA: {
-            const char *l_datum_hash = NULL;
             char *l_ca_name  = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-ca_name", &l_ca_name);
             if (!l_ca_name) {
@@ -3381,9 +3423,10 @@ int com_mempool(int a_argc, char **a_argv,  char **a_str_reply){
             ret = _cmd_mempool_check(l_net, l_chain, l_datum_hash, l_hash_out_type, a_str_reply);
         } break;
         case SUBCMD_DUMP: {
-            const char *l_datum_hash = NULL;
+            _cmd_mempool_dump(l_net, l_chain, l_datum_hash, l_hash_out_type, a_str_reply);
         } break;
     }
+    DAP_DEL_Z(l_datum_hash);
     return ret;
 }
 
