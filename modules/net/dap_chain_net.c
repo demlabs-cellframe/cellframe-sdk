@@ -790,7 +790,7 @@ static int s_net_link_add(dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_
     return 0;
 }
 
-static void s_net_link_remove(dap_chain_net_pvt_t *a_net_pvt, dap_chain_node_client_t *a_link, bool a_rebase)
+static int s_net_link_remove(dap_chain_net_pvt_t *a_net_pvt, dap_chain_node_client_t *a_link, bool a_rebase)
 {
     struct net_link *l_link = NULL, *l_link_tmp = NULL, *l_link_found = NULL;
     HASH_ITER(hh, a_net_pvt->net_links, l_link, l_link_tmp) {
@@ -801,7 +801,7 @@ static void s_net_link_remove(dap_chain_net_pvt_t *a_net_pvt, dap_chain_node_cli
     }
     if (!l_link_found) {
         log_it(L_WARNING, "Can't find link %p to remove it from links HT", a_link);
-        return;
+        return 1;
     }
     HASH_DEL(a_net_pvt->net_links, l_link_found);
     if (l_link_found->delay_timer) {
@@ -818,6 +818,7 @@ static void s_net_link_remove(dap_chain_net_pvt_t *a_net_pvt, dap_chain_node_cli
         DAP_DEL_Z(l_link_found->link_info);
         DAP_DELETE(l_link_found);
     }
+    return 0;
 }
 
 static size_t s_net_get_active_links_count(dap_chain_net_t * a_net)
@@ -952,14 +953,18 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
     }
     if (l_net_pvt->state_target != NET_STATE_OFFLINE) {
         pthread_mutex_lock(&l_net_pvt->uplinks_mutex);
-        s_net_link_remove(l_net_pvt, a_node_client, l_net_pvt->only_static_links);
+        if (!s_net_link_remove(l_net_pvt, a_node_client, l_net_pvt->only_static_links)) {
+            a_node_client->keep_connection = false;
+            a_node_client->callbacks.delete = NULL;
+            dap_chain_node_client_close_mt(a_node_client);  // Remove it on next context iteration
+        } else {
+            log_it(L_ATT, "[!] issue 9928 catched");
+        }
+
         //char *l_key = dap_chain_node_addr_to_hash_str(&a_node_client->info->hdr.address);
         //dap_global_db_del_sync(l_net->pub.gdb_nodes, l_key);
         //DAP_DELETE(l_key);
 
-        a_node_client->keep_connection = false;
-        a_node_client->callbacks.delete = NULL;
-        dap_chain_node_client_close_mt(a_node_client);  // Remove it on next context iteration
         struct net_link *l_free_link = s_get_free_link(l_net);
         if (l_free_link) {
             pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
