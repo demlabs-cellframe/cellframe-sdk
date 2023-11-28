@@ -34,10 +34,10 @@
   */
 typedef struct dap_chain_tx_in_ems {
     struct {
-        dap_chain_tx_item_type_t type DAP_ALIGNED(2);
+        dap_chain_tx_item_type_t type ;
         char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
         dap_chain_id_t token_emission_chain_id DAP_ALIGNED(4);
-        dap_hash_fast_t token_emission_hash DAP_ALIGNED(4);;
+        dap_hash_fast_t token_emission_hash;
     } DAP_PACKED header; /// Only header's hash is used for verification
 } DAP_PACKED dap_chain_tx_in_ems_t;
 

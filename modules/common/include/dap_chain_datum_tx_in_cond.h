@@ -34,7 +34,7 @@
 
 typedef struct dap_chain_tx_in_cond {
     struct {
-        dap_chain_tx_item_type_t type DAP_ALIGNED(4); /// @param    type            @brief Transaction item type
+        dap_chain_tx_item_type_t type; /// @param    type            @brief Transaction item type
         dap_chain_hash_fast_t tx_prev_hash; /// @param tx_prev_hash    @brief Hash of the previous transaction. 0 for generation TX
         uint32_t tx_out_prev_idx DAP_ALIGNED(4); ///      @param   tx_prev_idx     @brief Previous tx_out index. 0 for generation TX
         uint32_t receipt_idx DAP_ALIGNED(4);
