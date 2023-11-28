@@ -2794,6 +2794,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
             char buff_time[50];
             dap_time_to_str_rfc822(&buff_time, 50, l_datum->header.ts_create);
             dap_string_append_printf(a_str_tmp, "%s hash %s %s\n", l_datum_type, l_objs[i].key, buff_time);
+            bool datum_is_accepted_addr = false;
             switch (l_datum->header.type_id) {
                 case DAP_CHAIN_DATUM_TX: {
                     dap_chain_addr_t l_addr_from;
@@ -2803,6 +2804,9 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                     dap_chain_tx_sig_t *l_sig = l_list_sig_item->data;
                     dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_sig);
                     dap_chain_addr_fill_from_sign(&l_addr_from, l_sign, a_net->pub.id);
+                    if (l_wallet_addr && dap_chain_addr_compare(l_wallet_addr, &l_addr_from)) {
+                        datum_is_accepted_addr = true;
+                    }
                     dap_list_free(l_list_sig_item);
                     char *l_addr_from_str = dap_chain_addr_to_str(&l_addr_from);
                     dap_string_append_printf(a_str_tmp, "\tFrom: %s\n", l_addr_from_str);
@@ -2834,12 +2838,15 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                             } break;
                             default: break;
                         }
-                        if (l_dist_addr && dap_chain_addr_compare(&l_addr_from, l_dist_addr))
-                            continue;
+//                        if (l_dist_addr && dap_chain_addr_compare(&l_addr_from, l_dist_addr))
+//                            continue;
                         char *l_value_str = dap_chain_balance_print(l_value);
                         char *l_value_coins_str = dap_chain_balance_to_coins(l_value);
                         char *l_addr_str = dap_chain_addr_to_str(l_dist_addr);
                         if (l_dist_addr) {
+                            if (!datum_is_accepted_addr && l_wallet_addr) {
+                                datum_is_accepted_addr = dap_chain_addr_compare(l_wallet_addr, l_dist_addr);
+                            }
                             dap_chain_addr_compare(&l_addr_from, l_dist_addr) ?
                             dap_string_append_printf(a_str_tmp, "\tСhange: %s (%s) %s\n",
                                                      l_value_coins_str, l_value_str, l_dist_token) :
@@ -2850,163 +2857,38 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                             dap_string_append_printf(a_str_tmp, "\tFee: %s (%s) %s\n", l_value_coins_str, l_value_str,
                                                      l_dist_token);
                         }
-//                        if (!is_fee) {
-//                            if (l_dist_addr)
-//                        } else {
-//                            dap_string_append_printf(a_str_tmp, "\tFee: %s (%s) %s\n", l_value_coins_str, l_value_str,
-//                                                     l_dist_token);
-//                        }
-//                        if (l_dist_addr && dap_chain_addr_compare(&l_addr_from, l_dist_addr)){
-//                            dap_string_append_printf(a_str_tmp, "\tСhange: %s (%s) %s\n",
-//                                                     l_value_coins_str, l_value_str, l_dist_token);
-//                        } else {
-//                            !is_fee ? dap_string_append_printf(a_str_tmp, "\tTo: %s (%s) %s %s\n",
-//                                                               l_value_coins_str, l_value_str, l_dist_token, l_addr_str)
-//                                    :
-//                            dap_string_append_printf(a_str_tmp, "\tFee: %s (%s) %s\n", l_value_coins_str, l_value_str,
-//                                                     l_dist_token);
-//                        }
                         DAP_DELETE(l_value_str);
                         DAP_DELETE(l_value_coins_str);
                         DAP_DELETE(l_addr_str);
                     }
                     dap_list_free(l_list_out_items);
-                    //From
-                    //TO
-                    //COINS (VALUE) TOKEN
+                } break;
+                case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
+                    size_t l_emi_size = 0;
+                    dap_chain_datum_token_emission_t *l_emi = dap_chain_datum_emission_read(l_datum->data, &l_emi_size);
+                    if (l_wallet_addr && dap_chain_addr_compare(l_wallet_addr, &l_emi->hdr.address))
+                        datum_is_accepted_addr = true;
+                    DAP_DELETE(l_emi);
+                    dap_chain_datum_dump(a_str_tmp, l_datum, a_hash_out_type, a_net->pub.id);
                 } break;
                 default:
                     dap_chain_datum_dump(a_str_tmp, l_datum, a_hash_out_type, a_net->pub.id);
             }
+            if (datum_is_accepted_addr) {
+                l_objs_addr++;
+            }
+        }
+        if (l_wallet_addr) {
+            dap_string_append_printf(a_str_tmp, l_objs_addr ? "%s.%s: Total %zu records\n"
+                                     : "%s.%s: No records\n", a_net->pub.name, a_chain->name, l_objs_addr);
+        } else {
+            dap_string_append_printf(a_str_tmp, l_objs_count ? "%s.%s: Total %zu records\n"
+                                                             : "%s.%s: No records\n", a_net->pub.name, a_chain->name,
+                                     l_objs_count);
         }
         dap_global_db_objs_delete(l_objs, l_objs_count);
         DAP_DELETE(l_gdb_group_mempool);
     }
-}
-//            if(a_add)
-//            {
-//                size_t l_emisssion_size = l_datum->header.data_size;
-//                dap_chain_datum_token_emission_t *l_emission = dap_chain_datum_emission_read(l_datum->data, &l_emisssion_size);
-//                dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
-//
-//                uint32_t l_tx_items_count = 0;
-//                uint32_t l_tx_items_size = l_tx->header.tx_items_size;
-//                bool l_f_found = false;
-//
-//                dap_chain_addr_t *l_addr = dap_chain_addr_from_str(a_add);
-//                switch (l_datum->header.type_id) {
-//                case DAP_CHAIN_DATUM_TX:
-//                    while (l_tx_items_count < l_tx_items_size)
-//                    {
-//                        uint8_t *item = l_tx->tx_items + l_tx_items_count;
-//                        size_t l_item_tx_size = dap_chain_datum_item_tx_get_size(item);
-//                        dap_chain_hash_fast_t l_hash;
-//                        bool t =false;
-//                        if(!memcmp(l_addr, &((dap_chain_tx_out_old_t*)item)->addr, sizeof(dap_chain_addr_t))||
-//                            !memcmp(l_addr, &((dap_chain_tx_out_t*)item)->addr, sizeof(dap_chain_addr_t))||
-//                            !memcmp(l_addr, &((dap_chain_tx_out_ext_t*)item)->addr, sizeof(dap_chain_addr_t)))
-//                        {
-//                            l_f_found = true;
-//                            break;
-//                        }
-//                        l_hash = ((dap_chain_tx_in_t*)item)->header.tx_prev_hash;
-//                        if(dap_chain_mempool_find_addr_ledger(a_net->pub.ledger,&l_hash,l_addr)){l_f_found=true;break;}
-//                        l_hash = ((dap_chain_tx_in_cond_t*)item)->header.tx_prev_hash;
-//                        if(dap_chain_mempool_find_addr_ledger(a_net->pub.ledger,&l_hash,l_addr)){l_f_found=true;break;}
-//                        l_hash = ((dap_chain_tx_in_ems_t*)item)->header.token_emission_hash;
-//                        if(dap_chain_mempool_find_addr_ledger(a_net->pub.ledger,&l_hash,l_addr)){l_f_found=true;break;}
-//                        l_hash = ((dap_chain_tx_in_ems_ext_t*)item)->header.ext_tx_hash;
-//                        if(dap_chain_mempool_find_addr_ledger(a_net->pub.ledger,&l_hash,l_addr)){l_f_found=true;break;}
-//
-//                        l_tx_items_count += l_item_tx_size;
-//                    }
-//                    if(l_f_found)
-//                        l_objs_addr++;
-//                    break;
-//                case DAP_CHAIN_DATUM_TOKEN_EMISSION:
-//                    if(!memcmp(l_addr, &l_emission->hdr.address, sizeof(dap_chain_addr_t)))
-//                    {
-//                        l_objs_addr++;
-//                        l_f_found = true;
-//                    }
-//                    break;
-//                case DAP_CHAIN_DATUM_DECREE:
-//
-//                    break;
-//                default:
-////                    continue;
-//                    break;
-//                }
-//                DAP_DELETE(l_emission);
-//                DAP_DELETE(l_addr);
-//                if(!l_f_found)
-//                    continue;
-//            }
-//            if (l_printed_smth)
-//                dap_string_append_printf(a_str_tmp, "=========================================================\n");
-//            l_printed_smth = true;
-//            char buf[50] = {[0]='\0'};
-//            dap_hash_fast_t l_data_hash;
-//            char l_data_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {[0]='\0'};
-//            dap_hash_fast(l_datum->data,l_datum->header.data_size,&l_data_hash);
-//            dap_hash_fast_to_str(&l_data_hash,l_data_hash_str,DAP_CHAIN_HASH_FAST_STR_SIZE);
-//            if (strcmp(l_data_hash_str, l_objs[i].key))
-//                            dap_string_append_printf(a_str_tmp,
-//                                                     "WARNING: key field in DB %s does not match datum's hash %s\n",
-//                                                     l_objs[i].key, l_data_hash_str);
-//            const char *l_type = NULL;
-//            DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type)
-//            const char *l_token_ticker = NULL;
-//            bool l_is_unchained = false;
-//            if (l_datum->header.type_id == DAP_CHAIN_DATUM_TX) { // TODO rewrite it for support of multichannel & conditional transactions
-//                dap_chain_tx_in_ems_t *obj_token = (dap_chain_tx_in_ems_t*)dap_chain_datum_tx_item_get((dap_chain_datum_tx_t*)l_datum->data, NULL, TX_ITEM_TYPE_IN_EMS, NULL);
-//                if (obj_token) {
-//                    l_token_ticker = obj_token->header.ticker;
-//                } else {
-//                    if (!a_fast) {
-//                        l_token_ticker = s_tx_get_main_ticker((dap_chain_datum_tx_t*)l_datum->data, a_net, &l_is_unchained);
-//                    }
-//                }
-//            }
-//            dap_string_append_printf(a_str_tmp,
-//                                                 "%s: type_id=%s%s%s%s data_size=%u ts_create=%s", // \n included in timestamp
-//                                                 l_data_hash_str, l_type, l_is_unchained ? "(unchainned)" : "",
-//                                                 l_datum->header.type_id == DAP_CHAIN_DATUM_TX ? " ticker=" : "",
-//                                                 l_token_ticker ? l_token_ticker :
-//                                                                  (l_datum->header.type_id == DAP_CHAIN_DATUM_TX ) ? "UNKNOWN" : "",
-//                                                 l_datum->header.data_size,
-//                                                 dap_ctime_r(&l_ts_create, buf));
-//            if (!a_fast)
-//                dap_chain_datum_dump(a_str_tmp, l_datum, a_hash_out_type, a_net->pub.id);
-//        }
-//        if(a_add)
-//            dap_string_append_printf(a_str_tmp, l_objs_addr
-//                                     ? "%s.%s: Total %zu records\n"
-//                                     : "%s.%s: No records\n", a_net->pub.name, a_chain->name, l_objs_addr);
-//        else
-//            dap_string_append_printf(a_str_tmp, l_objs_size
-//                                 ? "%s.%s: Total %zu records\n"
-//                                 : "%s.%s: No records\n", a_net->pub.name, a_chain->name, l_objs_size);
-//        dap_global_db_objs_delete(l_objs, l_objs_size);
-//        DAP_DELETE(l_gdb_group_mempool);
-//    }
-//}
-
-int _cmd_mempool_list(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_chain_addr_t *a_addr, const char *a_hash_out_type, char **a_str_reply){
-//    if (!a_net){
-//        dap_cli_server_cmd_set_reply_text(a_str_reply, "The network parameter for which you want to display a list of "
-//                                                       "datums in the mempool is not specified.");
-//        return -1;
-//    }
-//    dap_string_t * l_str_tmp = dap_string_new(NULL);
-//    if(a_chain)
-//        s_com_mempool_list_print_for_chain(a_net, a_chain, l_addr_base58, l_str_tmp, l_hash_out_type, l_fast);
-//    else
-//        DL_FOREACH(l_net->pub.chains, l_chain)
-//            s_com_mempool_list_print_for_chain(l_net, l_chain, l_addr_base58, l_str_tmp, l_hash_out_type, l_fast);
-//    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
-//    dap_string_free(l_str_tmp, true);
-//    return 0;
 }
 
 int _cmd_mempool_delete(dap_chain_t *a_chain, const char *a_datum_hash, char **a_str_reply) {
@@ -3295,30 +3177,28 @@ int _cmd_mempool_dump_from_group(dap_chain_net_id_t a_net_id, const char *a_grou
     return 0;
 }
 
-int _cmd_mempool_dump(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_datum_hash, const char *a_hash_out_type, char **a_str_out) {
-    dap_string_t *l_str_tmp = dap_string_new("");
-    if (!a_str_out)
+int _cmd_mempool_dump(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_datum_hash, const char *a_hash_out_type, dap_string_t *a_str_ret) {
+    if (!a_str_ret)
         return -1;
     if (!a_net || !a_datum_hash || !a_hash_out_type) {
         return -2;
     }
     if (a_chain) {
         char *l_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
-        _cmd_mempool_dump_from_group(a_net->pub.id, l_group_mempool, a_datum_hash, a_hash_out_type, l_str_tmp);
+        _cmd_mempool_dump_from_group(a_net->pub.id, l_group_mempool, a_datum_hash, a_hash_out_type, a_str_ret);
         DAP_DELETE(l_group_mempool);
     } else {
         dap_chain_t *l_chain = NULL;
         DL_FOREACH(a_net->pub.chains, l_chain){
             char *l_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
-            if (!_cmd_mempool_dump_from_group(a_net->pub.id, l_group_mempool, a_datum_hash, a_hash_out_type, l_str_tmp)){
+            if (!_cmd_mempool_dump_from_group(a_net->pub.id, l_group_mempool, a_datum_hash, a_hash_out_type, a_str_ret)){
                 DAP_DELETE(l_group_mempool);
                 break;
             }
             DAP_DELETE(l_group_mempool);
         }
     }
-    dap_cli_server_cmd_set_reply_text(a_str_out, "%s", l_str_tmp->str);
-    dap_string_free(l_str_tmp, true);
+    return 0;
 }
 
 int com_mempool(int a_argc, char **a_argv,  char **a_str_reply){
@@ -3361,7 +3241,6 @@ int com_mempool(int a_argc, char **a_argv,  char **a_str_reply){
             l_datum_hash = dap_enc_base58_to_hex_str_from_str(l_datum_hash_in);
         } else
             l_datum_hash = dap_strdup(l_datum_hash_in);
-        DAP_DELETE(l_datum_hash_in);
     }
     int ret = -100;
     switch (l_cmd) {
@@ -3423,7 +3302,10 @@ int com_mempool(int a_argc, char **a_argv,  char **a_str_reply){
             ret = _cmd_mempool_check(l_net, l_chain, l_datum_hash, l_hash_out_type, a_str_reply);
         } break;
         case SUBCMD_DUMP: {
-            _cmd_mempool_dump(l_net, l_chain, l_datum_hash, l_hash_out_type, a_str_reply);
+            dap_string_t *l_str_ret = dap_string_new(NULL);
+            ret = _cmd_mempool_dump(l_net, l_chain, l_datum_hash, l_hash_out_type, l_str_ret);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ret->str);
+            dap_string_free(l_str_ret, true);
         } break;
     }
     DAP_DEL_Z(l_datum_hash);
