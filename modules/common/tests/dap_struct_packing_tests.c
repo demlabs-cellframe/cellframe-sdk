@@ -8,6 +8,7 @@
 #include "../include/dap_chain_datum_tx_out_ext.h"
 #include "../include/dap_chain_datum_tx_pkey.h"
 #include "../include/dap_chain_datum_tx_sig.h"
+#include "../include/dap_chain_datum_tx_tsd.h"
 
 DAP_STATIC_INLINE int s_get_delta_addr(const void *a_addr_1, const void *a_addr_2)
 {
@@ -160,6 +161,19 @@ static int s_chain_tx_sig_test()
     return 0;
 }
 
+static int s_chain_tx_tsd_test()
+{
+    dap_print_module_name("dap_chain_tx_sig_test");
+    dap_chain_tx_tsd_t s = {0};
+    dap_assert(sizeof(s) == 16, "size");
+    dap_assert(sizeof(s.header) == 16, "header size");
+    dap_assert(s_get_delta_addr(&s, &s.header) == 0, "header");
+    dap_assert(s_get_delta_addr(&s, &s.header.type) == 0, "header.type");
+    dap_assert(s_get_delta_addr(&s, &s.header.size) == 8, "header.size");
+    dap_assert(s_get_delta_addr(&s, &s.tsd) == 16, "tsd");
+    return 0;
+}
+
 void dap_struct_packing_test_run(void){
     dap_print_module_name("dap_struct_packing");
     s_chain_tx_in_cond_test();
@@ -170,6 +184,5 @@ void dap_struct_packing_test_run(void){
     s_chain_tx_out_test();
     s_chain_tx_pkey_test();
     s_chain_tx_sig_test();
+    s_chain_tx_tsd_test();
 }
-
-
