@@ -3725,7 +3725,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
 
         case TX_ITEM_TYPE_IN:
         case TX_ITEM_TYPE_IN_COND: { // Not emission types
-            uint32_t l_idx = (uint32_t)-1;
+            uint32_t l_tx_prev_out_idx = (uint32_t)-1;
             dap_hash_fast_t *l_tx_prev_hash;
             if (l_cond_type == TX_ITEM_TYPE_IN) {
                 dap_chain_tx_in_t *l_tx_in = it->data;
@@ -3734,13 +3734,13 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
                     DAP_DELETE(l_bound_item);
                     continue; // old base tx compliance
                 }
-                l_idx = l_tx_in->header.tx_out_prev_idx;
+                l_tx_prev_out_idx = l_tx_in->header.tx_out_prev_idx;
                 // 2. Check current transaction for doubles in input items list
                 for (dap_list_t *l_iter = l_list_in; l_iter; l_iter = l_iter->next) {
                     dap_chain_tx_in_t *l_in_check = l_iter->data;
                     if (l_tx_in != l_in_check &&
                             l_in_check->header.type == TX_ITEM_TYPE_IN &&
-                            l_in_check->header.tx_out_prev_idx == l_idx &&
+                            l_in_check->header.tx_out_prev_idx == l_tx_prev_out_idx &&
                             dap_hash_fast_compare(&l_in_check->header.tx_prev_hash, l_tx_prev_hash)) {
                         debug_if(s_debug_more, L_ERROR, "This previous tx output already used in current tx");
                         l_err_num = DAP_LEDGER_TX_CHECK_PREV_OUT_ALREADY_USED_IN_CURRENT_TX;
@@ -3752,13 +3752,13 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
             } else {
                 dap_chain_tx_in_cond_t *l_tx_in_cond = it->data;
                 l_tx_prev_hash = &l_tx_in_cond->header.tx_prev_hash;
-                l_idx = l_tx_in_cond->header.tx_out_prev_idx;
+                l_tx_prev_out_idx = l_tx_in_cond->header.tx_out_prev_idx;
                 // 2. Check current transaction for doubles in input items list
                 for (dap_list_t *l_iter = l_list_in; l_iter; l_iter = l_iter->next) {
                     dap_chain_tx_in_cond_t *l_in_cond_check = l_iter->data;
                     if (l_tx_in_cond != l_in_cond_check &&
                             l_in_cond_check->header.type == TX_ITEM_TYPE_IN_COND &&
-                            l_in_cond_check->header.tx_out_prev_idx == l_idx &&
+                            l_in_cond_check->header.tx_out_prev_idx == l_tx_prev_out_idx &&
                             dap_hash_fast_compare(&l_in_cond_check->header.tx_prev_hash, l_tx_prev_hash)) {
                         debug_if(s_debug_more, L_ERROR, "This previous tx output already used in current tx");
                         l_err_num = DAP_LEDGER_TX_CHECK_PREV_OUT_ALREADY_USED_IN_CURRENT_TX;
@@ -3783,12 +3783,13 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
                 break;
             }
             l_bound_item->prev_item = l_item_out;
+            l_bound_item->prev_out_idx = l_tx_prev_out_idx;
             l_token = l_item_out->cache_data.token_ticker;
             debug_if(s_debug_more && !a_from_threshold, L_INFO, "Previous transaction was found for hash %s",l_tx_prev_hash_str);
 
             // 2. Check if out in previous transaction has spent
             dap_hash_fast_t l_spender;
-            if (s_ledger_tx_hash_is_used_out_item(l_item_out, l_idx, &l_spender)) {
+            if (s_ledger_tx_hash_is_used_out_item(l_item_out, l_tx_prev_out_idx, &l_spender)) {
                 l_err_num = DAP_LEDGER_TX_CHECK_OUT_ITEM_ALREADY_USED;
                 char l_hash[DAP_CHAIN_HASH_FAST_STR_SIZE];
                 dap_chain_hash_fast_to_str(&l_spender, l_hash, sizeof(l_hash));
@@ -3797,7 +3798,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
             }
 
             // Get one 'out' item in previous transaction bound with current 'in' item
-            l_tx_prev_out = dap_chain_datum_tx_item_get_nth(l_tx_prev, TX_ITEM_TYPE_OUT_ALL, l_idx);
+            l_tx_prev_out = dap_chain_datum_tx_item_get_nth(l_tx_prev, TX_ITEM_TYPE_OUT_ALL, l_tx_prev_out_idx);
             if(!l_tx_prev_out) {
                 l_err_num = DAP_LEDGER_TX_CHECK_PREV_OUT_ITEM_NOT_FOUND;
                 break;
@@ -4304,8 +4305,8 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
                 if (!l_item_tmp) {
                     if (l_threshold_txs_count >= s_threshold_txs_max) {
                         if(s_debug_more)
-                            log_it(L_WARNING, "Threshold for tranactions is overfulled (%zu max), dropping down new data, added nothing",
-                                       s_threshold_txs_max);
+                            log_it(L_WARNING, "Threshold for tranactions is overfulled (%zu max), dropping down tx %s, added nothing",
+                                       s_threshold_txs_max, l_tx_hash_str);
                     } else {
                         l_item_tmp = DAP_NEW_Z(dap_ledger_tx_item_t);
                         if ( !l_item_tmp ) {
