@@ -2346,9 +2346,10 @@ int s_net_load(dap_chain_net_t *a_net)
 
     //load decree
     dap_chain_net_decree_init(l_net);
+
     // load chains
     dap_chain_t *l_chain = l_net->pub.chains;
-    while(l_chain){
+    while (l_chain) {
         l_net->pub.fee_value = uint256_0;
         l_net->pub.fee_addr = c_dap_chain_addr_blank;
         if (!dap_chain_load_all(l_chain)) {
