@@ -5,6 +5,7 @@
 #include "../include/dap_chain_datum_tx_in_ems.h"
 #include "../include/dap_chain_datum_tx_in.h"
 #include "../include/dap_chain_datum_tx_out_cond.h"
+#include "../include/dap_chain_datum_tx_out_ext.h"
 
 DAP_STATIC_INLINE int s_get_delta_addr(const void *a_addr_1, const void *a_addr_2)
 {
@@ -54,7 +55,7 @@ static int s_chain_tx_in_test()
 
 static int s_chain_tx_out_cond_old_test()
 {
-    dap_print_module_name("dap_chain_tx_in_test");
+    dap_print_module_name("dap_chain_tx_out_cond_old_test");
     dap_chain_tx_out_cond_old_t s = {0};
  
     dap_assert(sizeof(s) == 220, "size");
@@ -93,6 +94,20 @@ static int s_chain_tx_out_cond_old_test()
     return 0;
 }
 
+static int s_chain_tx_out_ext_test()
+{
+    dap_print_module_name("dap_chain_tx_out_ext_test");
+    dap_chain_tx_out_ext_t s = {0};
+    dap_assert(sizeof(s) == 120, "size");
+    dap_assert(sizeof(s.header) == 33, "header size");
+    dap_assert(s_get_delta_addr(&s, &s.header) == 0, "header");
+    dap_assert(s_get_delta_addr(&s, &s.header.type) == 0, "header.type");
+    dap_assert(s_get_delta_addr(&s, &s.header.value) == 1, "header.value");
+    dap_assert(s_get_delta_addr(&s, &s.addr) == 33, "addr");
+    dap_assert(s_get_delta_addr(&s, &s.token) == 110, "token");
+    return 0;
+}
+
 static int s_chain_tx_out_test()
 {
     dap_print_module_name("dap_chain_tx_out_test");
@@ -121,7 +136,7 @@ void dap_struct_packing_test_run(void){
     s_chain_datum_tx_in_ems_test();
     s_chain_tx_in_test();
     s_chain_tx_out_cond_old_test();
+    s_chain_tx_out_ext_test();
     s_chain_tx_out_test();
 }
-
 
