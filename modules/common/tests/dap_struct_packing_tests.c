@@ -12,6 +12,8 @@ static int s_chain_tx_out_test()
 {
     dap_print_module_name("dap_chain_tx_out_test");
     dap_chain_tx_out_old_t s_old = {0};
+    dap_assert(sizeof(s_old) == 93, "old size");
+    dap_assert(sizeof(s_old.header) == 16, "old.header size");
     dap_assert(s_get_delta_addr(&s_old, &s_old.header) == 0, "old.header");
     dap_assert(s_get_delta_addr(&s_old, &s_old.header.type) == 0, "old.header.type");
     dap_assert(s_get_delta_addr(&s_old, &s_old.header.value) == 8, "old.header.value");
@@ -19,6 +21,8 @@ static int s_chain_tx_out_test()
 
 
     dap_chain_tx_out_t s = {0};
+    dap_assert(sizeof(s) == 110, "new size");
+    dap_assert(sizeof(s.header) == 33, "new.header size");
     dap_assert(s_get_delta_addr(&s, &s.header) == 0, "new.header");
     dap_assert(s_get_delta_addr(&s, &s.header.type) == 0, "new.header.type");
     dap_assert(s_get_delta_addr(&s, &s.header.value) == 1, "new.header.value");
