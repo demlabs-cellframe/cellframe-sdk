@@ -2523,6 +2523,9 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     l_net->pub.gdb_nodes = dap_strdup_printf("%s."NODELIST_GROUP_NAME, l_net->pub.gdb_groups_prefix);
     l_net->pub.gdb_nodes_aliases = dap_strdup_printf("%s.nodes.aliases",l_net->pub.gdb_groups_prefix);
 
+    // Preset reward for block signs, before first reward decree
+    l_net->pub.base_reward = dap_chain_balance_scan("2851988815387151461");
+
     // Bridged netwoks allowed to send transactions to
     uint16_t l_net_ids_count = 0;
     char **l_bridged_net_ids = dap_config_get_array_str(l_cfg, "general", "bridged_network_ids", &l_net_ids_count);

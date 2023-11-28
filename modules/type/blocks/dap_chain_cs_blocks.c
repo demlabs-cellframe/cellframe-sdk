@@ -1853,9 +1853,13 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
             log_it(L_ERROR, "Invalid chain object");
             return l_ret;
         }
+        dap_time_t l_block_time = l_block->hdr.ts_created;
+        if (l_block_time < 1700870400UL) { // 25 Nov 00:00:00 GMT
+            log_it(L_WARNING, "Timesatamp is too old, reward is not set for this block");
+            return l_ret;
+        }
         size_t l_signs_count = dap_chain_block_get_signs_count(l_block, l_block_size);
         DIV_256(l_net->pub.base_reward, GET_256_FROM_64(l_signs_count), &l_ret);
-        dap_time_t l_block_time = l_block->hdr.ts_created;
         dap_hash_fast_t *l_prev_block_hash = dap_chain_block_get_prev_hash(l_block, l_block_size);
         if (l_prev_block_hash) {
             l_block = dap_chain_get_atom_by_hash(a_chain, l_prev_block_hash, &l_block_size);
