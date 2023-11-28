@@ -3,6 +3,7 @@
 #include "../include/dap_chain_datum_tx_out.h"
 #include "../include/dap_chain_datum_tx_in_cond.h"
 #include "../include/dap_chain_datum_tx_in_ems.h"
+#include "../include/dap_chain_datum_tx_in.h"
 
 DAP_STATIC_INLINE int s_get_delta_addr(const void *a_addr_1, const void *a_addr_2)
 {
@@ -23,9 +24,9 @@ static int s_chain_tx_in_cond_test()
     return 0;
 }
 
-static int s_chain_datum_tx_in_ems()
+static int s_chain_datum_tx_in_ems_test()
 {
-    dap_print_module_name("dap_chain_tx_in_cond_test");
+    dap_print_module_name("dap_chain_datum_tx_in_ems_test");
     dap_chain_tx_in_ems_t s = {0};
     dap_assert(sizeof(s) == 52, "size");
     dap_assert(sizeof(s.header) == 52, "header size");
@@ -34,6 +35,19 @@ static int s_chain_datum_tx_in_ems()
     dap_assert(s_get_delta_addr(&s, &s.header.ticker) == 1, "header.ticker");
     dap_assert(s_get_delta_addr(&s, &s.header.token_emission_chain_id) == 12, "header.tx_out_prev_idx");
     dap_assert(s_get_delta_addr(&s, &s.header.token_emission_hash) == 20, "header.receipt_idx");
+    return 0;
+}
+
+static int s_chain_tx_in_test()
+{
+    dap_print_module_name("dap_chain_tx_in_test");
+    dap_chain_tx_in_t s = {0};   
+    dap_assert(sizeof(s) == 40, "size");
+    dap_assert(sizeof(s.header) == 40, "header size");
+    dap_assert(s_get_delta_addr(&s, &s.header) == 0, "header");
+    dap_assert(s_get_delta_addr(&s, &s.header.type) == 0, "header.type");
+    dap_assert(s_get_delta_addr(&s, &s.header.tx_prev_hash) == 1, "header.tx_prev_hash");
+    dap_assert(s_get_delta_addr(&s, &s.header.tx_out_prev_idx) == 36, "header.tx_out_prev_idx");
     return 0;
 }
 
@@ -62,7 +76,8 @@ static int s_chain_tx_out_test()
 void dap_struct_packing_test_run(void){
     dap_print_module_name("dap_struct_packing");
     s_chain_tx_in_cond_test();
-    s_chain_datum_tx_in_ems();
+    s_chain_datum_tx_in_ems_test();
+    s_chain_tx_in_test();
     s_chain_tx_out_test();
-
 }
+
