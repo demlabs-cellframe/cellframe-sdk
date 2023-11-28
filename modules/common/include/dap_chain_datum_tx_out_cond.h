@@ -134,14 +134,14 @@ typedef struct dap_chain_tx_out_cond {
 typedef struct dap_chain_tx_out_cond_old {      // Obsolete
     struct {
         /// Transaction item type
-        dap_chain_tx_item_type_t item_type;
+        dap_chain_tx_item_type_t item_type DAP_ALIGNED(1);
         /// Condition subtype
-        dap_chain_tx_out_cond_subtype_t subtype;
-        /// Number of Datoshis ( DAP/10^9 ) to be reserver for service
-        uint64_t value;
+        dap_chain_tx_out_cond_subtype_t subtype DAP_ALIGNED(1);
+        /// Number of Datoshis ( DAP/10^8 ) to be reserver for service
+        uint64_t value DAP_ALIGNED(8);
         /// When time expires this output could be used only by transaction owner
-        dap_time_t ts_expires;
-    } header;
+        dap_time_t ts_expires DAP_ALIGNED(8);
+    } DAP_PACKED header;
     union {
         /// Structure with specific for service pay condition subtype
         struct {
@@ -152,8 +152,8 @@ typedef struct dap_chain_tx_out_cond_old {      // Obsolete
             /// Price unit thats used to check price max
             dap_chain_net_srv_price_unit_uid_t unit;
             /// Maximum price per unit
-            uint64_t unit_price_max_datoshi;
-        } srv_pay;
+            uint64_t unit_price_max_datoshi DAP_ALIGNED(8);
+        } DAP_PACKED srv_pay;
         struct {
             // Service uid that only could be used for this outout
             dap_chain_net_srv_uid_t srv_uid;
@@ -162,8 +162,8 @@ typedef struct dap_chain_tx_out_cond_old {      // Obsolete
             // Chain network to change to
             dap_chain_net_id_t net_id;
             // Total amount of datoshi to change to
-            uint64_t value;
-        } srv_xchange;
+            uint64_t value DAP_ALIGNED(8);
+        } DAP_PACKED srv_xchange;
         struct {
             // Service uid that only could be used for this outout
             dap_chain_net_srv_uid_t srv_uid;
@@ -172,9 +172,9 @@ typedef struct dap_chain_tx_out_cond_old {      // Obsolete
             // Fee address
             dap_chain_addr_t fee_addr;
             // Fee value in percent
-            long double fee_value;
-        } srv_stake;
+            long double fee_value DAP_ALIGNED(16);
+        } DAP_PACKED srv_stake;
     } subtype;
     uint32_t params_size; // Condition parameters size
     uint8_t params[]; // condition parameters, pkey, hash or smth like this
-} DAP_ALIGN_PACKED dap_chain_tx_out_cond_old_t;
+} DAP_PACKED dap_chain_tx_out_cond_old_t;
