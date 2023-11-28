@@ -218,7 +218,7 @@ void dap_stream_ch_chain_net_srv_tx_cond_added_cb(void *a_arg, dap_ledger_t *a_l
     if (l_item){
         log_it(L_INFO, "Found tx in ledger by notify. Finish grace.");
         // Stop timer
-        dap_timerfd_delete_mt(l_item->grace->stream_worker->worker, l_item->grace->timer_es_uuid);
+        dap_timerfd_delete_mt(l_item->grace->timer->worker, l_item->grace->timer->esocket_uuid);
         // finish grace
         s_grace_period_finish(l_item);
     }
@@ -504,9 +504,9 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
             pthread_mutex_lock(&s_ht_grace_table_mutex);
             HASH_ADD(hh, s_grace_table, tx_cond_hash, sizeof(dap_hash_fast_t), l_item);
             pthread_mutex_unlock(&s_ht_grace_table_mutex);
-            a_grace->timer_es_uuid = dap_timerfd_start_on_worker(a_grace->stream_worker->worker, a_grace->usage->service->grace_period * 1000,
-                                                                 (dap_timerfd_callback_t)s_grace_period_finish, l_item)->esocket_uuid;
-            log_it(L_INFO, "Start grace timer %s.", a_grace->timer_es_uuid ? "successfuly." : "failed." );
+            a_grace->timer = dap_timerfd_start_on_worker(a_grace->stream_worker->worker, a_grace->usage->service->grace_period * 1000,
+                                                                 (dap_timerfd_callback_t)s_grace_period_finish, l_item);
+            log_it(L_INFO, "Start grace timer %s.", a_grace->timer ? "successfuly." : "failed." );
         } else { // Else if first grace at service start
             usages_in_grace_t *l_item = DAP_NEW_Z_SIZE(usages_in_grace_t, sizeof(usages_in_grace_t));
             if (!l_item) {
@@ -546,9 +546,9 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
                 pthread_mutex_lock(&s_ht_grace_table_mutex);
                 HASH_ADD(hh, s_grace_table, tx_cond_hash, sizeof(dap_hash_fast_t), l_item);
                 pthread_mutex_unlock(&s_ht_grace_table_mutex);
-                a_grace->timer_es_uuid = dap_timerfd_start_on_worker(a_grace->stream_worker->worker, a_grace->usage->service->grace_period * 1000,
-                                                                     (dap_timerfd_callback_t)s_grace_period_finish, l_item)->esocket_uuid;
-                log_it(L_INFO, "Start grace timer %s.", a_grace->timer_es_uuid ? "successfuly." : "failed." );
+                a_grace->timer = dap_timerfd_start_on_worker(a_grace->stream_worker->worker, a_grace->usage->service->grace_period * 1000,
+                                                                     (dap_timerfd_callback_t)s_grace_period_finish, l_item);
+                log_it(L_INFO, "Start grace timer %s.", a_grace->timer ? "successfuly." : "failed." );
             }
         }
 
@@ -1558,7 +1558,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         if (dap_hash_fast_is_blank(&l_responce->hdr.tx_cond)){ //if new tx cond creation failed tx_cond in responce will be blank
             if (l_curr_grace_item){
                 HASH_DEL(s_grace_table, l_curr_grace_item);
-                dap_timerfd_delete_mt(l_curr_grace_item->grace->stream_worker->worker, l_curr_grace_item->grace->timer_es_uuid);
+                dap_timerfd_delete_mt(l_curr_grace_item->grace->timer->worker, l_curr_grace_item->grace->timer->esocket_uuid);
                 s_grace_error(l_curr_grace_item->grace, l_err);
                 DAP_DEL_Z(l_curr_grace_item);
             }
@@ -1571,7 +1571,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
             if (l_curr_grace_item){
                 log_it(L_INFO, "Found tx in ledger by net tx responce handler. Finish waiting new tx grace period.");
                 // Stop timer
-                dap_timerfd_delete_mt(l_curr_grace_item->grace->stream_worker->worker, l_curr_grace_item->grace->timer_es_uuid);
+                dap_timerfd_delete_mt(l_curr_grace_item->grace->timer->worker, l_curr_grace_item->grace->timer->esocket_uuid);
                 // finish grace
                 l_usage->tx_cond_hash = l_responce->hdr.tx_cond;
                 l_curr_grace_item->grace->request->hdr.tx_cond = l_responce->hdr.tx_cond;

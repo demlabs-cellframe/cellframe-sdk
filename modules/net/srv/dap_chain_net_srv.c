@@ -521,6 +521,10 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't recognize '%s' string as 64-bit id, hex or dec.", l_srv_uid_str);
                         dap_string_free(l_string_ret, true);
                         return -21;
+                    }else if (!l_srv_uid_str){
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Parameter -srv_uid is required.");
+                        dap_string_free(l_string_ret, true);
+                        return -22;
                     }
                     if (l_node_addr_str){
                         if (dap_chain_node_addr_str_check(l_node_addr_str)) {
@@ -673,6 +677,10 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't recognize '%s' string as 64-bit id, hex or dec.", l_srv_uid_str);
                 dap_string_free(l_string_ret, true);
                 return -21;
+            } else if (!l_srv_uid_str){
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Parameter -srv_uid is required.");
+                dap_string_free(l_string_ret, true);
+                return -22;
             }
 
             dap_stream_ch_chain_net_srv_remain_service_store_t *l_remain_service = NULL;

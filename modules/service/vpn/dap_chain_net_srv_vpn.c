@@ -992,7 +992,7 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
         l_args->srv = a_srv;
         l_args->srv_client = a_srv_client;
         l_args->usage_id = a_usage_id;
-        l_usage_active->grace_timer = dap_timerfd_start_on_worker(l_usage_active->client->stream_worker->worker, 60 * 1000,
+        l_usage_active->save_limits_timer = dap_timerfd_start_on_worker(l_usage_active->client->stream_worker->worker, 60 * 1000,
                                                              (dap_timerfd_callback_t)s_save_limits, l_args);
         l_srv_session->limits_units_type.uint32 = l_usage_active->receipt->receipt_info.units_type.uint32;
         switch( l_usage_active->receipt->receipt_info.units_type.enm){
@@ -1030,9 +1030,9 @@ static int s_callback_response_success(dap_chain_net_srv_t * a_srv, uint32_t a_u
             } break;
             default: {
                 log_it(L_WARNING, "VPN doesnt accept serv unit type 0x%08X", l_usage_active->receipt->receipt_info.units_type.uint32 );
+                dap_stream_ch_pkt_write_unsafe(l_usage_active->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
                 dap_stream_ch_set_ready_to_write_unsafe(l_usage_active->client->ch,false);
                 dap_stream_ch_set_ready_to_read_unsafe(l_usage_active->client->ch,false);
-                dap_stream_ch_pkt_write_unsafe(l_usage_active->client->ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
             }
         }
     } else if (!l_usage_active->is_free && !l_usage_active->receipt && l_usage_active->is_grace){
@@ -1305,9 +1305,9 @@ static void s_ch_vpn_delete(dap_stream_ch_t* a_ch, void* arg)
     if (l_srv_session)
         l_usage =  l_srv_session->usage_active;
 
-    if (l_usage && l_usage->grace_timer){
-        dap_timerfd_delete_mt(l_usage->grace_timer->worker, l_usage->grace_timer->esocket_uuid);
-        l_usage->grace_timer = NULL;
+    if (l_usage && l_usage->save_limits_timer){
+        dap_timerfd_delete_mt(l_usage->save_limits_timer->worker, l_usage->save_limits_timer->esocket_uuid);
+        l_usage->save_limits_timer = NULL;
     }
     bool l_is_unleased = false;
     if ( l_ch_vpn->addr_ipv4.s_addr ){ // if leased address
@@ -1420,18 +1420,18 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                 } break;
                 default: {
                     log_it(L_WARNING, "VPN doesnt accept serv unit type 0x%08X for limits_ts", a_usage->receipt->receipt_info.units_type.uint32 );
+                    dap_stream_ch_pkt_write_unsafe( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
                     dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
                     dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
-                    dap_stream_ch_pkt_write_unsafe( a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
                 }
                 }
             }else if (!a_usage->is_grace){
                 log_it( L_NOTICE, "No activate receipt in usage, switch off write callback for channel");
                 dap_stream_ch_chain_net_srv_pkt_error_t l_err = { };
                 l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_CANT_FIND ;
+                dap_stream_ch_pkt_write_unsafe(a_ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , &l_err, sizeof(l_err));
                 dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
                 dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
-                dap_stream_ch_pkt_write_unsafe(a_ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , &l_err, sizeof(l_err));
             }
         }
     }else if ( a_usage->receipt->receipt_info.units_type.enm == SERV_UNIT_B ||
@@ -1488,18 +1488,18 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
                 } break;
                 default: {
                     log_it(L_WARNING, "VPN doesnt accept serv unit type 0x%08X for limits_bytes", a_usage->receipt->receipt_info.units_type.uint32 );
+                    dap_stream_ch_pkt_write_unsafe( a_ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
                     dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
                     dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
-                    dap_stream_ch_pkt_write_unsafe( a_ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
                 }
                 }
             }else if (!a_usage->is_grace){
                 log_it( L_NOTICE, "No activate receipt in usage, switch off write callback for channel");
                 dap_stream_ch_chain_net_srv_pkt_error_t l_err = { };
                 l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_CANT_FIND ;
-                dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
-                dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
                 dap_stream_ch_pkt_write_unsafe( a_ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , &l_err, sizeof(l_err));
+                dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
+                dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);              
             }
         }
 
@@ -1762,6 +1762,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             "You can't provide service with ID %"DAP_UINT64_FORMAT_X" in net %s. Node role should be not lower than master\n",
             l_usage->service->uid.uint64, l_usage->net->pub.name
             );
+        l_usage->is_active = false;
         if (l_usage->client)
             dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
@@ -1882,8 +1883,9 @@ static void s_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
         dap_stream_ch_set_ready_to_read_unsafe(a_ch,false);
         return;
     }
-    if ( (! l_usage->is_free) && (! l_usage->receipt && !l_usage->is_grace) ){
+    if ( (!l_usage->is_free) && (! l_usage->receipt && !l_usage->is_grace) ){
         log_it(L_WARNING, "No active receipt, switching off");
+        l_usage->is_active = false;
         if (l_usage->client)
             dap_stream_ch_pkt_write_unsafe( l_usage->client->ch , DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_NOTIFY_STOPPED , NULL, 0 );
         dap_stream_ch_set_ready_to_write_unsafe(a_ch,false);
