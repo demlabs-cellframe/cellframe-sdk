@@ -2950,8 +2950,10 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
         dap_chain_t *l_chain = NULL;
         DL_FOREACH(a_net->pub.chains, l_chain) {
             l_datum = s_com_mempool_check_datum_in_chain(l_chain, a_datum_hash);
-            if (l_datum)
+            if (l_datum) {
+                l_chain_name = l_chain->name;
                 break;
+            }
         }
     } else {
         l_datum = s_com_mempool_check_datum_in_chain(a_chain, a_datum_hash);
@@ -2964,11 +2966,11 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
             return -4;
         }
         if (a_chain)
-            l_datum = a_chain->callback_datum_find_by_hash(a_chain, &l_datum_hash, &l_atom_hash, &l_ret_code);
+            l_datum = a_chain->callback_datum_find_by_hash ? a_chain->callback_datum_find_by_hash(a_chain, &l_datum_hash, &l_atom_hash, &l_ret_code) : NULL;
         else {
             dap_chain_t *it = NULL;
             DL_FOREACH(a_net->pub.chains, it) {
-                l_datum = it->callback_datum_find_by_hash(it, &l_datum_hash, &l_atom_hash, &l_ret_code);
+                l_datum = it->callback_datum_find_by_hash ? it->callback_datum_find_by_hash(it, &l_datum_hash, &l_atom_hash, &l_ret_code) : NULL;
                 if (l_datum) {
                     l_chain_name = it->name;
                     break;
