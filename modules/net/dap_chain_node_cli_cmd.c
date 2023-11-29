@@ -2801,6 +2801,11 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                     dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)l_datum->data;
                     const char *l_main_token = s_tx_get_main_ticker(l_tx, a_net, NULL);
                     dap_list_t *l_list_sig_item = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_SIG, NULL);
+                    if (!l_list_sig_item) {
+                        dap_string_append_printf(a_str_tmp, "\tAn item with a type TX_ITEM_TYPE_SIG for the transaction "
+                                                            "was not found, the transaction may be corrupted.\n");
+                        break;
+                    }
                     dap_chain_tx_sig_t *l_sig = l_list_sig_item->data;
                     dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_sig);
                     dap_chain_addr_fill_from_sign(&l_addr_from, l_sign, a_net->pub.id);
