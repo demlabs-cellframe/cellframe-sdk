@@ -219,16 +219,6 @@ static dap_chain_node_info_t* node_info_read_and_reply(dap_chain_net_t * a_net, 
         DAP_DELETE(l_key);
         return NULL;
     }
-    /* if(!node_info->hdr.ext_port)
-        node_info->hdr.ext_port = 8079; */
-    size_t node_info_size_must_be = dap_chain_node_info_get_size(node_info);
-    if(node_info_size_must_be != node_info_size) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "node has bad size in base=%zu (must be %zu)", node_info_size,
-                node_info_size_must_be);
-        DAP_DELETE(node_info);
-        DAP_DELETE(l_key);
-        return NULL;
-    }
 
     DAP_DELETE(l_key);
     return node_info;
@@ -2764,38 +2754,6 @@ const char* s_tx_get_main_ticker(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_
     }
 }
 
-static bool dap_chain_mempool_find_addr_ledger(dap_ledger_t* a_ledger, dap_chain_hash_fast_t* a_tx_prev_hash, dap_chain_addr_t *a_addr)
-{
-    dap_chain_datum_tx_t *l_tx;
-    l_tx = dap_chain_ledger_tx_find_by_hash (a_ledger,a_tx_prev_hash);
-    dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_ALL, NULL), *l_item;
-    if(!l_list_out_items)
-        return false;
-    bool l_ret = false;
-    DL_FOREACH(l_list_out_items, l_item) {
-        //assert(l_list_out->data);
-        dap_chain_addr_t *l_dst_addr = NULL;
-        dap_chain_tx_item_type_t l_type = *(uint8_t*)l_item->data;
-        switch (l_type) {
-        case TX_ITEM_TYPE_OUT:
-            l_dst_addr = &((dap_chain_tx_out_t*)l_item->data)->addr;
-            break;
-        case TX_ITEM_TYPE_OUT_EXT:
-            l_dst_addr = &((dap_chain_tx_out_ext_t*)l_item->data)->addr;
-            break;
-        case TX_ITEM_TYPE_OUT_OLD:
-            l_dst_addr = &((dap_chain_tx_out_old_t*)l_item->data)->addr;
-        default:
-            break;
-        }
-        if(l_dst_addr && !memcmp(l_dst_addr, a_addr, sizeof(dap_chain_addr_t))) {
-            l_ret = true;
-            break;
-        }
-    }
-    dap_list_free(l_list_out_items);
-    return l_ret;
-}
 
 /**
  * @brief s_com_mempool_list_print_for_chain
@@ -2844,23 +2802,23 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                     {
                         uint8_t *item = l_tx->tx_items + l_tx_items_count;
                         size_t l_item_tx_size = dap_chain_datum_item_tx_get_size(item);
-                        dap_chain_hash_fast_t l_hash;
-                        bool t =false;
+                        dap_chain_hash_fast_t *l_hash = NULL;
                         if(!memcmp(l_addr, &((dap_chain_tx_out_old_t*)item)->addr, sizeof(dap_chain_addr_t))||
                             !memcmp(l_addr, &((dap_chain_tx_out_t*)item)->addr, sizeof(dap_chain_addr_t))||
                             !memcmp(l_addr, &((dap_chain_tx_out_ext_t*)item)->addr, sizeof(dap_chain_addr_t)))
                         {
                             l_f_found = true;                            
                             break;
-                        }
-                        l_hash = ((dap_chain_tx_in_t*)item)->header.tx_prev_hash;
-                        if(dap_chain_mempool_find_addr_ledger(a_net->pub.ledger,&l_hash,l_addr)){l_f_found=true;break;}
-                        l_hash = ((dap_chain_tx_in_cond_t*)item)->header.tx_prev_hash;
-                        if(dap_chain_mempool_find_addr_ledger(a_net->pub.ledger,&l_hash,l_addr)){l_f_found=true;break;}
-                        l_hash = ((dap_chain_tx_in_ems_t*)item)->header.token_emission_hash;
-                        if(dap_chain_mempool_find_addr_ledger(a_net->pub.ledger,&l_hash,l_addr)){l_f_found=true;break;}
-                        l_hash = ((dap_chain_tx_in_ems_ext_t*)item)->header.ext_tx_hash;
-                        if(dap_chain_mempool_find_addr_ledger(a_net->pub.ledger,&l_hash,l_addr)){l_f_found=true;break;}
+                        }                        
+                        if(((dap_chain_tx_in_t*)item)->header.type == TX_ITEM_TYPE_IN)
+                            l_hash = &((dap_chain_tx_in_t *)item)->header.tx_prev_hash;
+                        if(((dap_chain_tx_in_cond_t*)item)->header.type == TX_ITEM_TYPE_IN_COND)
+                            l_hash = &((dap_chain_tx_in_cond_t*)item)->header.tx_prev_hash;
+                        if(((dap_chain_tx_in_ems_t*)item)->header.type == TX_ITEM_TYPE_IN_EMS)
+                            l_hash = &((dap_chain_tx_in_ems_t*)item)->header.token_emission_hash;
+                        if(((dap_chain_tx_in_ems_ext_t*)item)->header.type == TX_ITEM_TYPE_IN_EMS_EXT)
+                            l_hash = &((dap_chain_tx_in_ems_ext_t*)item)->header.ext_tx_hash;
+                        if(l_hash && dap_chain_mempool_find_addr_ledger(a_net->pub.ledger,l_hash,l_addr)){l_f_found=true;break;}
 
                         l_tx_items_count += l_item_tx_size;
                     }
