@@ -53,8 +53,8 @@ static struct decree_hh {
 
 // Private fuctions prototype
 static bool s_verify_pkey (dap_sign_t *a_sign, dap_chain_net_t *a_net);
-static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chain_net_t *a_net, dap_chain_t *a_chain, bool a_apply);
-static int s_service_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain, bool a_apply);
+static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_t *a_chain, bool a_apply);
+static int s_service_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_t *a_chain, bool a_apply);
 
 
 // Public functions
@@ -86,10 +86,8 @@ int dap_chain_net_decree_init(dap_chain_net_t *a_net)
 
     dap_chain_net_decree_t *l_decree = NULL;
     l_decree = DAP_NEW_Z(dap_chain_net_decree_t);
-
-    if (!l_decree)
-    {
-        log_it(L_WARNING,"Out of memory.");
+    if (!l_decree) {
+        log_it(L_CRITICAL, "Out of memory");
         return -2;
     }
 
@@ -100,7 +98,7 @@ int dap_chain_net_decree_init(dap_chain_net_t *a_net)
     a_net->pub.decree = l_decree;
 
     // Preset reward for block signs, before first reward decree
-    l_net->pub.base_reward = dap_chain_balance_scan("2851988815387151461");
+    dap_chain_net_add_reward(a_net, dap_chain_balance_scan("2851988815387151461"), 0);
 
     return 0;
 }
@@ -138,7 +136,7 @@ int s_decree_verify_tsd(dap_chain_datum_decree_t * a_decree, dap_chain_net_t *a_
     // Process decree
     switch(a_decree->header.type){
         case DAP_CHAIN_DATUM_DECREE_TYPE_COMMON:{
-            ret_val = s_common_decree_handler(a_decree, a_net, NULL, false);
+            ret_val = s_common_decree_handler(a_decree, a_net->pub.chains, false);
             break;
         }
         case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:{
@@ -292,7 +290,7 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
     // Process decree
     switch(l_decree_hh->decree->header.type) {
     case DAP_CHAIN_DATUM_DECREE_TYPE_COMMON:
-        ret_val = s_common_decree_handler(l_decree_hh->decree, l_net, a_chain, true);
+        ret_val = s_common_decree_handler(l_decree_hh->decree, a_chain, true);
         break;
     case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:
         ret_val = s_service_decree_handler(l_decree_hh->decree, a_chain, true);
@@ -358,14 +356,14 @@ static bool s_verify_pkey (dap_sign_t *a_sign, dap_chain_net_t *a_net)
     return false;
 }
 
-static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chain_net_t *a_net, dap_chain_t *a_chain, bool a_apply)
+static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain, bool a_apply)
 {
     uint256_t l_uint256_buffer;
     uint16_t l_uint16_buffer;
     dap_chain_addr_t l_addr = {}; //????????
     dap_hash_fast_t l_hash = {};
     dap_chain_node_addr_t l_node_addr = {};
-    dap_chain_net_t *l_net = a_net;
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     dap_list_t *l_owners_list = NULL;
 
     if (a_apply && !a_chain){
@@ -465,9 +463,8 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
                 log_it(L_WARNING,"Can't get min stake value from decree.");
                 return -105;
             }
-            dap_chain_t *l_chain = a_chain;
-            if (!a_chain)
-                l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
+            dap_chain_t *l_chain = a_chain ? a_chain
+                                           : dap_chain_find_by_id(l_net->pub.id, a_decree->header.common_decree_params.chain_id);
             if (!l_chain) {
                 log_it(L_WARNING, "Specified chain not found");
                 return -106;
@@ -548,7 +545,8 @@ static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chai
             }
             if (!a_apply)
                 break;
-            a_net->pub.base_reward = l_uint256_buffer;
+            uint64_t l_cur_block_num = a_chain->callback_count_atom(a_chain);
+            dap_chain_net_add_reward(l_net, l_uint256_buffer, l_cur_block_num);
         } break;
         default:
             return -1;

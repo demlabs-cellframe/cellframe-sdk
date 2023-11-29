@@ -81,8 +81,6 @@ typedef struct dap_chain_net{
         // Net fee
         uint256_t fee_value;
         dap_chain_addr_t fee_addr;
-        // Block sign reward
-        uint256_t base_reward;
 
         pthread_mutex_t balancer_mutex;
         dap_list_t *link_list;
@@ -158,9 +156,13 @@ dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * a_net);
 dap_list_t* dap_chain_net_get_node_list_cfg(dap_chain_net_t * a_net);
 dap_chain_node_role_t dap_chain_net_get_role(dap_chain_net_t * a_net);
 dap_chain_node_info_t *dap_chain_net_balancer_link_from_cfg(dap_chain_net_t *a_net);
+
 int dap_chain_net_add_poa_certs_to_cluster(dap_chain_net_t *a_net, dap_global_db_cluster_t *a_cluster);
 bool dap_chain_net_add_validator_to_clusters(dap_chain_t *a_chain, dap_stream_node_addr_t *a_addr);
 dap_global_db_cluster_t *dap_chain_net_get_mempool_cluster(dap_chain_t *a_chain);
+
+int dap_chain_net_add_reward(dap_chain_net_t *a_net, uint256_t a_reward, uint64_t a_block_num);
+uint256_t dap_chain_net_get_reward(dap_chain_net_t *a_net, uint64_t a_block_num);
 
 /**
  * @brief dap_chain_net_get_gdb_group_mempool

@@ -145,6 +145,12 @@ struct net_link {
     UT_hash_handle hh;
 };
 
+struct block_reward {
+    uint64_t block_number;
+    uint256_t reward;
+    struct block_reward *prev, *next;
+};
+
 /**
   * @struct dap_chain_net_pvt
   * @details Private part of chain_net dap object
@@ -188,6 +194,9 @@ typedef struct dap_chain_net_pvt{
     dap_global_db_cluster_t *mempool_clusters; // List of chains mempools
     dap_global_db_cluster_t *orders_cluster;
     dap_global_db_cluster_t *nodes_cluster;
+
+    // Block sign rewards history
+    struct block_reward *rewards;
 } dap_chain_net_pvt_t;
 
 typedef struct dap_chain_net_item{
@@ -2088,7 +2097,6 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
     l_net_pvt->load_mode = true;
     l_net_pvt->acl_idx = a_acl_idx;
-
     // Bridged netwoks allowed to send transactions to
     uint16_t l_net_ids_count = 0;
     char **l_bridged_net_ids = dap_config_get_array_str(l_cfg, "general", "bridged_network_ids", &l_net_ids_count);
@@ -3200,6 +3208,35 @@ int dap_chain_datum_add(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, size_t
 bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net)
 {
     return PVT(a_net)->load_mode;
+}
+
+int dap_chain_net_add_reward(dap_chain_net_t *a_net, uint256_t a_reward, uint64_t a_block_num)
+{
+    dap_return_val_if_fail(a_net, -1);
+    if (PVT(a_net)->rewards && PVT(a_net)->rewards->block_number >= a_block_num) {
+        log_it(L_ERROR, "Can't add retrospective reward for block");
+        return -2;
+    }
+    struct block_reward *l_new_reward = DAP_NEW_Z(struct block_reward);
+    if (!l_new_reward) {
+        log_it(L_CRITICAL, "Out of memory");
+        return -3;
+    }
+    l_new_reward->block_number = a_block_num;
+    l_new_reward->reward = a_reward;
+    // Place new reward at begining
+    DL_PREPEND(PVT(a_net)->rewards, l_new_reward);
+    return 0;
+}
+
+uint256_t dap_chain_net_get_reward(dap_chain_net_t *a_net, uint64_t a_block_num)
+{
+    struct block_reward *l_reward;
+    DL_FOREACH(PVT(a_net)->rewards, l_reward) {
+        if (l_reward->block_number <= a_block_num)
+            return l_reward->reward;
+    }
+    return uint256_0;
 }
 
 void dap_chain_net_announce_addrs() {
