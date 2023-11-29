@@ -73,7 +73,6 @@ typedef struct dap_chain_block_meta{
 #define DAP_CHAIN_BLOCK_META_NONCE2            0x21
 #define DAP_CHAIN_BLOCK_META_MERKLE            0x30
 
-
 /**
  * @struct dap_chain_block
  * @brief The dap_chain_block struct
@@ -93,7 +92,16 @@ dap_chain_block_t *dap_chain_block_new(dap_chain_hash_fast_t *a_prev_block, size
 
 // Add metadata in block
 size_t dap_chain_block_meta_add(dap_chain_block_t ** a_block_ptr, size_t a_block_size, uint8_t a_meta_type, const void * a_data, size_t a_data_size);
-
+uint8_t *dap_chain_block_meta_get(const dap_chain_block_t *a_block, size_t a_block_size, uint8_t a_meta_type);
+int dap_chain_block_meta_extract(dap_chain_block_t *a_block, size_t a_block_size,
+                                 dap_chain_hash_fast_t *a_block_prev_hash,
+                                 dap_chain_hash_fast_t *a_block_anchor_hash,
+                                 dap_chain_hash_fast_t *a_merkle,
+                                 dap_chain_hash_fast_t **a_block_links,
+                                 size_t *a_block_links_count,
+                                 bool *a_is_genesis,
+                                 uint64_t *a_nonce,
+                                 uint64_t *a_nonce2);
 // Add datum in block
 size_t dap_chain_block_datum_add(dap_chain_block_t ** a_block_ptr, size_t a_block_size, dap_chain_datum_t * a_datum, size_t a_datum_size);
 size_t dap_chain_block_datum_del_by_hash(dap_chain_block_t ** a_block_ptr, size_t a_block_size, dap_chain_hash_fast_t* a_datum_hash);
@@ -109,18 +117,3 @@ dap_hash_fast_t *dap_chain_block_get_prev_hash(const dap_chain_block_t *a_block,
 
 // Create and return datums list
 dap_chain_datum_t** dap_chain_block_get_datums(const dap_chain_block_t * a_block, size_t a_block_size,size_t * a_datums_count );
-
-// Create and return meta parameters  list
-dap_chain_block_meta_t** dap_chain_block_get_meta(const dap_chain_block_t *a_block, size_t a_block_size, size_t * a_meta_count );
-
-void dap_chain_block_meta_extract(dap_chain_block_meta_t ** a_meta, size_t a_meta_count,
-                                    dap_chain_hash_fast_t * a_block_prev_hash,
-                                    dap_chain_hash_fast_t * a_block_anchor_hash,
-                                    dap_chain_hash_fast_t *a_merkle,
-                                    dap_chain_hash_fast_t ** a_block_links,
-                                    size_t *a_block_links_count,
-                                    bool * a_is_genesis,
-                                    uint64_t *a_nonce,
-                                    uint64_t *a_nonce2
-                                  );
-

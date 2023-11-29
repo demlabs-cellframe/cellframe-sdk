@@ -54,7 +54,8 @@ void dap_chain_block_cache_deinit()
  * @return
  */
 
-dap_chain_block_cache_t *dap_chain_block_cache_new(dap_hash_fast_t *a_block_hash, dap_chain_block_t *a_block, size_t a_block_size)
+dap_chain_block_cache_t *dap_chain_block_cache_new(dap_hash_fast_t *a_block_hash, dap_chain_block_t *a_block,
+                                                   size_t a_block_size, uint64_t a_block_number)
 {
     if (! a_block)
         return NULL;
@@ -65,7 +66,8 @@ dap_chain_block_cache_t *dap_chain_block_cache_new(dap_hash_fast_t *a_block_hash
         return NULL;
     }
     l_block_cache->block = a_block;
-    l_block_cache->block_size= a_block_size;
+    l_block_cache->block_size = a_block_size;
+    l_block_cache->block_number = a_block_number;
     l_block_cache->ts_created = a_block->hdr.ts_created;
     l_block_cache->sign_count = dap_chain_block_get_signs_count(a_block, a_block_size);
     if (dap_chain_block_cache_update(l_block_cache, a_block_hash)) {
@@ -107,13 +109,8 @@ int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_has
     else
         dap_hash_fast(a_block_cache->block, a_block_cache->block_size, &a_block_cache->block_hash);
     a_block_cache->block_hash_str = dap_hash_fast_to_str_new(&a_block_cache->block_hash);
-    DAP_DEL_Z(a_block_cache->meta);
-    a_block_cache->meta = dap_chain_block_get_meta(a_block_cache->block, a_block_cache->block_size, &a_block_cache->meta_count);
-    if (a_block_cache->meta_count != a_block_cache->block->hdr.meta_count) {
-        DAP_DELETE(a_block_cache->meta);
-        return -1;
-    }
-    dap_chain_block_meta_extract(a_block_cache->meta,a_block_cache->meta_count,
+
+    if (dap_chain_block_meta_extract(a_block_cache->block, a_block_cache->block_size,
                                         &a_block_cache->prev_hash,
                                         &a_block_cache->anchor_hash,
                                         &a_block_cache->merkle_root,
@@ -121,9 +118,11 @@ int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_has
                                         &a_block_cache->links_hash_count,
                                         &a_block_cache->is_genesis,
                                         &a_block_cache->nonce,
-                                        &a_block_cache->nonce2);
-     DAP_DEL_Z(a_block_cache->datum);
-     a_block_cache->datum = dap_chain_block_get_datums(a_block_cache->block, a_block_cache->block_size, &a_block_cache->datum_count);
+                                        &a_block_cache->nonce2))
+        return -1;
+
+    DAP_DEL_Z(a_block_cache->datum);
+    a_block_cache->datum = dap_chain_block_get_datums(a_block_cache->block, a_block_cache->block_size, &a_block_cache->datum_count);
 
     if (a_block_cache->datum_count != a_block_cache->block->hdr.datum_count) {
         DAP_DELETE(a_block_cache->datum);
@@ -146,7 +145,6 @@ void dap_chain_block_cache_delete(dap_chain_block_cache_t * a_block_cache)
     DAP_DEL_Z(a_block_cache->block_hash_str);
     DAP_DEL_Z(a_block_cache->datum);
     DAP_DEL_Z(a_block_cache->datum_hash);
-    DAP_DEL_Z(a_block_cache->meta);
     DAP_DEL_Z(a_block_cache->links_hash);
     DAP_DELETE(a_block_cache);
 }
