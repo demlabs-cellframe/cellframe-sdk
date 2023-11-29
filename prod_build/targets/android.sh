@@ -19,9 +19,15 @@ RDIR=$( dirname "$SOURCE" )
 DIR=$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )
 HERE="$DIR"
 
+if [ -z "$ANDROID_CMAKE_TOOLCHAIN" ]
+then
+      echo "ANDROID_CMAKE_TOOLCHAIN not defined!"
+      exit 1
+fi
+
 CMAKE=(cmake -DCMAKE_TOOLCHAIN_FILE=${ANDROID_CMAKE_TOOLCHAIN})
 MAKE=(make)
 
-echo "Linux target"
+echo "Android target"
 echo "CMAKE=${CMAKE[@]}"
 echo "MAKE=${MAKE[@]}"
