@@ -32,7 +32,7 @@ dap_chain_datum_tx_voting_params_t* dap_chain_voting_parse_tsd(byte_t* a_tsd_dat
     if (!a_tsd_data || !a_tsd_size)
         return NULL;
 
-    dap_tsd_t *l_tsd = a_tsd_data;
+    dap_tsd_t *l_tsd = (dap_tsd_t *)a_tsd_data;
     size_t l_tsd_shift = 0;
     dap_chain_datum_tx_voting_params_t *l_voting_parms = DAP_NEW_Z_SIZE(dap_chain_datum_tx_voting_params_t,
                                                                         sizeof(dap_chain_datum_tx_voting_params_t));
@@ -56,7 +56,7 @@ dap_chain_datum_tx_voting_params_t* dap_chain_voting_parse_tsd(byte_t* a_tsd_dat
         case VOTING_TSD_TYPE_MAX_VOTES_COUNT:
             l_voting_parms->votes_max_count = *(uint64_t*)l_tsd->data;
             break;
-        case VOTING_TSD_TYPE_DELEGATE_KEY_REQUIRED:
+        case VOTING_TSD_TYPE_DELEGATED_KEY_REQUIRED:
             l_voting_parms->delegate_key_required = *(bool*)l_tsd->data;
             break;
         case VOTING_TSD_TYPE_VOTE_CHANGING_ALLOWED:
@@ -116,7 +116,7 @@ dap_tsd_t* dap_chain_datum_voting_max_votes_count_tsd_create(uint64_t a_max_coun
 
 dap_tsd_t* dap_chain_datum_voting_delegated_key_required_tsd_create(bool a_delegate_key_required)
 {
-    dap_tsd_t* l_tsd = dap_tsd_create(VOTING_TSD_TYPE_DELEGATE_KEY_REQUIRED, &a_delegate_key_required, sizeof(bool));
+    dap_tsd_t* l_tsd = dap_tsd_create(VOTING_TSD_TYPE_DELEGATED_KEY_REQUIRED, &a_delegate_key_required, sizeof(bool));
 
     return l_tsd;
 }

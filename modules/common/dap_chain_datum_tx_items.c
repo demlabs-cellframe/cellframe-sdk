@@ -767,7 +767,7 @@ json_object *dap_chain_datum_tx_item_voting_tsd_to_json(byte_t *a_tsd_data, size
             l_json_obj = json_object_new_uint64(*(uint64_t*)l_tsd->data);
             json_object_object_add(l_object, "maxVotes", l_json_obj);
             break;
-        case VOTING_TSD_TYPE_DELEGATE_KEY_REQUIRED:
+        case VOTING_TSD_TYPE_DELEGATED_KEY_REQUIRED:
             l_json_obj = json_object_new_boolean(*(bool*)l_tsd->data);
             json_object_object_add(l_object, "delegateKeyRequired", l_json_obj);
             break;

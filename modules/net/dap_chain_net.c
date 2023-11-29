@@ -2992,6 +2992,8 @@ int s_net_load(dap_chain_net_t *a_net)
     } else
         dap_chain_net_srv_stake_load_cache(l_net);
 
+
+
     //load decree
     dap_chain_net_decree_init(l_net);
     // load chains
