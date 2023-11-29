@@ -2904,16 +2904,16 @@ int _cmd_mempool_delete(dap_chain_t *a_chain, const char *a_datum_hash, char **a
     char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     uint8_t *l_data_tmp = dap_global_db_get_sync(l_gdb_group_mempool, a_datum_hash,
                                                  NULL, NULL, NULL);
-    int rt = 0;
     if(l_data_tmp && dap_global_db_del_sync(l_gdb_group_mempool, a_datum_hash) == 0) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s deleted", a_datum_hash);
+        DAP_DELETE(l_gdb_group_mempool);
+        DAP_DELETE(l_data_tmp);
+        return 0;
     } else {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Can't find datum %s", a_datum_hash);
-        rt = -4;
+        DAP_DELETE(l_gdb_group_mempool);
+        return -4;
     }
-    DAP_DELETE(l_gdb_group_mempool);
-    DAP_DELETE(l_data_tmp);
-    return rt;
 }
 
 /**
@@ -3000,14 +3000,13 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
     return 0;
 }
 
-int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_datum_hash, const char **a_str_reply) {
+int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_datum_hash, char **a_str_reply) {
     if(dap_chain_net_get_role(a_net).enums>= NODE_ROLE_FULL){
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Need master node role or higher for network %s "
                                                        "to process this command", a_net->pub.name);
         return -1;
     }
 
-    const char * l_datum_hash_str = NULL;
     int ret = 0;
     char *l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     dap_string_t * l_str_tmp = dap_string_new(NULL);
@@ -3024,11 +3023,12 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
         return -8;
     }
     if (!l_datum) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Can't find datum %s", l_datum_hash_str);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Can't find datum %s", a_datum_hash);
         DAP_DELETE(l_gdb_group_mempool);
         return -4;
     }
     dap_hash_fast_t l_datum_hash, l_real_hash;
+    dap_chain_hash_fast_from_str(a_datum_hash, &l_datum_hash);
     dap_hash_fast(l_datum->data, l_datum->header.data_size, &l_real_hash);
     if (!dap_hash_fast_compare(&l_datum_hash, &l_real_hash)) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Error! Datum's real hash doesn't match datum's hash string %s",
@@ -3041,7 +3041,7 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
     const char *l_type = NULL;
     DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type);
     dap_string_append_printf(l_str_tmp, "hash %s: type_id=%s ts_create=%s data_size=%u\n",
-                             l_datum_hash_str, l_type,
+                             a_datum_hash, l_type,
                              dap_ctime_r(&l_ts_create, buf), l_datum->header.data_size);
     int l_verify_datum = dap_chain_net_verify_datum_for_add(a_chain, l_datum, &l_datum_hash) ;
     if (l_verify_datum){
@@ -3072,7 +3072,7 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
     return ret;
 }
 
-int _cmd_mempool_proc_all(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char **a_str_reply) {
+int _cmd_mempool_proc_all(dap_chain_net_t *a_net, dap_chain_t *a_chain, char **a_str_reply) {
     if (!a_net || !a_chain) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "The net and chain argument is not set");
         return -1;
@@ -3091,7 +3091,7 @@ int _cmd_mempool_proc_all(dap_chain_net_t *a_net, dap_chain_t *a_chain, const ch
     return 0;
 }
 
-int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t *a_cert, const char **a_str_reply){
+int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t *a_cert, char **a_str_reply){
     if (a_net == NULL){
         return -1;
     } else if (a_str_reply && *a_str_reply) {
@@ -3279,7 +3279,6 @@ int com_mempool(int a_argc, char **a_argv,  char **a_str_reply){
                                                                "was specified incorrectly.");
                 ret = -2;
             }
-            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-datum", &l_datum_hash);
             if (l_datum_hash) {
                 ret = _cmd_mempool_delete(l_chain, l_datum_hash, a_str_reply);
             } else {
