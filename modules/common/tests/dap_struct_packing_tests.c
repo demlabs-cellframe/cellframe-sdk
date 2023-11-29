@@ -1,14 +1,14 @@
 #include "dap_struct_packing_tests.h"
 #include "dap_math_ops.h"
-#include "../include/dap_chain_datum_tx_out.h"
-#include "../include/dap_chain_datum_tx_in_cond.h"
-#include "../include/dap_chain_datum_tx_in_ems.h"
-#include "../include/dap_chain_datum_tx_in.h"
-#include "../include/dap_chain_datum_tx_out_cond.h"
-#include "../include/dap_chain_datum_tx_out_ext.h"
-#include "../include/dap_chain_datum_tx_pkey.h"
-#include "../include/dap_chain_datum_tx_sig.h"
-#include "../include/dap_chain_datum_tx_tsd.h"
+#include "dap_chain_datum_tx_out.h"
+#include "dap_chain_datum_tx_in_cond.h"
+#include "dap_chain_datum_tx_in_ems.h"
+#include "dap_chain_datum_tx_in.h"
+#include "dap_chain_datum_tx_out_cond.h"
+#include "dap_chain_datum_tx_out_ext.h"
+#include "dap_chain_datum_tx_pkey.h"
+#include "dap_chain_datum_tx_sig.h"
+#include "dap_chain_datum_tx_tsd.h"
 
 DAP_STATIC_INLINE int s_get_delta_addr(const void *a_addr_1, const void *a_addr_2)
 {
