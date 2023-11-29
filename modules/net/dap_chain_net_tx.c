@@ -93,7 +93,7 @@ dap_chain_datum_tx_spends_items_t * dap_chain_net_get_tx_cond_all_with_spends_by
 
                                 if(a_search_type == TX_SEARCH_TYPE_CELL_SPENT || a_search_type == TX_SEARCH_TYPE_NET_SPENT ){
                                     dap_hash_fast_t * l_tx_hash = dap_chain_node_datum_tx_calc_hash(l_tx);
-                                    bool l_is_spent = dap_chain_ledger_tx_spent_find_by_hash(l_ledger,l_tx_hash);
+                                    bool l_is_spent = !!dap_chain_ledger_tx_spent_find_by_hash(l_ledger,l_tx_hash);
                                     DAP_DELETE(l_tx_hash);
                                     if(!l_is_spent)
                                         continue;
@@ -537,8 +537,8 @@ dap_list_t * dap_chain_net_get_tx_cond_all_by_srv_uid(dap_chain_net_t * a_net, c
                                         continue;
 
                                 if(a_search_type == TX_SEARCH_TYPE_CELL_SPENT || a_search_type == TX_SEARCH_TYPE_NET_SPENT ){
-                                    dap_hash_fast_t * l_tx_hash = dap_chain_node_datum_tx_calc_hash(l_tx);
-                                    bool l_is_spent = dap_chain_ledger_tx_spent_find_by_hash(l_ledger,l_tx_hash);
+                                    dap_hash_fast_t *l_tx_hash = dap_chain_node_datum_tx_calc_hash(l_tx);
+                                    bool l_is_spent = !!dap_chain_ledger_tx_spent_find_by_hash(l_ledger,l_tx_hash);
                                     DAP_DELETE(l_tx_hash);
                                     if(!l_is_spent)
                                         continue;

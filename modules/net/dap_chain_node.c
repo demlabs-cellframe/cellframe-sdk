@@ -190,14 +190,6 @@ dap_chain_node_info_t* dap_chain_node_info_read( dap_chain_net_t * a_net,dap_cha
         return NULL;
     }
 
-    size_t node_info_size_must_be = dap_chain_node_info_get_size(l_node_info);
-    if(node_info_size_must_be != node_info_size) {
-        log_it(L_ERROR, "Node has bad size in base=%zu (must be %zu)", node_info_size, node_info_size_must_be);
-        DAP_DELETE(l_node_info);
-        DAP_DELETE(l_key);
-        return NULL;
-    }
-
     DAP_DELETE(l_key);
     return l_node_info;
 }

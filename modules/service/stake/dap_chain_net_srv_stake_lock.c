@@ -343,7 +343,7 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, dap_string_t *output_line)
 {
     const char *l_net_str, *l_ticker_str, *l_wallet_str, *l_tx_str, *l_tx_burning_str, *l_chain_str, *l_value_fee_str;
-    l_net_str = l_ticker_str = l_wallet_str = l_tx_str = l_tx_burning_str = l_chain_str = NULL;
+    l_net_str = l_ticker_str = l_wallet_str = l_tx_str = l_tx_burning_str = l_chain_str = l_value_fee_str = NULL;
     dap_chain_net_t						*l_net				=	NULL;
     const char							*l_wallets_path		=	dap_chain_wallet_get_path(g_config);
     char l_delegated_ticker_str[DAP_CHAIN_TICKER_SIZE_MAX] 	=	{};
@@ -698,9 +698,9 @@ static int s_cli_stake_lock(int a_argc, char **a_argv, char **a_str_reply)
     int				l_cmd_num		= CMD_NONE;
     dap_string_t	*output_line	= dap_string_new(NULL);
 
-    if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "hold", NULL))
+    if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "hold", NULL))
         l_cmd_num = CMD_HOLD;
-    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "take", NULL))
+    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "take", NULL))
         l_cmd_num = CMD_TAKE;
 
     switch (l_cmd_num) {
@@ -985,8 +985,14 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
             DAP_DEL_Z(str3);
         }
 
-        if (!EQUAL_256(l_blank_out_value, l_value_delegated))
-            return false;
+        if (!EQUAL_256(l_blank_out_value, l_value_delegated)) {
+            // !!! A terrible legacy crutch, TODO !!!
+            SUM_256_256(l_value_delegated, GET_256_FROM_64(10), &l_value_delegated);
+            if (!EQUAL_256(l_blank_out_value, l_value_delegated)) {
+                log_it(L_ERROR, "Burning and delegated value mismatch");
+                return false;
+            }
+        }
     }
 
     return true;

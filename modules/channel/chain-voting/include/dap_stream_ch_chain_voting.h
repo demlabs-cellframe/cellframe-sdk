@@ -49,7 +49,7 @@ typedef struct dap_stream_ch_chain_voting {
 
 inline static uint8_t dap_stream_ch_chain_voting_get_id(void) { return (uint8_t) 'V'; }
 
-void dap_stream_ch_chain_voting_in_callback_add(void* a_arg, dap_chain_voting_ch_callback_t packet_in_callback);
+void dap_stream_ch_chain_voting_in_callback_add(void* a_arg, dap_chain_voting_ch_callback_t packet_in_callback, dap_chain_node_addr_t a_my_addr);
 
 void dap_stream_ch_chain_voting_message_write(dap_chain_net_t * a_net, dap_chain_node_addr_t *a_remote_node_addr,
                                               dap_stream_ch_chain_voting_pkt_t *a_voting_pkt);

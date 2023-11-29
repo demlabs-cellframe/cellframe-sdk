@@ -77,6 +77,11 @@
 
 #define LOG_TAG "chain_node_ping"
 
+typedef struct s_dap_chain_node_ping_background_arg{
+    dap_chain_net_t *net;
+    dap_list_t *node_list;
+}s_dap_chain_node_ping_background_arg_t;
+
 static void* node_ping_proc(void *a_arg)
 {
     if(!a_arg)
@@ -200,9 +205,11 @@ static void* node_ping_background_proc(void *a_arg)
 {
     if (!a_arg)
         return 0;
-    dap_chain_net_t *l_net = (dap_chain_net_t*)a_arg;
-    dap_list_t *l_node_list = (dap_list_t*)(a_arg + sizeof(dap_chain_net_t*));
+    s_dap_chain_node_ping_background_arg_t  *l_arg = (s_dap_chain_node_ping_background_arg_t*)a_arg;
+    dap_chain_net_t *l_net = l_arg->net;
+    dap_list_t *l_node_list = l_arg->node_list;
     dap_chain_node_addr_t l_node_addr = { 0 };
+    s_node_addr_ping = DAP_NEW(dap_chain_node_addr_t);
 
     // select the nearest node from the list
     unsigned int l_nodes_count = dap_list_length(l_node_list);
@@ -220,6 +227,11 @@ static void* node_ping_background_proc(void *a_arg)
     while(l_node_list) {
         dap_chain_node_addr_t *l_node_addr = l_node_list->data;
         dap_chain_node_info_t *l_node_info = dap_chain_node_info_read(l_net, l_node_addr);
+        if (!l_node_info) {
+            log_it(L_ERROR, "Can't extract node info");
+            l_node_list = dap_list_next(l_node_list);
+            continue;
+        }
 
         char *host4 = DAP_NEW_STACK_SIZE(char, INET_ADDRSTRLEN);
         struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = l_node_info->hdr.ext_addr_v4 };
@@ -228,7 +240,7 @@ static void* node_ping_background_proc(void *a_arg)
             continue;
         }
         int hops = 0, time_usec = 0;
-#ifdef DAP_OS_LINUX
+#if defined(DAP_OS_LINUX) && ! defined(DAP_OS_ANDROID)
         int res = traceroute_util(str_ip4, &hops, &time_usec);
 #endif
         if(l_min_hops>hops) {
@@ -256,7 +268,7 @@ static void* node_ping_background_proc(void *a_arg)
         int res = wait_node_ping(l_threads[l_thread_id], l_timeout_full_ms);
         if(res > 0 && res < best_node_reply) {
             best_node_pos = l_thread_id;
-            s_node_addr_ping = l_node_list->data;
+            s_node_addr_ping->uint64 = l_nodes_addr[l_thread_id];
             best_node_reply = res;
         }
         struct timespec l_time_stop;
@@ -277,23 +289,27 @@ static void* node_ping_background_proc(void *a_arg)
         log_it(L_CRITICAL, "Memory allocation error");
         dap_list_free_full(l_node_list0, NULL);
         DAP_DEL_Z(s_node_addr_ping);
+        DAP_DELETE(a_arg);
         return 0;
     }
     memcpy(l_node_addr_tmp, s_node_addr_tr, sizeof(dap_chain_node_addr_t));
     DAP_DELETE(s_node_addr_tr);
     s_node_addr_tr = l_node_addr_tmp;
+    DAP_DELETE(l_node_addr_tmp);
 
     l_node_addr_tmp = DAP_NEW(dap_chain_node_addr_t);
     if (!l_node_addr_tmp) {
         log_it(L_CRITICAL, "Memory allocation error");
         dap_list_free_full(l_node_list0, NULL);
         DAP_DEL_Z(s_node_addr_ping);
+        DAP_DELETE(a_arg);
         return 0;
     }
     memcpy(l_node_addr_tmp, s_node_addr_ping, sizeof(dap_chain_node_addr_t));
     DAP_DELETE(s_node_addr_ping);
     s_node_addr_ping = l_node_addr_tmp;
     dap_list_free_full(l_node_list0, NULL);
+    DAP_DELETE(a_arg);
     return 0;
 }
 
@@ -322,14 +338,18 @@ int dap_chain_node_ping_background_start(dap_chain_net_t *a_net, dap_list_t *a_n
         l_node_list_tmp = dap_list_next(l_node_list_tmp);
     }
     // start searching for better nodes
-    uint8_t *l_arg = DAP_NEW_SIZE(uint8_t, sizeof(dap_chain_net_t*) + sizeof(dap_list_t*));
+    s_dap_chain_node_ping_background_arg_t *l_arg = DAP_NEW(s_dap_chain_node_ping_background_arg_t);
+//    uint8_t *l_arg = DAP_NEW_SIZE(uint8_t, sizeof(dap_chain_net_t*) + sizeof(dap_list_t*));
+
     if (!l_arg) {
         log_it(L_CRITICAL, "Memory allocation error");
         dap_list_free_full(l_node_list, NULL);
         return -1;
     }
-    memcpy(l_arg, &a_net, sizeof(dap_chain_net_t*));
-    memcpy(l_arg + sizeof(dap_chain_net_t*), &l_node_list, sizeof(dap_list_t*));
+    l_arg->net = a_net;
+    l_arg->node_list = l_node_list;
+//    memcpy(l_arg, &a_net, sizeof(dap_chain_net_t*));
+//    memcpy(l_arg + sizeof(dap_chain_net_t*), &l_node_list, sizeof(dap_list_t*));
     pthread_create(&s_thread, NULL, node_ping_background_proc, l_arg);
     return 0;
 }

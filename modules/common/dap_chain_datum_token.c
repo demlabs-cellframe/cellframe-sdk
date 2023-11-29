@@ -184,9 +184,12 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
         *a_token_size = l_token_size;
         return l_token;
     }
+    case DAP_CHAIN_DATUM_TOKEN_TYPE_DECL:
+    case DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE:
+        return DAP_DUP_SIZE(a_token_serial, *a_token_size);
     default:
         log_it(L_NOTICE, "Unknown token type '%d' read", ((dap_chain_datum_token_t*)a_token_serial)->type);
-        return DAP_DUP_SIZE(a_token_serial, *a_token_size);
+        return NULL;
     }
 }
 
@@ -551,7 +554,7 @@ dap_sign_t *dap_chain_datum_emission_get_signs(dap_chain_datum_token_emission_t 
         log_it(L_CRITICAL, "Out of memory!");
         return NULL;
     }
-    *a_signs_count = MIN(l_count, a_emission->data.type_auth.signs_count);
+    *a_signs_count = dap_min(l_count, a_emission->data.type_auth.signs_count);
     memcpy(l_ret, a_emission->tsd_n_signs + a_emission->data.type_auth.tsd_total_size, l_actual_size);
     return l_ret;
 }
