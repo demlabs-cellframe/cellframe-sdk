@@ -241,7 +241,7 @@ size_t dap_chain_datum_item_tx_get_size(const void *a_item)
         size = dap_chain_tx_voting_get_size((const dap_chain_tx_voting_t*)a_item);
         break;
     case TX_ITEM_TYPE_VOTE:
-        size = dap_chain_tx_voting_get_size((const dap_chain_tx_vote_t*)a_item);
+        size = dap_chain_tx_vote_get_size((const dap_chain_tx_vote_t*)a_item);
         break;
     default:
         return 0;
@@ -744,7 +744,7 @@ json_object *dap_chain_datum_tx_item_voting_tsd_to_json(byte_t *a_tsd_data, size
     if (!a_tsd_data || !a_tsd_size)
         return NULL;
 
-    dap_tsd_t *l_tsd = a_tsd_data;
+    dap_tsd_t *l_tsd = (dap_tsd_t *)a_tsd_data;
     size_t l_tsd_shift = 0;
     json_object *l_object = json_object_new_object();
     json_object *l_answer_array_object = json_object_new_array();
