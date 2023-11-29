@@ -981,7 +981,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
     else if(dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, dap_min(a_argc, a_arg_index + 1), "remove", NULL)) {
         l_cmd_num = CMD_REMOVE;
     }
-    else if(dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, MIN(a_argc, a_arg_index + 1), "history", NULL)) {
+    else if(dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, dap_min(a_argc, a_arg_index + 1), "history", NULL)) {
         l_cmd_num = CMD_HISTORY;
     }
     else if(dap_cli_server_cmd_find_option_val(a_argv, a_arg_index, dap_min(a_argc, a_arg_index + 1), "status", NULL)) {
