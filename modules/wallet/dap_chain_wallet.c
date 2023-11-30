@@ -275,10 +275,10 @@ dap_chain_wallet_n_pass_t   *l_prec;
 
     HASH_FIND_STR(s_wallet_n_pass, a_name, l_prec);                     /* Check for existen record */
 
-    if ( l_prec ) {
-        if ( !l_prec->pass_len )                                        /* Password is zero - has been reset probably */
-            l_rc = -EBUSY, log_it(L_WARNING, "The Wallet %.*s is not active", (int) a_name_len, a_name);
-
+    if (!l_prec || !l_prec->pass_len) { /* Password is zero - has been reset probably */
+        l_rc = -EBUSY;
+        log_it(L_WARNING, "The Wallet %.*s is not active", (int) a_name_len, a_name);
+    } else {
         l_rc = 0;
         memset(l_prec->pass, l_prec->pass_len = 0, sizeof(l_prec->pass));
     }
