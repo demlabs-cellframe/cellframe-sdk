@@ -51,10 +51,7 @@ typedef struct dap_chain_net_srv_usage{
     dap_chain_datum_tx_t * tx_cond;
     dap_chain_hash_fast_t tx_cond_hash;
     dap_chain_hash_fast_t client_pkey_hash;
-<<<<<<< HEAD
-=======
     dap_chain_hash_fast_t static_order_hash;
->>>>>>> caf29b374c1335078ac4f6b67673cec31d0b4d42
     dap_events_socket_uuid_t timer_es_uuid;
     char token_ticker[DAP_CHAIN_TICKER_SIZE_MAX];
     bool is_active;

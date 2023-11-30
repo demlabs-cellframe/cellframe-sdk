@@ -128,10 +128,7 @@ typedef struct dap_stream_ch_chain_net_srv_pkt_request_hdr{
     dap_chain_net_srv_uid_t srv_uid;
     char token[DAP_CHAIN_TICKER_SIZE_MAX];
     dap_chain_hash_fast_t client_pkey_hash;
-<<<<<<< HEAD
-=======
     dap_chain_hash_fast_t order_hash;
->>>>>>> caf29b374c1335078ac4f6b67673cec31d0b4d42
 } DAP_ALIGN_PACKED dap_stream_ch_chain_net_srv_pkt_request_hdr_t;
 
 typedef struct dap_stream_ch_chain_net_srv_pkt_request{
