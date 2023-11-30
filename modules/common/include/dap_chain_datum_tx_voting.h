@@ -23,6 +23,8 @@
 
 #include <stdint.h>
 #include "dap_chain_common.h"
+#include "dap_chain_datum_tx.h"
+#include "dap_chain_datum_tx_items.h"
 #include "dap_time.h"
 #include "dap_list.h"
 #include "dap_tsd.h"
@@ -64,14 +66,18 @@ typedef struct dap_chain_datum_tx_voting_params {
 } dap_chain_datum_tx_voting_params_t;
 
 
-dap_chain_datum_tx_voting_params_t *dap_chain_voting_parse_tsd(byte_t* a_tsd_data, size_t a_tsd_size);
+dap_chain_datum_tx_voting_params_t *dap_chain_voting_parse_tsd(dap_chain_datum_tx_t* a_tx);
 
-dap_tsd_t* dap_chain_datum_voting_question_tsd_create(char* a_question_str, size_t str_len);
-dap_tsd_t* dap_chain_datum_voting_answer_tsd_create(char* a_answer_str, size_t str_len);
-dap_tsd_t* dap_chain_datum_voting_expire_tsd_create(dap_time_t a_expire);
-dap_tsd_t* dap_chain_datum_voting_max_votes_count_tsd_create(uint64_t a_max_count);
-dap_tsd_t* dap_chain_datum_voting_delegated_key_required_tsd_create(bool a_delegate_key_required);
-dap_tsd_t* dap_chain_datum_voting_vote_changing_allowed_tsd_create(bool a_vote_changing_allowed);
+dap_chain_tx_tsd_t* dap_chain_datum_voting_question_tsd_create(const char* a_question_str, size_t str_len);
+dap_chain_tx_tsd_t* dap_chain_datum_voting_answer_tsd_create(const char* a_answer_str, size_t str_len);
+dap_chain_tx_tsd_t* dap_chain_datum_voting_expire_tsd_create(dap_time_t a_expire);
+dap_chain_tx_tsd_t* dap_chain_datum_voting_max_votes_count_tsd_create(uint64_t a_max_count);
+dap_chain_tx_tsd_t* dap_chain_datum_voting_delegated_key_required_tsd_create(bool a_delegate_key_required);
+dap_chain_tx_tsd_t* dap_chain_datum_voting_vote_changing_allowed_tsd_create(bool a_vote_changing_allowed);
+
+dap_chain_tx_voting_t *dap_chain_datum_tx_item_voting_create(void);
+json_object *dap_chain_datum_tx_item_voting_tsd_to_json(dap_chain_datum_tx_t* a_tx);
 
 
-
+dap_chain_tx_vote_t *dap_chain_datum_tx_item_vote_create(dap_chain_hash_fast_t *a_voting_hash, uint64_t *a_answer_idx);
+json_object *dap_chain_datum_tx_item_vote_to_json(dap_chain_tx_vote_t *a_vote);

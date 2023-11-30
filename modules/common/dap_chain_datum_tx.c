@@ -28,6 +28,7 @@
 #include "dap_sign.h"
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_tx.h"
+#include "dap_chain_datum_tx_voting.h"
 
 #define LOG_TAG "dap_chain_datum_tx"
 
@@ -385,11 +386,7 @@ json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx){
             case TX_ITEM_TYPE_VOTING:
                 l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_VOTING");
                 int l_tsd_size = 0;
-                dap_chain_tx_tsd_t *l_item = (dap_chain_tx_tsd_t *)dap_chain_datum_tx_item_get(a_tx, 0, TX_ITEM_TYPE_TSD, &l_tsd_size);
-                if (!l_item && !l_tsd_size)
-                    l_obj_item_data = json_object_new_string("NaN");
-                else
-                    l_obj_item_data = dap_chain_datum_tx_item_voting_tsd_to_json(((dap_chain_tx_tsd_t*)l_item)->tsd, ((dap_chain_tx_tsd_t*)l_item)->header.size);
+                l_obj_item_data = dap_chain_datum_tx_item_voting_tsd_to_json(a_tx);
                 break;
             case TX_ITEM_TYPE_VOTE:
                 l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_VOTE");

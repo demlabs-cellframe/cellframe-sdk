@@ -542,7 +542,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
             dap_chain_tx_tsd_t *l_item = (dap_chain_tx_tsd_t *)dap_chain_datum_tx_item_get(a_datum, 0, TX_ITEM_TYPE_TSD, &l_tsd_size);
             if (!l_item || !l_tsd_size)
                 break;
-            dap_chain_datum_tx_voting_params_t *l_voting_params = dap_chain_voting_parse_tsd(l_item->tsd, l_item->header.size);
+            dap_chain_datum_tx_voting_params_t *l_voting_params = dap_chain_voting_parse_tsd(a_datum);
             dap_string_append_printf(a_str_out, "\t Voting question: %s\n\tAnswer options:\n", l_voting_params->voting_question);
             dap_list_t *l_temp = l_voting_params->answers_list;
             uint8_t l_index = 0;
