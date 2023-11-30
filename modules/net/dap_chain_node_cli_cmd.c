@@ -2202,6 +2202,10 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                                 dap_string_free(l_string_ret, true);
                                 return -1;
                             }
+                        } else if (l_sign_types[0].type == SIG_TYPE_MULTI_DILITHIUM_ECDSA) {
+                            l_sign_types[0].type = SIG_TYPE_DILITHIUM;
+                            l_sign_types[1].type = SIG_TYPE_DILITHIUM;  // need change to ECDSA
+                            l_sign_count = 2;
                         } else {
                             l_sign_count = 1;
                         }
