@@ -688,9 +688,9 @@ static int s_cli_stake_lock(int a_argc, char **a_argv, char **a_str_reply)
     int				l_cmd_num		= CMD_NONE;
     dap_string_t	*output_line	= dap_string_new(NULL);
 
-    if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "hold", NULL))
+    if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "hold", NULL))
         l_cmd_num = CMD_HOLD;
-    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, MIN(a_argc, l_arg_index + 1), "take", NULL))
+    else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "take", NULL))
         l_cmd_num = CMD_TAKE;
 
     switch (l_cmd_num) {

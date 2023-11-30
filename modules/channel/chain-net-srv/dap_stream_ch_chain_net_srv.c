@@ -249,14 +249,14 @@ static void s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
             l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
         return;
     }
-    
+
     bool l_check_role = dap_chain_net_get_role(l_net).enums > NODE_ROLE_MASTER;  // check role
     if ( ! l_srv || l_check_role) // Service not found
         l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND;
 
     if ( l_err.code || !l_srv_session){
         debug_if(
-            l_check_role, L_ERROR, 
+            l_check_role, L_ERROR,
             "You can't provide service with ID %lu in net %s. Node role should be not lower than master\n",
             l_srv->uid.uint64, l_net->pub.name
             );
@@ -302,10 +302,12 @@ static void s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
     l_usage->service = l_srv;
     l_usage->client_pkey_hash = a_request->hdr.client_pkey_hash;
 
-
-    if (l_srv->pricelist){
+    if (l_srv->pricelist || !dap_hash_fast_is_blank(&a_request->hdr.order_hash)){
         // not free service
         log_it( L_INFO, "Valid pricelist is founded. Start service in pay mode.");
+
+        if (!dap_hash_fast_is_blank(&a_request->hdr.order_hash))
+            l_usage->static_order_hash = a_request->hdr.order_hash;
 
         dap_chain_net_srv_grace_t *l_grace = DAP_NEW_Z(dap_chain_net_srv_grace_t);
         if (!l_grace) {
@@ -414,21 +416,51 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
         }
 
         a_grace->usage->is_grace = true;
+
         if (a_grace->usage->receipt){ // If it is repeated grace
-            DL_FOREACH(a_grace->usage->service->pricelist, l_price) {
-                switch (l_price->units_uid.enm) {
-                case SERV_UNIT_MB:
-                case SERV_UNIT_SEC:
-                case SERV_UNIT_DAY:
-                case SERV_UNIT_KB:
-                case SERV_UNIT_B:
-                    log_it(L_MSG, "Proper unit type %s found among available prices",
-                           dap_chain_srv_unit_enum_to_str(l_price->units_uid.enm));
-                    break;
-                default:
-                    continue;
+            if (dap_hash_fast_is_blank(&a_grace->usage->static_order_hash)){
+                log_it(L_MSG, "Get price from list.");
+                DL_FOREACH(a_grace->usage->service->pricelist, l_price) {
+                    switch (l_price->units_uid.enm) {
+                    case SERV_UNIT_MB:
+                    case SERV_UNIT_SEC:
+                    case SERV_UNIT_DAY:
+                    case SERV_UNIT_KB:
+                    case SERV_UNIT_B:
+                        log_it(L_MSG, "Proper unit type %s found among available prices",
+                               dap_chain_srv_unit_enum_to_str(l_price->units_uid.enm));
+                        break;
+                    default:
+                        continue;
+                    }
+                    break; // proper price found, thus we exit from the loop
                 }
-                break; // proper price found, thus we exit from the loop
+
+                if (!l_price) {
+                    log_it(L_ERROR, "Price with proper unit type not found, check available orders and/or pricelists");
+                    l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_CANT_ADD_USAGE;
+                    s_grace_error(a_grace, l_err);
+                    return;
+                }
+                a_grace->usage->price = l_price;
+            } else {
+                char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&a_grace->usage->static_order_hash);
+                log_it(L_MSG, "Get price from order %s.", l_order_hash_str);
+                DAP_DELETE(l_order_hash_str);
+                if ((l_price = dap_chain_net_srv_get_price_from_order(a_grace->usage->service, "srv_vpn", &a_grace->usage->static_order_hash))){
+                    switch (l_price->units_uid.enm) {
+                    case SERV_UNIT_MB:
+                    case SERV_UNIT_SEC:
+                    case SERV_UNIT_DAY:
+                    case SERV_UNIT_KB:
+                    case SERV_UNIT_B:
+                        log_it(L_MSG, "Proper unit type %s found among available prices",
+                               dap_chain_srv_unit_enum_to_str(l_price->units_uid.enm));
+                        a_grace->usage->price = l_price;
+                    default:
+                        DAP_DEL_Z(l_price);
+                    }
+                }
             }
 
             if (!l_price) {
@@ -437,7 +469,6 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
                 s_grace_error(a_grace, l_err);
                 return;
             }
-            a_grace->usage->price = l_price;
             usages_in_grace_t *l_item = DAP_NEW_Z_SIZE(usages_in_grace_t, sizeof(usages_in_grace_t));
             if (!l_item) {
                 log_it(L_CRITICAL, "Memory allocation error");
@@ -530,43 +561,91 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
         }
         dap_stpcpy(a_grace->usage->token_ticker, l_ticker);
 
-        dap_chain_net_srv_price_t *l_price_tmp;
-        DL_FOREACH(a_grace->usage->service->pricelist, l_price_tmp) {
-            if (!l_price_tmp){
-                continue;
-            }
+        if (dap_hash_fast_is_blank(&a_grace->usage->static_order_hash)){
+            dap_chain_net_srv_price_t *l_price_tmp;
+            DL_FOREACH(a_grace->usage->service->pricelist, l_price_tmp) {
+                if (!l_price_tmp){
+                    continue;
+                }
 
-            if (l_price_tmp->net->pub.id.uint64  != a_grace->usage->net->pub.id.uint64){
-                log_it( L_WARNING, "Pricelist is not for net %s.", a_grace->usage->net->pub.id.uint64);
-                continue;
-            }
+                if (l_price_tmp->net->pub.id.uint64  != a_grace->usage->net->pub.id.uint64){
+                    log_it( L_WARNING, "Pricelist is not for net %s.", a_grace->usage->net->pub.name);
+                    continue;
+                }
 
-            if (dap_strcmp(l_price_tmp->token, l_ticker) != 0){
-                log_it( L_WARNING, "Token ticker in the pricelist and tx do not match");
-                continue;
-            }
+                if (dap_strcmp(l_price_tmp->token, l_ticker) != 0){
+                    log_it( L_WARNING, "Token ticker in the pricelist and tx do not match");
+                    continue;
+                }
 
-            if (l_price_tmp->units_uid.enm != l_tx_out_cond->subtype.srv_pay.unit.enm){
-                log_it( L_WARNING, "Unit ID in the pricelist and tx do not match");
-                continue;
-            }
+                if (l_price_tmp->units_uid.enm != l_tx_out_cond->subtype.srv_pay.unit.enm){
+                    log_it( L_WARNING, "Unit ID in the pricelist and tx do not match");
+                    continue;
+                }
 
-            uint256_t l_unit_price = {};
-            if (l_price_tmp->units != 0){
-                DIV_256(l_price_tmp->value_datoshi, GET_256_FROM_64(l_price_tmp->units), &l_unit_price);
-            } else {
-                log_it( L_WARNING, "Units in pricelist is zero. ");
-                continue;
-            }
+                uint256_t l_unit_price = {};
+                if (l_price_tmp->units != 0){
+                    DIV_256(l_price_tmp->value_datoshi, GET_256_FROM_64(l_price_tmp->units), &l_unit_price);
+                } else {
+                    log_it( L_WARNING, "Units in pricelist is zero. ");
+                    continue;
+                }
 
-            if(IS_ZERO_256(l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) ||
-                compare256(l_unit_price, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) <= 0){
-                l_price = l_price_tmp;
-                break;
-            } else {
-                log_it( L_WARNING, "Unit price in pricelist is greater than max allowable.");
+                if(IS_ZERO_256(l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) ||
+                    compare256(l_unit_price, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) <= 0){
+                    l_price = l_price_tmp;
+                    break;
+                } else {
+                    log_it( L_WARNING, "Unit price in pricelist is greater than max allowable.");
+                }
+            }
+        } else {
+            char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&a_grace->usage->static_order_hash);
+            log_it(L_MSG, "Get price from order %s.", l_order_hash_str);
+            DAP_DELETE(l_order_hash_str);
+            if ((l_price = dap_chain_net_srv_get_price_from_order(a_grace->usage->service, "srv_vpn", &a_grace->usage->static_order_hash))){
+                if (l_price->net->pub.id.uint64  != a_grace->usage->net->pub.id.uint64){
+                    log_it( L_WARNING, "Pricelist is not for net %s.", a_grace->usage->net->pub.name);
+                    l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
+                    s_grace_error(a_grace, l_err);
+                    return;
+                }
+
+                if (dap_strcmp(l_price->token, l_ticker) != 0){
+                    log_it( L_WARNING, "Token ticker in the pricelist and tx do not match");
+                    l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
+                    s_grace_error(a_grace, l_err);
+                    return;
+                }
+
+                if (l_price->units_uid.enm != l_tx_out_cond->subtype.srv_pay.unit.enm){
+                    log_it( L_WARNING, "Unit ID in the pricelist and tx do not match");
+                    l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
+                    s_grace_error(a_grace, l_err);
+                    return;
+                }
+
+                uint256_t l_unit_price = {};
+                if (l_price->units != 0){
+                    DIV_256(l_price->value_datoshi, GET_256_FROM_64(l_price->units), &l_unit_price);
+                } else {
+                    log_it( L_WARNING, "Units in pricelist is zero. ");
+                    l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
+                    s_grace_error(a_grace, l_err);
+                    return;
+                }
+
+                if(IS_ZERO_256(l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) ||
+                    compare256(l_unit_price, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) <= 0){
+                } else {
+                    log_it( L_WARNING, "Unit price in pricelist is greater than max allowable.");
+                    l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
+                    s_grace_error(a_grace, l_err);
+                    return;
+                }
             }
         }
+
         if ( !l_price ) {
             log_it( L_WARNING, "Request can't be processed because no acceptable price in pricelist for token %s in network %s",
                     l_ticker, l_net->pub.name );
@@ -740,43 +819,91 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
         l_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_grace->usage->tx_cond_hash);
         dap_stpcpy(l_grace->usage->token_ticker, l_ticker);
 
-        dap_chain_net_srv_price_t *l_price_tmp;
-        DL_FOREACH(l_grace->usage->service->pricelist, l_price_tmp) {
-            if (!l_price_tmp){
-                continue;
-            }
+        if (dap_hash_fast_is_blank(&l_grace->usage->static_order_hash)){
+            dap_chain_net_srv_price_t *l_price_tmp;
+            DL_FOREACH(l_grace->usage->service->pricelist, l_price_tmp) {
+                if (!l_price_tmp){
+                    continue;
+                }
 
-            if (l_price_tmp->net->pub.id.uint64  != l_grace->usage->net->pub.id.uint64){
-                log_it( L_WARNING, "Pricelist is not for net %s.", l_grace->usage->net->pub.id.uint64);
-                continue;
-            }
+                if (l_price_tmp->net->pub.id.uint64  != l_grace->usage->net->pub.id.uint64){
+                    log_it( L_WARNING, "Pricelist is not for net %s.", l_grace->usage->net->pub.name);
+                    continue;
+                }
 
-            if (dap_strcmp(l_price_tmp->token, l_ticker) != 0){
-                log_it( L_WARNING, "Token ticker in the pricelist and tx do not match");
-                continue;
-            }
+                if (dap_strcmp(l_price_tmp->token, l_ticker) != 0){
+                    log_it( L_WARNING, "Token ticker in the pricelist and tx do not match");
+                    continue;
+                }
 
-            if (l_price_tmp->units_uid.enm != l_tx_out_cond->subtype.srv_pay.unit.enm){
-                log_it( L_WARNING, "Unit ID in the pricelist and tx do not match");
-                continue;
-            }
+                if (l_price_tmp->units_uid.enm != l_tx_out_cond->subtype.srv_pay.unit.enm){
+                    log_it( L_WARNING, "Unit ID in the pricelist and tx do not match");
+                    continue;
+                }
 
-            uint256_t l_unit_price = {};
-            if (l_price_tmp->units != 0){
-                DIV_256(l_price_tmp->value_datoshi, GET_256_FROM_64(l_price_tmp->units), &l_unit_price);
-            } else {
-                log_it( L_WARNING, "Units in pricelist is zero. ");
-                continue;
-            }
+                uint256_t l_unit_price = {};
+                if (l_price_tmp->units != 0){
+                    DIV_256(l_price_tmp->value_datoshi, GET_256_FROM_64(l_price_tmp->units), &l_unit_price);
+                } else {
+                    log_it( L_WARNING, "Units in pricelist is zero. ");
+                    continue;
+                }
 
-            if(IS_ZERO_256(l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) ||
-                compare256(l_unit_price, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) <= 0){
-                l_price = l_price_tmp;
-                break;
-            } else {
-                log_it( L_WARNING, "Unit price in pricelist is greater than max allowable.");
+                if(IS_ZERO_256(l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) ||
+                    compare256(l_unit_price, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) <= 0){
+                    l_price = l_price_tmp;
+                    break;
+                } else {
+                    log_it( L_WARNING, "Unit price in pricelist is greater than max allowable.");
+                }
+            }
+        } else {
+            char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&l_grace->usage->static_order_hash);
+            log_it(L_MSG, "Get price from order %s.", l_order_hash_str);
+            DAP_DELETE(l_order_hash_str);
+            if ((l_price = dap_chain_net_srv_get_price_from_order(l_grace->usage->service, "srv_vpn", &l_grace->usage->static_order_hash))){
+                if (l_price->net->pub.id.uint64  != l_grace->usage->net->pub.id.uint64){
+                    log_it( L_WARNING, "Pricelist is not for net %s.", l_grace->usage->net->pub.name);
+                    l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
+                    s_grace_error(l_grace, l_err);
+                    RET_WITH_DEL_A_GRACE;
+                }
+
+                if (dap_strcmp(l_price->token, l_ticker) != 0){
+                    log_it( L_WARNING, "Token ticker in the pricelist and tx do not match");
+                    l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
+                    s_grace_error(l_grace, l_err);
+                    RET_WITH_DEL_A_GRACE;
+                }
+
+                if (l_price->units_uid.enm != l_tx_out_cond->subtype.srv_pay.unit.enm){
+                    log_it( L_WARNING, "Unit ID in the pricelist and tx do not match");
+                    l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
+                    s_grace_error(l_grace, l_err);
+                    RET_WITH_DEL_A_GRACE;
+                }
+
+                uint256_t l_unit_price = {};
+                if (l_price->units != 0){
+                    DIV_256(l_price->value_datoshi, GET_256_FROM_64(l_price->units), &l_unit_price);
+                } else {
+                    log_it( L_WARNING, "Units in pricelist is zero. ");
+                    l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
+                    s_grace_error(l_grace, l_err);
+                    RET_WITH_DEL_A_GRACE;
+                }
+
+                if(IS_ZERO_256(l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) ||
+                    compare256(l_unit_price, l_tx_out_cond->subtype.srv_pay.unit_price_max_datoshi) <= 0){
+                } else {
+                    log_it( L_WARNING, "Unit price in pricelist is greater than max allowable.");
+                    l_err.code =DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN;
+                    s_grace_error(l_grace, l_err);
+                    RET_WITH_DEL_A_GRACE;
+                }
             }
         }
+
         if ( !l_price ) {
             log_it( L_WARNING, "Request can't be processed because no acceptable price in pricelist for token %s in network %s",
                    l_ticker, l_net->pub.name );
@@ -1361,7 +1488,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         dap_chain_hash_fast_to_str(&l_responce->hdr.tx_cond, l_tx_in_hash_str, sizeof(l_tx_in_hash_str));
         log_it(L_NOTICE, "Received new tx cond %s", l_tx_in_hash_str);
         if(!l_usage->is_waiting_new_tx_cond || !l_usage->is_grace){
-            log_it(L_NOTICE, "No new transaction expected. Exit.", l_tx_in_hash_str);
+            log_it(L_NOTICE, "No new transaction expected. Exit.");
             break;
         }
 

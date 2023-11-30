@@ -44,6 +44,7 @@
 #include "dap_chain_node_cli_cmd_tx.h"
 #include "dap_chain_net_tx.h"
 #include "dap_chain_mempool.h"
+#include "dap_math_convert.h"
 
 #include "dap_json_rpc_errors.h"
 #include "dap_json_rpc_chain_datum_tx.h"
@@ -1523,7 +1524,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                 }
                 l_tsd->type = DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE;
                 l_tsd->size = sizeof(uint256_t);
-                *(uint256_t*)(l_tsd->data) = dap_cvt_str_to_uint256(l_param_value_str);
+                *(uint256_t*)(l_tsd->data) = dap_uint256_scan_uninteger(l_param_value_str);
                 l_tsd_list = dap_list_append(l_tsd_list, l_tsd);
             }else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-new_certs", &l_param_value_str)){
                 l_subtype = SUBTYPE_OWNERS;
@@ -1557,7 +1558,7 @@ int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
                 }
             }else if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-signs_verify", &l_param_value_str)){
                 l_subtype = SUBTYPE_MIN_OWNERS;
-                uint256_t l_new_num_of_owners = dap_cvt_str_to_uint256(l_param_value_str);
+                uint256_t l_new_num_of_owners = dap_uint256_scan_uninteger(l_param_value_str);
                 if (IS_ZERO_256(l_new_num_of_owners)) {
                     log_it(L_WARNING, "The minimum number of owners can't be zero");
                     dap_list_free_full(l_tsd_list, NULL);

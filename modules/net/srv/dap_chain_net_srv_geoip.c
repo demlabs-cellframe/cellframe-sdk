@@ -125,7 +125,7 @@ static int mmdb_get_value_str2(MMDB_lookup_result_s *a_result, const char *a_one
 	}
 	if (entry_data.has_data) {
 		if (entry_data.data_size > 0 && entry_data.type == MMDB_DATA_TYPE_UTF8_STRING) {
-			size_t l_size = MIN(a_out_str_size-1, entry_data.data_size);
+			size_t l_size = dap_min(a_out_str_size-1, entry_data.data_size);
 			strncpy(a_out_str, entry_data.utf8_string, l_size);
 			a_out_str[l_size] = 0;
 		} else
@@ -154,7 +154,7 @@ static int mmdb_get_value_str3(MMDB_lookup_result_s *a_result, const char *a_one
 	}
 	if (entry_data.has_data) {
 		if (entry_data.data_size > 0 && entry_data.type == MMDB_DATA_TYPE_UTF8_STRING) {
-			size_t l_size = MIN(a_out_str_size-1, entry_data.data_size);
+			size_t l_size = dap_min(a_out_str_size-1, entry_data.data_size);
 			strncpy(a_out_str, entry_data.utf8_string, l_size);
 			a_out_str[l_size] = 0;
 		} else
@@ -247,7 +247,7 @@ geoip_info_t *chain_net_geoip_get_ip_info_by_local_db(const char *a_ip_str, cons
 		return NULL;
 	}*/
 	int a = sizeof(l_ret->ip_str);
-	size_t l_size = MIN(dap_strlen(a_ip_str), sizeof(l_ret->ip_str));
+	size_t l_size = dap_min(dap_strlen(a_ip_str), sizeof(l_ret->ip_str));
 	l_ret->ip_str[l_size] = 0;
 	strncpy(l_ret->ip_str, a_ip_str, l_size);
 
