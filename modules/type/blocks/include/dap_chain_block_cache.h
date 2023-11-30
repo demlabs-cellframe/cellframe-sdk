@@ -57,7 +57,7 @@ typedef struct dap_chain_block_cache {
 
     // Block's signatures
     size_t sign_count; // Number of signatures in block's tail
-    dap_sign_t ** sign; // Pointer to signatures in block
+    //dap_sign_t **sign; // Pointer to signatures in block
 
     // Pointer to block itself
     dap_chain_block_t * block;
