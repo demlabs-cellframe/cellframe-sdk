@@ -185,7 +185,7 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
     json_object *l_obj_ts_created = json_object_new_string(l_time_str);
     json_object_object_add(json_obj_datum, "tx_created", l_obj_ts_created);
 
-    json_object* datum_tx = dap_chain_datum_dump_tx_to_json(l_tx, a_hash_out_type);
+    json_object* datum_tx = dap_chain_datum_tx_to_json(l_tx);
     json_object_object_add(json_obj_datum, "items", datum_tx);
 
     return json_obj_datum;
