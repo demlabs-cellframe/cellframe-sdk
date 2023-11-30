@@ -1014,11 +1014,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
 
             dap_hash_fast_t order_pkey_hash = {};
             dap_hash_fast_t price_pkey_hash = {};
-<<<<<<< HEAD
-            dap_sign_get_pkey_hash(l_order->ext_n_sign + l_order->ext_size, &order_pkey_hash);
-=======
             dap_sign_get_pkey_hash((dap_sign_t*)(l_order->ext_n_sign + l_order->ext_size), &order_pkey_hash);
->>>>>>> caf29b374c1335078ac4f6b67673cec31d0b4d42
             dap_hash_fast(l_price->receipt_sign_cert->enc_key->pub_key_data,
                           l_price->receipt_sign_cert->enc_key->pub_key_data_size, &price_pkey_hash);
             if (dap_hash_fast_compare(&order_pkey_hash, &price_pkey_hash))
@@ -1030,11 +1026,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
                 continue;
             }
 
-<<<<<<< HEAD
-            // TODO: find most advantageous for us order
-=======
             // TODO: find most advantageous order for us
->>>>>>> caf29b374c1335078ac4f6b67673cec31d0b4d42
             DL_APPEND(a_srv->pricelist, l_price);
             break;
         }
