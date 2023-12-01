@@ -320,14 +320,14 @@ int dap_chain_net_decree_load(dap_chain_datum_decree_t * a_decree, dap_chain_t *
 
     if (!l_net->pub.decree)
     {
-        log_it(L_WARNING,"Decree is not inited!");
+        log_it(L_WARNING, "Decree is not inited!");
         return -108;
     }
 
     size_t l_data_size = dap_chain_datum_decree_get_size(a_decree);
 
     if ((ret_val = dap_chain_net_decree_verify(a_decree, l_net, l_data_size, a_decree_hash)) != 0) {
-        log_it(L_ERROR,"Decree verification failed!");
+        log_it(L_ERROR, "Decree verification failed!");
         return ret_val;
     }
 
@@ -356,7 +356,7 @@ static bool s_verify_pkey (dap_sign_t *a_sign, dap_chain_net_t *a_net)
     return false;
 }
 
-static int s_common_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain, bool a_apply)
+static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_t *a_chain, bool a_apply)
 {
     uint256_t l_uint256_buffer;
     uint16_t l_uint16_buffer;
