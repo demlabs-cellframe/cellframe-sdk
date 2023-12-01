@@ -95,6 +95,7 @@
 #include "dap_chain_net_decree.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_balancer.h"
+#include "dap_chain_net_voting.h"
 #include "dap_chain_pvt.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli.h"
@@ -302,6 +303,7 @@ int dap_chain_net_init()
     dap_stream_ch_chain_init();
     dap_stream_ch_chain_net_init();
     dap_chain_node_client_init();
+    dap_chain_net_voting_init();
     dap_cli_server_cmd_add ("net", s_cli_net, "Network commands",
         "net list [chains -net <chain net name>]\n"
             "\tList all networks or list all chains in selected network\n"
