@@ -1196,16 +1196,20 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
         {
             l_list_fee_out = dap_chain_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_ticker,
                                                                     &l_addr, l_total_fee, &l_fee_transfer);
+            if (!l_list_fee_out) {
+                log_it(L_WARNING, "Not enough funds to pay fee");
+                return NULL;
+            }
         }
         else if(res == 1){
             SUBTRACT_256_256(l_total_fee, a_value, &l_fee_part);
             l_list_fee_out = dap_chain_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_ticker,
                                                                     &l_addr, l_fee_part, &l_fee_transfer);
-        }
-        if (!l_list_fee_out) {
-            log_it(L_WARNING, "Not enough funds to pay fee");
-            return NULL;
-        }
+            if (!l_list_fee_out) {
+                log_it(L_WARNING, "Not enough funds to pay fee");
+                return NULL;
+            }
+        }        
     }
     if (!IS_ZERO_256(a_delegated_value)) {
         l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, a_delegated_ticker_str,
@@ -1261,25 +1265,24 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
         // coin back
         //SUBTRACT_256_256(l_fee_transfer, l_value_pack, &l_value_back);
         if(l_main_native){
-            if()
-            SUBTRACT_256_256(a_value, l_value_pack, &l_value_back);
-
-        }
-
-
-        if (l_main_native) {
-            // add unlock value to coin back
-            //SUM_256_256(l_value_back, a_value, &l_value_back);
+            if(res == 1)
+            {
+                SUBTRACT_256_256(l_fee_transfer, l_value_pack, &l_value_back);
+            }
+            else
+            {
+                SUBTRACT_256_256(a_value, l_value_pack, &l_value_back);
+            }
+            if(!IS_ZERO_256(l_value_back)) {
+                if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr, l_value_back, a_main_ticker)!=1) {
+                    dap_chain_datum_tx_delete(l_tx);
+                    return NULL;
+                }
+            }
         } else if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr, a_value, a_main_ticker)!=1) {
-            dap_chain_datum_tx_delete(l_tx);
-            return NULL;
-        }
-        if(!IS_ZERO_256(l_value_back)) {
-            if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_addr, l_value_back, l_native_ticker) != 1) {
                 dap_chain_datum_tx_delete(l_tx);
                 return NULL;
             }
-        }
     }
 
     // add burning 'out_ext'
