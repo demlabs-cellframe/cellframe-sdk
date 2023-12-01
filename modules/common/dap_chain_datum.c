@@ -543,7 +543,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
             if (!l_item || !l_tsd_size)
                 break;
             dap_chain_datum_tx_voting_params_t *l_voting_params = dap_chain_voting_parse_tsd(a_datum);
-            dap_string_append_printf(a_str_out, "\t Voting question: %s\n\tAnswer options:\n", l_voting_params->voting_question);
+            dap_string_append_printf(a_str_out, "\t Voting question: %s\n\t Answer options:\n", l_voting_params->voting_question);
             dap_list_t *l_temp = l_voting_params->answers_list;
             uint8_t l_index = 0;
             while (l_temp){

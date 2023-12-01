@@ -152,30 +152,30 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
         dap_list_t* l_tsd_list = dap_chain_datum_tx_items_get(a_tx_in, TX_ITEM_TYPE_TSD, NULL);
         dap_list_t* l_temp = l_tsd_list;
         while (l_temp){
-            dap_chain_tx_tsd_t* l_tsd = (dap_chain_tx_tsd_t*)l_temp->data;
+            dap_tsd_t* l_tsd = ((dap_chain_tx_tsd_t*)l_temp->data)->tsd;
             dap_chain_net_vote_option_t *l_vote_option = NULL;
-            switch(l_tsd->header.type){
+            switch(l_tsd->type){
             case VOTING_TSD_TYPE_QUESTION:
-                l_item->voting_params.voting_question_offset = (size_t)(l_tsd->tsd - (byte_t*)l_item->voting_params.voting_tx);
-                l_item->voting_params.voting_question_length = l_tsd->header.size;
+                l_item->voting_params.voting_question_offset = (size_t)(l_tsd->data - (byte_t*)l_item->voting_params.voting_tx);
+                l_item->voting_params.voting_question_length = l_tsd->size;
                 break;
             case VOTING_TSD_TYPE_ANSWER:
                 l_vote_option = DAP_NEW_Z(dap_chain_net_vote_option_t);
-                l_vote_option->vote_option_offset = (size_t)(l_tsd->tsd - (byte_t*)l_item->voting_params.voting_tx);
-                l_vote_option->vote_option_length = l_tsd->header.size;
-                dap_list_append(l_item->voting_params.option_offsets_list, l_vote_option);
+                l_vote_option->vote_option_offset = (size_t)(l_tsd->data - (byte_t*)l_item->voting_params.voting_tx);
+                l_vote_option->vote_option_length = l_tsd->size;
+                l_item->voting_params.option_offsets_list = dap_list_append(l_item->voting_params.option_offsets_list, l_vote_option);
                 break;
             case VOTING_TSD_TYPE_EXPIRE:
-                l_item->voting_params.voting_expire_offset = (size_t)(l_tsd->tsd - (byte_t*)l_item->voting_params.voting_tx);
+                l_item->voting_params.voting_expire_offset = (size_t)(l_tsd->data - (byte_t*)l_item->voting_params.voting_tx);
                 break;
             case VOTING_TSD_TYPE_MAX_VOTES_COUNT:
-                l_item->voting_params.votes_max_count_offset = (size_t)(l_tsd->tsd - (byte_t*)l_item->voting_params.voting_tx);
+                l_item->voting_params.votes_max_count_offset = (size_t)(l_tsd->data - (byte_t*)l_item->voting_params.voting_tx);
                 break;
             case VOTING_TSD_TYPE_DELEGATED_KEY_REQUIRED:
-                l_item->voting_params.delegate_key_required_offset = (size_t)(l_tsd->tsd - (byte_t*)l_item->voting_params.voting_tx);
+                l_item->voting_params.delegate_key_required_offset = (size_t)(l_tsd->data - (byte_t*)l_item->voting_params.voting_tx);
                 break;
             case VOTING_TSD_TYPE_VOTE_CHANGING_ALLOWED:
-                l_item->voting_params.vote_changing_allowed_offset = (size_t)(l_tsd->tsd - (byte_t*)l_item->voting_params.voting_tx);
+                l_item->voting_params.vote_changing_allowed_offset = (size_t)(l_tsd->data - (byte_t*)l_item->voting_params.voting_tx);
                 break;
             default:
                 break;
@@ -257,8 +257,8 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
             if (dap_hash_fast_compare(&((dap_chain_net_vote_t *)l_temp->data)->pkey_hash, &pkey_hash)){
                 if(*(bool*)(l_voting->voting_params.voting_tx + l_voting->voting_params.vote_changing_allowed_offset)){
                     int idx = dap_list_index(l_voting->votes, l_temp);
-                    dap_list_remove(l_voting->votes, l_temp);
-                    dap_list_insert(l_voting->votes, l_vote_item, idx);
+                    l_voting->votes = dap_list_remove(l_voting->votes, l_temp);
+                    l_voting->votes = dap_list_insert(l_voting->votes, l_vote_item, idx);
                     log_it(L_ERROR, "Vote is changed.");
                     pthread_rwlock_unlock(&s_votings_rwlock);
                     return true;
@@ -272,7 +272,7 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
             l_temp = l_temp->next;
         }
         log_it(L_ERROR, "Vote is accepted.");
-        dap_list_append(l_voting->votes, l_vote_item);
+        l_voting->votes = dap_list_append(l_voting->votes, l_vote_item);
         pthread_rwlock_unlock(&s_votings_rwlock);
         return true;
     } else {
@@ -299,7 +299,7 @@ static dap_list_t* s_get_options_list_from_str(const char* a_str)
         // trim whitespace
         l_options_str = dap_strstrip(l_options_str);// removes leading and trailing spaces
         l_option_tmp = dap_strdup(l_options_str);
-        dap_list_append(l_ret, l_option_tmp);
+        l_ret = dap_list_append(l_ret, l_option_tmp);
         l_options_str = strtok_r(NULL, ",", &l_options_tmp_ptrs);
     }
     free(l_options_str_dup);

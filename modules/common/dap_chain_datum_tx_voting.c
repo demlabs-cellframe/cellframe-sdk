@@ -38,30 +38,30 @@ dap_chain_datum_tx_voting_params_t* dap_chain_voting_parse_tsd(dap_chain_datum_t
     char *l_buf_string = NULL;
     dap_list_t* l_temp = l_tsd_list;
     while (l_temp){
-        dap_chain_tx_tsd_t* l_tsd = (dap_chain_tx_tsd_t*)l_temp->data;
-        switch(l_tsd->header.type){
+        dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t*)l_temp->data)->tsd;
+        switch(l_tsd->type){
         case VOTING_TSD_TYPE_QUESTION:
-            l_buf_string = DAP_NEW_Z_SIZE(char, l_tsd->header.size);
-            memcpy(l_buf_string, l_tsd->tsd, l_tsd->header.size);
+            l_buf_string = DAP_NEW_Z_SIZE(char, l_tsd->size);
+            memcpy(l_buf_string, l_tsd->data, l_tsd->size);
             l_voting_parms->voting_question = l_buf_string;
             break;
         case VOTING_TSD_TYPE_ANSWER:
-            l_buf_string = DAP_NEW_Z_SIZE(char, l_tsd->header.size);
-            memcpy(l_buf_string, l_tsd->tsd, l_tsd->header.size);
-            dap_list_append(l_voting_parms->answers_list, l_buf_string);
+            l_buf_string = DAP_NEW_Z_SIZE(char, l_tsd->size);
+            memcpy(l_buf_string, l_tsd->data, l_tsd->size);
+            l_voting_parms->answers_list = dap_list_append(l_voting_parms->answers_list, l_buf_string);
             l_voting_parms->answers_count++;
             break;
         case VOTING_TSD_TYPE_EXPIRE:
-            l_voting_parms->voting_expire = *(dap_time_t*)l_tsd->tsd;
+            l_voting_parms->voting_expire = *(dap_time_t*)l_tsd->data;
             break;
         case VOTING_TSD_TYPE_MAX_VOTES_COUNT:
-            l_voting_parms->votes_max_count = *(uint64_t*)l_tsd->tsd;
+            l_voting_parms->votes_max_count = *(uint64_t*)l_tsd->data;
             break;
         case VOTING_TSD_TYPE_DELEGATED_KEY_REQUIRED:
-            l_voting_parms->delegate_key_required = *(bool*)l_tsd->tsd;
+            l_voting_parms->delegate_key_required = *(bool*)l_tsd->data;
             break;
         case VOTING_TSD_TYPE_VOTE_CHANGING_ALLOWED:
-            l_voting_parms->delegate_key_required = *(bool*)l_tsd->tsd;
+            l_voting_parms->delegate_key_required = *(bool*)l_tsd->data;
             break;
         default:
             break;
@@ -69,7 +69,7 @@ dap_chain_datum_tx_voting_params_t* dap_chain_voting_parse_tsd(dap_chain_datum_t
 
         l_temp = l_temp->next;
     }
-    dap_list_free_full(l_tsd_list, NULL);
+    dap_list_free(l_tsd_list);
 
     return l_voting_parms;
 }
@@ -147,30 +147,30 @@ json_object *dap_chain_datum_tx_item_voting_tsd_to_json(dap_chain_datum_tx_t* a_
     dap_list_t* l_tsd_list = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_TSD, NULL);
     dap_list_t* l_temp = l_tsd_list;
     while (l_temp){
-        dap_chain_tx_tsd_t* l_tsd = (dap_chain_tx_tsd_t*)l_temp->data;
-        switch(l_tsd->header.type){
+        dap_tsd_t* l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t*)l_temp->data)->tsd;
+        switch(l_tsd->type){
         case VOTING_TSD_TYPE_QUESTION:
-            l_json_obj = json_object_new_string_len((char*)l_tsd->tsd, l_tsd->header.size);
+            l_json_obj = json_object_new_string_len((char*)l_tsd->data, l_tsd->size);
             json_object_object_add(l_object, "question", l_json_obj);
             break;
         case VOTING_TSD_TYPE_ANSWER:
-            l_json_obj = json_object_new_string_len((char*)l_tsd->tsd, l_tsd->header.size);
+            l_json_obj = json_object_new_string_len((char*)l_tsd->data, l_tsd->size);
             json_object_array_add(l_answer_array_object, l_json_obj);
             break;
         case VOTING_TSD_TYPE_EXPIRE:
-            l_json_obj = json_object_new_uint64(*(uint64_t*)l_tsd->tsd);
+            l_json_obj = json_object_new_uint64(*(uint64_t*)l_tsd->data);
             json_object_object_add(l_object, "exired", l_json_obj);
             break;
         case VOTING_TSD_TYPE_MAX_VOTES_COUNT:
-            l_json_obj = json_object_new_uint64(*(uint64_t*)l_tsd->tsd);
+            l_json_obj = json_object_new_uint64(*(uint64_t*)l_tsd->data);
             json_object_object_add(l_object, "maxVotes", l_json_obj);
             break;
         case VOTING_TSD_TYPE_DELEGATED_KEY_REQUIRED:
-            l_json_obj = json_object_new_boolean(*(bool*)l_tsd->tsd);
+            l_json_obj = json_object_new_boolean(*(bool*)l_tsd->data);
             json_object_object_add(l_object, "delegateKeyRequired", l_json_obj);
             break;
         case VOTING_TSD_TYPE_VOTE_CHANGING_ALLOWED:
-            l_json_obj = json_object_new_boolean(*(bool*)l_tsd->tsd);
+            l_json_obj = json_object_new_boolean(*(bool*)l_tsd->data);
             json_object_object_add(l_object, "voteChangingAllowed", l_json_obj);
             break;
         default:

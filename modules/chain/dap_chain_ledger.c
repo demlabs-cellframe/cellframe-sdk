@@ -4162,6 +4162,14 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         }
     }
 
+    if (dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTING, NULL) &&
+        s_voting_callback)
+        s_voting_callback(a_ledger, TX_ITEM_TYPE_VOTING, a_tx);
+    else if (dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTE, NULL) &&
+        s_voting_callback)
+        s_voting_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx);
+
+
     if (a_main_ticker && !l_err_num)
         *a_main_ticker = dap_strdup(l_main_ticker);
 
