@@ -2871,7 +2871,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                 case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
                     size_t l_emi_size = 0;
                     dap_chain_datum_token_emission_t *l_emi = dap_chain_datum_emission_read(l_datum->data, &l_emi_size);
-                    if (l_wallet_addr && dap_chain_addr_compare(l_wallet_addr, &l_emi->hdr.address))
+                    if (l_wallet_addr && l_emi && dap_chain_addr_compare(l_wallet_addr, &l_emi->hdr.address))
                         datum_is_accepted_addr = true;
                     DAP_DELETE(l_emi);
                     dap_chain_datum_dump(a_str_tmp, l_datum, a_hash_out_type, a_net->pub.id);
