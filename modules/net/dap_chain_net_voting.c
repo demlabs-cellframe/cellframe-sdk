@@ -284,7 +284,27 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
 
 static dap_list_t* s_get_options_list_from_str(const char* a_str)
 {
+    dap_list_t* l_ret = NULL;
+    char * l_options_tmp_ptrs = NULL;
+    char * l_options_str_dup = strdup(a_str);
+    if (!l_options_str_dup) {
+        log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+        return 0;
+    }
 
+    char* l_options_str = strtok_r(l_options_str_dup, ",", &l_options_tmp_ptrs);
+
+    char* l_option_tmp = NULL;
+    while(l_options_str) {
+        // trim whitespace
+        l_options_str = dap_strstrip(l_options_str);// removes leading and trailing spaces
+        l_option_tmp = dap_strdup(l_options_str);
+        dap_list_append(l_ret, l_option_tmp);
+        l_options_str = strtok_r(NULL, ",", &l_options_tmp_ptrs);
+    }
+    free(l_options_str_dup);
+
+    return l_ret;
 }
 
 static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
@@ -360,6 +380,11 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
                 return -102;
             }
 
+            if(dap_list_length(l_options_list)>DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_COUNT){
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "The voting can to contain no more than %d options", DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_COUNT);
+                return -102;
+            }
+
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-expire", &l_voting_expire_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-max_votes_count", &l_max_votes_count_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &l_fee_str);
@@ -426,6 +451,12 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
             // Add options to tsd
             dap_list_t *l_temp = l_options_list;
             while(l_temp){
+                if(strlen((char*)l_temp->data) > DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_LENGTH){
+                    dap_chain_datum_tx_delete(l_tx);
+                    dap_list_free_full(l_options_list, NULL);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "The option must contain no more than %d characters", DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_LENGTH);
+                    return -114;
+                }
                 dap_chain_tx_tsd_t* l_option = dap_chain_datum_voting_answer_tsd_create((char*)l_temp->data, strlen((char*)l_temp->data));
                 if(!l_option){
                     dap_chain_datum_tx_delete(l_tx);
