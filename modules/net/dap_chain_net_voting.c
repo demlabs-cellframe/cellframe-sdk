@@ -224,7 +224,15 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
         }
 
         dap_hash_fast_t pkey_hash = {};
-        dap_chain_tx_sig_t *l_vote_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_VOTE, NULL);
+        dap_chain_tx_sig_t *l_vote_sig = NULL;
+        int a_item_idx = 0;
+        if (!(l_vote_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx_in, &a_item_idx, TX_ITEM_TYPE_VOTE, NULL)))
+            l_vote_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, TX_ITEM_TYPE_VOTE, NULL);
+        if(l_vote_sig){
+            log_it(L_ERROR, "Can't get sign.");
+            pthread_rwlock_unlock(&s_votings_rwlock);
+            return false;
+        }
         dap_sign_get_pkey_hash((dap_sign_t*)l_vote_sig->sig, &pkey_hash);
         if (*(bool*)(l_voting->voting_params.voting_tx + l_voting->voting_params.delegate_key_required_offset)){
             if (!dap_chain_net_srv_stake_check_pkey_hash(&pkey_hash)){
@@ -272,6 +280,11 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
     }
 
     return false;
+}
+
+static dap_list_t* s_get_options_list_from_str(const char* a_str)
+{
+
 }
 
 static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
@@ -323,16 +336,15 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
             const char* l_fee_str = NULL;
             const char* l_wallet_str = NULL;
 
-
-
-            //// TODO checking question and options length
-            /// options strings list parsing
-
-
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-question", &l_question_str);
             if (!l_question_str){
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Voting requires a question parameter to be valid.");
                 return -100;
+            }
+
+            if (strlen(l_question_str) > DAP_CHAIN_DATUM_TX_VOTING_QUESTION_MAX_LENGTH){
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "The question must contain no more than %d characters", DAP_CHAIN_DATUM_TX_VOTING_QUESTION_MAX_LENGTH);
+                return -101;
             }
 
             dap_list_t *l_options_list = NULL;
@@ -342,7 +354,11 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
                 return -101;
             }
             // Parse options list
-
+            l_options_list = s_get_options_list_from_str(l_options_list_str);
+            if(!l_options_list){
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Options parsing error. Check log.");
+                return -102;
+            }
 
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-expire", &l_voting_expire_str);
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-max_votes_count", &l_max_votes_count_str);
@@ -535,12 +551,44 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
             DAP_DELETE(l_datum);
         }break;
         case CMD_VOTE:{
-            const char* l_cert = NULL;
+            const char* l_cert_name = NULL;
             const char* l_fee_str = NULL;
             const char* l_wallet_str = NULL;
             const char* l_hash_str = NULL;
+            const char* l_option_idx_str = NULL;
 
-            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cert", &l_cert);
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_hash_str);
+            if(!l_hash_str){
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'vote' require the parameter -hash");
+                return -110;
+            }
+
+            dap_hash_fast_t l_voting_hash = {};
+            dap_chain_hash_fast_from_str(l_hash_str, &l_voting_hash);
+
+
+            dap_chain_hash_fast_t l_pkey_hash;
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cert", &l_cert_name);
+            dap_cert_t * l_cert = dap_cert_find_by_name(l_cert_name);
+            if (l_cert_name){
+                if (l_cert == NULL) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find \"%s\" certificate", l_cert_name);
+                    return -7;
+                }
+                if (l_cert->enc_key == NULL) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "No key found in \"%s\" certificate", l_cert_name );
+                    return -8;
+                }
+                // Get publivc key hash
+                size_t l_pub_key_size = 0;
+                uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(l_cert->enc_key, &l_pub_key_size);;
+                if (l_pub_key == NULL) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't serialize public key of certificate \"%s\"", l_cert_name);
+                    return -9;
+                }
+
+                dap_hash_fast(l_pub_key, l_pub_key_size, &l_pkey_hash);
+            }
 
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-fee", &l_fee_str);
             if (!l_fee_str){
@@ -560,12 +608,152 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
                 return -103;
             }
 
-            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_hash_str);
-            if(!l_hash_str){
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'vote' require the parameter -hash");
-                return -110;
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-option_idx", &l_option_idx_str);
+            if (!l_option_idx_str){
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'vote' requires parameter -option_idx to be valid.");
+                return -103;
             }
 
+            dap_chain_net_votings_t *l_voting = NULL;
+            pthread_rwlock_rdlock(&s_votings_rwlock);
+            HASH_FIND(hh, s_votings, &l_voting_hash, sizeof(l_voting_hash),l_voting);
+            pthread_rwlock_unlock(&s_votings_rwlock);
+            if(!l_voting || l_voting->net_id.uint64 != l_net->pub.id.uint64){
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find voting with hash %s", l_hash_str);
+                return -111;
+            }
+
+            if(*(bool*)(l_voting->voting_params.voting_tx + l_voting->voting_params.delegate_key_required_offset) ){
+                if (!l_cert){
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "This voting required a delegated key.");
+                    return -111;
+                } else if(!dap_chain_net_srv_stake_check_pkey_hash(&l_pkey_hash)){
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Your key is not delegated.");
+                    return -111;
+                }
+            }
+
+            if(l_cert){
+                dap_list_t *l_temp = l_voting->votes;
+                while(l_temp){
+                    if (dap_hash_fast_compare(&((dap_chain_net_vote_t *)l_temp->data)->pkey_hash, &l_pkey_hash)){
+                        if(!*(bool*)(l_voting->voting_params.voting_tx + l_voting->voting_params.vote_changing_allowed_offset)){
+                            dap_cli_server_cmd_set_reply_text(a_str_reply, "The voting don't allow change your vote.");
+                            return -113;
+                        }
+                    }
+                    l_temp = l_temp->next;
+                }
+            }
+
+            dap_enc_key_t *l_priv_key = NULL;
+            const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
+            dap_chain_wallet_t *l_wallet_fee = dap_chain_wallet_open(l_wallet_str, c_wallets_path);
+            if (!l_wallet_fee) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet %s does not exist", l_wallet_str);
+                return -112;
+            }
+            l_priv_key = dap_chain_wallet_get_key(l_wallet_fee, 0);
+
+            const dap_chain_addr_t *l_addr_from = (const dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet_fee, l_net->pub.id);
+
+            if(!l_addr_from) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "source address is invalid");
+                return -113;
+            }
+
+            const char *l_native_ticker = l_net->pub.native_ticker;
+            uint256_t l_net_fee = {}, l_total_fee = {}, l_value_transfer;
+            dap_chain_addr_t l_addr_fee = {};
+            bool l_net_fee_used = dap_chain_net_tx_get_fee(l_net->pub.id, &l_net_fee, &l_addr_fee);
+            SUM_256_256(l_net_fee, l_value_fee, &l_total_fee);
+
+            dap_ledger_t* l_ledger = dap_chain_ledger_by_net_name(l_net->pub.name);
+            dap_list_t *l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+                                                                                     l_addr_from, l_total_fee, &l_value_transfer);
+            if (!l_list_used_out) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Not enough funds to transfer");
+                return -113;
+            }
+            // create empty transaction
+            dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+
+            // Add vote item
+            uint64_t l_option_idx_count = atoll(l_option_idx_str);
+            dap_chain_tx_vote_t* l_vote_item = dap_chain_datum_tx_item_vote_create(&l_voting_hash, &l_option_idx_count);
+            if(!l_vote_item){
+                dap_chain_datum_tx_delete(l_tx);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create vote item.");
+                return -114;
+            }
+            dap_chain_datum_tx_add_item(&l_tx, l_vote_item);
+            DAP_DEL_Z(l_vote_item);
+
+            // add 'in' items
+            uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
+            assert(EQUAL_256(l_value_to_items, l_value_transfer));
+            dap_list_free_full(l_list_used_out, NULL);
+            uint256_t l_value_pack = {};
+            // Network fee
+            if (l_net_fee_used) {
+                if (dap_chain_datum_tx_add_out_item(&l_tx, &l_addr_fee, l_net_fee) == 1)
+                    SUM_256_256(l_value_pack, l_net_fee, &l_value_pack);
+                else {
+                    dap_chain_datum_tx_delete(l_tx);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't add net fee out.");
+                    return -114;
+                }
+            }
+            // Validator's fee
+            if (!IS_ZERO_256(l_value_fee)) {
+                if (dap_chain_datum_tx_add_fee_item(&l_tx, l_value_fee) == 1)
+                    SUM_256_256(l_value_pack, l_value_fee, &l_value_pack);
+                else {
+                    dap_chain_datum_tx_delete(l_tx);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't add net fee out.");
+                    return -115;
+                }
+            }
+            // coin back
+            uint256_t l_value_back;
+            SUBTRACT_256_256(l_value_transfer, l_value_pack, &l_value_back);
+            if(!IS_ZERO_256(l_value_back)) {
+                if(dap_chain_datum_tx_add_out_item(&l_tx, l_addr_from, l_value_back) != 1) {
+                    dap_chain_datum_tx_delete(l_tx);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't add out with value back");
+                    return -116;
+                }
+            }
+
+            // add 'sign' items with wallet sign
+            if(dap_chain_datum_tx_add_sign_item(&l_tx, l_priv_key) != 1) {
+                dap_chain_datum_tx_delete(l_tx);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't sign tx");
+                return -117;
+            }
+
+            // add 'sign' items with delegated key if needed
+            if(l_cert){
+                if(dap_chain_datum_tx_add_sign_item(&l_tx, l_cert->enc_key) != 1) {
+                    dap_chain_datum_tx_delete(l_tx);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't sign tx");
+                    return -117;
+                }
+            }
+
+            size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+            dap_hash_fast_t l_tx_hash;
+            dap_hash_fast(l_tx, l_tx_size, &l_tx_hash);
+            dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
+            DAP_DELETE(l_tx);
+            dap_chain_t* l_chain = dap_chain_net_get_default_chain_by_chain_type(l_net, CHAIN_TYPE_TX);
+
+            char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type);
+            if (l_ret)
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s successfully added to mempool", l_ret);
+            else
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't add datum to mempool");
+            DAP_DELETE(l_datum);
 
 
         }break;
