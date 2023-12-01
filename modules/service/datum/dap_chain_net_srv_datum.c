@@ -34,7 +34,7 @@
 #define LOG_TAG "chain_net_srv_datum"
 
 static dap_chain_net_srv_t *s_srv_datum = NULL;
-static int s_srv_datum_cli(int argc, char ** argv, char **a_str_reply);
+static int s_srv_datum_cli(int argc, char ** argv, void **reply);
 
 void s_order_notficator(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg);
 
@@ -101,7 +101,8 @@ char* dap_chain_net_srv_datum_custom_add(dap_chain_t * a_chain, const uint8_t *a
     return l_hash_str;
 }
 
-static int s_srv_datum_cli(int argc, char ** argv, char **a_str_reply) {
+static int s_srv_datum_cli(int argc, char ** argv, void **reply) {
+    char ** a_str_reply = (char **) reply;
     int ret = -666;
     int arg_index = 1;
     dap_chain_net_t * l_chain_net = NULL;

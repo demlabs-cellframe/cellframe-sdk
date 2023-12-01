@@ -55,16 +55,16 @@ json_object* dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t* l_net,
  * ledger command
  *
  */
-int com_ledger(int a_argc, char ** a_argv, char **a_str_reply);
+int com_ledger(int a_argc, char ** a_argv, void **reply);
 
 /**
  * token command
  *
  */
-int com_token(int a_argc, char ** a_argv, char **a_str_reply);
+int com_token(int a_argc, char ** a_argv, void **reply);
 
 /**
  * decree command
  *
  */
-int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply);
+int cmd_decree(int a_argc, char **a_argv, void ** reply);

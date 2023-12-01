@@ -74,7 +74,7 @@ typedef struct service_list {
 static service_list_t *s_srv_list = NULL;
 // for separate access to s_srv_list
 static pthread_mutex_t s_srv_list_mutex = PTHREAD_MUTEX_INITIALIZER;
-static int s_cli_net_srv(int argc, char **argv, char **a_str_reply);
+static int s_cli_net_srv(int argc, char **argv, void **reply);
 static void s_load(const char * a_path);
 static void s_load_all();
 
@@ -185,8 +185,9 @@ void dap_chain_net_srv_deinit(void)
  * @param a_str_reply
  * @return
  */
-static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
+static int s_cli_net_srv( int argc, char **argv, void **reply)
 {
+    char ** a_str_reply = (char **) reply;
     int arg_index = 1;
     dap_chain_net_t * l_net = NULL;
 

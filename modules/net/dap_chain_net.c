@@ -278,7 +278,7 @@ int s_net_load(dap_chain_net_t *a_net);
 // Notify callback for GlobalDB changes
 static void s_gbd_history_callback_notify(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg);
 static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, void *a_atom, size_t a_atom_size);
-static int s_cli_net(int argc, char ** argv, char **str_reply);
+static int s_cli_net(int argc, char ** argv, void **reply);
 static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
 static void s_prepare_links_from_balancer(dap_chain_net_t *a_net);
 static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_replace_tries);
@@ -1847,8 +1847,9 @@ static const char *s_chain_type_convert_to_string(dap_chain_type_t a_type)
  * @param str_reply
  * @return
  */
-static int s_cli_net(int argc, char **argv, char **a_str_reply)
+static int s_cli_net(int argc, char **argv, void **reply)
 {
+    char ** a_str_reply = (char **) reply;
     int arg_index = 1;
     dap_chain_net_t * l_net = NULL;
 

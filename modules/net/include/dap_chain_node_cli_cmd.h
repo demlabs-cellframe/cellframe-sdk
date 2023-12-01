@@ -48,12 +48,12 @@ int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index,int a_argc, c
 /**
  * global_db command
  */
-int com_global_db(int a_argc,  char **a_argv, char **a_str_reply);
+int com_global_db(int a_argc,  char **a_argv, void **reply);
 
 /**
  * Node command
  */
-int com_node(int a_argc,  char **a_argv, char **a_str_reply);
+int com_node(int a_argc,  char **a_argv, void **reply);
 
 #ifndef DAP_OS_ANDROID
 /**
@@ -61,50 +61,50 @@ int com_node(int a_argc,  char **a_argv, char **a_str_reply);
  *
  * return 0 OK, -1 Err
  */
-int com_traceroute(int a_argc,  char** argv, char **a_str_reply);
+int com_traceroute(int a_argc,  char** argv, void **reply);
 
 /**
  * Tracepath command
  *
  * return 0 OK, -1 Err
  */
-int com_tracepath(int a_argc,  char** argv, char **a_str_reply);
+int com_tracepath(int a_argc,  char** argv, void **reply);
 
 /**
  * Ping command
  *
  * return 0 OK, -1 Err
  */
-int com_ping(int a_argc,  char** argv, char **a_str_reply);
+int com_ping(int a_argc,  char** argv, void **reply);
 #endif
 /**
  * Help command
  */
-int com_help(int a_argc,  char **a_argv, char **a_str_reply);
+int com_help(int a_argc,  char **a_argv, void **reply);
 
-int com_version(int a_argc, char **a_argv, char **a_str_reply);
+int com_version(int a_argc, char **a_argv, void **reply);
 
 /**
  * Token declaration
  */
-int com_token_decl(int a_argc,  char **a_argv, char ** str_reply);
+int com_token_decl(int a_argc,  char **a_argv, void **reply);
 
-int com_token_update(int a_argc, char **a_argv, char ** a_str_reply);
+int com_token_update(int a_argc, char **a_argv, void ** reply);
 
 /**
  * Token declaration add sign
  */
-int com_token_decl_sign ( int a_argc,  char **a_argv, char ** str_reply);
+int com_token_decl_sign ( int a_argc,  char **a_argv, void **reply);
 
 /*
  * Token update sign
  */
-int com_token_update_sign(int argc, char ** argv, char ** a_str_reply);
+int com_token_update_sign(int argc, char ** argv, void ** reply);
 
 /**
  * Token emission
  */
-int com_token_emit (int a_argc,  char **a_argv, char ** str_reply);
+int com_token_emit (int a_argc,  char **a_argv, void **reply);
 
 
 /**
@@ -112,23 +112,23 @@ int com_token_emit (int a_argc,  char **a_argv, char ** str_reply);
  *
  * Wallet info
  */
-int com_tx_wallet(int a_argc, char **a_argv, char **a_str_reply);
+int com_tx_wallet(int a_argc, char **a_argv, void **reply);
 
 /**
  * com_tx_create command
  *
  * Create transaction
  */
-int com_tx_create(int a_argc, char **a_argv, char **a_str_reply);
-int com_tx_create_json(int a_argc, char **a_argv, char **a_str_reply);
-int com_tx_cond_create(int a_argc, char **a_argv, char **a_str_reply);
+int com_tx_create(int a_argc, char **a_argv, void **reply);
+int com_tx_create_json(int a_argc, char **a_argv, void **reply);
+int com_tx_cond_create(int a_argc, char **a_argv, void **reply);
 
 /**
  * tx_verify command
  *
  * Verifing transaction
  */
-int com_tx_verify(int a_argc, char ** a_argv, char **a_str_reply);
+int com_tx_verify(int a_argc, char ** a_argv, void **reply);
 
 typedef enum s_com_tx_history_err{
     DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK = 0,
@@ -159,21 +159,21 @@ char *dap_chain_node_cli_com_tx_history_err(int a_code);
  *
  * Transaction history for an address
  */
-int com_tx_history(int a_argc, char ** a_argv, json_object** json_arr_reply);
+int com_tx_history(int a_argc, char ** a_argv, void ** reply);
 
 
 // Print log info
-int com_print_log(int a_argc, char **a_argv, char **a_str_reply);
+int com_print_log(int a_argc, char **a_argv, void **reply);
 
 // Print statistics
-int com_stats(int a_argc, char **a_argv, char **a_str_reply);
+int com_stats(int a_argc, char **a_argv, void **reply);
 
-int com_exit(int a_argc, char **a_argv, char **a_str_reply);
+int com_exit(int a_argc, char **a_argv, void **reply);
 
-int cmd_gdb_import(int a_argc, char **a_argv, char **a_str_reply);
-int cmd_gdb_export(int a_argc, char **a_argv, char **a_str_reply);
+int cmd_gdb_import(int a_argc, char **a_argv, void **reply);
+int cmd_gdb_export(int a_argc, char **a_argv, void **reply);
 
-int com_mempool_delete(int a_argc, char **a_argv, json_object **a_json_reply);
+int com_mempool_delete(int a_argc, char **a_argv, void ** reply);
 typedef enum com_mempool_list_err{
     DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_OK = 0,
     DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_CAN_NOT_READ_EMISSION,
@@ -183,16 +183,16 @@ typedef enum com_mempool_list_err{
 
     DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_UNKNOWN /* MAX */
 } com_mempool_list_err_t;
-int com_mempool_list(int a_argc, char **a_argv, json_object **a_json_reply);
-int com_mempool_proc(int a_argc, char **a_argv, json_object **a_json_reply);
-int com_mempool_proc_all(int argc, char ** argv, json_object ** a_json_reply);
-int com_mempool_check(int a_argc, char **a_argv, json_object **a_json_reply);
+int com_mempool_list(int a_argc, char **a_argv, void ** reply);
+int com_mempool_proc(int a_argc, char **a_argv, void ** reply);
+int com_mempool_proc_all(int argc, char ** argv, void ** reply);
+int com_mempool_check(int a_argc, char **a_argv, void ** reply);
 /**
  * Place public CA into the mempool
  */
-int com_mempool_add_ca( int a_argc,  char **a_argv, json_object **a_json_reply);
-int com_chain_ca_pub( int a_argc,  char **a_argv, char **a_str_reply);
-int com_chain_ca_copy( int a_argc,  char **a_argv, json_object **a_json_reply);
-int com_signer(int a_argc, char **a_argv, char **a_str_reply);
+int com_mempool_add_ca( int a_argc,  char **a_argv, void ** reply);
+int com_chain_ca_pub( int a_argc,  char **a_argv, void ** reply);
+int com_chain_ca_copy( int a_argc,  char **a_argv, void ** reply);
+int com_signer(int a_argc, char **a_argv, void ** reply);
 //remove func
-int cmd_remove(int a_argc, char **a_argv, char ** a_str_reply);
+int cmd_remove(int a_argc, char **a_argv, void ** reply);

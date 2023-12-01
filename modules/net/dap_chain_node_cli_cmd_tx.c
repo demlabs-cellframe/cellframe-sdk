@@ -527,7 +527,7 @@ json_object* dap_db_history_tx_all(dap_chain_t *l_chain, dap_chain_net_t* l_net,
                         dap_hash_fast_t l_ttx_hash = {0};
                         dap_hash_fast(l_tx, l_datums[i]->header.data_size, &l_ttx_hash);
                         bool accepted_tx;
-                        json_object* json_obj_datum = dap_db_tx_history_to_json(&l_ttx_hash, NULL, l_tx, l_chain, l_hash_out_type, l_net, NULL, &accepted_tx);
+                        json_object* json_obj_datum = dap_db_tx_history_to_json(&l_ttx_hash, NULL, l_tx, l_chain, l_hash_out_type, l_net, 0, &accepted_tx);
                         if (!json_obj_datum) {
                             log_it(L_CRITICAL, "Memory allocation error");
                             return NULL;
@@ -800,8 +800,9 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
  * @param a_str_reply
  * @return int
  */
-int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
+int com_ledger(int a_argc, char ** a_argv, void **reply)
 {
+    char ** a_str_reply = (char **) reply;
     enum { CMD_NONE, CMD_LIST, CMD_LEDGER_HISTORY, CMD_TX_INFO };
     int arg_index = 1;
     const char *l_addr_base58 = NULL;
@@ -1065,8 +1066,9 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
  * @param a_str_reply
  * @return int
  */
-int com_token(int a_argc, char ** a_argv, char **a_str_reply)
+int com_token(int a_argc, char ** a_argv, void **reply)
 {
+    char ** a_str_reply = (char **) reply;
     enum { CMD_NONE, CMD_LIST, CMD_INFO, CMD_TX };
     int arg_index = 1;
     const char *l_net_str = NULL;
@@ -1351,8 +1353,9 @@ static dap_chain_datum_anchor_t * s_sign_anchor_in_cycle(dap_cert_t ** a_certs, 
 }
 
 // Decree commands handlers
-int cmd_decree(int a_argc, char **a_argv, char ** a_str_reply)
+int cmd_decree(int a_argc, char **a_argv, void ** reply)
 {
+    char ** a_str_reply = (char **) reply;
     enum { CMD_NONE=0, CMD_CREATE, CMD_SIGN, CMD_ANCHOR, CMD_FIND, CMD_INFO };
     enum { TYPE_NONE=0, TYPE_COMMON, TYPE_SERVICE};
     enum { SUBTYPE_NONE=0, SUBTYPE_FEE, SUBTYPE_OWNERS, SUBTYPE_MIN_OWNERS};
