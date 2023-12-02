@@ -137,7 +137,7 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
         pthread_rwlock_rdlock(&s_votings_rwlock);
         HASH_FIND(hh, s_votings, &l_hash, sizeof(dap_hash_fast_t), l_voting);
         pthread_rwlock_unlock(&s_votings_rwlock);
-        if(l_voting || l_voting->net_id.uint64 != a_ledger->net_id.uint64){
+        if(l_voting && l_voting->net_id.uint64 == a_ledger->net_id.uint64){
             char* l_hash_str = dap_hash_fast_to_str_new(&l_hash);
             log_it(L_ERROR, "Voting with hash %s is already presents in net %s", l_hash_str, dap_chain_net_by_id(a_ledger->net_id)->pub.name);
             DAP_DEL_Z(l_hash_str);
@@ -152,7 +152,7 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
         dap_list_t* l_tsd_list = dap_chain_datum_tx_items_get(a_tx_in, TX_ITEM_TYPE_TSD, NULL);
         dap_list_t* l_temp = l_tsd_list;
         while (l_temp){
-            dap_tsd_t* l_tsd = ((dap_chain_tx_tsd_t*)l_temp->data)->tsd;
+            dap_tsd_t* l_tsd = (dap_tsd_t*)((dap_chain_tx_tsd_t*)l_temp->data)->tsd;
             dap_chain_net_vote_option_t *l_vote_option = NULL;
             switch(l_tsd->type){
             case VOTING_TSD_TYPE_QUESTION:
@@ -182,7 +182,7 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
             }
             l_temp = l_temp->next;
         }
-        dap_list_free_full(l_tsd_list, NULL);
+        dap_list_free(l_tsd_list);
         pthread_rwlock_wrlock(&s_votings_rwlock);
         HASH_ADD(hh, s_votings, voting_hash, sizeof(dap_hash_fast_t), l_item);
         pthread_rwlock_unlock(&s_votings_rwlock);
@@ -211,30 +211,37 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
             return false;
         }
 
-        if (dap_list_length(l_voting->votes) > *(uint64_t*)(l_voting->voting_params.voting_tx + l_voting->voting_params.votes_max_count_offset)){
-            log_it(L_ERROR, "The required number of votes has been collected.");
-            pthread_rwlock_unlock(&s_votings_rwlock);
-            return false;
+        if(l_voting->voting_params.votes_max_count_offset){
+            uint64_t l_votes_max_count = *(uint64_t*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.votes_max_count_offset);
+            if (l_votes_max_count && dap_list_length(l_voting->votes) > l_votes_max_count){
+                log_it(L_ERROR, "The required number of votes has been collected.");
+                pthread_rwlock_unlock(&s_votings_rwlock);
+                return false;
+            }
         }
 
-        if(*(dap_time_t*)(l_voting->voting_params.voting_tx + l_voting->voting_params.voting_expire_offset) < dap_time_now()){
-            log_it(L_ERROR, "The voting has been expired.");
-            pthread_rwlock_unlock(&s_votings_rwlock);
-            return false;
+        if(l_voting->voting_params.voting_expire_offset){
+            dap_time_t l_expire = *(dap_time_t*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.voting_expire_offset);
+            if( l_expire && l_expire < dap_time_now()){
+                log_it(L_ERROR, "The voting has been expired.");
+                pthread_rwlock_unlock(&s_votings_rwlock);
+                return false;
+            }
         }
 
         dap_hash_fast_t pkey_hash = {};
         dap_chain_tx_sig_t *l_vote_sig = NULL;
         int a_item_idx = 0;
-        if (!(l_vote_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx_in, &a_item_idx, TX_ITEM_TYPE_VOTE, NULL)))
-            l_vote_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, TX_ITEM_TYPE_VOTE, NULL);
-        if(l_vote_sig){
+        if (!(l_vote_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx_in, &a_item_idx, TX_ITEM_TYPE_SIG, NULL)))
+            l_vote_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, TX_ITEM_TYPE_SIG, NULL);
+        if(!l_vote_sig){
             log_it(L_ERROR, "Can't get sign.");
             pthread_rwlock_unlock(&s_votings_rwlock);
             return false;
         }
         dap_sign_get_pkey_hash((dap_sign_t*)l_vote_sig->sig, &pkey_hash);
-        if (*(bool*)(l_voting->voting_params.voting_tx + l_voting->voting_params.delegate_key_required_offset)){
+        if (l_voting->voting_params.delegate_key_required_offset &&
+            *(bool*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.delegate_key_required_offset)){
             if (!dap_chain_net_srv_stake_check_pkey_hash(&pkey_hash)){
                 log_it(L_ERROR, "The voting required a delegated key.");
                 pthread_rwlock_unlock(&s_votings_rwlock);
@@ -243,7 +250,7 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
         }
 
         dap_chain_net_vote_t *l_vote_item = DAP_NEW_Z(dap_chain_net_vote_t);
-        if (l_vote_item){
+        if (!l_vote_item){
             log_it(L_CRITICAL, "Memory allocate_error!");
             pthread_rwlock_unlock(&s_votings_rwlock);
             return false;
@@ -255,7 +262,8 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
         dap_list_t *l_temp = l_voting->votes;
         while(l_temp){
             if (dap_hash_fast_compare(&((dap_chain_net_vote_t *)l_temp->data)->pkey_hash, &pkey_hash)){
-                if(*(bool*)(l_voting->voting_params.voting_tx + l_voting->voting_params.vote_changing_allowed_offset)){
+                if(l_voting->voting_params.vote_changing_allowed_offset &&
+                    *(bool*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.vote_changing_allowed_offset)){
                     int idx = dap_list_index(l_voting->votes, l_temp);
                     l_voting->votes = dap_list_remove(l_voting->votes, l_temp);
                     l_voting->votes = dap_list_insert(l_voting->votes, l_vote_item, idx);
@@ -271,7 +279,7 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
             }
             l_temp = l_temp->next;
         }
-        log_it(L_ERROR, "Vote is accepted.");
+        log_it(L_INFO, "Vote is accepted.");
         l_voting->votes = dap_list_append(l_voting->votes, l_vote_item);
         pthread_rwlock_unlock(&s_votings_rwlock);
         return true;
@@ -654,7 +662,8 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
                 return -111;
             }
 
-            if(*(bool*)(l_voting->voting_params.voting_tx + l_voting->voting_params.delegate_key_required_offset) ){
+            if(l_voting->voting_params.delegate_key_required_offset &&
+                *(bool*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.delegate_key_required_offset) ){
                 if (!l_cert){
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "This voting required a delegated key.");
                     return -111;
@@ -668,7 +677,8 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
                 dap_list_t *l_temp = l_voting->votes;
                 while(l_temp){
                     if (dap_hash_fast_compare(&((dap_chain_net_vote_t *)l_temp->data)->pkey_hash, &l_pkey_hash)){
-                        if(!*(bool*)(l_voting->voting_params.voting_tx + l_voting->voting_params.vote_changing_allowed_offset)){
+                        if(l_voting->voting_params.vote_changing_allowed_offset &&
+                        !*(bool*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.vote_changing_allowed_offset)){
                             dap_cli_server_cmd_set_reply_text(a_str_reply, "The voting don't allow change your vote.");
                             return -113;
                         }
@@ -802,7 +812,7 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
                 DAP_DELETE(l_hash_str);
                 dap_string_append(l_str_out, "Voting question:\n");
                 dap_string_append_len(l_str_out,
-                                      (char*)(l_voting->voting_params.voting_tx + l_voting->voting_params.voting_question_offset),
+                                      (char*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.voting_question_offset),
                                       l_voting->voting_params.voting_question_length);
                 dap_string_append(l_str_out, "\n\n");
             }
@@ -831,7 +841,17 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
                 return -111;
             }
 
-            uint64_t* l_results = DAP_NEW_Z_SIZE(uint64_t, sizeof(uint64_t)*dap_list_length(l_voting->voting_params.option_offsets_list));
+            uint64_t l_options_count = 0;
+            l_options_count = dap_list_length(l_voting->voting_params.option_offsets_list);
+            if(!l_options_count){
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "No options. May be datum is crashed.");
+                return -111;
+            }
+            uint64_t* l_results = DAP_NEW_Z_SIZE(uint64_t, sizeof(uint64_t)*l_options_count);
+            if(!l_results){
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Memlory allocation error!");
+                return -111;
+            }
             dap_list_t* l_list_tmp = l_voting->votes;
             while(l_list_tmp){
                 dap_chain_net_vote_t *l_vote = l_list_tmp->data;
@@ -839,16 +859,23 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
                 l_list_tmp = l_list_tmp->next;
             }
 
+            uint64_t l_votes_count = 0;
+            l_votes_count = dap_list_length(l_voting->votes);
             dap_string_t *l_str_out = dap_string_new(NULL);
             dap_string_append_printf(l_str_out, "Results of voting %s:\n\n", l_hash_str);
+            dap_string_append_len(l_str_out,
+                                  (char*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.voting_question_offset),
+                                  l_voting->voting_params.voting_question_length);
+            dap_string_append(l_str_out, "\n\n");
             for (uint64_t i = 0; i < dap_list_length(l_voting->voting_params.option_offsets_list); i++){
                 dap_string_append_printf(l_str_out, "%"DAP_UINT64_FORMAT_U")  ", i);
                 dap_list_t* l_option = dap_list_nth(l_voting->voting_params.option_offsets_list, (uint64_t)i);
                 dap_chain_net_vote_option_t* l_vote_option = (dap_chain_net_vote_option_t*)l_option->data;
                 dap_string_append_len(l_str_out,
-                                      (char*)(l_voting->voting_params.voting_tx + l_vote_option->vote_option_offset),
+                                      (char*)((byte_t*)l_voting->voting_params.voting_tx + l_vote_option->vote_option_offset),
                                       l_vote_option->vote_option_length);
-                dap_string_append_printf(l_str_out, "\nVotes: %"DAP_UINT64_FORMAT_U"\n", l_results[i]);
+                float l_percentage = l_votes_count ? ((float)l_results[i]/l_votes_count)*100 : 0;
+                dap_string_append_printf(l_str_out, "\nVotes: %"DAP_UINT64_FORMAT_U" (%.2f%%)\n", l_results[i], l_percentage);
             }
 
             dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_out->str);
