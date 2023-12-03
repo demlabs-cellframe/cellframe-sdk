@@ -61,7 +61,7 @@ dap_chain_datum_tx_voting_params_t* dap_chain_voting_parse_tsd(dap_chain_datum_t
             l_voting_parms->delegate_key_required = *(bool*)l_tsd->data;
             break;
         case VOTING_TSD_TYPE_VOTE_CHANGING_ALLOWED:
-            l_voting_parms->delegate_key_required = *(bool*)l_tsd->data;
+            l_voting_parms->vote_changing_allowed = *(bool*)l_tsd->data;
             break;
         default:
             break;

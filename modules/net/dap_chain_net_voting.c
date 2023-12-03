@@ -266,8 +266,8 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
             if (dap_hash_fast_compare(&((dap_chain_net_vote_t *)l_temp->data)->pkey_hash, &pkey_hash)){
                 if(l_voting->voting_params.vote_changing_allowed_offset &&
                     *(bool*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.vote_changing_allowed_offset)){
-                    int idx = dap_list_index(l_voting->votes, l_temp);
-                    l_voting->votes = dap_list_remove(l_voting->votes, l_temp);
+                    int idx = dap_list_index(l_voting->votes, l_temp->data);
+                    l_voting->votes = dap_list_remove(l_voting->votes, l_temp->data);
                     l_voting->votes = dap_list_insert(l_voting->votes, l_vote_item, idx);
                     log_it(L_ERROR, "Vote is changed.");
                     pthread_rwlock_unlock(&s_votings_rwlock);
@@ -674,7 +674,8 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
 
             if(l_voting->voting_params.voting_expire_offset){
                 dap_time_t l_expire = *(dap_time_t*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.voting_expire_offset);
-                if (l_expire && dap_time_now() > l_expire){
+                dap_time_t l_time_now = dap_time_now();
+                if (l_expire && l_time_now > l_expire){
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "This voting already expired.");
                     return -111;
                 }
@@ -739,6 +740,11 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
 
             // Add vote item
             uint64_t l_option_idx_count = atoll(l_option_idx_str);
+            if (l_option_idx_count > dap_list_length(l_voting->voting_params.option_offsets_list)){
+                dap_chain_datum_tx_delete(l_tx);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Invalid option index.");
+                return -114;
+            }
             dap_chain_tx_vote_t* l_vote_item = dap_chain_datum_tx_item_vote_create(&l_voting_hash, &l_option_idx_count);
             if(!l_vote_item){
                 dap_chain_datum_tx_delete(l_tx);
