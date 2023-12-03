@@ -552,8 +552,10 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                 l_temp = l_temp->next;
             }
 
-            dap_string_append_printf(a_str_out, "\t Voting expire: %s\n", dap_ctime_r(&l_voting_params->voting_expire, l_tmp_buf));
-            dap_string_append_printf(a_str_out, "\t Votes max count: 0x%016"DAP_UINT64_FORMAT_x"\n", l_voting_params->votes_max_count);
+            if(l_voting_params->voting_expire)
+                dap_string_append_printf(a_str_out, "\t Voting expire: %s\n", dap_ctime_r(&l_voting_params->voting_expire, l_tmp_buf));
+            if (l_voting_params->votes_max_count)
+                dap_string_append_printf(a_str_out, "\t Votes max count: %"DAP_UINT64_FORMAT_U"\n", l_voting_params->votes_max_count);
             dap_string_append_printf(a_str_out, "\t Changing vote is %s available.\n", l_voting_params->vote_changing_allowed ? "" : "not");
             dap_string_append_printf(a_str_out, "\t A delegated key is%s required to participate in voting. \n", l_voting_params->delegate_key_required ? "" : " not");
 

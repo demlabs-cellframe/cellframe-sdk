@@ -213,7 +213,7 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
 
         if(l_voting->voting_params.votes_max_count_offset){
             uint64_t l_votes_max_count = *(uint64_t*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.votes_max_count_offset);
-            if (l_votes_max_count && dap_list_length(l_voting->votes) > l_votes_max_count){
+            if (l_votes_max_count && dap_list_length(l_voting->votes) >= l_votes_max_count){
                 log_it(L_ERROR, "The required number of votes has been collected.");
                 pthread_rwlock_unlock(&s_votings_rwlock);
                 return false;
@@ -222,7 +222,7 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
 
         if(l_voting->voting_params.voting_expire_offset){
             dap_time_t l_expire = *(dap_time_t*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.voting_expire_offset);
-            if( l_expire && l_expire < dap_time_now()){
+            if( l_expire && l_expire >= a_tx_in->header.ts_created){
                 log_it(L_ERROR, "The voting has been expired.");
                 pthread_rwlock_unlock(&s_votings_rwlock);
                 return false;
@@ -231,14 +231,16 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
 
         dap_hash_fast_t pkey_hash = {};
         dap_chain_tx_sig_t *l_vote_sig = NULL;
-        int a_item_idx = 0;
-        if (!(l_vote_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx_in, &a_item_idx, TX_ITEM_TYPE_SIG, NULL)))
-            l_vote_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx_in, NULL, TX_ITEM_TYPE_SIG, NULL);
-        if(!l_vote_sig){
+        int l_item_cnt = 0;
+        dap_list_t* l_signs_list = NULL;
+        l_signs_list = dap_chain_datum_tx_items_get(a_tx_in, TX_ITEM_TYPE_SIG, &l_item_cnt);
+
+        if(!l_signs_list){
             log_it(L_ERROR, "Can't get sign.");
             pthread_rwlock_unlock(&s_votings_rwlock);
             return false;
         }
+        l_vote_sig = (dap_chain_tx_sig_t *)(dap_list_last(l_signs_list)->data);
         dap_sign_get_pkey_hash((dap_sign_t*)l_vote_sig->sig, &pkey_hash);
         if (l_voting->voting_params.delegate_key_required_offset &&
             *(bool*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.delegate_key_required_offset)){
@@ -660,6 +662,22 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
             if(!l_voting || l_voting->net_id.uint64 != l_net->pub.id.uint64){
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find voting with hash %s", l_hash_str);
                 return -111;
+            }
+
+            if(l_voting->voting_params.votes_max_count_offset){
+                uint64_t l_max_count = *(uint64_t*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.votes_max_count_offset);
+                if (l_max_count && dap_list_length(l_voting->votes) >= l_max_count){
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "This voting already received the required number of votes.");
+                    return -111;
+                }
+            }
+
+            if(l_voting->voting_params.voting_expire_offset){
+                dap_time_t l_expire = *(dap_time_t*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.voting_expire_offset);
+                if (l_expire && dap_time_now() > l_expire){
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "This voting already expired.");
+                    return -111;
+                }
             }
 
             if(l_voting->voting_params.delegate_key_required_offset &&
