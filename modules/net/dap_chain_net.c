@@ -2851,6 +2851,13 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         else{
             log_it(L_WARNING, "Not present our own address %s in database", (l_node_alias_str) ? l_node_alias_str: "");
         }
+    } else {
+        log_it(L_ERROR, "The string representation of the node address could not be determined for '%s' net.", l_net->pub.name);
+        HASH_DEL(s_net_items, l_net_item);
+        HASH_DEL(s_net_ids, l_net_item);
+        dap_chain_net_delete(l_net);
+        DAP_DELETE(l_net_item);
+        return -5;
     }
 
     /* *** Chaiins init by configs *** */
