@@ -356,7 +356,7 @@ int dap_chain_mempool_tx_coll_fee_create(dap_enc_key_t *a_key_from,const dap_cha
             char *l_value_out_datoshi = dap_chain_balance_print(l_value_out);
             char *l_value_fee_coins = dap_chain_balance_to_coins(l_value_pack);
             char *l_value_fee_datoshi = dap_chain_balance_print(l_value_pack);
-            log_it(L_ERROR, "The transaction fee is greater than the sum of the block fees:\n "
+            log_it(L_ERROR, "The transaction fee is greater than the sum of the block fees:\n"
                             "Transaction fee - %s (%s)\n"
                             "Block fee - %s (%s)", l_value_fee_coins,l_value_fee_datoshi,l_value_out_coins,l_value_out_datoshi );
             dap_chain_datum_tx_delete(l_tx);
@@ -387,7 +387,8 @@ int dap_chain_mempool_tx_coll_fee_create(dap_enc_key_t *a_key_from,const dap_cha
     //dap_hash_fast(l_tx, l_tx_size, &l_tx_hash);
     dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
     DAP_DELETE(l_tx);
-    a_hash_out = dap_chain_mempool_datum_add(l_datum, l_chain, a_hash_out_type);
+    char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain, a_hash_out_type);
+    a_hash_out = l_ret;
     DAP_DELETE(l_datum);
     return 0;
 }
