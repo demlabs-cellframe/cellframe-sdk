@@ -80,7 +80,11 @@ int dap_chain_net_voting_init()
 {
     pthread_rwlock_init(&s_votings_rwlock, NULL);
     dap_chain_ledger_voting_verificator_add(s_datum_tx_voting_verification_callback);
-    dap_cli_server_cmd_add("voting", s_cli_voting, "Voting commands", "");
+    dap_cli_server_cmd_add("voting", s_cli_voting, "Voting commands.", ""
+                            "voting create -net <net_name> -question <\"Question_string\"> -options <\"Option1\", \"Option2\" ... \"OptionN\"> [-expire <voting_expire_time_in_RCF822>] [-max_votes_count <Votes_count>] [-delegated_key_required] [-vote_changing_allowed] -fee <value_datoshi> -w <fee_wallet_name>\n"
+                            "voting vote -net <net_name> -hash <voting_hash> -option_idx <option_index> [-cert <delegate_cert_name>] -fee <value_datoshi> -w <fee_wallet_name>\n"
+                            "voting list -net <net_name>\n"
+                            "voting dump -net <net_name> -hash <voting_hash>\n");
     return 0;
 }
 
@@ -319,7 +323,7 @@ static dap_list_t* s_get_options_list_from_str(const char* a_str)
 
 static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
 {
-    enum {CMD_NONE=0, CMD_CREATE, CMD_VOTE, CMD_LIST, CMD_RESULTS};
+    enum {CMD_NONE=0, CMD_CREATE, CMD_VOTE, CMD_LIST, CMD_DUMP};
 
     const char* l_net_str = NULL;
     int arg_index = 1;
@@ -353,8 +357,8 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
         l_cmd = CMD_VOTE;
     else if (dap_cli_server_cmd_find_option_val(a_argv, 1, 2, "list", NULL))
         l_cmd = CMD_LIST;
-    else if (dap_cli_server_cmd_find_option_val(a_argv, 1, 2, "results", NULL))
-        l_cmd = CMD_RESULTS;
+    else if (dap_cli_server_cmd_find_option_val(a_argv, 1, 2, "dump", NULL))
+        l_cmd = CMD_DUMP;
 
 
     switch(l_cmd){
@@ -845,7 +849,7 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
             dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_out->str);
             dap_string_free(l_str_out, true);
         }break;
-        case CMD_RESULTS:{
+        case CMD_DUMP:{
             const char* l_hash_str = NULL;
 
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_hash_str);
@@ -886,11 +890,26 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
             uint64_t l_votes_count = 0;
             l_votes_count = dap_list_length(l_voting->votes);
             dap_string_t *l_str_out = dap_string_new(NULL);
-            dap_string_append_printf(l_str_out, "Results of voting %s:\n\n", l_hash_str);
+            dap_string_append_printf(l_str_out, "Dump of voting %s:\n\n", l_hash_str);
             dap_string_append_len(l_str_out,
                                   (char*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.voting_question_offset),
                                   l_voting->voting_params.voting_question_length);
             dap_string_append(l_str_out, "\n\n");
+
+            if(l_voting->voting_params.voting_expire_offset){
+                char l_tmp_buf[70];
+                dap_time_t l_expire = *(dap_time_t*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.voting_expire_offset);
+                dap_string_append_printf(l_str_out, "\t Voting expire: %s", dap_ctime_r(&l_expire, l_tmp_buf));
+                dap_string_truncate(l_str_out, l_str_out->len - 1);
+                dap_string_append_printf(l_str_out, " (%s)\n", l_expire > dap_time_now() ? "active" : "expired");
+            }
+            if (l_voting->voting_params.votes_max_count_offset){
+                uint64_t l_max_count = *(uint64_t*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.votes_max_count_offset);
+                dap_string_append_printf(l_str_out, "\t Votes max count: %"DAP_UINT64_FORMAT_U" (%s)\n", l_max_count, l_max_count < l_votes_count ? "active" : "closed");
+            }
+            dap_string_append_printf(l_str_out, "\t Changing vote is %s available.\n", l_voting->voting_params.vote_changing_allowed_offset ? "" : "not");
+            dap_string_append_printf(l_str_out, "\t A delegated key is%s required to participate in voting. \n", l_voting->voting_params.delegate_key_required_offset ? "" : " not");
+            dap_string_append_printf(l_str_out, "\n\nResults:\n\n");
             for (uint64_t i = 0; i < dap_list_length(l_voting->voting_params.option_offsets_list); i++){
                 dap_string_append_printf(l_str_out, "%"DAP_UINT64_FORMAT_U")  ", i);
                 dap_list_t* l_option = dap_list_nth(l_voting->voting_params.option_offsets_list, (uint64_t)i);
@@ -901,7 +920,7 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
                 float l_percentage = l_votes_count ? ((float)l_results[i]/l_votes_count)*100 : 0;
                 dap_string_append_printf(l_str_out, "\nVotes: %"DAP_UINT64_FORMAT_U" (%.2f%%)\n", l_results[i], l_percentage);
             }
-
+            dap_string_append_printf(l_str_out, "\nTotal number of votes: %"DAP_UINT64_FORMAT_U"\n\n", l_votes_count);
             dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_out->str);
             dap_string_free(l_str_out, true);
         }break;
