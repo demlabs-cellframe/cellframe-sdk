@@ -1537,9 +1537,10 @@ static void s_check_db_callback_fee_collect (UNUSED_ARG dap_global_db_context_t 
     {
         if(compare256(l_value_out_block,l_arg->fee_need_cfg) == 1)
         {
-            char *l_hash_tx = dap_chain_mempool_tx_coll_fee_create(l_arg->key_from, l_arg->a_addr_to,
-                                                 l_block_list, l_arg->value_fee, "hex");
-            if(l_hash_tx)
+            char *l_hash_tx = NULL;
+            int res = dap_chain_mempool_tx_coll_fee_create(l_arg->key_from, l_arg->a_addr_to,
+                                                 l_block_list, l_arg->value_fee, "hex",l_hash_tx);
+            if(l_hash_tx && !res)
             {
                 log_it(L_NOTICE, "Fee collect transaction successfully created, hash=%s\n",l_hash_tx);
                 dap_global_db_del(s_block_fee_group, NULL, NULL, NULL);
@@ -1568,9 +1569,10 @@ static void s_check_db_callback_fee_collect (UNUSED_ARG dap_global_db_context_t 
         SUM_256_256(l_value_out_block,l_value_gdb,&l_value_total);
         if(compare256(l_value_total,l_arg->fee_need_cfg) == 1)
         {
-            char *l_hash_tx = dap_chain_mempool_tx_coll_fee_create(l_arg->key_from, l_arg->a_addr_to,
-                                                 l_block_list, l_arg->value_fee, "hex");
-            if(l_hash_tx)
+            char *l_hash_tx = NULL;
+            int res = dap_chain_mempool_tx_coll_fee_create(l_arg->key_from, l_arg->a_addr_to,
+                                                 l_block_list, l_arg->value_fee, "hex",l_hash_tx);
+            if(l_hash_tx && !res)
             {
                 dap_global_db_del(s_block_fee_group, NULL, NULL, NULL);
                 log_it(L_NOTICE, "Fee collect transaction successfully created, hash=%s\n",l_hash_tx);

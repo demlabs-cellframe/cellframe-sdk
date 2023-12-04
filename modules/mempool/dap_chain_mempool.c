@@ -285,8 +285,8 @@ char *dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_fr
  *
  * return hash_tx Ok, , NULL other Error
  */
-char *dap_chain_mempool_tx_coll_fee_create(dap_enc_key_t *a_key_from,const dap_chain_addr_t* a_addr_to,dap_list_t *a_block_list,
-                                           uint256_t a_value_fee, const char *a_hash_out_type)
+int dap_chain_mempool_tx_coll_fee_create(dap_enc_key_t *a_key_from,const dap_chain_addr_t* a_addr_to,dap_list_t *a_block_list,
+                                           uint256_t a_value_fee, const char *a_hash_out_type, char *a_hash_out)
 {
     uint256_t                   l_value_out = {};
     uint256_t                   l_net_fee = {};
@@ -299,13 +299,13 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_enc_key_t *a_key_from,const dap_c
     else
     {
         log_it(L_WARNING, "There aren't block hash");
-        return NULL;
+        return -1;
     }
     bool l_net_fee_used = dap_chain_net_tx_get_fee(l_chain->net_id, &l_net_fee, &l_addr_fee);
     //add tx
     if (NULL == (l_tx = dap_chain_datum_tx_create())) {
         log_it(L_WARNING, "Can't create datum tx");
-        return NULL;
+        return -2;
     }
     dap_ledger_t *l_ledger = dap_chain_net_by_id(l_chain->net_id)->pub.ledger;
     for(dap_list_t *bl = a_block_list; bl; bl = bl->next) {
@@ -335,7 +335,7 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_enc_key_t *a_key_from,const dap_c
             else {
                 log_it(L_WARNING, "Can't create net_fee out item in transaction fee");
                 dap_chain_datum_tx_delete(l_tx);
-                return NULL;
+                return -3;
             }
         }
         // Validator's fee
@@ -345,16 +345,26 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_enc_key_t *a_key_from,const dap_c
             else {
                 log_it(L_WARNING, "Can't create valid_fee item in transaction fee");
                 dap_chain_datum_tx_delete(l_tx);
-                return NULL;
+                return -4;
             }
         }
         if(compare256(l_value_out,l_value_pack)!=-1)
             SUBTRACT_256_256(l_value_out,l_value_pack,&l_value_out);
         else
         {
-            log_it(L_WARNING, "The transaction fee is greater than the sum of the block fees");
+            char *l_value_out_coins = dap_chain_balance_to_coins(l_value_out);
+            char *l_value_out_datoshi = dap_chain_balance_print(l_value_out);
+            char *l_value_fee_coins = dap_chain_balance_to_coins(l_value_pack);
+            char *l_value_fee_datoshi = dap_chain_balance_print(l_value_pack);
+            log_it(L_ERROR, "The transaction fee is greater than the sum of the block fees:\n "
+                            "Transaction fee - %s (%s)\n"
+                            "Block fee - %s (%s)", l_value_fee_coins,l_value_fee_datoshi,l_value_out_coins,l_value_out_datoshi );
             dap_chain_datum_tx_delete(l_tx);
-            return NULL;
+            DAP_DELETE(l_value_out_coins);
+            DAP_DELETE(l_value_out_datoshi);
+            DAP_DELETE(l_value_fee_coins);
+            DAP_DELETE(l_value_fee_datoshi);
+            return -5;
         }
     }
 
@@ -362,14 +372,14 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_enc_key_t *a_key_from,const dap_c
     if (dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to, l_value_out) != 1) {
         dap_chain_datum_tx_delete(l_tx);
         log_it(L_WARNING, "Can't create out item in transaction fee");
-        return NULL;
+        return -6;
     }
 
     // add 'sign' items
     if(dap_chain_datum_tx_add_sign_item(&l_tx, a_key_from) != 1) {
         dap_chain_datum_tx_delete(l_tx);
         log_it(L_WARNING, "Can't sign item in transaction fee");
-        return NULL;
+        return -7;
     }
 
     size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
@@ -377,9 +387,9 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_enc_key_t *a_key_from,const dap_c
     //dap_hash_fast(l_tx, l_tx_size, &l_tx_hash);
     dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
     DAP_DELETE(l_tx);
-    char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain, a_hash_out_type);
+    a_hash_out = dap_chain_mempool_datum_add(l_datum, l_chain, a_hash_out_type);
     DAP_DELETE(l_datum);
-    return l_ret;
+    return 0;
 }
 
 /**

@@ -825,14 +825,39 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                 return -22;
             }
 
-            char * l_hash_tx = dap_chain_mempool_tx_coll_fee_create(l_cert->enc_key,l_addr,l_block_list,l_fee_value,l_hash_out_type);
-            if (l_hash_tx) {
+            char * l_hash_tx = NULL;
+            int res = dap_chain_mempool_tx_coll_fee_create(l_cert->enc_key,l_addr,l_block_list,l_fee_value,l_hash_out_type,l_hash_tx);
+            if (l_hash_tx && !res) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Fee collect TX created succefully, hash=%s\n", l_hash_tx);
                 ret = 0;
             }
             else
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create fee collect TX\n");
-            ret = -24;
+            {
+                switch (res){
+                    case -1:
+                        dap_cli_server_cmd_set_reply_text(a_str_reply,"There aren't block hash");
+                    break;
+                    case -2:
+                        dap_cli_server_cmd_set_reply_text(a_str_reply,"Can't create datum tx");
+                    break;
+                    case -3:
+                        dap_cli_server_cmd_set_reply_text(a_str_reply,"Can't create net_fee out item in transaction fee");
+                    break;
+                    case -4:
+                        dap_cli_server_cmd_set_reply_text(a_str_reply,"Can't create valid_fee item in transaction fee");
+                    break;
+                    case -5:
+                        dap_cli_server_cmd_set_reply_text(a_str_reply,"The transaction fee is greater than the sum of the block fees");
+                    break;
+                    case -6:
+                        dap_cli_server_cmd_set_reply_text(a_str_reply,"Can't create out item in transaction fee");
+                    break;
+                    case -7:
+                        dap_cli_server_cmd_set_reply_text(a_str_reply,"Can't sign item in transaction fee");
+                    break;
+                }
+                ret = -24;
+            }
 
             DAP_DELETE(l_hash_tx);
             dap_list_free(l_block_list);
