@@ -338,6 +338,18 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                      ((dap_chain_tx_in_ems_ext_t*)item)->header.ext_tx_out_idx);
             DAP_DELETE(l_hash_str);
         } break; */
+
+        case TX_ITEM_TYPE_IN_REWARD: {
+            l_hash_tmp = &((dap_chain_tx_in_reward_t *)item)->block_hash;
+            l_hash_str = dap_strcmp(a_hash_out_type, "hex")
+                    ? dap_enc_base58_encode_hash_to_str(l_hash_tmp)
+                    : dap_chain_hash_fast_to_str_new(l_hash_tmp);
+            dap_string_append_printf(a_str_out, "\t IN_REWARD:\n"
+                                                "\t\t block_hash: %s\n",
+                                                l_hash_str);
+            DAP_DELETE(l_hash_str);
+        } break;
+
         case TX_ITEM_TYPE_SIG: {
             l_sign_tmp = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)item);
             dap_sign_get_information(l_sign_tmp, a_str_out, a_hash_out_type);
@@ -356,10 +368,10 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                                 "\t\t size: %"DAP_UINT64_FORMAT_U"\n"
                                                 "\t\t ext size: %"DAP_UINT64_FORMAT_U"\n"
                                                 "\t\t Info:"
-                                                "\t\t\t   units: 0x%016"DAP_UINT64_FORMAT_x"\n"
-                                                "\t\t\t   uid: 0x%016"DAP_UINT64_FORMAT_x"\n"
-                                                "\t\t\t   units type: %s \n"
-                                                "\t\t\t   value: %s (%s)\n",
+                                                "\t\t\t units: 0x%016"DAP_UINT64_FORMAT_x"\n"
+                                                "\t\t\t uid: 0x%016"DAP_UINT64_FORMAT_x"\n"
+                                                "\t\t\t units type: %s \n"
+                                                "\t\t\t value: %s (%s)\n",
                                      ((dap_chain_datum_tx_receipt_t*)item)->size,
                                      ((dap_chain_datum_tx_receipt_t*)item)->exts_size,
                                      ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.units,

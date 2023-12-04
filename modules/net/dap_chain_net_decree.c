@@ -53,8 +53,8 @@ static struct decree_hh {
 
 // Private fuctions prototype
 static bool s_verify_pkey (dap_sign_t *a_sign, dap_chain_net_t *a_net);
-static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_t *a_chain, bool a_apply);
-static int s_service_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_t *a_chain, bool a_apply);
+static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_apply);
+static int s_service_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_apply);
 
 
 // Public functions
@@ -62,8 +62,7 @@ int dap_chain_net_decree_init(dap_chain_net_t *a_net)
 {
     size_t l_auth_certs_count = 0;
 
-    if (!a_net)
-    {
+    if (!a_net) {
         log_it(L_WARNING,"Invalid arguments. a_net must be not NULL");
         return -106;
     }
@@ -78,8 +77,7 @@ int dap_chain_net_decree_init(dap_chain_net_t *a_net)
             break;
     }
 
-    if (!l_net_keys || !l_auth_certs_count)
-    {
+    if (!l_net_keys || !l_auth_certs_count) {
         log_it(L_WARNING,"Certificates for net %s not found.", a_net->pub.name);
         return -1;
     }
@@ -127,20 +125,16 @@ int s_decree_verify_tsd(dap_chain_datum_decree_t * a_decree, dap_chain_net_t *a_
 {
     int ret_val = 0;
 
-    if (!a_decree)
-    {
-        log_it(L_ERROR,"Invalid arguments.");
-        return -107;
-    }
+    dap_return_val_if_fail(a_decree && a_net, -107);
 
     // Process decree
     switch(a_decree->header.type){
         case DAP_CHAIN_DATUM_DECREE_TYPE_COMMON:{
-            ret_val = s_common_decree_handler(a_decree, a_net->pub.chains, false);
+            ret_val = s_common_decree_handler(a_decree, a_net, false);
             break;
         }
         case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:{
-            ret_val = s_service_decree_handler(a_decree, NULL, false);
+            ret_val = s_service_decree_handler(a_decree, a_net, false);
         }
         default:
         log_it(L_WARNING,"Decree type is undefined!");
@@ -232,10 +226,10 @@ int dap_chain_net_decree_verify(dap_chain_datum_decree_t *a_decree, dap_chain_ne
     }
 
     // check tsd-section
-    if (s_decree_verify_tsd(a_decree, a_net))
-    {
+    int l_ret = s_decree_verify_tsd(a_decree, a_net);
+    if (l_ret) {
         log_it(L_WARNING,"TSD checking error. Decree verification failed");
-        return -108;
+        return l_ret;
     }
 
     return 0;
@@ -290,10 +284,10 @@ int dap_chain_net_decree_apply(dap_hash_fast_t *a_decree_hash, dap_chain_datum_d
     // Process decree
     switch(l_decree_hh->decree->header.type) {
     case DAP_CHAIN_DATUM_DECREE_TYPE_COMMON:
-        ret_val = s_common_decree_handler(l_decree_hh->decree, a_chain, true);
+        ret_val = s_common_decree_handler(l_decree_hh->decree, l_net, true);
         break;
     case DAP_CHAIN_DATUM_DECREE_TYPE_SERVICE:
-        ret_val = s_service_decree_handler(l_decree_hh->decree, a_chain, true);
+        ret_val = s_service_decree_handler(l_decree_hh->decree, l_net, true);
     default:
         log_it(L_WARNING,"Decree type is undefined!");
         ret_val = -100;
@@ -356,30 +350,26 @@ static bool s_verify_pkey (dap_sign_t *a_sign, dap_chain_net_t *a_net)
     return false;
 }
 
-static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_t *a_chain, bool a_apply)
+static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain_net_t *a_net, bool a_apply)
 {
     uint256_t l_uint256_buffer;
     uint16_t l_uint16_buffer;
     dap_chain_addr_t l_addr = {}; //????????
     dap_hash_fast_t l_hash = {};
     dap_chain_node_addr_t l_node_addr = {};
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
     dap_list_t *l_owners_list = NULL;
 
-    if (a_apply && !a_chain){
-        log_it(L_WARNING, "a_chain must not be NULL");
-        return -112;
-    }
+    dap_return_val_if_fail(a_decree && a_net, -112);
 
     switch (a_decree->header.sub_type)
     {
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_FEE:
                 if (dap_chain_datum_decree_get_fee_addr(a_decree, &l_addr)) {
-                    if (dap_chain_addr_is_blank(&l_net->pub.fee_addr)) {
+                    if (dap_chain_addr_is_blank(&a_net->pub.fee_addr)) {
                         log_it(L_WARNING, "Fee wallet address not set.");
                         return -111;
                     } else
-                        l_addr = l_net->pub.fee_addr;
+                        l_addr = a_net->pub.fee_addr;
                 }
                 if (dap_chain_datum_decree_get_fee(a_decree, &l_uint256_buffer)) {
                     log_it(L_WARNING,"Can't get fee value from decree.");
@@ -387,8 +377,8 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 }
                 if (!a_apply)
                     break;
-                if (!dap_chain_net_tx_set_fee(a_chain->net_id, l_uint256_buffer, l_addr))
-                    log_it(L_ERROR, "Can't set fee value for network %s", a_chain->net_name);
+                if (!dap_chain_net_tx_set_fee(a_net->pub.id, l_uint256_buffer, l_addr))
+                    log_it(L_ERROR, "Can't set fee value for network %s", a_net->pub.name);
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS:
             l_owners_list = dap_chain_datum_decree_get_owners(a_decree, &l_uint16_buffer);
@@ -400,10 +390,10 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             if (!a_apply)
                 break;
 
-            l_net->pub.decree->num_of_owners = l_uint16_buffer;
-            dap_list_free_full(l_net->pub.decree->pkeys, NULL);
+            a_net->pub.decree->num_of_owners = l_uint16_buffer;
+            dap_list_free_full(a_net->pub.decree->pkeys, NULL);
 
-            l_net->pub.decree->pkeys = l_owners_list;
+            a_net->pub.decree->pkeys = l_owners_list;
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_OWNERS_MIN:
             if (dap_chain_datum_decree_get_min_owners(a_decree, &l_uint16_buffer)){
@@ -412,7 +402,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             }
             if (!a_apply)
                 break;
-            l_net->pub.decree->min_num_of_owners = l_uint16_buffer;
+            a_net->pub.decree->min_num_of_owners = l_uint16_buffer;
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_APPROVE:
             if (dap_chain_datum_decree_get_stake_tx_hash(a_decree, &l_hash)){
@@ -438,7 +428,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             }
             if (!a_apply)
                 break;
-            dap_chain_net_srv_stake_key_delegate(l_net, &l_addr, &l_hash, l_uint256_buffer, &l_node_addr);
+            dap_chain_net_srv_stake_key_delegate(a_net, &l_addr, &l_hash, l_uint256_buffer, &l_node_addr);
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_STAKE_INVALIDATE:
             if (dap_chain_datum_decree_get_stake_signing_addr(a_decree, &l_addr)){
@@ -463,8 +453,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 log_it(L_WARNING,"Can't get min stake value from decree.");
                 return -105;
             }
-            dap_chain_t *l_chain = a_chain ? a_chain
-                                           : dap_chain_find_by_id(l_net->pub.id, a_decree->header.common_decree_params.chain_id);
+            dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
             if (!l_chain) {
                 log_it(L_WARNING, "Specified chain not found");
                 return -106;
@@ -475,7 +464,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
             }
             if (!a_apply)
                 break;
-            l_chain->callback_set_min_validators_count(a_chain, (uint16_t)dap_chain_uint256_to(l_uint256_buffer));
+            l_chain->callback_set_min_validators_count(l_chain, (uint16_t)dap_chain_uint256_to(l_uint256_buffer));
             break;
         case DAP_CHAIN_DATUM_DECREE_COMMON_SUBTYPE_BAN: {
             if (!a_apply)
@@ -543,10 +532,15 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 log_it(L_WARNING,"Can't get value from decree.");
                 return -103;
             }
+            dap_chain_t *l_chain = dap_chain_find_by_id(a_net->pub.id, a_decree->header.common_decree_params.chain_id);
+            if (!l_chain) {
+                log_it(L_WARNING, "Specified chain not found");
+                return -106;
+            }
             if (!a_apply)
                 break;
-            uint64_t l_cur_block_num = a_chain->callback_count_atom(a_chain);
-            dap_chain_net_add_reward(l_net, l_uint256_buffer, l_cur_block_num);
+            uint64_t l_cur_block_num = l_chain->callback_count_atom(l_chain);
+            dap_chain_net_add_reward(a_net, l_uint256_buffer, l_cur_block_num);
         } break;
         default:
             return -1;
@@ -555,7 +549,7 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
     return 0;
 }
 
-static int s_service_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chain_t *a_chain, bool a_apply)
+static int s_service_decree_handler(dap_chain_datum_decree_t * a_decree, dap_chain_net_t *a_net, bool a_apply)
 {
    // size_t l_datum_data_size = ;
    //            dap_chain_net_srv_t * l_srv = dap_chain_net_srv_get(l_decree->header.srv_id);

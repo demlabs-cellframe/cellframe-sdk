@@ -25,6 +25,6 @@ along with any DAP SDK based project.  If not, see <http://www.gnu.org/licenses/
 #include "dap_chain_datum_tx_items.h"
 
 typedef struct dap_chain_tx_in_reward {
-    dap_chain_tx_item_type_t type : 8;      /// @param type             @brief Transaction item type
+    dap_chain_tx_item_type_t type;          /// @param type             @brief Transaction item type
     dap_hash_t block_hash;                  /// @param block_hash       @brief Hash of the block signed with current validator
 } DAP_ALIGN_PACKED dap_chain_tx_in_reward_t;
