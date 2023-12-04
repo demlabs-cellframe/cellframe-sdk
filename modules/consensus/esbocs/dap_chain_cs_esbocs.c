@@ -2646,7 +2646,7 @@ static dap_chain_datum_decree_t *s_esbocs_decree_set_min_validators_count(dap_ch
     if (!a_chain)
         l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_ANCHOR);
     if(!l_chain){
-        log_it(L_ERROR, "Can't find chain with decree support.");
+        log_it(L_ERROR, "Can't find chain with anchor support.");
         dap_list_free_full(l_tsd_list, NULL);
         DAP_DELETE(l_decree);
         return NULL;
