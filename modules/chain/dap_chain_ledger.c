@@ -4162,13 +4162,28 @@ int dap_chain_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t
         }
     }
 
-    if (dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTING, NULL) &&
-        s_voting_callback)
-        s_voting_callback(a_ledger, TX_ITEM_TYPE_VOTING, a_tx);
-    else if (dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTE, NULL) &&
-        s_voting_callback)
-        s_voting_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx);
 
+    if (dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTING, NULL)){
+        if (s_voting_callback){
+            if (!s_voting_callback(a_ledger, TX_ITEM_TYPE_VOTING, a_tx, false)){
+                debug_if(s_debug_more, L_WARNING, "Verificator check error for voting item");
+                l_err_num = DAP_CHAIN_LEDGER_TX_CACHE_VERIFICATOR_CHECK_FAILURE;
+            }
+        } else {
+            debug_if(s_debug_more, L_WARNING, "Verificator check error for voting.");
+            l_err_num = DAP_CHAIN_LEDGER_TX_CACHE_VERIFICATOR_CHECK_FAILURE;
+        }
+    }else if (dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTE, NULL)){
+       if (s_voting_callback){
+           if (!s_voting_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx, false)){
+               debug_if(s_debug_more, L_WARNING, "Verificator check error for vote item");
+               l_err_num = DAP_CHAIN_LEDGER_TX_CACHE_VERIFICATOR_CHECK_FAILURE;
+           }
+       } else {
+           debug_if(s_debug_more, L_WARNING, "Verificator check error for vote.");
+           l_err_num = DAP_CHAIN_LEDGER_TX_CACHE_VERIFICATOR_CHECK_FAILURE;
+       }
+    }
 
     if (a_main_ticker && !l_err_num)
         *a_main_ticker = dap_strdup(l_main_ticker);
@@ -4641,6 +4656,13 @@ static inline int s_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, d
         }
         DAP_DELETE (l_addr_str);
     }
+
+    if (dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTING, NULL) && s_voting_callback)
+        s_voting_callback(a_ledger, TX_ITEM_TYPE_VOTING, a_tx, true);
+    else if (dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTE, NULL) && s_voting_callback)
+        s_voting_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx, true);
+
+
 
     // add transaction to the cache list
     dap_chain_ledger_tx_item_t *l_tx_item = DAP_NEW_Z(dap_chain_ledger_tx_item_t);

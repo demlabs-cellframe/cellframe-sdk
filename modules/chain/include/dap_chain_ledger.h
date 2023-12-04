@@ -116,7 +116,7 @@ typedef void (* dap_chain_ledger_tx_add_notify_t)(void *a_arg, dap_ledger_t *a_l
 typedef void (* dap_chain_ledger_bridged_tx_notify_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg);
 typedef bool (*dap_chain_ledger_cache_tx_check_callback_t)(dap_hash_fast_t *a_tx_hash);
 typedef struct dap_chain_net dap_chain_net_t;
-typedef bool (*dap_chain_ledger_voting_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx);
+typedef bool (*dap_chain_ledger_voting_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx, bool a_apply);
 //Change this UUID to automatically reload ledger cache on next node startup
 #define DAP_CHAIN_LEDGER_CACHE_RELOAD_ONCE_UUID "0c92b759-a565-448f-b8bd-99103dacf7fc"
 
