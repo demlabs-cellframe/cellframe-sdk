@@ -120,18 +120,6 @@ DAP_STATIC_INLINE char *s_get_penalty_group(dap_chain_net_id_t a_net_id)
     return dap_strdup_printf(DAP_CHAIN_ESBOCS_GDB_GROUPS_PREFIX".%s.penalty", l_net->pub.gdb_groups_prefix);
 }
 
-DAP_STATIC_INLINE char *s_get_fee_group(dap_chain_net_id_t a_net_id)
-{
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
-    return dap_strdup_printf("local." DAP_CHAIN_ESBOCS_GDB_GROUPS_PREFIX ".%s.penalty", l_net->pub.gdb_groups_prefix);
-}
-
-DAP_STATIC_INLINE char *s_get_reward_group(dap_chain_net_id_t a_net_id)
-{
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
-    return dap_strdup_printf("local." DAP_CHAIN_ESBOCS_GDB_GROUPS_PREFIX ".%s.penalty", l_net->pub.gdb_groups_prefix);
-}
-
 DAP_STATIC_INLINE size_t s_get_esbocs_message_size(dap_chain_esbocs_message_t *a_message)
 {
     return sizeof(*a_message) + a_message->hdr.sign_size + a_message->hdr.message_size;
@@ -384,7 +372,7 @@ static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cel
         dap_list_t *l_list_used_out = dap_chain_block_get_list_tx_cond_outs_with_val(
                                         l_net->pub.ledger, l_block_cache, &l_value_fee);
         if (!IS_ZERO_256(l_value_fee)) {
-            char *l_fee_group = s_get_fee_group(a_chain->net_id);
+            char *l_fee_group = dap_chain_cs_blocks_get_fee_group(a_chain->net_name);
             dap_global_db_set(l_fee_group, l_block_cache->block_hash_str, &l_value_fee, sizeof(l_value_fee),
                               false, s_check_db_collect_callback, l_session);
             DAP_DELETE(l_fee_group);
@@ -402,7 +390,7 @@ static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cel
             uint256_t l_value_reward = a_chain->callback_calc_reward(a_chain, &l_block_cache->block_hash,
                                                                      PVT(l_session->esbocs)->block_sign_pkey);
             if (!IS_ZERO_256(l_value_reward)) {
-                char *l_reward_group = s_get_reward_group(a_chain->net_id);
+                char *l_reward_group = dap_chain_cs_blocks_get_reward_group(a_chain->net_name);
                 dap_global_db_set(l_reward_group, l_block_cache->block_hash_str, &l_value_reward, sizeof(l_value_reward),
                                   false, s_check_db_collect_callback, l_session);
                 DAP_DELETE(l_reward_group);

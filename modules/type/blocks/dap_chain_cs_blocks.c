@@ -196,6 +196,9 @@ int dap_chain_cs_blocks_init()
             "block -net <net_name> -chain <chain_name> reward collect"
             " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value>\n"
                 "\t\t Take reward\n\n"
+
+        "Rewards and comission autocollect status:\n"
+            "block -net <net_name> -chain <chain_name> autocollect status\n\n"
                                         );
     if( dap_chain_block_cache_init() ) {
         log_it(L_WARNING, "Can't init blocks cache");
@@ -440,6 +443,30 @@ static void s_cli_meta_hex_print(  dap_string_t * a_str_tmp, const char * a_meta
     DAP_DELETE(l_data_hex);
 }
 
+static void s_print_autocollect_table(dap_chain_net_t *a_net, dap_string_t *a_reply_str, const char *a_table_name)
+{
+    dap_string_append_printf(a_reply_str, "\n=== %s ===\n", a_table_name);
+    size_t l_objs_count = 0;
+    char *l_group = dap_strcmp(a_table_name, "Fees") ? dap_chain_cs_blocks_get_reward_group(a_net->pub.name)
+                                                     : dap_chain_cs_blocks_get_fee_group(a_net->pub.name);
+    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_group, &l_objs_count);
+    DAP_DELETE(l_group);
+    uint256_t l_total_value = uint256_0;
+    for (size_t i = 0; i < l_objs_count; i++) {
+        dap_global_db_obj_t *l_obj_cur = l_objs + i;
+        char *l_value_str = dap_chain_balance_to_coins(*(uint256_t *)l_obj_cur->value);
+        dap_string_append_printf(a_reply_str, "%s\t%s\n", l_obj_cur->key, l_value_str);
+        DAP_DEL_Z(l_value_str);
+    }
+    if (l_objs_count) {
+        dap_global_db_objs_delete(l_objs, l_objs_count);
+        char *l_total_str = dap_chain_balance_to_coins(l_total_value);
+        dap_string_append_printf(a_reply_str, "Total prepared value: %s %s\n", l_total_str, a_net->pub.native_ticker);
+        DAP_DEL_Z(l_total_str);
+    } else
+        dap_string_append(a_reply_str, "Empty\n");
+}
+
 /**
  * @brief s_cli_blocks
  * @param argc
@@ -461,7 +488,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
         SUBCMD_LIST,
         SUBCMD_FEE,
         SUBCMD_DROP,
-        SUBCMD_REWARD
+        SUBCMD_REWARD,
+        SUBCMD_AUTOCOLLECT,
     } l_subcmd={0};
 
     const char* l_subcmd_strs[]={
@@ -475,6 +503,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
         [SUBCMD_FEE]="fee",
         [SUBCMD_DROP]="drop",
         [SUBCMD_REWARD] = "reward",
+        [SUBCMD_AUTOCOLLECT] = "autocollect",
         [SUBCMD_UNDEFINED]=NULL
     };
     const size_t l_subcmd_str_count=sizeof(l_subcmd_strs)/sizeof(*l_subcmd_strs);
@@ -978,8 +1007,20 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
             dap_list_free_full(l_block_list, NULL);
         }break;
 
-        default:
-        case SUBCMD_UNDEFINED: {
+        case SUBCMD_AUTOCOLLECT: {
+            if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "status") >= 0) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block autocollect' requires subcommand 'status'");
+                return -14;
+            }
+            dap_string_t *l_reply_str = dap_string_new("Autocollect tables content for:\n");
+            s_print_autocollect_table(l_net, l_reply_str, "Fees");
+            s_print_autocollect_table(l_net, l_reply_str, "Rewards");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_reply_str->str);
+            dap_string_free(l_reply_str, true);
+        } break;
+
+        case SUBCMD_UNDEFINED:
+        default: {
             dap_cli_server_cmd_set_reply_text(a_str_reply,
                                               "Undefined block subcommand \"%s\" ",
                                               l_subcmd_str);

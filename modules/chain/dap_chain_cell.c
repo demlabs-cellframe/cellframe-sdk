@@ -233,18 +233,17 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
             break;
         }
         l_read = fread((void *)l_element, 1, l_el_size, l_cell_file);
-        if (l_read == l_el_size) {
-            dap_chain_atom_verify_res_t l_res = a_chain->callback_atom_add(a_chain, l_element, l_el_size); // !!! blocking GDB call !!!
-            if (l_res == ATOM_PASS || l_res == ATOM_REJECT) {
-                DAP_DELETE(l_element);
-            }
-            ++q;
-        } else {
+        if (l_read != l_el_size) {
             log_it(L_ERROR, "Read only %lu of %zu bytes, stop cell loading", l_read, l_el_size);
             DAP_DELETE(l_element);
             l_ret = -6;
             break;
         }
+        dap_chain_atom_verify_res_t l_res = a_chain->callback_atom_add(a_chain, l_element, l_el_size); // !!! blocking GDB call !!!
+        if (l_res == ATOM_PASS || l_res == ATOM_REJECT) {
+            DAP_DELETE(l_element);
+        }
+        ++q;
     }
     if (l_ret < 0) {
         log_it(L_INFO, "Couldn't load all atoms, %lu only", q);

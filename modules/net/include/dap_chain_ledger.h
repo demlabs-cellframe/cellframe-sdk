@@ -270,11 +270,6 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
 void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db);
 
 /**
- * End of load mode with no chackes for incoming datums
- */
-void dap_ledger_load_end(dap_ledger_t *a_ledger);
-
-/**
  * Return number transactions from the cache
  */
 unsigned dap_ledger_count(dap_ledger_t *a_ledger);
