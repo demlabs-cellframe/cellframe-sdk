@@ -255,6 +255,12 @@ typedef struct dap_chain_net_srv_callbacks {
     dap_chain_net_srv_callback_ch_t stream_ch_write;
 } dap_chain_net_srv_callbacks_t;
 
+typedef struct dap_usages_in_grace{
+    dap_hash_fast_t tx_cond_hash;
+    dap_chain_net_srv_grace_t *grace;
+    UT_hash_handle hh;
+} dap_usages_in_grace_t;
+
 typedef struct dap_chain_net_srv
 {
     dap_chain_net_srv_uid_t uid; // Unique ID for service.
@@ -267,6 +273,9 @@ typedef struct dap_chain_net_srv
     dap_chain_net_srv_banlist_item_t *ban_list;
 
     dap_chain_net_srv_callbacks_t callbacks;
+
+    dap_usages_in_grace_t *usages_in_grace;
+    pthread_mutex_t grace_mutex;
 
     // Pointer to inheritor object
     void *_inheritor;

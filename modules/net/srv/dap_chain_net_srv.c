@@ -1170,14 +1170,26 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
  * @brief dap_chain_net_srv_del
  * @param a_srv
  */
-void dap_chain_net_srv_del(dap_chain_net_srv_t * a_srv)
+void dap_chain_net_srv_del(dap_chain_net_srv_t *a_srv)
 {
+// sanity check
+    dap_return_if_pass(!a_srv);
+// func work
     service_list_t *l_sdata;
-    if(!a_srv)
-        return;
+    // delete srv from hash table
     pthread_mutex_lock(&s_srv_list_mutex);
     HASH_FIND(hh, s_srv_list, a_srv, sizeof(dap_chain_net_srv_uid_t), l_sdata);
     if(l_sdata) {
+        // grace table clean
+        dap_usages_in_grace_t *l_gdata, *l_gdata_tmp;
+        pthread_mutex_lock(&a_srv->grace_mutex);
+        HASH_ITER(hh, a_srv->usages_in_grace, l_gdata, l_gdata_tmp)
+        {
+            HASH_DEL(a_srv->usages_in_grace, l_gdata);
+            DAP_DELETE(l_gdata);
+        } 
+        pthread_mutex_unlock(&a_srv->grace_mutex);
+
         HASH_DEL(s_srv_list, l_sdata);
         pthread_mutex_destroy(&a_srv->banlist_mutex);
         DAP_DELETE(a_srv);
