@@ -195,6 +195,9 @@ static bool s_unban_client(dap_chain_net_srv_banlist_item_t *a_item)
 
 void dap_stream_ch_chain_net_srv_tx_cond_added_cb(UNUSED_ARG void *a_arg, UNUSED_ARG dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
 {
+// sanity check
+    dap_return_if_pass(!a_tx);
+// func work
     dap_chain_net_srv_grace_usage_t *l_item = NULL;
     dap_hash_fast_t tx_cond_hash = {};
     dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_ALL, NULL);
