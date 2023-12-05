@@ -1181,11 +1181,11 @@ void dap_chain_net_srv_del(dap_chain_net_srv_t *a_srv)
     HASH_FIND(hh, s_srv_list, a_srv, sizeof(dap_chain_net_srv_uid_t), l_sdata);
     if(l_sdata) {
         // grace table clean
-        dap_usages_in_grace_t *l_gdata, *l_gdata_tmp;
+        dap_chain_net_srv_grace_usage_t *l_gdata, *l_gdata_tmp;
         pthread_mutex_lock(&a_srv->grace_mutex);
-        HASH_ITER(hh, a_srv->usages_in_grace, l_gdata, l_gdata_tmp)
+        HASH_ITER(hh, a_srv->grace_hash_tab, l_gdata, l_gdata_tmp)
         {
-            HASH_DEL(a_srv->usages_in_grace, l_gdata);
+            HASH_DEL(a_srv->grace_hash_tab, l_gdata);
             DAP_DELETE(l_gdata);
         } 
         pthread_mutex_unlock(&a_srv->grace_mutex);

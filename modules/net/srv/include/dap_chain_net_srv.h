@@ -255,11 +255,11 @@ typedef struct dap_chain_net_srv_callbacks {
     dap_chain_net_srv_callback_ch_t stream_ch_write;
 } dap_chain_net_srv_callbacks_t;
 
-typedef struct dap_usages_in_grace{
+typedef struct dap_chain_net_srv_grace_usage {
     dap_hash_fast_t tx_cond_hash;
     dap_chain_net_srv_grace_t *grace;
     UT_hash_handle hh;
-} dap_usages_in_grace_t;
+} dap_chain_net_srv_grace_usage_t;
 
 typedef struct dap_chain_net_srv
 {
@@ -274,7 +274,7 @@ typedef struct dap_chain_net_srv
 
     dap_chain_net_srv_callbacks_t callbacks;
 
-    dap_usages_in_grace_t *usages_in_grace;
+    dap_chain_net_srv_grace_usage_t *grace_hash_tab;
     pthread_mutex_t grace_mutex;
 
     // Pointer to inheritor object
