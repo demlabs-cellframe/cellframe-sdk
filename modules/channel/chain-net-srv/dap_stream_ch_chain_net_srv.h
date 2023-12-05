@@ -38,6 +38,7 @@
 #include "dap_chain_datum_tx_receipt.h"
 #include "dap_chain_mempool.h"
 #include "dap_common.h"
+#include "dap_chain_net_srv.h"
 
 typedef struct dap_stream_ch_chain_net_srv dap_stream_ch_chain_net_srv_t;
 
@@ -55,6 +56,6 @@ typedef struct dap_stream_ch_chain_net_srv {
 #define DAP_STREAM_CH_CHAIN_NET_SRV(a) ((dap_stream_ch_chain_net_srv_t *) ((a)->internal) )
 #define DAP_STREAM_CH_ID_NET_SRV 'R'
 
-int dap_stream_ch_chain_net_srv_init(void);
+int dap_stream_ch_chain_net_srv_init(dap_chain_net_srv_t *a_srv);
 
 void dap_stream_ch_chain_net_srv_tx_cond_added_cb(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);

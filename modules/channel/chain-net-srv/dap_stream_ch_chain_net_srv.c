@@ -30,7 +30,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_hash.h"
 #include "rand/dap_rand.h"
 
-#include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_stream_session.h"
 
 #include "dap_stream.h"
@@ -44,12 +43,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define LOG_TAG "dap_stream_ch_chain_net_srv"
 #define SRV_PAY_GDB_GROUP "local.srv_pay"
 
-typedef struct usages_in_grace{
-    dap_hash_fast_t tx_cond_hash;
-    dap_chain_net_srv_grace_t *grace;
-    UT_hash_handle hh;
-} usages_in_grace_t;
-
 static void s_stream_ch_new(dap_stream_ch_t* ch , void* arg);
 static void s_stream_ch_delete(dap_stream_ch_t* ch , void* arg);
 static void s_stream_ch_packet_in(dap_stream_ch_t* ch , void* arg);
@@ -59,7 +52,7 @@ static bool s_unban_client(dap_chain_net_srv_banlist_item_t *a_item);
 
 static void s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_pkt_request_t * a_request, size_t a_request_size);
 static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace);
-static bool s_grace_period_finish(usages_in_grace_t *a_grace);
+static bool s_grace_period_finish(dap_usages_in_grace_t *a_grace);
 
 static inline void s_grace_error(dap_chain_net_srv_grace_t *a_grace, dap_stream_ch_chain_net_srv_pkt_error_t a_err){
 
@@ -123,18 +116,15 @@ static inline void s_grace_error(dap_chain_net_srv_grace_t *a_grace, dap_stream_
     DAP_DELETE(a_grace);
 }
 
-// TODO: move this to net_srv
-static usages_in_grace_t * s_grace_table = NULL;
-static pthread_mutex_t s_ht_grace_table_mutex;
 /**
  * @brief dap_stream_ch_chain_net_init
  * @return
  */
-int dap_stream_ch_chain_net_srv_init(void)
+int dap_stream_ch_chain_net_srv_init(dap_chain_net_srv_t *a_srv)
 {
     log_it(L_NOTICE,"Chain network services channel initialized");
     dap_stream_ch_proc_add(DAP_STREAM_CH_ID_NET_SRV, s_stream_ch_new,s_stream_ch_delete,s_stream_ch_packet_in,s_stream_ch_packet_out);
-    pthread_mutex_init(&s_ht_grace_table_mutex, NULL);
+    pthread_mutex_init(&a_srv->grace_mutex, NULL);
 
     return 0;
 }
@@ -209,12 +199,14 @@ void dap_stream_ch_chain_net_srv_tx_cond_added_cb(void *a_arg, dap_ledger_t *a_l
     UNUSED(a_arg);
     // TODO: 1. Get net_srv by srv_uid from tx_cond
     // 2. Get usages in grace HT from service
-    usages_in_grace_t *l_item = NULL;
+    dap_usages_in_grace_t *l_item = NULL;
     dap_hash_fast_t tx_cond_hash = {};
+    dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_ALL, NULL);
+    dap_chain_net_srv_t *l_net_srv = dap_chain_net_srv_get(l_out_cond->header.srv_uid);
     dap_hash_fast((void*)a_tx, dap_chain_datum_tx_get_size(a_tx), &tx_cond_hash);
-    pthread_mutex_lock(&s_ht_grace_table_mutex);
-    HASH_FIND(hh, s_grace_table, &tx_cond_hash, sizeof(dap_hash_fast_t), l_item);
-    pthread_mutex_unlock(&s_ht_grace_table_mutex);
+    pthread_mutex_lock(&l_net_srv->grace_mutex);
+    HASH_FIND(hh, l_net_srv->usages_in_grace, &tx_cond_hash, sizeof(dap_hash_fast_t), l_item);
+    pthread_mutex_unlock(&l_net_srv->grace_mutex);
     if (l_item){
         log_it(L_INFO, "Found tx in ledger by notify. Finish grace.");
         // Stop timer
@@ -229,7 +221,7 @@ static void s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
     assert(a_ch);
     dap_stream_ch_chain_net_srv_pkt_error_t l_err;
     memset(&l_err, 0, sizeof(l_err));
-    dap_chain_net_srv_t * l_srv = NULL;
+    dap_chain_net_srv_t *l_srv = NULL;
 
     dap_chain_net_srv_stream_session_t *l_srv_session = a_ch->stream && a_ch->stream->session ?
                                                         (dap_chain_net_srv_stream_session_t *)a_ch->stream->session->_inheritor : NULL;
@@ -376,7 +368,9 @@ static void s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
 
 static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
 {
-    assert(a_grace);
+// sanity check
+    dap_return_if_pass(!a_grace);
+// func work
     dap_stream_ch_chain_net_srv_pkt_error_t l_err = { };
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(a_grace->stream_worker, a_grace->ch_uuid);
 
@@ -470,7 +464,7 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
                 s_grace_error(a_grace, l_err);
                 return;
             }
-            usages_in_grace_t *l_item = DAP_NEW_Z_SIZE(usages_in_grace_t, sizeof(usages_in_grace_t));
+            dap_usages_in_grace_t *l_item = DAP_NEW_Z(dap_usages_in_grace_t);
             if (!l_item) {
                 log_it(L_CRITICAL, "Memory allocation error");
                 s_grace_error(a_grace, l_err);
@@ -479,14 +473,14 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
             l_item->grace = a_grace;
             l_item->tx_cond_hash = a_grace->usage->tx_cond_hash;
 
-            pthread_mutex_lock(&s_ht_grace_table_mutex);
-            HASH_ADD(hh, s_grace_table, tx_cond_hash, sizeof(dap_hash_fast_t), l_item);
-            pthread_mutex_unlock(&s_ht_grace_table_mutex);
+            pthread_mutex_lock(&a_grace->usage->service->grace_mutex);
+            HASH_ADD(hh, a_grace->usage->service->usages_in_grace, tx_cond_hash, sizeof(dap_hash_fast_t), l_item);
+            pthread_mutex_unlock(&a_grace->usage->service->grace_mutex);
             a_grace->timer_es_uuid = dap_timerfd_start_on_worker(a_grace->stream_worker->worker, a_grace->usage->service->grace_period * 1000,
                                                                  (dap_timerfd_callback_t)s_grace_period_finish, l_item)->esocket_uuid;
             log_it(L_INFO, "Start grace timer %s.", a_grace->timer_es_uuid ? "successfuly." : "failed." );
         } else { // Else if first grace at service start
-            usages_in_grace_t *l_item = DAP_NEW_Z_SIZE(usages_in_grace_t, sizeof(usages_in_grace_t));
+            dap_usages_in_grace_t *l_item = DAP_NEW_Z(dap_usages_in_grace_t);
             if (!l_item) {
                 log_it(L_CRITICAL, "Memory allocation error");
                 s_grace_error(a_grace, l_err);
@@ -521,9 +515,9 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
                     a_grace->usage->service->callbacks.response_success(a_grace->usage->service, a_grace->usage->id,
                                                                         a_grace->usage->client, NULL, 0);
                 DAP_DELETE(l_success);
-                pthread_mutex_lock(&s_ht_grace_table_mutex);
-                HASH_ADD(hh, s_grace_table, tx_cond_hash, sizeof(dap_hash_fast_t), l_item);
-                pthread_mutex_unlock(&s_ht_grace_table_mutex);
+                pthread_mutex_lock(&a_grace->usage->service->grace_mutex);
+                HASH_ADD(hh, a_grace->usage->service->usages_in_grace, tx_cond_hash, sizeof(dap_hash_fast_t), l_item);
+                pthread_mutex_unlock(&a_grace->usage->service->grace_mutex);
                 a_grace->timer_es_uuid = dap_timerfd_start_on_worker(a_grace->stream_worker->worker, a_grace->usage->service->grace_period * 1000,
                                                                      (dap_timerfd_callback_t)s_grace_period_finish, l_item)->esocket_uuid;
                 log_it(L_INFO, "Start grace timer %s.", a_grace->timer_es_uuid ? "successfuly." : "failed." );
@@ -748,16 +742,17 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
     }
 }
 
-static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
+static bool s_grace_period_finish(dap_usages_in_grace_t *a_grace_item)
 {
     assert(a_grace_item);
     dap_stream_ch_chain_net_srv_pkt_error_t l_err = { };
     dap_chain_net_srv_grace_t *l_grace = a_grace_item->grace;
+    dap_chain_net_srv_t *l_srv = a_grace_item->grace->usage->service;
 
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(l_grace->stream_worker, l_grace->ch_uuid);
 
 #define RET_WITH_DEL_A_GRACE do \
-    { HASH_DEL(s_grace_table, a_grace_item); DAP_DELETE(a_grace_item); return false; } \
+    { HASH_DEL(l_srv->usages_in_grace, a_grace_item); DAP_DELETE(a_grace_item); return false; } \
     while(0);
 
     if (!l_ch){
@@ -989,7 +984,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
                 DAP_DELETE(l_grace->request);
                 DAP_DELETE(l_grace);
                 DAP_DELETE(l_remain_service);
-                HASH_DEL(s_grace_table, a_grace_item);
+                HASH_DEL(l_srv->usages_in_grace, a_grace_item);
                 DAP_DELETE(a_grace_item);
                 return false;
             }
@@ -1496,14 +1491,15 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
 
         l_usage->is_waiting_new_tx_cond = false;
         dap_stream_ch_chain_net_srv_pkt_error_t l_err = { };
-        usages_in_grace_t *l_curr_grace_item = NULL;
-        pthread_mutex_lock(&s_ht_grace_table_mutex);
-        HASH_FIND(hh, s_grace_table, &l_usage->tx_cond_hash, sizeof(dap_hash_fast_t), l_curr_grace_item);
-        pthread_mutex_unlock(&s_ht_grace_table_mutex);
+        dap_chain_net_srv_t *l_srv = dap_chain_net_srv_get(l_responce->hdr.srv_uid);
+        dap_usages_in_grace_t *l_curr_grace_item = NULL;
+        pthread_mutex_lock(&l_srv->grace_mutex);
+        HASH_FIND(hh, l_srv->usages_in_grace, &l_usage->tx_cond_hash, sizeof(dap_hash_fast_t), l_curr_grace_item);
+        pthread_mutex_unlock(&l_srv->grace_mutex);
 
         if (dap_hash_fast_is_blank(&l_responce->hdr.tx_cond)){ //if new tx cond creation failed tx_cond in responce will be blank
             if (l_curr_grace_item){
-                HASH_DEL(s_grace_table, l_curr_grace_item);
+                HASH_DEL(l_srv->usages_in_grace, l_curr_grace_item);
                 dap_timerfd_delete_mt(l_curr_grace_item->grace->stream_worker->worker, l_curr_grace_item->grace->timer_es_uuid);
                 s_grace_error(l_curr_grace_item->grace, l_err);
                 DAP_DEL_Z(l_curr_grace_item);
@@ -1527,11 +1523,11 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
             if (l_curr_grace_item){
                 l_curr_grace_item->grace->usage->tx_cond_hash = l_responce->hdr.tx_cond;
                 l_curr_grace_item->grace->request->hdr.tx_cond = l_responce->hdr.tx_cond;
-                pthread_mutex_lock(&s_ht_grace_table_mutex);
-                HASH_DEL(s_grace_table, l_curr_grace_item);
+                pthread_mutex_lock(&l_srv->grace_mutex);
+                HASH_DEL(l_srv->usages_in_grace, l_curr_grace_item);
                 l_curr_grace_item->tx_cond_hash = l_responce->hdr.tx_cond;
-                HASH_ADD(hh, s_grace_table, tx_cond_hash, sizeof(dap_hash_fast_t), l_curr_grace_item);
-                pthread_mutex_unlock(&s_ht_grace_table_mutex);
+                HASH_ADD(hh, l_srv->usages_in_grace, tx_cond_hash, sizeof(dap_hash_fast_t), l_curr_grace_item);
+                pthread_mutex_unlock(&l_srv->grace_mutex);
             }
         }
 
@@ -1560,10 +1556,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
  * @param a_ch
  * @param a_arg
  */
-void s_stream_ch_packet_out(dap_stream_ch_t* a_ch , void* a_arg)
+void s_stream_ch_packet_out(dap_stream_ch_t* a_ch , UNUSED_ARG void* a_arg)
 {
-    (void) a_arg;
-
     dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
     // Callback should note that after write action it should restore write flag if it has more data to send on next iteration
     dap_chain_net_srv_call_write_all( a_ch);
