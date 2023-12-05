@@ -1344,50 +1344,40 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order history' requires parameter -order or -addr" );
                 return -12;
             }
-            dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_find_by_hash_str(l_net, l_order_hash_str);
-            if (!l_order) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified order not found");
-                return -13;
-            }
+//            dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_find_by_hash_str(l_net, l_order_hash_str);
+            dap_hash_fast_t l_order_tx_hash = {};
+            dap_chain_hash_fast_from_str(l_order_hash_str, &l_order_tx_hash);
             dap_hash_fast_t *l_final_hash = dap_chain_ledger_get_final_chain_tx_hash(l_net->pub.ledger,
-                                                 DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_order->tx_cond_hash);
+                                                 DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_order_tx_hash);
             if (!l_final_hash) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified order have no active tx (copmleted)");
-                DAP_DELETE(l_order);
                 return -18;
             }
             dap_chain_datum_tx_t *l_tx = dap_chain_ledger_tx_find_by_hash(l_net->pub.ledger, l_final_hash);
             if (!l_tx) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Internal error");
-                DAP_DELETE(l_order);
                 return -19;
             }
             dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
                                                                                   NULL);
             if (!l_out_cond) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified order have no active conditional tx (copmleted)");
-                DAP_DELETE(l_order);
                 return -20;
             }
-            uint256_t l_filled, l_filled_percent, l_rate;
-            dap_srv_xchange_order_ext_t *l_ext = (dap_srv_xchange_order_ext_t *)l_order->ext_n_sign;
-            char *l_amount_str = dap_chain_balance_to_coins(l_order->price);
+
+            dap_chain_net_srv_xchange_price_t * l_price = NULL;
+            l_price = s_xchange_price_from_order(l_net, l_tx, NULL, true);
+            if( !l_price ){
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't get price from order.");
+                return -21;
+            }
             char *l_current_str = dap_chain_balance_to_coins(l_out_cond->header.value);
-            SUBTRACT_256_256(l_order->price, l_out_cond->header.value, &l_filled);
-            DIV_256_COIN(l_filled, l_out_cond->header.value, &l_filled_percent);
-            MULT_256_256(l_filled_percent, dap_chain_uint256_from(100), &l_filled_percent);
-            char *l_filled_str = dap_chain_balance_to_coins(l_filled_percent);
-            DIV_256_COIN(l_ext->datoshi_buy, l_order->price, &l_rate);
-            char *l_rate_str = dap_chain_balance_to_coins(l_rate);
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "tokenSell: %s, tokenBuy: %s, amount: %s, current %s, filled: %s%% rate(buy/sell): %s\n",
-                                                            l_order->price_ticker, l_ext->token_buy,
-                                                            l_amount_str, l_current_str,
-                                                            l_filled_str, l_rate_str);
-            DAP_DEL_Z(l_amount_str);
+            char *l_rate_str = dap_chain_balance_to_coins(l_price->rate);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "tokenSell: %s, tokenBuy: %s, current amount: %s, rate(buy/sell): %s\n",
+                                                            l_price->token_sell, l_price->token_buy,
+                                                            l_current_str, l_rate_str);
             DAP_DEL_Z(l_current_str);
-            DAP_DEL_Z(l_filled_str);
             DAP_DEL_Z(l_rate_str);
-            DAP_DELETE(l_order);
         } break;
 
         default: {
