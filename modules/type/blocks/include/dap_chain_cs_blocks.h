@@ -71,3 +71,13 @@ void dap_chain_cs_blocks_deinit();
 int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config);
 void dap_chain_cs_blocks_delete(dap_chain_t * a_chain);
 dap_chain_block_cache_t *dap_chain_block_cache_get_by_hash(dap_chain_cs_blocks_t *a_blocks, dap_chain_hash_fast_t *a_block_hash);
+
+DAP_STATIC_INLINE char *dap_chain_cs_blocks_get_fee_group(const char *a_net_name)
+{
+    return dap_strdup_printf("local.%s.fees", a_net_name);
+}
+
+DAP_STATIC_INLINE char *dap_chain_cs_blocks_get_reward_group(const char *a_net_name)
+{
+    return dap_strdup_printf("local.%s.rewards", a_net_name);
+}
