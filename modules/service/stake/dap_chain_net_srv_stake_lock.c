@@ -142,6 +142,14 @@ void dap_chain_net_srv_stake_lock_deinit()
 {
 
 }
+static void test_func(const dap_chain_datum_t *a_datum, dap_chain_t *a_chain, const char *a_hash_out_type,char* tt)
+{
+    char *pt;
+    pt = dap_chain_mempool_datum_add(a_datum, a_chain, a_hash_out_type);
+    tt = *pt;
+
+}
+
 
 /**
  * @brief s_cli_hold
@@ -323,7 +331,8 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
                                                            l_delegated_ticker_str, l_value_delegated);
     dap_chain_wallet_close(l_wallet);
 
-    l_hash_str = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type);
+    test_func(l_datum, l_chain, l_hash_out_type,l_hash_str);
+    //l_hash_str = dap_chain_mempool_datum_add(l_datum, l_chain, l_hash_out_type);
     DAP_DEL_Z(l_datum);
 
     if (l_hash_str)

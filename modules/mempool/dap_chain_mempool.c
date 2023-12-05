@@ -389,6 +389,7 @@ int dap_chain_mempool_tx_coll_fee_create(dap_enc_key_t *a_key_from,const dap_cha
     DAP_DELETE(l_tx);
     char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain, a_hash_out_type);
     a_hash_out = l_ret;
+
     DAP_DELETE(l_datum);
     return 0;
 }
