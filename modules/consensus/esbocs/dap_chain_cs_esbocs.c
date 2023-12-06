@@ -297,17 +297,7 @@ lb_err:
     return l_ret;
 }
 
-typedef struct fee_serv_param
-{
-    dap_hash_fast_t block_hash;
-    dap_enc_key_t * key_from;
-    dap_chain_addr_t * a_addr_to;
-    uint256_t fee_need_cfg;
-    uint256_t value_fee;
-    dap_chain_t * chain;
-}fee_serv_param_t;
-
-static void s_check_db_collect_callback(dap_global_db_context_t UNUSED_ARG *a_global_db_context,
+static void s_check_db_collect_callback(dap_global_db_instance_t UNUSED_ARG *a_dbi,
                                         int a_rc, const char *a_group, const char *a_key, const void *a_value,
                                         const size_t a_value_size, dap_nanotime_t UNUSED_ARG a_value_ts,
                                         bool UNUSED_ARG a_is_pinned, void *a_arg)
