@@ -2807,7 +2807,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
             }
             const char *l_datum_type = dap_chain_datum_type_id_to_str(l_datum->header.type_id);
             char buff_time[50];
-            dap_time_to_str_rfc822(&buff_time, 50, l_datum->header.ts_create);
+            dap_time_to_str_rfc822(buff_time, 50, l_datum->header.ts_create);
             dap_string_append_printf(a_str_tmp, "%s hash %s %s\n", l_datum_type, l_objs[i].key, buff_time);
             bool datum_is_accepted_addr = false;
             switch (l_datum->header.type_id) {
@@ -2858,6 +2858,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                             } break;
                             default: break;
                         }
+                        UNUSED(is_fee);
 //                        if (l_dist_addr && dap_chain_addr_compare(&l_addr_from, l_dist_addr))
 //                            continue;
                         char *l_value_str = dap_chain_balance_print(l_value);
@@ -3001,7 +3002,7 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
 
             dap_chain_hash_fast_to_str(&l_atom_hash, l_atom_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
             dap_string_append_printf(l_str_reply, "Atom hash is %s return code is %d (%s)\n",
-                                     l_atom_hash_str, l_ret_code, dap_chain_ledger_tx_check_err_str(l_ret_code));
+                                     l_atom_hash_str, l_ret_code, dap_ledger_tx_check_err_str(l_ret_code));
         }
         dap_chain_datum_dump(l_str_reply, l_datum, a_hash_out_type, a_net->pub.id);
         if (!l_found_in_chains)
@@ -3017,7 +3018,8 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
     return 0;
 }
 
-int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_datum_hash, char **a_str_reply) {
+int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_datum_hash, char **a_str_reply)
+{
     if(dap_chain_net_get_role(a_net).enums>= NODE_ROLE_FULL){
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Need master node role or higher for network %s "
                                                        "to process this command", a_net->pub.name);
@@ -3029,7 +3031,7 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
     dap_string_t * l_str_tmp = dap_string_new(NULL);
     size_t l_datum_size=0;
 
-    dap_chain_datum_t * l_datum = dap_global_db_get_sync(l_gdb_group_mempool, a_datum_hash,
+    dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(l_gdb_group_mempool, a_datum_hash,
                                                          &l_datum_size, NULL, NULL );
     size_t l_datum_size2 = l_datum? dap_chain_datum_size( l_datum): 0;
     if (l_datum_size != l_datum_size2) {
@@ -3180,9 +3182,10 @@ int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t
     return 0;
 }
 
-int _cmd_mempool_dump_from_group(dap_chain_net_id_t a_net_id, const char *a_group_gdb, const char *a_datum_hash, const char *a_hash_out_type, dap_string_t *a_str_tmp) {
+int _cmd_mempool_dump_from_group(dap_chain_net_id_t a_net_id, const char *a_group_gdb, const char *a_datum_hash, const char *a_hash_out_type, dap_string_t *a_str_tmp)
+{
     size_t l_datum_size = 0;
-    dap_chain_datum_t * l_datum = dap_global_db_get_sync(a_group_gdb, a_datum_hash,
+    dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(a_group_gdb, a_datum_hash,
                                                          &l_datum_size, NULL, NULL );
     size_t l_datum_size2 = l_datum? dap_chain_datum_size( l_datum): 0;
     if (l_datum_size != l_datum_size2) {
@@ -3304,7 +3307,7 @@ int com_mempool(int a_argc, char **a_argv,  char **a_str_reply){
             }
         } break;
         case SUBCMD_ADD_CA: {
-            char *l_ca_name  = NULL;
+            const char *l_ca_name  = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-ca_name", &l_ca_name);
             if (!l_ca_name) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply,
