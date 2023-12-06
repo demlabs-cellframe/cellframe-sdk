@@ -44,8 +44,6 @@ else()
     #    add_definitions(-DDAP_DISABLE_INT128=FALSE)
 endif(NOT DAP_INT128_SUPPORT)
 
-#set(BUILD_CELLFRAME_SDK_TESTS ON)
-
 if (BUILD_CELLFRAME_SDK_TESTS)
     add_definitions("-DDAP_LEDGER_TEST")
 endif()

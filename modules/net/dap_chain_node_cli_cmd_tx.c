@@ -215,9 +215,12 @@ static void s_tx_header_print(dap_string_t *a_str_out, dap_chain_tx_hash_process
         l_tx_hash_str = dap_enc_base58_encode_hash_to_str(a_tx_hash);
         l_atom_hash_str = dap_enc_base58_encode_hash_to_str(a_atom_hash);
     }
-    dap_string_append_printf(a_str_out, "%s TX hash %s with atom %s (ret code %d - %s) \n\t%s", l_declined ? "DECLINED" : "ACCEPTED",
-                                                                          l_tx_hash_str, l_atom_hash_str, a_ret_code,
-                                                                          dap_ledger_tx_check_err_str(a_ret_code), l_time_str);
+    char *l_err_code_str = l_declined ? dap_strdup_printf(" (ret code %d - %s)",
+                                                          a_ret_code, dap_ledger_tx_check_err_str(a_ret_code)) : "";
+    dap_string_append_printf(a_str_out, "%s TX hash %s with atom %s%s\n\t%s", l_declined ? "DECLINED" : "ACCEPTED",
+                                                                          l_tx_hash_str, l_atom_hash_str, l_err_code_str, l_time_str);
+    if (l_declined)
+        DAP_DEL_Z(l_err_code_str);
     DAP_DELETE(l_tx_hash_str);
     DAP_DELETE(l_atom_hash_str);
 }
@@ -273,7 +276,7 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
             continue;
         // all in items should be from the same address
         dap_chain_addr_t *l_src_addr = NULL;
-        bool l_base_tx = false;
+        bool l_base_tx = false, l_reward_collect = false;
         const char *l_noaddr_token = NULL;
 
         dap_hash_fast_t l_tx_hash;
@@ -282,7 +285,7 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
 
         int l_src_subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
         for (dap_list_t *it = l_list_in_items; it; it = it->next) {
-            dap_chain_hash_fast_t *l_tx_prev_hash;
+            dap_chain_hash_fast_t *l_tx_prev_hash = NULL;
             int l_tx_prev_out_idx;
             dap_chain_datum_tx_t *l_tx_prev = NULL;
             switch (*(byte_t *)it->data) {
@@ -297,16 +300,21 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
                 l_tx_prev_out_idx = l_tx_in_cond->header.tx_out_prev_idx;
             } break;
             case TX_ITEM_TYPE_IN_EMS: {
-                dap_chain_tx_in_ems_t *l_in_ems = (dap_chain_tx_in_ems_t *)it->data;
+                dap_chain_tx_in_ems_t *l_tx_in_ems = (dap_chain_tx_in_ems_t *)it->data;
                 l_base_tx = true;
-                l_noaddr_token = l_in_ems->header.ticker;
+                l_noaddr_token = l_tx_in_ems->header.ticker;
+            }
+            case TX_ITEM_TYPE_IN_REWARD: {
+                l_base_tx = l_reward_collect = true;
+                l_noaddr_token = l_native_ticker;
             }
             default:
                 continue;
             }
 
-            dap_chain_datum_t *l_datum = a_chain->callback_datum_find_by_hash(a_chain, l_tx_prev_hash, NULL, NULL);
-            l_tx_prev = l_datum  && l_datum->header.type_id == DAP_CHAIN_DATUM_TX ? (dap_chain_datum_tx_t *)l_datum->data : NULL;
+            dap_chain_datum_t *l_datum = l_tx_prev_hash ?
+                        a_chain->callback_datum_find_by_hash(a_chain, l_tx_prev_hash, NULL, NULL) : NULL;
+            l_tx_prev = l_datum && l_datum->header.type_id == DAP_CHAIN_DATUM_TX ? (dap_chain_datum_tx_t *)l_datum->data : NULL;
             if (l_tx_prev) {
                 uint8_t *l_prev_out_union = dap_chain_datum_tx_item_get_nth(l_tx_prev, TX_ITEM_TYPE_OUT_ALL, l_tx_prev_out_idx);
                 if (!l_prev_out_union)
@@ -396,7 +404,7 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
                 }
                 const char *l_src_addr_str = NULL, *l_src_str;
                 if (l_base_tx)
-                    l_src_str = "emission";
+                    l_src_str = l_reward_collect ? "reward collecting" : "emission";
                 else if (l_src_addr && dap_strcmp(l_dst_token, l_noaddr_token))
                     l_src_str = l_src_addr_str = dap_chain_addr_to_str(l_src_addr);
                 else
@@ -418,7 +426,7 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
         if (l_header_printed && l_base_tx && !dap_strcmp(l_native_ticker, l_src_token)) {
             char *l_fee_value_str = dap_chain_balance_print(l_fee_sum);
             char *l_fee_coins_str = dap_chain_balance_to_coins(l_fee_sum);
-            dap_string_append_printf(l_str_out, "\t\tpay %s (%s) fee\n",
+            dap_string_append_printf(l_str_out, "\tpay %s (%s) fee\n",
                                                l_fee_value_str, l_fee_coins_str);
             DAP_DELETE(l_fee_value_str);
             DAP_DELETE(l_fee_coins_str);
