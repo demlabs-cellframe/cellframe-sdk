@@ -286,7 +286,7 @@ char *dap_chain_mempool_tx_create(dap_chain_t * a_chain, dap_enc_key_t *a_key_fr
  * return hash_tx Ok, , NULL other Error
  */
 int dap_chain_mempool_tx_coll_fee_create(dap_enc_key_t *a_key_from,const dap_chain_addr_t* a_addr_to,dap_list_t *a_block_list,
-                                           uint256_t a_value_fee, const char *a_hash_out_type, char *a_hash_out)
+                                           uint256_t a_value_fee, const char *a_hash_out_type, char **a_hash_out)
 {
     uint256_t                   l_value_out = {};
     uint256_t                   l_net_fee = {};
@@ -386,9 +386,8 @@ int dap_chain_mempool_tx_coll_fee_create(dap_enc_key_t *a_key_from,const dap_cha
     //dap_hash_fast_t l_tx_hash;
     //dap_hash_fast(l_tx, l_tx_size, &l_tx_hash);
     dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
-    DAP_DELETE(l_tx);
-    char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain, a_hash_out_type);
-    a_hash_out = l_ret;
+    DAP_DELETE(l_tx);     
+    *a_hash_out = dap_chain_mempool_datum_add(l_datum, l_chain, a_hash_out_type);
 
     DAP_DELETE(l_datum);
     return 0;

@@ -826,7 +826,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
             }
 
             char * l_hash_tx = NULL;
-            int res = dap_chain_mempool_tx_coll_fee_create(l_cert->enc_key,l_addr,l_block_list,l_fee_value,l_hash_out_type,l_hash_tx);
+            int res = dap_chain_mempool_tx_coll_fee_create(l_cert->enc_key,l_addr,l_block_list,l_fee_value,l_hash_out_type,&l_hash_tx);
             if (l_hash_tx && !res) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Fee collect TX created succefully, hash=%s\n", l_hash_tx);
                 ret = 0;
