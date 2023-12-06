@@ -213,6 +213,9 @@ void s_datum_token_dump_tsd(dap_string_t *a_str_out, dap_chain_datum_token_t *a_
                 dap_string_append_printf(a_str_out, "tx_receiver_blocked_remove: %s\n",
                                          dap_tsd_get_string_const(l_tsd) );
             continue;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION:
+                dap_string_append_printf(a_str_out, "description: '%s'\n", l_tsd->data);
+            continue;
             default: dap_string_append_printf(a_str_out, "<0x%04hX>: <size %u>\n", l_tsd->type, l_tsd->size);
         }
     }
