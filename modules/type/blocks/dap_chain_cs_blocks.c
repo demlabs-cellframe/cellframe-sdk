@@ -454,9 +454,11 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, dap_string_t *a_re
     uint256_t l_total_value = uint256_0;
     for (size_t i = 0; i < l_objs_count; i++) {
         dap_global_db_obj_t *l_obj_cur = l_objs + i;
-        char *l_value_str = dap_chain_balance_to_coins(*(uint256_t *)l_obj_cur->value);
+        uint256_t l_cur_value = *(uint256_t *)l_obj_cur->value;
+        char *l_value_str = dap_chain_balance_to_coins(l_cur_value);
         dap_string_append_printf(a_reply_str, "%s\t%s\n", l_obj_cur->key, l_value_str);
         DAP_DEL_Z(l_value_str);
+        SUM_256_256(l_total_value, l_cur_value, &l_total_value);
     }
     if (l_objs_count) {
         dap_global_db_objs_delete(l_objs, l_objs_count);
@@ -886,7 +888,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
             dap_chain_addr_t        *l_addr = NULL;
 
             if (l_subcmd == SUBCMD_FEE) {
-                if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "collect") >= 0) {
+                if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "collect") == -1) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block fee' requires subcommand 'collect'");
                     return -14;
                 }
@@ -1008,7 +1010,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
         }break;
 
         case SUBCMD_AUTOCOLLECT: {
-            if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "status") >= 0) {
+            if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "status") == -1) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block autocollect' requires subcommand 'status'");
                 return -14;
             }
@@ -1910,7 +1912,7 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
     }
     dap_hash_fast_t l_prev_block_hash = l_block_cache->prev_hash;
     HASH_FIND(hh, PVT(l_blocks)->blocks, &l_prev_block_hash, sizeof(l_prev_block_hash), l_block_cache);
-    assert(!l_block_cache);
+    assert(l_block_cache);
     l_block = l_block_cache->block;
     assert(l_block);
     dap_time_t l_time_diff = l_block_time - MAX(l_block->hdr.ts_created, DAP_REWARD_INIT_TIMESTAMP);
