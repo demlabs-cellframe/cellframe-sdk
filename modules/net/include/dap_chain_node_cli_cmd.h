@@ -144,11 +144,7 @@ int com_exit(int a_argc, char **a_argv, char **a_str_reply);
 int cmd_gdb_import(int a_argc, char **a_argv, char **a_str_reply);
 int cmd_gdb_export(int a_argc, char **a_argv, char **a_str_reply);
 
-int com_mempool_delete(int a_argc, char **a_argv, char **a_str_reply);
-int com_mempool_list(int a_argc, char **a_argv, char **a_str_reply);
-int com_mempool_proc(int a_argc, char **a_argv, char **a_str_reply);
-int com_mempool_proc_all(int argc, char ** argv, char ** a_str_reply);
-int com_mempool_check(int a_argc, char **a_argv, char **a_str_reply);
+int com_mempool(int a_argc, char **a_argv, char  **a_str_reply);
 /**
  * Place public CA into the mempool
  */
