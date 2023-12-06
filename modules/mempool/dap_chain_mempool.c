@@ -310,8 +310,10 @@ int dap_chain_mempool_tx_coll_fee_create(dap_enc_key_t *a_key_from,const dap_cha
     dap_ledger_t *l_ledger = dap_chain_net_by_id(l_chain->net_id)->pub.ledger;
     for(dap_list_t *bl = a_block_list; bl; bl = bl->next) {
         uint256_t l_value_out_block = {};
+        dap_list_t *l_list_used_out = NULL;
         dap_chain_block_cache_t *l_block_cache = (dap_chain_block_cache_t *)bl->data;
-        dap_list_t *l_list_used_out = dap_chain_block_get_list_tx_cond_outs_with_val(l_ledger, l_block_cache, &l_value_out_block);
+        if(l_block_cache)
+            l_list_used_out = dap_chain_block_get_list_tx_cond_outs_with_val(l_ledger, l_block_cache, &l_value_out_block);
         if (!l_list_used_out) continue;
 
         //add 'in' items
