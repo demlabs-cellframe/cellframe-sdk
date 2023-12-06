@@ -62,6 +62,7 @@
 #include "dap_chain_net_srv.h"
 #include "dap_stream_worker.h"
 #include "dap_stream_ch_pkt.h"
+#include "dap_stream_ch_proc.h"
 #include "dap_stream_ch_chain.h"
 #include "dap_stream_ch_chain_pkt.h"
 #include "dap_stream_ch_chain_net.h"
