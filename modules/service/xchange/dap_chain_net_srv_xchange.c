@@ -137,6 +137,25 @@ int dap_chain_net_srv_xchange_init()
     s_srv_xchange->enabled = false;
     s_debug_more = dap_config_get_item_bool_default(g_config, "srv_xchange", "debug_more", s_debug_more);
 
+
+    /*************************/
+    int l_fee_type = dap_config_get_item_int64_default(g_config, "srv_xchange", "fee_type", (int)SERIVCE_FEE_NATIVE_PERCENT);
+    uint256_t l_fee_value = dap_chain_coins_to_balance(dap_config_get_item_str_default(g_config, "srv_xchange", "fee_value", "0.02"));
+    const char *l_wallet_addr = dap_config_get_item_str_default(g_config, "srv_xchange", "wallet_addr", NULL);
+    if(!l_wallet_addr){
+        log_it(L_CRITICAL, "Memory allocation error");
+        return -1;
+    }
+    const char *l_net_str = dap_config_get_item_str_default(g_config, "srv_xchange", "net", NULL);
+    ///
+    dap_chain_net_srv_fee_item_t *l_fee = NULL;
+    l_fee = DAP_NEW_Z(dap_chain_net_srv_fee_item_t);
+    l_fee->fee_type = l_fee_type;
+    l_fee->fee = l_fee_value;
+    l_fee->fee_addr = *dap_chain_addr_from_str(l_wallet_addr);
+    l_fee->net_id = dap_chain_net_by_name(l_net_str)->pub.id;
+    HASH_ADD(hh, s_service_fees, net_id, sizeof(l_fee->net_id), l_fee);
+
     return 0;
 }
 
@@ -513,13 +532,13 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
     if (l_service_fee_used) {
         switch (l_service_fee_type) {
         case SERIVCE_FEE_NATIVE_PERCENT:
-            MULT_256_COIN(l_service_fee, a_price->datoshi_buy, &l_service_fee);
+            MULT_256_COIN(l_service_fee, a_datoshi_buy, &l_service_fee);
         case SERVICE_FEE_NATIVE_FIXED:
             SUM_256_256(l_total_fee, l_service_fee, &l_total_fee);
             l_service_ticker = l_native_ticker;
             break;
         case SERVICE_FEE_OWN_PERCENT:
-            MULT_256_COIN(l_service_fee, a_price->datoshi_buy, &l_service_fee);
+            MULT_256_COIN(l_service_fee, a_datoshi_buy, &l_service_fee);
         case SERVICE_FEE_OWN_FIXED:
             SUM_256_256(l_value_need, l_service_fee, &l_value_need);
             l_service_ticker = a_price->token_buy;
@@ -725,7 +744,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
 
 
 // Put the transaction to mempool
-static bool s_xchange_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net)
+static char*  s_xchange_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net)
 {
     size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
     dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, a_tx, l_tx_size);
@@ -733,19 +752,14 @@ static bool s_xchange_tx_put(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net)
     dap_chain_t *l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
     if (!l_chain) {
         DAP_DELETE(l_datum);
-        return false;
+        return NULL;
     }
     // Processing will be made according to autoprocess policy
     char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain, "hex");
 
     DAP_DELETE(l_datum);
 
-    if (  !l_ret )
-        return false;
-
-    DAP_DELETE(l_ret);
-
-    return true;
+    return l_ret;
 }
 
 static bool s_xchange_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price, dap_chain_wallet_t *a_wallet)
@@ -879,9 +893,11 @@ static bool s_xchange_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price, 
         log_it( L_ERROR, "Can't add sign output");
         return false;
     }
-    if (!s_xchange_tx_put(l_tx, a_price->net)) {
+    char * l_ret = NULL;
+    if (!(l_ret = s_xchange_tx_put(l_tx, a_price->net))) {
         return false;
     }
+    DAP_DELETE(l_ret);
     return true;
 }
 
@@ -930,7 +946,7 @@ dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a
     dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(a_order, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE , NULL);
 
     strcpy(l_price->token_buy, l_out_cond->subtype.srv_xchange.buy_token);
-    MULT_256_256(l_out_cond->header.value, l_out_cond->subtype.srv_xchange.rate, &l_price->datoshi_buy);
+    MULT_256_COIN(l_out_cond->header.value, l_out_cond->subtype.srv_xchange.rate, &l_price->datoshi_buy);
 
     dap_hash_fast_t l_tx_hash = {};
     dap_hash_fast(a_order, dap_chain_datum_tx_get_size(a_order), &l_tx_hash);
@@ -1116,16 +1132,16 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
             }
             dap_hash_fast_t l_tx_hash ={};
             dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
-            if(!s_xchange_tx_put(l_tx, l_net)) {
+            char* l_ret = NULL;
+            if(!(l_ret = s_xchange_tx_put(l_tx, l_net))) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nCan't put transaction to mempool", l_sign_str);
                 DAP_DELETE(l_price->wallet_str);
                 DAP_DELETE(l_price);
                 return -15;
             }
             // To avoid confusion, the term "order" will apply to the original conditional exchange offer transactions.
-            char *l_tx_hash_str = dap_hash_fast_str_new(&l_tx_hash, sizeof(l_tx_hash));
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nSuccessfully created order %s", l_sign_str, l_tx_hash_str);
-            DAP_DELETE(l_tx_hash_str);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nSuccessfully created order %s", l_sign_str, l_ret);
+            DAP_DELETE(l_ret);
 
             // Note: Orders are transferred to conditional transactions, but it is necessary to leave
             // the possibility of subsequent improvements with standard orders, so the next block of
@@ -2073,7 +2089,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                             dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
                                                                                                        &l_cond_idx);
                             if (l_out_cond_item &&
-                                    dap_chain_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_tx_hash, l_cond_idx, NULL)) {
+                                    !dap_chain_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_tx_hash, l_cond_idx, NULL)) {
                                 uint256_t l_value_sell = l_out_cond_item->header.value;
                                 l_rate = l_out_cond_item->subtype.srv_xchange.rate;
                                     if (!IS_ZERO_256(l_value_sell)) {
