@@ -33,6 +33,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_stream_ch.h"
 #include "dap_time.h"
 
+#define DAP_CHAIN_NET_SRV_GRACE_PERIOD_DEFAULT 60
+
 //Service direction
 enum dap_chain_net_srv_order_direction{
     SERV_DIR_BUY = 1,
