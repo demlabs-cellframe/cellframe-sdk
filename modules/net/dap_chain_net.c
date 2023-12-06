@@ -3474,7 +3474,11 @@ dap_list_t* dap_chain_net_get_node_list_cfg(dap_chain_net_t * a_net)
     dap_chain_net_pvt_t *l_pvt_net = PVT(a_net);
     for(size_t i=0; i < l_pvt_net->seed_aliases_count;i++)
     {
-        l_node_list = dap_list_append(l_node_list, &l_pvt_net->seed_nodes_addrs_v4[i]);
+        dap_chain_node_info_t *l_node_info = DAP_NEW_Z(dap_chain_node_info_t);
+        l_node_info->hdr.ext_addr_v4 = l_pvt_net->seed_nodes_addrs_v4[i];
+        l_node_info->hdr.ext_port = l_pvt_net->seed_nodes_ports[i];
+        l_node_info->hdr.address.uint64 = l_pvt_net->seed_nodes_addrs[i];
+        l_node_list = dap_list_append(l_node_list, l_node_info);
     }
     return l_node_list;
 }
