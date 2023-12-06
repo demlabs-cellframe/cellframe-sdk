@@ -342,13 +342,12 @@ static bool s_datum_in_chain_types(uint16_t datum_type, dap_chain_type_t *chain_
 /**
  * @brief dap_chain_load_from_cfg
  * Loading chain from config file
- * @param a_ledger - ledger object
  * @param a_chain_net_name - chain name, taken from config, for example - "home21-network"
  * @param a_chain_net_id - dap_chain_net_id_t chain network identification
  * @param a_chain_cfg_name chain config name, for example "network/home21-network/chain-0"
  * @return dap_chain_t* 
  */
-dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_chain_net_name,dap_chain_net_id_t a_chain_net_id, const char * a_chain_cfg_name)
+dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net_id_t a_chain_net_id, const char *a_chain_cfg_name)
 {
     log_it (L_DEBUG, "Loading chain from config \"%s\"", a_chain_cfg_name);
 

@@ -95,9 +95,6 @@ int dap_chain_net_decree_init(dap_chain_net_t *a_net)
 
     a_net->pub.decree = l_decree;
 
-    // Preset reward for block signs, before first reward decree
-    dap_chain_net_add_reward(a_net, dap_chain_balance_scan("2851988815387151461"), 0);
-
     return 0;
 }
 

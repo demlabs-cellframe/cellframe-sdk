@@ -2271,8 +2271,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     while(l_list){
         list_priority *l_chain_prior = l_list->data;
         // Create chain object
-        l_chain = dap_chain_load_from_cfg(l_net->pub.ledger, l_net->pub.name,
-                                          l_net->pub.id, l_chain_prior->chains_path);
+        l_chain = dap_chain_load_from_cfg(l_net->pub.name, l_net->pub.id, l_chain_prior->chains_path);
         if(l_chain)
             DL_APPEND(l_net->pub.chains, l_chain);
         else
@@ -2313,6 +2312,9 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     default:
         l_ledger_flags |= DAP_LEDGER_CHECK_CELLS_DS | DAP_LEDGER_CHECK_TOKEN_EMISSION;
     }
+    // init LEDGER model
+    l_net->pub.ledger = dap_ledger_create(l_net, l_ledger_flags);
+
     for (dap_chain_t *l_chain = l_net->pub.chains; l_chain; l_chain = l_chain->next) {
         if (!l_chain->callback_get_poa_certs)
             continue;
@@ -2322,9 +2324,11 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     }
     if (!l_net->pub.keys)
         log_it(L_WARNING, "PoA certificates for net %s not found", l_net->pub.name);
-    // init LEDGER model
-    l_net->pub.ledger = dap_ledger_create(l_net, l_ledger_flags);
 
+    // Decrees initializing
+    dap_chain_net_decree_init(l_net);
+
+    dap_config_close(l_cfg);
     return 0;
 }
 
@@ -2351,9 +2355,6 @@ int s_net_load(dap_chain_net_t *a_net)
         dap_chain_net_srv_stake_purge(l_net);
     } else
         dap_chain_net_srv_stake_load_cache(l_net);
-
-    //load decree
-    dap_chain_net_decree_init(l_net);
 
     // load chains
     dap_chain_t *l_chain = l_net->pub.chains;

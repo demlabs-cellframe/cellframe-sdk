@@ -268,12 +268,19 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
         l_validator->weight = uint256_1;
         l_esbocs_pvt->poa_validators = dap_list_append(l_esbocs_pvt->poa_validators, l_validator);
 
+        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
         if (!l_esbocs_pvt->poa_mode) { // auth certs in PoA mode will be first PoS validators keys
             dap_hash_fast_t l_stake_tx_hash = {};
-            dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
             uint256_t l_weight = dap_chain_net_srv_stake_get_allowed_min_value();
             dap_chain_net_srv_stake_key_delegate(l_net, &l_signing_addr, &l_stake_tx_hash,
                                                  l_weight, &l_signer_node_addr);
+        }
+        // Preset reward for block signs, before first reward decree
+        const char *l_preset_reward_str = dap_config_get_item_str(a_chain_cfg, "esbocs", "preset_reward");
+        if (l_preset_reward_str) {
+            uint256_t l_preset_reward = dap_chain_balance_scan(l_preset_reward_str);
+            if (!IS_ZERO_256(l_preset_reward))
+                dap_chain_net_add_reward(l_net, l_preset_reward, 0);
         }
     }
     l_blocks->chain->callback_created = s_callback_created;
