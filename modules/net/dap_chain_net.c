@@ -2207,6 +2207,13 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
                 return -5;                  // TODO let resolve it later
             }
         }
+    } else {
+        log_it(L_ERROR, "The string representation of the node address could not be determined for '%s' net.", l_net->pub.name);
+        HASH_DEL(s_net_items, l_net_item);
+        HASH_DEL(s_net_ids, l_net_item);
+        dap_chain_net_delete(l_net);
+        DAP_DELETE(l_net_item);
+        return -5;
     }
     dap_config_close(l_cfg);
     // randomize seed nodes list
