@@ -1156,8 +1156,8 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "command %s not recognized", a_argv[1]);
         return -1;
     }
-    const char *l_addr_str = NULL, *l_port_str = NULL, *alias_str = NULL;
-    const char *l_cell_str = NULL, *l_link_str = NULL, *a_ipv4_str = NULL, *a_ipv6_str = NULL;
+    const char *l_addr_str = NULL, *alias_str = NULL;
+    const char *l_cell_str = NULL, *l_link_str = NULL;
 
     // find net
     dap_chain_net_t *l_net = NULL;
@@ -1167,11 +1167,8 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
 
     // find addr, alias
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_str);
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-port", &l_port_str);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-alias", &alias_str);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cell", &l_cell_str);
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-ipv4", &a_ipv4_str);
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-ipv6", &a_ipv6_str);
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-link", &l_link_str);
 
     // struct to write to the global db
@@ -1194,12 +1191,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         if(l_node_info)
             l_node_info->hdr.address = l_node_addr;
     }
-    if(l_port_str) {
-        uint16_t l_node_port = 0;
-        dap_digit_from_string(l_port_str, &l_node_port, sizeof(uint16_t));
-        if(l_node_info)
-            l_node_info->hdr.ext_port = l_node_port;
-    }
+
     if(l_cell_str && l_node_info) {
         dap_digit_from_string(l_cell_str, l_node_info->hdr.cell_id.raw, sizeof(l_node_info->hdr.cell_id.raw)); //DAP_CHAIN_CELL_ID_SIZE);
     }
@@ -1207,26 +1199,18 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         if(dap_chain_node_addr_from_str(&l_link, l_link_str) != 0) {
             dap_digit_from_string(l_link_str, l_link.raw, sizeof(l_link.raw));
         }
-    }
-    int l_ret =0;
+    }    
     switch (cmd_num)
-    {    
+    {
     case CMD_ADD:
-        if(!l_port_str || !a_ipv4_str)
-        {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "node requires parameter -ipv4 and -port");
-            DAP_DELETE(l_node_info);
-            return -1;
-        }
+    {
+        int l_ret =0;
         dap_chain_node_info_t *l_link_node_request = DAP_NEW_Z( dap_chain_node_info_t);
-        l_link_node_request->hdr.address.uint64 = dap_chain_net_get_cur_addr_int(l_net);
-        inet_pton(AF_INET, a_ipv4_str, &(l_link_node_request->hdr.ext_addr_v4));
-        uint16_t l_node_port = 0;
+        l_link_node_request->hdr.address.uint64 = dap_chain_net_get_cur_addr_int(l_net);        
+        l_link_node_request->hdr.ext_port = dap_config_get_item_uint16_default(g_config,"server","listen_port_tcp",8079);
         uint32_t links_count = 0;
         size_t l_blocks_events = 0;
-        dap_digit_from_string(l_port_str, &l_node_port, sizeof(uint16_t));
         links_count = dap_chain_net_get_downlink_count(l_net);
-        l_link_node_request->hdr.ext_port = l_node_port;
         l_link_node_request->hdr.links_number = links_count;
         dap_chain_t *l_chain;
         DL_FOREACH(l_net->pub.chains, l_chain) {
@@ -1267,6 +1251,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         DAP_DELETE(l_node_info);
         return l_ret;
         //break;
+    }
     case CMD_DEL:
         // handler of command 'node del'
     {
