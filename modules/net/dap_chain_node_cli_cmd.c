@@ -2131,11 +2131,11 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 dap_string_free(l_string_ret, true);
                 return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet name option <-w>  not defined"), -EINVAL;
             }
-            if( !l_pass_str && cmd_num != CMD_WALLET_NEW) {
+            if( cmd_num != CMD_WALLET_DEACTIVATE && !l_pass_str && cmd_num != CMD_WALLET_NEW) {
                 dap_string_free(l_string_ret, true);
                 return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet password option <-password>  not defined"), -EINVAL;
             }
-            if ( l_pass_str && DAP_WALLET$SZ_PASS < strnlen(l_pass_str, DAP_WALLET$SZ_PASS + 1) ) {
+            if ( cmd_num != CMD_WALLET_DEACTIVATE && l_pass_str && DAP_WALLET$SZ_PASS < strnlen(l_pass_str, DAP_WALLET$SZ_PASS + 1) ) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet's password is too long ( > %d)", DAP_WALLET$SZ_PASS);
                 log_it(L_ERROR, "Wallet's password is too long ( > %d)", DAP_WALLET$SZ_PASS);
                 dap_string_free(l_string_ret, true);
@@ -2150,7 +2150,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
                     l_rc = cmd_num == CMD_WALLET_ACTIVATE
                             ? dap_chain_wallet_activate(l_wallet_name, strlen(l_wallet_name), l_pass_str, strlen(l_pass_str), l_rc)
-                            : dap_chain_wallet_deactivate (l_wallet_name, strlen(l_wallet_name), l_pass_str, strlen(l_pass_str));
+                            : dap_chain_wallet_deactivate (l_wallet_name, strlen(l_wallet_name));
 
                     switch (l_rc) {
                     case 0:
