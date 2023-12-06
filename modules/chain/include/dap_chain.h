@@ -241,7 +241,7 @@ bool dap_chain_has_file_store(dap_chain_t * a_chain);
 void dap_chain_info_dump_log(dap_chain_t * a_chain);
 
 dap_chain_t * dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id,dap_chain_id_t a_chain_id);
-dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger,const char * a_chain_net_name, dap_chain_net_id_t a_chain_net_id, const char * a_chain_cfg_name);
+dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net_id_t a_chain_net_id, const char *a_chain_cfg_name);
 
 void dap_chain_delete(dap_chain_t * a_chain);
 void dap_chain_add_callback_notify(dap_chain_t * a_chain, dap_chain_callback_notify_t a_callback, void * a_arg);
