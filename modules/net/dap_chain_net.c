@@ -121,6 +121,8 @@
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_net_srv_xchange.h"
 
+#include "dap_chain_cs_esbocs.h"
+
 #include <stdio.h>
 #include <sys/types.h>
 #include <dirent.h>
@@ -414,8 +416,13 @@ int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_n
     }
     PVT(a_net)->state_target = a_new_state;
     //PVT(a_net)->flags |= F_DAP_CHAIN_NET_SYNC_FROM_ZERO;  // TODO set this flag according to -mode argument from command line
-    if (a_new_state == NET_STATE_OFFLINE)
+    if(a_new_state == NET_STATE_ONLINE)
+        dap_chain_esbocs_start_timer(a_net->pub.id);
+
+    if (a_new_state == NET_STATE_OFFLINE){
+        dap_chain_esbocs_stop_timer(a_net->pub.id);
         return 0;
+    }
     return dap_proc_queue_add_callback(dap_events_worker_get_auto(), s_net_states_proc, a_net);
 }
 
@@ -1131,18 +1138,26 @@ static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_cha
         }
         i++;
     }
+    struct net_link *l_free_link = NULL;
+    bool need_link = false;
+    pthread_mutex_lock(&PVT(l_net)->uplinks_mutex);
     if (l_balancer_request->link_replace_tries &&
             s_net_get_active_links_count(l_net) < PVT(l_net)->required_links_count) {
-        // Auto-start new link
+            // Auto-start new link
         dap_chain_net_state_t l_net_state = PVT(l_net)->state_target;
         if (l_net_state != NET_STATE_OFFLINE) {
-            struct net_link *l_free_link = s_get_free_link(l_net);
-            if (l_free_link)
-                s_net_link_start(l_net, l_free_link, PVT(l_net)->reconnect_delay);
-            else
-                s_new_balancer_link_request(l_net, l_balancer_request->link_replace_tries);
+            l_free_link = s_get_free_link(l_net);
+            need_link = true;
         }
+    }
+    pthread_mutex_unlock(&PVT(l_net)->uplinks_mutex);
 
+    // Auto-start new link
+    if(need_link){
+        if (l_free_link)
+            s_net_link_start(l_net, l_free_link, PVT(l_net)->reconnect_delay);
+        else
+            s_new_balancer_link_request(l_net, l_balancer_request->link_replace_tries);
     }
 
     if (!l_balancer_request->link_replace_tries)
@@ -1242,9 +1257,8 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
             node_cnt = l_link_full_node_list->count_node;
             int l_net_link_add = 0;
             size_t l_links_count = 0;
-            while(!l_net_link_add){
-                if(i >= node_cnt)
-                    break;
+            while(!l_net_link_add && i<node_cnt){
+
                 l_net_link_add = s_net_link_add(a_net, l_node_info + i);
                 switch (l_net_link_add) {
                 case 0:
@@ -1434,6 +1448,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                 l_repeat_after_exit = true;
             }
             l_net_pvt->last_sync = 0;
+
         } break;
 
         // Prepare links
@@ -2851,6 +2866,13 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         else{
             log_it(L_WARNING, "Not present our own address %s in database", (l_node_alias_str) ? l_node_alias_str: "");
         }
+    } else {
+        log_it(L_ERROR, "The string representation of the node address could not be determined for '%s' net.", l_net->pub.name);
+        HASH_DEL(s_net_items, l_net_item);
+        HASH_DEL(s_net_ids, l_net_item);
+        dap_chain_net_delete(l_net);
+        DAP_DELETE(l_net_item);
+        return -5;
     }
 
     /* *** Chaiins init by configs *** */
@@ -3467,7 +3489,11 @@ dap_list_t* dap_chain_net_get_node_list_cfg(dap_chain_net_t * a_net)
     dap_chain_net_pvt_t *l_pvt_net = PVT(a_net);
     for(size_t i=0; i < l_pvt_net->seed_aliases_count;i++)
     {
-        l_node_list = dap_list_append(l_node_list, &l_pvt_net->seed_nodes_addrs_v4[i]);
+        dap_chain_node_info_t *l_node_info = DAP_NEW_Z(dap_chain_node_info_t);
+        l_node_info->hdr.ext_addr_v4 = l_pvt_net->seed_nodes_addrs_v4[i];
+        l_node_info->hdr.ext_port = l_pvt_net->seed_nodes_ports[i];
+        l_node_info->hdr.address.uint64 = l_pvt_net->seed_nodes_addrs[i];
+        l_node_list = dap_list_append(l_node_list, l_node_info);
     }
     return l_node_list;
 }
