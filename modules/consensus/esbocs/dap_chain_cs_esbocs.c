@@ -315,7 +315,7 @@ static void s_check_db_collect_callback(dap_global_db_instance_t UNUSED_ARG *a_d
     uint256_t l_value_total = uint256_0;
     size_t l_objs_count = 0;
     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(a_group, &l_objs_count);
-    if (l_objs_count > 10) {
+    if (l_objs_count >= 10) {
         for (size_t i = 0; i < l_objs_count; i++) {
             SUM_256_256(l_value_total, *(uint256_t*)l_objs[i].value, &l_value_total);
             if (compare256(l_value_total, l_esbocs_pvt->collecting_level) == 1) {
