@@ -765,6 +765,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     for( uint8_t i =0; i< s_tun_sockets_count; i++){
         dap_worker_t * l_worker = dap_events_worker_get(i);
         assert( l_worker );
+#if !defined(DAP_OS_DARWIN) &&( defined (DAP_OS_LINUX) || defined (DAP_OS_BSD))
         int l_tun_fd;
         if( (l_tun_fd = open("/dev/net/tun", O_RDWR | O_NONBLOCK)) < 0 ) {
             log_it(L_ERROR,"Opening /dev/net/tun error: '%s'", strerror(errno));
@@ -781,6 +782,9 @@ static int s_vpn_tun_create(dap_config_t * g_config)
         s_tun_deattach_queue(l_tun_fd);
         s_raw_server->tun_device_name = strdup(s_raw_server->ifr.ifr_name);
         s_raw_server->tun_fd = l_tun_fd;
+#elif !defined (DAP_OS_DARWIN)
+#error "Undefined tun interface attach for your platform"
+#endif
 
         s_tun_event_stream_create(l_worker, l_tun_fd);
     }
