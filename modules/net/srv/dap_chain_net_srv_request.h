@@ -27,7 +27,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_net.h"
 #include "dap_chain_net_srv_order.h"
 
-struct node_link_request {
+struct order_add_request {
     dap_chain_net_srv_order_t *order;
     dap_chain_net_t *net;
     dap_worker_t *worker;

@@ -66,7 +66,8 @@ typedef struct dap_chain_net_srv_order
     char price_ticker[DAP_CHAIN_TICKER_SIZE_MAX]; // Token ticker to pay for service
     uint32_t ext_size;
     uint64_t units;
-    byte_t free_space[120];  // for future changes
+    dap_chain_node_addr_t owner_address;
+    byte_t free_space[112];  // for future changes
     uint8_t ext_n_sign[];
 } DAP_ALIGN_PACKED dap_chain_net_srv_order_t;
 
