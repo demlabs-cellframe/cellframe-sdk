@@ -874,7 +874,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
 
             char *l_filtered_criteria = "";
             if (l_cert_name || l_pkey_hash_str || l_from_hash_str || l_to_hash_str || l_from_date_str || l_to_date_str)
-                l_filtered_criteria = "filtered according to the specified criteria";
+                l_filtered_criteria = " filtered according to the specified criteria";
             dap_string_append_printf(l_str_tmp, "%s.%s: Have %"DAP_UINT64_FORMAT_U" blocks%s\n",
                                      l_net->pub.name, l_chain->name, l_block_count, l_filtered_criteria);
             dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
