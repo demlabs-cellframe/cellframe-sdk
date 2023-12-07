@@ -772,7 +772,6 @@ static bool s_chain_timer_callback(void *a_arg)
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
     if (!l_ch_chain) {
         log_it(L_CRITICAL, "Channel without chain, dump it");
-        dap_chain_net_del_downlink((dap_stream_ch_uuid_t*)a_arg);
         DAP_DELETE(a_arg);
         return false;
     }
