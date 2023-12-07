@@ -2328,7 +2328,6 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     // Decrees initializing
     dap_chain_net_decree_init(l_net);
 
-    dap_config_close(l_cfg);
     return 0;
 }
 
