@@ -43,6 +43,10 @@ enum dap_chain_net_srv_order_direction{
 };
 typedef byte_t dap_chain_net_srv_order_direction_t;
 
+typedef struct {
+    intmax_t limits_bytes; // Bytes provided for using the service left
+    time_t limits_ts; //Time provided for using the service
+} dap_stream_ch_chain_net_srv_remain_service_store_t;
 
 typedef struct dap_chain_net_srv_abstract
 {
@@ -106,6 +110,7 @@ typedef struct dap_chain_net_srv_price
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_IN_CLIENT_MODE     0x00000102
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_NOT_FOUND          0x00000200
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_NO_LEDGER          0x00000201
+#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_IS_OFFLINE         0x00000202
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_CANT_ADD_USAGE             0x00000300
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_FOUND          0x00000400
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NO_COND_OUT        0x00000401
@@ -193,7 +198,7 @@ typedef struct dap_chain_net_srv_grace {
     dap_stream_worker_t *stream_worker;
     dap_stream_ch_uuid_t ch_uuid;
     dap_chain_net_srv_usage_t *usage;
-    dap_events_socket_uuid_t timer_es_uuid;
+    dap_timerfd_t *timer;
     dap_stream_ch_chain_net_srv_pkt_request_t *request;
     size_t request_size;
 } dap_chain_net_srv_grace_t;
@@ -209,12 +214,6 @@ typedef struct dap_chain_net_srv_client_remote
     struct dap_chain_net_srv_client_remote *prev;
     struct dap_chain_net_srv_client_remote *next;
 } dap_chain_net_srv_client_remote_t;
-
-typedef struct {
-    intmax_t limits_bytes; // Bytes provided for using the service left
-    time_t limits_ts; //Time provided for using the service
-    dap_chain_net_srv_price_unit_uid_t remain_units_type;
-} dap_stream_ch_chain_net_srv_remain_service_store_t;
 
 typedef int  (*dap_chain_net_srv_callback_data_t)(dap_chain_net_srv_t *, uint32_t, dap_chain_net_srv_client_remote_t *, const void *, size_t);
 typedef void* (*dap_chain_net_srv_callback_custom_data_t)(dap_chain_net_srv_t *, dap_chain_net_srv_usage_t *, const void *, size_t, size_t *);

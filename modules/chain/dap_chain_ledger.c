@@ -190,6 +190,8 @@ typedef struct dap_chain_ledger_token_item {
     size_t             tx_send_allow_size;
     dap_chain_addr_t * tx_send_block;
     size_t             tx_send_block_size;
+    char *description_token;
+    size_t description_token_size;
     UT_hash_handle hh;
 } dap_chain_ledger_token_item_t;
 
@@ -529,7 +531,7 @@ static bool s_ledger_token_update_check(dap_chain_ledger_token_item_t *a_cur_tok
     if(auth_signs_total) {
         size_t l_valid_pkeys = 0;
         for(uint16_t i = 0; i < auth_signs_total; i++){
-            dap_pkey_t *l_pkey_upd_token = dap_pkey_get_from_sign_deserialization(l_signs_upd_token[i]);
+            dap_pkey_t *l_pkey_upd_token = dap_pkey_get_from_sign(l_signs_upd_token[i]);
             for (size_t j = 0; j < a_cur_token_item->auth_signs_total; j++) {
                 if (dap_pkey_match(a_cur_token_item->auth_pkeys[j], l_pkey_upd_token)) {
                     l_valid_pkeys++;
@@ -1164,7 +1166,8 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
                 .auth_pkeys         = DAP_NEW_Z_SIZE(dap_pkey_t*, sizeof(dap_pkey_t*) * l_token->signs_total),
                 .auth_pkeys_hash    = DAP_NEW_Z_SIZE(dap_chain_hash_fast_t, sizeof(dap_chain_hash_fast_t) * l_token->signs_total),
                 .auth_signs_total   = l_auth_signs_total,
-                .auth_signs_valid   = l_auth_signs_valid
+                .auth_signs_valid   = l_auth_signs_valid,
+                .description_token_size = 0
         };
         if ( !l_token_item->auth_pkeys ) {
             if (l_token)
@@ -1183,7 +1186,7 @@ int dap_chain_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *
         }
         dap_stpcpy(l_token_item->ticker, l_token->ticker);
         for (uint16_t k = 0; k < l_token_item->auth_signs_total; k++) {
-            l_token_item->auth_pkeys[k] = dap_pkey_get_from_sign_deserialization(l_signs[k]);
+            l_token_item->auth_pkeys[k] = dap_pkey_get_from_sign(l_signs[k]);
             dap_pkey_get_hash(l_token_item->auth_pkeys[k], &l_token_item->auth_pkeys_hash[k]);
         }
         DAP_DELETE(l_signs);
@@ -1687,6 +1690,19 @@ static int s_token_tsd_parse(dap_ledger_t * a_ledger, dap_chain_ledger_token_ite
                     return -10;
                 }
             }break;
+            case DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION: {
+                if (l_tsd->size == 0){
+                    if (s_debug_more)
+                        log_it(L_ERROR, "TSD param DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION expected to "
+                                        "have 0 bytes data length");
+                    return  -10;
+                }
+                if (a_token_item->description_token_size != 0)
+                    DAP_DELETE(a_token_item->description_token);
+                a_token_item->description_token_size = l_tsd->size;
+                a_token_item->description_token = DAP_NEW_Z_SIZE(char, l_tsd->size);
+                memcpy(a_token_item->description_token, l_tsd->data, l_tsd->size);
+            } break;
             default:{}
         }
     }
@@ -2018,7 +2034,7 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
             size_t l_certs_field_size = l_token_item->datum_token_size - sizeof(*l_token_item->datum_token) - l_token_item->datum_token->header_native_decl.tsd_total_size;
             dap_chain_datum_token_certs_dump(l_str_tmp, l_token_item->datum_token->data_n_tsd + l_token_item->datum_token->header_native_decl.tsd_total_size,
                                          l_certs_field_size, "hex");
-            l_item_str = dap_strdup_printf("-->Token name '%s', type %s, flags: %s\n"
+            l_item_str = dap_strdup_printf("-->Token name '%s', type %s, flags: %s, description: '%s'\n"
                                             "\tSupply (current/total) %s/%s\n"
                                             "\tDecimals: 18\n"
                                             "\tAuth signs (valid/total) %zu/%zu\n"
@@ -2026,6 +2042,7 @@ dap_list_t *dap_chain_ledger_token_info(dap_ledger_t *a_ledger)
                                             "%s"
                                             "\tTotal emissions %u\n___\n",
                                             l_token_item->ticker, l_type_str, s_flag_str_from_code(l_token_item->datum_token->header_native_decl.flags),
+                                            l_token_item->description_token_size != 0 ? l_token_item->description_token : "The token description is not set",
                                             l_balance_cur, l_balance_total,
                                             l_token_item->auth_signs_valid, l_token_item->auth_signs_total,
                                             l_str_tmp->str,
@@ -3264,7 +3281,7 @@ dap_hash_fast_t *dap_chain_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger
             break;      // Not found in ledger
         }
         int l_out_num = 0;
-        if (dap_hash_fast_is_blank(&l_item->cache_data.tx_hash_spent_fast[l_out_num]) || !dap_chain_datum_tx_out_cond_get(l_item->tx, a_cond_type, &l_out_num))
+        if (!dap_chain_datum_tx_out_cond_get(l_item->tx, a_cond_type, &l_out_num) || dap_hash_fast_is_blank(&l_item->cache_data.tx_hash_spent_fast[l_out_num]))
             break;      // Unused conditional output found, that's what we need
         else {
             l_tx_hash = &l_item->cache_data.tx_hash_spent_fast[l_out_num];

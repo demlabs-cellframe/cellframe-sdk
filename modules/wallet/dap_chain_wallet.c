@@ -260,12 +260,7 @@ struct timespec l_now;
  *      0   - Success
  *      <0  -   <errno>
  */
-int     dap_chain_wallet_deactivate   (
-                    const   char    *a_name,
-                        ssize_t      a_name_len,
-                    const   char    *a_pass,
-                        ssize_t      a_pass_len
-                                    )
+int dap_chain_wallet_deactivate (const char *a_name, ssize_t a_name_len)
 {
 int     l_rc, l_rc2;
 dap_chain_wallet_n_pass_t   *l_prec;
@@ -280,16 +275,12 @@ dap_chain_wallet_n_pass_t   *l_prec;
 
     HASH_FIND_STR(s_wallet_n_pass, a_name, l_prec);                     /* Check for existen record */
 
-    if ( l_prec )
-    {
-        if ( !l_prec->pass_len )                                        /* Password is zero - has been reset probably */
-            l_rc = -EBUSY, log_it(L_WARNING, "The Wallet %.*s is not active", (int) a_name_len, a_name);
-
-        else if ( (l_prec->pass_len != a_pass_len)                      /* Check that passwords is equivalent */
-             || memcmp(l_prec->pass, a_pass, l_prec->pass_len) )
-            l_rc = -EAGAIN, log_it(L_ERROR, "Wallet's password does not match");
-
-        else    l_rc = 0, memset(l_prec->pass, l_prec->pass_len = 0, sizeof(l_prec->pass));
+    if (!l_prec || !l_prec->pass_len) { /* Password is zero - has been reset probably */
+        l_rc = -EBUSY;
+        log_it(L_WARNING, "The Wallet %.*s is not active", (int) a_name_len, a_name);
+    } else {
+        l_rc = 0;
+        memset(l_prec->pass, l_prec->pass_len = 0, sizeof(l_prec->pass));
     }
 
     if ( (l_rc2 = pthread_rwlock_unlock(&s_wallet_n_pass_lock)) )       /* Release lock */
