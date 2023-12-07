@@ -3800,6 +3800,11 @@ int com_mempool(int a_argc, char **a_argv, void **reply){
     int ret = -100;
     switch (l_cmd) {
         case SUBCMD_LIST: {
+            if (!l_net) {
+                dap_json_rpc_error_add(-5, "The command does not include the net parameter. Please specify the "
+                                           "parameter something like this mempool list -net <net_name>");
+                return -5;
+            }
             json_object *obj_ret = json_object_new_object();
             json_object *obj_net = json_object_new_string(l_net->pub.name);
             if (!obj_ret || !obj_net) {
@@ -5317,8 +5322,8 @@ int com_chain_ca_copy( int a_argc,  char ** a_argv, void ** reply)
     char **l_argv = DAP_NEW_Z_SIZE(char*, l_argc);
     l_argv[0] = "mempool";
     l_argv[1] = "add_ca";
-    for (int i = 2; i < a_argc; i++)
-        l_argv[i] = a_argv[i];
+    for (int i = 1; i < a_argc; i++)
+        l_argv[i + 1] = a_argv[i];
     int ret = com_mempool(l_argc, l_argv, reply);
     DAP_DELETE(l_argv);
     return ret;
