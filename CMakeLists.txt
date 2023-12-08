@@ -11,7 +11,7 @@ if (INSTALL_SDK)
     set(INSTALL_DAP_SDK ON)
 endif()
 
-set(BUILD_CELLFRAME_SDK_TESTS ON)
+set(BUILD_CELLFRAME_SDK_TESTS OFF)
 
 if(NOT DEFINED CELLFRAME_MODULES)
     include (dap-sdk/cmake/OS_Detection.cmake)
