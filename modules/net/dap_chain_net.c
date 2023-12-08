@@ -810,18 +810,26 @@ static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_cha
         }
         i++;
     }
+    struct net_link *l_free_link = NULL;
+    bool need_link = false;
+    pthread_mutex_lock(&PVT(l_net)->uplinks_mutex);
     if (l_balancer_request->link_replace_tries &&
             s_net_get_active_links_count(l_net) < PVT(l_net)->required_links_count) {
-        // Auto-start new link
+            // Auto-start new link
         dap_chain_net_state_t l_net_state = PVT(l_net)->state_target;
         if (l_net_state != NET_STATE_OFFLINE) {
-            struct net_link *l_free_link = s_get_free_link(l_net);
-            if (l_free_link)
-                s_net_link_start(l_net, l_free_link, PVT(l_net)->reconnect_delay);
-            else
-                s_new_balancer_link_request(l_net, l_balancer_request->link_replace_tries);
+            l_free_link = s_get_free_link(l_net);
+            need_link = true;
         }
+    }
+    pthread_mutex_unlock(&PVT(l_net)->uplinks_mutex);
 
+    // Auto-start new link
+    if(need_link){
+        if (l_free_link)
+            s_net_link_start(l_net, l_free_link, PVT(l_net)->reconnect_delay);
+        else
+            s_new_balancer_link_request(l_net, l_balancer_request->link_replace_tries);
     }
 
     if (!l_balancer_request->link_replace_tries)
@@ -921,9 +929,8 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
             node_cnt = l_link_full_node_list->count_node;
             int l_net_link_add = 0;
             size_t l_links_count = 0;
-            while(!l_net_link_add){
-                if(i >= node_cnt)
-                    break;
+            while(!l_net_link_add && i<node_cnt){
+
                 l_net_link_add = s_net_link_add(a_net, l_node_info + i);
                 switch (l_net_link_add) {
                 case 0:
@@ -1500,7 +1507,7 @@ static int s_cli_net(int argc, char **argv, char **a_str_reply)
     // command 'list'
     const char * l_list_cmd = NULL;
 
-    if(dap_cli_server_cmd_find_option_val(argv, arg_index, MIN(argc, arg_index + 1), "list", &l_list_cmd) != 0 ) {
+    if(dap_cli_server_cmd_find_option_val(argv, arg_index, dap_min(argc, arg_index + 1), "list", &l_list_cmd) != 0 ) {
         dap_string_t *l_string_ret = dap_string_new("");
         if (dap_strcmp(l_list_cmd,"chains")==0){
             const char * l_net_str = NULL;

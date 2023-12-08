@@ -379,7 +379,7 @@ static void m_client_tun_read(dap_events_socket_t * a_es, void * arg)
     dap_stream_ch_t* l_ch = dap_chain_net_vpn_client_get_stream_ch();
     size_t l_read_bytes = 0, l_shift = 0;
 
-    for (; (l_read_bytes = MIN(a_es->buf_in_size, TUN_MTU)); a_es->buf_in_size -= l_read_bytes, l_shift += l_read_bytes) {
+    for (; (l_read_bytes = dap_min(a_es->buf_in_size, (size_t)TUN_MTU)); a_es->buf_in_size -= l_read_bytes, l_shift += l_read_bytes) {
         if (!l_ch) {
             struct in_addr in_daddr, in_saddr;
 #ifdef DAP_OS_LINUX
