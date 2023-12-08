@@ -63,26 +63,24 @@ static void s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
 static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace);
 static bool s_grace_period_finish(usages_in_grace_t *a_grace);
 
-static inline void s_grace_error(dap_chain_net_srv_grace_t *a_grace, dap_stream_ch_chain_net_srv_pkt_error_t a_err){
-
-
+static inline void s_grace_error(dap_chain_net_srv_grace_t *a_grace, dap_stream_ch_chain_net_srv_pkt_error_t a_err)
+{
+// sanity check
+    dap_return_if_pass(!a_grace);
     dap_stream_ch_t * l_ch = dap_stream_ch_find_by_uuid_unsafe(a_grace->stream_worker, a_grace->ch_uuid);
     dap_chain_net_srv_stream_session_t *l_srv_session = l_ch && l_ch->stream && l_ch->stream->session ?
                                         (dap_chain_net_srv_stream_session_t *)l_ch->stream->session->_inheritor : NULL;
 
     if (!l_srv_session){
-        DAP_DELETE(a_grace->request);
-        DAP_DELETE(a_grace);
+        DAP_DEL_MULTY(a_grace->request, a_grace);
         return;
     }
 
-        a_grace->usage->is_grace = false;
-    if (a_grace->usage->receipt_next){ // If not first grace-period
+    a_grace->usage->is_grace = false;
+    if (a_grace->usage->receipt_next) { // If not first grace-period
         log_it( L_WARNING, "Next receipt is rejected. Waiting until current limits is over.");
-        DAP_DEL_Z(a_grace->usage->receipt_next);
         memset(&a_grace->usage->tx_cond_hash, 0, sizeof(a_grace->usage->tx_cond_hash));
-        DAP_DELETE(a_grace->request);
-        DAP_DELETE(a_grace);
+        DAP_DEL_MULTY(a_grace->usage->receipt_next, a_grace->request, a_grace);
         return;
     }
 
@@ -102,13 +100,7 @@ static inline void s_grace_error(dap_chain_net_srv_grace_t *a_grace, dap_stream_
             if (l_item)
                 pthread_mutex_unlock(&a_grace->usage->service->banlist_mutex);
             else {
-                l_item = DAP_NEW_Z(dap_chain_net_srv_banlist_item_t);
-                if (!l_item) {
-                    log_it(L_CRITICAL, "Memory allocation error");
-                    DAP_DELETE(a_grace->request);
-                    DAP_DELETE(a_grace);
-                    return;
-                }
+                DAP_NEW_Z_RET(l_item, dap_chain_net_srv_banlist_item_t, a_grace->request, a_grace);
                 log_it(L_DEBUG, "Add client to banlist");
                 l_item->client_pkey_hash = a_grace->usage->client_pkey_hash;
                 l_item->ht_mutex = &a_grace->usage->service->banlist_mutex;
@@ -121,8 +113,7 @@ static inline void s_grace_error(dap_chain_net_srv_grace_t *a_grace, dap_stream_
 
     } else if (l_srv_session->usage_active)
         dap_chain_net_srv_usage_delete(l_srv_session);
-    DAP_DELETE(a_grace->request);
-    DAP_DELETE(a_grace);
+    DAP_DEL_MULTY(a_grace->request, a_grace);
 }
 
 // TODO: move this to net_srv
