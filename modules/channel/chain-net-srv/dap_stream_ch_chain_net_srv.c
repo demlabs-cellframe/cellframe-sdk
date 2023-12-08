@@ -43,6 +43,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define LOG_TAG "dap_stream_ch_chain_net_srv"
 #define SRV_PAY_GDB_GROUP "local.srv_pay"
+#define SRV_GRACE_GDB_GROUP "local.srv_grace"
+#define SRV_RECEIPTS_GDB_GROUP "local.receipts"
 
 typedef struct usages_in_grace{
     dap_hash_fast_t tx_cond_hash;
@@ -1049,7 +1051,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
             RET_WITH_DEL_A_GRACE;
         }
         dap_get_data_hash_str_static(l_receipt, l_receipt_size, l_receipt_hash_str);
-        dap_global_db_set("local.receipts", l_receipt_hash_str, l_receipt, l_receipt_size, false, NULL, NULL);
+        dap_global_db_set(SRV_RECEIPTS_GDB_GROUP, l_receipt_hash_str, l_receipt, l_receipt_size, false, NULL, NULL);
             // Form input transaction
         char *l_hash_str = dap_hash_fast_to_str_new(&l_grace->usage->tx_cond_hash);
         log_it(L_NOTICE, "Trying create input tx cond from tx %s with active receipt", l_hash_str);
@@ -1328,7 +1330,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         // Store receipt if any problems with transactions
         char *l_receipt_hash_str;
         dap_get_data_hash_str_static(l_receipt, l_receipt_size, l_receipt_hash_str);
-        dap_global_db_set("local.receipts", l_receipt_hash_str, l_receipt, l_receipt_size, false, NULL, NULL);
+        dap_global_db_set(SRV_RECEIPTS_GDB_GROUP, l_receipt_hash_str, l_receipt, l_receipt_size, false, NULL, NULL);
         size_t l_success_size;
         if (!l_usage->is_grace) {
             // Form input transaction
