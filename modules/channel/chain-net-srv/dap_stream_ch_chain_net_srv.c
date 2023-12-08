@@ -389,7 +389,7 @@ static bool s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
 static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
 {
 // sanity check
-    dap_return_if_pass(!a_grace);
+    dap_return_val_if_pass(!a_grace, false);
 // func work
     dap_stream_ch_chain_net_srv_pkt_error_t l_err = { };
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(a_grace->stream_worker, a_grace->ch_uuid);
@@ -774,7 +774,7 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
 
 static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
 {
-    assert(a_grace_item);
+    dap_return_val_if_pass(!a_grace_item, false);
     dap_stream_ch_chain_net_srv_pkt_error_t l_err = { };
     dap_chain_net_srv_grace_t *l_grace = a_grace_item->grace;
     dap_chain_net_srv_t *l_srv = a_grace_item->grace->usage->service;
