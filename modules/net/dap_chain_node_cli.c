@@ -235,26 +235,29 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "token_emit { sign | -token <mempool_token_ticker>} -emission_value <value> "
                             "-addr <addr> [-chain_emission <chain_name>] -net <net_name> -certs <cert_list>\n");
 
-    dap_cli_server_cmd_add ("mempool_list", com_mempool_list,
-                                        "List mempool (entries or transaction) for (selected chain network or wallet)",
-            "mempool_list -net <net_name> [-chain <chain_name>] [-addr <addr>] [-fast] \n");
-
-    dap_cli_server_cmd_add ("mempool_check", com_mempool_check, "Check mempool entrie for presence in selected chain network",
-            "mempool_check -net <net_name> -datum <datum_hash>\n");
-
-    dap_cli_server_cmd_add ("mempool_proc", com_mempool_proc, "Proc mempool entrie with specified hash for selected chain network",
-            "mempool_proc -net <net_name> -datum <datum_hash> -chain <chain_name>\n"
-            "CAUTION!!! This command will process transaction with any comission! Parameter minimum_comission will not be taken into account!");
-
-    dap_cli_server_cmd_add ("mempool_proc_all", com_mempool_proc_all, "Proc mempool all entries for selected chain network",
-                            "mempool_proc_all -net <net_name> -chain <chain_name>\n");
-
-    dap_cli_server_cmd_add ("mempool_delete", com_mempool_delete, "Delete datum with hash <datum_hash> for selected chain network",
-            "mempool_delete -net <net_name> -datum <datum_hash>\n");
-
-    dap_cli_server_cmd_add ("mempool_add_ca", com_mempool_add_ca,
-                                        "Add pubic certificate into the mempool to prepare its way to chains",
-            "mempool_add_ca -net <net_name> [-chain <chain_name>] -ca_name <priv_cert_name>\n");
+    dap_cli_server_cmd_add("mempool", com_mempool, "Command for working with mempool",
+                           "mempool list -net <net_name> [-chain <chain_name>] [-addr <addr>] [-fast]\n"
+                           "\tList mempool (entries or transaction) for (selected chain network or wallet)\n"
+                           "mempool check -net <net_name> [-chain <chain_name>] -datum <datum_hash>\n"
+                           "\tCheck mempool entrie for presence in selected chain network\n"
+                           "mempool proc -net <net_name> -chain <chain_name> -datum <datum_hash>\n"
+                           "\tProc mempool entrie with specified hash for selected chain network\n"
+                           "\tCAUTION!!! This command will process transaction with any comission! Parameter minimum_comission will not be taken into account!\n"
+                           "mempool proc_all -net <net_name> -chain <chain_name>\n"
+                           "\tProc mempool all entries for selected chain network\n"
+                           "mempool delete -net <net_name> -chain <chain_name> -datum <datum_hash>\n"
+                           "\tDelete datum with hash <datum hash> for selected chain network\n"
+                           "mempool dump -net <net_name> -chain <chain_name> -datum <datum_hash>\n"
+                           "\tOutput information about datum in mempool\n"
+                           "mempool add_ca -net <net_name> [-chain <chain_name>] -ca_name <priv_cert_name>\n"
+                           "\tAdd pubic certificate into the mempool to prepare its way to chains\n");
+    dap_cli_cmd_t *l_cmd_mempool = dap_cli_server_cmd_find("mempool");
+    dap_cli_server_alias_add("mempool_list", "list", l_cmd_mempool);
+    dap_cli_server_alias_add("mempool_check", "check", l_cmd_mempool);
+    dap_cli_server_alias_add("mempool_proc", "proc", l_cmd_mempool);
+    dap_cli_server_alias_add("mempool_proc_all", "proc_all", l_cmd_mempool);
+    dap_cli_server_alias_add("mempool_delete", "delete", l_cmd_mempool);
+    dap_cli_server_alias_add("mempool_add_ca", "add_ca", l_cmd_mempool);
 
     dap_cli_server_cmd_add ("chain_ca_pub", com_chain_ca_pub,
                                         "Add pubic certificate into the mempool to prepare its way to chains",

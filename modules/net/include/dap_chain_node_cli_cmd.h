@@ -173,8 +173,7 @@ int com_exit(int a_argc, char **a_argv, void **reply);
 int cmd_gdb_import(int a_argc, char **a_argv, void **reply);
 int cmd_gdb_export(int a_argc, char **a_argv, void **reply);
 
-int com_mempool_delete(int a_argc, char **a_argv, void ** reply);
-typedef enum com_mempool_list_err{
+typedef enum cmd_mempool_list_err{
     DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_OK = 0,
     DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_CAN_NOT_READ_EMISSION,
     DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_CHAIN_NOT_FOUND,
@@ -182,15 +181,11 @@ typedef enum com_mempool_list_err{
     /* add custom codes here */
 
     DAP_CHAIN_NODE_CLI_COM_MEMPOOL_LIST_UNKNOWN /* MAX */
-} com_mempool_list_err_t;
-int com_mempool_list(int a_argc, char **a_argv, void ** reply);
-int com_mempool_proc(int a_argc, char **a_argv, void ** reply);
-int com_mempool_proc_all(int argc, char ** argv, void ** reply);
-int com_mempool_check(int a_argc, char **a_argv, void ** reply);
+} cmd_mempool_list_err_t;
+int com_mempool(int a_argc, char **a_argv, void **reply);
 /**
  * Place public CA into the mempool
  */
-int com_mempool_add_ca( int a_argc,  char **a_argv, void ** reply);
 int com_chain_ca_pub( int a_argc,  char **a_argv, void ** reply);
 int com_chain_ca_copy( int a_argc,  char **a_argv, void ** reply);
 int com_signer(int a_argc, char **a_argv, void ** reply);
