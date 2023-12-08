@@ -11,6 +11,7 @@ if (INSTALL_SDK)
     set(INSTALL_DAP_SDK ON)
 endif()
 
+#set(BUILD_CELLFRAME_SDK_TESTS ON)
 
 if(NOT DEFINED CELLFRAME_MODULES)
     include (dap-sdk/cmake/OS_Detection.cmake)
@@ -22,6 +23,7 @@ if(NOT DEFINED CELLFRAME_MODULES)
     endif()
     if (BUILD_CELLFRAME_SDK_TESTS)
         set (CELLFRAME_MODULES ${CELLFRAME_MODULES} "test-framework")
+        set(BUILD_TESTS ON)
     endif ()
 
     add_subdirectory(dap-sdk)
@@ -43,8 +45,6 @@ else()
     #    message("[!] INT128 ENABLED")
     #    add_definitions(-DDAP_DISABLE_INT128=FALSE)
 endif(NOT DAP_INT128_SUPPORT)
-
-#set(BUILD_CELLFRAME_SDK_TESTS ON)
 
 if (BUILD_CELLFRAME_SDK_TESTS)
     enable_testing()
