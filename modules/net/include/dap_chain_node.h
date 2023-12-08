@@ -43,7 +43,8 @@ typedef struct dap_chain_node_info {
     struct {
         uint64_t atoms_count; /* truncated alias len */
         uint32_t links_number;
-        byte_t other_info_for_future[240];
+        dap_chain_node_addr_t owner_addr;
+        byte_t other_info_for_future[232];
     } DAP_ALIGN_PACKED info;
     uint16_t alias_len;
     byte_t alias[];

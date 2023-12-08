@@ -254,3 +254,43 @@ int dap_chain_net_node_list_request(dap_chain_net_t *a_net, dap_chain_node_info_
     s_node_list_request_deinit(l_node_list_request);
     return ret;
 }
+
+static void s_node_list_callback_notify(dap_store_obj_t *a_obj, void *a_arg)
+{
+    if (!a_arg || !a_obj || !a_obj->key)
+        return;
+    dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
+    assert(l_net);
+
+    if (!dap_strcmp(a_obj->group, l_net->pub.gdb_nodes)) {
+        if (a_obj->value && a_obj->type == DAP_GLOBAL_DB_OPTYPE_ADD) {
+            dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)a_obj->value;
+            if(l_node_info->info.owner_addr.uint64 == 0){
+                log_it(L_NOTICE, "Node %s removed, there is not pinners", a_obj->key);
+                dap_global_db_del_sync(a_obj->group, a_obj->key);
+            } else {
+                char l_node_ipv4_str[INET_ADDRSTRLEN]={ '\0' }, l_node_ipv6_str[INET6_ADDRSTRLEN]={ '\0' };
+                inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_ipv4_str, INET_ADDRSTRLEN);
+                inet_ntop(AF_INET6, &l_node_info->hdr.ext_addr_v6, l_node_ipv6_str, INET6_ADDRSTRLEN);
+                char l_ts[128] = { '\0' };
+                dap_gbd_time_to_str_rfc822(l_ts, sizeof(l_ts), a_obj->timestamp);
+
+                log_it(L_MSG, "Add node "NODE_ADDR_FP_STR" %s %s, pinned by "NODE_ADDR_FP_STR" at %s",
+                                         NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),
+                                         l_node_ipv4_str, dap_itoa(l_node_info->hdr.ext_port),
+                                         NODE_ADDR_FP_ARGS_S(l_node_info->info.owner_addr),
+                                         l_ts);
+            }
+        }
+    }
+}
+
+int dap_chain_net_node_list_init()
+{
+    uint16_t l_net_count = 0;
+    dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
+    for (uint16_t i = 0; i < l_net_count; i++) {
+        dap_chain_net_add_nodelist_notify_callback(l_net_list[i], s_node_list_callback_notify, l_net_list[i]);
+    }
+    return 0;
+}

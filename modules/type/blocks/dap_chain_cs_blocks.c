@@ -1915,7 +1915,7 @@ static uint256_t s_callback_calc_reward(dap_chain_t *a_chain, dap_hash_fast_t *a
     assert(l_block_cache);
     l_block = l_block_cache->block;
     assert(l_block);
-    dap_time_t l_time_diff = l_block_time - MAX(l_block->hdr.ts_created, DAP_REWARD_INIT_TIMESTAMP);
+    dap_time_t l_time_diff = l_block_time - dap_max(l_block->hdr.ts_created, DAP_REWARD_INIT_TIMESTAMP);
     MULT_256_256(l_ret, GET_256_FROM_64(l_time_diff), &l_ret);
     DIV_256(l_ret, GET_256_FROM_64(s_block_timediff_unit_size * l_signs_count), &l_ret);
     return l_ret;

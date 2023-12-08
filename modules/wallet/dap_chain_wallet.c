@@ -60,6 +60,14 @@
 #include "crc32c_adler.h"
 #include "dap_chain_ledger.h"
 
+#define __USE_GNU
+
+#if defined(__USE_BSD) || defined(__USE_GNU)
+#define S_IREAD S_IRUSR
+#define S_IWRITE S_IWUSR
+#define S_IEXEC S_IXUSR
+#endif
+
 #define LOG_TAG "dap_chain_wallet"
 
 #ifndef DAP_OS_WINDOWS                                    /* An argument for open()/create() */

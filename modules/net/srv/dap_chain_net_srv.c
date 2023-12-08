@@ -309,7 +309,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                     else
                         dap_chain_net_srv_order_set_continent_region(&l_order, l_continent_num, l_region_str);
                     /*if(l_region_str) {
-                        strncpy(l_order->region, l_region_str, MIN(sizeof(l_order->region) - 1, strlen(l_region_str) + 1));
+                        strncpy(l_order->region, l_region_str, dap_min(sizeof(l_order->region) - 1, strlen(l_region_str) + 1));
                     }
                     if(l_continent_num>=0)
                         l_order->continent = l_continent_num;*/

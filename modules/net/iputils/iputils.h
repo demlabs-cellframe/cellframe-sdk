@@ -133,7 +133,7 @@ ping_handle_t* ping_handle_create(void);
  * @count number of packets to transmit
  * @return ping time in microsecond or -1 if error
  */
-int ping_util(ping_handle_t *a_ping_handle, const char *addr, int count);
+int ping_util(ping_handle_t *a_ping_handle, const char *addr, int count, int wait);
 
 /**
  * Send ping for ipv6

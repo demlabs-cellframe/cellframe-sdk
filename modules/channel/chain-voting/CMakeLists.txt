@@ -12,3 +12,12 @@ target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_stream dap_stream_
 target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../../dap-sdk/3rdparty/uthash/src)
+
+if (INSTALL_SDK)
+set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_STREAM_CH_CHAIN_VOTING_HDRS}")
+INSTALL(TARGETS ${PROJECT_NAME} 
+        LIBRARY DESTINATION lib/modules/channel/chain-voting/
+        ARCHIVE DESTINATION lib/modules/channel/chain-voting/
+        PUBLIC_HEADER DESTINATION include/modules/channel/chain-voting/
+)
+endif()
