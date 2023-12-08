@@ -27,6 +27,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_net.h"
 #include "dap_chain_net_srv_order.h"
 
+#define DAP_ORDER_URI_HASH "order_add_hash"
+
 struct order_add_request {
     dap_chain_net_srv_order_t *order;
     dap_chain_net_t *net;
@@ -37,3 +39,5 @@ struct order_add_request {
     pthread_cond_t wait_cond;
     pthread_mutex_t wait_mutex;
 };
+
+int dap_chain_net_srv_request_send(dap_chain_net_t *a_net, dap_chain_net_srv_order_t *a_ordert, bool a_sync, int cmd);

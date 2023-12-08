@@ -24,6 +24,28 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #include "dap_chain_net_srv_request.h"
 
+
+static void s_net_node_link_prepare_success(void *a_response, size_t a_response_size, void *a_arg) {
+    struct node_link_request *l_node_list_request = (struct node_link_request *)a_arg;
+    pthread_mutex_lock(&l_node_list_request->wait_mutex);
+    l_node_list_request->response = *(uint8_t*)a_response;
+    pthread_cond_broadcast(&l_node_list_request->wait_cond);
+    pthread_mutex_unlock(&l_node_list_request->wait_mutex);
+}
+
+static void s_net_node_link_prepare_error(int a_error_code, void *a_arg){
+    struct node_link_request * l_node_list_request = (struct node_link_request *)a_arg;
+    dap_chain_node_info_t *l_node_info = l_node_list_request->link_info;
+    if (!l_node_info) {
+        log_it(L_WARNING, "Link prepare error, code %d", a_error_code);
+        return;
+    }
+    char l_node_addr_str[INET_ADDRSTRLEN]={};
+    inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
+    log_it(L_WARNING, "Link from  "NODE_ADDR_FP_STR" (%s) prepare error with code %d",
+           NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address), l_node_addr_str,a_error_code);
+}
+
 static struct order_add_request *s_order_add_request_init()
 {
     struct order_add_request *l_order_add_request = DAP_NEW_Z(struct order_add_request);
@@ -86,7 +108,7 @@ static int s_order_request_wait(struct order_add_request *a_order_add_request, i
     return ret;
 }
 
-int dap_chain_net_srv_request_send(dap_chain_net_t *a_net, dap_chain_net_srv_order_t *ordert, bool a_sync, int cmd)
+int dap_chain_net_srv_request_send(dap_chain_net_t *a_net, dap_chain_net_srv_order_t *a_ordert, bool a_sync, int cmd)
 {
     enum Cmd{
         ADD,
@@ -94,19 +116,52 @@ int dap_chain_net_srv_request_send(dap_chain_net_t *a_net, dap_chain_net_srv_ord
         DEL
     };
     if(!a_net) return -1;
-
+    dap_chain_node_info_t *l_link_node_info = NULL;
+    char l_node_addr_str[INET_ADDRSTRLEN] = {};
     struct order_add_request *l_order_add_request;
-
+    dap_chain_node_addr_t l_node_addr_cur = {
+        .uint64 = dap_chain_net_get_cur_addr_int(a_net)
+    };
+    size_t l_order_size = dap_chain_net_srv_order_get_size(a_order);
 
     if(cmd == ADD){
+        dap_list_t *l_node_list = dap_chain_net_get_node_list_cfg(a_net);
+        int ret = 9;
         l_order_add_request = s_order_add_request_init();
         if(!l_order_add_request){
             log_it(L_CRITICAL, "Memory allocation error");
             return -2;
         }
 
+        for (dap_list_t *l_tmp = l_node_list; l_tmp; l_tmp = dap_list_next(l_tmp)) {
+            l_link_node_info = (dap_chain_node_info_t *)l_tmp->data;
+            if(l_link_node_info->hdr.address.uint64 == l_node_addr_cur.uint64)
+                continue;
+            if (!l_link_node_info){
+                s_order_add_request_deinit(l_order_add_request);
+                dap_list_free(l_node_list);
+                return -3;
+            }
+            inet_ntop(AF_INET, &l_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
+            log_it(L_DEBUG, "Start order add HTTP request to %s", l_node_addr_str);
+            l_order_add_request->net = a_net;
+            l_order_add_request->order =
+        }
+
     }
     int ret = 0;
-    ret = dap_client_http_request(NULL,a_uplink_addr, a_uplink_port, "POST", "application/json", s_url_service, l_str, strlen(l_str),
-                            NULL, dap_json_rpc_response_accepted, func_error, NULL, NULL) == NULL;
+    char *l_url_service = dap_strdup_printf("%s/%s",
+                      DAP_UPLINK_PATH_ORDER,
+                      DAP_ORDER_URI_HASH);
+    ret = dap_client_http_request(l_order_add_request->worker,
+                                l_node_addr_str,
+                                l_link_node_info->hdr.ext_port,
+                                "POST",
+                                "application/json",
+                                l_url_service,
+                                a_order,
+                                l_order_size,
+                                NULL,
+                                dap_json_rpc_response_accepted,
+                                func_error, NULL, NULL) == NULL;
 }
