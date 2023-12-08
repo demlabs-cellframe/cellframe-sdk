@@ -2352,8 +2352,11 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
 {
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_session->chain->net_id);
     size_t l_message_size = sizeof(dap_chain_esbocs_message_hdr_t) + a_data_size;
-    dap_chain_esbocs_message_t *l_message =
-                        DAP_NEW_Z_SIZE(dap_chain_esbocs_message_t, l_message_size);
+    dap_chain_esbocs_message_t *l_message = DAP_NEW_Z_SIZE(dap_chain_esbocs_message_t, l_message_size);
+    if (!l_message) {
+        log_it(L_CRITICAL, "Memory allocation error");
+        return;
+    }
     l_message->hdr.version = DAP_CHAIN_ESBOCS_PROTOCOL_VERSION;
     l_message->hdr.round_id = a_session->cur_round.id;
     l_message->hdr.attempt_num = a_session->cur_round.attempt_num;
@@ -2370,6 +2373,10 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
     size_t l_sign_size = dap_sign_get_size(l_sign);
     l_message_size += l_sign_size;
     l_message = DAP_REALLOC(l_message, l_message_size);
+    if (!l_message) {
+        log_it(L_CRITICAL, "Memory allocation error");
+        return;
+    }
     memcpy(l_message->msg_n_sign + a_data_size, l_sign, l_sign_size);
     DAP_DELETE(l_sign);
     l_message->hdr.sign_size = l_sign_size;
@@ -2574,6 +2581,11 @@ static dap_chain_datum_decree_t *s_esbocs_decree_set_min_validators_count(dap_ch
     if (l_sign) {
         size_t l_sign_size = dap_sign_get_size(l_sign);
         l_decree = DAP_REALLOC(l_decree, sizeof(dap_chain_datum_decree_t) + l_cur_sign_offset + l_sign_size);
+        if (!l_decree) {
+            log_it(L_CRITICAL, "Memory allocation error");
+            DAP_DELETE(l_sign);
+            return NULL;
+        }
         memcpy((byte_t*)l_decree->data_n_signs + l_cur_sign_offset, l_sign, l_sign_size);
         l_total_signs_size += l_sign_size;
         l_cur_sign_offset += l_sign_size;

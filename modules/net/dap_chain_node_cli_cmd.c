@@ -1088,7 +1088,9 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     dap_chain_node_addr_t l_node_addr = { 0 };
     dap_chain_node_addr_t l_link = { 0 };
     dap_chain_node_info_t *l_node_info = NULL;
-    size_t l_node_info_size = sizeof(l_node_info->hdr) + sizeof(l_link);
+
+    //TODO need to rework with new node info / alias /links concept
+    size_t l_node_info_size = sizeof(*l_node_info) + sizeof(l_link);
     if(cmd_num >= CMD_ADD && cmd_num <= CMD_DEL) {
         l_node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, l_node_info_size);
         if (!l_node_info) {
@@ -4498,7 +4500,7 @@ int com_mempool(int a_argc, char **a_argv,  char **a_str_reply){
     dap_chain_t *l_chain = NULL;
     const char *l_addr_b58 = NULL;
     enum _subcmd {SUBCMD_LIST, SUBCMD_PROC, SUBCMD_PROC_ALL, SUBCMD_DELETE, SUBCMD_ADD_CA, SUBCMD_CHECK, SUBCMD_DUMP};
-    enum _subcmd l_cmd;
+    enum _subcmd l_cmd = 0;
     if (a_argv[1]) {
         char *lts = a_argv[1];
         if (!dap_strcmp(lts, "list")) {

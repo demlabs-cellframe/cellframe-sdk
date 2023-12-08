@@ -663,6 +663,11 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
     if (l_sign) {
         size_t l_sign_size = dap_sign_get_size(l_sign);
         l_decree = DAP_REALLOC(l_decree, sizeof(dap_chain_datum_decree_t) + l_cur_sign_offset + l_sign_size);
+        if (!l_decree) {
+            log_it(L_CRITICAL, "Memory allocation error");
+            DAP_DELETE(l_sign);
+            return NULL;
+        }
         memcpy((byte_t*)l_decree->data_n_signs + l_cur_sign_offset, l_sign, l_sign_size);
         l_total_signs_size += l_sign_size;
         l_cur_sign_offset += l_sign_size;
@@ -878,6 +883,11 @@ static dap_chain_datum_decree_t *s_stake_decree_invalidate(dap_chain_net_t *a_ne
     if (l_sign) {
         size_t l_sign_size = dap_sign_get_size(l_sign);
         l_decree = DAP_REALLOC(l_decree, sizeof(dap_chain_datum_decree_t) + l_cur_sign_offset + l_sign_size);
+        if (!l_decree) {
+            log_it(L_CRITICAL, "Memory allocation error");
+            DAP_DELETE(l_sign);
+            return NULL;
+        }
         memcpy((byte_t*)l_decree->data_n_signs + l_cur_sign_offset, l_sign, l_sign_size);
         l_total_signs_size += l_sign_size;
         l_cur_sign_offset += l_sign_size;
@@ -954,6 +964,11 @@ static dap_chain_datum_decree_t *s_stake_decree_set_min_stake(dap_chain_net_t *a
     if (l_sign) {
         size_t l_sign_size = dap_sign_get_size(l_sign);
         l_decree = DAP_REALLOC(l_decree, sizeof(dap_chain_datum_decree_t) + l_cur_sign_offset + l_sign_size);
+        if (!l_decree) {
+            log_it(L_CRITICAL, "Memory allocation error");
+            DAP_DELETE(l_sign);
+            return NULL;
+        }
         memcpy((byte_t*)l_decree->data_n_signs + l_cur_sign_offset, l_sign, l_sign_size);
         l_total_signs_size += l_sign_size;
         l_cur_sign_offset += l_sign_size;

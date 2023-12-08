@@ -192,8 +192,4 @@ if (DARWIN)
     set(CELLFRAME_LIBS ${CELLFRAME_LIBS} bz2)
 endif()
 
-set(CELLFRAME_LIBS ${CELLFRAME_LIBS} crc32c_adler)
-
 target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})
-
-
