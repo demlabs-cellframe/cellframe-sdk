@@ -354,7 +354,7 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
         dap_list_free(l_node_list);
         s_node_list_request_deinit(l_node_list_request);
         return ret;
-    } else if(cmd == UPDATE || cmd == DEL){//request update or delete
+    } else if(cmd == UPDATE){//request update or delete
 
         l_link_node_request = dap_chain_node_info_read(a_net, &l_node_addr_cur);
         if(!l_link_node_request)
@@ -381,9 +381,7 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
         }
         l_node_list_request->net = a_net;
         l_node_list_request->link_info = l_link_node_info;
-    }
-    if(cmd == UPDATE)
-    {
+
         size_t l_blocks_events = 0;
         dap_chain_t *l_chain;
         DL_FOREACH(a_net->pub.chains, l_chain) {
@@ -403,13 +401,6 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
                                                 l_link_node_request->hdr.links_number,
                                                 l_link_node_request->hdr.blocks_events,
                                                 a_net->pub.name);
-    }else if(cmd == DEL)
-    {
-        l_request = dap_strdup_printf("%s/%s?version=1,method=d,addr=%lu,net=%s",
-                                                    DAP_UPLINK_PATH_NODE_LIST,
-                                                    DAP_NODE_LIST_URI_HASH,
-                                                    l_link_node_request->hdr.address.uint64,
-                                                    a_net->pub.name);
     }
     int ret = 0;
     ret = dap_client_http_request(l_node_list_request->worker,
