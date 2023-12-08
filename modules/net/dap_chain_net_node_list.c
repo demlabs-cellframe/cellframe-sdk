@@ -76,12 +76,13 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     int l_protocol_version = 0;
     char l_issue_method = 0;
     uint64_t addr = 0;
+    uint64_t blocks = 0;
     uint16_t port = 0;
     uint32_t links_cnt = 0;
     const char l_net_token[] = "net=";
-    sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,addr=%lu,port=%hu,lcnt=%d,net=",
-                                                            &l_protocol_version, &l_issue_method, &addr, &port, &links_cnt);
-    if (l_protocol_version != 1 || (l_issue_method != 'r' && l_issue_method != 'd')) {
+    sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,addr=%zu,port=%hu,lcnt=%d,blks=%zu,net=",
+                                                            &l_protocol_version, &l_issue_method, &addr, &port, &links_cnt, &blocks);
+    if (l_protocol_version != 1 || l_issue_method != 'r') {
         log_it(L_ERROR, "Unsupported protocol version/method in the request to dap_chain_net_node_list module");
         *l_return_code = Http_Status_MethodNotAllowed;
         return;
@@ -100,7 +101,8 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
         .hdr.address.uint64 = addr,
         .hdr.owner_address.uint64 = dap_chain_net_get_cur_addr_int(l_net),
         .hdr.ext_port = port,
-        .hdr.links_number = links_cnt
+        .hdr.links_number = links_cnt,
+        .hdr.blocks_events = blocks
     };    
     inet_pton(AF_INET, a_http_simple->esocket->hostaddr, &l_node_info.hdr.ext_addr_v4);
     uint8_t response = 0;
@@ -118,26 +120,16 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
             //is it pinner?
             if(l_node_inf_check->hdr.owner_address.uint64 == l_node_info.hdr.owner_address.uint64)
             {
-                if(l_issue_method != 'd')
+                if((l_node_info.hdr.links_number != l_node_inf_check->hdr.links_number) ||
+                   (l_node_info.hdr.ext_addr_v4.s_addr != l_node_inf_check->hdr.ext_addr_v4.s_addr))
                 {
-                    if((l_node_info.hdr.links_number != l_node_inf_check->hdr.links_number) ||
-                       (l_node_info.hdr.ext_addr_v4.s_addr != l_node_inf_check->hdr.ext_addr_v4.s_addr))
-                    {
-                        dap_global_db_del_sync(l_net->pub.gdb_nodes, l_key);
-                        response = s_dap_chain_net_node_list_add_downlink(l_net->pub.gdb_nodes,l_key,&l_node_info);
-                    }
-                    else
-                    {
-                        log_it(L_DEBUG, "The node is already exists");
-                        response = 5;
-                    }
+                    dap_global_db_del_sync(l_net->pub.gdb_nodes, l_key);
+                    response = s_dap_chain_net_node_list_add_downlink(l_net->pub.gdb_nodes,l_key,&l_node_info);
                 }
                 else
                 {
-                    dap_global_db_del_sync(l_net->pub.gdb_nodes, l_key);
-                    log_it(L_DEBUG, "Node "NODE_ADDR_FP_STR" deleted",
-                                NODE_ADDR_FP_ARGS_S(l_node_info.hdr.address));
-                    response = 7;
+                    log_it(L_DEBUG, "The node is already exists");
+                    response = 5;
                 }
             }
             else
@@ -393,7 +385,7 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
         links_count = dap_chain_net_get_downlink_count(a_net);
         l_link_node_request->hdr.links_number = links_count;
 
-        l_request = dap_strdup_printf("%s/%s?version=1,method=r,addr=%lu,port=%hu,lcnt=%d,blks=%lu,net=%s",
+        l_request = dap_strdup_printf("%s/%s?version=1,method=r,addr=%zu,port=%hu,lcnt=%d,blks=%zu,net=%s",
                                                 DAP_UPLINK_PATH_NODE_LIST,
                                                 DAP_NODE_LIST_URI_HASH,
                                                 l_link_node_request->hdr.address.uint64,

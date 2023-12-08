@@ -1255,18 +1255,14 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     case CMD_DEL:
         // handler of command 'node del'
     {
-                /*
-        if(l_addr_str)
-        {
 
-        }
-        else
+        if(!l_addr_str)
         {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Addr can't be del because -addr is not found");
             return -1;
-        }*/
-        //int l_ret = node_info_del_with_reply(l_net, l_node_info, alias_str, a_str_reply);
-        int l_ret = dap_chain_net_node_list_request(l_net,NULL,true,2);
+        }
+        int l_ret = node_info_del_with_reply(l_net, l_node_info, alias_str, a_str_reply);
+
         DAP_DELETE(l_node_info);
         if(l_ret == 7)
         {
