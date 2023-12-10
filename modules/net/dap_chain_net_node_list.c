@@ -67,8 +67,7 @@ static int s_dap_chain_net_node_list_add_downlink(const char * a_group, const ch
 void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, void *a_arg)
 {
     log_it(L_DEBUG,"Proc enc http request");
-    http_status_code_t *l_return_code = (http_status_code_t *)a_arg;
-
+    http_status_code_t *l_return_code = (http_status_code_t *)a_arg;    
     if (strcmp(a_http_simple->http_client->url_path, DAP_NODE_LIST_URI_HASH)) {
         log_it(L_ERROR, "Wrong path '%s' in the request to dap_chain_net_node_list module",
                                                             a_http_simple->http_client->url_path);
@@ -78,12 +77,11 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     int l_protocol_version = 0;
     char l_issue_method = 0;
     uint64_t addr = 0;
-    uint32_t ipv4 = 0;
     uint16_t port = 0;
     uint32_t links_cnt = 0;
     const char l_net_token[] = "net=";
-    sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,addr=%lu,ipv4=%d,port=%hu,lcnt=%d,net=",
-                                                            &l_protocol_version, &l_issue_method, &addr, &ipv4, &port, &links_cnt);
+    sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,addr=%lu,port=%hu,lcnt=%d,net=",
+                                                            &l_protocol_version, &l_issue_method, &addr, &port, &links_cnt);
     if (l_protocol_version != 1 || (l_issue_method != 'r' && l_issue_method != 'd')) {
         log_it(L_ERROR, "Unsupported protocol version/method in the request to dap_chain_net_node_list module");
         *l_return_code = Http_Status_MethodNotAllowed;
@@ -102,11 +100,10 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     dap_chain_node_info_t l_node_info = {
         .hdr.address.uint64 = addr,
         .hdr.owner_address.uint64 = dap_chain_net_get_cur_addr_int(l_net),
-        .hdr.ext_addr_v4.s_addr = ipv4,
         .hdr.ext_port = port,
         .hdr.links_number = links_cnt
-    };
-
+    };    
+    inet_pton(AF_INET, a_http_simple->esocket->hostaddr, &l_node_info.hdr.ext_addr_v4);
     uint8_t response = 0;
     char *l_key = dap_chain_node_addr_to_hash_str(&l_node_info.hdr.address);
     if(!l_key)
@@ -266,28 +263,97 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
     dap_chain_node_addr_t l_node_addr_cur = {
         .uint64 = dap_chain_net_get_cur_addr_int(a_net)
     };
-
     dap_chain_node_info_t *l_link_node_request = NULL;
     uint32_t links_count = 0;
     char *l_request = NULL;
 
     if(cmd == ADD){ //request to add
-        l_link_node_info = dap_get_balancer_link_from_cfg(a_net);
-        if (!l_link_node_info)
-            return -2;
-
-        inet_ntop(AF_INET, &l_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
-        log_it(L_DEBUG, "Start node list HTTP request to %s", l_node_addr_str);
+        dap_list_t *l_node_list = dap_chain_net_get_node_list_cfg(a_net);
+        int ret = 9;
         l_node_list_request = s_node_list_request_init();
         if(!l_node_list_request){
             log_it(L_CRITICAL, "Memory allocation error");
-            DAP_DELETE(l_link_node_info);
+            dap_list_free(l_node_list);
             return -3;
         }
-        l_node_list_request->net = a_net;
-        l_node_list_request->link_info = l_link_node_info;
-        l_link_node_request = a_link_node_request;
+        for (dap_list_t *l_tmp = l_node_list; l_tmp; l_tmp = dap_list_next(l_tmp)) {
+            l_link_node_info = (dap_chain_node_info_t *)l_tmp->data;
+            if(l_link_node_info->hdr.address.uint64 == l_node_addr_cur.uint64)
+                continue;
 
+            if (!l_link_node_info){
+                s_node_list_request_deinit(l_node_list_request);
+                dap_list_free(l_node_list);
+                return -2;
+            }
+
+            inet_ntop(AF_INET, &l_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
+            log_it(L_DEBUG, "Start node list HTTP request to %s", l_node_addr_str);
+
+            l_node_list_request->net = a_net;
+            l_node_list_request->link_info = l_link_node_info;
+            l_link_node_request = a_link_node_request;
+
+            l_request = dap_strdup_printf("%s/%s?version=1,method=r,addr=%zu,port=%hu,lcnt=%d,blks=%zu,net=%s",
+                                          DAP_UPLINK_PATH_NODE_LIST,
+                                          DAP_NODE_LIST_URI_HASH,
+                                          l_link_node_request->hdr.address.uint64,
+                                          l_link_node_request->hdr.ext_port,
+                                          l_link_node_request->hdr.links_number,
+                                          l_link_node_request->hdr.blocks_events,
+                                          a_net->pub.name);
+
+            ret = dap_client_http_request(l_node_list_request->worker,
+                                          l_node_addr_str,
+                                          l_link_node_info->hdr.ext_port,
+                                          "GET",
+                                          "text/text",
+                                          l_request,
+                                          NULL,
+                                          0,
+                                          NULL,
+                                          s_net_node_link_prepare_success,
+                                          s_net_node_link_prepare_error,
+                                          l_node_list_request,
+                                          NULL) == NULL;
+            DAP_DELETE(l_request);
+            if (a_sync) {
+                int rc = dap_chain_net_node_list_wait(l_node_list_request, 10000);
+                ret = ret ? 8 : rc ? 0 : l_node_list_request->response;
+            } else {
+                if(ret)ret = 8;
+                else ret = 1;
+            }
+            if(ret == 1 || ret == 5){
+                break;
+            }
+            else
+            {
+                switch (ret)
+                {
+                case 0:
+                    log_it(L_WARNING, "No server");
+                    break;
+                case 2:
+                    log_it(L_WARNING, "Didn't add your addres node to node list");
+                    break;
+                case 3:
+                    log_it(L_WARNING, "Can't calculate hash for your addr");
+                    break;
+                case 4:
+                    log_it(L_WARNING, "Can't do handshake for your node");
+                    break;
+                case 7:
+                    log_it(L_WARNING, "Can't process node list HTTP request");
+                    break;
+                default:
+                    break;
+                }
+            }
+        }
+        dap_list_free(l_node_list);
+        s_node_list_request_deinit(l_node_list_request);
+        return ret;
     } else if(cmd == UPDATE || cmd == DEL){//request update or delete
 
         l_link_node_request = dap_chain_node_info_read(a_net, &l_node_addr_cur);
@@ -329,14 +395,10 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
         links_count = dap_chain_net_get_downlink_count(a_net);
         l_link_node_request->hdr.links_number = links_count;
 
-    }
-    if(cmd == ADD || cmd == UPDATE)
-    {
-        l_request = dap_strdup_printf("%s/%s?version=1,method=r,addr=%lu,ipv4=%d,port=%hu,lcnt=%d,blks=%lu,net=%s",
+        l_request = dap_strdup_printf("%s/%s?version=1,method=r,addr=%lu,port=%hu,lcnt=%d,blks=%lu,net=%s",
                                                 DAP_UPLINK_PATH_NODE_LIST,
                                                 DAP_NODE_LIST_URI_HASH,
                                                 l_link_node_request->hdr.address.uint64,
-                                                l_link_node_request->hdr.ext_addr_v4.s_addr,
                                                 l_link_node_request->hdr.ext_port,
                                                 l_link_node_request->hdr.links_number,
                                                 l_link_node_request->hdr.blocks_events,

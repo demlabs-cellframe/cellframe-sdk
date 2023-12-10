@@ -266,6 +266,9 @@ extern const char *c_dap_chain_datum_token_flag_str[];
 // Emission for delegated token
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK	0x0027
 
+// Description token
+#define DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION                         0x0028
+
 
 
 

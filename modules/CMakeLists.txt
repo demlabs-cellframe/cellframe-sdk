@@ -112,7 +112,7 @@ if (CELLFRAME_MODULES MATCHES "srv-stake")
 endif()
 
 # Unit tests
-if( BUILD_TESTS)
+if(BUILD_TESTS)
     add_subdirectory(test)
 endif()
 
