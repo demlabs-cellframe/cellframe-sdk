@@ -40,10 +40,11 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_stream_ch_chain_net_srv_pkt.h"
 #include "dap_stream_ch_proc.h"
 #include "dap_stream_ch_chain_net_srv.h"
+#include "dap_enc_base58.h"
 
 #define LOG_TAG "dap_stream_ch_chain_net_srv"
 #define SRV_PAY_GDB_GROUP "local.srv_pay"
-#define SRV_GRACE_GDB_GROUP "local.srv_grace"
+#define SRV_STATISTIC_GDB_GROUP "local.srv_statistic"
 #define SRV_RECEIPTS_GDB_GROUP "local.receipts"
 
 
@@ -52,6 +53,24 @@ typedef struct usages_in_grace{
     dap_chain_net_srv_grace_t *grace;
     UT_hash_handle hh;
 } usages_in_grace_t;
+
+
+// client statistic key struct
+typedef struct client_statistic_key{
+    dap_chain_net_srv_uid_t srv_uid;
+    dap_chain_hash_fast_t client_pkey_hash;
+} client_statistic_key_t;
+
+// client statistic value struct
+typedef struct client_statistic_value{
+    uint64_t all_using_time;
+    uint64_t all_using_units;
+    uint64_t grace_using_time;
+    uint64_t grace_using_units;
+    uint64_t not_payed_value;
+    uint64_t all_payed_value;
+    uint64_t grace_using_count;
+} client_statistic_value_t;
 
 static void s_stream_ch_new(dap_stream_ch_t* ch , void* arg);
 static void s_stream_ch_delete(dap_stream_ch_t* ch , void* arg);
@@ -178,10 +197,11 @@ void s_stream_ch_new(dap_stream_ch_t* a_ch , void* arg)
  * @param ch
  * @param arg
  */
-void s_stream_ch_delete(dap_stream_ch_t* a_ch , void* a_arg)
+void s_stream_ch_delete(dap_stream_ch_t* a_ch , UNUSED_ARG void *a_arg)
 {
-    (void) a_ch;
-    (void) a_arg;
+// sanity check
+    dap_return_if_pass(!a_ch);
+// func work
     log_it(L_DEBUG, "Stream ch chain net srv delete");
 
     dap_chain_net_srv_stream_session_t * l_srv_session = a_ch && a_ch->stream && a_ch->stream->session ? (dap_chain_net_srv_stream_session_t *) a_ch->stream->session->_inheritor : NULL;
@@ -198,6 +218,9 @@ void s_stream_ch_delete(dap_stream_ch_t* a_ch , void* a_arg)
 
 static bool s_unban_client(dap_chain_net_srv_banlist_item_t *a_item)
 {
+// sanity check
+    dap_return_if_pass(!a_item);
+// func work
     log_it(L_DEBUG, "Unban client");
     pthread_mutex_lock(a_item->ht_mutex);
     HASH_DEL(*(a_item->ht_head), a_item);
@@ -772,6 +795,31 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
 
     return true;
 }
+static void s_add_grace_data_to_gdb(const dap_chain_net_srv_grace_t *a_grace)
+{
+// sanity check
+    dap_return_if_pass(!a_grace);
+// func work
+    client_statistic_key_t l_bin_key;
+    client_statistic_value_t l_bin_value_new = {0};
+    size_t l_value_size = 0;
+    l_bin_key.srv_uid = a_grace->usage->service->uid;
+    l_bin_key.client_pkey_hash = a_grace->usage->client_pkey_hash;
+    char *l_str_key = dap_enc_base58_encode_to_str(&l_bin_key, sizeof(client_statistic_key_t));
+    client_statistic_value_t *l_bin_value = (client_statistic_value_t *)dap_global_db_get_sync(SRV_STATISTIC_GDB_GROUP, l_str_key, &l_value_size, NULL, NULL);
+    if (l_bin_value && l_value_size != sizeof(client_statistic_value_t)) {
+        log_it(L_ERROR, "Wrong srv client_statistic size in GDB. Expecting %zu, getted %zu", sizeof(client_statistic_value_t), l_value_size);
+        DAP_DEL_Z(l_str_key);
+        DAP_DEL_Z(l_bin_value);
+    }
+    if (l_bin_value) {
+        l_bin_value_new = *l_bin_value;
+    }
+    l_bin_value_new.grace_using_count += 1;
+    dap_global_db_set(SRV_STATISTIC_GDB_GROUP, l_str_key, &l_bin_value_new, sizeof(client_statistic_value_t), false, NULL, NULL);
+    DAP_DEL_Z(l_str_key);
+    DAP_DEL_Z(l_bin_value);
+}
 
 static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
 {
@@ -782,7 +830,12 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(l_grace->stream_worker, l_grace->ch_uuid);
 
 #define RET_WITH_DEL_A_GRACE do \
-    { HASH_DEL(s_grace_table, a_grace_item); DAP_DELETE(a_grace_item); return false; } \
+    {\
+        s_add_grace_data_to_gdb(l_grace); \
+        HASH_DEL(s_grace_table, a_grace_item); \
+        DAP_DELETE(a_grace_item); \
+        return false; \
+    } \
     while(0);
 
     if (!l_ch){
@@ -1012,9 +1065,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
                 DAP_DELETE(l_grace->request);
                 DAP_DELETE(l_grace);
                 DAP_DELETE(l_remain_service);
-                HASH_DEL(s_grace_table, a_grace_item);
-                DAP_DELETE(a_grace_item);
-                return false;
+                RET_WITH_DEL_A_GRACE;
             }
         }
 
@@ -1054,7 +1105,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
             RET_WITH_DEL_A_GRACE;
         }
         dap_get_data_hash_str_static(l_receipt, l_receipt_size, l_receipt_hash_str);
-        dap_global_db_set("SRV_RECEIPTS_GDB_GROUP", l_receipt_hash_str, l_receipt, l_receipt_size, false, NULL, NULL);
+        dap_global_db_set(SRV_RECEIPTS_GDB_GROUP, l_receipt_hash_str, l_receipt, l_receipt_size, false, NULL, NULL);
             // Form input transaction
         char *l_hash_str = dap_hash_fast_to_str_new(&l_grace->usage->tx_cond_hash);
         log_it(L_NOTICE, "Trying create input tx cond from tx %s with active receipt", l_hash_str);
@@ -1069,7 +1120,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
             log_it(L_NOTICE, "Formed tx %s for input with active receipt", l_tx_in_hash_str);
             DAP_DELETE(l_tx_in_hash_str);
 
-        }else{
+        } else {
             if(ret_status == DAP_CHAIN_MEMPOOl_RET_STATUS_NOT_ENOUGH){
 //                memset(&l_grace->usage->tx_cond_hash, 0, sizeof(l_grace->usage->tx_cond_hash));
 //                DAP_DEL_Z(l_grace->usage->receipt_next);
@@ -1109,7 +1160,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
                 DAP_DELETE(a_grace_item->grace->request);
                 DAP_DEL_Z(a_grace_item->grace);
                 RET_WITH_DEL_A_GRACE;
-            }else{
+            } else {
                 log_it(L_ERROR, "Can't create input tx cond transaction!");
                 memset(&l_grace->usage->tx_cond_hash, 0, sizeof(l_grace->usage->tx_cond_hash));
                 if (l_grace->usage->receipt_next){
@@ -1334,7 +1385,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         // Store receipt if any problems with transactions
         char *l_receipt_hash_str;
         dap_get_data_hash_str_static(l_receipt, l_receipt_size, l_receipt_hash_str);
-        dap_global_db_set("SRV_RECEIPTS_GDB_GROUP", l_receipt_hash_str, l_receipt, l_receipt_size, false, NULL, NULL);
+        dap_global_db_set(SRV_RECEIPTS_GDB_GROUP, l_receipt_hash_str, l_receipt, l_receipt_size, false, NULL, NULL);
         size_t l_success_size;
         if (!l_usage->is_grace) {
             // Form input transaction
