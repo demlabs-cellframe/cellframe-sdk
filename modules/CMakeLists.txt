@@ -24,6 +24,7 @@ if (CELLFRAME_MODULES MATCHES "network")
     add_subdirectory(channel/chain)
     add_subdirectory(channel/chain-net)
     add_subdirectory(channel/chain-voting)
+    add_subdirectory(json_rpc)
 endif()
 
 # Mining
