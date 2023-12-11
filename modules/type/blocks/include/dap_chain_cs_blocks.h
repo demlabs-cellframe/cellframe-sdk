@@ -32,6 +32,8 @@
 #define DAP_CHAIN_CS_BLOCKS_MAX_BLOCK_SIZE (256 * 1024) // 256 KB
 #endif
 
+#define DAP_REWARD_INIT_TIMESTAMP 1700870400UL // 25 Nov 00:00:00 GMT
+
 typedef struct dap_chain_cs_blocks dap_chain_cs_blocks_t;
 
 typedef void (*dap_chain_cs_blocks_callback_t)(dap_chain_cs_blocks_t *);
@@ -49,7 +51,6 @@ typedef struct dap_chain_cs_blocks
    // For new block creating
    dap_chain_block_t * block_new;
    size_t block_new_size;
-   char *gdb_group_datums_queue;
 
    dap_chain_cs_blocks_callback_t callback_delete;
    dap_chain_cs_blocks_callback_block_create_t callback_block_create;
@@ -69,4 +70,14 @@ void dap_chain_cs_blocks_deinit();
 
 int dap_chain_cs_blocks_new(dap_chain_t * a_chain, dap_config_t * a_chain_config);
 void dap_chain_cs_blocks_delete(dap_chain_t * a_chain);
-dap_chain_block_cache_t * dap_chain_block_cs_cache_get_by_hash(dap_chain_cs_blocks_t * a_blocks,  dap_chain_hash_fast_t *a_block_hash);
+dap_chain_block_cache_t *dap_chain_block_cache_get_by_hash(dap_chain_cs_blocks_t *a_blocks, dap_chain_hash_fast_t *a_block_hash);
+
+DAP_STATIC_INLINE char *dap_chain_cs_blocks_get_fee_group(const char *a_net_name)
+{
+    return dap_strdup_printf("local.%s.fees", a_net_name);
+}
+
+DAP_STATIC_INLINE char *dap_chain_cs_blocks_get_reward_group(const char *a_net_name)
+{
+    return dap_strdup_printf("local.%s.rewards", a_net_name);
+}
