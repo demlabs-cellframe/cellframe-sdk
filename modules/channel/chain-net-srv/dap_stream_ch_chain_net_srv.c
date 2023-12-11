@@ -43,6 +43,9 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 #define LOG_TAG "dap_stream_ch_chain_net_srv"
 #define SRV_PAY_GDB_GROUP "local.srv_pay"
+#define SRV_GRACE_GDB_GROUP "local.srv_grace"
+#define SRV_RECEIPTS_GDB_GROUP "local.receipts"
+
 
 typedef struct usages_in_grace{
     dap_hash_fast_t tx_cond_hash;
@@ -315,16 +318,16 @@ static bool s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
         // not free service
         log_it( L_INFO, "Valid pricelist is founded. Start service in pay mode.");
 
-        if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
-            log_it(L_ERROR, "Can't start service because net %s is offline.", l_net->pub.name);
-            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_IS_OFFLINE;
-            if(a_ch)
-                dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
-            if (l_srv && l_srv->callbacks.response_error)
-                l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
-            dap_chain_net_srv_usage_delete(l_srv_session);
-            return false;
-        }
+        // if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
+        //     log_it(L_ERROR, "Can't start service because net %s is offline.", l_net->pub.name);
+        //     l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_IS_OFFLINE;
+        //     if(a_ch)
+        //         dap_stream_ch_pkt_write_unsafe(a_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
+        //     if (l_srv && l_srv->callbacks.response_error)
+        //         l_srv->callbacks.response_error(l_srv, 0, NULL, &l_err, sizeof(l_err));
+        //     dap_chain_net_srv_usage_delete(l_srv_session);
+        //     return false;
+        // }
 
         if (!dap_hash_fast_is_blank(&a_request->hdr.order_hash))
             l_usage->static_order_hash = a_request->hdr.order_hash;
@@ -553,12 +556,12 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
         }
 
     } else { // Start service in normal pay mode
-        if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
-            log_it(L_ERROR, "Can't pay service because net %s is offline.", l_net->pub.name);
-            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_IS_OFFLINE;
-            s_grace_error(a_grace, l_err);
-            return false;
-        }
+        // if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
+        //     log_it(L_ERROR, "Can't pay service because net %s is offline.", l_net->pub.name);
+        //     l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_IS_OFFLINE;
+        //     s_grace_error(a_grace, l_err);
+        //     return false;
+        // }
 
         a_grace->usage->tx_cond = l_tx;
 
@@ -706,23 +709,14 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
                 char *l_unit_type_str = NULL;
                 switch(l_tx_out_cond->subtype.srv_pay.unit.enm){
                     case SERV_UNIT_SEC:
-                        l_unit_type_str = dap_strdup_printf( "SEC");
-                        l_srv_session->limits_ts = l_remain_service->limits_ts;
-                        break;
                     case SERV_UNIT_DAY:
-                        l_unit_type_str = dap_strdup_printf( "SEC");
+                        l_unit_type_str = dap_strdup_printf(dap_chain_srv_unit_enum_to_str(l_tx_out_cond->subtype.srv_pay.unit.enm));
                         l_srv_session->limits_ts = l_remain_service->limits_ts;
-                        break;
-                    case SERV_UNIT_MB:
-                        l_unit_type_str = dap_strdup_printf( "B");
-                        l_srv_session->limits_bytes = l_remain_service->limits_bytes;
-                        break;
-                    case SERV_UNIT_KB:
-                        l_unit_type_str = dap_strdup_printf( "B");
-                        l_srv_session->limits_bytes = l_remain_service->limits_bytes;
                         break;
                     case SERV_UNIT_B:
-                        l_unit_type_str = dap_strdup_printf( "B");
+                    case SERV_UNIT_KB:
+                    case SERV_UNIT_MB:
+                        l_unit_type_str = dap_strdup_printf(dap_chain_srv_unit_enum_to_str(l_tx_out_cond->subtype.srv_pay.unit.enm));
                         l_srv_session->limits_bytes = l_remain_service->limits_bytes;
                         break;
                 }
@@ -826,12 +820,12 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
         s_grace_error(l_grace, l_err);
         RET_WITH_DEL_A_GRACE;
     } else { // Start service in normal pay mode
-        if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
-            log_it(L_ERROR, "Can't pay service because net %s is offline.", l_net->pub.name);
-            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_IS_OFFLINE;
-            s_grace_error(l_grace, l_err);
-            RET_WITH_DEL_A_GRACE;
-        }
+        // if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
+        //     log_it(L_ERROR, "Can't pay service because net %s is offline.", l_net->pub.name);
+        //     l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_IS_OFFLINE;
+        //     s_grace_error(l_grace, l_err);
+        //     RET_WITH_DEL_A_GRACE;
+        // }
 
         log_it(L_INFO, "Tx is found in ledger.");
         l_grace->usage->tx_cond = l_tx;
@@ -974,23 +968,14 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
                 char *l_unit_type_str = NULL;
                 switch(l_tx_out_cond->subtype.srv_pay.unit.enm){
                     case SERV_UNIT_SEC:
-                        l_unit_type_str = dap_strdup_printf( "SEC");
-                        l_srv_session->limits_ts = l_remain_service->limits_ts;
-                        break;
                     case SERV_UNIT_DAY:
-                        l_unit_type_str = dap_strdup_printf( "SEC");
+                        l_unit_type_str = dap_strdup_printf(dap_chain_srv_unit_enum_to_str(l_tx_out_cond->subtype.srv_pay.unit.enm));
                         l_srv_session->limits_ts = l_remain_service->limits_ts;
-                        break;
-                    case SERV_UNIT_MB:
-                        l_unit_type_str = dap_strdup_printf( "B");
-                        l_srv_session->limits_bytes = l_remain_service->limits_bytes;
-                        break;
-                    case SERV_UNIT_KB:
-                        l_unit_type_str = dap_strdup_printf( "B");
-                        l_srv_session->limits_bytes = l_remain_service->limits_bytes;
                         break;
                     case SERV_UNIT_B:
-                        l_unit_type_str = dap_strdup_printf( "B");
+                    case SERV_UNIT_KB:
+                    case SERV_UNIT_MB:
+                        l_unit_type_str = dap_strdup_printf(dap_chain_srv_unit_enum_to_str(l_tx_out_cond->subtype.srv_pay.unit.enm));
                         l_srv_session->limits_bytes = l_remain_service->limits_bytes;
                         break;
                 }
@@ -1069,7 +1054,7 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
             RET_WITH_DEL_A_GRACE;
         }
         dap_get_data_hash_str_static(l_receipt, l_receipt_size, l_receipt_hash_str);
-        dap_global_db_set("local.receipts", l_receipt_hash_str, l_receipt, l_receipt_size, false, NULL, NULL);
+        dap_global_db_set("SRV_RECEIPTS_GDB_GROUP", l_receipt_hash_str, l_receipt, l_receipt_size, false, NULL, NULL);
             // Form input transaction
         char *l_hash_str = dap_hash_fast_to_str_new(&l_grace->usage->tx_cond_hash);
         log_it(L_NOTICE, "Trying create input tx cond from tx %s with active receipt", l_hash_str);
@@ -1239,11 +1224,11 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
     case DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_SIGN_RESPONSE: { // Check receipt sign and make tx if success
         dap_chain_net_srv_usage_t * l_usage = l_srv_session->usage_active;
 
-        if (dap_chain_net_get_state(l_usage->net) == NET_STATE_OFFLINE) {
-            log_it(L_ERROR, "Can't pay service because net %s is offline.", l_usage->net->pub.name);
-            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_IS_OFFLINE;
-            break;
-        }
+        // if (dap_chain_net_get_state(l_usage->net) == NET_STATE_OFFLINE) {
+        //     log_it(L_ERROR, "Can't pay service because net %s is offline.", l_usage->net->pub.name);
+        //     l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_IS_OFFLINE;
+        //     break;
+        // }
 
         if (l_ch_pkt->hdr.data_size < sizeof(dap_chain_receipt_info_t)) {
             log_it(L_ERROR, "Wrong sign response size, %u when expected at least %zu with smth", l_ch_pkt->hdr.data_size,
@@ -1349,7 +1334,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         // Store receipt if any problems with transactions
         char *l_receipt_hash_str;
         dap_get_data_hash_str_static(l_receipt, l_receipt_size, l_receipt_hash_str);
-        dap_global_db_set("local.receipts", l_receipt_hash_str, l_receipt, l_receipt_size, false, NULL, NULL);
+        dap_global_db_set("SRV_RECEIPTS_GDB_GROUP", l_receipt_hash_str, l_receipt, l_receipt_size, false, NULL, NULL);
         size_t l_success_size;
         if (!l_usage->is_grace) {
             // Form input transaction
