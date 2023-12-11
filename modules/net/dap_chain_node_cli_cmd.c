@@ -1255,7 +1255,6 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     case CMD_DEL:
         // handler of command 'node del'
     {
-
         if(!l_addr_str)
         {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Addr can't be del because -addr is not found");
@@ -1264,16 +1263,7 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
         int l_ret = node_info_del_with_reply(l_net, l_node_info, alias_str, a_str_reply);
 
         DAP_DELETE(l_node_info);
-        if(l_ret == 7)
-        {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "node deleted");
-            return 0;
-        }
-        else
-        {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "node not deleted");
-            return -1;
-        }
+        break;
     }
     case CMD_LINK:
         if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "add", NULL)) {
