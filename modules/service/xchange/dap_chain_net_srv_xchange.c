@@ -75,6 +75,7 @@ static int s_callback_response_success(dap_chain_net_srv_t *a_srv, uint32_t a_us
 static int s_callback_response_error(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size);
 static int s_callback_receipt_next_success(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size);
 
+static bool s_tx_check_is_order (dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx);
 static int s_tx_check_for_open_close(dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx);
 static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str, dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx, tx_opt_status_t a_filter_by_status, bool a_append_prev_hash);
 static bool s_srv_xchange_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a_fee, dap_chain_addr_t *a_addr, uint16_t *a_type);
@@ -100,14 +101,14 @@ int dap_chain_net_srv_xchange_init()
          "\tShows transaction history for the selected order\n"
     "srv_xchange order status -net <net_name> -order <order_hash>"
          "\tShows current amount of unselled coins from the selected order and percentage of its completion\n"
-    "srv_xchange orders -net <net_name>\n"
+    "srv_xchange orders -net <net_name> [-status {opened|closed|all}]\n"
          "\tGet the exchange orders list within specified net name\n"
 
     "srv_xchange purchase -order <order hash> -net <net_name> -w <wallet_name> -value <value> -fee <value>\n"
          "\tExchange tokens with specified order within specified net name. Specify how many datoshies to sell with rate specified by order\n"
 
     "srv_xchange tx_list -net <net_name> [-time_from <From time>] [-time_to <To time>]"
-        "[[-addr <wallet_addr>  [-status inactive | active] ]\n"                /* @RRL:  #6294  */
+        "[[-addr <wallet_addr>  [-status {inactive|active|all}] ]\n"                /* @RRL:  #6294  */
         "\tList of exchange transactions\n"
         "\tAll times are in RFC822. For example: \"Thu, 7 Dec 2023 21:18:04\"\n"
 
@@ -1461,6 +1462,19 @@ static bool s_filter_tx_list(dap_chain_datum_t *a_datum, dap_chain_t *a_chain, v
     return false;
 }
 
+static bool s_tx_check_is_order (dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx)
+{
+    UNUSED(a_net);
+    dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
+                                                                               NULL);
+    byte_t *l_tx_item = dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_IN_COND , NULL);
+
+    if (l_out_cond_item && !l_tx_item)
+        return true;
+
+    return true;
+}
+
 /**
  * @brief Check for open/close
  * @param a_net
@@ -1469,6 +1483,11 @@ static bool s_filter_tx_list(dap_chain_datum_t *a_datum, dap_chain_t *a_chain, v
  */
 static int s_tx_check_for_open_close(dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx)
 {
+
+
+
+
+
     int l_cond_idx = 0;
     dap_hash_fast_t l_tx_hash = {0};
     size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
@@ -1719,6 +1738,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
             return s_cli_srv_xchange_order(a_argc, a_argv, l_arg_index + 1, a_str_reply);
         case CMD_ORDERS: {
             const char *l_net_str = NULL;
+            const char *l_status_str = NULL;
             l_arg_index++;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
@@ -1742,6 +1762,26 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
             order_find_list_t l_arg = {};
             dap_chain_net_get_tx_all(l_net,TX_SEARCH_TYPE_NET, s_tx_is_order_check, &l_arg);
 
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-status", &l_status_str);
+
+
+            /* Validate input arguments ... */
+            int l_opt_status = 0;   /* 0 - all */
+
+            if ( l_status_str )
+            {
+                /* 1 - closed, 2 - open  */
+                if ( dap_strcmp (l_status_str, "opened") == 0 )
+                    l_opt_status = 1;
+                else if ( dap_strcmp (l_status_str, "closed") == 0 )
+                    l_opt_status = 2;
+                else if ( dap_strcmp (l_status_str, "all") == 0 )
+                    l_opt_status = 0;
+                else  {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized '-status %s'", l_status_str);
+                    return -3;
+                }
+            }
 
             // Print all txs
             dap_list_t *l_temp = l_arg.tx_list;
@@ -1783,10 +1823,19 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                 }
 
                 dap_chain_tx_out_cond_t *l_out_cond_last_tx = dap_chain_datum_tx_out_cond_get(l_last_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE , NULL);
-                if (!l_out_cond_last_tx || IS_ZERO_256(l_out_cond_last_tx->header.value))
+                if (!l_out_cond_last_tx || IS_ZERO_256(l_out_cond_last_tx->header.value)){
+                    if (l_opt_status == 1){
+                        l_temp = l_temp->next;
+                        continue;
+                    }
                     l_status_order  = "CLOSED";
-                else
-                    l_status_order = "OPEN";
+                } else {
+                    if (l_opt_status == 2){
+                        l_temp = l_temp->next;
+                        continue;
+                    }
+                    l_status_order = "OPENED";
+                }
 
                 dap_hash_fast_t l_tx_hash = {};
                 dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
