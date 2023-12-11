@@ -61,6 +61,12 @@ DAP_STATIC_INLINE const char *dap_chain_tx_out_cond_subtype_to_str(dap_chain_tx_
 // Emit with single lock TX
 #define DAP_CHAIN_NET_SRV_STAKE_LOCK_FLAG_EMIT              0x00000020
 
+/// Conditional ouptput TSD types
+// 256-bit value
+#define DAP_CHAIN_TX_OUT_COND_TSD_VALUE                     0xf000
+// Cahin wallet address
+#define DAP_CHAIN_TX_OUT_COND_TSD_ADDR                      0xf001
+
 /**
  * @struct dap_chain_tx_out
  * @brief Transaction item out_cond

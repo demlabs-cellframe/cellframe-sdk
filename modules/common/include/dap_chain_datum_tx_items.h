@@ -189,7 +189,8 @@ json_object* dap_chain_datum_tx_item_out_cond_srv_xchange_to_json(dap_chain_tx_o
  * return item, NULL Error
  */
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
-                                                                               dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr);
+                                                                           dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr,
+                                                                           dap_chain_node_addr_t *a_sovereign_addr, uint256_t a_sovereign_tax);
 
 json_object *dap_chain_datum_tx_item_out_cond_srv_stake_to_json(dap_chain_tx_out_cond_t* a_srv_stake);
 

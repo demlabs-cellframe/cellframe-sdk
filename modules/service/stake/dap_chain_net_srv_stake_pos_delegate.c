@@ -400,7 +400,8 @@ void dap_chain_net_srv_stake_purge(dap_chain_net_t *a_net)
 // Freeze staker's funds when delegating a key
 static dap_chain_datum_tx_t *s_stake_tx_create(dap_chain_net_t * a_net, dap_chain_wallet_t *a_wallet,
                                                uint256_t a_value, uint256_t a_fee,
-                                               dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_node_addr)
+                                               dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_node_addr,
+                                               dap_chain_addr_t *a_sovereign_addr, uint256_t a_sovereign_tax)
 {
     if (!a_net || !a_wallet || IS_ZERO_256(a_value) || !a_signing_addr || !a_node_addr)
         return NULL;
@@ -454,7 +455,8 @@ static dap_chain_datum_tx_t *s_stake_tx_create(dap_chain_net_t * a_net, dap_chai
 
     // add 'out_cond' & 'out_ext' items
     dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
-    dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_srv_stake(l_uid, a_value, a_signing_addr, a_node_addr);
+    dap_chain_tx_out_cond_t *l_tx_out = dap_chain_datum_tx_item_out_cond_create_srv_stake(l_uid, a_value, a_signing_addr, a_node_addr,
+                                                                                          a_sovereign_addr, a_sovereign_tax);
     if (!l_tx_out) {
         log_it(L_ERROR, "Can't compose the transaction conditional output");
         goto tx_fail;
@@ -1555,7 +1557,9 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                        *l_cert_str = NULL,
                        *l_value_str = NULL,
                        *l_fee_str = NULL,
-                       *l_node_addr_str = NULL;
+                       *l_node_addr_str = NULL,
+                       *l_order_hash_str = NULL,
+                       *l_sovereign_addr_str = NULL;
             l_arg_index++;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
             if (!l_net_str) {
@@ -1580,20 +1584,67 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             } else {
                 l_sign_str = dap_chain_wallet_check_bliss_sign(l_wallet);
             }
+            dap_chain_addr_t l_signing_addr, *l_sovereign_addr = NULL;
+            uint256_t l_sovereign_tax = uint256_0;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-cert", &l_cert_str);
-            if (!l_cert_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'delegate' requires parameter -cert");
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-order", &l_pkey_hash_str);
+            if (!l_cert_str && !l_order_hash_str) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'delegate' requires parameter -cert or -order");
                 return -13;
             }
-            dap_cert_t *l_signing_cert = dap_cert_find_by_name(l_cert_str);
-            if (!l_signing_cert) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified certificate not found");
-                return -19;
-            }
-            dap_chain_addr_t l_signing_addr;
-            if (dap_chain_addr_fill_from_key(&l_signing_addr, l_signing_cert->enc_key, l_net->pub.id)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified certificate is wrong");
-                return -20;
+            dap_chain_node_addr_t l_node_addr;
+            if (l_cert_str) {
+                dap_cert_t *l_signing_cert = dap_cert_find_by_name(l_cert_str);
+                if (!l_signing_cert) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified certificate not found");
+                    return -19;
+                }
+                if (dap_chain_addr_fill_from_key(&l_signing_addr, l_signing_cert->enc_key, l_net->pub.id)) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified certificate is wrong");
+                    return -20;
+                }
+                dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-node_addr", &l_node_addr_str);
+                if (l_node_addr_str) {
+                    if (dap_chain_node_addr_from_str(&l_node_addr, l_node_addr_str)) {
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized node addr %s", l_node_addr_str);
+                        return -14;
+                    }
+                } else
+                    l_node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
+            } else {
+                dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-wallet_addr", &l_sovereign_addr_str);
+                if (!l_sovereign_addr_str) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'delegate' requires parameter -wallet_addr");
+                    return -22;
+                }
+                l_sovereign_addr = dap_chain_addr_from_str(l_sovereign_addr_str);
+                if (!l_sovereign_addr) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified address is ivalid");
+                    return -24;
+                }
+                dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_find_by_hash_str(l_net, l_order_hash_str);
+                if (!l_order) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified order not found");
+                    return -25;
+                }
+                dap_pkey_t *l_pkey = (dap_pkey_t *)l_order->ext_n_sign;
+                if (l_order->ext_size < sizeof(dap_pkey_t) || l_order->ext_size != dap_pkey_get_size(l_pkey)) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified order has invalid size");
+                    return -26;
+                }
+                if (dap_strcmp(l_order->price_ticker, l_net->pub.native_ticker)) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified order is invalid");
+                    return -27;
+                }
+                dap_hash_t l_pkey_hash;
+                dap_pkey_get_hash(l_pkey, &l_pkey_hash);
+                dap_chain_addr_fill(&l_signing_addr, dap_pkey_type_to_enc_key_type(l_pkey->header.type), &l_pkey_hash, l_net->pub.id);
+                l_node_addr = l_order->node_addr;
+                l_sovereign_tax = l_order->price;
+                if (compare256(l_sovereign_tax, dap_chain_balance_to_coins("100.0") == 1)) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Order price must be lower 100%%");
+                    return -28;
+                }
             }
             if (dap_chain_net_srv_stake_key_delegated(&l_signing_addr)) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified certificate is already delegated");
@@ -1620,15 +1671,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 DAP_DELETE(l_coin_min_str);
                 return -11;
             }
-            dap_chain_node_addr_t l_node_addr;
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-node_addr", &l_node_addr_str);
-            if (l_node_addr_str) {
-                if (dap_chain_node_addr_from_str(&l_node_addr, l_node_addr_str)) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized node addr %s", l_node_addr_str);
-                    return -14;
-                }
-            } else
-                l_node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
+
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-fee", &l_fee_str);
             if (!l_fee_str) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'delegate' requires parameter -fee");
@@ -1644,8 +1687,10 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Key and node verification error");
                 return ret_val;
             }
+
             // Create conditional transaction
-            dap_chain_datum_tx_t *l_tx = s_stake_tx_create(l_net, l_wallet, l_value, l_fee, &l_signing_addr, &l_node_addr);
+            dap_chain_datum_tx_t *l_tx = s_stake_tx_create(l_net, l_wallet, l_value, l_fee, &l_signing_addr, &l_node_addr,
+                                                           l_sovereign_addr, l_sovereign_tax);
             dap_chain_wallet_close(l_wallet);
             if (!l_tx || !s_stake_tx_put(l_tx, l_net)) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Stake transaction error");
