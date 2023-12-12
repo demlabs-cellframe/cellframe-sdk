@@ -60,6 +60,13 @@ typedef enum tx_opt_status {
     TX_STATUS_INACTIVE
 } tx_opt_status_t;
 
+typedef enum xchange_tx_type{
+    TX_TYPE_UNDEFINED=0,
+    TX_TYPE_ORDER,
+    TX_TYPE_EXCHANGE,
+    TX_TYPE_INVALIDATE
+}   xchange_tx_type_t;
+
 static dap_chain_net_srv_fee_item_t *s_service_fees = NULL; // Governance statements for networks
 static pthread_rwlock_t s_service_fees_rwlock = PTHREAD_RWLOCK_INITIALIZER;
 
@@ -75,9 +82,9 @@ static int s_callback_response_success(dap_chain_net_srv_t *a_srv, uint32_t a_us
 static int s_callback_response_error(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size);
 static int s_callback_receipt_next_success(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size);
 
-static bool s_tx_check_is_order (dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx);
+static xchange_tx_type_t s_xchange_tx_get_type (dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx, dap_chain_tx_out_cond_t **a_out_cond_item, int *a_item_idx, dap_chain_tx_out_cond_t **a_out_prev_cond_item);
 static int s_tx_check_for_open_close(dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx);
-static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str, dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx, tx_opt_status_t a_filter_by_status, bool a_append_prev_hash);
+static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str, dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx, tx_opt_status_t a_filter_by_status, bool a_append_prev_hash, bool a_print_status,bool a_print_ts);
 static bool s_srv_xchange_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a_fee, dap_chain_addr_t *a_addr, uint16_t *a_type);
 
 static dap_chain_net_srv_xchange_t *s_srv_xchange;
@@ -1228,7 +1235,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                     dap_string_append_printf(l_str_reply, "Wallet %s hisrory:\n\n", l_addr_hash_str);
                     while(l_tx_list_temp ){
                     dap_chain_datum_tx_t * l_tx_cur = (dap_chain_datum_tx_t*) l_tx_list_temp->data;
-                    s_string_append_tx_cond_info(l_str_reply, l_net, l_tx_cur, TX_STATUS_ALL, true);
+                    s_string_append_tx_cond_info(l_str_reply, l_net, l_tx_cur, TX_STATUS_ALL, true, true, false);
                     l_tx_list_temp = l_tx_list_temp->next;
                     }
                     dap_list_free(l_tx_list);
@@ -1254,25 +1261,18 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                     char *l_tx_hash = dap_chain_hash_fast_to_str_new(&l_order_tx_hash);
                     if(l_rc == 0){
                         dap_cli_server_cmd_set_reply_text(a_str_reply, "WRONG TX %s", l_tx_hash);
-                    }else if(l_rc == 1){
-                        dap_string_t * l_str_reply = dap_string_new("");
-                        dap_string_append_printf(l_str_reply, "Order %s hisrory:\n\n", l_order_hash_str);
-                        s_string_append_tx_cond_info(l_str_reply, l_net, l_tx, TX_STATUS_ALL, true);
-                        *a_str_reply = dap_string_free(l_str_reply, false);
-                    }else if(l_rc == 2){
+                    }else{
                         dap_string_t * l_str_reply = dap_string_new("");
                         dap_string_append_printf(l_str_reply, "Order %s hisrory:\n\n", l_order_hash_str);
                         dap_list_t *l_tx_list = dap_chain_net_get_tx_cond_chain(l_net, &l_order_tx_hash, c_dap_chain_net_srv_xchange_uid );
                         dap_list_t *l_tx_list_temp = l_tx_list;
                         while(l_tx_list_temp ){
                             dap_chain_datum_tx_t * l_tx_cur = (dap_chain_datum_tx_t*) l_tx_list_temp->data;
-                            s_string_append_tx_cond_info(l_str_reply, l_net, l_tx_cur, TX_STATUS_ALL, true);
+                            s_string_append_tx_cond_info(l_str_reply, l_net, l_tx_cur, TX_STATUS_ALL, true, true, false);
                             l_tx_list_temp = l_tx_list_temp->next;
                         }
                         dap_list_free(l_tx_list);
                         *a_str_reply = dap_string_free(l_str_reply, false);
-                    }else{
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Internal error!");
                     }
                 }else{
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "No history");
@@ -1462,17 +1462,58 @@ static bool s_filter_tx_list(dap_chain_datum_t *a_datum, dap_chain_t *a_chain, v
     return false;
 }
 
-static bool s_tx_check_is_order (dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx)
+static xchange_tx_type_t s_xchange_tx_get_type (dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx, dap_chain_tx_out_cond_t **a_out_cond_item, int *a_item_idx, dap_chain_tx_out_cond_t **a_out_prev_cond_item)
 {
-    UNUSED(a_net);
+    int l_tx_type = TX_TYPE_UNDEFINED;
+
+    // Find SRV_XCHANGE out_cond item
+    int l_cond_idx = 0;
     dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
-                                                                               NULL);
-    byte_t *l_tx_item = dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_IN_COND , NULL);
+                                                                               &l_cond_idx);
+    // Find SRV_XCHANGE in_cond item
+    int l_item_idx = 0;
+    byte_t *l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx, TX_ITEM_TYPE_IN_COND , NULL);
+    dap_chain_tx_in_cond_t * l_in_cond = l_tx_item ? (dap_chain_tx_in_cond_t *) l_tx_item : NULL;
+    int l_prev_cond_idx = 0;
+    dap_chain_datum_tx_t * l_prev_tx = l_in_cond ? dap_chain_ledger_tx_find_by_hash(a_net->pub.ledger, &l_in_cond->header.tx_prev_hash) : NULL;
+    dap_chain_tx_out_cond_t *l_out_prev_cond_item = l_prev_tx ? dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
+                                                                                                &l_prev_cond_idx) : NULL;
 
-    if (l_out_cond_item && !l_tx_item)
-        return true;
+    if(l_out_prev_cond_item && l_out_prev_cond_item->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE)
+        return l_tx_type;
 
-    return true;
+    if (l_out_cond_item && !l_out_prev_cond_item)
+        l_tx_type = TX_TYPE_ORDER;
+    else if (l_out_cond_item && l_out_prev_cond_item)
+        l_tx_type = TX_TYPE_EXCHANGE;
+    else if (!l_out_cond_item && l_out_prev_cond_item){
+        dap_chain_datum_tx_t * l_prev_tx_temp = a_tx;
+        byte_t *l_tx_item_temp = NULL;
+        while((l_tx_item_temp = dap_chain_datum_tx_item_get(l_prev_tx_temp, &l_item_idx, TX_ITEM_TYPE_IN_COND , NULL)) != NULL){
+                dap_chain_tx_in_cond_t * l_in_cond_temp = (dap_chain_tx_in_cond_t *) l_tx_item_temp;
+                l_prev_tx_temp = dap_chain_ledger_tx_find_by_hash(a_net->pub.ledger, &l_in_cond_temp->header.tx_prev_hash);
+        }
+
+        dap_chain_tx_sig_t *l_tx_prev_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_prev_tx_temp, NULL, TX_ITEM_TYPE_SIG, NULL);
+        dap_sign_t *l_prev_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_prev_sig);
+        dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
+        dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
+
+        bool l_owner = false;
+        l_owner = dap_sign_match_pkey_signs(l_prev_sign,l_sign);
+        if (l_owner)
+                l_tx_type = TX_TYPE_INVALIDATE;
+        else
+                l_tx_type = TX_TYPE_EXCHANGE;
+    }
+
+    if(a_out_cond_item)
+        *a_out_cond_item = l_out_cond_item;
+    if(a_out_prev_cond_item)
+        *a_out_prev_cond_item = l_out_prev_cond_item;
+    if (a_item_idx)
+        *a_item_idx = l_cond_idx;
+    return l_tx_type;
 }
 
 /**
@@ -1483,22 +1524,27 @@ static bool s_tx_check_is_order (dap_chain_net_t * a_net, dap_chain_datum_tx_t *
  */
 static int s_tx_check_for_open_close(dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx)
 {
+    dap_ledger_t * l_ledger = dap_chain_ledger_by_net_name(a_net->pub.name);
 
+    dap_hash_fast_t l_tx_hash = {};
+    dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_tx_hash);
+    dap_hash_fast_t * l_last_tx_hash = dap_chain_ledger_get_final_chain_tx_hash(l_ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_tx_hash);
+    if(!l_last_tx_hash){
+        log_it(L_WARNING,"Can't get last tx cond hash from order");
+        return 0;
+    }
 
+    dap_chain_datum_tx_t * l_last_tx = dap_chain_ledger_tx_find_by_hash(l_ledger, l_last_tx_hash);
+    if(!l_last_tx_hash){
+        log_it(L_WARNING,"Can't find last tx");
+        return 0;
+    }
 
-
-
-    int l_cond_idx = 0;
-    dap_hash_fast_t l_tx_hash = {0};
-    size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
-    dap_hash_fast(a_tx, l_tx_size, &l_tx_hash);
-    dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
-                                                                               &l_cond_idx);
-    if (l_out_cond_item) {
-        if(dap_chain_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_tx_hash, l_cond_idx, NULL))
-            return 2; // If its SRV_XCHANGE and spent its closed
-        else
-            return 1; // If its SRV_XCHANGE and not spent its open
+    dap_chain_tx_out_cond_t *l_out_cond_last_tx = dap_chain_datum_tx_out_cond_get(l_last_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE , NULL);
+    if (!l_out_cond_last_tx || IS_ZERO_256(l_out_cond_last_tx->header.value)){
+        return 1;
+    } else {
+        return 2;
     }
     return 0;
 }
@@ -1509,7 +1555,11 @@ static int s_tx_check_for_open_close(dap_chain_net_t * a_net, dap_chain_datum_tx
  * @param a_net
  * @param a_tx
  */
-static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str, dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx, tx_opt_status_t a_filter_by_status, bool a_append_prev_hash)
+static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str,
+                                         dap_chain_net_t * a_net,
+                                         dap_chain_datum_tx_t * a_tx,
+                                         tx_opt_status_t a_filter_by_status,
+                                         bool a_print_prev_hash, bool a_print_status, bool a_print_ts)
 {
     enum{TX_TYPE_NONE, TX_TYPE_ORDER, TX_TYPE_EXCHANGE, TX_TYPE_INVALIDATE};
     size_t l_tx_size = dap_chain_datum_tx_get_size(a_tx);
@@ -1525,51 +1575,18 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str, dap_chain_
     const char * l_tx_input_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(
                 a_net->pub.ledger, &l_tx_hash);
 
-    // Find SRV_XCHANGE out_cond item
+    dap_chain_tx_out_cond_t *l_out_prev_cond_item = NULL;
+    dap_chain_tx_out_cond_t *l_out_cond_item = NULL;
     int l_cond_idx = 0;
-    dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
-                                                                               &l_cond_idx);
+
+    xchange_tx_type_t l_tx_type = s_xchange_tx_get_type(a_net, a_tx, &l_out_cond_item, &l_cond_idx, &l_out_prev_cond_item);
+
     bool l_is_closed = dap_chain_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_tx_hash, l_cond_idx, NULL);
     if ((a_filter_by_status == TX_STATUS_ACTIVE && l_is_closed) || (a_filter_by_status == TX_STATUS_INACTIVE && !l_is_closed))
         return false;
 
-    // Find SRV_XCHANGE in_cond item
-    int l_item_idx = 0;
-    byte_t *l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx, TX_ITEM_TYPE_IN_COND , NULL);
-    dap_chain_tx_in_cond_t * l_in_cond = l_tx_item ? (dap_chain_tx_in_cond_t *) l_tx_item : NULL;
-    int l_prev_cond_idx = 0;
-    dap_chain_datum_tx_t * l_prev_tx = l_in_cond ? dap_chain_ledger_tx_find_by_hash(a_net->pub.ledger, &l_in_cond->header.tx_prev_hash) : NULL;
-    dap_chain_tx_out_cond_t *l_out_prev_cond_item = l_prev_tx ? dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
-                                                                                    &l_prev_cond_idx) : NULL;
-
     if(l_out_prev_cond_item && l_out_prev_cond_item->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE)
         return false;
-
-    int l_tx_type = TX_TYPE_NONE;
-    if (l_out_cond_item && !l_out_prev_cond_item)
-        l_tx_type = TX_TYPE_ORDER;
-    else if (l_out_cond_item && l_out_prev_cond_item)
-        l_tx_type = TX_TYPE_EXCHANGE;
-    else if (!l_out_cond_item && l_out_prev_cond_item){
-        dap_chain_datum_tx_t * l_prev_tx_temp = a_tx;
-        byte_t *l_tx_item_temp = NULL;
-        while((l_tx_item_temp = dap_chain_datum_tx_item_get(l_prev_tx_temp, &l_item_idx, TX_ITEM_TYPE_IN_COND , NULL)) != NULL){
-            dap_chain_tx_in_cond_t * l_in_cond_temp = (dap_chain_tx_in_cond_t *) l_tx_item_temp;
-            l_prev_tx_temp = dap_chain_ledger_tx_find_by_hash(a_net->pub.ledger, &l_in_cond_temp->header.tx_prev_hash);
-        }
-
-        dap_chain_tx_sig_t *l_tx_prev_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(l_prev_tx_temp, NULL, TX_ITEM_TYPE_SIG, NULL);
-        dap_sign_t *l_prev_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_prev_sig);
-        dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
-        dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
-
-        bool l_owner = false;
-        l_owner = dap_sign_match_pkey_signs(l_prev_sign,l_sign);
-        if (l_owner)
-            l_tx_type = TX_TYPE_INVALIDATE;
-        else
-            l_tx_type = TX_TYPE_EXCHANGE;
-    }
 
     switch(l_tx_type){
         case TX_TYPE_ORDER:{
@@ -1580,7 +1597,13 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str, dap_chain_
             char *l_amount_datoshi_str = dap_chain_balance_print(l_value_from);
 
             dap_string_append_printf(a_reply_str, "Hash: %s\n", l_tx_hash_str);
-            dap_string_append_printf(a_reply_str, "  Status: %s", l_is_closed ? "inactive" : "active");
+            if(a_print_ts){
+                char l_tmp_buf[70];
+                dap_time_t l_ts_create = (dap_time_t)a_tx->header.ts_created;
+                dap_string_append_printf(a_reply_str, "  ts_created: %s", dap_ctime_r(&l_ts_create, l_tmp_buf));
+            }
+            if( a_print_status)
+                dap_string_append_printf(a_reply_str, "  Status: %s,", l_is_closed ? "inactive" : "active");
             dap_string_append_printf(a_reply_str, "  proposed %s (%s) %s for exchange to %s,", l_amount_str, l_amount_datoshi_str, l_tx_input_ticker, l_out_cond_item->subtype.srv_xchange.buy_token);
             dap_string_append_printf(a_reply_str, "  rate (%s/%s): %s, net: %s", l_out_cond_item->subtype.srv_xchange.buy_token, l_tx_input_ticker, l_rate_str, a_net->pub.name);
 
@@ -1589,6 +1612,7 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str, dap_chain_
             DAP_DELETE(l_amount_datoshi_str);
         } break;
         case TX_TYPE_EXCHANGE:{
+            dap_chain_tx_in_cond_t * l_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_IN_COND , NULL);
             char l_tx_prev_cond_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_hash_fast_to_str(&l_in_cond->header.tx_prev_hash,l_tx_prev_cond_hash_str, sizeof(l_tx_prev_cond_hash_str));
 
@@ -1613,12 +1637,18 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str, dap_chain_
             char *l_buy_ticker = l_out_cond_item ? l_out_cond_item->subtype.srv_xchange.buy_token : l_out_prev_cond_item->subtype.srv_xchange.buy_token;
 
             dap_string_append_printf(a_reply_str, "Hash: %s\n", l_tx_hash_str);
-            dap_string_append_printf(a_reply_str, "  Status: %s,", l_is_closed ? "inactive" : "active");
+            if(a_print_ts){
+                char l_tmp_buf[70];
+                dap_time_t l_ts_create = (dap_time_t)a_tx->header.ts_created;
+                dap_string_append_printf(a_reply_str, "  ts_created: %s", dap_ctime_r(&l_ts_create, l_tmp_buf));
+            }
+            if(a_print_status)
+                dap_string_append_printf(a_reply_str, "  Status: %s,", l_is_closed ? "inactive" : "active");
             dap_string_append_printf(a_reply_str, "  changed %s (%s) %s for %s (%s) %s,", l_value_from_str, l_value_from_datoshi_str, l_tx_input_ticker, l_value_to_str, l_value_to_datoshi_str, l_buy_ticker);
             dap_string_append_printf(a_reply_str, "  rate (%s/%s): %s,", l_buy_ticker, l_tx_input_ticker, l_rate_str);
-            dap_string_append_printf(a_reply_str, "  remain amount %s (%s) %s, net: %s\n", l_amount_str, l_amount_datoshi_str, l_tx_input_ticker, a_net->pub.name);
-            if(a_append_prev_hash)
-                dap_string_append_printf(a_reply_str, "  Prev cond: %s", l_tx_prev_cond_hash_str);
+            dap_string_append_printf(a_reply_str, "  remain amount %s (%s) %s, net: %s", l_amount_str, l_amount_datoshi_str, l_tx_input_ticker, a_net->pub.name);
+            if(a_print_prev_hash)
+                dap_string_append_printf(a_reply_str, "\n  Prev cond: %s", l_tx_prev_cond_hash_str);
 
             DAP_DELETE(l_value_from_str);
             DAP_DELETE(l_value_from_datoshi_str);
@@ -1629,6 +1659,7 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str, dap_chain_
             DAP_DELETE(l_amount_datoshi_str);
         } break;
         case TX_TYPE_INVALIDATE:{
+            dap_chain_tx_in_cond_t * l_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_IN_COND , NULL);
             char l_tx_prev_cond_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_hash_fast_to_str(&l_in_cond->header.tx_prev_hash,l_tx_prev_cond_hash_str, sizeof(l_tx_prev_cond_hash_str));
 
@@ -1636,10 +1667,16 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str, dap_chain_
             char *l_value_from_datoshi_str = dap_chain_balance_print(l_out_prev_cond_item->header.value);
 
             dap_string_append_printf(a_reply_str, "Hash: %s\n", l_tx_hash_str);
-            dap_string_append_printf(a_reply_str, "  Status: inactive,");
-            dap_string_append_printf(a_reply_str, "  returned %s(%s) %s to owner\n", l_value_from_str, l_value_from_datoshi_str, l_tx_input_ticker);
-            if(a_append_prev_hash)
-                dap_string_append_printf(a_reply_str, "  Prev cond: %s", l_tx_prev_cond_hash_str);
+            if(a_print_ts){
+                char l_tmp_buf[70];
+                dap_time_t l_ts_create = (dap_time_t)a_tx->header.ts_created;
+                dap_string_append_printf(a_reply_str, "  ts_created: %s", dap_ctime_r(&l_ts_create, l_tmp_buf));
+            }
+            if (a_print_status)
+                dap_string_append_printf(a_reply_str, "  Status: inactive,");
+            dap_string_append_printf(a_reply_str, "  returned %s(%s) %s to owner", l_value_from_str, l_value_from_datoshi_str, l_tx_input_ticker);
+            if(a_print_prev_hash)
+                dap_string_append_printf(a_reply_str, "\n  Prev cond: %s", l_tx_prev_cond_hash_str);
 
             DAP_DELETE(l_value_from_str);
             DAP_DELETE(l_value_from_datoshi_str);
@@ -1683,7 +1720,7 @@ size_t l_tx_total;
         if ( a_before && (l_datum_tx->header.ts_created > a_before) )
             continue;
 
-        s_string_append_tx_cond_info(l_reply_str, a_net, l_datum_tx, a_opt_status, false);
+        s_string_append_tx_cond_info(l_reply_str, a_net, l_datum_tx, a_opt_status, false, true, false);
     }
     *a_str_reply = dap_string_free(l_reply_str, false);                     /* Free string descriptor, but keep ASCIZ buffer itself */
     return  0;
@@ -2030,7 +2067,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 
                     dap_chain_datum_tx_t *l_datum_tx = (dap_chain_datum_tx_t*) ((dap_chain_datum_t*) l_datum_list->data)->data;
 
-                    if (s_string_append_tx_cond_info(l_reply_str, l_net, l_datum_tx, l_opt_status, false))
+                    if (s_string_append_tx_cond_info(l_reply_str, l_net, l_datum_tx, l_opt_status, false, true, false))
                         l_show_tx_nr++;
                     l_datum_list = dap_list_next(l_datum_list);
                 }
@@ -2118,24 +2155,43 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                     while(l_cur){
                         dap_chain_datum_tx_t * l_tx =(dap_chain_datum_tx_t *) l_cur->data;
                         if(l_tx){
-                            dap_hash_fast_t * l_tx_hash = dap_chain_node_datum_tx_calc_hash(l_tx);
+                            dap_hash_fast_t l_tx_hash = {};
+                            dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
 
                             int l_cond_idx = 0;
-                            dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
-                                                                                                       &l_cond_idx);
-                            if (l_out_cond_item &&
-                                    !dap_chain_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, l_tx_hash, l_cond_idx, NULL)) {
-                                uint256_t l_value_sell = l_out_cond_item->header.value;
-                                l_rate = l_out_cond_item->subtype.srv_xchange.rate;
-                                    if (!IS_ZERO_256(l_value_sell)) {
-                                        if(SUM_256_256(l_rate, l_total_rates, &l_total_rates )!= 0)
-                                            log_it(L_ERROR, "Overflow on avarage price calculation (summing)");
-                                        INCR_256(&l_total_rates_count);
-                                    }else{
-                                        log_it(L_ERROR, "Sell value is 0 in avarage price calculation (summing)");
-                                    }
-                                DAP_DEL_Z(l_tx_hash);
+                            dap_chain_tx_out_cond_t *l_out_cond_item = NULL;
+
+                            if (s_xchange_tx_get_type(l_net, l_tx, &l_out_cond_item, &l_cond_idx, NULL) != TX_TYPE_ORDER){
+                                l_cur = dap_list_next(l_cur);
+                                continue;
                             }
+
+                            const char * l_tx_input_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_net->pub.ledger, &l_tx_hash);
+
+                            if (!l_tx_input_ticker || strcmp(l_tx_input_ticker, l_token_from_str)){
+                                l_cur = dap_list_next(l_cur);
+                                continue;
+                            }
+
+                            if (strcmp(l_out_cond_item->subtype.srv_xchange.buy_token, l_token_to_str)){
+                                l_cur = dap_list_next(l_cur);
+                                continue;
+                            }
+
+                            if (s_tx_check_for_open_close(l_net, l_tx) != 2){
+                                l_cur = dap_list_next(l_cur);
+                                continue;
+                            }
+
+                            uint256_t l_value_sell = l_out_cond_item->header.value;
+                            l_rate = l_out_cond_item->subtype.srv_xchange.rate;
+                                if (!IS_ZERO_256(l_value_sell)) {
+                                    if(SUM_256_256(l_rate, l_total_rates, &l_total_rates )!= 0)
+                                        log_it(L_ERROR, "Overflow on average price calculation (summing)");
+                                    INCR_256(&l_total_rates_count);
+                                }else{
+                                    log_it(L_ERROR, "Sell value is 0 in avarage price calculation (summing)");
+                                }
                         }
                         l_cur = dap_list_next(l_cur);
                     }
@@ -2155,71 +2211,60 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 
                     dap_string_t *l_reply_str = dap_string_new("");
 
-                    dap_chain_datum_tx_spends_items_t * l_tx_spends = dap_chain_net_get_tx_cond_all_with_spends_by_srv_uid(l_net, c_dap_chain_net_srv_xchange_uid,
-                            l_time_from,l_time_to,TX_SEARCH_TYPE_NET);
+                    //dap_list_t *l_tx_cond_list = dap_chain_net_get_tx_cond_all_by_srv_uid(l_net, c_dap_chain_net_srv_xchange_uid,
+                      //                                                                    l_time_from,l_time_to,TX_SEARCH_TYPE_NET );
 
+                    dap_time_t l_time[2];
+                    l_time[0] = l_time_from;
+                    l_time[1] = l_time_to;
 
-                    dap_chain_datum_tx_spends_item_t * l_cur = NULL, *l_tmp = NULL;
-                    HASH_ITER(hh, l_tx_spends->tx_outs, l_cur,l_tmp) {
-                        dap_chain_datum_tx_t * l_tx =l_cur->tx;
+                    // Find transactions using filter function s_filter_tx_list()
+                    dap_list_t *l_datum_list0 = dap_chain_datum_list(l_net, NULL, s_filter_tx_list, l_time);
+                    size_t l_datum_num = dap_list_length(l_datum_list0);
+
+                    if (l_datum_num == 0){
+                        dap_cli_server_cmd_set_reply_text(a_str_reply,"Can't find transactions");
+                        return -6;
+                    }
+
+                    dap_list_t * l_cur = l_datum_list0;
+                    while(l_cur){
+                        dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*) ((dap_chain_datum_t*) l_cur->data)->data;
                         if(l_tx){
-                            dap_hash_fast_t * l_tx_hash = &l_cur->tx_hash;
+                            dap_hash_fast_t l_tx_hash = {};
+                            dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
 
-                            // Get input token ticker
-                            const char * l_tx_input_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(
-                                        l_net->pub.ledger, l_tx_hash);
+                            const char * l_tx_input_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_net->pub.ledger, &l_tx_hash);
 
-                            // Check if output is spent
-                            dap_chain_tx_out_cond_t *l_out_cond_item = l_cur->out_cond;
-                            if(l_out_cond_item && l_cur->tx_next) {
-
-                                // Print tx_hash
-                                char * l_tx_hash_str = dap_chain_hash_fast_to_str_new(l_tx_hash);
-                                dap_string_append_printf(l_reply_str,"Tx hash: %s\n", l_tx_hash_str ? l_tx_hash_str : "(null)");
-                                DAP_DEL_Z(l_tx_hash_str);
-
-                                // Print tx_created
-                                char l_tx_ts_str[92] = {0};
-                                struct tm l_tm={0};                                             /* Convert ts to  Sat May 17 01:17:08 2014 */
-                                uint64_t l_ts = l_tx->header.ts_created; // We take the next tx in chain to print close time, not the open one
-                                if ( (localtime_r((time_t *) &l_ts, &l_tm )) )
-                                    asctime_r (&l_tm, l_tx_ts_str);
-
-                                dap_string_append_printf(l_reply_str,"\tts_created: %s", l_tx_ts_str);
-
-                                // Print tx_closed
-                                memset(l_tx_ts_str,0,sizeof(l_tx_ts_str));
-                                memset(&l_tm,0,sizeof(l_tm));                                             /* Convert ts to  Sat May 17 01:17:08 2014 */
-                                l_ts = l_cur->tx_next->header.ts_created; // We take the next tx in chain to print close time, not the open one
-                                if ( (localtime_r((time_t *) &l_ts, &l_tm )) )
-                                    asctime_r (&l_tm, l_tx_ts_str);
-
-                                dap_string_append_printf(l_reply_str,"\tts_closed: %s", l_tx_ts_str);
-
-                                // Print value_from/value_to
-
-                                uint256_t l_value_from = l_out_cond_item->header.value;
-                                uint256_t l_rate = l_out_cond_item->subtype.srv_xchange.rate;
-                                uint256_t l_value_to = {};
-                                MULT_256_COIN(l_value_from, l_rate, &l_value_to);
-
-                                char * l_value_from_str = dap_chain_balance_to_coins(l_value_from);
-                                char * l_value_to_str = dap_chain_balance_to_coins(l_value_to);
-                                char *l_rate_str = dap_chain_balance_to_coins(l_rate);
-
-                                dap_string_append_printf(l_reply_str, "  From: %s %s   ", l_value_from_str, l_tx_input_ticker);
-                                dap_string_append_printf(l_reply_str, "  To: %s %s   ", l_value_to_str, l_out_cond_item->subtype.srv_xchange.buy_token );
-                                dap_string_append_printf(l_reply_str, "  Price: %s", l_rate_str);
-                                DAP_DELETE(l_value_from_str);
-                                DAP_DELETE(l_value_to_str);
-                                DAP_DELETE(l_rate_str);
-                                // Delimiter between tx
-                                dap_string_append_printf(l_reply_str,"\n\n");
+                            if (!l_tx_input_ticker || strcmp(l_tx_input_ticker, l_token_from_str)){
+                                l_cur = dap_list_next(l_cur);
+                                continue;
                             }
 
+                            dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
+                                                                                                       NULL);
+                            if(!l_out_cond_item){
+                                int l_item_idx = 0;
+                                byte_t *l_tx_item = dap_chain_datum_tx_item_get(l_tx, &l_item_idx, TX_ITEM_TYPE_IN_COND , NULL);
+                                dap_chain_tx_in_cond_t * l_in_cond = l_tx_item ? (dap_chain_tx_in_cond_t *) l_tx_item : NULL;
+                                int l_prev_cond_idx = 0;
+                                dap_chain_datum_tx_t * l_prev_tx = l_in_cond ? dap_chain_ledger_tx_find_by_hash(l_net->pub.ledger, &l_in_cond->header.tx_prev_hash) : NULL;
+                                dap_chain_tx_out_cond_t *l_out_prev_cond_item = l_prev_tx ? dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
+                                                                                                                            &l_prev_cond_idx) : NULL;
+
+                                if (!l_out_prev_cond_item || strcmp(l_out_prev_cond_item->subtype.srv_xchange.buy_token, l_token_to_str)){
+                                    l_cur = dap_list_next(l_cur);
+                                    continue;
+                                }
+                            } else if (strcmp(l_out_cond_item->subtype.srv_xchange.buy_token, l_token_to_str)){
+                                l_cur = dap_list_next(l_cur);
+                                continue;
+                            }
+
+                            s_string_append_tx_cond_info(l_reply_str, l_net, l_tx, TX_STATUS_ALL, false, false, true);
                         }
+                        l_cur = dap_list_next(l_cur);
                     }
-                    dap_chain_datum_tx_spends_items_free(l_tx_spends);
 
                     *a_str_reply = dap_string_free(l_reply_str, false);
                     break;
