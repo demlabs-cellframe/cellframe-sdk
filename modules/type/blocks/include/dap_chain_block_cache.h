@@ -35,6 +35,7 @@ typedef struct dap_chain_block_cache {
     dap_chain_hash_fast_t block_hash;
     char* block_hash_str;
     size_t block_size;
+    uint64_t block_number;
 
     // Local platform values representation
     time_t ts_created;
@@ -44,24 +45,19 @@ typedef struct dap_chain_block_cache {
     dap_chain_datum_t ** datum;
     dap_hash_fast_t *datum_hash;
 
-    // Block's metadatas
-    size_t meta_count;
-    dap_chain_block_meta_t** meta;
-
     // Extracted metadata
     dap_chain_hash_fast_t prev_hash;
     dap_chain_hash_fast_t anchor_hash;
     dap_chain_hash_fast_t merkle_root;
     dap_chain_hash_fast_t* links_hash;
     size_t links_hash_count;
-
     uint64_t nonce;
     uint64_t nonce2;
     bool is_genesis;
 
     // Block's signatures
     size_t sign_count; // Number of signatures in block's tail
-    dap_sign_t ** sign; // Pointer to signatures in block
+    //dap_sign_t **sign; // Pointer to signatures in block
 
     // Pointer to block itself
     dap_chain_block_t * block;
@@ -69,9 +65,6 @@ typedef struct dap_chain_block_cache {
     // Links to prev and next block
     struct dap_chain_block_cache * prev;
     struct dap_chain_block_cache * next;
-
-    // Inhertied nested data
-    void * _inheritor;
 
     // uthash handle
     UT_hash_handle hh;
@@ -81,8 +74,8 @@ int dap_chain_block_cache_init();
 void dap_chain_block_cache_deinit();
 
 
-dap_chain_block_cache_t *dap_chain_block_cache_new(dap_chain_cs_blocks_t *a_blocks, dap_hash_fast_t *a_block_hash,
-                                                   dap_chain_block_t *a_block, size_t a_block_size);
+dap_chain_block_cache_t *dap_chain_block_cache_new(dap_hash_fast_t *a_block_hash, dap_chain_block_t *a_block,
+                                                   size_t a_block_size, uint64_t a_block_number);
 dap_chain_block_cache_t *dap_chain_block_cache_dup(dap_chain_block_cache_t *a_block);
 int dap_chain_block_cache_update(dap_chain_block_cache_t *a_block_cache, dap_hash_fast_t *a_block_hash);
 void dap_chain_block_cache_delete(dap_chain_block_cache_t *a_block_cache);

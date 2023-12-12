@@ -38,5 +38,5 @@ typedef struct dap_chain_tx_in_cond {
         dap_chain_hash_fast_t tx_prev_hash; /// @param tx_prev_hash    @brief Hash of the previous transaction. 0 for generation TX
         uint32_t tx_out_prev_idx; ///      @param   tx_prev_idx     @brief Previous tx_out index. 0 for generation TX
         uint32_t receipt_idx;
-    } header; /// Only header's hash is used for verification
-}DAP_ALIGN_PACKED dap_chain_tx_in_cond_t;
+    } header;
+} DAP_ALIGN_PACKED dap_chain_tx_in_cond_t;

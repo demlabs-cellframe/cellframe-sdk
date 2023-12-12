@@ -29,7 +29,6 @@ typedef struct decree_params {
     dap_list_t *pkeys;
     uint16_t num_of_owners;
     uint16_t min_num_of_owners;
-    dap_chain_addr_t *fee_addr;
 }   dap_chain_net_decree_t;
 
 int dap_chain_net_decree_init(dap_chain_net_t *a_net);
