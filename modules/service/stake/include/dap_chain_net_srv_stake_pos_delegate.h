@@ -39,6 +39,8 @@ typedef struct dap_chain_net_srv_stake_item {
     dap_chain_addr_t signing_addr;
     dap_chain_hash_fast_t tx_hash;
     dap_chain_node_addr_t node_addr;
+    dap_chain_addr_t sovereign_addr;
+    uint256_t sovereign_tax;
     UT_hash_handle hh, ht;
 } dap_chain_net_srv_stake_item_t;
 
