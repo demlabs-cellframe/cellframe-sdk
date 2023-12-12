@@ -811,11 +811,13 @@ static void s_add_grace_data_to_gdb(const dap_chain_net_srv_grace_t *a_grace)
         log_it(L_ERROR, "Wrong srv client_statistic size in GDB. Expecting %zu, getted %zu", sizeof(client_statistic_value_t), l_value_size);
         DAP_DEL_Z(l_str_key);
         DAP_DEL_Z(l_bin_value);
+        return;
     }
     if (l_bin_value) {
         l_bin_value_new = *l_bin_value;
     }
     l_bin_value_new.grace_using_count += 1;
+    l_bin_value_new.grace_using_time += a_grace->usage->service->grace_period;
     dap_global_db_set(SRV_STATISTIC_GDB_GROUP, l_str_key, &l_bin_value_new, sizeof(client_statistic_value_t), false, NULL, NULL);
     DAP_DEL_Z(l_str_key);
     DAP_DEL_Z(l_bin_value);
