@@ -352,6 +352,35 @@ static int node_info_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
         dap_cli_server_cmd_set_reply_text(a_str_reply, "alias not found");
         return -1;
     }
+    size_t l_nodes_count = 0;
+    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes, &l_nodes_count);
+    if(l_nodes_count && l_objs)
+    {
+        for (size_t i = 0; i < l_nodes_count; i++) {
+            dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t*)l_objs[i].value;
+            if (!dap_chain_node_addr_not_null(&l_node_info->hdr.address)){
+                log_it(L_ERROR, "Node address is NULL");
+                continue;
+            }
+            if(l_node_info->hdr.address.uint64 == address->uint64)
+            {
+                if(l_node_info->hdr.owner_address.uint64 != l_cur_addr)
+                {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Your node is not pinner");
+                    return -1;
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
+    }
+    else {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "can't find node in gdb");
+        return -1;
+    }
+
     char *a_key = dap_chain_node_addr_to_hash_str(address);
     if(a_key){
         // delete node
