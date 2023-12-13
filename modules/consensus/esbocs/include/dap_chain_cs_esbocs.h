@@ -192,3 +192,5 @@ bool dap_chain_esbocs_started();
 
 void dap_chain_esbocs_stop_timer(dap_chain_net_id_t a_net_id);
 void dap_chain_esbocs_start_timer(dap_chain_net_id_t a_net_id);
+dap_pkey_t *dap_chain_esbocs_get_sign_pkey(dap_chain_net_id_t a_net_id);
+uint256_t dap_chain_esbocs_get_fee(dap_chain_net_id_t a_net_id);
