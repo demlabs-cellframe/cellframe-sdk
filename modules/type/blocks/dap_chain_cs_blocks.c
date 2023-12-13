@@ -180,7 +180,7 @@ int dap_chain_cs_blocks_init()
         "Commission collect:\n"
             "block -net <net_name> -chain <chain_name> fee collect"
             " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value>\n"
-                "\t\t Take the whole commission\n\n"
+                "\t\t Take delegated part of commission\n\n"
 
         "Reward for block signs:\n"
             "block -net <net_name> -chain <chain_name> reward set"
@@ -193,7 +193,7 @@ int dap_chain_cs_blocks_init()
 
             "block -net <net_name> -chain <chain_name> reward collect"
             " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value>\n"
-                "\t\t Take reward\n\n"
+                "\t\t Take delegated part of reward\n\n"
 
         "Rewards and comission autocollect status:\n"
             "block -net <net_name> -chain <chain_name> autocollect status\n\n"
