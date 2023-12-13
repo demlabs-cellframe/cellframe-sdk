@@ -357,7 +357,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
             dap_chain_addr_t l_sender_addr;
             dap_chain_addr_fill_from_sign(&l_sender_addr, l_sign_tmp, a_net_id);
             const char *l_addr_str = dap_chain_addr_to_str(&l_sender_addr);
-            dap_string_append_printf(a_str_out, "\tSender addr: %s", l_addr_str);
+            dap_string_append_printf(a_str_out, "\tSender addr: %s\n", l_addr_str);
             DAP_DELETE(l_addr_str);
         } break;
         case TX_ITEM_TYPE_RECEIPT: {

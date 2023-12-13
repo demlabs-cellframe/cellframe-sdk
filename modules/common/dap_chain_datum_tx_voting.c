@@ -41,13 +41,15 @@ dap_chain_datum_tx_voting_params_t* dap_chain_voting_parse_tsd(dap_chain_datum_t
         dap_tsd_t *l_tsd = (dap_tsd_t *)((dap_chain_tx_tsd_t*)l_temp->data)->tsd;
         switch(l_tsd->type){
         case VOTING_TSD_TYPE_QUESTION:
-            l_buf_string = DAP_NEW_Z_SIZE(char, l_tsd->size);
+            l_buf_string = DAP_NEW_Z_SIZE(char, l_tsd->size + 1);
             memcpy(l_buf_string, l_tsd->data, l_tsd->size);
+            l_buf_string[l_tsd->size] = '\0';
             l_voting_parms->voting_question = l_buf_string;
             break;
         case VOTING_TSD_TYPE_ANSWER:
-            l_buf_string = DAP_NEW_Z_SIZE(char, l_tsd->size);
+            l_buf_string = DAP_NEW_Z_SIZE(char, l_tsd->size + 1);
             memcpy(l_buf_string, l_tsd->data, l_tsd->size);
+            l_buf_string[l_tsd->size] = '\0';
             l_voting_parms->answers_list = dap_list_append(l_voting_parms->answers_list, l_buf_string);
             l_voting_parms->answers_count++;
             break;
