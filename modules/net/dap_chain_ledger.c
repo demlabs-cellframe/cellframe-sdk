@@ -3733,6 +3733,8 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
             }
             l_bound_item->token_item = l_token_item;
             l_bound_item->reward_key = l_search_key;
+            // Overflow checked later with overall values sum
+            SUM_256_256(l_taxed_value, l_value, &l_taxed_value);
         } break;
 
         case TX_ITEM_TYPE_IN:
