@@ -108,7 +108,7 @@ int dap_chain_net_srv_xchange_init()
          "\tShows transaction history for the selected order\n"
     "srv_xchange order status -net <net_name> -order <order_hash>"
          "\tShows current amount of unselled coins from the selected order and percentage of its completion\n"
-    "srv_xchange orders -net <net_name> [-status {opened|closed|all}]\n"
+    "srv_xchange orders -net <net_name> [-status {opened|closed|all}] [-token_from <token_ticker>] [-token_to <token_ticker>]\n"
          "\tGet the exchange orders list within specified net name\n"
 
     "srv_xchange purchase -order <order hash> -net <net_name> -w <wallet_name> -value <value> -fee <value>\n"
@@ -1820,6 +1820,27 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                 }
             }
 
+            const char * l_token_from_str = NULL;
+            const char * l_token_to_str = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-token_from", &l_token_from_str);
+            if(l_token_from_str){
+                dap_chain_datum_token_t * l_token_from_datum = dap_ledger_token_ticker_check( l_net->pub.ledger, l_token_from_str);
+                if(!l_token_from_datum){
+                    dap_cli_server_cmd_set_reply_text(a_str_reply,"Can't find \"%s\" token in network \"%s\" for argument '-token_from' ", l_token_from_str, l_net->pub.name);
+                    return -6;
+                }
+            }
+
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-token_to", &l_token_to_str);
+            if(l_token_to_str){
+                dap_chain_datum_token_t * l_token_to_datum = dap_ledger_token_ticker_check( l_net->pub.ledger, l_token_to_str);
+                if(!l_token_to_datum){
+                    dap_cli_server_cmd_set_reply_text(a_str_reply,"Can't find \"%s\" token in network \"%s\" for argument '-token_to' ", l_token_to_str, l_net->pub.name);
+                    return -6;
+                }
+            }
+
+
             // Print all txs
             dap_list_t *l_temp = l_arg.tx_list;
             while(l_temp)
@@ -1837,6 +1858,16 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                 l_price = s_xchange_price_from_order(l_net, l_tx, NULL, true);
                 if( !l_price ){
                     log_it(L_WARNING,"Can't create price from order");
+                    l_temp = l_temp->next;
+                    continue;
+                }
+
+                if(l_token_from_str && strcmp(l_price->token_sell, l_token_from_str)){
+                    l_temp = l_temp->next;
+                    continue;
+                }
+
+                if(l_token_to_str && strcmp(l_price->token_buy, l_token_to_str)){
                     l_temp = l_temp->next;
                     continue;
                 }
@@ -2117,7 +2148,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                     return -6;
                 }
 
-                // Check for token2
+                // Check for token_to
                 const char * l_token_to_str = NULL;
                 dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-token_to", &l_token_to_str);
                 if(!l_token_to_str){
@@ -2126,7 +2157,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                 }
                 dap_chain_datum_token_t * l_token_to_datum = dap_ledger_token_ticker_check( l_net->pub.ledger, l_token_to_str);
                 if(!l_token_to_datum){
-                    dap_cli_server_cmd_set_reply_text(a_str_reply,"Can't find \"%s\" token in network \"%s\" for argument '-token2' ", l_token_to_str, l_net->pub.name);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply,"Can't find \"%s\" token in network \"%s\" for argument '-token_to' ", l_token_to_str, l_net->pub.name);
                     return -6;
                 }
 
