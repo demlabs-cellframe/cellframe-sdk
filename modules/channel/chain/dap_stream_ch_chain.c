@@ -1911,7 +1911,9 @@ void s_stream_ch_packet_out(dap_stream_ch_t *a_ch, void *a_arg)
                                                      l_ch_chain->request_hdr.cell_id.uint64,
                                                      &l_request, sizeof(dap_stream_ch_chain_sync_request_t));
                 l_go_idle = true;
+#ifndef DAP_EVENTS_CAPS_IOCP
                 dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
+#endif
             }
             DAP_DELETE(l_data);
         }break;
