@@ -51,7 +51,7 @@ int dap_chain_net_srv_datum_init()
         return -1;
     }
     s_srv_datum->uid.uint64 = DAP_CHAIN_NET_SRV_DATUM_ID;
-    dap_chain_net_srv_price_apply_from_my_order(s_srv_datum, "srv_datum");
+//    dap_chain_net_srv_price_apply_from_my_order(s_srv_datum, "srv_datum");
     dap_chain_net_srv_price_t *l_price;
     DL_FOREACH(s_srv_datum->pricelist, l_price) {
         dap_chain_net_t *l_net = l_price->net;
@@ -252,7 +252,7 @@ void s_order_notficator(dap_global_db_context_t *a_context, dap_store_obj_t *a_o
     if (l_datum)
         l_tx_cond = (dap_chain_datum_tx_t *)l_datum->data;
     else
-        l_tx_cond = dap_chain_ledger_tx_find_by_hash(l_net->pub.ledger, &l_order->tx_cond_hash);
+        l_tx_cond = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_order->tx_cond_hash);
     if (!l_tx_cond) {
         log_it(L_DEBUG, "Invalid tx cond datum hash");
         return;

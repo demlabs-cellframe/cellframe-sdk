@@ -12,6 +12,7 @@
 
 #define DAP_STREAM_CH_CHAIN_VOTING_PKT_TYPE_DATA        0x01
 #define DAP_STREAM_CH_CHAIN_VOTING_PKT_TYPE_TEST        0x02
+#define DAP_STREAM_CH_CHAIN_VOTING_PKT_TYPE_ERROR       0xFF
 
 #define DAP_STREAM_CH_ID_VOTING 'V'
 
@@ -66,5 +67,5 @@ size_t dap_stream_ch_chain_voting_pkt_write_unsafe(dap_stream_ch_t *a_ch, uint8_
 
 int dap_stream_ch_chain_voting_init();
 void dap_stream_ch_chain_voting_deinit();
-
+void dap_stream_ch_chain_voting_close_all_clients(dap_chain_net_id_t a_net_id);
 void dap_stream_ch_voting_queue_clear();
