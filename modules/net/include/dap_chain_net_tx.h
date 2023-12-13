@@ -24,6 +24,7 @@
 #pragma once
 
 #include "dap_chain_net.h"
+#include "dap_chain_datum_tx_items.h"
 
 typedef enum dap_chain_net_tx_search_type {
     /// Search local, in memory, possible load data from drive to memory
@@ -88,4 +89,4 @@ void dap_chain_datum_tx_spends_item_free(dap_chain_datum_tx_spends_item_t * a_it
 void dap_chain_datum_tx_spends_items_free(dap_chain_datum_tx_spends_items_t * a_items);
 
 bool dap_chain_net_tx_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a_value, dap_chain_addr_t *a_addr);
-bool dap_chain_net_tx_add_fee(dap_chain_net_id_t a_net_id, uint256_t a_value, dap_chain_addr_t a_addr);
+bool dap_chain_net_tx_set_fee(dap_chain_net_id_t a_net_id, uint256_t a_value, dap_chain_addr_t a_addr);
