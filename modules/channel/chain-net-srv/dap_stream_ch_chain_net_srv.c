@@ -63,13 +63,19 @@ typedef struct client_statistic_key{
 
 // client statistic value struct
 typedef struct client_statistic_value{
-    uint64_t all_using_time;
-    uint64_t all_using_units;
-    uint64_t grace_using_time;
-    uint64_t grace_using_units;
-    uint64_t not_payed_value;
-    uint64_t all_payed_value;
-    uint64_t grace_using_count;
+    struct {
+        uint64_t using_time;
+        uint64_t datoshi_value;
+        uint64_t bytes_received;
+        uint64_t bytes_sent;
+    } payed;
+    struct {
+        uint64_t using_time;
+        uint64_t datoshi_value;
+        uint64_t bytes_received;
+        uint64_t bytes_sent;
+        uint64_t using_count;
+    } grace;
 } client_statistic_value_t;
 
 static void s_stream_ch_new(dap_stream_ch_t* ch , void* arg);
@@ -548,7 +554,7 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
             dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
                                                                                   l_success_size);
             if(!l_success) {
-                log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
+                log_it(L_CRITICAL, "Memory allocation error");
                 l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR;
                 if(l_ch)
                     dap_stream_ch_pkt_write_unsafe(l_ch, DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR, &l_err, sizeof (l_err));
@@ -729,23 +735,19 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
                 l_remain_service->remain_units_type.enm == l_tx_out_cond->subtype.srv_pay.unit.enm*/){
                 // Accept connection, set limits and start service
                 dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) a_grace->usage->client->ch->stream->session->_inheritor;
-                char *l_unit_type_str = NULL;
                 switch(l_tx_out_cond->subtype.srv_pay.unit.enm){
                     case SERV_UNIT_SEC:
                     case SERV_UNIT_DAY:
-                        l_unit_type_str = dap_strdup_printf(dap_chain_srv_unit_enum_to_str(l_tx_out_cond->subtype.srv_pay.unit.enm));
                         l_srv_session->limits_ts = l_remain_service->limits_ts;
                         break;
                     case SERV_UNIT_B:
                     case SERV_UNIT_KB:
                     case SERV_UNIT_MB:
-                        l_unit_type_str = dap_strdup_printf(dap_chain_srv_unit_enum_to_str(l_tx_out_cond->subtype.srv_pay.unit.enm));
                         l_srv_session->limits_bytes = l_remain_service->limits_bytes;
                         break;
                 }
 
-                log_it(L_INFO, "User has %ld %s remain service. Start service without paying.", l_remain_service->limits_ts ? l_remain_service->limits_ts : l_remain_service->limits_bytes, l_unit_type_str);
-                DAP_DELETE(l_unit_type_str);
+                log_it(L_INFO, "User has %ld %s remain service. Start service without paying.", l_remain_service->limits_ts ? l_remain_service->limits_ts : l_remain_service->limits_bytes, dap_chain_srv_unit_enum_to_str(l_tx_out_cond->subtype.srv_pay.unit.enm));
 
                 size_t l_success_size = sizeof (dap_stream_ch_chain_net_srv_pkt_success_hdr_t );
                 dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
@@ -795,16 +797,16 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
 
     return true;
 }
-static void s_add_grace_data_to_gdb(const dap_chain_net_srv_grace_t *a_grace)
+static void s_add_usage_data_to_gdb(const dap_chain_net_srv_usage_t *a_usage)
 {
 // sanity check
-    dap_return_if_pass(!a_grace);
+    dap_return_if_pass(!a_usage);
 // func work
     client_statistic_key_t l_bin_key;
     client_statistic_value_t l_bin_value_new = {0};
     size_t l_value_size = 0;
-    l_bin_key.srv_uid = a_grace->usage->service->uid;
-    l_bin_key.client_pkey_hash = a_grace->usage->client_pkey_hash;
+    l_bin_key.srv_uid = a_usage->service->uid;
+    l_bin_key.client_pkey_hash = a_usage->client_pkey_hash;
     char *l_str_key = dap_enc_base58_encode_to_str(&l_bin_key, sizeof(client_statistic_key_t));
     client_statistic_value_t *l_bin_value = (client_statistic_value_t *)dap_global_db_get_sync(SRV_STATISTIC_GDB_GROUP, l_str_key, &l_value_size, NULL, NULL);
     if (l_bin_value && l_value_size != sizeof(client_statistic_value_t)) {
@@ -816,8 +818,16 @@ static void s_add_grace_data_to_gdb(const dap_chain_net_srv_grace_t *a_grace)
     if (l_bin_value) {
         l_bin_value_new = *l_bin_value;
     }
-    l_bin_value_new.grace_using_count += 1;
-    l_bin_value_new.grace_using_time += dap_time_now() - a_grace->usage->ts_created;
+    if (a_usage->is_grace) {
+        l_bin_value_new.grace.using_count += 1;
+        l_bin_value_new.grace.using_time += dap_time_now() - a_usage->ts_created;
+        l_bin_value_new.grace.bytes_received = a_usage->client->bytes_received;
+        l_bin_value_new.grace.bytes_sent = a_usage->client->bytes_sent;
+    } else {
+        l_bin_value_new.payed.using_time += dap_time_now() - a_usage->ts_created;
+        l_bin_value_new.payed.bytes_received = a_usage->client->bytes_received;
+        l_bin_value_new.payed.bytes_sent = a_usage->client->bytes_sent;
+    }
     dap_global_db_set(SRV_STATISTIC_GDB_GROUP, l_str_key, &l_bin_value_new, sizeof(client_statistic_value_t), false, NULL, NULL);
     DAP_DEL_Z(l_str_key);
     DAP_DEL_Z(l_bin_value);
@@ -833,9 +843,9 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
 
 #define RET_WITH_DEL_A_GRACE(error) do \
     {\
-        s_add_grace_data_to_gdb(l_grace); \
+        s_add_usage_data_to_gdb(l_grace->usage); \
         if (error) { \
-            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_NO_LEDGER ; \
+            l_err.code = error ; \
             s_grace_error(l_grace, l_err); \
         } \
         HASH_DEL(s_grace_table, a_grace_item); \
@@ -1000,23 +1010,18 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
                 l_remain_service->remain_units_type.enm == l_tx_out_cond->subtype.srv_pay.unit.enm*/){
                 // Accept connection, set limits and start service
                 dap_chain_net_srv_stream_session_t * l_srv_session = (dap_chain_net_srv_stream_session_t *) l_grace->usage->client->ch->stream->session->_inheritor;
-                char *l_unit_type_str = NULL;
                 switch(l_tx_out_cond->subtype.srv_pay.unit.enm){
                     case SERV_UNIT_SEC:
                     case SERV_UNIT_DAY:
-                        l_unit_type_str = dap_strdup_printf(dap_chain_srv_unit_enum_to_str(l_tx_out_cond->subtype.srv_pay.unit.enm));
                         l_srv_session->limits_ts = l_remain_service->limits_ts;
                         break;
                     case SERV_UNIT_B:
                     case SERV_UNIT_KB:
                     case SERV_UNIT_MB:
-                        l_unit_type_str = dap_strdup_printf(dap_chain_srv_unit_enum_to_str(l_tx_out_cond->subtype.srv_pay.unit.enm));
                         l_srv_session->limits_bytes = l_remain_service->limits_bytes;
                         break;
                 }
-
-                log_it(L_INFO, "User has %ld %s remain service. Start service without paying.", l_remain_service->limits_ts ? l_remain_service->limits_ts : l_remain_service->limits_bytes, l_unit_type_str);
-                DAP_DELETE(l_unit_type_str);
+                log_it(L_INFO, "User has %ld %s remain service. Start service without paying.", l_remain_service->limits_ts ? l_remain_service->limits_ts : l_remain_service->limits_bytes, dap_chain_srv_unit_enum_to_str(l_tx_out_cond->subtype.srv_pay.unit.enm));
 
                 size_t l_success_size = sizeof (dap_stream_ch_chain_net_srv_pkt_success_hdr_t );
                 dap_stream_ch_chain_net_srv_pkt_success_t *l_success = DAP_NEW_Z_SIZE(dap_stream_ch_chain_net_srv_pkt_success_t,
