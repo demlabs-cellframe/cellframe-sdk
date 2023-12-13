@@ -4199,12 +4199,11 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
     }
 
     // 8. Check sovereign tax
-    if (l_fee_check && SUBTRACT_256_256(l_taxed_value, l_fee_value, &l_taxed_value)) {
+    if (l_fee_check && SUBTRACT_256_256(l_taxed_value, l_fee_sum, &l_taxed_value)) {
         log_it(L_WARNING, "Fee is greater than sum of inputs");
         l_err_num = -89;
-        break;
     }
-    if (l_tax_check) {
+    if (l_tax_check && !l_err_num) {
         uint256_t l_expected_tax = {};
         MULT_256_COIN(l_taxed_value, l_key_item->sovereign_tax, &l_expected_tax);
         if (compare256(l_tax_sum, l_expected_tax) == -1) {

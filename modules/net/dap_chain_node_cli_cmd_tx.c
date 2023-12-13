@@ -303,7 +303,7 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
                 dap_chain_tx_in_ems_t *l_tx_in_ems = (dap_chain_tx_in_ems_t *)it->data;
                 l_base_tx = true;
                 l_noaddr_token = l_tx_in_ems->header.ticker;
-            }
+            } break;
             case TX_ITEM_TYPE_IN_REWARD: {
                 l_base_tx = l_reward_collect = true;
                 l_noaddr_token = l_native_ticker;
