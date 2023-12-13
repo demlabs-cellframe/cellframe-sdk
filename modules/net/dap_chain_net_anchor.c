@@ -28,6 +28,7 @@
 #include "dap_cert.h"
 #include "dap_pkey.h"
 #include "dap_chain_common.h"
+#include "dap_chain_ledger.h"
 #include "dap_chain_net.h"
 #include "dap_chain_datum_decree.h"
 

@@ -42,6 +42,7 @@
 #include "dap_chain_datum_tx_in_ems.h"
 #include "dap_chain_datum_tx_receipt.h"
 #include "dap_chain_datum_tx_tsd.h"
+#include "dap_chain_datum_tx_in_reward.h"
 
 /**
  * Get item type
@@ -71,13 +72,11 @@ DAP_STATIC_INLINE const char * dap_chain_datum_tx_item_type_to_str(dap_chain_tx_
         case TX_ITEM_TYPE_PKEY: return "TX_ITEM_TYPE_PKEY";
         case TX_ITEM_TYPE_SIG: return "TX_ITEM_TYPE_SIG";
         case TX_ITEM_TYPE_IN_EMS: return "TX_ITEM_TYPE_IN_EMS";
-        case TX_ITEM_TYPE_IN_EMS_EXT: return "TX_ITEM_TYPE_IN_EMS_EXT";
+        case TX_ITEM_TYPE_IN_REWARD: return "TX_ITEM_TYPE_IN_REWARD";
         case TX_ITEM_TYPE_IN_COND: return "TX_ITEM_TYPE_IN_COND";
         case TX_ITEM_TYPE_OUT_COND: return "TX_ITEM_TYPE_OUT_COND"; // 256
         case TX_ITEM_TYPE_RECEIPT: return "TX_ITEM_TYPE_RECEIPT";
         case TX_ITEM_TYPE_TSD: return "TX_ITEM_TYPE_TSD";
-        case TX_ITEM_TYPE_OUT_ALL: return "TX_ITEM_TYPE_OUT_OLDALL";
-        case TX_ITEM_TYPE_ANY: return "TX_ITEM_TYPE_ANY";
         default: return "UNDEFINED";
     }
 }
@@ -118,6 +117,8 @@ json_object *dap_chain_datum_tx_item_in_ems_to_json(const dap_chain_tx_in_ems_t 
  * return item, NULL Error
  */
 dap_chain_tx_in_t* dap_chain_datum_tx_item_in_create(dap_chain_hash_fast_t *a_tx_prev_hash, uint32_t a_tx_out_prev_idx);
+
+dap_chain_tx_in_reward_t *dap_chain_datum_tx_item_in_reward_create(dap_chain_hash_fast_t *a_block_hash);
 
 json_object* dap_chain_datum_tx_item_in_to_json(dap_chain_tx_in_t *a_in);
 
