@@ -65,21 +65,20 @@ typedef struct client_statistic_key{
 typedef struct client_statistic_value{
     struct {
         uint64_t using_time;
-        uint64_t datoshi_value;
+        uint256_t datoshi_value;
         uint64_t bytes_received;
         uint64_t bytes_sent;
         uint64_t units;
     } payed;
     struct {
         uint64_t using_time;
-        uint64_t datoshi_value;
         uint64_t bytes_received;
         uint64_t bytes_sent;
         uint64_t units;
     } free;
     struct {
         uint64_t using_time;
-        uint64_t datoshi_value;
+        uint256_t datoshi_value;
         uint64_t bytes_received;
         uint64_t bytes_sent;
         uint64_t units;
@@ -810,6 +809,35 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
 
     return true;
 }
+
+static uint256_t s_calc_datoshi(const dap_chain_net_srv_usage_t *a_usage, uint256_t a_prev)
+{
+    uint256_t l_ret = {0};
+    uint256_t l_datosi_used = {0};
+    uint64_t l_used = 0;
+    dap_return_val_if_pass(!a_usage, l_ret);
+    switch(a_usage->service->pricelist->units_uid.enm){
+        case SERV_UNIT_SEC:
+            l_used = dap_time_now() - a_usage->ts_created;
+            break;
+        case SERV_UNIT_DAY:
+            l_used = (dap_time_now() - a_usage->ts_created) / (24 * 3600);
+            break;
+        case SERV_UNIT_B:
+            l_used = a_usage->client->bytes_received + a_usage->client->bytes_sent;
+            break;
+        case SERV_UNIT_KB:
+            l_used = (a_usage->client->bytes_received + a_usage->client->bytes_sent) / 1024;
+            break;
+        case SERV_UNIT_MB:
+            l_used = (a_usage->client->bytes_received + a_usage->client->bytes_sent) / (1024 * 1024);
+            break;
+    }
+    MULT_256_256(a_usage->service->pricelist->value_datoshi, GET_256_FROM_64(l_used / a_usage->service->pricelist->units), &l_datosi_used);
+    SUM_256_256(a_prev, l_datosi_used, &l_ret);
+    return l_ret;
+}
+
 static void s_add_usage_data_to_gdb(const dap_chain_net_srv_usage_t *a_usage)
 {
 // sanity check
@@ -834,8 +862,9 @@ static void s_add_usage_data_to_gdb(const dap_chain_net_srv_usage_t *a_usage)
     if (a_usage->is_grace) {
         l_bin_value_new.grace.using_count += 1;
         l_bin_value_new.grace.using_time += dap_time_now() - a_usage->ts_created;
-        l_bin_value_new.grace.bytes_received = a_usage->client->bytes_received;
-        l_bin_value_new.grace.bytes_sent = a_usage->client->bytes_sent;
+        l_bin_value_new.grace.bytes_received += a_usage->client->bytes_received;
+        l_bin_value_new.grace.bytes_sent += a_usage->client->bytes_sent;
+        l_bin_value_new.grace.datoshi_value = s_calc_datoshi(a_usage, l_bin_value->grace.datoshi_value);
     } else if (a_usage->is_free) {
         l_bin_value_new.free.using_time += dap_time_now() - a_usage->ts_created;
         l_bin_value_new.free.bytes_received += a_usage->client->bytes_received;
@@ -844,6 +873,7 @@ static void s_add_usage_data_to_gdb(const dap_chain_net_srv_usage_t *a_usage)
         l_bin_value_new.payed.using_time += dap_time_now() - a_usage->ts_created;
         l_bin_value_new.payed.bytes_received += a_usage->client->bytes_received;
         l_bin_value_new.payed.bytes_sent += a_usage->client->bytes_sent;
+        l_bin_value_new.payed.datoshi_value = s_calc_datoshi(a_usage, l_bin_value->payed.datoshi_value);
     }
     dap_global_db_set(SRV_STATISTIC_GDB_GROUP, l_str_key, &l_bin_value_new, sizeof(client_statistic_value_t), false, NULL, NULL);
     DAP_DEL_Z(l_str_key);
