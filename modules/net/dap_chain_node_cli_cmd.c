@@ -352,6 +352,35 @@ static int node_info_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
         dap_cli_server_cmd_set_reply_text(a_str_reply, "alias not found");
         return -1;
     }
+    size_t l_nodes_count = 0;
+    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes, &l_nodes_count);
+    if(l_nodes_count && l_objs)
+    {
+        for (size_t i = 0; i < l_nodes_count; i++) {
+            dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t*)l_objs[i].value;
+            if (!dap_chain_node_addr_not_null(&l_node_info->hdr.address)){
+                log_it(L_ERROR, "Node address is NULL");
+                continue;
+            }
+            if(l_node_info->hdr.address.uint64 == address->uint64)
+            {
+                if(l_node_info->hdr.owner_address.uint64 != l_cur_addr)
+                {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Your node is not pinner");
+                    return -1;
+                }
+                else
+                {
+                    break;
+                }
+            }
+        }
+    }
+    else {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "can't find node in gdb");
+        return -1;
+    }
+
     char *a_key = dap_chain_node_addr_to_hash_str(address);
     if(a_key){
         // delete node
@@ -1256,19 +1285,15 @@ int com_node(int a_argc, char ** a_argv, char **a_str_reply)
     case CMD_DEL:
         // handler of command 'node del'
     {
-        //int l_ret = node_info_del_with_reply(l_net, l_node_info, alias_str, a_str_reply);
-        int l_ret = dap_chain_net_node_list_request(l_net,NULL,true,2);
-        DAP_DELETE(l_node_info);
-        if(l_ret == 7)
+        if(!l_addr_str)
         {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "node deleted");
-            return 0;
-        }
-        else
-        {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "node not deleted");
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Addr can't be del because -addr is not found");
             return -1;
         }
+        int l_ret = node_info_del_with_reply(l_net, l_node_info, alias_str, a_str_reply);
+
+        DAP_DELETE(l_node_info);
+        break;
     }
     case CMD_LINK:
         if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "add", NULL)) {
@@ -2236,7 +2261,11 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                             return -1;
                         }
                     }
-                    // Check unsupported tesla and bliss algorithm
+                    if(l_sign_type.type == SIG_TYPE_PICNIC){
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Picnic algorithms are not supported, please, use another variant");
+                        dap_string_free(l_string_ret, true);
+                        return -1;
+                    }
 
                     if (l_sign_type.type == SIG_TYPE_TESLA || l_sign_type.type == SIG_TYPE_BLISS) {
                         if (l_sign_type.type == SIG_TYPE_BLISS && (l_restore_opt || l_restore_legacy_opt)) {
@@ -2973,6 +3002,7 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
         }
     } else {
         l_datum = s_com_mempool_check_datum_in_chain(a_chain, a_datum_hash);
+        l_chain_name = a_chain->name;
     }
     if (!l_datum) {
         l_found_in_chains = true;
