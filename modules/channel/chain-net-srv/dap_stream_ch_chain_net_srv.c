@@ -68,12 +68,21 @@ typedef struct client_statistic_value{
         uint64_t datoshi_value;
         uint64_t bytes_received;
         uint64_t bytes_sent;
+        uint64_t units;
     } payed;
     struct {
         uint64_t using_time;
         uint64_t datoshi_value;
         uint64_t bytes_received;
         uint64_t bytes_sent;
+        uint64_t units;
+    } free;
+    struct {
+        uint64_t using_time;
+        uint64_t datoshi_value;
+        uint64_t bytes_received;
+        uint64_t bytes_sent;
+        uint64_t units;
         uint64_t using_count;
     } grace;
 } client_statistic_value_t;
@@ -88,6 +97,7 @@ static bool s_unban_client(dap_chain_net_srv_banlist_item_t *a_item);
 static bool s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_pkt_request_t * a_request, size_t a_request_size);
 static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace);
 static bool s_grace_period_finish(usages_in_grace_t *a_grace);
+static void s_add_usage_data_to_gdb(const dap_chain_net_srv_usage_t *a_usage);
 
 static inline void s_grace_error(dap_chain_net_srv_grace_t *a_grace, dap_stream_ch_chain_net_srv_pkt_error_t a_err){
 
@@ -213,8 +223,11 @@ void s_stream_ch_delete(dap_stream_ch_t* a_ch , UNUSED_ARG void *a_arg)
     dap_chain_net_srv_stream_session_t * l_srv_session = a_ch && a_ch->stream && a_ch->stream->session ? (dap_chain_net_srv_stream_session_t *) a_ch->stream->session->_inheritor : NULL;
     dap_chain_net_srv_t * l_srv = l_srv_session && l_srv_session->usage_active ? dap_chain_net_srv_get(l_srv_session->usage_active->service->uid) : NULL;
 
-    if (l_srv)
+    if (l_srv) {
+        dap_chain_net_srv_usage_t *l_usage = dap_chain_net_srv_usage_find_unsafe(l_srv_session, l_srv_session->usage_active->id);
+        s_add_usage_data_to_gdb(l_usage);
         l_srv->callbacks.save_remain_service(l_srv, l_srv_session->usage_active->id, l_srv_session->usage_active->client);
+    }
 
     dap_chain_net_srv_call_closed_all(a_ch);
     if (a_ch->stream->session && a_ch->stream->session->_inheritor)
@@ -823,6 +836,10 @@ static void s_add_usage_data_to_gdb(const dap_chain_net_srv_usage_t *a_usage)
         l_bin_value_new.grace.using_time += dap_time_now() - a_usage->ts_created;
         l_bin_value_new.grace.bytes_received = a_usage->client->bytes_received;
         l_bin_value_new.grace.bytes_sent = a_usage->client->bytes_sent;
+    } else if (a_usage->is_free) {
+        l_bin_value_new.free.using_time += dap_time_now() - a_usage->ts_created;
+        l_bin_value_new.free.bytes_received = a_usage->client->bytes_received;
+        l_bin_value_new.free.bytes_sent = a_usage->client->bytes_sent;
     } else {
         l_bin_value_new.payed.using_time += dap_time_now() - a_usage->ts_created;
         l_bin_value_new.payed.bytes_received = a_usage->client->bytes_received;
