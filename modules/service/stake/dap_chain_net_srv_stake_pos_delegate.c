@@ -1704,6 +1704,14 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             DAP_DELETE(l_decree);
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Approve decree %s successfully created",
                                               l_decree_hash_str);
+
+            assert(s_srv_stake);
+            dap_chain_net_srv_stake_item_t *l_stake = NULL;
+            l_stake = DAP_NEW_Z(dap_chain_net_srv_stake_item_t);
+            l_stake->net = l_net;
+            l_stake->tx_hash = l_tx_hash;
+            HASH_ADD(ht, s_srv_stake->tx_itemlist, tx_hash, sizeof(dap_chain_hash_fast_t), l_stake);
+
             DAP_DELETE(l_decree_hash_str);
         } break;
         case CMD_LIST: {
