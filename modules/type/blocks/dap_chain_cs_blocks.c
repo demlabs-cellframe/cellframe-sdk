@@ -821,7 +821,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
             pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
             dap_string_t *l_str_tmp = dap_string_new(NULL);
             for (dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next) {
-                time_t l_ts = l_block_cache->block->hdr.ts_created;
+                dap_time_t l_ts = l_block_cache->block->hdr.ts_created;
                 if (l_from_time && l_ts < l_from_time)
                     continue;
                 if (l_to_time && l_ts >= l_to_time)
@@ -859,6 +859,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                     }
                 }
                 if (l_signed_flag) {
+                    if (l_unspent_flag && l_ts < DAP_REWARD_INIT_TIMESTAMP)
+                        continue;
                     if (!l_pub_key) {
                         bool l_found = false;
                         // TODO optimize performance by precalculated sign hashes in block cache
@@ -881,7 +883,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                     }
                 }
                 char l_buf[50];
-                ctime_r(&l_ts, l_buf);
+                dap_time_to_str_rfc822(l_buf, 50, l_ts);
                 dap_string_append_printf(l_str_tmp, "\t%s: ts_create=%s", l_block_cache->block_hash_str, l_buf);
                 l_block_count++;
                 if (l_to_hash_str && dap_hash_fast_compare(&l_to_hash, &l_block_cache->block_hash))
