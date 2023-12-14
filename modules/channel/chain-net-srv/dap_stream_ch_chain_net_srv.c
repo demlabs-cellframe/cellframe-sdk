@@ -405,7 +405,7 @@ static bool s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
         l_grace->usage          = l_usage;
         if (!s_grace_period_start(l_grace))
             return false;
-    } else if (((l_srv->pricelist || (l_srv->pricelist && IS_ZERO_256(l_srv->pricelist->value_datoshi))) ||
+    } else if (((l_srv->pricelist && IS_ZERO_256(l_srv->pricelist->value_datoshi)) ||
                (!dap_hash_fast_is_blank(&a_request->hdr.order_hash) && l_specific_order_free)) && l_srv->allow_free_srv){
         // Start service for free
         log_it( L_INFO, "Can't find a valid pricelist. Service provide for free");
