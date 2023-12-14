@@ -838,12 +838,12 @@ static void s_add_usage_data_to_gdb(const dap_chain_net_srv_usage_t *a_usage)
         l_bin_value_new.grace.bytes_sent = a_usage->client->bytes_sent;
     } else if (a_usage->is_free) {
         l_bin_value_new.free.using_time += dap_time_now() - a_usage->ts_created;
-        l_bin_value_new.free.bytes_received = a_usage->client->bytes_received;
-        l_bin_value_new.free.bytes_sent = a_usage->client->bytes_sent;
-    } else {
+        l_bin_value_new.free.bytes_received += a_usage->client->bytes_received;
+        l_bin_value_new.free.bytes_sent += a_usage->client->bytes_sent;
+    } else if (a_usage->is_active) {
         l_bin_value_new.payed.using_time += dap_time_now() - a_usage->ts_created;
-        l_bin_value_new.payed.bytes_received = a_usage->client->bytes_received;
-        l_bin_value_new.payed.bytes_sent = a_usage->client->bytes_sent;
+        l_bin_value_new.payed.bytes_received += a_usage->client->bytes_received;
+        l_bin_value_new.payed.bytes_sent += a_usage->client->bytes_sent;
     }
     dap_global_db_set(SRV_STATISTIC_GDB_GROUP, l_str_key, &l_bin_value_new, sizeof(client_statistic_value_t), false, NULL, NULL);
     DAP_DEL_Z(l_str_key);
@@ -872,7 +872,11 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
     while(0);
 
     if (!l_ch){
-        RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_CH_NOT_FOUND);
+        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_CH_NOT_FOUND;
+        s_grace_error(l_grace, l_err);
+        HASH_DEL(s_grace_table, a_grace_item); 
+        DAP_DELETE(a_grace_item); 
+        return false; 
     }
 
     if (l_grace->usage->is_waiting_new_tx_cond){

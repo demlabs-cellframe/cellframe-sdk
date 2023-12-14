@@ -249,6 +249,7 @@ static bool s_tun_client_send_data_unsafe(dap_chain_net_srv_ch_vpn_t * l_ch_vpn,
     size_t l_data_sent = dap_stream_ch_pkt_write_unsafe(l_ch_vpn->ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, l_pkt_out, l_data_to_send);
     s_update_limits(l_ch_vpn->ch,l_srv_session,l_usage, l_data_sent);
     l_srv_session->stats.bytes_recv += l_data_sent;
+    l_usage->client->bytes_received += l_data_sent;
     if ( l_data_sent < l_data_to_send){
         log_it(L_WARNING, "Wasn't sent all the data in tunnel (%zd was sent from %zd): probably buffer overflow", l_data_sent, l_data_to_send);
         l_srv_session->stats.bytes_recv_lost += l_data_to_send - l_data_sent;
@@ -282,6 +283,7 @@ static bool s_tun_client_send_data_inter(dap_events_socket_t * a_es_input, dap_c
         return false;
     }else{
         l_srv_session->stats.bytes_recv += l_data_sent;
+        l_usage->client->bytes_received += l_data_sent;
         l_srv_session->stats.packets_recv++;
         return true;
     }
@@ -1840,6 +1842,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 size_t l_ret = dap_events_socket_write_unsafe(l_tun->es, l_vpn_pkt,
                     sizeof(l_vpn_pkt->header) + l_vpn_pkt->header.op_data.data_size) - sizeof(l_vpn_pkt->header);
                 l_srv_session->stats.bytes_sent += l_ret;
+                l_usage->client->bytes_sent += l_ret;
                 s_update_limits(a_ch, l_srv_session, l_usage, l_ret);
                 if (l_ret == l_vpn_pkt->header.op_data.data_size) {
                     l_srv_session->stats.packets_sent++;
