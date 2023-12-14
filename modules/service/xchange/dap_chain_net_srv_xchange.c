@@ -153,7 +153,7 @@ int dap_chain_net_srv_xchange_init()
 
 
     /*************************/
-    int l_fee_type = dap_config_get_item_int64_default(g_config, "srv_xchange", "fee_type", (int)SERIVCE_FEE_NATIVE_PERCENT);
+    /*int l_fee_type = dap_config_get_item_int64_default(g_config, "srv_xchange", "fee_type", (int)SERIVCE_FEE_NATIVE_PERCENT);
     uint256_t l_fee_value = dap_chain_coins_to_balance(dap_config_get_item_str_default(g_config, "srv_xchange", "fee_value", "0.02"));
     const char *l_wallet_addr = dap_config_get_item_str_default(g_config, "srv_xchange", "wallet_addr", NULL);
     if(!l_wallet_addr){
@@ -168,7 +168,7 @@ int dap_chain_net_srv_xchange_init()
     l_fee->fee = l_fee_value;
     l_fee->fee_addr = *dap_chain_addr_from_str(l_wallet_addr);
     l_fee->net_id = dap_chain_net_by_name(l_net_str)->pub.id;
-    HASH_ADD(hh, s_service_fees, net_id, sizeof(l_fee->net_id), l_fee);
+    HASH_ADD(hh, s_service_fees, net_id, sizeof(l_fee->net_id), l_fee);*/
 
     return 0;
 }
@@ -812,6 +812,11 @@ static bool s_xchange_tx_invalidate(dap_chain_net_srv_xchange_price_t *a_price, 
         return false;
     }
     const char *l_tx_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &a_price->tx_hash);
+    if(!l_tx_ticker){
+        log_it(L_WARNING, "Can't get ticker from tx");
+        dap_chain_datum_tx_delete(l_tx);
+        return false;
+    }
     bool l_single_channel = !dap_strcmp(l_tx_ticker, l_native_ticker);
     int l_prev_cond_idx = 0;
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
@@ -974,6 +979,11 @@ dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a
     dap_hash_fast_t l_tx_hash = {};
     dap_hash_fast(a_order, dap_chain_datum_tx_get_size(a_order), &l_tx_hash);
     const char *l_token_sell = dap_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_tx_hash);
+    if (!l_token_sell){
+        log_it(L_CRITICAL, "Can't find tx token");
+        DAP_DELETE(l_price);
+        return NULL;
+    }
     strcpy(l_price->token_sell, l_token_sell);
 
     if(a_fee)
@@ -1574,7 +1584,10 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str,
     // Get input token ticker
     const char * l_tx_input_ticker = dap_ledger_tx_get_token_ticker_by_hash(
                 a_net->pub.ledger, &l_tx_hash);
-
+    if(!l_tx_input_ticker){
+        log_it(L_WARNING, "Can't get ticker from tx");
+        return false;
+    }
     dap_chain_tx_out_cond_t *l_out_prev_cond_item = NULL;
     dap_chain_tx_out_cond_t *l_out_cond_item = NULL;
     int l_cond_idx = 0;
@@ -1911,12 +1924,27 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 
                 char *l_amount_coins_str = l_out_cond_last_tx ? dap_chain_balance_to_coins(l_out_cond_last_tx->header.value) : NULL;
                 char *l_amount_datoshi_str = l_out_cond_last_tx ? dap_chain_balance_print(l_out_cond_last_tx->header.value) : NULL;
+                char *l_percent_completed_str = NULL;
 
-                dap_string_append_printf(l_reply_str, "orderHash: %s\n Status: %s, amount: %s (%s) %s, rate (%s/%s): %s, net: %s\n\n", l_tx_hash_str,
-                                         l_status_order,
+                if(l_out_cond_last_tx){
+                    uint256_t l_percent_completed = {};
+                    SUBTRACT_256_256(l_out_cond->header.value, l_out_cond_last_tx->header.value, &l_percent_completed);
+                    DIV_256_COIN(l_percent_completed, l_out_cond->header.value, &l_percent_completed);
+                    MULT_256_COIN(l_percent_completed, GET_256_FROM_64((uint64_t)100), &l_percent_completed);
+
+                    l_percent_completed_str = dap_chain_balance_to_coins(l_percent_completed);
+                }
+
+                char l_tmp_buf[70] = {};
+                dap_time_t l_ts_create = (dap_time_t)l_tx->header.ts_created;
+                dap_ctime_r(&l_ts_create, l_tmp_buf);
+                l_tmp_buf[strlen(l_tmp_buf) - 1] = '\0';
+
+                dap_string_append_printf(l_reply_str, "orderHash: %s\n ts_created: %s (%"DAP_UINT64_FORMAT_U")\n Status: %s, amount: %s (%s) %s, filled: %s%%, rate (%s/%s): %s, net: %s\n\n", l_tx_hash_str,
+                                         l_tmp_buf, l_ts_create, l_status_order,
                                          l_amount_coins_str ? l_amount_coins_str : "0.0",
                                          l_amount_datoshi_str ? l_amount_datoshi_str : "0",
-                                         l_price->token_sell,
+                                         l_price->token_sell, l_percent_completed_str ? l_percent_completed_str : "100.0",
                                          l_price->token_buy, l_price->token_sell,
                                          l_cp_rate = dap_chain_balance_to_coins(l_price->rate),
                                          l_price->net->pub.name);
