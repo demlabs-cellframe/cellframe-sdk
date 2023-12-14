@@ -407,7 +407,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 size_t l_orders_size = 0;
                 for (size_t i = 0; i< l_orders_num; i++){
                     dap_chain_net_srv_order_t *l_order =(dap_chain_net_srv_order_t *) (((byte_t*) l_orders) + l_orders_size);
-                    dap_chain_net_srv_order_dump_to_string(l_order, l_string_ret, l_hash_out_type);
+                    dap_chain_net_srv_order_dump_to_string(l_order, l_string_ret, l_hash_out_type, l_net->pub.native_ticker);
                     l_orders_size += dap_chain_net_srv_order_get_size(l_order);
                     dap_string_append(l_string_ret,"\n");
                 }
@@ -423,7 +423,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
             if ( l_order_hash_str ){
                 dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str( l_net, l_order_hash_hex_str );
                 if (l_order) {
-                    dap_chain_net_srv_order_dump_to_string(l_order,l_string_ret, l_hash_out_type);
+                    dap_chain_net_srv_order_dump_to_string(l_order,l_string_ret, l_hash_out_type, l_net->pub.native_ticker);
                     l_ret = 0;
                 }else{
                     l_ret = -7 ;
@@ -447,7 +447,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                     size_t l_orders_size = 0;
                     for(size_t i = 0; i < l_orders_num; i++) {
                         dap_chain_net_srv_order_t *l_order =(dap_chain_net_srv_order_t *) (((byte_t*) l_orders) + l_orders_size);
-                        dap_chain_net_srv_order_dump_to_string(l_order, l_string_ret, l_hash_out_type);
+                        dap_chain_net_srv_order_dump_to_string(l_order, l_string_ret, l_hash_out_type, l_net->pub.native_ticker);
                         l_orders_size += dap_chain_net_srv_order_get_size(l_order);
                         dap_string_append(l_string_ret, "\n");
                     }
