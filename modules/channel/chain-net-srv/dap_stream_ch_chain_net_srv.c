@@ -219,6 +219,8 @@ void dap_stream_ch_chain_net_srv_tx_cond_added_cb(UNUSED_ARG void *a_arg, UNUSED
         // Stop timer
         dap_timerfd_delete_mt(l_item->grace->timer->worker, l_item->grace->timer->esocket_uuid);
         // finish grace
+        if(!l_item->grace->usage->service)
+            HASH_DEL(l_net_srv->grace_hash_tab, l_item);
         s_grace_period_finish(l_item);
     }
 }
