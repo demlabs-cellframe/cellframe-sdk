@@ -98,7 +98,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                                           );
     dap_cli_server_cmd_add("node", com_node, "Work with node",
                     "node add  -net <net_name> \n\n"
-                    "node del -net <net_name> \n\n"
+                    "node del -net <net_name> -addr <node_address> \n\n"
                     "node link {add | del}  -net <net_name> {-addr <node_address> | -alias <node_alias>} -link <node_address>\n\n"
                     "node alias -addr <node_address> -alias <node_alias>\n\n"
                     "node connect -net <net_name> {-addr <node_address> | -alias <node_alias> | auto}\n\n"
