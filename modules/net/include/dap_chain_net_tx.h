@@ -39,8 +39,8 @@ typedef enum dap_chain_net_tx_search_type {
     TX_SEARCH_TYPE_NET_UNSPENT,
     /// Do the request for spent txs in cell
     TX_SEARCH_TYPE_CELL_SPENT,
-    /// Do the search in whole
-    TX_SEARCH_TYPE_NET_SPENT
+    /// Do the search in blockchain
+    TX_SEARCH_TYPE_BLOCKCHAIN
 }dap_chain_net_tx_search_type_t;
 
 typedef struct dap_chain_datum_tx_spends_item{
