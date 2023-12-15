@@ -252,7 +252,7 @@ void dap_chain_net_get_tx_all(dap_chain_net_t * a_net, dap_chain_net_tx_search_t
         case TX_SEARCH_TYPE_CELL_UNSPENT:
         case TX_SEARCH_TYPE_CELL:
             break;
-        case TX_SEARCH_TYPE_BLOCKCHAIN:        {
+        case TX_SEARCH_TYPE_BLOCKCHAIN:{
             // pass all chains
             for ( dap_chain_t * l_chain = a_net->pub.chains; l_chain; l_chain = l_chain->next){
                 dap_chain_cell_t * l_cell, *l_cell_tmp;

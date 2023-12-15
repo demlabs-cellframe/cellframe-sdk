@@ -3189,12 +3189,12 @@ static dap_chain_datum_tx_t* s_find_datum_tx_by_hash(dap_ledger_t *a_ledger,
 
 dap_chain_datum_tx_t *dap_ledger_tx_find_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash)
 {
-    return s_find_datum_tx_by_hash(a_ledger, a_tx_hash, NULL, true);
+    return s_find_datum_tx_by_hash(a_ledger, a_tx_hash, NULL, false);
 }
 
-dap_chain_datum_tx_t *dap_ledger_tx_spent_find_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash)
+dap_chain_datum_tx_t *dap_ledger_tx_unspent_find_by_hash(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_hash)
 {
-    return s_find_datum_tx_by_hash(a_ledger, a_tx_hash, NULL, false);
+    return s_find_datum_tx_by_hash(a_ledger, a_tx_hash, NULL, true);
 }
 dap_hash_fast_t *dap_ledger_get_final_chain_tx_hash(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_cond_type, dap_chain_hash_fast_t *a_tx_hash)
 {
