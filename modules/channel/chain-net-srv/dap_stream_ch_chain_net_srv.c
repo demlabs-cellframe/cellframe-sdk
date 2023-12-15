@@ -787,13 +787,18 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
     dap_chain_net_srv_grace_t *l_grace = a_grace_item->grace;
     dap_chain_net_srv_t *l_srv = a_grace_item->grace->usage->service;
 
+    if (!l_srv) {
+        DAP_DELETE(a_grace_item);
+        return false;
+    }
+
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(l_grace->stream_worker, l_grace->ch_uuid);
 
 #define RET_WITH_DEL_A_GRACE do \
     { HASH_DEL(l_srv->grace_hash_tab, a_grace_item); DAP_DELETE(a_grace_item); return false; } \
     while(0);
 
-    if (!l_ch){
+    if (!l_ch) {
         s_grace_error(l_grace, l_err);
         RET_WITH_DEL_A_GRACE;
     }
