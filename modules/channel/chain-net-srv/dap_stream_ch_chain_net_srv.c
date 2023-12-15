@@ -237,7 +237,7 @@ void s_stream_ch_delete(dap_stream_ch_t* a_ch , UNUSED_ARG void *a_arg)
 static bool s_unban_client(dap_chain_net_srv_banlist_item_t *a_item)
 {
 // sanity check
-    dap_return_if_pass(!a_item);
+    dap_return_val_if_pass(!a_item, false);
 // func work
     log_it(L_DEBUG, "Unban client");
     pthread_mutex_lock(a_item->ht_mutex);
@@ -812,8 +812,7 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
 
 static uint256_t s_calc_datoshi(const dap_chain_net_srv_usage_t *a_usage, uint256_t a_prev)
 {
-    uint256_t l_ret = {0};
-    uint256_t l_datosi_used = {0};
+    uint256_t l_ret = {0}, l_datosi_used = {0};
     uint64_t l_used = 0;
     dap_return_val_if_pass(!a_usage, l_ret);
     switch(a_usage->service->pricelist->units_uid.enm){
@@ -833,7 +832,8 @@ static uint256_t s_calc_datoshi(const dap_chain_net_srv_usage_t *a_usage, uint25
             l_used = (a_usage->client->bytes_received + a_usage->client->bytes_sent) / (1024 * 1024);
             break;
     }
-    MULT_256_256(a_usage->service->pricelist->value_datoshi, GET_256_FROM_64(l_used / a_usage->service->pricelist->units), &l_datosi_used);
+    MULT_256_256(a_usage->service->pricelist->value_datoshi, GET_256_FROM_64(l_used), &l_ret);
+    DIV_256(l_ret, GET_256_FROM_64(a_usage->service->pricelist->units), &l_datosi_used);
     SUM_256_256(a_prev, l_datosi_used, &l_ret);
     return l_ret;
 }
@@ -852,6 +852,7 @@ static void s_add_usage_data_to_gdb(const dap_chain_net_srv_usage_t *a_usage)
     client_statistic_value_t *l_bin_value = (client_statistic_value_t *)dap_global_db_get_sync(SRV_STATISTIC_GDB_GROUP, l_str_key, &l_value_size, NULL, NULL);
     if (l_bin_value && l_value_size != sizeof(client_statistic_value_t)) {
         log_it(L_ERROR, "Wrong srv client_statistic size in GDB. Expecting %zu, getted %zu", sizeof(client_statistic_value_t), l_value_size);
+        //dap_global_db_set(SRV_STATISTIC_GDB_GROUP, l_str_key, &l_bin_value_new, sizeof(client_statistic_value_t), false, NULL, NULL);
         DAP_DEL_Z(l_str_key);
         DAP_DEL_Z(l_bin_value);
         return;
