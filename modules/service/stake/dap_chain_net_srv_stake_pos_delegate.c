@@ -1311,6 +1311,62 @@ static void s_get_tx_filter_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_
     return;
 }
 
+/**
+ * @brief s_get_tx_filter_callback_unspent
+ * @param a_net
+ * @param a_tx
+ * @param a_arg
+ */
+static void s_get_tx_filter_callback_unspent(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, void *a_arg)
+{
+    struct get_tx_cond_pos_del_from_tx * l_args = (struct get_tx_cond_pos_del_from_tx* ) a_arg;
+    int l_out_idx_tmp = 0;
+    dap_chain_tx_out_cond_t *l_tx_out_cond = NULL;
+    dap_hash_fast_t l_datum_hash;
+
+    if (NULL != (l_tx_out_cond = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE,
+                                                                 &l_out_idx_tmp)))
+    {
+        dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_datum_hash);
+        if (dap_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_datum_hash, l_out_idx_tmp, NULL)) {
+            dap_chain_net_srv_stake_item_t *l_stake = NULL;
+            HASH_FIND(ht, s_srv_stake->tx_itemlist, &l_datum_hash, sizeof(dap_hash_fast_t), l_stake);
+            if(!l_stake){
+                l_args->ret = dap_list_append(l_args->ret,a_tx);
+            }
+        }
+    }
+    return;
+}
+
+/**
+ * @brief s_get_tx_filter_callback_ready
+ * @param a_net
+ * @param a_tx
+ * @param a_arg
+ */
+static void s_get_tx_filter_callback_ready(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, void *a_arg)
+{
+    struct get_tx_cond_pos_del_from_tx * l_args = (struct get_tx_cond_pos_del_from_tx* ) a_arg;
+    int l_out_idx_tmp = 0;
+    dap_chain_tx_out_cond_t *l_tx_out_cond = NULL;
+    dap_hash_fast_t l_datum_hash;
+
+    if (NULL != (l_tx_out_cond = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE,
+                                                                 &l_out_idx_tmp)))
+    {
+        dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_datum_hash);
+        if (dap_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_datum_hash, l_out_idx_tmp, NULL)) {
+            dap_chain_net_srv_stake_item_t *l_stake = NULL;
+            HASH_FIND(ht, s_srv_stake->tx_itemlist, &l_datum_hash, sizeof(dap_hash_fast_t), l_stake);
+            if(l_stake){
+                l_args->ret = dap_list_append(l_args->ret,a_tx);
+            }
+        }
+    }
+    return;
+}
+
 static int callback_compare_tx_list(const void *a_datum1, const void *a_datum2)
 {
     dap_chain_datum_tx_t    *l_datum1 = (dap_chain_datum_tx_t*)((dap_list_t*)a_datum1)->data,
@@ -1704,14 +1760,6 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             DAP_DELETE(l_decree);
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Approve decree %s successfully created",
                                               l_decree_hash_str);
-
-            assert(s_srv_stake);
-            dap_chain_net_srv_stake_item_t *l_stake = NULL;
-            l_stake = DAP_NEW_Z(dap_chain_net_srv_stake_item_t);
-            l_stake->net = l_net;
-            l_stake->tx_hash = l_tx_hash;
-            HASH_ADD(ht, s_srv_stake->tx_itemlist, tx_hash, sizeof(dap_chain_hash_fast_t), l_stake);
-
             DAP_DELETE(l_decree_hash_str);
         } break;
         case CMD_LIST: {
@@ -1802,6 +1850,8 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 *a_str_reply = dap_string_free(l_reply_str, false);
             } else if (dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "tx", NULL)) {
                 const char *l_net_str = NULL;
+                const char *l_unspent = NULL;
+                const char *l_ready   = NULL;
                 l_arg_index++;
                 dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_net_str);
                 if (!l_net_str) {
@@ -1828,8 +1878,17 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
                 char *l_signing_addr_str = NULL;
                 char *l_balance = NULL;
                 char *l_coins = NULL;
-                char* l_node_address_text_block = NULL;
-                dap_chain_net_get_tx_all(l_net,TX_SEARCH_TYPE_NET,s_get_tx_filter_callback, l_args);
+                char* l_node_address_text_block = NULL;                
+                if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-unspent", NULL))
+                {
+                    dap_chain_net_get_tx_all(l_net,TX_SEARCH_TYPE_NET,s_get_tx_filter_callback_unspent, l_args);
+                }
+                else if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-ready", NULL))
+                {
+                    dap_chain_net_get_tx_all(l_net,TX_SEARCH_TYPE_NET,s_get_tx_filter_callback_ready, l_args);
+                }
+                else
+                    dap_chain_net_get_tx_all(l_net,TX_SEARCH_TYPE_NET,s_get_tx_filter_callback, l_args);
                 l_args->ret = dap_list_sort(l_args->ret, callback_compare_tx_list);
                 for(dap_list_t *tx = l_args->ret; tx; tx = tx->next)
                 {
