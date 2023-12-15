@@ -670,121 +670,8 @@ json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum){
         dap_json_rpc_allocation_error;
         return NULL;
     }
-    json_object *l_obj_data;
-    switch (a_datum->header.type_id) {
-        case DAP_CHAIN_DATUM_TX:
-            l_obj_data = dap_chain_datum_tx_to_json((dap_chain_datum_tx_t*)a_datum->data);
-            if (!l_obj_data) {
-                json_object_put(l_object);
-                json_object_put(l_obj_data_hash);
-                json_object_put(l_obj_version);
-                json_object_put(l_obj_size);
-                json_object_put(l_obj_type);
-                dap_json_rpc_error_add(CHAIN_DATUM_TO_JSON_ERR_CAN_NOT_SERIALIZATION_TX_TO_JSON,
-                                       "Can't convert DAP_CHAIN_DATUM_TX to JSON");
-                return NULL;
-            }
-            break;
-        case DAP_CHAIN_DATUM_DECREE:
-            l_obj_data = dap_chain_datum_decree_to_json((dap_chain_datum_decree_t*)a_datum->data);
-            if (!l_obj_data) {
-                json_object_put(l_object);
-                json_object_put(l_obj_data_hash);
-                json_object_put(l_obj_version);
-                json_object_put(l_obj_size);
-                json_object_put(l_obj_type);
-                dap_json_rpc_error_add(CHAIN_DATUM_TO_JSON_ERR_CAN_NOT_SERIALIZATION_DECREE_TO_JSON,
-                                       "Can't convert DAP_CHAIN_DATUM_DECREE to JSON");
-                return NULL;
-            }
-            break;
-        case DAP_CHAIN_DATUM_ANCHOR:
-            l_obj_data = dap_chain_datum_anchor_to_json((dap_chain_datum_anchor_t*)a_datum->data);
-            if (!l_obj_data) {
-                json_object_put(l_object);
-                json_object_put(l_obj_data_hash);
-                json_object_put(l_obj_version);
-                json_object_put(l_obj_size);
-                json_object_put(l_obj_type);
-                dap_json_rpc_error_add(CHAIN_DATUM_TO_JSON_ERR_CAN_NOT_SERIALIZATION_ANCHOR_TO_JSON,
-                                       "Can't convert DAP_CHAIN_DATUM_ANCHOR to JSON");
-                return NULL;
-            }
-            break;
-        case DAP_CHAIN_DATUM_TOKEN_DECL: {
-            size_t l_token_size = a_datum->header.data_size;
-            dap_chain_datum_token_t *l_token = dap_chain_datum_token_read(a_datum->data, &l_token_size);
-            if (!l_token) {
-                json_object_put(l_object);
-                json_object_put(l_obj_data_hash);
-                json_object_put(l_obj_version);
-                json_object_put(l_obj_size);
-                json_object_put(l_obj_type);
-                dap_json_rpc_error_add(CHAIN_DATUM_TO_JSON_ERR_CAN_NOT_READ_DECL,
-                                       "The contents of the token delcaration could not be read.");
-                return NULL;
-            }
-            l_obj_data = dap_chain_datum_token_to_json(l_token, l_token_size);
-            if (!l_obj_data) {
-                json_object_put(l_object);
-                json_object_put(l_obj_data_hash);
-                json_object_put(l_obj_version);
-                json_object_put(l_obj_size);
-                json_object_put(l_obj_type);
-                dap_json_rpc_error_add(CHAIN_DATUM_TO_JSON_ERR_CAN_NOT_SERIALIZATION_DECL_TO_JSON,
-                                       "Can't convert DAP_CHAIN_DATUM_TOKEN_DECL to JSON");
-                DAP_DELETE(l_token);
-                return NULL;
-            }
-            json_object *l_obj_tsd_data = s_dap_chain_datum_token_tsd_to_json(l_token, l_token_size);
-            if (!l_obj_tsd_data) {
-                json_object_put(l_object);
-                json_object_put(l_obj_data_hash);
-                json_object_put(l_obj_version);
-                json_object_put(l_obj_size);
-                json_object_put(l_obj_type);
-                json_object_put(l_obj_data);
-                DAP_DELETE(l_token);
-                log_it(L_ERROR, "It was not possible to read the contents of the TSD sections of the token delcaration.");
-                dap_json_rpc_error_add(CHAIN_DATUM_TO_JSON_ERR_CAN_NOT_SERIALIZATION_TSD_SECTION_DECL_TO_JSON,
-                                       "It was not possible to read the contents of the TSD sections of the token delcaration.");
-                return NULL;
-            }
-            json_object_object_add(l_obj_data, "TSD", l_obj_tsd_data);
-            DAP_DELETE(l_token);
-        } break;
-        case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
-            size_t l_emission_size = a_datum->header.data_size;
-            dap_chain_datum_token_emission_t *l_emission = dap_chain_datum_emission_read(a_datum->data, &l_emission_size);
-            if (l_emission_size == 0 || !l_emission) {
-                json_object_put(l_object);
-                json_object_put(l_obj_data_hash);
-                json_object_put(l_obj_version);
-                json_object_put(l_obj_size);
-                json_object_put(l_obj_type);
-                log_it(L_ERROR, "Failed to read emission");
-                dap_json_rpc_error_add(CHAIN_DATUM_TO_JSON_ERR_CAN_NOT_READ_EMISSION,
-                                       "Failed to read emission.");
-                return NULL;
-            } else {
-                l_obj_data = dap_chain_datum_emission_to_json(l_emission, l_emission_size);
-                DAP_DELETE(l_emission);
-                if (!l_obj_data) {
-                    json_object_put(l_object);
-                    json_object_put(l_obj_data_hash);
-                    json_object_put(l_obj_version);
-                    json_object_put(l_obj_size);
-                    json_object_put(l_obj_type);
-                    dap_json_rpc_error_add(CHAIN_DATUM_TO_JSON_ERR_CAN_NOT_SERIALIZATION_EMISSION_TO_JSON,
-                                           "Can't convert DAP_CHAIN_DATUM_TOKEN_DECL to JSON");
-                    return NULL;
-                }
-            }
-        } break;
-        default:
-            l_obj_data = json_object_new_null();
-            break;
-    }
+    json_object *l_obj_data = dap_chain_datum_data_to_json(a_datum);
+
     json_object_object_add(l_object, "hash", l_obj_data_hash);
     json_object_object_add(l_object, "data_size", l_obj_size);
     json_object_object_add(l_object, "version", l_obj_version);
@@ -804,4 +691,85 @@ json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum){
         json_object_object_add(l_object, "data", l_obj_data);
     }
     return l_object;
+}
+
+json_object * dap_chain_datum_data_to_json(dap_chain_datum_t *a_datum) {
+    if (!a_datum)
+        return json_object_new_null();
+    json_object *l_obj_data;
+    switch (a_datum->header.type_id) {
+        case DAP_CHAIN_DATUM_TX:
+            l_obj_data = dap_chain_datum_tx_to_json((dap_chain_datum_tx_t*)a_datum->data);
+            if (!l_obj_data) {
+                dap_json_rpc_error_add(CHAIN_DATUM_TO_JSON_ERR_CAN_NOT_SERIALIZATION_TX_TO_JSON,
+                                       "Can't convert DAP_CHAIN_DATUM_TX to JSON");
+                return NULL;
+            }
+            break;
+        case DAP_CHAIN_DATUM_DECREE:
+            l_obj_data = dap_chain_datum_decree_to_json((dap_chain_datum_decree_t*)a_datum->data);
+            if (!l_obj_data) {
+                dap_json_rpc_error_add(CHAIN_DATUM_TO_JSON_ERR_CAN_NOT_SERIALIZATION_DECREE_TO_JSON,
+                                       "Can't convert DAP_CHAIN_DATUM_DECREE to JSON");
+                return NULL;
+            }
+            break;
+        case DAP_CHAIN_DATUM_ANCHOR:
+            l_obj_data = dap_chain_datum_anchor_to_json((dap_chain_datum_anchor_t*)a_datum->data);
+            if (!l_obj_data) {
+                dap_json_rpc_error_add(CHAIN_DATUM_TO_JSON_ERR_CAN_NOT_SERIALIZATION_ANCHOR_TO_JSON,
+                                       "Can't convert DAP_CHAIN_DATUM_ANCHOR to JSON");
+                return NULL;
+            }
+            break;
+        case DAP_CHAIN_DATUM_TOKEN_DECL: {
+            size_t l_token_size = a_datum->header.data_size;
+            dap_chain_datum_token_t *l_token = dap_chain_datum_token_read(a_datum->data, &l_token_size);
+            if (!l_token) {
+                dap_json_rpc_error_add(CHAIN_DATUM_TO_JSON_ERR_CAN_NOT_READ_DECL,
+                                       "The contents of the token delcaration could not be read.");
+                return NULL;
+            }
+            l_obj_data = dap_chain_datum_token_to_json(l_token, l_token_size);
+            if (!l_obj_data) {
+                dap_json_rpc_error_add(CHAIN_DATUM_TO_JSON_ERR_CAN_NOT_SERIALIZATION_DECL_TO_JSON,
+                                       "Can't convert DAP_CHAIN_DATUM_TOKEN_DECL to JSON");
+                DAP_DELETE(l_token);
+                return NULL;
+            }
+            json_object *l_obj_tsd_data = s_dap_chain_datum_token_tsd_to_json(l_token, l_token_size);
+            if (!l_obj_tsd_data) {
+                json_object_put(l_obj_data);
+                DAP_DELETE(l_token);
+                log_it(L_ERROR, "It was not possible to read the contents of the TSD sections of the token delcaration.");
+                dap_json_rpc_error_add(CHAIN_DATUM_TO_JSON_ERR_CAN_NOT_SERIALIZATION_TSD_SECTION_DECL_TO_JSON,
+                                       "It was not possible to read the contents of the TSD sections of the token delcaration.");
+                return NULL;
+            }
+            json_object_object_add(l_obj_data, "TSD", l_obj_tsd_data);
+            DAP_DELETE(l_token);
+        } break;
+        case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
+            size_t l_emission_size = a_datum->header.data_size;
+            dap_chain_datum_token_emission_t *l_emission = dap_chain_datum_emission_read(a_datum->data, &l_emission_size);
+            if (l_emission_size == 0 || !l_emission) {
+                log_it(L_ERROR, "Failed to read emission");
+                dap_json_rpc_error_add(CHAIN_DATUM_TO_JSON_ERR_CAN_NOT_READ_EMISSION,
+                                       "Failed to read emission.");
+                return NULL;
+            } else {
+                l_obj_data = dap_chain_datum_emission_to_json(l_emission, l_emission_size);
+                DAP_DELETE(l_emission);
+                if (!l_obj_data) {
+                    dap_json_rpc_error_add(CHAIN_DATUM_TO_JSON_ERR_CAN_NOT_SERIALIZATION_EMISSION_TO_JSON,
+                                           "Can't convert DAP_CHAIN_DATUM_TOKEN_DECL to JSON");
+                    return NULL;
+                }
+            }
+        } break;
+        default:
+            l_obj_data = json_object_new_null();
+            break;
+    }
+    return l_obj_data;
 }

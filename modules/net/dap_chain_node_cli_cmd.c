@@ -2887,15 +2887,6 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
             dap_global_db_del_sync(l_gdb_group_mempool, l_objs[i].key);
             continue;
         }
-        json_object *l_jobj_datum = dap_chain_datum_to_json(l_datum);
-        if (!l_jobj_datum){
-            json_object_put(l_jobj_datums);
-            json_object_put(l_obj_chain);
-            dap_global_db_objs_delete(l_objs, l_objs_count);
-            dap_json_rpc_error_add(DAP_JSON_RPC_ERR_CODE_SERIALIZATION_DATUM_TO_JSON,
-                                    "An error occurred while serializing a datum to JSON.");
-            return;
-        }
         dap_time_t l_ts_create = (dap_time_t) l_datum->header.ts_create;
         const char *l_datum_type = dap_chain_datum_type_id_to_str(l_datum->header.type_id);
         dap_hash_fast_t l_datum_real_hash = {0};
@@ -2909,14 +2900,12 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
         json_object *l_jobj_ts_created = json_object_new_object();
         json_object *l_jobj_ts_created_time_stamp = json_object_new_uint64(l_ts_create);
         json_object *l_jobj_ts_created_str = json_object_new_string(buff_time);
-        json_object *l_jobj_data = NULL;
         if (!l_jobj_type || !l_jobj_hash || !l_jobj_ts_created || !l_jobj_ts_created_str || !l_jobj_ts_created_time_stamp) {
             json_object_put(l_jobj_type);
             json_object_put(l_jobj_hash);
             json_object_put(l_jobj_ts_created);
             json_object_put(l_jobj_ts_created_time_stamp);
             json_object_put(l_jobj_ts_created_str);
-            json_object_put(l_jobj_datum);
             json_object_put(l_jobj_datums);
             json_object_put(l_obj_chain);
             dap_global_db_objs_delete(l_objs, l_objs_count);
@@ -2925,9 +2914,19 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
         }
         json_object_object_add(l_jobj_ts_created, "time_stamp", l_jobj_ts_created_time_stamp);
         json_object_object_add(l_jobj_ts_created, "str", l_jobj_ts_created_str);
-        json_object_object_add(l_jobj_datum, "hash", l_jobj_hash);
-        json_object_object_add(l_jobj_datum, "type", l_jobj_type);
-        json_object_object_add(l_jobj_datum, "created", l_jobj_ts_created);
+        json_object *l_jobj_datum = json_object_new_object();
+        if (!l_jobj_datum) {
+            json_object_put(l_jobj_type);
+            json_object_put(l_jobj_hash);
+            json_object_put(l_jobj_ts_created);
+            json_object_put(l_jobj_ts_created_time_stamp);
+            json_object_put(l_jobj_ts_created_str);
+            json_object_put(l_jobj_datums);
+            json_object_put(l_obj_chain);
+            dap_global_db_objs_delete(l_objs, l_objs_count);
+            DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+            return;
+        }
         if (!dap_hash_fast_compare(&l_datum_real_hash, &l_datum_hash_from_key)){
             char *l_drh_str = dap_hash_fast_to_str_new(&l_datum_real_hash);
             char *l_wgn = dap_strdup_printf("Key field in DB %s does not match datum's hash %s\n",
@@ -2935,8 +2934,11 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
             DAP_DELETE(l_drh_str);
             if (!l_wgn) {
                 dap_global_db_objs_delete(l_objs, l_objs_count);
-                json_object_put(l_obj_chain);
                 json_object_put(l_jobj_datum);
+                json_object_put(l_obj_chain);
+                json_object_put(l_jobj_type);
+                json_object_put(l_jobj_hash);
+                json_object_put(l_jobj_ts_created);
                 json_object_put(l_jobj_datums);
                 dap_json_rpc_allocation_error;
                 return;
@@ -2945,8 +2947,11 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
             DAP_DELETE(l_wgn);
             if (!l_jobj_warning) {
                 dap_global_db_objs_delete(l_objs, l_objs_count);
-                json_object_put(l_obj_chain);
                 json_object_put(l_jobj_datum);
+                json_object_put(l_obj_chain);
+                json_object_put(l_jobj_type);
+                json_object_put(l_jobj_hash);
+                json_object_put(l_jobj_ts_created);
                 json_object_put(l_jobj_datums);
                 dap_json_rpc_allocation_error;
                 return;
@@ -2955,6 +2960,9 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
             json_object_array_add(l_jobj_datums, l_jobj_datum);
             continue;
         }
+        json_object_object_add(l_jobj_datum, "hash", l_jobj_hash);
+        json_object_object_add(l_jobj_datum, "type", l_jobj_type);
+        json_object_object_add(l_jobj_datum, "created", l_jobj_ts_created);
         bool datum_is_accepted_addr = false;
         switch (l_datum->header.type_id) {
             case DAP_CHAIN_DATUM_TX: {
@@ -3072,6 +3080,19 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                         return;
                     }
                     json_object_object_add(l_jobj_money, "coins", l_jobj_value_coins);
+                    json_object *l_jobj_token = json_object_new_string(l_dist_token);
+                    if (!l_jobj_token) {
+                        json_object_put(l_jobj_money);
+                        json_object_put(l_jobj_datum);
+                        json_object_put(l_jobj_datums);
+                        json_object_put(l_obj_chain);
+                        DAP_DELETE(l_value_str);
+                        DAP_DELETE(l_value_coins_str);
+                        dap_global_db_objs_delete(l_objs, l_objs_count);
+                        DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                        return;
+                    }
+                    json_object_object_add(l_jobj_money, "token", l_jobj_token);
 
                     if (l_dist_addr) {
                         char *l_addr_str = dap_chain_addr_to_str(l_dist_addr);
@@ -3136,10 +3157,10 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                 if (l_wallet_addr && l_emi && dap_chain_addr_compare(l_wallet_addr, &l_emi->hdr.address))
                     datum_is_accepted_addr = true;
                 DAP_DELETE(l_emi);
-                json_object_object_add(l_jobj_datum, "dump", dap_chain_datum_to_json(l_datum));
+                json_object_object_add(l_jobj_datum, "data", dap_chain_datum_data_to_json(l_datum));
             } break;
             default:
-                json_object_object_add(l_jobj_datum, "dump", dap_chain_datum_to_json(l_datum));
+                json_object_object_add(l_jobj_datum, "data", dap_chain_datum_data_to_json(l_datum));
         }
         json_object_array_add(l_jobj_datums, l_jobj_datum);
     }
@@ -3819,40 +3840,10 @@ int com_mempool(int a_argc, char **a_argv, void **reply){
                 return -1;
             }
             if(l_chain) {
-                json_object *l_jobj_chain = json_object_new_object();
-                json_object *l_jobj_chain_name  = json_object_new_string(l_chain->name);
-                json_object *l_jobj_chain_datums = json_object_new_array();
-                if (!l_jobj_chain || !l_jobj_chain_name || !l_jobj_chain_datums) {
-                    json_object_put(l_jobj_chain);
-                    json_object_put(l_jobj_chain_name);
-                    json_object_put(l_jobj_chain_datums);
-                    json_object_put(l_jobj_chains);
-                    json_object_put(obj_ret);
-                    DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
-                    return -1;
-                }
-                s_com_mempool_list_print_for_chain(l_net, l_chain, l_wallet_addr, l_jobj_chain_datums, l_hash_out_type);
-                json_object_object_add(l_jobj_chain, "name", l_jobj_chain_name);
-                json_object_object_add(l_jobj_chain, "datums", l_jobj_chain_datums);
-                json_object_array_add(l_jobj_chains, l_jobj_chain);
+                s_com_mempool_list_print_for_chain(l_net, l_chain, l_wallet_addr, l_jobj_chains, l_hash_out_type);
             } else {
                 DL_FOREACH(l_net->pub.chains, l_chain) {
-                    json_object *l_jobj_chain = json_object_new_object();
-                    json_object *l_jobj_chain_name  = json_object_new_string(l_chain->name);
-                    json_object *l_jobj_chain_datums = json_object_new_array();
-                    if (!l_jobj_chain || !l_jobj_chain_name || !l_jobj_chain_datums) {
-                        json_object_put(l_jobj_chain);
-                        json_object_put(l_jobj_chain_name);
-                        json_object_put(l_jobj_chain_datums);
-                        json_object_put(l_jobj_chains);
-                        json_object_put(obj_ret);
-                        DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
-                        return -1;
-                    }
-                    s_com_mempool_list_print_for_chain(l_net, l_chain, l_wallet_addr, l_jobj_chain_datums, l_hash_out_type);
-                    json_object_object_add(l_jobj_chain, "name", l_jobj_chain_name);
-                    json_object_object_add(l_jobj_chain, "datums", l_jobj_chain_datums);
-                    json_object_array_add(l_jobj_chains, l_jobj_chain);
+                    s_com_mempool_list_print_for_chain(l_net, l_chain, l_wallet_addr, l_jobj_chains, l_hash_out_type);
                 }
             }
             json_object_object_add(obj_ret, "chains", l_jobj_chains);
