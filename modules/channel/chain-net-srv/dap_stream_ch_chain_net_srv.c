@@ -247,6 +247,20 @@ static bool s_unban_client(dap_chain_net_srv_banlist_item_t *a_item)
     return false;
 }
 
+char *dap_stream_ch_chain_net_srv_create_statistic_report()
+{
+    size_t l_store_obj_count = 0;
+    dap_store_obj_t *l_store_obj = dap_global_db_get_all_raw_sync(SRV_STATISTIC_GDB_GROUP, 0, &l_store_obj_count);
+    for (size_t i = 0; i < l_store_obj_count; ++i) {
+        if(l_store_obj[i].value_len != sizeof(client_statistic_value_t)) {
+            log_it(L_ERROR, "Error size check statistic in %zu raw of %zu, expected value len %zu received %zu", i + 1, l_store_obj_count, sizeof(client_statistic_value_t), l_store_obj[i].value_len);
+            continue;
+        }
+    }
+    DAP_DEL_Z(l_store_obj);
+    return NULL;
+}
+
 void dap_stream_ch_chain_net_srv_tx_cond_added_cb(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
 {
     UNUSED(a_ledger);
@@ -852,7 +866,7 @@ static void s_add_usage_data_to_gdb(const dap_chain_net_srv_usage_t *a_usage)
     client_statistic_value_t *l_bin_value = (client_statistic_value_t *)dap_global_db_get_sync(SRV_STATISTIC_GDB_GROUP, l_str_key, &l_value_size, NULL, NULL);
     if (l_bin_value && l_value_size != sizeof(client_statistic_value_t)) {
         log_it(L_ERROR, "Wrong srv client_statistic size in GDB. Expecting %zu, getted %zu", sizeof(client_statistic_value_t), l_value_size);
-        //dap_global_db_set(SRV_STATISTIC_GDB_GROUP, l_str_key, &l_bin_value_new, sizeof(client_statistic_value_t), false, NULL, NULL);
+        dap_global_db_set(SRV_STATISTIC_GDB_GROUP, l_str_key, &l_bin_value_new, sizeof(client_statistic_value_t), false, NULL, NULL);
         DAP_DEL_Z(l_str_key);
         DAP_DEL_Z(l_bin_value);
         return;
@@ -879,6 +893,7 @@ static void s_add_usage_data_to_gdb(const dap_chain_net_srv_usage_t *a_usage)
     dap_global_db_set(SRV_STATISTIC_GDB_GROUP, l_str_key, &l_bin_value_new, sizeof(client_statistic_value_t), false, NULL, NULL);
     DAP_DEL_Z(l_str_key);
     DAP_DEL_Z(l_bin_value);
+    dap_stream_ch_chain_net_srv_create_statistic_report();
 }
 
 static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
