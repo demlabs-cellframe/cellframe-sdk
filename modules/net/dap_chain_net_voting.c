@@ -506,7 +506,7 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
             DAP_DELETE(l_voting_item);
 
             // Add question to tsd data
-            dap_chain_tx_tsd_t* l_question_tsd = dap_chain_datum_voting_question_tsd_create(l_question_str, strlen(l_question_str)+1);
+            dap_chain_tx_tsd_t* l_question_tsd = dap_chain_datum_voting_question_tsd_create(l_question_str, strlen(l_question_str));
             dap_chain_datum_tx_add_item(&l_tx, l_question_tsd);
             DAP_DELETE(l_question_tsd);
 
@@ -519,7 +519,7 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "The option must contain no more than %d characters", DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_LENGTH);
                     return -114;
                 }
-                dap_chain_tx_tsd_t* l_option = dap_chain_datum_voting_answer_tsd_create((char*)l_temp->data, strlen((char*)l_temp->data) + 1);
+                dap_chain_tx_tsd_t* l_option = dap_chain_datum_voting_answer_tsd_create((char*)l_temp->data, strlen((char*)l_temp->data));
                 if(!l_option){
                     dap_chain_datum_tx_delete(l_tx);
                     dap_list_free_full(l_options_list, NULL);
