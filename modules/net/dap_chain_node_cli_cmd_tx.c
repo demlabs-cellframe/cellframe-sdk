@@ -759,7 +759,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
                 const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
                 dap_chain_wallet_t * l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
                 if(l_wallet) {
-                    l_sign_str = dap_chain_wallet_check_bliss_sign(l_wallet);
+                    l_sign_str = dap_chain_wallet_check_sign(l_wallet);
                     l_addr = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
                     dap_chain_wallet_close(l_wallet);
                 }
@@ -820,7 +820,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         DAP_DELETE(l_str_out);
         DAP_DELETE(l_addr);
         s_dap_chain_tx_hash_processed_ht_free(&l_list_tx_hash_processd);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\n%s", l_str_ret->str, l_sign_str);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s%s", l_sign_str, l_str_ret->str);
         dap_string_free(l_str_ret, true);
         return 0;       
     }

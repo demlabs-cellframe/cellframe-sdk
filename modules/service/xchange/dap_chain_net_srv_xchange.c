@@ -1058,7 +1058,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified wallet not found");
                 return -11;
             } else {
-                l_sign_str = dap_chain_wallet_check_bliss_sign(l_wallet);
+                l_sign_str = dap_chain_wallet_check_sign(l_wallet);
             }
             uint256_t l_value = dap_chain_wallet_get_balance(l_wallet, l_net->pub.id, l_token_sell_str);
             uint256_t l_value_sell = l_datoshi_sell;
@@ -1238,7 +1238,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified wallet not found");
                 return -11;
             } else {
-                l_sign_str = dap_chain_wallet_check_bliss_sign(l_wallet);
+                l_sign_str = dap_chain_wallet_check_sign(l_wallet);
             }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-order", &l_order_hash_str);
             if (!l_order_hash_str) {
@@ -1308,7 +1308,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified wallet not found");
                     return -11;
                 }  else {
-                    l_sign_str = dap_chain_wallet_check_bliss_sign(l_wallet);
+                    l_sign_str = dap_chain_wallet_check_sign(l_wallet);
                 }
                 if (!l_val_sell_str && !l_val_rate_str && !l_wallet_str) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "At least one of updating parameters is mandatory");
