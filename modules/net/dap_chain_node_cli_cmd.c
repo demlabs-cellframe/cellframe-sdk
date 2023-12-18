@@ -5261,13 +5261,13 @@ int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t
 int com_chain_ca_copy( int a_argc,  char ** a_argv, void ** reply)
 {
     int l_argc = a_argc + 1;
-    char **l_argv = DAP_NEW_Z_SIZE(char*, l_argc);
+    char **l_argv = DAP_NEW_Z_COUNT(char*, l_argc);
     l_argv[0] = "mempool";
     l_argv[1] = "add_ca";
     for (int i = 1; i < a_argc; i++)
         l_argv[i + 1] = a_argv[i];
     int ret = com_mempool(l_argc, l_argv, reply);
-    DAP_DELETE(l_argv);
+    DAP_DEL_Z(l_argv);
     return ret;
 }
 
