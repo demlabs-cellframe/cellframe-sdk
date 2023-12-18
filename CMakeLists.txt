@@ -11,8 +11,6 @@ if (INSTALL_SDK)
     set(INSTALL_DAP_SDK ON)
 endif()
 
-#set(BUILD_CELLFRAME_SDK_TESTS ON)
-
 if(NOT DEFINED CELLFRAME_MODULES)
     include (dap-sdk/cmake/OS_Detection.cmake)
 
@@ -22,10 +20,9 @@ if(NOT DEFINED CELLFRAME_MODULES)
         set(CELLFRAME_MODULES "${CELLFRAME_MODULES} srv-vpn")
     endif()
 
-    if (BUILD_CELLFRAME_SDK_TESTS)
-        set (CELLFRAME_MODULES ${CELLFRAME_MODULES} "test-framework")
-        set(BUILD_TESTS ON)
-    endif ()
+    if(BUILD_CELLFRAME_SDK_TESTS)
+        set(DAPSDK_MODULES "test-framework")
+    endif()
 
     add_subdirectory(dap-sdk)
 endif()
@@ -47,8 +44,7 @@ else()
 endif(NOT DAP_INT128_SUPPORT)
 
 if (BUILD_CELLFRAME_SDK_TESTS)
-    enable_testing()
-    add_definitions("-DDAP_CHAIN_LEDGER_TEST")
+    add_definitions("-DDAP_LEDGER_TEST")
 endif()
 
 add_subdirectory(3rdparty/crc32c_adler)             # https://github.com/fonic/crc32c_adler
@@ -62,9 +58,6 @@ if (BUILD_WITH_ZIP)
 endif()
 
 add_subdirectory(3rdparty/monero_crypto)
-if(DAPSDK_MODULES MATCHES "ssl-support")
-    add_subdirectory(3rdparty/wolfssl)
-endif()
 
 add_subdirectory(modules/)
 

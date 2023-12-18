@@ -110,18 +110,16 @@ typedef void (*dap_chain_callback_atom_iter_delete_t)(dap_chain_atom_iter_t *);
 
 typedef void (*dap_chain_callback_notify_t)(void *a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, void *a_atom, size_t a_atom_size); //change in chain happened
 
-typedef size_t(*dap_chain_callback_get_count)(dap_chain_t *a_chain);
+typedef uint64_t (*dap_chain_callback_get_count)(dap_chain_t *a_chain);
 typedef dap_list_t *(*dap_chain_callback_get_list)(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 typedef dap_list_t *(*dap_chain_callback_get_poa_certs)(dap_chain_t *a_chain, size_t *a_auth_certs_count, uint16_t *count_verify);
 typedef void (*dap_chain_callback_set_min_validators_count)(dap_chain_t *a_chain,  uint16_t a_new_value);
-
 typedef uint256_t (*dap_chain_callback_get_minimum_fee)(dap_chain_t *a_chain);
 typedef dap_enc_key_t* (*dap_chain_callback_get_signing_certificate)(dap_chain_t *a_chain);
-
 typedef void (*dap_chain_callback_load_from_gdb)(dap_chain_t *a_chain);
+typedef uint256_t (*dap_chain_callback_calc_reward)(dap_chain_t *a_chain, dap_hash_fast_t *a_block_hash, dap_pkey_t *a_block_sign_pkey);
 
-typedef enum dap_chain_type
-{
+typedef enum dap_chain_type {
     CHAIN_TYPE_FIRST,
     CHAIN_TYPE_TOKEN,
     CHAIN_TYPE_EMISSION,
@@ -194,22 +192,21 @@ typedef struct dap_chain {
     dap_chain_callback_get_count callback_count_atom;
     dap_chain_callback_get_list callback_get_atoms;
 
+    // Consensus specific callbacks
     dap_chain_callback_get_poa_certs callback_get_poa_certs;
     dap_chain_callback_set_min_validators_count callback_set_min_validators_count;
-
     dap_chain_callback_get_minimum_fee callback_get_minimum_fee;
     dap_chain_callback_get_signing_certificate callback_get_signing_certificate;
-
+    dap_chain_callback_calc_reward callback_calc_reward;
     dap_chain_callback_load_from_gdb callback_load_from_gdb;
 
-    dap_list_t *atom_notifiers;
-//    dap_chain_callback_notify_t callback_notify;
-//    void *callback_notify_arg;
-
+    // Iterator callbacks
     dap_chain_datum_callback_iter_create_t callback_datum_iter_create;
     dap_chain_datum_callback_iter_get_first_t callback_datum_iter_get_first;
     dap_chain_datum_callback_iter_get_first_t callback_datum_iter_get_next;
     dap_chain_datum_callback_iter_delete_t callback_datum_iter_delete;
+
+    dap_list_t *atom_notifiers;
 
     void * _pvt; // private data
     void * _inheritor; // inheritor object
@@ -244,7 +241,7 @@ bool dap_chain_has_file_store(dap_chain_t * a_chain);
 void dap_chain_info_dump_log(dap_chain_t * a_chain);
 
 dap_chain_t * dap_chain_find_by_id(dap_chain_net_id_t a_chain_net_id,dap_chain_id_t a_chain_id);
-dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger,const char * a_chain_net_name, dap_chain_net_id_t a_chain_net_id, const char * a_chain_cfg_name);
+dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net_id_t a_chain_net_id, const char *a_chain_cfg_name);
 
 void dap_chain_delete(dap_chain_t * a_chain);
 void dap_chain_add_callback_notify(dap_chain_t * a_chain, dap_chain_callback_notify_t a_callback, void * a_arg);

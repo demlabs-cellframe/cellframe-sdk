@@ -158,6 +158,17 @@ uint256_t dap_chain_datum_tx_add_in_cond_item_list(dap_chain_datum_tx_t **a_tx, 
    }
    return l_value_to_items;
 }
+
+int dap_chain_datum_tx_add_in_reward_item(dap_chain_datum_tx_t **a_tx, dap_chain_hash_fast_t *a_block_hash)
+{
+    dap_chain_tx_in_reward_t *l_tx_in_reward = dap_chain_datum_tx_item_in_reward_create(a_block_hash);
+    if (!l_tx_in_reward)
+        return -1;
+    dap_chain_datum_tx_add_item(a_tx, (uint8_t*)l_tx_in_reward);
+    DAP_DELETE(l_tx_in_reward);
+    return 1;
+}
+
 /**
  * Create 'out_cond' item with fee value and insert to transaction
  *

@@ -165,7 +165,7 @@ typedef struct dap_chain_addr{
         dap_chain_hash_fast_t hash_fast;
     } DAP_ALIGN_PACKED data;
     dap_chain_hash_fast_t checksum;
-}  DAP_ALIGN_PACKED dap_chain_addr_t;
+} DAP_ALIGN_PACKED dap_chain_addr_t;
 
 #define DAP_CHAIN_NET_SRV_UID_SIZE 8
 
@@ -235,26 +235,26 @@ typedef union {
 } DAP_ALIGN_PACKED dap_chain_net_srv_price_unit_uid_t;
 
 enum dap_chain_tx_item_type {
-    TX_ITEM_TYPE_IN = 0x00, /// @brief  Transaction: inputs
+    /// @brief Transaction: inputs
+    TX_ITEM_TYPE_IN = 0x00,
+    TX_ITEM_TYPE_IN_COND = 0x50,
+    TX_ITEM_TYPE_IN_REWARD = 0x07,
+    TX_ITEM_TYPE_IN_EMS = 0x40,
 
-    TX_ITEM_TYPE_OUT_OLD = 0x10, /// @brief  Transaction: outputs
+    /// @brief Transaction: outputs
+    TX_ITEM_TYPE_OUT_OLD = 0x10,        // Deprecated
     TX_ITEM_TYPE_OUT_EXT = 0x11,
-    TX_ITEM_TYPE_OUT = 0x12, // 256
+    TX_ITEM_TYPE_OUT = 0x12,
+    TX_ITEM_TYPE_OUT_COND = 0x61,
 
+    /// @brief Transaction: misc
     TX_ITEM_TYPE_PKEY = 0x20,
     TX_ITEM_TYPE_SIG = 0x30,
-    TX_ITEM_TYPE_IN_EMS = 0x40,
-    TX_ITEM_TYPE_IN_EMS_EXT = 0x41,
-
-    TX_ITEM_TYPE_IN_COND = 0x50, /// @brief  Transaction: conditon inputs
-
-    TX_ITEM_TYPE_OUT_COND_OLD = 0x60, // Obsolete
-    TX_ITEM_TYPE_OUT_COND = 0x61, /// @brief  Transaction: 256 bit conditon outputs
-
     TX_ITEM_TYPE_RECEIPT = 0x70,
-
     TX_ITEM_TYPE_TSD = 0x80,
 
+    /// @brief Virtual types for items enumearting
+    TX_ITEM_TYPE_IN_EMS_LOCK = 0xf1,
     TX_ITEM_TYPE_IN_ALL = 0xfd,
     TX_ITEM_TYPE_OUT_ALL = 0xfe,
     TX_ITEM_TYPE_ANY = 0xff

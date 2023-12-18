@@ -716,7 +716,7 @@ void s_dap_chain_net_purge(dap_chain_net_t * a_net)
     if (!a_net)
         return;
     dap_chain_t *l_chain = NULL;
-    dap_chain_ledger_purge(a_net->pub.ledger, false);
+    dap_ledger_purge(a_net->pub.ledger, false);
     dap_chain_net_srv_stake_purge(a_net);
     dap_chain_net_decree_purge(a_net);
     DL_FOREACH(a_net->pub.chains, l_chain) {
@@ -726,7 +726,8 @@ void s_dap_chain_net_purge(dap_chain_net_t * a_net)
             l_chain->callback_set_min_validators_count(l_chain, 0);
         const char *l_chains_rm_path = dap_chain_get_path(l_chain);
         dap_rm_rf(l_chains_rm_path);
-        dap_chain_ledger_set_fee(a_net->pub.ledger, uint256_0, c_dap_chain_addr_blank);
+        a_net->pub.fee_value = uint256_0;
+        a_net->pub.fee_addr = c_dap_chain_addr_blank;
         dap_chain_load_all(l_chain);
     }
 }
@@ -1607,8 +1608,7 @@ int com_node(int a_argc, char ** a_argv, void ** reply)
         char *l_reply = dap_chain_net_links_dump(l_net);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_reply);
         DAP_DELETE(l_reply);
-    }
-        break;
+    } break;
     case CMD_BALANCER: {
         //balancer link list
         size_t l_node_num = 0;
@@ -1909,7 +1909,7 @@ int com_version(int argc, char ** argv, void **reply)
     (void) argv;
 #ifndef DAP_VERSION
 #pragma message "[!WRN!] DAP_VERSION IS NOT DEFINED. Manual override engaged."
-#define DAP_VERSION 0.9-15
+#define DAP_VERSION "0.9-15"
 #endif
     dap_cli_server_cmd_set_reply_text(a_str_reply,
             "%s version %s\n", dap_get_appname(), DAP_VERSION );
@@ -2110,7 +2110,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
             size_t l_l_addr_tokens_size = 0;
             char **l_l_addr_tokens = NULL;
-            dap_chain_ledger_addr_get_token_ticker_all(l_ledger, l_addr, &l_l_addr_tokens, &l_l_addr_tokens_size);
+            dap_ledger_addr_get_token_ticker_all(l_ledger, l_addr, &l_l_addr_tokens, &l_l_addr_tokens_size);
             if(l_l_addr_tokens_size > 0)
                 dap_string_append_printf(l_string_ret, "balance:\n");
             else
@@ -2118,7 +2118,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
             for(size_t i = 0; i < l_l_addr_tokens_size; i++) {
                 if(l_l_addr_tokens[i]) {
-                    uint256_t l_balance = dap_chain_ledger_calc_balance(l_ledger, l_addr, l_l_addr_tokens[i]);
+                    uint256_t l_balance = dap_ledger_calc_balance(l_ledger, l_addr, l_l_addr_tokens[i]);
                     char *l_balance_coins = dap_chain_balance_to_coins(l_balance);
                     char *l_balance_datoshi = dap_chain_balance_print(l_balance);
                     dap_string_append_printf(l_string_ret, "\t%s (%s) %s\n", l_balance_coins,
@@ -2757,12 +2757,12 @@ dap_list_t *s_tickers_list_created(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *
             case TX_ITEM_TYPE_IN:
                 l_parent_hash = ((dap_chain_tx_in_t*)l_item_in)->header.tx_prev_hash;
                 l_parrent_tx_out_idx = ((dap_chain_tx_in_t*)l_item_in)->header.tx_out_prev_idx;
-                l_tx_parent = dap_chain_ledger_tx_find_by_hash(a_net->pub.ledger, &((dap_chain_tx_in_t*)l_item_in)->header.tx_prev_hash);
+                l_tx_parent = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &((dap_chain_tx_in_t*)l_item_in)->header.tx_prev_hash);
                 break;
             case TX_ITEM_TYPE_IN_COND:
                 l_parent_hash = ((dap_chain_tx_in_cond_t*)l_item_in)->header.tx_prev_hash;
                 l_parrent_tx_out_idx = ((dap_chain_tx_in_cond_t*)l_item_in)->header.tx_out_prev_idx;
-                l_tx_parent = dap_chain_ledger_tx_find_by_hash(a_net->pub.ledger, &((dap_chain_tx_in_cond_t*)l_item_in)->header.tx_prev_hash);
+                l_tx_parent = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &((dap_chain_tx_in_cond_t*)l_item_in)->header.tx_prev_hash);
                 break;
         }
         if (!l_tx_parent) {
@@ -2774,7 +2774,7 @@ dap_list_t *s_tickers_list_created(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *
                 l_tx_parent, TX_ITEM_TYPE_OUT_ALL, l_parrent_tx_out_idx);
         switch(dap_chain_datum_tx_item_get_type(l_out_unknown)) {
             case TX_ITEM_TYPE_OUT:
-                l_current_token = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_parent_hash);
+                l_current_token = dap_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_parent_hash);
                 l_tickers = dap_list_append(l_tickers, (void *)l_current_token);
                 break;
             case TX_ITEM_TYPE_OUT_EXT:
@@ -2783,7 +2783,7 @@ dap_list_t *s_tickers_list_created(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *
                 break;
             case TX_ITEM_TYPE_OUT_COND:
                 if(((dap_chain_tx_out_cond_t*)l_out_unknown)->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
-                    l_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_parent_hash);
+                    l_token_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_parent_hash);
                 }
                 break;
         }
@@ -2826,6 +2826,38 @@ const char* s_tx_get_main_ticker(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_
     }
 }
 
+static bool s_mempool_find_addr_ledger(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *a_tx_prev_hash, dap_chain_addr_t *a_addr)
+{
+    dap_chain_datum_tx_t *l_tx;
+    l_tx = dap_ledger_tx_find_by_hash(a_ledger, a_tx_prev_hash);
+    dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_ALL, NULL), *l_item;
+    if(!l_list_out_items)
+        return false;
+    bool l_ret = false;
+    DL_FOREACH(l_list_out_items, l_item) {
+        //assert(l_list_out->data);
+        dap_chain_addr_t *l_dst_addr = NULL;
+        dap_chain_tx_item_type_t l_type = *(uint8_t*)l_item->data;
+        switch (l_type) {
+        case TX_ITEM_TYPE_OUT:
+            l_dst_addr = &((dap_chain_tx_out_t*)l_item->data)->addr;
+            break;
+        case TX_ITEM_TYPE_OUT_EXT:
+            l_dst_addr = &((dap_chain_tx_out_ext_t*)l_item->data)->addr;
+            break;
+        case TX_ITEM_TYPE_OUT_OLD:
+            l_dst_addr = &((dap_chain_tx_out_old_t*)l_item->data)->addr;
+        default:
+            break;
+        }
+        if(l_dst_addr && !memcmp(l_dst_addr, a_addr, sizeof(dap_chain_addr_t))) {
+            l_ret = true;
+            break;
+        }
+    }
+    dap_list_free(l_list_out_items);
+    return l_ret;
+}
 
 /**
  * @brief s_com_mempool_list_print_for_chain
@@ -3750,7 +3782,7 @@ typedef enum _cmd_mempool_dump_error_list{
 int _cmd_mempool_dump_from_group(dap_chain_net_id_t a_net_id, const char *a_group_gdb, const char *a_datum_hash,
                                  const char *a_hash_out_type, json_object **reply) {
     size_t l_datum_size = 0;
-    dap_chain_datum_t * l_datum = dap_global_db_get_sync(a_group_gdb, a_datum_hash,
+    dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(a_group_gdb, a_datum_hash,
                                                          &l_datum_size, NULL, NULL );
     size_t l_datum_size2 = l_datum? dap_chain_datum_size( l_datum): 0;
     if (l_datum_size != l_datum_size2) {
@@ -3913,7 +3945,7 @@ int com_mempool(int a_argc, char **a_argv, void **reply){
             }
         } break;
         case SUBCMD_ADD_CA: {
-            char *l_ca_name  = NULL;
+            const char *l_ca_name  = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-ca_name", &l_ca_name);
             if (!l_ca_name) {
                 dap_json_rpc_error_add(-3, "mempool add_ca requires parameter '-ca_name' to specify the certificate name");
@@ -4159,7 +4191,6 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, char **
         }
     }
     a_params->ext.parsed_flags = l_flags;
-
     const char* l_new_certs_str = NULL;
     const char* l_remove_signs = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-new_certs", &l_new_certs_str);
@@ -4407,7 +4438,7 @@ int com_token_decl(int a_argc, char ** a_argv, void ** reply)
             }
 			if (l_params->ext.delegated_token_from){
 				dap_chain_datum_token_t *l_delegated_token_from;
-				if (NULL == (l_delegated_token_from = dap_chain_ledger_token_ticker_check(l_net->pub.ledger, l_params->ext.delegated_token_from))) {
+				if (NULL == (l_delegated_token_from = dap_ledger_token_ticker_check(l_net->pub.ledger, l_params->ext.delegated_token_from))) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply,"To create a delegated token %s, can't find token by ticket %s", l_ticker, l_params->ext.delegated_token_from);
                     DAP_DEL_Z(l_params);
 					return -91;
@@ -6008,7 +6039,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void ** reply)
                 if (!dap_strcmp(l_native_token, l_main_token)) {
                     SUM_256_256(l_value_need_check, l_value_need, &l_value_need_check);
                     SUM_256_256(l_value_need_check, l_value_need_fee, &l_value_need_check);
-                    l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_json_item_token,
+                    l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_json_item_token,
                                                                                              l_addr_from, l_value_need_check, &l_value_transfer);
                     if(!l_list_used_out) {
                         log_it(L_WARNING, "Not enough funds in previous tx to transfer");
@@ -6020,7 +6051,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void ** reply)
                     }
                 } else {
                     //CHECK value need
-                    l_list_used_out = dap_chain_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_json_item_token,
+                    l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_json_item_token,
                                                                                              l_addr_from, l_value_need, &l_value_transfer);
                     if(!l_list_used_out) {
                         log_it(L_WARNING, "Not enough funds in previous tx to transfer");
@@ -6031,7 +6062,7 @@ int com_tx_create_json(int a_argc, char ** a_argv, void ** reply)
                         continue;
                     }
                     //CHECK value fee
-                    l_list_used_out_fee = dap_chain_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_native_token,
+                    l_list_used_out_fee = dap_ledger_get_list_tx_outs_with_val(l_net->pub.ledger, l_native_token,
                                                                                      l_addr_from, l_value_need_fee, &l_value_transfer_fee);
                     if(!l_list_used_out_fee) {
                         log_it(L_WARNING, "Not enough funds in previous tx to transfer");
@@ -6256,12 +6287,12 @@ int com_tx_create(int a_argc, char **a_argv, void ** reply)
     }
     dap_chain_net_t * l_net = dap_chain_net_by_name(l_net_name);
     dap_ledger_t *l_ledger = l_net ? l_net->pub.ledger : NULL;
-    if(l_net == NULL || (l_ledger = dap_chain_ledger_by_net_name(l_net_name)) == NULL) {
+    if(l_net == NULL || (l_ledger = dap_ledger_by_net_name(l_net_name)) == NULL) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "not found net by name '%s'", l_net_name);
         return -7;
     }
 
-    if(!dap_chain_ledger_token_ticker_check(l_ledger, l_token_ticker)) {
+    if(!dap_ledger_token_ticker_check(l_ledger, l_token_ticker)) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Ticker '%s' is not declared on network '%s'.",
                                           l_token_ticker, l_net_name);
         return -16;
@@ -6465,7 +6496,7 @@ int com_tx_verify(int a_argc, char **a_argv, void ** reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified tx not found");
         return -3;
     }
-    int l_ret = dap_chain_ledger_tx_add_check(l_net->pub.ledger, l_tx, l_tx_size, &l_tx_hash);
+    int l_ret = dap_ledger_tx_add_check(l_net->pub.ledger, l_tx, l_tx_size, &l_tx_hash);
     if (l_ret) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified tx verify fail with return code=%d", l_ret);
         return -4;
