@@ -266,6 +266,9 @@ extern const char *c_dap_chain_datum_token_flag_str[];
 // Emission for delegated token
 #define DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK	0x0027
 
+// Description token
+#define DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION                         0x0028
+
 
 
 
@@ -435,15 +438,15 @@ struct DAP_ALIGN_PACKED dap_chain_emission_header_v0 {
 };
 
 // Token emission
-typedef struct dap_chain_datum_token_emission{
+typedef struct dap_chain_datum_token_emission {
     struct  {
         uint8_t version;
-        uint8_t type; // Emission Type
+        uint8_t type;               // Emission Type
         char ticker[DAP_CHAIN_TICKER_SIZE_MAX];
-        dap_chain_addr_t address; // Emission holder's address
+        dap_chain_addr_t address;   // Emission holder's address
         union {
-            uint64_t value;
-            uint256_t value_256;
+            uint64_t value64;       // Deprecated
+            uint256_t value;
         };
         uint8_t nonce[DAP_CHAIN_DATUM_NONCE_SIZE];
     } DAP_ALIGN_PACKED hdr;
@@ -454,7 +457,7 @@ typedef struct dap_chain_datum_token_emission{
             uint64_t lock_time;
         } DAP_ALIGN_PACKED type_presale;
         struct {
-            uint64_t value_start;// Default value. Static if nothing else is defined
+            uint64_t value_start;   // Default value. Static if nothing else is defined
             char value_change_algo_codename[32];
         } DAP_ALIGN_PACKED type_atom_owner;
         struct {
@@ -464,10 +467,10 @@ typedef struct dap_chain_datum_token_emission{
             uint64_t size;
             uint64_t tsd_total_size;
             uint16_t signs_count;
-        } DAP_ALIGN_PACKED type_auth;// Signs if exists
+        } DAP_ALIGN_PACKED type_auth;
         byte_t free_space[128];     // For future changes
     } data;
-    byte_t tsd_n_signs[];
+    byte_t tsd_n_signs[];           // TSD sections and signs if any
 } DAP_ALIGN_PACKED dap_chain_datum_token_emission_t;
 
 // Different emissions type

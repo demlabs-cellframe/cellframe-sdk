@@ -21,8 +21,14 @@ HERE="$DIR"
 
 if [ -z "$ANDROID_CMAKE_TOOLCHAIN" ]
 then
-      echo "ANDROID_CMAKE_TOOLCHAIN not defined!"
-      exit 1
+      if [ -z "$ANDROID_NDK_ROOT"]
+      then
+        echo "Nor ANDROID_CMAKE_TOOLCHAIN nor ANDROID_NDK_ROOT defined!"
+            exit 1
+      fi
+      ANDROID_CMAKE_TOOLCHAIN=${ANDROID_NDK_ROOT}/build/cmake/android.toolchain.cmake
+      echo "ANDROID_CMAKE_TOOLCHAIN not defined, but ANDROID_NDK_ROOT is."
+      echo "Use ANDROID_CMAKE_TOOLCHAIN as $ANDROID_CMAKE_TOOLCHAIN"
 fi
 
 CMAKE=(cmake -DCMAKE_TOOLCHAIN_FILE=${ANDROID_CMAKE_TOOLCHAIN})
