@@ -149,7 +149,7 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
     }
 
     dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
-    l_tx_token_ticker = dap_chain_ledger_tx_get_token_ticker_by_hash(l_ledger, a_tx_hash);
+    l_tx_token_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, a_tx_hash);
     if (l_tx_token_ticker) {
         json_object_object_add(json_obj_datum, "status", json_object_new_string("ACCEPTED"));
         *accepted_tx = true;
@@ -174,7 +174,7 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
                                                                              : json_object_new_null());
 
     json_object_object_add(json_obj_datum, "ret_code", json_object_new_int(l_ret_code));
-    json_object_object_add(json_obj_datum, "ret_code_str", json_object_new_string(dap_chain_ledger_tx_check_err_str(l_ret_code)));
+    json_object_object_add(json_obj_datum, "ret_code_str", json_object_new_string(dap_ledger_tx_check_err_str(l_ret_code)));
 
     char l_time_str[32];
     if (l_tx->header.ts_created) {
@@ -264,7 +264,7 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
     json_object_object_add(json_obj_datum, "hash", json_object_new_string(l_tx_hash_str));
     json_object_object_add(json_obj_datum, "atom_hash", json_object_new_string(l_atom_hash_str));
     json_object_object_add(json_obj_datum, "ret_code", json_object_new_int(a_ret_code));
-    json_object_object_add(json_obj_datum, "ret_code_str", json_object_new_string(dap_chain_ledger_tx_check_err_str(a_ret_code)));
+    json_object_object_add(json_obj_datum, "ret_code_str", json_object_new_string(dap_ledger_tx_check_err_str(a_ret_code)));
     json_object_object_add(json_obj_datum, "tx_created", json_object_new_string(l_time_str));
 
     DAP_DELETE(l_tx_hash_str);

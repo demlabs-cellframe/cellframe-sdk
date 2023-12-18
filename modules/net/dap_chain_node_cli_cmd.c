@@ -3479,7 +3479,7 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
                 dap_chain_hash_fast_to_str(&l_atom_hash, l_atom_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
                 json_object *l_obj_atom = json_object_new_object();
                 json_object *l_jobj_atom_hash = json_object_new_string(l_atom_hash_str);
-                json_object *l_jobj_atom_err = json_object_new_string(dap_chain_ledger_tx_check_err_str(l_ret_code));
+                json_object *l_jobj_atom_err = json_object_new_string(dap_ledger_tx_check_err_str(l_ret_code));
                 if (!l_obj_atom || !l_jobj_atom_hash || !l_jobj_atom_err) {
                     json_object_put(l_jobj_datum);
                     json_object_put(l_obj_atom);
@@ -6525,7 +6525,7 @@ static const char *s_com_tx_history_decl_err_str[] = {
 
 char *dap_chain_node_cli_com_tx_history_err(int a_code) {
     return (a_code >= DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK) && (a_code < DAP_CHAIN_NODE_CLI_COM_TX_UNKNOWN)
-            ? (char*)s_com_tx_history_decl_err_str[(dap_chain_ledger_tx_check_t)a_code]
+            ? (char*)s_com_tx_history_decl_err_str[(s_com_tx_history_err_t)a_code]
             : dap_itoa(a_code);
 }
 
