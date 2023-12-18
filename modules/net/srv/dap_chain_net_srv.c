@@ -200,6 +200,15 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
         return -1;
     }
 
+
+    int l_report = dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "report", NULL);
+    if (l_report) {
+        const char *l_report = dap_stream_ch_chain_net_srv_create_statistic_report();
+        dap_cli_server_cmd_set_reply_text(a_str_reply, l_report);
+        DAP_DEL_Z(l_report);
+        return 0;
+    }
+
     int l_ret = dap_chain_node_cli_cmd_values_parse_net_chain( &arg_index, argc, argv, a_str_reply, NULL, &l_net );
     if ( l_net ) {
         //char * l_orders_group = dap_chain_net_srv_order_get_gdb_group( l_net );
@@ -246,6 +255,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
 
         const char* l_region_str = NULL;
         dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-region", &l_region_str);
+    
         const char* l_continent_str = NULL;
         dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-continent", &l_continent_str);
 
@@ -385,21 +395,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 if ( l_price_max_str )
                     l_price_max = dap_chain_balance_scan(l_price_max_str);
 
-                if (l_price_unit_str){
-                    if (!dap_strcmp(l_price_unit_str, "MB")){
-                        l_price_unit.uint32 = SERV_UNIT_MB;
-                    } else if (!dap_strcmp(l_price_unit_str, "SEC")){
-                        l_price_unit.uint32 = SERV_UNIT_SEC;
-                    } else if (!dap_strcmp(l_price_unit_str, "DAY")){
-                        l_price_unit.uint32 = SERV_UNIT_DAY;
-                    } else if (!dap_strcmp(l_price_unit_str, "KB")){
-                        l_price_unit.uint32 = SERV_UNIT_KB;
-                    } else if (!dap_strcmp(l_price_unit_str, "B")){
-                        l_price_unit.uint32 = SERV_UNIT_B;
-                    } else if (!dap_strcmp(l_price_unit_str, "PCS")){
-                        l_price_unit.uint32 = SERV_UNIT_PCS;
-                    }
-                }
+                l_price_unit.uint32 = dap_chain_srv_str_to_unit_enum(l_price_unit_str);
 
                 dap_chain_net_srv_order_t * l_orders;
                 size_t l_orders_num = 0;

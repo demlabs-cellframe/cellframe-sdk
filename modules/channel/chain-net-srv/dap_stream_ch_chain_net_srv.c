@@ -58,7 +58,7 @@ typedef struct usages_in_grace{
 // client statistic key struct
 typedef struct client_statistic_key{
     dap_chain_net_srv_uid_t srv_uid;
-    dap_chain_hash_fast_t client_pkey_hash;
+    char  client_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
 } client_statistic_key_t;
 
 // client statistic value struct
@@ -250,15 +250,25 @@ static bool s_unban_client(dap_chain_net_srv_banlist_item_t *a_item)
 char *dap_stream_ch_chain_net_srv_create_statistic_report()
 {
     size_t l_store_obj_count = 0;
+    dap_string_t *l_ret = dap_string_new("Service report:\n");
     dap_store_obj_t *l_store_obj = dap_global_db_get_all_raw_sync(SRV_STATISTIC_GDB_GROUP, 0, &l_store_obj_count);
     for (size_t i = 0; i < l_store_obj_count; ++i) {
         if(l_store_obj[i].value_len != sizeof(client_statistic_value_t)) {
             log_it(L_ERROR, "Error size check statistic in %zu raw of %zu, expected value len %zu received %zu", i + 1, l_store_obj_count, sizeof(client_statistic_value_t), l_store_obj[i].value_len);
             continue;
         }
+        size_t l_key_size = DAP_ENC_BASE58_DECODE_SIZE(l_store_obj[i].key_len);
+        client_statistic_key_t *l_key = DAP_NEW_Z_SIZE(client_statistic_key_t, l_key_size);
+        client_statistic_value_t *l_value = l_store_obj[i].value;
+        dap_enc_base58_decode(l_store_obj[i].key, l_key);
+        dap_string_append_printf(l_ret, "SRV UID: %05d\nClient pkey hash: %s\n " \
+            "\tpayed:\n\t\tusing time:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tbytes sent:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tbytes received:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tunits used:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tdatoshi value:\t\t%"DAP_UINT64_FORMAT_U"\n",
+            l_key->srv_uid, l_key->client_pkey_hash_str,
+            l_value->payed.using_time, l_value->payed.bytes_sent, l_value->payed.bytes_received, l_value->payed.units, l_value->payed.datoshi_value);
+        DAP_DEL_Z(l_key);
     }
     DAP_DEL_Z(l_store_obj);
-    return NULL;
+    return dap_string_free(l_ret, false);
 }
 
 void dap_stream_ch_chain_net_srv_tx_cond_added_cb(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx)
@@ -824,11 +834,13 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
     return true;
 }
 
-static uint256_t s_calc_datoshi(const dap_chain_net_srv_usage_t *a_usage, uint256_t a_prev)
+static uint256_t s_calc_datoshi(const dap_chain_net_srv_usage_t *a_usage, uint256_t *a_prev)
 {
-    uint256_t l_ret = {0}, l_datosi_used = {0};
+    uint256_t l_ret = {0}, l_prev = {0}, l_datosi_used = {0};
     uint64_t l_used = 0;
     dap_return_val_if_pass(!a_usage, l_ret);
+    if (a_prev)
+        l_prev = *a_prev;
     switch(a_usage->service->pricelist->units_uid.enm){
         case SERV_UNIT_SEC:
             l_used = dap_time_now() - a_usage->ts_created;
@@ -848,7 +860,7 @@ static uint256_t s_calc_datoshi(const dap_chain_net_srv_usage_t *a_usage, uint25
     }
     MULT_256_256(a_usage->service->pricelist->value_datoshi, GET_256_FROM_64(l_used), &l_ret);
     DIV_256(l_ret, GET_256_FROM_64(a_usage->service->pricelist->units), &l_datosi_used);
-    SUM_256_256(a_prev, l_datosi_used, &l_ret);
+    SUM_256_256(l_prev, l_datosi_used, &l_ret);
     return l_ret;
 }
 
@@ -861,12 +873,13 @@ static void s_add_usage_data_to_gdb(const dap_chain_net_srv_usage_t *a_usage)
     client_statistic_value_t l_bin_value_new = {0};
     size_t l_value_size = 0;
     l_bin_key.srv_uid = a_usage->service->uid;
-    l_bin_key.client_pkey_hash = a_usage->client_pkey_hash;
+    dap_chain_hash_fast_to_str_do(&a_usage->client_pkey_hash, l_bin_key.client_pkey_hash_str);
+    a_usage->client_pkey_hash;
     char *l_str_key = dap_enc_base58_encode_to_str(&l_bin_key, sizeof(client_statistic_key_t));
     client_statistic_value_t *l_bin_value = (client_statistic_value_t *)dap_global_db_get_sync(SRV_STATISTIC_GDB_GROUP, l_str_key, &l_value_size, NULL, NULL);
     if (l_bin_value && l_value_size != sizeof(client_statistic_value_t)) {
         log_it(L_ERROR, "Wrong srv client_statistic size in GDB. Expecting %zu, getted %zu", sizeof(client_statistic_value_t), l_value_size);
-        dap_global_db_set(SRV_STATISTIC_GDB_GROUP, l_str_key, &l_bin_value_new, sizeof(client_statistic_value_t), false, NULL, NULL);
+        //dap_global_db_set(SRV_STATISTIC_GDB_GROUP, l_str_key, &l_bin_value_new, sizeof(client_statistic_value_t), false, NULL, NULL);
         DAP_DEL_Z(l_str_key);
         DAP_DEL_Z(l_bin_value);
         return;
@@ -879,7 +892,7 @@ static void s_add_usage_data_to_gdb(const dap_chain_net_srv_usage_t *a_usage)
         l_bin_value_new.grace.using_time += dap_time_now() - a_usage->ts_created;
         l_bin_value_new.grace.bytes_received += a_usage->client->bytes_received;
         l_bin_value_new.grace.bytes_sent += a_usage->client->bytes_sent;
-        l_bin_value_new.grace.datoshi_value = s_calc_datoshi(a_usage, l_bin_value->grace.datoshi_value);
+        l_bin_value_new.grace.datoshi_value = s_calc_datoshi(a_usage, l_bin_value ? &l_bin_value->grace.datoshi_value : NULL);
     } else if (a_usage->is_free) {
         l_bin_value_new.free.using_time += dap_time_now() - a_usage->ts_created;
         l_bin_value_new.free.bytes_received += a_usage->client->bytes_received;
@@ -888,12 +901,12 @@ static void s_add_usage_data_to_gdb(const dap_chain_net_srv_usage_t *a_usage)
         l_bin_value_new.payed.using_time += dap_time_now() - a_usage->ts_created;
         l_bin_value_new.payed.bytes_received += a_usage->client->bytes_received;
         l_bin_value_new.payed.bytes_sent += a_usage->client->bytes_sent;
-        l_bin_value_new.payed.datoshi_value = s_calc_datoshi(a_usage, l_bin_value->payed.datoshi_value);
+        l_bin_value_new.payed.datoshi_value = s_calc_datoshi(a_usage, l_bin_value ? &l_bin_value->payed.datoshi_value : NULL);
     }
+    dap_global_db_del(SRV_STATISTIC_GDB_GROUP, l_str_key, NULL, NULL);
     dap_global_db_set(SRV_STATISTIC_GDB_GROUP, l_str_key, &l_bin_value_new, sizeof(client_statistic_value_t), false, NULL, NULL);
     DAP_DEL_Z(l_str_key);
     DAP_DEL_Z(l_bin_value);
-    dap_stream_ch_chain_net_srv_create_statistic_report();
 }
 
 static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
