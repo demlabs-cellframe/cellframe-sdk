@@ -28,3 +28,4 @@
 #include "dap_json_rpc_errors.h"
 
 json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum);
+json_object * dap_chain_datum_data_to_json(dap_chain_datum_t *a_datum);
