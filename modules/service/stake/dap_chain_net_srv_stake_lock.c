@@ -1193,7 +1193,7 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
     if (!IS_ZERO_256(l_total_fee)) {
         if(!l_main_native)
         {
-            l_list_fee_out = dap_chain_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_ticker,
+            l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_ticker,
                                                                     &l_addr, l_total_fee, &l_fee_transfer);
             if (!l_list_fee_out) {
                 log_it(L_WARNING, "Not enough funds to pay fee");
@@ -1202,7 +1202,7 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
         }
         else if(res == 1){
             SUBTRACT_256_256(l_total_fee, a_value, &l_fee_part);
-            l_list_fee_out = dap_chain_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_ticker,
+            l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_ticker,
                                                                     &l_addr, l_fee_part, &l_fee_transfer);
             if (!l_list_fee_out) {
                 log_it(L_WARNING, "Not enough funds to pay fee");
