@@ -2867,7 +2867,16 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                         }
                         dap_list_free(l_list_sig_item);
                         char *l_addr_from_str = dap_chain_addr_to_str(&l_addr_from);
-                        dap_string_append_printf(a_str_tmp, "\tFrom: %s\n", l_addr_from_str);
+                        dap_list_t *l_list_in_reward = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_REWARD, NULL);
+                        if (l_list_in_reward) {
+                            dap_chain_tx_in_reward_t *l_in_reward = (dap_chain_tx_in_reward_t*)l_list_in_reward->data;
+                            char *l_block_hash = dap_chain_hash_fast_to_str_new(&l_in_reward->block_hash);
+                            dap_string_append_printf(a_str_tmp, "\tForm block reward: %s\n", l_block_hash);
+                            DAP_DELETE(l_block_hash);
+                        } else {
+                            dap_string_append_printf(a_str_tmp, "\tFrom: %s\n", l_addr_from_str);
+                        }
+                        dap_list_free(l_list_in_reward);
                         DAP_DELETE(l_addr_from_str);
                         dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
                         for (dap_list_t *it = l_list_out_items; it; it = it->next) {
@@ -2907,7 +2916,10 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                             char *l_value_str = dap_chain_balance_print(l_value);
                             char *l_value_coins_str = dap_chain_balance_to_coins(l_value);
                             char *l_addr_str = dap_chain_addr_to_str(l_dist_addr);
-                            if (l_dist_addr) {
+                            if (is_fee) {
+                                dap_string_append_printf(a_str_tmp, "\tFee: %s (%s) %s\n", l_value_coins_str,
+                                                         l_value_str, l_dist_token);
+                            } else {
                                 if (!datum_is_accepted_addr && l_wallet_addr) {
                                     datum_is_accepted_addr = dap_chain_addr_compare(l_wallet_addr, l_dist_addr);
                                 }
@@ -2917,10 +2929,6 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                                 dap_string_append_printf(a_str_tmp, "\tTo: %s (%s) %s %s\n",
                                                          l_value_coins_str, l_value_str, l_dist_token, l_addr_str);
 
-                            } else {
-                                dap_string_append_printf(a_str_tmp, "\tFee: %s (%s) %s\n", l_value_coins_str,
-                                                         l_value_str,
-                                                         l_dist_token);
                             }
                             DAP_DELETE(l_value_str);
                             DAP_DELETE(l_value_coins_str);
