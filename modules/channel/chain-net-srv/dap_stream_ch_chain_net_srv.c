@@ -56,7 +56,7 @@ typedef struct usages_in_grace{
 
 // client statistic key struct
 typedef struct client_statistic_key{
-    char  key[16 + DAP_CHAIN_HASH_FAST_STR_SIZE];
+    char  key[18 + DAP_CHAIN_HASH_FAST_STR_SIZE];
 } client_statistic_key_t;
 
 // client statistic value struct
@@ -256,11 +256,11 @@ char *dap_stream_ch_chain_net_srv_create_statistic_report()
         client_statistic_value_t *l_value = (client_statistic_value_t *)l_store_obj[i].value;
         char *l_payed_datoshi = dap_chain_balance_print(l_value->payed.datoshi_value);
         char *l_grace_datoshi = dap_chain_balance_print(l_value->grace.datoshi_value);
-        dap_string_append_printf(l_ret, "SRV UID: %.16s\nClient pkey hash: %s\n " \
+        dap_string_append_printf(l_ret, "SRV UID: %.18s\nClient pkey hash: %s\n " \
             "\tpayed:\n\t\tusing time:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tbytes sent:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tbytes received:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tunits used:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tdatoshi value:\t\t%s\n" \
             "\tgrace:\n\t\tusing time:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tbytes sent:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tbytes received:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tunits used:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tdatoshi value:\t\t%s\n" \
             "\tfree:\n\t\tusing time:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tbytes sent:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tbytes received:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tunits used:\t\t%"DAP_UINT64_FORMAT_U"\n",
-            l_store_obj[i].key, l_store_obj[i].key + 16,
+            l_store_obj[i].key, l_store_obj[i].key + 18,
             l_value->payed.using_time, l_value->payed.bytes_sent, l_value->payed.bytes_received, l_value->payed.units, l_payed_datoshi,
             l_value->grace.using_time, l_value->grace.bytes_sent, l_value->grace.bytes_received, l_value->grace.units, l_grace_datoshi,
             l_value->free.using_time, l_value->free.bytes_sent, l_value->free.bytes_received, l_value->free.units);
@@ -888,12 +888,12 @@ static void s_add_usage_data_to_gdb(const dap_chain_net_srv_usage_t *a_usage)
     client_statistic_key_t l_bin_key;
     client_statistic_value_t l_bin_value_new = {0};
     size_t l_value_size = 0;
-    dap_sprintf(l_bin_key.key, "%016"DAP_UINT64_FORMAT_X"", a_usage->service->uid.uint64);
-    dap_chain_hash_fast_to_str_do(&a_usage->client_pkey_hash, l_bin_key.key + 16);
+    dap_sprintf(l_bin_key.key, "0x%016"DAP_UINT64_FORMAT_X"", a_usage->service->uid.uint64);
+    dap_chain_hash_fast_to_str_do(&a_usage->client_pkey_hash, l_bin_key.key + 18);
     client_statistic_value_t *l_bin_value = (client_statistic_value_t *)dap_global_db_get_sync(SRV_STATISTIC_GDB_GROUP, l_bin_key.key, &l_value_size, NULL, NULL);
     if (l_bin_value && l_value_size != sizeof(client_statistic_value_t)) {
         log_it(L_ERROR, "Wrong srv client_statistic size in GDB. Expecting %zu, getted %zu", sizeof(client_statistic_value_t), l_value_size);
-        //dap_global_db_set(SRV_STATISTIC_GDB_GROUP, l_bin_key.key, &l_bin_value_new, sizeof(client_statistic_value_t), false, NULL, NULL);
+        //dap_global_db_set(SRV_STATISTIC_GDB_GROUP, l_bin_key.key, &l_bin_value_new, sizeof(client_statistic_value_t), false, NULL, NULL); value size update
         DAP_DEL_Z(l_bin_value);
         return;
     }
