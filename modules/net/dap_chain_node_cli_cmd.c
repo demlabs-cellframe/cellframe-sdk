@@ -2261,14 +2261,9 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                             return -1;
                         }
                     }
-                    if(l_sign_type.type == SIG_TYPE_PICNIC){
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Picnic algorithms are not supported, please, use another variant");
-                        dap_string_free(l_string_ret, true);
-                        return -1;
-                    }
 
-                    if (l_sign_type.type == SIG_TYPE_TESLA || l_sign_type.type == SIG_TYPE_BLISS) {
-                        if (l_sign_type.type == SIG_TYPE_BLISS && (l_restore_opt || l_restore_legacy_opt)) {
+                    if (l_sign_type.type == SIG_TYPE_TESLA || l_sign_type.type == SIG_TYPE_BLISS || l_sign_type.type == SIG_TYPE_PICNIC) {
+                        if ((l_sign_type.type == SIG_TYPE_BLISS || l_sign_type.type == SIG_TYPE_PICNIC) && (l_restore_opt || l_restore_legacy_opt)) {
                             dap_string_append_printf(l_string_ret, "CAUTION!!! CAUTION!!! CAUTION!!!\nThe Bliss signature is deprecated. We recommend you to create a new wallet with another available signature and transfer funds there.\n");
                         } else {
                             dap_string_free(l_string_ret, true);
