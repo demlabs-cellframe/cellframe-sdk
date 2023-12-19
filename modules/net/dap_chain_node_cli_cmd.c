@@ -3002,6 +3002,7 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
         }
     } else {
         l_datum = s_com_mempool_check_datum_in_chain(a_chain, a_datum_hash);
+        l_chain_name = a_chain->name;
     }
     if (!l_datum) {
         l_found_in_chains = true;
