@@ -279,6 +279,8 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
         bool l_base_tx = false, l_reward_collect = false;
         const char *l_noaddr_token = NULL;
 
+        uint256_t l_value_in = {};
+        bool is_stake_lock = false;
         dap_hash_fast_t l_tx_hash;
         dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
         const char *l_src_token = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_hash);
@@ -325,6 +327,9 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
                     break;
                 case TX_ITEM_TYPE_OUT_EXT:
                     l_src_addr = &((dap_chain_tx_out_ext_t *)l_prev_out_union)->addr;
+                    if(dap_strcmp(l_src_token, ((dap_chain_tx_out_ext_t *)l_prev_out_union)->token) == 0){
+                        l_value_in = ((dap_chain_tx_out_ext_t *)l_prev_out_union)->header.value;
+                    }
                     break;
                 case TX_ITEM_TYPE_OUT_COND:
                     l_src_subtype = ((dap_chain_tx_out_cond_t *)l_prev_out_union)->header.subtype;
@@ -332,6 +337,8 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
                         l_noaddr_token = l_native_ticker;
                     else
                         l_noaddr_token = l_src_token;
+                    if(l_src_subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK)
+                        is_stake_lock = true;
                 default:
                     break;
                 }
@@ -409,6 +416,9 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
                     l_src_str = l_src_addr_str = dap_chain_addr_to_str(l_src_addr);
                 else
                     l_src_str = dap_chain_tx_out_cond_subtype_to_str(l_src_subtype);
+                if(is_stake_lock){
+                    SUBTRACT_256_256(l_value, l_value_in, &l_value);
+                }
                 char *l_value_str = dap_chain_balance_print(l_value);
                 char *l_coins_str = dap_chain_balance_to_coins(l_value);
                 dap_string_append_printf(l_str_out, "\trecv %s (%s) %s from %s\n",
