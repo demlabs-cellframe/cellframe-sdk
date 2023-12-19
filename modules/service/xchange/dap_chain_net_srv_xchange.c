@@ -1411,21 +1411,27 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
 
                 SUBTRACT_256_256(l_out_cond->header.value, l_out_cond_last_tx->header.value, &l_percent_completed);
                 DIV_256_COIN(l_percent_completed, l_out_cond->header.value, &l_percent_completed);
-                MULT_256_COIN(l_percent_completed, GET_256_FROM_64(100ULL), &l_percent_completed);
+                MULT_256_COIN(l_percent_completed, dap_chain_coins_to_balance("100.0"), &l_percent_completed);
             } else {
-                int l_item_idx = 0;
-                byte_t *l_tx_item = dap_chain_datum_tx_item_get(l_last_tx, &l_item_idx, TX_ITEM_TYPE_IN_COND , NULL);
-                dap_chain_tx_in_cond_t * l_in_cond = l_tx_item ? (dap_chain_tx_in_cond_t *) l_tx_item : NULL;
-                int l_prev_cond_idx = 0;
-                dap_chain_datum_tx_t * l_prev_tx = l_in_cond ? dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_in_cond->header.tx_prev_hash) : NULL;
-                dap_chain_tx_out_cond_t *l_out_prev_cond_item = l_prev_tx ? dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
-                                                                                                            &l_prev_cond_idx) : NULL;
-                SUBTRACT_256_256(l_out_cond->header.value, l_out_prev_cond_item->header.value, &l_percent_completed);
-                DIV_256_COIN(l_percent_completed, l_out_cond->header.value, &l_percent_completed);
-                MULT_256_COIN(l_percent_completed, GET_256_FROM_64(100ULL), &l_percent_completed);
+                dap_chain_tx_out_cond_t *l_out_prev_cond_item = NULL;
+                xchange_tx_type_t tx_type = s_xchange_tx_get_type(l_net, l_last_tx, NULL, NULL, &l_out_prev_cond_item);
+                if (tx_type == TX_TYPE_EXCHANGE){
+                    SUBTRACT_256_256(l_out_cond->header.value, uint256_0, &l_percent_completed);
+                    DIV_256_COIN(l_percent_completed, l_out_cond->header.value, &l_percent_completed);
+                    MULT_256_COIN(l_percent_completed, dap_chain_coins_to_balance("100.0"), &l_percent_completed);
+                } else if (tx_type == TX_TYPE_INVALIDATE){
+                    SUBTRACT_256_256(l_out_cond->header.value, l_out_prev_cond_item->header.value, &l_percent_completed);
+                    DIV_256_COIN(l_percent_completed, l_out_cond->header.value, &l_percent_completed);
+                    MULT_256_COIN(l_percent_completed, dap_chain_coins_to_balance("100.0"), &l_percent_completed);
+                }
             }
 
-            l_percent_completed_str = dap_chain_balance_print(l_percent_completed);
+            l_percent_completed_str = dap_chain_balance_to_coins(l_percent_completed);
+            size_t l_str_len = strlen(l_percent_completed_str);
+            char*  l_dot_pos = strstr(l_percent_completed_str, ".");
+            if (l_dot_pos && (l_str_len - (l_dot_pos - l_percent_completed_str)) > 2){
+                *(char*)(l_dot_pos + 3) = '\0';
+            }
 
             char l_tmp_buf[70] = {};
             dap_time_t l_ts_create = (dap_time_t)l_tx->header.ts_created;
@@ -1442,6 +1448,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                                      l_price->net->pub.name);
 
             DAP_DEL_Z(l_tx_hash_str);
+            DAP_DEL_Z(l_percent_completed_str);
             DAP_DEL_Z(l_amount_coins_str);
             DAP_DEL_Z(l_amount_datoshi_str);
             DAP_DEL_Z(l_cp_rate);
@@ -1947,21 +1954,28 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 
                     SUBTRACT_256_256(l_out_cond->header.value, l_out_cond_last_tx->header.value, &l_percent_completed);
                     DIV_256_COIN(l_percent_completed, l_out_cond->header.value, &l_percent_completed);
-                    MULT_256_COIN(l_percent_completed, GET_256_FROM_64(100ULL), &l_percent_completed);
+                    MULT_256_COIN(l_percent_completed, dap_chain_coins_to_balance("100.0"), &l_percent_completed);
                 } else {
-                    int l_item_idx = 0;
-                    byte_t *l_tx_item = dap_chain_datum_tx_item_get(l_last_tx, &l_item_idx, TX_ITEM_TYPE_IN_COND , NULL);
-                    dap_chain_tx_in_cond_t * l_in_cond = l_tx_item ? (dap_chain_tx_in_cond_t *) l_tx_item : NULL;
-                    int l_prev_cond_idx = 0;
-                    dap_chain_datum_tx_t * l_prev_tx = l_in_cond ? dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_in_cond->header.tx_prev_hash) : NULL;
-                    dap_chain_tx_out_cond_t *l_out_prev_cond_item = l_prev_tx ? dap_chain_datum_tx_out_cond_get(l_prev_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE,
-                                                                                                                &l_prev_cond_idx) : NULL;
-                    SUBTRACT_256_256(l_out_cond->header.value, l_out_prev_cond_item->header.value, &l_percent_completed);
-                    DIV_256_COIN(l_percent_completed, l_out_cond->header.value, &l_percent_completed);
-                    MULT_256_COIN(l_percent_completed, GET_256_FROM_64(100ULL), &l_percent_completed);
+                    dap_chain_tx_out_cond_t *l_out_prev_cond_item = NULL;
+                    xchange_tx_type_t tx_type = s_xchange_tx_get_type(l_net, l_last_tx, NULL, NULL, &l_out_prev_cond_item);
+                    if (tx_type == TX_TYPE_EXCHANGE){
+                        SUBTRACT_256_256(l_out_cond->header.value, uint256_0, &l_percent_completed);
+                        DIV_256_COIN(l_percent_completed, l_out_cond->header.value, &l_percent_completed);
+                        MULT_256_COIN(l_percent_completed, dap_chain_coins_to_balance("100.0"), &l_percent_completed);
+                    } else if (tx_type == TX_TYPE_INVALIDATE){
+                        SUBTRACT_256_256(l_out_cond->header.value, l_out_prev_cond_item->header.value, &l_percent_completed);
+                        DIV_256_COIN(l_percent_completed, l_out_cond->header.value, &l_percent_completed);
+                        MULT_256_COIN(l_percent_completed, dap_chain_coins_to_balance("100.0"), &l_percent_completed);
+                    }
                 }
 
-                l_percent_completed_str = dap_chain_balance_print(l_percent_completed);
+                l_percent_completed_str = dap_chain_balance_to_coins(l_percent_completed);
+                size_t l_str_len = strlen(l_percent_completed_str);
+                char*  l_dot_pos = strstr(l_percent_completed_str, ".");
+                if (l_dot_pos && (l_str_len - (l_dot_pos - l_percent_completed_str)) > 2){
+                    *(char*)(l_dot_pos + 3) = '\0';
+                }
+
                 char l_tmp_buf[70] = {};
                 dap_time_t l_ts_create = (dap_time_t)l_tx->header.ts_created;
                 dap_ctime_r(&l_ts_create, l_tmp_buf);
