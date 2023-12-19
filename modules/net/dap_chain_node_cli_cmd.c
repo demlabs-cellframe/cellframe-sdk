@@ -2905,6 +2905,12 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                                         l_dist_token = a_net->pub.native_ticker;
                                         is_fee = true;
                                     }
+                                    if (((dap_chain_tx_out_cond_t *)it->data)->header.subtype ==
+                                        DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK) {
+                                        l_value = ((dap_chain_tx_out_cond_t*)it->data)->header.value;
+                                        l_dist_token = l_main_token;
+                                        l_dist_addr = NULL;
+                                    }
                                 }
                                     break;
                                 default:
