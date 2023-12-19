@@ -776,6 +776,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
             l_err = -100;
             break;
         }
+
         log_it(L_DEBUG,"Opening /dev/net/tun:%u", i);
         if( (l_err = ioctl(l_tun_fd, TUNSETIFF, (void *)& s_raw_server->ifr)) < 0 ) {
             log_it(L_CRITICAL, "ioctl(TUNSETIFF) error: '%s' ",strerror(errno));
@@ -785,10 +786,10 @@ static int s_vpn_tun_create(dap_config_t * g_config)
         s_tun_deattach_queue(l_tun_fd);
         s_raw_server->tun_device_name = strdup(s_raw_server->ifr.ifr_name);
         s_raw_server->tun_fd = l_tun_fd;
-
 #elif !defined (DAP_OS_DARWIN)
 #error "Undefined tun interface attach for your platform"
 #endif
+
         s_tun_event_stream_create(l_worker, l_tun_fd);
     }
     if (l_err) {
@@ -903,7 +904,7 @@ int dap_chain_net_srv_vpn_init(dap_config_t * g_config) {
     s_vpn_tun_init();
 
     log_it(L_DEBUG,"Initializing TUN driver...");
-    if(s_vpn_tun_create(g_config) != 0){
+    if(s_vpn_tun_create(g_config)){
         log_it(L_CRITICAL, "Error initializing TUN device driver!");
         dap_chain_net_srv_vpn_deinit();
         return -1;
