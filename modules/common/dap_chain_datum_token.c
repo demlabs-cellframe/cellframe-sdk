@@ -184,9 +184,12 @@ dap_chain_datum_token_t *dap_chain_datum_token_read(const byte_t *a_token_serial
         *a_token_size = l_token_size;
         return l_token;
     }
+    case DAP_CHAIN_DATUM_TOKEN_TYPE_DECL:
+    case DAP_CHAIN_DATUM_TOKEN_TYPE_UPDATE:
+        return DAP_DUP_SIZE(a_token_serial, *a_token_size);
     default:
         log_it(L_NOTICE, "Unknown token type '%d' read", ((dap_chain_datum_token_t*)a_token_serial)->type);
-        return DAP_DUP_SIZE(a_token_serial, *a_token_size);
+        return NULL;
     }
 }
 
@@ -355,7 +358,7 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_create(uint256_t a_va
         return NULL;
     }
     l_emission->hdr.version = 3;
-    l_emission->hdr.value_256 = a_value;
+    l_emission->hdr.value = a_value;
     strncpy(l_emission->hdr.ticker, a_ticker, DAP_CHAIN_TICKER_SIZE_MAX - 1);
     l_emission->hdr.type = DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH;
     l_emission->hdr.address = *a_addr;
@@ -403,8 +406,8 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emissi
         memcpy((byte_t *)l_emission + sizeof(l_emission->hdr),
                a_emission_serial + l_old_hdr_size,
                (uint32_t)(l_emission_size - l_old_hdr_size));
-        l_emission->hdr.value_256 = dap_chain_uint256_from(
-                    ((dap_chain_datum_token_emission_t *)a_emission_serial)->hdr.value);
+        l_emission->hdr.value = dap_chain_uint256_from(
+                    ((dap_chain_datum_token_emission_t *)a_emission_serial)->hdr.value64);
         l_emission_size += l_add_size;
         (*a_emission_size) = l_emission_size;
     } else {
@@ -414,8 +417,8 @@ dap_chain_datum_token_emission_t *dap_chain_datum_emission_read(byte_t *a_emissi
             return NULL;
         }
         if (((dap_chain_datum_token_emission_t *)a_emission_serial)->hdr.version == 1)
-            l_emission->hdr.value_256 = dap_chain_uint256_from(
-                        ((dap_chain_datum_token_emission_t *)a_emission_serial)->hdr.value);
+            l_emission->hdr.value = dap_chain_uint256_from(
+                        ((dap_chain_datum_token_emission_t *)a_emission_serial)->hdr.value64);
     }
     return l_emission;
 }
@@ -551,7 +554,7 @@ dap_sign_t *dap_chain_datum_emission_get_signs(dap_chain_datum_token_emission_t 
         log_it(L_CRITICAL, "Out of memory!");
         return NULL;
     }
-    *a_signs_count = MIN(l_count, a_emission->data.type_auth.signs_count);
+    *a_signs_count = dap_min(l_count, a_emission->data.type_auth.signs_count);
     memcpy(l_ret, a_emission->tsd_n_signs + a_emission->data.type_auth.tsd_total_size, l_actual_size);
     return l_ret;
 }

@@ -58,6 +58,15 @@
 #include "dap_chain_wallet_internal.h"
 #include "dap_enc_key.h"
 #include "crc32c_adler.h"
+#include "dap_chain_ledger.h"
+
+#define __USE_GNU
+
+#if defined(__USE_BSD) || defined(__USE_GNU)
+#define S_IREAD S_IRUSR
+#define S_IWRITE S_IWUSR
+#define S_IEXEC S_IXUSR
+#endif
 
 #define __USE_GNU
 
@@ -260,12 +269,7 @@ struct timespec l_now;
  *      0   - Success
  *      <0  -   <errno>
  */
-int     dap_chain_wallet_deactivate   (
-                    const   char    *a_name,
-                        ssize_t      a_name_len,
-                    const   char    *a_pass,
-                        ssize_t      a_pass_len
-                                    )
+int dap_chain_wallet_deactivate (const char *a_name, ssize_t a_name_len)
 {
 int     l_rc, l_rc2;
 dap_chain_wallet_n_pass_t   *l_prec;
@@ -280,16 +284,12 @@ dap_chain_wallet_n_pass_t   *l_prec;
 
     HASH_FIND_STR(s_wallet_n_pass, a_name, l_prec);                     /* Check for existen record */
 
-    if ( l_prec )
-    {
-        if ( !l_prec->pass_len )                                        /* Password is zero - has been reset probably */
-            l_rc = -EBUSY, log_it(L_WARNING, "The Wallet %.*s is not active", (int) a_name_len, a_name);
-
-        else if ( (l_prec->pass_len != a_pass_len)                      /* Check that passwords is equivalent */
-             || memcmp(l_prec->pass, a_pass, l_prec->pass_len) )
-            l_rc = -EAGAIN, log_it(L_ERROR, "Wallet's password does not match");
-
-        else    l_rc = 0, memset(l_prec->pass, l_prec->pass_len = 0, sizeof(l_prec->pass));
+    if (!l_prec || !l_prec->pass_len) { /* Password is zero - has been reset probably */
+        l_rc = -EBUSY;
+        log_it(L_WARNING, "The Wallet %.*s is not active", (int) a_name_len, a_name);
+    } else {
+        l_rc = 0;
+        memset(l_prec->pass, l_prec->pass_len = 0, sizeof(l_prec->pass));
     }
 
     if ( (l_rc2 = pthread_rwlock_unlock(&s_wallet_n_pass_lock)) )       /* Release lock */
@@ -1010,7 +1010,7 @@ uint256_t dap_chain_wallet_get_balance (
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
     dap_chain_addr_t *l_addr = dap_chain_wallet_get_addr(a_wallet, a_net_id);
 
-    return  (l_net)  ? dap_chain_ledger_calc_balance(l_net->pub.ledger, l_addr, a_token_ticker) : uint256_0;
+    return  (l_net)  ? dap_ledger_calc_balance(l_net->pub.ledger, l_addr, a_token_ticker) : uint256_0;
 }
 
 /**

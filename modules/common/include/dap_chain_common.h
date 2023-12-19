@@ -28,6 +28,7 @@
 
 #include "dap_common.h"
 #include "dap_math_ops.h"
+#include "dap_math_convert.h"
 #include "dap_enc_key.h"
 #include "dap_pkey.h"
 #include "dap_sign.h"
@@ -120,6 +121,8 @@ DAP_STATIC_INLINE int dap_chain_node_addr_from_str(dap_chain_node_addr_t *a_addr
 
 DAP_STATIC_INLINE bool dap_chain_node_addr_not_null(dap_chain_node_addr_t * a_addr) { return a_addr->uint64 != 0; }
 
+DAP_STATIC_INLINE bool dap_chain_node_addr_match(dap_chain_node_addr_t *a_addr1, dap_chain_node_addr_t *a_addr2) { return a_addr1->uint64 == a_addr2->uint64; }
+
 enum {
     NODE_ROLE_ROOT_MASTER=0x00,
     NODE_ROLE_ROOT=0x01,
@@ -163,7 +166,7 @@ typedef struct dap_chain_addr{
         dap_chain_hash_fast_t hash_fast;
     } DAP_ALIGN_PACKED data;
     dap_chain_hash_fast_t checksum;
-}  DAP_ALIGN_PACKED dap_chain_addr_t;
+} DAP_ALIGN_PACKED dap_chain_addr_t;
 
 #define DAP_CHAIN_NET_SRV_UID_SIZE 8
 
@@ -233,26 +236,26 @@ typedef union {
 } DAP_ALIGN_PACKED dap_chain_net_srv_price_unit_uid_t;
 
 enum dap_chain_tx_item_type {
-    TX_ITEM_TYPE_IN = 0x00, /// @brief  Transaction: inputs
+    /// @brief Transaction: inputs
+    TX_ITEM_TYPE_IN = 0x00,
+    TX_ITEM_TYPE_IN_COND = 0x50,
+    TX_ITEM_TYPE_IN_REWARD = 0x07,
+    TX_ITEM_TYPE_IN_EMS = 0x40,
 
-    TX_ITEM_TYPE_OUT_OLD = 0x10, /// @brief  Transaction: outputs
+    /// @brief Transaction: outputs
+    TX_ITEM_TYPE_OUT_OLD = 0x10,        // Deprecated
     TX_ITEM_TYPE_OUT_EXT = 0x11,
-    TX_ITEM_TYPE_OUT = 0x12, // 256
+    TX_ITEM_TYPE_OUT = 0x12,
+    TX_ITEM_TYPE_OUT_COND = 0x61,
 
+    /// @brief Transaction: misc
     TX_ITEM_TYPE_PKEY = 0x20,
     TX_ITEM_TYPE_SIG = 0x30,
-    TX_ITEM_TYPE_IN_EMS = 0x40,
-    TX_ITEM_TYPE_IN_EMS_EXT = 0x41,
-
-    TX_ITEM_TYPE_IN_COND = 0x50, /// @brief  Transaction: conditon inputs
-
-    TX_ITEM_TYPE_OUT_COND_OLD = 0x60, // Obsolete
-    TX_ITEM_TYPE_OUT_COND = 0x61, /// @brief  Transaction: 256 bit conditon outputs
-
     TX_ITEM_TYPE_RECEIPT = 0x70,
-
     TX_ITEM_TYPE_TSD = 0x80,
 
+    /// @brief Virtual types for items enumearting
+    TX_ITEM_TYPE_IN_EMS_LOCK = 0xf1,
     TX_ITEM_TYPE_IN_ALL = 0xfd,
     TX_ITEM_TYPE_OUT_ALL = 0xfe,
     TX_ITEM_TYPE_ANY = 0xff
@@ -322,15 +325,10 @@ uint64_t dap_chain_uint128_to(uint128_t a_from);
 // 256
 uint64_t dap_chain_uint256_to(uint256_t a_from);
 
-char *dap_chain_balance_print(uint256_t a_balance);
-char *dap_chain_balance_to_coins(uint256_t a_balance);
-uint256_t dap_chain_balance_scan(const char *a_balance);
-
-char *dap_cvt_uint256_to_str(uint256_t a_uint256);
-uint256_t dap_cvt_str_to_uint256(const char *a_256bit_num);
-
-
-uint256_t dap_chain_coins_to_balance(const char *a_coins);
+#define dap_chain_balance_print(a_balance) dap_uint256_uninteger_to_char(a_balance)
+#define dap_chain_balance_scan(a_balance) dap_uint256_scan_uninteger(a_balance)
+#define dap_chain_balance_to_coins(a) dap_uint256_decimal_to_char(a)
+#define dap_chain_coins_to_balance(a) dap_uint256_scan_decimal(a)
 
 
 /**

@@ -583,7 +583,7 @@ int dap_chain_net_srv_order_delete_by_hash_str_sync(dap_chain_net_t * a_net, con
  * @param a_orders
  * @param a_str_out
  */
-void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,dap_string_t * a_str_out, const char *a_hash_out_type)
+void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,dap_string_t * a_str_out, const char *a_hash_out_type, const char *a_native_ticker)
 {
     if (a_order && a_str_out ){
         dap_chain_hash_fast_t l_hash;
@@ -600,6 +600,9 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         case SERV_DIR_SELL:         dap_string_append_printf(a_str_out, "  direction:        SERV_DIR_SELL\n" );        break;
         case SERV_DIR_BUY:          dap_string_append_printf(a_str_out, "  direction:        SERV_DIR_BUY\n" );         break;
         }
+        char buf_time[50];
+        dap_time_to_str_rfc822(buf_time, 50, a_order->ts_created);
+        dap_string_append_printf(a_str_out, "  created:          %s\n", buf_time);
 
         dap_string_append_printf(a_str_out, "  srv_uid:          0x%016"DAP_UINT64_FORMAT_X"\n", a_order->srv_uid.uint64 );
         char *l_balance_coins = dap_chain_balance_to_coins(a_order->price);
@@ -609,6 +612,7 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         DAP_DELETE(l_balance);
         if( a_order->price_unit.uint32 )
             dap_string_append_printf(a_str_out, "  price_unit:       %s\n", dap_chain_net_srv_price_unit_uid_to_str(a_order->price_unit) );
+        dap_string_append_printf(a_str_out, "  price_token:      %s\n", (*a_order->price_ticker) ? a_order->price_ticker : a_native_ticker);
         if ( a_order->node_addr.uint64)
             dap_string_append_printf(a_str_out, "  node_addr:        "NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS_S(a_order->node_addr) );
 
@@ -663,6 +667,10 @@ static void s_srv_order_callback_notify(dap_global_db_context_t *a_context, dap_
         return;
     dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
     dap_global_db_context_t * l_gdb_context = dap_global_db_context_current();
+    if (!l_gdb_context) {
+        log_it(L_ATT, "[!] GDB context not found in LTS");
+        l_gdb_context = a_context;
+    }
     assert(l_net);
     assert(l_gdb_context);
 

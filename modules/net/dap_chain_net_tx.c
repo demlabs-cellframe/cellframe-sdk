@@ -26,6 +26,7 @@
 #include "dap_chain_net_tx.h"
 #include "dap_chain_cell.h"
 #include "dap_chain_common.h"
+#include "dap_chain_ledger.h"
 #include "dap_chain_datum_tx_in_cond.h"
 #include "dap_chain_tx.h"
 #include "dap_list.h"
@@ -93,7 +94,7 @@ dap_chain_datum_tx_spends_items_t * dap_chain_net_get_tx_cond_all_with_spends_by
 
                                 if(a_search_type == TX_SEARCH_TYPE_CELL_SPENT || a_search_type == TX_SEARCH_TYPE_NET_SPENT ){
                                     dap_hash_fast_t * l_tx_hash = dap_chain_node_datum_tx_calc_hash(l_tx);
-                                    bool l_is_spent = dap_chain_ledger_tx_spent_find_by_hash(l_ledger,l_tx_hash);
+                                    bool l_is_spent = !!dap_ledger_tx_spent_find_by_hash(l_ledger,l_tx_hash);
                                     DAP_DELETE(l_tx_hash);
                                     if(!l_is_spent)
                                         continue;
@@ -388,7 +389,7 @@ static void s_get_tx_cond_all_for_addr_callback(dap_chain_net_t* a_net, dap_chai
                 dap_chain_tx_t * l_tx = dap_chain_tx_hh_find( l_args->tx_all_hh, &l_in->header.tx_prev_hash);
                 if( l_tx ){ // Its input thats closing output for target address - we note it
                     l_tx_from_addr = true;
-                    //l_tx_from_addr_token = dap_chain_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_tx->hash);
+                    //l_tx_from_addr_token = dap_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_tx->hash);
                 }
             }break;
             case TX_ITEM_TYPE_IN_COND:{
@@ -524,8 +525,8 @@ dap_list_t * dap_chain_net_get_tx_cond_all_by_srv_uid(dap_chain_net_t * a_net, c
                                         continue;
 
                                 if(a_search_type == TX_SEARCH_TYPE_CELL_SPENT || a_search_type == TX_SEARCH_TYPE_NET_SPENT ){
-                                    dap_hash_fast_t * l_tx_hash = dap_chain_node_datum_tx_calc_hash(l_tx);
-                                    bool l_is_spent = dap_chain_ledger_tx_spent_find_by_hash(l_ledger,l_tx_hash);
+                                    dap_hash_fast_t *l_tx_hash = dap_chain_node_datum_tx_calc_hash(l_tx);
+                                    bool l_is_spent = !!dap_ledger_tx_spent_find_by_hash(l_ledger,l_tx_hash);
                                     DAP_DELETE(l_tx_hash);
                                     if(!l_is_spent)
                                         continue;
@@ -554,7 +555,7 @@ dap_list_t * dap_chain_net_get_tx_cond_all_by_srv_uid(dap_chain_net_t * a_net, c
 
         case TX_SEARCH_TYPE_NET_UNSPENT:
         case TX_SEARCH_TYPE_CELL_UNSPENT:
-            l_ret = dap_chain_ledger_tx_cache_find_out_cond_all(l_ledger, a_srv_uid);
+            l_ret = dap_ledger_tx_cache_find_out_cond_all(l_ledger, a_srv_uid);
             break;
     }
     return l_ret;
@@ -625,70 +626,43 @@ dap_chain_datum_tx_t *dap_chain_net_get_tx_by_hash(dap_chain_net_t *a_net, dap_c
                 continue;
             if ((a_search_type == TX_SEARCH_TYPE_CELL_SPENT ||
                     a_search_type == TX_SEARCH_TYPE_NET_SPENT) &&
-                    (!dap_chain_ledger_tx_spent_find_by_hash(l_ledger, a_tx_hash)))
+                    (!dap_ledger_tx_spent_find_by_hash(l_ledger, a_tx_hash)))
                 return NULL;
             return (dap_chain_datum_tx_t *)l_datum->data;
         }
     case TX_SEARCH_TYPE_NET_UNSPENT:
     case TX_SEARCH_TYPE_CELL_UNSPENT:
-        return dap_chain_ledger_tx_find_by_hash(l_ledger, a_tx_hash);
+        return dap_ledger_tx_find_by_hash(l_ledger, a_tx_hash);
     default: break;
     }
     return NULL;
 }
 
-static struct net_fee {
-    dap_chain_net_id_t net_id;
-    uint256_t value;            // Network fee value
-    dap_chain_addr_t fee_addr;  // Addr collector
-    UT_hash_handle hh;
-} *s_net_fees = NULL; // Governance statements for networks
-
 bool dap_chain_net_tx_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a_value, dap_chain_addr_t *a_addr)
 {
-    struct net_fee *l_net_fee;
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
-
     if (!l_net){
         log_it(L_WARNING, "Can't find net with id 0x%016"DAP_UINT64_FORMAT_x"", a_net_id.uint64);
         return false;
     }
-
-    HASH_FIND(hh, s_net_fees, &a_net_id, sizeof(dap_chain_net_id_t), l_net_fee);
-    if (!l_net_fee || IS_ZERO_256(l_net_fee->value))
+    if (IS_ZERO_256(l_net->pub.fee_value))
         return false;
     if (a_value)
-        *a_value = l_net_fee->value;
+        *a_value = l_net->pub.fee_value;
     if (a_addr)
-        *a_addr = l_net_fee->fee_addr;
+        *a_addr = l_net->pub.fee_addr;
     return true;
 }
 
-bool dap_chain_net_tx_add_fee(dap_chain_net_id_t a_net_id, uint256_t a_value, dap_chain_addr_t a_addr)
+bool dap_chain_net_tx_set_fee(dap_chain_net_id_t a_net_id, uint256_t a_value, dap_chain_addr_t a_addr)
 {
-    struct net_fee *l_net_fee = NULL;
-    bool l_found = false;
     dap_chain_net_t *l_net = dap_chain_net_by_id(a_net_id);
-
     if (!l_net){
         log_it(L_WARNING, "Can't find net with id 0x%016"DAP_UINT64_FORMAT_x"", a_net_id.uint64);
         return false;
     }
-
-    HASH_FIND(hh, s_net_fees, &a_net_id, sizeof(dap_chain_net_id_t), l_net_fee);
-
-    if (l_net_fee)
-        l_found = true;
-    else
-        l_net_fee = DAP_NEW(struct net_fee);
-    l_net_fee->net_id = a_net_id;
-    l_net_fee->value = a_value;
-    l_net_fee->fee_addr = a_addr;
-
-    if (!l_found)
-        HASH_ADD(hh, s_net_fees, net_id, sizeof(dap_chain_net_id_t), l_net_fee);
-
-    dap_chain_ledger_set_fee(l_net->pub.ledger, a_value, a_addr);
+    l_net->pub.fee_value = a_value;
+    l_net->pub.fee_addr = a_addr;
 
     return true;
 }

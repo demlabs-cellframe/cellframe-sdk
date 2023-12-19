@@ -111,6 +111,8 @@ void dap_chain_net_srv_usage_delete (dap_chain_net_srv_stream_session_t * a_srv_
         DAP_DEL_Z( a_srv_session->usage_active->receipt );
     if ( a_srv_session->usage_active->receipt_next )
         DAP_DEL_Z( a_srv_session->usage_active->receipt_next);
+    if (!dap_hash_fast_is_blank(&a_srv_session->usage_active->static_order_hash) && a_srv_session->usage_active->price)
+        DAP_DEL_Z( a_srv_session->usage_active->price);
     if ( a_srv_session->usage_active->client ){
         for (dap_chain_net_srv_client_remote_t * l_srv_client = a_srv_session->usage_active->client, * tmp = NULL; l_srv_client; ){
             tmp = l_srv_client;
@@ -131,7 +133,7 @@ dap_chain_net_srv_usage_t* dap_chain_net_srv_usage_find_unsafe (dap_chain_net_sr
                                                                              uint32_t a_usage_id)
 {
     dap_chain_net_srv_usage_t * l_ret = NULL;
-    if (a_srv_session->usage_active->id == a_usage_id)
+    if (a_srv_session && a_srv_session->usage_active && a_srv_session->usage_active->id == a_usage_id)
         l_ret = a_srv_session->usage_active;
     return  l_ret;
 }

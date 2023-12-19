@@ -7,14 +7,21 @@ set(CELLFRAME_SDK_NATIVE_VERSION "3.3-0")
 add_definitions ("-DCELLFRAME_SDK_VERSION=\"${CELLFRAME_SDK_NATIVE_VERSION}\"")
 
 set(DAPSDK_MODULES "")
+if (INSTALL_SDK)
+    set(INSTALL_DAP_SDK ON)
+endif()
 
 if(NOT DEFINED CELLFRAME_MODULES)
-    include (cmake/OS_Detection.cmake)
+    include (dap-sdk/cmake/OS_Detection.cmake)
 
     set(CELLFRAME_MODULES "core chains mining network srv cs-dag-poa cs-block-poa cs-dag-pos cs-block-pos cs-esbocs cs-none srv-app srv-app-db srv-datum srv-stake srv-xchange")
 
     if(LINUX OR DARWIN)
         set(CELLFRAME_MODULES "${CELLFRAME_MODULES} srv-vpn")
+    endif()
+
+    if(BUILD_CELLFRAME_SDK_TESTS)
+        set(DAPSDK_MODULES "test-framework")
     endif()
 
     add_subdirectory(dap-sdk)
@@ -37,48 +44,8 @@ else()
     #    add_definitions(-DDAP_DISABLE_INT128=FALSE)
 endif(NOT DAP_INT128_SUPPORT)
 
-#set(BUILD_CELLFRAME_SDK_TESTS ON)
-
 if (BUILD_CELLFRAME_SDK_TESTS)
-    enable_testing()
-    add_definitions("-DDAP_CHAIN_LEDGER_TEST")
-    set(CELLFRAME_MODULES ${CELLFRAME_MODULES} "test-framework")
-    if (NOT OFF_CORE_CELLFRAME_SDK_TESTS_OFF MATCHES "all")
-        set(BUILD_DAP_TESTS ON)
-        if ( NOT(DAPSDK_MODULES MATCHES "core"))
-            SET(DAPSDK_MODULES "${DAPSDK_MODULES} core")
-        endif()
-    endif()
-    if (OFF_CORE_CELLFRAME_SDK_TESTS_OFF MATCHES "network-monitor")
-        message("[-] network-monitor tests")
-        add_definitions("-DDAP_NETWORK_MONITOR_TEST_OFF")
-    endif()
-    if (NOT (OFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF MATCHES "all"))
-        set(BUILD_CRYPTO_TESTS ON)
-    endif()
-    if (OFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF MATCHES "new-hope")
-        message("[-] newhope tests")
-        add_definitions("-DDAP_CRYPTO_NEWHOPE_TEST_OFF")
-    endif()
-    if (OFF_CRYPTO_CELLFRAME_SDK_TESTS_OFF MATCHES "multisign")
-        message("[-] multisign tests")
-        add_definitions("-DDAP_CRYPTO_MULTISIGN_TEST_OFF")
-    endif()
-    if (BUILD_CRYPTO_TESTS)
-        if ( NOT(DAPSDK_MODULES MATCHES "core"))
-            SET(DAPSDK_MODULES "${DAPSDK_MODULES} core")
-        endif()
-        if ( NOT(DAPSDK_MODULES MATCHES "crypto"))
-            SET(DAPSDK_MODULES "${DAPSDK_MODULES} crypto")
-        endif()
-        set(BUILD_TESTS ON)
-    endif()
-    add_subdirectory(test)
-endif()
-
-if (CELLFRAME_MODULES MATCHES "test-framework")
-    add_subdirectory(test-framework)
-    set(CELLFRAME_LIBS ${CELLFRAME_LIBS} dap_test)
+    add_definitions("-DDAP_LEDGER_TEST")
 endif()
 
 add_subdirectory(3rdparty/crc32c_adler)             # https://github.com/fonic/crc32c_adler
@@ -92,9 +59,6 @@ if (BUILD_WITH_ZIP)
 endif()
 
 add_subdirectory(3rdparty/monero_crypto)
-if(DAPSDK_MODULES MATCHES "ssl-support")
-    add_subdirectory(3rdparty/wolfssl)
-endif()
 
 add_subdirectory(modules/)
 
@@ -236,3 +200,5 @@ endif()
 set(CELLFRAME_LIBS ${CELLFRAME_LIBS} crc32c_adler)
 
 target_link_libraries(${PROJECT_NAME} ${CELLFRAME_LIBS})
+
+

@@ -1,3 +1,4 @@
+
 # Core
 if (CELLFRAME_MODULES MATCHES "core")
     add_subdirectory(common)
@@ -109,9 +110,4 @@ endif()
 # Service for token staking and PoS delegation
 if (CELLFRAME_MODULES MATCHES "srv-stake")
     add_subdirectory(service/stake)
-endif()
-
-# Unit tests
-if( BUILD_TESTS)
-    add_subdirectory(test)
 endif()

@@ -46,6 +46,7 @@
 #include "dap_global_db.h"
 #include "dap_chain_node.h"
 #include "dap_chain_cell.h"
+#include "dap_chain_ledger.h"
 
 #define LOG_TAG "chain_node"
 
@@ -190,14 +191,6 @@ dap_chain_node_info_t* dap_chain_node_info_read( dap_chain_net_t * a_net,dap_cha
         return NULL;
     }
 
-    size_t node_info_size_must_be = dap_chain_node_info_get_size(l_node_info);
-    if(node_info_size_must_be != node_info_size) {
-        log_it(L_ERROR, "Node has bad size in base=%zu (must be %zu)", node_info_size, node_info_size_must_be);
-        DAP_DELETE(l_node_info);
-        DAP_DELETE(l_key);
-        return NULL;
-    }
-
     DAP_DELETE(l_key);
     return l_node_info;
 }
@@ -264,7 +257,7 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
                     dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
                     if (dap_chain_datum_tx_get_fee_value (l_tx, &l_tx_fee) ||
                             IS_ZERO_256(l_tx_fee)) {
-                        if (!dap_chain_ledger_tx_poa_signed(l_net->pub.ledger, l_tx)) {
+                        if (!dap_ledger_tx_poa_signed(l_net->pub.ledger, l_tx)) {
                             log_it(L_WARNING, "Can't get fee value from tx %s", l_objs[i].key);
                             continue;
                         } else

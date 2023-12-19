@@ -36,9 +36,7 @@
 #include "dap_file_utils.h"
 #include "dap_config.h"
 #include "dap_chain.h"
-#include "dap_chain_ledger.h"
 #include "dap_cert.h"
-#include "dap_chain_ledger.h"
 #include "dap_chain_cs.h"
 #include "dap_cert_file.h"
 #include <uthash.h>
@@ -71,7 +69,6 @@ int dap_chain_init(void)
     dap_cert_init();
     // Cell sharding init
     dap_chain_cell_init();
-    dap_chain_ledger_init();
     dap_chain_cs_init();
     //dap_chain_show_hash_blocks_file(g_gold_hash_blocks_file);
     //dap_chain_show_hash_blocks_file(g_silver_hash_blocks_file);
@@ -87,8 +84,6 @@ void dap_chain_deinit(void)
     HASH_ITER(hh, s_chain_items, l_item, l_tmp) {
           dap_chain_delete(l_item->chain);
     }
-    dap_chain_ledger_deinit();
-
 }
 
 /**
@@ -174,7 +169,6 @@ void dap_chain_delete(dap_chain_t * a_chain)
     DAP_DEL_Z(a_chain->_inheritor);
     pthread_rwlock_destroy(&a_chain->rwlock);
     pthread_rwlock_destroy(&a_chain->cell_rwlock);
-    pthread_rwlock_destroy(&a_chain->rwlock);
 }
 
 /**
@@ -341,13 +335,12 @@ static bool s_datum_in_chain_types(uint16_t datum_type, dap_chain_type_t *chain_
 /**
  * @brief dap_chain_load_from_cfg
  * Loading chain from config file
- * @param a_ledger - ledger object
  * @param a_chain_net_name - chain name, taken from config, for example - "home21-network"
  * @param a_chain_net_id - dap_chain_net_id_t chain network identification
  * @param a_chain_cfg_name chain config name, for example "network/home21-network/chain-0"
  * @return dap_chain_t* 
  */
-dap_chain_t * dap_chain_load_from_cfg(dap_ledger_t* a_ledger, const char * a_chain_net_name,dap_chain_net_id_t a_chain_net_id, const char * a_chain_cfg_name)
+dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net_id_t a_chain_net_id, const char *a_chain_cfg_name)
 {
     log_it (L_DEBUG, "Loading chain from config \"%s\"", a_chain_cfg_name);
 

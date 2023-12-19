@@ -21,3 +21,12 @@ if (${BUILD_DAP_CHAIN_CRYPTO_TESTS} MATCHES ON)
     enable_testing()
     add_subdirectory(test)
 endif()
+
+if (INSTALL_SDK)
+set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_CHAIN_CRYPTO_HEADERS}")
+INSTALL(TARGETS ${PROJECT_NAME} 
+        LIBRARY DESTINATION lib/modules/mining/
+        ARCHIVE DESTINATION lib/modules/mining/
+        PUBLIC_HEADER DESTINATION include/modules/mining/
+)
+endif()
