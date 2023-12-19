@@ -1983,7 +1983,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                 }
                 size_t l_event_count = HASH_COUNT(PVT(l_dag)->events);
                 size_t l_event_treshold_count = HASH_COUNT(PVT(l_dag)->events_treshold);
-                dap_string_append_printf(l_ret_str, "%zu atoms(s) in events\n%zu in threshold", l_event_count, l_event_treshold_count);
+                dap_string_append_printf(l_ret_str, "%zu atoms(s) in events\n%zu atom(s) in threshold", l_event_count, l_event_treshold_count);
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_ret_str->str);
                 dap_string_free(l_ret_str, true);
             } break;
