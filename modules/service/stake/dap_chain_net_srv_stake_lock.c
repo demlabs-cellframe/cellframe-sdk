@@ -1186,9 +1186,6 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_addr_fee);
     SUM_256_256(l_net_fee, a_value_fee, &l_total_fee);
     int res = compare256(l_total_fee,a_value);
-    //l_total_fee > a_value -> (1)
-    //l_total_fee = a_value -> 0
-    //l_total_fee < a_value -> -1
 
     if (!IS_ZERO_256(l_total_fee)) {
         if(!l_main_native)
