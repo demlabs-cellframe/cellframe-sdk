@@ -983,9 +983,7 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
     } else { // Start service in normal pay mode
         if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
             log_it(L_ERROR, "Can't pay service because net %s is offline.", l_net->pub.name);
-            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_IS_OFFLINE;
-            s_grace_error(l_grace, l_err);
-            RET_WITH_DEL_A_GRACE;
+            RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_IS_OFFLINE);
         }
 
         log_it(L_INFO, "Tx is found in ledger.");
