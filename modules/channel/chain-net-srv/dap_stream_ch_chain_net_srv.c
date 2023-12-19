@@ -199,7 +199,7 @@ void dap_stream_ch_chain_net_srv_tx_cond_added_cb(UNUSED_ARG void *a_arg, UNUSED
     dap_return_if_pass(!a_tx);
 // func work
     dap_chain_net_srv_grace_usage_t *l_item = NULL;
-    dap_hash_fast_t tx_cond_hash = {};
+    dap_hash_fast_t l_tx_cond_hash = {0};
     dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, NULL);
     if (!l_out_cond) {
         log_it(L_ERROR, "Can't find dap_chain_tx_out_cond_t in dap_chain_datum_tx_t");
@@ -207,12 +207,12 @@ void dap_stream_ch_chain_net_srv_tx_cond_added_cb(UNUSED_ARG void *a_arg, UNUSED
     }
     dap_chain_net_srv_t *l_net_srv = dap_chain_net_srv_get(l_out_cond->header.srv_uid);
     if (!l_net_srv) {
-        log_it(L_ERROR, "Can't find dap_chain_net_srv_t uid 0x%016"DAP_UINT64_FORMAT_X"", l_out_cond->header.srv_uid);
+        log_it(L_ERROR, "Can't find dap_chain_net_srv_t uid 0x%016"DAP_UINT64_FORMAT_X"", l_out_cond->header.srv_uid.uint64);
         return;
     }
-    dap_hash_fast((void*)a_tx, dap_chain_datum_tx_get_size(a_tx), &tx_cond_hash);
+    dap_hash_fast((void*)a_tx, dap_chain_datum_tx_get_size(a_tx), &l_tx_cond_hash);
     pthread_mutex_lock(&l_net_srv->grace_mutex);
-    HASH_FIND(hh, l_net_srv->grace_hash_tab, &tx_cond_hash, sizeof(dap_hash_fast_t), l_item);
+    HASH_FIND(hh, l_net_srv->grace_hash_tab, &l_tx_cond_hash, sizeof(dap_hash_fast_t), l_item);
     pthread_mutex_unlock(&l_net_srv->grace_mutex);
     if (l_item){
         log_it(L_INFO, "Found tx in ledger by notify. Finish grace.");
