@@ -314,7 +314,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                     }
                     if(l_continent_num>=0)
                         l_order->continent = l_continent_num;*/
-                        char *l_new_order_hash_str = dap_chain_net_srv_order_save(l_net, l_order);
+                        char *l_new_order_hash_str = dap_chain_net_srv_order_save(l_net, l_order, false);
                         if (l_new_order_hash_str) {
                             // delete prev order
                             if(dap_strcmp(l_new_order_hash_str, l_order_hash_hex_str))
