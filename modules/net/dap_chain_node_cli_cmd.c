@@ -2884,7 +2884,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                             uint256_t l_value = uint256_0;
                             const char *l_dist_token = NULL;
                             uint8_t l_type = *(uint8_t *) it->data;
-                            bool is_fee = false;
+                            const char *l_type_out_str = "To";
                             switch (l_type) {
                                 case TX_ITEM_TYPE_OUT: {
                                     l_value = ((dap_chain_tx_out_t *) it->data)->header.value;
@@ -2899,32 +2899,44 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                                 }
                                     break;
                                 case TX_ITEM_TYPE_OUT_COND: {
+                                    dap_chain_tx_out_cond_t *l_out_cond = (dap_chain_tx_out_cond_t*)it->data;
                                     l_value = ((dap_chain_tx_out_cond_t *) it->data)->header.value;
-                                    if (((dap_chain_tx_out_cond_t *) it->data)->header.subtype ==
-                                        DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
-                                        l_dist_token = a_net->pub.native_ticker;
-                                        is_fee = true;
-                                    }
-                                    if (((dap_chain_tx_out_cond_t *)it->data)->header.subtype ==
-                                        DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK) {
-                                        l_value = ((dap_chain_tx_out_cond_t*)it->data)->header.value;
-                                        l_dist_token = l_main_token;
-                                        l_dist_addr = NULL;
+                                    switch (l_out_cond->header.subtype) {
+                                        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE: {
+                                            l_dist_token = a_net->pub.native_ticker;
+                                            l_type_out_str = "Fee";
+                                        } break;
+                                        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK: {
+                                            l_dist_token = l_main_token;
+                                            l_dist_addr = NULL;
+                                            l_type_out_str = "Stake lock";
+                                        } break;
+                                        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE: {
+                                            l_dist_token = l_main_token;
+                                            l_type_out_str = "xchange";
+                                        } break;
+                                        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE: {
+                                            l_dist_token = l_main_token;
+                                            l_type_out_str = "Stake pos delegate";
+                                        } break;
+                                        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY: {
+                                            l_dist_token = l_main_token;
+                                            l_type_out_str = "Pay";
+                                        } break;
+                                        default:
+                                            break;
                                     }
                                 }
                                     break;
                                 default:
                                     break;
                             }
-                            UNUSED(is_fee);
-//                        if (l_dist_addr && dap_chain_addr_compare(&l_addr_from, l_dist_addr))
-//                            continue;
                             char *l_value_str = dap_chain_balance_print(l_value);
                             char *l_value_coins_str = dap_chain_balance_to_coins(l_value);
                             char *l_addr_str = dap_chain_addr_to_str(l_dist_addr);
-                            if (is_fee) {
-                                dap_string_append_printf(a_str_tmp, "\tFee: %s (%s) %s\n", l_value_coins_str,
-                                                         l_value_str, l_dist_token);
+                            if (!l_dist_addr) {
+                                dap_string_append_printf(a_str_tmp, "\t%s: %s (%s) %s\n", l_type_out_str,
+                                                         l_value_coins_str, l_value_str, l_dist_token);
                             } else {
                                 if (!datum_is_accepted_addr && l_wallet_addr) {
                                     datum_is_accepted_addr = dap_chain_addr_compare(l_wallet_addr, l_dist_addr);
