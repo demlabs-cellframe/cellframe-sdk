@@ -3262,7 +3262,7 @@ int com_mempool(int a_argc, char **a_argv,  char **a_str_reply){
     dap_chain_t *l_chain = NULL;
     const char *l_addr_b58 = NULL;
     enum _subcmd {SUBCMD_LIST, SUBCMD_PROC, SUBCMD_PROC_ALL, SUBCMD_DELETE, SUBCMD_ADD_CA, SUBCMD_CHECK, SUBCMD_DUMP};
-    enum _subcmd l_cmd;
+    int l_cmd = -1;
     if (a_argv[1]) {
         char *lts = a_argv[1];
         if (!dap_strcmp(lts, "list")) {

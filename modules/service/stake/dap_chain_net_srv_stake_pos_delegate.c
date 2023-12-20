@@ -1016,7 +1016,8 @@ char *s_validator_order_create(dap_chain_net_t *a_net, uint256_t a_value_min, ui
         uint256_t value_min;
         uint256_t value_max;
     } DAP_ALIGN_PACKED l_order_ext = { a_value_min, a_value_max };
-    dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_compose(a_net, l_dir, l_uid, g_node_addr,
+    dap_chain_node_addr_t *l_node_addr = dap_chain_net_get_cur_addr(a_net);
+    dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_compose(a_net, l_dir, l_uid, *l_node_addr,
                                                             l_tx_hash, &a_tax, l_unit, l_native_ticker, 0,
                                                             (const uint8_t *)&l_order_ext, sizeof(l_order_ext),
                                                             1, NULL, 0, NULL);
@@ -1043,7 +1044,8 @@ char *s_staker_order_create(dap_chain_net_t *a_net, uint256_t a_value, uint256_t
         uint256_t value;
         dap_chain_addr_t addr;
     } DAP_ALIGN_PACKED l_order_ext = { a_value, *a_addr };
-    dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_compose(a_net, l_dir, l_uid, g_node_addr,
+    dap_chain_node_addr_t *l_node_addr = dap_chain_net_get_cur_addr(a_net);
+    dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_compose(a_net, l_dir, l_uid, *l_node_addr,
                                                             *a_tx_hash, &a_tax, l_unit, l_native_ticker, 0,
                                                              (const uint8_t *)&l_order_ext, sizeof(l_order_ext),
                                                              1, NULL, 0, NULL);

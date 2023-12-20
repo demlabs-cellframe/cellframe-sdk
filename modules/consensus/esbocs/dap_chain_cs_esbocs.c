@@ -2146,7 +2146,10 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
                     log_it(L_CRITICAL, "Memory allocation error");
                     goto session_unlock;
                 }
-                l_validator->node_addr = *dap_chain_net_srv_stake_key_get_node_addr(&l_signing_addr);
+                dap_chain_net_srv_stake_item_t *l_item = dap_chain_net_srv_stake_check_pkey_hash(&l_signing_addr.data.hash_fast);
+                if (!l_item)
+                    break;
+                l_validator->node_addr = l_item->node_addr;
                 l_validator->signing_addr = l_signing_addr;
                 dap_list_t *l_validator_list = dap_list_append(NULL, l_validator);
                 s_message_send(l_session, DAP_CHAIN_ESBOCS_MSG_TYPE_SEND_DB, &l_session->db_hash, l_session->db_serial,
