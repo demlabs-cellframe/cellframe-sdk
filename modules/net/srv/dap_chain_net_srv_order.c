@@ -538,7 +538,7 @@ int dap_chain_net_srv_order_delete_by_hash_str_sync(dap_chain_net_t *a_net, cons
  * @param a_orders
  * @param a_str_out
  */
-void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,dap_string_t * a_str_out, const char *a_hash_out_type)
+void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,dap_string_t * a_str_out, const char *a_hash_out_type, const char *a_native_ticker)
 {
     if (a_order && a_str_out ){
         dap_chain_hash_fast_t l_hash;
@@ -555,7 +555,9 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         case SERV_DIR_SELL:         dap_string_append_printf(a_str_out, "  direction:        SERV_DIR_SELL\n" );        break;
         case SERV_DIR_BUY:          dap_string_append_printf(a_str_out, "  direction:        SERV_DIR_BUY\n" );         break;
         }
-
+        char buf_time[50];
+        dap_time_to_str_rfc822(buf_time, 50, a_order->ts_created);
+        dap_string_append_printf(a_str_out, "  created:          %s\n", buf_time);
         dap_string_append_printf(a_str_out, "  srv_uid:          0x%016"DAP_UINT64_FORMAT_X"\n", a_order->srv_uid.uint64 );
         char *l_balance_coins = dap_chain_balance_to_coins(a_order->price);
         char *l_balance = dap_chain_balance_print(a_order->price);
@@ -564,8 +566,7 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         DAP_DELETE(l_balance);
         if( a_order->price_unit.uint32 )
             dap_string_append_printf(a_str_out, "  price_unit:       %s\n", dap_chain_net_srv_price_unit_uid_to_str(a_order->price_unit) );
-        if (*a_order->price_ticker)
-            dap_string_append_printf(a_str_out, "  price_token:      %s\n",  a_order->price_ticker);
+        dap_string_append_printf(a_str_out, "  price_token:      %s\n",  (*a_order->price_ticker) ? a_order->price_ticker: a_native_ticker);
         if ( a_order->node_addr.uint64)
             dap_string_append_printf(a_str_out, "  node_addr:        "NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS_S(a_order->node_addr) );
 
