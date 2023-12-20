@@ -95,6 +95,7 @@ static bool s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_
 static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace);
 static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace);
 static void s_add_usage_data_to_gdb(const dap_chain_net_srv_usage_t *a_usage);
+static uint256_t s_calc_datoshi(const dap_chain_net_srv_usage_t *a_usage, uint256_t *a_prev);
 
 static inline void s_grace_error(dap_chain_net_srv_grace_t *a_grace, dap_stream_ch_chain_net_srv_pkt_error_t a_err){
 
@@ -160,6 +161,7 @@ static inline void s_grace_error(dap_chain_net_srv_grace_t *a_grace, dap_stream_
 
 /**
  * @brief dap_stream_ch_chain_net_init
+ * @param a_srv - inited service
  * @return
  */
 int dap_stream_ch_chain_net_srv_init(dap_chain_net_srv_t *a_srv)
@@ -242,6 +244,10 @@ static bool s_unban_client(dap_chain_net_srv_banlist_item_t *a_item)
     return false;
 }
 
+/**
+ * @brief create string with usage service statistic
+ * @return string with staticstic
+ */
 char *dap_stream_ch_chain_net_srv_create_statistic_report()
 {
     size_t l_store_obj_count = 0;
@@ -847,7 +853,12 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
     return true;
 }
 
-static uint256_t s_calc_datoshi(const dap_chain_net_srv_usage_t *a_usage, uint256_t *a_prev)
+/**
+ * @brief calculating used datoshi price by pricelist
+ * @param a_usage - usage data
+ * @param a_prev - prev value, calced add to prev
+ */
+uint256_t s_calc_datoshi(const dap_chain_net_srv_usage_t *a_usage, uint256_t *a_prev)
 {
     uint256_t l_ret = {0}, l_prev = {0}, l_datosi_used = {0};
     uint64_t l_used = 0;
@@ -877,7 +888,11 @@ static uint256_t s_calc_datoshi(const dap_chain_net_srv_usage_t *a_usage, uint25
     return l_ret;
 }
 
-static void s_add_usage_data_to_gdb(const dap_chain_net_srv_usage_t *a_usage)
+/**
+ * @brief add usage data to local GDB group
+ * @param a_usage - usage data
+ */
+void s_add_usage_data_to_gdb(const dap_chain_net_srv_usage_t *a_usage)
 {
 // sanity check
     dap_return_if_pass(!a_usage);
@@ -976,9 +991,7 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
     } else { // Start service in normal pay mode
         if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
             log_it(L_ERROR, "Can't pay service because net %s is offline.", l_net->pub.name);
-            l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_IS_OFFLINE;
-            s_grace_error(l_grace, l_err);
-            RET_WITH_DEL_A_GRACE;
+            RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_NETWORK_IS_OFFLINE);
         }
 
         log_it(L_INFO, "Tx is found in ledger.");
