@@ -1026,13 +1026,56 @@ char *s_fee_order_create(dap_chain_net_t *a_net, uint256_t *a_fee, dap_enc_key_t
 
 char *s_validator_order_create(dap_chain_net_t *a_net, uint256_t a_value_min, uint256_t a_value_max, uint256_t a_tax, const char *a_hash_out_type)
 {
-    return NULL;
+    dap_chain_hash_fast_t l_tx_hash = {};
+    dap_chain_net_srv_order_direction_t l_dir = SERV_DIR_BUY;
+    const char *l_native_ticker = a_net->pub.native_ticker;
+    dap_chain_net_srv_price_unit_uid_t l_unit = { .uint32 =  SERV_UNIT_PCS};
+    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ORDERS };
+    struct odrer_ext {
+        uint256_t value_min;
+        uint256_t value_max;
+    } DAP_ALIGN_PACKED l_order_ext = { a_value_min, a_value_max };
+    dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_compose(a_net, l_dir, l_uid, g_node_addr,
+                                                            l_tx_hash, &a_tax, l_unit, l_native_ticker, 0,
+                                                            (const uint8_t *)&l_order_ext, sizeof(l_order_ext),
+                                                            1, NULL, 0, NULL);
+    if (!l_order)
+        return NULL;
+    char *l_order_hash_str = dap_chain_net_srv_order_save(a_net, l_order, true);
+    DAP_DELETE(l_order);
+    if (l_order_hash_str && !dap_strcmp(a_hash_out_type, "base58")) {
+        char *l_base58_str = dap_enc_base58_from_hex_str_to_str(l_order_hash_str);
+        DAP_DELETE(l_order_hash_str);
+        l_order_hash_str = l_base58_str;
+    }
+    return l_order_hash_str;
 }
 
 char *s_staker_order_create(dap_chain_net_t *a_net, uint256_t a_value, uint256_t a_tax, dap_hash_fast_t *a_tx_hash,
-                            dap_chain_addr_t *l_addr, const char *a_hash_out_type)
+                            dap_chain_addr_t *a_addr, const char *a_hash_out_type)
 {
-    return NULL;
+    dap_chain_net_srv_order_direction_t l_dir = SERV_DIR_SELL;
+    const char *l_native_ticker = a_net->pub.native_ticker;
+    dap_chain_net_srv_price_unit_uid_t l_unit = { .uint32 =  SERV_UNIT_PCS};
+    dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ORDERS };
+    struct odrer_ext {
+        uint256_t value;
+        dap_chain_addr_t addr;
+    } DAP_ALIGN_PACKED l_order_ext = { a_value, *a_addr };
+    dap_chain_net_srv_order_t *l_order = dap_chain_net_srv_order_compose(a_net, l_dir, l_uid, g_node_addr,
+                                                            *a_tx_hash, &a_tax, l_unit, l_native_ticker, 0,
+                                                             (const uint8_t *)&l_order_ext, sizeof(l_order_ext),
+                                                             1, NULL, 0, NULL);
+    if (!l_order)
+        return NULL;
+    char *l_order_hash_str = dap_chain_net_srv_order_save(a_net, l_order, true);
+    DAP_DELETE(l_order);
+    if (l_order_hash_str && !dap_strcmp(a_hash_out_type, "base58")) {
+        char *l_base58_str = dap_enc_base58_from_hex_str_to_str(l_order_hash_str);
+        DAP_DELETE(l_order_hash_str);
+        l_order_hash_str = l_base58_str;
+    }
+    return l_order_hash_str;
 }
 
 static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, char **a_str_reply, const char *a_hash_out_type)

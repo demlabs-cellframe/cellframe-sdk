@@ -31,6 +31,7 @@
 #include "dap_stream_ch_chain_net.h"
 
 #define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID 0x13
+#define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ORDERS 0x14
 
 typedef struct dap_chain_net_srv_stake_item {
     bool is_active;
