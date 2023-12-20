@@ -299,9 +299,6 @@ void dap_stream_ch_chain_net_srv_tx_cond_added_cb(UNUSED_ARG void *a_arg, UNUSED
         log_it(L_INFO, "Found tx in ledger by notify. Finish grace.");
         // Stop timer
         dap_timerfd_delete_mt(l_item->grace->timer->worker, l_item->grace->timer->esocket_uuid);
-        // finish grace
-        if(!l_item->grace->usage->service)
-            HASH_DEL(l_net_srv->grace_hash_tab, l_item);
         s_grace_period_finish(l_item);
     }
 }
@@ -923,12 +920,12 @@ static void s_add_usage_data_to_gdb(const dap_chain_net_srv_usage_t *a_usage)
 
 static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
 {
-    dap_return_val_if_pass(!a_grace_item, false);
+    dap_return_val_if_pass(!a_grace_item || !a_grace_item->grace, false);
     dap_stream_ch_chain_net_srv_pkt_error_t l_err = { };
     dap_chain_net_srv_grace_t *l_grace = a_grace_item->grace;
-    dap_chain_net_srv_t *l_srv = a_grace_item->grace->usage->service;
+    dap_chain_net_srv_t *l_srv = dap_chain_net_srv_get(l_grace->request->hdr.srv_uid);
 
-    if (!l_srv) {
+    if (l_srv != l_grace->usage->service) {
         DAP_DELETE(a_grace_item);
         return false;
     }
@@ -949,11 +946,7 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
     while(0);
 
     if (!l_ch) {
-        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_CH_NOT_FOUND;
-        s_grace_error(l_grace, l_err);
-        HASH_DEL(l_srv->grace_hash_tab, a_grace_item); 
-        DAP_DELETE(a_grace_item); 
-        return false; 
+        RET_WITH_DEL_A_GRACE(DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_CH_NOT_FOUND);
     }
 
     if (l_grace->usage->is_waiting_new_tx_cond){

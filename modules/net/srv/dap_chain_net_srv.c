@@ -1386,7 +1386,7 @@ void dap_chain_net_srv_del_all(void)
  * @param a_uid
  * @return
  */
-dap_chain_net_srv_t * dap_chain_net_srv_get(dap_chain_net_srv_uid_t a_uid)
+dap_chain_net_srv_t *dap_chain_net_srv_get(dap_chain_net_srv_uid_t a_uid)
 {
     service_list_t *l_sdata = NULL;
     pthread_mutex_lock(&s_srv_list_mutex);
