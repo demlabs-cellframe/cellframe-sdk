@@ -164,6 +164,8 @@ int dap_chain_cs_dag_init()
             "\tDump event info\n\n"
         "dag event list -net <net_name> -chain <chain_name> -from {events | events_lasts | threshold | round.new | round.<Round id in hex>}\n\n"
             "\tShow event list \n\n"
+        "dag event count -net <net_name> -chain <chain_name>\n"
+            "\tShow count event \n\n"
         "dag round complete -net <net_name> -chain <chain_name> \n"
                                         "\tComplete the current new round, verify it and if everything is ok - publish new events in chain\n"
         "dag round find -net <net_name> -chain <chain_name> -datum <datum_hash> \n"
