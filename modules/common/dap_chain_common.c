@@ -94,21 +94,19 @@ json_object *dap_chain_addr_to_json(const dap_chain_addr_t *a_addr){
  * @param a_addr
  * @return
  */
-char* dap_chain_addr_to_str(const dap_chain_addr_t *a_addr)
+char *dap_chain_addr_to_str(const dap_chain_addr_t *a_addr)
 {
-    if ( a_addr ==NULL)
-        return  NULL;
-
-    if (dap_chain_addr_is_blank(a_addr)) return dap_strdup("null");
-
+// sanity check
+    dap_return_val_if_pass(!a_addr, NULL);
+    dap_return_val_if_pass(dap_chain_addr_is_blank(a_addr), dap_strdup("null"));
+//func work
     size_t l_ret_size = DAP_ENC_BASE58_ENCODE_SIZE(sizeof(dap_chain_addr_t));
-    char * l_ret = DAP_NEW_SIZE(char, l_ret_size);
-    if(dap_enc_base58_encode(a_addr, sizeof(dap_chain_addr_t), l_ret) > 0)
-        return l_ret;
-    else {
+    char *l_ret = DAP_NEW_SIZE(char, l_ret_size);
+    if(!dap_enc_base58_encode(a_addr, sizeof(dap_chain_addr_t), l_ret)) {
         DAP_DELETE(l_ret);
         return NULL;
     }
+    return l_ret;
 }
 
 /**

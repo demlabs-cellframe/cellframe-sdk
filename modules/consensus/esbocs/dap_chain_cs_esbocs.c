@@ -253,7 +253,7 @@ static int s_callback_new(dap_chain_t *a_chain, dap_config_t *a_chain_cfg)
             l_ret = -4;
             goto lb_err;
         }
-        char *l_signer_addr = dap_chain_addr_to_str(&l_signing_addr);
+        char *l_signer_addr = dap_chain_hash_fast_to_str_new(&l_signing_addr.data.hash_fast);
         log_it(L_MSG, "add validator addr "NODE_ADDR_FP_STR", signing addr %s", NODE_ADDR_FP_ARGS_S(l_signer_node_addr), l_signer_addr);
         DAP_DELETE(l_signer_addr);
 
@@ -814,7 +814,7 @@ static void s_session_update_penalty(dap_chain_esbocs_session_t *a_session)
         }
         if (l_item->miss_count < DAP_CHAIN_ESBOCS_PENALTY_KICK) {
             if (PVT(a_session->esbocs)->debug) {
-                char *l_addr_str = dap_chain_addr_to_str(l_signing_addr);
+                char *l_addr_str = dap_chain_hash_fast_to_str_new(&l_signing_addr->data.hash_fast);
                 log_it(L_DEBUG, "Increment miss count %d for addr %s. Miss count for kick is %d",
                                         l_item->miss_count, l_addr_str, DAP_CHAIN_ESBOCS_PENALTY_KICK);
                 DAP_DELETE(l_addr_str);
@@ -979,7 +979,7 @@ static uint64_t s_session_calc_current_round_id(dap_chain_esbocs_session_t *a_se
             }
         }
         if (l_id_candidate == 0) {
-            char *l_signing_addr_str = dap_chain_addr_to_str(&l_validator->signing_addr);
+            char *l_signing_addr_str = dap_chain_hash_fast_to_str_new(&l_validator->signing_addr.data.hash_fast);
             log_it(L_ERROR, "Can't find sync message of synced validator %s", l_signing_addr_str);
             DAP_DELETE(l_signing_addr_str);
             continue;
@@ -1149,7 +1149,7 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
                         );
             dap_chain_esbocs_validator_t *l_validator = l_list ? l_list->data : NULL;
             if (!l_validator || !l_validator->is_chosen) {
-                char *l_addr = dap_chain_addr_to_str(&a_session->cur_round.attempt_submit_validator);
+                char *l_addr = dap_chain_hash_fast_to_str_new(&a_session->cur_round.attempt_submit_validator.data.hash_fast);
                 log_it(L_MSG, "Error: can't find current attmempt submit validator %s in signers list", l_addr);
                 DAP_DELETE(l_addr);
             }
@@ -1627,12 +1627,12 @@ void s_session_validator_mark_online(dap_chain_esbocs_session_t *a_session, dap_
         if (!l_was_synced)
             a_session->cur_round.total_validators_synced++;
         if (PVT(a_session->esbocs)->debug) {
-            const char *l_addr_str = dap_chain_addr_to_str(a_signing_addr);
+            const char *l_addr_str = dap_chain_hash_fast_to_str_new(&a_signing_addr->data.hash_fast);
             log_it(L_DEBUG, "Mark validator %s as online", l_addr_str);
             DAP_DELETE(l_addr_str);
         }
     } else {
-        const char *l_addr_str = dap_chain_addr_to_str(a_signing_addr);
+        const char *l_addr_str = dap_chain_hash_fast_to_str_new(&a_signing_addr->data.hash_fast);
         log_it(L_ERROR, "Can't find validator %s in validators list", l_addr_str);
         DAP_DELETE(l_addr_str);
     }
@@ -1641,7 +1641,7 @@ void s_session_validator_mark_online(dap_chain_esbocs_session_t *a_session, dap_
     HASH_FIND(hh, a_session->penalty, a_signing_addr, sizeof(*a_signing_addr), l_item);
     bool l_inactive = dap_chain_net_srv_stake_key_delegated(a_signing_addr) == -1;
     if (l_inactive && !l_item) {
-        const char *l_addr_str = dap_chain_addr_to_str(a_signing_addr);
+        const char *l_addr_str = dap_chain_hash_fast_to_str_new(&a_signing_addr->data.hash_fast);
         log_it(L_DEBUG, "Validator %s not in penalty list, but currently disabled", l_addr_str);
         DAP_DELETE(l_addr_str);
         l_item = DAP_NEW_Z(dap_chain_esbocs_penalty_item_t);
@@ -1657,7 +1657,7 @@ void s_session_validator_mark_online(dap_chain_esbocs_session_t *a_session, dap_
         if (l_item->miss_count > DAP_CHAIN_ESBOCS_PENALTY_KICK)
             l_item->miss_count = DAP_CHAIN_ESBOCS_PENALTY_KICK;
         if (PVT(a_session->esbocs)->debug) {
-            const char *l_addr_str = dap_chain_addr_to_str(a_signing_addr);
+            const char *l_addr_str = dap_chain_hash_fast_to_str_new(&a_signing_addr->data.hash_fast);
             log_it(L_DEBUG, "Decrement miss count %d for addr %s. Miss count for kick is %d",
                             l_item->miss_count, l_addr_str, DAP_CHAIN_ESBOCS_PENALTY_KICK);
             DAP_DELETE(l_addr_str);
@@ -1702,7 +1702,7 @@ static void s_session_directive_process(dap_chain_esbocs_session_t *a_session, d
         }
         int l_status = dap_chain_net_srv_stake_key_delegated(l_voting_addr);
         if (l_status == 0) {
-            const char *l_addr_str = dap_chain_addr_to_str(l_voting_addr);
+            const char *l_addr_str = dap_chain_hash_fast_to_str_new(&l_voting_addr->data.hash_fast);
             log_it(L_WARNING, "Trying to put to the vote directive type %s for non delegated key %s",
                                     a_directive->type == DAP_CHAIN_ESBOCS_DIRECTIVE_KICK ? "KICK" : "LIFT",
                                         l_addr_str);
@@ -1796,14 +1796,14 @@ static int s_session_directive_apply(dap_chain_esbocs_directive_t *a_directive, 
     case DAP_CHAIN_ESBOCS_DIRECTIVE_LIFT: {
         dap_chain_addr_t *l_key_addr = (dap_chain_addr_t *)(((dap_tsd_t *)a_directive->tsd)->data);
         int l_status = dap_chain_net_srv_stake_key_delegated(l_key_addr);
+        const char *l_key_str = dap_chain_hash_fast_to_str_new(&l_key_addr->data.hash_fast);
         if (l_status == 0) {
-            const char *l_key_str = dap_chain_addr_to_str(l_key_addr);
             log_it(L_WARNING, "Invalid key %s with directive type %s applying",
                                     l_key_str, a_directive->type == DAP_CHAIN_ESBOCS_DIRECTIVE_KICK ?
                                         "KICK" : "LIFT");
+            DAP_DEL_Z(l_key_str);
             return -3;
         }
-        const char *l_key_str = dap_chain_addr_to_str(l_key_addr);
         const char *l_penalty_group = s_get_penalty_group(l_key_addr->net_id);
         const char *l_directive_hash_str = dap_chain_hash_fast_to_str_new(a_directive_hash);
         const char *l_key_hash_str = dap_chain_hash_fast_to_str_new(&l_key_addr->data.hash_fast);
@@ -1864,7 +1864,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
     size_t l_sign_size = l_message->hdr.sign_size;
     dap_chain_esbocs_round_t *l_round = &l_session->cur_round;
     dap_chain_addr_t l_signing_addr;
-    char *l_validator_addr_str = NULL;
+    char l_validator_addr_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {0};
 
     if (a_sender_node_addr) { //Process network messages only
         pthread_mutex_lock(&l_session->mutex);
@@ -1978,7 +1978,8 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
 
     // Process local & network messages
     if (l_cs_debug)
-        l_validator_addr_str = dap_chain_addr_to_str(&l_signing_addr);
+        dap_chain_hash_fast_to_str_do(&l_signing_addr.data.hash_fast, l_validator_addr_str);
+
     bool l_not_in_list = false;
     switch (l_message->hdr.type) {
     case DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC:
@@ -1986,19 +1987,16 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         if (!a_sender_node_addr)
             s_message_chain_add(l_session, l_message, a_data_size, a_data_hash, &l_signing_addr);
         // Accept all validators
-        if (!dap_chain_net_srv_stake_key_delegated(&l_signing_addr))
-            l_not_in_list = true;
+        l_not_in_list = !dap_chain_net_srv_stake_key_delegated(&l_signing_addr);
         break;
     case DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_FOR:
     case DAP_CHAIN_ESBOCS_MSG_TYPE_VOTE_AGAINST:
         // Accept all active synced validators
-        if (!s_validator_check_synced(&l_signing_addr, l_session->cur_round.all_validators))
-            l_not_in_list = true;
+        l_not_in_list = !s_validator_check_synced(&l_signing_addr, l_session->cur_round.all_validators);
         break;
     default:
         // Accept only current round synced validators
-        if (!s_validator_check_synced(&l_signing_addr, l_session->cur_round.validators_list))
-            l_not_in_list = true;
+        l_not_in_list = !s_validator_check_synced(&l_signing_addr, l_session->cur_round.validators_list);
         break;
     }
     if (l_not_in_list) {
@@ -2479,7 +2477,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         } else {
             // Compare signature with auth_certs
             if (!s_validator_check(&l_signing_addr, l_esbocs_pvt->poa_validators)) {
-                char *l_bad_addr = dap_chain_addr_to_str(&l_signing_addr);
+                char *l_bad_addr = dap_chain_hash_fast_to_str_new(&l_signing_addr.data.hash_fast);
                 log_it(L_ATT, "Unknown PoA signer %s", l_bad_addr);
                 DAP_DELETE(l_bad_addr);
                 continue;
