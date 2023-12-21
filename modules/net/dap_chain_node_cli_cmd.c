@@ -2264,7 +2264,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
                     if (l_sign_type.type == SIG_TYPE_TESLA || l_sign_type.type == SIG_TYPE_BLISS || l_sign_type.type == SIG_TYPE_PICNIC) {
                         if ((l_sign_type.type == SIG_TYPE_BLISS || l_sign_type.type == SIG_TYPE_PICNIC) && (l_restore_opt || l_restore_legacy_opt)) {
-                            dap_string_append_printf(l_string_ret, "CAUTION!!! CAUTION!!! CAUTION!!!\nThe Bliss,Tesla and Picnic signatures are deprecated. We recommend you to create a new wallet with another available signature and transfer funds there.\n");
+                            dap_string_append_printf(l_string_ret, "CAUTION!!! CAUTION!!! CAUTION!!!\nThe Bliss, Tesla and Picnic signatures are deprecated. We recommend you to create a new wallet with another available signature and transfer funds there.\n");
                         } else {
                             dap_string_free(l_string_ret, true);
                             return  dap_cli_server_cmd_set_reply_text(a_str_reply, "This signature algorithm is no longer supported, please, use another variant"), -1;
