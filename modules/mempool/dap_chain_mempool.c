@@ -970,19 +970,25 @@ char *dap_chain_mempool_tx_create_cond(dap_chain_net_t *a_net,
 }
 
 char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_emission_hash,
-                                       dap_chain_id_t a_emission_chain_id, uint256_t a_emission_value, const char *a_ticker,
-                                       dap_chain_addr_t *a_addr_to, dap_enc_key_t *a_private_key,
+                                       dap_chain_id_t a_emission_chain_id, dap_enc_key_t *a_private_key,
                                        const char *a_hash_out_type, uint256_t a_value_fee)
 {
+    dap_return_val_if_fail(a_chain && a_emission_hash && a_private_key, NULL);
     uint256_t l_net_fee = {};
     uint256_t l_total_fee = a_value_fee;
-    uint256_t l_value_need = a_emission_value;
     uint256_t l_value_transfer = {};
     dap_chain_addr_t l_addr_to_fee = {};
     dap_chain_addr_t l_addr_from_fee = {};
-    dap_list_t *l_list_used_out;
+
+    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+    dap_chain_datum_token_emission_t *l_emission = dap_ledger_token_emission_find(l_net->pub.ledger, a_emission_hash);
+    if (!l_emission) {
+        log_it(L_WARNING, "Specified emission not found");
+        return NULL;
+    }
+    uint256_t l_emission_value = l_emission->hdr.value;
     const char *l_native_ticker = dap_chain_net_by_id(a_chain->net_id)->pub.native_ticker;
-    bool not_native = dap_strcmp(a_ticker, l_native_ticker);
+    bool not_native = dap_strcmp(l_emission->hdr.ticker, l_native_ticker);
     bool l_net_fee_used = IS_ZERO_256(a_value_fee) ? false :
                                                      dap_chain_net_tx_get_fee(a_chain->net_id, &l_net_fee, &l_addr_to_fee);
     if (l_net_fee_used)
@@ -991,7 +997,7 @@ char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
     l_tx->header.ts_created = time(NULL);
     //in_ems
-    dap_chain_tx_in_ems_t *l_in_ems = dap_chain_datum_tx_item_in_ems_create(a_emission_chain_id, a_emission_hash, a_ticker);
+    dap_chain_tx_in_ems_t *l_in_ems = dap_chain_datum_tx_item_in_ems_create(a_emission_chain_id, a_emission_hash, l_emission->hdr.ticker);
     if (l_in_ems) {
         dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*)l_in_ems);
         DAP_DELETE(l_in_ems);
@@ -1008,7 +1014,7 @@ char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast
         }
         dap_ledger_t *l_ledger = dap_chain_net_by_id(a_chain->net_id)->pub.ledger;
         // list of transaction with 'out' items
-        l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+        dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
                                                                      &l_addr_from_fee, l_total_fee, &l_value_transfer);
         if (!l_list_used_out) {
             log_it(L_WARNING,"Not enough funds to transfer");
@@ -1043,26 +1049,27 @@ char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast
             dap_chain_datum_tx_delete(l_tx);
             return NULL;
         }
-        if (!dap_chain_datum_tx_add_out_ext_item(&l_tx, a_addr_to, l_value_need, a_ticker)) {
+        if (!dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_emission->hdr.address,
+                                                 l_emission_value, l_emission->hdr.ticker)) {
             dap_chain_datum_tx_delete(l_tx);
             return NULL;
         }
     } else { //native ticker
         if (!IS_ZERO_256(a_value_fee)) {
-            SUBTRACT_256_256(l_value_need, a_value_fee, &l_value_need);
+            SUBTRACT_256_256(l_emission_value, a_value_fee, &l_emission_value);
             if (!dap_chain_datum_tx_add_fee_item(&l_tx, a_value_fee)){
                 dap_chain_datum_tx_delete(l_tx);
                 return NULL;
             }
         }
         if (l_net_fee_used) {
-            SUBTRACT_256_256(l_value_need, l_net_fee, &l_value_need);
+            SUBTRACT_256_256(l_emission_value, l_net_fee, &l_emission_value);
             if (!dap_chain_datum_tx_add_out_item(&l_tx, &l_addr_to_fee, l_net_fee)) {
                 dap_chain_datum_tx_delete(l_tx);
                 return NULL;
             }
         }
-        if (!dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to, l_value_need)) {
+        if (!dap_chain_datum_tx_add_out_item(&l_tx, &l_emission->hdr.address, l_emission_value)) {
             dap_chain_datum_tx_delete(l_tx);
             return NULL;
         }        
