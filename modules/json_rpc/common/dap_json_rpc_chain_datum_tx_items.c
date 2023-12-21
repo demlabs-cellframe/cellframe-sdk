@@ -70,8 +70,8 @@ json_object* dap_chain_datum_tx_item_out_cond_srv_xchange_to_json(dap_chain_tx_o
         json_object *l_obj_buy_net_id = dap_chain_net_id_to_json(a_srv_xchange->subtype.srv_xchange.buy_net_id);
         json_object *l_obj_sell_net_id = dap_chain_net_id_to_json(a_srv_xchange->subtype.srv_xchange.sell_net_id);
         json_object *l_obj_buy_token = json_object_new_string(a_srv_xchange->subtype.srv_xchange.buy_token);
-        char *l_value_buy = dap_chain_balance_print(a_srv_xchange->subtype.srv_xchange.buy_value);
-        if (!l_value_buy || !l_obj_srv_uid || !l_obj_buy_net_id || !l_obj_sell_net_id || !l_obj_buy_token) {
+        char *l_rate = dap_chain_balance_to_coins(a_srv_xchange->subtype.srv_xchange.rate);
+        if (!l_rate || !l_obj_srv_uid || !l_obj_buy_net_id || !l_obj_sell_net_id || !l_obj_buy_token) {
             json_object_put(l_object);
             json_object_put(l_obj_value);
             json_object_put(l_obj_srv_uid);
@@ -81,22 +81,22 @@ json_object* dap_chain_datum_tx_item_out_cond_srv_xchange_to_json(dap_chain_tx_o
             dap_json_rpc_allocation_error;
             return NULL;
         }
-        json_object *l_obj_value_buy = json_object_new_string(l_value_buy);
-        DAP_DELETE(l_value_buy);
+        json_object *l_obj_rate = json_object_new_string(l_rate);
+        DAP_DELETE(l_rate);
         json_object *l_obj_seller_addr = dap_chain_addr_to_json(&a_srv_xchange->subtype.srv_xchange.seller_addr);
-        if (!l_obj_seller_addr || !l_obj_value_buy) {
+        if (!l_obj_seller_addr || !l_obj_rate) {
             json_object_put(l_object);
             json_object_put(l_obj_value);
             json_object_put(l_obj_srv_uid);
             json_object_put(l_obj_buy_net_id);
             json_object_put(l_obj_sell_net_id);
             json_object_put(l_obj_buy_token);
-            json_object_put(l_obj_value_buy);
+            json_object_put(l_obj_rate);
             dap_json_rpc_allocation_error;
             return NULL;
         }
         json_object_object_add(l_object, "value", l_obj_value);
-        json_object_object_add(l_object, "value_buy", l_obj_value_buy);
+        json_object_object_add(l_object, "rate", l_obj_rate);
         json_object_object_add(l_object, "srv_uid", l_obj_srv_uid);
         json_object_object_add(l_object, "buy_net_id", l_obj_buy_net_id);
         json_object_object_add(l_object, "sell_net_id", l_obj_sell_net_id);

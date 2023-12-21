@@ -433,33 +433,6 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap
     return l_item;
 }
 
-json_object* dap_chain_datum_tx_item_out_cond_srv_xchange_to_json(dap_chain_tx_out_cond_t* a_srv_xchange){
-    if (a_srv_xchange->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE){
-        json_object *l_object = json_object_new_object();
-        char *l_value = dap_chain_balance_print(a_srv_xchange->header.value);
-        json_object *l_obj_value = json_object_new_string(l_value);
-        DAP_DELETE(l_value);
-        json_object *l_obj_srv_uid = json_object_new_uint64(a_srv_xchange->header.srv_uid.uint64);
-        json_object *l_obj_buy_net_id = dap_chain_net_id_to_json(a_srv_xchange->subtype.srv_xchange.buy_net_id);
-        json_object *l_obj_sell_net_id = dap_chain_net_id_to_json(a_srv_xchange->subtype.srv_xchange.sell_net_id);
-        json_object *l_obj_buy_token = json_object_new_string(a_srv_xchange->subtype.srv_xchange.buy_token);
-        char *l_value_rate = dap_chain_balance_print(a_srv_xchange->subtype.srv_xchange.rate);
-        json_object *l_obj_value_rate = json_object_new_string(l_value_rate);
-        DAP_DELETE(l_value_rate);
-        json_object *l_obj_seller_addr = dap_chain_addr_to_json(&a_srv_xchange->subtype.srv_xchange.seller_addr);
-        json_object_object_add(l_object, "value", l_obj_value);
-        json_object_object_add(l_object, "valueRate", l_obj_value_rate);
-        json_object_object_add(l_object, "srvUID", l_obj_srv_uid);
-        json_object_object_add(l_object, "buyNetId", l_obj_buy_net_id);
-        json_object_object_add(l_object, "sellNetId", l_obj_sell_net_id);
-        json_object_object_add(l_object, "buyToken", l_obj_buy_token);
-        json_object_object_add(l_object, "sellerAddr", l_obj_seller_addr);
-        //TODO: Parse TSD
-        return l_object;
-    }
-    return NULL;
-}
-
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
                                                                            dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr)
 {
