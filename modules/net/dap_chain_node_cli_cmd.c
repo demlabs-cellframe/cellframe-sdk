@@ -3141,22 +3141,24 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                         return;
                     }
                     json_object_object_add(l_jobj_money, "coins", l_jobj_value_coins);
-                    json_object *l_jobj_token = json_object_new_string(l_dist_token);
-                    if (!l_jobj_token) {
-                        json_object_put(l_jobj_to_list);
-                        json_object_put(l_jobj_change_list);
-                        json_object_put(l_jobj_fee_list);
-                        json_object_put(l_jobj_money);
-                        json_object_put(l_jobj_datum);
-                        json_object_put(l_jobj_datums);
-                        json_object_put(l_obj_chain);
-                        DAP_DELETE(l_value_str);
-                        DAP_DELETE(l_value_coins_str);
-                        dap_global_db_objs_delete(l_objs, l_objs_count);
-                        DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
-                        return;
+                    if (l_dist_token) {
+                        json_object *l_jobj_token = json_object_new_string(l_dist_token);
+                        if (!l_jobj_token) {
+                            json_object_put(l_jobj_to_list);
+                            json_object_put(l_jobj_change_list);
+                            json_object_put(l_jobj_fee_list);
+                            json_object_put(l_jobj_money);
+                            json_object_put(l_jobj_datum);
+                            json_object_put(l_jobj_datums);
+                            json_object_put(l_obj_chain);
+                            DAP_DELETE(l_value_str);
+                            DAP_DELETE(l_value_coins_str);
+                            dap_global_db_objs_delete(l_objs, l_objs_count);
+                            DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                            return;
+                        }
+                        json_object_object_add(l_jobj_money, "token", l_jobj_token);
                     }
-                    json_object_object_add(l_jobj_money, "token", l_jobj_token);
 
                     if (l_dist_addr) {
                         char *l_addr_str = dap_chain_addr_to_str(l_dist_addr);
@@ -3838,24 +3840,23 @@ int com_mempool(int a_argc, char **a_argv, void **reply){
     enum _subcmd {SUBCMD_LIST, SUBCMD_PROC, SUBCMD_PROC_ALL, SUBCMD_DELETE, SUBCMD_ADD_CA, SUBCMD_CHECK, SUBCMD_DUMP};
     enum _subcmd l_cmd;
     if (a_argv[1]) {
-        char *lts = a_argv[1];
-        if (!dap_strcmp(lts, "list")) {
+        if (!dap_strcmp(a_argv[1], "list")) {
             l_cmd = SUBCMD_LIST;
-        } else if (!dap_strcmp(lts, "proc")) {
+        } else if (!dap_strcmp(a_argv[1], "proc")) {
             l_cmd = SUBCMD_PROC;
-        } else if (!dap_strcmp(lts, "proc_all")) {
+        } else if (!dap_strcmp(a_argv[1], "proc_all")) {
             l_cmd = SUBCMD_PROC_ALL;
-        } else if (!dap_strcmp(lts, "delete")) {
+        } else if (!dap_strcmp(a_argv[1], "delete")) {
             l_cmd = SUBCMD_DELETE;
-        } else if (!dap_strcmp(lts, "add_ca")) {
+        } else if (!dap_strcmp(a_argv[1], "add_ca")) {
             l_cmd = SUBCMD_ADD_CA;
-        } else if (!dap_strcmp(lts, "dump")) {
+        } else if (!dap_strcmp(a_argv[1], "dump")) {
             l_cmd = SUBCMD_DUMP;
-        } else if (!dap_strcmp(lts, "check")) {
+        } else if (!dap_strcmp(a_argv[1], "check")) {
             l_cmd = SUBCMD_CHECK;
         } else {
             char *l_str_err = dap_strdup_printf("Invalid sub command specified. Ыub command %s "
-                                                           "is not supported.", lts);
+                                                           "is not supported.", a_argv[1]);
             if (!l_str_err) {
                 DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 return -1;
