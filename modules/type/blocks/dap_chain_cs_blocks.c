@@ -865,7 +865,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                 }
                 char l_buf[50];
                 dap_time_to_str_rfc822(l_buf, 50, l_ts);
-                dap_string_append_printf(l_str_tmp, "\t%s: ts_create=%s", l_block_cache->block_hash_str, l_buf);
+                dap_string_append_printf(l_str_tmp, "\t%s: ts_create=%s\n", l_block_cache->block_hash_str, l_buf);
                 l_block_count++;
                 if (l_to_hash_str && dap_hash_fast_compare(&l_to_hash, &l_block_cache->block_hash))
                     break;
