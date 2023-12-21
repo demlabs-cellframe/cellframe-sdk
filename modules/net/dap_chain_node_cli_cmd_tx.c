@@ -361,7 +361,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                 dap_chain_tx_in_ems_t *l_tx_in_ems = (dap_chain_tx_in_ems_t *)it->data;
                 l_base_tx = true;
                 l_noaddr_token = l_tx_in_ems->header.ticker;
-            }
+            } break;
             case TX_ITEM_TYPE_IN_REWARD: {
                 l_base_tx = l_reward_collect = true;
                 l_noaddr_token = l_native_ticker;
@@ -963,9 +963,11 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
                         l_str_out ? l_str_out : " empty");
                 DAP_DELETE(l_addr_str);
             } else if(l_tx_hash_str) {
-                dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_tx_hash);
-                if (!l_tx && !l_unspent_flag) {
-                    l_tx = dap_ledger_tx_spent_find_by_hash(l_ledger, &l_tx_hash);
+                dap_chain_datum_tx_t *l_tx = NULL;
+                if (l_unspent_flag) {
+                    l_tx = dap_ledger_tx_unspent_find_by_hash(l_ledger, &l_tx_hash);
+                } else {
+                    l_tx = dap_ledger_tx_find_by_hash(l_ledger, &l_tx_hash);
                 }
                 if(l_tx) {
                     size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);

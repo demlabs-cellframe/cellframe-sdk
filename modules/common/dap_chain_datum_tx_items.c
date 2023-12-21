@@ -408,13 +408,13 @@ dap_chain_tx_out_cond_t* dap_chain_datum_tx_item_out_cond_create_srv_pay(dap_pke
 
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap_chain_net_srv_uid_t a_srv_uid, dap_chain_net_id_t a_sell_net_id,
                                                                              uint256_t a_value_sell, dap_chain_net_id_t a_buy_net_id,
-                                                                             const char *a_token, uint256_t a_value_buy,
+                                                                             const char *a_token, uint256_t a_value_rate,
                                                                              const dap_chain_addr_t *a_seller_addr,
                                                                              const void *a_params, uint32_t a_params_size)
 {
     if (!a_token)
         return NULL;
-    if (IS_ZERO_256(a_value_sell) || IS_ZERO_256(a_value_buy))
+    if (IS_ZERO_256(a_value_sell) || IS_ZERO_256(a_value_rate))
         return NULL;
     dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + a_params_size);
     l_item->header.item_type = TX_ITEM_TYPE_OUT_COND;
@@ -424,13 +424,40 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap
     l_item->subtype.srv_xchange.buy_net_id = a_buy_net_id;
     l_item->subtype.srv_xchange.sell_net_id = a_sell_net_id;
     strncpy(l_item->subtype.srv_xchange.buy_token, a_token, DAP_CHAIN_TICKER_SIZE_MAX - 1);
-    l_item->subtype.srv_xchange.buy_value = a_value_buy;
+    l_item->subtype.srv_xchange.rate = a_value_rate;
     l_item->subtype.srv_xchange.seller_addr = *a_seller_addr;
     l_item->tsd_size = a_params_size;
     if (a_params_size) {
         memcpy(l_item->tsd, a_params, a_params_size);
     }
     return l_item;
+}
+
+json_object* dap_chain_datum_tx_item_out_cond_srv_xchange_to_json(dap_chain_tx_out_cond_t* a_srv_xchange){
+    if (a_srv_xchange->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE){
+        json_object *l_object = json_object_new_object();
+        char *l_value = dap_chain_balance_print(a_srv_xchange->header.value);
+        json_object *l_obj_value = json_object_new_string(l_value);
+        DAP_DELETE(l_value);
+        json_object *l_obj_srv_uid = json_object_new_uint64(a_srv_xchange->header.srv_uid.uint64);
+        json_object *l_obj_buy_net_id = dap_chain_net_id_to_json(a_srv_xchange->subtype.srv_xchange.buy_net_id);
+        json_object *l_obj_sell_net_id = dap_chain_net_id_to_json(a_srv_xchange->subtype.srv_xchange.sell_net_id);
+        json_object *l_obj_buy_token = json_object_new_string(a_srv_xchange->subtype.srv_xchange.buy_token);
+        char *l_value_rate = dap_chain_balance_print(a_srv_xchange->subtype.srv_xchange.rate);
+        json_object *l_obj_value_rate = json_object_new_string(l_value_rate);
+        DAP_DELETE(l_value_rate);
+        json_object *l_obj_seller_addr = dap_chain_addr_to_json(&a_srv_xchange->subtype.srv_xchange.seller_addr);
+        json_object_object_add(l_object, "value", l_obj_value);
+        json_object_object_add(l_object, "valueRate", l_obj_value_rate);
+        json_object_object_add(l_object, "srvUID", l_obj_srv_uid);
+        json_object_object_add(l_object, "buyNetId", l_obj_buy_net_id);
+        json_object_object_add(l_object, "sellNetId", l_obj_sell_net_id);
+        json_object_object_add(l_object, "buyToken", l_obj_buy_token);
+        json_object_object_add(l_object, "sellerAddr", l_obj_seller_addr);
+        //TODO: Parse TSD
+        return l_object;
+    }
+    return NULL;
 }
 
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
