@@ -567,13 +567,18 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         return NULL;
     }
     bool l_pay_with_native = !dap_strcmp(a_price->token_sell, l_native_ticker);
+    bool l_buy_with_native = !dap_strcmp(a_price->token_buy, l_native_ticker);
     if (!l_pay_with_native) {
-        l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
-                                                              &l_buyer_addr, l_total_fee, &l_fee_transfer);
-        if (!l_list_fee_out) {
-            dap_list_free_full(l_list_used_out, NULL);
-            log_it(L_WARNING, "Not enough funds to pay fee");
-            return NULL;
+        if (l_buy_with_native)
+            SUM_256_256(l_value_need, l_total_fee, &l_value_need);
+        else {
+            l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+                                                                  &l_buyer_addr, l_total_fee, &l_fee_transfer);
+            if (!l_list_fee_out) {
+                dap_list_free_full(l_list_used_out, NULL);
+                log_it(L_WARNING, "Not enough funds to pay fee");
+                return NULL;
+            }
         }
     }
 
@@ -589,7 +594,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
         log_it(L_ERROR, "Can't compose the transaction input");
         return NULL;
     }
-    if (!l_pay_with_native) {
+    if (!l_pay_with_native && !l_buy_with_native) {
         // add 'in' items to fee
         uint256_t l_value_fee_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_fee_out);
         dap_list_free_full(l_list_fee_out, NULL);
@@ -725,7 +730,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
     debug_if(s_debug_more, L_NOTICE, "l_value_transfer = %s", dap_chain_balance_to_coins(l_value_transfer));
     debug_if(s_debug_more, L_NOTICE, "l_value_back = %s", dap_chain_balance_to_coins(l_value_back));
     // fee back
-    if (!l_pay_with_native) {
+    if (!l_pay_with_native && !l_buy_with_native) {
         SUBTRACT_256_256(l_fee_transfer, l_total_fee, &l_value_back);
         if (!IS_ZERO_256(l_value_back)) {
             if (dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_buyer_addr, l_value_back, l_native_ticker) == -1) {
