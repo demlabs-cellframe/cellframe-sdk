@@ -1879,7 +1879,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                     continue;
                 }
                 if (l_token_from_str && strcmp(l_price->token_sell, l_token_from_str))
-                    continue
+                    continue;
 
                 if (l_token_to_str && strcmp(l_price->token_buy, l_token_to_str))
                     continue;
@@ -2367,7 +2367,6 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
 
             // No subcommand selected
             dap_cli_server_cmd_set_reply_text(a_str_reply,"Command 'token pair' requires proper subcommand, please read its manual with command 'help srv_xchange'");
-
 
         } break;
 
