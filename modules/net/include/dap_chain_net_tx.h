@@ -39,8 +39,8 @@ typedef enum dap_chain_net_tx_search_type {
     TX_SEARCH_TYPE_NET_UNSPENT,
     /// Do the request for spent txs in cell
     TX_SEARCH_TYPE_CELL_SPENT,
-    /// Do the search in whole
-    TX_SEARCH_TYPE_NET_SPENT
+    /// Do the search in blockchain
+    TX_SEARCH_TYPE_BLOCKCHAIN
 }dap_chain_net_tx_search_type_t;
 
 typedef struct dap_chain_datum_tx_spends_item{
@@ -66,8 +66,6 @@ dap_chain_datum_tx_t * dap_chain_net_get_tx_by_hash(dap_chain_net_t * a_net, dap
                                                      dap_chain_net_tx_search_type_t a_search_type);
 
 dap_list_t * dap_chain_net_get_tx_cond_chain(dap_chain_net_t * a_net, dap_hash_fast_t * a_tx_hash, dap_chain_net_srv_uid_t a_srv_uid);
-
-uint256_t dap_chain_net_get_tx_total_value(dap_chain_net_t * a_net, dap_chain_datum_tx_t * a_tx );
 
 void dap_chain_net_get_tx_all(dap_chain_net_t * a_net, dap_chain_net_tx_search_type_t a_search_type ,dap_chain_net_tx_hash_callback_t a_tx_callback, void * a_arg);
 
