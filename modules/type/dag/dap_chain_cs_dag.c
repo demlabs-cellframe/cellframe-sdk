@@ -1976,12 +1976,11 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
             case SUBCMD_EVENT_COUNT: {
                 dap_string_t *l_ret_str = dap_string_new(NULL);
                 dap_string_append_printf(l_ret_str, "%s.%s:\n", l_net->pub.name, l_chain->name);
-                char * l_gdb_group_events = DAP_CHAIN_CS_DAG(l_chain)->gdb_group_events_round_new;
+                const char * l_gdb_group_events = DAP_CHAIN_CS_DAG(l_chain)->gdb_group_events_round_new;
                 if (l_gdb_group_events) {
                     size_t l_objs_count = 0;
                     dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_events,&l_objs_count);
                     dap_string_append_printf(l_ret_str,"%zu in round.new\n", l_objs_count);
-                    DAP_DELETE(l_gdb_group_events);
                 }
                 size_t l_event_count = HASH_COUNT(PVT(l_dag)->events);
                 size_t l_event_treshold_count = HASH_COUNT(PVT(l_dag)->events_treshold);
