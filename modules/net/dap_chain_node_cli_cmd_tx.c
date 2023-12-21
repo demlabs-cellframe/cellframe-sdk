@@ -303,7 +303,7 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
                 dap_chain_tx_in_ems_t *l_tx_in_ems = (dap_chain_tx_in_ems_t *)it->data;
                 l_base_tx = true;
                 l_noaddr_token = l_tx_in_ems->header.ticker;
-            }
+            } break;
             case TX_ITEM_TYPE_IN_REWARD: {
                 l_base_tx = l_reward_collect = true;
                 l_noaddr_token = l_native_ticker;
@@ -820,7 +820,7 @@ int com_ledger(int a_argc, char ** a_argv, char **a_str_reply)
         DAP_DELETE(l_str_out);
         DAP_DELETE(l_addr);
         s_dap_chain_tx_hash_processed_ht_free(&l_list_tx_hash_processd);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\n%s", l_str_ret->str, l_sign_str);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s%s", l_sign_str, l_str_ret->str);
         dap_string_free(l_str_ret, true);
         return 0;       
     }

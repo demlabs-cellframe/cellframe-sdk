@@ -2060,7 +2060,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
             char *l_l_addr_str = dap_chain_addr_to_str((dap_chain_addr_t*) l_addr);
             if(l_wallet)
-                dap_string_append_printf(l_string_ret, "%s\nwallet: %s\n", dap_chain_wallet_check_sign(l_wallet), l_wallet->name);
+                dap_string_append_printf(l_string_ret, "%swallet: %s\n", dap_chain_wallet_check_sign(l_wallet), l_wallet->name);
             dap_string_append_printf(l_string_ret, "addr: %s\n", (l_l_addr_str) ? l_l_addr_str : "-");
             dap_string_append_printf(l_string_ret, "network: %s\n", (l_net_name ) ? l_net_name : "-");
 
@@ -2165,7 +2165,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     }
 
                     log_it(L_INFO, "Wallet %s has been converted", l_wallet_name);
-                    dap_string_append_printf(l_string_ret, "%s\nWallet: %s successfully converted\n", dap_chain_wallet_check_sign(l_wallet), l_wallet_name);
+                    dap_string_append_printf(l_string_ret, "%sWallet: %s successfully converted\n", dap_chain_wallet_check_sign(l_wallet), l_wallet_name);
                     dap_chain_wallet_close(l_wallet);
                     break;
                 }
@@ -4339,11 +4339,11 @@ int com_tx_cond_create(int a_argc, char ** a_argv, char **a_str_reply)
     DAP_DELETE(l_key_cond);
 
     if (l_hash_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Conditional 256bit TX created succefully, hash=%s\n%s\n", l_hash_str, l_sign_str);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%sConditional 256bit TX created succefully, hash=%s\n", l_hash_str, l_sign_str);
         DAP_DELETE(l_hash_str);
         return 0;
     }
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create conditional 256bit TX\n%s\n", l_sign_str);
+    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create conditional 256bit TX\n");
     return -1;
 }
 
@@ -5118,7 +5118,8 @@ int com_tx_create_json(int a_argc, char ** a_argv, char **a_str_reply)
                     log_it(L_ERROR, "Json TX: bad node_addr in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
                     break;
                 }
-                dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_stake(l_srv_uid, l_value, l_signing_addr, &l_signer_node_addr);
+                dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_stake(l_srv_uid, l_value, l_signing_addr,
+                                                                                                             &l_signer_node_addr, NULL, uint256_0);
                 l_item = (const uint8_t*) l_out_cond_item;
                 // Save value for using in In item
                 if(l_item) {
@@ -5661,7 +5662,7 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "wallet %s does not exist", l_from_wallet_name);
         return -9;
     } else {
-        dap_string_append_printf(l_string_ret, "%s\n", dap_chain_wallet_check_sign(l_wallet));
+        dap_string_append(l_string_ret, dap_chain_wallet_check_sign(l_wallet));
     }
     const dap_chain_addr_t *addr_from = (const dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
 
@@ -5965,8 +5966,7 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
     dap_string_t *l_str_ret = dap_string_new("");
     if (l_addr) {
         char *l_addr_str = dap_chain_addr_to_str(l_addr);
-        dap_string_append_printf(l_str_ret, "%s\n%s\n", dap_strdup_printf("History for addr %s:\n%s", l_addr_str,
-                l_str_out ? l_str_out : " empty"), l_sign_str);
+        dap_string_append_printf(l_str_ret, "%sHistory for addr %s:\n%s", l_sign_str, l_addr_str, l_str_out ? l_str_out : " empty");
         DAP_DELETE(l_addr_str);
         DAP_DELETE(l_str_out);
     } else
