@@ -3606,7 +3606,6 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
         DAP_DELETE(l_gdb_group_mempool);
         return DAP_COM_MEMPOOL_PROC_LIST_ERROR_REAL_HASH_DATUM_DOES_NOT_MATCH_HASH_DATA_STRING;
     }
-    char buf[50];
     dap_time_t l_ts_create = (dap_time_t)l_datum->header.ts_create;
     const char *l_type = NULL;
     DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type);
@@ -3616,8 +3615,7 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
     json_object *l_jobj_type = json_object_new_string(l_type);
     json_object *l_jobj_ts_created = json_object_new_object();
     json_object *l_jobj_ts_created_time_stamp = json_object_new_uint64(l_ts_create);
-    char *l_ts_created_str = dap_ctime_r(&l_ts_create, buf);
-    if (!l_ts_created_str || !l_jobj_ts_created || !l_jobj_ts_created_time_stamp || !l_jobj_type ||
+    if (!l_jobj_ts_created || !l_jobj_ts_created_time_stamp || !l_jobj_type ||
         !l_jobj_hash || !l_jobj_datum || !l_jobj_res) {
         json_object_put(l_jobj_res);
         json_object_put(l_jobj_datum);
@@ -3625,12 +3623,12 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
         json_object_put(l_jobj_type);
         json_object_put(l_jobj_ts_created);
         json_object_put(l_jobj_ts_created_time_stamp);
-        DAP_DEL_Z(l_ts_created_str);
         dap_json_rpc_allocation_error;
         return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
     }
+    char l_ts_created_str[27];
+    dap_ctime_r(&l_ts_create, l_ts_created_str);
     json_object *l_jobj_ts_created_str = json_object_new_string(l_ts_created_str);
-    DAP_DEL_Z(l_ts_created_str);
     json_object *l_jobj_data_size = json_object_new_uint64(l_datum->header.data_size);
     if (!l_jobj_ts_created_str || !l_jobj_data_size) {
         json_object_put(l_jobj_res);
