@@ -364,7 +364,7 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
             case TX_ITEM_TYPE_OUT_COND:
                 l_value = ((dap_chain_tx_out_cond_t *)it->data)->header.value;
                 if (((dap_chain_tx_out_cond_t *)it->data)->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
-                    SUM_256_256(l_fee_sum, ((dap_chain_tx_out_cond_t *)it->data)->header.value, &l_fee_sum);
+                    l_fee_sum = ((dap_chain_tx_out_cond_t *)it->data)->header.value;
                     l_dst_token = l_native_ticker;
                 } else
                     l_dst_token = l_src_token;
@@ -423,7 +423,9 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
         }
         dap_list_free(l_list_out_items);
         // fee for base TX in native token
-        if (l_header_printed && l_base_tx && !dap_strcmp(l_native_ticker, l_src_token)) {
+        if (l_header_printed &&
+                (l_base_tx || !dap_strcmp(l_native_ticker, l_noaddr_token)) &&
+                !dap_strcmp(l_native_ticker, l_src_token)) {
             char *l_fee_value_str = dap_chain_balance_print(l_fee_sum);
             char *l_fee_coins_str = dap_chain_balance_to_coins(l_fee_sum);
             dap_string_append_printf(l_str_out, "\tpay %s (%s) fee\n",
@@ -631,7 +633,7 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                     }
                     l_sht = DAP_NEW_Z(dap_chain_tx_hash_processed_ht_t);
                     if (!l_sht) {
-        log_it(L_CRITICAL, "Memory allocation error");
+                        log_it(L_CRITICAL, "Memory allocation error");
                         return NULL;
                     }
                     l_sht->hash = l_tx_hash;
