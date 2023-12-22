@@ -695,7 +695,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                 const char * l_datum_type_str="UNKNOWN";
                 DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_datum_type_str);
                 dap_string_append_printf(l_str_tmp,"\t\t\t\ttype_id:=%s\n", l_datum_type_str);
-                dap_gbd_time_to_str_rfc822(buf, 50, l_datum->header.ts_create);
+                dap_time_to_str_rfc822(buf, 50, l_datum->header.ts_create);
                 dap_string_append_printf(l_str_tmp,"\t\t\t\tts_create=%s\n", buf);
                 dap_string_append_printf(l_str_tmp,"\t\t\t\tdata_size=%u\n", l_datum->header.data_size);
                 dap_chain_datum_dump(l_str_tmp, l_datum, "hex", l_net->pub.id);
