@@ -2744,6 +2744,13 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
         dap_string_append_printf(a_str_tmp, "Cannot convert string '%s' to binary address.\n", a_add);
         return;
     }
+    if (l_wallet_addr && a_fast) {
+        dap_string_append_printf(a_str_tmp, "In fast mode, it is impossible to count the number of "
+                                            "transactions and emissions for a specific address. The -fast and -addr "
+                                            "options are mutually exclusive.\n");
+        DAP_DELETE(l_wallet_addr);
+        return;
+    }
     dap_chain_mempool_filter(a_chain, &l_removed);
     dap_string_append_printf(a_str_tmp, "Removed %i records from the %s chain mempool in %s network. \n\n",
                              l_removed, a_chain->name, a_net->pub.name);
@@ -2767,96 +2774,131 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
             char buff_time[50];
             dap_time_to_str_rfc822(buff_time, 50, l_datum->header.ts_create);
             dap_string_append_printf(a_str_tmp, "%s hash %s %s\n", l_datum_type, l_objs[i].key, buff_time);
-            bool datum_is_accepted_addr = false;
-            switch (l_datum->header.type_id) {
-                case DAP_CHAIN_DATUM_TX: {
-                    dap_chain_addr_t l_addr_from;
-                    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *) l_datum->data;
-                    const char *l_main_token = s_tx_get_main_ticker(l_tx, a_net, NULL);
-                    dap_list_t *l_list_sig_item = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_SIG, NULL);
-                    if (!l_list_sig_item) {
-                        dap_string_append_printf(a_str_tmp,
-                                                 "\tAn item with a type TX_ITEM_TYPE_SIG for the transaction "
-                                                 "was not found, the transaction may be corrupted.\n");
-                        break;
-                    }
-                    dap_chain_tx_sig_t *l_sig = l_list_sig_item->data;
-                    dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_sig);
-                    dap_chain_addr_fill_from_sign(&l_addr_from, l_sign, a_net->pub.id);
-                    if (l_wallet_addr && dap_chain_addr_compare(l_wallet_addr, &l_addr_from)) {
-                        datum_is_accepted_addr = true;
-                    }
-                    dap_list_free(l_list_sig_item);
-                    char *l_addr_from_str = dap_chain_addr_to_str(&l_addr_from);
-                    dap_string_append_printf(a_str_tmp, "\tFrom: %s\n", l_addr_from_str);
-                    DAP_DELETE(l_addr_from_str);
-                    dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
-                    for (dap_list_t *it = l_list_out_items; it; it = it->next) {
-                        dap_chain_addr_t *l_dist_addr = NULL;
-                        uint256_t l_value = uint256_0;
-                        const char *l_dist_token = NULL;
-                        uint8_t l_type = *(uint8_t *) it->data;
-                        switch (l_type) {
-                            case TX_ITEM_TYPE_OUT: {
-                                l_value = ((dap_chain_tx_out_t *) it->data)->header.value;
-                                l_dist_token = l_main_token;
-                                l_dist_addr = &((dap_chain_tx_out_t *) it->data)->addr;
-                            }
-                                break;
-                            case TX_ITEM_TYPE_OUT_EXT: {
-                                l_value = ((dap_chain_tx_out_ext_t *) it->data)->header.value;
-                                l_dist_token = ((dap_chain_tx_out_ext_t *) it->data)->token;
-                                l_dist_addr = &((dap_chain_tx_out_ext_t *) it->data)->addr;
-                            }
-                                break;
-                            case TX_ITEM_TYPE_OUT_COND: {
-                                l_value = ((dap_chain_tx_out_cond_t *) it->data)->header.value;
-                                if (((dap_chain_tx_out_cond_t *) it->data)->header.subtype ==
-                                    DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
-                                    l_dist_token = a_net->pub.native_ticker;
-                                }
-                            }
-                                break;
-                            default:
-                                break;
+            if (!a_fast) {
+                bool datum_is_accepted_addr = false;
+                switch (l_datum->header.type_id) {
+                    case DAP_CHAIN_DATUM_TX: {
+                        dap_chain_addr_t l_addr_from;
+                        dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *) l_datum->data;
+                        const char *l_main_token = s_tx_get_main_ticker(l_tx, a_net, NULL);
+                        dap_list_t *l_list_sig_item = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_SIG, NULL);
+                        if (!l_list_sig_item) {
+                            dap_string_append_printf(a_str_tmp,
+                                                     "\tAn item with a type TX_ITEM_TYPE_SIG for the transaction "
+                                                     "was not found, the transaction may be corrupted.\n");
+                            break;
                         }
-                        char *l_value_str = dap_chain_balance_print(l_value);
-                        char *l_value_coins_str = dap_chain_balance_to_coins(l_value);
-                        char *l_addr_str = dap_chain_addr_to_str(l_dist_addr);
-                        if (l_dist_addr) {
-                            if (!datum_is_accepted_addr && l_wallet_addr) {
-                                datum_is_accepted_addr = dap_chain_addr_compare(l_wallet_addr, l_dist_addr);
-                            }
-                            dap_chain_addr_compare(&l_addr_from, l_dist_addr) ?
-                            dap_string_append_printf(a_str_tmp, "\tСhange: %s (%s) %s\n",
-                                                     l_value_coins_str, l_value_str, l_dist_token) :
-                            dap_string_append_printf(a_str_tmp, "\tTo: %s (%s) %s %s\n",
-                                                     l_value_coins_str, l_value_str, l_dist_token, l_addr_str);
+                        dap_chain_tx_sig_t *l_sig = l_list_sig_item->data;
+                        dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig(l_sig);
+                        dap_chain_addr_fill_from_sign(&l_addr_from, l_sign, a_net->pub.id);
+                        if (l_wallet_addr && dap_chain_addr_compare(l_wallet_addr, &l_addr_from)) {
+                            datum_is_accepted_addr = true;
+                        }
+                        dap_list_free(l_list_sig_item);
+                        char *l_addr_from_str = dap_chain_addr_to_str(&l_addr_from);
+                        dap_list_t *l_list_in_reward = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_REWARD, NULL);
+                        if (l_list_in_reward) {
+                            dap_chain_tx_in_reward_t *l_in_reward = (dap_chain_tx_in_reward_t*)l_list_in_reward->data;
+                            char *l_block_hash = dap_chain_hash_fast_to_str_new(&l_in_reward->block_hash);
+                            dap_string_append_printf(a_str_tmp, "\tForm block reward: %s\n", l_block_hash);
+                            DAP_DELETE(l_block_hash);
                         } else {
-                            dap_string_append_printf(a_str_tmp, "\tFee: %s (%s) %s\n", l_value_coins_str, l_value_str,
-                                                     l_dist_token);
+                            dap_string_append_printf(a_str_tmp, "\tFrom: %s\n", l_addr_from_str);
                         }
-                        DAP_DELETE(l_value_str);
-                        DAP_DELETE(l_value_coins_str);
-                        DAP_DELETE(l_addr_str);
+                        dap_list_free(l_list_in_reward);
+                        DAP_DELETE(l_addr_from_str);
+                        dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
+                        for (dap_list_t *it = l_list_out_items; it; it = it->next) {
+                            dap_chain_addr_t *l_dist_addr = NULL;
+                            uint256_t l_value = uint256_0;
+                            const char *l_dist_token = NULL;
+                            uint8_t l_type = *(uint8_t *) it->data;
+                            const char *l_type_out_str = "To";
+                            switch (l_type) {
+                                case TX_ITEM_TYPE_OUT: {
+                                    l_value = ((dap_chain_tx_out_t *) it->data)->header.value;
+                                    l_dist_token = l_main_token;
+                                    l_dist_addr = &((dap_chain_tx_out_t *) it->data)->addr;
+                                }
+                                    break;
+                                case TX_ITEM_TYPE_OUT_EXT: {
+                                    l_value = ((dap_chain_tx_out_ext_t *) it->data)->header.value;
+                                    l_dist_token = ((dap_chain_tx_out_ext_t *) it->data)->token;
+                                    l_dist_addr = &((dap_chain_tx_out_ext_t *) it->data)->addr;
+                                }
+                                    break;
+                                case TX_ITEM_TYPE_OUT_COND: {
+                                    dap_chain_tx_out_cond_t *l_out_cond = (dap_chain_tx_out_cond_t*)it->data;
+                                    l_value = ((dap_chain_tx_out_cond_t *) it->data)->header.value;
+                                    switch (l_out_cond->header.subtype) {
+                                        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE: {
+                                            l_dist_token = a_net->pub.native_ticker;
+                                            l_type_out_str = "Fee";
+                                        } break;
+                                        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK: {
+                                            l_dist_token = l_main_token;
+                                            l_dist_addr = NULL;
+                                            l_type_out_str = "Stake lock";
+                                        } break;
+                                        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE: {
+                                            l_dist_token = l_main_token;
+                                            l_type_out_str = "xchange";
+                                        } break;
+                                        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE: {
+                                            l_dist_token = l_main_token;
+                                            l_type_out_str = "Stake pos delegate";
+                                        } break;
+                                        case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY: {
+                                            l_dist_token = l_main_token;
+                                            l_type_out_str = "Pay";
+                                        } break;
+                                        default:
+                                            break;
+                                    }
+                                }
+                                    break;
+                                default:
+                                    break;
+                            }
+                            char *l_value_str = dap_chain_balance_print(l_value);
+                            char *l_value_coins_str = dap_chain_balance_to_coins(l_value);
+                            if (!l_dist_addr) {
+                                dap_string_append_printf(a_str_tmp, "\t%s: %s (%s) %s\n", l_type_out_str,
+                                                         l_value_coins_str, l_value_str, l_dist_token);
+                            } else {
+                                char *l_addr_str = dap_chain_addr_to_str(l_dist_addr);
+                                if (!datum_is_accepted_addr && l_wallet_addr) {
+                                    datum_is_accepted_addr = dap_chain_addr_compare(l_wallet_addr, l_dist_addr);
+                                }
+                                dap_chain_addr_compare(&l_addr_from, l_dist_addr) ?
+                                dap_string_append_printf(a_str_tmp, "\tСhange: %s (%s) %s\n",
+                                                         l_value_coins_str, l_value_str, l_dist_token) :
+                                dap_string_append_printf(a_str_tmp, "\tTo: %s (%s) %s %s\n",
+                                                         l_value_coins_str, l_value_str, l_dist_token, l_addr_str);
+                                DAP_DELETE(l_addr_str);
+                            }
+                            DAP_DELETE(l_value_str);
+                            DAP_DELETE(l_value_coins_str);
+                        }
+                        dap_list_free(l_list_out_items);
                     }
-                    dap_list_free(l_list_out_items);
+                        break;
+                    case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
+                        size_t l_emi_size = 0;
+                        dap_chain_datum_token_emission_t *l_emi = dap_chain_datum_emission_read(l_datum->data,
+                                                                                                &l_emi_size);
+                        if (l_wallet_addr && l_emi && dap_chain_addr_compare(l_wallet_addr, &l_emi->hdr.address))
+                            datum_is_accepted_addr = true;
+                        DAP_DELETE(l_emi);
+                        dap_chain_datum_dump(a_str_tmp, l_datum, a_hash_out_type, a_net->pub.id);
+                    }
+                        break;
+                    default:
+                        dap_chain_datum_dump(a_str_tmp, l_datum, a_hash_out_type, a_net->pub.id);
                 }
-                    break;
-                case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
-                    size_t l_emi_size = 0;
-                    dap_chain_datum_token_emission_t *l_emi = dap_chain_datum_emission_read(l_datum->data, &l_emi_size);
-                    if (l_wallet_addr && l_emi && dap_chain_addr_compare(l_wallet_addr, &l_emi->hdr.address))
-                        datum_is_accepted_addr = true;
-                    DAP_DELETE(l_emi);
-                    dap_chain_datum_dump(a_str_tmp, l_datum, a_hash_out_type, a_net->pub.id);
+                if (datum_is_accepted_addr) {
+                    l_objs_addr++;
                 }
-                    break;
-                default:
-                    dap_chain_datum_dump(a_str_tmp, l_datum, a_hash_out_type, a_net->pub.id);
-            }
-            if (datum_is_accepted_addr) {
-                l_objs_addr++;
             }
         }
         if (l_wallet_addr) {
@@ -4500,7 +4542,7 @@ int com_mempool(int a_argc, char **a_argv,  char **a_str_reply){
     dap_chain_net_t *l_net = NULL;
     dap_chain_t *l_chain = NULL;
     const char *l_addr_b58 = NULL;
-    enum _subcmd {SUBCMD_LIST, SUBCMD_PROC, SUBCMD_PROC_ALL, SUBCMD_DELETE, SUBCMD_ADD_CA, SUBCMD_CHECK, SUBCMD_DUMP};
+    enum _subcmd {SUBCMD_LIST, SUBCMD_PROC, SUBCMD_PROC_ALL, SUBCMD_DELETE, SUBCMD_ADD_CA, SUBCMD_CHECK, SUBCMD_DUMP, SUBCMD_COUNT};
     enum _subcmd l_cmd = 0;
     if (a_argv[1]) {
         char *lts = a_argv[1];
@@ -4518,6 +4560,8 @@ int com_mempool(int a_argc, char **a_argv,  char **a_str_reply){
             l_cmd = SUBCMD_DUMP;
         } else if (!dap_strcmp(lts, "check")) {
             l_cmd = SUBCMD_CHECK;
+        } else if (!dap_strcmp(lts, "count")) {
+            l_cmd = SUBCMD_COUNT;
         } else {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Invalid sub command specified. Ыub command %s "
                                                            "is not supported.", lts);
@@ -4525,6 +4569,9 @@ int com_mempool(int a_argc, char **a_argv,  char **a_str_reply){
         }
     }
     dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net);
+    if (!l_net) {
+        return -2;
+    }
     const char *l_hash_out_type = "hex";
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
     const char *l_datum_hash_in = NULL;
@@ -4597,6 +4644,31 @@ int com_mempool(int a_argc, char **a_argv,  char **a_str_reply){
         case SUBCMD_DUMP: {
             dap_string_t *l_str_ret = dap_string_new(NULL);
             ret = _cmd_mempool_dump(l_net, l_chain, l_datum_hash, l_hash_out_type, l_str_ret);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ret->str);
+            dap_string_free(l_str_ret, true);
+        } break;
+        case SUBCMD_COUNT: {
+            char *l_mempool_group;
+            dap_string_t *l_str_ret = dap_string_new(NULL);
+            if (!l_chain) {
+                DL_FOREACH(l_net->pub.chains, l_chain) {
+                    l_mempool_group = dap_chain_net_get_gdb_group_mempool_new(l_chain);
+                    size_t l_objs_count = 0;
+                    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_mempool_group, &l_objs_count);
+                    dap_global_db_objs_delete(l_objs, l_objs_count);
+                    DAP_DELETE(l_mempool_group);
+                    dap_string_append_printf(l_str_ret, "%zu records found in mempool %s.%s\n", l_objs_count,
+                                             l_net->pub.name, l_chain->name);
+                }
+            } else {
+                l_mempool_group = dap_chain_net_get_gdb_group_mempool_new(l_chain);
+                size_t l_objs_count = 0;
+                dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_mempool_group, &l_objs_count);
+                dap_global_db_objs_delete(l_objs, l_objs_count);
+                DAP_DELETE(l_mempool_group);
+                dap_string_append_printf(l_str_ret, "%zu records found in mempool %s.%s\n", l_objs_count,
+                                         l_net->pub.name, l_chain->name);
+            }
             dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ret->str);
             dap_string_free(l_str_ret, true);
         } break;
