@@ -2991,10 +2991,16 @@ dap_ledger_token_emission_item_t *s_emission_item_find(dap_ledger_t *a_ledger,
  * @param a_token_emission_hash
  * @return
  */
-dap_chain_datum_token_emission_t *dap_ledger_token_emission_find(dap_ledger_t *a_ledger,
-        const char *a_token_ticker, const dap_chain_hash_fast_t *a_token_emission_hash)
+dap_chain_datum_token_emission_t *dap_ledger_token_emission_find(dap_ledger_t *a_ledger, const dap_chain_hash_fast_t *a_token_emission_hash)
 {
-    dap_ledger_token_emission_item_t *l_emission_item = s_emission_item_find(a_ledger, a_token_ticker, a_token_emission_hash, NULL);
+    dap_ledger_token_emission_item_t *l_emission_item = NULL;
+    pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
+    for (dap_ledger_token_item_t *l_item = PVT(a_ledger)->tokens; l_item; l_item = l_item->hh.next) {
+         l_emission_item = s_emission_item_find(a_ledger, l_item->ticker, a_token_emission_hash, NULL);
+         if (l_emission_item)
+             break;
+    }
+    pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
     return l_emission_item ? l_emission_item->datum_token_emission : NULL;
 }
 
