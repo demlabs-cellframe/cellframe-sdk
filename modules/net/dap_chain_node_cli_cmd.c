@@ -3929,7 +3929,7 @@ int com_mempool(int a_argc, char **a_argv, void **reply){
     dap_chain_net_t *l_net = NULL;
     dap_chain_t *l_chain = NULL;
     const char *l_addr_b58 = NULL;
-    enum _subcmd {SUBCMD_LIST, SUBCMD_PROC, SUBCMD_PROC_ALL, SUBCMD_DELETE, SUBCMD_ADD_CA, SUBCMD_CHECK, SUBCMD_DUMP};
+    enum _subcmd {SUBCMD_LIST, SUBCMD_PROC, SUBCMD_PROC_ALL, SUBCMD_DELETE, SUBCMD_ADD_CA, SUBCMD_CHECK, SUBCMD_DUMP, SUBCMD_COUNT};
     enum _subcmd l_cmd;
     if (a_argv[1]) {
         if (!dap_strcmp(a_argv[1], "list")) {
@@ -3946,6 +3946,8 @@ int com_mempool(int a_argc, char **a_argv, void **reply){
             l_cmd = SUBCMD_DUMP;
         } else if (!dap_strcmp(a_argv[1], "check")) {
             l_cmd = SUBCMD_CHECK;
+        } else if (!dap_strcmp(a_argv[1], "count")) {
+            l_cmd = SUBCMD_COUNT;
         } else {
             char *l_str_err = dap_strdup_printf("Invalid sub command specified. Ыub command %s "
                                                            "is not supported.", a_argv[1]);
@@ -3964,6 +3966,9 @@ int com_mempool(int a_argc, char **a_argv, void **reply){
         }
     }
     dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, a_argc, a_argv, &l_chain, &l_net);
+    if (!l_net) {
+        return -3;
+    }
     const char *l_hash_out_type = "hex";
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
     const char *l_datum_hash_in = NULL;
@@ -4058,6 +4063,72 @@ int com_mempool(int a_argc, char **a_argv, void **reply){
         } break;
         case SUBCMD_DUMP: {
             ret = _cmd_mempool_dump(l_net, l_chain, l_datum_hash, l_hash_out_type, reply);
+        } break;
+        case SUBCMD_COUNT: {
+            char *l_mempool_group;
+            json_object *obj_ret = json_object_new_object();
+            json_object *obj_net = json_object_new_string(l_net->pub.name);
+            if (!obj_ret || !obj_net) {
+                json_object_put(obj_ret);
+                json_object_put(obj_net);
+                DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                return -1;
+            }
+            json_object_object_add(obj_ret, "net", obj_net);
+            json_object *l_jobj_chains = json_object_new_array();
+            if (!l_jobj_chains) {
+                json_object_put(obj_ret);
+                DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                return -1;
+            }
+            if(l_chain) {
+                l_mempool_group = dap_chain_net_get_gdb_group_mempool_new(l_chain);
+                size_t l_objs_count = 0;
+                dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_mempool_group, &l_objs_count);
+                dap_global_db_objs_delete(l_objs, l_objs_count);
+                DAP_DELETE(l_mempool_group);
+                json_object *l_jobj_chain = json_object_new_object();
+                json_object *l_jobj_chain_name = json_object_new_string(l_chain->name);
+                json_object *l_jobj_count = json_object_new_uint64(l_objs_count);
+                if (!l_jobj_chain || !l_jobj_chain_name || !l_jobj_count) {
+                    json_object_put(l_jobj_chains);
+                    json_object_put(l_jobj_chain);
+                    json_object_put(l_jobj_chain_name);
+                    json_object_put(l_jobj_count);
+                    json_object_put(obj_ret);
+                    DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_chain, "name", l_jobj_chain_name);
+                json_object_object_add(l_jobj_chain, "count", l_jobj_count);
+                json_object_array_add(l_jobj_chains, l_jobj_chain);
+            } else {
+                DL_FOREACH(l_net->pub.chains, l_chain) {
+                    l_mempool_group = dap_chain_net_get_gdb_group_mempool_new(l_chain);
+                    size_t l_objs_count = 0;
+                    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_mempool_group, &l_objs_count);
+                    dap_global_db_objs_delete(l_objs, l_objs_count);
+                    DAP_DELETE(l_mempool_group);
+                    json_object *l_jobj_chain = json_object_new_object();
+                    json_object *l_jobj_chain_name = json_object_new_string(l_chain->name);
+                    json_object *l_jobj_count = json_object_new_uint64(l_objs_count);
+                    if (!l_jobj_chain || !l_jobj_chain_name || !l_jobj_count) {
+                        json_object_put(l_jobj_chains);
+                        json_object_put(l_jobj_chain);
+                        json_object_put(l_jobj_chain_name);
+                        json_object_put(l_jobj_count);
+                        json_object_put(obj_ret);
+                        DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                        return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                    }
+                    json_object_object_add(l_jobj_chain, "name", l_jobj_chain_name);
+                    json_object_object_add(l_jobj_chain, "count", l_jobj_count);
+                    json_object_array_add(l_jobj_chains, l_jobj_chain);
+                }
+            }
+            json_object_object_add(obj_ret, "chains", l_jobj_chains);
+            json_object_array_add(*reply, obj_ret);
+            ret = 0;
         } break;
     }
     DAP_DEL_Z(l_datum_hash);
