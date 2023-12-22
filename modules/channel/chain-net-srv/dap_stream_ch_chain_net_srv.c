@@ -959,15 +959,9 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
 
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(l_grace->stream_worker, l_grace->ch_uuid);
 
-    if (l_srv != l_grace->usage->service) {
-        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND;
-        s_grace_error(l_grace, l_err);
-        DAP_DELETE(a_grace_item); 
-        return false; 
-    }
-
-    if (!l_ch) {
-        l_err.code = DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_CH_NOT_FOUND;
+    if (!l_ch || l_srv != l_grace->usage->service) {
+        l_err.code = !l_ch ? DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_NOT_FOUND : 
+                        DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_SERVICE_CH_NOT_FOUND;
         s_grace_error(l_grace, l_err);
         DAP_DELETE(a_grace_item); 
         return false; 
