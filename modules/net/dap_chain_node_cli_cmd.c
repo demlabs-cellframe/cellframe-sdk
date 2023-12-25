@@ -2853,6 +2853,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *) l_datum->data;
                         const char *l_main_token = s_tx_get_main_ticker(l_tx, a_net, NULL);
                         dap_list_t *l_list_sig_item = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_SIG, NULL);
+                        dap_list_t *l_list_in_ems = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_EMS, NULL);
                         if (!l_list_sig_item) {
                             dap_string_append_printf(a_str_tmp,
                                                      "\tAn item with a type TX_ITEM_TYPE_SIG for the transaction "
@@ -2869,10 +2870,12 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                         char *l_addr_from_str = dap_chain_addr_to_str(&l_addr_from);
                         dap_list_t *l_list_in_reward = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_REWARD, NULL);
                         if (l_list_in_reward) {
-                            dap_chain_tx_in_reward_t *l_in_reward = (dap_chain_tx_in_reward_t*)l_list_in_reward->data;
-                            char *l_block_hash = dap_chain_hash_fast_to_str_new(&l_in_reward->block_hash);
-                            dap_string_append_printf(a_str_tmp, "\tForm block reward: %s\n", l_block_hash);
-                            DAP_DELETE(l_block_hash);
+                            for (dap_list_t *it = l_list_in_reward; it; it = it->next) {
+                                dap_chain_tx_in_reward_t *l_in_reward = (dap_chain_tx_in_reward_t *) it->data;
+                                char *l_block_hash = dap_chain_hash_fast_to_str_new(&l_in_reward->block_hash);
+                                dap_string_append_printf(a_str_tmp, "\tForm block reward: %s\n", l_block_hash);
+                                DAP_DELETE(l_block_hash);
+                            }
                         } else {
                             dap_string_append_printf(a_str_tmp, "\tFrom: %s\n", l_addr_from_str);
                         }
@@ -2941,11 +2944,25 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                                 if (!datum_is_accepted_addr && l_wallet_addr) {
                                     datum_is_accepted_addr = dap_chain_addr_compare(l_wallet_addr, l_dist_addr);
                                 }
-                                dap_chain_addr_compare(&l_addr_from, l_dist_addr) ?
-                                dap_string_append_printf(a_str_tmp, "\tChange: %s (%s) %s\n",
-                                                         l_value_coins_str, l_value_str, l_dist_token) :
-                                dap_string_append_printf(a_str_tmp, "\tTo: %s (%s) %s %s\n",
-                                                         l_value_coins_str, l_value_str, l_dist_token, l_addr_str);
+                                if (dap_chain_addr_compare(&l_addr_from, l_dist_addr)) {
+                                    bool l_in_from_emi = false;
+                                    for (dap_list_t *it_ems = l_list_in_ems; it_ems; it_ems = it_ems->next) {
+                                        dap_chain_tx_in_ems_t *l_in_ems = (dap_chain_tx_in_ems_t*)it_ems->data;
+                                        if (!dap_strcmp(l_in_ems->header.ticker, l_dist_token)) {
+                                            l_in_from_emi = true;
+                                            break;
+                                        }
+                                    }
+                                    if (l_in_from_emi) {
+                                        dap_string_append_printf(a_str_tmp, "\tTo from emission: %s (%s) %s %s\n",
+                                                                 l_value_coins_str, l_value_str, l_dist_token, l_addr_str);
+                                    } else
+                                        dap_string_append_printf(a_str_tmp, "\tChange: %s (%s) %s\n",
+                                                         l_value_coins_str, l_value_str, l_dist_token);
+                                } else {
+                                    dap_string_append_printf(a_str_tmp, "\tTo: %s (%s) %s %s\n",
+                                                             l_value_coins_str, l_value_str, l_dist_token, l_addr_str);
+                                }
 
                             }
                             DAP_DELETE(l_value_str);
