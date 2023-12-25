@@ -34,6 +34,8 @@
 #include "dap_cli_server.h"
 #include "dap_chain_node_cli_cmd.h"
 #include "dap_chain_mempool.h"
+#include "dap_chain_net_srv_stake_pos_delegate.h"
+#include "dap_chain_cs_esbocs.h"
 
 #define LOG_TAG "dap_chain_cs_blocks"
 
@@ -179,10 +181,13 @@ int dap_chain_cs_blocks_init()
             " [{-cert <signing_cert_name> | -pkey_hash <signing_cert_pkey_hash>} [-unspent]]\n"
                 "\t\t List blocks\n\n"
 
+            "block -net <net_name> -chain <chain_name> count\n"
+                "\t\t Show count block\n\n"
+
         "Commission collect:\n"
             "block -net <net_name> -chain <chain_name> fee collect"
             " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value>\n"
-                "\t\t Take the whole commission\n\n"
+                "\t\t Take delegated part of commission\n\n"
 
         "Reward for block signs:\n"
             "block -net <net_name> -chain <chain_name> reward set"
@@ -195,7 +200,7 @@ int dap_chain_cs_blocks_init()
 
             "block -net <net_name> -chain <chain_name> reward collect"
             " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value>\n"
-                "\t\t Take reward\n\n"
+                "\t\t Take delegated part of reward\n\n"
 
         "Rewards and comission autocollect status:\n"
             "block -net <net_name> -chain <chain_name> autocollect status\n\n"
@@ -462,9 +467,31 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, dap_string_t *a_re
     }
     if (l_objs_count) {
         dap_global_db_objs_delete(l_objs, l_objs_count);
+        uint256_t l_collect_fee = dap_chain_esbocs_get_fee(a_net->pub.id);
+        SUM_256_256(l_collect_fee, a_net->pub.fee_value, &l_collect_fee);
+        uint256_t l_collect_tax = {}, l_collect_value = {};
+        if (compare256(l_total_value, l_collect_fee) == 1) {
+            SUBTRACT_256_256(l_total_value, l_collect_fee, &l_collect_value);
+            dap_pkey_t *l_my_sign_pkey = dap_chain_esbocs_get_sign_pkey(a_net->pub.id);
+            dap_hash_t l_my_sign_pkey_hash;
+            dap_hash_fast(l_my_sign_pkey->pkey, l_my_sign_pkey->header.size, &l_my_sign_pkey_hash);
+            dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(&l_my_sign_pkey_hash);
+            if (l_key_item && !IS_ZERO_256(l_key_item->sovereign_tax) &&
+                    !dap_chain_addr_is_blank(&l_key_item->sovereign_addr)) {
+                MULT_256_COIN(l_collect_value, l_key_item->sovereign_tax, &l_collect_tax);
+                SUBTRACT_256_256(l_collect_value, l_collect_tax, &l_collect_value);
+            }
+        }
         char *l_total_str = dap_chain_balance_to_coins(l_total_value);
-        dap_string_append_printf(a_reply_str, "Total prepared value: %s %s\n", l_total_str, a_net->pub.native_ticker);
+        char *l_profit_str = dap_chain_balance_to_coins(l_collect_value);
+        char *l_tax_str = dap_chain_balance_to_coins(l_collect_tax);
+        char *l_fee_str = dap_chain_balance_to_coins(l_collect_fee);
+        dap_string_append_printf(a_reply_str, "Total prepared value: %s %s, where\n\tprofit is %s, tax is %s, fee is %s\n",
+                                 l_total_str, a_net->pub.native_ticker, l_profit_str, l_tax_str, l_fee_str);
         DAP_DEL_Z(l_total_str);
+        DAP_DEL_Z(l_profit_str);
+        DAP_DEL_Z(l_tax_str);
+        DAP_DEL_Z(l_fee_str);
     } else
         dap_string_append(a_reply_str, "Empty\n");
 }
@@ -492,6 +519,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
         SUBCMD_DROP,
         SUBCMD_REWARD,
         SUBCMD_AUTOCOLLECT,
+        SUBCMD_COUNT,
     } l_subcmd={0};
 
     const char* l_subcmd_strs[]={
@@ -506,6 +534,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
         [SUBCMD_DROP]="drop",
         [SUBCMD_REWARD] = "reward",
         [SUBCMD_AUTOCOLLECT] = "autocollect",
+        [SUBCMD_COUNT] = "count",
         [SUBCMD_UNDEFINED]=NULL
     };
     const size_t l_subcmd_str_count=sizeof(l_subcmd_strs)/sizeof(*l_subcmd_strs);
@@ -637,8 +666,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
             dap_string_append_printf(l_str_tmp, "\t\t\tcell_id: 0x%016"DAP_UINT64_FORMAT_X"\n", l_block->hdr.cell_id.uint64);
             dap_string_append_printf(l_str_tmp, "\t\t\tchain_id: 0x%016"DAP_UINT64_FORMAT_X"\n", l_block->hdr.chain_id.uint64);
             char buf[50];
-            time_t l_ts = l_block->hdr.ts_created;
-            ctime_r(&l_ts, buf);
+            dap_time_to_str_rfc822(buf, 50, l_block->hdr.ts_created);
             dap_string_append_printf(l_str_tmp, "\t\t\tts_created: %s\n", buf);
 
             // Dump Metadata
@@ -684,13 +712,12 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                                             sizeof (l_datum->header));
                     break;
                 }
-                time_t l_datum_ts_create = (time_t) l_datum->header.ts_create;
                 // Nested datums
                 dap_string_append_printf(l_str_tmp,"\t\t\t\tversion:=0x%02X\n", l_datum->header.version_id);
                 const char * l_datum_type_str="UNKNOWN";
                 DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_datum_type_str);
                 dap_string_append_printf(l_str_tmp,"\t\t\t\ttype_id:=%s\n", l_datum_type_str);
-                ctime_r(&l_datum_ts_create, buf);
+                dap_time_to_str_rfc822(buf, 50, l_datum->header.ts_create);
                 dap_string_append_printf(l_str_tmp,"\t\t\t\tts_create=%s\n", buf);
                 dap_string_append_printf(l_str_tmp,"\t\t\t\tdata_size=%u\n", l_datum->header.data_size);
                 dap_chain_datum_dump(l_str_tmp, l_datum, "hex", l_net->pub.id);
@@ -719,7 +746,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
             size_t l_block_count = 0;
             dap_pkey_t * l_pub_key = NULL;
             dap_hash_fast_t l_from_hash = {}, l_to_hash = {}, l_pkey_hash = {};
-            time_t l_from_time = 0, l_to_time = 0;
+            dap_time_t l_from_time = 0, l_to_time = 0;
 
             l_signed_flag = dap_cli_server_cmd_check_option(a_argv, 1, a_argc, "signed") > 0;
             l_first_signed_flag = dap_cli_server_cmd_check_option(a_argv, 1, a_argc, "first_signed") > 0;
@@ -789,7 +816,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't convert \"%s\" to date", l_to_date_str);
                     return -21;
                 }
-                struct tm *l_localtime = localtime(&l_to_time);
+                struct tm *l_localtime = localtime((time_t *)&l_to_time);
                 l_localtime->tm_mday += 1;  // + 1 day to end date, got it inclusive
                 l_to_time = mktime(l_localtime);
             }
@@ -797,7 +824,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
             pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
             dap_string_t *l_str_tmp = dap_string_new(NULL);
             for (dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next) {
-                time_t l_ts = l_block_cache->block->hdr.ts_created;
+                dap_time_t l_ts = l_block_cache->block->hdr.ts_created;
                 if (l_from_time && l_ts < l_from_time)
                     continue;
                 if (l_to_time && l_ts >= l_to_time)
@@ -835,6 +862,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                     }
                 }
                 if (l_signed_flag) {
+                    if (l_unspent_flag && l_ts < DAP_REWARD_INIT_TIMESTAMP)
+                        continue;
                     if (!l_pub_key) {
                         bool l_found = false;
                         // TODO optimize performance by precalculated sign hashes in block cache
@@ -857,8 +886,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                     }
                 }
                 char l_buf[50];
-                ctime_r(&l_ts, l_buf);
-                dap_string_append_printf(l_str_tmp, "\t%s: ts_create=%s", l_block_cache->block_hash_str, l_buf);
+                dap_time_to_str_rfc822(l_buf, 50, l_ts);
+                dap_string_append_printf(l_str_tmp, "\t%s: ts_create=%s\n", l_block_cache->block_hash_str, l_buf);
                 l_block_count++;
                 if (l_to_hash_str && dap_hash_fast_compare(&l_to_hash, &l_block_cache->block_hash))
                     break;
@@ -872,6 +901,11 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                                      l_net->pub.name, l_chain->name, l_block_count, l_filtered_criteria);
             dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
             dap_string_free(l_str_tmp, true);
+        } break;
+
+        case SUBCMD_COUNT: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "%zu blocks in %s.%s", PVT(l_blocks)->blocks_count,
+                                              l_net->pub.name, l_chain->name);
         } break;
 
         case SUBCMD_FEE:
