@@ -135,7 +135,7 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain);
 static dap_chain_block_t *s_new_block_move(dap_chain_cs_blocks_t *a_blocks, size_t *a_new_block_size);
 
 //Work with atoms
-static uint64_t s_callback_count_atom(dap_chain_t *a_chain);
+static size_t s_callback_count_atom(dap_chain_t *a_chain);
 static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 
 static bool s_seed_mode = false;
@@ -695,7 +695,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                 const char * l_datum_type_str="UNKNOWN";
                 DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_datum_type_str);
                 dap_string_append_printf(l_str_tmp,"\t\t\t\ttype_id:=%s\n", l_datum_type_str);
-                dap_gbd_time_to_str_rfc822(buf, 50, l_datum->header.ts_create);
+                dap_time_to_str_rfc822(buf, 50, l_datum->header.ts_create);
                 dap_string_append_printf(l_str_tmp,"\t\t\t\tts_create=%s\n", buf);
                 dap_string_append_printf(l_str_tmp,"\t\t\t\tdata_size=%u\n", l_datum->header.data_size);
                 dap_chain_datum_dump(l_str_tmp, l_datum, "hex", l_net->pub.id);
@@ -794,7 +794,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't convert \"%s\" to date", l_to_date_str);
                     return -21;
                 }
-                struct tm *l_localtime = localtime(&l_to_time);
+                struct tm *l_localtime = localtime((time_t *)&l_to_time);
                 l_localtime->tm_mday += 1;  // + 1 day to end date, got it inclusive
                 l_to_time = mktime(l_localtime);
             }
@@ -1814,7 +1814,7 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
  * @param a_chain Chain object
  * @return size_t
  */
-static uint64_t s_callback_count_atom(dap_chain_t *a_chain)
+static size_t s_callback_count_atom(dap_chain_t *a_chain)
 {
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     assert(l_blocks && l_blocks->chain == a_chain);

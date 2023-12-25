@@ -39,7 +39,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_stream_ch_chain_net_srv_pkt.h"
 #include "dap_stream_ch_proc.h"
 #include "dap_stream_ch_chain_net_srv.h"
-#include "dap_enc_base58.h"
 
 #define LOG_TAG "dap_stream_ch_chain_net_srv"
 #define SRV_PAY_GDB_GROUP "local.srv_pay"
@@ -306,6 +305,8 @@ void dap_stream_ch_chain_net_srv_tx_cond_added_cb(UNUSED_ARG void *a_arg, UNUSED
         // Stop timer
         dap_timerfd_delete_mt(l_item->grace->timer->worker, l_item->grace->timer->esocket_uuid);
         // finish grace
+        if(!l_item->grace->usage->service)
+            HASH_DEL(l_net_srv->grace_hash_tab, l_item);
         s_grace_period_finish(l_item);
     }
 }
