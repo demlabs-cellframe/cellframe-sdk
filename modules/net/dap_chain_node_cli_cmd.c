@@ -2942,7 +2942,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                                     datum_is_accepted_addr = dap_chain_addr_compare(l_wallet_addr, l_dist_addr);
                                 }
                                 dap_chain_addr_compare(&l_addr_from, l_dist_addr) ?
-                                dap_string_append_printf(a_str_tmp, "\tСhange: %s (%s) %s\n",
+                                dap_string_append_printf(a_str_tmp, "\tChange: %s (%s) %s\n",
                                                          l_value_coins_str, l_value_str, l_dist_token) :
                                 dap_string_append_printf(a_str_tmp, "\tTo: %s (%s) %s %s\n",
                                                          l_value_coins_str, l_value_str, l_dist_token, l_addr_str);
