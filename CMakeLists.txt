@@ -11,6 +11,11 @@ if (INSTALL_SDK)
     set(INSTALL_DAP_SDK ON)
 endif()
 
+# problem in /usr/include/linux/netlink.h:99:24: note: expanded from macro 'NLMSG_OK' (nlh)->nlmsg_len <= (len)
+if(CMAKE_C_COMPILER MATCHES "clang")
+    add_compile_options(-Wno-sign-compare)
+endif()
+
 if(NOT DEFINED CELLFRAME_MODULES)
     include (dap-sdk/cmake/OS_Detection.cmake)
 
@@ -45,6 +50,7 @@ else()
 endif(NOT DAP_INT128_SUPPORT)
 
 if (BUILD_CELLFRAME_SDK_TESTS)
+    enable_testing()
     add_definitions("-DDAP_LEDGER_TEST")
 endif()
 
