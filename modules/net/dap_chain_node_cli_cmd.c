@@ -5820,6 +5820,7 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
             l_ret = -10;
         }
         l_tx_hash_str = dap_chain_mempool_base_tx_create(l_chain, &l_emission_hash, l_emission_chain->id,
+                                                         uint256_0, NULL, NULL, // Get this params from emission itself
                                                          l_priv_key, l_hash_out_type, l_value_fee);
         if (l_tx_hash_str) {
             dap_string_append_printf(l_string_ret, "\nDatum %s with 256bit TX is placed in datum pool\n", l_tx_hash_str);
