@@ -3967,7 +3967,6 @@ int com_mempool(int a_argc, char **a_argv, void **reply){
                 ret = -4;
             }
             ret = _cmd_mempool_add_ca(l_net, l_chain, l_cert, reply);
-            DAP_DELETE(l_cert);
         } break;
         case SUBCMD_CHECK: {
             ret = _cmd_mempool_check(l_net, l_chain, l_datum_hash, l_hash_out_type, reply);
@@ -5246,10 +5245,10 @@ int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t
 {
     json_object ** a_json_reply = (json_object **) reply;
     if (!a_net || !a_chain || !a_cert){
-        dap_json_rpc_error_add(COM_MEMPOOL_ADD_CA_ERROR_NET_NOT_FOUND, "The network or certificate attribute was not passed.");
+        dap_json_rpc_error_add(COM_MEMPOOL_ADD_CA_ERROR_NET_NOT_FOUND, "The network, chain or certificate attribute was not passed.");
         return COM_MEMPOOL_ADD_CA_ERROR_NET_NOT_FOUND;
     }
-    dap_chain_t *l_chain = NULL;
+    dap_chain_t *l_chain = a_chain;
     // Chech for chain if was set or not
     if (!a_chain){
        // If wasn't set - trying to auto detect
