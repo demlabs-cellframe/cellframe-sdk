@@ -85,7 +85,7 @@ static bool s_unban_client(dap_chain_net_srv_banlist_item_t *a_item);
 static bool s_service_start(dap_stream_ch_t* a_ch , dap_stream_ch_chain_net_srv_pkt_request_t * a_request, size_t a_request_size);
 static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace);
 static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace);
-static void s_add_usage_data_to_gdb(const dap_chain_net_srv_usage_t *a_usage);
+static void s_set_usage_data_to_gdb(const dap_chain_net_srv_usage_t *a_usage);
 static uint256_t s_calc_datoshi(const dap_chain_net_srv_usage_t *a_usage, uint256_t *a_prev);
 
 static inline void s_grace_error(dap_chain_net_srv_grace_t *a_grace, dap_stream_ch_chain_net_srv_pkt_error_t a_err){
@@ -212,7 +212,7 @@ void s_stream_ch_delete(dap_stream_ch_t* a_ch , UNUSED_ARG void *a_arg)
 
     if (l_srv) {
         dap_chain_net_srv_usage_t *l_usage = dap_chain_net_srv_usage_find_unsafe(l_srv_session, l_srv_session->usage_active->id);
-        s_add_usage_data_to_gdb(l_usage);
+        s_set_usage_data_to_gdb(l_usage);
         l_srv->callbacks.save_remain_service(l_srv, l_srv_session->usage_active->id, l_srv_session->usage_active->client);
     }
 
@@ -247,24 +247,29 @@ char *dap_stream_ch_chain_net_srv_create_statistic_report()
     for (size_t i = 0; i < l_store_obj_count; ++i) {
         if(l_store_obj[i].value_len != sizeof(client_statistic_value_t)) {
             log_it(L_ERROR, "Error size check statistic in %zu raw of %zu, expected value len %zu received %zu", i + 1, l_store_obj_count, sizeof(client_statistic_value_t), l_store_obj[i].value_len);
+            DAP_DEL_Z(l_store_obj[i].group);
+            DAP_DEL_Z(l_store_obj[i].key);
+            DAP_DEL_Z(l_store_obj[i].value);
             continue;
         }
         client_statistic_value_t *l_value = (client_statistic_value_t *)l_store_obj[i].value;
         char *l_payed_datoshi = dap_chain_balance_print(l_value->payed.datoshi_value);
         char *l_grace_datoshi = dap_chain_balance_print(l_value->grace.datoshi_value);
-        dap_string_append_printf(l_ret, "SRV UID: %.18s\nClient pkey hash: %s\n " \
+        dap_string_append_printf(
+            l_ret, "SRV UID: %.18s\nClient pkey hash: %s\n " \
             "\tpayed:\n\t\tusing time:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tbytes sent:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tbytes received:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tunits used:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tdatoshi value:\t\t%s\n" \
             "\tgrace:\n\t\tusing time:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tbytes sent:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tbytes received:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tunits used:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tdatoshi value:\t\t%s\n" \
             "\tfree:\n\t\tusing time:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tbytes sent:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tbytes received:\t\t%"DAP_UINT64_FORMAT_U"\n\t\tunits used:\t\t%"DAP_UINT64_FORMAT_U"\n",
             l_store_obj[i].key, l_store_obj[i].key + 18,
             l_value->payed.using_time, l_value->payed.bytes_sent, l_value->payed.bytes_received, l_value->payed.units, l_payed_datoshi,
             l_value->grace.using_time, l_value->grace.bytes_sent, l_value->grace.bytes_received, l_value->grace.units, l_grace_datoshi,
-            l_value->free.using_time, l_value->free.bytes_sent, l_value->free.bytes_received, l_value->free.units);
-            DAP_DEL_Z(l_store_obj[i].group);
-            DAP_DEL_Z(l_store_obj[i].key);
-            DAP_DEL_Z(l_store_obj[i].value);
-            DAP_DEL_Z(l_payed_datoshi);
-            DAP_DEL_Z(l_grace_datoshi);
+            l_value->free.using_time, l_value->free.bytes_sent, l_value->free.bytes_received, l_value->free.units
+        );
+        DAP_DEL_Z(l_store_obj[i].group);
+        DAP_DEL_Z(l_store_obj[i].key);
+        DAP_DEL_Z(l_store_obj[i].value);
+        DAP_DEL_Z(l_payed_datoshi);
+        DAP_DEL_Z(l_grace_datoshi);
     }
     DAP_DEL_Z(l_store_obj);
     return dap_string_free(l_ret, false);
@@ -855,9 +860,9 @@ uint256_t s_calc_datoshi(const dap_chain_net_srv_usage_t *a_usage, uint256_t *a_
 {
     uint256_t l_ret = {0}, l_prev = {0}, l_datosi_used = {0};
     uint64_t l_used = 0;
-    dap_return_val_if_pass(!a_usage, l_ret);
     if (a_prev)
         l_prev = *a_prev;
+    dap_return_val_if_pass(!a_usage, l_prev);
     switch(a_usage->service->pricelist->units_uid.enm){
         case SERV_UNIT_SEC:
             l_used = dap_time_now() - a_usage->ts_created;
@@ -882,19 +887,21 @@ uint256_t s_calc_datoshi(const dap_chain_net_srv_usage_t *a_usage, uint256_t *a_
 }
 
 /**
- * @brief add usage data to local GDB group
+ * @brief set usage data to local GDB group
  * @param a_usage - usage data
  */
-void s_add_usage_data_to_gdb(const dap_chain_net_srv_usage_t *a_usage)
+void s_set_usage_data_to_gdb(const dap_chain_net_srv_usage_t *a_usage)
 {
 // sanity check
     dap_return_if_pass(!a_usage);
 // func work
-    client_statistic_key_t l_bin_key;
+    client_statistic_key_t l_bin_key = {0};
     client_statistic_value_t l_bin_value_new = {0};
     size_t l_value_size = 0;
+    // forming key
     dap_sprintf(l_bin_key.key, "0x%016"DAP_UINT64_FORMAT_X"", a_usage->service->uid.uint64);
     dap_chain_hash_fast_to_str_do(&a_usage->client_pkey_hash, l_bin_key.key + 18);
+    // check writed value
     client_statistic_value_t *l_bin_value = (client_statistic_value_t *)dap_global_db_get_sync(SRV_STATISTIC_GDB_GROUP, l_bin_key.key, &l_value_size, NULL, NULL);
     if (l_bin_value && l_value_size != sizeof(client_statistic_value_t)) {
         log_it(L_ERROR, "Wrong srv client_statistic size in GDB. Expecting %zu, getted %zu", sizeof(client_statistic_value_t), l_value_size);
@@ -905,6 +912,7 @@ void s_add_usage_data_to_gdb(const dap_chain_net_srv_usage_t *a_usage)
     if (l_bin_value) {
         l_bin_value_new = *l_bin_value;
     }
+    // forming new data
     if (a_usage->is_grace) {
         l_bin_value_new.grace.using_count += 1;
         l_bin_value_new.grace.using_time += dap_time_now() - a_usage->ts_created;
@@ -935,7 +943,7 @@ static bool s_grace_period_finish(dap_chain_net_srv_grace_usage_t *a_grace_item)
 
 #define RET_WITH_DEL_A_GRACE(error) do \
     {\
-        s_add_usage_data_to_gdb(l_grace->usage); \
+        s_set_usage_data_to_gdb(l_grace->usage); \
         if (error) { \
             l_err.code = error ; \
             s_grace_error(l_grace, l_err); \
