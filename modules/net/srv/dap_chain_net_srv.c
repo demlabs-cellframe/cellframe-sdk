@@ -204,9 +204,9 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
 
     int l_report = dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "report", NULL);
     if (l_report) {
-        const char *l_report = dap_stream_ch_chain_net_srv_create_statistic_report();
-        dap_cli_server_cmd_set_reply_text(a_str_reply, l_report);
-        DAP_DEL_Z(l_report);
+        const char *l_report_str = dap_stream_ch_chain_net_srv_create_statistic_report();
+        dap_cli_server_cmd_set_reply_text(a_str_reply, l_report_str);
+        DAP_DEL_Z(l_report_str);
         return 0;
     }
 

@@ -45,14 +45,6 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define SRV_STATISTIC_GDB_GROUP "local.srv_statistic"
 #define SRV_RECEIPTS_GDB_GROUP "local.receipts"
 
-
-typedef struct usages_in_grace{
-    dap_hash_fast_t tx_cond_hash;
-    dap_chain_net_srv_grace_t *grace;
-    UT_hash_handle hh;
-} usages_in_grace_t;
-
-
 // client statistic key struct
 typedef struct client_statistic_key{
     char  key[18 + DAP_CHAIN_HASH_FAST_STR_SIZE];
@@ -257,7 +249,6 @@ char *dap_stream_ch_chain_net_srv_create_statistic_report()
             log_it(L_ERROR, "Error size check statistic in %zu raw of %zu, expected value len %zu received %zu", i + 1, l_store_obj_count, sizeof(client_statistic_value_t), l_store_obj[i].value_len);
             continue;
         }
-        size_t l_key_size = DAP_ENC_BASE58_DECODE_SIZE(l_store_obj[i].key_len);
         client_statistic_value_t *l_value = (client_statistic_value_t *)l_store_obj[i].value;
         char *l_payed_datoshi = dap_chain_balance_print(l_value->payed.datoshi_value);
         char *l_grace_datoshi = dap_chain_balance_print(l_value->grace.datoshi_value);
