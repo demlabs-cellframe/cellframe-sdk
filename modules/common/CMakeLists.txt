@@ -6,7 +6,7 @@ file(GLOB DAP_CHAIN_COMMON_HEADERS include/*.h)
 
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_COMMON_SRCS} ${DAP_CHAIN_COMMON_HEADERS})
 
-target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_json-c)
+target_link_libraries(${PROJECT_NAME} dap_core dap_crypto)
 target_include_directories(${PROJECT_NAME} PUBLIC include/ )
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/3rdparty/json-c)
 

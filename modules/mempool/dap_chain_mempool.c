@@ -78,7 +78,6 @@ static bool s_tx_create_massive_gdb_save_callback(dap_global_db_instance_t *a_db
 
 int dap_datum_mempool_init(void)
 {
-    dap_chain_mempool_rpc_init();
     return 0;
 }
 
