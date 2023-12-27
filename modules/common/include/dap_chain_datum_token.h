@@ -447,7 +447,7 @@ typedef struct dap_chain_datum_token_emission {
         union {
             uint64_t value64;       // Deprecated
             uint256_t value;
-        };
+        } DAP_ALIGN_PACKED;
         uint8_t nonce[DAP_CHAIN_DATUM_NONCE_SIZE];
     } DAP_ALIGN_PACKED hdr;
     union {
@@ -469,7 +469,7 @@ typedef struct dap_chain_datum_token_emission {
             uint16_t signs_count;
         } DAP_ALIGN_PACKED type_auth;
         byte_t free_space[128];     // For future changes
-    } data;
+    } DAP_ALIGN_PACKED data;
     byte_t tsd_n_signs[];           // TSD sections and signs if any
 } DAP_ALIGN_PACKED dap_chain_datum_token_emission_t;
 

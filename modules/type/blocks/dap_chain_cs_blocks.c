@@ -137,7 +137,7 @@ static void s_callback_cs_blocks_purge(dap_chain_t *a_chain);
 static dap_chain_block_t *s_new_block_move(dap_chain_cs_blocks_t *a_blocks, size_t *a_new_block_size);
 
 //Work with atoms
-static uint64_t s_callback_count_atom(dap_chain_t *a_chain);
+static size_t s_callback_count_atom(dap_chain_t *a_chain);
 static dap_list_t *s_callback_get_atoms(dap_chain_t *a_chain, size_t a_count, size_t a_page, bool a_reverse);
 
 static bool s_seed_mode = false;
@@ -668,8 +668,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
             dap_string_append_printf(l_str_tmp, "\t\t\tcell_id: 0x%016"DAP_UINT64_FORMAT_X"\n", l_block->hdr.cell_id.uint64);
             dap_string_append_printf(l_str_tmp, "\t\t\tchain_id: 0x%016"DAP_UINT64_FORMAT_X"\n", l_block->hdr.chain_id.uint64);
             char buf[50];
-            time_t l_ts = l_block->hdr.ts_created;
-            ctime_r(&l_ts, buf);
+            dap_time_to_str_rfc822(buf, 50, l_block->hdr.ts_created);
             dap_string_append_printf(l_str_tmp, "\t\t\tts_created: %s\n", buf);
 
             // Dump Metadata
@@ -715,13 +714,12 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                                             sizeof (l_datum->header));
                     break;
                 }
-                time_t l_datum_ts_create = (time_t) l_datum->header.ts_create;
                 // Nested datums
                 dap_string_append_printf(l_str_tmp,"\t\t\t\tversion:=0x%02X\n", l_datum->header.version_id);
                 const char * l_datum_type_str="UNKNOWN";
                 DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_datum_type_str);
                 dap_string_append_printf(l_str_tmp,"\t\t\t\ttype_id:=%s\n", l_datum_type_str);
-                ctime_r(&l_datum_ts_create, buf);
+                dap_time_to_str_rfc822(buf, 50, l_datum->header.ts_create);
                 dap_string_append_printf(l_str_tmp,"\t\t\t\tts_create=%s\n", buf);
                 dap_string_append_printf(l_str_tmp,"\t\t\t\tdata_size=%u\n", l_datum->header.data_size);
                 dap_chain_datum_dump(l_str_tmp, l_datum, "hex", l_net->pub.id);
@@ -750,7 +748,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
             size_t l_block_count = 0;
             dap_pkey_t * l_pub_key = NULL;
             dap_hash_fast_t l_from_hash = {}, l_to_hash = {}, l_pkey_hash = {};
-            time_t l_from_time = 0, l_to_time = 0;
+            dap_time_t l_from_time = 0, l_to_time = 0;
 
             l_signed_flag = dap_cli_server_cmd_check_option(a_argv, 1, a_argc, "signed") > 0;
             l_first_signed_flag = dap_cli_server_cmd_check_option(a_argv, 1, a_argc, "first_signed") > 0;
@@ -820,7 +818,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't convert \"%s\" to date", l_to_date_str);
                     return -21;
                 }
-                struct tm *l_localtime = localtime(&l_to_time);
+                struct tm *l_localtime = localtime((time_t *)&l_to_time);
                 l_localtime->tm_mday += 1;  // + 1 day to end date, got it inclusive
                 l_to_time = mktime(l_localtime);
             }
@@ -828,7 +826,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
             pthread_rwlock_rdlock(&PVT(l_blocks)->rwlock);
             dap_string_t *l_str_tmp = dap_string_new(NULL);
             for (dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next) {
-                time_t l_ts = l_block_cache->block->hdr.ts_created;
+                dap_time_t l_ts = l_block_cache->block->hdr.ts_created;
                 if (l_from_time && l_ts < l_from_time)
                     continue;
                 if (l_to_time && l_ts >= l_to_time)
@@ -866,6 +864,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                     }
                 }
                 if (l_signed_flag) {
+                    if (l_unspent_flag && l_ts < DAP_REWARD_INIT_TIMESTAMP)
+                        continue;
                     if (!l_pub_key) {
                         bool l_found = false;
                         // TODO optimize performance by precalculated sign hashes in block cache
@@ -888,8 +888,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                     }
                 }
                 char l_buf[50];
-                ctime_r(&l_ts, l_buf);
-                dap_string_append_printf(l_str_tmp, "\t%s: ts_create=%s", l_block_cache->block_hash_str, l_buf);
+                dap_time_to_str_rfc822(l_buf, 50, l_ts);
+                dap_string_append_printf(l_str_tmp, "\t%s: ts_create=%s\n", l_block_cache->block_hash_str, l_buf);
                 l_block_count++;
                 if (l_to_hash_str && dap_hash_fast_compare(&l_to_hash, &l_block_cache->block_hash))
                     break;
@@ -1838,7 +1838,7 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
  * @param a_chain Chain object
  * @return size_t
  */
-static uint64_t s_callback_count_atom(dap_chain_t *a_chain)
+static size_t s_callback_count_atom(dap_chain_t *a_chain)
 {
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
     assert(l_blocks && l_blocks->chain == a_chain);
