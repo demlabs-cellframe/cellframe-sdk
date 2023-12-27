@@ -5247,6 +5247,145 @@ int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t
     }
 }
 
+
+int com_mempool(int a_argc, char **a_argv, void **reply){
+    int arg_index = 1;
+    dap_chain_net_t *l_net = NULL;
+    dap_chain_t *l_chain = NULL;
+    const char *l_addr_b58 = NULL;
+    enum _subcmd {SUBCMD_LIST, SUBCMD_PROC, SUBCMD_PROC_ALL, SUBCMD_DELETE, SUBCMD_ADD_CA, SUBCMD_CHECK, SUBCMD_DUMP};
+    enum _subcmd l_cmd;
+    if (a_argv[1]) {
+        if (!dap_strcmp(a_argv[1], "list")) {
+            l_cmd = SUBCMD_LIST;
+        } else if (!dap_strcmp(a_argv[1], "proc")) {
+            l_cmd = SUBCMD_PROC;
+        } else if (!dap_strcmp(a_argv[1], "proc_all")) {
+            l_cmd = SUBCMD_PROC_ALL;
+        } else if (!dap_strcmp(a_argv[1], "delete")) {
+            l_cmd = SUBCMD_DELETE;
+        } else if (!dap_strcmp(a_argv[1], "add_ca")) {
+            l_cmd = SUBCMD_ADD_CA;
+        } else if (!dap_strcmp(a_argv[1], "dump")) {
+            l_cmd = SUBCMD_DUMP;
+        } else if (!dap_strcmp(a_argv[1], "check")) {
+            l_cmd = SUBCMD_CHECK;
+        } else {
+            char *l_str_err = dap_strdup_printf("Invalid sub command specified. Ыub command %s "
+                                                           "is not supported.", a_argv[1]);
+            if (!l_str_err) {
+                DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                return -1;
+            }
+            json_object *l_jobj_str_err = json_object_new_string(l_str_err);
+            DAP_DELETE(l_str_err);
+            if (!l_jobj_str_err) {
+                DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                return -1;
+            }
+            json_object_array_add(*reply, l_jobj_str_err);
+            return -2;
+        }
+    }
+    dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, a_argc, a_argv, &l_chain, &l_net);
+    const char *l_hash_out_type = "hex";
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
+    const char *l_datum_hash_in = NULL;
+    const char *l_datum_hash = NULL;
+    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-datum", &l_datum_hash_in);
+    if (l_datum_hash_in) {
+        if(dap_strncmp(l_datum_hash_in, "0x", 2) && dap_strncmp(l_datum_hash_in, "0X", 2)) {
+            l_datum_hash = dap_enc_base58_to_hex_str_from_str(l_datum_hash_in);
+        } else
+            l_datum_hash = dap_strdup(l_datum_hash_in);
+    }
+    int ret = -100;
+    switch (l_cmd) {
+        case SUBCMD_LIST: {
+            if (!l_net) {
+                dap_json_rpc_error_add(-5, "The command does not include the net parameter. Please specify the "
+                                           "parameter something like this mempool list -net <net_name>");
+                return -5;
+            }
+            json_object *obj_ret = json_object_new_object();
+            json_object *obj_net = json_object_new_string(l_net->pub.name);
+            if (!obj_ret || !obj_net) {
+                json_object_put(obj_ret);
+                json_object_put(obj_net);
+                DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                return -1;
+            }
+            json_object_object_add(obj_ret, "net", obj_net);
+            const char *l_wallet_addr = NULL;
+            if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_wallet_addr) && !l_wallet_addr) {
+                json_object *l_jobj_err = json_object_new_string("Parameter '-addr' require <addr>");
+                if (!l_jobj_err) {
+                    DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                    return -1;
+                }
+                json_object_array_add(*reply, l_jobj_err);
+                return -3;
+            }
+            json_object *l_jobj_chains = json_object_new_array();
+            if (!l_jobj_chains) {
+                json_object_put(obj_ret);
+                DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                return -1;
+            }
+            if(l_chain) {
+                s_com_mempool_list_print_for_chain(l_net, l_chain, l_wallet_addr, l_jobj_chains, l_hash_out_type);
+            } else {
+                DL_FOREACH(l_net->pub.chains, l_chain) {
+                    s_com_mempool_list_print_for_chain(l_net, l_chain, l_wallet_addr, l_jobj_chains, l_hash_out_type);
+                }
+            }
+            json_object_object_add(obj_ret, "chains", l_jobj_chains);
+            json_object_array_add(*reply, obj_ret);
+            ret = 0;
+        } break;
+        case SUBCMD_PROC: {
+            ret = _cmd_mempool_proc(l_net, l_chain, l_datum_hash, reply);
+        } break;
+        case SUBCMD_PROC_ALL: {
+            ret = _cmd_mempool_proc_all(l_net, l_chain, reply);
+        } break;
+        case SUBCMD_DELETE: {
+            if (!l_chain) {
+                dap_json_rpc_error_add(-2, "The chain parameter was not specified or was specified incorrectly.");
+                ret = -2;
+            }
+            if (l_datum_hash) {
+                ret = _cmd_mempool_delete(l_net, l_chain, l_datum_hash, reply);
+            } else {
+                dap_json_rpc_error_add(-3, "Error! %s requires -datum <datum hash> option", a_argv[0]);
+                ret = -3;
+            }
+        } break;
+        case SUBCMD_ADD_CA: {
+            const char *l_ca_name  = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-ca_name", &l_ca_name);
+            if (!l_ca_name) {
+                dap_json_rpc_error_add(-3, "mempool add_ca requires parameter '-ca_name' to specify the certificate name");
+                ret = -3;
+            }
+            dap_cert_t *l_cert = dap_cert_find_by_name(l_ca_name);
+            if (!l_cert) {
+                dap_json_rpc_error_add(-4, "Cert with name '%s' not found.", l_ca_name);
+                ret = -4;
+            }
+            ret = _cmd_mempool_add_ca(l_net, l_chain, l_cert, reply);
+        } break;
+        case SUBCMD_CHECK: {
+            ret = _cmd_mempool_check(l_net, l_chain, l_datum_hash, l_hash_out_type, reply);
+        } break;
+        case SUBCMD_DUMP: {
+            ret = _cmd_mempool_dump(l_net, l_chain, l_datum_hash, l_hash_out_type, reply);
+        } break;
+    }
+    DAP_DEL_Z(l_datum_hash);
+    return ret;
+}
+
 /**
  * @brief com_chain_ca_copy
  * @details copy public CA into the mempool
@@ -6302,6 +6441,7 @@ int com_tx_create(int a_argc, char **a_argv, void **reply)
             l_ret = -10;
         }
         l_tx_hash_str = dap_chain_mempool_base_tx_create(l_chain, &l_emission_hash, l_emission_chain->id,
+                                                         uint256_0, NULL, NULL, // Get this params from emission itself
                                                          l_priv_key, l_hash_out_type, l_value_fee);
         if (l_tx_hash_str) {
             dap_string_append_printf(l_string_ret, "\nDatum %s with 256bit TX is placed in datum pool\n", l_tx_hash_str);

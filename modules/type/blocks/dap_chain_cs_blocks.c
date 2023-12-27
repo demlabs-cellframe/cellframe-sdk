@@ -181,6 +181,9 @@ int dap_chain_cs_blocks_init()
             " [{-cert <signing_cert_name> | -pkey_hash <signing_cert_pkey_hash>} [-unspent]]\n"
                 "\t\t List blocks\n\n"
 
+            "block -net <net_name> -chain <chain_name> count\n"
+                "\t\t Show count block\n\n"
+
         "Commission collect:\n"
             "block -net <net_name> -chain <chain_name> fee collect"
             " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value>\n"
@@ -517,6 +520,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
         SUBCMD_DROP,
         SUBCMD_REWARD,
         SUBCMD_AUTOCOLLECT,
+        SUBCMD_COUNT,
     } l_subcmd={0};
 
     const char* l_subcmd_strs[]={
@@ -531,6 +535,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
         [SUBCMD_DROP]="drop",
         [SUBCMD_REWARD] = "reward",
         [SUBCMD_AUTOCOLLECT] = "autocollect",
+        [SUBCMD_COUNT] = "count",
         [SUBCMD_UNDEFINED]=NULL
     };
     const size_t l_subcmd_str_count=sizeof(l_subcmd_strs)/sizeof(*l_subcmd_strs);
@@ -713,7 +718,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                 const char * l_datum_type_str="UNKNOWN";
                 DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_datum_type_str);
                 dap_string_append_printf(l_str_tmp,"\t\t\t\ttype_id:=%s\n", l_datum_type_str);
-                dap_gbd_time_to_str_rfc822(buf, 50, l_datum->header.ts_create);
+                dap_time_to_str_rfc822(buf, 50, l_datum->header.ts_create);
                 dap_string_append_printf(l_str_tmp,"\t\t\t\tts_create=%s\n", buf);
                 dap_string_append_printf(l_str_tmp,"\t\t\t\tdata_size=%u\n", l_datum->header.data_size);
                 dap_chain_datum_dump(l_str_tmp, l_datum, "hex", l_net->pub.id);
@@ -812,7 +817,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't convert \"%s\" to date", l_to_date_str);
                     return -21;
                 }
-                struct tm *l_localtime = localtime(&l_to_time);
+                struct tm *l_localtime = localtime((time_t *)&l_to_time);
                 l_localtime->tm_mday += 1;  // + 1 day to end date, got it inclusive
                 l_to_time = mktime(l_localtime);
             }
@@ -897,6 +902,11 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                                      l_net->pub.name, l_chain->name, l_block_count, l_filtered_criteria);
             dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
             dap_string_free(l_str_tmp, true);
+        } break;
+
+        case SUBCMD_COUNT: {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "%zu blocks in %s.%s", PVT(l_blocks)->blocks_count,
+                                              l_net->pub.name, l_chain->name);
         } break;
 
         case SUBCMD_FEE:

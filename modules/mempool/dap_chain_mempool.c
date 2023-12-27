@@ -1013,7 +1013,8 @@ char *dap_chain_mempool_tx_create_cond(dap_chain_net_t *a_net,
 }
 
 char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_emission_hash,
-                                       dap_chain_id_t a_emission_chain_id, dap_enc_key_t *a_private_key,
+                                       dap_chain_id_t a_emission_chain_id, uint256_t a_emission_value, const char *a_ticker,
+                                       dap_chain_addr_t *a_addr_to, dap_enc_key_t *a_private_key,
                                        const char *a_hash_out_type, uint256_t a_value_fee)
 {
     dap_return_val_if_fail(a_chain && a_emission_hash && a_private_key, NULL);
@@ -1023,15 +1024,25 @@ char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast
     dap_chain_addr_t l_addr_to_fee = {};
     dap_chain_addr_t l_addr_from_fee = {};
 
-    dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
-    dap_chain_datum_token_emission_t *l_emission = dap_ledger_token_emission_find(l_net->pub.ledger, a_emission_hash);
-    if (!l_emission) {
-        log_it(L_WARNING, "Specified emission not found");
-        return NULL;
+    dap_chain_addr_t *l_addr_to = a_addr_to;
+    uint256_t l_emission_value = a_emission_value;
+    const char *l_emission_ticker = a_ticker;
+
+    if (!a_addr_to) {
+        dap_chain_net_t *l_net = dap_chain_net_by_id(a_chain->net_id);
+        dap_chain_datum_token_emission_t *l_emission = dap_ledger_token_emission_find(l_net->pub.ledger, a_emission_hash);
+        if (!l_emission) {
+            log_it(L_WARNING, "Specified emission not found");
+            return NULL;
+        }
+        // TODO add check for used emission
+        l_emission_ticker = l_emission->hdr.ticker;
+        l_emission_value = l_emission->hdr.value;
+        l_addr_to = &l_emission->hdr.address;
     }
-    uint256_t l_emission_value = l_emission->hdr.value;
+
     const char *l_native_ticker = dap_chain_net_by_id(a_chain->net_id)->pub.native_ticker;
-    bool not_native = dap_strcmp(l_emission->hdr.ticker, l_native_ticker);
+    bool not_native = dap_strcmp(l_emission_ticker, l_native_ticker);
     bool l_net_fee_used = IS_ZERO_256(a_value_fee) ? false :
                                                      dap_chain_net_tx_get_fee(a_chain->net_id, &l_net_fee, &l_addr_to_fee);
     if (l_net_fee_used)
@@ -1040,7 +1051,7 @@ char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast
     dap_chain_datum_tx_t *l_tx = DAP_NEW_Z_SIZE(dap_chain_datum_tx_t, sizeof(dap_chain_datum_tx_t));
     l_tx->header.ts_created = time(NULL);
     //in_ems
-    dap_chain_tx_in_ems_t *l_in_ems = dap_chain_datum_tx_item_in_ems_create(a_emission_chain_id, a_emission_hash, l_emission->hdr.ticker);
+    dap_chain_tx_in_ems_t *l_in_ems = dap_chain_datum_tx_item_in_ems_create(a_emission_chain_id, a_emission_hash, l_emission_ticker);
     if (l_in_ems) {
         dap_chain_datum_tx_add_item(&l_tx, (const uint8_t*)l_in_ems);
         DAP_DELETE(l_in_ems);
@@ -1092,8 +1103,7 @@ char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast
             dap_chain_datum_tx_delete(l_tx);
             return NULL;
         }
-        if (!dap_chain_datum_tx_add_out_ext_item(&l_tx, &l_emission->hdr.address,
-                                                 l_emission_value, l_emission->hdr.ticker)) {
+        if (!dap_chain_datum_tx_add_out_ext_item(&l_tx, l_addr_to, l_emission_value, l_emission_ticker)) {
             dap_chain_datum_tx_delete(l_tx);
             return NULL;
         }
@@ -1112,7 +1122,7 @@ char *dap_chain_mempool_base_tx_create(dap_chain_t *a_chain, dap_chain_hash_fast
                 return NULL;
             }
         }
-        if (!dap_chain_datum_tx_add_out_item(&l_tx, &l_emission->hdr.address, l_emission_value)) {
+        if (!dap_chain_datum_tx_add_out_item(&l_tx, l_addr_to, l_emission_value)) {
             dap_chain_datum_tx_delete(l_tx);
             return NULL;
         }        
