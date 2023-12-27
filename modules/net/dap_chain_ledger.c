@@ -4183,22 +4183,22 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
     if (dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTING, NULL)){
         if (s_voting_callback){
             if (!s_voting_callback(a_ledger, TX_ITEM_TYPE_VOTING, a_tx, false)){
-                debug_if(s_debug_more, L_WARNING, "Verificator check error for voting item");
-                l_err_num = DAP_LEDGER_TX_CHECK_NO_VERIFICATOR_SET;
+                debug_if(s_debug_more, L_WARNING, "Verificator check error for voting.");
+                l_err_num = DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE;
             }
         } else {
-            debug_if(s_debug_more, L_WARNING, "Verificator check error for voting.");
-            l_err_num = DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE;
+            debug_if(s_debug_more, L_WARNING, "Verificator check error for voting item");
+            l_err_num = DAP_LEDGER_TX_CHECK_NO_VERIFICATOR_SET;
         }
     }else if (dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTE, NULL)){
        if (s_voting_callback){
            if (!s_voting_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx, false)){
-               debug_if(s_debug_more, L_WARNING, "Verificator check error for vote item");
-               l_err_num = DAP_LEDGER_TX_CHECK_NO_VERIFICATOR_SET;
+               debug_if(s_debug_more, L_WARNING, "Verificator check error for vote.");
+               l_err_num = DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE;
            }
        } else {
-           debug_if(s_debug_more, L_WARNING, "Verificator check error for vote.");
-           l_err_num = DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE;
+           debug_if(s_debug_more, L_WARNING, "Verificator check error for vote item");
+           l_err_num = DAP_LEDGER_TX_CHECK_NO_VERIFICATOR_SET;
        }
     }
 

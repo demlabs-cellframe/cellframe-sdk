@@ -869,3 +869,23 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a
     }
     return l_res;
 }
+
+uint8_t *dap_chain_datum_tx_out_get_by_out_idx(dap_chain_datum_tx_t *a_tx, int a_out_num)
+{
+    uint8_t *l_ret = NULL;
+    dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_ALL, NULL), *l_item;
+    if (!l_list_out_items)
+        return NULL;
+
+    l_item = dap_list_nth(l_list_out_items, a_out_num);
+
+    if(!l_item){
+        dap_list_free(l_list_out_items);
+        return NULL;
+    }
+
+    l_ret = l_item->data;
+    dap_list_free(l_list_out_items);
+    return l_ret;
+
+}
