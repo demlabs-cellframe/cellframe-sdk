@@ -72,7 +72,7 @@ static bool s_xchange_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx
 const dap_chain_net_srv_uid_t c_dap_chain_net_srv_xchange_uid = {.uint64= DAP_CHAIN_NET_SRV_XCHANGE_ID};
 
 
-static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply);
+static int s_cli_srv_xchange(int a_argc, char **a_argv, void **reply);
 static int s_callback_requested(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size);
 static int s_callback_response_success(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size);
 static int s_callback_response_error(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size);
@@ -1738,8 +1738,9 @@ void s_tx_is_order_check(dap_chain_net_t *a_net, dap_chain_datum_tx_t *a_tx, voi
        *l_tx_list_ptr = dap_list_append(*l_tx_list_ptr, a_tx);
 }
 
-static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
+static int s_cli_srv_xchange(int a_argc, char **a_argv, void **reply)
 {
+    char ** a_str_reply = (char **) reply;
     enum {CMD_NONE = 0, CMD_ORDER, CMD_ORDERS, CMD_PURCHASE, CMD_ENABLE, CMD_DISABLE, CMD_TX_LIST, CMD_TOKEN_PAIR };
     int l_arg_index = 1, l_cmd_num = CMD_NONE;
     bool l_rc;

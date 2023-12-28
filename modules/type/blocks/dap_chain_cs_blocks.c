@@ -84,7 +84,7 @@ typedef struct dap_chain_cs_blocks_pvt
 
 static int s_cli_parse_cmd_hash(char ** a_argv, int a_arg_index, int a_argc, char **a_str_reply,const char * a_param, dap_chain_hash_fast_t * a_datum_hash);
 static void s_cli_meta_hash_print(  dap_string_t * a_str_tmp, const char * a_meta_title, dap_chain_block_meta_t * a_meta);
-static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply);
+static int s_cli_blocks(int a_argc, char ** a_argv, void **reply);
 
 // Setup BFT consensus and select the longest chunk
 static void s_bft_consensus_setup(dap_chain_cs_blocks_t * a_blocks);
@@ -504,8 +504,9 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, dap_string_t *a_re
  * @param a_str_reply
  * @return
  */
-static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
+static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
 {
+    char ** a_str_reply = (char **) reply;
     enum {
         SUBCMD_UNDEFINED =0,
         SUBCMD_NEW_FLUSH,
