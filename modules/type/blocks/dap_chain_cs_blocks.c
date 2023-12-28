@@ -795,7 +795,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't convert \"%s\" to date", l_to_date_str);
                     return -21;
                 }
-                struct tm *l_localtime = localtime(&l_to_time);
+                struct tm *l_localtime = localtime((time_t *)&l_to_time);
                 l_localtime->tm_mday += 1;  // + 1 day to end date, got it inclusive
                 l_to_time = mktime(l_localtime);
             }
