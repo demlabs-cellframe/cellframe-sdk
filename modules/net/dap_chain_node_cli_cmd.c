@@ -5943,7 +5943,7 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
         return -3;
     }
     // Select chain network
-    if (l_net_str) {
+    if (!l_addr_base58 && l_net_str) {
         l_net = dap_chain_net_by_name(l_net_str);
         if (!l_net) { // Can't find such network
             dap_cli_server_cmd_set_reply_text(a_str_reply,
@@ -5963,15 +5963,7 @@ int com_tx_history(int a_argc, char ** a_argv, char **a_str_reply)
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet address not recognized");
             return -5;
         }
-        if (l_net) {
-            if (l_net->pub.id.uint64 != l_addr->net_id.uint64) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "Network ID with '-net' param and network ID with '-addr' param are different");
-                DAP_DELETE(l_addr);
-                return -6;
-            }
-        } else
-            l_net = dap_chain_net_by_id(l_addr->net_id);
+        l_net = dap_chain_net_by_id(l_addr->net_id);
     }
     const char* l_sign_str = "";
     if (l_wallet_name) {
