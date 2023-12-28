@@ -252,7 +252,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                             "-addr <addr> [-chain_emission <chain_name>] -net <net_name> -certs <cert list>\n");
 
     dap_cli_server_cmd_add("mempool", com_mempool, "Command for working with mempool",
-                           "mempool list -net <net_name> [-chain <chain_name>] [-addr <addr>] [-fast]\n"
+                           "mempool list -net <net_name> [-chain <chain_name>] [-addr <addr>] [-brief]\n"
                            "\tList mempool (entries or transaction) for (selected chain network or wallet)\n"
                            "mempool check -net <net_name> [-chain <chain_name>] -datum <datum_hash>\n"
                            "\tCheck mempool entrie for presence in selected chain network\n"
