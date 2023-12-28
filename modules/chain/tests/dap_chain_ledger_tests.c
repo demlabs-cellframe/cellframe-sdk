@@ -366,6 +366,7 @@ void dap_ledger_test_write_back_list(dap_ledger_t *a_ledger, dap_cert_t *a_cert,
 }
 
 void dap_ledger_test_run(void){
+    dap_chain_net_srv_stake_pos_delegate_init();
     dap_chain_net_id_t l_iddn = {0};
     dap_sscanf("0xFA0", "0x%16"DAP_UINT64_FORMAT_x, &l_iddn.uint64);
     dap_print_module_name("dap_ledger");
