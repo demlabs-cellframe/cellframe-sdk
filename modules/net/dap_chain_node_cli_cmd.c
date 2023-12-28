@@ -3373,7 +3373,7 @@ int com_mempool(int a_argc, char **a_argv,  char **a_str_reply){
                 ret = -1;
                 break;
             }
-            bool l_fast = (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-fast") != -1) ? true : false;
+            bool l_fast = (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-brief") != -1) ? true : false;
             dap_string_t * l_str_tmp = dap_string_new(NULL);
             if(l_chain)
                 s_com_mempool_list_print_for_chain(l_net, l_chain, l_wallet_addr, l_str_tmp, l_hash_out_type, l_fast);
@@ -3458,49 +3458,6 @@ int com_mempool(int a_argc, char **a_argv,  char **a_str_reply){
     return ret;
 }
 
-/**
- * @brief com_token_decl_list
- * @param argc
- * @param argv
- * @param arg_func
- * @param str_reply
- * @return
- */
-int com_mempool_list(int a_argc, char **a_argv, char **a_str_reply)
-{
-    int arg_index = 1;
-    dap_chain_t * l_chain = NULL;
-    dap_chain_net_t * l_net = NULL;
-    const char *l_addr_base58 = NULL;
-    bool l_fast = false;
-
-    const char * l_hash_out_type = "hex";
-    dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
-    dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net);
-    if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_addr_base58) && !l_addr_base58) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Parameter '-addr' require <addr>");
-        return -1;
-    }
-    l_fast = (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-fast") != -1) ? true : false;
-    if(!l_net)
-        return -1;
-    else {
-        if(*a_str_reply) {
-            DAP_DELETE(*a_str_reply);
-            *a_str_reply = NULL;
-        }
-    }
-
-    dap_string_t * l_str_tmp = dap_string_new(NULL);
-    if(l_chain)
-        s_com_mempool_list_print_for_chain(l_net, l_chain, l_addr_base58, l_str_tmp, l_hash_out_type, l_fast);
-    else
-        DL_FOREACH(l_net->pub.chains, l_chain)
-                s_com_mempool_list_print_for_chain(l_net, l_chain, l_addr_base58, l_str_tmp, l_hash_out_type, l_fast);
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
-    dap_string_free(l_str_tmp, true);
-    return 0;
-}
 
 /**
  * @brief
