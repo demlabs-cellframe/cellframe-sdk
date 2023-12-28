@@ -383,7 +383,7 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 
                 if ( dap_config_get_item_str_default(l_cfg, "files","storage_dir", NULL) )
 				{
-                    DAP_CHAIN_PVT(l_chain)->file_storage_dir = (char*)dap_config_get_item_path( l_cfg , "files","storage_dir" );
+                    DAP_CHAIN_PVT(l_chain)->file_storage_dir = dap_strdup((char*)dap_config_get_item_path( l_cfg , "files","storage_dir" ));
                 } else
                     log_it (L_INFO, "Not set file storage path, will not stored in files");
 
