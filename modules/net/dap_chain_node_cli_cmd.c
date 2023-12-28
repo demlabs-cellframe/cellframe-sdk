@@ -2907,7 +2907,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
     if (l_wallet_addr && a_fast) {
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_CMD_VALUE_PARSE_FAST_AND_BASE58_ADDR,
                                "In fast mode, it is impossible to count the number of transactions and emissions "
-                               "for a specific address. The -fast and -addr options are mutually exclusive.\n");
+                               "for a specific address. The -brief and -addr options are mutually exclusive.\n");
         DAP_DELETE(l_wallet_addr);
         return;
     }
@@ -4011,7 +4011,7 @@ int com_mempool(int a_argc, char **a_argv, void **reply){
                 DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 return -1;
             }
-            bool l_fast = (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-fast") != -1) ? true : false;
+            bool l_fast = (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "-brief") != -1) ? true : false;
             if(l_chain) {
                 s_com_mempool_list_print_for_chain(l_net, l_chain, l_wallet_addr, l_jobj_chains, l_hash_out_type, l_fast);
             } else {
