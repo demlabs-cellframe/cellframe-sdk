@@ -2844,8 +2844,9 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
             const char *l_datum_type = dap_chain_datum_type_id_to_str(l_datum->header.type_id);
             char buff_time[50];
             dap_time_to_str_rfc822(buff_time, 50, l_datum->header.ts_create);
-            dap_string_append_printf(a_str_tmp, "%s hash %s %s\n", l_datum_type, l_objs[i].key, buff_time);
+            dap_string_t *l_str_datum = dap_string_new(NULL);
             if (!a_fast) {
+                dap_string_append_printf(l_str_datum, "%s hash %s %s\n", l_datum_type, l_objs[i].key, buff_time);
                 bool datum_is_accepted_addr = false;
                 switch (l_datum->header.type_id) {
                     case DAP_CHAIN_DATUM_TX: {
@@ -2855,7 +2856,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                         dap_list_t *l_list_sig_item = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_SIG, NULL);
                         dap_list_t *l_list_in_ems = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_EMS, NULL);
                         if (!l_list_sig_item) {
-                            dap_string_append_printf(a_str_tmp,
+                            dap_string_append_printf(l_str_datum,
                                                      "\tAn item with a type TX_ITEM_TYPE_SIG for the transaction "
                                                      "was not found, the transaction may be corrupted.\n");
                             break;
@@ -2873,11 +2874,11 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                             for (dap_list_t *it = l_list_in_reward; it; it = it->next) {
                                 dap_chain_tx_in_reward_t *l_in_reward = (dap_chain_tx_in_reward_t *) it->data;
                                 char *l_block_hash = dap_chain_hash_fast_to_str_new(&l_in_reward->block_hash);
-                                dap_string_append_printf(a_str_tmp, "\tForm block reward: %s\n", l_block_hash);
+                                dap_string_append_printf(l_str_datum, "\tForm block reward: %s\n", l_block_hash);
                                 DAP_DELETE(l_block_hash);
                             }
                         } else {
-                            dap_string_append_printf(a_str_tmp, "\tFrom: %s\n", l_addr_from_str);
+                            dap_string_append_printf(l_str_datum, "\tFrom: %s\n", l_addr_from_str);
                         }
                         dap_list_free(l_list_in_reward);
                         DAP_DELETE(l_addr_from_str);
@@ -2938,7 +2939,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                             char *l_value_coins_str = dap_chain_balance_to_coins(l_value);
                             char *l_addr_str = dap_chain_addr_to_str(l_dist_addr);
                             if (!l_dist_addr) {
-                                dap_string_append_printf(a_str_tmp, "\t%s: %s (%s) %s\n", l_type_out_str,
+                                dap_string_append_printf(l_str_datum, "\t%s: %s (%s) %s\n", l_type_out_str,
                                                          l_value_coins_str, l_value_str, l_dist_token);
                             } else {
                                 if (!datum_is_accepted_addr && l_wallet_addr) {
@@ -2954,13 +2955,13 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                                         }
                                     }
                                     if (l_in_from_emi) {
-                                        dap_string_append_printf(a_str_tmp, "\tTo from emission: %s (%s) %s %s\n",
+                                        dap_string_append_printf(l_str_datum, "\tTo from emission: %s (%s) %s %s\n",
                                                                  l_value_coins_str, l_value_str, l_dist_token, l_addr_str);
                                     } else
-                                        dap_string_append_printf(a_str_tmp, "\tChange: %s (%s) %s\n",
+                                        dap_string_append_printf(l_str_datum, "\tChange: %s (%s) %s\n",
                                                          l_value_coins_str, l_value_str, l_dist_token);
                                 } else {
-                                    dap_string_append_printf(a_str_tmp, "\tTo: %s (%s) %s %s\n",
+                                    dap_string_append_printf(l_str_datum, "\tTo: %s (%s) %s %s\n",
                                                              l_value_coins_str, l_value_str, l_dist_token, l_addr_str);
                                 }
 
@@ -2979,15 +2980,26 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                         if (l_wallet_addr && l_emi && dap_chain_addr_compare(l_wallet_addr, &l_emi->hdr.address))
                             datum_is_accepted_addr = true;
                         DAP_DELETE(l_emi);
-                        dap_chain_datum_dump(a_str_tmp, l_datum, a_hash_out_type, a_net->pub.id);
+                        dap_chain_datum_dump(l_str_datum, l_datum, a_hash_out_type, a_net->pub.id);
                     }
                         break;
                     default:
-                        dap_chain_datum_dump(a_str_tmp, l_datum, a_hash_out_type, a_net->pub.id);
+                        dap_chain_datum_dump(l_str_datum, l_datum, a_hash_out_type, a_net->pub.id);
                 }
                 if (datum_is_accepted_addr) {
                     l_objs_addr++;
                 }
+                if (l_wallet_addr &&
+                (l_datum->header.type_id == DAP_CHAIN_DATUM_TX || l_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN_EMISSION)) {
+                    if (datum_is_accepted_addr) {
+                        l_objs_addr++;
+                        dap_string_append_printf(a_str_tmp, "%s", l_str_datum->str);
+                    }
+                } else
+                    dap_string_append_printf(a_str_tmp, "%s", l_str_datum->str);
+                dap_string_free(l_str_datum, true);
+            } else {
+                dap_string_append_printf(a_str_tmp, "%s hash %s %s\n", l_datum_type, l_objs[i].key, buff_time);
             }
         }
         if (l_wallet_addr && !a_fast) {
