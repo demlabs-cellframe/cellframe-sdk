@@ -265,7 +265,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
                            "\tDelete datum with hash <datum hash> for selected chain network\n"
                            "mempool dump -net <net_name> -chain <chain_name> -datum <datum_hash>\n"
                            "\tOutput information about datum in mempool\n"
-                           "mempool add_ca -net <net_name> [-chain <chain_name>] -ca_name <priv_cert_name>\n"
+                           "mempool add_ca -net <net_name> [-chain <chain_name>] -ca_name <pub_cert_name>\n"
                            "\tAdd pubic certificate into the mempool to prepare its way to chains\n"
                            "mempool count -net <net_name> [-chain <chain_name>]\n"
                            "\tDisplays the number of elements in the mempool of a given network.");
