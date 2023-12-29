@@ -2986,11 +2986,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                     default:
                         dap_chain_datum_dump(l_str_datum, l_datum, a_hash_out_type, a_net->pub.id);
                 }
-                if (datum_is_accepted_addr) {
-                    l_objs_addr++;
-                }
-                if (l_wallet_addr &&
-                (l_datum->header.type_id == DAP_CHAIN_DATUM_TX || l_datum->header.type_id == DAP_CHAIN_DATUM_TOKEN_EMISSION)) {
+                if (l_wallet_addr) {
                     if (datum_is_accepted_addr) {
                         l_objs_addr++;
                         dap_string_append_printf(a_str_tmp, "%s", l_str_datum->str);
@@ -3002,7 +2998,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                 dap_string_append_printf(a_str_tmp, "%s hash %s %s\n", l_datum_type, l_objs[i].key, buff_time);
             }
         }
-        if (l_wallet_addr && !a_fast) {
+        if (l_wallet_addr) {
             dap_string_append_printf(a_str_tmp, l_objs_addr ? "%s.%s: Total %zu records\n"
                                      : "%s.%s: No records\n", a_net->pub.name, a_chain->name, l_objs_addr);
         } else {
@@ -3363,6 +3359,8 @@ int com_mempool(int a_argc, char **a_argv,  char **a_str_reply){
     }
     dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net);
     if (!l_net) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                          "mempool commands requires parameter '-net'");
         return -2;
     }
     const char *l_hash_out_type = "hex";
