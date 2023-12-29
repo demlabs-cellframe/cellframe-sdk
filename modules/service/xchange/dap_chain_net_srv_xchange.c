@@ -2460,3 +2460,72 @@ dap_list_t *dap_chain_net_srv_xchange_get_prices(dap_chain_net_t *a_net) {
     dap_list_free(l_list_tx);
     return l_list_prices;
 }
+
+int dap_chain_net_srv_xchange_create(dap_chain_net_t *a_net, const char *a_token_buy,
+                                                  const char *a_token_sell, uint256_t a_datoshi_sell,
+                                                  uint256_t a_rate, uint256_t a_fee, dap_chain_wallet_t *a_wallet,
+                                                  const char **a_out_tx_hash){
+    if (!a_net || !a_token_buy || !a_token_sell || !a_wallet || !a_out_tx_hash) {
+        return XCHANGE_CREATE_ERROR_INVALID_ARGUMENT;
+    }
+    if (!dap_ledger_token_ticker_check(a_net->pub.ledger, a_token_sell)) {
+        return XCHANGE_CREATE_ERROR_TOKEN_TICKER_SELL_IS_NOT_FOUND_LEDGER;
+    }
+    if (!dap_ledger_token_ticker_check(a_net->pub.ledger, a_token_buy)) {
+        return XCHANGE_CREATE_ERROR_TOKEN_TICKER_BUY_IS_NOT_FOUND_LEDGER;
+    }
+    if (IS_ZERO_256(a_rate)) {
+        return XCHANGE_CREATE_ERROR_RATE_IS_ZERO;
+    }
+    if (IS_ZERO_256(a_fee)) {
+        return XCHANGE_CREATE_ERROR_FEE_IS_ZERO;
+    }
+    const char* l_sign_str = dap_chain_wallet_check_bliss_sign(a_wallet);
+    uint256_t l_value = dap_chain_wallet_get_balance(a_wallet, a_net->pub.id, a_token_sell);
+    uint256_t l_value_sell = a_datoshi_sell;
+    if (!dap_strcmp(a_net->pub.native_ticker, a_token_sell)) {
+        if (SUM_256_256(l_value_sell, a_fee, &l_value_sell)) {
+            log_it(L_ERROR, "Integer overflow with sum of value and fee");
+            return XCHANGE_CREATE_ERROR_INTEGER_OVERFLOW_WITH_SUM_OF_VALUE_AND_FEE;
+        }
+    } else { // sell non-native ticker
+        uint256_t l_fee_value = dap_chain_wallet_get_balance(a_wallet, a_net->pub.id, a_net->pub.native_ticker);
+        if (compare256(l_fee_value, a_fee) == -1) {
+            return XCHANGE_CREATE_ERROR_NOT_ENOUGH_CASH_FOR_FEE_IN_SPECIFIED_WALLET;
+        }
+    }
+    if (compare256(l_value, l_value_sell) == -1) {
+        return XCHANGE_CREATE_ERROR_NOT_ENOUGH_CASH_IN_SPECIFIED_WALLET;
+    }
+    // Create the price
+    dap_chain_net_srv_xchange_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_xchange_price_t);
+    if (!l_price) {
+        log_it(L_CRITICAL, "Memory allocation error");
+        return XCHANGE_CREATE_ERROR_MEMORY_ALLOCATED;
+    }
+    l_price->wallet_str = dap_strdup(a_wallet->name);
+    dap_stpcpy(l_price->token_sell, a_token_sell);
+    l_price->net = a_net;
+    dap_stpcpy(l_price->token_buy, a_token_buy);
+    l_price->datoshi_sell = a_datoshi_sell;
+    l_price->rate = a_rate;
+    l_price->fee = a_fee;
+    // Create conditional transaction
+    dap_chain_datum_tx_t *l_tx = s_xchange_tx_create_request(l_price, a_wallet);
+    if (!l_tx) {
+        DAP_DELETE(l_price->wallet_str);
+        DAP_DELETE(l_price);
+        return XCHANGE_CREATE_ERROR_CAN_NOT_COMPOSE_THE_CONDITIONAL_TRANSACTION;
+    }
+    dap_hash_fast_t l_tx_hash ={};
+    dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
+    char* l_ret = NULL;
+    if(!(l_ret = s_xchange_tx_put(l_tx, a_net))) {
+        DAP_DELETE(l_price->wallet_str);
+        DAP_DELETE(l_price);
+        return XCHANGE_CREATE_ERROR_CAN_NOT_PUT_TRANSACTION_TO_MEMPOOL;
+    }
+    // To avoid confusion, the term "order" will apply to the original conditional exchange offer transactions.
+    *a_out_tx_hash = l_ret;
+    return XCHANGE_CREATE_ERROR_OK;
+}
