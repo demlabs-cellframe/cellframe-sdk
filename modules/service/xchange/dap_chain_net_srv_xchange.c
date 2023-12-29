@@ -2427,3 +2427,36 @@ void dap_chain_net_srv_xchange_print_fee(dap_chain_net_t *a_net, dap_string_t *a
                                                "\t\tThe xchanger service has not announced a commission fee.\n");
     }
 }
+
+dap_list_t *dap_chain_net_srv_xchange_get_tx_xchange(dap_chain_net_t *a_net) {
+    order_find_list_t l_arg = {};
+    dap_chain_net_get_tx_all(a_net,TX_SEARCH_TYPE_NET, s_tx_is_order_check, &l_arg);
+    return l_arg.tx_list;
+}
+
+dap_list_t *dap_chain_net_srv_xchange_get_prices(dap_chain_net_t *a_net) {
+    dap_list_t *l_list_prices = NULL;
+    dap_list_t *l_list_tx = dap_chain_net_srv_xchange_get_tx_xchange(a_net);
+    dap_list_t *l_temp = l_list_tx;
+    while(l_temp)
+    {
+        dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_temp->data;
+        dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE , NULL);
+        if (!l_out_cond || l_out_cond->header.srv_uid.uint64 != DAP_CHAIN_NET_SRV_XCHANGE_ID){
+            l_temp = l_temp->next;
+            continue;
+        }
+
+        dap_chain_net_srv_xchange_price_t * l_price = NULL;
+        l_price = s_xchange_price_from_order(a_net, l_tx, NULL, true);
+        if(!l_price ){
+            log_it(L_WARNING,"Can't create price from order");
+            l_temp = l_temp->next;
+            continue;
+        }
+        l_list_prices = dap_list_append(l_list_prices, l_price);
+        l_temp = l_temp->next;
+    }
+    dap_list_free(l_list_tx);
+    return l_list_prices;
+}

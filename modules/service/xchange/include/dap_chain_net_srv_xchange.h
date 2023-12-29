@@ -61,3 +61,6 @@ int dap_chain_net_srv_xchange_init();
 void dap_chain_net_srv_xchange_deinit();
 
 void dap_chain_net_srv_xchange_print_fee(dap_chain_net_t *a_net, dap_string_t *a_string_ret);
+
+dap_list_t *dap_chain_net_srv_xchange_get_tx_xchange(dap_chain_net_t *a_net);
+dap_list_t *dap_chain_net_srv_xchange_get_prices(dap_chain_net_t *a_net);
