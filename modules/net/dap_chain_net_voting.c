@@ -912,7 +912,8 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
             dap_list_t *l_temp = l_outs;
             while(l_temp){
                 dap_chain_tx_used_out_item_t *l_out_item = (dap_chain_tx_used_out_item_t *)l_temp->data;
-                if (s_datum_tx_voting_coin_check_cond_out(l_net, l_voting_hash, l_out_item->tx_hash_fast, l_out_item->num_idx_out ) != 0){
+                if (dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, &l_out_item->tx_hash_fast, l_out_item->num_idx_out, NULL) ||
+                    s_datum_tx_voting_coin_check_cond_out(l_net, l_voting_hash, l_out_item->tx_hash_fast, l_out_item->num_idx_out ) != 0){
                     l_temp = l_temp->next;
                     continue;
                 }
