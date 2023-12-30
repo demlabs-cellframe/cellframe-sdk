@@ -1186,6 +1186,13 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
     bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_addr_fee);
     SUM_256_256(l_net_fee, a_value_fee, &l_total_fee);
     int res = compare256(l_total_fee,a_value);
+    {
+        char *l_total = dap_chain_balance_to_coins(l_total_fee);
+        char *l_value = dap_chain_balance_to_coins(a_value);
+        log_it(L_MSG, "INFO - (%s), stake - (%s)",l_total,l_value);
+        DAP_DELETE(l_total);
+        DAP_DELETE(l_value);
+    }
 
     if (!IS_ZERO_256(l_total_fee)) {
         if(!l_main_native)
