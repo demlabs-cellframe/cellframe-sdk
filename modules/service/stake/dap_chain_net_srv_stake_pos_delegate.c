@@ -2488,6 +2488,8 @@ static void s_cache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap
 
 dap_chain_net_srv_stake_item_t *dap_chain_net_srv_stake_check_pkey_hash(dap_hash_fast_t *a_pkey_hash)
 {
+    if (!s_srv_stake)
+        return NULL;
     dap_chain_net_srv_stake_item_t *l_stake, *l_tmp;
     HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp) {
         if (dap_hash_fast_compare(&l_stake->signing_addr.data.hash_fast, a_pkey_hash))
