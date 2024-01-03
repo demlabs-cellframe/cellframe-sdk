@@ -4093,7 +4093,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
             }
             l_value = l_tx_out->header.value;
             l_list_tx_out = dap_list_append(l_list_tx_out, l_tx_out);
-            if (l_tx_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE &&
+            if (l_tax_check && l_tx_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE &&
                     SUBTRACT_256_256(l_taxed_value, l_value, &l_taxed_value)) {
                 log_it(L_WARNING, "Fee is greater than sum of inputs");
                 l_err_num = -89;

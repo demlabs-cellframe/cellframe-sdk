@@ -517,7 +517,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                     dap_string_free(l_string_ret, true);
                     return -21;
                 }
-                if (l_node_addr_str){
+                if (l_node_addr_str) {
                     if (dap_chain_node_addr_str_check(l_node_addr_str)) {
                         dap_chain_node_addr_from_str( &l_node_addr, l_node_addr_str );
                     } else {
