@@ -1026,18 +1026,10 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' requires parameter -token_sell");
                 return -5;
             }
-            if (!dap_ledger_token_ticker_check(l_net->pub.ledger, l_token_sell_str)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Token ticker %s not found", l_token_sell_str);
-                return -6;
-            }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-token_buy", &l_token_buy_str);
             if (!l_token_buy_str) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' requires parameter -token_buy");
                 return -5;
-            }
-            if (!dap_ledger_token_ticker_check(l_net->pub.ledger, l_token_buy_str)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Token ticker %s not found", l_token_buy_str);
-                return -6;
             }
             const char *l_val_sell_str = NULL, *l_val_rate_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_val_sell_str);
@@ -1046,20 +1038,12 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 return -8;
             }
             uint256_t l_datoshi_sell = dap_chain_balance_scan(l_val_sell_str);
-            if (IS_ZERO_256(l_datoshi_sell)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -value <unsigned integer 256>");
-                return -9;
-            }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-rate", &l_val_rate_str);
             if (!l_val_rate_str) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' requires parameter -rate");
                 return -8;
             }
             uint256_t l_rate = dap_chain_coins_to_balance(l_val_rate_str);
-            if (IS_ZERO_256(l_rate)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -rate n.n = buy / sell (eg: 1.0, 1.135)");
-                return -9;
-            }
             const char *l_fee_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-fee", &l_fee_str);
             if (!l_fee_str) {
@@ -1067,10 +1051,6 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 return -20;
             }
             uint256_t l_fee = dap_chain_balance_scan(l_fee_str);
-            if (IS_ZERO_256(l_fee)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -fee <unsigned integer 256>");
-                return -21;
-            }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-w", &l_wallet_str);
             if (!l_wallet_str) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' requires parameter -w");
@@ -1084,63 +1064,77 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
             } else {
                 l_sign_str = dap_chain_wallet_check_bliss_sign(l_wallet);
             }
-            uint256_t l_value = dap_chain_wallet_get_balance(l_wallet, l_net->pub.id, l_token_sell_str);
-            uint256_t l_value_sell = l_datoshi_sell;
-            if (!dap_strcmp(l_net->pub.native_ticker, l_token_sell_str)) {
-                if (SUM_256_256(l_value_sell, l_fee, &l_value_sell)) {
-                    dap_chain_wallet_close(l_wallet);
+            char *l_hash_ret = NULL;
+            int ret_code = dap_chain_net_srv_xchange_create(l_net, l_token_buy_str, l_token_sell_str, l_datoshi_sell, l_rate, l_fee, l_wallet, &l_hash_ret);
+            dap_chain_wallet_close(l_wallet);
+            switch (ret_code) {
+                case XCHANGE_CREATE_ERROR_OK: {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nSuccessfully created order %s", l_sign_str, l_hash_ret);
+                    DAP_DELETE(l_hash_ret);
+                    return 0;
+                }
+                case XCHANGE_CREATE_ERROR_INVALID_ARGUMENT: {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Some parameters could not be set during a function call");
+                    DAP_DELETE(l_hash_ret);
+                    return -24;
+                }
+                case XCHANGE_CREATE_ERROR_TOKEN_TICKER_SELL_IS_NOT_FOUND_LEDGER: {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Token ticker %s not found", l_token_sell_str);
+                    DAP_DELETE(l_hash_ret);
+                    return -6;
+                }
+                case XCHANGE_CREATE_ERROR_TOKEN_TICKER_BUY_IS_NOT_FOUND_LEDGER: {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Token ticker %s not found", l_token_buy_str);
+                    DAP_DELETE(l_hash_ret);
+                    return -6;
+                }
+                case XCHANGE_CREATE_ERROR_RATE_IS_ZERO: {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -rate n.n = buy / sell (eg: 1.0, 1.135)");
+                    DAP_DELETE(l_hash_ret);
+                    return -9;
+                }
+                case XCHANGE_CREATE_ERROR_FEE_IS_ZERO: {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -value <unsigned integer 256>");
+                    DAP_DELETE(l_hash_ret);
+                    return -21;
+                }
+                case XCHANGE_CREATE_ERROR_VALUE_SELL_IS_ZERO: {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -value <unsigned integer 256>");
+                    DAP_DELETE(l_hash_ret);
+                    return -9;
+                }
+                case XCHANGE_CREATE_ERROR_INTEGER_OVERFLOW_WITH_SUM_OF_VALUE_AND_FEE: {
                     log_it(L_ERROR, "Integer overflow with sum of value and fee");
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Integer overflow with sum of value and fee");
+                    DAP_DELETE(l_hash_ret);
                     return -22;
                 }
-            } else { // sell non-native ticker
-                uint256_t l_fee_value = dap_chain_wallet_get_balance(l_wallet, l_net->pub.id, l_net->pub.native_ticker);
-                if (compare256(l_fee_value, l_fee) == -1) {
+                case XCHANGE_CREATE_ERROR_NOT_ENOUGH_CASH_FOR_FEE_IN_SPECIFIED_WALLET: {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nNot enough cash for fee in specified wallet", l_sign_str);
-                    dap_chain_wallet_close(l_wallet);
+                    DAP_DELETE(l_hash_ret);
                     return -23;
                 }
+                case XCHANGE_CREATE_ERROR_NOT_ENOUGH_CASH_IN_SPECIFIED_WALLET: {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nNot enough cash in specified wallet", l_sign_str);
+                    DAP_DELETE(l_hash_ret);
+                    return -12;
+                }
+                case XCHANGE_CREATE_ERROR_MEMORY_ALLOCATED: {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Out of memory");
+                    DAP_DELETE(l_hash_ret);
+                    return -1;
+                }
+                case XCHANGE_CREATE_ERROR_CAN_NOT_COMPOSE_THE_CONDITIONAL_TRANSACTION: {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nCan't compose the conditional transaction", l_sign_str);
+                    DAP_DELETE(l_hash_ret);
+                    return -14;
+                }
+                case XCHANGE_CREATE_ERROR_CAN_NOT_PUT_TRANSACTION_TO_MEMPOOL: {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nCan't compose the conditional transaction", l_sign_str);
+                    DAP_DELETE(l_hash_ret);
+                    return -15;
+                }
             }
-            if (compare256(l_value, l_value_sell) == -1) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nNot enough cash in specified wallet", l_sign_str);
-                dap_chain_wallet_close(l_wallet);
-                return -12;
-            }
-            // Create the price
-            dap_chain_net_srv_xchange_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_xchange_price_t);
-            if (!l_price) {
-                log_it(L_CRITICAL, "Memory allocation error");
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Out of memory");
-                dap_chain_wallet_close(l_wallet);
-                return -1;
-            }
-            l_price->wallet_str = dap_strdup(l_wallet_str);
-            dap_stpcpy(l_price->token_sell, l_token_sell_str);
-            l_price->net = l_net;
-            dap_stpcpy(l_price->token_buy, l_token_buy_str);
-            l_price->datoshi_sell = l_datoshi_sell;
-            l_price->rate = l_rate;
-            l_price->fee = l_fee;
-            // Create conditional transaction
-            dap_chain_datum_tx_t *l_tx = s_xchange_tx_create_request(l_price, l_wallet);
-            if (!l_tx) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nCan't compose the conditional transaction", l_sign_str);
-                DAP_DELETE(l_price->wallet_str);
-                DAP_DELETE(l_price);
-                dap_chain_wallet_close(l_wallet);
-                return -14;
-            }
-            dap_hash_fast_t l_tx_hash ={};
-            dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
-            char* l_ret = NULL;
-            if(!(l_ret = s_xchange_tx_put(l_tx, l_net))) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nCan't put transaction to mempool", l_sign_str);
-                DAP_DELETE(l_price->wallet_str);
-                DAP_DELETE(l_price);
-                return -15;
-            }
-            // To avoid confusion, the term "order" will apply to the original conditional exchange offer transactions.
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nSuccessfully created order %s", l_sign_str, l_ret);
-            DAP_DELETE(l_ret);
         } break;
 
         case CMD_HISTORY:{
@@ -2464,7 +2458,7 @@ dap_list_t *dap_chain_net_srv_xchange_get_prices(dap_chain_net_t *a_net) {
 int dap_chain_net_srv_xchange_create(dap_chain_net_t *a_net, const char *a_token_buy,
                                                   const char *a_token_sell, uint256_t a_datoshi_sell,
                                                   uint256_t a_rate, uint256_t a_fee, dap_chain_wallet_t *a_wallet,
-                                                  const char **a_out_tx_hash){
+                                                  char **a_out_tx_hash){
     if (!a_net || !a_token_buy || !a_token_sell || !a_wallet || !a_out_tx_hash) {
         return XCHANGE_CREATE_ERROR_INVALID_ARGUMENT;
     }
@@ -2479,6 +2473,9 @@ int dap_chain_net_srv_xchange_create(dap_chain_net_t *a_net, const char *a_token
     }
     if (IS_ZERO_256(a_fee)) {
         return XCHANGE_CREATE_ERROR_FEE_IS_ZERO;
+    }
+    if (IS_ZERO_256(a_datoshi_sell)) {
+        return XCHANGE_CREATE_ERROR_VALUE_SELL_IS_ZERO;
     }
     const char* l_sign_str = dap_chain_wallet_check_bliss_sign(a_wallet);
     uint256_t l_value = dap_chain_wallet_get_balance(a_wallet, a_net->pub.id, a_token_sell);
