@@ -3286,6 +3286,13 @@ int com_mempool(int a_argc, char **a_argv,  char **a_str_reply){
         }
     }
     dap_chain_node_cli_cmd_values_parse_net_chain(&arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_net);
+
+    if (!l_net) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply,
+                                        "mempool commands requires parameter '-net'");
+        return -1;
+    }
+
     const char *l_hash_out_type = "hex";
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-H", &l_hash_out_type);
     const char *l_datum_hash_in = NULL;
@@ -5745,6 +5752,7 @@ int com_tx_create(int a_argc, char **a_argv, char **a_str_reply)
             l_ret = -10;
         }
         l_tx_hash_str = dap_chain_mempool_base_tx_create(l_chain, &l_emission_hash, l_emission_chain->id,
+                                                         uint256_0, NULL, NULL, // Get this params from emission itself
                                                          l_priv_key, l_hash_out_type, l_value_fee);
         if (l_tx_hash_str) {
             dap_string_append_printf(l_string_ret, "\nDatum %s with 256bit TX is placed in datum pool\n", l_tx_hash_str);
