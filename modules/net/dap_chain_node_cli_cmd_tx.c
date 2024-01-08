@@ -257,7 +257,8 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
     dap_chain_addr_t  l_net_fee_addr = {};
     bool l_net_fee_used = dap_chain_net_tx_get_fee(l_net->pub.id, NULL, &l_net_fee_addr);
     char *l_corr_str = NULL;
-    uint256_t l_corr_value = {};
+    uint256_t l_corr_value = {}, l_unstake_value = {};
+    bool l_is_unstake = false;
     // load transactions
     dap_chain_datum_iter_t *l_datum_iter = a_chain->callback_datum_iter_create(a_chain);
 
@@ -324,13 +325,19 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
                 case TX_ITEM_TYPE_OUT_EXT:
                     l_src_addr = &((dap_chain_tx_out_ext_t *)l_prev_out_union)->addr;
                     break;
-                case TX_ITEM_TYPE_OUT_COND:
-                    if (((dap_chain_tx_out_cond_t *)l_prev_out_union)->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
+                case TX_ITEM_TYPE_OUT_COND: {
+                    dap_chain_tx_out_cond_t *l_cond_prev = (dap_chain_tx_out_cond_t *)l_prev_out_union;
+                    if (l_cond_prev->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
                         l_noaddr_token = l_native_ticker;
                     else {
+                        if (l_cond_prev->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK) {
+                            l_is_unstake = true;
+                            l_unstake_value = l_cond_prev->header.value;
+                        }
                         l_src_subtype = ((dap_chain_tx_out_cond_t *)l_prev_out_union)->header.subtype;
                         l_noaddr_token = l_src_token;
                     }
+                } break;
                 default:
                     break;
                 }
@@ -411,12 +418,14 @@ char* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, const 
                     l_src_str = l_src_addr_str = dap_chain_addr_to_str(l_src_addr);
                 else
                     l_src_str = dap_chain_tx_out_cond_subtype_to_str(l_src_subtype);
-                if (!dap_strcmp(l_native_ticker, l_noaddr_token)) {
+                if (!dap_strcmp(l_native_ticker, l_noaddr_token) && !l_is_unstake) {
                     l_corr_str = dap_strdup_printf("\trecv %%s (%%s) %s from %s\n",
                                                    l_dst_token ? l_dst_token : "UNKNOWN",
                                                    l_src_str);
                     l_corr_value = l_value;
                 } else {
+                    if (l_is_unstake)
+                        l_value = l_unstake_value;
                     char *l_value_str = dap_chain_balance_print(l_value);
                     char *l_coins_str = dap_chain_balance_to_coins(l_value);
                     dap_string_append_printf(l_str_out, "\trecv %s (%s) %s from %s\n",
