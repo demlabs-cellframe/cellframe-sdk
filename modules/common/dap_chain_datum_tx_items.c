@@ -591,7 +591,7 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
     l_item->header.srv_uid = a_srv_uid;
     l_item->subtype.srv_stake_pos_delegate.signing_addr = *a_signing_addr;
     l_item->subtype.srv_stake_pos_delegate.signer_node_addr = *a_signer_node_addr;
-    if (a_sovereign_addr) {
+    if (l_tsd_total_size) {
         l_item->tsd_size = l_tsd_total_size;
         byte_t *l_next_tsd_ptr = dap_tsd_write(l_item->tsd, DAP_CHAIN_TX_OUT_COND_TSD_ADDR, a_sovereign_addr, sizeof(*a_sovereign_addr));
         dap_tsd_write(l_next_tsd_ptr, DAP_CHAIN_TX_OUT_COND_TSD_VALUE, &a_sovereign_tax, sizeof(a_sovereign_tax));
