@@ -1259,42 +1259,39 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 return -12;
             }
             uint256_t l_fee = dap_chain_balance_scan(l_fee_str);
-            if(IS_ZERO_256(l_fee)){
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't get fee value.");
-                return -13;
-            }
             dap_hash_fast_t l_tx_hash = {};
             dap_chain_hash_fast_from_str(l_order_hash_str, &l_tx_hash);
-            dap_chain_datum_tx_t *l_cond_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_tx_hash);
-            if (!l_cond_tx) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nSpecified order not found", l_sign_str);
-                return -13;
+            dap_chain_wallet_close(l_wallet);
+            char *l_tx_hash_ret = NULL;
+            int l_ret_code = dap_chain_net_srv_xchange_remove(l_net, &l_tx_hash, l_fee, l_wallet, &l_tx_hash_ret);
+            switch (l_ret_code) {
+                case XCHANGE_REMOVE_ERROR_OK:
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Order successfully removed. Created inactivate tx with hash %s", l_tx_hash_ret);
+                    DAP_DELETE(l_tx_hash_ret);
+                    break;
+                case XCHANGE_REMOVE_ERROR_CAN_NOT_FIND_TX:
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nSpecified order not found", l_sign_str);
+                    break;
+                case XCHANGE_REMOVE_ERROR_CAN_NOT_CREATE_PRICE:
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nCan't create price object from order", l_sign_str);
+                    break;
+                case XCHANGE_REMOVE_ERROR_FEE_IS_ZERO:
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't get fee value.");
+                    break;
+                case XCHANGE_REMOVE_ERROR_CAN_NOT_INVALIDATE_TX: {
+                    dap_chain_datum_tx_t *l_cond_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_tx_hash);
+                    dap_chain_net_srv_xchange_price_t *l_price = s_xchange_price_from_order(l_net, l_cond_tx, &l_fee, false);
+                    char *l_finaly_tx_hash_str = dap_chain_hash_fast_to_str_new(&l_price->tx_hash);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create invalidate transaction from: %s\n", l_finaly_tx_hash_str);
+                    DAP_DELETE(l_price);
+                    DAP_DELETE(l_finaly_tx_hash_str);
+                } break;
+                default:
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "An error occurred with an unknown code: %d.", l_ret_code);
+                    break;
             }
-            dap_chain_net_srv_xchange_price_t *l_price = s_xchange_price_from_order(l_net, l_cond_tx, &l_fee, false);
-            if (!l_price) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nCan't create price object from order", l_sign_str);
-                return -13;
-            }
-
-            if (l_cmd_num == CMD_REMOVE) {
-                dap_string_t *l_str_reply = dap_string_new(l_sign_str);
-                char*  l_ret = s_xchange_tx_invalidate(l_price, l_wallet);
-                dap_chain_wallet_close(l_wallet);
-                if (!l_ret) {
-                    if (!l_price) {
-                        dap_string_append_printf(l_str_reply, "Can't get price for order %s\n", l_order_hash_str);
-                    } else {
-                        char *l_tx_hash_str = dap_chain_hash_fast_to_str_new(&l_price->tx_hash);
-                        dap_string_append_printf(l_str_reply, "Can't invalidate transaction %s\n", l_tx_hash_str);
-                        DAP_DELETE(l_tx_hash_str);
-                    }
-                }else{
-                    dap_string_append_printf(l_str_reply, "Order successfully removed. Created inactivate tx with hash %s", l_ret);
-                }
-                DAP_DELETE(l_price);
-                DAP_DEL_Z(l_ret);
-                *a_str_reply = dap_string_free(l_str_reply, false);
-            }
+            DAP_DELETE(l_sign_str);
+            return l_ret_code;
         } break;
 
         case CMD_STATUS: {
@@ -2532,26 +2529,23 @@ int dap_chain_net_srv_xchange_remove(dap_chain_net_t *a_net, dap_hash_fast_t *a_
     if (!a_net || !a_hash_tx || !a_wallet) {
         return XCHANGE_REMOVE_ERROR_INVALID_ARGUMENT;
     }
-//    const char* l_sign_str = dap_chain_wallet_check_bliss_sign(a_wallet);
     if(IS_ZERO_256(a_fee)){
-//        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't get fee value.");
         return XCHANGE_REMOVE_ERROR_FEE_IS_ZERO;
     }
-//    dap_hash_fast_t l_tx_hash = {};
     dap_chain_datum_tx_t *l_cond_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, a_hash_tx);
     if (!l_cond_tx) {
-//        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nSpecified order not found", l_sign_str);
         return XCHANGE_REMOVE_ERROR_CAN_NOT_FIND_TX;
     }
     dap_chain_net_srv_xchange_price_t *l_price = s_xchange_price_from_order(a_net, l_cond_tx, &a_fee, false);
     if (!l_price) {
-//        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nCan't create price object from order", l_sign_str);
         return XCHANGE_REMOVE_ERROR_CAN_NOT_CREATE_PRICE;
     }
     char*  l_ret = s_xchange_tx_invalidate(l_price, a_wallet);
     if (!l_ret){
+        DAP_DELETE(l_price);
         return XCHANGE_REMOVE_ERROR_CAN_NOT_INVALIDATE_TX;
     }
     *a_out_hash_tx = l_ret;
+    DAP_DELETE(l_price);
     return XCHANGE_REMOVE_ERROR_OK;
 }
