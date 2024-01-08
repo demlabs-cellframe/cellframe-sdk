@@ -95,7 +95,7 @@ static bool s_round_event_ready_minimum_check(dap_chain_cs_dag_t *a_dag, dap_cha
 static void s_round_event_cs_done(dap_chain_cs_dag_t * a_dag, uint64_t a_round_id);
 
 // CLI commands
-static int s_cli_dag_poa(int argc, char ** argv, char **str_reply);
+static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply);
 
 static bool s_seed_mode = false;
 static dap_interval_timer_t s_poa_round_timer = NULL;
@@ -173,7 +173,7 @@ void dap_chain_cs_dag_poa_presign_callback_set(dap_chain_t *a_chain, dap_chain_c
  * @param str_reply
  * @return
  */
-static int s_cli_dag_poa(int argc, char ** argv, char **a_str_reply)
+static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply)
 {
     int ret = -666;
     int arg_index = 1;

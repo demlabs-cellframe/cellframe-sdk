@@ -253,7 +253,7 @@ static int s_net_init(const char * a_net_name, uint16_t a_acl_idx);
 
 static int s_net_load(dap_chain_net_t *a_net);
 
-static int s_cli_net(int argc, char ** argv, char **str_reply);
+static int s_cli_net(int argc, char ** argv, void **a_str_reply);
 static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
 static void s_prepare_links_from_balancer(dap_chain_net_t *a_net);
 static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_replace_tries);
@@ -1341,7 +1341,7 @@ dap_string_t* dap_cli_list_net()
     return l_string_ret;
 }
 
-void s_set_reply_text_node_status(char **a_str_reply, dap_chain_net_t * a_net){
+void s_set_reply_text_node_status(void **a_str_reply, dap_chain_net_t * a_net){
     char* l_node_address_text_block = NULL;
     dap_chain_node_addr_t l_cur_node_addr = { 0 };
     l_cur_node_addr.uint64 = dap_chain_net_get_cur_addr_int(a_net);
@@ -1490,7 +1490,7 @@ static const char *s_chain_type_convert_to_string(dap_chain_type_t a_type)
  * @param str_reply
  * @return
  */
-static int s_cli_net(int argc, char **argv, char **a_str_reply)
+static int s_cli_net(int argc, char **argv, void **a_str_reply)
 {
     int arg_index = 1;
     dap_chain_net_t * l_net = NULL;

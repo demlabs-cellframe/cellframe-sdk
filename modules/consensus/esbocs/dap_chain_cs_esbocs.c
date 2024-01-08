@@ -84,7 +84,7 @@ static dap_enc_key_t *s_callback_get_sign_key(dap_chain_t *a_chain);
 static void s_callback_set_min_validators_count(dap_chain_t *a_chain, uint16_t a_new_value);
 static void s_db_change_notifier(dap_store_obj_t *a_obj, void * a_arg);
 
-static int s_cli_esbocs(int argc, char ** argv, char **str_reply);
+static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply);
 
 DAP_STATIC_INLINE const char *s_voting_msg_type_to_str(uint8_t a_type)
 {
@@ -2591,7 +2591,7 @@ static dap_chain_datum_decree_t *s_esbocs_decree_set_min_validators_count(dap_ch
  * @param str_reply
  * @return
  */
-static int s_cli_esbocs(int a_argc, char ** a_argv, char **a_str_reply)
+static int s_cli_esbocs(int a_argc, char **a_argv, void **a_str_reply)
 {
     int ret = -666;
     int l_arg_index = 2;
@@ -2600,9 +2600,8 @@ static int s_cli_esbocs(int a_argc, char ** a_argv, char **a_str_reply)
     const char *l_cert_str = NULL,
                *l_value_str = NULL;
 
-    if (dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index,a_argc,a_argv,a_str_reply,&l_chain,&l_chain_net)) {
+    if (dap_chain_node_cli_cmd_values_parse_net_chain(&l_arg_index, a_argc, a_argv, a_str_reply, &l_chain, &l_chain_net))
         return -3;
-    }
     const char *l_chain_type = dap_chain_net_get_type(l_chain);
     if (strcmp(l_chain_type, "esbocs")) {
             dap_cli_server_cmd_set_reply_text(a_str_reply,

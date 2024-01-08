@@ -43,7 +43,7 @@
 
 #define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP "delegate_keys"
 
-static int s_cli_srv_stake(int a_argc, char **a_argv, void **reply);
+static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply);
 
 static bool s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond,
                                                       dap_chain_datum_tx_t *a_tx_in, bool a_owner);
@@ -1082,7 +1082,7 @@ char *s_staker_order_create(dap_chain_net_t *a_net, uint256_t a_value, uint256_t
     return l_order_hash_str;
 }
 
-static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, char **a_str_reply, const char *a_hash_out_type)
+static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, void **a_str_reply, const char *a_hash_out_type)
 {
     enum {
         CMD_NONE, CMD_CREATE_FEE, CMD_CREATE_VALIDATOR, CMD_CREATE_STAKER, CMD_UPDATE, CMD_LIST, CMD_REMOVE
@@ -1625,9 +1625,8 @@ uint256_t dap_chain_net_srv_stake_get_total_weight(dap_chain_net_id_t a_net_id)
     return l_total_weight;
 }
 
-static int s_cli_srv_stake(int a_argc, char **a_argv, void **reply)
+static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
 {
-    char ** a_str_reply = (char **) reply;
     enum {
         CMD_NONE, CMD_ORDER, CMD_DELEGATE, CMD_APPROVE, CMD_LIST, CMD_INVALIDATE, CMD_MIN_VALUE, CMD_CHECK
     };

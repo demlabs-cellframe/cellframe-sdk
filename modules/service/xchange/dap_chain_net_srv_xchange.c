@@ -72,7 +72,7 @@ static bool s_xchange_verificator_callback(dap_ledger_t * a_ledger, dap_chain_tx
 const dap_chain_net_srv_uid_t c_dap_chain_net_srv_xchange_uid = {.uint64= DAP_CHAIN_NET_SRV_XCHANGE_ID};
 
 
-static int s_cli_srv_xchange(int a_argc, char **a_argv, void **reply);
+static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply);
 static int s_callback_requested(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size);
 static int s_callback_response_success(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size);
 static int s_callback_response_error(dap_chain_net_srv_t *a_srv, uint32_t a_usage_id, dap_chain_net_srv_client_remote_t *a_srv_client, const void *a_data, size_t a_data_size);
@@ -716,7 +716,8 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
             log_it(L_ERROR, "Can't add net fee output");
             return NULL;
         }
-        debug_if(s_debug_more, L_NOTICE, "l_service_fee = %s %s", dap_chain_balance_to_coins(l_net_fee), l_service_ticker);
+        debug_if(s_debug_more, L_NOTICE, "l_service_fee = %s %s", dap_chain_balance_to_coins(l_net_fee),
+                                                       l_service_ticker ? l_service_ticker : "UNKNOWN");
     }
     // coin back
     SUBTRACT_256_256(l_value_transfer, l_value_need, &l_value_back);
@@ -982,7 +983,7 @@ dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a
  * @param a_str_reply
  * @return
  */
-static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, char **a_str_reply)
+static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, void **a_str_reply)
 {
     enum {
         CMD_NONE, CMD_CREATE, CMD_REMOVE, CMD_UPDATE, CMD_HISTORY, CMD_STATUS
@@ -1692,14 +1693,8 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str,
 }
 
 
-static int s_cli_srv_xchange_tx_list_addr (
-                    dap_chain_net_t     *a_net,
-                        dap_time_t      a_after,
-                        dap_time_t      a_before,
-                    dap_chain_addr_t    *a_addr,
-                            int         a_opt_status,
-                                char    **a_str_reply
-                                          )
+static int s_cli_srv_xchange_tx_list_addr(dap_chain_net_t *a_net, dap_time_t a_after, dap_time_t a_before,
+                                          dap_chain_addr_t *a_addr, int a_opt_status, void **a_str_reply)
 {
 dap_chain_hash_fast_t l_tx_first_hash = {0};
 dap_chain_datum_tx_t    *l_datum_tx;
@@ -1738,12 +1733,10 @@ void s_tx_is_order_check(dap_chain_net_t *a_net, dap_chain_datum_tx_t *a_tx, voi
        *l_tx_list_ptr = dap_list_append(*l_tx_list_ptr, a_tx);
 }
 
-static int s_cli_srv_xchange(int a_argc, char **a_argv, void **reply)
+static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
 {
-    char ** a_str_reply = (char **) reply;
     enum {CMD_NONE = 0, CMD_ORDER, CMD_ORDERS, CMD_PURCHASE, CMD_ENABLE, CMD_DISABLE, CMD_TX_LIST, CMD_TOKEN_PAIR };
     int l_arg_index = 1, l_cmd_num = CMD_NONE;
-    bool l_rc;
 
     if(dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, dap_min(a_argc, l_arg_index + 1), "order", NULL)) {
         l_cmd_num = CMD_ORDER;

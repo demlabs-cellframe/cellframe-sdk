@@ -77,7 +77,7 @@ static pthread_mutex_t s_srv_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
 
-static int s_cli_net_srv(int argc, char **argv, char **a_str_reply);
+static int s_cli_net_srv(int argc, char **argv, void **a_str_reply);
 static void s_load(const char * a_path);
 static void s_load_all();
 
@@ -188,7 +188,7 @@ void dap_chain_net_srv_deinit(void)
  * @param a_str_reply
  * @return
  */
-static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
+static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
 {
     int arg_index = 1;
     dap_chain_net_t * l_net = NULL;

@@ -119,7 +119,7 @@
 #define LOG_TAG "chain_node_cli_cmd"
 
 static void s_dap_chain_net_purge(dap_chain_net_t *a_net);
-int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t *a_cert, void ** reply);
+int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t *a_cert, void **a_str_reply);
 
 /**
  * @brief dap_list_t* get_aliases_by_name Get the aliases by name object
@@ -182,7 +182,7 @@ static dap_chain_node_addr_t* s_node_info_get_addr(dap_chain_net_t * a_net, dap_
  * @return dap_chain_node_info_t*
  */
 static dap_chain_node_info_t* node_info_read_and_reply(dap_chain_net_t * a_net, dap_chain_node_addr_t *a_address,
-        char **a_str_reply)
+        void **a_str_reply)
 {
     char *l_key = dap_chain_node_addr_to_hash_str(a_address);
     if(!l_key)
@@ -225,7 +225,7 @@ static dap_chain_node_info_t* node_info_read_and_reply(dap_chain_net_t * a_net, 
  * @return true
  * @return false
  */
-static bool node_info_save_and_reply(dap_chain_net_t * a_net, dap_chain_node_info_t *a_node_info, char **a_str_reply)
+static bool node_info_save_and_reply(dap_chain_net_t * a_net, dap_chain_node_info_t *a_node_info, void **a_str_reply)
 {
     if(!a_node_info || !a_node_info->hdr.address.uint64) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "node addr not found");
@@ -273,7 +273,7 @@ static bool node_info_save_and_reply(dap_chain_net_t * a_net, dap_chain_node_inf
  */
 static int node_info_add_with_reply(dap_chain_net_t * a_net, dap_chain_node_info_t *a_node_info,
         const char *a_alias_str,
-        const char *a_cell_str, const char *a_ipv4_str, const char *a_ipv6_str, char **a_str_reply)
+        const char *a_cell_str, const char *a_ipv4_str, const char *a_ipv6_str, void **a_str_reply)
 {
 
     if(!a_node_info->hdr.address.uint64) {
@@ -324,7 +324,7 @@ static int node_info_add_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
  * return 0 Ok, -1 error
  */
 static int node_info_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_info_t *a_node_info, const char *alias_str,
-        char **a_str_reply)
+        void **a_str_reply)
 {
     if(!a_node_info->hdr.address.uint64 && !alias_str) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "addr not found");
@@ -377,7 +377,7 @@ static int node_info_del_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
  * @return int 0 Ok, -1 error
  */
 static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_addr_t * a_addr, bool a_is_full,
-        const char *a_alias, char **a_str_reply)
+        const char *a_alias, void **a_str_reply)
 {
     int l_ret = 0;
     dap_string_t *l_string_reply = dap_string_new("Node dump:\n");
@@ -602,9 +602,8 @@ void s_dap_chain_net_purge(dap_chain_net_t * a_net)
  * @return int
  * return 0 OK, -1 Err
  */
-int com_global_db(int a_argc, char ** a_argv, void ** reply)
+int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
 {
-    char ** a_str_reply = (char **) reply;
     enum {
         CMD_NONE, CMD_NAME_CELL, CMD_ADD, CMD_FLUSH, CMD_RECORD, CMD_WRITE, CMD_READ, CMD_DELETE, CMD_DROP, CMD_GET_KEYS
     };
@@ -977,7 +976,7 @@ int com_global_db(int a_argc, char ** a_argv, void ** reply)
     }
 }
 
-static dap_tsd_t* s_chain_node_cli_com_node_create_tsd_addr(char **a_argv, int a_arg_start, int a_arg_end, char **a_str_reply, const char *a_specified_decree) {
+static dap_tsd_t* s_chain_node_cli_com_node_create_tsd_addr(char **a_argv, int a_arg_start, int a_arg_end, void **a_str_reply, const char *a_specified_decree) {
     const char *l_ban_addr_str = NULL;
     dap_tsd_t *l_addr_tsd = NULL;
     if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_start, a_arg_end, "-ip", &l_ban_addr_str)){
@@ -1028,9 +1027,8 @@ static dap_tsd_t* s_chain_node_cli_com_node_create_tsd_addr(char **a_argv, int a
 /**
  * Node command
  */
-int com_node(int a_argc, char ** a_argv, void ** reply)
+int com_node(int a_argc, char ** a_argv, void **a_str_reply)
 {
-    char ** a_str_reply = (char **) reply;
     enum {
         CMD_NONE, CMD_ADD, CMD_DEL, CMD_ALIAS, CMD_HANDSHAKE, CMD_CONNECT, CMD_DUMP, CMD_CONNECTIONS, CMD_BALANCER,
         CMD_BAN, CMD_UNBAN, CMD_BANLIST
@@ -1613,9 +1611,8 @@ int com_node(int a_argc, char ** a_argv, void ** reply)
  * @param str_reply
  * @return int
  */
-int com_traceroute(int argc, char** argv, void **reply)
+int com_traceroute(int argc, char** argv, void **a_str_reply)
 {
-    char ** a_str_reply = (char **) reply;
 #ifdef DAP_OS_LINUX
     const char *addr = NULL;
     int hops = 0, time_usec = 0;
@@ -1704,9 +1701,8 @@ int com_traceroute(int argc, char** argv, void **reply)
  * @return int
  * return 0 OK, -1 Err
  */
-int com_tracepath(int argc, char** argv, void **reply)
+int com_tracepath(int argc, char** argv, void **a_str_reply)
 {
-    char ** a_str_reply = (char **) reply;
 #ifdef DAP_OS_LINUX
     const char *addr = NULL;
     int hops = 0, time_usec = 0;
@@ -1788,9 +1784,8 @@ int com_tracepath(int argc, char** argv, void **reply)
  * @param str_reply
  * @return int
  */
-int com_ping(int a_argc, char**a_argv, void **reply)
+int com_ping(int a_argc, char**a_argv, void **a_str_reply)
 {
-    char ** a_str_reply = (char **) reply;
 #ifdef DAP_OS_LINUX
 
     int n = 4,w = 0;
@@ -1871,9 +1866,8 @@ int com_ping(int a_argc, char**a_argv, void **reply)
  * @param str_reply
  * @return
  */
-int com_version(int argc, char ** argv, void **reply)
+int com_version(int argc, char ** argv, void **a_str_reply)
 {
-    char ** a_str_reply = (char **) reply;
     (void) argc;
     (void) argv;
 #ifndef DAP_VERSION
@@ -1895,9 +1889,8 @@ int com_version(int argc, char ** argv, void **reply)
  * @param str_reply
  * @return int
  */
-int com_help(int a_argc, char **a_argv, void **reply)
+int com_help(int a_argc, char **a_argv, void **a_str_reply)
 {
-    char ** a_str_reply = (char **) reply;
     if (a_argc > 1) {
         log_it(L_DEBUG, "Help for command %s", a_argv[1]);
         dap_cli_cmd_t *l_cmd = dap_cli_server_cmd_find(a_argv[1]);
@@ -1936,9 +1929,8 @@ int com_help(int a_argc, char **a_argv, void **reply)
  * @param str_reply
  * @return int
  */
-int com_tx_wallet(int a_argc, char **a_argv, void **reply)
+int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply)
 {
-char ** a_str_reply = (char **) reply;
 const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
 enum { CMD_NONE, CMD_WALLET_NEW, CMD_WALLET_LIST, CMD_WALLET_INFO, CMD_WALLET_ACTIVATE, CMD_WALLET_DEACTIVATE, CMD_WALLET_CONVERT };
 int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
@@ -2389,7 +2381,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(int *a_arg_index, int
  * @param l_net
  * @return
  */
-int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, char **a_argv, char **a_str_reply,
+int dap_chain_node_cli_cmd_values_parse_net_chain(int *a_arg_index, int a_argc, char **a_argv, void **a_str_reply,
         dap_chain_t **a_chain, dap_chain_net_t **a_net)
 {
     const char * l_chain_str = NULL;
@@ -2519,9 +2511,8 @@ static dap_chain_datum_token_t * s_sign_cert_in_cycle(dap_cert_t ** l_certs, dap
  * @param str_reply
  * @return
  */
-int com_token_decl_sign(int a_argc, char **a_argv, void ** reply)
+int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply)
 {
-    char ** a_str_reply = (char **) reply;
     int arg_index = 1;
 
     const char * l_hash_out_type = NULL;
@@ -2900,7 +2891,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
             json_object_put(l_jobj_datums);
             json_object_put(l_obj_chain);
             dap_global_db_objs_delete(l_objs, l_objs_count);
-            DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+            dap_json_rpc_allocation_error;
             return;
         }
         json_object_object_add(l_jobj_ts_created, "time_stamp", l_jobj_ts_created_time_stamp);
@@ -2915,7 +2906,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
             json_object_put(l_jobj_datums);
             json_object_put(l_obj_chain);
             dap_global_db_objs_delete(l_objs, l_objs_count);
-            DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+            dap_json_rpc_allocation_error;
             return;
         }
         if (!dap_hash_fast_compare(&l_datum_real_hash, &l_datum_hash_from_key)){
@@ -2981,7 +2972,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                     json_object_put(l_jobj_datums);
                     json_object_put(l_obj_chain);
                     dap_global_db_objs_delete(l_objs, l_objs_count);
-                    DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                    dap_json_rpc_allocation_error;
                     return;
                 }
                 json_object *l_jobj_addr_from = json_object_new_string(l_addr_from_str);
@@ -2991,7 +2982,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                     json_object_put(l_jobj_datums);
                     json_object_put(l_obj_chain);
                     dap_global_db_objs_delete(l_objs, l_objs_count);
-                    DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                    dap_json_rpc_allocation_error;
                     return;
                 }
                 json_object_object_add(l_jobj_datum, "from", l_jobj_addr_from);
@@ -3007,7 +2998,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                     json_object_put(l_jobj_datums);
                     json_object_put(l_obj_chain);
                     dap_global_db_objs_delete(l_objs, l_objs_count);
-                    DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                    dap_json_rpc_allocation_error;
                     return;
                 }
                 for (dap_list_t *it = l_list_out_items; it; it = it->next) {
@@ -3113,7 +3104,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                             DAP_DELETE(l_value_str);
                             DAP_DELETE(l_value_coins_str);
                             dap_global_db_objs_delete(l_objs, l_objs_count);
-                            DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                            dap_json_rpc_allocation_error;
                             return;
                         }
                         json_object_object_add(l_jobj_money, "token", l_jobj_token);
@@ -3253,9 +3244,9 @@ typedef enum cmd_mempool_delete_err_list{
  * @param a_str_reply
  * @return
  */
-int _cmd_mempool_delete(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_datum_hash, void **reply)
+int _cmd_mempool_delete(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_datum_hash, void **a_str_reply)
 {
-    json_object ** a_json_reply = (json_object **) reply;
+    json_object **a_json_reply = (json_object **)a_str_reply;
     if (!a_net || !a_datum_hash) {
         dap_json_rpc_error_add(COM_MEMPOOL_DELETE_ERR_DATUM_NOT_FOUND_IN_ARGUMENT, "Net or datum hash not specified");
         return COM_MEMPOOL_DELETE_ERR_DATUM_NOT_FOUND_IN_ARGUMENT;
@@ -3324,8 +3315,9 @@ typedef enum cmd_mempool_check_err_list {
  * @param a_str_reply
  * @return int
  */
-int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_datum_hash, const char **a_hash_out_type, void ** reply) {
-    json_object ** a_json_reply = (json_object **) reply;
+int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_datum_hash, const char *a_hash_out_type, void **a_str_reply)
+{
+    json_object **a_json_reply = (json_object **)a_str_reply;
 
     if (!a_net || !a_datum_hash) {
         dap_json_rpc_error_add(COM_MEMPOOL_CHECK_ERR_CAN_NOT_FIND_NET, "Error! Both -net <network_name> "
@@ -3474,8 +3466,9 @@ typedef enum cmd_mempool_proc_list_error{
  * @param a_str_reply
  * @return
  */
-int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_datum_hash, void **reply)
+int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_datum_hash, void **a_str_reply)
 {
+    json_object **a_json_reply = (json_object **)a_str_reply;
     // If full or light it doesnt work
     if(dap_chain_net_get_role(a_net).enums>= NODE_ROLE_FULL){
         dap_json_rpc_error_add(DAP_COM_MEMPOOL_PROC_LIST_ERROR_NODE_ROLE_NOT_FULL,
@@ -3638,7 +3631,7 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
     }
     DAP_DELETE(l_gdb_group_mempool);
     json_object_object_add(l_jobj_res, "verify", l_jobj_verify);
-    json_object_array_add(*reply, l_jobj_res);
+    json_object_array_add(*a_json_reply, l_jobj_res);
     return ret;
 }
 
@@ -3650,8 +3643,9 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
  * @param a_str_reply
  * @return
  */
-int _cmd_mempool_proc_all(dap_chain_net_t *a_net, dap_chain_t *a_chain, void **reply) {
-    json_object ** a_json_reply = (json_object **) reply;
+int _cmd_mempool_proc_all(dap_chain_net_t *a_net, dap_chain_t *a_chain, void **a_str_reply)
+{
+    json_object **a_json_reply = (json_object **)a_str_reply;
     if (!a_net || !a_chain) {
         dap_json_rpc_error_add(-2, "The net and chain argument is not set");
         return -2;
@@ -3710,7 +3704,8 @@ typedef enum _cmd_mempool_dump_error_list{
 }_cmd_mempool_dump_error_list_t;
 
 int _cmd_mempool_dump_from_group(dap_chain_net_id_t a_net_id, const char *a_group_gdb, const char *a_datum_hash,
-                                 const char *a_hash_out_type, json_object **reply) {
+                                 const char *a_hash_out_type, json_object **a_json_reply)
+{
     size_t l_datum_size = 0;
     dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(a_group_gdb, a_datum_hash,
                                                          &l_datum_size, NULL, NULL );
@@ -3724,18 +3719,19 @@ int _cmd_mempool_dump_from_group(dap_chain_net_id_t a_net_id, const char *a_grou
     if (!l_datum) {
         char *l_msg_str = dap_strdup_printf("Error! Can't find datum %s in %s", a_datum_hash, a_group_gdb);
         if (!l_msg_str) {
-            DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+            dap_json_rpc_allocation_error;
             return -1;
         }
         json_object *l_jobj_message = json_object_new_string(l_msg_str);
         return COM_DUMP_ERROR_CAN_NOT_FIND_DATUM;
     }
     json_object *l_jobj_datum = dap_chain_datum_to_json(l_datum);
-    json_object_array_add(*reply, l_jobj_datum);
+    json_object_array_add(*a_json_reply, l_jobj_datum);
     return 0;
 }
 
-int _cmd_mempool_dump(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_datum_hash, const char *a_hash_out_type, json_object **reply) {
+int _cmd_mempool_dump(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *a_datum_hash, const char *a_hash_out_type, json_object **a_json_reply)
+{
     if (!a_net || !a_datum_hash || !a_hash_out_type) {
         dap_json_rpc_error_add(COM_DUMP_ERROR_NULL_IS_ARGUMENT_FUNCTION, "The following arguments are not set: network,"
                                                                          " datum hash, and output hash type. "
@@ -3744,13 +3740,13 @@ int _cmd_mempool_dump(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
     }
     if (a_chain) {
         char *l_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
-        _cmd_mempool_dump_from_group(a_net->pub.id, l_group_mempool, a_datum_hash, a_hash_out_type, reply);
+        _cmd_mempool_dump_from_group(a_net->pub.id, l_group_mempool, a_datum_hash, a_hash_out_type, a_json_reply);
         DAP_DELETE(l_group_mempool);
     } else {
         dap_chain_t *l_chain = NULL;
         DL_FOREACH(a_net->pub.chains, l_chain){
             char *l_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
-            if (!_cmd_mempool_dump_from_group(a_net->pub.id, l_group_mempool, a_datum_hash, a_hash_out_type, reply)){
+            if (!_cmd_mempool_dump_from_group(a_net->pub.id, l_group_mempool, a_datum_hash, a_hash_out_type, a_json_reply)){
                 DAP_DELETE(l_group_mempool);
                 break;
             }
@@ -3760,13 +3756,14 @@ int _cmd_mempool_dump(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
     return 0;
 }
 
-int com_mempool(int a_argc, char **a_argv, void **reply){
+int com_mempool(int a_argc, char **a_argv, void **a_str_reply)
+{
+    json_object **a_json_reply = (json_object **)a_str_reply;
     int arg_index = 1;
     dap_chain_net_t *l_net = NULL;
     dap_chain_t *l_chain = NULL;
-    const char *l_addr_b58 = NULL;
     enum _subcmd {SUBCMD_LIST, SUBCMD_PROC, SUBCMD_PROC_ALL, SUBCMD_DELETE, SUBCMD_ADD_CA, SUBCMD_CHECK, SUBCMD_DUMP};
-    enum _subcmd l_cmd;
+    enum _subcmd l_cmd = 0;
     if (a_argv[1]) {
         if (!dap_strcmp(a_argv[1], "list")) {
             l_cmd = SUBCMD_LIST;
@@ -3786,16 +3783,16 @@ int com_mempool(int a_argc, char **a_argv, void **reply){
             char *l_str_err = dap_strdup_printf("Invalid sub command specified. Ыub command %s "
                                                            "is not supported.", a_argv[1]);
             if (!l_str_err) {
-                DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                dap_json_rpc_allocation_error;
                 return -1;
             }
             json_object *l_jobj_str_err = json_object_new_string(l_str_err);
             DAP_DELETE(l_str_err);
             if (!l_jobj_str_err) {
-                DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                dap_json_rpc_allocation_error;
                 return -1;
             }
-            json_object_array_add(*reply, l_jobj_str_err);
+            json_object_array_add(*a_json_reply, l_jobj_str_err);
             return -2;
         }
     }
@@ -3824,7 +3821,7 @@ int com_mempool(int a_argc, char **a_argv, void **reply){
             if (!obj_ret || !obj_net) {
                 json_object_put(obj_ret);
                 json_object_put(obj_net);
-                DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                dap_json_rpc_allocation_error;
                 return -1;
             }
             json_object_object_add(obj_ret, "net", obj_net);
@@ -3832,16 +3829,16 @@ int com_mempool(int a_argc, char **a_argv, void **reply){
             if (dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-addr", &l_wallet_addr) && !l_wallet_addr) {
                 json_object *l_jobj_err = json_object_new_string("Parameter '-addr' require <addr>");
                 if (!l_jobj_err) {
-                    DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                    dap_json_rpc_allocation_error;
                     return -1;
                 }
-                json_object_array_add(*reply, l_jobj_err);
+                json_object_array_add(*a_json_reply, l_jobj_err);
                 return -3;
             }
             json_object *l_jobj_chains = json_object_new_array();
             if (!l_jobj_chains) {
                 json_object_put(obj_ret);
-                DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                dap_json_rpc_allocation_error;
                 return -1;
             }
             if(l_chain) {
@@ -3852,14 +3849,14 @@ int com_mempool(int a_argc, char **a_argv, void **reply){
                 }
             }
             json_object_object_add(obj_ret, "chains", l_jobj_chains);
-            json_object_array_add(*reply, obj_ret);
+            json_object_array_add(*a_json_reply, obj_ret);
             ret = 0;
         } break;
         case SUBCMD_PROC: {
-            ret = _cmd_mempool_proc(l_net, l_chain, l_datum_hash, reply);
+            ret = _cmd_mempool_proc(l_net, l_chain, l_datum_hash, a_str_reply);
         } break;
         case SUBCMD_PROC_ALL: {
-            ret = _cmd_mempool_proc_all(l_net, l_chain, reply);
+            ret = _cmd_mempool_proc_all(l_net, l_chain, a_str_reply);
         } break;
         case SUBCMD_DELETE: {
             if (!l_chain) {
@@ -3867,7 +3864,7 @@ int com_mempool(int a_argc, char **a_argv, void **reply){
                 ret = -2;
             }
             if (l_datum_hash) {
-                ret = _cmd_mempool_delete(l_net, l_chain, l_datum_hash, reply);
+                ret = _cmd_mempool_delete(l_net, l_chain, l_datum_hash, a_str_reply);
             } else {
                 dap_json_rpc_error_add(-3, "Error! %s requires -datum <datum hash> option", a_argv[0]);
                 ret = -3;
@@ -3885,14 +3882,14 @@ int com_mempool(int a_argc, char **a_argv, void **reply){
                 dap_json_rpc_error_add(-4, "Cert with name '%s' not found.", l_ca_name);
                 ret = -4;
             }
-            ret = _cmd_mempool_add_ca(l_net, l_chain, l_cert, reply);
+            ret = _cmd_mempool_add_ca(l_net, l_chain, l_cert, a_str_reply);
             DAP_DELETE(l_cert);
         } break;
         case SUBCMD_CHECK: {
-            ret = _cmd_mempool_check(l_net, l_chain, l_datum_hash, l_hash_out_type, reply);
+            ret = _cmd_mempool_check(l_net, l_chain, l_datum_hash, l_hash_out_type, a_str_reply);
         } break;
         case SUBCMD_DUMP: {
-            ret = _cmd_mempool_dump(l_net, l_chain, l_datum_hash, l_hash_out_type, reply);
+            ret = _cmd_mempool_dump(l_net, l_chain, l_datum_hash, l_hash_out_type, a_json_reply);
         } break;
     }
     DAP_DEL_Z(l_datum_hash);
@@ -3973,7 +3970,7 @@ typedef struct _dap_sdk_cli_params {
     dap_cli_token_additional_params ext;
 } dap_sdk_cli_params, *pdap_sdk_cli_params;
 
-static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_str_reply, dap_sdk_cli_params* a_params, bool a_update_token)
+static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, void **a_str_reply, dap_sdk_cli_params* a_params, bool a_update_token)
 {
     a_params->type = DAP_CHAIN_DATUM_TOKEN_TYPE_DECL;
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-H", &a_params->hash_out_type);
@@ -4085,7 +4082,7 @@ static int s_parse_common_token_decl_arg(int a_argc, char ** a_argv, char ** a_s
     return 0;
 }
 
-static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, char ** a_str_reply, dap_sdk_cli_params* a_params)
+static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, void **a_str_reply, dap_sdk_cli_params* a_params)
 {
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-flags", &a_params->ext.flags);
     dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-total_signs_valid", &a_params->ext.total_signs_valid);
@@ -4194,7 +4191,7 @@ static int s_parse_additional_token_decl_arg(int a_argc, char ** a_argv, char **
     return 0;
 }
 
-static int s_token_decl_check_params(int a_argc, char **a_argv, char **a_str_reply, dap_sdk_cli_params *a_params, bool a_update_token)
+static int s_token_decl_check_params(int a_argc, char **a_argv, void **a_str_reply, dap_sdk_cli_params *a_params, bool a_update_token)
 {
     int l_parse_params = s_parse_common_token_decl_arg(a_argc,a_argv,a_str_reply,a_params, a_update_token);
     if (l_parse_params)
@@ -4293,9 +4290,8 @@ static int s_token_decl_check_params(int a_argc, char **a_argv, char **a_str_rep
     "\t -tx_sender_blocked <value>:\t Blocked tx sender(s)\n"
     "\n"
  */
-int com_token_decl(int a_argc, char ** a_argv, void ** reply)
+int com_token_decl(int a_argc, char ** a_argv, void **a_str_reply)
 {
-    char ** a_str_reply = (char **) reply;
     const char * l_ticker = NULL;
     uint256_t l_total_supply = {}; // 256
     uint16_t l_signs_emission = 0;
@@ -4630,9 +4626,8 @@ int com_token_decl(int a_argc, char ** a_argv, void ** reply)
     "\t -tx_sender_blocked_remove <value>:\t Remove tx sender(s) from blocked\n"
     "\n"
  */
-int com_token_update(int a_argc, char ** a_argv, void ** reply)
+int com_token_update(int a_argc, char ** a_argv, void **a_str_reply)
 {
-    char ** a_str_reply = (char **) reply;
     const char * l_ticker = NULL;
     uint256_t l_total_supply = {}; // 256
     uint16_t l_signs_emission = 0;
@@ -4797,9 +4792,8 @@ int com_token_update(int a_argc, char ** a_argv, void ** reply)
  * @param str_reply
  * @return
  */
-int com_token_emit(int a_argc, char **a_argv, void **reply)
+int com_token_emit(int a_argc, char **a_argv, void **a_str_reply)
 {
-    char ** a_str_reply = (char **) reply;
     int arg_index = 1;
     const char *str_tmp = NULL;
     //const char *str_fee = NULL;
@@ -4996,9 +4990,8 @@ int com_token_emit(int a_argc, char **a_argv, void **reply)
  * @param a_str_reply
  * @return int
  */
-int com_tx_cond_create(int a_argc, char ** a_argv, void **reply)
+int com_tx_cond_create(int a_argc, char ** a_argv, void **a_str_reply)
 {
-    char ** a_str_reply = (char **) reply;
     (void) a_argc;
     int arg_index = 1;
     const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
@@ -5164,9 +5157,9 @@ typedef enum cmd_mempool_add_ca_error_list{
  * @param a_str_reply
  * @return
  */
-int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t *a_cert, void ** reply)
+int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t *a_cert, void **a_str_reply)
 {
-    json_object ** a_json_reply = (json_object **) reply;
+    json_object **a_json_reply = (json_object **)a_str_reply;
     if (!a_net || !a_chain || !a_cert){
         dap_json_rpc_error_add(COM_MEMPOOL_ADD_CA_ERROR_NET_NOT_FOUND, "The network or certificate attribute was not passed.");
         return COM_MEMPOOL_ADD_CA_ERROR_NET_NOT_FOUND;
@@ -5256,7 +5249,7 @@ int _cmd_mempool_add_ca(dap_chain_net_t *a_net, dap_chain_t *a_chain, dap_cert_t
  * @param a_str_reply
  * @return
  */
-int com_chain_ca_copy( int a_argc,  char ** a_argv, void ** reply)
+int com_chain_ca_copy( int a_argc,  char ** a_argv, void **a_str_reply)
 {
     int l_argc = a_argc + 1;
     char **l_argv = DAP_NEW_Z_COUNT(char*, l_argc);
@@ -5264,7 +5257,7 @@ int com_chain_ca_copy( int a_argc,  char ** a_argv, void ** reply)
     l_argv[1] = "add_ca";
     for (int i = 1; i < a_argc; i++)
         l_argv[i + 1] = a_argv[i];
-    int ret = com_mempool(l_argc, l_argv, reply);
+    int ret = com_mempool(l_argc, l_argv, a_str_reply);
     DAP_DEL_Z(l_argv);
     return ret;
 }
@@ -5279,9 +5272,8 @@ int com_chain_ca_copy( int a_argc,  char ** a_argv, void ** reply)
  * @param a_str_reply
  * @return
  */
-int com_chain_ca_pub( int a_argc,  char ** a_argv, void ** reply)
+int com_chain_ca_pub( int a_argc,  char ** a_argv, void **a_str_reply)
 {
-    char ** a_str_reply = (char **) reply;
     int arg_index = 1;
     // Read params
     const char * l_ca_name = NULL;
@@ -5489,9 +5481,8 @@ static dap_pkey_t* s_json_get_pkey(struct json_object *a_json)
  * @param str_reply
  * @return int
  */
-int com_tx_create_json(int a_argc, char ** a_argv, void ** reply)
+int com_tx_create_json(int a_argc, char ** a_argv, void **a_str_reply)
 {
-    char** a_str_reply = (char **) reply;
     int l_arg_index = 1;
     int l_err_code = 0;
     const char *l_net_name = NULL; // optional parameter
@@ -6139,9 +6130,8 @@ int com_tx_create_json(int a_argc, char ** a_argv, void ** reply)
  * @param str_reply
  * @return int
  */
-int com_tx_create(int a_argc, char **a_argv, void **reply)
+int com_tx_create(int a_argc, char **a_argv, void **a_str_reply)
 {
-    char ** a_str_reply = (char **) reply;
     int arg_index = 1;
 //    int cmd_num = 1;
 //    const char *value_str = NULL;
@@ -6396,9 +6386,8 @@ int com_tx_create(int a_argc, char **a_argv, void **reply)
  * @param str_reply
  * @return int
  */
-int com_tx_verify(int a_argc, char **a_argv, void ** reply)
+int com_tx_verify(int a_argc, char **a_argv, void **a_str_reply)
 {
-    char ** a_str_reply = (char **) reply;
     const char * l_tx_hash_str = NULL;
     dap_chain_net_t * l_net = NULL;
     dap_chain_t * l_chain = NULL;
@@ -6453,9 +6442,9 @@ int com_tx_verify(int a_argc, char **a_argv, void ** reply)
  * @param a_str_reply
  * @return int
  */
-int com_tx_history(int a_argc, char ** a_argv, void ** reply)
+int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
 {
-    json_object ** json_arr_reply = (json_object **) reply;
+    json_object **json_arr_reply = (json_object **)a_str_reply;
     int arg_index = 1;
     const char *l_addr_base58 = NULL;
     const char *l_wallet_name = NULL;
@@ -6535,12 +6524,12 @@ int com_tx_history(int a_argc, char ** a_argv, void ** reply)
         } else
             l_net = dap_chain_net_by_id(l_addr->net_id);
     }
-    const char* l_sign_str = "";
     if (l_wallet_name) {
         const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
         dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
         if (l_wallet) {
-            l_sign_str = dap_chain_wallet_check_sign(l_wallet);
+            const char *l_sign_str = dap_chain_wallet_check_sign(l_wallet);
+            //TODO add warning about deprecated signs
             dap_chain_addr_t *l_addr_tmp = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
             if (l_addr) {
                 if (!dap_chain_addr_compare(l_addr, l_addr_tmp)) {
@@ -6635,9 +6624,8 @@ int com_tx_history(int a_argc, char ** a_argv, void ** reply)
  * @param str_reply
  * @return int
  */
-int com_stats(int argc, char **a_argv, void ** reply)
+int com_stats(int argc, char **a_argv, void **a_str_reply)
 {
-    char ** a_str_reply = (char **) reply;
     enum {
         CMD_NONE, CMD_STATS_CPU
     };
@@ -6694,9 +6682,8 @@ int com_stats(int argc, char **a_argv, void ** reply)
  * @param str_reply
  * @return int
  */
-int com_exit(int a_argc, char **a_argv, void ** reply)
+int com_exit(int a_argc, char **a_argv, void **a_str_reply)
 {
-    char ** a_str_reply = (char **) reply;
     UNUSED(a_argc);
     UNUSED(a_argv);
     UNUSED(a_str_reply);
@@ -6715,9 +6702,8 @@ int com_exit(int a_argc, char **a_argv, void ** reply)
  * @param str_reply
  * @return int
  */
-int com_print_log(int a_argc, char **a_argv, void ** reply)
+int com_print_log(int a_argc, char **a_argv, void **a_str_reply)
 {
-    char ** a_str_reply = (char **) reply;
     int arg_index = 1;
     const char * l_str_ts_after = NULL;
     const char * l_str_limit = NULL;
@@ -6758,9 +6744,8 @@ int com_print_log(int a_argc, char **a_argv, void ** reply)
  * @param a_str_reply
  * @return
  */
-int cmd_gdb_export(int a_argc, char **a_argv, void ** reply)
+int cmd_gdb_export(int a_argc, char **a_argv, void **a_str_reply)
 {
-    char ** a_str_reply = (char **) reply;
     int arg_index = 1;
     const char *l_filename = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "filename", &l_filename);
@@ -6866,9 +6851,8 @@ int cmd_gdb_export(int a_argc, char **a_argv, void ** reply)
  * @param a_str_reply
  * @return
  */
-int cmd_gdb_import(int a_argc, char **a_argv, void ** reply)
+int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply)
 {
-    char ** a_str_reply = (char **) reply;
     int arg_index = 1;
     const char *l_filename = NULL;
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "filename", &l_filename);
@@ -6970,9 +6954,8 @@ typedef struct _pvt_net_aliases_list{
     size_t count_nodes;
 }_pvt_net_aliases_list_t;
 
-int cmd_remove(int a_argc, char **a_argv, void ** reply)
+int cmd_remove(int a_argc, char **a_argv, void **a_str_reply)
 {
-    char ** a_str_reply = (char **) reply;
     //default init
     const char		*return_message	=	NULL;
     const char		*l_gdb_path		=	NULL;
@@ -7137,8 +7120,8 @@ typedef enum {
 
 static int s_sign_file(const char *a_filename, dap_sign_signer_file_t a_flags, const char *a_cert_name,
                        dap_sign_t **a_signed, dap_chain_hash_fast_t *a_hash);
-static int s_signer_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str_reply);
-static int s_check_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str_reply);
+static int s_signer_cmd(int a_arg_index, int a_argc, char **a_argv, void **a_str_reply);
+static int s_check_cmd(int a_arg_index, int a_argc, char **a_argv, void **a_str_reply);
 struct opts {
     char *name;
     uint32_t cmd;
@@ -7146,9 +7129,8 @@ struct opts {
 
 #define BUILD_BUG(condition) ((void)sizeof(char[1-2*!!(condition)]))
 
-int com_signer(int a_argc, char **a_argv, void **reply)
+int com_signer(int a_argc, char **a_argv, void **a_str_reply)
 {
-    char ** a_str_reply = (char **) reply;
     enum {
         CMD_NONE, CMD_SIGN, CMD_CHECK
     };
@@ -7187,7 +7169,7 @@ int com_signer(int a_argc, char **a_argv, void **reply)
 
 static int s_get_key_from_file(const char *a_file, const char *a_mime, const char *a_cert_name, dap_sign_t **a_sign);
 
-static int s_check_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str_reply)
+static int s_check_cmd(int a_arg_index, int a_argc, char **a_argv, void **a_str_reply)
 {
     int l_ret = 0;
 
@@ -7421,7 +7403,7 @@ static int s_get_key_from_file(const char *a_file, const char *a_mime, const cha
     return l_ret;
 }
 
-static int s_signer_cmd(int a_arg_index, int a_argc, char **a_argv, char **a_str_reply)
+static int s_signer_cmd(int a_arg_index, int a_argc, char **a_argv, void **a_str_reply)
 {
     enum {
         OPT_FILE, OPT_MIME, OPT_NET, OPT_CHAIN, OPT_CERT,

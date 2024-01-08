@@ -131,7 +131,7 @@ static void s_chain_callback_datum_iter_delete(dap_chain_datum_iter_t *a_datum_i
 static dap_chain_datum_t *s_chain_callback_datum_iter_get_first(dap_chain_datum_iter_t *a_datum_iter); // Get the fisrt datum from dag
 static dap_chain_datum_t *s_chain_callback_datum_iter_get_next(dap_chain_datum_iter_t *a_datum_iter); // Get the next datum from dag
 
-static int s_cli_dag(int argc, char ** argv, void **reply);
+static int s_cli_dag(int argc, char ** argv, void **a_str_reply);
 void s_dag_events_lasts_process_new_last_event(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_item_t * a_event_item);
 
 static size_t s_dap_chain_callback_get_count_tx(dap_chain_t *a_chain);
@@ -1436,9 +1436,8 @@ static dap_chain_datum_t *s_chain_callback_datum_iter_get_next(dap_chain_datum_i
  * @param str_reply
  * @return
  */
-static int s_cli_dag(int argc, char ** argv, void **reply)
+static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
 {
-    char ** a_str_reply = (char **) reply;
     enum {
         SUBCMD_EVENT_CREATE,
         SUBCMD_EVENT_CANCEL,
