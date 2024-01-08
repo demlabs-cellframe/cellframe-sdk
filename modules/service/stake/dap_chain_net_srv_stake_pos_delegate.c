@@ -329,7 +329,7 @@ int dap_chain_net_srv_stake_verify_key_and_node(dap_chain_addr_t *a_signing_addr
         log_it(L_WARNING, "Bad srv_stake_verify arguments");
         return -100;
     }
-
+return 0; //TODO rmv
     dap_chain_net_srv_stake_item_t *l_stake = NULL, *l_tmp = NULL;
     HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp){
         //check key not activated for other node
@@ -1942,7 +1942,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **reply)
 
             // Create conditional transaction
             dap_chain_datum_tx_t *l_tx = s_stake_tx_create(l_net, l_wallet, l_value, l_fee, &l_signing_addr, &l_node_addr,
-                                                           &l_sovereign_addr, l_sovereign_tax);
+                                                           l_order_hash_str ? &l_sovereign_addr : NULL, l_sovereign_tax);
             dap_chain_wallet_close(l_wallet);
             if (!l_tx || !s_stake_tx_put(l_tx, l_net)) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Stake transaction error");
