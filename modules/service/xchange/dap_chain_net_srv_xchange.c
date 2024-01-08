@@ -2526,3 +2526,32 @@ int dap_chain_net_srv_xchange_create(dap_chain_net_t *a_net, const char *a_token
     *a_out_tx_hash = l_ret;
     return XCHANGE_CREATE_ERROR_OK;
 }
+
+int dap_chain_net_srv_xchange_remove(dap_chain_net_t *a_net, dap_hash_fast_t *a_hash_tx, uint256_t a_fee,
+                                     dap_chain_wallet_t *a_wallet, char **a_out_hash_tx) {
+    if (!a_net || !a_hash_tx || !a_wallet) {
+        return XCHANGE_REMOVE_ERROR_INVALID_ARGUMENT;
+    }
+//    const char* l_sign_str = dap_chain_wallet_check_bliss_sign(a_wallet);
+    if(IS_ZERO_256(a_fee)){
+//        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't get fee value.");
+        return XCHANGE_REMOVE_ERROR_FEE_IS_ZERO;
+    }
+//    dap_hash_fast_t l_tx_hash = {};
+    dap_chain_datum_tx_t *l_cond_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, a_hash_tx);
+    if (!l_cond_tx) {
+//        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nSpecified order not found", l_sign_str);
+        return XCHANGE_REMOVE_ERROR_CAN_NOT_FIND_TX;
+    }
+    dap_chain_net_srv_xchange_price_t *l_price = s_xchange_price_from_order(a_net, l_cond_tx, &a_fee, false);
+    if (!l_price) {
+//        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nCan't create price object from order", l_sign_str);
+        return XCHANGE_REMOVE_ERROR_CAN_NOT_CREATE_PRICE;
+    }
+    char*  l_ret = s_xchange_tx_invalidate(l_price, a_wallet);
+    if (!l_ret){
+        return XCHANGE_REMOVE_ERROR_CAN_NOT_INVALIDATE_TX;
+    }
+    *a_out_hash_tx = l_ret;
+    return XCHANGE_REMOVE_ERROR_OK;
+}

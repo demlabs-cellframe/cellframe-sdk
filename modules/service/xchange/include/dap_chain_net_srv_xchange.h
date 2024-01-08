@@ -82,5 +82,16 @@ int dap_chain_net_srv_xchange_create(dap_chain_net_t *a_net, const char *a_token
                                                   uint256_t a_rate, uint256_t a_fee, dap_chain_wallet_t *a_wallet,
                                                   char **a_out_tx_hash);
 
+enum dap_chain_net_srv_xchange_remove_error_list{
+    XCHANGE_REMOVE_ERROR_OK = 0,
+    XCHANGE_REMOVE_ERROR_INVALID_ARGUMENT,
+    XCHANGE_REMOVE_ERROR_FEE_IS_ZERO,
+    XCHANGE_REMOVE_ERROR_CAN_NOT_FIND_TX,
+    XCHANGE_REMOVE_ERROR_CAN_NOT_CREATE_PRICE,
+    XCHANGE_REMOVE_ERROR_CAN_NOT_INVALIDATE_TX
+};
+int dap_chain_net_srv_xchange_remove(dap_chain_net_t *a_net, dap_hash_fast_t *a_hash_tx, uint256_t a_fee,
+                                     dap_chain_wallet_t *a_wallet, char **a_out_hash_tx);
+
 dap_list_t *dap_chain_net_srv_xchange_get_tx_xchange(dap_chain_net_t *a_net);
 dap_list_t *dap_chain_net_srv_xchange_get_prices(dap_chain_net_t *a_net);
