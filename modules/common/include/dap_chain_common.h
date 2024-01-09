@@ -199,13 +199,13 @@ typedef uint32_t dap_chain_srv_unit_enum_t;
 DAP_STATIC_INLINE const char *dap_chain_srv_unit_enum_to_str(dap_chain_srv_unit_enum_t a_unit_enum)
 {
     switch (a_unit_enum) {
-    case SERV_UNIT_UNDEFINED: return "SERV_UNIT_UNDEFINED";
-    case SERV_UNIT_MB: return "SERV_UNIT_MB";
-    case SERV_UNIT_SEC: return "SERV_UNIT_SEC";
-    case SERV_UNIT_DAY: return "SERV_UNIT_DAY";
-    case SERV_UNIT_KB: return "SERV_UNIT_KB";
-    case SERV_UNIT_B: return "SERV_UNIT_B";
-    case SERV_UNIT_PCS: return "SERV_UNIT_PCS";
+    case SERV_UNIT_UNDEFINED: return "UNDEFINED";
+    case SERV_UNIT_MB: return "MB";
+    case SERV_UNIT_SEC: return "SEC";
+    case SERV_UNIT_DAY: return "DAY";
+    case SERV_UNIT_KB: return "KB";
+    case SERV_UNIT_B: return "B";
+    case SERV_UNIT_PCS: return "PCS";
     default: return "UNDEFINED";
     }
 }

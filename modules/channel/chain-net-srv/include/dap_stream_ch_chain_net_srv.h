@@ -59,3 +59,4 @@ typedef struct dap_stream_ch_chain_net_srv {
 int dap_stream_ch_chain_net_srv_init(dap_chain_net_srv_t *a_srv);
 
 void dap_stream_ch_chain_net_srv_tx_cond_added_cb(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
+char *dap_stream_ch_chain_net_srv_create_statistic_report();
