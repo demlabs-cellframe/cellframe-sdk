@@ -536,7 +536,7 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx,
                                                   DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_prev_cond_idx);
     if (!l_tx_out_cond) {
-        log_it(L_WARNING, "Requested conditional transaction has no requires conditional output");
+        log_it(L_CRITICAL, "Requested conditional transaction has no requires conditional output");
         return NULL;
     }
     dap_hash_fast_t l_spender_hash = { };
@@ -704,7 +704,7 @@ static dap_chain_datum_tx_t *s_stake_tx_invalidate(dap_chain_net_t *a_net, dap_h
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx,
                                                   DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_prev_cond_idx);
     if (!l_tx_out_cond) {
-        log_it(L_WARNING, "Requested conditional transaction has no requires conditional output");
+        log_it(L_CRITICAL, "Requested conditional transaction has no requires conditional output");
         return NULL;
     }
     dap_hash_fast_t l_spender_hash = { };
@@ -809,7 +809,7 @@ static dap_chain_datum_decree_t *s_stake_decree_invalidate(dap_chain_net_t *a_ne
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx,
                                                   DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_prev_cond_idx);
     if (!l_tx_out_cond) {
-        log_it(L_WARNING, "Requested conditional transaction has no requires conditional output");
+        log_it(L_CRITICAL, "Requested conditional transaction has no requires conditional output");
         return NULL;
     }
 
@@ -1704,6 +1704,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             DAP_DELETE(l_decree);
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Approve decree %s successfully created",
                                               l_decree_hash_str);
+
             DAP_DELETE(l_decree_hash_str);
         } break;
         case CMD_LIST: {
