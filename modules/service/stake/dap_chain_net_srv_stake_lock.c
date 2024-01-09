@@ -1199,24 +1199,8 @@ dap_chain_datum_t *s_stake_unlock_datum_create(dap_chain_net_t *a_net, dap_enc_k
                 *result = -2;
             }
         } else if (compare256(a_value, l_total_fee) == -1) {
-            uint256_t l_fee_part;
-            SUBTRACT_256_256(l_total_fee, a_value, &l_fee_part);
-            l_list_fee_out = dap_ledger_get_list_tx_outs_with_val(a_net->pub.ledger, l_native_ticker,
-                                                                    &l_addr, l_fee_part, &l_fee_transfer);
-            char *l_total = dap_chain_balance_to_coins(!IS_ZERO_256(l_total_fee) ? l_total_fee : uint256_0);
-            char *l_value = dap_chain_balance_to_coins(a_value);
-            char *l_sub = dap_chain_balance_to_coins(l_fee_part);
-            char *l_transf = dap_chain_balance_to_coins(l_fee_part);
-            log_it(L_WARNING, "Total fee more than stake, total - (%s), stake - (%s), sub - (%s), transf - (%s) ",
-                                                            l_total, l_value, l_sub, l_transf);
-            DAP_DELETE(l_total);
-            DAP_DELETE(l_value);
-            DAP_DELETE(l_sub);
-            DAP_DELETE(l_transf);
-            if (!l_list_fee_out) {
-                log_it(L_WARNING, "Not enough funds to pay fee");
-                *result = -3;
-            }
+            log_it(L_WARNING, "Total fee more than stake");
+            *result = -3;
         }
     }
     if (!IS_ZERO_256(a_delegated_value)) {
