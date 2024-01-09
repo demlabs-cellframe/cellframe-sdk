@@ -82,21 +82,14 @@ size_t dap_chain_hash_slow_to_str( dap_chain_hash_slow_t *a_hash, char *a_str, s
  * @param a_addr
  * @return
  */
-char* dap_chain_addr_to_str(const dap_chain_addr_t *a_addr)
+char *dap_chain_addr_to_str(const dap_chain_addr_t *a_addr)
 {
-    if ( a_addr ==NULL)
-        return  NULL;
-
+// sanity check
+    dap_return_val_if_pass(!a_addr, NULL);
+// func work
     if (dap_chain_addr_is_blank(a_addr)) return dap_strdup("null");
 
-    size_t l_ret_size = DAP_ENC_BASE58_ENCODE_SIZE(sizeof(dap_chain_addr_t));
-    char * l_ret = DAP_NEW_SIZE(char, l_ret_size);
-    if(dap_enc_base58_encode(a_addr, sizeof(dap_chain_addr_t), l_ret) > 0)
-        return l_ret;
-    else {
-        DAP_DELETE(l_ret);
-        return NULL;
-    }
+    return dap_enc_base58_encode_to_str((const void *)a_addr, sizeof(dap_chain_addr_t));
 }
 
 /**

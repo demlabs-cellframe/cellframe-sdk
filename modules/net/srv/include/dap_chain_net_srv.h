@@ -33,6 +33,8 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_stream_ch.h"
 #include "dap_time.h"
 
+#define DAP_CHAIN_NET_SRV_GRACE_PERIOD_DEFAULT 60
+
 //Service direction
 enum dap_chain_net_srv_order_direction{
     SERV_DIR_BUY = 1,
@@ -115,12 +117,14 @@ typedef struct dap_chain_net_srv_price
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ENOUGH         0x00000402
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NOT_ACCEPT_TOKEN   0x00000403
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_WRONG_SRV_UID      0x00000404
-#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_WRONG_SIZE                 0x00000405
-#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_BIG_SIZE                   0x00000406
+#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_TX_COND_NO_NEW_COND        0x00000405
+#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_WRONG_SIZE                 0x00000406
+#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_BIG_SIZE                   0x00000407
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_CANT_FIND          0x00000500
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_NO_SIGN            0x00000501
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_WRONG_PKEY_HASH    0x00000502
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_BANNED_PKEY_HASH   0x00000503
+#define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_RECEIPT_IS_NOT_PRESENT     0x00000504
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_PRICE_NOT_FOUND            0x00000600
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_WRONG_HASH                 0x00000BAD
 #define DAP_STREAM_CH_CHAIN_NET_SRV_PKT_TYPE_RESPONSE_ERROR_CODE_ALLOC_MEMORY_ERROR         0x00BADA55
@@ -254,6 +258,12 @@ typedef struct dap_chain_net_srv_callbacks {
     dap_chain_net_srv_callback_ch_t stream_ch_write;
 } dap_chain_net_srv_callbacks_t;
 
+typedef struct dap_chain_net_srv_grace_usage {
+    dap_hash_fast_t tx_cond_hash;
+    dap_chain_net_srv_grace_t *grace;
+    UT_hash_handle hh;
+} dap_chain_net_srv_grace_usage_t;
+
 typedef struct dap_chain_net_srv
 {
     dap_chain_net_srv_uid_t uid; // Unique ID for service.
@@ -266,6 +276,9 @@ typedef struct dap_chain_net_srv
     dap_chain_net_srv_banlist_item_t *ban_list;
 
     dap_chain_net_srv_callbacks_t callbacks;
+
+    dap_chain_net_srv_grace_usage_t *grace_hash_tab;
+    pthread_mutex_t grace_mutex;
 
     // Pointer to inheritor object
     void *_inheritor;

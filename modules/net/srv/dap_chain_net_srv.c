@@ -92,7 +92,6 @@ int dap_chain_net_srv_init()
 {
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, s_pay_verificator_callback, NULL);
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, s_fee_verificator_callback, NULL);
-    dap_stream_ch_chain_net_srv_init();
 
     dap_cli_server_cmd_add ("net_srv", s_cli_net_srv, "Network services managment",
         "net_srv -net <net_name> order find [-direction {sell | buy}] [-srv_uid <service_UID>] [-price_unit <price_unit>]"
@@ -106,7 +105,9 @@ int dap_chain_net_srv_init()
         " -price_unit <Price Unit> -price_token <token_ticker> -units <units> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>]\n"
         " [-expires <Unix time when expires>] [-cert <cert name to sign order>]\n"
         " [{-ext <Extension with params> | -region <Region name> -continent <Continent name>}]\n"
-        "net_srv get_limits -net <net_name> -srv_uid <Service_UID> -provider_pkey_hash <Service_provider_public_key_hash> -client_pkey_hash <Client_public_key_hash>"
+        "net_srv get_limits -net <net_name> -srv_uid <Service_UID> -provider_pkey_hash <Service_provider_public_key_hash> -client_pkey_hash <Client_public_key_hash>\n"
+        "net_srv report\n"
+        "\tGet report about srv usage"
 #ifdef DAP_MODULES_DYNAMIC
         "\tOrder create\n"
             "net_srv -net <net_name> order static [save | delete]\n"
@@ -201,6 +202,15 @@ static int s_cli_net_srv( int argc, char **argv, void **reply)
         return -1;
     }
 
+
+    int l_report = dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "report", NULL);
+    if (l_report) {
+        const char *l_report_str = dap_stream_ch_chain_net_srv_create_statistic_report();
+        dap_cli_server_cmd_set_reply_text(a_str_reply, l_report_str);
+        DAP_DEL_Z(l_report_str);
+        return 0;
+    }
+
     int l_ret = dap_chain_node_cli_cmd_values_parse_net_chain( &arg_index, argc, argv, a_str_reply, NULL, &l_net );
     if ( l_net ) {
         //char * l_orders_group = dap_chain_net_srv_order_get_gdb_group( l_net );
@@ -247,6 +257,7 @@ static int s_cli_net_srv( int argc, char **argv, void **reply)
 
         const char* l_region_str = NULL;
         dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-region", &l_region_str);
+    
         const char* l_continent_str = NULL;
         dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-continent", &l_continent_str);
 
@@ -386,21 +397,7 @@ static int s_cli_net_srv( int argc, char **argv, void **reply)
                 if ( l_price_max_str )
                     l_price_max = dap_chain_balance_scan(l_price_max_str);
 
-                if (l_price_unit_str){
-                    if (!dap_strcmp(l_price_unit_str, "MB")){
-                        l_price_unit.uint32 = SERV_UNIT_MB;
-                    } else if (!dap_strcmp(l_price_unit_str, "SEC")){
-                        l_price_unit.uint32 = SERV_UNIT_SEC;
-                    } else if (!dap_strcmp(l_price_unit_str, "DAY")){
-                        l_price_unit.uint32 = SERV_UNIT_DAY;
-                    } else if (!dap_strcmp(l_price_unit_str, "KB")){
-                        l_price_unit.uint32 = SERV_UNIT_KB;
-                    } else if (!dap_strcmp(l_price_unit_str, "B")){
-                        l_price_unit.uint32 = SERV_UNIT_B;
-                    } else if (!dap_strcmp(l_price_unit_str, "PCS")){
-                        l_price_unit.uint32 = SERV_UNIT_PCS;
-                    }
-                }
+                l_price_unit.uint32 = dap_chain_srv_str_to_unit_enum(l_price_unit_str);
 
                 dap_chain_net_srv_order_t * l_orders;
                 size_t l_orders_num = 0;
@@ -1019,7 +1016,8 @@ dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net
     return l_price;
 }
 
-int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, const char *a_config_section){
+int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, const char *a_config_section)
+{
     const char *l_wallet_addr = dap_config_get_item_str_default(g_config, a_config_section, "wallet_addr", NULL);
     const char *l_cert_name = dap_config_get_item_str_default(g_config, a_config_section, "receipt_sign_cert", NULL);
     const char *l_net_name = dap_config_get_item_str_default(g_config, a_config_section, "net", NULL);
@@ -1041,7 +1039,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
         log_it(L_CRITICAL, "Can't find net %s. Check node configuration file.", l_net_name);
         return -4;
     }
-    a_srv->grace_period = dap_config_get_item_uint32_default(g_config, a_config_section, "grace_period", 60);
+    a_srv->grace_period = dap_config_get_item_uint32_default(g_config, a_config_section, "grace_period", DAP_CHAIN_NET_SRV_GRACE_PERIOD_DEFAULT);
     a_srv->allow_free_srv = dap_config_get_item_bool_default(g_config, a_config_section, "allow_free_srv", false);
     dap_chain_node_addr_t *l_node_addr = NULL;
     l_node_addr = dap_chain_net_get_cur_addr(l_net);
@@ -1153,7 +1151,7 @@ int dap_chain_net_srv_parse_pricelist(dap_chain_net_srv_t *a_srv, const char *a_
     int ret = 0;
     if (!a_config_section)
         return ret;
-    a_srv->grace_period = dap_config_get_item_uint32_default(g_config, a_config_section, "grace_period", 60);
+    a_srv->grace_period = dap_config_get_item_uint32_default(g_config, a_config_section, "grace_period", DAP_CHAIN_NET_SRV_GRACE_PERIOD_DEFAULT);
     uint16_t l_pricelist_count = 0;
     char **l_pricelist = dap_config_get_array_str(g_config, a_config_section, "pricelist", &l_pricelist_count);
     for (uint16_t i = 0; i < l_pricelist_count; i++) {
@@ -1276,6 +1274,7 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
         }
 //        dap_chain_net_srv_parse_pricelist(l_srv, a_config_section);
         HASH_ADD(hh, s_srv_list, uid, sizeof(l_srv->uid), l_sdata);
+        dap_stream_ch_chain_net_srv_init(l_srv);
         if (l_srv->pricelist)
             dap_ledger_tx_add_notify(l_srv->pricelist->net->pub.ledger, dap_stream_ch_chain_net_srv_tx_cond_added_cb, NULL);
     }else{
@@ -1289,14 +1288,26 @@ dap_chain_net_srv_t* dap_chain_net_srv_add(dap_chain_net_srv_uid_t a_uid,
  * @brief dap_chain_net_srv_del
  * @param a_srv
  */
-void dap_chain_net_srv_del(dap_chain_net_srv_t * a_srv)
+void dap_chain_net_srv_del(dap_chain_net_srv_t *a_srv)
 {
+// sanity check
+    dap_return_if_pass(!a_srv);
+// func work
     service_list_t *l_sdata;
-    if(!a_srv)
-        return;
+    // delete srv from hash table
     pthread_mutex_lock(&s_srv_list_mutex);
     HASH_FIND(hh, s_srv_list, a_srv, sizeof(dap_chain_net_srv_uid_t), l_sdata);
     if(l_sdata) {
+        // grace table clean
+        dap_chain_net_srv_grace_usage_t *l_gdata, *l_gdata_tmp;
+        pthread_mutex_lock(&a_srv->grace_mutex);
+        HASH_ITER(hh, a_srv->grace_hash_tab, l_gdata, l_gdata_tmp)
+        {
+            HASH_DEL(a_srv->grace_hash_tab, l_gdata);
+            DAP_DELETE(l_gdata);
+        } 
+        pthread_mutex_unlock(&a_srv->grace_mutex);
+
         HASH_DEL(s_srv_list, l_sdata);
         pthread_mutex_destroy(&a_srv->banlist_mutex);
         DAP_DELETE(a_srv);
@@ -1375,7 +1386,7 @@ void dap_chain_net_srv_del_all(void)
  * @param a_uid
  * @return
  */
-dap_chain_net_srv_t * dap_chain_net_srv_get(dap_chain_net_srv_uid_t a_uid)
+dap_chain_net_srv_t *dap_chain_net_srv_get(dap_chain_net_srv_uid_t a_uid)
 {
     service_list_t *l_sdata = NULL;
     pthread_mutex_lock(&s_srv_list_mutex);

@@ -356,6 +356,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                         uint256_t l_price_min = {};
                         uint256_t l_price_max = {};
                         uint8_t flags = 0;
+                        dap_chain_node_addr_t l_cur_node_addr = { 0 };
+                        l_cur_node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
 
                         if(enc_key_pvt)
                         {
@@ -383,7 +385,18 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
                         dap_chain_net_srv_order_find_all_by(l_net,SERV_DIR_UNDEFINED,l_uid,
                                                            l_price_unit,NULL,l_price_min,l_price_max,&l_orders,&l_orders_num);
-                        flags = l_orders_num ? flags | F_ORDR : flags & ~F_ORDR;
+                        size_t l_orders_size = 0;
+                        for (size_t i = 0; i< l_orders_num; i++){
+                            dap_chain_net_srv_order_t *l_order =(dap_chain_net_srv_order_t *) (((byte_t*) l_orders) + l_orders_size);
+                            l_orders_size += dap_chain_net_srv_order_get_size(l_order);
+                            if(l_order->node_addr.uint64 == l_cur_node_addr.uint64)
+                            {
+                                flags = flags | F_ORDR;
+                                break;
+                            }
+                        }
+                        if (l_orders_num)
+                            DAP_DELETE(l_orders);
                         bool auto_online = dap_config_get_item_bool_default( g_config, "general", "auto_online", false );
                         bool auto_update = false;
                         if((system("systemctl status cellframe-updater.service") == 768) && (system("systemctl status cellframe-updater.timer") == 0))

@@ -249,6 +249,7 @@ static bool s_tun_client_send_data_unsafe(dap_chain_net_srv_ch_vpn_t * l_ch_vpn,
     size_t l_data_sent = dap_stream_ch_pkt_write_unsafe(l_ch_vpn->ch, DAP_STREAM_CH_PKT_TYPE_NET_SRV_VPN_DATA, l_pkt_out, l_data_to_send);
     s_update_limits(l_ch_vpn->ch,l_srv_session,l_usage, l_data_sent);
     l_srv_session->stats.bytes_recv += l_data_sent;
+    l_usage->client->bytes_received += l_data_sent;
     if ( l_data_sent < l_data_to_send){
         log_it(L_WARNING, "Wasn't sent all the data in tunnel (%zd was sent from %zd): probably buffer overflow", l_data_sent, l_data_to_send);
         l_srv_session->stats.bytes_recv_lost += l_data_to_send - l_data_sent;
@@ -282,6 +283,7 @@ static bool s_tun_client_send_data_inter(dap_events_socket_t * a_es_input, dap_c
         return false;
     }else{
         l_srv_session->stats.bytes_recv += l_data_sent;
+        l_usage->client->bytes_received += l_data_sent;
         l_srv_session->stats.packets_recv++;
         return true;
     }
@@ -774,6 +776,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
             l_err = -100;
             break;
         }
+
         log_it(L_DEBUG,"Opening /dev/net/tun:%u", i);
         if( (l_err = ioctl(l_tun_fd, TUNSETIFF, (void *)& s_raw_server->ifr)) < 0 ) {
             log_it(L_CRITICAL, "ioctl(TUNSETIFF) error: '%s' ",strerror(errno));
@@ -783,10 +786,10 @@ static int s_vpn_tun_create(dap_config_t * g_config)
         s_tun_deattach_queue(l_tun_fd);
         s_raw_server->tun_device_name = strdup(s_raw_server->ifr.ifr_name);
         s_raw_server->tun_fd = l_tun_fd;
-
 #elif !defined (DAP_OS_DARWIN)
 #error "Undefined tun interface attach for your platform"
 #endif
+
         s_tun_event_stream_create(l_worker, l_tun_fd);
     }
     if (l_err) {
@@ -901,7 +904,7 @@ int dap_chain_net_srv_vpn_init(dap_config_t * g_config) {
     s_vpn_tun_init();
 
     log_it(L_DEBUG,"Initializing TUN driver...");
-    if(s_vpn_tun_create(g_config) != 0){
+    if(s_vpn_tun_create(g_config)){
         log_it(L_CRITICAL, "Error initializing TUN device driver!");
         dap_chain_net_srv_vpn_deinit();
         return -1;
@@ -1840,6 +1843,7 @@ void s_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                 size_t l_ret = dap_events_socket_write_unsafe(l_tun->es, l_vpn_pkt,
                     sizeof(l_vpn_pkt->header) + l_vpn_pkt->header.op_data.data_size) - sizeof(l_vpn_pkt->header);
                 l_srv_session->stats.bytes_sent += l_ret;
+                l_usage->client->bytes_sent += l_ret;
                 s_update_limits(a_ch, l_srv_session, l_usage, l_ret);
                 if (l_ret == l_vpn_pkt->header.op_data.data_size) {
                     l_srv_session->stats.packets_sent++;
