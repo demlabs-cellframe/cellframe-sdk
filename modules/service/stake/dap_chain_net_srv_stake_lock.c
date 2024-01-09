@@ -264,8 +264,6 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
 
 
     l_time_staking = dap_time_from_str_simplified(l_time_staking_str);
-    if (0 == l_time_staking)
-        return TIME_ERROR;
     dap_time_t l_time_now = dap_time_now();
     if (l_time_staking < l_time_now)
         return TIME_ERROR;

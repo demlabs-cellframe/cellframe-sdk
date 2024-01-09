@@ -317,6 +317,11 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
         json_object_put(json_obj_datum);
         return NULL;
     }
+    dap_chain_addr_t  l_net_fee_addr = {};
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(l_net->pub.id, NULL, &l_net_fee_addr);
+    char *l_corr_str = NULL;
+    uint256_t l_corr_value = {}, l_unstake_value = {};
+    bool l_is_unstake = false;
     // load transactions
     dap_chain_datum_iter_t *l_datum_iter = a_chain->callback_datum_iter_create(a_chain);
 
@@ -336,8 +341,6 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
         dap_chain_addr_t *l_src_addr = NULL;
         bool l_base_tx = false, l_reward_collect = false;
         const char *l_noaddr_token = NULL;
-        uint256_t l_value_in = {};
-        bool is_stake_lock = false;
         dap_hash_fast_t l_tx_hash;
         dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
         const char *l_src_token = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_hash);
@@ -384,18 +387,20 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                     break;
                 case TX_ITEM_TYPE_OUT_EXT:
                     l_src_addr = &((dap_chain_tx_out_ext_t *)l_prev_out_union)->addr;
-                    if(dap_strcmp(l_src_token, ((dap_chain_tx_out_ext_t *)l_prev_out_union)->token) == 0){
-                        l_value_in = ((dap_chain_tx_out_ext_t *)l_prev_out_union)->header.value;
-                    }
                     break;
-                case TX_ITEM_TYPE_OUT_COND:
-                    l_src_subtype = ((dap_chain_tx_out_cond_t *)l_prev_out_union)->header.subtype;
-                    if (l_src_subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
+                case TX_ITEM_TYPE_OUT_COND: {
+                    dap_chain_tx_out_cond_t *l_cond_prev = (dap_chain_tx_out_cond_t *)l_prev_out_union;
+                    if (l_cond_prev->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
                         l_noaddr_token = l_native_ticker;
-                    else
+                    else {
+                        if (l_cond_prev->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK) {
+                            l_is_unstake = true;
+                            l_unstake_value = l_cond_prev->header.value;
+                        }
+                        l_src_subtype = ((dap_chain_tx_out_cond_t *)l_prev_out_union)->header.subtype;
                         l_noaddr_token = l_src_token;
-                    if(l_src_subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK)
-                        is_stake_lock = true;
+                    }
+                } break;
                 default:
                     break;
                 }
@@ -443,8 +448,9 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
             default:
                 break;
             }
-            if (l_src_addr && l_dst_addr && dap_chain_addr_compare(l_dst_addr, l_src_addr) &&
-                    dap_strcmp(l_dst_token, l_noaddr_token))
+            if (l_src_addr && l_dst_addr &&
+                    dap_chain_addr_compare(l_dst_addr, l_src_addr) &&
+                    dap_strcmp(l_noaddr_token, l_dst_token))
                 continue;   // sent to self (coinback)
             if (l_src_addr && dap_chain_addr_compare(l_src_addr, a_addr) &&
                     dap_strcmp(l_dst_token, l_noaddr_token)) {
@@ -485,16 +491,10 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                                       a_hash_out_type, l_ledger, &l_tx_hash, l_datum_iter->ret_code);
                     l_header_printed = true;
                 }
-                const char *l_src_addr_str = NULL, *l_src_str;
-                if (l_base_tx)
-                    l_src_str = l_reward_collect ? "reward collecting" : "emission";
-                else if (l_src_addr && dap_strcmp(l_dst_token, l_noaddr_token))
-                    l_src_str = l_src_addr_str = dap_chain_addr_to_str(l_src_addr);
-                else
-                    l_src_str = dap_chain_tx_out_cond_subtype_to_str(l_src_subtype);
-                if(is_stake_lock){
-                    SUBTRACT_256_256(l_value, l_value_in, &l_value);
-                }
+
+                const char *l_dst_addr_str = l_dst_addr ? dap_chain_addr_to_str(l_dst_addr)
+                                                        : dap_chain_tx_out_cond_subtype_to_str(
+                                                              ((dap_chain_tx_out_cond_t *)it->data)->header.subtype);
                 char *l_value_str = dap_chain_balance_print(l_value);
                 char *l_coins_str = dap_chain_balance_to_coins(l_value);
                 json_object * j_obj_data = json_object_new_object();
