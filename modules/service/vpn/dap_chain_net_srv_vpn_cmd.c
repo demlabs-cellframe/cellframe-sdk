@@ -31,7 +31,7 @@ static void add_value_text(dap_string_t *l_str, char *l_addstr, uintmax_t a_valu
  *
  * VPN statistics
  */
-int com_vpn_statistics(int a_argc, char ** a_argv, char **a_str_reply)
+int com_vpn_statistics(int a_argc, char ** a_argv, void **a_str_reply)
 {
     // get statistics for all actual sessions
     dap_list_t *l_sessions_list = dap_stream_session_get_list_sessions(), *l_item;
@@ -91,7 +91,7 @@ int com_vpn_statistics(int a_argc, char ** a_argv, char **a_str_reply)
  *
  * VPN client control
  */
-int com_vpn_client(int a_argc, char ** a_argv, char **a_str_reply)
+int com_vpn_client(int a_argc, char ** a_argv, void **a_str_reply)
 {
 #ifndef _WIN32
     enum {

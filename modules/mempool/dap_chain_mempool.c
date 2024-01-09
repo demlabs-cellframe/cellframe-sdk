@@ -78,7 +78,6 @@ static bool s_tx_create_massive_gdb_save_callback(dap_global_db_instance_t *a_db
 
 int dap_datum_mempool_init(void)
 {
-    dap_chain_mempool_rpc_init();
     return 0;
 }
 
@@ -385,7 +384,7 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_chain_cs_blocks_t *a_blocks, dap_
     uint256_t l_value_tax = {};
     dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(&l_sign_pkey_hash);
     if (l_key_item && !IS_ZERO_256(l_key_item->sovereign_tax) &&
-                dap_chain_addr_is_blank(&l_key_item->sovereign_addr)) {
+                !dap_chain_addr_is_blank(&l_key_item->sovereign_addr)) {
         MULT_256_COIN(l_value_out, l_key_item->sovereign_tax, &l_value_tax);
         if (compare256(l_value_tax, l_value_out) < 1)
             SUBTRACT_256_256(l_value_out, l_value_tax, &l_value_out);
@@ -514,7 +513,7 @@ char *dap_chain_mempool_tx_reward_create(dap_chain_cs_blocks_t *a_blocks, dap_en
     uint256_t l_value_tax = {};
     dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(&l_sign_pkey_hash);
     if (l_key_item && !IS_ZERO_256(l_key_item->sovereign_tax) &&
-                dap_chain_addr_is_blank(&l_key_item->sovereign_addr)) {
+                !dap_chain_addr_is_blank(&l_key_item->sovereign_addr)) {
         MULT_256_COIN(l_value_out, l_key_item->sovereign_tax, &l_value_tax);
         if (compare256(l_value_tax, l_value_out) < 1)
             SUBTRACT_256_256(l_value_out, l_value_tax, &l_value_out);

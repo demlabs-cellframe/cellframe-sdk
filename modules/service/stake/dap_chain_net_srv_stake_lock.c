@@ -91,7 +91,7 @@ typedef struct dap_ledger_token_emission_for_stake_lock_item {
 #define MONTH_INDEX	8
 #define YEAR_INDEX	12
 
-static int s_cli_stake_lock(int a_argc, char **a_argv, char **a_str_reply);
+static int s_cli_stake_lock(int a_argc, char **a_argv, void **a_str_reply);
 
 // Create stake lock datum
 static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from,
@@ -690,9 +690,9 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
  * @param a_str_reply
  * @return
  */
-static int s_cli_stake_lock(int a_argc, char **a_argv, char **a_str_reply)
+static int s_cli_stake_lock(int a_argc, char **a_argv, void **a_str_reply)
 {
-    enum{
+    enum {
         CMD_NONE, CMD_HOLD, CMD_TAKE
     };
 
