@@ -77,7 +77,7 @@ static pthread_mutex_t s_srv_list_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 
 
-static int s_cli_net_srv(int argc, char **argv, char **a_str_reply);
+static int s_cli_net_srv(int argc, char **argv, void **a_str_reply);
 static void s_load(const char * a_path);
 static void s_load_all();
 
@@ -188,7 +188,7 @@ void dap_chain_net_srv_deinit(void)
  * @param a_str_reply
  * @return
  */
-static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
+static int s_cli_net_srv( int argc, char **argv, void **a_str_reply)
 {
     int arg_index = 1;
     dap_chain_net_t * l_net = NULL;
@@ -313,7 +313,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                     }
                     if(l_continent_num>=0)
                         l_order->continent = l_continent_num;*/
-                    char *l_new_order_hash_str = dap_chain_net_srv_order_save(l_net, l_order);
+                    char *l_new_order_hash_str = dap_chain_net_srv_order_save(l_net, l_order, false);
                     if (l_new_order_hash_str) {
                         // delete prev order
                         if(dap_strcmp(l_new_order_hash_str, l_order_hash_hex_str))
@@ -517,7 +517,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                     dap_string_free(l_string_ret, true);
                     return -21;
                 }
-                if (l_node_addr_str){
+                if (l_node_addr_str) {
                     if (dap_chain_node_addr_str_check(l_node_addr_str)) {
                         dap_chain_node_addr_from_str( &l_node_addr, l_node_addr_str );
                     } else {

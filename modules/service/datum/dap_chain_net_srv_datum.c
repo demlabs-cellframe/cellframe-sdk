@@ -34,7 +34,7 @@
 #define LOG_TAG "chain_net_srv_datum"
 
 static dap_chain_net_srv_t *s_srv_datum = NULL;
-static int s_srv_datum_cli(int argc, char ** argv, char **a_str_reply);
+static int s_srv_datum_cli(int argc, char ** argv, void **a_str_reply);
 
 void s_order_notficator(dap_store_obj_t *a_obj, void *a_arg);
 
@@ -102,8 +102,8 @@ char* dap_chain_net_srv_datum_custom_add(dap_chain_t * a_chain, const uint8_t *a
     return l_hash_str;
 }
 
-static int s_srv_datum_cli(int argc, char ** argv, char **a_str_reply) {
-    int ret = -666;
+static int s_srv_datum_cli(int argc, char ** argv, void **a_str_reply)
+{
     int arg_index = 1;
     dap_chain_net_t * l_chain_net = NULL;
     dap_chain_t * l_chain = NULL;
@@ -130,7 +130,6 @@ static int s_srv_datum_cli(int argc, char ** argv, char **a_str_reply) {
     if ( l_datum_cmd_str != NULL ) {
         if ( strcmp(l_datum_cmd_str, "save") == 0) {
             char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(l_chain);
-            size_t l_datum_size = 0;
 
             size_t l_path_length = strlen(l_system_datum_folder)+8+strlen(l_datum_hash_str);
             char *l_path = DAP_NEW_Z_SIZE(char, l_path_length);

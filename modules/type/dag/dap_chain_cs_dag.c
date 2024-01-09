@@ -131,7 +131,7 @@ static void s_chain_callback_datum_iter_delete(dap_chain_datum_iter_t *a_datum_i
 static dap_chain_datum_t *s_chain_callback_datum_iter_get_first(dap_chain_datum_iter_t *a_datum_iter); // Get the fisrt datum from dag
 static dap_chain_datum_t *s_chain_callback_datum_iter_get_next(dap_chain_datum_iter_t *a_datum_iter); // Get the next datum from dag
 
-static int s_cli_dag(int argc, char ** argv, char **str_reply);
+static int s_cli_dag(int argc, char ** argv, void **a_str_reply);
 void s_dag_events_lasts_process_new_last_event(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_item_t * a_event_item);
 
 static size_t s_dap_chain_callback_get_count_tx(dap_chain_t *a_chain);
@@ -166,6 +166,8 @@ int dap_chain_cs_dag_init()
             "\tDump event info\n\n"
         "dag event list -net <net_name> -chain <chain_name> -from {events | events_lasts | threshold | round.new | round.<Round id in hex>}\n\n"
             "\tShow event list \n\n"
+        "dag event count -net <net_name> -chain <chain_name>\n"
+            "\tShow count event \n\n"
         "dag round complete -net <net_name> -chain <chain_name> \n"
                                         "\tComplete the current new round, verify it and if everything is ok - publish new events in chain\n"
         "dag round find -net <net_name> -chain <chain_name> -datum <datum_hash> \n"
@@ -1434,7 +1436,7 @@ static dap_chain_datum_t *s_chain_callback_datum_iter_get_next(dap_chain_datum_i
  * @param str_reply
  * @return
  */
-static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
+static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
 {
     enum {
         SUBCMD_EVENT_CREATE,
@@ -1442,6 +1444,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
         SUBCMD_EVENT_LIST,
         SUBCMD_EVENT_DUMP,
         SUBCMD_EVENT_SIGN,
+        SUBCMD_EVENT_COUNT,
         SUBCMD_UNDEFINED
     } l_event_subcmd={0};
 
@@ -1645,6 +1648,8 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-event", &l_event_hash_str);
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-cert", &l_cert_str);
             l_event_subcmd = SUBCMD_EVENT_SIGN;
+        } else if (strcmp(l_event_cmd_str, "count") == 0) {
+            l_event_subcmd = SUBCMD_EVENT_COUNT;
         } else {
             l_event_subcmd = SUBCMD_UNDEFINED;
         }
@@ -1973,6 +1978,23 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
 
                 }
             } break;
+
+            case SUBCMD_EVENT_COUNT: {
+                dap_string_t *l_ret_str = dap_string_new(NULL);
+                dap_string_append_printf(l_ret_str, "%s.%s:\n", l_net->pub.name, l_chain->name);
+                const char * l_gdb_group_events = DAP_CHAIN_CS_DAG(l_chain)->gdb_group_events_round_new;
+                if (l_gdb_group_events) {
+                    size_t l_objs_count = 0;
+                    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_events,&l_objs_count);
+                    dap_string_append_printf(l_ret_str,"%zu in round.new\n", l_objs_count);
+                }
+                size_t l_event_count = HASH_COUNT(PVT(l_dag)->events);
+                size_t l_event_treshold_count = HASH_COUNT(PVT(l_dag)->events_treshold);
+                dap_string_append_printf(l_ret_str, "%zu atoms(s) in events\n%zu atom(s) in threshold", l_event_count, l_event_treshold_count);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_ret_str->str);
+                dap_string_free(l_ret_str, true);
+            } break;
+
             case SUBCMD_EVENT_SIGN: { // Sign event command
                 char * l_gdb_group_events = l_dag->gdb_group_events_round_new;
                 size_t l_round_item_size = 0;

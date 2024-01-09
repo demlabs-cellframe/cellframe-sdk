@@ -89,6 +89,14 @@ static size_t s_nonconsensus_callback_datums_pool_proc(dap_chain_t * a_chain, da
         size_t a_datums_size);
 static void s_nonconsensus_ledger_load(dap_chain_t *a_chain);
 
+// Datum ops
+static dap_chain_datum_iter_t *s_nonconsensus_callback_datum_iter_create(dap_chain_t *a_chain);
+static void s_nonconsensus_callback_datum_iter_delete(dap_chain_datum_iter_t *a_datum_iter);
+static dap_chain_datum_t *s_nonconsensus_callback_datum_iter_get_first(dap_chain_datum_iter_t *a_datum_iter);
+static dap_chain_datum_t *s_nonconsensus_callback_datum_iter_get_next(dap_chain_datum_iter_t *a_datum_iter);
+static dap_chain_datum_t *s_nonconsensus_callback_datum_find_by_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_datum_hash,
+                                                                   dap_chain_hash_fast_t *a_atom_hash, int *a_ret_code);
+
 static int s_cs_callback_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg);
 static void s_nonconsensus_delete(dap_chain_t *a_chain);
 
@@ -184,18 +192,25 @@ static int s_cs_callback_new(dap_chain_t *a_chain, dap_config_t UNUSED_ARG *a_ch
     a_chain->callback_atom_iter_create = s_nonconsensus_callback_atom_iter_create;
     a_chain->callback_atom_iter_create_from = s_nonconsensus_callback_atom_iter_create_from;
     a_chain->callback_atom_iter_delete = s_nonconsensus_callback_atom_iter_delete;
-
-    a_chain->callback_atom_find_by_hash = s_nonconsensus_callback_atom_iter_find_by_hash;
-    a_chain->callback_add_datums = s_nonconsensus_callback_datums_pool_proc;
-
     // Linear pass through
     a_chain->callback_atom_iter_get_first = s_nonconsensus_callback_atom_iter_get_first; // Get the fisrt element from chain
     a_chain->callback_atom_iter_get_next = s_nonconsensus_callback_atom_iter_get_next; // Get the next element from chain from the current one
+    a_chain->callback_atom_find_by_hash = s_nonconsensus_callback_atom_iter_find_by_hash;
 
     a_chain->callback_atom_iter_get_links = s_nonconsensus_callback_atom_iter_get_links; // Get the next element from chain from the current one
     a_chain->callback_atom_iter_get_lasts = s_nonconsensus_callback_atom_iter_get_lasts;
     a_chain->callback_atom_get_datums = s_nonconsensus_callback_atom_get_datum;
     a_chain->callback_atom_get_timestamp = s_nonconsensus_callback_atom_get_timestamp;
+
+    // Datum callbacks
+    a_chain->callback_datum_iter_create = s_nonconsensus_callback_datum_iter_create;
+    a_chain->callback_datum_iter_delete = s_nonconsensus_callback_datum_iter_delete;
+    // Linear pass through
+    a_chain->callback_datum_iter_get_first = s_nonconsensus_callback_datum_iter_get_first; // Get the fisrt datum from chain
+    a_chain->callback_datum_iter_get_next = s_nonconsensus_callback_datum_iter_get_next; // Get the next datum from chain from the current one
+
+    a_chain->callback_datum_find_by_hash = s_nonconsensus_callback_datum_find_by_hash;
+    a_chain->callback_add_datums = s_nonconsensus_callback_datums_pool_proc;
 
     a_chain->callback_load_from_gdb = s_nonconsensus_ledger_load;
 
@@ -511,7 +526,6 @@ static dap_chain_atom_ptr_t s_nonconsensus_callback_atom_iter_get_first(dap_chai
         size_t l_datum_size = 0;
         l_datum = (dap_chain_datum_t*)dap_global_db_get_sync(PVT(DAP_NONCONSENSUS(a_atom_iter->chain))->group_datums,
                                                              l_item->key, &l_datum_size, NULL, NULL);
-        DAP_DEL_Z(a_atom_iter->cur);
         a_atom_iter->cur = l_datum;
         a_atom_iter->cur_size = l_datum_size;
         a_atom_iter->cur_hash = DAP_NEW_Z(dap_hash_fast_t);
@@ -622,4 +636,95 @@ static dap_chain_datum_t **s_nonconsensus_callback_atom_get_datum(dap_chain_atom
             return NULL;
     }else
         return NULL;
+}
+
+static dap_chain_datum_iter_t *s_nonconsensus_callback_datum_iter_create(dap_chain_t *a_chain)
+{
+    dap_chain_datum_iter_t *l_ret = DAP_NEW_Z(dap_chain_datum_iter_t);
+    if (!l_ret) {
+        log_it(L_CRITICAL, "Memory allocation error");
+        return NULL;
+    }
+    l_ret->chain = a_chain;
+    return l_ret;
+}
+
+static void s_nonconsensus_callback_datum_iter_delete(dap_chain_datum_iter_t *a_datum_iter)
+{
+    if (a_datum_iter->cur_item) {
+        DAP_DEL_Z(a_datum_iter->cur);
+        DAP_DEL_Z(a_datum_iter->cur_hash);
+    }
+    DAP_DELETE(a_datum_iter);
+}
+
+static dap_chain_datum_t *s_nonconsensus_callback_datum_iter_get_first(dap_chain_datum_iter_t *a_datum_iter)
+{
+    if (!a_datum_iter)
+        return NULL;
+    if (a_datum_iter->cur_item) { /* Iterator creates copies, free them at delete routine! */
+        DAP_DEL_Z(a_datum_iter->cur);
+        DAP_DEL_Z(a_datum_iter->cur_hash);
+    }
+    dap_chain_datum_t * l_datum = NULL;
+    dap_nonconsensus_datum_hash_item_t *l_item = PVT(DAP_NONCONSENSUS(a_datum_iter->chain))->hash_items;
+    a_datum_iter->cur_item = l_item;
+    if (a_datum_iter->cur_item) {
+        size_t l_datum_size = 0;
+        l_datum = (dap_chain_datum_t*)dap_global_db_get_sync(PVT(DAP_NONCONSENSUS(a_datum_iter->chain))->group_datums,
+                                                             l_item->key, &l_datum_size, NULL, NULL);
+        a_datum_iter->cur = l_datum;
+        a_datum_iter->cur_size = l_datum_size;
+        a_datum_iter->cur_hash = DAP_NEW_Z(dap_hash_fast_t);
+        dap_chain_hash_fast_from_str(l_item->key, a_datum_iter->cur_hash);
+        a_datum_iter->cur_atom_hash = a_datum_iter->cur_hash;
+    } else
+        a_datum_iter->cur_size = 0;
+    return l_datum;
+}
+
+static dap_chain_datum_t *s_nonconsensus_callback_datum_iter_get_next(dap_chain_datum_iter_t *a_datum_iter)
+{
+    if (!a_datum_iter)
+        return NULL;
+    dap_chain_datum_t *l_datum = NULL;
+    dap_nonconsensus_datum_hash_item_t *l_item = (dap_nonconsensus_datum_hash_item_t*)a_datum_iter->cur_item;
+    if (l_item)
+        l_item = l_item->next;
+    a_datum_iter->cur_item = l_item;
+    if (a_datum_iter->cur_item) {
+        size_t l_datum_size = 0;
+        l_datum = (dap_chain_datum_t*)dap_global_db_get_sync(PVT(DAP_NONCONSENSUS(a_datum_iter->chain))->group_datums,
+                                                             l_item->key, &l_datum_size, NULL, NULL);
+        DAP_DEL_Z(a_datum_iter->cur);
+        a_datum_iter->cur = l_datum;
+        a_datum_iter->cur_size = l_datum_size;
+        a_datum_iter->cur_hash = DAP_NEW_Z(dap_hash_fast_t);
+        dap_chain_hash_fast_from_str(l_item->key, a_datum_iter->cur_hash);
+        a_datum_iter->cur_atom_hash = a_datum_iter->cur_hash;
+    } else {
+        DAP_DEL_Z(a_datum_iter->cur_hash);
+        DAP_DEL_Z(a_datum_iter->cur);
+        a_datum_iter->cur_size = 0;
+    }
+    return l_datum;
+}
+
+static dap_chain_datum_t *s_nonconsensus_callback_datum_find_by_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_datum_hash,
+                                                                   dap_chain_hash_fast_t *a_atom_hash, int *a_ret_code)
+{
+    dap_nonconsensus_datum_hash_item_t *l_item;
+    DL_FOREACH(PVT(DAP_NONCONSENSUS(a_chain))->hash_items, l_item) {
+        if (dap_hash_fast_compare(a_datum_hash, &l_item->datum_data_hash)) {
+            if (a_atom_hash)
+                *a_atom_hash = l_item->datum_data_hash;
+            if (a_ret_code)
+                *a_ret_code = 0;
+            size_t l_datum_size = 0;
+            // Memory leak here until assumed allocated memory returned in other data storage types
+            return (dap_chain_datum_t *)dap_global_db_get_sync(PVT(DAP_NONCONSENSUS(a_chain))->group_datums,
+                                                                 l_item->key, &l_datum_size, NULL, NULL);
+        }
+    }
+    return NULL;
 }

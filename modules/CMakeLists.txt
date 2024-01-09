@@ -7,7 +7,6 @@ endif()
 # Chains
 if (CELLFRAME_MODULES MATCHES "chains")
     add_subdirectory(chain)
-    add_subdirectory(chain/btc_rpc)
     add_subdirectory(wallet)
 endif()
 
@@ -21,6 +20,7 @@ if (CELLFRAME_MODULES MATCHES "network")
     add_subdirectory(mempool)
     add_subdirectory(net)
     add_subdirectory(net/srv)
+    add_subdirectory(json_rpc)
     # Stream channels
     add_subdirectory(channel/chain)
     add_subdirectory(channel/chain-net)
