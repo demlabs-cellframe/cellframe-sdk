@@ -6493,7 +6493,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_HASH_REC_ERR;
     }
     // Select chain network
-    if (l_net_str) {
+    if (!l_addr_base58 && l_net_str) {
         l_net = dap_chain_net_by_name(l_net_str);
         if (!l_net) { // Can't find such network
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_NET_PARAM_ERR,
@@ -6515,15 +6515,7 @@ int com_tx_history(int a_argc, char ** a_argv, void **a_str_reply)
                                                         "Wallet address not recognized");
             return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_WALLET_ADDR_ERR;
         }
-        if (l_net) {
-            if (l_net->pub.id.uint64 != l_addr->net_id.uint64) {
-                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_ID_NET_ADDR_DIF_ERR,
-                                        "Network ID with '-net' param and network ID with '-addr' param are different");
-                DAP_DELETE(l_addr);
-                return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_ID_NET_ADDR_DIF_ERR;
-            }
-        } else
-            l_net = dap_chain_net_by_id(l_addr->net_id);
+        l_net = dap_chain_net_by_id(l_addr->net_id);
     }
     if (l_wallet_name) {
         const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
