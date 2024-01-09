@@ -3941,23 +3941,26 @@ void dap_chain_net_link_update(dap_chain_node_client_t *a_node_client)
     dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *) dap_global_db_get_sync(a_node_client->net->pub.gdb_nodes, l_key, &l_node_info_size, NULL, NULL);
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_node_client->net);
     pthread_mutex_lock(&l_net_pvt->uplinks_mutex);
-    struct net_link *l_link = NULL, *l_link_tmp = NULL, *l_link_found = NULL;
-    HASH_ITER(hh, l_net_pvt->net_links, l_link, l_link_tmp) {
-        if (l_link->link == a_node_client) {
-            l_link_found = l_link;
-            break;
+        struct net_link *l_link = NULL, *l_link_tmp = NULL, *l_link_found = NULL;
+        HASH_ITER(hh, l_net_pvt->net_links, l_link, l_link_tmp) {
+            if (l_link->link == a_node_client) {
+                l_link_found = l_link;
+                break;
+            }
+        } 
+        if(l_link_found && l_node_info->hdr.ext_port && 
+            (l_link_found->uplink_ip != l_node_info->hdr.ext_addr_v4.s_addr || l_link_found->link->client->uplink_port != l_node_info->hdr.ext_port)) {
+            char l_ip_str_old[INET_ADDRSTRLEN] = {0};
+            char l_ip_str_new[INET_ADDRSTRLEN] = {0};
+            inet_ntop(AF_INET, &l_link_found->uplink_ip, l_ip_str_old, INET_ADDRSTRLEN);
+            inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4.s_addr, l_ip_str_new, INET_ADDRSTRLEN);
+            log_it(L_INFO, "Change IP addr to node "NODE_ADDR_FP_STR" from %s %d to %s %d", NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address), l_ip_str_old, l_link_found->link->client->uplink_port, l_ip_str_new, l_node_info->hdr.ext_port);
+            HASH_DEL(l_net_pvt->net_links, l_link_found);
+            l_link_found->uplink_ip = l_node_info->hdr.ext_addr_v4.s_addr;
+            l_link_found->link->client->uplink_port = l_node_info->hdr.ext_port;
+            HASH_ADD(hh, l_net_pvt->net_links, uplink_ip, sizeof(l_link_found->uplink_ip), l_link_found);
+            memcpy(l_link_found->link->client->uplink_addr, l_ip_str_new, strlen(l_ip_str_new));
         }
-    } 
     pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
-    char l_node_addr[INET6_ADDRSTRLEN] = { '\0' };
-    char l_found_addr[INET6_ADDRSTRLEN] = { '\0' };
-    inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4.s_addr, l_node_addr, INET6_ADDRSTRLEN);
-    inet_ntop(AF_INET, &l_link_found->uplink_ip, l_found_addr, INET6_ADDRSTRLEN);
-    log_it(L_INFO, "Connecting to addr %s : %d", l_node_addr, a_node_client->info->hdr.ext_port);
-    if(l_link_found && l_link_found->uplink_ip != l_node_info->hdr.ext_addr_v4.s_addr) {
-        log_it(L_INFO, "Change node addr");
-        l_link_found->uplink_ip = l_node_info->hdr.ext_addr_v4.s_addr;
-    }
-
     DAP_DELETE(l_key);
 }
