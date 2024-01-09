@@ -136,16 +136,16 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
     if (s_stream_ch_chain_debug_more)
         log_it(L_DEBUG, "s_stage_status_error_callback");
 
+    dap_return_if_pass(!a_client || !DAP_CHAIN_NODE_CLIENT(a_client));
+
     dap_chain_node_client_t *l_node_client = DAP_CHAIN_NODE_CLIENT(a_client);
-    if(!l_node_client)
-        return;
 
     if (l_node_client->sync_timer) {
         // Disable timer, it will be restarted with new connection
         dap_timerfd_delete_unsafe(l_node_client->sync_timer);
         l_node_client->sync_timer = NULL;
     }
-
+    dap_chain_net_link_update(l_node_client);  // check changed IP
     // check for last attempt
     bool l_is_last_attempt = a_arg ? true : false;
     if (l_is_last_attempt) {
@@ -718,12 +718,10 @@ bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const
     dap_client_set_auth_cert(a_node_client->client, a_node_client->net->pub.name);
 
     char l_host_addr[INET6_ADDRSTRLEN] = { '\0' };
-    if(a_node_client->info->hdr.ext_addr_v4.s_addr){
-        struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = a_node_client->info->hdr.ext_addr_v4 };
-        inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), l_host_addr, INET6_ADDRSTRLEN);
+    if(a_node_client->info->hdr.ext_addr_v4.s_addr) {
+        inet_ntop(AF_INET, &a_node_client->info->hdr.ext_addr_v4, l_host_addr, INET_ADDRSTRLEN);
     } else {
-        struct sockaddr_in6 sa6 = { .sin6_family = AF_INET6, .sin6_addr = a_node_client->info->hdr.ext_addr_v6 };
-        inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) &sa6)->sin6_addr), l_host_addr, INET6_ADDRSTRLEN);
+        inet_ntop(AF_INET6, &a_node_client->info->hdr.ext_addr_v6, l_host_addr, INET6_ADDRSTRLEN);
     }
     if(!strlen(l_host_addr) || !strcmp(l_host_addr, "::") || !a_node_client->info->hdr.ext_port) {
         log_it(L_WARNING, "Undefined address of node client");

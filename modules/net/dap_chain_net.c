@@ -3264,3 +3264,70 @@ void dap_chain_net_announce_addrs() {
         }
     }
 }
+
+char *dap_chain_net_links_dump(dap_chain_net_t *a_net) {
+    dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
+    pthread_mutex_lock(&l_net_pvt->uplinks_mutex);
+    dap_string_t *l_str_uplinks = dap_string_new("---------------------------\n"
+                                         "| ↑\\↓ |\t#\t|\t\tIP\t\t|\tPort\t|\n");
+    struct net_link *l_link, *l_link_tmp = NULL;
+    size_t l_up_count = 0;
+    HASH_ITER(hh, l_net_pvt->net_links, l_link, l_link_tmp) {
+        dap_string_append_printf(l_str_uplinks, "|  ↑  |\t%zu\t|\t%s\t\t|\t%u\t|\n",
+                                 ++l_up_count,
+                                 inet_ntoa(l_link->link_info->hdr.ext_addr_v4),
+                                 l_link->link_info->hdr.ext_port);
+    }
+
+    size_t l_down_count = 0;
+    dap_string_t *l_str_downlinks = dap_string_new("---------------------------\n"
+                                                 "| ↑\\↓ |\t#\t|\t\tIP\t\t|\tPort\t|\n");
+    pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
+    pthread_mutex_lock(&l_net_pvt->downlinks_mutex);
+    struct downlink *l_downlink = NULL, *l_downtmp = NULL;
+    HASH_ITER(hh, l_net_pvt->downlinks, l_downlink, l_downtmp) {
+        dap_string_append_printf(l_str_downlinks, "|  ↓  |\t%zu\t|\t%s\t\t|\t%u\t|\n",
+                                     ++l_down_count,
+                                     l_downlink->addr, l_downlink->port);
+    }
+    pthread_mutex_unlock(&l_net_pvt->downlinks_mutex);
+    char *l_res_str = dap_strdup_printf("Count links: %zu\n\nUplinks: %zu\n%s\n\nDownlinks: %zu\n%s\n",
+                                        l_up_count + l_down_count, l_up_count, l_str_uplinks->str,
+                                        l_down_count, l_str_downlinks->str);
+    dap_string_free(l_str_uplinks, true);
+    dap_string_free(l_str_downlinks, true);
+    return l_res_str;
+}
+
+void dap_chain_net_link_update(dap_chain_node_client_t *a_node_client)
+{
+    dap_return_if_pass(!a_node_client || !a_node_client->net);
+    size_t l_node_info_size = 0;
+    char *l_key = dap_chain_node_addr_to_hash_str(&a_node_client->remote_node_addr);
+    if(!l_key) {
+        return;
+    }
+
+    dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *) dap_global_db_get_sync(a_node_client->net->pub.gdb_nodes, l_key, &l_node_info_size, NULL, NULL);
+    dap_chain_net_pvt_t *l_net_pvt = PVT(a_node_client->net);
+    pthread_mutex_lock(&l_net_pvt->uplinks_mutex);
+    struct net_link *l_link = NULL, *l_link_tmp = NULL, *l_link_found = NULL;
+    HASH_ITER(hh, l_net_pvt->net_links, l_link, l_link_tmp) {
+        if (l_link->link == a_node_client) {
+            l_link_found = l_link;
+            break;
+        }
+    } 
+    pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
+    char l_node_addr[INET6_ADDRSTRLEN] = { '\0' };
+    char l_found_addr[INET6_ADDRSTRLEN] = { '\0' };
+    inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4.s_addr, l_node_addr, INET6_ADDRSTRLEN);
+    inet_ntop(AF_INET, &l_link_found->uplink_ip, l_found_addr, INET6_ADDRSTRLEN);
+    log_it(L_INFO, "Connecting to addr %s : %d", l_node_addr, a_node_client->info->hdr.ext_port);
+    if(l_link_found && l_link_found->uplink_ip != l_node_info->hdr.ext_addr_v4.s_addr) {
+        log_it(L_INFO, "Change node addr");
+        l_link_found->uplink_ip = l_node_info->hdr.ext_addr_v4.s_addr;
+    }
+
+    DAP_DELETE(l_key);
+}
