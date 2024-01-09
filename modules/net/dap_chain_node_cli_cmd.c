@@ -671,9 +671,9 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
                 char l_ts[128] = { '\0' };
                 dap_gbd_time_to_str_rfc822(l_ts, sizeof(l_ts), l_objs[i].timestamp);
 
-                dap_string_append_printf(l_string_reply, NODE_ADDR_FP_STR"    %-20s%-8s"NODE_ADDR_FP_STR"    %-32s\n",
+                dap_string_append_printf(l_string_reply, NODE_ADDR_FP_STR"    %-20s%-8d"NODE_ADDR_FP_STR"    %-32s\n",
                                          NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),
-                                         l_node_ipv4_str, dap_itoa(l_node_info->hdr.ext_port),
+                                         l_node_ipv4_str, l_node_info->hdr.ext_port,
                                          NODE_ADDR_FP_ARGS_S(l_node_info->hdr.owner_address),
                                          l_ts);
 
@@ -1644,10 +1644,10 @@ int com_node(int a_argc, char ** a_argv, void ** reply)
         for(dap_list_t *ll = l_net->pub.link_list; ll; ll = ll->next)
         {
             dap_chain_node_info_t *l_node_link = (dap_chain_node_info_t*)ll->data;
-            dap_string_append_printf(l_string_balanc, NODE_ADDR_FP_STR"    %-20s%s\n",
+            dap_string_append_printf(l_string_balanc, NODE_ADDR_FP_STR"    %-20s%u\n",
                                      NODE_ADDR_FP_ARGS_S(l_node_link->hdr.address),
                                      inet_ntoa(l_node_link->hdr.ext_addr_v4),
-                                     dap_itoa(l_node_link->hdr.links_number));
+                                     l_node_link->hdr.links_number);
         }
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Balancer link list:\n %s \n",
                                           l_string_balanc->str);
@@ -6748,7 +6748,7 @@ int com_tx_history(int a_argc, char ** a_argv, void ** reply)
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_HASH_REC_ERR;
     }
     // Select chain network
-    if (l_net_str) {
+    if (!l_addr_base58 && l_net_str) {
         l_net = dap_chain_net_by_name(l_net_str);
         if (!l_net) { // Can't find such network
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_NET_PARAM_ERR,
