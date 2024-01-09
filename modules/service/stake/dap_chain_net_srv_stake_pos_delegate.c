@@ -329,7 +329,7 @@ int dap_chain_net_srv_stake_verify_key_and_node(dap_chain_addr_t *a_signing_addr
         log_it(L_WARNING, "Bad srv_stake_verify arguments");
         return -100;
     }
-return 0; //TODO rmv
+
     dap_chain_net_srv_stake_item_t *l_stake = NULL, *l_tmp = NULL;
     HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp){
         //check key not activated for other node
