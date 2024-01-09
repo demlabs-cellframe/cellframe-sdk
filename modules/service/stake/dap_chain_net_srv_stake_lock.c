@@ -833,8 +833,7 @@ static char *s_update_date_by_using_month_count(char *time, uint8_t month_count)
 {
     uint8_t		current_month;
     int			current_year;
-    const char 	*month_str;
-    const char 	*year_str;
+    const char 	*month_str, *year_str;
 
     if (!time || !month_count)
         return NULL;
