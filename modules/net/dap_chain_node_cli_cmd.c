@@ -503,9 +503,10 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
                 char l_ts[128] = { '\0' };
                 dap_gbd_time_to_str_rfc822(l_ts, sizeof(l_ts), l_objs[i].timestamp);
 
-                dap_string_append_printf(l_string_reply, NODE_ADDR_FP_STR"    %-20s%-8s    %-32s\n",
+                dap_string_append_printf(l_string_reply, NODE_ADDR_FP_STR"    %-20s%-8d"NODE_ADDR_FP_STR"    %-32s\n",
                                          NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),
-                                         l_node_ipv4_str, dap_itoa(l_node_info->hdr.ext_port),
+                                         l_node_ipv4_str, l_node_info->hdr.ext_port,
+                                         NODE_ADDR_FP_ARGS_S(l_node_info->info.owner_addr),
                                          l_ts);
 
                 // get aliases in form of string
@@ -1583,7 +1584,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         for(dap_list_t *ll = l_net->pub.link_list; ll; ll = ll->next)
         {
             dap_chain_node_info_t *l_node_link = (dap_chain_node_info_t*)ll->data;
-            dap_string_append_printf(l_string_balanc, "node address "NODE_ADDR_FP_STR"  \tipv4 %s \tnumber of links %u\n",
+            dap_string_append_printf(l_string_balanc, NODE_ADDR_FP_STR"    %-20s%u\n",
                                      NODE_ADDR_FP_ARGS_S(l_node_link->hdr.address),
                                      inet_ntoa(l_node_link->hdr.ext_addr_v4),
                                      l_node_link->info.links_number);
