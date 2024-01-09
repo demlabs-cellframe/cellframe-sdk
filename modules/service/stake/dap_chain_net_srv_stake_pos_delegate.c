@@ -162,7 +162,7 @@ static bool s_stake_verificator_callback(dap_ledger_t UNUSED_ARG *a_ledger, dap_
     assert(s_srv_stake);
     if (!a_owner)
         return false;
-    if (a_tx_in->header.ts_created < 1702857600) // Dec 18 2023 00:00:00 GMT
+    if (a_tx_in->header.ts_created < 1705104000) // Jan 13 2024 00:00:00 GMT
         return true;
     dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_IN_COND, 0);
     if (!l_tx_in_cond)
