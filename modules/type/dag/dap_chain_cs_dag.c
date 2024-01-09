@@ -164,6 +164,8 @@ int dap_chain_cs_dag_init()
             "\tDump event info\n\n"
         "dag event list -net <net_name> -chain <chain_name> -from {events | events_lasts | threshold | round.new | round.<Round id in hex>}\n\n"
             "\tShow event list \n\n"
+        "dag event count -net <net_name> -chain <chain_name>\n"
+            "\tShow count event \n\n"
         "dag round complete -net <net_name> -chain <chain_name> \n"
                                         "\tComplete the current new round, verify it and if everything is ok - publish new events in chain\n"
         "dag round find -net <net_name> -chain <chain_name> -datum <datum_hash> \n"
@@ -1437,6 +1439,7 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
         SUBCMD_EVENT_LIST,
         SUBCMD_EVENT_DUMP,
         SUBCMD_EVENT_SIGN,
+        SUBCMD_EVENT_COUNT,
         SUBCMD_UNDEFINED
     } l_event_subcmd={0};
 
@@ -1640,6 +1643,8 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-event", &l_event_hash_str);
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-cert", &l_cert_str);
             l_event_subcmd = SUBCMD_EVENT_SIGN;
+        } else if (strcmp(l_event_cmd_str, "count") == 0) {
+            l_event_subcmd = SUBCMD_EVENT_COUNT;
         } else {
             l_event_subcmd = SUBCMD_UNDEFINED;
         }
@@ -1967,6 +1972,21 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     ret=-14;
 
                 }
+            } break;
+            case SUBCMD_EVENT_COUNT: {
+                dap_string_t *l_ret_str = dap_string_new(NULL);
+                dap_string_append_printf(l_ret_str, "%s.%s:\n", l_net->pub.name, l_chain->name);
+                const char * l_gdb_group_events = DAP_CHAIN_CS_DAG(l_chain)->gdb_group_events_round_new;
+                if (l_gdb_group_events) {
+                    size_t l_objs_count = 0;
+                    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_events,&l_objs_count);
+                    dap_string_append_printf(l_ret_str,"%zu in round.new\n", l_objs_count);
+                }
+                size_t l_event_count = HASH_COUNT(PVT(l_dag)->events);
+                size_t l_event_treshold_count = HASH_COUNT(PVT(l_dag)->events_treshold);
+                dap_string_append_printf(l_ret_str, "%zu atoms(s) in events\n%zu atom(s) in threshold", l_event_count, l_event_treshold_count);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_ret_str->str);
+                dap_string_free(l_ret_str, true);
             } break;
             case SUBCMD_EVENT_SIGN: { // Sign event command
                 char * l_gdb_group_events = l_dag->gdb_group_events_round_new;

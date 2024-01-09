@@ -176,6 +176,8 @@ int dap_chain_cs_blocks_init()
             " [-from_hash <block_hash>] [-to_hash <block_hash>] [-from_date <YYMMDD>] [-to_date <YYMMDD>]"
             " [{-cert <signing_cert_name> | -pkey_hash <signing_cert_pkey_hash>} [-unspent]]\n"
                 "\t\t List blocks\n\n"
+            "block -net <net_name> -chain <chain_name> count\n"
+                "\t\t Show count block\n\n"
 
         "Commission collect:\n"
             "block -net <net_name> -chain <chain_name> fee collect"
@@ -499,6 +501,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
         SUBCMD_DROP,
         SUBCMD_REWARD,
         SUBCMD_AUTOCOLLECT,
+        SUBCMD_COUNT
     } l_subcmd={0};
 
     const char* l_subcmd_strs[]={
@@ -513,6 +516,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
         [SUBCMD_DROP]="drop",
         [SUBCMD_REWARD] = "reward",
         [SUBCMD_AUTOCOLLECT] = "autocollect",
+        [SUBCMD_COUNT] = "count",
         [SUBCMD_UNDEFINED]=NULL
     };
     const size_t l_subcmd_str_count=sizeof(l_subcmd_strs)/sizeof(*l_subcmd_strs);
@@ -879,6 +883,12 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                                      l_net->pub.name, l_chain->name, l_block_count, l_filtered_criteria);
             dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
             dap_string_free(l_str_tmp, true);
+        } break;
+
+        case SUBCMD_COUNT: {
+//            size_t l_block_count = HASH_COUNT(PVT(l_blocks)->blocks);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "%zu blocks in %s.%s", PVT(l_blocks)->blocks_count,
+                                              l_net->pub.name, l_chain->name);
         } break;
 
         case SUBCMD_FEE:
