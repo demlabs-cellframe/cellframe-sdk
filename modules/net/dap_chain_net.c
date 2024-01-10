@@ -2475,7 +2475,7 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
     PVT(a_net)->state = PVT(a_net)->state_target = NET_STATE_OFFLINE;
     s_net_states_proc(NULL, a_net);
     dap_chain_net_item_t *l_net_item;
-    HASH_FIND(hh, s_net_items, a_net->pub.name, strlen(a_net->pub.name), l_net_item);
+    HASH_FIND_STR(s_net_items, a_net->pub.name, l_net_item);
     if (l_net_item) {
         HASH_DEL(s_net_items, l_net_item);
         HASH_DELETE(hh2, s_net_ids, l_net_item);
@@ -2508,31 +2508,36 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         return -1;
     }
     dap_string_free(l_cfg_path,true);
+
+    // check nets with same IDs and names
+    dap_chain_net_item_t *l_net_item_finded = NULL;
+    char *l_net_name_str = dap_config_get_item_str(l_cfg , "general", "name");
+    char *l_net_id_str = dap_config_get_item_str(l_cfg , "general", "id");
+    dap_chain_net_id_t l_net_id;
+    if(!l_net_name_str || !l_net_id_str || dap_chain_net_id_parse(l_net_id_str, &l_net_id)) {
+        log_it(L_ERROR,"Can't create l_net, can't read name or ID config");
+        return -1;
+    }
+
+    HASH_FIND_STR(s_net_items, l_net_name_str, l_net_item_finded);
+    if (!l_net_item_finded)
+        HASH_FIND(hh2, s_net_ids, &l_net_id, sizeof(l_net_id), l_net_item_finded);
+
+    if (l_net_item_finded) {
+        log_it(L_ERROR,"Can't create net %s ID %"DAP_UINT64_FORMAT_U", existed net %s ID %"DAP_UINT64_FORMAT_U" has the same name or ID.\n"\
+        "Please, fix your configs and restart node",
+        l_net_name_str, l_net_id.uint64, l_net_item_finded->name, l_net_item_finded->net_id.uint64);
+        return -1;
+    }
+    // create new net
     dap_chain_net_t * l_net = s_net_new(
-                                        dap_config_get_item_str(l_cfg , "general" , "id" ),
-                                        dap_config_get_item_str(l_cfg , "general" , "name" ),
+                                        l_net_id_str, l_net_name_str,
                                         dap_config_get_item_str(l_cfg , "general" , "native_ticker"),
                                         dap_config_get_item_str(l_cfg , "general" , "node-role" )
                                        );
     if(!l_net) {
         log_it(L_ERROR,"Can't create l_net");
         return -1;
-    }
-    // check nets with same IDs and names
-    dap_chain_net_item_t *l_net_items_current = NULL, *l_net_items_tmp = NULL;
-    HASH_ITER(hh, s_net_items, l_net_items_current, l_net_items_tmp) {
-        if (l_net_items_current->net_id.uint64 == l_net->pub.id.uint64) {
-            log_it(L_ERROR,"Can't create net %s, net %s has the same ID %"DAP_UINT64_FORMAT_U"", l_net->pub.name, l_net_items_current->name, l_net->pub.id.uint64);
-            log_it(L_ERROR, "Please, fix your configs and restart node");
-            dap_chain_net_delete(l_net);
-            return -1;
-        }
-        if (!strcmp(l_net_items_current->name, l_net->pub.name)) {
-            log_it(L_ERROR,"Can't create l_net ID %"DAP_UINT64_FORMAT_U", net ID %"DAP_UINT64_FORMAT_U" has the same name %s", l_net->pub.id.uint64, l_net_items_current->net_id.uint64, l_net->pub.name);
-            log_it(L_ERROR, "Please, fix your configs and restart node");
-            dap_chain_net_delete(l_net);
-            return -1;
-        }
     }
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
     l_net_pvt->load_mode = true;
