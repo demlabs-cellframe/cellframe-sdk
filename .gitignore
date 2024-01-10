@@ -73,7 +73,4 @@ cmake_install.cmake
 
 # OS files
 .DS_Store
-.gitignore
-debug/
-.vscode
 
