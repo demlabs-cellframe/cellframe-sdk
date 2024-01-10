@@ -29,7 +29,6 @@
 #include "dap_chain_common.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_token.h"
-#include "json.h"
 
 #define DAP_CHAIN_DATUM_VERSION 0x00
 
@@ -161,4 +160,3 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                              const char *a_hash_out_type,
                              dap_hash_fast_t *a_tx_hash,
                              dap_chain_net_id_t a_net_id);
-json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum);

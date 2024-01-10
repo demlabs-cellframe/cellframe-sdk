@@ -1,9 +1,10 @@
 /*
 * Authors:
+* Dmitriy Gerasimov <naeper@demlabs.net>
 * Roman Padenkov <roman.padenkov@demlabs.net>
 * Cellframe       https://cellframe.net
 * DeM Labs Inc.   https://demlabs.net
-* Copyright  (c) 2022-2023
+* Copyright  (c) 2017-2023
 * All rights reserved.
 
 This file is part of CellFrame SDK the open source project
@@ -204,7 +205,6 @@ static struct node_link_request *s_node_list_request_init ()
     pthread_mutex_init(&l_node_list_request->wait_mutex, NULL);
     return l_node_list_request;
 }
-
 
 static void s_node_list_request_deinit (struct node_link_request *a_node_list_request)
 {
