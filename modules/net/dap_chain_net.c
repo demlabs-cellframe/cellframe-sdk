@@ -3929,16 +3929,23 @@ char *dap_chain_net_links_dump(dap_chain_net_t *a_net) {
     return l_res_str;
 }
 
+/**
+ * @brief Update IP address and port in client
+ * @param a_node_client - client to check address
+ */
 void dap_chain_net_link_update(dap_chain_node_client_t *a_node_client)
 {
+// sanity check
     dap_return_if_pass(!a_node_client || !a_node_client->net);
+// func work
     size_t l_node_info_size = 0;
     char *l_key = dap_chain_node_addr_to_hash_str(&a_node_client->remote_node_addr);
     if(!l_key) {
+        log_it(L_ERROR, "Can't calculate hash for addr\n");
         return;
     }
 
-    dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *) dap_global_db_get_sync(a_node_client->net->pub.gdb_nodes, l_key, &l_node_info_size, NULL, NULL);
+    dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)dap_global_db_get_sync(a_node_client->net->pub.gdb_nodes, l_key, &l_node_info_size, NULL, NULL);
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_node_client->net);
     pthread_mutex_lock(&l_net_pvt->uplinks_mutex);
         struct net_link *l_link = NULL, *l_link_tmp = NULL, *l_link_found = NULL;
@@ -3957,8 +3964,8 @@ void dap_chain_net_link_update(dap_chain_node_client_t *a_node_client)
             log_it(L_INFO, "Change IP addr to node "NODE_ADDR_FP_STR" from %s %d to %s %d", NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address), l_ip_str_old, l_link_found->link->client->uplink_port, l_ip_str_new, l_node_info->hdr.ext_port);
             HASH_DEL(l_net_pvt->net_links, l_link_found);
             l_link_found->uplink_ip = l_node_info->hdr.ext_addr_v4.s_addr;
-            l_link_found->link->client->uplink_port = l_node_info->hdr.ext_port;
             HASH_ADD(hh, l_net_pvt->net_links, uplink_ip, sizeof(l_link_found->uplink_ip), l_link_found);
+            l_link_found->link->client->uplink_port = l_node_info->hdr.ext_port;
             memcpy(l_link_found->link->client->uplink_addr, l_ip_str_new, strlen(l_ip_str_new));
         }
     pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
