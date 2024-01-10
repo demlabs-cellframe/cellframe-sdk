@@ -1480,7 +1480,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                 DAP_DELETE(l_link_node_info);
             }
             // Links from node info structure (currently empty)
-            if (l_net_pvt->node_info) {
+            /*if (l_net_pvt->node_info) {
                 for (size_t i = 0; i < l_net_pvt->node_info->hdr.links_number; i++) {
                     dap_chain_node_info_t *l_link_node_info = dap_chain_node_info_read(l_net, &l_net_pvt->node_info->links[i]);
                     s_net_link_add(l_net, l_link_node_info);
@@ -1488,7 +1488,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                 }
             } else {
                 log_it(L_WARNING,"No nodeinfo in global_db to prepare links for connecting, try to add links from root servers");
-            }
+            }*/
 
             if (!l_net_pvt->seed_aliases_count && ! l_net_pvt->bootstrap_nodes_count){
                log_it(L_ERROR, "No root servers present in configuration file. Can't establish DNS requests");
