@@ -419,23 +419,38 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
 static dap_list_t* s_get_options_list_from_str(const char* a_str)
 {
     dap_list_t* l_ret = NULL;
-    char * l_options_tmp_ptrs = NULL;
     char * l_options_str_dup = strdup(a_str);
     if (!l_options_str_dup) {
         log_it(L_ERROR, "Memory allocation error in %s, line %d", __PRETTY_FUNCTION__, __LINE__);
         return 0;
     }
 
-    char* l_options_str = strtok_r(l_options_str_dup, ",", &l_options_tmp_ptrs);
-
-    char* l_option_tmp = NULL;
-    while(l_options_str) {
-        // trim whitespace
-        l_options_str = dap_strstrip(l_options_str);// removes leading and trailing spaces
-        l_option_tmp = dap_strdup(l_options_str);
-        l_ret = dap_list_append(l_ret, l_option_tmp);
-        l_options_str = strtok_r(NULL, ",", &l_options_tmp_ptrs);
+    size_t l_opt_str_len = strlen(l_options_str_dup);
+    char* l_option_start_ptr = l_options_str_dup;
+    dap_string_t* l_option_str = dap_string_new(NULL);
+    for (size_t i = 0; i <= l_opt_str_len; i++){
+        if(i == l_opt_str_len){
+            l_option_str = dap_string_append_len(l_option_str, l_option_start_ptr, &l_options_str_dup[i] - l_option_start_ptr);
+            char* l_option = dap_string_free(l_option_str, false);
+            l_option = dap_strstrip(l_option);// removes leading and trailing spaces
+            l_ret = dap_list_append(l_ret, l_option);
+            break;
+        }
+        if (l_options_str_dup [i] == ','){
+            if(i > 0 && l_options_str_dup [i-1] == '\\'){
+                l_option_str = dap_string_append_len(l_option_str, l_option_start_ptr, i-1);
+                l_option_start_ptr = &l_options_str_dup [i];
+                continue;
+            }
+            l_option_str = dap_string_append_len(l_option_str, l_option_start_ptr, &l_options_str_dup[i] - l_option_start_ptr);
+            l_option_start_ptr = &l_options_str_dup [i+1];
+            char* l_option = dap_string_free(l_option_str, false);
+            l_option_str = dap_string_new(NULL);
+            l_option = dap_strstrip(l_option);// removes leading and trailing spaces
+            l_ret = dap_list_append(l_ret, l_option);
+        }
     }
+
     free(l_options_str_dup);
 
     return l_ret;
@@ -509,8 +524,8 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
             }
             // Parse options list
             l_options_list = s_get_options_list_from_str(l_options_list_str);
-            if(!l_options_list){
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Options parsing error. Check log.");
+            if(!l_options_list || dap_list_length(l_options_list) < 2){
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Number of options must be 2 or greater.");
                 return -102;
             }
 
@@ -1011,9 +1026,10 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
                 dap_string_append_printf(l_str_out, "Voting hash: %s\n", l_hash_str);
                 DAP_DELETE(l_hash_str);
                 dap_string_append(l_str_out, "Voting question:\n");
+                char* l_voting_question = (char*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.voting_question_offset);
                 dap_string_append_len(l_str_out,
-                                      (char*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.voting_question_offset),
-                                      l_voting->voting_params.voting_question_length);
+                                      l_voting_question,
+                                      l_voting->voting_params.voting_question_length > strlen(l_voting_question) ? strlen(l_voting_question) : l_voting->voting_params.voting_question_length);
                 dap_string_append(l_str_out, "\n\n");
             }
             pthread_rwlock_unlock(&s_votings_rwlock);
