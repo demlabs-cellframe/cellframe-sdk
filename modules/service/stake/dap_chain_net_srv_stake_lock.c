@@ -91,7 +91,7 @@ typedef struct dap_ledger_token_emission_for_stake_lock_item {
 #define MONTH_INDEX	8
 #define YEAR_INDEX	12
 
-static int s_cli_stake_lock(int a_argc, char **a_argv, char **a_str_reply);
+static int s_cli_stake_lock(int a_argc, char **a_argv, void ** reply);
 
 // Create stake lock datum
 static dap_chain_datum_t *s_stake_lock_datum_create(dap_chain_net_t *a_net, dap_enc_key_t *a_key_from,
@@ -116,19 +116,9 @@ int dap_chain_net_srv_stake_lock_init()
 {
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, s_stake_lock_callback_verificator, s_stake_lock_callback_updater);
     dap_cli_server_cmd_add("stake_lock", s_cli_stake_lock, "Stake lock service commands",
-       "Command:"
-                "stake_lock hold\n"
-                "Required parameters:\n"
-                "-net <net name> -w <wallet name> -time_staking <in YYMMDD>\n"
-                "-token <ticker> -value <value> -fee <value>\n"
-                "Optional parameters:\n"
-                "-chain <chain> -reinvest <percentage from 1 to 100>\n"
-                "Command:"
-                "stake_lock take\n"
-                "Required parameters:\n"
-                "-net <net name> -w <wallet name> -tx <transaction hash> -fee <value>\n"
-                "Optional parameters:\n"
-                "-chain <chain>\n"
+                "stake_lock hold -net <net_name> -w <wallet_name> -time_staking <in_YYMMDD> -token <ticker> -value <value> -fee <value>"
+                "[-chain <chain>] [-reinvest <percentage_from_1_to_100>]\n"
+                "stake_lock take -net <net_name> -w <wallet_name> -tx <transaction_hash> -fee <value> [-chain <chain>]\n"
     );
     s_debug_more = dap_config_get_item_bool_default(g_config, "ledger", "debug_more", false);
     return 0;
@@ -687,8 +677,9 @@ static void s_error_handler(enum error_code errorCode, dap_string_t *output_line
  * @param a_str_reply
  * @return
  */
-static int s_cli_stake_lock(int a_argc, char **a_argv, char **a_str_reply)
+static int s_cli_stake_lock(int a_argc, char **a_argv, void **reply)
 {
+    char ** a_str_reply = (char **) reply;
     enum{
         CMD_NONE, CMD_HOLD, CMD_TAKE
     };
