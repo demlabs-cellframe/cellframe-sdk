@@ -1996,47 +1996,39 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, char **a_str_reply)
                 return -8;
             }
             uint256_t l_datoshi_buy = dap_chain_balance_scan(l_val_buy_str);
-            if (IS_ZERO_256(l_datoshi_buy)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -value <unsigned int256>");
-                return -9;
-            }
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-fee", &l_val_fee_str);
             if (!l_val_fee_str) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'purchase' requires parameter -fee");
                 return  -8;
             }
             uint256_t  l_datoshi_fee = dap_chain_balance_scan(l_val_fee_str);
-            if (IS_ZERO_256(l_datoshi_fee)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Format -fee <unsigned int256>");
-                return -9;
-            }
             dap_hash_fast_t l_tx_hash = {};
             dap_chain_hash_fast_from_str(l_order_hash_str, &l_tx_hash);
-            dap_chain_datum_tx_t *l_cond_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_tx_hash);
-
-            if (l_cond_tx) {
-                dap_chain_net_srv_xchange_price_t *l_price = s_xchange_price_from_order(l_net, l_cond_tx, &l_datoshi_fee, false);
-                if(!l_price){
+            char *l_str_ret_hash = NULL;
+            int l_ret_code = dap_chain_net_srv_xchange_purchase(l_net, &l_tx_hash, l_datoshi_buy, l_datoshi_fee,
+                                                                l_wallet, &l_str_ret_hash);
+            switch (l_ret_code) {
+                case XCHANGE_PURCHASE_ERROR_OK: {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Exchange transaction has done. tx hash: %s", l_str_ret_hash);
+                    DAP_DELETE(l_str_ret_hash);
+                    return 0;
+                }
+                case XCHANGE_PURCHASE_ERROR_SPECIFIED_ORDER_NOT_FOUND: {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified order not found");
+                    return -13;
+                }
+                case XCHANGE_PURCHASE_ERROR_CAN_NOT_CREATE_PRICE: {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create price from order");
                     return -13;
                 }
-                // Create conditional transaction
-                dap_chain_hash_fast_from_str(l_order_hash_str, &l_price->order_hash);
-                char *l_ret = NULL;
-                dap_chain_datum_tx_t *l_tx = s_xchange_tx_create_exchange(l_price, l_wallet, l_datoshi_buy, l_datoshi_fee);
-                if (l_tx && (l_ret = s_xchange_tx_put(l_tx, l_net)) &&
-                        dap_hash_fast_is_blank(&l_price->order_hash))
-                    dap_chain_net_srv_order_delete_by_hash_str_sync(l_price->net, l_order_hash_str);
-                DAP_DELETE(l_price);
-                if (l_tx && l_ret){
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Exchange transaction has done. tx hash: %s", l_ret);
-                } else
+                case XCHANGE_PURCHASE_ERROR_CAN_NOT_CREATE_EXCHANGE_TX: {
                     dap_cli_server_cmd_set_reply_text(a_str_reply,  "Exchange transaction error");
-
-                DAP_DEL_Z(l_ret);
-            } else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified order not found");
-                return -13;
+                    return -13;
+                }
+                default: {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "An error occurred with an unknown code: %d.", l_ret_code);
+                    return -14;
+                }
             }
         } break;
         case CMD_ENABLE: {
@@ -2548,4 +2540,35 @@ int dap_chain_net_srv_xchange_remove(dap_chain_net_t *a_net, dap_hash_fast_t *a_
     *a_out_hash_tx = l_ret;
     DAP_DELETE(l_price);
     return XCHANGE_REMOVE_ERROR_OK;
+}
+
+int dap_chain_net_srv_xchange_purchase(dap_chain_net_t *a_net, dap_hash_fast_t *a_order_hash, uint256_t a_value,
+                                       uint256_t a_fee, dap_chain_wallet_t *a_wallet, char **a_hash_out){
+    if (!a_net || !a_order_hash || !a_wallet || !a_hash_out) {
+        return XCHANGE_PURCHASE_ERROR_INVALID_ARGUMENT;
+    }
+    dap_chain_datum_tx_t *l_cond_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, a_order_hash);
+    if (l_cond_tx) {
+        dap_chain_net_srv_xchange_price_t *l_price = s_xchange_price_from_order(a_net, l_cond_tx, &a_fee, false);
+        if(!l_price){
+            return XCHANGE_PURCHASE_ERROR_CAN_NOT_CREATE_PRICE;
+        }
+        // Create conditional transaction
+        char *l_ret = NULL;
+        dap_chain_datum_tx_t *l_tx = s_xchange_tx_create_exchange(l_price, a_wallet, a_value, a_fee);
+        if (l_tx && (l_ret = s_xchange_tx_put(l_tx, a_net)) &&
+            dap_hash_fast_is_blank(&l_price->order_hash)) {
+                char *l_order_hash_str = dap_hash_fast_to_str_new(a_order_hash);
+                dap_chain_net_srv_order_delete_by_hash_str_sync(l_price->net, l_order_hash_str);
+                DAP_DELETE(l_order_hash_str);
+        }
+        DAP_DELETE(l_price);
+        if (l_tx && l_ret){
+            *a_hash_out = l_ret;
+            return XCHANGE_PURCHASE_ERROR_OK;
+        } else
+            return XCHANGE_PURCHASE_ERROR_CAN_NOT_CREATE_EXCHANGE_TX;
+    } else {
+        return XCHANGE_PURCHASE_ERROR_SPECIFIED_ORDER_NOT_FOUND;
+    }
 }
