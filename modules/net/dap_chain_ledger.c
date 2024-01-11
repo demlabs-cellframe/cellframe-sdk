@@ -3356,7 +3356,7 @@ bool s_tx_match_sign(dap_chain_datum_token_emission_t *a_datum_emission, dap_cha
             // Get sign from sign item
             dap_sign_t *l_tx_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t*) l_tx_sig);
             // Compare signs
-            if(dap_sign_match_pkey_signs(l_emission_sign, l_tx_sign)) {
+            if(dap_sign_compare_pkeys(l_emission_sign, l_tx_sign)) {
                 dap_list_free(l_list_sig);
                 return true;
             }
@@ -3916,7 +3916,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
                 dap_chain_tx_out_cond_t *l_tx_prev_out_cond = NULL;
                 l_tx_prev_out_cond = (dap_chain_tx_out_cond_t *)l_tx_prev_out;
                 bool l_owner = false;
-                l_owner = dap_sign_match_pkey_signs(l_prev_sign, l_sign);
+                l_owner = dap_sign_compare_pkeys(l_prev_sign, l_sign);
 
                 // 5b. Call verificator for conditional output
                 dap_ledger_verificator_t *l_verificator;
