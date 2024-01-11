@@ -3410,8 +3410,21 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
         } else
             json_object_array_add(l_jobj_datums, l_jobj_datum);
     }
-    dap_global_db_objs_delete(l_objs, l_objs_count);
+
     json_object_object_add(l_obj_chain, "datums", l_jobj_datums);
+    
+    dap_global_db_objs_delete(l_objs, l_objs_count);
+
+    char * l_net_chain_count_total[64] = {0};
+    sprintf(l_net_chain_count_total, "%s.%s: %d", a_net->pub.name, a_chain->name, l_objs_count);
+    json_object * l_object_total = json_object_new_string(l_net_chain_count_total);
+    if (!l_object_total) {
+        json_object_put(l_obj_chain);
+        dap_json_rpc_allocation_error;
+        return;
+    }
+    json_object_object_add(l_obj_chain, "total", l_object_total);
+
     json_object_array_add(a_json_obj, l_obj_chain);
     DAP_DELETE(l_gdb_group_mempool);
 }
