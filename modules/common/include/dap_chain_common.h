@@ -33,7 +33,6 @@
 #include "dap_pkey.h"
 #include "dap_sign.h"
 #include "dap_hash.h"
-#include "json.h"
 #include "dap_strfuncs.h"
 
 #define DAP_CHAIN_ADDR_VERSION_CURRENT 1
@@ -199,13 +198,13 @@ typedef uint32_t dap_chain_srv_unit_enum_t;
 DAP_STATIC_INLINE const char *dap_chain_srv_unit_enum_to_str(dap_chain_srv_unit_enum_t a_unit_enum)
 {
     switch (a_unit_enum) {
-    case SERV_UNIT_UNDEFINED: return "SERV_UNIT_UNDEFINED";
-    case SERV_UNIT_MB: return "SERV_UNIT_MB";
-    case SERV_UNIT_SEC: return "SERV_UNIT_SEC";
-    case SERV_UNIT_DAY: return "SERV_UNIT_DAY";
-    case SERV_UNIT_KB: return "SERV_UNIT_KB";
-    case SERV_UNIT_B: return "SERV_UNIT_B";
-    case SERV_UNIT_PCS: return "SERV_UNIT_PCS";
+    case SERV_UNIT_UNDEFINED: return "UNDEFINED";
+    case SERV_UNIT_MB: return "MB";
+    case SERV_UNIT_SEC: return "SEC";
+    case SERV_UNIT_DAY: return "DAY";
+    case SERV_UNIT_KB: return "KB";
+    case SERV_UNIT_B: return "B";
+    case SERV_UNIT_PCS: return "PCS";
     default: return "UNDEFINED";
     }
 }
@@ -270,13 +269,9 @@ extern "C" {
 size_t dap_chain_hash_slow_to_str(dap_chain_hash_slow_t * a_hash, char * a_str, size_t a_str_max);
 
 char* dap_chain_addr_to_str(const dap_chain_addr_t *a_addr);
-json_object *dap_chain_addr_to_json(const dap_chain_addr_t *a_addr);
 dap_chain_addr_t* dap_chain_addr_from_str(const char *str);
 bool dap_chain_addr_is_blank(const dap_chain_addr_t *a_addr);
 
-DAP_STATIC_INLINE json_object *dap_chain_net_id_to_json(dap_chain_net_id_t a_net_id) {
-    return json_object_new_uint64(a_net_id.uint64);
-}
 
 dap_chain_net_srv_uid_t dap_chain_net_srv_uid_from_str(const char* a_str);
 

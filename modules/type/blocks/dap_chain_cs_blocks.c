@@ -82,7 +82,7 @@ typedef struct dap_chain_cs_blocks_pvt
 
 static int s_cli_parse_cmd_hash(char ** a_argv, int a_arg_index, int a_argc, char **a_str_reply,const char * a_param, dap_chain_hash_fast_t * a_datum_hash);
 static void s_cli_meta_hash_print(  dap_string_t * a_str_tmp, const char * a_meta_title, dap_chain_block_meta_t * a_meta);
-static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply);
+static int s_cli_blocks(int a_argc, char ** a_argv, void **reply);
 
 // Setup BFT consensus and select the longest chunk
 static void s_bft_consensus_setup(dap_chain_cs_blocks_t * a_blocks);
@@ -157,10 +157,10 @@ int dap_chain_cs_blocks_init()
                 "\t\tCreate new block and flush memory if was smth formed before\n\n"
 
             "block -net <net_name> -chain <chain_name> new_datum_add <datum_hash>\n"
-                "\t\tAdd block section from datum <datum hash> taken from the mempool\n\n"
+                "\t\tAdd block section from datum <datum_hash> taken from the mempool\n\n"
 
             "block -net <net_name> -chain <chain_name> new_datum_del <datum_hash>\n"
-                "\t\tDel block section with datum <datum hash>\n\n"
+                "\t\tDel block section with datum <datum_hash>\n\n"
 
             "block -net <net_name> -chain <chain_name> new_datum_list\n"
                 "\t\tList block sections and show their datums hashes\n\n"
@@ -176,6 +176,8 @@ int dap_chain_cs_blocks_init()
             " [-from_hash <block_hash>] [-to_hash <block_hash>] [-from_date <YYMMDD>] [-to_date <YYMMDD>]"
             " [{-cert <signing_cert_name> | -pkey_hash <signing_cert_pkey_hash>} [-unspent]]\n"
                 "\t\t List blocks\n\n"
+            "block -net <net_name> -chain <chain_name> count\n"
+                "\t\t Show count block\n\n"
 
         "Commission collect:\n"
             "block -net <net_name> -chain <chain_name> fee collect"
@@ -484,8 +486,9 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, dap_string_t *a_re
  * @param a_str_reply
  * @return
  */
-static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
+static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
 {
+    char ** a_str_reply = (char **) reply;
     enum {
         SUBCMD_UNDEFINED =0,
         SUBCMD_NEW_FLUSH,
@@ -499,6 +502,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
         SUBCMD_DROP,
         SUBCMD_REWARD,
         SUBCMD_AUTOCOLLECT,
+        SUBCMD_COUNT
     } l_subcmd={0};
 
     const char* l_subcmd_strs[]={
@@ -513,6 +517,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
         [SUBCMD_DROP]="drop",
         [SUBCMD_REWARD] = "reward",
         [SUBCMD_AUTOCOLLECT] = "autocollect",
+        [SUBCMD_COUNT] = "count",
         [SUBCMD_UNDEFINED]=NULL
     };
     const size_t l_subcmd_str_count=sizeof(l_subcmd_strs)/sizeof(*l_subcmd_strs);
@@ -879,6 +884,12 @@ static int s_cli_blocks(int a_argc, char ** a_argv, char **a_str_reply)
                                      l_net->pub.name, l_chain->name, l_block_count, l_filtered_criteria);
             dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_tmp->str);
             dap_string_free(l_str_tmp, true);
+        } break;
+
+        case SUBCMD_COUNT: {
+//            size_t l_block_count = HASH_COUNT(PVT(l_blocks)->blocks);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "%zu blocks in %s.%s", PVT(l_blocks)->blocks_count,
+                                              l_net->pub.name, l_chain->name);
         } break;
 
         case SUBCMD_FEE:

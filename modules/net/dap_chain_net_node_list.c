@@ -1,9 +1,10 @@
 /*
 * Authors:
+* Dmitriy Gerasimov <naeper@demlabs.net>
 * Roman Padenkov <roman.padenkov@demlabs.net>
 * Cellframe       https://cellframe.net
 * DeM Labs Inc.   https://demlabs.net
-* Copyright  (c) 2022-2023
+* Copyright  (c) 2017-2023
 * All rights reserved.
 
 This file is part of CellFrame SDK the open source project
@@ -204,7 +205,6 @@ static struct node_link_request *s_node_list_request_init ()
     pthread_mutex_init(&l_node_list_request->wait_mutex, NULL);
     return l_node_list_request;
 }
-
 
 static void s_node_list_request_deinit (struct node_link_request *a_node_list_request)
 {
@@ -440,9 +440,9 @@ static void s_node_list_callback_notify(dap_global_db_context_t *a_context, dap_
                 char l_ts[128] = { '\0' };
                 dap_gbd_time_to_str_rfc822(l_ts, sizeof(l_ts), a_obj->timestamp);
 
-                log_it(L_MSG, "Add node "NODE_ADDR_FP_STR" %s %s, pinned by "NODE_ADDR_FP_STR" at %s",
+                log_it(L_MSG, "Add node "NODE_ADDR_FP_STR" %s %u, pinned by "NODE_ADDR_FP_STR" at %s",
                                          NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),
-                                         l_node_ipv4_str, dap_itoa(l_node_info->hdr.ext_port),
+                                         l_node_ipv4_str, l_node_info->hdr.ext_port,
                                          NODE_ADDR_FP_ARGS_S(l_node_info->hdr.owner_address),
                                          l_ts);
             }

@@ -219,7 +219,6 @@ void dap_chain_datum_token_flags_dump(dap_string_t * a_str_out, uint16_t a_flags
     }
 }
 
-
 /**
  * @brief dap_chain_datum_token_certs_dump
  * @param a_str_out

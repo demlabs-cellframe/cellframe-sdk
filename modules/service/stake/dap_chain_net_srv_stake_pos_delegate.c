@@ -43,7 +43,7 @@
 
 #define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP "delegate_keys"
 
-static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply);
+static int s_cli_srv_stake(int a_argc, char **a_argv, void **reply);
 
 static bool s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond,
                                                       dap_chain_datum_tx_t *a_tx_in, bool a_owner);
@@ -69,9 +69,9 @@ int dap_chain_net_srv_stake_pos_delegate_init()
     "srv_stake order create -net <net_name> -value <value> -cert <priv_cert_name> \n"
         "\tCreates a new order signed with a delegated key, which declares the commission for which \n"
         "\tthe node agrees to conduct the transaction.\n"
-    "srv_stake order remove -net <net_name> -order <order_hash> [-H {hex | base58(default)}]\n"
+    "srv_stake order remove -net <net_name> -order <ip_addr> [-H {hex | base58(default)}]\n"
          "\tRemove order with specified hash\n"
-    "srv_stake order update -net <net_name> -order <order_hash> [-H {hex | base58(default)}] -cert <priv_cert_name>  -value <value>\n"
+    "srv_stake order update -net <net_name> -order <ip_addr> [-H {hex | base58(default)}] -cert <priv_cert_name>  -value <value>\n"
          "\tUpdate order with specified hash\n"
     "srv_stake order list -net <net_name>\n"
          "\tGet the fee orders list within specified net name\n"
@@ -88,9 +88,9 @@ int dap_chain_net_srv_stake_pos_delegate_init()
                             " {-w <wallet_name> -fee <value> | -poa_cert <cert_name>}\n"
          "\tInvalidate requested delegated stake transaction by hash or cert name or cert pkey hash within net name and"
          " return m-tokens to specified wallet (if any)\n"
-    "srv_stake min_value -net <net_name> -cert <cert_name> -value <value>"
+    "srv_stake min_value -net <net_name> -cert <cert_name> -value <value>\n"
          "\tSets the minimum stake value\n"
-    "srv_stake check -net <net_name> -tx <tx_hash>"
+    "srv_stake check -net <net_name> -tx <tx_hash>\n"
          "\tCheck remote validator"
     );
 
@@ -536,7 +536,7 @@ dap_chain_datum_decree_t *dap_chain_net_srv_stake_decree_approve(dap_chain_net_t
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx,
                                                   DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_prev_cond_idx);
     if (!l_tx_out_cond) {
-        log_it(L_WARNING, "Requested conditional transaction has no requires conditional output");
+        log_it(L_CRITICAL, "Requested conditional transaction has no requires conditional output");
         return NULL;
     }
     dap_hash_fast_t l_spender_hash = { };
@@ -704,7 +704,7 @@ static dap_chain_datum_tx_t *s_stake_tx_invalidate(dap_chain_net_t *a_net, dap_h
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx,
                                                   DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_prev_cond_idx);
     if (!l_tx_out_cond) {
-        log_it(L_WARNING, "Requested conditional transaction has no requires conditional output");
+        log_it(L_CRITICAL, "Requested conditional transaction has no requires conditional output");
         return NULL;
     }
     dap_hash_fast_t l_spender_hash = { };
@@ -809,7 +809,7 @@ static dap_chain_datum_decree_t *s_stake_decree_invalidate(dap_chain_net_t *a_ne
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_cond_tx,
                                                   DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_prev_cond_idx);
     if (!l_tx_out_cond) {
-        log_it(L_WARNING, "Requested conditional transaction has no requires conditional output");
+        log_it(L_CRITICAL, "Requested conditional transaction has no requires conditional output");
         return NULL;
     }
 
@@ -1424,8 +1424,9 @@ uint256_t dap_chain_net_srv_stake_get_total_weight(dap_chain_net_id_t a_net_id)
     return l_total_weight;
 }
 
-static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
+static int s_cli_srv_stake(int a_argc, char **a_argv, void **reply)
 {
+    char ** a_str_reply = (char **) reply;
     enum {
         CMD_NONE, CMD_ORDER, CMD_DELEGATE, CMD_APPROVE, CMD_LIST, CMD_INVALIDATE, CMD_MIN_VALUE, CMD_CHECK
     };
@@ -1704,6 +1705,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
             DAP_DELETE(l_decree);
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Approve decree %s successfully created",
                                               l_decree_hash_str);
+
             DAP_DELETE(l_decree_hash_str);
         } break;
         case CMD_LIST: {

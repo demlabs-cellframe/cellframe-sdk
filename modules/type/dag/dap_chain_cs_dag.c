@@ -129,7 +129,7 @@ static void s_chain_callback_datum_iter_delete(dap_chain_datum_iter_t *a_datum_i
 static dap_chain_datum_t *s_chain_callback_datum_iter_get_first(dap_chain_datum_iter_t *a_datum_iter); // Get the fisrt datum from dag
 static dap_chain_datum_t *s_chain_callback_datum_iter_get_next(dap_chain_datum_iter_t *a_datum_iter); // Get the next datum from dag
 
-static int s_cli_dag(int argc, char ** argv, char **str_reply);
+static int s_cli_dag(int argc, char ** argv, void **reply);
 void s_dag_events_lasts_process_new_last_event(dap_chain_cs_dag_t * a_dag, dap_chain_cs_dag_event_item_t * a_event_item);
 
 static size_t s_dap_chain_callback_get_count_tx(dap_chain_t *a_chain);
@@ -160,10 +160,12 @@ int dap_chain_cs_dag_init()
         "dag event sign -net <net_name> -chain <chain_name> -event <event_hash>\n"
             "\tAdd sign to event <event hash> in round.new. Hash doesn't include other signs so event hash\n"
             "\tdoesn't changes after sign add to event. \n\n"
-        "dag event dump -net <net_name> -chain <chain_name> -event <event_hash> -from {events | events_lasts | threshold | round.new  | round.<Round id in hex>} [-H {hex | base58(default)}]\n"
+        "dag event dump -net <net_name> -chain <chain_name> -event <event_hash> -from {events | events_lasts | threshold | round.new  | round.<round_id_in_hex>} [-H {hex | base58(default)}]\n"
             "\tDump event info\n\n"
-        "dag event list -net <net_name> -chain <chain_name> -from {events | events_lasts | threshold | round.new | round.<Round id in hex>}\n\n"
+        "dag event list -net <net_name> -chain <chain_name> -from {events | events_lasts | threshold | round.new | round.<round_id_in_hex>}\n\n"
             "\tShow event list \n\n"
+        "dag event count -net <net_name> -chain <chain_name>\n"
+            "\tShow count event \n\n"
         "dag round complete -net <net_name> -chain <chain_name> \n"
                                         "\tComplete the current new round, verify it and if everything is ok - publish new events in chain\n"
         "dag round find -net <net_name> -chain <chain_name> -datum <datum_hash> \n"
@@ -1429,14 +1431,16 @@ static dap_chain_datum_t *s_chain_callback_datum_iter_get_next(dap_chain_datum_i
  * @param str_reply
  * @return
  */
-static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
+static int s_cli_dag(int argc, char ** argv, void **reply)
 {
+    char ** a_str_reply = (char **) reply;
     enum {
         SUBCMD_EVENT_CREATE,
         SUBCMD_EVENT_CANCEL,
         SUBCMD_EVENT_LIST,
         SUBCMD_EVENT_DUMP,
         SUBCMD_EVENT_SIGN,
+        SUBCMD_EVENT_COUNT,
         SUBCMD_UNDEFINED
     } l_event_subcmd={0};
 
@@ -1640,6 +1644,8 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-event", &l_event_hash_str);
             dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-cert", &l_cert_str);
             l_event_subcmd = SUBCMD_EVENT_SIGN;
+        } else if (strcmp(l_event_cmd_str, "count") == 0) {
+            l_event_subcmd = SUBCMD_EVENT_COUNT;
         } else {
             l_event_subcmd = SUBCMD_UNDEFINED;
         }
@@ -1811,7 +1817,6 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                 if ( l_event ){
                     dap_string_t * l_str_tmp = dap_string_new(NULL);
                     char buf[50];
-                    dap_time_t l_ts_reated = (dap_time_t)l_event->header.ts_created;
 
                     dap_string_append_printf(l_str_tmp,"\nEvent %s:\n", l_event_hash_str);
 
@@ -1823,8 +1828,8 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                         char * l_hash_str = dap_chain_hash_fast_to_str_new(&l_round_item->round_info.datum_hash);
                         dap_string_append_printf(l_str_tmp, "\t\tdatum_hash: %s\n", l_hash_str);
                         DAP_DELETE(l_hash_str);
-                        dap_time_t l_ts = l_round_item->round_info.ts_update;
-                        dap_string_append_printf(l_str_tmp,"\t\tts_update: %s", dap_ctime_r(&l_ts, buf));
+                        dap_time_to_str_rfc822(buf, 50, l_round_item->round_info.ts_update);
+                        dap_string_append_printf(l_str_tmp,"\t\tts_update: %s\n", buf);
                     }
 
                      // Header
@@ -1833,7 +1838,8 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     dap_string_append_printf(l_str_tmp,"\t\t\tround ID: %"DAP_UINT64_FORMAT_U"\n",l_event->header.round_id);
                     dap_string_append_printf(l_str_tmp,"\t\t\tcell_id: 0x%016"DAP_UINT64_FORMAT_x"\n",l_event->header.cell_id.uint64);
                     dap_string_append_printf(l_str_tmp,"\t\t\tchain_id: 0x%016"DAP_UINT64_FORMAT_X"\n",l_event->header.chain_id.uint64);
-                    dap_string_append_printf(l_str_tmp,"\t\t\tts_created: %s\n", dap_ctime_r(&l_ts_reated, buf) );
+                    dap_time_to_str_rfc822(buf, 50, l_event->header.ts_created);
+                    dap_string_append_printf(l_str_tmp,"\t\t\tts_created: %s\n", buf );
 
                     // Hash links
                     dap_string_append_printf(l_str_tmp,"\t\t\thashes:\tcount: %u\n",l_event->header.hash_count);
@@ -1847,7 +1853,6 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     size_t l_offset =  l_event->header.hash_count*sizeof (dap_chain_hash_fast_t);
                     dap_chain_datum_t * l_datum = (dap_chain_datum_t*) (l_event->hashes_n_datum_n_signs + l_offset);
                     size_t l_datum_size =  dap_chain_datum_size(l_datum);
-                    dap_time_t l_datum_ts_create = (dap_time_t) l_datum->header.ts_create;
 
                     // Nested datum
                     const char *l_datum_type = NULL;
@@ -1855,7 +1860,8 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     dap_string_append_printf(l_str_tmp,"\t\tdatum:\tdatum_size: %zu\n",l_datum_size);
                     dap_string_append_printf(l_str_tmp,"\t\t\tversion:=0x%02hhX\n", l_datum->header.version_id);
                     dap_string_append_printf(l_str_tmp,"\t\t\ttype_id:=%s\n", l_datum_type);
-                    dap_string_append_printf(l_str_tmp,"\t\t\tts_create=%s\n", dap_ctime_r( &l_datum_ts_create,buf ));
+                    dap_time_to_str_rfc822(buf, 50, l_datum->header.ts_create);
+                    dap_string_append_printf(l_str_tmp,"\t\t\tts_create=%s\n", buf);
                     dap_string_append_printf(l_str_tmp,"\t\t\tdata_size=%u\n", l_datum->header.data_size);
 
                     // Signatures
@@ -1909,9 +1915,9 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                             dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *)
                                             ((dap_chain_cs_dag_event_round_item_t *)l_objs[i].value)->event_n_signs;
                             char buf[50];
-                            dap_time_t l_ts_create = (dap_time_t) l_event->header.ts_created;
-                            dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s",
-                                                     l_objs[i].key, dap_ctime_r( &l_ts_create,buf ) );
+                            dap_time_to_str_rfc822(buf, 50, l_event->header.ts_created);
+                            dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s\n",
+                                                     l_objs[i].key, buf);
 
                         }
                         if (l_objs && l_objs_count )
@@ -1930,10 +1936,10 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     dap_chain_cs_dag_event_item_t * l_event_item = NULL,*l_event_item_tmp = NULL;
                     HASH_ITER(hh,PVT(l_dag)->events,l_event_item, l_event_item_tmp ) {
                         char buf[50];
+                        dap_time_to_str_rfc822(buf, 50, l_event_item->event->header.ts_created);
                         char * l_event_item_hash_str = dap_chain_hash_fast_to_str_new( &l_event_item->hash);
-                        dap_time_t l_ts_create = (dap_time_t) l_event_item->event->header.ts_created;
-                        dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s",
-                                                 l_event_item_hash_str, dap_ctime_r( &l_ts_create,buf ) );
+                        dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s\n",
+                                                 l_event_item_hash_str, buf);
                         DAP_DELETE(l_event_item_hash_str);
                     }
                     size_t l_events_count = HASH_COUNT(PVT(l_dag)->events);
@@ -1949,10 +1955,10 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     dap_string_append_printf(l_str_tmp,"\nDAG threshold events:\n");
                     HASH_ITER(hh,PVT(l_dag)->events_treshold,l_event_item, l_event_item_tmp ) {
                         char buf[50];
+                        dap_time_to_str_rfc822(buf, 50, l_event_item->event->header.ts_created);
                         char * l_event_item_hash_str = dap_chain_hash_fast_to_str_new( &l_event_item->hash);
-                        dap_time_t l_ts_create = (dap_time_t) l_event_item->event->header.ts_created;
-                        dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s",
-                                                 l_event_item_hash_str, dap_ctime_r( &l_ts_create,buf ) );
+                        dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s\n",
+                                                 l_event_item_hash_str, buf);
                         DAP_DELETE(l_event_item_hash_str);
                     }
                     size_t l_events_count = HASH_COUNT(PVT(l_dag)->events_treshold);
@@ -1967,6 +1973,21 @@ static int s_cli_dag(int argc, char ** argv, char **a_str_reply)
                     ret=-14;
 
                 }
+            } break;
+            case SUBCMD_EVENT_COUNT: {
+                dap_string_t *l_ret_str = dap_string_new(NULL);
+                dap_string_append_printf(l_ret_str, "%s.%s:\n", l_net->pub.name, l_chain->name);
+                const char * l_gdb_group_events = DAP_CHAIN_CS_DAG(l_chain)->gdb_group_events_round_new;
+                if (l_gdb_group_events) {
+                    size_t l_objs_count = 0;
+                    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_events,&l_objs_count);
+                    dap_string_append_printf(l_ret_str,"%zu in round.new\n", l_objs_count);
+                }
+                size_t l_event_count = HASH_COUNT(PVT(l_dag)->events);
+                size_t l_event_treshold_count = HASH_COUNT(PVT(l_dag)->events_treshold);
+                dap_string_append_printf(l_ret_str, "%zu atoms(s) in events\n%zu atom(s) in threshold", l_event_count, l_event_treshold_count);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_ret_str->str);
+                dap_string_free(l_ret_str, true);
             } break;
             case SUBCMD_EVENT_SIGN: { // Sign event command
                 char * l_gdb_group_events = l_dag->gdb_group_events_round_new;

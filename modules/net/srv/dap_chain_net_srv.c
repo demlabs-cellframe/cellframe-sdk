@@ -74,7 +74,7 @@ typedef struct service_list {
 static service_list_t *s_srv_list = NULL;
 // for separate access to s_srv_list
 static pthread_mutex_t s_srv_list_mutex = PTHREAD_MUTEX_INITIALIZER;
-static int s_cli_net_srv(int argc, char **argv, char **a_str_reply);
+static int s_cli_net_srv(int argc, char **argv, void **reply);
 static void s_load(const char * a_path);
 static void s_load_all();
 
@@ -94,18 +94,20 @@ int dap_chain_net_srv_init()
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, s_fee_verificator_callback, NULL);
 
     dap_cli_server_cmd_add ("net_srv", s_cli_net_srv, "Network services managment",
-        "net_srv -net <net_name> order find [-direction {sell | buy}] [-srv_uid <Service UID>] [-price_unit <price unit>]\n"
-        " [-price_token <Token ticker>] [-price_min <Price minimum>] [-price_max <Price maximum>]\n"
+        "net_srv -net <net_name> order find [-direction {sell | buy}] [-srv_uid <service_UID>] [-price_unit <price_unit>]"
+        " [-price_token <token_ticker>] [-price_min <price_minimum>] [-price_max <price_maximum>]\n"
         "\tOrders list, all or by UID and/or class\n"
-        "net_srv -net <net_name> order delete -hash <Order hash>\n"
+        "net_srv -net <net_name> order delete -hash <ip_addr>\n"
         "\tOrder delete\n"
-        "net_srv -net <net_name> order dump -hash <Order hash>\n"
+        "net_srv -net <net_name> order dump -hash <ip_addr>\n"
         "\tOrder dump info\n"
         "net_srv -net <net_name> order create -direction {sell | buy} -srv_uid <Service UID> -price <Price>\n"
         " -price_unit <Price Unit> -price_token <token_ticker> -units <units> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>]\n"
         " [-expires <Unix time when expires>] [-cert <cert name to sign order>]\n"
         " [{-ext <Extension with params> | -region <Region name> -continent <Continent name>}]\n"
-        "net_srv get_limits -net <net_name> -srv_uid <Service_UID> -provider_pkey_hash <Service_provider_public_key_hash> -client_pkey_hash <Client_public_key_hash>"
+        "net_srv get_limits -net <net_name> -srv_uid <Service_UID> -provider_pkey_hash <Service_provider_public_key_hash> -client_pkey_hash <Client_public_key_hash>\n"
+        "net_srv report\n"
+        "\tGet report about srv usage"
 #ifdef DAP_MODULES_DYNAMIC
         "\tOrder create\n"
             "net_srv -net <net_name> order static [save | delete]\n"
@@ -185,8 +187,9 @@ void dap_chain_net_srv_deinit(void)
  * @param a_str_reply
  * @return
  */
-static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
+static int s_cli_net_srv( int argc, char **argv, void **reply)
 {
+    char ** a_str_reply = (char **) reply;
     int arg_index = 1;
     dap_chain_net_t * l_net = NULL;
 
@@ -197,6 +200,15 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
     if(dap_strcmp(l_hash_out_type, "hex") && dap_strcmp(l_hash_out_type, "base58")) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
         return -1;
+    }
+
+
+    int l_report = dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "report", NULL);
+    if (l_report) {
+        const char *l_report_str = dap_stream_ch_chain_net_srv_create_statistic_report();
+        dap_cli_server_cmd_set_reply_text(a_str_reply, l_report_str);
+        DAP_DEL_Z(l_report_str);
+        return 0;
     }
 
     int l_ret = dap_chain_node_cli_cmd_values_parse_net_chain( &arg_index, argc, argv, a_str_reply, NULL, &l_net );
@@ -245,6 +257,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
 
         const char* l_region_str = NULL;
         dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-region", &l_region_str);
+    
         const char* l_continent_str = NULL;
         dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-continent", &l_continent_str);
 
@@ -384,21 +397,7 @@ static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
                 if ( l_price_max_str )
                     l_price_max = dap_chain_balance_scan(l_price_max_str);
 
-                if (l_price_unit_str){
-                    if (!dap_strcmp(l_price_unit_str, "MB")){
-                        l_price_unit.uint32 = SERV_UNIT_MB;
-                    } else if (!dap_strcmp(l_price_unit_str, "SEC")){
-                        l_price_unit.uint32 = SERV_UNIT_SEC;
-                    } else if (!dap_strcmp(l_price_unit_str, "DAY")){
-                        l_price_unit.uint32 = SERV_UNIT_DAY;
-                    } else if (!dap_strcmp(l_price_unit_str, "KB")){
-                        l_price_unit.uint32 = SERV_UNIT_KB;
-                    } else if (!dap_strcmp(l_price_unit_str, "B")){
-                        l_price_unit.uint32 = SERV_UNIT_B;
-                    } else if (!dap_strcmp(l_price_unit_str, "PCS")){
-                        l_price_unit.uint32 = SERV_UNIT_PCS;
-                    }
-                }
+                l_price_unit.uint32 = dap_chain_srv_str_to_unit_enum(l_price_unit_str);
 
                 dap_chain_net_srv_order_t * l_orders;
                 size_t l_orders_num = 0;
@@ -1015,7 +1014,6 @@ dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net
 
     DAP_DELETE(l_order);
     return l_price;
-
 }
 
 int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, const char *a_config_section)
@@ -1388,7 +1386,7 @@ void dap_chain_net_srv_del_all(void)
  * @param a_uid
  * @return
  */
-dap_chain_net_srv_t * dap_chain_net_srv_get(dap_chain_net_srv_uid_t a_uid)
+dap_chain_net_srv_t *dap_chain_net_srv_get(dap_chain_net_srv_uid_t a_uid)
 {
     service_list_t *l_sdata = NULL;
     pthread_mutex_lock(&s_srv_list_mutex);
