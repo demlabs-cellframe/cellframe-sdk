@@ -558,6 +558,9 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                 DAP_DELETE(l_coins_str);
             }
         }
+        if (json_object_array_length(j_arr_data) > 0) {
+            json_object_object_add(j_obj_tx, "data", j_arr_data);
+        }
         dap_list_free(l_list_out_items);
         if (l_is_need_correction) {
             SUM_256_256(l_corr_value, l_fee_sum, &l_corr_value);
@@ -569,9 +572,6 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
             DAP_DELETE(l_value_str);
             DAP_DELETE(l_coins_str);
             l_is_need_correction = false;
-        }
-        if (json_object_array_length(j_arr_data) > 0) {
-            json_object_object_add(j_obj_tx, "data", j_arr_data);
         }
     }
     a_chain->callback_datum_iter_delete(l_datum_iter);
