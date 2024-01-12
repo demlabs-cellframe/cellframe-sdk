@@ -494,7 +494,6 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                     l_src_str = l_src_addr_str = dap_chain_addr_to_str(l_src_addr);
                 else
                     l_src_str = dap_chain_tx_out_cond_subtype_to_str(l_src_subtype);
-
                 if (l_is_unstake)
                     l_value = l_unstake_value;
                 else if (!dap_strcmp(l_native_ticker, l_noaddr_token)) {
