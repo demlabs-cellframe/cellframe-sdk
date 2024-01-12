@@ -296,7 +296,7 @@ static void s_check_db_collect_callback(dap_global_db_context_t UNUSED_ARG *a_gl
     if (l_objs_count >= 10) {
         for (size_t i = 0; i < l_objs_count; i++) {
             SUM_256_256(l_value_total, *(uint256_t*)l_objs[i].value, &l_value_total);
-            if (compare256(l_value_total, l_esbocs_pvt->collecting_level) == 1) {
+            if (compare256(l_value_total, l_esbocs_pvt->collecting_level) >= 1) {
                 l_level_reached = true;
                 break;
             }
@@ -317,12 +317,12 @@ static void s_check_db_collect_callback(dap_global_db_context_t UNUSED_ARG *a_gl
                     dap_chain_mempool_tx_reward_create(l_blocks, l_esbocs_pvt->blocks_sign_key,
                                      l_esbocs_pvt->collecting_addr, l_block_list, l_esbocs_pvt->minimum_fee, "hex");
         if (l_tx_hash_str) {
-            dap_global_db_del_sync(a_group, NULL);
             log_it(L_NOTICE, "%s collect transaction successfully created, hash = %s",
                             l_fee_collect ? "Fee" : "Reward", l_tx_hash_str);
             DAP_DELETE(l_tx_hash_str);
         } else
             log_it(L_ERROR, "%s collect transaction creation error", l_fee_collect ? "Fee" : "Reward");
+        dap_global_db_del_sync(a_group, NULL);
     }
     dap_global_db_objs_delete(l_objs, l_objs_count);
 }
