@@ -38,8 +38,6 @@ static bool s_timer_node_reconnect(void *a_arg)
     return false;
 }
 
-
-
 /**
  * @brief a_stage_end_callback
  * @param a_client
@@ -47,6 +45,7 @@ static bool s_timer_node_reconnect(void *a_arg)
  */
 static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
 {
+
     dap_chain_node_client_t *l_node_client = DAP_CHAIN_NODE_CLIENT(a_client);
     UNUSED(a_arg);
     if(l_node_client) {
@@ -97,3 +96,42 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
     }
 }
 
+
+/**
+ * @brief dap_chain_node_client_connect
+ * Create new dap_client, setup it, and send it in adventure trip
+ * @param a_node_client dap_chain_node_client_t
+ * @param a_active_channels a_active_channels
+ * @return true
+ * @return false
+ */
+bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const char *a_active_channels)
+{
+    if (!a_node_client)
+        return false;
+    a_node_client->client = dap_client_new(s_client_delete_callback, s_stage_status_error_callback, a_node_client);
+    dap_client_set_is_always_reconnect(a_node_client->client, false);
+    a_node_client->client->_inheritor = a_node_client;
+    dap_client_set_active_channels_unsafe(a_node_client->client, a_active_channels);
+
+    dap_client_set_auth_cert(a_node_client->client, a_node_client->net->pub.name);
+
+    char l_host_addr[INET6_ADDRSTRLEN] = { '\0' };
+    if(a_node_client->info->hdr.ext_addr_v4.s_addr){
+        struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = a_node_client->info->hdr.ext_addr_v4 };
+        inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), l_host_addr, INET6_ADDRSTRLEN);
+    } else {
+        struct sockaddr_in6 sa6 = { .sin6_family = AF_INET6, .sin6_addr = a_node_client->info->hdr.ext_addr_v6 };
+        inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) &sa6)->sin6_addr), l_host_addr, INET6_ADDRSTRLEN);
+    }
+    if(!strlen(l_host_addr) || !strcmp(l_host_addr, "::") || !a_node_client->info->hdr.ext_port) {
+        log_it(L_WARNING, "Undefined address of node client");
+        return false;
+    }
+    log_it(L_INFO, "Connecting to addr %s : %d", l_host_addr, a_node_client->info->hdr.ext_port);
+    dap_client_set_uplink_unsafe(a_node_client->client, l_host_addr, a_node_client->info->hdr.ext_port);
+    a_node_client->state = NODE_CLIENT_STATE_CONNECTING;
+    // Handshake & connect
+    dap_client_go_stage(a_node_client->client, STAGE_STREAM_STREAMING, s_stage_connected_callback);
+    return true;
+}
