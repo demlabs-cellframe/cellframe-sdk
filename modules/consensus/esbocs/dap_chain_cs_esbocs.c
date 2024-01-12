@@ -296,7 +296,7 @@ static void s_check_db_collect_callback(dap_global_db_context_t UNUSED_ARG *a_gl
     if (l_objs_count >= 10) {
         for (size_t i = 0; i < l_objs_count; i++) {
             SUM_256_256(l_value_total, *(uint256_t*)l_objs[i].value, &l_value_total);
-            if (compare256(l_value_total, l_esbocs_pvt->collecting_level) >= 1) {
+            if (compare256(l_value_total, l_esbocs_pvt->collecting_level) >= 0) {
                 l_level_reached = true;
                 break;
             }
