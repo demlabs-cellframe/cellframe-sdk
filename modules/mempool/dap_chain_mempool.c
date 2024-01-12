@@ -297,16 +297,15 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_chain_cs_blocks_t *a_blocks, dap_
     dap_return_val_if_fail(a_blocks && a_key_from && a_addr_to && a_block_list, NULL);
     dap_chain_t *l_chain = a_blocks->chain;
     bool l_net_fee_used = dap_chain_net_tx_get_fee(l_chain->net_id, &l_net_fee, &l_addr_fee);
-    //add tx
-    if (NULL == (l_tx = dap_chain_datum_tx_create())) {
-        log_it(L_WARNING, "Can't create datum tx");
-        return NULL;
-    }
     dap_ledger_t *l_ledger = dap_chain_net_by_id(l_chain->net_id)->pub.ledger;
     dap_pkey_t *l_sign_pkey = dap_pkey_from_enc_key(a_key_from);
     if (!l_sign_pkey) {
         log_it(L_ERROR, "Can't serialize public key of sign certificate");
-        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    //add tx
+    if (NULL == (l_tx = dap_chain_datum_tx_create())) {
+        log_it(L_WARNING, "Can't create datum tx");
         return NULL;
     }
     for(dap_list_t *bl = a_block_list; bl; bl = bl->next) {
@@ -317,21 +316,18 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_chain_cs_blocks_t *a_blocks, dap_
             char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
             dap_hash_fast_to_str(l_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
             log_it(L_ERROR, "Can't find cache for block hash %s", l_block_hash_str);
-            DAP_DELETE(l_sign_pkey);
-            dap_chain_datum_tx_delete(l_tx);
-            return NULL;
+            continue;
         }
         //verification of signatures of all blocks
         dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
         if (!l_sign || !dap_pkey_compare_with_sign(l_sign_pkey, l_sign)) {
             log_it(L_WARNING, "Block %s signature does not match certificate key", l_block_cache->block_hash_str);
-            DAP_DELETE(l_sign_pkey);
-            dap_chain_datum_tx_delete(l_tx);
-            return NULL;
+            continue;
         }
 
         dap_list_t *l_list_used_out = dap_chain_block_get_list_tx_cond_outs_with_val(l_ledger, l_block_cache, &l_value_out_block);
-        if (!l_list_used_out) continue;
+        if (!l_list_used_out)
+            continue;
 
         //add 'in' items
         {
@@ -347,6 +343,12 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_chain_cs_blocks_t *a_blocks, dap_
     dap_hash_fast_t l_sign_pkey_hash;
     dap_hash_fast(l_sign_pkey->pkey, l_sign_pkey->header.size, &l_sign_pkey_hash);
     DAP_DELETE(l_sign_pkey);
+
+    if (dap_chain_datum_tx_get_size(l_tx) == sizeof(dap_chain_datum_tx_t)) {
+        // tx is empty, no valid inputs
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
 
     //add 'fee' items
     {
@@ -456,9 +458,7 @@ char *dap_chain_mempool_tx_reward_create(dap_chain_cs_blocks_t *a_blocks, dap_en
             char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
             dap_hash_fast_to_str(l_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
             log_it(L_WARNING, "Block %s signatures does not match certificate key", l_block_hash_str);
-            DAP_DELETE(l_sign_pkey);
-            dap_chain_datum_tx_delete(l_tx);
-            return NULL;
+            continue;
         }
         if (dap_ledger_is_used_reward(l_ledger, l_block_hash, &l_sign_pkey_hash)) {
             char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
@@ -466,20 +466,22 @@ char *dap_chain_mempool_tx_reward_create(dap_chain_cs_blocks_t *a_blocks, dap_en
             char l_sign_pkey_hash_str[DAP_HASH_FAST_STR_SIZE];
             dap_hash_fast_to_str(&l_sign_pkey_hash, l_sign_pkey_hash_str, DAP_HASH_FAST_STR_SIZE);
             log_it(L_WARNING, "Block %s reward is already collected by signer %s", l_block_hash_str, l_sign_pkey_hash_str);
-            DAP_DELETE(l_sign_pkey);
-            dap_chain_datum_tx_delete(l_tx);
-            return NULL;
+            continue;
         }
         //add 'in_reward' items
         if (dap_chain_datum_tx_add_in_reward_item(&l_tx, l_block_hash) != 1) {
             log_it(L_ERROR, "Can't create in_reward item for reward collect TX");
-            DAP_DELETE(l_sign_pkey);
-            dap_chain_datum_tx_delete(l_tx);
-            return NULL;
+            continue;
         }
         SUM_256_256(l_value_out, l_reward_value, &l_value_out);
     }
     DAP_DELETE(l_sign_pkey);
+
+    if (dap_chain_datum_tx_get_size(l_tx) == sizeof(dap_chain_datum_tx_t)) {
+        // tx is empty, no valid inputs
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
 
     uint256_t l_net_fee = uint256_0, l_total_fee = uint256_0;
     dap_chain_addr_t l_addr_fee = c_dap_chain_addr_blank;
