@@ -487,7 +487,7 @@ bool dap_chain_esbocs_get_autocollect_status(dap_chain_net_id_t a_net_id)
     DL_FOREACH(s_session_items, l_session) {
         if (l_session->chain->net_id.uint64 == a_net_id.uint64) {
             if (l_session->esbocs && l_session->esbocs->_pvt &&
-                    !dap_chain_addr_is_blank(&PVT(l_session->esbocs)->collecting_addr))
+                    !dap_chain_addr_is_blank(PVT(l_session->esbocs)->collecting_addr))
                 return true;
             else
                 return false;
