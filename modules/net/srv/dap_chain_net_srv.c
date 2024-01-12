@@ -74,7 +74,7 @@ typedef struct service_list {
 static service_list_t *s_srv_list = NULL;
 // for separate access to s_srv_list
 static pthread_mutex_t s_srv_list_mutex = PTHREAD_MUTEX_INITIALIZER;
-static int s_cli_net_srv(int argc, char **argv, char **a_str_reply);
+static int s_cli_net_srv(int argc, char **argv, void **reply);
 static void s_load(const char * a_path);
 static void s_load_all();
 
@@ -94,12 +94,12 @@ int dap_chain_net_srv_init()
     dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, s_fee_verificator_callback, NULL);
 
     dap_cli_server_cmd_add ("net_srv", s_cli_net_srv, "Network services managment",
-        "net_srv -net <net_name> order find [-direction {sell | buy}] [-srv_uid <Service UID>] [-price_unit <price unit>]\n"
-        " [-price_token <Token ticker>] [-price_min <Price minimum>] [-price_max <Price maximum>]\n"
+        "net_srv -net <net_name> order find [-direction {sell | buy}] [-srv_uid <service_UID>] [-price_unit <price_unit>]"
+        " [-price_token <token_ticker>] [-price_min <price_minimum>] [-price_max <price_maximum>]\n"
         "\tOrders list, all or by UID and/or class\n"
-        "net_srv -net <net_name> order delete -hash <Order hash>\n"
+        "net_srv -net <net_name> order delete -hash <ip_addr>\n"
         "\tOrder delete\n"
-        "net_srv -net <net_name> order dump -hash <Order hash>\n"
+        "net_srv -net <net_name> order dump -hash <ip_addr>\n"
         "\tOrder dump info\n"
         "net_srv -net <net_name> order create -direction {sell | buy} -srv_uid <Service UID> -price <Price>\n"
         " -price_unit <Price Unit> -price_token <token_ticker> -units <units> [-node_addr <Node Address>] [-tx_cond <TX Cond Hash>]\n"
@@ -187,8 +187,9 @@ void dap_chain_net_srv_deinit(void)
  * @param a_str_reply
  * @return
  */
-static int s_cli_net_srv( int argc, char **argv, char **a_str_reply)
+static int s_cli_net_srv( int argc, char **argv, void **reply)
 {
+    char ** a_str_reply = (char **) reply;
     int arg_index = 1;
     dap_chain_net_t * l_net = NULL;
 
@@ -1002,7 +1003,6 @@ dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net
 
     DAP_DELETE(l_order);
     return l_price;
-
 }
 
 int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, const char *a_config_section)

@@ -43,7 +43,7 @@
 
 #define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_GDB_GROUP "delegate_keys"
 
-static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply);
+static int s_cli_srv_stake(int a_argc, char **a_argv, void **reply);
 
 static bool s_stake_verificator_callback(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_cond,
                                                       dap_chain_datum_tx_t *a_tx_in, bool a_owner);
@@ -94,9 +94,9 @@ int dap_chain_net_srv_stake_pos_delegate_init()
                             " {-w <wallet_name> -fee <value> | -poa_cert <cert_name>}\n"
          "\tInvalidate requested delegated stake transaction by hash or cert name or cert pkey hash within net name and"
          " return m-tokens to specified wallet (if any)\n"
-    "srv_stake min_value -net <net_name> -cert <cert_name> -value <value>"
+    "srv_stake min_value -net <net_name> -cert <cert_name> -value <value>\n"
          "\tSets the minimum stake value\n"
-    "srv_stake check -net <net_name> -tx <tx_hash>"
+    "srv_stake check -net <net_name> -tx <tx_hash>\n"
          "\tCheck remote validator"
     );
 
@@ -1601,8 +1601,9 @@ uint256_t dap_chain_net_srv_stake_get_total_weight(dap_chain_net_id_t a_net_id)
     return l_total_weight;
 }
 
-static int s_cli_srv_stake(int a_argc, char **a_argv, char **a_str_reply)
+static int s_cli_srv_stake(int a_argc, char **a_argv, void **reply)
 {
+    char ** a_str_reply = (char **) reply;
     enum {
         CMD_NONE, CMD_ORDER, CMD_DELEGATE, CMD_APPROVE, CMD_LIST, CMD_INVALIDATE, CMD_MIN_VALUE, CMD_CHECK
     };

@@ -221,6 +221,7 @@ void s_datum_token_dump_tsd(dap_string_t *a_str_out, dap_chain_datum_token_t *a_
     }
 }
 
+
 /**
  * @brief _dap_chain_datum_tx_out_data
  *
@@ -789,31 +790,4 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
         } break;
     }    
     DAP_DELETE(l_hash_str);
-}
-
-json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum){
-    json_object *l_object = json_object_new_object();
-    char *l_hash_data_str;
-    dap_get_data_hash_str_static(a_datum->data, a_datum->header.data_size, l_hash_data_str);
-    json_object *l_obj_data_hash = json_object_new_string(l_hash_data_str);
-    json_object *l_obj_version = json_object_new_int(a_datum->header.version_id);
-    json_object *l_obj_size = json_object_new_int(a_datum->header.data_size);
-    json_object *l_obj_ts_created = json_object_new_uint64(a_datum->header.ts_create);
-    json_object *l_obj_type = json_object_new_string(dap_chain_datum_type_id_to_str(a_datum->header.type_id));
-    json_object *l_obj_data;
-    switch (a_datum->header.type_id) {
-        case DAP_CHAIN_DATUM_TX:
-            l_obj_data = dap_chain_datum_tx_to_json((dap_chain_datum_tx_t*)a_datum->data);
-            break;
-        default:
-            l_obj_data = json_object_new_null();
-            break;
-    }
-    json_object_object_add(l_object, "version", l_obj_version);
-    json_object_object_add(l_object, "hash", l_obj_data_hash);
-    json_object_object_add(l_object, "data_size", l_obj_size);
-    json_object_object_add(l_object, "ts_created", l_obj_ts_created);
-    json_object_object_add(l_object, "type", l_obj_type);
-    json_object_object_add(l_object, "data", l_obj_data);
-    return l_object;
 }
