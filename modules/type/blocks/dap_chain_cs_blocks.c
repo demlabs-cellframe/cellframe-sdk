@@ -456,7 +456,9 @@ static void s_cli_meta_hex_print(  dap_string_t * a_str_tmp, const char * a_meta
 
 static void s_print_autocollect_table(dap_chain_net_t *a_net, dap_string_t *a_reply_str, const char *a_table_name)
 {
-    dap_string_append_printf(a_reply_str, "\n=== %s ===\n", a_table_name);
+    dap_string_append_printf("\nAutocollect status is %s\n", dap_chain_esbocs_get_autocollect_status(a_net->pub.id) ?
+                                                             "active" : "inactive, check the network config");
+    dap_string_append_printf(a_reply_str, "\nAutocollect tables content for:\n=== %s ===\n", a_table_name);
     size_t l_objs_count = 0;
     char *l_group = dap_strcmp(a_table_name, "Fees") ? dap_chain_cs_blocks_get_reward_group(a_net->pub.name)
                                                      : dap_chain_cs_blocks_get_fee_group(a_net->pub.name);
@@ -492,7 +494,7 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, dap_string_t *a_re
         char *l_profit_str = dap_chain_balance_to_coins(l_collect_value);
         char *l_tax_str = dap_chain_balance_to_coins(l_collect_tax);
         char *l_fee_str = dap_chain_balance_to_coins(l_collect_fee);
-        dap_string_append_printf(a_reply_str, "Total prepared value: %s %s, where\n\tprofit is %s, tax is %s, fee is %s\n",
+        dap_string_append_printf(a_reply_str, "\nTotal prepared value: %s %s, where\n\tprofit is %s, tax is %s, fee is %s\n",
                                  l_total_str, a_net->pub.native_ticker, l_profit_str, l_tax_str, l_fee_str);
         DAP_DEL_Z(l_total_str);
         DAP_DEL_Z(l_profit_str);
@@ -1056,7 +1058,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block autocollect' requires subcommand 'status'");
                 return -14;
             }
-            dap_string_t *l_reply_str = dap_string_new("Autocollect tables content for:\n");
+            dap_string_t *l_reply_str = dap_string_new("");
             s_print_autocollect_table(l_net, l_reply_str, "Fees");
             s_print_autocollect_table(l_net, l_reply_str, "Rewards");
             dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_reply_str->str);
