@@ -1502,7 +1502,7 @@ static xchange_tx_type_t s_xchange_tx_get_type (dap_chain_net_t * a_net, dap_cha
         dap_sign_t *l_sign = dap_chain_datum_tx_item_sign_get_sig((dap_chain_tx_sig_t *)l_tx_sig);
 
         bool l_owner = false;
-        l_owner = dap_sign_match_pkey_signs(l_prev_sign,l_sign);
+        l_owner = dap_sign_compare_pkeys(l_prev_sign,l_sign);
         if (l_owner)
                 l_tx_type = TX_TYPE_INVALIDATE;
         else

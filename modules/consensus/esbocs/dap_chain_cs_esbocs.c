@@ -397,6 +397,21 @@ static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cel
     }
 }
 
+bool dap_chain_esbocs_get_autocollect_status(dap_chain_net_id_t a_net_id)
+{
+    dap_chain_esbocs_session_t *l_session;
+    DL_FOREACH(s_session_items, l_session) {
+        if (l_session->chain->net_id.uint64 == a_net_id.uint64) {
+            if (l_session->esbocs && l_session->esbocs->_pvt &&
+                    !dap_chain_addr_is_blank(PVT(l_session->esbocs)->collecting_addr))
+                return true;
+            else
+                return false;
+        }
+    }
+    return false;
+}
+
 static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cfg)
 {
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);

@@ -203,6 +203,21 @@ int dap_chain_datum_tx_get_fee_value(dap_chain_datum_tx_t *a_tx, uint256_t *a_va
     return l_ret;
 }
 
+dap_sign_t *dap_chain_datum_tx_get_sign(dap_chain_datum_tx_t *a_tx, int a_sign_num)
+{
+    dap_return_val_if_fail(a_tx, NULL);
+    if (!a_sign_num) {
+        dap_chain_tx_sig_t *l_tx_sig = (dap_chain_tx_sig_t *)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_SIG, NULL);
+        return dap_chain_datum_tx_item_sign_get_sig(l_tx_sig);
+    }
+    dap_list_t *l_items_list = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_SIG, NULL);
+    if (dap_list_length(l_items_list) <= (uint64_t)a_sign_num)
+        return NULL;
+    dap_sign_t *l_ret = dap_list_nth_data(l_items_list, a_sign_num);
+    dap_list_free(l_items_list);
+    return l_ret;
+}
+
 /**
  * Create 'out' item and insert to transaction
  *
