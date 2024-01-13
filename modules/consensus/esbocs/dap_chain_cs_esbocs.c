@@ -378,7 +378,6 @@ static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cel
     }
 }
 
-<<<<<<< HEAD
 /* *** Temporary added section for over-consensus sync. Remove this after global DB sync refactoring *** */
 
 static bool s_change_db_broadcast(UNUSED_ARG dap_proc_thread_t *a_thread, void *a_arg)
@@ -480,7 +479,6 @@ static void s_session_db_clear(UNUSED_ARG dap_global_db_context_t *a_context, vo
 
 /* *** End of the temporary added section for over-consensus sync. *** */
 
-=======
 bool dap_chain_esbocs_get_autocollect_status(dap_chain_net_id_t a_net_id)
 {
     dap_chain_esbocs_session_t *l_session;
@@ -496,7 +494,6 @@ bool dap_chain_esbocs_get_autocollect_status(dap_chain_net_id_t a_net_id)
     return false;
 }
 
->>>>>>> 8a5d98994 ([*] Staker orders completion)
 static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cfg)
 {
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_chain);
