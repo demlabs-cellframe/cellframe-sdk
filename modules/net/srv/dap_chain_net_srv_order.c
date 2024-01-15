@@ -564,9 +564,10 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         dap_string_append_printf(a_str_out, "  price:            %s (%s)\n", l_balance_coins, l_balance);
         DAP_DELETE(l_balance_coins);
         DAP_DELETE(l_balance);
+        dap_string_append_printf(a_str_out, "  price_token:      %s\n",  (*a_order->price_ticker) ? a_order->price_ticker: a_native_ticker);
+        dap_string_append_printf(a_str_out, "  units:            %zu\n", a_order->units);
         if( a_order->price_unit.uint32 )
             dap_string_append_printf(a_str_out, "  price_unit:       %s\n", dap_chain_net_srv_price_unit_uid_to_str(a_order->price_unit) );
-        dap_string_append_printf(a_str_out, "  price_token:      %s\n",  (*a_order->price_ticker) ? a_order->price_ticker: a_native_ticker);
         if ( a_order->node_addr.uint64)
             dap_string_append_printf(a_str_out, "  node_addr:        "NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS_S(a_order->node_addr) );
 
@@ -595,7 +596,6 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         dap_sign_get_pkey_hash(l_sign, &l_sign_pkey);
         char *l_sign_pkey_hash_str = dap_hash_fast_to_str_new(&l_sign_pkey);
         dap_string_append_printf(a_str_out, "  pkey:             %s\n", l_sign_pkey_hash_str);
-        dap_string_append_printf(a_str_out, "  units:            %zu\n", a_order->units);
         DAP_DELETE(l_sign_pkey_hash_str);
         DAP_DELETE(l_hash_str);
         DAP_DELETE(l_ext_out);

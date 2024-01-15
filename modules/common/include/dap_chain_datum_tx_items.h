@@ -183,6 +183,8 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap
 
 json_object* dap_chain_datum_tx_item_out_cond_srv_xchange_to_json(dap_chain_tx_out_cond_t* a_srv_xchange);
 
+DAP_STATIC_INLINE uint32_t dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size() { return sizeof(dap_chain_addr_t) + sizeof(uint256_t) + 2 * sizeof(dap_tsd_t); }
+
 /**
  * Create item dap_chain_tx_out_cond_t for stake service
  *
