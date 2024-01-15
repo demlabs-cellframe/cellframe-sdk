@@ -66,8 +66,6 @@
 #include "dap_chain_net_srv.h"
 #include "dap_chain_cs_blocks.h"
 
-#include "dap_chain_mempool_rpc.h"
-
 #define LOG_TAG "dap_chain_mempool"
 
 static void s_tx_create_massive_gdb_save_callback(dap_global_db_context_t *a_global_db_context,
@@ -77,7 +75,7 @@ static void s_tx_create_massive_gdb_save_callback(dap_global_db_context_t *a_glo
 
 int dap_datum_mempool_init(void)
 {
-    dap_chain_mempool_rpc_init();
+    // dap_chain_mempool_rpc_init();
     return 0;
 }
 
