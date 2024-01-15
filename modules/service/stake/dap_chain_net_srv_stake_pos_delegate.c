@@ -225,6 +225,7 @@ static bool s_stake_verificator_callback(dap_ledger_t UNUSED_ARG *a_ledger, dap_
         if (!l_taker_sign) {
             log_it(L_ERROR, "Can't get taker sign");
             return false;
+        }
         l_owner = dap_sign_compare_pkeys(l_taker_sign, l_owner_sign);
     }
     if (!l_owner) {
