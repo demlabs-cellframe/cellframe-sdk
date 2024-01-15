@@ -294,6 +294,43 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
                     return false;
                 }
             }
+
+            dap_list_t *l_temp = l_voting->votes;
+            while(l_temp){
+                if (dap_hash_fast_compare(&((dap_chain_net_vote_t *)l_temp->data)->pkey_hash, &pkey_hash)){
+                    if(l_voting->voting_params.vote_changing_allowed_offset &&
+                        *(bool*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.vote_changing_allowed_offset)){
+                        //delete conditional outputs
+                        dap_chain_datum_tx_t *l_old_tx = dap_ledger_tx_find_by_hash(a_ledger, &((dap_chain_net_vote_t *)l_temp->data)->vote_hash);
+
+                        dap_list_t* l_tsd_list = dap_chain_datum_tx_items_get(l_old_tx, TX_ITEM_TYPE_TSD, NULL);
+                        dap_list_t* l_tsd_temp = l_tsd_list;
+                        while (l_tsd_temp){
+                            dap_tsd_t* l_tsd = (dap_tsd_t*)((dap_chain_tx_tsd_t*)l_tsd_temp->data)->tsd;
+                            dap_hash_fast_t l_hash = ((dap_chain_tx_voting_tx_cond_t*)l_tsd->data)->tx_hash;
+                            if(l_tsd->type == VOTING_TSD_TYPE_VOTE_TX_COND){
+                                dap_chain_net_voting_cond_outs_t *l_tx_outs = NULL;
+                                pthread_rwlock_wrlock(&l_voting->s_tx_outs_rwlock);
+                                HASH_FIND(hh, l_voting->voting_spent_cond_outs, &l_hash, sizeof(dap_hash_fast_t), l_tx_outs);
+                                if(l_tx_outs)
+                                    HASH_DELETE(hh, l_voting->voting_spent_cond_outs, l_tx_outs);
+                                pthread_rwlock_unlock(&l_voting->s_tx_outs_rwlock);
+                            }
+                            l_tsd_temp = l_tsd_temp->next;
+                        }
+                        dap_list_free(l_tsd_list);
+
+
+                        //delete vote
+                        l_voting->votes = dap_list_remove(l_voting->votes, l_temp->data);
+                        break;
+                    } else {
+                        log_it(L_ERROR, "The voting don't allow change your vote.");
+                        return false;
+                    }
+                }
+                l_temp = l_temp->next;
+            }
         }
 
         uint256_t l_weight = {};
@@ -392,31 +429,9 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
                 if (dap_hash_fast_compare(&((dap_chain_net_vote_t *)l_temp->data)->pkey_hash, &pkey_hash)){
                     if(l_voting->voting_params.vote_changing_allowed_offset &&
                         *(bool*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.vote_changing_allowed_offset)){
-                        //delete conditional outputs
-                        dap_chain_datum_tx_t *l_old_tx = dap_ledger_tx_find_by_hash(a_ledger, &((dap_chain_net_vote_t *)l_temp->data)->vote_hash);
 
-                        dap_list_t* l_tsd_list = dap_chain_datum_tx_items_get(l_old_tx, TX_ITEM_TYPE_TSD, NULL);
-                        dap_list_t* l_tsd_temp = l_tsd_list;
-                        while (l_tsd_temp){
-                            dap_tsd_t* l_tsd = (dap_tsd_t*)((dap_chain_tx_tsd_t*)l_tsd_temp->data)->tsd;
-                            dap_hash_fast_t l_hash = ((dap_chain_tx_voting_tx_cond_t*)l_tsd->data)->tx_hash;
-                            if(l_tsd->type == VOTING_TSD_TYPE_VOTE_TX_COND){
-                                dap_chain_net_voting_cond_outs_t *l_tx_outs = NULL;
-                                pthread_rwlock_wrlock(&l_voting->s_tx_outs_rwlock);
-                                HASH_FIND(hh, l_voting->voting_spent_cond_outs, &l_hash, sizeof(dap_hash_fast_t), l_tx_outs);
-                                if(l_tx_outs)
-                                    HASH_DELETE(hh, l_voting->voting_spent_cond_outs, l_tx_outs);
-                                pthread_rwlock_unlock(&l_voting->s_tx_outs_rwlock);
-                            }
-                            l_tsd_temp = l_tsd_temp->next;
-                        }
-                        dap_list_free(l_tsd_list);
+                        l_voting->votes = dap_list_append(l_voting->votes, l_vote_item);
 
-
-                        //delete vote
-                        int idx = dap_list_index(l_voting->votes, l_temp->data);
-                        l_voting->votes = dap_list_remove(l_voting->votes, l_temp->data);
-                        l_voting->votes = dap_list_insert(l_voting->votes, l_vote_item, idx);
                         log_it(L_ERROR, "Vote is changed.");
                         return true;
                     } else {
@@ -1191,7 +1206,22 @@ static int s_datum_tx_voting_coin_check_spent(dap_chain_net_t *a_net, dap_hash_f
 
     dap_chain_tx_vote_t *l_vote =(dap_chain_tx_vote_t *) dap_chain_datum_tx_item_get(l_tx, NULL, TX_ITEM_TYPE_VOTE, NULL);
     if(l_vote && dap_hash_fast_compare(&l_vote->voting_hash, &a_voting_hash)){
-        return 1;
+        dap_chain_net_votings_t *l_voting = NULL;
+        pthread_rwlock_wrlock(&s_votings_rwlock);
+        HASH_FIND(hh, s_votings, &a_voting_hash, sizeof(dap_hash_fast_t), l_voting);
+        pthread_rwlock_unlock(&s_votings_rwlock);
+        if (l_voting)
+        {
+                dap_list_t *l_temp = l_voting->votes;
+                while (l_temp){
+                    dap_chain_net_vote_t *l_vote = (dap_chain_net_vote_t *)l_temp->data;
+                    if (dap_hash_fast_compare(&l_vote->vote_hash, &a_tx_prev_hash)){
+                        l_coin_is_spent = 1;
+                        return 1;
+                    }
+                    l_temp = l_temp->next;
+                }
+        }
     }
 
 
@@ -1210,6 +1240,11 @@ static int s_datum_tx_voting_coin_check_spent(dap_chain_net_t *a_net, dap_hash_f
     dap_list_t* l_tx_temp = dap_list_last(l_tx_list);
 
     while(l_tx_temp && !l_coin_is_spent){
+        if (l_tx_temp->data == NULL){
+            l_tx_list = dap_list_delete_link(l_tx_list, l_tx_temp);
+            l_tx_temp = l_tx_list ? dap_list_last(l_tx_list) : NULL;
+            continue;
+        }
         dap_list_t *l_ins_list = (dap_list_t*)l_tx_temp->data;
         dap_chain_tx_in_t* l_temp_in = (dap_chain_tx_in_t*)l_ins_list->data;
         dap_chain_datum_tx_t *l_tx_prev_temp = dap_ledger_tx_find_by_hash(l_ledger, &l_temp_in->header.tx_prev_hash);
@@ -1241,7 +1276,7 @@ static int s_datum_tx_voting_coin_check_spent(dap_chain_net_t *a_net, dap_hash_f
                     break;
             }
             default:
-                l_tx_temp->data = dap_list_remove(l_tx_temp->data, l_temp_in);
+                l_tx_temp->data = dap_list_remove((dap_list_t*)l_tx_temp->data, l_temp_in);
                 if (l_tx_temp->data == NULL){
                     l_tx_list = dap_list_delete_link(l_tx_list, l_tx_temp);
                     l_tx_temp = l_tx_list ? dap_list_last(l_tx_list) : NULL;
@@ -1251,7 +1286,7 @@ static int s_datum_tx_voting_coin_check_spent(dap_chain_net_t *a_net, dap_hash_f
 
         if (l_tx_prev_temp->header.ts_created < l_voting_tx->header.ts_created ||
                                             dap_strcmp(l_tx_token, l_native_ticker)){
-            l_tx_temp->data = dap_list_remove(l_tx_temp->data, l_temp_in);
+            l_tx_temp->data = dap_list_remove((dap_list_t*)l_tx_temp->data, l_temp_in);
             if (l_tx_temp->data == NULL){
                 l_tx_list = dap_list_delete_link(l_tx_list, l_tx_temp);
                 l_tx_temp = l_tx_list ? dap_list_last(l_tx_list) : NULL;
@@ -1277,9 +1312,12 @@ static int s_datum_tx_voting_coin_check_spent(dap_chain_net_t *a_net, dap_hash_f
             }
         }
 
+
         l_ins_list = dap_chain_datum_tx_items_get(l_tx_prev_temp, TX_ITEM_TYPE_IN, NULL);
         l_tx_list = dap_list_append(l_tx_list, l_ins_list);
-        l_tx_temp = dap_list_last(l_tx_list);
+        l_tx_temp->data = dap_list_remove((dap_list_t*)l_tx_temp->data, l_temp_in);
+        l_tx_temp = l_tx_list ? dap_list_last(l_tx_list) : NULL;
+
     }
 
     if(l_tx_list){
