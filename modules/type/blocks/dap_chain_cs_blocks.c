@@ -450,8 +450,10 @@ static void s_cli_meta_hex_print(  dap_string_t * a_str_tmp, const char * a_meta
 
 static void s_print_autocollect_table(dap_chain_net_t *a_net, dap_string_t *a_reply_str, const char *a_table_name)
 {
-    dap_string_append_printf(a_reply_str, "\nAutocollect status is %s\n", dap_chain_esbocs_get_autocollect_status(a_net->pub.id) ?
-                                                             "active" : "inactive, check the network config");
+    bool l_status = dap_chain_esbocs_get_autocollect_status(a_net->pub.id);
+    dap_string_append_printf(a_reply_str, "\nAutocollect status is %s\n", l_status ? "active" : "inactive, cause the network config or consensus starting problems");
+    if (!l_status)
+        return;
     dap_string_append_printf(a_reply_str, "\nAutocollect tables content for:\n=== %s ===\n", a_table_name);
     size_t l_objs_count = 0;
     char *l_group = dap_strcmp(a_table_name, "Fees") ? dap_chain_cs_blocks_get_reward_group(a_net->pub.name)
