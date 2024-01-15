@@ -1749,7 +1749,9 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
                 return -27;
             }
             dap_chain_addr_fill_from_sign(&l_signing_addr, l_sign, l_net->pub.id);
-            if (dap_strcmp(l_order->price_ticker, l_net->pub.native_ticker)) {
+            char l_delegated_ticker_str[DAP_CHAIN_TICKER_SIZE_MAX];
+            dap_chain_datum_token_get_delegated_ticker(l_delegated_ticker_str, l_net->pub.native_ticker);
+            if (dap_strcmp(l_order->price_ticker, l_delegated_ticker_str)) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Specified order is invalid");
                 dap_enc_key_delete(l_enc_key);
                 DAP_DELETE(l_order);
