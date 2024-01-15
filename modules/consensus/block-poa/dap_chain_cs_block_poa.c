@@ -61,7 +61,7 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t * a_blocks, dap_chain_b
 static size_t s_callback_block_sign(dap_chain_cs_blocks_t *a_blocks, dap_chain_block_t **a_block_ptr, size_t a_block_size);
 
 // CLI commands
-static int s_cli_block_poa(int argc, char ** argv, char **str_reply);
+static int s_cli_block_poa(int argc, char ** argv, void **reply);
 
 static bool s_seed_mode = false;
 /**
@@ -98,8 +98,9 @@ void dap_chain_cs_block_poa_deinit(void)
  * @param str_reply
  * @return
  */
-static int s_cli_block_poa(int argc, char ** argv, char **a_str_reply)
+static int s_cli_block_poa(int argc, char ** argv, void **reply)
 {
+    char ** a_str_reply = (char **) reply;
     int ret = -666;
     int arg_index = 1;
     dap_chain_net_t * l_chain_net = NULL;

@@ -288,7 +288,7 @@ int s_net_load(dap_chain_net_t *a_net);
 // Notify callback for GlobalDB changes
 static void s_gbd_history_callback_notify(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg);
 static void s_chain_callback_notify(void * a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id, void *a_atom, size_t a_atom_size);
-static int s_cli_net(int argc, char ** argv, char **str_reply);
+static int s_cli_net(int argc, char ** argv, void **reply);
 static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
 static void s_prepare_links_from_balancer(dap_chain_net_t *a_net);
 static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_replace_tries);
@@ -319,24 +319,24 @@ int dap_chain_net_init()
         "net -net <chain net name> [-mode {update | all}] go {online | offline | sync}\n"
             "\tFind and establish links and stay online. \n"
             "\tMode \"update\" is by default when only new chains and gdb are updated. Mode \"all\" updates everything from zero\n"
-        "net -net <chain net name> get {status | fee | id}\n"
+        "net -net <chain_net_name> get {status | fee | id}\n"
             "\tDisplays the current current status, current fee or net id.\n"
-        "net -net <chain net name> stats {tx | tps} [-from <From time>] [-to <To time>] [-prev_sec <Seconds>] \n"
-            "\tTransactions statistics. Time format is <Year>-<Month>-<Day>_<Hours>:<Minutes>:<Seconds> or just <Seconds> \n"
-        "net -net <chain net name> [-mode {update | all}] sync {all | gdb | chains}\n"
+        "net -net <chain_net_name> stats {tx | tps} [-from <from_time>] [-to <to_time>] [-prev_sec <seconds>] \n"
+            "\tTransactions statistics. Time format is <Year>-<Month>-<Day>_<Hours>:<Minutes>:<seconds> or just <seconds> \n"
+        "net -net <chain_net_name> [-mode {update | all}] sync {all | gdb | chains}\n"
             "\tSyncronyze gdb, chains or everything\n"
             "\tMode \"update\" is by default when only new chains and gdb are updated. Mode \"all\" updates everything from zero\n"
         "net -net <chain net name> link {list | add | del | info [-addr] | disconnect_all}\n"
             "\tList, add, del, dump or establish links\n"
-        "net -net <chain net name> ca add {-cert <cert name> | -hash <cert hash>}\n"
+        "net -net <chain_net_name> ca add {-cert <cert_name> | -hash <cert_hash>}\n"
             "\tAdd certificate to list of authority cetificates in GDB group\n"
-        "net -net <chain net name> ca list\n"
+        "net -net <chain_net_name> ca list\n"
             "\tPrint list of authority cetificates from GDB group\n"
-        "net -net <chain net name> ca del -hash <cert hash> [-H {hex | base58(default)}]\n"
+        "net -net <chain_net_name> ca del -hash <cert_hash> [-H {hex | base58(default)}]\n"
             "\tDelete certificate from list of authority cetificates in GDB group by it's hash\n"
-        "net -net <chain net name> ledger reload\n"
+        "net -net <chain_net_name> ledger reload\n"
             "\tPurge the cache of chain net ledger and recalculate it from chain file\n"
-        "net -net <chain net name> poa_cets list\n"
+        "net -net <chain_net_name> poa_cets list\n"
             "\tPrint list of PoA cerificates for this network\n");
 
     s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more",false);
@@ -1480,7 +1480,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                 DAP_DELETE(l_link_node_info);
             }
             // Links from node info structure (currently empty)
-            if (l_net_pvt->node_info) {
+            /*if (l_net_pvt->node_info) {
                 for (size_t i = 0; i < l_net_pvt->node_info->hdr.links_number; i++) {
                     dap_chain_node_info_t *l_link_node_info = dap_chain_node_info_read(l_net, &l_net_pvt->node_info->links[i]);
                     s_net_link_add(l_net, l_link_node_info);
@@ -1488,7 +1488,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                 }
             } else {
                 log_it(L_WARNING,"No nodeinfo in global_db to prepare links for connecting, try to add links from root servers");
-            }
+            }*/
 
             if (!l_net_pvt->seed_aliases_count && ! l_net_pvt->bootstrap_nodes_count){
                log_it(L_ERROR, "No root servers present in configuration file. Can't establish DNS requests");
@@ -1853,8 +1853,9 @@ static const char *s_chain_type_convert_to_string(dap_chain_type_t a_type)
  * @param str_reply
  * @return
  */
-static int s_cli_net(int argc, char **argv, char **a_str_reply)
+static int s_cli_net(int argc, char **argv, void **reply)
 {
+    char ** a_str_reply = (char **) reply;
     int arg_index = 1;
     dap_chain_net_t * l_net = NULL;
 

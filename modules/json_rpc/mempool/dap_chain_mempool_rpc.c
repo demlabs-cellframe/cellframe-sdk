@@ -1,5 +1,52 @@
-#include "dap_chain_mempool_rpc.h"
+#include <stddef.h>
+#include <stdio.h>
+#include <string.h>
+#include <stdio.h>
+#include <assert.h>
+#include <memory.h>
+
+#ifdef _WIN32
+#include <winsock2.h>
+#include <windows.h>
+#include <mswsock.h>
+#include <ws2tcpip.h>
+#include <io.h>
+#include <time.h>
+#include <pthread.h>
+#endif
+
+#include "dap_common.h"
+#include "dap_hash.h"
+#include "dap_http_client.h"
+#include "dap_http_simple.h"
+#include "dap_enc_base58.h"
+#include "dap_enc_http.h"
+#include "http_status_code.h"
+#include "dap_chain_common.h"
+#include "dap_chain_node.h"
+#include "dap_global_db.h"
+#include "dap_enc.h"
+#include <dap_enc_http.h>
+#include <dap_enc_key.h>
+#include <dap_enc_ks.h>
 #include "dap_chain_mempool.h"
+
+#include "dap_common.h"
+#include "dap_list.h"
+#include "dap_chain.h"
+#include "dap_chain_net.h"
+#include "dap_chain_net_tx.h"
+#include "dap_sign.h"
+#include "dap_chain_datum_tx.h"
+#include "dap_chain_datum_tx_items.h"
+#include "dap_chain_net_srv.h"
+#include "dap_chain_cs_blocks.h"
+
+#include "dap_chain_mempool_rpc.h"
+#include "dap_json_rpc_chain_datum.h"
+#include "dap_json_rpc_request_handler.h"
+#include "dap_json_rpc_response_handler.h"
+#include "json.h"
 
 #define LOG_TAG "dap_chain_mempool_rpc"
 
@@ -14,27 +61,27 @@ void dap_chain_mempool_rpc_handler_test(dap_json_rpc_params_t *a_params,
     UNUSED(a_method);
     char *l_tn = NULL;
 //    char *l_chain_str = NULL;
-    for (uint32_t i = 0; i < a_params->lenght; i++) {
+    for (uint32_t i = 0; i < a_params->length; i++) {
         dap_json_rpc_param_t *l_prm = a_params->params[i];
         if (i == 0)
             l_tn = l_prm->value_param;
     }
     if (dap_strcmp(l_tn, "NULL") == 0) {
-        a_response->type_result = TYPE_RESPONSE_NULL;
+        a_response->type = TYPE_RESPONSE_NULL;
     } else if (dap_strcmp(l_tn, "STRING") == 0) {
-        a_response->type_result = TYPE_RESPONSE_STRING;
+        a_response->type = TYPE_RESPONSE_STRING;
         a_response->result_string = dap_strdup("This test string");
     } else if (dap_strcmp(l_tn, "INTEGER") == 0) {
-        a_response->type_result = TYPE_RESPONSE_INTEGER;
+        a_response->type = TYPE_RESPONSE_INTEGER;
         a_response->result_int = 4555745;
     } else if (dap_strcmp(l_tn, "BOOLEAN") == 0) {
-        a_response->type_result = TYPE_RESPONSE_BOOLEAN;
+        a_response->type = TYPE_RESPONSE_BOOLEAN;
         a_response->result_boolean = true;
     } else if (dap_strcmp(l_tn, "DOUBLE") == 0) {
-        a_response->type_result = TYPE_RESPONSE_DOUBLE;
+        a_response->type = TYPE_RESPONSE_DOUBLE;
         a_response->result_double = 75.545;
     } else if (dap_strcmp(l_tn, "JSON") == 0) {
-        a_response->type_result = TYPE_RESPONSE_JSON;
+        a_response->type = TYPE_RESPONSE_JSON;
         json_object *l_obj = json_object_new_object();
         json_object *l_int = json_object_new_uint64(45577445);
         json_object *l_boolean = json_object_new_boolean((json_bool)1);
@@ -59,7 +106,7 @@ void dap_chain_mempool_rpc_handler_list(dap_json_rpc_params_t *a_params,
                                         dap_json_rpc_response_t *a_response, const char *a_method) {
     char *l_net_str = NULL;
     char *l_chain_str = NULL;
-    for (uint32_t i = 0; i < a_params->lenght; i++) {
+    for (uint32_t i = 0; i < a_params->length; i++) {
         dap_json_rpc_param_t *l_prm = a_params->params[i];
         if (i == 0)
             l_net_str = l_prm->value_param;
@@ -68,7 +115,7 @@ void dap_chain_mempool_rpc_handler_list(dap_json_rpc_params_t *a_params,
     }
     dap_chain_net_t  *l_net = dap_chain_net_by_name(l_net_str);
     dap_chain_t *l_chain = dap_chain_net_get_chain_by_name(l_net, l_chain_str);
-    a_response->type_result = TYPE_RESPONSE_STRING;
+    a_response->type = TYPE_RESPONSE_STRING;
     char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(l_chain);
     if(!l_gdb_group_mempool){
         a_response->result_string = "{\"datums\":[]}";
@@ -93,7 +140,7 @@ void dap_chain_mempool_rpc_handler_list(dap_json_rpc_params_t *a_params,
         json_object_array_add(l_object_array, l_obj_datum);
     }
     json_object_object_add(l_object, "datums", l_object_array);
-    a_response->type_result = TYPE_RESPONSE_JSON;
+    a_response->type = TYPE_RESPONSE_JSON;
     a_response->result_json_object = l_object;
 
     DAP_DELETE(l_gdb_group_mempool);

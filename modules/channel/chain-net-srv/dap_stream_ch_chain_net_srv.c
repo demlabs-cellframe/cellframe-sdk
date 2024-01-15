@@ -676,7 +676,6 @@ static bool s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
         }
         dap_stpcpy(a_grace->usage->token_ticker, l_ticker);
 
-
         if (dap_hash_fast_is_blank(&a_grace->usage->static_order_hash)){
             dap_chain_net_srv_price_t *l_price_tmp;
             DL_FOREACH(a_grace->usage->service->pricelist, l_price_tmp) {
