@@ -196,7 +196,7 @@ static bool s_stake_verificator_callback(dap_ledger_t UNUSED_ARG *a_ledger, dap_
     // It's a delegation conitional TX
     dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_IN_COND, 0);
     if (!l_tx_in_cond) {
-        log_it(L_ERROR, "Conditional in item not found in checkimg tx");
+        log_it(L_ERROR, "Conditional in item not found in checking tx");
         return false;
     }
     dap_hash_fast_t *l_prev_hash = &l_tx_in_cond->header.tx_prev_hash;
@@ -1365,6 +1365,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
             DAP_DELETE(l_spec_addr);
         } else
             dap_chain_addr_fill_from_key(&l_addr, l_enc_key, l_net->pub.id);
+        DIV_256(l_tax, GET_256_FROM_64(100), &l_tax);
         dap_chain_datum_tx_t *l_tx = s_order_tx_create(l_net, l_enc_key, l_value, l_fee, l_tax, &l_addr);
         dap_chain_wallet_close(l_wallet);
         char *l_tx_hash_str = NULL;
@@ -1519,6 +1520,7 @@ static int s_cli_srv_stake_order(int a_argc, char **a_argv, int a_arg_index, cha
                                 l_addr = dap_tsd_get_scalar(l_tsd, dap_chain_addr_t);
                                 l_tsd = dap_tsd_find(l_cond->tsd, l_cond->tsd_size, DAP_CHAIN_TX_OUT_COND_TSD_VALUE);
                                 l_tax = dap_tsd_get_scalar(l_tsd, uint256_t);
+                                MULT_256_256(l_tax, GET_256_FROM_64(100), &l_tax);
                                 l_error = false;
                             }
                         }
@@ -1703,6 +1705,17 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
             l_sovereign_addr = dap_tsd_get_scalar(l_tsd, dap_chain_addr_t);
             l_tsd = dap_tsd_find(l_cond->tsd, l_cond->tsd_size, DAP_CHAIN_TX_OUT_COND_TSD_VALUE);
             l_sovereign_tax = dap_tsd_get_scalar(l_tsd, uint256_t);
+#if !EXTENDED_SRV_DEBUG
+            {
+                uint256_t l_tax_percent;
+                MULT_256_256(l_sovereign_tax, GET_256_FROM_64(100), &l_tax_percent);
+                char *l_tax_str = dap_chain_balance_to_coins(l_tax_percent);
+                char *l_addr_str = dap_chain_addr_to_str(&l_sovereign_addr);
+                log_it(L_NOTICE, "Delegation tx params: tax = %s%%, addr = %s", l_tax_str, l_addr_str);
+                DAP_DEL_Z(l_tax_str);
+                DAP_DEL_Z(l_addr_str);
+            }
+#endif
         } else {
             if (!l_value_str) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'delegate' requires parameter -value with this order type");
@@ -1813,7 +1826,6 @@ static int s_cli_srv_stake_delegate(int a_argc, char **a_argv, int a_arg_index, 
         dap_chain_wallet_close(l_wallet);
         return -16;
     }
-
 
     // Create conditional transaction
     dap_chain_datum_tx_t *l_tx = s_stake_tx_create(l_net, l_enc_key, l_value, l_fee, &l_signing_addr, &l_node_addr,
