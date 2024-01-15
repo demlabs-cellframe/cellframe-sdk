@@ -28,7 +28,7 @@
 #include "dap_time.h"
 #include "dap_list.h"
 #include "dap_tsd.h"
-
+#include "json.h"
 
 #define DAP_CHAIN_DATUM_TX_VOTING_QUESTION_MAX_LENGTH 200
 #define DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_LENGTH 100
