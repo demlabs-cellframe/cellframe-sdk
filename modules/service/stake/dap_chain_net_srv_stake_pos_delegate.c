@@ -169,28 +169,46 @@ static bool s_stake_verificator_callback(dap_ledger_t UNUSED_ARG *a_ledger, dap_
             return true;
         int l_out_idx = 0;
         dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(a_tx_in, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_out_idx);
-        if (!l_tx_out_cond)
+        if (!l_tx_out_cond) {
+            log_it(L_ERROR, "Condition not found in conditional tx");
             return false;
-        if (compare256(l_tx_out_cond->header.value, a_cond->header.value))
+        }
+        if (compare256(l_tx_out_cond->header.value, a_cond->header.value)) {
+            char *l_in_value = dap_chain_balance_to_coins(l_tx_out_cond->header.value);
+            char *l_out_value = dap_chain_balance_to_coins(a_cond->header.value);
+            log_it(L_WARNING, "In value %s is not eqal to out value %s", l_in_value, l_out_value);
+            DAP_DELETE(l_in_value);
+            DAP_DELETE(l_out_value);
             return false;
+        }
         if (l_tx_out_cond->tsd_size != a_cond->tsd_size ||
-                memcmp(l_tx_out_cond->tsd, a_cond->tsd, a_cond->tsd_size))
+                memcmp(l_tx_out_cond->tsd, a_cond->tsd, a_cond->tsd_size)) {
+            log_it(L_WARNING, "Conditional out and conditional in have different TSD sections");
             return false;
+        }
         if (dap_chain_addr_is_blank(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr) ||
-                l_tx_out_cond->subtype.srv_stake_pos_delegate.signer_node_addr.uint64 == 0)
+                l_tx_out_cond->subtype.srv_stake_pos_delegate.signer_node_addr.uint64 == 0) {
+            log_it(L_WARNING, "Not blank address or key fields in order conditional tx");
             return false;
+        }
         return true;
     }
     // It's a delegation conitional TX
     dap_chain_tx_in_cond_t *l_tx_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(a_tx_in, 0, TX_ITEM_TYPE_IN_COND, 0);
-    if (!l_tx_in_cond)
+    if (!l_tx_in_cond) {
+        log_it(L_ERROR, "Conditional in item not found in checkimg tx");
         return false;
+    }
     dap_hash_fast_t *l_prev_hash = &l_tx_in_cond->header.tx_prev_hash;
-    if (dap_hash_fast_is_blank(l_prev_hash))
+    if (dap_hash_fast_is_blank(l_prev_hash)) {
+        log_it(L_ERROR, "Blank hash of prev tx in tx_in_cond");
         return false;
+    }
     dap_chain_datum_tx_t *l_prev_tx = dap_ledger_tx_find_by_hash(a_ledger, l_prev_hash);
-    if (!l_prev_tx)
+    if (!l_prev_tx) {
+        log_it(L_ERROR, "Previous tx not found for now but is found in ledger before");
         return false;
+    }
     bool l_owner = false;
     dap_chain_tx_in_cond_t *l_tx_prev_in_cond = (dap_chain_tx_in_cond_t *)dap_chain_datum_tx_item_get(l_prev_tx, 0, TX_ITEM_TYPE_IN_COND, 0);
     if (!l_tx_prev_in_cond)
@@ -199,21 +217,28 @@ static bool s_stake_verificator_callback(dap_ledger_t UNUSED_ARG *a_ledger, dap_
         dap_hash_fast_t *l_owner_tx_hash = &l_tx_prev_in_cond->header.tx_prev_hash;
         dap_chain_datum_tx_t *l_owner_tx = dap_ledger_tx_find_by_hash(a_ledger, l_owner_tx_hash);
         dap_sign_t *l_owner_sign = dap_chain_datum_tx_get_sign(l_owner_tx, 0);
-        if (!l_owner_sign)
+        if (!l_owner_sign) {
+            log_it(L_ERROR, "Can't get owner sign");
             return false;
+        }
         dap_sign_t *l_taker_sign = dap_chain_datum_tx_get_sign(a_tx_in, 0);
-        if (!l_taker_sign)
+        if (!l_taker_sign) {
+            log_it(L_ERROR, "Can't get taker sign");
             return false;
         l_owner = dap_sign_compare_pkeys(l_taker_sign, l_owner_sign);
     }
-    if (!l_owner)
+    if (!l_owner) {
+        log_it(L_WARNING, "Trying to spend conditional tx not by owner");
         return false;
+    }
     if (a_tx_in->header.ts_created < 1705104000) // Jan 13 2024 00:00:00 GMT, old policy rules
         return true;
     dap_chain_net_srv_stake_item_t *l_stake;
     HASH_FIND(hh, s_srv_stake->tx_itemlist, l_prev_hash, sizeof(dap_hash_t), l_stake);
-    if (l_stake)                                // Key is active with delegation decree, need to revoke it first
+    if (l_stake) {
+        log_it(L_WARNING, "Key is active with delegation decree, need to revoke it first");
         return false;
+    }
     return true;
 }
 
