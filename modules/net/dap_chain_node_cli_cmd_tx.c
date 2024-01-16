@@ -344,7 +344,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
         bool l_base_tx = false, l_reward_collect = false;
         const char *l_noaddr_token = NULL;
 
-        dap_hash_fast_t l_tx_hash = l_datum_iter->cur_hash;
+        dap_hash_fast_t l_tx_hash = *l_datum_iter->cur_hash;
         const char *l_src_token = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_hash);
 
         int l_src_subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
