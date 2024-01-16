@@ -118,6 +118,7 @@
 #include "dap_chain_net_srv_xchange.h"
 #include "dap_chain_node_net_ban_list.h"
 #include "dap_chain_cs_esbocs.h"
+#include "dap_chain_net_voting.h"
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -270,6 +271,7 @@ int dap_chain_net_init()
     dap_stream_ch_chain_init();
     dap_stream_ch_chain_net_init();
     dap_chain_node_client_init();
+    dap_chain_net_voting_init();
     dap_chain_node_net_ban_list_init();
     dap_cli_server_cmd_add ("net", s_cli_net, "Network commands",
         "net list [chains -net <chain net name>]\n"
