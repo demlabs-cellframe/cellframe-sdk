@@ -105,7 +105,7 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
         .hdr.links_number = links_cnt,
         .hdr.blocks_events = blocks
     };    
-    inet_pton(AF_INET, a_http_simple->esocket->hostaddr, &l_node_info.hdr.ext_addr_v4);
+    inet_pton(AF_INET, a_http_simple->es_hostaddr, &l_node_info.hdr.ext_addr_v4);
     uint8_t response = 0;
     char *l_key = dap_chain_node_addr_to_hash_str(&l_node_info.hdr.address);
     if(!l_key)
