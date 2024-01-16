@@ -47,7 +47,7 @@ typedef struct cond_all_by_srv_uid_arg{
     dap_time_t time_to;
 } cond_all_by_srv_uid_arg_t;
 
-static void s_tx_cond_all_with_spends_by_srv_uid_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, void *a_arg)
+static void s_tx_cond_all_with_spends_by_srv_uid_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t a_tx_hash, void *a_arg)
 {
     cond_all_with_spends_by_srv_uid_arg_t *l_arg = (cond_all_with_spends_by_srv_uid_arg_t*)a_arg;
     dap_chain_datum_tx_t *l_tx = a_tx;
@@ -194,7 +194,7 @@ void dap_chain_net_get_tx_all(dap_chain_net_t * a_net, dap_chain_net_tx_search_t
             dap_list_t *l_temp = l_txs_list;
             while(l_temp){
                     dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_temp->data;
-                    a_tx_callback(a_net, l_tx, a_arg);
+                    a_tx_callback(a_net, l_tx,  a_arg);
                     l_temp = dap_list_next(l_temp);
             }
             break;
@@ -218,40 +218,33 @@ void dap_chain_net_get_tx_all(dap_chain_net_t * a_net, dap_chain_net_tx_search_t
         case TX_SEARCH_TYPE_BLOCKCHAIN:{
             // pass all chains
             for ( dap_chain_t * l_chain = a_net->pub.chains; l_chain; l_chain = l_chain->next){
-                dap_chain_cell_t * l_cell, *l_cell_tmp;
-                // Go through all cells
-                HASH_ITER(hh,l_chain->cells,l_cell, l_cell_tmp){
-                    dap_chain_atom_iter_t * l_atom_iter = l_chain->callback_atom_iter_create(l_chain,l_cell->id, false  );
-                    // try to find transaction in chain ( inside shard )
-                    size_t l_atom_size = 0;
-                    dap_chain_atom_ptr_t l_atom = l_chain->callback_atom_iter_get_first(l_atom_iter, &l_atom_size);
+//                dap_chain_cell_t * l_cell, *l_cell_tmp;
+//                // Go through all cells
+//                HASH_ITER(hh,l_chain->cells,l_cell, l_cell_tmp){
+                    dap_chain_atom_iter_t * l_datum_iter = l_chain->callback_datum_iter_create(l_chain);
+                    l_chain->callback_datum_iter_get_first(l_datum_iter);
 
                     // Check atoms in chain
-                    while(l_atom && l_atom_size) {
-                        size_t l_datums_count = 0;
-                        dap_chain_datum_t **l_datums = l_chain->callback_atom_get_datums(l_atom, l_atom_size, &l_datums_count);
+                    while(l_datum_iter) {
+                        dap_chain_datum_t *l_datum = l_datum_iter->cur;
                         // transaction
                         dap_chain_datum_tx_t *l_tx = NULL;
 
-                        for (size_t i = 0; i < l_datums_count; i++) {
-                            // Check if its transaction
-                            if (l_datums && (l_datums[i]->header.type_id == DAP_CHAIN_DATUM_TX)) {
-                                l_tx = (dap_chain_datum_tx_t *) l_datums[i]->data;
-                            }
-
-                            // If found TX
-
-                            if ( l_tx ) {
-                                a_tx_callback(a_net, l_tx, a_arg);
-                            }
+                        // Check if its transaction
+                        if (l_datum && (l_datum->header.type_id == DAP_CHAIN_DATUM_TX)) {
+                            l_tx = (dap_chain_datum_tx_t *) l_datum->data;
                         }
-                        DAP_DEL_Z(l_datums);
+
+                        // If found TX
+                        if ( l_tx ) {
+                            a_tx_callback(a_net, l_tx, l_atom_iter->cur_hash, a_arg);
+                        }
                         // go to next atom
-                        l_atom = l_chain->callback_atom_iter_get_next(l_atom_iter, &l_atom_size);
+                        l_chain->callback_datum_iter_get_next(l_datum_iter);
                     }
-                    l_chain->callback_atom_iter_delete(l_atom_iter);
+                    l_chain->callback_atom_iter_delete(l_datum_iter);
                 }
-            }
+//            }
         } break;
     }
 }
