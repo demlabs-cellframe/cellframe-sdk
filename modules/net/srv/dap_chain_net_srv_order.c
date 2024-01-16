@@ -687,7 +687,12 @@ static void s_srv_order_callback_notify(dap_global_db_context_t *a_context, dap_
         bool l_allow_unsigned_orders = dap_config_get_item_bool_default(g_config, "srv", "allow_unsigned_orders", false);
         if (a_obj->value && a_obj->type == DAP_DB$K_OPTYPE_ADD) {
             dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)a_obj->value;
-            if (l_order->version != 3) {
+            if (sizeof(dap_chain_net_srv_order_t) + l_order->ext_size > a_obj->value_len) {
+                log_it(L_ERROR, "Order is broken, size mismatch (%zu > %zu)",
+                       sizeof(dap_chain_net_srv_order_t) + l_order->ext_size,
+                       a_obj->value_len);
+                dap_global_db_del_unsafe(l_gdb_context, a_obj->group, a_obj->key);
+            } else if (l_order->version != 3) {
                 log_it(L_NOTICE, "Order %s removed version != 3.", a_obj->key);
                 dap_global_db_del_unsafe(l_gdb_context, a_obj->group, a_obj->key);
             } else {
