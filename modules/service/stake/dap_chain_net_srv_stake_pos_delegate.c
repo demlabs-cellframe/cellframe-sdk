@@ -271,7 +271,7 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
 {
     assert(s_srv_stake);
     dap_return_if_fail(a_net && a_signing_addr && a_node_addr && a_stake_tx_hash);
-HASH_CLEAR(hh, s_srv_stake->itemlist); // rmv
+
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
     bool l_found = false;
     HASH_FIND(hh, s_srv_stake->itemlist, a_signing_addr, sizeof(dap_chain_addr_t), l_stake);
@@ -401,7 +401,7 @@ int dap_chain_net_srv_stake_verify_key_and_node(dap_chain_addr_t *a_signing_addr
         log_it(L_WARNING, "Trying to approve bad delegating TX. Node or key addr is blank");
         return -103;
     }
-return 0; // rmv
+
     dap_chain_net_srv_stake_item_t *l_stake = NULL, *l_tmp = NULL;
     HASH_ITER(hh, s_srv_stake->itemlist, l_stake, l_tmp){
         //check key not activated for other node
