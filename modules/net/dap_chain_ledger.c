@@ -4197,13 +4197,13 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
             DAP_DEL_Z(l_current_fee);
             DAP_DEL_Z(l_expected_fee);
         }
+        if (l_tax_check && SUBTRACT_256_256(l_taxed_value, l_fee_sum, &l_taxed_value)) {
+            log_it(L_WARNING, "Fee is greater than sum of inputs");
+            l_err_num = -89;
+        }
     }
 
     // 8. Check sovereign tax
-    if (l_fee_check && SUBTRACT_256_256(l_taxed_value, l_fee_sum, &l_taxed_value)) {
-        log_it(L_WARNING, "Fee is greater than sum of inputs");
-        l_err_num = -89;
-    }
     if (l_tax_check && !l_err_num) {
         uint256_t l_expected_tax = {};
         MULT_256_COIN(l_taxed_value, l_key_item->sovereign_tax, &l_expected_tax);
