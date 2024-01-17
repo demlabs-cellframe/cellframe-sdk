@@ -2094,7 +2094,7 @@ struct get_tx_cond_pos_del_from_tx
  * @param a_tx
  * @param a_arg
  */
-static void s_get_tx_filter_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, void *a_arg)
+static void s_get_tx_filter_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg)
 {
     struct get_tx_cond_pos_del_from_tx * l_args = (struct get_tx_cond_pos_del_from_tx* ) a_arg;
     int l_out_idx_tmp = 0;
@@ -2105,8 +2105,7 @@ static void s_get_tx_filter_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_
     if (dap_chain_addr_is_blank(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr) ||
             l_tx_out_cond->subtype.srv_stake_pos_delegate.signer_node_addr.uint64 == 0)
         return;
-    dap_hash_fast_t l_datum_hash;
-    dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_datum_hash);
+    dap_hash_fast_t l_datum_hash = *a_tx_hash;
     if (dap_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_datum_hash, l_out_idx_tmp, NULL))
         return;
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
