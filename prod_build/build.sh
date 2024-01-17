@@ -116,7 +116,7 @@ fi
 mkdir -p ${BUILD_DIR}/build
 mkdir -p ${BUILD_DIR}/dist
 
-if [ "$MACHINE" != "Mac" ]
+if (( "$MACHINE" != "Mac" || "$MACHINE" != "ios"))
 then
   NPROC="$(nproc)"
 else

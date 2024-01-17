@@ -57,6 +57,7 @@ then
 
   export OSXCROSS_HOST=x86_64-apple-darwin20.4
   CMAKE=(cmake -DCMAKE_TOOLCHAIN_FILE=${OSXCROSS_ROOT}/toolchain.cmake)
+  echo "${}"
 
   ##everything else can be done by default make
   MAKE=(make)
