@@ -1724,9 +1724,10 @@ size_t l_tx_total;
     return  0;
 }
 
-void s_tx_is_order_check(dap_chain_net_t *a_net, dap_chain_datum_tx_t *a_tx, void *a_arg)
+void s_tx_is_order_check (dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg)
 {
     UNUSED(a_net);
+    UNUSED(a_tx_hash);
     dap_list_t **l_tx_list_ptr = a_arg;
     if (dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE , NULL) &&
             !dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_IN_COND, NULL))
