@@ -1,4 +1,6 @@
-#!/bin/bash
+#!/bin/bash -e
+#IOS BUILD
+
 set -e
 
 SOURCE=${BASH_SOURCE[0]}
@@ -18,34 +20,26 @@ RDIR=$( dirname "$SOURCE" )
 DIR=$( cd -P "$( dirname "$SOURCE" )" >/dev/null 2>&1 && pwd )
 HERE="$DIR"
 
+UNAME_OUT="$(uname -s)"
+case "${UNAME_OUT}" in
+    Linux*)     MACHINE=Linux;;
+    Darwin*)    MACHINE=ios;;
+    CYGWIN*)    MACHINE=Cygwin;;
+    MINGW*)     MACHINE=MinGw;;
+    MSYS_NT*)   MACHINE=Git;;
+    *)          MACHINE="UNKNOWN:${UNAME_OUT}"
+esac
 
+if [ "$MACHINE" == "ios" ]
+then
+    echo "Host is $MACHINE, use iOS build target"
 
-containsElement () {
-  local e match="$1"
-  shift
-  for e; do [[ "$e" == "$match" ]] && return 0; done
-  return 1
-}
+    if [ -z "$IOS_TOOLCHAIN_PATH" ]; then
+        IOS_TOOLCHAIN_PATH=(../../dap-sdk/cmake/ios.toolchain.cmake)
+    fi
 
+    export IOS_TOOLCHAIN_HOST="arm-apple-darwin20.4"
+    CMAKE=(cmake -DCMAKE_TOOLCHAIN_FILE="${IOS_TOOLCHAIN_PATH}")
 
-TARGETS=(linux windows android osx ios)
-BUILD_TYPES=(release debug rwd)
-
-VALIDATE_TARGET()
-{
-    containsElement "$BUILD_TARGET" "${TARGETS[@]}"  || {
-        echo "Such target not implemented [$BUILD_TARGET]"
-        echo "Available targets are [${TARGETS[@]}]"
-        exit 255
-    }
-}
-
-VALIDATE_BUILD_TYPE()
-{
-    containsElement "$BUILD_TYPE" "${BUILD_TYPES[@]}"  || {
-        echo "Unknown build typed [$BUILD_TYPE]"
-        echo "Available types are [${BUILD_TYPES[@]}]"
-        exit 255
-    }
-}
-
+    MAKE=(make)
+fi

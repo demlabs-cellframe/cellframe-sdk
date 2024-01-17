@@ -26,6 +26,10 @@ mac {
     sdk_build.commands = $$PWD/../cellframe-sdk/prod_build/build.sh --target osx release -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/
 }
 
+# ios {
+#     sdk_build.commands = $$PWD/../cellframe-sdk/prod_build/build.sh --target ios release -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/
+# }
+
 QMAKE_EXTRA_TARGETS += sdk_build
 PRE_TARGETDEPS = sdk_build
 

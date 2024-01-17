@@ -56,6 +56,7 @@
 #include "json.h"
 #include "json_object.h"
 #include "dap_notify_srv.h"
+#include "dap_pkey.h"
 
 
 #define LOG_TAG "dap_ledger"
