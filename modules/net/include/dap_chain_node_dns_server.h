@@ -117,7 +117,7 @@ typedef struct _dap_dns_server_t {
 
 
 
-void dap_dns_server_start(uint16_t a_port);
+void dap_dns_server_start(char **a_ports);
 void dap_dns_server_stop();
 int dap_dns_zone_register(char *zone, dap_dns_zone_callback_t callback);
 int dap_dns_zone_unregister(char *zone);
