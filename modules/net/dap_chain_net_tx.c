@@ -47,7 +47,7 @@ typedef struct cond_all_by_srv_uid_arg{
     dap_time_t time_to;
 } cond_all_by_srv_uid_arg_t;
 
-static void s_tx_cond_all_with_spends_by_srv_uid_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t a_tx_hash, void *a_arg)
+static void s_tx_cond_all_with_spends_by_srv_uid_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg)
 {
     cond_all_with_spends_by_srv_uid_arg_t *l_arg = (cond_all_with_spends_by_srv_uid_arg_t*)a_arg;
     dap_chain_datum_tx_t *l_tx = a_tx;
@@ -83,7 +83,7 @@ static void s_tx_cond_all_with_spends_by_srv_uid_callback(dap_chain_net_t* a_net
                 }
                 size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
                 dap_chain_datum_tx_t * l_tx_dup = DAP_DUP_SIZE(l_tx,l_tx_size);
-                dap_hash_fast(l_tx_dup,l_tx_size, &l_item_in->tx_hash);
+                l_item_in->tx_hash = *a_tx_hash;
 
                 l_item_in->tx = l_tx_dup;
                 // Calc same offset from tx duplicate
@@ -104,7 +104,7 @@ static void s_tx_cond_all_with_spends_by_srv_uid_callback(dap_chain_net_t* a_net
                 }
                 size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
                 dap_chain_datum_tx_t * l_tx_dup = DAP_DUP_SIZE(l_tx,l_tx_size);
-                dap_hash_fast(l_tx,l_tx_size, &l_item->tx_hash);
+                l_item->tx_hash = *a_tx_hash;
                 l_item->tx = l_tx_dup;
                 // Calc same offset from tx duplicate
                 l_item->out_cond = (dap_chain_tx_out_cond_t*) (l_tx_dup->tx_items + l_tx_items_pos);
@@ -188,27 +188,19 @@ void dap_chain_net_get_tx_all(dap_chain_net_t * a_net, dap_chain_net_tx_search_t
 {
     assert(a_tx_callback);
     switch (a_search_type) {
-        case TX_SEARCH_TYPE_NET_UNSPENT:{
-            size_t l_tx_count = dap_ledger_count(a_net->pub.ledger);
-            dap_list_t *l_txs_list = dap_ledger_get_txs(a_net->pub.ledger, l_tx_count, 1, false, true);
-            dap_list_t *l_temp = l_txs_list;
-            while(l_temp){
-                    dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_temp->data;
-                    a_tx_callback(a_net, l_tx,  a_arg);
-                    l_temp = dap_list_next(l_temp);
-            }
-            break;
-        }
+        case TX_SEARCH_TYPE_NET_UNSPENT:
         case TX_SEARCH_TYPE_NET:
         case TX_SEARCH_TYPE_LOCAL:{
-            size_t l_tx_count = dap_ledger_count(a_net->pub.ledger);
-            dap_list_t *l_txs_list = dap_ledger_get_txs(a_net->pub.ledger, l_tx_count, 1, false, false);
-            dap_list_t *l_temp = l_txs_list;
-            while(l_temp){
-                dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_temp->data;
-                a_tx_callback(a_net, l_tx, a_arg);
-                l_temp = dap_list_next(l_temp);
+            dap_ledger_datum_iter_t *l_iter = dap_ledger_datum_iter_create(a_net);
+            dap_ledger_datum_iter_get_first(l_iter);
+            while(l_iter->cur){
+                if (a_search_type != TX_SEARCH_TYPE_NET_UNSPENT ||
+                    (a_search_type == TX_SEARCH_TYPE_NET_UNSPENT && l_iter->is_unspent)){
+                    a_tx_callback(a_net, l_iter->cur, &l_iter->cur_hash, a_arg);
+                }
+                dap_ledger_datum_iter_get_next(l_iter);
             }
+            dap_ledger_datum_iter_delete(l_iter);
         break;
         }
         case TX_SEARCH_TYPE_CELL_SPENT:
@@ -221,11 +213,11 @@ void dap_chain_net_get_tx_all(dap_chain_net_t * a_net, dap_chain_net_tx_search_t
 //                dap_chain_cell_t * l_cell, *l_cell_tmp;
 //                // Go through all cells
 //                HASH_ITER(hh,l_chain->cells,l_cell, l_cell_tmp){
-                    dap_chain_atom_iter_t * l_datum_iter = l_chain->callback_datum_iter_create(l_chain);
+                    dap_chain_datum_iter_t * l_datum_iter = l_chain->callback_datum_iter_create(l_chain);
                     l_chain->callback_datum_iter_get_first(l_datum_iter);
 
                     // Check atoms in chain
-                    while(l_datum_iter) {
+                    while(l_datum_iter->cur) {
                         dap_chain_datum_t *l_datum = l_datum_iter->cur;
                         // transaction
                         dap_chain_datum_tx_t *l_tx = NULL;
@@ -237,14 +229,14 @@ void dap_chain_net_get_tx_all(dap_chain_net_t * a_net, dap_chain_net_tx_search_t
 
                         // If found TX
                         if ( l_tx ) {
-                            a_tx_callback(a_net, l_tx, l_atom_iter->cur_hash, a_arg);
+                            a_tx_callback(a_net, l_tx, l_datum_iter->cur_hash, a_arg);
                         }
                         // go to next atom
                         l_chain->callback_datum_iter_get_next(l_datum_iter);
                     }
-                    l_chain->callback_atom_iter_delete(l_datum_iter);
-                }
-//            }
+                    l_chain->callback_datum_iter_delete(l_datum_iter);
+//                }
+            }
         } break;
     }
 }
@@ -268,14 +260,14 @@ struct get_tx_cond_all_from_tx
  * @param a_tx
  * @param a_arg
  */
-static void s_get_tx_cond_chain_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, void *a_arg)
+static void s_get_tx_cond_chain_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg)
 {
     struct get_tx_cond_all_from_tx * l_args = (struct get_tx_cond_all_from_tx* ) a_arg;
 
     if( l_args->ret ){
         int l_item_idx = 0;
         byte_t *l_tx_item;
-        dap_hash_fast_t * l_tx_hash = dap_chain_node_datum_tx_calc_hash(a_tx);
+        dap_hash_fast_t * l_tx_hash = a_tx_hash;
         // Get items from transaction
         while ((l_tx_item = dap_chain_datum_tx_item_get(a_tx, &l_item_idx, TX_ITEM_TYPE_IN_COND , NULL)) != NULL){
             dap_chain_tx_in_cond_t * l_in_cond = (dap_chain_tx_in_cond_t *) l_tx_item;
@@ -300,7 +292,7 @@ static void s_get_tx_cond_chain_callback(dap_chain_net_t* a_net, dap_chain_datum
         }
         DAP_DELETE(l_tx_hash);
     }else if(a_tx){
-        dap_hash_fast_t * l_tx_hash = dap_chain_node_datum_tx_calc_hash(a_tx);
+        dap_hash_fast_t * l_tx_hash = a_tx_hash;
         if (!l_tx_hash) {
             log_it(L_CRITICAL, "Memory allocation error");
             return;
@@ -341,7 +333,7 @@ dap_list_t * dap_chain_net_get_tx_cond_chain(dap_chain_net_t * a_net, dap_hash_f
     }
     l_args->tx_begin_hash = a_tx_hash;
     l_args->srv_uid = a_srv_uid;
-    dap_chain_net_get_tx_all(a_net,TX_SEARCH_TYPE_NET,s_get_tx_cond_chain_callback, l_args);
+    dap_chain_net_get_tx_all(a_net,TX_SEARCH_TYPE_NET, s_get_tx_cond_chain_callback, l_args);
     dap_list_t * l_ret = l_args->ret;
     DAP_DELETE(l_args);
     return l_ret;
@@ -364,8 +356,11 @@ struct get_tx_cond_all_for_addr
  * @param a_tx
  * @param a_arg
  */
-static void s_get_tx_cond_all_for_addr_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_datum_tx, void *a_arg)
+static void s_get_tx_cond_all_for_addr_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_datum_tx, dap_hash_fast_t *a_hash, void *a_arg)
 {
+    UNUSED(a_net);
+    UNUSED(a_hash);
+
     struct get_tx_cond_all_for_addr * l_args = (struct get_tx_cond_all_for_addr* ) a_arg;
     int l_item_idx = 0;
     dap_chain_datum_tx_item_t *l_tx_item;
@@ -467,7 +462,11 @@ dap_list_t * dap_chain_net_get_tx_cond_all_for_addr(dap_chain_net_t * a_net, dap
     return l_ret;
 }
 
-static void s_tx_cond_all_by_srv_uid_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, void *a_arg){
+static void s_tx_cond_all_by_srv_uid_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg)
+{
+    UNUSED(a_net);
+    UNUSED(a_tx_hash);
+
     cond_all_by_srv_uid_arg_t *l_ret = (cond_all_by_srv_uid_arg_t *)a_arg;
     dap_chain_datum_tx_t *l_tx = a_tx;
 
