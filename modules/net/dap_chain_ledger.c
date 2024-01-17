@@ -4092,7 +4092,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
             if (l_tax_check && l_tx_out->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE &&
                     SUBTRACT_256_256(l_taxed_value, l_value, &l_taxed_value)) {
                 log_it(L_WARNING, "Fee is greater than sum of inputs");
-                l_err_num = -89;
+                l_err_num = -98;
                 break;
             }
         } break;
@@ -4150,7 +4150,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
                 if(s_debug_more)
                     log_it(L_WARNING, "No permission for addr %s", l_tmp_tx_out_to?l_tmp_tx_out_to:"(null)");
                 DAP_DELETE(l_tmp_tx_out_to);
-                l_err_num = -20;
+                l_err_num = -22;
                 break;
             }
         }
@@ -4187,13 +4187,14 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
     }
 
     // 7. Check the network fee
-    if (!l_err_num && l_fee_check && compare256(l_fee_sum, a_ledger->net->pub.fee_value) == -1) {
+    if (!l_err_num && l_fee_check) {
         // Check for PoA-cert-signed "service" no-tax tx
-        if (!dap_ledger_tx_poa_signed(a_ledger, a_tx)) {
+        if (compare256(l_fee_sum, a_ledger->net->pub.fee_value) == -1 &&
+                !dap_ledger_tx_poa_signed(a_ledger, a_tx)) {
             char *l_current_fee = dap_chain_balance_to_coins(l_fee_sum);
             char *l_expected_fee = dap_chain_balance_to_coins(a_ledger->net->pub.fee_value);
-            log_it(L_ERROR, "Fee value is invalid, expected %s pointed %s", l_expected_fee, l_current_fee);
-            l_err_num = -55;
+            log_it(L_WARNING, "Fee value is invalid, expected %s pointed %s", l_expected_fee, l_current_fee);
+            l_err_num = -54;
             DAP_DEL_Z(l_current_fee);
             DAP_DEL_Z(l_expected_fee);
         }
@@ -4210,7 +4211,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
         if (compare256(l_tax_sum, l_expected_tax) == -1) {
             char *l_current_tax_str = dap_chain_balance_to_coins(l_tax_sum);
             char *l_expected_tax_str = dap_chain_balance_to_coins(l_expected_tax);
-            log_it(L_ERROR, "Tax value is invalid, expected %s pointed %s", l_expected_tax_str, l_current_tax_str);
+            log_it(L_WARNING, "Tax value is invalid, expected %s pointed %s", l_expected_tax_str, l_current_tax_str);
             l_err_num = -55;
             DAP_DEL_Z(l_current_tax_str);
             DAP_DEL_Z(l_expected_tax_str);
