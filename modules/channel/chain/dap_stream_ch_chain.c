@@ -349,12 +349,10 @@ static bool s_sync_out_chains_proc_callback(dap_proc_thread_t *a_thread, void *a
                                                           &l_hash_from, &l_first_size);
         }
         //pthread_rwlock_unlock(&l_chain->atoms_rwlock);
-        dap_worker_exec_callback_on(l_sync_request->worker, s_sync_out_chains_first_worker_callback, l_sync_request);
-        //dap_proc_thread_worker_exec_callback_inter(a_thread, l_sync_request->worker->id, s_sync_out_chains_first_worker_callback, l_sync_request );
+        dap_proc_thread_worker_exec_callback_inter(a_thread, l_sync_request->worker->id, s_sync_out_chains_first_worker_callback, l_sync_request );
     } else {
         //pthread_rwlock_unlock(&l_chain->atoms_rwlock);
-        dap_worker_exec_callback_on(l_sync_request->worker, s_sync_out_chains_last_worker_callback, l_sync_request);
-        //dap_proc_thread_worker_exec_callback_inter(a_thread, l_sync_request->worker->id,s_sync_out_chains_last_worker_callback, l_sync_request );
+        dap_proc_thread_worker_exec_callback_inter(a_thread, l_sync_request->worker->id,s_sync_out_chains_last_worker_callback, l_sync_request );
     }
     return true;
 }
@@ -468,11 +466,9 @@ static bool s_sync_out_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_ar
         if (s_debug_more)
             log_it(L_DEBUG, "Sync out gdb proc, requested %"DAP_UINT64_FORMAT_U" records from address "NODE_ADDR_FP_STR,
                              l_sync_request->gdb.db_log->items_number, NODE_ADDR_FP_ARGS_S(l_sync_request->request.node_addr));
-        dap_worker_exec_callback_on(l_sync_request->worker, s_sync_out_gdb_first_worker_callback, l_sync_request);
-        //dap_proc_thread_worker_exec_callback_inter(a_thread, l_sync_request->worker->id, s_sync_out_gdb_first_worker_callback, l_sync_request );
+        dap_proc_thread_worker_exec_callback_inter(a_thread, l_sync_request->worker->id, s_sync_out_gdb_first_worker_callback, l_sync_request );
     } else {
-        dap_worker_exec_callback_on(l_sync_request->worker, s_sync_out_gdb_last_worker_callback, l_sync_request);
-        //dap_proc_thread_worker_exec_callback_inter(a_thread, l_sync_request->worker->id, s_sync_out_gdb_last_worker_callback, l_sync_request );
+        dap_proc_thread_worker_exec_callback_inter(a_thread, l_sync_request->worker->id, s_sync_out_gdb_last_worker_callback, l_sync_request );
     }
     return true;
 }
@@ -1007,7 +1003,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             struct sync_request *l_sync_request = dap_stream_ch_chain_create_sync_request(l_chain_pkt, a_ch);
             l_ch_chain->stats_request_gdb_processed = 0;
             l_ch_chain->request_hdr = l_chain_pkt->hdr;
-            dap_worker_exec_callback_on(a_ch->stream_worker->worker, s_sync_update_gdb_start_worker_callback, l_sync_request);
+            s_sync_update_gdb_start_worker_callback(a_ch->stream_worker->worker, l_sync_request);
+            //dap_worker_exec_callback_on(a_ch->stream_worker->worker, s_sync_update_gdb_start_worker_callback, l_sync_request);
         } break;
 
         // Response with metadata organized in TSD
