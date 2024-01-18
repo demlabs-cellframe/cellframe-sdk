@@ -323,7 +323,6 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
     bool l_is_need_correction = false;
     uint256_t l_corr_value = {}, l_unstake_value = {};
     json_object *l_corr_object = NULL;
-    bool l_is_unstake = false;
     // load transactions
     dap_chain_datum_iter_t *l_datum_iter = a_chain->callback_datum_iter_create(a_chain);
 
@@ -335,6 +334,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
             // go to next datum
             continue;
         // it's a transaction
+        bool l_is_unstake = false;
         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
         dap_list_t *l_list_in_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_ALL, NULL);
         if (!l_list_in_items) // a bad tx
