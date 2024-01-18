@@ -117,9 +117,9 @@ int dap_chain_net_srv_xchange_init()
 
     "srv_xchange token_pair -net <net_name> list all\n"
         "\tList of all token pairs\n"
-    "srv_xchange token_pair -net <net_name> price average -token_from <token_ticker> -token_to <token_ticker>\n"
+    "srv_xchange token_pair -net <net_name> rate average -token_from <token_ticker> -token_to <token_ticker>\n"
         "\tGet average rate for token pair <token from>:<token to> from <From time> to <To time> \n"
-    "srv_xchange token_pair -net <net_name> price history -token_from <token_ticker> -token_to <token_ticker> [-time_from <From time>] [-time_to <To time>] \n"
+    "srv_xchange token_pair -net <net_name> rate history -token_from <token_ticker> -token_to <token_ticker> [-time_from <From_time>] [-time_to <To_time>] \n"
         "\tPrint rate history for token pair <token from>:<token to> from <From time> to <To time>\n"
         "\tAll times are in RFC822. For example: \"Thu, 7 Dec 2023 21:18:04\"\n"
 
@@ -1824,6 +1824,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                 }
             }
 
+            uint64_t l_printed_orders_count = 0;
             // Print all txs
             for (dap_list_t *it = l_tx_list; it; it = it->next) {
                 dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)it->data;
@@ -1918,7 +1919,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                                          l_price->token_buy, l_price->token_sell,
                                          l_cp_rate = dap_chain_balance_to_coins(l_price->rate),
                                          l_price->net->pub.name);
-
+                l_printed_orders_count++;
                 DAP_DEL_Z(l_tx_hash_str);
                 DAP_DEL_Z(l_amount_coins_str);
                 DAP_DEL_Z(l_amount_datoshi_str);
@@ -2121,7 +2122,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
 
             // check for price subcommand
             const char * l_price_subcommand = NULL;
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "price", &l_price_subcommand);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "rate", &l_price_subcommand);
             if ( l_price_subcommand ){
                 // Check for token_from
                 const char * l_token_from_str = NULL;
@@ -2171,6 +2172,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                     uint256_t l_total_rates = {0};
                     uint256_t l_total_rates_count = {0};
                     uint256_t l_rate = {};
+                    dap_time_t l_last_rate_time = 0;
                     while(l_cur){
                         dap_chain_datum_tx_t * l_tx =(dap_chain_datum_tx_t *) l_cur->data;
                         if(l_tx){
@@ -2205,6 +2207,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
 
                             uint256_t l_value_sell = l_out_cond_item->header.value;
                             l_rate = l_out_cond_item->subtype.srv_xchange.rate;
+                            l_last_rate_time = l_tx->header.ts_created;
                                 if (!IS_ZERO_256(l_value_sell)) {
                                     if(SUM_256_256(l_rate, l_total_rates, &l_total_rates )!= 0)
                                         log_it(L_ERROR, "Overflow on average price calculation (summing)");
@@ -2222,7 +2225,10 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
 
                     char *l_rate_average_str = dap_chain_balance_to_coins(l_rate_average);
                     char *l_last_rate_str = dap_chain_balance_to_coins(l_rate);
-                    dap_string_append_printf(l_reply_str,"Average price: %s   Last price: %s", l_rate_average_str, l_last_rate_str);
+                    char l_tmp_buf[70] = {};
+                    dap_ctime_r(&l_last_rate_time, l_tmp_buf);
+                    l_tmp_buf[strlen(l_tmp_buf) - 1] = '\0';
+                    dap_string_append_printf(l_reply_str,"Average rate: %s   \n\rLast rate: %s Last rate time: %s (%"DAP_UINT64_FORMAT_U")", l_rate_average_str, l_last_rate_str, l_tmp_buf, l_last_rate_time);
                     DAP_DELETE(l_rate_average_str);
                     DAP_DELETE(l_last_rate_str);
                     *a_str_reply = dap_string_free(l_reply_str, false);
