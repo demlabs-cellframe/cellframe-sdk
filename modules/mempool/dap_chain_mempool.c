@@ -560,7 +560,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         const char a_token_ticker[10], uint256_t a_value, uint256_t a_value_fee,
         size_t a_tx_num)
 {
-    // check valid paramdap_chain_mempool_tx_coll_fee_create
+    // check valid param
     if(!a_chain | !a_key_from || !a_addr_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
             dap_chain_addr_check_sum(a_addr_from) || dap_chain_addr_check_sum(a_addr_to) ||
             IS_ZERO_256(a_value) || !a_tx_num){
