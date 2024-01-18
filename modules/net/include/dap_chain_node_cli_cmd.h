@@ -106,7 +106,28 @@ int com_token_update_sign(int argc, char ** argv, void ** reply);
  */
 int com_token_emit (int a_argc,  char **a_argv, void **reply);
 
+typedef enum s_com_tx_wallet_err{
+    //DAP_CHAIN_NODE_CLI_COM_TX_WALLET_OK = 0,
+    DAP_CHAIN_NODE_CLI_COM_TX_WALLET_MEMORY_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PARAM_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NAME_ERR,
+    //DAP_CHAIN_NODE_CLI_COM_TX_WALLET_HASH_REC_ERR,
+    DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
+    //DAP_CHAIN_NODE_CLI_COM_TX_WALLET_INCOMPATIBLE_PARAMS_ERR,
+    //DAP_CHAIN_NODE_CLI_COM_TX_WALLET_WALLET_ADDR_ERR,
+    //DAP_CHAIN_NODE_CLI_COM_TX_WALLET_ID_NET_ADDR_DIF_ERR,
+    //DAP_CHAIN_NODE_CLI_COM_TX_WALLET_ADDR_WALLET_DIF_ERR,
+    //DAP_CHAIN_NODE_CLI_COM_TX_WALLET_WALLET_ERR,
+    //DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_ERR,
+    //DAP_CHAIN_NODE_CLI_COM_TX_WALLET_CHAIN_PARAM_ERR,
+    //DAP_CHAIN_NODE_CLI_COM_TX_WALLET_DAP_DB_HISTORY_TX_ERR,
+    //DAP_CHAIN_NODE_CLI_COM_TX_WALLET_DAP_DB_HISTORY_ADDR_ERR,
+    //DAP_CHAIN_NODE_CLI_COM_TX_WALLET_DAP_DB_HISTORY_ALL_ERR,
 
+    /* add custom codes here */
+
+    DAP_CHAIN_NODE_CLI_COM_TX_UNKNOWN /* MAX */
+} s_com_tx_wallet_err_t;
 /**
  * com_tx_create command
  *
@@ -149,7 +170,7 @@ typedef enum s_com_tx_history_err{
 
     /* add custom codes here */
 
-    DAP_CHAIN_NODE_CLI_COM_TX_UNKNOWN /* MAX */
+    //DAP_CHAIN_NODE_CLI_COM_TX_UNKNOWN /* MAX */
 } s_com_tx_history_err_t;
 
 char *dap_chain_node_cli_com_tx_history_err(int a_code);
