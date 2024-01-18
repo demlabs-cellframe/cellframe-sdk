@@ -1724,6 +1724,54 @@ dap_string_t* dap_cli_list_net()
     return l_string_ret;
 }
 
+json_object* s_set_reply_text_node_status_json(dap_chain_net_t *a_net) {
+    json_object *l_jobj_ret = json_object_new_object();
+    json_object *l_jobj_net_name  = json_object_new_string(a_net->pub.name);
+    if (!l_jobj_ret || !l_jobj_net_name) {
+        json_object_put(l_jobj_ret);
+        json_object_put(l_jobj_net_name);
+        dap_json_rpc_allocation_error;
+        return NULL;
+    }
+    json_object_object_add(l_jobj_ret, "net", l_jobj_net_name);
+    dap_chain_node_addr_t l_cur_node_addr = { 0 };
+    l_cur_node_addr.uint64 = dap_chain_net_get_cur_addr_int(a_net);
+    json_object *l_jobj_cur_node_addr;
+    if(!l_cur_node_addr.uint64) {
+        l_jobj_cur_node_addr = json_object_new_string("not defined");
+    } else {
+        char *l_cur_node_addr_str = dap_strdup_printf(NODE_ADDR_FP_STR,NODE_ADDR_FP_ARGS_S(l_cur_node_addr));
+        l_jobj_cur_node_addr = json_object_new_string(l_cur_node_addr_str);
+        DAP_DELETE(l_cur_node_addr_str);
+    }
+    if (!l_jobj_cur_node_addr) {
+        json_object_put(l_jobj_ret);
+        return NULL;
+    }
+    json_object_object_add(l_jobj_ret, "current_addr", l_jobj_cur_node_addr);
+    if (PVT(a_net)->state != NET_STATE_OFFLINE) {
+        json_object *l_jobj_links = json_object_new_object();
+        json_object *l_jobj_active_links = json_object_new_uint64(s_net_get_active_links_count(a_net));
+        json_object *l_jobj_total_links = json_object_new_uint64(HASH_COUNT(PVT(a_net)->net_links));
+        if (!l_jobj_links || !l_jobj_active_links || !l_jobj_total_links) {
+            json_object_put(l_jobj_ret);
+            json_object_put(l_jobj_links);
+            json_object_put(l_jobj_active_links);
+            json_object_put(l_jobj_total_links);
+            dap_json_rpc_allocation_error;
+            return NULL;
+        }
+        json_object_object_add(l_jobj_links, "active", l_jobj_active_links);
+        json_object_object_add(l_jobj_links, "total", l_jobj_total_links);
+        json_object_object_add(l_jobj_ret, "links", l_jobj_links);
+    }
+    json_object *l_jobj_states = json_object_new_object();
+    json_object *l_jobj_current_states = json_object_new_string(c_net_states[PVT(a_net)->state]);
+    json_object *l_jobj_target_states = json_object_new_string(c_net_states[PVT(a_net)->state_target]);
+    json_object_object_add(l_jobj_ret, "states", l_jobj_states);
+    return l_jobj_ret;
+}
+
 void s_set_reply_text_node_status(char **a_str_reply, dap_chain_net_t * a_net){
     char* l_node_address_text_block = NULL;
     dap_chain_node_addr_t l_cur_node_addr = { 0 };
@@ -2147,7 +2195,6 @@ static int s_cli_net(int argc, char **argv, void **reply)
                     json_object_object_add(l_jobj_values, "from", l_jobj_from);
                     json_object_object_add(l_jobj_values, "to", l_jobj_to);
                     json_object_object_add(l_jobj_values, "tps", l_jobj_tps);
-//                    dap_string_append_printf(l_ret_str, "\tSpeed:  %.3Lf TPS\n", l_tps);
                 }
                 json_object *l_jobj_total = json_object_new_uint64(l_tx_num);
                 if (!l_jobj_total) {
@@ -2217,10 +2264,24 @@ static int s_cli_net(int argc, char **argv, void **reply)
             }
         } else if ( l_get_str){
             if ( strcmp(l_get_str,"status") == 0 ) {
-                s_set_reply_text_node_status(a_str_reply, l_net);
-                l_ret = 0;
+                json_object *l_jobj = s_set_reply_text_node_status_json(l_net);
+                if (!l_jobj) {
+                    json_object_put(l_jobj_return);
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_return, "status", l_jobj);
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else if ( strcmp(l_get_str, "fee") == 0) {
-                dap_string_t *l_str = dap_string_new("\0");
+                json_object *l_jobj_fees = json_object_new_object();
+                json_object *l_jobj_network_name = json_object_new_string(l_net->pub.name);
+                if (!l_jobj_fees || !l_jobj_network_name) {
+                    json_object_put(l_jobj_return);
+                    json_object_put(l_jobj_fees);
+                    json_object_put(l_jobj_network_name);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_fees, "network", l_jobj_network_name);
                 // Network fee
                 uint256_t l_network_fee = {};
                 dap_chain_addr_t l_network_fee_addr = {};
@@ -2228,26 +2289,66 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 char *l_network_fee_balance_str = dap_chain_balance_print(l_network_fee);
                 char *l_network_fee_coins_str = dap_chain_balance_to_coins(l_network_fee);
                 char *l_network_fee_addr_str = dap_chain_addr_to_str(&l_network_fee_addr);
-                dap_string_append_printf(l_str, "Fees on %s network:\n"
-                                                "\t Network: %s (%s) %s Addr: %s\n",
-                                                  l_net->pub.name, l_network_fee_coins_str, l_network_fee_balance_str,
-                                                  l_net->pub.native_ticker, l_network_fee_addr_str);
+                json_object *l_jobj_network =  json_object_new_object();
+                json_object *l_jobj_fee_coins = json_object_new_string(l_network_fee_coins_str);
+                json_object *l_jobj_fee_balance = json_object_new_string(l_network_fee_balance_str);
+                json_object *l_jobj_native_ticker = json_object_new_string(l_net->pub.native_ticker);
+                json_object *l_jobj_fee_addr = json_object_new_string(l_network_fee_addr_str);
+                if (!l_jobj_network || !l_jobj_fee_coins || !l_jobj_fee_balance || !l_jobj_native_ticker || !l_jobj_fee_addr) {
+                    json_object_put(l_jobj_fees);
+                    json_object_put(l_jobj_network);
+                    json_object_put(l_jobj_fee_coins);
+                    json_object_put(l_jobj_fee_balance);
+                    json_object_put(l_jobj_native_ticker);
+                    json_object_put(l_jobj_fee_addr);
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_network, "coins", l_jobj_fee_coins);
+                json_object_object_add(l_jobj_network, "balance", l_jobj_fee_balance);
+                json_object_object_add(l_jobj_network, "ticker", l_jobj_native_ticker);
+                json_object_object_add(l_jobj_network, "addr", l_jobj_fee_addr);
+                json_object_object_add(l_jobj_fees, "network", l_jobj_network);
                 DAP_DELETE(l_network_fee_coins_str);
                 DAP_DELETE(l_network_fee_balance_str);
                 DAP_DELETE(l_network_fee_addr_str);
 
                 //Get validators fee
-                dap_chain_net_srv_stake_get_fee_validators_str(l_net, l_str);
+                json_object *l_jobj_validators = dap_chain_net_srv_stake_get_fee_validators_json(l_net);
+                if (!l_jobj_validators) {
+                    json_object_put(l_jobj_fees);
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
                 //Get services fee
-                dap_string_append_printf(l_str, "Services fee: \n");
-                dap_chain_net_srv_xchange_print_fee(l_net, l_str); //Xchaneg fee
-
-                *a_str_reply = dap_string_free(l_str, false);
-                l_ret = 0;
+                json_object *l_jobj_xchange = dap_chain_net_srv_xchange_print_fee_json(l_net); //Xchaneg fee
+                if (!l_jobj_xchange) {
+                    json_object_put(l_jobj_validators);
+                    json_object_put(l_jobj_fees);
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_fees, "validators", l_jobj_validators);
+                json_object_object_add(l_jobj_fees, "xchange", l_jobj_xchange);
+                json_object_object_add(l_jobj_return, "fees", l_jobj_fees);
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else if (strcmp(l_get_str,"id") == 0 ){
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Net %s has id 0x%016"DAP_UINT64_FORMAT_X,
-                                                                l_net->pub.name, l_net->pub.id.uint64);
-                l_ret = 0;
+                json_object *l_jobj_net_name = json_object_new_string(l_net->pub.name);
+                char *l_id_str = dap_strdup_printf("0x%016"DAP_UINT64_FORMAT_X, l_net->pub.id.uint64);
+                json_object *l_jobj_id = json_object_new_string(l_id_str);
+                DAP_DELETE(l_id_str);
+                if (!l_jobj_net_name || !l_jobj_id) {
+                    json_object_put(l_jobj_net_name);
+                    json_object_put(l_jobj_id);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_return, "network", l_jobj_net_name);
+                json_object_object_add(l_jobj_return, "id", l_jobj_id);
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             }
         } else if ( l_links_str ){
             if ( strcmp(l_links_str,"list") == 0 ) {
