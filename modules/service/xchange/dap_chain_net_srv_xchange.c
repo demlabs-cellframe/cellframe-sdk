@@ -121,9 +121,9 @@ int dap_chain_net_srv_xchange_init()
 
     "srv_xchange token_pair -net <net_name> list all\n"
         "\tList of all token pairs\n"
-    "srv_xchange token_pair -net <net_name> price average -token_from <token_ticker> -token_to <token_ticker>\n"
+    "srv_xchange token_pair -net <net_name> rate average -token_from <token_ticker> -token_to <token_ticker>\n"
         "\tGet average rate for token pair <token from>:<token to> from <From time> to <To time> \n"
-    "srv_xchange token_pair -net <net_name> price history -token_from <token_ticker> -token_to <token_ticker> [-time_from <From time>] [-time_to <To time>] \n"
+    "srv_xchange token_pair -net <net_name> rate history -token_from <token_ticker> -token_to <token_ticker> [-time_from <From time>] [-time_to <To time>] \n"
         "\tPrint rate history for token pair <token from>:<token to> from <From time> to <To time>\n"
         "\tAll times are in RFC822. For example: \"Thu, 7 Dec 2023 21:18:04\"\n"
 /*
@@ -2172,7 +2172,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **reply)
 
             // check for price subcommand
             const char * l_price_subcommand = NULL;
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "price", &l_price_subcommand);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "rate", &l_price_subcommand);
 
             // check for get subcommand
             if ( l_price_subcommand ){
