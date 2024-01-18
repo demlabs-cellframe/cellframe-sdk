@@ -44,6 +44,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_datum_anchor.h"
 #include "dap_chain_datum_tx.h"
 #include "uthash.h"
+#include "dap_json_rpc_errors.h"
 
 #define DAP_CHAIN_NET_NAME_MAX 32
 #define DAP_BROADCAST_LIFETIME 15   // minutes
@@ -210,3 +211,13 @@ int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_
 bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net);
 void dap_chain_net_announce_addrs();
 char *dap_chain_net_links_dump(dap_chain_net_t*);
+
+enum dap_chain_net_json_rpc_error_list{
+    DAP_CHAIN_NET_JSON_RPC_OK,
+    DAP_CHAIN_NET_JSON_RPC_INVALID_PARAMETER_HASH = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
+    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_PARAMETER_NET_REQUIRE,
+    DAP_CHAIN_NET_JSON_RPC_WRONG_NET,
+    DAP_CHAIN_NET_JSON_RPC_MANY_ARGUMENT_FOR_COMMAND_NET_LIST,
+    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_STATS,
+    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_GO,
+};

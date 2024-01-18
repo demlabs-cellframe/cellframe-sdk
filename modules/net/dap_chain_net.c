@@ -1875,7 +1875,11 @@ static const char *s_chain_type_convert_to_string(dap_chain_type_t a_type)
  */
 static int s_cli_net(int argc, char **argv, void **reply)
 {
-    char ** a_str_reply = (char **) reply;
+    json_object *l_jobj_return = json_object_new_object();
+    if (!l_jobj_return) {
+        dap_json_rpc_allocation_error;
+        return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+    }
     int arg_index = 1;
     dap_chain_net_t * l_net = NULL;
 
@@ -1884,85 +1888,148 @@ static int s_cli_net(int argc, char **argv, void **reply)
     if(!l_hash_out_type)
         l_hash_out_type = "hex";
     if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
-        return -1;
+        json_object_put(l_jobj_return);
+        dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_INVALID_PARAMETER_HASH, "invalid parameter -H, valid values: -H <hex | base58>");
+        return DAP_CHAIN_NET_JSON_RPC_INVALID_PARAMETER_HASH;
     }
 
     // command 'list'
     const char * l_list_cmd = NULL;
 
     if(dap_cli_server_cmd_find_option_val(argv, arg_index, dap_min(argc, arg_index + 1), "list", &l_list_cmd) != 0 ) {
-        dap_string_t *l_string_ret = dap_string_new("");
         if (dap_strcmp(l_list_cmd,"chains")==0){
             const char * l_net_str = NULL;
             dap_chain_net_t* l_net = NULL;
             if (dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-net", &l_net_str) && !l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Parameter '-net' require <net name>");
-                return -1;
+                json_object_put(l_jobj_return);
+                dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_CAN_NOT_PARAMETER_NET_REQUIRE, "Parameter '-net' require <net name>");
+                return DAP_CHAIN_NET_JSON_RPC_CAN_NOT_PARAMETER_NET_REQUIRE;
             }
 
             l_net = dap_chain_net_by_name(l_net_str);
             if (l_net_str && !l_net) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong <net name>, use 'net list' "
+                json_object_put(l_jobj_return);
+                dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_WRONG_NET, "Wrong <net name>, use 'net list' "
                                                             "command to display a list of available networks");
-                return -1;
+                return DAP_CHAIN_NET_JSON_RPC_WRONG_NET;
             }
 
             if (l_net){
-                dap_string_append(l_string_ret,"Chains:\n");
+                json_object *l_jobj_net_name = json_object_new_string(l_net->pub.name);
+                json_object *l_jobj_chains = json_object_new_array();
+                if (!l_jobj_net_name || !l_jobj_chains) {
+                    json_object_put(l_jobj_return);
+                    json_object_put(l_jobj_net_name);
+                    json_object_put(l_jobj_chains);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
                 dap_chain_t * l_chain = l_net->pub.chains;
                 while (l_chain) {
-                    dap_string_append_printf(l_string_ret, "\t%s:\n", l_chain->name );
+                    json_object *l_jobj_chain_name = json_object_new_string(l_chain->name);
+                    if (!l_jobj_chain_name) {
+                        json_object_put(l_jobj_return);
+                        json_object_put(l_jobj_net_name);
+                        json_object_put(l_jobj_chains);
+                        json_object_put(l_jobj_chain_name);
+                        dap_json_rpc_allocation_error;
+                        return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                    }
+                    json_object_array_add(l_jobj_chains, l_jobj_chain_name);
                     l_chain = l_chain->next;
                 }
+                json_object_object_add(l_jobj_return, "net", l_jobj_net_name);
+                json_object_object_add(l_jobj_return, "chains", l_jobj_chains);
             }else{
                 dap_chain_net_item_t * l_net_item, *l_net_item_tmp;
-                int l_net_i = 0;
-                dap_string_append(l_string_ret,"Networks:\n");
+                json_object *l_jobj_networks = json_object_new_array();
                 HASH_ITER(hh, s_net_items, l_net_item, l_net_item_tmp){
+                    json_object *l_jobj_network = json_object_new_object();
+                    json_object *l_jobj_chains = json_object_new_array();
                     l_net = l_net_item->chain_net;
-                    dap_string_append_printf(l_string_ret, "\t%s:\n", l_net_item->name);
-                    l_net_i++;
+                    json_object *l_jobj_network_name = json_object_new_string(l_net_item->name);
+                    if (!l_jobj_network || !l_jobj_chains || !l_jobj_network_name) {
+                        json_object_put(l_jobj_return);
+                        json_object_put(l_jobj_network);
+                        json_object_put(l_jobj_chains);
+                        json_object_put(l_jobj_network_name);
+                        dap_json_rpc_allocation_error;
+                        return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                    }
+                    json_object_object_add(l_jobj_network, "name", l_jobj_network_name);
 
                     dap_chain_t * l_chain = l_net->pub.chains;
                     while (l_chain) {
-                        dap_string_append_printf(l_string_ret, "\t\t%s:\n", l_chain->name );
-                        if (l_chain->default_datum_types_count)
-                        {
-                            dap_string_append_printf(l_string_ret, "\t\t");
-                            for (uint16_t i = 0; i < l_chain->default_datum_types_count; i++)
-                                dap_string_append_printf(l_string_ret, "| %s ", s_chain_type_convert_to_string(l_chain->default_datum_types[i]) );
-                            dap_string_append_printf(l_string_ret, "|\n");
+                        json_object *l_jobj_chain = json_object_new_object();
+                        json_object *l_jobj_chain_name = json_object_new_string(l_chain->name);
+                        if (!l_jobj_chain || !l_jobj_chain_name) {
+                            json_object_put(l_jobj_return);
+                            json_object_put(l_jobj_network);
+                            json_object_put(l_jobj_chains);
+                            json_object_put(l_jobj_chain);
+                            json_object_put(l_jobj_chain_name);
+                            dap_json_rpc_allocation_error;
+                            return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                         }
+                        json_object_object_add(l_jobj_chain, "name", l_jobj_chain_name);
+                        if (l_chain->default_datum_types_count) {
+                            json_object *l_jobj_default_types = json_object_new_array();
+                            if (!l_jobj_default_types) {
+                                json_object_put(l_jobj_return);
+                                json_object_put(l_jobj_chain);
+                                json_object_put(l_jobj_chains);
+                                json_object_put(l_jobj_network);
+                                json_object_put(l_jobj_networks);
+                                dap_json_rpc_allocation_error;
+                                return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                            }
+                            for (uint16_t i = 0; i < l_chain->default_datum_types_count; i++) {
+                                json_object *l_jobj_type_str = json_object_new_string(s_chain_type_convert_to_string(
+                                        l_chain->default_datum_types[i]));
+                                if (!l_jobj_type_str) {
+                                    json_object_put(l_jobj_return);
+                                    json_object_put(l_jobj_default_types);
+                                    json_object_put(l_jobj_chain);
+                                    json_object_put(l_jobj_chains);
+                                    json_object_put(l_jobj_network);
+                                    json_object_put(l_jobj_networks);
+                                    dap_json_rpc_allocation_error;
+                                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                                }
+                                json_object_array_add(l_jobj_default_types, l_jobj_type_str);
+                            }
+                            json_object_object_add(l_jobj_chain, "default_types", l_jobj_default_types);
+                        }
+                        json_object_array_add(l_jobj_chains, l_jobj_chain);
                         l_chain = l_chain->next;
                     }
+                    json_object_object_add(l_jobj_network, "chain", l_jobj_chains);
+                    json_object_array_add(l_jobj_networks, l_jobj_network);
                 }
+                json_object_object_add(l_jobj_return, "networks", l_jobj_networks);
             }
-
         }else{
             // plug for wrong command arguments
             if (argc > 2) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "To many arguments for 'net list' command see help");
-                return -1;
+                json_object_put(l_jobj_return);
+                dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_MANY_ARGUMENT_FOR_COMMAND_NET_LIST,
+                                       "To many arguments for 'net list' command see help");
+                return DAP_CHAIN_NET_JSON_RPC_MANY_ARGUMENT_FOR_COMMAND_NET_LIST;
             }
-
-            dap_string_append(l_string_ret,"Networks:\n");
+            json_object *l_jobj_networks = json_object_new_array();
             // show list of nets
             dap_chain_net_item_t * l_net_item, *l_net_item_tmp;
-            int l_net_i = 0;
             HASH_ITER(hh, s_net_items, l_net_item, l_net_item_tmp){
-                dap_string_append_printf(l_string_ret, "\t%s\n", l_net_item->name);
-                l_net_i++;
+                json_object *l_jobj_network_name = json_object_new_string(l_net_item->name);
+                json_object_array_add(l_jobj_networks, l_jobj_network_name);
             }
-            dap_string_append(l_string_ret, "\n");
+            json_object_object_add(l_jobj_return, "networks", l_jobj_networks);
         }
-
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_ret->str);
-        dap_string_free(l_string_ret, true);
+        json_object_array_add(*reply, l_jobj_return);
         return 0;
     }
 
-    int l_ret = dap_chain_node_cli_cmd_values_parse_net_chain( &arg_index, argc, argv, a_str_reply, NULL, &l_net );
+    int l_ret = dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, argc, argv, NULL, &l_net);
 
     if ( l_net ) {
         const char *l_sync_str = NULL;
@@ -2021,62 +2088,132 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 char l_to_str_new[50];
                 strftime(l_from_str_new, sizeof(l_from_str_new), c_time_fmt,&l_from_tm );
                 strftime(l_to_str_new, sizeof(l_to_str_new), c_time_fmt,&l_to_tm );
-                dap_string_t * l_ret_str = dap_string_new("Transactions statistics:\n");
-                dap_string_append_printf( l_ret_str, "\tFrom: %s\tTo: %s\n", l_from_str_new, l_to_str_new);
+                json_object *l_jobj_stats = json_object_new_object();
+                json_object *l_jobj_from  = json_object_new_string(l_from_str_new);
+                json_object *l_jobj_to = json_object_new_string(l_to_str);
                 log_it(L_INFO, "Calc TPS from %s to %s", l_from_str_new, l_to_str_new);
                 uint64_t l_tx_count = dap_ledger_count_from_to ( l_net->pub.ledger, l_from_ts, l_to_ts);
                 long double l_tps = l_to_ts == l_from_ts ? 0 :
                                                      (long double) l_tx_count / (long double) ( l_to_ts - l_from_ts );
-                dap_string_append_printf( l_ret_str, "\tSpeed:  %.3Lf TPS\n", l_tps );
-                dap_string_append_printf( l_ret_str, "\tTotal:  %"DAP_UINT64_FORMAT_U"\n", l_tx_count );
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_ret_str->str);
-                dap_string_free(l_ret_str, true);
+                json_object *l_jobj_tps = json_object_new_double((double)l_tps);
+                json_object *l_jobj_total = json_object_new_uint64(l_tx_count);
+                if (!l_jobj_stats || !l_jobj_from || !l_jobj_to || !l_jobj_tps || !l_jobj_total) {
+                    json_object_put(l_jobj_return);
+                    json_object_put(l_jobj_stats);
+                    json_object_put(l_jobj_from);
+                    json_object_put(l_jobj_to);
+                    json_object_put(l_jobj_tps);
+                    json_object_put(l_jobj_total);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_stats, "From", l_jobj_from);
+                json_object_object_add(l_jobj_stats, "To", l_jobj_to);
+                json_object_object_add(l_jobj_stats, "TPS", l_jobj_tps);
+                json_object_object_add(l_jobj_stats, "Total", l_jobj_total);
+                json_object_object_add(l_jobj_return, "transaction_statistics", l_jobj_stats);
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
+//                dap_string_append_printf( l_ret_str, "\tSpeed:  %.3Lf TPS\n", l_tps );
             } else if (strcmp(l_stats_str, "tps") == 0) {
                 struct timespec l_from_time_acc = {}, l_to_time_acc = {};
-                dap_string_t * l_ret_str = dap_string_new("Transactions per second peak values:\n");
+//                dap_string_t * l_ret_str = dap_string_new("Transactions per second peak values:\n");
+                json_object *l_jobj_values = json_object_new_object();
+                if (!l_jobj_values) {
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
                 size_t l_tx_num = dap_ledger_count_tps(l_net->pub.ledger, &l_from_time_acc, &l_to_time_acc);
                 if (l_tx_num) {
                     localtime_r(&l_from_time_acc.tv_sec, &l_from_tm);
                     strftime(l_from_str_new, sizeof(l_from_str_new), c_time_fmt, &l_from_tm);
                     localtime_r(&l_to_time_acc.tv_sec, &l_to_tm);
                     strftime(l_to_str_new, sizeof(l_to_str_new), c_time_fmt, &l_to_tm);
-                    dap_string_append_printf(l_ret_str, "\tFrom: %s\tTo: %s\n", l_from_str_new, l_to_str_new);
+                    json_object *l_jobj_from = json_object_new_string(l_from_str_new);
+                    json_object *l_jobj_to = json_object_new_string(l_to_str_new);
+//                    dap_string_append_printf(l_ret_str, "\tFrom: %s\tTo: %s\n", l_from_str_new, l_to_str_new);
                     uint64_t l_diff_ns = (l_to_time_acc.tv_sec - l_from_time_acc.tv_sec) * 1000000000 +
                                             l_to_time_acc.tv_nsec - l_from_time_acc.tv_nsec;
                     long double l_tps = (long double)(l_tx_num * 1000000000) / (long double)(l_diff_ns);
-                    dap_string_append_printf(l_ret_str, "\tSpeed:  %.3Lf TPS\n", l_tps);
+                    json_object *l_jobj_tps = json_object_new_double((double)l_tps);
+                    if (!l_jobj_from || !l_jobj_to || !l_jobj_tps) {
+                        json_object_put(l_jobj_return);
+                        json_object_put(l_jobj_values);
+                        json_object_put(l_jobj_from);
+                        json_object_put(l_jobj_to);
+                        json_object_put(l_jobj_tps);
+                        dap_json_rpc_allocation_error;
+                        return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                    }
+                    json_object_object_add(l_jobj_values, "from", l_jobj_from);
+                    json_object_object_add(l_jobj_values, "to", l_jobj_to);
+                    json_object_object_add(l_jobj_values, "tps", l_jobj_tps);
+//                    dap_string_append_printf(l_ret_str, "\tSpeed:  %.3Lf TPS\n", l_tps);
                 }
-                dap_string_append_printf(l_ret_str, "\tTotal:  %zu\n", l_tx_num);
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_ret_str->str);
-                dap_string_free(l_ret_str, true);
+                json_object *l_jobj_total = json_object_new_uint64(l_tx_num);
+                if (!l_jobj_total) {
+                    json_object_put(l_jobj_return);
+                    json_object_put(l_jobj_values);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_values, "total", l_jobj_total);
+                json_object_object_add(l_jobj_return, "transactions_per_second_peak", l_jobj_values);
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "Subcommand 'stats' requires one of parameter: tx, tps\n");
+                json_object_put(l_jobj_return);
+                dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_STATS, "Subcommand 'stats' requires one of parameter: tx, tps\n");
+                l_ret = DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_STATS;
             }
         } else if ( l_go_str){
+            json_object *l_jobj_net = json_object_new_string(l_net->pub.name);
+            json_object *l_jobj_current_status = json_object_new_string(c_net_states[PVT(l_net)->state]);
+            if (!l_jobj_net || !l_jobj_current_status) {
+                json_object_put(l_jobj_return);
+                json_object_put(l_jobj_net);
+                json_object_put(l_jobj_current_status);
+                dap_json_rpc_allocation_error;
+                return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+            }
+            json_object_object_add(l_jobj_return, "net", l_jobj_net);
+            json_object_object_add(l_jobj_return, "current", l_jobj_current_status);
             if ( strcmp(l_go_str,"online") == 0 ) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Network \"%s\" going from state %s to %s",
-                                                  l_net->pub.name,c_net_states[PVT(l_net)->state],
-                                                  c_net_states[NET_STATE_ONLINE]);
-
+                json_object *l_jobj_to = json_object_new_string(c_net_states[NET_STATE_ONLINE]);
+                if (!l_jobj_to) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_return, "to", l_jobj_to);
                 dap_chain_net_balancer_prepare_list_links(l_net->pub.name);
                 dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE);
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else if ( strcmp(l_go_str,"offline") == 0 ) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Network \"%s\" going from state %s to %s",
-                                                  l_net->pub.name,c_net_states[PVT(l_net)->state],
-                                                  c_net_states[NET_STATE_OFFLINE]);
+                json_object *l_jobj_to = json_object_new_string(c_net_states[NET_STATE_OFFLINE]);
+                if (!l_jobj_to) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_return, "to", l_jobj_to);
                 dap_chain_net_state_go_to(l_net, NET_STATE_OFFLINE);
-
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else if (strcmp(l_go_str, "sync") == 0) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Network \"%s\" resynchronizing",
-                                                  l_net->pub.name);
+                json_object *l_jobj_to = json_object_new_string("resynchronizing");
+                if (!l_jobj_to) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_return, "start", l_jobj_to);
                 if (PVT(l_net)->state_target == NET_STATE_ONLINE)
                     dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE);
                 else
                     dap_chain_net_state_go_to(l_net, NET_STATE_SYNC_CHAINS);
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "Subcommand 'go' requires one of parameters: online, offline, sync\n");
+                dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_GO,
+                                       "Subcommand 'go' requires one of parameters: online, offline, sync\n");
+                l_ret = DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_GO;
             }
         } else if ( l_get_str){
             if ( strcmp(l_get_str,"status") == 0 ) {
