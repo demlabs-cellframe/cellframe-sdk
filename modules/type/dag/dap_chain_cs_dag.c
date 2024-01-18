@@ -659,7 +659,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
 
     size_t  l_hashes_size   = l_dag->is_single_line ? 1 : l_dag->datum_add_hashes_count,
             l_hashes_linked = 0;
-    dap_chain_hash_fast_t *l_hashes = l_hashes_size && !s_seed_mode
+    dap_chain_hash_fast_t *l_hashes = l_hashes_size
             ? DAP_NEW_STACK_SIZE(dap_chain_hash_fast_t, l_hashes_size * sizeof(dap_chain_hash_fast_t))
             : NULL;
 

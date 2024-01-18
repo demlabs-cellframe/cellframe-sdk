@@ -200,7 +200,9 @@ int dap_chain_cs_blocks_init()
                 "\t\t Take delegated part of reward\n\n"
 
         "Rewards and comission autocollect status:\n"
-            "block -net <net_name> -chain <chain_name> autocollect status\n\n"
+            "block -net <net_name> -chain <chain_name> autocollect status\n"
+                "\t\t Show rewards and fees automatic collecting status (enabled or not)."
+                    " Show prepared blocks for collecting rewards and fees if status is enabled\n"
                                         );
     if( dap_chain_block_cache_init() ) {
         log_it(L_WARNING, "Can't init blocks cache");
@@ -871,8 +873,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
                         if (!l_found)
                             continue;
                     }
-                }
-                if (l_signed_flag) {
+                } else if (l_signed_flag) {
                     if (l_unspent_flag && l_ts < DAP_REWARD_INIT_TIMESTAMP)
                         continue;
                     if (!l_pub_key) {
