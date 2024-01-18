@@ -202,7 +202,7 @@ int dap_chain_cs_blocks_init()
             " -cert <priv_cert_name> -addr <addr> -hashes <hashes_list> -fee <value>\n"
                 "\t\t Take delegated part of reward\n\n"
 
-        "Rewards and comission autocollect status:\n"
+        "Rewards and fees autocollect status:\n"
             "block -net <net_name> -chain <chain_name> autocollect status\n"
                 "\t\t Show rewards and fees automatic collecting status (enabled or not)."
                     " Show prepared blocks for collecting rewards and fees if status is enabled\n"
