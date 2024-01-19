@@ -665,7 +665,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
     size_t  l_hashes_size   = l_dag->is_single_line ? 1 : l_dag->datum_add_hashes_count,
             l_hashes_linked = 0;
     if (!l_hashes_size) {
-        log_it(L_ERROR, "Configuration mismatch, no hashed to be linked", l_datum_hash_str);
+        log_it(L_ERROR, "Configuration mismatch, no hashed to be linked");
         return false;
     }
     dap_chain_hash_fast_t *l_hashes = l_hashes_size
@@ -681,7 +681,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
     if (!HASH_COUNT(PVT(l_dag)->events_lasts_unlinked)) {
         pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
         log_it(L_INFO, "Nothing to link");
-        if (!l_seed_mode)
+        if (!s_seed_mode)
             return false;
     } else {
         /* We'll use modification-safe iteration thru the additional hashtable thus the chosen events will not repeat */
