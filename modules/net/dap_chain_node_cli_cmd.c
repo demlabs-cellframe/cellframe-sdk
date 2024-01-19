@@ -2082,8 +2082,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                             json_object_object_add(json_obj_out, "sign", json_object_new_string(dap_chain_wallet_check_bliss_sign(l_wallet)));
 
                             if (l_addr_str) {
-                                dap_string_append_printf(l_string_ret, "addr: %s\n", (l_addr_str) ? l_addr_str : "-");
-                                DAP_DELETE(l_addr_str);
+                                json_object_object_add(json_obj_out, "addr", json_object_new_string(l_addr_str));
                             }
 
                             dap_chain_wallet_close(l_wallet);
@@ -2105,15 +2104,15 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
         case CMD_WALLET_INFO: {
             dap_ledger_t *l_ledger = NULL;
             if ((l_wallet_name && l_addr_str) || (!l_wallet_name && !l_addr_str)) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "You should use either the -w or -addr option for the wallet info command.");
-                dap_string_free(l_string_ret, true);
-                return -1;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NAME_ERR,
+                "You should use either the -w or -addr option for the wallet info command.");
+                return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NAME_ERR;
             }
             if(l_wallet_name) {
                 if(!l_net) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Subcommand info requires parameter '-net'");
-                    dap_string_free(l_string_ret, true);
-                    return -1;
+                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR,
+                                           "Subcommand info requires parameter '-net'");
+                    return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_PARAM_ERR;
                 }
                 l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
                 l_addr = (dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id );
@@ -2124,19 +2123,19 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             if (!l_addr){
                 if(l_wallet)
                     dap_chain_wallet_close(l_wallet);
-                dap_string_free(l_string_ret, true);
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet not found");
-                return -1;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_FOUND_ERR,
+                                       "Wallet not found");
+                return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_FOUND_ERR;
             } else {
                 l_net = dap_chain_net_by_id(l_addr->net_id);
                 if(l_net) {
                     l_ledger = l_net->pub.ledger;
                     l_net_name = l_net->pub.name;
                 } else {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find network id 0x%016"DAP_UINT64_FORMAT_X" from address %s",
-                                                    l_addr->net_id.uint64, l_addr_str);
-                    dap_string_free(l_string_ret, true);
-                    return -1;
+                    dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_ERR,
+                                           "Can't find network id 0x%016"DAP_UINT64_FORMAT_X" from address %s",
+                                           l_addr->net_id.uint64, l_addr_str);
+                    return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NET_ERR;
                 }
             }
 
@@ -2341,13 +2340,16 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             }
         }
     }
+        json_object* json_obj_datum = json_object_new_array();
+
         if (json_obj_out) {
-            json_object_array_add(*json_arr_reply, json_obj_out);
+            json_object_array_add(json_obj_datum, json_obj_out);
+            json_object_array_add(*json_arr_reply, json_obj_datum);
         } else {
             json_object_array_add(*json_arr_reply, json_object_new_string("empty"));
         }
 
-    *a_str_reply = dap_string_free(l_string_ret, false);
+//    *a_str_reply = dap_string_free(l_string_ret, false);
     return 0;
 }
 
@@ -6962,7 +6964,7 @@ int com_tx_history(int a_argc, char ** a_argv, void ** reply)
         json_object_array_add(*json_arr_reply, json_obj_summary);
         return DAP_CHAIN_NODE_CLI_COM_TX_HISTORY_OK;
     }
-
+json_object_array_add(*json_arr_reply, json_object_new_string("empty"));
     if (json_obj_out) {
         json_object_array_add(*json_arr_reply, json_obj_out);
     } else {
