@@ -399,10 +399,12 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                             DAP_DELETE(l_orders);
                         bool auto_online = dap_config_get_item_bool_default( g_config, "general", "auto_online", false );
                         bool auto_update = false;
+#ifndef DAP_OS_IOS
                         if((system("systemctl status cellframe-updater.service") == 768) && (system("systemctl status cellframe-updater.timer") == 0))
                             auto_update = true;
                         else
                             auto_update = false;
+#endif
                         flags = auto_online ? flags | A_ONLN : flags & ~A_ONLN;
                         flags = auto_update ? flags | A_UPDT : flags & ~A_UPDT;
                         send->header.flags = flags;

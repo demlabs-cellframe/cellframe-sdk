@@ -92,6 +92,11 @@ then
   DEFAULT_TARGET="windows"
 fi
 
+if [ "$MACHINE" == "ios" ]
+then
+  DEFAULT_TARGET="ios"
+fi
+
 echo "Host machin is $MACHINE"
 BUILD_TARGET="${TARGET:-$DEFAULT_TARGET}"
 BUILD_DIR=${PWD}/build_${BUILD_TARGET}_${BUILD_TYPE}/$BUILD_POSTFIX/

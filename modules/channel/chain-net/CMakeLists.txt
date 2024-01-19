@@ -13,6 +13,10 @@ target_include_directories(${PROJECT_NAME} INTERFACE .)
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../../dap-sdk/3rdparty/uthash/src)
 
+if (IOS)
+    add_compile_definitions(DAP_OS_IOS true)
+endif()
+
 if (INSTALL_SDK)
 set_target_properties(${PROJECT_NAME}  PROPERTIES PUBLIC_HEADER "${DAP_STREAM_CH_CHAIN_NET_HDRS}")
 INSTALL(TARGETS ${PROJECT_NAME} 

@@ -13,6 +13,10 @@ if(WIN32)
   include_directories(../3rdparty/libmagic/src/)
 endif()
 
+if (IOS)
+    add_compile_definitions(DAP_OS_IOS true)
+endif()
+
 add_library(${PROJECT_NAME} STATIC ${DAP_CHAIN_NET_SRV_VPN_SRCS} ${DAP_CHAIN_NET_SRV_VPN_HEADERS})
 
 target_link_libraries(${PROJECT_NAME} dap_core dap_crypto dap_stream dap_stream_ch_chain_net_srv dap_chain dap_chain_crypto dap_chain_net dap_chain_net_srv)

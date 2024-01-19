@@ -34,12 +34,15 @@
 
 #ifdef DAP_OS_DARWIN
 #include <net/if.h>
+#ifndef DAP_OS_IOS
 #include <net/if_utun.h>
 #include <sys/kern_control.h>
+#include <sys/sys_domain.h>
+#endif
+
 #include <sys/types.h>
 #include <sys/ioctl.h>
 #include <sys/socket.h>
-#include <sys/sys_domain.h>
 #include <netinet/in.h>
 
 #elif defined(DAP_OS_BSD)
@@ -687,7 +690,7 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     s_tun_sockets_queue_msg =  DAP_NEW_Z_SIZE(dap_events_socket_t*,s_tun_sockets_count*sizeof(dap_events_socket_t*));
 
     int l_err = 0;
-#if defined (DAP_OS_DARWIN)
+#if defined (DAP_OS_DARWIN) && !defined(DAP_OS_IOS)
     // Prepare structs
     struct ctl_info l_ctl_info = {0};
 
@@ -786,6 +789,9 @@ static int s_vpn_tun_create(dap_config_t * g_config)
         s_tun_deattach_queue(l_tun_fd);
         s_raw_server->tun_device_name = strdup(s_raw_server->ifr.ifr_name);
         s_raw_server->tun_fd = l_tun_fd;
+#elif defined (DAP_OS_IOS)
+        //TODO: ios code
+        int l_tun_fd = 0;
 #elif !defined (DAP_OS_DARWIN)
 #error "Undefined tun interface attach for your platform"
 #endif
@@ -824,12 +830,14 @@ static int s_vpn_tun_create(dap_config_t * g_config)
     snprintf(buf,sizeof(buf),"ip addr add %s/%s dev %s ", 
         l_str_ipv4_gw, l_str_ipv4_netmask, s_raw_server->tun_device_name);
     system(buf);
-#elif defined (DAP_OS_DARWIN)
+#elif defined (DAP_OS_DARWIN) && !defined(DAP_OS_IOS)
     snprintf(buf,sizeof(buf),"ifconfig %s %s %s up",s_raw_server->tun_device_name,
              inet_ntoa(s_raw_server->ipv4_gw),inet_ntoa(s_raw_server->ipv4_gw));
     system(buf);
     snprintf(buf,sizeof(buf),"route add -net %s -netmask %s -interface %s", inet_ntoa(s_raw_server->ipv4_gw),c_mask,s_raw_server->tun_device_name );
     system(buf);
+#elif defined (DAP_OS_IOS)
+    //TODO: ios code
 #else
 #error "Not defined for your platform"
 #endif
