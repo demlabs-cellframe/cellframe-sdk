@@ -1254,18 +1254,18 @@ int com_node(int a_argc, char ** a_argv, void ** reply)
         }
         l_link_node_request->hdr.blocks_events = l_blocks_events;
         // Synchronous request, wait for reply
-        int res = dap_chain_net_node_list_request(l_net,l_link_node_request, true, 0);
+        int res = dap_chain_net_node_list_request(l_net,l_link_node_request, true, 0); // CMD_ADD
 
         switch (res)
         {
             case 0:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "No server");
-            break;
-            case 1:
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Node addr successfully added to node list");
             break;
+            case 1:
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't connect to server");
+            break;
             case 2:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Didn't add your addres node to node list");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Node addr NOT added");
             break;
             case 3:
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't calculate hash for your addr");
@@ -1276,7 +1276,7 @@ int com_node(int a_argc, char ** a_argv, void ** reply)
             case 5:
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "The node is already exists");
             break;
-            case 6:
+            case 9:
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process node list HTTP request");
             break;
             default:
