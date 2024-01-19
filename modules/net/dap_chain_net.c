@@ -2352,12 +2352,15 @@ static int s_cli_net(int argc, char **argv, void **reply)
             }
         } else if ( l_links_str ){
             if ( strcmp(l_links_str,"list") == 0 ) {
-                size_t i =0;
+                json_object *l_jobj_list = json_object_new_array();
+                if (!l_jobj_list) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
                 dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
                 pthread_mutex_lock(&l_net_pvt->uplinks_mutex);
                 size_t l_links_count = HASH_COUNT(l_net_pvt->net_links);
-                dap_string_t *l_reply = dap_string_new("");
-                dap_string_append_printf(l_reply,"Links %zu:\n", l_links_count);
                 struct net_link *l_link, *l_link_tmp;
                 HASH_ITER(hh, l_net_pvt->net_links, l_link, l_link_tmp) {
                     dap_chain_node_client_t *l_node_client = l_link->link;
@@ -2367,31 +2370,67 @@ static int s_cli_net(int argc, char **argv, void **reply)
                         char l_ext_addr_v6[INET6_ADDRSTRLEN]={};
                         inet_ntop(AF_INET,&l_info->hdr.ext_addr_v4,l_ext_addr_v4,sizeof (l_info->hdr.ext_addr_v4));
                         inet_ntop(AF_INET6,&l_info->hdr.ext_addr_v6,l_ext_addr_v6,sizeof (l_info->hdr.ext_addr_v6));
-
-                        dap_string_append_printf(l_reply,
-                                                    "\t"NODE_ADDR_FP_STR":\n"
-                                                    "\t\talias: %s\n"
-                                                    "\t\tcell_id: 0x%016"DAP_UINT64_FORMAT_X"\n"
-                                                    "\t\text_ipv4: %s\n"
-                                                    "\t\text_ipv6: %s\n"
-                                                    "\t\text_port: %u\n"
-                                                    "\t\tstate: %s\n",
-                                                 NODE_ADDR_FP_ARGS_S(l_info->hdr.address), l_info->hdr.alias, l_info->hdr.cell_id.uint64,
-                                                 inet_ntoa(l_link->link_info->hdr.ext_addr_v4), l_ext_addr_v6, l_info->hdr.ext_port,
-                                                 dap_chain_node_client_state_to_str(l_node_client->state) );
+                        json_object *l_jobj_link = json_object_new_object();
+                        char *l_node_addr_str = dap_strdup_printf(NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_info->hdr.address));
+                        json_object *l_jobj_node_addr = json_object_new_string(l_node_addr_str);
+                        DAP_DELETE(l_node_addr_str);
+                        json_object *l_jobj_alias = json_object_new_string(l_info->hdr.alias);
+                        char *l_cell_id_str = dap_strdup_printf("0x%016"DAP_UINT64_FORMAT_X, l_info->hdr.cell_id.uint64);
+                        json_object *l_jobj_cell_id = json_object_new_string(l_cell_id_str);
+                        DAP_DELETE(l_cell_id_str);
+                        json_object *l_jobj_ext_ipv4 = json_object_new_string(inet_ntoa(l_link->link_info->hdr.ext_addr_v4));
+                        json_object *l_jobj_ext_ipv6 = json_object_new_string(l_ext_addr_v6);
+                        json_object *l_jobj_port = json_object_new_int(l_info->hdr.ext_port);
+                        json_object *l_jobj_state = json_object_new_string(dap_chain_node_client_state_to_str(l_node_client->state));
+                        if (!l_jobj_link || !l_jobj_node_addr || !l_jobj_alias || !l_jobj_cell_id || !l_jobj_ext_ipv4 ||
+                            !l_jobj_ext_ipv6 || !l_jobj_port || !l_jobj_state) {
+                            json_object_put(l_jobj_link);
+                            json_object_put(l_jobj_node_addr);
+                            json_object_put(l_jobj_alias);
+                            json_object_put(l_jobj_cell_id);
+                            json_object_put(l_jobj_ext_ipv4);
+                            json_object_put(l_jobj_ext_ipv6);
+                            json_object_put(l_jobj_port);
+                            json_object_put(l_jobj_state);
+                            json_object_put(l_jobj_return);
+                            json_object_put(l_jobj_list);
+                            dap_json_rpc_allocation_error;
+                            return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                        }
+                        json_object_object_add(l_jobj_link, "node_addr", l_jobj_node_addr);
+                        json_object_object_add(l_jobj_link, "alias", l_jobj_alias);
+                        json_object_object_add(l_jobj_link, "cell_id", l_jobj_cell_id);
+                        json_object_object_add(l_jobj_link, "ext_ipv4", l_jobj_ext_ipv4);
+                        json_object_object_add(l_jobj_link, "ext_ipv6", l_jobj_ext_ipv6);
+                        json_object_object_add(l_jobj_link, "port", l_jobj_port);
+                        json_object_object_add(l_jobj_link, "state", l_jobj_state);
+                        json_object_array_add(l_jobj_list, l_jobj_link);
                     }
-                    i++;
                 }
                 pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
-                dap_cli_server_cmd_set_reply_text(a_str_reply,"%s",l_reply->str);
-                dap_string_free(l_reply,true);
+                json_object_object_add(l_jobj_return, "links", l_jobj_list ? l_jobj_list : json_object_new_null());
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
 
             } else if ( strcmp(l_links_str,"add") == 0 ) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,"Not implemented\n");
+                json_object *l_jobj_not_implemented = json_object_new_string("Not implemented");
+                if (!l_jobj_not_implemented) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_return, "add", l_jobj_not_implemented);
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else if ( strcmp(l_links_str,"del") == 0 ) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,"Not implemented\n");
-
+                json_object *l_jobj_not_implemented = json_object_new_string("Not implemented");
+                if (!l_jobj_not_implemented) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_return, "del", l_jobj_not_implemented);
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             }  else if ( strcmp(l_links_str,"info") == 0 ) {
+                json_object *l_jobj_info = json_object_new_object();
                 const char *l_addr_str = NULL;
                 dap_chain_node_addr_t l_node_addr = { 0 };
                 dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-addr", &l_addr_str);
@@ -2401,16 +2440,21 @@ static int s_cli_net(int argc, char **argv, void **reply)
                     }
                 }else
                 {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                      "Subcommand 'info' requires parameter: addr\n");
-                    return -12;
+                    json_object_put(l_jobj_info);
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_ADDR_COMMAND_INFO,
+                                           "Subcommand 'info' requires parameter: addr");
+                    return DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_ADDR_COMMAND_INFO;
                 }
 
                 char *l_key = dap_chain_node_addr_to_hash_str(&l_node_addr);
                 if(!l_key)
                 {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply,"Can't calculate hash for addr\n");
-                    return -12;
+                    json_object_put(l_jobj_info);
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_CANT_CALCULATE_HASH_FOR_ADDR,
+                                           "Can't calculate hash for addr");
+                    return DAP_CHAIN_NET_JSON_RPC_CANT_CALCULATE_HASH_FOR_ADDR;
                 } else{
                     size_t node_info_size = 0;
                     dap_chain_node_info_t *l_node_inf_check;
@@ -2426,51 +2470,75 @@ static int s_cli_net(int argc, char **argv, void **reply)
                         }
                     }
                     if(l_node_inf_check){
-
                         uint64_t l_addr = l_node_inf_check->hdr.ext_addr_v4.s_addr;
                         struct net_link *l_new_link;
                         HASH_FIND(hh,  PVT(l_net)->net_links, &l_addr, sizeof(l_addr), l_new_link);
                         if(l_new_link)
                         {
-                            dap_string_t *l_reply = dap_string_new("");
                             dap_chain_node_client_t *l_node_client = l_new_link->link;
                             if(l_node_client){
                                 dap_chain_node_info_t * l_info = l_node_client->info;
                                 char l_ext_addr_v6[INET6_ADDRSTRLEN]={};
                                 inet_ntop(AF_INET6,&l_info->hdr.ext_addr_v6,l_ext_addr_v6,sizeof (l_info->hdr.ext_addr_v6));
-
-                                dap_string_append_printf(l_reply,
-                                                            "\t"NODE_ADDR_FP_STR":\n"
-                                                            "\t\talias: %s\n"
-                                                            "\t\tcell_id: 0x%016"DAP_UINT64_FORMAT_X"\n"
-                                                            "\t\text_ipv4: %s\n"
-                                                            "\t\text_ipv6: %s\n"
-                                                            "\t\text_port: %u\n"
-                                                            "\t\tstate: %s\n",
-                                                         NODE_ADDR_FP_ARGS_S(l_info->hdr.address), l_info->hdr.alias, l_info->hdr.cell_id.uint64,
-                                                         inet_ntoa(l_new_link->link_info->hdr.ext_addr_v4), l_ext_addr_v6, l_info->hdr.ext_port,
-                                                         dap_chain_node_client_state_to_str(l_node_client->state) );
+                                char *l_node_addr_str = dap_strdup_printf(NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_info->hdr.address));
+                                json_object *l_jobj_node_addr = json_object_new_string(l_node_addr_str);
+                                DAP_DELETE(l_node_addr_str);
+                                json_object *l_jobj_alias = json_object_new_string(l_info->hdr.alias);
+                                char *l_cell_id_str = dap_strdup_printf("0x%016"DAP_UINT64_FORMAT_X, l_info->hdr.cell_id.uint64);
+                                json_object *l_jobj_cell_id = json_object_new_string(l_cell_id_str);
+                                DAP_DELETE(l_cell_id_str);
+                                json_object *l_jobj_ext_ipv4 = json_object_new_string(inet_ntoa(l_new_link->link_info->hdr.ext_addr_v4));
+                                json_object *l_jobj_ext_ipv6 = json_object_new_string(l_ext_addr_v6);
+                                json_object *l_jobj_port = json_object_new_int(l_info->hdr.ext_port);
+                                json_object *l_jobj_state = json_object_new_string(dap_chain_node_client_state_to_str(l_node_client->state));
+                                if (!l_jobj_node_addr || !l_jobj_alias || !l_jobj_cell_id || !l_jobj_ext_ipv4 ||
+                                    !l_jobj_ext_ipv6 || !l_jobj_port || !l_jobj_state) {
+                                    json_object_put(l_jobj_node_addr);
+                                    json_object_put(l_jobj_alias);
+                                    json_object_put(l_jobj_cell_id);
+                                    json_object_put(l_jobj_ext_ipv4);
+                                    json_object_put(l_jobj_ext_ipv6);
+                                    json_object_put(l_jobj_port);
+                                    json_object_put(l_jobj_state);
+                                    json_object_put(l_jobj_return);
+                                    json_object_put(l_jobj_info);
+                                    dap_json_rpc_allocation_error;
+                                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                                }
+                                json_object_object_add(l_jobj_info, "addr", l_jobj_node_addr);
+                                json_object_object_add(l_jobj_info, "alias", l_jobj_alias);
+                                json_object_object_add(l_jobj_info, "cell_id", l_jobj_cell_id);
+                                json_object_object_add(l_jobj_info, "ext_ipv4", l_jobj_ext_ipv4);
+                                json_object_object_add(l_jobj_info, "ext_ipv6", l_jobj_ext_ipv6);
+                                json_object_object_add(l_jobj_info, "ext_port", l_jobj_port);
+                                json_object_object_add(l_jobj_info, "state", l_jobj_state);
                             }
-                            dap_cli_server_cmd_set_reply_text(a_str_reply,"%s",l_reply->str);
-                            dap_string_free(l_reply,true);
+                            json_object_object_add(l_jobj_return, "info", l_jobj_info);
+                            l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
                         }
                         DAP_DELETE(l_node_inf_check);
                     }else{
-                        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                          "Can't find this address in global db");
-                        l_ret = -12;
+                        dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_CANT_FIND_ADDR_IN_GDB,
+                                               "Can't find this address in global db");
+                        return DAP_CHAIN_NET_JSON_RPC_CANT_FIND_ADDR_IN_GDB;
                     }
                 }
                 DAP_DELETE(l_key);
 
             } else if ( strcmp (l_links_str,"disconnect_all") == 0 ){
-                l_ret = 0;
                 dap_chain_net_stop(l_net);
-                dap_cli_server_cmd_set_reply_text(a_str_reply,"Stopped network\n");
+                json_object *l_jobj_ret = json_object_new_string("Stopped network");
+                if (!l_jobj_ret) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_return, "message", l_jobj_ret);
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             }else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "Subcommand 'link' requires one of parameters: list, add, del, info, disconnect_all\n");
-                l_ret = -3;
+                dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_COMMAND_LINK,
+                                       "Subcommand 'link' requires one of parameters: list, add, del, info, disconnect_all");
+                l_ret = DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_COMMAND_LINK;
             }
 
         } else if( l_sync_str) {
