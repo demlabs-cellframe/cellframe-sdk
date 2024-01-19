@@ -1258,7 +1258,6 @@ int com_node(int a_argc, char ** a_argv, void ** reply)
 
         switch (res)
         {
-            case 0:
             case 1:
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Node addr successfully added to node list");
             break;
@@ -1281,6 +1280,7 @@ int com_node(int a_argc, char ** a_argv, void ** reply)
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process node list HTTP request");
             break;
             default:
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Unknown error code: %d", res);
                 break;
         }
         DAP_DELETE(l_link_node_request);

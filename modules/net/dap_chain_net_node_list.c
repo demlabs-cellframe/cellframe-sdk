@@ -32,8 +32,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #define LOG_TAG "dap_chain_net_node_list"
 
 enum RetCode {
-    ADD_OK,
-    ADD_OK_LEGACY,
+    ADD_OK = 1,
     ERR_NO_SERVER,
     ERR_NOT_ADDED,
     ERR_HASH,
@@ -196,7 +195,7 @@ static struct node_link_request *s_node_list_request_init ()
     }
     l_node_list_request->worker = dap_events_worker_get_auto();
     l_node_list_request->from_http = true;
-    l_node_list_request->response = ERR_UNKNOWN;
+    l_node_list_request->response = 0;
 
     pthread_condattr_t attr;
     pthread_condattr_init(&attr);
@@ -222,7 +221,7 @@ static void s_node_list_request_deinit (struct node_link_request *a_node_list_re
 }
 static int dap_chain_net_node_list_wait(struct node_link_request *a_node_list_request, int a_timeout_ms){
     pthread_mutex_lock(&a_node_list_request->wait_mutex);
-    if(a_node_list_request->response >= 0)
+    if(a_node_list_request->response)
     {
         pthread_mutex_unlock(&a_node_list_request->wait_mutex);
         return a_node_list_request->response;
@@ -230,7 +229,7 @@ static int dap_chain_net_node_list_wait(struct node_link_request *a_node_list_re
     struct timespec l_cond_timeout;
     clock_gettime(CLOCK_MONOTONIC, &l_cond_timeout);
     l_cond_timeout.tv_sec += a_timeout_ms/1000;
-    while (a_node_list_request->response < 0) {
+    while (!a_node_list_request->response) {
         int l_wait = pthread_cond_timedwait(&a_node_list_request->wait_cond, &a_node_list_request->wait_mutex, &l_cond_timeout);
         if (l_wait == ETIMEDOUT) {
             log_it(L_NOTICE, "Waiting for status timeout");
@@ -316,7 +315,7 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
                 ret = a_sync ? dap_chain_net_node_list_wait(l_node_list_request, 10000) : ADD_OK;
             }
             DAP_DELETE(l_request);
-            if (ret == ADD_OK || ret == ADD_OK_LEGACY || ret == ERR_EXISTS) {
+            if (ret == ADD_OK || ret == ERR_EXISTS) {
                 break;
             } else {
                 switch (ret)
@@ -403,7 +402,7 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
             ret = a_sync ? dap_chain_net_node_list_wait(l_node_list_request, 10000) : ADD_OK;
         }
         DAP_DELETE(l_request);
-        if (ret != ADD_OK && ret != ADD_OK_LEGACY && ret != ERR_EXISTS) {
+        if (ret != ADD_OK && ret != ERR_EXISTS) {
             switch (ret)
             {
             case ERR_NO_SERVER:
