@@ -453,7 +453,8 @@ static void s_cli_meta_hex_print(  dap_string_t * a_str_tmp, const char * a_meta
 static void s_print_autocollect_table(dap_chain_net_t *a_net, dap_string_t *a_reply_str, const char *a_table_name)
 {
     bool l_status = dap_chain_esbocs_get_autocollect_status(a_net->pub.id);
-    dap_string_append_printf(a_reply_str, "\nAutocollect status is %s\n", l_status ? "active" : "inactive, cause the network config or consensus starting problems");
+    dap_string_append_printf(a_reply_str, "\nAutocollect status for network %s is %s\n", a_net->pub.name,
+                                        l_status ? "active" : "inactive, cause the network config or consensus starting problems");
     if (!l_status)
         return;
     dap_string_append_printf(a_reply_str, "\nAutocollect tables content for:\n=== %s ===\n", a_table_name);
