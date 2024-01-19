@@ -1259,24 +1259,25 @@ int com_node(int a_argc, char ** a_argv, void ** reply)
         switch (res)
         {
             case 0:
+            case 1:
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Node addr successfully added to node list");
             break;
-            case 1:
+            case 2:
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't connect to server");
             break;
-            case 2:
+            case 3:
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Node addr NOT added");
             break;
-            case 3:
+            case 4:
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't calculate hash for your addr");
             break;
-            case 4:
+            case 5:
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't do handshake for your node");
             break;
-            case 5:
+            case 6:
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "The node is already exists");
             break;
-            case 9:
+            case 10:
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process node list HTTP request");
             break;
             default:

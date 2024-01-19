@@ -33,6 +33,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 
 enum RetCode {
     ADD_OK,
+    ADD_OK_LEGACY,
     ERR_NO_SERVER,
     ERR_NOT_ADDED,
     ERR_HASH,
@@ -315,7 +316,7 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
                 ret = a_sync ? dap_chain_net_node_list_wait(l_node_list_request, 10000) : ADD_OK;
             }
             DAP_DELETE(l_request);
-            if (ret == ADD_OK || ret == ERR_EXISTS) {
+            if (ret == ADD_OK || ret == ADD_OK_LEGACY || ret == ERR_EXISTS) {
                 break;
             } else {
                 switch (ret)
@@ -402,7 +403,7 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
             ret = a_sync ? dap_chain_net_node_list_wait(l_node_list_request, 10000) : ADD_OK;
         }
         DAP_DELETE(l_request);
-        if (ret != ADD_OK && ret != ERR_EXISTS) {
+        if (ret != ADD_OK && ret != ADD_OK_LEGACY && ret != ERR_EXISTS) {
             switch (ret)
             {
             case ERR_NO_SERVER:
