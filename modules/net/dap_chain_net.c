@@ -2542,30 +2542,48 @@ static int s_cli_net(int argc, char **argv, void **reply)
             }
 
         } else if( l_sync_str) {
+            json_object *l_jobj_state_machine = json_object_new_object();
+            json_object *l_jobj_requested;
+            json_object *l_jobj_current = json_object_new_string(c_net_states[PVT(l_net)->state]);
+            if (!l_jobj_state_machine || !l_jobj_current) {
+                json_object_put(l_jobj_state_machine);
+                json_object_put(l_jobj_current);
+                json_object_put(l_jobj_return);
+                dap_json_rpc_allocation_error;
+                return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+            }
 
             if ( strcmp(l_sync_str,"all") == 0 ) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "SYNC_ALL state requested to state machine. Current state: %s\n",
-                                                  c_net_states[ PVT(l_net)->state] );
+                l_jobj_requested = json_object_new_string("SYNC_ALL");
                 dap_chain_net_sync_all(l_net);
             } else if ( strcmp(l_sync_str,"gdb") == 0) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "SYNC_GDB state requested to state machine. Current state: %s\n",
-                                                  c_net_states[ PVT(l_net)->state] );
+                l_jobj_requested = json_object_new_string("SYNC_GDB");
                 dap_chain_net_sync_gdb(l_net);
 
             }  else if ( strcmp(l_sync_str,"chains") == 0) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "SYNC_CHAINS state requested to state machine. Current state: %s\n",
-                                                  c_net_states[ PVT(l_net)->state] );
+                l_jobj_requested = json_object_new_string("SYNC_CHAINS");
                 // TODO set PVT flag to exclude GDB sync
                 dap_chain_net_sync_chains(l_net);
 
             } else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "Subcommand 'sync' requires one of parameters: all, gdb, chains\n");
-                l_ret = -2;
+                json_object_put(l_jobj_return);
+                json_object_put(l_jobj_state_machine);
+                json_object_put(l_jobj_current);
+                dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_COMMAND_SYNC,
+                                       "Subcommand 'sync' requires one of parameters: all, gdb, chains");
+                l_ret = DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_COMMAND_SYNC;
             }
+            if (!l_jobj_requested) {
+                json_object_put(l_jobj_state_machine);
+                json_object_put(l_jobj_current);
+                json_object_put(l_jobj_return);
+                dap_json_rpc_allocation_error;
+                return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+            }
+            json_object_object_add(l_jobj_state_machine, "current", l_jobj_current);
+            json_object_object_add(l_jobj_state_machine, "requested", l_jobj_requested);
+            json_object_object_add(l_jobj_return, "state_machine", l_jobj_state_machine);
+            l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
         } else if (l_ca_str) {
             if (strcmp(l_ca_str, "add") == 0 ) {
                 const char *l_cert_string = NULL, *l_hash_string = NULL;
@@ -2576,11 +2594,12 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-hash", &l_hash_string);
 
                 if (!l_cert_string && !l_hash_string) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "One of -cert or -hash parameters is mandatory");
-                    return -6;
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_CA_ADD,
+                                           "One of -cert or -hash parameters is mandatory");
+                    return DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_CA_ADD;
                 }
                 char *l_hash_hex_str = NULL;
-                //char *l_hash_base58_str;
                 // hash may be in hex or base58 format
                 if(!dap_strncmp(l_hash_string, "0x", 2) || !dap_strncmp(l_hash_string, "0X", 2)) {
                     l_hash_hex_str = dap_strdup(l_hash_string);
@@ -2594,22 +2613,28 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 if (l_cert_string) {
                     dap_cert_t * l_cert = dap_cert_find_by_name(l_cert_string);
                     if (l_cert == NULL) {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find \"%s\" certificate", l_cert_string);
+                        json_object_put(l_jobj_return);
+                        dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_CAN_NOT_FIND_CERT_CA_ADD,
+                                               "Can't find \"%s\" certificate", l_cert_string);
                         DAP_DEL_Z(l_hash_hex_str);
-                        return -7;
+                        return DAP_CHAIN_NET_JSON_RPC_CAN_NOT_FIND_CERT_CA_ADD;
                     }
                     if (l_cert->enc_key == NULL) {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "No key found in \"%s\" certificate", l_cert_string );
+                        json_object_put(l_jobj_return);
+                        dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_CAN_NOT_KEY_IN_CERT_CA_ADD,
+                                               "No key found in \"%s\" certificate", l_cert_string);
                         DAP_DEL_Z(l_hash_hex_str);
-                        return -8;
+                        return DAP_CHAIN_NET_JSON_RPC_CAN_NOT_KEY_IN_CERT_CA_ADD;
                     }
                     // Get publivc key hash
                     size_t l_pub_key_size = 0;
                     uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(l_cert->enc_key, &l_pub_key_size);;
                     if (l_pub_key == NULL) {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't serialize public key of certificate \"%s\"", l_cert_string);
+                        json_object_put(l_jobj_return);
+                        dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_CAN_SERIALIZE_PUBLIC_KEY_CERT_CA_ADD,
+                                               "Can't serialize public key of certificate \"%s\"", l_cert_string);
                         DAP_DEL_Z(l_hash_hex_str);
-                        return -9;
+                        return DAP_CHAIN_NET_JSON_RPC_CAN_SERIALIZE_PUBLIC_KEY_CERT_CA_ADD;
                     }
                     dap_chain_hash_fast_t l_pkey_hash;
                     dap_hash_fast(l_pub_key, l_pub_key_size, &l_pkey_hash);
@@ -2620,65 +2645,105 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 const char c = '1';
                 char *l_gdb_group_str = dap_chain_net_get_gdb_group_acl(l_net);
                 if (!l_gdb_group_str) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Database ACL group not defined for this network");
-                    return -11;
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_ADD,
+                                           "Database ACL group not defined for this network");
+                    return DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_ADD;
                 }
                 if( l_hash_hex_str ){
                     l_ret = dap_global_db_set_sync(l_gdb_group_str, l_hash_hex_str, &c, sizeof(c), false );
                     DAP_DELETE(l_gdb_group_str);
                     if (l_ret) {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                          "Can't save public key hash %s in database", l_hash_hex_str);
+                        json_object_put(l_jobj_return);
+                        dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_CAN_NOT_SAVE_PUBLIC_KEY_IN_DATABASE,
+                                               "Can't save public key hash %s in database", l_hash_hex_str);
                         DAP_DELETE(l_hash_hex_str);
-                        return -10;
+                        return DAP_CHAIN_NET_JSON_RPC_CAN_NOT_SAVE_PUBLIC_KEY_IN_DATABASE;
                     }
                     DAP_DELETE(l_hash_hex_str);
                 } else{
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't save NULL public key hash in database");
-                    return -10;
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_CAN_NOT_SAVE_PUBLIC_KEY_IN_DATABASE,
+                                           "Can't save NULL public key hash in database");
+                    return DAP_CHAIN_NET_JSON_RPC_CAN_NOT_SAVE_PUBLIC_KEY_IN_DATABASE;
                 }
-                return 0;
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else if (strcmp(l_ca_str, "list") == 0 ) {
                 char *l_gdb_group_str = dap_chain_net_get_gdb_group_acl(l_net);
                 if (!l_gdb_group_str) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Database ACL group not defined for this network");
-                    return -11;
+                    dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_LIST,
+                                           "Database ACL group not defined for this network");
+                    return DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_LIST;
                 }
                 size_t l_objs_count;
                 dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_str, &l_objs_count);
                 DAP_DELETE(l_gdb_group_str);
-                dap_string_t *l_reply = dap_string_new("");
+                json_object *l_jobj_list_ca = json_object_new_array();
+                if (!l_jobj_list_ca) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
                 for (size_t i = 0; i < l_objs_count; i++) {
-                    dap_string_append(l_reply, l_objs[i].key);
-                    dap_string_append(l_reply, "\n");
+                    json_object *l_jobj_key = json_object_new_string(l_objs[i].key);
+                    if (!l_jobj_key) {
+                        json_object_put(l_jobj_list_ca);
+                        json_object_put(l_jobj_return);
+                        dap_json_rpc_allocation_error;
+                        return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                    }
                 }
                 dap_global_db_objs_delete(l_objs, l_objs_count);
-                *a_str_reply = l_reply->len ? l_reply->str : dap_strdup("No entries found");
-                dap_string_free(l_reply, false);
-                return 0;
+                if (json_object_array_length(l_jobj_list_ca) > 0) {
+                    json_object_object_add(l_jobj_return, "ca_list", l_jobj_list_ca);
+                } else {
+                    json_object_put(l_jobj_list_ca);
+                    json_object *l_jobj_str_ret = json_object_new_string("No entries found");
+                    if (!l_jobj_list_ca) {
+                        json_object_put(l_jobj_return);
+                        dap_json_rpc_allocation_error;
+                        return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                    }
+                    json_object_object_add(l_jobj_return, "ca_list", l_jobj_str_ret);
+                }
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else if (strcmp(l_ca_str, "del") == 0 ) {
                 const char *l_hash_string = NULL;
                 dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-hash", &l_hash_string);
                 if (!l_hash_string) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Format should be 'net ca del -hash <hash string>");
-                    return -6;
+                    dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNKNOWN_HASH_CA_DEL,
+                                           "Format should be 'net ca del -hash <hash string>");
+                    return DAP_CHAIN_NET_JSON_RPC_UNKNOWN_HASH_CA_DEL;
                 }
                 char *l_gdb_group_str = dap_chain_net_get_gdb_group_acl(l_net);
                 if (!l_gdb_group_str) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Database ACL group not defined for this network");
-                    return -11;
+                    dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_DEL,
+                                           "Database ACL group not defined for this network");
+                    return DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_DEL;
+                }
+                char *l_ret_msg_str = dap_strdup_printf("Certificate %s has been deleted.", l_hash_string);
+                json_object *l_jobj_ret = json_object_new_string(l_ret_msg_str);
+                DAP_DELETE(l_ret_msg_str);
+                if (l_jobj_ret) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 }
                 l_ret = dap_global_db_del_sync(l_gdb_group_str, l_hash_string);
                 DAP_DELETE(l_gdb_group_str);
                 if (l_ret) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Cant't find certificate public key hash in database");
-                    return -10;
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_CAN_NOT_FIND_CERT_CA_DEL,
+                                           "Can't find certificate public key hash in database");
+                    return DAP_CHAIN_NET_JSON_RPC_CAN_NOT_FIND_CERT_CA_DEL;
                 }
-                return 0;
+                json_object_put(l_jobj_return);
+                json_object_array_add(*reply, l_jobj_ret);
+                return DAP_CHAIN_NET_JSON_RPC_OK;
             } else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "Subcommand 'ca' requires one of parameter: add, list, del\n");
-                l_ret = -5;
+                dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_INVALID_PARAMETER_COMMAND_CA,
+                                       "Subcommand 'ca' requires one of parameter: add, list, del");
+                return DAP_CHAIN_NET_JSON_RPC_INVALID_PARAMETER_COMMAND_CA;
             }
         } else if (l_ledger_str && !strcmp(l_ledger_str, "reload")) {
             int l_return_state = dap_chain_net_stop(l_net);
@@ -2696,27 +2761,52 @@ static int s_cli_net(int argc, char **argv, void **reply)
                     break;
             }
             if (!l_net_keys) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "No PoA certs found for this network");
-                return -11;
+                json_object_put(l_jobj_return);
+                dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_NO_POA_CERTS_FOUND_POA_CERTS,
+                                       "No PoA certs found for this network");
+                return DAP_CHAIN_NET_JSON_RPC_NO_POA_CERTS_FOUND_POA_CERTS;
             }
-            dap_string_t *l_str_out = dap_string_new("List of network PoA certificates:\n");
-            int i = 0;
+            json_object *l_jobj_pkeys = json_object_new_array();
+            if (!l_jobj_pkeys) {
+                json_object_put(l_jobj_return);
+                dap_json_rpc_allocation_error;
+                return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+            }
             for (dap_list_t *it = l_net_keys; it; it = it->next) {
                 dap_hash_fast_t l_pkey_hash;
                 char l_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
                 dap_pkey_get_hash(it->data, &l_pkey_hash);
                 dap_chain_hash_fast_to_str(&l_pkey_hash, l_pkey_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-                dap_string_append_printf(l_str_out, "%d) %s\n", i++, l_pkey_hash_str);
+                json_object *l_jobj_hash_key = json_object_new_string(l_pkey_hash_str);
+                if (!l_jobj_hash_key) {
+                    json_object_put(l_jobj_pkeys);
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_array_add(l_jobj_pkeys, l_jobj_hash_key);
             }
-            *a_str_reply = l_str_out->str;
-            dap_string_free(l_str_out, false);
-
+            if (json_object_array_length(l_jobj_pkeys) > 0) {
+                json_object_object_add(l_jobj_return, "poa_certs", l_jobj_pkeys);
+            } else {
+                json_object_put(l_jobj_pkeys);
+                json_object *l_jobj_info = json_object_new_string("empty");
+                if (!l_jobj_info) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_pkeys, "poa_certs", l_jobj_info);
+            }
+            l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
         } else {
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                              "Command 'net' requires one of subcomands: sync, link, go, get, stats, ca, ledger");
-            l_ret = -1;
+            dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNKNOWN_SUBCOMMANDS,
+                                   "Command 'net' requires one of subcomands: sync, link, go, get, stats, ca, ledger");
+            l_ret = DAP_CHAIN_NET_JSON_RPC_UNKNOWN_SUBCOMMANDS;
         }
-
+    }
+    if (l_jobj_return) {
+        json_object_array_add(*reply, l_jobj_return);
     }
     return  l_ret;
 }
