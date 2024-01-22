@@ -2168,7 +2168,9 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 uint64_t l_tx_count = dap_ledger_count_from_to ( l_net->pub.ledger, l_from_ts, l_to_ts);
                 long double l_tps = l_to_ts == l_from_ts ? 0 :
                                                      (long double) l_tx_count / (long double) ( l_to_ts - l_from_ts );
-                json_object *l_jobj_tps = json_object_new_double((double)l_tps);
+                char *l_tps_str = dap_strdup_printf("%.3Lf", l_tps);
+                json_object *l_jobj_tps = json_object_new_string(l_tps_str);
+                DAP_DELETE(l_tps_str);
                 json_object *l_jobj_total = json_object_new_uint64(l_tx_count);
                 if (!l_jobj_tps || !l_jobj_total) {
                     json_object_put(l_jobj_return);
@@ -2182,10 +2184,8 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 json_object_object_add(l_jobj_stats, "Total", l_jobj_total);
                 json_object_object_add(l_jobj_return, "transaction_statistics", l_jobj_stats);
                 l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
-//                dap_string_append_printf( l_ret_str, "\tSpeed:  %.3Lf TPS\n", l_tps );
             } else if (strcmp(l_stats_str, "tps") == 0) {
                 struct timespec l_from_time_acc = {}, l_to_time_acc = {};
-//                dap_string_t * l_ret_str = dap_string_new("Transactions per second peak values:\n");
                 json_object *l_jobj_values = json_object_new_object();
                 if (!l_jobj_values) {
                     dap_json_rpc_allocation_error;
@@ -2203,7 +2203,9 @@ static int s_cli_net(int argc, char **argv, void **reply)
                     uint64_t l_diff_ns = (l_to_time_acc.tv_sec - l_from_time_acc.tv_sec) * 1000000000 +
                                             l_to_time_acc.tv_nsec - l_from_time_acc.tv_nsec;
                     long double l_tps = (long double)(l_tx_num * 1000000000) / (long double)(l_diff_ns);
-                    json_object *l_jobj_tps = json_object_new_double((double)l_tps);
+                    char *l_tps_str = dap_strdup_printf("%.3Lf", l_tps);
+                    json_object *l_jobj_tps = json_object_new_string(l_tps_str);
+                    DAP_DELETE(l_tps_str);
                     if (!l_jobj_from || !l_jobj_to || !l_jobj_tps) {
                         json_object_put(l_jobj_return);
                         json_object_put(l_jobj_values);
