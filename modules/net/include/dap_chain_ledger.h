@@ -114,6 +114,15 @@ typedef enum dap_ledger_token_decl_add_err{
     DAP_LEDGER_TOKEN_DECL_ADD_UNKNOWN /* MAX */
 } dap_ledger_token_decl_add_err_t;
 
+typedef struct dap_ledger_datum_iter {
+    dap_chain_net_t *net;
+    dap_chain_datum_tx_t *cur;
+    dap_chain_hash_fast_t cur_hash;
+    bool is_unspent;
+    int ret_code;
+    void *cur_ledger_tx_item;
+} dap_ledger_datum_iter_t;
+
 typedef bool (*dap_ledger_verificator_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_tx_out_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 typedef void (*dap_ledger_updater_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_prev_cond);
 typedef void (* dap_ledger_tx_add_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
@@ -350,6 +359,12 @@ int dap_chain_ledger_voting_verificator_add(dap_chain_ledger_voting_callback_t a
 dap_list_t * dap_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, size_t a_page, bool a_reverse, bool a_unspent_only);
 
 //bool dap_ledger_fee_verificator(dap_ledger_t* a_ledger, dap_chain_tx_out_cond_t* a_cond, dap_chain_datum_tx_t* a_tx, bool a_owner);
+
+dap_ledger_datum_iter_t *dap_ledger_datum_iter_create(dap_chain_net_t *a_net);
+void dap_ledger_datum_iter_delete(dap_ledger_datum_iter_t *a_iter);
+dap_chain_datum_tx_t *dap_ledger_datum_iter_get_first(dap_ledger_datum_iter_t *a_iter);
+dap_chain_datum_tx_t *dap_ledger_datum_iter_get_next(dap_ledger_datum_iter_t *a_iter);
+dap_chain_datum_tx_t *dap_ledger_datum_iter_get_last(dap_ledger_datum_iter_t *a_iter);
 
 void dap_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_ledger_tx_add_notify_t a_callback, void *a_arg);
 void dap_ledger_bridged_tx_notify_add(dap_ledger_t *a_ledger, dap_ledger_bridged_tx_notify_t a_callback, void *a_arg);
