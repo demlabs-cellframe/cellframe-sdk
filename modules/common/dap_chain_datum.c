@@ -31,6 +31,7 @@
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_datum_decree.h"
 #include "dap_chain_datum_anchor.h"
+#include "dap_chain_datum_tx_voting.h"
 #include "dap_chain_datum_hashtree_roots.h"
 #include "dap_enc_base58.h"
 
@@ -357,7 +358,7 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
             dap_chain_addr_t l_sender_addr;
             dap_chain_addr_fill_from_sign(&l_sender_addr, l_sign_tmp, a_net_id);
             const char *l_addr_str = dap_chain_addr_to_str(&l_sender_addr);
-            dap_string_append_printf(a_str_out, "\tSender addr: %s", l_addr_str);
+            dap_string_append_printf(a_str_out, "\tSender addr: %s\n", l_addr_str);
             DAP_DELETE(l_addr_str);
         } break;
         case TX_ITEM_TYPE_RECEIPT: {
@@ -551,6 +552,40 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
             DAP_DELETE(l_addr_str);
             DAP_DELETE(l_value_str);
             DAP_DELETE(l_coins_str);
+        } break;
+        case TX_ITEM_TYPE_VOTING:{
+            int l_tsd_size = 0;
+            dap_chain_tx_tsd_t *l_item = (dap_chain_tx_tsd_t *)dap_chain_datum_tx_item_get(a_datum, 0, TX_ITEM_TYPE_TSD, &l_tsd_size);
+            if (!l_item || !l_tsd_size)
+                break;
+            dap_chain_datum_tx_voting_params_t *l_voting_params = dap_chain_voting_parse_tsd(a_datum);
+            dap_string_append_printf(a_str_out, "\t VOTING:\n\tVoting question: %s\n\t Answer options:\n", l_voting_params->voting_question);
+            dap_list_t *l_temp = l_voting_params->answers_list;
+            uint8_t l_index = 0;
+            while (l_temp){
+                dap_string_append_printf(a_str_out, "\t\t %i) %s\n", l_index, (char*)l_temp->data);
+                l_index++;
+                l_temp = l_temp->next;
+            }
+
+            if(l_voting_params->voting_expire)
+                dap_string_append_printf(a_str_out, "\t Voting expire: %s\n", dap_ctime_r(&l_voting_params->voting_expire, l_tmp_buf));
+            if (l_voting_params->votes_max_count)
+                dap_string_append_printf(a_str_out, "\t Votes max count: %"DAP_UINT64_FORMAT_U"\n", l_voting_params->votes_max_count);
+            dap_string_append_printf(a_str_out, "\t Changing vote is %s available.\n", l_voting_params->vote_changing_allowed ? "" : "not");
+            dap_string_append_printf(a_str_out, "\t A delegated key is%s required to participate in voting. \n", l_voting_params->delegate_key_required ? "" : " not");
+
+            dap_list_free_full(l_voting_params->answers_list, NULL);
+            DAP_DELETE(l_voting_params->voting_question);
+            DAP_DELETE(l_voting_params);
+        } break;
+        case TX_ITEM_TYPE_VOTE:{
+            dap_chain_tx_vote_t *l_vote_item = (dap_chain_tx_vote_t *)item;
+            char *l_hash_str = dap_chain_hash_fast_to_str_new(&l_vote_item->voting_hash);
+            dap_string_append_printf(a_str_out, "\t VOTE: \n"
+                                                "\t Voting hash: %s\n"
+                                                "\t Vote answer idx: %"DAP_UINT64_FORMAT_U"\n", l_hash_str, l_vote_item->answer_idx);
+            DAP_DELETE(l_hash_str);
         } break;
         default:
             dap_string_append_printf(a_str_out, " This transaction have unknown item type \n");
