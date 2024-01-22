@@ -2040,7 +2040,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
     }
 
     dap_chain_net_t * l_net = l_net_name ? dap_chain_net_by_name(l_net_name) : NULL;
-    dap_string_t *l_string_ret = dap_string_new(NULL);
+    //dap_string_t *l_string_ret = dap_string_new(NULL);
     dap_chain_wallet_t *l_wallet = NULL;
     dap_chain_addr_t *l_addr = NULL;
 
@@ -2141,30 +2141,30 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
             char *l_l_addr_str = dap_chain_addr_to_str((dap_chain_addr_t*) l_addr);
             if(l_wallet)
-                dap_string_append_printf(l_string_ret, "%s\nwallet: %s\n", dap_chain_wallet_check_bliss_sign(l_wallet), l_wallet->name);
-            dap_string_append_printf(l_string_ret, "addr: %s\n", (l_l_addr_str) ? l_l_addr_str : "-");
-            dap_string_append_printf(l_string_ret, "network: %s\n", (l_net_name ) ? l_net_name : "-");
+            {
+                json_object_object_add(json_obj_out, "sign", json_object_new_string(dap_chain_wallet_check_bliss_sign(l_wallet)));
+                json_object_object_add(json_obj_out, "nwallet", json_object_new_string(l_wallet->name));
+            }
+            json_object_object_add(json_obj_out, "addr:", (l_l_addr_str) ? json_object_new_string(l_l_addr_str) : json_object_new_string("-"));
+            json_object_object_add(json_obj_out, "network:", (l_net_name) ? json_object_new_string(l_net_name) : json_object_new_string("-"));
 
             size_t l_l_addr_tokens_size = 0;
             char **l_l_addr_tokens = NULL;
             dap_ledger_addr_get_token_ticker_all(l_ledger, l_addr, &l_l_addr_tokens, &l_l_addr_tokens_size);
-            if(l_l_addr_tokens_size > 0)
-                dap_string_append_printf(l_string_ret, "balance:\n");
-            else
-                dap_string_append_printf(l_string_ret, "balance: 0");
+            if(l_l_addr_tokens_size <= 0)
+                json_object_object_add(json_obj_out, "balance:", json_object_new_string("0"));
 
             for(size_t i = 0; i < l_l_addr_tokens_size; i++) {
                 if(l_l_addr_tokens[i]) {
                     uint256_t l_balance = dap_ledger_calc_balance(l_ledger, l_addr, l_l_addr_tokens[i]);
                     char *l_balance_coins = dap_chain_balance_to_coins(l_balance);
                     char *l_balance_datoshi = dap_chain_balance_print(l_balance);
-                    dap_string_append_printf(l_string_ret, "\t%s (%s) %s\n", l_balance_coins,
-                            l_balance_datoshi, l_l_addr_tokens[i]);
-                    if(i < l_l_addr_tokens_size - 1)
-                        dap_string_append_printf(l_string_ret, "\n");
+                    json_object_object_add(json_obj_out, "balance:", json_object_new_string("empty"));
+                    json_object_object_add(json_obj_out, "coins:", json_object_new_string(l_balance_coins));
+                    json_object_object_add(json_obj_out, "datoshi:", json_object_new_string(l_balance_datoshi));
+                    json_object_object_add(json_obj_out, "token:", json_object_new_string(l_l_addr_tokens[i]));
                     DAP_DELETE(l_balance_coins);
                     DAP_DELETE(l_balance_datoshi);
-
                 }
                 DAP_DELETE(l_l_addr_tokens[i]);
             }
@@ -2176,18 +2176,20 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
         }
         default: {
             if( !l_wallet_name ) {
-                dap_string_free(l_string_ret, true);
-                return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet name option <-w>  not defined"), -EINVAL;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NAME_ERR,
+                                       "Wallet name option <-w>  not defined");
+                return  DAP_CHAIN_NODE_CLI_COM_TX_WALLET_NAME_ERR;
             }
             if( cmd_num != CMD_WALLET_DEACTIVATE && !l_pass_str && cmd_num != CMD_WALLET_NEW) {
-                dap_string_free(l_string_ret, true);
-                return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet password option <-password>  not defined"), -EINVAL;
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PASS_ERR,
+                                       "Wallet password option <-password>  not defined");
+                return  DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PASS_ERR;
             }
             if ( cmd_num != CMD_WALLET_DEACTIVATE && l_pass_str && DAP_WALLET$SZ_PASS < strnlen(l_pass_str, DAP_WALLET$SZ_PASS + 1) ) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet's password is too long ( > %d)", DAP_WALLET$SZ_PASS);
+                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PASS_TO_LONG_ERR,
+                                       "Wallet's password is too long ( > %d)", DAP_WALLET$SZ_PASS);
                 log_it(L_ERROR, "Wallet's password is too long ( > %d)", DAP_WALLET$SZ_PASS);
-                dap_string_free(l_string_ret, true);
-                return -EINVAL;
+                return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PASS_TO_LONG_ERR;
             }
             switch (cmd_num) {
                 case CMD_WALLET_ACTIVATE:
@@ -2202,18 +2204,23 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
                     switch (l_rc) {
                     case 0:
-                        dap_string_append_printf(l_string_ret, "Wallet %s is %sactivated\n", l_wallet_name, l_prefix);
+                        json_object_object_add(json_obj_out, "wallet name:", json_object_new_string(l_wallet_name));
+                        json_object_object_add(json_obj_out, "status:", CMD_WALLET_ACTIVATE ?
+                        json_object_new_string("is activated") : json_object_new_string("is deactivated"));
                         break;
                     case -EBUSY:
-                        dap_string_append_printf(l_string_ret, "Error: wallet %s is already %sactivated\n", l_wallet_name, l_prefix);
+                        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_ALREADY_ERR,
+                                               "Error: wallet %s is already %sactivated\n", l_wallet_name, l_prefix);
                         break;
                     case -EAGAIN:
-                        dap_string_append_printf(l_string_ret, "Error: wrong password for wallet %s\n", l_wallet_name);
+                        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PASS_ERR,
+                                "Error: wrong password for wallet %s\n", l_wallet_name);
                         break;
                     default: {
                         char l_buf[512] = { '\0' };
                         strerror_r(l_rc, l_buf, sizeof(l_buf) - 1);
-                        dap_string_append_printf(l_string_ret, "Wallet %s %sactivation error %d : %s\n", l_wallet_name, l_prefix, l_rc, l_buf);
+                        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_ACTIVE_ERR,
+                                "Wallet %s %sactivation error %d : %s\n", l_wallet_name, l_prefix, l_rc, l_buf);
                         break;
                     }
                     }
@@ -2222,20 +2229,21 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                 case CMD_WALLET_CONVERT: {
                     l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
                     if (!l_wallet) {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "wrong password");
-                        return -1;
+                        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PASS_ERR,
+                                               "wrong password");
+                        return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PASS_ERR;
                     } else if (l_wallet->flags & DAP_WALLET$M_FL_ACTIVE) {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet can't be converted twice");
-                        dap_string_free(l_string_ret, true);
-                        return  -1;
+                        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_CONVERT_ERR,
+                                               "Wallet can't be converted twice");
+                        return  DAP_CHAIN_NODE_CLI_COM_TX_WALLET_CONVERT_ERR;
                     }
                     // create wallet backup 
                     dap_chain_wallet_internal_t* l_file_name = DAP_CHAIN_WALLET_INTERNAL(l_wallet);
                     snprintf(l_file_name->file_name, sizeof(l_file_name->file_name)  - 1, "%s/%s_%012lu%s", c_wallets_path, l_wallet_name, time(NULL),".backup");
                     if ( dap_chain_wallet_save(l_wallet, NULL) ) {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create backup wallet file because of internal error");
-                        dap_string_free(l_string_ret, true);
-                        return  -1;
+                        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_BACKUP_ERR,
+                                               "Can't create backup wallet file because of internal error");
+                        return  DAP_CHAIN_NODE_CLI_COM_TX_WALLET_BACKUP_ERR;
                     }
                     // change to old filename
                     snprintf(l_file_name->file_name, sizeof(l_file_name->file_name)  - 1, "%s/%s%s", c_wallets_path, l_wallet_name, ".dwallet");
