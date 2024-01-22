@@ -121,9 +121,9 @@ int dap_chain_net_srv_xchange_init()
 
     "srv_xchange token_pair -net <net_name> list all\n"
         "\tList of all token pairs\n"
-    "srv_xchange token_pair -net <net_name> price average -token_from <token_ticker> -token_to <token_ticker>\n"
-        "\tGet average rate for token pair <token from>:<token to> from <From time> to <To time> \n"
-    "srv_xchange token_pair -net <net_name> price history -token_from <token_ticker> -token_to <token_ticker> [-time_from <From time>] [-time_to <To time>] \n"
+    "srv_xchange token_pair -net <net_name> rate average -token_from <token_ticker> -token_to <token_ticker>\n"
+        "\tGet average rate for token pair <token from>:<token to> from <From_time> to <To_time> \n"
+    "srv_xchange token_pair -net <net_name> rate history -token_from <token_ticker> -token_to <token_ticker> [-time_from <From_time>] [-time_to <To_time>] \n"
         "\tPrint rate history for token pair <token from>:<token to> from <From time> to <To time>\n"
         "\tAll times are in RFC822. For example: \"Thu, 7 Dec 2023 21:18:04\"\n"
 /*
@@ -1735,9 +1735,10 @@ size_t l_tx_total;
 }
 
 
-void s_tx_is_order_check (dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, void *a_arg)
+void s_tx_is_order_check (dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg)
 {
     UNUSED(a_net);
+    UNUSED(a_tx_hash);
 
     order_find_list_t *l_arg = (order_find_list_t*)a_arg;
 
@@ -1846,6 +1847,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **reply)
 
             // Print all txs
             dap_list_t *l_temp = l_arg.tx_list;
+            uint64_t l_printed_orders_count = 0;
             while(l_temp)
             {
 //                dap_chain_net_srv_order_t *l_order = (dap_chain_net_srv_order_t *)l_orders[i].value;
@@ -1948,6 +1950,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **reply)
                 dap_ctime_r(&l_ts_create, l_tmp_buf);
                 l_tmp_buf[strlen(l_tmp_buf) - 1] = '\0';
 
+                l_printed_orders_count++;
                 dap_string_append_printf(l_reply_str, "orderHash: %s\n ts_created: %s (%"DAP_UINT64_FORMAT_U")\n Status: %s, amount: %s (%s) %s, filled: %s%%, rate (%s/%s): %s, net: %s\n\n", l_tx_hash_str,
                                          l_tmp_buf, l_ts_create, l_status_order,
                                          l_amount_coins_str ? l_amount_coins_str : "0.0",
@@ -1965,6 +1968,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **reply)
                 l_temp = l_temp->next;
             }
             dap_list_free(l_arg.tx_list);
+            dap_string_append_printf(l_reply_str, "\n\rFound %"DAP_UINT64_FORMAT_U" orders", l_printed_orders_count);
             if (!l_reply_str->len) {
                 dap_string_append(l_reply_str, "No orders found");
             }
@@ -2169,7 +2173,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **reply)
 
             // check for price subcommand
             const char * l_price_subcommand = NULL;
-            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "price", &l_price_subcommand);
+            dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "rate", &l_price_subcommand);
 
             // check for get subcommand
             if ( l_price_subcommand ){
@@ -2221,6 +2225,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **reply)
                     uint256_t l_total_rates = {0};
                     uint256_t l_total_rates_count = {0};
                     uint256_t l_rate = {};
+                    dap_time_t l_last_rate_time = 0;
                     while(l_cur){
                         dap_chain_datum_tx_t * l_tx =(dap_chain_datum_tx_t *) l_cur->data;
                         if(l_tx){
@@ -2254,6 +2259,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **reply)
 
                             uint256_t l_value_sell = l_out_cond_item->header.value;
                             l_rate = l_out_cond_item->subtype.srv_xchange.rate;
+                            l_last_rate_time = l_tx->header.ts_created;
                                 if (!IS_ZERO_256(l_value_sell)) {
                                     if(SUM_256_256(l_rate, l_total_rates, &l_total_rates )!= 0)
                                         log_it(L_ERROR, "Overflow on average price calculation (summing)");
@@ -2271,7 +2277,10 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **reply)
 
                     char *l_rate_average_str = dap_chain_balance_to_coins(l_rate_average);
                     char *l_last_rate_str = dap_chain_balance_to_coins(l_rate);
-                    dap_string_append_printf(l_reply_str,"Average price: %s   Last price: %s", l_rate_average_str, l_last_rate_str);
+                    char l_tmp_buf[70] = {};
+                    dap_ctime_r(&l_last_rate_time, l_tmp_buf);
+                    l_tmp_buf[strlen(l_tmp_buf) - 1] = '\0';
+                    dap_string_append_printf(l_reply_str,"Average rate: %s   \n\rLast rate: %s Last rate time: %s (%"DAP_UINT64_FORMAT_U")", l_rate_average_str, l_last_rate_str, l_tmp_buf, l_last_rate_time);
                     DAP_DELETE(l_rate_average_str);
                     DAP_DELETE(l_last_rate_str);
                     *a_str_reply = dap_string_free(l_reply_str, false);
