@@ -428,7 +428,7 @@ static void s_session_db_serialize(dap_global_db_context_t *a_context, void *a_a
 
     if (l_pkt)
         dap_hash_fast(l_pkt->data, l_pkt->data_size, &l_session->db_hash);
-    else
+    //else
         l_session->db_hash = (dap_hash_fast_t){};
     if (PVT(l_session->esbocs)->debug) {
         char l_sync_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
