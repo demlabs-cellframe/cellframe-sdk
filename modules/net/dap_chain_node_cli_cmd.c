@@ -3415,8 +3415,8 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
     
     dap_global_db_objs_delete(l_objs, l_objs_count);
 
-    char * l_net_chain_count_total[64] = {0};
-    sprintf(l_net_chain_count_total, "%s.%s: %d", a_net->pub.name, a_chain->name, l_objs_count);
+    char l_net_chain_count_total[64] = {0};
+    sprintf(l_net_chain_count_total, "%s.%s: %zu", a_net->pub.name, a_chain->name, l_objs_count);
     json_object * l_object_total = json_object_new_string(l_net_chain_count_total);
     if (!l_object_total) {
         json_object_put(l_obj_chain);
@@ -4118,10 +4118,10 @@ int com_mempool(int a_argc, char **a_argv, void **reply){
             ret = _cmd_mempool_add_ca(l_net, l_chain, l_cert, reply);
         } break;
         case SUBCMD_CHECK: {
-            ret = _cmd_mempool_check(l_net, l_chain, l_datum_hash, l_hash_out_type, reply);
+            ret = _cmd_mempool_check(l_net, l_chain, l_datum_hash, &l_hash_out_type, reply);
         } break;
         case SUBCMD_DUMP: {
-            ret = _cmd_mempool_dump(l_net, l_chain, l_datum_hash, l_hash_out_type, reply);
+            ret = _cmd_mempool_dump(l_net, l_chain, l_datum_hash, l_hash_out_type, (json_object **)reply);
         } break;
         case SUBCMD_COUNT: {
             char *l_mempool_group;
