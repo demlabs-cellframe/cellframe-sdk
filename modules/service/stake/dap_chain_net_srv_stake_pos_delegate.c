@@ -1938,7 +1938,7 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv, int a_arg_index
             }
         }
         dap_chain_net_srv_stake_item_t *l_stake;
-        HASH_FIND(hh, s_srv_stake->tx_itemlist, &l_tx_hash, sizeof(dap_hash_t), l_stake);
+        HASH_FIND(ht, s_srv_stake->tx_itemlist, &l_tx_hash, sizeof(dap_hash_t), l_stake);
         if (l_stake) {
             char *l_delegated_hash_str = dap_hash_fast_is_blank(&l_spender_hash) ? dap_strdup(l_tx_hash_str)
                                                                                  : dap_hash_fast_to_str_new(&l_spender_hash);
