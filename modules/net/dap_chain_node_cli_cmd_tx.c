@@ -284,10 +284,6 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
 json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, 
                                  const char *a_hash_out_type, const char * l_addr_str)
 {
-    struct token_addr {
-        const char token[DAP_CHAIN_TICKER_SIZE_MAX];
-        dap_chain_addr_t addr;
-    };
 
     json_object* json_obj_datum = json_object_new_array();
     if (!json_obj_datum){
@@ -392,6 +388,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                     break;
                 case TX_ITEM_TYPE_OUT_COND: {
                     dap_chain_tx_out_cond_t *l_cond_prev = (dap_chain_tx_out_cond_t *)l_prev_out_union;
+                    l_src_subtype = l_cond_prev->header.subtype;
                     if (l_cond_prev->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
                         l_noaddr_token = l_native_ticker;
                     else {
@@ -399,7 +396,6 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                             l_is_unstake = true;
                             l_unstake_value = l_cond_prev->header.value;
                         }
-                        l_src_subtype = l_cond_prev->header.subtype;
                         l_noaddr_token = l_src_token;
                     }
                 } break;
@@ -414,7 +410,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
 
         // find OUT items
         bool l_header_printed = false;
-        uint256_t l_fee_sum = {};
+        uint256_t l_fee_sum = uint256_0;
         dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
         json_object * j_arr_data = json_object_new_array();
         json_object * j_obj_tx = json_object_new_object();
