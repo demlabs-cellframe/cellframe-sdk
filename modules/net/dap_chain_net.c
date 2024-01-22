@@ -337,7 +337,7 @@ int dap_chain_net_init()
             "\tDelete certificate from list of authority cetificates in GDB group by it's hash\n"
         "net -net <chain_net_name> ledger reload\n"
             "\tPurge the cache of chain net ledger and recalculate it from chain file\n"
-        "net -net <chain_net_name> poa_cets list\n"
+        "net -net <chain_net_name> poa_certs list\n"
             "\tPrint list of PoA cerificates for this network\n");
 
     s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more",false);
