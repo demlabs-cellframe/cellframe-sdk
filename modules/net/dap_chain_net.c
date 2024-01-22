@@ -1768,6 +1768,8 @@ json_object* s_set_reply_text_node_status_json(dap_chain_net_t *a_net) {
     json_object *l_jobj_states = json_object_new_object();
     json_object *l_jobj_current_states = json_object_new_string(c_net_states[PVT(a_net)->state]);
     json_object *l_jobj_target_states = json_object_new_string(c_net_states[PVT(a_net)->state_target]);
+    json_object_object_add(l_jobj_states, "current", l_jobj_current_states);
+    json_object_object_add(l_jobj_states, "target", l_jobj_target_states);
     json_object_object_add(l_jobj_ret, "states", l_jobj_states);
     return l_jobj_ret;
 }
