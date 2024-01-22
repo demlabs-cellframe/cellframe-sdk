@@ -2080,10 +2080,11 @@ struct get_tx_cond_pos_del_from_tx
  * @param a_tx
  * @param a_arg
  */
-static void s_get_tx_filter_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, void *a_arg)
+static void s_get_tx_filter_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg)
 {
     struct get_tx_cond_pos_del_from_tx * l_args = (struct get_tx_cond_pos_del_from_tx* ) a_arg;
     int l_out_idx_tmp = 0;
+
     dap_chain_tx_out_cond_t *l_tx_out_cond = dap_chain_datum_tx_out_cond_get(a_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE,
                                                                              &l_out_idx_tmp);
     if (!l_tx_out_cond)
@@ -2091,12 +2092,10 @@ static void s_get_tx_filter_callback(dap_chain_net_t* a_net, dap_chain_datum_tx_
     if (dap_chain_addr_is_blank(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr) ||
             l_tx_out_cond->subtype.srv_stake_pos_delegate.signer_node_addr.uint64 == 0)
         return;
-    dap_hash_fast_t l_datum_hash;
-    dap_hash_fast(a_tx, dap_chain_datum_tx_get_size(a_tx), &l_datum_hash);
-    if (dap_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, &l_datum_hash, l_out_idx_tmp, NULL))
+    if (dap_ledger_tx_hash_is_used_out_item(a_net->pub.ledger, a_tx_hash, l_out_idx_tmp, NULL))
         return;
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
-    HASH_FIND(ht, s_srv_stake->tx_itemlist, &l_datum_hash, sizeof(dap_hash_fast_t), l_stake);
+    HASH_FIND(ht, s_srv_stake->tx_itemlist, a_tx_hash, sizeof(dap_hash_fast_t), l_stake);
     if (!l_stake)
         l_args->ret = dap_list_append(l_args->ret,a_tx);
 }
@@ -2514,7 +2513,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **reply)
                 char *l_balance = NULL;
                 char *l_coins = NULL;
                 char* l_node_address_text_block = NULL;
-                dap_chain_net_get_tx_all(l_net,TX_SEARCH_TYPE_NET,s_get_tx_filter_callback, l_args);
+                dap_chain_net_get_tx_all(l_net,TX_SEARCH_TYPE_NET, s_get_tx_filter_callback, l_args);
                 l_args->ret = dap_list_sort(l_args->ret, callback_compare_tx_list);
                 for(dap_list_t *tx = l_args->ret; tx; tx = tx->next)
                 {

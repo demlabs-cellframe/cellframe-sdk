@@ -32,6 +32,7 @@
 #include "dap_hash.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
+#include "dap_chain_datum_tx_voting.h"
 
 #define LOG_TAG "dap_chain_datum_tx_items"
 
@@ -114,6 +115,20 @@ static size_t dap_chain_tx_tsd_get_size(const dap_chain_tx_tsd_t *a_item)
     return sizeof(dap_chain_tx_tsd_t) + a_item->header.size;
 }
 
+static size_t dap_chain_tx_voting_get_size(const dap_chain_tx_voting_t *a_item)
+{
+    (void) a_item;
+    size_t size = sizeof(dap_chain_tx_voting_t);
+    return size;
+}
+
+static size_t dap_chain_tx_vote_get_size(const dap_chain_tx_vote_t *a_item)
+{
+    (void) a_item;
+    size_t size = sizeof(dap_chain_tx_vote_t);
+    return size;
+}
+
 /**
  * Get item type by item name
  *
@@ -146,6 +161,10 @@ dap_chain_tx_item_type_t dap_chain_datum_tx_item_str_to_type(const char *a_datum
         return TX_ITEM_TYPE_RECEIPT;
     else if(!dap_strcmp(a_datum_name, "data"))
         return TX_ITEM_TYPE_TSD;
+    else if(!dap_strcmp(a_datum_name, "voting"))
+        return TX_ITEM_TYPE_VOTING;
+    else if(!dap_strcmp(a_datum_name, "vote"))
+        return TX_ITEM_TYPE_VOTE;
     return TX_ITEM_TYPE_UNKNOWN;
 }
 
@@ -226,6 +245,12 @@ size_t dap_chain_datum_item_tx_get_size(const void *a_item)
         break;
     case TX_ITEM_TYPE_TSD:
         size = dap_chain_tx_tsd_get_size((const dap_chain_tx_tsd_t*)a_item);
+        break;
+    case TX_ITEM_TYPE_VOTING:
+        size = dap_chain_tx_voting_get_size((const dap_chain_tx_voting_t*)a_item);
+        break;
+    case TX_ITEM_TYPE_VOTE:
+        size = dap_chain_tx_vote_get_size((const dap_chain_tx_vote_t*)a_item);
         break;
     default:
         return 0;
@@ -539,6 +564,9 @@ byte_t *dap_chain_datum_tx_item_get_data(dap_chain_tx_tsd_t *a_tx_tsd, int *a_ty
     return ((dap_tsd_t*)(a_tx_tsd->tsd))->data;
 }
 
+
+
+
 /**
  * Get item from transaction
  *
@@ -654,4 +682,24 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a
         *a_out_num = l_res ? l_prev_cond_idx : -1;
     }
     return l_res;
+}
+
+uint8_t *dap_chain_datum_tx_out_get_by_out_idx(dap_chain_datum_tx_t *a_tx, int a_out_num)
+{
+    uint8_t *l_ret = NULL;
+    dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_ALL, NULL), *l_item;
+    if (!l_list_out_items)
+        return NULL;
+
+    l_item = dap_list_nth(l_list_out_items, a_out_num);
+
+    if(!l_item){
+        dap_list_free(l_list_out_items);
+        return NULL;
+    }
+
+    l_ret = l_item->data;
+    dap_list_free(l_list_out_items);
+    return l_ret;
+
 }
