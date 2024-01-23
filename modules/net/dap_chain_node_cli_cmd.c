@@ -2086,7 +2086,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
                             dap_string_append_printf(l_string_ret, "Wallet: %.*s%s %s\n", (int) l_file_name_len - 8, l_file_name,
                                 (l_wallet->flags & DAP_WALLET$M_FL_ACTIVE) ? " (Active)" : "",
-                                dap_chain_wallet_check_bliss_sign(l_wallet));
+                                dap_chain_wallet_check_sign(l_wallet));
 
                             if (l_addr_str) {
                                 dap_string_append_printf(l_string_ret, "addr: %s\n", (l_addr_str) ? l_addr_str : "-");
@@ -2144,8 +2144,8 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             }
 
             char *l_l_addr_str = dap_chain_addr_to_str((dap_chain_addr_t*) l_addr);
-            if(l_wallet)
-                dap_string_append_printf(l_string_ret, "%s\nwallet: %s\n", dap_chain_wallet_check_bliss_sign(l_wallet), l_wallet->name);
+            if (l_wallet)
+                dap_string_append_printf(l_string_ret, "%swallet: %s\n", dap_chain_wallet_check_sign(l_wallet), l_wallet->name);
             dap_string_append_printf(l_string_ret, "addr: %s\n", (l_l_addr_str) ? l_l_addr_str : "-");
             dap_string_append_printf(l_string_ret, "network: %s\n", (l_net_name ) ? l_net_name : "-");
 
@@ -2250,7 +2250,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     }
 
                     log_it(L_INFO, "Wallet %s has been converted", l_wallet_name);
-                    dap_string_append_printf(l_string_ret, "%s\nWallet: %s successfully converted\n", dap_chain_wallet_check_bliss_sign(l_wallet), l_wallet_name);
+                    dap_string_append_printf(l_string_ret, "%sWallet: %s successfully converted\n", dap_chain_wallet_check_sign(l_wallet), l_wallet_name);
                     dap_chain_wallet_close(l_wallet);
                     break;
                 }
@@ -3454,7 +3454,8 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
     dap_global_db_objs_delete(l_objs, l_objs_count);
 
     char l_net_chain_count_total[64] = {0};
-    sprintf(l_net_chain_count_total, "%s.%s: %d", a_net->pub.name, a_chain->name, (int)l_objs_count);
+
+    sprintf(l_net_chain_count_total, "%s.%s: %zu", a_net->pub.name, a_chain->name, l_objs_count);
     json_object * l_object_total = json_object_new_string(l_net_chain_count_total);
     if (!l_object_total) {
         json_object_put(l_obj_chain);
@@ -4026,9 +4027,8 @@ int com_mempool(int a_argc, char **a_argv, void **reply){
     int arg_index = 1;
     dap_chain_net_t *l_net = NULL;
     dap_chain_t *l_chain = NULL;
-    const char *l_addr_b58 = NULL;
     enum _subcmd {SUBCMD_LIST, SUBCMD_PROC, SUBCMD_PROC_ALL, SUBCMD_DELETE, SUBCMD_ADD_CA, SUBCMD_CHECK, SUBCMD_DUMP, SUBCMD_COUNT};
-    enum _subcmd l_cmd;
+    enum _subcmd l_cmd = 0;
     if (a_argv[1]) {
         if (!dap_strcmp(a_argv[1], "list")) {
             l_cmd = SUBCMD_LIST;
@@ -5441,7 +5441,7 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void ** reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't open wallet '%s'", l_wallet_str);
         return -12;
     } else {
-        l_sign_str = dap_chain_wallet_check_bliss_sign(l_wallet);
+        l_sign_str = dap_chain_wallet_check_sign(l_wallet);
     }
 
     dap_cert_t *l_cert_cond = dap_cert_find_by_name(l_cert_str);
@@ -5467,11 +5467,11 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void ** reply)
     DAP_DELETE(l_key_cond);
 
     if (l_hash_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Conditional 256bit TX created succefully, hash=%s\n%s\n", l_hash_str, l_sign_str);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%sConditional 256bit TX created succefully, hash=%s\n", l_hash_str, l_sign_str);
         DAP_DELETE(l_hash_str);
         return 0;
     }
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create conditional 256bit TX\n%s\n", l_sign_str);
+    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create conditional 256bit TX\n");
     return -1;
 }
 
@@ -6114,7 +6114,8 @@ int com_tx_create_json(int a_argc, char ** a_argv, void ** reply)
                     log_it(L_ERROR, "Json TX: bad node_addr in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
                     break;
                 }
-                dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_stake(l_srv_uid, l_value, l_signing_addr, &l_signer_node_addr);
+                dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_stake(l_srv_uid, l_value, l_signing_addr,
+                                                                                                             &l_signer_node_addr, NULL, uint256_0);
                 l_item = (const uint8_t*) l_out_cond_item;
                 // Save value for using in In item
                 if(l_item) {
@@ -6650,9 +6651,9 @@ int com_tx_create(int a_argc, char **a_argv, void ** reply)
     if(!l_wallet) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "wallet %s does not exist", l_from_wallet_name);
         return -9;
-    } else {
-        dap_string_append_printf(l_string_ret, "%s\n", dap_chain_wallet_check_bliss_sign(l_wallet));
-    }
+    } else
+        dap_string_append(l_string_ret, dap_chain_wallet_check_sign(l_wallet));
+
     const dap_chain_addr_t *addr_from = (const dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
 
     if(!addr_from) {
@@ -6885,7 +6886,7 @@ int com_tx_history(int a_argc, char ** a_argv, void ** reply)
         const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
         dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
         if (l_wallet) {
-            l_sign_str = dap_chain_wallet_check_bliss_sign(l_wallet);
+            l_sign_str = dap_chain_wallet_check_sign(l_wallet);
             dap_chain_addr_t *l_addr_tmp = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
             if (l_addr) {
                 if (!dap_chain_addr_compare(l_addr, l_addr_tmp)) {

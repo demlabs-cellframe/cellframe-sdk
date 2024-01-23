@@ -157,8 +157,8 @@ dap_chain_net_srv_order_t *dap_chain_net_srv_order_compose(
         dap_enc_key_t *a_key
         );
 
-char *dap_chain_net_srv_order_save(dap_chain_net_t *a_net, dap_chain_net_srv_order_t *a_order);
-void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,dap_string_t * a_str_out, const char *a_hash_out_type, const char *a_native_ticker);
+char *dap_chain_net_srv_order_save(dap_chain_net_t *a_net, dap_chain_net_srv_order_t *a_order, bool a_common);
+void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,dap_string_t *a_str_out, const char *a_hash_out_type, const char *a_native_ticker);
 void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg);
 /**
 * @brief dap_chain_net_srv_order_get_gdb_group_mempool
@@ -168,6 +168,11 @@ void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_sto
 DAP_STATIC_INLINE char * dap_chain_net_srv_order_get_gdb_group(dap_chain_net_t * a_net)
 {
     return a_net ? dap_strdup_printf("%s.service.orders",a_net->pub.gdb_groups_prefix) : NULL;
+}
+
+DAP_STATIC_INLINE char *dap_chain_net_srv_order_get_common_group(dap_chain_net_t * a_net)
+{
+    return a_net ? dap_strdup_printf("%s.orders", a_net->pub.gdb_groups_prefix) : NULL;
 }
 
 /**

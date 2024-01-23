@@ -355,6 +355,24 @@ json_object* dap_chain_datum_tx_item_in_to_json(dap_chain_tx_in_t *a_in){
     return l_obj_in;
 }
 
+json_object* dap_chain_datum_tx_item_in_reward_to_json(dap_chain_tx_in_reward_t *a_in_reward){
+    json_object *l_jobj_ret = json_object_new_object();
+    char *l_hash_block = dap_hash_fast_to_str_new(&a_in_reward->block_hash);
+    if (!l_jobj_ret && !l_hash_block) {
+        json_object_put(l_jobj_ret);
+        DAP_DEL_Z(l_hash_block);
+        dap_json_rpc_allocation_error;
+        return NULL;
+    }
+    json_object *l_jobj_block_hash = json_object_new_string(l_hash_block);
+    DAP_DEL_Z(l_hash_block);
+    if (!l_jobj_block_hash) {
+        return NULL;
+    }
+    json_object_object_add(l_jobj_ret, "block_hash", l_jobj_block_hash);
+    return l_jobj_ret;
+}
+
 json_object* dap_chain_datum_tx_item_tsd_to_json(dap_chain_tx_tsd_t *a_tsd){
     json_object *l_object = json_object_new_object();
     if (!l_object) {
