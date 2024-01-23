@@ -114,12 +114,22 @@ typedef enum dap_ledger_token_decl_add_err{
     DAP_LEDGER_TOKEN_DECL_ADD_UNKNOWN /* MAX */
 } dap_ledger_token_decl_add_err_t;
 
+typedef struct dap_ledger_datum_iter {
+    dap_chain_net_t *net;
+    dap_chain_datum_tx_t *cur;
+    dap_chain_hash_fast_t cur_hash;
+    bool is_unspent;
+    int ret_code;
+    void *cur_ledger_tx_item;
+} dap_ledger_datum_iter_t;
+
 typedef bool (*dap_ledger_verificator_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_tx_out_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 typedef void (*dap_ledger_updater_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_prev_cond);
 typedef void (* dap_ledger_tx_add_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
 typedef void (* dap_ledger_bridged_tx_notify_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg);
 typedef bool (*dap_ledger_cache_tx_check_callback_t)(dap_hash_fast_t *a_tx_hash);
 typedef struct dap_chain_net dap_chain_net_t;
+typedef bool (*dap_chain_ledger_voting_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx, bool a_apply);
 
 //Change this UUID to automatically reload ledger cache on next node startup
 #define DAP_LEDGER_CACHE_RELOAD_ONCE_UUID "0c92b759-a565-448f-b8bd-99103dacf7fc"
@@ -330,18 +340,31 @@ uint256_t dap_ledger_tx_cache_get_out_cond_value(dap_ledger_t *a_ledger, dap_cha
 dap_list_t *dap_ledger_get_list_tx_outs_with_val(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
                                                        uint256_t a_value_need, uint256_t *a_value_transfer);
 
+dap_list_t *dap_ledger_get_list_tx_outs(dap_ledger_t *a_ledger, const char *a_token_ticker, const dap_chain_addr_t *a_addr_from,
+                                                uint256_t *a_value_transfer);
+
 // Get the list of 'out_cond' items with summary value >= than a_value_need
 dap_list_t *dap_ledger_get_list_tx_cond_outs_with_val(dap_ledger_t *a_ledger, const char *a_token_ticker,  const dap_chain_addr_t *a_addr_from,
         dap_chain_tx_out_cond_subtype_t a_subtype, uint256_t a_value_need, uint256_t *a_value_transfer);
-
+dap_list_t *dap_ledger_get_list_tx_cond_outs(dap_ledger_t *a_ledger, const char *a_token_ticker,  const dap_chain_addr_t *a_addr_from,
+                                             dap_chain_tx_out_cond_subtype_t a_subtype, uint256_t *a_value_transfer);
 // Add new verificator callback with associated subtype. Returns 1 if callback replaced, overwise returns 0
 int dap_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_ledger_verificator_callback_t a_callback,
                                      dap_ledger_updater_callback_t a_callback_added);
+
+// Add new verificator callback for voting. Returns 1 if callback replaced, overwise returns 0
+int dap_chain_ledger_voting_verificator_add(dap_chain_ledger_voting_callback_t a_callback);
 
 // Getting a list of transactions from the ledger.
 dap_list_t * dap_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, size_t a_page, bool a_reverse, bool a_unspent_only);
 
 //bool dap_ledger_fee_verificator(dap_ledger_t* a_ledger, dap_chain_tx_out_cond_t* a_cond, dap_chain_datum_tx_t* a_tx, bool a_owner);
+
+dap_ledger_datum_iter_t *dap_ledger_datum_iter_create(dap_chain_net_t *a_net);
+void dap_ledger_datum_iter_delete(dap_ledger_datum_iter_t *a_iter);
+dap_chain_datum_tx_t *dap_ledger_datum_iter_get_first(dap_ledger_datum_iter_t *a_iter);
+dap_chain_datum_tx_t *dap_ledger_datum_iter_get_next(dap_ledger_datum_iter_t *a_iter);
+dap_chain_datum_tx_t *dap_ledger_datum_iter_get_last(dap_ledger_datum_iter_t *a_iter);
 
 void dap_ledger_tx_add_notify(dap_ledger_t *a_ledger, dap_ledger_tx_add_notify_t a_callback, void *a_arg);
 void dap_ledger_bridged_tx_notify_add(dap_ledger_t *a_ledger, dap_ledger_bridged_tx_notify_t a_callback, void *a_arg);
