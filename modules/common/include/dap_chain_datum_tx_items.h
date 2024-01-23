@@ -176,13 +176,16 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap
                                                                              const void *a_params, uint32_t a_params_size);
 
 
+DAP_STATIC_INLINE uint32_t dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size() { return sizeof(dap_chain_addr_t) + sizeof(uint256_t) + 2 * sizeof(dap_tsd_t); }
+
 /**
  * Create item dap_chain_tx_out_cond_t for stake service
  *
  * return item, NULL Error
  */
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
-                                                                               dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr);
+                                                                           dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr,
+                                                                           dap_chain_addr_t *a_sovereign_addr, uint256_t a_sovereign_tax);
 
 
 // Create cond out
