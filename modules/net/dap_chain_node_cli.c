@@ -87,6 +87,7 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
             "global_db write -group <group_name> -key <key_name> -value <value>\n"
             "global_db read -group <group_name> -key <key_name>\n"
             "global_db delete -group <group_name> -key <key_name>\n"
+            "global_db group_list\n"
             "global_db drop_table -group <group_name>\n"
             "global_db get_keys -group <group_name>\n"
 

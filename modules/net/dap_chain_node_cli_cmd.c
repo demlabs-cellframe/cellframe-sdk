@@ -775,7 +775,8 @@ int com_global_db(int a_argc, char ** a_argv, void ** reply)
 {
     char ** a_str_reply = (char **) reply;
     enum {
-        CMD_NONE, CMD_NAME_CELL, CMD_ADD, CMD_FLUSH, CMD_RECORD, CMD_WRITE, CMD_READ, CMD_DELETE, CMD_DROP, CMD_GET_KEYS
+        CMD_NONE, CMD_NAME_CELL, CMD_ADD, CMD_FLUSH, CMD_RECORD, CMD_WRITE, CMD_READ,
+        CMD_DELETE, CMD_DROP, CMD_GET_KEYS, CMD_GROUP_LIST
     };
     int arg_index = 1;
     int cmd_name = CMD_NONE;
@@ -796,6 +797,8 @@ int com_global_db(int a_argc, char ** a_argv, void ** reply)
                 cmd_name = CMD_DROP;
     else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "get_keys", NULL))
             cmd_name = CMD_GET_KEYS;
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "group_list", NULL))
+            cmd_name = CMD_GROUP_LIST;
 
     switch (cmd_name) {
     case CMD_NAME_CELL:
@@ -1138,6 +1141,18 @@ int com_global_db(int a_argc, char ** a_argv, void ** reply)
 
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Keys list for group %s:\n%s\n", l_group_str, l_ret_str->str);
         dap_string_free(l_ret_str, true);
+        return 0;
+    }
+    case CMD_GROUP_LIST: {
+        dap_string_t *l_ret_str = dap_string_new(NULL);
+        dap_list_t *l_group_list = dap_global_db_driver_get_groups_by_mask("*");
+        size_t l_count = 0;
+        for (dap_list_t *l_list = l_group_list; l_list; l_list = dap_list_next(l_list), ++l_count) {
+            dap_string_append_printf(l_ret_str, "\t%-40s : %zu records\n", (char*)l_list->data, dap_global_db_driver_count((char*)l_list->data, 1));
+        }
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Group list:\n%sTotal count: %zu\n", l_ret_str->str, l_count);
+        dap_string_free(l_ret_str, true);
+        dap_list_free(l_group_list);
         return 0;
     }
     default:
