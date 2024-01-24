@@ -31,6 +31,7 @@
 #include "dap_chain_net_balancer.h"
 
 #define DNS_LISTEN_PORT 53      // UDP
+#define DNS_LISTEN_PORT_STR "53"      // UDP
 
 typedef struct _dap_dns_buf_t {
     char *data;
