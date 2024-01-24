@@ -284,10 +284,6 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
 json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain, 
                                  const char *a_hash_out_type, const char * l_addr_str)
 {
-    struct token_addr {
-        const char token[DAP_CHAIN_TICKER_SIZE_MAX];
-        dap_chain_addr_t addr;
-    };
 
     json_object* json_obj_datum = json_object_new_array();
     if (!json_obj_datum){
@@ -323,7 +319,6 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
     bool l_is_need_correction = false;
     uint256_t l_corr_value = {}, l_unstake_value = {};
     json_object *l_corr_object = NULL;
-    bool l_is_unstake = false;
     // load transactions
     dap_chain_datum_iter_t *l_datum_iter = a_chain->callback_datum_iter_create(a_chain);
 
@@ -335,6 +330,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
             // go to next datum
             continue;
         // it's a transaction
+        bool l_is_unstake = false;
         dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)l_datum->data;
         dap_list_t *l_list_in_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_ALL, NULL);
         if (!l_list_in_items) // a bad tx
@@ -344,8 +340,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
         bool l_base_tx = false, l_reward_collect = false;
         const char *l_noaddr_token = NULL;
 
-        dap_hash_fast_t l_tx_hash;
-        dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
+        dap_hash_fast_t l_tx_hash = *l_datum_iter->cur_hash;
         const char *l_src_token = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_hash);
 
         int l_src_subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
@@ -393,6 +388,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                     break;
                 case TX_ITEM_TYPE_OUT_COND: {
                     dap_chain_tx_out_cond_t *l_cond_prev = (dap_chain_tx_out_cond_t *)l_prev_out_union;
+                    l_src_subtype = l_cond_prev->header.subtype;
                     if (l_cond_prev->header.subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
                         l_noaddr_token = l_native_ticker;
                     else {
@@ -400,7 +396,6 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                             l_is_unstake = true;
                             l_unstake_value = l_cond_prev->header.value;
                         }
-                        l_src_subtype = l_cond_prev->header.subtype;
                         l_noaddr_token = l_src_token;
                     }
                 } break;
@@ -415,7 +410,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
 
         // find OUT items
         bool l_header_printed = false;
-        uint256_t l_fee_sum = {};
+        uint256_t l_fee_sum = uint256_0;
         dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_OUT_ALL, NULL);
         json_object * j_arr_data = json_object_new_array();
         json_object * j_obj_tx = json_object_new_object();
@@ -525,6 +520,8 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                 DAP_DELETE(l_coins_str);
             } else if (!l_src_addr || dap_chain_addr_compare(l_src_addr, a_addr)) {
                 if (!l_dst_addr && ((dap_chain_tx_out_cond_t *)it->data)->header.subtype == l_src_subtype)\
+                    continue;
+                if (!l_src_addr && l_dst_addr && !dap_chain_addr_compare(l_dst_addr, &l_net_fee_addr))
                     continue;
                 if (!l_header_printed) {
                     s_tx_header_print(j_obj_tx, &l_tx_data_ht, l_tx, l_datum_iter->cur_atom_hash,
@@ -963,7 +960,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
                 const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
                 dap_chain_wallet_t * l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
                 if(l_wallet) {
-                    l_sign_str = dap_chain_wallet_check_bliss_sign(l_wallet);
+                    l_sign_str = dap_chain_wallet_check_sign(l_wallet);
                     l_addr = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
                     dap_chain_wallet_close(l_wallet);
                 }
@@ -1026,7 +1023,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
         DAP_DELETE(l_str_out);
         DAP_DELETE(l_addr);
         s_dap_chain_tx_hash_processed_ht_free(&l_list_tx_hash_processd);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\n%s", l_str_ret->str, l_sign_str);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s%s", l_sign_str, l_str_ret->str);
         dap_string_free(l_str_ret, true);
         return 0;       
     }

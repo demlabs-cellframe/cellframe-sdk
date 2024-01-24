@@ -31,6 +31,7 @@
 #include "dap_stream_ch_chain_net.h"
 
 #define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID 0x13
+#define DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ORDERS 0x14
 
 typedef struct dap_chain_net_srv_stake_item {
     bool is_active;
@@ -39,9 +40,10 @@ typedef struct dap_chain_net_srv_stake_item {
     dap_chain_addr_t signing_addr;
     dap_chain_hash_fast_t tx_hash;
     dap_chain_node_addr_t node_addr;
+    dap_chain_addr_t sovereign_addr;
+    uint256_t sovereign_tax;
     UT_hash_handle hh, ht;
 } dap_chain_net_srv_stake_item_t;
-
 
 typedef struct dap_chain_net_srv_stake_cache_data {
     dap_chain_hash_fast_t tx_hash;
@@ -72,8 +74,8 @@ uint256_t dap_chain_net_srv_stake_get_allowed_min_value();
 
 int dap_chain_net_srv_stake_key_delegated(dap_chain_addr_t *a_addr);
 int dap_chain_net_srv_stake_verify_key_and_node(dap_chain_addr_t* a_signing_addr, dap_chain_node_addr_t* a_node_addr);
-dap_list_t *dap_chain_net_srv_stake_get_validators(dap_chain_net_id_t a_net_id, bool a_is_active);
-dap_chain_node_addr_t *dap_chain_net_srv_stake_key_get_node_addr(dap_chain_addr_t *a_signing_addr);
+
+dap_list_t *dap_chain_net_srv_stake_get_validators(dap_chain_net_id_t a_net_id, bool a_only_active);
 
 bool dap_chain_net_srv_stake_get_fee_validators(dap_chain_net_t *a_net,
                                                 uint256_t *a_max_fee, uint256_t *a_average_fee, uint256_t *a_min_fee, uint256_t *a_median_fee);

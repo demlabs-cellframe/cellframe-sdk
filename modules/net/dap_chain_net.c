@@ -300,7 +300,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
 static void s_update_links_timer_callback(void *a_arg){
     dap_chain_net_t *l_net = (dap_chain_net_t*)a_arg;
     //Updated links
-   dap_chain_net_node_list_request(l_net, NULL, true, 1);
+   dap_chain_net_node_list_request(l_net, NULL, false, 1); // CMD_UPDATE
 }
 
 /**
