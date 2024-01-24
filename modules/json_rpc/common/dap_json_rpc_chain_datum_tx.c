@@ -41,6 +41,10 @@ json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx){
                 l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_OUT");
                 l_obj_item_data = dap_chain_datum_tx_item_out_to_json((dap_chain_tx_out_t*)item);
                 break;
+            case TX_ITEM_TYPE_IN_REWARD:
+                l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_IN_REWARD");
+                l_obj_item_data = dap_chain_datum_tx_item_in_reward_to_json((dap_chain_tx_in_reward_t*)item);
+                break;
             case TX_ITEM_TYPE_IN_EMS:
                 l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_IN_EMS");
                 l_obj_item_data = dap_chain_datum_tx_item_in_ems_to_json((dap_chain_tx_in_ems_t*)item);
