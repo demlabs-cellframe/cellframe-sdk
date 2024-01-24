@@ -341,6 +341,11 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
         const char *l_noaddr_token = NULL;
 
         dap_hash_fast_t l_tx_hash = *l_datum_iter->cur_hash;
+        //TEMP CMP HASH
+        char *l_tx_hash_tmp = dap_hash_fast_to_str_new(&l_tx_hash);
+        if (dap_strcmp(l_tx_hash_tmp, "0x44A36BEBCCC6AA3955A62575A24B9B25A11291F414BF37E2969C5AFB6AF18E39") == 0) {
+            int li =1;
+        }
         const char *l_src_token = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_hash);
 
         int l_src_subtype = DAP_CHAIN_TX_OUT_COND_SUBTYPE_UNDEFINED;
@@ -431,8 +436,9 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                     break;
                 case TX_ITEM_TYPE_OUT_EXT:
                     l_dst_addr = &((dap_chain_tx_out_ext_t *)it->data)->addr;
-                default:
                     break;
+                default:
+                    continue;
                 }
                 if (l_dst_addr && dap_chain_addr_compare(l_dst_addr, a_addr)) {
                     l_dst_addr_present = true;
@@ -519,7 +525,8 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                 DAP_DELETE(l_value_str);
                 DAP_DELETE(l_coins_str);
             } else if (!l_src_addr || dap_chain_addr_compare(l_src_addr, a_addr)) {
-                if (!l_dst_addr && ((dap_chain_tx_out_cond_t *)it->data)->header.subtype == l_src_subtype)\
+                if (!l_dst_addr && ((dap_chain_tx_out_cond_t *)it->data)->header.subtype == l_src_subtype &&
+                l_src_subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
                     continue;
                 if (!l_src_addr && l_dst_addr && !dap_chain_addr_compare(l_dst_addr, &l_net_fee_addr))
                     continue;
