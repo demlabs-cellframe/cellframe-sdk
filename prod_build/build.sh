@@ -121,11 +121,10 @@ fi
 mkdir -p ${BUILD_DIR}/build
 mkdir -p ${BUILD_DIR}/dist
 
-if (( "$MACHINE" != "Mac" || "$MACHINE" != "ios"))
-then
-  NPROC="$(nproc)"
-else
+if [ "$MACHINE" = "Mac" ] || [ "$MACHINE" = "ios" ] ; then
   NPROC="$(sysctl -n hw.ncpu)"
+else
+  NPROC="$(nproc)"
 fi
 
 echo "Build [${BUILD_TYPE}] binaries for [$BUILD_TARGET] in [${BUILD_DIR}] on $NPROC threads"
