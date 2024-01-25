@@ -2248,13 +2248,15 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     // change to old filename
                     snprintf(l_file_name->file_name, sizeof(l_file_name->file_name)  - 1, "%s/%s%s", c_wallets_path, l_wallet_name, ".dwallet");
                     if ( dap_chain_wallet_save(l_wallet, l_pass_str) ) {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet is not converted because of internal error");
-                        dap_string_free(l_string_ret, true);
-                        return  -1;
+                        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_CONVERT_ERR,
+                                               "Wallet is not converted because of internal error");
+                        return  DAP_CHAIN_NODE_CLI_COM_TX_WALLET_CONVERT_ERR;
                     }
 
                     log_it(L_INFO, "Wallet %s has been converted", l_wallet_name);
-                    dap_string_append_printf(l_string_ret, "%s\nWallet: %s successfully converted\n", dap_chain_wallet_check_bliss_sign(l_wallet), l_wallet_name);
+                    json_object_object_add(json_obj_out, "Sign wallet:", json_object_new_string(dap_chain_wallet_check_bliss_sign(l_wallet)));
+                    json_object_object_add(json_obj_out, "Wallet name:", json_object_new_string(l_wallet_name));
+                    json_object_object_add(json_obj_out, "Status:", json_object_new_string("successfully converted"));
                     dap_chain_wallet_close(l_wallet);
                     break;
                 }
@@ -2273,10 +2275,10 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         FILE *l_exists = fopen(l_file_name, "rb");
                         DAP_DELETE(l_file_name);
                         if (l_exists) {
-                            dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet %s already exists", l_wallet_name);
+                            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_ALREADY_ERR,
+                                                   "Wallet %s already exists",l_wallet_name);
                             fclose(l_exists);
-                            dap_string_free(l_string_ret, true);
-                            return -1;
+                            return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_ALREADY_ERR;
                         }
                     }
 
@@ -2287,18 +2289,20 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     } else {
                         l_sign_type = dap_sign_type_from_str(l_sign_type_str);
                         if (l_sign_type.type == SIG_TYPE_NULL){
-                            dap_cli_server_cmd_set_reply_text(a_str_reply, "Unknown signature type, please use:\n sig_picnic\n sig_dil\n sig_falcon\n sig_multi\n sig_multi2\n");
-                            dap_string_free(l_string_ret, true);
-                            return -1;
+                            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_UNKNOWN_SIGN_ERR,
+                                                   "Unknown signature type, please use:\n sig_picnic\n sig_dil\n sig_falcon\n sig_multi\n sig_multi2\n",l_wallet_name);
+                            return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_UNKNOWN_SIGN_ERR;
                         }
                     }
 
                     if (l_sign_type.type == SIG_TYPE_TESLA || l_sign_type.type == SIG_TYPE_BLISS || l_sign_type.type == SIG_TYPE_PICNIC) {
                         if ((l_sign_type.type == SIG_TYPE_BLISS || l_sign_type.type == SIG_TYPE_PICNIC) && (l_restore_opt || l_restore_legacy_opt)) {
-                            dap_string_append_printf(l_string_ret, "CAUTION!!! CAUTION!!! CAUTION!!!\nThe Bliss, Tesla and Picnic signatures are deprecated. We recommend you to create a new wallet with another available signature and transfer funds there.\n");
+                            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_UNKNOWN_SIGN_ERR,
+                                                   "CAUTION!!! CAUTION!!! CAUTION!!!\nThe Bliss, Tesla and Picnic signatures are deprecated. We recommend you to create a new wallet with another available signature and transfer funds there.\n");
                         } else {
-                            dap_string_free(l_string_ret, true);
-                            return  dap_cli_server_cmd_set_reply_text(a_str_reply, "This signature algorithm is no longer supported, please, use another variant"), -1;
+                            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_UNKNOWN_SIGN_ERR,
+                                                   "This signature algorithm is no longer supported, please, use another variant");
+                            return  DAP_CHAIN_NODE_CLI_COM_TX_WALLET_UNKNOWN_SIGN_ERR;
                         }
                     }
 
@@ -2311,17 +2315,17 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                             l_seed = DAP_NEW_Z_SIZE(uint8_t, l_seed_size);
                             if(!l_seed) {
                                 log_it(L_CRITICAL, "Memory allocation error");
-                                dap_string_free(l_string_ret, true);
-                                return -1;
+                                return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_MEMORY_ERR;
                             }
                             dap_hex2bin(l_seed, l_restore_str + 2, l_restore_str_size - 2);
                             if (l_restore_legacy_opt) {
-                                dap_string_append_printf(l_string_ret, "CAUTION!!! CAUTION!!! CAUTION!!!\nYour wallet has a low level of protection. Please create a new wallet again with the option -restore\n");
+                                dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_PROTECTION_ERR,
+                                                       "CAUTION!!! CAUTION!!! CAUTION!!!\nYour wallet has a low level of protection. Please create a new wallet again with the option -restore\n");
                             }
                         } else {
-                            dap_cli_server_cmd_set_reply_text(a_str_reply, "Restored hash is invalid or too short, wallet is not created. Please use -restore 0x<hex_value> or -restore_legacy 0x<restore_string>");
-                            dap_string_free(l_string_ret, true);
-                            return -1;
+                            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_HASH_ERR,
+                                                   "Restored hash is invalid or too short, wallet is not created. Please use -restore 0x<hex_value> or -restore_legacy 0x<restore_string>");
+                            return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_HASH_ERR;
                         }
                     }
 
@@ -2330,16 +2334,20 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                             l_seed, l_seed_size, l_pass_str);
                     DAP_DELETE(l_seed);
                     if (!l_wallet) {
-                        dap_string_free(l_string_ret, true);
-                        return  dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet is not created because of internal error. Check name or password length (max 64 chars)"), -1;
+                        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_INTERNAL_ERR,
+                                               "Wallet is not created because of internal error. Check name or password length (max 64 chars)");
+                        return  DAP_CHAIN_NODE_CLI_COM_TX_WALLET_INTERNAL_ERR;
                     }
 
                     l_addr = l_net? dap_chain_wallet_get_addr(l_wallet,l_net->pub.id ) : NULL;
 
-                    char *l_l_addr_str = l_addr ? dap_chain_addr_to_str(l_addr) : NULL;
-                    dap_string_append_printf(l_string_ret, "Wallet: %s (type=%s) successfully created\n", l_wallet->name, l_sign_type_str);
+                    char *l_l_addr_str = l_addr ? dap_chain_addr_to_str(l_addr) : NULL;                    
+                    json_object_object_add(json_obj_out, "Wallet name:", json_object_new_string(l_wallet->name));
+                    json_object_object_add(json_obj_out, "Sign type:", json_object_new_string(l_sign_type_str));
+                    json_object_object_add(json_obj_out, "Status:", json_object_new_string("successfully created"));
+
                     if ( l_l_addr_str ) {
-                        dap_string_append_printf(l_string_ret, "new address %s", l_l_addr_str);
+                        json_object_object_add(json_obj_out, "new address:", json_object_new_string(l_l_addr_str));
                         DAP_DELETE(l_l_addr_str);
                     }
                     dap_chain_wallet_close(l_wallet);
