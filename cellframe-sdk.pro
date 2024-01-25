@@ -22,7 +22,7 @@ android {
 }
 
 macos {
-    
+
     sdk_build.commands = $$PWD/../cellframe-sdk/prod_build/build.sh --target osx release -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/
 }
 
@@ -33,9 +33,9 @@ ios {
 QMAKE_EXTRA_TARGETS += sdk_build
 PRE_TARGETDEPS = sdk_build
 
-android {   
+android {
     for (AABI, ANDROID_ABIS) {
-        
+
         QMAKE_EXTRA_TARGETS += sdk_build_$${AABI}
         PRE_TARGETDEPS += sdk_build_$${AABI}
     }
