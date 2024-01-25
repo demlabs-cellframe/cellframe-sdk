@@ -2095,7 +2095,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                                 json_object_object_add(json_obj_out, "status", json_object_new_string("Active"));
                             else
                                 json_object_object_add(json_obj_out, "status", json_object_new_string("not active"));
-                            json_object_object_add(json_obj_out, "sign", json_object_new_string(dap_chain_wallet_check_bliss_sign(l_wallet)));
+                            json_object_object_add(json_obj_out, "sign", json_object_new_string(dap_chain_wallet_check_sign(l_wallet)));
 
                             if (l_addr_str) {
                                 json_object_object_add(json_obj_out, "addr", json_object_new_string(l_addr_str));
@@ -2158,7 +2158,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             char *l_l_addr_str = dap_chain_addr_to_str((dap_chain_addr_t*) l_addr);
             if(l_wallet)
             {
-                json_object_object_add(json_obj_out, "sign", json_object_new_string(dap_chain_wallet_check_bliss_sign(l_wallet)));
+                json_object_object_add(json_obj_out, "sign", json_object_new_string(dap_chain_wallet_check_sign(l_wallet)));
                 json_object_object_add(json_obj_out, "nwallet", json_object_new_string(l_wallet->name));
             }
             json_object_object_add(json_obj_out, "addr:", (l_l_addr_str) ? json_object_new_string(l_l_addr_str) : json_object_new_string("-"));
@@ -2270,7 +2270,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     }
 
                     log_it(L_INFO, "Wallet %s has been converted", l_wallet_name);
-                    json_object_object_add(json_obj_out, "Sign wallet:", json_object_new_string(dap_chain_wallet_check_bliss_sign(l_wallet)));
+                    json_object_object_add(json_obj_out, "Sign wallet:", json_object_new_string(dap_chain_wallet_check_sign(l_wallet)));
                     json_object_object_add(json_obj_out, "Wallet name:", json_object_new_string(l_wallet_name));
                     json_object_object_add(json_obj_out, "Status:", json_object_new_string("successfully converted"));
                     dap_chain_wallet_close(l_wallet);
