@@ -1105,7 +1105,7 @@ int com_global_db(int a_argc, char ** a_argv, void ** reply)
             return 0;
         }
 
-        if (dap_global_db_del(l_group_str, l_key_str, NULL, NULL)) {
+        if (!dap_global_db_del(l_group_str, l_key_str, NULL, NULL)) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Record with key %s in group %s was deleted successfuly", l_key_str, l_group_str);
             return 0;
         } else {
