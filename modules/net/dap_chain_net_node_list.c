@@ -318,6 +318,7 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
             if (ret == ADD_OK || ret == ERR_EXISTS) {
                 break;
             } else {
+                l_node_list_request->response = 0;
                 switch (ret)
                 {
                 case ERR_NO_SERVER:
