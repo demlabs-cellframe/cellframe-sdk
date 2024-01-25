@@ -253,6 +253,9 @@ enum dap_chain_tx_item_type {
     TX_ITEM_TYPE_RECEIPT = 0x70,
     TX_ITEM_TYPE_TSD = 0x80,
 
+    TX_ITEM_TYPE_VOTING = 0x90,
+    TX_ITEM_TYPE_VOTE = 0x91,
+
     /// @brief Virtual types for items enumearting
     TX_ITEM_TYPE_IN_EMS_LOCK = 0xf1,
     TX_ITEM_TYPE_IN_ALL = 0xfd,

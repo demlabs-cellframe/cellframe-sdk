@@ -775,7 +775,8 @@ int com_global_db(int a_argc, char ** a_argv, void ** reply)
 {
     char ** a_str_reply = (char **) reply;
     enum {
-        CMD_NONE, CMD_NAME_CELL, CMD_ADD, CMD_FLUSH, CMD_RECORD, CMD_WRITE, CMD_READ, CMD_DELETE, CMD_DROP, CMD_GET_KEYS
+        CMD_NONE, CMD_NAME_CELL, CMD_ADD, CMD_FLUSH, CMD_RECORD, CMD_WRITE, CMD_READ,
+        CMD_DELETE, CMD_DROP, CMD_GET_KEYS, CMD_GROUP_LIST
     };
     int arg_index = 1;
     int cmd_name = CMD_NONE;
@@ -796,6 +797,8 @@ int com_global_db(int a_argc, char ** a_argv, void ** reply)
                 cmd_name = CMD_DROP;
     else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "get_keys", NULL))
             cmd_name = CMD_GET_KEYS;
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "group_list", NULL))
+            cmd_name = CMD_GROUP_LIST;
 
     switch (cmd_name) {
     case CMD_NAME_CELL:
@@ -1140,6 +1143,18 @@ int com_global_db(int a_argc, char ** a_argv, void ** reply)
         dap_string_free(l_ret_str, true);
         return 0;
     }
+    case CMD_GROUP_LIST: {
+        dap_string_t *l_ret_str = dap_string_new(NULL);
+        dap_list_t *l_group_list = dap_global_db_driver_get_groups_by_mask("*");
+        size_t l_count = 0;
+        for (dap_list_t *l_list = l_group_list; l_list; l_list = dap_list_next(l_list), ++l_count) {
+            dap_string_append_printf(l_ret_str, "\t%-40s : %zu records\n", (char*)l_list->data, dap_global_db_driver_count((char*)l_list->data, 1));
+        }
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Group list:\n%sTotal count: %zu\n", l_ret_str->str, l_count);
+        dap_string_free(l_ret_str, true);
+        dap_list_free(l_group_list);
+        return 0;
+    }
     default:
         dap_cli_server_cmd_set_reply_text(a_str_reply, "parameters are not valid");
         return -1;
@@ -1254,32 +1269,33 @@ int com_node(int a_argc, char ** a_argv, void ** reply)
         }
         l_link_node_request->hdr.blocks_events = l_blocks_events;
         // Synchronous request, wait for reply
-        int res = dap_chain_net_node_list_request(l_net,l_link_node_request, true, 0);
+        int res = dap_chain_net_node_list_request(l_net,l_link_node_request, true, 0); // CMD_ADD
 
         switch (res)
         {
-            case 0:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "No server");
-            break;
             case 1:
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Node addr successfully added to node list");
             break;
             case 2:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Didn't add your addres node to node list");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't connect to server");
             break;
             case 3:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't calculate hash for your addr");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Node addr NOT added");
             break;
             case 4:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't do handshake for your node");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't calculate hash for your addr");
             break;
             case 5:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "The node is already exists");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't do handshake for your node");
             break;
             case 6:
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "The node is already exists");
+            break;
+            case 10:
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process node list HTTP request");
             break;
             default:
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Unknown error code: %d", res);
                 break;
         }
         DAP_DELETE(l_link_node_request);
@@ -2408,7 +2424,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(int *a_arg_index, int
         l_str_to_reply = dap_strcat2(l_str_to_reply,l_str_to_reply_chain);
         dap_string_t* l_net_str = dap_cli_list_net();
         l_str_to_reply = dap_strcat2(l_str_to_reply,l_net_str->str);
-        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_NOT_FOUND, "%s can't find network \"%s\"\n%s", a_argv[0], l_net_str, l_str_to_reply);
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_NOT_FOUND, "%s can't find network \"%s\"\n%s", a_argv[0], l_net_str->str, l_str_to_reply);
         return DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_NOT_FOUND;
     }
 
@@ -3473,8 +3489,9 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
     
     dap_global_db_objs_delete(l_objs, l_objs_count);
 
-    char * l_net_chain_count_total[64] = {0};
-    sprintf(l_net_chain_count_total, "%s.%s: %d", a_net->pub.name, a_chain->name, l_objs_count);
+    char l_net_chain_count_total[64] = {0};
+
+    sprintf(l_net_chain_count_total, "%s.%s: %zu", a_net->pub.name, a_chain->name, l_objs_count);
     json_object * l_object_total = json_object_new_string(l_net_chain_count_total);
     if (!l_object_total) {
         json_object_put(l_obj_chain);
@@ -4046,9 +4063,8 @@ int com_mempool(int a_argc, char **a_argv, void **reply){
     int arg_index = 1;
     dap_chain_net_t *l_net = NULL;
     dap_chain_t *l_chain = NULL;
-    const char *l_addr_b58 = NULL;
     enum _subcmd {SUBCMD_LIST, SUBCMD_PROC, SUBCMD_PROC_ALL, SUBCMD_DELETE, SUBCMD_ADD_CA, SUBCMD_CHECK, SUBCMD_DUMP, SUBCMD_COUNT};
-    enum _subcmd l_cmd;
+    enum _subcmd l_cmd = 0;
     if (a_argv[1]) {
         if (!dap_strcmp(a_argv[1], "list")) {
             l_cmd = SUBCMD_LIST;
@@ -4176,10 +4192,10 @@ int com_mempool(int a_argc, char **a_argv, void **reply){
             ret = _cmd_mempool_add_ca(l_net, l_chain, l_cert, reply);
         } break;
         case SUBCMD_CHECK: {
-            ret = _cmd_mempool_check(l_net, l_chain, l_datum_hash, l_hash_out_type, reply);
+            ret = _cmd_mempool_check(l_net, l_chain, l_datum_hash, &l_hash_out_type, reply);
         } break;
         case SUBCMD_DUMP: {
-            ret = _cmd_mempool_dump(l_net, l_chain, l_datum_hash, l_hash_out_type, reply);
+            ret = _cmd_mempool_dump(l_net, l_chain, l_datum_hash, l_hash_out_type, (json_object**)reply);
         } break;
         case SUBCMD_COUNT: {
             char *l_mempool_group;
@@ -5461,7 +5477,7 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void ** reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't open wallet '%s'", l_wallet_str);
         return -12;
     } else {
-        l_sign_str = dap_chain_wallet_check_bliss_sign(l_wallet);
+        l_sign_str = dap_chain_wallet_check_sign(l_wallet);
     }
 
     dap_cert_t *l_cert_cond = dap_cert_find_by_name(l_cert_str);
@@ -5487,11 +5503,11 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void ** reply)
     DAP_DELETE(l_key_cond);
 
     if (l_hash_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Conditional 256bit TX created succefully, hash=%s\n%s\n", l_hash_str, l_sign_str);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%sConditional 256bit TX created succefully, hash=%s\n", l_hash_str, l_sign_str);
         DAP_DELETE(l_hash_str);
         return 0;
     }
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create conditional 256bit TX\n%s\n", l_sign_str);
+    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create conditional 256bit TX\n");
     return -1;
 }
 
@@ -6134,7 +6150,8 @@ int com_tx_create_json(int a_argc, char ** a_argv, void ** reply)
                     log_it(L_ERROR, "Json TX: bad node_addr in OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE");
                     break;
                 }
-                dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_stake(l_srv_uid, l_value, l_signing_addr, &l_signer_node_addr);
+                dap_chain_tx_out_cond_t *l_out_cond_item = dap_chain_datum_tx_item_out_cond_create_srv_stake(l_srv_uid, l_value, l_signing_addr,
+                                                                                                             &l_signer_node_addr, NULL, uint256_0);
                 l_item = (const uint8_t*) l_out_cond_item;
                 // Save value for using in In item
                 if(l_item) {
@@ -6670,9 +6687,9 @@ int com_tx_create(int a_argc, char **a_argv, void ** reply)
     if(!l_wallet) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "wallet %s does not exist", l_from_wallet_name);
         return -9;
-    } else {
-        dap_string_append_printf(l_string_ret, "%s\n", dap_chain_wallet_check_bliss_sign(l_wallet));
-    }
+    } else
+        dap_string_append(l_string_ret, dap_chain_wallet_check_sign(l_wallet));
+
     const dap_chain_addr_t *addr_from = (const dap_chain_addr_t *) dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
 
     if(!addr_from) {
@@ -6905,7 +6922,7 @@ int com_tx_history(int a_argc, char ** a_argv, void ** reply)
         const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
         dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, c_wallets_path);
         if (l_wallet) {
-            l_sign_str = dap_chain_wallet_check_bliss_sign(l_wallet);
+            l_sign_str = dap_chain_wallet_check_sign(l_wallet);
             dap_chain_addr_t *l_addr_tmp = dap_chain_wallet_get_addr(l_wallet, l_net->pub.id);
             if (l_addr) {
                 if (!dap_chain_addr_compare(l_addr, l_addr_tmp)) {

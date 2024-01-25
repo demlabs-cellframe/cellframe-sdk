@@ -95,6 +95,7 @@
 #include "dap_chain_net_decree.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_balancer.h"
+#include "dap_chain_net_voting.h"
 #include "dap_chain_pvt.h"
 #include "dap_chain_node_client.h"
 #include "dap_chain_node_cli.h"
@@ -299,7 +300,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
 static void s_update_links_timer_callback(void *a_arg){
     dap_chain_net_t *l_net = (dap_chain_net_t*)a_arg;
     //Updated links
-   dap_chain_net_node_list_request(l_net, NULL, true, 1);
+   dap_chain_net_node_list_request(l_net, NULL, false, 1); // CMD_UPDATE
 }
 
 /**
@@ -314,6 +315,7 @@ int dap_chain_net_init()
     dap_stream_ch_chain_init();
     dap_stream_ch_chain_net_init();
     dap_chain_node_client_init();
+    dap_chain_net_voting_init();
     dap_cli_server_cmd_add ("net", s_cli_net, "Network commands",
         "net list [chains -net <chain net name>]\n"
             "\tList all networks or list all chains in selected network\n"

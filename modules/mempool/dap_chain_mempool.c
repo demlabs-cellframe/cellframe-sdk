@@ -65,6 +65,7 @@
 #include "dap_chain_datum_tx_items.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_cs_blocks.h"
+#include "dap_chain_net_srv_stake_pos_delegate.h"
 
 #define LOG_TAG "dap_chain_mempool"
 
@@ -295,16 +296,15 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_chain_cs_blocks_t *a_blocks, dap_
     dap_return_val_if_fail(a_blocks && a_key_from && a_addr_to && a_block_list, NULL);
     dap_chain_t *l_chain = a_blocks->chain;
     bool l_net_fee_used = dap_chain_net_tx_get_fee(l_chain->net_id, &l_net_fee, &l_addr_fee);
-    //add tx
-    if (NULL == (l_tx = dap_chain_datum_tx_create())) {
-        log_it(L_WARNING, "Can't create datum tx");
-        return NULL;
-    }
     dap_ledger_t *l_ledger = dap_chain_net_by_id(l_chain->net_id)->pub.ledger;
     dap_pkey_t *l_sign_pkey = dap_pkey_from_enc_key(a_key_from);
     if (!l_sign_pkey) {
         log_it(L_ERROR, "Can't serialize public key of sign certificate");
-        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+    //add tx
+    if (NULL == (l_tx = dap_chain_datum_tx_create())) {
+        log_it(L_WARNING, "Can't create datum tx");
         return NULL;
     }
     for(dap_list_t *bl = a_block_list; bl; bl = bl->next) {
@@ -315,21 +315,18 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_chain_cs_blocks_t *a_blocks, dap_
             char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
             dap_hash_fast_to_str(l_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
             log_it(L_ERROR, "Can't find cache for block hash %s", l_block_hash_str);
-            DAP_DELETE(l_sign_pkey);
-            dap_chain_datum_tx_delete(l_tx);
-            return NULL;
+            continue;
         }
         //verification of signatures of all blocks
         dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, 0);
         if (!l_sign || !dap_pkey_compare_with_sign(l_sign_pkey, l_sign)) {
             log_it(L_WARNING, "Block %s signature does not match certificate key", l_block_cache->block_hash_str);
-            DAP_DELETE(l_sign_pkey);
-            dap_chain_datum_tx_delete(l_tx);
-            return NULL;
+            continue;
         }
 
         dap_list_t *l_list_used_out = dap_chain_block_get_list_tx_cond_outs_with_val(l_ledger, l_block_cache, &l_value_out_block);
-        if (!l_list_used_out) continue;
+        if (!l_list_used_out)
+            continue;
 
         //add 'in' items
         {
@@ -342,6 +339,17 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_chain_cs_blocks_t *a_blocks, dap_
         }
         SUM_256_256(l_value_out, l_value_out_block, &l_value_out);
     }
+
+    dap_hash_fast_t l_sign_pkey_hash;
+    dap_hash_fast(l_sign_pkey->pkey, l_sign_pkey->header.size, &l_sign_pkey_hash);
+    DAP_DELETE(l_sign_pkey);
+
+    if (dap_chain_datum_tx_get_size(l_tx) == sizeof(dap_chain_datum_tx_t)) {
+        // tx is empty, no valid inputs
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
+
     //add 'fee' items
     {
         uint256_t l_value_pack = {};
@@ -365,21 +373,39 @@ char *dap_chain_mempool_tx_coll_fee_create(dap_chain_cs_blocks_t *a_blocks, dap_
                 return NULL;
             }
         }
-        if(compare256(l_value_out,l_value_pack)!=-1)
-            SUBTRACT_256_256(l_value_out,l_value_pack,&l_value_out);
-        else
-        {
+        if (compare256(l_value_out, l_value_pack) == 1)
+            SUBTRACT_256_256(l_value_out, l_value_pack, &l_value_out);
+        else {
             log_it(L_WARNING, "The transaction fee is greater than the sum of the block fees");
             dap_chain_datum_tx_delete(l_tx);
             return NULL;
         }
     }
 
+    // Check and apply sovereign tax for this key
+    uint256_t l_value_tax = {};
+    dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(&l_sign_pkey_hash);
+    if (l_key_item && !IS_ZERO_256(l_key_item->sovereign_tax) &&
+                !dap_chain_addr_is_blank(&l_key_item->sovereign_addr)) {
+        MULT_256_COIN(l_value_out, l_key_item->sovereign_tax, &l_value_tax);
+        if (compare256(l_value_tax, l_value_out) < 1)
+            SUBTRACT_256_256(l_value_out, l_value_tax, &l_value_out);
+    }
+
     //add 'out' items
-    if (dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to, l_value_out) != 1) {
-        dap_chain_datum_tx_delete(l_tx);
-        log_it(L_WARNING, "Can't create out item in transaction fee");
-        return NULL;
+    if (!IS_ZERO_256(l_value_out)) {
+        if (dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to, l_value_out) != 1) {
+            dap_chain_datum_tx_delete(l_tx);
+            log_it(L_WARNING, "Can't create out item in transaction fee");
+            return NULL;
+        }
+    }
+    if (!IS_ZERO_256(l_value_tax)) {
+        if (dap_chain_datum_tx_add_out_item(&l_tx, &l_key_item->sovereign_addr, l_value_tax) != 1) {
+            dap_chain_datum_tx_delete(l_tx);
+            log_it(L_WARNING, "Can't create out item in transaction fee");
+            return NULL;
+        }
     }
 
     // add 'sign' items
@@ -432,9 +458,7 @@ char *dap_chain_mempool_tx_reward_create(dap_chain_cs_blocks_t *a_blocks, dap_en
             char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
             dap_hash_fast_to_str(l_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
             log_it(L_WARNING, "Block %s signatures does not match certificate key", l_block_hash_str);
-            DAP_DELETE(l_sign_pkey);
-            dap_chain_datum_tx_delete(l_tx);
-            return NULL;
+            continue;
         }
         if (dap_ledger_is_used_reward(l_ledger, l_block_hash, &l_sign_pkey_hash)) {
             char l_block_hash_str[DAP_HASH_FAST_STR_SIZE];
@@ -442,20 +466,22 @@ char *dap_chain_mempool_tx_reward_create(dap_chain_cs_blocks_t *a_blocks, dap_en
             char l_sign_pkey_hash_str[DAP_HASH_FAST_STR_SIZE];
             dap_hash_fast_to_str(&l_sign_pkey_hash, l_sign_pkey_hash_str, DAP_HASH_FAST_STR_SIZE);
             log_it(L_WARNING, "Block %s reward is already collected by signer %s", l_block_hash_str, l_sign_pkey_hash_str);
-            DAP_DELETE(l_sign_pkey);
-            dap_chain_datum_tx_delete(l_tx);
-            return NULL;
+            continue;
         }
         //add 'in_reward' items
         if (dap_chain_datum_tx_add_in_reward_item(&l_tx, l_block_hash) != 1) {
             log_it(L_ERROR, "Can't create in_reward item for reward collect TX");
-            DAP_DELETE(l_sign_pkey);
-            dap_chain_datum_tx_delete(l_tx);
-            return NULL;
+            continue;
         }
         SUM_256_256(l_value_out, l_reward_value, &l_value_out);
     }
     DAP_DELETE(l_sign_pkey);
+
+    if (dap_chain_datum_tx_get_size(l_tx) == sizeof(dap_chain_datum_tx_t)) {
+        // tx is empty, no valid inputs
+        dap_chain_datum_tx_delete(l_tx);
+        return NULL;
+    }
 
     uint256_t l_net_fee = uint256_0, l_total_fee = uint256_0;
     dap_chain_addr_t l_addr_fee = c_dap_chain_addr_blank;
@@ -485,11 +511,29 @@ char *dap_chain_mempool_tx_reward_create(dap_chain_cs_blocks_t *a_blocks, dap_en
         dap_chain_datum_tx_delete(l_tx);
         return NULL;
     }
-    //add 'out' item
-    if (dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to, l_value_out) != 1) {
-        dap_chain_datum_tx_delete(l_tx);
-        log_it(L_WARNING, "Can't create out item in transaction fee");
-        return NULL;
+    // Check and apply sovereign tax for this key
+    uint256_t l_value_tax = {};
+    dap_chain_net_srv_stake_item_t *l_key_item = dap_chain_net_srv_stake_check_pkey_hash(&l_sign_pkey_hash);
+    if (l_key_item && !IS_ZERO_256(l_key_item->sovereign_tax) &&
+                !dap_chain_addr_is_blank(&l_key_item->sovereign_addr)) {
+        MULT_256_COIN(l_value_out, l_key_item->sovereign_tax, &l_value_tax);
+        if (compare256(l_value_tax, l_value_out) < 1)
+            SUBTRACT_256_256(l_value_out, l_value_tax, &l_value_out);
+    }
+    //add 'out' items
+    if (!IS_ZERO_256(l_value_out)) {
+        if (dap_chain_datum_tx_add_out_item(&l_tx, a_addr_to, l_value_out) != 1) {
+            dap_chain_datum_tx_delete(l_tx);
+            log_it(L_WARNING, "Can't create out item in transaction fee");
+            return NULL;
+        }
+    }
+    if (!IS_ZERO_256(l_value_tax)) {
+        if (dap_chain_datum_tx_add_out_item(&l_tx, &l_key_item->sovereign_addr, l_value_tax) != 1) {
+            dap_chain_datum_tx_delete(l_tx);
+            log_it(L_WARNING, "Can't create out item in transaction fee");
+            return NULL;
+        }
     }
     // add 'sign' item
     if(dap_chain_datum_tx_add_sign_item(&l_tx, a_sign_key) != 1) {
@@ -516,7 +560,7 @@ int dap_chain_mempool_tx_create_massive( dap_chain_t * a_chain, dap_enc_key_t *a
         const char a_token_ticker[10], uint256_t a_value, uint256_t a_value_fee,
         size_t a_tx_num)
 {
-    // check valid paramdap_chain_mempool_tx_coll_fee_create
+    // check valid param
     if(!a_chain | !a_key_from || !a_addr_from || !a_key_from->priv_key_data || !a_key_from->priv_key_data_size ||
             dap_chain_addr_check_sum(a_addr_from) || dap_chain_addr_check_sum(a_addr_to) ||
             IS_ZERO_256(a_value) || !a_tx_num){
