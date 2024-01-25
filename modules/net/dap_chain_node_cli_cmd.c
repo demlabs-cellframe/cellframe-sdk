@@ -1047,7 +1047,7 @@ int com_global_db(int a_argc, char ** a_argv, void ** reply)
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Record with key %s in group %s not found", l_key_str, l_group_str);
             return -121;
         }*/
-        if (l_value_out) {
+        if (l_ts) {
             char l_ts_str[80] = { '\0' };
             dap_gbd_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), l_ts);
             char *l_value_hexdump = dap_dump_hex(l_value_out, l_out_len);
