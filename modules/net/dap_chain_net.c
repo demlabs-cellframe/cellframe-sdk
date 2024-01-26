@@ -2024,7 +2024,6 @@ static int s_cli_net(int argc, char **argv, void **reply)
                         char *l_node_addr_str = dap_strdup_printf(NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_info->hdr.address));
                         json_object *l_jobj_node_addr = json_object_new_string(l_node_addr_str);
                         DAP_DELETE(l_node_addr_str);
-                        json_object *l_jobj_alias = json_object_new_string(l_info->hdr.alias);
                         char *l_cell_id_str = dap_strdup_printf("0x%016"DAP_UINT64_FORMAT_X, l_info->hdr.cell_id.uint64);
                         json_object *l_jobj_cell_id = json_object_new_string(l_cell_id_str);
                         DAP_DELETE(l_cell_id_str);
@@ -2032,11 +2031,10 @@ static int s_cli_net(int argc, char **argv, void **reply)
                         json_object *l_jobj_ext_ipv6 = json_object_new_string(l_ext_addr_v6);
                         json_object *l_jobj_port = json_object_new_int(l_info->hdr.ext_port);
                         json_object *l_jobj_state = json_object_new_string(dap_chain_node_client_state_to_str(l_node_client->state));
-                        if (!l_jobj_link || !l_jobj_node_addr || !l_jobj_alias || !l_jobj_cell_id || !l_jobj_ext_ipv4 ||
+                        if (!l_jobj_link || !l_jobj_node_addr || !l_jobj_cell_id || !l_jobj_ext_ipv4 ||
                             !l_jobj_ext_ipv6 || !l_jobj_port || !l_jobj_state) {
                             json_object_put(l_jobj_link);
                             json_object_put(l_jobj_node_addr);
-                            json_object_put(l_jobj_alias);
                             json_object_put(l_jobj_cell_id);
                             json_object_put(l_jobj_ext_ipv4);
                             json_object_put(l_jobj_ext_ipv6);
@@ -2048,7 +2046,6 @@ static int s_cli_net(int argc, char **argv, void **reply)
                             return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                         }
                         json_object_object_add(l_jobj_link, "node_addr", l_jobj_node_addr);
-                        json_object_object_add(l_jobj_link, "alias", l_jobj_alias);
                         json_object_object_add(l_jobj_link, "cell_id", l_jobj_cell_id);
                         json_object_object_add(l_jobj_link, "ext_ipv4", l_jobj_ext_ipv4);
                         json_object_object_add(l_jobj_link, "ext_ipv6", l_jobj_ext_ipv6);
@@ -2079,8 +2076,14 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 json_object_object_add(l_jobj_return, "del", l_jobj_not_implemented);
                 l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             }  else if ( strcmp(l_links_str,"info") == 0 ) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,"Not implemented\n");
-
+                json_object *l_jobj_not_implemented = json_object_new_string("Not implemented");
+                if (!l_jobj_not_implemented) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_return, "info", l_jobj_not_implemented);
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else if ( strcmp (l_links_str,"disconnect_all") == 0 ){
                 dap_chain_net_stop(l_net);
                 json_object *l_jobj_ret = json_object_new_string("Stopped network");
