@@ -2190,7 +2190,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
                     dap_json_rpc_allocation_error;
                     return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 }
-                json_object_object_add(l_jobj_stats, "time_per_day", l_jobj_tpd);
+                json_object_object_add(l_jobj_stats, "transaction_per_day", l_jobj_tpd);
                 json_object_object_add(l_jobj_stats, "total", l_jobj_total);
                 json_object_object_add(l_jobj_return, "transaction_statistics", l_jobj_stats);
                 l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
