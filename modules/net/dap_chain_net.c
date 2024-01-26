@@ -119,6 +119,7 @@
 #include "dap_chain_node_net_ban_list.h"
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_net_voting.h"
+#include "dap_link_manager.h"
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -240,6 +241,19 @@ static const dap_chain_node_client_callbacks_t s_node_link_callbacks = {
     .stage          = s_node_link_callback_stage,
     .error          = s_node_link_callback_error,
     .delete         = s_node_link_callback_delete
+};
+
+
+static bool s_link_manager_update_callback_embeded(void *a_arg);
+static bool s_link_manager_update_callback_autonomic(void *a_arg);
+
+static const dap_link_manager_callbacks_t s_link_manager_callbacks_embeded = {
+    .connected      = NULL,
+    .disconnected   = NULL,
+    .delete         = NULL,
+    .update         = s_link_manager_update_callback_embeded,
+    .delete         = NULL,
+    .error          = NULL
 };
 
 // State machine switchs here
@@ -2482,6 +2496,7 @@ int s_net_load(dap_chain_net_t *a_net)
             return -1;
         }
         dap_chain_net_add_poa_certs_to_cluster(l_net, l_cluster);
+        dap_global_db_cluster_add_link_manager(l_cluster, &s_link_manager_callbacks_embeded);
         DAP_DELETE(l_gdb_groups_mask);
         if (l_net->pub.chains == l_chain)
             l_net_pvt->mempool_clusters = l_cluster;
@@ -2498,6 +2513,7 @@ int s_net_load(dap_chain_net_t *a_net)
         return -1;
     }
     dap_chain_net_add_poa_certs_to_cluster(l_net, l_net_pvt->orders_cluster);
+    dap_global_db_cluster_add_link_manager(l_net_pvt->orders_cluster, &s_link_manager_callbacks_embeded);
     DAP_DELETE(l_gdb_groups_mask);
     // Nodes and its aliases cluster
     l_net->pub.gdb_nodes = dap_strdup_printf("%s.nodes",l_net->pub.gdb_groups_prefix);
@@ -2514,6 +2530,7 @@ int s_net_load(dap_chain_net_t *a_net)
     }
     dap_chain_net_add_poa_certs_to_cluster(l_net, l_net_pvt->nodes_cluster);
     dap_chain_net_add_nodelist_notify_callback(l_net, s_nodelist_change_notify, l_net);
+    dap_global_db_cluster_add_link_manager(l_net_pvt->nodes_cluster, &s_link_manager_callbacks_embeded);
     DAP_DELETE(l_gdb_groups_mask);
 
     DL_FOREACH(l_net->pub.chains, l_chain)
@@ -3265,4 +3282,41 @@ void dap_chain_net_announce_addrs() {
                    NODE_ADDR_FP_ARGS_S(g_node_addr), l_node_addr_str, l_net_pvt->node_info->hdr.ext_port, l_net_item->name);
         }
     }
+}
+
+
+bool s_link_manager_update_callback_embeded(void *a_arg)
+{
+// sanity check
+    dap_link_manager_t *l_link_manager = (dap_link_manager_t *)a_arg;
+    dap_return_val_if_pass(!l_link_manager || !l_link_manager->_inheritor, true);
+// func work
+    dap_global_db_cluster_t *l_cluster = l_link_manager->_inheritor;
+    size_t l_links_count = dap_stream_cluster_members_count(l_cluster->links_cluster);
+    if (l_links_count < l_link_manager->min_links_num) {
+        dap_chain_net_t *l_net = dap_chain_net_by_name(l_cluster->links_cluster->mnemonim);
+        if (!l_net) {
+            log_it(L_ERROR, "Can't find net by mnemonim %s", l_cluster->links_cluster->mnemonim);
+            return false;
+        }
+        s_new_balancer_link_request(l_net, PVT(l_net)->balancer_link_requests);
+    }
+    return true;
+}
+
+bool s_link_manager_update_callback_autonomic(void *a_arg)
+{
+// sanity check
+    dap_return_val_if_pass(!a_arg || !(((dap_link_manager_t *)a_arg)->_inheritor), true);
+// func work
+    dap_global_db_cluster_t *l_cluster = ((dap_link_manager_t *)a_arg)->_inheritor;
+    size_t l_role_count = 0;
+    dap_stream_node_addr_t *l_role_addrs = dap_stream_get_members_addr(l_cluster->role_cluster, &l_role_count);
+    for(size_t i = 0; i < l_role_count; ++i ) {
+        if (!dap_stream_find_by_addr(l_role_addrs + i, NULL)) {
+            printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!Restore connection\n");
+        }
+    }
+    DAP_DEL_Z(l_role_addrs);
+    return true;
 }
