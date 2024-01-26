@@ -324,7 +324,11 @@ int dap_chain_net_init()
             "\tMode \"update\" is by default when only new chains and gdb are updated. Mode \"all\" updates everything from zero\n"
         "net -net <chain_net_name> get {status | fee | id}\n"
             "\tDisplays the current current status, current fee or net id.\n"
-        "net -net <chain_net_name> stats {tx | tps} [-from <from_time>] [-to <to_time>] [-prev_sec <seconds>] \n"
+        #ifdef DAP_TPS_TEST
+        "net -net <chain_net_name> stats {tx | tps} [-from <from_time>] [-to <to_time>] [-prev_day <days>] \n"
+        #else
+        "net -net <chain_net_name> stats tx [-from <from_time>] [-to <to_time>] [-prev_day <days>]\n"
+        #endif
             "\tTransactions statistics. Time format is <Year>-<Month>-<Day>_<Hours>:<Minutes>:<seconds> or just <seconds> \n"
         "net -net <chain_net_name> [-mode {update | all}] sync {all | gdb | chains}\n"
             "\tSyncronyze gdb, chains or everything\n"
@@ -2112,11 +2116,12 @@ static int s_cli_net(int argc, char **argv, void **reply)
             if (strcmp(l_stats_str,"tx") == 0) {
                 const char *l_to_str = NULL;
                 const char *l_from_str = NULL;
-                const char *l_prev_sec_str = NULL;
+                const char *l_prev_day_str = NULL;
+//                const char *l_prev_sec_str = NULL;
                 // Read from/to time
                 dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-from", &l_from_str);
                 dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-to", &l_to_str);
-                dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-prev_sec", &l_prev_sec_str);
+                dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-prev_day", &l_prev_day_str);
                 time_t l_ts_now = time(NULL);
                 if (l_from_str) {
                     strptime( (char *)l_from_str, c_time_fmt, &l_from_tm );
@@ -2125,11 +2130,14 @@ static int s_cli_net(int argc, char **argv, void **reply)
                     } else { // If not set '-to' - we set up current time
                         localtime_r(&l_ts_now, &l_to_tm);
                     }
-                } else if (l_prev_sec_str) {
-                    l_ts_now -= strtol( l_prev_sec_str, NULL,10 );
+                } else if (l_prev_day_str) {
+                    localtime_r(&l_ts_now, &l_to_tm);
+                    double l_days = strtod(l_prev_day_str, NULL);
+                    l_ts_now -= (time_t)(l_days * 86400);
                     localtime_r(&l_ts_now, &l_from_tm );
                 } else if ( l_from_str == NULL ) { // If not set '-from' we set up current time minus 60 seconds
-                    l_ts_now -= 60;
+                    localtime_r(&l_ts_now, &l_to_tm);
+                    l_ts_now -= 86400;
                     localtime_r(&l_ts_now, &l_from_tm );
                 }
                 // Form timestamps from/to
@@ -2168,25 +2176,27 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 }
                 log_it(L_INFO, "Calc TPS from %s to %s", l_from_str_new, l_to_str_new);
                 uint64_t l_tx_count = dap_ledger_count_from_to ( l_net->pub.ledger, l_from_ts, l_to_ts);
-                long double l_tps = l_to_ts == l_from_ts ? 0 :
-                                                     (long double) l_tx_count / (long double) ( l_to_ts - l_from_ts );
-                char *l_tps_str = dap_strdup_printf("%.3Lf", l_tps);
-                json_object *l_jobj_tps = json_object_new_string(l_tps_str);
-                DAP_DELETE(l_tps_str);
+                long double l_tpd = l_to_ts == l_from_ts ? 0 :
+                                                     (long double) l_tx_count / (long double) ((long double) (l_to_ts - l_from_ts)/86400);
+                char *l_tpd_str = dap_strdup_printf("%.3Lf", l_tpd);
+                json_object *l_jobj_tpd = json_object_new_string(l_tpd_str);
+                DAP_DELETE(l_tpd_str);
                 json_object *l_jobj_total = json_object_new_uint64(l_tx_count);
-                if (!l_jobj_tps || !l_jobj_total) {
+                if (!l_jobj_tpd || !l_jobj_total) {
                     json_object_put(l_jobj_return);
                     json_object_put(l_jobj_stats);
-                    json_object_put(l_jobj_tps);
+                    json_object_put(l_jobj_tpd);
                     json_object_put(l_jobj_total);
                     dap_json_rpc_allocation_error;
                     return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 }
-                json_object_object_add(l_jobj_stats, "TPS", l_jobj_tps);
-                json_object_object_add(l_jobj_stats, "Total", l_jobj_total);
+                json_object_object_add(l_jobj_stats, "time_per_day", l_jobj_tpd);
+                json_object_object_add(l_jobj_stats, "total", l_jobj_total);
                 json_object_object_add(l_jobj_return, "transaction_statistics", l_jobj_stats);
                 l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
-            } else if (strcmp(l_stats_str, "tps") == 0) {
+            }
+#ifdef DAP_TPS_TEST
+            else if (strcmp(l_stats_str, "tps") == 0) {
                 struct timespec l_from_time_acc = {}, l_to_time_acc = {};
                 json_object *l_jobj_values = json_object_new_object();
                 if (!l_jobj_values) {
@@ -2201,7 +2211,6 @@ static int s_cli_net(int argc, char **argv, void **reply)
                     strftime(l_to_str_new, sizeof(l_to_str_new), c_time_fmt, &l_to_tm);
                     json_object *l_jobj_from = json_object_new_string(l_from_str_new);
                     json_object *l_jobj_to = json_object_new_string(l_to_str_new);
-//                    dap_string_append_printf(l_ret_str, "\tFrom: %s\tTo: %s\n", l_from_str_new, l_to_str_new);
                     uint64_t l_diff_ns = (l_to_time_acc.tv_sec - l_from_time_acc.tv_sec) * 1000000000 +
                                             l_to_time_acc.tv_nsec - l_from_time_acc.tv_nsec;
                     long double l_tps = (long double)(l_tx_num * 1000000000) / (long double)(l_diff_ns);
@@ -2231,7 +2240,9 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 json_object_object_add(l_jobj_values, "total", l_jobj_total);
                 json_object_object_add(l_jobj_return, "transactions_per_second_peak", l_jobj_values);
                 l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
-            } else {
+            }
+#endif
+            else {
                 json_object_put(l_jobj_return);
                 dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_STATS, "Subcommand 'stats' requires one of parameter: tx, tps\n");
                 l_ret = DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_STATS;
