@@ -714,6 +714,55 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
         const char *l_last_group = l_store_obj->group;
         uint32_t l_last_type = l_store_obj->type;
         bool l_group_changed = false;*/
+
+        dap_store_obj_t *l_obj, *l_last_obj = l_store_obj + l_data_obj_count - 1;
+        size_t l_initial_count = l_data_obj_count;
+        for (l_obj = l_store_obj; l_obj <= l_last_obj; ++l_obj) {
+            if (s_list_white_groups) {
+                int l_ret = -1;
+                for (int i = 0; i < s_size_white_groups; i++) {
+                    if (!dap_fnmatch(s_list_white_groups[i], l_obj->group, FNM_NOESCAPE)) {
+                        l_ret = 0;
+                        break;
+                    }
+                }
+                if (l_ret == -1) {
+                    --l_data_obj_count;
+                    if (l_obj != l_last_obj) {
+                        *l_obj-- = *l_last_obj;
+                        l_last_obj->group = NULL; l_last_obj->key = NULL; l_last_obj->value = NULL;
+                        --l_last_obj;
+                        continue;
+                    } else {
+                        --l_last_obj;
+                        break;
+                    }
+                }
+            } else if (s_list_ban_groups) {
+                int l_ret = 0;
+                for (int i = 0; i < s_size_ban_groups; i++) {
+                    if (!dap_fnmatch(s_list_ban_groups[i], l_obj->group, FNM_NOESCAPE)) {
+                        l_ret = -1;
+                        break;
+                    }
+                }
+                if (l_ret == -1) {
+                    debug_if(s_debug_more, L_INFO, "Group %s is in banlist, dump it", l_obj->group);
+                    --l_data_obj_count;
+                    if (l_obj != l_last_obj) {
+                        *l_obj-- = *l_last_obj;
+                        l_last_obj->group = NULL; l_last_obj->key = NULL; l_last_obj->value = NULL;
+                        --l_last_obj;
+                        continue;
+                    } else {
+                        --l_last_obj;
+                        break;
+                    }
+                }
+            }
+        }
+
+#if 0
         uint32_t l_time_store_lim_hours = dap_config_get_item_uint32_default(g_config, "global_db", "time_store_limit", 72);
         dap_nanotime_t l_time_now = dap_nanotime_now();
         dap_nanotime_t l_time_alowed = l_time_now + dap_nanotime_from_sec(3600 * 24); // to be sure the timestamp is invalid
@@ -760,8 +809,15 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             */
             dap_global_db_remote_apply_obj(l_obj, s_gdb_in_pkt_proc_set_raw_callback, DAP_DUP(l_sync_request));
         }
-        if (l_store_obj)
-            dap_store_obj_free(l_store_obj, l_data_obj_count);
+#endif
+        if (l_initial_count != l_data_obj_count) {
+            //l_store_obj = DAP_REALLOC_COUNT(l_store_obj, l_data_obj_count);
+            log_it(L_INFO, "Only %zu / %zu of records will be applied", l_data_obj_count, l_initial_count);
+        }
+        if (l_store_obj) {
+            dap_global_db_remote_apply_obj(l_store_obj, l_data_obj_count, s_gdb_in_pkt_proc_set_raw_callback, DAP_DUP(l_sync_request));
+            dap_store_obj_free(l_store_obj, l_initial_count);
+        }
     } else {
         log_it(L_WARNING, "In proc thread got GDB stream ch packet with zero data");
     }
