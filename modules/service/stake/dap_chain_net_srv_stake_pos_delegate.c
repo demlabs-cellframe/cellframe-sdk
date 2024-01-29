@@ -233,7 +233,7 @@ static bool s_stake_verificator_callback(dap_ledger_t UNUSED_ARG *a_ledger, dap_
         log_it(L_WARNING, "Trying to spend conditional tx not by owner");
         return false;
     }
-    if (a_tx_in->header.ts_created < 1705104000) // Jan 13 2024 00:00:00 GMT, old policy rules
+    if (a_tx_in->header.ts_created < 1706227200) // Jan 26 2024 00:00:00 GMT, old policy rules
         return true;
     dap_chain_net_srv_stake_item_t *l_stake;
     HASH_FIND(ht, s_srv_stake->tx_itemlist, l_prev_hash, sizeof(dap_hash_t), l_stake);

@@ -1040,16 +1040,33 @@ int com_global_db(int a_argc, char ** a_argv, void ** reply)
         }
 
         size_t l_out_len = 0;
-        uint8_t *l_value_out = dap_global_db_get_sync(l_group_str, l_key_str, &l_out_len, NULL, NULL);
-
-        if (!l_value_out || !l_out_len)
+        dap_nanotime_t l_ts = 0;
+        uint8_t *l_value_out = dap_global_db_get_sync(l_group_str, l_key_str, &l_out_len, NULL, &l_ts);
+        /*if (!l_value_out || !l_out_len)
         {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Record with key %s in group %s not found", l_key_str, l_group_str);
             return -121;
+        }*/
+        if (l_ts) {
+            char l_ts_str[80] = { '\0' };
+            dap_gbd_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), l_ts);
+            char *l_value_hexdump = dap_dump_hex(l_value_out, l_out_len);
+            if (l_value_hexdump) {
+
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "\n\"%s : %s\"\nTime: %s\nValue len: %zu\nValue hex:\n\n%s",
+                                                  l_group_str, l_key_str, l_ts_str, l_out_len, l_value_hexdump);
+                DAP_DELETE(l_value_hexdump);
+            } else {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "\n\"%s : %s\"\nTime: %s\nNo value\n",
+                                                  l_group_str, l_key_str, l_ts_str);
+            }
+            DAP_DELETE(l_value_out);
+        } else {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "\nRecord \"%s : %s\" not found\n",
+                                              l_group_str, l_key_str);
         }
 
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Group %s, key %s, data:\n %s", l_group_str, l_key_str, (char*)l_value_out);
-        DAP_DELETE(l_value_out);
+
         return 0;
     }
     case CMD_DELETE:
@@ -1088,7 +1105,7 @@ int com_global_db(int a_argc, char ** a_argv, void ** reply)
             return 0;
         }
 
-        if (dap_global_db_del(l_group_str, l_key_str, NULL, NULL)) {
+        if (!dap_global_db_del(l_group_str, l_key_str, NULL, NULL)) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Record with key %s in group %s was deleted successfuly", l_key_str, l_group_str);
             return 0;
         } else {
