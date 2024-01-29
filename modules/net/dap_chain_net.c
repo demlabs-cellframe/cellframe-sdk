@@ -244,11 +244,12 @@ static const dap_chain_node_client_callbacks_t s_node_link_callbacks = {
 };
 
 
+static bool s_link_manager_connected_callback(void *a_arg);
 static bool s_link_manager_update_callback_embeded(void *a_arg);
 static bool s_link_manager_update_callback_autonomic(void *a_arg);
 
 static const dap_link_manager_callbacks_t s_link_manager_callbacks_embeded = {
-    .connected      = NULL,
+    .connected      = s_link_manager_connected_callback,
     .disconnected   = NULL,
     .delete         = NULL,
     .update         = s_link_manager_update_callback_embeded,
@@ -256,7 +257,7 @@ static const dap_link_manager_callbacks_t s_link_manager_callbacks_embeded = {
     .error          = NULL
 };
 static const dap_link_manager_callbacks_t s_link_manager_callbacks_autonomic = {
-    .connected      = NULL,
+    .connected      = s_link_manager_connected_callback,
     .disconnected   = NULL,
     .delete         = NULL,
     .update         = s_link_manager_update_callback_autonomic,
@@ -3301,6 +3302,14 @@ void dap_chain_net_announce_addrs() {
     }
 }
 
+static bool s_link_manager_connected_callback(void *a_arg)
+{
+// sanity check
+    dap_link_manager_t *l_link_manager = (dap_link_manager_t *)a_arg;
+    dap_return_val_if_pass(!l_link_manager, true);
+// func work 
+}
+
 
 bool s_link_manager_update_callback_embeded(void *a_arg)
 {
@@ -3316,7 +3325,7 @@ bool s_link_manager_update_callback_embeded(void *a_arg)
             log_it(L_ERROR, "Can't find net by mnemonim %s", l_cluster->mnemonim);
             return false;
         }
-        s_new_balancer_link_request(l_net, PVT(l_net)->balancer_link_requests);
+        // s_new_balancer_link_request(l_net, PVT(l_net)->balancer_link_requests);
     }
     return true;
 }
