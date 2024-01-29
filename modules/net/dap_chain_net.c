@@ -119,6 +119,7 @@
 #include "dap_chain_node_net_ban_list.h"
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_net_voting.h"
+#include "dap_stream_cluster.h"
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -2005,61 +2006,20 @@ static int s_cli_net(int argc, char **argv, void **reply)
             }
         } else if ( l_links_str ){
             if ( strcmp(l_links_str,"list") == 0 ) {
-                json_object *l_jobj_list = json_object_new_array();
-                if (!l_jobj_list) {
+                dap_cluster_t *l_net_cluster = dap_cluster_by_mnemonim(l_net->pub.name);
+                if (!l_net_cluster) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_CAN_NOT_GET_CLUSTER, "Failed to obtain a cluster for "
+                                                                                       "the specified network.");
+                    return DAP_CHAIN_NET_JSON_RPC_CAN_NOT_GET_CLUSTER;
+                }
+                json_object *l_jobj_links = dap_cluster_get_links_info_json(l_net_cluster);
+                if (!l_jobj_links) {
                     json_object_put(l_jobj_return);
                     dap_json_rpc_allocation_error;
                     return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 }
-                dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
-                pthread_mutex_lock(&l_net_pvt->uplinks_mutex);
-                size_t l_links_count = HASH_COUNT(l_net_pvt->net_links);
-                struct net_link *l_link, *l_link_tmp;
-                HASH_ITER(hh, l_net_pvt->net_links, l_link, l_link_tmp) {
-                    dap_chain_node_client_t *l_node_client = l_link->link;
-                    if(l_node_client){
-                        dap_chain_node_info_t * l_info = l_node_client->info;
-                        char l_ext_addr_v4[INET_ADDRSTRLEN]={};
-                        char l_ext_addr_v6[INET6_ADDRSTRLEN]={};
-                        inet_ntop(AF_INET,&l_info->hdr.ext_addr_v4,l_ext_addr_v4,sizeof (l_info->hdr.ext_addr_v4));
-                        inet_ntop(AF_INET6,&l_info->hdr.ext_addr_v6,l_ext_addr_v6,sizeof (l_info->hdr.ext_addr_v6));
-
-                        json_object *l_jobj_link = json_object_new_object();
-                        char *l_node_addr_str = dap_strdup_printf(NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(l_info->hdr.address));
-                        json_object *l_jobj_node_addr = json_object_new_string(l_node_addr_str);
-                        DAP_DELETE(l_node_addr_str);
-                        char *l_cell_id_str = dap_strdup_printf("0x%016"DAP_UINT64_FORMAT_X, l_info->hdr.cell_id.uint64);
-                        json_object *l_jobj_cell_id = json_object_new_string(l_cell_id_str);
-                        DAP_DELETE(l_cell_id_str);
-                        json_object *l_jobj_ext_ipv4 = json_object_new_string(inet_ntoa(l_link->link_info->hdr.ext_addr_v4));
-                        json_object *l_jobj_ext_ipv6 = json_object_new_string(l_ext_addr_v6);
-                        json_object *l_jobj_port = json_object_new_int(l_info->hdr.ext_port);
-                        json_object *l_jobj_state = json_object_new_string(dap_chain_node_client_state_to_str(l_node_client->state));
-                        if (!l_jobj_link || !l_jobj_node_addr || !l_jobj_cell_id || !l_jobj_ext_ipv4 ||
-                            !l_jobj_ext_ipv6 || !l_jobj_port || !l_jobj_state) {
-                            json_object_put(l_jobj_link);
-                            json_object_put(l_jobj_node_addr);
-                            json_object_put(l_jobj_cell_id);
-                            json_object_put(l_jobj_ext_ipv4);
-                            json_object_put(l_jobj_ext_ipv6);
-                            json_object_put(l_jobj_port);
-                            json_object_put(l_jobj_state);
-                            json_object_put(l_jobj_return);
-                            json_object_put(l_jobj_list);
-                            dap_json_rpc_allocation_error;
-                            return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
-                        }
-                        json_object_object_add(l_jobj_link, "node_addr", l_jobj_node_addr);
-                        json_object_object_add(l_jobj_link, "cell_id", l_jobj_cell_id);
-                        json_object_object_add(l_jobj_link, "ext_ipv4", l_jobj_ext_ipv4);
-                        json_object_object_add(l_jobj_link, "ext_ipv6", l_jobj_ext_ipv6);
-                        json_object_object_add(l_jobj_link, "port", l_jobj_port);
-                        json_object_object_add(l_jobj_link, "state", l_jobj_state);
-                        json_object_array_add(l_jobj_list, l_jobj_link);
-                    }
-                }
-                pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
-                json_object_object_add(l_jobj_return, "links", l_jobj_list ? l_jobj_list : json_object_new_null());
+                json_object_object_add(l_jobj_return, "links", l_jobj_links);
                 l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else if ( strcmp(l_links_str,"add") == 0 ) {
                 json_object *l_jobj_not_implemented = json_object_new_string("Not implemented");
