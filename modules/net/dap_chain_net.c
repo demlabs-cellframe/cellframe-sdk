@@ -2244,7 +2244,11 @@ static int s_cli_net(int argc, char **argv, void **reply)
 #endif
             else {
                 json_object_put(l_jobj_return);
+#ifdef DAP_TPS_TEST
                 dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_STATS, "Subcommand 'stats' requires one of parameter: tx, tps\n");
+#else
+                dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_STATS, "Subcommand 'stats' requires one of parameter: tx\n");
+#endif
                 l_ret = DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_STATS;
             }
         } else if ( l_go_str){
