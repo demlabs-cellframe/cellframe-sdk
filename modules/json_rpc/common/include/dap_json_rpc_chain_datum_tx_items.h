@@ -30,6 +30,7 @@
 
 json_object *dap_chain_datum_tx_item_in_ems_to_json(const dap_chain_tx_in_ems_t *a_in_ems);
 json_object* dap_chain_datum_tx_item_in_to_json(dap_chain_tx_in_t *a_in);
+json_object* dap_chain_datum_tx_item_in_reward_to_json(dap_chain_tx_in_reward_t *a_in_reward);
 json_object* dap_chain_datum_tx_item_tsd_to_json(dap_chain_tx_tsd_t *a_tsd);
 json_object* dap_chain_datum_tx_item_in_cond_to_json(dap_chain_tx_in_cond_t *a_in_cond);
 json_object* dap_chain_datum_tx_item_out_to_json(const dap_chain_tx_out_t *a_out);
