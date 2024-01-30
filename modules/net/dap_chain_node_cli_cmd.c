@@ -5484,7 +5484,7 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void ** reply)
     DAP_DELETE(l_key_cond);
 
     if (l_hash_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%sConditional 256bit TX created succefully, hash=%s\n", l_hash_str, l_sign_str);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%sConditional 256bit TX created succefully, hash = %s\n", l_sign_str, l_hash_str);
         DAP_DELETE(l_hash_str);
         return 0;
     }
@@ -6710,7 +6710,7 @@ int com_tx_create(int a_argc, char **a_argv, void ** reply)
         char *l_tx_hash_str = dap_chain_mempool_tx_create(l_chain, dap_chain_wallet_get_key(l_wallet, 0), addr_from, l_addr_to,
                                                                   l_token_ticker, l_value, l_value_fee, l_hash_out_type);
         if (l_tx_hash_str) {
-            dap_string_append_printf(l_string_ret, "transfer=Ok\ntx_hash=%s\n",l_tx_hash_str);
+            dap_string_append_printf(l_string_ret, "transfer=Ok\ntx_hash = %s\n",l_tx_hash_str);
             DAP_DELETE(l_tx_hash_str);
         } else {
             dap_string_append_printf(l_string_ret, "transfer=False\n");
