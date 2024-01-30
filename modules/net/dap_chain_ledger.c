@@ -816,7 +816,7 @@ dap_chain_datum_token_t *dap_ledger_token_ticker_check(dap_ledger_t *a_ledger, c
  * @return a_str_out
  */
 
-static void s_tx_header_print(dap_string_t *a_str_out, dap_chain_datum_tx_t *a_tx,
+static void s_tx_header_print(json_object *a_json_out, dap_chain_datum_tx_t *a_tx,
                               const char *a_hash_out_type, dap_chain_hash_fast_t *a_tx_hash)
 {
     char l_time_str[32] = "unknown";
@@ -827,11 +827,12 @@ static void s_tx_header_print(dap_string_t *a_str_out, dap_chain_datum_tx_t *a_t
     char *l_tx_hash_str = dap_strcmp(a_hash_out_type, "hex")
             ? dap_enc_base58_encode_hash_to_str(a_tx_hash)
             : dap_chain_hash_fast_to_str_new(a_tx_hash);
-    dap_string_append_printf(a_str_out, "TX hash %s  \n\t%s",l_tx_hash_str, l_time_str);
+    json_object_object_add(a_json_out, "TX hash ", json_object_new_string(l_tx_hash_str));
+    json_object_object_add(a_json_out, "time ", json_object_new_string(l_time_str));
     DAP_DELETE(l_tx_hash_str);
 }
 
-static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspent, dap_ledger_t *a_ledger, dap_chain_addr_t *a_addr, const char *a_hash_out_type, dap_string_t *a_str_out) {
+static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspent, dap_ledger_t *a_ledger, dap_chain_addr_t *a_addr, const char *a_hash_out_type, json_object *json_arr_out) {
     if (a_unspent && a_item->cache_data.ts_spent) {
         // With 'unspent' flag spent ones are ignored
         return;
@@ -927,7 +928,7 @@ static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspen
             continue;   // send to self
         if (l_src_addr && !memcmp(l_src_addr, a_addr, sizeof(dap_chain_addr_t))) {
             if (!l_header_printed) {
-                s_tx_header_print(a_str_out, l_tx, a_hash_out_type, l_tx_hash);
+                s_tx_header_print(json_arr_out, l_tx, a_hash_out_type, l_tx_hash);
                 l_header_printed = true;
             }
             //const char *l_token_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_hash);
@@ -935,17 +936,18 @@ static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspen
                                                     : dap_chain_tx_out_cond_subtype_to_str(
                                                           ((dap_chain_tx_out_cond_t *)l_list_out->data)->header.subtype);
             char *l_value_str = dap_chain_balance_print(l_value);
-            dap_string_append_printf(a_str_out, "\tsend %s %s to %s\n",
-                                     l_value_str,
-                                     l_src_token ? l_src_token : "UNKNOWN",
-                                     l_dst_addr_str);
+            json_object * l_json_obj_datum = json_object_new_object();
+            json_object_object_add(l_json_obj_datum, "send", json_object_new_string(l_value_str));
+            json_object_object_add(l_json_obj_datum, "to addr", json_object_new_string(l_dst_addr_str));
+            json_object_object_add(l_json_obj_datum, "token", l_src_token ? json_object_new_string(l_src_token) : json_object_new_string("UNKNOWN"));
+            json_object_array_add(json_arr_out, l_json_obj_datum);
             if (l_dst_addr)
                 DAP_DELETE(l_dst_addr_str);
             DAP_DELETE(l_value_str);
         }
         if (l_dst_addr && !memcmp(l_dst_addr, a_addr, sizeof(dap_chain_addr_t))) {
             if (!l_header_printed) {
-               s_tx_header_print(a_str_out, l_tx, a_hash_out_type, l_tx_hash);
+               s_tx_header_print(json_arr_out, l_tx, a_hash_out_type, l_tx_hash);
                l_header_printed = true;
             }
             const char *l_dst_token = (l_type == TX_ITEM_TYPE_OUT_EXT) ?
@@ -955,11 +957,12 @@ static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspen
                                                                  : dap_chain_tx_out_cond_subtype_to_str(
                                                                        l_src_subtype));
             char *l_value_str = dap_chain_balance_print(l_value);
-            dap_string_append_printf(a_str_out, "\trecv %s %s from %s\n",
-                                     l_value_str,
-                                     l_dst_token ? l_dst_token :
-                                                   (l_src_token ? l_src_token : "UNKNOWN"),
-                                     l_src_addr_str);
+            json_object * l_json_obj_datum = json_object_new_object();
+            json_object_object_add(l_json_obj_datum, "recv ", json_object_new_string(l_value_str));
+            json_object_object_add(l_json_obj_datum, "token ", l_dst_token ? json_object_new_string(l_dst_token) :
+                                  (l_src_token ? json_object_new_string(l_src_token) : json_object_new_string("UNKNOWN")));
+            json_object_object_add(l_json_obj_datum, "from ", json_object_new_string(l_src_addr_str));
+            json_object_array_add(json_arr_out, l_json_obj_datum);
             if (l_src_addr)
                 DAP_DELETE(l_src_addr_str);
             DAP_DELETE(l_value_str);
@@ -968,10 +971,10 @@ static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspen
     dap_list_free(l_list_out_items);
 }
 
-char *dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_addr_t *a_addr, const char *a_hash_out_type, bool a_unspent_only)
+json_object *dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_addr_t *a_addr, const char *a_hash_out_type, bool a_unspent_only)
 {
-    dap_string_t *l_str_out = dap_string_new(NULL);
-    if (!l_str_out) {
+    json_object * json_arr_out = json_object_new_array();
+    if (!json_arr_out) {
         log_it(L_CRITICAL, "Memory allocation error");
         return NULL;
     }
@@ -983,15 +986,18 @@ char *dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_addr_t *a
     pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
     //unsigned test = dap_ledger_count(a_ledger);
     HASH_ITER(hh, l_ledger_pvt->ledger_items, l_tx_item, l_tx_tmp) {
-        s_dump_datum_tx_for_addr(l_tx_item, a_unspent_only, a_ledger, a_addr, a_hash_out_type, l_str_out);
+        s_dump_datum_tx_for_addr(l_tx_item, a_unspent_only, a_ledger, a_addr, a_hash_out_type, json_arr_out);
     }
     pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
 
     // if no history
-    if(!l_str_out->len)
-        dap_string_append(l_str_out, "\tempty");
-    char *l_ret_str = l_str_out ? dap_string_free(l_str_out, false) : NULL;
-    return l_ret_str;
+    if(!json_arr_out)
+    {
+        json_object * json_obj_addr = json_object_new_object();
+        json_object_object_add(json_obj_addr, "status:", json_object_new_string("empty"));
+        json_object_array_add(json_arr_out, json_obj_addr);
+    }
+    return json_arr_out;
 }
 
 /**
