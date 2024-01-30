@@ -2010,6 +2010,7 @@ int com_help(int a_argc, char **a_argv, void **reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply,
                 "Available commands:\n\n%s\n",
                 l_help_list_str->len ? l_help_list_str->str : "NO ANY COMMAND WERE DEFINED");
+        dap_string_free(l_help_list_str, true);
         return 0;
     }
 }
