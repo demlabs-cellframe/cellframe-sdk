@@ -3445,7 +3445,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                 }
                     break;
                 case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
-                    size_t l_emi_size = 0;
+                    size_t l_emi_size = l_datum->header.data_size;
                     dap_chain_datum_token_emission_t *l_emi = dap_chain_datum_emission_read(l_datum->data, &l_emi_size);
                     if (l_wallet_addr && l_emi && dap_chain_addr_compare(l_wallet_addr, &l_emi->hdr.address))
                         datum_is_accepted_addr = true;
