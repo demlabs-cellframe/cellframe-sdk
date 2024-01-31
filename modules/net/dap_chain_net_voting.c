@@ -39,16 +39,6 @@
 
 #define LOG_TAG "chain_net_voting"
 
-typedef struct dap_chain_net_voting_params_offsets{
-    dap_chain_datum_tx_t* voting_tx;
-    size_t voting_question_offset;
-    size_t voting_question_length;
-    dap_list_t* option_offsets_list;
-    size_t voting_expire_offset;
-    size_t votes_max_count_offset;
-    size_t delegate_key_required_offset;
-    size_t vote_changing_allowed_offset;
-} dap_chain_net_voting_params_offsets_t;
 
 typedef struct dap_chain_net_vote_option {
     size_t vote_option_offset;
@@ -1357,4 +1347,179 @@ static int s_datum_tx_voting_coin_check_cond_out(dap_chain_net_t *a_net, dap_has
     }
 
     return 1;
+}
+
+int dap_chain_net_vote_create(char *a_question, dap_list_t *a_options, dap_time_t *a_expire_vote,
+                                               uint64_t *a_max_vote, uint256_t a_fee, bool a_delegated_key_required,
+                                               bool a_vote_changing_allowed, dap_chain_wallet_t *a_wallet,
+                                               dap_chain_net_t *a_net, char *a_hash_out_type, char **a_hash_output) {
+
+    if (strlen(a_question) > DAP_CHAIN_DATUM_TX_VOTING_QUESTION_MAX_LENGTH){
+        return DAP_CHAIN_NET_VOTE_CREATE_LENGTH_QUESTION_OVERSIZE_MAX;
+    }
+
+    // Parse options list
+
+    if(dap_list_length(a_options) > DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_COUNT){
+        return DAP_CHAIN_NET_VOTE_CREATE_COUNT_OPTION_OVERSIZE_MAX;
+    }
+
+    if (IS_ZERO_256(a_fee)) {
+        return DAP_CHAIN_NET_VOTE_CREATE_FEE_IS_ZERO;
+    }
+
+    dap_enc_key_t *l_priv_key = NULL;
+    l_priv_key = dap_chain_wallet_get_key(a_wallet, 0);
+
+    const dap_chain_addr_t *l_addr_from = (const dap_chain_addr_t *) dap_chain_wallet_get_addr(a_wallet, l_net->pub.id);
+
+    if(!l_addr_from) {
+        return DAP_CHAIN_NET_VOTE_CREATE_SOURCE_ADDRESS_IS_INVALID;
+    }
+
+    const char *l_native_ticker = a_net->pub.native_ticker;
+    uint256_t l_net_fee = {}, l_total_fee = {}, l_value_transfer;
+    dap_chain_addr_t l_addr_fee = {};
+    bool l_net_fee_used = dap_chain_net_tx_get_fee(a_net->pub.id, &l_net_fee, &l_addr_fee);
+    SUM_256_256(l_net_fee, a_fee, &l_total_fee);
+
+    dap_ledger_t* l_ledger = a_net->pub.ledger;
+    dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, l_native_ticker,
+                                                                       l_addr_from, l_total_fee, &l_value_transfer);
+    if (!l_list_used_out) {
+        return DAP_CHAIN_NET_VOTE_CREATE_NOT_ENOUGH_FUNDS_TO_TRANSFER;
+    }
+    // create empty transaction
+    dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
+
+    // Add Voting item
+    dap_chain_tx_voting_t* l_voting_item = dap_chain_datum_tx_item_voting_create();
+
+    dap_chain_datum_tx_add_item(&l_tx, l_voting_item);
+    DAP_DELETE(l_voting_item);
+
+    // Add question to tsd data
+    dap_chain_tx_tsd_t* l_question_tsd = dap_chain_datum_voting_question_tsd_create(a_question, strlen(a_question));
+    dap_chain_datum_tx_add_item(&l_tx, l_question_tsd);
+
+    // Add options to tsd
+    dap_list_t *l_temp = a_options;
+    while(l_temp){
+        if(strlen((char*)l_temp->data) > DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_LENGTH){
+            dap_chain_datum_tx_delete(l_tx);
+            return DAP_CHAIN_NET_VOTE_CREATE_MAX_COUNT_OPTION_EXCEEDED;
+        }
+        dap_chain_tx_tsd_t* l_option = dap_chain_datum_voting_answer_tsd_create((char*)l_temp->data, strlen((char*)l_temp->data));
+        if(!l_option){
+            dap_chain_datum_tx_delete(l_tx);
+            return DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_OPTION_TSD_ITEM;
+        }
+        dap_chain_datum_tx_add_item(&l_tx, l_option);
+        DAP_DEL_Z(l_option);
+
+        l_temp = l_temp->next;
+    }
+
+    // add voting expire time if needed
+    if(a_expire_vote){
+        dap_time_t l_expired_vote = *a_expire_vote;
+        if (*a_expire_vote < dap_time_now()){
+            dap_chain_datum_tx_delete(l_tx);
+            return DAP_CHAIN_NET_VOTE_CREATE_INPUT_TIME_MORE_CURRENT_TIME;
+        }
+
+        dap_chain_tx_tsd_t* l_expired_item = dap_chain_datum_voting_expire_tsd_create(l_expired_vote);
+        if(!l_expired_item){
+            dap_chain_datum_tx_delete(l_tx);
+            return DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_CREATE_TSD_EXPIRE_TIME;
+        }
+        dap_chain_datum_tx_add_item(&l_tx, l_expired_item);
+        DAP_DEL_Z(l_expired_item);
+    }
+
+    // Add vote max count if needed
+    if(a_max_vote){
+        dap_chain_tx_tsd_t* l_max_votes_item = dap_chain_datum_voting_max_votes_count_tsd_create(*a_max_vote);
+        if(!l_max_votes_item){
+            dap_chain_datum_tx_delete(l_tx);
+            return DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_CREATE_TSD_EXPIRE_TIME;
+        }
+        dap_chain_datum_tx_add_item(&l_tx, l_max_votes_item);
+        DAP_DEL_Z(l_max_votes_item);
+    }
+
+    if (a_delegated_key_required) {
+        dap_chain_tx_tsd_t* l_delegated_key_req_item = dap_chain_datum_voting_delegated_key_required_tsd_create(true);
+        if(!l_delegated_key_req_item){
+            dap_chain_datum_tx_delete(l_tx);
+            return DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_CREATE_TSD_DELEGATE_KEY;
+        }
+        dap_chain_datum_tx_add_item(&l_tx, l_delegated_key_req_item);
+        DAP_DEL_Z(l_delegated_key_req_item);
+    }
+
+    if(a_vote_changing_allowed){
+        dap_chain_tx_tsd_t* l_vote_changing_item = dap_chain_datum_voting_vote_changing_allowed_tsd_create(true);
+        if(!l_vote_changing_item){
+            dap_chain_datum_tx_delete(l_tx);
+            return DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_CREATE_TSD_DELEGATE_KEY;
+        }
+        dap_chain_datum_tx_add_item(&l_tx, l_vote_changing_item);
+        DAP_DEL_Z(l_vote_changing_item);
+    }
+
+    // add 'in' items
+    uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
+    assert(EQUAL_256(l_value_to_items, l_value_transfer));
+    dap_list_free_full(l_list_used_out, NULL);
+    uint256_t l_value_pack = {};
+    // Network fee
+    if (l_net_fee_used) {
+        if (dap_chain_datum_tx_add_out_item(&l_tx, &l_addr_fee, l_net_fee) == 1)
+            SUM_256_256(l_value_pack, l_net_fee, &l_value_pack);
+        else {
+            dap_chain_datum_tx_delete(l_tx);
+            return DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_ADD_NET_FEE_OUT;
+        }
+    }
+    // Validator's fee
+    if (!IS_ZERO_256(a_fee)) {
+        if (dap_chain_datum_tx_add_fee_item(&l_tx, a_fee) == 1)
+            SUM_256_256(l_value_pack, a_fee, &l_value_pack);
+        else {
+            dap_chain_datum_tx_delete(l_tx);
+            return DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_ADD_NET_FEE_OUT;
+        }
+    }
+    // coin back
+    uint256_t l_value_back;
+    SUBTRACT_256_256(l_value_transfer, l_value_pack, &l_value_back);
+    if(!IS_ZERO_256(l_value_back)) {
+        if(dap_chain_datum_tx_add_out_item(&l_tx, l_addr_from, l_value_back) != 1) {
+            dap_chain_datum_tx_delete(l_tx);
+            return DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_ADD_OUT_WITH_VALUE_BACK;
+        }
+    }
+
+    // add 'sign' items
+    if(dap_chain_datum_tx_add_sign_item(&l_tx, l_priv_key) != 1) {
+        dap_chain_datum_tx_delete(l_tx);
+        return DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_SIGNED_TX;
+    }
+
+    size_t l_tx_size = dap_chain_datum_tx_get_size(l_tx);
+    dap_hash_fast_t l_tx_hash;
+    dap_hash_fast(l_tx, l_tx_size, &l_tx_hash);
+    dap_chain_datum_t *l_datum = dap_chain_datum_create(DAP_CHAIN_DATUM_TX, l_tx, l_tx_size);
+    DAP_DELETE(l_tx);
+    dap_chain_t* l_chain = dap_chain_net_get_default_chain_by_chain_type(a_net, CHAIN_TYPE_TX);
+
+    char *l_ret = dap_chain_mempool_datum_add(l_datum, l_chain, a_hash_out_type);
+    DAP_DELETE(l_datum);
+    if (l_ret) {
+        *a_hash_output = l_ret;
+        return DAP_CHAIN_NET_VOTE_CREATE_OK;
+    } else {
+        return DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_POOL_DATUM_IN_MEMPOOL;
+    }
 }
