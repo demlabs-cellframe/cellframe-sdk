@@ -3067,16 +3067,18 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                     dap_chain_addr_t l_addr_from;
                     dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *) l_datum->data;
                     const char *l_main_token = s_tx_get_main_ticker(l_tx, a_net, NULL);
-                    json_object *l_jobj_main_ticker = json_object_new_string(l_main_token);
-                    if (!l_jobj_main_ticker) {
-                        json_object_put(l_jobj_datum);
-                        json_object_put(l_jobj_datums);
-                        json_object_put(l_obj_chain);
-                        dap_global_db_objs_delete(l_objs, l_objs_count);
-                        DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
-                        return;
+                    if (!l_main_token) {
+                        json_object *l_jobj_main_ticker = json_object_new_string(l_main_token);
+                        if (!l_jobj_main_ticker) {
+                            json_object_put(l_jobj_datum);
+                            json_object_put(l_jobj_datums);
+                            json_object_put(l_obj_chain);
+                            dap_global_db_objs_delete(l_objs, l_objs_count);
+                            DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                            return;
+                        }
+                        json_object_object_add(l_jobj_datum, "main_ticker", l_jobj_main_ticker);
                     }
-                    json_object_object_add(l_jobj_datum, "main_ticker", l_jobj_main_ticker);
                     dap_list_t *l_list_sig_item = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_SIG, NULL);
                     dap_list_t *l_list_in_ems = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_EMS, NULL);
                     if (!l_list_sig_item) {
