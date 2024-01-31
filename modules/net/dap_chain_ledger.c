@@ -1827,31 +1827,33 @@ int dap_ledger_token_load(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_toke
     return dap_ledger_token_add(a_ledger, l_token, a_token_size);
 }
 
-dap_string_t *dap_ledger_threshold_info(dap_ledger_t *a_ledger)
+json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_ledger_tx_item_t *l_tx_item, *l_tx_tmp;
-    dap_string_t *l_str_ret = dap_string_new("");
+    json_object * json_arr_out = json_object_new_array();
+    json_object* json_obj_tx = json_object_new_object();
+    if (!json_obj_tx) {
+        return NULL;
+    }
     uint32_t l_counter = 0;
     pthread_rwlock_rdlock(&l_ledger_pvt->threshold_txs_rwlock);
     HASH_ITER(hh, l_ledger_pvt->threshold_txs, l_tx_item, l_tx_tmp){
         char l_tx_prev_hash_str[70]={0};
         char l_time[1024] = {0};
-        char l_item_size[70] = {0};
         dap_chain_hash_fast_to_str(&l_tx_item->tx_hash_fast,l_tx_prev_hash_str,sizeof(l_tx_prev_hash_str));
         dap_time_to_str_rfc822(l_time, sizeof(l_time), l_tx_item->tx->header.ts_created);
         //log_it(L_DEBUG,"Ledger thresholded tx_hash_fast %s, time_created: %s, tx_item_size: %d", l_tx_prev_hash_str, l_time, l_tx_item->tx->header.tx_items_size);
-        dap_string_append(l_str_ret, "Ledger thresholded tx_hash_fast");
-        dap_string_append(l_str_ret, l_tx_prev_hash_str);
-        dap_string_append(l_str_ret, ", time_created:");
-        dap_string_append(l_str_ret, l_time);
-        dap_string_append(l_str_ret, "");
-        sprintf(l_item_size, ", tx_item_size: %d\n", l_tx_item->tx->header.tx_items_size);
-        dap_string_append(l_str_ret, l_item_size);
+        json_object_object_add(json_obj_tx, "Ledger thresholded tx_hash_fast", json_object_new_string(l_tx_prev_hash_str));
+        json_object_object_add(json_obj_tx, "time_created:", json_object_new_string(l_time));
+        json_object_object_add(json_obj_tx, "tx_item_size:", json_object_new_int(l_tx_item->tx->header.tx_items_size));
+        json_object_array_add(json_arr_out, json_obj_tx);
         l_counter +=1;
     }
-    if (!l_counter)
-        dap_string_append(l_str_ret, "0 items in ledger tx threshold\n");
+    if (!l_counter){
+        json_object_object_add(json_obj_tx, "status", json_object_new_string("0 items in ledger tx threshold"));
+        json_object_array_add(json_arr_out, json_obj_tx);
+    }
     pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
 
     pthread_rwlock_rdlock(&l_ledger_pvt->threshold_emissions_rwlock);
@@ -1859,37 +1861,40 @@ dap_string_t *dap_ledger_threshold_info(dap_ledger_t *a_ledger)
     dap_ledger_token_emission_item_t *l_emission_item, *l_emission_tmp;
     HASH_ITER(hh, l_ledger_pvt->threshold_emissions, l_emission_item, l_emission_tmp){
         char l_emission_hash_str[70]={0};
-        char l_item_size[70] = {0};
         dap_chain_hash_fast_to_str(&l_emission_item->datum_token_emission_hash,l_emission_hash_str,sizeof(l_emission_hash_str));
        //log_it(L_DEBUG,"Ledger thresholded datum_token_emission_hash %s, emission_item_size: %lld", l_emission_hash_str, l_emission_item->datum_token_emission_size);
-        dap_string_append(l_str_ret, "Ledger thresholded datum_token_emission_hash: ");
-        dap_string_append(l_str_ret, l_emission_hash_str);
-        sprintf(l_item_size, ", tx_item_size: %zu\n", l_emission_item->datum_token_emission_size);
-        dap_string_append(l_str_ret, l_item_size);
+        json_object_object_add(json_obj_tx, "Ledger thresholded datum_token_emission_hash:", json_object_new_string(l_emission_hash_str));
+        json_object_object_add(json_obj_tx, "tx_item_size:", json_object_new_int(l_tx_item->tx->header.tx_items_size));
+        json_object_array_add(json_arr_out, json_obj_tx);
         l_counter +=1;
     }
-    if (!l_counter)
-        dap_string_append(l_str_ret, "0 items in ledger emission threshold\n");
+    if (!l_counter){
+        json_object_object_add(json_obj_tx, "status", json_object_new_string("0 items in ledger emission threshold"));
+        json_object_array_add(json_arr_out, json_obj_tx);
+    }
     pthread_rwlock_unlock(&l_ledger_pvt->threshold_emissions_rwlock);
 
-    return l_str_ret;
+    return json_arr_out;
 }
 
-dap_string_t *dap_ledger_threshold_hash_info(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *l_threshold_hash)
+json_object *dap_ledger_threshold_hash_info(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *l_threshold_hash)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_ledger_tx_item_t *l_tx_item, *l_tx_tmp;
-    dap_string_t *l_str_ret = dap_string_new("");
+    json_object * json_arr_out = json_object_new_array();
+    json_object* json_obj_tx = json_object_new_object();
+    if (!json_obj_tx) {
+        return NULL;
+    }
     pthread_rwlock_rdlock(&l_ledger_pvt->threshold_txs_rwlock);
     HASH_ITER(hh, l_ledger_pvt->threshold_txs, l_tx_item, l_tx_tmp){
         if (!memcmp(l_threshold_hash, &l_tx_item->tx_hash_fast, sizeof(dap_chain_hash_fast_t))){
             char l_tx_hash_str[70]={0};
             dap_chain_hash_fast_to_str(l_threshold_hash,l_tx_hash_str,sizeof(l_tx_hash_str));
-            dap_string_append(l_str_ret, "Hash was found in ledger tx threshold:");
-            dap_string_append(l_str_ret, l_tx_hash_str);
-            dap_string_append(l_str_ret, "\n");
+            json_object_object_add(json_obj_tx, "Hash was found in ledger tx threshold", json_object_new_string(l_tx_hash_str));
+            json_object_array_add(json_arr_out, json_obj_tx);
             pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
-            return l_str_ret;
+            return json_arr_out;
         }
     }
     pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
@@ -1900,43 +1905,44 @@ dap_string_t *dap_ledger_threshold_hash_info(dap_ledger_t *a_ledger, dap_chain_h
         if (!memcmp(&l_emission_item->datum_token_emission_hash,l_threshold_hash, sizeof(dap_chain_hash_fast_t))){
             char l_emission_hash_str[70]={0};
             dap_chain_hash_fast_to_str(l_threshold_hash,l_emission_hash_str,sizeof(l_emission_hash_str));
-            dap_string_append(l_str_ret, "Hash was found in ledger emission threshold: ");
-            dap_string_append(l_str_ret, l_emission_hash_str);
-            dap_string_append(l_str_ret, "\n");
+            json_object_object_add(json_obj_tx, "Hash was found in ledger emission threshold:", json_object_new_string(l_emission_hash_str));
+            json_object_array_add(json_arr_out, json_obj_tx);
             pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
-            return l_str_ret;
+            return json_arr_out;
         }
     }
     pthread_rwlock_unlock(&l_ledger_pvt->threshold_emissions_rwlock);
-    dap_string_append(l_str_ret, "Hash wasn't found in ledger\n");
-    return l_str_ret;
+    json_object_object_add(json_obj_tx, "Hash wasn't found in ledger", json_object_new_string("empty"));
+    json_object_array_add(json_arr_out, json_obj_tx);
+    return json_arr_out;
 }
 
 dap_string_t *dap_ledger_balance_info(dap_ledger_t *a_ledger)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
-    dap_string_t *l_str_ret = dap_string_new("");
+    json_object * json_arr_out = json_object_new_array();
+    json_object* json_obj_tx = json_object_new_object();
     pthread_rwlock_rdlock(&l_ledger_pvt->balance_accounts_rwlock);
     uint32_t l_counter = 0;
     dap_ledger_wallet_balance_t *l_balance_item, *l_balance_tmp;
     HASH_ITER(hh, l_ledger_pvt->balance_accounts, l_balance_item, l_balance_tmp) {
         //log_it(L_DEBUG,"Ledger balance key %s, token_ticker: %s, balance: %s", l_balance_key, l_balance_item->token_ticker,
         //                        dap_chain_balance_print(l_balance_item->balance));
-        dap_string_append(l_str_ret, "Ledger balance key: ");
-        dap_string_append(l_str_ret, l_balance_item->key);
-        dap_string_append(l_str_ret, ", token_ticker:");
-        dap_string_append(l_str_ret, l_balance_item->token_ticker);
-        dap_string_append(l_str_ret, ", balance:");
+        json_object_object_add(json_obj_tx, "Ledger balance key", json_object_new_string(l_balance_item->key));
+        json_object_object_add(json_obj_tx, "token_ticker", json_object_new_string(l_balance_item->token_ticker));
         char *l_balance = dap_chain_balance_print(l_balance_item->balance);
-        dap_string_append(l_str_ret, l_balance);
+        json_object_object_add(json_obj_tx, "balance", json_object_new_string(l_balance));
         DAP_DELETE(l_balance);
-        dap_string_append(l_str_ret, "\n");
+        json_object_array_add(json_arr_out, json_obj_tx);
         l_counter +=1;
     }
-    if (!l_counter)
-        dap_string_append(l_str_ret, "0 items in ledger balance_accounts\n");
+    if (!l_counter){
+        json_object_object_add(json_obj_tx, "token_ticker", json_object_new_string(l_balance_item->token_ticker));
+    }
+    json_object_object_add(json_obj_tx, "0 items in ledger balance_accounts", json_object_new_string("empty"));
+    json_object_array_add(json_arr_out, json_obj_tx);
     pthread_rwlock_unlock(&l_ledger_pvt->balance_accounts_rwlock);
-    return l_str_ret;
+    return json_arr_out;
 }
 
 /**

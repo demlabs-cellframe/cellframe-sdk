@@ -212,7 +212,7 @@ char* dap_ledger_tx_check_err_str(int a_code);
  *
  */
 
-char * dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_addr_t *a_addr, const char *a_hash_out_type, bool a_unspent_only);
+json_object *dap_ledger_token_tx_item_list(dap_ledger_t * a_ledger, dap_chain_addr_t *a_addr, const char *a_hash_out_type, bool a_unspent_only);
 
 /**
  * Check token ticker existance
@@ -235,8 +235,8 @@ dap_list_t *dap_ledger_token_info(dap_ledger_t *a_ledger);
 // Get all token-declarations
 dap_list_t* dap_ledger_token_decl_all(dap_ledger_t *a_ledger);
 
-dap_string_t *dap_ledger_threshold_info(dap_ledger_t *a_ledger);
-dap_string_t *dap_ledger_threshold_hash_info(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *l_tx_treshold_hash);
+json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger);
+json_object *dap_ledger_threshold_hash_info(dap_ledger_t *a_ledger, dap_chain_hash_fast_t *l_tx_treshold_hash);
 dap_string_t *dap_ledger_balance_info(dap_ledger_t *a_ledger);
 
 size_t dap_ledger_token_auth_signs_valid(dap_ledger_t *a_ledger, const char * a_token_ticker);
