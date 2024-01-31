@@ -77,6 +77,10 @@ DAP_STATIC_INLINE const char * dap_chain_datum_tx_item_type_to_str(dap_chain_tx_
         case TX_ITEM_TYPE_OUT_COND: return "TX_ITEM_TYPE_OUT_COND"; // 256
         case TX_ITEM_TYPE_RECEIPT: return "TX_ITEM_TYPE_RECEIPT";
         case TX_ITEM_TYPE_TSD: return "TX_ITEM_TYPE_TSD";
+        case TX_ITEM_TYPE_OUT_ALL: return "TX_ITEM_TYPE_OUT_OLDALL";
+        case TX_ITEM_TYPE_ANY: return "TX_ITEM_TYPE_ANY";
+        case TX_ITEM_TYPE_VOTING: return "TX_ITEM_TYPE_VOTING";
+        case TX_ITEM_TYPE_VOTE: return "TX_ITEM_TYPE_VOTE";
         default: return "UNDEFINED";
     }
 }
@@ -172,13 +176,16 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap
                                                                              const void *a_params, uint32_t a_params_size);
 
 
+DAP_STATIC_INLINE uint32_t dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size() { return sizeof(dap_chain_addr_t) + sizeof(uint256_t) + 2 * sizeof(dap_tsd_t); }
+
 /**
  * Create item dap_chain_tx_out_cond_t for stake service
  *
  * return item, NULL Error
  */
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
-                                                                               dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr);
+                                                                           dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr,
+                                                                           dap_chain_addr_t *a_sovereign_addr, uint256_t a_sovereign_tax);
 
 
 // Create cond out
@@ -203,6 +210,8 @@ dap_sign_t *dap_chain_datum_tx_item_sign_get_sig(dap_chain_tx_sig_t *a_tx_sig);
 
 byte_t *dap_chain_datum_tx_item_get_data(dap_chain_tx_tsd_t *a_tx_tsd, int *a_type, size_t *a_size);
 
+
+
 /**
  * Get item from transaction
  *
@@ -220,3 +229,5 @@ uint8_t *dap_chain_datum_tx_item_get_nth(dap_chain_datum_tx_t *a_tx, dap_chain_t
 dap_list_t* dap_chain_datum_tx_items_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_type, int *a_item_count);
 // Get conditional out item with it's idx
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a_tx, dap_chain_tx_item_type_t a_cond_type, int *a_out_num);
+// Get output by output index
+uint8_t *dap_chain_datum_tx_out_get_by_out_idx(dap_chain_datum_tx_t *a_tx, int a_out_num);

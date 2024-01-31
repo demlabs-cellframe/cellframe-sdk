@@ -58,7 +58,7 @@ typedef struct dap_chain_datum_tx_spends_items{
     dap_chain_datum_tx_spends_item_t * tx_outs;
     dap_chain_datum_tx_spends_item_t * tx_ins;
 } dap_chain_datum_tx_spends_items_t;
-typedef void (dap_chain_net_tx_hash_callback_t)(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, void *a_arg);
+typedef void (dap_chain_net_tx_hash_callback_t)(dap_chain_net_t* a_net, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg);
 
 
 // TX functions
