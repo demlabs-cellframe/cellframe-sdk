@@ -3982,7 +3982,7 @@ char *dap_chain_net_links_dump(dap_chain_net_t *a_net) {
 void dap_chain_net_link_update(dap_chain_node_client_t *a_node_client)
 {
 // sanity check
-    dap_return_if_pass(!a_node_client || !a_node_client->net);
+    dap_return_if_pass(!a_node_client || !a_node_client->net || !PVT(a_node_client->net));
 // func work
     size_t l_node_info_size = 0;
     char *l_key = dap_chain_node_addr_to_hash_str(&a_node_client->remote_node_addr);
