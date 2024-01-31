@@ -727,16 +727,14 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                     }
                 }
                 if (l_ret == -1) {
-                    --l_data_obj_count;
-                    if (l_obj != l_last_obj) {
+                    dap_store_obj_clear_one(l_obj);
+                    if (l_obj < l_last_obj) {
                         *l_obj-- = *l_last_obj;
-                        l_last_obj->group = NULL; l_last_obj->key = NULL; l_last_obj->value = NULL;
-                        --l_last_obj;
-                        continue;
-                    } else {
-                        --l_last_obj;
-                        break;
                     }
+                    l_last_obj->group = NULL; l_last_obj->key = NULL; l_last_obj->value = NULL;
+                    --l_last_obj;
+                    --l_data_obj_count;
+                    continue;
                 }
             } else if (s_list_ban_groups) {
                 int l_ret = 0;
@@ -748,16 +746,14 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
                 }
                 if (l_ret == -1) {
                     debug_if(s_debug_more, L_INFO, "Group %s is in banlist, dump it", l_obj->group);
-                    --l_data_obj_count;
-                    if (l_obj != l_last_obj) {
+                    dap_store_obj_clear_one(l_obj);
+                    if (l_obj < l_last_obj) {
                         *l_obj-- = *l_last_obj;
-                        l_last_obj->group = NULL; l_last_obj->key = NULL; l_last_obj->value = NULL;
-                        --l_last_obj;
-                        continue;
-                    } else {
-                        --l_last_obj;
-                        break;
                     }
+                    l_last_obj->group = NULL; l_last_obj->key = NULL; l_last_obj->value = NULL;
+                    --l_last_obj;
+                    --l_data_obj_count;
+                    continue;
                 }
             }
         }
@@ -814,9 +810,15 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             //l_store_obj = DAP_REALLOC_COUNT(l_store_obj, l_data_obj_count);
             log_it(L_INFO, "Only %zu / %zu of records will be applied", l_data_obj_count, l_initial_count);
         }
-        if (l_store_obj) {
-            dap_global_db_remote_apply_obj(l_store_obj, l_data_obj_count, s_gdb_in_pkt_proc_set_raw_callback, DAP_DUP(l_sync_request));
-            dap_store_obj_free(l_store_obj, l_initial_count);
+        if (l_store_obj->group) {
+            dap_global_db_remote_apply_obj(l_store_obj, l_data_obj_count, s_gdb_in_pkt_proc_set_raw_callback, l_sync_request);
+            DAP_DELETE(l_store_obj);
+            //dap_store_obj_free(l_store_obj, l_initial_count);
+        } else {
+            DAP_DELETE(l_store_obj);
+            DAP_DEL_Z(l_pkt_item->pkt_data);
+            DAP_DELETE(l_sync_request);
+            return true;
         }
     } else {
         log_it(L_WARNING, "In proc thread got GDB stream ch packet with zero data");
@@ -824,7 +826,7 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
     if (l_pkt_item->pkt_data) {
         DAP_DELETE(l_pkt_item->pkt_data);
     }
-    DAP_DELETE(l_sync_request);
+    //DAP_DELETE(l_sync_request);
     return true;
 }
 
@@ -845,7 +847,6 @@ static void s_gdb_in_pkt_proc_set_raw_callback(dap_global_db_context_t *a_global
                                                const size_t a_values_total, const size_t a_values_count,
                                                dap_store_obj_t *a_values, void *a_arg)
 {
-
     struct sync_request *l_sync_req = (struct sync_request*) a_arg;
     if( a_rc != 0){
         debug_if(s_debug_more, L_ERROR, "Can't save GlobalDB request, code %d", a_rc);
@@ -1487,6 +1488,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             }
             s_ch_chain_get_idle(l_ch_chain);
             if (l_ch_chain->activity_timer) {
+                DAP_DELETE(l_ch_chain->activity_timer->callback_arg);
                 dap_timerfd_delete_unsafe(l_ch_chain->activity_timer);
                 l_ch_chain->activity_timer = NULL;
             }
@@ -2017,8 +2019,10 @@ void s_stream_ch_packet_out(dap_stream_ch_t *a_ch, void *a_arg)
     if (l_go_idle) {
         s_ch_chain_go_idle(l_ch_chain);
         if (l_ch_chain->activity_timer) {
-            if (!a_arg)
+            if (!a_arg) {
+                DAP_DELETE(l_ch_chain->activity_timer->callback_arg);
                 dap_timerfd_delete_unsafe(l_ch_chain->activity_timer);
+            }
             l_ch_chain->activity_timer = NULL;
         }
     }
