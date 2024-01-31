@@ -3990,8 +3990,13 @@ void dap_chain_net_link_update(dap_chain_node_client_t *a_node_client)
         log_it(L_ERROR, "Can't calculate hash for addr\n");
         return;
     }
-
     dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)dap_global_db_get_sync(a_node_client->net->pub.gdb_nodes, l_key, &l_node_info_size, NULL, NULL);
+    if(!l_node_info) {
+        log_it(L_INFO, "Node addr not finded in node list\n");
+        DAP_DELETE(l_key);
+        return;
+    }
+
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_node_client->net);
     pthread_mutex_lock(&l_net_pvt->uplinks_mutex);
         struct net_link *l_link = NULL, *l_link_tmp = NULL, *l_link_found = NULL;
@@ -4015,5 +4020,6 @@ void dap_chain_net_link_update(dap_chain_node_client_t *a_node_client)
             memcpy(l_link_found->link->client->uplink_addr, l_ip_str_new, strlen(l_ip_str_new));
         }
     pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
+    DAP_DELETE(l_link_found);
     DAP_DELETE(l_key);
 }
