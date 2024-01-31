@@ -1,33 +1,62 @@
 /*
  * Authors:
- * Dmitriy A. Gearasimov <gerasimov.dmitriy@demlabs.net>
+ * Alexander Lysikov <alexander.lysikov@demlabs.net>
+ * Cellframe       https://cellframe.net
  * DeM Labs Inc.   https://demlabs.net
- * CellFrame       https://cellframe.net
- * Sources         https://gitlab.demlabs.net/cellframe
- * Copyright  (c) 2017-2019
+ * Copyright  (c) 2020
  * All rights reserved.
 
- This file is part of DAP (Deus Applications Prototypes) the open source project
+ This file is part of CellFrame SDK the open source project
 
-    DAP (Deus Applicaions Prototypes) is free software: you can redistribute it and/or modify
-    it under the terms of the GNU General Public License as published by
-    the Free Software Foundation, either version 3 of the License, or
-    (at your option) any later version.
+ CellFrame SDK is free software: you can redistribute it and/or modify
+ it under the terms of the GNU General Public License as published by
+ the Free Software Foundation, either version 3 of the License, or
+ (at your option) any later version.
 
-    DAP is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-    GNU General Public License for more details.
+ CellFrame SDK is distributed in the hope that it will be useful,
+ but WITHOUT ANY WARRANTY; without even the implied warranty of
+ MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ GNU General Public License for more details.
 
-    You should have received a copy of the GNU General Public License
-    along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
-*/
+ You should have received a copy of the GNU General Public License
+ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/licenses/>.
+ */
 
 #pragma once
 
+#include <pthread.h>
+#include "dap_stream_worker.h"
+#include "dap_stream_ch_pkt.h"
 #include "dap_chain_common.h"
 
-int dap_stream_ch_chain_net_srv_init(void);
-void dap_stream_ch_chain_net_srv_deinit(void);
+#include "dap_chain.h"
+#include "dap_chain_datum_tx.h"
+#include "dap_chain_datum_tx_in.h"
+#include "dap_chain_datum_tx_in_cond.h"
+#include "dap_chain_datum_tx_out.h"
+#include "dap_chain_datum_tx_out_cond.h"
+#include "dap_chain_datum_tx_receipt.h"
+#include "dap_chain_mempool.h"
+#include "dap_common.h"
+#include "dap_chain_net_srv.h"
 
-void dap_stream_ch_chain_net_srv_set_srv_uid(dap_stream_ch_t* a_ch, dap_chain_net_srv_uid_t a_srv_uid);
+typedef struct dap_stream_ch_chain_net_srv dap_stream_ch_chain_net_srv_t;
+
+typedef void (*dap_stream_ch_chain_net_srv_callback_packet_t)(dap_stream_ch_chain_net_srv_t *, uint8_t,
+        dap_stream_ch_pkt_t *, void *);
+
+typedef struct dap_stream_ch_chain_net_srv {
+    dap_chain_net_srv_uid_t srv_uid;
+    dap_stream_ch_t *ch;
+    dap_stream_ch_uuid_t ch_uuid;
+    dap_stream_ch_chain_net_srv_callback_packet_t notify_callback;
+    void *notify_callback_arg;
+} dap_stream_ch_chain_net_srv_t;
+
+#define DAP_STREAM_CH_CHAIN_NET_SRV(a) ((dap_stream_ch_chain_net_srv_t *) ((a)->internal) )
+#define DAP_STREAM_CH_ID_NET_SRV 'R'
+
+int dap_stream_ch_chain_net_srv_init(dap_chain_net_srv_t *a_srv);
+
+void dap_stream_ch_chain_net_srv_tx_cond_added_cb(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
+char *dap_stream_ch_chain_net_srv_create_statistic_report();
