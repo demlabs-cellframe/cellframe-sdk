@@ -292,11 +292,22 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 	// Ledger info
     dap_cli_server_cmd_add("ledger", com_ledger, "Ledger information",
             "ledger list coins -net <net_name>\n"
+            "\t\tShows list of all coins in the net\n\n"
+
             "ledger list threshold [-hash <tx_treshold_hash>] -net <net_name>\n"
+            "\t\tShows threshold list\n\n"
+
             "ledger list balance -net <net_name>\n"
+            "\t\tShows balance list\n\n"
+
             "ledger info -hash <tx_hash> -net <net_name> [-unspent]\n"
+            "\t\tShows ledger information\n\n"
+
             "ledger tx -all -net <net_name> [-unspent]\n"
-            "ledger tx {-addr <addr> | -w <wallet_name> | -tx <tx_hash>} -net <net_name>\n");
+            "\t\tShows all transactions in ledger\n\n"
+
+            "ledger tx {-addr <addr> | -w <wallet_name> | -tx <tx_hash>} -net <net_name>\n"
+            "\t\tShows all ledger information belonged to this address/wallet/transaction\n\n");
 
     // Token info
     dap_cli_server_cmd_add("token", com_token, "Token info",
