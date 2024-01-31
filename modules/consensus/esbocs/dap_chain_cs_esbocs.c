@@ -2234,8 +2234,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         }
         size_t l_data_objs_count = 0;
         dap_store_obj_t *l_store_objs = dap_global_db_pkt_deserialize(l_db_pkt, &l_data_objs_count);
-        for (size_t i = 0; i < l_data_objs_count; i++)
-            dap_global_db_remote_apply_obj(l_store_objs + i, NULL, NULL);
+        dap_global_db_remote_apply_obj(l_store_objs, l_data_objs_count, NULL, NULL);
         if (l_store_objs)
             dap_store_obj_free(l_store_objs, l_data_objs_count);
     } break;
