@@ -679,16 +679,16 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
 {
     struct sync_request *l_sync_request = (struct sync_request *) a_arg;
     dap_chain_pkt_item_t *l_pkt_item = &l_sync_request->pkt;
+    dap_global_db_pkt_t *l_obj_pkt = (dap_global_db_pkt_t*)l_pkt_item->pkt_data;
 
     if(l_pkt_item->pkt_data_size >= sizeof(dap_global_db_pkt_t)) {
-
         // Validate size of received packet
-        dap_global_db_pkt_t *l_obj_pkt = (dap_global_db_pkt_t*)l_pkt_item->pkt_data;
+
         size_t l_obj_pkt_size = l_obj_pkt ? l_obj_pkt->data_size + sizeof(dap_global_db_pkt_t) : 0;
         if(l_pkt_item->pkt_data_size != l_obj_pkt_size) {
             log_it(L_WARNING, "In: s_gdb_in_pkt_proc_callback: received size=%zu is not equal to obj_pkt_size=%zu",
                     l_pkt_item->pkt_data_size, l_obj_pkt_size);
-            DAP_DEL_Z(l_pkt_item->pkt_data);
+            DAP_DELETE(l_obj_pkt);
             DAP_DELETE(l_sync_request);
             return true;
         }
@@ -698,14 +698,14 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
         dap_store_obj_t *l_store_obj = dap_global_db_pkt_deserialize(l_obj_pkt, &l_data_obj_count);
         if (!l_store_obj) {
             debug_if(s_debug_more, L_ERROR, "Invalid synchronization packet format");
-            DAP_DEL_Z(l_pkt_item->pkt_data);
+            DAP_DELETE(l_obj_pkt);
             DAP_DELETE(l_sync_request);
             return true;
         }
         if (s_debug_more){
             if (l_data_obj_count)
                 log_it(L_INFO, "In: GLOBAL_DB parse: pkt_data_size=%"DAP_UINT64_FORMAT_U", l_data_obj_count = %zu",l_pkt_item->pkt_data_size, l_data_obj_count );
-            else if (l_pkt_item->pkt_data){
+            else if (l_obj_pkt){
                 log_it(L_WARNING, "In: GLOBAL_DB parse: pkt_data_size=%"DAP_UINT64_FORMAT_U", error=\"No data objs after unpack\"", l_pkt_item->pkt_data_size);
             }else
                  log_it(L_WARNING, "In: GLOBAL_DB parse: packet in list with NULL data(pkt_data_size:%"DAP_UINT64_FORMAT_U")", l_pkt_item->pkt_data_size);
@@ -816,17 +816,15 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             //dap_store_obj_free(l_store_obj, l_initial_count);
         } else {
             DAP_DELETE(l_store_obj);
-            DAP_DEL_Z(l_pkt_item->pkt_data);
+            DAP_DELETE(l_obj_pkt);
             DAP_DELETE(l_sync_request);
             return true;
         }
     } else {
         log_it(L_WARNING, "In proc thread got GDB stream ch packet with zero data");
     }
-    if (l_pkt_item->pkt_data) {
-        DAP_DELETE(l_pkt_item->pkt_data);
-    }
-    //DAP_DELETE(l_sync_request);
+
+    DAP_DELETE(l_obj_pkt);
     return true;
 }
 
