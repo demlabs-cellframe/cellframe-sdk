@@ -60,7 +60,7 @@
 #include "crc32c_adler.h"
 #include "dap_chain_ledger.h"
 
-#define __USE_GNU
+//#define __USE_GNU
 
 #if defined(__USE_BSD) || defined(__USE_GNU)
 #define S_IREAD S_IRUSR
