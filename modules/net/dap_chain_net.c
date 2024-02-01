@@ -119,6 +119,7 @@
 #include "dap_chain_node_net_ban_list.h"
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_net_voting.h"
+#include "dap_global_db_cluster.h"
 #include "dap_link_manager.h"
 
 #include <stdio.h>
@@ -245,22 +246,13 @@ static const dap_chain_node_client_callbacks_t s_node_link_callbacks = {
 
 
 static bool s_link_manager_connected_callback(void *a_arg);
-static bool s_link_manager_update_callback_embeded(void *a_arg);
-static bool s_link_manager_update_callback_autonomic(void *a_arg);
+static bool s_link_manager_update_callback(void *a_arg);
 
-static const dap_link_manager_callbacks_t s_link_manager_callbacks_embeded = {
+static const dap_link_manager_callbacks_t s_link_manager_callbacks = {
     .connected      = s_link_manager_connected_callback,
     .disconnected   = NULL,
     .delete         = NULL,
-    .update         = s_link_manager_update_callback_embeded,
-    .delete         = NULL,
-    .error          = NULL
-};
-static const dap_link_manager_callbacks_t s_link_manager_callbacks_autonomic = {
-    .connected      = s_link_manager_connected_callback,
-    .disconnected   = NULL,
-    .delete         = NULL,
-    .update         = s_link_manager_update_callback_autonomic,
+    .update         = s_link_manager_update_callback,
     .delete         = NULL,
     .error          = NULL
 };
@@ -2659,18 +2651,6 @@ int dap_chain_net_add_poa_certs_to_cluster(dap_chain_net_t *a_net, dap_global_db
         dap_stream_node_addr_t l_poa_addr = dap_stream_node_addr_from_pkey(l_pkey);
         dap_global_db_cluster_member_add(a_cluster, &l_poa_addr, DAP_GDB_MEMBER_ROLE_ROOT);
     }
-    // add link manager
-    if (a_cluster->links_cluster) {
-        if (a_cluster->links_cluster->role == DAP_CLUSTER_ROLE_AUTONOMIC || a_cluster->links_cluster->role == DAP_CLUSTER_ROLE_ISOLATED) {
-            dap_chain_node_addr_t l_poa_addr = {0xDDDD, 0000, 0000, 0000};
-            dap_global_db_cluster_member_add(a_cluster, &l_poa_addr, DAP_GDB_MEMBER_ROLE_ROOT);
-            dap_global_db_cluster_add_link_manager(a_cluster, &s_link_manager_callbacks_autonomic);
-        } else if(a_cluster->links_cluster->role == DAP_CLUSTER_ROLE_EMBEDDED) {
-            dap_global_db_cluster_add_link_manager(a_cluster, &s_link_manager_callbacks_embeded);
-        }
-    } else {
-        log_it(L_ERROR, "Can't add link manager, GDB cluster don't have links cluster");
-    }
     return 0;
 }
 
@@ -3302,6 +3282,11 @@ void dap_chain_net_announce_addrs() {
     }
 }
 
+int dap_chain_net_link_manager_init()
+{
+    return dap_link_manager_init(&s_link_manager_callbacks);
+}
+
 static bool s_link_manager_connected_callback(void *a_arg)
 {
 // sanity check
@@ -3311,38 +3296,60 @@ static bool s_link_manager_connected_callback(void *a_arg)
 }
 
 
-bool s_link_manager_update_callback_embeded(void *a_arg)
+void s_link_manager_update_embeded(dap_link_manager_t *a_link_manager)
 {
-// sanity check
-    dap_link_manager_t *l_link_manager = (dap_link_manager_t *)a_arg;
-    dap_return_val_if_pass(!l_link_manager, true);
-// func work
-    dap_cluster_t *l_cluster = dap_cluster_find(l_link_manager->links_cluster_guuid);
-    size_t l_links_count = dap_stream_cluster_members_count(l_cluster);
-    if (l_links_count < l_link_manager->min_links_num) {
-        dap_chain_net_t *l_net = dap_chain_net_by_name(l_cluster->mnemonim);
-        if (!l_net) {
-            log_it(L_ERROR, "Can't find net by mnemonim %s", l_cluster->mnemonim);
-            return false;
-        }
-        // s_new_balancer_link_request(l_net, PVT(l_net)->balancer_link_requests);
-    }
+// // sanity check
+//     dap_return_val_if_pass(!a_link_manager, true);
+// // func work
+//     dap_cluster_t *l_cluster = dap_cluster_find(a_link_manager->links_cluster_guuid);
+//     size_t l_links_count = dap_stream_cluster_members_count(l_cluster);
+//     if (l_links_count < a_link_manager->min_links_num) {
+//         dap_chain_net_t *l_net = dap_chain_net_by_name(l_cluster->mnemonim);
+//         if (!l_net) {
+//             log_it(L_ERROR, "Can't find net by mnemonim %s", l_cluster->mnemonim);
+//             return false;
+//         }
+//         // s_new_balancer_link_request(l_net, PVT(l_net)->balancer_link_requests);
+//     }
     return true;
 }
 
-bool s_link_manager_update_callback_autonomic(void *a_arg)
+void s_link_manager_update_autonomic(dap_link_manager_t *a_manager)
+{
+// // sanity check
+//     dap_link_manager_t *l_link_manager = (dap_link_manager_t *)a_arg;
+//     dap_return_val_if_pass(!l_link_manager, true);
+// // func work
+//     size_t l_role_count = 0;
+//     dap_chain_node_addr_t *l_role_addrs = dap_stream_get_members_addr(dap_cluster_find(l_link_manager->links_cluster_guuid), &l_role_count);
+//     for(size_t i = 0; i < l_role_count; ++i ) {
+//         if (!dap_stream_find_by_addr(l_role_addrs + i, NULL)) {
+//             printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!Restore connection\n");
+//         }
+//     }
+//     DAP_DEL_Z(l_role_addrs);
+    return true;
+}
+
+bool s_link_manager_update_callback(void *a_arg)
 {
 // sanity check
     dap_link_manager_t *l_link_manager = (dap_link_manager_t *)a_arg;
     dap_return_val_if_pass(!l_link_manager, true);
 // func work
-    size_t l_role_count = 0;
-    dap_chain_node_addr_t *l_role_addrs = dap_stream_get_members_addr(dap_cluster_find(l_link_manager->links_cluster_guuid), &l_role_count);
-    for(size_t i = 0; i < l_role_count; ++i ) {
-        if (!dap_stream_find_by_addr(l_role_addrs + i, NULL)) {
-            printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!Restore connection\n");
+    if(!l_link_manager->active_net_count) {
+        return true;
+    }
+    dap_global_db_instance_t *l_dbi = dap_global_db_instance_get_default();
+    if (l_dbi) {
+        dap_global_db_cluster_t *it = NULL;
+        DL_FOREACH(l_dbi->clusters, it) {
+            if (it->links_cluster->role == DAP_CLUSTER_ROLE_AUTONOMIC || it->links_cluster->role == DAP_CLUSTER_ROLE_ISOLATED) {
+                s_link_manager_update_autonomic(l_link_manager);
+            } else if(it->links_cluster->role == DAP_CLUSTER_ROLE_EMBEDDED) {
+                s_link_manager_update_embeded(l_link_manager);
+            }
         }
     }
-    DAP_DEL_Z(l_role_addrs);
     return true;
 }

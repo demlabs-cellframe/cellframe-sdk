@@ -212,3 +212,4 @@ int dap_chain_datum_add(dap_chain_t * a_chain, dap_chain_datum_t *a_datum, size_
 bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net);
 void dap_chain_net_announce_addrs();
 char *dap_chain_net_links_dump(dap_chain_net_t*);
+int dap_chain_net_link_manager_init();
