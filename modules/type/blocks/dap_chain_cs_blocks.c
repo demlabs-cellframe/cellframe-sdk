@@ -1345,6 +1345,9 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         dap_chain_block_cache_delete(l_block_cache);
         debug_if(s_debug_more, L_DEBUG, "Verified atom %p: REJECTED", a_atom);
         break;
+    case ATOM_FORK:
+
+        break;
     default:
         debug_if(s_debug_more, L_DEBUG, "Unknown verification ret code %d", ret);
         break;
@@ -1407,7 +1410,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
                 log_it(L_NOTICE, "Accepting new genesis block");
 
             else if(dap_hash_fast_compare(&l_block_hash,&l_blocks_pvt->static_genesis_block_hash)
-                    &&!dap_hash_fast_is_blank(&l_block_hash))
+                    && !dap_hash_fast_is_blank(&l_block_hash))
                 log_it(L_NOTICE, "Accepting static genesis block");
             else{
                 char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = { '\0' };
