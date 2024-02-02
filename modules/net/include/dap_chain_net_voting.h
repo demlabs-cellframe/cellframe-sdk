@@ -77,6 +77,8 @@ int dap_chain_net_vote_create(char *a_question, dap_list_t *a_options, dap_time_
                              bool a_vote_changing_allowed, dap_chain_wallet_t *a_wallet,
                              dap_chain_net_t *a_net, char *a_hash_out_type, char **a_hash_output);
 
+dap_list_t *dap_chain_net_vote_list(dap_chain_net_t *a_net);
+
 /**
 dap_chain_net_voting_create_vote(...);
 dap_chain_net_voting_vote(dap_hash_fast_t a_vote_hash)

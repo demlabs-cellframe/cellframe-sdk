@@ -1523,3 +1523,18 @@ int dap_chain_net_vote_create(char *a_question, dap_list_t *a_options, dap_time_
         return DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_POOL_DATUM_IN_MEMPOOL;
     }
 }
+
+dap_list_t *dap_chain_net_vote_list(dap_chain_net_t *a_net) {
+    if (!a_net)
+        return NULL;
+    dap_chain_net_votings_t *l_voting = NULL, *l_tmp;
+    dap_list_t *l_list = NULL;
+    pthread_rwlock_rdlock(&s_votings_rwlock);
+    HASH_ITER(hh, s_votings, l_voting, l_tmp){
+        if (l_voting->net_id.uint64 != a_net->pub.id.uint64)
+            continue;
+        l_list = dap_list_append(l_list, l_voting);
+    }
+    pthread_rwlock_unlock(&s_votings_rwlock);
+    return l_list;
+}
