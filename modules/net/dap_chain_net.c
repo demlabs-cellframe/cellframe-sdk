@@ -148,6 +148,18 @@ struct net_link {
     UT_hash_handle hh;
 };
 
+
+typedef struct net_link_manager_link {
+    uint64_t uplink_ip;
+    dap_chain_node_info_t *link_info;
+    dap_client_t *client;
+    dap_chain_net_t * net;
+    UT_hash_handle hh;
+} net_link_manager_link_t;
+
+static net_link_manager_link_t *s_link_manager_links = NULL;
+static pthread_rwlock_t s_link_manager_links_rwlock = PTHREAD_RWLOCK_INITIALIZER;
+
 struct block_reward {
     uint64_t block_number;
     uint256_t reward;
@@ -400,11 +412,14 @@ int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_n
     }
     PVT(a_net)->state_target = a_new_state;
     //PVT(a_net)->flags |= F_DAP_CHAIN_NET_SYNC_FROM_ZERO;  // TODO set this flag according to -mode argument from command line
-    if(a_new_state == NET_STATE_ONLINE)
+    if(a_new_state == NET_STATE_ONLINE) {
         dap_chain_esbocs_start_timer(a_net->pub.id);
+        dap_link_manager_add_active_net(a_net->pub.name);
+    }
 
     if (a_new_state == NET_STATE_OFFLINE){
         dap_chain_esbocs_stop_timer(a_net->pub.id);
+        dap_link_manager_remove_active_net(a_net->pub.name);
         return 0;
     }
 
@@ -466,38 +481,37 @@ static struct net_link *s_net_link_find(dap_chain_net_t *a_net, dap_chain_node_i
     return l_present;
 }
 
-static int s_net_link_add(dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_info)
+static int s_link_manager_link_add(dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_info)
 {
     if (!a_link_node_info)
         return -1;
-    dap_chain_net_pvt_t *l_pvt_net = PVT(a_net);
-    pthread_mutex_lock(&l_pvt_net->uplinks_mutex);
-    if (HASH_COUNT(l_pvt_net->net_links) >= PVT(a_net)->max_links_count) {
-        pthread_mutex_unlock(&l_pvt_net->uplinks_mutex);
+    pthread_mutex_lock(&s_link_manager_links_rwlock);
+    if (HASH_COUNT(s_link_manager_links) >= 1000) {
+        pthread_mutex_unlock(&s_link_manager_links_rwlock);
         return 1;
     }
     uint64_t l_own_addr = dap_chain_net_get_cur_addr_int(a_net);
     if (a_link_node_info->hdr.address.uint64 == l_own_addr) {
-        pthread_mutex_unlock(&l_pvt_net->uplinks_mutex);
+        pthread_mutex_unlock(&s_link_manager_links_rwlock);
         return -2;
     }
     uint64_t l_addr = a_link_node_info->hdr.ext_addr_v4.s_addr;
-    struct net_link *l_new_link;
-    HASH_FIND(hh, l_pvt_net->net_links, &l_addr, sizeof(l_addr), l_new_link);
+    net_link_manager_link_t *l_new_link;
+    HASH_FIND(hh, s_link_manager_links, &l_addr, sizeof(l_addr), l_new_link);
     if (l_new_link) {
-        pthread_mutex_unlock(&l_pvt_net->uplinks_mutex);
+        pthread_mutex_unlock(&s_link_manager_links_rwlock);
         return -3;
     }
     l_new_link = DAP_NEW_Z(struct net_link);
     if (!l_new_link) {
         log_it(L_CRITICAL, "Memory allocation error");
-        pthread_mutex_unlock(&PVT(a_net)->uplinks_mutex);
+        pthread_mutex_unlock(&s_link_manager_links_rwlock);
         return -4;
     }
     l_new_link->link_info = DAP_DUP(a_link_node_info);
     l_new_link->uplink_ip = a_link_node_info->hdr.ext_addr_v4.s_addr;
-    HASH_ADD(hh, l_pvt_net->net_links, uplink_ip, sizeof(l_new_link->uplink_ip), l_new_link);
-    pthread_mutex_unlock(&l_pvt_net->uplinks_mutex);
+    HASH_ADD(hh, s_link_manager_links, uplink_ip, sizeof(l_new_link->uplink_ip), l_new_link);
+    pthread_mutex_unlock(&s_link_manager_links_rwlock);
     return 0;
 }
 
@@ -591,7 +605,7 @@ static void s_fill_links_from_root_aliases(dap_chain_net_t * a_net)
         dap_chain_node_info_t l_link_node_info;
         l_link_node_info.hdr.ext_addr_v4 = l_net_pvt->seed_nodes_ipv4[i].sin_addr;
         l_link_node_info.hdr.ext_port = l_net_pvt->seed_nodes_ipv4[i].sin_port;
-        if (s_net_link_add(a_net, &l_link_node_info) > 0)    // Maximum links count reached
+        if (s_link_manager_link_add(a_net, &l_link_node_info) > 0)    // Maximum links count reached
             break;
     }
 }
@@ -802,7 +816,7 @@ static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_cha
     while(!l_res){
         if(i >= a_link_full_node_list->count_node)
             break;
-        l_res = s_net_link_add(l_net, l_node_info + i);
+        l_res = s_link_manager_link_add(l_net, l_node_info + i);
         switch (l_res) {
         case 0:
             l_json = s_net_states_json_collect(l_net);
@@ -948,7 +962,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
             size_t l_links_count = 0;
             while(!l_net_link_add && i<node_cnt){
 
-                l_net_link_add = s_net_link_add(a_net, l_node_info + i);
+                l_net_link_add = s_link_manager_link_add(a_net, l_node_info + i);
                 switch (l_net_link_add) {
                 case 0:
                     log_it(L_MSG, "Network LOCAL balancer issues link IP %s, [%ld blocks]", inet_ntoa((l_node_info + i)->hdr.ext_addr_v4),l_node_info->info.atoms_count);
@@ -1140,7 +1154,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                            NODE_ADDR_FP_ARGS(l_net_pvt->permanent_links + i));
                     continue;
                 }
-                s_net_link_add(l_net, l_link_node_info);
+                s_link_manager_link_add(l_net, l_link_node_info);
                 DAP_DELETE(l_link_node_info);
             }
 
@@ -1171,11 +1185,13 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
             log_it(L_INFO, "%s.state: NET_STATE_LINKS_CONNECTING",l_net->pub.name);
             size_t l_used_links = 0;
             struct net_link *l_link, *l_link_tmp;
-            HASH_ITER(hh, l_net_pvt->net_links, l_link, l_link_tmp) {
+            pthread_mutex_lock(&s_link_manager_links_rwlock);
+            HASH_ITER(hh, s_link_manager_links, l_link, l_link_tmp) {
                 s_net_link_start(l_net, l_link, 0);
                 if (++l_used_links == l_net_pvt->required_links_count)
                     break;
             }
+            pthread_mutex_unlock(&s_link_manager_links_rwlock);
         } break;
 
         case NET_STATE_LINKS_ESTABLISHED:
@@ -3311,7 +3327,7 @@ void s_link_manager_update_embeded(dap_link_manager_t *a_link_manager)
 //         }
 //         // s_new_balancer_link_request(l_net, PVT(l_net)->balancer_link_requests);
 //     }
-    return true;
+    return;
 }
 
 void s_link_manager_update_autonomic(dap_link_manager_t *a_manager)
@@ -3328,7 +3344,7 @@ void s_link_manager_update_autonomic(dap_link_manager_t *a_manager)
 //         }
 //     }
 //     DAP_DEL_Z(l_role_addrs);
-    return true;
+    return;
 }
 
 bool s_link_manager_update_callback(void *a_arg)
@@ -3337,16 +3353,16 @@ bool s_link_manager_update_callback(void *a_arg)
     dap_link_manager_t *l_link_manager = (dap_link_manager_t *)a_arg;
     dap_return_val_if_pass(!l_link_manager, true);
 // func work
-    if(!l_link_manager->active_net_count) {
+    if(!l_link_manager->active || !l_link_manager->active_nets) {
         return true;
     }
     dap_global_db_instance_t *l_dbi = dap_global_db_instance_get_default();
     if (l_dbi) {
         dap_global_db_cluster_t *it = NULL;
         DL_FOREACH(l_dbi->clusters, it) {
-            if (it->links_cluster->role == DAP_CLUSTER_ROLE_AUTONOMIC || it->links_cluster->role == DAP_CLUSTER_ROLE_ISOLATED) {
+            if (it->links_cluster && (it->links_cluster->role == DAP_CLUSTER_ROLE_AUTONOMIC || it->links_cluster->role == DAP_CLUSTER_ROLE_ISOLATED)) {
                 s_link_manager_update_autonomic(l_link_manager);
-            } else if(it->links_cluster->role == DAP_CLUSTER_ROLE_EMBEDDED) {
+            } else if(it->links_cluster && it->links_cluster->role == DAP_CLUSTER_ROLE_EMBEDDED) {
                 s_link_manager_update_embeded(l_link_manager);
             }
         }
