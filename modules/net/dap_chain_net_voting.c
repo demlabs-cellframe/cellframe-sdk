@@ -865,6 +865,28 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
                 return -113;
             }
 
+            // check outputs UTXOs
+            dap_list_t *l_utxo_temp = l_list_used_out;
+            uint256_t l_value_transfer_new = {};
+            while(l_utxo_temp){
+                dap_chain_tx_used_out_item_t *l_out = (dap_chain_tx_used_out_item_t *)l_utxo_temp->data;
+                if (s_datum_tx_voting_coin_check_spent(l_net, l_voting_hash, l_out->tx_hash_fast, l_out->num_idx_out) != 0){
+                    dap_list_t *l_temp = l_utxo_temp;
+                    l_utxo_temp = l_utxo_temp->next;
+                    dap_list_delete_link(l_list_used_out, l_temp);
+                    continue;
+                }
+                SUM_256_256(l_value_transfer_new, l_out->value, &l_value_transfer_new);
+                l_utxo_temp = l_utxo_temp->next;
+            }
+
+            if (IS_ZERO_256(l_value_transfer_new) || compare256(l_value_transfer_new, l_total_fee) <= 0){
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "You have not unspent UTXO for participation in this voting.");
+                return -113;
+            }
+
+            l_value_transfer = l_value_transfer_new;
+
             // create empty transaction
             dap_chain_datum_tx_t *l_tx = dap_chain_datum_tx_create();
 
@@ -890,18 +912,22 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
             dap_list_t *l_temp = l_outs;
             while(l_temp){
                 dap_chain_tx_used_out_item_t *l_out_item = (dap_chain_tx_used_out_item_t *)l_temp->data;
+                if (s_datum_tx_voting_coin_check_cond_out(l_net, l_voting_hash, l_out_item->tx_hash_fast, l_out_item->num_idx_out ) != 0){
+                    l_temp = l_temp->next;
+                    continue;
+                }
                 dap_chain_tx_tsd_t *l_item = dap_chain_datum_voting_vote_tx_cond_tsd_create(l_out_item->tx_hash_fast, l_out_item->num_idx_out);
                 if(!l_item){
                     dap_chain_datum_tx_delete(l_tx);
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create tsd tx cond item.");
-                    dap_list_free(l_outs);
+                    dap_list_free_full(l_outs, NULL);
                     return -114;
                 }
                 dap_chain_datum_tx_add_item(&l_tx, l_item);
                 DAP_DEL_Z(l_item);
                 l_temp = l_temp->next;
             }
-            dap_list_free(l_outs);
+            dap_list_free_full(l_outs, NULL);
 
             // add 'in' items
             uint256_t l_value_to_items = dap_chain_datum_tx_add_in_item_list(&l_tx, l_list_used_out);
@@ -1068,11 +1094,17 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
                 dap_string_append_len(l_str_out,
                                       (char*)((byte_t*)l_voting->voting_params.voting_tx + l_vote_option->vote_option_offset),
                                       l_vote_option->vote_option_length);
-//                float l_percentage = l_votes_count ? ((float)l_results[i]/l_votes_count)*100 : 0;
-                dap_string_append_printf(l_str_out, "\nVotes: %"DAP_UINT64_FORMAT_U" \nWeight: %s (%s) %s\n", l_results[i].num_of_votes,
-                                         dap_chain_balance_to_coins(l_results[i].weights), dap_chain_balance_print(l_results[i].weights), l_net->pub.native_ticker
-                                                                /*l_percentage*/);
+                float l_percentage = l_votes_count ? ((float)l_results[i].num_of_votes/l_votes_count)*100 : 0;
+                uint256_t l_weight_percentage = {};
+
+                DIV_256_COIN(l_results[i].weights, l_total_weight, &l_weight_percentage);
+                MULT_256_COIN(l_weight_percentage, dap_chain_coins_to_balance("100.0"), &l_weight_percentage);
+                char *l_weight_percentage_str = dap_uint256_decimal_to_round_char(l_weight_percentage, 2, false);
+                dap_string_append_printf(l_str_out, "\nVotes: %"DAP_UINT64_FORMAT_U" (%.2f%%)\nWeight: %s (%s) %s (%s%%)\n", l_results[i].num_of_votes, l_percentage,
+                                         dap_chain_balance_to_coins(l_results[i].weights), dap_chain_balance_print(l_results[i].weights), l_net->pub.native_ticker,
+                                                                l_weight_percentage_str);
             }
+            DAP_DELETE(l_results);
             dap_string_append_printf(l_str_out, "\nTotal number of votes: %"DAP_UINT64_FORMAT_U, l_votes_count);
             dap_string_append_printf(l_str_out, "\nTotal weight: %s (%s) %s\n\n", dap_chain_balance_to_coins(l_total_weight), dap_chain_balance_print(l_total_weight), l_net->pub.native_ticker);
             dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_out->str);
@@ -1144,8 +1176,8 @@ static int s_datum_tx_voting_coin_check_spent(dap_chain_net_t *a_net, dap_hash_f
         const char* l_tx_token = NULL;
         dap_chain_tx_out_t *l_prev_out_union = (dap_chain_tx_out_t*)dap_chain_datum_tx_out_get_by_out_idx(l_tx_prev_temp, l_out_prev_idx);
         if (!l_prev_out_union){
-            l_ins_list = dap_list_remove(l_ins_list, l_temp_in);
-            if (l_ins_list == NULL){
+            l_tx_temp->data = dap_list_remove(l_tx_temp->data, l_temp_in);
+            if (l_tx_temp->data == NULL){
                 l_tx_list = dap_list_delete_link(l_tx_list, l_tx_temp);
                 l_tx_temp = l_tx_list ? dap_list_last(l_tx_list) : NULL;
             }
@@ -1167,8 +1199,8 @@ static int s_datum_tx_voting_coin_check_spent(dap_chain_net_t *a_net, dap_hash_f
                     break;
             }
             default:
-                l_ins_list = dap_list_remove(l_ins_list, l_temp_in);
-                if (l_ins_list == NULL){
+                l_tx_temp->data = dap_list_remove(l_tx_temp->data, l_temp_in);
+                if (l_tx_temp->data == NULL){
                     l_tx_list = dap_list_delete_link(l_tx_list, l_tx_temp);
                     l_tx_temp = l_tx_list ? dap_list_last(l_tx_list) : NULL;
                 }
@@ -1177,8 +1209,8 @@ static int s_datum_tx_voting_coin_check_spent(dap_chain_net_t *a_net, dap_hash_f
 
         if (l_tx_prev_temp->header.ts_created < l_voting_tx->header.ts_created ||
                                             dap_strcmp(l_tx_token, l_native_ticker)){
-            l_ins_list = dap_list_remove(l_ins_list, l_temp_in);
-            if (l_ins_list == NULL){
+            l_tx_temp->data = dap_list_remove(l_tx_temp->data, l_temp_in);
+            if (l_tx_temp->data == NULL){
                 l_tx_list = dap_list_delete_link(l_tx_list, l_tx_temp);
                 l_tx_temp = l_tx_list ? dap_list_last(l_tx_list) : NULL;
             }
