@@ -806,19 +806,13 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             dap_global_db_remote_apply_obj(l_obj, s_gdb_in_pkt_proc_set_raw_callback, DAP_DUP(l_sync_request));
         }
 #endif
-        if (l_initial_count != l_data_obj_count) {
-            //l_store_obj = DAP_REALLOC_COUNT(l_store_obj, l_data_obj_count);
-            log_it(L_INFO, "Only %zu / %zu of records will be applied", l_data_obj_count, l_initial_count);
-        }
-        if (l_store_obj->group) {
+        if (l_data_obj_count) {
+            debug_if(L_INFO, s_debug_more && l_data_obj_count != l_initial_count, "Only %zu / %zu of records will be applied", l_data_obj_count, l_initial_count);
             dap_global_db_remote_apply_obj(l_store_obj, l_data_obj_count, s_gdb_in_pkt_proc_set_raw_callback, l_sync_request);
-            DAP_DELETE(l_store_obj);
-            //dap_store_obj_free(l_store_obj, l_initial_count);
         } else {
-            DAP_DELETE(l_store_obj);
-            DAP_DELETE(l_obj_pkt);
+            debug_if(L_INFO, s_debug_more, "No objects will be applied, all %zu are filtered out", l_initial_count);
             DAP_DELETE(l_sync_request);
-            return true;
+            DAP_DELETE(l_store_obj);
         }
     } else {
         log_it(L_WARNING, "In proc thread got GDB stream ch packet with zero data");

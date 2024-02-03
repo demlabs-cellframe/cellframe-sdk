@@ -609,8 +609,8 @@ static int s_save_stat_to_database(dap_stream_ch_chain_net_srv_pkt_test_t *a_req
         l_group = dap_strdup_printf("local.%s.orders-test-stat", l_net->pub.gdb_groups_prefix);
     }
     if(l_group) {
-        dap_global_db_get_last( l_group, s_save_stat_to_database_callback_get_last_stat,
-                                dap_strdup(l_json_str));
+        /* dap_global_db_get_last( l_group, s_save_stat_to_database_callback_get_last_stat,
+                                dap_strdup(l_json_str)); */ // WTF is this?
         DAP_DELETE(l_group);
     }
     else

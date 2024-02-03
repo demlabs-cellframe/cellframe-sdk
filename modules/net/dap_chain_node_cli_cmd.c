@@ -1155,7 +1155,7 @@ int com_global_db(int a_argc, char ** a_argv, void ** reply)
         for(size_t i = 0; i < l_objs_count; i++){
             dap_string_append_printf(l_ret_str, "%s\n", l_obj[i].key);
         }
-
+        dap_global_db_objs_delete(l_obj, l_objs_count);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Keys list for group %s:\n%s\n", l_group_str, l_ret_str->str);
         dap_string_free(l_ret_str, true);
         return 0;
