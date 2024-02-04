@@ -893,7 +893,6 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
  */
 int com_ledger(int a_argc, char ** a_argv, void **reply)
 {
-    char ** a_str_reply = (char **) reply;
     json_object ** json_arr_reply = (json_object **) reply;
     enum { CMD_NONE, CMD_LIST, CMD_LEDGER_HISTORY, CMD_TX_INFO };
     int arg_index = 1;

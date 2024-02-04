@@ -2019,6 +2019,7 @@ dap_list_t * dap_ledger_token_auth_pkeys_hashes(dap_ledger_t *a_ledger, const ch
 dap_list_t *dap_ledger_token_info(dap_ledger_t *a_ledger)
 {
     dap_list_t *l_ret_list = NULL;
+    json_object * json_obj_datum = json_object_new_object();
     dap_string_t *l_str_tmp;// = dap_string_new("");
     dap_ledger_token_item_t *l_token_item, *l_tmp_item;
     pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
