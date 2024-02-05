@@ -482,8 +482,8 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
             dap_global_db_obj_t *l_aliases_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes_aliases, &l_data_size);
             for (size_t i = 0; i < l_nodes_count; i++) {
                 dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t*)l_objs[i].value;
-                if (!dap_chain_node_addr_not_null(&l_node_info->hdr.address)){
-                    log_it(L_ERROR, "Node address is NULL");
+                if (dap_chain_node_addr_is_blank(&l_node_info->hdr.address)){
+                    log_it(L_ERROR, "Node address is empty");
                     continue;
                 }
 /*

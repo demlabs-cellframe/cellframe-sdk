@@ -53,7 +53,7 @@ typedef struct dap_chain_node_info {
 typedef dap_stream_node_addr_t dap_chain_node_addr_t;
 #define dap_chain_node_addr_str_check dap_stream_node_addr_str_check
 #define dap_chain_node_addr_from_str dap_stream_node_addr_from_str
-#define dap_chain_node_addr_not_null dap_stream_node_addr_not_null
+#define dap_chain_node_addr_is_blank dap_stream_node_addr_is_blank
 
 /**
  * Calculate size of struct dap_chain_node_info_t
