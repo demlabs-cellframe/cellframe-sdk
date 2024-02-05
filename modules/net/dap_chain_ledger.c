@@ -4226,8 +4226,8 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
         }
     }
 
-
-    if (dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTING, NULL)){
+    dap_list_t *l_items_voting;
+    if ((l_items_voting = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTING, NULL))) {
         if (s_voting_callback){
             if (!s_voting_callback(a_ledger, TX_ITEM_TYPE_VOTING, a_tx, false)){
                 debug_if(s_debug_more, L_WARNING, "Verificator check error for voting.");
@@ -4237,7 +4237,8 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
             debug_if(s_debug_more, L_WARNING, "Verificator check error for voting item");
             l_err_num = DAP_LEDGER_TX_CHECK_NO_VERIFICATOR_SET;
         }
-    }else if (dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTE, NULL)){
+        dap_list_free(l_items_voting);
+    }else if ((l_items_voting = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTE, NULL))) {
        if (s_voting_callback){
            if (!s_voting_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx, false)){
                debug_if(s_debug_more, L_WARNING, "Verificator check error for vote.");
@@ -4247,6 +4248,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
            debug_if(s_debug_more, L_WARNING, "Verificator check error for vote item");
            l_err_num = DAP_LEDGER_TX_CHECK_NO_VERIFICATOR_SET;
        }
+       dap_list_free(l_items_voting);
     }
 
     if (a_main_ticker && !l_err_num)
@@ -4654,11 +4656,15 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         }
         DAP_DELETE (l_addr_str);
     }
-
-    if (dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTING, NULL) && s_voting_callback)
+    dap_list_t *l_items_voting;
+    if ((l_items_voting = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTING, NULL)) && s_voting_callback) {
+        dap_list_free(l_items_voting);
         s_voting_callback(a_ledger, TX_ITEM_TYPE_VOTING, a_tx, true);
-    else if (dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTE, NULL) && s_voting_callback)
+    }
+    else if ((l_items_voting = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTE, NULL)) && s_voting_callback) {
+        dap_list_free(l_items_voting);
         s_voting_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx, true);
+    }
 
 
 
