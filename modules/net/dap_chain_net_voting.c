@@ -1386,7 +1386,7 @@ int dap_chain_net_vote_create(char *a_question, dap_list_t *a_options, dap_time_
     dap_enc_key_t *l_priv_key = NULL;
     l_priv_key = dap_chain_wallet_get_key(a_wallet, 0);
 
-    const dap_chain_addr_t *l_addr_from = (const dap_chain_addr_t *) dap_chain_wallet_get_addr(a_wallet, l_net->pub.id);
+    const dap_chain_addr_t *l_addr_from = (const dap_chain_addr_t *) dap_chain_wallet_get_addr(a_wallet, a_net->pub.id);
 
     if(!l_addr_from) {
         return DAP_CHAIN_NET_VOTE_CREATE_SOURCE_ADDRESS_IS_INVALID;
@@ -1539,8 +1539,58 @@ int dap_chain_net_vote_create(char *a_question, dap_list_t *a_options, dap_time_
     }
 }
 
-dap_list_t *dap_chain_net_vote_list(dap_chain_net_t *a_net) {
-    if (!a_net)
+dap_chain_net_vote_info_t *s_dap_chain_net_vote_extract_info(dap_chain_net_votings_t *a_voting) {
+    if (!a_voting) {
+        return NULL;
+    }
+    dap_chain_net_vote_info_t *l_info = DAP_NEW(dap_chain_net_vote_info_t);
+    struct voting_results {uint64_t num_of_votes; uint256_t weights;};
+
+    struct voting_results* l_results = DAP_NEW_Z_SIZE(struct voting_results, sizeof(struct voting_results) *
+                                                                             dap_list_length(a_voting->voting_params.option_offsets_list));
+    if(!l_results){
+        return NULL;
+    }
+    dap_list_t* l_list_tmp = a_voting->voting_params.option_offsets_list;
+    while(l_list_tmp){
+        dap_chain_net_vote_t *l_vote = l_list_tmp->data;
+        l_results[l_vote->answer_idx].num_of_votes++;
+        SUM_256_256(l_results[l_vote->answer_idx].weights, l_vote->weight, &l_results[l_vote->answer_idx].weights);
+        l_list_tmp = l_list_tmp->next;
+    }
+
+    l_info->question.question_size = a_voting->voting_params.voting_question_length;
+    l_info->question.question_str = (char*)((byte_t*)a_voting->voting_params.voting_tx + a_voting->voting_params.voting_question_offset);
+    l_info->hash = a_voting->voting_hash;
+
+    l_info->is_expired = a_voting->voting_params.voting_expire_offset;
+    if(a_voting->voting_params.voting_expire_offset){
+        l_info->expired = *(dap_time_t*)((byte_t*)a_voting->voting_params.voting_tx + a_voting->voting_params.voting_expire_offset);
+    }
+    l_info->is_max_count_votes = a_voting->voting_params.votes_max_count_offset;
+    if (a_voting->voting_params.votes_max_count_offset){
+        l_info->max_count_votes = *(uint64_t*)((byte_t*)a_voting->voting_params.voting_tx + a_voting->voting_params.votes_max_count_offset);
+    }
+    l_info->is_changing_allowed = a_voting->voting_params.vote_changing_allowed_offset;
+    l_info->is_delegate_key_required = a_voting->voting_params.delegate_key_required_offset;
+    l_info->options.count_option = dap_list_length(a_voting->voting_params.option_offsets_list);
+    dap_chain_net_vote_info_option_t l_options[l_info->options.count_option];
+    for (uint64_t i = 0; i < dap_list_length(a_voting->voting_params.option_offsets_list); i++){
+        dap_list_t* l_option = dap_list_nth(a_voting->voting_params.option_offsets_list, (uint64_t)i);
+        dap_chain_net_vote_option_t* l_vote_option = (dap_chain_net_vote_option_t*)l_option->data;
+        l_options[i].option_idx = i;
+        l_options[i].description_size = l_vote_option->vote_option_length;
+        l_options[i].description = (char*)((byte_t*)a_voting->voting_params.voting_tx + l_vote_option->vote_option_offset);
+        l_options[i].votes_count = l_results[i].num_of_votes;
+        l_options[i].weight = l_results[i].weights;
+    }
+    l_info->options.options = l_options;
+    DAP_DELETE(l_results);
+    return l_info;
+}
+
+dap_chain_net_vote_info_t **dap_chain_net_vote_list(dap_chain_net_t *a_net, size_t *a_count_vote_info_out) {
+    if (!a_net || !a_count_vote_info_out)
         return NULL;
     dap_chain_net_votings_t *l_voting = NULL, *l_tmp;
     dap_list_t *l_list = NULL;
@@ -1551,64 +1601,27 @@ dap_list_t *dap_chain_net_vote_list(dap_chain_net_t *a_net) {
         l_list = dap_list_append(l_list, l_voting);
     }
     pthread_rwlock_unlock(&s_votings_rwlock);
-    return l_list;
+    size_t l_list_count = dap_list_length(l_list);
+    dap_chain_net_vote_info_t **l_votes = DAP_NEW_Z_SIZE(dap_chain_net_votings_t*, sizeof(dap_chain_net_vote_info_t) * l_list_count);
+    for (size_t i = 0; i < l_list_count; i++) {
+        dap_list_t* l_vote = dap_list_nth(l_voting->voting_params.option_offsets_list, (uint64_t)i);
+        l_votes[i] = s_dap_chain_net_vote_extract_info(l_vote->data);
+    }
+    *a_count_vote_info_out = l_list_count;
+    dap_list_free(l_list);
+    return l_votes;
 }
 
 dap_chain_net_vote_info_t *dap_chain_net_vote_extract_info(dap_chain_net_t *a_net, dap_hash_fast_t *a_voting) {
     if (!a_net || !a_voting)
         return NULL;
-    dap_chain_net_vote_info_t *l_info = DAP_NEW(dap_chain_net_vote_info_t);
-
     dap_hash_fast_t l_voting_hash = {};
     dap_chain_net_votings_t *l_voting = NULL;
     pthread_rwlock_rdlock(&s_votings_rwlock);
     HASH_FIND(hh, s_votings, &l_voting_hash, sizeof(l_voting_hash),l_voting);
     pthread_rwlock_unlock(&s_votings_rwlock);
     if(!l_voting){
-        DAP_DELETE(l_info);
         return NULL;
     }
-
-    struct voting_results {uint64_t num_of_votes; uint256_t weights;};
-
-    struct voting_results* l_results = DAP_NEW_Z_SIZE(struct voting_results, sizeof(struct voting_results) *
-            dap_list_length(l_voting->voting_params.option_offsets_list));
-    if(!l_results){
-        return NULL;
-    }
-    dap_list_t* l_list_tmp = l_voting->voting_params.option_offsets_list;
-    while(l_list_tmp){
-        dap_chain_net_vote_t *l_vote = l_list_tmp->data;
-        l_results[l_vote->answer_idx].num_of_votes++;
-        SUM_256_256(l_results[l_vote->answer_idx].weights, l_vote->weight, &l_results[l_vote->answer_idx].weights);
-        l_list_tmp = l_list_tmp->next;
-    }
-
-    l_info->question.question_size = l_voting->voting_params.voting_question_length;
-    l_info->question.question_str = (char*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.voting_question_offset);
-    l_info->hash = l_voting_hash;
-
-    l_info->is_expired = l_voting->voting_params.voting_expire_offset;
-    if(l_voting->voting_params.voting_expire_offset){
-        l_info->expired = *(dap_time_t*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.voting_expire_offset);
-    }
-    l_info->is_max_count_votes = l_voting->voting_params.votes_max_count_offset;
-    if (l_voting->voting_params.votes_max_count_offset){
-        l_info->max_count_votes = *(uint64_t*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.votes_max_count_offset);
-    }
-    l_info->is_changing_allowed = l_voting->voting_params.vote_changing_allowed_offset;
-    l_info->is_delegate_key_required = l_voting->voting_params.delegate_key_required_offset;
-    l_info->options.count_option = dap_list_length(l_voting->voting_params.option_offsets_list);
-    dap_chain_net_vote_info_option_t l_options[l_info->options.count_option] = {};
-    for (uint64_t i = 0; i < dap_list_length(l_voting->voting_params.option_offsets_list); i++){
-        dap_list_t* l_option = dap_list_nth(l_voting->voting_params.option_offsets_list, (uint64_t)i);
-        dap_chain_net_vote_option_t* l_vote_option = (dap_chain_net_vote_option_t*)l_option->data;
-        l_options[i].option_idx = i;
-        l_options[i].description_size = l_vote_option->vote_option_length;
-        l_options[i].description = (char*)((byte_t*)l_voting->voting_params.voting_tx + l_vote_option->vote_option_offset);
-        l_options[i].votes_count = l_results[i].num_of_votes;
-        l_options[i].weight = l_results[i].weights;
-    }
-    DAP_DELETE(l_results);
-    return l_info;
+    return s_dap_chain_net_vote_extract_info(l_voting);
 }
