@@ -29,26 +29,37 @@
 #include "dap_chain_wallet.h"
 
 
-typedef struct dap_chain_net_voting_result {
-    uint64_t answer_idx;
+//typedef struct dap_chain_net_vote_info_result {
+//    uint64_t answer_idx;
+//    uint64_t votes_count;
+//}dap_chain_net_vote_result_t;
+
+
+typedef struct dap_chain_net_vote_info_option{
+    uint64_t option_idx;
     uint64_t votes_count;
-} dap_chain_net_voting_result_t;
-
-typedef struct dap_chain_net_voting_params_offsets{
-    dap_chain_datum_tx_t* voting_tx;
-    size_t voting_question_offset;
-    size_t voting_question_length;
-    dap_list_t* option_offsets_list;
-    size_t voting_expire_offset;
-    size_t votes_max_count_offset;
-    size_t delegate_key_required_offset;
-    size_t vote_changing_allowed_offset;
-} dap_chain_net_voting_params_offsets_t;
-
-typedef struct dap_chain_net_voting{
-    dap_hash_fast_t hash_vote;
+    uint256_t weight;
+    uint64_t description_size;
+    char *description;
+}dap_chain_net_vote_info_option_t;
+typedef struct dap_chain_net_vote_info{
+    dap_hash_fast_t hash;
     dap_chain_net_id_t net_id;
-}dap_chain_net_voting_t;
+    bool is_expired;
+    dap_time_t expired;
+    bool is_max_count_votes;
+    uint64_t max_count_votes;
+    bool is_changing_allowed;
+    bool is_delegate_key_required;
+    struct {
+        size_t question_size;
+        char *question_str;
+    } question;
+    struct {
+        uint64_t count_option;
+        dap_chain_net_vote_info_option_t *options;
+    } options;
+}dap_chain_net_vote_info_t;
 
 int dap_chain_net_voting_init();
 
@@ -78,6 +89,7 @@ int dap_chain_net_vote_create(char *a_question, dap_list_t *a_options, dap_time_
                              dap_chain_net_t *a_net, char *a_hash_out_type, char **a_hash_output);
 
 dap_list_t *dap_chain_net_vote_list(dap_chain_net_t *a_net);
+dap_chain_net_vote_info_t *dap_chain_net_vote_extract_info(dap_chain_net_t *a_net, dap_hash_fast_t *a_vote_hash);
 
 /**
 dap_chain_net_voting_create_vote(...);
