@@ -103,7 +103,8 @@ static bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
             : NULL;
     if (!l_ticker)
         return false;
-    dap_chain_datum_dump_tx(a_datum, l_ticker, a_str_out, a_hash_out_type, a_tx_hash, a_ledger->net->pub.id);
+    json_object* datum_tx = dap_chain_datum_tx_to_json(a_datum);
+    json_object_array_add(json_arr_out, datum_tx);
     dap_list_t *l_out_items = dap_chain_datum_tx_items_get(a_datum, TX_ITEM_TYPE_OUT_ALL, NULL);
     int l_out_idx = 0;
     json_object * json_obj_datum = json_object_new_object();
@@ -1095,16 +1096,12 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
             }
             return 0;
         }
-        dap_string_t *l_str_ret = dap_string_new("");
-        dap_list_t *l_token_list = dap_ledger_token_info(l_ledger);
-        dap_string_append_printf(l_str_ret, "Found %lu tokens in %s ledger\n", dap_list_length(l_token_list), l_net_str);
-        for (dap_list_t *l_list = l_token_list; l_list; l_list = dap_list_next(l_list)) {
-            dap_string_append(l_str_ret, (char *)l_list->data);
+        json_object *json_obj_datum = dap_ledger_token_info(l_ledger);
+
+        if (json_obj_datum) {
+            json_object_array_add(*json_arr_reply, json_obj_datum);
         }
-        dap_list_free_full(l_token_list, NULL);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ret->str);
-        dap_string_free(l_str_ret, true);
-        return 0;
+       return 0;
     } else if (l_cmd == CMD_TX_INFO){
         //GET hash
         dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-hash", &l_tx_hash_str);

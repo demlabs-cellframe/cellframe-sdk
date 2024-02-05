@@ -230,7 +230,7 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_toke
 int dap_ledger_token_load(dap_ledger_t *a_ledger, byte_t *a_token, size_t a_token_size);
 int dap_ledger_token_decl_add_check(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_token, size_t a_token_size);
 char *dap_ledger_token_decl_add_err_code_to_str(int a_code);
-dap_list_t *dap_ledger_token_info(dap_ledger_t *a_ledger);
+json_object *dap_ledger_token_info(dap_ledger_t *a_ledger);
 
 // Get all token-declarations
 dap_list_t* dap_ledger_token_decl_all(dap_ledger_t *a_ledger);
