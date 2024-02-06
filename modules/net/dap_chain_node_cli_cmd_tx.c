@@ -1083,14 +1083,14 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
             return 0;
         }
         if (l_sub_cmd == SUB_CMD_LIST_LEDGER_THRESHOLD_WITH_HASH){
-            dap_string_t *json_obj_out = dap_ledger_threshold_hash_info(l_ledger, &l_tx_threshold_hash);
+            json_object *json_obj_out = dap_ledger_threshold_hash_info(l_ledger, &l_tx_threshold_hash);
             if (json_obj_out){
                 json_object_array_add(*json_arr_reply, json_obj_out);
             }
             return 0;
         }
         if (l_sub_cmd == SUB_CMD_LIST_LEDGER_BALANCE){
-            dap_string_t *json_obj_out = dap_ledger_balance_info(l_ledger);
+            json_object *json_obj_out = dap_ledger_balance_info(l_ledger);
             if (json_obj_out){
                 json_object_array_add(*json_arr_reply, json_obj_out);
             }
@@ -1138,8 +1138,6 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_HASH_ERR, "Can't find transaction hash %s in ledger", l_tx_hash_str);
             return DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_HASH_ERR;
         }
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str->str);
-        dap_string_free(l_str, true);
     }
     else{
         dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_LEDGER_PARAM_ERR, "Command 'ledger' requires parameter 'list' or 'tx' or 'info'", l_tx_hash_str);

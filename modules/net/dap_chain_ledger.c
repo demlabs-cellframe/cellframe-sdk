@@ -1917,7 +1917,7 @@ json_object *dap_ledger_threshold_hash_info(dap_ledger_t *a_ledger, dap_chain_ha
     return json_arr_out;
 }
 
-dap_string_t *dap_ledger_balance_info(dap_ledger_t *a_ledger)
+json_object *dap_ledger_balance_info(dap_ledger_t *a_ledger)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     json_object * json_arr_out = json_object_new_array();
@@ -2018,10 +2018,12 @@ dap_list_t * dap_ledger_token_auth_pkeys_hashes(dap_ledger_t *a_ledger, const ch
  */
 json_object *dap_ledger_token_info(dap_ledger_t *a_ledger)
 {
-    json_object * json_obj_datum = json_object_new_object();
+    json_object * json_obj_datum;
+    json_object * json_arr_out = json_object_new_array();
     dap_ledger_token_item_t *l_token_item, *l_tmp_item;
     pthread_rwlock_rdlock(&PVT(a_ledger)->tokens_rwlock);
     HASH_ITER(hh, PVT(a_ledger)->tokens, l_token_item, l_tmp_item) {
+        json_obj_datum = json_object_new_object();
         const char *l_type_str;
         const char *l_flags_str = s_flag_str_from_code(l_token_item->datum_token->header_private_decl.flags);
         switch (l_token_item->type) {
@@ -2068,12 +2070,14 @@ json_object *dap_ledger_token_info(dap_ledger_t *a_ledger)
             json_object_object_add(json_obj_datum, "Decimals:", json_object_new_string("18"));
             json_object_object_add(json_obj_datum, "Auth signs valid:", json_object_new_int(l_token_item->auth_signs_valid));
             json_object_object_add(json_obj_datum, "Auth signs total:", json_object_new_int(l_token_item->auth_signs_total));
-            json_object_object_add(json_obj_datum, "TSD and Signs:", json_object_new_string("empty"));
+            json_object_object_add(json_obj_datum, "TSD and Signs:", json_object_new_string("--V"));
             s_datum_token_dump_tsd_to_json(json_obj_datum, l_token_item->datum_token, l_token_item->datum_token_size, "hex");
             size_t l_certs_field_size = l_token_item->datum_token_size - sizeof(*l_token_item->datum_token) - l_token_item->datum_token->header_native_decl.tsd_total_size;
             dap_chain_datum_token_certs_dump_to_json(json_obj_datum, l_token_item->datum_token->data_n_tsd + l_token_item->datum_token->header_native_decl.tsd_total_size,
-                                                     l_certs_field_size, "hex");
+                                                    l_certs_field_size, "hex");
+            json_object_object_add(json_obj_datum, "and TSD and Signs:", json_object_new_string("--^"));
             json_object_object_add(json_obj_datum, "Total emissions:", json_object_new_int(HASH_COUNT(l_token_item->token_emissions)));
+            json_object_array_add(json_arr_out, json_obj_datum);
             DAP_DEL_Z(l_balance_cur);
             DAP_DEL_Z(l_balance_total);
         } else {
@@ -2091,13 +2095,13 @@ json_object *dap_ledger_token_info(dap_ledger_t *a_ledger)
                 dap_chain_datum_token_certs_dump_to_json(json_obj_datum, l_token_item->datum_token->data_n_tsd,
                                                          l_certs_field_size, "hex");
                 json_object_object_add(json_obj_datum, "Total emissions:", json_object_new_int(HASH_COUNT(l_token_item->token_emissions)));
-
+                json_object_array_add(json_arr_out, json_obj_datum);
                 DAP_DEL_Z(l_balance_cur);
                 DAP_DEL_Z(l_balance_total);
         }
     }
     pthread_rwlock_unlock(&PVT(a_ledger)->tokens_rwlock);
-    return json_obj_datum;
+    return json_arr_out;
 }
 
 /**
