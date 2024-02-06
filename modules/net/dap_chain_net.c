@@ -248,6 +248,7 @@ static const dap_chain_node_client_callbacks_t s_node_link_callbacks = {
 
 static bool s_link_manager_connected_callback(void *a_arg);
 static bool s_link_manager_update_callback(void *a_arg);
+dap_list_t *s_link_manager_get_node_list(const char *l_net_name);
 
 static const dap_link_manager_callbacks_t s_link_manager_callbacks = {
     .connected      = NULL,
@@ -255,7 +256,8 @@ static const dap_link_manager_callbacks_t s_link_manager_callbacks = {
     .delete         = NULL,
     .update         = NULL,
     .delete         = NULL,
-    .error          = NULL
+    .error          = NULL,
+    .get_node_list = s_link_manager_get_node_list
 };
 
 // State machine switchs here
@@ -2626,6 +2628,10 @@ int dap_chain_net_add_poa_certs_to_cluster(dap_chain_net_t *a_net, dap_global_db
         dap_stream_node_addr_t l_poa_addr = dap_stream_node_addr_from_pkey(l_pkey);
         dap_global_db_cluster_member_add(a_cluster, &l_poa_addr, DAP_GDB_MEMBER_ROLE_ROOT);
     }
+    if (a_cluster->links_cluster->role == DAP_CLUSTER_ROLE_AUTONOMIC || a_cluster->links_cluster->role == DAP_CLUSTER_ROLE_ISOLATED) {
+            dap_chain_node_addr_t l_poa_addr = {0xDDDD, 0000, 0000, 0000};
+            dap_global_db_cluster_member_add(a_cluster, &l_poa_addr, DAP_GDB_MEMBER_ROLE_ROOT);
+    }
     return 0;
 }
 
@@ -2856,7 +2862,7 @@ dap_chain_cell_id_t * dap_chain_net_get_cur_cell( dap_chain_net_t * l_net)
 /**
  * Get remote nodes list (list of dap_chain_node_addr_t struct)
  */
-dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t * l_net)
+dap_list_t* dap_chain_net_get_node_list(dap_chain_net_t *l_net)
 {
     dap_list_t *l_node_list = NULL;
 
@@ -3262,3 +3268,30 @@ int dap_chain_net_link_manager_init()
     return dap_link_manager_init(&s_link_manager_callbacks);
 }
 
+dap_list_t *s_link_manager_get_node_list(const char *l_net_name)
+{
+    dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
+    dap_return_val_if_pass(!l_net, NULL);
+    dap_list_t *l_ret = NULL;
+
+    // get nodes list from global_db
+    size_t l_nodes_count = 0;
+    dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_net->pub.gdb_nodes, &l_nodes_count);
+    if(!l_nodes_count || !l_objs)
+        return l_ret;
+    for(size_t i = 0; i < l_nodes_count; i++) {
+        dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *) l_objs[i].value;
+        dap_link_t *l_link = DAP_NEW(dap_chain_node_addr_t);
+        if (!l_link) {
+            log_it(L_CRITICAL, "Memory allocation error");
+            return NULL;
+        }
+        l_link->addr.uint64 = l_node_info->hdr.address.uint64;
+        l_link->port = l_node_info->hdr.ext_port;
+        l_link->addr_v4.s_addr = l_node_info->hdr.ext_addr_v4.s_addr;
+        memcpy(&l_link->addr_v6, &l_node_info->hdr.ext_addr_v6, sizeof(l_node_info->hdr.ext_addr_v6));
+        l_ret = dap_list_append(l_ret, l_link);
+    }
+    dap_global_db_objs_delete(l_objs, l_nodes_count);
+    return l_ret;
+}
