@@ -243,7 +243,7 @@ static const dap_chain_node_client_callbacks_t s_node_link_callbacks = {
 };
 
 // State machine switchs here
-static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg);
+static bool s_net_states_proc(void *a_arg);
 
 struct json_object *s_net_states_json_collect(dap_chain_net_t * l_net);
 
@@ -381,7 +381,7 @@ int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_n
     }
     if (PVT(a_net)->state != NET_STATE_OFFLINE){
         PVT(a_net)->state = PVT(a_net)->state_target = NET_STATE_OFFLINE;
-        s_net_states_proc(NULL, a_net);
+        s_net_states_proc(a_net);
     }
     PVT(a_net)->state_target = a_new_state;
     //PVT(a_net)->flags |= F_DAP_CHAIN_NET_SYNC_FROM_ZERO;  // TODO set this flag according to -mode argument from command line
@@ -1070,9 +1070,8 @@ static void s_net_states_notify(dap_chain_net_t *a_net)
  * @brief s_net_states_proc
  * @param l_net
  */
-static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
+static bool s_net_states_proc(void *a_arg)
 {
-    UNUSED(a_thread);
     bool l_repeat_after_exit = false; // If true - repeat on next iteration of proc thread loop
     dap_chain_net_t *l_net = (dap_chain_net_t *) a_arg;
     assert(l_net);
@@ -2036,7 +2035,7 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
 {
     // Synchronously going to offline state
     PVT(a_net)->state = PVT(a_net)->state_target = NET_STATE_OFFLINE;
-    s_net_states_proc(NULL, a_net);
+    s_net_states_proc(a_net);
     dap_chain_net_item_t *l_net_item;
     HASH_FIND(hh, s_net_items, a_net->pub.name, strlen(a_net->pub.name), l_net_item);
     if (l_net_item) {

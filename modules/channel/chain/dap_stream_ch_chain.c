@@ -105,15 +105,15 @@ static void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg);
 static void s_stream_ch_io_complete(dap_events_socket_t *a_es, void *a_arg, int a_errno);
 static void s_stream_ch_write_error_unsafe(dap_stream_ch_t *a_ch, uint64_t a_net_id, uint64_t a_chain_id, uint64_t a_cell_id, const char * a_err_string);
 
-static bool s_sync_out_chains_proc_callback(dap_proc_thread_t *a_thread, void *a_arg);
+static bool s_sync_out_chains_proc_callback(void *a_arg);
 static void s_sync_out_chains_last_worker_callback(dap_worker_t *a_worker, void *a_arg);
 static void s_sync_out_chains_first_worker_callback(dap_worker_t *a_worker, void *a_arg);
 
-static bool s_sync_out_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_arg);
+static bool s_sync_out_gdb_proc_callback(void *a_arg);
 
-static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg);
+static bool s_sync_in_chains_callback(void *a_arg);
 
-static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg);
+static bool s_gdb_in_pkt_proc_callback(void *a_arg);
 static bool s_gdb_in_pkt_proc_set_raw_callback(dap_global_db_instance_t *a_dbi,
                                                int a_rc, const char *a_group,
                                                const size_t a_values_total, const size_t a_values_count,
@@ -331,7 +331,7 @@ static void s_sync_out_chains_last_worker_callback(dap_worker_t *a_worker, void 
  * @param a_arg
  * @return
  */
-static bool s_sync_out_chains_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
+static bool s_sync_out_chains_proc_callback(void *a_arg)
 {
     struct sync_request * l_sync_request = (struct sync_request *) a_arg;
 
@@ -445,7 +445,7 @@ static void s_sync_out_gdb_last_worker_callback(dap_worker_t *a_worker, void *a_
  * @param a_arg
  * @return
  */
-static bool s_sync_out_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
+static bool s_sync_out_gdb_proc_callback(void *a_arg)
 {
     /*
     struct sync_request *l_sync_request = (struct sync_request *)a_arg;
@@ -503,7 +503,7 @@ static void s_sync_update_gdb_start_worker_callback(dap_worker_t *a_worker, void
     DAP_DELETE(l_sync_request);
 }
 
-static bool s_sync_update_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
+static bool s_sync_update_gdb_proc_callback(void *a_arg)
 {
     /*
     struct sync_request *l_sync_request = (struct sync_request *)a_arg;
@@ -548,9 +548,8 @@ static bool s_sync_update_gdb_proc_callback(dap_proc_thread_t *a_thread, void *a
  * @param a_arg void
  * @return
  */
-static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
+static bool s_sync_in_chains_callback(void *a_arg)
 {
-    UNUSED(a_thread);
     struct sync_request *l_sync_request = (struct sync_request *) a_arg;
     if (!l_sync_request) {
         log_it(L_CRITICAL, "Proc thread received corrupted chain packet!");
@@ -697,7 +696,7 @@ static void s_gdb_sync_tsd_worker_callback(dap_worker_t *a_worker, void *a_arg)
  * @param a_arg
  * @return
  */
-static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
+static bool s_gdb_in_pkt_proc_callback(void *a_arg)
 {
     return true;
 }
