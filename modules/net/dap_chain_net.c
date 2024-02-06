@@ -574,7 +574,7 @@ static void s_fill_links_from_root_aliases(dap_chain_net_t * a_net)
 {
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     for (size_t i = 0; i < l_net_pvt->seed_nodes_count; i++) {
-        dap_chain_node_info_t l_link_node_info;
+        dap_chain_node_info_t l_link_node_info = {};
         l_link_node_info.hdr.ext_addr_v4 = l_net_pvt->seed_nodes_ipv4[i].sin_addr;
         l_link_node_info.hdr.ext_port = l_net_pvt->seed_nodes_ipv4[i].sin_port;
         if (s_net_link_add(a_net, &l_link_node_info) > 0)    // Maximum links count reached
