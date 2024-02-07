@@ -72,7 +72,6 @@ else()
   set(OPT_FLAGS_RELEASE "-Ofast")
 endif()
 
-
 # Check if we're on FreeBSD so we can exclude the local miniupnpc (it should be installed from ports instead)
 # CMAKE_SYSTEM_NAME checks are commonly known, but specifically taken from libsdl's CMakeLists
 if(CMAKE_SYSTEM_NAME MATCHES "kFreeBSD.*|FreeBSD")
@@ -114,8 +113,8 @@ else()
     elseif(PPC64LE)
       set(ARCH_FLAG "-mcpu=${ARCH}")
     elseif(IOS AND ARCH STREQUAL "arm64")
-      message(STATUS "IOS: Changing arch from arm64 to armv8")
-      set(ARCH_FLAG "-march=armv8")
+      message(STATUS "IOS: Changing arch from arm64 to armv8-a")
+      set(ARCH_FLAG "-march=armv8-a")
     else()
       set(ARCH_FLAG "-march=${ARCH}")
     endif()
@@ -157,7 +156,6 @@ else()
       set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-strict-aliasing")
 
       option(NO_AES "[!] Explicitly disable AES support" ${NO_AES})
-
       if(NO_AES)
         message(STATUS "[!] AES support explicitly disabled")
         set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DNO_AES")
@@ -262,7 +260,6 @@ else()
              set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -mfix-cortex-a53-843419")
            endif()
          endif(ARM8)
-
        endif(ARM)
        if(ANDROID AND NOT BUILD_GUI_DEPS STREQUAL "ON" OR IOS)
          #From Android 5: "only position independent executables (PIE) are supported"
@@ -386,7 +383,9 @@ endif()
 
 add_library(${PROJECT_NAME} STATIC ${monero_crypto_sources})
 target_include_directories(${PROJECT_NAME} INTERFACE .)
-
+if(IOS)
+    target_compile_options(${PROJECT_NAME} PRIVATE -maes)
+endif()
 
 set(${PROJECT_NAME}_DEFINITIONS CACHE INTERNAL "${PROJECT_NAME}: Definitions" FORCE)
 
