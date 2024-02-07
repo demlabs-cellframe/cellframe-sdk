@@ -2090,16 +2090,12 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 uint256_t l_network_fee = {};
                 dap_chain_addr_t l_network_fee_addr = {};
                 dap_chain_net_tx_get_fee(l_net->pub.id, &l_network_fee, &l_network_fee_addr);
-                char *l_network_fee_balance_str = dap_chain_balance_print(l_network_fee);
-                char *l_network_fee_coins_str = dap_chain_balance_to_coins(l_network_fee);
-                char *l_network_fee_addr_str = dap_chain_addr_to_str(&l_network_fee_addr);
                 dap_string_append_printf(l_str, "Fees on %s network:\n"
                                                 "\t Network: %s (%s) %s Addr: %s\n",
-                                                  l_net->pub.name, l_network_fee_coins_str, l_network_fee_balance_str,
-                                                  l_net->pub.native_ticker, l_network_fee_addr_str);
-                DAP_DELETE(l_network_fee_coins_str);
-                DAP_DELETE(l_network_fee_balance_str);
-                DAP_DELETE(l_network_fee_addr_str);
+                                         l_net->pub.name,
+                                         dap_chain_balance_to_coins(l_network_fee),
+                                         dap_chain_balance_print(l_network_fee),
+                                         l_net->pub.native_ticker, dap_chain_addr_to_str(&l_network_fee_addr));
 
                 //Get validators fee
                 dap_chain_net_srv_stake_get_fee_validators_str(l_net, l_str);

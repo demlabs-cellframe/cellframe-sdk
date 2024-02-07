@@ -246,70 +246,62 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
     dap_chain_tx_in_t *l_in_item = (dap_chain_tx_in_t *)dap_chain_datum_tx_item_get(a_datum, NULL, TX_ITEM_TYPE_IN, NULL);
     if (l_in_item && dap_hash_fast_is_blank(&l_in_item->header.tx_prev_hash))
         l_is_first = true;
-    char l_tmp_buf[70];
-    char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-            ? dap_enc_base58_encode_hash_to_str(a_tx_hash)
-            : dap_chain_hash_fast_to_str_new(a_tx_hash);
-    dap_string_append_printf(a_str_out, "transaction:%s hash %s\n TS Created: %s%s%s\n Items:\n",
-                              l_is_first ? " (emit)" : "", l_hash_str, dap_ctime_r(&l_ts_create, l_tmp_buf),
-                              a_ticker ? " Token ticker: " : "", a_ticker ? a_ticker : "");
-    DAP_DELETE(l_hash_str);
+    char l_hash_str[DAP_HASH_FAST_STR_SIZE], l_time_buf[70];
+    {
+        dap_strcmp(a_hash_out_type, "hex")
+                ? (int)dap_enc_base58_encode(a_tx_hash, sizeof(*a_tx_hash), l_hash_str)
+                : dap_chain_hash_fast_to_str(a_tx_hash, l_hash_str, sizeof(l_hash_str));
+        dap_string_append_printf(a_str_out, "transaction:%s hash %s\n TS Created: %s%s%s\n Items:\n",
+                                 l_is_first ? " (emit)" : "", l_hash_str, dap_ctime_r(&l_ts_create, l_time_buf),
+                                 a_ticker ? " Token ticker: " : "", a_ticker ? a_ticker : "");
+    }
     uint32_t l_tx_items_count = 0;
     uint32_t l_tx_items_size = a_datum->header.tx_items_size;
     dap_sign_t *l_sign_tmp;
-    dap_hash_fast_t *l_hash_tmp = NULL;
+    dap_hash_fast_t l_hash_tmp = { };
+    dap_chain_addr_t l_node_addr = { };
     dap_pkey_t *l_pkey_tmp;
     while (l_tx_items_count < l_tx_items_size) {
         uint8_t *item = a_datum->tx_items + l_tx_items_count;
         size_t l_item_tx_size = dap_chain_datum_item_tx_get_size(item);
         switch(dap_chain_datum_tx_item_get_type(item)){
         case TX_ITEM_TYPE_IN:
-            l_hash_tmp = &((dap_chain_tx_in_t*)item)->header.tx_prev_hash;
-            if (dap_hash_fast_is_blank(l_hash_tmp)) {
-                l_hash_str = dap_strdup("BLANK");
+            l_hash_tmp = ((dap_chain_tx_in_t*)item)->header.tx_prev_hash;
+            if (dap_hash_fast_is_blank(&l_hash_tmp)) {
+                dap_snprintf(l_hash_str, 5, "BLANK");
             } else {
-                l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                        ? dap_enc_base58_encode_hash_to_str(l_hash_tmp)
-                        : dap_chain_hash_fast_to_str_new(l_hash_tmp);
+                dap_strcmp(a_hash_out_type, "hex")
+                        ? (int)dap_enc_base58_encode(&l_hash_tmp, sizeof(l_hash_tmp), l_hash_str)
+                        : dap_chain_hash_fast_to_str(&l_hash_tmp, l_hash_str, sizeof(l_hash_str));
             }
             dap_string_append_printf(a_str_out, "\t IN:\nTx_prev_hash: %s\n"
                                                 "\t\t Tx_out_prev_idx: %u\n",
                                         l_hash_str,
                                         ((dap_chain_tx_in_t*)item)->header.tx_out_prev_idx);
-            DAP_DELETE(l_hash_str);
             break;
         case TX_ITEM_TYPE_OUT_OLD: {
-            char *l_value_str = dap_chain_balance_to_coins(dap_chain_uint256_from(
-                                                               ((dap_chain_tx_out_old_t*)item)->header.value));
-            char *l_addr_str = dap_chain_addr_to_str(&((dap_chain_tx_out_old_t*)item)->addr);
+            l_node_addr = ((dap_chain_tx_out_old_t*)item)->addr;
             dap_string_append_printf(a_str_out, "\t OUT OLD (64):\n"
                                                 "\t\t Value: %s (%"DAP_UINT64_FORMAT_U")\n"
                                                 "\t\t Address: %s\n",
-                                        l_value_str,
-                                        ((dap_chain_tx_out_old_t*)item)->header.value,
-                                        l_addr_str);
-            DAP_DELETE(l_value_str);
-            DAP_DELETE(l_addr_str);
+                                     dap_chain_balance_to_coins(dap_chain_uint256_from(((dap_chain_tx_out_old_t*)item)->header.value)),
+                                     ((dap_chain_tx_out_old_t*)item)->header.value,
+                                     dap_chain_addr_to_str(&l_node_addr));
         } break;
         case TX_ITEM_TYPE_OUT: { // 256
-            char *l_value_str = dap_chain_balance_print(((dap_chain_tx_out_t*)item)->header.value);
-            char *l_coins_str = dap_chain_balance_to_coins(((dap_chain_tx_out_t*)item)->header.value);
-            char *l_addr_str = dap_chain_addr_to_str(&((dap_chain_tx_out_t*)item)->addr);
+            l_node_addr = ((dap_chain_tx_out_t*)item)->addr;
             dap_string_append_printf(a_str_out, "\t OUT:\n"
                                                 "\t\t Value: %s (%s)\n"
                                                 "\t\t Address: %s\n",
-                                        l_coins_str,
-                                        l_value_str,
-                                        l_addr_str);
-            DAP_DELETE(l_value_str);
-            DAP_DELETE(l_coins_str);
-            DAP_DELETE(l_addr_str);
+                                        dap_chain_balance_to_coins(((dap_chain_tx_out_t*)item)->header.value),
+                                        dap_chain_balance_print(((dap_chain_tx_out_t*)item)->header.value),
+                                        dap_chain_addr_to_str(&l_node_addr));
         } break;
         case TX_ITEM_TYPE_IN_EMS: {
-            l_hash_tmp = &((dap_chain_tx_in_ems_t*)item)->header.token_emission_hash;
-            l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                    ? dap_enc_base58_encode_hash_to_str(l_hash_tmp)
-                    : dap_chain_hash_fast_to_str_new(l_hash_tmp);
+            l_hash_tmp = ((dap_chain_tx_in_ems_t*)item)->header.token_emission_hash;
+            dap_strcmp(a_hash_out_type, "hex")
+                    ? (int)dap_enc_base58_encode(&l_hash_tmp, sizeof(l_hash_tmp), l_hash_str)
+                    : dap_chain_hash_fast_to_str(&l_hash_tmp, l_hash_str, sizeof(l_hash_str));
             dap_string_append_printf(a_str_out, "\t IN_EMS:\n"
                                                 "\t\t ticker: %s \n"
                                                 "\t\t token_emission_hash: %s\n"
@@ -317,13 +309,12 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                                 ((dap_chain_tx_in_ems_t*)item)->header.ticker,
                                                 l_hash_str,
                                                 ((dap_chain_tx_in_ems_t*)item)->header.token_emission_chain_id.uint64);
-            DAP_DELETE(l_hash_str);
         } break;
             /*
         case TX_ITEM_TYPE_IN_EMS_EXT: {
             l_hash_tmp = &((dap_chain_tx_in_ems_ext_t*)item)->header.ext_tx_hash;
             l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                    ? dap_enc_base58_encode_hash_to_str(l_hash_tmp)
+                    ? (int)dap_enc_base58_encode_hash_to_str(l_hash_tmp)
                     : dap_chain_hash_fast_to_str_new(l_hash_tmp);
             dap_string_append_printf(a_str_out, "\t IN_EMS EXT:\n"
                                          "\t\t Version: %u\n"
@@ -342,14 +333,13 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
         } break; */
 
         case TX_ITEM_TYPE_IN_REWARD: {
-            l_hash_tmp = &((dap_chain_tx_in_reward_t *)item)->block_hash;
-            l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                    ? dap_enc_base58_encode_hash_to_str(l_hash_tmp)
-                    : dap_chain_hash_fast_to_str_new(l_hash_tmp);
+            l_hash_tmp = ((dap_chain_tx_in_reward_t *)item)->block_hash;
+            dap_strcmp(a_hash_out_type, "hex")
+                    ? (int)dap_enc_base58_encode(&l_hash_tmp, sizeof(l_hash_tmp), l_hash_str)
+                    : dap_chain_hash_fast_to_str(&l_hash_tmp, l_hash_str, sizeof(l_hash_str));
             dap_string_append_printf(a_str_out, "\t IN_REWARD:\n"
                                                 "\t\t block_hash: %s\n",
                                                 l_hash_str);
-            DAP_DELETE(l_hash_str);
         } break;
 
         case TX_ITEM_TYPE_SIG: {
@@ -357,15 +347,9 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
             dap_sign_get_information(l_sign_tmp, a_str_out, a_hash_out_type);
             dap_chain_addr_t l_sender_addr;
             dap_chain_addr_fill_from_sign(&l_sender_addr, l_sign_tmp, a_net_id);
-            const char *l_addr_str = dap_chain_addr_to_str(&l_sender_addr);
-            dap_string_append_printf(a_str_out, "\tSender addr: %s\n", l_addr_str);
-            DAP_DELETE(l_addr_str);
+            dap_string_append_printf(a_str_out, "\tSender addr: %s\n", dap_chain_addr_to_str(&l_sender_addr));
         } break;
         case TX_ITEM_TYPE_RECEIPT: {
-            char *l_value_str = dap_chain_balance_print(
-                        ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.value_datoshi);
-            char *l_coins_str = dap_chain_balance_to_coins(
-                        ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.value_datoshi);
             dap_string_append_printf(a_str_out, "\t Receipt:\n"
                                                 "\t\t size: %"DAP_UINT64_FORMAT_U"\n"
                                                 "\t\t ext size: %"DAP_UINT64_FORMAT_U"\n"
@@ -379,14 +363,12 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                      ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.units,
                                      ((dap_chain_datum_tx_receipt_t*)item)->receipt_info.srv_uid.uint64,
                                      dap_chain_srv_unit_enum_to_str(((dap_chain_datum_tx_receipt_t*)item)->receipt_info.units_type.enm),
-                                     l_coins_str,
-                                     l_value_str);
+                                     dap_chain_balance_to_coins(((dap_chain_datum_tx_receipt_t*)item)->receipt_info.value_datoshi),
+                                     dap_chain_balance_print(((dap_chain_datum_tx_receipt_t*)item)->receipt_info.value_datoshi));
             if (((dap_chain_datum_tx_receipt_t*)item)->exts_size == sizeof(dap_sign_t) + sizeof(dap_sign_t)){
                 dap_sign_t *l_provider = DAP_NEW_Z(dap_sign_t);
                 if (!l_provider) {
                     log_it(L_CRITICAL, "Memory allocation error");
-                    DAP_DELETE(l_value_str);
-                    DAP_DELETE(l_coins_str);
                     return false;
                 }
                 memcpy(l_provider, ((dap_chain_datum_tx_receipt_t*)item)->exts_n_signs, sizeof(dap_sign_t));
@@ -394,8 +376,6 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                 if (!l_client) {
                     log_it(L_CRITICAL, "Memory allocation error");
                     DAP_DEL_Z(l_provider);
-                    DAP_DELETE(l_value_str);
-                    DAP_DELETE(l_coins_str);
                     return false;
                 }
                 memcpy(l_client,
@@ -410,8 +390,6 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                 dap_sign_t *l_provider = DAP_NEW_Z(dap_sign_t);
                 if (!l_provider) {
                     log_it(L_CRITICAL, "Memory allocation error");
-                    DAP_DELETE(l_value_str);
-                    DAP_DELETE(l_coins_str);
                     return false;
                 }
                 memcpy(l_provider, ((dap_chain_datum_tx_receipt_t*)item)->exts_n_signs, sizeof(dap_sign_t));
@@ -419,16 +397,13 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                                     "   Provider:\n");
                 dap_sign_get_information(l_provider, a_str_out, a_hash_out_type);
             }
-            DAP_DELETE(l_value_str);
-            DAP_DELETE(l_coins_str);
         } break;
         case TX_ITEM_TYPE_PKEY: {
             l_pkey_tmp = (dap_pkey_t*)((dap_chain_tx_pkey_t*)item)->pkey;
-            dap_chain_hash_fast_t l_pkey_hash_tmp;
-            dap_hash_fast(l_pkey_tmp->pkey, l_pkey_tmp->header.size, &l_pkey_hash_tmp);
-            l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                    ? dap_enc_base58_encode_hash_to_str(&l_pkey_hash_tmp)
-                    : dap_chain_hash_fast_to_str_new(&l_pkey_hash_tmp);
+            dap_hash_fast(l_pkey_tmp->pkey, l_pkey_tmp->header.size, &l_hash_tmp);
+            dap_strcmp(a_hash_out_type, "hex")
+                    ? (int)dap_enc_base58_encode(&l_hash_tmp, sizeof(l_hash_tmp), l_hash_str)
+                    : dap_chain_hash_fast_to_str(&l_hash_tmp, l_hash_str, sizeof(l_hash_str));
             dap_string_append_printf(a_str_out, "\t PKey: \n"
                                                 "\t\t SIG type: %s\n"
                                                 "\t\t SIG size: %u\n"
@@ -443,7 +418,6 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                      dap_pkey_type_to_str(l_pkey_tmp->header.type),
                                      l_pkey_tmp->header.size,
                                      l_hash_str);
-            DAP_DELETE(l_hash_str);
         } break;
         case TX_ITEM_TYPE_TSD: {
             dap_string_append_printf(a_str_out, "\t TSD data: \n"
@@ -453,21 +427,18 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                      ((dap_chain_tx_tsd_t*)item)->header.size);
         } break;
         case TX_ITEM_TYPE_IN_COND:
-            l_hash_tmp = &((dap_chain_tx_in_cond_t*)item)->header.tx_prev_hash;
-            l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                    ? dap_enc_base58_encode_hash_to_str(l_hash_tmp)
-                    : dap_chain_hash_fast_to_str_new(l_hash_tmp);
+            l_hash_tmp = ((dap_chain_tx_in_cond_t*)item)->header.tx_prev_hash;
+            dap_strcmp(a_hash_out_type, "hex")
+                    ? (int)dap_enc_base58_encode(&l_hash_tmp, sizeof(l_hash_tmp), l_hash_str)
+                    : dap_chain_hash_fast_to_str(&l_hash_tmp, l_hash_str, sizeof(l_hash_str));
             dap_string_append_printf(a_str_out, "\t IN COND:\n\t\tReceipt_idx: %u\n"
                                                 "\t\t Tx_prev_hash: %s\n"
                                                 "\t\t Tx_out_prev_idx: %u\n",
                                      ((dap_chain_tx_in_cond_t*)item)->header.receipt_idx,
                                      l_hash_str,
                                      ((dap_chain_tx_in_cond_t*)item)->header.tx_out_prev_idx);
-            DAP_DELETE(l_hash_str);
             break;
         case TX_ITEM_TYPE_OUT_COND: {
-            char *l_value_str = dap_chain_balance_print(((dap_chain_tx_out_cond_t*)item)->header.value);
-            char *l_coins_str = dap_chain_balance_to_coins(((dap_chain_tx_out_cond_t*)item)->header.value);
             dap_time_t l_ts_exp = ((dap_chain_tx_out_cond_t*)item)->header.ts_expires;
             dap_string_append_printf(a_str_out, "\t OUT COND:\n"
                                                 "\t Header:\n"
@@ -475,83 +446,65 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                                 "\t\t value: %s (%s)\n"
                                                 "\t\t subtype: %s\n"
                                                 "\t\t uid: 0x%016"DAP_UINT64_FORMAT_x"\n",
-                                     l_ts_exp ? dap_ctime_r(&l_ts_exp, l_tmp_buf) : "never\n",
-                                     l_coins_str, l_value_str,
+                                     l_ts_exp ? dap_ctime_r(&l_ts_exp, l_time_buf) : "never\n",
+                                     dap_chain_balance_to_coins(((dap_chain_tx_out_cond_t*)item)->header.value),
+                                     dap_chain_balance_print(((dap_chain_tx_out_cond_t*)item)->header.value),
                                      dap_chain_tx_out_cond_subtype_to_str(((dap_chain_tx_out_cond_t*)item)->header.subtype),
                                      ((dap_chain_tx_out_cond_t*)item)->header.srv_uid.uint64);
-            DAP_DELETE(l_value_str);
-            DAP_DELETE(l_coins_str);
             switch (((dap_chain_tx_out_cond_t*)item)->header.subtype) {
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY: {
-                    char *l_value_str = dap_chain_balance_print(((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit_price_max_datoshi);
-                    char *l_coins_str = dap_chain_balance_to_coins(((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit_price_max_datoshi);
-                    l_hash_tmp = &((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.pkey_hash;
-                    l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                            ? dap_enc_base58_encode_hash_to_str(l_hash_tmp)
-                            : dap_chain_hash_fast_to_str_new(l_hash_tmp);
+                    l_hash_tmp = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.pkey_hash;
+                    dap_strcmp(a_hash_out_type, "hex")
+                            ? (int)dap_enc_base58_encode(&l_hash_tmp, sizeof(l_hash_tmp), l_hash_str)
+                            : dap_chain_hash_fast_to_str(&l_hash_tmp, l_hash_str, sizeof(l_hash_str));
                     dap_string_append_printf(a_str_out, "\t\t\t unit: 0x%08x\n"
                                                         "\t\t\t pkey: %s\n"
                                                         "\t\t\t max price: %s (%s)\n",
                                              ((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit.uint32,
                                              l_hash_str,
-                                             l_coins_str,
-                                             l_value_str);
-                    DAP_DELETE(l_hash_str);
-                    DAP_DELETE(l_value_str);
-                    DAP_DELETE(l_coins_str);
+                                             dap_chain_balance_to_coins(((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit_price_max_datoshi),
+                                             dap_chain_balance_print(((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit_price_max_datoshi));
                 } break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE: {
-                    dap_chain_node_addr_t *l_signer_node_addr = &((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_pos_delegate.signer_node_addr;
-                    dap_chain_addr_t *l_signing_addr = &((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_pos_delegate.signing_addr;
-                    char *l_addr_str = dap_chain_addr_to_str(l_signing_addr);
-                    l_hash_tmp = &l_signing_addr->data.hash_fast;
-                    l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                            ? dap_enc_base58_encode_hash_to_str(l_hash_tmp)
-                            : dap_chain_hash_fast_to_str_new(l_hash_tmp);
+                    dap_chain_node_addr_t l_signer_node_addr = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_pos_delegate.signer_node_addr;
+                    dap_chain_addr_t l_signing_addr = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_pos_delegate.signing_addr;
+                    l_hash_tmp = l_signing_addr.data.hash_fast;
+                    dap_strcmp(a_hash_out_type, "hex")
+                            ? (int)dap_enc_base58_encode(&l_hash_tmp, sizeof(l_hash_tmp), l_hash_str)
+                            : dap_chain_hash_fast_to_str(&l_hash_tmp, l_hash_str, sizeof(l_hash_str));
                     dap_string_append_printf(a_str_out, "\t\t\t signing_addr: %s\n"
                                                         "\t\t\t with pkey hash %s\n"
                                                         "\t\t\t signer_node_addr: "NODE_ADDR_FP_STR"\n",
-                                                        l_addr_str,
+                                                        dap_chain_addr_to_str(&l_signing_addr),
                                                         l_hash_str,
-                                                        NODE_ADDR_FP_ARGS(l_signer_node_addr));
-                    DAP_DELETE(l_addr_str);
-                    DAP_DELETE(l_hash_str);
+                                                        NODE_ADDR_FP_ARGS_S(l_signer_node_addr));
                 } break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE: {
-//                    char *l_value_str = dap_chain_balance_print(((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_value);
-                    char *l_rate_str = dap_chain_balance_to_coins(((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.rate);
                     dap_string_append_printf(a_str_out, "\t\t\t net id: 0x%016"DAP_UINT64_FORMAT_x"\n"
                                                         "\t\t\t buy_token: %s\n"
                                                         "\t\t\t rate: %s \n",
                                              ((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_net_id.uint64,
                                              ((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.buy_token,
-                                             l_rate_str);
-//                    DAP_DELETE(l_value_str);
-//                    DAP_DELETE(l_coins_str);
+                                             dap_chain_balance_to_coins(((dap_chain_tx_out_cond_t*)item)->subtype.srv_xchange.rate));
                 } break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK: {
                     dap_time_t l_ts_exp = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_lock.time_unlock;
                     dap_string_append_printf(a_str_out, "\t\t\t time_unlock %s\n",
-                                             dap_ctime_r(&l_ts_exp, l_tmp_buf));
+                                             dap_ctime_r(&l_ts_exp, l_time_buf));
                 } break;
                 default: break;
             }
         } break;
         case TX_ITEM_TYPE_OUT_EXT: {
-            char *l_value_str = dap_chain_balance_print(((dap_chain_tx_out_ext_t*)item)->header.value);
-            char *l_coins_str = dap_chain_balance_to_coins(((dap_chain_tx_out_ext_t*)item)->header.value);
-            char *l_addr_str = dap_chain_addr_to_str(&((dap_chain_tx_out_ext_t*)item)->addr);
+            l_node_addr = ((dap_chain_tx_out_ext_t*)item)->addr;
             dap_string_append_printf(a_str_out, "\t OUT EXT:\n"
                                                 "\t\t Addr: %s\n"
                                                 "\t\t Token: %s\n"
                                                 "\t\t Value: %s (%s)\n",
-                                     l_addr_str,
+                                     dap_chain_addr_to_str(&l_node_addr),
                                      ((dap_chain_tx_out_ext_t*)item)->token,
-                                     l_coins_str,
-                                     l_value_str);
-            DAP_DELETE(l_addr_str);
-            DAP_DELETE(l_value_str);
-            DAP_DELETE(l_coins_str);
+                                     dap_chain_balance_to_coins(((dap_chain_tx_out_ext_t*)item)->header.value),
+                                     dap_chain_balance_print(((dap_chain_tx_out_ext_t*)item)->header.value));
         } break;
         case TX_ITEM_TYPE_VOTING:{
             int l_tsd_size = 0;
@@ -567,25 +520,23 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                 l_index++;
                 l_temp = l_temp->next;
             }
-
             if(l_voting_params->voting_expire)
-                dap_string_append_printf(a_str_out, "\t Voting expire: %s\n", dap_ctime_r(&l_voting_params->voting_expire, l_tmp_buf));
+                dap_string_append_printf(a_str_out, "\t Voting expire: %s\n", dap_ctime_r(&l_voting_params->voting_expire, l_time_buf));
             if (l_voting_params->votes_max_count)
                 dap_string_append_printf(a_str_out, "\t Votes max count: %"DAP_UINT64_FORMAT_U"\n", l_voting_params->votes_max_count);
             dap_string_append_printf(a_str_out, "\t Changing vote is %s available.\n", l_voting_params->vote_changing_allowed ? "" : "not");
             dap_string_append_printf(a_str_out, "\t A delegated key is%s required to participate in voting. \n", l_voting_params->delegate_key_required ? "" : " not");
-
             dap_list_free_full(l_voting_params->answers_list, NULL);
             DAP_DELETE(l_voting_params->voting_question);
             DAP_DELETE(l_voting_params);
         } break;
         case TX_ITEM_TYPE_VOTE:{
             dap_chain_tx_vote_t *l_vote_item = (dap_chain_tx_vote_t *)item;
-            char *l_hash_str = dap_chain_hash_fast_to_str_new(&l_vote_item->voting_hash);
+            dap_hash_fast_t l_vote_hash = ((dap_chain_tx_vote_t*)item)->voting_hash;
+            dap_chain_hash_fast_to_str(&l_vote_hash, l_hash_str, sizeof(l_hash_str));
             dap_string_append_printf(a_str_out, "\t VOTE: \n"
                                                 "\t Voting hash: %s\n"
                                                 "\t Vote answer idx: %"DAP_UINT64_FORMAT_U"\n", l_hash_str, l_vote_item->answer_idx);
-            DAP_DELETE(l_hash_str);
         } break;
         default:
             dap_string_append_printf(a_str_out, " This transaction have unknown item type \n");
@@ -620,9 +571,10 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
     }
     dap_hash_fast_t l_datum_hash;
     dap_hash_fast(a_datum->data, a_datum->header.data_size, &l_datum_hash);
-    char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-            ? dap_enc_base58_encode_hash_to_str(&l_datum_hash)
-            : dap_chain_hash_fast_to_str_new(&l_datum_hash);
+    char l_hash_str[DAP_HASH_FAST_STR_SIZE];
+    dap_strcmp(a_hash_out_type, "hex")
+            ? (int)dap_enc_base58_encode(&l_datum_hash, sizeof(l_datum_hash), l_hash_str)
+            : dap_chain_hash_fast_to_str(&l_datum_hash, l_hash_str, sizeof(l_hash_str));
     switch (a_datum->header.type_id) {
         case DAP_CHAIN_DATUM_TOKEN_DECL: {
             size_t l_token_size = a_datum->header.data_size;
@@ -643,44 +595,36 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
                     dap_string_append(a_str_out,"type: DECL\n");
                     switch (l_token->subtype) {
                         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE:{
-                            char *l_value_str = dap_chain_balance_print(l_token->total_supply);
                             dap_string_append(a_str_out,"subtype: PRIVATE\n");
                             dap_string_append_printf(a_str_out, "decimals: %d\n", l_token->header_private_decl.decimals);
                             dap_string_append_printf(a_str_out, "auth signs (valid/total) %u/%u\n", l_token->signs_valid, l_token->signs_total);
-                            dap_string_append_printf(a_str_out, "total_supply: %s\n", l_value_str);
+                            dap_string_append_printf(a_str_out, "total_supply: %s\n", dap_chain_balance_print(l_token->total_supply));
                             dap_string_append(a_str_out,"flags: ");
                             dap_chain_datum_token_flags_dump(a_str_out, l_token->header_private_update.flags);
                             s_datum_token_dump_tsd(a_str_out, l_token, l_token_size, a_hash_out_type);
                             size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_private_update.tsd_total_size;
                             dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd + l_token->header_private_update.tsd_total_size,
                                                              l_certs_field_size, a_hash_out_type);
-                            DAP_DEL_Z(l_value_str);
                         }break;
                         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE: {
-                            char *l_value_str = dap_chain_balance_print(l_token->total_supply);
                             dap_string_append(a_str_out, "subtype: CF20\n");
                             dap_string_append_printf(a_str_out, "decimals: %d\n", l_token->header_native_decl.decimals);
                             dap_string_append_printf(a_str_out, "auth signs (valid/total) %u/%u\n", l_token->signs_valid, l_token->signs_total);
-                            dap_string_append_printf(a_str_out, "total_supply: %s\n", l_value_str);
+                            dap_string_append_printf(a_str_out, "total_supply: %s\n", dap_chain_balance_print(l_token->total_supply));
                             dap_string_append(a_str_out, "flags: ");
                             dap_chain_datum_token_flags_dump(a_str_out, l_token->header_native_decl.flags);
                             s_datum_token_dump_tsd(a_str_out, l_token, l_token_size, a_hash_out_type);
                             size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_native_decl.tsd_total_size;
                             dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd + l_token->header_native_decl.tsd_total_size,
                                                              l_certs_field_size, a_hash_out_type);
-                            DAP_DEL_Z(l_value_str);
                         }break;
                         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PUBLIC: {
-                            char *l_premine_supply = dap_chain_balance_print(l_token->header_public.premine_supply);
                             dap_chain_addr_t l_premine_addr = l_token->header_public.premine_address;
-                            char *l_premine_addr_str = dap_chain_addr_to_str(&l_premine_addr);
                             dap_string_append(a_str_out, "subtype: PUBLIC\n");
-                            dap_string_append_printf(a_str_out, "premine_supply: %s", l_premine_supply);
-                            dap_string_append_printf(a_str_out, "premine_address: %s", l_premine_addr_str);
+                            dap_string_append_printf(a_str_out, "premine_supply: %s", dap_chain_balance_print(l_token->header_public.premine_supply));
+                            dap_string_append_printf(a_str_out, "premine_address: %s", dap_chain_addr_to_str(&l_premine_addr));
                             dap_string_append(a_str_out, "flags: ");
                             dap_chain_datum_token_flags_dump(a_str_out, l_token->header_public.flags);
-                            DAP_DELETE(l_premine_supply);
-                            DAP_DELETE(l_premine_addr_str);
                         }break;
                     }
                 }break;
@@ -688,32 +632,28 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
                     dap_string_append(a_str_out,"type: UPDATE\n");
                     switch (l_token->subtype) {
                         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_PRIVATE: {
-                            char *l_value_str = dap_chain_balance_print(l_token->total_supply);
                             dap_string_append(a_str_out,"subtype: PRIVATE\n");
                             dap_string_append_printf(a_str_out, "decimals: %d\n", l_token->header_private_decl.decimals);
                             dap_string_append_printf(a_str_out, "auth signs (valid/total) %u/%u\n", l_token->signs_valid, l_token->signs_total);
-                            dap_string_append_printf(a_str_out, "total_supply: %s\n", l_value_str);
+                            dap_string_append_printf(a_str_out, "total_supply: %s\n", dap_chain_balance_print(l_token->total_supply));
                             dap_string_append(a_str_out,"flags: ");
                             dap_chain_datum_token_flags_dump(a_str_out, l_token->header_private_update.flags);
                             s_datum_token_dump_tsd(a_str_out, l_token, l_token_size, a_hash_out_type);
                             size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_private_update.tsd_total_size;
                             dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd + l_token->header_private_update.tsd_total_size,
                                                              l_certs_field_size, a_hash_out_type);
-                            DAP_DEL_Z(l_value_str);
                         }break;
                         case DAP_CHAIN_DATUM_TOKEN_SUBTYPE_NATIVE: {
-                            char *l_value_str = dap_chain_balance_print(l_token->total_supply);
                             dap_string_append_printf(a_str_out,"subtype: CF20\n");
                             dap_string_append_printf(a_str_out, "decimals: %d\n", l_token->header_native_update.decimals);
                             dap_string_append_printf(a_str_out, "auth signs (valid/total) %u/%u\n", l_token->signs_valid, l_token->signs_total);
-                            dap_string_append_printf(a_str_out, "total_supply: %s\n", l_value_str);
+                            dap_string_append_printf(a_str_out, "total_supply: %s\n", dap_chain_balance_print(l_token->total_supply));
                             dap_string_append(a_str_out, "flags: ");
                             dap_chain_datum_token_flags_dump(a_str_out, l_token->header_native_update.flags);
                             s_datum_token_dump_tsd(a_str_out, l_token, l_token_size, a_hash_out_type);
                             size_t l_certs_field_size = l_token_size - sizeof(*l_token) - l_token->header_native_update.tsd_total_size;
                             dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd + l_token->header_native_update.tsd_total_size,
                                                              l_certs_field_size, a_hash_out_type);
-                            DAP_DEL_Z(l_value_str);
                         }break;
                     }
                 }break;
@@ -722,36 +662,29 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
                     break;
             }
             if (l_token->subtype == DAP_CHAIN_DATUM_TOKEN_SUBTYPE_SIMPLE ) {
-                char *l_value_str = dap_chain_balance_print(l_token->total_supply);
                 dap_string_append(a_str_out, "subtype: SIMPLE\n");
                 dap_string_append_printf(a_str_out, "decimals: %d\n", l_token->header_simple.decimals);
                 dap_string_append_printf(a_str_out, "sign_total: %hu\n", l_token->signs_total );
                 dap_string_append_printf(a_str_out, "sign_valid: %hu\n", l_token->signs_valid );
-                dap_string_append_printf(a_str_out, "total_supply: %s\n", l_value_str);
+                dap_string_append_printf(a_str_out, "total_supply: %s\n", dap_chain_balance_print(l_token->total_supply));
                 size_t l_certs_field_size = l_token_size - sizeof(*l_token);
                 dap_chain_datum_token_certs_dump(a_str_out, l_token->data_n_tsd,
                                                  l_certs_field_size, a_hash_out_type);
-                DAP_DEL_Z(l_value_str);
             }
             DAP_DELETE(l_token);
         } break;
         case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
-            size_t l_emisssion_size = a_datum->header.data_size;
-            dap_chain_datum_token_emission_t *l_emission = dap_chain_datum_emission_read(a_datum->data, &l_emisssion_size);
-            char *l_value_str = dap_chain_balance_print(l_emission->hdr.value);
-            char *l_coins_str = dap_chain_balance_to_coins(l_emission->hdr.value);
-            char *l_addr_str = dap_chain_addr_to_str(&(l_emission->hdr.address));
+            size_t l_emission_size = a_datum->header.data_size;
+            dap_chain_datum_token_emission_t *l_emission = dap_chain_datum_emission_read(a_datum->data, &l_emission_size);
+            dap_chain_addr_t l_emi_addr = l_emission->hdr.address;
             dap_string_append_printf(a_str_out, "emission: hash %s\n\t%s(%s) %s, type: %s, version: %d\n",
                                     l_hash_str,
-                                    l_coins_str,
-                                    l_value_str,
+                                    dap_chain_balance_to_coins(l_emission->hdr.value),
+                                    dap_chain_balance_print(l_emission->hdr.value),
                                     l_emission->hdr.ticker,
                                     c_dap_chain_datum_token_emission_type_str[l_emission->hdr.type],
                                     l_emission->hdr.version);
-            dap_string_append_printf(a_str_out, "  to addr: %s\n", l_addr_str);
-            DAP_DELETE(l_value_str);
-            DAP_DELETE(l_coins_str);
-            DAP_DELETE(l_addr_str);
+            dap_string_append_printf(a_str_out, "  to addr: %s\n", dap_chain_addr_to_str(&(l_emi_addr)));
             switch (l_emission->hdr.type) {
                 case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_UNDEFINED:
                     break;
@@ -761,10 +694,10 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
                                              l_emission->data.type_auth.tsd_total_size);
 
                     if (  ( (void *) l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size) >
-                          ((void *) l_emission + l_emisssion_size) )
+                          ((void *) l_emission + l_emission_size) )
                     {
                         log_it(L_ERROR, "Illformed DATUM type %d, TSD section is out-of-buffer (%" DAP_UINT64_FORMAT_U " vs %zu)",
-                            l_emission->hdr.type, l_emission->data.type_auth.tsd_total_size, l_emisssion_size);
+                            l_emission->hdr.type, l_emission->data.type_auth.tsd_total_size, l_emission_size);
 
                         dap_string_append_printf(a_str_out, "  Skip incorrect or illformed DATUM");
                         break;
@@ -784,20 +717,19 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
                 break;
                 case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_SMART_CONTRACT: {
                     char l_time_str[70];
-                    char *l_addr = dap_chain_addr_to_str(&l_emission->data.type_presale.addr);
+                    dap_chain_addr_t l_presale_addr = l_emission->data.type_presale.addr;
                     // get time of create datum
                     if(dap_time_to_str_rfc822(l_time_str, 71, l_emission->data.type_presale.lock_time) < 1)
                             l_time_str[0] = '\0';
                     dap_string_append_printf(a_str_out, "  flags: 0x%x, lock_time: %s\n", l_emission->data.type_presale.flags, l_time_str);
-                    dap_string_append_printf(a_str_out, "  addr: %s\n", l_addr);
-                    DAP_DELETE(l_addr);
+                    dap_string_append_printf(a_str_out, "  addr: %s\n", dap_chain_addr_to_str(&l_presale_addr));
                 }
                 break;
             }
             DAP_DELETE(l_emission);
         } break;
         case DAP_CHAIN_DATUM_TX: {
-            dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *)a_datum->data;
+            dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t*)a_datum->data;
             dap_chain_datum_dump_tx(l_tx, NULL, a_str_out, a_hash_out_type, &l_datum_hash, a_net_id);
         } break;
         case DAP_CHAIN_DATUM_DECREE:{
@@ -806,7 +738,6 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
             dap_string_append_printf(a_str_out,"=== Datum decree ===\n");
             dap_string_append_printf(a_str_out, "hash: %s\n", l_hash_str);
             dap_string_append_printf(a_str_out, "size: %zd\n", l_decree_size);
-
             dap_chain_datum_decree_dump(a_str_out, l_decree, l_decree_size, a_hash_out_type);
         } break;
         case DAP_CHAIN_DATUM_ANCHOR:{
@@ -817,12 +748,10 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
             dap_string_append_printf(a_str_out, "size: %zd\n", l_anchor_size);
             dap_hash_fast_t l_decree_hash = { };
             dap_chain_datum_anchor_get_hash_from_data(l_anchor, &l_decree_hash);
-            //dap_chain_hash_fast_to_str(&l_decree_hash, l_decree_hash_str, 40);
             char l_decree_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
             dap_chain_hash_fast_to_str(&l_decree_hash, l_decree_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
             dap_string_append_printf(a_str_out, "decree hash: %s\n", l_decree_hash_str);
             dap_chain_datum_anchor_certs_dump(a_str_out, l_anchor->data_n_sign + l_anchor->header.data_size, l_anchor->header.signs_size, a_hash_out_type);
         } break;
     }    
-    DAP_DELETE(l_hash_str);
 }

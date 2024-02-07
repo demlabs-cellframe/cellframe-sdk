@@ -2424,14 +2424,18 @@ void dap_chain_net_srv_xchange_print_fee(dap_chain_net_t *a_net, dap_string_t *a
     dap_chain_addr_t l_addr = {0};
     uint16_t l_type = 0;
     if (s_srv_xchange_get_fee(a_net->pub.id, &l_fee, &l_addr, &l_type)) {
-        char *l_fee_balance = dap_chain_balance_print(l_fee);
-        char *l_fee_coins = dap_chain_balance_to_coins(l_fee);
-        char *l_addr_str = dap_chain_addr_to_str(&l_addr);
-        const char *l_type_str = dap_chain_net_srv_fee_type_to_str((dap_chain_net_srv_fee_type_t)l_type);
         dap_string_append_printf(a_string_ret, "\txchange:\n"
-                                               "\t\tFee: %s (%s)\n"
-                                               "\t\tAddr: %s\n"
-                                               "\t\tType: %s\n", l_fee_coins, l_fee_balance, l_addr_str, l_type_str);
+                                               "\t\tFee: %s",
+                                 dap_chain_balance_to_coins(l_fee));
+
+        dap_string_append_printf(a_string_ret, " (%s)\n",
+                                 dap_chain_balance_print(l_fee));
+
+        dap_string_append_printf(a_string_ret, "\t\tAddr: %s\n"
+                                               "\t\tType: %s\n",
+                                 dap_chain_addr_to_str(&l_addr),
+                                 dap_chain_net_srv_fee_type_to_str((dap_chain_net_srv_fee_type_t)l_type));
+
     } else {
         dap_string_append_printf(a_string_ret, "\txchange:\n"
                                                "\t\tThe xchanger service has not announced a commission fee.\n");

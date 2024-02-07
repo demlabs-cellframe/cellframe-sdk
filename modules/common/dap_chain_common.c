@@ -84,12 +84,12 @@ size_t dap_chain_hash_slow_to_str( dap_chain_hash_slow_t *a_hash, char *a_str, s
  */
 char *dap_chain_addr_to_str(const dap_chain_addr_t *a_addr)
 {
-// sanity check
+    _Thread_local static char s_addr_str[DAP_ENC_BASE58_ENCODE_SIZE(sizeof(dap_chain_addr_t))];
     dap_return_val_if_pass(!a_addr, NULL);
-// func work
-    if (dap_chain_addr_is_blank(a_addr)) return dap_strdup("null");
-
-    return dap_enc_base58_encode_to_str((const void *)a_addr, sizeof(dap_chain_addr_t));
+    return ( dap_chain_addr_is_blank(a_addr)
+            ? (size_t)dap_snprintf(s_addr_str, 4, "null")
+            : dap_enc_base58_encode(a_addr, sizeof(dap_chain_addr_t), s_addr_str) ),
+        s_addr_str;
 }
 
 /**
@@ -99,7 +99,7 @@ char *dap_chain_addr_to_str(const dap_chain_addr_t *a_addr)
  */
 dap_chain_addr_t* dap_chain_addr_from_str(const char *a_str)
 {
-    size_t l_str_len = (a_str) ? strlen(a_str) : 0;
+    size_t l_str_len = dap_strlen(a_str);
     if(l_str_len <= 0)
         return NULL;
     if (!dap_strcmp(a_str, "null") || !dap_strcmp(a_str, "0")) {
@@ -270,7 +270,7 @@ uint128_t dap_chain_uint128_from_uint256(uint256_t a_from)
     return a_from.lo;
 }
 
-
+# if 0
 char *dap_chain_balance_print128(uint128_t a_balance)
 {
     char *l_buf = DAP_NEW_Z_SIZE(char, DATOSHI_POW + 2);
@@ -331,6 +331,8 @@ char *dap_chain_balance_to_coins128(uint128_t a_balance)
     }
     return l_buf;
 }
+
+#endif
 
 const union __c_pow10__ {
     uint64_t u64[2];

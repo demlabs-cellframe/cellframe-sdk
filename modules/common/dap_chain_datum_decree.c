@@ -187,9 +187,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 }
                 uint256_t l_value = uint256_0;
                 _dap_tsd_get_scalar(l_tsd, &l_value);
-                char *l_value_str = dap_chain_balance_print(l_value);
-                dap_string_append_printf(a_str_out, "\tValue: %s\n", l_value_str);
-                DAP_DELETE(l_value_str);
+                dap_string_append_printf(a_str_out, "\tValue: %s\n", dap_chain_balance_print(l_value));
                 break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_SIGN:
             break;
@@ -200,9 +198,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 }
                 uint256_t l_fee_value = uint256_0;
                 _dap_tsd_get_scalar(l_tsd, &l_fee_value);
-                char *l_fee_value_str = dap_chain_balance_print(l_fee_value);
-                dap_string_append_printf(a_str_out, "\tFee: %s\n", l_fee_value_str);
-                DAP_DELETE(l_fee_value_str);
+                dap_string_append_printf(a_str_out, "\tFee: %s\n", dap_chain_balance_print(l_fee_value));
                 break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_OWNER:
                 if (l_tsd->size < sizeof(dap_pkey_t)) {
@@ -222,9 +218,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 }
                 uint256_t l_owner_min = uint256_0;
                 _dap_tsd_get_scalar(l_tsd, &l_owner_min);
-                char *l_owner_min_str = dap_chain_balance_print(l_owner_min);
-                dap_string_append_printf(a_str_out, "\tOwner min: %s\n", l_owner_min_str);
-                DAP_DELETE(l_owner_min_str);
+                dap_string_append_printf(a_str_out, "\tOwner min: %s\n", dap_chain_balance_print(l_owner_min));
                 break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_FEE_WALLET:
                 if (l_tsd->size > sizeof(dap_chain_addr_t)) {
@@ -233,9 +227,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 }
                 dap_chain_addr_t *l_addr_fee_wallet = /*{ };
                 _dap_tsd_get_scalar(l_tsd, &l_addr_fee_wallet);*/ _dap_tsd_get_object(l_tsd, dap_chain_addr_t);
-                char *l_addr_fee_wallet_str = dap_chain_addr_to_str(l_addr_fee_wallet);
-                dap_string_append_printf(a_str_out, "\tWallet for fee: %s\n", l_addr_fee_wallet_str);
-                DAP_DELETE(l_addr_fee_wallet_str);
+                dap_string_append_printf(a_str_out, "\tWallet for fee: %s\n", dap_chain_addr_to_str(l_addr_fee_wallet));
                 break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_TX_HASH:
                 if (l_tsd->size > sizeof(dap_hash_fast_t)) {
@@ -244,11 +236,11 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 }
                 dap_hash_fast_t *l_stake_tx = /*{ };
                 _dap_tsd_get_scalar(l_tsd, &l_stake_tx);*/ _dap_tsd_get_object(l_tsd, dap_hash_fast_t);
-                char *l_stake_tx_hash = dap_strcmp(a_hash_out_type, "hex")
-                        ? dap_enc_base58_encode_hash_to_str(l_stake_tx)
-                        : dap_chain_hash_fast_to_str_new(l_stake_tx);
+                char l_stake_tx_hash[DAP_HASH_FAST_STR_SIZE];
+                dap_strcmp(a_hash_out_type, "hex")
+                        ? (int)dap_enc_base58_encode(l_stake_tx, sizeof(l_stake_tx), l_stake_tx_hash)
+                        : dap_chain_hash_fast_to_str(l_stake_tx, l_stake_tx_hash, sizeof(l_stake_tx_hash));
                 dap_string_append_printf(a_str_out, "\tStake tx: %s\n", l_stake_tx_hash);
-                DAP_DELETE(l_stake_tx_hash);
                 break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_VALUE:
                 if (l_tsd->size > sizeof(uint256_t)){
@@ -257,9 +249,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 }
                 uint256_t l_stake_value = uint256_0;
                 _dap_tsd_get_scalar(l_tsd, &l_stake_value);
-                char *l_stake_value_str = dap_chain_balance_print(l_stake_value);
-                dap_string_append_printf(a_str_out, "\tStake value: %s\n", l_stake_value_str);
-                DAP_DELETE(l_stake_value_str);
+                dap_string_append_printf(a_str_out, "\tStake value: %s\n", dap_chain_balance_print(l_stake_value));
                 break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNING_ADDR:
                 if (l_tsd->size > sizeof(dap_chain_addr_t)) {
@@ -268,15 +258,13 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 }
                 dap_chain_addr_t *l_stake_addr_signing = /*{ };
                 _dap_tsd_get_scalar(l_tsd, &l_stake_addr_signing);*/ _dap_tsd_get_object(l_tsd, dap_chain_addr_t);
-                char *l_stake_addr_signing_str = dap_chain_addr_to_str(l_stake_addr_signing);
-                dap_string_append_printf(a_str_out, "\tSigning addr: %s\n", l_stake_addr_signing_str);
+                dap_string_append_printf(a_str_out, "\tSigning addr: %s\n", dap_chain_addr_to_str(l_stake_addr_signing));
                 dap_chain_hash_fast_t l_pkey_signing = l_stake_addr_signing->data.hash_fast;
-                char *l_pkey_signing_str = dap_strcmp(a_hash_out_type, "hex")
-                        ? dap_enc_base58_encode_hash_to_str(&l_pkey_signing)
-                        : dap_chain_hash_fast_to_str_new(&l_pkey_signing);
+                char l_pkey_signing_str[DAP_HASH_FAST_STR_SIZE];
+                dap_strcmp(a_hash_out_type, "hex")
+                        ? (int)dap_enc_base58_encode(&l_pkey_signing, sizeof(l_pkey_signing), l_pkey_signing_str)
+                        : dap_chain_hash_fast_to_str(&l_pkey_signing, l_pkey_signing_str, sizeof(l_pkey_signing_str));
                 dap_string_append_printf(a_str_out, "\tSigning pkey fingerprint: %s\n", l_pkey_signing_str);
-                DAP_DELETE(l_stake_addr_signing_str);
-                DAP_DELETE(l_pkey_signing_str);
                 break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNER_NODE_ADDR:
                 if(l_tsd->size > sizeof(dap_chain_node_addr_t)){
@@ -294,9 +282,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 }
                 uint256_t l_min_value = uint256_0;
                 _dap_tsd_get_scalar(l_tsd, &l_min_value);
-                char *l_min_value_str = dap_chain_balance_print(l_min_value);
-                dap_string_append_printf(a_str_out, "\tMin value: %s\n", l_min_value_str);
-                DAP_DELETE(l_min_value_str);
+                dap_string_append_printf(a_str_out, "\tMin value: %s\n", dap_chain_balance_print(l_min_value));
                 break;
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT:
                 if (l_tsd->size > sizeof(uint256_t)) {
@@ -305,9 +291,7 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 }
                 uint256_t l_min_signers_count = uint256_0;
                 _dap_tsd_get_scalar(l_tsd, &l_min_signers_count);
-                char *l_min_signers_count_str = dap_chain_balance_print(l_min_signers_count);
-                dap_string_append_printf(a_str_out, "\tMin signers count: %s\n", l_min_signers_count_str);
-                DAP_DELETE(l_min_signers_count_str);
+                dap_string_append_printf(a_str_out, "\tMin signers count: %s\n", dap_chain_balance_print(l_min_signers_count));
                 break;
             default:
                 dap_string_append_printf(a_str_out, "\t<UNKNOWN_TYPE_TSD_SECTION>\n");
@@ -342,13 +326,12 @@ void dap_chain_datum_decree_certs_dump(dap_string_t * a_str_out, byte_t * a_sign
             dap_string_append_printf(a_str_out, "<CORRUPTED - can't calc hash>\n");
             continue;
         }
-
-        char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                ? dap_enc_base58_encode_hash_to_str(&l_pkey_hash)
-                : dap_chain_hash_fast_to_str_new(&l_pkey_hash);
+        char l_hash_str[DAP_HASH_FAST_STR_SIZE];
+        dap_strcmp(a_hash_out_type, "hex")
+                ? (int)dap_enc_base58_encode(&l_pkey_hash, sizeof(l_pkey_hash), l_hash_str)
+                : dap_chain_hash_fast_to_str(&l_pkey_hash, l_hash_str, sizeof(l_hash_str));
         dap_string_append_printf(a_str_out, "%d) %s, %s, %u bytes\n", i, l_hash_str,
                                  dap_sign_type_to_str(l_sign->header.type), l_sign->header.sign_size);
-        DAP_DEL_Z(l_hash_str);
     }
 }
 
