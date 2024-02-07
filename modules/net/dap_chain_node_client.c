@@ -973,7 +973,7 @@ static int s_node_client_set_notify_callbacks(dap_client_t *a_client, uint8_t a_
             }
             default: {
                 l_ret = -2;
-                log_it(L_ERROR, "Unknown channel id %d", a_ch_id);
+                log_it(L_ERROR, "Unknown channel id %d (%c)", a_ch_id, a_ch_id);
                 break;
             }
             }

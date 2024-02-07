@@ -509,6 +509,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
 
     if (IS_ZERO_256(l_esbocs_pvt->minimum_fee)) {
         log_it(L_ERROR, "No valid order found was signed by this validator deledgated key. Switch off validator mode.");
+        DAP_DEL_Z(l_esbocs->session);
         return -4;
     }
     pthread_mutexattr_t l_mutex_attr;

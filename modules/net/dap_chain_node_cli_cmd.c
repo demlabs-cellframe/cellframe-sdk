@@ -787,7 +787,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "record already pinned");
                     break;
                 }
-                if(dap_global_db_set_sync( l_group, l_key, l_value, l_value_len,true ) ==0 ){
+                if(dap_global_db_set_sync( l_group, l_key, l_value, l_value_len, true) ==0 ){
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "record successfully pinned");
                 }
                 else{
