@@ -1569,8 +1569,8 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     } break;
     case CMD_BANLIST: {
         dap_string_t *l_str_ban_list = dap_string_new("Ban list:\n");
-        dap_enc_http_ban_list_client_ipv4_print(l_str_ban_list);
-        dap_enc_http_ban_list_client_ipv6_print(l_str_ban_list);
+        dap_http_ban_list_client_ipv4_print(l_str_ban_list);
+        dap_http_ban_list_client_ipv6_print(l_str_ban_list);
         dap_chain_node_net_ban_list_print(l_str_ban_list);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ban_list->str);
         dap_string_free(l_str_ban_list, true);
