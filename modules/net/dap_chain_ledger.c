@@ -4744,11 +4744,11 @@ FIN:
         dap_list_free(l_list_tx_out);
     DAP_DEL_Z(l_main_token_ticker);
     if (PVT(a_ledger)->cached) {
-        for (size_t i = 1; i <= l_outs_used; i++) {
+        /*for (size_t i = 1; i <= l_outs_used; i++) {
             DAP_DEL_Z(l_cache_used_outs[i].key);
             DAP_DEL_Z(l_cache_used_outs[i].value);
         }
-        DAP_DEL_Z(l_cache_used_outs);
+        DAP_DEL_Z(l_cache_used_outs);*/
         DAP_DEL_Z(l_ledger_cache_group);
     }
     return l_ret;

@@ -233,7 +233,7 @@ void dap_chain_cs_dag_event_broadcast(dap_chain_cs_dag_t *a_dag, dap_store_obj_t
         return;
     }
     l_arg->dag = a_dag;
-    l_arg->obj = dap_store_obj_copy(a_obj, 1, true);
+    l_arg->obj = dap_store_obj_copy(a_obj, 1);
     l_arg->context = a_context;
     l_arg->attempts = 0;
     if (!s_event_broadcast_send(l_arg))

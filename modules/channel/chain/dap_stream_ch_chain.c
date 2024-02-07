@@ -244,7 +244,7 @@ static void s_sync_request_delete(struct sync_request * a_sync_request)
         dap_list_free_full( a_sync_request->gdb.db_iter, NULL);
         a_sync_request->gdb.db_iter = NULL;
     }
-    DAP_DEL_Z(a_sync_request);
+    DAP_DELETE(a_sync_request);
 }
 
 /**
@@ -370,7 +370,10 @@ static void s_sync_out_gdb_first_worker_callback(dap_worker_t *a_worker, void *a
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(DAP_STREAM_WORKER(l_sync_request->worker), l_sync_request->ch_uuid);
     if( l_ch == NULL ){
         log_it(L_INFO,"Client disconnected before we sent the reply");
-        s_sync_request_delete(l_sync_request);
+        if (a_worker)
+            s_sync_request_delete(l_sync_request);
+        else
+            l_sync_request->last_err = -9;
         return;
     }
 
@@ -378,13 +381,19 @@ static void s_sync_out_gdb_first_worker_callback(dap_worker_t *a_worker, void *a
 
     if (!l_ch_chain) {
         log_it(L_CRITICAL, "Channel without chain, dump it");
-        s_sync_request_delete(l_sync_request);
+        if (a_worker)
+            s_sync_request_delete(l_sync_request);
+        else
+            l_sync_request->last_err = -9;
         return;
     }
 
     if (l_ch_chain->state != CHAIN_STATE_UPDATE_GLOBAL_DB_REMOTE) {
         log_it(L_INFO, "Timeout fired before we sent the reply");
-        s_sync_request_delete(l_sync_request);
+        if (a_worker)
+            s_sync_request_delete(l_sync_request);
+        else
+            l_sync_request->last_err = -9;
         return;
     }
 
@@ -416,6 +425,10 @@ static void s_sync_out_gdb_first_worker_callback(dap_worker_t *a_worker, void *a
 static void s_sync_out_gdb_last_worker_callback(dap_worker_t *a_worker, void *a_arg)
 {
     struct sync_request * l_sync_request = (struct sync_request *) a_arg;
+    if (l_sync_request->last_err == -9) {
+        s_sync_request_delete(l_sync_request);
+        return;
+    }
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(DAP_STREAM_WORKER(a_worker), l_sync_request->ch_uuid);
     if( l_ch == NULL ){
         log_it(L_INFO,"Client disconnected before we sent the reply");
@@ -806,19 +819,13 @@ static bool s_gdb_in_pkt_proc_callback(dap_proc_thread_t *a_thread, void *a_arg)
             dap_global_db_remote_apply_obj(l_obj, s_gdb_in_pkt_proc_set_raw_callback, DAP_DUP(l_sync_request));
         }
 #endif
-        if (l_initial_count != l_data_obj_count) {
-            //l_store_obj = DAP_REALLOC_COUNT(l_store_obj, l_data_obj_count);
-            log_it(L_INFO, "Only %zu / %zu of records will be applied", l_data_obj_count, l_initial_count);
-        }
-        if (l_store_obj->group) {
+        if (l_data_obj_count) {
+            debug_if(s_debug_more && l_data_obj_count < l_initial_count, L_INFO, "Only %zu / %zu of records will be applied", l_data_obj_count, l_initial_count);
             dap_global_db_remote_apply_obj(l_store_obj, l_data_obj_count, s_gdb_in_pkt_proc_set_raw_callback, l_sync_request);
-            DAP_DELETE(l_store_obj);
-            //dap_store_obj_free(l_store_obj, l_initial_count);
         } else {
-            DAP_DELETE(l_store_obj);
-            DAP_DELETE(l_obj_pkt);
+            debug_if(s_debug_more, L_INFO, "No objects will be applied, all %zu are filtered out", l_initial_count);
             DAP_DELETE(l_sync_request);
-            return true;
+            DAP_DELETE(l_store_obj);
         }
     } else {
         log_it(L_WARNING, "In proc thread got GDB stream ch packet with zero data");
@@ -1573,7 +1580,6 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 static void s_free_log_list_gdb ( dap_stream_ch_chain_t * a_ch_chain)
 {
     if (a_ch_chain->request_db_log) {
-        // free log list
         debug_if(s_debug_more, L_INFO, "[stm_ch_chain:%p] a_ch_chain->request_db_log:%p --- cleanuping ...", a_ch_chain, a_ch_chain->request_db_log);
         dap_db_log_list_delete(a_ch_chain->request_db_log);
         a_ch_chain->request_db_log = NULL;
@@ -1582,7 +1588,6 @@ static void s_free_log_list_gdb ( dap_stream_ch_chain_t * a_ch_chain)
     if (a_ch_chain->remote_gdbs) {
         dap_stream_ch_chain_hash_item_t *l_hash_item = NULL, *l_tmp = NULL;
         HASH_ITER(hh, a_ch_chain->remote_gdbs, l_hash_item, l_tmp) {
-            // Clang bug at this, l_hash_item should change at every loop cycle
             HASH_DEL(a_ch_chain->remote_gdbs, l_hash_item);
             DAP_DELETE(l_hash_item);
         }

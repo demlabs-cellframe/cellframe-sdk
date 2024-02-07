@@ -180,6 +180,7 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
                         ? dap_enc_base58_encode_hash_to_str(a_tx_hash)
                         : dap_chain_hash_fast_to_str_new(a_tx_hash);
     json_object_object_add(json_obj_datum, "hash", json_object_new_string(l_hash_str));
+    DAP_DELETE(l_hash_str);
 
     json_object_object_add(json_obj_datum, "token_ticker", l_tx_token_ticker ? json_object_new_string(l_tx_token_ticker) 
                                                                              : json_object_new_null());
