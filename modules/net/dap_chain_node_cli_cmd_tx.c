@@ -98,17 +98,22 @@ static bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
                                           const char *a_hash_out_type,
                                           dap_chain_hash_fast_t *a_tx_hash)
 {
+    char l_tx_hash_str[70]={0};
     const char *l_ticker = a_ledger
             ? dap_ledger_tx_get_token_ticker_by_hash(a_ledger, a_tx_hash)
             : NULL;
     if (!l_ticker)
         return false;
+    dap_chain_hash_fast_to_str(a_tx_hash,l_tx_hash_str,sizeof(l_tx_hash_str));
+    json_object * json_obj_datum = json_object_new_object();
+    json_object_object_add(json_obj_datum, "Datum_tx_hash", json_object_new_string(l_tx_hash_str));
+    json_object_array_add(json_arr_out, json_obj_datum);
     json_object* datum_tx = dap_chain_datum_tx_to_json(a_datum);
     json_object_array_add(json_arr_out, datum_tx);
     dap_list_t *l_out_items = dap_chain_datum_tx_items_get(a_datum, TX_ITEM_TYPE_OUT_ALL, NULL);
     int l_out_idx = 0;
-    json_object * json_obj_datum = json_object_new_object();
-    json_object_object_add(json_obj_datum, "Spent OUTs:", json_object_new_string("empty"));
+    json_obj_datum = json_object_new_object();
+    json_object_object_add(json_obj_datum, "Spent OUTs", json_object_new_string("empty"));
     json_object_array_add(json_arr_out, json_obj_datum);
     bool l_spent = false;
     for (dap_list_t *l_item = l_out_items; l_item; l_item = l_item->next, ++l_out_idx) {
@@ -134,7 +139,7 @@ static bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
         }
     }
     json_obj_datum = json_object_new_object();
-    json_object_object_add(json_obj_datum, "all OUTs yet unspent:", l_spent ? json_object_new_string("yes") : json_object_new_string("no"));
+    json_object_object_add(json_obj_datum, "all OUTs yet unspent", l_spent ? json_object_new_string("yes") : json_object_new_string("no"));
     json_object_array_add(json_arr_out, json_obj_datum);
     return true;
 }
@@ -1137,6 +1142,9 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
         if (!s_dap_chain_datum_tx_out_data(l_datum_tx, l_net->pub.ledger, json_arr_datum, l_hash_out_type, l_tx_hash)){
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_HASH_ERR, "Can't find transaction hash %s in ledger", l_tx_hash_str);
             return DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_HASH_ERR;
+        }
+        if (json_arr_datum){
+            json_object_array_add(*json_arr_reply, json_arr_datum);
         }
     }
     else{

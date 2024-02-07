@@ -1831,14 +1831,14 @@ json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
     dap_ledger_tx_item_t *l_tx_item, *l_tx_tmp;
-    json_object * json_arr_out = json_object_new_array();
-    json_object* json_obj_tx = json_object_new_object();
-    if (!json_obj_tx) {
-        return NULL;
-    }
+    json_object* json_arr_out = json_object_new_array();
     uint32_t l_counter = 0;
     pthread_rwlock_rdlock(&l_ledger_pvt->threshold_txs_rwlock);
     HASH_ITER(hh, l_ledger_pvt->threshold_txs, l_tx_item, l_tx_tmp){
+        json_object* json_obj_tx = json_object_new_object();
+        if (!json_obj_tx) {
+            return NULL;
+        }
         char l_tx_prev_hash_str[70]={0};
         char l_time[1024] = {0};
         dap_chain_hash_fast_to_str(&l_tx_item->tx_hash_fast,l_tx_prev_hash_str,sizeof(l_tx_prev_hash_str));
@@ -1851,6 +1851,7 @@ json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger)
         l_counter +=1;
     }
     if (!l_counter){
+        json_object* json_obj_tx = json_object_new_object();
         json_object_object_add(json_obj_tx, "status", json_object_new_string("0 items in ledger tx threshold"));
         json_object_array_add(json_arr_out, json_obj_tx);
     }
@@ -1860,6 +1861,7 @@ json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger)
     l_counter = 0;
     dap_ledger_token_emission_item_t *l_emission_item, *l_emission_tmp;
     HASH_ITER(hh, l_ledger_pvt->threshold_emissions, l_emission_item, l_emission_tmp){
+        json_object* json_obj_tx = json_object_new_object();
         char l_emission_hash_str[70]={0};
         dap_chain_hash_fast_to_str(&l_emission_item->datum_token_emission_hash,l_emission_hash_str,sizeof(l_emission_hash_str));
        //log_it(L_DEBUG,"Ledger thresholded datum_token_emission_hash %s, emission_item_size: %lld", l_emission_hash_str, l_emission_item->datum_token_emission_size);
@@ -1869,6 +1871,7 @@ json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger)
         l_counter +=1;
     }
     if (!l_counter){
+        json_object* json_obj_tx = json_object_new_object();
         json_object_object_add(json_obj_tx, "status", json_object_new_string("0 items in ledger emission threshold"));
         json_object_array_add(json_arr_out, json_obj_tx);
     }
@@ -1920,12 +1923,12 @@ json_object *dap_ledger_threshold_hash_info(dap_ledger_t *a_ledger, dap_chain_ha
 json_object *dap_ledger_balance_info(dap_ledger_t *a_ledger)
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
-    json_object * json_arr_out = json_object_new_array();
-    json_object* json_obj_tx = json_object_new_object();
+    json_object * json_arr_out = json_object_new_array();    
     pthread_rwlock_rdlock(&l_ledger_pvt->balance_accounts_rwlock);
     uint32_t l_counter = 0;
     dap_ledger_wallet_balance_t *l_balance_item, *l_balance_tmp;
     HASH_ITER(hh, l_ledger_pvt->balance_accounts, l_balance_item, l_balance_tmp) {
+        json_object* json_obj_tx = json_object_new_object();
         //log_it(L_DEBUG,"Ledger balance key %s, token_ticker: %s, balance: %s", l_balance_key, l_balance_item->token_ticker,
         //                        dap_chain_balance_print(l_balance_item->balance));
         json_object_object_add(json_obj_tx, "Ledger balance key", json_object_new_string(l_balance_item->key));
@@ -1937,10 +1940,10 @@ json_object *dap_ledger_balance_info(dap_ledger_t *a_ledger)
         l_counter +=1;
     }
     if (!l_counter){
-        json_object_object_add(json_obj_tx, "token_ticker", json_object_new_string(l_balance_item->token_ticker));
-    }
-    json_object_object_add(json_obj_tx, "0 items in ledger balance_accounts", json_object_new_string("empty"));
-    json_object_array_add(json_arr_out, json_obj_tx);
+        json_object* json_obj_tx = json_object_new_object();
+        json_object_object_add(json_obj_tx, "0 items in ledger balance_accounts", json_object_new_string("empty"));
+        json_object_array_add(json_arr_out, json_obj_tx);
+    }    
     pthread_rwlock_unlock(&l_ledger_pvt->balance_accounts_rwlock);
     return json_arr_out;
 }
