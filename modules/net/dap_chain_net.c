@@ -3296,10 +3296,18 @@ dap_link_t *s_link_manager_get_net_info(dap_stream_node_addr_t *a_node_addr)
         return NULL;
     }
     dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)(l_obj->value);
-    l_ret->addr.uint64 = l_node_info->hdr.address.uint64;
-    l_ret->port = l_node_info->hdr.ext_port;
-    l_ret->addr_v4.s_addr = l_node_info->hdr.ext_addr_v4.s_addr;
-    memcpy(&l_ret->addr_v6, &l_node_info->hdr.ext_addr_v6, sizeof(l_node_info->hdr.ext_addr_v6));
+    if(l_node_info->hdr.ext_addr_v4.s_addr){
+        struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = l_node_info->hdr.ext_addr_v4 };
+        inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), l_ret->host_addr_str, INET_ADDRSTRLEN);
+    } else {
+        struct sockaddr_in6 sa6 = { .sin6_family = AF_INET6, .sin6_addr = l_node_info->hdr.ext_addr_v6 };
+        inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) &sa6)->sin6_addr), l_ret->host_addr_str, INET6_ADDRSTRLEN);
+    }
+    l_ret->host_port = l_node_info->hdr.ext_port;
+    if(!strlen(l_ret->host_addr_str) || !strcmp(l_ret->host_addr_str, "::") || !l_node_info->hdr.ext_port) {
+        log_it(L_WARNING, "Undefined address of node client");
+        DAP_DEL_Z(l_ret);  // l_ret seted NULL, and after return
+    }
     dap_store_obj_free(l_obj, 1);
     DAP_DELETE(l_key);
     return l_ret;
