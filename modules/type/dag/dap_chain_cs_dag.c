@@ -95,7 +95,7 @@ static void s_dap_chain_cs_dag_threshold_free(dap_chain_cs_dag_t *a_dag);
 static dap_chain_cs_dag_event_item_t *s_dag_proc_treshold(dap_chain_cs_dag_t *a_dag);
 
 // Atomic element organization callbacks
-static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t);                      //    Accept new event in dag
+static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t *a_atom_hash);                      //    Accept new event in dag
 static dap_chain_atom_ptr_t s_chain_callback_atom_add_from_treshold(dap_chain_t * a_chain, size_t *a_event_size_out);                    //    Accept new event in dag from treshold
 static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t);                   //    Verify new event in dag
 static size_t s_chain_callback_atom_get_static_hdr_size(void);                               //    Get dag event header size
@@ -492,7 +492,7 @@ static int s_sort_event_item(dap_chain_cs_dag_event_item_t* a, dap_chain_cs_dag_
  * @param a_atom_size
  * @return 0 if verified and added well, otherwise if not
  */
-static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size)
+static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t a_atom, size_t a_atom_size, dap_hash_fast_t *a_atom_hash)
 {
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(a_chain);
     dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *) a_atom;
@@ -507,8 +507,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     l_event_item->event_size = a_atom_size;
     l_event_item->ts_added = dap_time_now();
 
-    dap_chain_hash_fast_t l_event_hash;
-    dap_chain_cs_dag_event_calc_hash(l_event, a_atom_size, &l_event_hash);
+    dap_chain_hash_fast_t l_event_hash = *a_atom_hash;
     l_event_item->hash = l_event_hash;
 
     if(s_debug_more) {
@@ -799,7 +798,7 @@ static bool s_event_verify_size(dap_chain_cs_dag_event_t *a_event, size_t a_even
  * @param a_atom
  * @return
  */
-static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t  a_atom,size_t a_atom_size)
+static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t  a_atom,size_t a_atom_size, dap_chain_hash_fast_t *a_atom_hash)
 {
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(a_chain);
     dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *) a_atom;
@@ -813,11 +812,9 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_
         debug_if(s_debug_more, L_WARNING, "Event from another chain, possible corrupted event");
         return ATOM_REJECT;
     }
-
+    dap_chain_hash_fast_t l_event_hash = *a_atom_hash;
     // Hard accept list
     if (l_dag->hal) {
-        dap_chain_hash_fast_t l_event_hash = { };
-        dap_chain_cs_dag_event_calc_hash(l_event,a_atom_size, &l_event_hash);
         dap_chain_cs_dag_hal_item_t *l_hash_found = NULL;
         pthread_mutex_lock(l_events_mutex);
         HASH_FIND(hh, l_dag->hal, &l_event_hash, sizeof(l_event_hash), l_hash_found);
@@ -842,8 +839,6 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_
         }
 
         if (l_dag->is_static_genesis_event ){
-            dap_chain_hash_fast_t l_event_hash;
-            dap_chain_cs_dag_event_calc_hash(l_event,a_atom_size, &l_event_hash);
             if ( memcmp( &l_event_hash, &l_dag->static_genesis_event_hash, sizeof(l_event_hash) ) != 0 ){
                 char l_event_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE], l_genesis_event_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
                 dap_chain_hash_fast_to_str(&l_event_hash, l_event_hash_str, sizeof(l_event_hash_str));

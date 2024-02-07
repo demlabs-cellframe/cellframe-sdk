@@ -1434,7 +1434,7 @@ static void s_session_candidate_verify(dap_chain_esbocs_session_t *a_session, da
     // Process candidate
     a_session->processing_candidate = a_candidate;
     dap_chain_cs_blocks_t *l_blocks = DAP_CHAIN_CS_BLOCKS(a_session->chain);
-    if (l_blocks->chain->callback_atom_verify(l_blocks->chain, a_candidate, a_candidate_size) == ATOM_ACCEPT) {
+    if (l_blocks->chain->callback_atom_verify(l_blocks->chain, a_candidate, a_candidate_size, a_candidate_hash) == ATOM_ACCEPT) {
         // validation - OK, gen event Approve
         s_message_send(a_session, DAP_CHAIN_ESBOCS_MSG_TYPE_APPROVE, a_candidate_hash,
                        NULL, 0, a_session->cur_round.validators_list);
@@ -1533,7 +1533,7 @@ static bool s_session_candidate_to_chain(dap_chain_esbocs_session_t *a_session, 
     }
     bool res = false;
     dap_chain_block_t *l_candidate = DAP_DUP_SIZE(a_candidate, a_candidate_size);
-    dap_chain_atom_verify_res_t l_res = a_session->chain->callback_atom_add(a_session->chain, l_candidate, a_candidate_size);
+    dap_chain_atom_verify_res_t l_res = a_session->chain->callback_atom_add(a_session->chain, l_candidate, a_candidate_size, a_candidate_hash);
     char *l_candidate_hash_str = dap_chain_hash_fast_to_str_new(a_candidate_hash);
     switch (l_res) {
     case ATOM_ACCEPT:

@@ -575,7 +575,7 @@ static bool s_sync_in_chains_callback(dap_proc_thread_t *a_thread, void *a_arg)
     dap_chain_atom_ptr_t l_atom_copy = (dap_chain_atom_ptr_t)l_pkt_item->pkt_data;
     uint64_t l_atom_copy_size = l_pkt_item->pkt_data_size;
     dap_hash_fast(l_atom_copy, l_atom_copy_size, &l_atom_hash);
-    dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom_copy, l_atom_copy_size);
+    dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom_copy, l_atom_copy_size, &l_atom_hash);
     char l_atom_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE] = {[0]='\0'};
     dap_chain_hash_fast_to_str(&l_atom_hash,l_atom_hash_str,sizeof (l_atom_hash_str));
     switch (l_atom_add_res) {
