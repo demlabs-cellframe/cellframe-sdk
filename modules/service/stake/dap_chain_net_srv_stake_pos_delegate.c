@@ -38,6 +38,7 @@
 #include "dap_chain_node_client.h"
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_chain_node_cli_cmd.h"
+#include "json_object.h"
 
 #define LOG_TAG "dap_chain_net_srv_stake_pos_delegate"
 
@@ -2726,6 +2727,77 @@ void dap_chain_net_srv_stake_get_fee_validators_str(dap_chain_net_t *a_net, dap_
     DAP_DELETE(l_average_coins);
     DAP_DELETE(l_median_balance);
     DAP_DELETE(l_median_coins);
+}
+
+json_object *dap_chain_net_srv_stake_get_fee_validators_json(dap_chain_net_t  *a_net) {
+    if (!a_net)
+        return NULL;
+    uint256_t l_min = uint256_0, l_max = uint256_0, l_average = uint256_0, l_median = uint256_0;
+    dap_chain_net_srv_stake_get_fee_validators(a_net, &l_max, &l_average, &l_min, &l_median);
+    const char *l_native_token  = a_net->pub.native_ticker;
+    char    *l_min_balance      = dap_chain_balance_print(l_min),
+            *l_min_coins        = dap_chain_balance_to_coins(l_min),
+            *l_max_balance      = dap_chain_balance_print(l_max),
+            *l_max_coins        = dap_chain_balance_to_coins(l_max),
+            *l_average_balance  = dap_chain_balance_print(l_average),
+            *l_average_coins    = dap_chain_balance_to_coins(l_average),
+            *l_median_balance   = dap_chain_balance_print(l_median),
+            *l_median_coins     = dap_chain_balance_to_coins(l_median);
+    json_object *l_jobj_ret = json_object_new_object();
+    json_object *l_jobj_min = json_object_new_object();
+    json_object *l_jobj_min_coins = json_object_new_string(l_min_coins);
+    json_object *l_jobj_min_balance = json_object_new_string(l_min_balance);
+    json_object *l_jobj_max = json_object_new_object();
+    json_object *l_jobj_max_coins = json_object_new_string(l_max_coins);
+    json_object *l_jobj_max_balance = json_object_new_string(l_max_balance);
+    json_object *l_jobj_average = json_object_new_object();
+    json_object *l_jobj_average_coins = json_object_new_string(l_average_coins);
+    json_object *l_jobj_average_balance = json_object_new_string(l_average_balance);
+    json_object *l_jobj_median = json_object_new_object();
+    json_object *l_jobj_median_coins = json_object_new_string(l_median_coins);
+    json_object *l_jobj_median_balance = json_object_new_string(l_median_balance);
+    json_object *l_jobj_ticker = json_object_new_string(l_native_token);
+    if (!l_jobj_ret || !l_jobj_min || !l_jobj_min_coins || !l_jobj_min_balance || !l_jobj_max || !l_jobj_max_coins ||
+        !l_jobj_max_balance || !l_jobj_average || !l_jobj_average_coins || !l_jobj_average_balance || !l_jobj_median ||
+        !l_jobj_median_coins || !l_jobj_median_balance || !l_jobj_ticker) {
+        json_object_put(l_jobj_ret);
+        json_object_put(l_jobj_min);
+        json_object_put(l_jobj_min_coins);
+        json_object_put(l_jobj_min_balance);
+        json_object_put(l_jobj_max);
+        json_object_put(l_jobj_max_coins);
+        json_object_put(l_jobj_max_balance);
+        json_object_put(l_jobj_average);
+        json_object_put(l_jobj_average_coins);
+        json_object_put(l_jobj_average_balance);
+        json_object_put(l_jobj_median);
+        json_object_put(l_jobj_median_coins);
+        json_object_put(l_jobj_median_balance);
+        json_object_put(l_jobj_ticker);
+        return NULL;
+    }
+    json_object_object_add(l_jobj_min, "coin", l_jobj_min_coins);
+    json_object_object_add(l_jobj_min, "balance", l_jobj_min_balance);
+    json_object_object_add(l_jobj_max, "coin", l_jobj_max_coins);
+    json_object_object_add(l_jobj_max, "balance", l_jobj_max_balance);
+    json_object_object_add(l_jobj_average, "coin", l_jobj_average_coins);
+    json_object_object_add(l_jobj_average, "balance", l_jobj_average_balance);
+    json_object_object_add(l_jobj_median, "coin", l_jobj_median_coins);
+    json_object_object_add(l_jobj_median, "balance", l_jobj_median_balance);
+    json_object_object_add(l_jobj_ret, "min", l_jobj_min);
+    json_object_object_add(l_jobj_ret, "max", l_jobj_max);
+    json_object_object_add(l_jobj_ret, "average", l_jobj_average);
+    json_object_object_add(l_jobj_ret, "median", l_jobj_median);
+    json_object_object_add(l_jobj_ret, "token", l_jobj_ticker);
+    DAP_DELETE(l_min_balance);
+    DAP_DELETE(l_min_coins);
+    DAP_DELETE(l_max_balance);
+    DAP_DELETE(l_max_coins);
+    DAP_DELETE(l_average_balance);
+    DAP_DELETE(l_average_coins);
+    DAP_DELETE(l_median_balance);
+    DAP_DELETE(l_median_coins);
+    return l_jobj_ret;
 }
 
 static void s_cache_data(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_addr_t *a_signing_addr)

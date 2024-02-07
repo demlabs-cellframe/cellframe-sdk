@@ -341,17 +341,23 @@ int dap_chain_node_cli_init(dap_config_t * g_config)
 
     // Decree create command
     dap_cli_server_cmd_add ("decree", cmd_decree, "Work with decree",
-            "decree create common -net <net_name> [-chain <chain_name>] -decree_chain <chain_name> -certs <certs list> -<Subtype param name> <Subtype param Value>\n"
-            "decree create service -net <net_name> [-chain <chain_name>] -decree_chain <chain_name> -srv_id <service_id> -certs <certs list> -<Subtype param name> <Subtype param Value>\n"
+            "decree create common -net <net_name> [-chain <chain_name>] -decree_chain <chain_name> -certs <certs_list> {-fee <net_fee_value> -to_addr <net_fee_wallet_addr> | -new_certs <new_owners_certs_list> | -signs_verify <value>}\n"
+            "Creates common network decree in net <net_name>. Decree adds to chain -chain and applies to chain -decree_chain. If -chain and -decree_chain is different you must create anchor in -decree_chain that is connected to this decree."
+            "\nCommon decree parameters:\n"
+            "\t -fee <value>: sets network fee\n"
+            "\t -to_addr <wallet_addr>: sets wallet addr for network fee\n"
+            "\t -new_certs <certs_list>: sets new owners set for net\n"
+            "\t -signs_verify <value>: sets minimum number of owners needed to sign decree\n\n"
+            "decree create service -net <net_name> [-chain <chain_name>] -decree_chain <chain_name> -srv_id <service_id> -certs <certs_list> -fee <value> -to_addr <wallet_addr> -new_certs <certs_list> -signs_verify <value>\n"
+            "Creates service decree in net <net_name> for service -srv_id.\n\n"
             "decree sign -net <net_name> [-chain <chain_name>] -datum <datum_hash> -certs <certs_list>\n"
+            "Signs decree with hash -datum.\n\n"
             "decree anchor -net <net_name> -chain <chain_name> -datum <datum_hash> -certs <certs_list>\n"
-            "decree find -net <net_name> -hash <decree_hash>. Find decree by hash and show it's status (apllied or not)\n"
-            "\t==Subtype Params==\n"
-            "\t\t -fee <value>: sets fee for tx in net\n"
-            "\t\t -to_addr <wallet_addr>: sets wallet addr for network fee\n"
-            "\t\t -new_certs <certs_list>: sets new owners set for net\n"
-            "\t\t -signs_verify <value>: sets minimum number of owners needed to sign decree\n"
-            "decree info -net <net_name>. Displays information about the parameters of the decrees in the network.\n");
+            "Creates anchor for decree with hash -datum.\n\n"
+            "decree find -net <net_name> -hash <decree_hash>\n"
+            "Find decree by hash and show it's status (apllied or not)\n\n"
+            "decree info -net <net_name>\n"
+            "Displays information about the parameters of the decrees in the network.\n");
 
     // Exit - always last!
     dap_cli_server_cmd_add ("exit", com_exit, "Stop application and exit",
