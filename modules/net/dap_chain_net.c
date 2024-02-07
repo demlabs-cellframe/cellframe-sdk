@@ -284,6 +284,7 @@ static void s_net_states_notify(dap_chain_net_t * l_net);
 int s_net_init(const char * a_net_name, uint16_t a_acl_idx);
 
 int s_net_load(dap_chain_net_t *a_net);
+int s_net_try_online(dap_chain_net_t *a_net);
 
 // Notify callback for GlobalDB changes
 static void s_gbd_history_callback_notify(dap_global_db_context_t *a_context, dap_store_obj_t *a_obj, void *a_arg);
@@ -1480,7 +1481,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                 DAP_DELETE(l_link_node_info);
             }
             // Links from node info structure (currently empty)
-            if (l_net_pvt->node_info) {
+            /*if (l_net_pvt->node_info) {
                 for (size_t i = 0; i < l_net_pvt->node_info->hdr.links_number; i++) {
                     dap_chain_node_info_t *l_link_node_info = dap_chain_node_info_read(l_net, &l_net_pvt->node_info->links[i]);
                     s_net_link_add(l_net, l_link_node_info);
@@ -1488,7 +1489,7 @@ static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
                 }
             } else {
                 log_it(L_WARNING,"No nodeinfo in global_db to prepare links for connecting, try to add links from root servers");
-            }
+            }*/
 
             if (!l_net_pvt->seed_aliases_count && ! l_net_pvt->bootstrap_nodes_count){
                log_it(L_ERROR, "No root servers present in configuration file. Can't establish DNS requests");
@@ -1679,6 +1680,25 @@ void dap_chain_net_load_all() {
     HASH_ITER(hh, s_net_items, l_net_items_current, l_net_items_tmp) {
         if( (l_ret = s_net_load(l_net_items_current->chain_net)) ) {
             log_it(L_ERROR, "Loading chains of net %s finished with (%d) error code.", l_net_items_current->name, l_ret);
+        }
+    }
+}
+
+/**
+ * @brief
+ * change all network states according to auto-online settings
+ */
+void dap_chain_net_try_online_all() {
+    int32_t l_ret = 0;
+
+    if(!HASH_COUNT(s_net_items)){
+        log_it(L_ERROR, "Can't find any nets");
+        return;
+    }
+    dap_chain_net_item_t *l_net_items_current = NULL, *l_net_items_tmp = NULL;
+    HASH_ITER(hh, s_net_items, l_net_items_current, l_net_items_tmp) {
+        if( (l_ret = s_net_try_online(l_net_items_current->chain_net)) ) {
+            log_it(L_ERROR, "Can't try online state for net %s.  Finished with (%d) error code.", l_net_items_current->name, l_ret);
         }
     }
 }
@@ -3103,8 +3123,9 @@ int s_net_load(dap_chain_net_t *a_net)
     } while (l_processed);
 
     // Do specific role actions post-chain created
+    //offline after loading
     l_net_pvt->state_target = NET_STATE_OFFLINE;
-    dap_chain_net_state_t l_target_state = NET_STATE_OFFLINE;
+    
     l_net_pvt->only_static_links = false;
     switch ( l_net_pvt->node_role.enums ) {
         case NODE_ROLE_ROOT_MASTER:{
@@ -3149,11 +3170,6 @@ int s_net_load(dap_chain_net_t *a_net)
     }
     if (!l_net_pvt->only_static_links)
         l_net_pvt->only_static_links = dap_config_get_item_bool_default(l_cfg, "general", "links_static_only", false);
-    if (dap_config_get_item_bool_default(g_config ,"general", "auto_online", false))
-    {
-        dap_chain_net_balancer_prepare_list_links(l_net->pub.name);
-        l_target_state = NET_STATE_ONLINE;
-    }
 
     l_net_pvt->load_mode = false;
 
@@ -3166,14 +3182,36 @@ int s_net_load(dap_chain_net_t *a_net)
 
     uint32_t l_timeout = dap_config_get_item_uint32_default(g_config, "node_client", "timer_update_states", 600);
     PVT(l_net)->main_timer = dap_interval_timer_create(l_timeout * 1000, s_main_timer_callback, l_net);
-    log_it(L_INFO, "Chain network \"%s\" initialized",l_net->pub.name);
+    
     PVT(l_net)->update_links_timer = dap_interval_timer_create(l_timeout * 1000, s_update_links_timer_callback, l_net);
 
     dap_config_close(l_cfg);
+    
+    log_it(L_INFO, "Chain network \"%s\" initialized",l_net->pub.name);
+    
+    return 0;
+}
 
+int s_net_try_online(dap_chain_net_t *a_net)
+{
+    
+    dap_chain_net_t *l_net = a_net;
+    
+    dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
+    dap_chain_net_state_t l_target_state = NET_STATE_OFFLINE;
+    
+    if (dap_config_get_item_bool_default(g_config ,"general", "auto_online", false))
+    {
+        dap_chain_net_balancer_prepare_list_links(l_net->pub.name);
+        l_target_state = NET_STATE_ONLINE;
+    }
+    
     if (l_target_state != l_net_pvt->state_target)
+    {   
         dap_chain_net_state_go_to(l_net, l_target_state);
-
+        log_it(L_INFO, "Network \"%s\" goes online",l_net->pub.name);
+    }
+    
     return 0;
 }
 
