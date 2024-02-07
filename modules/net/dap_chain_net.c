@@ -249,7 +249,7 @@ static const dap_chain_node_client_callbacks_t s_node_link_callbacks = {
 
 static bool s_link_manager_connected_callback(void *a_arg);
 static bool s_link_manager_update_callback(void *a_arg);
-dap_link_t *s_link_manager_get_net_info(dap_stream_node_addr_t *a_node_addr);
+static int s_link_manager_fill_net_info(dap_link_t *a_link);
 
 static const dap_link_manager_callbacks_t s_link_manager_callbacks = {
     .connected      = NULL,
@@ -258,7 +258,7 @@ static const dap_link_manager_callbacks_t s_link_manager_callbacks = {
     .update         = NULL,
     .delete         = NULL,
     .error          = NULL,
-    .get_node_net_info = s_link_manager_get_net_info
+    .fill_net_info = s_link_manager_fill_net_info
 };
 
 // State machine switchs here
@@ -3000,6 +3000,8 @@ int dap_chain_net_add_poa_certs_to_cluster(dap_chain_net_t *a_net, dap_global_db
     if (a_cluster->links_cluster->role == DAP_CLUSTER_ROLE_AUTONOMIC || a_cluster->links_cluster->role == DAP_CLUSTER_ROLE_ISOLATED) {
             dap_chain_node_addr_t l_poa_addr = {0xDDDD, 0000, 0000, 0000};
             dap_global_db_cluster_member_add(a_cluster, &l_poa_addr, DAP_GDB_MEMBER_ROLE_ROOT);
+            l_poa_addr.words[3] = 1;
+            dap_global_db_cluster_member_add(a_cluster, &l_poa_addr, DAP_GDB_MEMBER_ROLE_ROOT);
     }
     return 0;
 }
@@ -3637,14 +3639,15 @@ int dap_chain_net_link_manager_init()
     return dap_link_manager_init(&s_link_manager_callbacks);
 }
 
-dap_link_t *s_link_manager_get_net_info(dap_stream_node_addr_t *a_node_addr)
+int s_link_manager_fill_net_info(dap_link_t *a_link)
 {
 // sanity check
-    dap_return_val_if_pass(!a_node_addr, NULL);
+    dap_return_val_if_pass(!a_link, -1);
 // preparing
-    char *l_key = dap_chain_node_addr_to_hash_str(a_node_addr);
+    int l_ret = 0;
+    char *l_key = dap_chain_node_addr_to_hash_str(&a_link->node_addr);
     if (!l_key)
-        return NULL;
+        return -2;
     dap_chain_net_item_t *l_net_item = NULL, *l_tmp = NULL;
     dap_store_obj_t *l_obj = NULL;
     HASH_ITER(hh, s_net_items, l_net_item, l_tmp) {
@@ -3654,28 +3657,21 @@ dap_link_t *s_link_manager_get_net_info(dap_stream_node_addr_t *a_node_addr)
     }
     if (!l_obj) {
         DAP_DELETE(l_key);
-        return NULL;
+        return -3;
     }
     // get nodes list from global_db
-    dap_link_t *l_ret = DAP_NEW_Z(dap_link_t);
-    if (!l_ret) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        dap_store_obj_free(l_obj, 1);
-        DAP_DELETE(l_key);
-        return NULL;
-    }
     dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)(l_obj->value);
     if(l_node_info->hdr.ext_addr_v4.s_addr){
         struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = l_node_info->hdr.ext_addr_v4 };
-        inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), l_ret->host_addr_str, INET_ADDRSTRLEN);
+        inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), a_link->host_addr_str, INET_ADDRSTRLEN);
     } else {
         struct sockaddr_in6 sa6 = { .sin6_family = AF_INET6, .sin6_addr = l_node_info->hdr.ext_addr_v6 };
-        inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) &sa6)->sin6_addr), l_ret->host_addr_str, INET6_ADDRSTRLEN);
+        inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) &sa6)->sin6_addr), a_link->host_addr_str, INET6_ADDRSTRLEN);
     }
-    l_ret->host_port = l_node_info->hdr.ext_port;
-    if(!strlen(l_ret->host_addr_str) || !strcmp(l_ret->host_addr_str, "::") || !l_node_info->hdr.ext_port) {
+    a_link->host_port = l_node_info->hdr.ext_port;
+    if(!strlen(a_link->host_addr_str) || !strcmp(a_link->host_addr_str, "::") || !a_link->host_port) {
         log_it(L_WARNING, "Undefined address of node client");
-        DAP_DEL_Z(l_ret);  // l_ret seted NULL, and after return
+        l_ret = -4;
     }
     dap_store_obj_free(l_obj, 1);
     DAP_DELETE(l_key);
