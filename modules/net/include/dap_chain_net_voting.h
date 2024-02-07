@@ -88,13 +88,30 @@ int dap_chain_net_vote_create(char *a_question, dap_list_t *a_options, dap_time_
                              bool a_vote_changing_allowed, dap_chain_wallet_t *a_wallet,
                              dap_chain_net_t *a_net, char *a_hash_out_type, char **a_hash_output);
 
+enum DAP_CHAIN_NET_VOTE_VOTING_ERROR{
+    DAP_CHAIN_NET_VOTE_VOTING_OK,
+    DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_FIND_VOTE,
+    DAP_CHAIN_NET_VOTE_VOTING_THIS_VOTING_HAVE_MAX_VALUE_VOTES,
+    DAP_CHAIN_NET_VOTE_VOTING_ALREADY_EXPIRED,
+    DAP_CHAIN_NET_VOTE_VOTING_NO_KEY_FOUND_IN_CERT,
+    DAP_CHAIN_NET_VOTE_VOTING_NO_PUBLIC_KEY_IN_CERT,
+    DAP_CHAIN_NET_VOTE_VOTING_KEY_IS_NOT_DELEGATED,
+    DAP_CHAIN_NET_VOTE_VOTING_DOES_NOT_ALLOW_CHANGE_YOUR_VOTE,
+    DAP_CHAIN_NET_VOTE_VOTING_SOURCE_ADDRESS_INVALID,
+    DAP_CHAIN_NET_VOTE_VOTING_NOT_ENOUGH_FUNDS_TO_TRANSFER,
+    DAP_CHAIN_NET_VOTE_VOTING_UNSPENT_UTX0_FOR_PARTICIPATION_THIS_VOTING,
+    DAP_CHAIN_NET_VOTE_VOTING_INVALID_OPTION_INDEX,
+    DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_CREATE_VOTE_ITEM,
+    DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_CREATE_TSD_TX_COND_ITEM,
+    DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_ADD_NET_FEE_OUT,
+    DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_ADD_OUT_WITH_VALUE_BACK,
+    DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_SIGN_TX,
+    DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_POOL_IN_MEMPOOL
+};
+int dap_chain_net_vote_voting(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wallet_t *a_wallet, dap_hash_fast_t a_hash,
+                              uint64_t a_option_idx, dap_chain_net_t *a_net, const char *a_hash_out_type,
+                              char **a_hash_tx_out);
+
 dap_chain_net_vote_info_t **dap_chain_net_vote_list(dap_chain_net_t *a_net, size_t *a_count_vote_info_out);
 dap_chain_net_vote_info_t *dap_chain_net_vote_extract_info(dap_chain_net_t *a_net, dap_hash_fast_t *a_vote_hash);
 
-/**
-dap_chain_net_voting_create_vote(...);
-dap_chain_net_voting_vote(dap_hash_fast_t a_vote_hash)
-dap_chain_net_voting_get_vote(dap_hash_fast_t a_vote_hash)
- */
-
-dap_list_t *dap_chain_net_voting_get_list(dap_chain_net_t *a_net);
