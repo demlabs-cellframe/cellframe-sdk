@@ -53,6 +53,7 @@ json_object* dap_chain_receipt_info_to_json(dap_chain_receipt_info_t *a_info){
     if (!l_obj_datoshi || !l_obj_value) {
         json_object_put(l_obj_value);
         json_object_put(l_obj_datoshi);
+        DAP_DELETE(l_value);
         DAP_DELETE(l_datoshi_value);
         dap_json_rpc_allocation_error;
         return NULL;
