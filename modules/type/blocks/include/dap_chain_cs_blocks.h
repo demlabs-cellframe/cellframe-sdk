@@ -32,6 +32,9 @@
 #define DAP_CHAIN_CS_BLOCKS_MAX_BLOCK_SIZE (256 * 1024) // 256 KB
 #endif
 
+#define DAP_FORK_ACCOUNTING_DEPTH 100
+
+
 #define DAP_REWARD_INIT_TIMESTAMP 1700870400UL // 25 Nov 00:00:00 GMT
 
 typedef struct dap_chain_cs_blocks dap_chain_cs_blocks_t;
