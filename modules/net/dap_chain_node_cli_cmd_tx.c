@@ -138,6 +138,7 @@ static bool s_dap_chain_datum_tx_out_data(dap_chain_datum_tx_t *a_datum,
             break;
         }
     }
+    dap_list_free(l_out_items);
     json_obj_datum = json_object_new_object();
     json_object_object_add(json_obj_datum, "all OUTs yet unspent", l_spent ? json_object_new_string("yes") : json_object_new_string("no"));
     json_object_array_add(json_arr_out, json_obj_datum);
@@ -451,8 +452,12 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                     break;
                 }
             }
-            if (!l_dst_addr_present)
+            if (!l_dst_addr_present) {
+                json_object_put(j_obj_tx);
+                json_object_put(j_arr_data);
+                dap_list_free(l_list_out_items);
                 continue;
+            }
         }
         for (dap_list_t *it = l_list_out_items; it; it = it->next) {
             dap_chain_addr_t *l_dst_addr = NULL;
@@ -483,8 +488,9 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
 
             if (l_src_addr && l_dst_addr &&
                     dap_chain_addr_compare(l_dst_addr, l_src_addr) &&
-                    dap_strcmp(l_noaddr_token, l_dst_token))
+                dap_strcmp(l_noaddr_token, l_dst_token)) {
                 continue;   // sent to self (coinback)
+            }
 
             if (l_dst_addr && l_net_fee_used && dap_chain_addr_compare(&l_net_fee_addr, l_dst_addr))
                 SUM_256_256(l_fee_sum, l_value, &l_fee_sum);
@@ -532,9 +538,13 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                 DAP_DELETE(l_coins_str);
             } else if (!l_src_addr || dap_chain_addr_compare(l_src_addr, a_addr)) {
                 if (!l_dst_addr && ((dap_chain_tx_out_cond_t *)it->data)->header.subtype == l_src_subtype && l_src_subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
+                {
                     continue;
+                }
                 if (!l_src_addr && l_dst_addr && !dap_chain_addr_compare(l_dst_addr, &l_net_fee_addr))
+                {
                     continue;
+                }
                 if (!l_header_printed) {
                     s_tx_header_print(j_obj_tx, &l_tx_data_ht, l_tx, l_datum_iter->cur_atom_hash,
                                       a_hash_out_type, l_ledger, &l_tx_hash, l_datum_iter->ret_code);
@@ -574,6 +584,9 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
             char *l_coins_str = dap_chain_balance_to_coins(l_corr_value);
             json_object_object_add(l_corr_object, "recv_coins", json_object_new_string(l_coins_str));
             json_object_object_add(l_corr_object, "recv_datoshi", json_object_new_string(l_value_str));
+            if (!j_arr_data) {
+                j_arr_data = json_object_new_array();
+            }
             json_object_array_add(j_arr_data, l_corr_object);
             DAP_DELETE(l_value_str);
             DAP_DELETE(l_coins_str);
@@ -583,7 +596,13 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
             json_object_object_add(j_obj_tx, "data", j_arr_data);
             json_object_array_add(json_obj_datum, j_obj_tx);
         }
+        else
+        {
+            json_object_put(j_arr_data);
+            json_object_put(j_obj_tx);
+        }
     }
+
     a_chain->callback_datum_iter_delete(l_datum_iter);
     // delete hashes
     s_dap_chain_tx_hash_processed_ht_free(&l_tx_data_ht);
