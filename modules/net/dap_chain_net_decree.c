@@ -34,7 +34,7 @@
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
 #include "dap_chain_node_net_ban_list.h"
-#include "dap_enc_http_ban_list_client.h"
+#include "dap_http_ban_list_client.h"
 
 
 
@@ -478,10 +478,10 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_decree_hash);
                 if (l_tsd->type == DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V4){
                     struct in_addr l_ip_addr = dap_tsd_get_scalar(l_tsd, struct in_addr);
-                    dap_enc_http_ban_list_client_add_ipv4(l_ip_addr, l_decree_hash, a_decree->header.ts_created);
+                    dap_http_ban_list_client_add_ipv4(l_ip_addr, l_decree_hash, a_decree->header.ts_created);
                 } else if (l_tsd->type == DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V6){
                     struct in6_addr l_ip_addr = dap_tsd_get_scalar(l_tsd, struct in6_addr);
-                    dap_enc_http_ban_list_client_add_ipv6(l_ip_addr, l_decree_hash, a_decree->header.ts_created);
+                    dap_http_ban_list_client_add_ipv6(l_ip_addr, l_decree_hash, a_decree->header.ts_created);
                 } else if (l_tsd->type == DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR){
                     dap_chain_node_addr_t l_addr_node = dap_tsd_get_scalar(l_tsd, dap_chain_node_addr_t);
                     if (!dap_chain_node_net_ban_list_add_node_addr(l_addr_node, l_decree_hash, a_decree->header.ts_created, a_net))
@@ -509,10 +509,10 @@ static int s_common_decree_handler(dap_chain_datum_decree_t *a_decree, dap_chain
                 dap_hash_fast(a_decree, dap_chain_datum_decree_get_size(a_decree), &l_decree_hash);
                 if (l_tsd->type == DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V4){
                     struct in_addr l_ip_addr = dap_tsd_get_scalar(l_tsd, struct in_addr);
-                    dap_enc_http_ban_list_client_remove_ipv4(l_ip_addr);
+                    dap_http_ban_list_client_remove_ipv4(l_ip_addr);
                 } else if (l_tsd->type == DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V6){
                     struct in6_addr l_ip_addr = dap_tsd_get_scalar(l_tsd, struct in6_addr);
-                    dap_enc_http_ban_list_client_remove_ipv6(l_ip_addr);
+                    dap_http_ban_list_client_remove_ipv6(l_ip_addr);
                 } else if (l_tsd->type == DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR){
                     dap_chain_node_addr_t l_addr_node = dap_tsd_get_scalar(l_tsd, dap_chain_node_addr_t);
                     dap_chain_node_net_ban_list_remove_node_addr(a_net, l_addr_node);
