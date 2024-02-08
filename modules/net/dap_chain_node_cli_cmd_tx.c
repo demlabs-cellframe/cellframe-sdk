@@ -440,8 +440,12 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                     break;
                 }
             }
-            if (!l_dst_addr_present)
+            if (!l_dst_addr_present) {
+                json_object_put(j_obj_tx);
+                json_object_put(j_arr_data);
+                dap_list_free(l_list_out_items);
                 continue;
+            }
         }
         for (dap_list_t *it = l_list_out_items; it; it = it->next) {
             dap_chain_addr_t *l_dst_addr = NULL;
@@ -571,6 +575,11 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
         if (json_object_array_length(j_arr_data) > 0) {
             json_object_object_add(j_obj_tx, "data", j_arr_data);
             json_object_array_add(json_obj_datum, j_obj_tx);
+        }
+        else
+        {
+            json_object_put(j_arr_data);
+            json_object_put(j_obj_tx);
         }
     }
     a_chain->callback_datum_iter_delete(l_datum_iter);
