@@ -41,6 +41,7 @@ typedef struct dap_chain_net_vote_info_option{
     uint256_t weight;
     uint64_t description_size;
     char *description;
+    dap_hash_fast_t *hashes_tx_votes;
 }dap_chain_net_vote_info_option_t;
 typedef struct dap_chain_net_vote_info{
     dap_hash_fast_t hash;

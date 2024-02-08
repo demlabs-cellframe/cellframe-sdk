@@ -894,7 +894,9 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
                 case DAP_CHAIN_NET_VOTE_VOTING_CAN_NOT_POOL_IN_MEMPOOL: {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't add datum to mempool");
                 } break;
-                default: {} break;
+                default: {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Undefined error code: %d", res);
+                } break;
 
             }
             return res;
@@ -1595,7 +1597,7 @@ dap_chain_net_vote_info_t *s_dap_chain_net_vote_extract_info(dap_chain_net_votin
         return NULL;
     }
     dap_chain_net_vote_info_t *l_info = DAP_NEW(dap_chain_net_vote_info_t);
-    struct voting_results {uint64_t num_of_votes; uint256_t weights;};
+    struct voting_results {uint64_t num_of_votes; uint256_t weights; dap_hash_fast_t *tx_hashes;};
 
     struct voting_results* l_results = DAP_NEW_Z_SIZE(struct voting_results, sizeof(struct voting_results) *
                                                                              dap_list_length(a_voting->voting_params.option_offsets_list));
@@ -1608,6 +1610,8 @@ dap_chain_net_vote_info_t *s_dap_chain_net_vote_extract_info(dap_chain_net_votin
         l_results[l_vote->answer_idx].num_of_votes++;
         SUM_256_256(l_results[l_vote->answer_idx].weights, l_vote->weight, &l_results[l_vote->answer_idx].weights);
         l_list_tmp = l_list_tmp->next;
+        l_results[l_vote->answer_idx].tx_hashes = DAP_REALLOC(l_results[l_vote->answer_idx].tx_hashes, sizeof(dap_hash_fast_t) * l_results[l_vote->answer_idx].num_of_votes);
+        memcpy(l_results[l_vote->answer_idx].tx_hashes + (l_results[l_vote->answer_idx].num_of_votes - 1), &l_vote->vote_hash, sizeof(dap_hash_fast_t));
     }
 
     l_info->question.question_size = a_voting->voting_params.voting_question_length;
