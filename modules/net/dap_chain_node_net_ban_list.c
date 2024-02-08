@@ -43,7 +43,7 @@ bool dap_chain_node_net_ban_list_add_node_addr(dap_chain_node_addr_t node_addr, 
     //Resolve addr to ip
     struct in_addr l_in;
     if (s_chain_node_net_ban_list_addr_resolve_ip_v4(a_net, node_addr, &l_in)) {
-        dap_enc_http_ban_list_client_add_ipv4(l_in, a_decree_hash, a_time_created);
+        dap_http_ban_list_client_add_ipv4(l_in, a_decree_hash, a_time_created);
         l_record->node_addr = node_addr;
         l_record->decree_hash = a_decree_hash;
         l_record->ts_created_decree = a_time_created;
@@ -88,7 +88,7 @@ void dap_chain_node_net_ban_list_remove_node_addr(dap_chain_net_t *a_net, dap_ch
         if (l_record->node_addr.uint64 == node_addr.uint64) {
             struct in_addr l_in;
             if (s_chain_node_net_ban_list_addr_resolve_ip_v4(a_net, l_record->node_addr, &l_in)) {
-                dap_enc_http_ban_list_client_remove_ipv4(l_in);
+                dap_http_ban_list_client_remove_ipv4(l_in);
             } else {
                 log_it(L_WARNING, "Can't resolve node address "NODE_ADDR_FP_STR" to ip at remove node addr from ban list",
                        NODE_ADDR_FP_ARGS_S(l_record->node_addr));

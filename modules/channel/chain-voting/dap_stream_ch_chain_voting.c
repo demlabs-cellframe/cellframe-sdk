@@ -59,7 +59,7 @@ void dap_stream_ch_chain_voting_in_callback_add(void* a_arg, dap_chain_voting_ch
     s_pkt_in_callback_count++;
 }
 
-static bool s_callback_pkt_in_call_all(dap_proc_thread_t UNUSED_ARG *a_thread, void *a_arg)
+static bool s_callback_pkt_in_call_all(void *a_arg)
 {
     dap_stream_ch_chain_voting_pkt_t *l_voting_pkt = a_arg;
     for (size_t i = 0; i < s_pkt_in_callback_count; i++) {

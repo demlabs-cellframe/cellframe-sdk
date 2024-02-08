@@ -482,8 +482,8 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
             dap_global_db_obj_t *l_aliases_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes_aliases, &l_data_size);
             for (size_t i = 0; i < l_nodes_count; i++) {
                 dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t*)l_objs[i].value;
-                if (!dap_chain_node_addr_not_null(&l_node_info->hdr.address)){
-                    log_it(L_ERROR, "Node address is NULL");
+                if (dap_chain_node_addr_is_blank(&l_node_info->hdr.address)){
+                    log_it(L_ERROR, "Node address is empty");
                     continue;
                 }
 /*
@@ -787,7 +787,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "record already pinned");
                     break;
                 }
-                if(dap_global_db_set_sync( l_group, l_key, l_value, l_value_len,true ) ==0 ){
+                if(dap_global_db_set_sync( l_group, l_key, l_value, l_value_len, true) ==0 ){
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "record successfully pinned");
                 }
                 else{
@@ -1569,8 +1569,8 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     } break;
     case CMD_BANLIST: {
         dap_string_t *l_str_ban_list = dap_string_new("Ban list:\n");
-        dap_enc_http_ban_list_client_ipv4_print(l_str_ban_list);
-        dap_enc_http_ban_list_client_ipv6_print(l_str_ban_list);
+        dap_http_ban_list_client_ipv4_print(l_str_ban_list);
+        dap_http_ban_list_client_ipv6_print(l_str_ban_list);
         dap_chain_node_net_ban_list_print(l_str_ban_list);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ban_list->str);
         dap_string_free(l_str_ban_list, true);

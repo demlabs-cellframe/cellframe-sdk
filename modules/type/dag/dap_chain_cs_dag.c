@@ -205,7 +205,7 @@ static bool s_dag_rounds_events_iter(dap_global_db_instance_t *a_dbi,
                                      const size_t a_values_current, const size_t a_values_count,
                                      dap_store_obj_t *a_values, void *a_arg)
 {
-    dap_return_val_if_pass(a_rc != DAP_GLOBAL_DB_RC_SUCCESS, false);
+    dap_return_val_if_pass(a_rc == DAP_GLOBAL_DB_RC_ERROR, false);
 
     for (size_t i = 0; i < a_values_count; i++) {
         dap_store_obj_t *l_obj_cur = a_values + i;
