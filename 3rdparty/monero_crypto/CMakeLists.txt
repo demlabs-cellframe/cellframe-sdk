@@ -38,6 +38,8 @@ project (monero_crypto)
 # Since ARCH is a cached variable, it will not be set on first cmake invocation.
 set(STATIC 1)
 
+set(ARCH "x86-64")
+
 if (NOT ARCH OR ARCH STREQUAL "" OR ARCH STREQUAL "native" OR ARCH STREQUAL "default")
   set(ARCH_ID "${CMAKE_SYSTEM_PROCESSOR}")
 else()

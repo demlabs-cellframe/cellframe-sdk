@@ -27,7 +27,12 @@ macos {
 }
 
 ios {
-    sdk_build.commands = $$PWD/../cellframe-sdk/prod_build/build.sh --target ios release -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/
+    contains(CONFIG, iphoneos) {
+        sdk_build.commands = $$PWD/../cellframe-sdk/prod_build/build.sh --target ios release -DCMAKE_OSX_ARCHITECTURES="arm64" -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/
+    }
+    contains(CONFIG, iphonesimulator) {
+        sdk_build.commands = $$PWD/../cellframe-sdk/prod_build/build.sh --target ios release -DCMAKE_OSX_ARCHITECTURES="x86_64" -DINSTALL_SDK=1 -DCMAKE_INSTALL_PREFIX=/
+    }
 }
 
 QMAKE_EXTRA_TARGETS += sdk_build

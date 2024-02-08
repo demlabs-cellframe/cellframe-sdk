@@ -83,7 +83,7 @@ else
       fi
     fi
 
-    export IOS_TOOLCHAIN_HOST="x86_64-apple-darwin20.4"
+    export IOS_TOOLCHAIN_HOST="x86_64-apple-darwin-macho"
     CMAKE=(${CMAKE_PATH} -DCMAKE_TOOLCHAIN_FILE="${IOS_TOOLCHAIN_PATH}")
 
     MAKE=(make)
