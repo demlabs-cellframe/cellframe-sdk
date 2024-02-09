@@ -128,8 +128,6 @@ static void s_stream_ch_chain_pkt_write(dap_stream_ch_t *a_ch, uint8_t a_type, u
 static bool s_debug_more=false;
 static uint_fast16_t s_update_pack_size=100; // Number of hashes packed into the one packet
 static uint_fast16_t s_skip_in_reactor_count=50; // Number of hashes packed to skip in one reactor loop callback out packet
-static char **s_list_ban_groups = NULL;
-static char **s_list_white_groups = NULL;
 static uint16_t s_size_ban_groups = 0;
 static uint16_t s_size_white_groups = 0;
 
@@ -152,13 +150,10 @@ static  dap_memstat_rec_t   s_memstat [MEMSTAT$K_NR] = {
 int dap_stream_ch_chain_init()
 {
     log_it(L_NOTICE, "Chains and global db exchange channel initialized");
-    dap_stream_ch_proc_add(DAP_STREAM_CH_ID, s_stream_ch_new, s_stream_ch_delete, s_stream_ch_packet_in,
+    dap_stream_ch_proc_add(DAP_STREAM_CH_CHAIN_ID, s_stream_ch_new, s_stream_ch_delete, s_stream_ch_packet_in,
             s_stream_ch_packet_out);
     s_debug_more = dap_config_get_item_bool_default(g_config,"stream_ch_chain","debug_more",false);
     s_update_pack_size = dap_config_get_item_int16_default(g_config,"stream_ch_chain","update_pack_size",100);
-    s_list_ban_groups = dap_config_get_array_str(g_config, "stream_ch_chain", "ban_list_sync_groups", &s_size_ban_groups);
-    s_list_white_groups = dap_config_get_array_str(g_config, "stream_ch_chain", "white_list_sync_groups", &s_size_white_groups);
-
 #ifdef  DAP_SYS_DEBUG
     for (int i = 0; i < MEMSTAT$K_NR; i++)
         dap_memstat_reg(&s_memstat[i]);
@@ -595,7 +590,7 @@ static bool s_sync_in_chains_callback(void *a_arg)
         if (s_debug_more) {
             log_it(L_INFO,"Accepted atom with hash %s for %s:%s", l_atom_hash_str, l_chain->net_name, l_chain->name);
         }
-        int l_res = dap_chain_atom_save(l_chain, l_atom_copy, l_atom_copy_size, l_sync_request->request_hdr.cell_id);
+        int l_res = dap_chain_atom_save(l_chain->cells, l_atom_copy, l_atom_copy_size, NULL);
         if(l_res < 0) {
             log_it(L_ERROR, "Can't save atom %s to the file", l_atom_hash_str);
         } else {
@@ -1490,7 +1485,7 @@ static void s_stream_ch_io_complete(dap_events_socket_t *a_es, void *a_arg, int 
         return;
     dap_stream_ch_t *l_ch = NULL;
     for (size_t i = 0; i < l_stream->channel_count; i++)
-        if (l_stream->channel[i]->proc->id == DAP_STREAM_CH_ID)
+        if (l_stream->channel[i]->proc->id == DAP_STREAM_CH_CHAIN_ID)
             l_ch = l_stream->channel[i];
     if (!l_ch || !DAP_STREAM_CH_CHAIN(l_ch))
         return;

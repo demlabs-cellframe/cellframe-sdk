@@ -69,7 +69,7 @@ static void s_stream_ch_packet_out(dap_stream_ch_t* ch, void* arg);
 int dap_stream_ch_chain_net_init()
 {
     log_it(L_NOTICE, "Chain network channel initialized");
-    dap_stream_ch_proc_add(DAP_STREAM_CH_ID_NET, s_stream_ch_new, s_stream_ch_delete,
+    dap_stream_ch_proc_add(DAP_STREAM_CH_NET_ID, s_stream_ch_new, s_stream_ch_delete,
             s_stream_ch_packet_in, s_stream_ch_packet_out);
 
     return 0;

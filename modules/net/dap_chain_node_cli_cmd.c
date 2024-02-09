@@ -1317,7 +1317,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         log_it(L_NOTICE, "Stream connection established");
 
         dap_stream_ch_chain_sync_request_t l_sync_request = {};
-        dap_stream_ch_t *l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, DAP_STREAM_CH_ID);
+        dap_stream_ch_t *l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, DAP_STREAM_CH_CHAIN_ID);
         // fill begin id
         l_sync_request.id_start = 1;
         // fill current node address

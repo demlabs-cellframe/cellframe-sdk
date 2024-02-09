@@ -1539,7 +1539,7 @@ static bool s_session_candidate_to_chain(dap_chain_esbocs_session_t *a_session, 
     switch (l_res) {
     case ATOM_ACCEPT:
         // block save to chain
-        if (dap_chain_atom_save(a_session->chain, (uint8_t *)l_candidate, a_candidate_size, a_session->chain->cells->id) < 0)
+        if (dap_chain_atom_save(a_session->chain->cells, (uint8_t *)l_candidate, a_candidate_size, a_candidate_hash) < 0)
             log_it(L_ERROR, "Can't save atom %s to the file", l_candidate_hash_str);
         else
         {

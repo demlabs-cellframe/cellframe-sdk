@@ -613,15 +613,17 @@ static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
     if (l_chosen_item) {
         size_t l_event_size = l_chosen_item->event_size;
         dap_chain_cs_dag_event_t *l_new_atom = (dap_chain_cs_dag_event_t *)DAP_DUP_SIZE(l_chosen_item->event_n_signs, l_event_size);
-        char *l_event_hash_hex_str;
-        dap_get_data_hash_str_static(l_new_atom, l_event_size, l_event_hash_hex_str);
+        dap_hash_fast_t l_event_hash;
+        dap_hash_fast(l_new_atom, l_event_size, &l_event_hash);
+        char *l_event_hash_hex_str = DAP_NEW_STACK_SIZE(char, DAP_CHAIN_HASH_FAST_STR_SIZE);
+        dap_chain_hash_fast_to_str(&l_event_hash, l_event_hash_hex_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
         dap_chain_datum_t *l_datum = dap_chain_cs_dag_event_get_datum(l_new_atom, l_event_size);
         l_dag->round_completed = dap_max(l_new_atom->header.round_id, l_dag->round_current);
         int l_verify_datum = dap_chain_net_verify_datum_for_add(l_dag->chain, l_datum, &l_chosen_item->round_info.datum_hash);
         if (!l_verify_datum) {
             dap_chain_atom_verify_res_t l_res = l_dag->chain->callback_atom_add(l_dag->chain, l_new_atom, l_event_size);
             if (l_res == ATOM_ACCEPT) {
-                dap_chain_atom_save(l_dag->chain, (dap_chain_atom_ptr_t)l_new_atom, l_event_size, l_dag->chain->cells->id);
+                dap_chain_atom_save(l_dag->chain->cells, (dap_chain_atom_ptr_t)l_new_atom, l_event_size, &l_event_hash);
                 s_poa_round_clean(l_dag->chain);
             } else if (l_res != ATOM_MOVE_TO_THRESHOLD)
                 DAP_DELETE(l_new_atom);

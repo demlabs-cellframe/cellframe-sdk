@@ -42,7 +42,7 @@ int dap_stream_ch_chain_voting_init()
     log_it(L_NOTICE, "Chains voting channel initialized");
 
     pthread_rwlock_init(&s_node_client_list_lock, NULL);
-    dap_stream_ch_proc_add(DAP_STREAM_CH_ID_VOTING,
+    dap_stream_ch_proc_add(DAP_STREAM_CH_VOTING_ID,
                            s_stream_ch_new,
                            s_stream_ch_delete,
                            s_stream_ch_packet_in,
@@ -99,7 +99,7 @@ void dap_stream_ch_chain_voting_message_write(dap_chain_net_t *a_net, dap_chain_
                 log_it(L_WARNING, "Can't find validator's addr "NODE_ADDR_FP_STR" in database", NODE_ADDR_FP_ARGS(a_remote_node_addr));
                 return;
             }
-            char l_channels[] = { DAP_STREAM_CH_ID_VOTING, '\0' };
+            char l_channels[] = { DAP_STREAM_CH_VOTING_ID, '\0' };
             dap_chain_node_client_t *l_node_client = dap_chain_node_client_connect_channels(a_net, l_node_info, l_channels);
             if (!l_node_client || !l_node_client->client) {
                 log_it(L_ERROR, "Can't connect to remote node "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(a_remote_node_addr));
@@ -124,7 +124,7 @@ void dap_stream_ch_chain_voting_message_write(dap_chain_net_t *a_net, dap_chain_
             log_it(L_ERROR, "NULL node_client in item of voting channel");
             return;
         }
-        dap_chain_node_client_write_mt(l_node_client_item->node_client, DAP_STREAM_CH_ID_VOTING,
+        dap_chain_node_client_write_mt(l_node_client_item->node_client, DAP_STREAM_CH_VOTING_ID,
                                        DAP_STREAM_CH_CHAIN_VOTING_PKT_TYPE_DATA, a_voting_pkt,
                                        l_voting_pkt_size);
     } else
