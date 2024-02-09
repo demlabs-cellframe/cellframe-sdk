@@ -318,6 +318,7 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
             if (ret == ADD_OK || ret == ERR_EXISTS) {
                 break;
             } else {
+                l_node_list_request->response = 0;
                 switch (ret)
                 {
                 case ERR_NO_SERVER:
@@ -464,6 +465,7 @@ int dap_chain_net_node_list_init()
     for (uint16_t i = 0; i < l_net_count; i++) {
         dap_chain_net_add_gdb_notify_callback(l_net_list[i], s_node_list_callback_notify, l_net_list[i]);
     }
+    DAP_DELETE(l_net_list);
     return 0;
 }
 
