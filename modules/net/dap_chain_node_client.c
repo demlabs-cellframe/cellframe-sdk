@@ -156,7 +156,7 @@ static void s_stage_status_error_callback(dap_client_t *a_client, void *a_arg)
 
         l_node_client->esocket_uuid = 0;
 
-        dap_chain_net_sync_unlock(l_node_client->net, l_node_client);
+        // dap_chain_net_sync_unlock(l_node_client->net, l_node_client);
         if (l_node_client->callbacks.disconnected) {
             l_node_client->callbacks.disconnected(l_node_client, l_node_client->callbacks_arg);
         }
@@ -189,7 +189,8 @@ dap_chain_node_sync_status_t dap_chain_node_client_start_sync(dap_chain_node_cli
         // If we do nothing - init sync process
 
         if (l_ch_chain->state == CHAIN_STATE_IDLE) {
-            bool l_trylocked = dap_chain_net_sync_trylock(l_net, a_node_client);
+            // bool l_trylocked = dap_chain_net_sync_trylock(l_net, a_node_client);
+            bool l_trylocked = true;
             if (l_trylocked) {
                 log_it(L_INFO, "Start synchronization process with "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr));
                 dap_stream_ch_chain_sync_request_t l_sync_gdb = {};
@@ -441,7 +442,8 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
         l_node_client->state = NODE_CLIENT_STATE_SYNCED;
         dap_cond_signal(l_node_client->wait_cond);
         pthread_mutex_unlock(&l_node_client->wait_mutex);
-        bool l_have_waiting = dap_chain_net_sync_unlock(l_net, l_node_client);
+        // bool l_have_waiting = dap_chain_net_sync_unlock(l_net, l_node_client);
+        bool l_have_waiting = true;
         if (dap_chain_net_get_target_state(l_net) == NET_STATE_ONLINE) {
             dap_timerfd_reset_unsafe(l_node_client->sync_timer);
             dap_chain_net_set_state(l_net, NET_STATE_ONLINE);
@@ -491,7 +493,8 @@ static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_ch
             l_node_client->state = NODE_CLIENT_STATE_ERROR;
             if (l_node_client->sync_timer)
                 dap_timerfd_reset_unsafe(l_node_client->sync_timer);
-            bool l_have_waiting = dap_chain_net_sync_unlock(l_net, l_node_client);
+            // bool l_have_waiting = dap_chain_net_sync_unlock(l_net, l_node_client);
+            bool l_have_waiting = true;
             if (!l_have_waiting) {
                 if (dap_chain_net_get_target_state(l_net) == NET_STATE_ONLINE)
                     dap_chain_net_set_state(l_net, NET_STATE_ONLINE);
