@@ -1222,10 +1222,18 @@ static int s_delete_atom_datums(dap_chain_cs_blocks_t *a_blocks, dap_chain_block
 
     size_t l_block_offset = 0;
     size_t l_datum_size = 0;
-    for(size_t i=0; i<a_block_cache->datum_count && l_block_offset +sizeof(a_block_cache->block->hdr) < a_block_cache->block_size ;
-        i++, l_block_offset += l_datum_size ){
-        dap_chain_datum_t *l_datum = a_block_cache->datum[i];
-        
+    for(size_t i=0; i<a_block_cache->datum_count && l_block_offset +sizeof(a_block_cache->block->hdr) < a_block_cache->block_size;
+            i++, l_block_offset += l_datum_size){
+        dap_hash_fast_t *l_datum_hash = a_block_cache->datum_hash + i;
+        int l_res = dap_chain_datum_remove(a_blocks->chain, l_datum, l_datum_size, l_datum_hash);
+        l_ret++;
+
+        pthread_rwlock_wrlock(&PVT(a_blocks)->datums_rwlock);
+        dap_chain_block_datum_index_t *l_datum_index = NULL;
+        HASH_FIND(hh, PVT(a_blocks)->datum_index, l_datum_hash, sizeof(dap_hash_fast_t), l_datum_index);
+        if (l_datum_index)
+            HASH_DEL(PVT(a_blocks)->datum_index, l_datum_index);
+        pthread_rwlock_unlock(&PVT(a_blocks)->datums_rwlock);
     }
     debug_if(s_debug_more, L_DEBUG, "Block %s checked, %s", a_block_cache->block_hash_str,
              l_ret == (int)a_block_cache->datum_count ? "all correct" : "there are rejected datums");
@@ -1399,7 +1407,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
     dap_hash_t l_block_prev_hash = l_prev_hash_meta_data ? *l_prev_hash_meta_data : (dap_hash_t){};
 
     switch (ret) {
-    case ATOM_ACCEPT:
+    case ATOM_ACCEPT:{
         //TODO: reimplement on new blockchain arcitecture with forks. Check chains length and pick longest
         dap_chain_block_cache_t * l_prev_bcache = NULL, *l_tmp = NULL;
         uint64_t l_current_item_index = 0;
@@ -1440,6 +1448,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
         debug_if(s_debug_more, L_DEBUG, "Verified atom %p: REJECTED", a_atom);
         return ATOM_REJECT;
+    }
     case ATOM_MOVE_TO_THRESHOLD:
         // TODO: reimplement and enable threshold for blocks
 /*      {
@@ -1452,21 +1461,22 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         dap_chain_block_cache_delete(l_block_cache);
         debug_if(s_debug_more, L_DEBUG, "Verified atom %p: REJECTED", a_atom);
         break;
-    case ATOM_FORK:
+    case ATOM_FORK:{
         dap_chain_block_cache_t *l_prev_bcache = NULL, *l_tmp = NULL;
-        pthread_rwlock_wrlock(& PVT(a_blocks)->rwlock);
-        HASH_FIND(hh, PVT(a_blocks)->blocks, &l_block_prev_hash, sizeof(dap_hash_fast_t), l_prev_bcache);
+        pthread_rwlock_wrlock(& PVT(l_blocks)->rwlock);
+        HASH_FIND(hh, PVT(l_blocks)->blocks, &l_block_prev_hash, sizeof(dap_hash_fast_t), l_prev_bcache);
         if (l_prev_bcache && dap_hash_fast_compare(&l_prev_bcache->block_hash, &l_block_prev_hash)){
             // make forked branch list
             dap_list_t *forked_branch = NULL;
             forked_branch = dap_list_append(forked_branch, l_block_cache);
             l_prev_bcache->forked_branches = dap_list_append(l_prev_bcache->forked_branches, forked_branch);
-            pthread_rwlock_unlock(& PVT(a_blocks)->rwlock);
+            pthread_rwlock_unlock(& PVT(l_blocks)->rwlock);
             debug_if(s_debug_more, L_DEBUG, "Fork is made successfuly.");
             return ATOM_ACCEPT;
         }
-        pthread_rwlock_unlock(& PVT(a_blocks)->rwlock);
+        pthread_rwlock_unlock(& PVT(l_blocks)->rwlock);
         return ATOM_REJECT;
+    }
     case ATOM_PASS:
         debug_if(s_debug_more, L_DEBUG, "... %s is already present", l_block_cache->block_hash_str);
         return ATOM_REJECT;
@@ -1551,7 +1561,7 @@ static dap_chain_atom_verify_res_t s_callback_atom_verify(dap_chain_t * a_chain,
         dap_chain_block_cache_t *l_prev_bcache = NULL, *l_tmp = NULL;
         pthread_rwlock_rdlock(& PVT(l_blocks)->rwlock);
         HASH_ITER(hh, PVT(l_blocks)->blocks, l_prev_bcache, l_tmp){
-            if(l_prev_bcache && dap_hash_fast_compare(&l_prev_bcache->block_hash, &a_atom_hash)){
+            if(l_prev_bcache && dap_hash_fast_compare(&l_prev_bcache->block_hash, a_atom_hash)){
                 pthread_rwlock_unlock(& PVT(l_blocks)->rwlock);
                 return ATOM_PASS;
             }

@@ -97,7 +97,7 @@ static dap_chain_cs_dag_event_item_t *s_dag_proc_treshold(dap_chain_cs_dag_t *a_
 // Atomic element organization callbacks
 static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t *a_atom_hash);                      //    Accept new event in dag
 static dap_chain_atom_ptr_t s_chain_callback_atom_add_from_treshold(dap_chain_t * a_chain, size_t *a_event_size_out);                    //    Accept new event in dag from treshold
-static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t);                   //    Verify new event in dag
+static dap_chain_atom_verify_res_t s_chain_callback_atom_verify(dap_chain_t * a_chain, dap_chain_atom_ptr_t , size_t, dap_hash_fast_t *a_atom_hash);                   //    Verify new event in dag
 static size_t s_chain_callback_atom_get_static_hdr_size(void);                               //    Get dag event header size
 
 static dap_chain_atom_iter_t* s_chain_callback_atom_iter_create(dap_chain_t * a_chain, dap_chain_cell_id_t a_cell_id, bool a_with_treshold);
@@ -524,7 +524,7 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
     // verify hashes and consensus
     switch (ret) {
     case ATOM_ACCEPT:
-        ret = s_chain_callback_atom_verify(a_chain, a_atom, a_atom_size);
+        ret = s_chain_callback_atom_verify(a_chain, a_atom, a_atom_size, &a_atom_hash);
         if (ret == ATOM_MOVE_TO_THRESHOLD) {
             if (!s_threshold_enabled && !dap_chain_net_get_load_mode(dap_chain_net_by_id(a_chain->net_id)))
                 ret = ATOM_REJECT;
@@ -726,7 +726,9 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
 
     if (l_dag->is_add_directly) {
         dap_chain_atom_verify_res_t l_verify_res;
-        switch (l_verify_res = s_chain_callback_atom_add(a_chain, l_event, l_event_size)) {
+        dap_hash_fast_t l_event_hash ={};
+        dap_hash_fast(l_event, l_event_size, &l_event_hash);
+        switch (l_verify_res = s_chain_callback_atom_add(a_chain, l_event, l_event_size, &l_event_hash)) {
         case ATOM_ACCEPT:
             return dap_chain_atom_save(a_chain, (uint8_t *)l_event, l_event_size, a_chain->cells->id) > 0;
         default:
@@ -1521,7 +1523,9 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
             for (size_t i = 0; i< l_objs_size; i++ ){
                 dap_chain_cs_dag_event_round_item_t *l_round_item = (dap_chain_cs_dag_event_round_item_t *)l_objs[i].value;
                 dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t *)l_round_item->event_n_signs;
+                dap_hash_fast_t l_event_hash = {};
                 size_t l_event_size = l_round_item->event_size;
+                dap_hash_fast(l_event, l_event_size, &l_event_hash);
                 int l_ret_event_verify;
                 if ( ( l_ret_event_verify = l_dag->callback_cs_verify (l_dag,l_event,l_event_size) ) !=0 ){// if consensus accept the event
                     dap_string_append_printf( l_str_ret_tmp,
@@ -1534,7 +1538,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     // If not verify only mode we add
                     if ( ! l_verify_only ){
                         dap_chain_atom_ptr_t l_new_atom = DAP_DUP_SIZE(l_event, l_event_size); // produce deep copy of event;
-                        if(s_chain_callback_atom_add(l_chain, l_new_atom, l_event_size) < 0) { // Add new atom in chain
+                        if(s_chain_callback_atom_add(l_chain, l_new_atom, l_event_size, &l_event_hash) < 0) { // Add new atom in chain
                             DAP_DELETE(l_new_atom);
                             dap_string_append_printf(l_str_ret_tmp, "Event %s not added in chain\n", l_objs[i].key);
                         } else {

@@ -135,7 +135,9 @@ static void s_changes_callback_notify(dap_store_obj_t *a_obj, void *a_arg)
     dap_chain_t *l_chain = a_arg;
     if (a_obj->type == DAP_GLOBAL_DB_OPTYPE_DEL)
         return;
-    s_nonconsensus_callback_atom_add(l_chain, (dap_chain_datum_t *)a_obj->value, a_obj->value_len);
+    dap_hash_fast_t l_hash = {};
+    dap_hash_fast(a_obj->value, a_obj->value_len, &l_hash);
+    s_nonconsensus_callback_atom_add(l_chain, (dap_chain_datum_t *)a_obj->value, a_obj->value_len, &l_hash);
 }
 
 /**
@@ -295,7 +297,9 @@ static bool s_ledger_load_callback(UNUSED_ARG dap_global_db_instance_t *a_dbi,
     // make list of datums
     for(size_t i = 0; i < a_values_count; i++) {
         dap_global_db_obj_t *it = a_values + i;
-        s_nonconsensus_callback_atom_add(l_chain, it->value, it->value_len);
+        dap_hash_fast_t l_hash = {};
+        dap_hash_fast(it->value, it->value_len, &l_hash);
+        s_nonconsensus_callback_atom_add(l_chain, it->value, it->value_len, &l_hash);
         log_it(L_DEBUG,"Load mode, doesn't save item %s:%s", it->key, l_nochain_pvt->group_datums);
     }
 
