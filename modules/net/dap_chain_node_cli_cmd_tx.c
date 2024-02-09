@@ -949,8 +949,6 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
     bool l_is_all = dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-all", NULL);
 
     arg_index++;
-    json_object* json_arr_datum = json_object_new_array();
-    json_object* json_obj_out = json_object_new_object();
 
     if(l_cmd == CMD_LEDGER_HISTORY) {
         dap_cli_server_cmd_find_option_val(a_argv, 0, a_argc, "-addr", &l_addr_base58);
@@ -1004,8 +1002,10 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
                 dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_LEDGER_WALLET_ADDR_ERR, "wallet address not recognized");
                 return DAP_CHAIN_NODE_CLI_COM_LEDGER_WALLET_ADDR_ERR;
             }
-        }        
+        }
 
+        json_object* json_arr_datum = json_object_new_array();
+        json_object* json_obj_out = json_object_new_object();
         char *l_str_out = NULL;
         dap_ledger_t *l_ledger = dap_ledger_by_net_name(l_net_str);
         if(l_is_all) {
@@ -1065,7 +1065,7 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
         json_object_object_add(json_obj_out, "sign ", json_object_new_string(l_sign_str));
         return 0;       
     }
-    else if(l_cmd == CMD_LIST){
+    else if(l_cmd == CMD_LIST){        
         enum {SUBCMD_NONE, SUBCMD_LIST_COIN, SUB_CMD_LIST_LEDGER_THRESHOLD, SUB_CMD_LIST_LEDGER_BALANCE, SUB_CMD_LIST_LEDGER_THRESHOLD_WITH_HASH};
         int l_sub_cmd = SUBCMD_NONE;
         dap_chain_hash_fast_t l_tx_threshold_hash;
@@ -1151,18 +1151,24 @@ int com_ledger(int a_argc, char ** a_argv, void **reply)
         dap_chain_hash_fast_t *l_tx_hash = DAP_NEW(dap_chain_hash_fast_t);
         if (dap_chain_hash_fast_from_str(l_tx_hash_str, l_tx_hash)) {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_LEDGER_HASH_GET_ERR, "Can't get hash_fast from %s, check that the hash is correct", l_tx_hash_str);
+            DAP_DEL_Z(l_tx_hash);
             return DAP_CHAIN_NODE_CLI_COM_LEDGER_HASH_GET_ERR;
         }
         dap_chain_datum_tx_t *l_datum_tx = dap_chain_net_get_tx_by_hash(l_net, l_tx_hash,
                                                                         l_unspent_flag ? TX_SEARCH_TYPE_NET_UNSPENT : TX_SEARCH_TYPE_NET);
         if (l_datum_tx == NULL) {
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_HASH_ERR, "Can't find datum for transaction hash %s in chains", l_tx_hash_str);
+            DAP_DEL_Z(l_tx_hash);
             return DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_HASH_ERR;
         }
+        json_object* json_arr_datum = json_object_new_array();
         if (!s_dap_chain_datum_tx_out_data(l_datum_tx, l_net->pub.ledger, json_arr_datum, l_hash_out_type, l_tx_hash)){
             dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_HASH_ERR, "Can't find transaction hash %s in ledger", l_tx_hash_str);
+            json_object_put(json_arr_datum);
+            DAP_DEL_Z(l_tx_hash);
             return DAP_CHAIN_NODE_CLI_COM_LEDGER_TX_HASH_ERR;
         }
+        DAP_DEL_Z(l_tx_hash);
         if (json_arr_datum){
             json_object_array_add(*json_arr_reply, json_arr_datum);
         }
