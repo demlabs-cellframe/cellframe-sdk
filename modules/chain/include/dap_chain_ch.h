@@ -28,9 +28,8 @@
 
 #include "dap_chain_common.h"
 #include "dap_chain.h"
-#include "dap_chain_node_client.h"
 #include "dap_list.h"
-#include "dap_stream_ch_chain_pkt.h"
+#include "dap_chain_ch_pkt.h"
 #include "uthash.h"
 #include "dap_global_db_cluster.h"
 
@@ -94,6 +93,5 @@ typedef struct dap_stream_ch_chain {
 int dap_stream_ch_chain_init(void);
 void dap_stream_ch_chain_deinit(void);
 
-void dap_stream_ch_chain_create_sync_request_gdb(dap_stream_ch_chain_t * a_ch_chain, dap_chain_net_t * a_net);
 void dap_stream_ch_chain_timer_start(dap_stream_ch_chain_t *a_ch_chain);
 void dap_stream_ch_chain_reset_unsafe(dap_stream_ch_chain_t *a_ch_chain);

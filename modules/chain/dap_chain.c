@@ -39,6 +39,8 @@
 #include "dap_chain_cell.h"
 #include "dap_chain_cs.h"
 #include "dap_cert_file.h"
+#include "dap_chain_ch.h"
+#include "dap_stream_ch_gossip.h"
 #include <uthash.h>
 #include <pthread.h>
 
@@ -705,13 +707,13 @@ bool dap_chain_get_atom_last_hash(dap_chain_t *a_chain, dap_hash_fast_t *a_atom_
 
 ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_atom, size_t a_atom_size, dap_hash_fast_t *a_new_atom_hash)
 {
-    dap_chain_t *l_chain = (l_chain;
+    dap_chain_t *l_chain = a_chain_cell->chain;
     dap_return_val_if_fail(l_chain, -1);
 
     if (a_new_atom_hash) { // Atom is new and need to be distributed for the net
         dap_cluster_t *l_net_cluster = dap_cluster_by_mnemonim(l_chain->net_name);
         if (l_net_cluster)
-            dap_gossip_msg_issue(a_cluster->links_cluster, DAP_STREAM_CH_CHAIN_ID,
+            dap_gossip_msg_issue(l_net_cluster, DAP_STREAM_CH_CHAIN_ID,
                                  a_atom, a_atom_size, a_new_atom_hash);
     }
     ssize_t l_res = dap_chain_cell_file_append(a_chain_cell, a_atom, a_atom_size);

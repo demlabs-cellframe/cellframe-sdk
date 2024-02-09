@@ -19,7 +19,6 @@
 #include <dap_stream.h>
 #include <dap_stream_pkt.h>
 #include <dap_stream_ch_pkt.h>
-#include "dap_stream_ch_chain_pkt.h"
 #include "dap_stream_ch_chain_net.h"
 #include "dap_stream_ch_chain_net_pkt.h"
 

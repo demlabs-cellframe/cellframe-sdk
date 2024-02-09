@@ -156,6 +156,13 @@ void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
                                               l_ch_chain_net_pkt->hdr.net_id, l_err_str, sizeof(l_err_str));
             return;
         }
+        /*if (dap_chain_net_get_state(l_net) == NET_STATE_OFFLINE) {
+            s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
+                                                l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
+                                                "ERROR_NET_IS_OFFLINE");
+            a_ch->stream->esocket->flags |= DAP_SOCK_SIGNAL_CLOSE;
+            return;
+        }*/
         switch (l_ch_pkt->hdr.type) {
         case DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ANNOUNCE:
             assert(!dap_stream_node_addr_is_blank(&a_ch->stream->node));

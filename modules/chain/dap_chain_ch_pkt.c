@@ -18,7 +18,7 @@
 #include "dap_stream_ch.h"
 #include "dap_stream_worker.h"
 #include "dap_stream_ch_pkt.h"
-#include "dap_stream_ch_chain_pkt.h"
+#include "dap_chain_ch_pkt.h"
 #include "dap_chain.h"
 
 #define LOG_TAG "dap_stream_ch_chain_pkt"

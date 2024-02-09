@@ -61,8 +61,8 @@
 #include "dap_chain_net_srv.h"
 #include "dap_stream_worker.h"
 #include "dap_stream_ch_pkt.h"
-#include "dap_stream_ch_chain.h"
-#include "dap_stream_ch_chain_pkt.h"
+#include "dap_chain_ch.h"
+#include "dap_chain_ch_pkt.h"
 #include "dap_stream_ch_chain_net.h"
 #include "dap_stream_ch_proc.h"
 #include "dap_stream_ch_chain_net_pkt.h"
@@ -193,10 +193,10 @@ dap_chain_node_sync_status_t dap_chain_node_client_start_sync(dap_chain_node_cli
             if (l_trylocked) {
                 log_it(L_INFO, "Start synchronization process with "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr));
                 dap_stream_ch_chain_sync_request_t l_sync_chain = {};
-                l_sync_gdb.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
+                l_sync_chain.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
                 dap_stream_ch_chain_pkt_write_unsafe(a_node_client->ch_chain,
                                                      DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_REQ,
-                                                     l_net->pub.id.uint64, l_net->pub.chains->id, 0,
+                                                     l_net->pub.id.uint64, l_net->pub.chains->id.uint64, 0,
                                                      &l_sync_chain, sizeof(l_sync_chain));
                 if (!l_ch_chain->activity_timer)
                     dap_stream_ch_chain_timer_start(l_ch_chain);

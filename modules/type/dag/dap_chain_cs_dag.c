@@ -725,7 +725,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
         return false;
     }
     dap_hash_fast_t l_event_hash;
-    dap_hash_fast(l_new_atom, l_event_size, &l_event_hash);
+    dap_hash_fast(l_event, l_event_size, &l_event_hash);
     if (l_dag->is_add_directly) {
         dap_chain_atom_verify_res_t l_verify_res;
         switch (l_verify_res = s_chain_callback_atom_add(a_chain, l_event, l_event_size)) {
@@ -742,11 +742,11 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
     dap_chain_cs_dag_event_round_item_t l_round_item = { .round_info.datum_hash = l_datum_hash };
     char *l_event_hash_hex_str = DAP_NEW_STACK_SIZE(char, DAP_CHAIN_HASH_FAST_STR_SIZE);
     dap_chain_hash_fast_to_str(&l_event_hash, l_event_hash_hex_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-    bool l_res = dap_chain_cs_dag_event_gdb_set(l_dag, l_event_hash_str, l_event, l_event_size, &l_round_item);
+    bool l_res = dap_chain_cs_dag_event_gdb_set(l_dag, l_event_hash_hex_str, l_event, l_event_size, &l_round_item);
     log_it(l_res ? L_INFO : L_ERROR,
            l_res ? "Event %s placed in the new forming round [id %"DAP_UINT64_FORMAT_U"]"
                  : "Can't add new event [%s] to the new events round [id %"DAP_UINT64_FORMAT_U"]",
-           l_event_hash_str, l_current_round);
+           l_event_hash_hex_str, l_current_round);
     return l_res;
 }
 
