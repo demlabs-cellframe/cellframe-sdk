@@ -202,8 +202,9 @@ void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
                 uint256_t l_price_min = {};
                 uint256_t l_price_max = {};
                 uint8_t flags = 0;
-                dap_chain_node_addr_t l_cur_node_addr = { 0 };
-                l_cur_node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
+                dap_chain_node_addr_t l_cur_node_addr = {
+                    .uint64 = dap_chain_net_get_cur_addr_int(l_net)
+                };
 
                 if(enc_key_pvt)
                 {
