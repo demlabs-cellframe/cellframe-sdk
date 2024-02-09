@@ -3645,6 +3645,16 @@ int s_link_manager_fill_net_info(dap_link_t *a_link)
     dap_return_val_if_pass(!a_link, -1);
 // preparing
     int l_ret = 0;
+// temporary to tests
+if (a_link->node_addr.uint64 == 56797) {
+    strcpy(a_link->host_addr_str, "192.241.165.23"); 
+    a_link->host_port = 8079;
+    return 0;
+} else if (a_link->node_addr.uint64 == 281474976767453) {
+    strcpy(a_link->host_addr_str, "70.34.245.106"); 
+    a_link->host_port = 8079;
+    return 0;
+}
     char *l_key = dap_chain_node_addr_to_hash_str(&a_link->node_addr);
     if (!l_key)
         return -2;
