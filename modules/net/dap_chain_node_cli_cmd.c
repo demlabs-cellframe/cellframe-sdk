@@ -1209,7 +1209,10 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
 
         break;
         // make connect
-    case CMD_CONNECT: {
+    case CMD_CONNECT:
+         dap_cli_server_cmd_set_reply_text(a_str_reply, "Not implemented yet");
+         break;
+#if 0
         // get address from alias if addr not defined
         if(alias_str && !l_node_addr.uint64) {
             dap_chain_node_addr_t *address_tmp = dap_chain_node_alias_find(l_net, alias_str);
@@ -1389,6 +1392,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         return 0;
 
     }
+#endif
         // make handshake
     case CMD_HANDSHAKE: {
         // get address from alias if addr not defined
@@ -1505,6 +1509,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
                                           l_key_str_out ? "" : " not");
         DAP_DELETE(l_key_str_out);
     } break;
+
     case CMD_UNBAN: {
         dap_chain_net_t *l_netl = NULL;
         dap_chain_t *l_chain = NULL;
@@ -1566,6 +1571,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
                                           l_key_str_out ? "" : " not");
         DAP_DELETE(l_key_str_out);
     } break;
+
     case CMD_BANLIST: {
         dap_string_t *l_str_ban_list = dap_string_new("Ban list:\n");
         dap_http_ban_list_client_ipv4_print(l_str_ban_list);
@@ -1574,6 +1580,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ban_list->str);
         dap_string_free(l_str_ban_list, true);
     } break;
+
     case CMD_BALANCER: {
         //balancer link list
         size_t l_node_num = 0;
@@ -1592,6 +1599,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
                                           l_string_balanc->str);
         dap_string_free(l_string_balanc, true);
     } break;
+
     default:
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized subcommand '%s'",
                                           arg_index < a_argc ? a_argv[arg_index] : "(null)");

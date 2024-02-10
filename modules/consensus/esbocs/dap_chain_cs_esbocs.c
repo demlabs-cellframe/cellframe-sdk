@@ -468,7 +468,7 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     l_session->my_signing_addr = l_my_signing_addr;
     char *l_sync_group = s_get_penalty_group(l_net->pub.id);
     l_session->db_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
-                                                      l_sync_group, l_sync_group,
+                                                      NULL, 0, l_sync_group,
                                                       72 * 3600, true,
                                                       DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_ROLE_AUTONOMIC);
     DAP_DELETE(l_sync_group);
@@ -1533,13 +1533,12 @@ static bool s_session_candidate_to_chain(dap_chain_esbocs_session_t *a_session, 
         return false;
     }
     bool res = false;
-    dap_chain_block_t *l_candidate = DAP_DUP_SIZE(a_candidate, a_candidate_size);
-    dap_chain_atom_verify_res_t l_res = a_session->chain->callback_atom_add(a_session->chain, l_candidate, a_candidate_size);
+    dap_chain_atom_verify_res_t l_res = a_session->chain->callback_atom_add(a_session->chain, a_candidate, a_candidate_size);
     char *l_candidate_hash_str = dap_chain_hash_fast_to_str_new(a_candidate_hash);
     switch (l_res) {
     case ATOM_ACCEPT:
         // block save to chain
-        if (dap_chain_atom_save(a_session->chain->cells, (uint8_t *)l_candidate, a_candidate_size, a_candidate_hash) < 0)
+        if (dap_chain_atom_save(a_session->chain->cells, (uint8_t *)a_candidate, a_candidate_size, a_candidate_hash) < 0)
             log_it(L_ERROR, "Can't save atom %s to the file", l_candidate_hash_str);
         else
         {
@@ -1552,15 +1551,12 @@ static bool s_session_candidate_to_chain(dap_chain_esbocs_session_t *a_session, 
         break;
     case ATOM_PASS:
         log_it(L_WARNING, "Atom with hash %s not accepted (code ATOM_PASS, already present)", l_candidate_hash_str);
-        DAP_DELETE(l_candidate);
         break;
     case ATOM_REJECT:
         log_it(L_WARNING,"Atom with hash %s rejected", l_candidate_hash_str);
-        DAP_DELETE(l_candidate);
         break;
     default:
          log_it(L_CRITICAL, "Wtf is this ret code ? Atom hash %s code %d", l_candidate_hash_str, l_res);
-         DAP_DELETE(l_candidate);
     }
     DAP_DELETE(l_candidate_hash_str);
     return res;

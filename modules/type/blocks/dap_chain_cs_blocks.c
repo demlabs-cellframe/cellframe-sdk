@@ -1314,25 +1314,18 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         debug_if(s_debug_more, L_DEBUG, "... %s is already present", l_block_cache->block_hash_str);
         pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
         return ATOM_PASS;
-    } else {
-        l_block_cache = dap_chain_block_cache_new(&l_block_hash, l_block, l_block_size, PVT(l_blocks)->blocks_count + 1);
-        if (!l_block_cache) {
-            log_it(L_DEBUG, "... corrupted block");
-            pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
-            return ATOM_REJECT;
-        }
-        debug_if(s_debug_more, L_DEBUG, "... new block %s", l_block_cache->block_hash_str);
     }
-
     dap_chain_atom_verify_res_t ret = s_callback_atom_verify(a_chain, a_atom, a_atom_size);
     switch (ret) {
     case ATOM_ACCEPT:
+        l_block_cache = dap_chain_block_cache_new(&l_block_hash, l_block, l_block_size, PVT(l_blocks)->blocks_count + 1);
+        if (!l_block_cache)
+            break;
+        debug_if(s_debug_more, L_DEBUG, "... new block %s", l_block_cache->block_hash_str);
         HASH_ADD(hh, PVT(l_blocks)->blocks, block_hash, sizeof(l_block_cache->block_hash), l_block_cache);
         ++PVT(l_blocks)->blocks_count;
-        pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
         debug_if(s_debug_more, L_DEBUG, "Verified atom %p: ACCEPTED", a_atom);
-        s_add_atom_datums(l_blocks, l_block_cache);
-        return ret;
+        break;
     case ATOM_MOVE_TO_THRESHOLD:
         // TODO: reimplement and enable threshold for blocks
 /*      {
@@ -1342,7 +1335,6 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
 */
         ret = ATOM_REJECT;
     case ATOM_REJECT:
-        dap_chain_block_cache_delete(l_block_cache);
         debug_if(s_debug_more, L_DEBUG, "Verified atom %p: REJECTED", a_atom);
         break;
     default:
@@ -1350,6 +1342,8 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
         break;
     }
     pthread_rwlock_unlock(&PVT(l_blocks)->rwlock);
+    if (ret == ATOM_ACCEPT)
+        s_add_atom_datums(l_blocks, l_block_cache);
     return ret;
 }
 

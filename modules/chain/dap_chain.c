@@ -707,14 +707,27 @@ bool dap_chain_get_atom_last_hash(dap_chain_t *a_chain, dap_hash_fast_t *a_atom_
 
 ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_atom, size_t a_atom_size, dap_hash_fast_t *a_new_atom_hash)
 {
+    dap_return_val_if_fail(a_chain_cell && a_chain_cell->chain, -1);
     dap_chain_t *l_chain = a_chain_cell->chain;
-    dap_return_val_if_fail(l_chain, -1);
 
     if (a_new_atom_hash) { // Atom is new and need to be distributed for the net
-        dap_cluster_t *l_net_cluster = dap_cluster_by_mnemonim(l_chain->net_name);
-        if (l_net_cluster)
-            dap_gossip_msg_issue(l_net_cluster, DAP_STREAM_CH_CHAIN_ID,
-                                 a_atom, a_atom_size, a_new_atom_hash);
+        dap_cluster_t *l_net_cluster = dap_cluster_find(l_chain->net_id.uint64);
+        if (l_net_cluster) {
+            size_t l_pkt_size = a_atom_size + sizeof(dap_stream_ch_chain_pkt_t);
+            dap_stream_ch_chain_pkt_t *l_pkt = DAP_NEW_Z_SIZE(dap_stream_ch_chain_pkt_t, l_pkt_size);
+            if (l_pkt) {
+                l_pkt->hdr.version = 2;
+                l_pkt->hdr.data_size = a_atom_size;
+                l_pkt->hdr.net_id = l_chain->net_id;
+                l_pkt->hdr.chain_id = l_chain->id;
+                l_pkt->hdr.cell_id = a_chain_cell->id;
+                memcpy(l_pkt->data, a_atom, a_atom_size);
+                dap_gossip_msg_issue(l_net_cluster, DAP_STREAM_CH_CHAIN_ID,
+                                     l_pkt, l_pkt_size, a_new_atom_hash);
+                DAP_DELETE(l_pkt);
+            } else
+                log_it(L_CRITICAL, "Not enough memory");
+        }
     }
     ssize_t l_res = dap_chain_cell_file_append(a_chain_cell, a_atom, a_atom_size);
     if (l_chain->atom_notifiers) {

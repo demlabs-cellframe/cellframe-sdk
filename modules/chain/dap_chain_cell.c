@@ -239,10 +239,8 @@ int dap_chain_cell_load(dap_chain_t *a_chain, dap_chain_cell_t *a_cell)
             l_ret = -6;
             break;
         }
-        dap_chain_atom_verify_res_t l_res = a_chain->callback_atom_add(a_chain, l_element, l_el_size); // !!! blocking GDB call !!!
-        if (l_res == ATOM_PASS || l_res == ATOM_REJECT) {
-            DAP_DELETE(l_element);
-        }
+        a_chain->callback_atom_add(a_chain, l_element, l_el_size); // ??? blocking GDB call
+        DAP_DELETE(l_element);
         ++q;
     }
     if (l_ret < 0) {
