@@ -140,7 +140,7 @@ int dap_stream_ch_chain_net_srv_init(void)
 }
 
 /**
- * @brief dap_stream_ch_chain_deinit
+ * @brief dap_chain_ch_deinit
  */
 void dap_stream_ch_chain_net_srv_deinit(void)
 {

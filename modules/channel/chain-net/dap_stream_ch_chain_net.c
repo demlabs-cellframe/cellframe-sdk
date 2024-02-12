@@ -76,7 +76,7 @@ int dap_stream_ch_chain_net_init()
 }
 
 /**
- * @brief dap_stream_ch_chain_deinit
+ * @brief dap_chain_ch_deinit
  */
 void dap_stream_ch_chain_net_deinit()
 {
@@ -203,7 +203,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
                 dap_sign_t *l_sign = NULL;
                 size_t sign_s = 0;
                 size_t l_orders_num = 0;
-                dap_stream_ch_chain_validator_test_t *send = NULL;
+                dap_chain_ch_validator_test_t *send = NULL;
                 dap_chain_net_srv_price_unit_uid_t l_price_unit = { { 0 } };
                 dap_chain_net_srv_uid_t l_uid = { .uint64 = DAP_CHAIN_NET_SRV_STAKE_POS_DELEGATE_ID };
                 uint256_t l_price_min = {};
@@ -229,7 +229,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
                 else
                     flags = flags & ~F_CERT;//Specified certificate not found
 
-                send = DAP_NEW_Z_SIZE(dap_stream_ch_chain_validator_test_t, sizeof(dap_stream_ch_chain_validator_test_t) + sign_s);
+                send = DAP_NEW_Z_SIZE(dap_chain_ch_validator_test_t, sizeof(dap_chain_ch_validator_test_t) + sign_s);
 #ifdef DAP_VERSION
                 strncpy((char *)send->header.version, (char *)DAP_VERSION, sizeof(send->header.version));
 #endif
@@ -264,7 +264,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
                 if(sign_s)
                     memcpy(send->sign,l_sign,sign_s);
                 dap_stream_ch_chain_net_pkt_write(a_ch, DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_NODE_VALIDATOR_READY ,
-                                                 l_ch_chain_net_pkt->hdr.net_id, send, sizeof(dap_stream_ch_chain_validator_test_t) + sign_s);
+                                                 l_ch_chain_net_pkt->hdr.net_id, send, sizeof(dap_chain_ch_validator_test_t) + sign_s);
                 dap_stream_ch_set_ready_to_write_unsafe(a_ch, true);
                 if(l_sign)
                     DAP_DELETE(l_sign);

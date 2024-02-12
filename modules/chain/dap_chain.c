@@ -713,8 +713,8 @@ ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_ato
     if (a_new_atom_hash) { // Atom is new and need to be distributed for the net
         dap_cluster_t *l_net_cluster = dap_cluster_find(l_chain->net_id.uint64);
         if (l_net_cluster) {
-            size_t l_pkt_size = a_atom_size + sizeof(dap_stream_ch_chain_pkt_t);
-            dap_stream_ch_chain_pkt_t *l_pkt = DAP_NEW_Z_SIZE(dap_stream_ch_chain_pkt_t, l_pkt_size);
+            size_t l_pkt_size = a_atom_size + sizeof(dap_chain_ch_pkt_t);
+            dap_chain_ch_pkt_t *l_pkt = DAP_NEW_Z_SIZE(dap_chain_ch_pkt_t, l_pkt_size);
             if (l_pkt) {
                 l_pkt->hdr.version = 2;
                 l_pkt->hdr.data_size = a_atom_size;

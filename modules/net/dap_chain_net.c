@@ -268,7 +268,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
 int dap_chain_net_init()
 {
     dap_ledger_init();
-    dap_stream_ch_chain_init();
+    dap_chain_ch_init();
     dap_stream_ch_chain_net_init();
     dap_chain_node_client_init();
     dap_chain_net_voting_init();
@@ -3008,10 +3008,16 @@ int dap_chain_net_add_poa_certs_to_cluster(dap_chain_net_t *a_net, dap_global_db
 
 bool dap_chain_net_add_validator_to_clusters(dap_chain_t *a_chain, dap_stream_node_addr_t *a_addr)
 {
-    bool l_ret = dap_global_db_cluster_member_add(
-                dap_chain_net_get_mempool_cluster(a_chain), a_addr, DAP_GDB_MEMBER_ROLE_ROOT);
-    return !l_ret ? false : dap_global_db_cluster_member_add(
-                        PVT(dap_chain_net_by_id(a_chain->net_id))->orders_cluster, a_addr, DAP_GDB_MEMBER_ROLE_USER);
+    bool l_ret = dap_global_db_cluster_member_add(dap_chain_net_get_mempool_cluster(a_chain), a_addr, DAP_GDB_MEMBER_ROLE_ROOT);
+    l_ret &= (bool)dap_global_db_cluster_member_add(PVT(dap_chain_net_by_id(a_chain->net_id))->orders_cluster, a_addr, DAP_GDB_MEMBER_ROLE_USER);
+    return l_ret;
+}
+
+bool dap_chain_net_remove_validator_from_clusters(dap_chain_t *a_chain, dap_stream_node_addr_t *a_addr)
+{
+    bool l_ret = !dap_global_db_cluster_member_delete(dap_chain_net_get_mempool_cluster(a_chain), a_addr);
+    l_ret &= !dap_global_db_cluster_member_delete(PVT(dap_chain_net_by_id(a_chain->net_id))->orders_cluster, a_addr);
+    return l_ret;
 }
 
 /**

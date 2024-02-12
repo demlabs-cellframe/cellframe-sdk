@@ -1318,7 +1318,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         }
         log_it(L_NOTICE, "Stream connection established");
 
-        dap_stream_ch_chain_sync_request_t l_sync_request = {};
+        dap_chain_ch_sync_request_t l_sync_request = {};
         dap_stream_ch_t *l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, DAP_STREAM_CH_CHAIN_ID);
         // fill begin id
         l_sync_request.id_start = 1;
@@ -1327,7 +1327,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
 
         log_it(L_INFO, "Requested GLOBAL_DB syncronizatoin, %"DAP_UINT64_FORMAT_U":%"DAP_UINT64_FORMAT_U" period",
                                                         l_sync_request.id_start, l_sync_request.id_end);
-        if(0 == dap_stream_ch_chain_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB,
+        if(0 == dap_chain_ch_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_GLOBAL_DB,
                 l_net->pub.id.uint64, 0, 0, &l_sync_request,
                 sizeof(l_sync_request))) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Error: Can't send sync chains request");
@@ -1361,8 +1361,8 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
             // reset state NODE_CLIENT_STATE_SYNCED
             dap_chain_node_client_reset(l_node_client);
             // send request
-            dap_stream_ch_chain_sync_request_t l_sync_request = {};
-            if(0 == dap_stream_ch_chain_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS,
+            dap_chain_ch_sync_request_t l_sync_request = {};
+            if(0 == dap_chain_ch_pkt_write_unsafe(l_ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_SYNC_CHAINS,
                     l_net->pub.id.uint64, l_chain->id.uint64, l_remote_node_info->hdr.cell_id.uint64, &l_sync_request,
                     sizeof(l_sync_request))) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Error: Can't send sync chains request");

@@ -76,11 +76,11 @@
 static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg);
 static bool s_timer_update_states_callback(void *a_arg);
 static int s_node_client_set_notify_callbacks(dap_client_t *a_client, uint8_t a_ch_id);
-static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t*, uint8_t a_pkt_type,
-        dap_stream_ch_chain_pkt_t *a_pkt, size_t a_pkt_data_size,
+static void s_ch_chain_callback_notify_packet_out(dap_chain_ch_t*, uint8_t a_pkt_type,
+        dap_chain_ch_pkt_t *a_pkt, size_t a_pkt_data_size,
         void * a_arg);
-static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_chain, uint8_t a_pkt_type,
-        dap_stream_ch_chain_pkt_t *a_pkt, size_t a_pkt_data_size,
+static void s_ch_chain_callback_notify_packet_in(dap_chain_ch_t* a_ch_chain, uint8_t a_pkt_type,
+        dap_chain_ch_pkt_t *a_pkt, size_t a_pkt_data_size,
         void * a_arg);
 
 bool s_stream_ch_chain_debug_more = false;
@@ -182,7 +182,7 @@ dap_chain_node_sync_status_t dap_chain_node_client_start_sync(dap_chain_node_cli
     // check if esocket still in worker
     dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(a_node_client->stream_worker, a_node_client->ch_chain_uuid);
     if (l_ch) {
-        dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
+        dap_chain_ch_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
         assert(l_ch_chain);
         dap_chain_net_t * l_net = a_node_client->net;
         assert(l_net);
@@ -192,14 +192,14 @@ dap_chain_node_sync_status_t dap_chain_node_client_start_sync(dap_chain_node_cli
             bool l_trylocked = dap_chain_net_sync_trylock(l_net, a_node_client);
             if (l_trylocked) {
                 log_it(L_INFO, "Start synchronization process with "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr));
-                dap_stream_ch_chain_sync_request_t l_sync_chain = {};
+                dap_chain_ch_sync_request_t l_sync_chain = {};
                 l_sync_chain.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
-                dap_stream_ch_chain_pkt_write_unsafe(a_node_client->ch_chain,
+                dap_chain_ch_pkt_write_unsafe(a_node_client->ch_chain,
                                                      DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_REQ,
                                                      l_net->pub.id.uint64, l_net->pub.chains->id.uint64, 0,
                                                      &l_sync_chain, sizeof(l_sync_chain));
                 if (!l_ch_chain->activity_timer)
-                    dap_stream_ch_chain_timer_start(l_ch_chain);
+                    dap_chain_ch_timer_start(l_ch_chain);
                 return NODE_SYNC_STATUS_STARTED;
             } else
                 return NODE_SYNC_STATUS_WAITING;
@@ -327,15 +327,15 @@ static void s_ch_chain_callback_notify_packet_in2(dap_stream_ch_chain_net_t* a_c
 
 
 /**
- * @brief s_ch_chain_callback_notify_packet_in - for dap_stream_ch_chain
+ * @brief s_ch_chain_callback_notify_packet_in - for dap_chain_ch
  * @param a_ch_chain
  * @param a_pkt_type
  * @param a_pkt
  * @param a_pkt_data_size
  * @param a_arg
  */
-static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_chain, uint8_t a_pkt_type,
-        dap_stream_ch_chain_pkt_t *a_pkt, size_t a_pkt_data_size,
+static void s_ch_chain_callback_notify_packet_in(dap_chain_ch_t* a_ch_chain, uint8_t a_pkt_type,
+        dap_chain_ch_pkt_t *a_pkt, size_t a_pkt_data_size,
         void * a_arg)
 {
     UNUSED(a_pkt_data_size);
@@ -351,7 +351,7 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                     l_node_client->last_error);
             l_node_client->state = NODE_CLIENT_STATE_ERROR;
             if (!strcmp(l_node_client->last_error, "ERROR_SYNC_REQUEST_ALREADY_IN_PROCESS")) {
-                dap_stream_ch_chain_reset_unsafe(a_ch_chain);
+                dap_chain_ch_reset_unsafe(a_ch_chain);
                 l_finished = true;
             }
         break;
@@ -427,7 +427,7 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
                     log_it(L_INFO,"In: Link %s."NODE_ADDR_FP_STR" started to sync %s chain",l_net->pub.name,
                            NODE_ADDR_FP_ARGS_S(l_node_addr), l_node_client->cur_chain->name );
                 }
-                dap_stream_ch_chain_pkt_write_unsafe(l_node_client->ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_REQ,
+                dap_chain_ch_pkt_write_unsafe(l_node_client->ch_chain, DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_REQ,
                                                      l_net->pub.id.uint64 ,
                                                      l_chain_id.uint64,l_cell_id.uint64,NULL,0);
             } else { // If no - over with sync process
@@ -465,8 +465,8 @@ static void s_ch_chain_callback_notify_packet_in(dap_stream_ch_chain_t* a_ch_cha
  * @param a_pkt_data_size
  * @param a_arg
  */
-static void s_ch_chain_callback_notify_packet_out(dap_stream_ch_chain_t* a_ch_chain, uint8_t a_pkt_type,
-        dap_stream_ch_chain_pkt_t *a_pkt, size_t a_pkt_data_size,
+static void s_ch_chain_callback_notify_packet_out(dap_chain_ch_t* a_ch_chain, uint8_t a_pkt_type,
+        dap_chain_ch_pkt_t *a_pkt, size_t a_pkt_data_size,
         void * a_arg)
 {
     (void) a_pkt;
@@ -772,7 +772,7 @@ void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client)
     if (a_node_client->stream_worker) {
         dap_stream_ch_t *l_ch = dap_stream_ch_find_by_uuid_unsafe(a_node_client->stream_worker, a_node_client->ch_chain_uuid);
         if (l_ch) {
-            dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
+            dap_chain_ch_t *l_ch_chain = DAP_STREAM_CH_CHAIN(l_ch);
             l_ch_chain->callback_notify_packet_in = NULL;
             l_ch_chain->callback_notify_packet_out = NULL;
         }
@@ -932,7 +932,7 @@ static int s_node_client_set_notify_callbacks(dap_client_t *a_client, uint8_t a_
             switch (a_ch_id) {
                 //  'C'
             case DAP_STREAM_CH_CHAIN_ID: {
-                dap_stream_ch_chain_t *l_ch_chain       = DAP_STREAM_CH_CHAIN(l_ch);
+                dap_chain_ch_t *l_ch_chain       = DAP_STREAM_CH_CHAIN(l_ch);
                 l_ch_chain->callback_notify_packet_out  = s_ch_chain_callback_notify_packet_out;
                 l_ch_chain->callback_notify_packet_in   = s_ch_chain_callback_notify_packet_in;
                 l_ch_chain->callback_notify_arg         = l_node_client;
