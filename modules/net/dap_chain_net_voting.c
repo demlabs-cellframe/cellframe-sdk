@@ -500,6 +500,7 @@ static dap_list_t* s_get_options_list_from_str(const char* a_str)
 
 static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
 {
+
     enum {CMD_NONE=0, CMD_CREATE, CMD_VOTE, CMD_LIST, CMD_DUMP};
 
     const char* l_net_str = NULL;
@@ -1113,7 +1114,7 @@ static int s_datum_tx_voting_coin_check_cond_out(dap_chain_net_t *a_net, dap_has
     return 1;
 }
 
-int dap_chain_net_vote_create(char *a_question, dap_list_t *a_options, dap_time_t *a_expire_vote,
+int dap_chain_net_vote_create(const char *a_question, dap_list_t *a_options, dap_time_t *a_expire_vote,
                                                uint64_t *a_max_vote, uint256_t a_fee, bool a_delegated_key_required,
                                                bool a_vote_changing_allowed, dap_chain_wallet_t *a_wallet,
                                                dap_chain_net_t *a_net, const char *a_hash_out_type, char **a_hash_output) {
