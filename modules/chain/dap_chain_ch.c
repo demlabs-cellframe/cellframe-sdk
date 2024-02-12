@@ -1071,9 +1071,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN: {
             dap_chain_ch_pkt_t *l_chain_pkt = (dap_chain_ch_pkt_t *)l_ch_pkt->data;
-            if (l_chain_pkt_data_size <= sizeof(dap_chain_ch_pkt_t) ||
-                    (l_chain_pkt->hdr.version >= 2 &&
-                        l_chain_pkt_data_size != l_chain_pkt->hdr.data_size)) {
+            if (l_chain_pkt->hdr.version >= 2 &&
+                        l_chain_pkt_data_size != l_chain_pkt->hdr.data_size) {
                 log_it(L_WARNING, "Incorrect chain packet size");
                 break;
             }
