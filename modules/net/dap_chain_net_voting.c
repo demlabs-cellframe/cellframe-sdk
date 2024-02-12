@@ -615,7 +615,7 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
 
             switch (res) {
                 case DAP_CHAIN_NET_VOTE_CREATE_OK: {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s successfully added to mempool", l_ret);
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s successfully added to mempool", l_hash_ret);
                     DAP_DELETE(l_hash_ret);
                     return DAP_CHAIN_NET_VOTE_CREATE_OK;
                 } break;
@@ -656,7 +656,7 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
                 } break;
                 case DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_CREATE_TSD_EXPIRE_TIME: {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create expired tsd item.");
-                    return DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_CREATE_TSD_EXPIRE_TIME:;
+                    return DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_CREATE_TSD_EXPIRE_TIME;
                 } break;
                 case DAP_CHAIN_NET_VOTE_CREATE_CAN_NOT_CREATE_TSD_DELEGATE_KEY: {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create delegated key req tsd item.");
