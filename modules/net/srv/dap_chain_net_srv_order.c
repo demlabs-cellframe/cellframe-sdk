@@ -356,7 +356,7 @@ char *dap_chain_net_srv_order_save(dap_chain_net_t *a_net, dap_chain_net_srv_ord
                                      : dap_chain_net_srv_order_get_gdb_group(a_net);
     if (!l_gdb_group_str)
         return NULL;
-    int l_rc = dap_global_db_set_sync(l_gdb_group_str, l_order_hash_str, a_order, l_order_size, true);
+    int l_rc = dap_global_db_set_sync(l_gdb_group_str, l_order_hash_str, a_order, l_order_size, false);
     DAP_DELETE(l_gdb_group_str);
     if (l_rc != DAP_GLOBAL_DB_RC_SUCCESS)
         DAP_DEL_Z(l_order_hash_str);

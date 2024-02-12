@@ -10,7 +10,7 @@
 #include "dap_chain_common.h"
 #include "dap_hash.h"
 #include "dap_time.h"
-#include "dap_enc_http_ban_list_client.h"
+#include "dap_http_ban_list_client.h"
 #include "dap_chain_net.h"
 #include "uthash.h"
 
