@@ -1468,7 +1468,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
     int l_removed = 0;
     char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     size_t l_objs_size = 0;
-    dap_time_t l_cut_off_time = dap_time_now() - 2592000; // 2592000 sec = 30 days
+    dap_time_t l_cut_off_time = dap_time_now() - 3 * 24 * 3600; // 3 days
     char l_cut_off_time_str[80] = {'\0'};
     dap_time_to_str_rfc822(l_cut_off_time_str, 80, l_cut_off_time);
     dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_gdb_group, &l_objs_size);

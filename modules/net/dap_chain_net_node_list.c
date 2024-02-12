@@ -292,5 +292,6 @@ int dap_chain_net_node_list_init()
     for (uint16_t i = 0; i < l_net_count; i++) {
         dap_chain_net_add_nodelist_notify_callback(l_net_list[i], s_node_list_callback_notify, l_net_list[i]);
     }
+    DAP_DELETE(l_net_list);
     return 0;
 }
