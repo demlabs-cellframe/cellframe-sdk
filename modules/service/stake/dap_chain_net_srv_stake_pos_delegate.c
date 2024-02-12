@@ -305,7 +305,7 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
             }
         }
     }
-
+    dap_chain_esbocs_add_validator_to_clusters(a_net->pub.id, a_node_addr);
     char l_key_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
     dap_chain_hash_fast_to_str(&a_signing_addr->data.hash_fast,
                                l_key_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
@@ -323,6 +323,7 @@ void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr)
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
     HASH_FIND(hh, s_srv_stake->itemlist, a_signing_addr, sizeof(dap_chain_addr_t), l_stake);
     if (l_stake) {
+        dap_chain_esbocs_remove_validator_from_clusters(l_stake->signing_addr.net_id, &l_stake->node_addr);
         HASH_DEL(s_srv_stake->itemlist, l_stake);
         HASH_DELETE(ht, s_srv_stake->tx_itemlist, l_stake);
         char l_key_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
