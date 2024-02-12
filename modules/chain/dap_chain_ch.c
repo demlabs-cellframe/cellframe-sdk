@@ -960,8 +960,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             }
             l_ch_chain->state = CHAIN_STATE_UPDATE_CHAINS_REMOTE;
             l_ch_chain->request_hdr = l_chain_pkt->hdr;
-            if(s_debug_more)
-                log_it(L_INFO,"In: UPDATE_CHAINS_START pkt");
+            debug_if(s_debug_more, L_INFO, "In: UPDATE_CHAINS_START pkt");
         } break;
 
         // Response with atom hashes and sizes
