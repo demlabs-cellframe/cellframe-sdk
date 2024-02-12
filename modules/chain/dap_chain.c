@@ -714,19 +714,12 @@ ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_ato
         dap_cluster_t *l_net_cluster = dap_cluster_find(l_chain->net_id.uint64);
         if (l_net_cluster) {
             size_t l_pkt_size = a_atom_size + sizeof(dap_chain_ch_pkt_t);
-            dap_chain_ch_pkt_t *l_pkt = DAP_NEW_Z_SIZE(dap_chain_ch_pkt_t, l_pkt_size);
+            dap_chain_ch_pkt_t *l_pkt = dap_chain_ch_pkt_new(l_chain->net_id.uint64, l_chain->id.uint64,
+                                                             a_chain_cell->id.uint64, a_atom, a_atom_size);
             if (l_pkt) {
-                l_pkt->hdr.version = 2;
-                l_pkt->hdr.data_size = a_atom_size;
-                l_pkt->hdr.net_id = l_chain->net_id;
-                l_pkt->hdr.chain_id = l_chain->id;
-                l_pkt->hdr.cell_id = a_chain_cell->id;
-                memcpy(l_pkt->data, a_atom, a_atom_size);
-                dap_gossip_msg_issue(l_net_cluster, DAP_STREAM_CH_CHAIN_ID,
-                                     l_pkt, l_pkt_size, a_new_atom_hash);
+                dap_gossip_msg_issue(l_net_cluster, DAP_STREAM_CH_CHAIN_ID, l_pkt, l_pkt_size, a_new_atom_hash);
                 DAP_DELETE(l_pkt);
-            } else
-                log_it(L_CRITICAL, "Not enough memory");
+            }
         }
     }
     ssize_t l_res = dap_chain_cell_file_append(a_chain_cell, a_atom, a_atom_size);
