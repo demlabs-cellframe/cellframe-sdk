@@ -32,6 +32,7 @@
 #include "dap_hash.h"
 #include "dap_chain_datum_tx.h"
 #include "dap_chain_datum_tx_items.h"
+#include "dap_chain_datum_tx_voting.h"
 
 #define LOG_TAG "dap_chain_datum_tx_items"
 
@@ -49,7 +50,7 @@ static size_t dap_chain_tx_in_cond_get_size(const dap_chain_tx_in_cond_t *a_item
     return size;
 }
 
-static size_t dap_chain_tx_out_get_size(const dap_chain_tx_out_old_t *a_item)
+static size_t dap_chain_tx_out_old_get_size(const dap_chain_tx_out_old_t *a_item)
 {
     (void) a_item;
     size_t size = sizeof(dap_chain_tx_out_old_t);
@@ -57,7 +58,7 @@ static size_t dap_chain_tx_out_get_size(const dap_chain_tx_out_old_t *a_item)
 }
 
 // 256
-static size_t dap_chain_256_tx_out_get_size(const dap_chain_tx_out_t *a_item)
+static size_t dap_chain_tx_out_get_size(const dap_chain_tx_out_t *a_item)
 {
     (void) a_item;
     size_t size = sizeof(dap_chain_tx_out_t);
@@ -114,6 +115,20 @@ static size_t dap_chain_tx_tsd_get_size(const dap_chain_tx_tsd_t *a_item)
     return sizeof(dap_chain_tx_tsd_t) + a_item->header.size;
 }
 
+static size_t dap_chain_tx_voting_get_size(const dap_chain_tx_voting_t *a_item)
+{
+    (void) a_item;
+    size_t size = sizeof(dap_chain_tx_voting_t);
+    return size;
+}
+
+static size_t dap_chain_tx_vote_get_size(const dap_chain_tx_vote_t *a_item)
+{
+    (void) a_item;
+    size_t size = sizeof(dap_chain_tx_vote_t);
+    return size;
+}
+
 /**
  * Get item type by item name
  *
@@ -146,6 +161,10 @@ dap_chain_tx_item_type_t dap_chain_datum_tx_item_str_to_type(const char *a_datum
         return TX_ITEM_TYPE_RECEIPT;
     else if(!dap_strcmp(a_datum_name, "data"))
         return TX_ITEM_TYPE_TSD;
+    else if(!dap_strcmp(a_datum_name, "voting"))
+        return TX_ITEM_TYPE_VOTING;
+    else if(!dap_strcmp(a_datum_name, "vote"))
+        return TX_ITEM_TYPE_VOTE;
     return TX_ITEM_TYPE_UNKNOWN;
 }
 
@@ -195,10 +214,10 @@ size_t dap_chain_datum_item_tx_get_size(const void *a_item)
         size = dap_chain_tx_in_get_size((const dap_chain_tx_in_t*) a_item);
         break;
     case TX_ITEM_TYPE_OUT_OLD: //64
-        size = dap_chain_tx_out_get_size((const dap_chain_tx_out_old_t*) a_item);
+        size = dap_chain_tx_out_old_get_size((const dap_chain_tx_out_old_t*) a_item);
         break;
     case TX_ITEM_TYPE_OUT: // Transaction outputs
-        size = dap_chain_256_tx_out_get_size((const dap_chain_tx_out_t*) a_item);
+        size = dap_chain_tx_out_get_size((const dap_chain_tx_out_t*) a_item);
         break;
     case TX_ITEM_TYPE_OUT_EXT: // Exchange transaction outputs
         size = dap_chain_tx_out_ext_get_size((const dap_chain_tx_out_ext_t*) a_item);
@@ -226,6 +245,12 @@ size_t dap_chain_datum_item_tx_get_size(const void *a_item)
         break;
     case TX_ITEM_TYPE_TSD:
         size = dap_chain_tx_tsd_get_size((const dap_chain_tx_tsd_t*)a_item);
+        break;
+    case TX_ITEM_TYPE_VOTING:
+        size = dap_chain_tx_voting_get_size((const dap_chain_tx_voting_t*)a_item);
+        break;
+    case TX_ITEM_TYPE_VOTE:
+        size = dap_chain_tx_vote_get_size((const dap_chain_tx_vote_t*)a_item);
         break;
     default:
         return 0;
@@ -434,11 +459,14 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_xchange(dap
 }
 
 dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_chain_net_srv_uid_t a_srv_uid, uint256_t a_value,
-                                                                           dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr)
+                                                                           dap_chain_addr_t *a_signing_addr, dap_chain_node_addr_t *a_signer_node_addr,
+                                                                           dap_chain_addr_t *a_sovereign_addr, uint256_t a_sovereign_tax)
 {
     if (IS_ZERO_256(a_value))
         return NULL;
-    dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z(dap_chain_tx_out_cond_t);
+    size_t l_tsd_total_size = a_sovereign_addr && !dap_chain_addr_is_blank(a_sovereign_addr) ?
+                                dap_chain_datum_tx_item_out_cond_create_srv_stake_get_tsd_size() : 0;
+    dap_chain_tx_out_cond_t *l_item = DAP_NEW_Z_SIZE(dap_chain_tx_out_cond_t, sizeof(dap_chain_tx_out_cond_t) + l_tsd_total_size);
     if (!l_item) {
         return NULL;
     }
@@ -448,6 +476,11 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_item_out_cond_create_srv_stake(dap_c
     l_item->header.srv_uid = a_srv_uid;
     l_item->subtype.srv_stake_pos_delegate.signing_addr = *a_signing_addr;
     l_item->subtype.srv_stake_pos_delegate.signer_node_addr = *a_signer_node_addr;
+    if (l_tsd_total_size) {
+        l_item->tsd_size = l_tsd_total_size;
+        byte_t *l_next_tsd_ptr = dap_tsd_write(l_item->tsd, DAP_CHAIN_TX_OUT_COND_TSD_ADDR, a_sovereign_addr, sizeof(*a_sovereign_addr));
+        dap_tsd_write(l_next_tsd_ptr, DAP_CHAIN_TX_OUT_COND_TSD_VALUE, &a_sovereign_tax, sizeof(a_sovereign_tax));
+    }
     return l_item;
 }
 
@@ -530,6 +563,9 @@ byte_t *dap_chain_datum_tx_item_get_data(dap_chain_tx_tsd_t *a_tx_tsd, int *a_ty
     *a_type = ((dap_tsd_t*)(a_tx_tsd->tsd))->type;
     return ((dap_tsd_t*)(a_tx_tsd->tsd))->data;
 }
+
+
+
 
 /**
  * Get item from transaction
@@ -646,4 +682,24 @@ dap_chain_tx_out_cond_t *dap_chain_datum_tx_out_cond_get(dap_chain_datum_tx_t *a
         *a_out_num = l_res ? l_prev_cond_idx : -1;
     }
     return l_res;
+}
+
+uint8_t *dap_chain_datum_tx_out_get_by_out_idx(dap_chain_datum_tx_t *a_tx, int a_out_num)
+{
+    uint8_t *l_ret = NULL;
+    dap_list_t *l_list_out_items = dap_chain_datum_tx_items_get(a_tx, TX_ITEM_TYPE_OUT_ALL, NULL), *l_item;
+    if (!l_list_out_items)
+        return NULL;
+
+    l_item = dap_list_nth(l_list_out_items, a_out_num);
+
+    if(!l_item){
+        dap_list_free(l_list_out_items);
+        return NULL;
+    }
+
+    l_ret = l_item->data;
+    dap_list_free(l_list_out_items);
+    return l_ret;
+
 }
