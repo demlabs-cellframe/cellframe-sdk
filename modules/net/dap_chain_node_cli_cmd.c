@@ -1152,11 +1152,13 @@ int com_global_db(int a_argc, char ** a_argv, void ** reply)
         }
 
         dap_string_t *l_ret_str = dap_string_new(NULL);
-        for(size_t i = 0; i < l_objs_count; i++){
-            dap_string_append_printf(l_ret_str, "%s\n", l_obj[i].key);
+        for(size_t i = 0; i < l_objs_count; i++) {
+            char l_ts[64] = { '\0' };
+            dap_gbd_time_to_str_rfc822(l_ts, sizeof(l_ts), l_obj[i].timestamp);
+            dap_string_append_printf(l_ret_str, "\t%s, %s\n", l_obj[i].key, l_ts);
         }
-
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Keys list for group %s:\n%s\n", l_group_str, l_ret_str->str);
+        dap_global_db_objs_delete(l_obj, l_objs_count);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Keys list for group \"%s:\n\n%s\n", l_group_str, l_ret_str->str);
         dap_string_free(l_ret_str, true);
         return 0;
     }
@@ -2010,6 +2012,7 @@ int com_help(int a_argc, char **a_argv, void **reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply,
                 "Available commands:\n\n%s\n",
                 l_help_list_str->len ? l_help_list_str->str : "NO ANY COMMAND WERE DEFINED");
+        dap_string_free(l_help_list_str, true);
         return 0;
     }
 }
@@ -3067,6 +3070,18 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                     dap_chain_addr_t l_addr_from;
                     dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *) l_datum->data;
                     const char *l_main_token = s_tx_get_main_ticker(l_tx, a_net, NULL);
+                    if (l_main_token) {
+                        json_object *l_jobj_main_ticker = json_object_new_string(l_main_token);
+                        if (!l_jobj_main_ticker) {
+                            json_object_put(l_jobj_datum);
+                            json_object_put(l_jobj_datums);
+                            json_object_put(l_obj_chain);
+                            dap_global_db_objs_delete(l_objs, l_objs_count);
+                            DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                            return;
+                        }
+                        json_object_object_add(l_jobj_datum, "main_ticker", l_jobj_main_ticker);
+                    }
                     dap_list_t *l_list_sig_item = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_SIG, NULL);
                     dap_list_t *l_list_in_ems = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_EMS, NULL);
                     if (!l_list_sig_item) {
@@ -3445,7 +3460,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                 }
                     break;
                 case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
-                    size_t l_emi_size = 0;
+                    size_t l_emi_size = l_datum->header.data_size;
                     dap_chain_datum_token_emission_t *l_emi = dap_chain_datum_emission_read(l_datum->data, &l_emi_size);
                     if (l_wallet_addr && l_emi && dap_chain_addr_compare(l_wallet_addr, &l_emi->hdr.address))
                         datum_is_accepted_addr = true;
@@ -5484,7 +5499,7 @@ int com_tx_cond_create(int a_argc, char ** a_argv, void ** reply)
     DAP_DELETE(l_key_cond);
 
     if (l_hash_str) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%sConditional 256bit TX created succefully, hash=%s\n", l_hash_str, l_sign_str);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%sConditional 256bit TX created succefully, hash = %s\n", l_sign_str, l_hash_str);
         DAP_DELETE(l_hash_str);
         return 0;
     }
@@ -6710,7 +6725,7 @@ int com_tx_create(int a_argc, char **a_argv, void ** reply)
         char *l_tx_hash_str = dap_chain_mempool_tx_create(l_chain, dap_chain_wallet_get_key(l_wallet, 0), addr_from, l_addr_to,
                                                                   l_token_ticker, l_value, l_value_fee, l_hash_out_type);
         if (l_tx_hash_str) {
-            dap_string_append_printf(l_string_ret, "transfer=Ok\ntx_hash=%s\n",l_tx_hash_str);
+            dap_string_append_printf(l_string_ret, "transfer=Ok\ntx_hash = %s\n",l_tx_hash_str);
             DAP_DELETE(l_tx_hash_str);
         } else {
             dap_string_append_printf(l_string_ret, "transfer=False\n");

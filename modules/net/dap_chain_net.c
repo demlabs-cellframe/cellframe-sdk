@@ -3057,12 +3057,11 @@ int s_net_load(dap_chain_net_t *a_net)
     dap_chain_net_t *l_net = a_net;
 
     dap_config_t *l_cfg = NULL;
-    dap_string_t *l_cfg_path = dap_string_new("network/");
-    dap_string_append(l_cfg_path,a_net->pub.name);
-
-    if( !( l_cfg = dap_config_open ( l_cfg_path->str ) ) ) {
+    char *l_cfg_path = dap_strdup_printf("network/%s", a_net->pub.name);
+    l_cfg = dap_config_open ( l_cfg_path );
+    DAP_DELETE(l_cfg_path);
+    if (!l_cfg) {
         log_it(L_ERROR,"Can't open default network config");
-        dap_string_free(l_cfg_path,true);
         return -1;
     }
 

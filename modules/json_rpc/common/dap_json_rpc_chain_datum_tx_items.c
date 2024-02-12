@@ -30,13 +30,13 @@ json_object *dap_chain_datum_tx_item_out_cond_srv_pay_to_json(dap_chain_tx_out_c
         json_object *l_obj_value_str = json_object_new_string(l_value_str);
         json_object *l_obj_coins_str = json_object_new_string(l_coins_str);
         json_object * l_obj_hash_str = json_object_new_string(l_hash_str);
-        char * unit_str = DAP_NEW_SIZE(char, 32);
+        DAP_DELETE(l_value_str); DAP_DELETE(l_coins_str); DAP_DELETE(l_hash_str);
+        char unit_str[32];
         snprintf(unit_str, 32, "0x%08x", ((dap_chain_tx_out_cond_t*)item)->subtype.srv_pay.unit.uint32);
-        if (!l_obj || !l_obj_coins_str || !l_obj_value_str || !unit_str) {
+        if (!l_obj || !l_obj_coins_str || !l_obj_value_str) {
             json_object_put(l_obj);
             json_object_put(l_obj_coins_str);
             json_object_put(l_obj_value_str);
-            DAP_DELETE(unit_str);
             dap_json_rpc_allocation_error;
             return NULL;
         }
@@ -45,7 +45,6 @@ json_object *dap_chain_datum_tx_item_out_cond_srv_pay_to_json(dap_chain_tx_out_c
         json_object_object_add(l_obj, "pkey", l_obj_hash_str);
         json_object_object_add(l_obj, "max_price", l_obj_coins_str);
         json_object_object_add(l_obj, "max_price_datoshi", l_obj_value_str);
-        DAP_DELETE(unit_str);
         return l_obj;
 }
 
@@ -225,9 +224,22 @@ json_object *dap_chain_net_srv_stake_lock_cond_out_to_json(dap_chain_tx_out_cond
 
 
 json_object* dap_chain_datum_tx_item_out_to_json(const dap_chain_tx_out_t *a_out) {
+    char *l_value_datoshi_str = dap_chain_balance_print(a_out->header.value);
+    if (!l_value_datoshi_str) {
+        dap_json_rpc_allocation_error;
+        return NULL;
+    }
+    char *l_value_str = dap_chain_balance_to_coins(a_out->header.value);
+    if (!l_value_str) {
+        DAP_DELETE(l_value_datoshi_str);
+        dap_json_rpc_allocation_error;
+        return NULL;
+    }
     json_object *l_object = json_object_new_object();
-    json_object *l_value_datoshi = json_object_new_string(dap_chain_balance_print(a_out->header.value));
-    json_object *l_value = json_object_new_string(dap_chain_balance_to_coins(a_out->header.value));
+    json_object *l_value_datoshi = json_object_new_string(l_value_datoshi_str);
+    json_object *l_value = json_object_new_string(l_value_str);
+    DAP_DELETE(l_value_datoshi_str);
+    DAP_DELETE(l_value_str);
     json_object *l_addr = dap_chain_addr_to_json(&a_out->addr);
     if (!l_addr || !l_object || !l_addr) {
         json_object_put(l_object);
@@ -312,7 +324,7 @@ json_object* dap_chain_datum_tx_item_in_cond_to_json(dap_chain_tx_in_cond_t *a_i
             dap_json_rpc_allocation_error;
             return NULL;
         }
-        l_obj_prev_hash = json_object_new_string(dap_strdup(l_prev_hash));
+        l_obj_prev_hash = json_object_new_string(l_prev_hash);
         if (!l_obj_prev_hash) {
             json_object_put(l_obj_out_prev_idx);
             json_object_put(l_obj_receipt_idx);
