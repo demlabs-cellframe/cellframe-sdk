@@ -133,7 +133,7 @@ static pthread_mutex_t s_ht_grace_table_mutex;
 int dap_stream_ch_chain_net_srv_init(void)
 {
     log_it(L_NOTICE,"Chain network services channel initialized");
-    dap_stream_ch_proc_add(DAP_STREAM_CH_ID_NET_SRV, s_stream_ch_new,s_stream_ch_delete,s_stream_ch_packet_in,s_stream_ch_packet_out);
+    dap_stream_ch_proc_add(DAP_STREAM_CH_NET_SRV_ID, s_stream_ch_new,s_stream_ch_delete,s_stream_ch_packet_in,s_stream_ch_packet_out);
     pthread_mutex_init(&s_ht_grace_table_mutex, NULL);
 
     return 0;

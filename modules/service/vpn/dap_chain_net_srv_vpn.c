@@ -902,7 +902,7 @@ int dap_chain_net_srv_vpn_init(dap_config_t * g_config) {
 
     log_it(L_INFO,"TUN driver configured successfuly");
     s_vpn_service_create(g_config);
-    dap_stream_ch_proc_add(DAP_STREAM_CH_ID_NET_SRV_VPN, s_ch_vpn_new, s_ch_vpn_delete, s_ch_packet_in,
+    dap_stream_ch_proc_add(DAP_STREAM_CH_NET_SRV_ID_VPN, s_ch_vpn_new, s_ch_vpn_delete, s_ch_packet_in,
             s_ch_packet_out);
 
     // add console command to display vpn statistics

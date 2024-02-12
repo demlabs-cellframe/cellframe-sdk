@@ -104,8 +104,7 @@
 #include "dap_global_db_cluster.h"
 
 #include "dap_stream_ch_chain_net.h"
-#include "dap_stream_ch_chain.h"
-#include "dap_stream_ch_chain_pkt.h"
+#include "dap_chain_ch.h"
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_enc_base64.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
@@ -482,8 +481,8 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
             dap_global_db_obj_t *l_aliases_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes_aliases, &l_data_size);
             for (size_t i = 0; i < l_nodes_count; i++) {
                 dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t*)l_objs[i].value;
-                if (!dap_chain_node_addr_not_null(&l_node_info->hdr.address)){
-                    log_it(L_ERROR, "Node address is NULL");
+                if (dap_chain_node_addr_is_blank(&l_node_info->hdr.address)){
+                    log_it(L_ERROR, "Node address is empty");
                     continue;
                 }
 /*
@@ -787,7 +786,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "record already pinned");
                     break;
                 }
-                if(dap_global_db_set_sync( l_group, l_key, l_value, l_value_len,true ) ==0 ){
+                if(dap_global_db_set_sync( l_group, l_key, l_value, l_value_len, true) ==0 ){
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "record successfully pinned");
                 }
                 else{
@@ -1210,7 +1209,10 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
 
         break;
         // make connect
-    case CMD_CONNECT: {
+    case CMD_CONNECT:
+         dap_cli_server_cmd_set_reply_text(a_str_reply, "Not implemented yet");
+         break;
+#if 0
         // get address from alias if addr not defined
         if(alias_str && !l_node_addr.uint64) {
             dap_chain_node_addr_t *address_tmp = dap_chain_node_alias_find(l_net, alias_str);
@@ -1317,7 +1319,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         log_it(L_NOTICE, "Stream connection established");
 
         dap_stream_ch_chain_sync_request_t l_sync_request = {};
-        dap_stream_ch_t *l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, DAP_STREAM_CH_ID);
+        dap_stream_ch_t *l_ch_chain = dap_client_get_stream_ch_unsafe(l_node_client->client, DAP_STREAM_CH_CHAIN_ID);
         // fill begin id
         l_sync_request.id_start = 1;
         // fill current node address
@@ -1390,6 +1392,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         return 0;
 
     }
+#endif
         // make handshake
     case CMD_HANDSHAKE: {
         // get address from alias if addr not defined
@@ -1506,6 +1509,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
                                           l_key_str_out ? "" : " not");
         DAP_DELETE(l_key_str_out);
     } break;
+
     case CMD_UNBAN: {
         dap_chain_net_t *l_netl = NULL;
         dap_chain_t *l_chain = NULL;
@@ -1567,14 +1571,16 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
                                           l_key_str_out ? "" : " not");
         DAP_DELETE(l_key_str_out);
     } break;
+
     case CMD_BANLIST: {
         dap_string_t *l_str_ban_list = dap_string_new("Ban list:\n");
-        dap_enc_http_ban_list_client_ipv4_print(l_str_ban_list);
-        dap_enc_http_ban_list_client_ipv6_print(l_str_ban_list);
+        dap_http_ban_list_client_ipv4_print(l_str_ban_list);
+        dap_http_ban_list_client_ipv6_print(l_str_ban_list);
         dap_chain_node_net_ban_list_print(l_str_ban_list);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ban_list->str);
         dap_string_free(l_str_ban_list, true);
     } break;
+
     case CMD_BALANCER: {
         //balancer link list
         size_t l_node_num = 0;
@@ -1593,6 +1599,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
                                           l_string_balanc->str);
         dap_string_free(l_string_balanc, true);
     } break;
+
     default:
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Unrecognized subcommand '%s'",
                                           arg_index < a_argc ? a_argv[arg_index] : "(null)");

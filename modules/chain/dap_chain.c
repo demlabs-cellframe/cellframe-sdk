@@ -39,6 +39,8 @@
 #include "dap_chain_cell.h"
 #include "dap_chain_cs.h"
 #include "dap_cert_file.h"
+#include "dap_chain_ch.h"
+#include "dap_stream_ch_gossip.h"
 #include <uthash.h>
 #include <pthread.h>
 
@@ -703,32 +705,45 @@ bool dap_chain_get_atom_last_hash(dap_chain_t *a_chain, dap_hash_fast_t *a_atom_
     return l_ret;
 }
 
-ssize_t dap_chain_atom_save(dap_chain_t *a_chain, const uint8_t *a_atom, size_t a_atom_size, dap_chain_cell_id_t a_cell_id)
+ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_atom, size_t a_atom_size, dap_hash_fast_t *a_new_atom_hash)
 {
-    dap_chain_cell_t *l_cell = dap_chain_cell_find_by_id(a_chain, a_cell_id);
-    if (!l_cell) {
-        log_it(L_INFO, "Creating cell 0x%016"DAP_UINT64_FORMAT_X, a_cell_id.uint64);
-        l_cell = dap_chain_cell_create_fill(a_chain, a_cell_id);
-        if (!l_cell) {
-            log_it(L_ERROR, "Can't create cell with id 0x%"DAP_UINT64_FORMAT_x" to save event...", a_cell_id.uint64);
-            return -7;
+    dap_return_val_if_fail(a_chain_cell && a_chain_cell->chain, -1);
+    dap_chain_t *l_chain = a_chain_cell->chain;
+
+    if (a_new_atom_hash) { // Atom is new and need to be distributed for the net
+        dap_cluster_t *l_net_cluster = dap_cluster_find(l_chain->net_id.uint64);
+        if (l_net_cluster) {
+            size_t l_pkt_size = a_atom_size + sizeof(dap_stream_ch_chain_pkt_t);
+            dap_stream_ch_chain_pkt_t *l_pkt = DAP_NEW_Z_SIZE(dap_stream_ch_chain_pkt_t, l_pkt_size);
+            if (l_pkt) {
+                l_pkt->hdr.version = 2;
+                l_pkt->hdr.data_size = a_atom_size;
+                l_pkt->hdr.net_id = l_chain->net_id;
+                l_pkt->hdr.chain_id = l_chain->id;
+                l_pkt->hdr.cell_id = a_chain_cell->id;
+                memcpy(l_pkt->data, a_atom, a_atom_size);
+                dap_gossip_msg_issue(l_net_cluster, DAP_STREAM_CH_CHAIN_ID,
+                                     l_pkt, l_pkt_size, a_new_atom_hash);
+                DAP_DELETE(l_pkt);
+            } else
+                log_it(L_CRITICAL, "Not enough memory");
         }
     }
-    ssize_t l_res = dap_chain_cell_file_append(l_cell, a_atom, a_atom_size);
-    if (a_chain->atom_notifiers) {
+    ssize_t l_res = dap_chain_cell_file_append(a_chain_cell, a_atom, a_atom_size);
+    if (l_chain->atom_notifiers) {
         dap_list_t *l_iter;
-        DL_FOREACH(a_chain->atom_notifiers, l_iter) {
+        DL_FOREACH(l_chain->atom_notifiers, l_iter) {
             dap_chain_atom_notifier_t *l_notifier = (dap_chain_atom_notifier_t*)l_iter->data;
-            l_notifier->callback(l_notifier->arg, a_chain, l_cell->id, (void*)a_atom, a_atom_size);
+            l_notifier->callback(l_notifier->arg, l_chain, a_chain_cell->id, (void*)a_atom, a_atom_size);
         }
     }
-    if (a_chain->callback_atom_add_from_treshold) {
+    if (l_chain->callback_atom_add_from_treshold) {
         dap_chain_atom_ptr_t l_atom_treshold;
         do {
             size_t l_atom_treshold_size;
-            l_atom_treshold = a_chain->callback_atom_add_from_treshold(a_chain, &l_atom_treshold_size);
+            l_atom_treshold = l_chain->callback_atom_add_from_treshold(l_chain, &l_atom_treshold_size);
             if (l_atom_treshold) {
-                if (dap_chain_cell_file_append(l_cell, l_atom_treshold, l_atom_treshold_size) > 0)
+                if (dap_chain_cell_file_append(a_chain_cell, l_atom_treshold, l_atom_treshold_size) > 0)
                     log_it(L_INFO, "Added atom from treshold");
                 else
                     log_it(L_ERROR, "Can't add atom from treshold");
