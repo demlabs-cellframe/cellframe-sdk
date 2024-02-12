@@ -1088,7 +1088,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                             NODE_ADDR_FP_ARGS_S(a_ch->stream->node), l_cluster->mnemonim);
                 break;
             }
-            dap_chain_ch_pkt_t *l_chain_pkt_copy = DAP_DUP_SIZE(l_chain_pkt->data, l_chain_pkt_data_size);
+            dap_chain_ch_pkt_t *l_chain_pkt_copy = DAP_DUP_SIZE(l_ch_pkt->data, l_ch_pkt->hdr.data_size);
             if (!l_chain_pkt_copy) {
                 log_it(L_CRITICAL, "Not enough memory");
                 break;
