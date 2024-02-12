@@ -87,7 +87,7 @@ enum DAP_CHAIN_NET_VOTE_CREATE_ERROR {
 int dap_chain_net_vote_create(char *a_question, dap_list_t *a_options, dap_time_t *a_expire_vote,
                              uint64_t *a_max_vote, uint256_t a_fee, bool a_delegated_key_required,
                              bool a_vote_changing_allowed, dap_chain_wallet_t *a_wallet,
-                             dap_chain_net_t *a_net, char *a_hash_out_type, char **a_hash_output);
+                             dap_chain_net_t *a_net, const char *a_hash_out_type, char **a_hash_output);
 
 enum DAP_CHAIN_NET_VOTE_VOTING_ERROR{
     DAP_CHAIN_NET_VOTE_VOTING_OK,
