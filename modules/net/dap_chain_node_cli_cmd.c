@@ -605,7 +605,8 @@ void s_dap_chain_net_purge(dap_chain_net_t * a_net)
 int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
 {
     enum {
-        CMD_NONE, CMD_NAME_CELL, CMD_ADD, CMD_FLUSH, CMD_RECORD, CMD_WRITE, CMD_READ, CMD_DELETE, CMD_DROP, CMD_GET_KEYS
+        CMD_NONE, CMD_NAME_CELL, CMD_ADD, CMD_FLUSH, CMD_RECORD, CMD_WRITE, CMD_READ,
+        CMD_DELETE, CMD_DROP, CMD_GET_KEYS, CMD_GROUP_LIST
     };
     int arg_index = 1;
     int cmd_name = CMD_NONE;
@@ -626,6 +627,8 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
                 cmd_name = CMD_DROP;
     else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "get_keys", NULL))
             cmd_name = CMD_GET_KEYS;
+    else if(dap_cli_server_cmd_find_option_val(a_argv, arg_index, dap_min(a_argc, arg_index + 1), "group_list", NULL))
+            cmd_name = CMD_GROUP_LIST;
 
     switch (cmd_name) {
     case CMD_NAME_CELL:
@@ -867,16 +870,33 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         }
 
         size_t l_out_len = 0;
-        uint8_t *l_value_out = dap_global_db_get_sync(l_group_str, l_key_str, &l_out_len, NULL, NULL);
-
-        if (!l_value_out || !l_out_len)
+        dap_nanotime_t l_ts = 0;
+        uint8_t *l_value_out = dap_global_db_get_sync(l_group_str, l_key_str, &l_out_len, NULL, &l_ts);
+        /*if (!l_value_out || !l_out_len)
         {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Record with key %s in group %s not found", l_key_str, l_group_str);
             return -121;
+        }*/
+        if (l_ts) {
+            char l_ts_str[80] = { '\0' };
+            dap_gbd_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), l_ts);
+            char *l_value_hexdump = dap_dump_hex(l_value_out, l_out_len);
+            if (l_value_hexdump) {
+
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "\n\"%s : %s\"\nTime: %s\nValue len: %zu\nValue hex:\n\n%s",
+                                                  l_group_str, l_key_str, l_ts_str, l_out_len, l_value_hexdump);
+                DAP_DELETE(l_value_hexdump);
+            } else {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "\n\"%s : %s\"\nTime: %s\nNo value\n",
+                                                  l_group_str, l_key_str, l_ts_str);
+            }
+            DAP_DELETE(l_value_out);
+        } else {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "\nRecord \"%s : %s\" not found\n",
+                                              l_group_str, l_key_str);
         }
 
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Group %s, key %s, data:\n %s", l_group_str, l_key_str, (char*)l_value_out);
-        DAP_DELETE(l_value_out);
+
         return 0;
     }
     case CMD_DELETE:
@@ -915,7 +935,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
             return 0;
         }
 
-        if (dap_global_db_del(l_group_str, l_key_str, NULL, NULL)) {
+        if (!dap_global_db_del(l_group_str, l_key_str, NULL, NULL)) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Record with key %s in group %s was deleted successfuly", l_key_str, l_group_str);
             return 0;
         } else {
@@ -962,12 +982,26 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         }
 
         dap_string_t *l_ret_str = dap_string_new(NULL);
-        for(size_t i = 0; i < l_objs_count; i++){
-            dap_string_append_printf(l_ret_str, "%s\n", l_obj[i].key);
+        for(size_t i = 0; i < l_objs_count; i++) {
+            char l_ts[64] = { '\0' };
+            dap_gbd_time_to_str_rfc822(l_ts, sizeof(l_ts), l_obj[i].timestamp);
+            dap_string_append_printf(l_ret_str, "\t%s, %s\n", l_obj[i].key, l_ts);
         }
-
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Keys list for group %s:\n%s\n", l_group_str, l_ret_str->str);
+        dap_global_db_objs_delete(l_obj, l_objs_count);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Keys list for group \"%s:\n\n%s\n", l_group_str, l_ret_str->str);
         dap_string_free(l_ret_str, true);
+        return 0;
+    }
+    case CMD_GROUP_LIST: {
+        dap_string_t *l_ret_str = dap_string_new(NULL);
+        dap_list_t *l_group_list = dap_global_db_driver_get_groups_by_mask("*");
+        size_t l_count = 0;
+        for (dap_list_t *l_list = l_group_list; l_list; l_list = dap_list_next(l_list), ++l_count) {
+            dap_string_append_printf(l_ret_str, "\t%-40s : %zu records\n", (char*)l_list->data, dap_global_db_driver_count((char*)l_list->data, 1));
+        }
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Group list:\n%sTotal count: %zu\n", l_ret_str->str, l_count);
+        dap_string_free(l_ret_str, true);
+        dap_list_free(l_group_list);
         return 0;
     }
     default:
@@ -1922,6 +1956,7 @@ int com_help(int a_argc, char **a_argv, void **a_str_reply)
         dap_cli_server_cmd_set_reply_text(a_str_reply,
                 "Available commands:\n\n%s\n",
                 l_help_list_str->len ? l_help_list_str->str : "NO ANY COMMAND WERE DEFINED");
+        dap_string_free(l_help_list_str, true);
         return 0;
     }
 }
@@ -2339,7 +2374,7 @@ int dap_chain_node_cli_cmd_values_parse_net_chain_for_json(int *a_arg_index, int
         l_str_to_reply = dap_strcat2(l_str_to_reply,l_str_to_reply_chain);
         dap_string_t* l_net_str = dap_cli_list_net();
         l_str_to_reply = dap_strcat2(l_str_to_reply,l_net_str->str);
-        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_NOT_FOUND, "%s can't find network \"%s\"\n%s", a_argv[0], l_net_str, l_str_to_reply);
+        dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_NOT_FOUND, "%s can't find network \"%s\"\n%s", a_argv[0], l_net_str->str, l_str_to_reply);
         return DAP_CHAIN_NODE_CLI_CMD_VALUES_PARSE_NET_CHAIN_ERR_NET_NOT_FOUND;
     }
 
@@ -3188,7 +3223,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                 dap_list_free(l_list_out_items);
             } break;
             case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
-                size_t l_emi_size = 0;
+                size_t l_emi_size = l_datum->header.data_size;
                 dap_chain_datum_token_emission_t *l_emi = dap_chain_datum_emission_read(l_datum->data, &l_emi_size);
                 if (l_wallet_addr && l_emi && dap_chain_addr_compare(l_wallet_addr, &l_emi->hdr.address))
                     datum_is_accepted_addr = true;
