@@ -2476,7 +2476,7 @@ int dap_chain_net_srv_xchange_create(dap_chain_net_t *a_net, const char *a_token
     if (IS_ZERO_256(a_datoshi_sell)) {
         return XCHANGE_CREATE_ERROR_VALUE_SELL_IS_ZERO;
     }
-    const char* l_sign_str = dap_chain_wallet_check_bliss_sign(a_wallet);
+    const char* l_sign_str = dap_chain_wallet_check_sign() dap_chain_wallet_check_bliss_sign(a_wallet);
     uint256_t l_value = dap_chain_wallet_get_balance(a_wallet, a_net->pub.id, a_token_sell);
     uint256_t l_value_sell = a_datoshi_sell;
     if (!dap_strcmp(a_net->pub.native_ticker, a_token_sell)) {
