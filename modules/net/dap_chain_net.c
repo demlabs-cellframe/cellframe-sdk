@@ -208,8 +208,8 @@ typedef struct dap_chain_net_item{
     UT_hash_handle hh, hh2;
 } dap_chain_net_item_t;
 
-#define PVT(a) ( (dap_chain_net_pvt_t *) (void*) a->pvt )
-#define PVT_S(a) ( (dap_chain_net_pvt_t *) (void*) a.pvt )
+#define PVT(a) (a ? (dap_chain_net_pvt_t *)a->pvt : NULL )
+#define PVT_S(a) (a ? (dap_chain_net_pvt_t *)a.pvt : NULL )
 
 static dap_chain_net_item_t *s_net_items = NULL, *s_net_ids = NULL;
 
@@ -234,15 +234,6 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t * a_node_c
 static void s_node_link_callback_stage(dap_chain_node_client_t * a_node_client,dap_client_stage_t a_stage, void * a_arg);
 static void s_node_link_callback_error(dap_chain_node_client_t * a_node_client, int a_error, void * a_arg);
 static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client, void * a_arg);
-
-static const dap_chain_node_client_callbacks_t s_node_link_callbacks = {
-    .connected      = s_node_link_callback_connected,
-    .disconnected   = s_node_link_callback_disconnected,
-    .stage          = s_node_link_callback_stage,
-    .error          = s_node_link_callback_error,
-    .delete         = s_node_link_callback_delete
-};
-
 
 static bool s_link_manager_connected_callback(void *a_arg);
 static int s_link_manager_fill_net_info(dap_link_t *a_link);
@@ -271,7 +262,6 @@ static int s_net_load(dap_chain_net_t *a_net);
 
 static int s_cli_net(int argc, char ** argv, void **a_str_reply);
 static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
-static void s_prepare_links_from_balancer(dap_chain_net_t *a_net);
 static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_replace_tries);
 
 
@@ -389,7 +379,7 @@ char *dap_chain_net_get_gdb_group_acl(dap_chain_net_t *a_net)
  * @param a_new_state dap_chain_net_state_t new network state
  * @return int
  */
-int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state)
+int dap_chain_net_state_go_to(dap_chain_net_t *a_net, dap_chain_net_state_t a_new_state)
 {
     if (PVT(a_net)->load_mode) {
         log_it(L_ERROR, "Can't change state of loading network '%s'", a_net->pub.name);
@@ -648,7 +638,7 @@ static void s_net_links_complete_and_start(dap_chain_net_t *a_net, dap_worker_t 
         if (l_links_count == 0 && !l_net_pvt->balancer_http) {
             // Try to get links from HTTP balancer
             l_net_pvt->balancer_http = true;
-            s_prepare_links_from_balancer(a_net);
+            s_new_balancer_link_request(a_net, 0);
             return;
         }
         if (l_links_count < l_net_pvt->max_links_count)
@@ -687,11 +677,9 @@ static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_cha
         dap_link_t *l_link = NULL;
         DAP_NEW_Z_RET(l_link, dap_link_t, NULL);
         if(l_node_info->hdr.ext_addr_v4.s_addr){
-            struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = l_node_info->hdr.ext_addr_v4 };
-            inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), l_link->host_addr_str, INET_ADDRSTRLEN);
+            inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_link->host_addr_str, INET_ADDRSTRLEN);
         } else {
-            struct sockaddr_in6 sa6 = { .sin6_family = AF_INET6, .sin6_addr = l_node_info->hdr.ext_addr_v6 };
-            inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) &sa6)->sin6_addr), l_link->host_addr_str, INET6_ADDRSTRLEN);
+            inet_ntop(AF_INET6, &l_node_info->hdr.ext_addr_v4, l_link->host_addr_str, INET6_ADDRSTRLEN);
         }
         switch (dap_link_manager_link_add(l_net->pub.name, l_link)) {
             case 0:
@@ -787,11 +775,12 @@ void s_net_http_link_prepare_error(int a_error_code, void *a_arg)
  */
 static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_replace_tries)
 {
-    dap_chain_net_pvt_t *l_net_pvt = a_net ? PVT(a_net) : NULL;
-    if (!l_net_pvt)
-        return false;
-    if (l_net_pvt->state_target == NET_STATE_OFFLINE) {
-        return false;
+// sanity check
+    dap_return_val_if_pass(!PVT(a_net) || (PVT(a_net))->state_target == NET_STATE_OFFLINE , false);
+// func work
+    dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
+    if (!dap_link_manager_links_count(a_net->pub.name)) {
+        s_fill_links_from_root_aliases(a_net);
     }
     if(!a_link_replace_tries) {
         dap_chain_net_node_balancer_t *l_link_full_node_list = dap_chain_net_balancer_get_node(a_net->pub.name,l_net_pvt->max_links_count*2);
@@ -802,16 +791,14 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
             l_node_cnt = l_link_full_node_list->count_node;
 
             dap_link_t *l_link = NULL;
-            DAP_NEW_Z_RET_VAL(l_link, dap_link_t, NULL, false);
             for(size_t i = 0; i < l_node_cnt; ++i) {
+                DAP_NEW_Z_RET_VAL(l_link, dap_link_t, NULL, false);
                 int l_net_link_add = 0;
                 memset(l_link, 0, sizeof(*l_link));
                 if((l_node_info + i)->hdr.ext_addr_v4.s_addr){
-                    struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = l_node_info->hdr.ext_addr_v4 };
-                    inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), l_link->host_addr_str, INET_ADDRSTRLEN);
+                    inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_link->host_addr_str, INET_ADDRSTRLEN);
                 } else {
-                    struct sockaddr_in6 sa6 = { .sin6_family = AF_INET6, .sin6_addr = l_node_info->hdr.ext_addr_v6 };
-                    inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) &sa6)->sin6_addr), l_link->host_addr_str, INET6_ADDRSTRLEN);
+                    inet_ntop(AF_INET6, &l_node_info->hdr.ext_addr_v6, l_link->host_addr_str, INET6_ADDRSTRLEN);
                 }
                 l_link->host_port = l_node_info->hdr.ext_port;
                 if(!strlen(l_link->host_addr_str) || !strcmp(l_link->host_addr_str, "::") || !l_link->host_port) {
@@ -837,7 +824,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
                         break;
                 }
             }
-            DAP_DEL_MULTY(l_link_full_node_list, l_link);
+            DAP_DEL_MULTY(l_link_full_node_list);
         }
     }
     dap_chain_node_info_t *l_link_node_info = dap_chain_net_balancer_link_from_cfg(a_net);
@@ -898,20 +885,6 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
     if (!a_link_replace_tries)
         l_net_pvt->balancer_link_requests++;
     return true;
-}
-
-static void s_prepare_links_from_balancer(dap_chain_net_t *a_net)
-{
-    if (!a_net) {
-        log_it(L_ERROR, "Invalid arguments in s_prepare_links_from_balancer");
-        return;
-    }
-    // Get list of the unique links for l_net
-    size_t l_max_links_count = PVT(a_net)->max_links_count;   // Not all will be success
-    for (size_t l_cur_links_count = 0, n = 0; n < 100 && l_cur_links_count < l_max_links_count; ++n) {
-        if (s_new_balancer_link_request(a_net, 0))
-            l_cur_links_count++;
-    }
 }
 
 struct json_object *s_net_states_json_collect(dap_chain_net_t *a_net)
@@ -988,28 +961,6 @@ static bool s_net_states_proc(void *a_arg)
                 }
                 // s_link_manager_link_add(l_net, l_link_node_info);
                 DAP_DELETE(l_link_node_info);
-            }
-
-            if (!l_net_pvt->seed_nodes_count) {
-            //    if (l_net_pvt->net_links) { // We have other links
-            //        l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
-            //        l_repeat_after_exit = true;
-            //    } else {
-            //        log_it(L_ERROR, "No information about seed nodes present in configuration file");
-            //        dap_chain_net_state_go_to(l_net, NET_STATE_OFFLINE);
-            //    }
-               break;
-            }
-            // Get DNS request result from root nodes as synchronization links
-            if (!l_net_pvt->only_static_links) {
-                s_prepare_links_from_balancer(l_net);
-            } else {
-                log_it(L_ATT, "Not use bootstrap addresses, fill seed nodelist from root aliases");
-                // Add other root nodes as synchronization links
-                s_fill_links_from_root_aliases(l_net);
-                l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
-                l_repeat_after_exit = true;
-                break;
             }
         } break;
 
@@ -3466,22 +3417,14 @@ int dap_chain_net_link_manager_init()
     return dap_link_manager_init(&s_link_manager_callbacks);
 }
 
+// void s_link_manager_link_prepare(dap_link_t *a_link, );
+
 int s_link_manager_fill_net_info(dap_link_t *a_link)
 {
 // sanity check
     dap_return_val_if_pass(!a_link, -1);
 // preparing
     int l_ret = 0;
-// // temporary to tests
-// if (a_link->node_addr.uint64 == 56797) {
-//     strcpy(a_link->host_addr_str, "192.241.165.23"); 
-//     a_link->host_port = 8079;
-//     return 0;
-// } else if (a_link->node_addr.uint64 == 281474976767453) {
-//     strcpy(a_link->host_addr_str, "70.34.245.106"); 
-//     a_link->host_port = 8079;
-//     return 0;
-// }
     char *l_key = dap_chain_node_addr_to_hash_str(&a_link->node_addr);
     if (!l_key)
         return -2;
@@ -3499,11 +3442,9 @@ int s_link_manager_fill_net_info(dap_link_t *a_link)
     // get nodes list from global_db
     dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)(l_obj->value);
     if(l_node_info->hdr.ext_addr_v4.s_addr){
-        struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = l_node_info->hdr.ext_addr_v4 };
-        inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), a_link->host_addr_str, INET_ADDRSTRLEN);
+        inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, a_link->host_addr_str, INET_ADDRSTRLEN);
     } else {
-        struct sockaddr_in6 sa6 = { .sin6_family = AF_INET6, .sin6_addr = l_node_info->hdr.ext_addr_v6 };
-        inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) &sa6)->sin6_addr), a_link->host_addr_str, INET6_ADDRSTRLEN);
+        inet_ntop(AF_INET6, &l_node_info->hdr.ext_addr_v6, a_link->host_addr_str, INET6_ADDRSTRLEN);
     }
     a_link->host_port = l_node_info->hdr.ext_port;
     if(!strlen(a_link->host_addr_str) || !strcmp(a_link->host_addr_str, "::") || !a_link->host_port) {
