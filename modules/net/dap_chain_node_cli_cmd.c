@@ -2121,8 +2121,9 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                                 json_object_object_add(json_obj_wall, "status", json_object_new_string("Active"));
                             else
                                 json_object_object_add(json_obj_wall, "status", json_object_new_string("not active"));
-                            json_object_object_add(json_obj_wall, "sign_status", json_object_new_string(dap_chain_wallet_check_sign(l_wallet)));
-
+                            json_object_object_add(json_obj_wall, "sign_status", json_object_new_string(
+                                                                                     strlen(dap_chain_wallet_check_sign(l_wallet))!=0 ?
+                                                                                     dap_chain_wallet_check_sign(l_wallet) : "correct"));
                             if (l_addr_str) {
                                 json_object_object_add(json_obj_wall, "addr", json_object_new_string(l_addr_str));
                             }
@@ -2131,7 +2132,7 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
                         } else{
                             json_object_object_add(json_obj_wall, "Wallet", json_object_new_string(l_file_name));
-                            json_object_object_add(json_obj_wall, "status", json_object_new_string("non-active"));
+                            json_object_object_add(json_obj_wall, "status", json_object_new_string("can't open"));
                         }
                     } else if ((l_file_name_len > 7) && (!strcmp(l_file_name + l_file_name_len - 7, ".backup"))) {
                         json_object_object_add(json_obj_wall, "Wallet", json_object_new_string(l_file_name));
@@ -2189,7 +2190,9 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
             char *l_l_addr_str = dap_chain_addr_to_str((dap_chain_addr_t*) l_addr);
             if(l_wallet)
             {
-                json_object_object_add(json_obj_wall, "sign", json_object_new_string(dap_chain_wallet_check_sign(l_wallet)));
+                json_object_object_add(json_obj_wall, "sign", json_object_new_string(
+                                                                  strlen(dap_chain_wallet_check_sign(l_wallet))!=0 ?
+                                                                  dap_chain_wallet_check_sign(l_wallet) : "correct"));
                 json_object_object_add(json_obj_wall, "nwallet", json_object_new_string(l_wallet->name));
             }
             json_object_object_add(json_obj_wall, "addr:", (l_l_addr_str) ? json_object_new_string(l_l_addr_str) : json_object_new_string("-"));
@@ -2314,7 +2317,9 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     }
                     json_object * json_obj_wall = json_object_new_object();
                     log_it(L_INFO, "Wallet %s has been converted", l_wallet_name);
-                    json_object_object_add(json_obj_wall, "Sign wallet:", json_object_new_string(dap_chain_wallet_check_sign(l_wallet)));
+                    json_object_object_add(json_obj_wall, "Sign wallet:", json_object_new_string(
+                                                                              strlen(dap_chain_wallet_check_sign(l_wallet))!=0 ?
+                                                                              dap_chain_wallet_check_sign(l_wallet) : "correct"));
                     json_object_object_add(json_obj_wall, "Wallet name:", json_object_new_string(l_wallet_name));
                     json_object_object_add(json_obj_wall, "Status:", json_object_new_string("successfully converted"));
                     dap_chain_wallet_close(l_wallet);
