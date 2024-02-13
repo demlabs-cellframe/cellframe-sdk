@@ -677,9 +677,9 @@ static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_cha
         dap_link_t *l_link = NULL;
         DAP_NEW_Z_RET(l_link, dap_link_t, NULL);
         if(l_node_info->hdr.ext_addr_v4.s_addr){
-            inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_link->host_addr_str, INET_ADDRSTRLEN);
+            inet_ntop(AF_INET, &l_node_info[i].hdr.ext_addr_v4, l_link->host_addr_str, INET_ADDRSTRLEN);
         } else {
-            inet_ntop(AF_INET6, &l_node_info->hdr.ext_addr_v4, l_link->host_addr_str, INET6_ADDRSTRLEN);
+            inet_ntop(AF_INET6, &l_node_info[i].hdr.ext_addr_v6, l_link->host_addr_str, INET6_ADDRSTRLEN);
         }
         switch (dap_link_manager_link_add(l_net->pub.id.uint64, l_link)) {
             case 0:
@@ -752,12 +752,12 @@ void s_net_http_link_prepare_success(void *a_response, size_t a_response_size, v
 
     size_t l_response_size_need = sizeof(dap_chain_net_node_balancer_t) + (sizeof(dap_chain_node_info_t) * l_link_full_node_list->count_node);
     log_it(L_WARNING, "Get data size - %lu need - (%lu)", a_response_size, l_response_size_need);
-    if (a_response_size != l_response_size_need) {
-        log_it(L_ERROR, "Invalid balancer response size %lu (expected %lu)", a_response_size, l_response_size_need);
-        s_new_balancer_link_request(l_balancer_request->net, l_balancer_request->link_replace_tries);
-        DAP_DELETE(l_balancer_request);
-        return;
-    }
+    // if (a_response_size != l_response_size_need) {
+    //     log_it(L_ERROR, "Invalid balancer response size %lu (expected %lu)", a_response_size, l_response_size_need);
+    //     s_new_balancer_link_request(l_balancer_request->net, l_balancer_request->link_replace_tries);
+    //     DAP_DELETE(l_balancer_request);
+    //     return;
+    // }
     s_net_balancer_link_prepare_success(l_balancer_request->worker, l_link_full_node_list, a_arg);
 }
 
@@ -2463,10 +2463,6 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     // Decrees initializing
     dap_chain_net_decree_init(l_net);
 
-    if(dap_link_manager_add_net(l_net->pub.id.uint64)) {
-        log_it(L_WARNING, "Can't add net %s to link manager", l_net->pub.name);
-    }
-
     return 0;
 }
 
@@ -2702,6 +2698,9 @@ int s_net_load(dap_chain_net_t *a_net)
     if (l_target_state != l_net_pvt->state_target)
         dap_chain_net_state_go_to(l_net, l_target_state);
 
+    if(dap_link_manager_add_net(l_net->pub.id.uint64, l_net_pvt->nodes_cluster->links_cluster)) {
+        log_it(L_WARNING, "Can't add net %s to link manager", l_net->pub.name);
+    }
     return 0;
 }
 
