@@ -206,7 +206,7 @@ static int s_cli_net_srv( int argc, char **argv, void **reply)
     int l_report = dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "report", NULL);
     if (l_report) {
         const char *l_report_str = dap_stream_ch_chain_net_srv_create_statistic_report();
-        dap_cli_server_cmd_set_reply_text(a_str_reply, l_report_str);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_report_str);
         DAP_DEL_Z(l_report_str);
         return 0;
     }
@@ -326,7 +326,7 @@ static int s_cli_net_srv( int argc, char **argv, void **reply)
                     }
                     if(l_continent_num>=0)
                         l_order->continent = l_continent_num;*/
-                        char *l_new_order_hash_str = dap_chain_net_srv_order_save(l_net, l_order);
+                        char *l_new_order_hash_str = dap_chain_net_srv_order_save(l_net, l_order, false);
                         if (l_new_order_hash_str) {
                             // delete prev order
                             if(dap_strcmp(l_new_order_hash_str, l_order_hash_hex_str))
@@ -457,27 +457,16 @@ static int s_cli_net_srv( int argc, char **argv, void **reply)
                     }
                     DAP_DELETE(l_orders);
                 }
-            } else if(!dap_strcmp( l_order_str, "delete" )) {
-                // Select with specified service uid
-                //const char *l_order_hash_str = NULL;
-                //dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-hash", &l_order_hash_str);
-                if ( l_order_hash_str ){
-                    dap_chain_net_srv_order_t * l_order = dap_chain_net_srv_order_find_by_hash_str( l_net, l_order_hash_hex_str );
-                    if (l_order && dap_chain_net_srv_order_delete_by_hash_str_sync(l_net,l_order_hash_hex_str) == 0){
-                        l_ret = 0 ;
-                        if(!dap_strcmp(l_hash_out_type,"hex"))
-                            dap_string_append_printf(l_string_ret, "Deleted order %s\n", l_order_hash_hex_str);
-                        else
-                            dap_string_append_printf(l_string_ret, "Deleted order %s\n", l_order_hash_base58_str);
-                    }else{
-                        l_ret = -8 ;
-                        if(!dap_strcmp(l_hash_out_type,"hex"))
-                            dap_string_append_printf(l_string_ret, "Can't find order with hash %s\n", l_order_hash_hex_str);
-                        else
-                            dap_string_append_printf(l_string_ret, "Can't find order with hash %s\n", l_order_hash_base58_str);
+            } else if (!dap_strcmp(l_order_str, "delete")) {
+                if (l_order_hash_str) {
+                    l_ret = dap_chain_net_srv_order_delete_by_hash_str_sync(l_net, l_order_hash_hex_str);
+                    if (!l_ret)
+                        dap_string_append_printf(l_string_ret, "Deleted order %s\n", l_order_hash_str);
+                    else {
+                        l_ret = -8;
+                        dap_string_append_printf(l_string_ret, "Can't find order with hash %s\n", l_order_hash_str);
                     }
-                    DAP_DELETE(l_order);
-                } else{
+                } else {
                     l_ret = -9 ;
                     dap_string_append(l_string_ret,"need -hash param to obtain what the order we need to dump\n");
                 }

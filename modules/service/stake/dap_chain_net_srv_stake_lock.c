@@ -286,9 +286,8 @@ static enum error_code s_cli_hold(int a_argc, char **a_argv, int a_arg_index, da
     if(NULL == (l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallets_path))) {
         dap_string_append_printf(output_line, "'%s'", l_wallet_str);
         return WALLET_OPEN_ERROR;
-    } else {
-        dap_string_append_printf(output_line, "%s\n", dap_chain_wallet_check_bliss_sign(l_wallet));
-    }
+    } else
+        dap_string_append(output_line, dap_chain_wallet_check_sign(l_wallet));
 
     if (compare256(dap_chain_wallet_get_balance(l_wallet, l_net->pub.id, l_ticker_str), l_value) == -1) {
         dap_chain_wallet_close(l_wallet);
@@ -441,8 +440,7 @@ static enum error_code s_cli_take(int a_argc, char **a_argv, int a_arg_index, da
     if (NULL == (l_wallet = dap_chain_wallet_open(l_wallet_str, l_wallets_path)))
         return WALLET_OPEN_ERROR;
     else
-        dap_string_append_printf(output_line, "%s\n", dap_chain_wallet_check_bliss_sign(l_wallet));
-
+        dap_string_append(output_line, dap_chain_wallet_check_sign(l_wallet));
 
     if (NULL == (l_owner_key = dap_chain_wallet_get_key(l_wallet, 0))) {
         dap_chain_wallet_close(l_wallet);
