@@ -3606,7 +3606,7 @@ int _cmd_mempool_check(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char 
                 return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
             }
             json_object_object_add(l_obj_atom, "hash", l_jobj_atom_hash);
-            json_object_object_add(l_obj_atom, "err", l_jobj_atom_err);
+            json_object_object_add(l_obj_atom, "ledger_response_code", l_jobj_atom_err);
             json_object_object_add(l_jobj_datum, "atom", l_obj_atom);
         }
         json_object *l_datum_obj_inf = dap_chain_datum_to_json(l_datum);
