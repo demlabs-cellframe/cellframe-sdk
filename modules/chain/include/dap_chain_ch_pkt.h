@@ -36,7 +36,7 @@
 
 #include "dap_stream_ch.h"
 
-#define DAP_STREAM_CH_CHAIN_PKT_VERSION                        0x01
+#define DAP_STREAM_CH_CHAIN_PKT_VERSION                        0x02
 
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_REQ         0x05
 #define DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_START       0x25
@@ -117,6 +117,9 @@ static const char* c_dap_chain_ch_pkt_type_str[]={
     [DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR] = "DAP_STREAM_CH_CHAIN_PKT_TYPE_ERROR"
 
 };
+
+dap_chain_ch_pkt_t *dap_chain_ch_pkt_new(uint64_t a_net_id, uint64_t a_chain_id, uint64_t a_cell_id,
+                                         const void *a_data, size_t a_data_size);
 
 size_t dap_chain_ch_pkt_write_unsafe(dap_stream_ch_t *a_ch, uint8_t a_type, uint64_t a_net_id,
                                             uint64_t a_chain_id, uint64_t a_cell_id,

@@ -801,7 +801,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             if(s_debug_more)
                 log_it(L_INFO, "In: UPDATE_GLOBAL_DB pkt data_size=%zu", l_chain_pkt_data_size);
             if (l_ch_chain->state != CHAIN_STATE_UPDATE_GLOBAL_DB_REMOTE ||
-                    memcmp(&l_ch_chain->request_hdr, &l_chain_pkt->hdr, sizeof(dap_chain_ch_pkt_t))) {
+                    memcmp(&l_ch_chain->request_hdr.net_id, &l_chain_pkt->hdr.net_id,
+                           sizeof(dap_chain_net_id_t) + sizeof(dap_chain_id_t) + sizeof(dap_chain_cell_id_t))) {
                 log_it(L_WARNING, "Can't process UPDATE_GLOBAL_DB request because its already busy with syncronization");
                 s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
                         l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
@@ -838,7 +839,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_GLOBAL_DB_END: {
             if(l_chain_pkt_data_size == sizeof(dap_chain_ch_sync_request_t)) {
                 if (l_ch_chain->state != CHAIN_STATE_UPDATE_GLOBAL_DB_REMOTE ||
-                        memcmp(&l_ch_chain->request_hdr, &l_chain_pkt->hdr, sizeof(dap_chain_ch_pkt_t))) {
+                        memcmp(&l_ch_chain->request_hdr.net_id, &l_chain_pkt->hdr.net_id,
+                               sizeof(dap_chain_net_id_t) + sizeof(dap_chain_id_t) + sizeof(dap_chain_cell_id_t))) {
                     log_it(L_WARNING, "Can't process UPDATE_GLOBAL_DB_END request because its already busy with syncronization");
                     s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
                             l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
@@ -960,8 +962,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
             }
             l_ch_chain->state = CHAIN_STATE_UPDATE_CHAINS_REMOTE;
             l_ch_chain->request_hdr = l_chain_pkt->hdr;
-            if(s_debug_more)
-                log_it(L_INFO,"In: UPDATE_CHAINS_START pkt");
+            debug_if(s_debug_more, L_INFO, "In: UPDATE_CHAINS_START pkt");
         } break;
 
         // Response with atom hashes and sizes
@@ -1018,7 +1019,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_UPDATE_CHAINS_END: {
             if(l_chain_pkt_data_size == sizeof(dap_chain_ch_sync_request_t)) {
                 if (l_ch_chain->state != CHAIN_STATE_UPDATE_CHAINS_REMOTE ||
-                        memcmp(&l_ch_chain->request_hdr, &l_chain_pkt->hdr, sizeof(dap_chain_ch_pkt_t))) {
+                        memcmp(&l_ch_chain->request_hdr.net_id, &l_chain_pkt->hdr.net_id,
+                               sizeof(dap_chain_net_id_t) + sizeof(dap_chain_id_t) + sizeof(dap_chain_cell_id_t))) {
                     log_it(L_WARNING, "Can't process UPDATE_CHAINS_END request because its already busy with syncronization");
                     s_stream_ch_write_error_unsafe(a_ch, l_chain_pkt->hdr.net_id.uint64,
                             l_chain_pkt->hdr.chain_id.uint64, l_chain_pkt->hdr.cell_id.uint64,
@@ -1069,8 +1071,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
 
         case DAP_STREAM_CH_CHAIN_PKT_TYPE_CHAIN: {
             dap_chain_ch_pkt_t *l_chain_pkt = (dap_chain_ch_pkt_t *)l_ch_pkt->data;
-            if (l_chain_pkt_data_size <= sizeof(dap_chain_ch_pkt_t) ||
-                    l_chain_pkt_data_size != sizeof(dap_chain_ch_pkt_t) + l_chain_pkt->hdr.data_size) {
+            if (l_chain_pkt->hdr.version >= 2 &&
+                        l_chain_pkt_data_size != l_chain_pkt->hdr.data_size) {
                 log_it(L_WARNING, "Incorrect chain packet size");
                 break;
             }
@@ -1085,7 +1087,7 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg)
                                             NODE_ADDR_FP_ARGS_S(a_ch->stream->node), l_cluster->mnemonim);
                 break;
             }
-            dap_chain_ch_pkt_t *l_chain_pkt_copy = DAP_DUP_SIZE(l_chain_pkt->data, l_chain_pkt_data_size);
+            dap_chain_ch_pkt_t *l_chain_pkt_copy = DAP_DUP_SIZE(l_ch_pkt->data, l_ch_pkt->hdr.data_size);
             if (!l_chain_pkt_copy) {
                 log_it(L_CRITICAL, "Not enough memory");
                 break;
