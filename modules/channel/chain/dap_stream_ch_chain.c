@@ -102,8 +102,8 @@ static inline bool s_ch_chain_get_idle(dap_stream_ch_chain_t *a_ch_chain) { retu
 static void s_stream_ch_new(dap_stream_ch_t* a_ch, void* a_arg);
 static void s_stream_ch_delete(dap_stream_ch_t* a_ch, void* a_arg);
 static void s_stream_ch_packet_in(dap_stream_ch_t* a_ch, void* a_arg);
-static void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg);
-static void s_stream_ch_io_complete(dap_events_socket_t *a_es, void *a_arg, int a_errno);
+static bool s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg);
+static void s_stream_ch_io_complete(dap_events_socket_t *a_es, void *a_arg);
 static void s_stream_ch_write_error_unsafe(dap_stream_ch_t *a_ch, uint64_t a_net_id, uint64_t a_chain_id, uint64_t a_cell_id, const char * a_err_string);
 
 static bool s_sync_out_chains_proc_callback(dap_proc_thread_t *a_thread, void *a_arg);
@@ -1641,10 +1641,8 @@ struct chain_io_complete {
     byte_t data[];
 };
 
-static void s_stream_ch_io_complete(dap_events_socket_t *a_es, void *a_arg, int a_errno)
+static void s_stream_ch_io_complete(dap_events_socket_t *a_es, void *a_arg)
 {
-    if (a_errno)
-        return;
     dap_stream_t *l_stream = NULL;
     if (!a_es->server) {
         dap_client_t *l_client = DAP_ESOCKET_CLIENT(a_es);
@@ -1706,13 +1704,13 @@ static void s_stream_ch_chain_pkt_write(dap_stream_ch_t *a_ch, uint8_t a_type, u
  * @param ch
  * @param arg
  */
-void s_stream_ch_packet_out(dap_stream_ch_t *a_ch, void *a_arg)
+static bool s_stream_ch_packet_out(dap_stream_ch_t *a_ch, void *a_arg)
 {
     dap_stream_ch_chain_t *l_ch_chain = DAP_STREAM_CH_CHAIN(a_ch);
     if (!l_ch_chain) {
         log_it(L_CRITICAL, "Channel without chain, dump it");
         s_ch_chain_go_idle(l_ch_chain);
-        return;
+        return false;
     }
     bool l_go_idle = false, l_was_sent_smth = false;
     switch (l_ch_chain->state) {
@@ -1974,7 +1972,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t *a_ch, void *a_arg)
                     l_hash_item = DAP_NEW_Z(dap_stream_ch_chain_hash_item_t);
                     if (!l_hash_item) {
                         log_it(L_CRITICAL, "Memory allocation error");
-                        return;
+                        return false;
                     }
                     l_hash_item->hash = *l_ch_chain->request_atom_iter->cur_hash;
                     if(s_debug_more){
@@ -2012,6 +2010,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t *a_ch, void *a_arg)
                                                            0, l_ch_chain->callback_notify_arg);
             }
         } break;
+
         default: break;
     }
     if (l_was_sent_smth) {
@@ -2028,5 +2027,7 @@ void s_stream_ch_packet_out(dap_stream_ch_t *a_ch, void *a_arg)
             }
             l_ch_chain->activity_timer = NULL;
         }
+        return false;
     }
+    return true;
 }

@@ -78,7 +78,7 @@ typedef struct client_statistic_value{
 static void s_stream_ch_new(dap_stream_ch_t* ch , void* arg);
 static void s_stream_ch_delete(dap_stream_ch_t* ch , void* arg);
 static void s_stream_ch_packet_in(dap_stream_ch_t* ch , void* arg);
-static void s_stream_ch_packet_out(dap_stream_ch_t* ch , void* arg);
+static bool s_stream_ch_packet_out(dap_stream_ch_t* ch , void* arg);
 
 static bool s_unban_client(dap_chain_net_srv_banlist_item_t *a_item);
 
@@ -1620,9 +1620,10 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
  * @param a_ch
  * @param a_arg
  */
-void s_stream_ch_packet_out(dap_stream_ch_t* a_ch , UNUSED_ARG void* a_arg)
+static bool s_stream_ch_packet_out(dap_stream_ch_t* a_ch , void* a_arg)
 {
     dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
     // Callback should note that after write action it should restore write flag if it has more data to send on next iteration
     dap_chain_net_srv_call_write_all( a_ch);
+    return false;
 }
