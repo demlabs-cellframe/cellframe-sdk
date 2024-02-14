@@ -1586,7 +1586,8 @@ static bool s_stream_ch_packet_out(dap_stream_ch_t *a_ch, void *a_arg)
             }
         } break;
 
-        default: break;
+        default:
+            return false;
     }
     if (l_was_sent_smth) {
         s_chain_timer_reset(l_ch_chain);
