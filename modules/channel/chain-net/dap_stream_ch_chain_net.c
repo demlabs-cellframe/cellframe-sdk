@@ -60,7 +60,6 @@
 static void s_stream_ch_new(dap_stream_ch_t* ch, void* arg);
 static void s_stream_ch_delete(dap_stream_ch_t* ch, void* arg);
 static void s_stream_ch_packet_in(dap_stream_ch_t* ch, void* arg);
-static void s_stream_ch_packet_out(dap_stream_ch_t* ch, void* arg);
 
 /**
  * @brief dap_stream_ch_chain_net_init
@@ -70,7 +69,7 @@ int dap_stream_ch_chain_net_init()
 {
     log_it(L_NOTICE, "Chain network channel initialized");
     dap_stream_ch_proc_add(DAP_STREAM_CH_NET_ID, s_stream_ch_new, s_stream_ch_delete,
-            s_stream_ch_packet_in, s_stream_ch_packet_out);
+            s_stream_ch_packet_in, NULL);
 
     return 0;
 }
@@ -288,15 +287,4 @@ void s_stream_ch_packet_in(dap_stream_ch_t *a_ch, void* a_arg)
                                             l_ch_chain_net_pkt->hdr.data_size, l_ch_chain_net->notify_callback_arg);
 
     }
-}
-
-
-
-/**
- * @brief s_stream_ch_packet_out
- * @param ch
- * @param arg
- */
-void s_stream_ch_packet_out(dap_stream_ch_t* a_ch, void* a_arg)
-{
 }
