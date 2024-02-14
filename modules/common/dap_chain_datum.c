@@ -226,7 +226,7 @@ void s_datum_token_dump_tsd_to_json(json_object * json_obj_out, dap_chain_datum_
 {
     dap_tsd_t *l_tsd = dap_chain_datum_token_tsd_get(a_token, a_token_size);
     if (l_tsd == NULL) {
-        json_object_object_add(json_obj_out, "status:", json_object_new_string("<CORRUPTED TSD SECTION>"));
+        json_object_object_add(json_obj_out, "status", json_object_new_string("<CORRUPTED TSD SECTION>"));
         return;
     }
     size_t l_tsd_total_size = 0;
@@ -265,32 +265,32 @@ void s_datum_token_dump_tsd_to_json(json_object * json_obj_out, dap_chain_datum_
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_SET_FLAGS: {
             uint16_t l_t = 0;
             dap_chain_datum_token_flags_dump_to_json(json_obj_out,_dap_tsd_get_scalar(l_tsd, &l_t));
-            json_object_object_add(json_obj_out, "flags_set:", json_object_new_string("empty"));
+            json_object_object_add(json_obj_out, "flags_set", json_object_new_string("empty"));
             continue;
         }
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_UNSET_FLAGS: {
             uint16_t l_t = 0;
             dap_chain_datum_token_flags_dump_to_json(json_obj_out,_dap_tsd_get_scalar(l_tsd, &l_t));
-            json_object_object_add(json_obj_out, "flags_unset:", json_object_new_string("empty"));
+            json_object_object_add(json_obj_out, "flags_unset", json_object_new_string("empty"));
             continue;
         }
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY: {     // 256
             uint256_t l_t = uint256_0;
             char *l_balance = dap_chain_balance_print(_dap_tsd_get_scalar(l_tsd, &l_t));
-            json_object_object_add(json_obj_out, "total_supply:", json_object_new_string(l_balance));
+            json_object_object_add(json_obj_out, "total_supply", json_object_new_string(l_balance));
             DAP_DELETE(l_balance);
             continue;
         }
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SUPPLY_OLD: { // 128
             uint128_t l_t = uint128_0;
             char *l_balance = dap_chain_balance_print(GET_256_FROM_128(_dap_tsd_get_scalar(l_tsd, &l_t)));
-            json_object_object_add(json_obj_out, "total_supply:", json_object_new_string(l_balance));
+            json_object_object_add(json_obj_out, "total_supply", json_object_new_string(l_balance));
             DAP_DELETE(l_balance);
             continue;
         }
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_SIGNS_VALID: {
             uint16_t l_t = 0;
-            json_object_object_add(json_obj_out, "total_signs_valid:", json_object_new_string(_dap_tsd_get_scalar(l_tsd, &l_t)));
+            json_object_object_add(json_obj_out, "total_signs_valid", json_object_new_int(_dap_tsd_get_scalar(l_tsd, &l_t)));
             continue;
         }
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_ADD:
@@ -299,80 +299,80 @@ void s_datum_token_dump_tsd_to_json(json_object * json_obj_out, dap_chain_datum_
                     dap_pkey_t *l_pkey = (dap_pkey_t*)l_tsd->data;
                     dap_hash_fast_t l_hf = { };
                     if (!dap_pkey_get_hash(l_pkey, &l_hf)) {
-                        json_object_object_add(json_obj_out, "total_pkeys_add:", json_object_new_string("<WRONG CALCULATION FINGERPRINT>"));
+                        json_object_object_add(json_obj_out, "total_pkeys_add", json_object_new_string("<WRONG CALCULATION FINGERPRINT>"));
                     } else {
                         if (!dap_strcmp(a_hash_out_type, "hex") || !dap_strcmp(a_hash_out_type, "content_hash"))
                             l_hash_str = dap_chain_hash_fast_to_str_new(&l_hf);
                         else
                             l_hash_str = dap_enc_base58_encode_hash_to_str(&l_hf);
-                        json_object_object_add(json_obj_out, "total_pkeys_add:", json_object_new_string(l_hash_str));
+                        json_object_object_add(json_obj_out, "total_pkeys_add", json_object_new_string(l_hash_str));
                         DAP_DELETE(l_hash_str);
                     }
             } else
-                    json_object_object_add(json_obj_out, "total_pkeys_add_with_wrong_size:", json_object_new_int(l_tsd->size));
+                    json_object_object_add(json_obj_out, "total_pkeys_add_with_wrong_size", json_object_new_int(l_tsd->size));
             continue;
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TOTAL_PKEYS_REMOVE:
             if(l_tsd->size == sizeof(dap_chain_hash_fast_t) ){
                     char *l_hash_str = (!dap_strcmp(a_hash_out_type,"hex")|| !dap_strcmp(a_hash_out_type, "content_hash"))
                                            ? dap_chain_hash_fast_to_str_new((dap_chain_hash_fast_t*) l_tsd->data)
                                            : dap_enc_base58_encode_hash_to_str((dap_chain_hash_fast_t*) l_tsd->data);
-                    json_object_object_add(json_obj_out, "total_pkeys_remove:", json_object_new_string(l_hash_str));
+                    json_object_object_add(json_obj_out, "total_pkeys_remove", json_object_new_string(l_hash_str));
                     DAP_DELETE( l_hash_str );
             } else
-                    json_object_object_add(json_obj_out, "total_pkeys_remove_with_wrong_size:", json_object_new_int(l_tsd->size));
+                    json_object_object_add(json_obj_out, "total_pkeys_remove_with_wrong_size", json_object_new_int(l_tsd->size));
             continue;
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DELEGATE_EMISSION_FROM_STAKE_LOCK: {
             char *balance = NULL;
             dap_chain_datum_token_tsd_delegate_from_stake_lock_t *l_tsd_section = _dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
             balance = dap_chain_balance_to_coins(l_tsd_section->emission_rate);
-            json_object_object_add(json_obj_out, "ticker_token_from:", json_object_new_string(l_tsd_section->ticker_token_from));
-            json_object_object_add(json_obj_out, "emission_rate:", json_object_new_string(balance));
+            json_object_object_add(json_obj_out, "ticker_token_from", json_object_new_string(l_tsd_section->ticker_token_from));
+            json_object_object_add(json_obj_out, "emission_rate", json_object_new_string(balance));
             DAP_DEL_Z(balance);
         }continue;
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_ADD  :
-            json_object_object_add(json_obj_out, "datum_type_allowed_add:", json_object_new_string(dap_tsd_get_string_const(l_tsd)));
+            json_object_object_add(json_obj_out, "datum_type_allowed_add", json_object_new_string(dap_tsd_get_string_const(l_tsd)));
             continue;
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_ALLOWED_REMOVE  :
-            json_object_object_add(json_obj_out, "datum_type_allowed_remove:", json_object_new_string(dap_tsd_get_string_const(l_tsd)));
+            json_object_object_add(json_obj_out, "datum_type_allowed_remove", json_object_new_string(dap_tsd_get_string_const(l_tsd)));
             continue;
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_ADD  :
-            json_object_object_add(json_obj_out, "datum_type_blocked_add:", json_object_new_string(dap_tsd_get_string_const(l_tsd)));
+            json_object_object_add(json_obj_out, "datum_type_blocked_add", json_object_new_string(dap_tsd_get_string_const(l_tsd)));
             continue;
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_DATUM_TYPE_BLOCKED_REMOVE:
-            json_object_object_add(json_obj_out, "datum_type_blocked_remove:", json_object_new_string(dap_tsd_get_string_const(l_tsd)));
+            json_object_object_add(json_obj_out, "datum_type_blocked_remove", json_object_new_string(dap_tsd_get_string_const(l_tsd)));
             continue;
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_ADD:
-            json_object_object_add(json_obj_out, "tx_sender_allowed_add:", json_object_new_string(dap_tsd_get_string_const(l_tsd)));
+            json_object_object_add(json_obj_out, "tx_sender_allowed_add", json_object_new_string(dap_tsd_get_string_const(l_tsd)));
             continue;
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_ALLOWED_REMOVE:
-            json_object_object_add(json_obj_out, "tx_sender_allowed_remove:", json_object_new_string(dap_tsd_get_string_const(l_tsd)));
+            json_object_object_add(json_obj_out, "tx_sender_allowed_remove", json_object_new_string(dap_tsd_get_string_const(l_tsd)));
             continue;
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_ADD:
-            json_object_object_add(json_obj_out, "tx_sender_blocked_add:", json_object_new_string(dap_tsd_get_string_const(l_tsd)));
+            json_object_object_add(json_obj_out, "tx_sender_blocked_add", json_object_new_string(dap_tsd_get_string_const(l_tsd)));
             continue;
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_SENDER_BLOCKED_REMOVE:
-            json_object_object_add(json_obj_out, "tx_sender_blocked_remove:", json_object_new_string(dap_tsd_get_string_const(l_tsd)));
+            json_object_object_add(json_obj_out, "tx_sender_blocked_remove", json_object_new_string(dap_tsd_get_string_const(l_tsd)));
             continue;
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_ADD:
-            json_object_object_add(json_obj_out, "tx_receiver_allowed_add:", json_object_new_string(dap_tsd_get_string_const(l_tsd)));
+            json_object_object_add(json_obj_out, "tx_receiver_allowed_add", json_object_new_string(dap_tsd_get_string_const(l_tsd)));
             continue;
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_ALLOWED_REMOVE:
-            json_object_object_add(json_obj_out, "tx_receiver_allowed:", json_object_new_string(dap_tsd_get_string_const(l_tsd)));
+            json_object_object_add(json_obj_out, "tx_receiver_allowed", json_object_new_string(dap_tsd_get_string_const(l_tsd)));
             continue;
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_ADD:
-            json_object_object_add(json_obj_out, "tx_receiver_blocked_add:", json_object_new_string(dap_tsd_get_string_const(l_tsd)));
+            json_object_object_add(json_obj_out, "tx_receiver_blocked_add", json_object_new_string(dap_tsd_get_string_const(l_tsd)));
             continue;
         case DAP_CHAIN_DATUM_TOKEN_TSD_TYPE_TX_RECEIVER_BLOCKED_REMOVE:
-            json_object_object_add(json_obj_out, "tx_receiver_blocked_remove:", json_object_new_string(dap_tsd_get_string_const(l_tsd)));
+            json_object_object_add(json_obj_out, "tx_receiver_blocked_remove", json_object_new_string(dap_tsd_get_string_const(l_tsd)));
             continue;
         case DAP_CHAIN_DATUM_TOKEN_TSD_TOKEN_DESCRIPTION:
-            json_object_object_add(json_obj_out, "description:", json_object_new_string(dap_tsd_get_string_const(l_tsd)));
+            json_object_object_add(json_obj_out, "description", json_object_new_string(dap_tsd_get_string_const(l_tsd)));
             continue;
         default: {
                 char l_tsd_type_char[50] = {};
-                dap_string_append_printf(l_tsd_type_char, "<0x%04hX>: ", l_tsd->type, l_tsd->size);
-                json_object_object_add(json_obj_out, "tsd_type:", json_object_new_string(l_tsd_type_char));
-                json_object_object_add(json_obj_out, "tsd_size:", json_object_new_int(l_tsd->size));
+                dap_string_append_printf(l_tsd_type_char, "<0x%04hX>", l_tsd->type, l_tsd->size);
+                json_object_object_add(json_obj_out, "tsd_type", json_object_new_string(l_tsd_type_char));
+                json_object_object_add(json_obj_out, "tsd_size", json_object_new_int(l_tsd->size));
             }
         }
     }

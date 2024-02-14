@@ -927,16 +927,16 @@ static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspen
         if (l_src_addr && l_dst_addr && !memcmp(l_dst_addr, l_src_addr, sizeof(dap_chain_addr_t)))
             continue;   // send to self
         if (l_src_addr && !memcmp(l_src_addr, a_addr, sizeof(dap_chain_addr_t))) {
+            json_object * l_json_obj_datum = json_object_new_object();
             if (!l_header_printed) {
-                s_tx_header_print(json_arr_out, l_tx, a_hash_out_type, l_tx_hash);
+                s_tx_header_print(l_json_obj_datum, l_tx, a_hash_out_type, l_tx_hash);
                 l_header_printed = true;
             }
             //const char *l_token_ticker = dap_ledger_tx_get_token_ticker_by_hash(l_ledger, &l_tx_hash);
             const char *l_dst_addr_str = l_dst_addr ? dap_chain_addr_to_str(l_dst_addr)
                                                     : dap_chain_tx_out_cond_subtype_to_str(
                                                           ((dap_chain_tx_out_cond_t *)l_list_out->data)->header.subtype);
-            char *l_value_str = dap_chain_balance_print(l_value);
-            json_object * l_json_obj_datum = json_object_new_object();
+            char *l_value_str = dap_chain_balance_print(l_value);            
             json_object_object_add(l_json_obj_datum, "send", json_object_new_string(l_value_str));
             json_object_object_add(l_json_obj_datum, "to addr", json_object_new_string(l_dst_addr_str));
             json_object_object_add(l_json_obj_datum, "token", l_src_token ? json_object_new_string(l_src_token) : json_object_new_string("UNKNOWN"));
@@ -946,8 +946,9 @@ static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspen
             DAP_DELETE(l_value_str);
         }
         if (l_dst_addr && !memcmp(l_dst_addr, a_addr, sizeof(dap_chain_addr_t))) {
+            json_object * l_json_obj_datum = json_object_new_object();
             if (!l_header_printed) {
-               s_tx_header_print(json_arr_out, l_tx, a_hash_out_type, l_tx_hash);
+               s_tx_header_print(l_json_obj_datum, l_tx, a_hash_out_type, l_tx_hash);
                l_header_printed = true;
             }
             const char *l_dst_token = (l_type == TX_ITEM_TYPE_OUT_EXT) ?
@@ -956,8 +957,7 @@ static void s_dump_datum_tx_for_addr(dap_ledger_tx_item_t *a_item, bool a_unspen
                                                    : (l_src_addr ? dap_chain_addr_to_str(l_src_addr)
                                                                  : dap_chain_tx_out_cond_subtype_to_str(
                                                                        l_src_subtype));
-            char *l_value_str = dap_chain_balance_print(l_value);
-            json_object * l_json_obj_datum = json_object_new_object();
+            char *l_value_str = dap_chain_balance_print(l_value);            
             json_object_object_add(l_json_obj_datum, "recv ", json_object_new_string(l_value_str));
             json_object_object_add(l_json_obj_datum, "token ", l_dst_token ? json_object_new_string(l_dst_token) :
                                   (l_src_token ? json_object_new_string(l_src_token) : json_object_new_string("UNKNOWN")));
@@ -1845,8 +1845,8 @@ json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger)
         dap_time_to_str_rfc822(l_time, sizeof(l_time), l_tx_item->tx->header.ts_created);
         //log_it(L_DEBUG,"Ledger thresholded tx_hash_fast %s, time_created: %s, tx_item_size: %d", l_tx_prev_hash_str, l_time, l_tx_item->tx->header.tx_items_size);
         json_object_object_add(json_obj_tx, "Ledger thresholded tx_hash_fast", json_object_new_string(l_tx_prev_hash_str));
-        json_object_object_add(json_obj_tx, "time_created:", json_object_new_string(l_time));
-        json_object_object_add(json_obj_tx, "tx_item_size:", json_object_new_int(l_tx_item->tx->header.tx_items_size));
+        json_object_object_add(json_obj_tx, "time_created", json_object_new_string(l_time));
+        json_object_object_add(json_obj_tx, "tx_item_size", json_object_new_int(l_tx_item->tx->header.tx_items_size));
         json_object_array_add(json_arr_out, json_obj_tx);
         l_counter +=1;
     }
@@ -1865,8 +1865,8 @@ json_object *dap_ledger_threshold_info(dap_ledger_t *a_ledger)
         char l_emission_hash_str[70]={0};
         dap_chain_hash_fast_to_str(&l_emission_item->datum_token_emission_hash,l_emission_hash_str,sizeof(l_emission_hash_str));
        //log_it(L_DEBUG,"Ledger thresholded datum_token_emission_hash %s, emission_item_size: %lld", l_emission_hash_str, l_emission_item->datum_token_emission_size);
-        json_object_object_add(json_obj_tx, "Ledger thresholded datum_token_emission_hash:", json_object_new_string(l_emission_hash_str));
-        json_object_object_add(json_obj_tx, "tx_item_size:", json_object_new_int(l_tx_item->tx->header.tx_items_size));
+        json_object_object_add(json_obj_tx, "Ledger thresholded datum_token_emission_hash", json_object_new_string(l_emission_hash_str));
+        json_object_object_add(json_obj_tx, "tx_item_size", json_object_new_int(l_tx_item->tx->header.tx_items_size));
         json_object_array_add(json_arr_out, json_obj_tx);
         l_counter +=1;
     }
@@ -1908,7 +1908,7 @@ json_object *dap_ledger_threshold_hash_info(dap_ledger_t *a_ledger, dap_chain_ha
         if (!memcmp(&l_emission_item->datum_token_emission_hash,l_threshold_hash, sizeof(dap_chain_hash_fast_t))){
             char l_emission_hash_str[70]={0};
             dap_chain_hash_fast_to_str(l_threshold_hash,l_emission_hash_str,sizeof(l_emission_hash_str));
-            json_object_object_add(json_obj_tx, "Hash was found in ledger emission threshold:", json_object_new_string(l_emission_hash_str));
+            json_object_object_add(json_obj_tx, "Hash was found in ledger emission threshold", json_object_new_string(l_emission_hash_str));
             json_object_array_add(json_arr_out, json_obj_tx);
             pthread_rwlock_unlock(&l_ledger_pvt->threshold_txs_rwlock);
             return json_arr_out;
@@ -2062,24 +2062,24 @@ json_object *dap_ledger_token_info(dap_ledger_t *a_ledger)
             char *l_balance_cur = dap_chain_balance_print(l_token_item->current_supply);
             char *l_balance_total = dap_chain_balance_print(l_token_item->total_supply);
 
-            json_object_object_add(json_obj_datum, "-->Token name:", json_object_new_string(l_token_item->ticker));
-            json_object_object_add(json_obj_datum, "type:", json_object_new_string(l_type_str));
-            json_object_object_add(json_obj_datum, "flags:", json_object_new_string(s_flag_str_from_code(l_token_item->datum_token->header_native_decl.flags)));
-            json_object_object_add(json_obj_datum, "description:", l_token_item->description_token_size != 0 ?
+            json_object_object_add(json_obj_datum, "-->Token name", json_object_new_string(l_token_item->ticker));
+            json_object_object_add(json_obj_datum, "type", json_object_new_string(l_type_str));
+            json_object_object_add(json_obj_datum, "flags", json_object_new_string(s_flag_str_from_code(l_token_item->datum_token->header_native_decl.flags)));
+            json_object_object_add(json_obj_datum, "description", l_token_item->description_token_size != 0 ?
                                    json_object_new_string(l_token_item->description_token) :
                                    json_object_new_string("The token description is not set"));
-            json_object_object_add(json_obj_datum, "Supply current:", json_object_new_string(l_balance_cur));
-            json_object_object_add(json_obj_datum, "Supply total:", json_object_new_string(l_balance_total));
-            json_object_object_add(json_obj_datum, "Decimals:", json_object_new_string("18"));
-            json_object_object_add(json_obj_datum, "Auth signs valid:", json_object_new_int(l_token_item->auth_signs_valid));
-            json_object_object_add(json_obj_datum, "Auth signs total:", json_object_new_int(l_token_item->auth_signs_total));
-            json_object_object_add(json_obj_datum, "TSD and Signs:", json_object_new_string("--V"));
+            json_object_object_add(json_obj_datum, "Supply current", json_object_new_string(l_balance_cur));
+            json_object_object_add(json_obj_datum, "Supply total", json_object_new_string(l_balance_total));
+            json_object_object_add(json_obj_datum, "Decimals", json_object_new_string("18"));
+            json_object_object_add(json_obj_datum, "Auth signs valid", json_object_new_int(l_token_item->auth_signs_valid));
+            json_object_object_add(json_obj_datum, "Auth signs total", json_object_new_int(l_token_item->auth_signs_total));
+            json_object_object_add(json_obj_datum, "TSD and Signs", json_object_new_string(""));
             s_datum_token_dump_tsd_to_json(json_obj_datum, l_token_item->datum_token, l_token_item->datum_token_size, "hex");
             size_t l_certs_field_size = l_token_item->datum_token_size - sizeof(*l_token_item->datum_token) - l_token_item->datum_token->header_native_decl.tsd_total_size;
             dap_chain_datum_token_certs_dump_to_json(json_obj_datum, l_token_item->datum_token->data_n_tsd + l_token_item->datum_token->header_native_decl.tsd_total_size,
                                                     l_certs_field_size, "hex");
-            json_object_object_add(json_obj_datum, "and TSD and Signs:", json_object_new_string("--^"));
-            json_object_object_add(json_obj_datum, "Total emissions:", json_object_new_int(HASH_COUNT(l_token_item->token_emissions)));
+            json_object_object_add(json_obj_datum, "and TSD and Signs", json_object_new_string(""));
+            json_object_object_add(json_obj_datum, "Total emissions", json_object_new_int(HASH_COUNT(l_token_item->token_emissions)));
             json_object_array_add(json_arr_out, json_obj_datum);
             DAP_DEL_Z(l_balance_cur);
             DAP_DEL_Z(l_balance_total);
@@ -2087,17 +2087,17 @@ json_object *dap_ledger_token_info(dap_ledger_t *a_ledger)
                 char *l_balance_cur = dap_chain_balance_print(l_token_item->current_supply);
                 char *l_balance_total = dap_chain_balance_print(l_token_item->total_supply);
 
-                json_object_object_add(json_obj_datum, "-->Token name:", json_object_new_string(l_token_item->ticker));
-                json_object_object_add(json_obj_datum, "Supply current:", json_object_new_string(l_balance_cur));
-                json_object_object_add(json_obj_datum, "Supply total:", json_object_new_string(l_balance_total));
-                json_object_object_add(json_obj_datum, "Decimals:", json_object_new_string("18"));
-                json_object_object_add(json_obj_datum, "Auth signs valid:", json_object_new_int(l_token_item->auth_signs_valid));
-                json_object_object_add(json_obj_datum, "Auth signs total:", json_object_new_int(l_token_item->auth_signs_total));
-                json_object_object_add(json_obj_datum, "Signs:", json_object_new_string("empty"));
+                json_object_object_add(json_obj_datum, "-->Token name", json_object_new_string(l_token_item->ticker));
+                json_object_object_add(json_obj_datum, "Supply current", json_object_new_string(l_balance_cur));
+                json_object_object_add(json_obj_datum, "Supply total", json_object_new_string(l_balance_total));
+                json_object_object_add(json_obj_datum, "Decimals", json_object_new_string("18"));
+                json_object_object_add(json_obj_datum, "Auth signs valid", json_object_new_int(l_token_item->auth_signs_valid));
+                json_object_object_add(json_obj_datum, "Auth signs total", json_object_new_int(l_token_item->auth_signs_total));
+                json_object_object_add(json_obj_datum, "Signs", json_object_new_string("empty"));
                 size_t l_certs_field_size = l_token_item->datum_token_size - sizeof(*l_token_item->datum_token);
                 dap_chain_datum_token_certs_dump_to_json(json_obj_datum, l_token_item->datum_token->data_n_tsd,
                                                          l_certs_field_size, "hex");
-                json_object_object_add(json_obj_datum, "Total emissions:", json_object_new_int(HASH_COUNT(l_token_item->token_emissions)));
+                json_object_object_add(json_obj_datum, "Total emissions", json_object_new_int(HASH_COUNT(l_token_item->token_emissions)));
                 json_object_array_add(json_arr_out, json_obj_datum);
                 DAP_DEL_Z(l_balance_cur);
                 DAP_DEL_Z(l_balance_total);
