@@ -50,7 +50,6 @@ enum s_esbocs_session_state {
 };
 
 static dap_list_t *s_validator_check(dap_chain_addr_t *a_addr, dap_list_t *a_validators);
-static void s_get_last_block_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_last_hash_ptr);
 static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s_esbocs_session_state a_new_state, dap_time_t a_time);
 static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_node_addr, dap_chain_node_addr_t *a_receiver_node_addr,
                                 dap_chain_hash_fast_t *a_data_hash, uint8_t *a_data, size_t a_data_size);
@@ -346,14 +345,14 @@ static void s_check_db_collect_callback(dap_global_db_instance_t UNUSED_ARG *a_d
     dap_global_db_objs_delete(l_objs, l_objs_count);
 }
 
-static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t UNUSED_ARG a_id,
+static void s_new_atom_notifier(void *a_arg, dap_chain_t *a_chain, dap_chain_cell_id_t a_id,
                                 void *a_atom, size_t a_atom_size)
 {
     dap_chain_esbocs_session_t *l_session = a_arg;
     assert(l_session->chain == a_chain);
     pthread_mutex_lock(&l_session->mutex);
     dap_chain_hash_fast_t l_last_block_hash;
-    s_get_last_block_hash(l_session->chain, &l_last_block_hash);
+    dap_chain_get_atom_last_hash(l_session->chain, &l_last_block_hash, a_id);
     if (!dap_hash_fast_compare(&l_last_block_hash, &l_session->cur_round.last_block_hash))
         s_session_round_new(l_session);
     pthread_mutex_unlock(&l_session->mutex);
@@ -784,15 +783,6 @@ static dap_list_t *s_get_validators_list(dap_chain_esbocs_session_t *a_session, 
     return l_ret;
 }
 
-static void s_get_last_block_hash(dap_chain_t *a_chain, dap_chain_hash_fast_t *a_last_hash_ptr)
-{
-    dap_chain_atom_iter_t *l_iter = a_chain->callback_atom_iter_create(a_chain, c_dap_chain_cell_id_null, false);
-    dap_chain_atom_ptr_t *l_ptr_list = a_chain->callback_atom_iter_get_lasts(l_iter, NULL, NULL);
-    DAP_DEL_Z(l_ptr_list);
-    *a_last_hash_ptr = l_iter->cur_hash ? *l_iter->cur_hash : (dap_hash_fast_t){0};
-    a_chain->callback_atom_iter_delete(l_iter);
-}
-
 static int s_callback_addr_compare(dap_list_t *a_list_elem, dap_list_t *a_addr_elem)
 {
     dap_chain_esbocs_validator_t *l_validator = a_list_elem->data;
@@ -831,7 +821,7 @@ static void s_session_send_startsync(dap_chain_esbocs_session_t *a_session)
     if (a_session->cur_round.sync_sent)
         return;     // Sync message already was sent
     dap_chain_hash_fast_t l_last_block_hash;
-    s_get_last_block_hash(a_session->chain, &l_last_block_hash);
+    dap_chain_get_atom_last_hash(a_session->chain, &l_last_block_hash, c_dap_chain_cell_id_null);
     a_session->ts_round_sync_start = dap_time_now();
     if (!dap_hash_fast_compare(&l_last_block_hash, &a_session->cur_round.last_block_hash))
         return;     // My last block hash has changed, skip sync message
@@ -936,7 +926,7 @@ static void s_session_round_new(dap_chain_esbocs_session_t *a_session)
     a_session->ts_stage_entry = 0;
 
     dap_hash_fast_t l_last_block_hash;
-    s_get_last_block_hash(a_session->chain, &l_last_block_hash);
+    dap_chain_get_atom_last_hash(a_session->chain, &l_last_block_hash, c_dap_chain_cell_id_null);
     if (!dap_hash_fast_compare(&l_last_block_hash, &a_session->cur_round.last_block_hash) ||
             (!dap_hash_fast_is_blank(&l_last_block_hash) &&
                 dap_hash_fast_is_blank(&a_session->cur_round.last_block_hash))) {

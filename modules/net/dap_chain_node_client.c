@@ -192,6 +192,8 @@ dap_chain_node_sync_status_t dap_chain_node_client_start_sync(dap_chain_node_cli
             bool l_trylocked = dap_chain_net_sync_trylock(l_net, a_node_client);
             if (l_trylocked) {
                 log_it(L_INFO, "Start synchronization process with "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr));
+                a_node_client->cur_chain = l_net->pub.chains;
+                a_node_client->cur_cell = a_node_client->cur_chain ? a_node_client->cur_chain->cells : NULL;
                 dap_chain_ch_sync_request_t l_sync_chain = {};
                 l_sync_chain.node_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
                 dap_chain_ch_pkt_write_unsafe(a_node_client->ch_chain,
