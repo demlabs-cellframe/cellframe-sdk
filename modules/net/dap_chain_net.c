@@ -173,8 +173,6 @@ typedef struct dap_chain_net_pvt{
     dap_list_t *links_queue;            // Links waiting for sync
 
     bool only_static_links;
-    uint16_t max_links_count;
-    uint16_t reconnect_delay;           // sec
 
     bool load_mode;
 
@@ -544,11 +542,11 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
 
         size_t l_current_links_prepared = dap_link_manager_links_count(l_net->pub.id.uint64);
         pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
-        if (!l_net_pvt->only_static_links) {
-            for (size_t i = l_current_links_prepared; i < l_net_pvt->max_links_count ; i++) {
-                s_new_balancer_link_request(l_net, 0);
-            }
-        }
+        // if (!l_net_pvt->only_static_links) {
+        //     for (size_t i = l_current_links_prepared; i < l_net_pvt->max_links_count ; i++) {
+        //         s_new_balancer_link_request(l_net, 0);
+        //     }
+        // }
     }
 }
 
@@ -641,8 +639,8 @@ static void s_net_links_complete_and_start(dap_chain_net_t *a_net, dap_worker_t 
             s_new_balancer_link_request(a_net, 0);
             return;
         }
-        if (l_links_count < l_net_pvt->max_links_count)
-            s_fill_links_from_root_aliases(a_net);  // Comlete the sentence
+        // if (l_links_count < l_net_pvt->max_links_count)
+        //     s_fill_links_from_root_aliases(a_net);  // Comlete the sentence
         if (l_net_pvt->state_target != NET_STATE_OFFLINE){
             l_net_pvt->state = NET_STATE_LINKS_CONNECTING;
         }
@@ -782,8 +780,11 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
     if (!dap_link_manager_links_count(a_net->pub.id.uint64)) {
         s_fill_links_from_root_aliases(a_net);
     }
+    if(l_net_pvt->only_static_links)
+        return true;
+    int a_required_links_count = dap_link_manager_needed_links_count(a_net->pub.id.uint64);
     if(!a_link_replace_tries) {
-        dap_chain_net_node_balancer_t *l_link_full_node_list = dap_chain_net_balancer_get_node(a_net->pub.name,l_net_pvt->max_links_count*2);
+        dap_chain_net_node_balancer_t *l_link_full_node_list = dap_chain_net_balancer_get_node(a_net->pub.name, a_required_links_count * 2);
         size_t l_node_cnt = 0;
         if(l_link_full_node_list)
         {
@@ -844,7 +845,6 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
     l_balancer_request->worker = dap_events_worker_get_auto();
     l_balancer_request->link_replace_tries = a_link_replace_tries + 1;
     int ret;
-    int a_required_links_count = dap_link_manager_needed_links_count(a_net->pub.id.uint64);
     if (PVT(a_net)->balancer_http) {
         l_balancer_request->from_http = true;
         char *l_request = dap_strdup_printf("%s/%s?version=1,method=r,needlink=%d,net=%s",
@@ -2251,11 +2251,6 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     l_net_item->net_id.uint64 = l_net->pub.id.uint64;
     HASH_ADD_STR(s_net_items, name, l_net_item);
     HASH_ADD(hh2, s_net_ids, net_id, sizeof(l_net_item->net_id), l_net_item);
-
-    // Maximum number of prepared connections to other nodes
-    l_net_pvt->max_links_count = dap_config_get_item_int16_default(l_cfg, "general", "max_links", 5);
-    // Wait time before reconnect attempt with same link
-    l_net_pvt->reconnect_delay = dap_config_get_item_int16_default(l_cfg, "general", "reconnect_delay", 10);
 
     uint16_t l_seed_nodes_addrs_len =0;
     char ** l_seed_nodes_addrs = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_addrs", &l_seed_nodes_addrs_len);
