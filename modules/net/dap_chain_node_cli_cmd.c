@@ -2195,14 +2195,14 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                                                                   dap_chain_wallet_check_sign(l_wallet) : "correct"));
                 json_object_object_add(json_obj_wall, "nwallet", json_object_new_string(l_wallet->name));
             }
-            json_object_object_add(json_obj_wall, "addr:", (l_l_addr_str) ? json_object_new_string(l_l_addr_str) : json_object_new_string("-"));
-            json_object_object_add(json_obj_wall, "network:", (l_net_name) ? json_object_new_string(l_net_name) : json_object_new_string("-"));
+            json_object_object_add(json_obj_wall, "addr", (l_l_addr_str) ? json_object_new_string(l_l_addr_str) : json_object_new_string("-"));
+            json_object_object_add(json_obj_wall, "network", (l_net_name) ? json_object_new_string(l_net_name) : json_object_new_string("-"));
 
             size_t l_l_addr_tokens_size = 0;
             char **l_l_addr_tokens = NULL;
             dap_ledger_addr_get_token_ticker_all(l_ledger, l_addr, &l_l_addr_tokens, &l_l_addr_tokens_size);
             if(l_l_addr_tokens_size <= 0)
-                json_object_object_add(json_obj_wall, "balance:", json_object_new_string("0"));
+                json_object_object_add(json_obj_wall, "balance", json_object_new_string("0"));
             json_object * j_arr_balance= json_object_new_array();
             for(size_t i = 0; i < l_l_addr_tokens_size; i++) {
                 if(l_l_addr_tokens[i]) {
@@ -2210,10 +2210,10 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     uint256_t l_balance = dap_ledger_calc_balance(l_ledger, l_addr, l_l_addr_tokens[i]);
                     char *l_balance_coins = dap_chain_balance_to_coins(l_balance);
                     char *l_balance_datoshi = dap_chain_balance_print(l_balance);
-                    json_object_object_add(j_balance_data, "balance:", json_object_new_string("empty"));
-                    json_object_object_add(j_balance_data, "coins:", json_object_new_string(l_balance_coins));
-                    json_object_object_add(j_balance_data, "datoshi:", json_object_new_string(l_balance_datoshi));
-                    json_object_object_add(j_balance_data, "token:", json_object_new_string(l_l_addr_tokens[i]));
+                    json_object_object_add(j_balance_data, "balance", json_object_new_string(""));
+                    json_object_object_add(j_balance_data, "coins", json_object_new_string(l_balance_coins));
+                    json_object_object_add(j_balance_data, "datoshi", json_object_new_string(l_balance_datoshi));
+                    json_object_object_add(j_balance_data, "token", json_object_new_string(l_l_addr_tokens[i]));
                     DAP_DELETE(l_balance_coins);
                     DAP_DELETE(l_balance_datoshi);
                     json_object_array_add(j_arr_balance, j_balance_data);
@@ -2262,8 +2262,8 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
                     switch (l_rc) {
                     case 0:
-                        json_object_object_add(json_obj_wall, "wallet name:", json_object_new_string(l_wallet_name));
-                        json_object_object_add(json_obj_wall, "status:", CMD_WALLET_ACTIVATE ?
+                        json_object_object_add(json_obj_wall, "Wallet name", json_object_new_string(l_wallet_name));
+                        json_object_object_add(json_obj_wall, "protection", CMD_WALLET_ACTIVATE ?
                         json_object_new_string("is activated") : json_object_new_string("is deactivated"));
                         break;
                     case -EBUSY:
@@ -2317,11 +2317,11 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                     }
                     json_object * json_obj_wall = json_object_new_object();
                     log_it(L_INFO, "Wallet %s has been converted", l_wallet_name);
-                    json_object_object_add(json_obj_wall, "Sign wallet:", json_object_new_string(
+                    json_object_object_add(json_obj_wall, "Sign wallet", json_object_new_string(
                                                                               strlen(dap_chain_wallet_check_sign(l_wallet))!=0 ?
                                                                               dap_chain_wallet_check_sign(l_wallet) : "correct"));
-                    json_object_object_add(json_obj_wall, "Wallet name:", json_object_new_string(l_wallet_name));
-                    json_object_object_add(json_obj_wall, "Status:", json_object_new_string("successfully converted"));
+                    json_object_object_add(json_obj_wall, "Wallet name", json_object_new_string(l_wallet_name));
+                    json_object_object_add(json_obj_wall, "Status", json_object_new_string("successfully converted"));
                     dap_chain_wallet_close(l_wallet);
                     json_object_array_add(json_arr_out, json_obj_wall);
                     break;
@@ -2415,12 +2415,12 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
 
                     char *l_l_addr_str = l_addr ? dap_chain_addr_to_str(l_addr) : NULL;
                     json_object * json_obj_wall = json_object_new_object();
-                    json_object_object_add(json_obj_wall, "Wallet name:", json_object_new_string(l_wallet->name));
-                    json_object_object_add(json_obj_wall, "Sign type:", json_object_new_string(l_sign_type_str));
-                    json_object_object_add(json_obj_wall, "Status:", json_object_new_string("successfully created"));
+                    json_object_object_add(json_obj_wall, "Wallet name", json_object_new_string(l_wallet->name));
+                    json_object_object_add(json_obj_wall, "Sign type", json_object_new_string(l_sign_type_str));
+                    json_object_object_add(json_obj_wall, "Status", json_object_new_string("successfully created"));
 
                     if ( l_l_addr_str ) {
-                        json_object_object_add(json_obj_wall, "new address:", json_object_new_string(l_l_addr_str));
+                        json_object_object_add(json_obj_wall, "new address", json_object_new_string(l_l_addr_str));
                         DAP_DELETE(l_l_addr_str);
                     }
                     json_object_array_add(json_arr_out, json_obj_wall);
