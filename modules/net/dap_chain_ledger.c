@@ -2093,7 +2093,7 @@ json_object *dap_ledger_token_info(dap_ledger_t *a_ledger)
                 json_object_object_add(json_obj_datum, "Decimals", json_object_new_string("18"));
                 json_object_object_add(json_obj_datum, "Auth signs valid", json_object_new_int(l_token_item->auth_signs_valid));
                 json_object_object_add(json_obj_datum, "Auth signs total", json_object_new_int(l_token_item->auth_signs_total));
-                json_object_object_add(json_obj_datum, "Signs", json_object_new_string("empty"));
+                json_object_object_add(json_obj_datum, "Signs", json_object_new_string(""));
                 size_t l_certs_field_size = l_token_item->datum_token_size - sizeof(*l_token_item->datum_token);
                 dap_chain_datum_token_certs_dump_to_json(json_obj_datum, l_token_item->datum_token->data_n_tsd,
                                                          l_certs_field_size, "hex");
