@@ -3021,7 +3021,7 @@ static void s_nodelist_change_notify(dap_store_obj_t *a_obj, void *a_arg)
     inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_ipv4_str, INET_ADDRSTRLEN);
     inet_ntop(AF_INET6, &l_node_info->hdr.ext_addr_v6, l_node_ipv6_str, INET6_ADDRSTRLEN);
     char l_ts[128] = { '\0' };
-    dap_gbd_time_to_str_rfc822(l_ts, sizeof(l_ts), a_obj->timestamp);
+    dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), a_obj->timestamp);
 
     log_it(L_MSG, "Add node "NODE_ADDR_FP_STR" ipv4 %s(ipv6 %s):%s at %s to network\n",
                              NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),

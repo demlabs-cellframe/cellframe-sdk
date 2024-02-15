@@ -500,7 +500,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
                 inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_ipv4_str, INET_ADDRSTRLEN);
                 inet_ntop(AF_INET6, &l_node_info->hdr.ext_addr_v6, l_node_ipv6_str, INET6_ADDRSTRLEN);
                 char l_ts[128] = { '\0' };
-                dap_gbd_time_to_str_rfc822(l_ts, sizeof(l_ts), l_objs[i].timestamp);
+                dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), l_objs[i].timestamp);
 
                 dap_string_append_printf(l_string_reply, NODE_ADDR_FP_STR"    %-20s%-8d"NODE_ADDR_FP_STR"    %-32s\n",
                                          NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),
@@ -879,7 +879,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         }*/
         if (l_ts) {
             char l_ts_str[80] = { '\0' };
-            dap_gbd_time_to_str_rfc822(l_ts_str, sizeof(l_ts_str), l_ts);
+            dap_nanotime_to_str_rfc822(l_ts_str, sizeof(l_ts_str), l_ts);
             char *l_value_hexdump = dap_dump_hex(l_value_out, l_out_len);
             if (l_value_hexdump) {
 
@@ -984,7 +984,7 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
         dap_string_t *l_ret_str = dap_string_new(NULL);
         for(size_t i = 0; i < l_objs_count; i++) {
             char l_ts[64] = { '\0' };
-            dap_gbd_time_to_str_rfc822(l_ts, sizeof(l_ts), l_obj[i].timestamp);
+            dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), l_obj[i].timestamp);
             dap_string_append_printf(l_ret_str, "\t%s, %s\n", l_obj[i].key, l_ts);
         }
         dap_global_db_objs_delete(l_obj, l_objs_count);
@@ -3562,7 +3562,7 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
         DAP_DELETE(l_gdb_group_mempool);
         return DAP_COM_MEMPOOL_PROC_LIST_ERROR_REAL_HASH_DATUM_DOES_NOT_MATCH_HASH_DATA_STRING;
     }
-    char buf[50];
+    char buf[DAP_TIME_STR_SIZE];
     dap_time_t l_ts_create = (dap_time_t)l_datum->header.ts_create;
     const char *l_type = NULL;
     DAP_DATUM_TYPE_STR(l_datum->header.type_id, l_type);
@@ -3572,8 +3572,8 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
     json_object *l_jobj_type = json_object_new_string(l_type);
     json_object *l_jobj_ts_created = json_object_new_object();
     json_object *l_jobj_ts_created_time_stamp = json_object_new_uint64(l_ts_create);
-    char *l_ts_created_str = dap_ctime_r(&l_ts_create, buf);
-    if (!l_ts_created_str || !l_jobj_ts_created || !l_jobj_ts_created_time_stamp || !l_jobj_type ||
+    int l_res = dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_ts_create);
+    if (l_res < 0 || !l_jobj_ts_created || !l_jobj_ts_created_time_stamp || !l_jobj_type ||
         !l_jobj_hash || !l_jobj_datum || !l_jobj_res) {
         json_object_put(l_jobj_res);
         json_object_put(l_jobj_datum);
@@ -3581,12 +3581,10 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
         json_object_put(l_jobj_type);
         json_object_put(l_jobj_ts_created);
         json_object_put(l_jobj_ts_created_time_stamp);
-        DAP_DEL_Z(l_ts_created_str);
         dap_json_rpc_allocation_error;
         return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
     }
-    json_object *l_jobj_ts_created_str = json_object_new_string(l_ts_created_str);
-    DAP_DEL_Z(l_ts_created_str);
+    json_object *l_jobj_ts_created_str = json_object_new_string(buf);
     json_object *l_jobj_data_size = json_object_new_uint64(l_datum->header.data_size);
     if (!l_jobj_ts_created_str || !l_jobj_data_size) {
         json_object_put(l_jobj_res);

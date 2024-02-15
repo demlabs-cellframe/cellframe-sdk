@@ -1131,9 +1131,10 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         dap_string_append(l_str_out, "\n\n");
 
         if(l_voting->voting_params.voting_expire_offset){
-            char l_tmp_buf[70];
+            char l_tmp_buf[DAP_TIME_STR_SIZE];
             dap_time_t l_expire = *(dap_time_t*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.voting_expire_offset);
-            dap_string_append_printf(l_str_out, "\t Voting expire: %s", dap_ctime_r(&l_expire, l_tmp_buf));
+            dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_expire);
+            dap_string_append_printf(l_str_out, "\t Voting expire: %s", l_tmp_buf);
             dap_string_truncate(l_str_out, l_str_out->len - 1);
             dap_string_append_printf(l_str_out, " (%s)\n", l_expire > dap_time_now() ? "active" : "expired");
         }

@@ -240,18 +240,18 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                              dap_hash_fast_t *a_tx_hash,
                              dap_chain_net_id_t a_net_id)
 {
-    dap_time_t l_ts_create = (dap_time_t)a_datum->header.ts_created;
     bool l_is_first = false;
     dap_chain_tx_in_t *l_in_item = (dap_chain_tx_in_t *)dap_chain_datum_tx_item_get(a_datum, NULL, TX_ITEM_TYPE_IN, NULL);
     if (l_in_item && dap_hash_fast_is_blank(&l_in_item->header.tx_prev_hash))
         l_is_first = true;
-    char l_tmp_buf[70];
+    char l_tmp_buf[DAP_TIME_STR_SIZE];
     char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
             ? dap_enc_base58_encode_hash_to_str(a_tx_hash)
             : dap_chain_hash_fast_to_str_new(a_tx_hash);
+    dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, a_datum->header.ts_created);
     dap_string_append_printf(a_str_out, "transaction:%s hash %s\n TS Created: %s%s%s\n Items:\n",
-                              l_is_first ? " (emit)" : "", l_hash_str, dap_ctime_r(&l_ts_create, l_tmp_buf),
-                              a_ticker ? " Token ticker: " : "", a_ticker ? a_ticker : "");
+                             l_is_first ? " (emit)" : "", l_hash_str, l_tmp_buf,
+                             a_ticker ? " Token ticker: " : "", a_ticker ? a_ticker : "");
     DAP_DELETE(l_hash_str);
     uint32_t l_tx_items_count = 0;
     uint32_t l_tx_items_size = a_datum->header.tx_items_size;
@@ -468,14 +468,14 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
             char *l_value_str = dap_chain_balance_print(((dap_chain_tx_out_cond_t*)item)->header.value);
             char *l_coins_str = dap_chain_balance_to_coins(((dap_chain_tx_out_cond_t*)item)->header.value);
             dap_time_t l_ts_exp = ((dap_chain_tx_out_cond_t*)item)->header.ts_expires;
+            dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_ts_exp);
             dap_string_append_printf(a_str_out, "\t OUT COND:\n"
                                                 "\t Header:\n"
                                                 "\t\t ts_expires: %s"
                                                 "\t\t value: %s (%s)\n"
                                                 "\t\t subtype: %s\n"
                                                 "\t\t uid: 0x%016"DAP_UINT64_FORMAT_x"\n",
-                                     l_ts_exp ? dap_ctime_r(&l_ts_exp, l_tmp_buf) : "never\n",
-                                     l_coins_str, l_value_str,
+                                     l_ts_exp ? l_tmp_buf : "never\n", l_coins_str, l_value_str,
                                      dap_chain_tx_out_cond_subtype_to_str(((dap_chain_tx_out_cond_t*)item)->header.subtype),
                                      ((dap_chain_tx_out_cond_t*)item)->header.srv_uid.uint64);
             DAP_DELETE(l_value_str);
@@ -527,9 +527,9 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                     DAP_DELETE(l_rate_str);
                 } break;
                 case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK: {
-                    dap_time_t l_ts_exp = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_lock.time_unlock;
-                    dap_string_append_printf(a_str_out, "\t\t\t time_unlock %s\n",
-                                             dap_ctime_r(&l_ts_exp, l_tmp_buf));
+                    dap_time_t l_ts_unlock = ((dap_chain_tx_out_cond_t*)item)->subtype.srv_stake_lock.time_unlock;
+                    dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_ts_unlock);
+                    dap_string_append_printf(a_str_out, "\t\t\t time_unlock %s\n", l_tmp_buf);
                 } break;
                 default: break;
             }
@@ -565,12 +565,15 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                     l_temp = l_temp->next;
             }
 
-            if(l_voting_params->voting_expire)
-                    dap_string_append_printf(a_str_out, "\t Voting expire: %s\n", dap_ctime_r(&l_voting_params->voting_expire, l_tmp_buf));
+            if (l_voting_params->voting_expire) {
+                dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_voting_params->voting_expire);
+                dap_string_append_printf(a_str_out, "\t Voting expire: %s\n", l_tmp_buf);
+            }
             if (l_voting_params->votes_max_count)
                     dap_string_append_printf(a_str_out, "\t Votes max count: %"DAP_UINT64_FORMAT_U"\n", l_voting_params->votes_max_count);
             dap_string_append_printf(a_str_out, "\t Changing vote is %s available.\n", l_voting_params->vote_changing_allowed ? "" : "not");
-            dap_string_append_printf(a_str_out, "\t A delegated key is%s required to participate in voting. \n", l_voting_params->delegate_key_required ? "" : " not");
+            dap_string_append_printf(a_str_out, "\t A delegated key is%s required to participate in voting. \n",
+                                     l_voting_params->delegate_key_required ? "" : " not");
 
             dap_list_free_full(l_voting_params->answers_list, NULL);
             DAP_DELETE(l_voting_params->voting_question);

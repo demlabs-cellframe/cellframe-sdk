@@ -1395,9 +1395,9 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
                 *(char*)(l_dot_pos + 3) = '\0';
             }
 
-            char l_tmp_buf[70] = {};
+            char l_tmp_buf[DAP_TIME_STR_SIZE] = {};
             dap_time_t l_ts_create = (dap_time_t)l_tx->header.ts_created;
-            dap_ctime_r(&l_ts_create, l_tmp_buf);
+            dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_ts_create);
             l_tmp_buf[strlen(l_tmp_buf) - 1] = '\0';
 
             dap_cli_server_cmd_set_reply_text(a_str_reply, "orderHash: %s\n ts_created: %s (%"DAP_UINT64_FORMAT_U")\n Status: %s, amount: %s (%s) %s, filled: %s%%, rate (%s/%s): %s, net: %s\n\n", l_tx_hash_str,
@@ -1602,9 +1602,9 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str,
 
             dap_string_append_printf(a_reply_str, "Hash: %s\n", l_tx_hash_str);
             if(a_print_ts){
-                char l_tmp_buf[70];
-                dap_time_t l_ts_create = (dap_time_t)a_tx->header.ts_created;
-                dap_string_append_printf(a_reply_str, "  ts_created: %s", dap_ctime_r(&l_ts_create, l_tmp_buf));
+                char l_tmp_buf[DAP_TIME_STR_SIZE];
+                dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, a_tx->header.ts_created);
+                dap_string_append_printf(a_reply_str, "  ts_created: %s", l_tmp_buf);
             }
             if( a_print_status)
                 dap_string_append_printf(a_reply_str, "  Status: %s,", l_is_closed ? "inactive" : "active");
@@ -1642,9 +1642,9 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str,
 
             dap_string_append_printf(a_reply_str, "Hash: %s\n", l_tx_hash_str);
             if(a_print_ts){
-                char l_tmp_buf[70];
-                dap_time_t l_ts_create = (dap_time_t)a_tx->header.ts_created;
-                dap_string_append_printf(a_reply_str, "  ts_created: %s", dap_ctime_r(&l_ts_create, l_tmp_buf));
+                char l_tmp_buf[DAP_TIME_STR_SIZE];
+                dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, a_tx->header.ts_created);
+                dap_string_append_printf(a_reply_str, "  ts_created: %s", l_tmp_buf);
             }
             if(a_print_status)
                 dap_string_append_printf(a_reply_str, "  Status: %s,", l_is_closed ? "inactive" : "active");
@@ -1672,9 +1672,9 @@ static bool s_string_append_tx_cond_info( dap_string_t * a_reply_str,
 
             dap_string_append_printf(a_reply_str, "Hash: %s\n", l_tx_hash_str);
             if(a_print_ts){
-                char l_tmp_buf[70];
-                dap_time_t l_ts_create = (dap_time_t)a_tx->header.ts_created;
-                dap_string_append_printf(a_reply_str, "  ts_created: %s", dap_ctime_r(&l_ts_create, l_tmp_buf));
+                char l_tmp_buf[DAP_TIME_STR_SIZE];
+                dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, a_tx->header.ts_created);
+                dap_string_append_printf(a_reply_str, "  ts_created: %s", l_tmp_buf);
             }
             if (a_print_status)
                 dap_string_append_printf(a_reply_str, "  Status: inactive,");
@@ -1906,9 +1906,9 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
                     *(char*)(l_dot_pos + 3) = '\0';
                 }
 
-                char l_tmp_buf[70] = {};
-                dap_time_t l_ts_create = (dap_time_t)l_tx->header.ts_created;
-                dap_ctime_r(&l_ts_create, l_tmp_buf);
+                char l_tmp_buf[DAP_TIME_STR_SIZE];
+                dap_time_t l_ts_create = l_tx->header.ts_created;
+                dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_ts_create);
                 l_tmp_buf[strlen(l_tmp_buf) - 1] = '\0';
 
                 dap_string_append_printf(l_reply_str, "orderHash: %s\n ts_created: %s (%"DAP_UINT64_FORMAT_U")\n Status: %s, amount: %s (%s) %s, filled: %s%%, rate (%s/%s): %s, net: %s\n\n", l_tx_hash_str,
@@ -2225,8 +2225,8 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
 
                     char *l_rate_average_str = dap_chain_balance_to_coins(l_rate_average);
                     char *l_last_rate_str = dap_chain_balance_to_coins(l_rate);
-                    char l_tmp_buf[70] = {};
-                    dap_ctime_r(&l_last_rate_time, l_tmp_buf);
+                    char l_tmp_buf[DAP_TIME_STR_SIZE];
+                    dap_time_to_str_rfc822(l_tmp_buf, DAP_TIME_STR_SIZE, l_last_rate_time);
                     l_tmp_buf[strlen(l_tmp_buf) - 1] = '\0';
                     dap_string_append_printf(l_reply_str,"Average rate: %s   \n\rLast rate: %s Last rate time: %s (%"DAP_UINT64_FORMAT_U")", l_rate_average_str, l_last_rate_str, l_tmp_buf, l_last_rate_time);
                     DAP_DELETE(l_rate_average_str);

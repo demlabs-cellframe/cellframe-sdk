@@ -2540,15 +2540,14 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                 for(dap_list_t *tx = l_args->ret; tx; tx = tx->next)
                 {
                     l_datum_tx = (dap_chain_datum_tx_t*)tx->data;
-                    dap_time_t l_ts_create = (dap_time_t)l_datum_tx->header.ts_created;
-                    char buf[50] = {[0]='\0'};
+                    char buf[DAP_TIME_STR_SIZE];
                     dap_hash_fast(l_datum_tx, dap_chain_datum_tx_get_size(l_datum_tx), &l_datum_hash);
                     l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_datum_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE,
                                                                                      &l_out_idx_tmp);
                     char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
                     dap_chain_hash_fast_to_str(&l_datum_hash, l_hash_str, sizeof(l_hash_str));
                     dap_string_append_printf(l_str_tmp,"%s \n",spaces);
-                    dap_string_append_printf(l_str_tmp,"%s \n",dap_ctime_r(&l_ts_create, buf));
+                    dap_string_append_printf(l_str_tmp, "%s \n", dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_datum_tx->header.ts_created));
                     dap_string_append_printf(l_str_tmp,"tx_hash:\t%s \n",l_hash_str);
 
                     l_signing_addr_str = dap_chain_addr_to_str(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr);

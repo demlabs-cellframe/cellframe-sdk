@@ -819,11 +819,9 @@ dap_chain_datum_token_t *dap_ledger_token_ticker_check(dap_ledger_t *a_ledger, c
 static void s_tx_header_print(dap_string_t *a_str_out, dap_chain_datum_tx_t *a_tx,
                               const char *a_hash_out_type, dap_chain_hash_fast_t *a_tx_hash)
 {
-    char l_time_str[32] = "unknown";
-    if (a_tx->header.ts_created) {
-        uint64_t l_ts = a_tx->header.ts_created;
-        dap_ctime_r(&l_ts, l_time_str);
-    }
+    char l_time_str[DAP_TIME_STR_SIZE] = "unknown";
+    if (a_tx->header.ts_created)
+        dap_time_to_str_rfc822(l_time_str, DAP_TIME_STR_SIZE, a_tx->header.ts_created);
     char *l_tx_hash_str = dap_strcmp(a_hash_out_type, "hex")
             ? dap_enc_base58_encode_hash_to_str(a_tx_hash)
             : dap_chain_hash_fast_to_str_new(a_tx_hash);

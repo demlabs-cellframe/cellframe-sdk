@@ -87,7 +87,7 @@ json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx){
                 dap_time_t l_ts_exp = ((dap_chain_tx_out_cond_t*)item)->header.ts_expires;
                 char l_time_str[32] = "never";
                 if (l_ts_exp) {
-                    dap_ctime_r(&l_ts_exp, l_time_str);                         /* Convert ts to  "Sat May 17 01:17:08 2014\n" */
+                    dap_time_to_str_rfc822(l_time_str, DAP_TIME_STR_SIZE, l_ts_exp); /* Convert ts to  "Sat May 17 01:17:08 2014\n" */
                     l_time_str[strlen(l_time_str)-1] = '\0';                    /* Remove "\n"*/
                 }
                 json_object_object_add(l_obj_item_data, "ts_expires", json_object_new_string(l_time_str));
