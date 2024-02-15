@@ -6841,19 +6841,25 @@ int cmd_gdb_export(int a_argc, char **a_argv, void **a_str_reply)
 
         for (size_t i = 0; i < l_store_obj_count; ++i) {
             size_t l_out_size = DAP_ENC_BASE64_ENCODE_SIZE((int64_t)l_store_obj[i].value_len) + 1;
+            size_t l_sign_size = DAP_ENC_BASE64_ENCODE_SIZE(sizeof(dap_sign_t) * l_store_obj[i].sign->header.sign_size)+1;
             char *l_value_enc_str = DAP_NEW_Z_SIZE(char, l_out_size);
+            char *l_sign_str = DAP_NEW_Z_SIZE(char, l_sign_size);
             if(!l_value_enc_str) {
                 log_it(L_CRITICAL, "Memory allocation error");
                 return -1;
             }
             dap_enc_base64_encode(l_store_obj[i].value, l_store_obj[i].value_len, l_value_enc_str, DAP_ENC_DATA_TYPE_B64);
+            dap_enc_base64_encode(l_store_obj[i].sign, sizeof(dap_sign_t)+l_store_obj[i].sign->header.sign_size, l_sign_str, DAP_ENC_DATA_TYPE_B64);
             struct json_object *jobj = json_object_new_object();
             // TODO export sign and CRC and flags
             //json_object_object_add(jobj, "id",      json_object_new_int64((int64_t)l_store_obj[i].id));
             json_object_object_add(jobj, "key",     json_object_new_string(l_store_obj[i].key));
             json_object_object_add(jobj, "value",   json_object_new_string(l_value_enc_str));
             json_object_object_add(jobj, "value_len", json_object_new_int64((int64_t)l_store_obj[i].value_len));
+            json_object_object_add(jobj, "flags", json_object_new_uint64((uint64_t)l_store_obj[i].flags));
+            json_object_object_add(jobj, "sign", json_object_new_string(l_sign_str));
             json_object_object_add(jobj, "timestamp", json_object_new_int64((int64_t)l_store_obj[i].timestamp));
+            json_object_object_add(jobj, "crc", json_object_new_uint64(l_store_obj[i].crc));
             json_object_array_add(l_json_group, jobj);
 
             DAP_DELETE(l_value_enc_str);
