@@ -31,7 +31,6 @@
 #define GROUP_LOCAL_XCHANGE "local.xchange"
 
 typedef struct dap_chain_net_srv_xchange_price {
-    char *wallet_str;
     char token_sell[DAP_CHAIN_TICKER_SIZE_MAX];
     uint256_t datoshi_sell;
     dap_chain_net_t *net;
