@@ -1132,11 +1132,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
                     return -15;
                 }
             }
-            if (compare256(l_value, l_value_sell) == -1) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nNot enough cash in specified wallet", l_sign_str);
-                dap_chain_wallet_close(l_wallet);
-                return -12;
-            }
+
             // Create the price
             dap_chain_net_srv_xchange_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_xchange_price_t);
             if (!l_price) {
@@ -2509,7 +2505,6 @@ int dap_chain_net_srv_xchange_create(dap_chain_net_t *a_net, const char *a_token
         log_it(L_CRITICAL, "Memory allocation error");
         return XCHANGE_CREATE_ERROR_MEMORY_ALLOCATED;
     }
-    l_price->wallet_str = dap_strdup(a_wallet->name);
     dap_stpcpy(l_price->token_sell, a_token_sell);
     l_price->net = a_net;
     dap_stpcpy(l_price->token_buy, a_token_buy);
@@ -2519,7 +2514,6 @@ int dap_chain_net_srv_xchange_create(dap_chain_net_t *a_net, const char *a_token
     // Create conditional transaction
     dap_chain_datum_tx_t *l_tx = s_xchange_tx_create_request(l_price, a_wallet);
     if (!l_tx) {
-        DAP_DELETE(l_price->wallet_str);
         DAP_DELETE(l_price);
         return XCHANGE_CREATE_ERROR_CAN_NOT_COMPOSE_THE_CONDITIONAL_TRANSACTION;
     }
@@ -2527,7 +2521,6 @@ int dap_chain_net_srv_xchange_create(dap_chain_net_t *a_net, const char *a_token
     dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
     char* l_ret = NULL;
     if(!(l_ret = s_xchange_tx_put(l_tx, a_net))) {
-        DAP_DELETE(l_price->wallet_str);
         DAP_DELETE(l_price);
         return XCHANGE_CREATE_ERROR_CAN_NOT_PUT_TRANSACTION_TO_MEMPOOL;
     }
