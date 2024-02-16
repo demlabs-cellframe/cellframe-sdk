@@ -22,6 +22,6 @@
  along with any DAP based project.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "dap_http.h"
+#include "dap_http_server.h"
 
-int dap_chain_net_bugreport_init(dap_http_t * a_http);
+int dap_chain_net_bugreport_init(dap_http_server_t * a_http);

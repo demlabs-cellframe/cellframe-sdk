@@ -82,11 +82,7 @@
 #include "dap_chain_block.h"
 #include "dap_chain_cs_blocks.h"
 
-#ifndef _WIN32
-#include "dap_chain_net_news.h"
-#endif
 #include "dap_chain_cell.h"
-
 
 #include "dap_enc_base64.h"
 #include "json.h"
