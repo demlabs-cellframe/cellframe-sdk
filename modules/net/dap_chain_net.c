@@ -223,18 +223,18 @@ static inline const char * dap_chain_net_state_to_str(dap_chain_net_state_t a_st
 // Node link callbacks
 static void s_node_link_callback_disconnected(dap_chain_node_client_t * a_node_client, void * a_arg);
 static void s_node_link_callback_stage(dap_chain_node_client_t * a_node_client,dap_client_stage_t a_stage, void * a_arg);
-static void s_node_link_callback_error(dap_chain_node_client_t * a_node_client, int a_error, void * a_arg);
 static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client, void * a_arg);
 
-static void s_link_manager_connected_callback(dap_link_t *a_link, uint64_t a_net_id);
+static void s_link_manager_callback_connected(dap_link_t *a_link, uint64_t a_net_id);
+static void s_link_manager_callback_error(dap_link_t *a_link, uint64_t a_net_id, int a_error);
 static int s_link_manager_fill_net_info(dap_link_t *a_link);
 static void s_link_manager_link_request(uint64_t a_net_id);
 
 static const dap_link_manager_callbacks_t s_link_manager_callbacks = {
-    .connected      = s_link_manager_connected_callback,
+    .connected      = s_link_manager_callback_connected,
     .disconnected   = NULL,
     .delete         = NULL,
-    .error          = NULL,
+    .error          = s_link_manager_callback_error,
     .fill_net_info  = s_link_manager_fill_net_info,
     .link_request   = s_link_manager_link_request,
 };
@@ -460,11 +460,11 @@ static void s_fill_links_from_root_aliases(dap_chain_net_t *a_net)
 }
 
 /**
- * @brief s_link_manager_connected_callback
+ * @brief s_link_manager_callback_connected
  * @param a_node_client
  * @param a_arg
  */
-static void s_link_manager_connected_callback(dap_link_t *a_link, uint64_t a_net_id)
+static void s_link_manager_callback_connected(dap_link_t *a_link, uint64_t a_net_id)
 {
 // sanity check
     dap_return_if_pass(!a_link || !a_net_id);
@@ -550,19 +550,21 @@ static void s_node_link_callback_stage(dap_chain_node_client_t * a_node_client,d
  * @param a_error
  * @param a_arg
  */
-static void s_node_link_callback_error(dap_chain_node_client_t * a_node_client, int a_error, void * a_arg)
+static void s_link_manager_callback_error(dap_link_t *a_link, uint64_t a_net_id, int a_error)
 {
-    dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
-    log_it(L_WARNING, "Can't establish link with %s."NODE_ADDR_FP_STR, l_net? l_net->pub.name : "(unknown)" ,
-           NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr));
+// sanity check
+    dap_return_if_pass(!a_link || !a_net_id);
+// func work
+    dap_chain_net_t * l_net = dap_chain_net_by_id((dap_chain_net_id_t){.uint64 = a_net_id});
+    dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
+    log_it(L_WARNING, "Can't establish link with %s."NODE_ADDR_FP_STR, l_net ? l_net->pub.name : "(unknown)" ,
+           NODE_ADDR_FP_ARGS_S(a_link->node_addr));
     if (l_net){
         struct json_object *l_json = s_net_states_json_collect(l_net);
-        char l_node_addr_str[INET_ADDRSTRLEN] = {};
-        inet_ntop(AF_INET, &a_node_client->info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
         char l_err_str[128] = { };
         snprintf(l_err_str, sizeof(l_err_str)
                      , "Link " NODE_ADDR_FP_STR " [%s] can't be established, errno %d"
-                     , NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address), l_node_addr_str, a_error);
+                     , NODE_ADDR_FP_ARGS_S(a_link->node_addr), a_link->host_addr_str, a_error);
         json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
         dap_notify_server_send_mt(json_object_get_string(l_json));
         json_object_put(l_json);
