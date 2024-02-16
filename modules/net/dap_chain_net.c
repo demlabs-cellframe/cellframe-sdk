@@ -2217,6 +2217,8 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
 
     uint16_t l_seed_nodes_addrs_len =0;
     char ** l_seed_nodes_addrs = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_addrs", &l_seed_nodes_addrs_len);
+    uint16_t l_permamnet_nodes_addrs_len =0;
+    char ** l_permamnet_nodes_addrs = dap_config_get_array_str( l_cfg , "general" ,"permanent_nodes_addrs", &l_permamnet_nodes_addrs_len);
     uint16_t l_seed_nodes_ipv4_len = 0;
     char **l_seed_nodes_ipv4 = dap_config_get_array_str(l_cfg, "general", "seed_nodes_ipv4", &l_seed_nodes_ipv4_len);
     uint16_t l_seed_nodes_ipv6_len = 0;
@@ -2237,22 +2239,32 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
             dap_config_close(l_cfg);
             return -4;
         }
-        l_net_pvt->seed_nodes_count = l_seed_nodes_addrs_len;
     } else {
         if (!l_bootstrap_nodes_len)
             log_it(L_WARNING, "Configuration for network %s doesn't contains any links", l_net->pub.name);
         l_net_pvt->seed_nodes_count = l_bootstrap_nodes_len;
     }
+    l_net_pvt->permanent_links_count = l_permamnet_nodes_addrs_len;
     log_it (L_DEBUG, "Read %u seed nodes params", l_net_pvt->seed_nodes_count);
     l_net_pvt->seed_nodes_ipv4 = DAP_NEW_SIZE(struct sockaddr_in, l_net_pvt->seed_nodes_count * sizeof(struct sockaddr_in));
     l_net_pvt->seed_nodes_ipv6 = DAP_NEW_SIZE(struct sockaddr_in6, l_net_pvt->seed_nodes_count * sizeof(struct sockaddr_in6));
     l_net_pvt->seed_nodes_addrs = DAP_NEW_SIZE(dap_stream_node_addr_t, l_net_pvt->seed_nodes_count * sizeof(dap_stream_node_addr_t));
+    l_net_pvt->permanent_links = DAP_NEW_SIZE(dap_stream_node_addr_t, l_net_pvt->permanent_links_count * sizeof(dap_stream_node_addr_t));
+    // Load permanent nodes from cfg file
+    for (uint16_t i = 0; i < l_net_pvt->permanent_links_count; i++) {
+        if (dap_chain_node_addr_from_str(l_net_pvt->permanent_links + i, l_permamnet_nodes_addrs[i])) {
+            log_it(L_ERROR,"Wrong address format, must be 0123::4567::89AB::CDEF");
+            l_net_pvt->permanent_links_count--;
+            continue;
+        }
+    }
     // Load seed nodes from cfg file
     for (uint16_t i = 0; i < l_net_pvt->seed_nodes_count; i++) {
         char *l_node_hostname = NULL;
         uint16_t l_node_port = 0;
         if (dap_chain_node_addr_from_str(l_net_pvt->seed_nodes_addrs + i, l_seed_nodes_addrs[i])) {
             log_it(L_ERROR,"Wrong address format, must be 0123::4567::89AB::CDEF");
+            l_net_pvt->seed_nodes_count--;
             continue;
         }
         if (l_seed_nodes_port_len) {
