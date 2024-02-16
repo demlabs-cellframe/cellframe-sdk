@@ -970,7 +970,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
             log_it(L_ERROR, "Invalid order: NULL. Skip order.");
             continue;
         }
-        if (l_order->node_addr.uint64 == l_node_addr->uint64 &&
+        if (l_order->node_addr.uint64 == g_node_addr.uint64 &&
             l_order->srv_uid.uint64 == a_srv->uid.uint64) {
             l_err_code = 0;
             dap_chain_net_srv_price_t *l_price = DAP_NEW_Z(dap_chain_net_srv_price_t);
