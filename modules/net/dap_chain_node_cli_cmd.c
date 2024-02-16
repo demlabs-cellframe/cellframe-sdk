@@ -6851,9 +6851,8 @@ int cmd_gdb_export(int a_argc, char **a_argv, void **a_str_reply)
                 return -1;
             }
             dap_enc_base64_encode(l_store_obj[i].value, l_store_obj[i].value_len, l_value_enc_str, DAP_ENC_DATA_TYPE_B64);
-            dap_enc_base64_encode(&l_sign, dap_sign_get_size(l_sign), l_sign_str, DAP_ENC_DATA_TYPE_B64);
+            dap_enc_base64_encode(l_sign, dap_sign_get_size(l_sign), l_sign_str, DAP_ENC_DATA_TYPE_B64);
             struct json_object *jobj = json_object_new_object();
-            // TODO export sign and CRC and flags
             //json_object_object_add(jobj, "id",      json_object_new_int64((int64_t)l_store_obj[i].id));
             json_object_object_add(jobj, "key",     json_object_new_string(l_store_obj[i].key));
             json_object_object_add(jobj, "value",   json_object_new_string(l_value_enc_str));
@@ -6975,7 +6974,7 @@ int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply)
                 uint64_t l_crc = json_object_get_uint64(l_jobj_crc);
                 const char *l_sign_str = json_object_get_string(l_jobj_sign);
                 dap_sign_t *l_sign = DAP_NEW_Z_SIZE(dap_sign_t, dap_strlen(l_sign_str) + 1);
-                size_t l_sign_decree_size = dap_enc_base64_decode(l_sign_str, dap_strlen(l_sign_str), &l_sign, DAP_ENC_DATA_TYPE_B64);
+                size_t l_sign_decree_size = dap_enc_base64_decode(l_sign_str, dap_strlen(l_sign_str), l_sign, DAP_ENC_DATA_TYPE_B64);
                 if (dap_sign_get_size(l_sign) != l_sign_decree_size) {
                     log_it(L_ERROR, "Can't reade signature from record with key %s", l_group_store[j].key);
                 }
