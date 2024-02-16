@@ -865,7 +865,7 @@ dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net
     }
 
     uint64_t l_max_price_cfg = dap_config_get_item_uint64_default(g_config, a_config_section, "max_price", 0xFFFFFFFFFFFFFFF);
-    if (l_order->node_addr.uint64 != l_node_addr->uint64 &&
+    if (l_order->node_addr.uint64 != g_node_addr.uint64 &&
         l_order->srv_uid.uint64 != a_srv->uid.uint64) {
         DAP_DELETE(l_price);
         DAP_DEL_Z(l_order);
