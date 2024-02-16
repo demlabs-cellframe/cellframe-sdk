@@ -221,18 +221,17 @@ static inline const char * dap_chain_net_state_to_str(dap_chain_net_state_t a_st
 }
 
 // Node link callbacks
-static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_client, void * a_arg);
 static void s_node_link_callback_disconnected(dap_chain_node_client_t * a_node_client, void * a_arg);
 static void s_node_link_callback_stage(dap_chain_node_client_t * a_node_client,dap_client_stage_t a_stage, void * a_arg);
 static void s_node_link_callback_error(dap_chain_node_client_t * a_node_client, int a_error, void * a_arg);
 static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client, void * a_arg);
 
-static bool s_link_manager_connected_callback(void *a_arg);
+static void s_link_manager_connected_callback(dap_link_t *a_link, uint64_t a_net_id);
 static int s_link_manager_fill_net_info(dap_link_t *a_link);
 static void s_link_manager_link_request(uint64_t a_net_id);
 
 static const dap_link_manager_callbacks_t s_link_manager_callbacks = {
-    .connected      = NULL,
+    .connected      = s_link_manager_connected_callback,
     .disconnected   = NULL,
     .delete         = NULL,
     .error          = NULL,
@@ -461,42 +460,36 @@ static void s_fill_links_from_root_aliases(dap_chain_net_t *a_net)
 }
 
 /**
- * @brief s_node_link_callback_connected
+ * @brief s_link_manager_connected_callback
  * @param a_node_client
  * @param a_arg
  */
-static void s_node_link_callback_connected(dap_chain_node_client_t * a_node_client, void * a_arg)
+static void s_link_manager_connected_callback(dap_link_t *a_link, uint64_t a_net_id)
 {
-    dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
-    dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
+// sanity check
+    dap_return_if_pass(!a_link || !a_net_id);
+// func work
+    dap_chain_net_t * l_net = dap_chain_net_by_id((dap_chain_net_id_t){.uint64 = a_net_id});
+    dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
 
-    a_node_client->stream_worker = dap_client_get_stream_worker(a_node_client->client);
-    if(a_node_client->stream_worker == NULL){
-        log_it(L_ERROR, "Stream worker is NULL in connected() callback, do nothing");
-        a_node_client->state = NODE_CLIENT_STATE_ERROR;
-        return;
-    }
-
-    a_node_client->resync_gdb = l_net_pvt->flags & F_DAP_CHAIN_NET_SYNC_FROM_ZERO;
-    if ( s_debug_more )
     log_it(L_NOTICE, "Established connection with %s."NODE_ADDR_FP_STR,l_net->pub.name,
-           NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr));
-    a_node_client->is_connected = true;
-    dap_stream_t *l_stream = dap_client_get_stream(a_node_client->client);
-    assert(l_stream);
-    dap_chain_net_add_cluster_link(l_net, &l_stream->node);
+           NODE_ADDR_FP_ARGS_S(a_link->node_addr));
+
     struct json_object *l_json = s_net_states_json_collect(l_net);
     char l_err_str[128] = { };
     snprintf(l_err_str, sizeof(l_err_str)
                  , "Established connection with link " NODE_ADDR_FP_STR
-                 , NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address));
+                 , NODE_ADDR_FP_ARGS_S(a_link->node_addr));
     json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
     dap_notify_server_send_mt(json_object_get_string(l_json));
     json_object_put(l_json);
     if(l_net_pvt->state == NET_STATE_LINKS_CONNECTING ){
         l_net_pvt->state = NET_STATE_LINKS_ESTABLISHED;
-        dap_proc_thread_callback_add(a_node_client->stream_worker->worker->proc_queue_input,s_net_states_proc,l_net );
     }
+    dap_stream_ch_chain_net_pkt_hdr_t l_announce = { .version = DAP_STREAM_CH_CHAIN_NET_PKT_VERSION,
+                                                     .net_id  = l_net->pub.id };
+    dap_client_write_unsafe(a_link->client, 'N', DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ANNOUNCE,
+                                     &l_announce, sizeof(l_announce));
 }
 
 /**
@@ -2239,6 +2232,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
             dap_config_close(l_cfg);
             return -4;
         }
+        l_net_pvt->seed_nodes_count = l_seed_nodes_addrs_len;
     } else {
         if (!l_bootstrap_nodes_len)
             log_it(L_WARNING, "Configuration for network %s doesn't contains any links", l_net->pub.name);
