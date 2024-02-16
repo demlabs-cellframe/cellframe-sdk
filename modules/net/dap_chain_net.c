@@ -181,6 +181,9 @@ typedef struct dap_chain_net_pvt{
     uint16_t permanent_links_count;
     dap_stream_node_addr_t *permanent_links; // TODO realize permanent links from config
 
+    uint16_t poa_nodes_count;
+    dap_stream_node_addr_t *poa_nodes_addrs;
+
     uint16_t seed_nodes_count;
     struct sockaddr_in *seed_nodes_ipv4;
     struct sockaddr_in6 *seed_nodes_ipv6;       // TODO
@@ -577,6 +580,7 @@ static void s_fill_links_from_root_aliases(dap_chain_net_t * a_net)
         dap_chain_node_info_t l_link_node_info = {};
         l_link_node_info.hdr.ext_addr_v4 = l_net_pvt->seed_nodes_ipv4[i].sin_addr;
         l_link_node_info.hdr.ext_port = l_net_pvt->seed_nodes_ipv4[i].sin_port;
+        l_link_node_info.hdr.address = l_net_pvt->poa_nodes_addrs[i];
         if (s_net_link_add(a_net, &l_link_node_info) > 0)    // Maximum links count reached
             break;
     }
@@ -2414,11 +2418,14 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
     }
     if (PVT(a_net)->main_timer)
         dap_interval_timer_delete(PVT(a_net)->main_timer);
+    DAP_DEL_Z(PVT(a_net)->poa_nodes_addrs);
     DAP_DEL_Z(PVT(a_net)->seed_nodes_ipv4);
     DAP_DEL_Z(PVT(a_net)->seed_nodes_ipv6);
     DAP_DEL_Z(PVT(a_net)->node_info);
-    dap_ledger_purge(a_net->pub.ledger, true);
-    dap_ledger_handle_free(a_net->pub.ledger);
+    if (a_net->pub.ledger) {
+        dap_ledger_purge(a_net->pub.ledger, true);
+        dap_ledger_handle_free(a_net->pub.ledger);
+    }
     DAP_DELETE(a_net);
 }
 
@@ -2506,6 +2513,28 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     // Wait time before reconnect attempt with same link
     l_net_pvt->reconnect_delay = dap_config_get_item_int16_default(l_cfg, "general", "reconnect_delay", 10);
 
+    char **l_poa_nodes_addrs = dap_config_get_array_str(l_cfg, "general", "seed_nodes_addrs", &l_net_pvt->poa_nodes_count);
+    if (!l_net_pvt->poa_nodes_count) {
+        log_it(L_ERROR, "Can't read seed nodes addresses");
+        dap_chain_net_delete(l_net);
+        dap_config_close(l_cfg);
+        return -15;
+    }
+    l_net_pvt->poa_nodes_addrs = DAP_NEW_SIZE(dap_stream_node_addr_t, l_net_pvt->poa_nodes_count * sizeof(dap_stream_node_addr_t));
+    if (!l_net_pvt->poa_nodes_addrs) {
+        log_it(L_CRITICAL, g_error_memory_alloc);
+        dap_chain_net_delete(l_net);
+        dap_config_close(l_cfg);
+        return -1;
+    }
+    for (uint16_t i = 0; i < l_net_pvt->poa_nodes_count; i++) {
+        if (dap_stream_node_addr_from_str(l_net_pvt->poa_nodes_addrs + i, l_poa_nodes_addrs[i])) {
+            log_it(L_ERROR, "Incorrect format for address #%hu", i);
+            dap_chain_net_delete(l_net);
+            dap_config_close(l_cfg);
+            return -16;
+        }
+    }
     uint16_t l_seed_nodes_ipv4_len = 0;
     char **l_seed_nodes_ipv4 = dap_config_get_array_str(l_cfg, "general", "seed_nodes_ipv4", &l_seed_nodes_ipv4_len);
     uint16_t l_seed_nodes_ipv6_len = 0;
@@ -2519,9 +2548,12 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     if (l_seed_nodes_port_len) {
         if ((l_seed_nodes_ipv4_len && l_seed_nodes_ipv4_len != l_seed_nodes_port_len) ||
                 (l_seed_nodes_ipv6_len && l_seed_nodes_ipv6_len != l_seed_nodes_port_len) ||
-                (l_seed_nodes_hostnames_len && l_seed_nodes_hostnames_len != l_seed_nodes_port_len)) {
+                (l_seed_nodes_hostnames_len && l_seed_nodes_hostnames_len != l_seed_nodes_port_len) ||
+                (!l_seed_nodes_ipv4_len && !l_seed_nodes_ipv6_len && !l_seed_nodes_hostnames_len)) {
             log_it (L_ERROR, "Configuration mistake for seed nodes");
-
+            dap_chain_net_delete(l_net);
+            dap_config_close(l_cfg);
+            return -6;
         }
         l_net_pvt->seed_nodes_count = l_seed_nodes_port_len;
     } else {
@@ -2530,8 +2562,23 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         l_net_pvt->seed_nodes_count = l_bootstrap_nodes_len;
     }
     log_it (L_DEBUG, "Read %u seed nodes params", l_net_pvt->seed_nodes_count);
-    l_net_pvt->seed_nodes_ipv4 = DAP_NEW_SIZE(struct sockaddr_in, l_net_pvt->seed_nodes_count * sizeof(struct sockaddr_in));
-    l_net_pvt->seed_nodes_ipv6 = DAP_NEW_SIZE(struct sockaddr_in6, l_net_pvt->seed_nodes_count * sizeof(struct sockaddr_in6));
+    if (l_seed_nodes_ipv6_len) {
+        l_net_pvt->seed_nodes_ipv6 = DAP_NEW_SIZE(struct sockaddr_in6, l_net_pvt->seed_nodes_count * sizeof(struct sockaddr_in6));
+        if (!l_net_pvt->seed_nodes_ipv6) {
+            log_it(L_CRITICAL, g_error_memory_alloc);
+            dap_chain_net_delete(l_net);
+            dap_config_close(l_cfg);
+            return -1;
+        }
+    } else {   // Just only IPv4 can be resolved for now
+        l_net_pvt->seed_nodes_ipv4 = DAP_NEW_SIZE(struct sockaddr_in, l_net_pvt->seed_nodes_count * sizeof(struct sockaddr_in));
+        if (!l_net_pvt->seed_nodes_ipv4) {
+            log_it(L_CRITICAL, g_error_memory_alloc);
+            dap_chain_net_delete(l_net);
+            dap_config_close(l_cfg);
+            return -1;
+        }
+    }
     // Load seed nodes from cfg file
     for (uint16_t i = 0; i < l_net_pvt->seed_nodes_count; i++) {
         char *l_node_hostname = NULL;
@@ -2551,16 +2598,16 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
                 l_node_port = atoi(l_bootstrap_port_str);
             l_node_hostname = l_bootstrap_nodes[i];
         }
-        if (!l_node_port)
-            l_node_port = dap_config_get_item_uint16_default(g_config, "server", "listen_port_tcp", 8079);
         if (!l_node_port) {
             log_it(L_ERROR, "Can't find port for seed node #%hu", i);
             dap_chain_net_delete(l_net);
             dap_config_close(l_cfg);
             return -12;
         } else {
-            l_net_pvt->seed_nodes_ipv4[i].sin_port = l_node_port;
-            l_net_pvt->seed_nodes_ipv6[i].sin6_port = l_node_port;
+            if (l_seed_nodes_ipv6_len)
+                l_net_pvt->seed_nodes_ipv6[i].sin6_port = l_node_port;
+            else
+                l_net_pvt->seed_nodes_ipv4[i].sin_port = l_node_port;
         }
         if (l_node_hostname) {
             struct in_addr l_res = {};
@@ -2845,7 +2892,7 @@ int s_net_load(dap_chain_net_t *a_net)
         }
         dap_chain_net_add_poa_certs_to_cluster(l_net, l_cluster);
         DAP_DELETE(l_gdb_groups_mask);
-        if (l_net->pub.chains == l_chain)
+        if (l_net->pub.chains == l_chain)   // Pointer for first mempool cluster in global double-linked list of clusters
             l_net_pvt->mempool_clusters = l_cluster;
     }
     // Service orders cluster
@@ -3042,11 +3089,8 @@ void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_sto
 int dap_chain_net_add_poa_certs_to_cluster(dap_chain_net_t *a_net, dap_global_db_cluster_t *a_cluster)
 {
     dap_return_val_if_fail(a_net && a_cluster, -1);
-    for (dap_list_t *it = a_net->pub.keys; it; it = it->next) {
-        dap_pkey_t *l_pkey = it->data;
-        dap_stream_node_addr_t l_poa_addr = dap_stream_node_addr_from_pkey(l_pkey);
-        dap_global_db_cluster_member_add(a_cluster, &l_poa_addr, DAP_GDB_MEMBER_ROLE_ROOT);
-    }
+    for (uint16_t i = 0; i < PVT(a_net)->poa_nodes_count; i++)
+        dap_global_db_cluster_member_add(a_cluster, PVT(a_net)->poa_nodes_addrs + i, DAP_GDB_MEMBER_ROLE_ROOT);
     return 0;
 }
 

@@ -3257,7 +3257,11 @@ static int mempool_delete_for_chain(dap_chain_t *a_chain, const char * a_datum_h
         char * l_gdb_group_mempool = dap_chain_net_get_gdb_group_mempool_new(a_chain);
         uint8_t *l_data_tmp = dap_global_db_get_sync(l_gdb_group_mempool, a_datum_hash_str,
                                                      NULL, NULL, NULL);
-        if(l_data_tmp && dap_global_db_del_sync(l_gdb_group_mempool, a_datum_hash_str) == 0) {
+        if (!l_data_tmp) {
+            DAP_DELETE(l_gdb_group_mempool);
+            return 1;
+        }
+        if (dap_global_db_del_sync(l_gdb_group_mempool, a_datum_hash_str) == 0) {
             char *l_msg_str = dap_strdup_printf("Datum %s deleted", a_datum_hash_str);
             json_object *l_msg = json_object_new_string(l_msg_str);
             DAP_DELETE(l_msg_str);
@@ -3274,7 +3278,7 @@ static int mempool_delete_for_chain(dap_chain_t *a_chain, const char * a_datum_h
         } else {
             DAP_DELETE(l_gdb_group_mempool);
             DAP_DELETE(l_data_tmp);
-            return 1;
+            return 2;
         }
 }
 
@@ -3310,7 +3314,7 @@ int _cmd_mempool_delete(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char
         res = mempool_delete_for_chain(a_chain, a_datum_hash, a_json_reply);
     }
     if (res) {
-        char *l_msg_str = dap_strdup_printf("Error! Can't find datum %s", a_datum_hash);
+        char *l_msg_str = dap_strdup_printf("Error! Can't %s datum %s", res == 1 ? "find" : "delete", a_datum_hash);
         if (!l_msg_str) {
             dap_json_rpc_allocation_error;
             return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
