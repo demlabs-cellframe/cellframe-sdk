@@ -102,6 +102,7 @@
 #include "dap_chain_mempool.h"
 #include "dap_global_db.h"
 #include "dap_global_db_cluster.h"
+#include "dap_global_db_pkt.h"
 
 #include "dap_stream_ch_chain_net.h"
 #include "dap_chain_ch.h"
@@ -6839,19 +6840,25 @@ int cmd_gdb_export(int a_argc, char **a_argv, void **a_str_reply)
 
         for (size_t i = 0; i < l_store_obj_count; ++i) {
             size_t l_out_size = DAP_ENC_BASE64_ENCODE_SIZE((int64_t)l_store_obj[i].value_len) + 1;
+            dap_sign_t *l_sign = l_store_obj[i].sign;
+            size_t l_sign_size = DAP_ENC_BASE64_ENCODE_SIZE(dap_sign_get_size(l_sign))+1;
             char *l_value_enc_str = DAP_NEW_Z_SIZE(char, l_out_size);
+            char *l_sign_str = DAP_NEW_Z_SIZE(char, l_sign_size);
             if(!l_value_enc_str) {
                 log_it(L_CRITICAL, "Memory allocation error");
                 return -1;
             }
             dap_enc_base64_encode(l_store_obj[i].value, l_store_obj[i].value_len, l_value_enc_str, DAP_ENC_DATA_TYPE_B64);
+            dap_enc_base64_encode(l_sign, dap_sign_get_size(l_sign), l_sign_str, DAP_ENC_DATA_TYPE_B64);
             struct json_object *jobj = json_object_new_object();
-            // TODO export sign and CRC and flags
             //json_object_object_add(jobj, "id",      json_object_new_int64((int64_t)l_store_obj[i].id));
             json_object_object_add(jobj, "key",     json_object_new_string(l_store_obj[i].key));
             json_object_object_add(jobj, "value",   json_object_new_string(l_value_enc_str));
             json_object_object_add(jobj, "value_len", json_object_new_int64((int64_t)l_store_obj[i].value_len));
+            json_object_object_add(jobj, "flags", json_object_new_uint64((uint64_t)l_store_obj[i].flags));
+            json_object_object_add(jobj, "sign", json_object_new_string(l_sign_str));
             json_object_object_add(jobj, "timestamp", json_object_new_int64((int64_t)l_store_obj[i].timestamp));
+            json_object_object_add(jobj, "crc", json_object_new_uint64(l_store_obj[i].crc));
             json_object_array_add(l_json_group, jobj);
 
             DAP_DELETE(l_value_enc_str);
@@ -6938,9 +6945,9 @@ int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply)
             //l_id        = json_object_object_get(l_record, "id");
             l_key       = json_object_object_get(l_record, "key");
             l_value     = json_object_object_get(l_record, "value");
+            size_t l_record_size = json_object_object_length(l_record);
             l_value_len = json_object_object_get(l_record, "value_len");
             l_ts        = json_object_object_get(l_record, "timestamp");
-            // TODO import sign and CRC and flags
             // l_group_store[j].id     = (uint64_t)json_object_get_int64(l_id);
             l_group_store[j].key    = dap_strdup(json_object_get_string(l_key));
             l_group_store[j].group  = dap_strdup(l_group_name);
@@ -6957,6 +6964,26 @@ int cmd_gdb_import(int a_argc, char **a_argv, void **a_str_reply)
             }
             dap_enc_base64_decode(l_value_str, strlen(l_value_str), l_val, DAP_ENC_DATA_TYPE_B64);
             l_group_store[j].value  = (uint8_t*)l_val;
+            if (l_record_size > 5) {
+                json_object *l_jobj_crc = json_object_object_get(l_record, "crc");
+                json_object *l_jobj_sign = json_object_object_get(l_record, "sign");
+                json_object *l_jobj_flags = json_object_object_get(l_record, "flags");
+                uint8_t l_flags = (uint8_t)json_object_get_uint64(l_jobj_flags);
+                uint64_t l_crc = json_object_get_uint64(l_jobj_crc);
+                const char *l_sign_str = json_object_get_string(l_jobj_sign);
+                dap_sign_t *l_sign = DAP_NEW_Z_SIZE(dap_sign_t, dap_strlen(l_sign_str) + 1);
+                size_t l_sign_decree_size = dap_enc_base64_decode(l_sign_str, dap_strlen(l_sign_str), l_sign, DAP_ENC_DATA_TYPE_B64);
+                if (dap_sign_get_size(l_sign) != l_sign_decree_size) {
+                    log_it(L_ERROR, "Can't reade signature from record with key %s", l_group_store[j].key);
+                }
+                l_group_store[j].sign = l_sign;
+                l_group_store[j].flags = l_flags;
+                l_group_store[j].crc = l_crc;
+            } else {
+                //Loading old record
+                dap_cert_t *l_cert_record = dap_cert_find_by_name(DAP_STREAM_NODE_ADDR_CERT_NAME);
+                l_group_store[j].sign = dap_store_obj_sign(&l_group_store[j], l_cert_record->enc_key, &l_group_store[j].crc);
+            }
         }
         if (dap_global_db_driver_apply(l_group_store, l_records_count)) {
             log_it(L_CRITICAL, "An error occured on importing group %s...", l_group_name);
