@@ -1113,7 +1113,6 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 dap_chain_wallet_close(l_wallet);
                 return -1;
             }
-            l_price->wallet_str = dap_strdup(l_wallet_str);
             dap_stpcpy(l_price->token_sell, l_token_sell_str);
             l_price->net = l_net;
             dap_stpcpy(l_price->token_buy, l_token_buy_str);
@@ -1124,7 +1123,6 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
             dap_chain_datum_tx_t *l_tx = s_xchange_tx_create_request(l_price, l_wallet);
             if (!l_tx) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nCan't compose the conditional transaction", l_sign_str);
-                DAP_DELETE(l_price->wallet_str);
                 DAP_DELETE(l_price);
                 dap_chain_wallet_close(l_wallet);
                 return -14;
@@ -1134,7 +1132,6 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
             char* l_ret = NULL;
             if(!(l_ret = s_xchange_tx_put(l_tx, l_net))) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nCan't put transaction to mempool", l_sign_str);
-                DAP_DELETE(l_price->wallet_str);
                 DAP_DELETE(l_price);
                 return -15;
             }
