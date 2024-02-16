@@ -136,9 +136,9 @@ int dap_chain_node_info_save(dap_chain_net_t * a_net, dap_chain_node_info_t *a_n
 /**
  * Read node from base
  */
-dap_chain_node_info_t* dap_chain_node_info_read( dap_chain_net_t * a_net,dap_chain_node_addr_t *l_address)
+dap_chain_node_info_t* dap_chain_node_info_read( dap_chain_net_t * a_net,dap_chain_node_addr_t *a_address)
 {
-    char *l_key = dap_chain_node_addr_to_hash_str(l_address);
+    char *l_key = dap_chain_node_addr_to_hash_str(a_address);
     if (!l_key) {
         log_it(L_WARNING,"Can't calculate hash of addr");
         return NULL;

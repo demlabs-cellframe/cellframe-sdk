@@ -168,12 +168,7 @@ typedef struct dap_chain_net_pvt{
 
     atomic_uint balancer_link_requests;
     bool balancer_http;
-    //Active synchronizing link
-    dap_chain_node_client_t *active_link;
-    dap_list_t *links_queue;            // Links waiting for sync
-
     bool only_static_links;
-
     bool load_mode;
 
     uint16_t permanent_links_count;
@@ -188,7 +183,6 @@ typedef struct dap_chain_net_pvt{
 
     // Main loop timer
     dap_interval_timer_t main_timer;
-    pthread_mutex_t uplinks_mutex;
 
     //Global DB clusters for different access groups. Notification with cluster contents changing
     dap_global_db_cluster_t *mempool_clusters; // List of chains mempools
@@ -206,8 +200,8 @@ typedef struct dap_chain_net_item{
     UT_hash_handle hh, hh2;
 } dap_chain_net_item_t;
 
-#define PVT(a) (a ? (dap_chain_net_pvt_t *)a->pvt : NULL )
-#define PVT_S(a) (a ? (dap_chain_net_pvt_t *)a.pvt : NULL )
+#define PVT(a) ((dap_chain_net_pvt_t *)a->pvt)
+#define PVT_S(a) ((dap_chain_net_pvt_t *)a.pvt)
 
 static dap_chain_net_item_t *s_net_items = NULL, *s_net_ids = NULL;
 
@@ -411,24 +405,16 @@ dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net)
 
 dap_chain_node_info_t *dap_chain_net_balancer_link_from_cfg(dap_chain_net_t *a_net)
 {
+// sanity check
+    dap_return_val_if_pass_err(!a_net || !PVT(a_net) || !PVT(a_net)->seed_nodes_count, NULL, "No valid balancer links found");
+// memory alloc
+    dap_chain_node_info_t *l_link_node_info = NULL;
+    DAP_NEW_Z_RET_VAL(l_link_node_info, dap_chain_node_info_t, NULL, NULL);
+// func work
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
-    struct in_addr l_addr = { };
-    uint16_t i, l_port = 0;
-    if (l_net_pvt->seed_nodes_count) {
-        i = dap_random_uint16() % l_net_pvt->seed_nodes_count;
-        l_addr = l_net_pvt->seed_nodes_ipv4[i].sin_addr;
-        l_port = l_net_pvt->seed_nodes_ipv4[i].sin_port;
-    } else {
-        log_it(L_ERROR, "No valid balancer links found");
-        return NULL;
-    }
-    dap_chain_node_info_t *l_link_node_info = DAP_NEW_Z(dap_chain_node_info_t);
-    if(! l_link_node_info){
-        log_it(L_CRITICAL,"Can't allocate memory for node link info");
-        return NULL;
-    }
-    l_link_node_info->hdr.ext_addr_v4 = l_addr;
-    l_link_node_info->hdr.ext_port = l_port;
+    uint16_t i = dap_random_uint16() % l_net_pvt->seed_nodes_count;
+    l_link_node_info->hdr.ext_addr_v4 = l_net_pvt->seed_nodes_ipv4[i].sin_addr;
+    l_link_node_info->hdr.ext_port = l_net_pvt->seed_nodes_ipv4[i].sin_port;
     return l_link_node_info;
 }
 
@@ -459,6 +445,9 @@ static bool s_net_link_callback_connect_delayed(void *a_arg)
  */
 static void s_fill_links_from_root_aliases(dap_chain_net_t *a_net)
 {
+// sanity check
+    dap_return_if_pass(!a_net);
+// func work
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     dap_link_t *l_link = NULL;
     for (size_t i = 0; i < l_net_pvt->seed_nodes_count; i++) {
@@ -527,7 +516,6 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
                l_net_pvt->state_target == NET_STATE_OFFLINE ? "" : " Replace it...");
     }
     if (l_net_pvt->state_target != NET_STATE_OFFLINE) {
-        pthread_mutex_lock(&l_net_pvt->uplinks_mutex);
         // s_net_link_remove(l_net_pvt, a_node_client, l_net_pvt->only_static_links);
         //char *l_key = dap_chain_node_addr_to_hash_str(&a_node_client->info->hdr.address);
         //dap_global_db_del_sync(l_net->pub.gdb_nodes, l_key);
@@ -537,7 +525,6 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
         a_node_client->callbacks.delete = NULL;
 
         size_t l_current_links_prepared = dap_link_manager_links_count(l_net->pub.id.uint64);
-        pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
         // if (!l_net_pvt->only_static_links) {
         //     for (size_t i = l_current_links_prepared; i < l_net_pvt->max_links_count ; i++) {
         //         s_new_balancer_link_request(l_net, 0);
@@ -607,7 +594,6 @@ static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client,
     } else if (a_node_client->is_connected)
         a_node_client->is_connected = false;
     // dap_chain_net_sync_unlock(l_net, a_node_client);
-    pthread_mutex_lock(&l_net_pvt->uplinks_mutex);
     struct net_link *l_link, *l_link_tmp;
     // HASH_ITER(hh, l_net_pvt->net_links, l_link, l_link_tmp) {
     //     if (l_link->link == a_node_client) {
@@ -615,7 +601,6 @@ static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client,
     //         s_link_manager_link_start(l_net, l_link, l_net_pvt->reconnect_delay);
     //     }
     // }
-    pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
     struct json_object *l_json = s_net_states_json_collect(l_net);
     json_object_object_add(l_json, "errorMessage", json_object_new_string("Link restart"));
     dap_notify_server_send_mt(json_object_get_string(l_json));
@@ -767,7 +752,7 @@ void s_net_http_link_prepare_error(int a_error_code, void *a_arg)
 static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_replace_tries)
 {
 // sanity check
-    dap_return_val_if_pass(!PVT(a_net) || (PVT(a_net))->state_target == NET_STATE_OFFLINE , false);
+    dap_return_val_if_pass(!a_net || !PVT(a_net) || PVT(a_net)->state_target == NET_STATE_OFFLINE , false);
 // func work
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     if (!dap_link_manager_links_count(a_net->pub.id.uint64)) {
@@ -780,7 +765,9 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
                         NODE_ADDR_FP_ARGS(l_net_pvt->permanent_links + i));
                 continue;
             }
-            // s_link_manager_link_add(l_net, l_link_node_info);
+            dap_link_t *l_link = dap_link_manager_link_create_or_update(NULL, &l_link_node_info[i].hdr.address, 
+                    &l_link_node_info[i].hdr.ext_addr_v4, &l_link_node_info[i].hdr.ext_addr_v6, l_link_node_info[i].hdr.ext_port);
+            dap_link_manager_link_add(a_net->pub.id.uint64, l_link);
             DAP_DELETE(l_link_node_info);
         }
     }
@@ -790,11 +777,9 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
     if(!a_link_replace_tries) {
         dap_chain_net_node_balancer_t *l_link_full_node_list = dap_chain_net_balancer_get_node(a_net->pub.name, a_required_links_count * 2);
         size_t l_node_cnt = 0;
-        if(l_link_full_node_list)
-        {
+        if(l_link_full_node_list) {
             dap_chain_node_info_t * l_node_info = (dap_chain_node_info_t *)l_link_full_node_list->nodes_info;
             l_node_cnt = l_link_full_node_list->count_node;
-
 
             for(size_t i = 0; i < l_node_cnt; ++i) {
                 int l_net_link_add = 0;
@@ -929,12 +914,7 @@ static bool s_net_states_proc(void *a_arg)
         case NET_STATE_OFFLINE: {
             log_it(L_NOTICE,"%s.state: NET_STATE_OFFLINE", l_net->pub.name);
             // delete all links
-            struct net_link *l_link, *l_link_tmp;
-
             l_net_pvt->balancer_link_requests = 0;
-            l_net_pvt->active_link = NULL;
-            dap_list_free(l_net_pvt->links_queue);
-            l_net_pvt->links_queue = NULL;
             if ( l_net_pvt->state_target != NET_STATE_OFFLINE ){
                 l_net_pvt->state = NET_STATE_LINKS_PREPARE;
                 l_repeat_after_exit = true;
@@ -1010,7 +990,6 @@ static dap_chain_net_t *s_net_new(const char *a_id, const char *a_name,
     pthread_mutexattr_t l_mutex_attr;
     pthread_mutexattr_init(&l_mutex_attr);
     pthread_mutexattr_settype(&l_mutex_attr, PTHREAD_MUTEX_RECURSIVE);
-    pthread_mutex_init(&PVT(l_ret)->uplinks_mutex, &l_mutex_attr);
     pthread_mutex_init(&l_ret->pub.balancer_mutex, &l_mutex_attr);
     pthread_mutexattr_destroy(&l_mutex_attr);
     if (dap_chain_net_id_parse(a_id, &l_ret->pub.id) != 0) {
@@ -2248,14 +2227,17 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     char **l_seed_nodes_port = dap_config_get_array_str(l_cfg, "general" ,"seed_nodes_port", &l_seed_nodes_port_len);
     uint16_t l_bootstrap_nodes_len = 0;
     char **l_bootstrap_nodes = dap_config_get_array_str(l_cfg, "general", "bootstrap_hostnames", &l_bootstrap_nodes_len);
-    if (l_seed_nodes_port_len) {
-        if ((l_seed_nodes_ipv4_len && l_seed_nodes_ipv4_len != l_seed_nodes_port_len) ||
+    if (l_seed_nodes_addrs_len) {
+        if (    l_seed_nodes_addrs_len != l_seed_nodes_port_len ||
+                (l_seed_nodes_ipv4_len && l_seed_nodes_ipv4_len != l_seed_nodes_port_len) ||
                 (l_seed_nodes_ipv6_len && l_seed_nodes_ipv6_len != l_seed_nodes_port_len) ||
                 (l_seed_nodes_hostnames_len && l_seed_nodes_hostnames_len != l_seed_nodes_port_len)) {
             log_it (L_ERROR, "Configuration mistake for seed nodes");
-
+            dap_chain_net_delete(l_net);
+            dap_config_close(l_cfg);
+            return -4;
         }
-        l_net_pvt->seed_nodes_count = l_seed_nodes_port_len;
+        l_net_pvt->seed_nodes_count = l_seed_nodes_addrs_len;
     } else {
         if (!l_bootstrap_nodes_len)
             log_it(L_WARNING, "Configuration for network %s doesn't contains any links", l_net->pub.name);
@@ -3395,33 +3377,23 @@ int dap_chain_net_link_manager_init()
     return dap_link_manager_init(&s_link_manager_callbacks);
 }
 
-// void s_link_manager_link_prepare(dap_link_t *a_link, );
-
 int s_link_manager_fill_net_info(dap_link_t *a_link)
 {
 // sanity check
     dap_return_val_if_pass(!a_link, -1);
-// preparing
+// func work
     int l_ret = 0;
-    char *l_key = dap_chain_node_addr_to_hash_str(&a_link->node_addr);
-    if (!l_key)
-        return -2;
     dap_chain_net_item_t *l_net_item = NULL, *l_tmp = NULL;
-    dap_store_obj_t *l_obj = NULL;
+    dap_chain_node_info_t *l_node_info = NULL;
     HASH_ITER(hh, s_net_items, l_net_item, l_tmp) {
-        l_obj = dap_global_db_get_raw_sync(l_net_item->chain_net->pub.gdb_nodes, l_key);
-        if (l_obj)
+        if ((l_node_info = dap_chain_node_info_read(l_net_item->chain_net,&a_link->node_addr)))
             break;
     }
-    if (!l_obj) {
-        DAP_DELETE(l_key);
+    if (!l_node_info) {
         return -3;
     }
-    // get nodes list from global_db
-    dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)(l_obj->value);
     dap_link_manager_link_create_or_update(a_link, &l_node_info->hdr.address, 
             &l_node_info->hdr.ext_addr_v4, &l_node_info->hdr.ext_addr_v6, l_node_info->hdr.ext_port);
-    dap_store_obj_free(l_obj, 1);
-    DAP_DELETE(l_key);
+    DAP_DELETE(l_node_info);
     return l_ret;
 }
