@@ -105,3 +105,15 @@ enum dap_chain_net_srv_xchange_purchase_error_list{
 };
 int dap_chain_net_srv_xchange_purchase(dap_chain_net_t *a_net, dap_hash_fast_t *a_order_hash, uint256_t a_value,
                                        uint256_t a_fee, dap_chain_wallet_t *a_wallet, char **a_hash_out);
+
+int dap_chain_net_srv_xchange_get_order_completion_rate(dap_chain_net_t *a_net, dap_hash_fast_t a_order_tx_hash);
+
+enum dap_chain_net_srv_xchange_order_status{
+    XCHANGE_ORDER_STATUS_OPENED = 0,
+    XCHANGE_ORDER_STATUS_CLOSED,
+    XCHANGE_ORDER_STATUS_UNKNOWN,
+};
+
+
+enum dap_chain_net_srv_xchange_order_status dap_chain_net_srv_xchange_get_order_status(dap_chain_net_t *a_net, dap_hash_fast_t a_order_tx_hash);
+bool dap_chain_net_srv_xchange_get_fee(dap_chain_net_id_t a_net_id, uint256_t *a_fee, dap_chain_addr_t *a_addr, uint16_t *a_type);
