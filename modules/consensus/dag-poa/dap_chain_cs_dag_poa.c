@@ -273,7 +273,7 @@ static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply)
                     dap_chain_cs_dag_event_calc_hash(l_event, l_event_size_new, &l_event_new_hash);
                     char l_event_new_hash_hex_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
                     dap_chain_hash_fast_to_str(&l_event_new_hash, l_event_new_hash_hex_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-                    char *l_event_new_hash_base58_str = dap_enc_base58_encode_hash_to_str(&l_event_new_hash);
+                    char *l_event_new_hash_base58_str = dap_enc_base58_encode_hash_to_str_static(&l_event_new_hash);
 
                     bool l_event_is_ready = s_round_event_ready_minimum_check(l_dag, l_event, l_event_size_new,
                                                                         l_event_new_hash_hex_str);
@@ -305,7 +305,6 @@ static int s_cli_dag_poa(int argc, char ** argv, void **a_str_reply)
                         ret=-31;
 
                     }
-                    DAP_DELETE(l_event_new_hash_base58_str);
                 } else {
                     dap_cli_server_cmd_set_reply_text(a_str_reply,
                                                   "Can't sign event %s in round.new\n",

@@ -160,14 +160,14 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
 
     if (l_atom_hash) {
         char *l_atom_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                            ? dap_enc_base58_encode_hash_to_str(l_atom_hash)
-                            : dap_chain_hash_fast_to_str_new(l_atom_hash);
+                            ? dap_enc_base58_encode_hash_to_str_static(l_atom_hash)
+                            : dap_chain_hash_fast_to_str_static(l_atom_hash);
         json_object_object_add(json_obj_datum, "atom_hash", json_object_new_string(l_atom_hash_str));
     }
 
     char *l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                        ? dap_enc_base58_encode_hash_to_str(a_tx_hash)
-                        : dap_chain_hash_fast_to_str_new(a_tx_hash);
+                        ? dap_enc_base58_encode_hash_to_str_static(a_tx_hash)
+                        : dap_chain_hash_fast_to_str_static(a_tx_hash);
     json_object_object_add(json_obj_datum, "hash", json_object_new_string(l_hash_str));
 
     json_object_object_add(json_obj_datum, "token_ticker", l_tx_token_ticker ? json_object_new_string(l_tx_token_ticker) 
@@ -213,10 +213,9 @@ json_object * dap_db_history_tx(dap_chain_hash_fast_t* a_tx_hash,
         return dap_db_tx_history_to_json(a_tx_hash, &l_atom_hash,l_tx, a_chain, a_hash_out_type, l_net, l_ret_code, &accepted_tx);
     } else {
         char *l_tx_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                ? dap_enc_base58_encode_hash_to_str(a_tx_hash)
-                : dap_chain_hash_fast_to_str_new(a_tx_hash);
+                ? dap_enc_base58_encode_hash_to_str_static(a_tx_hash)
+                : dap_chain_hash_fast_to_str_static(a_tx_hash);
         dap_json_rpc_error_add(-1, "TX hash %s not founds in chains", l_tx_hash_str);
-        DAP_DELETE(l_tx_hash_str);
         return NULL;
     }
 }
@@ -479,11 +478,11 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                                       a_hash_out_type, l_ledger, &l_tx_hash, l_datum_iter->ret_code);
                     l_header_printed = true;
                 }
-                const char *l_src_addr_str = NULL, *l_src_str;
+                char *l_src_str;
                 if (l_base_tx)
                     l_src_str = l_reward_collect ? "reward collecting" : "emission";
                 else if (l_src_addr && dap_strcmp(l_dst_token, l_noaddr_token))
-                    l_src_str = l_src_addr_str = dap_chain_addr_to_str(l_src_addr);
+                    l_src_str = dap_chain_addr_to_str(l_src_addr);
                 else
                     l_src_str = dap_chain_tx_out_cond_subtype_to_str(l_src_subtype);
                 if (l_is_unstake)
@@ -492,8 +491,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                     l_is_need_correction = true;
                     l_corr_value = l_value;
                 }
-                char *l_value_str = dap_chain_balance_print(l_value);
-                char *l_coins_str = dap_chain_balance_to_coins(l_value);
+                char *l_coins_str, *l_value_str = dap_uint256_to_char(l_value, &l_coins_str);
                 json_object *j_obj_data = json_object_new_object();
                 if (!j_obj_data) {
                     dap_json_rpc_allocation_error;
@@ -511,9 +509,6 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                     l_corr_object = j_obj_data;
                 else
                     json_object_array_add(j_arr_data, j_obj_data);
-                DAP_DEL_Z(l_src_addr_str);
-                DAP_DELETE(l_value_str);
-                DAP_DELETE(l_coins_str);
             } else if (!l_src_addr || dap_chain_addr_compare(l_src_addr, a_addr)) {
                 if (!l_dst_addr && ((dap_chain_tx_out_cond_t *)it->data)->header.subtype == l_src_subtype && l_src_subtype == DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE)
                     continue;
@@ -528,8 +523,7 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                 const char *l_dst_addr_str = l_dst_addr ? dap_chain_addr_to_str(l_dst_addr)
                                                         : dap_chain_tx_out_cond_subtype_to_str(
                                                               ((dap_chain_tx_out_cond_t *)it->data)->header.subtype);
-                char *l_value_str = dap_chain_balance_print(l_value);
-                char *l_coins_str = dap_chain_balance_to_coins(l_value);
+                char *l_coins_str, *l_value_str = dap_uint256_to_char(l_value, &l_coins_str);
                 json_object * j_obj_data = json_object_new_object();
                 if (!j_obj_data) {
                     dap_json_rpc_allocation_error;
@@ -541,26 +535,18 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                 json_object_object_add(j_obj_data, "send_coins", json_object_new_string(l_coins_str));
                 json_object_object_add(j_obj_data, "send_datoshi", json_object_new_string(l_value_str));
                 json_object_object_add(j_obj_data, "token", l_dst_token ? json_object_new_string(l_dst_token)
-                                                                            : json_object_new_string("UNKNOWN"));
+                                                                        : json_object_new_string("UNKNOWN"));
                 json_object_object_add(j_obj_data, "destination_address", json_object_new_string(l_dst_addr_str));
-
                 json_object_array_add(j_arr_data, j_obj_data);
-                if (l_dst_addr)
-                    DAP_DELETE(l_dst_addr_str);
-                DAP_DELETE(l_value_str);
-                DAP_DELETE(l_coins_str);
             }
         }
         dap_list_free(l_list_out_items);
         if (l_is_need_correction) {
             SUM_256_256(l_corr_value, l_fee_sum, &l_corr_value);
-            char *l_value_str = dap_chain_balance_print(l_corr_value);
-            char *l_coins_str = dap_chain_balance_to_coins(l_corr_value);
+            char *l_coins_str, *l_value_str = dap_uint256_to_char(l_corr_value, &l_coins_str);
             json_object_object_add(l_corr_object, "recv_coins", json_object_new_string(l_coins_str));
             json_object_object_add(l_corr_object, "recv_datoshi", json_object_new_string(l_value_str));
             json_object_array_add(j_arr_data, l_corr_object);
-            DAP_DELETE(l_value_str);
-            DAP_DELETE(l_coins_str);
             l_is_need_correction = false;
         }
         if (json_object_array_length(j_arr_data) > 0) {
@@ -795,9 +781,8 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                     }
                     dap_chain_datum_token_emission_t *l_token_em =  (dap_chain_datum_token_emission_t *)l_datum->data;
                     if(!a_filter_token_name || !dap_strcmp(l_token_em->hdr.ticker, a_filter_token_name)) {
-                        char * l_token_emission_address_str = dap_chain_addr_to_str(&(l_token_em->hdr.address));
                         // filter for addr
-                        if (a_filtr_addr_base58 && dap_strcmp(a_filtr_addr_base58, l_token_emission_address_str)) {
+                        if (a_filtr_addr_base58 && dap_strcmp(a_filtr_addr_base58, dap_chain_addr_to_str(&(l_token_em->hdr.address)))) {
                              break;
                         }
                         dap_chain_datum_dump(l_str_out, l_datum, a_hash_out_type, a_chain->net_id);
@@ -991,10 +976,8 @@ int com_ledger(int a_argc, char ** a_argv, void **a_str_reply)
             if(l_addr)
             {
                 l_str_out = dap_ledger_token_tx_item_list(l_ledger, l_addr, l_hash_out_type, l_unspent_flag);
-                char *l_addr_str = dap_chain_addr_to_str(l_addr);
-                dap_string_append_printf(l_str_ret, "history for addr %s:\n%s\n", l_addr_str,
+                dap_string_append_printf(l_str_ret, "history for addr %s:\n%s\n", dap_chain_addr_to_str(l_addr),
                         l_str_out ? l_str_out : " empty");
-                DAP_DELETE(l_addr_str);
             } else if(l_tx_hash_str) {
                 dap_chain_datum_tx_t *l_tx = NULL;
                 if (l_unspent_flag) {

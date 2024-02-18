@@ -182,16 +182,7 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                 }
                 uint256_t l_balance_native = uint256_0;
                 _dap_tsd_get_scalar(l_tsd, &l_balance_native);
-                char *l_balance = dap_chain_balance_print(l_balance_native);
-                if (!l_balance) {
-                    json_object_put(l_jobj_tsd);
-                    json_object_put(l_jobj_tsd_type);
-                    json_object_put(l_tsd_array);
-                    dap_json_rpc_allocation_error;
-                    return NULL;
-                }
-                json_object *l_jobj_tsd_value = json_object_new_string(l_balance);
-                DAP_DELETE(l_balance);
+                json_object *l_jobj_tsd_value = json_object_new_string(dap_uint256_to_char(l_balance_native, NULL));
                 if (!l_jobj_tsd_value) {
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_jobj_tsd_type);
@@ -219,16 +210,8 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                 }
                 uint128_t l_balance_native_old = uint128_0;
                 _dap_tsd_get_scalar(l_tsd, &l_balance_native_old);
-                char *l_balance = dap_chain_balance_print(GET_256_FROM_128(l_balance_native_old));
-                if (!l_balance) {
-                    json_object_put(l_jobj_tsd);
-                    json_object_put(l_jobj_tsd_type);
-                    json_object_put(l_tsd_array);
-                    dap_json_rpc_allocation_error;
-                    return NULL;
-                }
-                json_object *l_jobj_tsd_value = json_object_new_string(l_balance);
-                DAP_DELETE(l_balance);
+                json_object *l_jobj_tsd_value =
+                    json_object_new_string(dap_uint256_to_char(GET_256_FROM_128(l_balance_native_old), NULL));
                 if (!l_jobj_tsd_value) {
                     json_object_put(l_jobj_tsd_type);
                     json_object_put(l_jobj_tsd);
@@ -278,22 +261,8 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                         }
                         json_object_object_add(l_jobj_tsd, "warning", l_wgn_text);
                     } else {
-                        char *l_hash_str = dap_chain_hash_fast_to_str_new(&l_hf);
-                        if (!l_hash_str) {
-                            json_object_put(l_jobj_tsd);
-                            json_object_put(l_tsd_array);
-                            dap_json_rpc_allocation_error;
-                            return NULL;
-                        }
-                        json_object *l_jobj_hash = json_object_new_string(l_hash_str);
-                        DAP_DELETE(l_hash_str);
-                        if (l_jobj_hash) {
-                            json_object_put(l_jobj_tsd);
-                            json_object_put(l_tsd_array);
-                            dap_json_rpc_allocation_error;
-                            return NULL;
-                        }
-                        json_object_object_add(l_jobj_tsd, "pkey", l_jobj_hash);
+                        json_object_object_add(l_jobj_tsd, "pkey",
+                            json_object_new_string(dap_chain_hash_fast_to_str_static(&l_hf)));
                     }
                 } else {
                     char *l_wgn_text = dap_strdup_printf("total_pkeys_add: <WRONG SIZE %u>\n", l_tsd->size);
@@ -331,22 +300,8 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                 }
                 json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
                 if (l_tsd->size == sizeof(dap_chain_hash_fast_t)) {
-                    char *l_hash_str = dap_chain_hash_fast_to_str_new((dap_chain_hash_fast_t *) l_tsd->data);
-                    if (!l_hash_str) {
-                        json_object_put(l_jobj_tsd);
-                        json_object_put(l_tsd_array);
-                        dap_json_rpc_allocation_error;
-                        return NULL;
-                    }
-                    json_object *l_jobj_hash = json_object_new_string(l_hash_str);
-                    DAP_DELETE(l_hash_str);
-                    if (!l_jobj_hash) {
-                        json_object_put(l_jobj_tsd);
-                        json_object_put(l_tsd_array);
-                        dap_json_rpc_allocation_error;
-                        return NULL;
-                    }
-                    json_object_object_add(l_jobj_tsd, "pkey", l_jobj_hash);
+                    json_object_object_add(l_jobj_tsd, "pkey",
+                        json_object_new_string(dap_chain_hash_fast_to_str_static((dap_chain_hash_fast_t*) l_tsd->data)));
                 } else {
                     char *l_wgn_text = dap_strdup_printf("total_pkeys_remove: <WRONG SIZE %u>\n", l_tsd->size);
                     if (!l_wgn_text) {
@@ -384,18 +339,16 @@ json_object *s_dap_chain_datum_token_tsd_to_json(dap_chain_datum_token_t *a_toke
                 json_object_object_add(l_jobj_tsd, "type", l_jobj_tsd_type);
                 dap_chain_datum_token_tsd_delegate_from_stake_lock_t *l_tsd_section = _dap_tsd_get_object(l_tsd, dap_chain_datum_token_tsd_delegate_from_stake_lock_t);
                 json_object *l_jobj_ticker_token_from = json_object_new_string((char*)l_tsd_section->ticker_token_from);
-                char *balance = dap_chain_balance_to_coins(l_tsd_section->emission_rate);
-                if (!l_jobj_ticker_token_from || !balance) {
+                if (!l_jobj_ticker_token_from) {
                     json_object_put(l_jobj_ticker_token_from);
-                    DAP_DEL_Z(balance);
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);
                     dap_json_rpc_allocation_error;
                     return NULL;
                 }
                 json_object_object_add(l_jobj_tsd, "ticker_token_from", l_jobj_ticker_token_from);
+                char *balance; dap_uint256_to_char(l_tsd_section->emission_rate, &balance);
                 json_object *l_jobj_emission_rate = json_object_new_string(balance);
-                DAP_DEL_Z(balance);
                 if (!l_jobj_emission_rate) {
                     json_object_put(l_jobj_tsd);
                     json_object_put(l_tsd_array);

@@ -1940,14 +1940,13 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 uint256_t l_network_fee = {};
                 dap_chain_addr_t l_network_fee_addr = {};
                 dap_chain_net_tx_get_fee(l_net->pub.id, &l_network_fee, &l_network_fee_addr);
-                char *l_network_fee_balance_str = dap_chain_balance_print(l_network_fee);
-                char *l_network_fee_coins_str = dap_chain_balance_to_coins(l_network_fee);
-                char *l_network_fee_addr_str = dap_chain_addr_to_str(&l_network_fee_addr);
+                char *l_network_fee_coins_str, *l_network_fee_balance_str =
+                    dap_uint256_to_char(l_network_fee, &l_network_fee_coins_str);
                 json_object *l_jobj_network =  json_object_new_object();
                 json_object *l_jobj_fee_coins = json_object_new_string(l_network_fee_coins_str);
                 json_object *l_jobj_fee_balance = json_object_new_string(l_network_fee_balance_str);
                 json_object *l_jobj_native_ticker = json_object_new_string(l_net->pub.native_ticker);
-                json_object *l_jobj_fee_addr = json_object_new_string(l_network_fee_addr_str);
+                json_object *l_jobj_fee_addr = json_object_new_string(dap_chain_addr_to_str(&l_network_fee_addr));
                 if (!l_jobj_network || !l_jobj_fee_coins || !l_jobj_fee_balance || !l_jobj_native_ticker || !l_jobj_fee_addr) {
                     json_object_put(l_jobj_fees);
                     json_object_put(l_jobj_network);
@@ -1964,9 +1963,6 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 json_object_object_add(l_jobj_network, "ticker", l_jobj_native_ticker);
                 json_object_object_add(l_jobj_network, "addr", l_jobj_fee_addr);
                 json_object_object_add(l_jobj_fees, "network", l_jobj_network);
-                DAP_DELETE(l_network_fee_coins_str);
-                DAP_DELETE(l_network_fee_balance_str);
-                DAP_DELETE(l_network_fee_addr_str);
                 //Get validators fee
                 json_object *l_jobj_validators = dap_chain_net_srv_stake_get_fee_validators_json(l_net);
                 if (!l_jobj_validators) {
@@ -2123,11 +2119,11 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 char *l_hash_hex_str = NULL;
                 // hash may be in hex or base58 format
                 if(!dap_strncmp(l_hash_string, "0x", 2) || !dap_strncmp(l_hash_string, "0X", 2)) {
-                    l_hash_hex_str = dap_strdup(l_hash_string);
+                    l_hash_hex_str = l_hash_string;
                     //l_hash_base58_str = dap_enc_base58_from_hex_str_to_str(l_hash_string);
                 }
                 else {
-                    l_hash_hex_str = dap_enc_base58_to_hex_str_from_str(l_hash_string);
+                    l_hash_hex_str = dap_enc_base58_to_hex_str_from_str_static(l_hash_string);
                     //l_hash_base58_str = dap_strdup(l_hash_string);
                 }
 
@@ -2137,14 +2133,12 @@ static int s_cli_net(int argc, char **argv, void **reply)
                         json_object_put(l_jobj_return);
                         dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_CAN_NOT_FIND_CERT_CA_ADD,
                                                "Can't find \"%s\" certificate", l_cert_string);
-                        DAP_DELETE(l_hash_hex_str);
                         return DAP_CHAIN_NET_JSON_RPC_CAN_NOT_FIND_CERT_CA_ADD;
                     }
                     if (l_cert->enc_key == NULL) {
                         json_object_put(l_jobj_return);
                         dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_CAN_NOT_KEY_IN_CERT_CA_ADD,
                                                "No key found in \"%s\" certificate", l_cert_string);
-                        DAP_DEL_Z(l_hash_hex_str);
                         return DAP_CHAIN_NET_JSON_RPC_CAN_NOT_KEY_IN_CERT_CA_ADD;
                     }
                     // Get publivc key hash
@@ -2154,13 +2148,11 @@ static int s_cli_net(int argc, char **argv, void **reply)
                         json_object_put(l_jobj_return);
                         dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_CAN_SERIALIZE_PUBLIC_KEY_CERT_CA_ADD,
                                                "Can't serialize public key of certificate \"%s\"", l_cert_string);
-                        DAP_DEL_Z(l_hash_hex_str);
                         return DAP_CHAIN_NET_JSON_RPC_CAN_SERIALIZE_PUBLIC_KEY_CERT_CA_ADD;
                     }
                     dap_chain_hash_fast_t l_pkey_hash;
                     dap_hash_fast(l_pub_key, l_pub_key_size, &l_pkey_hash);
-                    DAP_DEL_Z(l_hash_hex_str);
-                    l_hash_hex_str = dap_chain_hash_fast_to_str_new(&l_pkey_hash);
+                    l_hash_hex_str = dap_chain_hash_fast_to_str_static(&l_pkey_hash);
                     //l_hash_base58_str = dap_enc_base58_encode_hash_to_str(&l_pkey_hash);
                 }
                 const char c = '1';
@@ -2178,10 +2170,8 @@ static int s_cli_net(int argc, char **argv, void **reply)
                         json_object_put(l_jobj_return);
                         dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_CAN_NOT_SAVE_PUBLIC_KEY_IN_DATABASE,
                                                "Can't save public key hash %s in database", l_hash_hex_str);
-                        DAP_DELETE(l_hash_hex_str);
                         return DAP_CHAIN_NET_JSON_RPC_CAN_NOT_SAVE_PUBLIC_KEY_IN_DATABASE;
                     }
-                    DAP_DELETE(l_hash_hex_str);
                 } else{
                     json_object_put(l_jobj_return);
                     dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_CAN_NOT_SAVE_PUBLIC_KEY_IN_DATABASE,
