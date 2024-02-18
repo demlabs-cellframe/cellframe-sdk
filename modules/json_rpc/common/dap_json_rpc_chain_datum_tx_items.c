@@ -93,8 +93,8 @@ json_object *dap_chain_net_srv_stake_lock_cond_out_to_json(dap_chain_tx_out_cond
 json_object* dap_chain_datum_tx_item_out_to_json(const dap_chain_tx_out_t *a_out) {
     json_object *l_object = json_object_new_object();
     char *l_val_coins, *l_val_datoshi = dap_uint256_to_char(a_out->header.value, &l_val_coins);
-    json_object_object_add(l_object, "value", l_val_coins);
-    json_object_object_add(l_object, "value_datoshi", l_val_datoshi);
+    json_object_object_add(l_object, "value", json_object_new_string(l_val_coins));
+    json_object_object_add(l_object, "value_datoshi", json_object_new_string(l_val_datoshi));
     json_object_object_add(l_object, "address", dap_chain_addr_to_json(&a_out->addr));
     return l_object;
 }

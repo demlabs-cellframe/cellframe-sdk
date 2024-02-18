@@ -1262,7 +1262,7 @@ static dap_chain_atom_ptr_t* s_chain_callback_atom_iter_get_links( dap_chain_ato
                     char l_err_str[256];
                     unsigned l_off = dap_snprintf(l_err_str, sizeof(l_err_str), "Can't find %s -> ",
                         dap_chain_hash_fast_to_str_static(l_link_hash));
-                    dap_snprintf(l_err_str + l_off, "%s links",
+                    dap_snprintf(l_err_str + l_off, sizeof(l_err_str) - l_off, "%s links",
                         l_event_item ? dap_chain_hash_fast_to_str_static(&l_event_item->hash) : "<null>");
                     log_it(L_ERROR, "%s", l_err_str);
                     (*a_links_size_array)--;

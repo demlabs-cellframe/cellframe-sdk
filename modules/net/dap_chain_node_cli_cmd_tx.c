@@ -478,13 +478,13 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                                       a_hash_out_type, l_ledger, &l_tx_hash, l_datum_iter->ret_code);
                     l_header_printed = true;
                 }
-                char *l_src_str;
+                char *l_src_str = NULL;
                 if (l_base_tx)
                     l_src_str = l_reward_collect ? "reward collecting" : "emission";
                 else if (l_src_addr && dap_strcmp(l_dst_token, l_noaddr_token))
                     l_src_str = dap_chain_addr_to_str(l_src_addr);
                 else
-                    l_src_str = dap_chain_tx_out_cond_subtype_to_str(l_src_subtype);
+                    l_src_str = (char*)dap_chain_tx_out_cond_subtype_to_str(l_src_subtype);
                 if (l_is_unstake)
                     l_value = l_unstake_value;
                 else if (!dap_strcmp(l_native_ticker, l_noaddr_token)) {

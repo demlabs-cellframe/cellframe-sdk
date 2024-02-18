@@ -899,7 +899,7 @@ dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net
         }
     }
 
-    l_price->wallet_addr = dap_strdup(dap_chain_addr_from_str(l_wallet_addr));
+    l_price->wallet_addr = dap_chain_addr_from_str(l_wallet_addr);
     if(!l_price->wallet_addr){
         log_it(L_ERROR, "Can't get wallet addr from wallet_addr in config file.");
         DAP_DELETE(l_price);
@@ -1004,7 +1004,7 @@ int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, cons
                 }
             }
 //          l_price->wallet = l_wallet;
-            l_price->wallet_addr = dap_strdup(dap_chain_addr_from_str(l_wallet_addr));
+            l_price->wallet_addr = dap_chain_addr_from_str(l_wallet_addr);
             if(!l_price->wallet_addr){
                 log_it(L_ERROR, "Can't get wallet addr from wallet_addr in config file.");
                 DAP_DEL_Z(l_order);
