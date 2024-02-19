@@ -104,8 +104,7 @@
 #include "dap_global_db.h"
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_stream_ch_chain_net.h"
-#include "dap_stream_ch_chain.h"
-#include "dap_stream_ch_chain_pkt.h"
+#include "dap_chain_ch.h"
 #include "dap_stream_ch.h"
 #include "dap_stream.h"
 #include "dap_stream_ch_pkt.h"
@@ -119,6 +118,7 @@
 #include "dap_chain_node_net_ban_list.h"
 #include "dap_chain_cs_esbocs.h"
 #include "dap_chain_net_voting.h"
+#include "dap_stream_cluster.h"
 
 #include <stdio.h>
 #include <sys/types.h>
@@ -180,6 +180,9 @@ typedef struct dap_chain_net_pvt{
 
     uint16_t permanent_links_count;
     dap_stream_node_addr_t *permanent_links; // TODO realize permanent links from config
+
+    uint16_t poa_nodes_count;
+    dap_stream_node_addr_t *poa_nodes_addrs;
 
     uint16_t seed_nodes_count;
     struct sockaddr_in *seed_nodes_ipv4;
@@ -243,7 +246,7 @@ static const dap_chain_node_client_callbacks_t s_node_link_callbacks = {
 };
 
 // State machine switchs here
-static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg);
+static bool s_net_states_proc(void *a_arg);
 
 struct json_object *s_net_states_json_collect(dap_chain_net_t * l_net);
 
@@ -253,6 +256,7 @@ static void s_nodelist_change_notify(dap_store_obj_t *a_obj, void *a_arg);
 static int s_net_init(const char * a_net_name, uint16_t a_acl_idx);
 
 static int s_net_load(dap_chain_net_t *a_net);
+static int s_net_try_online(dap_chain_net_t *a_net);
 
 static int s_cli_net(int argc, char ** argv, void **a_str_reply);
 static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
@@ -268,7 +272,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
 int dap_chain_net_init()
 {
     dap_ledger_init();
-    dap_stream_ch_chain_init();
+    dap_chain_ch_init();
     dap_stream_ch_chain_net_init();
     dap_chain_node_client_init();
     dap_chain_net_voting_init();
@@ -296,7 +300,7 @@ int dap_chain_net_init()
             "\tDelete certificate from list of authority cetificates in GDB group by it's hash\n"
         "net -net <chain net name> ledger reload\n"
             "\tPurge the cache of chain net ledger and recalculate it from chain file\n"
-        "net -net <chain net name> poa_cets list\n"
+        "net -net <chain net name> poa_certs list\n"
             "\tPrint list of PoA cerificates for this network\n");
 
     s_debug_more = dap_config_get_item_bool_default(g_config,"chain_net","debug_more",false);
@@ -381,7 +385,7 @@ int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_n
     }
     if (PVT(a_net)->state != NET_STATE_OFFLINE){
         PVT(a_net)->state = PVT(a_net)->state_target = NET_STATE_OFFLINE;
-        s_net_states_proc(NULL, a_net);
+        s_net_states_proc(a_net);
     }
     PVT(a_net)->state_target = a_new_state;
     //PVT(a_net)->flags |= F_DAP_CHAIN_NET_SYNC_FROM_ZERO;  // TODO set this flag according to -mode argument from command line
@@ -428,7 +432,7 @@ dap_chain_node_info_t *dap_chain_net_balancer_link_from_cfg(dap_chain_net_t *a_n
 void dap_chain_net_add_cluster_link(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_node_addr)
 {
     dap_return_if_fail(a_net && a_node_addr);
-    dap_cluster_t *l_links_cluster = dap_cluster_by_mnemonim(a_net->pub.gdb_groups_prefix);
+    dap_cluster_t *l_links_cluster = dap_cluster_by_mnemonim(a_net->pub.name);
     if (l_links_cluster)
         dap_cluster_member_add(l_links_cluster, a_node_addr, 0, NULL);
     else
@@ -542,7 +546,7 @@ static bool s_net_link_callback_connect_delayed(void *a_arg)
     dap_chain_node_client_t *l_client = l_link->link;
     log_it(L_MSG, "Connecting to link "NODE_ADDR_FP_STR" [%s]",
            NODE_ADDR_FP_ARGS_S(l_client->info->hdr.address), inet_ntoa(l_client->info->hdr.ext_addr_v4));
-    dap_chain_node_client_connect(l_client, "GND");
+    dap_chain_node_client_connect(l_client, "CGND");
     l_link->delay_timer = NULL;
     return false;
 }
@@ -562,7 +566,7 @@ static bool s_net_link_start(dap_chain_net_t *a_net, struct net_link *a_link, ui
         return true;
     }
     log_it(L_MSG, "Connecting to link "NODE_ADDR_FP_STR" [%s]", NODE_ADDR_FP_ARGS_S(l_link_info->hdr.address), inet_ntoa(l_link_info->hdr.ext_addr_v4));
-    return dap_chain_node_client_connect(l_client, "GND");
+    return dap_chain_node_client_connect(l_client, "CGND");
 }
 
 /**
@@ -573,9 +577,10 @@ static void s_fill_links_from_root_aliases(dap_chain_net_t * a_net)
 {
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     for (size_t i = 0; i < l_net_pvt->seed_nodes_count; i++) {
-        dap_chain_node_info_t l_link_node_info;
+        dap_chain_node_info_t l_link_node_info = {};
         l_link_node_info.hdr.ext_addr_v4 = l_net_pvt->seed_nodes_ipv4[i].sin_addr;
         l_link_node_info.hdr.ext_port = l_net_pvt->seed_nodes_ipv4[i].sin_port;
+        l_link_node_info.hdr.address = l_net_pvt->poa_nodes_addrs[i];
         if (s_net_link_add(a_net, &l_link_node_info) > 0)    // Maximum links count reached
             break;
     }
@@ -1070,9 +1075,8 @@ static void s_net_states_notify(dap_chain_net_t *a_net)
  * @brief s_net_states_proc
  * @param l_net
  */
-static bool s_net_states_proc(dap_proc_thread_t *a_thread, void *a_arg)
+static bool s_net_states_proc(void *a_arg)
 {
-    UNUSED(a_thread);
     bool l_repeat_after_exit = false; // If true - repeat on next iteration of proc thread loop
     dap_chain_net_t *l_net = (dap_chain_net_t *) a_arg;
     assert(l_net);
@@ -1343,6 +1347,56 @@ dap_string_t* dap_cli_list_net()
     return l_string_ret;
 }
 
+json_object* s_set_reply_text_node_status_json(dap_chain_net_t *a_net) {
+    json_object *l_jobj_ret = json_object_new_object();
+    json_object *l_jobj_net_name  = json_object_new_string(a_net->pub.name);
+    if (!l_jobj_ret || !l_jobj_net_name) {
+        json_object_put(l_jobj_ret);
+        json_object_put(l_jobj_net_name);
+        dap_json_rpc_allocation_error;
+        return NULL;
+    }
+    json_object_object_add(l_jobj_ret, "net", l_jobj_net_name);
+    dap_chain_node_addr_t l_cur_node_addr = { 0 };
+    l_cur_node_addr.uint64 = dap_chain_net_get_cur_addr_int(a_net);
+    json_object *l_jobj_cur_node_addr;
+    if(!l_cur_node_addr.uint64) {
+        l_jobj_cur_node_addr = json_object_new_string("not defined");
+    } else {
+        char *l_cur_node_addr_str = dap_strdup_printf(NODE_ADDR_FP_STR,NODE_ADDR_FP_ARGS_S(l_cur_node_addr));
+        l_jobj_cur_node_addr = json_object_new_string(l_cur_node_addr_str);
+        DAP_DELETE(l_cur_node_addr_str);
+    }
+    if (!l_jobj_cur_node_addr) {
+        json_object_put(l_jobj_ret);
+        return NULL;
+    }
+    json_object_object_add(l_jobj_ret, "current_addr", l_jobj_cur_node_addr);
+    if (PVT(a_net)->state != NET_STATE_OFFLINE) {
+        json_object *l_jobj_links = json_object_new_object();
+        json_object *l_jobj_active_links = json_object_new_uint64(s_net_get_active_links_count(a_net));
+        json_object *l_jobj_total_links = json_object_new_uint64(HASH_COUNT(PVT(a_net)->net_links));
+        if (!l_jobj_links || !l_jobj_active_links || !l_jobj_total_links) {
+            json_object_put(l_jobj_ret);
+            json_object_put(l_jobj_links);
+            json_object_put(l_jobj_active_links);
+            json_object_put(l_jobj_total_links);
+            dap_json_rpc_allocation_error;
+            return NULL;
+        }
+        json_object_object_add(l_jobj_links, "active", l_jobj_active_links);
+        json_object_object_add(l_jobj_links, "total", l_jobj_total_links);
+        json_object_object_add(l_jobj_ret, "links", l_jobj_links);
+    }
+    json_object *l_jobj_states = json_object_new_object();
+    json_object *l_jobj_current_states = json_object_new_string(c_net_states[PVT(a_net)->state]);
+    json_object *l_jobj_target_states = json_object_new_string(c_net_states[PVT(a_net)->state_target]);
+    json_object_object_add(l_jobj_states, "current", l_jobj_current_states);
+    json_object_object_add(l_jobj_states, "target", l_jobj_target_states);
+    json_object_object_add(l_jobj_ret, "states", l_jobj_states);
+    return l_jobj_ret;
+}
+
 void s_set_reply_text_node_status(void **a_str_reply, dap_chain_net_t * a_net){
     char* l_node_address_text_block = NULL;
     dap_chain_node_addr_t l_cur_node_addr = { 0 };
@@ -1492,8 +1546,13 @@ static const char *s_chain_type_convert_to_string(dap_chain_type_t a_type)
  * @param str_reply
  * @return
  */
-static int s_cli_net(int argc, char **argv, void **a_str_reply)
+static int s_cli_net(int argc, char **argv, void **reply)
 {
+    json_object *l_jobj_return = json_object_new_object();
+    if (!l_jobj_return) {
+        dap_json_rpc_allocation_error;
+        return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+    }
     int arg_index = 1;
     dap_chain_net_t * l_net = NULL;
 
@@ -1502,85 +1561,150 @@ static int s_cli_net(int argc, char **argv, void **a_str_reply)
     if(!l_hash_out_type)
         l_hash_out_type = "hex";
     if(dap_strcmp(l_hash_out_type,"hex") && dap_strcmp(l_hash_out_type,"base58")) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "invalid parameter -H, valid values: -H <hex | base58>");
-        return -1;
+        json_object_put(l_jobj_return);
+        dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_INVALID_PARAMETER_HASH, "invalid parameter -H, valid values: -H <hex | base58>");
+        return DAP_CHAIN_NET_JSON_RPC_INVALID_PARAMETER_HASH;
+
     }
 
     // command 'list'
     const char * l_list_cmd = NULL;
 
     if(dap_cli_server_cmd_find_option_val(argv, arg_index, dap_min(argc, arg_index + 1), "list", &l_list_cmd) != 0 ) {
-        dap_string_t *l_string_ret = dap_string_new("");
         if (dap_strcmp(l_list_cmd,"chains")==0){
             const char * l_net_str = NULL;
             dap_chain_net_t* l_net = NULL;
             if (dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-net", &l_net_str) && !l_net_str) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Parameter '-net' require <net name>");
-                return -1;
+                json_object_put(l_jobj_return);
+                dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_CAN_NOT_PARAMETER_NET_REQUIRE, "Parameter '-net' require <net name>");
+                return DAP_CHAIN_NET_JSON_RPC_CAN_NOT_PARAMETER_NET_REQUIRE;
             }
 
             l_net = dap_chain_net_by_name(l_net_str);
             if (l_net_str && !l_net) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Wrong <net name>, use 'net list' "
-                                                            "command to display a list of available networks");
-                return -1;
+                json_object_put(l_jobj_return);
+                dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_WRONG_NET, "Wrong <net name>, use 'net list' "
+                                                                         "command to display a list of available networks");
+                return DAP_CHAIN_NET_JSON_RPC_WRONG_NET;
             }
 
             if (l_net){
-                dap_string_append(l_string_ret,"Chains:\n");
+                json_object *l_jobj_net_name = json_object_new_string(l_net->pub.name);
+                json_object *l_jobj_chains = json_object_new_array();
+                if (!l_jobj_net_name || !l_jobj_chains) {
+                    json_object_put(l_jobj_return);
+                    json_object_put(l_jobj_net_name);
+                    json_object_put(l_jobj_chains);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
                 dap_chain_t * l_chain = l_net->pub.chains;
                 while (l_chain) {
-                    dap_string_append_printf(l_string_ret, "\t%s:\n", l_chain->name );
+                    json_object *l_jobj_chain_name = json_object_new_string(l_chain->name);
+                    if (!l_jobj_chain_name) {
+                        json_object_put(l_jobj_return);
+                        json_object_put(l_jobj_net_name);
+                        json_object_put(l_jobj_chains);
+                        json_object_put(l_jobj_chain_name);
+                        dap_json_rpc_allocation_error;
+                        return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                    }
+                    json_object_array_add(l_jobj_chains, l_jobj_chain_name);
                     l_chain = l_chain->next;
                 }
+                json_object_object_add(l_jobj_return, "net", l_jobj_net_name);
+                json_object_object_add(l_jobj_return, "chains", l_jobj_chains);
             }else{
                 dap_chain_net_item_t * l_net_item, *l_net_item_tmp;
-                int l_net_i = 0;
-                dap_string_append(l_string_ret,"Networks:\n");
+                json_object *l_jobj_networks = json_object_new_array();
                 HASH_ITER(hh, s_net_items, l_net_item, l_net_item_tmp){
+                    json_object *l_jobj_network = json_object_new_object();
+                    json_object *l_jobj_chains = json_object_new_array();
                     l_net = l_net_item->chain_net;
-                    dap_string_append_printf(l_string_ret, "\t%s:\n", l_net_item->name);
-                    l_net_i++;
+                    json_object *l_jobj_network_name = json_object_new_string(l_net_item->name);
+                    if (!l_jobj_network || !l_jobj_chains || !l_jobj_network_name) {
+                        json_object_put(l_jobj_return);
+                        json_object_put(l_jobj_network);
+                        json_object_put(l_jobj_chains);
+                        json_object_put(l_jobj_network_name);
+                        dap_json_rpc_allocation_error;
+                        return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                    }
+                    json_object_object_add(l_jobj_network, "name", l_jobj_network_name);
 
                     dap_chain_t * l_chain = l_net->pub.chains;
                     while (l_chain) {
-                        dap_string_append_printf(l_string_ret, "\t\t%s:\n", l_chain->name );
-                        if (l_chain->default_datum_types_count)
-                        {
-                            dap_string_append_printf(l_string_ret, "\t\t");
-                            for (uint16_t i = 0; i < l_chain->default_datum_types_count; i++)
-                                dap_string_append_printf(l_string_ret, "| %s ", s_chain_type_convert_to_string(l_chain->default_datum_types[i]) );
-                            dap_string_append_printf(l_string_ret, "|\n");
+                        json_object *l_jobj_chain = json_object_new_object();
+                        json_object *l_jobj_chain_name = json_object_new_string(l_chain->name);
+                        if (!l_jobj_chain || !l_jobj_chain_name) {
+                            json_object_put(l_jobj_return);
+                            json_object_put(l_jobj_network);
+                            json_object_put(l_jobj_chains);
+                            json_object_put(l_jobj_chain);
+                            json_object_put(l_jobj_chain_name);
+                            dap_json_rpc_allocation_error;
+                            return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                         }
+                        json_object_object_add(l_jobj_chain, "name", l_jobj_chain_name);
+                        if (l_chain->default_datum_types_count) {
+                            json_object *l_jobj_default_types = json_object_new_array();
+                            if (!l_jobj_default_types) {
+                                json_object_put(l_jobj_return);
+                                json_object_put(l_jobj_chain);
+                                json_object_put(l_jobj_chains);
+                                json_object_put(l_jobj_network);
+                                json_object_put(l_jobj_networks);
+                                dap_json_rpc_allocation_error;
+                                return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                            }
+                            for (uint16_t i = 0; i < l_chain->default_datum_types_count; i++) {
+                                json_object *l_jobj_type_str = json_object_new_string(s_chain_type_convert_to_string(
+                                        l_chain->default_datum_types[i]));
+                                if (!l_jobj_type_str) {
+                                    json_object_put(l_jobj_return);
+                                    json_object_put(l_jobj_default_types);
+                                    json_object_put(l_jobj_chain);
+                                    json_object_put(l_jobj_chains);
+                                    json_object_put(l_jobj_network);
+                                    json_object_put(l_jobj_networks);
+                                    dap_json_rpc_allocation_error;
+                                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                                }
+                                json_object_array_add(l_jobj_default_types, l_jobj_type_str);
+                            }
+                            json_object_object_add(l_jobj_chain, "default_types", l_jobj_default_types);
+                        }
+                        json_object_array_add(l_jobj_chains, l_jobj_chain);
                         l_chain = l_chain->next;
                     }
+                    json_object_object_add(l_jobj_network, "chain", l_jobj_chains);
+                    json_object_array_add(l_jobj_networks, l_jobj_network);
                 }
+                json_object_object_add(l_jobj_return, "networks", l_jobj_networks);
             }
-
         }else{
             // plug for wrong command arguments
             if (argc > 2) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "To many arguments for 'net list' command see help");
-                return -1;
+                json_object_put(l_jobj_return);
+                dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_MANY_ARGUMENT_FOR_COMMAND_NET_LIST,
+                                       "To many arguments for 'net list' command see help");
+                return DAP_CHAIN_NET_JSON_RPC_MANY_ARGUMENT_FOR_COMMAND_NET_LIST;
             }
 
-            dap_string_append(l_string_ret,"Networks:\n");
+            json_object *l_jobj_networks = json_object_new_array();
             // show list of nets
             dap_chain_net_item_t * l_net_item, *l_net_item_tmp;
-            int l_net_i = 0;
             HASH_ITER(hh, s_net_items, l_net_item, l_net_item_tmp){
-                dap_string_append_printf(l_string_ret, "\t%s\n", l_net_item->name);
-                l_net_i++;
+                json_object *l_jobj_network_name = json_object_new_string(l_net_item->name);
+                json_object_array_add(l_jobj_networks, l_jobj_network_name);
             }
-            dap_string_append(l_string_ret, "\n");
+            json_object_object_add(l_jobj_return, "networks", l_jobj_networks);
         }
-
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_string_ret->str);
-        dap_string_free(l_string_ret, true);
+        json_object_array_add(*reply, l_jobj_return);
         return 0;
     }
 
-    int l_ret = dap_chain_node_cli_cmd_values_parse_net_chain( &arg_index, argc, argv, a_str_reply, NULL, &l_net );
+    int l_ret = dap_chain_node_cli_cmd_values_parse_net_chain_for_json(&arg_index, argc, argv, NULL, &l_net);
 
     if ( l_net ) {
         const char *l_sync_str = NULL;
@@ -1611,11 +1735,11 @@ static int s_cli_net(int argc, char **argv, void **a_str_reply)
             if (strcmp(l_stats_str,"tx") == 0) {
                 const char *l_to_str = NULL;
                 const char *l_from_str = NULL;
-                const char *l_prev_sec_str = NULL;
+                const char *l_prev_day_str = NULL;
                 // Read from/to time
                 dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-from", &l_from_str);
                 dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-to", &l_to_str);
-                dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-prev_sec", &l_prev_sec_str);
+                dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-prev_day", &l_prev_day_str);
                 time_t l_ts_now = time(NULL);
                 if (l_from_str) {
                     strptime( (char *)l_from_str, c_time_fmt, &l_from_tm );
@@ -1624,11 +1748,14 @@ static int s_cli_net(int argc, char **argv, void **a_str_reply)
                     } else { // If not set '-to' - we set up current time
                         localtime_r(&l_ts_now, &l_to_tm);
                     }
-                } else if (l_prev_sec_str) {
-                    l_ts_now -= strtol( l_prev_sec_str, NULL,10 );
+                } else if (l_prev_day_str) {
+                    localtime_r(&l_ts_now, &l_to_tm);
+                    double l_days = strtod(l_prev_day_str, NULL);
+                    l_ts_now -= (time_t)(l_days * 86400);
                     localtime_r(&l_ts_now, &l_from_tm );
                 } else if ( l_from_str == NULL ) { // If not set '-from' we set up current time minus 60 seconds
-                    l_ts_now -= 60;
+                    localtime_r(&l_ts_now, &l_to_tm);
+                    l_ts_now -= 86400;
                     localtime_r(&l_ts_now, &l_from_tm );
                 }
                 // Form timestamps from/to
@@ -1639,69 +1766,180 @@ static int s_cli_net(int argc, char **argv, void **a_str_reply)
                 char l_to_str_new[50];
                 strftime(l_from_str_new, sizeof(l_from_str_new), c_time_fmt,&l_from_tm );
                 strftime(l_to_str_new, sizeof(l_to_str_new), c_time_fmt,&l_to_tm );
-                dap_string_t * l_ret_str = dap_string_new("Transactions statistics:\n");
-                dap_string_append_printf( l_ret_str, "\tFrom: %s\tTo: %s\n", l_from_str_new, l_to_str_new);
+                json_object *l_jobj_stats = json_object_new_object();
+                if (!l_jobj_stats) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                if (l_from_str) {
+                    json_object *l_jobj_from = json_object_new_string(l_from_str);
+                    if (!l_jobj_from) {
+                        json_object_put(l_jobj_return);
+                        json_object_put(l_jobj_stats);
+                        dap_json_rpc_allocation_error;
+                        return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                    }
+                    json_object_object_add(l_jobj_stats, "from", l_jobj_from);
+                }
+                if (l_to_str) {
+                    json_object *l_jobj_to = json_object_new_string(l_to_str);
+                    if (!l_jobj_to) {
+                        json_object_put(l_jobj_return);
+                        json_object_put(l_jobj_stats);
+                        dap_json_rpc_allocation_error;
+                        return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                    }
+                    json_object_object_add(l_jobj_stats, "to", l_jobj_to);
+                }
                 log_it(L_INFO, "Calc TPS from %s to %s", l_from_str_new, l_to_str_new);
                 uint64_t l_tx_count = dap_ledger_count_from_to ( l_net->pub.ledger, l_from_ts, l_to_ts);
-                long double l_tps = l_to_ts == l_from_ts ? 0 :
-                                                     (long double) l_tx_count / (long double) ( l_to_ts - l_from_ts );
-                dap_string_append_printf( l_ret_str, "\tSpeed:  %.3Lf TPS\n", l_tps );
-                dap_string_append_printf( l_ret_str, "\tTotal:  %"DAP_UINT64_FORMAT_U"\n", l_tx_count );
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_ret_str->str);
-                dap_string_free(l_ret_str, true);
-            } else if (strcmp(l_stats_str, "tps") == 0) {
+                long double l_tpd = l_to_ts == l_from_ts ? 0 :
+                                                     (long double) l_tx_count / (long double) ((long double)(l_to_ts - l_from_ts) / 86400);
+                char *l_tpd_str = dap_strdup_printf("%.3Lf", l_tpd);
+                json_object *l_jobj_tpd = json_object_new_string(l_tpd_str);
+                DAP_DELETE(l_tpd_str);
+                json_object *l_jobj_total = json_object_new_uint64(l_tx_count);
+                if (!l_jobj_tpd || !l_jobj_total) {
+                    json_object_put(l_jobj_return);
+                    json_object_put(l_jobj_stats);
+                    json_object_put(l_jobj_tpd);
+                    json_object_put(l_jobj_total);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_stats, "transaction_per_day", l_jobj_tpd);
+                json_object_object_add(l_jobj_stats, "total", l_jobj_total);
+                json_object_object_add(l_jobj_return, "transaction_statistics", l_jobj_stats);
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
+            }
+#ifdef DAP_TPS_TEST
+            else if (strcmp(l_stats_str, "tps") == 0) {
                 struct timespec l_from_time_acc = {}, l_to_time_acc = {};
-                dap_string_t * l_ret_str = dap_string_new("Transactions per second peak values:\n");
+                json_object *l_jobj_values = json_object_new_object();
+                if (!l_jobj_values) {
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
                 size_t l_tx_num = dap_ledger_count_tps(l_net->pub.ledger, &l_from_time_acc, &l_to_time_acc);
                 if (l_tx_num) {
                     localtime_r(&l_from_time_acc.tv_sec, &l_from_tm);
                     strftime(l_from_str_new, sizeof(l_from_str_new), c_time_fmt, &l_from_tm);
                     localtime_r(&l_to_time_acc.tv_sec, &l_to_tm);
                     strftime(l_to_str_new, sizeof(l_to_str_new), c_time_fmt, &l_to_tm);
-                    dap_string_append_printf(l_ret_str, "\tFrom: %s\tTo: %s\n", l_from_str_new, l_to_str_new);
+                    json_object *l_jobj_from = json_object_new_string(l_from_str_new);
+                    json_object *l_jobj_to = json_object_new_string(l_to_str_new);
                     uint64_t l_diff_ns = (l_to_time_acc.tv_sec - l_from_time_acc.tv_sec) * 1000000000 +
                                             l_to_time_acc.tv_nsec - l_from_time_acc.tv_nsec;
                     long double l_tps = (long double)(l_tx_num * 1000000000) / (long double)(l_diff_ns);
-                    dap_string_append_printf(l_ret_str, "\tSpeed:  %.3Lf TPS\n", l_tps);
+                    char *l_tps_str = dap_strdup_printf("%.3Lf", l_tps);
+                    json_object *l_jobj_tps = json_object_new_string(l_tps_str);
+                    DAP_DELETE(l_tps_str);
+                    if (!l_jobj_from || !l_jobj_to || !l_jobj_tps) {
+                        json_object_put(l_jobj_return);
+                        json_object_put(l_jobj_values);
+                        json_object_put(l_jobj_from);
+                        json_object_put(l_jobj_to);
+                        json_object_put(l_jobj_tps);
+                        dap_json_rpc_allocation_error;
+                        return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                    }
+                    json_object_object_add(l_jobj_values, "from", l_jobj_from);
+                    json_object_object_add(l_jobj_values, "to", l_jobj_to);
+                    json_object_object_add(l_jobj_values, "tps", l_jobj_tps);
                 }
-                dap_string_append_printf(l_ret_str, "\tTotal:  %zu\n", l_tx_num);
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_ret_str->str);
-                dap_string_free(l_ret_str, true);
-            } else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "Subcommand 'stats' requires one of parameter: tx, tps\n");
+                json_object *l_jobj_total = json_object_new_uint64(l_tx_num);
+                if (!l_jobj_total) {
+                    json_object_put(l_jobj_return);
+                    json_object_put(l_jobj_values);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_values, "total", l_jobj_total);
+                json_object_object_add(l_jobj_return, "transactions_per_second_peak", l_jobj_values);
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
+            }
+#endif
+            else {
+                json_object_put(l_jobj_return);
+#ifdef DAP_TPS_TEST
+                dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_STATS, "Subcommand 'stats' requires one of parameter: tx, tps");
+#else
+                dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_STATS, "Subcommand 'stats' requires one of parameter: tx");
+#endif
+                l_ret = DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_STATS;
             }
         } else if ( l_go_str){
+            json_object *l_jobj_net = json_object_new_string(l_net->pub.name);
+            json_object *l_jobj_current_status = json_object_new_string(c_net_states[PVT(l_net)->state]);
+            if (!l_jobj_net || !l_jobj_current_status) {
+                json_object_put(l_jobj_return);
+                json_object_put(l_jobj_net);
+                json_object_put(l_jobj_current_status);
+                dap_json_rpc_allocation_error;
+                return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+            }
+            json_object_object_add(l_jobj_return, "net", l_jobj_net);
+            json_object_object_add(l_jobj_return, "current", l_jobj_current_status);
             if ( strcmp(l_go_str,"online") == 0 ) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Network \"%s\" going from state %s to %s",
-                                                  l_net->pub.name,c_net_states[PVT(l_net)->state],
-                                                  c_net_states[NET_STATE_ONLINE]);
-
+                json_object *l_jobj_to = json_object_new_string(c_net_states[NET_STATE_ONLINE]);
+                if (!l_jobj_to) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_return, "to", l_jobj_to);
                 dap_chain_net_balancer_prepare_list_links(l_net->pub.name,true);
                 dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE);
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else if ( strcmp(l_go_str,"offline") == 0 ) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Network \"%s\" going from state %s to %s",
-                                                  l_net->pub.name,c_net_states[PVT(l_net)->state],
-                                                  c_net_states[NET_STATE_OFFLINE]);
+                json_object *l_jobj_to = json_object_new_string(c_net_states[NET_STATE_OFFLINE]);
+                if (!l_jobj_to) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_return, "to", l_jobj_to);
                 dap_chain_net_state_go_to(l_net, NET_STATE_OFFLINE);
-
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else if (strcmp(l_go_str, "sync") == 0) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Network \"%s\" resynchronizing",
-                                                  l_net->pub.name);
+                json_object *l_jobj_to = json_object_new_string("resynchronizing");
+                if (!l_jobj_to) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_return, "start", l_jobj_to);
                 if (PVT(l_net)->state_target == NET_STATE_ONLINE)
                     dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE);
                 else
                     dap_chain_net_state_go_to(l_net, NET_STATE_SYNC_CHAINS);
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "Subcommand 'go' requires one of parameters: online, offline, sync\n");
+                dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_GO,
+                                       "Subcommand 'go' requires one of parameters: online, offline, sync\n");
+                l_ret = DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_GO;
             }
         } else if ( l_get_str){
             if ( strcmp(l_get_str,"status") == 0 ) {
-                s_set_reply_text_node_status(a_str_reply, l_net);
-                l_ret = 0;
+                json_object *l_jobj = s_set_reply_text_node_status_json(l_net);
+                if (!l_jobj) {
+                    json_object_put(l_jobj_return);
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_return, "status", l_jobj);
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else if ( strcmp(l_get_str, "fee") == 0) {
-                dap_string_t *l_str = dap_string_new("\0");
+                json_object *l_jobj_fees = json_object_new_object();
+                json_object *l_jobj_network_name = json_object_new_string(l_net->pub.name);
+                if (!l_jobj_fees || !l_jobj_network_name) {
+                    json_object_put(l_jobj_return);
+                    json_object_put(l_jobj_fees);
+                    json_object_put(l_jobj_network_name);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_fees, "network", l_jobj_network_name);
                 // Network fee
                 uint256_t l_network_fee = {};
                 dap_chain_addr_t l_network_fee_addr = {};
@@ -1709,106 +1947,168 @@ static int s_cli_net(int argc, char **argv, void **a_str_reply)
                 char *l_network_fee_balance_str = dap_chain_balance_print(l_network_fee);
                 char *l_network_fee_coins_str = dap_chain_balance_to_coins(l_network_fee);
                 char *l_network_fee_addr_str = dap_chain_addr_to_str(&l_network_fee_addr);
-                dap_string_append_printf(l_str, "Fees on %s network:\n"
-                                                "\t Network: %s (%s) %s Addr: %s\n",
-                                                  l_net->pub.name, l_network_fee_coins_str, l_network_fee_balance_str,
-                                                  l_net->pub.native_ticker, l_network_fee_addr_str);
+                json_object *l_jobj_network =  json_object_new_object();
+                json_object *l_jobj_fee_coins = json_object_new_string(l_network_fee_coins_str);
+                json_object *l_jobj_fee_balance = json_object_new_string(l_network_fee_balance_str);
+                json_object *l_jobj_native_ticker = json_object_new_string(l_net->pub.native_ticker);
+                json_object *l_jobj_fee_addr = json_object_new_string(l_network_fee_addr_str);
+                if (!l_jobj_network || !l_jobj_fee_coins || !l_jobj_fee_balance || !l_jobj_native_ticker || !l_jobj_fee_addr) {
+                    json_object_put(l_jobj_fees);
+                    json_object_put(l_jobj_network);
+                    json_object_put(l_jobj_fee_coins);
+                    json_object_put(l_jobj_fee_balance);
+                    json_object_put(l_jobj_native_ticker);
+                    json_object_put(l_jobj_fee_addr);
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_network, "coins", l_jobj_fee_coins);
+                json_object_object_add(l_jobj_network, "balance", l_jobj_fee_balance);
+                json_object_object_add(l_jobj_network, "ticker", l_jobj_native_ticker);
+                json_object_object_add(l_jobj_network, "addr", l_jobj_fee_addr);
+                json_object_object_add(l_jobj_fees, "network", l_jobj_network);
                 DAP_DELETE(l_network_fee_coins_str);
                 DAP_DELETE(l_network_fee_balance_str);
                 DAP_DELETE(l_network_fee_addr_str);
-
                 //Get validators fee
-                dap_chain_net_srv_stake_get_fee_validators_str(l_net, l_str);
+                json_object *l_jobj_validators = dap_chain_net_srv_stake_get_fee_validators_json(l_net);
+                if (!l_jobj_validators) {
+                    json_object_put(l_jobj_fees);
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
                 //Get services fee
-                dap_string_append_printf(l_str, "Services fee: \n");
-                dap_chain_net_srv_xchange_print_fee(l_net, l_str); //Xchaneg fee
-
-                *a_str_reply = dap_string_free(l_str, false);
-                l_ret = 0;
+                json_object *l_jobj_xchange = dap_chain_net_srv_xchange_print_fee_json(l_net); //Xchaneg fee
+                if (!l_jobj_xchange) {
+                    json_object_put(l_jobj_validators);
+                    json_object_put(l_jobj_fees);
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_fees, "validators", l_jobj_validators);
+                json_object_object_add(l_jobj_fees, "xchange", l_jobj_xchange);
+                json_object_object_add(l_jobj_return, "fees", l_jobj_fees);
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else if (strcmp(l_get_str,"id") == 0 ){
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Net %s has id 0x%016"DAP_UINT64_FORMAT_X,
-                                                                l_net->pub.name, l_net->pub.id.uint64);
-                l_ret = 0;
+                json_object *l_jobj_net_name = json_object_new_string(l_net->pub.name);
+                char *l_id_str = dap_strdup_printf("0x%016"DAP_UINT64_FORMAT_X, l_net->pub.id.uint64);
+                json_object *l_jobj_id = json_object_new_string(l_id_str);
+                DAP_DELETE(l_id_str);
+                if (!l_jobj_net_name || !l_jobj_id) {
+                    json_object_put(l_jobj_net_name);
+                    json_object_put(l_jobj_id);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_return, "network", l_jobj_net_name);
+                json_object_object_add(l_jobj_return, "id", l_jobj_id);
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             }
         } else if ( l_links_str ){
             if ( strcmp(l_links_str,"list") == 0 ) {
-                size_t i =0;
-                dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
-                pthread_mutex_lock(&l_net_pvt->uplinks_mutex);
-                size_t l_links_count = HASH_COUNT(l_net_pvt->net_links);
-                dap_string_t *l_reply = dap_string_new("");
-                dap_string_append_printf(l_reply,"Links %zu:\n", l_links_count);
-                struct net_link *l_link, *l_link_tmp;
-                HASH_ITER(hh, l_net_pvt->net_links, l_link, l_link_tmp) {
-                    dap_chain_node_client_t *l_node_client = l_link->link;
-                    if(l_node_client){
-                        dap_chain_node_info_t * l_info = l_node_client->info;
-                        char l_ext_addr_v4[INET_ADDRSTRLEN]={};
-                        char l_ext_addr_v6[INET6_ADDRSTRLEN]={};
-                        inet_ntop(AF_INET,&l_info->hdr.ext_addr_v4,l_ext_addr_v4,sizeof (l_info->hdr.ext_addr_v4));
-                        inet_ntop(AF_INET6,&l_info->hdr.ext_addr_v6,l_ext_addr_v6,sizeof (l_info->hdr.ext_addr_v6));
-
-                        dap_string_append_printf(l_reply,
-                                                    "\t"NODE_ADDR_FP_STR":\n"
-                                                    "\t\talias: %s\n"
-                                                    "\t\tcell_id: 0x%016"DAP_UINT64_FORMAT_X"\n"
-                                                    "\t\text_ipv4: %s\n"
-                                                    "\t\text_ipv6: %s\n"
-                                                    "\t\text_port: %u\n"
-                                                    "\t\tstate: %s\n",
-                                                 NODE_ADDR_FP_ARGS_S(l_info->hdr.address), l_info->alias, l_info->hdr.cell_id.uint64,
-                                                 l_ext_addr_v4, l_ext_addr_v6, l_info->hdr.ext_port,
-                                                 dap_chain_node_client_state_to_str(l_node_client->state) );
-                    }
-                    i++;
+                dap_cluster_t *l_net_cluster = dap_cluster_by_mnemonim(l_net->pub.name);
+                if (!l_net_cluster) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_CAN_NOT_GET_CLUSTER, "Failed to obtain a cluster for "
+                                                                                       "the specified network.");
+                    return DAP_CHAIN_NET_JSON_RPC_CAN_NOT_GET_CLUSTER;
                 }
-                pthread_mutex_unlock(&l_net_pvt->uplinks_mutex);
-                dap_cli_server_cmd_set_reply_text(a_str_reply,"%s",l_reply->str);
-                dap_string_free(l_reply,true);
-
+                json_object *l_jobj_links = dap_cluster_get_links_info_json(l_net_cluster);
+                if (!l_jobj_links) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_return, "links", l_jobj_links);
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else if ( strcmp(l_links_str,"add") == 0 ) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,"Not implemented\n");
+                json_object *l_jobj_not_implemented = json_object_new_string("Not implemented");
+                if (!l_jobj_not_implemented) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_return, "add", l_jobj_not_implemented);
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else if ( strcmp(l_links_str,"del") == 0 ) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,"Not implemented\n");
-
+                json_object *l_jobj_not_implemented = json_object_new_string("Not implemented");
+                if (!l_jobj_not_implemented) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_return, "del", l_jobj_not_implemented);
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             }  else if ( strcmp(l_links_str,"info") == 0 ) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,"Not implemented\n");
-
+                json_object *l_jobj_not_implemented = json_object_new_string("Not implemented");
+                if (!l_jobj_not_implemented) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_return, "info", l_jobj_not_implemented);
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else if ( strcmp (l_links_str,"disconnect_all") == 0 ){
-                l_ret = 0;
                 dap_chain_net_stop(l_net);
-                dap_cli_server_cmd_set_reply_text(a_str_reply,"Stopped network\n");
+                json_object *l_jobj_ret = json_object_new_string("Stopped network");
+                if (!l_jobj_ret) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_return, "message", l_jobj_ret);
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             }else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "Subcommand 'link' requires one of parameters: list, add, del, info, disconnect_all\n");
-                l_ret = -3;
+                dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_COMMAND_LINK,
+                                       "Subcommand 'link' requires one of parameters: list, add, del, info, disconnect_all");
+                l_ret = DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_COMMAND_LINK;
             }
 
         } else if( l_sync_str) {
+            json_object *l_jobj_state_machine = json_object_new_object();
+            json_object *l_jobj_requested;
+            json_object *l_jobj_current = json_object_new_string(c_net_states[PVT(l_net)->state]);
+            if (!l_jobj_state_machine || !l_jobj_current) {
+                json_object_put(l_jobj_state_machine);
+                json_object_put(l_jobj_current);
+                json_object_put(l_jobj_return);
+                dap_json_rpc_allocation_error;
+                return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+            }
 
             if ( strcmp(l_sync_str,"all") == 0 ) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "SYNC_ALL state requested to state machine. Current state: %s\n",
-                                                  c_net_states[ PVT(l_net)->state] );
+                l_jobj_requested = json_object_new_string("SYNC_ALL");
                 dap_chain_net_sync_all(l_net);
             } else if ( strcmp(l_sync_str,"gdb") == 0) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "SYNC_GDB state requested to state machine. Current state: %s\n",
-                                                  c_net_states[ PVT(l_net)->state] );
+                l_jobj_requested = json_object_new_string("SYNC_GDB");
                 dap_chain_net_sync_gdb(l_net);
-
             }  else if ( strcmp(l_sync_str,"chains") == 0) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "SYNC_CHAINS state requested to state machine. Current state: %s\n",
-                                                  c_net_states[ PVT(l_net)->state] );
+                l_jobj_requested = json_object_new_string("SYNC_CHAINS");
                 // TODO set PVT flag to exclude GDB sync
                 dap_chain_net_sync_chains(l_net);
 
             } else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "Subcommand 'sync' requires one of parameters: all, gdb, chains\n");
-                l_ret = -2;
+                json_object_put(l_jobj_return);
+                json_object_put(l_jobj_state_machine);
+                json_object_put(l_jobj_current);
+                dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_COMMAND_SYNC,
+                                       "Subcommand 'sync' requires one of parameters: all, gdb, chains");
+                l_ret = DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_COMMAND_SYNC;
             }
+            if (!l_jobj_requested) {
+                json_object_put(l_jobj_state_machine);
+                json_object_put(l_jobj_current);
+                json_object_put(l_jobj_return);
+                dap_json_rpc_allocation_error;
+                return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+            }
+            json_object_object_add(l_jobj_state_machine, "current", l_jobj_current);
+            json_object_object_add(l_jobj_state_machine, "requested", l_jobj_requested);
+            json_object_object_add(l_jobj_return, "state_machine", l_jobj_state_machine);
+            l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
         } else if (l_ca_str) {
             if (strcmp(l_ca_str, "add") == 0 ) {
                 const char *l_cert_string = NULL, *l_hash_string = NULL;
@@ -1819,11 +2119,12 @@ static int s_cli_net(int argc, char **argv, void **a_str_reply)
                 dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-hash", &l_hash_string);
 
                 if (!l_cert_string && !l_hash_string) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "One of -cert or -hash parameters is mandatory");
-                    return -6;
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_CA_ADD,
+                                           "One of -cert or -hash parameters is mandatory");
+                    return DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_CA_ADD;
                 }
                 char *l_hash_hex_str = NULL;
-                //char *l_hash_base58_str;
                 // hash may be in hex or base58 format
                 if(!dap_strncmp(l_hash_string, "0x", 2) || !dap_strncmp(l_hash_string, "0X", 2)) {
                     l_hash_hex_str = dap_strdup(l_hash_string);
@@ -1837,22 +2138,28 @@ static int s_cli_net(int argc, char **argv, void **a_str_reply)
                 if (l_cert_string) {
                     dap_cert_t * l_cert = dap_cert_find_by_name(l_cert_string);
                     if (l_cert == NULL) {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't find \"%s\" certificate", l_cert_string);
-                        DAP_DEL_Z(l_hash_hex_str);
-                        return -7;
+                        json_object_put(l_jobj_return);
+                        dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_CAN_NOT_FIND_CERT_CA_ADD,
+                                               "Can't find \"%s\" certificate", l_cert_string);
+                        DAP_DELETE(l_hash_hex_str);
+                        return DAP_CHAIN_NET_JSON_RPC_CAN_NOT_FIND_CERT_CA_ADD;
                     }
                     if (l_cert->enc_key == NULL) {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "No key found in \"%s\" certificate", l_cert_string );
+                        json_object_put(l_jobj_return);
+                        dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_CAN_NOT_KEY_IN_CERT_CA_ADD,
+                                               "No key found in \"%s\" certificate", l_cert_string);
                         DAP_DEL_Z(l_hash_hex_str);
-                        return -8;
+                        return DAP_CHAIN_NET_JSON_RPC_CAN_NOT_KEY_IN_CERT_CA_ADD;
                     }
                     // Get publivc key hash
                     size_t l_pub_key_size = 0;
                     uint8_t *l_pub_key = dap_enc_key_serialize_pub_key(l_cert->enc_key, &l_pub_key_size);;
                     if (l_pub_key == NULL) {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't serialize public key of certificate \"%s\"", l_cert_string);
+                        json_object_put(l_jobj_return);
+                        dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_CAN_SERIALIZE_PUBLIC_KEY_CERT_CA_ADD,
+                                               "Can't serialize public key of certificate \"%s\"", l_cert_string);
                         DAP_DEL_Z(l_hash_hex_str);
-                        return -9;
+                        return DAP_CHAIN_NET_JSON_RPC_CAN_SERIALIZE_PUBLIC_KEY_CERT_CA_ADD;
                     }
                     dap_chain_hash_fast_t l_pkey_hash;
                     dap_hash_fast(l_pub_key, l_pub_key_size, &l_pkey_hash);
@@ -1863,65 +2170,105 @@ static int s_cli_net(int argc, char **argv, void **a_str_reply)
                 const char c = '1';
                 char *l_gdb_group_str = dap_chain_net_get_gdb_group_acl(l_net);
                 if (!l_gdb_group_str) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Database ACL group not defined for this network");
-                    return -11;
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_ADD,
+                                           "Database ACL group not defined for this network");
+                    return DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_ADD;
                 }
                 if( l_hash_hex_str ){
                     l_ret = dap_global_db_set_sync(l_gdb_group_str, l_hash_hex_str, &c, sizeof(c), false );
                     DAP_DELETE(l_gdb_group_str);
                     if (l_ret) {
-                        dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                          "Can't save public key hash %s in database", l_hash_hex_str);
+                        json_object_put(l_jobj_return);
+                        dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_CAN_NOT_SAVE_PUBLIC_KEY_IN_DATABASE,
+                                               "Can't save public key hash %s in database", l_hash_hex_str);
                         DAP_DELETE(l_hash_hex_str);
-                        return -10;
+                        return DAP_CHAIN_NET_JSON_RPC_CAN_NOT_SAVE_PUBLIC_KEY_IN_DATABASE;
                     }
                     DAP_DELETE(l_hash_hex_str);
                 } else{
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't save NULL public key hash in database");
-                    return -10;
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_CAN_NOT_SAVE_PUBLIC_KEY_IN_DATABASE,
+                                           "Can't save NULL public key hash in database");
+                    return DAP_CHAIN_NET_JSON_RPC_CAN_NOT_SAVE_PUBLIC_KEY_IN_DATABASE;
                 }
-                return 0;
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else if (strcmp(l_ca_str, "list") == 0 ) {
                 char *l_gdb_group_str = dap_chain_net_get_gdb_group_acl(l_net);
                 if (!l_gdb_group_str) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Database ACL group not defined for this network");
-                    return -11;
+                    dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_LIST,
+                                           "Database ACL group not defined for this network");
+                    return DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_LIST;
                 }
                 size_t l_objs_count;
                 dap_global_db_obj_t *l_objs = dap_global_db_get_all_sync(l_gdb_group_str, &l_objs_count);
                 DAP_DELETE(l_gdb_group_str);
-                dap_string_t *l_reply = dap_string_new("");
+                json_object *l_jobj_list_ca = json_object_new_array();
+                if (!l_jobj_list_ca) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
                 for (size_t i = 0; i < l_objs_count; i++) {
-                    dap_string_append(l_reply, l_objs[i].key);
-                    dap_string_append(l_reply, "\n");
+                    json_object *l_jobj_key = json_object_new_string(l_objs[i].key);
+                    if (!l_jobj_key) {
+                        json_object_put(l_jobj_list_ca);
+                        json_object_put(l_jobj_return);
+                        dap_json_rpc_allocation_error;
+                        return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                    }
                 }
                 dap_global_db_objs_delete(l_objs, l_objs_count);
-                *a_str_reply = l_reply->len ? l_reply->str : dap_strdup("No entries found");
-                dap_string_free(l_reply, false);
-                return 0;
+                if (json_object_array_length(l_jobj_list_ca) > 0) {
+                    json_object_object_add(l_jobj_return, "ca_list", l_jobj_list_ca);
+                } else {
+                    json_object_put(l_jobj_list_ca);
+                    json_object *l_jobj_str_ret = json_object_new_string("No entries found");
+                    if (!l_jobj_list_ca) {
+                        json_object_put(l_jobj_return);
+                        dap_json_rpc_allocation_error;
+                        return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                    }
+                    json_object_object_add(l_jobj_return, "ca_list", l_jobj_str_ret);
+                }
+                l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else if (strcmp(l_ca_str, "del") == 0 ) {
                 const char *l_hash_string = NULL;
                 dap_cli_server_cmd_find_option_val(argv, arg_index, argc, "-hash", &l_hash_string);
                 if (!l_hash_string) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Format should be 'net ca del -hash <hash string>");
-                    return -6;
+                    dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNKNOWN_HASH_CA_DEL,
+                                           "Format should be 'net ca del -hash <hash string>");
+                    return DAP_CHAIN_NET_JSON_RPC_UNKNOWN_HASH_CA_DEL;
                 }
                 char *l_gdb_group_str = dap_chain_net_get_gdb_group_acl(l_net);
                 if (!l_gdb_group_str) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Database ACL group not defined for this network");
-                    return -11;
+                    dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_DEL,
+                                           "Database ACL group not defined for this network");
+                    return DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_DEL;
+                }
+                char *l_ret_msg_str = dap_strdup_printf("Certificate %s has been deleted.", l_hash_string);
+                json_object *l_jobj_ret = json_object_new_string(l_ret_msg_str);
+                DAP_DELETE(l_ret_msg_str);
+                if (l_jobj_ret) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 }
                 l_ret = dap_global_db_del_sync(l_gdb_group_str, l_hash_string);
                 DAP_DELETE(l_gdb_group_str);
                 if (l_ret) {
-                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Cant't find certificate public key hash in database");
-                    return -10;
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_CAN_NOT_FIND_CERT_CA_DEL,
+                                           "Can't find certificate public key hash in database");
+                    return DAP_CHAIN_NET_JSON_RPC_CAN_NOT_FIND_CERT_CA_DEL;
                 }
-                return 0;
+                json_object_put(l_jobj_return);
+                json_object_array_add(*reply, l_jobj_ret);
+                return DAP_CHAIN_NET_JSON_RPC_OK;
             } else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                                  "Subcommand 'ca' requires one of parameter: add, list, del\n");
-                l_ret = -5;
+                dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_INVALID_PARAMETER_COMMAND_CA,
+                                       "Subcommand 'ca' requires one of parameter: add, list, del");
+                return DAP_CHAIN_NET_JSON_RPC_INVALID_PARAMETER_COMMAND_CA;
             }
         } else if (l_ledger_str && !strcmp(l_ledger_str, "reload")) {
             int l_return_state = dap_chain_net_stop(l_net);
@@ -1931,27 +2278,52 @@ static int s_cli_net(int argc, char **argv, void **a_str_reply)
                 dap_chain_net_start(l_net);
         } else if (l_list_str && !strcmp(l_list_str, "list")) {
             if (!l_net->pub.keys) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "No PoA certs found for this network");
-                return -11;
+                json_object_put(l_jobj_return);
+                dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_NO_POA_CERTS_FOUND_POA_CERTS,
+                                       "No PoA certs found for this network");
+                return DAP_CHAIN_NET_JSON_RPC_NO_POA_CERTS_FOUND_POA_CERTS;
             }
-            dap_string_t *l_str_out = dap_string_new("List of network PoA certificates:\n");
-            int i = 0;
+            json_object *l_jobj_pkeys = json_object_new_array();
+            if (!l_jobj_pkeys) {
+                json_object_put(l_jobj_return);
+                dap_json_rpc_allocation_error;
+                return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+            }
             for (dap_list_t *it = l_net->pub.keys; it; it = it->next) {
                 dap_hash_fast_t l_pkey_hash;
                 char l_pkey_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
                 dap_pkey_get_hash(it->data, &l_pkey_hash);
                 dap_chain_hash_fast_to_str(&l_pkey_hash, l_pkey_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-                dap_string_append_printf(l_str_out, "%d) %s\n", i++, l_pkey_hash_str);
+                json_object *l_jobj_hash_key = json_object_new_string(l_pkey_hash_str);
+                if (!l_jobj_hash_key) {
+                    json_object_put(l_jobj_pkeys);
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_array_add(l_jobj_pkeys, l_jobj_hash_key);
             }
-            *a_str_reply = l_str_out->str;
-            dap_string_free(l_str_out, false);
-
+            if (json_object_array_length(l_jobj_pkeys) > 0) {
+                json_object_object_add(l_jobj_return, "poa_certs", l_jobj_pkeys);
+            } else {
+                json_object_put(l_jobj_pkeys);
+                json_object *l_jobj_info = json_object_new_string("empty");
+                if (!l_jobj_info) {
+                    json_object_put(l_jobj_return);
+                    dap_json_rpc_allocation_error;
+                    return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
+                }
+                json_object_object_add(l_jobj_pkeys, "poa_certs", l_jobj_info);
+            }
+            l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
         } else {
-            dap_cli_server_cmd_set_reply_text(a_str_reply,
-                                              "Command 'net' requires one of subcomands: sync, link, go, get, stats, ca, ledger");
-            l_ret = -1;
+            dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_UNKNOWN_SUBCOMMANDS,
+                                   "Command 'net' requires one of subcomands: sync, link, go, get, stats, ca, ledger");
+            l_ret = DAP_CHAIN_NET_JSON_RPC_UNKNOWN_SUBCOMMANDS;
         }
-
+    }
+    if (l_jobj_return) {
+        json_object_array_add(*reply, l_jobj_return);
     }
     return  l_ret;
 }
@@ -2036,7 +2408,7 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
 {
     // Synchronously going to offline state
     PVT(a_net)->state = PVT(a_net)->state_target = NET_STATE_OFFLINE;
-    s_net_states_proc(NULL, a_net);
+    s_net_states_proc(a_net);
     dap_chain_net_item_t *l_net_item;
     HASH_FIND(hh, s_net_items, a_net->pub.name, strlen(a_net->pub.name), l_net_item);
     if (l_net_item) {
@@ -2046,11 +2418,14 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
     }
     if (PVT(a_net)->main_timer)
         dap_interval_timer_delete(PVT(a_net)->main_timer);
+    DAP_DEL_Z(PVT(a_net)->poa_nodes_addrs);
     DAP_DEL_Z(PVT(a_net)->seed_nodes_ipv4);
     DAP_DEL_Z(PVT(a_net)->seed_nodes_ipv6);
     DAP_DEL_Z(PVT(a_net)->node_info);
-    dap_ledger_purge(a_net->pub.ledger, true);
-    dap_ledger_handle_free(a_net->pub.ledger);
+    if (a_net->pub.ledger) {
+        dap_ledger_purge(a_net->pub.ledger, true);
+        dap_ledger_handle_free(a_net->pub.ledger);
+    }
     DAP_DELETE(a_net);
 }
 
@@ -2138,6 +2513,28 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     // Wait time before reconnect attempt with same link
     l_net_pvt->reconnect_delay = dap_config_get_item_int16_default(l_cfg, "general", "reconnect_delay", 10);
 
+    char **l_poa_nodes_addrs = dap_config_get_array_str(l_cfg, "general", "seed_nodes_addrs", &l_net_pvt->poa_nodes_count);
+    if (!l_net_pvt->poa_nodes_count) {
+        log_it(L_ERROR, "Can't read seed nodes addresses");
+        dap_chain_net_delete(l_net);
+        dap_config_close(l_cfg);
+        return -15;
+    }
+    l_net_pvt->poa_nodes_addrs = DAP_NEW_SIZE(dap_stream_node_addr_t, l_net_pvt->poa_nodes_count * sizeof(dap_stream_node_addr_t));
+    if (!l_net_pvt->poa_nodes_addrs) {
+        log_it(L_CRITICAL, g_error_memory_alloc);
+        dap_chain_net_delete(l_net);
+        dap_config_close(l_cfg);
+        return -1;
+    }
+    for (uint16_t i = 0; i < l_net_pvt->poa_nodes_count; i++) {
+        if (dap_stream_node_addr_from_str(l_net_pvt->poa_nodes_addrs + i, l_poa_nodes_addrs[i])) {
+            log_it(L_ERROR, "Incorrect format for address #%hu", i);
+            dap_chain_net_delete(l_net);
+            dap_config_close(l_cfg);
+            return -16;
+        }
+    }
     uint16_t l_seed_nodes_ipv4_len = 0;
     char **l_seed_nodes_ipv4 = dap_config_get_array_str(l_cfg, "general", "seed_nodes_ipv4", &l_seed_nodes_ipv4_len);
     uint16_t l_seed_nodes_ipv6_len = 0;
@@ -2151,9 +2548,12 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     if (l_seed_nodes_port_len) {
         if ((l_seed_nodes_ipv4_len && l_seed_nodes_ipv4_len != l_seed_nodes_port_len) ||
                 (l_seed_nodes_ipv6_len && l_seed_nodes_ipv6_len != l_seed_nodes_port_len) ||
-                (l_seed_nodes_hostnames_len && l_seed_nodes_hostnames_len != l_seed_nodes_port_len)) {
+                (l_seed_nodes_hostnames_len && l_seed_nodes_hostnames_len != l_seed_nodes_port_len) ||
+                (!l_seed_nodes_ipv4_len && !l_seed_nodes_ipv6_len && !l_seed_nodes_hostnames_len)) {
             log_it (L_ERROR, "Configuration mistake for seed nodes");
-
+            dap_chain_net_delete(l_net);
+            dap_config_close(l_cfg);
+            return -6;
         }
         l_net_pvt->seed_nodes_count = l_seed_nodes_port_len;
     } else {
@@ -2162,8 +2562,23 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         l_net_pvt->seed_nodes_count = l_bootstrap_nodes_len;
     }
     log_it (L_DEBUG, "Read %u seed nodes params", l_net_pvt->seed_nodes_count);
-    l_net_pvt->seed_nodes_ipv4 = DAP_NEW_SIZE(struct sockaddr_in, l_net_pvt->seed_nodes_count * sizeof(struct sockaddr_in));
-    l_net_pvt->seed_nodes_ipv6 = DAP_NEW_SIZE(struct sockaddr_in6, l_net_pvt->seed_nodes_count * sizeof(struct sockaddr_in6));
+    if (l_seed_nodes_ipv6_len) {
+        l_net_pvt->seed_nodes_ipv6 = DAP_NEW_SIZE(struct sockaddr_in6, l_net_pvt->seed_nodes_count * sizeof(struct sockaddr_in6));
+        if (!l_net_pvt->seed_nodes_ipv6) {
+            log_it(L_CRITICAL, g_error_memory_alloc);
+            dap_chain_net_delete(l_net);
+            dap_config_close(l_cfg);
+            return -1;
+        }
+    } else {   // Just only IPv4 can be resolved for now
+        l_net_pvt->seed_nodes_ipv4 = DAP_NEW_SIZE(struct sockaddr_in, l_net_pvt->seed_nodes_count * sizeof(struct sockaddr_in));
+        if (!l_net_pvt->seed_nodes_ipv4) {
+            log_it(L_CRITICAL, g_error_memory_alloc);
+            dap_chain_net_delete(l_net);
+            dap_config_close(l_cfg);
+            return -1;
+        }
+    }
     // Load seed nodes from cfg file
     for (uint16_t i = 0; i < l_net_pvt->seed_nodes_count; i++) {
         char *l_node_hostname = NULL;
@@ -2183,16 +2598,16 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
                 l_node_port = atoi(l_bootstrap_port_str);
             l_node_hostname = l_bootstrap_nodes[i];
         }
-        if (!l_node_port)
-            l_node_port = dap_config_get_item_uint16_default(g_config, "server", "listen_port_tcp", 8079);
         if (!l_node_port) {
             log_it(L_ERROR, "Can't find port for seed node #%hu", i);
             dap_chain_net_delete(l_net);
             dap_config_close(l_cfg);
             return -12;
         } else {
-            l_net_pvt->seed_nodes_ipv4[i].sin_port = l_node_port;
-            l_net_pvt->seed_nodes_ipv6[i].sin6_port = l_node_port;
+            if (l_seed_nodes_ipv6_len)
+                l_net_pvt->seed_nodes_ipv6[i].sin6_port = l_node_port;
+            else
+                l_net_pvt->seed_nodes_ipv4[i].sin_port = l_node_port;
         }
         if (l_node_hostname) {
             struct in_addr l_res = {};
@@ -2345,12 +2760,11 @@ int s_net_load(dap_chain_net_t *a_net)
     dap_chain_net_t *l_net = a_net;
 
     dap_config_t *l_cfg = NULL;
-    dap_string_t *l_cfg_path = dap_string_new("network/");
-    dap_string_append(l_cfg_path,a_net->pub.name);
-
-    if( !( l_cfg = dap_config_open ( l_cfg_path->str ) ) ) {
+    char *l_cfg_path = dap_strdup_printf("network/%s", a_net->pub.name);
+    l_cfg = dap_config_open ( l_cfg_path );
+    DAP_DELETE(l_cfg_path);
+    if (!l_cfg) {
         log_it(L_ERROR,"Can't open default network config");
-        dap_string_free(l_cfg_path,true);
         return -1;
     }
 
@@ -2411,7 +2825,7 @@ int s_net_load(dap_chain_net_t *a_net)
 
     // Do specific role actions post-chain created
     l_net_pvt->state_target = NET_STATE_OFFLINE;
-    dap_chain_net_state_t l_target_state = NET_STATE_OFFLINE;
+
     l_net_pvt->only_static_links = false;
     switch ( l_net_pvt->node_role.enums ) {
         case NODE_ROLE_ROOT_MASTER:{
@@ -2456,12 +2870,7 @@ int s_net_load(dap_chain_net_t *a_net)
     }
     if (!l_net_pvt->only_static_links)
         l_net_pvt->only_static_links = dap_config_get_item_bool_default(l_cfg, "general", "links_static_only", false);
-    if (dap_config_get_item_bool_default(g_config ,"general", "auto_online", false))
-    {
-        dap_chain_net_balancer_prepare_list_links(l_net->pub.name,true);
-        l_target_state = NET_STATE_ONLINE;
-    }
-
+    
     l_net_pvt->load_mode = false;
 
     l_net_pvt->balancer_http = !dap_config_get_item_bool_default(l_cfg, "general", "use_dns_links", false);
@@ -2473,8 +2882,8 @@ int s_net_load(dap_chain_net_t *a_net)
         l_gdb_groups_mask = dap_strdup_printf("%s.chain-%s.mempool", l_net->pub.gdb_groups_prefix, l_chain->name);
         dap_global_db_cluster_t *l_cluster = dap_global_db_cluster_add(
                                                     dap_global_db_instance_get_default(),
-                                                    l_net->pub.name, l_gdb_groups_mask,
-                                                    DAP_CHAIN_NET_MEMPOOL_TTL, true,
+                                                    l_net->pub.name, l_net->pub.id.uint64,
+                                                    l_gdb_groups_mask, DAP_CHAIN_NET_MEMPOOL_TTL, true,
                                                     DAP_GDB_MEMBER_ROLE_USER,
                                                     DAP_CLUSTER_ROLE_EMBEDDED);
         if (!l_cluster) {
@@ -2483,14 +2892,14 @@ int s_net_load(dap_chain_net_t *a_net)
         }
         dap_chain_net_add_poa_certs_to_cluster(l_net, l_cluster);
         DAP_DELETE(l_gdb_groups_mask);
-        if (l_net->pub.chains == l_chain)
+        if (l_net->pub.chains == l_chain)   // Pointer for first mempool cluster in global double-linked list of clusters
             l_net_pvt->mempool_clusters = l_cluster;
     }
     // Service orders cluster
     l_gdb_groups_mask = dap_strdup_printf("%s.service.orders", l_net->pub.gdb_groups_prefix);
     l_net_pvt->orders_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
-                                                          l_net->pub.name, l_gdb_groups_mask,
-                                                          0, true,
+                                                          l_net->pub.name, l_net->pub.id.uint64,
+                                                          l_gdb_groups_mask, 0, true,
                                                           DAP_GDB_MEMBER_ROLE_GUEST,
                                                           DAP_CLUSTER_ROLE_EMBEDDED);
     if (!l_net_pvt->orders_cluster) {
@@ -2504,8 +2913,8 @@ int s_net_load(dap_chain_net_t *a_net)
     l_net->pub.gdb_nodes_aliases = dap_strdup_printf("%s.nodes.aliases",l_net->pub.gdb_groups_prefix);
     l_gdb_groups_mask = dap_strdup_printf("%s.nodes*", l_net->pub.gdb_groups_prefix);
     l_net_pvt->nodes_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
-                                                         l_net->pub.name, l_gdb_groups_mask,
-                                                         0, true,
+                                                         l_net->pub.name, l_net->pub.id.uint64,
+                                                         l_gdb_groups_mask, 0, true,
                                                          DAP_GDB_MEMBER_ROLE_GUEST,
                                                          DAP_CLUSTER_ROLE_EMBEDDED);
     if (!l_net_pvt->nodes_cluster) {
@@ -2565,15 +2974,64 @@ int s_net_load(dap_chain_net_t *a_net)
 
     uint32_t l_timeout = dap_config_get_item_uint32_default(g_config, "node_client", "timer_update_states", 600);
     PVT(l_net)->main_timer = dap_interval_timer_create(l_timeout * 1000, s_main_timer_callback, l_net);
-    log_it(L_INFO, "Chain network \"%s\" initialized",l_net->pub.name);
+
 
     dap_config_close(l_cfg);
-
-    if (l_target_state != l_net_pvt->state_target)
-        dap_chain_net_state_go_to(l_net, l_target_state);
+    log_it(L_INFO, "Chain network \"%s\" initialized",l_net->pub.name);
 
     return 0;
 }
+
+/**
+ * @brief try net to go online
+ *
+ * @param a_net dap_chain_net_t *: network 
+ * @return int
+ *
+ **/
+static int s_net_try_online(dap_chain_net_t *a_net)
+{
+    
+    dap_chain_net_t *l_net = a_net;
+    
+    dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
+    dap_chain_net_state_t l_target_state = NET_STATE_OFFLINE;
+    
+    if (dap_config_get_item_bool_default(g_config ,"general", "auto_online", false))
+    {
+        dap_chain_net_balancer_prepare_list_links(l_net->pub.name, true);
+        l_target_state = NET_STATE_ONLINE;
+    }
+    
+    if (l_target_state != l_net_pvt->state_target)
+    {   
+        dap_chain_net_state_go_to(l_net, l_target_state);
+
+        log_it(L_INFO, "Network \"%s\" goes online",l_net->pub.name);
+    }
+    
+    return 0;
+}
+
+/**
+ * @brief
+ * change all network states according to auto-online settings
+ */
+void dap_chain_net_try_online_all() {
+    int32_t l_ret = 0;
+
+    if(!HASH_COUNT(s_net_items)){
+        log_it(L_ERROR, "Can't find any nets");
+        return;
+    }
+    dap_chain_net_item_t *l_net_items_current = NULL, *l_net_items_tmp = NULL;
+    HASH_ITER(hh, s_net_items, l_net_items_current, l_net_items_tmp) {
+        if( (l_ret = s_net_try_online(l_net_items_current->chain_net)) ) {
+            log_it(L_ERROR, "Can't try online state for net %s.  Finished with (%d) error code.", l_net_items_current->name, l_ret);
+        }
+    }
+}
+
 
 dap_global_db_cluster_t *dap_chain_net_get_mempool_cluster(dap_chain_t *a_chain)
 {
@@ -2610,7 +3068,7 @@ static void s_nodelist_change_notify(dap_store_obj_t *a_obj, void *a_arg)
     inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_ipv4_str, INET_ADDRSTRLEN);
     inet_ntop(AF_INET6, &l_node_info->hdr.ext_addr_v6, l_node_ipv6_str, INET6_ADDRSTRLEN);
     char l_ts[128] = { '\0' };
-    dap_gbd_time_to_str_rfc822(l_ts, sizeof(l_ts), a_obj->timestamp);
+    dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), a_obj->timestamp);
 
     log_it(L_MSG, "Add node "NODE_ADDR_FP_STR" ipv4 %s(ipv6 %s):%s at %s to network\n",
                              NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),
@@ -2631,20 +3089,23 @@ void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_sto
 int dap_chain_net_add_poa_certs_to_cluster(dap_chain_net_t *a_net, dap_global_db_cluster_t *a_cluster)
 {
     dap_return_val_if_fail(a_net && a_cluster, -1);
-    for (dap_list_t *it = a_net->pub.keys; it; it = it->next) {
-        dap_pkey_t *l_pkey = it->data;
-        dap_stream_node_addr_t l_poa_addr = dap_stream_node_addr_from_pkey(l_pkey);
-        dap_global_db_cluster_member_add(a_cluster, &l_poa_addr, DAP_GDB_MEMBER_ROLE_ROOT);
-    }
+    for (uint16_t i = 0; i < PVT(a_net)->poa_nodes_count; i++)
+        dap_global_db_cluster_member_add(a_cluster, PVT(a_net)->poa_nodes_addrs + i, DAP_GDB_MEMBER_ROLE_ROOT);
     return 0;
 }
 
 bool dap_chain_net_add_validator_to_clusters(dap_chain_t *a_chain, dap_stream_node_addr_t *a_addr)
 {
-    bool l_ret = dap_global_db_cluster_member_add(
-                dap_chain_net_get_mempool_cluster(a_chain), a_addr, DAP_GDB_MEMBER_ROLE_ROOT);
-    return !l_ret ? false : dap_global_db_cluster_member_add(
-                        PVT(dap_chain_net_by_id(a_chain->net_id))->orders_cluster, a_addr, DAP_GDB_MEMBER_ROLE_USER);
+    bool l_ret = dap_global_db_cluster_member_add(dap_chain_net_get_mempool_cluster(a_chain), a_addr, DAP_GDB_MEMBER_ROLE_ROOT);
+    l_ret &= (bool)dap_global_db_cluster_member_add(PVT(dap_chain_net_by_id(a_chain->net_id))->orders_cluster, a_addr, DAP_GDB_MEMBER_ROLE_USER);
+    return l_ret;
+}
+
+bool dap_chain_net_remove_validator_from_clusters(dap_chain_t *a_chain, dap_stream_node_addr_t *a_addr)
+{
+    bool l_ret = !dap_global_db_cluster_member_delete(dap_chain_net_get_mempool_cluster(a_chain), a_addr);
+    l_ret &= !dap_global_db_cluster_member_delete(PVT(dap_chain_net_by_id(a_chain->net_id))->orders_cluster, a_addr);
+    return l_ret;
 }
 
 /**

@@ -1449,7 +1449,7 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
  * @param sh HTTP server instance
  * @param url URL string
  */
-void dap_chain_mempool_add_proc(dap_http_t * a_http_server, const char * a_url)
+void dap_chain_mempool_add_proc(dap_http_server_t * a_http_server, const char * a_url)
 {
     dap_http_simple_proc_add(a_http_server, a_url, 4096, chain_mempool_proc);
 }
@@ -1468,7 +1468,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
     int l_removed = 0;
     char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     size_t l_objs_size = 0;
-    dap_time_t l_cut_off_time = dap_time_now() - 2592000; // 2592000 sec = 30 days
+    dap_time_t l_cut_off_time = dap_time_now() - 3 * 24 * 3600; // 3 days
     char l_cut_off_time_str[80] = {'\0'};
     dap_time_to_str_rfc822(l_cut_off_time_str, 80, l_cut_off_time);
     dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_gdb_group, &l_objs_size);

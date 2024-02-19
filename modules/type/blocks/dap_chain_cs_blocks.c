@@ -1458,7 +1458,6 @@ static dap_chain_atom_verify_res_t s_callback_atom_add(dap_chain_t * a_chain, da
 */
         ret = ATOM_REJECT;
     case ATOM_REJECT:
-        dap_chain_block_cache_delete(l_block_cache);
         debug_if(s_debug_more, L_DEBUG, "Verified atom %p: REJECTED", a_atom);
         break;
     case ATOM_FORK:{

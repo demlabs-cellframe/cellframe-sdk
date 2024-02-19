@@ -22,7 +22,6 @@ if (CELLFRAME_MODULES MATCHES "network")
     add_subdirectory(net/srv)
     add_subdirectory(json_rpc)
     # Stream channels
-    add_subdirectory(channel/chain)
     add_subdirectory(channel/chain-net)
     add_subdirectory(channel/chain-voting)
 endif()

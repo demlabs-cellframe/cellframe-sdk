@@ -176,10 +176,9 @@ json_object * dap_db_tx_history_to_json(dap_chain_hash_fast_t* a_tx_hash,
     json_object_object_add(json_obj_datum, "ret_code", json_object_new_int(l_ret_code));
     json_object_object_add(json_obj_datum, "ret_code_str", json_object_new_string(dap_ledger_tx_check_err_str(l_ret_code)));
 
-    char l_time_str[32];
+    char l_time_str[DAP_TIME_STR_SIZE];
     if (l_tx->header.ts_created) {
-        uint64_t l_ts = l_tx->header.ts_created;
-        dap_ctime_r(&l_ts, l_time_str);                             /* Convert ts to  "Sat May 17 01:17:08 2014\n" */
+        dap_time_to_str_rfc822(l_time_str, DAP_TIME_STR_SIZE, l_tx->header.ts_created);/* Convert ts to  "Sat May 17 01:17:08 2014\n" */
         l_time_str[strlen(l_time_str)-1] = '\0';                    /* Remove "\n"*/
     }
     json_object *l_obj_ts_created = json_object_new_string(l_time_str);
@@ -229,10 +228,9 @@ static void s_tx_header_print(json_object* json_obj_datum, dap_chain_tx_hash_pro
 {
     bool l_declined = false;
     // transaction time
-    char l_time_str[32] = "unknown";                                /* Prefill string */
+    char l_time_str[DAP_TIME_STR_SIZE] = "unknown";                                /* Prefill string */
     if (a_tx->header.ts_created) {
-        uint64_t l_ts = a_tx->header.ts_created;
-        dap_ctime_r(&l_ts, l_time_str);                             /* Convert ts to  "Sat May 17 01:17:08 2014\n" */
+        dap_time_to_str_rfc822(l_time_str, DAP_TIME_STR_SIZE, a_tx->header.ts_created); /* Convert ts to  "Sat May 17 01:17:08 2014\n" */
         l_time_str[strlen(l_time_str)-1] = '\0';                    /* Remove "\n"*/
     }
     dap_chain_tx_hash_processed_ht_t *l_tx_data = NULL;
@@ -553,6 +551,9 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
                 DAP_DELETE(l_coins_str);
             }
         }
+        if (json_object_array_length(j_arr_data) > 0) {
+            json_object_object_add(j_obj_tx, "data", j_arr_data);
+        }
         dap_list_free(l_list_out_items);
         if (l_is_need_correction) {
             SUM_256_256(l_corr_value, l_fee_sum, &l_corr_value);
@@ -564,10 +565,6 @@ json_object* dap_db_history_addr(dap_chain_addr_t *a_addr, dap_chain_t *a_chain,
             DAP_DELETE(l_value_str);
             DAP_DELETE(l_coins_str);
             l_is_need_correction = false;
-        }
-        if (json_object_array_length(j_arr_data) > 0) {
-            json_object_object_add(j_obj_tx, "data", j_arr_data);
-            json_object_array_add(json_obj_datum, j_obj_tx);
         }
     }
     a_chain->callback_datum_iter_delete(l_datum_iter);

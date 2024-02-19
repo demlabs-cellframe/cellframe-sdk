@@ -215,3 +215,5 @@ void dap_chain_esbocs_start_timer(dap_chain_net_id_t a_net_id);
 dap_pkey_t *dap_chain_esbocs_get_sign_pkey(dap_chain_net_id_t a_net_id);
 uint256_t dap_chain_esbocs_get_fee(dap_chain_net_id_t a_net_id);
 bool dap_chain_esbocs_get_autocollect_status(dap_chain_net_id_t a_net_id);
+bool dap_chain_esbocs_add_validator_to_clusters(dap_chain_net_id_t a_net_id, dap_stream_node_addr_t *a_validator_addr);
+bool dap_chain_esbocs_remove_validator_from_clusters(dap_chain_net_id_t a_net_id, dap_stream_node_addr_t *a_validator_addr);

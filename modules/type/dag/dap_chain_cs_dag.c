@@ -205,7 +205,7 @@ static bool s_dag_rounds_events_iter(dap_global_db_instance_t *a_dbi,
                                      const size_t a_values_current, const size_t a_values_count,
                                      dap_store_obj_t *a_values, void *a_arg)
 {
-    dap_return_val_if_pass(a_rc != DAP_GLOBAL_DB_RC_SUCCESS, false);
+    dap_return_val_if_pass(a_rc == DAP_GLOBAL_DB_RC_ERROR, false);
 
     for (size_t i = 0; i < a_values_count; i++) {
         dap_store_obj_t *l_obj_cur = a_values + i;
@@ -323,7 +323,7 @@ static int s_chain_cs_dag_new(dap_chain_t * a_chain, dap_config_t * a_chain_cfg)
     l_dag->gdb_group_events_round_new = dap_strdup_printf(l_dag->is_celled ? "dag-%s-%s-%016llx-round.new" : "dag-%s-%s-round.new",
                                           l_net->pub.gdb_groups_prefix, a_chain->name, 0LLU);
     dap_global_db_cluster_t *l_dag_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
-                                                                       l_dag->gdb_group_events_round_new, l_dag->gdb_group_events_round_new,
+                                                                       NULL, 0, l_dag->gdb_group_events_round_new,
                                                                        900, true, DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_ROLE_AUTONOMIC);
     dap_global_db_cluster_add_notify_callback(l_dag_cluster, s_round_changes_notify, l_dag);
     dap_chain_net_add_poa_certs_to_cluster(l_net, l_dag_cluster);
@@ -515,11 +515,10 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         dap_chain_hash_fast_to_str(&l_event_item->hash, l_event_hash_str, sizeof(l_event_hash_str));
         log_it(L_DEBUG, "Processing event: %s ... (size %zd)", l_event_hash_str,a_atom_size);
     }
-
-    pthread_mutex_lock(l_events_mutex);
+    pthread_mutex_lock(&PVT(l_dag)->events_mutex);
     // check if we already have this event
-    dap_chain_atom_verify_res_t ret = s_dap_chain_check_if_event_is_present(PVT(l_dag)->events, &l_event_item->hash) ||
-            s_dap_chain_check_if_event_is_present(PVT(l_dag)->events_treshold, &l_event_item->hash) ? ATOM_PASS : ATOM_ACCEPT;
+    dap_chain_atom_verify_res_t ret = s_dap_chain_check_if_event_is_present(PVT(l_dag)->events, &l_event_hash) ||
+            s_dap_chain_check_if_event_is_present(PVT(l_dag)->events_treshold, &l_event_hash) ? ATOM_PASS : ATOM_ACCEPT;
 
     // verify hashes and consensus
     switch (ret) {
@@ -533,12 +532,27 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         break;
     case ATOM_PASS:
         debug_if(s_debug_more, L_DEBUG, "Atom already present");
-        DAP_DELETE(l_event_item);
-        pthread_mutex_unlock(l_events_mutex);
+        pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
         return ret;
     default:
         break;
     }
+
+    l_event_item = DAP_NEW_Z(dap_chain_cs_dag_event_item_t);
+    if (!l_event_item) {
+        log_it(L_CRITICAL, "Memory allocation error");
+        pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
+        return ATOM_REJECT;
+    }
+    l_event_item->event = DAP_DUP_SIZE(a_atom, a_atom_size);
+    if (!l_event_item->event) {
+        log_it(L_CRITICAL, "Memory allocation error");
+        pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
+        return ATOM_REJECT;
+    }
+    l_event_item->event_size = a_atom_size;
+    l_event_item->ts_added = dap_time_now();
+    l_event_item->hash = l_event_hash;
 
     switch (ret) {
     case ATOM_MOVE_TO_THRESHOLD: {
@@ -587,10 +601,13 @@ static dap_chain_atom_verify_res_t s_chain_callback_atom_add(dap_chain_t * a_cha
         s_dag_events_lasts_process_new_last_event(l_dag, l_event_item);
     } break;
     default:
-        DAP_DELETE(l_event_item); // Neither added, nor freed
         break;
     }
-    pthread_mutex_unlock(l_events_mutex);
+    pthread_mutex_unlock(&PVT(l_dag)->events_mutex);
+    if (ret == ATOM_REJECT) { // Neither added, nor freed
+        DAP_DELETE(l_event_item->event);
+        DAP_DELETE(l_event_item);
+    }
     return ret;
 }
 
@@ -723,30 +740,30 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
         log_it(L_ERROR,"Can't create new event!");
         return false;
     }
-
+    dap_hash_fast_t l_event_hash;
+    dap_hash_fast(l_event, l_event_size, &l_event_hash);
+    bool l_res = false;
     if (l_dag->is_add_directly) {
-        dap_chain_atom_verify_res_t l_verify_res;
-        dap_hash_fast_t l_event_hash ={};
-        dap_hash_fast(l_event, l_event_size, &l_event_hash);
-        switch (l_verify_res = s_chain_callback_atom_add(a_chain, l_event, l_event_size, &l_event_hash)) {
-        case ATOM_ACCEPT:
-            return dap_chain_atom_save(a_chain, (uint8_t *)l_event, l_event_size, a_chain->cells->id) > 0;
-        default:
+        dap_chain_atom_verify_res_t l_verify_res = s_chain_callback_atom_add(a_chain, l_event, l_event_size);
+        if (l_verify_res == ATOM_ACCEPT)
+            l_res = dap_chain_atom_save(a_chain->cells, (uint8_t *)l_event, l_event_size, &l_event_hash) > 0;
+        else
             log_it(L_ERROR, "Can't add new event to the file, atom verification result %d", l_verify_res);
-            return false;
-        }
+        DAP_DELETE(l_event);
+        return l_res;
     }
 
     dap_global_db_set_sync(l_dag->gdb_group_events_round_new, DAG_ROUND_CURRENT_KEY,
                       &l_current_round, sizeof(uint64_t), false);
     dap_chain_cs_dag_event_round_item_t l_round_item = { .round_info.datum_hash = l_datum_hash };
-    char *l_event_hash_str;
-    dap_get_data_hash_str_static(l_event, l_event_size, l_event_hash_str);
-    bool l_res = dap_chain_cs_dag_event_gdb_set(l_dag, l_event_hash_str, l_event, l_event_size, &l_round_item);
+    char *l_event_hash_hex_str = DAP_NEW_STACK_SIZE(char, DAP_CHAIN_HASH_FAST_STR_SIZE);
+    dap_chain_hash_fast_to_str(&l_event_hash, l_event_hash_hex_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
+    l_res = dap_chain_cs_dag_event_gdb_set(l_dag, l_event_hash_hex_str, l_event, l_event_size, &l_round_item) == DAP_GLOBAL_DB_RC_SUCCESS;
+    DAP_DELETE(l_event);
     log_it(l_res ? L_INFO : L_ERROR,
            l_res ? "Event %s placed in the new forming round [id %"DAP_UINT64_FORMAT_U"]"
                  : "Can't add new event [%s] to the new events round [id %"DAP_UINT64_FORMAT_U"]",
-           l_event_hash_str, l_current_round);
+           l_event_hash_hex_str, l_current_round);
     return l_res;
 }
 
@@ -1537,9 +1554,7 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     dap_string_append_printf( l_str_ret_tmp, "Event %s verification passed\n", l_objs[i].key);
                     // If not verify only mode we add
                     if ( ! l_verify_only ){
-                        dap_chain_atom_ptr_t l_new_atom = DAP_DUP_SIZE(l_event, l_event_size); // produce deep copy of event;
-                        if(s_chain_callback_atom_add(l_chain, l_new_atom, l_event_size, &l_event_hash) < 0) { // Add new atom in chain
-                            DAP_DELETE(l_new_atom);
+                        if (s_chain_callback_atom_add(l_chain, l_event, l_event_size) != ATOM_ACCEPT) { // Add new atom in chain
                             dap_string_append_printf(l_str_ret_tmp, "Event %s not added in chain\n", l_objs[i].key);
                         } else {
                             // add event to delete
@@ -1828,7 +1843,6 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                 if ( l_event ){
                     dap_string_t * l_str_tmp = dap_string_new(NULL);
                     char buf[50];
-                    dap_time_t l_ts_reated = (dap_time_t)l_event->header.ts_created;
 
                     dap_string_append_printf(l_str_tmp,"\nEvent %s:\n", l_event_hash_str);
 
@@ -1840,8 +1854,8 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         char * l_hash_str = dap_chain_hash_fast_to_str_new(&l_round_item->round_info.datum_hash);
                         dap_string_append_printf(l_str_tmp, "\t\tdatum_hash: %s\n", l_hash_str);
                         DAP_DELETE(l_hash_str);
-                        dap_time_t l_ts = l_round_item->round_info.ts_update;
-                        dap_string_append_printf(l_str_tmp,"\t\tts_update: %s", dap_ctime_r(&l_ts, buf));
+                        dap_time_to_str_rfc822(buf, 50, l_round_item->round_info.ts_update);
+                        dap_string_append_printf(l_str_tmp,"\t\tts_update: %s\n", buf);
                     }
 
                      // Header
@@ -1850,7 +1864,8 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     dap_string_append_printf(l_str_tmp,"\t\t\tround ID: %"DAP_UINT64_FORMAT_U"\n",l_event->header.round_id);
                     dap_string_append_printf(l_str_tmp,"\t\t\tcell_id: 0x%016"DAP_UINT64_FORMAT_x"\n",l_event->header.cell_id.uint64);
                     dap_string_append_printf(l_str_tmp,"\t\t\tchain_id: 0x%016"DAP_UINT64_FORMAT_X"\n",l_event->header.chain_id.uint64);
-                    dap_string_append_printf(l_str_tmp,"\t\t\tts_created: %s\n", dap_ctime_r(&l_ts_reated, buf) );
+                    dap_time_to_str_rfc822(buf, 50, l_event->header.ts_created);
+                    dap_string_append_printf(l_str_tmp,"\t\t\tts_created: %s\n", buf );
 
                     // Hash links
                     dap_string_append_printf(l_str_tmp,"\t\t\thashes:\tcount: %u\n",l_event->header.hash_count);
@@ -1864,7 +1879,6 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     size_t l_offset =  l_event->header.hash_count*sizeof (dap_chain_hash_fast_t);
                     dap_chain_datum_t * l_datum = (dap_chain_datum_t*) (l_event->hashes_n_datum_n_signs + l_offset);
                     size_t l_datum_size =  dap_chain_datum_size(l_datum);
-                    dap_time_t l_datum_ts_create = (dap_time_t) l_datum->header.ts_create;
 
                     // Nested datum
                     const char *l_datum_type = NULL;
@@ -1872,7 +1886,8 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     dap_string_append_printf(l_str_tmp,"\t\tdatum:\tdatum_size: %zu\n",l_datum_size);
                     dap_string_append_printf(l_str_tmp,"\t\t\tversion:=0x%02hhX\n", l_datum->header.version_id);
                     dap_string_append_printf(l_str_tmp,"\t\t\ttype_id:=%s\n", l_datum_type);
-                    dap_string_append_printf(l_str_tmp,"\t\t\tts_create=%s\n", dap_ctime_r( &l_datum_ts_create,buf ));
+                    dap_time_to_str_rfc822(buf, 50, l_datum->header.ts_create);
+                    dap_string_append_printf(l_str_tmp,"\t\t\tts_create=%s\n", buf);
                     dap_string_append_printf(l_str_tmp,"\t\t\tdata_size=%u\n", l_datum->header.data_size);
 
                     // Signatures
@@ -1926,9 +1941,9 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                             dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *)
                                             ((dap_chain_cs_dag_event_round_item_t *)l_objs[i].value)->event_n_signs;
                             char buf[50];
-                            dap_time_t l_ts_create = (dap_time_t) l_event->header.ts_created;
-                            dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s",
-                                                     l_objs[i].key, dap_ctime_r( &l_ts_create,buf ) );
+                            dap_time_to_str_rfc822(buf, 50, l_event->header.ts_created);
+                            dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s\n",
+                                                     l_objs[i].key, buf);
 
                         }
                         if (l_objs && l_objs_count )
@@ -1947,10 +1962,10 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     dap_chain_cs_dag_event_item_t * l_event_item = NULL,*l_event_item_tmp = NULL;
                     HASH_ITER(hh,PVT(l_dag)->events,l_event_item, l_event_item_tmp ) {
                         char buf[50];
+                        dap_time_to_str_rfc822(buf, 50, l_event_item->event->header.ts_created);
                         char * l_event_item_hash_str = dap_chain_hash_fast_to_str_new( &l_event_item->hash);
-                        dap_time_t l_ts_create = (dap_time_t) l_event_item->event->header.ts_created;
-                        dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s",
-                                                 l_event_item_hash_str, dap_ctime_r( &l_ts_create,buf ) );
+                        dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s\n",
+                                                 l_event_item_hash_str, buf);
                         DAP_DELETE(l_event_item_hash_str);
                     }
                     size_t l_events_count = HASH_COUNT(PVT(l_dag)->events);
@@ -1966,10 +1981,10 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                     dap_string_append_printf(l_str_tmp,"\nDAG threshold events:\n");
                     HASH_ITER(hh,PVT(l_dag)->events_treshold,l_event_item, l_event_item_tmp ) {
                         char buf[50];
+                        dap_time_to_str_rfc822(buf, 50, l_event_item->event->header.ts_created);
                         char * l_event_item_hash_str = dap_chain_hash_fast_to_str_new( &l_event_item->hash);
-                        dap_time_t l_ts_create = (dap_time_t) l_event_item->event->header.ts_created;
-                        dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s",
-                                                 l_event_item_hash_str, dap_ctime_r( &l_ts_create,buf ) );
+                        dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s\n",
+                                                 l_event_item_hash_str, buf);
                         DAP_DELETE(l_event_item_hash_str);
                     }
                     size_t l_events_count = HASH_COUNT(PVT(l_dag)->events_treshold);

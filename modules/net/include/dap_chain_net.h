@@ -43,6 +43,7 @@ along with any CellFrame SDK based project.  If not, see <http://www.gnu.org/lic
 #include "dap_chain_datum_anchor.h"
 #include "dap_chain_datum_tx.h"
 #include "uthash.h"
+#include "dap_json_rpc.h"
 
 #define DAP_CHAIN_NET_NAME_MAX 32
 #define DAP_CHAIN_NET_MEMPOOL_TTL 48 // Hours
@@ -106,6 +107,7 @@ void dap_chain_net_deinit(void);
 DAP_STATIC_INLINE uint64_t dap_chain_net_get_cur_addr_int(dap_chain_net_t *a_net) { return g_node_addr.uint64; }
 
 void dap_chain_net_load_all();
+void dap_chain_net_try_online_all();
 
 int dap_chain_net_state_go_to(dap_chain_net_t * a_net, dap_chain_net_state_t a_new_state);
 dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net);
@@ -159,6 +161,7 @@ dap_chain_node_info_t *dap_chain_net_balancer_link_from_cfg(dap_chain_net_t *a_n
 
 int dap_chain_net_add_poa_certs_to_cluster(dap_chain_net_t *a_net, dap_global_db_cluster_t *a_cluster);
 bool dap_chain_net_add_validator_to_clusters(dap_chain_t *a_chain, dap_stream_node_addr_t *a_addr);
+bool dap_chain_net_remove_validator_from_clusters(dap_chain_t *a_chain, dap_stream_node_addr_t *a_addr);
 dap_global_db_cluster_t *dap_chain_net_get_mempool_cluster(dap_chain_t *a_chain);
 
 int dap_chain_net_add_reward(dap_chain_net_t *a_net, uint256_t a_reward, uint64_t a_block_num);
@@ -213,3 +216,31 @@ int dap_chain_datum_remove(dap_chain_t *a_chain, dap_chain_datum_t *a_datum, siz
 bool dap_chain_net_get_load_mode(dap_chain_net_t * a_net);
 void dap_chain_net_announce_addrs();
 char *dap_chain_net_links_dump(dap_chain_net_t*);
+
+enum dap_chain_net_json_rpc_error_list{
+    DAP_CHAIN_NET_JSON_RPC_OK,
+    DAP_CHAIN_NET_JSON_RPC_INVALID_PARAMETER_HASH = DAP_JSON_RPC_ERR_CODE_METHOD_ERR_START,
+    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_PARAMETER_NET_REQUIRE,
+    DAP_CHAIN_NET_JSON_RPC_WRONG_NET,
+    DAP_CHAIN_NET_JSON_RPC_MANY_ARGUMENT_FOR_COMMAND_NET_LIST,
+    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_STATS,
+    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_COMMAND_GO,
+    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETER_ADDR_COMMAND_INFO,
+    DAP_CHAIN_NET_JSON_RPC_CANT_CALCULATE_HASH_FOR_ADDR,
+    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_GET_CLUSTER,
+    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_COMMAND_LINK,
+    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_COMMAND_SYNC,
+    DAP_CHAIN_NET_JSON_RPC_UNDEFINED_PARAMETERS_CA_ADD,
+    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_FIND_CERT_CA_ADD,
+    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_KEY_IN_CERT_CA_ADD,
+    DAP_CHAIN_NET_JSON_RPC_CAN_SERIALIZE_PUBLIC_KEY_CERT_CA_ADD,
+    DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_ADD,
+    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_SAVE_PUBLIC_KEY_IN_DATABASE,
+    DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_LIST,
+    DAP_CHAIN_NET_JSON_RPC_UNKNOWN_HASH_CA_DEL,
+    DAP_CHAIN_NET_JSON_RPC_DATABASE_ACL_GROUP_NOT_DEFINED_FOR_THIS_NETWORK_CA_DEL,
+    DAP_CHAIN_NET_JSON_RPC_CAN_NOT_FIND_CERT_CA_DEL,
+    DAP_CHAIN_NET_JSON_RPC_INVALID_PARAMETER_COMMAND_CA,
+    DAP_CHAIN_NET_JSON_RPC_NO_POA_CERTS_FOUND_POA_CERTS,
+    DAP_CHAIN_NET_JSON_RPC_UNKNOWN_SUBCOMMANDS
+};

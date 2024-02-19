@@ -14,7 +14,7 @@ endif()
 #find_package(PkgConfig REQUIRED)
 #pkg_search_module(GLIB REQUIRED glib-2.0)
 
-target_link_libraries(${PROJECT_NAME} dap_chain_common dap_global_db dap_notify_srv ${GLIB_LDFLAGS})
+target_link_libraries(${PROJECT_NAME} dap_chain_common dap_global_db dap_notify_srv dap_stream ${GLIB_LDFLAGS})
 target_include_directories(${PROJECT_NAME} INTERFACE . include/ ${GLIB_INCLUDE_DIRS})
 target_include_directories(${PROJECT_NAME} PUBLIC include)
 target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../../../dap-sdk/3rdparty/uthash/src)

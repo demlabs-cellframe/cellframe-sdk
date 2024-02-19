@@ -676,10 +676,9 @@ json_object * dap_chain_datum_to_json(dap_chain_datum_t* a_datum){
     json_object_object_add(l_object, "data_size", l_obj_size);
     json_object_object_add(l_object, "version", l_obj_version);
 
-    char l_time_str[32];
+    char l_time_str[DAP_TIME_STR_SIZE];
     if (a_datum->header.ts_create) {
-        uint64_t l_ts = a_datum->header.ts_create;
-        dap_ctime_r(&l_ts, l_time_str);                             /* Convert ts to  "Sat May 17 01:17:08 2014\n" */
+        dap_time_to_str_rfc822(l_time_str, DAP_TIME_STR_SIZE, a_datum->header.ts_create); /* Convert ts to  "Sat May 17 01:17:08 2014\n" */
         l_time_str[strlen(l_time_str)-1] = '\0';                    /* Remove "\n"*/
     }
     json_object *l_obj_ts_created = json_object_new_string(l_time_str);

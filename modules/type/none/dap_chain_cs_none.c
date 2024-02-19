@@ -170,7 +170,8 @@ static int s_cs_callback_new(dap_chain_t *a_chain, dap_config_t UNUSED_ARG *a_ch
     l_nochain_priv->group_datums = dap_chain_net_get_gdb_group_nochain_new(a_chain);
     // Add group prefix that will be tracking all changes
     dap_global_db_cluster_t *l_nonconsensus_cluster =
-            dap_global_db_cluster_add(dap_global_db_instance_get_default(), l_net->pub.name,
+            dap_global_db_cluster_add(dap_global_db_instance_get_default(),
+                                      l_net->pub.name, l_net->pub.id.uint64,
                                       l_nochain_priv->group_datums, 0, true,
                                       DAP_GDB_MEMBER_ROLE_USER, DAP_CLUSTER_ROLE_EMBEDDED);
     if (!l_nonconsensus_cluster) {

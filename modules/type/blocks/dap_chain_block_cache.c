@@ -65,7 +65,11 @@ dap_chain_block_cache_t *dap_chain_block_cache_new(dap_hash_fast_t *a_block_hash
         log_it(L_CRITICAL, "Memory allocation error");
         return NULL;
     }
-    l_block_cache->block = a_block;
+    l_block_cache->block = DAP_DUP_SIZE(a_block, a_block_size);
+    if (!l_block_cache->block) {
+        log_it(L_CRITICAL, "Memory allocation error");
+        return NULL;
+    }
     l_block_cache->block_size = a_block_size;
     l_block_cache->block_number = a_block_number;
     l_block_cache->ts_created = a_block->hdr.ts_created;
