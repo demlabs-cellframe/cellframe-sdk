@@ -1449,7 +1449,7 @@ void chain_mempool_proc(struct dap_http_simple *cl_st, void * arg)
  * @param sh HTTP server instance
  * @param url URL string
  */
-void dap_chain_mempool_add_proc(dap_http_t * a_http_server, const char * a_url)
+void dap_chain_mempool_add_proc(dap_http_server_t * a_http_server, const char * a_url)
 {
     dap_http_simple_proc_add(a_http_server, a_url, 4096, chain_mempool_proc);
 }

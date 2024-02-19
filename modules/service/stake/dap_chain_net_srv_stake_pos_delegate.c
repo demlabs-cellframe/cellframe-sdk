@@ -2547,7 +2547,8 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                     char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
                     dap_chain_hash_fast_to_str(&l_datum_hash, l_hash_str, sizeof(l_hash_str));
                     dap_string_append_printf(l_str_tmp,"%s \n",spaces);
-                    dap_string_append_printf(l_str_tmp, "%s \n", dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_datum_tx->header.ts_created));
+                    dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_datum_tx->header.ts_created);
+                    dap_string_append_printf(l_str_tmp, "%s \n", buf);
                     dap_string_append_printf(l_str_tmp,"tx_hash:\t%s \n",l_hash_str);
 
                     l_signing_addr_str = dap_chain_addr_to_str(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr);
