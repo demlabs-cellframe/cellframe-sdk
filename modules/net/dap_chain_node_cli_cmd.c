@@ -1973,7 +1973,7 @@ int com_help(int a_argc, char **a_argv, void **a_str_reply)
  * @param str_reply
  * @return int
  */
-int com_tx_wallet(int a_argc, char **a_argv, void **a_str_reply)
+int com_tx_wallet(int a_argc, char **a_argv, void **reply)
 {
 json_object ** json_arr_reply = (json_object **) reply;
 const char *c_wallets_path = dap_chain_wallet_get_path(g_config);
@@ -2284,10 +2284,10 @@ int l_arg_index = 1, l_rc, cmd_num = CMD_NONE;
                         FILE *l_exists = fopen(l_file_name, "rb");
                         DAP_DELETE(l_file_name);
                         if (l_exists) {
-                            dap_cli_server_cmd_set_reply_text(a_str_reply, "Wallet %s already exists", l_wallet_name);
+                            dap_json_rpc_error_add(DAP_CHAIN_NODE_CLI_COM_TX_WALLET_ALREADY_ERR,"Wallet %s already exists",l_wallet_name);
                             fclose(l_exists);
-                            dap_string_free(l_string_ret, true);
-                            return -1;
+                            json_object_put(json_arr_out);
+                            return DAP_CHAIN_NODE_CLI_COM_TX_WALLET_ALREADY_ERR;
                         }
                     }
 
