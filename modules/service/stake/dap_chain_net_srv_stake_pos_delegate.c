@@ -1937,11 +1937,10 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv, int a_arg_index
     }
 
     char l_tx_hash_str2[DAP_HASH_FAST_STR_SIZE];
-    l_tx_hash_str
-        ? memcpy(l_tx_hash_str2, l_tx_hash_str, DAP_HASH_FAST_STR_SIZE)
-        : dap_chain_hash_fast_to_str(&l_tx_hash, l_tx_hash_str2, DAP_HASH_FAST_STR_SIZE);
-
-    char l_tx_hash_str2 = l_tx_hash_str ? dap_strdup(l_tx_hash_str) : dap_chain_hash_fast_to_str_new(&l_tx_hash);
+    if (l_tx_hash_str)
+        memcpy(l_tx_hash_str2, l_tx_hash_str, DAP_HASH_FAST_STR_SIZE);
+    else
+        dap_chain_hash_fast_to_str(&l_tx_hash, l_tx_hash_str2, DAP_HASH_FAST_STR_SIZE);
 
     dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_tx_hash);
     if (!l_tx) {
