@@ -821,18 +821,18 @@ int dap_chain_net_srv_xchange_get_order_completion_rate(dap_chain_net_t *a_net, 
             return dap_chain_balance_to_coins_uint64(l_percent_completed);
 }
 
-enum dap_chain_net_srv_xchange_order_status dap_chain_net_srv_xchange_get_order_status(dap_chain_net_t *a_net, dap_hash_fast_t a_order_tx_hash)
+dap_chain_net_srv_xchange_order_status_t dap_chain_net_srv_xchange_get_order_status(dap_chain_net_t *a_net, dap_hash_fast_t a_order_tx_hash)
 {
             dap_chain_datum_tx_t * l_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &a_order_tx_hash);
             if (!l_tx){
                 log_it(L_ERROR, "Cant find such tx in ledger");
-                return -1;
+                return XCHANGE_ORDER_STATUS_UNKNOWN;
             }
 
             dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE , NULL);
             if (!l_out_cond || l_out_cond->header.srv_uid.uint64 != DAP_CHAIN_NET_SRV_XCHANGE_ID){
                 log_it(L_ERROR, "It's not an order");
-                return -1;
+                return XCHANGE_ORDER_STATUS_UNKNOWN;
             }
 
             // TODO add filters to list (tokens, network, etc.)
@@ -840,19 +840,19 @@ enum dap_chain_net_srv_xchange_order_status dap_chain_net_srv_xchange_get_order_
             l_price = s_xchange_price_from_order(a_net, l_tx, NULL, true);
             if( !l_price ){
                 log_it(L_ERROR, "Can't get price from order");
-                return -1;
+                return XCHANGE_ORDER_STATUS_UNKNOWN;
             }
 
             dap_hash_fast_t * l_last_tx_hash = dap_ledger_get_final_chain_tx_hash(a_net->pub.ledger, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE, &l_price->tx_hash);
             if(!l_last_tx_hash){
                 log_it(L_ERROR, " Can't get last tx cond hash from order");
-                return -1;
+                return XCHANGE_ORDER_STATUS_UNKNOWN;
             }
 
             dap_chain_datum_tx_t * l_last_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, l_last_tx_hash);
             if(!l_last_tx_hash){
                 log_it(L_ERROR, "Can't find last tx");
-                return -1;
+                return XCHANGE_ORDER_STATUS_UNKNOWN;
             }
 
             dap_chain_tx_out_cond_t *l_out_cond_last_tx = dap_chain_datum_tx_out_cond_get(l_last_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE , NULL);
