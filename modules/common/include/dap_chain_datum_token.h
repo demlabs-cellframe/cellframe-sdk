@@ -30,6 +30,7 @@
 #include "dap_string.h"
 #include "dap_tsd.h"
 #include "dap_strfuncs.h"
+#include "json_object.h"
 
 
 // Token declaration
