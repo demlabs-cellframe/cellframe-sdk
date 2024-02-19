@@ -554,9 +554,12 @@ static bool s_sync_in_chains_callback(void *a_arg)
         return false;
     }
     char *l_atom_hash_str = NULL;
+    l_atom_hash_str = DAP_NEW_STACK_SIZE(char, DAP_CHAIN_HASH_FAST_STR_SIZE); 
+    dap_hash_fast_t l_atom_hash = {}; 
+    dap_hash_fast(l_atom, l_atom_size, &l_atom_hash); 
     if (s_debug_more)
-        dap_get_data_hash_str_static(l_atom, l_atom_size, l_atom_hash_str);
-    dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom, l_atom_size);
+        dap_chain_hash_fast_to_str(&l_atom_hash, l_atom_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE); 
+    dap_chain_atom_verify_res_t l_atom_add_res = l_chain->callback_atom_add(l_chain, l_atom, l_atom_size, &l_atom_hash);
     switch (l_atom_add_res) {
     case ATOM_PASS:
         debug_if(s_debug_more, L_WARNING, "Atom with hash %s for %s:%s not accepted (code ATOM_PASS, already present)",
