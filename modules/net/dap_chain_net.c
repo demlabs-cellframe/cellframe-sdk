@@ -429,7 +429,7 @@ static void s_fill_links_from_root_aliases(dap_chain_net_t *a_net)
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     dap_link_t *l_link = NULL;
     for (size_t i = 0; i < l_net_pvt->seed_nodes_count; i++) {
-        dap_link_t *l_link = dap_link_manager_link_create_or_update(NULL, &l_net_pvt->seed_nodes_addrs[i], 
+        dap_link_t *l_link = dap_link_manager_link_create_or_update(&l_net_pvt->seed_nodes_addrs[i], 
             &l_net_pvt->seed_nodes_ipv4[i].sin_addr, &l_net_pvt->seed_nodes_ipv6[i].sin6_addr, l_net_pvt->seed_nodes_ipv4[i].sin_port);
         if (!l_link)
             continue;
@@ -582,7 +582,7 @@ static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_cha
     char l_err_str[128] = { };
     struct json_object *l_json;
     for(size_t i = 0; i < a_link_full_node_list->count_node; ++i){
-        dap_link_t *l_link = dap_link_manager_link_create_or_update(NULL, &l_node_info[i].hdr.address, 
+        dap_link_t *l_link = dap_link_manager_link_create_or_update(&l_node_info[i].hdr.address, 
             &l_node_info[i].hdr.ext_addr_v4, &l_node_info[i].hdr.ext_addr_v6, l_node_info[i].hdr.ext_port);
         if (!l_link)
             continue;
@@ -694,7 +694,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
                         NODE_ADDR_FP_ARGS(l_net_pvt->permanent_links + i));
                 continue;
             }
-            dap_link_t *l_link = dap_link_manager_link_create_or_update(NULL, &l_link_node_info[i].hdr.address, 
+            dap_link_t *l_link = dap_link_manager_link_create_or_update(&l_link_node_info[i].hdr.address, 
                     &l_link_node_info[i].hdr.ext_addr_v4, &l_link_node_info[i].hdr.ext_addr_v6, l_link_node_info[i].hdr.ext_port);
             dap_link_manager_link_add(a_net->pub.id.uint64, l_link);
             DAP_DELETE(l_link_node_info);
@@ -712,7 +712,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
 
             for(size_t i = 0; i < l_node_cnt; ++i) {
                 int l_net_link_add = 0;
-                dap_link_t *l_link = dap_link_manager_link_create_or_update(NULL, &l_node_info[i].hdr.address, 
+                dap_link_t *l_link = dap_link_manager_link_create_or_update(&l_node_info[i].hdr.address, 
                     &l_node_info[i].hdr.ext_addr_v4, &l_node_info[i].hdr.ext_addr_v6, l_node_info[i].hdr.ext_port);
                 if (!l_link)
                     continue;
@@ -3334,8 +3334,10 @@ int s_link_manager_fill_net_info(dap_link_t *a_link)
     if (!l_node_info) {
         return -3;
     }
-    dap_link_manager_link_create_or_update(a_link, &l_node_info->hdr.address, 
-            &l_node_info->hdr.ext_addr_v4, &l_node_info->hdr.ext_addr_v6, l_node_info->hdr.ext_port);
+    if (a_link != dap_link_manager_link_create_or_update(&l_node_info->hdr.address, 
+            &l_node_info->hdr.ext_addr_v4, &l_node_info->hdr.ext_addr_v6, l_node_info->hdr.ext_port)) {
+        log_it(L_WARNING, "LEAKS, links dublicate to node "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(a_link->node_addr));
+    }
     DAP_DELETE(l_node_info);
     return l_ret;
 }
