@@ -1207,8 +1207,8 @@ static void s_net_balancer_link_prepare_error(dap_worker_t * a_worker, void * a_
         s_net_links_complete_and_start(l_net, a_worker);
     else
         s_new_balancer_link_request(l_net, l_balancer_request->link_replace_tries);
-    //DAP_DELETE(l_node_info);
-    //DAP_DELETE(l_balancer_request);
+    DAP_DEL_Z(l_node_info);
+    DAP_DEL_Z(l_balancer_request);
 }
 
 
@@ -1223,7 +1223,8 @@ void s_net_http_link_prepare_success(void *a_response, size_t a_response_size, v
     if (a_response_size != l_response_size_need) {
         log_it(L_ERROR, "Invalid balancer response size %lu (expected %lu)", a_response_size, l_response_size_need);
         s_new_balancer_link_request(l_balancer_request->net, l_balancer_request->link_replace_tries);
-        DAP_DELETE(l_balancer_request);
+        DAP_DEL_Z(l_balancer_request->link_info);
+        DAP_DEL_Z(l_balancer_request);
         return;
     }
     s_net_balancer_link_prepare_success(l_balancer_request->worker, l_link_full_node_list, a_arg);
@@ -1354,8 +1355,8 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
     }
     if (ret) {
         log_it(L_ERROR, "Can't process balancer link %s request", PVT(a_net)->balancer_http ? "HTTP" : "DNS");
-        DAP_DELETE(l_balancer_request->link_info);
-        DAP_DELETE(l_balancer_request);
+        DAP_DEL_Z(l_balancer_request->link_info);
+        DAP_DEL_Z(l_balancer_request);
         return false;
     }
     if (!a_link_replace_tries)
