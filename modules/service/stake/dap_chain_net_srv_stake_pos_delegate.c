@@ -1936,22 +1936,29 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv, int a_arg_index
         l_tx_hash = l_stake->tx_hash;
     }
 
+    char l_tx_hash_str2[DAP_HASH_FAST_STR_SIZE];
+    l_tx_hash_str
+        ? memcpy(l_tx_hash_str2, l_tx_hash_str, DAP_HASH_FAST_STR_SIZE)
+        : dap_chain_hash_fast_to_str(&l_tx_hash, l_tx_hash_str2, DAP_HASH_FAST_STR_SIZE);
+
+    char l_tx_hash_str2 = l_tx_hash_str ? dap_strdup(l_tx_hash_str) : dap_chain_hash_fast_to_str_new(&l_tx_hash);
+
     dap_chain_datum_tx_t *l_tx = dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_tx_hash);
     if (!l_tx) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Transaction %s is not found", l_tx_hash_str);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Transaction %s is not found", l_tx_hash_str2);
         return -21;
     }
 
     int l_out_num = 0;
     if (!dap_chain_datum_tx_out_cond_get(l_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE, &l_out_num)) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Transaction %s is invalid", l_tx_hash_str);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Transaction %s is invalid", l_tx_hash_str2);
         return -22;
     }
     dap_hash_fast_t l_spender_hash = {};
     if (dap_ledger_tx_hash_is_used_out_item(l_net->pub.ledger, &l_tx_hash, l_out_num, &l_spender_hash)) {
         l_tx_hash = l_spender_hash;
         if (!dap_ledger_tx_find_by_hash(l_net->pub.ledger, &l_tx_hash)) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "Previous transaction %s is not found", l_tx_hash_str);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Previous transaction %s is not found", l_tx_hash_str2);
             return -21;
         }
     }
@@ -1959,7 +1966,7 @@ static int s_cli_srv_stake_invalidate(int a_argc, char **a_argv, int a_arg_index
     HASH_FIND(ht, s_srv_stake->tx_itemlist, &l_tx_hash, sizeof(dap_hash_t), l_stake);
     if (l_stake) {
         char *l_delegated_hash_str = dap_hash_fast_is_blank(&l_spender_hash)
-            ? dap_strdup(l_tx_hash_str)
+            ? dap_strdup(l_tx_hash_str2)
             : dap_hash_fast_to_str_new(&l_spender_hash);
         char l_pkey_hash_str[DAP_HASH_FAST_STR_SIZE];
         dap_hash_fast_to_str(&l_stake->signing_addr.data.hash_fast, l_pkey_hash_str, DAP_HASH_FAST_STR_SIZE);
