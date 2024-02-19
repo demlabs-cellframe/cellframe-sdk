@@ -62,7 +62,7 @@ void dap_chain_net_srv_xchange_deinit();
 
 void dap_chain_net_srv_xchange_print_fee(dap_chain_net_t *a_net, dap_string_t *a_string_ret);
 
-enum dap_chain_net_srv_xchange_create_error_list{
+typedef enum dap_chain_net_srv_xchange_create_error_list{
     XCHANGE_CREATE_ERROR_OK = 0,
     XCHANGE_CREATE_ERROR_INVALID_ARGUMENT,
     XCHANGE_CREATE_ERROR_TOKEN_TICKER_SELL_IS_NOT_FOUND_LEDGER,
@@ -76,34 +76,35 @@ enum dap_chain_net_srv_xchange_create_error_list{
     XCHANGE_CREATE_ERROR_MEMORY_ALLOCATED,
     XCHANGE_CREATE_ERROR_CAN_NOT_COMPOSE_THE_CONDITIONAL_TRANSACTION,
     XCHANGE_CREATE_ERROR_CAN_NOT_PUT_TRANSACTION_TO_MEMPOOL,
-};
-int dap_chain_net_srv_xchange_create(dap_chain_net_t *a_net, const char *a_token_buy,
+} dap_chain_net_srv_xchange_create_error_t;
+dap_chain_net_srv_xchange_create_error_t dap_chain_net_srv_xchange_create(dap_chain_net_t *a_net, const char *a_token_buy,
                                                   const char *a_token_sell, uint256_t a_datoshi_sell,
                                                   uint256_t a_rate, uint256_t a_fee, dap_chain_wallet_t *a_wallet,
                                                   char **a_out_tx_hash);
 
-enum dap_chain_net_srv_xchange_remove_error_list{
+typedef enum dap_chain_net_srv_xchange_remove_error_list{
     XCHANGE_REMOVE_ERROR_OK = 0,
     XCHANGE_REMOVE_ERROR_INVALID_ARGUMENT,
     XCHANGE_REMOVE_ERROR_FEE_IS_ZERO,
     XCHANGE_REMOVE_ERROR_CAN_NOT_FIND_TX,
     XCHANGE_REMOVE_ERROR_CAN_NOT_CREATE_PRICE,
     XCHANGE_REMOVE_ERROR_CAN_NOT_INVALIDATE_TX
-};
-int dap_chain_net_srv_xchange_remove(dap_chain_net_t *a_net, dap_hash_fast_t *a_hash_tx, uint256_t a_fee,
+} dap_chain_net_srv_xchange_remove_error_t ;
+dap_chain_net_srv_xchange_remove_error_t dap_chain_net_srv_xchange_remove(dap_chain_net_t *a_net, dap_hash_fast_t *a_hash_tx, uint256_t a_fee,
                                      dap_chain_wallet_t *a_wallet, char **a_out_hash_tx);
 
 dap_list_t *dap_chain_net_srv_xchange_get_tx_xchange(dap_chain_net_t *a_net);
 dap_list_t *dap_chain_net_srv_xchange_get_prices(dap_chain_net_t *a_net);
 
-enum dap_chain_net_srv_xchange_purchase_error_list{
+typedef enum dap_chain_net_srv_xchange_purchase_error_list{
     XCHANGE_PURCHASE_ERROR_OK = 0,
     XCHANGE_PURCHASE_ERROR_INVALID_ARGUMENT,
     XCHANGE_PURCHASE_ERROR_SPECIFIED_ORDER_NOT_FOUND,
     XCHANGE_PURCHASE_ERROR_CAN_NOT_CREATE_PRICE,
     XCHANGE_PURCHASE_ERROR_CAN_NOT_CREATE_EXCHANGE_TX,
-};
-int dap_chain_net_srv_xchange_purchase(dap_chain_net_t *a_net, dap_hash_fast_t *a_order_hash, uint256_t a_value,
+} dap_chain_net_srv_xchange_purchase_error_t;
+
+dap_chain_net_srv_xchange_purchase_error_t dap_chain_net_srv_xchange_purchase(dap_chain_net_t *a_net, dap_hash_fast_t *a_order_hash, uint256_t a_value,
                                        uint256_t a_fee, dap_chain_wallet_t *a_wallet, char **a_hash_out);
 
 int dap_chain_net_srv_xchange_get_order_completion_rate(dap_chain_net_t *a_net, dap_hash_fast_t a_order_tx_hash);

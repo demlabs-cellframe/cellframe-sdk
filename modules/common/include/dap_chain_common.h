@@ -329,7 +329,7 @@ uint64_t dap_chain_uint256_to(uint256_t a_from);
 #define dap_chain_balance_to_coins(a) dap_uint256_decimal_to_char(a)
 #define dap_chain_coins_to_balance(a) dap_uint256_scan_decimal(a)
 
-DAP_STATIC_INLINE uint64_t dap_chain_balance_to_coins_uint(uint256_t val) 
+DAP_STATIC_INLINE uint64_t dap_chain_balance_to_coins_uint64(uint256_t val) 
 {
     DIV_256_COIN(val, dap_chain_coins_to_balance("1000000000000000000.0"), &val);
     return val._lo.a;

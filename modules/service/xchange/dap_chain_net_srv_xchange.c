@@ -419,10 +419,12 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
     }
     dap_enc_key_t *l_seller_key = dap_chain_wallet_get_key(a_wallet, 0);
     // list of transaction with 'out' items to sell
+
     dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_price->token_sell,
                                                                        &l_seller_addr, l_value_need, &l_value_transfer);
     if(!l_list_used_out) {
-        log_it(L_WARNING, "Nothing to change (not enough funds)");
+        log_it(L_WARNING, "Nothing to change from % (not enough funds in %s (%s))", 
+                           dap_chain_addr_to_str( &l_seller_addr), a_price->token_sell, dap_chain_balance_print(l_value_need));
         return NULL;
     }
 
@@ -567,7 +569,9 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
     dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_price->token_buy,
                                                                        &l_buyer_addr, l_value_need, &l_value_transfer);
     if (!l_list_used_out) {
-        log_it(L_WARNING, "Nothing to change (not enough funds)");
+        log_it(L_WARNING, "Nothing to change from %s (not enough funds in %s (%s))", 
+                        dap_chain_addr_to_str( &l_buyer_addr), a_price->token_buy, dap_chain_balance_print(l_value_need));
+     
         return NULL;
     }
     bool l_pay_with_native = !dap_strcmp(a_price->token_sell, l_native_ticker);
@@ -814,7 +818,7 @@ int dap_chain_net_srv_xchange_get_order_completion_rate(dap_chain_net_t *a_net, 
                 }
             }
             
-            return dap_chain_balance_to_coins_uint(l_percent_completed);
+            return dap_chain_balance_to_coins_uint64(l_percent_completed);
 }
 
 enum dap_chain_net_srv_xchange_order_status dap_chain_net_srv_xchange_get_order_status(dap_chain_net_t *a_net, dap_hash_fast_t a_order_tx_hash)
@@ -2524,7 +2528,7 @@ dap_list_t *dap_chain_net_srv_xchange_get_prices(dap_chain_net_t *a_net) {
     return l_list_prices;
 }
 
-int dap_chain_net_srv_xchange_create(dap_chain_net_t *a_net, const char *a_token_buy,
+dap_chain_net_srv_xchange_create_error_t dap_chain_net_srv_xchange_create(dap_chain_net_t *a_net, const char *a_token_buy,
                                                   const char *a_token_sell, uint256_t a_datoshi_sell,
                                                   uint256_t a_rate, uint256_t a_fee, dap_chain_wallet_t *a_wallet,
                                                   char **a_out_tx_hash){
@@ -2596,7 +2600,7 @@ int dap_chain_net_srv_xchange_create(dap_chain_net_t *a_net, const char *a_token
     return XCHANGE_CREATE_ERROR_OK;
 }
 
-int dap_chain_net_srv_xchange_remove(dap_chain_net_t *a_net, dap_hash_fast_t *a_hash_tx, uint256_t a_fee,
+dap_chain_net_srv_xchange_remove_error_t dap_chain_net_srv_xchange_remove(dap_chain_net_t *a_net, dap_hash_fast_t *a_hash_tx, uint256_t a_fee,
                                      dap_chain_wallet_t *a_wallet, char **a_out_hash_tx) {
     if (!a_net || !a_hash_tx || !a_wallet) {
         return XCHANGE_REMOVE_ERROR_INVALID_ARGUMENT;
@@ -2622,7 +2626,7 @@ int dap_chain_net_srv_xchange_remove(dap_chain_net_t *a_net, dap_hash_fast_t *a_
     return XCHANGE_REMOVE_ERROR_OK;
 }
 
-int dap_chain_net_srv_xchange_purchase(dap_chain_net_t *a_net, dap_hash_fast_t *a_order_hash, uint256_t a_value,
+dap_chain_net_srv_xchange_purchase_error_t dap_chain_net_srv_xchange_purchase(dap_chain_net_t *a_net, dap_hash_fast_t *a_order_hash, uint256_t a_value,
                                        uint256_t a_fee, dap_chain_wallet_t *a_wallet, char **a_hash_out){
     if (!a_net || !a_order_hash || !a_wallet || !a_hash_out) {
         return XCHANGE_PURCHASE_ERROR_INVALID_ARGUMENT;
