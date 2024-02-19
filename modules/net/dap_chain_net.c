@@ -140,14 +140,6 @@ struct balancer_link_request {
     int link_replace_tries;
 };
 
-struct net_link {
-    uint64_t uplink_ip;
-    dap_chain_node_info_t *link_info;
-    dap_chain_node_client_t *link;
-    dap_timerfd_t *delay_timer;
-    UT_hash_handle hh;
-};
-
 struct block_reward {
     uint64_t block_number;
     uint256_t reward;
@@ -221,19 +213,17 @@ static inline const char * dap_chain_net_state_to_str(dap_chain_net_state_t a_st
 }
 
 // Node link callbacks
-static void s_node_link_callback_disconnected(dap_chain_node_client_t * a_node_client, void * a_arg);
 static void s_node_link_callback_stage(dap_chain_node_client_t * a_node_client,dap_client_stage_t a_stage, void * a_arg);
-static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client, void * a_arg);
 
 static void s_link_manager_callback_connected(dap_link_t *a_link, uint64_t a_net_id);
 static void s_link_manager_callback_error(dap_link_t *a_link, uint64_t a_net_id, int a_error);
+static void s_link_manager_callback_disconnected(dap_link_t *a_link, uint64_t a_net_id, int a_links_count);
 static int s_link_manager_fill_net_info(dap_link_t *a_link);
 static void s_link_manager_link_request(uint64_t a_net_id);
 
 static const dap_link_manager_callbacks_t s_link_manager_callbacks = {
     .connected      = s_link_manager_callback_connected,
-    .disconnected   = NULL,
-    .delete         = NULL,
+    .disconnected   = s_link_manager_callback_disconnected,
     .error          = s_link_manager_callback_error,
     .fill_net_info  = s_link_manager_fill_net_info,
     .link_request   = s_link_manager_link_request,
@@ -427,17 +417,6 @@ void dap_chain_net_add_cluster_link(dap_chain_net_t *a_net, dap_stream_node_addr
         log_it(L_ERROR, "Not found links cluster for net %s", a_net->pub.name);
 }
 
-static bool s_net_link_callback_connect_delayed(void *a_arg)
-{
-    struct net_link *l_link = a_arg;
-    dap_chain_node_client_t *l_client = l_link->link;
-    log_it(L_MSG, "Connecting to link "NODE_ADDR_FP_STR" [%s]",
-           NODE_ADDR_FP_ARGS_S(l_client->info->hdr.address), inet_ntoa(l_client->info->hdr.ext_addr_v4));
-    dap_chain_node_client_connect(l_client, "CGND");
-    l_link->delay_timer = NULL;
-    return false;
-}
-
 /**
  * @brief s_fill_links_from_root_aliases
  * @param a_net
@@ -493,36 +472,23 @@ static void s_link_manager_callback_connected(dap_link_t *a_link, uint64_t a_net
 }
 
 /**
- * @brief s_node_link_callback_disconnected
+ * @brief s_link_manager_callback_disconnected
  * @param a_node_client
  * @param a_arg
  */
 
-static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_client, void *a_arg)
+static void s_link_manager_callback_disconnected(dap_link_t *a_link, uint64_t a_net_id, int a_links_count)
 {
-    dap_chain_net_t *l_net = (dap_chain_net_t *)a_arg;
+// sanity check
+    dap_return_if_pass(!a_link);
+// func work
+    dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){.uint64 = a_net_id});
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
-    if (a_node_client->is_connected) {
-        a_node_client->is_connected = false;
-        log_it(L_INFO, "%s."NODE_ADDR_FP_STR" disconnected.%s",l_net->pub.name,
-               NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address),
-               l_net_pvt->state_target == NET_STATE_OFFLINE ? "" : " Replace it...");
-    }
-    if (l_net_pvt->state_target != NET_STATE_OFFLINE) {
-        // s_net_link_remove(l_net_pvt, a_node_client, l_net_pvt->only_static_links);
-        //char *l_key = dap_chain_node_addr_to_hash_str(&a_node_client->info->hdr.address);
-        //dap_global_db_del_sync(l_net->pub.gdb_nodes, l_key);
-        //DAP_DELETE(l_key);
-
-        a_node_client->keep_connection = false;
-        a_node_client->callbacks.delete = NULL;
-
-        size_t l_current_links_prepared = dap_link_manager_links_count(l_net->pub.id.uint64);
-        // if (!l_net_pvt->only_static_links) {
-        //     for (size_t i = l_current_links_prepared; i < l_net_pvt->max_links_count ; i++) {
-        //         s_new_balancer_link_request(l_net, 0);
-        //     }
-        // }
+    log_it(L_INFO, "%s."NODE_ADDR_FP_STR" disconnected.%s", l_net ? l_net->pub.name : "(unknown)" ,
+            NODE_ADDR_FP_ARGS_S(a_link->node_addr),
+            l_net_pvt->state_target == NET_STATE_OFFLINE ? "" : " Replace it...");
+    if(!a_links_count && l_net_pvt->state == NET_STATE_ONLINE ){
+        l_net_pvt->state = NET_STATE_LINKS_PREPARE;
     }
 }
 
@@ -545,7 +511,7 @@ static void s_node_link_callback_stage(dap_chain_node_client_t * a_node_client,d
 }
 
 /**
- * @brief s_node_link_callback_error
+ * @brief s_link_manager_callback_error
  * @param a_node_client
  * @param a_error
  * @param a_arg
@@ -553,9 +519,9 @@ static void s_node_link_callback_stage(dap_chain_node_client_t * a_node_client,d
 static void s_link_manager_callback_error(dap_link_t *a_link, uint64_t a_net_id, int a_error)
 {
 // sanity check
-    dap_return_if_pass(!a_link || !a_net_id);
+    dap_return_if_pass(!a_link);
 // func work
-    dap_chain_net_t * l_net = dap_chain_net_by_id((dap_chain_net_id_t){.uint64 = a_net_id});
+    dap_chain_net_t *l_net = dap_chain_net_by_id((dap_chain_net_id_t){.uint64 = a_net_id});
     dap_chain_net_pvt_t *l_net_pvt = PVT(l_net);
     log_it(L_WARNING, "Can't establish link with %s."NODE_ADDR_FP_STR, l_net ? l_net->pub.name : "(unknown)" ,
            NODE_ADDR_FP_ARGS_S(a_link->node_addr));
@@ -569,38 +535,6 @@ static void s_link_manager_callback_error(dap_link_t *a_link, uint64_t a_net_id,
         dap_notify_server_send_mt(json_object_get_string(l_json));
         json_object_put(l_json);
     }
-}
-
-/**
- * @brief s_node_link_callback_delete
- * @param a_node_client
- * @param a_arg
- */
-static void s_node_link_callback_delete(dap_chain_node_client_t * a_node_client, void * a_arg)
-{
-    dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
-    dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
-    if (!a_node_client->keep_connection) {
-        struct json_object *l_json = s_net_states_json_collect(l_net);
-        json_object_object_add(l_json, "errorMessage", json_object_new_string("Link deleted"));
-        dap_notify_server_send_mt(json_object_get_string(l_json));
-        json_object_put(l_json);
-        return;
-    } else if (a_node_client->is_connected)
-        a_node_client->is_connected = false;
-    // dap_chain_net_sync_unlock(l_net, a_node_client);
-    struct net_link *l_link, *l_link_tmp;
-    // HASH_ITER(hh, l_net_pvt->net_links, l_link, l_link_tmp) {
-    //     if (l_link->link == a_node_client) {
-    //         log_it(L_DEBUG, "Replace node client with new one with %d sec", l_net_pvt->reconnect_delay);
-    //         s_link_manager_link_start(l_net, l_link, l_net_pvt->reconnect_delay);
-    //     }
-    // }
-    struct json_object *l_json = s_net_states_json_collect(l_net);
-    json_object_object_add(l_json, "errorMessage", json_object_new_string("Link restart"));
-    dap_notify_server_send_mt(json_object_get_string(l_json));
-    json_object_put(l_json);
-    // Then a_node_client will be destroyed in a right way
 }
 
 static void s_net_links_complete_and_start(dap_chain_net_t *a_net, dap_worker_t *a_worker)
