@@ -596,11 +596,12 @@ static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
     pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
     DAP_DELETE(a_arg);
     size_t l_events_round_size = a_values_count;
-    dap_store_obj_t *l_events_round = a_values;
     uint16_t l_max_signs_count = 0;
     dap_list_t *l_dups_list = NULL;
-    for (size_t l_index = 0; l_index < l_events_round_size; l_index++) {
-        dap_chain_cs_dag_event_round_item_t *l_round_item = (dap_chain_cs_dag_event_round_item_t *)l_events_round[l_index].value;
+    for (size_t i = 0; i < l_events_round_size; i++) {
+        if (!strcmp(DAG_ROUND_CURRENT_KEY, a_values[i].key))
+            continue;
+        dap_chain_cs_dag_event_round_item_t *l_round_item = (dap_chain_cs_dag_event_round_item_t *)a_values[i].value;
         dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t *)l_round_item->event_n_signs;
         if (l_event->header.round_id == l_round_id &&
                 l_round_item->round_info.reject_count < l_poa_pvt->auth_certs_count_verify) {
