@@ -1047,7 +1047,7 @@ dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a
     }
 
     dap_chain_tx_out_cond_t *l_out_cond = dap_chain_datum_tx_out_cond_get(a_order, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE , NULL);
-
+    l_price->creation_date = a_order->header.ts_created;
     strcpy(l_price->token_buy, l_out_cond->subtype.srv_xchange.buy_token);
     MULT_256_COIN(l_out_cond->header.value, l_out_cond->subtype.srv_xchange.rate, &l_price->datoshi_buy);
 
@@ -1067,6 +1067,9 @@ dap_chain_net_srv_xchange_price_t *s_xchange_price_from_order(dap_chain_net_t *a
 
     l_price->datoshi_sell = l_out_cond->header.value;
     l_price->net = a_net;
+
+    l_price->creator_addr = l_out_cond->subtype.srv_xchange.seller_addr;
+
     if (!IS_ZERO_256(l_price->datoshi_buy)) {
         l_price->rate = l_out_cond->subtype.srv_xchange.rate;
         dap_hash_fast_t *l_final_hash = dap_ledger_get_final_chain_tx_hash(a_net->pub.ledger,
@@ -2573,7 +2576,7 @@ dap_chain_net_srv_xchange_create_error_t dap_chain_net_srv_xchange_create(dap_ch
         log_it(L_CRITICAL, "Memory allocation error");
         return XCHANGE_CREATE_ERROR_MEMORY_ALLOCATED;
     }
-    l_price->wallet_str = dap_strdup(a_wallet->name);
+    
     dap_stpcpy(l_price->token_sell, a_token_sell);
     l_price->net = a_net;
     dap_stpcpy(l_price->token_buy, a_token_buy);
@@ -2583,7 +2586,7 @@ dap_chain_net_srv_xchange_create_error_t dap_chain_net_srv_xchange_create(dap_ch
     // Create conditional transaction
     dap_chain_datum_tx_t *l_tx = s_xchange_tx_create_request(l_price, a_wallet);
     if (!l_tx) {
-        DAP_DELETE(l_price->wallet_str);
+    
         DAP_DELETE(l_price);
         return XCHANGE_CREATE_ERROR_CAN_NOT_COMPOSE_THE_CONDITIONAL_TRANSACTION;
     }
@@ -2591,7 +2594,7 @@ dap_chain_net_srv_xchange_create_error_t dap_chain_net_srv_xchange_create(dap_ch
     dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
     char* l_ret = NULL;
     if(!(l_ret = s_xchange_tx_put(l_tx, a_net))) {
-        DAP_DELETE(l_price->wallet_str);
+
         DAP_DELETE(l_price);
         return XCHANGE_CREATE_ERROR_CAN_NOT_PUT_TRANSACTION_TO_MEMPOOL;
     }
