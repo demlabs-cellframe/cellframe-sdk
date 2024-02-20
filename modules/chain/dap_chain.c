@@ -392,7 +392,7 @@ dap_chain_t *dap_chain_load_from_cfg(const char *a_chain_net_name, dap_chain_net
 
                 if ( dap_config_get_item_str_default(l_cfg, "files","storage_dir", NULL) )
 				{
-                    DAP_CHAIN_PVT(l_chain)->file_storage_dir = dap_strdup((char*)dap_config_get_item_path( l_cfg , "files","storage_dir" ));
+                    DAP_CHAIN_PVT(l_chain)->file_storage_dir = (char*)dap_config_get_item_path( l_cfg , "files","storage_dir" );
                 } else
                     log_it (L_INFO, "Not set file storage path, will not stored in files");
 
@@ -680,29 +680,34 @@ void dap_chain_add_callback_notify(dap_chain_t * a_chain, dap_chain_callback_not
  * @param a_atom_hash
  * @return
  */
-bool dap_chain_get_atom_last_hash(dap_chain_t *a_chain, dap_hash_fast_t *a_atom_hash, dap_chain_cell_id_t a_cel_id)
+bool dap_chain_get_atom_last_hash(dap_chain_t *a_chain, dap_hash_fast_t *a_atom_hash, dap_chain_cell_id_t a_cell_id)
 {
-    bool l_ret = false;
-    dap_chain_atom_iter_t *l_atom_iter = a_chain->callback_atom_iter_create(a_chain, a_cel_id, 0);
-    dap_chain_atom_ptr_t * l_lasts_atom;
-    size_t l_lasts_atom_count = 0;
-    size_t* l_lasts_atom_size = NULL;
-    l_lasts_atom = a_chain->callback_atom_iter_get_lasts(l_atom_iter, &l_lasts_atom_count, &l_lasts_atom_size);
-    if (l_lasts_atom && l_lasts_atom_count) {
-        assert(l_lasts_atom_size[0]);
-        assert(l_lasts_atom[0]);
-        if(a_atom_hash){
-            dap_hash_fast(l_lasts_atom[0], l_lasts_atom_size[0], a_atom_hash);
-            if(dap_log_level_get() <= L_DEBUG) {
-                char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
-                dap_chain_hash_fast_to_str(a_atom_hash, l_hash_str, sizeof(l_hash_str));
-                log_it(L_DEBUG, "Send sync chain request from %s to infinity",l_hash_str);
-            }
-        }
-        l_ret = true;
-    }
-    a_chain->callback_atom_iter_delete(l_atom_iter);
+    dap_chain_atom_iter_t *l_iter = a_chain->callback_atom_iter_create(a_chain, a_cell_id, false);
+    dap_chain_atom_ptr_t *l_ptr_list = a_chain->callback_atom_iter_get_lasts(l_iter, NULL, NULL);
+    DAP_DEL_Z(l_ptr_list);
+    *a_atom_hash = l_iter->cur_hash ? *l_iter->cur_hash : (dap_hash_fast_t){0};
+    bool l_ret = l_iter->cur_hash;
+    a_chain->callback_atom_iter_delete(l_iter);
     return l_ret;
+}
+
+struct chain_thread_notifier {
+    dap_chain_callback_notify_t callback;
+    void *callback_arg;
+    dap_chain_t *chain;
+    dap_chain_cell_id_t cell_id;
+    void *atom;
+    size_t atom_size;
+};
+
+static bool s_notify_atom_on_thread(void *a_arg)
+{
+    struct chain_thread_notifier *l_arg = a_arg;
+    assert(l_arg->atom && l_arg->callback);
+    l_arg->callback(l_arg->callback_arg, l_arg->chain, l_arg->cell_id, l_arg->atom, l_arg->atom_size);
+    DAP_DELETE(l_arg->atom);
+    DAP_DELETE(l_arg);
+    return false;
 }
 
 ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_atom, size_t a_atom_size, dap_hash_fast_t *a_new_atom_hash)
@@ -713,20 +718,13 @@ ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_ato
     if (a_new_atom_hash) { // Atom is new and need to be distributed for the net
         dap_cluster_t *l_net_cluster = dap_cluster_find(l_chain->net_id.uint64);
         if (l_net_cluster) {
-            size_t l_pkt_size = a_atom_size + sizeof(dap_stream_ch_chain_pkt_t);
-            dap_stream_ch_chain_pkt_t *l_pkt = DAP_NEW_Z_SIZE(dap_stream_ch_chain_pkt_t, l_pkt_size);
+            size_t l_pkt_size = a_atom_size + sizeof(dap_chain_ch_pkt_t);
+            dap_chain_ch_pkt_t *l_pkt = dap_chain_ch_pkt_new(l_chain->net_id.uint64, l_chain->id.uint64,
+                                                             a_chain_cell->id.uint64, a_atom, a_atom_size);
             if (l_pkt) {
-                l_pkt->hdr.version = 2;
-                l_pkt->hdr.data_size = a_atom_size;
-                l_pkt->hdr.net_id = l_chain->net_id;
-                l_pkt->hdr.chain_id = l_chain->id;
-                l_pkt->hdr.cell_id = a_chain_cell->id;
-                memcpy(l_pkt->data, a_atom, a_atom_size);
-                dap_gossip_msg_issue(l_net_cluster, DAP_STREAM_CH_CHAIN_ID,
-                                     l_pkt, l_pkt_size, a_new_atom_hash);
+                dap_gossip_msg_issue(l_net_cluster, DAP_STREAM_CH_CHAIN_ID, l_pkt, l_pkt_size, a_new_atom_hash);
                 DAP_DELETE(l_pkt);
-            } else
-                log_it(L_CRITICAL, "Not enough memory");
+            }
         }
     }
     ssize_t l_res = dap_chain_cell_file_append(a_chain_cell, a_atom, a_atom_size);
@@ -734,7 +732,20 @@ ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_ato
         dap_list_t *l_iter;
         DL_FOREACH(l_chain->atom_notifiers, l_iter) {
             dap_chain_atom_notifier_t *l_notifier = (dap_chain_atom_notifier_t*)l_iter->data;
-            l_notifier->callback(l_notifier->arg, l_chain, a_chain_cell->id, (void*)a_atom, a_atom_size);
+            struct chain_thread_notifier *l_arg = DAP_NEW_Z(struct chain_thread_notifier);
+            if (!l_arg) {
+                log_it(L_CRITICAL, g_error_memory_alloc);
+                continue;
+            }
+            *l_arg = (struct chain_thread_notifier) { .callback = l_notifier->callback, .callback_arg = l_notifier->arg,
+                                                      .chain = l_chain, .cell_id = a_chain_cell->id, .atom_size = a_atom_size };
+            l_arg->atom = DAP_DUP_SIZE(a_atom, a_atom_size);
+            if (!l_arg->atom) {
+                DAP_DELETE(l_arg);
+                log_it(L_CRITICAL, g_error_memory_alloc);
+                continue;
+            }
+            dap_proc_thread_callback_add(NULL, s_notify_atom_on_thread, l_arg);
         }
     }
     if (l_chain->callback_atom_add_from_treshold) {

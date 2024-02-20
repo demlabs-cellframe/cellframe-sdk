@@ -342,8 +342,9 @@ static void m_client_tun_delete(dap_events_socket_t * a_es, void * arg)
   log_it(L_NOTICE, "Raw sockets listen thread is stopped");
 }
 
-static void m_client_tun_write(dap_events_socket_t * a_es, void * arg)
+static bool m_client_tun_write(dap_events_socket_t * a_es, void * arg)
 {
+    return false;
 }
 
 void m_client_tun_new(dap_events_socket_t * a_es, void * arg)

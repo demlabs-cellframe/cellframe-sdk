@@ -166,6 +166,9 @@ typedef struct dap_chain_net_pvt{
     uint16_t permanent_links_count;
     dap_stream_node_addr_t *permanent_links; // TODO realize permanent links from config
 
+    uint16_t poa_nodes_count;
+    dap_stream_node_addr_t *poa_nodes_addrs;
+
     uint16_t seed_nodes_count;
     struct sockaddr_in *seed_nodes_ipv4;
     struct sockaddr_in6 *seed_nodes_ipv6;       // TODO
@@ -240,6 +243,7 @@ static void s_nodelist_change_notify(dap_store_obj_t *a_obj, void *a_arg);
 static int s_net_init(const char * a_net_name, uint16_t a_acl_idx);
 
 static int s_net_load(dap_chain_net_t *a_net);
+static int s_net_try_online(dap_chain_net_t *a_net);
 
 static int s_cli_net(int argc, char ** argv, void **a_str_reply);
 static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash);
@@ -255,7 +259,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
 int dap_chain_net_init()
 {
     dap_ledger_init();
-    dap_stream_ch_chain_init();
+    dap_chain_ch_init();
     dap_stream_ch_chain_net_init();
     dap_chain_node_client_init();
     dap_chain_net_voting_init();
@@ -2059,11 +2063,14 @@ void dap_chain_net_delete(dap_chain_net_t *a_net)
     }
     if (PVT(a_net)->main_timer)
         dap_interval_timer_delete(PVT(a_net)->main_timer);
+    DAP_DEL_Z(PVT(a_net)->poa_nodes_addrs);
     DAP_DEL_Z(PVT(a_net)->seed_nodes_ipv4);
     DAP_DEL_Z(PVT(a_net)->seed_nodes_ipv6);
     DAP_DEL_Z(PVT(a_net)->node_info);
-    dap_ledger_purge(a_net->pub.ledger, true);
-    dap_ledger_handle_free(a_net->pub.ledger);
+    if (a_net->pub.ledger) {
+        dap_ledger_purge(a_net->pub.ledger, true);
+        dap_ledger_handle_free(a_net->pub.ledger);
+    }
     DAP_DELETE(a_net);
 }
 
@@ -2148,6 +2155,29 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     char ** l_seed_nodes_addrs = dap_config_get_array_str( l_cfg , "general" ,"seed_nodes_addrs", &l_seed_nodes_addrs_len);
     uint16_t l_permamnet_nodes_addrs_len =0;
     char ** l_permamnet_nodes_addrs = dap_config_get_array_str( l_cfg , "general" ,"permanent_nodes_addrs", &l_permamnet_nodes_addrs_len);
+
+    char **l_poa_nodes_addrs = dap_config_get_array_str(l_cfg, "general", "seed_nodes_addrs", &l_net_pvt->poa_nodes_count);
+    if (!l_net_pvt->poa_nodes_count) {
+        log_it(L_ERROR, "Can't read seed nodes addresses");
+        dap_chain_net_delete(l_net);
+        dap_config_close(l_cfg);
+        return -15;
+    }
+    l_net_pvt->poa_nodes_addrs = DAP_NEW_SIZE(dap_stream_node_addr_t, l_net_pvt->poa_nodes_count * sizeof(dap_stream_node_addr_t));
+    if (!l_net_pvt->poa_nodes_addrs) {
+        log_it(L_CRITICAL, g_error_memory_alloc);
+        dap_chain_net_delete(l_net);
+        dap_config_close(l_cfg);
+        return -1;
+    }
+    for (uint16_t i = 0; i < l_net_pvt->poa_nodes_count; i++) {
+        if (dap_stream_node_addr_from_str(l_net_pvt->poa_nodes_addrs + i, l_poa_nodes_addrs[i])) {
+            log_it(L_ERROR, "Incorrect format for address #%hu", i);
+            dap_chain_net_delete(l_net);
+            dap_config_close(l_cfg);
+            return -16;
+        }
+    }
     uint16_t l_seed_nodes_ipv4_len = 0;
     char **l_seed_nodes_ipv4 = dap_config_get_array_str(l_cfg, "general", "seed_nodes_ipv4", &l_seed_nodes_ipv4_len);
     uint16_t l_seed_nodes_ipv6_len = 0;
@@ -2162,11 +2192,12 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         if (    l_seed_nodes_addrs_len != l_seed_nodes_port_len ||
                 (l_seed_nodes_ipv4_len && l_seed_nodes_ipv4_len != l_seed_nodes_port_len) ||
                 (l_seed_nodes_ipv6_len && l_seed_nodes_ipv6_len != l_seed_nodes_port_len) ||
-                (l_seed_nodes_hostnames_len && l_seed_nodes_hostnames_len != l_seed_nodes_port_len)) {
+                (l_seed_nodes_hostnames_len && l_seed_nodes_hostnames_len != l_seed_nodes_port_len) ||
+                (!l_seed_nodes_ipv4_len && !l_seed_nodes_ipv6_len && !l_seed_nodes_hostnames_len)) {
             log_it (L_ERROR, "Configuration mistake for seed nodes");
             dap_chain_net_delete(l_net);
             dap_config_close(l_cfg);
-            return -4;
+            return -6;
         }
         l_net_pvt->seed_nodes_count = l_seed_nodes_addrs_len;
     } else {
@@ -2176,8 +2207,6 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     }
     l_net_pvt->permanent_links_count = l_permamnet_nodes_addrs_len;
     log_it (L_DEBUG, "Read %u seed nodes params", l_net_pvt->seed_nodes_count);
-    l_net_pvt->seed_nodes_ipv4 = DAP_NEW_SIZE(struct sockaddr_in, l_net_pvt->seed_nodes_count * sizeof(struct sockaddr_in));
-    l_net_pvt->seed_nodes_ipv6 = DAP_NEW_SIZE(struct sockaddr_in6, l_net_pvt->seed_nodes_count * sizeof(struct sockaddr_in6));
     l_net_pvt->seed_nodes_addrs = DAP_NEW_SIZE(dap_stream_node_addr_t, l_net_pvt->seed_nodes_count * sizeof(dap_stream_node_addr_t));
     l_net_pvt->permanent_links = DAP_NEW_SIZE(dap_stream_node_addr_t, l_net_pvt->permanent_links_count * sizeof(dap_stream_node_addr_t));
     // Load permanent nodes from cfg file
@@ -2186,6 +2215,23 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
             log_it(L_ERROR,"Wrong address format, must be 0123::4567::89AB::CDEF");
             l_net_pvt->permanent_links_count--;
             continue;
+        }
+    }
+    if (l_seed_nodes_ipv6_len) {
+        l_net_pvt->seed_nodes_ipv6 = DAP_NEW_SIZE(struct sockaddr_in6, l_net_pvt->seed_nodes_count * sizeof(struct sockaddr_in6));
+        if (!l_net_pvt->seed_nodes_ipv6) {
+            log_it(L_CRITICAL, g_error_memory_alloc);
+            dap_chain_net_delete(l_net);
+            dap_config_close(l_cfg);
+            return -1;
+        }
+    } else {   // Just only IPv4 can be resolved for now
+        l_net_pvt->seed_nodes_ipv4 = DAP_NEW_SIZE(struct sockaddr_in, l_net_pvt->seed_nodes_count * sizeof(struct sockaddr_in));
+        if (!l_net_pvt->seed_nodes_ipv4) {
+            log_it(L_CRITICAL, g_error_memory_alloc);
+            dap_chain_net_delete(l_net);
+            dap_config_close(l_cfg);
+            return -1;
         }
     }
     // Load seed nodes from cfg file
@@ -2212,16 +2258,16 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
                 l_node_port = atoi(l_bootstrap_port_str);
             l_node_hostname = l_bootstrap_nodes[i];
         }
-        if (!l_node_port)
-            l_node_port = dap_config_get_item_uint16_default(g_config, "server", "listen_port_tcp", 8079);
         if (!l_node_port) {
             log_it(L_ERROR, "Can't find port for seed node #%hu", i);
             dap_chain_net_delete(l_net);
             dap_config_close(l_cfg);
             return -12;
         } else {
-            l_net_pvt->seed_nodes_ipv4[i].sin_port = l_node_port;
-            l_net_pvt->seed_nodes_ipv6[i].sin6_port = l_node_port;
+            if (l_seed_nodes_ipv6_len)
+                l_net_pvt->seed_nodes_ipv6[i].sin6_port = l_node_port;
+            else
+                l_net_pvt->seed_nodes_ipv4[i].sin_port = l_node_port;
         }
         if (l_node_hostname) {
             struct in_addr l_res = {};
@@ -2374,12 +2420,11 @@ int s_net_load(dap_chain_net_t *a_net)
     dap_chain_net_t *l_net = a_net;
 
     dap_config_t *l_cfg = NULL;
-    dap_string_t *l_cfg_path = dap_string_new("network/");
-    dap_string_append(l_cfg_path,a_net->pub.name);
-
-    if( !( l_cfg = dap_config_open ( l_cfg_path->str ) ) ) {
+    char *l_cfg_path = dap_strdup_printf("network/%s", a_net->pub.name);
+    l_cfg = dap_config_open ( l_cfg_path );
+    DAP_DELETE(l_cfg_path);
+    if (!l_cfg) {
         log_it(L_ERROR,"Can't open default network config");
-        dap_string_free(l_cfg_path,true);
         return -1;
     }
 
@@ -2440,7 +2485,7 @@ int s_net_load(dap_chain_net_t *a_net)
 
     // Do specific role actions post-chain created
     l_net_pvt->state_target = NET_STATE_OFFLINE;
-    dap_chain_net_state_t l_target_state = NET_STATE_OFFLINE;
+
     l_net_pvt->only_static_links = false;
     switch ( l_net_pvt->node_role.enums ) {
         case NODE_ROLE_ROOT_MASTER:{
@@ -2484,13 +2529,8 @@ int s_net_load(dap_chain_net_t *a_net)
 
     }
     if (!l_net_pvt->only_static_links)
-        l_net_pvt->only_static_links = dap_config_get_item_bool_default(l_cfg, "general", "links_static_only", false);
-    if (dap_config_get_item_bool_default(g_config ,"general", "auto_online", false))
-    {
-        dap_chain_net_balancer_prepare_list_links(l_net->pub.name,true);
-        l_target_state = NET_STATE_ONLINE;
-    }
-
+        l_net_pvt->only_static_links = dap_config_get_item_bool_default(l_cfg, "general", "links_static_only", true);
+    
     l_net_pvt->load_mode = false;
 
     l_net_pvt->balancer_http = !dap_config_get_item_bool_default(l_cfg, "general", "use_dns_links", false);
@@ -2512,7 +2552,7 @@ int s_net_load(dap_chain_net_t *a_net)
         }
         dap_chain_net_add_poa_certs_to_cluster(l_net, l_cluster);
         DAP_DELETE(l_gdb_groups_mask);
-        if (l_net->pub.chains == l_chain)
+        if (l_net->pub.chains == l_chain)   // Pointer for first mempool cluster in global double-linked list of clusters
             l_net_pvt->mempool_clusters = l_cluster;
     }
     // Service orders cluster
@@ -2594,18 +2634,65 @@ int s_net_load(dap_chain_net_t *a_net)
 
     uint32_t l_timeout = dap_config_get_item_uint32_default(g_config, "node_client", "timer_update_states", 600);
     PVT(l_net)->main_timer = dap_interval_timer_create(l_timeout * 1000, s_main_timer_callback, l_net);
-    log_it(L_INFO, "Chain network \"%s\" initialized",l_net->pub.name);
-
-    dap_config_close(l_cfg);
-
-    if (l_target_state != l_net_pvt->state_target)
-        dap_chain_net_state_go_to(l_net, l_target_state);
 
     if(dap_link_manager_add_net(l_net->pub.id.uint64, l_net_pvt->nodes_cluster->links_cluster)) {
         log_it(L_WARNING, "Can't add net %s to link manager", l_net->pub.name);
     }
+    log_it(L_INFO, "Chain network \"%s\" initialized",l_net->pub.name);
+    dap_config_close(l_cfg);
+
     return 0;
 }
+
+/**
+ * @brief try net to go online
+ *
+ * @param a_net dap_chain_net_t *: network 
+ * @return int
+ *
+ **/
+static int s_net_try_online(dap_chain_net_t *a_net)
+{
+    
+    dap_chain_net_t *l_net = a_net;
+    
+    dap_chain_net_pvt_t * l_net_pvt = PVT(l_net);
+    dap_chain_net_state_t l_target_state = NET_STATE_OFFLINE;
+    
+    if (dap_config_get_item_bool_default(g_config ,"general", "auto_online", false))
+    {
+        dap_chain_net_balancer_prepare_list_links(l_net->pub.name, true);
+        l_target_state = NET_STATE_ONLINE;
+    }
+    
+    if (l_target_state != l_net_pvt->state_target)
+    {   
+        dap_chain_net_state_go_to(l_net, l_target_state);
+        log_it(L_INFO, "Network \"%s\" goes online",l_net->pub.name);
+    }
+    
+    return 0;
+}
+
+/**
+ * @brief
+ * change all network states according to auto-online settings
+ */
+void dap_chain_net_try_online_all() {
+    int32_t l_ret = 0;
+
+    if(!HASH_COUNT(s_net_items)){
+        log_it(L_ERROR, "Can't find any nets");
+        return;
+    }
+    dap_chain_net_item_t *l_net_items_current = NULL, *l_net_items_tmp = NULL;
+    HASH_ITER(hh, s_net_items, l_net_items_current, l_net_items_tmp) {
+        if( (l_ret = s_net_try_online(l_net_items_current->chain_net)) ) {
+            log_it(L_ERROR, "Can't try online state for net %s.  Finished with (%d) error code.", l_net_items_current->name, l_ret);
+        }
+    }
+}
+
 
 dap_global_db_cluster_t *dap_chain_net_get_mempool_cluster(dap_chain_t *a_chain)
 {
@@ -2642,7 +2729,7 @@ static void s_nodelist_change_notify(dap_store_obj_t *a_obj, void *a_arg)
     inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_ipv4_str, INET_ADDRSTRLEN);
     inet_ntop(AF_INET6, &l_node_info->hdr.ext_addr_v6, l_node_ipv6_str, INET6_ADDRSTRLEN);
     char l_ts[128] = { '\0' };
-    dap_gbd_time_to_str_rfc822(l_ts, sizeof(l_ts), a_obj->timestamp);
+    dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), a_obj->timestamp);
 
     log_it(L_MSG, "Add node "NODE_ADDR_FP_STR" ipv4 %s(ipv6 %s):%s at %s to network\n",
                              NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),
@@ -2663,26 +2750,23 @@ void dap_chain_net_srv_order_add_notify_callback(dap_chain_net_t *a_net, dap_sto
 int dap_chain_net_add_poa_certs_to_cluster(dap_chain_net_t *a_net, dap_global_db_cluster_t *a_cluster)
 {
     dap_return_val_if_fail(a_net && a_cluster, -1);
-    for (dap_list_t *it = a_net->pub.keys; it; it = it->next) {
-        dap_pkey_t *l_pkey = it->data;
-        dap_stream_node_addr_t l_poa_addr = dap_stream_node_addr_from_pkey(l_pkey);
-        dap_global_db_cluster_member_add(a_cluster, &l_poa_addr, DAP_GDB_MEMBER_ROLE_ROOT);
-    }
-    if (a_cluster->links_cluster->role == DAP_CLUSTER_ROLE_AUTONOMIC || a_cluster->links_cluster->role == DAP_CLUSTER_ROLE_ISOLATED) {
-            dap_chain_node_addr_t l_poa_addr = {0xDDDD, 0000, 0000, 0000};
-            dap_global_db_cluster_member_add(a_cluster, &l_poa_addr, DAP_GDB_MEMBER_ROLE_ROOT);
-            l_poa_addr.words[3] = 1;
-            dap_global_db_cluster_member_add(a_cluster, &l_poa_addr, DAP_GDB_MEMBER_ROLE_ROOT);
-    }
+    for (uint16_t i = 0; i < PVT(a_net)->poa_nodes_count; i++)
+        dap_global_db_cluster_member_add(a_cluster, PVT(a_net)->poa_nodes_addrs + i, DAP_GDB_MEMBER_ROLE_ROOT);
     return 0;
 }
 
 bool dap_chain_net_add_validator_to_clusters(dap_chain_t *a_chain, dap_stream_node_addr_t *a_addr)
 {
-    bool l_ret = dap_global_db_cluster_member_add(
-                dap_chain_net_get_mempool_cluster(a_chain), a_addr, DAP_GDB_MEMBER_ROLE_ROOT);
-    return !l_ret ? false : dap_global_db_cluster_member_add(
-                        PVT(dap_chain_net_by_id(a_chain->net_id))->orders_cluster, a_addr, DAP_GDB_MEMBER_ROLE_USER);
+    bool l_ret = dap_global_db_cluster_member_add(dap_chain_net_get_mempool_cluster(a_chain), a_addr, DAP_GDB_MEMBER_ROLE_ROOT);
+    l_ret &= (bool)dap_global_db_cluster_member_add(PVT(dap_chain_net_by_id(a_chain->net_id))->orders_cluster, a_addr, DAP_GDB_MEMBER_ROLE_USER);
+    return l_ret;
+}
+
+bool dap_chain_net_remove_validator_from_clusters(dap_chain_t *a_chain, dap_stream_node_addr_t *a_addr)
+{
+    bool l_ret = !dap_global_db_cluster_member_delete(dap_chain_net_get_mempool_cluster(a_chain), a_addr);
+    l_ret &= !dap_global_db_cluster_member_delete(PVT(dap_chain_net_by_id(a_chain->net_id))->orders_cluster, a_addr);
+    return l_ret;
 }
 
 /**

@@ -53,7 +53,7 @@ typedef struct usages_in_grace{
 static void s_stream_ch_new(dap_stream_ch_t* ch , void* arg);
 static void s_stream_ch_delete(dap_stream_ch_t* ch , void* arg);
 static void s_stream_ch_packet_in(dap_stream_ch_t* ch , void* arg);
-static void s_stream_ch_packet_out(dap_stream_ch_t* ch , void* arg);
+static bool s_stream_ch_packet_out(dap_stream_ch_t* ch , void* arg);
 
 static bool s_unban_client(dap_chain_net_srv_banlist_item_t *a_item);
 
@@ -140,7 +140,7 @@ int dap_stream_ch_chain_net_srv_init(void)
 }
 
 /**
- * @brief dap_stream_ch_chain_deinit
+ * @brief dap_chain_ch_deinit
  */
 void dap_stream_ch_chain_net_srv_deinit(void)
 {
@@ -1181,8 +1181,8 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
         if (l_request->data_size_recv) {
             l_request->data_size = l_request->data_size_recv;
             if (!l_request->data_size_send){
-                l_request = (pkt_test_t*)DAP_DUP_SIZE(l_request, sizeof(pkt_test_t));
-                l_request = DAP_REALLOC(l_request, sizeof(pkt_test_t) + l_request->data_size);
+                l_request = DAP_NEW_Z_SIZE(pkt_test_t, sizeof(pkt_test_t) + l_request->data_size);
+                *l_request = *(pkt_test_t*)l_ch_pkt->data;
             }
 
             randombytes(l_request->data, l_request->data_size);
@@ -1592,11 +1592,12 @@ void s_stream_ch_packet_in(dap_stream_ch_t* a_ch , void* a_arg)
  * @param a_ch
  * @param a_arg
  */
-void s_stream_ch_packet_out(dap_stream_ch_t* a_ch , void* a_arg)
+static bool s_stream_ch_packet_out(dap_stream_ch_t* a_ch , void* a_arg)
 {
     (void) a_arg;
 
     dap_stream_ch_set_ready_to_write_unsafe(a_ch, false);
     // Callback should note that after write action it should restore write flag if it has more data to send on next iteration
     dap_chain_net_srv_call_write_all( a_ch);
+    return false;
 }

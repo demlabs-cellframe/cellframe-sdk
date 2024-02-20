@@ -4,7 +4,7 @@
 #include "dap_chain_net.h"
 #include "dap_chain_datum.h"
 #include "dap_chain_ledger.h"
-#include "dap_http.h"
+#include "dap_http_server.h"
 #include "dap_cert.h"
 #include "dap_chain_block_cache.h"
 /*
@@ -56,7 +56,7 @@ dap_datum_mempool_t * dap_datum_mempool_deserialize(uint8_t *datum_mempool_str, 
 void dap_datum_mempool_clean(dap_datum_mempool_t *datum);
 void dap_datum_mempool_free(dap_datum_mempool_t *datum);
 
-void dap_chain_mempool_add_proc(dap_http_t * a_http_server, const char * a_url);
+void dap_chain_mempool_add_proc(dap_http_server_t * a_http_server, const char * a_url);
 
 void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed);
 

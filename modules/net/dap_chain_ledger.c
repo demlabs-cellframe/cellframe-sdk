@@ -819,11 +819,9 @@ dap_chain_datum_token_t *dap_ledger_token_ticker_check(dap_ledger_t *a_ledger, c
 static void s_tx_header_print(dap_string_t *a_str_out, dap_chain_datum_tx_t *a_tx,
                               const char *a_hash_out_type, dap_chain_hash_fast_t *a_tx_hash)
 {
-    char l_time_str[32] = "unknown";
-    if (a_tx->header.ts_created) {
-        uint64_t l_ts = a_tx->header.ts_created;
-        dap_ctime_r(&l_ts, l_time_str);
-    }
+    char l_time_str[DAP_TIME_STR_SIZE] = "unknown";
+    if (a_tx->header.ts_created)
+        dap_time_to_str_rfc822(l_time_str, DAP_TIME_STR_SIZE, a_tx->header.ts_created);
     char *l_tx_hash_str = dap_strcmp(a_hash_out_type, "hex")
             ? dap_enc_base58_encode_hash_to_str(a_tx_hash)
             : dap_chain_hash_fast_to_str_new(a_tx_hash);
@@ -4210,30 +4208,6 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
         }
     }
 
-
-    if (dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTING, NULL)){
-        if (s_voting_callback){
-            if (!s_voting_callback(a_ledger, TX_ITEM_TYPE_VOTING, a_tx, false)){
-                debug_if(s_debug_more, L_WARNING, "Verificator check error for voting.");
-                l_err_num = DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE;
-            }
-        } else {
-            debug_if(s_debug_more, L_WARNING, "Verificator check error for voting item");
-            l_err_num = DAP_LEDGER_TX_CHECK_NO_VERIFICATOR_SET;
-        }
-    }else if (dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTE, NULL)){
-        if (s_voting_callback){
-            if (!s_voting_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx, false)){
-                debug_if(s_debug_more, L_WARNING, "Verificator check error for vote.");
-                l_err_num = DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE;
-            }
-        } else {
-            debug_if(s_debug_more, L_WARNING, "Verificator check error for vote item");
-            l_err_num = DAP_LEDGER_TX_CHECK_NO_VERIFICATOR_SET;
-        }
-    }
-
-
     // 8. Check sovereign tax
     if (l_tax_check && !l_err_num) {
         uint256_t l_expected_tax = {};
@@ -4246,6 +4220,31 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
             DAP_DEL_Z(l_current_tax_str);
             DAP_DEL_Z(l_expected_tax_str);
         }
+    }
+
+    dap_list_t *l_items_voting;
+    if ((l_items_voting = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTING, NULL))) {
+        if (s_voting_callback){
+            if (!s_voting_callback(a_ledger, TX_ITEM_TYPE_VOTING, a_tx, false)){
+                debug_if(s_debug_more, L_WARNING, "Verificator check error for voting.");
+                l_err_num = DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE;
+            }
+        } else {
+            debug_if(s_debug_more, L_WARNING, "Verificator check error for voting item");
+            l_err_num = DAP_LEDGER_TX_CHECK_NO_VERIFICATOR_SET;
+        }
+        dap_list_free(l_items_voting);
+    }else if ((l_items_voting = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTE, NULL))) {
+       if (s_voting_callback){
+           if (!s_voting_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx, false)){
+               debug_if(s_debug_more, L_WARNING, "Verificator check error for vote.");
+               l_err_num = DAP_LEDGER_TX_CHECK_VERIFICATOR_CHECK_FAILURE;
+           }
+       } else {
+           debug_if(s_debug_more, L_WARNING, "Verificator check error for vote item");
+           l_err_num = DAP_LEDGER_TX_CHECK_NO_VERIFICATOR_SET;
+       }
+       dap_list_free(l_items_voting);
     }
 
     if (a_main_ticker && !l_err_num)
@@ -4653,11 +4652,17 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         }
         DAP_DELETE (l_addr_str);
     }
-
-    if (dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTING, NULL) && s_voting_callback)
+    dap_list_t *l_items_voting;
+    if ((l_items_voting = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTING, NULL)) && s_voting_callback) {
+        dap_list_free(l_items_voting);
         s_voting_callback(a_ledger, TX_ITEM_TYPE_VOTING, a_tx, true);
-    else if (dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTE, NULL) && s_voting_callback)
+    }
+    else if ((l_items_voting = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTE, NULL)) && s_voting_callback) {
+        dap_list_free(l_items_voting);
         s_voting_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx, true);
+    }
+
+
 
     // add transaction to the cache list
     dap_ledger_tx_item_t *l_tx_item = DAP_NEW_Z(dap_ledger_tx_item_t);
@@ -4778,7 +4783,7 @@ int dap_ledger_tx_load(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_c
  */
 void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
 {
-    dap_return_if_pass(!a_ledger);
+    dap_return_if_fail(a_ledger);
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
 
     pthread_rwlock_wrlock(&l_ledger_pvt->ledger_rwlock);

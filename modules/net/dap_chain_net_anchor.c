@@ -148,7 +148,8 @@ int dap_chain_net_anchor_verify(dap_chain_datum_anchor_t *a_anchor, size_t a_dat
             // Each sign change the sign_size field by adding its size after signing. So we need to change this field in header for each sign.
             l_signs_size_for_current_sign += l_sign_max_size;
     }
-
+    DAP_DELETE(l_unique_decree_signs);
+    DAP_DELETE(l_decree_signs_arr);
     l_anchor->header.signs_size = l_signs_size_for_current_sign;
 
     if(!l_signs_verify_counter)

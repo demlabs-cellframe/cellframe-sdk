@@ -33,7 +33,7 @@
 #include "dap_chain_net_tx.h"
 #include "dap_chain_net_srv.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
-
+#include "dap_chain_cs_esbocs.h"
 #include "rand/dap_rand.h"
 #include "dap_chain_node_client.h"
 #include "dap_stream_ch_chain_net_pkt.h"
@@ -233,7 +233,7 @@ static bool s_stake_verificator_callback(dap_ledger_t UNUSED_ARG *a_ledger, dap_
         log_it(L_WARNING, "Trying to spend conditional tx not by owner");
         return false;
     }
-    if (a_tx_in->header.ts_created < 1705104000) // Jan 13 2024 00:00:00 GMT, old policy rules
+    if (a_tx_in->header.ts_created < 1706227200) // Jan 26 2024 00:00:00 GMT, old policy rules
         return true;
     dap_chain_net_srv_stake_item_t *l_stake;
     HASH_FIND(ht, s_srv_stake->tx_itemlist, l_prev_hash, sizeof(dap_hash_t), l_stake);
@@ -305,6 +305,7 @@ void dap_chain_net_srv_stake_key_delegate(dap_chain_net_t *a_net, dap_chain_addr
             }
         }
     }
+    dap_chain_esbocs_add_validator_to_clusters(a_net->pub.id, a_node_addr);
     char l_key_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
     dap_chain_hash_fast_to_str(&a_signing_addr->data.hash_fast,
                                l_key_hash_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
@@ -322,6 +323,7 @@ void dap_chain_net_srv_stake_key_invalidate(dap_chain_addr_t *a_signing_addr)
     dap_chain_net_srv_stake_item_t *l_stake = NULL;
     HASH_FIND(hh, s_srv_stake->itemlist, a_signing_addr, sizeof(dap_chain_addr_t), l_stake);
     if (l_stake) {
+        dap_chain_esbocs_remove_validator_from_clusters(l_stake->signing_addr.net_id, &l_stake->node_addr);
         HASH_DEL(s_srv_stake->itemlist, l_stake);
         HASH_DELETE(ht, s_srv_stake->tx_itemlist, l_stake);
         char l_key_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
@@ -2127,7 +2129,7 @@ static int s_callback_compare_tx_list(dap_list_t *a_datum1, dap_list_t *a_datum2
             ? 0 : l_datum1->header.ts_created > l_datum2->header.ts_created ? 1 : -1;
 }
 
-int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fast_t *a_tx_hash, dap_stream_ch_chain_validator_test_t * out_data,
+int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fast_t *a_tx_hash, dap_chain_ch_validator_test_t * out_data,
                                              int a_time_connect, int a_time_respone)
 {
     char *l_key = NULL;
@@ -2201,12 +2203,12 @@ int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fa
 
     rc = dap_chain_node_client_wait(l_node_client, NODE_CLIENT_STATE_VALID_READY, a_time_respone);
     if (!rc) {
-        dap_stream_ch_chain_validator_test_t *validators_data = (dap_stream_ch_chain_validator_test_t*)l_node_client->callbacks_arg;
+        dap_chain_ch_validator_test_t *validators_data = (dap_chain_ch_validator_test_t*)l_node_client->callbacks_arg;
 
         dap_sign_t *l_sign = NULL;        
         bool l_sign_correct = false;
         if(validators_data->header.sign_size){
-            l_sign = (dap_sign_t*)(l_node_client->callbacks_arg + sizeof(dap_stream_ch_chain_validator_test_t));
+            l_sign = (dap_sign_t*)(l_node_client->callbacks_arg + sizeof(dap_chain_ch_validator_test_t));
             dap_hash_fast_t l_sign_pkey_hash;
             dap_sign_get_pkey_hash(l_sign, &l_sign_pkey_hash);
             l_sign_correct = dap_hash_fast_compare(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr.data.hash_fast, &l_sign_pkey_hash);
@@ -2295,7 +2297,7 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
             const char * str_tx_hash = NULL;
             dap_chain_net_t * l_net = NULL;
             dap_hash_fast_t l_tx = {};
-            dap_stream_ch_chain_validator_test_t l_out = {0};
+            dap_chain_ch_validator_test_t l_out = {0};
 
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-net", &l_netst);
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-tx", &str_tx_hash);
@@ -2538,15 +2540,15 @@ static int s_cli_srv_stake(int a_argc, char **a_argv, void **a_str_reply)
                 for(dap_list_t *tx = l_args->ret; tx; tx = tx->next)
                 {
                     l_datum_tx = (dap_chain_datum_tx_t*)tx->data;
-                    dap_time_t l_ts_create = (dap_time_t)l_datum_tx->header.ts_created;
-                    char buf[50] = {[0]='\0'};
+                    char buf[DAP_TIME_STR_SIZE];
                     dap_hash_fast(l_datum_tx, dap_chain_datum_tx_get_size(l_datum_tx), &l_datum_hash);
                     l_tx_out_cond = dap_chain_datum_tx_out_cond_get(l_datum_tx, DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE,
                                                                                      &l_out_idx_tmp);
                     char l_hash_str[DAP_CHAIN_HASH_FAST_STR_SIZE];
                     dap_chain_hash_fast_to_str(&l_datum_hash, l_hash_str, sizeof(l_hash_str));
                     dap_string_append_printf(l_str_tmp,"%s \n",spaces);
-                    dap_string_append_printf(l_str_tmp,"%s \n",dap_ctime_r(&l_ts_create, buf));
+                    dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_datum_tx->header.ts_created);
+                    dap_string_append_printf(l_str_tmp, "%s \n", buf);
                     dap_string_append_printf(l_str_tmp,"tx_hash:\t%s \n",l_hash_str);
 
                     l_signing_addr_str = dap_chain_addr_to_str(&l_tx_out_cond->subtype.srv_stake_pos_delegate.signing_addr);
