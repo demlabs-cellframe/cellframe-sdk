@@ -290,7 +290,6 @@ static void s_get_tx_cond_chain_callback(dap_chain_net_t* a_net, dap_chain_datum
             }
             l_item_idx++;
         }
-        DAP_DELETE(l_tx_hash);
     }else if(a_tx){
         dap_hash_fast_t * l_tx_hash = a_tx_hash;
         if (!l_tx_hash) {
@@ -313,7 +312,6 @@ static void s_get_tx_cond_chain_callback(dap_chain_net_t* a_net, dap_chain_datum
                 }
             }
         }
-        DAP_DELETE(l_tx_hash);
     }
 }
 
