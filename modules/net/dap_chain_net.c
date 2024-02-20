@@ -183,7 +183,7 @@ typedef struct dap_chain_net_pvt{
 
     uint16_t poa_nodes_count;
     dap_stream_node_addr_t *poa_nodes_addrs;
-
+    bool seeds_is_poas;
     uint16_t seed_nodes_count;
     struct sockaddr_in *seed_nodes_ipv4;
     struct sockaddr_in6 *seed_nodes_ipv6;       // TODO
@@ -573,14 +573,15 @@ static bool s_net_link_start(dap_chain_net_t *a_net, struct net_link *a_link, ui
  * @brief s_fill_links_from_root_aliases
  * @param a_net
  */
-static void s_fill_links_from_root_aliases(dap_chain_net_t * a_net)
+static void s_fill_links_from_root_aliases(dap_chain_net_t *a_net)
 {
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     for (size_t i = 0; i < l_net_pvt->seed_nodes_count; i++) {
         dap_chain_node_info_t l_link_node_info = {};
         l_link_node_info.hdr.ext_addr_v4 = l_net_pvt->seed_nodes_ipv4[i].sin_addr;
         l_link_node_info.hdr.ext_port = l_net_pvt->seed_nodes_ipv4[i].sin_port;
-        l_link_node_info.hdr.address = l_net_pvt->poa_nodes_addrs[i];
+        if (PVT(a_net)->seeds_is_poas)
+            l_link_node_info.hdr.address = l_net_pvt->poa_nodes_addrs[i];
         if (s_net_link_add(a_net, &l_link_node_info) > 0)    // Maximum links count reached
             break;
     }
@@ -2549,13 +2550,15 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         if ((l_seed_nodes_ipv4_len && l_seed_nodes_ipv4_len != l_seed_nodes_port_len) ||
                 (l_seed_nodes_ipv6_len && l_seed_nodes_ipv6_len != l_seed_nodes_port_len) ||
                 (l_seed_nodes_hostnames_len && l_seed_nodes_hostnames_len != l_seed_nodes_port_len) ||
-                (!l_seed_nodes_ipv4_len && !l_seed_nodes_ipv6_len && !l_seed_nodes_hostnames_len)) {
+                (!l_seed_nodes_ipv4_len && !l_seed_nodes_ipv6_len && !l_seed_nodes_hostnames_len) ||
+                l_net_pvt->poa_nodes_count != l_seed_nodes_port_len) {
             log_it (L_ERROR, "Configuration mistake for seed nodes");
             dap_chain_net_delete(l_net);
             dap_config_close(l_cfg);
             return -6;
         }
         l_net_pvt->seed_nodes_count = l_seed_nodes_port_len;
+        l_net_pvt->seeds_is_poas = true;
     } else {
         if (!l_bootstrap_nodes_len)
             log_it(L_WARNING, "Configuration for network %s doesn't contains any links", l_net->pub.name);
@@ -2632,6 +2635,11 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         struct sockaddr_in tmp = l_net_pvt->seed_nodes_ipv4[n];
         l_net_pvt->seed_nodes_ipv4[n] = l_net_pvt->seed_nodes_ipv4[j];
         l_net_pvt->seed_nodes_ipv4[j] = tmp;
+        if (!l_bootstrap_nodes_len) {
+            dap_stream_node_addr_t l_addr = l_net_pvt->poa_nodes_addrs[n];
+            l_net_pvt->poa_nodes_addrs[n] = l_net_pvt->poa_nodes_addrs[j];
+            l_net_pvt->poa_nodes_addrs[j] = l_addr;
+        }
     }
 
     /* *** Chains init by configs *** */
@@ -3070,7 +3078,7 @@ static void s_nodelist_change_notify(dap_store_obj_t *a_obj, void *a_arg)
     char l_ts[128] = { '\0' };
     dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), a_obj->timestamp);
 
-    log_it(L_MSG, "Add node "NODE_ADDR_FP_STR" ipv4 %s(ipv6 %s):%s at %s to network\n",
+    log_it(L_ATT, "Add node "NODE_ADDR_FP_STR" ipv4 %s(ipv6 %s):%s at %s to network\n",
                              NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),
                              l_node_ipv4_str, dap_itoa(l_node_info->hdr.ext_port),
                              l_ts, l_net->pub.name);
