@@ -2983,7 +2983,6 @@ int s_net_load(dap_chain_net_t *a_net)
     uint32_t l_timeout = dap_config_get_item_uint32_default(g_config, "node_client", "timer_update_states", 600);
     PVT(l_net)->main_timer = dap_interval_timer_create(l_timeout * 1000, s_main_timer_callback, l_net);
 
-
     dap_config_close(l_cfg);
     log_it(L_INFO, "Chain network \"%s\" initialized",l_net->pub.name);
 
@@ -3715,23 +3714,17 @@ uint256_t dap_chain_net_get_reward(dap_chain_net_t *a_net, uint64_t a_block_num)
     return uint256_0;
 }
 
-void dap_chain_net_announce_addrs() {
-    if(!HASH_COUNT(s_net_items)){
-        log_it(L_ERROR, "Can't find any nets");
-        return;
-    }
-    dap_chain_net_item_t *l_net_item = NULL, *l_tmp = NULL;
-    HASH_ITER(hh, s_net_items, l_net_item, l_tmp) {
-        dap_chain_net_pvt_t *l_net_pvt = PVT(l_net_item->chain_net);
-        if (l_net_pvt->node_info->hdr.ext_port &&
-                (l_net_pvt->node_info->hdr.ext_addr_v4.s_addr != INADDR_ANY
-                 || memcmp(&l_net_pvt->node_info->hdr.ext_addr_v6, &in6addr_any, sizeof(struct in6_addr))))
-        {
-            dap_chain_net_node_list_request(l_net_item->chain_net, l_net_pvt->node_info, false);
-            char l_node_addr_str[INET_ADDRSTRLEN] = { '\0' };
-            inet_ntop(AF_INET, &l_net_pvt->node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
-            log_it(L_MSG, "Announce our node address "NODE_ADDR_FP_STR" < %s:%u > in net %s",
-                   NODE_ADDR_FP_ARGS_S(g_node_addr), l_node_addr_str, l_net_pvt->node_info->hdr.ext_port, l_net_item->name);
-        }
+void dap_chain_net_announce_addrs(dap_chain_net_t *a_net)
+{
+    dap_return_if_fail(a_net);
+    dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
+    if (l_net_pvt->node_info->hdr.ext_port &&
+            (l_net_pvt->node_info->hdr.ext_addr_v4.s_addr != INADDR_ANY
+            || memcmp(&l_net_pvt->node_info->hdr.ext_addr_v6, &in6addr_any, sizeof(struct in6_addr)))) {
+        dap_chain_net_node_list_request(a_net, l_net_pvt->node_info, false);
+        char l_node_addr_str[INET_ADDRSTRLEN] = { '\0' };
+        inet_ntop(AF_INET, &l_net_pvt->node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
+        log_it(L_MSG, "Announce our node address "NODE_ADDR_FP_STR" < %s:%u > in net %s",
+               NODE_ADDR_FP_ARGS_S(g_node_addr), l_node_addr_str, l_net_pvt->node_info->hdr.ext_port, a_net->pub.name);
     }
 }
