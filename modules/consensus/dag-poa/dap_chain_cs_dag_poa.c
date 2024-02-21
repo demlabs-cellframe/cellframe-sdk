@@ -692,6 +692,7 @@ static bool s_callback_sync_all_on_start(dap_global_db_instance_t *a_dbi, int a_
     for (size_t i = 0; i < a_values_count; i++)
         s_callback_event_round_sync((dap_chain_cs_dag_t *)a_arg, DAP_GLOBAL_DB_OPTYPE_ADD, a_group,
                                     a_values[i].key, a_values[i].value, a_values[i].value_len);
+    return false;
 }
 
 /**

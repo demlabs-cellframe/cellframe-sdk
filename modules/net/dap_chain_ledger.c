@@ -2071,7 +2071,7 @@ json_object *dap_ledger_token_info(dap_ledger_t *a_ledger)
             json_object_object_add(json_obj_datum, "Auth signs valid", json_object_new_int(l_token_item->auth_signs_valid));
             json_object_object_add(json_obj_datum, "Auth signs total", json_object_new_int(l_token_item->auth_signs_total));
             json_object_object_add(json_obj_datum, "TSD and Signs", json_object_new_string(""));
-            s_datum_token_dump_tsd_to_json(json_obj_datum, l_token_item->datum_token, l_token_item->datum_token_size, "hex");
+            dap_datum_token_dump_tsd_to_json(json_obj_datum, l_token_item->datum_token, l_token_item->datum_token_size, "hex");
             size_t l_certs_field_size = l_token_item->datum_token_size - sizeof(*l_token_item->datum_token) - l_token_item->datum_token->header_native_decl.tsd_total_size;
             dap_chain_datum_token_certs_dump_to_json(json_obj_datum, l_token_item->datum_token->data_n_tsd + l_token_item->datum_token->header_native_decl.tsd_total_size,
                                                     l_certs_field_size, "hex");
