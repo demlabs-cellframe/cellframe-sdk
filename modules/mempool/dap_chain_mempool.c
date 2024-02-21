@@ -1163,6 +1163,25 @@ dap_chain_datum_token_emission_t *dap_chain_mempool_emission_get(dap_chain_t *a_
     return l_ret;
 }
 
+dap_chain_datum_t *dap_chain_mempool_datum_get(dap_chain_t *a_chain, const char *a_datum_hash_str)
+{
+    size_t l_datum_size;
+    char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+    dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(l_gdb_group,
+                                                    a_datum_hash_str, &l_datum_size, NULL, NULL );
+    if (!l_datum) {
+        char *l_emission_hash_str_from_base58 = dap_enc_base58_to_hex_str_from_str(a_datum_hash_str);
+        l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(l_gdb_group,
+                                    l_emission_hash_str_from_base58, &l_datum_size, NULL, NULL );
+        DAP_DELETE(l_emission_hash_str_from_base58);
+    }
+    
+    DAP_DELETE(l_gdb_group);
+    if (!l_datum)
+        return NULL;
+    return l_datum;
+}
+
 dap_chain_datum_token_emission_t *dap_chain_mempool_datum_emission_extract(dap_chain_t *a_chain, byte_t *a_data, size_t a_size)
 {
     if (!a_chain || !a_data || a_size < sizeof(dap_chain_datum_t))
