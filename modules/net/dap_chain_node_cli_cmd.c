@@ -1122,37 +1122,26 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-link", &l_link_str);
 
     // struct to write to the global db
-    dap_chain_node_addr_t l_node_addr = { 0 };
-    dap_chain_node_addr_t l_link = { 0 };
-    dap_chain_node_info_t *l_node_info = NULL;
+    dap_chain_node_addr_t l_node_addr = {}, l_link;
+    dap_chain_node_info_t l_node_info;
 
     //TODO need to rework with new node info / alias /links concept
-    size_t l_node_info_size = sizeof(*l_node_info) + sizeof(l_link);
-    if(cmd_num >= CMD_ADD && cmd_num <= CMD_DEL) {
-        l_node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, l_node_info_size);
-        if (!l_node_info) {
-            log_it(L_CRITICAL, "Memory allocation error");
-            return -1;
-        }
-    }
 
     if(l_addr_str) {
         if(dap_chain_node_addr_from_str(&l_node_addr, l_addr_str) != 0) {
             dap_digit_from_string(l_addr_str, l_node_addr.raw, sizeof(l_node_addr.raw));
         }
-        if(l_node_info)
-            l_node_info->hdr.address = l_node_addr;
+        l_node_info.hdr.address = l_node_addr;
     }
     if(l_port_str) {
         uint16_t l_node_port = 0;
         dap_digit_from_string(l_port_str, &l_node_port, sizeof(uint16_t));
-        if(l_node_info)
-            l_node_info->hdr.ext_port = l_node_port;
+        l_node_info.hdr.ext_port = l_node_port;
     }
-    if(l_cell_str && l_node_info) {
-        dap_digit_from_string(l_cell_str, l_node_info->hdr.cell_id.raw, sizeof(l_node_info->hdr.cell_id.raw)); //DAP_CHAIN_CELL_ID_SIZE);
+    if (l_cell_str) {
+        dap_digit_from_string(l_cell_str, l_node_info.hdr.cell_id.raw, sizeof(l_node_info.hdr.cell_id.raw)); //DAP_CHAIN_CELL_ID_SIZE);
     }
-    if(l_link_str) {
+    if (l_link_str) {   // TODO
         if(dap_chain_node_addr_from_str(&l_link, l_link_str) != 0) {
             dap_digit_from_string(l_link_str, l_link.raw, sizeof(l_link.raw));
         }
@@ -1161,20 +1150,25 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     switch (cmd_num)
     {    
     case CMD_ADD:
-        if(!l_port_str || !a_ipv4_str)
-        {
+        if(!l_port_str || !a_ipv4_str) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "node requires parameter -ipv4 and -port");
-            DAP_DELETE(l_node_info);
             return -1;
         }
-        dap_chain_node_info_t *l_link_node_request = DAP_NEW_Z( dap_chain_node_info_t);
-        l_link_node_request->hdr.address.uint64 = dap_chain_net_get_cur_addr_int(l_net);
-        inet_pton(AF_INET, a_ipv4_str, &(l_link_node_request->hdr.ext_addr_v4));
-        uint16_t l_node_port = 0;
-        dap_digit_from_string(l_port_str, &l_node_port, sizeof(uint16_t));
-        l_link_node_request->hdr.ext_port = l_node_port;
+        if (inet_pton(AF_INET, a_ipv4_str, &(l_node_info.hdr.ext_addr_v4)) <= 0) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Incorrect ipv4 string");
+            return -2;
+        }
+        if (l_addr_str) {
+            if (dap_chain_node_info_save(l_net, &l_node_info) == DAP_GLOBAL_DB_RC_SUCCESS) {
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Node address successfully added to node list");
+                return 0;
+            }
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't add node address to node list");
+            return -3;
+        }
+        l_node_info.hdr.address.uint64 = dap_chain_net_get_cur_addr_int(l_net);
         // Synchronous request, wait for reply
-        int res = dap_chain_net_node_list_request(l_net,l_link_node_request, true);
+        int res = dap_chain_net_node_list_request(l_net, &l_node_info, true);
         switch (res)
         {
             case 0:
@@ -1201,16 +1195,12 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
             default:
                 break;
         }
-        DAP_DELETE(l_link_node_request);
-        DAP_DELETE(l_node_info);
         return l_ret;
         //break;
     case CMD_DEL:
         // handler of command 'node del'
     {
-        int l_ret = node_info_del_with_reply(l_net, l_node_info, alias_str, a_str_reply);
-        DAP_DELETE(l_node_info);
-        return l_ret;
+        return node_info_del_with_reply(l_net, &l_node_info, alias_str, a_str_reply);
     }
 
     case CMD_DUMP: {

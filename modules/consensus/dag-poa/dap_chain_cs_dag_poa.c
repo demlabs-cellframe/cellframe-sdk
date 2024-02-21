@@ -971,7 +971,6 @@ dap_list_t *dap_chain_cs_dag_poa_get_auth_certs(dap_chain_t *a_chain, size_t *a_
     if (a_count_verify)
         *a_count_verify = l_poa_pvt->auth_certs_count_verify;
 
-
     dap_list_t *l_keys_list = NULL;
     for(size_t i = 0; i < l_poa_pvt->auth_certs_count; i++)
     {
