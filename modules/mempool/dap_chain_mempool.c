@@ -1177,8 +1177,7 @@ dap_chain_datum_t *dap_chain_mempool_datum_get(dap_chain_t *a_chain, const char 
     }
     
     DAP_DELETE(l_gdb_group);
-    if (!l_datum)
-        return NULL;
+    
     return l_datum;
 }
 
