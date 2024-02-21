@@ -833,8 +833,9 @@ static char* dap_db_history_filter(dap_chain_t * a_chain, dap_ledger_t *a_ledger
                     dap_hash_fast(l_tx, dap_chain_datum_tx_get_size(l_tx), &l_tx_hash);
                     dap_chain_tx_hash_processed_ht_t *l_sht = NULL;
                     HASH_FIND(hh, a_tx_hash_processed, &l_tx_hash, sizeof(dap_chain_hash_fast_t), l_sht);
+                    json_object * l_json_obj_datum = json_object_new_object();
                     if (l_sht != NULL ||
-                            !s_dap_chain_datum_tx_out_data(l_tx, a_ledger, l_str_out, a_hash_out_type, &l_tx_hash)) {
+                            !s_dap_chain_datum_tx_out_data(l_tx, a_ledger, l_json_obj_datum, a_hash_out_type, &l_tx_hash)) {
                         l_datum_num--;
                         break;
                     }

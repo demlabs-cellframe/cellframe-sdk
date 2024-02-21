@@ -595,10 +595,9 @@ static bool s_callback_round_event_to_chain_callback_get_round_item(dap_global_d
     HASH_DEL(l_poa_pvt->active_rounds, l_arg);
     pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
     DAP_DELETE(a_arg);
-    size_t l_events_round_size = a_values_count;
     uint16_t l_max_signs_count = 0;
     dap_list_t *l_dups_list = NULL;
-    for (size_t i = 0; i < l_events_round_size; i++) {
+    for (size_t i = 0; i < a_values_count; i++) {
         if (!strcmp(DAG_ROUND_CURRENT_KEY, a_values[i].key))
             continue;
         dap_chain_cs_dag_event_round_item_t *l_round_item = (dap_chain_cs_dag_event_round_item_t *)a_values[i].value;
@@ -686,6 +685,16 @@ static void s_round_event_cs_done(dap_chain_cs_dag_t * a_dag, uint64_t a_round_i
     pthread_rwlock_unlock(&l_poa_pvt->rounds_rwlock);
 }
 
+static bool s_callback_sync_all_on_start(dap_global_db_instance_t *a_dbi, int a_rc, const char *a_group,
+                                         const size_t a_values_total, const size_t a_values_count,
+                                         dap_global_db_obj_t *a_values, void *a_arg)
+{
+    for (size_t i = 0; i < a_values_count; i++)
+        s_callback_event_round_sync((dap_chain_cs_dag_t *)a_arg, DAP_GLOBAL_DB_OPTYPE_ADD, a_group,
+                                    a_values[i].key, a_values[i].value, a_values[i].value_len);
+    return false;
+}
+
 /**
  * @brief create callback load certificate for event signing for specific chain
  * path to certificate iw written to chain config file in dag_poa section
@@ -712,6 +721,7 @@ static int s_callback_created(dap_chain_t * a_chain, dap_config_t *a_chain_net_c
         l_dag->callback_cs_event_round_sync = s_callback_event_round_sync;
         l_dag->round_completed = l_dag->round_current++;
         log_it(L_MSG, "Round complete ID %"DAP_UINT64_FORMAT_U", current ID %"DAP_UINT64_FORMAT_U, l_dag->round_completed, l_dag->round_current);
+        dap_global_db_get_all(l_dag->gdb_group_events_round_new, 0, s_callback_sync_all_on_start, l_dag);
     }
     return 0;
 }
@@ -791,6 +801,9 @@ static int s_callback_event_round_sync(dap_chain_cs_dag_t * a_dag, const char a_
                                         const char *a_key, const void *a_value, const size_t a_value_size)
 {
     if (a_op_code != DAP_GLOBAL_DB_OPTYPE_ADD || !a_key || !a_value || !a_value_size)
+        return 0;
+
+    if (!strcmp(DAG_ROUND_CURRENT_KEY, a_key))
         return 0;
 
     dap_chain_cs_dag_poa_t * l_poa = DAP_CHAIN_CS_DAG_POA(a_dag);
