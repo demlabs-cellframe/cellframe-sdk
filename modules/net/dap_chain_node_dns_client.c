@@ -248,10 +248,10 @@ int dap_chain_node_info_dns_request(dap_worker_t *a_worker, struct in_addr a_add
     l_esocket_callbacks.error_callback = s_dns_client_esocket_error_callback; // Error processing function
 
     dap_events_socket_t * l_esocket = dap_events_socket_create(DESCRIPTOR_TYPE_SOCKET_UDP,&l_esocket_callbacks);
-    l_esocket->remote_addr.sin_family = AF_INET;
+    /*l_esocket->remote_addr.sin_family = AF_INET;
     l_esocket->remote_addr.sin_port = htons(a_port);
     l_esocket->remote_addr.sin_addr = a_addr;
-    l_esocket->_inheritor = l_dns_client;
+    l_esocket->_inheritor = l_dns_client;*/ // TODO fill the address from config string with no passing it as arg...
 
     dap_events_socket_assign_on_worker_mt(l_esocket, a_worker);
     return 0;
