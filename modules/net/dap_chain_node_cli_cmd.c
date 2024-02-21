@@ -1122,7 +1122,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-link", &l_link_str);
 
     // struct to write to the global db
-    dap_chain_node_addr_t l_node_addr, l_link;
+    dap_chain_node_addr_t l_node_addr = {}, l_link;
     dap_chain_node_info_t l_node_info;
 
     //TODO need to rework with new node info / alias /links concept
