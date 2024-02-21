@@ -1562,8 +1562,8 @@ dap_chain_net_vote_info_t *s_dap_chain_net_vote_extract_info(dap_chain_net_votin
     return l_info;
 }
 
-dap_chain_net_vote_info_t **dap_chain_net_vote_list(dap_chain_net_t *a_net, size_t *a_count_vote_info_out) {
-    if (!a_net || !a_count_vote_info_out)
+dap_list_t *dap_chain_net_vote_list(dap_chain_net_t *a_net) {
+    if (!a_net)
         return NULL;
     dap_chain_net_votings_t *l_voting = NULL, *l_tmp;
     dap_list_t *l_list = NULL;
@@ -1577,15 +1577,22 @@ dap_chain_net_vote_info_t **dap_chain_net_vote_list(dap_chain_net_t *a_net, size
         l_list = dap_list_append(l_list, l_info);
     }
     pthread_rwlock_unlock(&s_votings_rwlock);
-    size_t l_list_count = dap_list_length(l_list);
-    dap_chain_net_vote_info_t **l_votes = DAP_NEW_Z_SIZE(dap_chain_net_vote_info_t*, sizeof(dap_chain_net_vote_info_t) * l_list_count);
-    for (size_t i = l_list_count; --i;) {
-        dap_chain_net_vote_info_t * l_vote = dap_list_nth_data(l_list, (uint64_t)i);
-        l_votes[i] = l_vote;//s_dap_chain_net_vote_extract_info(l_vote);
-    }
-    *a_count_vote_info_out = l_list_count;
-    DAP_DELETE(l_list);
-    return l_votes;
+//    size_t l_list_count = dap_list_length(l_list);
+//    dap_chain_net_vote_info_t **l_votes = DAP_NEW_Z_SIZE(dap_chain_net_vote_info_t*, sizeof(dap_chain_net_vote_info_t) * l_list_count);
+//    size_t t = 0;
+//    dap_list_t *l_list_tmp = l_list;
+//    while (l_list_tmp) {
+//        l_votes[t] = l_list_tmp->data;
+//        l_list_tmp = l_list_tmp->next;
+//        t++;
+//    }
+//    for (size_t i = l_list_count; --i;) {
+//        dap_chain_net_vote_info_t * l_vote = dap_list_nth_data(l_list, (uint64_t)i);
+//        l_votes[i] = l_vote;//s_dap_chain_net_vote_extract_info(l_vote);
+//    }
+//    *a_count_vote_info_out = l_list_count;
+//    DAP_DELETE(l_list);
+    return l_list;
 }
 
 dap_chain_net_vote_info_t *dap_chain_net_vote_extract_info(dap_chain_net_t *a_net, dap_hash_fast_t *a_voting) {

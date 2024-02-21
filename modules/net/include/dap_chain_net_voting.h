@@ -113,6 +113,6 @@ int dap_chain_net_vote_voting(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wal
                               uint64_t a_option_idx, dap_chain_net_t *a_net, const char *a_hash_out_type,
                               char **a_hash_tx_out);
 
-dap_chain_net_vote_info_t **dap_chain_net_vote_list(dap_chain_net_t *a_net, size_t *a_count_vote_info_out);
+dap_list_t *dap_chain_net_vote_list(dap_chain_net_t *a_net);
 dap_chain_net_vote_info_t *dap_chain_net_vote_extract_info(dap_chain_net_t *a_net, dap_hash_fast_t *a_vote_hash);
 
