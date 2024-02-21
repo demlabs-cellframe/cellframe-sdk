@@ -534,7 +534,7 @@ static void s_link_manager_callback_error(dap_link_t *a_link, uint64_t a_net_id,
         char l_err_str[128] = { };
         snprintf(l_err_str, sizeof(l_err_str)
                      , "Link " NODE_ADDR_FP_STR " [%s] can't be established, errno %d"
-                     , NODE_ADDR_FP_ARGS_S(a_link->node_addr), a_link->host_addr_str, a_error);
+                     , NODE_ADDR_FP_ARGS_S(a_link->node_addr), a_link->client->uplink_addr, a_error);
         json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
         dap_notify_server_send_mt(json_object_get_string(l_json));
         json_object_put(l_json);
@@ -723,10 +723,10 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
                 l_net_link_add = dap_link_manager_link_add(a_net->pub.id.uint64, l_link);
                 switch (l_net_link_add) {
                     case 0:
-                        log_it(L_MSG, "Network LOCAL balancer issues link IP %s, [%ld blocks]", l_link->host_addr_str,l_node_info->info.atoms_count);
+                        log_it(L_MSG, "Network LOCAL balancer issues link IP %s, [%ld blocks]", l_link->client->uplink_addr,l_node_info->info.atoms_count);
                         break;
                     case -1:
-                        log_it(L_MSG, "Network LOCAL balancer: Node %s is already among links", l_link->host_addr_str);
+                        log_it(L_MSG, "Network LOCAL balancer: Node %s is already among links", l_link->client->uplink_addr);
                         break;
                     case -2:
                         log_it(L_MSG, "Network LOCAL balancer: Link manager not active");
@@ -2165,7 +2165,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     }
     l_net_pvt->poa_nodes_addrs = DAP_NEW_SIZE(dap_stream_node_addr_t, l_net_pvt->poa_nodes_count * sizeof(dap_stream_node_addr_t));
     if (!l_net_pvt->poa_nodes_addrs) {
-        log_it(L_CRITICAL, g_error_memory_alloc);
+        log_it(L_CRITICAL, "%s", g_error_memory_alloc);
         dap_chain_net_delete(l_net);
         dap_config_close(l_cfg);
         return -1;
@@ -2220,7 +2220,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     if (l_seed_nodes_ipv6_len) {
         l_net_pvt->seed_nodes_ipv6 = DAP_NEW_SIZE(struct sockaddr_in6, l_net_pvt->seed_nodes_count * sizeof(struct sockaddr_in6));
         if (!l_net_pvt->seed_nodes_ipv6) {
-            log_it(L_CRITICAL, g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             dap_chain_net_delete(l_net);
             dap_config_close(l_cfg);
             return -1;
@@ -2228,7 +2228,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     } else {   // Just only IPv4 can be resolved for now
         l_net_pvt->seed_nodes_ipv4 = DAP_NEW_SIZE(struct sockaddr_in, l_net_pvt->seed_nodes_count * sizeof(struct sockaddr_in));
         if (!l_net_pvt->seed_nodes_ipv4) {
-            log_it(L_CRITICAL, g_error_memory_alloc);
+            log_it(L_CRITICAL, "%s", g_error_memory_alloc);
             dap_chain_net_delete(l_net);
             dap_config_close(l_cfg);
             return -1;
