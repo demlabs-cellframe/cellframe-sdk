@@ -638,21 +638,20 @@ static size_t s_callback_add_datums(dap_chain_t *a_chain, dap_chain_datum_t **a_
     return l_datum_processed;
 }
 
-static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_datum_t *a_datum) {
-    if (!a_datum || !a_chain){
-        log_it(L_ERROR, "Datum or chain in mempool processing comes NULL in s_chain_callback_datums_pool_proc");
-        return false;
-    }
-
+static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_datum_t *a_datum)
+{
+    dap_return_val_if_fail(a_datum && a_chain, false);
     dap_chain_cs_dag_t * l_dag = DAP_CHAIN_CS_DAG(a_chain);
     /* If datum passes thru rounds, let's check if it wasn't added before */
     dap_chain_hash_fast_t l_datum_hash;
-    dap_hash_fast(a_datum, dap_chain_datum_size(a_datum), &l_datum_hash);
+    dap_hash_fast(a_datum->data, a_datum->header.data_size, &l_datum_hash);
     if (!l_dag->is_add_directly) {
         bool l_dup_found = false;
         size_t l_objs_count = 0;
         dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_dag->gdb_group_events_round_new, &l_objs_count);
         for (size_t i = 0; i < l_objs_count; ++i) {
+            if (!strcmp(DAG_ROUND_CURRENT_KEY, l_objs[i].key))
+                continue;
             dap_chain_cs_dag_event_round_item_t *l_round_item = (dap_chain_cs_dag_event_round_item_t*)l_objs[i].value;
             if (!memcmp(&l_datum_hash, &(l_round_item->round_info.datum_hash), sizeof(dap_chain_hash_fast_t))) {
                 l_dup_found = true;
@@ -748,7 +747,7 @@ static bool s_chain_callback_datums_pool_proc(dap_chain_t *a_chain, dap_chain_da
     dap_chain_cs_dag_event_round_item_t l_round_item = { .round_info.datum_hash = l_datum_hash };
     char *l_event_hash_hex_str = DAP_NEW_STACK_SIZE(char, DAP_CHAIN_HASH_FAST_STR_SIZE);
     dap_chain_hash_fast_to_str(&l_event_hash, l_event_hash_hex_str, DAP_CHAIN_HASH_FAST_STR_SIZE);
-    l_res = dap_chain_cs_dag_event_gdb_set(l_dag, l_event_hash_hex_str, l_event, l_event_size, &l_round_item) == DAP_GLOBAL_DB_RC_SUCCESS;
+    l_res = dap_chain_cs_dag_event_gdb_set(l_dag, l_event_hash_hex_str, l_event, l_event_size, &l_round_item);
     DAP_DELETE(l_event);
     log_it(l_res ? L_INFO : L_ERROR,
            l_res ? "Event %s placed in the new forming round [id %"DAP_UINT64_FORMAT_U"]"
@@ -1529,6 +1528,8 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
 
             // Check if its ready or not
             for (size_t i = 0; i< l_objs_size; i++ ){
+                if (!strcmp(DAG_ROUND_CURRENT_KEY, l_objs[i].key))
+                    continue;
                 dap_chain_cs_dag_event_round_item_t *l_round_item = (dap_chain_cs_dag_event_round_item_t *)l_objs[i].value;
                 dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t *)l_round_item->event_n_signs;
                 size_t l_event_size = l_round_item->event_size;
@@ -1601,6 +1602,8 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
             size_t l_search_events = 0;
             dap_string_t *l_events_str = dap_string_new("Events: \n");
             for (size_t i = 0; i < l_objs_size;i++) {
+                if (!strcmp(DAG_ROUND_CURRENT_KEY, l_objs[i].key))
+                    continue;
                 dap_chain_cs_dag_event_round_item_t *l_round_item = (dap_chain_cs_dag_event_round_item_t *)l_objs[i].value;
                 if (dap_hash_fast_compare(&l_round_item->round_info.datum_hash, &l_datum_hash)) {
                     dap_chain_cs_dag_event_t *l_event = (dap_chain_cs_dag_event_t *)l_round_item->event_n_signs;
@@ -1921,13 +1924,17 @@ static int s_cli_dag(int argc, char ** argv, void **a_str_reply)
                         l_objs = dap_global_db_get_all_sync(l_gdb_group_events,&l_objs_count);
                         dap_string_append_printf(l_str_tmp,"%s.%s: Found %zu records :\n",l_net->pub.name,l_chain->name,l_objs_count);
 
-                        for (size_t i = 0; i< l_objs_count; i++){
+                        for (size_t i = 0; i < l_objs_count; i++) {
+                            if (!strcmp(DAG_ROUND_CURRENT_KEY, l_objs[i].key)) {
+                                dap_string_append_printf(l_str_tmp, "\t%s: %" DAP_UINT64_FORMAT_U "\n",
+                                                         l_objs[i].key, *(uint64_t *)l_objs[i].value);
+                                continue;
+                            }
                             dap_chain_cs_dag_event_t * l_event = (dap_chain_cs_dag_event_t *)
                                             ((dap_chain_cs_dag_event_round_item_t *)l_objs[i].value)->event_n_signs;
-                            char buf[50];
-                            dap_time_to_str_rfc822(buf, 50, l_event->header.ts_created);
-                            dap_string_append_printf(l_str_tmp,"\t%s: ts_create=%s\n",
-                                                     l_objs[i].key, buf);
+                            char buf[DAP_TIME_STR_SIZE];
+                            dap_time_to_str_rfc822(buf, DAP_TIME_STR_SIZE, l_event->header.ts_created);
+                            dap_string_append_printf(l_str_tmp, "\t%s: ts_create=%s\n", l_objs[i].key, buf);
 
                         }
                         if (l_objs && l_objs_count )
