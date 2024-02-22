@@ -5632,6 +5632,10 @@ dap_chain_datum_tx_t *dap_ledger_datum_iter_get_first(dap_ledger_datum_iter_t *a
 {
     dap_ledger_private_t *l_ledger_pvt = PVT(a_iter->net->pub.ledger);
     pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
+    if (!l_ledger_pvt->ledger_items) {
+        pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+        return NULL;
+    }
     a_iter->cur_ledger_tx_item = l_ledger_pvt->ledger_items;
     a_iter->cur = ((dap_ledger_tx_item_t *)(a_iter->cur_ledger_tx_item))->tx;
     a_iter->cur_hash = ((dap_ledger_tx_item_t *)(a_iter->cur_ledger_tx_item))->tx_hash_fast;
