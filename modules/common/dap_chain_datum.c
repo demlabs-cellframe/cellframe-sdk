@@ -520,11 +520,11 @@ bool dap_chain_datum_dump_tx(dap_chain_datum_tx_t *a_datum,
                                      l_value_str);
             dap_string_append_printf(a_str_out, "Exts:\n");                         
             switch ( ((dap_chain_datum_tx_receipt_t*)item)->exts_size ) {
-                case sizeof(dap_sign_t) * 2:
+                case (sizeof(dap_sign_t) * 2):
                     dap_sign_t *l_client = DAP_CAST_PTR( dap_sign_t, ((dap_chain_datum_tx_receipt_t*)item)->exts_n_signs + sizeof(dap_sign_t) );
                     dap_string_append_printf(a_str_out, "   Client:\n");
                     dap_sign_get_information(l_client, a_str_out, a_hash_out_type);
-                case sizeof(dap_sign_t):
+                case (sizeof(dap_sign_t)):
                     dap_sign_t *l_provider = DAP_CAST_PTR( dap_sign_t, ((dap_chain_datum_tx_receipt_t*)item)->exts_n_signs );
                     dap_string_append_printf(a_str_out, "   Provider:\n");
                     dap_sign_get_information(l_provider, a_str_out, a_hash_out_type);
