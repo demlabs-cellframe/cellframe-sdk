@@ -58,7 +58,7 @@ typedef struct dap_chain_net_vote_info{
     } question;
     struct {
         uint64_t count_option;
-        dap_chain_net_vote_info_option_t *options;
+        dap_chain_net_vote_info_option_t **options;
     } options;
 }dap_chain_net_vote_info_t;
 
@@ -115,4 +115,5 @@ int dap_chain_net_vote_voting(dap_cert_t *a_cert, uint256_t a_fee, dap_chain_wal
 
 dap_list_t *dap_chain_net_vote_list(dap_chain_net_t *a_net);
 dap_chain_net_vote_info_t *dap_chain_net_vote_extract_info(dap_chain_net_t *a_net, dap_hash_fast_t *a_vote_hash);
+void dap_chain_net_vote_info_free(dap_chain_net_vote_info_t *a_info);
 

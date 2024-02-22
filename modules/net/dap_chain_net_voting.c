@@ -1547,15 +1547,18 @@ dap_chain_net_vote_info_t *s_dap_chain_net_vote_extract_info(dap_chain_net_votin
     l_info->is_changing_allowed = a_voting->voting_params.vote_changing_allowed_offset;
     l_info->is_delegate_key_required = a_voting->voting_params.delegate_key_required_offset;
     l_info->options.count_option = dap_list_length(a_voting->voting_params.option_offsets_list);
-    dap_chain_net_vote_info_option_t l_options[l_info->options.count_option];
+    dap_chain_net_vote_info_option_t **l_options = DAP_NEW_Z_COUNT(dap_chain_net_vote_info_t*, l_info->options.count_option);
     for (uint64_t i = 0; i < dap_list_length(a_voting->voting_params.option_offsets_list); i++){
         dap_list_t* l_option = dap_list_nth(a_voting->voting_params.option_offsets_list, (uint64_t)i);
         dap_chain_net_vote_option_t* l_vote_option = (dap_chain_net_vote_option_t*)l_option->data;
-        l_options[i].option_idx = i;
-        l_options[i].description_size = l_vote_option->vote_option_length;
-        l_options[i].description = (char*)((byte_t*)a_voting->voting_params.voting_tx + l_vote_option->vote_option_offset);
-        l_options[i].votes_count = l_results[i].num_of_votes;
-        l_options[i].weight = l_results[i].weights;
+        dap_chain_net_vote_info_option_t *l_option_info = DAP_NEW(dap_chain_net_vote_info_option_t);
+        l_option_info->option_idx = i;
+        l_option_info->description_size = l_vote_option->vote_option_length;
+        l_option_info->description = (char*)((byte_t*)a_voting->voting_params.voting_tx + l_vote_option->vote_option_offset);
+        l_option_info->votes_count = l_results[i].num_of_votes;
+        l_option_info->weight = l_results[i].weights;
+        l_option_info->hashes_tx_votes = l_results[i].tx_hashes;
+        l_options[i] = l_option_info;
     }
     l_info->options.options = l_options;
     DAP_DELETE(l_results);
@@ -1577,21 +1580,6 @@ dap_list_t *dap_chain_net_vote_list(dap_chain_net_t *a_net) {
         l_list = dap_list_append(l_list, l_info);
     }
     pthread_rwlock_unlock(&s_votings_rwlock);
-//    size_t l_list_count = dap_list_length(l_list);
-//    dap_chain_net_vote_info_t **l_votes = DAP_NEW_Z_SIZE(dap_chain_net_vote_info_t*, sizeof(dap_chain_net_vote_info_t) * l_list_count);
-//    size_t t = 0;
-//    dap_list_t *l_list_tmp = l_list;
-//    while (l_list_tmp) {
-//        l_votes[t] = l_list_tmp->data;
-//        l_list_tmp = l_list_tmp->next;
-//        t++;
-//    }
-//    for (size_t i = l_list_count; --i;) {
-//        dap_chain_net_vote_info_t * l_vote = dap_list_nth_data(l_list, (uint64_t)i);
-//        l_votes[i] = l_vote;//s_dap_chain_net_vote_extract_info(l_vote);
-//    }
-//    *a_count_vote_info_out = l_list_count;
-//    DAP_DELETE(l_list);
     return l_list;
 }
 
@@ -1607,4 +1595,14 @@ dap_chain_net_vote_info_t *dap_chain_net_vote_extract_info(dap_chain_net_t *a_ne
         return NULL;
     }
     return s_dap_chain_net_vote_extract_info(l_voting);
+}
+
+void dap_chain_net_vote_info_free(dap_chain_net_vote_info_t *a_info){
+    size_t l_count_options = a_info->options.count_option;
+    for (size_t i = 0; i < l_count_options; i++) {
+        dap_chain_net_vote_info_option_t *l_option = a_info->options.options[i];
+        DAP_DELETE(l_option);
+    }
+    DAP_DELETE(a_info->options.options);
+    DAP_DELETE(a_info);
 }
