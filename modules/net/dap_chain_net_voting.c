@@ -1547,8 +1547,8 @@ dap_chain_net_vote_info_t *s_dap_chain_net_vote_extract_info(dap_chain_net_votin
     l_info->is_changing_allowed = a_voting->voting_params.vote_changing_allowed_offset;
     l_info->is_delegate_key_required = a_voting->voting_params.delegate_key_required_offset;
     l_info->options.count_option = dap_list_length(a_voting->voting_params.option_offsets_list);
-    dap_chain_net_vote_info_option_t **l_options = DAP_NEW_Z_COUNT(dap_chain_net_vote_info_t*, l_info->options.count_option);
-    for (uint64_t i = 0; i < dap_list_length(a_voting->voting_params.option_offsets_list); i++){
+    dap_chain_net_vote_info_option_t **l_options = DAP_NEW_Z_COUNT(dap_chain_net_vote_info_option_t*, l_info->options.count_option);
+    for (uint64_t i = 0; i < l_info->options.count_option; i++){
         dap_list_t* l_option = dap_list_nth(a_voting->voting_params.option_offsets_list, (uint64_t)i);
         dap_chain_net_vote_option_t* l_vote_option = (dap_chain_net_vote_option_t*)l_option->data;
         dap_chain_net_vote_info_option_t *l_option_info = DAP_NEW(dap_chain_net_vote_info_option_t);
@@ -1586,10 +1586,9 @@ dap_list_t *dap_chain_net_vote_list(dap_chain_net_t *a_net) {
 dap_chain_net_vote_info_t *dap_chain_net_vote_extract_info(dap_chain_net_t *a_net, dap_hash_fast_t *a_voting) {
     if (!a_net || !a_voting)
         return NULL;
-    dap_hash_fast_t l_voting_hash = {};
     dap_chain_net_votings_t *l_voting = NULL;
     pthread_rwlock_rdlock(&s_votings_rwlock);
-    HASH_FIND(hh, s_votings, &l_voting_hash, sizeof(l_voting_hash),l_voting);
+    HASH_FIND(hh, s_votings, &a_voting, sizeof(dap_hash_fast_t),l_voting);
     pthread_rwlock_unlock(&s_votings_rwlock);
     if(!l_voting){
         return NULL;
