@@ -1527,9 +1527,9 @@ dap_chain_net_vote_info_t *s_dap_chain_net_vote_extract_info(dap_chain_net_votin
         }
         l_results[l_vote->answer_idx].num_of_votes++;
         SUM_256_256(l_results[l_vote->answer_idx].weights, l_vote->weight, &l_results[l_vote->answer_idx].weights);
-        l_list_tmp = l_list_tmp->next;
         l_results[l_vote->answer_idx].tx_hashes = DAP_REALLOC(l_results[l_vote->answer_idx].tx_hashes, sizeof(dap_hash_fast_t) * l_results[l_vote->answer_idx].num_of_votes);
         memcpy(l_results[l_vote->answer_idx].tx_hashes + (l_results[l_vote->answer_idx].num_of_votes - 1), &l_vote->vote_hash, sizeof(dap_hash_fast_t));
+        l_list_tmp = l_list_tmp->next;
     }
 
     l_info->question.question_size = a_voting->voting_params.voting_question_length;
