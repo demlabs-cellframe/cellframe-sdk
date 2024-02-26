@@ -63,8 +63,6 @@ typedef union dap_chain_cell_id {
     uint64_t uint64;
 } DAP_ALIGN_PACKED dap_chain_cell_id_t;
 
-int dap_id_uint64_parse(const char *a_id_str, uint64_t *a_id);
-
 enum {
     NODE_ROLE_ROOT_MASTER=0x00,
     NODE_ROLE_ROOT=0x01,
@@ -118,13 +116,8 @@ typedef struct dap_chain_addr{
 
 typedef union {
     uint8_t raw[DAP_CHAIN_NET_SRV_UID_SIZE];
-#if DAP_CHAIN_NET_SRV_UID_SIZE == 8
     uint64_t raw_ui64;
     uint64_t uint64;
-#elif DAP_CHAIN_NET_SRV_UID_SIZE == 16
-    uint64_t raw_ui64[2];
-    uint128_t uint128;
-#endif
 } dap_chain_net_srv_uid_t;
 
 extern const dap_chain_net_srv_uid_t c_dap_chain_net_srv_uid_null;
@@ -236,17 +229,6 @@ DAP_STATIC_INLINE bool dap_chain_addr_compare(const dap_chain_addr_t *a_addr1, c
     return !memcmp(a_addr1, a_addr2, sizeof(dap_chain_addr_t));
 }
 
-// Deprecated
-DAP_STATIC_INLINE long double dap_chain_datoshi_to_coins(uint64_t a_count)
-{
-    return (double)a_count / DATOSHI_LD;
-}
-// Deprecated
-DAP_STATIC_INLINE uint64_t dap_chain_coins_to_datoshi(long double a_count)
-{
-    return (uint64_t)(a_count * DATOSHI_LD);
-}
-
 DAP_STATIC_INLINE uint128_t dap_chain_uint128_from(uint64_t a_from)
 {
     return GET_128_FROM_64(a_from);
@@ -266,14 +248,11 @@ DAP_STATIC_INLINE uint256_t dap_chain_uint256_from_uint128(uint128_t a_from)
     return GET_256_FROM_128(a_from);
 }
 
-uint64_t dap_chain_uint128_to(uint128_t a_from);
-// 256
-uint64_t dap_chain_uint256_to(uint256_t a_from);
-
-#define dap_chain_balance_print(a_balance) dap_uint256_uninteger_to_char(a_balance)
-#define dap_chain_balance_scan(a_balance) dap_uint256_scan_uninteger(a_balance)
-#define dap_chain_balance_to_coins(a) dap_uint256_decimal_to_char(a)
-#define dap_chain_coins_to_balance(a) dap_uint256_scan_decimal(a)
+#define dap_chain_balance_print dap_uint256_uninteger_to_char
+#define dap_chain_balance_scan dap_uint256_scan_uninteger
+#define dap_chain_balance_to_coins dap_uint256_decimal_to_char
+#define dap_chain_coins_to_balance dap_uint256_scan_decimal
+#define dap_chain_uint256_to dap_uint256_to_uint64
 
 /**
  * @brief dap_chain_hash_to_str
