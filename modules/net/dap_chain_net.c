@@ -411,16 +411,6 @@ dap_chain_node_info_t *dap_chain_net_balancer_link_from_cfg(dap_chain_net_t *a_n
     return l_link_node_info;
 }
 
-void dap_chain_net_add_cluster_link(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_node_addr)
-{
-    dap_return_if_fail(a_net && a_node_addr);
-    dap_cluster_t *l_links_cluster = dap_cluster_by_mnemonim(a_net->pub.name);
-    if (l_links_cluster)
-        dap_cluster_member_add(l_links_cluster, a_node_addr, 0, NULL);
-    else
-        log_it(L_ERROR, "Not found links cluster for net %s", a_net->pub.name);
-}
-
 /**
  * @brief s_fill_links_from_root_aliases
  * @param a_net

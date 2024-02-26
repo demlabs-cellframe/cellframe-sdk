@@ -135,7 +135,6 @@ void dap_chain_net_proc_mempool(dap_chain_net_t *a_net);
 void dap_chain_net_set_flag_sync_from_zero(dap_chain_net_t * a_net, bool a_flag_sync_from_zero);
 bool dap_chain_net_get_flag_sync_from_zero( dap_chain_net_t * a_net);
 
-void dap_chain_net_add_cluster_link(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_node_addr);
 dap_chain_net_t * dap_chain_net_by_name( const char * a_name);
 dap_chain_net_t * dap_chain_net_by_id( dap_chain_net_id_t a_id);
 uint16_t dap_chain_net_get_acl_idx(dap_chain_net_t *a_net);
