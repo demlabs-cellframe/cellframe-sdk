@@ -1503,7 +1503,7 @@ dap_chain_net_vote_info_t *s_dap_chain_net_vote_extract_info(dap_chain_net_votin
     if (!a_voting) {
         return NULL;
     }
-    struct voting_results {uint64_t num_of_votes; uint256_t weights; dap_hash_fast_t *tx_hashes;};
+    struct voting_results {uint64_t num_of_votes; uint256_t weights; dap_list_t *tx_hashes;};
 
     size_t l_count_voting = dap_list_length(a_voting->votes);
     if (!l_count_voting) {
@@ -1527,14 +1527,18 @@ dap_chain_net_vote_info_t *s_dap_chain_net_vote_extract_info(dap_chain_net_votin
         }
         l_results[l_vote->answer_idx].num_of_votes++;
         SUM_256_256(l_results[l_vote->answer_idx].weights, l_vote->weight, &l_results[l_vote->answer_idx].weights);
-        l_results[l_vote->answer_idx].tx_hashes = DAP_REALLOC(l_results[l_vote->answer_idx].tx_hashes, sizeof(dap_hash_fast_t) * l_results[l_vote->answer_idx].num_of_votes);
-        memcpy(l_results[l_vote->answer_idx].tx_hashes + (l_results[l_vote->answer_idx].num_of_votes - 1), &l_vote->vote_hash, sizeof(dap_hash_fast_t));
+        l_results[l_vote->answer_idx].tx_hashes = dap_list_append(l_results[l_vote->answer_idx].tx_hashes, &l_vote->vote_hash);
         l_list_tmp = l_list_tmp->next;
     }
 
     l_info->question.question_size = a_voting->voting_params.voting_question_length;
     l_info->question.question_str = (char*)((byte_t*)a_voting->voting_params.voting_tx + a_voting->voting_params.voting_question_offset);
     l_info->hash = a_voting->voting_hash;
+    dap_hash_fast_t l_hash = {};
+    dap_chain_hash_fast_from_str("0xBA7AD933F0033B7AC1A16AC9C279EF51E70A0B285C6FE37BBF6B850F879298F8", &l_hash);
+    if (dap_hash_fast_compare(&l_hash, &l_info->hash)) {
+        int t = 1;
+    }
 
     l_info->is_expired = a_voting->voting_params.voting_expire_offset;
     if(a_voting->voting_params.voting_expire_offset){
