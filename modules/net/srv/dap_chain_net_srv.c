@@ -902,7 +902,6 @@ dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net
     l_price->wallet_addr = dap_chain_addr_from_str(l_wallet_addr);
     if(!l_price->wallet_addr){
         log_it(L_ERROR, "Can't get wallet addr from wallet_addr in config file.");
-        DAP_DEL_Z(l_order);
         DAP_DELETE(l_price);
         DAP_DEL_Z(l_order);
         return NULL;

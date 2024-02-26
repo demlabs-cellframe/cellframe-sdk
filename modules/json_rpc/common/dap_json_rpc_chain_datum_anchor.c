@@ -23,14 +23,12 @@ json_object *s_dap_chain_datum_anchor_sign_to_json(byte_t * a_signs, size_t a_ce
             json_object_object_add(l_jobj_sign, "warning", l_wrn_text);
             continue;
         }
-        char *l_hash_str = dap_chain_hash_fast_to_str_new(&l_pkey_hash);
-        json_object *l_jobj_hash_str = json_object_new_string(l_hash_str);
+        json_object *l_jobj_hash_str = json_object_new_string(dap_chain_hash_fast_to_str_static(&l_pkey_hash));
         json_object *l_jobj_type_str = json_object_new_string(dap_sign_type_to_str(l_sign->header.type));
         json_object *l_jobj_sign_size = json_object_new_uint64(l_sign->header.sign_size);
         json_object_object_add(l_jobj_sign, "hash", l_jobj_hash_str);
         json_object_object_add(l_jobj_sign, "type", l_jobj_type_str);
         json_object_object_add(l_jobj_sign, "size", l_jobj_sign_size);
-        DAP_DEL_Z(l_hash_str);
         json_object_array_add(l_jobs_signs, l_jobj_sign);
     }
     return l_jobs_signs;

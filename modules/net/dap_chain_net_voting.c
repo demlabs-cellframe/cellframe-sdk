@@ -247,9 +247,8 @@ bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_t
         HASH_FIND(hh, s_votings, &l_vote_tx_item->voting_hash, sizeof(dap_hash_fast_t), l_voting);
         pthread_rwlock_unlock(&s_votings_rwlock);
         if(!l_voting || l_voting->net_id.uint64 != a_ledger->net->pub.id.uint64) {
-            char *l_hash_str = dap_chain_hash_fast_to_str_new(&l_hash);
-            log_it(L_ERROR, "Can't find voting with hash %s in net %s", l_hash_str, a_ledger->net->pub.name);
-            DAP_DELETE(l_hash_str);
+            log_it(L_ERROR, "Can't find voting with hash %s in net %s",
+                   dap_chain_hash_fast_to_str_static(&l_hash), a_ledger->net->pub.name);
             return false;
         }
 
@@ -1062,9 +1061,8 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
             if (l_voting->net_id.uint64 != l_net->pub.id.uint64)
                 continue;
 
-            char *l_hash_str = dap_chain_hash_fast_to_str_new(&l_voting->voting_hash);
-            dap_string_append_printf(l_str_out, "Voting hash: %s\n", l_hash_str);
-            DAP_DELETE(l_hash_str);
+            dap_string_append_printf(l_str_out, "Voting hash: %s\n",
+                dap_chain_hash_fast_to_str_static(&l_voting->voting_hash));
             dap_string_append(l_str_out, "Voting question:\n");
             char* l_voting_question = (char*)((byte_t*)l_voting->voting_params.voting_tx + l_voting->voting_params.voting_question_offset);
             dap_string_append_len(l_str_out,
@@ -1158,13 +1156,14 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
             DIV_256_COIN(l_results[i].weights, l_total_weight, &l_weight_percentage);
             MULT_256_COIN(l_weight_percentage, dap_chain_coins_to_balance("100.0"), &l_weight_percentage);
             char *l_weight_percentage_str = dap_uint256_decimal_to_round_char(l_weight_percentage, 2, true);
-            dap_string_append_printf(l_str_out, "\nVotes: %"DAP_UINT64_FORMAT_U" (%.2f%%)\nWeight: %s (%s) %s (%s%%)\n", l_results[i].num_of_votes, l_percentage,
-                                     dap_chain_balance_to_coins(l_results[i].weights), dap_chain_balance_print(l_results[i].weights), l_net->pub.native_ticker,
-                                     l_weight_percentage_str);
+            char *l_w_coins, *l_w_datoshi = dap_uint256_to_char(l_results[i].weights, &l_w_coins);
+            dap_string_append_printf(l_str_out, "\nVotes: %"DAP_UINT64_FORMAT_U" (%.2f%%)\nWeight: %s (%s) %s (%s%%)\n",
+                                     l_results[i].num_of_votes, l_percentage, l_w_coins, l_w_datoshi, l_net->pub.native_ticker, l_weight_percentage_str);
         }
         DAP_DELETE(l_results);
         dap_string_append_printf(l_str_out, "\nTotal number of votes: %"DAP_UINT64_FORMAT_U, l_votes_count);
-        dap_string_append_printf(l_str_out, "\nTotal weight: %s (%s) %s\n\n", dap_chain_balance_to_coins(l_total_weight), dap_chain_balance_print(l_total_weight), l_net->pub.native_ticker);
+        char *l_tw_coins, *l_tw_datoshi = dap_uint256_to_char(l_total_weight, &l_tw_coins);
+        dap_string_append_printf(l_str_out, "\nTotal weight: %s (%s) %s\n\n", l_tw_coins, l_tw_datoshi, l_net->pub.native_ticker);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_out->str);
         dap_string_free(l_str_out, true);
     }break;
@@ -1342,9 +1341,8 @@ static int s_datum_tx_voting_coin_check_cond_out(dap_chain_net_t *a_net, dap_has
     HASH_FIND(hh, s_votings, &a_voting_hash, sizeof(dap_hash_fast_t), l_voting);
     pthread_rwlock_unlock(&s_votings_rwlock);
     if(!l_voting || l_voting->net_id.uint64 != a_net->pub.id.uint64) {
-        char *l_hash_str = dap_chain_hash_fast_to_str_new(&a_voting_hash);
-        log_it(L_ERROR, "Can't find voting with hash %s in net %s", l_hash_str, a_net->pub.name);
-        DAP_DELETE(l_hash_str);
+        log_it(L_ERROR, "Can't find voting with hash %s in net %s",
+            dap_chain_hash_fast_to_str_static(&a_voting_hash), a_net->pub.name);
         return -1;
     }
 

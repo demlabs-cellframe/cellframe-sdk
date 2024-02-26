@@ -984,9 +984,7 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
             log_it(L_INFO, "hold/take_value: %s",	str1);
             log_it(L_INFO, "delegated_value: %s",	str2);
             log_it(L_INFO, "burning_value:   %s",	str3);
-            DAP_DEL_Z(str1);
-            DAP_DEL_Z(str2);
-            DAP_DEL_Z(str3);
+            DAP_DEL_MULTY(str1, str2, str3);
         }
 
         if (!EQUAL_256(l_blank_out_value, l_value_delegated)) {

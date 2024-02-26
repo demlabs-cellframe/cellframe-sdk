@@ -166,16 +166,7 @@ json_object *dap_chain_datum_token_to_json(dap_chain_datum_token_t * a_token, si
                 dap_json_rpc_allocation_error;
                 return NULL;
             }
-            char *l_premine_supply_str = dap_chain_balance_print(a_token->header_public.premine_supply);
-            if (!l_premine_supply_str) {
-                json_object_put(l_jobj_flags);
-                json_object_put(l_jobj_header);
-                json_object_put(l_jobj_token);
-                dap_json_rpc_allocation_error;
-                return NULL;
-            }
-            json_object *l_jobj_premine_supply = json_object_new_string(l_premine_supply_str);
-            DAP_DELETE(l_premine_supply_str);
+            json_object *l_jobj_premine_supply = json_object_new_string(dap_uint256_to_char(a_token->header_public.premine_supply, NULL));
             if (!l_jobj_premine_supply) {
                 json_object_put(l_jobj_flags);
                 json_object_put(l_jobj_header);

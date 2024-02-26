@@ -541,9 +541,7 @@ dap_chain_tx_sig_t* dap_chain_datum_tx_item_sign_create(dap_enc_key_t *a_key, co
  */
 dap_sign_t* dap_chain_datum_tx_item_sign_get_sig(dap_chain_tx_sig_t *a_tx_sig)
 {
-    if(!a_tx_sig || !a_tx_sig->header.sig_size)
-        return NULL;
-    return (dap_sign_t*) a_tx_sig->sig;
+    return a_tx_sig && a_tx_sig->header.sig_size ? (dap_sign_t*)a_tx_sig->sig : NULL;
 }
 
 /**
