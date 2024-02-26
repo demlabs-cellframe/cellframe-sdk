@@ -2878,7 +2878,7 @@ int s_net_load(dap_chain_net_t *a_net)
         l_gdb_groups_mask = dap_strdup_printf("%s.chain-%s.mempool", l_net->pub.gdb_groups_prefix, l_chain->name);
         dap_global_db_cluster_t *l_cluster = dap_global_db_cluster_add(
                                                     dap_global_db_instance_get_default(),
-                                                    l_net->pub.name, dap_cluster_uuid_compose(l_net->pub.id.uint64, 0),
+                                                    l_net->pub.name, dap_cluster_guuid_compose(l_net->pub.id.uint64, 0),
                                                     l_gdb_groups_mask, DAP_CHAIN_NET_MEMPOOL_TTL, true,
                                                     DAP_GDB_MEMBER_ROLE_USER,
                                                     DAP_CLUSTER_ROLE_EMBEDDED);
@@ -2894,7 +2894,7 @@ int s_net_load(dap_chain_net_t *a_net)
     // Service orders cluster
     l_gdb_groups_mask = dap_strdup_printf("%s.service.orders", l_net->pub.gdb_groups_prefix);
     l_net_pvt->orders_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
-                                                          l_net->pub.name, dap_cluster_uuid_compose(l_net->pub.id.uint64, 0),
+                                                          l_net->pub.name, dap_cluster_guuid_compose(l_net->pub.id.uint64, 0),
                                                           l_gdb_groups_mask, 0, true,
                                                           DAP_GDB_MEMBER_ROLE_GUEST,
                                                           DAP_CLUSTER_ROLE_EMBEDDED);
@@ -2909,7 +2909,7 @@ int s_net_load(dap_chain_net_t *a_net)
     l_net->pub.gdb_nodes_aliases = dap_strdup_printf("%s.nodes.aliases",l_net->pub.gdb_groups_prefix);
     l_gdb_groups_mask = dap_strdup_printf("%s.nodes*", l_net->pub.gdb_groups_prefix);
     l_net_pvt->nodes_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
-                                                         l_net->pub.name, dap_cluster_uuid_compose(l_net->pub.id.uint64, 0),
+                                                         l_net->pub.name, dap_cluster_guuid_compose(l_net->pub.id.uint64, 0),
                                                          l_gdb_groups_mask, 0, true,
                                                          DAP_GDB_MEMBER_ROLE_GUEST,
                                                          DAP_CLUSTER_ROLE_EMBEDDED);
