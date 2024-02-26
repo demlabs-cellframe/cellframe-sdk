@@ -125,11 +125,12 @@ typedef struct dap_ledger_datum_iter {
 
 typedef bool (*dap_ledger_verificator_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_out_cond_t *a_tx_out_cond, dap_chain_datum_tx_t *a_tx_in, bool a_owner);
 typedef void (*dap_ledger_updater_callback_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_chain_tx_out_cond_t *a_prev_cond);
-typedef void (* dap_ledger_tx_add_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx);
-typedef void (* dap_ledger_bridged_tx_notify_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg);
+typedef void (* dap_ledger_tx_add_notify_t)(void *a_arg, dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, bool a_removed);
+typedef void (* dap_ledger_bridged_tx_notify_t)(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_hash_fast_t *a_tx_hash, void *a_arg, bool a_removed);
 typedef bool (*dap_ledger_cache_tx_check_callback_t)(dap_hash_fast_t *a_tx_hash);
 typedef struct dap_chain_net dap_chain_net_t;
 typedef bool (*dap_chain_ledger_voting_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx, bool a_apply);
+typedef bool (*dap_chain_ledger_voting_delete_callback_t)(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx);
 
 //Change this UUID to automatically reload ledger cache on next node startup
 #define DAP_LEDGER_CACHE_RELOAD_ONCE_UUID "0c92b759-a565-448f-b8bd-99103dacf7fc"
@@ -351,9 +352,9 @@ dap_list_t *dap_ledger_get_list_tx_cond_outs(dap_ledger_t *a_ledger, const char 
                                              dap_chain_tx_out_cond_subtype_t a_subtype, uint256_t *a_value_transfer);
 // Add new verificator callback with associated subtype. Returns 1 if callback replaced, overwise returns 0
 int dap_ledger_verificator_add(dap_chain_tx_out_cond_subtype_t a_subtype, dap_ledger_verificator_callback_t a_callback,
-                                     dap_ledger_updater_callback_t a_callback_added);
+                                     dap_ledger_updater_callback_t a_callback_added, dap_ledger_updater_callback_t a_callback_deleted);
 // Add new verificator callback for voting. Returns 1 if callback replaced, overwise returns 0
-int dap_chain_ledger_voting_verificator_add(dap_chain_ledger_voting_callback_t a_callback);
+int dap_chain_ledger_voting_verificator_add(dap_chain_ledger_voting_callback_t a_callback, dap_chain_ledger_voting_delete_callback_t a_callback_delete);
 // Getting a list of transactions from the ledger.
 dap_list_t * dap_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, size_t a_page, bool a_reverse, bool a_unspent_only);
 

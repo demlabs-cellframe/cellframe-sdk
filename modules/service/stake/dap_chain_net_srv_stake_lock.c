@@ -114,7 +114,7 @@ static bool s_stake_lock_callback_verificator(dap_ledger_t *a_ledger, dap_chain_
  */
 int dap_chain_net_srv_stake_lock_init()
 {
-    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, s_stake_lock_callback_verificator, s_stake_lock_callback_updater);
+    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK, s_stake_lock_callback_verificator, s_stake_lock_callback_updater, NULL);
     dap_cli_server_cmd_add("stake_lock", s_cli_stake_lock, "Stake lock service commands",
        "Command:"
                 "stake_lock hold\n"

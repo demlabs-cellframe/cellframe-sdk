@@ -93,8 +93,8 @@ static int s_str_to_price_unit(const char *a_price_unit_str, dap_chain_net_srv_p
  */
 int dap_chain_net_srv_init()
 {
-    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, s_pay_verificator_callback, NULL);
-    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, s_fee_verificator_callback, NULL);
+    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY, s_pay_verificator_callback, NULL, NULL);
+    dap_ledger_verificator_add(DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE, s_fee_verificator_callback, NULL, NULL);
     dap_stream_ch_chain_net_srv_init();
 
     dap_cli_server_cmd_add ("net_srv", s_cli_net_srv, "Network services managment",
@@ -937,20 +937,23 @@ dap_chain_net_srv_price_t * dap_chain_net_srv_get_price_from_order(dap_chain_net
 
 int dap_chain_net_srv_price_apply_from_my_order(dap_chain_net_srv_t *a_srv, const char *a_config_section){
 
-//    const char *l_wallet_path = dap_config_get_item_str_default(g_config, "resources", "wallets_path", NULL);
-//    const char *l_wallet_name = dap_config_get_item_str_default(g_config, a_config_section, "wallet", NULL);
-
     const char *l_wallet_addr = dap_config_get_item_str_default(g_config, a_config_section, "wallet_addr", NULL);
     const char *l_cert_name = dap_config_get_item_str_default(g_config, a_config_section, "receipt_sign_cert", NULL);
     const char *l_net_name = dap_config_get_item_str_default(g_config, a_config_section, "net", NULL);
-    if (!l_wallet_addr || !l_cert_name || !l_net_name){
-        return -2;
+
+    if (!l_wallet_addr){
+        log_it(L_CRITICAL, "Wallet addr is not defined. Check node configuration file.");
+        return NULL;
+    }
+    if (!l_cert_name){
+        log_it(L_CRITICAL, "Receipt sign certificate is not defined. Check node configuration file.");
+        return NULL;
+    }
+    if (!l_net_name){
+        log_it(L_CRITICAL, "Net for is not defined. Check node configuration file.");
+        return NULL;
     }
 
-//    dap_chain_wallet_t *l_wallet = dap_chain_wallet_open(l_wallet_name, l_wallet_path);
-//    if (!l_wallet) {
-//        return -3;
-//    }
     dap_chain_net_t *l_net = dap_chain_net_by_name(l_net_name);
     if (!l_net) {
         return -4;
