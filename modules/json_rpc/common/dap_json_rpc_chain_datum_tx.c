@@ -15,7 +15,7 @@
 
 
 
-json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx){
+json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx,dap_chain_net_id_t *a_net_id){
     json_object *l_obj_items = json_object_new_array();
     if (!l_obj_items) {
         dap_json_rpc_allocation_error;
@@ -93,12 +93,12 @@ json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx){
                 }
                 json_object_object_add(l_obj_item_data, "ts_expires", json_object_new_string(l_time_str));
                 json_object_object_add(l_obj_item_data, "subtype", json_object_new_string(dap_chain_tx_out_cond_subtype_to_str(((dap_chain_tx_out_cond_t*)item)->header.subtype)));
-                json_object_object_add(l_obj_item_data, "value", json_object_new_string(dap_chain_balance_to_coins(((dap_chain_tx_out_cond_t*)item)->header.value)));
-                json_object_object_add(l_obj_item_data, "value_datoshi", json_object_new_string(dap_chain_balance_print(((dap_chain_tx_out_cond_t*)item)->header.value)));
-                char * uid_str = DAP_NEW_SIZE(char, 32);
+                char *l_val_str, *l_val_datoshi_str = dap_uint256_to_char(((dap_chain_tx_out_cond_t*)item)->header.value, &l_val_str);
+                json_object_object_add(l_obj_item_data, "value", json_object_new_string(l_val_str));
+                json_object_object_add(l_obj_item_data, "value_datoshi", json_object_new_string(l_val_datoshi_str));
+                char uid_str[32];
                 sprintf(uid_str, "0x%016"DAP_UINT64_FORMAT_x"", ((dap_chain_tx_out_cond_t*)item)->header.srv_uid.uint64);
                 json_object_object_add(l_obj_item_data, "uid", json_object_new_string(uid_str));
-                DAP_DEL_Z(uid_str);
                 break;
             case TX_ITEM_TYPE_OUT_EXT:
                 l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_OUT_EXT");
