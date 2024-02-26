@@ -745,7 +745,7 @@ ssize_t dap_chain_atom_save(dap_chain_cell_t *a_chain_cell, const uint8_t *a_ato
                 log_it(L_CRITICAL, g_error_memory_alloc);
                 continue;
             }
-            dap_proc_thread_callback_add(NULL, s_notify_atom_on_thread, l_arg);
+            dap_proc_thread_callback_add_pri(NULL, s_notify_atom_on_thread, l_arg, DAP_QUEUE_MSG_PRIORITY_LOW);
         }
     }
     if (l_chain->callback_atom_add_from_treshold) {

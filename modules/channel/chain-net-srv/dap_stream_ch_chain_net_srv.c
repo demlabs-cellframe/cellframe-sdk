@@ -456,9 +456,8 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
                 }
                 a_grace->usage->price = l_price;
             } else {
-                char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&a_grace->usage->static_order_hash);
-                log_it(L_MSG, "Get price from order %s.", l_order_hash_str);
-                DAP_DELETE(l_order_hash_str);
+                log_it(L_MSG, "Get price from order %s.",
+                    dap_chain_hash_fast_to_str_static(&a_grace->usage->static_order_hash));
                 if ((l_price = dap_chain_net_srv_get_price_from_order(a_grace->usage->service, "srv_vpn", &a_grace->usage->static_order_hash))){
                     switch (l_price->units_uid.enm) {
                     case SERV_UNIT_MB:
@@ -620,9 +619,8 @@ static void s_grace_period_start(dap_chain_net_srv_grace_t *a_grace)
                 }
             }
         } else {
-            char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&a_grace->usage->static_order_hash);
-            log_it(L_MSG, "Get price from order %s.", l_order_hash_str);
-            DAP_DELETE(l_order_hash_str);
+            log_it(L_MSG, "Get price from order %s.",
+                dap_chain_hash_fast_to_str_static(&a_grace->usage->static_order_hash));
             if ((l_price = dap_chain_net_srv_get_price_from_order(a_grace->usage->service, "srv_vpn", &a_grace->usage->static_order_hash))){
                 if (l_price->net->pub.id.uint64  != a_grace->usage->net->pub.id.uint64){
                     log_it( L_WARNING, "Pricelist is not for net %s.", a_grace->usage->net->pub.name);
@@ -885,9 +883,8 @@ static bool s_grace_period_finish(usages_in_grace_t *a_grace_item)
                 }
             }
         } else {
-            char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&l_grace->usage->static_order_hash);
-            log_it(L_MSG, "Get price from order %s.", l_order_hash_str);
-            DAP_DELETE(l_order_hash_str);
+            log_it(L_MSG, "Get price from order %s.",
+                dap_chain_hash_fast_to_str_static(&l_grace->usage->static_order_hash));
             if ((l_price = dap_chain_net_srv_get_price_from_order(l_grace->usage->service, "srv_vpn", &l_grace->usage->static_order_hash))){
                 if (l_price->net->pub.id.uint64  != l_grace->usage->net->pub.id.uint64){
                     log_it( L_WARNING, "Pricelist is not for net %s.", l_grace->usage->net->pub.name);

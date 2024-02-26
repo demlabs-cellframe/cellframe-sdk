@@ -466,10 +466,9 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, dap_string_t *a_re
     uint256_t l_total_value = uint256_0;
     for (size_t i = 0; i < l_objs_count; i++) {
         dap_global_db_obj_t *l_obj_cur = l_objs + i;
-        uint256_t l_cur_value = *(uint256_t *)l_obj_cur->value;
-        char *l_value_str = dap_chain_balance_to_coins(l_cur_value);
+        uint256_t l_cur_value = *(uint256_t*)l_obj_cur->value;
+        char *l_value_str; dap_uint256_to_char(l_cur_value, &l_value_str);
         dap_string_append_printf(a_reply_str, "%s\t%s\n", l_obj_cur->key, l_value_str);
-        DAP_DEL_Z(l_value_str);
         SUM_256_256(l_total_value, l_cur_value, &l_total_value);
     }
     if (l_objs_count) {
@@ -495,10 +494,7 @@ static void s_print_autocollect_table(dap_chain_net_t *a_net, dap_string_t *a_re
         char *l_fee_str = dap_chain_balance_to_coins(l_collect_fee);
         dap_string_append_printf(a_reply_str, "\nTotal prepared value: %s %s, where\n\tprofit is %s, tax is %s, fee is %s\n",
                                  l_total_str, a_net->pub.native_ticker, l_profit_str, l_tax_str, l_fee_str);
-        DAP_DEL_Z(l_total_str);
-        DAP_DEL_Z(l_profit_str);
-        DAP_DEL_Z(l_tax_str);
-        DAP_DEL_Z(l_fee_str);
+        DAP_DEL_MULTY(l_total_str, l_profit_str, l_tax_str, l_fee_str);
     } else
         dap_string_append(a_reply_str, "Empty\n");
 }
@@ -969,9 +965,8 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **a_str_reply)
                     break;
                 } else if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "show") >= 0) {
                     uint256_t l_cur_reward = dap_chain_net_get_reward(l_net, UINT64_MAX);
-                    char *l_reward_str = dap_chain_balance_to_coins(l_cur_reward);
+                    char *l_reward_str; dap_uint256_to_char(l_cur_reward, &l_reward_str);
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Current base block reward is %s\n", l_reward_str);
-                    DAP_DEL_Z(l_reward_str);
                     break;
                 } else if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "collect") == -1) {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block reward' requires subcommands 'set' or 'show' or 'collect'");

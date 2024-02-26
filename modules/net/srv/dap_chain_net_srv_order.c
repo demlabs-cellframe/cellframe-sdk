@@ -349,18 +349,14 @@ char *dap_chain_net_srv_order_save(dap_chain_net_t *a_net, dap_chain_net_srv_ord
     dap_chain_hash_fast_t l_order_hash;
     size_t l_order_size = dap_chain_net_srv_order_get_size(a_order);
     dap_hash_fast(a_order, l_order_size, &l_order_hash);
-    char *l_order_hash_str = dap_chain_hash_fast_to_str_new(&l_order_hash);
-    if (!l_order_hash_str)
-        return NULL;
+    char *l_order_hash_str = dap_chain_hash_fast_to_str_static(&l_order_hash);
     char *l_gdb_group_str = a_common ? dap_chain_net_srv_order_get_common_group(a_net)
                                      : dap_chain_net_srv_order_get_gdb_group(a_net);
     if (!l_gdb_group_str)
         return NULL;
     int l_rc = dap_global_db_set_sync(l_gdb_group_str, l_order_hash_str, a_order, l_order_size, false);
     DAP_DELETE(l_gdb_group_str);
-    if (l_rc != DAP_GLOBAL_DB_RC_SUCCESS)
-        DAP_DEL_Z(l_order_hash_str);
-    return l_order_hash_str;
+    return l_rc == DAP_GLOBAL_DB_RC_SUCCESS ? dap_strdup(l_order_hash_str) : NULL;
 }
 
 dap_chain_net_srv_order_t *dap_chain_net_srv_order_read(byte_t *a_order, size_t a_order_size)
@@ -544,8 +540,8 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         dap_chain_hash_fast_t l_hash;
         dap_hash_fast(a_order, dap_chain_net_srv_order_get_size(a_order), &l_hash);
         char *l_hash_str = dap_strcmp(a_hash_out_type,"hex")
-                ? dap_enc_base58_encode_hash_to_str(&l_hash)
-                : dap_chain_hash_fast_to_str_new(&l_hash);
+                ? dap_enc_base58_encode_hash_to_str_static(&l_hash)
+                : dap_chain_hash_fast_to_str_static(&l_hash);
 
         dap_string_append_printf(a_str_out, "== Order %s ==\n", l_hash_str);
         dap_string_append_printf(a_str_out, "  version:          %u\n", a_order->version );
@@ -559,11 +555,9 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         dap_time_to_str_rfc822(buf_time, 50, a_order->ts_created);
         dap_string_append_printf(a_str_out, "  created:          %s\n", buf_time);
         dap_string_append_printf(a_str_out, "  srv_uid:          0x%016"DAP_UINT64_FORMAT_X"\n", a_order->srv_uid.uint64 );
-        char *l_balance_coins = dap_chain_balance_to_coins(a_order->price);
-        char *l_balance = dap_chain_balance_print(a_order->price);
+        
+        char *l_balance_coins, *l_balance = dap_uint256_to_char(a_order->price, &l_balance_coins);
         dap_string_append_printf(a_str_out, "  price:            %s (%s)\n", l_balance_coins, l_balance);
-        DAP_DELETE(l_balance_coins);
-        DAP_DELETE(l_balance);
         dap_string_append_printf(a_str_out, "  price_token:      %s\n",  (*a_order->price_ticker) ? a_order->price_ticker: a_native_ticker);
         dap_string_append_printf(a_str_out, "  units:            %zu\n", a_order->units);
         if( a_order->price_unit.uint32 )
@@ -578,11 +572,10 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
             l_continent_str = dap_chain_net_srv_order_continent_to_str(l_continent_num);
         dap_string_append_printf(a_str_out, "  node_location:    %s - %s\n", l_continent_str ? l_continent_str : "None" , l_region ? l_region : "None");
         DAP_DELETE(l_region);
-        DAP_DELETE(l_hash_str);
 
         l_hash_str = dap_strcmp(a_hash_out_type, "hex")
-                ? dap_enc_base58_encode_hash_to_str(&a_order->tx_cond_hash)
-                : dap_chain_hash_fast_to_str_new(&a_order->tx_cond_hash);
+                ? dap_enc_base58_encode_hash_to_str_static(&a_order->tx_cond_hash)
+                : dap_chain_hash_fast_to_str_static(&a_order->tx_cond_hash);
         dap_string_append_printf(a_str_out, "  tx_cond_hash:     %s\n", l_hash_str );
         char *l_ext_out = a_order->ext_size ? DAP_NEW_Z_SIZE(char, a_order->ext_size * 2 + 1) : NULL;
         if(l_ext_out) {
@@ -594,10 +587,8 @@ void dap_chain_net_srv_order_dump_to_string(dap_chain_net_srv_order_t *a_order,d
         dap_sign_t *l_sign = (dap_sign_t*)((byte_t*)a_order->ext_n_sign + a_order->ext_size);
         dap_hash_fast_t l_sign_pkey = {0};
         dap_sign_get_pkey_hash(l_sign, &l_sign_pkey);
-        char *l_sign_pkey_hash_str = dap_hash_fast_to_str_new(&l_sign_pkey);
+        char *l_sign_pkey_hash_str = dap_hash_fast_to_str_static(&l_sign_pkey);
         dap_string_append_printf(a_str_out, "  pkey:             %s\n", l_sign_pkey_hash_str);
-        DAP_DELETE(l_sign_pkey_hash_str);
-        DAP_DELETE(l_hash_str);
         DAP_DELETE(l_ext_out);
     }
 }
