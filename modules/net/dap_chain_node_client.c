@@ -278,7 +278,7 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
         DL_FOREACH(dap_global_db_instance_get_default()->clusters, it)
             if (dap_cluster_member_find_unsafe(it->role_cluster, l_uplink_addr))
                 dap_cluster_member_add(it->links_cluster, l_uplink_addr, 0, NULL);
-        dap_chain_net_add_cluster_link(l_node_client->net, l_uplink_addr);
+        // dap_chain_net_add_cluster_link(l_node_client->net, l_uplink_addr);
 
         pthread_mutex_lock(&l_node_client->wait_mutex);
         l_node_client->state = NODE_CLIENT_STATE_ESTABLISHED;
