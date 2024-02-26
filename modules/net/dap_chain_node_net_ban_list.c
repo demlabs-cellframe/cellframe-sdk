@@ -10,9 +10,7 @@ static dap_chain_node_ban_list_record_t *s_ban_addr_list = NULL;
 static pthread_rwlock_t s_ban_addr_list_rwlock;
 
 bool s_chain_node_net_ban_list_addr_resolve_ip_v4(dap_chain_net_t  *a_net, dap_chain_node_addr_t a_node_addr, struct in_addr *a_out_ip) {
-    char *l_key = dap_chain_node_addr_to_hash_str(&a_node_addr);
-    if (!l_key)
-        return false;
+    char *l_key = dap_chain_node_addr_to_str_static(&a_node_addr);
     size_t l_node_info_size = 0;
     dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t*) dap_global_db_get_sync(a_net->pub.gdb_nodes, l_key, &l_node_info_size, NULL, NULL);
     if (!l_node_info) {
@@ -22,11 +20,9 @@ bool s_chain_node_net_ban_list_addr_resolve_ip_v4(dap_chain_net_t  *a_net, dap_c
     size_t node_info_size_must_be = dap_chain_node_info_get_size(l_node_info);
     if(node_info_size_must_be != l_node_info_size) {
         DAP_DELETE(l_node_info);
-        DAP_DELETE(l_key);
         return false;
     }
-    DAP_DELETE(l_key);
-    *a_out_ip = l_node_info->hdr.ext_addr_v4;
+    //*a_out_ip = l_node_info->hdr.ext_addr_v4; TODO
     return true;
 }
 
@@ -35,7 +31,7 @@ bool dap_chain_node_net_ban_list_check_node_addr(dap_chain_node_addr_t node_addr
     dap_chain_node_ban_list_record_t *l_record = NULL;
     HASH_FIND(hh, s_ban_addr_list, &node_addr, sizeof(dap_chain_node_addr_t), l_record);
     pthread_rwlock_unlock(&s_ban_addr_list_rwlock);
-    return l_record ? true : false;
+    return !!l_record;
 }
 
 bool dap_chain_node_net_ban_list_add_node_addr(dap_chain_node_addr_t node_addr, dap_hash_fast_t a_decree_hash, dap_time_t a_time_created, dap_chain_net_t *a_net){

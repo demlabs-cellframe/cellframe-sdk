@@ -32,7 +32,7 @@
 
 typedef struct dap_chain_net dap_chain_net_t;
 
-typedef struct dap_chain_node_info {
+typedef struct dap_chain_node_info_old {
     struct {
         dap_chain_node_addr_t address;
         dap_chain_cell_id_t cell_id;
@@ -48,6 +48,23 @@ typedef struct dap_chain_node_info {
     } DAP_ALIGN_PACKED info;
     uint16_t alias_len;
     byte_t alias[];
+} DAP_ALIGN_PACKED dap_chain_node_info_old_t;
+
+typedef struct dap_chain_node_info {
+    struct {
+        dap_chain_node_addr_t address;
+        dap_chain_cell_id_t cell_id;
+        char ext_addr[NI_MAXHOST];
+        uint16_t ext_port;
+    } DAP_ALIGN_PACKED hdr;
+    struct {
+        uint64_t atoms_count;
+        uint32_t links_number : 31;
+        uint32_t links_addrs_app : 1;
+        byte_t padding[127];
+    } DAP_ALIGN_PACKED info;
+    char alias[64];
+    byte_t links_addrs[];
 } DAP_ALIGN_PACKED dap_chain_node_info_t;
 
 typedef dap_stream_node_addr_t dap_chain_node_addr_t;
@@ -60,9 +77,8 @@ typedef dap_stream_node_addr_t dap_chain_node_addr_t;
  */
 DAP_STATIC_INLINE size_t dap_chain_node_info_get_size(dap_chain_node_info_t *a_node_info)
 {
-    if (!a_node_info)
-        return 0;
-    return (sizeof(dap_chain_node_info_t) + a_node_info->alias_len);
+    return !a_node_info ? 0 : sizeof(dap_chain_node_info_t) 
+        + a_node_info->info.links_addrs_app ? sizeof(dap_chain_node_addr_t) * a_node_info->info.links_number : 0;
 }
 
 /**
@@ -89,11 +105,13 @@ bool dap_chain_node_alias_register(dap_chain_net_t *a_net, const char *a_alias, 
 bool dap_chain_node_alias_delete(dap_chain_net_t * l_net,const char *alias);
 
 int dap_chain_node_info_save(dap_chain_net_t * l_net,dap_chain_node_info_t *node_info);
-dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_net_t * l_net, dap_chain_node_addr_t *address);
+dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_net_t *l_net, dap_chain_node_addr_t *address);
 
-inline static char *dap_chain_node_addr_to_hash_str(dap_chain_node_addr_t *a_address)
+inline static char *dap_chain_node_addr_to_str_static(dap_chain_node_addr_t *a_address)
 {
-    return dap_strdup_printf(NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(a_address));
+    static _Thread_local char s_buf[23] = { '\0' };
+    dap_snprintf(s_buf, sizeof(s_buf), NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS(a_address));
+    return s_buf;
 }
 
 bool dap_chain_node_mempool_need_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum);
@@ -101,3 +119,41 @@ bool dap_chain_node_mempool_process(dap_chain_t *a_chain, dap_chain_datum_t *a_d
 void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force);
 bool dap_chain_node_mempool_autoproc_init();
 inline static void dap_chain_node_mempool_autoproc_deinit() {}
+
+DAP_STATIC_INLINE int dap_chain_node_parse_hostname(const char *a_src, char *a_addr, uint16_t *a_port) {
+    char l_type = 0, *l_cpos = NULL, *l_bpos = NULL;
+    /*  
+        type 4,5 - hostname or IPv4 (no port, with port)
+        type 6,7 - IPv6 (no port, with port)
+    */
+    if ( l_cpos = strrchr(a_src, ':') ) {
+        l_type = strchr(a_src, ':') == l_cpos ? 5 : 6;
+    } else
+        l_type = 4;
+
+    if (*a_src == '[') {   // It's likely an IPv6 with port, see https://www.ietf.org/rfc/rfc2732.txt
+        if ( l_type != 6 || !(l_bpos = strrchr(a_src, ']')) || l_cpos < l_bpos )
+            return -1;
+        a_src++;
+        l_type = 7;
+    } else if ( (l_bpos = strrchr(a_src, ']')) )
+        return -1;
+    
+    int l_len;
+    switch (l_type) {
+    case 4:
+    case 6:
+        l_len = strlen(a_src);
+        *a_port = 0;
+        break;
+    case 5:
+        l_bpos = l_cpos;
+    case 7:
+        *a_port = strtoul(l_cpos, NULL, 10);
+        l_len = l_bpos - a_src;
+        break;
+    default:
+        return -1;
+    }
+    return l_len >= NI_MAXHOST ? -2 : ( dap_strncpy(a_addr, a_src, l_len), 0 );
+}

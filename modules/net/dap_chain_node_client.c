@@ -250,11 +250,10 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
     dap_chain_node_client_t *l_node_client = DAP_CHAIN_NODE_CLIENT(a_client);
     UNUSED(a_arg);
     if(l_node_client) {
-        char l_ip_addr_str[INET_ADDRSTRLEN] = {};
-        inet_ntop(AF_INET, &l_node_client->info->hdr.ext_addr_v4, l_ip_addr_str, INET_ADDRSTRLEN);
-        log_it(L_NOTICE, "Stream connection with node "NODE_ADDR_FP_STR" (%s:%hu) established",
+        log_it(L_NOTICE, "Stream connection with node "NODE_ADDR_FP_STR" [ %s : %hu ] established",
                     NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr),
-                    l_ip_addr_str, l_node_client->info->hdr.ext_port);
+                    l_node_client->info->hdr.ext_addr,
+                    l_node_client->info->hdr.ext_port);
         // set callbacks for C and N channels; for R and S it is not needed
         if (a_client->active_channels) {
             size_t l_channels_count = dap_strlen(a_client->active_channels);
@@ -657,9 +656,7 @@ dap_chain_node_client_t *dap_chain_node_client_create_n_connect(dap_chain_net_t 
                                                                 void *a_callback_arg)
 {
     dap_chain_node_client_t *l_node_client = dap_chain_node_client_create(a_net, a_node_info, a_callbacks, a_callback_arg);
-    if (dap_chain_node_client_connect(l_node_client, a_active_channels))
-        return l_node_client;
-    return NULL;
+    return dap_chain_node_client_connect(l_node_client, a_active_channels) ? l_node_client : DAP_DELETE(l_node_client), NULL;
 }
 
 dap_chain_node_client_t *dap_chain_node_client_create(dap_chain_net_t *a_net,
@@ -723,21 +720,13 @@ bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const
     dap_client_set_is_always_reconnect(a_node_client->client, false);
     a_node_client->client->_inheritor = a_node_client;
     dap_client_set_active_channels_unsafe(a_node_client->client, a_active_channels);
-
     dap_client_set_auth_cert(a_node_client->client, a_node_client->net->pub.name);
+    char *l_host_addr = a_node_client->info->hdr.ext_addr;
+    
+    if ( !*l_host_addr || !strcmp(l_host_addr, "::") || !a_node_client->info->hdr.ext_port ) {
+        return log_it(L_WARNING, "Node client address undefined"), false;
+    }
 
-    char l_host_addr[INET6_ADDRSTRLEN] = { '\0' };
-    if(a_node_client->info->hdr.ext_addr_v4.s_addr){
-        struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = a_node_client->info->hdr.ext_addr_v4 };
-        inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), l_host_addr, INET6_ADDRSTRLEN);
-    } else {
-        struct sockaddr_in6 sa6 = { .sin6_family = AF_INET6, .sin6_addr = a_node_client->info->hdr.ext_addr_v6 };
-        inet_ntop(AF_INET6, &(((struct sockaddr_in6 *) &sa6)->sin6_addr), l_host_addr, INET6_ADDRSTRLEN);
-    }
-    if(!strlen(l_host_addr) || !strcmp(l_host_addr, "::") || !a_node_client->info->hdr.ext_port) {
-        log_it(L_WARNING, "Undefined address of node client");
-        return false;
-    }
     log_it(L_INFO, "Connecting to addr %s : %d", l_host_addr, a_node_client->info->hdr.ext_port);
     dap_client_set_uplink_unsafe(a_node_client->client, l_host_addr, a_node_client->info->hdr.ext_port);
     a_node_client->state = NODE_CLIENT_STATE_CONNECTING;
@@ -765,10 +754,10 @@ void dap_chain_node_client_reset(dap_chain_node_client_t *a_client)
  */
 void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client)
 {
-    char l_node_addr_str[INET_ADDRSTRLEN] = {};
-    inet_ntop(AF_INET, &a_node_client->info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
-    log_it(L_INFO, "Closing node client to uplink %s:%d ["NODE_ADDR_FP_STR"]",
-                    l_node_addr_str, a_node_client->info->hdr.ext_port, NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr));
+    log_it(L_INFO, "Closing node client to uplink"NODE_ADDR_FP_STR" [ %s : %u ]",
+                    NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr),
+                    a_node_client->info->hdr.ext_addr,
+                    a_node_client->info->hdr.ext_port);
 
     if (a_node_client->sync_timer)
         dap_timerfd_delete_unsafe(a_node_client->sync_timer);

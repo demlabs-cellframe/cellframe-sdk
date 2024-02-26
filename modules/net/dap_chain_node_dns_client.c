@@ -89,7 +89,7 @@ static void s_dns_client_esocket_read_callback(dap_events_socket_t * a_esocket, 
     dap_chain_net_node_balancer_t *l_link_full_node_list = DAP_NEW_Z_SIZE(dap_chain_net_node_balancer_t,
                                                                           sizeof(dap_chain_net_node_balancer_t) + sizeof(dap_chain_node_info_t));
     dap_chain_node_info_t l_result = {};
-    l_result.hdr.ext_addr_v4.s_addr = ntohl(*(uint32_t *)l_cur);
+    //l_result.hdr.ext_addr_v4.s_addr = ntohl(*(uint32_t *)l_cur); TODO: implement other request and response
     l_cur = l_buf + 5 * sizeof(uint16_t);
     int l_additions_count = ntohs(*(uint16_t *)l_cur);
     if (l_additions_count == 1) {

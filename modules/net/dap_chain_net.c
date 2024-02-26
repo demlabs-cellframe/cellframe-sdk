@@ -134,12 +134,11 @@ struct balancer_link_request {
     dap_chain_node_info_t *link_info;
     dap_chain_net_t *net;
     dap_worker_t *worker;
-    bool from_http;
     int link_replace_tries;
 };
 
 struct net_link {
-    uint64_t uplink_ip;
+    unsigned link_keyhash;
     dap_chain_node_info_t *link_info;
     dap_chain_node_client_t *link;
     dap_timerfd_t *delay_timer;
@@ -184,9 +183,13 @@ typedef struct dap_chain_net_pvt{
     uint16_t poa_nodes_count;
     dap_stream_node_addr_t *poa_nodes_addrs;
     bool seeds_is_poas;
+
     uint16_t seed_nodes_count;
+    dap_chain_node_info_t *seed_nodes_info;
+
     struct sockaddr_in *seed_nodes_ipv4;
     struct sockaddr_in6 *seed_nodes_ipv6;       // TODO
+
     _Atomic(dap_chain_net_state_t) state, state_target;
     uint16_t acl_idx;
 
@@ -408,25 +411,15 @@ dap_chain_net_state_t dap_chain_net_get_target_state(dap_chain_net_t *a_net)
 
 dap_chain_node_info_t *dap_chain_net_balancer_link_from_cfg(dap_chain_net_t *a_net)
 {
-    dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
-    struct in_addr l_addr = { };
-    uint16_t i, l_port = 0;
-    if (l_net_pvt->seed_nodes_count) {
-        i = dap_random_uint16() % l_net_pvt->seed_nodes_count;
-        l_addr = l_net_pvt->seed_nodes_ipv4[i].sin_addr;
-        l_port = l_net_pvt->seed_nodes_ipv4[i].sin_port;
-    } else {
-        log_it(L_ERROR, "No valid balancer links found");
+    switch (PVT(a_net)->seed_nodes_count) {
+    case 0:
+        log_it(L_ERROR, "No available links! Add them in net config");
         return NULL;
+    case 1:
+        return &PVT(a_net)->seed_nodes_info[0];
+    default:
+        return &PVT(a_net)->seed_nodes_info[dap_random_uint16() % PVT(a_net)->seed_nodes_count];
     }
-    dap_chain_node_info_t *l_link_node_info = DAP_NEW_Z(dap_chain_node_info_t);
-    if(! l_link_node_info){
-        log_it(L_CRITICAL,"Can't allocate memory for node link info");
-        return NULL;
-    }
-    l_link_node_info->hdr.ext_addr_v4 = l_addr;
-    l_link_node_info->hdr.ext_port = l_port;
-    return l_link_node_info;
 }
 
 void dap_chain_net_add_cluster_link(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_node_addr)
@@ -439,25 +432,9 @@ void dap_chain_net_add_cluster_link(dap_chain_net_t *a_net, dap_stream_node_addr
         log_it(L_ERROR, "Not found links cluster for net %s", a_net->pub.name);
 }
 
-/**
- * @brief Check if the current link is already present or not
- *
- * @param a_net Network
- * @param a_link_node_info Node info
- */
-static struct net_link *s_net_link_find(dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_info)
-{
-    uint64_t l_addr = a_link_node_info->hdr.ext_addr_v4.s_addr;
-    struct net_link *l_present;
-    pthread_mutex_lock(&PVT(a_net)->uplinks_mutex);
-    HASH_FIND(hh, PVT(a_net)->net_links, &l_addr, sizeof(l_addr), l_present);
-    pthread_mutex_unlock(&PVT(a_net)->uplinks_mutex);
-    return l_present;
-}
-
 static int s_net_link_add(dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_node_info)
 {
-    if (!a_link_node_info)
+    if (!a_link_node_info || a_link_node_info->hdr.address.uint64 == dap_chain_net_get_cur_addr_int(a_net))
         return -1;
     dap_chain_net_pvt_t *l_pvt_net = PVT(a_net);
     pthread_mutex_lock(&l_pvt_net->uplinks_mutex);
@@ -465,14 +442,11 @@ static int s_net_link_add(dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_
         pthread_mutex_unlock(&l_pvt_net->uplinks_mutex);
         return 1;
     }
-    uint64_t l_own_addr = dap_chain_net_get_cur_addr_int(a_net);
-    if (a_link_node_info->hdr.address.uint64 == l_own_addr) {
-        pthread_mutex_unlock(&l_pvt_net->uplinks_mutex);
-        return -2;
-    }
-    uint64_t l_addr = a_link_node_info->hdr.ext_addr_v4.s_addr;
-    struct net_link *l_new_link;
-    HASH_FIND(hh, l_pvt_net->net_links, &l_addr, sizeof(l_addr), l_new_link);
+    unsigned l_keyhash, l_len = dap_strlen(a_link_node_info->hdr.ext_addr);
+    HASH_VALUE(&a_link_node_info->hdr.ext_addr, l_len, l_keyhash);
+    struct net_link *l_new_link = NULL;
+    HASH_FIND_BYHASHVALUE(hh, l_pvt_net->net_links, a_link_node_info->hdr.ext_addr, 
+        l_len, l_keyhash, l_new_link);
     if (l_new_link) {
         pthread_mutex_unlock(&l_pvt_net->uplinks_mutex);
         return -3;
@@ -483,9 +457,11 @@ static int s_net_link_add(dap_chain_net_t *a_net, dap_chain_node_info_t *a_link_
         pthread_mutex_unlock(&PVT(a_net)->uplinks_mutex);
         return -4;
     }
-    l_new_link->link_info = DAP_DUP(a_link_node_info);
-    l_new_link->uplink_ip = a_link_node_info->hdr.ext_addr_v4.s_addr;
-    HASH_ADD(hh, l_pvt_net->net_links, uplink_ip, sizeof(l_new_link->uplink_ip), l_new_link);
+    *l_new_link = (struct net_link) {
+        .link_keyhash = l_keyhash,
+        .link_info = DAP_DUP(a_link_node_info)
+    };
+    HASH_ADD_BYHASHVALUE(hh, l_pvt_net->net_links, link_keyhash, l_len, l_keyhash, l_new_link);
     pthread_mutex_unlock(&l_pvt_net->uplinks_mutex);
     return 0;
 }
@@ -512,8 +488,10 @@ static void s_net_link_remove(dap_chain_net_pvt_t *a_net_pvt, dap_chain_node_cli
     a_net_pvt->links_queue = dap_list_remove_all(a_net_pvt->links_queue, l_client);
     if (a_rebase) {
         l_link_found->link = NULL;
+        unsigned l_keyhash, l_len = dap_strlen(a_link->info->hdr.ext_addr);
+        HASH_VALUE(&a_link->info->hdr.ext_addr, l_len, l_keyhash);
         // Add it to the list end
-        HASH_ADD(hh, a_net_pvt->net_links, uplink_ip, sizeof(l_link_found->uplink_ip), l_link_found);
+        HASH_ADD_BYHASHVALUE(hh, a_net_pvt->net_links, link_keyhash, l_len, l_keyhash, l_link_found);
     } else {
         DAP_DEL_Z(l_link_found->link_info);
         DAP_DELETE(l_link_found);
@@ -544,8 +522,8 @@ static bool s_net_link_callback_connect_delayed(void *a_arg)
 {
     struct net_link *l_link = a_arg;
     dap_chain_node_client_t *l_client = l_link->link;
-    log_it(L_MSG, "Connecting to link "NODE_ADDR_FP_STR" [%s]",
-           NODE_ADDR_FP_ARGS_S(l_client->info->hdr.address), inet_ntoa(l_client->info->hdr.ext_addr_v4));
+    log_it( L_INFO, "Connecting to link "NODE_ADDR_FP_STR" [ %s ]",
+           NODE_ADDR_FP_ARGS_S(l_client->info->hdr.address), l_client->info->hdr.ext_addr );
     dap_chain_node_client_connect(l_client, "CGND");
     l_link->delay_timer = NULL;
     return false;
@@ -565,7 +543,8 @@ static bool s_net_link_start(dap_chain_net_t *a_net, struct net_link *a_link, ui
         a_link->delay_timer = dap_timerfd_start(a_delay * 1000, s_net_link_callback_connect_delayed, a_link);
         return true;
     }
-    log_it(L_MSG, "Connecting to link "NODE_ADDR_FP_STR" [%s]", NODE_ADDR_FP_ARGS_S(l_link_info->hdr.address), inet_ntoa(l_link_info->hdr.ext_addr_v4));
+    log_it(L_INFO, "Connecting to link "NODE_ADDR_FP_STR" [ %s ]",
+           NODE_ADDR_FP_ARGS_S(l_link_info->hdr.address), l_link_info->hdr.ext_addr );
     return dap_chain_node_client_connect(l_client, "CGND");
 }
 
@@ -576,15 +555,8 @@ static bool s_net_link_start(dap_chain_net_t *a_net, struct net_link *a_link, ui
 static void s_fill_links_from_root_aliases(dap_chain_net_t *a_net)
 {
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
-    for (size_t i = 0; i < l_net_pvt->seed_nodes_count; i++) {
-        dap_chain_node_info_t l_link_node_info = {};
-        l_link_node_info.hdr.ext_addr_v4 = l_net_pvt->seed_nodes_ipv4[i].sin_addr;
-        l_link_node_info.hdr.ext_port = l_net_pvt->seed_nodes_ipv4[i].sin_port;
-        if (PVT(a_net)->seeds_is_poas)
-            l_link_node_info.hdr.address = l_net_pvt->poa_nodes_addrs[i];
-        if (s_net_link_add(a_net, &l_link_node_info) > 0)    // Maximum links count reached
-            break;
-    }
+    uint16_t i = 0;
+    while ( i < l_net_pvt->seed_nodes_count && !s_net_link_add(a_net, &l_net_pvt->seed_nodes_info[i++]) );
 }
 
 /**
@@ -645,9 +617,6 @@ static void s_node_link_callback_disconnected(dap_chain_node_client_t *a_node_cl
     if (l_net_pvt->state_target != NET_STATE_OFFLINE) {
         pthread_mutex_lock(&l_net_pvt->uplinks_mutex);
         s_net_link_remove(l_net_pvt, a_node_client, l_net_pvt->only_static_links);
-        //char *l_key = dap_chain_node_addr_to_hash_str(&a_node_client->info->hdr.address);
-        //dap_global_db_del_sync(l_net->pub.gdb_nodes, l_key);
-        //DAP_DELETE(l_key);
 
         a_node_client->keep_connection = false;
         a_node_client->callbacks.delete = NULL;
@@ -695,16 +664,15 @@ static void s_node_link_callback_stage(dap_chain_node_client_t * a_node_client,d
 static void s_node_link_callback_error(dap_chain_node_client_t * a_node_client, int a_error, void * a_arg)
 {
     dap_chain_net_t * l_net = (dap_chain_net_t *) a_arg;
-    log_it(L_WARNING, "Can't establish link with %s."NODE_ADDR_FP_STR, l_net? l_net->pub.name : "(unknown)" ,
-           NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr));
-    if (l_net){
+    log_it(L_WARNING, "Can't establish link with %s."NODE_ADDR_FP_STR,
+           l_net ? l_net->pub.name : "(unknown)", NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr));
+    if (l_net) {
         struct json_object *l_json = s_net_states_json_collect(l_net);
-        char l_node_addr_str[INET_ADDRSTRLEN] = {};
-        inet_ntop(AF_INET, &a_node_client->info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
-        char l_err_str[128] = { };
+        char l_err_str[NI_MAXHOST + 128] = { '\0' };
         snprintf(l_err_str, sizeof(l_err_str)
                      , "Link " NODE_ADDR_FP_STR " [%s] can't be established, errno %d"
-                     , NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address), l_node_addr_str, a_error);
+                     , NODE_ADDR_FP_ARGS_S(a_node_client->info->hdr.address),
+                     a_node_client->info->hdr.ext_addr, a_error);
         json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
         dap_notify_server_send_mt(json_object_get_string(l_json));
         json_object_put(l_json);
@@ -774,12 +742,11 @@ static void s_net_links_complete_and_start(dap_chain_net_t *a_net, dap_worker_t 
 static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_chain_net_node_balancer_t * a_link_full_node_list, void * a_arg)
 {
     if(s_debug_more){
-        char l_node_addr_str[INET_ADDRSTRLEN]={};
         dap_chain_node_info_t * l_node_info = (dap_chain_node_info_t *)a_link_full_node_list->nodes_info;
-        for(size_t i=0;i<a_link_full_node_list->count_node;i++){
-            inet_ntop(AF_INET,&(l_node_info + i)->hdr.ext_addr_v4,l_node_addr_str, INET_ADDRSTRLEN);
-            log_it(L_DEBUG,"Link " NODE_ADDR_FP_STR " (%s) prepare success", NODE_ADDR_FP_ARGS_S((l_node_info + i)->hdr.address),
-                                                                                         l_node_addr_str );
+        for(size_t i=0;i<a_link_full_node_list->count_node;i++) {
+            log_it( L_DEBUG,"Link " NODE_ADDR_FP_STR " (%s) prepare success",
+                   NODE_ADDR_FP_ARGS_S((l_node_info + i)->hdr.address),
+                   &(l_node_info + i)->hdr.ext_addr );
         }
     }
 
@@ -859,15 +826,15 @@ static void s_net_balancer_link_prepare_error(dap_worker_t * a_worker, void * a_
     struct balancer_link_request *l_balancer_request = (struct balancer_link_request *)a_arg;
     dap_chain_net_t * l_net = l_balancer_request->net;
     dap_chain_node_info_t *l_node_info = l_balancer_request->link_info;
-    char l_node_addr_str[INET_ADDRSTRLEN]={};
-    inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
+
     log_it(L_WARNING, "Link from balancer "NODE_ADDR_FP_STR" (%s) prepare error with code %d",
-                                NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address), l_node_addr_str,a_errno);
+                      NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),
+                      &l_node_info->hdr.ext_addr, a_errno);
     struct json_object *l_json = s_net_states_json_collect(l_net);
-    char l_err_str[128] = { };
+    char l_err_str[NI_MAXHOST + 128] = { '\0' };
     snprintf(l_err_str, sizeof(l_err_str)
                  , "Link from balancer " NODE_ADDR_FP_STR " [%s] can't be prepared, errno %d"
-                 , NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address), l_node_addr_str, a_errno);
+                 , NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address), &l_node_info->hdr.ext_addr, a_errno);
     json_object_object_add(l_json, "errorMessage", json_object_new_string(l_err_str));
     dap_notify_server_send_mt(json_object_get_string(l_json));
     json_object_put(l_json);
@@ -942,10 +909,12 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
                 l_net_link_add = s_net_link_add(a_net, l_node_info + i);
                 switch (l_net_link_add) {
                 case 0:
-                    log_it(L_MSG, "Network LOCAL balancer issues link IP %s, [%ld blocks]", inet_ntoa((l_node_info + i)->hdr.ext_addr_v4),l_node_info->info.atoms_count);
+                    log_it(L_MSG, "Network LOCAL balancer issues link IP %s, [%ld blocks]",
+                           (l_node_info + i)->hdr.ext_addr, l_node_info->info.atoms_count);
                     break;
                 case -1:
-                    log_it(L_MSG, "Network LOCAL balancer: IP %s is already among links", inet_ntoa((l_node_info + i)->hdr.ext_addr_v4));
+                    log_it(L_MSG, "Network LOCAL balancer: IP %s is already among links",
+                           (l_node_info + i)->hdr.ext_addr);
                     break;
                 case 1:
                     log_it(L_MSG, "Network links table is full");
@@ -972,33 +941,32 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
             }
         }
     }
-    dap_chain_node_info_t *l_link_node_info = dap_chain_net_balancer_link_from_cfg(a_net);
-    if (!l_link_node_info)
-        return false;
-    char l_node_addr_str[INET_ADDRSTRLEN] = {};
-    inet_ntop(AF_INET, &l_link_node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
-    log_it(L_DEBUG, "Start balancer %s request to %s", PVT(a_net)->balancer_http ? "HTTP" : "DNS", l_node_addr_str);
+    
     struct balancer_link_request *l_balancer_request = DAP_NEW_Z(struct balancer_link_request);
     if (!l_balancer_request) {
         log_it(L_CRITICAL, "Memory allocation error");
-        DAP_DELETE(l_link_node_info);
         return false;
     }
-    l_balancer_request->net = a_net;
-    l_balancer_request->link_info = l_link_node_info;
-    l_balancer_request->worker = dap_events_worker_get_auto();
-    l_balancer_request->link_replace_tries = a_link_replace_tries + 1;
+    *l_balancer_request = (struct balancer_link_request) {
+        .link_info = dap_chain_net_balancer_link_from_cfg(a_net),
+        .net = a_net,
+        .worker = dap_events_worker_get_auto(),
+        .link_replace_tries = a_link_replace_tries + 1
+    };
+
+    log_it(L_DEBUG, "Start balancer %s request to %s",
+           PVT(a_net)->balancer_http ? "HTTP" : "DNS", l_balancer_request->link_info->hdr.ext_addr);
+    
     int ret;
     if (PVT(a_net)->balancer_http) {
-        l_balancer_request->from_http = true;
         char *l_request = dap_strdup_printf("%s/%s?version=1,method=r,needlink=%d,net=%s",
                                                 DAP_UPLINK_PATH_BALANCER,
                                                 DAP_BALANCER_URI_HASH,
                                                 l_net_pvt->required_links_count,
                                                 a_net->pub.name);
         ret = dap_client_http_request(l_balancer_request->worker,
-                                                l_node_addr_str,
-                                                l_link_node_info->hdr.ext_port,
+                                                l_balancer_request->link_info->hdr.ext_addr,
+                                                l_balancer_request->link_info->hdr.ext_port,
                                                 "GET",
                                                 "text/text",
                                                 l_request,
@@ -1011,18 +979,18 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
                                                 NULL) == NULL;
         DAP_DELETE(l_request);
     } else {
-        l_link_node_info->hdr.ext_port = DNS_LISTEN_PORT;
-        ret = dap_chain_node_info_dns_request(l_balancer_request->worker,
+        l_balancer_request->link_info->hdr.ext_port = DNS_LISTEN_PORT;
+        // TODO: change signature and implementation
+        ret = /* dap_chain_node_info_dns_request(l_balancer_request->worker,
                                                 l_link_node_info->hdr.ext_addr_v4,
                                                 l_link_node_info->hdr.ext_port,
                                                 a_net->pub.name,
                                                 s_net_balancer_link_prepare_success,
                                                 s_net_balancer_link_prepare_error,
-                                                l_balancer_request);
+                                                l_balancer_request); */ -1;
     }
     if (ret) {
         log_it(L_ERROR, "Can't process balancer link %s request", PVT(a_net)->balancer_http ? "HTTP" : "DNS");
-        DAP_DELETE(l_balancer_request->link_info);
         DAP_DELETE(l_balancer_request);
         return false;
     }
@@ -1052,8 +1020,10 @@ struct json_object *s_net_states_json_collect(dap_chain_net_t *a_net)
     json_object_object_add(l_json, "name"             , json_object_new_string((const char*)a_net->pub.name));
     json_object_object_add(l_json, "networkState"     , json_object_new_string(dap_chain_net_state_to_str(PVT(a_net)->state)));
     json_object_object_add(l_json, "targetState"      , json_object_new_string(dap_chain_net_state_to_str(PVT(a_net)->state_target)));
+    pthread_mutex_lock(&PVT(a_net)->uplinks_mutex);
     json_object_object_add(l_json, "linksCount"       , json_object_new_int(PVT(a_net)->net_links ? HASH_COUNT(PVT(a_net)->net_links) : 0));
     json_object_object_add(l_json, "activeLinksCount" , json_object_new_int(s_net_get_active_links_count(a_net)));
+    pthread_mutex_unlock(&PVT(a_net)->uplinks_mutex);
     char l_node_addr_str[24] = {'\0'};
     int l_tmp = snprintf(l_node_addr_str, sizeof(l_node_addr_str), NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(g_node_addr));
     json_object_object_add(l_json, "nodeAddress"     , json_object_new_string(l_tmp ? l_node_addr_str : "0000::0000::0000::0000"));
@@ -1890,7 +1860,7 @@ static int s_cli_net(int argc, char **argv, void **reply)
                     return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 }
                 json_object_object_add(l_jobj_return, "to", l_jobj_to);
-                dap_chain_net_balancer_prepare_list_links(l_net->pub.name,true);
+                dap_chain_net_balancer_prepare_list_links(l_net->pub.name);
                 dap_chain_net_state_go_to(l_net, NET_STATE_ONLINE);
                 l_ret = DAP_CHAIN_NET_JSON_RPC_OK;
             } else if ( strcmp(l_go_str,"offline") == 0 ) {
@@ -2381,7 +2351,7 @@ void s_main_timer_callback(void *a_arg)
             l_net_pvt->state >= NET_STATE_LINKS_ESTABLISHED &&
             !s_net_get_active_links_count(l_net)) // restart network
         dap_chain_net_start(l_net);
-    dap_chain_net_balancer_prepare_list_links(l_net->pub.name,false);
+    dap_chain_net_balancer_prepare_list_links(l_net->pub.name);
 }
 
 /**
@@ -2447,7 +2417,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         return -1;
     }
     DAP_DEL_Z(l_cfg_path);
-    dap_chain_net_t * l_net = s_net_new(
+    dap_chain_net_t *l_net = s_net_new(
                                         dap_config_get_item_str(l_cfg , "general" , "id" ),
                                         dap_config_get_item_str(l_cfg , "general" , "name" ),
                                         dap_config_get_item_str(l_cfg , "general" , "native_ticker"),
@@ -2458,24 +2428,19 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         dap_config_close(l_cfg);
         return -1;
     }
-    // check nets with same IDs and names
-    dap_chain_net_item_t *l_net_items_current = NULL, *l_net_items_tmp = NULL;
-    HASH_ITER(hh, s_net_items, l_net_items_current, l_net_items_tmp) {
-        if (l_net_items_current->net_id.uint64 == l_net->pub.id.uint64) {
-            log_it(L_ERROR,"Can't create net %s, net %s has the same ID %"DAP_UINT64_FORMAT_U"", l_net->pub.name, l_net_items_current->name, l_net->pub.id.uint64);
-            log_it(L_ERROR, "Please, fix your configs and restart node");
-            dap_chain_net_delete(l_net);
-            dap_config_close(l_cfg);
-            return -2;
-        }
-        if (!strcmp(l_net_items_current->name, l_net->pub.name)) {
-            log_it(L_ERROR,"Can't create l_net ID %"DAP_UINT64_FORMAT_U", net ID %"DAP_UINT64_FORMAT_U" has the same name %s", l_net->pub.id.uint64, l_net_items_current->net_id.uint64, l_net->pub.name);
-            log_it(L_ERROR, "Please, fix your configs and restart node");
-            dap_chain_net_delete(l_net);
-            dap_config_close(l_cfg);
-            return -3;
-        }
+    
+    dap_chain_net_item_t *l_net_sought = NULL;
+    HASH_FIND_STR(s_net_items, l_net->pub.name, l_net_sought);
+    if (!l_net_sought)
+        HASH_FIND(hh2, s_net_ids, &l_net->pub.id, sizeof(l_net->pub.id), l_net_sought);
+    if (l_net_sought) {
+        log_it(L_ERROR,"Network %s with id %"DAP_UINT64_FORMAT_U" already exists!\n\tFix net configs and restart node",
+               l_net->pub.name, l_net->pub.id.uint64);
+        dap_chain_net_delete(l_net);
+        dap_config_close(l_cfg);
+        return -2;
     }
+    
     l_net->pub.gdb_groups_prefix = dap_strdup(
                 dap_config_get_item_str_default(l_cfg, "general", "gdb_groups_prefix",
                                                 dap_config_get_item_str(l_cfg, "general", "name")));
@@ -2485,7 +2450,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     // Bridged netwoks allowed to send transactions to
     uint16_t l_net_ids_count = 0;
     char **l_bridged_net_ids = dap_config_get_array_str(l_cfg, "general", "bridged_network_ids", &l_net_ids_count);
-    for (uint16_t i = 0; i< l_net_ids_count; i++) {
+    for (uint16_t i = 0; i < l_net_ids_count; i++) {
         dap_chain_net_id_t l_id;
         if (dap_chain_net_id_parse(l_bridged_net_ids[i], &l_id) != 0)
             continue;
@@ -2493,17 +2458,17 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     }
 
     // Add network to the list
-    dap_chain_net_item_t *l_net_item = DAP_NEW_Z( dap_chain_net_item_t);
+    dap_chain_net_item_t *l_net_item = DAP_NEW_Z(dap_chain_net_item_t);
     if (!l_net_item) {
-        log_it(L_CRITICAL, "Memory allocation error");
+        log_it(L_CRITICAL, g_error_memory_alloc);
         dap_chain_net_delete(l_net);
         dap_config_close(l_cfg);
         return -4;
     }
-    snprintf(l_net_item->name,sizeof (l_net_item->name),"%s"
-                 ,dap_config_get_item_str(l_cfg , "general" , "name" ));
+    dap_strncpy(l_net_item->name, dap_config_get_item_str(l_cfg, "general", "name"), DAP_CHAIN_NET_NAME_MAX);
     l_net_item->chain_net = l_net;
     l_net_item->net_id.uint64 = l_net->pub.id.uint64;
+    
     HASH_ADD_STR(s_net_items, name, l_net_item);
     HASH_ADD(hh2, s_net_ids, net_id, sizeof(l_net_item->net_id), l_net_item);
 
@@ -2521,124 +2486,36 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         dap_config_close(l_cfg);
         return -15;
     }
-    l_net_pvt->poa_nodes_addrs = DAP_NEW_SIZE(dap_stream_node_addr_t, l_net_pvt->poa_nodes_count * sizeof(dap_stream_node_addr_t));
-    if (!l_net_pvt->poa_nodes_addrs) {
+
+    uint16_t l_seed_nodes_count = 0, l_bootstrap_nodes_count = 0;
+    char **l_seed_nodes_hosts       = dap_config_get_array_str(l_cfg, "general", "seed_nodes_hosts", &l_seed_nodes_count),
+         **l_bootstrap_nodes_hosts  = dap_config_get_array_str(l_cfg, "general", "bootstrap_hosts", &l_bootstrap_nodes_count);
+
+    if (l_seed_nodes_count != l_net_pvt->poa_nodes_count) {
+        log_it(L_ERROR, "PoA addresses count mismatches host names count: %u != %u, number of seed links will be reduced",
+            l_net_pvt->poa_nodes_count, l_seed_nodes_count);
+        l_net_pvt->poa_nodes_count = dap_min(l_net_pvt->poa_nodes_count, l_seed_nodes_count);
+    }
+    // TODO: improve bootstrap balancer logic...
+    if ( l_seed_nodes_count 
+        && !(l_net_pvt->seed_nodes_info = DAP_NEW_Z_COUNT(dap_chain_node_info_t, l_net_pvt->poa_nodes_count)) )
+    {
         log_it(L_CRITICAL, g_error_memory_alloc);
         dap_chain_net_delete(l_net);
         dap_config_close(l_cfg);
-        return -1;
+        return -4;
     }
-    for (uint16_t i = 0; i < l_net_pvt->poa_nodes_count; i++) {
-        if (dap_stream_node_addr_from_str(l_net_pvt->poa_nodes_addrs + i, l_poa_nodes_addrs[i])) {
-            log_it(L_ERROR, "Incorrect format for address #%hu", i);
+
+    for (uint16_t i = 0; i < l_net_pvt->poa_nodes_count; ++i) {
+        if ( dap_stream_node_addr_from_str(&l_net_pvt->seed_nodes_info[i].hdr.address, l_poa_nodes_addrs[i])
+             || dap_chain_node_parse_hostname(l_poa_nodes_addrs[i],
+                                              l_net_pvt->seed_nodes_info[i].hdr.ext_addr,
+                                              &l_net_pvt->seed_nodes_info[i].hdr.ext_port)) {
+            log_it(L_ERROR, "Incorrect format of address \"%s\", fix net config and restart node",
+                            l_poa_nodes_addrs[i]);
             dap_chain_net_delete(l_net);
             dap_config_close(l_cfg);
             return -16;
-        }
-    }
-    uint16_t l_seed_nodes_ipv4_len = 0;
-    char **l_seed_nodes_ipv4 = dap_config_get_array_str(l_cfg, "general", "seed_nodes_ipv4", &l_seed_nodes_ipv4_len);
-    uint16_t l_seed_nodes_ipv6_len = 0;
-    char **l_seed_nodes_ipv6 = dap_config_get_array_str(l_cfg, "general", "seed_nodes_ipv6", &l_seed_nodes_ipv6_len);
-    uint16_t l_seed_nodes_hostnames_len = 0;
-    char **l_seed_nodes_hostnames = dap_config_get_array_str(l_cfg, "general", "seed_nodes_hostnames", &l_seed_nodes_hostnames_len);
-    uint16_t l_seed_nodes_port_len = 0;
-    char **l_seed_nodes_port = dap_config_get_array_str(l_cfg, "general" ,"seed_nodes_port", &l_seed_nodes_port_len);
-    uint16_t l_bootstrap_nodes_len = 0;
-    char **l_bootstrap_nodes = dap_config_get_array_str(l_cfg, "general", "bootstrap_hostnames", &l_bootstrap_nodes_len);
-    if (l_seed_nodes_port_len) {
-        if ((l_seed_nodes_ipv4_len && l_seed_nodes_ipv4_len != l_seed_nodes_port_len) ||
-                (l_seed_nodes_ipv6_len && l_seed_nodes_ipv6_len != l_seed_nodes_port_len) ||
-                (l_seed_nodes_hostnames_len && l_seed_nodes_hostnames_len != l_seed_nodes_port_len) ||
-                (!l_seed_nodes_ipv4_len && !l_seed_nodes_ipv6_len && !l_seed_nodes_hostnames_len) ||
-                l_net_pvt->poa_nodes_count != l_seed_nodes_port_len) {
-            log_it (L_ERROR, "Configuration mistake for seed nodes");
-            dap_chain_net_delete(l_net);
-            dap_config_close(l_cfg);
-            return -6;
-        }
-        l_net_pvt->seed_nodes_count = l_seed_nodes_port_len;
-        l_net_pvt->seeds_is_poas = true;
-    } else {
-        if (!l_bootstrap_nodes_len)
-            log_it(L_WARNING, "Configuration for network %s doesn't contains any links", l_net->pub.name);
-        l_net_pvt->seed_nodes_count = l_bootstrap_nodes_len;
-    }
-    log_it (L_DEBUG, "Read %u seed nodes params", l_net_pvt->seed_nodes_count);
-    if (l_seed_nodes_ipv6_len) {
-        l_net_pvt->seed_nodes_ipv6 = DAP_NEW_SIZE(struct sockaddr_in6, l_net_pvt->seed_nodes_count * sizeof(struct sockaddr_in6));
-        if (!l_net_pvt->seed_nodes_ipv6) {
-            log_it(L_CRITICAL, g_error_memory_alloc);
-            dap_chain_net_delete(l_net);
-            dap_config_close(l_cfg);
-            return -1;
-        }
-    } else {   // Just only IPv4 can be resolved for now
-        l_net_pvt->seed_nodes_ipv4 = DAP_NEW_SIZE(struct sockaddr_in, l_net_pvt->seed_nodes_count * sizeof(struct sockaddr_in));
-        if (!l_net_pvt->seed_nodes_ipv4) {
-            log_it(L_CRITICAL, g_error_memory_alloc);
-            dap_chain_net_delete(l_net);
-            dap_config_close(l_cfg);
-            return -1;
-        }
-    }
-    // Load seed nodes from cfg file
-    for (uint16_t i = 0; i < l_net_pvt->seed_nodes_count; i++) {
-        char *l_node_hostname = NULL;
-        uint16_t l_node_port = 0;
-        if (l_seed_nodes_port_len) {
-            l_node_port = strtoul(l_seed_nodes_port[i], NULL, 10);
-            if (l_seed_nodes_ipv4_len)
-                inet_pton(AF_INET, l_seed_nodes_ipv4[i], &l_net_pvt->seed_nodes_ipv4[i].sin_addr);
-            else if (l_seed_nodes_ipv6_len)
-                inet_pton(AF_INET6, l_seed_nodes_ipv6[i], &l_net_pvt->seed_nodes_ipv6[i].sin6_addr);
-            else if (l_seed_nodes_hostnames_len)
-                l_node_hostname = l_seed_nodes_hostnames[i];
-        } else if (l_bootstrap_nodes_len) {
-            char *dummy;
-            char *l_bootstrap_port_str = strtok_r(l_bootstrap_nodes[i], ":", &dummy);
-            if (l_bootstrap_port_str)
-                l_node_port = atoi(l_bootstrap_port_str);
-            l_node_hostname = l_bootstrap_nodes[i];
-        }
-        if (!l_node_port) {
-            log_it(L_ERROR, "Can't find port for seed node #%hu", i);
-            dap_chain_net_delete(l_net);
-            dap_config_close(l_cfg);
-            return -12;
-        } else {
-            if (l_seed_nodes_ipv6_len)
-                l_net_pvt->seed_nodes_ipv6[i].sin6_port = l_node_port;
-            else
-                l_net_pvt->seed_nodes_ipv4[i].sin_port = l_node_port;
-        }
-        if (l_node_hostname) {
-            struct in_addr l_res = {};
-            log_it(L_DEBUG, "Resolve %s hostname", l_node_hostname);
-            // TODO add IPv6 support
-            int l_ret_code = dap_net_resolve_host(l_node_hostname, AF_INET, (struct sockaddr *)&l_res);
-            if (l_ret_code == 0) {
-                log_it(L_NOTICE, "Resolved %s to %s (ipv4)", l_node_hostname, inet_ntoa(l_res));
-                l_net_pvt->seed_nodes_ipv4[i].sin_addr = l_res;
-            } else {
-                log_it(L_ERROR, "%s", gai_strerror(l_ret_code));
-                dap_chain_net_delete(l_net);
-                dap_config_close(l_cfg);
-                return -5;                  // TODO let resolve it later
-            }
-        }
-    }
-    dap_config_close(l_cfg);
-    // randomize seed nodes list
-    for (int j = l_net_pvt->seed_nodes_count - 1; j > 0; j--) {
-        short n = dap_random_uint16() % j;
-        struct sockaddr_in tmp = l_net_pvt->seed_nodes_ipv4[n];
-        l_net_pvt->seed_nodes_ipv4[n] = l_net_pvt->seed_nodes_ipv4[j];
-        l_net_pvt->seed_nodes_ipv4[j] = tmp;
-        if (!l_bootstrap_nodes_len) {
-            dap_stream_node_addr_t l_addr = l_net_pvt->poa_nodes_addrs[n];
-            l_net_pvt->poa_nodes_addrs[n] = l_net_pvt->poa_nodes_addrs[j];
-            l_net_pvt->poa_nodes_addrs[j] = l_addr;
         }
     }
 
@@ -2947,15 +2824,11 @@ int s_net_load(dap_chain_net_t *a_net)
         }
         l_net_pvt->node_info->hdr.address = g_node_addr;
         if (dap_config_get_item_bool_default(g_config, "server", "enabled", false)) {
-            const char *l_ext_addr_v4 = dap_config_get_item_str_default(g_config, "server", "ext_address", NULL);
-            const char *l_ext_addr_v6 = dap_config_get_item_str_default(g_config, "server", "ext_address6", NULL);
-            uint16_t l_node_info_port = dap_config_get_item_uint16_default(g_config, "server", "ext_port_tcp",
-                                        dap_config_get_item_uint16_default(g_config, "server", "listen_port_tcp", 8079));
-            if (l_ext_addr_v4)
-                inet_pton(AF_INET, l_ext_addr_v4, &l_net_pvt->node_info->hdr.ext_addr_v4);
-            if (l_ext_addr_v6)
-                inet_pton(AF_INET6, l_ext_addr_v6, &l_net_pvt->node_info->hdr.ext_addr_v6);
-            l_net_pvt->node_info->hdr.ext_port = l_node_info_port;
+            char *l_ext_addr = dap_config_get_item_str_default(g_config, "server", "ext_address", NULL);
+            if ( dap_chain_node_parse_hostname(l_ext_addr, l_net_pvt->node_info->hdr.ext_addr, &l_net_pvt->node_info->hdr.ext_port) )
+                log_it(L_ERROR, "Invalid server address \"%s\", fix config and restart node", l_ext_addr);
+            else if (!l_net_pvt->node_info->hdr.ext_port)
+                l_net_pvt->node_info->hdr.ext_port = 8079; // TODO: default port
         } else
             log_it(L_INFO, "Server is disabled, add only node address in nodelist");
     }
@@ -3006,7 +2879,7 @@ static int s_net_try_online(dap_chain_net_t *a_net)
     
     if (dap_config_get_item_bool_default(g_config ,"general", "auto_online", false))
     {
-        dap_chain_net_balancer_prepare_list_links(l_net->pub.name, true);
+        dap_chain_net_balancer_prepare_list_links(l_net->pub.name);
         l_target_state = NET_STATE_ONLINE;
     }
     
@@ -3071,16 +2944,13 @@ static void s_nodelist_change_notify(dap_store_obj_t *a_obj, void *a_arg)
     dap_return_if_fail(a_obj->type == DAP_GLOBAL_DB_OPTYPE_ADD && !dap_strcmp(l_net->pub.gdb_nodes, a_obj->group));
     dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t *)a_obj->value;
     assert(dap_chain_node_info_get_size(l_node_info) == a_obj->value_len);
-    char l_node_ipv4_str[INET_ADDRSTRLEN]={ '\0' }, l_node_ipv6_str[INET6_ADDRSTRLEN]={ '\0' };
-    inet_ntop(AF_INET, &l_node_info->hdr.ext_addr_v4, l_node_ipv4_str, INET_ADDRSTRLEN);
-    inet_ntop(AF_INET6, &l_node_info->hdr.ext_addr_v6, l_node_ipv6_str, INET6_ADDRSTRLEN);
-    char l_ts[128] = { '\0' };
+    char l_ts[80] = { '\0' };
     dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), a_obj->timestamp);
 
-    log_it(L_ATT, "Add node "NODE_ADDR_FP_STR" ipv4 %s(ipv6 %s):%s at %s to network\n",
+    log_it(L_ATT, "Add node "NODE_ADDR_FP_STR" [%s : %u] to network %s at %s\n",
                              NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),
-                             l_node_ipv4_str, dap_itoa(l_node_info->hdr.ext_port),
-                             l_ts, l_net->pub.name);
+                             l_node_info->hdr.ext_addr, dap_itoa(l_node_info->hdr.ext_port),
+                             l_net->pub.name, l_ts);
 }
 
 void dap_chain_net_add_nodelist_notify_callback(dap_chain_net_t *a_net, dap_store_obj_callback_notify_t a_callback, void *a_cb_arg)
@@ -3115,32 +2985,22 @@ bool dap_chain_net_remove_validator_from_clusters(dap_chain_t *a_chain, dap_stre
     return l_ret;
 }
 
-/**
- * @brief dap_chain_net_list
- * @return NULL if error
- */
-dap_chain_net_t **dap_chain_net_list(uint16_t *a_size)
-{
-    if (!a_size)
+size_t dap_chain_net_count() {
+    return HASH_COUNT(s_net_items);
+}
+
+dap_chain_net_t *dap_chain_net_iter_start() {
+    return s_net_items->chain_net;
+}
+
+dap_chain_net_t *dap_chain_net_iter_next(dap_chain_net_t *a_it) {
+    if (!a_it)
         return NULL;
-    *a_size = HASH_COUNT(s_net_items);
-    if(*a_size){
-        dap_chain_net_t **l_net_list = DAP_NEW_SIZE(dap_chain_net_t *, (*a_size) * sizeof(dap_chain_net_t *));
-        if (!l_net_list) {
-            log_it(L_CRITICAL, "Memory allocation error");
-            return NULL;
-        }
-        dap_chain_net_item_t *l_current_item = NULL, *l_tmp = NULL;
-        int i = 0;
-        HASH_ITER(hh, s_net_items, l_current_item, l_tmp) {
-            l_net_list[i++] = l_current_item->chain_net;
-            if(i >= *a_size)
-                break;
-        }
-        return l_net_list;
-    } else {
-        return NULL;
-    }
+    dap_chain_net_item_t *l_net_sought = NULL;
+    HASH_FIND_STR(s_net_items, a_it->pub.name, l_net_sought);
+    return l_net_sought && l_net_sought->hh.next
+        ? ((dap_chain_net_item_t*)l_net_sought->hh.next)->chain_net 
+        : NULL;
 }
 
 /**
@@ -3367,7 +3227,7 @@ dap_list_t* dap_chain_net_get_node_list_cfg(dap_chain_net_t * a_net)
     dap_list_t *l_node_list = NULL;
     dap_chain_net_pvt_t *l_pvt_net = PVT(a_net);
     for (size_t i = 0; i < l_pvt_net->seed_nodes_count; i++)
-        l_node_list = dap_list_append(l_node_list, &l_pvt_net->seed_nodes_ipv4[i]);
+        l_node_list = dap_list_append(l_node_list, &l_pvt_net->seed_nodes_info[i]);
     return l_node_list;
 }
 
@@ -3530,24 +3390,15 @@ static bool s_net_check_acl(dap_chain_net_t *a_net, dap_chain_hash_fast_t *a_pke
  */
 static uint8_t *s_net_set_acl(dap_chain_hash_fast_t *a_pkey_hash)
 {
-    uint16_t l_net_count;
-    dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
-    if (l_net_count && l_net_list) {
-        uint8_t *l_ret = DAP_NEW_SIZE(uint8_t, l_net_count);
-        if (!l_ret) {
-            log_it(L_CRITICAL, "Memory allocation error");
-            DAP_DELETE(l_net_list);
-            return NULL;
-        }
-        for (uint16_t i = 0; i < l_net_count; i++) {
-            l_ret[i] = s_net_check_acl(l_net_list[i], a_pkey_hash);
-        }
-        DAP_DELETE(l_net_list);
-        return l_ret;
+    if (!HASH_COUNT(s_net_items))
+        return NULL;
+    uint8_t *l_ret = DAP_NEW_Z_SIZE(uint8_t, HASH_COUNT(s_net_items));
+    unsigned i = 0;
+    dap_chain_net_item_t *l_net_cur = NULL, *l_net_tmp = NULL;
+    HASH_ITER(hh, s_net_items, l_net_cur, l_net_tmp) {
+        l_ret[i++] = s_net_check_acl(l_net_cur->chain_net, a_pkey_hash);
     }
-    if (l_net_list)
-        DAP_DELETE(l_net_list);
-    return NULL;
+    return l_ret;
 }
 
 /**
@@ -3718,13 +3569,11 @@ void dap_chain_net_announce_addrs(dap_chain_net_t *a_net)
 {
     dap_return_if_fail(a_net);
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
-    if (l_net_pvt->node_info->hdr.ext_port &&
-            (l_net_pvt->node_info->hdr.ext_addr_v4.s_addr != INADDR_ANY
-            || memcmp(&l_net_pvt->node_info->hdr.ext_addr_v6, &in6addr_any, sizeof(struct in6_addr)))) {
-        dap_chain_net_node_list_request(a_net, l_net_pvt->node_info, false);
-        char l_node_addr_str[INET_ADDRSTRLEN] = { '\0' };
-        inet_ntop(AF_INET, &l_net_pvt->node_info->hdr.ext_addr_v4, l_node_addr_str, INET_ADDRSTRLEN);
-        log_it(L_MSG, "Announce our node address "NODE_ADDR_FP_STR" < %s:%u > in net %s",
-               NODE_ADDR_FP_ARGS_S(g_node_addr), l_node_addr_str, l_net_pvt->node_info->hdr.ext_port, a_net->pub.name);
+    if ( *l_net_pvt->node_info->hdr.ext_addr && l_net_pvt->node_info->hdr.ext_port ) {
+        dap_chain_net_node_list_request(a_net, l_net_pvt->node_info, false, 0);
+        log_it(L_INFO, "Announce our node address "NODE_ADDR_FP_STR" [ %s : %u ] in net %s",
+               NODE_ADDR_FP_ARGS_S(g_node_addr),
+               l_net_pvt->node_info->hdr.ext_addr,
+               l_net_pvt->node_info->hdr.ext_port, a_net->pub.name);
     }
 }

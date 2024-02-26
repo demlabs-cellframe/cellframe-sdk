@@ -246,7 +246,7 @@ void dap_dns_client_read(dap_events_socket_t *a_es, void *a_arg) {
         uint32_t ttl = DNS_TIME_TO_LIVE;
         dap_dns_buf_put_uint32(dns_reply, ttl);                                    
         dap_dns_buf_put_uint16(dns_reply, 4);           // RD len for ipv4
-        dap_dns_buf_put_uint32(dns_reply, l_node_info->hdr.ext_addr_v4.s_addr);
+        //dap_dns_buf_put_uint32(dns_reply, l_node_info->hdr.ext_addr_v4.s_addr); TODO: implement other response format
         val = 0xc000 | DNS_HEADER_SIZE;                // Link to host name
         dap_dns_buf_put_uint16(dns_reply, val);
         val = DNS_RECORD_TYPE_TXT;

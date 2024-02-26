@@ -146,10 +146,8 @@ void s_stake_net_clear(dap_chain_net_t *a_net)
  */
 void s_stake_clear()
 {
-    uint16_t l_net_count;
-    dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
-    for (uint16_t i = 0; i < l_net_count; i++) {
-        s_stake_net_clear(l_net_list[i]);
+    for (dap_chain_net_t *it = dap_chain_net_iter_start(); it; it = dap_chain_net_iter_next(it)) {
+        s_stake_net_clear(it);
     }
 }
 
@@ -2150,16 +2148,11 @@ int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fa
     }
     l_signer_node_addr = &l_tx_out_cond->subtype.srv_stake_pos_delegate.signer_node_addr;
 
-    l_key = dap_chain_node_addr_to_hash_str(l_signer_node_addr);
-    if(!l_key)
-    {
-        return -5;
-    }
     // read node
-    l_remote_node_info = (dap_chain_node_info_t *) dap_global_db_get_sync(a_net->pub.gdb_nodes, l_key, &l_node_info_size, NULL, NULL);
+    l_remote_node_info = (dap_chain_node_info_t*) dap_global_db_get_sync(a_net->pub.gdb_nodes,
+        dap_chain_node_addr_to_str_static(l_signer_node_addr), &l_node_info_size, NULL, NULL);
 
     if(!l_remote_node_info) {
-        DAP_DELETE(l_key);
         return -6;
     }
 
@@ -2167,10 +2160,8 @@ int dap_chain_net_srv_stake_check_validator(dap_chain_net_t * a_net, dap_hash_fa
     if(node_info_size_must_be != l_node_info_size) {
         log_it(L_WARNING, "node has bad size in base=%zu (must be %zu)", l_node_info_size, node_info_size_must_be);
         DAP_DELETE(l_remote_node_info);
-        DAP_DELETE(l_key);
         return -7;
     }
-    DAP_DELETE(l_key);
     // start connect
     l_node_client = dap_chain_node_client_connect_channels(a_net,l_remote_node_info,"N");
     if(!l_node_client) {
