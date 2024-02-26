@@ -478,9 +478,9 @@ static int s_callback_created(dap_chain_t *a_chain, dap_config_t *a_chain_net_cf
     l_session->my_addr.uint64 = dap_chain_net_get_cur_addr_int(l_net);
     l_session->my_signing_addr = l_my_signing_addr;
     char *l_sync_group = s_get_penalty_group(l_net->pub.id);
-    l_session->db_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
-                                                      NULL, 0, l_sync_group,
-                                                      72 * 3600, true,
+    l_session->db_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(), NULL,
+                                                      dap_cluster_uuid_compose(l_net->pub.id.uint64, DAP_CHAIN_CLUSTER_ID_ESBOCS),
+                                                      l_sync_group, 72 * 3600, true,
                                                       DAP_GDB_MEMBER_ROLE_NOBODY, DAP_CLUSTER_ROLE_AUTONOMIC);
     DAP_DELETE(l_sync_group);
     dap_global_db_cluster_add_notify_callback(l_session->db_cluster, s_db_change_notifier, l_session);
@@ -834,7 +834,7 @@ static void s_session_send_startsync(dap_chain_esbocs_session_t *a_session)
             dap_string_append_printf(l_addr_list, NODE_ADDR_FP_STR"; ",
                                      NODE_ADDR_FP_ARGS_S(((dap_chain_esbocs_validator_t *)it->data)->node_addr));
         }
-        char *l_sync_hash = dap_global_db_driver_hash_print(a_session->db_hash);
+        const char *l_sync_hash = dap_global_db_driver_hash_print(a_session->db_hash);
         log_it(L_MSG, "net:%s, chain:%s, round:%"DAP_UINT64_FORMAT_U"."
                        " Sent START_SYNC pkt, sync attempt %"DAP_UINT64_FORMAT_U" current validators list: %s DB sync hash %s",
                             a_session->chain->net_name, a_session->chain->name, a_session->cur_round.id,

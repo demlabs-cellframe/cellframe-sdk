@@ -3782,7 +3782,7 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
                     return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 }
                 json_object_object_add(l_jobj_verify, "isProcessed", l_jobj_verify_status);
-                if (dap_global_db_del_sync(l_gdb_group_mempool, a_datum_hash)){
+                if (false) { //dap_global_db_del_sync(l_gdb_group_mempool, a_datum_hash)){
                     json_object *l_jobj_wrn_text = json_object_new_string("Can't delete datum from mempool!");
                     if (!l_jobj_wrn_text) {
                         json_object_put(l_jobj_verify);

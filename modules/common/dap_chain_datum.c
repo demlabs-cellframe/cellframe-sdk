@@ -829,43 +829,37 @@ void dap_chain_datum_dump(dap_string_t *a_str_out, dap_chain_datum_t *a_datum, c
                                     l_emission->hdr.version);
             dap_string_append_printf(a_str_out, "  to addr: %s\n", dap_chain_addr_to_str(&(l_emission->hdr.address)));
             switch (l_emission->hdr.type) {
-                case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_UNDEFINED:
-                    break;
-                case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH:
-                    dap_string_append_printf(a_str_out, "  signs_count: %d\n", l_emission->data.type_auth.signs_count);
-                    dap_string_append_printf(a_str_out, "  tsd_total_size: %"DAP_UINT64_FORMAT_U"\n",
-                                             l_emission->data.type_auth.tsd_total_size);
+            case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_AUTH:
+                dap_string_append_printf(a_str_out, "  signs_count: %d\n", l_emission->data.type_auth.signs_count);
+                dap_string_append_printf(a_str_out, "  tsd_total_size: %"DAP_UINT64_FORMAT_U"\n",
+                                         l_emission->data.type_auth.tsd_total_size);
 
-                    if (  ( (void *) l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size) >
-                          ((void *) l_emission + l_emission_size) )
-                    {
-                        log_it(L_ERROR, "Illformed DATUM type %d, TSD section is out-of-buffer (%" DAP_UINT64_FORMAT_U " vs %zu)",
-                            l_emission->hdr.type, l_emission->data.type_auth.tsd_total_size, l_emission_size);
+                if (  ( (void *) l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size) >
+                      ((void *) l_emission + l_emission_size) )
+                {
+                    log_it(L_ERROR, "Illformed DATUM type %d, TSD section is out-of-buffer (%" DAP_UINT64_FORMAT_U " vs %zu)",
+                        l_emission->hdr.type, l_emission->data.type_auth.tsd_total_size, l_emission_size);
 
-                        dap_string_append_printf(a_str_out, "  Skip incorrect or illformed DATUM");
-                        break;
-                    }
-                    dap_chain_datum_token_certs_dump(a_str_out, l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size,
-                                                    l_emission->data.type_auth.size - l_emission->data.type_auth.tsd_total_size, a_hash_out_type);
+                    dap_string_append_printf(a_str_out, "  Skip incorrect or illformed DATUM");
                     break;
-                case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ALGO:
-                    dap_string_append_printf(a_str_out, "  codename: %s\n", l_emission->data.type_algo.codename);
-                    break;
-                case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ATOM_OWNER:
-                    dap_string_append_printf(a_str_out, " value_start: %.0Lf(%"DAP_UINT64_FORMAT_U"), codename: %s\n",
-                        dap_chain_datoshi_to_coins(l_emission->data.type_atom_owner.value_start),
-                        l_emission->data.type_atom_owner.value_start,
-                        l_emission->data.type_atom_owner.value_change_algo_codename
-                    );
-                break;
-                case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_SMART_CONTRACT: {
-                    char l_time_str[32];
-                    // get time of create datum
-                    if(dap_time_to_str_rfc822(l_time_str, sizeof(l_time_str), l_emission->data.type_presale.lock_time) < 1)
-                            l_time_str[0] = '\0';
-                    dap_string_append_printf(a_str_out, "  flags: 0x%x, lock_time: %s\n", l_emission->data.type_presale.flags, l_time_str);
-                    dap_string_append_printf(a_str_out, "  addr: %s\n", dap_chain_addr_to_str(&l_emission->data.type_presale.addr));
                 }
+                dap_chain_datum_token_certs_dump(a_str_out, l_emission->tsd_n_signs + l_emission->data.type_auth.tsd_total_size,
+                                                l_emission->data.type_auth.size - l_emission->data.type_auth.tsd_total_size, a_hash_out_type);
+                break;
+            case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ALGO:
+                dap_string_append_printf(a_str_out, "  codename: %s\n", l_emission->data.type_algo.codename);
+                break;
+            case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_SMART_CONTRACT: {
+                char l_time_str[32];
+                // get time of create datum
+                if(dap_time_to_str_rfc822(l_time_str, sizeof(l_time_str), l_emission->data.type_presale.lock_time) < 1)
+                        l_time_str[0] = '\0';
+                dap_string_append_printf(a_str_out, "  flags: 0x%x, lock_time: %s\n", l_emission->data.type_presale.flags, l_time_str);
+                dap_string_append_printf(a_str_out, "  addr: %s\n", dap_chain_addr_to_str(&l_emission->data.type_presale.addr));
+            }
+            case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_ATOM_OWNER:
+            case DAP_CHAIN_DATUM_TOKEN_EMISSION_TYPE_UNDEFINED:
+            default:
                 break;
             }
             DAP_DELETE(l_emission);

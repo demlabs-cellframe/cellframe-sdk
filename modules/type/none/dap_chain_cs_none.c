@@ -170,8 +170,8 @@ static int s_cs_callback_new(dap_chain_t *a_chain, dap_config_t UNUSED_ARG *a_ch
     dap_global_db_cluster_t *l_nonconsensus_cluster =
             dap_global_db_cluster_add(dap_global_db_instance_get_default(),
                                       l_net->pub.name, l_net->pub.id.uint64,
-                                      l_nochain_priv->group_datums, 0, true,
-                                      DAP_GDB_MEMBER_ROLE_USER, DAP_CLUSTER_ROLE_EMBEDDED);
+                                      l_nochain_priv->group_datums, dap_cluster_uuid_compose(l_net->pub.id.uint64, 0),
+                                      true, DAP_GDB_MEMBER_ROLE_USER, DAP_CLUSTER_ROLE_EMBEDDED);
     if (!l_nonconsensus_cluster) {
         log_it(L_ERROR, "Can't create global DB cluster for synchronization");
         return -3;
