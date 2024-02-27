@@ -1219,9 +1219,8 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_toke
     int l_res_token_tsd_parse = 0;
 
     char *l_balance_dbg = NULL;
-    if (s_debug_more) {
+    if (s_debug_more)
         dap_uint256_to_char(l_token->total_supply, &l_balance_dbg);
-    }
 
 #define CLEAN_UP DAP_DEL_MULTY(l_token, l_token_item->auth_pkeys, l_token_item->auth_pkeys_hash, l_token_item)
 
@@ -1299,7 +1298,6 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_toke
         return -1;
     }
 #undef CLEAN_UP
-    DAP_DELETE(l_balance_dbg);
     s_threshold_emissions_proc(a_ledger); /* TODO process thresholds only for no-consensus chains */
     s_ledger_token_cache_update(a_ledger, l_token_item);
     return 0;
