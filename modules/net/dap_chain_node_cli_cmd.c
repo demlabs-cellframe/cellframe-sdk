@@ -1124,7 +1124,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
 
     // struct to write to the global db
     dap_chain_node_addr_t l_node_addr = {}, l_link;
-    dap_chain_node_info_t l_node_info;
+    dap_chain_node_info_t l_node_info = {};
 
     //TODO need to rework with new node info / alias /links concept
 
