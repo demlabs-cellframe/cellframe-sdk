@@ -2930,7 +2930,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                     dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *) l_datum->data;
                     
                     int l_ledger_rc = DAP_LEDGER_TX_CHECK_NULL_TX;
-                    char *l_main_ticker = dap_ledger_tx_get_main_ticker(a_net->pub.ledger, l_tx, &l_ledger_rc);
+                    const char *l_main_ticker = dap_ledger_tx_get_main_ticker(a_net->pub.ledger, l_tx, &l_ledger_rc);
                     char * l_ledger_rc_str = dap_ledger_tx_check_err_str(l_ledger_rc);
                     
                     json_object *l_jobj_main_ticker = json_object_new_string(l_main_ticker ? l_main_ticker : "UNKNOWN");
