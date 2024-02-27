@@ -95,7 +95,7 @@ int dap_chain_net_voting_init()
     pthread_rwlock_init(&s_votings_rwlock, NULL);
     dap_chain_ledger_voting_verificator_add(s_datum_tx_voting_verification_callback);
     dap_cli_server_cmd_add("voting", s_cli_voting, "Voting commands.", ""
-                            "voting create -net <net_name> -question <\"Question_string\"> -options <\"Option1\", \"Option2\" ... \"OptionN\"> [-expire <voting_expire_time_in_RCF822>] [-max_votes_count <Votes_count>] [-delegated_key_required] [-vote_changing_allowed] -fee <value_datoshi> -w <fee_wallet_name>\n"
+                            "voting create -net <net_name> -question <\"Question_string\"> -options <\"Option0\", \"Option1\" ... \"OptionN\"> [-expire <voting_expire_time_in_RCF822>] [-max_votes_count <Votes_count>] [-delegated_key_required] [-vote_changing_allowed] -fee <value_datoshi> -w <fee_wallet_name>\n"
                             "voting vote -net <net_name> -hash <voting_hash> -option_idx <option_index> [-cert <delegate_cert_name>] -fee <value_datoshi> -w <fee_wallet_name>\n"
                             "voting list -net <net_name>\n"
                             "voting dump -net <net_name> -hash <voting_hash>\n");

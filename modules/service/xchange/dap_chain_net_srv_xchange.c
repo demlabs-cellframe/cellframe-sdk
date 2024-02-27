@@ -102,7 +102,7 @@ int dap_chain_net_srv_xchange_init()
     "srv_xchange order create -net <net_name> -token_sell <token_ticker> -token_buy <token_ticker> -w <wallet_name>"
                                             " -value <value> -rate <value> -fee <value>\n"
         "\tCreate a new order and tx with specified amount of datoshi to exchange with specified rate (buy / sell)\n"
-    "srv_xchange order remove -net <net_name> -order <order_hash> -w <wallet_name>\n -fee <value_datoshi>"
+    "srv_xchange order remove -net <net_name> -order <order_hash> -w <wallet_name> -fee <value_datoshi>\n"
          "\tRemove order with specified order hash in specified net name\n"
     "srv_xchange order history -net <net_name> {-order <order_hash> | -addr <wallet_addr>}"
          "\tShows transaction history for the selected order\n"

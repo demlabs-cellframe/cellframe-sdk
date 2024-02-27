@@ -5625,11 +5625,13 @@ dap_ledger_datum_iter_t *dap_ledger_datum_iter_create(dap_chain_net_t *a_net)
 
 void dap_ledger_datum_iter_delete(dap_ledger_datum_iter_t *a_iter)
 {
-    DAP_DELETE(a_iter);
+    DAP_DEL_Z(a_iter);
 }
 
 dap_chain_datum_tx_t *dap_ledger_datum_iter_get_first(dap_ledger_datum_iter_t *a_iter)
 {
+    if (!a_iter)
+        return NULL;
     dap_ledger_private_t *l_ledger_pvt = PVT(a_iter->net->pub.ledger);
     pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
     if (!l_ledger_pvt->ledger_items) {
