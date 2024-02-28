@@ -1124,7 +1124,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
 
     // struct to write to the global db
     dap_chain_node_addr_t l_node_addr = {}, l_link;
-    dap_chain_node_info_t l_node_info;
+    dap_chain_node_info_t l_node_info = {};
 
     //TODO need to rework with new node info / alias /links concept
 
@@ -2930,7 +2930,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                     dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *) l_datum->data;
                     
                     int l_ledger_rc = DAP_LEDGER_TX_CHECK_NULL_TX;
-                    char *l_main_ticker = dap_ledger_tx_get_main_ticker(a_net->pub.ledger, l_tx, &l_ledger_rc);
+                    const char *l_main_ticker = dap_ledger_tx_get_main_ticker(a_net->pub.ledger, l_tx, &l_ledger_rc);
                     char * l_ledger_rc_str = dap_ledger_tx_check_err_str(l_ledger_rc);
                     
                     json_object *l_jobj_main_ticker = json_object_new_string(l_main_ticker ? l_main_ticker : "UNKNOWN");
@@ -3693,7 +3693,7 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
                     return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 }
                 json_object_object_add(l_jobj_verify, "isProcessed", l_jobj_verify_status);
-                if (dap_global_db_del_sync(l_gdb_group_mempool, a_datum_hash)){
+                if (false) { //dap_global_db_del_sync(l_gdb_group_mempool, a_datum_hash)){
                     json_object *l_jobj_wrn_text = json_object_new_string("Can't delete datum from mempool!");
                     if (!l_jobj_wrn_text) {
                         json_object_put(l_jobj_verify);

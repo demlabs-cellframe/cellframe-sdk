@@ -1219,9 +1219,8 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_toke
     int l_res_token_tsd_parse = 0;
 
     char *l_balance_dbg = NULL;
-    if (s_debug_more) {
+    if (s_debug_more)
         dap_uint256_to_char(l_token->total_supply, &l_balance_dbg);
-    }
 
 #define CLEAN_UP DAP_DEL_MULTY(l_token, l_token_item->auth_pkeys, l_token_item->auth_pkeys_hash, l_token_item)
 
@@ -1299,7 +1298,6 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_toke
         return -1;
     }
 #undef CLEAN_UP
-    DAP_DELETE(l_balance_dbg);
     s_threshold_emissions_proc(a_ledger); /* TODO process thresholds only for no-consensus chains */
     s_ledger_token_cache_update(a_ledger, l_token_item);
     return 0;
@@ -5807,16 +5805,14 @@ void dap_ledger_set_cache_tx_check_callback(dap_ledger_t *a_ledger, dap_ledger_c
     PVT(a_ledger)->cache_tx_check_callback = a_callback;
 }
 
-char * dap_ledger_tx_get_main_ticker(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, int *a_ledger_rc)
+const char *dap_ledger_tx_get_main_ticker(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, int *a_ledger_rc)
 {
-    char *l_main_ticker = NULL;
+    const char *l_main_ticker = NULL;
     dap_chain_hash_fast_t * l_tx_hash = dap_chain_node_datum_tx_calc_hash(a_tx);
-    int l_rc = dap_ledger_tx_cache_check(a_ledger, a_tx, l_tx_hash, false, NULL, NULL, &l_main_ticker);
-    
+    int l_rc = dap_ledger_tx_cache_check(a_ledger, a_tx, l_tx_hash, false, NULL, NULL, (char **)&l_main_ticker);   
+
     if (l_rc == DAP_LEDGER_TX_ALREADY_CACHED)
-    {
         l_main_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, l_tx_hash);
-    }
 
     if (a_ledger_rc)
         *a_ledger_rc = l_rc;
