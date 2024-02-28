@@ -88,7 +88,7 @@ static int s_datum_tx_voting_coin_check_cond_out(dap_chain_net_t *a_net, dap_has
 /// -1 error, 0 - unspent, 1 - spent
 static int s_datum_tx_voting_coin_check_spent(dap_chain_net_t *a_net, dap_hash_fast_t a_voting_hash, dap_hash_fast_t a_tx_prev_hash, int a_out_idx);
 static bool s_datum_tx_voting_verification_callback(dap_ledger_t *a_ledger, dap_chain_tx_item_type_t a_type, dap_chain_datum_tx_t *a_tx_in, bool a_apply);
-static int s_cli_voting(int argc, char **argv, char **a_str_reply);
+static int s_cli_voting(int argc, char **argv, void **a_obj_reply);
 
 int dap_chain_net_voting_init()
 {
@@ -493,10 +493,11 @@ static dap_list_t* s_get_options_list_from_str(const char* a_str)
     return l_ret;
 }
 
-static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
+static int s_cli_voting(int a_argc, char **a_argv, void **a_obj_reply)
 {
     enum {CMD_NONE=0, CMD_CREATE, CMD_VOTE, CMD_LIST, CMD_DUMP};
 
+    char **a_str_reply = (char**)a_obj_reply;
     const char* l_net_str = NULL;
     int arg_index = 1;
     dap_chain_net_t *l_net = NULL;
