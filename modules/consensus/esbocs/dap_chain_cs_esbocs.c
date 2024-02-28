@@ -2436,6 +2436,10 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         return 0;
 
     size_t l_offset = dap_chain_block_get_sign_offset(a_block, a_block_size);
+    if (!l_offset) {
+        log_it(L_WARNING, "Block with size %zu parsing error", a_block_size);
+        return -5;
+    }
     size_t l_signs_count = 0;
     dap_sign_t **l_signs = dap_sign_get_unique_signs(a_block->meta_n_datum_n_sign+l_offset,
                                             a_block_size-sizeof(a_block->hdr)-l_offset, &l_signs_count);
