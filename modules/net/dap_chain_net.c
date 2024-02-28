@@ -276,7 +276,7 @@ int dap_chain_net_init()
     dap_stream_ch_chain_net_init();
     dap_chain_node_client_init();
     dap_chain_net_voting_init();
-    dap_chain_node_net_ban_list_init();
+    dap_http_ban_list_client_init();
     dap_cli_server_cmd_add ("net", s_cli_net, "Network commands",
         "net list [chains -net <chain net name>]\n"
             "\tList all networks or list all chains in selected network\n"
@@ -413,9 +413,9 @@ dap_chain_node_info_t *dap_chain_net_balancer_link_from_cfg(dap_chain_net_t *a_n
         log_it(L_ERROR, "No available links! Add them in net config");
         return NULL;
     case 1:
-        return &PVT(a_net)->seed_nodes_info[0];
+        return PVT(a_net)->seed_nodes_info[0];
     default:
-        return &PVT(a_net)->seed_nodes_info[dap_random_uint16() % PVT(a_net)->seed_nodes_count];
+        return PVT(a_net)->seed_nodes_info[dap_random_uint16() % PVT(a_net)->seed_nodes_count];
     }
 }
 
@@ -2480,7 +2480,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
     }
     // TODO: improve bootstrap balancer logic...
     if ( l_seed_nodes_count 
-        && !(l_net_pvt->seed_nodes_info = DAP_NEW_Z_COUNT(dap_chain_node_info_t, l_net_pvt->poa_nodes_count)) )
+        && !(l_net_pvt->seed_nodes_info = DAP_NEW_Z_COUNT(dap_chain_node_info_t*, l_net_pvt->poa_nodes_count)) )
     {
         log_it(L_CRITICAL, g_error_memory_alloc);
         dap_chain_net_delete(l_net);
