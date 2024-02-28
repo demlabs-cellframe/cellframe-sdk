@@ -94,9 +94,9 @@ static void s_dns_client_esocket_read_callback(dap_events_socket_t * a_esocket, 
     int l_additions_count = ntohs(*(uint16_t *)l_cur);
     if (l_additions_count == 1) {
         l_cur = l_buf + l_addr_point + DNS_ANSWER_SIZE;
-        l_result.hdr.ext_port = ntohs(*(uint16_t *)l_cur);
+        l_result.ext_port = ntohs(*(uint16_t *)l_cur);
         l_cur += sizeof(uint16_t);
-        l_result.hdr.address.uint64 = be64toh(*(uint64_t *)l_cur);
+        l_result.address.uint64 = be64toh(*(uint64_t *)l_cur);
     }
     *(dap_chain_node_info_t*)l_link_full_node_list->nodes_info = l_result;
     l_link_full_node_list->count_node = 1;

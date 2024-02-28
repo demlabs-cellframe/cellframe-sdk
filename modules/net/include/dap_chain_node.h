@@ -21,6 +21,7 @@
 
 #pragma once
 
+#include <limits.h>
 #include "dap_common.h"
 #include "dap_list.h"
 #include "dap_worker.h"
@@ -51,21 +52,20 @@ typedef struct dap_chain_node_info_old {
 } DAP_ALIGN_PACKED dap_chain_node_info_old_t;
 
 typedef struct dap_chain_node_info {
-    struct {
-        dap_chain_node_addr_t address;
-        dap_chain_cell_id_t cell_id;
-        char ext_addr[NI_MAXHOST];
-        uint16_t ext_port;
-    } DAP_ALIGN_PACKED hdr;
-    struct {
-        uint64_t atoms_count;
-        uint32_t links_number : 31;
-        uint32_t links_addrs_app : 1;
-        byte_t padding[127];
-    } DAP_ALIGN_PACKED info;
+    dap_chain_node_addr_t address;
+    dap_chain_cell_id_t cell_id;
     char alias[64];
-    byte_t links_addrs[];
+    uint16_t ext_port;
+    uint8_t ext_host_len;
+    char ext_host[];
 } DAP_ALIGN_PACKED dap_chain_node_info_t;
+
+typedef struct dap_chain_node_states_info {
+    dap_chain_node_addr_t address;
+    uint64_t atoms_count;
+    uint32_t links_count;
+    dap_chain_node_addr_t links_addrs[];
+} DAP_ALIGN_PACKED dap_chain_node_states_info_t;
 
 typedef dap_stream_node_addr_t dap_chain_node_addr_t;
 #define dap_chain_node_addr_str_check dap_stream_node_addr_str_check
@@ -77,8 +77,7 @@ typedef dap_stream_node_addr_t dap_chain_node_addr_t;
  */
 DAP_STATIC_INLINE size_t dap_chain_node_info_get_size(dap_chain_node_info_t *a_node_info)
 {
-    return !a_node_info ? 0 : sizeof(dap_chain_node_info_t) 
-        + a_node_info->info.links_addrs_app ? sizeof(dap_chain_node_addr_t) * a_node_info->info.links_number : 0;
+    return !a_node_info ? 0 : sizeof(dap_chain_node_info_t) + a_node_info->ext_host_len + 1;
 }
 
 /**
@@ -155,5 +154,5 @@ DAP_STATIC_INLINE int dap_chain_node_parse_hostname(const char *a_src, char *a_a
     default:
         return -1;
     }
-    return l_len >= NI_MAXHOST ? -2 : ( dap_strncpy(a_addr, a_src, l_len), 0 );
+    return l_len > 0xFF ? -2 : ( dap_strncpy(a_addr, a_src, l_len), 0 );
 }

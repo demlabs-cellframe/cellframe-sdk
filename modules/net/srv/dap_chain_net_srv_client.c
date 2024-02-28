@@ -55,13 +55,13 @@ dap_chain_net_srv_client_t *dap_chain_net_srv_client_create_n_connect(dap_chain_
         .delete = s_srv_client_callback_deleted
     };
     
-    dap_chain_node_info_t l_info = {
-        .hdr.ext_port = a_port
+    dap_chain_node_info_t *l_info = DAP_NEW_STACK_SIZE(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + dap_strlen(a_addr) + 1);
+    *l_info = (dap_chain_node_info_t) {
+        .ext_port = a_port
     };
-    dap_strncpy(l_info.hdr.ext_addr, a_addr, NI_MAXHOST);
-
+    l_info->ext_host_len = dap_strncpy(l_info->ext_host, a_addr, INET6_ADDRSTRLEN) - l_info->ext_host;
     const char l_channels[] = {DAP_STREAM_CH_NET_SRV_ID, '\0'};
-    l_ret->node_client = dap_chain_node_client_create_n_connect(a_net, &l_info, l_channels, &l_callbacks, l_ret);
+    l_ret->node_client = dap_chain_node_client_create_n_connect(a_net, l_info, l_channels, &l_callbacks, l_ret);
     l_ret->node_client->notify_callbacks.srv_pkt_in = (dap_stream_ch_callback_packet_t)s_srv_client_pkt_in;
     return l_ret;
 }

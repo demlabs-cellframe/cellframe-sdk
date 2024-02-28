@@ -91,8 +91,8 @@ bool dap_chain_node_alias_delete(dap_chain_net_t * a_net,const char *a_alias)
 bool dap_chain_node_info_addr_match(dap_chain_node_info_t *node_info1, dap_chain_node_info_t *node_info2)
 {
     return node_info1 && node_info2
-        && !dap_strcmp(node_info1->hdr.ext_addr, node_info2->hdr.ext_addr)
-        && node_info1->hdr.ext_port == node_info2->hdr.ext_port;
+        && !dap_strcmp(node_info1->ext_host, node_info2->ext_host)
+        && node_info1->ext_port == node_info2->ext_port;
 }
 
 
@@ -103,10 +103,10 @@ bool dap_chain_node_info_addr_match(dap_chain_node_info_t *node_info1, dap_chain
  */
 int dap_chain_node_info_save(dap_chain_net_t *a_net, dap_chain_node_info_t *a_node_info)
 {
-    return !a_node_info || !a_node_info->hdr.address.uint64
+    return !a_node_info || !a_node_info->address.uint64
         ? log_it(L_ERROR,"Can't save node info, %s", a_node_info ? "null arg" : "zero address"), -1
         : dap_global_db_set_sync(a_net->pub.gdb_nodes,
-                                 dap_chain_node_addr_to_str_static(&a_node_info->hdr.address),
+                                 dap_chain_node_addr_to_str_static(&a_node_info->address),
                                  a_node_info,
                                  dap_chain_node_info_get_size(a_node_info), false);
 }

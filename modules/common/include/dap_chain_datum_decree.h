@@ -87,8 +87,7 @@ DAP_STATIC_INLINE size_t dap_chain_datum_decree_get_size(dap_chain_datum_decree_
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_SIGNER_NODE_ADDR              0x0110
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_VALUE                     0x0111
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT             0x0112
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V4                               0x0113
-#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V6                               0x0114
+#define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST                                0x0113
 #define DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR                           0x0115
 
 DAP_STATIC_INLINE const char *dap_chain_datum_decree_subtype_to_str(uint16_t a_decree_subtype)
@@ -145,10 +144,8 @@ DAP_STATIC_INLINE const char *dap_chain_datum_decree_tsd_type_to_str(uint16_t a_
             return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_VALUE";
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT:
             return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_STAKE_MIN_SIGNERS_COUNT";
-        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V4:
-            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V4";
-        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V6:
-            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V6";
+        case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST:
+            return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST";
         case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR:
             return "DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR";
         default:

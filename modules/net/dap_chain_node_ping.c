@@ -244,7 +244,7 @@ static void* node_ping_background_proc(void *a_arg)
 
         // start sending ping
         //start_node_ping(&l_threads[l_thread_id], l_node_info->hdr.ext_addr_v4, l_node_info->hdr.ext_port, 1);
-        l_nodes_addr[l_thread_id] = l_node_info->hdr.address.uint64;
+        l_nodes_addr[l_thread_id] = l_node_info->address.uint64;
         l_thread_id++;
         DAP_DELETE(l_node_info);
         l_node_list = dap_list_next(l_node_list);

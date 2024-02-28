@@ -315,22 +315,9 @@ void dap_chain_datum_decree_dump(dap_string_t *a_str_out, dap_chain_datum_decree
                 dap_string_append_printf(a_str_out, "\tMin signers count: %s\n", l_min_signers_count_str);
                 DAP_DELETE(l_min_signers_count_str);
                 break;
-            case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V4: {
-                struct in_addr l_ip_addr = dap_tsd_get_scalar(l_tsd, struct in_addr);
-                char l_tm[INET_ADDRSTRLEN];
-                dap_string_append_printf(a_str_out, "\tIP address: %s\n", inet_ntop(AF_INET, &l_ip_addr,
-                                                                                  l_tm, INET_ADDRSTRLEN));
-            } break;
-            case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V6: {
-                struct in6_addr l_ip_addr = dap_tsd_get_scalar(l_tsd, struct in6_addr);
-                char l_tm[INET6_ADDRSTRLEN];
-                dap_string_append_printf(a_str_out, "\tIP address: %s\n", inet_ntop(AF_INET6,
-                                                                                  &l_ip_addr, l_tm,
-                                                                                  INET6_ADDRSTRLEN));
-            } break;
+            case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST:
             case DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR: {
-                dap_chain_node_addr_t l_addr = dap_tsd_get_scalar(l_tsd, dap_chain_node_addr_t);
-                dap_string_append_printf(a_str_out, "\tNode address: "NODE_ADDR_FP_STR"\n", NODE_ADDR_FP_ARGS_S(l_addr));
+                dap_string_append_printf(a_str_out, "\tNode address: %s\n", dap_tsd_get_string(l_tsd));
             } break;
             default:
                 dap_string_append_printf(a_str_out, "\t<UNKNOWN_TYPE_TSD_SECTION>\n");

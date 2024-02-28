@@ -105,12 +105,11 @@
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_enc_base64.h"
 #include "dap_chain_net_srv_stake_pos_delegate.h"
-#include "dap_chain_node_net_ban_list.h"
 #include "dap_chain_net_node_list.h"
 
 #include "dap_json_rpc_errors.h"
 #include "dap_json_rpc_chain_datum.h"
-
+#include "dap_http_ban_list_client.h"
 
 #define LOG_TAG "chain_node_cli_cmd"
 
@@ -180,9 +179,9 @@ static dap_chain_node_info_t* node_info_read_and_reply(dap_chain_net_t * a_net, 
  */
 static int node_info_save_and_reply(dap_chain_net_t * a_net, dap_chain_node_info_t *a_node_info, void **a_str_reply)
 {
-    return !a_node_info || !a_node_info->hdr.address.uint64
+    return !a_node_info || !a_node_info->address.uint64
         ? dap_cli_server_cmd_set_reply_text(a_str_reply, "Invalid node address"), -1
-        : dap_global_db_set_sync(a_net->pub.gdb_nodes, dap_chain_node_addr_to_str_static(&a_node_info->hdr.address),
+        : dap_global_db_set_sync(a_net->pub.gdb_nodes, dap_chain_node_addr_to_str_static(&a_node_info->address),
             (uint8_t*)a_node_info, dap_chain_node_info_get_size(a_node_info), false);
 }
 
@@ -206,7 +205,7 @@ static int node_info_add_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
         const char *a_alias_str, const char *a_cell_str, const char *a_ip_str, void **a_str_reply)
 {
 
-    if(!a_node_info->hdr.address.uint64) {
+    if(!a_node_info->address.uint64) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "not found -addr parameter");
         return -1;
     }
@@ -217,10 +216,10 @@ static int node_info_add_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
 
     if(a_alias_str) {
         // add alias
-        if(!dap_chain_node_alias_register(a_net, a_alias_str, &a_node_info->hdr.address)) {
+        if(!dap_chain_node_alias_register(a_net, a_alias_str, &a_node_info->address)) {
             log_it(L_WARNING, "can't save alias %s", a_alias_str);
             dap_cli_server_cmd_set_reply_text(a_str_reply, "alias '%s' can't be mapped to addr=0x%"DAP_UINT64_FORMAT_U,
-                    a_alias_str, a_node_info->hdr.address.uint64);
+                    a_alias_str, a_node_info->address.uint64);
             return -1;
         }
     }
@@ -245,7 +244,7 @@ static int node_info_del_with_reply(dap_chain_net_t *a_net, dap_chain_node_info_
         void **a_str_reply)
 {
     int l_res = -1;
-    if ( !a_node_info->hdr.address.uint64 && !alias_str ) {
+    if ( !a_node_info->address.uint64 && !alias_str ) {
         dap_cli_server_cmd_set_reply_text(a_str_reply, "addr not found");
         return l_res;
     }
@@ -255,10 +254,10 @@ static int node_info_del_with_reply(dap_chain_net_t *a_net, dap_chain_node_info_
         dap_cli_server_cmd_set_reply_text(a_str_reply, "alias not found");
         return l_res;
     }
-    dap_chain_node_addr_t *l_addr = l_addr_by_alias ? l_addr_by_alias : &a_node_info->hdr.address;
-    char *a_key = dap_chain_node_addr_to_str_static(l_addr);
+    dap_chain_node_addr_t l_addr = l_addr_by_alias ? *l_addr_by_alias : a_node_info->address;
+    char *a_key = dap_chain_node_addr_to_str_static(&l_addr);
     if ( !(l_res = dap_global_db_del_sync(a_net->pub.gdb_nodes, a_key)) ) {
-        dap_list_t *list_aliases = get_aliases_by_name(a_net, l_addr), *l_el = list_aliases;
+        dap_list_t *list_aliases = get_aliases_by_name(a_net, &l_addr), *l_el = list_aliases;
         while (l_el) {
             dap_chain_node_alias_delete(a_net, (const char*)l_el->data);
             l_el = l_el->next;
@@ -387,7 +386,7 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
             dap_global_db_obj_t *l_aliases_objs = dap_global_db_get_all_sync(a_net->pub.gdb_nodes_aliases, &l_data_size);
             for (size_t i = 0; i < l_nodes_count; i++) {
                 dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t*)l_objs[i].value;
-                if (dap_chain_node_addr_is_blank(&l_node_info->hdr.address)){
+                if (dap_chain_node_addr_is_blank(&l_node_info->address)){
                     log_it(L_ERROR, "Node address is empty");
                     continue;
                 }
@@ -405,8 +404,8 @@ static int node_info_dump_with_reply(dap_chain_net_t * a_net, dap_chain_node_add
                 dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), l_objs[i].timestamp);
 
                 dap_string_append_printf(l_string_reply, NODE_ADDR_FP_STR"    %-20s%-8d%-32s\n",
-                                         NODE_ADDR_FP_ARGS_S(l_node_info->hdr.address),
-                                         l_node_info->hdr.ext_addr, l_node_info->hdr.ext_port,
+                                         NODE_ADDR_FP_ARGS_S(l_node_info->address),
+                                         l_node_info->ext_host, l_node_info->ext_port,
                                          l_ts);
 
                 // get aliases in form of string
@@ -914,50 +913,13 @@ int com_global_db(int a_argc, char ** a_argv, void **a_str_reply)
 
 static dap_tsd_t* s_chain_node_cli_com_node_create_tsd_addr(char **a_argv, int a_arg_start, int a_arg_end, void **a_str_reply, const char *a_specified_decree) {
     const char *l_ban_addr_str = NULL;
-    dap_tsd_t *l_addr_tsd = NULL;
-    if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_start, a_arg_end, "-ip", &l_ban_addr_str)){
-        if (l_ban_addr_str[0] == ':' || dap_strlen(l_ban_addr_str) > 15) {
-            struct in6_addr l_ip_addr;
-            if (inet_pton(AF_INET6, l_ban_addr_str, &l_ip_addr)) {
-                l_addr_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V6,
-                                            &l_ip_addr,
-                                            sizeof(struct in6_addr));
-            } else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "The -ip option can contain an "
-                                                               "ip address in V4 or V6 format. Well, it is "
-                                                               "possible to convert the string value of the "
-                                                               "V6 address into a binary representation.");
-                return NULL;
-            }
-        } else {
-            struct in_addr l_ip_addr;
-            if (inet_pton(AF_INET, l_ban_addr_str, &l_ip_addr)) {
-                l_addr_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_IP_V4,
-                                            &l_ip_addr,
-                                            sizeof(struct in_addr));
-
-            } else {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "The -ip option can contain an "
-                                                               "ip address in V4 or V6 format. Well, it is "
-                                                               "possible to convert the string value of the "
-                                                               "V4 address into a binary representation.");
-                return NULL;
-            }
-        }
-    }else if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_start, a_arg_end, "-addr", &l_ban_addr_str)){
-        dap_chain_node_addr_t l_node_addr = {0};
-        if (dap_chain_node_addr_from_str(&l_node_addr, l_ban_addr_str)) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "The node address is in the wrong format.");
-            return NULL;
-        } else {
-            l_addr_tsd = dap_tsd_create(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR, &l_node_addr, sizeof(dap_chain_node_addr_t));
-        }
-    } else {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "The -ip or -addr option was not "
-                                                       "specified to create a %s entry creation decree.", a_specified_decree);
-        return NULL;
-    }
-    return  l_addr_tsd;
+    if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_start, a_arg_end, "-addr", &l_ban_addr_str))
+        return dap_tsd_create_string(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_NODE_ADDR, l_ban_addr_str);
+    else if (dap_cli_server_cmd_find_option_val(a_argv, a_arg_start, a_arg_end, "-host", &l_ban_addr_str))
+        return dap_tsd_create_string(DAP_CHAIN_DATUM_DECREE_TSD_TYPE_HOST, l_ban_addr_str);
+    else
+        return dap_cli_server_cmd_set_reply_text(a_str_reply, "The -host or -addr option was not "
+                                                       "specified to create a %s entry creation decree.", a_specified_decree), NULL;
 }
 
 /**
@@ -1026,7 +988,10 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
 
     // struct to write to the global db
     dap_chain_node_addr_t l_node_addr = {}, l_link;
-    dap_chain_node_info_t l_node_info;
+    uint32_t l_info_size = l_hostname 
+        ? sizeof(dap_chain_node_info_t) + dap_strlen(l_hostname) + 1
+        : sizeof(dap_chain_node_info_t);
+    dap_chain_node_info_t *l_node_info = DAP_NEW_STACK_SIZE(dap_chain_node_info_t, l_info_size);
 
     //TODO need to rework with new node info / alias /links concept
 
@@ -1034,15 +999,15 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         if(dap_chain_node_addr_from_str(&l_node_addr, l_addr_str) != 0) {
             dap_digit_from_string(l_addr_str, l_node_addr.raw, sizeof(l_node_addr.raw));
         }
-        l_node_info.hdr.address = l_node_addr;
+        l_node_info->address = l_node_addr;
     }
     if(l_port_str) {
         uint16_t l_node_port = 0;
         dap_digit_from_string(l_port_str, &l_node_port, sizeof(uint16_t));
-        l_node_info.hdr.ext_port = l_node_port;
+        l_node_info->ext_port = l_node_port;
     }
     if (l_cell_str) {
-        dap_digit_from_string(l_cell_str, l_node_info.hdr.cell_id.raw, sizeof(l_node_info.hdr.cell_id.raw)); //DAP_CHAIN_CELL_ID_SIZE);
+        dap_digit_from_string(l_cell_str, l_node_info->cell_id.raw, sizeof(l_node_info->cell_id.raw)); //DAP_CHAIN_CELL_ID_SIZE);
     }
     if (l_link_str) {   // TODO
         if(dap_chain_node_addr_from_str(&l_link, l_link_str) != 0) {
@@ -1057,8 +1022,8 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
             dap_cli_server_cmd_set_reply_text(a_str_reply, "node requires parameter -host and -port");
             return -1;
         }
-        dap_strncpy(l_node_info.hdr.ext_addr, l_hostname, NI_MAXHOST);
-        l_node_info.hdr.address.uint64 = dap_chain_net_get_cur_addr_int(l_net);
+        l_node_info->ext_host_len = dap_strncpy(l_node_info->ext_host, l_hostname, 0xFF) - l_node_info->ext_host;
+        l_node_info->address.uint64 = dap_chain_net_get_cur_addr_int(l_net);
         if (l_addr_str) {
             if (dap_chain_node_info_save(l_net, &l_node_info) == DAP_GLOBAL_DB_RC_SUCCESS) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Node address successfully added to node list");
@@ -1067,7 +1032,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't add node address to node list");
             return -3;
         }
-        l_node_info.hdr.address.uint64 = dap_chain_net_get_cur_addr_int(l_net);
+        l_node_info->address.uint64 = dap_chain_net_get_cur_addr_int(l_net);
         // Synchronous request, wait for reply
         int res = dap_chain_net_node_list_request(l_net, &l_node_info, true, 0);
         switch (res)
@@ -1101,7 +1066,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     case CMD_DEL:
         // handler of command 'node del'
     {
-        return node_info_del_with_reply(l_net, &l_node_info, alias_str, a_str_reply);
+        return node_info_del_with_reply(l_net, l_node_info, alias_str, a_str_reply);
     }
 
     case CMD_DUMP: {
@@ -1496,12 +1461,9 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     } break;
 
     case CMD_BANLIST: {
-        dap_string_t *l_str_ban_list = dap_string_new("Ban list:\n");
-        dap_http_ban_list_client_ipv4_print(l_str_ban_list);
-        dap_http_ban_list_client_ipv6_print(l_str_ban_list);
-        dap_chain_node_net_ban_list_print(l_str_ban_list);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_ban_list->str);
-        dap_string_free(l_str_ban_list, true);
+        char *l_str_banlist = dap_http_ban_list_client_dump(NULL);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "%s", l_str_banlist);
+        DAP_DELETE(l_str_banlist);
     } break;
 
     case CMD_BALANCER: {
@@ -1514,9 +1476,9 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
         {
             dap_chain_node_info_t *l_node_link = (dap_chain_node_info_t*)ll->data;
             dap_string_append_printf(l_string_balanc, NODE_ADDR_FP_STR"    %-20s%u\n",
-                                     NODE_ADDR_FP_ARGS_S(l_node_link->hdr.address),
-                                     l_node_link->hdr.ext_addr,
-                                     l_node_link->info.links_number);
+                                     NODE_ADDR_FP_ARGS_S(l_node_link->address),
+                                     l_node_link->ext_host,
+                                     /*l_node_link->info.links_number*/ 0);
         }
         dap_cli_server_cmd_set_reply_text(a_str_reply, "Balancer link list:\n %s \n",
                                           l_string_balanc->str);

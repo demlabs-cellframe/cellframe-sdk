@@ -252,8 +252,8 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
     if(l_node_client) {
         log_it(L_NOTICE, "Stream connection with node "NODE_ADDR_FP_STR" [ %s : %hu ] established",
                     NODE_ADDR_FP_ARGS_S(l_node_client->remote_node_addr),
-                    l_node_client->info->hdr.ext_addr,
-                    l_node_client->info->hdr.ext_port);
+                    l_node_client->info->ext_host,
+                    l_node_client->info->ext_port);
         // set callbacks for C and N channels; for R and S it is not needed
         if (a_client->active_channels) {
             size_t l_channels_count = dap_strlen(a_client->active_channels);
@@ -271,7 +271,7 @@ static void s_stage_connected_callback(dap_client_t *a_client, void *a_arg)
         dap_client_write_unsafe(a_client, 'N', DAP_STREAM_CH_CHAIN_NET_PKT_TYPE_ANNOUNCE,
                                          &l_announce, sizeof(l_announce));
         // Add uplink to clusters
-        dap_stream_node_addr_t *l_uplink_addr = &l_node_client->info->hdr.address;
+        dap_stream_node_addr_t *l_uplink_addr = &l_node_client->info->address;
         dap_global_db_cluster_t *it;
         DL_FOREACH(dap_global_db_instance_get_default()->clusters, it)
             if (dap_cluster_member_find_unsafe(it->role_cluster, l_uplink_addr))
@@ -656,7 +656,7 @@ dap_chain_node_client_t *dap_chain_node_client_create_n_connect(dap_chain_net_t 
                                                                 void *a_callback_arg)
 {
     dap_chain_node_client_t *l_node_client = dap_chain_node_client_create(a_net, a_node_info, a_callbacks, a_callback_arg);
-    return dap_chain_node_client_connect(l_node_client, a_active_channels) ? l_node_client : DAP_DELETE(l_node_client), NULL;
+    return dap_chain_node_client_connect(l_node_client, a_active_channels) ? l_node_client : DAP_DEL_MULTY(l_node_client->info, l_node_client), NULL;
 }
 
 dap_chain_node_client_t *dap_chain_node_client_create(dap_chain_net_t *a_net,
@@ -678,7 +678,7 @@ dap_chain_node_client_t *dap_chain_node_client_create(dap_chain_net_t *a_net,
     l_node_client->callbacks_arg = a_callback_arg;
     if (a_callbacks)
         l_node_client->callbacks = *a_callbacks;
-    l_node_client->info = DAP_DUP(a_node_info);
+    l_node_client->info = DAP_DUP_SIZE(a_node_info, sizeof(dap_chain_node_info_t) + a_node_info->ext_host_len + 1);
     l_node_client->net = a_net;
 #ifndef _WIN32
     pthread_condattr_t attr;
@@ -692,7 +692,7 @@ dap_chain_node_client_t *dap_chain_node_client_create(dap_chain_net_t *a_net,
 #endif
 
     pthread_mutex_init(&l_node_client->wait_mutex, NULL);
-    l_node_client->remote_node_addr.uint64 = a_node_info->hdr.address.uint64;
+    l_node_client->remote_node_addr.uint64 = a_node_info->address.uint64;
     return l_node_client;
 }
 
@@ -721,14 +721,14 @@ bool dap_chain_node_client_connect(dap_chain_node_client_t *a_node_client, const
     a_node_client->client->_inheritor = a_node_client;
     dap_client_set_active_channels_unsafe(a_node_client->client, a_active_channels);
     dap_client_set_auth_cert(a_node_client->client, a_node_client->net->pub.name);
-    char *l_host_addr = a_node_client->info->hdr.ext_addr;
+    char *l_host_addr = a_node_client->info->ext_host;
     
-    if ( !*l_host_addr || !strcmp(l_host_addr, "::") || !a_node_client->info->hdr.ext_port ) {
+    if ( !*l_host_addr || !strcmp(l_host_addr, "::") || !a_node_client->info->ext_port ) {
         return log_it(L_WARNING, "Node client address undefined"), false;
     }
 
-    log_it(L_INFO, "Connecting to addr %s : %d", l_host_addr, a_node_client->info->hdr.ext_port);
-    dap_client_set_uplink_unsafe(a_node_client->client, l_host_addr, a_node_client->info->hdr.ext_port);
+    log_it(L_INFO, "Connecting to addr %s : %d", l_host_addr, a_node_client->info->ext_port);
+    dap_client_set_uplink_unsafe(a_node_client->client, l_host_addr, a_node_client->info->ext_port);
     a_node_client->state = NODE_CLIENT_STATE_CONNECTING;
     // Handshake & connect
     dap_client_go_stage(a_node_client->client, STAGE_STREAM_STREAMING, s_stage_connected_callback);
@@ -756,8 +756,8 @@ void dap_chain_node_client_close_unsafe(dap_chain_node_client_t *a_node_client)
 {
     log_it(L_INFO, "Closing node client to uplink"NODE_ADDR_FP_STR" [ %s : %u ]",
                     NODE_ADDR_FP_ARGS_S(a_node_client->remote_node_addr),
-                    a_node_client->info->hdr.ext_addr,
-                    a_node_client->info->hdr.ext_port);
+                    a_node_client->info->ext_host,
+                    a_node_client->info->ext_port);
 
     if (a_node_client->sync_timer)
         dap_timerfd_delete_unsafe(a_node_client->sync_timer);

@@ -46,8 +46,6 @@ int dap_chain_node_info_dns_request(dap_worker_t *a_worker, struct in_addr a_add
                            dap_dns_client_node_info_request_success_callback_t a_callback_success,
                            dap_dns_client_node_info_request_error_callback_t a_callback_error, void * a_callback_arg);
 
-dap_chain_node_info_t *dap_dns_resolve_hostname(char *str);
-
 void dap_dns_buf_init(dap_dns_buf_t *buf, char *msg);
 void dap_dns_buf_put_uint64(dap_dns_buf_t *buf, uint64_t val);
 void dap_dns_buf_put_uint32(dap_dns_buf_t *buf, uint32_t val);
