@@ -1041,7 +1041,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
             }
 
             if (!strcmp(l_token_sell_str, l_token_buy_str)){
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "token_buy and token_sell must be different!");
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Tokens for buying and selling must be different!");
                 return -7;
             }
 
