@@ -9,6 +9,7 @@
 #include "dap_json_rpc_chain_datum_tx_items.h"
 #include "dap_json_rpc_chain_datum_tx_receipt.h"
 #include "json.h"
+#include "dap_chain_datum_tx_voting.h"
 
 #define LOG_TAG "dap_json_rpc_chain_datum_tx"
 
@@ -92,12 +93,12 @@ json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx,dap_chain_net
                 }
                 json_object_object_add(l_obj_item_data, "ts_expires", json_object_new_string(l_time_str));
                 json_object_object_add(l_obj_item_data, "subtype", json_object_new_string(dap_chain_tx_out_cond_subtype_to_str(((dap_chain_tx_out_cond_t*)item)->header.subtype)));
-                json_object_object_add(l_obj_item_data, "value", json_object_new_string(dap_chain_balance_to_coins(((dap_chain_tx_out_cond_t*)item)->header.value)));
-                json_object_object_add(l_obj_item_data, "value_datoshi", json_object_new_string(dap_chain_balance_print(((dap_chain_tx_out_cond_t*)item)->header.value)));
-                char * uid_str = DAP_NEW_SIZE(char, 32);
+                char *l_val_str, *l_val_datoshi_str = dap_uint256_to_char(((dap_chain_tx_out_cond_t*)item)->header.value, &l_val_str);
+                json_object_object_add(l_obj_item_data, "value", json_object_new_string(l_val_str));
+                json_object_object_add(l_obj_item_data, "value_datoshi", json_object_new_string(l_val_datoshi_str));
+                char uid_str[32];
                 sprintf(uid_str, "0x%016"DAP_UINT64_FORMAT_x"", ((dap_chain_tx_out_cond_t*)item)->header.srv_uid.uint64);
                 json_object_object_add(l_obj_item_data, "uid", json_object_new_string(uid_str));
-                DAP_DEL_Z(uid_str);
                 break;
             case TX_ITEM_TYPE_OUT_EXT:
                 l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_OUT_EXT");
@@ -107,6 +108,14 @@ json_object *dap_chain_datum_tx_to_json(dap_chain_datum_tx_t *a_tx,dap_chain_net
                 l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_TSD");
                 l_obj_item_data = dap_chain_datum_tx_item_tsd_to_json((dap_chain_tx_tsd_t*)item);
                 break;
+            case TX_ITEM_TYPE_VOTE:
+                l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_VOTE");
+                l_obj_item_data = dap_chain_datum_tx_item_vote_to_json((dap_chain_tx_vote_t*)item);
+            break;
+            case TX_ITEM_TYPE_VOTING:
+                l_obj_item_type = json_object_new_string("TX_ITEM_TYPE_VOTING");
+                l_obj_item_data = dap_chain_datum_tx_item_voting_tsd_to_json(a_tx);
+            break;
             default: {
                 char *l_hash_str;
                 dap_get_data_hash_str_static(a_tx, dap_chain_datum_tx_get_size(a_tx), l_hash_str);
