@@ -104,6 +104,7 @@ bool dap_chain_node_alias_register(dap_chain_net_t *a_net, const char *a_alias, 
 bool dap_chain_node_alias_delete(dap_chain_net_t * l_net,const char *alias);
 
 int dap_chain_node_info_save(dap_chain_net_t * l_net,dap_chain_node_info_t *node_info);
+int dap_chain_node_info_del(dap_chain_net_t * l_net,dap_chain_node_info_t *node_info);
 dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_net_t *l_net, dap_chain_node_addr_t *address);
 
 inline static char *dap_chain_node_addr_to_str_static(dap_chain_node_addr_t *a_address)
@@ -120,6 +121,8 @@ bool dap_chain_node_mempool_autoproc_init();
 inline static void dap_chain_node_mempool_autoproc_deinit() {}
 
 DAP_STATIC_INLINE int dap_chain_node_parse_hostname(const char *a_src, char *a_addr, uint16_t *a_port) {
+    if (!a_src)
+        return -1;
     char l_type = 0, *l_cpos = NULL, *l_bpos = NULL;
     /*  
         type 4,5 - hostname or IPv4 (no port, with port)
@@ -148,7 +151,7 @@ DAP_STATIC_INLINE int dap_chain_node_parse_hostname(const char *a_src, char *a_a
     case 5:
         l_bpos = l_cpos;
     case 7:
-        *a_port = strtoul(l_cpos, NULL, 10);
+        *a_port = strtoul(l_cpos + 1, NULL, 10);
         l_len = l_bpos - a_src;
         break;
     default:

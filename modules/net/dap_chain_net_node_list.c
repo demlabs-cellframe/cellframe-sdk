@@ -54,6 +54,16 @@ static int s_dap_chain_net_node_list_add(dap_chain_net_t *a_net, dap_chain_node_
                  a_node_info->ext_host, a_node_info->ext_port ), ERR_NOT_ADDED;
 }
 
+static int s_dap_chain_net_node_list_del(dap_chain_net_t *a_net, dap_chain_node_info_t *a_node_info) {
+    return !dap_chain_node_info_del(a_net, a_node_info)
+        ? log_it( L_DEBUG, "Delete address" NODE_ADDR_FP_STR " '%s : %u' from nodelist",
+                 NODE_ADDR_FP_ARGS_S(a_node_info->address),
+                 a_node_info->ext_host, a_node_info->ext_port ), DELETED_OK
+        : log_it( L_ERROR, "Address" NODE_ADDR_FP_STR " '%s : %u' not deleted",
+                 NODE_ADDR_FP_ARGS_S(a_node_info->address),
+                 a_node_info->ext_host, a_node_info->ext_port ), ERR_UNKNOWN;
+}
+
 /**
  * @brief server function, makes handshake and add node to node list
  *
@@ -322,3 +332,34 @@ int dap_chain_net_node_list_init()
     }*/
     return 0;
 }
+
+/*static int node_info_del_with_reply(dap_chain_net_t *a_net, dap_chain_node_info_t *a_node_info, const char *alias_str,
+        void **a_str_reply)
+{
+    int l_res = -1;
+    if ( !a_node_info->address.uint64 && !alias_str ) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "addr not found");
+        return l_res;
+    }
+    // find addr by alias or addr_str
+    dap_chain_node_addr_t *l_addr_by_alias = dap_chain_node_alias_find(a_net, alias_str);
+    if ( alias_str && !l_addr_by_alias ) {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "alias not found");
+        return l_res;
+    }
+    dap_chain_node_addr_t l_addr = l_addr_by_alias ? *l_addr_by_alias : a_node_info->address;
+    char *a_key = dap_chain_node_addr_to_str_static(&l_addr);
+    if ( !(l_res = dap_global_db_del_sync(a_net->pub.gdb_nodes, a_key)) ) {
+        dap_list_t *list_aliases = get_aliases_by_name(a_net, &l_addr), *l_el = list_aliases;
+        while (l_el) {
+            dap_chain_node_alias_delete(a_net, (const char*)l_el->data);
+            l_el = l_el->next;
+        }
+        dap_list_free_full(list_aliases, NULL);
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Node deleted with all it's aliases");
+    } else {
+        dap_cli_server_cmd_set_reply_text(a_str_reply, "Node was not deleted from database");
+    }
+    DAP_DELETE(l_addr_by_alias);
+    return l_res;
+}*/

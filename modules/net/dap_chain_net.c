@@ -204,7 +204,7 @@ typedef struct dap_chain_net_pvt{
 } dap_chain_net_pvt_t;
 
 typedef struct dap_chain_net_item{
-    char name[DAP_CHAIN_NET_NAME_MAX];
+    char name[DAP_CHAIN_NET_NAME_MAX + 1];
     dap_chain_net_id_t net_id;
     dap_chain_net_t *chain_net;
     UT_hash_handle hh, hh2;
@@ -417,6 +417,10 @@ dap_chain_node_info_t *dap_chain_net_balancer_link_from_cfg(dap_chain_net_t *a_n
     default:
         return PVT(a_net)->seed_nodes_info[dap_random_uint16() % PVT(a_net)->seed_nodes_count];
     }
+}
+
+dap_chain_node_info_t *dap_chain_net_get_my_node_info(dap_chain_net_t *a_net) {
+    return PVT(a_net)->node_info;
 }
 
 void dap_chain_net_add_cluster_link(dap_chain_net_t *a_net, dap_stream_node_addr_t *a_node_addr)
@@ -2468,11 +2472,11 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         dap_config_close(l_cfg);
         return -15;
     }
-
+    l_net_pvt->poa_nodes_addrs = DAP_NEW_Z_COUNT(dap_chain_node_addr_t, l_net_pvt->poa_nodes_count);
     uint16_t l_seed_nodes_count = 0, l_bootstrap_nodes_count = 0;
     char **l_seed_nodes_hosts       = dap_config_get_array_str(l_cfg, "general", "seed_nodes_hosts", &l_seed_nodes_count),
          **l_bootstrap_nodes_hosts  = dap_config_get_array_str(l_cfg, "general", "bootstrap_hosts", &l_bootstrap_nodes_count);
-
+    l_net_pvt->seed_nodes_count = l_seed_nodes_count;
     if (l_seed_nodes_count != l_net_pvt->poa_nodes_count) {
         log_it(L_ERROR, "PoA addresses count mismatches host names count: %u != %u, number of seed links will be reduced",
             l_net_pvt->poa_nodes_count, l_seed_nodes_count);
@@ -2493,11 +2497,11 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         char l_host[0xFF + 1] = { '\0' };
         dap_chain_node_addr_t l_addr;
         if ( dap_stream_node_addr_from_str(&l_addr, l_poa_nodes_addrs[i])
-             || dap_chain_node_parse_hostname(l_poa_nodes_addrs[i],
+             || dap_chain_node_parse_hostname(l_seed_nodes_hosts[i],
                                               l_host,
                                               &l_port)) {
-            log_it(L_ERROR, "Incorrect format of address \"%s\", fix net config and restart node",
-                            l_poa_nodes_addrs[i]);
+            log_it(L_ERROR, "Incorrect format of address \"%s\" or \"%s\", fix net config and restart node",
+                            l_seed_nodes_hosts[i], l_poa_nodes_addrs[i]);
             dap_chain_net_delete(l_net);
             dap_config_close(l_cfg);
             return -16;
@@ -2505,7 +2509,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         uint8_t l_hostlen = dap_strlen(l_host);
         l_net_pvt->seed_nodes_info[i] = DAP_NEW_Z_SIZE(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + l_hostlen + 1);
         l_net_pvt->seed_nodes_info[i]->ext_port = l_port;
-        l_net_pvt->seed_nodes_info[i]->address = l_addr;
+        l_net_pvt->seed_nodes_info[i]->address = l_net_pvt->poa_nodes_addrs[i] = l_addr;
         l_net_pvt->seed_nodes_info[i]->ext_host_len
             = dap_strncpy(l_net_pvt->seed_nodes_info[i]->ext_host, l_host, l_hostlen) - l_net_pvt->seed_nodes_info[i]->ext_host;
     }
@@ -2809,13 +2813,21 @@ int s_net_load(dap_chain_net_t *a_net)
         char l_host[0xFF + 1] = { '\0' };
         uint16_t l_port = 0;
         const char *l_ext_addr = dap_config_get_item_str_default(g_config, "server", "ext_address", NULL);
-        if ( dap_chain_node_parse_hostname(l_ext_addr, l_host, &l_port) )
-            log_it(L_ERROR, "Invalid server address \"%s\", fix config and restart node", l_ext_addr);
+        if (!l_ext_addr) {
+            log_it(L_INFO, "External address is not set, will be detected automatically");
+            l_net_pvt->node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, sizeof(dap_chain_node_info_t));
+            l_net_pvt->node_info->ext_port = dap_config_get_item_uint16_default( g_config, "server", "ext_port",
+                dap_config_get_item_uint16_default(g_config, "server", "listen_port", 8079) );
+        }
         else {
-            uint8_t l_hostlen = dap_strlen(l_host);
-            l_net_pvt->node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + l_hostlen + 1 );
-            l_net_pvt->node_info->ext_port = l_port ? l_port : 8079; // TODO: default port
-            l_net_pvt->node_info->ext_host_len = dap_strncpy(l_net_pvt->node_info->ext_host, l_host, l_hostlen) - l_net_pvt->node_info->ext_host;
+            if ( dap_chain_node_parse_hostname(l_ext_addr, l_host, &l_port) )
+                log_it(L_ERROR, "Invalid server address \"%s\", fix config and restart node", l_ext_addr);
+            else {
+                uint8_t l_hostlen = dap_strlen(l_host);
+                l_net_pvt->node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + l_hostlen + 1 );
+                l_net_pvt->node_info->ext_port = l_port ? l_port : 8079; // TODO: default port
+                l_net_pvt->node_info->ext_host_len = dap_strncpy(l_net_pvt->node_info->ext_host, l_host, l_hostlen) - l_net_pvt->node_info->ext_host;
+            }
         }
     } else
         log_it(L_INFO, "Server is disabled");
@@ -3561,7 +3573,7 @@ void dap_chain_net_announce_addrs(dap_chain_net_t *a_net)
     dap_return_if_fail(a_net);
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
     if (l_net_pvt->node_info->ext_host_len && *l_net_pvt->node_info->ext_host && l_net_pvt->node_info->ext_port ) {
-        dap_chain_net_node_list_request(a_net, l_net_pvt->node_info, false, 0);
+        dap_chain_net_node_list_request(a_net, l_net_pvt->node_info, false, 'a');
         log_it(L_INFO, "Announce our node address "NODE_ADDR_FP_STR" [ %s : %u ] in net %s",
                NODE_ADDR_FP_ARGS_S(g_node_addr),
                l_net_pvt->node_info->ext_host,

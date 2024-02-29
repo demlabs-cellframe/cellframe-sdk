@@ -231,48 +231,6 @@ static int node_info_add_with_reply(dap_chain_net_t * a_net, dap_chain_node_info
         : -1;
 }
 
-
-/**
- * @brief node_info_del_with_reply
- * Handler of command 'global_db node add'
- * @param a_net
- * @param a_node_info
- * @param alias_str
- * @param str_reply str_reply[out] for reply
- * @return int
- * return 0 Ok, -1 error
- */
-static int node_info_del_with_reply(dap_chain_net_t *a_net, dap_chain_node_info_t *a_node_info, const char *alias_str,
-        void **a_str_reply)
-{
-    int l_res = -1;
-    if ( !a_node_info->address.uint64 && !alias_str ) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "addr not found");
-        return l_res;
-    }
-    // find addr by alias or addr_str
-    dap_chain_node_addr_t *l_addr_by_alias = dap_chain_node_alias_find(a_net, alias_str);
-    if ( alias_str && !l_addr_by_alias ) {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "alias not found");
-        return l_res;
-    }
-    dap_chain_node_addr_t l_addr = l_addr_by_alias ? *l_addr_by_alias : a_node_info->address;
-    char *a_key = dap_chain_node_addr_to_str_static(&l_addr);
-    if ( !(l_res = dap_global_db_del_sync(a_net->pub.gdb_nodes, a_key)) ) {
-        dap_list_t *list_aliases = get_aliases_by_name(a_net, &l_addr), *l_el = list_aliases;
-        while (l_el) {
-            dap_chain_node_alias_delete(a_net, (const char*)l_el->data);
-            l_el = l_el->next;
-        }
-        dap_list_free_full(list_aliases, NULL);
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Node deleted with all it's aliases");
-    } else {
-        dap_cli_server_cmd_set_reply_text(a_str_reply, "Node was not deleted from database");
-    }
-    DAP_DELETE(l_addr_by_alias);
-    return l_res;
-}
-
 /**
  * @brief node_info_dump_with_reply Handler of command 'node dump'
  * @param a_net
@@ -1020,8 +978,8 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     switch (cmd_num)
     {    
     case CMD_ADD:
-        if(!l_port_str || !l_hostname) {
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "node requires parameter -host and -port");
+        /*if(!l_port_str) {
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "node requires parameter -port");
             return -1;
         }
         l_node_info->ext_host_len = dap_strncpy(l_node_info->ext_host, l_hostname, 0xFF) - l_node_info->ext_host;
@@ -1033,10 +991,9 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
             }
             dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't add node address to node list");
             return -3;
-        }
-        l_node_info->address.uint64 = dap_chain_net_get_cur_addr_int(l_net);
+        }*/
         // Synchronous request, wait for reply
-        int res = dap_chain_net_node_list_request(l_net, &l_node_info, true, 0);
+        int res = dap_chain_net_node_list_request(l_net, dap_chain_net_get_my_node_info(l_net), true, 'a');
         switch (res)
         {
             case 0:
@@ -1068,7 +1025,12 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     case CMD_DEL:
         // handler of command 'node del'
     {
-        return node_info_del_with_reply(l_net, l_node_info, alias_str, a_str_reply);
+        int l_res = dap_chain_net_node_list_request(l_net, dap_chain_net_get_my_node_info(l_net), true, 'r');
+        switch ( l_res ) {
+            case 8:  dap_cli_server_cmd_set_reply_text(a_str_reply, "Sucessfully deleted"); break;
+            default: dap_cli_server_cmd_set_reply_text(a_str_reply, "Error code %d", l_res); break;
+        }
+        return l_ret;
     }
 
     case CMD_DUMP: {
