@@ -4743,6 +4743,7 @@ void dap_ledger_purge(dap_ledger_t *a_ledger, bool a_preserve_db)
 {
     dap_return_if_fail(a_ledger);
     dap_ledger_private_t *l_ledger_pvt = PVT(a_ledger);
+
     pthread_rwlock_wrlock(&l_ledger_pvt->ledger_rwlock);
     pthread_rwlock_wrlock(&l_ledger_pvt->tokens_rwlock);
     pthread_rwlock_wrlock(&l_ledger_pvt->threshold_emissions_rwlock);
