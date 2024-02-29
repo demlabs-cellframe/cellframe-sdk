@@ -977,7 +977,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     int l_ret =0;
     switch (cmd_num)
     {    
-    case CMD_ADD:
+    case CMD_ADD: {
         /*if(!l_port_str) {
             dap_cli_server_cmd_set_reply_text(a_str_reply, "node requires parameter -port");
             return -1;
@@ -1021,6 +1021,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
                 break;
         }
         return l_ret;
+    }
         //break;
     case CMD_DEL:
         // handler of command 'node del'
