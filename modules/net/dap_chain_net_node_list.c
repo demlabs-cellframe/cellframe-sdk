@@ -263,11 +263,12 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
 
     dap_list_t *l_node_list = dap_chain_net_get_node_list_cfg(a_net), *l_cur = l_node_list;
     if ( dap_list_find(l_node_list, &l_node_addr_cur, s_cb_node_addr_compare) ) {
+        dap_list_free(l_node_list);
         // We're in seed list, add directly
         return s_dap_chain_net_node_list_add(
             a_net, a_node_info);
     }
-    
+    dap_list_free(l_node_list);
     struct node_link_request *l_link_node_request = s_node_list_request_init();
     if (!l_link_node_request) {
         log_it(L_CRITICAL, "Memory allocation error");
