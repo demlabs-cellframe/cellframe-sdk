@@ -2396,25 +2396,13 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
     l_message->hdr.type = a_message_type;
     l_message->hdr.round_id = a_session->cur_round.id;
     l_message->hdr.attempt_num = a_session->cur_round.attempt_num;
+    l_message->hdr.net_id = a_session->chain->net_id;
     l_message->hdr.chain_id = a_session->chain->id;
     l_message->hdr.ts_created = dap_time_now();
     l_message->hdr.message_size = a_data_size;
     l_message->hdr.candidate_hash = *a_block_hash;
     if (a_data && a_data_size)
         memcpy(l_message->msg_n_sign, a_data, a_data_size);
-
-    dap_sign_t *l_sign = dap_sign_create(PVT(a_session->esbocs)->blocks_sign_key, l_message,
-                                         sizeof(l_message->hdr) + a_data_size, 0);
-    size_t l_sign_size = dap_sign_get_size(l_sign);
-    l_message_size += l_sign_size;
-    l_message = DAP_REALLOC(l_message, l_message_size);
-    if (!l_message) {
-        log_it(L_CRITICAL, "Memory allocation error");
-        return;
-    }
-    memcpy(l_message->msg_n_sign + a_data_size, l_sign, l_sign_size);
-    DAP_DELETE(l_sign);
-    l_message->hdr.sign_size = l_sign_size;
 
     for (dap_list_t *it = a_validators; it; it = it->next) {
         dap_chain_esbocs_validator_t *l_validator = it->data;
@@ -2423,7 +2411,34 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
             debug_if(PVT(a_session->esbocs)->debug, L_MSG, "Send pkt type 0x%x to "NODE_ADDR_FP_STR,
                                                             a_message_type, NODE_ADDR_FP_ARGS_S(l_validator->node_addr));
             l_message->hdr.recv_addr = l_validator->node_addr;
-            dap_stream_ch_pkt_send_by_addr(&l_validator->node_addr, DAP_STREAM_CH_ESBOCS_ID, a_message_type, l_message, l_message_size);
+            dap_sign_t *l_sign = dap_sign_create(PVT(a_session->esbocs)->blocks_sign_key, l_message,
+                                                 sizeof(l_message->hdr) + a_data_size, 0);
+            size_t l_sign_size = dap_sign_get_size(l_sign);
+            l_message = DAP_REALLOC(l_message, l_message_size + l_sign_size);
+            if (!l_message) {
+                log_it(L_CRITICAL, "Memory allocation error");
+                return;
+            }
+            memcpy(l_message->msg_n_sign + a_data_size, l_sign, l_sign_size);
+            DAP_DELETE(l_sign);
+            l_message->hdr.sign_size = l_sign_size;
+
+            if (l_validator->node_addr.uint64 != a_session->my_addr.uint64) {
+                dap_stream_ch_pkt_send_by_addr(&l_validator->node_addr, DAP_STREAM_CH_ESBOCS_ID,
+                                               a_message_type, l_message, l_message_size + l_sign_size);
+                continue;
+            }
+            struct esbocs_msg_args *l_args = DAP_NEW_SIZE(struct esbocs_msg_args,
+                                                          sizeof(struct esbocs_msg_args) + l_message_size + l_sign_size);
+            if (!l_args) {
+                log_it(L_CRITICAL, g_error_memory_alloc);
+                return;
+            }
+            l_args->addr_from = a_session->my_addr;
+            l_args->session = a_session;
+            l_args->message_size = l_message_size + l_sign_size;
+            memcpy(l_args->message, l_message, l_message_size + l_sign_size);
+            dap_proc_thread_callback_add(NULL, s_process_incoming_message, l_args);
         }
     }
     DAP_DELETE(l_message);

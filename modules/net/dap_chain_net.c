@@ -546,7 +546,7 @@ static bool s_net_link_callback_connect_delayed(void *a_arg)
     dap_chain_node_client_t *l_client = l_link->link;
     log_it(L_MSG, "Connecting to link "NODE_ADDR_FP_STR" [%s]",
            NODE_ADDR_FP_ARGS_S(l_client->info->hdr.address), inet_ntoa(l_client->info->hdr.ext_addr_v4));
-    dap_chain_node_client_connect(l_client, "CGND");
+    dap_chain_node_client_connect(l_client, "CGEND");
     l_link->delay_timer = NULL;
     return false;
 }
@@ -566,7 +566,7 @@ static bool s_net_link_start(dap_chain_net_t *a_net, struct net_link *a_link, ui
         return true;
     }
     log_it(L_MSG, "Connecting to link "NODE_ADDR_FP_STR" [%s]", NODE_ADDR_FP_ARGS_S(l_link_info->hdr.address), inet_ntoa(l_link_info->hdr.ext_addr_v4));
-    return dap_chain_node_client_connect(l_client, "CGND");
+    return dap_chain_node_client_connect(l_client, "CGEND");
 }
 
 /**
