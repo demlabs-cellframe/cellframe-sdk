@@ -840,7 +840,6 @@ static void s_session_send_startsync(dap_chain_esbocs_session_t *a_session)
                             a_session->chain->net_name, a_session->chain->name, a_session->cur_round.id,
                                 a_session->cur_round.sync_attempt, l_addr_list->str, l_sync_hash);
         dap_string_free(l_addr_list, true);
-        DAP_DELETE(l_sync_hash);
     }
     struct sync_params l_params = { .attempt = a_session->cur_round.sync_attempt, .db_hash = a_session->db_hash };
     s_message_send(a_session, DAP_CHAIN_ESBOCS_MSG_TYPE_START_SYNC, &l_last_block_hash,
@@ -1786,18 +1785,16 @@ static void s_db_change_notifier(dap_store_obj_t *a_obj, void *a_arg)
     dap_chain_addr_t *l_validator_addr = dap_chain_addr_from_str(a_obj->key);
     if (!l_validator_addr) {
         log_it(L_WARNING, "Unreadable address in esbocs global DB group");
-        dap_global_db_driver_delete(a_obj, 1);
         return;
     }
     if (l_validator_addr->net_id.uint64 != l_session->chain->net_id.uint64) {
-        log_it(L_ERROR, "Worong destination net ID %" DAP_UINT64_FORMAT_x "session net ID %" DAP_UINT64_FORMAT_x,
+        log_it(L_ERROR, "Wrong destination net ID %" DAP_UINT64_FORMAT_x "session net ID %" DAP_UINT64_FORMAT_x,
                                                     l_validator_addr->net_id.uint64, l_session->chain->net_id.uint64);
         return;
     }
     if (dap_chain_net_srv_stake_mark_validator_active(l_validator_addr, a_obj->type != DAP_GLOBAL_DB_OPTYPE_ADD)) {
         log_it(L_ERROR, "Validator with signing address %s not found in network %s",
                                                     a_obj->key, l_session->chain->net_name);
-        dap_global_db_driver_delete(a_obj, 1);
         return;
     }
     log_it(L_DEBUG, "Got new penalty item for group %s with key %s", a_obj->group, a_obj->key);
@@ -2439,6 +2436,10 @@ static int s_callback_block_verify(dap_chain_cs_blocks_t *a_blocks, dap_chain_bl
         return 0;
 
     size_t l_offset = dap_chain_block_get_sign_offset(a_block, a_block_size);
+    if (!l_offset) {
+        log_it(L_WARNING, "Block with size %zu parsing error", a_block_size);
+        return -5;
+    }
     size_t l_signs_count = 0;
     dap_sign_t **l_signs = dap_sign_get_unique_signs(a_block->meta_n_datum_n_sign+l_offset,
                                             a_block_size-sizeof(a_block->hdr)-l_offset, &l_signs_count);

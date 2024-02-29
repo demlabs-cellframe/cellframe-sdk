@@ -2870,6 +2870,8 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                         OUT_COND_TYPE_XCHANGE,
                         OUT_COND_TYPE_POS_DELEGATE
                     }l_out_cond_subtype={0};
+                    dap_list_t *l_vote_list = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_VOTE, NULL);
+                    dap_list_t *l_voting_list = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_VOTING, NULL);
                     for (dap_list_t *it = l_list_out_items; it; it = it->next) {
                         dap_chain_addr_t *l_dist_addr = NULL;
                         uint256_t l_value = uint256_0;
@@ -2915,15 +2917,6 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                                     default:
                                         break;
                                 }
-                            }
-                                break;
-                            case TX_ITEM_TYPE_VOTE: {
-                                json_object *l_jobj_vote = dap_chain_datum_tx_item_vote_to_json((dap_chain_tx_vote_t*)it->data);
-                                json_object_array_add(l_jobj_tx_vote, l_jobj_vote);
-                            } break;
-                            case TX_ITEM_TYPE_VOTING: {
-                                json_object *l_jobj_voting = dap_chain_datum_tx_item_voting_tsd_to_json(l_tx);
-                                json_object_array_add(l_jobj_tx_voting, l_jobj_voting);
                             } break;
                             default:
                                 break;
@@ -3056,6 +3049,14 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                             }
                         }
                     }
+                    for (dap_list_t *it = l_vote_list; it; it = it->next) {
+                        json_object *l_jobj_vote = dap_chain_datum_tx_item_vote_to_json((dap_chain_tx_vote_t*)it->data);
+                        json_object_array_add(l_jobj_tx_vote, l_jobj_vote);
+                    }
+                    for (dap_list_t *it = l_voting_list; it; it = it->next) {
+                        json_object *l_jobj_voting = dap_chain_datum_tx_item_voting_tsd_to_json(l_tx);
+                        json_object_array_add(l_jobj_tx_voting, l_jobj_voting);
+                    }
                     json_object_object_add(l_jobj_datum, "to", l_jobj_to_list);
                     json_object_object_add(l_jobj_datum, "change", l_jobj_change_list);
                     json_object_object_add(l_jobj_datum, "fee", l_jobj_fee_list);
@@ -3074,6 +3075,8 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                     json_object_array_length(l_jobj_tx_voting) > 0 ?
                     json_object_object_add(l_jobj_datum, "voting", l_jobj_tx_voting) : json_object_put(l_jobj_tx_voting);
                     dap_list_free(l_list_out_items);
+                    dap_list_free(l_vote_list);
+                    dap_list_free(l_voting_list);
                 }
                     break;
                 case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
