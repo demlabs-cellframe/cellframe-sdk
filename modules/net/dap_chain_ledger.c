@@ -1219,9 +1219,8 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_toke
     int l_res_token_tsd_parse = 0;
 
     char *l_balance_dbg = NULL;
-    if (s_debug_more) {
+    if (s_debug_more)
         dap_uint256_to_char(l_token->total_supply, &l_balance_dbg);
-    }
 
 #define CLEAN_UP DAP_DEL_MULTY(l_token, l_token_item->auth_pkeys, l_token_item->auth_pkeys_hash, l_token_item)
 
@@ -1299,7 +1298,6 @@ int dap_ledger_token_add(dap_ledger_t *a_ledger, dap_chain_datum_token_t *a_toke
         return -1;
     }
 #undef CLEAN_UP
-    DAP_DELETE(l_balance_dbg);
     s_threshold_emissions_proc(a_ledger); /* TODO process thresholds only for no-consensus chains */
     s_ledger_token_cache_update(a_ledger, l_token_item);
     return 0;
@@ -5337,68 +5335,6 @@ uint256_t dap_ledger_tx_cache_get_out_cond_value(dap_ledger_t *a_ledger, dap_cha
     return l_ret_value;
 }
 
-dap_ledger_datum_iter_t *dap_ledger_datum_iter_create(dap_chain_net_t *a_net)
-{
-    dap_ledger_datum_iter_t *l_ret = DAP_NEW_Z(dap_ledger_datum_iter_t);
-    if(!l_ret){
-        log_it(L_CRITICAL, "Memory allocation error!");
-        return NULL;
-    }
-    l_ret->net = a_net;
-    return l_ret;
-}
-
-void dap_ledger_datum_iter_delete(dap_ledger_datum_iter_t *a_iter)
-{
-    DAP_DELETE(a_iter);
-}
-
-dap_chain_datum_tx_t *dap_ledger_datum_iter_get_first(dap_ledger_datum_iter_t *a_iter)
-{
-    dap_ledger_private_t *l_ledger_pvt = PVT(a_iter->net->pub.ledger);
-    pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
-    a_iter->cur_ledger_tx_item = l_ledger_pvt->ledger_items;
-    a_iter->cur = ((dap_ledger_tx_item_t *)(a_iter->cur_ledger_tx_item))->tx;
-    a_iter->cur_hash = ((dap_ledger_tx_item_t *)(a_iter->cur_ledger_tx_item))->tx_hash_fast;
-    a_iter->is_unspent = ((dap_ledger_tx_item_t *)(a_iter->cur_ledger_tx_item))->cache_data.ts_spent ? false : true;
-    a_iter->ret_code = 0;
-    pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
-    return a_iter->cur;
-}
-
-dap_chain_datum_tx_t *dap_ledger_datum_iter_get_next(dap_ledger_datum_iter_t *a_iter)
-{
-    dap_ledger_private_t *l_ledger_pvt = PVT(a_iter->net->pub.ledger);
-    pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
-    a_iter->cur_ledger_tx_item = ((dap_ledger_tx_item_t *)(a_iter->cur_ledger_tx_item))->hh.next;
-    if (a_iter->cur_ledger_tx_item){
-        a_iter->cur = ((dap_ledger_tx_item_t *)(a_iter->cur_ledger_tx_item))->tx;
-        a_iter->cur_hash = ((dap_ledger_tx_item_t *)(a_iter->cur_ledger_tx_item))->tx_hash_fast;
-        a_iter->ret_code = 0;
-        a_iter->is_unspent = ((dap_ledger_tx_item_t *)(a_iter->cur_ledger_tx_item))->cache_data.ts_spent ? false : true;
-    } else {
-        a_iter->cur = NULL;
-        memset(&a_iter->cur_hash, 0, sizeof(dap_hash_fast_t));
-        a_iter->ret_code = 0;
-        a_iter->is_unspent = false;
-    }
-    pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
-    return a_iter->cur;
-}
-
-dap_chain_datum_tx_t *dap_ledger_datum_iter_get_last(dap_ledger_datum_iter_t *a_iter)
-{
-    dap_ledger_private_t *l_ledger_pvt = PVT(a_iter->net->pub.ledger);
-    pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
-    a_iter->cur_ledger_tx_item = l_ledger_pvt->ledger_items->hh.prev;
-    a_iter->cur = ((dap_ledger_tx_item_t *)(a_iter->cur_ledger_tx_item))->tx;
-    a_iter->cur_hash = ((dap_ledger_tx_item_t *)(a_iter->cur_ledger_tx_item))->tx_hash_fast;
-    a_iter->is_unspent = ((dap_ledger_tx_item_t *)(a_iter->cur_ledger_tx_item))->cache_data.ts_spent ? false : true;
-    a_iter->ret_code = 0;
-    pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
-    return a_iter->cur;
-}
-
 /**
  * @brief dap_ledger_get_list_tx_outs_with_val
  * @param a_ledger
@@ -5631,6 +5567,75 @@ dap_list_t *dap_ledger_get_txs(dap_ledger_t *a_ledger, size_t a_count, size_t a_
     return l_list;
 }
 
+dap_ledger_datum_iter_t *dap_ledger_datum_iter_create(dap_chain_net_t *a_net)
+{
+    dap_ledger_datum_iter_t *l_ret = DAP_NEW_Z(dap_ledger_datum_iter_t);
+    if(!l_ret){
+        log_it(L_CRITICAL, "Memory allocation error!");
+        return NULL;
+    }
+    l_ret->net = a_net;
+    return l_ret;
+}
+
+void dap_ledger_datum_iter_delete(dap_ledger_datum_iter_t *a_iter)
+{
+    DAP_DEL_Z(a_iter);
+}
+
+dap_chain_datum_tx_t *dap_ledger_datum_iter_get_first(dap_ledger_datum_iter_t *a_iter)
+{
+    if (!a_iter)
+        return NULL;
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_iter->net->pub.ledger);
+    pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
+    if (!l_ledger_pvt->ledger_items) {
+        pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+        return NULL;
+    }
+    a_iter->cur_ledger_tx_item = l_ledger_pvt->ledger_items;
+    a_iter->cur = ((dap_ledger_tx_item_t *)(a_iter->cur_ledger_tx_item))->tx;
+    a_iter->cur_hash = ((dap_ledger_tx_item_t *)(a_iter->cur_ledger_tx_item))->tx_hash_fast;
+    a_iter->is_unspent = ((dap_ledger_tx_item_t *)(a_iter->cur_ledger_tx_item))->cache_data.ts_spent ? false : true;
+    a_iter->ret_code = 0;
+    pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+    return a_iter->cur;
+}
+
+dap_chain_datum_tx_t *dap_ledger_datum_iter_get_next(dap_ledger_datum_iter_t *a_iter)
+{
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_iter->net->pub.ledger);
+    pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
+    a_iter->cur_ledger_tx_item = ((dap_ledger_tx_item_t *)(a_iter->cur_ledger_tx_item))->hh.next;
+    if (a_iter->cur_ledger_tx_item){
+        a_iter->cur = ((dap_ledger_tx_item_t *)(a_iter->cur_ledger_tx_item))->tx;
+        a_iter->cur_hash = ((dap_ledger_tx_item_t *)(a_iter->cur_ledger_tx_item))->tx_hash_fast;
+        a_iter->ret_code = 0;
+        a_iter->is_unspent = ((dap_ledger_tx_item_t *)(a_iter->cur_ledger_tx_item))->cache_data.ts_spent ? false : true;
+    } else {
+        a_iter->cur = NULL;
+        memset(&a_iter->cur_hash, 0, sizeof(dap_hash_fast_t));
+        a_iter->ret_code = 0;
+        a_iter->is_unspent = false;
+    }
+    pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+    return a_iter->cur;
+}
+
+dap_chain_datum_tx_t *dap_ledger_datum_iter_get_last(dap_ledger_datum_iter_t *a_iter)
+{
+    dap_ledger_private_t *l_ledger_pvt = PVT(a_iter->net->pub.ledger);
+    pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
+    a_iter->cur_ledger_tx_item = l_ledger_pvt->ledger_items->hh.prev;
+    a_iter->cur = ((dap_ledger_tx_item_t *)(a_iter->cur_ledger_tx_item))->tx;
+    a_iter->cur_hash = ((dap_ledger_tx_item_t *)(a_iter->cur_ledger_tx_item))->tx_hash_fast;
+    a_iter->is_unspent = ((dap_ledger_tx_item_t *)(a_iter->cur_ledger_tx_item))->cache_data.ts_spent ? false : true;
+    a_iter->ret_code = 0;
+    pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+    return a_iter->cur;
+}
+
+
 /**
  * @brief dap_ledger_get_list_tx_cond_outs_with_val
  * @param a_ledger
@@ -5806,4 +5811,21 @@ bool dap_ledger_cache_enabled(dap_ledger_t *a_ledger)
 void dap_ledger_set_cache_tx_check_callback(dap_ledger_t *a_ledger, dap_ledger_cache_tx_check_callback_t a_callback)
 {
     PVT(a_ledger)->cache_tx_check_callback = a_callback;
+}
+
+const char *dap_ledger_tx_get_main_ticker(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, int *a_ledger_rc)
+{
+    const char *l_main_ticker = NULL;
+    dap_chain_hash_fast_t * l_tx_hash = dap_chain_node_datum_tx_calc_hash(a_tx);
+    int l_rc = dap_ledger_tx_cache_check(a_ledger, a_tx, l_tx_hash, false, NULL, NULL, (char **)&l_main_ticker);
+    
+    if (l_rc == DAP_LEDGER_TX_ALREADY_CACHED)
+    {
+        l_main_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, l_tx_hash);
+    }
+
+    if (a_ledger_rc)
+        *a_ledger_rc = l_rc;
+    
+    return l_main_ticker;
 }

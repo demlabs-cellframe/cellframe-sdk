@@ -192,7 +192,7 @@ json_object *dap_chain_datum_tx_item_voting_tsd_to_json(dap_chain_datum_tx_t* a_
         }
         l_temp = l_temp->next;
     }
-    dap_list_free_full(l_tsd_list, NULL);
+    dap_list_free(l_tsd_list);
 
     json_object_object_add(l_object, "answers", l_answer_array_object);
     return l_object;

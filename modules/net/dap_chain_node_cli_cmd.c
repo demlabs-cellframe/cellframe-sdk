@@ -110,6 +110,7 @@
 
 #include "dap_json_rpc_errors.h"
 #include "dap_json_rpc_chain_datum.h"
+#include "dap_chain_datum_tx_voting.h"
 
 
 #define LOG_TAG "chain_node_cli_cmd"
@@ -1123,7 +1124,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
 
     // struct to write to the global db
     dap_chain_node_addr_t l_node_addr = {}, l_link;
-    dap_chain_node_info_t l_node_info;
+    dap_chain_node_info_t l_node_info = {};
 
     //TODO need to rework with new node info / alias /links concept
 
@@ -2777,122 +2778,6 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply)
     return 0;
 }
 
-/**
- * @breif s_ticker_list_get_main_ticker
- *
- * @param a_tickers
- * @param a_native_ticker
- * @return const char*
- */
-const char *s_ticker_list_get_main_ticker(dap_list_t *a_tickers, const char *a_native_ticker) {
-    if (!a_tickers)
-        return NULL;
-    const char *mt = (char*)a_tickers->data;
-    for (dap_list_t *i = a_tickers; i != NULL; i = i->next) {
-        char *tmp = (char*)i->data;
-        if (dap_strcmp(mt, tmp) != 0) {
-            if (dap_strcmp(tmp, a_native_ticker) != 0)
-                return tmp;
-        }
-    }
-    return mt;
-}
-
-/**
- * @breif s_tickers_list_created
- *
- * @param a_tx
- * @param a_net
- * @param a_unchained
- * @param a_token_ticker
- * @return dap_list_t*
- */
-dap_list_t *s_tickers_list_created(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net, bool *a_unchained,
-                                  const char **a_token_ticker) {
-    dap_list_t* l_tickers = NULL;
-    const char *l_token_ticker = NULL;
-    dap_chain_datum_tx_t *l_tx_parent = NULL;
-    int l_item_in_size = 0;
-    void *l_item_in = dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_IN_ALL, &l_item_in_size);
-    dap_hash_fast_t l_parent_hash = {0};
-    int l_parrent_tx_out_idx = 0;
-    for (int l_item_in_size_current = 0; l_item_in_size_current < l_item_in_size && !l_token_ticker;) {
-        size_t l_tmp_size = dap_chain_datum_item_tx_get_size(l_item_in);
-        if (l_tmp_size == 0)
-            break;
-        l_item_in_size_current += l_tmp_size;
-        switch (dap_chain_datum_tx_item_get_type(l_item_in)) {
-            case TX_ITEM_TYPE_IN:
-                l_parent_hash = ((dap_chain_tx_in_t*)l_item_in)->header.tx_prev_hash;
-                l_parrent_tx_out_idx = ((dap_chain_tx_in_t*)l_item_in)->header.tx_out_prev_idx;
-                l_tx_parent = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &((dap_chain_tx_in_t*)l_item_in)->header.tx_prev_hash);
-                break;
-            case TX_ITEM_TYPE_IN_COND:
-                l_parent_hash = ((dap_chain_tx_in_cond_t*)l_item_in)->header.tx_prev_hash;
-                l_parrent_tx_out_idx = ((dap_chain_tx_in_cond_t*)l_item_in)->header.tx_out_prev_idx;
-                l_tx_parent = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &((dap_chain_tx_in_cond_t*)l_item_in)->header.tx_prev_hash);
-                break;
-        }
-        if (!l_tx_parent) {
-            *a_unchained = true;
-            break;
-        }
-        const char *l_current_token = NULL;
-        void *l_out_unknown = (dap_chain_tx_out_cond_t*)dap_chain_datum_tx_item_get_nth(
-                l_tx_parent, TX_ITEM_TYPE_OUT_ALL, l_parrent_tx_out_idx);
-        switch(dap_chain_datum_tx_item_get_type(l_out_unknown)) {
-            case TX_ITEM_TYPE_OUT:
-                l_current_token = dap_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_parent_hash);
-                l_tickers = dap_list_append(l_tickers, (void *)l_current_token);
-                break;
-            case TX_ITEM_TYPE_OUT_EXT:
-                l_current_token = ((dap_chain_tx_out_ext_t*)l_out_unknown)->token;
-                l_tickers = dap_list_append(l_tickers, (void *)l_current_token);
-                break;
-            case TX_ITEM_TYPE_OUT_COND:
-                if(((dap_chain_tx_out_cond_t*)l_out_unknown)->header.subtype != DAP_CHAIN_TX_OUT_COND_SUBTYPE_FEE) {
-                    l_token_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_net->pub.ledger, &l_parent_hash);
-                }
-                break;
-        }
-    }
-    if (!(*a_unchained) && !l_token_ticker) {
-        return l_tickers;
-    } else {
-        DAP_DELETE(l_tickers);
-        *a_token_ticker = l_token_ticker;
-        return NULL;
-    }
-}
-
-/**
- * @breif s_tx_get_main_ticker
- *
- * @param a_tx
- * @param a_net
- * @param a_unchained
- * @return const char*
- */
-const char* s_tx_get_main_ticker(dap_chain_datum_tx_t *a_tx, dap_chain_net_t *a_net, bool *a_unchained) {
-    dap_chain_tx_in_ems_t *obj_token = (dap_chain_tx_in_ems_t*)dap_chain_datum_tx_item_get(a_tx, NULL, TX_ITEM_TYPE_IN_EMS, NULL);
-    if (obj_token) {
-        return obj_token->header.ticker;
-    } else {
-        const char *l_token_ticker = NULL;
-        dap_list_t *l_tickers_list = NULL;
-        if (a_unchained) {
-            l_tickers_list = s_tickers_list_created(a_tx, a_net, a_unchained, &l_token_ticker);
-        } else {
-            bool l_unchained = false;
-            l_tickers_list = s_tickers_list_created(a_tx, a_net, &l_unchained, &l_token_ticker);
-        }
-        if (l_tickers_list) {
-            l_token_ticker = s_ticker_list_get_main_ticker(l_tickers_list, a_net->pub.native_ticker);
-            DAP_DELETE(l_tickers_list);
-        }
-        return l_token_ticker;
-    }
-}
 
 /**
  * @brief s_com_mempool_list_print_for_chain
@@ -3043,19 +2928,26 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                 case DAP_CHAIN_DATUM_TX: {
                     dap_chain_addr_t l_addr_from;
                     dap_chain_datum_tx_t *l_tx = (dap_chain_datum_tx_t *) l_datum->data;
-                    const char *l_main_token = s_tx_get_main_ticker(l_tx, a_net, NULL);
-                    if (l_main_token) {
-                        json_object *l_jobj_main_ticker = json_object_new_string(l_main_token);
-                        if (!l_jobj_main_ticker) {
+                    
+                    int l_ledger_rc = DAP_LEDGER_TX_CHECK_NULL_TX;
+                    const char *l_main_ticker = dap_ledger_tx_get_main_ticker(a_net->pub.ledger, l_tx, &l_ledger_rc);
+                    char * l_ledger_rc_str = dap_ledger_tx_check_err_str(l_ledger_rc);
+                    
+                    json_object *l_jobj_main_ticker = json_object_new_string(l_main_ticker ? l_main_ticker : "UNKNOWN");
+                    json_object *l_jobj_ledger_rc = json_object_new_string(l_ledger_rc_str);
+                    
+                    if (!l_jobj_main_ticker || !l_jobj_ledger_rc) {
                             json_object_put(l_jobj_datum);
                             json_object_put(l_jobj_datums);
                             json_object_put(l_obj_chain);
                             dap_global_db_objs_delete(l_objs, l_objs_count);
                             dap_json_rpc_allocation_error;
                             return;
-                        }
-                        json_object_object_add(l_jobj_datum, "main_ticker", l_jobj_main_ticker);
                     }
+                
+                    json_object_object_add(l_jobj_datum, "main_ticker", l_jobj_main_ticker);
+                    json_object_object_add(l_jobj_datum, "ledger_rc", l_jobj_ledger_rc);
+                
                     dap_list_t *l_list_sig_item = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_SIG, NULL);
                     dap_list_t *l_list_in_ems = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_IN_EMS, NULL);
                     if (!l_list_sig_item) {
@@ -3123,6 +3015,8 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                     json_object *l_jobj_xchange_list = json_object_new_array();
                     json_object *l_jobj_stake_pos_delegate_list = json_object_new_array();
                     json_object *l_jobj_pay_list = json_object_new_array();
+                    json_object *l_jobj_tx_vote = json_object_new_array();
+                    json_object *l_jobj_tx_voting  = json_object_new_array();
                     if (!l_jobj_to_list || !l_jobj_change_list || !l_jobj_fee_list || !l_jobj_stake_lock_list ||
                         !l_jobj_xchange_list || !l_jobj_stake_pos_delegate_list || !l_jobj_pay_list) {
                         json_object_put(l_jobj_to_list);
@@ -3133,6 +3027,8 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                         json_object_put(l_jobj_xchange_list);
                         json_object_put(l_jobj_stake_pos_delegate_list);
                         json_object_put(l_jobj_pay_list);
+                        json_object_put(l_jobj_tx_vote);
+                        json_object_put(l_jobj_tx_voting);
                         json_object_put(l_jobj_datum);
                         json_object_put(l_jobj_datums);
                         json_object_put(l_obj_chain);
@@ -3148,6 +3044,8 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                         OUT_COND_TYPE_XCHANGE,
                         OUT_COND_TYPE_POS_DELEGATE
                     }l_out_cond_subtype={0};
+                    dap_list_t *l_vote_list = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_VOTE, NULL);
+                    dap_list_t *l_voting_list = dap_chain_datum_tx_items_get(l_tx, TX_ITEM_TYPE_VOTING, NULL);
                     for (dap_list_t *it = l_list_out_items; it; it = it->next) {
                         dap_chain_addr_t *l_dist_addr = NULL;
                         uint256_t l_value = uint256_0;
@@ -3156,7 +3054,7 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                         switch (l_type) {
                             case TX_ITEM_TYPE_OUT: {
                                 l_value = ((dap_chain_tx_out_t *) it->data)->header.value;
-                                l_dist_token = l_main_token;
+                                l_dist_token = l_main_ticker;
                                 l_dist_addr = &((dap_chain_tx_out_t *) it->data)->addr;
                             }
                                 break;
@@ -3175,26 +3073,25 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                                         l_out_cond_subtype = OUT_COND_TYPE_FEE;
                                     } break;
                                     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_LOCK: {
-                                        l_dist_token = l_main_token;
+                                        l_dist_token = l_main_ticker;
                                         l_out_cond_subtype = OUT_COND_TYPE_STAKE_LOCK;
                                     } break;
                                     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_XCHANGE: {
-                                        l_dist_token = l_main_token;
+                                        l_dist_token = l_main_ticker;
                                         l_out_cond_subtype = OUT_COND_TYPE_XCHANGE;
                                     } break;
                                     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_STAKE_POS_DELEGATE: {
-                                        l_dist_token = l_main_token;
+                                        l_dist_token = l_main_ticker;
                                         l_out_cond_subtype = OUT_COND_TYPE_POS_DELEGATE;
                                     } break;
                                     case DAP_CHAIN_TX_OUT_COND_SUBTYPE_SRV_PAY: {
-                                        l_dist_token = l_main_token;
+                                        l_dist_token = l_main_ticker;
                                         l_out_cond_subtype = OUT_COND_TYPE_PAY;
                                     } break;
                                     default:
                                         break;
                                 }
-                            }
-                                break;
+                            } break;
                             default:
                                 break;
                         }
@@ -3326,6 +3223,14 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                             }
                         }
                     }
+                    for (dap_list_t *it = l_vote_list; it; it = it->next) {
+                        json_object *l_jobj_vote = dap_chain_datum_tx_item_vote_to_json((dap_chain_tx_vote_t*)it->data);
+                        json_object_array_add(l_jobj_tx_vote, l_jobj_vote);
+                    }
+                    for (dap_list_t *it = l_voting_list; it; it = it->next) {
+                        json_object *l_jobj_voting = dap_chain_datum_tx_item_voting_tsd_to_json(l_tx);
+                        json_object_array_add(l_jobj_tx_voting, l_jobj_voting);
+                    }
                     json_object_object_add(l_jobj_datum, "to", l_jobj_to_list);
                     json_object_object_add(l_jobj_datum, "change", l_jobj_change_list);
                     json_object_object_add(l_jobj_datum, "fee", l_jobj_fee_list);
@@ -3339,7 +3244,13 @@ void s_com_mempool_list_print_for_chain(dap_chain_net_t * a_net, dap_chain_t * a
                     json_object_object_add(l_jobj_datum, "srv_stake_pos_delegate", l_jobj_stake_pos_delegate_list) : json_object_put(l_jobj_stake_pos_delegate_list);
                     json_object_array_length(l_jobj_to_from_emi) > 0 ?
                     json_object_object_add(l_jobj_datum, "from_emission", l_jobj_to_from_emi) : json_object_put(l_jobj_to_from_emi);
+                    json_object_array_length(l_jobj_tx_vote) > 0 ?
+                    json_object_object_add(l_jobj_datum, "vote", l_jobj_tx_vote) : json_object_put(l_jobj_tx_vote);
+                    json_object_array_length(l_jobj_tx_voting) > 0 ?
+                    json_object_object_add(l_jobj_datum, "voting", l_jobj_tx_voting) : json_object_put(l_jobj_tx_voting);
                     dap_list_free(l_list_out_items);
+                    dap_list_free(l_vote_list);
+                    dap_list_free(l_voting_list);
                 }
                     break;
                 case DAP_CHAIN_DATUM_TOKEN_EMISSION: {
@@ -3782,7 +3693,7 @@ int _cmd_mempool_proc(dap_chain_net_t *a_net, dap_chain_t *a_chain, const char *
                     return DAP_JSON_RPC_ERR_CODE_MEMORY_ALLOCATED;
                 }
                 json_object_object_add(l_jobj_verify, "isProcessed", l_jobj_verify_status);
-                if (dap_global_db_del_sync(l_gdb_group_mempool, a_datum_hash)){
+                if (false) { //dap_global_db_del_sync(l_gdb_group_mempool, a_datum_hash)){
                     json_object *l_jobj_wrn_text = json_object_new_string("Can't delete datum from mempool!");
                     if (!l_jobj_wrn_text) {
                         json_object_put(l_jobj_verify);

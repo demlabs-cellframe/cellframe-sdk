@@ -680,7 +680,7 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
     dap_return_val_if_pass(!a_net || !PVT(a_net) || PVT(a_net)->state_target == NET_STATE_OFFLINE , false);
 // func work
     dap_chain_net_pvt_t *l_net_pvt = PVT(a_net);
-    if (!dap_link_manager_links_count(a_net->pub.id.uint64)) {
+    if (dap_link_manager_links_count(a_net->pub.id.uint64) < l_net_pvt->seed_nodes_count) {
         s_fill_links_from_root_aliases(a_net);
         // Extra links from cfg
         for (int i = 0; i < l_net_pvt->permanent_links_count; i++) {
@@ -1803,13 +1803,14 @@ static int s_cli_net(int argc, char **argv, void **reply)
                 if( l_hash_hex_str ){
                     l_ret = dap_global_db_set_sync(l_gdb_group_str, l_hash_hex_str, &c, sizeof(c), false );
                     DAP_DELETE(l_gdb_group_str);
-                    DAP_DELETE(l_hash_hex_str);
                     if (l_ret) {
                         json_object_put(l_jobj_return);
                         dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_CAN_NOT_SAVE_PUBLIC_KEY_IN_DATABASE,
                                                "Can't save public key hash %s in database", l_hash_hex_str);
+                        DAP_DELETE(l_hash_hex_str);
                         return DAP_CHAIN_NET_JSON_RPC_CAN_NOT_SAVE_PUBLIC_KEY_IN_DATABASE;
                     }
+                    DAP_DELETE(l_hash_hex_str);
                 } else{
                     json_object_put(l_jobj_return);
                     dap_json_rpc_error_add(DAP_CHAIN_NET_JSON_RPC_CAN_NOT_SAVE_PUBLIC_KEY_IN_DATABASE, "%s",
@@ -2528,7 +2529,7 @@ int s_net_load(dap_chain_net_t *a_net)
         l_gdb_groups_mask = dap_strdup_printf("%s.chain-%s.mempool", l_net->pub.gdb_groups_prefix, l_chain->name);
         dap_global_db_cluster_t *l_cluster = dap_global_db_cluster_add(
                                                     dap_global_db_instance_get_default(),
-                                                    l_net->pub.name, l_net->pub.id.uint64,
+                                                    l_net->pub.name, dap_cluster_guuid_compose(l_net->pub.id.uint64, 0),
                                                     l_gdb_groups_mask, DAP_CHAIN_NET_MEMPOOL_TTL, true,
                                                     DAP_GDB_MEMBER_ROLE_USER,
                                                     DAP_CLUSTER_ROLE_EMBEDDED);
@@ -2544,7 +2545,7 @@ int s_net_load(dap_chain_net_t *a_net)
     // Service orders cluster
     l_gdb_groups_mask = dap_strdup_printf("%s.service.orders", l_net->pub.gdb_groups_prefix);
     l_net_pvt->orders_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
-                                                          l_net->pub.name, l_net->pub.id.uint64,
+                                                          l_net->pub.name, dap_cluster_guuid_compose(l_net->pub.id.uint64, 0),
                                                           l_gdb_groups_mask, 0, true,
                                                           DAP_GDB_MEMBER_ROLE_GUEST,
                                                           DAP_CLUSTER_ROLE_EMBEDDED);
@@ -2559,7 +2560,7 @@ int s_net_load(dap_chain_net_t *a_net)
     l_net->pub.gdb_nodes_aliases = dap_strdup_printf("%s.nodes.aliases",l_net->pub.gdb_groups_prefix);
     l_gdb_groups_mask = dap_strdup_printf("%s.nodes*", l_net->pub.gdb_groups_prefix);
     l_net_pvt->nodes_cluster = dap_global_db_cluster_add(dap_global_db_instance_get_default(),
-                                                         l_net->pub.name, l_net->pub.id.uint64,
+                                                         l_net->pub.name, dap_cluster_guuid_compose(l_net->pub.id.uint64, 0),
                                                          l_gdb_groups_mask, 0, true,
                                                          DAP_GDB_MEMBER_ROLE_GUEST,
                                                          DAP_CLUSTER_ROLE_EMBEDDED);
