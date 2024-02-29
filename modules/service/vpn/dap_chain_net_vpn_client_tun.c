@@ -328,9 +328,7 @@ static bool is_local_address(const char *a_address)
 
 int dap_chain_net_vpn_client_tun_init(const char *a_ipv4_server_str)
 {
-    if(s_cur_ipv4_server)
-        DAP_DELETE(s_cur_ipv4_server);
-    // set server address
+    DAP_DEL_Z(s_cur_ipv4_server);
     s_cur_ipv4_server = dap_strdup(a_ipv4_server_str);
     return 0;
 }

@@ -119,7 +119,7 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     uint8_t l_response = ERR_UNKNOWN;
     switch (l_issue_method) {
     case 'a': {
-        uint8_t l_host_size = dap_min(INET6_ADDRSTRLEN, dap_strlen(a_http_simple->es_hostaddr) + 1);
+        uint8_t l_host_size = dap_min(INET6_ADDRSTRLEN, (int)dap_strlen(a_http_simple->es_hostaddr) + 1);
         l_node_info = DAP_NEW_STACK_SIZE(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + l_host_size);
         *l_node_info = (dap_chain_node_info_t) {
             .address = addr,
