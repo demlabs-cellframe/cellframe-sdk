@@ -2497,9 +2497,7 @@ int s_net_init(const char * a_net_name, uint16_t a_acl_idx)
         char l_host[0xFF + 1] = { '\0' };
         dap_chain_node_addr_t l_addr;
         if ( dap_stream_node_addr_from_str(&l_addr, l_poa_nodes_addrs[i])
-             || dap_chain_node_parse_hostname(l_seed_nodes_hosts[i],
-                                              l_host,
-                                              &l_port)) {
+             || dap_net_parse_hostname(l_seed_nodes_hosts[i], l_host, &l_port)) {
             log_it(L_ERROR, "Incorrect format of address \"%s\" or \"%s\", fix net config and restart node",
                             l_seed_nodes_hosts[i], l_poa_nodes_addrs[i]);
             dap_chain_net_delete(l_net);
@@ -2811,24 +2809,28 @@ int s_net_load(dap_chain_net_t *a_net)
 
      if (dap_config_get_item_bool_default(g_config, "server", "enabled", false)) {
         char l_host[0xFF + 1] = { '\0' };
-        uint16_t l_port = 0;
+        uint16_t l_ext_port = 0;
         const char *l_ext_addr = dap_config_get_item_str_default(g_config, "server", "ext_address", NULL);
         if (!l_ext_addr) {
             log_it(L_INFO, "External address is not set, will be detected automatically");
             l_net_pvt->node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, sizeof(dap_chain_node_info_t));
-            l_net_pvt->node_info->ext_port = dap_config_get_item_uint16_default( g_config, "server", "ext_port",
-                dap_config_get_item_uint16_default(g_config, "server", "listen_port", 8079) );
-        }
-        else {
-            if ( dap_chain_node_parse_hostname(l_ext_addr, l_host, &l_port) )
+        } else {
+            if ( dap_net_parse_hostname(l_ext_addr, l_host, &l_ext_port) )
                 log_it(L_ERROR, "Invalid server address \"%s\", fix config and restart node", l_ext_addr);
             else {
                 uint8_t l_hostlen = dap_strlen(l_host);
                 l_net_pvt->node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + l_hostlen + 1 );
-                l_net_pvt->node_info->ext_port = l_port ? l_port : 8079; // TODO: default port
+                l_net_pvt->node_info->ext_port = l_ext_port;
                 l_net_pvt->node_info->ext_host_len = dap_strncpy(l_net_pvt->node_info->ext_host, l_host, l_hostlen) - l_net_pvt->node_info->ext_host;
             }
         }
+        if ( !l_net_pvt->node_info->ext_port ) {
+            char **l_listening = dap_config_get_array_str(g_config, "server", "listen_address", NULL);
+            l_net_pvt->node_info->ext_port = l_listening && !dap_net_parse_hostname(*l_listening, NULL, &l_ext_port) && l_ext_port
+                ? l_ext_port : 8079; // TODO: default port?
+        }
+        log_it(L_INFO, "Server enabled, listening on %s : %u",
+               l_net_pvt->node_info->ext_host_len ? l_net_pvt->node_info->ext_host : "0.0.0.0", l_net_pvt->node_info->ext_port);
     } else
         log_it(L_INFO, "Server is disabled");
 

@@ -993,8 +993,16 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
             return -3;
         }*/
         // Synchronous request, wait for reply
-        int res = dap_chain_net_node_list_request(l_net, dap_chain_net_get_my_node_info(l_net), true, 'a');
-        switch (res)
+        int l_res;
+        if (l_port_str) {
+            dap_chain_node_info_t *l_my_node_info = DAP_NEW_STACK_SIZE(dap_chain_node_info_t,
+                sizeof(dap_chain_node_info_t) + dap_chain_net_get_my_node_info(l_net)->ext_host_len + 1);
+            memcpy(l_my_node_info, dap_chain_net_get_my_node_info(l_net), sizeof(dap_chain_node_info_t) + dap_chain_net_get_my_node_info(l_net)->ext_host_len + 1);
+            l_my_node_info->ext_port = strtoul(l_port_str, NULL, 10);
+            l_res = dap_chain_net_node_list_request(l_net, l_my_node_info, true, 'a');
+        } else 
+            l_res = dap_chain_net_node_list_request(l_net, dap_chain_net_get_my_node_info(l_net), true, 'a');
+        switch (l_res)
         {
             case 0:
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "No server");
