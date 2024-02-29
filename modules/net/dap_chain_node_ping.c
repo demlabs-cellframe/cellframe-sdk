@@ -235,7 +235,7 @@ static void* node_ping_background_proc(void *a_arg)
 
         int hops = 0, time_usec = 0;
 #if defined(DAP_OS_LINUX) && ! defined(DAP_OS_ANDROID)
-        int res = traceroute_util(l_node_info->hdr.ext_addr, &hops, &time_usec);
+        //int res = traceroute_util(l_node_info->hdr.ext_addr, &hops, &time_usec);
 #endif
         if(l_min_hops>hops) {
             l_min_hops = hops;

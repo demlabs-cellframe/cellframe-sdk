@@ -581,8 +581,8 @@ static int s_save_stat_to_database(dap_stream_ch_chain_net_srv_pkt_test_t *a_req
     json_object_object_add(jobj, "time_save_str", json_object_new_string(buf));
     json_object_object_add(jobj, "time_connect", json_object_new_int(a_request->time_connect_ms));
     json_object_object_add(jobj, "time_transmit", json_object_new_int(l_t2_ms-l_t1_ms));
-    json_object_object_add(jobj, "ip_send", json_object_new_string((char *)a_request->ip_send));
-    json_object_object_add(jobj, "ip_recv", json_object_new_string((char *)a_request->ip_recv));
+    json_object_object_add(jobj, "ip_send", json_object_new_string((char *)a_request->host_send));
+    json_object_object_add(jobj, "ip_recv", json_object_new_string((char *)a_request->host_recv));
     json_object_object_add(jobj, "time_len_send", json_object_new_int(a_request->data_size_send));
     json_object_object_add(jobj, "time_len_recv", json_object_new_int(a_request->data_size_recv));
     json_object_object_add(jobj, "err_code", json_object_new_int(a_request->err_code));
