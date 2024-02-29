@@ -46,10 +46,10 @@ enum RetCode {
 
 static int s_dap_chain_net_node_list_add(dap_chain_net_t *a_net, dap_chain_node_info_t *a_node_info) {
     return !dap_chain_node_info_save(a_net, a_node_info)
-        ? log_it( L_DEBUG, "Add address" NODE_ADDR_FP_STR " '%s : %u' to nodelist",
+        ? log_it( L_DEBUG, "Add address " NODE_ADDR_FP_STR " '%s : %u' to nodelist",
                  NODE_ADDR_FP_ARGS_S(a_node_info->address),
                  a_node_info->ext_host, a_node_info->ext_port ), ADD_OK
-        : log_it( L_ERROR, "Address" NODE_ADDR_FP_STR " '%s : %u' not added",
+        : log_it( L_ERROR, "Address " NODE_ADDR_FP_STR " '%s : %u' not added",
                  NODE_ADDR_FP_ARGS_S(a_node_info->address),
                  a_node_info->ext_host, a_node_info->ext_port ), ERR_NOT_ADDED;
 }
@@ -126,24 +126,28 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
             .ext_port = port,
             .ext_host_len = dap_strncpy(l_node_info->ext_host, a_http_simple->es_hostaddr, l_host_size) - l_node_info->ext_host
         };
-        l_response = dap_global_db_driver_is(l_net->pub.gdb_nodes, l_key) ? s_dap_chain_net_node_list_add(l_net, l_node_info)
-            : !dap_chain_net_balancer_handshake(l_node_info, l_net) ? s_dap_chain_net_node_list_add(l_net, l_node_info)
-                : ERR_HANDSHAKE, log_it(L_DEBUG, "Can't do handshake with %s [ %s : %u ]",
-                                        l_key, l_node_info->ext_host, l_node_info->ext_port);
+        l_response = !dap_chain_net_balancer_handshake(l_node_info, l_net)
+            ? s_dap_chain_net_node_list_add(l_net, l_node_info)
+            : ( log_it(L_DEBUG, "Can't do handshake with %s [ %s : %u ]", l_key, l_node_info->ext_host, l_node_info->ext_port),
+            ERR_HANDSHAKE );
         *l_return_code = Http_Status_OK;
     } break;
 
     case 'r': {
         if ( !(l_node_info = (dap_chain_node_info_t*)dap_global_db_get_sync(l_net->pub.gdb_nodes, l_key, NULL, NULL, NULL)) ) {
-            l_response = ERR_NOT_ADDED, log_it(L_DEBUG,"Address %s is not present in nodelist", l_key);
+            log_it(L_DEBUG,"Address %s is not present in nodelist", l_key);
+            l_response = ERR_NOT_ADDED;
         } else {
             if ( dap_strcmp(l_node_info->ext_host, a_http_simple->es_hostaddr) ) {
                 l_response = ERR_NOT_PINNER;
                 *l_return_code = Http_Status_Forbidden;
             } else {
                 l_response = !dap_global_db_del_sync(l_net->pub.gdb_nodes, l_key)
-                    ? log_it(L_DEBUG, "Node %s successfully deleted from nodelist", l_key), DELETED_OK
-                    : ERR_EXISTS, log_it(L_DEBUG, "Can't delete node %s from nodelist", l_key);
+                    ? ( log_it(L_DEBUG, "Node %s successfully deleted from nodelist", l_key),
+                    DELETED_OK )
+                    : ( log_it(L_DEBUG, "Can't delete node %s from nodelist", l_key),
+                    ERR_EXISTS );
+                *l_return_code = Http_Status_OK;
             }
             DAP_DELETE(l_node_info);
         }

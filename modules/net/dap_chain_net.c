@@ -2950,9 +2950,9 @@ static void s_nodelist_change_notify(dap_store_obj_t *a_obj, void *a_arg)
     char l_ts[80] = { '\0' };
     dap_nanotime_to_str_rfc822(l_ts, sizeof(l_ts), a_obj->timestamp);
 
-    log_it(L_ATT, "Add node "NODE_ADDR_FP_STR" [%s : %u] to network %s at %s\n",
+    log_it(L_NOTICE, "Add node "NODE_ADDR_FP_STR" [%s : %u] to network %s at %s\n",
                              NODE_ADDR_FP_ARGS_S(l_node_info->address),
-                             l_node_info->ext_host, dap_itoa(l_node_info->ext_port),
+                             l_node_info->ext_host, l_node_info->ext_port,
                              l_net->pub.name, l_ts);
 }
 
