@@ -852,7 +852,7 @@ uint64_t dap_chain_net_srv_xchange_get_order_completion_rate(dap_chain_net_t *a_
     return dap_chain_balance_to_coins_uint64(l_percent_completed);
 }
 
-dap_chain_net_srv_xchange_order_status_t ap_chain_net_srv_xchange_get_order_status(dap_chain_net_t *a_net, dap_hash_fast_t a_order_tx_hash)
+dap_chain_net_srv_xchange_order_status_t dap_chain_net_srv_xchange_get_order_status(dap_chain_net_t *a_net, dap_hash_fast_t a_order_tx_hash)
 {
     dap_chain_datum_tx_t * l_tx = dap_ledger_tx_find_by_hash(a_net->pub.ledger, &a_order_tx_hash);
     if (!l_tx){
@@ -1573,7 +1573,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
             }
 
 
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "orderHash: %s\n ts_created: %s (%"DAP_UINT64_FORMAT_U")\n Status: %s, amount: %s (%s) %s, filled: %u%%, rate (%s/%s): %s, net: %s\n\n",
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "orderHash: %s\n ts_created: %s (%"DAP_UINT64_FORMAT_U")\n Status: %s, amount: %s (%s) %s, filled: %lu%%, rate (%s/%s): %s, net: %s\n\n",
                                      dap_chain_hash_fast_to_str_static(&l_tx_hash),
                                      l_tmp_buf, l_ts_create, l_status_order,
                                      l_amount_coins_str ? l_amount_coins_str : "0.0",
@@ -2044,7 +2044,7 @@ static int s_cli_srv_xchange(int a_argc, char **a_argv, void **a_str_reply)
 
                 char *l_amount_coins_str = "0.0",
                      *l_amount_datoshi_str = l_out_cond_last_tx ? dap_uint256_to_char(l_out_cond_last_tx->header.value, &l_amount_coins_str) : "0";
-                dap_string_append_printf(l_reply_str, "orderHash: %s\n ts_created: %s (%"DAP_UINT64_FORMAT_U")\n Status: %s, amount: %s (%s) %s, filled: %u%%, rate (%s/%s): %s, net: %s\n\n", l_tx_hash_str,
+                dap_string_append_printf(l_reply_str, "orderHash: %s\n ts_created: %s (%"DAP_UINT64_FORMAT_U")\n Status: %s, amount: %s (%s) %s, filled: %lu%%, rate (%s/%s): %s, net: %s\n\n", l_tx_hash_str,
                                          l_tmp_buf, l_ts_create, l_status_order,
                                          l_amount_coins_str ? l_amount_coins_str : "0.0",
                                          l_amount_datoshi_str ? l_amount_datoshi_str : "0",
