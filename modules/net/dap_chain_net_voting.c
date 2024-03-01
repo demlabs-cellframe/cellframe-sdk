@@ -572,7 +572,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
         }
 
         if(dap_list_length(l_options_list)>DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_COUNT){
-            dap_cli_server_cmd_set_reply_text(a_str_reply, "The voting can to contain no more than %d options", DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_COUNT);
+            dap_cli_server_cmd_set_reply_text(a_str_reply, "The voting can contain no more than %d options", DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_COUNT);
             return -102;
         }
 
@@ -626,7 +626,7 @@ static int s_cli_voting(int a_argc, char **a_argv, void **a_str_reply)
                 return DAP_CHAIN_NET_VOTE_CREATE_LENGTH_QUESTION_OVERSIZE_MAX;
             } break;
             case DAP_CHAIN_NET_VOTE_CREATE_COUNT_OPTION_OVERSIZE_MAX: {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "The voting can to contain no more than %d options",
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "The voting can contain no more than %d options",
                                                   DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_COUNT);
                 return DAP_CHAIN_NET_VOTE_CREATE_COUNT_OPTION_OVERSIZE_MAX;
             } break;
