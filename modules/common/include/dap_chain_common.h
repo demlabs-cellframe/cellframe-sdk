@@ -254,6 +254,12 @@ DAP_STATIC_INLINE uint256_t dap_chain_uint256_from_uint128(uint128_t a_from)
 #define dap_chain_coins_to_balance dap_uint256_scan_decimal
 #define dap_chain_uint256_to dap_uint256_to_uint64
 
+DAP_STATIC_INLINE uint64_t dap_chain_balance_to_coins_uint64(uint256_t val)
+{
+    DIV_256_COIN(val, dap_chain_coins_to_balance("1000000000000000000.0"), &val);
+    return val._lo.a;
+}
+
 /**
  * @brief dap_chain_hash_to_str
  * @param a_hash
