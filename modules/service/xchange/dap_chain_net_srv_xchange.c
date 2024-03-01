@@ -104,7 +104,7 @@ int dap_chain_net_srv_xchange_init()
         "\tCreate a new order and tx with specified amount of datoshi to exchange with specified rate (buy / sell)\n"
     "srv_xchange order remove -net <net_name> -order <order_hash> -w <wallet_name> -fee <value_datoshi>\n"
          "\tRemove order with specified order hash in specified net name\n"
-    "srv_xchange order history -net <net_name> {-order <order_hash> | -addr <wallet_addr>}"
+    "srv_xchange order history -net <net_name> {-order <order_hash> | -addr <wallet_addr>}\n"
          "\tShows transaction history for the selected order\n"
     "srv_xchange order status -net <net_name> -order <order_hash>\n"
          "\tShows current amount of unselled coins from the selected order and percentage of its completion\n"
