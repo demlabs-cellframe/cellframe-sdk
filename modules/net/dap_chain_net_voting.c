@@ -573,7 +573,7 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
             }
 
             if(dap_list_length(l_options_list)>DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_COUNT){
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "The voting can to contain no more than %d options", DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_COUNT);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "The voting can contain no more than %d options", DAP_CHAIN_DATUM_TX_VOTING_OPTION_MAX_COUNT);
                 return -102;
             }
 
