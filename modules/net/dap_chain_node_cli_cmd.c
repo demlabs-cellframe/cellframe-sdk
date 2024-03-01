@@ -998,13 +998,13 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
             true, 'a');
         switch (l_res)
         {
-            case 0: dap_cli_server_cmd_set_reply_text(a_str_reply, "No server"); break;
-            case 1: dap_cli_server_cmd_set_reply_text(a_str_reply, "Node addr successfully added to node list"); break;
-            case 2: dap_cli_server_cmd_set_reply_text(a_str_reply, "Didn't add your addres node to node list"); break;
-            case 3: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't calculate hash for your addr"); break;
-            case 4: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't do handshake for your node"); break;
-            case 5: dap_cli_server_cmd_set_reply_text(a_str_reply, "The node is already exists"); break;
-            case 6: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process node list HTTP request"); break;
+            case 1: dap_cli_server_cmd_set_reply_text(a_str_reply, "No server"); break;
+            case 2: dap_cli_server_cmd_set_reply_text(a_str_reply, "Node addr successfully added to node list"); break;
+            case 3: dap_cli_server_cmd_set_reply_text(a_str_reply, "Didn't add your addres node to node list"); break;
+            case 4: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't calculate hash for your addr"); break;
+            case 5: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't do handshake for your node"); break;
+            case 6: dap_cli_server_cmd_set_reply_text(a_str_reply, "The node already exists"); break;
+            case 7: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process node list HTTP request"); break;
             default:dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process request, error %d", l_res); break;
         }
         return l_ret;
