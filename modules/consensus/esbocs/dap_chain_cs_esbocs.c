@@ -2411,9 +2411,11 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
             debug_if(PVT(a_session->esbocs)->debug, L_MSG, "Send pkt type 0x%x to "NODE_ADDR_FP_STR,
                                                             a_message_type, NODE_ADDR_FP_ARGS_S(l_validator->node_addr));
             l_message->hdr.recv_addr = l_validator->node_addr;
+            l_message->hdr.sign_size = 0;
             dap_sign_t *l_sign = dap_sign_create(PVT(a_session->esbocs)->blocks_sign_key, l_message,
-                                                 sizeof(l_message->hdr) + a_data_size, 0);
+                                                 l_message_size, 0);
             size_t l_sign_size = dap_sign_get_size(l_sign);
+            l_message->hdr.sign_size = l_sign_size;
             l_message = DAP_REALLOC(l_message, l_message_size + l_sign_size);
             if (!l_message) {
                 log_it(L_CRITICAL, "Memory allocation error");
@@ -2421,8 +2423,7 @@ static void s_message_send(dap_chain_esbocs_session_t *a_session, uint8_t a_mess
             }
             memcpy(l_message->msg_n_sign + a_data_size, l_sign, l_sign_size);
             DAP_DELETE(l_sign);
-            l_message->hdr.sign_size = l_sign_size;
-
+            
             if (l_validator->node_addr.uint64 != a_session->my_addr.uint64) {
                 dap_stream_ch_pkt_send_by_addr(&l_validator->node_addr, DAP_STREAM_CH_ESBOCS_ID,
                                                a_message_type, l_message, l_message_size + l_sign_size);
