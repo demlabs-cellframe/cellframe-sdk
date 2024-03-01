@@ -432,7 +432,9 @@ static void s_fill_links_from_root_aliases(dap_chain_net_t *a_net)
     for (size_t i = 0; i < l_net_pvt->seed_nodes_count; i++) {
         //if (PVT(a_net)->seeds_is_poas)
         //    l_link_node_info.hdr.address = l_net_pvt->poa_nodes_addrs[i];
-        if ( !(l_link = dap_link_manager_link_create_or_update(l_net_pvt->seed_nodes_info[i])) )
+        if ( !(l_link = dap_link_manager_link_create_or_update(&l_net_pvt->seed_nodes_info[i]->address,
+                l_net_pvt->seed_nodes_info[i]->ext_host,
+                l_net_pvt->seed_nodes_info[i]->ext_port)) )
             continue;
         if (dap_link_manager_link_add(a_net->pub.id.uint64, l_link))
             DAP_DEL_Z(l_link);
@@ -528,7 +530,7 @@ static void s_link_manager_callback_error(dap_link_t *a_link, uint64_t a_net_id,
            l_net ? l_net->pub.name : "(unknown)", NODE_ADDR_FP_ARGS_S(a_link->node_addr));
     if (l_net){
         struct json_object *l_json = s_net_states_json_collect(l_net);
-        char l_err_str[128] = { };
+        char l_err_str[512] = { };
         snprintf(l_err_str, sizeof(l_err_str)
                      , "Link " NODE_ADDR_FP_STR " [%s] can't be established, errno %d"
                      , NODE_ADDR_FP_ARGS_S(a_link->node_addr), a_link->client->uplink_addr, a_error);
@@ -581,8 +583,8 @@ static void s_net_balancer_link_prepare_success(dap_worker_t * a_worker, dap_cha
     char l_err_str[128] = { };
     struct json_object *l_json;
     for(size_t i = 0; i < a_link_full_node_list->count_node; ++i){
-        dap_link_t *l_link = dap_link_manager_link_create_or_update(&l_node_info[i].hdr.address, 
-            &l_node_info[i].hdr.ext_addr_v4, &l_node_info[i].hdr.ext_addr_v6, l_node_info[i].hdr.ext_port);
+        dap_link_t *l_link = dap_link_manager_link_create_or_update(&l_node_info[i].address, 
+            l_node_info[i].ext_host, l_node_info[i].ext_port);
         if (!l_link)
             continue;
         switch (dap_link_manager_link_add(l_net->pub.id.uint64, l_link)) {
@@ -687,8 +689,8 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
                         NODE_ADDR_FP_ARGS(l_net_pvt->permanent_links + i));
                 continue;
             }
-            dap_link_t *l_link = dap_link_manager_link_create_or_update(&l_link_node_info[i].hdr.address, 
-                    &l_link_node_info[i].hdr.ext_addr_v4, &l_link_node_info[i].hdr.ext_addr_v6, l_link_node_info[i].hdr.ext_port);
+            dap_link_t *l_link = dap_link_manager_link_create_or_update(&l_link_node_info[i].address, 
+                    l_link_node_info[i].ext_host, l_link_node_info[i].ext_port);
             dap_link_manager_link_add(a_net->pub.id.uint64, l_link);
             DAP_DELETE(l_link_node_info);
         }
@@ -705,8 +707,8 @@ static bool s_new_balancer_link_request(dap_chain_net_t *a_net, int a_link_repla
 
             for(size_t i = 0; i < l_node_cnt; ++i) {
                 int l_net_link_add = 0;
-                dap_link_t *l_link = dap_link_manager_link_create_or_update(&l_node_info[i].hdr.address, 
-                    &l_node_info[i].hdr.ext_addr_v4, &l_node_info[i].hdr.ext_addr_v6, l_node_info[i].hdr.ext_port);
+                dap_link_t *l_link = dap_link_manager_link_create_or_update(&l_node_info[i].address, 
+                    l_node_info[i].ext_host, l_node_info[i].ext_port);
                 if (!l_link)
                     continue;
                 l_net_link_add = dap_link_manager_link_add(a_net->pub.id.uint64, l_link);
@@ -3279,8 +3281,8 @@ int s_link_manager_fill_net_info(dap_link_t *a_link)
     if (!l_node_info) {
         return -3;
     }
-    if (a_link != dap_link_manager_link_create_or_update(&l_node_info->hdr.address, 
-            &l_node_info->hdr.ext_addr_v4, &l_node_info->hdr.ext_addr_v6, l_node_info->hdr.ext_port)) {
+    if (a_link != dap_link_manager_link_create_or_update(&l_node_info->address, 
+            l_node_info->ext_host, l_node_info->ext_port)) {
         log_it(L_WARNING, "LEAKS, links dublicate to node "NODE_ADDR_FP_STR, NODE_ADDR_FP_ARGS_S(a_link->node_addr));
     }
     DAP_DELETE(l_node_info);
