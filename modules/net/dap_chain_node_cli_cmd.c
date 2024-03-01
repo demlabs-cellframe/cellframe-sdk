@@ -993,40 +993,19 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
             return -3;
         }*/
         // Synchronous request, wait for reply
-        int l_res;
-        if (l_port_str) {
-            dap_chain_node_info_t *l_my_node_info = DAP_NEW_STACK_SIZE(dap_chain_node_info_t,
-                sizeof(dap_chain_node_info_t) + dap_chain_net_get_my_node_info(l_net)->ext_host_len + 1);
-            memcpy(l_my_node_info, dap_chain_net_get_my_node_info(l_net), sizeof(dap_chain_node_info_t) + dap_chain_net_get_my_node_info(l_net)->ext_host_len + 1);
-            l_my_node_info->ext_port = strtoul(l_port_str, NULL, 10);
-            l_res = dap_chain_net_node_list_request(l_net, l_my_node_info, true, 'a');
-        } else 
-            l_res = dap_chain_net_node_list_request(l_net, dap_chain_net_get_my_node_info(l_net), true, 'a');
+        int l_res = dap_chain_net_node_list_request(l_net, NULL,
+            l_port_str ? strtoul(l_port_str, NULL, 10) : dap_chain_net_get_my_node_info(l_net)->ext_port,
+            true, 'a');
         switch (l_res)
         {
-            case 0:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "No server");
-            break;
-            case 1:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Node addr successfully added to node list");
-            break;
-            case 2:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Didn't add your addres node to node list");
-            break;
-            case 3:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't calculate hash for your addr");
-            break;
-            case 4:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't do handshake for your node");
-            break;
-            case 5:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "The node is already exists");
-            break;
-            case 6:
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process node list HTTP request");
-            break;
-            default:
-                break;
+            case 0: dap_cli_server_cmd_set_reply_text(a_str_reply, "No server"); break;
+            case 1: dap_cli_server_cmd_set_reply_text(a_str_reply, "Node addr successfully added to node list"); break;
+            case 2: dap_cli_server_cmd_set_reply_text(a_str_reply, "Didn't add your addres node to node list"); break;
+            case 3: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't calculate hash for your addr"); break;
+            case 4: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't do handshake for your node"); break;
+            case 5: dap_cli_server_cmd_set_reply_text(a_str_reply, "The node is already exists"); break;
+            case 6: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process node list HTTP request"); break;
+            default:dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process request, error %d", l_res); break;
         }
         return l_ret;
     }
@@ -1034,10 +1013,10 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
     case CMD_DEL:
         // handler of command 'node del'
     {
-        int l_res = dap_chain_net_node_list_request(l_net, dap_chain_net_get_my_node_info(l_net), true, 'r');
-        switch ( l_res ) {
+        int l_res = dap_chain_net_node_list_request(l_net, NULL, 0, true, 'r');
+        switch (l_res) {
             case 8:  dap_cli_server_cmd_set_reply_text(a_str_reply, "Sucessfully deleted"); break;
-            default: dap_cli_server_cmd_set_reply_text(a_str_reply, "Error code %d", l_res); break;
+            default: dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't process request, error %d", l_res); break;
         }
         return l_ret;
     }

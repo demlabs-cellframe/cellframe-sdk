@@ -46,22 +46,22 @@ enum RetCode {
 
 static int s_dap_chain_net_node_list_add(dap_chain_net_t *a_net, dap_chain_node_info_t *a_node_info) {
     return !dap_chain_node_info_save(a_net, a_node_info)
-        ? log_it( L_DEBUG, "Add address " NODE_ADDR_FP_STR " '%s : %u' to nodelist",
+        ? ( log_it( L_DEBUG, "Add address " NODE_ADDR_FP_STR " '%s : %u' to nodelist",
                  NODE_ADDR_FP_ARGS_S(a_node_info->address),
-                 a_node_info->ext_host, a_node_info->ext_port ), ADD_OK
-        : log_it( L_ERROR, "Address " NODE_ADDR_FP_STR " '%s : %u' not added",
+                 a_node_info->ext_host, a_node_info->ext_port ), ADD_OK )
+        : ( log_it( L_ERROR, "Address " NODE_ADDR_FP_STR " '%s : %u' not added",
                  NODE_ADDR_FP_ARGS_S(a_node_info->address),
-                 a_node_info->ext_host, a_node_info->ext_port ), ERR_NOT_ADDED;
+                 a_node_info->ext_host, a_node_info->ext_port ), ERR_NOT_ADDED );
 }
 
 static int s_dap_chain_net_node_list_del(dap_chain_net_t *a_net, dap_chain_node_info_t *a_node_info) {
     return !dap_chain_node_info_del(a_net, a_node_info)
-        ? log_it( L_DEBUG, "Delete address" NODE_ADDR_FP_STR " '%s : %u' from nodelist",
+        ? ( log_it( L_DEBUG, "Delete address" NODE_ADDR_FP_STR " '%s : %u' from nodelist",
                  NODE_ADDR_FP_ARGS_S(a_node_info->address),
-                 a_node_info->ext_host, a_node_info->ext_port ), DELETED_OK
-        : log_it( L_ERROR, "Address" NODE_ADDR_FP_STR " '%s : %u' not deleted",
+                 a_node_info->ext_host, a_node_info->ext_port ), DELETED_OK )
+        : ( log_it( L_ERROR, "Address" NODE_ADDR_FP_STR " '%s : %u' not deleted",
                  NODE_ADDR_FP_ARGS_S(a_node_info->address),
-                 a_node_info->ext_host, a_node_info->ext_port ), ERR_UNKNOWN;
+                 a_node_info->ext_host, a_node_info->ext_port ), ERR_UNKNOWN );
 }
 
 /**
@@ -93,8 +93,13 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
     uint64_t addr = 0;
     uint16_t port = 0;
     const char l_net_token[] = "net=";
-    sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,addr=%zu,port=%hu,net=",
-                                                            &l_protocol_version, &l_issue_method, &addr, &port);
+    if ( 4 != sscanf(a_http_simple->http_client->in_query_string, "version=%d,method=%c,addr=%zu,port=%hu,net=",
+                                                                  &l_protocol_version, &l_issue_method, &addr, &port) )
+    {
+        log_it( L_ERROR, "Bad request \"%s\"", a_http_simple->http_client->in_query_string );
+        *l_return_code = Http_Status_BadRequest;
+        return;
+    }
     if (l_protocol_version != 1) {
         log_it(L_ERROR, "Unsupported protocol version/method in the request to dap_chain_net_node_list module");
         *l_return_code = Http_Status_MethodNotAllowed;
@@ -245,10 +250,17 @@ static int s_cb_node_addr_compare(dap_list_t *a_list_elem, dap_list_t *a_addr_el
     return l_addr->uint64 != l_link_node_info->address.uint64;
 }
 
-int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info_t *a_node_info, bool a_sync, char a_cmd)
+int dap_chain_net_node_list_request (dap_chain_net_t *a_net, UNUSED_ARG const char *a_addr, uint16_t a_port, bool a_sync, char a_cmd)
 {
     if (!a_net)
         return -1;
+    
+    uint16_t l_seeds_count = 0, i;
+    dap_chain_node_info_t   **l_seed_nodes = dap_chain_net_get_seed_nodes(a_net, &l_seeds_count),
+                            *l_my_node = dap_chain_net_get_my_node_info(a_net);
+    if (!l_seed_nodes) {
+        log_it(L_ERROR, "No servers available to make request. Check network config for seed nodes presence");
+    }
     
     dap_chain_node_addr_t l_node_addr_cur = {
         .uint64 = dap_chain_net_get_cur_addr_int(a_net)
@@ -260,42 +272,29 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
             a_node_info->info.atoms_count += l_chain->callback_count_atom(l_chain);
     }
     a_node_info->info.links_number = 0; */ // TODO: dap_chain_net_get_downlink_count(a_net);
-
-    dap_list_t *l_node_list = dap_chain_net_get_node_list_cfg(a_net), *l_cur = l_node_list;
-    if ( dap_list_find(l_node_list, &l_node_addr_cur, s_cb_node_addr_compare) ) {
-        // We're in seed list, add directly
-        return s_dap_chain_net_node_list_add(
-            a_net, a_node_info);
-    }
     
+    for (i = 0; i < l_seeds_count; ++i) {
+        if ( l_seed_nodes[i] == l_my_node )
+            // We're in seed list, add directly
+            return s_dap_chain_net_node_list_add( a_net, l_my_node );
+    }
+
     struct node_link_request *l_link_node_request = s_node_list_request_init();
     if (!l_link_node_request) {
         log_it(L_CRITICAL, "Memory allocation error");
         return -4;
     };
-    a_node_info->address = l_node_addr_cur;
 
-    char *l_request = dap_strdup_printf(
-        "%s/%s?version=1,method=%c,addr=%zu,port=%hu,net=%s",
-        DAP_UPLINK_PATH_NODE_LIST,
-        DAP_NODE_LIST_URI_HASH,
-        a_cmd,
-        a_node_info->address.uint64,
-        a_node_info->ext_port,
-        a_net->pub.name);
+    char *l_request = dap_strdup_printf( "%s/%s?version=1,method=%c,addr=%zu,port=%hu,net=%s",
+                                         DAP_UPLINK_PATH_NODE_LIST, DAP_NODE_LIST_URI_HASH, a_cmd,
+                                         l_node_addr_cur.uint64, a_port, a_net->pub.name );
     int l_ret = -1;
-
-    while (l_cur) {
-        dap_chain_node_info_t *l_remote = (dap_chain_node_info_t*)l_cur->data;
-        if (dap_client_http_request(l_link_node_request->worker,
-                                    l_remote->ext_host,
-                                    l_remote->ext_port,
-                                    "GET", "text/text", l_request,
-                                    NULL, 0, NULL,
-                                    s_net_node_link_prepare_success,
-                                    s_net_node_link_prepare_error,
-                                    l_link_node_request,
-                                    NULL))
+    for (i = 0; i < l_seeds_count; ++i) {
+        dap_chain_node_info_t *l_remote = (dap_chain_node_info_t*)l_seed_nodes[i];
+        if ( dap_client_http_request(l_link_node_request->worker, l_remote->ext_host, l_remote->ext_port,
+                                    "GET", "text/text", l_request, NULL, 0, NULL,
+                                    s_net_node_link_prepare_success, s_net_node_link_prepare_error,
+                                    l_link_node_request, NULL) )
         {
             l_ret = a_sync ? dap_chain_net_node_list_wait(l_link_node_request, 8000) : ADD_OK;
         }
@@ -321,9 +320,7 @@ int dap_chain_net_node_list_request (dap_chain_net_t *a_net, dap_chain_node_info
                 break;
             }
         }
-        l_cur = dap_list_next(l_cur);
     }
-
     DAP_DELETE(l_request);
     s_node_list_request_deinit(l_link_node_request);
     return l_ret;
