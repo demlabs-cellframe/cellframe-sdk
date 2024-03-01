@@ -67,7 +67,7 @@ int dap_chain_net_balancer_handshake(dap_chain_node_info_t *a_node_info, dap_cha
     return l_client ? dap_chain_node_client_wait(l_client, NODE_CLIENT_STATE_ESTABLISHED, 5000) : -1;
 }
 
-static uint64_t min_count_blocks_events(dap_global_db_obj_t * a_objs,size_t a_node_count,dap_list_t * a_node_info_list)
+/*static uint64_t min_count_blocks_events(dap_global_db_obj_t * a_objs, size_t a_node_count, dap_chain_node_info_t **a_node_info_list, size_t a_count)
 {
     uint64_t l_blocks_events = 0;
     for (size_t i = 0; i < a_node_count; i++) {
@@ -78,14 +78,14 @@ static uint64_t min_count_blocks_events(dap_global_db_obj_t * a_objs,size_t a_no
         }
         for (dap_list_t *node_i = a_node_info_list; node_i; node_i = node_i->next) {
             if( !dap_strcmp(((dap_chain_node_info_t*)node_i->data)->ext_host, l_node_cand->ext_host) ) {
-                /*if (!l_blocks_events || l_blocks_events > l_node_cand->info.atoms_count)
+                if (!l_blocks_events || l_blocks_events > l_node_cand->info.atoms_count)
                     l_blocks_events = l_node_cand->info.atoms_count;
-                break;*/
+                break;
             }
         }
     }
     return l_blocks_events;
-}
+}*/
 
 void dap_chain_net_balancer_prepare_list_links(const char *a_net_name)
 {
@@ -105,9 +105,9 @@ void dap_chain_net_balancer_prepare_list_links(const char *a_net_name)
     if (!l_nodes_count || !l_objs)
         return;
 
-    dap_list_t *l_node_info_list = dap_chain_net_get_node_list_cfg(l_net);
+    /*dap_list_t *l_node_info_list = dap_chain_net_get_node_list_cfg(l_net);
     l_blocks_events = min_count_blocks_events(l_objs,l_nodes_count,l_node_info_list);
-    dap_list_free_full(l_node_info_list, NULL);
+    dap_list_free_full(l_node_info_list, NULL);*/
     pthread_mutex_lock(&l_net->pub.balancer_mutex);
 
     log_it(L_DEBUG, "Overwrite node list");
