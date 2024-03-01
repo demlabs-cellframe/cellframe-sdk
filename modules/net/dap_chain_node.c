@@ -121,15 +121,15 @@ int dap_chain_node_info_del(dap_chain_net_t *a_net, dap_chain_node_info_t *a_nod
 /**
  * Read node from base
  */
-dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_net_t *a_net ,dap_chain_node_addr_t *l_address)
+dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_address)
 {
-    char *l_key = dap_chain_node_addr_to_str_static(l_address);
+    char *l_key = dap_chain_node_addr_to_str_static(a_address);
     size_t node_info_size = 0;
     dap_chain_node_info_t *l_node_info
         = (dap_chain_node_info_t*)dap_global_db_get_sync(a_net->pub.gdb_nodes, l_key, &node_info_size, NULL, NULL);
 
     if (!l_node_info) {
-        log_it(L_NOTICE, "Node with address %s not found in base", l_key);
+        log_it(L_NOTICE, "Node with address %s not found in base of %s network", l_key, a_net->pub.name);
         return NULL;
     }
 
