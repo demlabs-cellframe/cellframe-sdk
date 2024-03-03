@@ -1449,9 +1449,9 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
             uint256_t l_fee = dap_chain_balance_scan(l_fee_str);
             dap_hash_fast_t l_tx_hash = {};
             dap_chain_hash_fast_from_str(l_order_hash_str, &l_tx_hash);
-            dap_chain_wallet_close(l_wallet);
             char *l_tx_hash_ret = NULL;
             int l_ret_code = dap_chain_net_srv_xchange_remove(l_net, &l_tx_hash, l_fee, l_wallet, &l_tx_hash_ret);
+            dap_chain_wallet_close(l_wallet);
             switch (l_ret_code) {
                 case XCHANGE_REMOVE_ERROR_OK:
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Order successfully removed. Created inactivate tx with hash %s", l_tx_hash_ret);
