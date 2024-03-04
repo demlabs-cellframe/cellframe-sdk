@@ -982,7 +982,7 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
             dap_cli_server_cmd_set_reply_text(a_str_reply, "node requires parameter -port");
             return -1;
         }
-        l_node_info->ext_host_len = dap_strncpy(l_node_info->ext_host, l_hostname, 0xFF) - l_node_info->ext_host;
+        l_node_info->ext_host_len = dap_strncpy(l_node_info->ext_host, l_hostname, DAP_HOSTADDR_STRLEN) - l_node_info->ext_host;
         l_node_info->address.uint64 = dap_chain_net_get_cur_addr_int(l_net);
         if (l_addr_str) {
             if (dap_chain_node_info_save(l_net, &l_node_info) == DAP_GLOBAL_DB_RC_SUCCESS) {

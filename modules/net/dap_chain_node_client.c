@@ -67,7 +67,6 @@
 #include "dap_stream_ch_proc.h"
 #include "dap_stream_ch_chain_net_pkt.h"
 #include "dap_stream_ch_chain_net_srv.h"
-#include "dap_stream_ch_chain_voting.h"
 #include "dap_stream_pkt.h"
 #include "dap_chain_node_client.h"
 
@@ -961,15 +960,6 @@ static int s_node_client_set_notify_callbacks(dap_client_t *a_client, uint8_t a_
                 }
                 l_node_client->ch_chain_net_srv         = l_ch;
                 l_node_client->ch_chain_net_srv_uuid    = l_ch->uuid;
-                break;
-            }
-                // 'V'
-            case DAP_STREAM_CH_VOTING_ID: {
-                dap_stream_ch_chain_voting_t *l_ch_chain    = DAP_STREAM_CH_CHAIN_VOTING(l_ch);
-                // l_ch_chain->callback_notify              = s_ch_chain_callback_notify_voting_packet_in;
-                l_ch_chain->callback_notify_arg             = l_node_client;
-                l_node_client->ch_chain_net         = l_ch;
-                l_node_client->ch_chain_net_uuid    = l_ch->uuid;
                 break;
             }
             default: {
