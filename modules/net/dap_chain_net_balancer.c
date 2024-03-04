@@ -35,7 +35,7 @@ static bool dap_chain_net_balancer_find_link(dap_chain_node_info_t *a_node_info,
     for(dap_list_t *ll = l_link_list; ll; ll = ll->next)
     {
         dap_chain_node_info_t *l_node_link = (dap_chain_node_info_t*)ll->data;
-        if( l_node_link && !dap_strcmp(l_node_link->ext_host, a_node_info->ext_host) );
+        if( l_node_link && !dap_strcmp(l_node_link->ext_host, a_node_info->ext_host) )
             return true;
     }
     return false;

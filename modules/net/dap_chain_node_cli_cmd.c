@@ -1719,9 +1719,7 @@ int com_version(int argc, char ** argv, void **a_str_reply)
 #pragma message "[!WRN!] DAP_VERSION IS NOT DEFINED. Manual override engaged."
 #define DAP_VERSION 0.9-15
 #endif
-    dap_cli_server_cmd_set_reply_text(a_str_reply,
-            "%s version %s\n", dap_get_appname(), DAP_VERSION );
-    return 0;
+    return dap_cli_server_cmd_set_reply_text(a_str_reply, "%s version "DAP_VERSION "\n", dap_get_appname()), 0;
 }
 
 
@@ -2568,8 +2566,6 @@ int com_token_decl_sign(int a_argc, char **a_argv, void **a_str_reply)
                             l_key_out_str, l_datum_hash_out_str);
                     DAP_DELETE(l_datum);
                     DAP_DELETE(l_gdb_group_mempool);
-                    DAP_DELETE(l_key_str);
-                    DAP_DELETE(l_key_str_base58);
                     return -2;
                 }
             } else {
