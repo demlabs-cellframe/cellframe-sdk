@@ -1060,11 +1060,40 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
         }break;
 
         case SUBCMD_AUTOCOLLECT: {
-            /*const char *l_renew = NULL;
-            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "renew", &l_renew);
-            if(l_renew){
+            for (dap_chain_block_cache_t *l_block_cache = PVT(l_blocks)->blocks; l_block_cache; l_block_cache = l_block_cache->hh.next) {
+                const char * l_cert_name = NULL;
+                dap_pkey_t * l_pub_key = NULL;
+                dap_hash_fast_t l_pkey_hash = {};
+                dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cert", &l_cert_name);
+                dap_cert_t *l_cert = dap_cert_find_by_name(l_cert_name);
+                l_pub_key = dap_pkey_from_enc_key(l_cert->enc_key);
+                if (!l_pub_key) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply,
+                            "Corrupted certificate \"%s\" have no public key data", l_cert_name);
+                    return -20;
+                }
 
-            }*/
+                if (!l_pub_key) {
+                        bool l_found = false;
+                        // TODO optimize performance by precalculated sign hashes in block cache
+                        for (size_t i = 0; i < l_block_cache->sign_count ; i++) {
+                            dap_sign_t *l_sign = dap_chain_block_sign_get(l_block_cache->block, l_block_cache->block_size, i);
+                            dap_hash_fast_t l_sign_pkey_hash;
+                            dap_sign_get_pkey_hash(l_sign, &l_sign_pkey_hash);
+                            if (dap_hash_fast_compare(&l_pkey_hash, &l_sign_pkey_hash)) {
+                                l_found = true;
+                                break;
+                            }
+                        }
+                        if (!l_found)
+                            continue;
+                    } else if (!dap_chain_block_sign_match_pkey(l_block_cache->block, l_block_cache->block_size, l_pub_key))
+                        continue;
+                    if (l_unspent_flag) {
+                        if (dap_ledger_is_used_reward(l_net->pub.ledger, &l_block_cache->block_hash, &l_pkey_hash))
+                            continue;
+                    }                
+            }
 
             if (dap_cli_server_cmd_check_option(a_argv, arg_index, a_argc, "status") == -1) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'block autocollect' requires subcommand 'status'");
@@ -1135,7 +1164,7 @@ static void s_blocks_print_list_str(char **a_str_reply, dap_list_t *a_block_list
         dap_hash_fast_to_str(l_block_hash, l_block_hash_str, DAP_HASH_FAST_STR_SIZE);
         dap_cli_server_cmd_set_reply_text(a_str_reply, "%s,",l_block_hash_str);
     }
-    dap_cli_server_cmd_set_reply_text(a_str_reply, "test test test,");
+    
 }
 
 /**
