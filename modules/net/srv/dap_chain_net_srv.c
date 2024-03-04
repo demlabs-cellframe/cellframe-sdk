@@ -399,20 +399,17 @@ static int s_cli_net_srv( int argc, char **argv, void **reply)
 
                 l_price_unit.uint32 = dap_chain_srv_str_to_unit_enum(l_price_unit_str);
 
-                dap_chain_net_srv_order_t * l_orders;
+                dap_list_t * l_orders;
                 size_t l_orders_num = 0;
                 if( dap_chain_net_srv_order_find_all_by( l_net, l_direction,l_srv_uid,l_price_unit,l_price_token_str,l_price_min, l_price_max,&l_orders,&l_orders_num) == 0 ){
                     dap_string_append_printf(l_string_ret, "Found %zu orders:\n", l_orders_num);
-                    size_t l_orders_size = 0;
-                    for (size_t i = 0; i< l_orders_num; i++){
-                        dap_chain_net_srv_order_t *l_order =(dap_chain_net_srv_order_t *) (((byte_t*) l_orders) + l_orders_size);
+                    for (dap_list_t *l_temp = l_orders;l_temp; l_temp = l_orders->next){
+                        dap_chain_net_srv_order_t *l_order =(dap_chain_net_srv_order_t *) l_temp->data;
                         dap_chain_net_srv_order_dump_to_string(l_order, l_string_ret, l_hash_out_type, l_net->pub.native_ticker);
-                        l_orders_size += dap_chain_net_srv_order_get_size(l_order);
                         dap_string_append(l_string_ret,"\n");
                     }
                     l_ret = 0;
-                    if (l_orders_num)
-                        DAP_DELETE(l_orders);
+                    dap_list_free_full(l_orders, NULL);
                 }else{
                     l_ret = -5 ;
                     dap_string_append(l_string_ret,"Can't get orders: some internal error or wrong params\n");
@@ -433,7 +430,7 @@ static int s_cli_net_srv( int argc, char **argv, void **reply)
                     }
                 } else {
 
-                    dap_chain_net_srv_order_t * l_orders = NULL;
+                    dap_list_t * l_orders = NULL;
                     size_t l_orders_num = 0;
                     dap_chain_net_srv_uid_t l_srv_uid={{0}};
                     uint256_t l_price_min = {};
@@ -443,11 +440,9 @@ static int s_cli_net_srv( int argc, char **argv, void **reply)
 
                     if( !dap_chain_net_srv_order_find_all_by( l_net,l_direction,l_srv_uid,l_price_unit, NULL, l_price_min, l_price_max,&l_orders,&l_orders_num) ){
                         dap_string_append_printf(l_string_ret,"Found %zd orders:\n",l_orders_num);
-                        size_t l_orders_size = 0;
-                        for(size_t i = 0; i < l_orders_num; i++) {
-                            dap_chain_net_srv_order_t *l_order =(dap_chain_net_srv_order_t *) (((byte_t*) l_orders) + l_orders_size);
+                        for(dap_list_t *l_temp = l_orders;l_temp; l_temp = l_orders->next) {
+                            dap_chain_net_srv_order_t *l_order =(dap_chain_net_srv_order_t *) l_temp->data;
                             dap_chain_net_srv_order_dump_to_string(l_order, l_string_ret, l_hash_out_type, l_net->pub.native_ticker);
-                            l_orders_size += dap_chain_net_srv_order_get_size(l_order);
                             dap_string_append(l_string_ret, "\n");
                         }
                         l_ret = 0;
@@ -455,7 +450,7 @@ static int s_cli_net_srv( int argc, char **argv, void **reply)
                         l_ret = -5 ;
                         dap_string_append(l_string_ret,"Can't get orders: some internal error or wrong params\n");
                     }
-                    DAP_DELETE(l_orders);
+                    dap_list_free_full(l_orders, NULL);
                 }
             } else if (!dap_strcmp(l_order_str, "delete")) {
                 if (l_order_hash_str) {
