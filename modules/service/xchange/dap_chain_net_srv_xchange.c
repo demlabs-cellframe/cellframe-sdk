@@ -1477,7 +1477,6 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, v
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "An error occurred with an unknown code: %d.", l_ret_code);
                     break;
             }
-            DAP_DELETE(l_sign_str);
             return l_ret_code;
         } break;
 
