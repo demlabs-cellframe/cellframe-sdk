@@ -66,15 +66,13 @@ bool dap_chain_node_alias_register(dap_chain_net_t *a_net, const char *a_alias, 
 dap_chain_node_addr_t *dap_chain_node_alias_find(dap_chain_net_t *a_net, const char *a_alias)
 {
     dap_return_val_if_fail(a_alias && a_net, NULL);
-    size_t l_addr_size =0;
-    dap_chain_node_addr_t *l_addr = (dap_chain_node_addr_t *)dap_global_db_get_sync(a_net->pub.gdb_nodes_aliases,
-                                                                                    a_alias, &l_addr_size, NULL, NULL);
-    if (l_addr && l_addr_size != sizeof(dap_chain_node_addr_t)) {
-        log_it(L_WARNING, "Address in database is corrupted for alias %s", a_alias);
-        DAP_DELETE(l_addr);
-        return NULL;
-    }
-    return l_addr;
+    size_t l_size = 0;
+    dap_chain_node_addr_t *l_addr = (dap_chain_node_addr_t*)dap_global_db_get_sync(a_net->pub.gdb_nodes_aliases,
+                                                                                   a_alias, &l_size, NULL, NULL);
+    return l_addr && l_size != sizeof(dap_chain_node_addr_t)
+        ? log_it(L_WARNING, "Node record is corrupted for alias %s: %zu != %zu",
+                 a_alias, l_size, sizeof(dap_chain_node_addr_t)), DAP_DELETE(l_addr), NULL
+        : l_addr;
 }
 
 /**
@@ -92,18 +90,9 @@ bool dap_chain_node_alias_delete(dap_chain_net_t * a_net,const char *a_alias)
  */
 bool dap_chain_node_info_addr_match(dap_chain_node_info_t *node_info1, dap_chain_node_info_t *node_info2)
 {
-    if(!node_info1 || !node_info2) {
-        return false;
-    }
-    //if(memcmp(&node_info1->hdr.address, &node_info2->hdr.address, sizeof(dap_chain_addr_t))) {
-    //    return false;
-    //}
-    if(memcmp(&node_info1->hdr.ext_addr_v6, &node_info2->hdr.ext_addr_v6, sizeof(struct in6_addr)) ||
-            memcmp(&node_info1->hdr.ext_addr_v4, &node_info2->hdr.ext_addr_v4, sizeof(struct in_addr)) ||
-            (node_info1->hdr.ext_port != node_info2->hdr.ext_port)) {
-        return false;
-    }
-    return true;
+    return node_info1 && node_info2
+        && !dap_strcmp(node_info1->ext_host, node_info2->ext_host)
+        && node_info1->ext_port == node_info2->ext_port;
 }
 
 
@@ -112,58 +101,42 @@ bool dap_chain_node_info_addr_match(dap_chain_node_info_t *node_info1, dap_chain
  * @param node_info
  * @return
  */
-int dap_chain_node_info_save(dap_chain_net_t * a_net, dap_chain_node_info_t *a_node_info)
+int dap_chain_node_info_save(dap_chain_net_t *a_net, dap_chain_node_info_t *a_node_info)
 {
-    if(!a_node_info || !a_node_info->hdr.address.uint64){
-        log_it(L_ERROR,"Can't save node info: %s", a_node_info? "null address":"null object" );
-        return  -1;
-    }
-    char *l_key = dap_chain_node_addr_to_hash_str(&a_node_info->hdr.address);
+    return !a_node_info || !a_node_info->address.uint64
+        ? log_it(L_ERROR,"Can't save node info, %s", a_node_info ? "null arg" : "zero address"), -1
+        : dap_global_db_set_sync( a_net->pub.gdb_nodes,
+                                 dap_chain_node_addr_to_str_static(&a_node_info->address),
+                                 a_node_info,
+                                 dap_chain_node_info_get_size(a_node_info), false );
+}
 
-    if(!l_key){
-        log_it(L_ERROR,"Can't produce key to save node info ");
-        return -2;
-    }
-    //char *a_value = dap_chain_node_info_serialize(node_info, NULL);
-    size_t l_node_info_size = dap_chain_node_info_get_size(a_node_info);
-    int l_res = dap_global_db_set_sync( a_net->pub.gdb_nodes, l_key, a_node_info, l_node_info_size, false);
-
-    DAP_DELETE(l_key);
-
-    return l_res;
+int dap_chain_node_info_del(dap_chain_net_t *a_net, dap_chain_node_info_t *a_node_info) {
+    return !a_node_info || !a_node_info->address.uint64
+        ? log_it(L_ERROR,"Can't delete node info, %s", a_node_info ? "null arg" : "zero address"), -1
+        : dap_global_db_del_sync( a_net->pub.gdb_nodes,
+                                 dap_chain_node_addr_to_str_static(&a_node_info->address) );
 }
 
 /**
  * Read node from base
  */
-dap_chain_node_info_t* dap_chain_node_info_read( dap_chain_net_t * a_net,dap_chain_node_addr_t *a_address)
+dap_chain_node_info_t* dap_chain_node_info_read(dap_chain_net_t *a_net, dap_chain_node_addr_t *a_address)
 {
-    char *l_key = dap_chain_node_addr_to_hash_str(a_address);
-    if (!l_key) {
-        log_it(L_WARNING,"Can't calculate hash of addr");
-        return NULL;
-    }
+    char *l_key = dap_chain_node_addr_to_str_static(a_address);
     size_t node_info_size = 0;
-    dap_chain_node_info_t *l_node_info;
-    // read node
-    l_node_info = (dap_chain_node_info_t *)dap_global_db_get_sync(a_net->pub.gdb_nodes, l_key, &node_info_size, NULL, NULL);
+    dap_chain_node_info_t *l_node_info
+        = (dap_chain_node_info_t*)dap_global_db_get_sync(a_net->pub.gdb_nodes, l_key, &node_info_size, NULL, NULL);
 
     if (!l_node_info) {
         log_it(L_NOTICE, "Node with address %s not found in base of %s network", l_key, a_net->pub.name);
-        DAP_DELETE(l_key);
         return NULL;
     }
 
-    size_t node_info_size_must_be = dap_chain_node_info_get_size(l_node_info);
-    if(node_info_size_must_be != node_info_size) {
-        log_it(L_ERROR, "Node has bad size in base=%zu (must be %zu)", node_info_size, node_info_size_must_be);
-        DAP_DELETE(l_node_info);
-        DAP_DELETE(l_key);
-        return NULL;
-    }
-
-    DAP_DELETE(l_key);
-    return l_node_info;
+    return dap_chain_node_info_get_size(l_node_info) == node_info_size
+        ? l_node_info : log_it(L_ERROR, "Bad node \"%s\" record size, %zu != %zu", 
+            l_key, dap_chain_node_info_get_size(l_node_info), node_info_size),
+        DAP_DELETE(l_node_info), NULL;
 }
 
 bool dap_chain_node_mempool_need_process(dap_chain_t *a_chain, dap_chain_datum_t *a_datum) {
@@ -270,25 +243,23 @@ void dap_chain_node_mempool_process_all(dap_chain_t *a_chain, bool a_force)
  */
 bool dap_chain_node_mempool_autoproc_init()
 {
-    uint16_t l_net_count;
     if (!dap_config_get_item_bool_default(g_config, "mempool", "auto_proc", false))
         return false;
-    dap_chain_net_t **l_net_list = dap_chain_net_list(&l_net_count);
-    for (uint16_t i = 0; i < l_net_count; i++) {
-        dap_chain_node_role_t l_role = dap_chain_net_get_role(l_net_list[i]);
-        switch (l_role.enums) {
+    
+    for (dap_chain_net_t *it = dap_chain_net_iter_start(); it; it = dap_chain_net_iter_next(it)) {
+        switch (dap_chain_net_get_role(it).enums) {
             case NODE_ROLE_ROOT:
             case NODE_ROLE_MASTER:
             case NODE_ROLE_ROOT_MASTER:
             case NODE_ROLE_CELL_MASTER:
-                l_net_list[i]->pub.mempool_autoproc = true;
+                it->pub.mempool_autoproc = true;
                 break;
             default:
-                l_net_list[i]->pub.mempool_autoproc = false;
+                it->pub.mempool_autoproc = false;
                 continue;
         }
     }
-    DAP_DELETE(l_net_list);
+
     return true;
 }
 
