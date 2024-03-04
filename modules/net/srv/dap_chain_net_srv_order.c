@@ -449,12 +449,14 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
                                         const dap_chain_net_srv_uid_t a_srv_uid,
                                         const dap_chain_net_srv_price_unit_uid_t a_price_unit,const char a_price_ticker[DAP_CHAIN_TICKER_SIZE_MAX],
                                         const uint256_t a_price_min, const uint256_t a_price_max,
-                                        dap_chain_net_srv_order_t ** a_output_orders, size_t * a_output_orders_count)
+                                        dap_list_t** a_output_orders, size_t * a_output_orders_count)
 {
     if (!a_net || !a_output_orders || !a_output_orders_count)
         return -1;
     size_t l_orders_size = 0, l_output_orders_count = 0;
     *a_output_orders = NULL;
+
+    dap_list_t* l_out_list = NULL;
 
     for (int i = 0; i < 2; i++) {
         char *l_gdb_group_str = i ? dap_chain_net_srv_order_get_gdb_group(a_net)
@@ -464,7 +466,6 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
         log_it( L_DEBUG, "Loaded %zu orders", l_orders_count);
         dap_chain_net_srv_order_t *l_order = NULL;
         for (size_t i = 0; i < l_orders_count; i++) {
-            DAP_DEL_Z(l_order);
             l_order = dap_chain_net_srv_order_read(l_orders[i].value, l_orders[i].value_len);
             if (!l_order) {
                 dap_global_db_del_sync(l_gdb_group_str, l_orders[i].key);
@@ -495,17 +496,14 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
             // Check ticker
             if (a_price_ticker && strcmp( l_order->price_ticker, a_price_ticker))
                 continue;
-            size_t l_order_mem_size = dap_chain_net_srv_order_get_size(l_order);
-            *a_output_orders = DAP_REALLOC(*a_output_orders, l_orders_size + l_order_mem_size);
-            memcpy((byte_t *)*a_output_orders + l_orders_size, l_order, l_order_mem_size);
-            DAP_DEL_Z(l_order);
-            l_orders_size += l_order_mem_size;
+            l_out_list = dap_list_append(l_out_list, l_order);
             l_output_orders_count++;
         }
         dap_global_db_objs_delete(l_orders, l_orders_count);
         DAP_DELETE(l_gdb_group_str);
     }
     *a_output_orders_count = l_output_orders_count;
+    *a_output_orders = l_out_list;
     return 0;
 }
 
