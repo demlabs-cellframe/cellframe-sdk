@@ -1574,17 +1574,15 @@ dap_list_t *dap_chain_net_vote_list(dap_chain_net_t *a_net) {
     return l_list;
 }
 
-dap_chain_net_vote_info_t *dap_chain_net_vote_extract_info(dap_chain_net_t *a_net, dap_hash_fast_t *a_voting) {
+dap_chain_net_vote_info_t *dap_chain_net_vote_extract_info(dap_chain_net_t *a_net, dap_hash_fast_t *a_voting)
+{
     if (!a_net || !a_voting)
         return NULL;
     dap_chain_net_votings_t *l_voting = NULL;
     pthread_rwlock_rdlock(&s_votings_rwlock);
-    HASH_FIND(hh, s_votings, &a_voting, sizeof(dap_hash_fast_t), l_voting);
+    HASH_FIND(hh, s_votings, a_voting, sizeof(dap_hash_fast_t), l_voting);
     pthread_rwlock_unlock(&s_votings_rwlock);
-    if(!l_voting){
-        return NULL;
-    }
-    return s_dap_chain_net_vote_extract_info(l_voting);
+    return l_voting ? s_dap_chain_net_vote_extract_info(l_voting) : NULL;
 }
 
 void dap_chain_net_vote_info_free(dap_chain_net_vote_info_t *a_info){

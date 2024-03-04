@@ -127,7 +127,7 @@ void dap_chain_net_node_check_http_issue_link(dap_http_simple_t *a_http_simple, 
         uint8_t l_host_size = dap_min(INET6_ADDRSTRLEN, (int)dap_strlen(a_http_simple->es_hostaddr) + 1);
         l_node_info = DAP_NEW_STACK_SIZE(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + l_host_size);
         *l_node_info = (dap_chain_node_info_t) {
-            .address = addr,
+            .address.uint64 = addr,
             .ext_port = port,
             .ext_host_len = dap_strncpy(l_node_info->ext_host, a_http_simple->es_hostaddr, l_host_size) - l_node_info->ext_host
         };

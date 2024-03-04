@@ -178,7 +178,7 @@ typedef struct dap_stream_ch_chain_net_srv_pkt_test {
     dap_chain_net_srv_uid_t srv_uid;
     int32_t                 time_connect_ms;
     dap_nanotime_t          recv_time1, recv_time2, send_time1, send_time2;
-    char                    host_send[0xFF + 1], host_recv[0xFF + 1];
+    char                    host_send[DAP_HOSTADDR_STRLEN], host_recv[DAP_HOSTADDR_STRLEN];
     int32_t                 err_code;
     uint64_t                data_size_send, data_size_recv, data_size;
     dap_chain_hash_fast_t   data_hash;
