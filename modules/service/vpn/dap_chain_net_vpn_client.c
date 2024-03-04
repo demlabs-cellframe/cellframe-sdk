@@ -504,7 +504,7 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_host, u
 
     int l_timeout_conn_ms = 10000;
     int l_ret = 0;
-    unsigned l_hostlen = dap_min((int)dap_strlen(a_host), 0xFF);
+    unsigned l_hostlen = dap_min((int)dap_strlen(a_host), DAP_HOSTADDR_STRLEN);
     if(!s_node_info)
         s_node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + l_hostlen + 1);
     s_node_info->ext_host_len = dap_strncpy(s_node_info->ext_host, a_host, l_hostlen) - s_node_info->ext_host;
@@ -551,7 +551,7 @@ int dap_chain_net_vpn_client_check(dap_chain_net_t *a_net, const char *a_host, u
             l_request->data_size = a_data_size_to_send;
             randombytes(l_request->data, a_data_size_to_send);
             dap_hash_fast(l_request->data, l_request->data_size, &l_request->data_hash);
-            dap_strncpy(l_request->host_recv, a_host, 0xFF);
+            dap_strncpy(l_request->host_recv, a_host, DAP_HOSTADDR_STRLEN);
             l_request->time_connect_ms = l_dtime_connect_ms;
             l_request->send_time1 = dap_nanotime_now();
             size_t l_request_size = l_request->data_size + sizeof(dap_stream_ch_chain_net_srv_pkt_test_t);
@@ -586,10 +586,10 @@ int dap_chain_net_vpn_client_start(dap_chain_net_t *a_net, const char *a_host, u
 {
     dap_return_val_if_fail(a_net && a_host, -1);
     int l_ret = 0;
-    unsigned l_hostlen = dap_min((int)strlen(a_host), 0xFF);
+    unsigned l_hostlen = dap_min((int)strlen(a_host), DAP_HOSTADDR_STRLEN);
     if(!s_node_info)
         s_node_info = DAP_NEW_Z_SIZE(dap_chain_node_info_t, sizeof(dap_chain_node_info_t) + l_hostlen + 1);
-    s_node_info->ext_host_len = dap_strncpy(s_node_info->ext_host, a_host, l_hostlen);
+    s_node_info->ext_host_len = dap_strncpy(s_node_info->ext_host, a_host, l_hostlen) - s_node_info->ext_host;
     s_node_info->ext_port = a_port;
 
     const char l_active_channels[] = { DAP_STREAM_CH_NET_SRV_ID, DAP_STREAM_CH_NET_SRV_ID_VPN, 0 }; //R, S
