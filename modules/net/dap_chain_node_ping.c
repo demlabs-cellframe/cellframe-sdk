@@ -91,7 +91,7 @@ static void* node_ping_proc(void *a_arg)
     struct in_addr l_addr  = *(struct in_addr*)(a_arg + sizeof(int) * 2);
     DAP_DELETE(a_arg);
 
-    char *host4 = DAP_NEW_SIZE(char, INET_ADDRSTRLEN);
+    /*char *host4 = DAP_NEW_SIZE(char, INET_ADDRSTRLEN);
     if (!host4) {
         log_it(L_CRITICAL, "Memory allocation error");
         return NULL;
@@ -101,7 +101,7 @@ static void* node_ping_proc(void *a_arg)
     if(!str_ip4){
         DAP_DELETE(host4);
         return NULL ;
-    }
+    }*/ // TODO implement string handling
     //printf(" %s %d ping start\n", str_ip4, l_count);
     /*
      // send ping
@@ -126,7 +126,7 @@ static void* node_ping_proc(void *a_arg)
         SOCKET l_socket = socket( PF_INET, SOCK_STREAM, 0);
         if(l_socket == INVALID_SOCKET) {
             log_it(L_ERROR, "Can't create socket");
-            DAP_DELETE(host4);
+            //DAP_DELETE(host4);
             return (void*) -1;
         }
         clock_gettime(CLOCK_MONOTONIC, &l_time_start);
@@ -135,10 +135,10 @@ static void* node_ping_proc(void *a_arg)
             size_t l_buf_size = 1024;
             uint8_t l_buf[l_buf_size];
 
-            const char* str_ip4 = inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), host4,
-            INET_ADDRSTRLEN);
+            //const char* str_ip4 = inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), host4,
+            //INET_ADDRSTRLEN);
             char *l_str_to_send = dap_strdup_printf("GET /%s/ping_sub_url HTTP/1.1\r\nHost: %s\r\n\r\n",
-            DAP_UPLINK_PATH_ENC_INIT, str_ip4);
+            DAP_UPLINK_PATH_ENC_INIT, "str_ip4");
             // send data to bad suburl
             int l_send_count = send(l_socket, l_str_to_send, dap_strlen(l_str_to_send), 0);
             long l_recv_count = 0;
@@ -155,7 +155,7 @@ static void* node_ping_proc(void *a_arg)
         else {
             ; //log_it(L_INFO, "Can't connect to node for ping");
         }
-        DAP_DELETE(host4);
+        //DAP_DELETE(host4);
         closesocket(l_socket);
     }
     return (void*)(size_t)res;
@@ -233,15 +233,9 @@ static void* node_ping_background_proc(void *a_arg)
             continue;
         }
 
-        char *host4 = DAP_NEW_STACK_SIZE(char, INET_ADDRSTRLEN);
-        struct sockaddr_in sa4 = { .sin_family = AF_INET, .sin_addr = l_node_info->hdr.ext_addr_v4 };
-        const char* str_ip4 = inet_ntop(AF_INET, &(((struct sockaddr_in *) &sa4)->sin_addr), host4, INET_ADDRSTRLEN);
-        if(!str_ip4){
-            continue;
-        }
         int hops = 0, time_usec = 0;
 #if defined(DAP_OS_LINUX) && ! defined(DAP_OS_ANDROID)
-        int res = traceroute_util(str_ip4, &hops, &time_usec);
+        //int res = traceroute_util(l_node_info->hdr.ext_addr, &hops, &time_usec);
 #endif
         if(l_min_hops>hops) {
             l_min_hops = hops;
@@ -249,8 +243,8 @@ static void* node_ping_background_proc(void *a_arg)
         }
 
         // start sending ping
-        start_node_ping(&l_threads[l_thread_id], l_node_info->hdr.ext_addr_v4, l_node_info->hdr.ext_port, 1);
-        l_nodes_addr[l_thread_id] = l_node_info->hdr.address.uint64;
+        //start_node_ping(&l_threads[l_thread_id], l_node_info->hdr.ext_addr_v4, l_node_info->hdr.ext_port, 1);
+        l_nodes_addr[l_thread_id] = l_node_info->address.uint64;
         l_thread_id++;
         DAP_DELETE(l_node_info);
         l_node_list = dap_list_next(l_node_list);

@@ -89,11 +89,9 @@ void dap_stream_ch_chain_voting_message_write(dap_chain_net_t *a_net, dap_chain_
         pthread_rwlock_unlock(&s_node_client_list_lock);
         if (!l_node_client_item) {
             size_t node_info_size = 0;
-            char *l_key = dap_chain_node_addr_to_hash_str(a_remote_node_addr);
-            dap_chain_node_info_t *l_node_info =
-                    (dap_chain_node_info_t *)dap_global_db_get_sync(a_net->pub.gdb_nodes, l_key,
-                                                                        &node_info_size, NULL, NULL);
-            DAP_DELETE(l_key);
+            dap_chain_node_info_t *l_node_info = (dap_chain_node_info_t*)dap_global_db_get_sync(a_net->pub.gdb_nodes,
+                    dap_chain_node_addr_to_str_static(a_remote_node_addr),
+                    &node_info_size, NULL, NULL);
             if (!l_node_info) {
                 log_it(L_WARNING, "Can't find validator's addr "NODE_ADDR_FP_STR" in database", NODE_ADDR_FP_ARGS(a_remote_node_addr));
                 return;
