@@ -4220,8 +4220,8 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
         }
     }
 
-
-    if (dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTING, NULL)){
+    dap_list_t *l_items_voting;
+    if ((l_items_voting = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTING, NULL))) {
         if (s_voting_callback){
             if (!s_voting_callback(a_ledger, TX_ITEM_TYPE_VOTING, a_tx, false)){
                 debug_if(s_debug_more, L_WARNING, "Verificator check error for voting.");
@@ -4231,7 +4231,8 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
             debug_if(s_debug_more, L_WARNING, "Verificator check error for voting item");
             l_err_num = DAP_LEDGER_TX_CHECK_NO_VERIFICATOR_SET;
         }
-    }else if (dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTE, NULL)){
+        dap_list_free(l_items_voting);
+    }else if ((l_items_voting = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTE, NULL))) {
        if (s_voting_callback){
            if (!s_voting_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx, false)){
                debug_if(s_debug_more, L_WARNING, "Verificator check error for vote.");
@@ -4241,6 +4242,7 @@ int dap_ledger_tx_cache_check(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx
            debug_if(s_debug_more, L_WARNING, "Verificator check error for vote item");
            l_err_num = DAP_LEDGER_TX_CHECK_NO_VERIFICATOR_SET;
        }
+       dap_list_free(l_items_voting);
     }
 
     if (a_main_ticker && !l_err_num)
@@ -4648,11 +4650,15 @@ int dap_ledger_tx_add(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, dap_ha
         }
         DAP_DELETE (l_addr_str);
     }
-
-    if (dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTING, NULL) && s_voting_callback)
+    dap_list_t *l_items_voting;
+    if ((l_items_voting = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTING, NULL)) && s_voting_callback) {
+        dap_list_free(l_items_voting);
         s_voting_callback(a_ledger, TX_ITEM_TYPE_VOTING, a_tx, true);
-    else if (dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTE, NULL) && s_voting_callback)
+    }
+    else if ((l_items_voting = dap_chain_datum_tx_items_get((dap_chain_datum_tx_t*) a_tx, TX_ITEM_TYPE_VOTE, NULL)) && s_voting_callback) {
+        dap_list_free(l_items_voting);
         s_voting_callback(a_ledger, TX_ITEM_TYPE_VOTE, a_tx, true);
+    }
 
 
 
@@ -4725,11 +4731,11 @@ FIN:
         dap_list_free(l_list_tx_out);
     DAP_DEL_Z(l_main_token_ticker);
     if (PVT(a_ledger)->cached) {
-        for (size_t i = 1; i <= l_outs_used; i++) {
+        /*for (size_t i = 1; i <= l_outs_used; i++) {
             DAP_DEL_Z(l_cache_used_outs[i].key);
             DAP_DEL_Z(l_cache_used_outs[i].value);
         }
-        DAP_DEL_Z(l_cache_used_outs);
+        DAP_DEL_Z(l_cache_used_outs);*/
         DAP_DEL_Z(l_ledger_cache_group);
     }
     return l_ret;
@@ -5619,13 +5625,19 @@ dap_ledger_datum_iter_t *dap_ledger_datum_iter_create(dap_chain_net_t *a_net)
 
 void dap_ledger_datum_iter_delete(dap_ledger_datum_iter_t *a_iter)
 {
-    DAP_DELETE(a_iter);
+    DAP_DEL_Z(a_iter);
 }
 
 dap_chain_datum_tx_t *dap_ledger_datum_iter_get_first(dap_ledger_datum_iter_t *a_iter)
 {
+    if (!a_iter)
+        return NULL;
     dap_ledger_private_t *l_ledger_pvt = PVT(a_iter->net->pub.ledger);
     pthread_rwlock_rdlock(&l_ledger_pvt->ledger_rwlock);
+    if (!l_ledger_pvt->ledger_items) {
+        pthread_rwlock_unlock(&l_ledger_pvt->ledger_rwlock);
+        return NULL;
+    }
     a_iter->cur_ledger_tx_item = l_ledger_pvt->ledger_items;
     a_iter->cur = ((dap_ledger_tx_item_t *)(a_iter->cur_ledger_tx_item))->tx;
     a_iter->cur_hash = ((dap_ledger_tx_item_t *)(a_iter->cur_ledger_tx_item))->tx_hash_fast;
@@ -5844,4 +5856,21 @@ bool dap_ledger_cache_enabled(dap_ledger_t *a_ledger)
 void dap_ledger_set_cache_tx_check_callback(dap_ledger_t *a_ledger, dap_ledger_cache_tx_check_callback_t a_callback)
 {
     PVT(a_ledger)->cache_tx_check_callback = a_callback;
+}
+
+char * dap_ledger_tx_get_main_ticker(dap_ledger_t *a_ledger, dap_chain_datum_tx_t *a_tx, int *a_ledger_rc)
+{
+    char *l_main_ticker = NULL;
+    dap_chain_hash_fast_t * l_tx_hash = dap_chain_node_datum_tx_calc_hash(a_tx);
+    int l_rc = dap_ledger_tx_cache_check(a_ledger, a_tx, l_tx_hash, false, NULL, NULL, &l_main_ticker);
+    
+    if (l_rc == DAP_LEDGER_TX_ALREADY_CACHED)
+    {
+        l_main_ticker = dap_ledger_tx_get_token_ticker_by_hash(a_ledger, l_tx_hash);
+    }
+
+    if (a_ledger_rc)
+        *a_ledger_rc = l_rc;
+    
+    return l_main_ticker;
 }

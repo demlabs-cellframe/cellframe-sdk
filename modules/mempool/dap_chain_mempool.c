@@ -1163,6 +1163,24 @@ dap_chain_datum_token_emission_t *dap_chain_mempool_emission_get(dap_chain_t *a_
     return l_ret;
 }
 
+dap_chain_datum_t *dap_chain_mempool_datum_get(dap_chain_t *a_chain, const char *a_datum_hash_str)
+{
+    size_t l_datum_size;
+    char *l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
+    dap_chain_datum_t *l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(l_gdb_group,
+                                                    a_datum_hash_str, &l_datum_size, NULL, NULL );
+    if (!l_datum) {
+        char *l_emission_hash_str_from_base58 = dap_enc_base58_to_hex_str_from_str(a_datum_hash_str);
+        l_datum = (dap_chain_datum_t *)dap_global_db_get_sync(l_gdb_group,
+                                    l_emission_hash_str_from_base58, &l_datum_size, NULL, NULL );
+        DAP_DELETE(l_emission_hash_str_from_base58);
+    }
+    
+    DAP_DELETE(l_gdb_group);
+    
+    return l_datum;
+}
+
 dap_chain_datum_token_emission_t *dap_chain_mempool_datum_emission_extract(dap_chain_t *a_chain, byte_t *a_data, size_t a_size)
 {
     if (!a_chain || !a_data || a_size < sizeof(dap_chain_datum_t))
@@ -1465,7 +1483,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
     int l_removed = 0;
     char * l_gdb_group = dap_chain_net_get_gdb_group_mempool_new(a_chain);
     size_t l_objs_size = 0;
-    dap_time_t l_cut_off_time = dap_time_now() - 2592000; // 2592000 sec = 30 days
+    dap_time_t l_cut_off_time = dap_time_now() - 3 * 24 * 3600; // 3 days
     char l_cut_off_time_str[80] = {'\0'};
     dap_time_to_str_rfc822(l_cut_off_time_str, 80, l_cut_off_time);
     dap_global_db_obj_t * l_objs = dap_global_db_get_all_sync(l_gdb_group, &l_objs_size);
@@ -1474,7 +1492,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
         if (!l_datum) {
             l_removed++;
             log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s: empty (possibly trash) value", l_objs[i].key, l_gdb_group);
-            dap_global_db_del_sync(l_gdb_group, l_objs[i].key);
+            dap_global_db_del(l_gdb_group, l_objs[i].key, NULL, NULL);
             continue;
         }
         size_t l_datum_size = dap_chain_datum_size(l_datum);
@@ -1483,7 +1501,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
             l_removed++;
             log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s. The size of the datum defined by the "
                              "function and the size specified in the record do not match.", l_objs[i].key, l_gdb_group);
-            dap_global_db_del_sync(l_gdb_group, l_objs[i].key);
+            dap_global_db_del(l_gdb_group, l_objs[i].key, NULL, NULL);
             continue;
         }
         //Filter hash
@@ -1493,7 +1511,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
             l_removed++;
             log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s. The hash of the contents of the "
                              "datum does not match the key.", l_objs[i].key, l_gdb_group);
-            dap_global_db_del_sync(l_gdb_group, l_objs[i].key);
+            dap_global_db_del(l_gdb_group, l_objs[i].key, NULL, NULL);
             continue;
         }
         //Filter time
@@ -1501,7 +1519,7 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
             l_removed++;
             log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s. The datum in the mempool was "
                              "created after the %s.", l_objs[i].key, l_gdb_group, l_cut_off_time_str);
-            dap_global_db_del_sync(l_gdb_group, l_objs[i].key);
+            dap_global_db_del(l_gdb_group, l_objs[i].key, NULL, NULL);
         }
         //Filter size decree
         if (l_datum->header.type_id == DAP_CHAIN_DATUM_DECREE) {
@@ -1510,11 +1528,11 @@ void dap_chain_mempool_filter(dap_chain_t *a_chain, int *a_removed){
                 l_removed++;
                 log_it(L_NOTICE, "Removed datum from mempool with \"%s\" key group %s. Decree datums do not have a "
                                  "valid size.", l_objs[i].key, l_gdb_group);
-                dap_global_db_del_sync(l_gdb_group, l_objs[i].key);
+                dap_global_db_del(l_gdb_group, l_objs[i].key, NULL, NULL);
             }
         }
     }
     dap_global_db_objs_delete(l_objs, l_objs_size);
-    log_it(L_NOTICE, "Filter removed: %i records.", l_removed);
+    debug_if(l_removed, L_DEBUG, "Mempool filter removed %i records.", l_removed);
     DAP_DELETE(l_gdb_group);
 }

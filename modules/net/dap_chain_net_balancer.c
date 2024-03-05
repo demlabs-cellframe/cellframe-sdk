@@ -112,7 +112,6 @@ void dap_chain_net_balancer_prepare_list_links(const char *a_net_name)
 {
     if(!dap_config_get_item_bool_default(g_config ,"general", "balancer", true))
         return;
-    dap_list_t *l_node_info_list = NULL;
     dap_chain_net_t *l_net = dap_chain_net_by_name(a_net_name);
     if (l_net == NULL) {
         log_it(L_WARNING, "There isn't any network by this name - %s", a_net_name);
@@ -127,8 +126,9 @@ void dap_chain_net_balancer_prepare_list_links(const char *a_net_name)
     if (!l_nodes_count || !l_objs)
         return;
 
-    l_node_info_list = dap_chain_net_get_node_list_cfg(l_net);
+    dap_list_t *l_node_info_list = dap_chain_net_get_node_list_cfg(l_net);
     l_blocks_events = min_count_blocks_events(l_objs,l_nodes_count,l_node_info_list);
+    dap_list_free_full(l_node_info_list, NULL);
     pthread_mutex_lock(&l_net->pub.balancer_mutex);
 
     log_it(L_DEBUG, "Overwrite node list");
@@ -150,7 +150,6 @@ void dap_chain_net_balancer_prepare_list_links(const char *a_net_name)
 
     pthread_mutex_unlock(&l_net->pub.balancer_mutex);
     dap_global_db_objs_delete(l_objs, l_nodes_count);
-    dap_list_free(l_node_info_list);
 }
 
 static int callback_compare_node_list(const void *a_item1, const void *a_item2)

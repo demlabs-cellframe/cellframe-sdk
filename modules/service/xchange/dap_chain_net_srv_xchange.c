@@ -102,9 +102,9 @@ int dap_chain_net_srv_xchange_init()
     "srv_xchange order create -net <net_name> -token_sell <token_ticker> -token_buy <token_ticker> -w <wallet_name>"
                                             " -value <value> -rate <value> -fee <value>\n"
         "\tCreate a new order and tx with specified amount of datoshi to exchange with specified rate (buy / sell)\n"
-    "srv_xchange order remove -net <net_name> -order <order_hash> -w <wallet_name>\n -fee <value_datoshi>"
+    "srv_xchange order remove -net <net_name> -order <order_hash> -w <wallet_name> -fee <value_datoshi>\n"
          "\tRemove order with specified order hash in specified net name\n"
-    "srv_xchange order history -net <net_name> {-order <order_hash> | -addr <wallet_addr>}"
+    "srv_xchange order history -net <net_name> {-order <order_hash> | -addr <wallet_addr>}\n"
          "\tShows transaction history for the selected order\n"
     "srv_xchange order status -net <net_name> -order <order_hash>\n"
          "\tShows current amount of unselled coins from the selected order and percentage of its completion\n"
@@ -1039,6 +1039,12 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Token ticker %s not found", l_token_buy_str);
                 return -6;
             }
+
+            if (!strcmp(l_token_sell_str, l_token_buy_str)){
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Tokens for buying and selling must be different!");
+                return -7;
+            }
+
             const char *l_val_sell_str = NULL, *l_val_rate_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_val_sell_str);
             if (!l_val_sell_str) {
@@ -1113,7 +1119,6 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 dap_chain_wallet_close(l_wallet);
                 return -1;
             }
-            l_price->wallet_str = dap_strdup(l_wallet_str);
             dap_stpcpy(l_price->token_sell, l_token_sell_str);
             l_price->net = l_net;
             dap_stpcpy(l_price->token_buy, l_token_buy_str);
@@ -1124,7 +1129,6 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
             dap_chain_datum_tx_t *l_tx = s_xchange_tx_create_request(l_price, l_wallet);
             if (!l_tx) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nCan't compose the conditional transaction", l_sign_str);
-                DAP_DELETE(l_price->wallet_str);
                 DAP_DELETE(l_price);
                 dap_chain_wallet_close(l_wallet);
                 return -14;
@@ -1134,7 +1138,6 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
             char* l_ret = NULL;
             if(!(l_ret = s_xchange_tx_put(l_tx, l_net))) {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "%s\nCan't put transaction to mempool", l_sign_str);
-                DAP_DELETE(l_price->wallet_str);
                 DAP_DELETE(l_price);
                 return -15;
             }
@@ -1199,23 +1202,29 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 dap_hash_fast_t l_order_tx_hash = {};
                 dap_chain_hash_fast_from_str(l_order_hash_str, &l_order_tx_hash);
                 dap_chain_datum_tx_t * l_tx = dap_chain_net_get_tx_by_hash(l_net, &l_order_tx_hash, TX_SEARCH_TYPE_NET);
+                
                 if( l_tx){
-                    int l_rc = s_tx_check_for_open_close(l_net,l_tx);
+                    xchange_tx_type_t l_tx_type = s_xchange_tx_get_type(l_net, l_tx, NULL, NULL, NULL);
                     char *l_tx_hash = dap_chain_hash_fast_to_str_new(&l_order_tx_hash);
-                    if(l_rc == 0){
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "WRONG TX %s", l_tx_hash);
-                    }else{
-                        dap_string_t * l_str_reply = dap_string_new("");
-                        dap_string_append_printf(l_str_reply, "Order %s hisrory:\n\n", l_order_hash_str);
-                        dap_list_t *l_tx_list = dap_chain_net_get_tx_cond_chain(l_net, &l_order_tx_hash, c_dap_chain_net_srv_xchange_uid );
-                        dap_list_t *l_tx_list_temp = l_tx_list;
-                        while(l_tx_list_temp ){
-                            dap_chain_datum_tx_t * l_tx_cur = (dap_chain_datum_tx_t*) l_tx_list_temp->data;
-                            s_string_append_tx_cond_info(l_str_reply, l_net, l_tx_cur, TX_STATUS_ALL, true, true, false);
-                            l_tx_list_temp = l_tx_list_temp->next;
+                    if(l_tx_type != TX_TYPE_ORDER){
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum with hash %s is not order. Check hash.", l_tx_hash);
+                    } else {
+                        int l_rc = s_tx_check_for_open_close(l_net,l_tx);
+                        if(l_rc == 0){
+                            dap_cli_server_cmd_set_reply_text(a_str_reply, "WRONG TX %s", l_tx_hash);
+                        }else{
+                            dap_string_t * l_str_reply = dap_string_new("");
+                            dap_string_append_printf(l_str_reply, "Order %s hisrory:\n\n", l_order_hash_str);
+                            dap_list_t *l_tx_list = dap_chain_net_get_tx_cond_chain(l_net, &l_order_tx_hash, c_dap_chain_net_srv_xchange_uid );
+                            dap_list_t *l_tx_list_temp = l_tx_list;
+                            while(l_tx_list_temp ){
+                                dap_chain_datum_tx_t * l_tx_cur = (dap_chain_datum_tx_t*) l_tx_list_temp->data;
+                                s_string_append_tx_cond_info(l_str_reply, l_net, l_tx_cur, TX_STATUS_ALL, true, true, false);
+                                l_tx_list_temp = l_tx_list_temp->next;
+                            }
+                            dap_list_free(l_tx_list);
+                            *a_str_reply = dap_string_free(l_str_reply, false);
                         }
-                        dap_list_free(l_tx_list);
-                        *a_str_reply = dap_string_free(l_str_reply, false);
                     }
                 }else{
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "No history");

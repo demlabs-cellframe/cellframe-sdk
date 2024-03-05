@@ -1048,7 +1048,7 @@ static int s_cli_blocks(int a_argc, char ** a_argv, void **reply)
             else
                 l_hash_tx = dap_chain_mempool_tx_reward_create(l_blocks, l_cert->enc_key, l_addr, l_block_list, l_fee_value, l_hash_out_type);
             if (l_hash_tx) {
-                dap_cli_server_cmd_set_reply_text(a_str_reply, "TX for %s collection created succefully, hash=%s\n", l_subcmd_str, l_hash_tx);
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "TX for %s collection created succefully, hash = %s\n", l_subcmd_str, l_hash_tx);
                 DAP_DELETE(l_hash_tx);
             } else {
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Can't create %s collect TX\n", l_subcmd_str);

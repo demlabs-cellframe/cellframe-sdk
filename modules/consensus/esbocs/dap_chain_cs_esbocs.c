@@ -1304,6 +1304,10 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
         }
         l_store->candidate->hdr.meta_n_datum_n_signs_size = l_store->candidate_size - sizeof(l_store->candidate->hdr);
         dap_hash_fast(l_store->candidate, l_store->candidate_size, &l_store->precommit_candidate_hash);
+        // Send own PreCommit
+        s_message_send(a_session, DAP_CHAIN_ESBOCS_MSG_TYPE_PRE_COMMIT, &l_store->candidate_hash,
+                            &l_store->precommit_candidate_hash, sizeof(dap_chain_hash_fast_t),
+                                a_session->cur_round.validators_list);
         // Process received earlier PreCommit messages
         dap_chain_esbocs_message_item_t *l_chain_message, *l_chain_message_tmp;
         HASH_ITER(hh, a_session->cur_round.message_items, l_chain_message, l_chain_message_tmp) {
@@ -1313,10 +1317,6 @@ static void s_session_state_change(dap_chain_esbocs_session_t *a_session, enum s
                 s_session_candidate_precommit(a_session, l_chain_message->message);
             }
         }
-        // Send own PreCommit
-        s_message_send(a_session, DAP_CHAIN_ESBOCS_MSG_TYPE_PRE_COMMIT, &l_store->candidate_hash,
-                            &l_store->precommit_candidate_hash, sizeof(dap_chain_hash_fast_t),
-                                a_session->cur_round.validators_list);
     } break;
     case DAP_CHAIN_ESBOCS_SESSION_STATE_PREVIOUS: {
         if (a_session->old_state != DAP_CHAIN_ESBOCS_SESSION_STATE_PREVIOUS)
@@ -2234,10 +2234,7 @@ static void s_session_packet_in(void *a_arg, dap_chain_node_addr_t *a_sender_nod
         }
         size_t l_data_objs_count = 0;
         dap_store_obj_t *l_store_objs = dap_global_db_pkt_deserialize(l_db_pkt, &l_data_objs_count);
-        for (size_t i = 0; i < l_data_objs_count; i++)
-            dap_global_db_remote_apply_obj(l_store_objs + i, NULL, NULL);
-        if (l_store_objs)
-            dap_store_obj_free(l_store_objs, l_data_objs_count);
+        dap_global_db_remote_apply_obj(l_store_objs, l_data_objs_count, NULL, NULL);
     } break;
 
     case DAP_CHAIN_ESBOCS_MSG_TYPE_SUBMIT: {
