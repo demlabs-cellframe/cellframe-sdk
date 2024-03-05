@@ -746,6 +746,7 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
 
             int res = dap_chain_net_vote_voting(l_cert, l_value_fee, l_wallet_fee, l_voting_hash, l_option_idx_count,
                                                 l_net, l_hash_out_type, &l_hash_tx);
+            dap_chain_wallet_close(l_wallet_fee);
             switch (res) {
                 case DAP_CHAIN_NET_VOTE_VOTING_OK: {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum %s is placed in the mempool.", l_hash_tx);
