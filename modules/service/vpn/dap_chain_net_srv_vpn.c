@@ -1414,7 +1414,6 @@ static void s_update_limits(dap_stream_ch_t * a_ch ,
             }
         }
 
-
         a_srv_session->limits_bytes -= (intmax_t) a_bytes;
         a_usage->is_limits_changed = true;
         if (a_srv_session->limits_bytes && a_srv_session->limits_bytes < current_limit_bytes/2 && ! a_usage->receipt_next){

@@ -44,6 +44,7 @@ OC : Oceania			geonameId=6255151
 SA : South America		geonameId=6255150
 AN : Antarctica			geonameId=6255152
  */
+
 char *s_server_continents[]={
         "None",
         "Africa",
