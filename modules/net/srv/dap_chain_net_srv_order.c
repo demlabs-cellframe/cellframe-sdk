@@ -497,7 +497,10 @@ int dap_chain_net_srv_order_find_all_by(dap_chain_net_t * a_net,const dap_chain_
             // Check ticker
             if (a_price_ticker && strcmp( l_order->price_ticker, a_price_ticker))
                 continue;
-            l_out_list = dap_list_append(l_out_list, l_order);
+            size_t l_order_mem_size = dap_chain_net_srv_order_get_size(l_order);
+            dap_chain_net_srv_order_t *l_output_order = DAP_DUP_SIZE(l_order, l_order_mem_size);
+            DAP_DEL_Z(l_order);
+            l_out_list = dap_list_append(l_out_list, l_output_order);
             l_output_orders_count++;
         }
         dap_global_db_objs_delete(l_orders, l_orders_count);
