@@ -397,13 +397,13 @@ static int s_cli_net_srv( int argc, char **argv, void **reply)
                 if ( l_price_max_str )
                     l_price_max = dap_chain_balance_scan(l_price_max_str);
 
-                l_price_unit.uint32 = dap_chain_srv_str_to_unit_enum(l_price_unit_str);
+                l_price_unit.uint32 = dap_chain_srv_str_to_unit_enum((char*)l_price_unit_str);
 
                 dap_list_t * l_orders;
                 size_t l_orders_num = 0;
                 if( dap_chain_net_srv_order_find_all_by( l_net, l_direction,l_srv_uid,l_price_unit,l_price_token_str,l_price_min, l_price_max,&l_orders,&l_orders_num) == 0 ){
                     dap_string_append_printf(l_string_ret, "Found %zu orders:\n", l_orders_num);
-                    for (dap_list_t *l_temp = l_orders;l_temp; l_temp = l_orders->next){
+                    for (dap_list_t *l_temp = l_orders;l_temp; l_temp = l_temp->next){
                         dap_chain_net_srv_order_t *l_order =(dap_chain_net_srv_order_t *) l_temp->data;
                         dap_chain_net_srv_order_dump_to_string(l_order, l_string_ret, l_hash_out_type, l_net->pub.native_ticker);
                         dap_string_append(l_string_ret,"\n");
