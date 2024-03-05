@@ -102,9 +102,9 @@ int dap_chain_net_srv_xchange_init()
     "srv_xchange order create -net <net_name> -token_sell <token_ticker> -token_buy <token_ticker> -w <wallet_name>"
                                             " -value <value> -rate <value> -fee <value>\n"
         "\tCreate a new order and tx with specified amount of datoshi to exchange with specified rate (buy / sell)\n"
-    "srv_xchange order remove -net <net_name> -order <order_hash> -w <wallet_name>\n -fee <value_datoshi>"
+    "srv_xchange order remove -net <net_name> -order <order_hash> -w <wallet_name> -fee <value_datoshi>\n"
          "\tRemove order with specified order hash in specified net name\n"
-    "srv_xchange order history -net <net_name> {-order <order_hash> | -addr <wallet_addr>}"
+    "srv_xchange order history -net <net_name> {-order <order_hash> | -addr <wallet_addr>}\n"
          "\tShows transaction history for the selected order\n"
     "srv_xchange order status -net <net_name> -order <order_hash>\n"
          "\tShows current amount of unselled coins from the selected order and percentage of its completion\n"
@@ -423,7 +423,7 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_request(dap_chain_net_srv_xchan
     dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_price->token_sell,
                                                                        &l_seller_addr, l_value_need, &l_value_transfer);
     if(!l_list_used_out) {
-        log_it(L_WARNING, "Nothing to change from % (not enough funds in %s (%s))", 
+        log_it(L_WARNING, "Nothing to change from % (not enough funds in %s (%s))",
                            dap_chain_addr_to_str( &l_seller_addr), a_price->token_sell, dap_chain_balance_print(l_value_need));
         return NULL;
     }
@@ -569,9 +569,9 @@ static dap_chain_datum_tx_t *s_xchange_tx_create_exchange(dap_chain_net_srv_xcha
     dap_list_t *l_list_used_out = dap_ledger_get_list_tx_outs_with_val(l_ledger, a_price->token_buy,
                                                                        &l_buyer_addr, l_value_need, &l_value_transfer);
     if (!l_list_used_out) {
-        log_it(L_WARNING, "Nothing to change from %s (not enough funds in %s (%s))", 
+        log_it(L_WARNING, "Nothing to change from %s (not enough funds in %s (%s))",
                         dap_chain_addr_to_str( &l_buyer_addr), a_price->token_buy, dap_chain_balance_print(l_value_need));
-     
+
         return NULL;
     }
     bool l_pay_with_native = !dap_strcmp(a_price->token_sell, l_native_ticker);
@@ -817,7 +817,7 @@ int dap_chain_net_srv_xchange_get_order_completion_rate(dap_chain_net_t *a_net, 
                     MULT_256_COIN(l_percent_completed, dap_chain_coins_to_balance("100.0"), &l_percent_completed);
                 }
             }
-            
+
             return dap_chain_balance_to_coins_uint64(l_percent_completed);
 }
 
@@ -865,7 +865,7 @@ dap_chain_net_srv_xchange_order_status_t dap_chain_net_srv_xchange_get_order_sta
             }
             DAP_DEL_Z(l_price);
             return XCHANGE_ORDER_STATUS_UNKNOWN;
-            
+
 }
 
 // Put the transaction to mempool
@@ -1144,6 +1144,10 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 dap_cli_server_cmd_set_reply_text(a_str_reply, "Command 'order create' requires parameter -token_buy");
                 return -5;
             }
+            if (!strcmp(l_token_sell_str, l_token_buy_str)){
+                dap_cli_server_cmd_set_reply_text(a_str_reply, "Tokens for buying and selling must be different!");
+                return -7;
+            }
             const char *l_val_sell_str = NULL, *l_val_rate_str = NULL;
             dap_cli_server_cmd_find_option_val(a_argv, l_arg_index, a_argc, "-value", &l_val_sell_str);
             if (!l_val_sell_str) {
@@ -1188,12 +1192,10 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 }
                 case XCHANGE_CREATE_ERROR_INVALID_ARGUMENT: {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Some parameters could not be set during a function call");
-                    DAP_DELETE(l_hash_ret);
                     return -24;
                 }
                 case XCHANGE_CREATE_ERROR_TOKEN_TICKER_SELL_IS_NOT_FOUND_LEDGER: {
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "Token ticker %s not found", l_token_sell_str);
-                    DAP_DELETE(l_hash_ret);
                     return -6;
                 }
                 case XCHANGE_CREATE_ERROR_TOKEN_TICKER_BUY_IS_NOT_FOUND_LEDGER: {
@@ -1307,22 +1309,27 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                 dap_chain_hash_fast_from_str(l_order_hash_str, &l_order_tx_hash);
                 dap_chain_datum_tx_t * l_tx = dap_chain_net_get_tx_by_hash(l_net, &l_order_tx_hash, TX_SEARCH_TYPE_NET);
                 if( l_tx){
-                    int l_rc = s_tx_check_for_open_close(l_net,l_tx);
+                    xchange_tx_type_t l_tx_type = s_xchange_tx_get_type(l_net, l_tx, NULL, NULL, NULL);
                     char *l_tx_hash = dap_chain_hash_fast_to_str_new(&l_order_tx_hash);
-                    if(l_rc == 0){
-                        dap_cli_server_cmd_set_reply_text(a_str_reply, "WRONG TX %s", l_tx_hash);
-                    }else{
-                        dap_string_t * l_str_reply = dap_string_new("");
-                        dap_string_append_printf(l_str_reply, "Order %s hisrory:\n\n", l_order_hash_str);
-                        dap_list_t *l_tx_list = dap_chain_net_get_tx_cond_chain(l_net, &l_order_tx_hash, c_dap_chain_net_srv_xchange_uid );
-                        dap_list_t *l_tx_list_temp = l_tx_list;
-                        while(l_tx_list_temp ){
-                            dap_chain_datum_tx_t * l_tx_cur = (dap_chain_datum_tx_t*) l_tx_list_temp->data;
-                            s_string_append_tx_cond_info(l_str_reply, l_net, l_tx_cur, TX_STATUS_ALL, true, true, false);
-                            l_tx_list_temp = l_tx_list_temp->next;
+                    if(l_tx_type != TX_TYPE_ORDER){
+                        dap_cli_server_cmd_set_reply_text(a_str_reply, "Datum with hash %s is not order. Check hash.", l_tx_hash);
+                    } else {
+                        int l_rc = s_tx_check_for_open_close(l_net,l_tx);
+                        if(l_rc == 0){
+                            dap_cli_server_cmd_set_reply_text(a_str_reply, "WRONG TX %s", l_tx_hash);
+                        }else{
+                            dap_string_t * l_str_reply = dap_string_new("");
+                            dap_string_append_printf(l_str_reply, "Order %s hisrory:\n\n", l_order_hash_str);
+                            dap_list_t *l_tx_list = dap_chain_net_get_tx_cond_chain(l_net, &l_order_tx_hash, c_dap_chain_net_srv_xchange_uid );
+                            dap_list_t *l_tx_list_temp = l_tx_list;
+                            while(l_tx_list_temp ){
+                                dap_chain_datum_tx_t * l_tx_cur = (dap_chain_datum_tx_t*) l_tx_list_temp->data;
+                                s_string_append_tx_cond_info(l_str_reply, l_net, l_tx_cur, TX_STATUS_ALL, true, true, false);
+                                l_tx_list_temp = l_tx_list_temp->next;
+                            }
+                            dap_list_free(l_tx_list);
+                            *a_str_reply = dap_string_free(l_str_reply, false);
                         }
-                        dap_list_free(l_tx_list);
-                        *a_str_reply = dap_string_free(l_str_reply, false);
                     }
                 }else{
                     dap_cli_server_cmd_set_reply_text(a_str_reply, "No history");
@@ -1486,12 +1493,12 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
 
             char *l_amount_coins_str = l_out_cond_last_tx ? dap_chain_balance_to_coins(l_out_cond_last_tx->header.value) : NULL;
             char *l_amount_datoshi_str = l_out_cond_last_tx ? dap_chain_balance_print(l_out_cond_last_tx->header.value) : NULL;
-            
-            
+
+
             uint64_t l_percent_completed = dap_chain_net_srv_xchange_get_order_completion_rate(l_net, l_order_tx_hash);
-            
+
             //l_percent_completed_str = dap_chain_balance_to_coins(l_percent_completed);
-            
+
             char l_tmp_buf[70] = {};
             dap_time_t l_ts_create = (dap_time_t)l_tx->header.ts_created;
             dap_ctime_r(&l_ts_create, l_tmp_buf);
@@ -1507,7 +1514,7 @@ static int s_cli_srv_xchange_order(int a_argc, char **a_argv, int a_arg_index, c
                                      l_price->net->pub.name);
 
             DAP_DEL_Z(l_tx_hash_str);
-            
+
             DAP_DEL_Z(l_amount_coins_str);
             DAP_DEL_Z(l_amount_datoshi_str);
             DAP_DEL_Z(l_cp_rate);
@@ -2575,7 +2582,7 @@ dap_chain_net_srv_xchange_create_error_t dap_chain_net_srv_xchange_create(dap_ch
         log_it(L_CRITICAL, "Memory allocation error");
         return XCHANGE_CREATE_ERROR_MEMORY_ALLOCATED;
     }
-    
+
     dap_stpcpy(l_price->token_sell, a_token_sell);
     l_price->net = a_net;
     dap_stpcpy(l_price->token_buy, a_token_buy);
@@ -2585,7 +2592,7 @@ dap_chain_net_srv_xchange_create_error_t dap_chain_net_srv_xchange_create(dap_ch
     // Create conditional transaction
     dap_chain_datum_tx_t *l_tx = s_xchange_tx_create_request(l_price, a_wallet);
     if (!l_tx) {
-    
+
         DAP_DELETE(l_price);
         return XCHANGE_CREATE_ERROR_CAN_NOT_COMPOSE_THE_CONDITIONAL_TRANSACTION;
     }
