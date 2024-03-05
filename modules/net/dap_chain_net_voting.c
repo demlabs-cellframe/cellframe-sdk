@@ -915,9 +915,14 @@ static int s_cli_voting(int a_argc, char **a_argv, char **a_str_reply)
                 DIV_256_COIN(l_results[i].weights, l_total_weight, &l_weight_percentage);
                 MULT_256_COIN(l_weight_percentage, dap_chain_coins_to_balance("100.0"), &l_weight_percentage);
                 char *l_weight_percentage_str = dap_uint256_decimal_to_round_char(l_weight_percentage, 2, true);
+                char *l_weight_coins_str = dap_chain_balance_to_coins(l_results[i].weights);
+                char *l_weight_balance_str = dap_chain_balance_print(l_results[i].weights);
                 dap_string_append_printf(l_str_out, "\nVotes: %"DAP_UINT64_FORMAT_U" (%.2f%%)\nWeight: %s (%s) %s (%s%%)\n", l_results[i].num_of_votes, l_percentage,
-                                         dap_chain_balance_to_coins(l_results[i].weights), dap_chain_balance_print(l_results[i].weights), l_net->pub.native_ticker,
+                                         l_weight_coins_str, l_weight_balance_str, l_net->pub.native_ticker,
                                                                 l_weight_percentage_str);
+                DAP_DELETE(l_weight_balance_str);
+                DAP_DELETE(l_weight_coins_str);
+                DAP_DELETE(l_weight_percentage_str);
             }
             DAP_DELETE(l_results);
             dap_string_append_printf(l_str_out, "\nTotal number of votes: %"DAP_UINT64_FORMAT_U, l_votes_count);
