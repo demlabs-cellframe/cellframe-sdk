@@ -1284,8 +1284,20 @@ int com_node(int a_argc, char ** a_argv, void **a_str_reply)
                  break;
             }
             *a_str_reply = dap_cluster_get_links_info(l_links_cluster);
-        } else
-            *a_str_reply = dap_cluster_get_links_info(NULL);
+        } else {
+            const char *l_guuid_str;
+            dap_cluster_t *l_cluster = NULL;
+            dap_cli_server_cmd_find_option_val(a_argv, arg_index, a_argc, "-cluster", &l_guuid_str);
+            if (l_guuid_str) {
+                dap_guuid_t l_guuid = { .raw = dap_uint128_from_hex_str(l_guuid_str) };
+                l_cluster = dap_cluster_find(l_guuid);
+                if (!l_cluster) {
+                    dap_cli_server_cmd_set_reply_text(a_str_reply, "Not found cluster with ID %s", l_guuid_str);
+                    break;
+                }
+            }
+            *a_str_reply = dap_cluster_get_links_info(l_cluster);
+        }
     } break;
 
     case  CMD_BAN: {
